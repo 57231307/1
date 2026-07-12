@@ -136,20 +136,24 @@ impl InventoryFinanceBridgeService {
                     );
 
                     let bridge_service = InventoryFinanceBridgeService::new(db.clone());
+                    // 批次 337 v10 复审 P3 修复：使用 VoucherCreateArgs 参数对象替代多参数
+                    let voucher_args = VoucherCreateArgs {
+                        product_id,
+                        warehouse_id,
+                        quantity_meters,
+                        quantity_kg,
+                        source_bill_type: source_bill_type.as_deref(),
+                        source_bill_no: source_bill_no.as_deref(),
+                        source_bill_id,
+                        batch_no: &batch_no,
+                        color_no: &color_no,
+                        created_by,
+                    };
                     if let Err(e) = bridge_service
                         .handle_inventory_transaction(
                             transaction_id,
                             &transaction_type,
-                            product_id,
-                            warehouse_id,
-                            quantity_meters,
-                            quantity_kg,
-                            source_bill_type.as_deref(),
-                            source_bill_no.as_deref(),
-                            source_bill_id,
-                            &batch_no,
-                            &color_no,
-                            created_by,
+                            voucher_args,
                         )
                         .await
                     {
@@ -178,103 +182,37 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 处理库存交易事件，生成相应的会计凭证
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 337 v10 复审 P3 修复：签名从 12 参数改为单一参数对象 `VoucherCreateArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。transaction_type 改为 args 内嵌字段处理
+    /// 不再单独传递，通过 match 分发到 5 个 create_*_voucher 私有函数。
     async fn handle_inventory_transaction(
         &self,
         _transaction_id: i32,
         transaction_type: &str,
-        product_id: i32,
-        warehouse_id: i32,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        source_bill_type: Option<&str>,
-        source_bill_no: Option<&str>,
-        source_bill_id: Option<i32>,
-        batch_no: &str,
-        color_no: &str,
-        created_by: Option<i32>,
+        args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
         // 根据交易类型生成不同的凭证
         match transaction_type {
             "PURCHASE_RECEIPT" => {
                 // 采购入库凭证：借：库存商品 / 贷：应付账款
-                self.create_purchase_receipt_voucher(
-                    product_id,
-                    warehouse_id,
-                    quantity_meters,
-                    quantity_kg,
-                    source_bill_type,
-                    source_bill_no,
-                    source_bill_id,
-                    batch_no,
-                    color_no,
-                    created_by,
-                )
-                .await?;
+                self.create_purchase_receipt_voucher(args).await?;
             }
             "SALES_DELIVERY" => {
                 // 销售出库凭证：借：主营业务成本 / 贷：库存商品
-                self.create_sales_delivery_voucher(
-                    product_id,
-                    warehouse_id,
-                    quantity_meters,
-                    quantity_kg,
-                    source_bill_type,
-                    source_bill_no,
-                    source_bill_id,
-                    batch_no,
-                    color_no,
-                    created_by,
-                )
-                .await?;
+                self.create_sales_delivery_voucher(args).await?;
             }
             "INVENTORY_ADJUSTMENT" => {
                 // 库存调整凭证
-                self.create_inventory_adjustment_voucher(
-                    product_id,
-                    warehouse_id,
-                    quantity_meters,
-                    quantity_kg,
-                    source_bill_type,
-                    source_bill_no,
-                    source_bill_id,
-                    batch_no,
-                    color_no,
-                    created_by,
-                )
-                .await?;
+                self.create_inventory_adjustment_voucher(args).await?;
             }
             "PRODUCTION_RECEIPT" => {
                 // 生产入库凭证：借：库存商品 / 贷：生产成本
-                self.create_production_receipt_voucher(
-                    product_id,
-                    warehouse_id,
-                    quantity_meters,
-                    quantity_kg,
-                    source_bill_type,
-                    source_bill_no,
-                    source_bill_id,
-                    batch_no,
-                    color_no,
-                    created_by,
-                )
-                .await?;
+                self.create_production_receipt_voucher(args).await?;
             }
             "PRODUCTION_ISSUE" => {
                 // 生产领料凭证：借：生产成本 / 贷：库存商品
-                self.create_production_issue_voucher(
-                    product_id,
-                    warehouse_id,
-                    quantity_meters,
-                    quantity_kg,
-                    source_bill_type,
-                    source_bill_no,
-                    source_bill_id,
-                    batch_no,
-                    color_no,
-                    created_by,
-                )
-                .await?;
+                self.create_production_issue_voucher(args).await?;
             }
             _ => {
                 info!("未处理的库存交易类型: {}", transaction_type);
@@ -484,20 +422,24 @@ impl InventoryFinanceBridgeService {
     /// 创建库存调整凭证
     /// 盘盈：借：库存商品 / 贷：待处理财产损溢
     /// 盘亏：借：待处理财产损溢 / 贷：库存商品
-    #[allow(clippy::too_many_arguments)]
+    /// 批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     async fn create_inventory_adjustment_voucher(
         &self,
-        product_id: i32,
-        warehouse_id: i32,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        source_bill_type: Option<&str>,
-        source_bill_no: Option<&str>,
-        source_bill_id: Option<i32>,
-        batch_no: &str,
-        color_no: &str,
-        created_by: Option<i32>,
+        args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
+        let VoucherCreateArgs {
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = args;
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
         // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
         if quantity_meters.is_zero() {
@@ -615,20 +557,24 @@ impl InventoryFinanceBridgeService {
 
     /// 创建生产入库凭证
     /// 借：库存商品 / 贷：生产成本
-    #[allow(clippy::too_many_arguments)]
+    /// 批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     async fn create_production_receipt_voucher(
         &self,
-        product_id: i32,
-        warehouse_id: i32,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        source_bill_type: Option<&str>,
-        source_bill_no: Option<&str>,
-        source_bill_id: Option<i32>,
-        batch_no: &str,
-        color_no: &str,
-        created_by: Option<i32>,
+        args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
+        let VoucherCreateArgs {
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = args;
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
         // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
         if quantity_meters.is_zero() {
@@ -708,20 +654,24 @@ impl InventoryFinanceBridgeService {
 
     /// 创建生产领料凭证
     /// 借：生产成本 / 贷：库存商品
-    #[allow(clippy::too_many_arguments)]
+    /// 批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     async fn create_production_issue_voucher(
         &self,
-        product_id: i32,
-        warehouse_id: i32,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        source_bill_type: Option<&str>,
-        source_bill_no: Option<&str>,
-        source_bill_id: Option<i32>,
-        batch_no: &str,
-        color_no: &str,
-        created_by: Option<i32>,
+        args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
+        let VoucherCreateArgs {
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = args;
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
         // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
         if quantity_meters.is_zero() {
