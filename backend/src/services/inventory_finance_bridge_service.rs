@@ -198,20 +198,32 @@ impl InventoryFinanceBridgeService {
                 // 采购入库凭证：借：库存商品 / 贷：应付账款
                 self.create_purchase_receipt_voucher(args).await?;
             }
+            "PURCHASE_RETURN" => {
+                // 批次 356 v13 复审 B-P0-5 修复：采购退货凭证
+                // 借：应付账款（红字） / 贷：库存商品（红字）
+                self.create_purchase_return_voucher(args).await?;
+            }
             "SALES_DELIVERY" => {
                 // 销售出库凭证：借：主营业务成本 / 贷：库存商品
                 self.create_sales_delivery_voucher(args).await?;
+            }
+            "SALES_RETURN" => {
+                // 批次 356 v13 复审 B-P0-6 修复：销售退货凭证
+                // 借：库存商品 / 贷：主营业务成本（红字反转）
+                self.create_sales_return_voucher(args).await?;
             }
             "INVENTORY_ADJUSTMENT" => {
                 // 库存调整凭证
                 self.create_inventory_adjustment_voucher(args).await?;
             }
-            "PRODUCTION_RECEIPT" => {
+            "PRODUCTION_RECEIPT" | "PRODUCTION_OUTPUT" => {
                 // 生产入库凭证：借：库存商品 / 贷：生产成本
+                // 批次 356 v13 复审 B-P0-4 修复：兼容 PRODUCTION_OUTPUT 事件类型
                 self.create_production_receipt_voucher(args).await?;
             }
-            "PRODUCTION_ISSUE" => {
+            "PRODUCTION_ISSUE" | "PRODUCTION_CONSUMPTION" => {
                 // 生产领料凭证：借：生产成本 / 贷：库存商品
+                // 批次 356 v13 复审 B-P0-4 修复：兼容 PRODUCTION_CONSUMPTION 事件类型
                 self.create_production_issue_voucher(args).await?;
             }
             _ => {
@@ -310,7 +322,8 @@ impl InventoryFinanceBridgeService {
         // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
         let user_id =
             created_by.ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
-        let voucher = voucher_service.create(voucher_request, user_id).await?;
+        // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
+        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
 
         info!(
             "自动生成采购入库凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
@@ -409,7 +422,8 @@ impl InventoryFinanceBridgeService {
         // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
         let user_id =
             created_by.ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
-        let voucher = voucher_service.create(voucher_request, user_id).await?;
+        // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
+        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
 
         info!(
             "自动生成销售出库凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
@@ -545,7 +559,8 @@ impl InventoryFinanceBridgeService {
         // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
         let user_id =
             created_by.ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
-        let voucher = voucher_service.create(voucher_request, user_id).await?;
+        // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
+        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
 
         info!(
             "自动生成库存调整凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
@@ -642,7 +657,8 @@ impl InventoryFinanceBridgeService {
         // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
         let user_id =
             created_by.ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
-        let voucher = voucher_service.create(voucher_request, user_id).await?;
+        // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
+        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
 
         info!(
             "自动生成生产入库凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
@@ -740,10 +756,199 @@ impl InventoryFinanceBridgeService {
         // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
         let user_id =
             created_by.ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
-        let voucher = voucher_service.create(voucher_request, user_id).await?;
+        // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
+        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
 
         info!(
             "自动生成生产领料凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
+            voucher.voucher_no, batch_no, color_no
+        );
+
+        Ok(())
+    }
+
+    /// 创建采购退货凭证
+    /// 借：应付账款（红字）
+    /// 贷：库存商品（红字）
+    ///
+    /// 批次 356 v13 复审 B-P0-5 修复：采购退货财务凭证未生成
+    /// 采购退货业务流闭环：purchase_return_service → 发布 PURCHASE_RETURN 事件 →
+    /// inventory_finance_bridge_service 生成红字凭证
+    async fn create_purchase_return_voucher(
+        &self,
+        args: VoucherCreateArgs<'_>,
+    ) -> Result<(), AppError> {
+        let VoucherCreateArgs {
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = args;
+        if quantity_meters.is_zero() {
+            return Err(AppError::validation(
+                "quantity_meters 不能为 0，无法计算单价",
+            ));
+        }
+        let (product_name, cost_price) = self
+            .get_product_info(product_id)
+            .await
+            .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
+        let warehouse_name = self
+            .get_warehouse_name(warehouse_id)
+            .await
+            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
+
+        let summary = format!(
+            "采购退货：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
+        );
+
+        let amount = (cost_price * quantity_meters.abs()).round_dp(2);
+
+        let voucher_request = CreateVoucherRequest {
+            voucher_type: "记".to_string(),
+            voucher_date: chrono::Utc::now().date_naive(),
+            source_type: source_bill_type.map(|s| s.to_string()),
+            source_module: Some("inventory".to_string()),
+            source_bill_id,
+            source_bill_no: source_bill_no.map(|s| s.to_string()),
+            batch_no: Some(batch_no.to_string()),
+            color_no: Some(color_no.to_string()),
+            items: vec![
+                // 借：应付账款（红字）
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 1,
+                    subject_code: "2202",
+                    subject_name: "应付账款",
+                    debit: amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.clone()),
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                }),
+                // 贷：库存商品（红字）
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 2,
+                    subject_code: "1405",
+                    subject_name: "库存商品",
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    summary: Some(summary.clone()),
+                    quantity_meters: Some(quantity_meters),
+                    quantity_kg: Some(quantity_kg),
+                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                }),
+            ],
+        };
+
+        let voucher_service = VoucherService::new(self.db.clone());
+        let user_id =
+            created_by.ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
+        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
+
+        info!(
+            "自动生成采购退货凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
+            voucher.voucher_no, batch_no, color_no
+        );
+
+        Ok(())
+    }
+
+    /// 创建销售退货凭证
+    /// 借：库存商品
+    /// 贷：主营业务成本（红字反转）
+    ///
+    /// 批次 356 v13 复审 B-P0-6 修复：销售退货财务凭证未生成
+    /// 销售退货业务流闭环：sales_return_service → 发布 SALES_RETURN 事件 →
+    /// inventory_finance_bridge_service 生成红字凭证
+    async fn create_sales_return_voucher(
+        &self,
+        args: VoucherCreateArgs<'_>,
+    ) -> Result<(), AppError> {
+        let VoucherCreateArgs {
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = args;
+        if quantity_meters.is_zero() {
+            return Err(AppError::validation(
+                "quantity_meters 不能为 0，无法计算单价",
+            ));
+        }
+        let (product_name, cost_price) = self
+            .get_product_info(product_id)
+            .await
+            .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
+        let warehouse_name = self
+            .get_warehouse_name(warehouse_id)
+            .await
+            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
+
+        let summary = format!(
+            "销售退货：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
+        );
+
+        let amount = (cost_price * quantity_meters.abs()).round_dp(2);
+
+        let voucher_request = CreateVoucherRequest {
+            voucher_type: "记".to_string(),
+            voucher_date: chrono::Utc::now().date_naive(),
+            source_type: source_bill_type.map(|s| s.to_string()),
+            source_module: Some("inventory".to_string()),
+            source_bill_id,
+            source_bill_no: source_bill_no.map(|s| s.to_string()),
+            batch_no: Some(batch_no.to_string()),
+            color_no: Some(color_no.to_string()),
+            items: vec![
+                // 借：库存商品（退货入库）
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 1,
+                    subject_code: "1405",
+                    subject_name: "库存商品",
+                    debit: amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.clone()),
+                    quantity_meters: Some(quantity_meters),
+                    quantity_kg: Some(quantity_kg),
+                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                }),
+                // 贷：主营业务成本（红字反转）
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 2,
+                    subject_code: "6401",
+                    subject_name: "主营业务成本",
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    summary: Some(summary.clone()),
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                }),
+            ],
+        };
+
+        let voucher_service = VoucherService::new(self.db.clone());
+        let user_id =
+            created_by.ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
+        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
+
+        info!(
+            "自动生成销售退货凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
             voucher.voucher_no, batch_no, color_no
         );
 

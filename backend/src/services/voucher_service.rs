@@ -156,6 +156,25 @@ impl VoucherService {
         Ok(voucher)
     }
 
+    /// 创建并自动过账凭证（用于库存桥接等自动凭证场景）
+    ///
+    /// 批次 356 v13 复审 F-P0-1+F-P0-2 修复：
+    /// - F-P0-1：post 内部调用 update_account_balances 实现科目余额回写
+    /// - F-P0-2：库存桥接凭证只 create 不 post，现改为 create_and_post 自动过账
+    ///
+    /// 自动完成 DRAFT → SUBMITTED → REVIEWED → POSTED 状态流转，
+    /// 适用于库存桥接等无需人工审核的自动凭证场景。
+    pub async fn create_and_post(
+        &self,
+        req: CreateVoucherRequest,
+        user_id: i32,
+    ) -> Result<voucher::Model, AppError> {
+        let created = self.create(req, user_id).await?;
+        self.submit(created.id, user_id).await?;
+        self.review(created.id, user_id).await?;
+        self.post(created.id, user_id).await
+    }
+
     /// P2 1-6 修复：校验期间锁定 + 借贷平衡（从 create 抽取）
     async fn validate_voucher_create_req(
         req: &CreateVoucherRequest,

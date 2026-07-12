@@ -519,6 +519,45 @@ impl ProductionOrderService {
             EVENT_BUS.publish(ev);
         }
 
+        // 批次 356 v13 复审 B-P0-3 修复：生产订单成本核算链路闭环
+        // 原实现 complete_production_order 不调用 CostCollectionService，
+        // 导致生产成本无法归集，产品成本失真，BI 报表成本数据缺失。
+        // 修复：commit 成功后调用 CostCollectionService 做成本归集。
+        let cost_service =
+            crate::services::cost_collection_service::CostCollectionService::new(self.db.clone());
+        let product = ProductEntity::find_by_id(updated.product_id)
+            .one(&*self.db)
+            .await?;
+        let cost_price = product
+            .as_ref()
+            .and_then(|p| p.cost_price)
+            .unwrap_or(Decimal::ZERO);
+        let actual_qty = updated.actual_quantity.unwrap_or(updated.planned_quantity);
+        let total_material_cost = cost_price * actual_qty;
+        let cost_req = crate::services::cost_collection_service::CreateCostCollectionRequest {
+            collection_date: chrono::Utc::now().date_naive(),
+            cost_object_type: Some("production_order".to_string()),
+            cost_object_id: Some(updated.id),
+            cost_object_no: Some(updated.order_no.clone()),
+            batch_no: None,
+            color_no: None,
+            workshop: None,
+            direct_material: total_material_cost,
+            direct_labor: Decimal::ZERO,
+            manufacturing_overhead: Decimal::ZERO,
+            processing_fee: Decimal::ZERO,
+            dyeing_fee: Decimal::ZERO,
+            output_quantity_meters: Some(actual_qty),
+            output_quantity_kg: None,
+        };
+        if let Err(e) = cost_service.create(cost_req, updated.created_by).await {
+            tracing::warn!(
+                order_id = updated.id,
+                error = %e,
+                "批次 356 B-P0-3: 生产订单成本归集失败，请人工检查"
+            );
+        }
+
         Ok(updated)
     }
 
