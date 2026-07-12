@@ -78,6 +78,33 @@ fn compute_alert_type(s: &inventory_stock::Model) -> &'static str {
 
 use super::inventory_stock_service::{InventoryStockService, InventorySummaryQueryResult};
 
+/// 库存流水查询参数对象
+///
+/// 批次 335 v10 复审 P3 修复：引入参数对象消除 list_transactions 的 too_many_arguments 警告。
+/// 聚合分页与过滤条件，避免函数签名携带 9 个参数。
+/// 与 handler 层的 `ListTransactionParams` 分离，service 层不依赖 axum 的 Deserialize。
+#[derive(Debug, Clone)]
+pub struct ListTransactionsQuery {
+    /// 页码（1-based，service 内部转换为 0-based）
+    pub page: u64,
+    /// 每页大小
+    pub page_size: u64,
+    /// 批次号过滤
+    pub batch_no: Option<String>,
+    /// 色号过滤
+    pub color_no: Option<String>,
+    /// 产品 ID 过滤
+    pub product_id: Option<i32>,
+    /// 仓库 ID 过滤
+    pub warehouse_id: Option<i32>,
+    /// 事务类型过滤
+    pub transaction_type: Option<String>,
+    /// 起始日期过滤
+    pub start_date: Option<chrono::NaiveDateTime>,
+    /// 结束日期过滤
+    pub end_date: Option<chrono::NaiveDateTime>,
+}
+
 impl InventoryStockService {
     // TODO(tech-debt): 库存流水记录字段较多，后续可通过 DTO 聚合参数以收敛签名长度，移除此标注。
     #[allow(clippy::too_many_arguments)]
@@ -148,55 +175,61 @@ impl InventoryStockService {
     }
 
     /// 查询库存流水
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 335 v10 复审 P3 修复：签名从 9 参数改为单一参数对象 `ListTransactionsQuery`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn list_transactions(
         &self,
-        page: u64,
-        page_size: u64,
-        batch_no: Option<String>,
-        color_no: Option<String>,
-        product_id: Option<i32>,
-        warehouse_id: Option<i32>,
-        transaction_type: Option<String>,
-        start_date: Option<chrono::NaiveDateTime>,
-        end_date: Option<chrono::NaiveDateTime>,
+        query: ListTransactionsQuery,
     ) -> Result<(Vec<inventory_transaction::Model>, u64), AppError> {
-        let mut query = inventory_transaction::Entity::find()
+        // 解构参数对象，便于函数体内按字段名访问
+        let ListTransactionsQuery {
+            page,
+            page_size,
+            batch_no,
+            color_no,
+            product_id,
+            warehouse_id,
+            transaction_type,
+            start_date,
+            end_date,
+        } = query;
+
+        let mut q = inventory_transaction::Entity::find()
             .order_by(inventory_transaction::Column::CreatedAt, Order::Asc);
 
         if let Some(batch) = batch_no {
-            query = query.filter(inventory_transaction::Column::BatchNo.eq(batch));
+            q = q.filter(inventory_transaction::Column::BatchNo.eq(batch));
         }
 
         if let Some(color) = color_no {
-            query = query.filter(inventory_transaction::Column::ColorNo.eq(color));
+            q = q.filter(inventory_transaction::Column::ColorNo.eq(color));
         }
 
         if let Some(pid) = product_id {
-            query = query.filter(inventory_transaction::Column::ProductId.eq(pid));
+            q = q.filter(inventory_transaction::Column::ProductId.eq(pid));
         }
 
         if let Some(wid) = warehouse_id {
-            query = query.filter(inventory_transaction::Column::WarehouseId.eq(wid));
+            q = q.filter(inventory_transaction::Column::WarehouseId.eq(wid));
         }
 
         if let Some(transaction_type) = transaction_type {
-            query =
-                query.filter(inventory_transaction::Column::TransactionType.eq(transaction_type));
+            q = q.filter(inventory_transaction::Column::TransactionType.eq(transaction_type));
         }
 
         if let Some(start_date) = start_date {
-            query = query.filter(inventory_transaction::Column::CreatedAt.gte(start_date));
+            q = q.filter(inventory_transaction::Column::CreatedAt.gte(start_date));
         }
 
         if let Some(end_date) = end_date {
-            query = query.filter(inventory_transaction::Column::CreatedAt.lte(end_date));
+            q = q.filter(inventory_transaction::Column::CreatedAt.lte(end_date));
         }
 
         // 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
         // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
         // 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
-        let paginator = query.paginate(&*self.db, page_size);
+        let paginator = q.paginate(&*self.db, page_size);
         let (transactions, total) =
             paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
