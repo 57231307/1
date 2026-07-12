@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 333 | #505 | v10 复审 P3 too_many_arguments DTO 重构 1 项（po/price.rs create_purchase_suggestion_from_shortage 8→1 参数引入 ShortageAlertParams 参数对象，event_bus.rs BusinessEvent::MaterialShortageAlert 处理分支同步修改） |
 | 332 | #504 | v10 复审 P3 too_many_arguments DTO 重构 1 项（order_change_history_service.rs record_change 9 参数含 &self→1 参数对象 OrderChangeRecord，record_order_created 内部调用方同步修改，record_change 调用链分析仅内部使用） |
 | 331 | #503 | v10 复审 P3 too_many_arguments DTO 重构 1 项（utils/app_state.rs with_secrets_and_cors 8→1 参数引入 AppStateParams 参数对象，main.rs 调用方同步修改，补充 clippy baseline 3 项 path_validator dead code 预存技术债务） |
 | 330 | #502 | v10 复审 P3 误报 too_many_arguments 删除 5 项 + DTO 重构 1 项（5 误报：create_product_color/get_inventory_summary/explode_bom/run_mrp_calculation 各 7 参数 + create_receivable 6 参数，clippy 不计 &self 阈值 7；1 DTO：update_product_color 8→1 参数引入 UpdateProductColorParams，规则 10 记忆整理批次 290-329 归档） |
