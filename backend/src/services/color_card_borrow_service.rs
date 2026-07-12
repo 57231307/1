@@ -9,6 +9,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
+use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -46,6 +47,8 @@ pub enum BorrowStatus {
 // v11 批次 147 P2-B：移除失效的 dead_code 标注
 // - from_str 在 service 内部 line 160/203/260 调用
 // - is_terminal / as_str 在业务中真实接入（v11 P1-5 真实实现）
+// 批次 344 v11 复审 P1 修复：from_str 方法迁移到 std::str::FromStr trait，
+// 消除 clippy::should_implement_trait 警告
 impl BorrowStatus {
     /// 序列化为字符串（持久化到数据库的稳定字符串）
     pub fn as_str(&self) -> &'static str {
@@ -57,21 +60,36 @@ impl BorrowStatus {
         }
     }
 
-    /// 从字符串解析借出状态（保持 Option 返回值以兼容现有调用方及测试）
-    #[allow(clippy::should_implement_trait)] // TODO(tech-debt): 业务稳定后迁移到 std::str::FromStr
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "borrowed" => Some(Self::Borrowed),
-            "returned" => Some(Self::Returned),
-            "lost" => Some(Self::Lost),
-            "damaged" => Some(Self::Damaged),
-            _ => None,
-        }
-    }
-
     /// 是否为终态（终态不可再转换为其它状态）
     pub fn is_terminal(&self) -> bool {
         matches!(self, Self::Returned | Self::Lost | Self::Damaged)
+    }
+}
+
+/// BorrowStatus 解析错误
+#[derive(Debug, Clone)]
+pub struct BorrowStatusParseError(pub String);
+
+impl std::fmt::Display for BorrowStatusParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BorrowStatus 解析失败: {}", self.0)
+    }
+}
+
+impl std::error::Error for BorrowStatusParseError {}
+
+/// 批次 344 v11 复审 P1 修复：实现 std::str::FromStr trait 替代 from_str 方法
+impl FromStr for BorrowStatus {
+    type Err = BorrowStatusParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "borrowed" => Ok(Self::Borrowed),
+            "returned" => Ok(Self::Returned),
+            "lost" => Ok(Self::Lost),
+            "damaged" => Ok(Self::Damaged),
+            _ => Err(BorrowStatusParseError(s.to_string())),
+        }
     }
 }
 
@@ -157,7 +175,7 @@ impl ColorCardBorrowService {
 
         // 状态机校验
         let current = BorrowStatus::from_str(&existing.status)
-            .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
+            .map_err(|_| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
         if current.is_terminal() {
             return Err(BorrowError::InvalidState(format!(
                 "当前状态 {} 不允许归还操作",
@@ -200,7 +218,7 @@ impl ColorCardBorrowService {
             .await?
             .ok_or(BorrowError::RecordNotFound)?;
         let current = BorrowStatus::from_str(&existing.status)
-            .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
+            .map_err(|_| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
         if current.is_terminal() {
             return Err(BorrowError::InvalidState(format!(
                 "当前状态 {} 不允许登记遗失",
@@ -257,7 +275,7 @@ impl ColorCardBorrowService {
             .await?
             .ok_or(BorrowError::RecordNotFound)?;
         let current = BorrowStatus::from_str(&existing.status)
-            .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
+            .map_err(|_| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
         if current.is_terminal() {
             return Err(BorrowError::InvalidState(format!(
                 "当前状态 {} 不允许标记损坏",
