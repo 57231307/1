@@ -15,7 +15,7 @@
 
 ---
 
-## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 24/~42 ⏳）
+## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 25/~42 ⏳）
 
 > **v10 复审报告**（2026-07-12，Task 工具扫描）：v9 + sea-orm 调研 + 规则 14 新增后复审，扫描所有 `#[allow(...)]` 警告抑制。
 > 发现 180 个抑制标注（108 例外 models/ + 72 非例外），非例外分类：1 P0 + 5 P1 + 4 P2 + ~42 P3。
@@ -28,10 +28,15 @@
 | 🔴 P0 死代码 | 1 | 1 | 0 | ✅ 全部完成（批次 325） |
 | 🟠 P1 文件级抑制过宽+未使用重导出 | 5 | 5 | 0 | ✅ 全部完成（批次 325） |
 | 🟡 P2 clippy 代码味道 | 4 | 4 | 0 | ✅ 全部完成（批次 326，pred.rs 2 项已在 main 修复） |
-| 🟢 P3 too_many_arguments | ~42 | 24 | ~18 | ⏳ 长期重构（批次 327+） |
-| **合计** | **~52** | **34** | **~18** | 🔄 进行中 |
+| 🟢 P3 too_many_arguments | ~42 | 25 | ~17 | ⏳ 长期重构（批次 327+） |
+| **合计** | **~52** | **35** | **~17** | 🔄 进行中 |
 
-### ✅ 已完成（批次 325-334）
+### ✅ 已完成（批次 325-335）
+
+**批次 335（PR #507）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
+- `inventory_stock_query.rs list_transactions`：9 参数 → 1 参数，引入 `ListTransactionsQuery` 参数对象（page/page_size/batch_no/color_no/product_id/warehouse_id/transaction_type/start_date/end_date）
+- 在 service 层定义独立 `ListTransactionsQuery`，与 handler 层 `ListTransactionParams` 分离（service 不依赖 axum Deserialize）
+- 同步更新 `inventory_stock_handler_query.rs` 调用方构造 `ListTransactionsQuery`，函数体内 `query` 变量重命名为 `q` 避免与参数名冲突
 
 **批次 334（PR #506）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
 - `inventory_finance_bridge_service.rs make_voucher_item`：9 参数 → 1 参数，引入 `VoucherItemArgs<'a>` 参数对象（line_no/subject_code/subject_name/debit/credit/summary/quantity_meters/quantity_kg/unit_price）
