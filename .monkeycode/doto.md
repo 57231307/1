@@ -23,10 +23,11 @@
 
 ### ✅ 已完成（批次 317-323）
 
-**批次 323（PR #TBD）**：低危代码味道修复 3 项
+**批次 323（PR #495）**：低危代码味道修复 3 项
 - extract_update_package 60+ 行拆分为 prepare_extract_dir + extract_zip_entry
 - cmd_backup 95 行拆分为 backup_database + backup_config_files + compress_backup
 - cmd_restore 128 行拆分为 validate_tar_contents + restore_database + restore_config_files
+- 附：编译错误修复（zip::read::ZipFile 类型路径 + timestamp() u64 转 String）+ collapsible_if 警告消除（合并嵌套 if）
 
 **批次 322（PR #494）**：低危代码质量修复 3 项
 - 抽取 backup.rs + upgrade.rs 重复路径校验到 utils/path_validator 共享模块 + 4 个单元测试
