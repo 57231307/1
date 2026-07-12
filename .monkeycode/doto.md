@@ -146,41 +146,43 @@
 
 ---
 
-## 🔥 当前任务：v11 复审问题修复（P0 0/1，P1 0/8，P2 0/10 保留，P3 0/8 保留）
+## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 4/8 ✅，P2 0/10 保留，P3 0/8 保留）
 
 > **v11 复审报告**（2026-07-12，批次 339 合并后 Task 工具扫描）：v10 复审全部完成后复审，扫描所有剩余 `#[allow(...)]` 警告抑制（非 models/ SeaORM 例外）。
 > 发现 27 个抑制标注：1 P0 + 8 P1 + 10 P2（带 TODO 保留）+ 8 P3（合理保留）。
 > 修复策略：按规则 13+14 连续执行，P0 → P1，每批 5-6 个文件，CI 全绿后合并 main。
 > P2 项均带 TODO(tech-debt) 标注，待业务接入后移除；P3 项为测试代码防御性抑制，合理保留。
+> **批次 340 已完成**：P0 1/1 ✅ + P1 4/8 ✅（剩余 4 项为宏内合理保留 2 项 + baseline TODO 1 项 + should_implement_trait TODO 1 项）
 
 ### 进度总览
 
 | 优先级 | 总数 | 已完成 | 剩余 | 状态 |
 |--------|------|--------|------|------|
-| 🔴 P0 文件级抑制超出例外 | 1 | 0 | 1 | ⏳ 待修复 |
-| 🟠 P1 clippy 警告抑制 | 8 | 0 | 8 | ⏳ 待修复 |
+| 🔴 P0 文件级抑制超出例外 | 1 | 1 | 0 | ✅ 全部完成（批次 340） |
+| 🟠 P1 clippy 警告抑制 | 8 | 4 | 4 | ✅ 可修复项全部完成（批次 340，剩余 4 项为合理保留/TODO） |
 | 🟡 P2 带 TODO 的 dead_code | 10 | 0 | 10 | ⏸️ 保留（待业务接入） |
 | 🟢 P3 测试代码/防御性抑制 | 8 | 0 | 8 | ⏸️ 合理保留 |
-| **合计** | **27** | **0** | **27** | 🔄 进行中 |
+| **合计** | **27** | **5** | **22** | ✅ 可修复项全部完成 |
 
-### 🔴 P0 待修复项（1 项）
+### ✅ 已完成（批次 340）
 
-**P0-1：business_trace_snapshot.rs 文件级抑制超出例外范围**
-- 文件：`/workspace/backend/src/models/business_trace_snapshot.rs:1`
-- 抑制：`#![allow(dead_code, unused_imports, unused_variables)]`
-- 问题：项目规则仅允许 models/ 下 SeaORM 自动生成模型保留 `#![allow(dead_code)]`，该文件额外抑制了 `unused_imports` 和 `unused_variables``，超出例外范围
-- 修复：收窄为 `#![allow(dead_code)]`，清理真实的未使用导入与变量
+**批次 340（PR #512）**：v11 复审 P0+P1 警告抑制移除 5 项（5 文件）
+- P0-1：`business_trace_snapshot.rs` 文件级抑制从 `#![allow(dead_code, unused_imports, unused_variables)]` 收窄为 `#![allow(dead_code)]`，符合项目规则例外
+- P1-3+P1-4：`import_export_service.rs` 移除 `needless_pass_by_value` 误报抑制（`&str` 和 `&T` 引用类型不触发此 lint）
+- P1-1：`auth_handler.rs` 移除 `redundant_clone` 抑制（baseline 无此警告）
+- P1-2：`auth_handler_misc.rs` 移除 `redundant_clone` 抑制
+- P1-5：`inventory_count_service.rs` 移除 `default_constructed_unit_structs` 抑制，`Entity::default()` 改为 `Entity`（unit struct 无需 default 构造）
 
-### 🟠 P1 待修复项（8 项）
+### 🔴 P0 待修复项（0 项 ✅ 全部完成）
 
-**P1-1：auth_handler.rs:205 redundant_clone** — login 函数 audit_ctx.clone() + csrf_token.clone()
-**P1-2：auth_handler_misc.rs:34 redundant_clone** — refresh_token 函数 token.clone() + csrf_token.clone()
-**P1-3：import_export_service.rs:211 needless_pass_by_value** — parse_csv content: &str 参数
-**P1-4：import_export_service.rs:242 needless_pass_by_value** — validate_import_data data: &[Vec<String>] + template: &ImportTemplate
-**P1-5：inventory_count_service.rs:72 default_constructed_unit_structs** — SeaORM Entity::default() 模式
-**P1-6：crud_macro.rs:35 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留）
-**P1-7：crud_macro.rs:47 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留）
-**P1-8：color_card_borrow_service.rs:61 should_implement_trait** — from_str 方法 + TODO 迁移到 FromStr trait
+v11 复审 P0 已在批次 340 全部修复完成。
+
+### 🟠 P1 剩余项（4 项，合理保留/TODO）
+
+**P1-6：crud_macro.rs:35 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留，宏 metavariable 必须 ::default()）
+**P1-7：crud_macro.rs:47 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留，同 P1-6）
+**P1-8：color_card_borrow_service.rs:61 should_implement_trait** — from_str 方法 + TODO 迁移到 std::str::FromStr trait（在 baseline 中，长期重构）
+**P1-备注**：P1-1~P1-5 已在批次 340 修复完成
 
 ### 🟡 P2 保留项（10 项，带 TODO(tech-debt)）
 
