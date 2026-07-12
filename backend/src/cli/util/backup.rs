@@ -52,7 +52,9 @@ fn validate_dir_recursive(dir: &Path, base: &Path, depth: usize) -> Result<(), S
     Ok(())
 }
 
-pub(super) fn cmd_backup(backup_type: &str) {
+/// L4 修复（v8 复审）：函数返回 bool 表示是否成功，便于调用方（如 upgrade）根据结果决定后续流程
+/// 返回 true 表示备份成功，false 表示备份失败（错误已在函数内打印）
+pub(super) fn cmd_backup(backup_type: &str) -> bool {
     let ts = timestamp();
     let backup_dir = format!("{}/{}", get_backup_dir(), ts);
 
@@ -62,7 +64,7 @@ pub(super) fn cmd_backup(backup_type: &str) {
     // 批次 92 P3-8：原 `let _ = run_cmd(...)` 静默吞错，关键路径失败应中止
     if let Err(e) = run_cmd("mkdir", &["-p", &backup_dir]) {
         println!("[ERROR] 创建备份目录失败，终止备份: {}", e);
-        return;
+        return false;
     }
 
     // 备份数据库
@@ -139,15 +141,18 @@ pub(super) fn cmd_backup(backup_type: &str) {
     }
 
     println!("\n[OK] 备份完成: {}", tar_file);
+    true
 }
 
-pub(super) fn cmd_restore(file: &str) {
+/// L4 修复（v8 复审）：函数返回 bool 表示是否成功，便于调用方根据结果决定后续流程
+/// 返回 true 表示恢复成功，false 表示恢复失败（错误已在函数内打印）
+pub(super) fn cmd_restore(file: &str) -> bool {
     println!("=== 恢复数据 ===\n");
     println!("备份文件: {}", file);
 
     if !std::path::Path::new(file).exists() {
         println!("[ERROR] 文件不存在: {}", file);
-        return;
+        return false;
     }
 
     // 生成随机临时目录名，防止符号链接竞争攻击（TOCTOU）
@@ -164,7 +169,7 @@ pub(super) fn cmd_restore(file: &str) {
     // 创建临时目录（关键路径）
     if let Err(e) = run_cmd("mkdir", &["-p", temp_dir]) {
         println!("[ERROR] 创建临时目录失败，终止恢复: {}", e);
-        return;
+        return false;
     }
 
     // M4 修复（v8 复审）：先列出 tar 内容并校验路径，再解压，防止恶意文件在校验前已写入磁盘
@@ -174,7 +179,7 @@ pub(super) fn cmd_restore(file: &str) {
         Err(e) => {
             println!("[ERROR] 列出备份文件内容失败: {}", e);
             let _ = run_cmd("rm", &["-rf", temp_dir]);
-            return;
+            return false;
         }
     };
 
@@ -187,12 +192,12 @@ pub(super) fn cmd_restore(file: &str) {
         if path.contains("..") {
             println!("[ERROR] 检测到路径穿越攻击：文件 {} 包含 ..", path);
             let _ = run_cmd("rm", &["-rf", temp_dir]);
-            return;
+            return false;
         }
         if path.starts_with('/') {
             println!("[ERROR] 检测到绝对路径：文件 {}", path);
             let _ = run_cmd("rm", &["-rf", temp_dir]);
-            return;
+            return false;
         }
     }
 
@@ -200,14 +205,14 @@ pub(super) fn cmd_restore(file: &str) {
     if let Err(e) = run_cmd("tar", &["-xzf", file, "-C", temp_dir]) {
         println!("[ERROR] 解压失败: {}", e);
         let _ = run_cmd("rm", &["-rf", temp_dir]);
-        return;
+        return false;
     }
 
     // 规则 12 合规：解压后二次校验（canonicalize 解析符号链接），双重防护
     if let Err(e) = validate_extracted_paths(temp_dir) {
         println!("[ERROR] 安全校验失败，终止恢复: {}", e);
         let _ = run_cmd("rm", &["-rf", temp_dir]);
-        return;
+        return false;
     }
 
     // 恢复数据库
@@ -263,6 +268,7 @@ pub(super) fn cmd_restore(file: &str) {
     }
 
     println!("\n[OK] 恢复完成，请重启服务: bingxi restart");
+    true
 }
 
 #[cfg(test)]

@@ -52,7 +52,11 @@ pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     // 备份
     if !no_backup {
         println!("\n备份当前版本...");
-        super::backup::cmd_backup("all");
+        // L4 修复：检查备份结果，失败则中止升级
+        if !super::backup::cmd_backup("all") {
+            println!("[ERROR] 备份失败，终止升级");
+            return;
+        }
     }
 
     // 下载
@@ -167,6 +171,39 @@ fn get_latest_version() -> Option<String> {
     None
 }
 
+/// L3 修复（v8 复审）：校验解压后的文件路径都在指定目录范围内
+/// 防止 Tar Slip 路径穿越攻击（符号链接逃逸）
+fn validate_extracted_path(base_dir: &str) -> Result<(), String> {
+    let base_canonical = std::fs::canonicalize(base_dir)
+        .map_err(|e| format!("无法解析基准目录 {}: {}", base_dir, e))?;
+
+    fn validate_recursive(dir: &std::path::Path, base: &std::path::Path, depth: usize) -> Result<(), String> {
+        // 递归深度上限，防止恶意嵌套目录导致栈溢出
+        if depth >= 100 {
+            return Err("递归深度超过上限，可能存在恶意嵌套目录".to_string());
+        }
+        for entry in std::fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))? {
+            let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+            let path = entry.path();
+            // canonicalize 解析符号链接，防止通过符号链接逃逸
+            let canonical = std::fs::canonicalize(&path)
+                .map_err(|e| format!("解析路径失败 {:?}: {}", path, e))?;
+            if !canonical.starts_with(base) {
+                return Err(format!(
+                    "检测到路径穿越攻击：文件 {:?} 不在安全目录范围内",
+                    canonical
+                ));
+            }
+            if canonical.is_dir() {
+                validate_recursive(&canonical, base, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+
+    validate_recursive(&base_canonical, &base_canonical, 0)
+}
+
 /// 部署发布包
 fn deploy_release(package: &str) {
     println!("停止服务...");
@@ -181,7 +218,13 @@ fn deploy_release(package: &str) {
         return;
     }
 
+    // L3 修复（v8 复审）：解压后校验路径，防止 Tar Slip 路径穿越攻击
     let extract_dir = "/tmp/bingxi-erp";
+    if let Err(e) = validate_extracted_path(extract_dir) {
+        println!("[ERROR] 安全校验失败，终止部署: {}", e);
+        let _ = run_cmd("rm", &["-rf", extract_dir]);
+        return;
+    }
     let install_dir = get_install_dir();
 
     // 备份旧文件

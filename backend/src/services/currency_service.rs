@@ -416,7 +416,16 @@ impl CurrencyService {
 // TS-S-6 安全加固：币种码校验
 // =====================================================
 
-/// 校验 ISO 4217 币种码：必须为 3 个大写字母
+/// L5 修复（v8 复审）：常见 ISO 4217 币种码白名单
+/// 防止任意 3 字母组合通过校验（如 "ZZZ"）
+const SUPPORTED_CURRENCY_CODES: &[&str] = &[
+    "USD", "EUR", "CNY", "JPY", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD",
+    "KRW", "INR", "BRL", "RUB", "ZAR", "MXN", "NZD", "SEK", "NOK", "DKK",
+    "PLN", "CZK", "HUF", "TRY", "ILS", "AED", "SAR", "THB", "IDR", "MYR",
+    "PHP", "VND", "TWD", "KZT", "UAH", "RON", "BGN", "HRK", "ISK", "MTL",
+];
+
+/// 校验 ISO 4217 币种码：必须为 3 个大写字母且在常见币种白名单中
 fn validate_currency_code(code: &str) -> Result<(), AppError> {
     if code.len() != 3 {
         return Err(AppError::business(format!(
@@ -426,6 +435,12 @@ fn validate_currency_code(code: &str) -> Result<(), AppError> {
     if !code.chars().all(|c| c.is_ascii_uppercase()) {
         return Err(AppError::business(format!(
             "币种码 {code} 不是有效的 ISO 4217 代码（必须为大写字母）"
+        )));
+    }
+    // L5 修复：校验币种码是否在常见 ISO 4217 白名单中
+    if !SUPPORTED_CURRENCY_CODES.contains(&code) {
+        return Err(AppError::business(format!(
+            "币种码 {code} 不在支持的 ISO 4217 币种列表中"
         )));
     }
     Ok(())
@@ -458,5 +473,13 @@ mod tests {
         assert!(validate_currency_code("Usd").is_err());
         assert!(validate_currency_code("US1").is_err());
         assert!(validate_currency_code("U-S").is_err());
+    }
+
+    /// L5 测试：不在白名单中的 3 字母组合应被拒绝
+    #[test]
+    fn test_validate_currency_code_not_in_whitelist() {
+        assert!(validate_currency_code("ZZZ").is_err());
+        assert!(validate_currency_code("XXX").is_err());
+        assert!(validate_currency_code("ABC").is_err());
     }
 }
