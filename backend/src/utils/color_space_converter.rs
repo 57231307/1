@@ -51,11 +51,6 @@ pub struct Lab {
     pub b: f64,
 }
 
-/// RGB 转 HEX（自动补 `#`）
-pub fn rgb_to_hex(r: u8, g: u8, b: u8) -> String {
-    format!("#{:02X}{:02X}{:02X}", r, g, b)
-}
-
 /// HEX 转 RGB
 pub fn hex_to_rgb(hex: &str) -> Result<Rgb, ColorSpaceError> {
     let trimmed = hex.trim();
@@ -154,16 +149,6 @@ fn lab_f(t: f64) -> f64 {
     }
 }
 
-/// CIELab ΔE 色差计算（CIE76 公式）
-///
-/// 行业标准：ΔE ≤ 3.0 视为色差可接受
-pub fn delta_e_76(lab1: Lab, lab2: Lab) -> f64 {
-    let dl = lab1.l - lab2.l;
-    let da = lab1.a - lab2.a;
-    let db = lab1.b - lab2.b;
-    (dl * dl + da * da + db * db).sqrt()
-}
-
 /// 判断色差是否在可接受范围内（ΔE ≤ 3.0，GB/T 26377 行业标准）
 pub fn delta_e_is_acceptable(delta_e: f64) -> bool {
     delta_e <= 3.0
@@ -176,15 +161,6 @@ pub fn delta_e_is_acceptable(delta_e: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_rgb_to_hex_basic() {
-        assert_eq!(rgb_to_hex(255, 0, 0), "#FF0000");
-        assert_eq!(rgb_to_hex(0, 255, 0), "#00FF00");
-        assert_eq!(rgb_to_hex(0, 0, 255), "#0000FF");
-        assert_eq!(rgb_to_hex(0, 0, 0), "#000000");
-        assert_eq!(rgb_to_hex(255, 255, 255), "#FFFFFF");
-    }
 
     #[test]
     fn test_hex_to_rgb_basic() {
@@ -246,31 +222,12 @@ mod tests {
     }
 
     #[test]
-    fn test_delta_e_same_color() {
-        let lab = rgb_to_lab(128, 64, 200);
-        let delta = delta_e_76(lab, lab);
-        assert!(delta.abs() < 0.001);
-        assert!(delta_e_is_acceptable(delta));
-    }
-
-    #[test]
-    fn test_delta_e_close_colors() {
-        // 两个相近颜色（RGB 差 5）
-        let lab1 = rgb_to_lab(100, 100, 100);
-        let lab2 = rgb_to_lab(105, 100, 100);
-        let delta = delta_e_76(lab1, lab2);
-        // ΔE 应该很小（< 3）
-        assert!(delta_e_is_acceptable(delta));
-    }
-
-    #[test]
-    fn test_delta_e_different_colors() {
-        // 两个完全不同的颜色
-        let lab1 = rgb_to_lab(0, 0, 0);
-        let lab2 = rgb_to_lab(255, 255, 255);
-        let delta = delta_e_76(lab1, lab2);
-        // 黑白 ΔE 应很大
-        assert!(delta > 50.0);
-        assert!(!delta_e_is_acceptable(delta));
+    fn test_delta_e_is_acceptable() {
+        // ΔE ≤ 3.0 视为色差可接受（GB/T 26377 行业标准）
+        assert!(delta_e_is_acceptable(0.0));
+        assert!(delta_e_is_acceptable(2.0));
+        assert!(delta_e_is_acceptable(3.0));
+        assert!(!delta_e_is_acceptable(3.1));
+        assert!(!delta_e_is_acceptable(50.0));
     }
 }

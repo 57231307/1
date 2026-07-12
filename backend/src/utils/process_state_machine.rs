@@ -135,18 +135,6 @@ pub fn can_transition(from: &str, to: &str) -> bool {
     next_status(from).map(|n| n == to_status).unwrap_or(false)
 }
 
-/// 工艺节点类型到状态机状态的映射
-pub fn node_type_to_status(node_type: &str) -> Option<CustomOrderStatus> {
-    match node_type {
-        "yarn_purchasing" => Some(CustomOrderStatus::YarnPurchasing),
-        "dyeing" => Some(CustomOrderStatus::Dyeing),
-        "finishing" => Some(CustomOrderStatus::Finishing),
-        "delivery" => Some(CustomOrderStatus::Delivery),
-        "after_sales" => Some(CustomOrderStatus::AfterSales),
-        _ => None,
-    }
-}
-
 /// 5 阶段工艺节点定义（用于自动生成节点）
 pub fn default_process_nodes() -> Vec<(&'static str, &'static str, i32)> {
     vec![
@@ -226,13 +214,6 @@ mod tests {
         assert!(CustomOrderStatus::Cancelled.is_terminal());
         assert!(!CustomOrderStatus::Draft.is_terminal());
         assert!(!CustomOrderStatus::Delivery.is_terminal());
-    }
-
-    #[test]
-    fn test_node_type_to_status() {
-        assert_eq!(node_type_to_status("yarn_purchasing"), Some(CustomOrderStatus::YarnPurchasing));
-        assert_eq!(node_type_to_status("dyeing"), Some(CustomOrderStatus::Dyeing));
-        assert_eq!(node_type_to_status("invalid"), None);
     }
 
     #[test]
