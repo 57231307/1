@@ -39,55 +39,50 @@
 
 ---
 
-## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 5/8 ✅，P2 10/10 ✅，P3 8/8 ✅）
+## ✅ 历史任务：v11 复审问题修复（P0 1/1 ✅，P1 8/8 ✅，P2 10/10 ✅，P3 8/8 ✅ 全部完成）
 
 > **v11 复审报告**（2026-07-12，批次 339 合并后 Task 工具扫描）：v10 复审全部完成后复审，扫描所有剩余 `#[allow(...)]` 警告抑制（非 models/ SeaORM 例外）。
 > 发现 27 个抑制标注：1 P0 + 8 P1 + 10 P2（带 TODO 保留）+ 8 P3（合理保留）。
-> 修复策略：按规则 13+14 连续执行，P0 → P1 → P2 → P3，每批 5-6 个文件，CI 全绿后合并 main。
-> **批次 345 已完成**：P2-8 app_state.rs Default 实现重构（P2 全部完成）
-> **v11 复审可修复项全部完成**：剩余 3 项 P1 为宏内合理保留（P1-6/P1-7 crud_macro.rs）
+> **v11 复审全部完成**（批次 340-346）：所有可修复的 `#[allow]` 抑制已全部移除，规则 14 合规。
+> 批次 340-344 详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)。
 
 ### 进度总览
 
-| 优先级 | 总数 | 已完成 | 剩余 | 状态 |
-|--------|------|--------|------|------|
-| 🔴 P0 文件级抑制超出例外 | 1 | 1 | 0 | ✅ 全部完成（批次 340） |
-| 🟠 P1 clippy 警告抑制 | 8 | 5 | 3 | ✅ 可修复项全部完成（剩余 3 项为宏内合理保留） |
-| 🟡 P2 带 TODO 的 dead_code | 10 | 10 | 0 | ✅ 全部完成（批次 345 P2-8 修复收官） |
-| 🟢 P3 测试代码/防御性抑制 | 8 | 8 | 0 | ✅ 全部完成（批次 342+343） |
-| **合计** | **27** | **24** | **3** | ✅ 可修复项全部完成（剩余 3 项为宏内合理保留） |
+| 优先级 | 总数 | 已完成 | 状态 |
+|--------|------|--------|------|
+| 🔴 P0 文件级抑制超出例外 | 1 | 1 | ✅ 全部完成（批次 340） |
+| 🟠 P1 clippy 警告抑制 | 8 | 8 | ✅ 全部完成（批次 340+344+346） |
+| 🟡 P2 带 TODO 的 dead_code | 10 | 10 | ✅ 全部完成（批次 340-342+345） |
+| 🟢 P3 测试代码/防御性抑制 | 8 | 8 | ✅ 全部完成（批次 342+343） |
+| **合计** | **27** | **27** | ✅ v11 复审全部完成 |
 
-### ✅ 已完成（批次 345）
+### ✅ 已完成（批次 346，v11 收官）
 
-**批次 345（PR #517）**：v11 复审 P2-8 app_state.rs Default 实现重构（1 文件，P2 收官）
-- P2-8：`utils/app_state.rs` 重构 `impl Default for AppState` 的 `default()` 方法，移除 `#[allow(dead_code, unused_variables)]` 抑制
-- 原问题：`jwt_secret` 字段初始化器中通过 `#[cfg(not(test))]` 调用 `std::process::exit(1)`，导致后续字段初始化代码在非测试构建中被判定为不可达，触发 `dead_code` + `unreachable_code` 警告，需要 `#[allow]` 抑制掩盖
-- 修复方案：
-  - 将 `#[cfg(not(test))]` 的 fail-fast `panic!` 提前到函数体最开头（`panic!` 返回 `!` 类型可 coerce 到 `Self`）
-  - 测试构建（`#[cfg(test)]`）中所有局部变量均被字段初始化器使用，消除 `unused_variables`
-  - `jwt_secret` 字段直接使用固定测试密钥，无需内联 cfg 分支
-- 规则 14 合规：移除所有警告抑制
-- CI 13 success + 2 skipped 全绿
-- **P2 全部 10 项完成，v11 复审可修复项全部完成**
+**批次 346（PR #518）**：v11 复审 P1-6+P1-7 crud_macro 宏 metavariable 修复（1 文件，v11 收官）
+- `utils/crud_macro.rs` `impl_generate_no!` 宏 `$entity` 从 `ty` 改为 `path` metavariable
+- `<$entity>::default()` 改为 `$entity`（Entity unit struct 直接作为值）
+- 移除 2 处 `#[allow(clippy::default_constructed_unit_structs)]`
+- 兼容性：14 个调用点均为 `xxx::Entity` 路径格式，`generate_no` 签名 `_entity: E` 泛型兼容
+- 规则 14 合规，CI 13 success + 2 skipped 全绿
+- **v11 复审 27/27 全部完成**
 
-### ✅ 已完成（批次 340-344，归档摘要）
+### ✅ 已完成（批次 340-345，归档摘要）
 
-批次 340-344 详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
-- **批次 340（PR #512）**：P0+P1 警告抑制移除 5 项（business_trace_snapshot 文件级抑制收窄 + import_export_service needless_pass_by_value 误报 + auth_handler redundant_clone + inventory_count_service Entity::default()→Entity）
-- **批次 341（PR #513）**：P2 过时警告抑制移除 3 项（dto/mod.rs PageRequest 四方法 + crm/mod.rs 未使用重导出 + status.rs LOCKED/RELEASED）
-- **批次 342（PR #514）**：P2+P3 警告抑制移除 5 项（bpm_dto.rs 占位符字段 + user_notification_setting NONE 常量 + event_bus unreachable_patterns）
-- **批次 343（PR #515）**：P3 测试模块 unused_imports 抑制移除 7 项（dec!/decs! 宏 58 调用点属编译器误报），P3 8/8 全部完成
+批次 340-345 详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
+- **批次 340（PR #512）**：P0+P1 警告抑制移除 5 项
+- **批次 341（PR #513）**：P2 过时警告抑制移除 3 项
+- **批次 342（PR #514）**：P2+P3 警告抑制移除 5 项
+- **批次 343（PR #515）**：P3 测试模块 unused_imports 抑制移除 7 项，P3 8/8 全部完成
 - **批次 344（PR #516）**：P1-8 FromStr trait 迁移 + 接入 lock/release 预留接口（规则 0 合规）
+- **批次 345（PR #517）**：P2-8 app_state.rs Default 实现重构，P2 10/10 全部完成
 
 ### 🔴 P0 待修复项（0 项 ✅ 全部完成）
 
 v11 复审 P0 已在批次 340 全部修复完成。
 
-### 🟠 P1 剩余项（3 项，宏内合理保留）
+### 🟠 P1 剩余项（0 项 ✅ 全部完成）
 
-**P1-6：crud_macro.rs:35 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留，宏 metavariable 必须 ::default()）
-**P1-7：crud_macro.rs:47 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留，同 P1-6）
-**P1-备注**：P1-1~P1-5 已在批次 340 修复完成，P1-8 已在批次 344 修复完成
+P1 全部 8 项已完成：批次 340（P1-1~P1-5）+ 批次 344（P1-8 FromStr trait 迁移）+ 批次 346（P1-6+P1-7 宏 metavariable 修复）。
 
 ### 🟡 P2 剩余项（0 项 ✅ 全部完成）
 
