@@ -1399,13 +1399,6 @@ warning: methods `record_primary`, `record_primary_failed`, `record_backup`, and
 warning: methods `update`, `delete`, `confirm`, `dispute`, and `close` are never used
 warning: multiple associated items are never used
 warning: multiple fields are never read
-warning: name `CIF` contains a capitalized acronym
-warning: name `DAP` contains a capitalized acronym
-warning: name `DDP` contains a capitalized acronym
-warning: name `EXW` contains a capitalized acronym
-warning: name `FOB` contains a capitalized acronym
-warning: name `NORMAL` contains a capitalized acronym
-warning: name `VIP` contains a capitalized acronym
 warning: struct `AdvanceNodeRequest` is never constructed
 warning: struct `AdvanceStatusDto` is never constructed
 warning: struct `ApiDoc` is never constructed
@@ -1439,34 +1432,16 @@ warning: struct `TimeSlot` is never constructed
 warning: struct `UpdateReconciliationRequest` is never constructed
 warning: struct `UpdateSeasonalRuleDto` is never constructed
 warning: struct `WorkCenterCapacity` is never constructed
-warning: this call to `as_ref.map(...)` does nothing
 warning: this expression creates a reference which is immediately dereferenced by the compiler
-warning: this function has too many arguments (10/7)
-warning: this function has too many arguments (8/7)
 warning: trait `SlowQueryMetrics` is never used
 warning: type alias `Auth` is never used
 warning: unreachable expression
-warning: unused import: `ActiveModelTrait`
-warning: unused import: `IntoActiveModel`
-warning: unused import: `ModelTrait`
-warning: unused import: `QuerySelect`
 warning: unused import: `Serialize`
-warning: unused import: `ShippedItem`
 warning: unused import: `Statement`
-warning: unused import: `UpdateMany`
-warning: unused import: `Utc`
-warning: unused import: `crate::middleware::auth_context::AuthContext`
 warning: unused import: `delete`
 warning: unused import: `put`
-warning: unused import: `rust_decimal::prelude::*`
-warning: unused import: `self`
 warning: unused import: `std::sync::Arc`
-warning: unused import: `super::*`
-warning: unused import: `tracing::info`
-warning: unused imports: `ActiveModelTrait` and `QueryFilter`
 warning: unused imports: `ConnectionManager`, `NotificationBroadcaster`, and `WsMessage`
-warning: unused imports: `CreateProcessDefinitionRequest`, `CreateVersionRequest`, `ProcessDefinitionQuery`, `TemplateQuery`, and `UpdateProcessDefinitionRequest`
-warning: unused imports: `DateTime` and `Utc`
 warning: unused imports: `Deserialize` and `Serialize`
 warning: unused imports: `DocType`, `ElasticClient`, `SalesOrderItemDoc`, `SearchClient`, `SearchError`, `SearchHit`, `SearchResult`, and `SearchSyncer`
 warning: unused variable: `webhook`

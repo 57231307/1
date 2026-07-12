@@ -24,25 +24,25 @@ use crate::utils::error::AppError;
 #[serde(rename_all = "UPPERCASE")]
 pub enum CustomerLevel {
     /// VIP 客户（95 折）
-    VIP,
+    Vip,
     /// 普通客户（无折扣）
-    NORMAL,
+    Normal,
 }
 
 impl CustomerLevel {
     /// 折扣率（0.05 = 95 折）
     pub fn discount_rate(&self) -> Decimal {
         match self {
-            CustomerLevel::VIP => Decimal::new(5, 2),
-            CustomerLevel::NORMAL => Decimal::ZERO,
+            CustomerLevel::Vip => Decimal::new(5, 2),
+            CustomerLevel::Normal => Decimal::ZERO,
         }
     }
 
     /// 解析
     pub fn from_code(s: &str) -> Self {
         match s.to_uppercase().as_str() {
-            "VIP" => CustomerLevel::VIP,
-            _ => CustomerLevel::NORMAL,
+            "VIP" => CustomerLevel::Vip,
+            _ => CustomerLevel::Normal,
         }
     }
 }
@@ -221,8 +221,8 @@ impl PricingContext {
     /// 客户等级的字符串表示（用于查询匹配）
     fn customer_level_opt(&self) -> Option<&'static str> {
         match self.customer_level {
-            CustomerLevel::VIP => Some("VIP"),
-            CustomerLevel::NORMAL => None,
+            CustomerLevel::Vip => Some("VIP"),
+            CustomerLevel::Normal => None,
         }
     }
 }

@@ -31,7 +31,7 @@ fn test_pricing_context_deserialize() {
     }"#;
     let ctx: PricingContext = serde_json::from_str(json).unwrap();
     assert_eq!(ctx.customer_id, 1);
-    assert_eq!(ctx.customer_level, CustomerLevel::VIP);
+    assert_eq!(ctx.customer_level, CustomerLevel::Vip);
     assert_eq!(ctx.quantity.to_string(), "100");
     assert_eq!(ctx.currency, "CNY");
 }
