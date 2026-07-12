@@ -243,6 +243,49 @@ impl SalesService {
 
         txn.commit().await?;
 
+        // 批次 356 v13 复审 B-P0-1 修复：销售订单审批后触发库存预留
+        // 原实现 approve_order 仅更新订单状态，不调用 InventoryReservationService::create_reservation，
+        // 导致销售订单→库存锁定链路完全断开，存在超卖风险。
+        // 修复：commit 成功后查询订单明细，为每个明细创建库存预留记录。
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+        let order_items = crate::models::sales_order_item::Entity::find()
+            .filter(crate::models::sales_order_item::Column::OrderId.eq(order_id))
+            .all(&*self.db)
+            .await?;
+
+        let reservation_service =
+            crate::services::inventory_reservation_service::InventoryReservationService::new(
+                self.db.clone(),
+            );
+        for item in order_items {
+            // 查询产品默认仓库（使用第一个活跃仓库作为默认仓库）
+            let default_warehouse = crate::models::warehouse::Entity::find()
+                .filter(crate::models::warehouse::Column::IsActive.eq(true))
+                .one(&*self.db)
+                .await?;
+
+            if let Some(wh) = default_warehouse {
+                if let Err(e) = reservation_service
+                    .create_reservation(
+                        order_id,
+                        item.product_id,
+                        wh.id,
+                        item.quantity,
+                        Some(user_id),
+                        Some(format!("销售订单 {} 审批通过，自动预留库存", order.order_no)),
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        order_id,
+                        product_id = item.product_id,
+                        error = %e,
+                        "批次 356 B-P0-1: 创建库存预留失败，订单已审批但库存未锁定，请人工检查"
+                    );
+                }
+            }
+        }
+
         Ok(order)
     }
 

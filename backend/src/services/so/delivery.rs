@@ -131,6 +131,8 @@ impl SalesService {
 
         // 创建发货单明细并扣减库存（v13 P1-3：发货明细批量 INSERT，库存扣减与订单明细更新保持逐条以确保乐观锁语义）
         let mut delivery_items_to_insert: Vec<sales_delivery_item::ActiveModel> = Vec::new();
+        // 批次 356 v13 复审 B-P0-2 修复：收集库存流水事件，commit 后统一 publish
+        let mut pending_inventory_events: Vec<crate::services::event_bus::BusinessEvent> = Vec::new();
         for item in request.items {
             // 收集发货明细（不立即 INSERT）
             delivery_items_to_insert.push(sales_delivery_item::ActiveModel {
@@ -138,7 +140,8 @@ impl SalesService {
                 delivery_id: Set(delivery.id),
                 product_id: Set(item.product_id),
                 quantity: Set(item.quantity),
-                batch_no: Set(item.batch_no),
+                // 批次 356 v13 复审修复：clone 避免 move，下方 record_transaction_txn 仍需访问 item.batch_no
+                batch_no: Set(item.batch_no.clone()),
                 color_no: Set(None),
                 remarks: Set(None),
                 unit_price: Set(Decimal::ZERO),
@@ -147,7 +150,7 @@ impl SalesService {
             });
 
             // 扣减库存
-            self.reduce_inventory(
+            let (qty_before, qty_after) = self.reduce_inventory(
                 item.product_id,
                 warehouse.id,
                 item.quantity,
@@ -155,6 +158,39 @@ impl SalesService {
                 &txn,
             )
             .await?;
+
+            // 批次 356 v13 复审 B-P0-2 修复：销售出库生成 SALES_DELIVERY 类型库存流水
+            // 触发 inventory_finance_bridge_service 自动生成销售出库凭证（借:主营业务成本/贷:库存商品）
+            let (_, txn_event) =
+                crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
+                    &txn,
+                    crate::services::inventory_stock_query::RecordTransactionArgs {
+                        transaction_type: "SALES_DELIVERY".to_string(),
+                        product_id: item.product_id,
+                        warehouse_id: warehouse.id,
+                        // 批次 356 v13 复审修复：item.batch_no 为 Option<String>，RecordTransactionArgs.batch_no 期望 String
+                        // 无批次号时使用空字符串占位（与库存流水无批次号语义一致）
+                        batch_no: item.batch_no.clone().unwrap_or_default(),
+                        color_no: String::new(),
+                        dye_lot_no: None,
+                        grade: String::new(),
+                        quantity_meters: item.quantity,
+                        quantity_kg: Decimal::ZERO,
+                        source_bill_type: Some("sales_order".to_string()),
+                        source_bill_no: Some(order.order_no.clone()),
+                        source_bill_id: Some(request.order_id),
+                        quantity_before_meters: Some(qty_before),
+                        quantity_before_kg: None,
+                        quantity_after_meters: Some(qty_after),
+                        quantity_after_kg: None,
+                        notes: Some(format!("销售出库 - 订单 {}", order.order_no)),
+                        created_by: Some(user_id),
+                    },
+                )
+                .await?;
+            if let Some(ev) = txn_event {
+                pending_inventory_events.push(ev);
+            }
 
             // 使用 update_many 批量更新订单明细已发货数量
             sales_order_item::Entity::update_many()
@@ -259,6 +295,12 @@ impl SalesService {
 
         // 提交事务
         txn.commit().await?;
+
+        // 批次 356 v13 复审 B-P0-2 修复：commit 后统一发布库存流水事件
+        // 触发 inventory_finance_bridge_service 自动生成销售出库凭证
+        for ev in pending_inventory_events {
+            crate::services::event_bus::EVENT_BUS.publish(ev);
+        }
 
         // P1 5-1 修复（批次 62）：commit 后发布 SalesOrderShipped 事件
         // 事件发布必须在 commit 之后，避免消费者读到未提交数据。
@@ -518,6 +560,7 @@ impl SalesService {
     }
 
     /// 扣减库存
+    /// 返回 (变更前可用数量, 变更后可用数量)，用于记录库存流水
     pub(crate) async fn reduce_inventory(
         &self,
         product_id: i32,
@@ -525,7 +568,7 @@ impl SalesService {
         quantity: Decimal,
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(), AppError> {
+    ) -> Result<(Decimal, Decimal), AppError> {
         // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发发货导致超扣
         let stock = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::ProductId.eq(product_id))
@@ -591,7 +634,10 @@ impl SalesService {
             .exec(txn)
             .await?;
 
-        Ok(())
+        // 批次 356 v13 复审 B-P0-2 修复：返回变更前后的可用数量，供调用方记录库存流水
+        let qty_before = stock.quantity_available;
+        let qty_after = qty_before - quantity;
+        Ok((qty_before, qty_after))
     }
 
     /// 释放订单的库存预留记录
