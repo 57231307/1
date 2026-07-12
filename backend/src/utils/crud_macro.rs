@@ -26,25 +26,24 @@ macro_rules! define_service {
 ///   在同一事务内的场景。P1 5-10 修复（批次 60）：txn 变体改调 `generate_no_with_txn`
 ///   而非 `generate_no`，避免在 savepoint 上获取 advisory_xact_lock 导致锁提前释放。
 ///
-/// 注：`$entity` 是 `ty` metavariable，不能直接用在表达式上下文，必须用
-/// `<$entity>::default()` 创建实例。SeaORM `Entity` 是 unit struct，`::default()`
-/// 会触发 clippy `default_constructed_unit_structs` lint，故在函数上加 allow。
+/// 批次 346 v11 复审 P1-6+P1-7 修复：`$entity` 从 `ty` 改为 `path` metavariable，
+/// 使 `$entity` 可直接作为路径表达式使用（SeaORM `Entity` 是 unit struct，可直接作为值），
+/// 消除 `<$entity>::default()` 构造及对应的 `clippy::default_constructed_unit_structs` 警告。
+/// 所有调用点均为 `xxx::Entity` 路径格式，兼容 `path` metavariable。规则 14 合规。
 #[macro_export]
 macro_rules! impl_generate_no {
-    ($fn_name:ident, $prefix:expr, $entity:ty, $column:expr) => {
-        #[allow(clippy::default_constructed_unit_structs)]
+    ($fn_name:ident, $prefix:expr, $entity:path, $column:expr) => {
         pub async fn $fn_name(&self) -> Result<String, $crate::utils::error::AppError> {
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no(
                 &*self.db,
                 $prefix,
-                <$entity>::default(),
+                $entity,
                 $column,
             )
             .await
         }
     };
-    ($fn_name:ident, $prefix:expr, $entity:ty, $column:expr, $conn:ident) => {
-        #[allow(clippy::default_constructed_unit_structs)]
+    ($fn_name:ident, $prefix:expr, $entity:path, $column:expr, $conn:ident) => {
         pub async fn $fn_name(
             &self,
             $conn: &sea_orm::DatabaseTransaction,
@@ -54,7 +53,7 @@ macro_rules! impl_generate_no {
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
                 $conn,
                 $prefix,
-                <$entity>::default(),
+                $entity,
                 $column,
             )
             .await
