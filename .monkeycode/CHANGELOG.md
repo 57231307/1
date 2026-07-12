@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 327 | #499 | v10 复审 P3 too_many_arguments 抑制移除 3 项（import_export_service 误报 3 参数删除 + cache.rs 误报 5 参数删除 + user_notification_setting_service 引入 UpdateNotificationSettingParams 参数对象聚合 8 参数） |
 | 326 | #498 | v10 复审 P2 clippy 警告抑制移除 2 项（sales_analysis_service needless_late_init 声明赋值合并 + material_shortage_service type_complexity 提取类型别名 MaterialReq，pred.rs 2 项 needless_range_loop 已在 main 5291e773 修复） |
 | 325 | #497 | v10 复审 P0+P1 警告抑制移除 6 项（1 P0 死代码 ExportFormatType enum 删除 + 2 P1 文件级 #![allow(clippy::too_many_arguments)] 删除 enhanced_logger/sensitive_action_alert + 3 P1 未使用 pub use + #[allow(unused_imports)] 删除 so/mod+po/mod，规则 14 合规首战） |
 | 324 | #496 | sea-orm 版本调研+修正误导性注释（2.0 仍 RC rc.42 项目用 1.1.20 稳定版正确，修正 rust-toolchain.toml+Cargo.toml 注释，新增规则 14 移除警告抑制） |
