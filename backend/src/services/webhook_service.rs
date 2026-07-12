@@ -15,11 +15,12 @@ use tracing::error;
 pub(crate) const MAX_RETRY_COUNT: i32 = 5;
 
 /// Webhook负载
+/// L8 修复（v8 复审）：降为 pub(crate)，仅模块内部使用，不对外暴露
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WebhookPayload {
-    pub event: String,
-    pub timestamp: String,
-    pub data: serde_json::Value,
+pub(crate) struct WebhookPayload {
+    pub(crate) event: String,
+    pub(crate) timestamp: String,
+    pub(crate) data: serde_json::Value,
 }
 
 /// Webhook发送结果

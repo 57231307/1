@@ -177,7 +177,8 @@ impl TrackingService {
         );
         let mut params: Vec<Value> = Vec::new();
         if let Some(from) = date_from {
-            sql.push_str(" AND viewed_at >= $1");
+            // L6 修复（v8 复审）：参数索引统一使用 params.len() + 1 动态构造
+            sql.push_str(&format!(" AND viewed_at >= ${}", params.len() + 1));
             params.push(from.into());
         }
         if let Some(to) = date_to {
@@ -215,7 +216,8 @@ impl TrackingService {
         );
         let mut params: Vec<Value> = Vec::new();
         if let Some(from) = date_from {
-            sql.push_str(" AND viewed_at >= $1");
+            // L6 修复（v8 复审）：参数索引统一使用 params.len() + 1 动态构造
+            sql.push_str(&format!(" AND viewed_at >= ${}", params.len() + 1));
             params.push(from.into());
         }
         if let Some(to) = date_to {
@@ -248,7 +250,8 @@ impl TrackingService {
         );
         let mut params: Vec<Value> = Vec::new();
         if let Some(from) = date_from {
-            sql.push_str(" AND viewed_at >= $1");
+            // L6 修复（v8 复审）：参数索引统一使用 params.len() + 1 动态构造
+            sql.push_str(&format!(" AND viewed_at >= ${}", params.len() + 1));
             params.push(from.into());
         }
         if let Some(to) = date_to {

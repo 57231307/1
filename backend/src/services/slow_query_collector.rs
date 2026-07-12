@@ -39,20 +39,18 @@ pub struct SlowQueryCollector {
 
 /// 构造 `pg_stat_statements` 查询 SQL（独立函数便于单元测试）
 ///
-/// 输入：threshold_ms（毫秒）/ limit_rows（最大返回行数）
-/// 输出：完整 SQL 字符串
+/// 输入：threshold_ms（毫秒）/ limit_rows（最大返回行数）（保留用于文档化参数顺序，实际通过 from_sql_and_values 绑定）
+/// 输出：完整 SQL 字符串（使用 $1/$2 参数占位符）
 ///
-/// 设计说明：threshold 与 limit 均为数值类型（f64 / i64），
-/// 不接受用户输入，无 SQL 注入风险。
-pub fn build_query_sql(threshold_ms: f64, limit_rows: i64) -> String {
-    format!(
-        "SELECT query, mean_exec_time, calls, rows \
-         FROM pg_stat_statements \
-         WHERE mean_exec_time > {} \
-         ORDER BY mean_exec_time DESC \
-         LIMIT {}",
-        threshold_ms, limit_rows
-    )
+/// L2 修复（v8 复审）：改用参数化占位符 $1/$2，由调用方通过 Statement::from_sql_and_values
+/// 绑定实际参数值，遵循规则 12 参数化查询规范（即使数值类型无注入风险，也统一参数化风格）
+pub fn build_query_sql(_threshold_ms: f64, _limit_rows: i64) -> String {
+    "SELECT query, mean_exec_time, calls, rows \
+     FROM pg_stat_statements \
+     WHERE mean_exec_time > $1 \
+     ORDER BY mean_exec_time DESC \
+     LIMIT $2"
+        .to_string()
 }
 
 impl SlowQueryCollector {
@@ -142,15 +140,16 @@ impl SlowQueryCollector {
     /// 错误处理：所有错误向上传播，由调用方决定是否降级
     // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 handlers/slow_query_handler.rs:226 真实调用）
     pub async fn collect_once(&self) -> Result<usize, sea_orm::DbErr> {
-        // 使用 build_query_sql 拼接 SQL（便于单元测试覆盖）
+        // L2 修复（v8 复审）：使用参数化查询，通过 from_sql_and_values 绑定参数
         let sql = build_query_sql(self.threshold_ms, self.limit_rows);
 
         let query_result: Vec<sea_orm::QueryResult> = self
             .db
             .as_ref()
-            .query_all(Statement::from_string(
+            .query_all(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
+                [self.threshold_ms.into(), self.limit_rows.into()],
             ))
             .await?;
 
@@ -207,41 +206,41 @@ impl SlowQueryCollector {
 mod tests {
     use super::*;
 
-    /// SQL 拼接：默认阈值与 limit
+    /// SQL 拼接：默认阈值与 limit（L2 修复后使用 $1/$2 占位符）
     #[test]
     fn test_build_query_sql_default() {
         let sql = build_query_sql(100.0, 100);
-        assert!(sql.contains("WHERE mean_exec_time > 100"));
-        assert!(sql.contains("LIMIT 100"));
+        assert!(sql.contains("WHERE mean_exec_time > $1"));
+        assert!(sql.contains("LIMIT $2"));
         assert!(sql.contains("ORDER BY mean_exec_time DESC"));
         assert!(sql.starts_with("SELECT query, mean_exec_time, calls, rows"));
         assert!(sql.contains("FROM pg_stat_statements"));
     }
 
-    /// SQL 拼接：自定义阈值与 limit
+    /// SQL 拼接：自定义阈值与 limit（参数化后 SQL 固定不变）
     #[test]
     fn test_build_query_sql_custom() {
         let sql = build_query_sql(250.5, 50);
-        assert!(sql.contains("> 250.5"));
-        assert!(sql.contains("LIMIT 50"));
+        assert!(sql.contains("> $1"));
+        assert!(sql.contains("LIMIT $2"));
     }
 
-    /// SQL 拼接：极值（验证无溢出/格式异常）
+    /// SQL 拼接：极值（参数化后 SQL 固定，与参数值无关）
     #[test]
     fn test_build_query_sql_extreme_values() {
         // 极小
         let sql_min = build_query_sql(0.001, 1);
-        assert!(sql_min.contains("> 0.001"));
-        assert!(sql_min.contains("LIMIT 1"));
+        assert!(sql_min.contains("> $1"));
+        assert!(sql_min.contains("LIMIT $2"));
 
         // 极大
         let sql_max = build_query_sql(1_000_000.0, 1_000_000);
-        assert!(sql_max.contains("> 1000000"));
-        assert!(sql_max.contains("LIMIT 1000000"));
+        assert!(sql_max.contains("> $1"));
+        assert!(sql_max.contains("LIMIT $2"));
 
         // 零值
         let sql_zero = build_query_sql(0.0, 0);
-        assert!(sql_zero.contains("> 0"));
-        assert!(sql_zero.contains("LIMIT 0"));
+        assert!(sql_zero.contains("> $1"));
+        assert!(sql_zero.contains("LIMIT $2"));
     }
 }

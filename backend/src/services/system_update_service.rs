@@ -438,7 +438,13 @@ impl SystemUpdateService {
                     if let Some(mode) = file.unix_mode() {
                         // 规则 12 合规：重置权限掩码，移除 SUID/SGID/粘性位，
                         // 防止恶意更新包设置特殊权限位导致权限提升
-                        let safe_mode = mode & 0o755;
+                        // L7 修复（v8 复审）：文件使用 0o600（仅所有者可读写），
+                        // 目录使用 0o755（所有者可写，其他可读可执行）
+                        let safe_mode = if outpath.is_dir() {
+                            mode & 0o755
+                        } else {
+                            mode & 0o600
+                        };
                         if let Ok(metadata) = fs::metadata(&outpath) {
                             let mut perms = metadata.permissions();
                             perms.set_mode(safe_mode);
@@ -530,7 +536,8 @@ impl SystemUpdateService {
         version_file.exists()
     }
 
-    pub fn rollback(&self, backup_path: &Path) -> Result<(), UpdateError> {
+    /// L9 修复（v8 复审）：降为私有，仅内部 do_update 调用，不对外暴露
+    fn rollback(&self, backup_path: &Path) -> Result<(), UpdateError> {
         self.log_update(&format!("正在回滚到备份: {:?}", backup_path));
 
         let dirs_to_restore = ["backend", "frontend", "config"];
@@ -627,8 +634,10 @@ impl SystemUpdateService {
     async fn fetch_latest_release(&self) -> Result<GitHubRelease, UpdateError> {
         let url = format!("{}/repos/{}/releases/latest", GITHUB_API_URL, GITHUB_REPO);
 
+        // L1 修复（v8 复审）：添加重定向限制，防止 SSRF
         let client = reqwest::Client::builder()
             .user_agent("BingxiERP/1.0")
+            .redirect(reqwest::redirect::Policy::limited(3))
             .build()
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
 
