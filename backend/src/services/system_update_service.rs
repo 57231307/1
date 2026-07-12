@@ -423,6 +423,16 @@ impl SystemUpdateService {
 
             if file.name().ends_with('/') {
                 fs::create_dir_all(&outpath)?;
+                // P0-2 修复（v9 复审）：目录权限掩码必须在目录分支内设置
+                // 原 L7 修复将权限设置放在文件分支内，且用 outpath.is_dir() 判断，
+                // 但文件分支内 outpath 刚通过 fs::File::create 创建为文件，is_dir() 永远为 false，
+                // 导致目录分支（ends_with('/')）的权限完全未设置，恶意 zip 可保留 SUID/SGID/sticky bit
+                #[cfg(unix)]
+                {
+                    if let Some(mode) = file.unix_mode() {
+                        set_safe_permissions(&outpath, mode, true);
+                    }
+                }
             } else {
                 if let Some(p) = outpath.parent() {
                     if !p.exists() {
@@ -432,27 +442,11 @@ impl SystemUpdateService {
                 let mut outfile = fs::File::create(&outpath)?;
                 io::copy(&mut file, &mut outfile)?;
 
+                // P0-2 修复（v9 复审）：文件权限掩码在文件分支内设置（mode & 0o600）
                 #[cfg(unix)]
                 {
-                    use std::os::unix::fs::PermissionsExt;
                     if let Some(mode) = file.unix_mode() {
-                        // 规则 12 合规：重置权限掩码，移除 SUID/SGID/粘性位，
-                        // 防止恶意更新包设置特殊权限位导致权限提升
-                        // L7 修复（v8 复审）：文件使用 0o600（仅所有者可读写），
-                        // 目录使用 0o755（所有者可写，其他可读可执行）
-                        let safe_mode = if outpath.is_dir() {
-                            mode & 0o755
-                        } else {
-                            mode & 0o600
-                        };
-                        if let Ok(metadata) = fs::metadata(&outpath) {
-                            let mut perms = metadata.permissions();
-                            perms.set_mode(safe_mode);
-                            // 批次 98 P2-C 修复（v5 复审）：吞错改日志记录，权限设置失败不阻塞解压
-                            if let Err(e) = fs::set_permissions(&outpath, perms) {
-                                tracing::warn!("设置文件权限失败 {:?}: {}", outpath, e);
-                            }
-                        }
+                        set_safe_permissions(&outpath, mode, false);
                     }
                 }
             }
@@ -801,6 +795,24 @@ impl Default for SystemUpdateService {
 // TS-S-7 安全加固：下载域名校验
 // =====================================================
 
+/// 设置安全权限掩码（P0-2 修复 v9 复审）
+/// is_dir=true 时应用 0o755（所有者可写，其他可读可执行），
+/// is_dir=false 时应用 0o600（仅所有者可读写），
+/// 重置 SUID/SGID/粘性位，防止恶意更新包设置特殊权限位导致权限提升
+#[cfg(unix)]
+fn set_safe_permissions(path: &Path, mode: u32, is_dir: bool) {
+    use std::os::unix::fs::PermissionsExt;
+    let safe_mode = if is_dir { mode & 0o755 } else { mode & 0o600 };
+    if let Ok(metadata) = fs::metadata(path) {
+        let mut perms = metadata.permissions();
+        perms.set_mode(safe_mode);
+        // 权限设置失败不阻塞解压（与原批次 98 P2-C 行为一致）
+        if let Err(e) = fs::set_permissions(path, perms) {
+            tracing::warn!("设置权限失败 {:?}: {}", path, e);
+        }
+    }
+}
+
 /// 校验下载 URL 的域名是否为允许的 GitHub 域名
 fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
     let parsed = url::Url::parse(url_str)
@@ -894,5 +906,35 @@ mod tests {
         let svc = SystemUpdateService::new();
         assert_eq!(svc.extract_version_from_filename("invalid.zip"), None);
         assert_eq!(svc.extract_version_from_filename("bingxi-erp-.zip"), None);
+    }
+
+    /// P0-2 测试（v9 复审）：set_safe_permissions 文件分支应用 0o600 掩码
+    #[cfg(unix)]
+    #[test]
+    fn test_set_safe_permissions_file_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = std::env::temp_dir().join("bingxi_test_perm_file");
+        let _ = std::fs::write(&temp, b"test");
+        // 模拟恶意 zip 设置 SUID + SGID + sticky + 全读写（0o7777）
+        set_safe_permissions(&temp, 0o7777, false);
+        let mode = std::fs::metadata(&temp).unwrap().permissions().mode();
+        // 0o7777 & 0o600 = 0o600
+        assert_eq!(mode & 0o7777, 0o600, "文件权限应为 0o600，实际 {:#o}", mode);
+        let _ = std::fs::remove_file(&temp);
+    }
+
+    /// P0-2 测试（v9 复审）：set_safe_permissions 目录分支应用 0o755 掩码
+    #[cfg(unix)]
+    #[test]
+    fn test_set_safe_permissions_dir_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = std::env::temp_dir().join("bingxi_test_perm_dir");
+        let _ = std::fs::create_dir(&temp);
+        // 模拟恶意 zip 设置 SUID + SGID + sticky + 全读写（0o7777）
+        set_safe_permissions(&temp, 0o7777, true);
+        let mode = std::fs::metadata(&temp).unwrap().permissions().mode();
+        // 0o7777 & 0o755 = 0o755
+        assert_eq!(mode & 0o7777, 0o755, "目录权限应为 0o755，实际 {:#o}", mode);
+        let _ = std::fs::remove_dir(&temp);
     }
 }
