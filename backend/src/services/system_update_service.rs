@@ -395,64 +395,31 @@ impl SystemUpdateService {
     fn extract_update_package(&self, update_file: &Path) -> Result<PathBuf, UpdateError> {
         let extract_dir = self.app_dir.join("temp_update");
 
-        if extract_dir.exists() {
-            fs::remove_dir_all(&extract_dir)?;
-        }
-        fs::create_dir_all(&extract_dir)?;
+        self.prepare_extract_dir(&extract_dir)?;
 
         let file = fs::File::open(update_file)?;
         let mut archive =
             zip::ZipArchive::new(file).map_err(|e| UpdateError::UnzipError(e.to_string()))?;
 
         for i in 0..archive.len() {
-            let mut file = archive
+            let mut zip_entry = archive
                 .by_index(i)
                 .map_err(|e| UpdateError::UnzipError(e.to_string()))?;
-
-            let filepath = file.enclosed_name().ok_or_else(|| {
-                UpdateError::ValidationError("更新包中包含无效的文件路径".to_string())
-            })?;
-
-            let outpath = extract_dir.join(filepath);
-
-            if !outpath.starts_with(&extract_dir) {
-                return Err(UpdateError::ValidationError(
-                    "检测到路径遍历攻击，更新包中包含不安全的路径".to_string(),
-                ));
-            }
-
-            if file.name().ends_with('/') {
-                fs::create_dir_all(&outpath)?;
-                // P0-2 修复（v9 复审）：目录权限掩码必须在目录分支内设置
-                // 原 L7 修复将权限设置放在文件分支内，且用 outpath.is_dir() 判断，
-                // 但文件分支内 outpath 刚通过 fs::File::create 创建为文件，is_dir() 永远为 false，
-                // 导致目录分支（ends_with('/')）的权限完全未设置，恶意 zip 可保留 SUID/SGID/sticky bit
-                #[cfg(unix)]
-                {
-                    if let Some(mode) = file.unix_mode() {
-                        set_safe_permissions(&outpath, mode, true);
-                    }
-                }
-            } else {
-                if let Some(p) = outpath.parent() {
-                    if !p.exists() {
-                        fs::create_dir_all(p)?;
-                    }
-                }
-                let mut outfile = fs::File::create(&outpath)?;
-                io::copy(&mut file, &mut outfile)?;
-
-                // P0-2 修复（v9 复审）：文件权限掩码在文件分支内设置（mode & 0o600）
-                #[cfg(unix)]
-                {
-                    if let Some(mode) = file.unix_mode() {
-                        set_safe_permissions(&outpath, mode, false);
-                    }
-                }
-            }
+            extract_zip_entry(&mut zip_entry, &extract_dir)?;
         }
 
         Ok(extract_dir)
+    }
+
+    /// 准备解压目录（清理旧目录 + 创建新目录）
+    ///
+    /// 批次 323 v9 复审低危修复：从 extract_update_package 拆分，保持单一职责。
+    fn prepare_extract_dir(&self, extract_dir: &Path) -> Result<(), UpdateError> {
+        if extract_dir.exists() {
+            fs::remove_dir_all(extract_dir)?;
+        }
+        fs::create_dir_all(extract_dir)?;
+        Ok(())
     }
 
     fn validate_update_package(&self, extract_dir: &Path) -> Result<(), UpdateError> {
@@ -815,6 +782,63 @@ impl Default for SystemUpdateService {
 /// - "1.0.0-beta" → [1, 0, 0]（非数字部分被 filter_map 忽略）
 fn parse_version(v: &str) -> Vec<u32> {
     v.split('.').filter_map(|s| s.parse().ok()).collect()
+}
+
+// =====================================================
+// 批次 323 v9 复审低危修复：extract_zip_entry 拆分
+// =====================================================
+
+/// 解压单个 zip 条目到指定目录（含路径校验 + 权限掩码）
+///
+/// 批次 323 v9 复审低危修复：从 extract_update_package 拆分，保持单一职责。
+/// 原函数 60+ 行混合了目录准备、循环遍历、路径校验、权限设置多种职责。
+///
+/// # 安全
+/// - 路径校验：`enclosed_name` + `starts_with` 双重防护 Tar Slip 路径穿越
+/// - 权限掩码：`set_safe_permissions` 重置 SUID/SGID/sticky bit（P0-2 修复）
+fn extract_zip_entry(
+    zip_entry: &mut zip::read::ZipFile,
+    extract_dir: &Path,
+) -> Result<(), UpdateError> {
+    let filepath = zip_entry.enclosed_name().ok_or_else(|| {
+        UpdateError::ValidationError("更新包中包含无效的文件路径".to_string())
+    })?;
+
+    let outpath = extract_dir.join(filepath);
+
+    if !outpath.starts_with(extract_dir) {
+        return Err(UpdateError::ValidationError(
+            "检测到路径遍历攻击，更新包中包含不安全的路径".to_string(),
+        ));
+    }
+
+    if zip_entry.name().ends_with('/') {
+        fs::create_dir_all(&outpath)?;
+        // P0-2 修复（v9 复审）：目录权限掩码必须在目录分支内设置
+        #[cfg(unix)]
+        {
+            if let Some(mode) = zip_entry.unix_mode() {
+                set_safe_permissions(&outpath, mode, true);
+            }
+        }
+    } else {
+        if let Some(p) = outpath.parent() {
+            if !p.exists() {
+                fs::create_dir_all(p)?;
+            }
+        }
+        let mut outfile = fs::File::create(&outpath)?;
+        io::copy(zip_entry, &mut outfile)?;
+
+        // P0-2 修复（v9 复审）：文件权限掩码在文件分支内设置（mode & 0o600）
+        #[cfg(unix)]
+        {
+            if let Some(mode) = zip_entry.unix_mode() {
+                set_safe_permissions(&outpath, mode, false);
+            }
+        }
+    }
+    Ok(())
 }
 
 // =====================================================

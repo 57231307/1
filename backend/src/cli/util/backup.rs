@@ -20,7 +20,8 @@ fn get_systemd_dir() -> String {
 /// L4 修复（v8 复审）：函数返回 bool 表示是否成功，便于调用方（如 upgrade）根据结果决定后续流程
 /// 返回 true 表示备份成功，false 表示备份失败（错误已在函数内打印）
 pub(super) fn cmd_backup(backup_type: &str) -> bool {
-    let ts = timestamp();
+    // 批次 323 修复：timestamp() 返回 u64，转为 String 以便传给 compress_backup(&str)
+    let ts = timestamp().to_string();
     let backup_dir = format!("{}/{}", get_backup_dir(), ts);
 
     println!("=== 开始备份 ===\n");
@@ -32,80 +33,21 @@ pub(super) fn cmd_backup(backup_type: &str) -> bool {
         return false;
     }
 
-    // 备份数据库
-    if backup_type == "database" || backup_type == "all" {
-        println!("\n备份数据库...");
-        let db_file = format!("{}/database.sql", backup_dir);
-        let db_host = require_env(
-            "DATABASE__HOST",
-            "请设置数据库主机地址，例如 export DATABASE__HOST=127.0.0.1",
-        );
-        let db_user = require_env(
-            "DATABASE__USERNAME",
-            "请设置数据库用户名，例如 export DATABASE__USERNAME=postgres",
-        );
-        let db_name = require_env(
-            "DATABASE__NAME",
-            "请设置数据库名称，例如 export DATABASE__NAME=bingxi_erp",
-        );
-
-        // P0-1 修复（v9 复审）：数据库是核心数据，pg_dump 失败必须中止备份
-        // 原 L4 修复仅改返回类型为 bool，但 pg_dump 失败时未 return false，
-        // 导致 upgrade 拿到"备份成功"假象继续部署，数据丢失风险
-        if let Err(e) = run_cmd(
-            "pg_dump",
-            &[
-                "-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", &db_file,
-            ],
-        ) {
-            println!("[ERROR] 数据库备份失败，终止备份: {}", e);
-            // 清理临时备份目录（非关键路径）
-            let _ = run_cmd("rm", &["-rf", &backup_dir]);
-            return false;
-        }
-        println!("[OK] 数据库备份完成");
+    // 备份数据库（批次 323 修复：合并嵌套 if 消除 collapsible_if 警告）
+    if (backup_type == "database" || backup_type == "all") && !backup_database(&backup_dir) {
+        let _ = run_cmd("rm", &["-rf", &backup_dir]);
+        return false;
     }
 
     // 备份文件
     if backup_type == "files" || backup_type == "all" {
-        println!("\n备份配置文件...");
-        let config_dir = format!("{}/backend/config.yaml", get_install_dir());
-        let env_file = get_env_file_path();
-        let service_file = format!("{}/{}.service", get_systemd_dir(), super::SERVICE_NAME);
-
-        // 批次 92 P3-8：cp 失败应记录错误（不中止，尽量备份剩余文件）
-        if let Err(e) = run_cmd("cp", &["-r", &config_dir, &backup_dir]) {
-            println!("[ERROR] 备份 config.yaml 失败: {}", e);
-        }
-        if let Err(e) = run_cmd("cp", &["-r", &env_file, &backup_dir]) {
-            println!("[ERROR] 备份 .env 失败: {}", e);
-        }
-        if let Err(e) = run_cmd("cp", &["-r", &service_file, &backup_dir]) {
-            println!("[ERROR] 备份 service 文件失败: {}", e);
-        }
-
-        println!("[OK] 配置文件备份完成");
+        backup_config_files(&backup_dir);
     }
 
     // 压缩
-    println!("\n压缩备份...");
     let tar_file = format!("{}/backup_{}.tar.gz", get_backup_dir(), ts);
-    if let Err(e) = run_cmd(
-        "tar",
-        &["-czf", &tar_file, "-C", &get_backup_dir(), &ts.to_string()],
-    ) {
-        println!("[ERROR] 压缩失败: {}", e);
-    } else {
-        // 规则 12 合规：设置备份文件权限为 0o600（仅所有者可读），
-        // 防止备份中的 .env（含数据库密码等敏感信息）被其他用户读取
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Err(e) = fs::set_permissions(&tar_file, fs::Permissions::from_mode(0o600)) {
-                println!("[WARN] 设置备份文件权限失败（可忽略）: {}", e);
-            }
-        }
-    }
+    compress_backup(&tar_file, &ts);
+
     // 清理临时目录（非关键路径，失败仅告警）
     if let Err(e) = run_cmd("rm", &["-rf", &backup_dir]) {
         println!("[WARN] 清理临时备份目录失败（可忽略）: {}", e);
@@ -113,6 +55,90 @@ pub(super) fn cmd_backup(backup_type: &str) -> bool {
 
     println!("\n[OK] 备份完成: {}", tar_file);
     true
+}
+
+/// 备份数据库（pg_dump）
+///
+/// 批次 323 v9 复审低危修复：从 cmd_backup 拆分，保持单一职责。
+/// P0-1 修复（v9 复审）：pg_dump 失败必须返回 false，终止备份流程。
+///
+/// # 返回
+/// - `true`：数据库备份成功
+/// - `false`：数据库备份失败（错误已打印）
+fn backup_database(backup_dir: &str) -> bool {
+    println!("\n备份数据库...");
+    let db_file = format!("{}/database.sql", backup_dir);
+    let db_host = require_env(
+        "DATABASE__HOST",
+        "请设置数据库主机地址，例如 export DATABASE__HOST=127.0.0.1",
+    );
+    let db_user = require_env(
+        "DATABASE__USERNAME",
+        "请设置数据库用户名，例如 export DATABASE__USERNAME=postgres",
+    );
+    let db_name = require_env(
+        "DATABASE__NAME",
+        "请设置数据库名称，例如 export DATABASE__NAME=bingxi_erp",
+    );
+
+    // P0-1 修复（v9 复审）：数据库是核心数据，pg_dump 失败必须中止备份
+    if let Err(e) = run_cmd(
+        "pg_dump",
+        &["-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", &db_file],
+    ) {
+        println!("[ERROR] 数据库备份失败，终止备份: {}", e);
+        return false;
+    }
+    println!("[OK] 数据库备份完成");
+    true
+}
+
+/// 备份配置文件（config.yaml + .env + service 文件）
+///
+/// 批次 323 v9 复审低危修复：从 cmd_backup 拆分，保持单一职责。
+/// 单个文件备份失败不中止（尽量备份剩余文件）。
+fn backup_config_files(backup_dir: &str) {
+    println!("\n备份配置文件...");
+    let config_dir = format!("{}/backend/config.yaml", get_install_dir());
+    let env_file = get_env_file_path();
+    let service_file = format!("{}/{}.service", get_systemd_dir(), super::SERVICE_NAME);
+
+    // 批次 92 P3-8：cp 失败应记录错误（不中止，尽量备份剩余文件）
+    if let Err(e) = run_cmd("cp", &["-r", &config_dir, backup_dir]) {
+        println!("[ERROR] 备份 config.yaml 失败: {}", e);
+    }
+    if let Err(e) = run_cmd("cp", &["-r", &env_file, backup_dir]) {
+        println!("[ERROR] 备份 .env 失败: {}", e);
+    }
+    if let Err(e) = run_cmd("cp", &["-r", &service_file, backup_dir]) {
+        println!("[ERROR] 备份 service 文件失败: {}", e);
+    }
+
+    println!("[OK] 配置文件备份完成");
+}
+
+/// 压缩备份目录并设置安全权限
+///
+/// 批次 323 v9 复审低危修复：从 cmd_backup 拆分，保持单一职责。
+/// 规则 12 合规：设置备份文件权限为 0o600，防止 .env 敏感信息泄露。
+fn compress_backup(tar_file: &str, ts: &str) {
+    println!("\n压缩备份...");
+    if let Err(e) = run_cmd(
+        "tar",
+        &["-czf", tar_file, "-C", &get_backup_dir(), ts],
+    ) {
+        println!("[ERROR] 压缩失败: {}", e);
+        return;
+    }
+    // 规则 12 合规：设置备份文件权限为 0o600（仅所有者可读），
+    // 防止备份中的 .env（含数据库密码等敏感信息）被其他用户读取
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(e) = fs::set_permissions(tar_file, fs::Permissions::from_mode(0o600)) {
+            println!("[WARN] 设置备份文件权限失败（可忽略）: {}", e);
+        }
+    }
 }
 
 /// L4 修复（v8 复审）：函数返回 bool 表示是否成功，便于调用方根据结果决定后续流程
@@ -144,6 +170,52 @@ pub(super) fn cmd_restore(file: &str) -> bool {
     }
 
     // M4 修复（v8 复审）：先列出 tar 内容并校验路径，再解压，防止恶意文件在校验前已写入磁盘
+    if !validate_tar_contents(file, temp_dir) {
+        return false;
+    }
+
+    println!("解压备份...");
+    if let Err(e) = run_cmd("tar", &["-xzf", file, "-C", temp_dir]) {
+        println!("[ERROR] 解压失败: {}", e);
+        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        return false;
+    }
+
+    // 规则 12 合规：解压后二次校验（canonicalize 解析符号链接），双重防护
+    if let Err(e) = validate_extracted_paths(temp_dir) {
+        println!("[ERROR] 安全校验失败，终止恢复: {}", e);
+        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        return false;
+    }
+
+    // 恢复数据库（批次 323 修复：合并嵌套 if 消除 collapsible_if 警告）
+    let db_file = format!("{}/database.sql", temp_dir);
+    if std::path::Path::new(&db_file).exists() && !restore_database(&db_file) {
+        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        return false;
+    }
+
+    // 恢复配置
+    restore_config_files(temp_dir);
+
+    // 清理临时目录（非关键路径）
+    if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+        println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+    }
+
+    println!("\n[OK] 恢复完成，请重启服务: bingxi restart");
+    true
+}
+
+/// 校验 tar 文件内容（先 tar -tf 列出，再逐行校验路径穿越）
+///
+/// 批次 323 v9 复审低危修复：从 cmd_restore 拆分，保持单一职责。
+/// M4 修复（v8 复审）：先列出 tar 内容并校验路径，再解压，防止恶意文件在校验前已写入磁盘。
+///
+/// # 返回
+/// - `true`：校验通过
+/// - `false`：校验失败（错误已打印，临时目录已清理）
+fn validate_tar_contents(file: &str, temp_dir: &str) -> bool {
     println!("校验备份文件内容...");
     let tar_list = match run_cmd("tar", &["-tf", file]) {
         Ok(list) => list,
@@ -171,55 +243,49 @@ pub(super) fn cmd_restore(file: &str) -> bool {
             return false;
         }
     }
+    true
+}
 
-    println!("解压备份...");
-    if let Err(e) = run_cmd("tar", &["-xzf", file, "-C", temp_dir]) {
-        println!("[ERROR] 解压失败: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+/// 恢复数据库（psql）
+///
+/// 批次 323 v9 复审低危修复：从 cmd_restore 拆分，保持单一职责。
+/// P1 修复（v9 复审）：psql 恢复失败必须返回 false，终止恢复流程。
+///
+/// # 返回
+/// - `true`：数据库恢复成功
+/// - `false`：数据库恢复失败（错误已打印）
+fn restore_database(db_file: &str) -> bool {
+    println!("\n恢复数据库...");
+    let db_host = require_env(
+        "DATABASE__HOST",
+        "请设置数据库主机地址，例如 export DATABASE__HOST=127.0.0.1",
+    );
+    let db_user = require_env(
+        "DATABASE__USERNAME",
+        "请设置数据库用户名，例如 export DATABASE__USERNAME=postgres",
+    );
+    let db_name = require_env(
+        "DATABASE__NAME",
+        "请设置数据库名称，例如 export DATABASE__NAME=bingxi_erp",
+    );
+
+    // P1 修复（v9 复审）：数据库是核心数据，psql 恢复失败必须中止
+    if let Err(e) = run_cmd(
+        "psql",
+        &["-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", db_file],
+    ) {
+        println!("[ERROR] 数据库恢复失败，终止恢复: {}", e);
         return false;
     }
+    println!("[OK] 数据库恢复完成");
+    true
+}
 
-    // 规则 12 合规：解压后二次校验（canonicalize 解析符号链接），双重防护
-    if let Err(e) = validate_extracted_paths(temp_dir) {
-        println!("[ERROR] 安全校验失败，终止恢复: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
-        return false;
-    }
-
-    // 恢复数据库
-    let db_file = format!("{}/database.sql", temp_dir);
-    if std::path::Path::new(&db_file).exists() {
-        println!("\n恢复数据库...");
-        let db_host = require_env(
-            "DATABASE__HOST",
-            "请设置数据库主机地址，例如 export DATABASE__HOST=127.0.0.1",
-        );
-        let db_user = require_env(
-            "DATABASE__USERNAME",
-            "请设置数据库用户名，例如 export DATABASE__USERNAME=postgres",
-        );
-        let db_name = require_env(
-            "DATABASE__NAME",
-            "请设置数据库名称，例如 export DATABASE__NAME=bingxi_erp",
-        );
-
-        // P1 修复（v9 复审）：数据库是核心数据，psql 恢复失败必须中止
-        // 原 L4 修复仅改返回类型为 bool，但 psql 失败时未 return false，
-        // 调用方拿到"恢复成功"假象，可能基于不完整数据继续操作
-        if let Err(e) = run_cmd(
-            "psql",
-            &[
-                "-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", &db_file,
-            ],
-        ) {
-            println!("[ERROR] 数据库恢复失败，终止恢复: {}", e);
-            let _ = run_cmd("rm", &["-rf", temp_dir]);
-            return false;
-        }
-        println!("[OK] 数据库恢复完成");
-    }
-
-    // 恢复配置
+/// 恢复配置文件（config.yaml + .env）
+///
+/// 批次 323 v9 复审低危修复：从 cmd_restore 拆分，保持单一职责。
+/// 单个文件恢复失败不中止（记录错误继续恢复剩余文件）。
+fn restore_config_files(temp_dir: &str) {
     println!("\n恢复配置文件...");
     for name in &["config.yaml", ".env"] {
         let src = format!("{}/{}", temp_dir, name);
@@ -237,14 +303,6 @@ pub(super) fn cmd_restore(file: &str) -> bool {
             }
         }
     }
-
-    // 清理临时目录（非关键路径）
-    if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
-        println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
-    }
-
-    println!("\n[OK] 恢复完成，请重启服务: bingxi restart");
-    true
 }
 
 #[cfg(test)]
