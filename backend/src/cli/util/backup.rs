@@ -2,10 +2,10 @@
 
 use super::{get_backup_dir, get_install_dir, require_env, run_cmd, timestamp};
 use std::fs;
-use std::path::Path;
 
-/// 递归深度上限，防止恶意 tar 包含数千层嵌套目录导致栈溢出
-const MAX_RECURSION_DEPTH: usize = 100;
+// 批次 322 v9 复审低危修复：路径校验逻辑已抽取到共享模块 `utils::path_validator`，
+// 此处复用，避免与 upgrade.rs 重复维护。测试覆盖见 path_validator 模块。
+use crate::utils::path_validator::validate_extracted_paths;
 
 /// 获取 .env 文件路径（可通过 BINGXI_ENV_FILE 环境变量配置）
 fn get_env_file_path() -> String {
@@ -15,41 +15,6 @@ fn get_env_file_path() -> String {
 /// 获取 systemd 服务目录（可通过 BINGXI_SYSTEMD_DIR 环境变量配置）
 fn get_systemd_dir() -> String {
     std::env::var("BINGXI_SYSTEMD_DIR").unwrap_or_else(|_| "/etc/systemd/system".to_string())
-}
-
-/// 校验解压后的所有文件路径都在指定目录范围内，防止 Tar Slip 路径穿越攻击
-fn validate_extracted_paths(base_dir: &str) -> Result<(), String> {
-    let base_canonical = fs::canonicalize(base_dir)
-        .map_err(|e| format!("无法解析基准目录 {}: {}", base_dir, e))?;
-    validate_dir_recursive(&base_canonical, &base_canonical, 0)
-}
-
-/// 递归校验目录下所有文件路径都在基准目录范围内
-fn validate_dir_recursive(dir: &Path, base: &Path, depth: usize) -> Result<(), String> {
-    if depth >= MAX_RECURSION_DEPTH {
-        return Err(format!(
-            "递归深度超过上限 {}，可能存在恶意嵌套目录",
-            MAX_RECURSION_DEPTH
-        ));
-    }
-    for entry in fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))? {
-        let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
-        let path = entry.path();
-        // canonicalize 解析符号链接，防止通过符号链接逃逸
-        let canonical = fs::canonicalize(&path)
-            .map_err(|e| format!("解析路径失败 {:?}: {}", path, e))?;
-        if !canonical.starts_with(base) {
-            return Err(format!(
-                "检测到路径穿越攻击：文件 {:?} 不在安全目录范围内",
-                canonical
-            ));
-        }
-        // 如果是目录，递归校验（深度 +1）
-        if canonical.is_dir() {
-            validate_dir_recursive(&canonical, base, depth + 1)?;
-        }
-    }
-    Ok(())
 }
 
 /// L4 修复（v8 复审）：函数返回 bool 表示是否成功，便于调用方（如 upgrade）根据结果决定后续流程
@@ -316,25 +281,6 @@ mod tests {
         std::env::remove_var("BINGXI_SYSTEMD_DIR");
     }
 
-    /// M8 测试：validate_dir_recursive 超过深度上限时返回错误
-    #[test]
-    fn test_validate_dir_recursive_depth_limit() {
-        // 创建一个临时目录用于测试
-        let temp = std::env::temp_dir().join("bingxi_test_depth_limit");
-        let _ = std::fs::create_dir(&temp);
-
-        // depth 已达上限时应直接返回错误
-        let result = validate_dir_recursive(&temp, &temp, MAX_RECURSION_DEPTH);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("递归深度超过上限"));
-
-        let _ = std::fs::remove_dir(&temp);
-    }
-
-    /// M8 测试：validate_extracted_paths 不存在的目录返回错误
-    #[test]
-    fn test_validate_extracted_paths_nonexistent() {
-        let result = validate_extracted_paths("/nonexistent/path/that/should/not/exist");
-        assert!(result.is_err());
-    }
+    // 批次 322 v9 复审低危修复：validate_dir_recursive 和 validate_extracted_paths 的
+    // 单元测试已迁移到共享模块 utils::path_validator，此处不再重复维护。
 }

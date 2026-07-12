@@ -6,7 +6,7 @@
 
 ---
 
-## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 2/2 ✅，中危 5/5 ✅）
+## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 2/2 ✅，中危 5/5 ✅，低危 3/7 🔄）
 
 > **v9 全项目复审报告**（2026-07-12，[v9-review-2026-07-12.md](file:///workspace/.monkeycode/docs/audits/v9-review-2026-07-12.md)）：v8 修复后复审发现 2 P0 + 2 高危 + 5 中危 + 多个低危。
 > 修复策略：按规则 13 连续执行，P0 → 高危 → 中危 → 低危，每批 1 commit，CI 全绿后合并 main，全部完成后进入 v10 复审。
@@ -18,12 +18,17 @@
 | 🔴 P0 严重 | 2 | 2 | 0 | ✅ 全部完成（批次 317） |
 | 🟠 高危 | 2 | 2 | 0 | ✅ 全部完成（批次 318） |
 | 🟡 中危 | 5 | 5 | 0 | ✅ 全部完成（批次 319-321） |
-| 🟢 低危 | 多项 | 0 | 多项 | ⏳ 批次 322+ |
-| **合计** | **9+** | **9** | **多项** | — |
+| 🟢 低危 | 7 | 3 | 4 | 🔄 批次 322 代码质量完成，剩余测试覆盖+代码味道 |
+| **合计** | **16+** | **12** | **4+** | — |
 
-### ✅ 已完成（批次 317-321）
+### ✅ 已完成（批次 317-322）
 
-**批次 321（PR #TBD）**：中危修复 M-5
+**批次 322（PR #TBD）**：低危代码质量修复 3 项
+- 抽取 backup.rs + upgrade.rs 重复路径校验到 utils/path_validator 共享模块 + 4 个单元测试
+- 抽取 system_update_service.rs compare_versions + compare_versions_for_sort 重复 parse_version 为共享函数 + 3 个单元测试
+- WebhookDeliveryResult 保持 pub 并补充可见性说明（API 响应体泛型参数需要 pub）
+
+**批次 321（PR #493）**：中危修复 M-5
 - M-5：elastic.rs ElasticClient::real + ensure_indices 添加 SSRF 校验
 - 新增 try_real 方法返回 Result，便于单元测试覆盖 SSRF 拦截逻辑
 - 使用 validate_url_and_resolve 校验 + resolve_to_addrs 固定 IP 防 DNS Rebinding TOCTOU
@@ -53,11 +58,15 @@
 
 ### ⏳ 待修复项
 
-#### 低危（多项，批次 322+）
+#### 低危（剩余 4 项，批次 323+）
 
-- 代码重复：backup.rs 与 upgrade.rs 的 validate_extracted_path 逻辑重复
-- 测试覆盖：upgrade.rs/admin.rs/elastic.rs/webhook_handler.rs 缺少单元测试
-- 代码味道：extract_update_package/cmd_backup/cmd_restore 函数过长
+**测试覆盖（2 项 ⏳）**：
+- `upgrade.rs` 的 `validate_extracted_path` 无单元测试（注：批次 322 已抽取到共享模块 path_validator，测试覆盖已补齐，待确认是否还需在 upgrade.rs 内补充集成测试）
+- `admin.rs` 密码处理逻辑无单元测试
+
+**代码味道（2 项 ⏳）**：
+- `system_update_service.rs` 的 `extract_update_package` 函数过长（60+ 行），应拆分
+- `backup.rs` 的 `cmd_backup`/`cmd_restore` 函数过长，应拆分
 
 ---
 
