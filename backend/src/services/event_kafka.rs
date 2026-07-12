@@ -25,7 +25,7 @@ use futures::FutureExt;
 use rskafka::client::partition::{Compression, OffsetAt, PartitionClient, UnknownTopicHandling};
 use rskafka::client::{Client, ClientBuilder};
 use rskafka::record::Record;
-use serde::{Deserialize, Serialize};
+// 批次 357 v13 复审 baseline 清零：移除 unused import（Deserialize, Serialize 编译器报未使用）
 use tokio::sync::mpsc;
 
 use crate::config::settings::KafkaSettings;

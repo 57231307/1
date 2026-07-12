@@ -381,7 +381,8 @@ impl ImportExportService {
         total_rows: u64,
         user_id: i32,
     ) -> Result<i32, AppError> {
-        use crate::models::import_task::{self, ActiveModel};
+        // 批次 357 v13 复审 baseline 清零：移除 unused import self（仅使用 ActiveModel）
+        use crate::models::import_task::ActiveModel;
         use sea_orm::ActiveValue::Set;
         use chrono::Utc;
 
@@ -415,7 +416,8 @@ impl ImportExportService {
         task_id: i32,
         result: &ImportResult,
     ) -> Result<(), AppError> {
-        use crate::models::import_task::{self, ActiveModel};
+        // 批次 357 v13 复审 baseline 清零：移除 unused import self（仅使用 ActiveModel）
+        use crate::models::import_task::ActiveModel;
         use sea_orm::ActiveValue::Set;
         use chrono::Utc;
 
