@@ -15,11 +15,13 @@
 
 ---
 
-## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 40/~43 ⏳）
+## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 43/43 ✅ 全部完成）
 
 > **v10 复审报告**（2026-07-12，Task 工具扫描）：v9 + sea-orm 调研 + 规则 14 新增后复审，扫描所有 `#[allow(...)]` 警告抑制。
-> 发现 180 个抑制标注（108 例外 models/ + 72 非例外），非例外分类：1 P0 + 5 P1 + 4 P2 + ~42 P3。
+> 发现 180 个抑制标注（108 例外 models/ + 72 非例外），非例外分类：1 P0 + 5 P1 + 4 P2 + ~43 P3。
 > 修复策略：按规则 13+14 连续执行，P0 → P1 → P2 → P3，每批 1 commit，CI 全绿后合并 main。
+> **批次文件数量策略**：每批次处理 5-6 个文件（用户最新要求，原为 8-10）。
+> **v10 复审全部完成**（2026-07-12，批次 339 合并）：所有 `#[allow(clippy::too_many_arguments)]` 抑制已全部移除，规则 14 合规。
 
 ### 进度总览
 
@@ -28,10 +30,17 @@
 | 🔴 P0 死代码 | 1 | 1 | 0 | ✅ 全部完成（批次 325） |
 | 🟠 P1 文件级抑制过宽+未使用重导出 | 5 | 5 | 0 | ✅ 全部完成（批次 325） |
 | 🟡 P2 clippy 代码味道 | 4 | 4 | 0 | ✅ 全部完成（批次 326，pred.rs 2 项已在 main 修复） |
-| 🟢 P3 too_many_arguments | ~43 | 40 | ~3 | ⏳ 长期重构（批次 327+） |
-| **合计** | **~53** | **50** | **~3** | 🔄 进行中 |
+| 🟢 P3 too_many_arguments | 43 | 43 | 0 | ✅ 全部完成（批次 327-339，含 9 项误报删除） |
+| **合计** | **~53** | **53** | **0** | ✅ v10 复审全部完成 |
 
-### ✅ 已完成（批次 325-338）
+### ✅ 已完成（批次 325-339）
+
+**批次 339（PR #511）**：v10 复审 P3 too_many_arguments DTO 重构剩余 3 项（v10 复审收官）
+- `product_service.rs create_product`：19 参数 → 1 参数对象 `CreateProductArgs`（19 字段，含面料行业字段）
+- `product_service.rs update_product`：19 参数 → 1 参数对象 `UpdateProductArgs`（19 字段，所有业务字段均为 Option）
+- `mrp_engine_service.rs explode_bom_recursive`：11 参数（含 &self + &mut Vec + &mut HashMap）→ 4 参数（&self + `ExplodeBomArgs<'a>` + &mut Vec + &mut HashMap），9 个标量参数聚合为参数对象，借用参数 results/stock_cache 保留在签名中
+- 调用方同步修改：product_handler.rs（create_product + update_product）+ product_service.rs import_products_from_csv 内部调用方 + mrp_engine_service.rs 递归调用方 + explode_bom 入口调用方
+- **v10 复审 P3 too_many_arguments 全部 43 项完成，所有 #[allow(clippy::too_many_arguments)] 抑制全部移除，规则 14 合规**
 
 **批次 338（PR #510）**：v10 复审 P3 too_many_arguments DTO 重构 8 项（5 核心 service + 8 调用方）
 - `ai/recipe_opt.rs make_recipe`：8 参数 → 1 参数对象 `RecipeFixture<'a>`（测试夹具，7 个调用点同步修改）
@@ -114,20 +123,26 @@
 - P1：删除 `so/mod.rs` 2 个未使用 `pub use` + `#[allow(unused_imports)]`
 - P1：删除 `po/mod.rs` 1 个未使用 `pub use` + `#[allow(unused_imports)]`
 
-### 🟢 P3 待修复项（~42 项 ⏳ 长期重构）
+### 🟢 P3 too_many_arguments（43/43 ✅ 全部完成）
 
-**问题描述**：~42 处 `#[allow(clippy::too_many_arguments)]` 抑制，函数参数过多（>7）。
+**问题描述**：43 处 `#[allow(clippy::too_many_arguments)]` 抑制，函数参数过多（>7）。
+
+**修复结果**（批次 327-339）：
+- 9 项误报删除（参数 ≤7，clippy 阈值 7 不计 &self）：批次 327（2 项）+ 328（9 项，注：实际 9 项误报）
+- 34 项 DTO 重构（引入参数对象 Parameter Object 模式）：批次 329-339
+- **所有 `#[allow(clippy::too_many_arguments)]` 抑制已全部移除**（2026-07-12 批次 339 合并确认）
 
 **修复方案**：
 - 引入参数对象（Parameter Object）重构模式
 - 将相关参数分组为 struct，按职责聚合
-- 每批次处理 5-10 个，避免单批次过大
+- 每批次处理 5-6 个文件，避免单批次过大
 - 优先处理 service 层（业务逻辑核心），再处理 handler 层
 
 **技术要点**：
 - 参数对象需实现 `Clone`/`Debug` 便于测试
 - handler 层参数对象可考虑 `From<Request>` 提取器
 - service 层参数对象可考虑 Builder 模式（可选参数多时）
+- 含借用参数（&mut Vec / &mut HashMap / &str）的函数：标量参数聚合为参数对象，借用参数保留在签名中（如 explode_bom_recursive）
 
 ---
 

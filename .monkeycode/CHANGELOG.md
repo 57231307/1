@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 339 | #511 | v10 复审 P3 too_many_arguments DTO 重构剩余 3 项收官（product_service create_product 19→1 CreateProductArgs + update_product 19→1 UpdateProductArgs + mrp_engine_service explode_bom_recursive 11→4 引入 ExplodeBomArgs<'a> 聚合 9 标量参数借用 results/stock_cache 保留签名，product_handler + import_products_from_csv 调用方同步修改，所有 #[allow(clippy::too_many_arguments)] 全部移除 v10 复审 P3 43/43 全部完成） |
 | 338 | #510 | v10 复审 P3 too_many_arguments DTO 重构 8 项（5 核心 service + 8 调用方：ai/recipe_opt make_recipe 8→1 RecipeFixture + inventory_stock_query record_transaction 18→1 RecordTransactionArgs + inventory_stock_service create_stock 12→1 CreateStockArgs + create_stock_fabric 13→1 CreateStockFabricArgs + inventory_stock_txn create_stock_fabric_txn 14→2 + record_transaction_txn 19→2 复用已有参数对象 + customer_service create_customer 18→1 CreateCustomerArgs + update_customer 18→1 UpdateCustomerArgs，共 20+ 调用点同步修改） |
 | 337 | #509 | v10 复审 P3 too_many_arguments DTO 重构 6 项（inventory_finance_bridge_service.rs 5 个 create_*_voucher 10→1 参数 + handle_inventory_transaction 12→3 参数 统一引入 VoucherCreateArgs<'a> 参数对象借用 source_bill_type/source_bill_no/batch_no/color_no，start_listener 调用方同步修改，CI 修复 OrderChangeRecord dead code 加入 baseline 属批次 332 技术债务传播） |
 | 336 | #508 | v10 复审 P3 too_many_arguments DTO 重构 1 项（mrp_engine_service.rs calculate_requirement 8→1 参数引入 RequirementCalcParams 参数对象，run_mrp_calculation 内部调用方同步修改 bom_level=0，calculate_requirement_with_stock 和 explode_bom_recursive 保留 allow 因含借用参数需单独评估） |
