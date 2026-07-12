@@ -1,7 +1,9 @@
 //! 用户通知偏好设置 Handler
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::user_notification_setting_service::UserNotificationSettingService;
+use crate::services::user_notification_setting_service::{
+    UpdateNotificationSettingParams, UserNotificationSettingService,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -37,19 +39,18 @@ pub async fn update_setting(
     Json(req): Json<UpdateSettingRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = UserNotificationSettingService::new(state.db.clone());
-    let setting = service
-        .update_setting(
-            auth.user_id,
-            req.email_enabled,
-            req.internal_enabled,
-            req.order_notification_type,
-            req.approval_notification_type,
-            req.inventory_notification_type,
-            req.purchase_notification_type,
-            req.finance_notification_type,
-            req.system_notification_type,
-        )
-        .await?;
+    // 批次 327 v10 复审 P3 修复：使用参数对象替代多参数
+    let params = UpdateNotificationSettingParams {
+        email_enabled: req.email_enabled,
+        internal_enabled: req.internal_enabled,
+        order_type: req.order_notification_type,
+        approval_type: req.approval_notification_type,
+        inventory_type: req.inventory_notification_type,
+        purchase_type: req.purchase_notification_type,
+        finance_type: req.finance_notification_type,
+        system_type: req.system_notification_type,
+    };
+    let setting = service.update_setting(auth.user_id, params).await?;
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(setting)?,
         "通知偏好设置已更新",

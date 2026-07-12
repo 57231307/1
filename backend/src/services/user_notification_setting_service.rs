@@ -5,6 +5,29 @@ use crate::utils::error::AppError;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 
+/// 更新通知偏好设置的参数对象
+///
+/// 批次 327 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告
+#[derive(Debug, Clone, Default)]
+pub struct UpdateNotificationSettingParams {
+    /// 是否启用邮件通知
+    pub email_enabled: Option<bool>,
+    /// 是否启用站内通知
+    pub internal_enabled: Option<bool>,
+    /// 订单通知类型
+    pub order_type: Option<String>,
+    /// 审批通知类型
+    pub approval_type: Option<String>,
+    /// 库存通知类型
+    pub inventory_type: Option<String>,
+    /// 采购通知类型
+    pub purchase_type: Option<String>,
+    /// 财务通知类型
+    pub finance_type: Option<String>,
+    /// 系统通知类型
+    pub system_type: Option<String>,
+}
+
 pub struct UserNotificationSettingService {
     db: Arc<DatabaseConnection>,
 }
@@ -47,44 +70,38 @@ impl UserNotificationSettingService {
     }
 
     /// 更新设置
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 327 v10 复审 P3 修复：使用 UpdateNotificationSettingParams 参数对象替代 8 个独立参数
     pub async fn update_setting(
         &self,
         user_id: i32,
-        email_enabled: Option<bool>,
-        internal_enabled: Option<bool>,
-        order_type: Option<String>,
-        approval_type: Option<String>,
-        inventory_type: Option<String>,
-        purchase_type: Option<String>,
-        finance_type: Option<String>,
-        system_type: Option<String>,
+        params: UpdateNotificationSettingParams,
     ) -> Result<user_notification_setting::Model, AppError> {
         let setting = self.get_or_create_default(user_id).await?;
         let mut active_model: user_notification_setting::ActiveModel = setting.into();
 
-        if let Some(v) = email_enabled {
+        if let Some(v) = params.email_enabled {
             active_model.email_enabled = Set(v);
         }
-        if let Some(v) = internal_enabled {
+        if let Some(v) = params.internal_enabled {
             active_model.internal_enabled = Set(v);
         }
-        if let Some(v) = order_type {
+        if let Some(v) = params.order_type {
             active_model.order_notification_type = Set(v);
         }
-        if let Some(v) = approval_type {
+        if let Some(v) = params.approval_type {
             active_model.approval_notification_type = Set(v);
         }
-        if let Some(v) = inventory_type {
+        if let Some(v) = params.inventory_type {
             active_model.inventory_notification_type = Set(v);
         }
-        if let Some(v) = purchase_type {
+        if let Some(v) = params.purchase_type {
             active_model.purchase_notification_type = Set(v);
         }
-        if let Some(v) = finance_type {
+        if let Some(v) = params.finance_type {
             active_model.finance_notification_type = Set(v);
         }
-        if let Some(v) = system_type {
+        if let Some(v) = params.system_type {
             active_model.system_notification_type = Set(v);
         }
         active_model.updated_at = Set(chrono::Utc::now());
