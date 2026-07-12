@@ -247,6 +247,7 @@ impl SalesService {
         // 原实现 approve_order 仅更新订单状态，不调用 InventoryReservationService::create_reservation，
         // 导致销售订单→库存锁定链路完全断开，存在超卖风险。
         // 修复：commit 成功后查询订单明细，为每个明细创建库存预留记录。
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
         let order_items = crate::models::sales_order_item::Entity::find()
             .filter(crate::models::sales_order_item::Column::OrderId.eq(order_id))
             .all(&*self.db)
@@ -257,9 +258,9 @@ impl SalesService {
                 self.db.clone(),
             );
         for item in order_items {
-            // 查询产品默认仓库（使用第一个仓库作为默认仓库）
+            // 查询产品默认仓库（使用第一个活跃仓库作为默认仓库）
             let default_warehouse = crate::models::warehouse::Entity::find()
-                .filter(crate::models::warehouse::Column::Status.eq(master_data::STATUS_ACTIVE))
+                .filter(crate::models::warehouse::Column::IsActive.eq(true))
                 .one(&*self.db)
                 .await?;
 
