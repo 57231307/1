@@ -14,36 +14,53 @@ pub struct OrderChangeHistoryService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 订单变更历史记录参数对象
+///
+/// 批次 332 v10 复审 P3 修复：引入参数对象消除 record_change 的 too_many_arguments 警告。
+/// 聚合订单变更所需的全部字段，避免函数签名携带 9 个参数。
+#[derive(Debug, Clone)]
+pub struct OrderChangeRecord {
+    /// 订单 ID
+    pub order_id: i32,
+    /// 变更类型（如 CREATE / UPDATE / STATUS_CHANGE）
+    pub change_type: String,
+    /// 变更字段名（可选，UPDATE 时填写）
+    pub field_name: Option<String>,
+    /// 旧值（可选）
+    pub old_value: Option<String>,
+    /// 新值（可选）
+    pub new_value: Option<String>,
+    /// 操作人 ID
+    pub changed_by: i32,
+    /// 变更原因（可选）
+    pub change_reason: Option<String>,
+    /// 操作 IP 地址（可选，审计用）
+    pub ip_address: Option<String>,
+    /// 操作 User-Agent（可选，审计用）
+    pub user_agent: Option<String>,
+}
+
 impl OrderChangeHistoryService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
     /// 记录订单变更历史
-    #[allow(clippy::too_many_arguments)]
-    pub async fn record_change(
-        &self,
-        order_id: i32,
-        change_type: &str,
-        field_name: Option<&str>,
-        old_value: Option<&str>,
-        new_value: Option<&str>,
-        changed_by: i32,
-        change_reason: Option<&str>,
-        ip_address: Option<&str>,
-        user_agent: Option<&str>,
-    ) -> Result<(), AppError> {
+    ///
+    /// 批次 332 v10 复审 P3 修复：签名从 9 参数改为单一参数对象 `OrderChangeRecord`，
+    /// 消除 `clippy::too_many_arguments` 警告。
+    pub async fn record_change(&self, record: OrderChangeRecord) -> Result<(), AppError> {
         let history = sales_order_change_history::ActiveModel {
-            order_id: ActiveValue::Set(order_id),
-            change_type: ActiveValue::Set(change_type.to_string()),
-            field_name: ActiveValue::Set(field_name.map(|s| s.to_string())),
-            old_value: ActiveValue::Set(old_value.map(|s| s.to_string())),
-            new_value: ActiveValue::Set(new_value.map(|s| s.to_string())),
-            changed_by: ActiveValue::Set(changed_by),
+            order_id: ActiveValue::Set(record.order_id),
+            change_type: ActiveValue::Set(record.change_type),
+            field_name: ActiveValue::Set(record.field_name),
+            old_value: ActiveValue::Set(record.old_value),
+            new_value: ActiveValue::Set(record.new_value),
+            changed_by: ActiveValue::Set(record.changed_by),
             changed_at: ActiveValue::Set(Utc::now()),
-            change_reason: ActiveValue::Set(change_reason.map(|s| s.to_string())),
-            ip_address: ActiveValue::Set(ip_address.map(|s| s.to_string())),
-            user_agent: ActiveValue::Set(user_agent.map(|s| s.to_string())),
+            change_reason: ActiveValue::Set(record.change_reason),
+            ip_address: ActiveValue::Set(record.ip_address),
+            user_agent: ActiveValue::Set(record.user_agent),
             created_at: ActiveValue::Set(Utc::now()),
             updated_at: ActiveValue::Set(Utc::now()),
             ..Default::default()
@@ -90,18 +107,19 @@ impl OrderChangeHistoryService {
         order_id: i32,
         changed_by: i32,
     ) -> Result<(), AppError> {
-        self.record_change(
+        // 批次 332 v10 复审 P3 修复：使用 OrderChangeRecord 参数对象替代多参数
+        let record = OrderChangeRecord {
             order_id,
-            "CREATE",
-            None,
-            None,
-            None,
+            change_type: "CREATE".to_string(),
+            field_name: None,
+            old_value: None,
+            new_value: None,
             changed_by,
-            Some("创建订单"),
-            None,
-            None,
-        )
-        .await
+            change_reason: Some("创建订单".to_string()),
+            ip_address: None,
+            user_agent: None,
+        };
+        self.record_change(record).await
     }
 
 
