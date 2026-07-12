@@ -27,6 +27,29 @@ pub struct CreateProductColorInput {
     pub extra_cost: f64,
 }
 
+/// 更新产品色号参数对象
+///
+/// 批次 330 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告
+#[derive(Debug)]
+pub struct UpdateProductColorParams {
+    /// 色号 ID
+    pub id: i32,
+    /// 色号名称
+    pub color_name: Option<String>,
+    /// 潘通色号
+    pub pantone_code: Option<String>,
+    /// 色号类型
+    pub color_type: Option<String>,
+    /// 染色配方
+    pub dye_formula: Option<String>,
+    /// 额外成本
+    pub extra_cost: Option<f64>,
+    /// 是否启用
+    pub is_active: Option<bool>,
+    /// 操作人 ID（审计日志）
+    pub user_id: i32,
+}
+
 /// 产品服务（面料行业版）
 ///
 /// 批次 125 v8 复审 P1 修复：注入 search_syncer 实现 PG→ES 写入同步。
@@ -384,7 +407,6 @@ impl ProductService {
     }
 
     /// 创建产品色号
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_product_color(
         &self,
         product_id: i32,
@@ -440,18 +462,21 @@ impl ProductService {
     }
 
     /// 更新产品色号
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 330 v10 复审 P3 修复：使用 UpdateProductColorParams 参数对象替代 8 个独立参数
     pub async fn update_product_color(
         &self,
-        id: i32,
-        color_name: Option<String>,
-        pantone_code: Option<String>,
-        color_type: Option<String>,
-        dye_formula: Option<String>,
-        extra_cost: Option<f64>,
-        is_active: Option<bool>,
-        user_id: i32,
+        params: UpdateProductColorParams,
     ) -> Result<product_color::Model, AppError> {
+        let id = params.id;
+        let color_name = params.color_name;
+        let pantone_code = params.pantone_code;
+        let color_type = params.color_type;
+        let dye_formula = params.dye_formula;
+        let extra_cost = params.extra_cost;
+        let is_active = params.is_active;
+        let user_id = params.user_id;
+
         let mut color: product_color::ActiveModel = ProductColorEntity::find_by_id(id)
             .one(&*self.db)
             .await?

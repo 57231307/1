@@ -218,7 +218,6 @@ impl InventoryStockService {
     /// 返回分页结果，包含数据列表和总记录数
     // TODO(tech-debt): 业务上要求按多个维度筛选+分页，可选参数较多；后续可通过
     // InventorySummaryQuery DTO 聚合参数以收敛签名长度，移除此标注。
-    #[allow(clippy::too_many_arguments)]
     pub async fn get_inventory_summary(
         &self,
         warehouse_id: Option<i32>,

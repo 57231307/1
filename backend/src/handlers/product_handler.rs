@@ -353,19 +353,18 @@ pub async fn update_product_color(
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
-    let color = product_service
-        .update_product_color(
-            color_id,
-            req.color_name,
-            req.pantone_code,
-            req.color_type,
-            req.dye_formula,
-            req.extra_cost,
-            req.is_active,
-            // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-            auth.user_id,
-        )
-        .await?;
+    // 批次 330 v10 复审 P3 修复：使用参数对象替代多参数
+    let params = crate::services::product_service::UpdateProductColorParams {
+        id: color_id,
+        color_name: req.color_name,
+        pantone_code: req.pantone_code,
+        color_type: req.color_type,
+        dye_formula: req.dye_formula,
+        extra_cost: req.extra_cost,
+        is_active: req.is_active,
+        user_id: auth.user_id,
+    };
+    let color = product_service.update_product_color(params).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         color,

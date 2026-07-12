@@ -383,7 +383,6 @@ impl MrpEngineService {
     }
 
     /// 展开BOM计算子物料需求
-    #[allow(clippy::too_many_arguments)]
     pub async fn explode_bom(
         &self,
         product_id: i32,
@@ -419,7 +418,6 @@ impl MrpEngineService {
     }
 
     /// 执行MRP计算并保存结果
-    #[allow(clippy::too_many_arguments)]
     pub async fn run_mrp_calculation(
         &self,
         product_id: i32,

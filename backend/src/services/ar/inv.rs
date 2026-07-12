@@ -117,7 +117,6 @@ impl ArReconciliationService {
     /// - `payment_terms_days` 客户账期（天），<= 0 时回退 30 天
     /// - `user_id`            当前操作人
     /// - `txn`                外部数据库事务引用
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_receivable(
         &self,
         customer_id: i32,
