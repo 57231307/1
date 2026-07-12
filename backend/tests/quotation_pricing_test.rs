@@ -11,29 +11,29 @@ use rust_decimal::Decimal;
 
 #[test]
 fn test_vip_discount_rate_is_five_percent() {
-    let vip = CustomerLevel::VIP;
+    let vip = CustomerLevel::Vip;
     assert_eq!(vip.discount_rate(), Decimal::new(5, 2));
 }
 
 #[test]
 fn test_normal_discount_rate_is_zero() {
-    let normal = CustomerLevel::NORMAL;
+    let normal = CustomerLevel::Normal;
     assert_eq!(normal.discount_rate(), Decimal::ZERO);
 }
 
 #[test]
 fn test_customer_level_from_code() {
-    assert_eq!(CustomerLevel::from_code("VIP"), CustomerLevel::VIP);
-    assert_eq!(CustomerLevel::from_code("vip"), CustomerLevel::VIP);
-    assert_eq!(CustomerLevel::from_code("NORMAL"), CustomerLevel::NORMAL);
-    assert_eq!(CustomerLevel::from_code("unknown"), CustomerLevel::NORMAL);
+    assert_eq!(CustomerLevel::from_code("VIP"), CustomerLevel::Vip);
+    assert_eq!(CustomerLevel::from_code("vip"), CustomerLevel::Vip);
+    assert_eq!(CustomerLevel::from_code("NORMAL"), CustomerLevel::Normal);
+    assert_eq!(CustomerLevel::from_code("unknown"), CustomerLevel::Normal);
 }
 
 #[test]
 fn test_pricing_context_serialize() {
     let ctx = PricingContext {
         customer_id: 1,
-        customer_level: CustomerLevel::VIP,
+        customer_level: CustomerLevel::Vip,
         product_id: 100,
         color_id: Some(5),
         quantity: Decimal::from(150),

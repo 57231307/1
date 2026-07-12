@@ -104,16 +104,29 @@
 - baseline 行数：1508 → 1489
 - CI 13 success + 2 skipped 全绿，v12 复审 P2 全部完成（8/8）
 
-### 🟠 P1 剩余项（4 项，需通过 CI 日志定位文件）
+### 🟠 P1 修复进度（4 项，4/4 ✅ 全部完成）
 
-| ID | 警告类型 | 数量 | 评估 |
+| ID | 警告类型 | 数量 | 状态 |
 |----|----------|------|------|
-| P1-1 | `clippy::too_many_arguments` | 2 | baseline 中 "this function has too many arguments (10/7)" + "(8/7)"，需定位具体函数 |
-| P1-2 | `clippy::useless_asref` | 1 | baseline 中记录，需定位具体位置 |
-| P1-3 | `unused_imports` | 23 | baseline 中 23 条 unused import 警告，需逐个定位删除 |
-| P1-4 | baseline 过时条目清理 | — | P1 修复后同步清理 baseline |
+| P1-1 | `clippy::too_many_arguments` | 2 | ✅ 全部完成（批次 352） |
+| P1-2 | `clippy::useless_asref` | 1 | ✅ 全部完成（批次 351） |
+| P1-3 | `unused_imports` | 23 | ✅ 全部完成（批次 351+353+354） |
+| P1-4 | baseline 过时条目清理 | — | ✅ 全部完成（批次 355 删除 25 行 1482→1457） |
 
-**注意**：P1 警告在 baseline 中有摘要行，直接修复代码后 current 中对应警告消失，baseline 中需同步删除摘要行，否则不会产生新警告但 baseline 会保留过时条目。
+### 🟢 P3 修复进度（3 项，全部完成 ✅）
+
+| ID | 警告类型 | 数量 | 状态 |
+|----|----------|------|------|
+| P3-1 | `upper_case_acronyms` | 7 | ✅ 全部完成（批次 355，Incoterms2020 + CustomerLevel 枚举变体重命名） |
+| P3-2 | 测试代码合理保留 | 2 | ✅ 全部完成（批次 353-354 已清理测试模块 unused_imports） |
+| P3-3 | 测试代码合理保留 | — | ✅ 全部完成（批次 354 inventory_stock_handler_query 测试模块 super::* 移除） |
+
+**批次 355（PR #527，进行中）**：v12 复审 P1-4 baseline 清理 + P3 upper_case_acronyms 修复
+- baseline 删除 25 行（18 条 P1 已修复摘要行 + 7 条 P3 摘要行）
+- utils/incoterms.rs: Incoterms2020 枚举变体 FOB→Fob, CIF→Cif, EXW→Exw, DDP→Ddp, DAP→Dap
+- services/quotation_pricing_service.rs: CustomerLevel 枚举变体 VIP→Vip, NORMAL→Normal
+- tests/quotation_pricing_test.rs + tests/quotation_dto_serde_test.rs: 同步更新测试引用
+- #[serde(rename_all = "UPPERCASE")] 保持序列化为大写，API 契约不变
 
 ### 🔴 P0 待修复项（0 项 ✅ 全部完成）
 
