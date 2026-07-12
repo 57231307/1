@@ -167,7 +167,9 @@ impl SalesService {
                         transaction_type: "SALES_DELIVERY".to_string(),
                         product_id: item.product_id,
                         warehouse_id: warehouse.id,
-                        batch_no: item.batch_no.clone(),
+                        // 批次 356 v13 复审修复：item.batch_no 为 Option<String>，RecordTransactionArgs.batch_no 期望 String
+                        // 无批次号时使用空字符串占位（与库存流水无批次号语义一致）
+                        batch_no: item.batch_no.clone().unwrap_or_default(),
                         color_no: String::new(),
                         dye_lot_no: None,
                         grade: String::new(),
