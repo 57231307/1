@@ -83,8 +83,7 @@ impl CustomOrderCrudService {
             unit: Set(dto.unit),
             custom_requirements: Set(dto
                 .custom_requirements
-                .as_ref()
-                .map(|v| v.clone())
+                .clone()
                 .unwrap_or(serde_json::json!({}))),
             yarn_spec: Set(dto.yarn_spec),
             dye_method: Set(dto.dye_method),

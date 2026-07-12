@@ -203,7 +203,7 @@ pub async fn validate_dual_unit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal::prelude::*;
+    // 批次 351 v12 复审 P1-3：移除未使用的 rust_decimal::prelude::*（测试代码使用全路径）
     // P9-1: 引入 decs! 宏替代 .from_str().unwrap()
     // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
     use crate::decs;
