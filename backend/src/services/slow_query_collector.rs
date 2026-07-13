@@ -77,7 +77,7 @@ impl SlowQueryCollector {
     ///
     /// 设计原则：采集任务启动失败不阻断 main（CI 容器可能未预装扩展）
     // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 main.rs:462 真实调用）
-    pub fn start_collect_task(self: Arc<Self>, interval_secs: u64) {
+    pub fn start_collect_task(self: Arc<Self>, interval_secs: u64) -> tokio::task::JoinHandle<()> {
         let service = self.clone();
         tokio::spawn(async move {
             tracing::info!(
@@ -127,7 +127,7 @@ impl SlowQueryCollector {
                     );
                 }
             }
-        });
+        })
     }
 
     /// 执行一次采集（手动触发 / 定时调用）
