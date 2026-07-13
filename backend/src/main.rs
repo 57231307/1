@@ -466,19 +466,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // L-30 修复（批次 372 v13 复审）：保留 omni_audit clone 用于 graceful shutdown 后
             // 调用 shutdown()，避免审计引擎 detached task 泄漏
             omni_audit_for_shutdown = Some(omni_audit.clone());
+            // P2 8-13 修复：原 retention_days 硬编码 999（约 2.7 年），实际无清理效果，
+            // omni_audit_logs 表无限膨胀拖累查询性能。
+            // 改为环境变量配置，默认 365 天（1 年热保留），符合审计日志保留最佳实践。
+            // 生产环境可通过 AUDIT_RETENTION_DAYS 覆盖；归档逻辑（1-3 年冷数据迁移）
+            // 作为后续技术债单独实现。
+            // L-37 修复（批次 379 v13 复审）：消除 silent default，
+            // 生产环境未设置时 warn，开发环境未设置时 info。
+            let retention_days = match std::env::var("AUDIT_RETENTION_DAYS") {
+                Ok(v) => match v.parse::<i32>() {
+                    Ok(d) if d > 0 => {
+                        info!(retention_days = d, "AUDIT_RETENTION_DAYS 已设置");
+                        d
+                    }
+                    _ => {
+                        warn!(value = %v, "AUDIT_RETENTION_DAYS 值无效（应为正整数），使用默认值 365");
+                        365
+                    }
+                },
+                Err(_) => {
+                    if crate::utils::config::is_production() {
+                        warn!("生产环境未设置 AUDIT_RETENTION_DAYS，使用默认值 365（建议显式设置审计日志保留天数）");
+                    } else {
+                        info!("AUDIT_RETENTION_DAYS 未设置，使用默认值 365");
+                    }
+                    365
+                }
+            };
             let audit_cleanup = Arc::new(
-                // P2 8-13 修复：原 retention_days 硬编码 999（约 2.7 年），实际无清理效果，
-                // omni_audit_logs 表无限膨胀拖累查询性能。
-                // 改为环境变量配置，默认 365 天（1 年热保留），符合审计日志保留最佳实践。
-                // 生产环境可通过 AUDIT_RETENTION_DAYS 覆盖；归档逻辑（1-3 年冷数据迁移）
-                // 作为后续技术债单独实现。
                 crate::services::audit_cleanup_service::AuditCleanupService::new(
                     db.clone(),
-                    std::env::var("AUDIT_RETENTION_DAYS")
-                        .ok()
-                        .and_then(|v| v.parse::<i32>().ok())
-                        .filter(|d| *d > 0)
-                        .unwrap_or(365),
+                    retention_days,
                 ),
             );
 
@@ -587,7 +605,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // 批次 123 v8 复审 P1 修复：启动时确保 ES 索引存在（幂等创建）
             // 仅在配置了 ELASTICSEARCH_URL 时调用，CI 环境（未配置）跳过。
             // 错误处理：用 tracing::warn! 降级（不阻塞启动），与 initialize_dimensions 一致。
-            let es_url = std::env::var("ELASTICSEARCH_URL").unwrap_or_default();
+            // L-39 修复（批次 379 v13 复审）：消除 silent default，
+            // 生产环境未设置时 warn，开发环境未设置时 info。
+            let es_url = match std::env::var("ELASTICSEARCH_URL") {
+                Ok(v) if !v.is_empty() => v,
+                _ => {
+                    if crate::utils::config::is_production() {
+                        warn!("生产环境未设置 ELASTICSEARCH_URL，搜索功能将使用 mock 客户端（建议配置可达的 ES 服务地址）");
+                    } else {
+                        info!("ELASTICSEARCH_URL 未设置，搜索功能使用 mock 客户端（开发/测试环境）");
+                    }
+                    String::new()
+                }
+            };
             if !es_url.is_empty() {
                 if let Err(e) = crate::search::ensure_indices(&es_url).await {
                     tracing::warn!(
