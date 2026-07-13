@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 361 | #533 | v13 复审 P1 级闭环修复 B-P1-4 销售订单状态变更事件（event_bus 新增 5 个 BusinessEvent 变体 SalesOrderSubmitted/Approved/Completed/Cancelled/Rejected + order_workflow 4 方法 + contract.rs reject_order commit 后发布事件 + event_kafka_payload + event_kafka 同步 Kafka 序列化 + 测试用例，1 次 CI 全绿） |
 | 360 | #532 | v13 复审 P1 级闭环修复（B-P1-9 event_bus BpmProcessFinished 新增 production_order 分支 + production_order_service 新增 approve_order_via_bpm/reject_order_via_bpm 不回调 BPM 避免循环 + F-P1-1 accounting_period_service close_period 新增 check_trial_balance_txn 试算平衡校验 + 替换硬编码 posted 为 VOUCHER_POSTED 常量，1 次 CI 全绿） |
 | 359 | #531 | v13 复审 P1 级闭环修复（B-P1-2 inventory_count_service approve_count commit 后发布 InventoryCountCompleted 事件触发差异报告归档 + F-P1-3 voucher_service post 新增 write_assist_accounting_records_txn 凭证过账写入辅助核算记录表，1 次 CI 全绿，product_id/warehouse_id 占位待 Schema 补字段） |
 | 358 | #530 | v13 复审 P1 级闭环修复（B-P1-1 sales_return_service record_transaction→record_transaction_txn 消除事务边界泄漏+幻事件 + B-P1-5 po/contract approve_order 发布 PurchaseOrderApproved 事件 + F-P1-4 account_subject_service 新增 refresh_balance 方法，3 次 CI 修复编译错误+rustdoc 警告，CI 全绿） |

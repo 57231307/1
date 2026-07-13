@@ -33,13 +33,13 @@
 | 维度 | 总数 | 已完成 | 剩余 | 状态 |
 |------|------|--------|------|------|
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
-| 🟢 业务场景闭环 | 21 | 10 | 11 | 🔄 P0 6 项 + P1 4 项已完成（批次 356/358/359/360） |
+| 🟢 业务场景闭环 | 21 | 11 | 10 | 🔄 P0 6 项 + P1 5 项已完成（批次 356/358/359/360/361） |
 | 🟢 财务场景闭环 | 16 | 5 | 11 | 🔄 P0 2 项 + P1 3 项已完成（批次 356/358/359/360） |
 | 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 0 | 45 | ⏳ 待修复 |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **26** | **~352** | — |
+| **合计** | **~378** | **27** | **~351** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -199,6 +199,20 @@
 - #29216819903：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
 
 **遗留**：F-P1-1 期末结转逻辑（下期期初余额写入）待后续批次处理
+
+#### 批次 361（PR #533，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-4 销售订单状态变更事件）
+
+**修改文件（5 个）**：
+1. `services/event_bus.rs`：新增 5 个 BusinessEvent 变体 — SalesOrderSubmitted / SalesOrderApproved / SalesOrderCompleted / SalesOrderCancelled / SalesOrderRejected（均含 order_id + customer_id + user_id 字段）。
+2. `services/so/order_workflow.rs`：4 个方法 commit 后发布对应事件 — submit_order（BPM 成功后发布，避免补偿回滚幻事件）、approve_order（commit 后、库存预留前发布）、complete_order（commit 后发布）、cancel_order（commit 后发布，customer_id 在 order.into() 前提前保存）。
+3. `services/so/contract.rs`：reject_order commit 后发布 SalesOrderRejected 事件，customer_id 在 order.into() 前提前保存。
+4. `services/event_kafka_payload.rs`：同步新增 5 个 EventPayload 变体 + From<&BusinessEvent> + TryFrom<EventPayload> 实现保持 Kafka 序列化完整。
+5. `services/event_kafka.rs`：同步新增 event_type_name match 分支（#[cfg(test)]）+ 测试用例 5 个变体。
+
+**CI 记录**：1 次 CI 运行
+- #29217569815：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
+
+**遗留**：无
 
 ---
 
