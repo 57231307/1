@@ -53,6 +53,34 @@ pub enum BusinessEvent {
         customer_id: i32,
         items: Vec<ShippedItem>,
     },
+    // B-P1-4 修复（批次 361 v13 复审）：销售订单状态变更事件
+    // 原实现仅 ship_order 发布 SalesOrderShipped，其余 5 个状态变更方法无事件，
+    // 导致下游订阅方（财务指标刷新、BI 报表等）无法感知订单状态变化。
+    SalesOrderSubmitted {
+        order_id: i32,
+        customer_id: i32,
+        user_id: i32,
+    },
+    SalesOrderApproved {
+        order_id: i32,
+        customer_id: i32,
+        user_id: i32,
+    },
+    SalesOrderCompleted {
+        order_id: i32,
+        customer_id: i32,
+        user_id: i32,
+    },
+    SalesOrderCancelled {
+        order_id: i32,
+        customer_id: i32,
+        user_id: i32,
+    },
+    SalesOrderRejected {
+        order_id: i32,
+        customer_id: i32,
+        user_id: i32,
+    },
     PaymentCompleted {
         payment_id: i32,
         invoice_id: i32,
