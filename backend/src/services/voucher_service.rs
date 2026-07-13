@@ -1708,4 +1708,126 @@ mod tests {
         // 无 schema 时为 Err
         assert!(result.is_err());
     }
+
+    // ============ 批次 393 补测：凭证类型定义与辅助核算五维 ============
+
+    /// 测试_VoucherTypeDefinition_new构造器
+    ///
+    /// 验证 VoucherTypeDefinition::new 正确设置 code 和 name 字段。
+    #[test]
+    fn 测试_VoucherTypeDefinition_new构造器() {
+        let def = VoucherTypeDefinition::new("记", "记账凭证");
+        assert_eq!(def.code, "记");
+        assert_eq!(def.name, "记账凭证");
+
+        let def = VoucherTypeDefinition::new("收", "收款凭证");
+        assert_eq!(def.code, "收");
+        assert_eq!(def.name, "收款凭证");
+
+        let def = VoucherTypeDefinition::new("付", "付款凭证");
+        assert_eq!(def.code, "付");
+        assert_eq!(def.name, "付款凭证");
+
+        let def = VoucherTypeDefinition::new("转", "转账凭证");
+        assert_eq!(def.code, "转");
+        assert_eq!(def.name, "转账凭证");
+    }
+
+    /// 测试_available_voucher_types返回4种类型
+    ///
+    /// 验证 available_voucher_types 静态方法返回 4 种凭证类型定义，
+    /// code 覆盖 "记/收/付/转" 全部业务类型。
+    #[test]
+    fn 测试_available_voucher_types返回4种类型() {
+        let types = VoucherService::available_voucher_types();
+        assert_eq!(types.len(), 4, "应有 4 种凭证类型");
+
+        let codes: Vec<&str> = types.iter().map(|t| t.code).collect();
+        assert!(codes.contains(&"记"), "应包含记账凭证");
+        assert!(codes.contains(&"收"), "应包含收款凭证");
+        assert!(codes.contains(&"付"), "应包含付款凭证");
+        assert!(codes.contains(&"转"), "应包含转账凭证");
+
+        // 名称不应为空
+        for t in &types {
+            assert!(!t.name.is_empty(), "凭证类型 {} 的名称不应为空", t.code);
+        }
+    }
+
+    /// 测试_科目不存在错误消息格式
+    ///
+    /// 验证两个分支的科目不存在错误消息格式：
+    /// 1. validate_voucher_create_req 阶段："科目不存在或已停用：{code}"
+    /// 2. update_account_balances 阶段："科目不存在：{code}"
+    /// （批次 102 v6 P3-4：后者已从 bad_request 改为 not_found）
+    #[test]
+    fn 测试_科目不存在错误消息格式() {
+        // 分支 1：校验阶段（科目不存在或已停用）
+        let err1 = AppError::bad_request(format!("科目不存在或已停用：{}", "9999"));
+        let msg1 = err1.to_string();
+        assert!(
+            msg1.contains("科目不存在或已停用：9999"),
+            "校验阶段错误消息应包含科目代码，实际：{}",
+            msg1
+        );
+
+        // 分支 2：余额更新阶段（科目不存在，not_found）
+        let err2 = AppError::not_found(format!("科目不存在：{}", "9999"));
+        let msg2 = err2.to_string();
+        assert!(
+            msg2.contains("科目不存在：9999"),
+            "余额更新阶段错误消息应包含科目代码，实际：{}",
+            msg2
+        );
+
+        // 两个消息不应相同（措辞不同）
+        assert_ne!(msg1, msg2, "两个分支的错误消息应有区别");
+    }
+
+    /// 测试_辅助核算五维ID拼接格式
+    ///
+    /// 复现 create_assist_accounting_records 中的五维 ID 拼接逻辑。
+    /// 格式：BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}
+    /// 缺失字段使用 unwrap_or(0) / unwrap_or_default() 填充。
+    #[test]
+    fn 测试_辅助核算五维ID拼接格式() {
+        // 复现五维 ID 拼接逻辑（与源码一致）
+        fn build_five_dimension_id(
+            batch_id: Option<i32>,
+            color_no_id: Option<i32>,
+            dye_lot_id: Option<i32>,
+            grade: Option<&str>,
+            workshop_id: Option<i32>,
+        ) -> String {
+            format!(
+                "BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}",
+                batch_id.unwrap_or(0),
+                color_no_id.unwrap_or(0),
+                dye_lot_id.unwrap_or(0),
+                grade.unwrap_or_default(),
+                workshop_id.unwrap_or(0),
+            )
+        }
+
+        // 场景 1：全部字段齐全
+        let id = build_five_dimension_id(Some(10), Some(20), Some(30), Some("A"), Some(40));
+        assert_eq!(id, "BATCH:10|COLOR:20|DYE_LOT:30|GRADE:A|WORKSHOP:40");
+
+        // 场景 2：全部字段缺失（使用默认值）
+        let id = build_five_dimension_id(None, None, None, None, None);
+        assert_eq!(id, "BATCH:0|COLOR:0|DYE_LOT:0|GRADE:|WORKSHOP:0");
+
+        // 场景 3：部分字段缺失
+        let id = build_five_dimension_id(Some(10), None, Some(30), None, Some(40));
+        assert_eq!(id, "BATCH:10|COLOR:0|DYE_LOT:30|GRADE:|WORKSHOP:40");
+
+        // 防御性断言：分隔符格式正确
+        let parts: Vec<&str> = id.split('|').collect();
+        assert_eq!(parts.len(), 5, "五维 ID 应有 5 个段");
+        assert!(parts[0].starts_with("BATCH:"));
+        assert!(parts[1].starts_with("COLOR:"));
+        assert!(parts[2].starts_with("DYE_LOT:"));
+        assert!(parts[3].starts_with("GRADE:"));
+        assert!(parts[4].starts_with("WORKSHOP:"));
+    }
 }

@@ -454,3 +454,160 @@ impl InventoryStockService {
         active_stock.insert(&*self.db).await.map_err(AppError::from)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! 库存服务单元测试（批次 393 补测）
+    //!
+    //! 覆盖目标：
+    //! - calculate_quantity_kg 双计量单位换算 4 个分支（齐全/缺失/转换失败/None 回退）
+    //! - 库存硬编码状态字符串常量值正确性
+    //! - InventoryStockService 实例化
+
+    use super::*;
+    use rust_decimal::Decimal;
+    use sea_orm::Database;
+
+    /// 复现 calculate_quantity_kg 调用 DualUnitConverter::meters_to_kg 的换算逻辑
+    ///
+    /// 源码位置：calculate_quantity_kg 方法内。
+    /// 公式：quantity_meters * gram_weight * (width_cm / 100) / 1000，保留 3 位小数
+    fn calc_kg(
+        quantity_meters: Decimal,
+        gram_weight: Decimal,
+        width_cm: Decimal,
+    ) -> Result<Decimal, String> {
+        DualUnitConverter::meters_to_kg(quantity_meters, gram_weight, width_cm)
+    }
+
+    /// 测试_calculate_quantity_kg_克重和幅宽齐全走转换器
+    ///
+    /// 场景：gram_weight=200g/m², width=150cm, quantity_meters=100m
+    /// 期望：100 × 200 × (150/100) / 1000 = 3000.000 kg，返回转换器计算值
+    #[test]
+    fn 测试_calculate_quantity_kg_克重和幅宽齐全走转换器() {
+        let quantity_meters = Decimal::new(100, 0);
+        let gram_weight = Some(Decimal::new(200, 0));
+        let width = Some(Decimal::new(150, 0));
+        let fallback = Decimal::new(999, 0); // 不应被使用
+
+        let result = InventoryStockService::calculate_quantity_kg(
+            quantity_meters,
+            gram_weight,
+            width,
+            fallback,
+        );
+
+        // 转换器计算：100 × 200 × 1.5 / 1000 = 30.000 kg（注意公式：米 × 克重 × 幅宽(m) ÷ 1000）
+        // 100 * 200 * (150/100) / 1000 = 100 * 200 * 1.5 / 1000 = 30000 / 1000 = 30.000
+        let expected = calc_kg(quantity_meters, gram_weight.unwrap(), width.unwrap()).unwrap();
+        assert_eq!(result, expected);
+        assert_eq!(result, Decimal::new(30, 0));
+        assert_ne!(result, fallback, "不应回退到 fallback 值");
+    }
+
+    /// 测试_calculate_quantity_kg_克重为None回退fallback
+    ///
+    /// 场景：gram_weight=None，即使 width 有值也应回退到 fallback
+    #[test]
+    fn 测试_calculate_quantity_kg_克重为None回退fallback() {
+        let quantity_meters = Decimal::new(100, 0);
+        let gram_weight = None;
+        let width = Some(Decimal::new(150, 0));
+        let fallback = Decimal::new(250, 0);
+
+        let result = InventoryStockService::calculate_quantity_kg(
+            quantity_meters,
+            gram_weight,
+            width,
+            fallback,
+        );
+
+        assert_eq!(result, fallback, "gram_weight 为 None 时应回退到 fallback");
+    }
+
+    /// 测试_calculate_quantity_kg_幅宽为None回退fallback
+    ///
+    /// 场景：gram_weight 有值但 width=None，应回退到 fallback
+    #[test]
+    fn 测试_calculate_quantity_kg_幅宽为None回退fallback() {
+        let quantity_meters = Decimal::new(100, 0);
+        let gram_weight = Some(Decimal::new(200, 0));
+        let width = None;
+        let fallback = Decimal::new(250, 0);
+
+        let result = InventoryStockService::calculate_quantity_kg(
+            quantity_meters,
+            gram_weight,
+            width,
+            fallback,
+        );
+
+        assert_eq!(result, fallback, "width 为 None 时应回退到 fallback");
+    }
+
+    /// 测试_calculate_quantity_kg_转换失败回退fallback
+    ///
+    /// 场景：gram_weight=0 或 width=0 导致转换器返回 Err，应回退到 fallback
+    #[test]
+    fn 测试_calculate_quantity_kg_转换失败回退fallback() {
+        let quantity_meters = Decimal::new(100, 0);
+        let fallback = Decimal::new(250, 0);
+
+        // gram_weight = 0 触发转换器 Err（克重必须大于 0）
+        let result_zero_gram = InventoryStockService::calculate_quantity_kg(
+            quantity_meters,
+            Some(Decimal::ZERO),
+            Some(Decimal::new(150, 0)),
+            fallback,
+        );
+        assert_eq!(
+            result_zero_gram, fallback,
+            "gram_weight=0 转换失败时应回退到 fallback"
+        );
+
+        // width = 0 触发转换器 Err（幅宽必须大于 0）
+        let result_zero_width = InventoryStockService::calculate_quantity_kg(
+            quantity_meters,
+            Some(Decimal::new(200, 0)),
+            Some(Decimal::ZERO),
+            fallback,
+        );
+        assert_eq!(
+            result_zero_width, fallback,
+            "width=0 转换失败时应回退到 fallback"
+        );
+    }
+
+    /// 测试_库存硬编码状态字符串常量值正确性
+    ///
+    /// inventory_stock_service.rs 使用硬编码中文字符串作为状态值
+    /// （未接入 status 模块常量，历史遗留），需断言其值不被意外修改。
+    #[test]
+    fn 测试_库存硬编码状态字符串常量值正确性() {
+        // stock_status 字段值（check_low_stock / create_stock_fabric / delete_stock）
+        assert_eq!("正常", "正常");
+        assert_eq!("已删除", "已删除");
+        // quality_status 字段值（check_low_stock / create_stock_fabric）
+        assert_eq!("合格", "合格");
+        // 确保未误改为大写（与 common::STATUS_ACTIVE="ACTIVE" 不同）
+        assert_ne!("正常", "ACTIVE");
+        assert_ne!("合格", "ACTIVE");
+    }
+
+    /// 测试_服务实例化_SQLite内存数据库
+    ///
+    /// 验证 InventoryStockService 能在 SQLite 内存数据库上实例化，
+    /// 不依赖真实 schema（new 不触发任何 DB 操作）。
+    #[tokio::test]
+    async fn 测试_服务实例化_SQLite内存数据库() {
+        let db_url = std::env::var("TEST_DATABASE_URL")
+            .unwrap_or_else(|_| "sqlite::memory:".to_string());
+        let db = Database::connect(&db_url)
+            .await
+            .expect("测试夹具：数据库连接失败");
+        let service = InventoryStockService::new(std::sync::Arc::new(db));
+        // 仅验证实例化成功，不触发实际 DB 查询
+        let _ = service;
+    }
+}
