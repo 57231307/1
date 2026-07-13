@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::services::finance_report_service::{
     BalanceSheet, CashFlowStatement, FinanceReportService, GeneralLedger, IncomeStatement,
-    SubsidiaryLedger, TrialBalance,
+    SubsidiaryLedger, TrialBalance, VoucherItemDetail,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -166,4 +166,56 @@ pub async fn get_subsidiary_ledger(
         )
         .await?;
     Ok(Json(ApiResponse::success(ledger)))
+}
+
+/// F-P2-2 修复（批次 387 v13 复审）：报表穿透查询参数
+#[derive(Debug, Deserialize)]
+pub struct DrillDownQuery {
+    /// 报表类型：balance_sheet / income_statement / cash_flow / trial_balance
+    pub report_type: String,
+    /// 科目编码前缀（balance_sheet/income_statement/cash_flow 用）
+    pub subject_prefix: Option<String>,
+    /// 科目编码（trial_balance 用）
+    pub subject_code: Option<String>,
+    /// 期间 YYYY-MM（trial_balance 用）
+    pub period: Option<String>,
+    pub start_date: Option<chrono::NaiveDate>,
+    pub end_date: Option<chrono::NaiveDate>,
+}
+
+/// F-P2-2 修复（批次 387 v13 复审）：报表穿透到凭证明细
+pub async fn drill_down_report(
+    State(state): State<AppState>,
+    Query(query): Query<DrillDownQuery>,
+) -> Result<Json<ApiResponse<Vec<VoucherItemDetail>>>, AppError> {
+    let service = FinanceReportService::new(state.db.clone());
+    let details = match query.report_type.as_str() {
+        "trial_balance" => {
+            let period = query
+                .period
+                .ok_or_else(|| AppError::validation("trial_balance 穿透需要 period 参数"))?;
+            let subject_code = query
+                .subject_code
+                .ok_or_else(|| AppError::validation("trial_balance 穿透需要 subject_code 参数"))?;
+            service
+                .drill_down_by_period_and_subject(period, subject_code)
+                .await?
+        }
+        _ => {
+            let subject_prefix = query.subject_prefix.ok_or_else(|| {
+                AppError::validation("报表穿透需要 subject_prefix 参数")
+            })?;
+            let start_date = query.start_date.unwrap_or_else(|| {
+                chrono::NaiveDate::from_ymd_opt(chrono::Utc::now().year(), 1, 1)
+                    .unwrap_or_else(|| chrono::Utc::now().date_naive())
+            });
+            let end_date = query
+                .end_date
+                .unwrap_or_else(|| chrono::Utc::now().date_naive());
+            service
+                .drill_down_by_subject_prefix(subject_prefix, start_date, end_date)
+                .await?
+        }
+    };
+    Ok(Json(ApiResponse::success(details)))
 }
