@@ -74,6 +74,26 @@ struct InitErrorResponse {
 /// 注意：完整模式（数据库已连接）下不走此分支，因此对正常启动流程零影响。
 static SETUP_MODE_INITIALIZED: std::sync::OnceLock<Arc<Mutex<bool>>> = std::sync::OnceLock::new();
 
+/// L-26 修复（批次 374 v13 复审）：main.rs 后台定时任务 spawn 句柄
+/// 保存 admin 缓存清理 + JTI 黑名单清理 + 慢查询采集句柄，供 shutdown abort
+static MAIN_BACKGROUND_TASKS: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// L-26 修复（批次 374）：关闭 main.rs 后台定时任务，幂等安全
+fn shutdown_main_background_tasks() {
+    let tasks = match MAIN_BACKGROUND_TASKS.lock() {
+        Ok(mut guard) => std::mem::take(&mut *guard),
+        Err(e) => {
+            warn!("MAIN_BACKGROUND_TASKS 锁中毒: {}", e);
+            return;
+        }
+    };
+    for handle in tasks {
+        handle.abort();
+    }
+    info!("main 后台定时任务已关闭（{} 个）", tasks.len());
+}
+
 fn setup_initialized_flag() -> Arc<Mutex<bool>> {
     SETUP_MODE_INITIALIZED
         .get_or_init(|| Arc::new(Mutex::new(false)))
@@ -471,9 +491,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         settings.slow_query.limit_rows,
                     ),
                 );
-                slow_collector
+                // L-26 修复（批次 374）：保存慢查询采集句柄供 shutdown abort
+                let slow_handle = slow_collector
                     .clone()
                     .start_collect_task(settings.slow_query.interval_secs);
+                if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+                    tasks.push(slow_handle);
+                }
                 info!(
                     "慢查询采集任务已启动（间隔 {} 秒，阈值 {}ms）",
                     settings.slow_query.interval_secs, settings.slow_query.threshold_ms
@@ -484,7 +508,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // v11 批次 156 P2-D：启动 admin 角色缓存清理后台任务（每 10 分钟清理过期条目）
             {
-                tokio::spawn(async move {
+                // L-26 修复（批次 374）：保存句柄供 shutdown abort
+                let admin_handle = tokio::spawn(async move {
                     let interval = std::time::Duration::from_secs(600);
                     loop {
                         tokio::time::sleep(interval).await;
@@ -492,20 +517,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         tracing::debug!("admin 角色缓存过期条目清理完成");
                     }
                 });
+                if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+                    tasks.push(admin_handle);
+                }
                 info!("admin 角色缓存清理任务已启动（间隔 600 秒）");
             }
 
             // 批次 349 v12 复审 P2-3：启动 JTI 黑名单内存降级路径清理任务
-            // Redis 后端下 TTL 自动清理过期条目（noop）；内存降级路径下手动清理避免 HashMap 无限增长
-            // 设计文档（auth_service.rs:541）建议每小时调用一次
+            // L-26 修复（批次 374）：保存句柄供 shutdown abort
             {
-                tokio::spawn(async move {
+                let jti_handle = tokio::spawn(async move {
                     let interval = std::time::Duration::from_secs(3600);
                     loop {
                         tokio::time::sleep(interval).await;
                         crate::services::auth_service::cleanup_expired_jti(0).await;
                     }
                 });
+                if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+                    tasks.push(jti_handle);
+                }
                 info!("JTI 黑名单清理任务已启动（间隔 3600 秒，Redis 模式下为 noop）");
             }
 
@@ -802,6 +832,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // L-27+L-28+L-29 修复（批次 373 v13 复审）：关闭事件总线所有 spawn task
     // abort Kafka 消费桥接 + 主事件监听器 + 库存财务桥接监听器，防止 detached task 泄漏
     crate::services::event_bus::shutdown_event_bus();
+
+    // L-26 修复（批次 374 v13 复审）：关闭所有后台定时任务
+    // abort admin缓存清理 + JTI黑名单清理 + 慢查询采集 + 审计清理 + 用户吊销清理
+    shutdown_main_background_tasks();
+    crate::utils::app_state::shutdown_app_state_background_tasks();
 
     Ok(())
 }

@@ -5,6 +5,11 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 
 use crate::services::audit_cleanup_service::AuditCleanupService;
+
+/// L-26 修复（批次 374 v13 复审）：app_state 后台任务 spawn 句柄
+/// 保存审计清理 + 用户吊销清理句柄，供 shutdown 时 abort
+static APP_STATE_BACKGROUND_TASKS: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>> =
+    std::sync::Mutex::new(Vec::new());
 use crate::services::data_permission_service::DataPermissionService;
 use crate::services::email_service::EmailService;
 use crate::services::event_notification_service::EventNotificationService;
@@ -132,10 +137,8 @@ impl AppState {
 
         // 启动审计日志清理任务（后台任务，失败不阻塞启动）
         let cleanup_clone = audit_cleanup.clone();
-        tokio::spawn(async move {
+        let audit_handle = tokio::spawn(async move {
             // 批次 8（2026-06-28）：启动器 spawn panic 隔离
-            // start_cleanup_task 内部已创建自己的 spawn + catch_unwind（批次 7），
-            // 此处仅保护启动器调用本身，确保即使调用 panic 也不会传播到 runtime。
             let result = AssertUnwindSafe(async {
                 cleanup_clone.start_cleanup_task();
             })
@@ -153,10 +156,17 @@ impl AppState {
                 );
             }
         });
+        // L-26 修复（批次 374）：保存审计清理句柄供 shutdown abort
+        if let Ok(mut tasks) = APP_STATE_BACKGROUND_TASKS.lock() {
+            tasks.push(audit_handle);
+        }
 
         // v11 批次 145 P1-7：启动用户吊销记录定期清理任务（每 24 小时清理一次）
-        // 此任务为 best-effort，单次清理 panic 不会退出循环
-        crate::services::auth_service::start_revoked_user_cleanup_task();
+        // L-26 修复（批次 374）：保存句柄供 shutdown abort
+        let revoked_handle = crate::services::auth_service::start_revoked_user_cleanup_task();
+        if let Ok(mut tasks) = APP_STATE_BACKGROUND_TASKS.lock() {
+            tasks.push(revoked_handle);
+        }
 
         // P2-B 修复：cookie_secret 长度不足 32 字节时 fail-fast，禁止自动补 0 弱化密钥
         // 安全原因：补 0 / 截断会让攻击者仅需爆破 1-N 字节即可还原密钥，违背 fail-secure 原则
@@ -362,4 +372,20 @@ fn init_search_client() -> Arc<dyn SearchClient> {
         tracing::info!("ELASTICSEARCH_URL 已配置，使用真实 Elasticsearch 客户端");
         Arc::new(crate::search::ElasticClient::real(es_url))
     }
+}
+
+/// L-26 修复（批次 374 v13 复审）：关闭 app_state 后台定时任务
+/// abort 审计清理 + 用户吊销清理 task，幂等安全
+pub fn shutdown_app_state_background_tasks() {
+    let tasks = match APP_STATE_BACKGROUND_TASKS.lock() {
+        Ok(mut guard) => std::mem::take(&mut *guard),
+        Err(e) => {
+            tracing::error!(error = %e, "APP_STATE_BACKGROUND_TASKS 锁中毒");
+            return;
+        }
+    };
+    for handle in tasks {
+        handle.abort();
+    }
+    tracing::info!("app_state 后台定时任务已关闭（{} 个）", tasks.len());
 }
