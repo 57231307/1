@@ -350,7 +350,8 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     tracing::info!("WebSocket 连接建立：user_id={}", auth.user_id);
 
     // 接收客户端消息任务
-    let recv_task = tokio::spawn(async move {
+    // L-31 修复（批次 371 v13 复审）：声明为 mut，供 select! 借用，以便后续 abort
+    let mut recv_task = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
             // 批次 8（2026-06-28）：单次消息处理 panic 隔离
             let result = AssertUnwindSafe(async {
@@ -413,7 +414,8 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     });
 
     // 推送消息任务（接收 broadcast 并写入 socket）
-    let send_task = tokio::spawn(async move {
+    // L-31 修复（批次 371 v13 复审）：声明为 mut，供 select! 借用，以便后续 abort
+    let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             // 批次 8（2026-06-28）：单次消息推送 panic 隔离
             let result = AssertUnwindSafe(async {
@@ -444,14 +446,24 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     });
 
     // 等待任一任务结束
+    // L-31 修复（批次 371 v13 复审）：select! 用 &mut 借用 JoinHandle 而非消费，
+    // 以便 select! 后显式 abort 未完成的 task，避免后台 detached task 泄漏。
+    // 原实现 select! 消费 JoinHandle 后，未完成的 task 仍在后台运行（detached），
+    // 浪费资源且可能继续尝试写入已关闭的 socket。
     tokio::select! {
-        _ = recv_task => {
+        _ = &mut recv_task => {
             tracing::info!("接收任务结束");
         }
-        _ = send_task => {
+        _ = &mut send_task => {
             tracing::info!("发送任务结束");
         }
     }
+
+    // L-31 修复：显式 abort 两个 task
+    // 已完成的 task 调用 abort() 是 no-op，无副作用
+    // 未完成的 task 会被终止，避免后台 detached task 泄漏
+    recv_task.abort();
+    send_task.abort();
 
     // 清理
     manager.unregister(auth.user_id);
