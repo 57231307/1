@@ -8,13 +8,31 @@ use super::{
 };
 
 /// 读取后端服务监听主机（环境变量 SERVER__HOST，默认 127.0.0.1）
+/// L-41 修复（批次 379 v13 复审）：消除 silent default，未设置时 eprintln 提示。
+/// 注：CLI 工具独立运行，不依赖 AppSettings；与 server.host 配置重复，
+/// 后续可考虑统一走 AppSettings（需 CLI 工具加载配置，技术债单独评估）。
 fn backend_host() -> String {
-    std::env::var("SERVER__HOST").unwrap_or_else(|_| "127.0.0.1".to_string())
+    match std::env::var("SERVER__HOST") {
+        Ok(v) => v,
+        Err(_) => {
+            eprintln!("[INFO] SERVER__HOST 未设置，使用默认值 127.0.0.1");
+            "127.0.0.1".to_string()
+        }
+    }
 }
 
 /// 读取后端服务监听端口（环境变量 SERVER__PORT，默认 8082）
+/// L-41 修复（批次 379 v13 复审）：消除 silent default，未设置时 eprintln 提示。
+/// 注：CLI 工具独立运行，不依赖 AppSettings；与 server.port 配置重复，
+/// 后续可考虑统一走 AppSettings（需 CLI 工具加载配置，技术债单独评估）。
 fn backend_port() -> String {
-    std::env::var("SERVER__PORT").unwrap_or_else(|_| "8082".to_string())
+    match std::env::var("SERVER__PORT") {
+        Ok(v) => v,
+        Err(_) => {
+            eprintln!("[INFO] SERVER__PORT 未设置，使用默认值 8082");
+            "8082".to_string()
+        }
+    }
 }
 
 /// 拼接后端健康检查 URL
