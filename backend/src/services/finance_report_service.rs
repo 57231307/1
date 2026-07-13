@@ -5,8 +5,7 @@
 // 批次 100 P3-A 修复（v5 复审）：状态字符串常量化，引用 crate::models::status
 
 use crate::models::{
-    account_subject, assist_accounting_record, customer_credit, finance_invoice, finance_payment,
-    fixed_asset, inventory_stock, voucher, voucher_item,
+    account_subject, assist_accounting_record, finance_payment, voucher, voucher_item,
 };
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
@@ -163,88 +162,51 @@ impl FinanceReportService {
 
     /// 资产负债表
     pub async fn get_balance_sheet(&self) -> Result<BalanceSheet, AppError> {
+        // F-P1-2 修复（批次 363 v13 复审）：资产/负债项从凭证体系取时点余额
+        // 原实现：存货取 QuantityAvailable（数量非金额，会计口径错误）；_ap_total 应付账款
+        // 计算后未使用（死代码）；预收账款从客户信用额度取数（业务口径与会计口径混淆）。
+        // 修复：按中国企业会计准则科目编码从已过账凭证分录累计借贷方差额取余额。
+        // 报表时点 = 当前日期。
+        let report_date = chrono::Utc::now().date_naive();
+
         // 1. 流动资产
-        // 应收账款
-        let ar_total = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
-            .filter(finance_invoice::Column::Status.ne(crate::models::status::common::STATUS_COMPLETED))
-            .select_only()
-            .column_as(
-                Expr::col(finance_invoice::Column::TotalAmount).sum(),
-                "unpaid",
-            )
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
+        // 应收账款：1122 应收账款（资产类，借方-贷方）
+        let ar_total = self
+            .get_subject_balance_by_prefix("1122", true, report_date)
+            .await?;
 
-        // 现金/银行存款（收款总额）
-        let total_received = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
-            .select_only()
-            .column_as(Expr::col(finance_payment::Column::Amount).sum(), "total")
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
+        // 货币资金：1001 库存现金 + 1002 银行存款（资产类，借方-贷方）
+        let cash_on_hand = self
+            .get_subject_balance_by_prefix("1001", true, report_date)
+            .await?;
+        let cash_in_bank = self
+            .get_subject_balance_by_prefix("1002", true, report_date)
+            .await?;
+        let cash_total = cash_on_hand + cash_in_bank;
 
-        // 应付账款
-        let _ap_total = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_PENDING))
-            .select_only()
-            .column_as(Expr::col(finance_payment::Column::Amount).sum(), "total")
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
+        // 存货：14xx 库存商品/原材料（资产类，借方-贷方，修复原取数量非金额）
+        let inventory_total = self
+            .get_subject_balance_by_prefix("14", true, report_date)
+            .await?;
 
-        let cash_total = total_received;
-
-        // 库存资产（按成本估算）
-        let inventory_total = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::StockStatus.eq(crate::models::status::common::STATUS_ACTIVE))
-            .select_only()
-            .column_as(
-                Expr::col(inventory_stock::Column::QuantityAvailable).sum(),
-                "total",
-            )
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
-
-        // 固定资产净值
-        let fixed_asset_total = fixed_asset::Entity::find()
-            .filter(fixed_asset::Column::Status.eq(crate::models::status::common::STATUS_ACTIVE))
-            .select_only()
-            .column_as(Expr::col(fixed_asset::Column::NetValue).sum(), "total")
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
+        // 固定资产：16xx 固定资产（资产类，借方-贷方）
+        let fixed_asset_total = self
+            .get_subject_balance_by_prefix("16", true, report_date)
+            .await?;
 
         let total_assets = ar_total + cash_total + inventory_total + fixed_asset_total;
 
         // 2. 负债
-        // 预收账款（客户信用额度已使用部分）
-        let advance_total = customer_credit::Entity::find()
-            .select_only()
-            .column_as(
-                Expr::col(customer_credit::Column::UsedCredit).sum(),
-                "total",
-            )
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
+        // 应付账款：2202 应付账款（负债类，贷方-借方，修复 _ap_total 未使用死代码）
+        let ap_total = self
+            .get_subject_balance_by_prefix("2202", false, report_date)
+            .await?;
+        // 预收账款：2203 预收账款（负债类，贷方-借方）
+        let advance_total = self
+            .get_subject_balance_by_prefix("2203", false, report_date)
+            .await?;
 
-        let total_liabilities = advance_total;
+        let total_liabilities = ap_total + advance_total;
 
         // 3. 所有者权益
         let total_equity = total_assets - total_liabilities;
@@ -273,11 +235,18 @@ impl FinanceReportService {
                 },
             ],
             total_assets,
-            liabilities: vec![ReportItem {
-                name: "预收账款".to_string(),
-                amount: advance_total,
-                description: Some("客户预付款".to_string()),
-            }],
+            liabilities: vec![
+                ReportItem {
+                    name: "应付账款".to_string(),
+                    amount: ap_total,
+                    description: Some("未结清供应商款项".to_string()),
+                },
+                ReportItem {
+                    name: "预收账款".to_string(),
+                    amount: advance_total,
+                    description: Some("客户预付款".to_string()),
+                },
+            ],
             total_liabilities,
             equity: vec![ReportItem {
                 name: "所有者权益".to_string(),
@@ -285,7 +254,7 @@ impl FinanceReportService {
                 description: Some("资产-负债".to_string()),
             }],
             total_equity,
-            report_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
+            report_date: report_date.format("%Y-%m-%d").to_string(),
         })
     }
 
@@ -429,13 +398,58 @@ impl FinanceReportService {
         Ok(amount.unwrap_or(Decimal::ZERO))
     }
 
+    /// F-P1-2 修复（批次 363 v13 复审）：按科目编码前缀取科目余额（时点数）
+    ///
+    /// 从已过账凭证分录联表查询，按科目编码前缀过滤，返回借方累计与贷方累计的差额。
+    /// 用于资产负债表等时点报表从凭证体系取数，替代原从业务表取数量或硬编码零值。
+    ///
+    /// 参数说明：
+    /// - `prefix`：科目编码前缀（如 "14" 表示存货类，"16" 表示固定资产类）
+    /// - `is_asset`：true 返回借方-贷方（资产类余额方向），false 返回贷方-借方（负债/权益类余额方向）
+    /// - `up_to_date`：截至该日期（含）的凭证参与累计
+    async fn get_subject_balance_by_prefix(
+        &self,
+        prefix: &str,
+        is_asset: bool,
+        up_to_date: chrono::NaiveDate,
+    ) -> Result<Decimal, AppError> {
+        let (debit_col, credit_col) = (
+            Expr::col(voucher_item::Column::Debit).sum(),
+            Expr::col(voucher_item::Column::Credit).sum(),
+        );
+        let result: Option<(Option<Decimal>, Option<Decimal>)> = voucher_item::Entity::find()
+            .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
+            .filter(voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED))
+            .filter(voucher::Column::VoucherDate.lte(up_to_date))
+            .filter(voucher_item::Column::SubjectCode.starts_with(prefix))
+            .select_only()
+            .column_as(debit_col, "total_debit")
+            .column_as(credit_col, "total_credit")
+            .into_tuple()
+            .one(self.db.as_ref())
+            .await?;
+        let (debit_opt, credit_opt) = result.unwrap_or((None, None));
+        let debit = debit_opt.unwrap_or(Decimal::ZERO);
+        let credit = credit_opt.unwrap_or(Decimal::ZERO);
+        let balance = if is_asset {
+            debit - credit
+        } else {
+            credit - debit
+        };
+        Ok(balance)
+    }
+
     /// 现金流量表
     pub async fn get_cash_flow_statement(
         &self,
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
     ) -> Result<CashFlowStatement, AppError> {
-        // 经营活动现金流
+        // F-P1-2 修复（批次 363 v13 复审）：投资/筹资活动从凭证体系取数，期初现金从科目余额取数
+        // 原实现：投资活动/筹资活动/期初现金均硬编码 Decimal::ZERO，违反禁止硬编码规则且报表失真。
+        // 修复：按中国企业会计准则科目编码从已过账凭证分录取期间发生额与期初余额。
+
+        // 经营活动现金流（保留从 finance_payment 取数，支付单/收款单即经营性现金流转）
         let cash_receipts = finance_payment::Entity::find()
             .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
             .filter(finance_payment::Column::PaymentDate.gte(start_date))
@@ -462,25 +476,59 @@ impl FinanceReportService {
 
         let net_cash_from_operations = cash_receipts - cash_payments;
 
-        // 投资活动现金流（简化）
-        let investing_activities = vec![ReportItem {
-            name: "购建固定资产".to_string(),
-            amount: Decimal::ZERO,
-            description: None,
-        }];
-        let net_cash_from_investing = Decimal::ZERO;
+        // 投资活动现金流（1601 固定资产：贷方=处置收回，借方=购建支付）
+        let investing_inflow = self
+            .sum_voucher_amount_by_subject_prefix("1601", true, start_date, end_date)
+            .await?;
+        let investing_outflow = self
+            .sum_voucher_amount_by_subject_prefix("1601", false, start_date, end_date)
+            .await?;
+        let net_cash_from_investing = investing_inflow - investing_outflow;
+        let investing_activities = vec![
+            ReportItem {
+                name: "处置固定资产收回的现金".to_string(),
+                amount: investing_inflow,
+                description: None,
+            },
+            ReportItem {
+                name: "购建固定资产支付的现金".to_string(),
+                amount: investing_outflow,
+                description: None,
+            },
+        ];
 
-        // 筹资活动现金流（简化）
-        let financing_activities = vec![ReportItem {
-            name: "吸收投资".to_string(),
-            amount: Decimal::ZERO,
-            description: None,
-        }];
-        let net_cash_from_financing = Decimal::ZERO;
+        // 筹资活动现金流（25xx 借款：贷方=借入，借方=偿还）
+        let financing_inflow = self
+            .sum_voucher_amount_by_subject_prefix("25", true, start_date, end_date)
+            .await?;
+        let financing_outflow = self
+            .sum_voucher_amount_by_subject_prefix("25", false, start_date, end_date)
+            .await?;
+        let net_cash_from_financing = financing_inflow - financing_outflow;
+        let financing_activities = vec![
+            ReportItem {
+                name: "借入款项收到的现金".to_string(),
+                amount: financing_inflow,
+                description: None,
+            },
+            ReportItem {
+                name: "偿还借款支付的现金".to_string(),
+                amount: financing_outflow,
+                description: None,
+            },
+        ];
 
         let net_change_in_cash =
             net_cash_from_operations + net_cash_from_investing + net_cash_from_financing;
-        let beginning_cash = Decimal::ZERO; // 需要从期初余额获取
+        // 期初现金 = 截至期初前一日的 1001 库存现金 + 1002 银行存款 余额
+        let day_before_start = start_date.pred_opt().unwrap_or(start_date);
+        let beginning_cash_on_hand = self
+            .get_subject_balance_by_prefix("1001", true, day_before_start)
+            .await?;
+        let beginning_cash_in_bank = self
+            .get_subject_balance_by_prefix("1002", true, day_before_start)
+            .await?;
+        let beginning_cash = beginning_cash_on_hand + beginning_cash_in_bank;
         let ending_cash = beginning_cash + net_change_in_cash;
 
         Ok(CashFlowStatement {
