@@ -10,7 +10,7 @@
 
 > **v13 复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **已完成批次**：356-390（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
+> **已完成批次**：356-391（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
 
 ### 进度总览
 
@@ -22,8 +22,8 @@
 | 运行逻辑环闭环 | 45 | 45 | 0 | ✅ 全部完成（P1 6 + P2 13 + P3 26） |
 | v14 中风险遗留 | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
-| v13 前端/后端 P2 | 9 | 7 | 2 | ✅ **批次 390 完成 useTableApi-8/9**（0-based 分页 bug 修复），FE-P2-4/P2-5 待批次 391+ |
-| **合计** | **~378** | **86** | **~292** | — |
+| v13 前端/后端 P2 | 9 | 9 | 0 | ✅ **批次 391 完成 useTableApi-6/7**（库存调整+调拨接入），阶段 5 useTableApi 接入全部完成 |
+| **合计** | **~378** | **88** | **~290** | — |
 
 ---
 
@@ -101,15 +101,16 @@
 | useTableApi-8 | frontend/src/views/barcodeScanner/index.vue | 条码扫描（0-based 分页修复） | ✅ 批次 390 完成 |
 | useTableApi-9 | frontend/src/views/assistAccounting/index.vue | 辅助核算（0-based 分页修复） | ✅ 批次 390 完成 |
 
-**批次 391（剩余 view 扫描 + 接入，约 3-5 文件）**：
+**批次 391（实际完成 2 文件，PR #564 已合并，CI 全绿）**：
 
-> **调整说明**：批次 390 已完成 useTableApi-8/9，批次 391 重点扫描 inventoryAdjustment/inventoryTransfer 等 view 是否存在 0-based 分页 bug 或未接入 useTableApi 的情况。
+> **调研结论**：views 目录下已无任何活跃的 0-based 分页 bug（4 处历史 bug 已在批次 273/390 修复）。本次改造为规范统一，将库存调整+调拨列表 Tab 从手写分页模板代码接入 useTableApi。
 
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| useTableApi-6 | frontend/src/views/inventoryAdjustment/AdjustmentListTab.vue | 库存调整（扫描确认是否已接入） |
-| useTableApi-7 | frontend/src/views/inventoryTransfer/TransferListTab.vue | 库存调拨（扫描确认是否已接入） |
-| useTableApi-10 | 待扫描发现的遗漏文件 | 其他遗漏（如有 0-based 分页 bug 一并修复） |
+| 任务 | 涉及文件 | 说明 | 状态 |
+|------|----------|------|------|
+| useTableApi-6 | frontend/src/views/inventoryAdjustment/tabs/AdjustmentListTab.vue | 库存调整列表接入 useTableApi | ✅ 批次 391 完成 |
+| useTableApi-7 | frontend/src/views/inventoryTransfer/tabs/TransferListTab.vue | 库存调拨列表接入 useTableApi | ✅ 批次 391 完成 |
+
+> 阶段 5 useTableApi 接入全部完成（批次 390-391，共 4 文件）。下一阶段：阶段 6 测试覆盖补测（批次 392-394）。
 
 ### 阶段 6：测试覆盖补测（批次 392-394，3 批，约 18 文件）
 

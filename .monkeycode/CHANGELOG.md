@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 391 | #564 | useTableApi 接入：AdjustmentListTab + TransferListTab 从手写分页模板代码统一接入 useTableApi（1-based），stats 保留原语义改用 watch data 自动更新，defineExpose refresh 保持父组件接口（阶段 5 useTableApi 接入全部完成） |
 | 390 | #563 | useTableApi 接入：assistAccounting + barcodeScanner 修复 0-based 分页 bug（原 page-1 与后端 1-based 约定不一致），统一接入 useTableApi 由 setup 自动加载+watch page/pageSize 触发，移除手动 pagination ref 与 loadXxx 函数 |
 | 389 | #562 | FE-P2-3 前端 i18n 覆盖率提升（MainLayout/Login/Dashboard + zh-CN/en-US 新增 113 key）+ P2-2 后端日志规范（user_service 4 处审计日志 + ar_service 11 处状态门 warn! 日志）+ P2-3 配置项完善（config.yaml.example 移除 9 个无效字段 + .env.example 补充 4 个环境变量占位行） |
 | 388 | #561 | FE-P2-1 前端 unknown 类型细化（bpm/api-response/trading）+ FE-P2-2 组件 props 泛型强化（BatchActions/ProcessFlow）+ P2-1 后端错误处理统一（customer/inventory_stock/voucher handler） |
