@@ -369,11 +369,11 @@ impl AccountSubjectService {
             .ok_or_else(|| AppError::bad_request("期间结束日期无效"))?;
 
         // 3. 联表查询已过账凭证分录的借贷汇总
-        let (total_debit_opt, total_credit_opt): (Option<Decimal>, Option<Decimal>) =
+        let result: Option<(Option<Decimal>, Option<Decimal>)> =
             voucher_item::Entity::find()
                 .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
                 .filter(voucher_item::Column::SubjectCode.eq(&subject.code))
-                .filter(voucher::Column::Status.eq(crate::models::status::VOUCHER_POSTED))
+                .filter(voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED))
                 .filter(voucher::Column::VoucherDate.gte(start_date))
                 .filter(voucher::Column::VoucherDate.lt(next_month_first))
                 .select_only()
@@ -388,6 +388,8 @@ impl AccountSubjectService {
                 .into_tuple()
                 .one(&*self.db)
                 .await?;
+
+        let (total_debit_opt, total_credit_opt) = result.unwrap_or((None, None));
 
         let current_period_debit = total_debit_opt.unwrap_or(Decimal::ZERO);
         let current_period_credit = total_credit_opt.unwrap_or(Decimal::ZERO);
