@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 371 | #543 | v13 复审 P2 级闭环修复 L-42+L-31 silent default+WebSocket句柄泄漏（middleware/rate_limit.rs RATE_LIMIT_REDIS_URL silent default debug改is_production区分warn/info + websocket/notifications.rs recv_task/send_task select!消费JoinHandle改&mut借用+select!后abort两个task避免detached泄漏，2 文件 22 行，1 次 CI 全绿） |
 | 370 | #542 | v13 复审 P2 级闭环修复 L-36+L-38+L-43 配置项silent default（middleware/auth.rs AUTH_CHECK_USER_ACTIVE LazyLock<bool>+tracing::info + middleware/slow_query.rs BINGXI_SLOW_QUERY_MS LazyLock<u64>+tracing::info + .env.example INIT_TOKEN 注释改显式占位行，3 文件 43 行，1 次 CI 全绿） |
 | 369 | #541 | v13 复审 P2 级闭环修复 L-2升级脚本吞错+L-3备份脚本吞错+L-23 DyeBatchStatus缺异常态（upgrade.rs 11处 rm -rf let _ = 改 if let Err println WARN + backup.rs 7处 rm -rf let _ = 改 if let Err println WARN + dye_batch_handler DyeBatchStatus 新增 Failed/OnHold 状态 from_chinese_str/can_transition_to 流转规则，3 文件 66 行，1 次 CI 全绿） |
 | 368 | #540 | v13 复审 P2 级闭环修复 L-4回滚吞错+L-6事件发送吞错+L-22 BorrowStatus缺取消态（fixed_asset_service 事务回滚 let _ = 改 if let Err tracing::error + event_bus publish 本地channel let _ = 改 if is_err tracing::warn + color_card_borrow_service BorrowStatus 新增 Cancelled 终态 as_str/is_terminal/FromStr 三处match同步+cancel_borrow 方法，3 文件 55 行，1 次 CI 全绿） |
