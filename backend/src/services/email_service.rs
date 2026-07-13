@@ -686,9 +686,19 @@ impl EmailService {
 }
 
 /// 计算 HMAC-SHA256，返回字节数组
+///
+/// L-12 修复（批次 376 v13 复审）：消除 spawn 任务内的 expect 调用。
+/// HMAC-SHA256 接受任意长度密钥，new_from_slice 永远返回 Ok，
+/// 但为防御性编程，改为 match + error 日志兜底（不触发 panic）。
+/// 理论不可达的失败路径返回空 Vec，不影响业务正确性。
 fn hmac_sha256_bytes(key: &[u8], data: &[u8]) -> Vec<u8> {
-    let mut mac = HmacSha256::new_from_slice(key)
-        .expect("不变量：HMAC-SHA256 接受任意长度密钥，new_from_slice 永远返回 Ok");
+    let mut mac = match HmacSha256::new_from_slice(key) {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::error!(error = %e, "HMAC-SHA256 new_from_slice 失败（理论不可达），返回空结果");
+            return Vec::new();
+        }
+    };
     mac.update(data);
     mac.finalize().into_bytes().to_vec()
 }
