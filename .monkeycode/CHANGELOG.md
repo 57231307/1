@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 363 | #535 | v13 复审 P1 级闭环修复 F-P1-2 剩余（资产负债表存货取数量非金额+_ap_total未使用死代码+预收账款业务口径混淆改从凭证体系 14/1122/1001+1002/16/2202/2203 科目前缀取时点余额 + 现金流量表投资/筹资/期初现金硬编码ZERO改从 1601/25/1001+1002 科目前缀取数 + 新增 get_subject_balance_by_prefix 方法 + 移除 4 个未使用 imports，1 次 CI 全绿，F-P1-2 完整闭环） |
 | 362 | #534 | v13 复审 P1 级闭环修复 F-P1-2 利润表走凭证体系（finance_report_service get_income_statement 重写从已过账凭证分录按科目编码前缀 60/64/6601/6602/6603 聚合替代硬编码 70%/15%/10%/5% 比例 + 新增 sum_voucher_amount_by_subject_prefix 私有方法联表查询，1 次 CI 全绿） |
 | 361 | #533 | v13 复审 P1 级闭环修复 B-P1-4 销售订单状态变更事件（event_bus 新增 5 个 BusinessEvent 变体 SalesOrderSubmitted/Approved/Completed/Cancelled/Rejected + order_workflow 4 方法 + contract.rs reject_order commit 后发布事件 + event_kafka_payload + event_kafka 同步 Kafka 序列化 + 测试用例，1 次 CI 全绿） |
 | 360 | #532 | v13 复审 P1 级闭环修复（B-P1-9 event_bus BpmProcessFinished 新增 production_order 分支 + production_order_service 新增 approve_order_via_bpm/reject_order_via_bpm 不回调 BPM 避免循环 + F-P1-1 accounting_period_service close_period 新增 check_trial_balance_txn 试算平衡校验 + 替换硬编码 posted 为 VOUCHER_POSTED 常量，1 次 CI 全绿） |
