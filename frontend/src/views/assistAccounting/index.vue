@@ -7,41 +7,70 @@ import {
   ElDialog,
   ElInput,
   ElSelect,
+  ElOption,
   ElDatePicker,
   ElMessage,
   ElRow,
   ElCol,
   ElDescriptions,
+  ElDescriptionsItem,
   ElTabs,
   ElTabPane,
+  ElPagination,
 } from 'element-plus'
 import { View, Refresh } from '@element-plus/icons-vue'
 import {
   listAssistDimensions,
-  queryAssistRecords,
   getAssistSummary,
   type AssistDimensionResponse,
   type AssistRecordResponse,
   type AssistSummaryResponse,
 } from '@/api/assist-accounting'
+import { useTableApi } from '@/composables/useTableApi'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('records')
 const dimensions = ref<AssistDimensionResponse[]>([])
-const tableData = ref<AssistRecordResponse[]>([])
-const summaryData = ref<AssistSummaryResponse[]>([])
-const total = ref(0)
-const loading = ref(false)
 
+// 批次 390：records tab 接入 useTableApi，修复 0-based 分页 bug
+// 原代码第 98 行 page: pagination.value.page - 1 为 0-based 分页，
+// 与后端 page.unwrap_or(1).clamp(1,1000) + page.saturating_sub(1)*page_size 约定不一致。
+// useTableApi 使用 1-based 分页，直接传 page 给后端，无需 -1 转换。
+// 后端返回 { data: { records: [], total: 0 } }，需配置 listKey: 'records'。
+const {
+  data: tableData,
+  total,
+  loading: recordsLoading,
+  page,
+  pageSize,
+  queryParams,
+  refresh: loadRecords,
+} = useTableApi<AssistRecordResponse>({
+  url: '/assist-accounting/records',
+  listKey: 'records',
+  defaultPageSize: 20,
+  defaultParams: {
+    accounting_period: '',
+    dimension_code: '',
+    business_type: '',
+    warehouse_id: '',
+  },
+  onError: (err: unknown) => {
+    logger.error('获取辅助核算记录失败', err)
+    ElMessage.error('获取辅助核算记录失败')
+  },
+})
+
+// summary tab 保持独立 loading 和数据管理（不分页，不接入 useTableApi）
+const summaryLoading = ref(false)
+const summaryData = ref<AssistSummaryResponse[]>([])
+
+// searchForm 用于表单双向绑定，搜索时同步到 useTableApi queryParams
 const searchForm = ref({
   accounting_period: '',
   dimension_code: '',
   business_type: '',
   warehouse_id: '',
-})
-
-const pagination = ref({
-  page: 1,
-  pageSize: 20,
 })
 
 const viewDialogVisible = ref(false)
@@ -84,31 +113,8 @@ const loadDimensions = async () => {
   }
 }
 
-const loadRecords = async () => {
-  loading.value = true
-  try {
-    // v11 批次 175 P2-1 修复：res: any 改为具体类型
-    const res = (await queryAssistRecords({
-      accounting_period: searchForm.value.accounting_period || undefined,
-      dimension_code: searchForm.value.dimension_code || undefined,
-      business_type: searchForm.value.business_type || undefined,
-      warehouse_id: searchForm.value.warehouse_id
-        ? Number(searchForm.value.warehouse_id)
-        : undefined,
-      page: pagination.value.page - 1,
-      page_size: pagination.value.pageSize,
-    })) as { data?: { records?: AssistRecordResponse[]; total?: number } }
-    tableData.value = res.data?.records || []
-    total.value = res.data?.total || 0
-  } catch (error) {
-    ElMessage.error('加载记录失败')
-  } finally {
-    loading.value = false
-  }
-}
-
 const loadSummary = async () => {
-  loading.value = true
+  summaryLoading.value = true
   try {
     const period = searchForm.value.accounting_period || new Date().toISOString().slice(0, 7)
     // v11 批次 175 P2-1 修复：res: any 和 res.data as any 改为具体类型
@@ -130,13 +136,25 @@ const loadSummary = async () => {
   } catch (error) {
     ElMessage.error('加载汇总失败')
   } finally {
-    loading.value = false
+    summaryLoading.value = false
   }
 }
 
+// 批次 390：handleSearch 同步 searchForm 到 useTableApi queryParams
+// useTableApi watch 只监听 page/pageSize 变化，不监听 queryParams，
+// 所以修改 queryParams 后需要手动调 loadRecords 确保加载
 const handleSearch = () => {
-  pagination.value.page = 1
   if (activeTab.value === 'records') {
+    // 同步搜索条件到 useTableApi queryParams
+    queryParams.value = {
+      accounting_period: searchForm.value.accounting_period || undefined,
+      dimension_code: searchForm.value.dimension_code || undefined,
+      business_type: searchForm.value.business_type || undefined,
+      warehouse_id: searchForm.value.warehouse_id
+        ? Number(searchForm.value.warehouse_id)
+        : undefined,
+    }
+    page.value = 1
     loadRecords()
   } else {
     loadSummary()
@@ -153,16 +171,6 @@ const handleReset = () => {
   handleSearch()
 }
 
-const handlePageChange = (page: number) => {
-  pagination.value.page = page
-  loadRecords()
-}
-
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.value.pageSize = pageSize
-  loadRecords()
-}
-
 const openViewDialog = (row: AssistRecordResponse) => {
   viewData.value = row
   viewDialogVisible.value = true
@@ -172,8 +180,8 @@ const handleTabChange = () => {
   handleSearch()
 }
 
+// 批次 390：维度数据在 setup 阶段加载，records 由 useTableApi setup 自动加载
 loadDimensions()
-loadRecords()
 </script>
 
 <template>
@@ -231,7 +239,7 @@ loadRecords()
       <ElTabPane label="辅助核算记录" name="records">
         <ElTable
           :data="tableData"
-          :loading="loading"
+          :loading="recordsLoading"
           border
           fit
           highlight-current-row
@@ -262,15 +270,14 @@ loadRecords()
           </ElTableColumn>
         </ElTable>
 
+        <!-- 批次 390：分页由 useTableApi watch 自动加载，v-model 双向绑定 page/pageSize -->
         <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
           <ElPagination
-            v-model:current-page="pagination.page"
-            v-model:page-size="pagination.pageSize"
+            v-model:current-page="page"
+            v-model:page-size="pageSize"
             :page-sizes="[10, 20, 50, 100]"
             :total="total"
             layout="total, sizes, prev, pager, next, jumper"
-            @size-change="handlePageSizeChange"
-            @current-change="handlePageChange"
           />
         </div>
       </ElTabPane>
@@ -278,7 +285,7 @@ loadRecords()
       <ElTabPane label="辅助核算汇总" name="summary">
         <ElTable
           :data="summaryData"
-          :loading="loading"
+          :loading="summaryLoading"
           border
           fit
           highlight-current-row
