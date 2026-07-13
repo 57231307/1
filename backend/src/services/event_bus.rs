@@ -440,36 +440,21 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                         trigger_source: format!("sales_shipped:{}", order_id),
                     });
                 }
-                BusinessEvent::PaymentCompleted { invoice_id, user_id, .. } => {
+                BusinessEvent::PaymentCompleted { invoice_id, user_id: _, .. } => {
                     tracing::info!(
                         "Event received: PaymentCompleted for invoice {}",
                         invoice_id
                     );
-                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
-                    let idempotency_service =
-                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
-                    let event_key = format!("ap_paid:{}", invoice_id);
-                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "PaymentCompleted").await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            tracing::error!("PaymentCompleted 幂等检查失败 invoice_id={}: {}", invoice_id, e);
-                            false
-                        }
-                    };
-                    if should_process {
-                    let ap_service =
-                        crate::services::ap_invoice_service::ApInvoiceService::new(db.clone());
-                    // 批次 97 P1-2 修复：透传事件携带的付款操作人 user_id
-                    match ap_service.mark_as_paid(invoice_id, user_id).await {
-                        Ok(_) => tracing::info!(
-                            "Successfully updated ap_invoice {} status to PAID",
-                            invoice_id
-                        ),
-                        Err(e) => {
-                            tracing::error!("Failed to update ap_invoice {}: {}", invoice_id, e)
-                        }
-                    }
-                    } // if should_process
+                    // B-P2-1 修复（批次 385 v13 复审）：移除冗余的 mark_as_paid 调用
+                    // 原实现：ap_payment_service::create_payment 已在事务内更新 ap_invoice 状态
+                    // （PAYMENT_PAID/PAYMENT_PARTIAL_PAID），commit 后发布事件，
+                    // 监听器又调用 mark_as_paid 重复更新状态，且状态门不包含 PAID 会导致报错。
+                    // 修复：仅记录日志，状态变更由 create_payment 事务内完成。
+                    // mark_as_paid 方法保留，供未来 handler 直接调用（手动标记已付款）。
+                    tracing::info!(
+                        "付款已完成，ap_invoice {} 状态已在 create_payment 事务内更新，无需重复调用 mark_as_paid",
+                        invoice_id
+                    );
                 }
                 BusinessEvent::PurchaseOrderApproved { order_id, .. } => {
                     tracing::info!(
@@ -479,33 +464,20 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                 }
                 BusinessEvent::CollectionCompleted {
                     invoice_id: Some(inv_id),
-                    user_id,
+                    user_id: _,
                     ..
                 } => {
                     tracing::info!("Event received: CollectionCompleted for invoice {}", inv_id);
-                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
-                    let idempotency_service =
-                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
-                    let event_key = format!("ar_paid:{}", inv_id);
-                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "CollectionCompleted").await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            tracing::error!("CollectionCompleted 幂等检查失败 invoice_id={}: {}", inv_id, e);
-                            false
-                        }
-                    };
-                    if should_process {
-                    let ar_service =
-                        crate::services::ar_invoice_service::ArInvoiceService::new(db.clone());
-                    // P1 1-1 修复（批次 78 v1 复审）：透传事件携带的收款操作人 user_id
-                    match ar_service.mark_as_paid(inv_id, user_id).await {
-                        Ok(_) => tracing::info!(
-                            "Successfully updated ar_invoice {} status to PAID",
-                            inv_id
-                        ),
-                        Err(e) => tracing::error!("Failed to update ar_invoice {}: {}", inv_id, e),
-                    }
-                    } // if should_process
+                    // B-P2-1 修复（批次 385 v13 复审）：移除冗余的 mark_as_paid 调用
+                    // 原实现：ar_service::create_payment 已在事务内更新 ar_invoice 状态
+                    // （PAYMENT_PAID/PAYMENT_PARTIAL_PAID），commit 后发布事件，
+                    // 监听器又调用 mark_as_paid 重复更新状态，且状态门不包含 PAID 会导致报错。
+                    // 修复：仅记录日志，状态变更由 create_payment 事务内完成。
+                    // mark_as_paid 方法保留，供未来 handler 直接调用（手动标记已收款）。
+                    tracing::info!(
+                        "收款已完成，ar_invoice {} 状态已在 create_payment 事务内更新，无需重复调用 mark_as_paid",
+                        inv_id
+                    );
                 }
                 BusinessEvent::InventoryCountCompleted {
                     count_id,
