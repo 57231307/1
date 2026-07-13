@@ -142,8 +142,20 @@ pub async fn run(cmd: UtilCommand) -> Result<(), Box<dyn std::error::Error>> {
             follow,
             log_type,
         } => service::cmd_logs(lines, follow, &log_type),
-        UtilCommand::Backup { backup_type } => { let _ = backup::cmd_backup(&backup_type); },
-        UtilCommand::Restore { file } => { let _ = backup::cmd_restore(&file); },
+        UtilCommand::Backup { backup_type } => {
+            // L-1 修复（批次 367 v13 复审）：备份失败时输出错误并退出，避免吞错
+            if !backup::cmd_backup(&backup_type) {
+                eprintln!("❌ 备份失败，请检查日志");
+                std::process::exit(1);
+            }
+        },
+        UtilCommand::Restore { file } => {
+            // L-1 修复（批次 367 v13 复审）：恢复失败时输出错误并退出，避免吞错
+            if !backup::cmd_restore(&file) {
+                eprintln!("❌ 恢复失败，请检查日志");
+                std::process::exit(1);
+            }
+        },
         UtilCommand::Health => service::cmd_health(),
         UtilCommand::Upgrade { version, no_backup } => upgrade::cmd_upgrade(version, no_backup),
         UtilCommand::Deploy { package } => upgrade::cmd_deploy(&package),
