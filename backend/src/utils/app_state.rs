@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 
 use crate::services::audit_cleanup_service::AuditCleanupService;
+use crate::services::audit_log_service::AuditLogService;
 
 /// L-26 修复（批次 374 v13 复审）：app_state 后台任务 spawn 句柄
 /// 保存审计清理 + 用户吊销清理句柄，供 shutdown 时 abort
@@ -39,6 +40,8 @@ use dashmap::DashMap;
 pub struct AppState {
     pub db: Arc<DatabaseConnection>,
     pub omni_audit: Arc<OmniAuditEngine>,
+    /// L-32 修复（批次 380 v13 复审）：审计日志服务（mpsc channel + handle 保存）
+    pub audit_log: Arc<AuditLogService>,
     pub audit_cleanup: Arc<AuditCleanupService>,
     pub jwt_secret: String,
     pub previous_jwt_secret: Option<String>,
@@ -95,6 +98,8 @@ pub struct AppStateParams {
     pub db: Arc<DatabaseConnection>,
     /// 全量审计引擎
     pub omni_audit: Arc<OmniAuditEngine>,
+    /// L-32 修复（批次 380 v13 复审）：审计日志服务（mpsc channel + handle 保存）
+    pub audit_log: Arc<AuditLogService>,
     /// 审计清理服务
     pub audit_cleanup: Arc<AuditCleanupService>,
     /// JWT 主密钥
@@ -128,6 +133,7 @@ impl AppState {
     pub fn with_secrets_and_cors(params: AppStateParams) -> Result<Self, String> {
         let db = params.db;
         let omni_audit = params.omni_audit;
+        let audit_log = params.audit_log;
         let audit_cleanup = params.audit_cleanup;
         let jwt_secret = params.jwt_secret;
         let previous_jwt_secret = params.previous_jwt_secret;
@@ -218,6 +224,7 @@ impl AppState {
         Ok(Self {
             db: db.clone(),
             omni_audit,
+            audit_log,
             audit_cleanup,
             jwt_secret,
             previous_jwt_secret,
@@ -294,6 +301,7 @@ impl Default for AppState {
                 OmniAuditEngine::new(db.clone())
                     .expect("测试环境创建 OmniAuditEngine 不应失败（检查 AUDIT_SECRET_KEY）"),
             );
+            let audit_log = Arc::new(AuditLogService::new(db.clone()));
             let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 999));
             let di_container = Arc::new(DIContainer::new());
             let email_service = EmailService::from_env().map(Arc::new);
@@ -313,6 +321,7 @@ impl Default for AppState {
             Self {
                 db: db.clone(),
                 omni_audit,
+                audit_log,
                 audit_cleanup,
                 // Wave B-2 修复（B2-2）：测试环境使用固定 JWT 密钥
                 // 生产环境必须通过环境变量 JWT_SECRET 注入，且调用方应使用 with_secrets_and_cors

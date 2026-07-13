@@ -7,6 +7,10 @@
 //! 设计要点：
 //! - 列名兼容：`old_value` / `new_value` 与 `before_snapshot` / `after_snapshot` 双写
 //! - JSON 快照：使用 `audit_log::AuditValue` 包装，PostgreSQL 自动用 JSONB 列存储
+//!
+//! L-32 修复（批次 380 v13 复审）：使用 mpsc channel + 单消费者模式，
+//! 避免每次 record_async 都创建 detached spawn task；
+//! handle 保存供 shutdown 时 abort，优雅关闭。
 
 use crate::middleware::audit_context::AuditContext;
 use crate::models::audit_log::{self, OperationType, Severity};
@@ -18,8 +22,82 @@ use serde::Serialize;
 use serde_json::Value;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
-crate::define_service!(AuditLogService);
+/// 审计日志服务（L-32 修复：不使用 define_service! 宏，添加 handle 字段）
+#[derive(Debug)]
+pub struct AuditLogService {
+    db: Arc<DatabaseConnection>,
+    /// L-32 修复：后台消费者 task handle，供 shutdown abort
+    handle: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// L-32 修复：事件发送端（消费者 spawn 时创建）
+    sender: mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
+}
+
+impl AuditLogService {
+    /// 创建审计日志服务（L-32 修复：启动后台消费者 task）
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        // 创建 unbounded channel
+        let (sender, mut receiver) = mpsc::unbounded_channel::<(AuditEvent, Option<AuditContext>)>();
+
+        // 启动后台消费者 task
+        let db_clone = db.clone();
+        let handle = tokio::spawn(async move {
+            while let Some((event, ctx)) = receiver.recv().await {
+                // 批次 8（2026-06-28）：一次性 spawn panic 隔离
+                let result = AssertUnwindSafe(async {
+                    let log = build_active_model(&event, ctx.as_ref());
+                    match log.insert(db_clone.as_ref()).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!(
+                                user_id = ?event.user_id,
+                                operation = event.operation_type.as_str(),
+                                error = %e,
+                                "异步审计日志落库失败"
+                            );
+                        }
+                    }
+                })
+                .catch_unwind()
+                .await;
+                if let Err(panic_payload) = result {
+                    let panic_msg = panic_payload
+                        .downcast_ref::<String>()
+                        .map(|s| s.as_str())
+                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                        .unwrap_or("<非字符串 panic payload>");
+                    tracing::error!(
+                        panic = %panic_msg,
+                        "⚠ 异步审计日志落库 spawn panic 已被隔离（单条日志丢失）"
+                    );
+                }
+            }
+            tracing::info!("AuditLogService 后台消费者 task 已退出");
+        });
+
+        Self {
+            db,
+            handle: std::sync::Mutex::new(Some(handle)),
+            sender,
+        }
+    }
+
+    /// L-32 修复（批次 380 v13 复审）：优雅关闭异步审计服务
+    ///
+    /// close channel + abort 后台消费者 task，防止 detached task 泄漏。
+    /// 幂等：多次调用安全，仅首次调用实际 abort。
+    pub fn shutdown(&self) {
+        // 关闭 channel（停止接收新事件）
+        self.sender.close();
+
+        // abort 后台 task
+        if let Some(handle) = self.handle.lock().unwrap().take() {
+            handle.abort();
+            tracing::info!("AuditLogService 异步记录引擎已关闭");
+        }
+    }
+}
 
 /// 通用审计事件（P13 批 1 P3-2 新增）
 ///
@@ -328,40 +406,18 @@ impl AuditLogService {
 
     /// 异步记录审计事件（推荐使用）
     ///
-    /// 使用 `tokio::spawn` 在后台执行落库，不阻塞业务事务；
-    /// 写库失败仅记录 `tracing::error!`，不向上传播。
+    /// L-32 修复（批次 380 v13 复审）：改为通过 mpsc channel 发送事件，
+    /// 由后台单消费者 task 落库，避免每次调用都创建 detached spawn task。
+    /// 写库失败由消费者 task 内部 catch_unwind + error 日志处理。
     pub fn record_async(self: Arc<Self>, event: AuditEvent, ctx: Option<AuditContext>) {
-        let db = self.db.clone();
-        tokio::spawn(async move {
-            // 批次 8（2026-06-28）：一次性 spawn panic 隔离
-            let result = AssertUnwindSafe(async {
-                let log = build_active_model(&event, ctx.as_ref());
-                match log.insert(db.as_ref()).await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        tracing::error!(
-                            user_id = ?event.user_id,
-                            operation = event.operation_type.as_str(),
-                            error = %e,
-                            "异步审计日志落库失败"
-                        );
-                    }
-                }
-            })
-            .catch_unwind()
-            .await;
-            if let Err(panic_payload) = result {
-                let panic_msg = panic_payload
-                    .downcast_ref::<String>()
-                    .map(|s| s.as_str())
-                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                    .unwrap_or("<非字符串 panic payload>");
-                tracing::error!(
-                    panic = %panic_msg,
-                    "⚠ 异步审计日志落库 spawn panic 已被隔离（单条日志丢失）"
-                );
-            }
-        });
+        if let Err(e) = self.sender.send((event.clone(), ctx.clone())) {
+            tracing::warn!(
+                user_id = ?event.user_id,
+                operation = event.operation_type.as_str(),
+                error = %e,
+                "AuditLogService channel 已关闭，审计事件丢弃（服务已 shutdown？）"
+            );
+        }
     }
 }
 
