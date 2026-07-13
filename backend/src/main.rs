@@ -88,10 +88,11 @@ fn shutdown_main_background_tasks() {
             return;
         }
     };
+    let count = tasks.len();
     for handle in tasks {
         handle.abort();
     }
-    info!("main 后台定时任务已关闭（{} 个）", tasks.len());
+    info!("main 后台定时任务已关闭（{} 个）", count);
 }
 
 fn setup_initialized_flag() -> Arc<Mutex<bool>> {

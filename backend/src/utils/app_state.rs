@@ -384,8 +384,9 @@ pub fn shutdown_app_state_background_tasks() {
             return;
         }
     };
+    let count = tasks.len();
     for handle in tasks {
         handle.abort();
     }
-    tracing::info!("app_state 后台定时任务已关闭（{} 个）", tasks.len());
+    tracing::info!("app_state 后台定时任务已关闭（{} 个）", count);
 }
