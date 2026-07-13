@@ -10,7 +10,7 @@
 
 > **v13 复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **已完成批次**：356-388（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
+> **已完成批次**：356-390（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
 
 ### 进度总览
 
@@ -22,8 +22,8 @@
 | 运行逻辑环闭环 | 45 | 45 | 0 | ✅ 全部完成（P1 6 + P2 13 + P3 26） |
 | v14 中风险遗留 | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
-| v13 前端/后端 P2 | 9 | 3 | 6 | 🔄 批次 388 完成 FE-P2-1/FE-P2-2/P2-1，FE-P2-3/P2-2/P2-3 待批次 389 |
-| **合计** | **~378** | **82** | **~296** | — |
+| v13 前端/后端 P2 | 9 | 7 | 2 | ✅ **批次 390 完成 useTableApi-8/9**（0-based 分页 bug 修复），FE-P2-4/P2-5 待批次 391+ |
+| **合计** | **~378** | **86** | **~292** | — |
 
 ---
 
@@ -87,25 +87,29 @@
 
 ### 阶段 5：useTableApi 接入（批次 390-391，2 批，约 10 文件）
 
-**批次 390（前 5 个 view，5 文件）**：
+**批次 390（实际完成 2 文件，PR #563 已合并，CI 全绿）**：
+
+> **调研结论**：原规划 5 个文件中，VoucherListTab/VoucherDetailTab/DataImportListTab/DataImportTaskTab 已接入 useTableApi 或文件不存在；真正需要改造的是 assistAccounting + barcodeScanner（均为 0-based 分页 bug）。其他 props/emit 模式的子组件（如 LgsTbl/CpTbl/PrRtnTbl）属于子组件模式，不需要直接接入 useTableApi。
+
+| 任务 | 涉及文件 | 说明 | 状态 |
+|------|----------|------|------|
+| useTableApi-1 | frontend/src/views/finance/voucher/VoucherListTab.vue | 财务凭证列表 | ✅ 已接入，无需改造 |
+| useTableApi-2 | frontend/src/views/finance/voucher/VoucherDetailTab.vue | 财务凭证明细 | ✅ 已接入，无需改造 |
+| useTableApi-3 | frontend/src/views/data-import/DataImportListTab.vue | 数据导入列表 | ✅ 已接入，无需改造 |
+| useTableApi-4 | frontend/src/views/data-import/DataImportTaskTab.vue | 数据导入任务 | ✅ 已接入，无需改造 |
+| useTableApi-5 | frontend/src/views/inventory/tabs/InventoryStockTab.vue | 库存明细（1-based 分页） | ✅ 已接入，无需改造 |
+| useTableApi-8 | frontend/src/views/barcodeScanner/index.vue | 条码扫描（0-based 分页修复） | ✅ 批次 390 完成 |
+| useTableApi-9 | frontend/src/views/assistAccounting/index.vue | 辅助核算（0-based 分页修复） | ✅ 批次 390 完成 |
+
+**批次 391（剩余 view 扫描 + 接入，约 3-5 文件）**：
+
+> **调整说明**：批次 390 已完成 useTableApi-8/9，批次 391 重点扫描 inventoryAdjustment/inventoryTransfer 等 view 是否存在 0-based 分页 bug 或未接入 useTableApi 的情况。
 
 | 任务 | 涉及文件 | 说明 |
 |------|----------|------|
-| useTableApi-1 | frontend/src/views/finance/voucher/VoucherListTab.vue | 财务凭证列表 |
-| useTableApi-2 | frontend/src/views/finance/voucher/VoucherDetailTab.vue | 财务凭证明细 |
-| useTableApi-3 | frontend/src/views/data-import/DataImportListTab.vue | 数据导入列表 |
-| useTableApi-4 | frontend/src/views/data-import/DataImportTaskTab.vue | 数据导入任务 |
-| useTableApi-5 | frontend/src/views/inventory/tabs/InventoryStockTab.vue | 库存明细（1-based 分页） |
-
-**批次 391（后 5 个 view，5 文件）**：
-
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| useTableApi-6 | frontend/src/views/inventoryAdjustment/AdjustmentListTab.vue | 库存调整 |
-| useTableApi-7 | frontend/src/views/inventoryTransfer/TransferListTab.vue | 库存调拨 |
-| useTableApi-8 | frontend/src/views/barcodeScanner/index.vue | 条码扫描（0-based 分页特殊处理） |
-| useTableApi-9 | frontend/src/views/assistAccounting/index.vue | 辅助核算（0-based 分页特殊处理） |
-| useTableApi-10 | 待扫描发现的遗漏文件 | 其他遗漏 |
+| useTableApi-6 | frontend/src/views/inventoryAdjustment/AdjustmentListTab.vue | 库存调整（扫描确认是否已接入） |
+| useTableApi-7 | frontend/src/views/inventoryTransfer/TransferListTab.vue | 库存调拨（扫描确认是否已接入） |
+| useTableApi-10 | 待扫描发现的遗漏文件 | 其他遗漏（如有 0-based 分页 bug 一并修复） |
 
 ### 阶段 6：测试覆盖补测（批次 392-394，3 批，约 18 文件）
 

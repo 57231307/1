@@ -10,6 +10,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 390 | #563 | useTableApi 接入：assistAccounting + barcodeScanner 修复 0-based 分页 bug（原 page-1 与后端 1-based 约定不一致），统一接入 useTableApi 由 setup 自动加载+watch page/pageSize 触发，移除手动 pagination ref 与 loadXxx 函数 |
+| 389 | #562 | FE-P2-3 前端 i18n 覆盖率提升（MainLayout/Login/Dashboard + zh-CN/en-US 新增 113 key）+ P2-2 后端日志规范（user_service 4 处审计日志 + ar_service 11 处状态门 warn! 日志）+ P2-3 配置项完善（config.yaml.example 移除 9 个无效字段 + .env.example 补充 4 个环境变量占位行） |
 | 388 | #561 | FE-P2-1 前端 unknown 类型细化（bpm/api-response/trading）+ FE-P2-2 组件 props 泛型强化（BatchActions/ProcessFlow）+ P2-1 后端错误处理统一（customer/inventory_stock/voucher handler） |
 | 387 | #560 | F-P2-2 报表穿透追溯（drill_down API）+ F-P2-4 AR/AP 对账单确认生成凭证（F-P2-1/F-P2-3 待后续批次） |
 | 386 | #559 | B-P2-4 MrpEngineService 接入销售审批+生产创建联动 + B-P2-5 CapacityService 接入排产产能校验 + B-P2-6 已在批次 356 修复 |
