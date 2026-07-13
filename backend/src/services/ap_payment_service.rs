@@ -307,6 +307,81 @@ impl ApPaymentService {
 
         txn.commit().await?;
 
+        // F-P0-5 修复（批次 381 v13 复审）：确认付款后生成付款凭证
+        // 借：应付账款（挂供应商辅助核算）/ 贷：银行存款/库存现金
+        // 失败时仅 warn 不阻断主流程（与采购入库容错模式一致）
+        let payment_amount = payment.payment_amount;
+        let (credit_code, credit_name) = match payment.payment_method.as_str() {
+            "CASH" => ("1001", "库存现金"),
+            _ => ("1002", "银行存款"),
+        };
+        let payment_no_clone = payment.payment_no.clone();
+        let payment_date = payment.payment_date;
+        let payment_id_val = payment.id;
+        let supplier_id = payment.supplier_id;
+        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+            voucher_type: "付".to_string(),
+            voucher_date: payment_date,
+            source_type: Some("AP_PAYMENT".to_string()),
+            source_module: Some("ap".to_string()),
+            source_bill_id: Some(payment_id_val),
+            source_bill_no: Some(payment_no_clone.clone()),
+            batch_no: None,
+            color_no: None,
+            items: vec![
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(1),
+                    subject_code: Some("2202".to_string()),
+                    subject_name: Some("应付账款".to_string()),
+                    debit: payment_amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(format!("付款确认-{}", payment_no_clone)),
+                    assist_customer_id: None,
+                    assist_supplier_id: Some(supplier_id),
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(2),
+                    subject_code: Some(credit_code.to_string()),
+                    subject_name: Some(credit_name.to_string()),
+                    debit: Decimal::ZERO,
+                    credit: payment_amount,
+                    summary: Some(format!("付款确认-{}", payment_no_clone)),
+                    assist_customer_id: None,
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+            ],
+        };
+        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+            tracing::warn!(
+                "付款单 {} 确认成功，但生成付款凭证失败：{}",
+                payment_no_clone,
+                e
+            );
+        }
+
         // P0 5-1 修复：commit 成功后补发 PaymentCompleted 事件，
         // 触发 event_bus 监听器（event_bus.rs）自动将关联 AP 发票标记为 PAID
         // 批次 97 P1-2 修复：透传付款操作人 user_id，供 mark_as_paid 审计日志使用

@@ -362,6 +362,79 @@ impl ArService {
         .await?;
 
         txn.commit().await?;
+
+        // F-P0-4 修复（批次 381 v13 复审）：确认收款后生成收款凭证
+        // 借：银行存款/库存现金 / 贷：应收账款（挂客户辅助核算）
+        // 失败时仅 warn 不阻断主流程（与采购入库容错模式一致）
+        let collection_amount = updated.collection_amount;
+        let collection_method = updated.collection_method.as_deref().unwrap_or("BANK_TRANSFER");
+        let (debit_code, debit_name) = match collection_method {
+            "CASH" => ("1001", "库存现金"),
+            _ => ("1002", "银行存款"),
+        };
+        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+            voucher_type: "收".to_string(),
+            voucher_date: updated.collection_date,
+            source_type: Some("AR_COLLECTION".to_string()),
+            source_module: Some("ar".to_string()),
+            source_bill_id: Some(updated.id),
+            source_bill_no: Some(updated.collection_no.clone()),
+            batch_no: None,
+            color_no: None,
+            items: vec![
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(1),
+                    subject_code: Some(debit_code.to_string()),
+                    subject_name: Some(debit_name.to_string()),
+                    debit: collection_amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(format!("收款确认-{}", updated.collection_no)),
+                    assist_customer_id: Some(updated.customer_id),
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(2),
+                    subject_code: Some("1131".to_string()),
+                    subject_name: Some("应收账款".to_string()),
+                    debit: Decimal::ZERO,
+                    credit: collection_amount,
+                    summary: Some(format!("收款确认-{}", updated.collection_no)),
+                    assist_customer_id: Some(updated.customer_id),
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+            ],
+        };
+        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+            tracing::warn!(
+                "收款单 {} 确认成功，但生成收款凭证失败：{}",
+                updated.collection_no,
+                e
+            );
+        }
+
         Ok(collection_to_json(updated))
     }
 
