@@ -799,5 +799,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         engine.shutdown();
     }
 
+    // L-27+L-28+L-29 修复（批次 373 v13 复审）：关闭事件总线所有 spawn task
+    // abort Kafka 消费桥接 + 主事件监听器 + 库存财务桥接监听器，防止 detached task 泄漏
+    crate::services::event_bus::shutdown_event_bus();
+
     Ok(())
 }

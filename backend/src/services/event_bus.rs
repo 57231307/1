@@ -370,6 +370,11 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
 // 旧 API：`start_event_listener`（保持完全兼容）
 // ============================================================================
 
+/// L-28 修复（批次 373 v13 复审）：主事件监听器 spawn 句柄
+/// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏
+static MAIN_LISTENER_HANDLE: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>> =
+    std::sync::Mutex::new(None);
+
 pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Arc<dyn SearchClient>) {
     // 启动库存财务桥接服务监听器
     crate::services::inventory_finance_bridge_service::InventoryFinanceBridgeService::start_listener(db.clone());
@@ -378,7 +383,8 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
 
     // 批次 125 v8 复审 P1 修复：search_client 移入 tokio::spawn 闭包，
     // 供闭包内 SalesService::new(db, search_client) 实例化使用。
-    tokio::spawn(async move {
+    // L-28 修复（批次 373 v13 复审）：保存 spawn 句柄供 shutdown_event_bus() abort
+    let listener_handle = tokio::spawn(async move {
         while let Ok(event) = receiver.recv().await {
             // 批次 7（2026-06-28）：单次事件处理 panic 隔离
             // 主事件监听器是业务事件分发中枢，调用 8+ 个业务 service 方法
@@ -876,4 +882,40 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
             }
         }
     });
+
+    // L-28 修复（批次 373 v13 复审）：保存主监听器句柄到全局 static
+    if let Ok(mut guard) = MAIN_LISTENER_HANDLE.lock() {
+        *guard = Some(listener_handle);
+    }
+}
+
+/// L-27+L-28+L-29 修复（批次 373）：优雅关闭事件总线所有 spawn task，幂等安全
+pub fn shutdown_event_bus() {
+    // L-27：abort Kafka 消费桥接 task
+    let consumer_handle = {
+        let mut state = lock_event_bus_state();
+        state.consumer_handle.take()
+    };
+    if let Some(handle) = consumer_handle {
+        handle.abort();
+        tracing::info!("Kafka 消费桥接 task 已关闭");
+    }
+
+    // L-28：abort 主事件监听器 task
+    let listener_handle = {
+        match MAIN_LISTENER_HANDLE.lock() {
+            Ok(mut guard) => guard.take(),
+            Err(e) => {
+                tracing::error!(error = %e, "MAIN_LISTENER_HANDLE 锁中毒，无法关闭主监听器");
+                None
+            }
+        }
+    };
+    if let Some(handle) = listener_handle {
+        handle.abort();
+        tracing::info!("事件总线主监听器 task 已关闭");
+    }
+
+    // L-29：abort 库存财务桥接监听器 task
+    crate::services::inventory_finance_bridge_service::InventoryFinanceBridgeService::shutdown_listener();
 }

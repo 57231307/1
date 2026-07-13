@@ -9,6 +9,11 @@ use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tracing::{error, info};
 
+/// L-29 修复（批次 373 v13 复审）：库存财务桥接监听器 spawn 句柄
+/// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏
+static BRIDGE_LISTENER_HANDLE: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>> =
+    std::sync::Mutex::new(None);
+
 /// 库存财务桥接服务
 /// 负责监听库存变动事件并自动生成相应的会计凭证
 pub struct InventoryFinanceBridgeService {
@@ -109,7 +114,8 @@ impl InventoryFinanceBridgeService {
     pub fn start_listener(db: Arc<DatabaseConnection>) {
         let mut receiver = EVENT_BUS.subscribe();
 
-        tokio::spawn(async move {
+        // L-29 修复（批次 373 v13 复审）：保存 spawn 句柄供 shutdown abort
+        let listener_handle = tokio::spawn(async move {
             while let Ok(event) = receiver.recv().await {
                 // 批次 8（2026-06-28）：单次事件处理 panic 隔离
                 // 库存财务桥接监听器 panic 会导致库存交易不再生成会计凭证，
@@ -179,6 +185,27 @@ impl InventoryFinanceBridgeService {
                 }
             }
         });
+
+        // L-29 修复（批次 373 v13 复审）：保存句柄到全局 static
+        if let Ok(mut guard) = BRIDGE_LISTENER_HANDLE.lock() {
+            *guard = Some(listener_handle);
+        }
+    }
+
+    /// L-29 修复（批次 373 v13 复审）：优雅关闭库存财务桥接监听器
+    /// abort 后台 spawn task，防止 detached task 泄漏。幂等：多次调用安全。
+    pub fn shutdown_listener() {
+        let handle = match BRIDGE_LISTENER_HANDLE.lock() {
+            Ok(mut guard) => guard.take(),
+            Err(e) => {
+                tracing::error!(error = %e, "BRIDGE_LISTENER_HANDLE 锁中毒，无法关闭监听器");
+                return;
+            }
+        };
+        if let Some(h) = handle {
+            h.abort();
+            tracing::info!("库存财务桥接监听器 task 已关闭");
+        }
     }
 
     /// 处理库存交易事件，生成相应的会计凭证
