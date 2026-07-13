@@ -117,7 +117,119 @@ impl ApInvoiceService {
         .insert(&txn)
         .await?;
 
+        // F-P0-7 修复（批次 382 v13 复审）：commit 前保存生成应付凭证所需字段
+        // invoice 在 Ok 返回时被 move，提前捕获避免后续 voucher 生成无法访问
+        let voucher_invoice_no = invoice.invoice_no.clone();
+        let voucher_invoice_id = invoice.id;
+        let voucher_supplier_id = invoice.supplier_id;
+        let voucher_amount = invoice.amount;
+        let voucher_tax_amount = invoice.tax_amount;
+        let voucher_invoice_date = invoice.invoice_date;
+
         txn.commit().await?;
+
+        // F-P0-7 修复（批次 382 v13 复审）：采购入库生成应付单后同步生成应付凭证
+        // 借：1405 库存商品（不含税金额）
+        // 借：222101 应交税费-进项税额（tax_amount > 0 时）
+        // 贷：2202 应付账款（含税总额，挂供应商辅助核算）
+        // 失败时仅 warn 不阻断主流程（与采购入库 confirm_receipt 容错模式一致），
+        // 避免凭证生成失败影响主业务流程，便于人工补偿。
+        let voucher_total = voucher_amount + voucher_tax_amount;
+        if voucher_total > Decimal::ZERO {
+            let mut voucher_items = vec![
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(1),
+                    subject_code: Some("1405".to_string()),
+                    subject_name: Some("库存商品".to_string()),
+                    debit: voucher_amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(format!("采购入库应付确认-{}", voucher_invoice_no)),
+                    assist_customer_id: None,
+                    assist_supplier_id: Some(voucher_supplier_id),
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(2),
+                    subject_code: Some("2202".to_string()),
+                    subject_name: Some("应付账款".to_string()),
+                    debit: Decimal::ZERO,
+                    credit: voucher_total,
+                    summary: Some(format!("采购入库应付确认-{}", voucher_invoice_no)),
+                    assist_customer_id: None,
+                    assist_supplier_id: Some(voucher_supplier_id),
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+            ];
+            // 进项税额仅在 tax_amount > 0 时插入，避免零额凭证分录引起校验告警
+            if voucher_tax_amount > Decimal::ZERO {
+                voucher_items.insert(
+                    1,
+                    crate::services::voucher_service::VoucherItemRequest {
+                        line_no: Some(2),
+                        subject_code: Some("222101".to_string()),
+                        subject_name: Some("应交税费-应交增值税-进项税额".to_string()),
+                        debit: voucher_tax_amount,
+                        credit: Decimal::ZERO,
+                        summary: Some(format!("采购入库应付确认-{}", voucher_invoice_no)),
+                        assist_customer_id: None,
+                        assist_supplier_id: Some(voucher_supplier_id),
+                        assist_department_id: None,
+                        assist_employee_id: None,
+                        assist_project_id: None,
+                        assist_batch_id: None,
+                        assist_color_no_id: None,
+                        assist_dye_lot_id: None,
+                        assist_grade: None,
+                        assist_workshop_id: None,
+                        quantity_meters: None,
+                        quantity_kg: None,
+                        unit_price: None,
+                    },
+                );
+                // 重排行号：1=库存商品 / 2=进项税额 / 3=应付账款
+                voucher_items[2].line_no = Some(3);
+            }
+            let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+                voucher_type: "转".to_string(),
+                voucher_date: voucher_invoice_date,
+                source_type: Some("PURCHASE_RECEIPT".to_string()),
+                source_module: Some("purchase".to_string()),
+                source_bill_id: Some(voucher_invoice_id),
+                source_bill_no: Some(voucher_invoice_no.clone()),
+                batch_no: None,
+                color_no: None,
+                items: voucher_items,
+            };
+            let voucher_service =
+                crate::services::voucher_service::VoucherService::new(self.db.clone());
+            if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+                tracing::warn!(
+                    "应付单 {} 应付凭证生成失败，需人工补生成：{}",
+                    voucher_invoice_no,
+                    e
+                );
+            }
+        }
 
         Ok(invoice)
     }

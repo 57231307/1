@@ -80,10 +80,14 @@ impl SalesService {
         }
 
         // 查询订单明细
-        let _order_items = sales_order_item::Entity::find()
+        // F-P0-6 修复（批次 382 v13 复审）：保留查询结果用于计算发货金额
+        let order_items = sales_order_item::Entity::find()
             .filter(sales_order_item::Column::OrderId.eq(request.order_id))
             .all(&txn)
             .await?;
+        // 构建 product_id → order_item 映射，用于发货明细金额计算
+        let order_item_map: std::collections::HashMap<i32, &sales_order_item::Model> =
+            order_items.iter().map(|oi| (oi.product_id, oi)).collect();
 
         // 查询仓库
         let warehouse = warehouse::Entity::find()
@@ -133,7 +137,18 @@ impl SalesService {
         let mut delivery_items_to_insert: Vec<sales_delivery_item::ActiveModel> = Vec::new();
         // 批次 356 v13 复审 B-P0-2 修复：收集库存流水事件，commit 后统一 publish
         let mut pending_inventory_events: Vec<crate::services::event_bus::BusinessEvent> = Vec::new();
+        // F-P0-6 修复（批次 382 v13 复审）：累加发货金额用于收入凭证生成
+        let mut delivery_total_amount = Decimal::ZERO;
+        let mut delivery_total_tax = Decimal::ZERO;
         for item in request.items {
+            // F-P0-6 修复：从订单明细查询单价和税率，计算发货明细金额
+            let (unit_price, tax_percent) = order_item_map
+                .get(&item.product_id)
+                .map(|oi| (oi.unit_price, oi.tax_percent))
+                .unwrap_or((Decimal::ZERO, Decimal::ZERO));
+            let line_amount = (item.quantity * unit_price).round_dp(2);
+            let line_tax = (line_amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
+
             // 收集发货明细（不立即 INSERT）
             delivery_items_to_insert.push(sales_delivery_item::ActiveModel {
                 id: Default::default(),
@@ -144,10 +159,12 @@ impl SalesService {
                 batch_no: Set(item.batch_no.clone()),
                 color_no: Set(None),
                 remarks: Set(None),
-                unit_price: Set(Decimal::ZERO),
-                amount: Set(Decimal::ZERO),
+                unit_price: Set(unit_price),
+                amount: Set(line_amount),
                 created_at: Set(chrono::Utc::now()),
             });
+            delivery_total_amount += line_amount;
+            delivery_total_tax += line_tax;
 
             // 扣减库存
             let (qty_before, qty_after) = self.reduce_inventory(
@@ -297,24 +314,19 @@ impl SalesService {
         // 提交事务
         txn.commit().await?;
 
-        // F-P0-3 修复（批次 381 v13 复审）：全额发货时生成收入确认凭证
+        // F-P0-3+F-P0-6 修复（批次 381+382 v13 复审）：每次发货都生成收入确认凭证
         // 借：应收账款（含税总额，挂客户辅助核算）
         // 贷：主营业务收入（不含税）/ 应交税费-销项税额
         // 失败时仅 warn 不阻断主流程（与采购入库容错模式一致）
-        if is_full_shipment && ship_order_total > Decimal::ZERO {
-            let tax_rate = rust_decimal::Decimal::new(13, 2); // 0.13
-            let tax_amount = (ship_order_total * tax_rate
-                / (Decimal::ONE + tax_rate))
-                .round_dp(2);
-            let revenue_excl_tax = (ship_order_total - tax_amount).round_dp(2);
-
+        let delivery_total_incl_tax = delivery_total_amount + delivery_total_tax;
+        if delivery_total_incl_tax > Decimal::ZERO {
             let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
                 voucher_type: "转".to_string(),
                 voucher_date: chrono::Utc::now().date_naive(),
-                source_type: Some("SALES_ORDER".to_string()),
+                source_type: Some("SALES_DELIVERY".to_string()),
                 source_module: Some("sales".to_string()),
-                source_bill_id: Some(ship_order_id),
-                source_bill_no: Some(ship_order_no.clone()),
+                source_bill_id: Some(delivery.id),
+                source_bill_no: Some(delivery.delivery_no.clone()),
                 batch_no: None,
                 color_no: None,
                 items: vec![
@@ -322,9 +334,9 @@ impl SalesService {
                         line_no: Some(1),
                         subject_code: Some("1131".to_string()),
                         subject_name: Some("应收账款".to_string()),
-                        debit: ship_order_total,
+                        debit: delivery_total_incl_tax,
                         credit: Decimal::ZERO,
-                        summary: Some(format!("销售出库收入确认-{}", ship_order_no)),
+                        summary: Some(format!("销售出库收入确认-{}", delivery.delivery_no)),
                         assist_customer_id: Some(ship_customer_id),
                         assist_supplier_id: None,
                         assist_department_id: None,
@@ -344,8 +356,8 @@ impl SalesService {
                         subject_code: Some("6001".to_string()),
                         subject_name: Some("主营业务收入".to_string()),
                         debit: Decimal::ZERO,
-                        credit: revenue_excl_tax,
-                        summary: Some(format!("销售出库收入确认-{}", ship_order_no)),
+                        credit: delivery_total_amount,
+                        summary: Some(format!("销售出库收入确认-{}", delivery.delivery_no)),
                         assist_customer_id: Some(ship_customer_id),
                         assist_supplier_id: None,
                         assist_department_id: None,
@@ -365,8 +377,8 @@ impl SalesService {
                         subject_code: Some("222101".to_string()),
                         subject_name: Some("应交税费-应交增值税-销项税额".to_string()),
                         debit: Decimal::ZERO,
-                        credit: tax_amount,
-                        summary: Some(format!("销售出库收入确认-{}", ship_order_no)),
+                        credit: delivery_total_tax,
+                        summary: Some(format!("销售出库收入确认-{}", delivery.delivery_no)),
                         assist_customer_id: Some(ship_customer_id),
                         assist_supplier_id: None,
                         assist_department_id: None,
@@ -387,8 +399,8 @@ impl SalesService {
                 crate::services::voucher_service::VoucherService::new(self.db.clone());
             if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
                 tracing::warn!(
-                    "销售订单 {} 发货成功，但生成收入凭证失败：{}",
-                    ship_order_no,
+                    "发货单 {} 收入凭证生成失败：{}",
+                    delivery.delivery_no,
                     e
                 );
             }
