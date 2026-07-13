@@ -226,7 +226,11 @@ impl EventBus {
     pub fn publish(&self, event: BusinessEvent) {
         // 同步上下文：直接写到本地 channel（无失败语义），并 spawn 异步 Kafka 投递
         let state = lock_event_bus_state();
-        let _ = state.local_tx.send(event.clone());
+        // L-6 修复（批次 368 v13 复审）：本地 channel 发送失败不再吞错，记录 warn 日志
+        //（无订阅者时 send 返回 Err，通常发生在启动初期/关闭末期，不影响业务正确性）
+        if state.local_tx.send(event.clone()).is_err() {
+            tracing::warn!("事件本地 channel 发送失败：无活跃订阅者（事件将被丢弃）");
+        }
         let kind = state.backend_kind.load(Ordering::Acquire);
         let kafka = state.kafka.as_ref().cloned();
         drop(state);

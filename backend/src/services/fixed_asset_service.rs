@@ -302,7 +302,10 @@ impl FixedAssetService {
         if let Err(err) = depreciation_record.insert(&txn).await {
             let err_str = err.to_string();
             // 显式回滚事务（asset_active.save 已写入 txn，不能依赖 drop 自动回滚）
-            let _ = txn.rollback().await;
+            // L-4 修复（批次 368 v13 复审）：回滚失败不再吞错，记录 error 日志便于排查
+            if let Err(rb_err) = txn.rollback().await {
+                tracing::error!(error = %rb_err, "事务回滚失败，可能存在连接异常");
+            }
             // 批次 95 P3-11 修复：收紧唯一约束匹配，仅匹配特定约束名
             // uk_fa_depreciation_records_asset_period，避免吞掉其他表的其他唯一约束冲突
             // （原实现包含 "unique constraint"/"duplicate key" 宽泛匹配，会把无关唯一冲突误判为重复计提）

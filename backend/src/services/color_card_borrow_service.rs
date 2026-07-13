@@ -42,6 +42,8 @@ pub enum BorrowStatus {
     Returned,
     Lost,
     Damaged,
+    /// 已取消（L-22 修复，批次 368 v13 复审）：借出记录主动取消，不再参与归还/遗失/损坏流程
+    Cancelled,
 }
 
 // v11 批次 147 P2-B：移除失效的 dead_code 标注
@@ -57,12 +59,16 @@ impl BorrowStatus {
             Self::Returned => "returned",
             Self::Lost => "lost",
             Self::Damaged => "damaged",
+            Self::Cancelled => "cancelled",
         }
     }
 
     /// 是否为终态（终态不可再转换为其它状态）
     pub fn is_terminal(&self) -> bool {
-        matches!(self, Self::Returned | Self::Lost | Self::Damaged)
+        matches!(
+            self,
+            Self::Returned | Self::Lost | Self::Damaged | Self::Cancelled
+        )
     }
 }
 
@@ -88,6 +94,7 @@ impl FromStr for BorrowStatus {
             "returned" => Ok(Self::Returned),
             "lost" => Ok(Self::Lost),
             "damaged" => Ok(Self::Damaged),
+            "cancelled" => Ok(Self::Cancelled),
             _ => Err(BorrowStatusParseError(s.to_string())),
         }
     }
@@ -290,6 +297,44 @@ impl ColorCardBorrowService {
             active.notes = Set(Some(n));
         }
         active.actual_return_at = Set(Some(Utc::now()));
+        active.updated_at = Set(Utc::now());
+
+        let result = active.update(&txn).await?;
+        txn.commit().await?;
+        Ok(result)
+    }
+
+    /// 取消借出记录（L-22 修复，批次 368 v13 复审）
+    ///
+    /// 仅允许 `Borrowed` 状态取消，取消后为终态不可再变更。
+    /// 用于登记错误借出/客户撤回等场景，区别于 Returned（正常归还）。
+    pub async fn cancel_borrow(
+        &self,
+        record_id: i64,
+        notes: Option<String>,
+    ) -> Result<color_card_borrow_record::Model, BorrowError> {
+        let txn = self.db.begin().await?;
+
+        let existing = BorrowEntity::find_by_id(record_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(BorrowError::RecordNotFound)?;
+
+        let current = BorrowStatus::from_str(&existing.status)
+            .map_err(|_| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
+        if current.is_terminal() {
+            return Err(BorrowError::InvalidState(format!(
+                "当前状态 {} 不允许取消",
+                existing.status
+            )));
+        }
+
+        let mut active: BorrowActive = existing.into();
+        active.status = Set(BorrowStatus::Cancelled.as_str().to_string());
+        if let Some(n) = notes {
+            active.notes = Set(Some(n));
+        }
         active.updated_at = Set(Utc::now());
 
         let result = active.update(&txn).await?;
