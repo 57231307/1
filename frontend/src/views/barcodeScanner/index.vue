@@ -12,20 +12,24 @@ import {
   ElRow,
   ElCol,
   ElDescriptions,
+  ElDescriptionsItem,
   ElCard,
   ElTabs,
   ElTabPane,
   ElResult,
+  ElDivider,
+  ElPagination,
 } from 'element-plus'
 import { Search, Box, Refresh } from '@element-plus/icons-vue'
 import {
   scanToShip,
   scanInventory,
-  getScanHistory,
   type ScanData,
   type ScanHistory,
 } from '@/api/barcode-scanner'
 import type { ApiResponse } from '@/types/api'
+import { useTableApi } from '@/composables/useTableApi'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('scan')
 const barcodeInput = ref('')
@@ -33,18 +37,33 @@ const orderId = ref(0)
 const scanResult = ref<ScanData | null>(null)
 const scanMessage = ref('')
 const scanSuccess = ref(false)
-const loading = ref(false)
+// scan/ship tab 独立 loading（不接入 useTableApi）
+const scanLoading = ref(false)
 
 const shipForm = ref({
   orderId: 0,
   barcode: '',
 })
 
-const historyData = ref<ScanHistory[]>([])
-const total = ref(0)
-const pagination = ref({
-  page: 1,
-  pageSize: 20,
+// 批次 390：history tab 接入 useTableApi，修复 0-based 分页 bug
+// 原代码第 118 行 getScanHistory(pagination.value.page - 1, ...) 为 0-based 分页，
+// 与后端 page.unwrap_or(1).clamp(1,1000) + page.saturating_sub(1)*page_size 约定不一致。
+// useTableApi 使用 1-based 分页，直接传 page 给后端，无需 -1 转换。
+// 后端返回 { data: { items: [], total: 0 } }，items 在自动探测列表中，无需配置 listKey。
+const {
+  data: historyData,
+  total,
+  loading: historyLoading,
+  page,
+  pageSize,
+  refresh: loadHistory,
+} = useTableApi<ScanHistory>({
+  url: '/scanner/history',
+  defaultPageSize: 20,
+  onError: (err: unknown) => {
+    logger.error('获取扫码历史失败', err)
+    ElMessage.error('获取扫码历史失败')
+  },
 })
 
 const statusOptions = [
@@ -62,7 +81,7 @@ const handleScan = async () => {
     ElMessage.warning('请输入条码')
     return
   }
-  loading.value = true
+  scanLoading.value = true
   try {
     // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
     // res.data 即业务数据（ScanResult/ScanData），无需 res.data!.data 双层访问
@@ -77,7 +96,7 @@ const handleScan = async () => {
     scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || '扫码失败'
     scanResult.value = null
   } finally {
-    loading.value = false
+    scanLoading.value = false
   }
 }
 
@@ -90,7 +109,7 @@ const handleScanToShip = async () => {
     ElMessage.warning('请输入订单ID')
     return
   }
-  loading.value = true
+  scanLoading.value = true
   try {
     // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
     // res.data 即业务数据（ScanToShipResponse），无需 res.data!.data 双层访问
@@ -108,37 +127,11 @@ const handleScanToShip = async () => {
     scanSuccess.value = false
     scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || '发货失败'
   } finally {
-    loading.value = false
+    scanLoading.value = false
   }
 }
 
-const loadHistory = async () => {
-  loading.value = true
-  try {
-    const res = (await getScanHistory(pagination.value.page - 1, pagination.value.pageSize)) as ApiResponse<{ items: ScanHistory[]; total: number }>
-    // 安全检查：防止后端返回 data 为 null 时崩溃
-    if (res.data) {
-      historyData.value = res.data.items
-      total.value = res.data.total
-    }
-  } catch (error) {
-    ElMessage.error('加载历史失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-const handlePageChange = (page: number) => {
-  pagination.value.page = page
-  loadHistory()
-}
-
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.value.pageSize = pageSize
-  loadHistory()
-}
-
-loadHistory()
+// 批次 390：history tab 由 useTableApi setup 自动加载，无需手动调 loadHistory()
 </script>
 
 <template>
@@ -156,7 +149,7 @@ loadHistory()
               />
             </div>
             <div class="scan-actions">
-              <ElButton type="primary" :loading="loading" class="scan-btn" @click="handleScan">
+              <ElButton type="primary" :loading="scanLoading" class="scan-btn" @click="handleScan">
                 <Search /> 扫码查询
               </ElButton>
             </div>
@@ -230,7 +223,7 @@ loadHistory()
               <ElCol :span="4">
                 <ElButton
                   type="primary"
-                  :loading="loading"
+                  :loading="scanLoading"
                   class="w-full"
                   style="margin-top: 24px"
                   @click="handleScanToShip"
@@ -265,7 +258,7 @@ loadHistory()
 
         <ElTable
           :data="historyData"
-          :loading="loading"
+          :loading="historyLoading"
           border
           fit
           highlight-current-row
@@ -279,15 +272,14 @@ loadHistory()
           <ElTableColumn prop="created_at" label="时间" width="180" />
         </ElTable>
 
+        <!-- 批次 390：分页由 useTableApi watch 自动加载，v-model 双向绑定 page/pageSize -->
         <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
           <ElPagination
-            v-model:current-page="pagination.page"
-            v-model:page-size="pagination.pageSize"
+            v-model:current-page="page"
+            v-model:page-size="pageSize"
             :page-sizes="[10, 20, 50, 100]"
             :total="total"
             layout="total, sizes, prev, pager, next, jumper"
-            @size-change="handlePageSizeChange"
-            @current-change="handlePageChange"
           />
         </div>
       </ElTabPane>
