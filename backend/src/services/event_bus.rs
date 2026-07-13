@@ -527,6 +527,42 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                                 ),
                             }
                         }
+                    } else if business_type == "production_order" {
+                        // B-P1-9 修复（批次 360 v13 复审）：生产订单 BPM 审批结果回写
+                        // 原实现仅处理 purchase_order/sales_order，生产订单 BPM 审批结果无法回写。
+                        // 使用 approve_order_via_bpm/reject_order_via_bpm 专用方法，不回调 BPM 避免循环。
+                        let prod_service =
+                            crate::services::production_order_service::ProductionOrderService::new(db.clone());
+                        if approved {
+                            if let Err(e) = prod_service.approve_order_via_bpm(business_id, approver_id).await {
+                                tracing::error!(
+                                    "Failed to approve production_order {} via BPM: {}",
+                                    business_id,
+                                    e
+                                );
+                            } else {
+                                tracing::info!(
+                                    "Successfully approved production_order {} via BPM",
+                                    business_id
+                                );
+                            }
+                        } else {
+                            if let Err(e) = prod_service
+                                .reject_order_via_bpm(business_id, "BPM审批拒绝".to_string(), approver_id)
+                                .await
+                            {
+                                tracing::error!(
+                                    "Failed to reject production_order {} via BPM: {}",
+                                    business_id,
+                                    e
+                                );
+                            } else {
+                                tracing::info!(
+                                    "Successfully rejected production_order {} via BPM",
+                                    business_id
+                                );
+                            }
+                        }
                     }
                 }
                 BusinessEvent::LowStockAlert {
