@@ -1748,9 +1748,9 @@ mod tests {
     #[ignore = "依赖 SQLite 内存数据库 schema，CI 中跳过；本地手动验证用"]
     async fn 测试_服务实例化_使用SQLite内存数据库() {
         let db = setup_test_db().await;
-        let service = ProductionOrderService::new(std::sync::Arc::new(db));
+        // L-20 修复（批次 377 v13 复审）：删除 let _ = service 占位变量
         // 仅验证服务能正常构造，不调用任何依赖 schema 的方法
-        let _ = service;
+        let _service = ProductionOrderService::new(std::sync::Arc::new(db));
     }
 
     /// 测试_请求结构_创建订单请求可构造

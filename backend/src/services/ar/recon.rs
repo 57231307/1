@@ -985,9 +985,10 @@ mod tests {
             notes: None,
         };
 
+        // L-17 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
         // 无 schema 时返回数据库错误；有 schema 时验证调用路径不 panic
         let result = service.create(req).await;
-        let _ = result;
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
     /// 测试_获取对账单_需要数据库

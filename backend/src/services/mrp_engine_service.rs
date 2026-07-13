@@ -1482,7 +1482,8 @@ mod tests {
         let service = MrpEngineService::new(Arc::new(db));
         // 无 schema 时为 Err；有 schema 无记录时返回零库存 StockInfo
         let result = service.get_stock_info(99999).await;
-        let _ = result;
+        // L-18 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
     /// 测试_BOM展开_需要真实数据库
@@ -1505,7 +1506,8 @@ mod tests {
                 false,
             )
             .await;
-        let _ = result;
+        // L-18 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
     /// 测试_查询MRP结果_需要真实数据库
@@ -1518,6 +1520,7 @@ mod tests {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         let result = service.get_results(None, None, None, 1, 10).await;
-        let _ = result;
+        // L-18 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 }
