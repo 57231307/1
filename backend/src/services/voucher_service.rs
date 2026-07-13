@@ -606,6 +606,12 @@ impl VoucherService {
         // 批次 94 P2-10：传入 user_id 用于余额变更审计日志
         self.update_account_balances(id, user_id, &txn).await?;
 
+        // 2.5 F-P1-3 修复（批次 359 v13 复审）：写入辅助核算记录
+        // 原实现仅更新科目余额（account_balance），未写入 assist_accounting_record 表，
+        // 导致辅助核算明细账与汇总表查询无数据。仅对包含辅助核算维度的分录写入。
+        self.write_assist_accounting_records_txn(id, user_id, &txn)
+            .await?;
+
         // 3. 更新凭证状态
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
         active_model.status = sea_orm::Set(crate::models::status::voucher::VOUCHER_POSTED.to_string());
@@ -890,6 +896,128 @@ impl VoucherService {
         }
 
         info!("科目余额更新成功");
+        Ok(())
+    }
+
+    /// F-P1-3 修复（批次 359 v13 复审）：凭证过账时写入辅助核算记录
+    ///
+    /// 遍历凭证分录，对包含辅助核算维度（客户/供应商/批次/色号/缸号/等级/车间等）
+    /// 的分录生成 `assist_accounting_record` 记录，便于辅助核算明细账与汇总表查询。
+    /// 原实现仅更新 `account_balance` 表，未写入辅助核算记录，导致辅助核算报表无数据。
+    async fn write_assist_accounting_records_txn(
+        &self,
+        voucher_id: i32,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        use crate::models::assist_accounting_record;
+
+        // 获取凭证主表（含 source_module/source_bill_no/批次/色号等）
+        let voucher_model = voucher::Entity::find_by_id(voucher_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("凭证不存在"))?;
+
+        // 获取凭证分录
+        let items = voucher_item::Entity::find()
+            .filter(voucher_item::Column::VoucherId.eq(voucher_id))
+            .all(txn)
+            .await?;
+
+        // 批量查询科目，构建 code→id 映射（复用 update_account_balances 的批量模式）
+        let subject_codes: Vec<String> =
+            items.iter().map(|i| i.subject_code.clone()).collect();
+        let subjects = if subject_codes.is_empty() {
+            Vec::new()
+        } else {
+            account_subject::Entity::find()
+                .filter(account_subject::Column::Code.is_in(subject_codes))
+                .all(txn)
+                .await?
+        };
+        let subject_id_by_code: std::collections::HashMap<&str, i32> =
+            subjects.iter().map(|s| (s.code.as_str(), s.id)).collect();
+
+        // 业务类型：优先 source_module，其次 source_type，兜底 "VOUCHER"
+        let business_type = voucher_model
+            .source_module
+            .clone()
+            .or(voucher_model.source_type.clone())
+            .unwrap_or_else(|| "VOUCHER".to_string());
+        // 业务单号：优先 source_bill_no，其次 voucher_no
+        let business_no = voucher_model
+            .source_bill_no
+            .clone()
+            .unwrap_or_else(|| voucher_model.voucher_no.clone());
+        // 业务单 ID：优先 source_bill_id，其次 voucher_id
+        let business_id = voucher_model.source_bill_id.unwrap_or(voucher_id);
+
+        let now = chrono::Utc::now();
+
+        for item in &items {
+            // 仅对包含任意辅助核算维度的分录生成记录，避免空记录污染
+            let has_assist = item.assist_customer_id.is_some()
+                || item.assist_supplier_id.is_some()
+                || item.assist_batch_id.is_some()
+                || item.assist_color_no_id.is_some()
+                || item.assist_dye_lot_id.is_some()
+                || item.assist_grade.is_some()
+                || item.assist_workshop_id.is_some()
+                || item.assist_department_id.is_some()
+                || item.assist_employee_id.is_some()
+                || item.assist_project_id.is_some();
+            if !has_assist {
+                continue;
+            }
+
+            let account_subject_id = *subject_id_by_code
+                .get(item.subject_code.as_str())
+                .ok_or_else(|| {
+                    AppError::not_found(format!("科目不存在：{}", item.subject_code))
+                })?;
+
+            // 构造五维 ID（复合键，便于按维度反查）
+            let five_dimension_id = format!(
+                "BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}",
+                item.assist_batch_id.unwrap_or(0),
+                item.assist_color_no_id.unwrap_or(0),
+                item.assist_dye_lot_id.unwrap_or(0),
+                item.assist_grade.clone().unwrap_or_default(),
+                item.assist_workshop_id.unwrap_or(0),
+            );
+
+            // F-P1-3 已知 Schema 缺口：voucher_item 无 product_id/warehouse_id 字段，
+            // 暂用 0 占位，待后续 Schema 补字段后修正。
+            let record = assist_accounting_record::ActiveModel {
+                business_type: sea_orm::Set(business_type.clone()),
+                business_no: sea_orm::Set(business_no.clone()),
+                business_id: sea_orm::Set(business_id),
+                account_subject_id: sea_orm::Set(account_subject_id),
+                debit_amount: sea_orm::Set(item.debit),
+                credit_amount: sea_orm::Set(item.credit),
+                five_dimension_id: sea_orm::Set(five_dimension_id),
+                // TODO(F-P1-3): voucher_item 缺 product_id，待 Schema 补字段后修正
+                product_id: sea_orm::Set(0),
+                batch_no: sea_orm::Set(voucher_model.batch_no.clone().unwrap_or_default()),
+                color_no: sea_orm::Set(voucher_model.color_no.clone().unwrap_or_default()),
+                dye_lot_no: sea_orm::Set(voucher_model.dye_lot_no.clone()),
+                grade: sea_orm::Set(item.assist_grade.clone().unwrap_or_default()),
+                workshop_id: sea_orm::Set(item.assist_workshop_id),
+                // TODO(F-P1-3): voucher_item 缺 warehouse_id，待 Schema 补字段后修正
+                warehouse_id: sea_orm::Set(0),
+                customer_id: sea_orm::Set(item.assist_customer_id),
+                supplier_id: sea_orm::Set(item.assist_supplier_id),
+                quantity_meters: sea_orm::Set(item.quantity_meters.unwrap_or(Decimal::ZERO)),
+                quantity_kg: sea_orm::Set(item.quantity_kg.unwrap_or(Decimal::ZERO)),
+                remarks: sea_orm::Set(Some(format!("voucher_id={}", voucher_id))),
+                created_at: sea_orm::Set(now),
+                created_by: sea_orm::Set(Some(user_id)),
+                ..Default::default()
+            };
+            record.insert(txn).await?;
+        }
+
+        info!("辅助核算记录写入成功 voucher_id={}", voucher_id);
         Ok(())
     }
 
