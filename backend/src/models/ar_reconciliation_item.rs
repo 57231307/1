@@ -43,6 +43,12 @@ pub enum MatchStatus {
     /// 部分匹配
     #[sea_orm(string_value = "PARTIAL")]
     Partial,
+    /// 争议中（L-21 修复，批次 367 v13 复审）：对账明细存在争议，需人工介入处理
+    #[sea_orm(string_value = "DISPUTED")]
+    Disputed,
+    /// 已取消（L-21 修复，批次 367 v13 复审）：对账明细已作废，不再参与匹配
+    #[sea_orm(string_value = "CANCELLED")]
+    Cancelled,
 }
 
 /// 应收对账明细 Entity
