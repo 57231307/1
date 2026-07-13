@@ -35,7 +35,9 @@ pub(super) fn cmd_backup(backup_type: &str) -> bool {
 
     // 备份数据库（批次 323 修复：合并嵌套 if 消除 collapsible_if 警告）
     if (backup_type == "database" || backup_type == "all") && !backup_database(&backup_dir) {
-        let _ = run_cmd("rm", &["-rf", &backup_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", &backup_dir]) {
+            println!("[WARN] 清理备份目录失败（可忽略）: {}", e);
+        }
         return false;
     }
 
@@ -177,21 +179,27 @@ pub(super) fn cmd_restore(file: &str) -> bool {
     println!("解压备份...");
     if let Err(e) = run_cmd("tar", &["-xzf", file, "-C", temp_dir]) {
         println!("[ERROR] 解压失败: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return false;
     }
 
     // 规则 12 合规：解压后二次校验（canonicalize 解析符号链接），双重防护
     if let Err(e) = validate_extracted_paths(temp_dir) {
         println!("[ERROR] 安全校验失败，终止恢复: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return false;
     }
 
     // 恢复数据库（批次 323 修复：合并嵌套 if 消除 collapsible_if 警告）
     let db_file = format!("{}/database.sql", temp_dir);
     if std::path::Path::new(&db_file).exists() && !restore_database(&db_file) {
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return false;
     }
 
@@ -221,7 +229,9 @@ fn validate_tar_contents(file: &str, temp_dir: &str) -> bool {
         Ok(list) => list,
         Err(e) => {
             println!("[ERROR] 列出备份文件内容失败: {}", e);
-            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+                println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+            }
             return false;
         }
     };
@@ -234,12 +244,16 @@ fn validate_tar_contents(file: &str, temp_dir: &str) -> bool {
         }
         if path.contains("..") {
             println!("[ERROR] 检测到路径穿越攻击：文件 {} 包含 ..", path);
-            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+                println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+            }
             return false;
         }
         if path.starts_with('/') {
             println!("[ERROR] 检测到绝对路径：文件 {}", path);
-            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+                println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+            }
             return false;
         }
     }
