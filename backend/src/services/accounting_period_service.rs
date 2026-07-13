@@ -1,11 +1,14 @@
 use crate::models::accounting_period;
 use crate::models::status::accounting_period as period_status;
+use crate::models::status::voucher::VOUCHER_POSTED;
 use crate::utils::error::AppError;
 use chrono::{TimeZone, Utc};
+use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait,
+    QuerySelect, RelationTrait, Set, TransactionTrait,
 };
+use sea_orm::sea_query::Expr;
 
 crate::define_service!(AccountingPeriodService);
 
@@ -95,7 +98,7 @@ impl AccountingPeriodService {
         let unposted_vouchers = crate::models::voucher::Entity::find()
             .filter(crate::models::voucher::Column::VoucherDate.gte(start_date))
             .filter(crate::models::voucher::Column::VoucherDate.lte(end_date))
-            .filter(crate::models::voucher::Column::Status.ne("posted"))
+            .filter(crate::models::voucher::Column::Status.ne(VOUCHER_POSTED))
             .count(&txn)
             .await?;
 
@@ -103,6 +106,20 @@ impl AccountingPeriodService {
             return Err(AppError::business(format!(
                 "该期间有 {} 张凭证未过账，请先完成所有凭证的过账操作",
                 unposted_vouchers
+            )));
+        }
+
+        // F-P1-1 修复（批次 360 v13 复审）：试算平衡校验
+        // 汇总本期已过账凭证的借方总额与贷方总额，若不相等则拒绝关闭期间。
+        // 兜底防止单条凭证过账校验被绕过（历史数据漂移、外部导入、并发问题等）。
+        let (total_debit, total_credit) =
+            self.check_trial_balance_txn(&txn, start_date, end_date).await?;
+        if total_debit != total_credit {
+            return Err(AppError::business(format!(
+                "试算不平衡：本期借方总额 {} ≠ 贷方总额 {}，差额 {}，无法关闭期间",
+                total_debit,
+                total_credit,
+                total_debit - total_credit
             )));
         }
 
@@ -135,6 +152,41 @@ impl AccountingPeriodService {
         self.init_first_period(next_year, next_month as u32).await?;
 
         Ok(closed_period)
+    }
+
+    /// F-P1-1 修复（批次 360 v13 复审）：试算平衡校验
+    ///
+    /// 在 close_period 事务内调用，联表查询指定期间内所有已过账凭证分录，
+    /// 汇总借方总额与贷方总额。返回 (借方总额, 贷方总额) 供调用方校验。
+    /// 空期间返回 (0, 0) 视为平衡。
+    async fn check_trial_balance_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        start_date: chrono::DateTime<Utc>,
+        end_date: chrono::DateTime<Utc>,
+    ) -> Result<(Decimal, Decimal), AppError> {
+        use crate::models::{voucher, voucher_item};
+
+        let result: Option<(Option<Decimal>, Option<Decimal>)> = voucher_item::Entity::find()
+            .join(
+                sea_orm::JoinType::InnerJoin,
+                voucher_item::Relation::Voucher.def(),
+            )
+            .filter(voucher::Column::Status.eq(VOUCHER_POSTED))
+            .filter(voucher::Column::VoucherDate.gte(start_date))
+            .filter(voucher::Column::VoucherDate.lte(end_date))
+            .select_only()
+            .column_as(Expr::col(voucher_item::Column::Debit).sum(), "total_debit")
+            .column_as(Expr::col(voucher_item::Column::Credit).sum(), "total_credit")
+            .into_tuple()
+            .one(txn)
+            .await?;
+
+        let (total_debit_opt, total_credit_opt) = result.unwrap_or((None, None));
+        Ok((
+            total_debit_opt.unwrap_or(Decimal::ZERO),
+            total_credit_opt.unwrap_or(Decimal::ZERO),
+        ))
     }
 
     /// 校验指定日期是否在已结账的期间内（防止篡改历史数据）

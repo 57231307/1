@@ -1072,6 +1072,86 @@ impl ProductionOrderService {
 
         Ok(updated)
     }
+
+    /// B-P1-9 修复（批次 360 v13 复审）：BPM 回写专用审批通过方法
+    ///
+    /// 与 `approve_order` 的区别：不回调 BPM（避免 BPM → 事件 → approve_order → BPM 死循环）。
+    /// 仅更新生产订单状态 PENDING_APPROVAL → APPROVED，走 update_with_audit 保留审计追溯。
+    /// 由 event_bus.rs 的 BpmProcessFinished 事件监听器调用。
+    pub async fn approve_order_via_bpm(
+        &self,
+        order_id: i32,
+        approver_id: i32,
+    ) -> Result<ProductionOrderModel, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        let model = ProductionOrderEntity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+
+        let new_status = crate::models::status::common::STATUS_APPROVED;
+        Self::validate_status_transition(&model.status, new_status)?;
+
+        let mut active_model: ActiveModel = model.into();
+        active_model.status = Set(new_status.to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(approver_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// B-P1-9 修复（批次 360 v13 复审）：BPM 回写专用审批拒绝方法
+    ///
+    /// 与 `approve_order(approved=false)` 的区别：不回调 BPM（避免循环）。
+    /// 仅更新生产订单状态 PENDING_APPROVAL → REJECTED，走 update_with_audit 保留审计追溯。
+    pub async fn reject_order_via_bpm(
+        &self,
+        order_id: i32,
+        reason: String,
+        approver_id: i32,
+    ) -> Result<ProductionOrderModel, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        let model = ProductionOrderEntity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+
+        let new_status = crate::models::status::production::PRODUCTION_REJECTED;
+        Self::validate_status_transition(&model.status, new_status)?;
+
+        let mut active_model: ActiveModel = model.into();
+        active_model.status = Set(new_status.to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(approver_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+        tracing::info!(
+            order_id = order_id,
+            approver_id = approver_id,
+            reason = %reason,
+            "生产订单 BPM 审批拒绝回写完成"
+        );
+        Ok(updated)
+    }
 }
 
 #[cfg(test)]
