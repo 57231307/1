@@ -84,12 +84,6 @@ import {
 import type { CustomOrderProcessNode } from '@/api/custom-order'
 
 /**
- * 工艺节点状态
- * 与 NODE_STATUS 常量键一致：pending / in_progress / completed / blocked
- */
-type ProcessNodeStatus = 'pending' | 'in_progress' | 'completed' | 'blocked'
-
-/**
  * 工艺流程节点类型
  * 基于 API 的 CustomOrderProcessNode 扩展 operator_id 字段（后端返回但 API 类型未声明）
  */

@@ -150,13 +150,13 @@ const computedActions = computed(() => {
 
 const confirmDialogVisible = ref(false)
 const progressDialogVisible = ref(false)
-const currentAction = ref<BatchActionItem | null>(null)
+const currentAction = ref<BatchActionItem<T> | null>(null)
 const executing = ref(false)
 const progressPercent = ref(0)
 const progressStatus = ref<'success' | 'exception' | ''>('')
 const progressText = ref('')
 
-const handleAction = async (action: BatchActionItem) => {
+const handleAction = async (action: BatchActionItem<T>) => {
   currentAction.value = action
 
   if (action.confirm) {
