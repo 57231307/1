@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 364 | #536 | v13 复审 P1 级闭环修复 B-P1-6 删除 InventoryAdjusted 孤岛事件（无 publish + 订阅者仅打日志 + 语义被 InventoryTransactionCreated 覆盖，删除 event_bus 变体定义+订阅者 + event_kafka 映射+测试 + event_kafka_payload 变体+From+TryFrom，3 文件 41 行删除，1 次 CI 全绿，B-P1-6 完整闭环） |
 | 363 | #535 | v13 复审 P1 级闭环修复 F-P1-2 剩余（资产负债表存货取数量非金额+_ap_total未使用死代码+预收账款业务口径混淆改从凭证体系 14/1122/1001+1002/16/2202/2203 科目前缀取时点余额 + 现金流量表投资/筹资/期初现金硬编码ZERO改从 1601/25/1001+1002 科目前缀取数 + 新增 get_subject_balance_by_prefix 方法 + 移除 4 个未使用 imports，1 次 CI 全绿，F-P1-2 完整闭环） |
 | 362 | #534 | v13 复审 P1 级闭环修复 F-P1-2 利润表走凭证体系（finance_report_service get_income_statement 重写从已过账凭证分录按科目编码前缀 60/64/6601/6602/6603 聚合替代硬编码 70%/15%/10%/5% 比例 + 新增 sum_voucher_amount_by_subject_prefix 私有方法联表查询，1 次 CI 全绿） |
 | 361 | #533 | v13 复审 P1 级闭环修复 B-P1-4 销售订单状态变更事件（event_bus 新增 5 个 BusinessEvent 变体 SalesOrderSubmitted/Approved/Completed/Cancelled/Rejected + order_workflow 4 方法 + contract.rs reject_order commit 后发布事件 + event_kafka_payload + event_kafka 同步 Kafka 序列化 + 测试用例，1 次 CI 全绿） |
