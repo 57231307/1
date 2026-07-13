@@ -231,14 +231,12 @@ mod tests {
 
     /// 测试 403 缺失错误响应：状态码与负载
     #[tokio::test]
-    async fn test_missing_response_payload() {
+    async fn test_missing_response_payload() -> Result<(), Box<dyn std::error::Error>> {
         let resp = csrf_error_response(CODE_MISS, CSRF_MISSING_MSG);
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-        let body_bytes = axum::body::to_bytes(resp.into_body(), 4096)
-            .await
-            .expect("读取响应体失败");
-        let body: serde_json::Value =
-            serde_json::from_slice(&body_bytes).expect("响应体不是合法 JSON");
+        // L-16 修复（批次 378 v13 复审）：原 expect 改为 ? 操作符，测试失败时返回错误而非 panic
+        let body_bytes = axum::body::to_bytes(resp.into_body(), 4096).await?;
+        let body: serde_json::Value = serde_json::from_slice(&body_bytes)?;
         assert_eq!(body.get("success").and_then(|v| v.as_bool()), Some(false));
         assert_eq!(
             body.get("code").and_then(|v| v.as_str()),
@@ -249,18 +247,17 @@ mod tests {
             Some("CSRF Token 缺失")
         );
         assert!(body.get("data").map(|v| v.is_null()).unwrap_or(false));
+        Ok(())
     }
 
     /// 测试 403 无效错误响应：状态码与负载
     #[tokio::test]
-    async fn test_invalid_response_payload() {
+    async fn test_invalid_response_payload() -> Result<(), Box<dyn std::error::Error>> {
         let resp = csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG);
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-        let body_bytes = axum::body::to_bytes(resp.into_body(), 4096)
-            .await
-            .expect("读取响应体失败");
-        let body: serde_json::Value =
-            serde_json::from_slice(&body_bytes).expect("响应体不是合法 JSON");
+        // L-16 修复（批次 378 v13 复审）：原 expect 改为 ? 操作符，测试失败时返回错误而非 panic
+        let body_bytes = axum::body::to_bytes(resp.into_body(), 4096).await?;
+        let body: serde_json::Value = serde_json::from_slice(&body_bytes)?;
         assert_eq!(
             body.get("code").and_then(|v| v.as_str()),
             Some("CSRF_TOKEN_INVALID")
@@ -269,18 +266,17 @@ mod tests {
             body.get("message").and_then(|v| v.as_str()),
             Some("CSRF Token 无效或已过期")
         );
+        Ok(())
     }
 
     /// 测试 403 IP 不匹配错误响应：状态码与负载（Wave 3 #7）
     #[tokio::test]
-    async fn test_ip_mismatch_response_payload() {
+    async fn test_ip_mismatch_response_payload() -> Result<(), Box<dyn std::error::Error>> {
         let resp = csrf_error_response(CODE_IP_MM, CSRF_IP_MISMATCH_MSG);
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-        let body_bytes = axum::body::to_bytes(resp.into_body(), 4096)
-            .await
-            .expect("读取响应体失败");
-        let body: serde_json::Value =
-            serde_json::from_slice(&body_bytes).expect("响应体不是合法 JSON");
+        // L-16 修复（批次 378 v13 复审）：原 expect 改为 ? 操作符，测试失败时返回错误而非 panic
+        let body_bytes = axum::body::to_bytes(resp.into_body(), 4096).await?;
+        let body: serde_json::Value = serde_json::from_slice(&body_bytes)?;
         assert_eq!(
             body.get("code").and_then(|v| v.as_str()),
             Some("CSRF_IP_MISMATCH")
@@ -289,6 +285,7 @@ mod tests {
             body.get("message").and_then(|v| v.as_str()),
             Some("CSRF Token IP 不匹配")
         );
+        Ok(())
     }
 
     /// 测试错误码常量值未被误改
@@ -311,32 +308,29 @@ mod tests {
 
     /// 测试 extract_client_ip 的多级降级（Wave 3 #7）
     #[test]
-    fn test_extract_client_ip_priority() {
+    fn test_extract_client_ip_priority() -> Result<(), Box<dyn std::error::Error>> {
         use axum::body::Body;
         use axum::http::Request;
 
         // 场景 1: X-Real-IP 优先级最高
+        // L-16 修复（批次 378 v13 复审）：原 expect("build") 改为 ? 操作符
         let req = Request::builder()
             .uri("/")
             .header("x-real-ip", "203.0.113.10")
             .header("x-forwarded-for", "198.51.100.1, 10.0.0.1")
-            .body(Body::empty())
-            .expect("build");
+            .body(Body::empty())?;
         assert_eq!(extract_client_ip(&req), "203.0.113.10");
 
         // 场景 2: 无 X-Real-IP 时取 X-Forwarded-For 首段
         let req = Request::builder()
             .uri("/")
             .header("x-forwarded-for", "198.51.100.1, 10.0.0.1")
-            .body(Body::empty())
-            .expect("build");
+            .body(Body::empty())?;
         assert_eq!(extract_client_ip(&req), "198.51.100.1");
 
         // 场景 3: 都没有时回退 "unknown"
-        let req = Request::builder()
-            .uri("/")
-            .body(Body::empty())
-            .expect("build");
+        let req = Request::builder().uri("/").body(Body::empty())?;
         assert_eq!(extract_client_ip(&req), "unknown");
+        Ok(())
     }
 }
