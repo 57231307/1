@@ -20,7 +20,8 @@ use sea_orm::{
 };
 use serde_json::json;
 use std::sync::Arc;
-use tracing::info;
+// 批次 389 P2-2：补充 warn/error 日志宏，关键操作失败场景补审计日志
+use tracing::{info, warn};
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
 use crate::utils::error::AppError;
@@ -128,9 +129,24 @@ impl ArService {
 
         // 金额校验
         if amount <= Decimal::ZERO {
+            // 批次 389 P2-2：金额校验失败记录 warn 日志，便于审计异常收款行为
+            warn!(
+                target: "business_audit",
+                event = "AR_PAYMENT_INVALID_AMOUNT",
+                customer_id = customer_id,
+                amount = %amount,
+                "AR 收款金额校验失败：金额必须大于零"
+            );
             return Err(AppError::validation("收款金额必须大于零"));
         }
         if amount.round_dp(2) != amount {
+            warn!(
+                target: "business_audit",
+                event = "AR_PAYMENT_INVALID_PRECISION",
+                customer_id = customer_id,
+                amount = %amount,
+                "AR 收款金额校验失败：精度超过 2 位小数"
+            );
             return Err(AppError::validation("收款金额精度不能超过 2 位小数"));
         }
 
@@ -295,6 +311,14 @@ impl ArService {
             .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
 
         if collection.status != crate::models::status::ar::COLLECTION_PENDING {
+            // 批次 389 P2-2：状态门拒绝记录 warn 日志，便于审计非法状态变更
+            warn!(
+                target: "business_audit",
+                event = "AR_PAYMENT_UPDATE_REJECTED",
+                payment_id = payment_id,
+                status = %collection.status,
+                "AR 收款更新被拒：状态非 pending"
+            );
             return Err(AppError::bad_request(
                 "非 pending 状态的收款单不可修改",
             ));
@@ -342,6 +366,15 @@ impl ArService {
             .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
 
         if collection.status != crate::models::status::ar::COLLECTION_PENDING {
+            // 批次 389 P2-2：状态门拒绝记录 warn 日志，便于审计非法状态变更
+            warn!(
+                target: "business_audit",
+                event = "AR_PAYMENT_CONFIRM_REJECTED",
+                payment_id = payment_id,
+                status = %collection.status,
+                operator = user_id,
+                "AR 收款确认被拒：状态非 pending"
+            );
             return Err(AppError::bad_request(format!(
                 "收款单状态为 {}，仅 pending 状态可确认",
                 collection.status
@@ -460,6 +493,15 @@ impl ArService {
             .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
 
         if collection.status != crate::models::status::ar::COLLECTION_PENDING {
+            // 批次 389 P2-2：状态门拒绝记录 warn 日志，便于审计非法状态变更
+            warn!(
+                target: "business_audit",
+                event = "AR_COLLECTION_CANCEL_REJECTED",
+                payment_id = payment_id,
+                status = %collection.status,
+                operator = user_id,
+                "AR 收款取消被拒：状态非 pending"
+            );
             return Err(AppError::bad_request(format!(
                 "收款单状态为 {}，仅 pending 状态可直接取消；confirmed 状态请先取消关联核销单",
                 collection.status
@@ -473,6 +515,15 @@ impl ArService {
             .count(&txn)
             .await?;
         if referenced_count > 0 {
+            // 批次 389 P2-2：被核销单引用拒绝取消记录 warn 日志，便于审计异常取消行为
+            warn!(
+                target: "business_audit",
+                event = "AR_COLLECTION_CANCEL_REFERENCED",
+                payment_id = payment_id,
+                referenced_count = referenced_count,
+                operator = user_id,
+                "AR 收款取消被拒：已被核销单引用"
+            );
             return Err(AppError::bad_request(format!(
                 "收款单 {} 已被 {} 笔核销单引用，请先取消关联核销单",
                 payment_id, referenced_count
@@ -854,9 +905,29 @@ impl ArService {
     ) -> Result<serde_json::Value, AppError> {
         // 金额校验
         if amount <= Decimal::ZERO {
+            // 批次 389 P2-2：金额校验失败记录 warn 日志，便于审计异常核销行为
+            warn!(
+                target: "business_audit",
+                event = "AR_VERIFY_INVALID_AMOUNT",
+                invoice_id = invoice_id,
+                payment_id = payment_id,
+                amount = %amount,
+                operator = user_id,
+                "AR 手动核销被拒：金额必须大于零"
+            );
             return Err(AppError::validation("核销金额必须大于零"));
         }
         if amount.round_dp(2) != amount {
+            // 批次 389 P2-2：精度校验失败记录 warn 日志
+            warn!(
+                target: "business_audit",
+                event = "AR_VERIFY_INVALID_PRECISION",
+                invoice_id = invoice_id,
+                payment_id = payment_id,
+                amount = %amount,
+                operator = user_id,
+                "AR 手动核销被拒：精度超过 2 位小数"
+            );
             return Err(AppError::validation("核销金额精度不能超过 2 位小数"));
         }
 
@@ -870,9 +941,29 @@ impl ArService {
             .ok_or_else(|| AppError::not_found(format!("应收单 {}", invoice_id)))?;
 
         if invoice.status == crate::models::status::common::STATUS_CANCELLED {
+            // 批次 389 P2-2：应收单已取消拒绝核销记录 warn 日志
+            warn!(
+                target: "business_audit",
+                event = "AR_VERIFY_INVOICE_CANCELLED",
+                invoice_id = invoice_id,
+                invoice_no = %invoice.invoice_no,
+                operator = user_id,
+                "AR 手动核销被拒：应收单已取消"
+            );
             return Err(AppError::bad_request("应收单已取消，无法核销"));
         }
         if invoice.unpaid_amount < amount {
+            // 批次 389 P2-2：未收金额不足拒绝核销记录 warn 日志
+            warn!(
+                target: "business_audit",
+                event = "AR_VERIFY_INSUFFICIENT_UNPAID",
+                invoice_id = invoice_id,
+                invoice_no = %invoice.invoice_no,
+                unpaid_amount = %invoice.unpaid_amount,
+                verify_amount = %amount,
+                operator = user_id,
+                "AR 手动核销被拒：未收金额不足"
+            );
             return Err(AppError::business(format!(
                 "应收单 {} 未收金额 {} 小于核销金额 {}",
                 invoice.invoice_no, invoice.unpaid_amount, amount
@@ -886,12 +977,33 @@ impl ArService {
             .ok_or_else(|| AppError::not_found(format!("收款单 {}", payment_id)))?;
 
         if payment.status != crate::models::status::ar::COLLECTION_CONFIRMED {
+            // 批次 389 P2-2：收款未确认拒绝核销记录 warn 日志
+            warn!(
+                target: "business_audit",
+                event = "AR_VERIFY_PAYMENT_NOT_CONFIRMED",
+                payment_id = payment_id,
+                payment_no = %payment.collection_no,
+                status = %payment.status,
+                operator = user_id,
+                "AR 手动核销被拒：收款单未确认"
+            );
             return Err(AppError::business(format!(
                 "收款单 {} 状态为 {}，未确认不可核销",
                 payment.collection_no, payment.status
             )));
         }
         if invoice.customer_id != payment.customer_id {
+            // 批次 389 P2-2：客户不一致拒绝核销记录 warn 日志
+            warn!(
+                target: "business_audit",
+                event = "AR_VERIFY_CUSTOMER_MISMATCH",
+                invoice_id = invoice_id,
+                payment_id = payment_id,
+                invoice_customer_id = invoice.customer_id,
+                payment_customer_id = payment.customer_id,
+                operator = user_id,
+                "AR 手动核销被拒：发票客户与收款客户不一致"
+            );
             return Err(AppError::business("发票客户与收款客户不一致，不可核销"));
         }
 
@@ -906,6 +1018,17 @@ impl ArService {
             .sum();
         let available = payment.collection_amount - existing_verified;
         if amount > available {
+            // 批次 389 P2-2：余额不足拒绝核销记录 warn 日志
+            warn!(
+                target: "business_audit",
+                event = "AR_VERIFY_INSUFFICIENT_BALANCE",
+                payment_id = payment_id,
+                payment_no = %payment.collection_no,
+                available = %available,
+                verify_amount = %amount,
+                operator = user_id,
+                "AR 手动核销被拒：收款单可用余额不足"
+            );
             return Err(AppError::business(format!(
                 "收款单 {} 可用余额 {} 小于核销金额 {}",
                 payment.collection_no, available, amount
@@ -1043,6 +1166,15 @@ impl ArService {
             .ok_or_else(|| AppError::not_found(format!("核销单 {} 不存在", verification_id)))?;
 
         if reconciliation.reconciliation_status.as_deref() != Some(crate::models::status::ar::RECONCILIATION_CLOSED) {
+            // 批次 389 P2-2：状态门拒绝记录 warn 日志，便于审计非法状态变更
+            warn!(
+                target: "business_audit",
+                event = "AR_VERIFICATION_CANCEL_REJECTED",
+                verification_id = verification_id,
+                status = ?reconciliation.reconciliation_status,
+                operator = user_id,
+                "AR 核销取消被拒：状态非 closed"
+            );
             return Err(AppError::bad_request(format!(
                 "核销单状态为 {:?}，仅 closed 状态可取消",
                 reconciliation.reconciliation_status
