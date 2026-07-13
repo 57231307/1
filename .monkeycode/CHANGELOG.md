@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 393 | #566 | 测试覆盖补测：inventory_stock_service（0→6）+ voucher_service（29→33）+ ar_service（0→6）+ ap_invoice_service（2→10），共 24 个新测试，覆盖双计量换算/状态机门/账龄分桶/五维ID拼接/贪心匹配等纯函数复现场景 |
 | 392 | #565 | 测试覆盖补测：user_service 新增 8 测试（原无测试）+ auth_service 补测 4 异步密码函数 + po/order 补测 6 状态校验门（update/delete/close），共 18 个新测试，遵循规则 6 mock 数据抽取到夹具函数 |
 | 391 | #564 | useTableApi 接入：AdjustmentListTab + TransferListTab 从手写分页模板代码统一接入 useTableApi（1-based），stats 保留原语义改用 watch data 自动更新，defineExpose refresh 保持父组件接口（阶段 5 useTableApi 接入全部完成） |
 | 390 | #563 | useTableApi 接入：assistAccounting + barcodeScanner 修复 0-based 分页 bug（原 page-1 与后端 1-based 约定不一致），统一接入 useTableApi 由 setup 自动加载+watch page/pageSize 触发，移除手动 pagination ref 与 loadXxx 函数 |

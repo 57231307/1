@@ -178,6 +178,7 @@
 - 与规则 5（每 30 批次 E2E 独立工作流）配合：批次 270 同时触发 E2E 报告 + 记忆整理
 
 **整理记录**：
+- 2026-07-14（批次 393 后，轻量整理）：批次 393 完成测试覆盖补测第二批（inventory_stock_service 0→6 + voucher_service 29→33 + ar_service 0→6 + ap_invoice_service 2→10，共 24 个新测试，PR #566 已合并 CI 全绿）；阶段 6 service 测试全部完成（批次 392-393 共 42 个新测试）；关键技术点：DualUnitConverter::meters_to_kg 公式（米×克重×幅宽(m)÷1000）、AP 状态机门（approve 仅 DRAFT / mark_as_paid 仅 AUDITED+PARTIAL_PAID P0 3-3 修复 / cancel 同白名单）、AR 收款核销贪心匹配（按发票顺序 min(remaining,unpaid)）、账龄分桶 6 区间（未到期/1-30/31-60/61-90/91-180/180+）、五维 ID 拼接（BATCH|COLOR|DYE_LOT|GRADE|WORKSHOP）；更新 doto.md 进度总览（93 完成 / 285 剩余，测试覆盖补测 7/12）+ CHANGELOG.md 追加批次 393 记录；下一批次 394：handler 集成测试；下一个整理点批次 405
 - 2026-07-14（批次 392 后，轻量整理）：批次 392 完成测试覆盖补测首批（user_service 8 测试 + auth_service 4 异步密码 + po/order 6 状态校验门，共 18 个新测试，PR #565 已合并 CI 全绿）；更新 doto.md 进度总览新增"测试覆盖补测"维度（3/12 完成）+ CHANGELOG.md 追加批次 392 记录；下一批次 393：库存/财务 service 测试（inventory_stock/voucher/ar/ap）；下一个整理点批次 405
 - 2026-07-14（批次 391 后，轻量整理）：批次 391 完成 useTableApi-6/7（AdjustmentListTab + TransferListTab 接入 useTableApi，PR #564 已合并 CI 全绿）；阶段 5 useTableApi 接入全部完成（批次 390-391 共 4 文件）；更新 doto.md 进度总览（88 完成 / 290 剩余，v13 前端/后端 P2 9/9 完成）+ CHANGELOG.md 追加批次 391 记录；下一阶段：阶段 6 测试覆盖补测（批次 392-394）；下一个整理点批次 405
 - 2026-07-14（批次 390 后，轻量整理）：批次 390 完成useTableApi-8/9（assistAccounting + barcodeScanner 0-based 分页 bug 修复，PR #563 已合并 CI 全绿）；更新 doto.md 进度总览（86 完成 / 293 剩余）+ CHANGELOG.md 追加批次 390 记录 + doto.md 批次 390 表格补全实际完成状态 + 批次 391 调整为剩余 view 扫描；下一个整理点批次 405

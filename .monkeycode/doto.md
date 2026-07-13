@@ -10,7 +10,7 @@
 
 > **v13 复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **已完成批次**：356-392（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
+> **已完成批次**：356-393（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
 
 ### 进度总览
 
@@ -23,8 +23,8 @@
 | v14 中风险遗留 | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | v13 前端/后端 P2 | 9 | 9 | 0 | ✅ 阶段 5 useTableApi 接入全部完成（批次 390-391） |
-| 测试覆盖补测 | 12 | 3 | 9 | 🔄 **批次 392 完成 auth/user/po service 测试**（18 个新测试），9 个 service 待批次 393-394 |
-| **合计** | **~378** | **89** | **~289** | — |
+| 测试覆盖补测 | 12 | 7 | 5 | 🔄 **批次 393 完成 inventory/voucher/ar/ap_invoice service 测试**（24 个新测试），5 个 handler 待批次 394 |
+| **合计** | **~378** | **93** | **~285** | — |
 
 ---
 
@@ -124,14 +124,16 @@
 | 测试-3 | backend/src/services/so/order.rs + tests | 销售订单 service 测试 |
 | 测试-4 | backend/src/services/po/order.rs + tests | 采购订单 service 测试 |
 
-**批次 393（核心 service 测试 - 库存/财务，约 6 文件）**：
+**批次 393（核心 service 测试 - 库存/财务，约 6 文件，PR #566 已合并，CI 全绿）**：
 
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| 测试-5 | backend/src/services/inventory_stock_service.rs + tests | 库存 service 测试 |
-| 测试-6 | backend/src/services/voucher_service.rs + tests | 凭证 service 测试 |
-| 测试-7 | backend/src/services/ar_service.rs + tests | AR service 测试 |
-| 测试-8 | backend/src/services/ap_invoice_service.rs + tests | AP service 测试 |
+| 任务 | 涉及文件 | 说明 | 状态 |
+|------|----------|------|------|
+| 测试-5 | backend/src/services/inventory_stock_service.rs + tests | 库存 service 测试（0→6） | ✅ 批次 393 完成 |
+| 测试-6 | backend/src/services/voucher_service.rs + tests | 凭证 service 测试（29→33） | ✅ 批次 393 完成 |
+| 测试-7 | backend/src/services/ar_service.rs + tests | AR service 测试（0→6） | ✅ 批次 393 完成 |
+| 测试-8 | backend/src/services/ap_invoice_service.rs + tests | AP service 测试（2→10） | ✅ 批次 393 完成 |
+
+> 批次 393 共补测 24 个新测试。阶段 6 service 测试全部完成（批次 392-393，共 42 个新测试）。下一批次 394：handler 集成测试。
 
 **批次 394（handler 测试，约 6 文件）**：
 
