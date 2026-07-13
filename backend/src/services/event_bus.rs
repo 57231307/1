@@ -89,11 +89,6 @@ pub enum BusinessEvent {
         /// 用于 mark_as_paid 审计日志透传，替代原硬编码 Some(0)
         user_id: i32,
     },
-    InventoryAdjusted {
-        product_id: i32,
-        warehouse_id: i32,
-        quantity_change: rust_decimal::Decimal,
-    },
     CollectionCompleted {
         collection_id: i32,
         invoice_id: Option<i32>,
@@ -431,13 +426,6 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                             tracing::error!("Failed to update ap_invoice {}: {}", invoice_id, e)
                         }
                     }
-                }
-                BusinessEvent::InventoryAdjusted {
-                    product_id,
-                    warehouse_id,
-                    quantity_change,
-                } => {
-                    tracing::info!("Event received: InventoryAdjusted for product {} at warehouse {}, change: {}", product_id, warehouse_id, quantity_change);
                 }
                 BusinessEvent::PurchaseOrderApproved { order_id, .. } => {
                     tracing::info!(

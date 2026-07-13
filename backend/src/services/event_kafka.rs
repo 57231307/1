@@ -77,7 +77,6 @@ fn event_type_name(event: &BusinessEvent) -> &'static str {
         BusinessEvent::SalesOrderCancelled { .. } => "SalesOrderCancelled",
         BusinessEvent::SalesOrderRejected { .. } => "SalesOrderRejected",
         BusinessEvent::PaymentCompleted { .. } => "PaymentCompleted",
-        BusinessEvent::InventoryAdjusted { .. } => "InventoryAdjusted",
         BusinessEvent::CollectionCompleted { .. } => "CollectionCompleted",
         BusinessEvent::PurchaseOrderApproved { .. } => "PurchaseOrderApproved",
         BusinessEvent::InventoryCountCompleted { .. } => "InventoryCountCompleted",
@@ -453,11 +452,6 @@ mod tests {
                 invoice_id: 2,
                 amount: Decimal::from(10),
                 user_id: 10,
-            },
-            BusinessEvent::InventoryAdjusted {
-                product_id: 1,
-                warehouse_id: 2,
-                quantity_change: Decimal::from(3),
             },
             BusinessEvent::CollectionCompleted {
                 collection_id: 1,

@@ -60,11 +60,6 @@ pub mod payload_serde {
             amount: Decimal,
             user_id: i32,
         },
-        InventoryAdjusted {
-            product_id: i32,
-            warehouse_id: i32,
-            quantity_change: Decimal,
-        },
         CollectionCompleted {
             collection_id: i32,
             invoice_id: Option<i32>,
@@ -200,15 +195,6 @@ pub mod payload_serde {
                     invoice_id: *invoice_id,
                     amount: *amount,
                     user_id: *user_id,
-                },
-                BusinessEvent::InventoryAdjusted {
-                    product_id,
-                    warehouse_id,
-                    quantity_change,
-                } => Self::InventoryAdjusted {
-                    product_id: *product_id,
-                    warehouse_id: *warehouse_id,
-                    quantity_change: *quantity_change,
                 },
                 BusinessEvent::CollectionCompleted {
                     collection_id,
@@ -393,15 +379,6 @@ pub mod payload_serde {
                     invoice_id,
                     amount,
                     user_id,
-                },
-                EventPayload::InventoryAdjusted {
-                    product_id,
-                    warehouse_id,
-                    quantity_change,
-                } => Self::InventoryAdjusted {
-                    product_id,
-                    warehouse_id,
-                    quantity_change,
                 },
                 EventPayload::CollectionCompleted {
                     collection_id,
