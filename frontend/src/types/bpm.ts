@@ -3,12 +3,32 @@
  */
 
 /**
+ * BPM 流程变量值类型
+ * FE-P2-1 修复（批次 388 v13 复审）：原 Record<string, unknown> 过于宽泛，
+ * 细化为具体的基础类型联合，避免 unknown 导致调用方需要类型断言
+ */
+export type BpmVariableValue = string | number | boolean | null
+
+/**
+ * BPM 流程变量集合
+ */
+export interface BpmVariables {
+  [key: string]: BpmVariableValue
+}
+
+/**
+ * BPM 流程实例状态
+ * FE-P2-1 修复（批次 388 v13 复审）：原 status: string 过于宽泛，收窄为字面量联合类型
+ */
+export type BpmProcessStatus = 'running' | 'completed' | 'terminated' | 'cancelled' | 'suspended'
+
+/**
  * 启动流程请求参数
  */
 export interface StartProcessRequest {
   process_key: string
   business_key?: string
-  variables?: Record<string, unknown>
+  variables?: BpmVariables
 }
 
 /**
@@ -26,7 +46,7 @@ export interface StartProcessResponse {
 export interface ApproveTaskRequest {
   task_id: string
   comment?: string
-  variables?: Record<string, unknown>
+  variables?: BpmVariables
 }
 
 /**
@@ -37,7 +57,7 @@ export interface BusinessRelationResponse {
   business_id: number
   instance_id: string
   process_name: string
-  status: string
+  status: BpmProcessStatus
 }
 
 /**
@@ -60,9 +80,9 @@ export interface InstanceDetailResponse {
   start_user: string
   start_time: string
   end_time?: string
-  status: string
+  status: BpmProcessStatus
   current_activities: string[]
-  variables: Record<string, unknown>
+  variables: BpmVariables
 }
 
 /**

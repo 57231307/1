@@ -93,10 +93,9 @@ pub async fn list_vouchers(
         page_size: params.page_size.map(|ps| ps.clamp(1, 100)),
     };
 
-    let (vouchers, total) = service
-        .get_list(query_params)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 internal，
+    // service 返回 AppError，直接用 ? 透传保留原始错误分类
+    let (vouchers, total) = service.get_list(query_params).await?;
     info!("用户 {} 查询凭证成功，共 {} 条", auth.username, total);
 
     Ok(Json(ApiResponse::success(vouchers)))
@@ -111,10 +110,9 @@ pub async fn get_voucher(
     info!("用户 {} 查询凭证详情 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
-    let detail = service
-        .get_by_id(id)
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 not_found，
+    // service 返回 AppError，直接用 ? 透传保留原始错误分类
+    let detail = service.get_by_id(id).await?;
     info!(
         "用户 {} 查询凭证成功：{}",
         auth.username, detail.voucher.voucher_no
@@ -197,10 +195,9 @@ pub async fn submit_voucher(
     info!("用户 {} 提交凭证 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
-    let voucher = service
-        .submit(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 bad_request，
+    // service 返回 AppError，直接用 ? 透传保留原始错误分类
+    let voucher = service.submit(id, auth.user_id).await?;
     info!(
         "用户 {} 提交凭证成功：{}",
         auth.username, voucher.voucher_no
@@ -221,10 +218,9 @@ pub async fn review_voucher(
     info!("用户 {} 审核凭证 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
-    let voucher = service
-        .review(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 bad_request，
+    // service 返回 AppError，直接用 ? 透传保留原始错误分类
+    let voucher = service.review(id, auth.user_id).await?;
     info!(
         "用户 {} 审核凭证成功：{}",
         auth.username, voucher.voucher_no
@@ -245,10 +241,9 @@ pub async fn post_voucher(
     info!("用户 {} 凭证过账 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
-    let voucher = service
-        .post(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 bad_request，
+    // service 返回 AppError，直接用 ? 透传保留原始错误分类
+    let voucher = service.post(id, auth.user_id).await?;
     info!(
         "用户 {} 凭证过账成功：{}",
         auth.username, voucher.voucher_no

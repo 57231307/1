@@ -79,17 +79,16 @@ import {
   NODE_STATUS,
   NODE_STATUS_COLORS,
 } from '@/api/custom-order'
+// FE-P2-2 修复（批次 388 v13 复审）：复用 API 导出的 CustomOrderProcessNode 类型，
+// 删除本地弱化的 ProcessNode 接口（status 含 | string 弱化、日期字段过宽联合、[key: string]: unknown 索引签名）
+import type { CustomOrderProcessNode } from '@/api/custom-order'
 
-// v11 批次 180 P2-1 修复：定义工艺节点本地类型，替代 any
-interface ProcessNode {
-  id: number
-  node_name: string
-  status: 'pending' | 'in_progress' | 'completed' | 'blocked' | string
-  planned_start_date?: string | number | Date
-  actual_start_date?: string | number | Date
-  actual_end_date?: string | number | Date
+/**
+ * 工艺流程节点类型
+ * 基于 API 的 CustomOrderProcessNode 扩展 operator_id 字段（后端返回但 API 类型未声明）
+ */
+type ProcessNode = CustomOrderProcessNode & {
   operator_id?: number
-  [key: string]: unknown
 }
 
 const props = defineProps<{
