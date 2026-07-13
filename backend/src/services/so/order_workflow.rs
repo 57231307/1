@@ -283,7 +283,7 @@ impl SalesService {
             crate::services::inventory_reservation_service::InventoryReservationService::new(
                 self.db.clone(),
             );
-        for item in order_items {
+        for item in &order_items {
             // 查询产品默认仓库（使用第一个活跃仓库作为默认仓库）
             let default_warehouse = crate::models::warehouse::Entity::find()
                 .filter(crate::models::warehouse::Column::IsActive.eq(true))
@@ -309,6 +309,35 @@ impl SalesService {
                         "批次 356 B-P0-1: 创建库存预留失败，订单已审批但库存未锁定，请人工检查"
                     );
                 }
+            }
+        }
+
+        // B-P2-4 修复（批次 386 v13 复审）：销售订单审批后触发 MRP 物料需求计算
+        // 原实现 approve_order 仅做库存预留，不调用 MrpEngineService，
+        // 导致销售→MRP 物料需求链路断开，采购计划无法基于销售订单自动生成。
+        // 修复：commit 成功后对每个订单明细调用 MRP 计算（source_type=SALES_ORDER），
+        // 失败时 tracing::warn 不阻塞主流程（订单已审批，MRP 可后续重算）。
+        let mrp_service = crate::services::mrp_engine_service::MrpEngineService::new(self.db.clone());
+        let required_date = chrono::Utc::now().date_naive() + chrono::Duration::days(7);
+        for item in &order_items {
+            if let Err(e) = mrp_service
+                .run_mrp_calculation(
+                    item.product_id,
+                    item.quantity,
+                    required_date,
+                    "SALES_ORDER".to_string(),
+                    Some(order_id),
+                    true,
+                    true,
+                )
+                .await
+            {
+                tracing::warn!(
+                    order_id,
+                    product_id = item.product_id,
+                    error = %e,
+                    "批次 386 B-P2-4: 销售订单审批后 MRP 计算失败，请人工检查物料需求"
+                );
             }
         }
 
