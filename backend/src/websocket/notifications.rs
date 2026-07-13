@@ -109,8 +109,14 @@ impl ConnectionManager {
     pub fn broadcast(&self, user_id: i64, message: String) {
         let key = user_id;
         if let Some(tx) = self.senders.get(&key) {
-            // 发送失败说明无活跃订阅者，忽略即可
-            let _ = tx.send(message);
+            // L-7 修复（批次 375 v13 复审）：发送失败不再吞错，记录 warn 日志
+            //（无活跃订阅者时 send 返回 Err，通常发生在连接关闭过渡期）
+            if tx.send(message).is_err() {
+                tracing::warn!(
+                    user_id,
+                    "WebSocket 推送失败：无活跃订阅者（连接可能正在关闭）"
+                );
+            }
         }
     }
 }

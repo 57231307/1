@@ -97,7 +97,10 @@ except ImportError:
     };
 
     if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(password.as_bytes());
+        // L-8 修复（批次 375 v13 复审）：写入密码失败不再吞错，返回错误
+        if let Err(e) = stdin.write_all(password.as_bytes()) {
+            return Err(format!("写入密码到子进程失败: {}", e));
+        }
     }
 
     match child.wait_with_output() {

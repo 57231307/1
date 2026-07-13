@@ -128,14 +128,9 @@ impl InitService {
                     ))
                     .await;
 
-                // 测试查询结果
-                let _ = query_result
-                    .as_ref()
-                    .map(|v| {
-                        v.as_ref()
-                            .map(|row| row.try_get::<i32>("", "test").unwrap_or(1))
-                    })
-                    .map(|opt| opt.unwrap_or_default());
+                // L-10 修复（批次 375 v13 复审）：移除冗余的 let _ = 查询结果丢弃代码块
+                // 原实现计算了查询结果但立即丢弃，是无意义的死代码。
+                // query_result 在下方直接通过 map/map_err 处理，无需提前提取值。
 
                 // P1-1 修复（H-3，2026-06-25 综合审计）：错误消息脱敏
                 // 不透传底层 DbErr 原文，避免差异化错误信息被用于内网服务枚举。
