@@ -85,12 +85,11 @@ impl AuditLogService {
 
     /// L-32 修复（批次 380 v13 复审）：优雅关闭异步审计服务
     ///
-    /// close channel + abort 后台消费者 task，防止 detached task 泄漏。
+    /// abort 后台消费者 task，防止 detached task 泄漏。
     /// 幂等：多次调用安全，仅首次调用实际 abort。
+    /// 注：tokio mpsc UnboundedSender 没有 close 方法，abort 消费者 task 后
+    /// channel 会自动被 drop，后续 send() 调用会返回 Err。
     pub fn shutdown(&self) {
-        // 关闭 channel（停止接收新事件）
-        self.sender.close();
-
         // abort 后台 task
         if let Some(handle) = self.handle.lock().unwrap().take() {
             handle.abort();
