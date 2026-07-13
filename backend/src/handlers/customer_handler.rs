@@ -113,7 +113,7 @@ pub async fn list_customers(
     };
 
     // 获取数据权限过滤器
-    let permission_filter = get_permission_filter(&state, &auth, "customer").await;
+    let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
 
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let result = customer_service
@@ -143,7 +143,7 @@ pub async fn get_customer(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 获取数据权限过滤器
-    let permission_filter = get_permission_filter(&state, &auth, "customer").await;
+    let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
 
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let customer_json = customer_service
@@ -163,10 +163,14 @@ pub async fn create_customer(
 
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
-    let credit_limit = payload
-        .credit_limit
-        .and_then(|s| s.parse::<rust_decimal::Decimal>().ok())
-        .unwrap_or(rust_decimal::Decimal::ZERO);
+    // P2-1 修复（批次 388 v13 复审）：原 parse().ok().unwrap_or(ZERO) 静默置零信用额度，
+    // 用户输入非法值时无任何提示，改为显式校验报错
+    let credit_limit = match payload.credit_limit.as_deref() {
+        Some(s) if !s.is_empty() => s.parse::<rust_decimal::Decimal>().map_err(|e| {
+            AppError::validation(format!("信用额度格式错误：{}（请输入有效数字）", e))
+        })?,
+        _ => rust_decimal::Decimal::ZERO,
+    };
 
     let customer_type = payload
         .customer_type
@@ -231,9 +235,14 @@ pub async fn update_customer(
         return Err(AppError::permission_denied("无权修改该客户信息".to_string()));
     }
 
-    let credit_limit = payload
-        .credit_limit
-        .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
+    // P2-1 修复（批次 388 v13 复审）：原 parse().ok() 静默吞错，
+    // 用户输入非法值时信用额度不更新且无提示，改为显式校验报错
+    let credit_limit = match payload.credit_limit.as_deref() {
+        Some(s) if !s.is_empty() => Some(s.parse::<rust_decimal::Decimal>().map_err(|e| {
+            AppError::validation(format!("信用额度格式错误：{}（请输入有效数字）", e))
+        })?),
+        _ => None,
+    };
 
     let customer = customer_service
         .update_customer(UpdateCustomerArgs {
@@ -312,16 +321,22 @@ pub struct CustomerListQuery {
 ///
 /// # 返回
 /// 返回数据权限过滤器，如果管理员或无需过滤则返回 None
+///
+/// P2-1 修复（批次 388 v13 复审）：原返回 Option 静默吞 DB 错误，
+/// 改为 Result<Option<...>, AppError> 并在 Err 时 tracing::warn! 记录
 async fn get_permission_filter(
     state: &AppState,
     auth: &AuthContext,
     resource_type: &str,
-) -> Option<DataPermissionFilter> {
-    let role_id = auth.role_id?;
+) -> Result<Option<DataPermissionFilter>, AppError> {
+    let role_id = match auth.role_id {
+        Some(id) => id,
+        None => return Ok(None),
+    };
 
     // 管理员角色不过滤
     if role_id == 1 {
-        return None;
+        return Ok(None);
     }
 
     // 获取角色的数据权限配置
@@ -332,30 +347,37 @@ async fn get_permission_filter(
     {
         Ok(Some(permission)) => {
             // 有配置权限，使用配置的字段
-            Some(DataPermissionFilter::new(
+            Ok(Some(DataPermissionFilter::new(
                 permission.allowed_fields.unwrap_or_default(),
                 permission.hidden_fields.unwrap_or_default(),
-            ))
+            )))
         }
         Ok(None) => {
             // 没有配置权限，使用默认隐藏字段
-            Some(DataPermissionFilter::new(
+            Ok(Some(DataPermissionFilter::new(
                 vec![],
                 DEFAULT_HIDDEN_FIELDS
                     .iter()
                     .map(|s| s.to_string())
                     .collect(),
-            ))
+            )))
         }
-        Err(_) => {
-            // 查询出错，使用默认隐藏字段
-            Some(DataPermissionFilter::new(
+        Err(e) => {
+            // P2-1 修复（批次 388 v13 复审）：原 Err(_) 静默吞错，
+            // 改为 warn 日志记录 + 返回默认隐藏字段（降级处理，不阻断主流程）
+            tracing::warn!(
+                role_id,
+                resource_type,
+                error = %e,
+                "批次 388 P2-1: 查询角色数据权限失败，使用默认隐藏字段降级处理"
+            );
+            Ok(Some(DataPermissionFilter::new(
                 vec![],
                 DEFAULT_HIDDEN_FIELDS
                     .iter()
                     .map(|s| s.to_string())
                     .collect(),
-            ))
+            )))
         }
     }
 }

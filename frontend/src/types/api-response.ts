@@ -31,7 +31,12 @@ export interface ErrorResponse {
   code: number
   message: string
   error?: string
-  details?: Record<string, unknown>
+  /**
+   * 字段级验证错误详情
+   * FE-P2-1 修复（批次 388 v13 复审）：原 Record<string, unknown> 过于宽泛，
+   * 细化为字段名→错误消息数组的标准验证错误格式
+   */
+  details?: Record<string, string | string[]>
   timestamp: string
 }
 

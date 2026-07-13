@@ -29,10 +29,9 @@ pub async fn get_stock(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let stock = service
-        .find_by_id(id)
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 not_found，
+    // 导致 DB 错误也返回 404。service 返回 AppError，直接用 ? 透传保留原始错误分类
+    let stock = service.find_by_id(id).await?;
 
     let response = StockResponse {
         id: stock.id,
@@ -51,25 +50,40 @@ pub async fn get_stock(
     let mut response_json = serde_json::to_value(response)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
+    // P2-1 修复（批次 388 v13 复审）：原 if let Ok(Some(...)) 合并 Err 与 Ok(None) 语义，
+    // 改为 match 精确区分三种情况：有配置 / 无配置 / 查询出错
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
+        match state
             .data_permission_service
             .get_role_data_permission(role_id, "inventory_stock")
             .await
         {
-            state.data_permission_service.filter_fields(
-                &mut response_json,
-                &permission.allowed_fields,
-                &permission.hidden_fields,
-            );
-        } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            if let Some(obj) = response_json.as_object_mut() {
-                obj.remove("quantity_on_hand");
-                obj.remove("quantity_available");
-                obj.remove("quantity_reserved");
-                obj.remove("reorder_point");
-                obj.remove("reorder_quantity");
+            Ok(Some(permission)) => {
+                state.data_permission_service.filter_fields(
+                    &mut response_json,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            }
+            Ok(None) => {
+                // 没有配置数据权限且不是管理员，使用默认字段隐藏
+                if role_id != 1 {
+                    if let Some(obj) = response_json.as_object_mut() {
+                        obj.remove("quantity_on_hand");
+                        obj.remove("quantity_available");
+                        obj.remove("quantity_reserved");
+                        obj.remove("reorder_point");
+                        obj.remove("reorder_quantity");
+                    }
+                }
+            }
+            Err(e) => {
+                // P2-1 修复：DB 查询出错时仅记录警告，不应用默认隐藏（避免误隐藏字段）
+                tracing::warn!(
+                    role_id,
+                    error = %e,
+                    "批次 388 P2-1: 查询库存数据权限失败，跳过字段过滤"
+                );
             }
         }
     }
@@ -99,8 +113,7 @@ pub async fn create_stock(
             stock_status: master_data::ACTIVE.to_string(),
             quality_status: "qualified".to_string(),
         })
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(StockResponse {
         id: stock.id,
@@ -125,10 +138,8 @@ pub async fn update_stock(
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let stock = service
-        .find_by_id(id)
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 not_found，改为 ? 透传
+    let stock = service.find_by_id(id).await?;
 
     // Optimistic lock check
     if stock.version != payload.version {
@@ -164,10 +175,9 @@ pub async fn update_stock(
     active_model.version = Set(payload.version + 1);
     active_model.updated_at = Set(Utc::now());
 
-    let updated = active_model
-        .update(&*state.db)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    // P2-1 修复（批次 388 v13 复审）：原 map_err 将 DbErr 映射为 internal，
+    // 改为 ? 透传，由 From<DbErr> for AppError 自动分类（RecordNotFound→404, 其他→500）
+    let updated = active_model.update(&*state.db).await?;
 
     Ok(Json(ApiResponse::success(StockResponse {
         id: updated.id,
@@ -191,15 +201,11 @@ pub async fn delete_stock(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    service
-        .find_by_id(id)
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 not_found，改为 ? 透传
+    service.find_by_id(id).await?;
 
-    service
-        .delete_stock(id, Some(auth.user_id))
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    // P2-1 修复：原 map_err 将所有错误映射为 internal，改为 ? 透传保留原始错误分类
+    service.delete_stock(id, Some(auth.user_id)).await?;
 
     Ok(Json(ApiResponse::success(())))
 }
@@ -252,12 +258,22 @@ pub async fn list_stock(
             if alert_product_ids.is_empty() {
                 std::collections::HashMap::new()
             } else {
-                // 沿用原逻辑：DB 错误时静默跳过（unwrap_or_default 返回空集合）
-                let products = product::Entity::find()
+                // P2-1 修复（批次 388 v13 复审）：原 unwrap_or_default() 吞 DB 错误导致预警丢失，
+                // 改为 match 记录 warn 日志后降级为空集合（跳过本轮预警通知）
+                let products = match product::Entity::find()
                     .filter(product::Column::Id.is_in(alert_product_ids))
                     .all(&*state.db)
                     .await
-                    .unwrap_or_default();
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "批次 388 P2-1: 查询库存预警产品信息失败，本轮预警通知将跳过"
+                        );
+                        vec![]
+                    }
+                };
                 products.into_iter().map(|p| (p.id, p)).collect()
             };
 
@@ -310,27 +326,42 @@ pub async fn list_stock(
         .collect();
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
+    // P2-1 修复（批次 388 v13 复审）：原 if let Ok(Some(...)) 合并 Err 与 Ok(None) 语义，
+    // 改为 match 精确区分三种情况：有配置 / 无配置 / 查询出错
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
+        match state
             .data_permission_service
             .get_role_data_permission(role_id, "inventory_stock")
             .await
         {
-            state.data_permission_service.filter_fields_batch(
-                &mut stock_json,
-                &permission.allowed_fields,
-                &permission.hidden_fields,
-            );
-        } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            for stock in &mut stock_json {
-                if let Some(obj) = stock.as_object_mut() {
-                    obj.remove("quantity_on_hand");
-                    obj.remove("quantity_available");
-                    obj.remove("quantity_reserved");
-                    obj.remove("reorder_point");
-                    obj.remove("reorder_quantity");
+            Ok(Some(permission)) => {
+                state.data_permission_service.filter_fields_batch(
+                    &mut stock_json,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            }
+            Ok(None) => {
+                // 没有配置数据权限且不是管理员，使用默认字段隐藏
+                if role_id != 1 {
+                    for stock in &mut stock_json {
+                        if let Some(obj) = stock.as_object_mut() {
+                            obj.remove("quantity_on_hand");
+                            obj.remove("quantity_available");
+                            obj.remove("quantity_reserved");
+                            obj.remove("reorder_point");
+                            obj.remove("reorder_quantity");
+                        }
+                    }
                 }
+            }
+            Err(e) => {
+                // P2-1 修复：DB 查询出错时仅记录警告，不应用默认隐藏（避免误隐藏字段）
+                tracing::warn!(
+                    role_id,
+                    error = %e,
+                    "批次 388 P2-1: 查询库存数据权限失败，跳过字段过滤"
+                );
             }
         }
     }
@@ -379,12 +410,22 @@ pub async fn check_low_stock(
             if product_ids.is_empty() {
                 std::collections::HashMap::new()
             } else {
-                // 沿用原逻辑：DB 错误时静默跳过（unwrap_or_default 返回空集合）
-                let products = product::Entity::find()
+                // P2-1 修复（批次 388 v13 复审）：原 unwrap_or_default() 吞 DB 错误导致预警丢失，
+                // 改为 match 记录 warn 日志后降级为空集合（跳过本轮预警通知）
+                let products = match product::Entity::find()
                     .filter(product::Column::Id.is_in(product_ids))
                     .all(&*state.db)
                     .await
-                    .unwrap_or_default();
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "批次 388 P2-1: 查询库存预警产品信息失败，本轮预警通知将跳过"
+                        );
+                        vec![]
+                    }
+                };
                 products.into_iter().map(|p| (p.id, p)).collect()
             };
 

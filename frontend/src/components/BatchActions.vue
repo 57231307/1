@@ -71,17 +71,18 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup lang="ts" generic="T">
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Delete, Check, Edit } from '@element-plus/icons-vue'
 import { logger } from '@/utils/logger'
 
 // v11 批次 182 P2-1 修复：通用组件保持泛化，icon 类型用 ComponentType，rows 用 unknown
-// icon 实际为 @element-plus/icons-vue 的组件对象，使用 Component 类型替代 any
+// FE-P2-2 修复（批次 388 v13 复审）：改造为泛型组件 generic="T"，
+// selectedRows/handler/emit 全部使用 T[] 替代 unknown[]
 import type { Component } from 'vue'
 
-export interface BatchActionItem {
+export interface BatchActionItem<T = unknown> {
   key: string
   label: string
   type?: 'primary' | 'success' | 'warning' | 'danger' | 'info'
@@ -90,13 +91,13 @@ export interface BatchActionItem {
   confirmTitle?: string
   confirmMessage?: string
   warningMessage?: string
-  handler?: (rows: unknown[]) => Promise<void> | void
+  handler?: (rows: T[]) => Promise<void> | void
   disabled?: boolean
 }
 
 interface Props {
-  selectedRows: unknown[]
-  actions?: BatchActionItem[]
+  selectedRows: T[]
+  actions?: BatchActionItem<T>[]
   showProgress?: boolean
 }
 
@@ -107,11 +108,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   clear: []
-  action: [key: string, rows: unknown[]]
+  action: [key: string, rows: T[]]
   complete: [key: string, success: boolean]
 }>()
 
-const defaultActions: BatchActionItem[] = [
+const defaultActions: BatchActionItem<T>[] = [
   {
     key: 'batchDelete',
     label: '批量删除',

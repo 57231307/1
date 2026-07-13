@@ -10,6 +10,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 388 | — | FE-P2-1 前端 unknown 类型细化（bpm/api-response/trading）+ FE-P2-2 组件 props 泛型强化（BatchActions/ProcessFlow）+ P2-1 后端错误处理统一（customer/inventory_stock/voucher handler） |
+| 387 | #560 | F-P2-2 报表穿透追溯（drill_down API）+ F-P2-4 AR/AP 对账单确认生成凭证（F-P2-1/F-P2-3 待后续批次） |
 | 386 | #559 | B-P2-4 MrpEngineService 接入销售审批+生产创建联动 + B-P2-5 CapacityService 接入排产产能校验 + B-P2-6 已在批次 356 修复 |
 | 385 | #558 | B-P2-1 移除 AR/AP 事件监听器冗余 mark_as_paid 调用 + B-P2-2/B-P2-3 调研确认无需修复 |
 | 384 | #557 | B-P1-3 客户/供应商主数据变更事件 + B-P1-7 事件重试死信队列 + F-P1-1 期末结转逻辑 |
