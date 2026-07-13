@@ -870,12 +870,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         warn!("HTTP 服务器错误: {}", e);
     }
 
-    // L-30 修复（批次 372 v13 复审）：HTTP 服务器优雅关闭后，关闭 OmniAudit 异步引擎
-    // abort 后台 spawn task，防止 detached task 在 runtime drop 前继续尝试写入已关闭的数据库连接
-    if let Some(engine) = omni_audit_for_shutdown {
-        engine.shutdown();
-    }
-
     // L-27+L-28+L-29 修复（批次 373 v13 复审）：关闭事件总线所有 spawn task
     // abort Kafka 消费桥接 + 主事件监听器 + 库存财务桥接监听器，防止 detached task 泄漏
     crate::services::event_bus::shutdown_event_bus();

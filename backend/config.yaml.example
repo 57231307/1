@@ -38,6 +38,9 @@ auth:
   jwt_secret: ""  # 留空，通过环境变量设置
   # ⚠️ 安全警告：生产环境必须通过环境变量 COOKIE_SECRET 设置至少 32 字节的强随机密钥
   cookie_secret: ""  # 留空，通过环境变量设置
+  # M-2 修复：第三方 Webhook 回调 HMAC 密钥，必须与 JWT_SECRET 互不相同
+  # ⚠️ 安全警告：生产环境必须通过环境变量 WEBHOOK_SECRET 设置至少 32 字节的强随机密钥
+  webhook_secret: ""  # 留空，通过环境变量设置
   token_expiry_hours: 24
 
 grpc:
