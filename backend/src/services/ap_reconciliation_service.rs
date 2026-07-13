@@ -1064,8 +1064,9 @@ mod tests {
         };
 
         let result = service.generate_reconciliation(req, 1).await;
+        // L-17 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
         // 无 schema 时返回数据库错误；有 schema 时可能成功或返回约束错误
-        let _ = result;
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
     /// 测试_确认对账单_需要真实数据库
@@ -1096,8 +1097,9 @@ mod tests {
         let result = service
             .get_list(None, None, None, None, 1, 10)
             .await;
+        // L-17 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
         // 无 schema 时为 Err；有 schema 无记录时为 Ok((vec![], 0))
-        let _ = result;
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
     // =====================================================

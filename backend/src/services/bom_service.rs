@@ -1015,8 +1015,9 @@ mod tests {
         let service = BomService::new(Arc::new(db));
 
         let result = service.get_bom_tree(1, Some(3)).await;
+        // L-19 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
         // 无记录时返回 NotFound；无 schema 时返回数据库错误
-        let _ = result;
+        assert!(result.is_err(), "无 schema/无记录时应返回错误");
     }
 
     /// 测试_提交审核_需要真实数据库
@@ -1030,7 +1031,8 @@ mod tests {
         let service = BomService::new(Arc::new(db));
 
         let result = service.submit(1, 1).await;
+        // L-19 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
         // 无记录时返回 NotFound；无 schema 时返回数据库错误
-        let _ = result;
+        assert!(result.is_err(), "无 schema/无记录时应返回错误");
     }
 }

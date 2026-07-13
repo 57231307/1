@@ -754,10 +754,10 @@ mod tests {
         let db = setup_test_db().await;
         let service = CustomerCreditService::new(Arc::new(db));
 
-        // 无记录时返回 Ok(None)；无 schema 时为 Err
-        // 此处仅验证调用路径不 panic
+        // L-19 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
+        // 无 schema 时返回数据库错误；有 schema 无记录时返回 Ok(None)
         let result = service.check_credit_warning(99999).await;
-        let _ = result;
+        assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
     /// 测试_检查信用可用性_需要真实数据库
