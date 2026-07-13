@@ -365,6 +365,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc<crate::services::omni_audit_service::OmniAuditEngine>,
     > = None;
 
+    // L-32 修复（批次 380 v13 复审）：在 match 块外声明，用于 graceful shutdown 后
+    // 调用 AuditLogService::shutdown()，避免审计日志 detached task 泄漏
+    let mut audit_log_for_shutdown: Option<
+        Arc<crate::services::audit_log_service::AuditLogService>,
+    > = None;
+
     let mut app = match db_result {
         Ok(db) => {
             info!("数据库连接成功，启动完整模式");
@@ -466,6 +472,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // L-30 修复（批次 372 v13 复审）：保留 omni_audit clone 用于 graceful shutdown 后
             // 调用 shutdown()，避免审计引擎 detached task 泄漏
             omni_audit_for_shutdown = Some(omni_audit.clone());
+
+            // L-32 修复（批次 380 v13 复审）：创建 AuditLogService（mpsc channel + handle 保存）
+            let audit_log = Arc::new(crate::services::audit_log_service::AuditLogService::new(db.clone()));
+            tracing::info!("AuditLogService 已初始化（mpsc channel 模式）");
+            // L-32 修复：保留 audit_log clone 用于 graceful shutdown 后调用 shutdown()
+            audit_log_for_shutdown = Some(audit_log.clone());
+
             // P2 8-13 修复：原 retention_days 硬编码 999（约 2.7 年），实际无清理效果，
             // omni_audit_logs 表无限膨胀拖累查询性能。
             // 改为环境变量配置，默认 365 天（1 年热保留），符合审计日志保留最佳实践。
@@ -564,6 +577,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app_state_params = crate::utils::app_state::AppStateParams {
                 db,
                 omni_audit,
+                audit_log,
                 audit_cleanup,
                 jwt_secret: settings.auth.jwt_secret.clone(),
                 previous_jwt_secret: settings.auth.previous_jwt_secret.clone(),
@@ -856,15 +870,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         warn!("HTTP 服务器错误: {}", e);
     }
 
-    // L-30 修复（批次 372 v13 复审）：HTTP 服务器优雅关闭后，关闭 OmniAudit 异步引擎
-    // abort 后台 spawn task，防止 detached task 在 runtime drop 前继续尝试写入已关闭的数据库连接
-    if let Some(engine) = omni_audit_for_shutdown {
-        engine.shutdown();
-    }
-
     // L-27+L-28+L-29 修复（批次 373 v13 复审）：关闭事件总线所有 spawn task
     // abort Kafka 消费桥接 + 主事件监听器 + 库存财务桥接监听器，防止 detached task 泄漏
     crate::services::event_bus::shutdown_event_bus();
+
+    // L-30 修复（批次 372 v13 复审）：关闭 OmniAuditEngine（mpsc channel + handle abort）
+    if let Some(omni_audit) = omni_audit_for_shutdown {
+        omni_audit.shutdown();
+    }
+
+    // L-32 修复（批次 380 v13 复审）：关闭 AuditLogService（mpsc channel + handle abort）
+    if let Some(audit_log) = audit_log_for_shutdown {
+        audit_log.shutdown();
+    }
 
     // L-26 修复（批次 374 v13 复审）：关闭所有后台定时任务
     // abort admin缓存清理 + JTI黑名单清理 + 慢查询采集 + 审计清理 + 用户吊销清理
