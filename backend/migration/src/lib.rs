@@ -75,6 +75,9 @@ pub mod m0047_add_last_payload_to_webhooks;
 // 批次 320 v9 中风险 M-4：webhooks 表添加 user_id 列（IDOR 防护）
 pub mod m0048_add_user_id_to_webhooks;
 
+// 批次 365 v13 复审 B-P1-8：processed_events 事件幂等去重表
+pub mod m0049_create_processed_events;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -131,6 +134,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0046_drop_audit_alert_rules::Migration),
             Box::new(m0047_add_last_payload_to_webhooks::Migration),
             Box::new(m0048_add_user_id_to_webhooks::Migration),
+            Box::new(m0049_create_processed_events::Migration),
         ]
     }
 }

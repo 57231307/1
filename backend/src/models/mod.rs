@@ -57,6 +57,8 @@ pub mod account_subject;
 pub mod accounting_period;
 pub mod voucher;
 pub mod voucher_item;
+// 批次 365 v13 复审 B-P1-8：事件幂等去重表
+pub mod processed_event;
 // 辅助核算模块
 pub mod assist_accounting_dimension;
 pub mod assist_accounting_record;

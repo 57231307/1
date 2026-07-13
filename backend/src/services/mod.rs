@@ -87,6 +87,8 @@ pub mod customer_credit_service;
 pub mod event_bus;
 pub mod event_kafka;
 pub mod event_kafka_payload;
+// 批次 365 v13 复审 B-P1-8：事件幂等服务
+pub mod event_idempotency_service;
 pub mod financial_analysis_service;
 pub mod fixed_asset_service;
 pub mod fund_management_service;
