@@ -27,85 +27,185 @@
 
 ---
 
-## 二、未完成任务清单
+## 二、任务重新规划（每批 5-8 文件，完成后新一轮复审）
 
-### 2.1 业务场景 P1 剩余（2 项）
+> **规划原则**：每个批次修复 5-8 个文件，按优先级分阶段推进，所有阶段完成后进行 v14 新一轮复审。
+> **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批，无需用户确认。
 
-- **B-P1-3**：客户/供应商主数据变更未同步关联单据 — 发布 `CustomerUpdated`/`SupplierUpdated` 事件，监听器异步刷新关联单据（改动面大，需评估冗余字段范围）
-- **B-P1-7**：事件处理失败无重试 + 死信队列 + 告警 — 引入重试机制（指数退避）+ 死信队列 + 告警
+### 阶段 1：P1 级闭环修复（批次 384，1 批，约 7 文件）
 
-### 2.2 业务场景 P2 剩余（6 项）
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| B-P1-3 | event_bus.rs / customer_service.rs / supplier_service.rs | 客户/供应商主数据变更事件发布+监听器异步刷新关联单据 |
+| B-P1-7 | event_bus.rs / 新建 dead_letter_service.rs / 新建 alert_service.rs | 事件重试（指数退避）+ 死信队列 + 告警 |
+| F-P1-1 | accounting_period_service.rs / account_subject_service.rs | close_period 新增期末结转，本期期末余额写入下期期初 |
 
-- B-P2-1：ar_service create_payment 与 mark_as_paid 状态更新重复
-- B-P2-2：customer_credit_evaluate 孤岛 service（评估后删除或接入业务）
-- B-P2-3：CostCollectionService 仅 HTTP 调用，无业务联动
-- B-P2-4：MrpEngineService 仅 HTTP 调用，无业务联动
-- B-P2-5：CapacityService 仅 HTTP 调用，无业务联动
-- B-P2-6：InventoryReservationService 仅 HTTP 调用，销售流程未集成
+### 阶段 2：业务场景 P2 闭环修复（批次 385-386，2 批，约 12 文件）
 
-### 2.3 财务场景 P1 剩余（1 项）
+**批次 385（业务场景 P2 前 3 项，约 6 文件）**：
 
-- **F-P1-1 剩余**：期末结转逻辑（下期期初余额写入）— close_period 新增期末结转，将本期期末余额写入下期期初余额
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| B-P2-1 | ar_service.rs | create_payment 与 mark_as_paid 状态更新重复，合并为单一入口 |
+| B-P2-2 | customer_credit_evaluate_service.rs + mod.rs | 孤岛 service 评估后删除或接入业务 |
+| B-P2-3 | cost_collection_service.rs + handler + routes | 仅 HTTP 调用，接入业务联动 |
 
-### 2.4 财务场景 P2 剩余（4 项）
+**批次 386（业务场景 P2 后 3 项，约 6 文件）**：
 
-- F-P2-1：无期末调整（暂估/摊销/预提）机制
-- F-P2-2：报表无穿透追溯功能
-- F-P2-3：销售成本按 product.cost_price 计算未与采购实际单价联动
-- F-P2-4：AR/AP 对账单生成不触发凭证
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| B-P2-4 | mrp_engine_service.rs + handler + routes | 仅 HTTP 调用，接入业务联动 |
+| B-P2-5 | capacity_service.rs + handler + routes | 仅 HTTP 调用，接入业务联动 |
+| B-P2-6 | inventory_reservation_service.rs + handler + routes | 仅 HTTP 调用，销售流程集成 |
 
-### 2.5 v14 中风险遗留（3 大类）
+### 阶段 3：财务场景 P2 闭环修复（批次 387，1 批，约 7 文件）
 
-#### 测试覆盖补测（7 项）
-- handlers 层覆盖率仅 10%，services 层 107 个 service 无测试，前端 api 层 4.4%
-- 修复方案：按模块优先级分批补测（auth/user/order/inventory 核心 service 优先）
-- 技术要点：service 测试 mock DatabaseConnection，handler 用 TestServer，前端用 vitest
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| F-P2-1 | accounting_period_service.rs + 新建 period_adjustment_service.rs | 期末调整机制（暂估/摊销/预提） |
+| F-P2-2 | finance_report_service.rs + handler | 报表穿透追溯功能 |
+| F-P2-3 | inventory_finance_bridge_service.rs | 销售成本与采购实际单价联动 |
+| F-P2-4 | ar_service.rs / ap_invoice_service.rs + voucher_service.rs | AR/AP 对账单生成触发凭证 |
 
-#### view 表格接入 useTableApi（剩余 10 个）
-- `frontend/src/views/finance/voucher/*`
-- `frontend/src/views/data-import/*`
-- `inventory/tabs/InventoryStockTab`（1-based 分页）
-- `inventoryAdjustment/AdjustmentListTab`
-- `inventoryTransfer/TransferListTab`
-- `barcodeScanner`（0-based 分页需特殊处理）
-- `assistAccounting`（0-based 分页需特殊处理）
-- 其他待扫描发现的遗漏文件
+### 阶段 4：v13 前后端 P2（批次 388-389，2 批，约 14 文件）
 
-### 2.6 v13 前端/后端 P2（6 项）
+**批次 388（前端类型+后端错误处理，约 7 文件）**：
 
-- FE-P2-1：前端类型定义完善（unknown 类型细化）
-- FE-P2-2：前端组件 props 类型强化
-- FE-P2-3：i18n 覆盖率（200+ 视图，后续迭代）
-- P2-1：后端错误处理统一（部分 handler 直接返回字符串）
-- P2-2：后端日志规范（部分模块日志级别不当）
-- P2-3：后端配置项完善
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| FE-P2-1 | frontend/src/types/*.ts（3-4 文件） | unknown 类型细化，完善类型定义 |
+| FE-P2-2 | frontend/src/components/*.vue（2 文件） | 组件 props 类型强化 |
+| P2-1 | backend/src/handlers/*.rs（1-2 文件） | 后端错误处理统一，handler 返回 AppError |
 
-### 2.7 其他遗留（3 项）
+**批次 389（i18n+后端日志+配置，约 7 文件）**：
 
-- FE-P2-6：大列表虚拟化（966 处 el-table，后续迭代）
-- P2-8：剩余 143 个无测试 service（后续迭代）
-- E2E 失败排查（已知问题，待规则 5 节点）
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| FE-P2-3 | frontend/src/locales/*.ts + views（3 文件） | i18n 覆盖率提升（首批核心视图） |
+| P2-2 | backend/src/services/*.rs（2 文件） | 后端日志规范，日志级别修正 |
+| P2-3 | backend/config.yaml.example + .env.example（2 文件） | 后端配置项完善 |
 
-### 2.8 v14 低风险修复队列（74 项 - 后续迭代）
+### 阶段 5：useTableApi 接入（批次 390-391，2 批，约 10 文件）
 
-- 占位符/Mock 存根（21 项）：逐个评估，合理保留加注释，不合理的真实实现
-- 项目规则符合性（11 项）：评估是否符合规则 0-13
-- 死代码（8 项）：与 v13 baseline 清零合并处理
-- 其他（34 项）：命名规范/注释完善/代码风格等
+**批次 390（前 5 个 view，5 文件）**：
+
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| useTableApi-1 | frontend/src/views/finance/voucher/VoucherListTab.vue | 财务凭证列表 |
+| useTableApi-2 | frontend/src/views/finance/voucher/VoucherDetailTab.vue | 财务凭证明细 |
+| useTableApi-3 | frontend/src/views/data-import/DataImportListTab.vue | 数据导入列表 |
+| useTableApi-4 | frontend/src/views/data-import/DataImportTaskTab.vue | 数据导入任务 |
+| useTableApi-5 | frontend/src/views/inventory/tabs/InventoryStockTab.vue | 库存明细（1-based 分页） |
+
+**批次 391（后 5 个 view，5 文件）**：
+
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| useTableApi-6 | frontend/src/views/inventoryAdjustment/AdjustmentListTab.vue | 库存调整 |
+| useTableApi-7 | frontend/src/views/inventoryTransfer/TransferListTab.vue | 库存调拨 |
+| useTableApi-8 | frontend/src/views/barcodeScanner/index.vue | 条码扫描（0-based 分页特殊处理） |
+| useTableApi-9 | frontend/src/views/assistAccounting/index.vue | 辅助核算（0-based 分页特殊处理） |
+| useTableApi-10 | 待扫描发现的遗漏文件 | 其他遗漏 |
+
+### 阶段 6：测试覆盖补测（批次 392-394，3 批，约 18 文件）
+
+**批次 392（核心 service 测试 - 认证/用户/订单，约 6 文件）**：
+
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| 测试-1 | backend/src/services/auth_service.rs + tests | auth_service 单元测试 |
+| 测试-2 | backend/src/services/user_service.rs + tests | user_service 单元测试 |
+| 测试-3 | backend/src/services/so/order.rs + tests | 销售订单 service 测试 |
+| 测试-4 | backend/src/services/po/order.rs + tests | 采购订单 service 测试 |
+
+**批次 393（核心 service 测试 - 库存/财务，约 6 文件）**：
+
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| 测试-5 | backend/src/services/inventory_stock_service.rs + tests | 库存 service 测试 |
+| 测试-6 | backend/src/services/voucher_service.rs + tests | 凭证 service 测试 |
+| 测试-7 | backend/src/services/ar_service.rs + tests | AR service 测试 |
+| 测试-8 | backend/src/services/ap_invoice_service.rs + tests | AP service 测试 |
+
+**批次 394（handler 测试，约 6 文件）**：
+
+| 任务 | 涉及文件 | 说明 |
+|------|----------|------|
+| 测试-9 | backend/tests/auth_handler_test.rs | auth handler 集成测试 |
+| 测试-10 | backend/tests/order_handler_test.rs | 订单 handler 集成测试 |
+| 测试-11 | backend/tests/inventory_handler_test.rs | 库存 handler 集成测试 |
+| 测试-12 | backend/tests/finance_handler_test.rs | 财务 handler 集成测试 |
+
+### 阶段 7：baseline 清零（批次 395-424，约 30 批，约 202 项）
+
+> **目标**：213 条 baseline 警告全部清零，每批 5-8 文件清理 7-10 项警告。
+> **分类**：dead_code 193 + unused_import 15 + 其他 5（批次 357 已清理 11 项 unused import）。
+> **执行方式**：按文件分组扫描，每批选取 5-8 个文件集中清理，CI 全绿后自动进入下一批。
+> **完成后**：移除 baseline 机制，改为 `cargo clippy -- -D warnings`。
+
+| 批次范围 | 文件数 | 警告清理数 | 说明 |
+|----------|--------|-----------|------|
+| 395-404 | 50-80 | 70-100 | dead_code 前 100 项（按文件分组） |
+| 405-414 | 50-80 | 70-100 | dead_code 中 100 项 |
+| 415-424 | 30-50 | 30-50 | dead_code 后 93 项 + 其他 5 项 |
+
+### 阶段 8：v14 低风险修复（批次 425-435，约 11 批，74 项）
+
+> **目标**：74 项低风险问题全部修复，每批 5-8 文件。
+
+| 批次范围 | 任务类别 | 项数 | 说明 |
+|----------|----------|------|------|
+| 425-427 | 占位符/Mock 存根 | 21 | 逐个评估，合理保留加注释，不合理的真实实现 |
+| 428-429 | 项目规则符合性 | 11 | 评估是否符合规则 0-13 |
+| 430-431 | 死代码补充清理 | 8 | 与 baseline 清零合并处理后的遗漏 |
+| 432-435 | 其他 | 34 | 命名规范/注释完善/代码风格等 |
+
+### 阶段 9：其他遗留（批次 436-438，3 批，约 15 文件）
+
+| 批次 | 任务 | 涉及文件 | 说明 |
+|------|------|----------|------|
+| 436 | FE-P2-6 | frontend/src/components/Table*.vue（5-8 文件） | 大列表虚拟化（el-table-v2 引入） |
+| 437 | P2-8 | backend/src/services/*.rs + tests（5-8 文件） | 剩余无测试 service 补测 |
+| 438 | E2E 失败排查 | e2e/*.spec.ts + 修复代码（5-8 文件） | E2E 失败用例分析与修复 |
+
+### 阶段 10：v14 新一轮复审（批次 439+）
+
+> **触发条件**：阶段 1-9 全部完成后自动触发。
+> **复审维度**：v13 复审全部维度 + 新增维度（根据阶段 1-9 修复内容评估）。
+> **复审流程**：扫描 → 生成 v14 复审报告 → 按优先级排序修复队列 → 自动开始修复。
+> **目标**：确认无新增问题，项目质量达标。
 
 ---
 
-## 三、规则节点提醒
+## 三、批次执行计划总览
 
-- **规则 5（E2E 独立工作流，每 30 批次）**：批次 330 已到期需触发（403 权限不足，需用户手动触发）
-- **规则 10（每 15 批次记忆整理）**：批次 375 已完成，下次整理批次 390
+| 阶段 | 批次范围 | 批次数 | 文件数 | 任务类别 |
+|------|----------|--------|--------|----------|
+| 1 | 384 | 1 | 7 | P1 级闭环（B-P1-3/7 + F-P1-1） |
+| 2 | 385-386 | 2 | 12 | 业务场景 P2（B-P2-1~6） |
+| 3 | 387 | 1 | 7 | 财务场景 P2（F-P2-1~4） |
+| 4 | 388-389 | 2 | 14 | v13 前后端 P2（FE-P2-1~3 + P2-1~3） |
+| 5 | 390-391 | 2 | 10 | useTableApi 接入（10 个 view） |
+| 6 | 392-394 | 3 | 18 | 测试覆盖补测（核心 service + handler） |
+| 7 | 395-424 | 30 | 200+ | baseline 清零（202 项） |
+| 8 | 425-435 | 11 | 74 | v14 低风险修复（74 项） |
+| 9 | 436-438 | 3 | 15 | 其他遗留（虚拟化+补测+E2E） |
+| 10 | 439+ | - | - | v14 新一轮复审 |
+| **合计** | **384-438** | **55** | **~357** | **所有未完成任务** |
+
+---
+
+## 四、规则节点提醒
+
+- **规则 5（E2E 独立工作流，每 30 批次）**：批次 330 已到期需触发（403 权限不足，需用户手动触发）；批次 390、420、450 到期需触发
+- **规则 10（每 15 批次记忆整理）**：批次 375 已完成，下次整理批次 390，后续 405/420/435
 - **规则 13（修复流程自动化）**：CI 全绿后自动开始下一批，无需用户确认
 - **规则 14（移除所有警告抑制）**：所有警告视为错误需修复
-- **规则 15（v13 复审严格规范）**：业务/财务场景闭环 + 运行逻辑环流程闭环
+- **规则 15（v13 复审严格规范）**：业务/财务场景闭环 + 运行逻辑环流程闭环；阶段 1-9 完成后触发 v14 新一轮复审
 
 ---
 
-## 四、历史任务（全部完成）
+## 五、历史任务（全部完成）
 
 - v8 复审（批次 290-308）：21 项问题全部修复 ✅
 - v9 复审（批次 317-323）：16 项问题全部修复 ✅
