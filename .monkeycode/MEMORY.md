@@ -2,6 +2,7 @@
 
 > 本文件是项目的**规则记忆**，记录必须遵守的规则、指令、偏好和工作流规范。
 > 历史归档与详细内容请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
+> 最近整理：2026-07-13（合并重复规则，精简规则 15，归档历史经验）。
 
 ---
 
@@ -21,7 +22,7 @@
   - 禁止：依赖手动步骤补齐配置 / 依赖外部环境变量未在 .env.example 声明 / 依赖未在 config.yaml 模板注入
 - **部署同步检查**：修改后端配置字段时，必须同步检查：
   - `.env.example` 是否声明该环境变量
-  - `deploy/deploy.sh` + `deploy/deploy-latest.sh` 是否在 config.yaml 生成时注入该字段
+  - `deploy/deploy.sh` + `deploy/deploy-latest.sh` + `deploy/deploy-backend.sh` 是否在 config.yaml 生成时注入该字段
   - `backend/config.yaml.example` 是否包含该字段示例
   - main.rs / app_state.rs 的 fail-fast 校验是否与部署脚本一致
 - **前后端契约同步**：修改 API 返回格式 / 字段名 / 分页结构时，必须同步检查：
@@ -177,11 +178,7 @@
 - 与规则 5（每 30 批次 E2E 独立工作流）配合：批次 270 同时触发 E2E 报告 + 记忆整理
 
 **整理记录**：
-- 2026-07-13（批次 375）：归档批次 356-374 详细记录到 doto-su.md（v13 阶段，19 批次 49 项闭环修复完成项）+ 精简 doto.md 从 414 行到 197 行只保留当前活跃任务和 v13 剩余项清单（业务 P1 剩余 2 项 + 财务 P0 剩余 6 项 + 财务 P1 剩余 1 项 + 业务 P2 6 项 + 财务 P2 4 项 + 运行逻辑 P3 25 项）+ 修正下次整理批次 390
-- 2026-07-13（v13 复审前提前执行）：归档 v8/v9/v10/v11/v12 历史任务到 doto-su.md + 清空 bug.md（漏洞已全修复）+ 精简 doto.md 只保留当前任务和未完成任务 + 新增规则 15（业务/财务场景闭环 + 运行逻辑环流程闭环）
-- 2026-07-11（批次 300 后）：v8 复审 H1-H4 高风险全部修复完成（PR #477-#480），E2E 触发因 token 权限不足跳过
-- 2026-07-10（批次 270）：职责分工修正 + doto.md 更新到准确状态
-- 2026-07-05：早期内容归档到 docs/archives/2026-07-05/
+- 2026-07-13（批次 383 后）：合并 MEMORY.md 重复规则（规则 13 与用户习惯章节合并）+ 精简规则 15 检查清单 + 归档历史经验 + CHANGELOG.md 每条精简为一句话按阶段分段 + doto.md 删除归档批次详细记录重组四章节结构
 
 ### 🔴 规则 11（最高优先级，2026-07-08 追加）：法律合规标准
 
@@ -239,6 +236,12 @@
 - 测试失败：分析失败用例 → 修复代码或测试 → 重新 push
 - 禁止 `|| true` / `unwrap_or_default()` 掩盖错误（违反规则 0）
 
+**禁止**：
+- 禁止积累多批未验证的修改
+- 禁止本地 `cargo build` / `cargo test` / `npm run build` 等任何构建命令
+- 禁止 `git push --force` 到 main / test 分支
+- 禁止跳过 CI 直接合并（必须等 12 项必检全绿）
+
 ### 🔴 规则 14（最高优先级，2026-07-12 追加）：移除所有警告抑制，所有警告视为错误
 
 > 移除所有的警告抑制，所有的警告视为错误，需要进行修复。不允许通过 `#[allow(...)]` 抑制警告来绕过修复。
@@ -265,7 +268,7 @@
 - `#[allow(unused_variables)]` → 使用变量 或 删除变量 或 前缀 `_`
 - `#![allow(dead_code)]` 文件级 → 逐项评估，移除或接入业务（models/ 例外）
 
-### 🔴 规则 15（最高优先级，2026-07-13 追加）：v13 复审严格规范 + 运行逻辑环流程闭环
+### 🔴 规则 15（最高优先级，2026-07-13 追加）：v13 复审严格规范 + 业务/财务/运行逻辑闭环
 
 > v13 复审严格按照规矩进行复审，所有现存 baseline 警告视为错误需全部修复；额外增加运行逻辑环流程闭环复审维度；复审完自动开始修复，无需用户确认。
 
@@ -295,83 +298,18 @@
    - 修复完成后必须同步清理 baseline 对应条目
    - 目标：baseline 警告数 → 0，最终移除 baseline 机制
 
-#### 二、业务场景闭环要求（用户 2026-07-13 明确追加）
+#### 二、业务/财务/运行逻辑闭环核心检查清单
 
-1. **业务全链路闭环检查清单**：
-   - **下单→履约→收付款→售后→报表** 必须全链路贯通
-   - 销售订单创建 → 库存锁定 → 发货 → 收款 → 售后 → BI 报表，数据流必须连贯无断点
-   - 采购订单创建 → 入库 → 付款 → 对账 → BI 报表，数据流必须连贯无断点
-   - 生产订单创建 → 领料 → 入库 → 成本核算 → BI 报表，数据流必须连贯无断点
+详细检查清单见 [v13 复审报告](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)，核心要求：
 
-2. **跨模块数据一致性检查清单**：
-   - 订单状态变更必须同步库存、财务、报表模块
-   - 库存调整必须同步财务凭证、BI 报表
-   - 客户/供应商主数据变更必须同步所有关联单据
-   - 禁止"孤岛模块"（数据只在单模块内流转）
-
-3. **业务事件闭环检查清单**：
-   - 所有业务事件必须有发布者 + 订阅者（event_bus 真实接入）
-   - 事件处理失败必须有重试 + 死信队列 + 告警
-   - 事件幂等性必须保证（重复消费不产生副作用）
-   - 禁止"裸调用"（直接调用 service 而非事件驱动，违反解耦原则的场景除外）
-
-#### 三、财务场景闭环要求（用户 2026-07-13 明确追加）
-
-1. **财务全链路闭环检查清单**：
-   - **凭证→科目→账簿→报表→对账→结账** 必须全链路贯通
-   - 业务单据 → 自动生成凭证 → 科目余额更新 → 账簿 → 试算平衡 → 报表 → 对账 → 结账
-   - 禁止"半闭环财务"（如：有凭证无科目余额更新、有对账无结账）
-
-2. **业财一致性检查清单**：
-   - 销售出库 → 必须生成收入凭证 + 成本凭证
-   - 采购入库 → 必须生成存货凭证 + 应付凭证
-   - 生产领料 → 必须生成成本凭证
-   - 库存调整 → 必须生成差异凭证
-   - 收付款 → 必须生成核销凭证
-   - 禁止"业务发生无财务凭证"（业财脱节）
-
-3. **财务可追溯性检查清单**：
-   - 凭证 → 业务单据：通过 source_bill_type + source_bill_id 可反向追溯
-   - 业务单据 → 凭证：通过 voucher_service 可正向查询
-   - 科目余额 → 凭证：通过科目明细账可追溯
-   - 报表数据 → 凭证：通过报表穿透可追溯
-   - 禁止"无法追溯"的财务数据
-
-4. **财务期间闭环检查清单**：
-   - 会计期间创建 → 业务过账 → 试算平衡 → 期末调整 → 结账 → 锁定
-   - 已结账期间禁止新增/修改凭证
-   - 跨期业务必须有处理规则（暂估/摊销/预提）
-   - 禁止"开放期间"无限期未结账
-
-#### 四、运行逻辑环流程闭环要求
-
-1. **业务流程闭环检查清单**：
-   - 输入校验 → 业务处理 → 状态持久化 → 结果返回 → 日志记录 → 审计追踪
-   - 每个环节必须有明确的输入/输出契约
-   - 禁止"半闭环"流程（如：有创建无删除、有开始无结束、有提交无回滚）
-
-2. **异常路径闭环检查清单**：
-   - 所有 `Result<T, E>` 必须有错误处理路径（禁止 `let _ =`）
-   - 所有 `unwrap()` / `expect()` 必须有上下文说明或替换为 `unwrap_or_else` + 错误处理
-   - 所有外部调用（DB/HTTP/Redis）必须有超时 + 重试 + 降级策略
-   - 所有 panic 必须有恢复机制或 fail-fast 明确退出
-
-3. **状态机闭环检查清单**：
-   - 所有枚举状态必须有终态（如：Created → Processing → Completed/Failed）
-   - 禁止"孤儿状态"（如：只有 Created 无 Completed）
-   - 状态转换必须有守卫条件 + 日志记录
-   - 失败状态必须有恢复路径（重试/人工干预/超时清理）
-
-4. **资源生命周期闭环检查清单**：
-   - 所有 `Arc<Mutex<T>>` / `RwLock<T>` 必须有显式释放路径
-   - 所有文件句柄 / 网络连接必须有 `Drop` 实现或显式 close
-   - 所有数据库事务必须有 commit/rollback 路径
-   - 所有定时任务必须有停止机制（优雅停机）
-
-5. **配置依赖闭环检查清单**：
-   - 环境变量 → 必须在 `.env.example` 声明 + `main.rs` 校验 + `config.yaml` 注入
-   - 配置缺失 → 必须有 fail-fast 错误信息（禁止 silent default）
-   - 配置变更 → 必须有热重载或重启提示
+- **业务全链路闭环**：下单→履约→收付款→售后→报表，数据流连贯无断点
+- **财务全链路闭环**：凭证→科目→账簿→报表→对账→结账，业财一致性 + 双向可追溯
+- **业财一致性**：销售出库→收入凭证+成本凭证；采购入库→存货凭证+应付凭证；生产领料→成本凭证；库存调整→差异凭证；收付款→核销凭证
+- **业务事件闭环**：所有业务事件必须有发布者+订阅者，失败有重试+死信队列+告警，幂等性保证
+- **异常路径闭环**：所有 `Result<T, E>` 必须有错误处理路径（禁止 `let _ =`），所有 `unwrap()`/`expect()` 必须有上下文
+- **状态机闭环**：所有枚举状态必须有终态，禁止"孤儿状态"，失败状态必须有恢复路径
+- **资源生命周期闭环**：所有 `Arc<Mutex<T>>`/文件句柄/网络连接/数据库事务/定时任务必须有显式释放路径
+- **配置依赖闭环**：环境变量必须在 `.env.example` 声明 + `main.rs` 校验 + `config.yaml` 注入，配置缺失必须 fail-fast
 
 #### 三、v13 复审执行流程
 
@@ -423,6 +361,9 @@
 
 ### 沟通语言
 - 使用中文进行回复和沟通
+- **简洁高效**：直接给方案和结果，避免冗长解释
+- **进度可见**：使用 TodoWrite 跟踪，每完成一项立即标记
+- **错误透明**：遇到失败立即报告，不掩盖
 
 ### 编码规范
 - 禁止硬编码，所有文本需使用中文
@@ -430,10 +371,6 @@
 
 ### 项目标识
 - 项目名称统一（以 main 仓库 README 为准），所有文档/界面/输出信息一致
-
-### 开发辅助
-- 每次新增或修改功能时，必须调用合适的技能或 MCP 工具
-- 严格按照技能规范进行开发
 
 ### 任务管理
 - 使用中文建立待办任务（doto.md）
@@ -458,18 +395,9 @@
 - **修复一个漏洞后立即从 bug.md 删除对应条目**
 - 所有漏洞修复完成后保留 `bug.md` **空文件**（不删除，作为漏洞登记占位）
 
-### 任务规划管理
-- 所有任务规划文件保存在 `.monkeycode/docs/` 下
-
 ### 数据库配置
 - 数据库类型：PostgreSQL
 - 连接方式：远程数据库连接模式
-
-### 功能实现依据
-- 新增功能接口、数据库操作需遵循现有规范
-
-### 打包与发布要求
-- 打包时必须进行全面测试：功能测试、兼容性测试、稳定性测试
 
 ---
 
@@ -513,6 +441,11 @@
 - 不安装 Redis（用远程 Redis 服务器）
 - 只需安装 Nginx、curl
 
+### CI 验证偏好
+- **10 项必检全绿即可合并**：环境信息 / 依赖图 / Rust 构建 / Rust Clippy / Rust 格式 / Rust 单元测试 / 前端构建 / 前端格式 / 前端 ESLint / 前端类型检查 / 前端测试 / 依赖审计
+- **E2E 已独立**：E2E 测试从 ci-cd.yml 独立到 e2e-batch.yml（每 30 批次运行，不阻塞主 CI）
+- CI 失败时：用 `/actions/runs/{id}/jobs` 查 job 列表 → `/actions/jobs/{job_id}/logs` 拉单 job 完整 log（Web UI 限 100KB）
+
 ---
 
 ## 六、核心经验（关键排错与开发经验）
@@ -520,81 +453,21 @@
 ### 集成测试跨 crate 调用私有函数
 - `tests/` 目录下的集成测试编译为**独立二进制 crate**，`fn foo()` 对集成测试 crate 不可见
 - 修复：`fn foo()` → `pub fn foo()`（或使用 `pub(crate)` 限制可见性）
-- 错误模式：`error[E0624]: associated function compose_color_no is private`
 
 ### 沙箱网络限制
 - **限制**：沙箱环境出站 22 端口（github.com SSH）被防火墙阻断
 - **可用**：443 端口（github.com HTTPS）正常，包括 `git push` HTTPS 远程
-- **应对策略**：沙箱内可通过 HTTPS 完成 commit → push → CI 全流程
 
 ### .monkeycode 目录 gitignore 规则
 - `.gitignore` 默认忽略 `.monkeycode/`，仅白名单：`MEMORY.md` / `doto.md` / `bug.md` / `CHANGELOG.md`
 - `.monkeycode/docs/` 子目录不在白名单
 - **添加新归档文件**必须用 `git add -f` 强制添加
 
-### 集成测试 `crate` 语义
-- `tests/` 目录下的集成测试编译为独立二进制，`crate` 关键字指向**测试二进制本身**
-- 引用 lib.rs 暴露的模块必须用 `Cargo.toml` 中的 `name` 字段（连字符 `-` 转下划线 `_`），即 `bingxi_backend`
-- 单元测试（`src/` 内的 `#[cfg(test)]`）中 `crate` 指向 lib，两者语义不同
-
 ### Clippy Baseline 脆弱性
 - `backend/.clippy-baseline.txt` 用 `comm -23` 精确行比较检测"新警告"
 - 修改单行代码会导致 baseline 中后续行号全偏移，触发大量"假新警告"
 - **修复**：删除 `backend/.clippy-baseline.txt`，让 CI 在 bootstrap 模式下重建
 - **快速诊断**：CI 误报"大量新警告"时，先检查 baseline 首行内容
-
-### Cache::get 返回值语义
-- `backend/src/utils/cache.rs` 的 `Cache` trait 定义 `fn get(&self, key: &K) -> Option<V>`，返回值已 **Clone**（不是 `Option<&V>`）
-- 不能在结果上调用 `.copied()`（仅 `Option<&T>` 或迭代器支持）
-
-### JTI 黑名单→Redis 迁移设计
-- **现状**：`auth_service.rs` 用 `static JTI_BLACKLIST: LazyLock<RwLock<HashMap<String, i64>>>`，多实例不共享
-- **迁移方案**：优先用 Redis SETEX（`SET key value EX <ttl>`），TTL 到期自动清理
-- **失败回退**：Redis 不可用时降级到原 HashMap（避免阻塞业务）
-
-### SSRF 防护双重校验必要性
-- **单次校验的弱点**：create 时校验 `url` 指向公网，但攻击者可注册合法公网域名后修改 DNS 记录为内网 IP（DNS Rebinding）
-- **必须双重校验**：`create_webhook` 时校验 + `trigger_webhook` 发送前**再次**校验
-- **校验内容**：协议白名单 + 主机名黑名单 + IP 黑名单（RFC1918/loopback/link-local 含云元数据 169.254.169.254）
-
-### DashMap vs std::sync::Mutex 选型
-- 高频/性能关键：DashMap
-- 安全关键 + 锁中毒需防御：std::sync::Mutex + try_lock
-- **关键模式**：`let Ok(mut g) = self.storage.try_lock() else { return; };`（Rust 1.65+ let-else）
-
-### 日志脱敏按字符而非字节
-- **风险**：截断 UTF-8 字符串用字节切片 `&s[..n]` 可能切到字符中间，panic
-- **正确做法**：用 `chars().take(n)` 按 Unicode 字符截断
-
-### totp-rs 5.5 熵源确认
-- `Secret::generate_secret()` 内部用 `rand::thread_rng()` → `OsRng` → 操作系统 CSPRNG
-- **安全等级**：密码学安全（160 bits 熵，符合 RFC 4226 推荐）
-
-### GitHub Token 安全存储
-- **绝不写入任何 git 跟踪文件**（.git/config / MEMORY.md / doto.md / CHANGELOG.md / commit message）
-- **存储位置**：沙箱本地 `~/.git-credentials`（600 权限，git credential helper = store 自动读取）
-- **沙箱网络限制**：SSH 22 端口被防火墙阻断，必须用 HTTPS push
-
-### GitHub Actions Log 100KB 截断与详细日志获取
-- **限制**：GitHub Web UI 的 CI run log 最多显示尾部 100KB
-- **解决方案**：用 `https://api.github.com/repos/{owner}/{repo}/actions/jobs/{job_id}/logs` 获取**单 job 完整 log**
-
-### u16 永真比较与 Clippy 极端比较警告
-- **触发模式**：`x >= 0xff00 && x <= 0xffff`（u16 类型，`<= 0xffff` 永远为真）
-- **Clippy lint**：`absurd_extreme_comparisons`
-- **通用规则**：写数值比较前先想"类型边界"
-
-### 分布式限流回退必须真实回退
-- 错误设计：`check_redis_rate_limit` 返回 `Ok(true)`（未配置 Redis），`check_rate_limit` 直接放行
-- 正确设计：返回 `Result<Option<bool>>`：`Ok(Some(allowed))` / `Ok(None)`（应回退）/ `Err(_)`（应回退）
-
-### Cargo build --release vs cargo test 编译差异
-- 某些编译错误在 `cargo test`（dev build）中不会触发，但在 `cargo build --release`（`opt-level=2`）会触发
-- **CI 防护**：依赖 `🏗️ Rust 后端构建` job 跑 `cargo build --release` 早期发现问题
-
-### `|| true` 反模式
-- `assert!(some_expr.is_ok() || true)` 是恒真式断言，无测试价值却能**掩盖编译错误**
-- CI 中应使用 `cargo check --tests` 或 `cargo test --no-run` 提前发现编译错误
 
 ### SeaORM Trait 必导
 - `Entity::find()` → 需 `use sea_orm::EntityTrait;`
@@ -612,13 +485,26 @@
 - `#[validate(length(max = X))]` 只支持**整数字面量**
 - 必须用：`length(max = 10_485_760)` ✅ 而非 `length(max = 10 * 1024 * 1024)` ❌
 
+### GitHub Token 安全存储
+- **绝不写入任何 git 跟踪文件**（.git/config / MEMORY.md / doto.md / CHANGELOG.md / commit message）
+- **存储位置**：沙箱本地 `~/.git-credentials`（600 权限，git credential helper = store 自动读取）
+- **沙箱网络限制**：SSH 22 端口被防火墙阻断，必须用 HTTPS push
+
+### GitHub Actions Log 100KB 截断与详细日志获取
+- **限制**：GitHub Web UI 的 CI run log 最多显示尾部 100KB
+- **解决方案**：用 `https://api.github.com/repos/{owner}/{repo}/actions/jobs/{job_id}/logs` 获取**单 job 完整 log**
+
+### Cargo build --release vs cargo test 编译差异
+- 某些编译错误在 `cargo test`（dev build）中不会触发，但在 `cargo build --release`（`opt-level=2`）会触发
+- **CI 防护**：依赖 `🏗️ Rust 后端构建` job 跑 `cargo build --release` 早期发现问题
+
 ### 子代理协作模式
 - 大批量相似任务（如 40 个文件清理）使用 8 轮 × 5 个子代理的并行结构
 - 子代理仅**编辑文件**，不直接推 PR；主代理汇总后开 1 个 PR
 - 子代理不得操作 `.monkeycode/` 目录或 `CHANGELOG.md`（避免污染记忆）
-
-### 子代理 sea_orm 清理警示
 - 子代理清理 sea_orm trait 导入时**必须**先 grep 使用点，再决定是否删除
+
+> 更多历史经验（Cache::get 语义 / JTI 黑名单 Redis 迁移 / SSRF 双重校验 / DashMap vs Mutex / 日志脱敏 / totp-rs 熵源 / u16 永真比较 / 分布式限流回退 / `|| true` 反模式 等）已归档到 [docs/archives/](file:///workspace/.monkeycode/docs/archives/)。
 
 ---
 
@@ -630,15 +516,14 @@
 - 主代理职责：分析任务 → 拆解 → 分配 → 总结成果 → 推 PR
 
 ### GitHub 分支策略
-- `main` 为主分支（正式版），不允许删除
+- `main` 为主分支（正式版），不允许删除，不允许 force push
 - `test` 为测试分支，不允许删除
-- 所有修复/功能变更在修复分支进行
+- 所有修复/功能变更在修复分支进行（`fix/batchN-简短描述`，合并后立即删除）
+- 修复分支可 force push（仅 amend commit message 时，无协作影响）
 - 验证后自动合并入 main
-- 修复分支合并后自动删除
 
 ### 提交信息规范
-- 使用中文编写提交信息
-- 描述"做了什么"和"为什么"
+- 使用中文编写提交信息，描述"做了什么"和"为什么"
 
 ### 代码审查
 - 所有代码变更需经过审查
@@ -722,75 +607,15 @@
 
 ---
 
-## 十一、用户习惯与协作偏好（2026-07-05 整理）
-
-> 本章固化用户在历次会话中明确表达的工作习惯与协作偏好，作为代理行为的强制约束。
-
-### 批次修复工作流（用户 2026-06-27 确认）
-
-> 开始进行修复，按修复一个批次，推送 ci，ci 全绿,合并到 main，删除修复分支，
-> 修复下一个分支，创建修复分支，修复下一个分支依次类推，直到所有任务全部修复完成。
-> 修复完成后进行全项目复审，对复审出来的问题按这个流程进行继续评估修复。直到复审没有问题。
-
-**强制流程**：
-1. 创建修复分支 `fix/batchN-xxx`
-2. 修改代码（严格遵守 CI/CD Only，禁止本地编译）
-3. `commit`（中文 commit message，描述"做了什么"和"为什么"）
-4. `git push -u origin fix/batchN-xxx`
-5. 创建 PR（中文标题 + 中文 body，列出修复项）
-6. 监控 CI（用 GitHub API 轮询 check-runs，10 项必检全绿即可合并，E2E 已独立到 e2e-batch.yml 不阻塞主 CI）
-7. squash merge 到 main（commit_title 带 `(#PR号)` 后缀）
-8. 删除本地 + 远程修复分支
-9. `git checkout main && git pull origin main` 同步
-10. 更新 MEMORY.md / doto.md / CHANGELOG.md 记录完成
-11. 开始下一批次
-
-**禁止**：
-- 禁止积累多批未验证的修改
-- 禁止本地 `cargo build` / `cargo test` / `npm run build` 等任何构建命令
-- 禁止 `git push --force` 到 main / test 分支
-- 禁止跳过 CI 直接合并（必须等 12 项必检全绿）
-
-### 沟通偏好
-
-- **回复语言**：中文（代码注释也用中文）
-- **简洁高效**：直接给方案和结果，避免冗长解释
-- **进度可见**：使用 TodoWrite 跟踪，每完成一项立即标记
-- **错误透明**：遇到失败立即报告，不掩盖
-
-### 记忆管理偏好
-
-- `.monkeycode/` 文件夹定期整理优化（用户 2026-07-05 明确要求）
-- **三文件职责严格分工**（2026-07-10 用户明确修正）：
-  - `MEMORY.md` 只记录规则，禁止写入任务相关内容
-  - `doto.md` 只记录任务及任务历史（详细内容）
-  - `CHANGELOG.md` 只记录任务一句话总结，禁止写入详细任务内容
-- 早期内容归档到 `docs/archives/YYYY-MM-DD/`
-- 用户习惯和新规则必须写入项目规则文件（MEMORY.md 一、章节），不能只留在对话上下文
-
-### CI 验证偏好
-
-- **10 项必检全绿即可合并**：环境信息 / 依赖图 / Rust 构建 / Rust Clippy / Rust 格式 / Rust 单元测试 / 前端构建 / 前端格式 / 前端 ESLint / 前端类型检查 / 前端测试 / 依赖审计
-- **E2E 已独立**：E2E 测试从 ci-cd.yml 独立到 e2e-batch.yml（每 30 批次运行，不阻塞主 CI）
-- CI 失败时：用 `/actions/runs/{id}/jobs` 查 job 列表 → `/actions/jobs/{job_id}/logs` 拉单 job 完整 log（Web UI 限 100KB）
-
-### 分支策略偏好
-
-- `main`：主分支（正式版），不允许删除，不允许 force push
-- `test`：测试分支，不允许删除
-- 修复分支：`fix/batchN-简短描述`，合并后立即删除
-- 修复分支可 force push（仅 amend commit message 时，无协作影响）
-
----
-
-## 十二、归档索引
+## 十一、归档索引
 
 完整历史内容（整理前的详细记录）：
 
-- 完整 MEMORY/doto/CHANGELOG/doto-su/bug（2026-07-11 整理前）：`.monkeycode/docs/archives/2026-07-11/`
+- 完整 MEMORY/doto/CHANGELOG/doto-su/bug（2026-07-13 整理前）：`.monkeycode/docs/archives/2026-07-13/`
+- 完整 MEMORY/doto/CHANGELOG（2026-07-11 整理前）：`.monkeycode/docs/archives/2026-07-11/`
 - 完整 MEMORY/doto/CHANGELOG（2026-07-10 整理前）：`.monkeycode/docs/archives/2026-07-10/`
 - 完整 MEMORY/doto/CHANGELOG（2026-07-05 优化前）：`.monkeycode/docs/archives/2026-07-05/`
 - 完整 MEMORY/CHANGELOG（2026-06-24 优化前）：`.monkeycode/docs/archives/`
 
 历史审计报告：
-- `.monkeycode/docs/audits/` 目录下保存历次复审报告（v5/v6/v7 等）
+- `.monkeycode/docs/audits/` 目录下保存历次复审报告（v5/v6/v7/v8/v9/v10/v11/v12/v13 等）
