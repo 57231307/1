@@ -418,11 +418,10 @@ impl SalesReturnService {
     /// 批次 358 v13 复审 B-P1-1 修复：原实现使用 `stock_service.record_transaction(...)`（非事务版本），
     /// 该方法内部使用 `self.db` 而非传入的 `txn`，且函数内立即 `EVENT_BUS.publish(event)`，
     /// 存在双重风险：
-    /// 1. 事务边界泄漏：库存流水写入与退货主事务不在同一事务，commit 失败时流水残留；
-    /// 2. 幻事件风险：commit 失败时事件已发布，订阅方（库存财务桥接）会基于不存在的流水生成凭证。
+    /// （1）事务边界泄漏：库存流水写入与退货主事务不在同一事务，commit 失败时流水残留；
+    /// （2）幻事件风险：commit 失败时事件已发布，订阅方（库存财务桥接）会基于不存在的流水生成凭证。
     /// 改用 `InventoryStockService::record_transaction_txn(txn, ...)` 关联函数：
-    /// - 流水写入与主事务同生共死；
-    /// - 事件由调用方在 commit 成功后统一 publish。
+    /// 流水写入与主事务同生共死，事件由调用方在 commit 成功后统一 publish。
     async fn apply_stock_inbound_txn(
         &self,
         txn: &sea_orm::DatabaseTransaction,

@@ -333,8 +333,8 @@ impl AccountSubjectService {
     /// 写回 `account_subject` 的 `current_period_debit/credit` 和 `ending_balance_debit/credit`。
     ///
     /// 计算规则（与 `voucher_service.update_account_balances` 一致）：
-    /// - 借方科目：期末余额 = 期初余额(借) + 本期借方发生 - 本期贷方发生
-    /// - 贷方科目：期末余额 = 期初余额(贷) + 本期贷方发生 - 本期借方发生
+    /// 借方科目：期末余额 = 期初余额(借) + 本期借方发生 - 本期贷方发生
+    /// 贷方科目：期末余额 = 期初余额(贷) + 本期贷方发生 - 本期借方发生
     pub async fn refresh_balance(
         &self,
         subject_id: i32,
