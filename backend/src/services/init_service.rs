@@ -18,14 +18,15 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::warn;
 
-/// 初始化任务状态
+/// 初始化任务状态（L-24 修复：补充终态与恢复路径文档）
+/// 状态机：Running → Completed | Failed（终态）；Failed 后需重新调用 initialize 创建新 task_id 恢复。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InitTaskStatus {
-    /// 正在运行
+    /// 正在运行（迁移 + 默认数据创建中，panic 会被 catch_unwind 隔离并转为 Failed）
     Running,
-    /// 已完成
+    /// 已完成（迁移 + 默认数据创建均成功，终态）
     Completed,
-    /// 失败
+    /// 失败（迁移错误/创建错误/panic，终态；需重新调用 initialize 创建新任务恢复）
     Failed,
 }
 
