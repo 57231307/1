@@ -178,6 +178,7 @@
 - 与规则 5（每 30 批次 E2E 独立工作流）配合：批次 270 同时触发 E2E 报告 + 记忆整理
 
 **整理记录**：
+- 2026-07-14（批次 392 后，轻量整理）：批次 392 完成测试覆盖补测首批（user_service 8 测试 + auth_service 4 异步密码 + po/order 6 状态校验门，共 18 个新测试，PR #565 已合并 CI 全绿）；更新 doto.md 进度总览新增"测试覆盖补测"维度（3/12 完成）+ CHANGELOG.md 追加批次 392 记录；下一批次 393：库存/财务 service 测试（inventory_stock/voucher/ar/ap）；下一个整理点批次 405
 - 2026-07-14（批次 391 后，轻量整理）：批次 391 完成 useTableApi-6/7（AdjustmentListTab + TransferListTab 接入 useTableApi，PR #564 已合并 CI 全绿）；阶段 5 useTableApi 接入全部完成（批次 390-391 共 4 文件）；更新 doto.md 进度总览（88 完成 / 290 剩余，v13 前端/后端 P2 9/9 完成）+ CHANGELOG.md 追加批次 391 记录；下一阶段：阶段 6 测试覆盖补测（批次 392-394）；下一个整理点批次 405
 - 2026-07-14（批次 390 后，轻量整理）：批次 390 完成useTableApi-8/9（assistAccounting + barcodeScanner 0-based 分页 bug 修复，PR #563 已合并 CI 全绿）；更新 doto.md 进度总览（86 完成 / 293 剩余）+ CHANGELOG.md 追加批次 390 记录 + doto.md 批次 390 表格补全实际完成状态 + 批次 391 调整为剩余 view 扫描；下一个整理点批次 405
 - 2026-07-13（批次 389 后，轻量整理）：确认记忆文件结构清晰（MEMORY.md 697 行 / doto.md 582 行 / CHANGELOG.md 207 行），无冗余条目需清理；更新 doto.md 进度总览（85 完成 / 293 剩余）+ CHANGELOG.md 追加批次 389 记录；批次 390 进入 useTableApi 接入阶段
