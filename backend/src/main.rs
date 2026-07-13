@@ -336,6 +336,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_result = Database::connect(db_opts).await;
 
+    // L-30 修复（批次 372 v13 复审）：在 match 块外声明，用于 graceful shutdown 后
+    // 调用 OmniAuditEngine::shutdown()，避免审计引擎 detached task 泄漏
+    let mut omni_audit_for_shutdown: Option<
+        Arc<crate::services::omni_audit_service::OmniAuditEngine>,
+    > = None;
+
     let mut app = match db_result {
         Ok(db) => {
             info!("数据库连接成功，启动完整模式");
@@ -434,6 +440,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 fingerprint = %omni_audit.secret_key_fingerprint(),
                 "OmniAuditEngine 已初始化（secret_key 指纹前 16 hex 字符）"
             );
+            // L-30 修复（批次 372 v13 复审）：保留 omni_audit clone 用于 graceful shutdown 后
+            // 调用 shutdown()，避免审计引擎 detached task 泄漏
+            omni_audit_for_shutdown = Some(omni_audit.clone());
             let audit_cleanup = Arc::new(
                 // P2 8-13 修复：原 retention_days 硬编码 999（约 2.7 年），实际无清理效果，
                 // omni_audit_logs 表无限膨胀拖累查询性能。
@@ -557,6 +566,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     tracing::info!("ES 索引初始化完成（3 个索引：sales_orders/customers/products）");
                 }
             }
+            // L-30 修复（批次 372 v13 复审）：保留 app_state clone 用于 graceful shutdown 后
+            // 调用 OmniAuditEngine::shutdown()，避免审计引擎 detached task 泄漏
+            // 注意：app_state 在 match 块内创建，match 块结束后 drop，
+            // 因此单独保留 Arc<OmniAuditEngine> clone 到 match 块外
             let app = create_router(app_state)
                 // 安全漏洞 #8 修复：全局 HTTP 请求体大小限制（12MB）
                 // - 设计目的：兜底防止已认证用户发送 100MB+ 请求触发 OOM DoS
@@ -778,6 +791,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Err(e) = http_server.await {
         warn!("HTTP 服务器错误: {}", e);
+    }
+
+    // L-30 修复（批次 372 v13 复审）：HTTP 服务器优雅关闭后，关闭 OmniAudit 异步引擎
+    // abort 后台 spawn task，防止 detached task 在 runtime drop 前继续尝试写入已关闭的数据库连接
+    if let Some(engine) = omni_audit_for_shutdown {
+        engine.shutdown();
     }
 
     Ok(())
