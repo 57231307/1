@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 366 | #538 | v13 复审 P1 级闭环修复 B-P1-8 剩余5个订阅者接入幂等（event_bus start_event_listener 中 PaymentCompleted/CollectionCompleted/BpmProcessFinished/LowStockAlert/MaterialShortageAlert 5 分支接入 EventIdempotencyService 幂等检查 ap_paid/ar_paid/bpm/low_stock/material_shortage 键，2 次 CI 修复 continue inside async block 改 should_process flag+if 结构，CI 全绿，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
 | 365 | #537 | v13 复审 P1 级闭环修复 B-P1-8 事件幂等处理基础设施+InventoryTransactionCreated接入（新增 processed_events 表 migration m0049 + SeaORM entity + EventIdempotencyService 服务 try_mark_processed_txn/try_mark_processed + inventory_finance_bridge_service handle_inventory_transaction 去掉_transaction_id下划线前缀接入幂等检查 inventory_txn:{transaction_id} 键，9 文件 201 行，2 次 CI 修复 EntityName冲突+TransactionTrait导入，CI 全绿，B-P1-8 基础设施完成） |
 | 364 | #536 | v13 复审 P1 级闭环修复 B-P1-6 删除 InventoryAdjusted 孤岛事件（无 publish + 订阅者仅打日志 + 语义被 InventoryTransactionCreated 覆盖，删除 event_bus 变体定义+订阅者 + event_kafka 映射+测试 + event_kafka_payload 变体+From+TryFrom，3 文件 41 行删除，1 次 CI 全绿，B-P1-6 完整闭环） |
 | 363 | #535 | v13 复审 P1 级闭环修复 F-P1-2 剩余（资产负债表存货取数量非金额+_ap_total未使用死代码+预收账款业务口径混淆改从凭证体系 14/1122/1001+1002/16/2202/2203 科目前缀取时点余额 + 现金流量表投资/筹资/期初现金硬编码ZERO改从 1601/25/1001+1002 科目前缀取数 + 新增 get_subject_balance_by_prefix 方法 + 移除 4 个未使用 imports，1 次 CI 全绿，F-P1-2 完整闭环） |

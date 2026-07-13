@@ -33,7 +33,7 @@
 | 维度 | 总数 | 已完成 | 剩余 | 状态 |
 |------|------|--------|------|------|
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
-| 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365，B-P1-8 基础设施+最高风险变体接入） |
+| 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365/366，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
 | 🟢 财务场景闭环 | 16 | 7 | 9 | 🔄 P0 2 项 + P1 5 项已完成（批次 356/358/359/360/362/363，F-P1-2 完整闭环） |
 | 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 0 | 45 | ⏳ 待修复 |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
@@ -269,6 +269,24 @@
 - #29221446146：全绿 ✅（修复：删除手动 EntityName 实现 + 导入 TransactionTrait）
 
 **遗留**：B-P1-8 后续批次将逐步覆盖 PaymentCompleted/CollectionCompleted/BpmProcessFinished/LowStockAlert/MaterialShortageAlert 等高风险变体。本批次为通用基础设施 + 最高风险变体（InventoryTransactionCreated）接入作为模板。
+
+#### 批次 366（PR #538，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-8 剩余 5 个订阅者接入幂等，B-P1-8 完整闭环）
+
+**修改文件（1 个）**：
+1. `services/event_bus.rs`：B-P1-8 剩余修复 — `start_event_listener` 中 5 个订阅者分支接入 EventIdempotencyService 幂等检查：
+   - `PaymentCompleted`：幂等键 `ap_paid:{invoice_id}`，consumer_id `event_bus_main`，防止重复触发 AP 发票状态更新 + 财务指标计算
+   - `CollectionCompleted`：幂等键 `ar_paid:{inv_id}`，consumer_id `event_bus_main`，防止重复触发 AR 发票状态更新
+   - `BpmProcessFinished`：幂等键 `bpm:{business_type}:{business_id}:{approved}`，consumer_id `event_bus_main`，防止重复回写订单审批结果
+   - `LowStockAlert`：幂等键 `low_stock:{product_id}:{warehouse_id}:{date}`，consumer_id `event_bus_main`，防止重复触发补货建议
+   - `MaterialShortageAlert`：幂等键 `material_shortage:{material_id}:{date}`，consumer_id `event_bus_main`，防止重复触发缺料采购建议
+
+**修复依据**：这 5 个变体的订阅者会触发状态更新/财务计算/采购建议生成等副作用，重复消费会导致数据不一致或重复生成业务记录。接入幂等后，同一事件被多次投递时仅处理一次，其余通过 info! 日志记录后跳过。
+
+**CI 记录**：2 次 CI 运行
+- #29222626247：失败 ❌（E0267 `continue` inside `async` block，10 处 — match 在 `AssertUnwindSafe(async { ... })` 内，`continue` 无法跳到 `while` 循环）
+- #29223129714：全绿 ✅（修复：5 处 `continue` 改为 `should_process` 标志 + `if should_process { 业务逻辑 }` 结构，每处末尾 `} // if should_process` 闭合）
+
+**遗留**：无（B-P1-8 完整闭环完成，6 个高风险变体全部接入幂等：InventoryTransactionCreated 批次365 + PaymentCompleted/CollectionCompleted/BpmProcessFinished/LowStockAlert/MaterialShortageAlert 批次366）
 
 ---
 
