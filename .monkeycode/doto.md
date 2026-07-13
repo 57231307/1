@@ -33,13 +33,13 @@
 | 维度 | 总数 | 已完成 | 剩余 | 状态 |
 |------|------|--------|------|------|
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
-| 🟢 业务场景闭环 | 21 | 12 | 9 | 🔄 P0 6 项 + P1 6 项已完成（批次 356/358/359/360/361/364，B-P1-6 完整闭环） |
+| 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365，B-P1-8 基础设施+最高风险变体接入） |
 | 🟢 财务场景闭环 | 16 | 7 | 9 | 🔄 P0 2 项 + P1 5 项已完成（批次 356/358/359/360/362/363，F-P1-2 完整闭环） |
 | 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 0 | 45 | ⏳ 待修复 |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **30** | **~348** | — |
+| **合计** | **~378** | **31** | **~347** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -251,6 +251,24 @@
 - #29219858958：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
 
 **遗留**：无（B-P1-6 完整闭环完成，三个孤岛事件全部处理：PurchaseOrderApproved 批次358解除孤岛 + InventoryCountCompleted 批次359解除孤岛 + InventoryAdjusted 本批次删除）
+
+#### 批次 365（PR #537，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-8 事件幂等处理基础设施 + InventoryTransactionCreated 接入）
+
+**修改文件（9 个，新增 5 文件 + 修改 4 文件）**：
+1. `migration/src/m0049_create_processed_events.rs`：新增迁移注册（processed_events 表）。
+2. `migrations/20260713000001_create_processed_events/up.sql` + `down.sql`：processed_events 表 DDL，主键 (consumer_id, event_key) + processed_at 索引。
+3. `models/processed_event.rs`：SeaORM entity（consumer_id + event_key 复合主键，auto_increment=false）。
+4. `services/event_idempotency_service.rs`：EventIdempotencyService 幂等服务，提供 try_mark_processed_txn（事务内）和 try_mark_processed（独立事务）两个方法，先查询是否已处理，未处理则插入标记，返回是否应继续处理。
+5. `services/inventory_finance_bridge_service.rs`：handle_inventory_transaction 入口接入幂等 — 去掉 `_transaction_id` 下划线前缀实际使用该参数，使用 `inventory_txn:{transaction_id}` 作为幂等键，调用 EventIdempotencyService 检查，已处理则 info! 日志 + 幂等返回，未处理则继续生成凭证。
+6. `models/mod.rs` + `services/mod.rs` + `migration/src/lib.rs`：模块注册。
+
+**修复依据**：InventoryTransactionCreated 重复消费会重复生成会计凭证 + 重复过账，导致科目余额累加失真、报表数据失真、财务对账无法平衡。原实现 `_transaction_id` 形参（下划线开头）未参与幂等判断，全代码库无通用幂等基础设施。
+
+**CI 记录**：2 次 CI 运行
+- #29220938811：失败 ❌（E0119 EntityName 冲突实现 + E0599 TransactionTrait 未导入）
+- #29221446146：全绿 ✅（修复：删除手动 EntityName 实现 + 导入 TransactionTrait）
+
+**遗留**：B-P1-8 后续批次将逐步覆盖 PaymentCompleted/CollectionCompleted/BpmProcessFinished/LowStockAlert/MaterialShortageAlert 等高风险变体。本批次为通用基础设施 + 最高风险变体（InventoryTransactionCreated）接入作为模板。
 
 ---
 
