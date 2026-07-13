@@ -188,10 +188,30 @@ impl InventoryFinanceBridgeService {
     /// 不再单独传递，通过 match 分发到 5 个 create_*_voucher 私有函数。
     async fn handle_inventory_transaction(
         &self,
-        _transaction_id: i32,
+        transaction_id: i32,
         transaction_type: &str,
         args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
+        // B-P1-8 修复（批次 365 v13 复审）：事件幂等处理
+        // 重复消费 InventoryTransactionCreated 会导致重复生成会计凭证 + 重复过账，
+        // 科目余额累加失真。使用 transaction_id 作为幂等键，处理前检查是否已处理。
+        let idempotency_service =
+            crate::services::event_idempotency_service::EventIdempotencyService::new(self.db.clone());
+        let consumer_id = "inventory_finance_bridge";
+        let event_key = format!("inventory_txn:{}", transaction_id);
+        let event_type = "InventoryTransactionCreated";
+        let should_process = idempotency_service
+            .try_mark_processed(consumer_id, &event_key, event_type)
+            .await?;
+        if !should_process {
+            info!(
+                transaction_id = transaction_id,
+                transaction_type = transaction_type,
+                "库存交易事件已处理，幂等跳过凭证生成"
+            );
+            return Ok(());
+        }
+
         // 根据交易类型生成不同的凭证
         match transaction_type {
             "PURCHASE_RECEIPT" => {
