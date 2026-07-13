@@ -882,8 +882,8 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                     user_id: _,
                 } => {
                     let db_clone = db.clone();
-                    let cid = *customer_id;
-                    let cname = customer_name.clone();
+                    let cid = customer_id;
+                    let cname = customer_name;
                     tokio::spawn(async move {
                         if let Err(e) =
                             refresh_customer_name_redundancy(&db_clone, cid, &cname).await
@@ -904,8 +904,8 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                     user_id: _,
                 } => {
                     let db_clone = db.clone();
-                    let sid = *supplier_id;
-                    let sname = supplier_name.clone();
+                    let sid = supplier_id;
+                    let sname = supplier_name;
                     tokio::spawn(async move {
                         if let Err(e) =
                             refresh_supplier_name_redundancy(&db_clone, sid, &sname).await
@@ -1007,7 +1007,7 @@ async fn refresh_customer_name_redundancy(
         .filter(crate::models::ar_invoice::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::ar_invoice::Column::CustomerName,
-            Expr::val(new_name.to_string()),
+            Expr::val(new_name.to_string()).into(),
         )
         .col_expr(
             crate::models::ar_invoice::Column::UpdatedAt,
@@ -1021,7 +1021,7 @@ async fn refresh_customer_name_redundancy(
         .filter(crate::models::ar_collection::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::ar_collection::Column::CustomerName,
-            Expr::val(new_name.to_string()),
+            Expr::val(new_name.to_string()).into(),
         )
         .col_expr(
             crate::models::ar_collection::Column::UpdatedAt,
@@ -1035,7 +1035,7 @@ async fn refresh_customer_name_redundancy(
         .filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::ar_reconciliation::Column::CustomerName,
-            Expr::val(new_name.to_string()),
+            Expr::val(new_name.to_string()).into(),
         )
         .col_expr(
             crate::models::ar_reconciliation::Column::UpdatedAt,
@@ -1049,7 +1049,7 @@ async fn refresh_customer_name_redundancy(
         .filter(crate::models::customer_credit::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::customer_credit::Column::CustomerName,
-            Expr::val(new_name.to_string()),
+            Expr::val(new_name.to_string()).into(),
         )
         .col_expr(
             crate::models::customer_credit::Column::UpdatedAt,
@@ -1063,7 +1063,7 @@ async fn refresh_customer_name_redundancy(
         .filter(crate::models::sales_contract::Column::CustomerId.eq(customer_id))
         .col_expr(
             crate::models::sales_contract::Column::CustomerName,
-            Expr::val(new_name.to_string()),
+            Expr::val(new_name.to_string()).into(),
         )
         .col_expr(
             crate::models::sales_contract::Column::UpdatedAt,
@@ -1101,7 +1101,7 @@ async fn refresh_supplier_name_redundancy(
         .filter(crate::models::purchase_contract::Column::SupplierId.eq(supplier_id))
         .col_expr(
             crate::models::purchase_contract::Column::SupplierName,
-            Expr::val(new_name.to_string()),
+            Expr::val(new_name.to_string()).into(),
         )
         .col_expr(
             crate::models::purchase_contract::Column::UpdatedAt,
@@ -1115,7 +1115,7 @@ async fn refresh_supplier_name_redundancy(
         .filter(crate::models::fixed_asset::Column::SupplierId.eq(supplier_id))
         .col_expr(
             crate::models::fixed_asset::Column::SupplierName,
-            Expr::val(new_name.to_string()),
+            Expr::val(new_name.to_string()).into(),
         )
         .col_expr(
             crate::models::fixed_asset::Column::UpdatedAt,

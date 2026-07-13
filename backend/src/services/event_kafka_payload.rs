@@ -117,6 +117,17 @@ pub mod payload_serde {
             color_no: String,
             created_by: Option<i32>,
         },
+        // B-P1-3 修复（批次 384 v13 复审）：客户/供应商主数据变更事件
+        CustomerUpdated {
+            customer_id: i32,
+            customer_name: String,
+            user_id: i32,
+        },
+        SupplierUpdated {
+            supplier_id: i32,
+            supplier_name: String,
+            user_id: i32,
+        },
     }
 
     impl From<&BusinessEvent> for EventPayload {
@@ -297,6 +308,24 @@ pub mod payload_serde {
                     batch_no: batch_no.clone(),
                     color_no: color_no.clone(),
                     created_by: *created_by,
+                },
+                BusinessEvent::CustomerUpdated {
+                    customer_id,
+                    customer_name,
+                    user_id,
+                } => Self::CustomerUpdated {
+                    customer_id: *customer_id,
+                    customer_name: customer_name.clone(),
+                    user_id: *user_id,
+                },
+                BusinessEvent::SupplierUpdated {
+                    supplier_id,
+                    supplier_name,
+                    user_id,
+                } => Self::SupplierUpdated {
+                    supplier_id: *supplier_id,
+                    supplier_name: supplier_name.clone(),
+                    user_id: *user_id,
                 },
             }
         }
@@ -481,6 +510,24 @@ pub mod payload_serde {
                     batch_no,
                     color_no,
                     created_by,
+                },
+                EventPayload::CustomerUpdated {
+                    customer_id,
+                    customer_name,
+                    user_id,
+                } => Self::CustomerUpdated {
+                    customer_id,
+                    customer_name,
+                    user_id,
+                },
+                EventPayload::SupplierUpdated {
+                    supplier_id,
+                    supplier_name,
+                    user_id,
+                } => Self::SupplierUpdated {
+                    supplier_id,
+                    supplier_name,
+                    user_id,
                 },
             })
         }

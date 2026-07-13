@@ -247,19 +247,18 @@ impl AccountingPeriodService {
 
             if let Some(existing) = existing {
                 // 下期记录已存在，更新期初余额
+                // 先保存下期已发生的本期借贷金额（existing.current_period_*）
+                let next_period_debit = existing.current_period_debit;
+                let next_period_credit = existing.current_period_credit;
                 let mut active: account_balance::ActiveModel = existing.into();
                 active.initial_balance_debit = Set(balance.ending_balance_debit);
                 active.initial_balance_credit = Set(balance.ending_balance_credit);
                 // 期末余额 = 期初 + 本期发生额，若本期发生额为零则期末 = 期初
                 // 这里不重置 current_period_*，因为下期可能已有业务发生
-                active.ending_balance_debit = Set(
-                    balance.ending_balance_debit
-                        + active.current_period_debit.clone().unwrap_or(Decimal::ZERO),
-                );
-                active.ending_balance_credit = Set(
-                    balance.ending_balance_credit
-                        + active.current_period_credit.clone().unwrap_or(Decimal::ZERO),
-                );
+                active.ending_balance_debit =
+                    Set(balance.ending_balance_debit + next_period_debit);
+                active.ending_balance_credit =
+                    Set(balance.ending_balance_credit + next_period_credit);
                 active.updated_at = Set(now);
                 active.update(txn).await?;
                 updated_count += 1;
