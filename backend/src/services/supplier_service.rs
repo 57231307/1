@@ -335,6 +335,16 @@ impl SupplierService {
             Some(user_id),
         )
         .await?;
+
+        // B-P1-3 修复（批次 384 v13 复审）：供应商主数据变更后发布事件，触发关联单据冗余字段刷新
+        crate::services::event_bus::EVENT_BUS.publish(
+            crate::services::event_bus::BusinessEvent::SupplierUpdated {
+                supplier_id: updated.id,
+                supplier_name: updated.supplier_name.clone(),
+                user_id,
+            },
+        );
+
         Ok(updated)
     }
 

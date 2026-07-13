@@ -147,6 +147,19 @@ pub enum BusinessEvent {
         color_no: String,
         created_by: Option<i32>,
     },
+    // B-P1-3 修复（批次 384 v13 复审）：客户/供应商主数据变更事件
+    // 原实现 update_customer/update_supplier 不发布事件，下游关联单据冗余字段无法同步刷新，
+    // 导致 AR/AP/合同等单据的 customer_name/supplier_name 与主数据不一致。
+    CustomerUpdated {
+        customer_id: i32,
+        customer_name: String,
+        user_id: i32,
+    },
+    SupplierUpdated {
+        supplier_id: i32,
+        supplier_name: String,
+        user_id: i32,
+    },
 }
 
 // ============================================================================
@@ -861,6 +874,50 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                     }
                     } // if should_process
                 }
+                // B-P1-3 修复（批次 384 v13 复审）：客户主数据变更事件
+                // 异步刷新关联单据的 customer_name 冗余字段
+                BusinessEvent::CustomerUpdated {
+                    customer_id,
+                    customer_name,
+                    user_id: _,
+                } => {
+                    let db_clone = db.clone();
+                    let cid = *customer_id;
+                    let cname = customer_name.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) =
+                            refresh_customer_name_redundancy(&db_clone, cid, &cname).await
+                        {
+                            tracing::warn!(
+                                "刷新客户 {} 关联单据冗余字段失败：{}",
+                                cid,
+                                e
+                            );
+                        }
+                    });
+                }
+                // B-P1-3 修复（批次 384 v13 复审）：供应商主数据变更事件
+                // 异步刷新关联单据的 supplier_name 冗余字段
+                BusinessEvent::SupplierUpdated {
+                    supplier_id,
+                    supplier_name,
+                    user_id: _,
+                } => {
+                    let db_clone = db.clone();
+                    let sid = *supplier_id;
+                    let sname = supplier_name.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) =
+                            refresh_supplier_name_redundancy(&db_clone, sid, &sname).await
+                        {
+                            tracing::warn!(
+                                "刷新供应商 {} 关联单据冗余字段失败：{}",
+                                sid,
+                                e
+                            );
+                        }
+                    });
+                }
                 // 批次 342 v11 复审 P3 修复：移除过时的 #[allow(unreachable_patterns)]，
                 // InventoryTransactionCreated 变体未在此 match 中处理，`_` 分支是可达的
                 _ => {}
@@ -918,4 +975,159 @@ pub fn shutdown_event_bus() {
 
     // L-29：abort 库存财务桥接监听器 task
     crate::services::inventory_finance_bridge_service::InventoryFinanceBridgeService::shutdown_listener();
+}
+
+// ============================================================================
+// B-P1-3 修复（批次 384 v13 复审）：主数据变更冗余字段刷新
+// ============================================================================
+
+/// 刷新客户关联单据的 customer_name 冗余字段
+///
+/// 当客户主数据 customer_name 变更时，异步刷新以下表的冗余字段：
+/// - ar_invoices.customer_name
+/// - ar_collections.customer_name
+/// - ar_reconciliations.customer_name
+/// - customer_credits.customer_name
+/// - sales_contracts.customer_name
+///
+/// 采用 update_many 批量更新，单次 DB 往返完成一张表的刷新。
+async fn refresh_customer_name_redundancy(
+    db: &sea_orm::DatabaseConnection,
+    customer_id: i32,
+    new_name: &str,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::sea_query::Expr;
+    use sea_orm::ColumnTrait;
+    use sea_orm::EntityTrait;
+    use sea_orm::QueryFilter;
+
+    let now = chrono::Utc::now();
+    // ar_invoices
+    crate::models::ar_invoice::Entity::update_many()
+        .filter(crate::models::ar_invoice::Column::CustomerId.eq(customer_id))
+        .col_expr(
+            crate::models::ar_invoice::Column::CustomerName,
+            Expr::val(new_name.to_string()),
+        )
+        .col_expr(
+            crate::models::ar_invoice::Column::UpdatedAt,
+            Expr::val(now).into(),
+        )
+        .exec(db)
+        .await?;
+
+    // ar_collections
+    crate::models::ar_collection::Entity::update_many()
+        .filter(crate::models::ar_collection::Column::CustomerId.eq(customer_id))
+        .col_expr(
+            crate::models::ar_collection::Column::CustomerName,
+            Expr::val(new_name.to_string()),
+        )
+        .col_expr(
+            crate::models::ar_collection::Column::UpdatedAt,
+            Expr::val(now).into(),
+        )
+        .exec(db)
+        .await?;
+
+    // ar_reconciliations
+    crate::models::ar_reconciliation::Entity::update_many()
+        .filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id))
+        .col_expr(
+            crate::models::ar_reconciliation::Column::CustomerName,
+            Expr::val(new_name.to_string()),
+        )
+        .col_expr(
+            crate::models::ar_reconciliation::Column::UpdatedAt,
+            Expr::val(now).into(),
+        )
+        .exec(db)
+        .await?;
+
+    // customer_credits
+    crate::models::customer_credit::Entity::update_many()
+        .filter(crate::models::customer_credit::Column::CustomerId.eq(customer_id))
+        .col_expr(
+            crate::models::customer_credit::Column::CustomerName,
+            Expr::val(new_name.to_string()),
+        )
+        .col_expr(
+            crate::models::customer_credit::Column::UpdatedAt,
+            Expr::val(now).into(),
+        )
+        .exec(db)
+        .await?;
+
+    // sales_contracts
+    crate::models::sales_contract::Entity::update_many()
+        .filter(crate::models::sales_contract::Column::CustomerId.eq(customer_id))
+        .col_expr(
+            crate::models::sales_contract::Column::CustomerName,
+            Expr::val(new_name.to_string()),
+        )
+        .col_expr(
+            crate::models::sales_contract::Column::UpdatedAt,
+            Expr::val(now).into(),
+        )
+        .exec(db)
+        .await?;
+
+    tracing::info!(
+        "客户 {} 名称已刷新至所有关联单据冗余字段：{}",
+        customer_id,
+        new_name
+    );
+    Ok(())
+}
+
+/// 刷新供应商关联单据的 supplier_name 冗余字段
+///
+/// 当供应商主数据 supplier_name 变更时，异步刷新以下表的冗余字段：
+/// - purchase_contracts.supplier_name
+/// - fixed_assets.supplier_name
+async fn refresh_supplier_name_redundancy(
+    db: &sea_orm::DatabaseConnection,
+    supplier_id: i32,
+    new_name: &str,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::sea_query::Expr;
+    use sea_orm::ColumnTrait;
+    use sea_orm::EntityTrait;
+    use sea_orm::QueryFilter;
+
+    let now = chrono::Utc::now();
+    // purchase_contracts
+    crate::models::purchase_contract::Entity::update_many()
+        .filter(crate::models::purchase_contract::Column::SupplierId.eq(supplier_id))
+        .col_expr(
+            crate::models::purchase_contract::Column::SupplierName,
+            Expr::val(new_name.to_string()),
+        )
+        .col_expr(
+            crate::models::purchase_contract::Column::UpdatedAt,
+            Expr::val(now).into(),
+        )
+        .exec(db)
+        .await?;
+
+    // fixed_assets
+    crate::models::fixed_asset::Entity::update_many()
+        .filter(crate::models::fixed_asset::Column::SupplierId.eq(supplier_id))
+        .col_expr(
+            crate::models::fixed_asset::Column::SupplierName,
+            Expr::val(new_name.to_string()),
+        )
+        .col_expr(
+            crate::models::fixed_asset::Column::UpdatedAt,
+            Expr::val(now).into(),
+        )
+        .exec(db)
+        .await?;
+
+    tracing::info!(
+        "供应商 {} 名称已刷新至所有关联单据冗余字段：{}",
+        supplier_id,
+        new_name
+    );
+    Ok(())
 }

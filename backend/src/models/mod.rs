@@ -59,6 +59,8 @@ pub mod voucher;
 pub mod voucher_item;
 // 批次 365 v13 复审 B-P1-8：事件幂等去重表
 pub mod processed_event;
+// 批次 384 v13 复审 B-P1-7：事件死信队列
+pub mod event_dead_letter;
 // 辅助核算模块
 pub mod assist_accounting_dimension;
 pub mod assist_accounting_record;

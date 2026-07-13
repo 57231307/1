@@ -89,6 +89,8 @@ pub mod event_kafka;
 pub mod event_kafka_payload;
 // 批次 365 v13 复审 B-P1-8：事件幂等服务
 pub mod event_idempotency_service;
+// 批次 384 v13 复审 B-P1-7：事件重试与死信队列服务
+pub mod event_retry_service;
 pub mod financial_analysis_service;
 pub mod fixed_asset_service;
 pub mod fund_management_service;
