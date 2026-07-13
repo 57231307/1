@@ -49,22 +49,73 @@ pub fn service_version() -> &'static str {
 }
 
 /// 资源属性：部署环境
+/// L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default，
+/// 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
 pub fn deployment_environment() -> String {
-    env::var("ENV").unwrap_or_else(|_| "dev".to_string())
+    static DEPLOYMENT_ENV: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        match env::var("ENV") {
+            Ok(v) => {
+                tracing::info!(value = %v, "ENV 已设置");
+                v
+            }
+            Err(_) => {
+                if crate::utils::config::is_production() {
+                    tracing::warn!("生产环境未设置 ENV，使用默认值 dev（建议显式设置 ENV=production）");
+                } else {
+                    tracing::info!("ENV 未设置，使用默认值 dev");
+                }
+                "dev".to_string()
+            }
+        }
+    });
+    DEPLOYMENT_ENV.clone()
 }
 
 /// OTLP 端点（gRPC）
+/// L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default，
+/// 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
 pub fn otlp_endpoint() -> String {
-    env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
-        .unwrap_or_else(|_| "http://localhost:4317".to_string())
+    static OTLP_ENDPOINT: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        match env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
+            Ok(v) => {
+                tracing::info!("OTEL_EXPORTER_OTLP_ENDPOINT 已设置");
+                v
+            }
+            Err(_) => {
+                if crate::utils::config::is_production() {
+                    tracing::warn!("生产环境未设置 OTEL_EXPORTER_OTLP_ENDPOINT，使用默认值 http://localhost:4317（生产环境建议配置可达的 OTLP Collector）");
+                } else {
+                    tracing::info!("OTEL_EXPORTER_OTLP_ENDPOINT 未设置，使用默认值 http://localhost:4317");
+                }
+                "http://localhost:4317".to_string()
+            }
+        }
+    });
+    OTLP_ENDPOINT.clone()
 }
 
 /// 是否启用 OTel 导出（默认 false）
+/// L-40 修复（批次 379 v13 复审）：使用 LazyLock 消除 silent default，
+/// 首次调用时打印当前值；生产环境未设置时 warn，开发环境未设置时 info。
 pub fn is_otel_enabled() -> bool {
-    env::var("OTEL_ENABLED")
-        .ok()
-        .and_then(|v| v.parse::<bool>().ok())
-        .unwrap_or(false)
+    static OTEL_ENABLED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+        match env::var("OTEL_ENABLED") {
+            Ok(v) => {
+                let enabled = v.parse::<bool>().unwrap_or(false);
+                tracing::info!(value = %v, enabled, "OTEL_ENABLED 已设置");
+                enabled
+            }
+            Err(_) => {
+                if crate::utils::config::is_production() {
+                    tracing::warn!("生产环境未设置 OTEL_ENABLED，默认 false（建议显式设置 OTEL_ENABLED=true 启用 OTel 导出）");
+                } else {
+                    tracing::info!("OTEL_ENABLED 未设置，默认 false");
+                }
+                false
+            }
+        }
+    });
+    *OTEL_ENABLED
 }
 
 /// 三个核心信号：Trace / Metrics / Log
