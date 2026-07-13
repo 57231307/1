@@ -28,6 +28,10 @@ pub enum DyeBatchStatus {
     Completed,
     /// 已取消
     Cancelled,
+    /// 生产失败（L-23 修复，批次 369 v13 复审）：染色过程异常终止，可重试或放弃
+    Failed,
+    /// 已暂停（L-23 修复，批次 369 v13 复审）：生产过程中临时挂起，可恢复或取消
+    OnHold,
 }
 
 impl DyeBatchStatus {
@@ -37,6 +41,8 @@ impl DyeBatchStatus {
             "生产中" => Some(Self::InProgress),
             "已完成" => Some(Self::Completed),
             "已取消" => Some(Self::Cancelled),
+            "失败" => Some(Self::Failed),
+            "暂停" => Some(Self::OnHold),
             _ => None,
         }
     }
@@ -44,8 +50,12 @@ impl DyeBatchStatus {
     /// 检查状态流转是否合法
     pub fn can_transition_to(&self, target: &Self) -> bool {
         match self {
-            Self::Pending => matches!(target, Self::InProgress | Self::Cancelled),
-            Self::InProgress => matches!(target, Self::Completed | Self::Cancelled),
+            Self::Pending => matches!(target, Self::InProgress | Self::Cancelled | Self::OnHold),
+            Self::InProgress => {
+                matches!(target, Self::Completed | Self::Cancelled | Self::Failed | Self::OnHold)
+            }
+            Self::OnHold => matches!(target, Self::InProgress | Self::Cancelled),
+            Self::Failed => matches!(target, Self::Pending | Self::Cancelled),
             Self::Completed => false,
             Self::Cancelled => false,
         }

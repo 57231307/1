@@ -210,7 +210,9 @@ fn deploy_release(package: &str) {
         Ok(list) => list,
         Err(e) => {
             println!("[ERROR] 列出更新包内容失败: {}", e);
-            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+                println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+            }
             return;
         }
     };
@@ -223,12 +225,16 @@ fn deploy_release(package: &str) {
         }
         if path.contains("..") {
             println!("[ERROR] 检测到路径穿越攻击：文件 {} 包含 ..", path);
-            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+                println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+            }
             return;
         }
         if path.starts_with('/') {
             println!("[ERROR] 检测到绝对路径：文件 {}", path);
-            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+                println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+            }
             return;
         }
     }
@@ -237,7 +243,9 @@ fn deploy_release(package: &str) {
     println!("解压更新包...");
     if let Err(e) = run_cmd("tar", &["-xzf", package, "-C", temp_dir]) {
         println!("[ERROR] 解压失败，终止部署: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return;
     }
 
@@ -246,7 +254,9 @@ fn deploy_release(package: &str) {
     let extract_dir = format!("{}/bingxi-erp", temp_dir);
     if let Err(e) = validate_extracted_paths(&extract_dir) {
         println!("[ERROR] 安全校验失败，终止部署: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return;
     }
     let install_dir = get_install_dir();
@@ -257,7 +267,9 @@ fn deploy_release(package: &str) {
     let old_backup = format!("{}/old.{}", install_dir, ts);
     if let Err(e) = run_cmd("mkdir", &["-p", &old_backup]) {
         println!("[ERROR] 创建旧文件备份目录失败，终止部署: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return;
     }
     let server_src = format!("{}/backend/server", install_dir);
@@ -280,22 +292,30 @@ fn deploy_release(package: &str) {
     // （避免启动残缺版本；服务保持停止状态等待运维介入）
     if let Err(e) = run_cmd("cp", &["-r", &new_server, &dst_server]) {
         println!("[ERROR] 覆盖 server 失败，终止部署: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return;
     }
     if let Err(e) = run_cmd("cp", &["-r", &new_bingxi, &dst_bingxi]) {
         println!("[ERROR] 覆盖 bingxi 失败，终止部署: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return;
     }
     if let Err(e) = run_cmd("chmod", &["+x", &dst_server]) {
         println!("[ERROR] chmod server 失败，终止部署: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return;
     }
     if let Err(e) = run_cmd("chmod", &["+x", &dst_bingxi]) {
         println!("[ERROR] chmod bingxi 失败，终止部署: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return;
     }
 
@@ -309,7 +329,9 @@ fn deploy_release(package: &str) {
     // 批次 95 P3-13 修复：移动前端 dist 为关键路径，失败立即中止部署（避免前端缺失上线）
     if let Err(e) = run_cmd("mv", &[&new_dist, &frontend_dist]) {
         println!("[ERROR] 移动新前端 dist 失败，终止部署: {}", e);
-        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+            println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+        }
         return;
     }
 
