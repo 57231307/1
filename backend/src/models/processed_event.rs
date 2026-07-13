@@ -29,9 +29,3 @@ pub struct Model {
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
-
-impl EntityName for Entity {
-    fn table_name(&self) -> &str {
-        "processed_events"
-    }
-}

@@ -14,7 +14,7 @@
 
 use crate::models::processed_event;
 use crate::utils::error::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, QueryFilter, Set, TransactionTrait};
 use std::sync::Arc;
 
 /// 事件幂等服务
