@@ -70,6 +70,41 @@ if [ -f ".env.example" ]; then
     fi
 fi
 
+# 4.1 M-2 修复（批次 383 v13 复审）：WEBHOOK_SECRET 自动生成与迁移
+# 问题：旧版 .env 文件（M-2 修复前创建）缺少 WEBHOOK_SECRET 字段，
+# 后端 main.rs:446-454 校验 webhook_secret 必须显式设置，缺失时直接 exit(1)。
+# 修复：检测 .env 中 WEBHOOK_SECRET 是否缺失/弱密钥/与 JWT_SECRET 相同，
+# 自动生成独立强随机密钥并持久化到 .env（与 deploy.sh generate_config 逻辑一致）。
+if [ -f "$CONFIG_DIR/.env" ]; then
+    # 安全地读取环境变量
+    set -a
+    . "$CONFIG_DIR/.env"
+    set +a
+
+    BX_WEBHOOK="${WEBHOOK_SECRET:-}"
+    BX_JWT="${JWT_SECRET:-}"
+
+    if [ -z "$BX_WEBHOOK" ] || [ ${#BX_WEBHOOK} -lt 32 ] || [ "$BX_WEBHOOK" = "$BX_JWT" ]; then
+        BX_GENERATED_WEBHOOK_SECRET=$(openssl rand -hex 32)
+        # 极低概率下新生成的密钥可能与 JWT 相同，重试最多 5 次
+        BX_RETRY_COUNT=0
+        while [ "$BX_GENERATED_WEBHOOK_SECRET" = "$BX_JWT" ] && [ $BX_RETRY_COUNT -lt 5 ]; do
+            BX_GENERATED_WEBHOOK_SECRET=$(openssl rand -hex 32)
+            BX_RETRY_COUNT=$((BX_RETRY_COUNT + 1))
+        done
+        if grep -q "^WEBHOOK_SECRET=" "$CONFIG_DIR/.env" 2>/dev/null; then
+            # 替换已存在的 WEBHOOK_SECRET（弱密钥或与 JWT 相同的情况）
+            sed -i "s|^WEBHOOK_SECRET=.*|WEBHOOK_SECRET=${BX_GENERATED_WEBHOOK_SECRET}|" "$CONFIG_DIR/.env"
+        else
+            # 追加到 .env 文件（旧版 .env 缺失该字段的情况）
+            echo "WEBHOOK_SECRET=${BX_GENERATED_WEBHOOK_SECRET}" >> "$CONFIG_DIR/.env"
+        fi
+        echo -e "${GREEN}✓ 已自动生成 WEBHOOK_SECRET（64 字符 / 32 字节，与 JWT_SECRET 独立）${NC}"
+    else
+        echo -e "${GREEN}✓ WEBHOOK_SECRET 已存在且符合要求${NC}"
+    fi
+fi
+
 # 5. 复制 systemd 服务文件
 echo -e "${YELLOW}[5/8] 安装 systemd 服务...${NC}"
 cp deploy/$SERVICE_FILE /etc/systemd/system/

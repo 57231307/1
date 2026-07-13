@@ -9,6 +9,7 @@
 #       DATABASE_PASSWORD   backend 连接数据库的密码（应与 POSTGRES_PASSWORD 一致）
 #       JWT_SECRET          JWT 签发密钥（至少 32 字节，使用 openssl rand -hex 32 生成）
 #       COOKIE_SECRET       Cookie 加密密钥（至少 32 字节，使用 openssl rand -hex 32 生成）
+#       WEBHOOK_SECRET      第三方 Webhook 回调 HMAC 密钥（至少 32 字节，必须与 JWT_SECRET 互不相同）
 #       AUDIT_SECRET_KEY    审计日志密钥（至少 32 字节，使用 openssl rand -hex 32 生成）
 #   - 资源限制：每个服务均配置内存与 CPU 上限，防止单服务耗尽宿主机资源
 #   - 日志限制：每个服务日志单文件 10MB、最多 3 个文件，防止日志撑满磁盘
@@ -65,6 +66,8 @@ services:
       # Auth Config（密钥通过环境变量插值引用，实际值来自 .env 文件）
       - JWT_SECRET=${JWT_SECRET}
       - COOKIE_SECRET=${COOKIE_SECRET}
+      # M-2 修复：WEBHOOK_SECRET 必须独立设置，不能与 JWT_SECRET 相同
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - AUDIT_SECRET_KEY=${AUDIT_SECRET_KEY}
       # Server Config
       - SERVER__HOST=0.0.0.0
