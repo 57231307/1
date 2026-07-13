@@ -119,8 +119,28 @@ async fn is_user_active_cached(state: &AppState, user_id: i32) -> bool {
 ///
 /// 默认开启（`true`），通过 `AUTH_CHECK_USER_ACTIVE=false` 可关闭以兼容
 /// 性能敏感或历史无 `is_active` 字段的环境。
+///
+/// L-36 修复（批次 370 v13 复审）：使用 LazyLock 确保首次调用时打印当前值，
+/// 消除 silent default（原实现环境变量未设置时静默使用 "true"，无任何日志）。
+static USER_ACTIVE_CHECK_ENABLED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+    let raw = std::env::var("AUTH_CHECK_USER_ACTIVE").unwrap_or_else(|_| "true".to_string());
+    let enabled = raw == "true";
+    if std::env::var("AUTH_CHECK_USER_ACTIVE").is_err() {
+        tracing::info!(
+            "AUTH_CHECK_USER_ACTIVE 未设置，使用默认值 true（实时校验用户活跃状态）"
+        );
+    } else {
+        tracing::info!(
+            value = %raw,
+            enabled,
+            "AUTH_CHECK_USER_ACTIVE 已设置"
+        );
+    }
+    enabled
+});
+
 fn is_user_active_check_enabled() -> bool {
-    std::env::var("AUTH_CHECK_USER_ACTIVE").unwrap_or_else(|_| "true".to_string()) == "true"
+    *USER_ACTIVE_CHECK_ENABLED
 }
 
 pub async fn auth_middleware(
