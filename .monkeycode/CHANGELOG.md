@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 373 | #545 | v13 复审 P1 级闭环修复 L-27+L-28+L-29 事件总线spawn句柄丢失（event_bus.rs EventBusState新增consumer_handle字段+MAIN_LISTENER_HANDLE全局static+shutdown_event_bus函数 + inventory_finance_bridge_service.rs BRIDGE_LISTENER_HANDLE全局static+shutdown_listener方法 + main.rs http_server.await后调用shutdown_event_bus统一关闭，3 文件 75 行，1 次 CI 全绿，运行逻辑环P1完成5/6仅剩L-26） |
 | 372 | #544 | v13 复审 P2 级闭环修复 L-30 OmniAudit spawn句柄丢失（omni_audit_service OmniAuditEngine 新增 handle:Mutex<Option<JoinHandle>>字段+new保存句柄+shutdown方法lock+take+abort幂等 + main.rs match块外声明omni_audit_for_shutdown:Option<Arc>+Ok分支赋值+http_server.await后调用shutdown，2 文件 43 行，1 次 CI 全绿，运行逻辑环P2 14项全部清零） |
 | 371 | #543 | v13 复审 P2 级闭环修复 L-42+L-31 silent default+WebSocket句柄泄漏（middleware/rate_limit.rs RATE_LIMIT_REDIS_URL silent default debug改is_production区分warn/info + websocket/notifications.rs recv_task/send_task select!消费JoinHandle改&mut借用+select!后abort两个task避免detached泄漏，2 文件 22 行，1 次 CI 全绿） |
 | 370 | #542 | v13 复审 P2 级闭环修复 L-36+L-38+L-43 配置项silent default（middleware/auth.rs AUTH_CHECK_USER_ACTIVE LazyLock<bool>+tracing::info + middleware/slow_query.rs BINGXI_SLOW_QUERY_MS LazyLock<u64>+tracing::info + .env.example INIT_TOKEN 注释改显式占位行，3 文件 43 行，1 次 CI 全绿） |

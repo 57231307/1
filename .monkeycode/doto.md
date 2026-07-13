@@ -35,11 +35,11 @@
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
 | 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365/366，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
 | 🟢 财务场景闭环 | 16 | 7 | 9 | 🔄 P0 2 项 + P1 5 项已完成（批次 356/358/359/360/362/363，F-P1-2 完整闭环） |
-| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 14 | 31 | 🔄 P1 2 项 + P2 12 项已完成（批次 367-372，L-1/L-21/L-4/L-6/L-22/L-2/L-3/L-23/L-36/L-38/L-42/L-43/L-31/L-30，P2 全部清零） |
+| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 17 | 28 | 🔄 P1 5 项 + P2 12 项已完成（批次 367-373，L-1/L-21/L-4/L-6/L-22/L-27/L-28/L-29 + L-2/L-3/L-23/L-36/L-38/L-42/L-43/L-31/L-30，P2 全部清零，P1 仅剩 L-26） |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **45** | **~333** | — |
+| **合计** | **~378** | **48** | **~330** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -356,6 +356,22 @@
 - #29227216803：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
 
 **遗留**：无。运行逻辑环 P2 级 14 项全部清零（L-2/L-3/L-4/L-6/L-11/L-22/L-23/L-30/L-31/L-36/L-38/L-42/L-43，其中 L-11 在早期已用 LazyLock 修复）。
+
+#### 批次 373（PR #545，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（L-27+L-28+L-29 事件总线 spawn 句柄丢失，运行逻辑环 P1 完成 5/6）
+
+**修改文件（3 个）**：
+1. `services/event_bus.rs`：
+   - L-27 修复 — EventBusState 新增 `consumer_handle: Option<JoinHandle<()>>` 字段保存 Kafka 消费桥接 spawn 句柄；`new()` 初始化 None；spawn 处保存句柄
+   - L-28 修复 — 新增 `MAIN_LISTENER_HANDLE: Mutex<Option<JoinHandle<()>>>` 全局 static 保存主事件监听器 spawn 句柄；`start_event_listener` 保存句柄
+   - 新增 `shutdown_event_bus()` 函数：统一 abort L-27+L-28+L-29 三个 task，幂等设计（Mutex<Option> take）
+2. `services/inventory_finance_bridge_service.rs`：
+   - L-29 修复 — 新增 `BRIDGE_LISTENER_HANDLE: Mutex<Option<JoinHandle<()>>>` 全局 static；`start_listener` 保存句柄；新增 `shutdown_listener()` pub 方法（幂等 abort）
+3. `main.rs`：`http_server.await` 后调用 `shutdown_event_bus()` 统一关闭所有事件总线 task
+
+**CI 记录**：1 次 CI 运行
+- #29227996418：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
+
+**遗留**：无。运行逻辑环 P1 级仅剩 L-26（5 个后台定时任务缺 cancellation token）。
 
 ---
 
