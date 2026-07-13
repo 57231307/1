@@ -271,6 +271,74 @@ impl ArReconciliationService {
 
         txn.commit().await?;
 
+        // F-P2-4 修复（批次 387 v13 复审）：AR 对账单关闭后生成对账确认凭证
+        // 原实现 close 仅更新对账单状态，不生成凭证，
+        // 导致对账确认结果无法在凭证体系中追溯。
+        // 修复：commit 成功后生成转账凭证（借贷均为应收账款，金额=期末余额），
+        // 作为对账确认的审计凭证，不改变账面净余额。失败时仅 warn 不阻断主流程。
+        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+            voucher_type: "转".to_string(),
+            voucher_date: result.period_end,
+            source_type: Some("AR_RECONCILIATION".to_string()),
+            source_module: Some("ar".to_string()),
+            source_bill_id: Some(result.id),
+            source_bill_no: Some(result.reconciliation_no.clone()),
+            batch_no: None,
+            color_no: None,
+            items: vec![
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(1),
+                    subject_code: Some("1131".to_string()),
+                    subject_name: Some("应收账款".to_string()),
+                    debit: result.closing_balance,
+                    credit: rust_decimal::Decimal::ZERO,
+                    summary: Some(format!("对账确认-{}", result.reconciliation_no)),
+                    assist_customer_id: Some(result.customer_id),
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(2),
+                    subject_code: Some("1131".to_string()),
+                    subject_name: Some("应收账款".to_string()),
+                    debit: rust_decimal::Decimal::ZERO,
+                    credit: result.closing_balance,
+                    summary: Some(format!("对账确认-{}", result.reconciliation_no)),
+                    assist_customer_id: Some(result.customer_id),
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+            ],
+        };
+        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+            tracing::warn!(
+                "AR 对账单 {} 关闭成功，但生成对账确认凭证失败：{}",
+                result.reconciliation_no,
+                e
+            );
+        }
+
         Ok(result)
     }
 

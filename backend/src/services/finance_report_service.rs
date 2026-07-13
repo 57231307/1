@@ -11,7 +11,7 @@ use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
     sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, JoinType,
-    QueryFilter, QuerySelect, RelationTrait,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -800,4 +800,102 @@ impl FinanceReportService {
             period_end: end_date.format("%Y-%m-%d").to_string(),
         })
     }
+
+    /// 按科目编码前缀穿透到凭证分录（F-P2-2 修复，批次 387 v13 复审）
+    ///
+    /// 复用 get_general_ledger 的联表模式，扩展返回业务单据追溯字段。
+    /// 用于资产负债表/利润表/现金流量表穿透。
+    pub async fn drill_down_by_subject_prefix(
+        &self,
+        subject_prefix: String,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<Vec<VoucherItemDetail>, AppError> {
+        // 查询 voucher_item 并联表 voucher，使用 find_also_related 获取配对 model
+        let rows: Vec<(voucher_item::Model, Option<voucher::Model>)> = voucher_item::Entity::find()
+            .find_also_related(voucher::Entity)
+            .filter(voucher_item::Column::SubjectCode.starts_with(&subject_prefix))
+            .filter(voucher::Column::VoucherDate.gte(start_date))
+            .filter(voucher::Column::VoucherDate.lte(end_date))
+            .filter(
+                voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED),
+            )
+            .order_by_asc(voucher::Column::VoucherDate)
+            .order_by_asc(voucher::Column::VoucherNo)
+            .order_by_asc(voucher_item::Column::LineNo)
+            .all(self.db.as_ref())
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(item, voucher_opt)| {
+                voucher_opt.map(|v| VoucherItemDetail {
+                    voucher_id: v.id,
+                    voucher_no: v.voucher_no,
+                    voucher_date: v.voucher_date,
+                    line_no: item.line_no,
+                    subject_code: item.subject_code,
+                    subject_name: item.subject_name,
+                    summary: item.summary,
+                    debit: item.debit,
+                    credit: item.credit,
+                    source_type: v.source_type,
+                    source_module: v.source_module,
+                    source_bill_id: v.source_bill_id,
+                    source_bill_no: v.source_bill_no,
+                })
+            })
+            .collect())
+    }
+
+    /// 按期间 + 科目编码穿透到凭证分录（F-P2-2 修复，批次 387 v13 复审）
+    ///
+    /// 用于试算平衡表穿透。period 格式 YYYY-MM，转换为月初到月末日期范围。
+    pub async fn drill_down_by_period_and_subject(
+        &self,
+        period: String,
+        subject_code: String,
+    ) -> Result<Vec<VoucherItemDetail>, AppError> {
+        // 解析 period (YYYY-MM) 为日期范围
+        let parts: Vec<&str> = period.split('-').collect();
+        if parts.len() != 2 {
+            return Err(AppError::validation("period 格式必须为 YYYY-MM"));
+        }
+        let year: i32 = parts[0].parse().map_err(|_| AppError::validation("period 年份无效"))?;
+        let month: u32 = parts[1].parse().map_err(|_| AppError::validation("period 月份无效"))?;
+        if !(1..=12).contains(&month) {
+            return Err(AppError::validation("period 月份必须在 1-12 之间"));
+        }
+        let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| AppError::validation("period 起始日期无效"))?;
+        let end_date = chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+            .or_else(|| chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1))
+            .ok_or_else(|| AppError::validation("period 结束日期无效"))?
+            - chrono::Duration::days(1);
+
+        // 复用前缀穿透方法（subject_code 作为前缀，支持一级科目下所有明细）
+        self.drill_down_by_subject_prefix(subject_code, start_date, end_date)
+            .await
+    }
+}
+
+/// 凭证分录穿透明细（F-P2-2 修复，批次 387 v13 复审）
+///
+/// 用于报表项目穿透到凭证分录级，包含业务单据追溯字段（source_type/source_bill_id），
+/// 前端可据此继续调用业务单据 API 完成全链路追溯。
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VoucherItemDetail {
+    pub voucher_id: i32,
+    pub voucher_no: String,
+    pub voucher_date: chrono::NaiveDate,
+    pub line_no: i32,
+    pub subject_code: String,
+    pub subject_name: String,
+    pub summary: Option<String>,
+    pub debit: Decimal,
+    pub credit: Decimal,
+    pub source_type: Option<String>,
+    pub source_module: Option<String>,
+    pub source_bill_id: Option<i32>,
+    pub source_bill_no: Option<String>,
 }

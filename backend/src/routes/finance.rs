@@ -109,6 +109,10 @@ pub fn finance() -> Router<AppState> {
             "/reports/subsidiary-ledger",
             get(finance_report_handler::get_subsidiary_ledger),
         )
+        .route(
+            "/reports/drill-down",
+            get(finance_report_handler::drill_down_report),
+        )
         .route("/audit/track", post(omni_audit_handler::track_event))
         .route("/audit/stats", get(omni_audit_handler::get_dashboard_stats))
         .route("/audit/search", get(omni_audit_handler::search_logs))
