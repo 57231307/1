@@ -811,82 +811,40 @@ impl FinanceReportService {
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
     ) -> Result<Vec<VoucherItemDetail>, AppError> {
-        let rows: Vec<(
-            i32,
-            String,
-            chrono::NaiveDate,
-            i32,
-            String,
-            Option<String>,
-            Option<String>,
-            Decimal,
-            Decimal,
-            Option<String>,
-            Option<String>,
-            Option<i32>,
-            Option<String>,
-        )> = voucher_item::Entity::find()
-            .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
+        // 查询 voucher_item 并联表 voucher，使用 find_also_related 获取配对 model
+        let rows: Vec<(voucher_item::Model, Option<voucher::Model>)> = voucher_item::Entity::find()
+            .find_also_related(voucher::Entity)
             .filter(voucher_item::Column::SubjectCode.starts_with(&subject_prefix))
             .filter(voucher::Column::VoucherDate.gte(start_date))
             .filter(voucher::Column::VoucherDate.lte(end_date))
             .filter(
                 voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED),
             )
-            .select_only()
-            .column_as(voucher::Column::Id, "voucher_id")
-            .column_as(voucher::Column::VoucherNo, "voucher_no")
-            .column_as(voucher::Column::VoucherDate, "voucher_date")
-            .column_as(voucher_item::Column::LineNo, "line_no")
-            .column_as(voucher_item::Column::SubjectCode, "subject_code")
-            .column_as(voucher_item::Column::SubjectName, "subject_name")
-            .column_as(voucher_item::Column::Summary, "summary")
-            .column_as(voucher_item::Column::Debit, "debit")
-            .column_as(voucher_item::Column::Credit, "credit")
-            .column_as(voucher::Column::SourceType, "source_type")
-            .column_as(voucher::Column::SourceModule, "source_module")
-            .column_as(voucher::Column::SourceBillId, "source_bill_id")
-            .column_as(voucher::Column::SourceBillNo, "source_bill_no")
             .order_by_asc(voucher::Column::VoucherDate)
             .order_by_asc(voucher::Column::VoucherNo)
             .order_by_asc(voucher_item::Column::LineNo)
-            .into_tuple()
             .all(self.db.as_ref())
             .await?;
 
         Ok(rows
             .into_iter()
-            .map(
-                |(
-                    voucher_id,
-                    voucher_no,
-                    voucher_date,
-                    line_no,
-                    subject_code,
-                    subject_name,
-                    summary,
-                    debit,
-                    credit,
-                    source_type,
-                    source_module,
-                    source_bill_id,
-                    source_bill_no,
-                )| VoucherItemDetail {
-                    voucher_id,
-                    voucher_no,
-                    voucher_date,
-                    line_no,
-                    subject_code,
-                    subject_name,
-                    summary,
-                    debit,
-                    credit,
-                    source_type,
-                    source_module,
-                    source_bill_id,
-                    source_bill_no,
-                },
-            )
+            .filter_map(|(item, voucher_opt)| {
+                voucher_opt.map(|v| VoucherItemDetail {
+                    voucher_id: v.id,
+                    voucher_no: v.voucher_no,
+                    voucher_date: v.voucher_date,
+                    line_no: item.line_no,
+                    subject_code: item.subject_code,
+                    subject_name: item.subject_name,
+                    summary: item.summary,
+                    debit: item.debit,
+                    credit: item.credit,
+                    source_type: v.source_type,
+                    source_module: v.source_module,
+                    source_bill_id: v.source_bill_id,
+                    source_bill_no: v.source_bill_no,
+                })
+            })
             .collect())
     }
 
@@ -932,7 +890,7 @@ pub struct VoucherItemDetail {
     pub voucher_date: chrono::NaiveDate,
     pub line_no: i32,
     pub subject_code: String,
-    pub subject_name: Option<String>,
+    pub subject_name: String,
     pub summary: Option<String>,
     pub debit: Decimal,
     pub credit: Decimal,
