@@ -145,9 +145,19 @@ async fn init_redis_rate_limiter() -> Option<Arc<tokio::sync::Mutex<ConnectionMa
     let url = match url {
         Some(u) => u,
         None => {
-            tracing::debug!(
-                "RATE_LIMIT_REDIS_URL/REDIS_URL 未配置，分布式限流未启用（使用内存限流）"
-            );
+            // L-42 修复（批次 371 v13 复审）：消除 silent default
+            // 原实现使用 tracing::debug! 静默降级到内存限流，运维无感知。
+            // 生产环境未配置 Redis → warn 提示（多实例部署下限流不共享是风险点）
+            // 开发环境未配置 Redis → info（合理行为，使用内存限流）
+            if crate::utils::config::is_production() {
+                tracing::warn!(
+                    "生产环境未配置 RATE_LIMIT_REDIS_URL/REDIS_URL，分布式限流未启用（使用内存限流，多实例部署下限流不共享）"
+                );
+            } else {
+                tracing::info!(
+                    "RATE_LIMIT_REDIS_URL/REDIS_URL 未配置，分布式限流未启用（使用内存限流）"
+                );
+            }
             return None;
         }
     };
