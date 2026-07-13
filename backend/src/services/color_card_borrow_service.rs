@@ -308,6 +308,7 @@ impl ColorCardBorrowService {
     ///
     /// 仅允许 `Borrowed` 状态取消，取消后为终态不可再变更。
     /// 用于登记错误借出/客户撤回等场景，区别于 Returned（正常归还）。
+    #[allow(dead_code)] // TODO(tech-debt): handler 接入后移除
     pub async fn cancel_borrow(
         &self,
         record_id: i64,
