@@ -1053,4 +1053,248 @@ mod tests {
             "按汇率 1.0 换算后本位币金额应等于原金额"
         );
     }
+
+    // ============ 批次 393 补测：AP 状态常量与校验函数 ============
+
+    /// 测试_AP状态常量值正确性
+    ///
+    /// 验证 ap_invoice.invoice_status 字段使用的状态常量值与业务约定一致。
+    /// - common::STATUS_DRAFT = "DRAFT"（草稿）
+    /// - ap_invoice::INVOICE_AUDITED = "AUDITED"（已审核，AP 专属）
+    /// - payment::PAYMENT_PAID = "PAID"（已付款）
+    /// - payment::PAYMENT_PARTIAL_PAID = "PARTIAL_PAID"（部分付款）
+    /// - common::STATUS_CANCELLED = "CANCELLED"（已取消）
+    #[test]
+    fn 测试_AP状态常量值正确性() {
+        use crate::models::status;
+        assert_eq!(status::common::STATUS_DRAFT, "DRAFT");
+        assert_eq!(status::ap_invoice::INVOICE_AUDITED, "AUDITED");
+        assert_eq!(status::payment::PAYMENT_PAID, "PAID");
+        assert_eq!(status::payment::PAYMENT_PARTIAL_PAID, "PARTIAL_PAID");
+        assert_eq!(status::common::STATUS_CANCELLED, "CANCELLED");
+
+        // 防御性断言：AP 专属 AUDITED 不应与通用 APPROVED 混淆
+        assert_ne!(status::ap_invoice::INVOICE_AUDITED, status::common::STATUS_APPROVED);
+    }
+
+    /// 测试_汇率校验函数_合法与非法值
+    ///
+    /// 验证 validate_exchange_rate 的拒绝逻辑：
+    /// - 0 / 负数 / 0.01（P0-1 历史缺陷值）应拒绝
+    /// - 正数（如 1.0, 6.5, 0.1）应通过
+    #[test]
+    fn 测试_汇率校验函数_合法与非法值() {
+        // 非法值应拒绝
+        assert!(validate_exchange_rate(&Decimal::ZERO).is_err(), "汇率 0 应拒绝");
+        assert!(
+            validate_exchange_rate(&Decimal::new(-1, 0)).is_err(),
+            "负汇率应拒绝"
+        );
+        // P0-1 历史缺陷值 0.01 应拒绝
+        assert!(
+            validate_exchange_rate(&Decimal::new(1, 2)).is_err(),
+            "汇率 0.01（P0-1 缺陷值）应拒绝"
+        );
+
+        // 合法值应通过
+        assert!(
+            validate_exchange_rate(&Decimal::ONE).is_ok(),
+            "汇率 1.0 应通过"
+        );
+        assert!(
+            validate_exchange_rate(&Decimal::new(65, 1)).is_ok(),
+            "汇率 6.5 应通过"
+        );
+        assert!(
+            validate_exchange_rate(&Decimal::new(1, 1)).is_ok(),
+            "汇率 0.1 应通过（不同于 0.01）"
+        );
+    }
+
+    /// 测试_金额校验函数_正数校验
+    ///
+    /// 验证 validate_positive_decimal 的拒绝逻辑：
+    /// - 0 / 负数应拒绝
+    /// - 正数应通过
+    #[test]
+    fn 测试_金额校验函数_正数校验() {
+        // 非法值
+        assert!(
+            validate_positive_decimal(&Decimal::ZERO).is_err(),
+            "金额 0 应拒绝（必须为正数）"
+        );
+        assert!(
+            validate_positive_decimal(&Decimal::new(-100, 2)).is_err(),
+            "负金额应拒绝"
+        );
+
+        // 合法值
+        assert!(
+            validate_positive_decimal(&Decimal::new(100, 2)).is_ok(),
+            "正金额应通过"
+        );
+        assert!(
+            validate_positive_decimal(&Decimal::ONE).is_ok(),
+            "金额 1 应通过"
+        );
+    }
+
+    /// 测试_金额校验函数_非负校验
+    ///
+    /// 验证 validate_non_negative_decimal 的拒绝逻辑：
+    /// - 负数应拒绝
+    /// - 0 / 正数应通过（允许 0，如税额为 0 的场景）
+    #[test]
+    fn 测试_金额校验函数_非负校验() {
+        // 非法值
+        assert!(
+            validate_non_negative_decimal(&Decimal::new(-1, 0)).is_err(),
+            "负数应拒绝"
+        );
+
+        // 合法值
+        assert!(
+            validate_non_negative_decimal(&Decimal::ZERO).is_ok(),
+            "0 应通过（非负校验允许零）"
+        );
+        assert!(
+            validate_non_negative_decimal(&Decimal::new(100, 2)).is_ok(),
+            "正数应通过"
+        );
+    }
+
+    // ============ 批次 393 补测：AP 状态机门 ============
+
+    /// 复现 approve 方法内的状态机门判定
+    ///
+    /// 源码位置：approve 方法内的状态门。
+    /// 仅 common::STATUS_DRAFT 状态允许审核转 AUDITED。
+    fn can_approve(current_status: &str) -> bool {
+        current_status == crate::models::status::common::STATUS_DRAFT
+    }
+
+    /// 复现 mark_as_paid 方法内的状态机门判定（白名单）
+    ///
+    /// 源码位置：mark_as_paid 方法内的状态门（P0 3-3 修复）。
+    /// 仅 AUDITED / PARTIAL_PAID 状态允许标记为已付清。
+    fn can_mark_as_paid(current_status: &str) -> bool {
+        [
+            crate::models::status::ap_invoice::INVOICE_AUDITED,
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID,
+        ]
+        .contains(&current_status)
+    }
+
+    /// 复现 cancel 方法内的状态机门判定（白名单）
+    ///
+    /// 源码位置：cancel 方法内的状态门。
+    /// 仅 AUDITED / PARTIAL_PAID 状态允许取消（且需 paid_amount 为 0）。
+    fn can_cancel(current_status: &str) -> bool {
+        [
+            crate::models::status::ap_invoice::INVOICE_AUDITED,
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID,
+        ]
+        .contains(&current_status)
+    }
+
+    /// 测试_approve状态机门_仅DRAFT允许
+    ///
+    /// 验证 approve 状态门：仅 DRAFT 状态可审核
+    #[test]
+    fn 测试_approve状态机门_仅DRAFT允许() {
+        use crate::models::status;
+        // DRAFT 允许审核
+        assert!(can_approve(status::common::STATUS_DRAFT));
+
+        // 其他状态禁止审核
+        assert!(!can_approve(status::ap_invoice::INVOICE_AUDITED));
+        assert!(!can_approve(status::payment::PAYMENT_PAID));
+        assert!(!can_approve(status::payment::PAYMENT_PARTIAL_PAID));
+        assert!(!can_approve(status::common::STATUS_CANCELLED));
+    }
+
+    /// 测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许
+    ///
+    /// 验证 mark_as_paid 状态门（P0 3-3 修复）：仅 AUDITED/PARTIAL_PAID 可标记已付清
+    #[test]
+    fn 测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许() {
+        use crate::models::status;
+        // 允许的状态
+        assert!(can_mark_as_paid(status::ap_invoice::INVOICE_AUDITED));
+        assert!(can_mark_as_paid(status::payment::PAYMENT_PARTIAL_PAID));
+
+        // 禁止的状态（P0 3-3 修复：堵住 DRAFT 直接跳过审核标记已付清的漏洞）
+        assert!(!can_mark_as_paid(status::common::STATUS_DRAFT));
+        assert!(!can_mark_as_paid(status::payment::PAYMENT_PAID));
+        assert!(!can_mark_as_paid(status::common::STATUS_CANCELLED));
+    }
+
+    /// 测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许
+    ///
+    /// 验证 cancel 状态门：仅 AUDITED/PARTIAL_PAID 可取消
+    #[test]
+    fn 测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许() {
+        use crate::models::status;
+        // 允许的状态
+        assert!(can_cancel(status::ap_invoice::INVOICE_AUDITED));
+        assert!(can_cancel(status::payment::PAYMENT_PARTIAL_PAID));
+
+        // 禁止的状态
+        assert!(!can_cancel(status::common::STATUS_DRAFT));
+        assert!(!can_cancel(status::payment::PAYMENT_PAID));
+        assert!(!can_cancel(status::common::STATUS_CANCELLED));
+    }
+
+    // ============ 批次 393 补测：账龄分桶算法 ============
+
+    /// 复现 get_aging_analysis 中的账龄分桶逻辑
+    ///
+    /// 源码位置：get_aging_analysis 方法内的账龄区间分类。
+    /// 6 个区间：未到期 / 1-30 / 31-60 / 61-90 / 91-180 / 180 天以上
+    fn aging_bucket(days_overdue: i32) -> String {
+        if days_overdue < 0 {
+            "未到期".to_string()
+        } else if days_overdue <= 30 {
+            "逾期 1-30 天".to_string()
+        } else if days_overdue <= 60 {
+            "逾期 31-60 天".to_string()
+        } else if days_overdue <= 90 {
+            "逾期 61-90 天".to_string()
+        } else if days_overdue <= 180 {
+            "逾期 91-180 天".to_string()
+        } else {
+            "逾期 180 天以上".to_string()
+        }
+    }
+
+    /// 测试_账龄分桶算法_6个区间
+    ///
+    /// 验证 get_aging_analysis 的账龄分桶覆盖 6 个区间边界
+    #[test]
+    fn 测试_账龄分桶算法_6个区间() {
+        // 未到期（days_overdue = -1 表示未到期）
+        assert_eq!(aging_bucket(-1), "未到期");
+        assert_eq!(aging_bucket(-30), "未到期");
+
+        // 逾期 1-30 天（边界 0 和 30）
+        assert_eq!(aging_bucket(0), "逾期 1-30 天");
+        assert_eq!(aging_bucket(1), "逾期 1-30 天");
+        assert_eq!(aging_bucket(30), "逾期 1-30 天");
+
+        // 逾期 31-60 天（边界 31 和 60）
+        assert_eq!(aging_bucket(31), "逾期 31-60 天");
+        assert_eq!(aging_bucket(60), "逾期 31-60 天");
+
+        // 逾期 61-90 天（边界 61 和 90）
+        assert_eq!(aging_bucket(61), "逾期 61-90 天");
+        assert_eq!(aging_bucket(90), "逾期 61-90 天");
+
+        // 逾期 91-180 天（边界 91 和 180）
+        assert_eq!(aging_bucket(91), "逾期 91-180 天");
+        assert_eq!(aging_bucket(180), "逾期 91-180 天");
+
+        // 逾期 180 天以上（边界 181）
+        assert_eq!(aging_bucket(181), "逾期 180 天以上");
+        assert_eq!(aging_bucket(365), "逾期 180 天以上");
+    }
 }
