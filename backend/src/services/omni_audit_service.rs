@@ -39,6 +39,10 @@ pub struct OmniAuditEngine {
     sender: mpsc::Sender<OmniAuditMessage>,
     /// HMAC 签名密钥；通过 secret_key_fingerprint 暴露指纹供运维校验
     secret_key: Vec<u8>,
+    /// L-30 修复（批次 372 v13 复审）：异步引擎 spawn 句柄
+    /// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏。
+    /// 使用 Mutex<Option<...>> 实现幂等 shutdown（多次调用安全）。
+    handle: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl OmniAuditEngine {
@@ -83,7 +87,9 @@ impl OmniAuditEngine {
         let db_clone = db.clone();
         let secret_key_clone = secret_key.clone();
 
-        tokio::spawn(async move {
+        // L-30 修复（批次 372 v13 复审）：保存 spawn 返回的 JoinHandle，
+        // 供 shutdown() 方法 abort，避免 detached task 泄漏
+        let handle = tokio::spawn(async move {
             tracing::info!("OmniAudit 异步收集引擎已启动");
             while let Some(msg) = receiver.recv().await {
                 // 批次 7（2026-06-28）：单次消息处理 panic 隔离
@@ -197,6 +203,8 @@ impl OmniAuditEngine {
         Ok(Self {
             sender,
             secret_key: secret_key.into_bytes(),
+            // L-30 修复（批次 372 v13 复审）：保存 spawn 句柄供 shutdown 使用
+            handle: std::sync::Mutex::new(Some(handle)),
         })
     }
 
@@ -232,5 +240,20 @@ impl OmniAuditEngine {
         hasher.update(&self.secret_key);
         let hash = hasher.finalize();
         hash.iter().take(8).map(|b| format!("{:02x}", b)).collect()
+    }
+
+    /// L-30 修复（批次 372 v13 复审）：优雅关闭异步审计引擎
+    ///
+    /// abort 后台 spawn task，防止 detached task 泄漏。
+    /// 幂等：多次调用安全，仅首次调用实际 abort（Mutex<Option> take 后为 None）。
+    ///
+    /// # 调用时机
+    /// 在进程收到 SIGTERM/SIGINT 优雅关闭后调用，确保审计引擎 task 不会
+    /// 在 runtime drop 前继续尝试写入已关闭的数据库连接。
+    pub fn shutdown(&self) {
+        if let Some(handle) = self.handle.lock().unwrap().take() {
+            handle.abort();
+            tracing::info!("OmniAudit 异步收集引擎已关闭");
+        }
     }
 }
