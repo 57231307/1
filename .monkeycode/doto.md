@@ -35,11 +35,11 @@
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
 | 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365/366，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
 | 🟢 财务场景闭环 | 16 | 7 | 9 | 🔄 P0 2 项 + P1 5 项已完成（批次 356/358/359/360/362/363，F-P1-2 完整闭环） |
-| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 17 | 28 | 🔄 P1 5 项 + P2 12 项已完成（批次 367-373，L-1/L-21/L-4/L-6/L-22/L-27/L-28/L-29 + L-2/L-3/L-23/L-36/L-38/L-42/L-43/L-31/L-30，P2 全部清零，P1 仅剩 L-26） |
+| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 18 | 27 | ✅ P1 6 项 + P2 12 项全部完成（批次 367-374，L-1/L-21/L-26/L-27/L-28/L-29 + L-2/L-3/L-4/L-6/L-11/L-22/L-23/L-30/L-31/L-36/L-38/L-42/L-43，P1+P2 全部清零） |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **48** | **~330** | — |
+| **合计** | **~378** | **49** | **~329** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -372,6 +372,30 @@
 - #29227996418：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
 
 **遗留**：无。运行逻辑环 P1 级仅剩 L-26（5 个后台定时任务缺 cancellation token）。
+
+#### 批次 374（PR #546，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（L-26 5个后台定时任务缺 cancellation token，运行逻辑环 P1+P2 全部清零）
+
+**修改文件（4 个）**：
+1. `main.rs`：
+   - 新增 `MAIN_BACKGROUND_TASKS: Mutex<Vec<JoinHandle<()>>>` 全局 static
+   - 新增 `shutdown_main_background_tasks()` 函数（幂等 abort）
+   - admin 缓存清理 spawn 保存句柄
+   - JTI 黑名单清理 spawn 保存句柄
+   - slow_query 采集句柄保存（start_collect_task 已改为返回 JoinHandle）
+   - `http_server.await` 后调用 `shutdown_main_background_tasks()` + `shutdown_app_state_background_tasks()`
+2. `services/slow_query_collector.rs`：`start_collect_task` 返回值从 `()` 改为 `JoinHandle<()>`
+3. `services/auth_service.rs`：`start_revoked_user_cleanup_task` 返回值从 `()` 改为 `JoinHandle<()>`
+4. `utils/app_state.rs`：
+   - 新增 `APP_STATE_BACKGROUND_TASKS: Mutex<Vec<JoinHandle<()>>>` 全局 static
+   - 审计清理 spawn 保存句柄
+   - 用户吊销清理句柄保存（start_revoked_user_cleanup_task 已改为返回 JoinHandle）
+   - 新增 `shutdown_app_state_background_tasks()` pub 函数（幂等 abort）
+
+**CI 记录**：2 次 CI 运行
+- #29228942504：失败 ❌（E0382 borrow of moved value: tasks — for 循环消费 Vec 后 len() 访问已移动值）
+- #29229352239：全绿 ✅（修复：for 循环前保存 `count = tasks.len()`）
+
+**遗留**：无。运行逻辑环 P1+P2 全部清零（18/45 项完成，剩余 27 项为 P3 级低优先级）。
 
 ---
 

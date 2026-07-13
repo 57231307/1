@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 374 | #546 | v13 复审 P1 级闭环修复 L-26 5个后台定时任务缺cancellation token（main.rs MAIN_BACKGROUND_TASKS全局static+shutdown_main_background_tasks+3个句柄保存 + slow_query_collector.rs start_collect_task返回JoinHandle + auth_service.rs start_revoked_user_cleanup_task返回JoinHandle + app_state.rs APP_STATE_BACKGROUND_TASKS全局static+2个句柄保存+shutdown_app_state_background_tasks，4 文件 78 行，2 次 CI 修复E0382后全绿，运行逻辑环P1+P2全部清零） |
 | 373 | #545 | v13 复审 P1 级闭环修复 L-27+L-28+L-29 事件总线spawn句柄丢失（event_bus.rs EventBusState新增consumer_handle字段+MAIN_LISTENER_HANDLE全局static+shutdown_event_bus函数 + inventory_finance_bridge_service.rs BRIDGE_LISTENER_HANDLE全局static+shutdown_listener方法 + main.rs http_server.await后调用shutdown_event_bus统一关闭，3 文件 75 行，1 次 CI 全绿，运行逻辑环P1完成5/6仅剩L-26） |
 | 372 | #544 | v13 复审 P2 级闭环修复 L-30 OmniAudit spawn句柄丢失（omni_audit_service OmniAuditEngine 新增 handle:Mutex<Option<JoinHandle>>字段+new保存句柄+shutdown方法lock+take+abort幂等 + main.rs match块外声明omni_audit_for_shutdown:Option<Arc>+Ok分支赋值+http_server.await后调用shutdown，2 文件 43 行，1 次 CI 全绿，运行逻辑环P2 14项全部清零） |
 | 371 | #543 | v13 复审 P2 级闭环修复 L-42+L-31 silent default+WebSocket句柄泄漏（middleware/rate_limit.rs RATE_LIMIT_REDIS_URL silent default debug改is_production区分warn/info + websocket/notifications.rs recv_task/send_task select!消费JoinHandle改&mut借用+select!后abort两个task避免detached泄漏，2 文件 22 行，1 次 CI 全绿） |
