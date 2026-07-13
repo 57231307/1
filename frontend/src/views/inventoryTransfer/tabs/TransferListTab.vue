@@ -127,15 +127,14 @@
         </el-table-column>
       </el-table>
 
+      <!-- 批次 391：分页由 useTableApi watch 自动加载，v-model 双向绑定 page/pageSize -->
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleQuery"
-          @current-change="handleQuery"
         />
       </div>
     </el-card>
@@ -143,11 +142,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, defineEmits } from 'vue'
+import { reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue'
-import { listInventoryTransfers, type InventoryTransferEntity } from '@/api/inventoryTransfer'
+import { type InventoryTransferEntity } from '@/api/inventoryTransfer'
+import { useTableApi } from '@/composables/useTableApi'
+import { logger } from '@/utils/logger'
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' })
@@ -157,10 +158,32 @@ const emit = defineEmits<{
   openApprove: [row: InventoryTransferEntity]
 }>()
 
-const transfers = ref<InventoryTransferEntity[]>([])
-const loading = ref(false)
-const total = ref(0)
+// 批次 391：接入 useTableApi，统一分页规范（1-based），由 setup 自动加载 + watch page/pageSize 触发。
+// 后端返回 { data: { list: [], total: 0 } }，listKey 默认 'list' 命中自动探测。
+// 原手写 queryParams/transfers/loading/total/fetchTransfers 模板代码消除。
+const {
+  data: transfers,
+  total,
+  loading,
+  page,
+  pageSize,
+  queryParams,
+  refresh: fetchTransfers,
+} = useTableApi<InventoryTransferEntity>({
+  url: '/inventory/transfers',
+  defaultPageSize: 20,
+  defaultParams: {
+    transfer_no: '',
+    status: '',
+  },
+  onError: (err: unknown) => {
+    logger.error('获取库存调拨单失败', err)
+    ElMessage.error(t('message.loadFailed'))
+  },
+})
 
+// stats 保留原语义：total 为后端总记录数，pending/approved/totalAmount 基于当前页数据计算。
+// watch data 变化自动更新 stats，无需在每次 refresh 后手动赋值。
 const stats = reactive({
   total: 0,
   pending: 0,
@@ -168,12 +191,16 @@ const stats = reactive({
   totalAmount: 0,
 })
 
-const queryParams = reactive({
-  page: 1,
-  page_size: 20,
-  transfer_no: '',
-  status: '',
-})
+watch(
+  transfers,
+  newData => {
+    stats.total = total.value
+    stats.pending = newData.filter(item => item.status === 'pending').length
+    stats.approved = newData.filter(item => item.status === 'approved').length
+    stats.totalAmount = newData.reduce((sum, item) => sum + (item.total_amount || 0), 0)
+  },
+  { immediate: true }
+)
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
@@ -195,40 +222,22 @@ const getStatusType = (status: string) => {
 }
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
-const fetchTransfers = async () => {
-  loading.value = true
-  try {
-    const res = (await listInventoryTransfers(queryParams)) as unknown as {
-      data?: { list?: InventoryTransferEntity[]; total?: number }
-    }
-    const d = res.data
-    transfers.value = d?.list || []
-    total.value = d?.total || 0
-    stats.total = total.value
-    stats.pending = transfers.value.filter(t => t.status === 'pending').length
-    stats.approved = transfers.value.filter(t => t.status === 'approved').length
-    stats.totalAmount = transfers.value.reduce((sum, t) => sum + (t.total_amount || 0), 0)
-  } catch (error) {
-    ElMessage.error((error as Error).message || t('message.loadFailed'))
-    transfers.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
+// handleQuery 同步搜索表单到 useTableApi queryParams 后重置到第 1 页并加载。
+// useTableApi watch 只监听 page/pageSize，不监听 queryParams，所以修改后需手动调 refresh。
 const handleQuery = () => {
-  queryParams.page = 1
+  page.value = 1
   fetchTransfers()
 }
 const handleReset = () => {
-  queryParams.transfer_no = ''
-  queryParams.status = ''
+  queryParams.value = {
+    transfer_no: '',
+    status: '',
+  }
   handleQuery()
 }
 
+// 保留父组件调用接口：expose refresh 代替原 fetchTransfers
 defineExpose({ fetchTransfers })
-onMounted(() => fetchTransfers())
 </script>
 
 <style scoped>
