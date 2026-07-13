@@ -24,12 +24,29 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// 慢查询阈值（可由环境变量 `BINGXI_SLOW_QUERY_MS` 覆盖，默认 100ms）
-pub fn slow_query_threshold() -> Duration {
+///
+/// L-38 修复（批次 370 v13 复审）：使用 LazyLock 确保首次调用时打印当前阈值，
+/// 消除 silent default（原实现环境变量未设置时静默使用 100ms，无任何日志）。
+static SLOW_QUERY_THRESHOLD_MS: std::sync::LazyLock<u64> = std::sync::LazyLock::new(|| {
     let ms = std::env::var("BINGXI_SLOW_QUERY_MS")
         .ok()
         .and_then(|s| s.parse::<u64>().ok())
         .unwrap_or(100);
-    Duration::from_millis(ms)
+    if std::env::var("BINGXI_SLOW_QUERY_MS").is_err() {
+        tracing::info!(
+            "BINGXI_SLOW_QUERY_MS 未设置，使用默认阈值 100ms"
+        );
+    } else {
+        tracing::info!(
+            threshold_ms = ms,
+            "BINGXI_SLOW_QUERY_MS 已设置"
+        );
+    }
+    ms
+});
+
+pub fn slow_query_threshold() -> Duration {
+    Duration::from_millis(*SLOW_QUERY_THRESHOLD_MS)
 }
 
 /// 慢查询记录器（RAII 风格：创建时开始计时，drop 时判断是否上报）
