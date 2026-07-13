@@ -270,6 +270,35 @@ impl ProductionOrderService {
             }
         })?;
 
+        // B-P2-4 修复（批次 386 v13 复审）：生产订单创建后触发 MRP 物料需求计算
+        // 原实现 create 仅插入订单记录，不调用 MrpEngineService，
+        // 导致生产订单→MRP 物料需求链路断开，原材料采购计划无法基于生产订单自动生成。
+        // 修复：insert 成功后调用 MRP 计算（source_type=PRODUCTION_ORDER），
+        // 失败时 tracing::warn 不阻塞主流程（订单已创建，MRP 可后续重算）。
+        let mrp_service = crate::services::mrp_engine_service::MrpEngineService::new(self.db.clone());
+        let required_date = req
+            .planned_end_date
+            .unwrap_or_else(|| chrono::Utc::now().date_naive() + chrono::Duration::days(7));
+        if let Err(e) = mrp_service
+            .run_mrp_calculation(
+                model.product_id,
+                model.planned_quantity,
+                required_date,
+                "PRODUCTION_ORDER".to_string(),
+                Some(model.id),
+                true,
+                true,
+            )
+            .await
+        {
+            tracing::warn!(
+                order_id = model.id,
+                product_id = model.product_id,
+                error = %e,
+                "批次 386 B-P2-4: 生产订单创建后 MRP 计算失败，请人工检查物料需求"
+            );
+        }
+
         Ok(model)
     }
 
@@ -446,6 +475,43 @@ impl ProductionOrderService {
 
         // 验证状态转换是否合法
         Self::validate_status_transition(&model.status, &status)?;
+
+        // B-P2-5 修复（批次 386 v13 复审）：排产状态变更时进行产能负荷校验
+        // 原实现 update_status 在状态转为 SCHEDULED 时不调用 CapacityService，
+        // 导致超负荷工作中心仍可排产，存在产能超载风险。
+        // 修复：当目标状态为 SCHEDULED 且订单绑定了工作中心时，
+        // 调用 CapacityService::load_analysis 检查负荷率，超载则拒绝排产。
+        if status == crate::models::status::production::PRODUCTION_SCHEDULED {
+            if let Some(work_center_id) = model.work_center_id {
+                let capacity_service =
+                    crate::services::capacity_service::CapacityService::new(self.db.clone());
+                let analysis = capacity_service
+                    .load_analysis(crate::services::capacity_service::LoadAnalysisQuery {
+                        date_from: model.planned_start_date,
+                        date_to: model.planned_end_date,
+                        work_center_id: Some(work_center_id),
+                    })
+                    .await?;
+
+                // 检查目标工作中心的负荷率（load_rate > 100 视为超载）
+                if let Some(item) = analysis.iter().find(|i| i.work_center_id == work_center_id) {
+                    if item.load_rate > Decimal::from(100) {
+                        return Err(AppError::business(format!(
+                            "工作中心 {}（{}）当前负荷率 {:.2}% 已超载，无法排产，请调整计划或分配至其他工作中心",
+                            item.work_center_name, item.work_center_code, item.load_rate
+                        )));
+                    }
+                    if item.load_rate > Decimal::from(80) {
+                        tracing::warn!(
+                            order_id = id,
+                            work_center_id,
+                            load_rate = %item.load_rate,
+                            "批次 386 B-P2-5: 工作中心负荷率较高（>80%），排产成功但建议关注产能瓶颈"
+                        );
+                    }
+                }
+            }
+        }
 
         // 提取审计用户ID（update_status 入参无 user_id，使用订单创建者作为审计主体）
         let audit_user_id = model.created_by;
