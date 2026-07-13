@@ -255,10 +255,10 @@ impl SalesService {
 
         // P1 3-7/5-1 修复（批次 62）：保存发货上下文用于 AR 生成和事件发布
         // order 在下方 .into() 被消费，提前保存所需字段
+        // F-P0-6 修复（批次 382 v13 复审）：移除 ship_order_no，收入凭证改用 delivery_no
         let ship_customer_id = order.customer_id;
         let ship_order_total = order.total_amount;
         let ship_order_id = request.order_id;
-        let ship_order_no = order.order_no.clone();
         let ship_items_for_event: Vec<crate::services::event_bus::ShippedItem> =
             shipped_items_snapshot
                 .iter()
