@@ -28,6 +28,32 @@ pub mod payload_serde {
             customer_id: i32,
             items: Vec<ShippedItem>,
         },
+        // B-P1-4 修复（批次 361 v13 复审）：销售订单状态变更事件
+        SalesOrderSubmitted {
+            order_id: i32,
+            customer_id: i32,
+            user_id: i32,
+        },
+        SalesOrderApproved {
+            order_id: i32,
+            customer_id: i32,
+            user_id: i32,
+        },
+        SalesOrderCompleted {
+            order_id: i32,
+            customer_id: i32,
+            user_id: i32,
+        },
+        SalesOrderCancelled {
+            order_id: i32,
+            customer_id: i32,
+            user_id: i32,
+        },
+        SalesOrderRejected {
+            order_id: i32,
+            customer_id: i32,
+            user_id: i32,
+        },
         PaymentCompleted {
             payment_id: i32,
             invoice_id: i32,
@@ -118,6 +144,51 @@ pub mod payload_serde {
                     order_id: *order_id,
                     customer_id: *customer_id,
                     items: items.clone(),
+                },
+                BusinessEvent::SalesOrderSubmitted {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderSubmitted {
+                    order_id: *order_id,
+                    customer_id: *customer_id,
+                    user_id: *user_id,
+                },
+                BusinessEvent::SalesOrderApproved {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderApproved {
+                    order_id: *order_id,
+                    customer_id: *customer_id,
+                    user_id: *user_id,
+                },
+                BusinessEvent::SalesOrderCompleted {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderCompleted {
+                    order_id: *order_id,
+                    customer_id: *customer_id,
+                    user_id: *user_id,
+                },
+                BusinessEvent::SalesOrderCancelled {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderCancelled {
+                    order_id: *order_id,
+                    customer_id: *customer_id,
+                    user_id: *user_id,
+                },
+                BusinessEvent::SalesOrderRejected {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderRejected {
+                    order_id: *order_id,
+                    customer_id: *customer_id,
+                    user_id: *user_id,
                 },
                 BusinessEvent::PaymentCompleted {
                     payment_id,
@@ -266,6 +337,51 @@ pub mod payload_serde {
                     order_id,
                     customer_id,
                     items,
+                },
+                EventPayload::SalesOrderSubmitted {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderSubmitted {
+                    order_id,
+                    customer_id,
+                    user_id,
+                },
+                EventPayload::SalesOrderApproved {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderApproved {
+                    order_id,
+                    customer_id,
+                    user_id,
+                },
+                EventPayload::SalesOrderCompleted {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderCompleted {
+                    order_id,
+                    customer_id,
+                    user_id,
+                },
+                EventPayload::SalesOrderCancelled {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderCancelled {
+                    order_id,
+                    customer_id,
+                    user_id,
+                },
+                EventPayload::SalesOrderRejected {
+                    order_id,
+                    customer_id,
+                    user_id,
+                } => Self::SalesOrderRejected {
+                    order_id,
+                    customer_id,
+                    user_id,
                 },
                 EventPayload::PaymentCompleted {
                     payment_id,

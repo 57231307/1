@@ -71,6 +71,11 @@ fn event_type_name(event: &BusinessEvent) -> &'static str {
     match event {
         BusinessEvent::PurchaseReceiptCompleted { .. } => "PurchaseReceiptCompleted",
         BusinessEvent::SalesOrderShipped { .. } => "SalesOrderShipped",
+        BusinessEvent::SalesOrderSubmitted { .. } => "SalesOrderSubmitted",
+        BusinessEvent::SalesOrderApproved { .. } => "SalesOrderApproved",
+        BusinessEvent::SalesOrderCompleted { .. } => "SalesOrderCompleted",
+        BusinessEvent::SalesOrderCancelled { .. } => "SalesOrderCancelled",
+        BusinessEvent::SalesOrderRejected { .. } => "SalesOrderRejected",
         BusinessEvent::PaymentCompleted { .. } => "PaymentCompleted",
         BusinessEvent::InventoryAdjusted { .. } => "InventoryAdjusted",
         BusinessEvent::CollectionCompleted { .. } => "CollectionCompleted",
@@ -417,6 +422,31 @@ mod tests {
                     product_id: 3,
                     quantity: Decimal::from(5),
                 }],
+            },
+            BusinessEvent::SalesOrderSubmitted {
+                order_id: 1,
+                customer_id: 2,
+                user_id: 10,
+            },
+            BusinessEvent::SalesOrderApproved {
+                order_id: 1,
+                customer_id: 2,
+                user_id: 10,
+            },
+            BusinessEvent::SalesOrderCompleted {
+                order_id: 1,
+                customer_id: 2,
+                user_id: 10,
+            },
+            BusinessEvent::SalesOrderCancelled {
+                order_id: 1,
+                customer_id: 2,
+                user_id: 10,
+            },
+            BusinessEvent::SalesOrderRejected {
+                order_id: 1,
+                customer_id: 2,
+                user_id: 10,
             },
             BusinessEvent::PaymentCompleted {
                 payment_id: 1,

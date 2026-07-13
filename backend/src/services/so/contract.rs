@@ -47,6 +47,7 @@ impl SalesService {
         // 释放库存预留
         self.release_reservations(order_id, &txn).await?;
 
+        let customer_id_for_event = order.customer_id;
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = Set(so_status::REJECTED.to_string());
         order_update.notes = Set(Some(reason));
@@ -61,6 +62,15 @@ impl SalesService {
         .await?;
 
         txn.commit().await?;
+
+        // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderRejected 事件
+        crate::services::event_bus::EVENT_BUS
+            .publish(crate::services::event_bus::BusinessEvent::SalesOrderRejected {
+                order_id,
+                customer_id: customer_id_for_event,
+                user_id,
+            });
+
         Ok(())
     }
 }

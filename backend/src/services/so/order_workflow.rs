@@ -58,6 +58,7 @@ impl SalesService {
         }
 
         // 更新订单状态（改用 update_with_audit 写入审计日志，传 &txn 纳入事务保证原子性）
+        let customer_id_for_event = order.customer_id;
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = sea_orm::ActiveValue::Set(so_status::CANCELLED.to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
@@ -71,6 +72,14 @@ impl SalesService {
         .await?;
 
         txn.commit().await?;
+
+        // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderCancelled 事件
+        crate::services::event_bus::EVENT_BUS
+            .publish(crate::services::event_bus::BusinessEvent::SalesOrderCancelled {
+                order_id,
+                customer_id: customer_id_for_event,
+                user_id,
+            });
 
         self.get_order_detail(order_id).await
     }
@@ -199,6 +208,15 @@ impl SalesService {
             )));
         }
 
+        // B-P1-4 修复（批次 361 v13 复审）：BPM 启动成功后发布 SalesOrderSubmitted 事件
+        // 放在 BPM 成功后而非 commit 后，避免 BPM 失败补偿回滚时已发布事件造成幻事件。
+        crate::services::event_bus::EVENT_BUS
+            .publish(crate::services::event_bus::BusinessEvent::SalesOrderSubmitted {
+                order_id,
+                customer_id: order.customer_id,
+                user_id,
+            });
+
         Ok(order)
     }
 
@@ -242,6 +260,14 @@ impl SalesService {
         .await?;
 
         txn.commit().await?;
+
+        // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderApproved 事件
+        crate::services::event_bus::EVENT_BUS
+            .publish(crate::services::event_bus::BusinessEvent::SalesOrderApproved {
+                order_id,
+                customer_id: order.customer_id,
+                user_id,
+            });
 
         // 批次 356 v13 复审 B-P0-1 修复：销售订单审批后触发库存预留
         // 原实现 approve_order 仅更新订单状态，不调用 InventoryReservationService::create_reservation，
@@ -329,6 +355,14 @@ impl SalesService {
         .await?;
 
         txn.commit().await?;
+
+        // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderCompleted 事件
+        crate::services::event_bus::EVENT_BUS
+            .publish(crate::services::event_bus::BusinessEvent::SalesOrderCompleted {
+                order_id,
+                customer_id: order.customer_id,
+                user_id,
+            });
 
         Ok(order)
     }
