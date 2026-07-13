@@ -186,22 +186,62 @@
        ├── 色号（ColorNo）        ← 颜色唯一编码，如 C001
        ├── 色卡（ColorCard）      ← 颜色实物样卡
        └── 缸号（DyeLotNo）       ← 每个颜色每批次染色有独立缸号
-            ├── 批号（BatchNo）    ← 同一缸号下可分多个批次
+            ├── 批号（BatchNo）    ← 同一缸号下可分多个批次（匹号）
             ├── 库存数量          ← 按缸号/批号独立核算
             ├── 质检结果          ← 按缸号/批号独立检验
             ├── 成本单价          ← 按缸号/批号独立核算（实际成本）
             └── 库位              ← 按缸号分区存放
 ```
 
+**关键业务约束**（必须强制执行）：
+- **匹号唯一约束**：**同一缸号（dye_lot_no）下不能有相同的匹号（batch_no）**
+  - DB 层：`UNIQUE(dye_lot_no, batch_no)` 唯一索引
+  - Service 层：创建/更新时校验 (dye_lot_no, batch_no) 组合唯一，冲突时返回业务错误
+  - 全局适用：库存表、入库表、发货表、退货表、盘点表等所有含 batch_no 的表均需校验
+  - 业务语义：一个缸号代表一次染色，同一缸内分多匹出布，每匹有独立匹号；匹号重复会导致库存和成本核算混乱
+- **面料-颜色关联约束**：一个面料可有多个颜色，但同一面料+颜色组合唯一（`UNIQUE(product_id, color_id)`）
+- **缸号-颜色关联约束**：缸号必须挂靠 color_id，缸号在颜色范围内唯一（`UNIQUE(color_id, dye_lot_no)`）
+- **库存四维标识**：库存唯一标识 = product_id + color_id + dye_lot_no + batch_no（联合唯一索引）
+
 **数据模型检查要点**：
 - `product` 表：面料基础信息（品名、成分、规格、门幅、克重、纱支）
-- `product_color` 表：面料-颜色关联（product_id ↔ color_id 多对一）
+- `product_color` 表：面料-颜色关联（product_id ↔ color_id 多对一，UNIQUE(product_id, color_id)）
 - `color` 表：颜色主数据（色号、颜色名称、RGB/潘通色号）
 - `color_card` 表：色卡管理（挂靠 color_id，非 product_id）
-- `dye_lot` 表：缸号管理（挂靠 color_id，每缸独立）
-- `inventory_stock` 表：库存按 product_id + color_id + dye_lot_no + batch_no 四维度核算
+- `dye_lot` 表：缸号管理（挂靠 color_id，UNIQUE(color_id, dye_lot_no)）
+- `inventory_stock` 表：库存按 product_id + color_id + dye_lot_no + batch_no 四维度核算，UNIQUE 四字段联合索引
 - `inventory_transaction` 表：库存流水按四维度记录
 - 所有业务单据（订单/发货/入库/退货）明细必须包含 color_id + dye_lot_no + batch_no
+
+#### 10.0.1 复用现有功能原则（v14 复审最高准则）
+
+> **核心准则：v14 复审的修复必须与现有功能优化结合，禁止重复实现类似功能，尽最大可能复用现有前后端功能。**
+
+**强制执行要求**：
+- **修复前必须调研现有实现**：每个维度修复前，必须先扫描现有代码，评估是否已有类似功能可复用
+- **禁止重复造轮子**：如已有 service/composable/component 实现类似功能，必须复用而非新建
+- **优化而非新建**：对已有功能进行优化完善，而非新建并行实现
+- **合并同类项**：发现多个 service/composable 实现相同逻辑时，必须合并为单一实现
+- **共享工具优先**：优先使用 `utils/` 下的共享工具（如 dual_unit_converter、number_generator、pagination 等）
+- **前端 composable 优先**：优先使用 `useTableApi`、`useFormApi` 等已封装的 composable
+- **后端 service 优先**：优先使用已封装的 `voucher_service`、`audit_log_service`、`event_bus` 等
+- **DB 模型扩展优先**：新增字段优先扩展已有表，而非新建表（除非有明确的业务隔离需求）
+- **API 契约兼容**：修复时优先保持 API 返回格式兼容，避免破坏前端已有调用
+
+**复用评估清单**（每个维度修复前必须逐项核对）：
+1. 现有 service 是否已实现类似业务逻辑？→ 复用并扩展
+2. 现有 composable 是否已封装类似前端逻辑？→ 复用并扩展
+3. 现有组件是否已实现类似 UI 交互？→ 复用并扩展
+4. 现有 utils 工具是否已提供类似能力？→ 直接使用
+5. 现有 DB 表是否已有类似字段？→ 扩展而非新建表
+6. 现有 API 是否已暴露类似端点？→ 扩展参数而非新建端点
+7. 现有事件类型是否已覆盖类似业务事件？→ 复用而非新建事件
+
+**禁止的反模式**：
+- 为实现"缸号管理"新建 `dye_lot_service.rs`，而现有 `color_card_borrow_service.rs` 已有缸号逻辑 → 必须复用并扩展
+- 为实现"双单位换算"新建前端 composable，而 `utils/dual_unit_converter.rs` 已有后端实现 → 前端直接调用 API
+- 为实现"色卡管理"新建 `color_card_service.rs`，而现有已有同名 service → 扩展现有
+- 为实现"按缸号核算成本"新建 `dye_cost_service.rs`，而现有 `cost_service.rs` 可扩展 → 扩展现有
 
 #### 10.1 通用审计维度（3 项）
 
@@ -482,6 +522,7 @@
    - 扫描 v13 复审全部维度（baseline 清零 + 业务/财务/运行逻辑闭环回归验证）
    - 扫描 17 个新增维度（通用 3 + 面料行业特性 7 + 面料行业模块专项 7）
    - 重点核查"一个面料多颜色"核心特性在所有模块的实现
+   - 重点核查"同一缸号下匹号唯一"业务约束在所有含 batch_no 的表的实现
    - 生成 v14 复审报告（保存到 `.monkeycode/docs/audits/v14-review-YYYY-MM-DD.md`）
    - 按优先级排序修复队列（P0 阻塞 → P1 高 → P2 中 → P3 低）
 
@@ -489,6 +530,8 @@
    - 严格按规则 13 流程执行：建分支 → 修改 → commit → push → PR → CI → merge → 下一批
    - 每批 5-8 文件，CI 全绿后自动进入下一批，无需用户确认
    - 所有警告视为错误，必须真实修复（规则 14）
+   - **复用现有功能原则**（10.0.1 节）：修复前必须调研现有实现，禁止重复造轮子，优化而非新建
+   - **匹号唯一约束**：所有涉及 batch_no 的修复，必须同步校验 (dye_lot_no, batch_no) 组合唯一
 
 3. **闭环验证**：
    - 每批修复后更新 doto.md 进度 + CHANGELOG.md 一句话总结
