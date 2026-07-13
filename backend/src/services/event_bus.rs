@@ -414,6 +414,18 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                         "Event received: PaymentCompleted for invoice {}",
                         invoice_id
                     );
+                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
+                    let idempotency_service =
+                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+                    let event_key = format!("ap_paid:{}", invoice_id);
+                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "PaymentCompleted").await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::error!("PaymentCompleted 幂等检查失败 invoice_id={}: {}", invoice_id, e);
+                            false
+                        }
+                    };
+                    if should_process {
                     let ap_service =
                         crate::services::ap_invoice_service::ApInvoiceService::new(db.clone());
                     // 批次 97 P1-2 修复：透传事件携带的付款操作人 user_id
@@ -426,6 +438,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                             tracing::error!("Failed to update ap_invoice {}: {}", invoice_id, e)
                         }
                     }
+                    } // if should_process
                 }
                 BusinessEvent::PurchaseOrderApproved { order_id, .. } => {
                     tracing::info!(
@@ -439,6 +452,18 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                     ..
                 } => {
                     tracing::info!("Event received: CollectionCompleted for invoice {}", inv_id);
+                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
+                    let idempotency_service =
+                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+                    let event_key = format!("ar_paid:{}", inv_id);
+                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "CollectionCompleted").await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::error!("CollectionCompleted 幂等检查失败 invoice_id={}: {}", inv_id, e);
+                            false
+                        }
+                    };
+                    if should_process {
                     let ar_service =
                         crate::services::ar_invoice_service::ArInvoiceService::new(db.clone());
                     // P1 1-1 修复（批次 78 v1 复审）：透传事件携带的收款操作人 user_id
@@ -449,6 +474,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                         ),
                         Err(e) => tracing::error!("Failed to update ar_invoice {}: {}", inv_id, e),
                     }
+                    } // if should_process
                 }
                 BusinessEvent::InventoryCountCompleted {
                     count_id,
@@ -478,6 +504,18 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                         approved,
                         approver_id
                     );
+                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
+                    let idempotency_service =
+                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+                    let event_key = format!("bpm:{}:{}:{}", business_type, business_id, approved);
+                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "BpmProcessFinished").await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::error!("BpmProcessFinished 幂等检查失败 type={} id={}: {}", business_type, business_id, e);
+                            false
+                        }
+                    };
+                    if should_process {
                     if business_type == "purchase_order" {
                         if approved {
                             let po_service =
@@ -580,6 +618,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                             }
                         }
                     }
+                    } // if should_process
                 }
                 BusinessEvent::LowStockAlert {
                     product_id,
@@ -596,7 +635,20 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                         reorder_point,
                         reorder_quantity
                     );
-
+                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
+                    // 幂等键含日期，同产品同仓库同一天仅处理一次低库存预警
+                    let idempotency_service =
+                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+                    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+                    let event_key = format!("low_stock:{}:{}:{}", product_id, warehouse_id, today);
+                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "LowStockAlert").await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::error!("LowStockAlert 幂等检查失败 product={} warehouse={}: {}", product_id, warehouse_id, e);
+                            false
+                        }
+                    };
+                    if should_process {
                     // 创建采购建议
                     let po_service =
                         crate::services::po::order::PurchaseOrderService::new(db.clone());
@@ -695,6 +747,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                         warehouse_id,
                         notify_count
                     );
+                    } // if should_process
                 }
                 BusinessEvent::FinancialIndicatorUpdate {
                     period,
@@ -740,6 +793,20 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                         shortage_level,
                         affected_orders_count
                     );
+                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
+                    // 幂等键含日期，同物料同一天仅处理一次缺料预警
+                    let idempotency_service =
+                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+                    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+                    let event_key = format!("material_shortage:{}:{}", material_id, today);
+                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "MaterialShortageAlert").await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::error!("MaterialShortageAlert 幂等检查失败 material={}: {}", material_id, e);
+                            false
+                        }
+                    };
+                    if should_process {
                     let po_service =
                         crate::services::po::order::PurchaseOrderService::new(db.clone());
                     // 批次 333 v10 复审 P3 修复：使用 ShortageAlertParams 参数对象替代多参数
@@ -774,6 +841,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                             );
                         }
                     }
+                    } // if should_process
                 }
                 // 批次 342 v11 复审 P3 修复：移除过时的 #[allow(unreachable_patterns)]，
                 // InventoryTransactionCreated 变体未在此 match 中处理，`_` 分支是可达的
