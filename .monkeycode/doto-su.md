@@ -1028,3 +1028,38 @@
 - **批次 342（PR #514）**：v11 P2+P3 警告抑制移除 5 项（bpm_dto.rs 占位符字段删除 + user_notification_setting.rs NONE 常量 + event_bus.rs unreachable_patterns + user_notification_setting_service NONE 显式检查）
 - **批次 343（PR #515）**：v11 P3 测试模块 unused_imports 抑制移除 7 项（dec!/decs! 宏 58 调用点属编译器误报），P3 8/8 全部完成
 - **批次 344（PR #516）**：v11 P1-8 FromStr trait 迁移 + 接入 lock/release 预留接口（color_card_borrow_service from_str→std::str::FromStr + inventory_reservation_handler 新增 lock/release handler 规则 0 合规）
+
+---
+
+## 📝 已完成批次归档摘要（v13 阶段，批次 356-374）
+
+> 本节为批次 356-374 的归档摘要（规则 10 整理节点：批次 375，2026-07-13）。
+> 每个批次的一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，v13 复审报告见 [v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)。
+
+### v13 复审 P0 业务/财务场景闭环修复阶段（批次 356-357）
+
+- **批次 356（PR #528）**：v13 P0 业务/财务场景闭环修复（voucher_service create_and_post 科目余额回写+自动过账 + inventory_finance_bridge_service 采购退货/销售退货/生产领退料凭证生成 + delivery.rs SALES_DELIVERY 库存流水 + order_workflow 审批后库存预留 + production_order 成本核算闭环，5 文件，3 次 CI 修复编译错误，8 项 P0 完成：B-P0-1~6 + F-P0-1~2，11 个 unused import warning 遗留批次 357）
+- **批次 357（PR #529）**：v13 baseline 清零 11 项 unused import warning（inventory_stock_handler Deserialize/Serialize + routes 4 文件 put/delete + customer_credit_limit Arc + event_kafka Deserialize/Serialize + import_export_service 2 处 self + quotation_approval_service/report ds ActiveModelTrait，10 文件，1 次 CI 全绿，规则 14 合规）
+
+### v13 复审 P1 级闭环修复阶段（批次 358-366）
+
+- **批次 358（PR #530）**：v13 P1 闭环修复 B-P1-1+B-P1-5+F-P1-4（sales_return_service record_transaction→record_transaction_txn 消除事务边界泄漏+幻事件 + po/contract approve_order 发布 PurchaseOrderApproved 事件 + account_subject_service 新增 refresh_balance 方法，3 文件，3 次 CI 修复编译错误+rustdoc 警告，CI 全绿）
+- **批次 359（PR #531）**：v13 P1 闭环修复 B-P1-2+F-P1-3（inventory_count_service approve_count commit 后发布 InventoryCountCompleted 事件 + voucher_service post 新增 write_assist_accounting_records_txn 凭证过账写入辅助核算记录表，2 文件，1 次 CI 全绿，product_id/warehouse_id 占位待 Schema 补字段）
+- **批次 360（PR #532）**：v13 P1 闭环修复 B-P1-9+F-P1-1（event_bus BpmProcessFinished 新增 production_order 分支 + production_order_service 新增 approve_order_via_bpm/reject_order_via_bpm 不回调 BPM 避免循环 + accounting_period_service close_period 新增 check_trial_balance_txn 试算平衡校验 + 替换硬编码 posted 为 VOUCHER_POSTED 常量，3 文件，1 次 CI 全绿）
+- **批次 361（PR #533）**：v13 P1 闭环修复 B-P1-4 销售订单状态变更事件（event_bus 新增 5 个 BusinessEvent 变体 SalesOrderSubmitted/Approved/Completed/Cancelled/Rejected + order_workflow 4 方法 + contract.rs reject_order commit 后发布事件 + event_kafka_payload + event_kafka 同步 Kafka 序列化 + 测试用例，5 文件，1 次 CI 全绿）
+- **批次 362（PR #534）**：v13 P1 闭环修复 F-P1-2 利润表走凭证体系（finance_report_service get_income_statement 重写从已过账凭证分录按科目编码前缀 60/64/6601/6602/6603 聚合替代硬编码 70%/15%/10%/5% 比例 + 新增 sum_voucher_amount_by_subject_prefix 私有方法，1 次 CI 全绿）
+- **批次 363（PR #535）**：v13 P1 闭环修复 F-P1-2 剩余（资产负债表存货取数量非金额+_ap_total未使用死代码+预收账款业务口径混淆改从凭证体系 14/1122/1001+1002/16/2202/2203 科目前缀取时点余额 + 现金流量表投资/筹资/期初现金硬编码ZERO改从 1601/25/1001+1002 科目前缀取数 + 新增 get_subject_balance_by_prefix 方法 + 移除 4 个未使用 imports，1 次 CI 全绿，F-P1-2 完整闭环）
+- **批次 364（PR #536）**：v13 P1 闭环修复 B-P1-6 删除 InventoryAdjusted 孤岛事件（无 publish + 订阅者仅打日志 + 语义被 InventoryTransactionCreated 覆盖，删除 event_bus 变体定义+订阅者 + event_kafka 映射+测试 + event_kafka_payload 变体+From+TryFrom，3 文件 41 行删除，1 次 CI 全绿，B-P1-6 完整闭环）
+- **批次 365（PR #537）**：v13 P1 闭环修复 B-P1-8 事件幂等处理基础设施+InventoryTransactionCreated接入（新增 processed_events 表 migration m0049 + SeaORM entity + EventIdempotencyService 服务 try_mark_processed_txn/try_mark_processed + inventory_finance_bridge_service handle_inventory_transaction 去掉_transaction_id下划线前缀接入幂等检查 inventory_txn:{transaction_id} 键，9 文件 201 行，2 次 CI 修复 EntityName冲突+TransactionTrait导入，CI 全绿，B-P1-8 基础设施完成）
+- **批次 366（PR #538）**：v13 P1 闭环修复 B-P1-8 剩余5个订阅者接入幂等（event_bus start_event_listener 中 PaymentCompleted/CollectionCompleted/BpmProcessFinished/LowStockAlert/MaterialShortageAlert 5 分支接入 EventIdempotencyService 幂等检查 ap_paid/ar_paid/bpm/low_stock/material_shortage 键，2 次 CI 修复 continue inside async block 改 should_process flag+if 结构，CI 全绿，B-P1-8 完整闭环 6 个高风险变体全部接入幂等）
+
+### v13 复审 P1+P2 运行逻辑环流程闭环修复阶段（批次 367-374）
+
+- **批次 367（PR #539）**：v13 P1 闭环修复 L-1+L-21（cli/util/mod.rs Backup/Restore let _ =吞错改 if!xxx eprintln+exit(1) + models/ar_reconciliation_item.rs MatchStatus 枚举新增 Disputed(DISPUTED)+Cancelled(CANCELLED) 两终态，2 文件 20 行，1 次 CI 全绿）
+- **批次 368（PR #540）**：v13 P2 闭环修复 L-4+L-6+L-22（fixed_asset_service 事务回滚 let _ = 改 if let Err tracing::error + event_bus publish 本地channel let _ = 改 if is_err tracing::warn + color_card_borrow_service BorrowStatus 新增 Cancelled 终态 as_str/is_terminal/FromStr 三处match同步+cancel_borrow 方法，3 文件 55 行，1 次 CI 全绿）
+- **批次 369（PR #541）**：v13 P2 闭环修复 L-2+L-3+L-23（upgrade.rs 11处 rm -rf let _ = 改 if let Err println WARN + backup.rs 7处 rm -rf let _ = 改 if let Err println WARN + dye_batch_handler DyeBatchStatus 新增 Failed/OnHold 状态 from_chinese_str/can_transition_to 流转规则，3 文件 66 行，1 次 CI 全绿）
+- **批次 370（PR #542）**：v13 P2 闭环修复 L-36+L-38+L-43（middleware/auth.rs AUTH_CHECK_USER_ACTIVE LazyLock<bool>+tracing::info + middleware/slow_query.rs BINGXI_SLOW_QUERY_MS LazyLock<u64>+tracing::info + .env.example INIT_TOKEN 注释改显式占位行，3 文件 43 行，1 次 CI 全绿）
+- **批次 371（PR #543）**：v13 P2 闭环修复 L-42+L-31（middleware/rate_limit.rs RATE_LIMIT_REDIS_URL silent default debug改is_production区分warn/info + websocket/notifications.rs recv_task/send_task select!消费JoinHandle改&mut借用+select!后abort两个task避免detached泄漏，2 文件 22 行，1 次 CI 全绿）
+- **批次 372（PR #544）**：v13 P2 闭环修复 L-30 OmniAudit spawn句柄丢失（omni_audit_service OmniAuditEngine 新增 handle:Mutex<Option<JoinHandle>>字段+new保存句柄+shutdown方法lock+take+abort幂等 + main.rs match块外声明omni_audit_for_shutdown:Option<Arc>+Ok分支赋值+http_server.await后调用shutdown，2 文件 43 行，1 次 CI 全绿，运行逻辑环P2 14项全部清零）
+- **批次 373（PR #545）**：v13 P1 闭环修复 L-27+L-28+L-29 事件总线spawn句柄丢失（event_bus.rs EventBusState新增consumer_handle字段+MAIN_LISTENER_HANDLE全局static+shutdown_event_bus函数 + inventory_finance_bridge_service.rs BRIDGE_LISTENER_HANDLE全局static+shutdown_listener方法 + main.rs http_server.await后调用shutdown_event_bus统一关闭，3 文件 75 行，1 次 CI 全绿，运行逻辑环P1完成5/6仅剩L-26）
+- **批次 374（PR #546）**：v13 P1 闭环修复 L-26 5个后台定时任务缺cancellation token（main.rs MAIN_BACKGROUND_TASKS全局static+shutdown_main_background_tasks+3个句柄保存 + slow_query_collector.rs start_collect_task返回JoinHandle + auth_service.rs start_revoked_user_cleanup_task返回JoinHandle + app_state.rs APP_STATE_BACKGROUND_TASKS全局static+2个句柄保存+shutdown_app_state_background_tasks，4 文件 78 行，2 次 CI 修复E0382后全绿，运行逻辑环P1+P2全部清零）

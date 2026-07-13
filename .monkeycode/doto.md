@@ -2,7 +2,7 @@
 
 > 本文件**详细**记录未完成的任务（问题描述、影响范围、修复方案、技术要点），禁止简化。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近一次整理：2026-07-13（v13 复审前记忆优化，归档 v8/v9/v10/v11/v12 历史任务 + 安全漏洞表到 doto-su.md）。
+> 最近一次整理：2026-07-13（批次 375 规则 10 整理，归档批次 356-374 详细记录到 doto-su.md）。
 
 ---
 
@@ -48,6 +48,19 @@
 - **P2 级（24 项 - 中）**：业务场景 6 项 + 财务场景 4 项 + 运行逻辑 14 项
 - **P3 级（25 项 - 低）**：运行逻辑 25 项
 - **baseline 清零（213 项）**：dead_code 193 + unused_import 15 + 其他 5
+
+### 已完成批次归档（批次 356-374，详见 doto-su.md）
+
+> 批次 356-374 的详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)。
+
+**批次 356-374 修复完成项汇总**：
+- **业务场景 P0（6 项 ✅）**：B-P0-1 订单审批→库存预留 + B-P0-2 销售出库→库存流水 + B-P0-3 生产订单→成本核算 + B-P0-4 采购退货凭证 + B-P0-5 销售退货凭证 + B-P0-6 生产领退料凭证兼容
+- **财务场景 P0（2 项 ✅）**：F-P0-1 科目余额回写 + F-P0-2 库存桥接凭证自动过账
+- **业务场景 P1（7 项 ✅）**：B-P1-1 销售退货事务边界 + B-P1-2 盘点完成事件 + B-P1-4 销售订单状态变更事件 + B-P1-5 采购订单审批事件 + B-P1-6 删除孤岛事件 + B-P1-8 事件幂等（6 个高风险变体全部接入）+ B-P1-9 生产订单 BPM 回写
+- **财务场景 P1（5 项 ✅）**：F-P1-1 试算平衡校验 + F-P1-2 三大报表走凭证体系 + F-P1-3 辅助核算记录写入 + F-P1-4 科目余额刷新方法
+- **运行逻辑环 P1（6 项 ✅）**：L-1 CLI 吞错 + L-21 MatchStatus 缺终态 + L-26 后台任务缺 cancellation + L-27/28/29 事件总线 spawn 句柄丢失
+- **运行逻辑环 P2（12 项 ✅）**：L-2/L-3 脚本吞错 + L-4 回滚吞错 + L-6 事件发送吞错 + L-11 静态正则 expect + L-22 BorrowStatus 缺取消态 + L-23 DyeBatchStatus 缺异常态 + L-30 OmniAudit 句柄丢失 + L-31 WebSocket 句柄泄漏 + L-36/L-38/L-42 配置项 silent default + L-43 .env.example 缺失声明
+- **baseline 清零（11 项 ✅）**：批次 357 清理 11 个 unused import warning
 
 ### v14 历史遗留任务（合并到 v13 修复队列）
 
@@ -126,276 +139,45 @@
 **死代码（8 项）**：逐个评估是否接入业务或删除（与 v13 baseline 清零合并处理）
 **其他（34 项）**：命名规范/注释完善/代码风格等，后续迭代统一处理
 
-### 修复批次记录
+### v13 复审剩余项（按优先级排序）
 
-#### 批次 356（PR #528，已合并 2026-07-13）✅ v13 复审 P0 业务/财务场景闭环修复
+#### 业务场景 P1 剩余（2 项 ⏳）
 
-**修改文件（5 个）**：
-1. `backend/src/services/voucher_service.rs`：新增 `create_and_post` 方法（F-P0-1 科目余额回写 + F-P0-2 自动过账）
-2. `backend/src/services/inventory_finance_bridge_service.rs`：扩展凭证生成覆盖（B-P0-4/5/6 采购退货/销售退货/生产领退料兼容 + create→create_and_post）
-3. `backend/src/services/so/delivery.rs`：销售出库生成库存流水（B-P0-2 SALES_DELIVERY + batch_no 类型修复 + borrow after move 修复）
-4. `backend/src/services/so/order_workflow.rs`：销售订单审批后库存预留（B-P0-1）
-5. `backend/src/services/production_order_service.rs`：生产订单成本核算闭环（B-P0-3）
+- **B-P1-3**：客户/供应商主数据变更未同步关联单据 — 发布 `CustomerUpdated`/`SupplierUpdated` 事件，监听器异步刷新关联单据（改动面大，需评估冗余字段范围）
+- **B-P1-7**：事件处理失败无重试 + 死信队列 + 告警 — 引入重试机制（指数退避）+ 死信队列 + 告警
 
-**完成的 P0 项（8 项）**：
-- 业务场景 P0：B-P0-1（订单审批→库存预留）、B-P0-2（销售出库→库存流水）、B-P0-3（生产订单→成本核算）、B-P0-4（采购退货凭证）、B-P0-5（销售退货凭证）、B-P0-6（生产领退料凭证兼容）
-- 财务场景 P0：F-P0-1（科目余额回写）、F-P0-2（库存桥接凭证自动过账）
+#### 业务场景 P2 剩余（6 项 ⏳）
 
-**CI 记录**：3 次 CI 运行（#2503 失败→#2505 失败→#2506 全绿），修复 `STATUS_ACTIVE`→`IsActive.eq(true)`、`batch_no` 类型不匹配、`borrow after move` 三处编译错误
+- B-P2-1：ar_service create_payment 与 mark_as_paid 状态更新重复
+- B-P2-2：customer_credit_evaluate 孤岛 service（评估后删除或接入业务）
+- B-P2-3：CostCollectionService 仅 HTTP 调用，无业务联动
+- B-P2-4：MrpEngineService 仅 HTTP 调用，无业务联动
+- B-P2-5：CapacityService 仅 HTTP 调用，无业务联动
+- B-P2-6：InventoryReservationService 仅 HTTP 调用，销售流程未集成
 
-**遗留**：11 个 unused import warning（release 构建报出，clippy baseline 已包含）放入批次 357 baseline 清零处理
+#### 财务场景 P0 剩余（6 项 ⏳）
 
-#### 批次 357（PR #529，已合并 2026-07-13）✅ v13 复审 baseline 清零 - 11 项 unused import
+- **F-P0-3**：销售出库缺收入凭证 — 在销售出库时同步生成收入凭证 + 成本凭证
+- **F-P0-4**：AR 收款未生成凭证 — 在 create_payment 中调用 voucher_service 生成核销凭证
+- **F-P0-5**：AP 付款未生成凭证 — 在 confirm 中调用 voucher_service 生成核销凭证
+- **F-P0-6**：销售→应收链路断开 — 在销售发货后生成应收发票
+- **F-P0-7**：采购→应付链路断开 — 在采购入库后生成应付发票
+- **F-P0-8**：AR/AP 核销未生成凭证 — 在核销时生成核销凭证
 
-**修改文件（10 个）**：
-1. `handlers/inventory_stock_handler.rs`：移除 unused Deserialize, Serialize
-2. `routes/quotations.rs`：移除 unused put
-3. `routes/custom_order.rs`：移除 unused delete
-4. `routes/color_card.rs`：移除 unused delete
-5. `routes/color_price.rs`：移除 unused put
-6. `services/customer_credit_limit.rs`：移除 unused std::sync::Arc
-7. `services/event_kafka.rs`：移除 unused Deserialize, Serialize
-8. `services/import_export_service.rs`：移除 2 处 unused self
-9. `services/quotation_approval_service.rs`：移除 unused ActiveModelTrait
-10. `services/report/ds.rs`：移除 unused ActiveModelTrait
+#### 财务场景 P1 剩余（1 项 ⏳）
 
-**CI 记录**：1 次 CI 运行（#2509 全绿），clippy baseline 机制正常（已修复警告不阻塞 CI）
+- **F-P1-1 剩余**：期末结转逻辑（下期期初余额写入）— close_period 新增期末结转，将本期期末余额写入下期期初余额
 
-**遗留**：clippy baseline 中对应条目将在后续批次同步清理
+#### 财务场景 P2 剩余（4 项 ⏳）
 
-#### 批次 358（PR #530，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-1 + B-P1-5 + F-P1-4）
+- F-P2-1：无期末调整（暂估/摊销/预提）机制
+- F-P2-2：报表无穿透追溯功能
+- F-P2-3：销售成本按 product.cost_price 计算未与采购实际单价联动
+- F-P2-4：AR/AP 对账单生成不触发凭证
 
-**修改文件（3 个）**：
-1. `services/sales_return_service.rs`：B-P1-1 修复 — `apply_stock_inbound_txn` 改用 `record_transaction_txn` 关联函数，流水写入与主事务同生共死，事件由调用方在 commit 成功后统一 publish（消除事务边界泄漏 + 幻事件风险）
-2. `services/po/contract.rs`：B-P1-5 修复 — `approve_order` 在 commit 成功后发布 `PurchaseOrderApproved` 事件，触发库存财务桥接等下游订阅方生成采购入库相关凭证
-3. `services/account_subject_service.rs`：F-P1-4 修复 — 新增 `refresh_balance(subject_id, period)` 方法，从已过账凭证分录重新聚合指定期间借贷发生额，按余额方向计算期末余额并写回科目主数据
+#### 运行逻辑环 P3 剩余（25 项 ⏳ - 低优先级）
 
-**CI 记录**：3 次 CI 运行
-- #29214925018：失败（F-P1-4 编译错误 — `VOUCHER_POSTED` 路径错误 + `into_tuple().one()` 类型不匹配）
-- #29215077653：失败（clippy 新增 1 个警告 — rustdoc `doc list item without indentation`）
-- #29215444643：全绿 ✅
-
-**遗留**：无
-
-#### 批次 359（PR #531，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-2 + F-P1-3）
-
-**修改文件（2 个）**：
-1. `services/inventory_count_service.rs`：B-P1-2 修复 — `approve_count` 方法在 `txn.commit()` 成功后发布 `InventoryCountCompleted` 事件（`count_id` + `variance_count`），触发差异报告生成等下游订阅方。原实现仅更新盘点单状态并同步库存，未通知下游，导致"盘点完成 → 差异报告归档"业务闭环断裂。事件在 commit 后发布避免幻事件。
-2. `services/voucher_service.rs`：F-P1-3 修复 — `post` 方法在 `update_account_balances` 调用后新增 `write_assist_accounting_records_txn` 调用，凭证过账时写入 `assist_accounting_record` 表。原实现仅更新 `account_balance` 表，未写入辅助核算记录，导致辅助核算明细账与汇总表查询无数据。仅对包含辅助核算维度（客户/供应商/批次/色号/缸号/等级/车间等）的分录写入，避免空记录污染。已知 Schema 缺口：`voucher_item` 无 `product_id`/`warehouse_id` 字段，暂用 0 占位，TODO 标记待后续修正。
-
-**CI 记录**：1 次 CI 运行
-- #29216135549：全绿 ✅（Rust Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：F-P1-3 的 `product_id`/`warehouse_id` 占位待 Schema 补字段后修正
-
-#### 批次 360（PR #532，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-9 + F-P1-1）
-
-**修改文件（3 个）**：
-1. `services/production_order_service.rs`：B-P1-9 修复 — 新增 `approve_order_via_bpm` / `reject_order_via_bpm` 两个 BPM 回写专用方法。与现有 `approve_order` 的区别：不回调 BPM（避免 BPM → 事件 → approve_order → BPM 死循环）。使用事务 + lock_exclusive + validate_status_transition + update_with_audit 模式，保留审计追溯。
-2. `services/event_bus.rs`：B-P1-9 修复 — `BpmProcessFinished` match 分支新增 `production_order` 分支，调用上述专用方法回写审批结果。原实现仅处理 `purchase_order`/`sales_order`，生产订单 BPM 审批结果落入 `_ => {}` 空分支无法回写。
-3. `services/accounting_period_service.rs`：F-P1-1 修复 — `close_period` 新增 `check_trial_balance_txn` 试算平衡校验方法，联表查询本期已过账凭证分录汇总借贷总额，不相等则拒绝关闭期间。同时替换硬编码 `"posted"` 为 `VOUCHER_POSTED` 常量（规则 0 合规）。兜底防止单条凭证过账校验被绕过。
-
-**CI 记录**：1 次 CI 运行
-- #29216819903：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：F-P1-1 期末结转逻辑（下期期初余额写入）待后续批次处理
-
-#### 批次 361（PR #533，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-4 销售订单状态变更事件）
-
-**修改文件（5 个）**：
-1. `services/event_bus.rs`：新增 5 个 BusinessEvent 变体 — SalesOrderSubmitted / SalesOrderApproved / SalesOrderCompleted / SalesOrderCancelled / SalesOrderRejected（均含 order_id + customer_id + user_id 字段）。
-2. `services/so/order_workflow.rs`：4 个方法 commit 后发布对应事件 — submit_order（BPM 成功后发布，避免补偿回滚幻事件）、approve_order（commit 后、库存预留前发布）、complete_order（commit 后发布）、cancel_order（commit 后发布，customer_id 在 order.into() 前提前保存）。
-3. `services/so/contract.rs`：reject_order commit 后发布 SalesOrderRejected 事件，customer_id 在 order.into() 前提前保存。
-4. `services/event_kafka_payload.rs`：同步新增 5 个 EventPayload 变体 + From<&BusinessEvent> + TryFrom<EventPayload> 实现保持 Kafka 序列化完整。
-5. `services/event_kafka.rs`：同步新增 event_type_name match 分支（#[cfg(test)]）+ 测试用例 5 个变体。
-
-**CI 记录**：1 次 CI 运行
-- #29217569815：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无
-
-#### 批次 362（PR #534，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（F-P1-2 利润表走凭证体系）
-
-**修改文件（1 个）**：
-1. `services/finance_report_service.rs`：F-P1-2 修复 — 重写 `get_income_statement` 方法，从凭证体系取数替代硬编码 70%/15%/10%/5% 比例。新增 `sum_voucher_amount_by_subject_prefix` 私有方法：联表查询已过账凭证分录（`voucher.status = VOUCHER_POSTED`）按科目编码前缀聚合借方/贷方总额。取数逻辑参考中国企业会计准则科目编码：`60xx` 收入类（贷方）、`64xx` 成本类（借方）、`6601` 销售费用（借方）、`6602` 管理费用（借方）、`6603` 财务费用（借方）。原实现从 finance_invoice/finance_payment 业务表取数 + 硬编码比例估算，违反禁止硬编码规则且与会计实务脱节。
-
-**CI 记录**：1 次 CI 运行
-- #29218164031：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：F-P1-2 剩余部分（资产负债表硬编码修复：`_ap_total` 未使用 + 存货取数量非金额；现金流量表硬编码 ZERO 修复）待后续批次处理
-
-#### 批次 363（PR #535，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（F-P1-2 剩余：资产负债表+现金流量表走凭证体系）
-
-**修改文件（1 个）**：
-1. `services/finance_report_service.rs`：F-P1-2 剩余修复，完整闭环 F-P1-2。
-   - 资产负债表：存货取 `QuantityAvailable`（数量非金额）→ 从凭证体系按 `14xx` 科目前缀取借方-贷方余额；`_ap_total` 未使用死代码 → 从凭证体系按 `2202` 科目前缀取贷方-借方余额并加入负债侧；预收账款从客户信用额度取数 → 从凭证体系按 `2203` 科目前缀取余额；应收账款/货币资金/固定资产改从凭证体系取时点余额（`1122`/`1001+1002`/`16`）。
-   - 现金流量表：投资活动硬编码 `Decimal::ZERO` → 从凭证体系按 `1601` 科目前缀取借贷方发生额（处置收回/购建支付）；筹资活动硬编码 `Decimal::ZERO` → 从凭证体系按 `25xx` 科目前缀取借贷方发生额（借入/偿还）；期初现金硬编码 `ZERO` → 从凭证体系按 `1001+1002` 科目前缀取截至期初前一日余额。
-   - 新增方法 `get_subject_balance_by_prefix`：按科目编码前缀取科目时点余额（借方累计-贷方累计差额），用于资产负债表等时点报表。
-   - 移除未使用 imports：`customer_credit`/`finance_invoice`/`fixed_asset`/`inventory_stock`（规则 14 合规，避免 unused_imports 警告）。
-
-**CI 记录**：1 次 CI 运行
-- #29219139820：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无（F-P1-2 完整闭环完成，财务场景 P1 级 5/5 全部完成：F-P1-1 + F-P1-2 + F-P1-3 + F-P1-4）
-
-#### 批次 364（PR #536，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-6 删除 InventoryAdjusted 孤岛事件）
-
-**修改文件（3 个）**：
-1. `services/event_bus.rs`：删除 `BusinessEvent::InventoryAdjusted` 变体定义（原 L92-96）+ 订阅者 match 分支（原 L435-441，仅 tracing::info! 打日志无业务逻辑）。
-2. `services/event_kafka.rs`：删除 `event_type_name` 中的 `InventoryAdjusted` 字符串映射 + 测试样本数据中的 InventoryAdjusted 用例。
-3. `services/event_kafka_payload.rs`：删除 `EventPayload::InventoryAdjusted` 变体定义 + `From<&BusinessEvent>` 转换分支 + `TryFrom<EventPayload>` 反序列化分支。
-
-**修复依据**：InventoryAdjusted 是孤岛事件（有订阅无发布）— 全代码库无任何 publish 调用；订阅者仅 tracing::info! 打日志无业务逻辑；语义被 InventoryTransactionCreated 完全覆盖且超越（后者 12 字段含来源单据/批次/色号，且已联动财务凭证生成）。按项目规则第六章死代码处理规范删除变体。
-
-**CI 记录**：1 次 CI 运行
-- #29219858958：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无（B-P1-6 完整闭环完成，三个孤岛事件全部处理：PurchaseOrderApproved 批次358解除孤岛 + InventoryCountCompleted 批次359解除孤岛 + InventoryAdjusted 本批次删除）
-
-#### 批次 365（PR #537，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-8 事件幂等处理基础设施 + InventoryTransactionCreated 接入）
-
-**修改文件（9 个，新增 5 文件 + 修改 4 文件）**：
-1. `migration/src/m0049_create_processed_events.rs`：新增迁移注册（processed_events 表）。
-2. `migrations/20260713000001_create_processed_events/up.sql` + `down.sql`：processed_events 表 DDL，主键 (consumer_id, event_key) + processed_at 索引。
-3. `models/processed_event.rs`：SeaORM entity（consumer_id + event_key 复合主键，auto_increment=false）。
-4. `services/event_idempotency_service.rs`：EventIdempotencyService 幂等服务，提供 try_mark_processed_txn（事务内）和 try_mark_processed（独立事务）两个方法，先查询是否已处理，未处理则插入标记，返回是否应继续处理。
-5. `services/inventory_finance_bridge_service.rs`：handle_inventory_transaction 入口接入幂等 — 去掉 `_transaction_id` 下划线前缀实际使用该参数，使用 `inventory_txn:{transaction_id}` 作为幂等键，调用 EventIdempotencyService 检查，已处理则 info! 日志 + 幂等返回，未处理则继续生成凭证。
-6. `models/mod.rs` + `services/mod.rs` + `migration/src/lib.rs`：模块注册。
-
-**修复依据**：InventoryTransactionCreated 重复消费会重复生成会计凭证 + 重复过账，导致科目余额累加失真、报表数据失真、财务对账无法平衡。原实现 `_transaction_id` 形参（下划线开头）未参与幂等判断，全代码库无通用幂等基础设施。
-
-**CI 记录**：2 次 CI 运行
-- #29220938811：失败 ❌（E0119 EntityName 冲突实现 + E0599 TransactionTrait 未导入）
-- #29221446146：全绿 ✅（修复：删除手动 EntityName 实现 + 导入 TransactionTrait）
-
-**遗留**：B-P1-8 后续批次将逐步覆盖 PaymentCompleted/CollectionCompleted/BpmProcessFinished/LowStockAlert/MaterialShortageAlert 等高风险变体。本批次为通用基础设施 + 最高风险变体（InventoryTransactionCreated）接入作为模板。
-
-#### 批次 366（PR #538，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（B-P1-8 剩余 5 个订阅者接入幂等，B-P1-8 完整闭环）
-
-**修改文件（1 个）**：
-1. `services/event_bus.rs`：B-P1-8 剩余修复 — `start_event_listener` 中 5 个订阅者分支接入 EventIdempotencyService 幂等检查：
-   - `PaymentCompleted`：幂等键 `ap_paid:{invoice_id}`，consumer_id `event_bus_main`，防止重复触发 AP 发票状态更新 + 财务指标计算
-   - `CollectionCompleted`：幂等键 `ar_paid:{inv_id}`，consumer_id `event_bus_main`，防止重复触发 AR 发票状态更新
-   - `BpmProcessFinished`：幂等键 `bpm:{business_type}:{business_id}:{approved}`，consumer_id `event_bus_main`，防止重复回写订单审批结果
-   - `LowStockAlert`：幂等键 `low_stock:{product_id}:{warehouse_id}:{date}`，consumer_id `event_bus_main`，防止重复触发补货建议
-   - `MaterialShortageAlert`：幂等键 `material_shortage:{material_id}:{date}`，consumer_id `event_bus_main`，防止重复触发缺料采购建议
-
-**修复依据**：这 5 个变体的订阅者会触发状态更新/财务计算/采购建议生成等副作用，重复消费会导致数据不一致或重复生成业务记录。接入幂等后，同一事件被多次投递时仅处理一次，其余通过 info! 日志记录后跳过。
-
-**CI 记录**：2 次 CI 运行
-- #29222626247：失败 ❌（E0267 `continue` inside `async` block，10 处 — match 在 `AssertUnwindSafe(async { ... })` 内，`continue` 无法跳到 `while` 循环）
-- #29223129714：全绿 ✅（修复：5 处 `continue` 改为 `should_process` 标志 + `if should_process { 业务逻辑 }` 结构，每处末尾 `} // if should_process` 闭合）
-
-**遗留**：无（B-P1-8 完整闭环完成，6 个高风险变体全部接入幂等：InventoryTransactionCreated 批次365 + PaymentCompleted/CollectionCompleted/BpmProcessFinished/LowStockAlert/MaterialShortageAlert 批次366）
-
-#### 批次 367（PR #539，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（L-1 CLI吞错 + L-21 MatchStatus缺终态）
-
-**修改文件（2 个）**：
-1. `cli/util/mod.rs`：L-1 修复 — `UtilCommand::Backup`/`Restore` 两个分支的 `let _ = backup::cmd_backup/restore(...)` 吞错改为 `if !cmd_xxx(...) { eprintln!(...); std::process::exit(1); }`。原实现丢弃 bool 返回值，备份/恢复失败时静默继续，用户无感知。
-2. `models/ar_reconciliation_item.rs`：L-21 修复 — `MatchStatus` 枚举新增 `Disputed`(争议中，string_value="DISPUTED") + `Cancelled`(已取消，string_value="CANCELLED") 两个终态。原实现仅有 Unmatched/Matched/Partial 三态，对账明细存在争议或需作废时无法标记终态，状态机不完整。
-
-**CI 记录**：1 次 CI 运行
-- #29223770145：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无
-
-#### 批次 368（PR #540，已合并 2026-07-13）✅ v13 复审 P2 级闭环修复（L-4 回滚吞错 + L-6 事件发送吞错 + L-22 BorrowStatus 缺取消态）
-
-**修改文件（3 个）**：
-1. `services/fixed_asset_service.rs`：L-4 修复 — 折旧计提事务回滚 `let _ = txn.rollback().await;` 改为 `if let Err(rb_err) = txn.rollback().await { tracing::error!(...); }`。原实现吞掉回滚失败错误，连接异常时无法排查。
-2. `services/event_bus.rs`：L-6 修复 — `publish` 方法本地 channel 发送 `let _ = state.local_tx.send(event.clone());` 改为 `if state.local_tx.send(event.clone()).is_err() { tracing::warn!(...); }`。原实现吞掉发送失败（无订阅者），启动初期/关闭末期事件丢失无日志。
-3. `services/color_card_borrow_service.rs`：L-22 修复 — `BorrowStatus` 枚举新增 `Cancelled`（已取消）终态，同步更新 `as_str`（=>"cancelled"）、`is_terminal`（加入 Cancelled）、`FromStr`（"cancelled" => Cancelled）三处 match。新增 `cancel_borrow` 方法：仅允许 `Borrowed` 状态取消，事务 + lock_exclusive + 状态机校验 + 更新记录状态为 cancelled。用于登记错误借出/客户撤回等场景。
-
-**CI 记录**：1 次 CI 运行
-- #29224434566：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无
-
-#### 批次 369（PR #541，已合并 2026-07-13）✅ v13 复审 P2 级闭环修复（L-2 升级脚本吞错 + L-3 备份脚本吞错 + L-23 DyeBatchStatus 缺异常态）
-
-**修改文件（3 个）**：
-1. `cli/util/upgrade.rs`：L-2 修复 — 11 处 `rm -rf temp_dir` 清理 `let _ = run_cmd(...)` 吞错改为 `if let Err(e) = run_cmd(...) { println!("[WARN] 清理临时目录失败（可忽略）: {}", e); }`。原实现静默丢弃清理失败错误，临时目录残留时无法排查。
-2. `cli/util/backup.rs`：L-3 修复 — 7 处 `rm -rf` 清理 `let _ = run_cmd(...)` 吞错改为 `if let Err(e) = run_cmd(...) { println!("[WARN] ..."); }`（6 处 temp_dir + 1 处 backup_dir）。
-3. `handlers/dye_batch_handler.rs`：L-23 修复 — `DyeBatchStatus` 枚举新增 `Failed`（生产失败）+ `OnHold`（已暂停）两个状态。`from_chinese_str` 新增 "失败"=>Failed / "暂停"=>OnHold 映射。`can_transition_to` 新增流转规则：Pending→OnHold（可暂停）、InProgress→Failed/OnHold（可失败/暂停）、OnHold→InProgress/Cancelled（可恢复/取消）、Failed→Pending/Cancelled（可重试/放弃）。
-
-**CI 记录**：1 次 CI 运行
-- #29225069187：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无
-
-#### 批次 370（PR #542，已合并 2026-07-13）✅ v13 复审 P2 级闭环修复（L-36 + L-38 + L-43 配置项 silent default）
-
-**修改文件（3 个）**：
-1. `middleware/auth.rs`：L-36 修复 — `AUTH_CHECK_USER_ACTIVE` silent default 改为 `LazyLock<bool>` 首次调用时 `tracing::info!` 打印当前值。原实现每次请求都读环境变量且无日志，环境变量未设置时静默使用 "true"。
-2. `middleware/slow_query.rs`：L-38 修复 — `BINGXI_SLOW_QUERY_MS` silent default 改为 `LazyLock<u64>` 首次调用时 `tracing::info!` 打印当前阈值。原实现每次调用都读环境变量且无日志。
-3. `.env.example`：L-43 修复 — `INIT_TOKEN` 从注释改为显式占位行 `INIT_TOKEN=change-me-to-random-64-hex-chars`，避免开发者遗漏配置。
-
-**CI 记录**：1 次 CI 运行
-- #29225695356：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无
-
-#### 批次 371（PR #543，已合并 2026-07-13）✅ v13 复审 P2 级闭环修复（L-42 + L-31 silent default + WebSocket 句柄泄漏）
-
-**修改文件（2 个）**：
-1. `middleware/rate_limit.rs`：L-42 修复 — `RATE_LIMIT_REDIS_URL`/`REDIS_URL` silent default 修复。原实现环境变量未配置时 `tracing::debug!` 静默降级到内存限流，运维无感知。修复后生产环境未配置 → `warn`（多实例限流不共享是风险点），开发环境未配置 → `info`（合理行为）。复用 `crate::utils::config::is_production()` 区分环境。
-2. `websocket/notifications.rs`：L-31 修复 — WebSocket `recv_task`/`send_task` 句柄泄漏。原实现 `tokio::select!` 消费 `JoinHandle`，未完成的 task 在后台 detached 运行，浪费资源且可能继续尝试写入已关闭的 socket。修复后 `select!` 改用 `&mut` 借用，`select!` 后显式 `abort()` 两个 task（已完成的 abort 是 no-op，未完成的被终止）。
-
-**CI 记录**：1 次 CI 运行
-- #29226468737：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无
-
-#### 批次 372（PR #544，已合并 2026-07-13）✅ v13 复审 P2 级闭环修复（L-30 OmniAudit spawn 句柄丢失，运行逻辑环 P2 全部清零）
-
-**修改文件（2 个）**：
-1. `services/omni_audit_service.rs`：L-30 修复 — OmniAuditEngine 新增 `handle: Mutex<Option<JoinHandle<()>>>` 字段保存 spawn 句柄；`new()` 保存 `tokio::spawn` 返回的 JoinHandle；新增 `shutdown()` 方法（lock + take + abort，幂等设计）。原实现 JoinHandle 被丢弃，审计引擎 task 在后台 detached 运行，无法在 shutdown 时优雅停止。
-2. `main.rs`：L-30 修复 — match 块外声明 `omni_audit_for_shutdown: Option<Arc<OmniAuditEngine>>`，Ok 分支内赋值 `Some(omni_audit.clone())`，`http_server.await` 后调用 `engine.shutdown()`。确保 HTTP 服务器优雅关闭后，审计引擎 task 被 abort，防止 runtime drop 前继续尝试写入已关闭的数据库连接。
-
-**CI 记录**：1 次 CI 运行
-- #29227216803：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无。运行逻辑环 P2 级 14 项全部清零（L-2/L-3/L-4/L-6/L-11/L-22/L-23/L-30/L-31/L-36/L-38/L-42/L-43，其中 L-11 在早期已用 LazyLock 修复）。
-
-#### 批次 373（PR #545，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（L-27+L-28+L-29 事件总线 spawn 句柄丢失，运行逻辑环 P1 完成 5/6）
-
-**修改文件（3 个）**：
-1. `services/event_bus.rs`：
-   - L-27 修复 — EventBusState 新增 `consumer_handle: Option<JoinHandle<()>>` 字段保存 Kafka 消费桥接 spawn 句柄；`new()` 初始化 None；spawn 处保存句柄
-   - L-28 修复 — 新增 `MAIN_LISTENER_HANDLE: Mutex<Option<JoinHandle<()>>>` 全局 static 保存主事件监听器 spawn 句柄；`start_event_listener` 保存句柄
-   - 新增 `shutdown_event_bus()` 函数：统一 abort L-27+L-28+L-29 三个 task，幂等设计（Mutex<Option> take）
-2. `services/inventory_finance_bridge_service.rs`：
-   - L-29 修复 — 新增 `BRIDGE_LISTENER_HANDLE: Mutex<Option<JoinHandle<()>>>` 全局 static；`start_listener` 保存句柄；新增 `shutdown_listener()` pub 方法（幂等 abort）
-3. `main.rs`：`http_server.await` 后调用 `shutdown_event_bus()` 统一关闭所有事件总线 task
-
-**CI 记录**：1 次 CI 运行
-- #29227996418：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
-
-**遗留**：无。运行逻辑环 P1 级仅剩 L-26（5 个后台定时任务缺 cancellation token）。
-
-#### 批次 374（PR #546，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（L-26 5个后台定时任务缺 cancellation token，运行逻辑环 P1+P2 全部清零）
-
-**修改文件（4 个）**：
-1. `main.rs`：
-   - 新增 `MAIN_BACKGROUND_TASKS: Mutex<Vec<JoinHandle<()>>>` 全局 static
-   - 新增 `shutdown_main_background_tasks()` 函数（幂等 abort）
-   - admin 缓存清理 spawn 保存句柄
-   - JTI 黑名单清理 spawn 保存句柄
-   - slow_query 采集句柄保存（start_collect_task 已改为返回 JoinHandle）
-   - `http_server.await` 后调用 `shutdown_main_background_tasks()` + `shutdown_app_state_background_tasks()`
-2. `services/slow_query_collector.rs`：`start_collect_task` 返回值从 `()` 改为 `JoinHandle<()>`
-3. `services/auth_service.rs`：`start_revoked_user_cleanup_task` 返回值从 `()` 改为 `JoinHandle<()>`
-4. `utils/app_state.rs`：
-   - 新增 `APP_STATE_BACKGROUND_TASKS: Mutex<Vec<JoinHandle<()>>>` 全局 static
-   - 审计清理 spawn 保存句柄
-   - 用户吊销清理句柄保存（start_revoked_user_cleanup_task 已改为返回 JoinHandle）
-   - 新增 `shutdown_app_state_background_tasks()` pub 函数（幂等 abort）
-
-**CI 记录**：2 次 CI 运行
-- #29228942504：失败 ❌（E0382 borrow of moved value: tasks — for 循环消费 Vec 后 len() 访问已移动值）
-- #29229352239：全绿 ✅（修复：for 循环前保存 `count = tasks.len()`）
-
-**遗留**：无。运行逻辑环 P1+P2 全部清零（18/45 项完成，剩余 27 项为 P3 级低优先级）。
+详见 [v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md) 第四节，包括 L-5/L-7/L-8/L-9/L-10/L-12/L-13/L-14/L-15/L-16/L-17/L-18/L-19/L-20/L-24/L-25/L-32/L-33/L-34/L-35/L-37/L-39/L-40/L-41 等 25 项 P3 级问题。
 
 ---
 
@@ -407,8 +189,8 @@
   - 批次 N+28：第 2 次监控（若 N+20 未完成）
   - 批次 N+29：最后监控，未完成则跳过 N+30 的 E2E 周期
   - **注意**：E2E 已从 ci-cd.yml 独立到 e2e-batch.yml，不阻塞主 CI
-- **规则 10（每 15 批次记忆整理）**：2026-07-13 v13 复审前提前执行（归档 v8-v12 历史任务 + 安全漏洞表）
-  - 下次整理：批次 375
+- **规则 10（每 15 批次记忆整理）**：批次 375 已完成（归档批次 356-374 详细记录到 doto-su.md + 精简 doto.md + 新增 v13 剩余项清单）
+  - 下次整理：批次 390
 - **规则 13（修复流程自动化与连续执行）**：CI 全绿后自动开始下一批，无需用户确认
 - **规则 14（移除所有警告抑制）**：所有警告视为错误需修复
 - **规则 15（v13 复审严格规范 + 业务/财务场景闭环 + 运行逻辑环流程闭环）**：2026-07-13 新增
