@@ -35,11 +35,11 @@
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
 | 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365/366，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
 | 🟢 财务场景闭环 | 16 | 7 | 9 | 🔄 P0 2 项 + P1 5 项已完成（批次 356/358/359/360/362/363，F-P1-2 完整闭环） |
-| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 2 | 43 | 🔄 P1 2 项已完成（批次 367 L-1 CLI吞错+L-21 MatchStatus缺终态） |
+| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 5 | 40 | 🔄 P1 2 项 + P2 3 项已完成（批次 367 L-1/L-21 + 批次 368 L-4/L-6/L-22） |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **33** | **~345** | — |
+| **合计** | **~378** | **36** | **~342** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -296,6 +296,18 @@
 
 **CI 记录**：1 次 CI 运行
 - #29223770145：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
+
+**遗留**：无
+
+#### 批次 368（PR #540，已合并 2026-07-13）✅ v13 复审 P2 级闭环修复（L-4 回滚吞错 + L-6 事件发送吞错 + L-22 BorrowStatus 缺取消态）
+
+**修改文件（3 个）**：
+1. `services/fixed_asset_service.rs`：L-4 修复 — 折旧计提事务回滚 `let _ = txn.rollback().await;` 改为 `if let Err(rb_err) = txn.rollback().await { tracing::error!(...); }`。原实现吞掉回滚失败错误，连接异常时无法排查。
+2. `services/event_bus.rs`：L-6 修复 — `publish` 方法本地 channel 发送 `let _ = state.local_tx.send(event.clone());` 改为 `if state.local_tx.send(event.clone()).is_err() { tracing::warn!(...); }`。原实现吞掉发送失败（无订阅者），启动初期/关闭末期事件丢失无日志。
+3. `services/color_card_borrow_service.rs`：L-22 修复 — `BorrowStatus` 枚举新增 `Cancelled`（已取消）终态，同步更新 `as_str`（=>"cancelled"）、`is_terminal`（加入 Cancelled）、`FromStr`（"cancelled" => Cancelled）三处 match。新增 `cancel_borrow` 方法：仅允许 `Borrowed` 状态取消，事务 + lock_exclusive + 状态机校验 + 更新记录状态为 cancelled。用于登记错误借出/客户撤回等场景。
+
+**CI 记录**：1 次 CI 运行
+- #29224434566：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
 
 **遗留**：无
 
