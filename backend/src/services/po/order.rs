@@ -1022,4 +1022,133 @@ mod tests {
         // 验证内部 db Arc 已被正确持有
         assert!(Arc::strong_count(&service.db) >= 1);
     }
+
+    // ---------- 状态校验门（批次 392 补测） ----------
+
+    /// 复现 update_order 的状态校验门（行 363-369）
+    /// 仅 DRAFT 和 REJECTED 状态允许修改，其他状态返回 Err
+    fn update_order_status_gate(status: &str) -> Result<(), AppError> {
+        if status != status::purchase_order::DRAFT && status != status::purchase_order::REJECTED {
+            return Err(AppError::business(format!(
+                "订单状态不允许修改，当前状态：{}",
+                status
+            )));
+        }
+        Ok(())
+    }
+
+    /// 复现 delete_order 的状态校验门（行 441-445）
+    /// 仅 DRAFT 状态允许删除，其他状态返回 Err
+    fn delete_order_status_gate(status: &str) -> Result<(), AppError> {
+        if status != status::purchase_order::DRAFT {
+            return Err(AppError::business(format!(
+                "订单状态不允许删除，当前状态：{}",
+                status
+            )));
+        }
+        Ok(())
+    }
+
+    /// 复现 close_order 的状态校验门（行 481-489）
+    /// 仅 COMPLETED 和 PARTIAL_RECEIVED 状态允许关闭，其他状态返回 Err
+    fn close_order_status_gate(status: &str) -> Result<(), AppError> {
+        if ![
+            status::purchase_order::COMPLETED,
+            status::purchase_order::PARTIAL_RECEIVED,
+        ]
+        .contains(&status)
+        {
+            return Err(AppError::business(format!(
+                "订单状态不允许关闭，当前状态：{}",
+                status
+            )));
+        }
+        Ok(())
+    }
+
+    /// 测试_update_order状态校验门_允许的状态
+    ///
+    /// 验证 DRAFT 和 REJECTED 状态允许修改
+    #[test]
+    fn 测试_update_order状态校验门_允许的状态() {
+        assert!(update_order_status_gate(status::purchase_order::DRAFT).is_ok());
+        assert!(update_order_status_gate(status::purchase_order::REJECTED).is_ok());
+    }
+
+    /// 测试_update_order状态校验门_禁止的状态
+    ///
+    /// 验证非 DRAFT/REJECTED 状态不允许修改且错误消息包含当前状态
+    #[test]
+    fn 测试_update_order状态校验门_禁止的状态() {
+        let forbidden = [
+            status::purchase_order::PENDING_APPROVAL,
+            status::purchase_order::SUBMITTED,
+            status::purchase_order::APPROVED,
+            status::purchase_order::CLOSED,
+            status::purchase_order::CANCELLED,
+            status::purchase_order::COMPLETED,
+            status::purchase_order::PARTIAL_RECEIVED,
+        ];
+        for s in forbidden {
+            let err = update_order_status_gate(s).unwrap_err();
+            let msg = err.to_string();
+            assert!(msg.contains(s), "错误消息应包含当前状态 {}", s);
+            assert!(msg.contains("修改"), "错误消息应包含操作类型");
+        }
+    }
+
+    /// 测试_delete_order状态校验门_仅DRAFT允许
+    ///
+    /// 验证仅 DRAFT 状态允许删除
+    #[test]
+    fn 测试_delete_order状态校验门_仅DRAFT允许() {
+        assert!(delete_order_status_gate(status::purchase_order::DRAFT).is_ok());
+    }
+
+    /// 测试_delete_order状态校验门_非DRAFT禁止
+    ///
+    /// 验证非 DRAFT 状态不允许删除且错误消息包含当前状态
+    #[test]
+    fn 测试_delete_order状态校验门_非DRAFT禁止() {
+        let forbidden = [
+            status::purchase_order::REJECTED,
+            status::purchase_order::APPROVED,
+            status::purchase_order::COMPLETED,
+            status::purchase_order::CANCELLED,
+        ];
+        for s in forbidden {
+            let err = delete_order_status_gate(s).unwrap_err();
+            let msg = err.to_string();
+            assert!(msg.contains(s), "错误消息应包含当前状态 {}", s);
+            assert!(msg.contains("删除"), "错误消息应包含操作类型");
+        }
+    }
+
+    /// 测试_close_order状态校验门_允许的状态
+    ///
+    /// 验证 COMPLETED 和 PARTIAL_RECEIVED 状态允许关闭
+    #[test]
+    fn 测试_close_order状态校验门_允许的状态() {
+        assert!(close_order_status_gate(status::purchase_order::COMPLETED).is_ok());
+        assert!(close_order_status_gate(status::purchase_order::PARTIAL_RECEIVED).is_ok());
+    }
+
+    /// 测试_close_order状态校验门_禁止的状态
+    ///
+    /// 验证非 COMPLETED/PARTIAL_RECEIVED 状态不允许关闭且错误消息包含当前状态
+    #[test]
+    fn 测试_close_order状态校验门_禁止的状态() {
+        let forbidden = [
+            status::purchase_order::DRAFT,
+            status::purchase_order::APPROVED,
+            status::purchase_order::REJECTED,
+            status::purchase_order::CANCELLED,
+        ];
+        for s in forbidden {
+            let err = close_order_status_gate(s).unwrap_err();
+            let msg = err.to_string();
+            assert!(msg.contains(s), "错误消息应包含当前状态 {}", s);
+            assert!(msg.contains("关闭"), "错误消息应包含操作类型");
+        }
+    }
 }

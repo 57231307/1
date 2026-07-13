@@ -1134,4 +1134,68 @@ mod tests {
             "未过期 JTI 应保留"
         );
     }
+
+    // ---------- 异步密码函数（批次 392 补测） ----------
+
+    /// 测试异步哈希密码返回有效哈希
+    ///
+    /// 验证 hash_password_async 能正确哈希密码且结果以 argon2id 前缀开头
+    #[tokio::test]
+    async fn test_hash_password_async_returns_valid_hash() {
+        let password = "AsyncTestPassword456!".to_string();
+        let hash = AuthService::hash_password_async(password.clone())
+            .await
+            .expect("异步密码哈希应成功");
+        assert!(!hash.is_empty(), "哈希结果不应为空");
+        assert!(hash.starts_with("$argon2"), "哈希结果应以 argon2 前缀开头");
+    }
+
+    /// 测试异步验证密码正确与错误
+    ///
+    /// 验证 verify_password_async 对正确密码返回 true，错误密码返回 false
+    #[tokio::test]
+    async fn test_verify_password_async_correct_and_wrong() {
+        let password = "VerifyAsync789!".to_string();
+        let hash = AuthService::hash_password_async(password.clone())
+            .await
+            .expect("测试夹具：异步哈希失败");
+
+        // 正确密码
+        let ok = AuthService::verify_password_async(password.clone(), hash.clone())
+            .await
+            .expect("异步验证不应返回 Err");
+        assert!(ok, "正确密码应验证通过");
+
+        // 错误密码
+        let wrong = AuthService::verify_password_async("WrongAsyncPassword".to_string(), hash)
+            .await
+            .expect("异步验证不应返回 Err");
+        assert!(!wrong, "错误密码应验证失败");
+    }
+
+    /// 测试异步哈希密码唯一性
+    ///
+    /// 验证相同密码两次异步哈希结果不同（随机盐）
+    #[tokio::test]
+    async fn test_hash_password_async_uniqueness() {
+        let password = "UniqueAsync123!".to_string();
+        let hash1 = AuthService::hash_password_async(password.clone())
+            .await
+            .expect("第一次异步哈希应成功");
+        let hash2 = AuthService::hash_password_async(password)
+            .await
+            .expect("第二次异步哈希应成功");
+        assert_ne!(hash1, hash2, "相同密码两次哈希结果应不同（随机盐）");
+    }
+
+    /// 测试异步验证密码对无效哈希返回 Err
+    ///
+    /// 验证 verify_password_async 对非 argon2 格式的哈希返回 Err
+    #[tokio::test]
+    async fn test_verify_password_async_invalid_hash_returns_err() {
+        let result =
+            AuthService::verify_password_async("any".to_string(), "not-a-valid-hash".to_string())
+                .await;
+        assert!(result.is_err(), "无效哈希应返回 Err 而非 false");
+    }
 }
