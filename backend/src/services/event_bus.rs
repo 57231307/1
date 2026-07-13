@@ -173,6 +173,9 @@ struct EventBusState {
     /// 始终存在的本地 channel，用于在 Kafka 模式下把 Kafka 消费到的事件
     /// 桥接到本进程的所有订阅者，保持 `subscribe() -> broadcast::Receiver` API
     local_tx: broadcast::Sender<BusinessEvent>,
+    /// L-27 修复（批次 373 v13 复审）：Kafka 消费桥接 spawn 句柄
+    /// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏
+    consumer_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl EventBusState {
@@ -182,6 +185,7 @@ impl EventBusState {
             backend_kind: AtomicU8::new(0),
             kafka: None,
             local_tx,
+            consumer_handle: None,
         }
     }
 }
@@ -302,7 +306,9 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
                 state.local_tx.clone()
             };
             let backend_for_consumer = backend.clone();
-            let _consumer_handle = tokio::spawn(async move {
+            // L-27 修复（批次 373 v13 复审）：保存 Kafka 消费桥接 spawn 句柄到 EventBusState，
+            // 供 shutdown_event_bus() abort，避免 detached task 泄漏
+            let consumer_handle = tokio::spawn(async move {
                 // 批次 8（2026-06-28）：单次事件处理 panic 隔离
                 match backend_for_consumer.subscribe().await {
                     Ok(mut stream) => {
@@ -344,6 +350,8 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
                 let mut state = lock_event_bus_state();
                 state.kafka = Some(backend);
                 state.backend_kind.store(1, Ordering::Release);
+                // L-27 修复（批次 373 v13 复审）：保存 Kafka 消费桥接句柄
+                state.consumer_handle = Some(consumer_handle);
             }
             tracing::info!("事件总线后端 = Kafka（已就绪）");
         }
