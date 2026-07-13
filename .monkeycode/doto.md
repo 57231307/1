@@ -35,11 +35,11 @@
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
 | 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365/366，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
 | 🟢 财务场景闭环 | 16 | 7 | 9 | 🔄 P0 2 项 + P1 5 项已完成（批次 356/358/359/360/362/363，F-P1-2 完整闭环） |
-| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 39 | 6 | ✅ P1 6 项 + P2 13 项全部完成（批次 367-374）+ P3 20/26 完成（批次 375-378：L-5/L-7/L-8/L-9/L-10 + L-12/L-13/L-14/L-15 + L-17/L-18/L-19/L-20 + L-16/L-24 + 已验证 L-25/L-33/L-34/L-35/L-45） |
+| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 40 | 5 | ✅ P1 6 项 + P2 13 项全部完成（批次 367-374）+ P3 21/26 完成（批次 375-379：L-5/L-7/L-8/L-9/L-10 + L-12/L-13/L-14/L-15 + L-17/L-18/L-19/L-20 + L-16/L-24 + L-37/L-39/L-40/L-41/L-44 + 已验证 L-25/L-33/L-34/L-35/L-45） |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **69** | **~309** | — |
+| **合计** | **~378** | **70** | **~308** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -61,6 +61,30 @@
 - **运行逻辑环 P1（6 项 ✅）**：L-1 CLI 吞错 + L-21 MatchStatus 缺终态 + L-26 后台任务缺 cancellation + L-27/28/29 事件总线 spawn 句柄丢失
 - **运行逻辑环 P2（12 项 ✅）**：L-2/L-3 脚本吞错 + L-4 回滚吞错 + L-6 事件发送吞错 + L-11 静态正则 expect + L-22 BorrowStatus 缺取消态 + L-23 DyeBatchStatus 缺异常态 + L-30 OmniAudit 句柄丢失 + L-31 WebSocket 句柄泄漏 + L-36/L-38/L-42 配置项 silent default + L-43 .env.example 缺失声明
 - **baseline 清零（11 项 ✅）**：批次 357 清理 11 个 unused import warning
+
+### 已完成批次归档（批次 375-379）
+
+**批次 375（PR #547 已合并）**：
+- L-9 health_handler.rs：移除 `let _ = start_time_init()` 吞错模式（函数返回 Instant，非 Result，无需错误处理）
+- L-5/L-7/L-8/L-10：4 个文件移除 `let _ =` 吞错模式（spawn 句柄不需要保存、AtomicUsize fetch_* 返回值不需要使用）
+
+**批次 376（PR #548 已合并）**：
+- L-12/L-13/L-14/L-15：4 个测试文件移除 `let _ = result` 吞错模式（改为 `assert!(result.is_err(), "...")`）
+
+**批次 377（PR #549 已合并）**：
+- L-17/L-18/L-19/L-20：7 个文件 12 处测试 `let _ = result` 吞错修复
+- 文件：ap_reconciliation_service.rs、mrp_engine_service.rs、bom_service.rs、production_order_service.rs、customer_credit_limit.rs、voucher_service.rs、ar/recon.rs
+
+**批次 378（PR #550 已合并）**：
+- L-16 middleware/csrf.rs：9 处测试 `expect` 消除（4 个测试函数改为 `Result<(), Box<dyn std::error::Error>>` 返回 + `?` 操作符）
+- L-24 services/init_service.rs：InitTaskStatus 枚举补充终态完整性文档
+
+**批次 379（PR #552 已合并）**：
+- L-37 main.rs AUDIT_RETENTION_DAYS：消除 silent default，改为 match + is_production() 区分 warn/info
+- L-39 main.rs ELASTICSEARCH_URL：消除 silent default，改为 match + is_production() 区分 warn/info
+- L-40 telemetry.rs：3 处 silent default（ENV/OTEL_EXPORTER_OTLP_ENDPOINT/OTEL_ENABLED），使用 LazyLock + is_production()
+- L-41 cli/util/service.rs：SERVER__HOST/SERVER__PORT silent default，改为 match + eprintln 提示
+- L-44 .env.example：BINGXI_ENV_FILE/BINGXI_SYSTEMD_DIR 取消注释，显式声明
 
 ### v14 历史遗留任务（合并到 v13 修复队列）
 

@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 379 | #552 | v13 复审 P3 级闭环修复 L-37+L-39+L-40+L-41+L-44 silent default消除（main.rs AUDIT_RETENTION_DAYS/ELASTICSEARCH_URL match+is_production区分warn/info + telemetry.rs ENV/OTEL_EXPORTER_OTLP_ENDPOINT/OTEL_ENABLED LazyLock+is_production + cli/util/service.rs SERVER__HOST/SERVER__PORT match+eprintln + .env.example BINGXI_ENV_FILE/BINGXI_SYSTEMD_DIR 显式声明，4 文件 122 行，2 次 CI 修复let语句位置后全绿，运行逻辑环P3 21/26完成+5项已验证通过） |
 | 378 | #550 | v13 复审 P3 级闭环修复 L-16+L-24 测试expect消除+终态文档（middleware/csrf.rs 4个测试函数9处expect改?操作符+Result返回类型 + init_service.rs InitTaskStatus枚举补充终态完整性文档 状态机Running→Completed|Failed终态+恢复路径，2 文件修复，1 次 CI 全绿，运行逻辑环P3 20/26完成+5项已验证通过） |
 | 377 | #549 | v13 复审 P3 级闭环修复 L-17+L-18+L-19+L-20 测试let _ = result吞错（ap_reconciliation_service 2处+voucher_service 1处+ar/recon 1处 + mrp_engine_service 3处 + bom_service 2处+customer_credit_limit 1处 改assert!(result.is_err()) + production_order_service let _ = service改let _service前缀下划线，7 文件 12 处修复，1 次 CI 全绿，运行逻辑环P3 13/25完成） |
 | 376 | #548 | v13 复审 P3 级闭环修复 L-12+L-13+L-14+L-15 expect消除（email_service hmac_sha256 new_from_slice expect改match+return Vec::new() + hash_password Params::new expect改unwrap_or_else+Params::default()兜底 + date_utils utc_offset/today_start_utc 2处expect改unwrap_or_else四重兜底链 + middleware/timeout fallback expect改unwrap_or_else+Response::new双重兜底，4 文件 8 处修复，1 次 CI 全绿） |
