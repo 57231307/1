@@ -34,12 +34,12 @@
 |------|------|--------|------|------|
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
 | 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365/366，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
-| 🟢 财务场景闭环 | 16 | 7 | 9 | 🔄 P0 2 项 + P1 5 项已完成（批次 356/358/359/360/362/363，F-P1-2 完整闭环） |
+| 🟢 财务场景闭环 | 16 | 8 | 8 | 🔄 P0 8 项全部完成（批次 356/358/359/360/362/363/381/382）+ P1 5 项已完成 |
 | 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 45 | 0 | ✅ 全部完成（P1 6 项 + P2 13 项批次 367-374 + P3 26 项批次 375-380：L-5/L-7/L-8/L-9/L-10 + L-12/L-13/L-14/L-15 + L-17/L-18/L-19/L-20 + L-16/L-24 + L-37/L-39/L-40/L-41/L-44 + L-32 + 已验证 L-25/L-33/L-34/L-35/L-45） |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **70** | **~308** | — |
+| **合计** | **~378** | **72** | **~306** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -85,6 +85,17 @@
 - L-40 telemetry.rs：3 处 silent default（ENV/OTEL_EXPORTER_OTLP_ENDPOINT/OTEL_ENABLED），使用 LazyLock + is_production()
 - L-41 cli/util/service.rs：SERVER__HOST/SERVER__PORT silent default，改为 match + eprintln 提示
 - L-44 .env.example：BINGXI_ENV_FILE/BINGXI_SYSTEMD_DIR 取消注释，显式声明
+
+**批次 382（PR #555 已合并）**：
+- F-P0-6 销售→应收链路（so/delivery.rs）：保留订单明细查询构建 product_id→order_item 映射 + 发货明细循环从订单明细查询单价税率计算行金额行税额 + 累加 delivery_total_amount/tax + 收入凭证从仅全额发货使用订单总额改为每次发货使用实际发货金额 + source_type 从 SALES_ORDER 改为 SALES_DELIVERY + source_bill_id 改为 delivery.id
+- F-P0-7 采购→应付链路（ap_invoice_service.rs）：auto_generate_from_receipt commit 后同步生成应付凭证 借 1405 库存商品 / 借 222101 进项税额（tax>0 时）/ 贷 2202 应付账款挂供应商辅助核算 + 失败仅 warn 不阻断 + commit 前保存字段避免 move
+- 1 次 CI 修复：移除 ship_order_no 未使用变量警告
+- **财务场景 P0 8/8 全部完成**
+
+**批次 383（PR #556 已合并）**：
+- 部署修复：补全 WEBHOOK_SECRET 部署模板（用户反馈部署后后端启动失败）
+- docker-compose.yml：environment 段补全 WEBHOOK_SECRET=${WEBHOOK_SECRET} 传递 + 注释段补全必填项说明
+- deploy-backend.sh：步骤 4 后新增 4.1 自动生成 WEBHOOK_SECRET 逻辑（检测缺失/弱密钥/与 JWT 相同 + openssl rand -hex 32 生成 + sed 替换或追加持久化到 .env）
 
 ### v14 历史遗留任务（合并到 v13 修复队列）
 
@@ -179,14 +190,16 @@
 - B-P2-5：CapacityService 仅 HTTP 调用，无业务联动
 - B-P2-6：InventoryReservationService 仅 HTTP 调用，销售流程未集成
 
-#### 财务场景 P0 剩余（6 项 ⏳）
+#### 财务场景 P0（8 项 ✅ 全部完成）
 
-- **F-P0-3**：销售出库缺收入凭证 — 在销售出库时同步生成收入凭证 + 成本凭证
-- **F-P0-4**：AR 收款未生成凭证 — 在 create_payment 中调用 voucher_service 生成核销凭证
-- **F-P0-5**：AP 付款未生成凭证 — 在 confirm 中调用 voucher_service 生成核销凭证
-- **F-P0-6**：销售→应收链路断开 — 在销售发货后生成应收发票
-- **F-P0-7**：采购→应付链路断开 — 在采购入库后生成应付发票
-- **F-P0-8**：AR/AP 核销未生成凭证 — 在核销时生成核销凭证
+- **F-P0-1** ✅：科目余额回写（批次 356）
+- **F-P0-2** ✅：库存桥接凭证自动过账（批次 358）
+- **F-P0-3** ✅：销售出库缺收入凭证 — 在销售出库时同步生成收入凭证（批次 381）
+- **F-P0-4** ✅：AR 收款未生成凭证 — 在 confirm_payment 中调用 voucher_service 生成核销凭证（批次 381）
+- **F-P0-5** ✅：AP 付款未生成凭证 — 在 confirm 中调用 voucher_service 生成核销凭证（批次 381）
+- **F-P0-6** ✅：销售→应收链路断开 — 在销售发货后生成收入凭证使用实际发货金额（批次 382）
+- **F-P0-7** ✅：采购→应付链路断开 — 在采购入库 auto_generate_from_receipt 后生成应付凭证（批次 382）
+- **F-P0-8** ✅：AR/AP 核销未生成凭证 — 在核销时生成核销凭证（批次 381）
 
 #### 财务场景 P1 剩余（1 项 ⏳）
 
