@@ -3,15 +3,17 @@
 //! 会计科目业务逻辑层
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    ModelTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    sea_query::Expr, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
+    IntoActiveModel, JoinType, ModelTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, Set,
 };
 use std::sync::Arc;
 use tracing::{info, warn};
 
-use crate::models::{account_balance, account_subject, voucher_item};
+use crate::models::{account_balance, account_subject, voucher, voucher_item};
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// 创建科目请求
@@ -317,6 +319,123 @@ impl AccountSubjectService {
 
         info!("会计科目删除成功：id={}", id);
         Ok(())
+    }
+
+    /// 刷新科目余额（F-P1-4 修复，批次 358 v13 复审）
+    ///
+    /// v13 复审 F-P1-4 发现：`account_subject` 模型有 6 个余额字段
+    /// （`initial_balance_debit/credit`、`current_period_debit/credit`、`ending_balance_debit/credit`），
+    /// 但本 Service 缺少 `refresh_balance` 方法，导致科目主数据的余额字段无法独立重算，
+    /// 仅依赖 `voucher_service.update_account_balances` 在凭证过账时同步写入 `account_balance` 表。
+    /// 当出现凭证反审核、外部数据导入、余额漂移等场景时，科目主数据的余额字段无法纠正。
+    ///
+    /// 本方法从已过账凭证分录重新聚合指定期间的借贷发生额，按余额方向计算期末余额，
+    /// 写回 `account_subject` 的 `current_period_debit/credit` 和 `ending_balance_debit/credit`。
+    ///
+    /// 计算规则（与 `voucher_service.update_account_balances` 一致）：
+    /// - 借方科目：期末余额 = 期初余额(借) + 本期借方发生 - 本期贷方发生
+    /// - 贷方科目：期末余额 = 期初余额(贷) + 本期贷方发生 - 本期借方发生
+    pub async fn refresh_balance(
+        &self,
+        subject_id: i32,
+        period: &str,
+    ) -> Result<account_subject::Model, AppError> {
+        info!(
+            "刷新科目余额：subject_id={}, period={}",
+            subject_id, period
+        );
+
+        // 1. 查询科目信息（含期初余额和余额方向）
+        let subject = account_subject::Entity::find_by_id(subject_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("会计科目 {}", subject_id)))?;
+
+        // 2. 解析期间字符串 "YYYY-MM" 为日期范围
+        let year: i32 = period.get(0..4).ok_or_else(|| AppError::bad_request("期间格式错误，应为 YYYY-MM"))?
+            .parse()
+            .map_err(|_| AppError::bad_request("期间年份解析失败，应为 YYYY-MM"))?;
+        let month: u32 = period.get(5..7).ok_or_else(|| AppError::bad_request("期间格式错误，应为 YYYY-MM"))?
+            .parse()
+            .map_err(|_| AppError::bad_request("期间月份解析失败，应为 YYYY-MM"))?;
+        let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| AppError::bad_request("期间起始日期无效"))?;
+        let (next_year, next_month) = if month == 12 {
+            (year + 1, 1u32)
+        } else {
+            (year, month + 1)
+        };
+        let next_month_first = chrono::NaiveDate::from_ymd_opt(next_year, next_month, 1)
+            .ok_or_else(|| AppError::bad_request("期间结束日期无效"))?;
+
+        // 3. 联表查询已过账凭证分录的借贷汇总
+        let (total_debit_opt, total_credit_opt): (Option<Decimal>, Option<Decimal>) =
+            voucher_item::Entity::find()
+                .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
+                .filter(voucher_item::Column::SubjectCode.eq(&subject.code))
+                .filter(voucher::Column::Status.eq(crate::models::status::VOUCHER_POSTED))
+                .filter(voucher::Column::VoucherDate.gte(start_date))
+                .filter(voucher::Column::VoucherDate.lt(next_month_first))
+                .select_only()
+                .column_as(
+                    Expr::col(voucher_item::Column::Debit).sum(),
+                    "total_debit",
+                )
+                .column_as(
+                    Expr::col(voucher_item::Column::Credit).sum(),
+                    "total_credit",
+                )
+                .into_tuple()
+                .one(&*self.db)
+                .await?;
+
+        let current_period_debit = total_debit_opt.unwrap_or(Decimal::ZERO);
+        let current_period_credit = total_credit_opt.unwrap_or(Decimal::ZERO);
+
+        // 4. 根据余额方向计算期末余额
+        let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
+        let initial_debit = subject.initial_balance_debit;
+        let initial_credit = subject.initial_balance_credit;
+
+        let (ending_balance_debit, ending_balance_credit) = if balance_direction == "借" {
+            // 借方科目：期末余额 = 期初借方 + 本期借方 - 本期贷方
+            let ending_balance = initial_debit + current_period_debit - current_period_credit;
+            if ending_balance >= Decimal::ZERO {
+                (ending_balance, Decimal::ZERO)
+            } else {
+                (Decimal::ZERO, ending_balance.abs())
+            }
+        } else {
+            // 贷方科目：期末余额 = 期初贷方 + 本期贷方 - 本期借方
+            let ending_balance = initial_credit + current_period_credit - current_period_debit;
+            if ending_balance >= Decimal::ZERO {
+                (Decimal::ZERO, ending_balance)
+            } else {
+                (ending_balance.abs(), Decimal::ZERO)
+            }
+        };
+
+        // 5. 写回科目主数据的余额字段
+        let mut active_model: account_subject::ActiveModel = subject.into();
+        active_model.current_period_debit = Set(current_period_debit);
+        active_model.current_period_credit = Set(current_period_credit);
+        active_model.ending_balance_debit = Set(ending_balance_debit);
+        active_model.ending_balance_credit = Set(ending_balance_credit);
+        active_model.updated_at = Set(chrono::Utc::now());
+
+        let updated = active_model.update(&*self.db).await?;
+
+        info!(
+            "科目余额刷新成功：subject_id={}, period={}, 本期借={}, 本期贷={}, 期末借={}, 期末贷={}",
+            updated.id,
+            period,
+            current_period_debit,
+            current_period_credit,
+            ending_balance_debit,
+            ending_balance_credit
+        );
+
+        Ok(updated)
     }
 }
 
