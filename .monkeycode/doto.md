@@ -35,11 +35,11 @@
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
 | 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365/366，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
 | 🟢 财务场景闭环 | 16 | 7 | 9 | 🔄 P0 2 项 + P1 5 项已完成（批次 356/358/359/360/362/363，F-P1-2 完整闭环） |
-| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 18 | 27 | ✅ P1 6 项 + P2 12 项全部完成（批次 367-374，L-1/L-21/L-26/L-27/L-28/L-29 + L-2/L-3/L-4/L-6/L-11/L-22/L-23/L-30/L-31/L-36/L-38/L-42/L-43，P1+P2 全部清零） |
+| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 31 | 14 | ✅ P1 6 项 + P2 13 项全部完成（批次 367-374）+ P3 13/25 完成（批次 375-377：L-5/L-7/L-8/L-9/L-10 + L-12/L-13/L-14/L-15 + L-17/L-18/L-19/L-20） |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **49** | **~329** | — |
+| **合计** | **~378** | **62** | **~316** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -175,9 +175,24 @@
 - F-P2-3：销售成本按 product.cost_price 计算未与采购实际单价联动
 - F-P2-4：AR/AP 对账单生成不触发凭证
 
-#### 运行逻辑环 P3 剩余（25 项 ⏳ - 低优先级）
+#### 运行逻辑环 P3 剩余（12 项 ⏳ - 低优先级）
 
-详见 [v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md) 第四节，包括 L-5/L-7/L-8/L-9/L-10/L-12/L-13/L-14/L-15/L-16/L-17/L-18/L-19/L-20/L-24/L-25/L-32/L-33/L-34/L-35/L-37/L-39/L-40/L-41 等 25 项 P3 级问题。
+详见 [v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md) 第四节。
+
+**已完成 P3 项（13 项 ✅）**：
+- 批次 375（5 项）：L-5 system_update_handler 3 处 let _ = remove_file 吞错 + L-7 websocket broadcast let _ = tx.send 吞错 + L-8 cli/admin stdin.write_all 吞错 + L-9 main.rs start_time_init 吞错 + L-10 init_service 冗余 let _ = query_result 死代码
+- 批次 376（4 项）：L-12 email_service hmac_sha256 expect 消除 + L-13 hash_password Params::new expect 消除 + L-14 date_utils 2 处 expect 消除（utc_offset/today_start_utc）+ L-15 middleware/timeout fallback expect 消除
+- 批次 377（4 项）：L-17 ap_reconciliation_service 2 处 + voucher_service 1 处 + ar/recon 1 处 测试 let _ = result 吞错 + L-18 mrp_engine_service 3 处测试 let _ = result 吞错 + L-19 bom_service 2 处 + customer_credit_limit 1 处 测试 let _ = result 吞错 + L-20 production_order_service 测试 let _ = service 占位抑制 dead_code
+
+**剩余 P3 项（12 项 ⏳）**：
+- L-16：CSRF 中间件测试 expect 9 处
+- L-24：InitTaskStatus 缺终态文档
+- L-25：已验证通过项（标注即可）
+- L-32：审计日志 spawn 句柄丢失
+- L-33/L-34/L-35：已验证通过项（标注即可）
+- L-37/L-39/L-40/L-41：silent default 项
+- L-44：silent default 项
+- L-45：已验证通过项（标注即可）
 
 ---
 
