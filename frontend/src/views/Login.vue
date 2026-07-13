@@ -255,13 +255,14 @@ async function handleLogin() {
       ElMessage.success(t('login.success'))
 
       // 批次 198 P0-2：密码过期引导改密（后端 password_expired=true 表示超过 90 天未修改）
+      // 批次 389 FE-P2-3：密码过期文案改用 i18n（passwordExpired* 系列 key）
       if (loginResult?.password_expired) {
         ElMessageBox.confirm(
-          '您的密码已超过 90 天未修改，为保障账户安全，请立即修改密码。',
-          '密码过期提醒',
+          t('login.passwordExpiredMessage'),
+          t('login.passwordExpiredTitle'),
           {
-            confirmButtonText: '立即修改',
-            cancelButtonText: '稍后提醒',
+            confirmButtonText: t('login.passwordExpiredConfirm'),
+            cancelButtonText: t('login.passwordExpiredLater'),
             type: 'warning',
           },
         )

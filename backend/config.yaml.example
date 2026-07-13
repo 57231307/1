@@ -24,14 +24,13 @@ database:
   # ⚠️ 安全警告：生产环境必须通过环境变量 DATABASE_PASSWORD 设置
   password: ""  # 留空，通过环境变量设置
   max_connections: 50
-  min_connections: 5
-  acquire_timeout_ms: 30000
-  idle_timeout_ms: 300000
-  max_lifetime_ms: 1800000
-  # 批次 24 v6 P0-3 修复：生产环境强制 SSL（原 disable 明文传输数据库密码和业务数据）。
-  # 开发环境可设为 "prefer" 或 "disable"，生产环境必须 "require" 或 "verify-full"。
-  ssl_mode: "require"
-  ssl_ca: null
+  # 批次 389 P2-3：移除 AppSettings 未定义的 5 个字段（用户修改不生效，易误导运维）
+  # 原字段：min_connections / acquire_timeout_ms / idle_timeout_ms / max_lifetime_ms / ssl_mode / ssl_ca
+  # - min_connections: SeaORM 连接池未暴露此配置项，按 max_connections 比例自动管理
+  # - acquire_timeout_ms / idle_timeout_ms / max_lifetime_ms: 需在代码层接入，当前未读取
+  # - ssl_mode / ssl_ca: 批次 24 v6 P0-3 SSL 强制策略改由连接字符串参数（?sslmode=require）实现，
+  #   生产环境在 DATABASE_URL 中追加 ?sslmode=require 即可生效
+  # 如需恢复这些字段，请在 backend/src/config/settings.rs 的 DatabaseConfig 中新增对应字段并接入 SeaORM
 
 auth:
   # ⚠️ 安全警告：生产环境必须通过环境变量 JWT_SECRET 设置至少 32 字节的强随机密钥
@@ -41,11 +40,16 @@ auth:
   # M-2 修复：第三方 Webhook 回调 HMAC 密钥，必须与 JWT_SECRET 互不相同
   # ⚠️ 安全警告：生产环境必须通过环境变量 WEBHOOK_SECRET 设置至少 32 字节的强随机密钥
   webhook_secret: ""  # 留空，通过环境变量设置
-  token_expiry_hours: 24
-
-grpc:
-  host: "127.0.0.1"
-  port: 50051
+  # 批次 389 P2-3：移除 AppSettings 未定义的 token_expiry_hours（用户修改不生效）
+  # 原 token_expiry_hours: 24 → JWT 过期时间当前在 auth_service 中硬编码为 2 小时
+  # 如需可配置化，请在 backend/src/config/settings.rs 的 AuthConfig 中新增字段并接入 auth_service
+  # JWT 密钥轮换：PREVIOUS_JWT_SECRET 环境变量（可选，密钥轮换期双密钥并行验证）
+  previous_jwt_secret: null
+  # M-2 修复：webhook 是否复用 JWT_SECRET（仅迁移期 true，生产必须 false）
+  webhook_inherit_jwt_secret: false
+# 批次 389 P2-3：移除 AppSettings 未定义的 grpc 段（用户修改不生效，易误导运维）
+# 原字段：grpc.host / grpc.port → 项目当前未启用 gRPC 服务，全部走 HTTP REST
+# 如需恢复，请在 backend/src/config/settings.rs 中新增 GrpcConfig 结构体并接入
 
 log:
   # ⚠️ 生产环境建议设置为 info 或 warn
@@ -84,4 +88,10 @@ slow_query:
   threshold_ms: 100.0      # 慢查询阈值（毫秒），超过此值的 SQL 才会被记录
   limit_rows: 100          # 单次采集最大行数
 
+# 批次 389 P2-3：env 字段陷阱警告
+# ⚠️ 此字段仅写入 AppSettings.env，**不**被 utils/config.rs::is_production() 使用！
+# is_production() 读取 **APP_ENV 环境变量**（非 config.yaml 的 env 字段）。
+# 部署陷阱：deploy.sh 生成 config.yaml 时设 env: "production"，
+#          但未设置 APP_ENV 环境变量 → is_production() 返回 false → 错误详情未脱敏、Cookie Secure 未启用
+# 正确做法：在 .env 或 systemd Environment= 中显式设置 APP_ENV=production
 env: "production"

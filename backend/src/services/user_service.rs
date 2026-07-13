@@ -21,6 +21,8 @@ use crate::utils::pagination::paginate_with_total;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
+// 批次 389 P2-2：引入 tracing 日志宏，关键操作补审计/安全日志
+use tracing::{info, warn};
 
 /// 用户服务
 ///
@@ -101,6 +103,13 @@ impl UserService {
             .one(self.db.as_ref())
             .await?;
         if existing.is_some() {
+            // 批次 389 P2-2：用户创建被拒时记录 warn 日志，便于审计异常创建行为
+            warn!(
+                target: "business_audit",
+                event = "USER_CREATE_REJECTED",
+                username = %username,
+                "用户创建被拒：用户名已存在"
+            );
             return Err(AppError::business(format!("用户名 '{}' 已存在", username)));
         }
 
@@ -124,10 +133,21 @@ impl UserService {
             updated_at: Set(chrono::Utc::now()),
         };
 
-        active_user
+        let created = active_user
             .insert(self.db.as_ref())
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+
+        // 批次 389 P2-2：用户创建成功记录 business_audit 审计日志
+        info!(
+            target: "business_audit",
+            event = "USER_CREATED",
+            user_id = created.id,
+            username = %created.username,
+            "用户创建成功"
+        );
+
+        Ok(created)
     }
 
     /// 更新用户最后登录时间
@@ -147,6 +167,14 @@ impl UserService {
 
         user.last_login_at = Set(Some(chrono::Utc::now()));
         user.update(self.db.as_ref()).await?;
+
+        // 批次 389 P2-2：用户登录时间更新记录 security_audit 安全审计日志
+        info!(
+            target: "security_audit",
+            event = "USER_LOGIN",
+            user_id = user_id,
+            "用户登录时间更新"
+        );
 
         Ok(())
     }
@@ -222,6 +250,15 @@ impl UserService {
             let becoming_active = status_val == master_data::ACTIVE;
             user.is_active = Set(becoming_active);
 
+            // 批次 389 P2-2：用户状态变更记录 security_audit 安全审计日志
+            info!(
+                target: "security_audit",
+                event = "USER_STATUS_CHANGE",
+                user_id = user_id,
+                becoming_active = becoming_active,
+                "用户状态变更"
+            );
+
             // v11 批次 145 P1-7：用户状态恢复为 active 时清除吊销标记
             //
             // 当用户从"禁用"恢复为"active"时，调用 unrevoke_user 清除进程内
@@ -271,6 +308,14 @@ impl UserService {
         user.is_active = Set(false);
         user.updated_at = Set(chrono::Utc::now());
         user.update(self.db.as_ref()).await?;
+
+        // 批次 389 P2-2：用户软删除记录 security_audit 安全审计日志
+        info!(
+            target: "security_audit",
+            event = "USER_SOFT_DELETED",
+            user_id = user_id,
+            "用户软删除成功"
+        );
 
         // P0 7-3 修复：吊销该用户的所有活跃 JWT
         //    将吊销逻辑下沉到 service 层作为单一真相源，保证任何调用方

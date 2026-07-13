@@ -8,13 +8,13 @@
 <template>
   <div class="dashboard">
     <div class="dashboard-header">
-      <h1 class="dashboard-title">仪表盘</h1>
+      <h1 class="dashboard-title">{{ $t('dashboard.headerTitle') }}</h1>
       <el-date-picker
         v-model="db.dateRange"
         type="daterange"
-        range-separator="至"
-        start-placeholder="开始日期"
-        end-placeholder="结束日期"
+        :range-separator="$t('dashboard.dateRange.to')"
+        :start-placeholder="$t('dashboard.dateRange.startPlaceholder')"
+        :end-placeholder="$t('dashboard.dateRange.endPlaceholder')"
         @change="db.handleDateChange"
       />
     </div>

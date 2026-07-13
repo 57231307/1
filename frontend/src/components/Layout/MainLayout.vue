@@ -2,7 +2,7 @@
   <el-container class="main-layout">
     <el-aside width="220px" class="aside">
       <div class="logo">
-        <h2>秉羲 ERP</h2>
+        <h2>{{ $t('layout.brand') }}</h2>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -12,177 +12,177 @@
         active-text-color="#409eff"
         router
         role="menubar"
-        aria-label="主导航菜单"
+        :aria-label="$t('layout.menuAriaLabel')"
         @open="handleMenuOpen"
         @close="handleMenuClose"
       >
         <el-menu-item role="menuitem" v-if="canAccessMenu('/dashboard')" index="/dashboard">
           <el-icon><HomeFilled /></el-icon>
-          <span>仪表盘</span>
+          <span>{{ $t('layout.menu.dashboard') }}</span>
         </el-menu-item>
 
         <el-sub-menu v-if="visibleSubMenu.fabric" index="fabric" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('fabric')">
           <template #title>
             <el-icon><Goods /></el-icon>
-            <span>面料管理</span>
+            <span>{{ $t('layout.menu.fabric') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/fabric')" index="/fabric">面料列表</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/greige-fabrics')" index="/greige-fabrics">坯布管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/product')" index="/product">产品管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-cards/list')" index="/color-cards/list">色卡列表</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-cards/borrow')" index="/color-cards/borrow">色卡借出</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-prices/list')" index="/color-prices/list">色号价格</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-prices/batch-adjust')" index="/color-prices/batch-adjust">批量调价</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/fabric')" index="/fabric">{{ $t('layout.menu.fabricList') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/greige-fabrics')" index="/greige-fabrics">{{ $t('layout.menu.greigeFabrics') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/product')" index="/product">{{ $t('layout.menu.product') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-cards/list')" index="/color-cards/list">{{ $t('layout.menu.colorCardsList') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-cards/borrow')" index="/color-cards/borrow">{{ $t('layout.menu.colorCardsBorrow') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-prices/list')" index="/color-prices/list">{{ $t('layout.menu.colorPricesList') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-prices/batch-adjust')" index="/color-prices/batch-adjust">{{ $t('layout.menu.colorPricesBatchAdjust') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="visibleSubMenu.inventory" index="inventory" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('inventory')">
           <template #title>
             <el-icon><Box /></el-icon>
-            <span>库存管理</span>
+            <span>{{ $t('layout.menu.inventory') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory')" index="/inventory">库存列表</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/warehouse')" index="/warehouse">仓库管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory-batch')" index="/inventory-batch">批次管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory-count')" index="/inventory-count">库存盘点</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory-transfer')" index="/inventory-transfer">库存调拨</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory-adjustment')" index="/inventory-adjustment">库存调整</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/logistics')" index="/logistics">物流管理</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory')" index="/inventory">{{ $t('layout.menu.inventoryList') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/warehouse')" index="/warehouse">{{ $t('layout.menu.warehouse') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory-batch')" index="/inventory-batch">{{ $t('layout.menu.inventoryBatch') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory-count')" index="/inventory-count">{{ $t('layout.menu.inventoryCount') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory-transfer')" index="/inventory-transfer">{{ $t('layout.menu.inventoryTransfer') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/inventory-adjustment')" index="/inventory-adjustment">{{ $t('layout.menu.inventoryAdjustment') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/logistics')" index="/logistics">{{ $t('layout.menu.logistics') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="visibleSubMenu.sales" index="sales" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('sales')">
           <template #title>
             <el-icon><ShoppingCart /></el-icon>
-            <span>销售管理</span>
+            <span>{{ $t('layout.menu.sales') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales')" index="/sales">销售订单</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-returns')" index="/sales-returns">销售退货</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-ext')" index="/sales-ext">销售扩展</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/customer')" index="/customer">客户管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/customer-credit')" index="/customer-credit">客户信用</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-contract')" index="/sales-contract">销售合同</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-price')" index="/sales-price">销售价格</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-analysis')" index="/sales-analysis">销售分析</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/quotations')" index="/quotations">报价单管理</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales')" index="/sales">{{ $t('layout.menu.salesOrder') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-returns')" index="/sales-returns">{{ $t('layout.menu.salesReturns') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-ext')" index="/sales-ext">{{ $t('layout.menu.salesExt') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/customer')" index="/customer">{{ $t('layout.menu.customer') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/customer-credit')" index="/customer-credit">{{ $t('layout.menu.customerCredit') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-contract')" index="/sales-contract">{{ $t('layout.menu.salesContract') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-price')" index="/sales-price">{{ $t('layout.menu.salesPrice') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/sales-analysis')" index="/sales-analysis">{{ $t('layout.menu.salesAnalysis') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/quotations')" index="/quotations">{{ $t('layout.menu.quotations') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="visibleSubMenu.purchase" index="purchase" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('purchase')">
           <template #title>
             <el-icon><ShoppingCart /></el-icon>
-            <span>采购管理</span>
+            <span>{{ $t('layout.menu.purchase') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase')" index="/purchase">采购订单</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-receipt')" index="/purchase-receipt">采购入库</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-ext')" index="/purchase-ext">采购扩展</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/supplier')" index="/supplier">供应商管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/supplier-evaluation')" index="/supplier-evaluation">供应商评估</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-contract')" index="/purchase-contract">采购合同</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-price')" index="/purchase-price">采购价格</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-inspection')" index="/purchase-inspection">采购检验</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-return')" index="/purchase-return">采购退货</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase')" index="/purchase">{{ $t('layout.menu.purchaseOrder') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-receipt')" index="/purchase-receipt">{{ $t('layout.menu.purchaseReceipt') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-ext')" index="/purchase-ext">{{ $t('layout.menu.purchaseExt') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/supplier')" index="/supplier">{{ $t('layout.menu.supplier') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/supplier-evaluation')" index="/supplier-evaluation">{{ $t('layout.menu.supplierEvaluation') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-contract')" index="/purchase-contract">{{ $t('layout.menu.purchaseContract') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-price')" index="/purchase-price">{{ $t('layout.menu.purchasePrice') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-inspection')" index="/purchase-inspection">{{ $t('layout.menu.purchaseInspection') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/purchase-return')" index="/purchase-return">{{ $t('layout.menu.purchaseReturn') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="visibleSubMenu.crm" index="crm" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('crm')">
           <template #title>
             <el-icon><User /></el-icon>
-            <span>客户关系</span>
+            <span>{{ $t('layout.menu.crm') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm')" index="/crm">CRM 管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm/pool')" index="/crm/pool">公海客户池</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm/assignment')" index="/crm/assignment">客户分配</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm/leads')" index="/crm/leads">线索管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm/opportunities')" index="/crm/opportunities">商机管理</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm')" index="/crm">{{ $t('layout.menu.crmManagement') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm/pool')" index="/crm/pool">{{ $t('layout.menu.crmPool') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm/assignment')" index="/crm/assignment">{{ $t('layout.menu.crmAssignment') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm/leads')" index="/crm/leads">{{ $t('layout.menu.crmLeads') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/crm/opportunities')" index="/crm/opportunities">{{ $t('layout.menu.crmOpportunities') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="visibleSubMenu.production" index="production" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('production')">
           <template #title>
             <el-icon><Cpu /></el-icon>
-            <span>生产管理</span>
+            <span>{{ $t('layout.menu.production') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/production')" index="/production">生产计划</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/bom')" index="/bom">BOM 管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/mrp')" index="/mrp">MRP 计算</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/mrp/history')" index="/mrp/history">MRP 历史记录</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/capacity')" index="/capacity">产能分析</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/material-shortage')" index="/material-shortage">缺料预警</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/scheduling')" index="/scheduling">排产管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/quality')" index="/quality">质量管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/scheduling/gantt')" index="/scheduling/gantt">甘特图</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/custom-orders')" index="/custom-orders">定制订单</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/dye-recipe')" index="/dye-recipe">染色配方</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/dye-batch')" index="/dye-batch">染色批次</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/production')" index="/production">{{ $t('layout.menu.productionPlan') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/bom')" index="/bom">{{ $t('layout.menu.bom') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/mrp')" index="/mrp">{{ $t('layout.menu.mrp') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/mrp/history')" index="/mrp/history">{{ $t('layout.menu.mrpHistory') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/capacity')" index="/capacity">{{ $t('layout.menu.capacity') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/material-shortage')" index="/material-shortage">{{ $t('layout.menu.materialShortage') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/scheduling')" index="/scheduling">{{ $t('layout.menu.scheduling') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/quality')" index="/quality">{{ $t('layout.menu.quality') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/scheduling/gantt')" index="/scheduling/gantt">{{ $t('layout.menu.gantt') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/custom-orders')" index="/custom-orders">{{ $t('layout.menu.customOrders') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/dye-recipe')" index="/dye-recipe">{{ $t('layout.menu.dyeRecipe') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/dye-batch')" index="/dye-batch">{{ $t('layout.menu.dyeBatch') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="visibleSubMenu.finance" index="finance" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('finance')">
           <template #title>
             <el-icon><Money /></el-icon>
-            <span>财务管理</span>
+            <span>{{ $t('layout.menu.finance') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/finance')" index="/finance">财务总览</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/ap')" index="/ap">应付管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/ar')" index="/ar">应收管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/ar-reconciliation')" index="/ar-reconciliation">应收对账</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/finance-report')" index="/finance-report">财务报表</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/cost')" index="/cost">成本归集</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/budget')" index="/budget">预算管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/fund')" index="/fund">资金管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/fixed-assets')" index="/fixed-assets">固定资产</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/currency')" index="/currency">多币种</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/financial-analysis')" index="/financial-analysis">财务分析</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/assist-accounting')" index="/assist-accounting">辅助核算</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/account-subject')" index="/account-subject">会计科目</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/accounting-period')" index="/accounting-period">会计期间</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/voucher')" index="/voucher">凭证管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/trading')" index="/trading">交易管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/ar-reconciliation/enhanced')" index="/ar-reconciliation/enhanced">增强版应收对账</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/bi/sales-analysis')" index="/bi/sales-analysis">BI 销售分析</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/finance')" index="/finance">{{ $t('layout.menu.financeOverview') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/ap')" index="/ap">{{ $t('layout.menu.ap') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/ar')" index="/ar">{{ $t('layout.menu.ar') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/ar-reconciliation')" index="/ar-reconciliation">{{ $t('layout.menu.arReconciliation') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/finance-report')" index="/finance-report">{{ $t('layout.menu.financeReport') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/cost')" index="/cost">{{ $t('layout.menu.cost') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/budget')" index="/budget">{{ $t('layout.menu.budget') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/fund')" index="/fund">{{ $t('layout.menu.fund') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/fixed-assets')" index="/fixed-assets">{{ $t('layout.menu.fixedAssets') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/currency')" index="/currency">{{ $t('layout.menu.currency') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/financial-analysis')" index="/financial-analysis">{{ $t('layout.menu.financialAnalysis') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/assist-accounting')" index="/assist-accounting">{{ $t('layout.menu.assistAccounting') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/account-subject')" index="/account-subject">{{ $t('layout.menu.accountSubject') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/accounting-period')" index="/accounting-period">{{ $t('layout.menu.accountingPeriod') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/voucher')" index="/voucher">{{ $t('layout.menu.voucher') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/trading')" index="/trading">{{ $t('layout.menu.trading') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/ar-reconciliation/enhanced')" index="/ar-reconciliation/enhanced">{{ $t('layout.menu.arReconciliationEnhanced') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/bi/sales-analysis')" index="/bi/sales-analysis">{{ $t('layout.menu.biSalesAnalysis') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="visibleSubMenu.workflow" index="workflow" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('workflow')">
           <template #title>
             <el-icon><List /></el-icon>
-            <span>工作流</span>
+            <span>{{ $t('layout.menu.workflow') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/bpm')" index="/bpm">审批管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/bpm/definitions')" index="/bpm/definitions">流程定义</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/bpm/templates')" index="/bpm/templates">流程模板</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/bpm/approval')" index="/bpm/approval">审批中心</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/business-trace')" index="/business-trace">业务追溯</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/barcode-scanner')" index="/barcode-scanner">扫码功能</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/quality-standards')" index="/quality-standards">质量标准</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/bpm')" index="/bpm">{{ $t('layout.menu.bpm') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/bpm/definitions')" index="/bpm/definitions">{{ $t('layout.menu.bpmDefinitions') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/bpm/templates')" index="/bpm/templates">{{ $t('layout.menu.bpmTemplates') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/bpm/approval')" index="/bpm/approval">{{ $t('layout.menu.bpmApproval') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/business-trace')" index="/business-trace">{{ $t('layout.menu.businessTrace') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/barcode-scanner')" index="/barcode-scanner">{{ $t('layout.menu.barcodeScanner') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/quality-standards')" index="/quality-standards">{{ $t('layout.menu.qualityStandards') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="visibleSubMenu.system" index="system" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('system')">
           <template #title>
             <el-icon><Setting /></el-icon>
-            <span>系统管理</span>
+            <span>{{ $t('layout.menu.system') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/system')" index="/system">系统设置</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/departments')" index="/departments">部门管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/five-dimension')" index="/five-dimension">五维管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/data-permission')" index="/data-permission">数据权限</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/report-templates')" index="/report-templates">报表中心</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/data-import')" index="/data-import">数据导入</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/print-templates')" index="/print-templates">打印模板</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/api-gateway')" index="/api-gateway">API 网关</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/system-update')" index="/system-update">系统更新</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/advanced')" index="/advanced">高级功能</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/notification')" index="/notification">通知中心</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/omni-audit')" index="/omni-audit">全量审计</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/system/audit-log')" index="/system/audit-log">审计日志</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/system/slow-query')" index="/system/slow-query">慢查询审计</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/security')" index="/security">安全管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/email')" index="/email">邮件管理</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/admin/failover')" index="/admin/failover">主备监控</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/system')" index="/system">{{ $t('layout.menu.systemSettings') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/departments')" index="/departments">{{ $t('layout.menu.departments') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/five-dimension')" index="/five-dimension">{{ $t('layout.menu.fiveDimension') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/data-permission')" index="/data-permission">{{ $t('layout.menu.dataPermission') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/report-templates')" index="/report-templates">{{ $t('layout.menu.reportTemplates') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/data-import')" index="/data-import">{{ $t('layout.menu.dataImport') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/print-templates')" index="/print-templates">{{ $t('layout.menu.printTemplates') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/api-gateway')" index="/api-gateway">{{ $t('layout.menu.apiGateway') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/system-update')" index="/system-update">{{ $t('layout.menu.systemUpdate') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/advanced')" index="/advanced">{{ $t('layout.menu.advanced') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/notification')" index="/notification">{{ $t('layout.menu.notification') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/omni-audit')" index="/omni-audit">{{ $t('layout.menu.omniAudit') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/system/audit-log')" index="/system/audit-log">{{ $t('layout.menu.auditLog') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/system/slow-query')" index="/system/slow-query">{{ $t('layout.menu.slowQuery') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/security')" index="/security">{{ $t('layout.menu.security') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/email')" index="/email">{{ $t('layout.menu.email') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/admin/failover')" index="/admin/failover">{{ $t('layout.menu.failover') }}</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu v-if="visibleSubMenu.ai" index="ai" role="menuitem" aria-haspopup="true" :aria-expanded="openedMenus.includes('ai')">
           <template #title>
             <el-icon><MagicStick /></el-icon>
-            <span>AI 智能</span>
+            <span>{{ $t('layout.menu.ai') }}</span>
           </template>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/ai-extend')" index="/ai-extend">AI 分析深化</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/ai-extend/process-optimization')" index="/ai-extend/process-optimization">AI 工艺优化</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/ai-extend/quality-prediction')" index="/ai-extend/quality-prediction">AI 质量预测</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/ai-extend')" index="/ai-extend">{{ $t('layout.menu.aiExtend') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/ai-extend/process-optimization')" index="/ai-extend/process-optimization">{{ $t('layout.menu.aiProcessOptimization') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/ai-extend/quality-prediction')" index="/ai-extend/quality-prediction">{{ $t('layout.menu.aiQualityPrediction') }}</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -191,22 +191,22 @@
       <el-header class="header">
         <div class="header-left">
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/' }">{{ $t('layout.breadcrumb.home') }}</el-breadcrumb-item>
             <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
         <div class="header-right">
           <el-dropdown>
             <span class="user-info">
-              {{ userStore.userInfo?.username || '用户' }}
+              {{ userStore.userInfo?.username || $t('layout.user.defaultName') }}
               <el-icon><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="$router.push('/system/profile')"
-                  >个人信息</el-dropdown-item
+                  >{{ $t('layout.user.profile') }}</el-dropdown-item
                 >
-                <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+                <el-dropdown-item divided @click="handleLogout">{{ $t('layout.user.logout') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
