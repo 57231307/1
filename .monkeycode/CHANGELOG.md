@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 386 | #559 | B-P2-4 MrpEngineService 接入销售审批+生产创建联动 + B-P2-5 CapacityService 接入排产产能校验 + B-P2-6 已在批次 356 修复 |
 | 385 | #558 | B-P2-1 移除 AR/AP 事件监听器冗余 mark_as_paid 调用 + B-P2-2/B-P2-3 调研确认无需修复 |
 | 384 | #557 | B-P1-3 客户/供应商主数据变更事件 + B-P1-7 事件重试死信队列 + F-P1-1 期末结转逻辑 |
 | 383 | #556 | 部署修复：docker-compose.yml + deploy-backend.sh 补全 WEBHOOK_SECRET 部署模板 |
