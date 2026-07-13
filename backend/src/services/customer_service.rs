@@ -13,6 +13,8 @@ use crate::models::dto::PageRequest;
 // 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::search::{CustomerDoc, SearchClient, SearchSyncer};
+// B-P1-3 修复（批次 384 v13 复审）：客户主数据变更事件发布
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::data_permission::{DataPermissionFilter, CUSTOMER_ALL_FIELDS};
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
@@ -603,6 +605,13 @@ impl CustomerService {
         .await?;
 
         txn.commit().await?;
+
+        // B-P1-3 修复（批次 384 v13 复审）：客户主数据变更后发布事件，触发关联单据冗余字段刷新
+        EVENT_BUS.publish(BusinessEvent::CustomerUpdated {
+            customer_id: updated.id,
+            customer_name: updated.customer_name.clone(),
+            user_id,
+        });
 
         // 批次 124 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
         // 注意：软删除场景下 ES 文档仍保留（status 字段同步），便于搜索历史客户

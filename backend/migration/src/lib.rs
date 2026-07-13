@@ -78,6 +78,9 @@ pub mod m0048_add_user_id_to_webhooks;
 // 批次 365 v13 复审 B-P1-8：processed_events 事件幂等去重表
 pub mod m0049_create_processed_events;
 
+// 批次 384 v13 复审 B-P1-7：事件死信队列表
+pub mod m0050_create_event_dead_letters;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -135,6 +138,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0047_add_last_payload_to_webhooks::Migration),
             Box::new(m0048_add_user_id_to_webhooks::Migration),
             Box::new(m0049_create_processed_events::Migration),
+            Box::new(m0050_create_event_dead_letters::Migration),
         ]
     }
 }
