@@ -14,6 +14,10 @@ use crate::models::status::inventory_count as count_status;
 use crate::models::{inventory_count, inventory_count_item, inventory_stock};
 use crate::services::audit_log_service::AuditLogService;
 use crate::utils::error::AppError;
+// 批次 359 v13 复审 B-P1-2 修复：导入 BusinessEvent 和 EVENT_BUS，
+// 在 approve_count commit 成功后发布 InventoryCountCompleted 事件，
+// 触发差异报告生成等下游订阅方
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
@@ -442,6 +446,17 @@ impl InventoryCountService {
         >(&txn, "inventory_count", active, Some(approver_id))
         .await?;
         txn.commit().await?;
+
+        // 批次 359 v13 复审 B-P1-2 修复：commit 成功后发布 InventoryCountCompleted 事件
+        // 原实现仅更新盘点单状态并同步库存，未通知下游订阅方（差异报告生成等），
+        // 导致盘点完成 → 差异报告归档的业务闭环断裂。
+        // 事件在 commit 后发布，避免事务回滚时已发布事件造成的幻事件。
+        // variance_count 取自盘点单 variance_items 字段（有差异的明细项数量）。
+        EVENT_BUS.publish(BusinessEvent::InventoryCountCompleted {
+            count_id: updated.id,
+            variance_count: updated.variance_items,
+        });
+
         Ok(updated)
     }
 
