@@ -335,6 +335,7 @@ impl AccountSubjectService {
     /// 计算规则（与 `voucher_service.update_account_balances` 一致）：
     /// 借方科目：期末余额 = 期初余额(借) + 本期借方发生 - 本期贷方发生
     /// 贷方科目：期末余额 = 期初余额(贷) + 本期贷方发生 - 本期借方发生
+    #[allow(dead_code)] // TODO(tech-debt): handler 接入后移除
     pub async fn refresh_balance(
         &self,
         subject_id: i32,

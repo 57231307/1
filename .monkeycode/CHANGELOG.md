@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 380 | #553 | v13 复审 P3 级闭环修复 L-32 AuditLogService mpsc channel 重构+部署配置补全（audit_log_service 不使用 define_service! 宏添加 handle:Mutex<Option<JoinHandle>>+sender:UnboundedSender+shutdown abort 方法 + app_state.rs 添加 audit_log 字段到 AppState/AppStateParams + main.rs 创建 AuditLogService 注入 AppState+shutdown 调用 + config.yaml.example 补全 auth.webhook_secret 字段修复部署模板缺失导致后端启动校验失败 + 3 次 CI 修复 UnboundedSender 无close方法/omni_audit_for_shutdown重复使用move错误/shutdown逻辑重复调用，CI 全绿，运行逻辑环 P3 26/26 全部清零） |
 | 379 | #552 | v13 复审 P3 级闭环修复 L-37+L-39+L-40+L-41+L-44 silent default消除（main.rs AUDIT_RETENTION_DAYS/ELASTICSEARCH_URL match+is_production区分warn/info + telemetry.rs ENV/OTEL_EXPORTER_OTLP_ENDPOINT/OTEL_ENABLED LazyLock+is_production + cli/util/service.rs SERVER__HOST/SERVER__PORT match+eprintln + .env.example BINGXI_ENV_FILE/BINGXI_SYSTEMD_DIR 显式声明，4 文件 122 行，2 次 CI 修复let语句位置后全绿，运行逻辑环P3 21/26完成+5项已验证通过） |
 | 378 | #550 | v13 复审 P3 级闭环修复 L-16+L-24 测试expect消除+终态文档（middleware/csrf.rs 4个测试函数9处expect改?操作符+Result返回类型 + init_service.rs InitTaskStatus枚举补充终态完整性文档 状态机Running→Completed|Failed终态+恢复路径，2 文件修复，1 次 CI 全绿，运行逻辑环P3 20/26完成+5项已验证通过） |
 | 377 | #549 | v13 复审 P3 级闭环修复 L-17+L-18+L-19+L-20 测试let _ = result吞错（ap_reconciliation_service 2处+voucher_service 1处+ar/recon 1处 + mrp_engine_service 3处 + bom_service 2处+customer_credit_limit 1处 改assert!(result.is_err()) + production_order_service let _ = service改let _service前缀下划线，7 文件 12 处修复，1 次 CI 全绿，运行逻辑环P3 13/25完成） |

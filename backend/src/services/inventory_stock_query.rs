@@ -154,6 +154,7 @@ impl InventoryStockService {
     ///
     /// 批次 338 v10 复审 P3 修复：签名从 18 参数改为单一参数对象 `RecordTransactionArgs`，
     /// 消除 `clippy::too_many_arguments` 警告。
+    #[allow(dead_code)] // TODO(tech-debt): handler 接入后移除
     pub async fn record_transaction(
         &self,
         args: RecordTransactionArgs,

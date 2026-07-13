@@ -241,6 +241,7 @@ impl SalesService {
         let ship_customer_id = order.customer_id;
         let ship_order_total = order.total_amount;
         let ship_order_id = request.order_id;
+        let ship_order_no = order.order_no.clone();
         let ship_items_for_event: Vec<crate::services::event_bus::ShippedItem> =
             shipped_items_snapshot
                 .iter()
@@ -295,6 +296,103 @@ impl SalesService {
 
         // 提交事务
         txn.commit().await?;
+
+        // F-P0-3 修复（批次 381 v13 复审）：全额发货时生成收入确认凭证
+        // 借：应收账款（含税总额，挂客户辅助核算）
+        // 贷：主营业务收入（不含税）/ 应交税费-销项税额
+        // 失败时仅 warn 不阻断主流程（与采购入库容错模式一致）
+        if is_full_shipment && ship_order_total > Decimal::ZERO {
+            let tax_rate = rust_decimal::Decimal::new(13, 2); // 0.13
+            let tax_amount = (ship_order_total * tax_rate
+                / (Decimal::ONE + tax_rate))
+                .round_dp(2);
+            let revenue_excl_tax = (ship_order_total - tax_amount).round_dp(2);
+
+            let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+                voucher_type: "转".to_string(),
+                voucher_date: chrono::Utc::now().date_naive(),
+                source_type: Some("SALES_ORDER".to_string()),
+                source_module: Some("sales".to_string()),
+                source_bill_id: Some(ship_order_id),
+                source_bill_no: Some(ship_order_no.clone()),
+                batch_no: None,
+                color_no: None,
+                items: vec![
+                    crate::services::voucher_service::VoucherItemRequest {
+                        line_no: Some(1),
+                        subject_code: Some("1131".to_string()),
+                        subject_name: Some("应收账款".to_string()),
+                        debit: ship_order_total,
+                        credit: Decimal::ZERO,
+                        summary: Some(format!("销售出库收入确认-{}", ship_order_no)),
+                        assist_customer_id: Some(ship_customer_id),
+                        assist_supplier_id: None,
+                        assist_department_id: None,
+                        assist_employee_id: None,
+                        assist_project_id: None,
+                        assist_batch_id: None,
+                        assist_color_no_id: None,
+                        assist_dye_lot_id: None,
+                        assist_grade: None,
+                        assist_workshop_id: None,
+                        quantity_meters: None,
+                        quantity_kg: None,
+                        unit_price: None,
+                    },
+                    crate::services::voucher_service::VoucherItemRequest {
+                        line_no: Some(2),
+                        subject_code: Some("6001".to_string()),
+                        subject_name: Some("主营业务收入".to_string()),
+                        debit: Decimal::ZERO,
+                        credit: revenue_excl_tax,
+                        summary: Some(format!("销售出库收入确认-{}", ship_order_no)),
+                        assist_customer_id: Some(ship_customer_id),
+                        assist_supplier_id: None,
+                        assist_department_id: None,
+                        assist_employee_id: None,
+                        assist_project_id: None,
+                        assist_batch_id: None,
+                        assist_color_no_id: None,
+                        assist_dye_lot_id: None,
+                        assist_grade: None,
+                        assist_workshop_id: None,
+                        quantity_meters: None,
+                        quantity_kg: None,
+                        unit_price: None,
+                    },
+                    crate::services::voucher_service::VoucherItemRequest {
+                        line_no: Some(3),
+                        subject_code: Some("222101".to_string()),
+                        subject_name: Some("应交税费-应交增值税-销项税额".to_string()),
+                        debit: Decimal::ZERO,
+                        credit: tax_amount,
+                        summary: Some(format!("销售出库收入确认-{}", ship_order_no)),
+                        assist_customer_id: Some(ship_customer_id),
+                        assist_supplier_id: None,
+                        assist_department_id: None,
+                        assist_employee_id: None,
+                        assist_project_id: None,
+                        assist_batch_id: None,
+                        assist_color_no_id: None,
+                        assist_dye_lot_id: None,
+                        assist_grade: None,
+                        assist_workshop_id: None,
+                        quantity_meters: None,
+                        quantity_kg: None,
+                        unit_price: None,
+                    },
+                ],
+            };
+            let voucher_service =
+                crate::services::voucher_service::VoucherService::new(self.db.clone());
+            if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+                tracing::warn!(
+                    "销售订单 {} 发货成功，但生成收入凭证失败：{}",
+                    ship_order_no,
+                    e
+                );
+            }
+        }
 
         // 批次 356 v13 复审 B-P0-2 修复：commit 后统一发布库存流水事件
         // 触发 inventory_finance_bridge_service 自动生成销售出库凭证
