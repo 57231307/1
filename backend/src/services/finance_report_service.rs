@@ -295,54 +295,73 @@ impl FinanceReportService {
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
     ) -> Result<IncomeStatement, AppError> {
-        // 营业收入（已完成的发票）
-        let total_revenue = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
-            .filter(finance_invoice::Column::InvoiceDate.gte(start_date))
-            .filter(finance_invoice::Column::InvoiceDate.lte(end_date))
-            .select_only()
-            .column_as(
-                Expr::col(finance_invoice::Column::TotalAmount).sum(),
-                "total",
+        // F-P1-2 修复（批次 362 v13 复审）：从凭证体系取数，移除硬编码比例
+        // 原实现从 finance_invoice/finance_payment 业务表取数 + 硬编码 70%/15%/10%/5% 比例，
+        // 违反禁止硬编码规则且与会计实务脱节。
+        // 修复：从已过账凭证分录按科目编码前缀聚合，参考中国企业会计准则科目编码：
+        // 60xx = 收入类，64xx = 成本类，6601 = 销售费用，6602 = 管理费用，6603 = 财务费用。
+
+        let total_revenue = self
+            .sum_voucher_amount_by_subject_prefix(
+                "60",
+                true,
+                start_date,
+                end_date,
             )
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
+            .await?;
 
-        // 营业成本（已完成的付款）
-        let total_expenses = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
-            .filter(finance_payment::Column::PaymentDate.gte(start_date))
-            .filter(finance_payment::Column::PaymentDate.lte(end_date))
-            .select_only()
-            .column_as(Expr::col(finance_payment::Column::Amount).sum(), "total")
-            .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
+        let cost_of_goods_sold = self
+            .sum_voucher_amount_by_subject_prefix(
+                "64",
+                false,
+                start_date,
+                end_date,
+            )
+            .await?;
 
-        // 计算毛利润
-        let cost_of_goods_sold = total_expenses * Decimal::new(7, 1); // 假设70%为成本
         let gross_profit = total_revenue - cost_of_goods_sold;
 
-        // 运营费用（简化处理）
+        let sales_expense = self
+            .sum_voucher_amount_by_subject_prefix(
+                "6601",
+                false,
+                start_date,
+                end_date,
+            )
+            .await?;
+
+        let management_expense = self
+            .sum_voucher_amount_by_subject_prefix(
+                "6602",
+                false,
+                start_date,
+                end_date,
+            )
+            .await?;
+
+        let financial_expense = self
+            .sum_voucher_amount_by_subject_prefix(
+                "6603",
+                false,
+                start_date,
+                end_date,
+            )
+            .await?;
+
         let operating_expenses = vec![
             ReportItem {
                 name: "管理费用".to_string(),
-                amount: total_expenses * Decimal::new(15, 2),
+                amount: management_expense,
                 description: None,
             },
             ReportItem {
                 name: "销售费用".to_string(),
-                amount: total_expenses * Decimal::new(1, 1),
+                amount: sales_expense,
                 description: None,
             },
             ReportItem {
                 name: "财务费用".to_string(),
-                amount: total_expenses * Decimal::new(5, 2),
+                amount: financial_expense,
                 description: None,
             },
         ];
@@ -357,7 +376,7 @@ impl FinanceReportService {
             revenue: vec![ReportItem {
                 name: "营业收入".to_string(),
                 amount: total_revenue,
-                description: Some("主营业务收入".to_string()),
+                description: Some("主营业务收入及其他业务收入".to_string()),
             }],
             total_revenue,
             cost_of_goods_sold,
@@ -371,6 +390,43 @@ impl FinanceReportService {
             period_start: start_date.format("%Y-%m-%d").to_string(),
             period_end: end_date.format("%Y-%m-%d").to_string(),
         })
+    }
+
+    /// F-P1-2 修复（批次 362 v13 复审）：按科目编码前缀聚合已过账凭证金额
+    ///
+    /// 从已过账凭证分录联表查询，按科目编码前缀过滤，返回借方或贷方总额。
+    /// 用于利润表等财务报表从凭证体系取数，替代原硬编码比例估算。
+    ///
+    /// 参数说明：
+    /// - `prefix`：科目编码前缀（如 "60" 表示收入类，"64" 表示成本类）
+    /// - `is_credit`：true 返回贷方总额（收入类），false 返回借方总额（成本/费用类）
+    async fn sum_voucher_amount_by_subject_prefix(
+        &self,
+        prefix: &str,
+        is_credit: bool,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<Decimal, AppError> {
+        let target_column = if is_credit {
+            voucher_item::Column::Credit
+        } else {
+            voucher_item::Column::Debit
+        };
+
+        let amount: Option<Decimal> = voucher_item::Entity::find()
+            .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
+            .filter(voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED))
+            .filter(voucher::Column::VoucherDate.gte(start_date))
+            .filter(voucher::Column::VoucherDate.lte(end_date))
+            .filter(voucher_item::Column::SubjectCode.starts_with(prefix))
+            .select_only()
+            .column_as(Expr::col(target_column).sum(), "total")
+            .into_tuple()
+            .one(self.db.as_ref())
+            .await?
+            .flatten();
+
+        Ok(amount.unwrap_or(Decimal::ZERO))
     }
 
     /// 现金流量表
