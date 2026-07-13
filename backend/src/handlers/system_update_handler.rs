@@ -223,20 +223,26 @@ pub async fn upload_and_update(
 
             // 路径遍历防护：验证保存路径在预期目录内
             let canonical_save_path = save_path.canonicalize().map_err(|e| {
-                // 清理已写入的文件
-                let _ = std::fs::remove_file(&save_path);
+                // L-5 修复（批次 375 v13 复审）：清理失败不再吞错，记录 warn 日志
+                if let Err(rm_err) = std::fs::remove_file(&save_path) {
+                    tracing::warn!(error = %rm_err, "清理已写入文件失败（可忽略）");
+                }
                 AppError::bad_request(format!("无效的文件路径：{}", e))
             })?;
 
             let canonical_temp_dir = temp_dir.canonicalize().map_err(|e| {
-                // 清理已写入的文件
-                let _ = std::fs::remove_file(&save_path);
+                // L-5 修复（批次 375 v13 复审）：清理失败不再吞错，记录 warn 日志
+                if let Err(rm_err) = std::fs::remove_file(&save_path) {
+                    tracing::warn!(error = %rm_err, "清理已写入文件失败（可忽略）");
+                }
                 AppError::internal(format!("临时目录错误：{}", e))
             })?;
 
             if !canonical_save_path.starts_with(&canonical_temp_dir) {
-                // 清理已写入的文件
-                let _ = std::fs::remove_file(&save_path);
+                // L-5 修复（批次 375 v13 复审）：清理失败不再吞错，记录 warn 日志
+                if let Err(rm_err) = std::fs::remove_file(&save_path) {
+                    tracing::warn!(error = %rm_err, "清理已写入文件失败（可忽略）");
+                }
                 return Err(AppError::bad_request("检测到路径遍历攻击".to_string()));
             }
 

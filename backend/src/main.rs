@@ -288,7 +288,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
     // 初始化健康检查的启动时间（OnceLock 首次写入即锁定，确保 uptime 反映真实进程运行时间）
-    let _ = crate::handlers::health_handler::start_time_init();
+    // L-9 修复（批次 375 v13 复审）：移除 let _ = 吞错模式，直接调用
+    // start_time_init 返回 Instant（非 Result），get_or_init 不会失败，无需错误处理
+    crate::handlers::health_handler::start_time_init();
 
     let settings = AppSettings::new()?;
 
