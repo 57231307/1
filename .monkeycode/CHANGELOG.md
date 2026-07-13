@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 378 | #550 | v13 复审 P3 级闭环修复 L-16+L-24 测试expect消除+终态文档（middleware/csrf.rs 4个测试函数9处expect改?操作符+Result返回类型 + init_service.rs InitTaskStatus枚举补充终态完整性文档 状态机Running→Completed|Failed终态+恢复路径，2 文件修复，1 次 CI 全绿，运行逻辑环P3 20/26完成+5项已验证通过） |
 | 377 | #549 | v13 复审 P3 级闭环修复 L-17+L-18+L-19+L-20 测试let _ = result吞错（ap_reconciliation_service 2处+voucher_service 1处+ar/recon 1处 + mrp_engine_service 3处 + bom_service 2处+customer_credit_limit 1处 改assert!(result.is_err()) + production_order_service let _ = service改let _service前缀下划线，7 文件 12 处修复，1 次 CI 全绿，运行逻辑环P3 13/25完成） |
 | 376 | #548 | v13 复审 P3 级闭环修复 L-12+L-13+L-14+L-15 expect消除（email_service hmac_sha256 new_from_slice expect改match+return Vec::new() + hash_password Params::new expect改unwrap_or_else+Params::default()兜底 + date_utils utc_offset/today_start_utc 2处expect改unwrap_or_else四重兜底链 + middleware/timeout fallback expect改unwrap_or_else+Response::new双重兜底，4 文件 8 处修复，1 次 CI 全绿） |
 | 375 | #547 | v13 复审 P3 级闭环修复 L-5+L-7+L-8+L-9+L-10 吞错清理（system_update_handler 3处let _ = remove_file改if let Err tracing::warn + websocket notifications broadcast let _ = tx.send改if is_err tracing::warn + cli/admin stdin.write_all改if let Err return Err + main.rs start_time_init let _ =直接调用 + init_service 冗余let _ = query_result死代码删除，5 文件 7 处修复，1 次 CI 全绿，规则10记忆整理同步完成） |
