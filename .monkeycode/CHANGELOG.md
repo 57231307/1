@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 367 | #539 | v13 复审 P1 级闭环修复 L-1 CLI吞错+L-21 MatchStatus缺终态（cli/util/mod.rs Backup/Restore let _ =吞错改 if!xxx eprintln+exit(1) + models/ar_reconciliation_item.rs MatchStatus 枚举新增 Disputed(DISPUTED)+Cancelled(CANCELLED) 两终态，2 文件 20 行，1 次 CI 全绿） |
 | 366 | #538 | v13 复审 P1 级闭环修复 B-P1-8 剩余5个订阅者接入幂等（event_bus start_event_listener 中 PaymentCompleted/CollectionCompleted/BpmProcessFinished/LowStockAlert/MaterialShortageAlert 5 分支接入 EventIdempotencyService 幂等检查 ap_paid/ar_paid/bpm/low_stock/material_shortage 键，2 次 CI 修复 continue inside async block 改 should_process flag+if 结构，CI 全绿，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
 | 365 | #537 | v13 复审 P1 级闭环修复 B-P1-8 事件幂等处理基础设施+InventoryTransactionCreated接入（新增 processed_events 表 migration m0049 + SeaORM entity + EventIdempotencyService 服务 try_mark_processed_txn/try_mark_processed + inventory_finance_bridge_service handle_inventory_transaction 去掉_transaction_id下划线前缀接入幂等检查 inventory_txn:{transaction_id} 键，9 文件 201 行，2 次 CI 修复 EntityName冲突+TransactionTrait导入，CI 全绿，B-P1-8 基础设施完成） |
 | 364 | #536 | v13 复审 P1 级闭环修复 B-P1-6 删除 InventoryAdjusted 孤岛事件（无 publish + 订阅者仅打日志 + 语义被 InventoryTransactionCreated 覆盖，删除 event_bus 变体定义+订阅者 + event_kafka 映射+测试 + event_kafka_payload 变体+From+TryFrom，3 文件 41 行删除，1 次 CI 全绿，B-P1-6 完整闭环） |

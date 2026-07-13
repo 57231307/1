@@ -35,11 +35,11 @@
 | 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
 | 🟢 业务场景闭环 | 21 | 13 | 8 | 🔄 P0 6 项 + P1 7 项已完成（批次 356/358/359/360/361/364/365/366，B-P1-8 完整闭环 6 个高风险变体全部接入幂等） |
 | 🟢 财务场景闭环 | 16 | 7 | 9 | 🔄 P0 2 项 + P1 5 项已完成（批次 356/358/359/360/362/363，F-P1-2 完整闭环） |
-| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 0 | 45 | ⏳ 待修复 |
+| 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 2 | 43 | 🔄 P1 2 项已完成（批次 367 L-1 CLI吞错+L-21 MatchStatus缺终态） |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **31** | **~347** | — |
+| **合计** | **~378** | **33** | **~345** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -287,6 +287,17 @@
 - #29223129714：全绿 ✅（修复：5 处 `continue` 改为 `should_process` 标志 + `if should_process { 业务逻辑 }` 结构，每处末尾 `} // if should_process` 闭合）
 
 **遗留**：无（B-P1-8 完整闭环完成，6 个高风险变体全部接入幂等：InventoryTransactionCreated 批次365 + PaymentCompleted/CollectionCompleted/BpmProcessFinished/LowStockAlert/MaterialShortageAlert 批次366）
+
+#### 批次 367（PR #539，已合并 2026-07-13）✅ v13 复审 P1 级闭环修复（L-1 CLI吞错 + L-21 MatchStatus缺终态）
+
+**修改文件（2 个）**：
+1. `cli/util/mod.rs`：L-1 修复 — `UtilCommand::Backup`/`Restore` 两个分支的 `let _ = backup::cmd_backup/restore(...)` 吞错改为 `if !cmd_xxx(...) { eprintln!(...); std::process::exit(1); }`。原实现丢弃 bool 返回值，备份/恢复失败时静默继续，用户无感知。
+2. `models/ar_reconciliation_item.rs`：L-21 修复 — `MatchStatus` 枚举新增 `Disputed`(争议中，string_value="DISPUTED") + `Cancelled`(已取消，string_value="CANCELLED") 两个终态。原实现仅有 Unmatched/Matched/Partial 三态，对账明细存在争议或需作废时无法标记终态，状态机不完整。
+
+**CI 记录**：1 次 CI 运行
+- #29223770145：全绿 ✅（Clippy + 单元测试 + 格式检查 + 后端构建 + 前端全套均通过）
+
+**遗留**：无
 
 ---
 
