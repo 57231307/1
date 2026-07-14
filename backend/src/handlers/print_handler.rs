@@ -146,3 +146,94 @@ pub async fn get_print_template(
         .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
     Ok(axum::Json(ApiResponse::success(template)))
 }
+
+#[cfg(test)]
+mod tests {
+    //! 打印 Handler 单元测试（批次 394 补测）
+    //!
+    //! 覆盖目标：
+    //! - builtin_print_templates 静态模板列表（5 个测试）
+
+    use super::*;
+
+    /// 测试_builtin_print_templates返回6个模板
+    ///
+    /// 验证内置打印模板数量为 6（对应 6 种单据类型）
+    #[test]
+    fn 测试_builtin_print_templates返回6个模板() {
+        let templates = builtin_print_templates();
+        assert_eq!(templates.len(), 6, "应有 6 个内置打印模板");
+    }
+
+    /// 测试_builtin_print_templates_id唯一且连续
+    ///
+    /// 验证 6 个模板的 id 为 1-6，唯一且连续
+    #[test]
+    fn 测试_builtin_print_templates_id唯一且连续() {
+        let templates = builtin_print_templates();
+        let ids: Vec<i32> = templates.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![1, 2, 3, 4, 5, 6], "id 应为 1-6 连续");
+
+        // 唯一性检查
+        let unique_ids: std::collections::HashSet<i32> = ids.iter().copied().collect();
+        assert_eq!(unique_ids.len(), 6, "id 应唯一");
+    }
+
+    /// 测试_builtin_print_templates_doc_type唯一
+    ///
+    /// 验证 6 个模板的 doc_type 互不相同
+    #[test]
+    fn 测试_builtin_print_templates_doc_type唯一() {
+        let templates = builtin_print_templates();
+        let doc_types: Vec<&str> = templates.iter().map(|t| t.doc_type.as_str()).collect();
+        let unique: std::collections::HashSet<&str> = doc_types.iter().copied().collect();
+        assert_eq!(unique.len(), 6, "doc_type 应唯一");
+    }
+
+    /// 测试_builtin_print_templates全部为默认模板
+    ///
+    /// 验证所有内置模板的 is_default 均为 true
+    #[test]
+    fn 测试_builtin_print_templates全部为默认模板() {
+        let templates = builtin_print_templates();
+        for t in &templates {
+            assert!(t.is_default, "模板 {} 应为默认模板", t.name);
+        }
+    }
+
+    /// 测试_builtin_print_templates覆盖6种单据类型
+    ///
+    /// 验证模板覆盖全部 6 种业务单据类型：
+    /// sales_order / sales_contract / purchase_order / purchase_receipt / inventory_transfer / voucher
+    #[test]
+    fn 测试_builtin_print_templates覆盖6种单据类型() {
+        let templates = builtin_print_templates();
+        let doc_types: Vec<&str> = templates.iter().map(|t| t.doc_type.as_str()).collect();
+
+        let expected = [
+            "sales_order",
+            "sales_contract",
+            "purchase_order",
+            "purchase_receipt",
+            "inventory_transfer",
+            "voucher",
+        ];
+        for t in &expected {
+            assert!(
+                doc_types.contains(&t),
+                "应包含单据类型 {}",
+                t
+            );
+        }
+
+        // 名称不应为空
+        for t in &templates {
+            assert!(!t.name.is_empty(), "模板 {} 的名称不应为空", t.doc_type);
+            assert!(
+                !t.template_content.is_empty(),
+                "模板 {} 的内容不应为空",
+                t.doc_type
+            );
+        }
+    }
+}
