@@ -6,6 +6,7 @@ use crate::models::dto::crm_dto::{
 use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Multipart, Path, Query, State},
@@ -194,7 +195,7 @@ pub async fn delete_lead(
     let service = CrmService::new(state.db.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete_lead(id, auth.user_id).await?;
-    Ok(Json(ApiResponse::success("删除成功".to_string())))
+    Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
 }
 
 pub async fn update_lead_status(
@@ -343,7 +344,7 @@ pub async fn delete_opportunity(
     let service = CrmService::new(state.db.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete_opportunity(id, auth.user_id).await?;
-    Ok(Json(ApiResponse::success("删除成功".to_string())))
+    Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
 }
 
 /// 将商机转化为销售订单
