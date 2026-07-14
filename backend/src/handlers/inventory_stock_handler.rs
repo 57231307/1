@@ -320,10 +320,11 @@ pub async fn list_stock(
         }
     }
 
+    // 批次 406 修复：序列化失败应传播错误而非返回 Null
     let mut stock_json: Vec<serde_json::Value> = stock_responses
         .into_iter()
-        .map(|s| serde_json::to_value(s).unwrap_or_default())
-        .collect();
+        .map(|s| serde_json::to_value(s).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     // P2-1 修复（批次 388 v13 复审）：原 if let Ok(Some(...)) 合并 Err 与 Ok(None) 语义，

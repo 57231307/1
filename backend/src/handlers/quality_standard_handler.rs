@@ -254,10 +254,11 @@ pub async fn list_versions(
     let service = QualityStandardService::new(state.db.clone());
     let versions = service.get_version_history(id).await?;
 
+    // 批次 406 修复：序列化失败应传播错误而非返回 Null，避免 API 返回空数据掩盖问题
     let version_list: Vec<serde_json::Value> = versions
         .into_iter()
-        .map(|v| serde_json::to_value(v).unwrap_or_default())
-        .collect();
+        .map(|v| serde_json::to_value(v).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Json(ApiResponse::success(version_list)))
 }

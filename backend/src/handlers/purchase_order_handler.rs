@@ -39,10 +39,11 @@ pub async fn list_orders(
         .await?;
 
     // 转换为JSON值数组
+    // 批次 406 修复：序列化失败应传播错误而非返回 Null
     let mut orders_json: Vec<serde_json::Value> = orders
         .into_iter()
-        .map(|o| serde_json::to_value(o).unwrap_or_default())
-        .collect();
+        .map(|o| serde_json::to_value(o).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {

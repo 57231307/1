@@ -1,1 +1,0 @@
-warning: this expression creates a reference which is immediately dereferenced by the compiler
