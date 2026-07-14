@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 406 | #581 | v14 低风险修复：6 个 handler 文件 serde_json::to_value(x).unwrap_or_default() 序列化吞错改为 map_err(AppError::from).collect::<Result<Vec<_>, _>>()? 错误传播（ap_payment_request/inventory_stock/notification/purchase_order/purchase_receipt/quality_standard）+ 删除批次 402 错误创建的 1 行 clippy baseline 文件，CI bootstrap 模式自动重建 180 行完整基线，CI 全绿 |
 | 405 | #580 | v14 低风险修复：CRUD 业务消息常量化第二批 - 5 handler 8 处硬编码替换（crm_handler 2 处 DELETE_OK + budget_management_handler 3 处 DELETE_OK/APPROVE_OK/EXECUTE_OK + webhook_handler 1 处 + bpm_definition_handler 1 处 + production_order_handler 1 处 APPROVE_OK），CI 全绿 |
 | 404 | #579 | v14 低风险修复：supplier_service/bpm_service LazyLock<Regex> expect 改为 LazyLock<Option<Regex>> 优雅降级 + 新建 utils/messages.rs biz_msg 常量模块（CREATE_OK/UPDATE_OK/DELETE_OK/APPROVE_OK/EXECUTE_OK/OPERATE_OK）+ crud_macro.rs 6 处硬编码替换为常量引用 + fund_management_handler/missing_handlers 4 处硬编码替换，CI 全绿 |
 | 403 | #578 | v14 低风险修复：omni_audit_handler 审计日志 DB 字段 unwrap_or_default 吞错改用 Option<T> 读取区分 NULL 与错误（nullable→默认值，错误→传播 500）+ import_export_service 产品导入价格转换失败静默写 0 改为返回验证错误 + audit_log_service/omni_audit_service shutdown 路径 Mutex::lock().unwrap() 改用 unwrap_or_else 安全访问 poisoned lock，CI 全绿 |

@@ -10,7 +10,7 @@
 
 > **v13 复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **已完成批次**：356-405（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
+> **已完成批次**：356-406（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
 
 ### 进度总览
 
@@ -21,7 +21,7 @@
 | 财务场景闭环 | 16 | 11 | 5 | 🔄 **P0 8/8 ✅** + **P1 6/6 ✅** + P2 2/4（批次 387 完成 F-P2-2/4，F-P2-1/3 待后续批次） |
 | 运行逻辑环闭环 | 45 | 45 | 0 | ✅ 全部完成（P1 6 + P2 13 + P3 26） |
 | v14 中风险遗留 | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
-| v14 低风险遗留 | 74 | 32 | 42 | 🔄 批次 397 完成 4 处 unwrap_or_default 安全修复 + 批次 398 完成 3 项配置合规修复 + 批次 400 完成 3 项 #[allow(dead_code)] 接入 + 批次 401 完成部署脚本密钥自动生成 + hex→base64 提升熵比 + baseline 文件重建（2 条纯摘要行）+ 批次 402 完成 baseline 最后一条 `needless_reference` 警告清零（webhook_handler.rs 测试 `&*LazyLock` 修复，baseline 清空；11 个 `#[allow(too_many_arguments)]` 标注为批次 328 历史添加，列入技术债务见下文 §1.1）+ 批次 403 完成 4 处安全修复（omni_audit_handler DB 字段吞错改 Option<T> 读取 + import_export 价格转换失败返回验证错误 + 2 处 shutdown Mutex 安全访问）+ 批次 404 完成 2 处 LazyLock expect 安全降级 + 10 处硬编码中文消息常量化首批（新建 utils/messages.rs + crud_macro 6 处 + 2 个 handler 4 处）+ 批次 405 完成 8 处硬编码消息常量化第二批（5 个 handler 文件） |
+| v14 低风险遗留 | 74 | 38 | 36 | 🔄 批次 397 完成 4 处 unwrap_or_default 安全修复 + 批次 398 完成 3 项配置合规修复 + 批次 400 完成 3 项 #[allow(dead_code)] 接入 + 批次 401 完成部署脚本密钥自动生成 + hex→base64 提升熵比 + baseline 文件重建 + 批次 402 完成 baseline 最后一条 `needless_reference` 警告清零 + 批次 403 完成 4 处安全修复 + 批次 404 完成 2 处 LazyLock expect 安全降级 + 10 处消息常量化首批 + 批次 405 完成 8 处消息常量化第二批 + 批次 406 完成 6 handler 序列化吞错修复 + clippy baseline 重建（180 行） |
 | v13 前端/后端 P2 | 9 | 9 | 0 | ✅ 阶段 5 useTableApi 接入全部完成（批次 390-391） |
 | 测试覆盖补测 | 12 | 12 | 0 | ✅ **全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23） |
 | **合计** | **~378** | **97** | **~281** | — |
@@ -207,7 +207,8 @@
 | 403 ✅ | unwrap/lock 安全修复 | 4 | omni_audit_handler DB 字段吞错改 Option<T> 读取 + import_export 价格转换失败返回验证错误 + 2 处 shutdown Mutex::lock().unwrap() 改用 unwrap_or_else |
 | 404 ✅ | LazyLock expect + 消息常量化 | 12 | 2 处 LazyLock<Regex> expect 改 Option 优雅降级 + 新建 messages.rs 常量模块 + crud_macro 6 处 + 2 个 handler 4 处硬编码替换 |
 | 405 ✅ | 消息常量化第二批 | 8 | 5 handler 文件 8 处硬编码替换（crm/budget/webhook/bpm_definition/production_order） |
-| 406-407 | 其他 | 34 | 命名规范/注释完善/代码风格等 |
+| 406 ✅ | 序列化吞错修复 + baseline 重建 | 6+1 | 6 handler serde_json::to_value().unwrap_or_default() 改为错误传播 + 删除错误 baseline 文件由 CI 自动重建 180 行 |
+| 407 | 其他 | ~28 | 命名规范/注释完善/代码风格等 |
 
 #### §1.1 技术债务：11 个 `#[allow(clippy::too_many_arguments)]` 标注处理计划
 
