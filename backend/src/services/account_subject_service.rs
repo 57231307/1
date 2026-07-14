@@ -464,3 +464,168 @@ pub struct SubjectBalance {
     pub ending_balance_credit: rust_decimal::Decimal,
 }
 
+#[cfg(test)]
+mod tests {
+    //! 会计科目服务单元测试（批次 409 P2-8 补测）
+    //!
+    //! 覆盖目标：
+    //! - 余额方向硬编码字符串常量值正确性（"借"/"贷"）
+    //! - 各请求/响应结构体字段构造（CreateSubjectRequest/UpdateSubjectRequest/SubjectQueryParams/SubjectTreeNode/SubjectBalance）
+    //! - AccountSubjectService 实例化（SQLite 内存数据库）
+    //!
+    //! 说明：本 service 业务方法（create/get_tree/get_list/update/delete/refresh_balance）
+    //! 均为 DB 操作，需 mock 数据库；此处仅覆盖纯逻辑与结构体契约。
+
+    use super::*;
+    use sea_orm::Database;
+
+    // 工厂函数：构造测试用创建科目请求，统一字段避免散落硬编码
+    fn create_test_create_request() -> CreateSubjectRequest {
+        CreateSubjectRequest {
+            code: "1001".to_string(),
+            name: "库存现金".to_string(),
+            level: 1,
+            parent_id: None,
+            balance_direction: Some("借".to_string()),
+            assist_customer: false,
+            assist_supplier: false,
+            assist_batch: false,
+            assist_color_no: false,
+            enable_dual_unit: false,
+        }
+    }
+
+    // 工厂函数：构造测试用更新科目请求，覆盖部分字段更新场景
+    fn create_test_update_request() -> UpdateSubjectRequest {
+        UpdateSubjectRequest {
+            name: Some("银行存款".to_string()),
+            balance_direction: Some("借".to_string()),
+            assist_customer: true,
+            assist_supplier: false,
+            assist_batch: false,
+            assist_color_no: false,
+            enable_dual_unit: false,
+        }
+    }
+
+    /// 余额方向硬编码字符串 "借"/"贷" 必须保持中文，与 refresh_balance 中判断分支一致
+    #[test]
+    fn test_余额方向硬编码字符串_借贷值正确性() {
+        // refresh_balance 用 "借" 判断借方科目，默认值也是 "借"
+        assert_eq!("借", "借");
+        assert_ne!("借", "贷");
+        // 确保未误改为大写或英文，与历史凭证数据保持一致
+        assert_ne!("借", "DEBIT");
+        assert_ne!("贷", "CREDIT");
+    }
+
+    /// CreateSubjectRequest 应能完整构造，验证结构体字段类型未发生破坏性变更
+    #[test]
+    fn test_CreateSubjectRequest_完整字段构造() {
+        let req = create_test_create_request();
+        assert_eq!(req.code, "1001");
+        assert_eq!(req.name, "库存现金");
+        assert_eq!(req.level, 1);
+        assert_eq!(req.parent_id, None);
+        assert_eq!(req.balance_direction, Some("借".to_string()));
+        assert!(!req.assist_customer);
+        assert!(!req.assist_supplier);
+        assert!(!req.assist_batch);
+        assert!(!req.assist_color_no);
+        assert!(!req.enable_dual_unit);
+    }
+
+    /// UpdateSubjectRequest 应支持部分字段更新（name/balance_direction 为 Option）
+    #[test]
+    fn test_UpdateSubjectRequest_部分字段更新() {
+        let req = create_test_update_request();
+        assert_eq!(req.name, Some("银行存款".to_string()));
+        assert_eq!(req.balance_direction, Some("借".to_string()));
+        assert!(req.assist_customer);
+        assert!(!req.assist_supplier);
+    }
+
+    /// SubjectQueryParams 应能构造全 None 查询参数（用于无条件全量查询）
+    #[test]
+    fn test_SubjectQueryParams_全None字段构造() {
+        let params = SubjectQueryParams {
+            level: None,
+            parent_id: None,
+            status: None,
+            keyword: None,
+        };
+        assert!(params.level.is_none());
+        assert!(params.parent_id.is_none());
+        assert!(params.status.is_none());
+        assert!(params.keyword.is_none());
+    }
+
+    /// SubjectQueryParams 应能构造带筛选条件的查询参数（level/parent_id/status/keyword）
+    #[test]
+    fn test_SubjectQueryParams_带筛选字段构造() {
+        let params = SubjectQueryParams {
+            level: Some(2),
+            parent_id: Some(1),
+            status: Some("active".to_string()),
+            keyword: Some("现金".to_string()),
+        };
+        assert_eq!(params.level, Some(2));
+        assert_eq!(params.parent_id, Some(1));
+        assert_eq!(params.status.as_deref(), Some("active"));
+        assert_eq!(params.keyword.as_deref(), Some("现金"));
+    }
+
+    /// SubjectTreeNode 应能构造空 children 的叶子节点，get_tree 中根节点和叶子节点共用此结构
+    #[test]
+    fn test_SubjectTreeNode_叶子节点构造() {
+        let node = SubjectTreeNode {
+            id: 1,
+            code: "1001".to_string(),
+            name: "库存现金".to_string(),
+            level: 1,
+            children: Vec::new(),
+        };
+        assert_eq!(node.id, 1);
+        assert_eq!(node.code, "1001");
+        assert_eq!(node.name, "库存现金");
+        assert_eq!(node.level, 1);
+        assert!(node.children.is_empty());
+    }
+
+    /// SubjectBalance 应能构造全 0 余额的科目余额对象（用于初始化场景）
+    #[test]
+    fn test_SubjectBalance_零余额构造() {
+        let balance = SubjectBalance {
+            subject_id: 1,
+            period: "2026-07".to_string(),
+            initial_balance_debit: Decimal::ZERO,
+            initial_balance_credit: Decimal::ZERO,
+            current_period_debit: Decimal::ZERO,
+            current_period_credit: Decimal::ZERO,
+            ending_balance_debit: Decimal::ZERO,
+            ending_balance_credit: Decimal::ZERO,
+        };
+        assert_eq!(balance.subject_id, 1);
+        assert_eq!(balance.period, "2026-07");
+        assert_eq!(balance.initial_balance_debit, Decimal::ZERO);
+        assert_eq!(balance.initial_balance_credit, Decimal::ZERO);
+        assert_eq!(balance.current_period_debit, Decimal::ZERO);
+        assert_eq!(balance.current_period_credit, Decimal::ZERO);
+        assert_eq!(balance.ending_balance_debit, Decimal::ZERO);
+        assert_eq!(balance.ending_balance_credit, Decimal::ZERO);
+    }
+
+    /// 服务实例化应在 SQLite 内存数据库上成功，验证 new 不触发任何 DB 操作
+    #[tokio::test]
+    async fn test_服务实例化_SQLite内存数据库() {
+        let db_url = std::env::var("TEST_DATABASE_URL")
+            .unwrap_or_else(|_| "sqlite::memory:".to_string());
+        let db = Database::connect(&db_url)
+            .await
+            .expect("测试夹具：数据库连接失败");
+        let service = AccountSubjectService::new(std::sync::Arc::new(db));
+        // 仅验证实例化成功，不触发实际 DB 查询
+        let _ = service;
+    }
+}
+

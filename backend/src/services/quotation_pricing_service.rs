@@ -226,3 +226,175 @@ impl PricingContext {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! 销售报价单定价服务单元测试（批次 409 P2-8 补测）
+    //!
+    //! 覆盖目标：
+    //! - CustomerLevel 折扣率与编码解析（VIP/Normal/大小写/空串/含空格）
+    //! - match_tier 阶梯价匹配（数量>min_q/边界相等/小于/None/零值）
+    //! - PricingContext::customer_level_opt VIP/Normal 分支
+
+    use super::*;
+
+    // 工厂函数：构造测试基础价 10.00 元，避免散落硬编码
+    fn create_base_price() -> Decimal {
+        Decimal::new(1000, 2)
+    }
+
+    // 工厂函数：构造测试定价上下文，统一字段避免重复
+    fn create_test_pricing_context(level: CustomerLevel) -> PricingContext {
+        PricingContext {
+            customer_id: 1,
+            customer_level: level,
+            product_id: 100,
+            color_id: Some(200),
+            quantity: Decimal::new(500, 0),
+            currency: "CNY".to_string(),
+            quotation_date: chrono::NaiveDate::from_ymd_opt(2026, 7, 14)
+                .expect("测试夹具：构造测试日期失败"),
+        }
+    }
+
+    /// VIP 折扣率必须为 0.05（95 折），calculate 中 discount_amount 依赖此值
+    #[test]
+    fn test_客户等级折扣率_VIP应为0_05() {
+        let rate = CustomerLevel::Vip.discount_rate();
+        assert_eq!(rate, Decimal::new(5, 2));
+    }
+
+    /// 普通客户无折扣，折扣率必须为 0，避免金额被错误折减
+    #[test]
+    fn test_客户等级折扣率_普通客户应为0() {
+        let rate = CustomerLevel::Normal.discount_rate();
+        assert_eq!(rate, Decimal::ZERO);
+    }
+
+    /// from_code "VIP" 大写应解析为 Vip，色号价格查询依赖此映射
+    #[test]
+    fn test_from_code_VIP大写解析为Vip() {
+        assert_eq!(CustomerLevel::from_code("VIP"), CustomerLevel::Vip);
+    }
+
+    /// from_code 应大小写不敏感，前端可能传入任意大小写组合
+    #[test]
+    fn test_from_code_大小写不敏感解析为Vip() {
+        assert_eq!(CustomerLevel::from_code("vip"), CustomerLevel::Vip);
+        assert_eq!(CustomerLevel::from_code("Vip"), CustomerLevel::Vip);
+        assert_eq!(CustomerLevel::from_code("vIp"), CustomerLevel::Vip);
+    }
+
+    /// 非客户等级字符串识别为 Normal，避免误授权 VIP 折扣
+    #[test]
+    fn test_from_code_非VIP字符串解析为Normal() {
+        assert_eq!(CustomerLevel::from_code("NORMAL"), CustomerLevel::Normal);
+        assert_eq!(CustomerLevel::from_code("MEMBER"), CustomerLevel::Normal);
+    }
+
+    /// 空字符串安全降级为 Normal，防止解析异常中断业务
+    #[test]
+    fn test_from_code_空字符串解析为Normal() {
+        assert_eq!(CustomerLevel::from_code(""), CustomerLevel::Normal);
+    }
+
+    /// 含空格的 "VIP" 不应被识别为 Vip（from_code 未做 trim，避免掩盖输入异常）
+    #[test]
+    fn test_from_code_含空格的VIP解析为Normal() {
+        assert_eq!(CustomerLevel::from_code(" VIP "), CustomerLevel::Normal);
+    }
+
+    /// 数量 > min_quantity 时应使用 min_quantity 作为阶梯起点，业务上确认档位匹配
+    #[test]
+    fn test_match_tier_数量大于最小数量_应用阶梯价() {
+        let base = create_base_price();
+        let min_q = Some(Decimal::new(100, 0));
+        let quantity = Decimal::new(500, 0);
+
+        let tier = QuotationPricingService::match_tier_for_unit_test(base, quantity, min_q);
+
+        assert_eq!(tier.min_quantity, Decimal::new(100, 0));
+        assert_eq!(tier.max_quantity, None);
+        assert_eq!(tier.unit_price, base);
+    }
+
+    /// 边界：数量 == min_quantity 时仍应匹配阶梯价（条件为 min_q <= quantity）
+    #[test]
+    fn test_match_tier_数量等于最小数量_边界匹配阶梯价() {
+        let base = create_base_price();
+        let min_q = Some(Decimal::new(100, 0));
+        let quantity = Decimal::new(100, 0);
+
+        let tier = QuotationPricingService::match_tier_for_unit_test(base, quantity, min_q);
+
+        assert_eq!(tier.min_quantity, Decimal::new(100, 0));
+        assert_eq!(tier.unit_price, base);
+    }
+
+    /// 数量 < min_quantity 时回退到默认档位（min_quantity=1），避免误用未达档位价格
+    #[test]
+    fn test_match_tier_数量小于最小数量_回退默认档() {
+        let base = create_base_price();
+        let min_q = Some(Decimal::new(500, 0));
+        let quantity = Decimal::new(100, 0);
+
+        let tier = QuotationPricingService::match_tier_for_unit_test(base, quantity, min_q);
+
+        assert_eq!(tier.min_quantity, Decimal::ONE);
+        assert_eq!(tier.max_quantity, None);
+        assert_eq!(tier.unit_price, base);
+    }
+
+    /// min_quantity=None 时回退到默认档位（min_quantity=1），色号价格表未配置档位时的兜底
+    #[test]
+    fn test_match_tier_min_quantity为None_回退默认档() {
+        let base = create_base_price();
+        let quantity = Decimal::new(500, 0);
+
+        let tier = QuotationPricingService::match_tier_for_unit_test(base, quantity, None);
+
+        assert_eq!(tier.min_quantity, Decimal::ONE);
+        assert_eq!(tier.max_quantity, None);
+        assert_eq!(tier.unit_price, base);
+    }
+
+    /// 数量=0 且 min_quantity=None 时仍回退默认档，避免空档位导致业务异常
+    #[test]
+    fn test_match_tier_零数量None最小数量_回退默认档() {
+        let base = create_base_price();
+
+        let tier = QuotationPricingService::match_tier_for_unit_test(base, Decimal::ZERO, None);
+
+        assert_eq!(tier.min_quantity, Decimal::ONE);
+        assert_eq!(tier.unit_price, base);
+    }
+
+    /// 数量=0 且 min_quantity=0 时 0<=0 成立，应匹配档位（min_quantity 字段为 0）
+    #[test]
+    fn test_match_tier_零数量零最小数量_匹配档位() {
+        let base = create_base_price();
+
+        let tier = QuotationPricingService::match_tier_for_unit_test(
+            base,
+            Decimal::ZERO,
+            Some(Decimal::ZERO),
+        );
+
+        assert_eq!(tier.min_quantity, Decimal::ZERO);
+        assert_eq!(tier.unit_price, base);
+    }
+
+    /// VIP 客户 customer_level_opt 必须返回 "VIP"，色号价格表 customer_level 字段按此匹配
+    #[test]
+    fn test_PricingContext_VIP客户_level_opt返回VIP() {
+        let ctx = create_test_pricing_context(CustomerLevel::Vip);
+        assert_eq!(ctx.customer_level_opt(), Some("VIP"));
+    }
+
+    /// Normal 客户 customer_level_opt 返回 None，触发色号价格表回退到通用价
+    #[test]
+    fn test_PricingContext_普通客户_level_opt返回None() {
+        let ctx = create_test_pricing_context(CustomerLevel::Normal);
+        assert_eq!(ctx.customer_level_opt(), None);
+    }
+}

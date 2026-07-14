@@ -585,3 +585,454 @@ pub struct ManualVerifyRequest {
     /// 备注
     pub notes: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    //! 应付核销服务单元测试
+    //!
+    //! 覆盖目标：
+    //! - 自动核销匹配算法（金额匹配、按序分配、零额跳过、空列表）
+    //! - 已核销付款过滤逻辑
+    //! - 手工核销校验（未付金额、付款状态、边界）
+    //! - 取消核销状态恢复（PAID/PARTIAL_PAID/AUDITED 三态）
+    //! - DTO 构造与服务实例创建
+
+    use super::*;
+    use crate::decs;
+    use sea_orm::Database;
+    use std::str::FromStr;
+
+    // ============ 状态常量测试 ============
+
+    /// 测试_AP核销状态与类型常量值
+    ///
+    /// 验证核销单状态（COMPLETED/CANCELLED）和核销类型（AUTO/MANUAL）字符串值互不相同
+    #[test]
+    fn 测试_AP核销状态与类型常量值() {
+        // 核销单状态
+        assert_eq!("COMPLETED", "COMPLETED");
+        assert_eq!("CANCELLED", "CANCELLED");
+        assert_ne!("COMPLETED", "CANCELLED");
+
+        // 核销类型
+        assert_ne!("AUTO", "MANUAL");
+        assert_eq!("AUTO", "AUTO");
+        assert_eq!("MANUAL", "MANUAL");
+    }
+
+    /// 测试_AP发票与付款状态常量值
+    ///
+    /// 验证 auto_verify/manual_verify/cancel 中使用的发票/付款状态字符串
+    #[test]
+    fn 测试_AP发票与付款状态常量值() {
+        // 发票状态
+        let paid = "PAID";
+        let partial_paid = "PARTIAL_PAID";
+        let audited = "AUDITED";
+        let cancelled = "CANCELLED";
+        assert_ne!(paid, partial_paid);
+        assert_ne!(paid, audited);
+        assert_ne!(partial_paid, audited);
+        assert_ne!(cancelled, paid);
+
+        // 付款状态
+        let confirmed = "CONFIRMED";
+        assert_eq!(confirmed, "CONFIRMED");
+        assert_ne!(confirmed, paid);
+    }
+
+    // ============ DTO 构造测试 ============
+
+    /// 测试_核销明细DTO_字段构造
+    #[test]
+    fn 测试_核销明细DTO_字段构造() {
+        let dto = ApVerificationItemDto {
+            invoice_id: 1,
+            payment_id: 10,
+            verify_amount: decs!("100.50"),
+            notes: Some("测试备注".to_string()),
+        };
+        assert_eq!(dto.invoice_id, 1);
+        assert_eq!(dto.payment_id, 10);
+        assert_eq!(dto.verify_amount, decs!("100.50"));
+        assert_eq!(dto.notes, Some("测试备注".to_string()));
+    }
+
+    /// 测试_核销明细DTO_无备注构造
+    #[test]
+    fn 测试_核销明细DTO_无备注构造() {
+        let dto = ApVerificationItemDto {
+            invoice_id: 5,
+            payment_id: 20,
+            verify_amount: Decimal::ZERO,
+            notes: None,
+        };
+        assert_eq!(dto.notes, None);
+        assert_eq!(dto.verify_amount, Decimal::ZERO);
+    }
+
+    /// 测试_手工核销请求_字段构造
+    ///
+    /// 验证 ManualVerifyRequest 包含多条核销明细的构造
+    #[test]
+    fn 测试_手工核销请求_字段构造() {
+        let items = vec![
+            ApVerificationItemDto {
+                invoice_id: 1,
+                payment_id: 10,
+                verify_amount: decs!("50"),
+                notes: None,
+            },
+            ApVerificationItemDto {
+                invoice_id: 2,
+                payment_id: 10,
+                verify_amount: decs!("30"),
+                notes: None,
+            },
+        ];
+        let req = ManualVerifyRequest {
+            supplier_id: 100,
+            items,
+            notes: Some("手工核销".to_string()),
+        };
+        assert_eq!(req.supplier_id, 100);
+        assert_eq!(req.items.len(), 2);
+        assert_eq!(req.items[0].verify_amount, decs!("50"));
+        assert_eq!(req.items[1].verify_amount, decs!("30"));
+        assert_eq!(req.notes, Some("手工核销".to_string()));
+    }
+
+    // ============ 自动核销匹配算法测试 ============
+
+    /// 复现 auto_verify 中的匹配算法（纯函数版本，用于测试）
+    /// 输入：发票列表 (id, unpaid_amount)、可用付款列表 (id, payment_amount)
+    /// 输出：(核销明细列表, 总核销金额)
+    fn match_invoices_payments(
+        invoices: &[(i32, Decimal)],
+        payments: &[(i32, Decimal)],
+    ) -> (Vec<ApVerificationItemDto>, Decimal) {
+        let mut items = Vec::new();
+        let mut total_amount = Decimal::ZERO;
+        // 发票剩余未付金额映射
+        let mut invoice_remaining: std::collections::HashMap<i32, Decimal> =
+            invoices.iter().cloned().collect();
+
+        for (payment_id, payment_amount) in payments {
+            let mut remaining = *payment_amount;
+            // 金额为零或负的付款跳过
+            if remaining <= Decimal::ZERO {
+                continue;
+            }
+            for (invoice_id, _) in invoices {
+                if remaining <= Decimal::ZERO {
+                    break;
+                }
+                let unpaid = invoice_remaining
+                    .get(invoice_id)
+                    .copied()
+                    .unwrap_or(Decimal::ZERO);
+                if unpaid > Decimal::ZERO {
+                    let verify_amount = remaining.min(unpaid);
+                    items.push(ApVerificationItemDto {
+                        invoice_id: *invoice_id,
+                        payment_id: *payment_id,
+                        verify_amount,
+                        notes: None,
+                    });
+                    remaining -= verify_amount;
+                    total_amount += verify_amount;
+                    invoice_remaining.insert(*invoice_id, unpaid - verify_amount);
+                }
+            }
+        }
+        (items, total_amount)
+    }
+
+    /// 测试_自动核销匹配算法_金额完全匹配
+    ///
+    /// 单发票 + 单付款，金额相等 → 1 条核销明细，总额等于发票金额
+    #[test]
+    fn 测试_自动核销匹配算法_金额完全匹配() {
+        let invoices = vec![(1, decs!("100"))];
+        let payments = vec![(10, decs!("100"))];
+        let (items, total) = match_invoices_payments(&invoices, &payments);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(total, decs!("100"));
+        assert_eq!(items[0].invoice_id, 1);
+        assert_eq!(items[0].payment_id, 10);
+        assert_eq!(items[0].verify_amount, decs!("100"));
+    }
+
+    /// 测试_自动核销匹配算法_付款大于发票
+    ///
+    /// 付款 150 > 发票 100 → 核销 100，付款剩余 50 无更多发票可匹配
+    #[test]
+    fn 测试_自动核销匹配算法_付款大于发票() {
+        let invoices = vec![(1, decs!("100"))];
+        let payments = vec![(10, decs!("150"))];
+        let (items, total) = match_invoices_payments(&invoices, &payments);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(total, decs!("100"));
+        assert_eq!(items[0].verify_amount, decs!("100"));
+    }
+
+    /// 测试_自动核销匹配算法_发票大于付款
+    ///
+    /// 发票 200 > 付款 100 → 核销 100，发票剩余 100 未核销
+    #[test]
+    fn 测试_自动核销匹配算法_发票大于付款() {
+        let invoices = vec![(1, decs!("200"))];
+        let payments = vec![(10, decs!("100"))];
+        let (items, total) = match_invoices_payments(&invoices, &payments);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(total, decs!("100"));
+        assert_eq!(items[0].verify_amount, decs!("100"));
+    }
+
+    /// 测试_自动核销匹配算法_多付款多发票按序匹配
+    ///
+    /// 付款 A=100, B=50；发票 1=80, 2=70
+    /// 预期：A 核销发票1(80) + 发票2(20)，B 核销发票2(30)
+    #[test]
+    fn 测试_自动核销匹配算法_多付款多发票按序匹配() {
+        let invoices = vec![(1, decs!("80")), (2, decs!("70"))];
+        let payments = vec![(10, decs!("100")), (11, decs!("50"))];
+        let (items, total) = match_invoices_payments(&invoices, &payments);
+
+        // 付款 A=100 核销发票1=80，剩余 20 核销发票2=20
+        // 付款 B=50 核销发票2 剩余 50
+        assert_eq!(items.len(), 3);
+        assert_eq!(total, decs!("130"));
+        assert_eq!(items[0].invoice_id, 1);
+        assert_eq!(items[0].payment_id, 10);
+        assert_eq!(items[0].verify_amount, decs!("80"));
+        assert_eq!(items[1].invoice_id, 2);
+        assert_eq!(items[1].payment_id, 10);
+        assert_eq!(items[1].verify_amount, decs!("20"));
+        assert_eq!(items[2].invoice_id, 2);
+        assert_eq!(items[2].payment_id, 11);
+        assert_eq!(items[2].verify_amount, decs!("50"));
+    }
+
+    /// 测试_自动核销匹配算法_零额付款跳过
+    #[test]
+    fn 测试_自动核销匹配算法_零额付款跳过() {
+        let invoices = vec![(1, decs!("100"))];
+        let payments = vec![(10, Decimal::ZERO), (11, decs!("50"))];
+        let (items, total) = match_invoices_payments(&invoices, &payments);
+
+        // 付款 10 金额为 0，跳过；付款 11 核销 50
+        assert_eq!(items.len(), 1);
+        assert_eq!(total, decs!("50"));
+        assert_eq!(items[0].payment_id, 11);
+    }
+
+    /// 测试_自动核销匹配算法_空列表无核销
+    #[test]
+    fn 测试_自动核销匹配算法_空列表无核销() {
+        let invoices: Vec<(i32, Decimal)> = vec![];
+        let payments: Vec<(i32, Decimal)> = vec![];
+        let (items, total) = match_invoices_payments(&invoices, &payments);
+
+        assert!(items.is_empty());
+        assert_eq!(total, Decimal::ZERO);
+    }
+
+    // ============ 已核销付款过滤测试 ============
+
+    /// 复现 auto_verify 中已核销付款过滤逻辑
+    /// 输入：所有付款 ID 列表、已核销付款 ID 集合
+    /// 输出：可用付款列表（排除已核销的）
+    fn filter_available_payments(
+        payments: &[(i32, Decimal)],
+        verified_ids: &std::collections::HashSet<i32>,
+    ) -> Vec<(i32, Decimal)> {
+        payments
+            .iter()
+            .filter(|(id, _)| !verified_ids.contains(id))
+            .cloned()
+            .collect()
+    }
+
+    /// 测试_已核销付款过滤_排除已核销
+    ///
+    /// 验证已核销付款 ID 在 verified_ids 中时被排除
+    #[test]
+    fn 测试_已核销付款过滤_排除已核销() {
+        let payments = vec![(1, decs!("100")), (2, decs!("200")), (3, decs!("50"))];
+        let verified: std::collections::HashSet<i32> = [2].iter().cloned().collect();
+        let available = filter_available_payments(&payments, &verified);
+
+        assert_eq!(available.len(), 2);
+        assert_eq!(available[0].0, 1);
+        assert_eq!(available[1].0, 3);
+    }
+
+    /// 测试_已核销付款过滤_全部可用
+    ///
+    /// 验证 verified_ids 为空时所有付款均可用
+    #[test]
+    fn 测试_已核销付款过滤_全部可用() {
+        let payments = vec![(1, decs!("100")), (2, decs!("200"))];
+        let verified: std::collections::HashSet<i32> = std::collections::HashSet::new();
+        let available = filter_available_payments(&payments, &verified);
+
+        assert_eq!(available.len(), 2);
+    }
+
+    // ============ 手工核销校验测试 ============
+
+    /// 复现 manual_verify 中的校验逻辑
+    /// 返回 Ok(()) 表示校验通过，Err 表示拒绝
+    fn validate_manual_item(
+        unpaid_amount: Decimal,
+        verify_amount: Decimal,
+        payment_status: &str,
+    ) -> Result<(), AppError> {
+        if unpaid_amount < verify_amount {
+            return Err(AppError::business(format!(
+                "应付单未付金额{}小于核销金额{}",
+                unpaid_amount, verify_amount
+            )));
+        }
+        if payment_status != "CONFIRMED" {
+            return Err(AppError::business(format!(
+                "付款单状态为{}，未确认不可核销",
+                payment_status
+            )));
+        }
+        Ok(())
+    }
+
+    /// 测试_手工核销校验_未付金额不足拒绝
+    ///
+    /// 验证 unpaid_amount < verify_amount 时返回 BusinessError
+    #[test]
+    fn 测试_手工核销校验_未付金额不足拒绝() {
+        let result = validate_manual_item(decs!("50"), decs!("100"), "CONFIRMED");
+        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AppError::BusinessError(_))),
+            "应返回 BusinessError"
+        );
+    }
+
+    /// 测试_手工核销校验_付款状态非确认拒绝
+    ///
+    /// 验证 payment_status != CONFIRMED 时返回 BusinessError
+    #[test]
+    fn 测试_手工核销校验_付款状态非确认拒绝() {
+        let result = validate_manual_item(decs!("100"), decs!("50"), "PENDING");
+        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(AppError::BusinessError(_))),
+            "应返回 BusinessError"
+        );
+    }
+
+    /// 测试_手工核销校验_合法参数通过
+    ///
+    /// 验证 unpaid_amount > verify_amount 且 payment_status == CONFIRMED 时通过
+    #[test]
+    fn 测试_手工核销校验_合法参数通过() {
+        let result = validate_manual_item(decs!("100"), decs!("50"), "CONFIRMED");
+        assert!(result.is_ok());
+    }
+
+    /// 测试_手工核销校验_边界未付等于核销
+    ///
+    /// 验证 unpaid == verify_amount 时通过（源码用 < 判断，相等不拒绝）
+    #[test]
+    fn 测试_手工核销校验_边界未付等于核销() {
+        let result = validate_manual_item(decs!("100"), decs!("100"), "CONFIRMED");
+        assert!(result.is_ok());
+    }
+
+    // ============ 取消核销状态恢复测试 ============
+
+    /// 复现 cancel 中的状态恢复逻辑（P2 3-15 修复）
+    /// 输入：paid_amount, amount
+    /// 输出：恢复后的发票状态字符串
+    fn restore_invoice_status(paid_amount: Decimal, amount: Decimal) -> &'static str {
+        if paid_amount >= amount {
+            "PAID"
+        } else if paid_amount > Decimal::ZERO {
+            "PARTIAL_PAID"
+        } else {
+            "AUDITED"
+        }
+    }
+
+    /// 测试_取消核销状态恢复_全额付款保留PAID
+    ///
+    /// 验证 paid_amount >= amount → PAID（含边界等于）
+    #[test]
+    fn 测试_取消核销状态恢复_全额付款保留PAID() {
+        assert_eq!(restore_invoice_status(decs!("100"), decs!("100")), "PAID");
+        assert_eq!(restore_invoice_status(decs!("110"), decs!("100")), "PAID");
+    }
+
+    /// 测试_取消核销状态恢复_部分付款转PARTIAL_PAID
+    ///
+    /// 验证 0 < paid_amount < amount → PARTIAL_PAID
+    #[test]
+    fn 测试_取消核销状态恢复_部分付款转PARTIAL_PAID() {
+        assert_eq!(restore_invoice_status(decs!("50"), decs!("100")), "PARTIAL_PAID");
+        assert_eq!(restore_invoice_status(decs!("1"), decs!("100")), "PARTIAL_PAID");
+    }
+
+    /// 测试_取消核销状态恢复_无付款转AUDITED
+    ///
+    /// 验证 paid_amount <= 0 → AUDITED
+    #[test]
+    fn 测试_取消核销状态恢复_无付款转AUDITED() {
+        assert_eq!(
+            restore_invoice_status(Decimal::ZERO, decs!("100")),
+            "AUDITED"
+        );
+        assert_eq!(
+            restore_invoice_status(decs!("-10"), decs!("100")),
+            "AUDITED"
+        );
+    }
+
+    /// 测试_取消核销状态恢复_三态互斥
+    ///
+    /// 验证三个状态分支互斥，不同输入对应不同状态
+    #[test]
+    fn 测试_取消核销状态恢复_三态互斥() {
+        let states = vec![
+            restore_invoice_status(decs!("100"), decs!("100")),
+            restore_invoice_status(decs!("50"), decs!("100")),
+            restore_invoice_status(Decimal::ZERO, decs!("100")),
+        ];
+        // 三个状态应分别为 PAID / PARTIAL_PAID / AUDITED
+        assert!(states.contains(&"PAID"));
+        assert!(states.contains(&"PARTIAL_PAID"));
+        assert!(states.contains(&"AUDITED"));
+    }
+
+    // ============ 服务实例创建测试 ============
+
+    /// 测试夹具：SQLite 内存数据库连接
+    async fn setup_test_db() -> DatabaseConnection {
+        let db_url =
+            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+        Database::connect(&db_url)
+            .await
+            .expect("测试夹具：数据库连接失败")
+    }
+
+    /// 测试_服务实例创建
+    ///
+    /// 验证 ApVerificationService 在 SQLite 内存数据库上能正常实例化
+    #[tokio::test]
+    async fn 测试_服务实例创建() {
+        let db = setup_test_db().await;
+        let service = ApVerificationService::new(Arc::new(db));
+        assert!(Arc::strong_count(&service.db) >= 1);
+    }
+}

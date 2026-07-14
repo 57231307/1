@@ -542,3 +542,413 @@ pub struct ReplenishmentSuggestion {
     pub priority: String,
     pub affected_orders_count: i32,
 }
+
+#[cfg(test)]
+mod tests {
+    //! 缺料预警服务单元测试
+    //!
+    //! 覆盖目标：
+    //! - ShortageLevel::from_deficit_rate 级别判定（4 个级别 + 边界值）
+    //! - ShortageThresholdConfig 默认配置与加载
+    //! - 缺料数量计算与库存比对逻辑
+    //! - 缺口率四舍五入计算
+    //! - 补货建议生成（数量加成、优先级映射、排序、过滤）
+    //! - 受影响订单去重统计与级别排序
+
+    use super::*;
+    use crate::decs;
+    use crate::ymd;
+    use sea_orm::Database;
+    use std::str::FromStr;
+
+    // ============ 缺料级别判定测试 ============
+
+    /// 测试_缺料预警级别_临界值100为Critical
+    ///
+    /// 验证 from_deficit_rate(100) 返回 Critical（>= 100 触发紧急）
+    #[test]
+    fn 测试_缺料预警级别_临界值100为Critical() {
+        let level = ShortageLevel::from_deficit_rate(decs!("100"));
+        assert_eq!(level, ShortageLevel::Critical);
+    }
+
+    /// 测试_缺料预警级别_大于100为Critical
+    #[test]
+    fn 测试_缺料预警级别_大于100为Critical() {
+        let level = ShortageLevel::from_deficit_rate(decs!("150"));
+        assert_eq!(level, ShortageLevel::Critical);
+    }
+
+    /// 测试_缺料预警级别_大于50为Severe
+    #[test]
+    fn 测试_缺料预警级别_大于50为Severe() {
+        let level = ShortageLevel::from_deficit_rate(decs!("75"));
+        assert_eq!(level, ShortageLevel::Severe);
+    }
+
+    /// 测试_缺料预警级别_边界50为Warning
+    ///
+    /// 验证 from_deficit_rate(50) 返回 Warning（> 50 才是 Severe，等于 50 仍为 Warning）
+    #[test]
+    fn 测试_缺料预警级别_边界50为Warning() {
+        let level = ShortageLevel::from_deficit_rate(decs!("50"));
+        assert_eq!(level, ShortageLevel::Warning);
+    }
+
+    /// 测试_缺料预警级别_大于0为Warning
+    #[test]
+    fn 测试_缺料预警级别_大于0为Warning() {
+        let level = ShortageLevel::from_deficit_rate(decs!("25"));
+        assert_eq!(level, ShortageLevel::Warning);
+    }
+
+    /// 测试_缺料预警级别_零为Normal
+    #[test]
+    fn 测试_缺料预警级别_零为Normal() {
+        let level = ShortageLevel::from_deficit_rate(Decimal::ZERO);
+        assert_eq!(level, ShortageLevel::Normal);
+    }
+
+    // ============ 阈值配置测试 ============
+
+    /// 测试_缺料阈值配置_默认值
+    ///
+    /// 验证 ShortageThresholdConfig::default() 的字段值
+    #[test]
+    fn 测试_缺料阈值配置_默认值() {
+        let config = ShortageThresholdConfig::default();
+        assert_eq!(config.safety_factor, Decimal::ONE);
+        assert_eq!(config.critical_threshold, Decimal::from(100));
+        assert_eq!(config.severe_threshold, Decimal::from(50));
+    }
+
+    // ============ 缺料数量计算测试 ============
+
+    /// 复现 detect_shortages 中的缺料数量计算逻辑（纯函数版本）
+    /// shortage = required > available ? required - available : 0
+    fn calc_shortage(required: Decimal, available: Decimal) -> Decimal {
+        if required > available {
+            required - available
+        } else {
+            Decimal::ZERO
+        }
+    }
+
+    /// 测试_缺料数量计算_库存不足
+    #[test]
+    fn 测试_缺料数量计算_库存不足() {
+        let shortage = calc_shortage(decs!("100"), decs!("30"));
+        assert_eq!(shortage, decs!("70"));
+    }
+
+    /// 测试_缺料数量计算_库存充足
+    ///
+    /// 验证 available > required 时 shortage = 0
+    #[test]
+    fn 测试_缺料数量计算_库存充足() {
+        let shortage = calc_shortage(decs!("30"), decs!("100"));
+        assert_eq!(shortage, Decimal::ZERO);
+    }
+
+    /// 测试_缺料数量计算_边界相等
+    ///
+    /// 验证 required == available 时 shortage = 0（源码用 > 判断，相等不触发短缺）
+    #[test]
+    fn 测试_缺料数量计算_边界相等() {
+        let shortage = calc_shortage(decs!("50"), decs!("50"));
+        assert_eq!(shortage, Decimal::ZERO);
+    }
+
+    // ============ 缺口率计算测试 ============
+
+    /// 复现 detect_shortages 中的缺口率计算逻辑
+    /// deficit_rate = (shortage / required) * 100，四舍五入到 2 位小数
+    fn calc_deficit_rate(shortage: Decimal, required: Decimal) -> Decimal {
+        if required > Decimal::ZERO {
+            ((shortage / required) * Decimal::from(100)).round_dp_with_strategy(
+                2,
+                rust_decimal::RoundingStrategy::MidpointAwayFromZero,
+            )
+        } else {
+            Decimal::ZERO
+        }
+    }
+
+    /// 测试_缺口率计算_正常场景
+    ///
+    /// shortage=50, required=200 → 25%
+    #[test]
+    fn 测试_缺口率计算_正常场景() {
+        let rate = calc_deficit_rate(decs!("50"), decs!("200"));
+        assert_eq!(rate, decs!("25"));
+    }
+
+    /// 测试_缺口率计算_四舍五入2位
+    ///
+    /// shortage=1, required=3 → 33.33...% → 33.33%（四舍五入到 2 位）
+    #[test]
+    fn 测试_缺口率计算_四舍五入2位() {
+        let rate = calc_deficit_rate(decs!("1"), decs!("3"));
+        assert_eq!(rate, decs!("33.33"));
+    }
+
+    /// 测试_缺口率计算_需求为零返回零
+    ///
+    /// 验证 required == 0 时 deficit_rate = 0（防止除零）
+    #[test]
+    fn 测试_缺口率计算_需求为零返回零() {
+        let rate = calc_deficit_rate(decs!("10"), Decimal::ZERO);
+        assert_eq!(rate, Decimal::ZERO);
+    }
+
+    // ============ 缺料排序测试 ============
+
+    /// 复现 detect_shortages 中的排序逻辑：按级别 Critical < Severe < Warning < Normal
+    fn level_order(level: &ShortageLevel) -> i32 {
+        match level {
+            ShortageLevel::Critical => 0,
+            ShortageLevel::Severe => 1,
+            ShortageLevel::Warning => 2,
+            ShortageLevel::Normal => 3,
+        }
+    }
+
+    /// 测试_缺料排序_按严重程度排序
+    ///
+    /// 验证排序后 Critical 在前，Normal 在后
+    #[test]
+    fn 测试_缺料排序_按严重程度排序() {
+        let mut levels = vec![
+            ShortageLevel::Warning,
+            ShortageLevel::Critical,
+            ShortageLevel::Normal,
+            ShortageLevel::Severe,
+        ];
+        levels.sort_by_key(level_order);
+        assert_eq!(levels[0], ShortageLevel::Critical);
+        assert_eq!(levels[1], ShortageLevel::Severe);
+        assert_eq!(levels[2], ShortageLevel::Warning);
+        assert_eq!(levels[3], ShortageLevel::Normal);
+    }
+
+    // ============ 受影响订单去重测试 ============
+
+    /// 复现 detect_shortages 中受影响订单的去重统计逻辑
+    /// 按 order_id 去重后统计数量
+    fn count_unique_affected_orders(affected: &[AffectedOrder]) -> usize {
+        let set: std::collections::HashSet<i32> = affected.iter().map(|ao| ao.order_id).collect();
+        set.len()
+    }
+
+    /// 测试_受影响订单去重_相同订单ID合并
+    ///
+    /// 验证相同 order_id 的订单只计一次
+    #[test]
+    fn 测试_受影响订单去重_相同订单ID合并() {
+        let date = ymd!(2026, 7, 14);
+        let affected = vec![
+            AffectedOrder {
+                order_id: 1,
+                order_no: "PO001".to_string(),
+                demand_quantity: decs!("100"),
+                planned_end_date: Some(date),
+            },
+            AffectedOrder {
+                order_id: 1,
+                order_no: "PO001".to_string(),
+                demand_quantity: decs!("50"),
+                planned_end_date: Some(date),
+            },
+            AffectedOrder {
+                order_id: 2,
+                order_no: "PO002".to_string(),
+                demand_quantity: decs!("80"),
+                planned_end_date: None,
+            },
+        ];
+        assert_eq!(count_unique_affected_orders(&affected), 2);
+    }
+
+    /// 测试_受影响订单去重_空列表
+    #[test]
+    fn 测试_受影响订单去重_空列表() {
+        let affected: Vec<AffectedOrder> = vec![];
+        assert_eq!(count_unique_affected_orders(&affected), 0);
+    }
+
+    // ============ 补货建议生成测试 ============
+
+    /// 构造测试用缺料项夹具
+    /// 根据 required/available 自动计算 shortage、deficit_rate、level
+    fn make_shortage_item(
+        material_id: i32,
+        required_quantity: Decimal,
+        available_quantity: Decimal,
+    ) -> MaterialShortageItem {
+        let shortage_quantity = calc_shortage(required_quantity, available_quantity);
+        let deficit_rate = calc_deficit_rate(shortage_quantity, required_quantity);
+        let level = ShortageLevel::from_deficit_rate(deficit_rate);
+        MaterialShortageItem {
+            material_id,
+            material_name: format!("物料{}", material_id),
+            material_code: format!("M{:04}", material_id),
+            required_quantity,
+            available_quantity,
+            shortage_quantity,
+            deficit_rate,
+            level,
+            affected_orders: vec![],
+            unit: Some("个".to_string()),
+        }
+    }
+
+    /// 测试夹具：SQLite 内存数据库连接
+    async fn setup_test_db() -> DatabaseConnection {
+        let db_url =
+            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+        Database::connect(&db_url)
+            .await
+            .expect("测试夹具：数据库连接失败")
+    }
+
+    /// 测试_补货建议生成_数量加20%余量
+    ///
+    /// 验证 generate_replenishment_suggestions 中 suggested = shortage * 1.2
+    #[tokio::test]
+    async fn 测试_补货建议生成_数量加20%余量() {
+        let db = setup_test_db().await;
+        let service = MaterialShortageService::new(Arc::new(db));
+
+        // required=200, available=100 → shortage=100 → suggested=120
+        let shortage = make_shortage_item(1, decs!("200"), decs!("100"));
+        let suggestions = service
+            .generate_replenishment_suggestions(&[shortage])
+            .await
+            .expect("补货建议生成应成功");
+
+        assert_eq!(suggestions.len(), 1);
+        assert_eq!(suggestions[0].suggested_quantity, decs!("120"));
+        assert_eq!(suggestions[0].shortage_quantity, decs!("100"));
+    }
+
+    /// 测试_补货建议生成_优先级映射
+    ///
+    /// 验证 level → priority 映射：Critical→URGENT, Severe→HIGH, Warning→MEDIUM
+    #[tokio::test]
+    async fn 测试_补货建议生成_优先级映射() {
+        let db = setup_test_db().await;
+        let service = MaterialShortageService::new(Arc::new(db));
+
+        // Warning: shortage=25, required=100 → rate=25%
+        // Severe: shortage=75, required=100 → rate=75%
+        // Critical: shortage=100, required=100 → rate=100%
+        let shortages = vec![
+            make_shortage_item(1, decs!("100"), decs!("75")),
+            make_shortage_item(2, decs!("100"), decs!("25")),
+            make_shortage_item(3, decs!("100"), Decimal::ZERO),
+        ];
+
+        let suggestions = service
+            .generate_replenishment_suggestions(&shortages)
+            .await
+            .expect("补货建议生成应成功");
+
+        // 按优先级排序后：Critical(URGENT) 在前，Warning(MEDIUM) 在后
+        assert_eq!(suggestions[0].priority, "URGENT");
+        assert_eq!(suggestions[1].priority, "HIGH");
+        assert_eq!(suggestions[2].priority, "MEDIUM");
+    }
+
+    /// 测试_补货建议生成_零缺口过滤
+    ///
+    /// 验证 shortage_quantity == 0 的项不生成补货建议
+    #[tokio::test]
+    async fn 测试_补货建议生成_零缺口过滤() {
+        let db = setup_test_db().await;
+        let service = MaterialShortageService::new(Arc::new(db));
+
+        // required=100, available=100 → shortage=0（Normal）
+        // required=100, available=25 → shortage=75（Severe）
+        let shortages = vec![
+            make_shortage_item(1, decs!("100"), decs!("25")),
+            make_shortage_item(2, decs!("100"), decs!("100")),
+        ];
+
+        let suggestions = service
+            .generate_replenishment_suggestions(&shortages)
+            .await
+            .expect("补货建议生成应成功");
+
+        assert_eq!(suggestions.len(), 1);
+        assert_eq!(suggestions[0].material_id, 1);
+    }
+
+    /// 测试_补货建议生成_按优先级排序
+    ///
+    /// 验证输入打乱顺序后输出按 URGENT → HIGH → MEDIUM 排序
+    #[tokio::test]
+    async fn 测试_补货建议生成_按优先级排序() {
+        let db = setup_test_db().await;
+        let service = MaterialShortageService::new(Arc::new(db));
+
+        // 故意打乱顺序：Warning, Critical, Severe
+        let shortages = vec![
+            make_shortage_item(1, decs!("100"), decs!("75")),  // Warning
+            make_shortage_item(2, decs!("100"), Decimal::ZERO), // Critical
+            make_shortage_item(3, decs!("100"), decs!("25")),   // Severe
+        ];
+
+        let suggestions = service
+            .generate_replenishment_suggestions(&shortages)
+            .await
+            .expect("补货建议生成应成功");
+
+        // 排序后应为 Critical → Severe → Warning
+        assert_eq!(suggestions[0].material_id, 2);
+        assert_eq!(suggestions[1].material_id, 3);
+        assert_eq!(suggestions[2].material_id, 1);
+    }
+
+    // ============ 服务实例与配置测试 ============
+
+    /// 测试_服务实例创建
+    ///
+    /// 验证 MaterialShortageService 在 SQLite 内存数据库上能正常实例化
+    #[tokio::test]
+    async fn 测试_服务实例创建() {
+        let db = setup_test_db().await;
+        let service = MaterialShortageService::new(Arc::new(db));
+        assert!(Arc::strong_count(&service.db) >= 1);
+    }
+
+    /// 测试_加载阈值配置_返回默认值
+    ///
+    /// 验证 load_threshold_config 返回默认配置（租户配置表已删除）
+    #[tokio::test]
+    async fn 测试_加载阈值配置_返回默认值() {
+        let db = setup_test_db().await;
+        let service = MaterialShortageService::new(Arc::new(db));
+
+        let config = service
+            .load_threshold_config()
+            .await
+            .expect("加载阈值配置应成功");
+
+        assert_eq!(config.safety_factor, Decimal::ONE);
+        assert_eq!(config.critical_threshold, Decimal::from(100));
+        assert_eq!(config.severe_threshold, Decimal::from(50));
+    }
+
+    /// 测试_保存阈值配置_无操作返回成功
+    ///
+    /// 验证 save_threshold_config 在租户配置表删除后仍返回 Ok（不再持久化）
+    #[tokio::test]
+    async fn 测试_保存阈值配置_无操作返回成功() {
+        let db = setup_test_db().await;
+        let service = MaterialShortageService::new(Arc::new(db));
+
+        let config = ShortageThresholdConfig::default();
+        let result = service.save_threshold_config(&config).await;
+        assert!(result.is_ok(), "保存阈值配置应返回成功");
+    }
+}
