@@ -203,7 +203,7 @@
 | 398 ✅ | 配置合规性 + 部署路径 | 11 | is_production() 部署陷阱 + clippy baseline 格式 + deploy.sh 路径一致性 |
 | 399 | 占位符/Mock 存根剩余 | 0 | 调研确认无需修复（待处理） |
 | 400-401 | 项目规则符合性 | 11 | 评估是否符合规则 0-13 |
-| 402 ✅ | 死代码补充清理 | 1 | clippy baseline 最后一条 `needless_reference` 警告清零（webhook_handler.rs 测试 `&*LazyLock` 修复，baseline 清空） |
+| 402 ✅ | 死代码补充清理 | 1 | clippy baseline 最后一条 `needless_reference` 警告清零（webhook_handler.rs 测试 `&*LazyLock` 修复）；**技术债务**：错误创建仅 1 行 baseline 文件（内容为 `warning: this expression creates a reference...`），导致后续 CI strict 模式误报 117 个新警告，批次 406 删除后 CI bootstrap 自动重建 180 行完整基线修复 |
 | 403 ✅ | unwrap/lock 安全修复 | 4 | omni_audit_handler DB 字段吞错改 Option<T> 读取 + import_export 价格转换失败返回验证错误 + 2 处 shutdown Mutex::lock().unwrap() 改用 unwrap_or_else |
 | 404 ✅ | LazyLock expect + 消息常量化 | 12 | 2 处 LazyLock<Regex> expect 改 Option 优雅降级 + 新建 messages.rs 常量模块 + crud_macro 6 处 + 2 个 handler 4 处硬编码替换 |
 | 405 ✅ | 消息常量化第二批 | 8 | 5 handler 文件 8 处硬编码替换（crm/budget/webhook/bpm_definition/production_order） |
@@ -230,6 +230,22 @@
 - 所有 handler 调用点同步更新，无编译错误
 - CI clippy 全绿，baseline 不新增警告
 - 每个新建 DTO 添加中文文档注释 + `Debug, Clone` derive
+
+#### §1.2 技术债务：CreditRatingRequest.credit_limit 语义模糊（批次 407 标注）
+
+> **来源**：批次 407 安全+数据完整性修复（[customer_credit_handler.rs#L309-L311](file:///workspace/backend/src/handlers/customer_credit_handler.rs#L309-L311)），`update_credit` 中 `credit_limit` 缺失时 `unwrap_or_default()` 默认为 0，service 层无法区分"未提供"与"显式置 0"。
+> **当前状态**：已添加 TODO 注释标注，功能不受影响（update 时缺失字段保持原值），但属于语义模糊的技术债务。
+> **预计处理时间**：**批次 414（阶段 10 v14 复审首批）**，在 v14 新一轮复审客户信用模块时一并处理。
+> **处理方式**：
+> 1. 将 `CreditRatingRequest.credit_limit` 类型从 `Decimal` 改为 `Option<Decimal>`
+> 2. service 层 `set_credit_rating` 区分 `None`（保持原值）与 `Some(0)`（显式置 0）
+> 3. 同步修改 `CreditRatingRequestDto.credit_limit` 为 `Option<Decimal>` 并更新 validator 注解
+> 4. 添加单元测试覆盖"未提供"与"显式置 0"两种场景
+> **验收标准**：
+> - `customer_credit_handler.rs` 中 `// TODO(tech-debt)` 注释移除
+> - `CreditRatingRequest` 结构体字段类型更新
+> - service 层逻辑正确区分 None/Some(0) 语义
+> - CI clippy 全绿，无新警告
 
 ### 阶段 9：其他遗留（批次 408-410，3 批，约 15 文件）
 

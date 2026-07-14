@@ -530,10 +530,13 @@ pub async fn create_api_key(
     Json(req): Json<CreateApiKeyGwRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let service = ApiKeyService::new(state.db.clone());
+    // 批次 407 修复：权限序列化失败时不能静默写入空字符串，否则 DB 中该 key 的权限将丢失（安全风险），改为返回错误
     let permissions = req
         .permissions
         .as_ref()
-        .map(|p| serde_json::to_string(p).unwrap_or_default());
+        .map(serde_json::to_string)
+        .transpose()
+        .map_err(AppError::from)?;
     let rate_limit = req.rate_limit.unwrap_or(100);
 
     // expires_at 字符串 → expires_days 数值
@@ -596,7 +599,12 @@ pub async fn update_api_key(
     let service = ApiKeyService::new(state.db.clone());
 
     // permissions: Vec<String> → JSON 字符串
-    let permissions = req.permissions.map(|p| serde_json::to_string(&p).unwrap_or_default());
+    // 批次 407 修复：权限序列化失败时不能静默写入空字符串，否则 DB 中该 key 的权限将丢失（安全风险），改为返回错误
+    let permissions = req
+        .permissions
+        .map(|p| serde_json::to_string(&p))
+        .transpose()
+        .map_err(AppError::from)?;
 
     // status → is_active
     let is_active = req.status.as_deref().map(|s| s == master_data::ACTIVE);

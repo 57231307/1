@@ -141,7 +141,11 @@ impl UserInfo {
                                 .map(|p| format!("{}:{}", p.resource_type, p.action))
                                 .collect()
                         })
-                        .unwrap_or_default()
+                        .unwrap_or_else(|e| {
+                            // 批次 407 修复：权限查询失败时 fail-secure 返回空 Vec，但必须记录告警日志便于排查
+                            tracing::warn!(error = %e, "权限查询失败，按无权限处理");
+                            Vec::new()
+                        })
                 }
             } else {
                 Vec::new()
@@ -264,6 +268,7 @@ pub async fn login(
     use sea_orm::PaginatorTrait;
 
     // Per-IP lockout: prevents an attacker from locking out a legitimate user
+    // 批次 407 修复：DB 错误时不可静默返回 0，否则攻击者可通过引发 DB 异常绕过登录锁定
     let recent_ip_failures = log_login::Entity::find()
         .filter(log_login::Column::Username.eq(payload.username.as_str()))
         .filter(log_login::Column::Status.eq("FAILED"))
@@ -271,7 +276,7 @@ pub async fn login(
         .filter(log_login::Column::IpAddress.eq(client_ip.as_str()))
         .count(state.db.as_ref())
         .await
-        .unwrap_or_default();
+        .map_err(|e| AppError::internal(format!("查询 IP 登录失败次数失败: {}", e)))?;
 
     // Per-username global lockout with higher threshold (10 attempts from any IP)
     let recent_user_failures = log_login::Entity::find()
@@ -280,7 +285,7 @@ pub async fn login(
         .filter(log_login::Column::LoginTime.gte(since))
         .count(state.db.as_ref())
         .await
-        .unwrap_or_default();
+        .map_err(|e| AppError::internal(format!("查询用户登录失败次数失败: {}", e)))?;
 
     if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 {
         tracing::warn!(

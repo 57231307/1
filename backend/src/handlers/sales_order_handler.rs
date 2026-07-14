@@ -543,8 +543,10 @@ pub async fn create_delivery(
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    // warehouse_id 缺失时默认为 0（保持原向后兼容逻辑）
-    let warehouse_id = payload.warehouse_id.unwrap_or_default();
+    // 批次 407 修复：warehouse_id 缺失时不可默认为 0，否则发货可能落到非法仓库
+    let warehouse_id = payload
+        .warehouse_id
+        .ok_or_else(|| AppError::validation("发货必须指定仓库 ID"))?;
 
     let delivery = sales_service
         .create_delivery(id, warehouse_id, auth.user_id)

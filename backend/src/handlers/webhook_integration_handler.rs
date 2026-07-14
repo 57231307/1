@@ -436,8 +436,9 @@ pub async fn test_integration(
     // SSRF 缓解：测试接口不回显目标响应体，防止攻击者读取内网数据
     result.response_body = Some("出于安全原因，已隐藏响应内容".to_string());
 
+    // 批次 407 修复：序列化失败时不能返回 Null 但消息说"已发送"，会误导用户，改为返回错误
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(result).unwrap_or_default(),
+        serde_json::to_value(result).map_err(AppError::from)?,
         "测试消息已发送",
     )))
 }
