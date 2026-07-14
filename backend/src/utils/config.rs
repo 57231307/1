@@ -8,6 +8,8 @@
 //! - **单一来源**：统一从 `APP_ENV` 环境变量读取，避免此前 `ENV` / `cfg!(debug_assertions)` 多源不一致
 //! - **保守策略**：未设置 `APP_ENV` 时按开发环境处理（暴露更多 detail 便于排错）
 //! - **大小写不敏感**：`APP_ENV=production` / `APP_ENV=PRODUCTION` 均视为生产环境
+//! - **config.yaml 同步**（批次 398 修复）：`AppSettings::new()` 启动时若 `APP_ENV` 未设置，
+//!   会将 `config.yaml` 的 `env` 字段同步到 `APP_ENV` 环境变量，消除部署陷阱
 //!
 //! ## 使用示例
 //!
@@ -36,6 +38,12 @@
 ///
 /// 从 `APP_ENV` 环境变量读取，值 `production`（不区分大小写）视为生产环境。
 /// 未设置或值为其他时按开发环境处理（保守策略：输出更多错误详情）。
+///
+/// # 配置优先级（批次 398 修复）
+///
+/// 1. `APP_ENV` 环境变量（最高优先级，部署脚本/systemd 注入）
+/// 2. `config.yaml` 的 `env` 字段（`AppSettings::new()` 启动时同步到 `APP_ENV`）
+/// 3. 未设置时默认开发环境
 ///
 /// # 部署配置
 ///

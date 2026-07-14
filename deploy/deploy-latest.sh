@@ -222,9 +222,8 @@ auth:
   webhook_secret: \"\${WEBHOOK}\"
   token_expiry_hours: 24
 
-grpc:
-  host: \"0.0.0.0\"
-  port: 50051
+# 批次 398 修复：移除 grpc 段（项目未启用 gRPC，AppSettings 无 GrpcConfig 字段）
+# 如需恢复，请在 backend/src/config/settings.rs 中新增 GrpcConfig 结构体并接入
 
 log:
   level: \"info\"

@@ -88,10 +88,8 @@ slow_query:
   threshold_ms: 100.0      # 慢查询阈值（毫秒），超过此值的 SQL 才会被记录
   limit_rows: 100          # 单次采集最大行数
 
-# 批次 389 P2-3：env 字段陷阱警告
-# ⚠️ 此字段仅写入 AppSettings.env，**不**被 utils/config.rs::is_production() 使用！
-# is_production() 读取 **APP_ENV 环境变量**（非 config.yaml 的 env 字段）。
-# 部署陷阱：deploy.sh 生成 config.yaml 时设 env: "production"，
-#          但未设置 APP_ENV 环境变量 → is_production() 返回 false → 错误详情未脱敏、Cookie Secure 未启用
-# 正确做法：在 .env 或 systemd Environment= 中显式设置 APP_ENV=production
+# 批次 398 修复：env 字段现已接入 is_production() 判定链路
+# AppSettings::new() 启动时若 APP_ENV 环境变量未设置，会将此字段同步到 APP_ENV
+# 优先级：APP_ENV 环境变量 > config.yaml env 字段
+# 部署建议：生产环境同时在 .env 或 systemd Environment= 中显式设置 APP_ENV=production（双保险）
 env: "production"

@@ -16,7 +16,10 @@ APP_NAME="bingxi-backend"
 DEPLOY_DIR="/opt/bingxi-erp"
 BACKEND_DIR="$DEPLOY_DIR/backend"
 FRONTEND_DIR="/opt/bingxi-erp/frontend/dist"
-CONFIG_DIR="/etc/bingxi-erp"
+# 批次 398 修复：CONFIG_DIR 从 /etc/bingxi-erp 改为 /etc/bingxi
+# 原因：systemd 服务文件 bingxi-backend.service 的 EnvironmentFile=/etc/bingxi/.env
+# deploy.sh 用 /etc/bingxi-erp/.env 导致 systemd 找不到环境文件，后端无法启动
+CONFIG_DIR="/etc/bingxi"
 BACKUP_DIR="$DEPLOY_DIR/backups"
 LOG_DIR="$DEPLOY_DIR/logs"
 ENV_FILE="$CONFIG_DIR/.env"
@@ -230,7 +233,7 @@ generate_config() {
         # 全新部署时若运维忘记手动设置会直接导致服务启动失败。
         # 修复方案：检测到 COOKIE_SECRET 为空或长度不足 32 字节时，
         # 自动用 openssl rand -hex 32 生成 64 字符（32 字节）强随机密钥，
-        # 并持久化到 /etc/bingxi-erp/.env 避免每次部署重新生成（密钥稳定性）。
+        # 并持久化到 /etc/bingxi/.env 避免每次部署重新生成（密钥稳定性）。
         if [ -z "$COOKIE" ] || [ ${#COOKIE} -lt 32 ]; then
             local GENERATED_COOKIE_SECRET=$(openssl rand -hex 32)
             if grep -q "^COOKIE_SECRET=" "$ENV_FILE" 2>/dev/null; then
@@ -328,9 +331,7 @@ auth:
   webhook_secret: "${WEBHOOK}"
   token_expiry_hours: 24
 
-grpc:
-  host: "0.0.0.0"
-  port: 50051
+# 批次 398 修复：移除 grpc 段（项目未启用 gRPC，AppSettings 无 GrpcConfig 字段）
 
 log:
   level: "info"
@@ -677,7 +678,7 @@ case "$1" in
         ;;
     8|migrate)
         echo "执行数据库迁移..."
-        source /etc/bingxi-erp/.env
+        source /etc/bingxi/.env
         for f in /opt/bingxi-erp/database/migration/*.sql; do
             if [ -f "$f" ]; then
                 echo "执行: $(basename $f)"
