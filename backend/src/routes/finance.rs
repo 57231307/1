@@ -138,6 +138,11 @@ pub fn gl() -> Router<AppState> {
             "/subjects/:id",
             delete(account_subject_handler::delete_subject),
         )
+        // 批次 400 修复（规则 0/8/14）：接入科目余额刷新 API
+        .route(
+            "/subjects/:id/refresh-balance",
+            post(account_subject_handler::refresh_subject_balance),
+        )
         .route("/vouchers/types", get(voucher_handler::get_voucher_types))
         .route(
             "/vouchers/generate-no",

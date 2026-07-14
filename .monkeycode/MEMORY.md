@@ -554,6 +554,36 @@
 - **修复**：删除 `backend/.clippy-baseline.txt`，让 CI 在 bootstrap 模式下重建
 - **快速诊断**：CI 误报"大量新警告"时，先检查 baseline 首行内容
 
+### Clippy Baseline 文件格式陷阱（批次 398 修复）
+- **陷阱**：baseline 文件若包含完整渲染输出（代码片段、help、note 行），`grep -E '^(warning|error):'` 后只剩极少数摘要行
+- **后果**：`comm -23` 比较时大量已存在警告被误判为新增（批次 398 修复前 274 行 baseline 只有 2 行摘要行，导致 116 条已存在警告被误判为新增）
+- **正确格式**：baseline 文件**必须只含 `^(warning|error):` 开头的摘要行**，每行一条警告
+- **重建方法**：从 CI 日志 `grep -E '^(warning|error):'` 提取纯摘要行，`sort -u` 去重后写入 baseline
+- **验证**：重建后 baseline 行数应接近当前 clippy 警告摘要行数（批次 398 修复后 118 行）
+
+### is_production() 部署陷阱（批次 398 修复）
+- **陷阱**：`utils/config.rs::is_production()` 只读 `APP_ENV` 环境变量，不读 `AppSettings.env` 配置字段
+- **后果**：config.yaml 设 `env: "production"` 但未设 `APP_ENV` 环境变量时，`is_production()` 返回 false，导致生产环境脱敏、Cookie Secure 等安全机制失效
+- **修复**：`AppSettings::new()` 中 `load_sensitive_from_env()` 之后添加 APP_ENV 同步逻辑
+  - APP_ENV 环境变量优先（已设置时不覆盖）
+  - APP_ENV 未设置时从 config.yaml env 字段同步
+- **配置优先级**：`APP_ENV` 环境变量 > `config.yaml` 的 `env` 字段 > 默认开发环境
+- **部署建议**：生产环境同时在 .env 或 systemd Environment= 中显式设置 APP_ENV=production（双保险）
+
+### systemd EnvironmentFile 路径一致性（批次 398 修复）
+- **陷阱**：`deploy.sh` 的 `CONFIG_DIR` 与 systemd 服务文件的 `EnvironmentFile` 路径不一致
+- **后果**：
+  1. 清理 `/etc/bingxi/` 目录后重新部署时未重建该目录
+  2. `cp /etc/bingxi-erp/.env /etc/bingxi/.env` 因目标父目录不存在而失败
+  3. systemd 加载 EnvironmentFile 失败，后端二进制根本未被执行
+- **修复**：所有部署脚本的 `CONFIG_DIR` 必须与 systemd 服务文件的 `EnvironmentFile` 路径一致
+- **一致性检查清单**：
+  - `deploy/deploy.sh`：`CONFIG_DIR="/etc/bingxi"`
+  - `deploy/deploy-backend.sh`：`CONFIG_DIR="/etc/bingxi"`
+  - `deploy/deploy-latest.sh`：`mkdir -p /etc/bingxi`
+  - `deploy/bingxi-backend.service`：`EnvironmentFile=/etc/bingxi/.env`
+- **关键教训**：部署脚本修改后必须用 `grep -r '/etc/bingxi' deploy/` 验证所有路径一致性
+
 ### SeaORM Trait 必导
 - `Entity::find()` → 需 `use sea_orm::EntityTrait;`
 - `.filter()` → 需 `use sea_orm::QueryFilter;`

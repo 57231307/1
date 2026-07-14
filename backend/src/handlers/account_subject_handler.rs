@@ -200,3 +200,41 @@ pub async fn delete_subject(
         "会计科目删除成功",
     )))
 }
+
+/// 刷新科目余额查询参数
+///
+/// 批次 400 修复（规则 0/8）：接入 AccountSubjectService::refresh_balance，
+/// 用于凭证反审核、外部数据导入、余额漂移等场景的科目余额纠正。
+#[derive(Debug, Deserialize)]
+pub struct RefreshBalanceQuery {
+    /// 期间，格式 YYYY-MM
+    pub period: String,
+}
+
+/// 刷新科目余额
+///
+/// 批次 400 修复（规则 0/8/14）：接入原 #[allow(dead_code)] 的 refresh_balance 方法。
+/// 从已过账凭证分录重新聚合指定期间的借贷发生额，按余额方向计算期末余额并写回科目主数据。
+pub async fn refresh_subject_balance(
+    Path(id): Path<i32>,
+    Query(params): Query<RefreshBalanceQuery>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<account_subject::Model>>, AppError> {
+    info!(
+        "用户 {} 刷新会计科目余额 ID: {} 期间: {}",
+        auth.username, id, params.period
+    );
+
+    let service = AccountSubjectService::new(state.db.clone());
+    let subject = service.refresh_balance(id, &params.period).await?;
+    info!(
+        "用户 {} 刷新会计科目余额成功：{}",
+        auth.username, subject.code
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        subject,
+        "科目余额刷新成功",
+    )))
+}
