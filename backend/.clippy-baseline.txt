@@ -4,9 +4,7 @@
       rust_decimal::Decimal::new
       rust_decimal::Decimal::try_from_i128_with_scale
       rust_decimal::Decimal::try_new
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrow
     = help: items from traits can only be used if the trait is in scope
-    = note: `#[warn(clippy::needless_borrow)]` on by default
     = note: struct `crate::websocket::notifications::tests::Arc` exists but is inaccessible
     = note: the matched value is of type `&services::event_bus::BusinessEvent`
     = note: this error originates in the macro `decs` (in Nightly builds, run with -Z macro-backtrace for more info)
@@ -18,7 +16,6 @@
     |                                                         ----------- in this macro invocation
     |                                                  ^^^ use of undeclared type `Arc`
     |                                                ----------- in this macro invocation
-    |                                           ^^^^ help: change this to: `b.0`
     |                                         ---------------- in this macro invocation
     |                                        -------------- in this macro invocation
     |                                     -------------- in this macro invocation
@@ -37,12 +34,18 @@
     |                        ------------ in this macro invocation
     |                        -------------- in this macro invocation
     |                        --------------- in this macro invocation
+    |                       --------------- in this macro invocation
     |                      ----------------- in this macro invocation
+    |                     --------------- expected `MrpCalculationQuery`, found `i32`
     |                   ------------- in this macro invocation
+    |                  ^^^^^^^^^^^^^^^^^^^
     |                 --------------- in this macro invocation
+    |                 ---------------- expected `MrpCalculationQuery`, found `i32`
     |                 ^^^ use of undeclared type `Arc`
+    |              ^^^^^^^^^^^^^^^^^^^
     |           ^^^^^ patterns `&services::event_bus::BusinessEvent::CustomerUpdated { .. }` and `&services::event_bus::BusinessEvent::SupplierUpdated { .. }` not covered
     |          ^^^^^^^^^^^^^
+    |         --------------------------
     |     --------------- not covered
     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -60,15 +63,18 @@
    --> src/routes/search_api.rs:240:14
    --> src/routes/search_api.rs:246:22
    --> src/routes/search_api.rs:247:14
+   --> src/services/ar_invoice_service.rs:520:5
    --> src/services/customer_credit_limit.rs:726:50
    --> src/services/customer_credit_limit.rs:728:17
    --> src/services/customer_credit_limit.rs:739:50
    --> src/services/customer_credit_limit.rs:755:50
    --> src/services/customer_credit_limit.rs:771:50
-   --> src/services/email_service.rs:568:43
    --> src/services/event_bus.rs:45:10
    --> src/services/event_kafka.rs:71:11
    --> src/services/inv/stock.rs:73:5
+   --> src/services/mrp_engine_service.rs:532:18
+   --> src/services/production_order_service.rs:283:14
+   --> src/services/so/order_workflow.rs:324:18
    --> src/services/so/order_workflow.rs:402:5
    --> src/utils/unwrap_safe.rs:30:32
    ::: src/handlers/dual_unit_converter_handler.rs:198:31
@@ -79,6 +85,13 @@
    ::: src/handlers/dual_unit_converter_handler.rs:220:37
    ::: src/handlers/dual_unit_converter_handler.rs:221:34
    ::: src/handlers/dual_unit_converter_handler.rs:222:40
+   ::: src/services/ar_invoice_service.rs:532:24
+   ::: src/services/ar_invoice_service.rs:533:23
+   ::: src/services/ar_invoice_service.rs:542:24
+   ::: src/services/ar_invoice_service.rs:543:23
+   ::: src/services/ar_invoice_service.rs:553:23
+   ::: src/services/ar_invoice_service.rs:565:24
+   ::: src/services/ar_invoice_service.rs:566:23
    ::: src/services/inv/stock.rs:214:24
    ::: src/services/inv/stock.rs:229:25
    ::: src/services/inv/stock.rs:230:24
@@ -138,7 +151,27 @@
 253 |         let required = decs!("100");
 266 |         let msg = format_insufficient_error(product_id, decs!("50"), decs!("100"));
 277 |         let msg = format_insufficient_error(1, decs!("50"), decs!("100"));
+283 |             .run_mrp_calculation(
+284 +                 /* services::mrp_engine_service::MrpCalculationQuery */,
+284 -                 model.product_id,
+284 |                 model.product_id,
+285 -                 model.planned_quantity,
+286 -                 required_date,
+287 -                 "PRODUCTION_ORDER".to_string(),
+288 -                 Some(model.id),
+289 -                 true,
+290 -                 true,
 317 |         let v = decs!("123.45");
+324 |                 .run_mrp_calculation(
+325 +                     /* services::mrp_engine_service::MrpCalculationQuery */,
+325 -                     item.product_id,
+325 |                     item.product_id,
+326 -                     item.quantity,
+327 -                     required_date,
+328 -                     "SALES_ORDER".to_string(),
+329 -                     Some(order_id),
+330 -                     true,
+331 -                     true,
 337 +     use std::sync::Arc;
 342 |             (1, make_stock(1, decs!("100"))),
 343 |             (2, make_stock(2, decs!("200"))),
@@ -151,7 +184,17 @@
 444 |     pub const fn try_new(num: i64, scale: u32) -> crate::Result<Decimal> {
 487 |     pub fn from_i128_with_scale(num: i128, scale: u32) -> Decimal {
 505 |     pub const fn try_from_i128_with_scale(num: i128, scale: u32) -> crate::Result<Decimal> {
-568 |         all_params.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+520 +     use std::str::FromStr;
+532 |         let received = decs!("123.45");
+532 |     pub async fn run_mrp_calculation(
+533 |         &self,
+533 |         let invoice = decs!("100.00");
+534 |         query: MrpCalculationQuery,
+542 |         let received = decs!("100.00");
+543 |         let invoice = decs!("100.00");
+553 |         let invoice = decs!("100.00");
+565 |         let received = decs!("30.00");
+566 |         let invoice = decs!("100.00");
 726 |         let service = CustomerCreditService::new(Arc::new(db));
 728 |         assert!(Arc::strong_count(&service.db) >= 1);
 739 |         let service = CustomerCreditService::new(Arc::new(db));
@@ -165,6 +208,7 @@
 794 |         assert_eq!(model.total_amount, decs!("10000"));
 803 |         let shipped = make_order_model(2, 200, so_status::SHIPPED, decs!("5000"));
 error[E0004]: non-exhaustive patterns: `&services::event_bus::BusinessEvent::CustomerUpdated { .. }` and `&services::event_bus::BusinessEvent::SupplierUpdated { .. }` not covered
+error[E0061]: this method takes 1 argument but 7 arguments were supplied
 error[E0282]: type annotations needed
 error[E0433]: failed to resolve: use of undeclared type `Arc`
 error[E0599]: no function or associated item named `from_str` found for struct `rust_decimal::Decimal` in the current scope
@@ -172,9 +216,10 @@ error[E0599]: no method named `index_doc` found for struct `std::sync::Arc<searc
 error[E0599]: no method named `search` found for struct `std::sync::Arc<search::elastic::ElasticClient>` in the current scope
 help: consider importing this struct
 help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+help: remove the extra arguments
 help: trait `FromStr` which provides `from_str` is implemented but not in scope; perhaps you want to import it
 help: trait `SearchClient` which provides `index_doc` is implemented but not in scope; perhaps you want to import it
 help: trait `SearchClient` which provides `search` is implemented but not in scope; perhaps you want to import it
 note: `services::event_bus::BusinessEvent` defined here
 note: if you're trying to build a new `rust_decimal::Decimal` consider using one of the following associated functions:
-warning: this expression creates a reference which is immediately dereferenced by the compiler
+note: method defined here
