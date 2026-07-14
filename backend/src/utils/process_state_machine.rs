@@ -5,6 +5,7 @@
 //! 创建时间: 2026-06-17
 
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use thiserror::Error;
 
 /// 定制订单状态枚举（5 阶段工艺 + 终态）
@@ -29,21 +30,6 @@ pub enum CustomOrderStatus {
 }
 
 impl CustomOrderStatus {
-    /// 从字符串解析状态
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "draft" => Some(Self::Draft),
-            "yarn_purchasing" => Some(Self::YarnPurchasing),
-            "dyeing" => Some(Self::Dyeing),
-            "finishing" => Some(Self::Finishing),
-            "delivery" => Some(Self::Delivery),
-            "after_sales" => Some(Self::AfterSales),
-            "completed" => Some(Self::Completed),
-            "cancelled" => Some(Self::Cancelled),
-            _ => None,
-        }
-    }
-
     /// 序列化为字符串
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -61,6 +47,25 @@ impl CustomOrderStatus {
     /// 是否为终态
     pub fn is_terminal(&self) -> bool {
         matches!(self, Self::Completed | Self::Cancelled)
+    }
+}
+
+/// 实现 FromStr trait，替代原 inherent from_str 方法（消除 clippy::should_implement_trait 警告）
+impl FromStr for CustomOrderStatus {
+    type Err = StateMachineError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "draft" => Ok(Self::Draft),
+            "yarn_purchasing" => Ok(Self::YarnPurchasing),
+            "dyeing" => Ok(Self::Dyeing),
+            "finishing" => Ok(Self::Finishing),
+            "delivery" => Ok(Self::Delivery),
+            "after_sales" => Ok(Self::AfterSales),
+            "completed" => Ok(Self::Completed),
+            "cancelled" => Ok(Self::Cancelled),
+            _ => Err(StateMachineError::InvalidState(s.to_string())),
+        }
     }
 }
 
@@ -84,8 +89,7 @@ pub enum StateMachineError {
 /// - after_sales → completed
 /// - 任意非终态 → cancelled
 pub fn next_status(current: &str) -> Result<CustomOrderStatus, StateMachineError> {
-    let cur = CustomOrderStatus::from_str(current)
-        .ok_or_else(|| StateMachineError::InvalidState(current.to_string()))?;
+    let cur = current.parse::<CustomOrderStatus>()?;
 
     if cur.is_terminal() {
         return Err(StateMachineError::InvalidTransition {
@@ -115,13 +119,13 @@ pub fn next_status(current: &str) -> Result<CustomOrderStatus, StateMachineError
 
 /// 验证状态转换是否合法
 pub fn can_transition(from: &str, to: &str) -> bool {
-    let from_status = match CustomOrderStatus::from_str(from) {
-        Some(s) => s,
-        None => return false,
+    let from_status = match from.parse::<CustomOrderStatus>() {
+        Ok(s) => s,
+        Err(_) => return false,
     };
-    let to_status = match CustomOrderStatus::from_str(to) {
-        Some(s) => s,
-        None => return false,
+    let to_status = match to.parse::<CustomOrderStatus>() {
+        Ok(s) => s,
+        Err(_) => return false,
     };
 
     if from_status == to_status {

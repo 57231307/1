@@ -5,7 +5,7 @@
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
     Statement,
 };
 use std::sync::Arc;
@@ -40,12 +40,6 @@ pub struct DeliveryCalculationResult {
     pub calculation_basis: String,
     /// 历史订单数量
     pub historical_orders: i64,
-}
-
-#[derive(Debug, FromQueryResult)]
-struct AvgLeadTimeResult {
-    avg_days: Option<i32>,
-    order_count: Option<i64>,
 }
 
 /// 采购交期计算服务

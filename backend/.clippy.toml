@@ -9,12 +9,10 @@
 # rustc 标准 lint（dead_code / unused_imports / unused_variables）配置在
 # backend/Cargo.toml 的 [lints.rust] 段（clippy 1.81+ 已弃用顶层 warn 数组）。
 
-# 禁止使用 println!（除 CLI 工具外）
-# 注意：path 不能带 std:: 前缀，否则 clippy 1.94 报"unknown method"警告（宏不是方法）
-disallowed-methods = [
-    { path = "println", reason = "使用 tracing::info! 替代" },
-    { path = "eprintln", reason = "使用 tracing::error! 替代" },
-]
-
 # 强制使用 Result 处理错误
 avoid-breaking-exported-api = true
+
+# 注意：原先配置了 disallowed-methods 来禁止 println!/eprintln!，
+# 但这两个是宏而非方法，clippy 1.94 会报 "does not refer to a reachable function" 警告。
+# 改用 disallowed-macros 会触发 100+ 处 CLI 工具合法使用的新警告（CLI 输出需要 println!）。
+# 因此移除此配置，改为在代码审查中手动约束非 CLI 代码不使用 println!/eprintln!。
