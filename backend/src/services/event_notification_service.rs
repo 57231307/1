@@ -790,7 +790,7 @@ impl EventNotificationService {
         // v16 批次 45 修复：循环外批量获取用户通知设置，避免循环内逐个查询（N+1）
         let setting_map = self
             .setting_service
-            .get_or_create_default_batch(&payload.user_ids)
+            .get_or_create_default_batch(payload.user_ids.as_slice())
             .await?;
 
         for user_id in payload.user_ids {
