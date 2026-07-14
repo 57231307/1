@@ -10,7 +10,7 @@
 
 > **v13 复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **已完成批次**：356-393（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
+> **已完成批次**：356-394（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
 
 ### 进度总览
 
@@ -23,8 +23,8 @@
 | v14 中风险遗留 | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | v13 前端/后端 P2 | 9 | 9 | 0 | ✅ 阶段 5 useTableApi 接入全部完成（批次 390-391） |
-| 测试覆盖补测 | 12 | 7 | 5 | 🔄 **批次 393 完成 inventory/voucher/ar/ap_invoice service 测试**（24 个新测试），5 个 handler 待批次 394 |
-| **合计** | **~378** | **93** | **~285** | — |
+| 测试覆盖补测 | 12 | 12 | 0 | ✅ **全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23） |
+| **合计** | **~378** | **94** | **~284** | — |
 
 ---
 
@@ -135,14 +135,18 @@
 
 > 批次 393 共补测 24 个新测试。阶段 6 service 测试全部完成（批次 392-393，共 42 个新测试）。下一批次 394：handler 集成测试。
 
-**批次 394（handler 测试，约 6 文件）**：
+**批次 394（handler 内嵌测试，4 文件，PR #567 已合并，CI 全绿）**：
 
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| 测试-9 | backend/tests/auth_handler_test.rs | auth handler 集成测试 |
-| 测试-10 | backend/tests/order_handler_test.rs | 订单 handler 集成测试 |
-| 测试-11 | backend/tests/inventory_handler_test.rs | 库存 handler 集成测试 |
-| 测试-12 | backend/tests/finance_handler_test.rs | 财务 handler 集成测试 |
+> **调研结论**：原规划 4 个 `tests/` 目录集成测试文件，但调研后发现 handler 中的私有纯函数（如 `validate_custom_condition_safe`、`builtin_print_templates`、`verify_zip_magic`）必须用内嵌 `#[cfg(test)] mod tests` 测试，不能放在 `tests/` 目录（无法访问私有函数）。因此改为在 4 个 handler 源文件内嵌测试模块，覆盖私有纯函数和 DTO 构造。
+
+| 任务 | 涉及文件 | 说明 | 状态 |
+|------|----------|------|------|
+| 测试-9 | backend/src/handlers/data_permission_handler.rs | SQL 注入防御纯函数测试（0→6） | ✅ 批次 394 完成 |
+| 测试-10 | backend/src/handlers/print_handler.rs | 内置打印模板列表测试（0→5） | ✅ 批次 394 完成 |
+| 测试-11 | backend/src/handlers/system_update_handler.rs | ZIP 文件头校验 + DTO 构造测试（0→6） | ✅ 批次 394 完成 |
+| 测试-12 | backend/src/handlers/color_card/error_map.rs | 错误映射 3 函数 14 变体测试（0→6） | ✅ 批次 394 完成 |
+
+> 批次 394 共补测 23 个新测试。**阶段 6 测试覆盖补测全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23）。下一阶段：阶段 7 baseline 清零（批次 395-424）。
 
 ### 阶段 7：baseline 清零（批次 395-424，约 30 批，约 202 项）
 
