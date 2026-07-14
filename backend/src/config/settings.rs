@@ -259,6 +259,21 @@ impl AppSettings {
 
         app_settings.load_sensitive_from_env()?;
 
+        // 批次 398 修复：将 config.yaml 的 env 字段同步到 APP_ENV 环境变量
+        // 解决 utils/config.rs::is_production() 只读 APP_ENV 不读 AppSettings.env 的部署陷阱
+        // 优先级：APP_ENV 环境变量 > config.yaml env 字段（环境变量已设置时不覆盖）
+        if std::env::var("APP_ENV").is_err() {
+            if !app_settings.env.is_empty() {
+                std::env::set_var("APP_ENV", &app_settings.env);
+                tracing::info!(
+                    env = %app_settings.env,
+                    "从 config.yaml 同步 env 字段到 APP_ENV 环境变量（APP_ENV 原未设置）"
+                );
+            }
+        } else {
+            tracing::debug!("APP_ENV 环境变量已设置，config.yaml env 字段被覆盖");
+        }
+
         if !Self::validate_secret(&app_settings.auth.jwt_secret) {
             return Err(ConfigError::Message(
                 "致命错误：JWT_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
