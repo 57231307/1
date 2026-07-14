@@ -348,6 +348,8 @@ mod tests {
     use chrono::Utc;
     use sea_orm::{Database, DatabaseConnection};
     use std::str::FromStr;
+    // 批次 415：测试中使用 Arc::new(db)，需导入（文件顶部在批次 357 移除了 unused Arc 导入）
+    use std::sync::Arc;
 
     /// 构建测试用客户信用模型夹具
     ///

@@ -588,7 +588,8 @@ impl EmailService {
         all_params.extend(biz_params.iter().cloned());
 
         // 按参数名 ASCII 字典序排序（参数名相同时按值排序）
-        all_params.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+        // 批次 415：修复 needless_borrow，b.0/b.1 已是引用，无需额外取地址
+        all_params.sort_by(|a, b| a.0.cmp(b.0).then_with(|| a.1.cmp(b.1)));
 
         // 构造规范化请求字符串：每个参数 URL 编码后用 `&` 拼接
         let canonicalized: String = all_params

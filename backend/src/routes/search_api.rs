@@ -186,6 +186,8 @@ pub async fn list_doc_types(
 #[cfg(test)]
 mod tests {
     use super::*;
+    // 批次 415：index_doc/search 是 SearchClient trait 方法，测试需导入
+    use crate::search::SearchClient;
 
     #[test]
     fn test_search_params_to_query() {

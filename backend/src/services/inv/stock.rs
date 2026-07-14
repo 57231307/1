@@ -72,6 +72,8 @@ impl InventoryTransferService {
 mod tests {
     use super::*;
     use crate::decs;
+    // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
+    use std::str::FromStr;
     use crate::ymd;
     use chrono::Utc;
     use rust_decimal::Decimal;

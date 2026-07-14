@@ -59,9 +59,11 @@ mod tests {
 
     #[test]
     fn test_status_parsing() {
-        assert_eq!(CustomOrderStatus::from_str("draft"), Some(CustomOrderStatus::Draft));
-        assert_eq!(CustomOrderStatus::from_str("yarn_purchasing"), Some(CustomOrderStatus::YarnPurchasing));
-        assert_eq!(CustomOrderStatus::from_str("invalid"), None);
+        // 批次 415：CustomOrderStatus 实现了 FromStr trait 返回 Result，
+        // 使用 .parse().ok() 转为 Option 保持原有测试语义
+        assert_eq!("draft".parse::<CustomOrderStatus>().ok(), Some(CustomOrderStatus::Draft));
+        assert_eq!("yarn_purchasing".parse::<CustomOrderStatus>().ok(), Some(CustomOrderStatus::YarnPurchasing));
+        assert_eq!("invalid".parse::<CustomOrderStatus>().ok(), None);
     }
 
     #[test]
