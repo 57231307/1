@@ -62,10 +62,11 @@ pub async fn list_requests(
         auth.username, total
     );
 
+    // 批次 406 修复：序列化失败应传播错误而非返回 Null
     let mut items_json: Vec<serde_json::Value> = requests
         .into_iter()
-        .map(|r| serde_json::to_value(r).unwrap_or_default())
-        .collect();
+        .map(|r| serde_json::to_value(r).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {

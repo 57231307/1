@@ -173,10 +173,11 @@ pub async fn get_settings(
     let service = NotificationService::new(state.db.clone());
     let settings = service.get_user_settings(auth.user_id).await?;
 
+    // 批次 406 修复：序列化失败应传播错误而非返回 Null
     let settings_json: Vec<serde_json::Value> = settings
         .into_iter()
-        .map(|s| serde_json::to_value(s).unwrap_or_default())
-        .collect();
+        .map(|s| serde_json::to_value(s).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Json(ApiResponse::success(settings_json)))
 }
