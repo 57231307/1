@@ -607,6 +607,7 @@ impl EmailService {
     /// 7. Signature = HEX(HMAC-SHA256(SecretSigning, StringToSign))
     ///
     /// 注意：region 不参与 V3 签名（仅出现在 X-TC-Region 请求头），故函数不接收 region 参数。
+    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 腾讯云 V3 签名固定参数集，无法进一步聚合
     fn tencent_sign(
         &self,
         action: &str,

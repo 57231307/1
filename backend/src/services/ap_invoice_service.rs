@@ -645,6 +645,7 @@ impl ApInvoiceService {
     }
 
     /// 获取应付单列表（含分页、筛选）
+    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 ApInvoiceQueryParams DTO 聚合参数
     pub async fn get_list(
         &self,
         supplier_id: Option<i32>,
