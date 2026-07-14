@@ -86,7 +86,9 @@ fn validate_custom_condition_safe(condition: &Value) -> Result<(), AppError> {
         return Err(AppError::validation("custom_condition 必须是对象或 null"));
     }
     // 额外深度检查：禁止任何已知危险 SQL 关键字
-    let serialized = serde_json::to_string(condition).unwrap_or_default();
+    // 批次 397 修复：序列化失败时 fail-fast 返回错误，避免跳过安全检查
+    let serialized = serde_json::to_string(condition)
+        .map_err(|e| AppError::internal(format!("custom_condition 序列化失败: {}", e)))?;
     let upper = serialized.to_uppercase();
     for kw in FORBIDDEN {
         if upper.contains(kw) {

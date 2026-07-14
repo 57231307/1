@@ -30,7 +30,8 @@ pub struct AuditLogItem {
     pub resource_type: Option<String>,
     pub resource_id: Option<String>,
     pub ip_address: Option<String>,
-    pub created_at: String,
+    /// 批次 397 修复：改为 Option<String>，None 时序列化为 JSON null 而非空字符串
+    pub created_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -108,7 +109,7 @@ pub async fn list_audit_logs(
             resource_type: m.resource_type,
             resource_id: m.resource_id,
             ip_address: m.ip_address,
-            created_at: m.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
+            created_at: m.created_at.map(|t| t.to_rfc3339()),
         })
         .collect();
 
