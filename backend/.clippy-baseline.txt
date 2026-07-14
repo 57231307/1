@@ -18,9 +18,7 @@
     |                                                             ------------ in this macro invocation
     |                                                         ----------- in this macro invocation
     |                                                  ^^^ use of undeclared type `Arc`
-    |                                                 ^^^^^^^^^^^ help: change this to: `header_val`
     |                                                ----------- in this macro invocation
-    |                                                ^^^^ help: change this to: `url`
     |                                           ^^^^ help: change this to: `b.0`
     |                                         ---------------- in this macro invocation
     |                                        -------------- in this macro invocation
@@ -68,7 +66,6 @@
     | |_____________|
    --> /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rust_decimal-1.42.1/src/decimal.rs:427:5
    --> src/handlers/dual_unit_converter_handler.rs:205:5
-   --> src/middleware/auth.rs:209:49
    --> src/routes/search_api.rs:239:9
    --> src/routes/search_api.rs:240:14
    --> src/routes/search_api.rs:246:22
@@ -93,7 +90,6 @@
    --> src/services/mrp_engine_service.rs:487:5
    --> src/services/product_service.rs:510:5
    --> src/services/so/order_workflow.rs:402:5
-   --> src/services/webhook_service.rs:281:48
    --> src/utils/unwrap_safe.rs:30:32
    ::: src/handlers/dual_unit_converter_handler.rs:224:31
    ::: src/handlers/dual_unit_converter_handler.rs:226:37
@@ -128,27 +124,11 @@
    ::: src/services/so/order_workflow.rs:788:64
    ::: src/services/so/order_workflow.rs:794:40
    ::: src/services/so/order_workflow.rs:803:68
-   = help: add `allow-invalid = true` to the entry to suppress this warning
-   = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#should_implement_trait
    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#too_many_arguments
-   = note: `#[warn(clippy::should_implement_trait)]` on by default
    = note: `#[warn(clippy::too_many_arguments)]` on by default
-   = note: requested on the command line with `-W dead-code`
-   = note: requested on the command line with `-W unused-imports`
    |
-   |         ^^^^^^^^
-   |        ^^^^^^^^^^^^^^^^^
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   | |_____^
    | |_________________________________________________^
-  --> /home/runner/work/1/1/backend/.clippy.toml:15:5
-  --> /home/runner/work/1/1/backend/.clippy.toml:16:5
   --> src/services/finance_payment_service.rs:30:5
-  --> src/services/purchase_delivery_calculator.rs:46:8
-  --> src/utils/process_state_machine.rs:33:5
-  --> src/utils/unwrap_safe.rs:63:9
  30 |         rust_decimal::Decimal::from_str($x).expect("P9-1: 测试夹具 Decimal 字符串解析失败")
  45 | pub enum BusinessEvent {
  71 |     match event {
@@ -164,13 +144,10 @@
 134 | |         name: Option<String>,
 139 | |         description: Option<String>,
 140 | |     ) -> Result<api_key::Model, AppError> {
-15 |     { path = "println", reason = "使用 tracing::info! 替代" },
 153 |     CustomerUpdated {
 158 |     SupplierUpdated {
-16 |     { path = "eprintln", reason = "使用 tracing::error! 替代" },
 188 +     use crate::search::elastic::SearchClient;
 205 +     use std::str::FromStr;
-209 |                 auth_header = %mask_auth_header(&header_val),
 214 |         let original = decs!("100.50");
 224 |         assert_eq!(req.value, decs!("100.000"));
 226 |         assert_eq!(req.gram_weight, decs!("180.00"));
@@ -194,7 +171,6 @@
 253 |         let required = decs!("100");
 266 |         let msg = format_insufficient_error(product_id, decs!("50"), decs!("100"));
 277 |         let msg = format_insufficient_error(1, decs!("50"), decs!("100"));
-281 |                     let host = url::Url::parse(&url)
 30 | /     pub async fn create_payment(
 304 | /     pub async fn get_inventory_summary(
 305 | |         &self,
@@ -205,16 +181,12 @@
 313 | |     ) -> Result<(Vec<InventorySummaryItem>, u64), AppError> {
 317 |         let v = decs!("123.45");
 32 | |         payment_no: String,
-33 | /     pub fn from_str(s: &str) -> Option<Self> {
 33 | |         invoice_id: Option<i32>,
 337 +     use std::sync::Arc;
-34 | |         match s {
 342 |             (1, make_stock(1, decs!("100"))),
 343 |             (2, make_stock(2, decs!("200"))),
-35 | |             "draft" => Some(Self::Draft),
 350 |             (Some(1), Some(decs!("50"))),
 351 |             (Some(2), Some(decs!("150"))),
-36 | |             "yarn_purchasing" => Some(Self::YarnPurchasing),
 38 | |         created_by: Option<i32>,
 381 |             [(1, make_stock(1, decs!("30")))].into_iter().collect();
 384 |         let quantity = decs!("50");
@@ -228,14 +200,12 @@
 422 | |     ) -> Result<(Vec<ap_payment_request::Model>, u64), AppError> {
 427 |     pub fn new(num: i64, scale: u32) -> Decimal {
 444 |     pub const fn try_new(num: i64, scale: u32) -> crate::Result<Decimal> {
-45 | |     }
 450 | /     pub async fn explode_bom(
 451 | |         &self,
 452 | |         product_id: i32,
 453 | |         parent_quantity: Decimal,
 458 | |         consider_in_transit: bool,
 459 | |     ) -> Result<Vec<MaterialRequirement>, AppError> {
-46 | struct AvgLeadTimeResult {
 487 |     pub fn from_i128_with_scale(num: i128, scale: u32) -> Decimal {
 487 | /     pub async fn run_mrp_calculation(
 488 | |         &self,
@@ -263,7 +233,6 @@
 613 | |         service: &str,
 618 | |         secret_key: &str,
 619 | |     ) -> Result<String, AppError> {
-63 |     use super::*;
 648 | /     pub async fn get_list(
 649 | |         &self,
 650 | |         supplier_id: Option<i32>,
@@ -301,10 +270,5 @@ help: trait `SearchClient` which provides `index_doc` is implemented but not in 
 help: trait `SearchClient` which provides `search` is implemented but not in scope; perhaps you want to import it
 note: `services::event_bus::BusinessEvent` defined here
 note: if you're trying to build a new `rust_decimal::Decimal` consider using one of the following associated functions:
-warning: `eprintln` does not refer to a reachable function
-warning: `println` does not refer to a reachable function
-warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
-warning: struct `AvgLeadTimeResult` is never constructed
 warning: this expression creates a reference which is immediately dereferenced by the compiler
 warning: this function has too many arguments (8/7)
-warning: unused import: `super::*`
