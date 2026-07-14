@@ -513,6 +513,7 @@ impl ApPaymentService {
     }
 
     /// 获取付款单列表
+    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 ApPaymentQueryParams DTO 聚合参数
     pub async fn get_list(
         &self,
         supplier_id: Option<i32>,

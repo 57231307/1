@@ -128,6 +128,7 @@ impl ApiKeyService {
     ///
     /// 仅更新传入的字段，未传入的字段保持不变。
     /// 批次 158 v11 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）
+    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 UpdateApiKeyPayload DTO 聚合参数
     pub async fn update_api_key(
         &self,
         id: i32,

@@ -736,6 +736,7 @@ impl EventNotificationService {
     }
 
     /// 发送通知给多个用户
+    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 NotificationPayload DTO 聚合参数
     pub async fn notify_multiple_users(
         &self,
         user_ids: Vec<i32>,

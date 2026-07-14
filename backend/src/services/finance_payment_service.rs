@@ -27,6 +27,7 @@ impl FinancePaymentService {
             .ok_or_else(|| AppError::not_found(format!("付款 ID {} 不存在", id)))
     }
 
+    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 CreatePaymentRequest DTO 聚合参数
     pub async fn create_payment(
         &self,
         payment_no: String,
