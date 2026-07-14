@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-13（精简归档批次详细记录，重组结构）。
+> 最近整理：2026-07-14（批次 407 完成后，更新阶段 8 进度 + 批次 407 表格状态 + 新增技术债务计划）。
 
 ---
 
@@ -10,7 +10,7 @@
 
 > **v13 复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **已完成批次**：356-406（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
+> **已完成批次**：356-407（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
 
 ### 进度总览
 
@@ -21,7 +21,7 @@
 | 财务场景闭环 | 16 | 11 | 5 | 🔄 **P0 8/8 ✅** + **P1 6/6 ✅** + P2 2/4（批次 387 完成 F-P2-2/4，F-P2-1/3 待后续批次） |
 | 运行逻辑环闭环 | 45 | 45 | 0 | ✅ 全部完成（P1 6 + P2 13 + P3 26） |
 | v14 中风险遗留 | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
-| v14 低风险遗留 | 74 | 38 | 36 | 🔄 批次 397 完成 4 处 unwrap_or_default 安全修复 + 批次 398 完成 3 项配置合规修复 + 批次 400 完成 3 项 #[allow(dead_code)] 接入 + 批次 401 完成部署脚本密钥自动生成 + hex→base64 提升熵比 + baseline 文件重建 + 批次 402 完成 baseline 最后一条 `needless_reference` 警告清零 + 批次 403 完成 4 处安全修复 + 批次 404 完成 2 处 LazyLock expect 安全降级 + 10 处消息常量化首批 + 批次 405 完成 8 处消息常量化第二批 + 批次 406 完成 6 handler 序列化吞错修复 + clippy baseline 重建（180 行） |
+| v14 低风险遗留 | 74 | 53 | 21 | 🔄 批次 397 完成 4 处 unwrap_or_default 安全修复 + 批次 398 完成 3 项配置合规修复 + 批次 400 完成 3 项 #[allow(dead_code)] 接入 + 批次 401 完成部署脚本密钥自动生成 + hex→base64 提升熵比 + baseline 文件重建 + 批次 402 完成 baseline 最后一条 `needless_reference` 警告清零 + 批次 403 完成 4 处安全修复 + 批次 404 完成 2 处 LazyLock expect 安全降级 + 10 处消息常量化首批 + 批次 405 完成 8 处消息常量化第二批 + 批次 406 完成 6 handler 序列化吞错修复 + clippy baseline 重建（180 行）+ **批次 407 完成 9 handler 15 处安全+数据完整性+业务正确性修复**（阶段 8 完成，阶段 9 待启动） |
 | v13 前端/后端 P2 | 9 | 9 | 0 | ✅ 阶段 5 useTableApi 接入全部完成（批次 390-391） |
 | 测试覆盖补测 | 12 | 12 | 0 | ✅ **全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23） |
 | **合计** | **~378** | **97** | **~281** | — |
@@ -162,10 +162,11 @@
 > 7. ✅ too_many_arguments 警告经调研为过时 baseline 数据（当前所有函数均为 7 参数，CI 重跑后自动消失）
 > **后续**：baseline 机制保留（自动刷新已生效），后续阶段新增警告由 CI 直接阻塞。
 
-### 阶段 8：v14 低风险修复（批次 397-407，约 11 批，74 项）
+### 阶段 8：v14 低风险修复（批次 397-407，约 11 批，74 项）✅ 全部完成
 
 > **目标**：74 项低风险问题全部修复，每批 5-8 文件。
 > **批次号调整说明**：阶段 7 提前在 395-396 完成（原规划 395-424 共 30 批，实际 2 批完成），阶段 8-10 批次号整体前移 28 批。
+> **完成状态**：批次 397-407 全部完成（PR #571-#582 已合并），阶段 8 完成，下一阶段：阶段 9 批次 408-410。
 
 **批次 397（占位符调研 + unwrap_or_default 安全修复，PR #571 已合并，CI 全绿）**：
 
@@ -208,7 +209,7 @@
 | 404 ✅ | LazyLock expect + 消息常量化 | 12 | 2 处 LazyLock<Regex> expect 改 Option 优雅降级 + 新建 messages.rs 常量模块 + crud_macro 6 处 + 2 个 handler 4 处硬编码替换 |
 | 405 ✅ | 消息常量化第二批 | 8 | 5 handler 文件 8 处硬编码替换（crm/budget/webhook/bpm_definition/production_order） |
 | 406 ✅ | 序列化吞错修复 + baseline 重建 | 6+1 | 6 handler serde_json::to_value().unwrap_or_default() 改为错误传播 + 删除错误 baseline 文件由 CI 自动重建 180 行 |
-| 407 | 其他 | ~28 | 命名规范/注释完善/代码风格等 |
+| 407 ✅ | 安全+数据完整性+业务正确性修复 | 15 | 9 handler 15 处修复（auth_handler 登录锁定 DB 错误传播 + 权限查询 fail-secure + api_gateway_handler 权限序列化错误传播 2 处 + dye_recipe_handler 配方辅料反序列化校验 + 创建回查错误传播 + 更新辅料校验 + dye_batch_handler 创建回查错误传播 + report_engine_handler filters_json 解析失败返回验证错误 2 处 + sales_order_handler warehouse_id 缺失校验 + barcode_scanner_handler order_id 缺失校验 + webhook_integration_handler 序列化错误传播 + customer_credit_handler credit_limit 技术债务标注）+ 4 处 redundant closure clippy 警告修复，CI 全绿 |
 
 #### §1.1 技术债务：11 个 `#[allow(clippy::too_many_arguments)]` 标注处理计划
 
@@ -648,7 +649,7 @@
 ## 四、规则节点提醒
 
 - **规则 5（E2E 独立工作流，每 30 批次）**：批次 330、360、390 已到期需触发（403 权限不足，需用户手动触发）；批次 420、450 到期需触发
-- **规则 10（每 15 批次记忆整理）**：批次 375、390 已完成，下次整理批次 405，后续 420/435
+- **规则 10（每 15 批次记忆整理）**：批次 375、390、405 已完成，下次整理批次 420，后续 435/450（批次 407 用户额外要求一次梳理优化，已执行）
 - **规则 13（修复流程自动化）**：CI 全绿后自动开始下一批，无需用户确认
 - **规则 14（移除所有警告抑制）**：所有警告视为错误需修复（阶段 7 baseline 213/213 ✅ 全部清零）
 - **规则 15（v13 复审严格规范 + v14 面料行业特性复审）**：v13 业务/财务/运行逻辑闭环 + 阶段 1-9 完成后触发 v14 复审，新增 17 个维度（通用 3 + 面料行业特性 7 + 面料行业模块专项 7）

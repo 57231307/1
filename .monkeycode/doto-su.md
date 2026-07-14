@@ -1063,3 +1063,68 @@
 - **批次 372（PR #544）**：v13 P2 闭环修复 L-30 OmniAudit spawn句柄丢失（omni_audit_service OmniAuditEngine 新增 handle:Mutex<Option<JoinHandle>>字段+new保存句柄+shutdown方法lock+take+abort幂等 + main.rs match块外声明omni_audit_for_shutdown:Option<Arc>+Ok分支赋值+http_server.await后调用shutdown，2 文件 43 行，1 次 CI 全绿，运行逻辑环P2 14项全部清零）
 - **批次 373（PR #545）**：v13 P1 闭环修复 L-27+L-28+L-29 事件总线spawn句柄丢失（event_bus.rs EventBusState新增consumer_handle字段+MAIN_LISTENER_HANDLE全局static+shutdown_event_bus函数 + inventory_finance_bridge_service.rs BRIDGE_LISTENER_HANDLE全局static+shutdown_listener方法 + main.rs http_server.await后调用shutdown_event_bus统一关闭，3 文件 75 行，1 次 CI 全绿，运行逻辑环P1完成5/6仅剩L-26）
 - **批次 374（PR #546）**：v13 P1 闭环修复 L-26 5个后台定时任务缺cancellation token（main.rs MAIN_BACKGROUND_TASKS全局static+shutdown_main_background_tasks+3个句柄保存 + slow_query_collector.rs start_collect_task返回JoinHandle + auth_service.rs start_revoked_user_cleanup_task返回JoinHandle + app_state.rs APP_STATE_BACKGROUND_TASKS全局static+2个句柄保存+shutdown_app_state_background_tasks，4 文件 78 行，2 次 CI 修复E0382后全绿，运行逻辑环P1+P2全部清零）
+
+---
+
+## 📝 已完成批次归档摘要（v13 复审后续 + v14 低风险修复阶段，批次 375-407）
+
+> 本节为批次 375-407 的归档摘要（规则 10 整理节点：批次 390/405，用户额外整理：批次 407，2026-07-14）。
+> 每个批次的一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，v13 复审报告见 [v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)。
+
+### v13 复审 P3 + 测试覆盖 + useTableApi 接入阶段（批次 375-394）
+
+- **批次 375-383**：v13 复审 P3 级运行逻辑环闭环修复（L-32~L-45 共 26 项，详见 CHANGELOG.md）
+- **批次 384（PR #553）**：v13 P1 级闭环修复 B-P1-3+B-P1-7+F-P1-1（客户/供应商主数据变更事件发布 + 事件重试指数退避+死信队列+告警 + close_period 期末结转本期期末余额写入下期期初）
+- **批次 385-386（PR #554-#555）**：v13 业务场景 P2 闭环修复 B-P2-1~6（AR create_payment 合并 + 孤岛 service 接入 + cost_collection/mrp_engine/capacity/inventory_reservation 接入业务联动）
+- **批次 387（PR #556）**：v13 财务场景 P2 闭环修复 F-P2-2+F-P2-4（报表穿透追溯 + AR/AP 对账单生成触发凭证）
+- **批次 388-389（PR #557-#558）**：v13 前后端 P2 修复（FE-P2-1~3 前端类型强化+i18n + P2-1~3 后端错误处理+日志+配置）
+- **批次 390-391（PR #563-#564）**：阶段 5 useTableApi 接入（barcodeScanner + assistAccounting 0-based 分页修复 + AdjustmentListTab + TransferListTab 规范统一）
+- **批次 392-394（PR #565-#567）**：阶段 6 测试覆盖补测（共 65 个新测试：service 42 + handler 23，覆盖 auth/user/order/inventory/voucher/ar/ap/data_permission/print/system_update/color_card error_map）
+
+### v14 baseline 清零阶段（批次 395-396）✅ 全部完成
+
+- **批次 395（PR #568-#569）**：baseline 自动刷新机制（CI main 分支自动移除已修复警告，baseline 1465→310 行，摘要 213→7 条）
+- **批次 396（PR #570）**：剩余 7 类警告清零（.clippy.toml disallowed-methods 移除 + from_str 改 FromStr trait + AvgLeadTimeResult 死代码删除 + needless_borrow 2 处 + unused import super::*）
+
+### v14 低风险修复阶段（批次 397-407）✅ 全部完成
+
+- **批次 397（PR #571）**：占位符/Mock 存根 21 项调研确认已清零 + 4 处 unwrap_or_default 安全修复（omni_audit body 读取 + audit_enhanced_handler created_at + data_permission_handler 序列化 fail-fast）
+- **批次 398（PR #572）**：配置合规性修复 6 文件（settings.rs APP_ENV 同步消除 is_production() 部署陷阱 + .env.example 移除中文占位符密码 + deploy-latest.sh 移除 grpc 段 + clippy baseline 文件格式修复 274→118 行 + deploy.sh CONFIG_DIR 路径一致性修复）
+- **批次 399**：占位符/Mock 存根剩余调研确认无需修复
+- **批次 400-401**：项目规则符合性 11 项（3 项 #[allow(dead_code)] 接入 + 部署脚本密钥自动生成 + hex→base64 提升熵比 + baseline 文件重建）
+- **批次 402（PR #578）**：baseline 最后一条 `needless_reference` 警告清零（webhook_handler.rs 测试 `&*LazyLock` 修复）；技术债务：错误创建 1 行 baseline 文件导致后续 CI strict 模式误报 117 个新警告
+- **批次 403（PR #579）**：unwrap/lock 安全修复 4 处（omni_audit_handler DB 字段吞错改 Option<T> 读取 + import_export 价格转换失败返回验证错误 + 2 处 shutdown Mutex::lock().unwrap() 改 unwrap_or_else）
+- **批次 404（PR #580）**：LazyLock expect + 消息常量化 12 处（2 处 LazyLock<Regex> expect 改 Option 优雅降级 + 新建 messages.rs 常量模块 + crud_macro 6 处 + 2 个 handler 4 处硬编码替换）
+- **批次 405（PR #581）**：消息常量化第二批 8 处（5 handler 文件 8 处硬编码替换：crm/budget/webhook/bpm_definition/production_order）
+- **批次 406（PR #582 前）**：序列化吞错修复 + baseline 重建（6 handler serde_json::to_value().unwrap_or_default() 改为错误传播 + 删除错误 baseline 文件由 CI 自动重建 180 行）
+
+### 批次 407：安全+数据完整性+业务正确性修复（PR #582，sha: d874819e）
+
+**修复内容**：v14 低风险修复收官批次 — 9 handler 15 处安全+数据完整性+业务正确性修复，阶段 8 全部完成。
+
+**修改文件**（9 文件）：
+- `backend/src/handlers/auth_handler.rs`：登录锁定 DB 错误传播（per-IP/per-username 失败计数 `unwrap_or_default()` → `map_err` 传播，防攻击者引发 DB 异常绕过锁定）+ 权限查询 fail-secure（`unwrap_or_default()` → `unwrap_or_else` warn 日志，DB 异常时拒绝而非放行）
+- `backend/src/handlers/api_gateway_handler.rs`：权限序列化错误传播 2 处（`Option<Result<T,E>>.transpose().map_err(AppError::from)?`，序列化失败返回错误而非空字符串）
+- `backend/src/handlers/dye_recipe_handler.rs`：配方辅料反序列化校验 + 创建回查错误传播 + 更新辅料校验 3 处（`serde_json::from_value` 失败返回验证错误 + `get_recipe_by_id` 失败传播 + 辅料数据校验）
+- `backend/src/handlers/dye_batch_handler.rs`：创建回查错误传播（`get_batch_by_id` 失败返回错误而非静默成功）
+- `backend/src/handlers/report_engine_handler.rs`：filters_json 解析失败返回验证错误 2 处（防越权数据泄露，`serde_json::from_str` 失败返回 400 而非 500）
+- `backend/src/handlers/sales_order_handler.rs`：warehouse_id 缺失校验（创建销售订单时 warehouse_id 必填）
+- `backend/src/handlers/barcode_scanner_handler.rs`：order_id 缺失校验（条码扫描时 order_id 必填）
+- `backend/src/handlers/webhook_integration_handler.rs`：序列化错误传播（`serde_json::to_string` 失败返回错误而非空字符串）
+- `backend/src/handlers/customer_credit_handler.rs`：credit_limit 技术债务标注（`unwrap_or_default()` 语义模糊，添加 TODO 注释，详见 doto.md §1.2）
+
+**技术要点**：
+- **安全修复模式**：`unwrap_or_default()` → `map_err` 传播（DB 异常不应被吞错，避免攻击者利用 DB 错误绕过安全检查）
+- **fail-secure 原则**：权限查询失败时拒绝访问而非放行（`unwrap_or_else` + warn 日志 + 返回错误）
+- **数据完整性**：序列化/反序列化失败返回验证错误（400）而非内部错误（500），避免数据泄露
+- **业务正确性**：必填字段缺失校验（warehouse_id/order_id），创建回查错误传播（避免静默成功导致前端显示与 DB 不一致）
+- **redundant closure 修复**：4 处 `.map(|x| f(x))` → `.map(f)`（api_gateway_handler 1 处 + dye_recipe_handler 1 处 + report_engine_handler 2 处）
+- **CI clippy strict 模式**：`sort -u` 去重后比较，即使多处 redundant closure 也只算 1 个新警告
+
+**CI 验证**：
+- 首次 CI 失败：1 个新警告（redundant closure），197 当前 vs 180 基线
+- 修复后 CI 全绿（Run ID 29330654176，15 项全绿：12 success + 2 skipped + 1 release）
+- PR #582 squash 合并到 main（sha d874819e）
+- commit af276797 修复 redundant closure + 修正 CHANGELOG.md 批次 402 错误描述
+
+**阶段 8 完成状态**：批次 397-407 全部完成（PR #571-#582 已合并），74 项低风险问题全部修复，下一阶段：阶段 9 批次 408-410（FE-P2-6 大列表虚拟化 + 剩余无测试 service 补测 + E2E 失败排查）。

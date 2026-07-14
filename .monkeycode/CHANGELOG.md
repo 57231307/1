@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-13（精简所有条目为一句话，按阶段分段）。
+> 最近整理：2026-07-14（批次 407 完成后，追加批次 407 条目 + 修正批次 402 错误描述）。
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 407 | #582 | v14 安全+数据完整性+业务正确性修复：9 handler 15 处（auth_handler 登录锁定 DB 错误传播+权限查询 fail-secure + api_gateway_handler 权限序列化错误传播 2 处 + dye_recipe_handler 配方辅料反序列化校验+创建回查错误传播+更新辅料校验 + dye_batch_handler 创建回查错误传播 + report_engine_handler filters_json 解析失败返回验证错误 2 处 + sales_order_handler warehouse_id 缺失校验 + barcode_scanner_handler order_id 缺失校验 + webhook_integration_handler 序列化错误传播 + customer_credit_handler credit_limit 技术债务标注）+ 4 处 redundant closure clippy 警告修复，CI 全绿 |
 | 406 | #581 | v14 低风险修复：6 个 handler 文件 serde_json::to_value(x).unwrap_or_default() 序列化吞错改为 map_err(AppError::from).collect::<Result<Vec<_>, _>>()? 错误传播（ap_payment_request/inventory_stock/notification/purchase_order/purchase_receipt/quality_standard）+ 删除批次 402 错误创建的 1 行 clippy baseline 文件，CI bootstrap 模式自动重建 180 行完整基线，CI 全绿 |
 | 405 | #580 | v14 低风险修复：CRUD 业务消息常量化第二批 - 5 handler 8 处硬编码替换（crm_handler 2 处 DELETE_OK + budget_management_handler 3 处 DELETE_OK/APPROVE_OK/EXECUTE_OK + webhook_handler 1 处 + bpm_definition_handler 1 处 + production_order_handler 1 处 APPROVE_OK），CI 全绿 |
 | 404 | #579 | v14 低风险修复：supplier_service/bpm_service LazyLock<Regex> expect 改为 LazyLock<Option<Regex>> 优雅降级 + 新建 utils/messages.rs biz_msg 常量模块（CREATE_OK/UPDATE_OK/DELETE_OK/APPROVE_OK/EXECUTE_OK/OPERATE_OK）+ crud_macro.rs 6 处硬编码替换为常量引用 + fund_management_handler/missing_handlers 4 处硬编码替换，CI 全绿 |

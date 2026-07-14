@@ -3,7 +3,7 @@
 > 本文件集中管理所有**审计任务分配**和**复审规则**。
 > 审计**结果**不放在这里，正常保存到 [docs/audits/](file:///workspace/.monkeycode/docs/audits/) 目录。
 > **更新时机**：每次启动新复审轮次、调整复审维度、变更复审规则、分配/调整审计任务时，必须更新本文件。
-> 最近更新：2026-07-14（批次 406 后，首次建立本文件）。
+> 最近更新：2026-07-14（批次 407 完成后更新任务进度）。
 
 ---
 
@@ -77,7 +77,7 @@ P0（N 项阻塞）→ P1（N 项高）→ P2（N 项中）→ P3（N 项低）
 
 > **复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **状态**：修复中（批次 356-406 已完成，阶段 8 进行中）
+> **状态**：修复中（批次 356-407 已完成，阶段 8 完成，阶段 9 待启动）
 
 **v13 复审维度（8 项）**：
 
@@ -139,7 +139,7 @@ P0（N 项阻塞）→ P1（N 项高）→ P2（N 项中）→ P3（N 项低）
 ### 3.1 v13 阶段 8：v14 低风险修复（批次 397-407）
 
 > **目标**：74 项低风险问题全部修复，每批 5-8 文件。
-> **进度**：32/74 已完成（批次 397-406），42 项剩余。
+> **进度**：52/74 已完成（批次 397-407），22 项剩余（阶段 9 批次 408-410 + 技术债务批次 411-413）。
 
 | 批次 | 任务类别 | 项数 | 状态 | 说明 |
 |------|----------|------|------|------|
@@ -148,12 +148,12 @@ P0（N 项阻塞）→ P1（N 项高）→ P2（N 项中）→ P3（N 项低）
 | 399 | 占位符/Mock 存根剩余 | 0 | ✅ | 调研确认无需修复 |
 | 400 | 项目规则符合性 + dead_code 接入 | 3 | ✅ | 3 项 #[allow(dead_code)] 接入业务 |
 | 401 | 部署脚本密钥自动生成 + baseline | 2 | ✅ | hex→base64 + baseline 重建 |
-| 402 | baseline 最后一条警告清零 | 1 | ✅ | needless_reference 修复 |
+| 402 | baseline 最后一条警告清零 | 1 | ✅ | needless_reference 修复（注：错误创建 1 行 baseline 文件，批次 406 修复） |
 | 403 | unwrap/lock 安全修复 | 4 | ✅ | DB 字段吞错 + 价格转换 + Mutex 安全 |
 | 404 | LazyLock expect + 消息常量化首批 | 12 | ✅ | 2 处正则降级 + messages.rs + 10 处常量 |
 | 405 | 消息常量化第二批 | 8 | ✅ | 5 handler 8 处硬编码替换 |
 | 406 | 序列化吞错修复 + baseline 重建 | 6+1 | ✅ | 6 handler 序列化错误传播 + clippy baseline 重建 |
-| 407 | 其他低风险修复 | ~20 | ⏳ 待执行 | 命名规范/注释完善/代码风格 |
+| 407 | 安全+数据完整性+业务正确性修复 | 15 | ✅ | 9 文件 15 处修复（登录锁定+权限序列化+配方辅料+缸号回查+warehouse_id/order_id 校验+credit_limit 技术债务标注）+ 4 处 redundant closure clippy 修复 |
 
 ### 3.2 v13 阶段 9：其他遗留（批次 408-410）
 
@@ -180,6 +180,13 @@ P0（N 项阻塞）→ P1（N 项高）→ P2（N 项中）→ P3（N 项低）
 - 所有 handler 调用点同步更新，无编译错误
 - CI clippy 全绿，baseline 不新增警告
 - 每个新建 DTO 添加中文文档注释 + `Debug, Clone` derive
+
+### 3.4 技术债务：CreditRatingRequest.credit_limit 语义模糊（批次 407 标注）
+
+> **来源**：批次 407 安全+数据完整性修复，[customer_credit_handler.rs#L309-L311](file:///workspace/backend/src/handlers/customer_credit_handler.rs#L309-L311) `update_credit` 中 `credit_limit` 缺失时 `unwrap_or_default()` 默认为 0。
+> **当前状态**：已添加 TODO 注释标注，功能不受影响，但 service 层无法区分"未提供"与"显式置 0"。
+> **预计处理时间**：批次 414（阶段 10 v14 复审首批），v14 复审客户信用模块时一并处理。
+> **处理方式**：将 `CreditRatingRequest.credit_limit` 改为 `Option<Decimal>`，service 层区分 `None`（保持原值）与 `Some(0)`（显式置 0），同步修改 DTO 和 validator。
 
 ---
 
