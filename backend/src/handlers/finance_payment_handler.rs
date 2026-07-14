@@ -4,7 +4,7 @@
 //! 能够接收来自采购、销售、退货、人工调整等所有渠道的支付动作。
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::finance_payment_service::FinancePaymentService;
+use crate::services::finance_payment_service::{CreatePaymentInput, FinancePaymentService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -92,15 +92,15 @@ pub async fn create_payment(
     });
 
     let payment = service
-        .create_payment(
+        .create_payment(CreatePaymentInput {
             payment_no,
-            payload.invoice_id,
-            payload.amount,
-            payload.payment_date.unwrap_or_else(chrono::Utc::now),
-            payload.payment_method,
-            payload.notes,
-            Some(auth.user_id),
-        )
+            invoice_id: payload.invoice_id,
+            amount: payload.amount,
+            payment_date: payload.payment_date.unwrap_or_else(chrono::Utc::now),
+            payment_method: payload.payment_method,
+            notes: payload.notes,
+            created_by: Some(auth.user_id),
+        })
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 

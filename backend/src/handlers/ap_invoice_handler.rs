@@ -4,7 +4,7 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_invoice_service::{
-    ApInvoiceService, CreateApInvoiceRequest, UpdateApInvoiceRequest,
+    ApInvoiceListQuery, ApInvoiceService, CreateApInvoiceRequest, UpdateApInvoiceRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -42,16 +42,18 @@ pub async fn list_ap_invoices(
     );
 
     let service = ApInvoiceService::new(state.db.clone());
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
     let (invoices, total) = service
-        .get_list(
-            params.supplier_id,
-            params.invoice_status,
-            params.invoice_type,
-            params.start_date,
-            params.end_date,
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-            params.page_size.unwrap_or(20).clamp(1, 100),
-        )
+        .get_list(ApInvoiceListQuery {
+            supplier_id: params.supplier_id,
+            invoice_status: params.invoice_status,
+            invoice_type: params.invoice_type,
+            start_date: params.start_date,
+            end_date: params.end_date,
+            page,
+            page_size,
+        })
         .await?;
 
     info!("查询成功，共 {} 条记录", total);
@@ -59,8 +61,8 @@ pub async fn list_ap_invoices(
     let result = serde_json::to_value(PaginatedResponse::new(
         invoices,
         total,
-        params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-        params.page_size.unwrap_or(20).clamp(1, 100),
+        page,
+        page_size,
     ))
     .map_err(|e| AppError::internal(e.to_string()))?;
 
