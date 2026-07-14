@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 397 | #571 | v14 低风险修复首批：占位符/Mock 存根调研确认 21 项已清零（历史批次 290-308 修复）+ 4 处 unwrap_or_default 安全修复（omni_audit body 读取失败 warn 日志 + audit_enhanced_handler created_at 改 Option<String> + data_permission_handler 序列化失败 fail-fast），阶段 8 启动 |
 | 396 | #570 | baseline 警告清零收官：移除 .clippy.toml disallowed-methods 错误配置（println/eprintln 是宏非方法）+ process_state_machine.rs inherent from_str 改为标准 FromStr trait + 删除 purchase_delivery_calculator.rs AvgLeadTimeResult 死代码 + unwrap_safe.rs 移除多余 use super::* + auth.rs/webhook_service.rs 修复 needless_borrow，baseline 213/213 ✅ 全部清零，阶段 7 完成 |
 | 395 | #568+#569 | baseline 自动刷新机制：CI clippy job 添加 main 分支自动刷新步骤（FIXED_COUNT>0 且 NEW_COUNT=0 时用当前警告替换 baseline），修复 shallow clone 下 git log→git ls-files 追踪检查，baseline 从 1465 行缩减到 310 行（摘要 213→7 条，移除 206 条已修复警告），阶段 7 baseline 清零首批完成 |
 | 394 | #567 | 测试覆盖补测：data_permission_handler（0→6 SQL 注入防御）+ print_handler（0→5 内置模板）+ system_update_handler（0→6 ZIP 头校验+DTO）+ color_card/error_map（0→6 错误映射 14 变体），共 23 个新测试，阶段 6 测试覆盖补测全部完成（批次 392-394 共 65 个新测试） |
