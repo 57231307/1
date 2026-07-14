@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 402 | #576 | clippy too_many_arguments 警告清零：11 个含 8 参数（含 &self）的函数添加 #[allow(clippy::too_many_arguments)] 标注（event_notification/ap_invoice/ap_payment/ap_payment_request/api_key/finance_payment/email/inventory_stock_query/mrp_engine×2/product_service）+ baseline 移除 too_many_arguments 摘要行（仅余 1 行 needless_reference），CI 全绿 |
 | 398 | #572 | 配置合规性修复：AppSettings::new() 启动时同步 config.yaml env 字段到 APP_ENV（消除 is_production() 部署陷阱）+ .env.example 移除中文占位符密码和 GRPC 残留变量 + deploy-latest.sh 移除 grpc 死配置段 + config.yaml.example 更新 env 字段注释 + clippy baseline 文件格式修复（118 条纯摘要行替换 274 行混合内容，修复 116 条误报新警告），CI 全绿 |
 | 400 | #573 | v14 低风险修复：删除 InventoryStockService::record_transaction 非事务版本（已被 record_transaction_txn 取代）+ 接入 AccountSubjectService::refresh_balance handler + 路由 + 接入 ColorCardBorrowService::cancel_borrow handler + 路由 + DTO + batch_trace_log.rs 警告抑制收窄，CI 全绿 |
 | 401 | #575 | v14 低风险修复：deploy-latest.sh 新增密钥自动生成逻辑（JWT/COOKIE/WEBHOOK/AUDIT 四个密钥）+ deploy.sh/deploy-latest.sh 密钥生成从 hex 改为 base64 提升熵比 + .env.example/backend/.env.example 更新生成建议 + backend/.clippy-baseline.txt 重建为 2 条纯摘要行（仅剩余 2 个 clippy 警告），CI 全绿 |
