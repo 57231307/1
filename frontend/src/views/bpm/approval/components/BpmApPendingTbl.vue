@@ -2,67 +2,32 @@
   BpmApPendingTbl.vue - BPM 审批待办任务表
   拆分自 bpm/approval.vue（P14 批 2 I-3 第 4 批）
   批次 283：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
+  迁移：el-table + el-pagination → V2Table 虚拟滚动表格（内置分页）
 -->
 <template>
   <el-card shadow="hover" class="table-card">
-    <el-table v-loading="loading" :data="tasks" stripe>
-      <el-table-column prop="task_name" label="任务名称" min-width="180" fixed />
-      <el-table-column prop="process_name" label="流程名称" width="150" />
-      <el-table-column prop="start_user_name" label="申请人" width="120" />
-      <el-table-column prop="business_key" label="业务单号" width="160" />
-      <el-table-column prop="created_at" label="申请时间" width="160" />
-      <el-table-column prop="due_date" label="截止时间" width="160">
-        <template #default="{ row }">
-          <span v-if="row.due_date" :class="{ overdue: isOverdueFmt(row.due_date) }">{{
-            row.due_date
-          }}</span>
-          <span v-else>-</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="priority" label="优先级" width="100">
-        <template #default="{ row }">
-          <el-tag :type="getPriorityTypeFmt(row.priority) as TagType" size="small">{{
-            getPriorityTextFmt(row.priority)
-          }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
-        <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('approve', row as ApprovalTask)"
-            >同意</el-button
-          >
-          <el-button type="danger" link size="small" @click="emit('reject', row as ApprovalTask)"
-            >拒绝</el-button
-          >
-          <el-button type="warning" link size="small" @click="emit('transfer', row as ApprovalTask)"
-            >转交</el-button
-          >
-          <el-button type="info" link size="small" @click="emit('view-chain', row as ApprovalTask)"
-            >审批链</el-button
-          >
-        </template>
-      </el-table-column>
-    </el-table>
-    <div class="pagination-wrapper">
-      <el-pagination
-        :current-page="page"
-        :page-size="pageSize"
-        :total="total"
-        :page-sizes="[10, 20, 50]"
-        layout="total, sizes, prev, pager, next"
-        @update:current-page="(v: number) => emit('update:page', v)"
-        @update:page-size="(v: number) => emit('update:page-size', v)"
-      />
-    </div>
+    <V2Table
+      :columns="columns"
+      :data="tasks"
+      :loading="loading"
+      :page="page"
+      :page-size="pageSize"
+      :page-sizes="[10, 20, 50]"
+      :total="total"
+      :height="600"
+      @page-change="(v: number) => emit('update:page', v)"
+      @size-change="(v: number) => emit('update:page-size', v)"
+    />
   </el-card>
 </template>
 
 <script setup lang="ts">
+import { h } from 'vue'
+import { ElButton, ElTag } from 'element-plus'
+import V2Table from '@/components/V2Table/index.vue'
+import type { ColumnDef } from '@/components/V2Table/types'
 import type { ApprovalTask } from '@/api/bpm-enhanced'
 import { isOverdue, getPriorityType, getPriorityText } from '../composables/bpmApFmts'
-
-// v11 批次 182 P2-1 修复：定义 TagType 替代 any
-type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
 /**
  * 审批待办任务表组件
@@ -89,20 +54,81 @@ const emit = defineEmits<{
   'update:page-size': [v: number]
 }>()
 
-// 透传格式化函数（带 Fmt 后缀以避免与局部命名冲突）
-const isOverdueFmt = isOverdue
-const getPriorityTypeFmt = getPriorityType
-const getPriorityTextFmt = getPriorityText
+/** 列定义：任务名称固定左侧，操作列固定右侧 */
+const columns: ColumnDef<ApprovalTask>[] = [
+  { key: 'task_name', title: '任务名称', width: 180, fixed: 'left' },
+  { key: 'process_name', title: '流程名称', width: 150 },
+  { key: 'start_user_name', title: '申请人', width: 120 },
+  { key: 'business_key', title: '业务单号', width: 160 },
+  { key: 'created_at', title: '申请时间', width: 160 },
+  {
+    key: 'due_date',
+    title: '截止时间',
+    width: 160,
+    // 截止时间：有值则按超期状态高亮，无值显示 "-"
+    renderCell: (row: ApprovalTask) => {
+      if (row.due_date) {
+        return h('span', { class: { overdue: isOverdue(row.due_date) } }, row.due_date)
+      }
+      return h('span', '-')
+    },
+  },
+  {
+    key: 'priority',
+    title: '优先级',
+    width: 100,
+    // 优先级：el-tag 渲染
+    renderCell: (row: ApprovalTask) =>
+      h(
+        ElTag,
+        {
+          type: getPriorityType(row.priority) as 'success' | 'warning' | 'info' | 'primary' | 'danger',
+          size: 'small',
+        },
+        { default: () => getPriorityText(row.priority) }
+      ),
+  },
+  {
+    key: '__actions__',
+    title: '操作',
+    width: 220,
+    fixed: 'right',
+    // 操作列：同意 / 拒绝 / 转交 / 审批链
+    renderCell: (row: ApprovalTask) =>
+      h('div', { class: 'action-cell' }, [
+        h(
+          ElButton,
+          { type: 'primary', link: true, size: 'small', onClick: () => emit('approve', row) },
+          { default: () => '同意' }
+        ),
+        h(
+          ElButton,
+          { type: 'danger', link: true, size: 'small', onClick: () => emit('reject', row) },
+          { default: () => '拒绝' }
+        ),
+        h(
+          ElButton,
+          { type: 'warning', link: true, size: 'small', onClick: () => emit('transfer', row) },
+          { default: () => '转交' }
+        ),
+        h(
+          ElButton,
+          { type: 'info', link: true, size: 'small', onClick: () => emit('view-chain', row) },
+          { default: () => '审批链' }
+        ),
+      ]),
+  },
+]
 </script>
 
 <style scoped>
 .table-card {
   margin-bottom: 20px;
 }
-.pagination-wrapper {
+.action-cell {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
+  gap: 4px;
+  align-items: center;
 }
 .overdue {
   color: #f56c6c;

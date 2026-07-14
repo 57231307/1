@@ -2,104 +2,55 @@
   ScTbl.vue - 销售合同列表表格
   拆分自 sales-contract/index.vue（P14 批 2 I-3 第 1 批）
   批次 284：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
+  本次迁移：el-table + el-pagination → V2Table 虚拟滚动表格
 -->
 <template>
   <el-card shadow="hover" class="table-card">
-    <el-table v-loading="loading" :data="contractList" border stripe>
-      <el-table-column type="index" label="序号" width="60" align="center" />
-      <el-table-column prop="contract_no" label="合同编号" width="150" show-overflow-tooltip />
-      <el-table-column
-        prop="contract_name"
-        label="合同名称"
-        min-width="200"
-        show-overflow-tooltip
-      />
-      <el-table-column prop="customer_name" label="客户" width="150" show-overflow-tooltip />
-      <el-table-column prop="total_amount" label="合同金额" width="120" align="right">
-        <template #default="{ row }">
-          {{ formatCurrency(row.total_amount) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="signed_date" label="签订日期" width="120" align="center" />
-      <el-table-column prop="effective_date" label="生效日期" width="120" align="center" />
-      <el-table-column prop="expiry_date" label="到期日期" width="120" align="center" />
-      <el-table-column prop="status" label="状态" width="100" align="center">
-        <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="250" align="center" fixed="right">
-        <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('view', row as SalesContract)"
-            >查看</el-button
-          >
-          <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
-          <el-button
-            v-if="row.status === 'draft'"
-            v-permission="'sales_contract:update'"
-            type="primary"
-            link
-            size="small"
-            @click="emit('edit', row as SalesContract)"
-            >编辑</el-button
-          >
-          <el-button
-            v-if="row.status === 'draft'"
-            type="success"
-            link
-            size="small"
-            @click="emit('submit-approval', row as SalesContract)"
-            >提交</el-button
-          >
-          <el-button
-            v-if="row.status === 'pending'"
-            type="success"
-            link
-            size="small"
-            @click="emit('approve', row as SalesContract)"
-            >审批</el-button
-          >
-          <el-button
-            v-if="row.status === 'active'"
-            type="warning"
-            link
-            size="small"
-            @click="emit('execute', row as SalesContract)"
-            >执行</el-button
-          >
-          <el-button
-            v-if="row.status === 'draft'"
-            v-permission="'sales_contract:delete'"
-            type="danger"
-            link
-            size="small"
-            @click="emit('delete', row as SalesContract)"
-            >删除</el-button
-          >
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <div class="pagination-container">
-      <el-pagination
-        :current-page="page"
-        :page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @update:current-page="(v: number) => emit('update:page', v)"
-        @update:page-size="(v: number) => emit('update:page-size', v)"
-      />
-    </div>
+    <V2Table
+      :columns="columns"
+      :data="contractList"
+      :loading="loading"
+      :page="page"
+      :page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      :total="total"
+      :height="600"
+      @page-change="(v: number) => emit('update:page', v)"
+      @size-change="(v: number) => emit('update:page-size', v)"
+    />
   </el-card>
 </template>
 
 <script setup lang="ts">
+import { h } from 'vue'
+import { ElButton, ElTag } from 'element-plus'
+import V2Table from '@/components/V2Table/index.vue'
+import type { ColumnDef } from '@/components/V2Table/types'
 import type { SalesContract } from '@/api/sales-contract'
+// P2-17 修复（批次 86 v2 复审）：h() 渲染函数无法使用 v-permission 指令，
+// 改为复用 router 守卫的 hasRoutePermission + useUserStore 做权限判断，
+// 行为与 v-permission 指令保持一致（无权限则不渲染该按钮）
+import { hasRoutePermission } from '@/router'
+import { useUserStore } from '@/store/user'
 import { formatCurrency, getStatusType, getStatusLabel } from '../composables/scFmts'
+
+// 状态 el-tag 类型别名（与 element-plus 类型保持一致）
+type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
+
+/**
+ * 权限检查辅助函数（与 v-permission 指令行为等价）
+ * @param required 所需权限码
+ * @returns 当前用户是否持有该权限
+ */
+const can = (required: string): boolean => {
+  const userStore = useUserStore()
+  const permissions = userStore.userInfo?.permissions || []
+  return hasRoutePermission(required, permissions)
+}
 
 /**
  * 销售合同列表表格组件（批次 284：page/pageSize props + v-model 绑定分页）
+ * 迁移至 V2Table 虚拟滚动表格，移除 el-table / el-pagination
  */
 defineProps<{
   // 列表数据
@@ -124,15 +75,118 @@ const emit = defineEmits<{
   'update:page': [v: number]
   'update:page-size': [v: number]
 }>()
+
+/**
+ * 列定义
+ * - 合同金额：formatCurrency 格式化为人民币
+ * - 状态：el-tag 渲染（类型由 getStatusType 映射）
+ * - 操作列：按 status 条件渲染不同按钮组（编辑/删除受权限控制）
+ */
+const columns: ColumnDef<SalesContract>[] = [
+  { key: 'contract_no', title: '合同编号', width: 150 },
+  { key: 'contract_name', title: '合同名称', minWidth: 200 },
+  { key: 'customer_name', title: '客户', width: 150 },
+  {
+    key: 'total_amount',
+    title: '合同金额',
+    width: 120,
+    align: 'right',
+    formatter: (row) => formatCurrency(row.total_amount),
+  },
+  { key: 'signed_date', title: '签订日期', width: 120, align: 'center' },
+  { key: 'effective_date', title: '生效日期', width: 120, align: 'center' },
+  { key: 'expiry_date', title: '到期日期', width: 120, align: 'center' },
+  {
+    key: 'status',
+    title: '状态',
+    width: 100,
+    align: 'center',
+    renderCell: (row) => {
+      // scFmts 的 getStatusType 返回 string，需收窄为 ElTagType 以满足 el-tag 类型约束
+      const tagType: ElTagType = (getStatusType(row.status) as ElTagType) || 'info'
+      return h(
+        ElTag,
+        { type: tagType },
+        { default: () => getStatusLabel(row.status) }
+      )
+    },
+  },
+  {
+    key: '__actions__',
+    title: '操作',
+    width: 250,
+    fixed: 'right',
+    align: 'center',
+    renderCell: (row) => {
+      const buttons: ReturnType<typeof h>[] = [
+        h(
+          ElButton,
+          { type: 'primary', link: true, size: 'small', onClick: () => emit('view', row) },
+          { default: () => '查看' }
+        ),
+      ]
+      // 草稿状态：编辑 / 提交 / 删除（编辑/删除受权限控制）
+      if (row.status === 'draft') {
+        if (can('sales_contract:update')) {
+          buttons.push(
+            h(
+              ElButton,
+              { type: 'primary', link: true, size: 'small', onClick: () => emit('edit', row) },
+              { default: () => '编辑' }
+            )
+          )
+        }
+        buttons.push(
+          h(
+            ElButton,
+            { type: 'success', link: true, size: 'small', onClick: () => emit('submit-approval', row) },
+            { default: () => '提交' }
+          )
+        )
+        if (can('sales_contract:delete')) {
+          buttons.push(
+            h(
+              ElButton,
+              { type: 'danger', link: true, size: 'small', onClick: () => emit('delete', row) },
+              { default: () => '删除' }
+            )
+          )
+        }
+      }
+      // 待审批状态：审批
+      if (row.status === 'pending') {
+        buttons.push(
+          h(
+            ElButton,
+            { type: 'success', link: true, size: 'small', onClick: () => emit('approve', row) },
+            { default: () => '审批' }
+          )
+        )
+      }
+      // 执行中状态：执行
+      if (row.status === 'active') {
+        buttons.push(
+          h(
+            ElButton,
+            { type: 'warning', link: true, size: 'small', onClick: () => emit('execute', row) },
+            { default: () => '执行' }
+          )
+        )
+      }
+      return h('div', { class: 'action-cell' }, buttons)
+    },
+  },
+]
 </script>
 
 <style scoped>
 .table-card {
   margin-bottom: 20px;
 }
-.pagination-container {
+.action-cell {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
 }
 </style>
