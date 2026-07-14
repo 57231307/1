@@ -131,7 +131,7 @@ macro_rules! define_crud_handlers {
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
                     serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
-                    "创建成功",
+                    $crate::utils::messages::biz_msg::CREATE_OK,
                 ),
             ))
         }
@@ -154,7 +154,7 @@ macro_rules! define_crud_handlers {
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
                     serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
-                    "更新成功",
+                    $crate::utils::messages::biz_msg::UPDATE_OK,
                 ),
             ))
         }
@@ -171,7 +171,7 @@ macro_rules! define_crud_handlers {
             // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
             service.delete(id, auth.user_id).await?;
             Ok(axum::Json(
-                $crate::utils::response::ApiResponse::success_with_message((), "删除成功"),
+                $crate::utils::response::ApiResponse::success_with_message((), $crate::utils::messages::biz_msg::DELETE_OK),
             ))
         }
     };
@@ -251,7 +251,7 @@ macro_rules! define_tuple_crud_handlers {
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
                     serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
-                    "创建成功",
+                    $crate::utils::messages::biz_msg::CREATE_OK,
                 ),
             ))
         }
@@ -274,7 +274,7 @@ macro_rules! define_tuple_crud_handlers {
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
                     serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
-                    "更新成功",
+                    $crate::utils::messages::biz_msg::UPDATE_OK,
                 ),
             ))
         }
@@ -291,7 +291,7 @@ macro_rules! define_tuple_crud_handlers {
             let service = <$service_ty>::new(state.db.clone());
             service.delete(id).await?;
             Ok(axum::Json(
-                $crate::utils::response::ApiResponse::success_with_message((), "删除成功"),
+                $crate::utils::response::ApiResponse::success_with_message((), $crate::utils::messages::biz_msg::DELETE_OK),
             ))
         }
     };

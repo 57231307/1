@@ -46,3 +46,5 @@ pub mod ssrf_guard;
 pub mod validator;
 // v11 批次 142：xlsx 导出工具（规则 3 强制要求所有导出使用 xlsx 格式）
 pub mod xlsx_export;
+// 批次 404 新增：CRUD 通用业务消息常量（集中管理 handler 层硬编码中文消息）
+pub mod messages;

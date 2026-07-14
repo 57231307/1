@@ -28,6 +28,7 @@ use crate::services::crm::recycle_rule::{
 use crate::services::mrp_engine_service::MrpEngineService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 
 // ============================================================================
@@ -156,7 +157,7 @@ pub async fn create_accounting_period(
     let period = active_model.insert(state.db.as_ref()).await?;
     Ok(Json(ApiResponse::success_with_message(
         AccountingPeriodDto::from(period),
-        "创建成功",
+        biz_msg::CREATE_OK,
     )))
 }
 
@@ -199,7 +200,7 @@ pub async fn update_accounting_period(
     let updated = active.update(state.db.as_ref()).await?;
     Ok(Json(ApiResponse::success_with_message(
         AccountingPeriodDto::from(updated),
-        "更新成功",
+        biz_msg::UPDATE_OK,
     )))
 }
 
@@ -233,7 +234,7 @@ pub async fn delete_accounting_period(
 
     let active: accounting_period::ActiveModel = period.into();
     active.delete(state.db.as_ref()).await?;
-    Ok(Json(ApiResponse::success_with_message((), "删除成功")))
+    Ok(Json(ApiResponse::success_with_message((), biz_msg::DELETE_OK)))
 }
 
 // ============================================================================
