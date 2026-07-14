@@ -1,6 +1,6 @@
 use axum::extract::ConnectInfo;
 use axum::{
-    body::{to_bytes, Body},
+    body::{to_bytes, Body, Bytes},
     extract::State,
     http::{header, Request, StatusCode},
     middleware::Next,
@@ -82,7 +82,20 @@ pub async fn omni_audit_middleware(
     // 读取请求体（仅对 POST/PUT/PATCH 请求）
     let (req, request_body) = if method == "POST" || method == "PUT" || method == "PATCH" {
         let (parts, body) = req.into_parts();
-        let body_bytes = to_bytes(body, 50 * 1024).await.unwrap_or_default();
+        // 批次 397 修复：body 读取失败时记录 warn 日志而非静默回退空字节
+        let body_bytes = match to_bytes(body, 50 * 1024).await {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                tracing::warn!(
+                    "[{}] {} {} 请求体读取失败，审计记录 body 为空: {}",
+                    trace_id,
+                    method,
+                    uri,
+                    e
+                );
+                Bytes::new()
+            }
+        };
         let body_str = String::from_utf8_lossy(&body_bytes).to_string();
 
         // 重新构建请求
@@ -149,7 +162,20 @@ pub async fn omni_audit_middleware(
 
     // 读取响应体内容（限制大小为 10KB）
     let (parts, body) = response.into_parts();
-    let body_bytes = to_bytes(body, 10 * 1024).await.unwrap_or_default();
+    // 批次 397 修复：响应 body 读取失败时记录 warn 日志而非静默回退空字节
+    let body_bytes = match to_bytes(body, 10 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            tracing::warn!(
+                "[{}] {} {} 响应体读取失败，审计记录 response_body 为空: {}",
+                trace_id,
+                method,
+                uri,
+                e
+            );
+            Bytes::new()
+        }
+    };
     let response_body = String::from_utf8_lossy(&body_bytes).to_string();
     let response_content_type = parts
         .headers
