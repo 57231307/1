@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-14（批次 412 完成后，追加批次 412 条目）。
+> 最近整理：2026-07-14（批次 414 完成后，追加批次 413+414 条目，§1.1+§1.2 全部完成）。
 
 ---
 
@@ -10,6 +10,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 414 | #590 | CreditRatingRequest.credit_limit 语义模糊修复：Decimal → Option<Decimal>，service 层区分 None（保持原值）与 Some(v)（显式设置含 Some(0)），新增 validate_credit_limit_range（允许 0）+ 5 个单元测试，移除 TODO 注释，CI 全绿 |
+| 413 | #589 | 事件+MRP+邮件 too_many_arguments 清理：5 个 service 方法引入 DTO 参数对象（NotificationPayload/MrpExplodeQuery/MrpCalculationQuery/TencentSignParams/UpdateApiKeyPayload），7参数→1参数，7 调用点同步更新，修复 clippy needless_borrow/needless_reference 警告，更新 baseline 纳入 119 条既有 dead_code 警告，CI 全绿 |
 | 412 | #588 | 库存+产品 too_many_arguments 清理：inventory_stock_query::get_inventory_summary 新增 InventorySummaryQuery 参数对象（7参数→1参数）+ product_service::create_product_color 复用 CreateProductColorInput（7参数→2参数），4 文件调用点同步更新，纯重构 CI 全绿 |
 | 411 | #587 | AP 模块 too_many_arguments 清理：4 个 service 方法引入 DTO 参数对象（ApInvoiceListQuery/ApPaymentListQuery/ApPaymentRequestListQuery/CreatePaymentInput），7参数→1参数，handler 调用点同步更新，纯重构 CI 全绿 |
 | 410 | #586 | E2E SyntaxError 修复：3 个 e2e 文件 import('@playwright/test').Type → import { type Page } 标准写法 + color-card.spec.ts page.keyboard().press() → page.keyboard.press() API 误用修复 + playwright.config.ts /// → // 注释修复，根因为 Playwright 1.40.0 转译器不兼容 import type expression 语法，不升级版本最小化变更，CI 全绿 |

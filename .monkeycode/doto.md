@@ -72,21 +72,17 @@
 - CI clippy 全绿，baseline 不新增警告
 - 每个新建 DTO 添加中文文档注释 + `Debug, Clone` derive
 
-### §1.2 技术债务：CreditRatingRequest.credit_limit 语义模糊（未完成，批次 407 标注）
+### §1.2 技术债务：CreditRatingRequest.credit_limit 语义模糊（✅ 完成，批次 414）
 
-> **来源**：批次 407 安全+数据完整性修复（[customer_credit_handler.rs#L309-L311](file:///workspace/backend/src/handlers/customer_credit_handler.rs#L309-L311)），`update_credit` 中 `credit_limit` 缺失时 `unwrap_or_default()` 默认为 0，service 层无法区分"未提供"与"显式置 0"。
-> **当前状态**：已添加 TODO 注释标注，功能不受影响（update 时缺失字段保持原值），但属于语义模糊的技术债务。
-> **预计处理时间**：**批次 414（阶段 10 v14 复审首批）**，在 v14 新一轮复审客户信用模块时一并处理。
-> **处理方式**：
-> 1. 将 `CreditRatingRequest.credit_limit` 类型从 `Decimal` 改为 `Option<Decimal>`
-> 2. service 层 `set_credit_rating` 区分 `None`（保持原值）与 `Some(0)`（显式置 0）
-> 3. 同步修改 `CreditRatingRequestDto.credit_limit` 为 `Option<Decimal>` 并更新 validator 注解
-> 4. 添加单元测试覆盖"未提供"与"显式置 0"两种场景
-> **验收标准**：
-> - `customer_credit_handler.rs` 中 `// TODO(tech-debt)` 注释移除
-> - `CreditRatingRequest` 结构体字段类型更新
-> - service 层逻辑正确区分 None/Some(0) 语义
-> - CI clippy 全绿，无新警告
+> **来源**：批次 407 安全+数据完整性修复，`update_credit` 中 `credit_limit` 缺失时 `unwrap_or_default()` 默认为 0，service 层无法区分"未提供"与"显式置 0"。
+> **完成时间**：批次 414（PR #590，sha: 5478350f）。
+> **修复内容**：
+> 1. `CreditRatingRequest.credit_limit`: `Decimal` → `Option<Decimal>`
+> 2. `CreditRatingRequestDto.credit_limit`: `Decimal` → `Option<Decimal>` + `validate_credit_limit_range`（允许 0）
+> 3. `set_credit_rating`: 更新场景 `None` 保持原值，`Some(v)` 显式设置（含 `Some(0)`）；创建场景 `None` 默认 0
+> 4. 新增 5 个单元测试覆盖 None/Some(0)/Some(v) 在创建和更新场景的语义
+> 5. 移除 `customer_credit_handler.rs` 中 `TODO(tech-debt)` 注释
+> **验收**：CI 全绿（15 check runs），squash 合并到 main。
 
 ---
 
