@@ -60,8 +60,6 @@ macro_rules! s {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_dec_macro() {
         // P9-1: 用宏替代散落的 expect，验证宏行为

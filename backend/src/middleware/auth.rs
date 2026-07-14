@@ -206,7 +206,7 @@ pub async fn auth_middleware(
                 path = %path,
                 method = %method,
                 client_ip = %client_ip,
-                auth_header = %mask_auth_header(&header_val),
+                auth_header = %mask_auth_header(header_val),
                 "无效的认证头格式"
             );
             return Err(unauthorized_response("无效的认证头格式"));

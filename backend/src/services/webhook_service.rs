@@ -278,7 +278,7 @@ impl WebhookService {
                 }
                 Err(e) => {
                     // 规则 12 合规：日志只记录主机名，不记录完整 URL，防止 URL 中的敏感参数泄露
-                    let host = url::Url::parse(&url)
+                    let host = url::Url::parse(url)
                         .ok()
                         .and_then(|u| u.host_str().map(|h| h.to_string()))
                         .unwrap_or_else(|| "unknown".to_string());
