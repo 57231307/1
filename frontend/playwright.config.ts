@@ -21,9 +21,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  /// 同时生成 HTML 报告（可下载 artifact）和命令行输出
+  // 同时生成 HTML 报告（可下载 artifact）和命令行输出
   reporter: [['html'], ['line']],
-  /// 单测试 60s（真实后端 API 响应 + 页面渲染）
+  // 单测试 60s（真实后端 API 响应 + 页面渲染）
   timeout: 60_000,
   use: {
     baseURL: 'http://localhost:3000',
@@ -31,8 +31,8 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  /// CI 中自动启动前端 dev server（后端由 CI job 独立启动进程）
-  /// 本地开发时 reuseExistingServer: true 复用已启动的 dev server
+  // CI 中自动启动前端 dev server（后端由 CI job 独立启动进程）
+  // 本地开发时 reuseExistingServer: true 复用已启动的 dev server
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',

@@ -12,7 +12,7 @@
 //   5. 借出管理页面加载断言（等待核心组件渲染）
 // 同时对齐批次 28 P0-1 fail-secure 模式：凭据从环境变量注入，禁止硬编码 admin/admin123。
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 /**
  * 被测系统基础地址
@@ -34,7 +34,7 @@ const TEST_PASSWORD = process.env.TEST_PASSWORD
  * 注意：此函数假设登录页存在 input[name="username"] / input[name="password"] / button[type="submit"]。
  * 如登录页结构变更，需同步更新此 helper。
  */
-async function login(page: import('@playwright/test').Page) {
+async function login(page: Page) {
   if (!TEST_USERNAME || !TEST_PASSWORD) {
     throw new Error(
       'E2E 测试需要环境变量 TEST_USERNAME / TEST_PASSWORD（fail-secure 模式，对齐批次 28 P0-1）',
@@ -163,7 +163,7 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     await expect(typeFilter).toBeVisible()
     await typeFilter.click()
     // 关闭下拉
-    await page.keyboard().press('Escape')
+    await page.keyboard.press('Escape')
 
     // 3. 等待列表加载完成
     await page.waitForResponse(
