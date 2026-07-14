@@ -15,6 +15,18 @@ pub struct FinancePaymentService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 创建付款输入参数（service 层，payment_no/payment_date 已由 handler 解析为非 Option）
+#[derive(Debug, Clone)]
+pub struct CreatePaymentInput {
+    pub payment_no: String,
+    pub invoice_id: Option<i32>,
+    pub amount: Decimal,
+    pub payment_date: DateTime<Utc>,
+    pub payment_method: Option<String>,
+    pub notes: Option<String>,
+    pub created_by: Option<i32>,
+}
+
 impl FinancePaymentService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -27,22 +39,15 @@ impl FinancePaymentService {
             .ok_or_else(|| AppError::not_found(format!("付款 ID {} 不存在", id)))
     }
 
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 CreatePaymentRequest DTO 聚合参数
     pub async fn create_payment(
         &self,
-        payment_no: String,
-        invoice_id: Option<i32>,
-        amount: Decimal,
-        payment_date: DateTime<Utc>,
-        payment_method: Option<String>,
-        notes: Option<String>,
-        created_by: Option<i32>,
+        input: CreatePaymentInput,
     ) -> Result<finance_payment::Model, AppError> {
-        if amount <= Decimal::ZERO {
+        if input.amount <= Decimal::ZERO {
             return Err(AppError::business("付款金额必须大于零"));
         }
         // P3 3-30 修复：金额精度校验，最多 2 位小数（货币精度）
-        if amount.round_dp(2) != amount {
+        if input.amount.round_dp(2) != input.amount {
             return Err(AppError::business("付款金额精度不能超过 2 位小数"));
         }
 
@@ -56,12 +61,12 @@ impl FinancePaymentService {
             self.db.clone(),
         );
         period_svc
-            .check_date_locked(payment_date.date_naive())
+            .check_date_locked(input.payment_date.date_naive())
             .await
             .map_err(|e| AppError::business(e.to_string()))?;
 
         // 验证关联单据是否存在（事务内，与付款插入原子化）
-        if let Some(inv_id) = invoice_id {
+        if let Some(inv_id) = input.invoice_id {
             let invoice_exists = crate::models::finance_invoice::Entity::find_by_id(inv_id)
                 .one(&txn)
                 .await?
@@ -73,14 +78,14 @@ impl FinancePaymentService {
 
         let active_payment = finance_payment::ActiveModel {
             id: Default::default(),
-            payment_no: Set(payment_no),
-            invoice_id: Set(invoice_id),
-            amount: Set(amount),
-            payment_date: Set(payment_date),
-            payment_method: Set(payment_method),
-            notes: Set(notes),
+            payment_no: Set(input.payment_no),
+            invoice_id: Set(input.invoice_id),
+            amount: Set(input.amount),
+            payment_date: Set(input.payment_date),
+            payment_method: Set(input.payment_method),
+            notes: Set(input.notes),
             status: Set(payment_status::PENDING.to_string()),
-            created_by: Set(created_by),
+            created_by: Set(input.created_by),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };

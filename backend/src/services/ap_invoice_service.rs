@@ -33,6 +33,18 @@ pub struct ApInvoiceService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 应付单列表查询参数（service 层，page/page_size 已解析为非 Option）
+#[derive(Debug, Clone)]
+pub struct ApInvoiceListQuery {
+    pub supplier_id: Option<i32>,
+    pub invoice_status: Option<String>,
+    pub invoice_type: Option<String>,
+    pub start_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+    pub page: u64,
+    pub page_size: u64,
+}
+
 impl ApInvoiceService {
     /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -645,43 +657,36 @@ impl ApInvoiceService {
     }
 
     /// 获取应付单列表（含分页、筛选）
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 ApInvoiceQueryParams DTO 聚合参数
     pub async fn get_list(
         &self,
-        supplier_id: Option<i32>,
-        invoice_status: Option<String>,
-        invoice_type: Option<String>,
-        start_date: Option<NaiveDate>,
-        end_date: Option<NaiveDate>,
-        page: u64,
-        page_size: u64,
+        params: ApInvoiceListQuery,
     ) -> Result<(Vec<ap_invoice::Model>, u64), AppError> {
         let mut query = ap_invoice::Entity::find();
 
         // 筛选条件
-        if let Some(sid) = supplier_id {
+        if let Some(sid) = params.supplier_id {
             query = query.filter(ap_invoice::Column::SupplierId.eq(sid));
         }
-        if let Some(status) = invoice_status {
+        if let Some(status) = params.invoice_status {
             query = query.filter(ap_invoice::Column::InvoiceStatus.eq(status));
         }
-        if let Some(itype) = invoice_type {
+        if let Some(itype) = params.invoice_type {
             query = query.filter(ap_invoice::Column::InvoiceType.eq(itype));
         }
-        if let Some(sd) = start_date {
+        if let Some(sd) = params.start_date {
             query = query.filter(ap_invoice::Column::InvoiceDate.gte(sd));
         }
-        if let Some(ed) = end_date {
+        if let Some(ed) = params.end_date {
             query = query.filter(ap_invoice::Column::InvoiceDate.lte(ed));
         }
 
         // 分页
         let paginator = query
             .order_by(ap_invoice::Column::CreatedAt, Order::Desc)
-            .paginate(&*self.db, page_size);
+            .paginate(&*self.db, params.page_size);
 
         // 批次 255 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 0-indexed 偏移）
-        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let (items, total) = paginate_with_total(paginator, params.page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }

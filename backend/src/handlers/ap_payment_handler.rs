@@ -4,7 +4,7 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ap_payment_service::{
-    ApPaymentService, CreateApPaymentRequest, UpdateApPaymentRequest,
+    ApPaymentListQuery, ApPaymentService, CreateApPaymentRequest, UpdateApPaymentRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -43,16 +43,18 @@ pub async fn list_payments(
     );
 
     let service = ApPaymentService::new(state.db.clone());
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
     let (payments, total) = service
-        .get_list(
-            params.supplier_id,
-            params.payment_status,
-            params.payment_method,
-            params.start_date,
-            params.end_date,
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-            params.page_size.unwrap_or(20).clamp(1, 100),
-        )
+        .get_list(ApPaymentListQuery {
+            supplier_id: params.supplier_id,
+            payment_status: params.payment_status,
+            payment_method: params.payment_method,
+            start_date: params.start_date,
+            end_date: params.end_date,
+            page,
+            page_size,
+        })
         .await?;
 
     info!("用户 {} 查询付款成功，共 {} 条记录", auth.username, total);
@@ -60,8 +62,8 @@ pub async fn list_payments(
     let result = serde_json::to_value(PaginatedResponse::new(
         payments,
         total,
-        params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-        params.page_size.unwrap_or(20).clamp(1, 100),
+        page,
+        page_size,
     ))
     .map_err(|e| AppError::internal(e.to_string()))?;
 

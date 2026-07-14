@@ -24,6 +24,18 @@ pub struct ApPaymentService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 付款单列表查询参数（service 层，page/page_size 已解析为非 Option）
+#[derive(Debug, Clone)]
+pub struct ApPaymentListQuery {
+    pub supplier_id: Option<i32>,
+    pub payment_status: Option<String>,
+    pub payment_method: Option<String>,
+    pub start_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+    pub page: u64,
+    pub page_size: u64,
+}
+
 impl ApPaymentService {
     /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -513,42 +525,35 @@ impl ApPaymentService {
     }
 
     /// 获取付款单列表
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 ApPaymentQueryParams DTO 聚合参数
     pub async fn get_list(
         &self,
-        supplier_id: Option<i32>,
-        payment_status: Option<String>,
-        payment_method: Option<String>,
-        start_date: Option<NaiveDate>,
-        end_date: Option<NaiveDate>,
-        page: u64,
-        page_size: u64,
+        params: ApPaymentListQuery,
     ) -> Result<(Vec<ap_payment::Model>, u64), AppError> {
         let mut query = ap_payment::Entity::find();
 
         // 筛选条件
-        if let Some(sid) = supplier_id {
+        if let Some(sid) = params.supplier_id {
             query = query.filter(ap_payment::Column::SupplierId.eq(sid));
         }
-        if let Some(status) = payment_status {
+        if let Some(status) = params.payment_status {
             query = query.filter(ap_payment::Column::PaymentStatus.eq(status));
         }
-        if let Some(method) = payment_method {
+        if let Some(method) = params.payment_method {
             query = query.filter(ap_payment::Column::PaymentMethod.eq(method));
         }
-        if let Some(sd) = start_date {
+        if let Some(sd) = params.start_date {
             query = query.filter(ap_payment::Column::PaymentDate.gte(sd));
         }
-        if let Some(ed) = end_date {
+        if let Some(ed) = params.end_date {
             query = query.filter(ap_payment::Column::PaymentDate.lte(ed));
         }
 
         // 批次 259 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(ap_payment::Column::CreatedAt, Order::Desc)
-            .paginate(&*self.db, page_size);
+            .paginate(&*self.db, params.page_size);
 
-        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let (items, total) = paginate_with_total(paginator, params.page.clamp(1, 1000)).await?;
         Ok((items, total))
     }
 

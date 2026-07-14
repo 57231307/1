@@ -5,7 +5,8 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::supplier;
 use crate::services::ap_payment_request_service::{
-    ApPaymentRequestService, CreateApPaymentRequest, UpdateApPaymentRequest,
+    ApPaymentRequestListQuery, ApPaymentRequestService, CreateApPaymentRequest,
+    UpdateApPaymentRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -45,16 +46,18 @@ pub async fn list_requests(
     );
 
     let service = ApPaymentRequestService::new(state.db.clone());
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
     let (requests, total) = service
-        .get_list(
-            params.supplier_id,
-            params.approval_status,
-            params.payment_type,
-            params.start_date,
-            params.end_date,
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-            params.page_size.unwrap_or(20).clamp(1, 100),
-        )
+        .get_list(ApPaymentRequestListQuery {
+            supplier_id: params.supplier_id,
+            approval_status: params.approval_status,
+            payment_type: params.payment_type,
+            start_date: params.start_date,
+            end_date: params.end_date,
+            page,
+            page_size,
+        })
         .await?;
 
     info!(
@@ -96,8 +99,8 @@ pub async fn list_requests(
     let result = serde_json::to_value(PaginatedResponse::new(
         items_json,
         total,
-        params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-        params.page_size.unwrap_or(20).clamp(1, 100),
+        page,
+        page_size,
     ))
     .map_err(|e| AppError::internal(e.to_string()))?;
 
