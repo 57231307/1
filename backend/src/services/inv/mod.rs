@@ -5,9 +5,12 @@
 //! - `move`   调拨单主流程（CRUD / 审核 / 状态机 / 单据号生成）
 //! - `batch`  调拨单明细行管理 + 发出/接收批次处理（库存扣减/增加）
 //! - `stock`  库存检查辅助逻辑
-//! - `adjust` 库存调整（占位模块，详见 `services/inventory_adjustment_service.rs`）
-//! - `count`  库存盘点（占位模块，详见 `services/inventory_count_service.rs`）
-//! - `hold`   库存预留（占位模块，详见 `services/inventory_reservation_service.rs`）
+//!
+//! 批次 401 修复（规则 1）：移除占位模块 adjust/count/hold（扩展空间视为未实现）。
+//! 实际业务由顶层 service 提供：
+//! - 库存调整：`services/inventory_adjustment_service.rs`
+//! - 库存盘点：`services/inventory_count_service.rs`
+//! - 库存预留：`services/inventory_reservation_service.rs`
 //!
 //! 兼容说明：原 `crate::services::inv::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::inv::*;` 重新导出以保持向后兼容。
@@ -19,10 +22,7 @@ use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-pub mod adjust;
 pub mod batch;
-pub mod count;
-pub mod hold;
 pub mod inventory_move;
 pub mod stock;
 

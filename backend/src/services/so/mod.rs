@@ -4,9 +4,12 @@
 //! 子模块：
 //! - `order`    销售订单（核心 CRUD / 生命周期）
 //! - `delivery` 销售发货（发货、库存扣减/释放、订单号生成）
-//! - `price`    销售价格（占位模块，待后续扩展）
-//! - `contract` 销售合同（占位模块，待后续扩展）
-//! - `sales_return` 销售退货（占位模块，待后续扩展）
+//! - `contract` 销售合同（拒绝订单、释放库存预留等审批工作流）
+//!
+//! 批次 401 修复（规则 1）：移除占位模块 price/sales_return（扩展空间视为未实现）。
+//! 实际业务由顶层 service 提供：
+//! - 销售价格：`models::product`（基础价格/着色加价/等级价差）+ `so/order.rs::create_order`（按行计算 final_price）
+//! - 销售退货：`services/sales_return_service.rs`
 //!
 //! P9-2 拆分：order 进一步拆分为 3 个子模块：
 //! - `order_crud`     销售订单 CRUD 子模块
@@ -23,8 +26,6 @@ use validator::Validate;
 pub mod contract;
 pub mod delivery;
 pub mod order;
-pub mod price;
-pub mod sales_return;
 // P9-2 新增 order 拆分后的 3 个子模块
 pub mod order_crud;
 pub mod order_workflow;

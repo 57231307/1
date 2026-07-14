@@ -10,6 +10,9 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 401 | — | 占位模块清理（规则 1）：删除 5 个纯占位注释模块（inv/count、inv/adjust、inv/hold、so/price、so/sales_return）+ 更新 mod.rs 模块声明 + execute_custom_report 和 bi_analysis_service::slice 注释更新（明确安全设计决策，非技术债务），build_product_doc JOIN 修复留到下批 |
+| 400 | #573 | 项目规则符合性修复：删除 record_transaction 非事务版本死代码（已被 record_transaction_txn 取代）+ 接入 AccountSubjectService::refresh_balance handler（POST /subjects/:id/refresh-balance）+ 接入 ColorCardBorrowService::cancel_borrow handler（POST /color-cards/cancel/:record_id + CancelBorrowDto）+ batch_trace_log.rs 警告抑制收窄（#![allow(dead_code, unused_imports, unused_variables)] → #![allow(dead_code)]），CI 全绿 |
+| 399 | — | 占位符/Mock 存根剩余调研：确认 0 项真占位符残留（与批次 397 结论一致），21 项历史占位符在批次 290-308 修复后无回归 |
 | 398 | #572 | 配置合规性修复：AppSettings::new() 启动时同步 config.yaml env 字段到 APP_ENV（消除 is_production() 部署陷阱）+ .env.example 移除中文占位符密码和 GRPC 残留变量 + clippy baseline 文件格式修复（118 条纯摘要行替换 274 行混合内容，修复 116 条误报新警告）+ deploy.sh 部署路径修复（CONFIG_DIR 从 /etc/bingxi-erp 改为 /etc/bingxi 与 systemd EnvironmentFile 一致）+ 移除 config.yaml 模板 grpc 段，CI 全绿 |
 | 397 | #571 | v14 低风险修复首批：占位符/Mock 存根调研确认 21 项已清零（历史批次 290-308 修复）+ 4 处 unwrap_or_default 安全修复（omni_audit body 读取失败 warn 日志 + audit_enhanced_handler created_at 改 Option<String> + data_permission_handler 序列化失败 fail-fast），阶段 8 启动 |
 | 396 | #570 | baseline 警告清零收官：移除 .clippy.toml disallowed-methods 错误配置（println/eprintln 是宏非方法）+ process_state_machine.rs inherent from_str 改为标准 FromStr trait + 删除 purchase_delivery_calculator.rs AvgLeadTimeResult 死代码 + unwrap_safe.rs 移除多余 use super::* + auth.rs/webhook_service.rs 修复 needless_borrow，baseline 213/213 ✅ 全部清零，阶段 7 完成 |

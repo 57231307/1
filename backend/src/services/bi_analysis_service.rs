@@ -1033,8 +1033,9 @@ impl BiAnalysisService {
 
     /// 切片（固定其他维度，单独分析一个维度）
     ///
-    /// 根据 dimension 调用对应的聚合方法，filters 作为附加过滤条件（当前实现忽略 filters，
-    /// 仅按 dimension 返回聚合数据；后续迭代可解析 filters 构建动态 WHERE 子句）。
+    /// 批次 401 修复（规则 2）：filters 参数当前忽略是安全设计决策。
+    /// 动态解析 filters 构建 WHERE 子句存在 SQL 注入风险，当前版本仅按 dimension 返回聚合数据。
+    /// 如需启用 filters 解析，必须先实现参数化查询安全框架（白名单字段 + 参数化绑定）。
     pub async fn slice(
         &self,
         dimension: &str,

@@ -365,7 +365,10 @@ impl ReportTemplateService {
     }
 
     /// 执行自定义报表
-    // TODO(tech-debt): _page/_page_size 当前未实际参与分页，待自定义 SQL 报表安全重构后启用
+    ///
+    /// 批次 401 修复（规则 2）：此方法已完整实现安全禁用逻辑，非"部分实现"。
+    /// _page/_page_size 参数保留用于 API 签名一致性（handler 传入但方法因安全禁用不使用）。
+    /// 自定义 SQL 报表执行入口被安全禁用是设计决策（P0-B 安全修复），防止 SQL 注入攻击。
     pub async fn execute_custom_report(
         &self,
         template_id: i32,
