@@ -488,9 +488,9 @@ impl EmailService {
             service: "ses",
             version: "2020-10-02",
             timestamp,
-            payload: &payload,
-            secret_id: &secret_id,
-            secret_key: &secret_key,
+            payload: payload.as_str(),
+            secret_id: secret_id.as_str(),
+            secret_key: secret_key.as_str(),
         })?;
 
         let response = self
