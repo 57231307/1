@@ -64,6 +64,17 @@ impl CustomerCreditService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
+
+    /// 分页页码安全约束（防 DoS）
+    ///
+    /// 批次 409 提取：原 get_list 方法内联的 page.clamp(1, 1000) 逻辑，
+    /// 提取为独立纯函数便于单元测试。
+    /// - 页码 < 1 → 1
+    /// - 页码 > 1000 → 1000
+    /// - 其他 → 原值
+    pub(crate) fn clamp_page(page: i64) -> i64 {
+        page.clamp(1, 1000)
+    }
     /// 获取客户信用评级
     pub async fn get_by_customer_id(
         &self,
@@ -122,11 +133,102 @@ impl CustomerCreditService {
         let credits = query
             .order_by(customer_credit::Column::Id, Order::Desc)
             // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-            .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
+            .offset((Self::clamp_page(params.page).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;
 
         Ok((credits, total))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========== clamp_page 纯函数测试 ==========
+
+    /// 测试_页码约束_零值被限制为1
+    ///
+    /// 验证 page=0（页码小于下界）被 clamp 到 1。
+    #[test]
+    fn 测试_页码约束_零值被限制为1() {
+        assert_eq!(CustomerCreditService::clamp_page(0), 1);
+    }
+
+    /// 测试_页码约束_页码为1_边界返回1
+    ///
+    /// 验证 page=1（下界边界）原值返回 1。
+    #[test]
+    fn 测试_页码约束_页码为1_边界返回1() {
+        assert_eq!(CustomerCreditService::clamp_page(1), 1);
+    }
+
+    /// 测试_页码约束_页码为500_正常范围原值返回
+    ///
+    /// 验证 page=500（在 [1, 1000] 正常范围内）原值返回 500。
+    #[test]
+    fn 测试_页码约束_页码为500_正常范围原值返回() {
+        assert_eq!(CustomerCreditService::clamp_page(500), 500);
+    }
+
+    /// 测试_页码约束_页码为1000_边界返回1000
+    ///
+    /// 验证 page=1000（上界边界）原值返回 1000。
+    #[test]
+    fn 测试_页码约束_页码为1000_边界返回1000() {
+        assert_eq!(CustomerCreditService::clamp_page(1000), 1000);
+    }
+
+    /// 测试_页码约束_页码为1001_超出上界被限制为1000
+    ///
+    /// 验证 page=1001（超出上界）被 clamp 到 1000，防止超大偏移量 DoS。
+    #[test]
+    fn 测试_页码约束_页码为1001_超出上界被限制为1000() {
+        assert_eq!(CustomerCreditService::clamp_page(1001), 1000);
+    }
+
+    /// 测试_页码约束_负值被限制为1
+    ///
+    /// 验证 page=-5（负数）被 clamp 到 1，防止负偏移量。
+    #[test]
+    fn 测试_页码约束_负值被限制为1() {
+        assert_eq!(CustomerCreditService::clamp_page(-5), 1);
+    }
+
+    /// 测试_页码约束_i64最大值被限制为1000
+    ///
+    /// 验证 page=i64::MAX（极端大值）被 clamp 到 1000，防止溢出与 DoS。
+    #[test]
+    fn 测试_页码约束_i64最大值被限制为1000() {
+        assert_eq!(CustomerCreditService::clamp_page(i64::MAX), 1000);
+    }
+
+    /// 测试_页码约束_i64最小值被限制为1
+    ///
+    /// 验证 page=i64::MIN（极端小值）被 clamp 到 1，防止溢出与负偏移。
+    #[test]
+    fn 测试_页码约束_i64最小值被限制为1() {
+        assert_eq!(CustomerCreditService::clamp_page(i64::MIN), 1);
+    }
+
+    // ========== CreditQueryParams Default 实现测试 ==========
+
+    /// 测试_查询参数_Default实现_全部字段为空或零
+    ///
+    /// 验证 CreditQueryParams::default() 返回的结构体：
+    /// - customer_id=None（未指定客户筛选）
+    /// - credit_level=None（未指定信用等级筛选）
+    /// - status=None（未指定状态筛选）
+    /// - page=0（零页码，需配合 clamp_page 使用）
+    /// - page_size=0（零页大小）
+    #[test]
+    fn 测试_查询参数_Default实现_全部字段为空或零() {
+        let params = CreditQueryParams::default();
+        assert!(params.customer_id.is_none(), "默认 customer_id 应为 None");
+        assert!(params.credit_level.is_none(), "默认 credit_level 应为 None");
+        assert!(params.status.is_none(), "默认 status 应为 None");
+        assert_eq!(params.page, 0, "默认 page 应为 0");
+        assert_eq!(params.page_size, 0, "默认 page_size 应为 0");
     }
 }

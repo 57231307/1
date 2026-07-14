@@ -52,6 +52,19 @@ impl ArInvoiceService {
         Self { db }
     }
 
+    /// 根据已收金额和发票金额推导付款状态
+    ///
+    /// 批次 409 提取：原 mark_as_paid 方法内联逻辑，提取为独立纯函数便于单元测试。
+    /// - received >= invoice → PAID（已收齐）
+    /// - received < invoice → PARTIAL_PAID（部分收款）
+    pub(crate) fn derive_paid_status(received: Decimal, invoice: Decimal) -> &'static str {
+        if received >= invoice {
+            crate::models::status::payment::PAYMENT_PAID
+        } else {
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID
+        }
+    }
+
     /// 创建应收单
     pub async fn create(
         &self,
@@ -438,11 +451,8 @@ impl ArInvoiceService {
         // 根据 received_amount vs invoice_amount 判断最终状态：
         // - received_amount >= invoice_amount → PAID（已收齐）
         // - received_amount > 0 但 < invoice_amount → PARTIAL_PAID（部分收款）
-        let new_status = if invoice.received_amount >= invoice.invoice_amount {
-            crate::models::status::payment::PAYMENT_PAID.to_string()
-        } else {
-            crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
-        };
+        let new_status = Self::derive_paid_status(invoice.received_amount, invoice.invoice_amount)
+            .to_string();
         active_invoice.status = sea_orm::ActiveValue::Set(new_status);
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
@@ -502,5 +512,71 @@ impl ArInvoiceService {
         txn.commit().await?;
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::decs;
+    use crate::models::status::payment::{PAYMENT_PAID, PAYMENT_PARTIAL_PAID};
+    use rust_decimal::Decimal;
+
+    // ========== derive_paid_status 纯函数测试 ==========
+
+    /// 测试_推导付款状态_已收金额大于发票金额_返回PAID
+    ///
+    /// 验证 received > invoice 时返回 PAID（已收齐）。
+    #[test]
+    fn 测试_推导付款状态_已收金额大于发票金额_返回PAID() {
+        let received = decs!("123.45");
+        let invoice = decs!("100.00");
+        assert_eq!(ArInvoiceService::derive_paid_status(received, invoice), PAYMENT_PAID);
+    }
+
+    /// 测试_推导付款状态_已收金额等于发票金额_边界返回PAID
+    ///
+    /// 验证 received == invoice 边界场景返回 PAID（已收齐）。
+    #[test]
+    fn 测试_推导付款状态_已收金额等于发票金额_边界返回PAID() {
+        let received = decs!("100.00");
+        let invoice = decs!("100.00");
+        assert_eq!(ArInvoiceService::derive_paid_status(received, invoice), PAYMENT_PAID);
+    }
+
+    /// 测试_推导付款状态_已收金额为零_返回PARTIAL_PAID
+    ///
+    /// 验证 received == 0（发票金额非零）时返回 PARTIAL_PAID（部分收款）。
+    #[test]
+    fn 测试_推导付款状态_已收金额为零_返回PARTIAL_PAID() {
+        let received = Decimal::ZERO;
+        let invoice = decs!("100.00");
+        assert_eq!(
+            ArInvoiceService::derive_paid_status(received, invoice),
+            PAYMENT_PARTIAL_PAID
+        );
+    }
+
+    /// 测试_推导付款状态_已收金额小于发票金额_返回PARTIAL_PAID
+    ///
+    /// 验证 0 < received < invoice 时返回 PARTIAL_PAID（部分收款）。
+    #[test]
+    fn 测试_推导付款状态_已收金额小于发票金额_返回PARTIAL_PAID() {
+        let received = decs!("30.00");
+        let invoice = decs!("100.00");
+        assert_eq!(
+            ArInvoiceService::derive_paid_status(received, invoice),
+            PAYMENT_PARTIAL_PAID
+        );
+    }
+
+    /// 测试_推导付款状态_已收金额和发票金额均为零_边界返回PAID
+    ///
+    /// 验证 received == 0 且 invoice == 0 边界场景：0 >= 0 为真，返回 PAID。
+    #[test]
+    fn 测试_推导付款状态_已收金额和发票金额均为零_边界返回PAID() {
+        let received = Decimal::ZERO;
+        let invoice = Decimal::ZERO;
+        assert_eq!(ArInvoiceService::derive_paid_status(received, invoice), PAYMENT_PAID);
     }
 }
