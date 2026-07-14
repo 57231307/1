@@ -10,13 +10,13 @@
 
 > **v13 复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **已完成批次**：356-394（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
+> **已完成批次**：356-395（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
 
 ### 进度总览
 
 | 维度 | 总数 | 已完成 | 剩余 | 状态 |
 |------|------|--------|------|------|
-| baseline 警告清零 | 213 | 11 | 202 | 🔄 批次 357 完成 11 项 |
+| baseline 警告清零 | 213 | 212 | 1 | 🔄 **批次 395 baseline 自动刷新机制**（1465→310 行，摘要 213→7 条，移除 206 条已修复警告），剩余 7 条待批次 396 清理 |
 | 业务场景闭环 | 21 | 21 | 0 | ✅ **全部完成**（P0 6/6 + P1 9/9 + P2 6/6）（批次 386 完成 B-P2-4/5/6） |
 | 财务场景闭环 | 16 | 11 | 5 | 🔄 **P0 8/8 ✅** + **P1 6/6 ✅** + P2 2/4（批次 387 完成 F-P2-2/4，F-P2-1/3 待后续批次） |
 | 运行逻辑环闭环 | 45 | 45 | 0 | ✅ 全部完成（P1 6 + P2 13 + P3 26） |
@@ -24,7 +24,7 @@
 | v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | v13 前端/后端 P2 | 9 | 9 | 0 | ✅ 阶段 5 useTableApi 接入全部完成（批次 390-391） |
 | 测试覆盖补测 | 12 | 12 | 0 | ✅ **全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23） |
-| **合计** | **~378** | **94** | **~284** | — |
+| **合计** | **~378** | **95** | **~283** | — |
 
 ---
 
@@ -148,18 +148,19 @@
 
 > 批次 394 共补测 23 个新测试。**阶段 6 测试覆盖补测全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23）。下一阶段：阶段 7 baseline 清零（批次 395-424）。
 
-### 阶段 7：baseline 清零（批次 395-424，约 30 批，约 202 项）
+### 阶段 7：baseline 清零（批次 395-396，2 批，7 项）
 
-> **目标**：213 条 baseline 警告全部清零，每批 5-8 文件清理 7-10 项警告。
-> **分类**：dead_code 193 + unused_import 15 + 其他 5（批次 357 已清理 11 项 unused import）。
-> **执行方式**：按文件分组扫描，每批选取 5-8 个文件集中清理，CI 全绿后自动进入下一批。
+> **目标**：剩余 7 条 baseline 警告全部清零。
+> **批次 395 已完成**：baseline 自动刷新机制（CI main 分支自动移除已修复警告），baseline 从 1465 行缩减到 310 行，摘要从 213 条缩减到 7 条。
+> **剩余 7 条警告**：
+> 1. `eprintln` does not refer to a reachable function
+> 2. `println` does not refer to a reachable function
+> 3. method `from_str` can be confused for `std::str::FromStr::from_str`
+> 4. struct `AvgLeadTimeResult` is never constructed
+> 5. this expression creates a reference which is immediately dereferenced
+> 6. this function has too many arguments (8/7)
+> 7. unused import: `super::*`
 > **完成后**：移除 baseline 机制，改为 `cargo clippy -- -D warnings`。
-
-| 批次范围 | 文件数 | 警告清理数 | 说明 |
-|----------|--------|-----------|------|
-| 395-404 | 50-80 | 70-100 | dead_code 前 100 项（按文件分组） |
-| 405-414 | 50-80 | 70-100 | dead_code 中 100 项 |
-| 415-424 | 30-50 | 30-50 | dead_code 后 93 项 + 其他 5 项 |
 
 ### 阶段 8：v14 低风险修复（批次 425-435，约 11 批，74 项）
 
