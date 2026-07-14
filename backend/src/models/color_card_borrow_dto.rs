@@ -39,6 +39,16 @@ pub struct ReturnColorCardDto {
     pub notes: Option<String>,
 }
 
+/// 取消借出请求 DTO
+///
+/// 批次 400 修复（规则 0/8/14）：接入 ColorCardBorrowService::cancel_borrow，
+/// 用于登记错误借出/客户撤回等场景，区别于 Returned（正常归还）。
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct CancelBorrowDto {
+    /// 取消原因
+    pub notes: Option<String>,
+}
+
 /// 登记遗失请求 DTO
 #[derive(Debug, Deserialize, Serialize, Validate, Clone)]
 pub struct MarkLostColorCardDto {

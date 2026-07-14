@@ -175,10 +175,33 @@
 > 3. `audit_enhanced_handler.rs:111` — `created_at` 改为 `Option<String>`，None 时序列化为 JSON null 而非空字符串
 > 4. `data_permission_handler.rs:89` — 序列化失败时 fail-fast 返回错误，避免跳过 SQL 注入安全检查
 
+**批次 398（配置合规性修复 + 部署路径修复，PR #572 已合并，CI 全绿）**：
+
+> **配置合规性修复**（6 文件）：
+> 1. `backend/src/config/settings.rs` — `AppSettings::new()` 中 `load_sensitive_from_env()` 之后添加 APP_ENV 同步逻辑（APP_ENV 未设置时从 config.yaml env 字段同步，消除 is_production() 部署陷阱）
+> 2. `backend/src/utils/config.rs` — 更新文档注释，添加配置优先级说明和 config.yaml 同步机制说明
+> 3. `.env.example` — 移除中文占位符密码（DATABASE__PASSWORD 留空）+ 注释 GRPC 残留变量（GRPC__HOST/GRPC__PORT）
+> 4. `backend/config.yaml.example` — 更新 env 字段注释，反映批次 398 同步修复
+> 5. `backend/.env.example` — 更新 APP_ENV 注释，说明批次 398 同步机制
+> 6. `deploy/deploy-latest.sh` — 移除 grpc 段生成
+>
+> **CI clippy baseline 文件格式修复**：
+> - 原 `backend/.clippy-baseline.txt` 274 行中只有 2 行 `warning:` 开头的摘要行，其余是完整渲染输出（代码片段、help、note 行）
+> - CI 比较逻辑 `grep -E '^(warning|error):'` 只提取摘要行，导致 baseline 中只有 2 条，而当前警告有 118 条摘要行，`comm -23` 误判 116 条为新增
+> - 修复：从 CI 日志提取完整的 118 条警告摘要行，替换 baseline 文件为纯摘要行格式
+>
+> **deploy.sh 部署路径修复**（用户报告部署失败问题）：
+> - 问题：systemd 服务文件 `EnvironmentFile=/etc/bingxi/.env` 与 deploy.sh `CONFIG_DIR=/etc/bingxi-erp` 路径不一致
+> - 清理 `/etc/bingxi/` 目录后重新部署时未重建该目录，`cp /etc/bingxi-erp/.env /etc/bingxi/.env` 因目标父目录不存在而失败
+> - systemd 加载 EnvironmentFile 失败，后端二进制根本未被执行
+> - 修复：CONFIG_DIR 从 `/etc/bingxi-erp` 改为 `/etc/bingxi`（与 systemd 服务文件、deploy-backend.sh、deploy-latest.sh 保持一致）
+> - 同步修复：CLI migrate 命令 source 路径 + 注释中残留引用 + 移除 config.yaml 模板 grpc 段
+
 | 批次范围 | 任务类别 | 项数 | 说明 |
 |----------|----------|------|------|
 | 397 ✅ | 占位符/Mock 存根 | 21 | 调研确认已清零 + 4 处 unwrap_or_default 修复 |
-| 398-399 | 占位符/Mock 存根剩余 | 0 | 调研确认无需修复 |
+| 398 ✅ | 配置合规性 + 部署路径 | 11 | is_production() 部署陷阱 + clippy baseline 格式 + deploy.sh 路径一致性 |
+| 399 | 占位符/Mock 存根剩余 | 0 | 调研确认无需修复（待处理） |
 | 400-401 | 项目规则符合性 | 11 | 评估是否符合规则 0-13 |
 | 402-403 | 死代码补充清理 | 8 | 与 baseline 清零合并处理后的遗漏 |
 | 404-407 | 其他 | 34 | 命名规范/注释完善/代码风格等 |

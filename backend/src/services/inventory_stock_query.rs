@@ -1,16 +1,16 @@
-//! 库存事务记录 + 汇总查询方法（record_transaction / list_transactions / summary / alerts）
+//! 库存事务记录 + 汇总查询方法（list_transactions / summary / alerts）
 //!
 //! 拆分自 inventory_stock_service.rs：原 6 个事务记录与汇总方法独立成文件。
+//! 批次 400 修复：移除 record_transaction 非事务版本（已被 inventory_stock_txn.rs 的 record_transaction_txn 事务版本取代）。
 
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 
 use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
 use crate::models::{inventory_stock, inventory_transaction};
-use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::stock_alert::{
     AlertType, ALERT_TYPE_NORMAL, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
 };
@@ -109,6 +109,7 @@ pub struct ListTransactionsQuery {
 ///
 /// 批次 338 v10 复审 P3 修复：引入参数对象消除 record_transaction 的 too_many_arguments 警告。
 /// 聚合库存流水记录所需的全部字段，避免函数签名携带 18 个参数。
+/// 批次 400 修复：record_transaction 非事务版本已移除，此参数对象由 inventory_stock_txn.rs 的 record_transaction_txn 事务版本复用。
 #[derive(Debug, Clone)]
 pub struct RecordTransactionArgs {
     /// 交易类型
@@ -150,80 +151,6 @@ pub struct RecordTransactionArgs {
 }
 
 impl InventoryStockService {
-    /// 记录库存交易流水
-    ///
-    /// 批次 338 v10 复审 P3 修复：签名从 18 参数改为单一参数对象 `RecordTransactionArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
-    #[allow(dead_code)] // TODO(tech-debt): handler 接入后移除
-    pub async fn record_transaction(
-        &self,
-        args: RecordTransactionArgs,
-    ) -> Result<inventory_transaction::Model, AppError> {
-        let RecordTransactionArgs {
-            transaction_type,
-            product_id,
-            warehouse_id,
-            batch_no,
-            color_no,
-            dye_lot_no,
-            grade,
-            quantity_meters,
-            quantity_kg,
-            source_bill_type,
-            source_bill_no,
-            source_bill_id,
-            quantity_before_meters,
-            quantity_before_kg,
-            quantity_after_meters,
-            quantity_after_kg,
-            notes,
-            created_by,
-        } = args;
-        let active_transaction = inventory_transaction::ActiveModel {
-            id: Default::default(),
-            transaction_type: Set(transaction_type),
-            product_id: Set(product_id),
-            warehouse_id: Set(warehouse_id),
-            batch_no: Set(batch_no),
-            color_no: Set(color_no),
-            dye_lot_no: Set(dye_lot_no),
-            grade: Set(grade),
-            quantity_meters: Set(quantity_meters),
-            quantity_kg: Set(quantity_kg),
-            source_bill_type: Set(source_bill_type),
-            source_bill_no: Set(source_bill_no),
-            source_bill_id: Set(source_bill_id),
-            quantity_before_meters: Set(quantity_before_meters),
-            quantity_before_kg: Set(quantity_before_kg),
-            quantity_after_meters: Set(quantity_after_meters),
-            quantity_after_kg: Set(quantity_after_kg),
-            notes: Set(notes),
-            created_by: Set(created_by),
-            created_at: Set(Utc::now()),
-        };
-
-        let transaction = active_transaction.insert(&*self.db).await?;
-
-        // 触发库存交易创建事件
-        let event = BusinessEvent::InventoryTransactionCreated {
-            transaction_id: transaction.id,
-            transaction_type: transaction.transaction_type.clone(),
-            product_id: transaction.product_id,
-            warehouse_id: transaction.warehouse_id,
-            quantity_meters: transaction.quantity_meters,
-            quantity_kg: transaction.quantity_kg,
-            source_bill_type: transaction.source_bill_type.clone(),
-            source_bill_no: transaction.source_bill_no.clone(),
-            source_bill_id: transaction.source_bill_id,
-            batch_no: transaction.batch_no.clone(),
-            color_no: transaction.color_no.clone(),
-            created_by: transaction.created_by,
-        };
-        EVENT_BUS.publish(event);
-
-        Ok(transaction)
-    }
-
     /// 查询库存流水
     ///
     /// 批次 335 v10 复审 P3 修复：签名从 9 参数改为单一参数对象 `ListTransactionsQuery`，

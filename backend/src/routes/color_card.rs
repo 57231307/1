@@ -62,6 +62,11 @@ pub fn routes() -> Router<AppState> {
             "/damaged/:record_id",
             post(color_card::mark_damaged_color_card),
         )
+        // 批次 400 修复（规则 0/8/14）：取消借出（错误借出/客户撤回）
+        .route(
+            "/cancel/:record_id",
+            post(color_card::cancel_borrow),
+        )
         // 借出历史
         .route(
             "/borrow-records",

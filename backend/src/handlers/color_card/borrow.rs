@@ -11,8 +11,8 @@ use axum::{
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::color_card_borrow_dto::{
-    BorrowColorCardDto, ListBorrowRecordsQuery, MarkDamagedColorCardDto, MarkLostColorCardDto,
-    ReturnColorCardDto,
+    BorrowColorCardDto, CancelBorrowDto, ListBorrowRecordsQuery, MarkDamagedColorCardDto,
+    MarkLostColorCardDto, ReturnColorCardDto,
 };
 use crate::models::color_card_response_dto::{BorrowRecordInfo, PagedResponse};
 use crate::services::color_card_borrow_service::ColorCardBorrowService;
@@ -94,6 +94,26 @@ pub async fn mark_damaged_color_card(
 
     let record = service
         .mark_damaged(record_id, dto.compensation_amount, dto.notes)
+        .await
+        .map_err(borrow_err)?;
+
+    Ok(Json(ApiResponse::success(record_to_info(record))))
+}
+
+/// POST /api/v1/erp/color-cards/cancel/:record_id - 取消借出
+///
+/// 批次 400 修复（规则 0/8/14）：接入 ColorCardBorrowService::cancel_borrow，
+/// 用于登记错误借出/客户撤回等场景，取消后为终态不可再变更。
+pub async fn cancel_borrow(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(record_id): Path<i64>,
+    Json(dto): Json<CancelBorrowDto>,
+) -> Result<Json<ApiResponse<BorrowRecordInfo>>, AppError> {
+    let service = ColorCardBorrowService::from_state(&state);
+
+    let record = service
+        .cancel_borrow(record_id, dto.notes)
         .await
         .map_err(borrow_err)?;
 
