@@ -3,6 +3,7 @@ use crate::models::fund_management;
 use crate::services::fund_management_service::{FundManagementService, UpdateFundAccountRequest};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::messages::biz_msg;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -274,7 +275,7 @@ pub async fn delete_account(
     service.delete_account(id, auth.user_id).await?;
 
     info!("资金账户 {} 删除成功", id);
-    Ok(Json(ApiResponse::success("删除成功".to_string())))
+    Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
 }
 
 pub async fn transfer(

@@ -14,8 +14,11 @@ use std::sync::Arc;
 use validator::Validate;
 
 // P2 1-8 修复：手机号正则全局编译一次，避免每次 validate_mobile_phone 调用都重新编译（NFA→DFA 开销）
-static MOBILE_PHONE_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(r"^1[3-9]\d{9}$").expect("手机号正则表达式编译失败（应为静态合法模式）")
+// 批次 404 修复：正则编译失败时优雅降级（返回验证失败而非 panic）。
+// 模式为静态字面量，编译失败概率几乎为零；但若 regex crate 版本升级导致行为变化，
+// 用 Option<Regex> 可让进程继续运行而非崩溃。
+static MOBILE_PHONE_RE: std::sync::LazyLock<Option<regex::Regex>> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"^1[3-9]\d{9}$").ok()
 });
 
 /// 供应商服务
@@ -769,7 +772,8 @@ pub struct CreateContactRequest {
 
 fn validate_mobile_phone(phone: &str) -> Result<(), validator::ValidationError> {
     // P2 1-8 修复：使用全局编译的 LazyLock<Regex>，避免每次调用都编译正则
-    if MOBILE_PHONE_RE.is_match(phone) {
+    // 批次 404 修复：正则编译失败时优雅降级（返回验证失败而非 panic）
+    if MOBILE_PHONE_RE.as_ref().is_some_and(|re| re.is_match(phone)) {
         Ok(())
     } else {
         Err(validator::ValidationError::new("mobile_phone"))
