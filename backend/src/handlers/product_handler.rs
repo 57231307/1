@@ -329,12 +329,14 @@ pub async fn create_product_color(
     let color = product_service
         .create_product_color(
             product_id,
-            req.color_no,
-            req.color_name,
-            req.pantone_code,
-            req.color_type,
-            req.dye_formula,
-            req.extra_cost,
+            crate::services::product_service::CreateProductColorInput {
+                color_no: req.color_no,
+                color_name: req.color_name,
+                pantone_code: req.pantone_code,
+                color_type: req.color_type,
+                dye_formula: req.dye_formula,
+                extra_cost: req.extra_cost,
+            },
         )
         .await?;
 

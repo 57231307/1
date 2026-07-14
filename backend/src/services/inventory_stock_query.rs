@@ -150,6 +150,18 @@ pub struct RecordTransactionArgs {
     pub created_by: Option<i32>,
 }
 
+/// 库存汇总查询参数（service 层，page/page_size 已解析为非 Option）
+#[derive(Debug, Clone)]
+pub struct InventorySummaryQuery {
+    pub warehouse_id: Option<i32>,
+    pub product_id: Option<i32>,
+    pub batch_no: Option<String>,
+    pub color_no: Option<String>,
+    pub grade: Option<String>,
+    pub page: u64,
+    pub page_size: u64,
+}
+
 impl InventoryStockService {
     /// 查询库存流水
     ///
@@ -226,18 +238,9 @@ impl InventoryStockService {
     ///
     /// # 返回
     /// 返回分页结果，包含数据列表和总记录数
-    // TODO(tech-debt): 业务上要求按多个维度筛选+分页，可选参数较多；后续可通过
-    // InventorySummaryQuery DTO 聚合参数以收敛签名长度，移除此标注。
-    #[allow(clippy::too_many_arguments)]
     pub async fn get_inventory_summary(
         &self,
-        warehouse_id: Option<i32>,
-        product_id: Option<i32>,
-        batch_no: Option<String>,
-        color_no: Option<String>,
-        grade: Option<String>,
-        page: u64,
-        page_size: u64,
+        params: InventorySummaryQuery,
     ) -> Result<(Vec<InventorySummaryItem>, u64), AppError> {
         use sea_orm::QuerySelect;
 
@@ -271,19 +274,19 @@ impl InventoryStockService {
             .order_by_asc(inventory_stock::Column::ColorNo);
 
         // 添加过滤条件
-        if let Some(wid) = warehouse_id {
+        if let Some(wid) = params.warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
         }
-        if let Some(pid) = product_id {
+        if let Some(pid) = params.product_id {
             query = query.filter(inventory_stock::Column::ProductId.eq(pid));
         }
-        if let Some(batch) = batch_no {
+        if let Some(batch) = params.batch_no {
             query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
         }
-        if let Some(color) = color_no {
+        if let Some(color) = params.color_no {
             query = query.filter(inventory_stock::Column::ColorNo.eq(color));
         }
-        if let Some(g) = grade {
+        if let Some(g) = params.grade {
             query = query.filter(inventory_stock::Column::Grade.eq(g));
         }
 
@@ -296,9 +299,9 @@ impl InventoryStockService {
         // 聚合查询使用 into_model::<InventorySummaryQueryResult>，泛型 M = InventorySummaryQueryResult
         let paginator = query
             .into_model::<InventorySummaryQueryResult>()
-            .paginate(&*self.db, page_size);
+            .paginate(&*self.db, params.page_size);
         let (result, total) =
-            paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+            paginate_with_total(paginator, params.page.clamp(1, 1000)).await?;
 
         let items = result
             .into_iter()
