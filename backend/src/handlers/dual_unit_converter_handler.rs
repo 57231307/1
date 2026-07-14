@@ -181,6 +181,8 @@ mod tests {
     // P9-1: 引入 decs! 宏替代 .from_str().unwrap()
     // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
     use crate::decs;
+    // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
+    use std::str::FromStr;
 
     #[test]
     fn test_convert_unit_request_deserialize() {

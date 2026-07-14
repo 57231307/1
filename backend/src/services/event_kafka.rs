@@ -85,6 +85,9 @@ fn event_type_name(event: &BusinessEvent) -> &'static str {
         BusinessEvent::FinancialIndicatorUpdate { .. } => "FinancialIndicatorUpdate",
         BusinessEvent::MaterialShortageAlert { .. } => "MaterialShortageAlert",
         BusinessEvent::InventoryTransactionCreated { .. } => "InventoryTransactionCreated",
+        // 批次 415：补全 CustomerUpdated/SupplierUpdated 分支，消除 non-exhaustive patterns 编译错误
+        BusinessEvent::CustomerUpdated { .. } => "CustomerUpdated",
+        BusinessEvent::SupplierUpdated { .. } => "SupplierUpdated",
     }
 }
 
