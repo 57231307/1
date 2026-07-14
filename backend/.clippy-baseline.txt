@@ -223,3 +223,122 @@ help: trait `SearchClient` which provides `search` is implemented but not in sco
 note: `services::event_bus::BusinessEvent` defined here
 note: if you're trying to build a new `rust_decimal::Decimal` consider using one of the following associated functions:
 note: method defined here
+warning: associated function `from_config` is never used
+warning: associated function `from_env` is never used
+warning: associated function `is_api_key_revoked` is never used
+warning: associated function `new` is never used
+warning: associated functions `from_claims` and `empty` are never used
+warning: associated functions `integer`, `decimal`, `date`, and `boolean` are never used
+warning: associated items `calculate_next_run` and `parse_cron_field` are never used
+warning: associated items `derive_paid_status` and `mark_as_paid` are never used
+warning: constant `ACTIVE` is never used
+warning: constant `AFTERSALES_OPENED` is never used
+warning: constant `AFTERSALES_REJECTED` is never used
+warning: constant `APPROVED` is never used
+warning: constant `ARCHIVED` is never used
+warning: constant `BACKUP` is never used
+warning: constant `BASE_DELAY_SECS` is never used
+warning: constant `CANCELLED` is never used
+warning: constant `CLOSING` is never used
+warning: constant `COMPLETED` is never used
+warning: constant `CONVERTED` is never used
+warning: constant `DEAD` is never used
+warning: constant `DEGRADED` is never used
+warning: constant `DENIED` is never used
+warning: constant `DEPRECIATION_COMPLETED` is never used
+warning: constant `DISPOSED` is never used
+warning: constant `DRAFT` is never used
+warning: constant `EXPIRED` is never used
+warning: constant `FAILED` is never used
+warning: constant `HEALTHY` is never used
+warning: constant `INACTIVE` is never used
+warning: constant `LOAD_IDLE` is never used
+warning: constant `LOAD_OVERLOADED` is never used
+warning: constant `LOST` is never used
+warning: constant `MAX_RECURSION_DEPTH` is never used
+warning: constant `MAX_RETRY_COUNT` is never used
+warning: constant `OPERATE_OK` is never used
+warning: constant `P92_AUTO_MODULE` is never used
+warning: constant `P92_CRUD_MODULE` is never used
+warning: constant `P92_MANUAL_MODULE` is never used
+warning: constant `P92_QRY_MODULE` is never used
+warning: constant `PENDING_APPROVAL` is never used
+warning: constant `PENDING` is never used
+warning: constant `PRIMARY` is never used
+warning: constant `PROCESS_PENDING` is never used
+warning: constant `QUALITY_CLOSED` is never used
+warning: constant `QUALITY_OPEN` is never used
+warning: constant `QUALITY_RESOLVED` is never used
+warning: constant `REJECTED` is never used
+warning: constant `RESOLVED` is never used
+warning: constant `SUCCESS` is never used
+warning: constant `UNHEALTHY` is never used
+warning: enum `AdjustType` is never used
+warning: enum `Relation` is never used
+warning: enum `SchedulingAlgo` is never used
+warning: field `change_reason` is never read
+warning: field `items` is never read
+warning: field `plan_id` is never read
+warning: field `reason` is never read
+warning: field `record_id` is never read
+warning: field `remark` is never read
+warning: field `search` is never read
+warning: field `warehouse_id` is never read
+warning: field `webhook_inherit_jwt_secret` is never read
+warning: fields `batch_no` and `color_no` are never read
+warning: fields `color_name`, `supplier_id`, `purchase_order_no`, and `remarks` are never read
+warning: fields `from_warehouse_id` and `remarks` are never read
+warning: fields `primary_total`, `primary_failed_total`, `backup_total`, and `circuit_state` are never read
+warning: fields `product_id` and `batch_number` are never read
+warning: fields `product_name`, `batch_no`, and `dye_lot_no` are never read
+warning: fields `related_bill_type` and `related_bill_id` are never read
+warning: fields `total_sales` and `cumulative_ratio` are never read
+warning: function `get_payment_schedule` is never used
+warning: function `validate_dir_recursive` is never used
+warning: function `validate_extracted_paths` is never used
+warning: method `calculate_order_total` is never used
+warning: method `code` is never used
+warning: method `config` is never used
+warning: method `desc` is never used
+warning: method `find_by_name` is never used
+warning: method `get_by_id` is never used
+warning: method `get_payment_schedule` is never used
+warning: method `get_standard_by_id` is never used
+warning: method `mark_as_paid` is never used
+warning: methods `export_excel_bytes` and `export_pdf_bytes` are never used
+warning: methods `filter_fields_by_read_permission` and `mask_fields` are never used
+warning: methods `get_abc_classification` and `get_inventory_turnover` are never used
+warning: methods `is_empty` and `desc` are never used
+warning: methods `record_change` and `record_order_created` are never used
+warning: methods `record_primary`, `record_primary_failed`, `record_backup`, and `set_circuit_state` are never used
+warning: multiple associated items are never used
+warning: multiple fields are never read
+warning: struct `AdvanceNodeRequest` is never constructed
+warning: struct `ApiDoc` is never constructed
+warning: struct `ConvertToOrderDto` is never constructed
+warning: struct `CustomerColorPriceInfo` is never constructed
+warning: struct `EventRetryService` is never constructed
+warning: struct `InventorySummaryItem` is never constructed
+warning: struct `InventoryTurnover` is never constructed
+warning: struct `Model` is never constructed
+warning: struct `ObservabilityConfig` is never constructed
+warning: struct `OptionalAuthContext` is never constructed
+warning: struct `OrderChangeRecord` is never constructed
+warning: struct `OrderQuery` is never constructed
+warning: struct `PaymentScheduleItem` is never constructed
+warning: struct `PaymentScheduleParams` is never constructed
+warning: struct `PriceHistoryQuery` is never constructed
+warning: struct `PriceTierInfo` is never constructed
+warning: struct `ProcessNodeDetail` is never constructed
+warning: struct `ProcessNodeQuery` is never constructed
+warning: struct `ProcessOptDetailVo` is never constructed
+warning: struct `QualityIssueDetail` is never constructed
+warning: struct `ResourceAttrs` is never constructed
+warning: struct `SeasonalRuleInfo` is never constructed
+warning: struct `SubjectBalance` is never constructed
+warning: struct `TimeSlot` is never constructed
+warning: struct `WorkCenterCapacity` is never constructed
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+warning: type alias `Auth` is never used
+warning: variant `PriceNotFound` is never constructed
+warning: variant `RgbOutOfRange` is never constructed
