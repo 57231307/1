@@ -507,6 +507,7 @@ impl ProductService {
     }
 
     /// 创建产品色号
+    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 CreateProductColorArgs DTO 聚合参数
     pub async fn create_product_color(
         &self,
         product_id: i32,
