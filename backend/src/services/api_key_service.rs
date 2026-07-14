@@ -19,6 +19,28 @@ const API_KEY_BLACKLIST_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 /// 黑名单缓存键前缀
 const API_KEY_BLACKLIST_PREFIX: &str = "apikey:revoked:";
 
+/// 更新 API 密钥参数对象
+///
+/// 批次 413 技术债务清理：引入参数对象消除 update_api_key 的 too_many_arguments 警告。
+/// 聚合更新 API 密钥所需的全部可选字段，避免函数签名携带 7 个参数。
+#[derive(Debug, Clone)]
+pub struct UpdateApiKeyPayload {
+    /// API 密钥 ID
+    pub id: i32,
+    /// 密钥名称
+    pub name: Option<String>,
+    /// 权限列表（JSON 字符串）
+    pub permissions: Option<String>,
+    /// 每分钟速率限制
+    pub rate_limit_per_minute: Option<i32>,
+    /// 过期时间（None=保持原值，Some(None)=永不过期，Some(Some(dt))=指定时间）
+    pub expires_at: Option<Option<chrono::DateTime<chrono::Utc>>>,
+    /// 是否启用
+    pub is_active: Option<bool>,
+    /// 描述
+    pub description: Option<String>,
+}
+
 impl ApiKeyService {
     /// 生成新的 API 密钥
     pub fn generate_api_key() -> String {
@@ -128,40 +150,35 @@ impl ApiKeyService {
     ///
     /// 仅更新传入的字段，未传入的字段保持不变。
     /// 批次 158 v11 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 UpdateApiKeyPayload DTO 聚合参数
+    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `UpdateApiKeyPayload`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn update_api_key(
         &self,
-        id: i32,
-        name: Option<String>,
-        permissions: Option<String>,
-        rate_limit_per_minute: Option<i32>,
-        expires_at: Option<Option<chrono::DateTime<chrono::Utc>>>,
-        is_active: Option<bool>,
-        description: Option<String>,
+        payload: UpdateApiKeyPayload,
     ) -> Result<api_key::Model, AppError> {
-        let key = ApiKey::find_by_id(id)
+        let key = ApiKey::find_by_id(payload.id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| AppError::business("API 密钥不存在"))?;
 
         let mut active_model: ApiKeyActiveModel = key.into();
-        if let Some(name) = name {
+        if let Some(name) = payload.name {
             active_model.name = Set(name);
         }
-        if let Some(permissions) = permissions {
+        if let Some(permissions) = payload.permissions {
             active_model.permissions = Set(Some(permissions));
         }
-        if let Some(rate_limit) = rate_limit_per_minute {
+        if let Some(rate_limit) = payload.rate_limit_per_minute {
             active_model.rate_limit_per_minute = Set(rate_limit);
         }
-        if let Some(expires_at) = expires_at {
+        if let Some(expires_at) = payload.expires_at {
             active_model.expires_at = Set(expires_at);
         }
-        if let Some(is_active) = is_active {
+        if let Some(is_active) = payload.is_active {
             active_model.is_active = Set(is_active);
         }
         // 批次 158 v11 真实接入：description 字段持久化
-        if let Some(desc) = description {
+        if let Some(desc) = payload.description {
             active_model.description = Set(Some(desc));
         }
         active_model.updated_at = Set(Utc::now());

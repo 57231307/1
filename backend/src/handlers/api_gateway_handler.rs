@@ -617,15 +617,15 @@ pub async fn update_api_key(
     });
 
     let model = service
-        .update_api_key(
+        .update_api_key(crate::services::api_key_service::UpdateApiKeyPayload {
             id,
-            req.key_name,
+            name: req.key_name,
             permissions,
-            req.rate_limit,
+            rate_limit_per_minute: req.rate_limit,
             expires_at,
             is_active,
-            req.description,
-        )
+            description: req.description,
+        })
         .await?;
 
     // 批次 112 P1-9：created_by 从 model.created_by 读取

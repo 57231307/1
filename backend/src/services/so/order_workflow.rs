@@ -321,15 +321,15 @@ impl SalesService {
         let required_date = chrono::Utc::now().date_naive() + chrono::Duration::days(7);
         for item in &order_items {
             if let Err(e) = mrp_service
-                .run_mrp_calculation(
-                    item.product_id,
-                    item.quantity,
+                .run_mrp_calculation(crate::services::mrp_engine_service::MrpCalculationQuery {
+                    product_id: item.product_id,
+                    required_quantity: item.quantity,
                     required_date,
-                    "SALES_ORDER".to_string(),
-                    Some(order_id),
-                    true,
-                    true,
-                )
+                    source_type: "SALES_ORDER".to_string(),
+                    source_id: Some(order_id),
+                    consider_safety_stock: true,
+                    consider_in_transit: true,
+                })
                 .await
             {
                 tracing::warn!(
