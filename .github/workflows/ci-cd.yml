@@ -566,10 +566,17 @@ jobs:
             exit 1
           fi
 
+          # 批次 395：写入环境变量供后续步骤使用（自动刷新 baseline）
+          echo "CLIPPY_BASELINE_MODE=$BASELINE_MODE" >> "$GITHUB_ENV"
+          echo "CLIPPY_NEW_COUNT=$NEW_COUNT" >> "$GITHUB_ENV"
+          echo "CLIPPY_FIXED_COUNT=$FIXED_COUNT" >> "$GITHUB_ENV"
+          echo "CLIPPY_CURRENT_COUNT=$CURRENT_COUNT" >> "$GITHUB_ENV"
+          echo "CLIPPY_BASELINE_COUNT=$BASELINE_COUNT" >> "$GITHUB_ENV"
+
           echo "✅ 无新增 clippy 警告"
           exit 0
 
-      - name: 提交 baseline 文件（首次运行时）
+      - name: 提交 baseline 文件（首次运行时）+ 自动刷新 baseline（main 分支）
         if: always()
         run: |
           if [ -f "backend/.clippy-baseline.txt" ] || [ -f ".clippy-baseline.txt" ]; then
@@ -578,7 +585,22 @@ jobs:
               BASELINE_PATH="backend/.clippy-baseline.txt"
             fi
             if git log --all --oneline -- "$BASELINE_PATH" 2>/dev/null | head -1 | grep -q .; then
-              echo "✅ baseline 文件已纳入版本控制，跳过"
+              echo "✅ baseline 文件已纳入版本控制"
+              # 批次 395：main 分支自动刷新 baseline（已修复警告 > 0 且无新警告时）
+              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_FIXED_COUNT" -gt "0" ] && [ "$CLIPPY_NEW_COUNT" = "0" ]; then
+                echo "📝 自动刷新 baseline：移除 $CLIPPY_FIXED_COUNT 条已修复警告（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT）"
+                cd backend
+                cp reports/clippy-current.txt .clippy-baseline.txt
+                cd ..
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+                git add "$BASELINE_PATH"
+                git commit -m "chore(ci): 自动刷新 clippy baseline（移除 $CLIPPY_FIXED_COUNT 条已修复警告，$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT）" || echo "提交失败，跳过"
+                git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+                git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+              else
+                echo "ℹ️ 不满足自动刷新条件（非 main 分支/非 strict 模式/无已修复警告/有新警告），跳过"
+              fi
             else
               echo "📝 提交 baseline 文件: $BASELINE_PATH"
               git config user.name "github-actions[bot]"
