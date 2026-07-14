@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-14（批次 414 完成后，追加批次 413+414 条目，§1.1+§1.2 全部完成）。
+> 最近整理：2026-07-15（批次 415 完成后，追加批次 415 条目，遗留技术债务清理完毕，v14 复审启动）。
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 415 | #591 | 遗留技术债务清理：修复 baseline 吞掉的 7 个编译错误（decs! 宏 FromStr 导入 4 处 + CustomOrderStatus FromStr→parse().ok() + event_kafka match 分支补全 + search_api SearchClient trait 导入 + customer_credit_limit Arc 导入）+ email_service needless_borrow 警告修复 + 删除格式不合规的 .clippy-baseline.txt（CI bootstrap 重建），CI 全绿 |
 | 414 | #590 | CreditRatingRequest.credit_limit 语义模糊修复：Decimal → Option<Decimal>，service 层区分 None（保持原值）与 Some(v)（显式设置含 Some(0)），新增 validate_credit_limit_range（允许 0）+ 5 个单元测试，移除 TODO 注释，CI 全绿 |
 | 413 | #589 | 事件+MRP+邮件 too_many_arguments 清理：5 个 service 方法引入 DTO 参数对象（NotificationPayload/MrpExplodeQuery/MrpCalculationQuery/TencentSignParams/UpdateApiKeyPayload），7参数→1参数，7 调用点同步更新，修复 clippy needless_borrow/needless_reference 警告，更新 baseline 纳入 119 条既有 dead_code 警告，CI 全绿 |
 | 412 | #588 | 库存+产品 too_many_arguments 清理：inventory_stock_query::get_inventory_summary 新增 InventorySummaryQuery 参数对象（7参数→1参数）+ product_service::create_product_color 复用 CreateProductColorInput（7参数→2参数），4 文件调用点同步更新，纯重构 CI 全绿 |

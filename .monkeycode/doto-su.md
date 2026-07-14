@@ -5,7 +5,45 @@
 
 ---
 
-## 📝 已完成批次详细记录（技术债务清理，批次 411-414）
+## 📝 已完成批次详细记录（技术债务清理，批次 411-415）
+
+### 批次 415：遗留技术债务清理 - baseline 吞掉的编译错误修复（PR #591，sha: fe038d6a）
+
+**背景**：批次 414 完成后发现 clippy baseline 机制"吞掉"了 7 个编译错误和 1 个警告。baseline 文件格式严重不合规（215 行混合内容，仅 8 行摘要行），导致 `comm -23` 比较失效，编译错误长期存在但 CI 仍全绿。
+
+**修复内容**：修复 10 个文件，消除 7 个编译错误 + 1 个 clippy 警告，删除格式不合规的 baseline 文件。
+
+**修改文件**（10 文件，22 行新增 / 219 行删除）：
+
+| 文件 | 修改内容 | 根因 |
+|------|----------|------|
+| `handlers/dual_unit_converter_handler.rs` | 测试模块添加 `use std::str::FromStr;` | `decs!` 宏展开为 `Decimal::from_str`，需导入 `FromStr` trait |
+| `services/ar_invoice_service.rs` | 测试模块添加 `use std::str::FromStr;` | 同上 |
+| `services/inv/stock.rs` | 测试模块添加 `use std::str::FromStr;` | 同上 |
+| `services/so/order_workflow.rs` | 测试模块添加 `use std::str::FromStr;` | 同上 |
+| `tests/custom_order_state_test.rs` | `from_str()` → `.parse::<CustomOrderStatus>().ok()` | `CustomOrderStatus` 实现 `FromStr` 返回 `Result`，测试需 `Option` 语义 |
+| `services/event_kafka.rs` | 补全 `CustomerUpdated`/`SupplierUpdated` match 分支 | `event_type_name` 函数 match 表达式非穷尽 |
+| `routes/search_api.rs` | 测试模块添加 `use crate::search::SearchClient;` | `index_doc`/`search` 是 trait 方法 |
+| `services/customer_credit_limit.rs` | 测试模块添加 `use std::sync::Arc;` | 文件顶部批次 357 移除 unused Arc，但测试依赖 `use super::*` |
+| `services/email_service.rs` | `&b.0` → `b.0`（保留 `&b.1`） | `b.0` 已是 `&str`（needless_borrow），`b.1` 是 `String`（需 `&`） |
+| `.clippy-baseline.txt` | 删除（215 行，CI bootstrap 重建） | 格式不合规 + 吞掉编译错误 |
+
+**技术要点**：
+- **baseline 机制陷阱**：CI 使用 `comm -23` 比较 `sort -u` 后的摘要行（`^(warning|error):` 开头），若 baseline 含完整渲染输出（代码片段/help/note 行），`grep` 后只剩极少摘要行，导致大量已存在警告被误判为新增；更严重的是编译错误（如 `error[E0308]`）若已在 baseline 中则不被报告，测试代码长期无法编译但 CI 全绿
+- **`decs!` 宏**：定义在 `unwrap_safe.rs:28`，展开为 `Decimal::from_str($x).expect(...)`，`from_str` 是 `FromStr` trait 方法，调用方必须 `use std::str::FromStr;`
+- **`needless_borrow` 边界**：只对已是引用类型的取地址生效；`&b.0`（b.0 是 `&str`）触发，`&b.1`（b.1 是 `String`）不触发（`cmp` 需要 `&String`）
+- **CI bootstrap 重建**：删除 baseline 后 CI 自动生成新 baseline，CI 全绿说明修复后无新增警告
+
+**CI 验证**：15 个 check runs（12 success + 2 skipped 打包/Release + 1 构建通知 success）。第一次 push 因 `email_service.rs` 错误地将 `&b.1` 也改为 `b.1` 导致 `mismatched types` 编译失败，第二次 push 修复后 CI 全绿。PR #591 squash merge 到 main（commit fe038d6a）。
+
+**遗留技术债务评估结论**（2026-07-15）：
+- ✅ 无行级 `#[allow(...)]` 抑制（规则 14 满足）
+- ✅ `models/` 下 100 个文件级 `#![allow(dead_code)]` 符合规则第六章 SeaORM 模型例外
+- ✅ 批次 415 已修复所有被 baseline 吞掉的编译错误
+- 剩余 `TODO(tech-debt)` 均为 `models/` 下 SeaORM 模型或低优先级未来改进（CSRF TTL/parking_lot 迁移/utoipa 覆盖率等），非阻塞
+- **结论：遗留技术债务已清理完毕，可启动 v14 新一轮复审**
+
+---
 
 ### 批次 414：CreditRatingRequest.credit_limit 语义模糊修复（PR #590，sha: 5478350f）
 
