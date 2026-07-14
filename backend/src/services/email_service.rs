@@ -661,10 +661,14 @@ impl EmailService {
         );
 
         // 3. 多层 HMAC-SHA256（派生密钥链：SecretKey -> SecretDate -> SecretService -> SecretSigning）
+        // 批次 413：使用 as_slice() 显式转换为 &[u8]，避免 &Vec<u8> 触发 clippy::needless_reference
         let secret_date = hmac_sha256_bytes(params.secret_key.as_bytes(), date.as_bytes());
-        let secret_service = hmac_sha256_bytes(&secret_date, params.service.as_bytes());
-        let secret_signing = hmac_sha256_bytes(&secret_service, b"tc3_request");
-        let signature = hex::encode(hmac_sha256_bytes(&secret_signing, string_to_sign.as_bytes()));
+        let secret_service = hmac_sha256_bytes(secret_date.as_slice(), params.service.as_bytes());
+        let secret_signing = hmac_sha256_bytes(secret_service.as_slice(), b"tc3_request");
+        let signature = hex::encode(hmac_sha256_bytes(
+            secret_signing.as_slice(),
+            string_to_sign.as_bytes(),
+        ));
 
         // 4. Authorization
         Ok(format!(
