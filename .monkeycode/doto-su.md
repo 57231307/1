@@ -1298,3 +1298,30 @@
 | 405 ✅ | 消息常量化第二批 | 8 | 5 handler 文件 8 处硬编码替换（crm/budget/webhook/bpm_definition/production_order） |
 | 406 ✅ | 序列化吞错修复 + baseline 重建 | 6+1 | 6 handler serde_json::to_value().unwrap_or_default() 改为错误传播 + 删除错误 baseline 文件由 CI 自动重建 180 行 |
 | 407 ✅ | 安全+数据完整性+业务正确性修复 | 15 | 9 文件 15 处修复（auth_handler 登录锁定 DB 错误传播 + 权限查询 fail-secure + api_gateway_handler 权限序列化错误传播 2 处 + dye_recipe_handler 配方辅料反序列化校验 + 创建回查错误传播 + 更新辅料校验 + dye_batch_handler 创建回查错误传播 + report_engine_handler filters_json 解析失败返回验证错误 2 处 + sales_order_handler warehouse_id 缺失校验 + barcode_scanner_handler order_id 缺失校验 + webhook_integration_handler 序列化错误传播 + customer_credit_handler credit_limit 技术债务标注）+ 4 处 redundant closure clippy 警告修复，CI 全绿 |
+
+### 阶段 9：其他遗留（批次 408-410，3 批，约 15 文件）⏳ 进行中
+
+**批次 408（FE-P2-6 大列表虚拟化，5+1 文件，PR #583 已合并，CI 全绿，merge sha 21bfb5eb）**：
+
+| 任务 | 涉及文件 | 说明 | 状态 |
+|------|----------|------|------|
+| 虚拟化-1 | frontend/src/views/api-gateway/tabs/ApiLogTab.vue | API 日志列表迁移 V2Table | ✅ 完成 |
+| 虚拟化-2 | frontend/src/views/bpm/approval/components/BpmApCompletedTbl.vue | 审批已办列表迁移 V2Table | ✅ 完成 |
+| 虚拟化-3 | frontend/src/views/bpm/approval/components/BpmApPendingTbl.vue | 审批待办列表迁移 V2Table（条件渲染 + 优先级 el-tag + 4 操作按钮） | ✅ 完成 |
+| 虚拟化-4 | frontend/src/views/logistics/components/LgsTbl.vue | 物流运单列表迁移 V2Table（运费格式化 + 状态 el-tag + 5 条件按钮） | ✅ 完成 |
+| 虚拟化-5 | frontend/src/views/sales-contract/components/ScTbl.vue | 销售合同列表迁移 V2Table（金额格式化 + 状态 el-tag + 6 条件按钮 + v-permission 改 can() 函数） | ✅ 完成 |
+| 规则 00 修复 | frontend/src/views/logistics/composables/lgsFmts.ts | TagType '' → 'primary'（Element Plus 新版 ElTag.type 不接受空字符串，h() 渲染严格类型检查触发 TS2769） | ✅ 完成 |
+
+**规则 00 关联影响评估**（CI 失败后补做，commit 8e61e161）：
+- 失败定位：拉取 PR #583 前端类型检查 check run annotations，路径未绑定源文件（path=.github），改用 actions/jobs/{job_id}/logs 拉取完整日志，定位到 LgsTbl.vue(84,11) error TS2769: No overload matches this call
+- 根因：lgsFmts.ts TagType 含 ''（空字符串），旧注释"primary 不在 el-tag type 联合中"已过时（Element Plus 新版 ElTag.type 已支持 primary），模板语法类型推断宽松可过 CI，迁移到 V2Table 的 h() 函数后类型检查严格，'' 不能赋值给 ElTag.type
+- 评估维度：grep 引用点 63 文件，logistics 模块内 3 处引用（LgsTbl h() 渲染 + LgsDetail/LgsStatDlg 模板渲染），'primary' 是合法值，模板写法不破坏
+- 修复方式：根因修复（修改 lgsFmts.ts TagType 联合 '' → 'primary' + STATUS_TYPE_MAP.in_transit '' → 'primary'），避免未来其他 h() 渲染触发同样错误
+
+**技术要点**：
+- V2Table 组件：基于 el-table-v2 的虚拟滚动表格，内置分页，ColumnDef<T> 泛型
+- v-permission → can() 函数：h() 渲染函数无法使用 v-permission 指令，改为复用 hasRoutePermission + useUserStore 做权限判断（ScTbl.vue 参考 OlvTbl.vue 模式）
+- ElTagType 类型断言：scFmts.ts getStatusType 返回 string，ScTbl.vue 内用 `as ElTagType` 断言为 'primary' | 'success' | 'warning' | 'info' | 'danger' 满足 el-tag 类型约束
+- BpmApPendingTbl.vue getPriorityType 同样用 `as` 断言
+
+> 阶段 9 批次 408 完成。下一批次 409：P2-8 剩余无测试 service 补测。
