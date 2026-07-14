@@ -591,6 +591,12 @@
 - **接入 ColorCardBorrowService::cancel_borrow**：新增 handler + 路由 + DTO，完成业务链路接入
 - **batch_trace_log.rs 警告抑制收窄**：将文件级 `#[allow(dead_code)]` 收窄为项级，便于后续精确清理
 
+### 批次 401 修复记录
+- **deploy-latest.sh 密钥自动生成**：首次部署时 /etc/bingxi/.env 不存在会导致 config.yaml 生成被跳过，且 WEBHOOK_SECRET/AUDIT_SECRET_KEY 等密钥缺失导致后端启动失败。修复：在生成 config.yaml 前自动检测并生成 JWT_SECRET/COOKIE_SECRET/WEBHOOK_SECRET/AUDIT_SECRET_KEY 四个密钥，持久化到 /etc/bingxi/.env
+- **密钥生成算法 hex → base64**：openssl rand -hex 32 只有 16 种字符（0-9,a-f），熵比 = 16/64 = 0.25；改为 openssl rand -base64 32 后有 64 种字符（约 44 字符），熵比远高于 validate_secret 阈值 0.15，同时 deploy.sh 同步修改
+- **.env.example 更新**：密钥生成建议从 hex 32 改为 base64 32，补充 WEBHOOK_SECRET 注释说明部署脚本自动生成
+- **backend/.clippy-baseline.txt 重建**：从 CI 日志提取当前 2 个 clippy 警告摘要行，替换旧的 274 行混合格式文件
+
 ### SeaORM Trait 必导
 - `Entity::find()` → 需 `use sea_orm::EntityTrait;`
 - `.filter()` → 需 `use sea_orm::QueryFilter;`
