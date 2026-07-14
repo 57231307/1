@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 403 | #578 | v14 低风险修复：omni_audit_handler 审计日志 DB 字段 unwrap_or_default 吞错改用 Option<T> 读取区分 NULL 与错误（nullable→默认值，错误→传播 500）+ import_export_service 产品导入价格转换失败静默写 0 改为返回验证错误 + audit_log_service/omni_audit_service shutdown 路径 Mutex::lock().unwrap() 改用 unwrap_or_else 安全访问 poisoned lock，CI 全绿 |
 | 402 | #576 | clippy baseline 最后一条 `needless_reference` 警告清零：修复 [webhook_handler.rs#L308](file:///workspace/backend/src/handlers/webhook_handler.rs#L308) 测试代码中 `&*LazyLock` 模式（改为 `&LazyLock` + `addr_of!(**limiter)`），baseline 文件清空；11 个 `#[allow(clippy::too_many_arguments)]` 标注为批次 328（v10 复审 P3，PR #500）历史添加，本批次未新增，CI 全绿 |
 | 398 | #572 | 配置合规性修复：AppSettings::new() 启动时同步 config.yaml env 字段到 APP_ENV（消除 is_production() 部署陷阱）+ .env.example 移除中文占位符密码和 GRPC 残留变量 + deploy-latest.sh 移除 grpc 死配置段 + config.yaml.example 更新 env 字段注释 + clippy baseline 文件格式修复（118 条纯摘要行替换 274 行混合内容，修复 116 条误报新警告），CI 全绿 |
 | 400 | #573 | v14 低风险修复：删除 InventoryStockService::record_transaction 非事务版本（已被 record_transaction_txn 取代）+ 接入 AccountSubjectService::refresh_balance handler + 路由 + 接入 ColorCardBorrowService::cancel_borrow handler + 路由 + DTO + batch_trace_log.rs 警告抑制收窄，CI 全绿 |
