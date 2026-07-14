@@ -811,11 +811,11 @@ mod tests {
             .expect("测试夹具：数据库连接失败")
     }
 
-    /// 测试_补货建议生成_数量加20%余量
+    /// 测试_补货建议生成_数量加20百分比余量
     ///
     /// 验证 generate_replenishment_suggestions 中 suggested = shortage * 1.2
     #[tokio::test]
-    async fn 测试_补货建议生成_数量加20%余量() {
+    async fn 测试_补货建议生成_数量加20百分比余量() {
         let db = setup_test_db().await;
         let service = MaterialShortageService::new(Arc::new(db));
 
