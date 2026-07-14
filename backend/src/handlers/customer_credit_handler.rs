@@ -32,14 +32,18 @@ pub struct CreditQuery {
 /// 创建/更新信用评级请求 DTO
 ///
 /// P1-2b 修复（批次 81 v1 复审）：添加 Validate + 字段校验，用于 create_credit
+/// 批次 414 技术债务修复：credit_limit 改为 Option<Decimal>，区分"未提供"与"显式置 0"
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreditRatingRequestDto {
     pub customer_id: i32,
     #[validate(length(max = 20, message = "信用等级长度不能超过20字符"))]
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
-    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
-    pub credit_limit: Decimal,
+    /// 信用额度。None 表示更新时保持原值；Some(v) 表示显式设置（含 Some(0)）。
+    /// 创建场景下 None 默认为 0。
+    /// validator 框架对 Option<T> 自动解包：None 跳过校验，Some(v) 调用 validate_credit_limit_range。
+    #[validate(custom(function = "crate::utils::validator::validate_credit_limit_range"))]
+    pub credit_limit: Option<Decimal>,
     pub credit_days: Option<i32>,
     #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
     pub remark: Option<String>,
@@ -143,6 +147,7 @@ pub async fn set_credit_rating(
         customer_id: req.customer_id,
         credit_level: req.credit_level,
         credit_score: req.credit_score,
+        // 批次 414：credit_limit 直接透传 Option<Decimal>
         credit_limit: req.credit_limit,
         credit_days: req.credit_days,
         remark: req.remark,
@@ -274,6 +279,7 @@ pub async fn create_credit(
         customer_id: req.customer_id,
         credit_level: req.credit_level,
         credit_score: req.credit_score,
+        // 批次 414：credit_limit 直接透传 Option<Decimal>
         credit_limit: req.credit_limit,
         credit_days: req.credit_days,
         remark: req.remark,
@@ -306,9 +312,9 @@ pub async fn update_credit(
         customer_id: id,
         credit_level: req.credit_level,
         credit_score: req.credit_score,
-        // 批次 407 标注：credit_limit 缺失时默认为 0 有风险（service 层无法区分"未提供"与"显式置 0"）
-        // TODO(tech-debt): 将 CreditRatingRequest.credit_limit 改为 Option<Decimal>，由 service 层区分语义
-        credit_limit: req.credit_limit.unwrap_or_default(),
+        // 批次 414 技术债务修复：credit_limit 直接透传 Option<Decimal>，
+        // service 层区分 None（保持原值）与 Some(v)（显式设置，含 Some(0)）
+        credit_limit: req.credit_limit,
         credit_days: req.credit_days,
         remark: req.remark,
     };

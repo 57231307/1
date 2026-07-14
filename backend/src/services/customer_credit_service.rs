@@ -38,12 +38,16 @@ pub struct CreditQueryParams {
 }
 
 /// 创建/更新信用评级请求
+///
+/// 批次 414 技术债务修复：credit_limit 改为 Option<Decimal>，
+/// 区分"未提供"（None，更新时保持原值）与"显式置 0"（Some(0)）两种语义。
 #[derive(Debug, Clone)]
 pub struct CreditRatingRequest {
     pub customer_id: i32,
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
-    pub credit_limit: Decimal,
+    /// 信用额度。None 表示更新时保持原值；Some(v) 表示显式设置（含 Some(0)）。
+    pub credit_limit: Option<Decimal>,
     pub credit_days: Option<i32>,
     pub remark: Option<String>,
 }

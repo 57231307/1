@@ -16,6 +16,10 @@ use super::customer_credit_service::{
 /// 信用评级与额度操作扩展方法
 impl CustomerCreditService {
     /// 创建/更新客户信用评级
+    ///
+    /// 批次 414 技术债务修复：credit_limit 改为 Option<Decimal>，
+    /// - 创建场景：None 时默认为 0（新建必须有初始额度，但允许从 0 开始）
+    /// - 更新场景：None 表示保持原值，Some(v) 表示显式设置新额度（含 Some(0)）
     pub async fn set_credit_rating(
         &self,
         req: CreditRatingRequest,
@@ -33,11 +37,14 @@ impl CustomerCreditService {
             Some(credit) => {
                 // 更新现有评级
                 let used_credit = credit.used_credit;
+                let old_limit = credit.credit_limit;
+                // 批次 414：None 保持原值，Some(v) 显式设置
+                let new_limit = req.credit_limit.unwrap_or(old_limit);
                 let mut credit_active: customer_credit::ActiveModel = credit.into();
                 credit_active.credit_level = Set(req.credit_level.or(Some("B".to_string())));
                 credit_active.credit_score = Set(req.credit_score.or(Some(60)));
-                credit_active.available_credit = Set(req.credit_limit - used_credit);
-                credit_active.credit_limit = Set(req.credit_limit);
+                credit_active.available_credit = Set(new_limit - used_credit);
+                credit_active.credit_limit = Set(new_limit);
                 credit_active.credit_days = Set(req.credit_days.or(Some(30)));
                 crate::services::audit_log_service::AuditLogService::update_with_audit(
                     &*self.db,
@@ -49,14 +56,15 @@ impl CustomerCreditService {
                 .await?
             }
             None => {
-                // 创建新评级
+                // 创建新评级：None 默认为 0
+                let limit = req.credit_limit.unwrap_or_default();
                 let active_credit = customer_credit::ActiveModel {
                     customer_id: Set(req.customer_id),
                     credit_level: Set(req.credit_level.or(Some("B".to_string()))),
                     credit_score: Set(req.credit_score.or(Some(60))),
                     used_credit: Set(Decimal::ZERO),
-                    available_credit: Set(req.credit_limit),
-                    credit_limit: Set(req.credit_limit),
+                    available_credit: Set(limit),
+                    credit_limit: Set(limit),
                     credit_days: Set(req.credit_days.or(Some(30))),
                     status: Set(master_data::ACTIVE.to_string()),
                     ..Default::default()
@@ -428,6 +436,7 @@ mod tests {
     ///
     /// 验证 set_credit_rating 中 Option 字段的默认值填充规则：
     /// credit_level 默认 "B"、credit_score 默认 60、credit_days 默认 30
+    /// 批次 414：credit_limit 现在也是 Option<Decimal>，None 表示未提供
     #[test]
     fn 测试_信用等级判断_默认值填充逻辑() {
         // 模拟 CreditRatingRequest 字段全为 None 的场景
@@ -435,7 +444,7 @@ mod tests {
             customer_id: 1,
             credit_level: None,
             credit_score: None,
-            credit_limit: decs!("10000"),
+            credit_limit: None,
             credit_days: None,
             remark: None,
         };
@@ -454,7 +463,7 @@ mod tests {
             customer_id: 2,
             credit_level: Some("A".to_string()),
             credit_score: Some(95),
-            credit_limit: decs!("20000"),
+            credit_limit: Some(decs!("20000")),
             credit_days: Some(60),
             remark: None,
         };
@@ -776,5 +785,98 @@ mod tests {
         if let Ok(available) = result {
             assert!(available);
         }
+    }
+
+    // ========== 批次 414：credit_limit Option<Decimal> 语义测试 ==========
+
+    /// 测试_credit_limit语义_更新场景None保持原值
+    ///
+    /// 批次 414 技术债务修复验证：
+    /// 更新场景下 credit_limit = None 时，应保持原有额度不变。
+    /// 复现 set_credit_rating 中 `req.credit_limit.unwrap_or(old_limit)` 的逻辑。
+    #[test]
+    fn 测试_credit_limit语义_更新场景None保持原值() {
+        // 模拟已有信用记录：原额度 10000
+        let old_limit = decs!("10000");
+        let used_credit = decs!("3000");
+
+        // 请求中 credit_limit = None（未提供）
+        let req_credit_limit: Option<Decimal> = None;
+
+        // 复现 set_credit_rating 更新分支的计算
+        let new_limit = req_credit_limit.unwrap_or(old_limit);
+
+        // None 应保持原值
+        assert_eq!(new_limit, old_limit);
+        assert_eq!(new_limit, decs!("10000"));
+        // available_credit = new_limit - used_credit
+        assert_eq!(new_limit - used_credit, decs!("7000"));
+    }
+
+    /// 测试_credit_limit语义_更新场景Some0显式置零
+    ///
+    /// 批次 414 技术债务修复验证：
+    /// 更新场景下 credit_limit = Some(0) 时，应显式将额度设置为 0（区别于 None 保持原值）。
+    #[test]
+    fn 测试_credit_limit语义_更新场景Some0显式置零() {
+        let old_limit = decs!("10000");
+        let used_credit = decs!("0"); // 已用为 0，才能置 0
+
+        // 请求中 credit_limit = Some(0)（显式置 0）
+        let req_credit_limit: Option<Decimal> = Some(Decimal::ZERO);
+
+        let new_limit = req_credit_limit.unwrap_or(old_limit);
+
+        // Some(0) 应显式设置为 0，而非保持原值 10000
+        assert_eq!(new_limit, Decimal::ZERO);
+        assert_ne!(new_limit, old_limit);
+        // available_credit = 0 - 0 = 0
+        assert_eq!(new_limit - used_credit, Decimal::ZERO);
+    }
+
+    /// 测试_credit_limit语义_更新场景SomeV设置新值
+    ///
+    /// 批次 414 技术债务修复验证：
+    /// 更新场景下 credit_limit = Some(v) 时，应将额度设置为 v。
+    #[test]
+    fn 测试_credit_limit语义_更新场景SomeV设置新值() {
+        let old_limit = decs!("10000");
+        let used_credit = decs!("2000");
+        let new_requested = decs!("15000");
+
+        let req_credit_limit: Option<Decimal> = Some(new_requested);
+
+        let new_limit = req_credit_limit.unwrap_or(old_limit);
+
+        assert_eq!(new_limit, new_requested);
+        assert_eq!(new_limit - used_credit, decs!("13000"));
+    }
+
+    /// 测试_credit_limit语义_创建场景None默认零
+    ///
+    /// 批次 414 技术债务修复验证：
+    /// 创建场景下 credit_limit = None 时，应默认为 0（新建允许从 0 开始）。
+    #[test]
+    fn 测试_credit_limit语义_创建场景None默认零() {
+        let req_credit_limit: Option<Decimal> = None;
+
+        // 复现 set_credit_rating 创建分支：unwrap_or_default() → Decimal::ZERO
+        let limit = req_credit_limit.unwrap_or_default();
+
+        assert_eq!(limit, Decimal::ZERO);
+    }
+
+    /// 测试_credit_limit语义_创建场景SomeV设置初始值
+    ///
+    /// 批次 414 技术债务修复验证：
+    /// 创建场景下 credit_limit = Some(v) 时，应使用 v 作为初始额度。
+    #[test]
+    fn 测试_credit_limit语义_创建场景SomeV设置初始值() {
+        let initial = decs!("50000");
+        let req_credit_limit: Option<Decimal> = Some(initial);
+
+        let limit = req_credit_limit.unwrap_or_default();
+
+        assert_eq!(limit, initial);
     }
 }
