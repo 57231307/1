@@ -507,26 +507,23 @@ impl ProductService {
     }
 
     /// 创建产品色号
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 CreateProductColorArgs DTO 聚合参数
+    ///
+    /// 批次 412 技术债务清理：签名从 7 参数改为 2 参数（product_id + CreateProductColorInput），
+    /// 复用已有的 `CreateProductColorInput` 参数对象，消除 `clippy::too_many_arguments` 警告。
     pub async fn create_product_color(
         &self,
         product_id: i32,
-        color_no: String,
-        color_name: String,
-        pantone_code: Option<String>,
-        color_type: String,
-        dye_formula: Option<String>,
-        extra_cost: f64,
+        input: CreateProductColorInput,
     ) -> Result<product_color::Model, AppError> {
         let active_model = product_color::ActiveModel {
             id: Default::default(),
             product_id: Set(product_id),
-            color_no: Set(color_no),
-            color_name: Set(color_name),
-            pantone_code: Set(pantone_code),
-            color_type: Set(color_type),
-            dye_formula: Set(dye_formula),
-            extra_cost: Set(Decimal::from_f64_retain(extra_cost).unwrap_or(Decimal::ZERO)),
+            color_no: Set(input.color_no),
+            color_name: Set(input.color_name),
+            pantone_code: Set(input.pantone_code),
+            color_type: Set(input.color_type),
+            dye_formula: Set(input.dye_formula),
+            extra_cost: Set(Decimal::from_f64_retain(input.extra_cost).unwrap_or(Decimal::ZERO)),
             is_active: Set(true),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
@@ -545,17 +542,7 @@ impl ProductService {
         let mut results = Vec::new();
 
         for input in colors {
-            let result = self
-                .create_product_color(
-                    product_id,
-                    input.color_no,
-                    input.color_name,
-                    input.pantone_code,
-                    input.color_type,
-                    input.dye_formula,
-                    input.extra_cost,
-                )
-                .await?;
+            let result = self.create_product_color(product_id, input).await?;
             results.push(result);
         }
 

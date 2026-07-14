@@ -98,15 +98,15 @@ pub async fn get_inventory_summary(
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (summary_items, total) = service
-        .get_inventory_summary(
-            params.warehouse_id,
-            params.product_id,
-            params.batch_no,
-            params.color_no,
-            params.grade,
+        .get_inventory_summary(crate::services::inventory_stock_query::InventorySummaryQuery {
+            warehouse_id: params.warehouse_id,
+            product_id: params.product_id,
+            batch_no: params.batch_no,
+            color_no: params.color_no,
+            grade: params.grade,
             page,
             page_size,
-        )
+        })
         .await?;
 
     let summary: Vec<InventorySummaryItem> = summary_items
