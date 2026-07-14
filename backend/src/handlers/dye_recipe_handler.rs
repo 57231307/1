@@ -141,7 +141,7 @@ pub async fn create_dye_recipe(
     // 批次 407 修复：配方辅料 JSON 反序列化失败时不能静默写空，避免数据完整性丢失，改为返回验证错误
     let auxiliaries = req
         .auxiliaries
-        .map(|val| serde_json::from_value(val))
+        .map(serde_json::from_value)
         .transpose()
         .map_err(|e| AppError::validation(format!("配方辅料数据格式无效: {}", e)))?;
 

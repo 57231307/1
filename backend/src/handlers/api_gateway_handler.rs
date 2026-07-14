@@ -534,7 +534,7 @@ pub async fn create_api_key(
     let permissions = req
         .permissions
         .as_ref()
-        .map(|p| serde_json::to_string(p))
+        .map(serde_json::to_string)
         .transpose()
         .map_err(AppError::from)?;
     let rate_limit = req.rate_limit.unwrap_or(100);

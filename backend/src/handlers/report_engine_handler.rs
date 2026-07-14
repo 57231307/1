@@ -92,7 +92,7 @@ pub async fn execute_report(
     let filters = query
         .filters_json
         .as_deref()
-        .map(|s| serde_json::from_str::<Vec<crate::services::report::ReportFilter>>(s))
+        .map(serde_json::from_str::<Vec<crate::services::report::ReportFilter>>)
         .transpose()
         .map_err(|e| AppError::validation(format!("filters_json 格式无效: {}", e)))?
         .unwrap_or_default();
@@ -191,7 +191,7 @@ pub async fn export_report(
     let filters = query
         .filters_json
         .as_deref()
-        .map(|s| serde_json::from_str::<Vec<crate::services::report::ReportFilter>>(s))
+        .map(serde_json::from_str::<Vec<crate::services::report::ReportFilter>>)
         .transpose()
         .map_err(|e| AppError::validation(format!("filters_json 格式无效: {}", e)))?
         .unwrap_or_default();
