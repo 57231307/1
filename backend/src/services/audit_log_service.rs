@@ -89,9 +89,13 @@ impl AuditLogService {
     /// 幂等：多次调用安全，仅首次调用实际 abort。
     /// 注：tokio mpsc UnboundedSender 没有 close 方法，abort 消费者 task 后
     /// channel 会自动被 drop，后续 send() 调用会返回 Err。
+    ///
+    /// 批次 403 修复：shutdown 路径禁止 panic。原 `lock().unwrap()` 在 Mutex
+    /// poisoned（持有锁的线程 panic）时会再次 panic，导致进程无法优雅退出。
+    /// 改用 `unwrap_or_else(|e| e.into_inner())` 安全访问 poisoned lock 的内部数据。
     pub fn shutdown(&self) {
         // abort 后台 task
-        if let Some(handle) = self.handle.lock().unwrap().take() {
+        if let Some(handle) = self.handle.lock().unwrap_or_else(|e| e.into_inner()).take() {
             handle.abort();
             tracing::info!("AuditLogService 异步记录引擎已关闭");
         }
