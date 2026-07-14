@@ -584,7 +584,7 @@ jobs:
             if [ -f "backend/.clippy-baseline.txt" ]; then
               BASELINE_PATH="backend/.clippy-baseline.txt"
             fi
-            if git log --all --oneline -- "$BASELINE_PATH" 2>/dev/null | head -1 | grep -q .; then
+            if git ls-files --error-unmatch "$BASELINE_PATH" 2>/dev/null; then
               echo "✅ baseline 文件已纳入版本控制"
               # 批次 395：main 分支自动刷新 baseline（已修复警告 > 0 且无新警告时）
               if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_FIXED_COUNT" -gt "0" ] && [ "$CLIPPY_NEW_COUNT" = "0" ]; then
