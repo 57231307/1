@@ -138,6 +138,13 @@ pub async fn create_dye_recipe(
         }
     };
 
+    // 批次 407 修复：配方辅料 JSON 反序列化失败时不能静默写空，避免数据完整性丢失，改为返回验证错误
+    let auxiliaries = req
+        .auxiliaries
+        .map(|val| serde_json::from_value(val))
+        .transpose()
+        .map_err(|e| AppError::validation(format!("配方辅料数据格式无效: {}", e)))?;
+
     let recipe = dye_recipe::ActiveModel {
         id: Set(0),
         recipe_no: Set(recipe_no),
@@ -155,9 +162,7 @@ pub async fn create_dye_recipe(
         time_minutes: Set(req.time_minutes),
         ph_value: Set(req.ph_value.and_then(Decimal::from_f64_retain)),
         liquor_ratio: Set(req.liquor_ratio.and_then(Decimal::from_f64_retain)),
-        auxiliaries: Set(req
-            .auxiliaries
-            .map(|val| serde_json::from_value(val).unwrap_or_default())),
+        auxiliaries: Set(auxiliaries),
         status: Set(Some(req.status.unwrap_or_else(|| "草稿".to_string()))),
         is_deleted: Set(Some(false)),
         version: Set(req.version.or(Some(1))),
@@ -175,13 +180,13 @@ pub async fn create_dye_recipe(
         .exec_without_returning(&*state.db)
         .await?;
     // 重新查询获取创建的记录
+    // 批次 407 修复：DB 回查错误不能吞，返回空模型但消息说"创建成功"会误导用户，改为返回错误
     let created = dye_recipe::Entity::find()
         .order_by_desc(dye_recipe::Column::Id)
         .one(&*state.db)
         .await
-        .ok()
-        .flatten()
-        .unwrap_or_default();
+        .map_err(|e| AppError::internal(format!("配方创建后回查失败: {}", e)))?
+        .ok_or_else(|| AppError::internal("配方创建后回查未找到记录"))?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "配方创建成功",
@@ -228,9 +233,10 @@ pub async fn update_dye_recipe(
         recipe.liquor_ratio = Set(Decimal::from_f64_retain(liquor_ratio));
     }
     if let Some(auxiliaries) = req.auxiliaries {
-        recipe.auxiliaries = Set(Some(
-            serde_json::from_value(auxiliaries).unwrap_or_default(),
-        ));
+        // 批次 407 修复：配方辅料 JSON 反序列化失败时不能静默写空，避免数据完整性丢失，改为返回验证错误
+        let auxiliaries = serde_json::from_value(auxiliaries)
+            .map_err(|e| AppError::validation(format!("配方辅料数据格式无效: {}", e)))?;
+        recipe.auxiliaries = Set(Some(auxiliaries));
     }
     if let Some(status) = req.status {
         // 验证配方状态流转

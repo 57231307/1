@@ -88,11 +88,13 @@ pub async fn execute_report(
     let _page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let _page_size = query.page_size.unwrap_or(50).clamp(1, 100);
 
-    // 解析 filters_json 为 Vec<ReportFilter>（失败时返回空列表，不阻塞查询）
+    // 批次 407 修复：filters_json 解析失败时不能返回空列表，否则会忽略用户过滤条件可能泄露越权数据，改为返回验证错误
     let filters = query
         .filters_json
         .as_deref()
-        .and_then(|s| serde_json::from_str::<Vec<crate::services::report::ReportFilter>>(s).ok())
+        .map(|s| serde_json::from_str::<Vec<crate::services::report::ReportFilter>>(s))
+        .transpose()
+        .map_err(|e| AppError::validation(format!("filters_json 格式无效: {}", e)))?
         .unwrap_or_default();
 
     // 解析 date_start / date_end 为 DateRange
@@ -185,10 +187,13 @@ pub async fn export_report(
     let _export_format: ExportFormat = query.format.parse().unwrap_or(ExportFormat::Csv);
 
     // 解析 filters_json 与 date_range（与 execute_report 一致）
+    // 批次 407 修复：filters_json 解析失败时不能返回空列表，否则会忽略用户过滤条件可能泄露越权数据，改为返回验证错误
     let filters = query
         .filters_json
         .as_deref()
-        .and_then(|s| serde_json::from_str::<Vec<crate::services::report::ReportFilter>>(s).ok())
+        .map(|s| serde_json::from_str::<Vec<crate::services::report::ReportFilter>>(s))
+        .transpose()
+        .map_err(|e| AppError::validation(format!("filters_json 格式无效: {}", e)))?
         .unwrap_or_default();
     let date_range = parse_date_range(query.date_start.as_deref(), query.date_end.as_deref());
 

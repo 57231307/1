@@ -175,13 +175,13 @@ pub async fn create_dye_batch(
         .await?;
 
     // 重新查询获取创建的记录
+    // 批次 407 修复：DB 回查错误不能吞，返回空模型但消息说"创建成功"会误导用户，改为返回错误
     let created = dye_batch::Entity::find()
         .order_by_desc(dye_batch::Column::Id)
         .one(&*state.db)
         .await
-        .ok()
-        .flatten()
-        .unwrap_or_default();
+        .map_err(|e| AppError::internal(format!("缸号创建后回查失败: {}", e)))?
+        .ok_or_else(|| AppError::internal("缸号创建后回查未找到记录"))?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "缸号创建成功",

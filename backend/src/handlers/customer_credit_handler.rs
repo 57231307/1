@@ -306,7 +306,8 @@ pub async fn update_credit(
         customer_id: id,
         credit_level: req.credit_level,
         credit_score: req.credit_score,
-        // update 时 credit_limit 可选；缺失则用 0（service 层会保留原值或覆盖）
+        // 批次 407 标注：credit_limit 缺失时默认为 0 有风险（service 层无法区分"未提供"与"显式置 0"）
+        // TODO(tech-debt): 将 CreditRatingRequest.credit_limit 改为 Option<Decimal>，由 service 层区分语义
         credit_limit: req.credit_limit.unwrap_or_default(),
         credit_days: req.credit_days,
         remark: req.remark,
