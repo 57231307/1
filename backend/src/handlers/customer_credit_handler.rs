@@ -41,7 +41,8 @@ pub struct CreditRatingRequestDto {
     pub credit_score: Option<i32>,
     /// 信用额度。None 表示更新时保持原值；Some(v) 表示显式设置（含 Some(0)）。
     /// 创建场景下 None 默认为 0。
-    #[validate(custom(function = "crate::utils::validator::validate_amount_range_opt"))]
+    /// validator 框架对 Option<T> 自动解包：None 跳过校验，Some(v) 调用 validate_credit_limit_range。
+    #[validate(custom(function = "crate::utils::validator::validate_credit_limit_range"))]
     pub credit_limit: Option<Decimal>,
     pub credit_days: Option<i32>,
     #[validate(length(max = 500, message = "备注长度不能超过500字符"))]

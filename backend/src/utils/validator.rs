@@ -34,16 +34,25 @@ pub fn validate_amount_range(amount: &Decimal) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// 金额范围 + 精度校验（Option 版本）
+/// 信用额度范围 + 精度校验（允许 0）
 ///
-/// 批次 414 技术债务修复：为 `Option<Decimal>` 字段提供的校验函数。
-/// - `None`：直接通过（表示"未提供"，由 service 层处理语义）
-/// - `Some(amount)`：委托给 `validate_amount_range` 校验
+/// 批次 414 技术债务修复：为 `CreditRatingRequestDto.credit_limit` 提供。
+/// 与 `validate_amount_range` 的区别：允许 0（表示显式置零，暂停客户信用）。
+/// - 范围：[0, 10 亿]，金额非负且不超过 10 亿
+/// - 精度：`round_dp(2)`，金额最多 2 位小数（货币精度规范）
 ///
-/// 用于 `validator::Validate` 派生宏的 `#[validate(custom(function = "crate::utils::validator::validate_amount_range_opt"))]`。
-pub fn validate_amount_range_opt(amount: &Option<Decimal>) -> Result<(), ValidationError> {
-    match amount {
-        None => Ok(()),
-        Some(v) => validate_amount_range(v),
+/// 用于 `validator::Validate` 派生宏的 `#[validate(custom(function = "crate::utils::validator::validate_credit_limit_range"))]`。
+/// validator 框架对 `Option<T>` 字段自动解包：`None` 跳过校验，`Some(v)` 调用本函数。
+pub fn validate_credit_limit_range(amount: &Decimal) -> Result<(), ValidationError> {
+    let max = Decimal::new(1_000_000_000, 0); // 10 亿
+
+    if *amount < Decimal::ZERO || *amount > max {
+        return Err(ValidationError::new("信用额度不能为负且不超过10亿"));
     }
+
+    if amount.round_dp(2) != *amount {
+        return Err(ValidationError::new("信用额度精度不能超过2位小数"));
+    }
+
+    Ok(())
 }
