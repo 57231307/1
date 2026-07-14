@@ -33,3 +33,17 @@ pub fn validate_amount_range(amount: &Decimal) -> Result<(), ValidationError> {
 
     Ok(())
 }
+
+/// 金额范围 + 精度校验（Option 版本）
+///
+/// 批次 414 技术债务修复：为 `Option<Decimal>` 字段提供的校验函数。
+/// - `None`：直接通过（表示"未提供"，由 service 层处理语义）
+/// - `Some(amount)`：委托给 `validate_amount_range` 校验
+///
+/// 用于 `validator::Validate` 派生宏的 `#[validate(custom(function = "crate::utils::validator::validate_amount_range_opt"))]`。
+pub fn validate_amount_range_opt(amount: &Option<Decimal>) -> Result<(), ValidationError> {
+    match amount {
+        None => Ok(()),
+        Some(v) => validate_amount_range(v),
+    }
+}
