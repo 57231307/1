@@ -31,33 +31,7 @@ pub struct ConvertUnitResponse {
     pub conversion_rate: rust_decimal::Decimal,
 }
 
-/// 双计量单位换算接口
-///
-/// # 请求示例
-/// ```json
-/// {
-///     "value": "100.000",
-///     "from_unit": "meters",
-///     "gram_weight": "180.00",
-///     "width_cm": "180.00"
-/// }
-/// ```
-///
-/// # 响应示例
-/// ```json
-/// {
-///     "success": true,
-///     "data": {
-///         "converted_value": "3.240",
-///         "to_unit": "kg",
-///         "formula": "公斤数 = 米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000",
-///         "conversion_rate": "0.032400"
-///     },
-///     "message": "单位换算成功"
-/// }
-/// ```
-/// BE-A/H 统一（2026-06-26）：返回类型从 impl IntoResponse 改为
-/// Result<Json<ApiResponse<T>>, AppError>，错误用 AppError::bad_request 表达。
+/// 双计量单位换算接口（米↔公斤）
 pub async fn convert_dual_unit(
     Json(req): Json<ConvertUnitRequest>,
 ) -> Result<Json<ApiResponse<ConvertUnitResponse>>, AppError> {

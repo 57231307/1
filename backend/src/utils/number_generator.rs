@@ -29,23 +29,7 @@ impl DocumentNumberGenerator {
         Self::generate_no_with_width(db, prefix, _entity, column, 3).await
     }
 
-    /// 生成可指定流水位数的单号: {前缀}{YYYYMMDD}{width位流水号}
-    /// 例如 width=4 时: `IC202605140001`
-    ///
-    /// # 并发安全说明（批次 9 修复，2026-06-28）
-    ///
-    /// 原实现基于"读当日数量 + 1"策略（无锁），并发请求会在 COUNT 查询窗口内
-    /// 读到相同值，导致生成重复单号。
-    ///
-    /// 现实现使用 PostgreSQL `pg_advisory_xact_lock(lock_key)` 串行化同前缀同日的
-    /// 单号生成请求。`pg_advisory_xact_lock` 在事务结束时自动释放，无需手动 unlock，
-    /// 也不会因 panic 导致锁泄漏。
-    ///
-    /// 锁 key 由 prefix + 当日日期字符串哈希得到，确保不同业务/不同日期之间互不阻塞。
-    /// 同前缀同日的并发请求会被串行化（短暂的 COUNT 查询耗时，通常 < 1ms）。
-    ///
-    /// 业务侧仍应在创建单据的事务中依赖单据号列的 `UNIQUE` 约束进行最终去重，
-    /// 作为双重防御（防御性编程）。
+    /// 生成可指定流水位数的单号: {前缀}{YYYYMMDD}{width位流水号}（使用 pg_advisory_xact_lock 保证并发安全）
     pub async fn generate_no_with_width<'db, E, C>(
         db: &'db (impl ConnectionTrait + TransactionTrait),
         prefix: &str,

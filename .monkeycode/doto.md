@@ -10,7 +10,7 @@
 
 > **v13 复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **已完成批次**：356-398（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
+> **已完成批次**：356-400（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
 
 ### 进度总览
 
@@ -21,7 +21,7 @@
 | 财务场景闭环 | 16 | 11 | 5 | 🔄 **P0 8/8 ✅** + **P1 6/6 ✅** + P2 2/4（批次 387 完成 F-P2-2/4，F-P2-1/3 待后续批次） |
 | 运行逻辑环闭环 | 45 | 45 | 0 | ✅ 全部完成（P1 6 + P2 13 + P3 26） |
 | v14 中风险遗留 | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
-| v14 低风险遗留 | 74 | 7 | 67 | 🔄 批次 397 完成 4 处 unwrap_or_default 安全修复 + 批次 398 完成 3 项配置合规修复（is_production() 部署陷阱 + 中文占位符密码 + GRPC 残留变量） |
+| v14 低风险遗留 | 74 | 10 | 64 | 🔄 批次 397 完成 4 处 unwrap_or_default 安全修复 + 批次 398 完成 3 项配置合规修复 + 批次 400 完成 3 项 #[allow(dead_code)] 接入（InventoryStockService record_transaction 删除 + AccountSubjectService refresh_balance 接入 + ColorCardBorrowService cancel_borrow 接入）+ 1 项警告抑制收窄 |
 | v13 前端/后端 P2 | 9 | 9 | 0 | ✅ 阶段 5 useTableApi 接入全部完成（批次 390-391） |
 | 测试覆盖补测 | 12 | 12 | 0 | ✅ **全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23） |
 | **合计** | **~378** | **97** | **~281** | — |

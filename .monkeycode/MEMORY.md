@@ -585,6 +585,12 @@
   - `deploy/bingxi-backend.service`：`EnvironmentFile=/etc/bingxi/.env`
 - **关键教训**：部署脚本修改后必须用 `grep -r '/etc/bingxi' deploy/` 验证所有路径一致性
 
+### 批次 400 修复记录
+- **删除 InventoryStockService::record_transaction**：非事务版本已被 `record_transaction_txn` 取代，死代码清理
+- **接入 AccountSubjectService::refresh_balance**：新增 handler + 路由，完成业务链路接入
+- **接入 ColorCardBorrowService::cancel_borrow**：新增 handler + 路由 + DTO，完成业务链路接入
+- **batch_trace_log.rs 警告抑制收窄**：将文件级 `#[allow(dead_code)]` 收窄为项级，便于后续精确清理
+
 ### SeaORM Trait 必导
 - `Entity::find()` → 需 `use sea_orm::EntityTrait;`
 - `.filter()` → 需 `use sea_orm::QueryFilter;`
