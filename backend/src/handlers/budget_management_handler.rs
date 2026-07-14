@@ -4,6 +4,7 @@ use crate::models::{budget_execution, budget_management, budget_plan};
 use crate::services::budget_management_service::{BudgetControlResponse, BudgetManagementService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::messages::biz_msg;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -247,7 +248,7 @@ pub async fn delete_budget_item(
     service.delete_item(id, auth.user_id).await?;
 
     info!("预算科目删除成功：{}", id);
-    Ok(Json(ApiResponse::success("删除成功".to_string())))
+    Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
 }
 
 /// 获取预算方案列表
@@ -339,7 +340,7 @@ pub async fn approve_plan(
         .await?;
 
     info!("预算方案审批通过：{}", id);
-    Ok(Json(ApiResponse::success("审批通过".to_string())))
+    Ok(Json(ApiResponse::success(biz_msg::APPROVE_OK.to_string())))
 }
 
 /// 预算方案执行
@@ -370,7 +371,7 @@ pub async fn execute_plan(
         .await?;
 
     info!("预算方案执行成功：{}", id);
-    Ok(Json(ApiResponse::success("执行成功".to_string())))
+    Ok(Json(ApiResponse::success(biz_msg::EXECUTE_OK.to_string())))
 }
 
 /// 获取预算控制情况

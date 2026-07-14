@@ -11,6 +11,7 @@ use crate::middleware::rate_limit::{check_rate_limit, MemoryRateLimiter};
 use crate::services::webhook_service::{WebhookDeliveryResult, WebhookService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 
 /// Webhook 测试端点专用限流器（10 次/分钟/用户）
@@ -103,7 +104,7 @@ pub async fn delete_webhook(
     let service = WebhookService::new(state.db);
 
     match service.delete_webhook(auth.user_id, id).await {
-        Ok(()) => Ok(Json(ApiResponse::success_with_message((), "删除成功"))),
+        Ok(()) => Ok(Json(ApiResponse::success_with_message((), biz_msg::DELETE_OK))),
         Err(e) => {
             tracing::error!("删除 Webhook 失败: {}", e);
             Err(AppError::internal("删除 Webhook 失败"))

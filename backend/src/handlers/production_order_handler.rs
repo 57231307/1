@@ -20,6 +20,7 @@ use crate::services::production_order_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::messages::biz_msg;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 创建生产订单请求
@@ -345,7 +346,7 @@ pub async fn approve_production_order(
     };
 
     let message = if req.approved {
-        "审批通过"
+        biz_msg::APPROVE_OK
     } else {
         "审批拒绝"
     };

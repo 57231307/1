@@ -16,6 +16,7 @@ use crate::models::dto::bpm_dto::{
 use crate::services::bpm_service::BpmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -119,7 +120,7 @@ pub async fn delete_process_definition(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
     service.delete_process_definition(id).await?;
-    Ok(Json(ApiResponse::success("删除成功".to_string())))
+    Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
 }
 
 /// 创建新版本
