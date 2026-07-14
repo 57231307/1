@@ -395,3 +395,91 @@ impl ColorCardBorrowService {
 
 // 死代码清理（2026-06-26）：_ensure_color_space_converter_used 为抑制未使用导入的 hack，
 // 已删除多余的 use crate::utils::color_space_converter 语句，函数一并删除。
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    // ========== as_str 序列化测试 ==========
+
+    #[test]
+    fn 测试_borrow_status_as_str_全部状态映射() {
+        assert_eq!(BorrowStatus::Borrowed.as_str(), "borrowed");
+        assert_eq!(BorrowStatus::Returned.as_str(), "returned");
+        assert_eq!(BorrowStatus::Lost.as_str(), "lost");
+        assert_eq!(BorrowStatus::Damaged.as_str(), "damaged");
+        assert_eq!(BorrowStatus::Cancelled.as_str(), "cancelled");
+    }
+
+    // ========== is_terminal 终态判定测试 ==========
+
+    #[test]
+    fn 测试_borrow_status_终态判定_终态返回true() {
+        assert!(BorrowStatus::Returned.is_terminal());
+        assert!(BorrowStatus::Lost.is_terminal());
+        assert!(BorrowStatus::Damaged.is_terminal());
+        assert!(BorrowStatus::Cancelled.is_terminal());
+    }
+
+    #[test]
+    fn 测试_borrow_status_终态判定_非终态返回false() {
+        // 借出中（Borrowed）是唯一非终态，可继续转换为归还/遗失/损坏/取消
+        assert!(!BorrowStatus::Borrowed.is_terminal());
+    }
+
+    // ========== FromStr 解析测试 ==========
+
+    #[test]
+    fn 测试_borrow_status_from_str_合法字符串解析成功() {
+        assert_eq!(BorrowStatus::from_str("borrowed").unwrap(), BorrowStatus::Borrowed);
+        assert_eq!(BorrowStatus::from_str("returned").unwrap(), BorrowStatus::Returned);
+        assert_eq!(BorrowStatus::from_str("lost").unwrap(), BorrowStatus::Lost);
+        assert_eq!(BorrowStatus::from_str("damaged").unwrap(), BorrowStatus::Damaged);
+        assert_eq!(BorrowStatus::from_str("cancelled").unwrap(), BorrowStatus::Cancelled);
+    }
+
+    #[test]
+    fn 测试_borrow_status_from_str_非法字符串解析失败() {
+        assert!(BorrowStatus::from_str("unknown").is_err());
+        assert!(BorrowStatus::from_str("").is_err());
+        assert!(BorrowStatus::from_str("BORROWED").is_err()); // 大小写敏感
+        assert!(BorrowStatus::from_str(" borrowed ").is_err()); // 带空格
+    }
+
+    // ========== as_str 与 from_str 往返一致性测试 ==========
+
+    #[test]
+    fn 测试_borrow_status_序列化反序列化往返一致() {
+        let all_statuses = [
+            BorrowStatus::Borrowed,
+            BorrowStatus::Returned,
+            BorrowStatus::Lost,
+            BorrowStatus::Damaged,
+            BorrowStatus::Cancelled,
+        ];
+        for status in all_statuses {
+            let serialized = status.as_str();
+            let parsed = BorrowStatus::from_str(serialized).unwrap();
+            assert_eq!(status, parsed, "状态 {:?} 序列化反序列化往返不一致", status);
+        }
+    }
+
+    // ========== 状态机完整性测试 ==========
+
+    #[test]
+    fn 测试_borrow_status_状态机完整性_终态数量正确() {
+        // 状态机：borrowed（非终态）→ returned / lost / damaged / cancelled（4 个终态）
+        let all_statuses = [
+            BorrowStatus::Borrowed,
+            BorrowStatus::Returned,
+            BorrowStatus::Lost,
+            BorrowStatus::Damaged,
+            BorrowStatus::Cancelled,
+        ];
+        let terminal_count = all_statuses.iter().filter(|s| s.is_terminal()).count();
+        assert_eq!(terminal_count, 4, "应有 4 个终态（returned/lost/damaged/cancelled）");
+        let non_terminal_count = all_statuses.iter().filter(|s| !s.is_terminal()).count();
+        assert_eq!(non_terminal_count, 1, "应有 1 个非终态（borrowed）");
+    }
+}
