@@ -496,10 +496,14 @@ impl ImportExportService {
             .get(3)
             .map(|s| s.trim().to_string())
             .unwrap_or("个".to_string());
-        let price = row
-            .get(4)
-            .and_then(|s| s.trim().parse::<f64>().ok())
-            .unwrap_or(0.0);
+        // 批次 403 修复：价格列非空时必须可解析为 f64，失败时返回验证错误而非静默写 0。
+        // 原 unwrap_or(0.0) 会让 "abc" 等非法价格静默变成 0，导致产品以错误成本价入库。
+        let price = match row.get(4) {
+            Some(s) if !s.trim().is_empty() => s.trim().parse::<f64>().map_err(|_| {
+                AppError::validation(format!("产品 {} 的价格列无法解析为数字: {}", code, s))
+            })?,
+            _ => 0.0,
+        };
 
         if code.is_empty() || name.is_empty() {
             return Err(AppError::validation("产品编码和名称不能为空".to_string()));

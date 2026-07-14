@@ -272,34 +272,82 @@ pub async fn search_logs(
 
     let mut items = Vec::new();
     for row in rows {
-        // DB 字段读取失败应传播错误而非吞掉，避免审计数据失真
+        // 批次 403 修复：DB 字段读取失败应传播错误而非吞掉，避免审计数据失真。
+        // schema 中多数字段允许 NULL（user_id/username/resource_*/description 等），
+        // 用 Option<T> 读取区分"NULL 值"（合法，转为默认值）和"读取错误"（传播 500）。
+        // 仅 module/action/created_at 为 NOT NULL，读取失败直接传播错误。
+        let id = row.try_get_by_index::<i64>(0)
+            .map_err(|e| AppError::internal(format!("审计日志读取 id 失败: {}", e)))?;
+        let trace_id = row.try_get::<Option<String>>("", "trace_id")
+            .map_err(|e| AppError::internal(format!("审计日志读取 trace_id 失败: {}", e)))?
+            .unwrap_or_default();
+        let user_id = row.try_get::<Option<i32>>("", "user_id")
+            .map_err(|e| AppError::internal(format!("审计日志读取 user_id 失败: {}", e)))?
+            .unwrap_or(0);
+        let username = row.try_get::<Option<String>>("", "username")
+            .map_err(|e| AppError::internal(format!("审计日志读取 username 失败: {}", e)))?
+            .unwrap_or_default();
+        let module = row.try_get::<String>("", "module")
+            .map_err(|e| AppError::internal(format!("审计日志读取 module 失败: {}", e)))?;
+        let action = row.try_get::<String>("", "action")
+            .map_err(|e| AppError::internal(format!("审计日志读取 action 失败: {}", e)))?;
+        let resource_type = row.try_get::<Option<String>>("", "resource_type")
+            .map_err(|e| AppError::internal(format!("审计日志读取 resource_type 失败: {}", e)))?
+            .unwrap_or_default();
+        let resource_id = row.try_get::<Option<String>>("", "resource_id")
+            .map_err(|e| AppError::internal(format!("审计日志读取 resource_id 失败: {}", e)))?
+            .unwrap_or_default();
+        let resource_name = row.try_get::<Option<String>>("", "resource_name")
+            .map_err(|e| AppError::internal(format!("审计日志读取 resource_name 失败: {}", e)))?
+            .unwrap_or_default();
+        let description = row.try_get::<Option<String>>("", "description")
+            .map_err(|e| AppError::internal(format!("审计日志读取 description 失败: {}", e)))?
+            .unwrap_or_default();
+        let request_method = row.try_get::<Option<String>>("", "request_method")
+            .map_err(|e| AppError::internal(format!("审计日志读取 request_method 失败: {}", e)))?
+            .unwrap_or_default();
+        let request_path = row.try_get::<Option<String>>("", "request_path")
+            .map_err(|e| AppError::internal(format!("审计日志读取 request_path 失败: {}", e)))?
+            .unwrap_or_default();
+        let response_status = row.try_get::<Option<i32>>("", "response_status")
+            .map_err(|e| AppError::internal(format!("审计日志读取 response_status 失败: {}", e)))?
+            .unwrap_or(0);
+        let duration_ms = row.try_get::<Option<i32>>("", "duration_ms")
+            .map_err(|e| AppError::internal(format!("审计日志读取 duration_ms 失败: {}", e)))?
+            .unwrap_or(0);
+        let created_at = row.try_get::<String>("", "created_at")
+            .map_err(|e| AppError::internal(format!("审计日志读取 created_at 失败: {}", e)))?;
+
         let mut item = serde_json::json!({
-            "id": row.try_get_by_index::<i64>(0).unwrap_or(0),
-            "trace_id": row.try_get::<String>("", "trace_id").unwrap_or_default(),
-            "user_id": row.try_get::<i32>("", "user_id").unwrap_or(0),
-            "username": row.try_get::<String>("", "username").unwrap_or_default(),
-            "module": row.try_get::<String>("", "module").unwrap_or_default(),
-            "action": row.try_get::<String>("", "action").unwrap_or_default(),
-            "resource_type": row.try_get::<String>("", "resource_type").unwrap_or_default(),
-            "resource_id": row.try_get::<String>("", "resource_id").unwrap_or_default(),
-            "resource_name": row.try_get::<String>("", "resource_name").unwrap_or_default(),
-            "description": row.try_get::<String>("", "description").unwrap_or_default(),
-            "request_method": row.try_get::<String>("", "request_method").unwrap_or_default(),
-            "request_path": row.try_get::<String>("", "request_path").unwrap_or_default(),
-            "response_status": row.try_get::<i32>("", "response_status").unwrap_or(0),
-            "duration_ms": row.try_get::<i32>("", "duration_ms").unwrap_or(0),
-            "created_at": row.try_get::<String>("", "created_at").unwrap_or_default(),
+            "id": id,
+            "trace_id": trace_id,
+            "user_id": user_id,
+            "username": username,
+            "module": module,
+            "action": action,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "resource_name": resource_name,
+            "description": description,
+            "request_method": request_method,
+            "request_path": request_path,
+            "response_status": response_status,
+            "duration_ms": duration_ms,
+            "created_at": created_at,
         });
         if filter.include_sensitive {
-            item["request_body"] = serde_json::Value::String(
-                row.try_get::<String>("", "request_body").unwrap_or_default(),
-            );
-            item["user_agent"] = serde_json::Value::String(
-                row.try_get::<String>("", "user_agent").unwrap_or_default(),
-            );
-            item["ip_address"] = serde_json::Value::String(
-                row.try_get::<String>("", "ip_address").unwrap_or_default(),
-            );
+            let request_body = row.try_get::<Option<String>>("", "request_body")
+                .map_err(|e| AppError::internal(format!("审计日志读取 request_body 失败: {}", e)))?
+                .unwrap_or_default();
+            let user_agent = row.try_get::<Option<String>>("", "user_agent")
+                .map_err(|e| AppError::internal(format!("审计日志读取 user_agent 失败: {}", e)))?
+                .unwrap_or_default();
+            let ip_address = row.try_get::<Option<String>>("", "ip_address")
+                .map_err(|e| AppError::internal(format!("审计日志读取 ip_address 失败: {}", e)))?
+                .unwrap_or_default();
+            item["request_body"] = serde_json::Value::String(request_body);
+            item["user_agent"] = serde_json::Value::String(user_agent);
+            item["ip_address"] = serde_json::Value::String(ip_address);
         }
         items.push(item);
     }
