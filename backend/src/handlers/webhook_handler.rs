@@ -305,9 +305,9 @@ mod tests {
     #[test]
     fn test_retry_limiter_config() {
         // 限流器是 static LazyLock，验证其已被初始化且可访问
-        let limiter = &*WEBHOOK_RETRY_LIMITER;
+        let limiter = &WEBHOOK_RETRY_LIMITER;
         // MemoryRateLimiter 内部状态不可直接访问，但能取到引用说明已正确初始化
-        assert!(std::ptr::addr_of!(*limiter) as usize != 0);
+        assert!(std::ptr::addr_of!(**limiter) as usize != 0);
     }
 
     /// M-3 测试（v9 复审）：测试限流器与重试限流器是独立实例
