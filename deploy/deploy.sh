@@ -232,10 +232,10 @@ generate_config() {
         # 安全原因：cookie_secret < 32 字节时 main.rs 会 fail-fast 退出，
         # 全新部署时若运维忘记手动设置会直接导致服务启动失败。
         # 修复方案：检测到 COOKIE_SECRET 为空或长度不足 32 字节时，
-        # 自动用 openssl rand -hex 32 生成 64 字符（32 字节）强随机密钥，
+        # 自动用 openssl rand -base64 生成强随机密钥（熵比高于 hex），
         # 并持久化到 /etc/bingxi/.env 避免每次部署重新生成（密钥稳定性）。
         if [ -z "$COOKIE" ] || [ ${#COOKIE} -lt 32 ]; then
-            local GENERATED_COOKIE_SECRET=$(openssl rand -hex 32)
+            local GENERATED_COOKIE_SECRET=$(openssl rand -base64 32 | tr -d '\n' | head -c 48)
             if grep -q "^COOKIE_SECRET=" "$ENV_FILE" 2>/dev/null; then
                 # 替换已存在的 COOKIE_SECRET
                 sed -i "s|^COOKIE_SECRET=.*|COOKIE_SECRET=${GENERATED_COOKIE_SECRET}|" "$ENV_FILE"
@@ -245,32 +245,32 @@ generate_config() {
             fi
             # 重新加载变量供后续 cat 使用
             COOKIE="$GENERATED_COOKIE_SECRET"
-            log "已自动生成 COOKIE_SECRET（64 字符 / 32 字节）"
+            log "已自动生成 COOKIE_SECRET（base64 48 字符 / 32 字节）"
         fi
 
         # P2-D 修复：自动生成 JWT_SECRET（同样策略）
         # 安全原因：cookie_secret fail-fast 后下一步也会校验 JWT 强度，
         # 自动生成避免运维忘记设置。
         if [ -z "$JWT" ] || [ ${#JWT} -lt 32 ]; then
-            local GENERATED_JWT_SECRET=$(openssl rand -hex 32)
+            local GENERATED_JWT_SECRET=$(openssl rand -base64 32 | tr -d '\n' | head -c 48)
             if grep -q "^JWT_SECRET=" "$ENV_FILE" 2>/dev/null; then
                 sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${GENERATED_JWT_SECRET}|" "$ENV_FILE"
             else
                 echo "JWT_SECRET=${GENERATED_JWT_SECRET}" >> "$ENV_FILE"
             fi
             JWT="$GENERATED_JWT_SECRET"
-            log "已自动生成 JWT_SECRET（64 字符 / 32 字节）"
+            log "已自动生成 JWT_SECRET（base64 48 字符 / 32 字节）"
         fi
 
         # M-2 修复：自动生成 WEBHOOK_SECRET（与 JWT_SECRET 独立）
         # 安全原因：JWT_SECRET 泄漏会同时影响第三方 webhook 签名。
         # 必须为 webhook 单独生成独立密钥，且与 JWT_SECRET 互不相同。
         if [ -z "$WEBHOOK" ] || [ ${#WEBHOOK} -lt 32 ] || [ "$WEBHOOK" = "$JWT" ]; then
-            local GENERATED_WEBHOOK_SECRET=$(openssl rand -hex 32)
+            local GENERATED_WEBHOOK_SECRET=$(openssl rand -base64 32 | tr -d '\n' | head -c 48)
             # 再次校验：若新生成的密钥与 JWT 相同（极低概率），重新生成
             local RETRY_COUNT=0
             while [ "$GENERATED_WEBHOOK_SECRET" = "$JWT" ] && [ $RETRY_COUNT -lt 5 ]; do
-                GENERATED_WEBHOOK_SECRET=$(openssl rand -hex 32)
+                GENERATED_WEBHOOK_SECRET=$(openssl rand -base64 32 | tr -d '\n' | head -c 48)
                 RETRY_COUNT=$((RETRY_COUNT + 1))
             done
             if grep -q "^WEBHOOK_SECRET=" "$ENV_FILE" 2>/dev/null; then
@@ -279,7 +279,7 @@ generate_config() {
                 echo "WEBHOOK_SECRET=${GENERATED_WEBHOOK_SECRET}" >> "$ENV_FILE"
             fi
             WEBHOOK="$GENERATED_WEBHOOK_SECRET"
-            log "已自动生成 WEBHOOK_SECRET（64 字符 / 32 字节，与 JWT_SECRET 独立）"
+            log "已自动生成 WEBHOOK_SECRET（base64 48 字符 / 32 字节，与 JWT_SECRET 独立）"
         fi
 
         # 验证必需的环境变量（保留作为最后防线，理论上自动生成后不会触发）

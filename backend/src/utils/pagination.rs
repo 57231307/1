@@ -6,22 +6,7 @@ use sea_orm::Paginator;
 
 use crate::utils::error::AppError;
 
-/// 通用分页查询辅助函数
-///
-/// 自动处理 num_items() 和 fetch_page() 调用，避免在每个 service 中重复实现
-///
-/// # 参数
-/// - `paginator`: SeaORM 分页器
-/// - `page`: 页码（从1开始）
-///
-/// # 返回
-/// - `(items, total)`: 包含当前页数据和总记录数
-///
-/// # 说明
-/// sea-orm 2.0 起 Paginator 的元素类型约束从 `ModelTrait` 改为 `SelectorTrait`。
-/// 本函数直接约束 `S = SelectModel<M>`，返回 `Vec<M>`，与调用方期望一致。
-///
-/// `num_items()` 在 sea-orm 2.0 中返回 `u64`，与函数签名一致，不需要重复转换。
+/// 通用分页查询辅助函数（自动处理 num_items 和 fetch_page）
 pub async fn paginate_with_total<M>(
     paginator: Paginator<'_, impl ConnectionTrait, sea_orm::SelectModel<M>>,
     page: u64,
