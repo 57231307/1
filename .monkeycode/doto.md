@@ -21,7 +21,7 @@
 | 财务场景闭环 | 16 | 11 | 5 | 🔄 **P0 8/8 ✅** + **P1 6/6 ✅** + P2 2/4（批次 387 完成 F-P2-2/4，F-P2-1/3 待后续批次） |
 | 运行逻辑环闭环 | 45 | 45 | 0 | ✅ 全部完成（P1 6 + P2 13 + P3 26） |
 | v14 中风险遗留 | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
-| v14 低风险遗留 | 74 | 14 | 60 | 🔄 批次 397 完成 4 处 unwrap_or_default 安全修复 + 批次 398 完成 3 项配置合规修复 + 批次 400 完成 3 项 #[allow(dead_code)] 接入 + 批次 401 完成部署脚本密钥自动生成 + hex→base64 提升熵比 + baseline 文件重建（2 条纯摘要行）+ 批次 402 完成 clippy too_many_arguments 警告清零（11 个 8 参数函数添加 #[allow] + baseline 移除 too_many_arguments 摘要行） |
+| v14 低风险遗留 | 74 | 14 | 60 | 🔄 批次 397 完成 4 处 unwrap_or_default 安全修复 + 批次 398 完成 3 项配置合规修复 + 批次 400 完成 3 项 #[allow(dead_code)] 接入 + 批次 401 完成部署脚本密钥自动生成 + hex→base64 提升熵比 + baseline 文件重建（2 条纯摘要行）+ 批次 402 完成 baseline 最后一条 `needless_reference` 警告清零（webhook_handler.rs 测试 `&*LazyLock` 修复，baseline 清空；11 个 `#[allow(too_many_arguments)]` 标注为批次 328 历史添加，列入技术债务见下文 §1.1） |
 | v13 前端/后端 P2 | 9 | 9 | 0 | ✅ 阶段 5 useTableApi 接入全部完成（批次 390-391） |
 | 测试覆盖补测 | 12 | 12 | 0 | ✅ **全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23） |
 | **合计** | **~378** | **97** | **~281** | — |
@@ -203,8 +203,29 @@
 | 398 ✅ | 配置合规性 + 部署路径 | 11 | is_production() 部署陷阱 + clippy baseline 格式 + deploy.sh 路径一致性 |
 | 399 | 占位符/Mock 存根剩余 | 0 | 调研确认无需修复（待处理） |
 | 400-401 | 项目规则符合性 | 11 | 评估是否符合规则 0-13 |
-| 402 ✅ | 死代码补充清理 | 1 | clippy too_many_arguments 警告清零：11 个 8 参数函数添加 #[allow] + baseline 移除摘要行 |
+| 402 ✅ | 死代码补充清理 | 1 | clippy baseline 最后一条 `needless_reference` 警告清零（webhook_handler.rs 测试 `&*LazyLock` 修复，baseline 清空） |
 | 404-407 | 其他 | 34 | 命名规范/注释完善/代码风格等 |
+
+#### §1.1 技术债务：11 个 `#[allow(clippy::too_many_arguments)]` 标注处理计划
+
+> **来源**：批次 328（v10 复审 P3，PR #500，commit `12f2e682`）历史添加，用于临时抑制 11 个 8 参数函数的 clippy 警告。
+> **当前状态**：已列入 clippy baseline，CI 不再阻塞，但属于真实技术债务（违反单一职责原则，函数签名过长）。
+> **预计处理时间**：**阶段 9 完成后（批次 411-413，3 批）**，在 v14 新一轮复审（阶段 10）之前完成清理。
+> **处理方式**：参考批次 335 `ListTransactionsQuery` + 批次 338 `RecordTransactionArgs` 已有成功实践，按业务模块分组引入 DTO 参数对象聚合多参数，每批 3-4 个 DTO，同步修改所有 handler 调用点。
+
+**分组处理计划**：
+
+| 批次 | 业务模块 | 涉及函数 | 新建 DTO | 文件 |
+|------|----------|----------|----------|------|
+| 411 | 财务应付（AP） | `ap_invoice_service::get_list` + `ap_payment_service::get_list` + `ap_payment_request_service::get_list` + `finance_payment_service::create_payment` | `ApInvoiceQueryParams` + `ApPaymentQueryParams` + `ApPaymentRequestQueryParams` + `CreatePaymentRequest` | 4 service + 4 handler 调用点 |
+| 412 | 库存+产品 | `inventory_stock_query::get_inventory_summary` + `product_service::create_product_color` | `InventorySummaryQuery`（扩展现有 ListTransactionsQuery 模式）+ `CreateProductColorArgs` | 2 service + 2 handler 调用点 |
+| 413 | 事件+MRP+邮件 | `event_notification_service::notify_multiple_users` + `mrp_engine_service::explode_bom` + `mrp_engine_service::run_mrp_calculation` + `email_service::tencent_sign` | `NotificationPayload` + `MrpExplodeQuery` + `MrpCalculationQuery` + `TencentSignParams`（tencent_sign 为固定参数集，可保留标注或封装为单一 struct）+ `api_key_service::update_api_key` → `UpdateApiKeyPayload` | 5 service + 5 handler 调用点 |
+
+**验收标准**：
+- 每个批次完成后 `grep -r "#\[allow(clippy::too_many_arguments)\]" backend/src/` 输出减少对应数量
+- 所有 handler 调用点同步更新，无编译错误
+- CI clippy 全绿，baseline 不新增警告
+- 每个新建 DTO 添加中文文档注释 + `Debug, Clone` derive
 
 ### 阶段 9：其他遗留（批次 408-410，3 批，约 15 文件）
 
