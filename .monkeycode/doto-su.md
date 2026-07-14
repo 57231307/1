@@ -1325,3 +1325,31 @@
 - BpmApPendingTbl.vue getPriorityType 同样用 `as` 断言
 
 > 阶段 9 批次 408 完成。下一批次 409：P2-8 剩余无测试 service 补测。
+
+---
+
+### 批次 409：P2-8 剩余无测试 service 补测（PR #585，sha: 539e1086）
+
+**修复内容**：为 6 个无测试的核心 service 补充单元测试，覆盖纯函数和业务规则。
+
+**修改文件**（6 文件，870 行新增 / 21 行修改）：
+
+| 文件 | 测试目标 | 修改类型 | 新增测试数 |
+|------|----------|----------|-----------|
+| `color_card_borrow_service.rs` | BorrowStatus 状态机纯函数（as_str / is_terminal / FromStr / 往返一致性 / 状态机完整性） | 仅添加测试 | 6 |
+| `inventory_stock_query.rs` | compute_alert_type 7 级告警判定（discrepancy / out_of_stock / low_stock / over_stock / expiring / slow_moving / normal + 优先级链路） | `fn` → `pub(crate) fn` + 测试 | 15 |
+| `ar_invoice_service.rs` | derive_paid_status 付款状态推导（received >= invoice → PAID / received < invoice → PARTIAL_PAID） | 提取 `pub(crate) fn` + mark_as_paid 调用 + 测试 | 5 |
+| `event_notification_service.rs` | build_inventory_alert_notification 通知请求体构造（字段完整性 + 中文特殊字符 + 零库存场景） | 提取私有 `fn` + notify_inventory_alert 调用 + 测试 | 5 |
+| `customer_credit_service.rs` | clamp_page 分页防 DoS（8 个边界 + CreditQueryParams Default） | 提取 `pub(crate) fn` + get_list 调用 + 测试 | 9 |
+| `inventory_stock_txn.rs` | RecordTransactionArgs / CreateStockFabricArgs 构造 + BusinessEvent 变体匹配 | 仅添加测试 | 5 |
+
+**技术要点**：
+- 纯函数提取策略：将 service 方法内联的校验/推导/构造逻辑提取为独立纯函数，行为完全一致，便于单元测试
+- `pub(crate)` 可见性：提取的纯函数用 `pub(crate)` 修饰，仅 crate 内测试模块可访问，不暴露到外部
+- 测试宏复用：使用项目已有的 `decs!` / `dec!` / `ymd!` / `s!` 宏（`utils/unwrap_safe.rs`），避免散落的 `.unwrap()`
+- `sqlite::memory:` 模式不适用：因 SQLite 内存库无 schema，DB 依赖方法无法真正验证 SQL 行为，改为测试纯函数和参数对象构造
+- 关联影响评估（规则 00）：所有修改均为 backend 内部代码级修改，提取的纯函数行为与原内联逻辑一致，不涉及配置/部署/DB 迁移/环境变量/API 契约/前后端契约
+
+**CI 验证**：12 个 check runs 全绿（13 success + 2 skipped），Rust 单元测试通过（新增约 45 个测试全部通过），Rust Clippy 通过（无死代码警告）。
+
+> 阶段 9 批次 409 完成。下一批次 410：E2E 失败用例排查与修复。
