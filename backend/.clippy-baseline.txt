@@ -1,0 +1,2 @@
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+warning: this function has too many arguments (8/7)
