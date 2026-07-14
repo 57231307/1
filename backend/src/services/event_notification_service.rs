@@ -12,6 +12,28 @@ use crate::utils::error::AppError;
 use sea_orm::{DatabaseConnection, EntityTrait};
 use std::sync::Arc;
 
+/// 多用户通知发送参数对象
+///
+/// 批次 413 技术债务清理：引入参数对象消除 notify_multiple_users 的 too_many_arguments 警告。
+/// 聚合多用户通知所需的全部字段，避免函数签名携带 7 个参数。
+#[derive(Debug, Clone)]
+pub struct NotificationPayload {
+    /// 目标用户 ID 列表
+    pub user_ids: Vec<i32>,
+    /// 通知标题
+    pub title: String,
+    /// 通知内容
+    pub content: String,
+    /// 通知优先级
+    pub priority: NotificationPriority,
+    /// 业务类型（可选）
+    pub business_type: Option<String>,
+    /// 业务 ID（可选）
+    pub business_id: Option<i32>,
+    /// 跳转链接（可选）
+    pub action_url: Option<String>,
+}
+
 /// 业务事件通知服务
 pub struct EventNotificationService {
     notification_service: NotificationService,
@@ -756,26 +778,22 @@ impl EventNotificationService {
     }
 
     /// 发送通知给多个用户
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 NotificationPayload DTO 聚合参数
+    ///
+    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `NotificationPayload`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn notify_multiple_users(
         &self,
-        user_ids: Vec<i32>,
-        title: String,
-        content: String,
-        priority: NotificationPriority,
-        business_type: Option<String>,
-        business_id: Option<i32>,
-        action_url: Option<String>,
+        payload: NotificationPayload,
     ) -> Result<(), AppError> {
-        let category = business_type.as_deref().unwrap_or("SYSTEM");
+        let category = payload.business_type.as_deref().unwrap_or("SYSTEM");
 
         // v16 批次 45 修复：循环外批量获取用户通知设置，避免循环内逐个查询（N+1）
         let setting_map = self
             .setting_service
-            .get_or_create_default_batch(&user_ids)
+            .get_or_create_default_batch(payload.user_ids.as_slice())
             .await?;
 
-        for user_id in user_ids {
+        for user_id in payload.user_ids {
             let should_internal = setting_map
                 .get(&user_id)
                 .map(|s| {
@@ -788,12 +806,12 @@ impl EventNotificationService {
                     .create_notification(CreateNotificationRequest {
                         user_id,
                         notification_type: NotificationType::Internal,
-                        title: title.clone(),
-                        content: content.clone(),
-                        priority: priority.clone(),
-                        business_type: business_type.clone(),
-                        business_id,
-                        action_url: action_url.clone(),
+                        title: payload.title.clone(),
+                        content: payload.content.clone(),
+                        priority: payload.priority.clone(),
+                        business_type: payload.business_type.clone(),
+                        business_id: payload.business_id,
+                        action_url: payload.action_url.clone(),
                         sender_id: None,
                         sender_name: Some("系统".to_string()),
                     })

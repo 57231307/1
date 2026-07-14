@@ -280,15 +280,15 @@ impl ProductionOrderService {
             .planned_end_date
             .unwrap_or_else(|| chrono::Utc::now().date_naive() + chrono::Duration::days(7));
         if let Err(e) = mrp_service
-            .run_mrp_calculation(
-                model.product_id,
-                model.planned_quantity,
+            .run_mrp_calculation(crate::services::mrp_engine_service::MrpCalculationQuery {
+                product_id: model.product_id,
+                required_quantity: model.planned_quantity,
                 required_date,
-                "PRODUCTION_ORDER".to_string(),
-                Some(model.id),
-                true,
-                true,
-            )
+                source_type: "PRODUCTION_ORDER".to_string(),
+                source_id: Some(model.id),
+                consider_safety_stock: true,
+                consider_in_transit: true,
+            })
             .await
         {
             tracing::warn!(

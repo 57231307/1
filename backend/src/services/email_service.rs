@@ -114,6 +114,29 @@ pub struct EmailMessage {
     pub attachments: Option<HashMap<String, Vec<u8>>>,
 }
 
+/// 腾讯云 V3 签名参数对象
+///
+/// 批次 413 技术债务清理：引入参数对象消除 tencent_sign 的 too_many_arguments 警告。
+/// 腾讯云 V3 签名为固定参数集（7 个参数），聚合为单一 struct 便于维护。
+/// 使用生命周期借用字符串参数，避免不必要的 to_string()。
+#[derive(Debug, Clone, Copy)]
+pub struct TencentSignParams<'a> {
+    /// API 操作名（如 "SendMail"）
+    pub action: &'a str,
+    /// 服务名（如 "ses"）
+    pub service: &'a str,
+    /// API 版本（如 "2020-10-02"）
+    pub version: &'a str,
+    /// 请求时间戳（Unix 秒）
+    pub timestamp: i64,
+    /// 请求体 JSON
+    pub payload: &'a str,
+    /// SecretId
+    pub secret_id: &'a str,
+    /// SecretKey
+    pub secret_key: &'a str,
+}
+
 /// 邮件服务
 pub struct EmailService {
     config: EmailConfig,
@@ -460,15 +483,15 @@ impl EmailService {
 
         // 计算 V3 签名
         let timestamp = Utc::now().timestamp();
-        let authorization = self.tencent_sign(
-            "SendMail",
-            "ses",
-            "2020-10-02",
+        let authorization = self.tencent_sign(TencentSignParams {
+            action: "SendMail",
+            service: "ses",
+            version: "2020-10-02",
             timestamp,
-            &payload,
-            &secret_id,
-            &secret_key,
-        )?;
+            payload: payload.as_str(),
+            secret_id: secret_id.as_str(),
+            secret_key: secret_key.as_str(),
+        })?;
 
         let response = self
             .http_client
@@ -607,18 +630,10 @@ impl EmailService {
     /// 7. Signature = HEX(HMAC-SHA256(SecretSigning, StringToSign))
     ///
     /// 注意：region 不参与 V3 签名（仅出现在 X-TC-Region 请求头），故函数不接收 region 参数。
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 腾讯云 V3 签名固定参数集，无法进一步聚合
-    fn tencent_sign(
-        &self,
-        action: &str,
-        service: &str,
-        version: &str,
-        timestamp: i64,
-        payload: &str,
-        secret_id: &str,
-        secret_key: &str,
-    ) -> Result<String, AppError> {
-        let date = chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp, 0)
+    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `TencentSignParams`，
+    /// 消除 `clippy::too_many_arguments` 警告。
+    fn tencent_sign(&self, params: TencentSignParams<'_>) -> Result<String, AppError> {
+        let date = chrono::DateTime::<chrono::Utc>::from_timestamp(params.timestamp, 0)
             .ok_or_else(|| AppError::internal("腾讯云签名时间戳无效"))?
             .format("%Y-%m-%d")
             .to_string();
@@ -628,33 +643,37 @@ impl EmailService {
         let canonical_headers = format!(
             "content-type:application/json; charset=utf-8\nhost:{}\nx-tc-action:{}\n",
             "ses.tencentcloudapi.com",
-            action.to_lowercase()
+            params.action.to_lowercase()
         );
         let signed_headers = "content-type;host;x-tc-action";
-        let hashed_payload = hex::encode(Sha256::digest(payload.as_bytes()));
+        let hashed_payload = hex::encode(Sha256::digest(params.payload.as_bytes()));
         let canonical_request = format!(
             "POST\n/\n\n{}\n{}\n{}",
             canonical_headers, signed_headers, hashed_payload
         );
 
         // 2. StringToSign
-        let credential_scope = format!("{}/{}/{}/tc3_request", date, service, version);
+        let credential_scope = format!("{}/{}/{}/tc3_request", date, params.service, params.version);
         let hashed_canonical_request = hex::encode(Sha256::digest(canonical_request.as_bytes()));
         let string_to_sign = format!(
             "TC3-HMAC-SHA256\n{}\n{}\n{}",
-            timestamp, credential_scope, hashed_canonical_request
+            params.timestamp, credential_scope, hashed_canonical_request
         );
 
         // 3. 多层 HMAC-SHA256（派生密钥链：SecretKey -> SecretDate -> SecretService -> SecretSigning）
-        let secret_date = hmac_sha256_bytes(secret_key.as_bytes(), date.as_bytes());
-        let secret_service = hmac_sha256_bytes(&secret_date, service.as_bytes());
-        let secret_signing = hmac_sha256_bytes(&secret_service, b"tc3_request");
-        let signature = hex::encode(hmac_sha256_bytes(&secret_signing, string_to_sign.as_bytes()));
+        // 批次 413：使用 as_slice() 显式转换为 &[u8]，避免 &Vec<u8> 触发 clippy::needless_reference
+        let secret_date = hmac_sha256_bytes(params.secret_key.as_bytes(), date.as_bytes());
+        let secret_service = hmac_sha256_bytes(secret_date.as_slice(), params.service.as_bytes());
+        let secret_signing = hmac_sha256_bytes(secret_service.as_slice(), b"tc3_request");
+        let signature = hex::encode(hmac_sha256_bytes(
+            secret_signing.as_slice(),
+            string_to_sign.as_bytes(),
+        ));
 
         // 4. Authorization
         Ok(format!(
             "TC3-HMAC-SHA256 Credential={}/{}, SignedHeaders={}, Signature={}",
-            secret_id, credential_scope, signed_headers, signature
+            params.secret_id, credential_scope, signed_headers, signature
         ))
     }
 

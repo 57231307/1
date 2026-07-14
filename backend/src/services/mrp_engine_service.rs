@@ -510,7 +510,7 @@ impl MrpEngineService {
                 product_id: query.product_id,
                 parent_quantity: query.parent_quantity,
                 required_date: query.required_date,
-                source_type: &query.source_type,
+                source_type: query.source_type.as_str(),
                 source_id: query.source_id,
                 current_level: 1,
                 max_level: 10,
