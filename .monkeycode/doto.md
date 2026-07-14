@@ -62,8 +62,8 @@
 
 | 批次 | 业务模块 | 涉及函数 | 新建 DTO | 文件 |
 |------|----------|----------|----------|------|
-| 411 | 财务应付（AP） | `ap_invoice_service::get_list` + `ap_payment_service::get_list` + `ap_payment_request_service::get_list` + `finance_payment_service::create_payment` | `ApInvoiceQueryParams` + `ApPaymentQueryParams` + `ApPaymentRequestQueryParams` + `CreatePaymentRequest` | 4 service + 4 handler 调用点 |
-| 412 | 库存+产品 | `inventory_stock_query::get_inventory_summary` + `product_service::create_product_color` | `InventorySummaryQuery`（扩展现有 ListTransactionsQuery 模式）+ `CreateProductColorArgs` | 2 service + 2 handler 调用点 |
+| 411 | 财务应付（AP） | `ap_invoice_service::get_list` + `ap_payment_service::get_list` + `ap_payment_request_service::get_list` + `finance_payment_service::create_payment` | `ApInvoiceQueryParams` + `ApPaymentQueryParams` + `ApPaymentRequestQueryParams` + `CreatePaymentRequest` | 4 service + 4 handler 调用点 | ✅ 完成（PR #587） |
+| 412 | 库存+产品 | `inventory_stock_query::get_inventory_summary` + `product_service::create_product_color` | `InventorySummaryQuery`（扩展现有 ListTransactionsQuery 模式）+ `CreateProductColorInput`（复用已有） | 2 service + 2 handler 调用点 | ✅ 完成（PR #588） |
 | 413 | 事件+MRP+邮件 | `event_notification_service::notify_multiple_users` + `mrp_engine_service::explode_bom` + `mrp_engine_service::run_mrp_calculation` + `email_service::tencent_sign` | `NotificationPayload` + `MrpExplodeQuery` + `MrpCalculationQuery` + `TencentSignParams`（tencent_sign 为固定参数集，可保留标注或封装为单一 struct）+ `api_key_service::update_api_key` → `UpdateApiKeyPayload` | 5 service + 5 handler 调用点 |
 
 **验收标准**：
@@ -90,15 +90,15 @@
 
 ---
 
-### 阶段 9：其他遗留（批次 408-410，3 批，约 15 文件）🔄 进行中
+### 阶段 9：其他遗留（批次 408-410，3 批，约 15 文件）✅ 完成
 
-> 批次 408 已完成（PR #583 已合并，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)），剩余批次 409-410。
+> 批次 408-410 已全部完成（详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)）。阶段 9 完成，下一阶段 10 v14 新一轮复审启动。
 
 | 批次 | 任务 | 涉及文件 | 说明 | 状态 |
 |------|------|----------|------|------|
 | 408 | FE-P2-6 | 5 个 el-table 列表文件 + 1 个 lgsFmts 修复 | 大列表虚拟化（迁移 V2Table + 规则 00 类型修复） | ✅ 完成 |
 | 409 | P2-8 | backend/src/services/*.rs + tests（6 文件） | 剩余无测试 service 补测（纯函数提取 + 单元测试） | ✅ 完成 |
-| 410 | E2E 失败排查 | e2e/*.spec.ts + 修复代码（5-8 文件） | E2E 失败用例分析与修复 | ⏳ 待执行 |
+| 410 | E2E 失败排查 | e2e/*.spec.ts + playwright.config.ts（4 文件） | E2E SyntaxError 修复（import type expression + API 误用） | ✅ 完成 |
 
 ### 阶段 10：v14 新一轮复审（批次 411+）
 
@@ -484,7 +484,7 @@
 | 6 | 392-394 | 3 | 18 | 测试覆盖补测（核心 service + handler） | ✅ 完成 |
 | 7 | 395-396 | 2 | 6 | baseline 清零（213 项，含自动刷新机制） | ✅ 完成 |
 | 8 | 397-407 | 11 | 74 | v14 低风险修复（74 项） | ✅ 完成 |
-| 9 | 408-410 | 3 | 15 | 其他遗留（虚拟化+补测+E2E） | 🔄 进行中（408 ✅） |
+| 9 | 408-410 | 3 | 15 | 其他遗留（虚拟化+补测+E2E） | ✅ 完成 |
 | 10 | 411+ | - | - | v14 新一轮复审（v13 全维度 + 17 个新增维度） | ⏳ 待触发 |
 
 ---

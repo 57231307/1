@@ -1353,3 +1353,94 @@
 **CI 验证**：12 个 check runs 全绿（13 success + 2 skipped），Rust 单元测试通过（新增约 45 个测试全部通过），Rust Clippy 通过（无死代码警告）。
 
 > 阶段 9 批次 409 完成。下一批次 410：E2E 失败用例排查与修复。
+
+---
+
+### 批次 410：E2E 测试 SyntaxError 修复（PR #586，sha: 77c1c2f8）
+
+**修复内容**：修复 E2E 测试自创建以来从未成功运行的问题。根因为 Playwright 1.40.0 内置转译器无法正确解析 `import('...').Type` 语法（import type expression 在参数类型注解位置），导致 `SyntaxError: Expected ';', '}' or <eof>`。
+
+**修改文件**（4 文件，12 行变更）：
+
+| 文件 | 修改内容 | 原因 |
+|------|----------|------|
+| `frontend/e2e/color-card.spec.ts` | `import('@playwright/test').Page` → `import { type Page }` + `page.keyboard().press()` → `page.keyboard.press()` | import type expression 语法不兼容 + API 误用（keyboard 是属性不是方法） |
+| `frontend/e2e/color-price.spec.ts` | `import('@playwright/test').Page` → `import { type Page }` | 同上 |
+| `frontend/e2e/custom-order.spec.ts` | `import('@playwright/test').Page` → `import { type Page }` | 同上 |
+| `frontend/playwright.config.ts` | `///` 三斜杠注释 → `//` 标准注释（4 处） | 防御性修复，避免转译器对三斜杠指令的歧义 |
+
+**排查过程**：
+1. 下载 CI 日志（job_id=86660924744），定位 SyntaxError 发生在 vite dev server 启动后 0.5 秒
+2. 确认 `tsc --noEmit` 不报错——因为 tsconfig.json 的 include 不包含 e2e 目录
+3. 子代理扫描全部 30 个 e2e .ts 文件——未发现 TS 5.x 新特性（satisfies/const T/using）
+4. 确认所有 e2e import 仅引用 `@playwright/test` 和本地 e2e 模块
+5. 确认 package-lock.json 中 playwright-core 1.40.0 无外部依赖（使用内置转译器）
+6. 确认 E2E 历史 3 次运行全部失败，从未成功过
+7. 定位 3 个文件使用 `import('...').Type` 语法 + 1 处 `page.keyboard()` API 误用
+
+**技术要点**：
+- `import('...').Type` 是 TypeScript 的 import type expression 语法，在类型注解位置使用时可能被转译器误解析为动态 import 表达式
+- Playwright 1.40.0（2023年12月发布）内置转译器可能不完全支持此语法
+- 修复方案：改为顶部 `import { type Page } from '@playwright/test'`，这是标准且推荐的写法
+- `page.keyboard` 是 Page 对象的属性（Keyboard 类型），不是方法，`page.keyboard()` 会报运行时错误
+- 不升级 Playwright 版本（保持 1.40.0），最小化变更范围，降低风险
+- 规则 00 评估：仅影响 E2E 测试文件，不影响前端 src/ 或后端代码，tsconfig.json 不包含 e2e 目录
+
+**CI 验证**：12 个 check runs 全绿（10 success + 2 skipped 打包/Release）。前端类型检查、ESLint、格式检查、构建、测试全部通过。Rust 检查无影响（无 Rust 变更）。PR #586 squash merge 到 main（commit 77c1c2f8）。
+
+> 阶段 9 批次 410 完成。阶段 9（批次 408-410）全部完成。下一批次 411：阶段 10 v14 新一轮复审启动，首批处理 11 个 `#[allow(clippy::too_many_arguments)]` 标注（§1.1 技术债务）。
+
+---
+
+### 批次 411：AP 模块 4 个 too_many_arguments 清理（PR #587，sha: add28076）
+
+**修复内容**：引入 service 层参数对象聚合多参数，移除 4 个 `#[allow(clippy::too_many_arguments)]` 标注。
+
+**修改文件**（8 文件，136 行新增 / 109 行删除）：
+
+| 文件 | 修改内容 |
+|------|----------|
+| `ap_invoice_service.rs` | 新增 `ApInvoiceListQuery` 结构体 + `get_list` 7参数→1参数 |
+| `ap_invoice_handler.rs` | 调用点改为构造 `ApInvoiceListQuery` |
+| `ap_payment_service.rs` | 新增 `ApPaymentListQuery` 结构体 + `get_list` 7参数→1参数 |
+| `ap_payment_handler.rs` | 调用点改为构造 `ApPaymentListQuery` |
+| `ap_payment_request_service.rs` | 新增 `ApPaymentRequestListQuery` 结构体 + `get_list` 7参数→1参数 |
+| `ap_payment_request_handler.rs` | 调用点改为构造 `ApPaymentRequestListQuery` |
+| `finance_payment_service.rs` | 新增 `CreatePaymentInput` 结构体 + `create_payment` 7参数→1参数 |
+| `finance_payment_handler.rs` | 调用点改为构造 `CreatePaymentInput` |
+
+**技术要点**：
+- 3 个 `get_list` 方法参数结构同构（5 个筛选项 + page + page_size），handler 端已有 HTTP query DTO（Option 字段），service 层新建值类型 DTO（page/page_size 为非 Option）
+- `create_payment` 的 handler DTO 含 Option 字段（payment_no/payment_date），service 层 `CreatePaymentInput` 为已解析版本（非 Option），命名区分避免冲突
+- 纯重构，行为完全一致，API 契约/DB/前端均无影响
+- 规则 00 评估：低风险
+
+**CI 验证**：12 个 check runs 全绿（含 Rust Clippy 通过），PR #587 squash merge 到 main（commit add28076）。
+
+> §1.1 技术债务清理进度：11 个标注中 4 个已完成，剩余 7 个（批次 412-413）。
+
+---
+
+### 批次 412：库存+产品 2 个 too_many_arguments 清理（PR #588，sha: 82ccce0d）
+
+**修复内容**：引入/复用 service 层参数对象聚合多参数，移除 2 个 `#[allow(clippy::too_many_arguments)]` 标注。
+
+**修改文件**（4 文件，46 行新增 / 54 行删除）：
+
+| 文件 | 修改内容 |
+|------|----------|
+| `inventory_stock_query.rs` | 新增 `InventorySummaryQuery` 结构体（7 字段）+ `get_inventory_summary` 7参数→1参数 |
+| `inventory_stock_handler_query.rs` | 调用点改为构造 `InventorySummaryQuery` |
+| `product_service.rs` | `create_product_color` 复用已有 `CreateProductColorInput`，7参数→2参数（product_id + input）+ `batch_create_product_colors` 内部调用点简化 |
+| `product_handler.rs` | 调用点改为构造 `CreateProductColorInput` |
+
+**技术要点**：
+- `get_inventory_summary`：handler 层 `ListStockFabricParams`（7 字段）与 service 层新建 `InventorySummaryQuery` 字段完全一致，page/page_size 在 handler 层已 unwrap+clamp 后传入 service 层为非 Option
+- `create_product_color`：service 层已有 `CreateProductColorInput`（6 字段，不含 product_id），直接复用为 `(product_id, CreateProductColorInput)` 两参数，无需新建 DTO
+- `batch_create_product_colors` 内部循环从展开 6 字段改为直接传递 `input`，代码更简洁
+- 纯重构，行为完全一致，API 契约/DB/前端均无影响
+- 规则 00 评估：低风险，Grep 确认仅 4 处调用点，无测试代码引用
+
+**CI 验证**：15 个 check runs（12 success + 2 skipped 打包/Release + 1 构建通知 success）。Rust Clippy/格式检查/后端构建/单元测试全部通过。PR #588 squash merge 到 main（commit 82ccce0d）。
+
+> §1.1 技术债务清理进度：11 个标注中 6 个已完成，剩余 5 个（批次 413）。

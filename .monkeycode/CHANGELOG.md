@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-14（批次 409 完成后，追加批次 409 条目）。
+> 最近整理：2026-07-14（批次 412 完成后，追加批次 412 条目）。
 
 ---
 
@@ -10,6 +10,9 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 412 | #588 | 库存+产品 too_many_arguments 清理：inventory_stock_query::get_inventory_summary 新增 InventorySummaryQuery 参数对象（7参数→1参数）+ product_service::create_product_color 复用 CreateProductColorInput（7参数→2参数），4 文件调用点同步更新，纯重构 CI 全绿 |
+| 411 | #587 | AP 模块 too_many_arguments 清理：4 个 service 方法引入 DTO 参数对象（ApInvoiceListQuery/ApPaymentListQuery/ApPaymentRequestListQuery/CreatePaymentInput），7参数→1参数，handler 调用点同步更新，纯重构 CI 全绿 |
+| 410 | #586 | E2E SyntaxError 修复：3 个 e2e 文件 import('@playwright/test').Type → import { type Page } 标准写法 + color-card.spec.ts page.keyboard().press() → page.keyboard.press() API 误用修复 + playwright.config.ts /// → // 注释修复，根因为 Playwright 1.40.0 转译器不兼容 import type expression 语法，不升级版本最小化变更，CI 全绿 |
 | 409 | #585 | P2-8 service 补测：6 个无测试核心 service 补充约 45 个单元测试（color_card_borrow BorrowStatus 状态机 + inventory_stock_query 7 级告警 + ar_invoice derive_paid_status 提取 + event_notification build_inventory_alert 提取 + customer_credit clamp_page 提取 + inventory_stock_txn 参数对象构造），CI 全绿 |
 | 408 | #583 | FE-P2-6 大列表虚拟化：5 个 el-table 列表迁移到 V2Table（ApiLogTab/BpmApCompletedTbl/BpmApPendingTbl/LgsTbl/ScTbl）+ 规则 00 CI 类型错误修复（lgsFmts TagType '' → 'primary' 适配 Element Plus 新版 ElTag.type），ScTbl v-permission 改 can() 函数，CI 全绿 |
 | 407 | #582 | v14 安全+数据完整性+业务正确性修复：9 handler 15 处（auth_handler 登录锁定 DB 错误传播+权限查询 fail-secure + api_gateway_handler 权限序列化错误传播 2 处 + dye_recipe_handler 配方辅料反序列化校验+创建回查错误传播+更新辅料校验 + dye_batch_handler 创建回查错误传播 + report_engine_handler filters_json 解析失败返回验证错误 2 处 + sales_order_handler warehouse_id 缺失校验 + barcode_scanner_handler order_id 缺失校验 + webhook_integration_handler 序列化错误传播 + customer_credit_handler credit_limit 技术债务标注）+ 4 处 redundant closure clippy 警告修复，CI 全绿 |

@@ -132,6 +132,51 @@ pub struct ExplodeBomArgs<'a> {
     pub consider_in_transit: bool,
 }
 
+/// BOM 展开查询参数（公开接口层，owned 版本）
+///
+/// 批次 413 技术债务清理：引入参数对象消除 explode_bom 的 too_many_arguments 警告。
+/// 与内部 `ExplodeBomArgs<'a>` 区分：此结构体为 owned 版本（source_type 为 String），
+/// 不含 current_level/max_level（由 explode_bom 内部固定为 1/10）。
+#[derive(Debug, Clone)]
+pub struct MrpExplodeQuery {
+    /// 产品 ID
+    pub product_id: i32,
+    /// 父级需求数量
+    pub parent_quantity: Decimal,
+    /// 需求日期
+    pub required_date: NaiveDate,
+    /// 来源类型（如订单/生产计划）
+    pub source_type: String,
+    /// 来源 ID（可选）
+    pub source_id: Option<i32>,
+    /// 是否考虑安全库存
+    pub consider_safety_stock: bool,
+    /// 是否考虑在途库存
+    pub consider_in_transit: bool,
+}
+
+/// MRP 计算查询参数（公开接口层）
+///
+/// 批次 413 技术债务清理：引入参数对象消除 run_mrp_calculation 的 too_many_arguments 警告。
+/// 与 `RequirementCalcParams` 区分：此结构体为公开接口参数，不含 bom_level（由内部固定为 0）。
+#[derive(Debug, Clone)]
+pub struct MrpCalculationQuery {
+    /// 产品 ID
+    pub product_id: i32,
+    /// 需求数量
+    pub required_quantity: Decimal,
+    /// 需求日期
+    pub required_date: NaiveDate,
+    /// 来源类型（如订单/生产计划）
+    pub source_type: String,
+    /// 来源 ID（可选）
+    pub source_id: Option<i32>,
+    /// 是否考虑安全库存
+    pub consider_safety_stock: bool,
+    /// 是否考虑在途库存
+    pub consider_in_transit: bool,
+}
+
 /// MRP计算引擎
 pub struct MrpEngineService {
     db: Arc<DatabaseConnection>,
@@ -447,16 +492,12 @@ impl MrpEngineService {
     }
 
     /// 展开BOM计算子物料需求
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 MrpExplodeQuery DTO 聚合参数
+    ///
+    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `MrpExplodeQuery`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn explode_bom(
         &self,
-        product_id: i32,
-        parent_quantity: Decimal,
-        required_date: NaiveDate,
-        source_type: String,
-        source_id: Option<i32>,
-        consider_safety_stock: bool,
-        consider_in_transit: bool,
+        query: MrpExplodeQuery,
     ) -> Result<Vec<MaterialRequirement>, AppError> {
         let mut requirements = Vec::new();
 
@@ -466,15 +507,15 @@ impl MrpEngineService {
 
         self.explode_bom_recursive(
             ExplodeBomArgs {
-                product_id,
-                parent_quantity,
-                required_date,
-                source_type: &source_type,
-                source_id,
+                product_id: query.product_id,
+                parent_quantity: query.parent_quantity,
+                required_date: query.required_date,
+                source_type: &query.source_type,
+                source_id: query.source_id,
                 current_level: 1,
                 max_level: 10,
-                consider_safety_stock,
-                consider_in_transit,
+                consider_safety_stock: query.consider_safety_stock,
+                consider_in_transit: query.consider_in_transit,
             },
             &mut requirements,
             &mut stock_cache,
@@ -485,29 +526,25 @@ impl MrpEngineService {
     }
 
     /// 执行MRP计算并保存结果
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 后续可通过 MrpCalculationQuery DTO 聚合参数
+    ///
+    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `MrpCalculationQuery`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn run_mrp_calculation(
         &self,
-        product_id: i32,
-        required_quantity: Decimal,
-        required_date: NaiveDate,
-        source_type: String,
-        source_id: Option<i32>,
-        consider_safety_stock: bool,
-        consider_in_transit: bool,
+        query: MrpCalculationQuery,
     ) -> Result<Vec<MrpResultModel>, AppError> {
         let mut results = Vec::new();
         let calculation_no = format!("MRP{}", Utc::now().timestamp_millis());
 
         let main_req = self
             .calculate_requirement(RequirementCalcParams {
-                product_id,
-                required_quantity,
-                required_date,
-                source_type: source_type.clone(),
-                source_id,
-                consider_safety_stock,
-                consider_in_transit,
+                product_id: query.product_id,
+                required_quantity: query.required_quantity,
+                required_date: query.required_date,
+                source_type: query.source_type.clone(),
+                source_id: query.source_id,
+                consider_safety_stock: query.consider_safety_stock,
+                consider_in_transit: query.consider_in_transit,
                 bom_level: 0,
             })
             .await?;
@@ -535,15 +572,15 @@ impl MrpEngineService {
         results.push(main_result);
 
         let sub_requirements = self
-            .explode_bom(
-                product_id,
-                required_quantity,
-                required_date,
-                source_type,
-                source_id,
-                consider_safety_stock,
-                consider_in_transit,
-            )
+            .explode_bom(MrpExplodeQuery {
+                product_id: query.product_id,
+                parent_quantity: query.required_quantity,
+                required_date: query.required_date,
+                source_type: query.source_type,
+                source_id: query.source_id,
+                consider_safety_stock: query.consider_safety_stock,
+                consider_in_transit: query.consider_in_transit,
+            })
             .await?;
 
         for (idx, req) in sub_requirements.iter().enumerate() {
@@ -596,15 +633,15 @@ impl MrpEngineService {
 
         for item in request.items {
             let results = self
-                .run_mrp_calculation(
-                    item.product_id,
-                    item.required_quantity,
-                    item.required_date,
-                    request.source_type.clone(),
-                    request.source_id,
-                    request.consider_safety_stock,
-                    request.consider_in_transit,
-                )
+                .run_mrp_calculation(MrpCalculationQuery {
+                    product_id: item.product_id,
+                    required_quantity: item.required_quantity,
+                    required_date: item.required_date,
+                    source_type: request.source_type.clone(),
+                    source_id: request.source_id,
+                    consider_safety_stock: request.consider_safety_stock,
+                    consider_in_transit: request.consider_in_transit,
+                })
                 .await?;
 
             all_results.extend(results);
@@ -1498,15 +1535,15 @@ mod tests {
         let db = setup_test_db().await;
         let service = MrpEngineService::new(Arc::new(db));
         let result = service
-            .explode_bom(
-                99999,
-                decs!("10"),
-                ymd!(2026, 7, 9),
-                "MANUAL".to_string(),
-                None,
-                false,
-                false,
-            )
+            .explode_bom(MrpExplodeQuery {
+                product_id: 99999,
+                parent_quantity: decs!("10"),
+                required_date: ymd!(2026, 7, 9),
+                source_type: "MANUAL".to_string(),
+                source_id: None,
+                consider_safety_stock: false,
+                consider_in_transit: false,
+            })
             .await;
         // L-18 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
