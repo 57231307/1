@@ -2,7 +2,7 @@
 
 > 本文件是项目的**规则记忆**，记录必须遵守的规则、指令、偏好和工作流规范。
 > 历史归档与详细内容请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
-> 最近整理：2026-07-14（批次 407 完成后，压缩规则 10 整理记录为摘要，追加批次 407 经验）。
+> 最近整理：2026-07-14（批次 407 后二次修正：规则 10 整理记录归档到 doto-su.md，MEMORY.md 只保留规则本身 + 添加实时归档要求）。
 
 ---
 
@@ -164,9 +164,10 @@
 - 个人规则包括本文件中的规则 7-12 及后续追加的个人规则
 - 项目规则指 project_rules.md 中的规范
 
-### 🔴 规则 10（最高优先级，2026-07-08 追加，2026-07-10 修正）：记忆文件定期整理归档
+### 🔴 规则 10（最高优先级，2026-07-08 追加，2026-07-10 修正，2026-07-14 二次修正）：记忆文件定期整理归档 + 实时归档
 
 > 每 15 个批次，必须整理、归档、排序现有所有记忆，确保项目记忆高效简洁。
+> **实时归档**（2026-07-14 二次修正）：每个批次完成后必须立即归档，不等整理节点。
 
 **强制执行要求**（2026-07-10 用户修正，原"记录梳理时间"过于表面）：
 - 每完成 15 个修复批次（如批次 195、210、225……），必须对 `.monkeycode/` 下所有记忆文件做深度整理
@@ -174,15 +175,27 @@
 - **归档**：将已完成的历史批次、过期内容迁移到 `docs/archives/` 目录，主文件只保留当前活跃任务
 - **排序**：重新组织记忆文件结构，按逻辑分类（规则→当前任务→历史→经验→规范），使其层次清晰
 - **高效简洁**：主文件（MEMORY.md/doto.md/CHANGELOG.md）保持精简，避免历史细节堆积，确保代理能快速定位关键信息
-- 梳理后需在 MEMORY.md 中记录整理时间和批次范围
+- 梳理后需在 doto-su.md 中记录整理时间和批次范围（**不放在 MEMORY.md**，MEMORY.md 只保留规则本身）
 - 与规则 5（每 30 批次 E2E 独立工作流）配合：批次 270 同时触发 E2E 报告 + 记忆整理
 
-**整理记录**（仅保留最近 5 次，更早的见 [docs/archives/](file:///workspace/.monkeycode/docs/archives/)）：
-- 2026-07-14（批次 407 后，轻量整理）：批次 407 完成安全+数据完整性+业务正确性修复（PR #582 已合并 CI 全绿 sha d874819e）；9 handler 15 处修复：①auth_handler 登录锁定 DB 错误传播（per-IP/per-username 失败计数 unwrap_or_default→map_err 传播，防攻击者引发 DB 异常绕过锁定）+ 权限查询 fail-secure（unwrap_or_default→unwrap_or_else warn 日志）②api_gateway_handler 权限序列化错误传播 2 处（Option<Result<T,E>>.transpose().map_err(AppError::from)?）③dye_recipe_handler 配方辅料反序列化校验+创建回查错误传播+更新辅料校验 3 处④dye_batch_handler 创建回查错误传播⑤report_engine_handler filters_json 解析失败返回验证错误 2 处（防越权数据泄露）⑥sales_order_handler warehouse_id 缺失校验⑦barcode_scanner_handler order_id 缺失校验⑧webhook_integration_handler 序列化错误传播⑨customer_credit_handler credit_limit 技术债务标注（详见 doto.md §1.2）；额外修复 4 处 redundant closure clippy 警告（.map(|x| f(x))→.map(f)）；修正 CHANGELOG.md 批次 402 错误描述（原"baseline 清空"不准确，实际是错误创建 1 行 baseline 文件）；阶段 8 全部完成，下一阶段：阶段 9 批次 408-410
-- 2026-07-14（批次 398 后，轻量整理）：批次 398 完成配置合规性修复（PR #572 已合并 CI 全绿）；核心修复：①settings.rs 启动时同步 config.yaml env 字段到 APP_ENV（消除 is_production() 部署陷阱）②.env.example 移除中文占位符密码和 GRPC 残留变量③deploy-latest.sh 移除 grpc 死配置段④clippy baseline 文件格式修复（274 行混合内容→118 条纯摘要行）
-- 2026-07-14（批次 397 后，轻量整理）：批次 397 完成 v14 低风险修复首批（PR #571 已合并 CI 全绿）；**阶段 8 启动**；占位符/Mock 存根 21 项调研确认已清零；实际修复 4 处 unwrap_or_default 安全隐患（omni_audit body 读取 + audit_enhanced_handler created_at + data_permission_handler 序列化 fail-fast）
-- 2026-07-14（批次 396 后，轻量整理）：批次 396 完成 baseline 警告清零收官（PR #570 已合并 CI 全绿）；**阶段 7 baseline 清零全部完成**（213/213 ✅）；修复 6 文件 7 类警告（.clippy.toml disallowed-methods 移除 + from_str 改 FromStr trait + AvgLeadTimeResult 死代码删除 + needless_borrow 2 处 + unused import super::*）
-- 2026-07-14（批次 395 后，轻量整理）：批次 395 完成 baseline 自动刷新机制（PR #568+#569 已合并 CI 全绿）；**阶段 7 baseline 清零首批完成**；CI clippy job 添加 main 分支自动刷新步骤，baseline 从 1465 行缩减到 310 行（摘要 213→7 条）
+**实时归档要求**（2026-07-14 二次修正，用户强调"为啥没有实时更新"）：
+- **每批完成后立即归档**：批次 CI 全绿合并后，必须立即将该批次的详细记录写入 doto-su.md
+- **doto.md 只保留未完成任务**：已完成的批次/阶段详细表格必须从 doto.md 移除，归档到 doto-su.md
+- **MEMORY.md 只保留规则**：整理记录、批次摘要、历史详情不放在 MEMORY.md，归档到 doto-su.md
+- **CHANGELOG.md 只保留一句话总结**：每批一行，不展开详情
+- **audit_assignment.md 只保留任务分配和规则**：审计发现详情保存到 docs/audits/，批次状态更新实时反映
+- **禁止堆积**：doto.md 中已完成的阶段详细内容必须在当批 CI 合并后立即移除，不允许跨批堆积
+
+**文件分工明确**：
+| 文件 | 用途 | 禁止内容 |
+|------|------|----------|
+| MEMORY.md | 规则记忆（规则本身） | 整理记录、批次摘要、历史详情 |
+| doto.md | 未完成任务（任务队列） | 已完成批次的详细表格、历史修复详情 |
+| doto-su.md | 已完成任务详细记录 | —（接收所有归档内容） |
+| CHANGELOG.md | 一句话总结 | 展开详情、技术要点 |
+| audit_assignment.md | 审计任务分配和复审规则 | 审计结果详情（保存到 docs/audits/） |
+
+**整理记录**：整理记录历史已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 的"记忆整理记录"节，不再保留在 MEMORY.md。
 
 ### 🔴 规则 11（最高优先级，2026-07-08 追加）：法律合规标准
 

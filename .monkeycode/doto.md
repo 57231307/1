@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-14（批次 407 完成后，更新阶段 8 进度 + 批次 407 表格状态 + 新增技术债务计划）。
+> 最近整理：2026-07-14（批次 407 后，按规则 10 实时归档要求，移除已完成阶段 1-8 详细表格到 doto-su.md，只保留未完成任务）。
 
 ---
 
@@ -10,20 +10,20 @@
 
 > **v13 复审报告**：[v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批。
-> **已完成批次**：356-407（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）
+> **已完成批次**：356-407（详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，详细记录见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)）
 
 ### 进度总览
 
 | 维度 | 总数 | 已完成 | 剩余 | 状态 |
 |------|------|--------|------|------|
-| baseline 警告清零 | 213 | 213 | 0 | ✅ **全部完成**（批次 395 baseline 自动刷新机制 + 批次 396 剩余 7 类警告清零，PR #570 已合并，CI 全绿） |
-| 业务场景闭环 | 21 | 21 | 0 | ✅ **全部完成**（P0 6/6 + P1 9/9 + P2 6/6）（批次 386 完成 B-P2-4/5/6） |
-| 财务场景闭环 | 16 | 11 | 5 | 🔄 **P0 8/8 ✅** + **P1 6/6 ✅** + P2 2/4（批次 387 完成 F-P2-2/4，F-P2-1/3 待后续批次） |
+| baseline 警告清零 | 213 | 213 | 0 | ✅ **全部完成**（批次 395-396） |
+| 业务场景闭环 | 21 | 21 | 0 | ✅ **全部完成**（P0 6/6 + P1 9/9 + P2 6/6） |
+| 财务场景闭环 | 16 | 11 | 5 | 🔄 **P0 8/8 ✅** + **P1 6/6 ✅** + P2 2/4（F-P2-1/3 待后续批次） |
 | 运行逻辑环闭环 | 45 | 45 | 0 | ✅ 全部完成（P1 6 + P2 13 + P3 26） |
 | v14 中风险遗留 | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
-| v14 低风险遗留 | 74 | 53 | 21 | 🔄 批次 397 完成 4 处 unwrap_or_default 安全修复 + 批次 398 完成 3 项配置合规修复 + 批次 400 完成 3 项 #[allow(dead_code)] 接入 + 批次 401 完成部署脚本密钥自动生成 + hex→base64 提升熵比 + baseline 文件重建 + 批次 402 完成 baseline 最后一条 `needless_reference` 警告清零 + 批次 403 完成 4 处安全修复 + 批次 404 完成 2 处 LazyLock expect 安全降级 + 10 处消息常量化首批 + 批次 405 完成 8 处消息常量化第二批 + 批次 406 完成 6 handler 序列化吞错修复 + clippy baseline 重建（180 行）+ **批次 407 完成 9 handler 15 处安全+数据完整性+业务正确性修复**（阶段 8 完成，阶段 9 待启动） |
+| v14 低风险遗留 | 74 | 53 | 21 | 🔄 批次 397-407 完成（阶段 8 完成），阶段 9 待启动 |
 | v13 前端/后端 P2 | 9 | 9 | 0 | ✅ 阶段 5 useTableApi 接入全部完成（批次 390-391） |
-| 测试覆盖补测 | 12 | 12 | 0 | ✅ **全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23） |
+| 测试覆盖补测 | 12 | 12 | 0 | ✅ **全部完成**（批次 392-394，共 65 个新测试） |
 | **合计** | **~378** | **97** | **~281** | — |
 
 ---
@@ -32,186 +32,26 @@
 
 > **规划原则**：每个批次修复 5-8 个文件，按优先级分阶段推进，所有阶段完成后进行 v14 新一轮复审。
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批，无需用户确认。
+> **已完成阶段**：阶段 1-8（批次 384-407）已全部完成，详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
 
-### 阶段 1：P1 级闭环修复（批次 384，1 批，约 7 文件）
+### 已完成阶段归档说明（阶段 1-8，批次 384-407）
 
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| B-P1-3 | event_bus.rs / customer_service.rs / supplier_service.rs | 客户/供应商主数据变更事件发布+监听器异步刷新关联单据 |
-| B-P1-7 | event_bus.rs / 新建 dead_letter_service.rs / 新建 alert_service.rs | 事件重试（指数退避）+ 死信队列 + 告警 |
-| F-P1-1 | accounting_period_service.rs / account_subject_service.rs | close_period 新增期末结转，本期期末余额写入下期期初 |
+| 阶段 | 批次范围 | 状态 | 归档位置 |
+|------|----------|------|----------|
+| 1 | 384 | ✅ 完成 | [doto-su.md](file:///workspace/.monkeycode/doto-su.md) |
+| 2 | 385-386 | ✅ 完成 | [doto-su.md](file:///workspace/.monkeycode/doto-su.md) |
+| 3 | 387 | ✅ 完成 | [doto-su.md](file:///workspace/.monkeycode/doto-su.md) |
+| 4 | 388-389 | ✅ 完成 | [doto-su.md](file:///workspace/.monkeycode/doto-su.md) |
+| 5 | 390-391 | ✅ 完成 | [doto-su.md](file:///workspace/.monkeycode/doto-su.md) |
+| 6 | 392-394 | ✅ 完成 | [doto-su.md](file:///workspace/.monkeycode/doto-su.md) |
+| 7 | 395-396 | ✅ 完成 | [doto-su.md](file:///workspace/.monkeycode/doto-su.md) |
+| 8 | 397-407 | ✅ 完成 | [doto-su.md](file:///workspace/.monkeycode/doto-su.md) |
 
-### 阶段 2：业务场景 P2 闭环修复（批次 385-386，2 批，约 12 文件）
+> 阶段 1-8 的详细任务表格、修改文件清单、技术要点已按规则 10 实时归档要求移到 doto-su.md。doto.md 只保留未完成任务。
 
-**批次 385（业务场景 P2 前 3 项，约 6 文件）**：
+---
 
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| B-P2-1 | ar_service.rs | create_payment 与 mark_as_paid 状态更新重复，合并为单一入口 |
-| B-P2-2 | customer_credit_evaluate_service.rs + mod.rs | 孤岛 service 评估后删除或接入业务 |
-| B-P2-3 | cost_collection_service.rs + handler + routes | 仅 HTTP 调用，接入业务联动 |
-
-**批次 386（业务场景 P2 后 3 项，约 6 文件）**：
-
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| B-P2-4 | mrp_engine_service.rs + handler + routes | 仅 HTTP 调用，接入业务联动 |
-| B-P2-5 | capacity_service.rs + handler + routes | 仅 HTTP 调用，接入业务联动 |
-| B-P2-6 | inventory_reservation_service.rs + handler + routes | 仅 HTTP 调用，销售流程集成 |
-
-### 阶段 3：财务场景 P2 闭环修复（批次 387，1 批，约 7 文件）
-
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| F-P2-1 | accounting_period_service.rs + 新建 period_adjustment_service.rs | 期末调整机制（暂估/摊销/预提） |
-| F-P2-2 | finance_report_service.rs + handler | 报表穿透追溯功能 |
-| F-P2-3 | inventory_finance_bridge_service.rs | 销售成本与采购实际单价联动 |
-| F-P2-4 | ar_service.rs / ap_invoice_service.rs + voucher_service.rs | AR/AP 对账单生成触发凭证 |
-
-### 阶段 4：v13 前后端 P2（批次 388-389，2 批，约 14 文件）
-
-**批次 388（前端类型+后端错误处理，约 7 文件）**：
-
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| FE-P2-1 | frontend/src/types/*.ts（3-4 文件） | unknown 类型细化，完善类型定义 |
-| FE-P2-2 | frontend/src/components/*.vue（2 文件） | 组件 props 类型强化 |
-| P2-1 | backend/src/handlers/*.rs（1-2 文件） | 后端错误处理统一，handler 返回 AppError |
-
-**批次 389（i18n+后端日志+配置，约 7 文件）**：
-
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| FE-P2-3 | frontend/src/locales/*.ts + views（3 文件） | i18n 覆盖率提升（首批核心视图） |
-| P2-2 | backend/src/services/*.rs（2 文件） | 后端日志规范，日志级别修正 |
-| P2-3 | backend/config.yaml.example + .env.example（2 文件） | 后端配置项完善 |
-
-### 阶段 5：useTableApi 接入（批次 390-391，2 批，约 10 文件）
-
-**批次 390（实际完成 2 文件，PR #563 已合并，CI 全绿）**：
-
-> **调研结论**：原规划 5 个文件中，VoucherListTab/VoucherDetailTab/DataImportListTab/DataImportTaskTab 已接入 useTableApi 或文件不存在；真正需要改造的是 assistAccounting + barcodeScanner（均为 0-based 分页 bug）。其他 props/emit 模式的子组件（如 LgsTbl/CpTbl/PrRtnTbl）属于子组件模式，不需要直接接入 useTableApi。
-
-| 任务 | 涉及文件 | 说明 | 状态 |
-|------|----------|------|------|
-| useTableApi-1 | frontend/src/views/finance/voucher/VoucherListTab.vue | 财务凭证列表 | ✅ 已接入，无需改造 |
-| useTableApi-2 | frontend/src/views/finance/voucher/VoucherDetailTab.vue | 财务凭证明细 | ✅ 已接入，无需改造 |
-| useTableApi-3 | frontend/src/views/data-import/DataImportListTab.vue | 数据导入列表 | ✅ 已接入，无需改造 |
-| useTableApi-4 | frontend/src/views/data-import/DataImportTaskTab.vue | 数据导入任务 | ✅ 已接入，无需改造 |
-| useTableApi-5 | frontend/src/views/inventory/tabs/InventoryStockTab.vue | 库存明细（1-based 分页） | ✅ 已接入，无需改造 |
-| useTableApi-8 | frontend/src/views/barcodeScanner/index.vue | 条码扫描（0-based 分页修复） | ✅ 批次 390 完成 |
-| useTableApi-9 | frontend/src/views/assistAccounting/index.vue | 辅助核算（0-based 分页修复） | ✅ 批次 390 完成 |
-
-**批次 391（实际完成 2 文件，PR #564 已合并，CI 全绿）**：
-
-> **调研结论**：views 目录下已无任何活跃的 0-based 分页 bug（4 处历史 bug 已在批次 273/390 修复）。本次改造为规范统一，将库存调整+调拨列表 Tab 从手写分页模板代码接入 useTableApi。
-
-| 任务 | 涉及文件 | 说明 | 状态 |
-|------|----------|------|------|
-| useTableApi-6 | frontend/src/views/inventoryAdjustment/tabs/AdjustmentListTab.vue | 库存调整列表接入 useTableApi | ✅ 批次 391 完成 |
-| useTableApi-7 | frontend/src/views/inventoryTransfer/tabs/TransferListTab.vue | 库存调拨列表接入 useTableApi | ✅ 批次 391 完成 |
-
-> 阶段 5 useTableApi 接入全部完成（批次 390-391，共 4 文件）。下一阶段：阶段 6 测试覆盖补测（批次 392-394）。
-
-### 阶段 6：测试覆盖补测（批次 392-394，3 批，约 18 文件）
-
-**批次 392（核心 service 测试 - 认证/用户/订单，约 6 文件）**：
-
-| 任务 | 涉及文件 | 说明 |
-|------|----------|------|
-| 测试-1 | backend/src/services/auth_service.rs + tests | auth_service 单元测试 |
-| 测试-2 | backend/src/services/user_service.rs + tests | user_service 单元测试 |
-| 测试-3 | backend/src/services/so/order.rs + tests | 销售订单 service 测试 |
-| 测试-4 | backend/src/services/po/order.rs + tests | 采购订单 service 测试 |
-
-**批次 393（核心 service 测试 - 库存/财务，约 6 文件，PR #566 已合并，CI 全绿）**：
-
-| 任务 | 涉及文件 | 说明 | 状态 |
-|------|----------|------|------|
-| 测试-5 | backend/src/services/inventory_stock_service.rs + tests | 库存 service 测试（0→6） | ✅ 批次 393 完成 |
-| 测试-6 | backend/src/services/voucher_service.rs + tests | 凭证 service 测试（29→33） | ✅ 批次 393 完成 |
-| 测试-7 | backend/src/services/ar_service.rs + tests | AR service 测试（0→6） | ✅ 批次 393 完成 |
-| 测试-8 | backend/src/services/ap_invoice_service.rs + tests | AP service 测试（2→10） | ✅ 批次 393 完成 |
-
-> 批次 393 共补测 24 个新测试。阶段 6 service 测试全部完成（批次 392-393，共 42 个新测试）。下一批次 394：handler 集成测试。
-
-**批次 394（handler 内嵌测试，4 文件，PR #567 已合并，CI 全绿）**：
-
-> **调研结论**：原规划 4 个 `tests/` 目录集成测试文件，但调研后发现 handler 中的私有纯函数（如 `validate_custom_condition_safe`、`builtin_print_templates`、`verify_zip_magic`）必须用内嵌 `#[cfg(test)] mod tests` 测试，不能放在 `tests/` 目录（无法访问私有函数）。因此改为在 4 个 handler 源文件内嵌测试模块，覆盖私有纯函数和 DTO 构造。
-
-| 任务 | 涉及文件 | 说明 | 状态 |
-|------|----------|------|------|
-| 测试-9 | backend/src/handlers/data_permission_handler.rs | SQL 注入防御纯函数测试（0→6） | ✅ 批次 394 完成 |
-| 测试-10 | backend/src/handlers/print_handler.rs | 内置打印模板列表测试（0→5） | ✅ 批次 394 完成 |
-| 测试-11 | backend/src/handlers/system_update_handler.rs | ZIP 文件头校验 + DTO 构造测试（0→6） | ✅ 批次 394 完成 |
-| 测试-12 | backend/src/handlers/color_card/error_map.rs | 错误映射 3 函数 14 变体测试（0→6） | ✅ 批次 394 完成 |
-
-> 批次 394 共补测 23 个新测试。**阶段 6 测试覆盖补测全部完成**（批次 392-394，共 65 个新测试：service 42 + handler 23）。下一阶段：阶段 7 baseline 清零（批次 395-424）。
-
-### 阶段 7：baseline 清零（批次 395-396，2 批，7 项）✅ 全部完成
-
-> **目标**：剩余 7 条 baseline 警告全部清零。
-> **批次 395 已完成**：baseline 自动刷新机制（CI main 分支自动移除已修复警告），baseline 从 1465 行缩减到 310 行，摘要从 213 条缩减到 7 条。
-> **批次 396 已完成**（PR #570 已合并，CI 全绿，sha e0b0b5c）：剩余 7 类警告全部清零：
-> 1. ✅ `.clippy.toml` 移除 `disallowed-methods` 配置（println/eprintln 是宏不是方法，clippy 1.94 报 "does not refer to a reachable function"）
-> 2. ✅ `process_state_machine.rs` inherent `from_str` → 标准 `FromStr` trait 实现（消除 `should_implement_trait` 警告）
-> 3. ✅ `purchase_delivery_calculator.rs` 删除未使用的 `AvgLeadTimeResult` struct + `FromQueryResult` 导入（dead_code）
-> 4. ✅ `unwrap_safe.rs` 移除测试模块未使用的 `use super::*;`（宏通过 `#[macro_export]` 在 crate 级别导出）
-> 5. ✅ `middleware/auth.rs` 修复 `needless_borrow`（`&header_val` → `header_val`，已是 `&str`）
-> 6. ✅ `webhook_service.rs` 修复 `needless_borrow`（`url::Url::parse(&url)` → `url::Url::parse(url)`）
-> 7. ✅ too_many_arguments 警告经调研为过时 baseline 数据（当前所有函数均为 7 参数，CI 重跑后自动消失）
-> **后续**：baseline 机制保留（自动刷新已生效），后续阶段新增警告由 CI 直接阻塞。
-
-### 阶段 8：v14 低风险修复（批次 397-407，约 11 批，74 项）✅ 全部完成
-
-> **目标**：74 项低风险问题全部修复，每批 5-8 文件。
-> **批次号调整说明**：阶段 7 提前在 395-396 完成（原规划 395-424 共 30 批，实际 2 批完成），阶段 8-10 批次号整体前移 28 批。
-> **完成状态**：批次 397-407 全部完成（PR #571-#582 已合并），阶段 8 完成，下一阶段：阶段 9 批次 408-410。
-
-**批次 397（占位符调研 + unwrap_or_default 安全修复，PR #571 已合并，CI 全绿）**：
-
-> **调研结论**：21 项占位符/Mock 存根已在历史批次（290-308）全部修复。代码库无 `todo!()`/`unimplemented!()` 宏调用，`mock`/`stub` 仅存在于 ElasticClient 双模式实现（合法架构），9 处 TODO(tech-debt) 均为合理技术债务标注。实际修复 4 处 `unwrap_or_default` 安全隐患：
-> 1. `omni_audit.rs:85` — 请求体读取失败时记录 warn 日志而非静默回退空字节
-> 2. `omni_audit.rs:152` — 响应体读取失败时记录 warn 日志而非静默回退空字节
-> 3. `audit_enhanced_handler.rs:111` — `created_at` 改为 `Option<String>`，None 时序列化为 JSON null 而非空字符串
-> 4. `data_permission_handler.rs:89` — 序列化失败时 fail-fast 返回错误，避免跳过 SQL 注入安全检查
-
-**批次 398（配置合规性修复 + 部署路径修复，PR #572 已合并，CI 全绿）**：
-
-> **配置合规性修复**（6 文件）：
-> 1. `backend/src/config/settings.rs` — `AppSettings::new()` 中 `load_sensitive_from_env()` 之后添加 APP_ENV 同步逻辑（APP_ENV 未设置时从 config.yaml env 字段同步，消除 is_production() 部署陷阱）
-> 2. `backend/src/utils/config.rs` — 更新文档注释，添加配置优先级说明和 config.yaml 同步机制说明
-> 3. `.env.example` — 移除中文占位符密码（DATABASE__PASSWORD 留空）+ 注释 GRPC 残留变量（GRPC__HOST/GRPC__PORT）
-> 4. `backend/config.yaml.example` — 更新 env 字段注释，反映批次 398 同步修复
-> 5. `backend/.env.example` — 更新 APP_ENV 注释，说明批次 398 同步机制
-> 6. `deploy/deploy-latest.sh` — 移除 grpc 段生成
->
-> **CI clippy baseline 文件格式修复**：
-> - 原 `backend/.clippy-baseline.txt` 274 行中只有 2 行 `warning:` 开头的摘要行，其余是完整渲染输出（代码片段、help、note 行）
-> - CI 比较逻辑 `grep -E '^(warning|error):'` 只提取摘要行，导致 baseline 中只有 2 条，而当前警告有 118 条摘要行，`comm -23` 误判 116 条为新增
-> - 修复：从 CI 日志提取完整的 118 条警告摘要行，替换 baseline 文件为纯摘要行格式
->
-> **deploy.sh 部署路径修复**（用户报告部署失败问题）：
-> - 问题：systemd 服务文件 `EnvironmentFile=/etc/bingxi/.env` 与 deploy.sh `CONFIG_DIR=/etc/bingxi-erp` 路径不一致
-> - 清理 `/etc/bingxi/` 目录后重新部署时未重建该目录，`cp /etc/bingxi-erp/.env /etc/bingxi/.env` 因目标父目录不存在而失败
-> - systemd 加载 EnvironmentFile 失败，后端二进制根本未被执行
-> - 修复：CONFIG_DIR 从 `/etc/bingxi-erp` 改为 `/etc/bingxi`（与 systemd 服务文件、deploy-backend.sh、deploy-latest.sh 保持一致）
-> - 同步修复：CLI migrate 命令 source 路径 + 注释中残留引用 + 移除 config.yaml 模板 grpc 段
-
-| 批次范围 | 任务类别 | 项数 | 说明 |
-|----------|----------|------|------|
-| 397 ✅ | 占位符/Mock 存根 | 21 | 调研确认已清零 + 4 处 unwrap_or_default 修复 |
-| 398 ✅ | 配置合规性 + 部署路径 | 11 | is_production() 部署陷阱 + clippy baseline 格式 + deploy.sh 路径一致性 |
-| 399 | 占位符/Mock 存根剩余 | 0 | 调研确认无需修复（待处理） |
-| 400-401 | 项目规则符合性 | 11 | 评估是否符合规则 0-13 |
-| 402 ✅ | 死代码补充清理 | 1 | clippy baseline 最后一条 `needless_reference` 警告清零（webhook_handler.rs 测试 `&*LazyLock` 修复）；**技术债务**：错误创建仅 1 行 baseline 文件（内容为 `warning: this expression creates a reference...`），导致后续 CI strict 模式误报 117 个新警告，批次 406 删除后 CI bootstrap 自动重建 180 行完整基线修复 |
-| 403 ✅ | unwrap/lock 安全修复 | 4 | omni_audit_handler DB 字段吞错改 Option<T> 读取 + import_export 价格转换失败返回验证错误 + 2 处 shutdown Mutex::lock().unwrap() 改用 unwrap_or_else |
-| 404 ✅ | LazyLock expect + 消息常量化 | 12 | 2 处 LazyLock<Regex> expect 改 Option 优雅降级 + 新建 messages.rs 常量模块 + crud_macro 6 处 + 2 个 handler 4 处硬编码替换 |
-| 405 ✅ | 消息常量化第二批 | 8 | 5 handler 文件 8 处硬编码替换（crm/budget/webhook/bpm_definition/production_order） |
-| 406 ✅ | 序列化吞错修复 + baseline 重建 | 6+1 | 6 handler serde_json::to_value().unwrap_or_default() 改为错误传播 + 删除错误 baseline 文件由 CI 自动重建 180 行 |
-| 407 ✅ | 安全+数据完整性+业务正确性修复 | 15 | 9 handler 15 处修复（auth_handler 登录锁定 DB 错误传播 + 权限查询 fail-secure + api_gateway_handler 权限序列化错误传播 2 处 + dye_recipe_handler 配方辅料反序列化校验 + 创建回查错误传播 + 更新辅料校验 + dye_batch_handler 创建回查错误传播 + report_engine_handler filters_json 解析失败返回验证错误 2 处 + sales_order_handler warehouse_id 缺失校验 + barcode_scanner_handler order_id 缺失校验 + webhook_integration_handler 序列化错误传播 + customer_credit_handler credit_limit 技术债务标注）+ 4 处 redundant closure clippy 警告修复，CI 全绿 |
-
-#### §1.1 技术债务：11 个 `#[allow(clippy::too_many_arguments)]` 标注处理计划
+### §1.1 技术债务：11 个 `#[allow(clippy::too_many_arguments)]` 标注处理计划（未完成）
 
 > **来源**：批次 328（v10 复审 P3，PR #500，commit `12f2e682`）历史添加，用于临时抑制 11 个 8 参数函数的 clippy 警告。
 > **当前状态**：已列入 clippy baseline，CI 不再阻塞，但属于真实技术债务（违反单一职责原则，函数签名过长）。
@@ -232,7 +72,7 @@
 - CI clippy 全绿，baseline 不新增警告
 - 每个新建 DTO 添加中文文档注释 + `Debug, Clone` derive
 
-#### §1.2 技术债务：CreditRatingRequest.credit_limit 语义模糊（批次 407 标注）
+### §1.2 技术债务：CreditRatingRequest.credit_limit 语义模糊（未完成，批次 407 标注）
 
 > **来源**：批次 407 安全+数据完整性修复（[customer_credit_handler.rs#L309-L311](file:///workspace/backend/src/handlers/customer_credit_handler.rs#L309-L311)），`update_credit` 中 `credit_limit` 缺失时 `unwrap_or_default()` 默认为 0，service 层无法区分"未提供"与"显式置 0"。
 > **当前状态**：已添加 TODO 注释标注，功能不受影响（update 时缺失字段保持原值），但属于语义模糊的技术债务。
@@ -247,6 +87,8 @@
 > - `CreditRatingRequest` 结构体字段类型更新
 > - service 层逻辑正确区分 None/Some(0) 语义
 > - CI clippy 全绿，无新警告
+
+---
 
 ### 阶段 9：其他遗留（批次 408-410，3 批，约 15 文件）
 
@@ -630,26 +472,25 @@
 
 ## 三、批次执行计划总览
 
-| 阶段 | 批次范围 | 批次数 | 文件数 | 任务类别 |
-|------|----------|--------|--------|----------|
-| 1 | 384 | 1 | 7 | P1 级闭环（B-P1-3/7 + F-P1-1） |
-| 2 | 385-386 | 2 | 12 | 业务场景 P2（B-P2-1~6） |
-| 3 | 387 | 1 | 7 | 财务场景 P2（F-P2-1~4） |
-| 4 | 388-389 | 2 | 14 | v13 前后端 P2（FE-P2-1~3 + P2-1~3） |
-| 5 | 390-391 | 2 | 10 | useTableApi 接入（10 个 view） |
-| 6 | 392-394 | 3 | 18 | 测试覆盖补测（核心 service + handler） |
-| 7 | 395-396 | 2 | 6 | baseline 清零（213 项，含自动刷新机制） ✅ 全部完成 |
-| 8 | 397-407 | 11 | 74 | v14 低风险修复（74 项） |
-| 9 | 408-410 | 3 | 15 | 其他遗留（虚拟化+补测+E2E） |
-| 10 | 411+ | - | - | v14 新一轮复审（v13 全维度 + 17 个新增维度：通用 3 + 面料行业特性 7 + 面料行业模块专项 7） |
-| **合计** | **384-410** | **27** | **~163** | **所有未完成任务** |
+| 阶段 | 批次范围 | 批次数 | 文件数 | 任务类别 | 状态 |
+|------|----------|--------|--------|----------|------|
+| 1 | 384 | 1 | 7 | P1 级闭环（B-P1-3/7 + F-P1-1） | ✅ 完成 |
+| 2 | 385-386 | 2 | 12 | 业务场景 P2（B-P2-1~6） | ✅ 完成 |
+| 3 | 387 | 1 | 7 | 财务场景 P2（F-P2-1~4） | ✅ 完成 |
+| 4 | 388-389 | 2 | 14 | v13 前后端 P2（FE-P2-1~3 + P2-1~3） | ✅ 完成 |
+| 5 | 390-391 | 2 | 10 | useTableApi 接入（10 个 view） | ✅ 完成 |
+| 6 | 392-394 | 3 | 18 | 测试覆盖补测（核心 service + handler） | ✅ 完成 |
+| 7 | 395-396 | 2 | 6 | baseline 清零（213 项，含自动刷新机制） | ✅ 完成 |
+| 8 | 397-407 | 11 | 74 | v14 低风险修复（74 项） | ✅ 完成 |
+| 9 | 408-410 | 3 | 15 | 其他遗留（虚拟化+补测+E2E） | ⏳ 待执行 |
+| 10 | 411+ | - | - | v14 新一轮复审（v13 全维度 + 17 个新增维度） | ⏳ 待触发 |
 
 ---
 
 ## 四、规则节点提醒
 
 - **规则 5（E2E 独立工作流，每 30 批次）**：批次 330、360、390 已到期需触发（403 权限不足，需用户手动触发）；批次 420、450 到期需触发
-- **规则 10（每 15 批次记忆整理）**：批次 375、390、405 已完成，下次整理批次 420，后续 435/450（批次 407 用户额外要求一次梳理优化，已执行）
+- **规则 10（每 15 批次记忆整理 + 实时归档）**：批次 375、390、405 已完成，下次整理批次 420，后续 435/450；**实时归档要求**：每批完成后立即归档到 doto-su.md，doto.md 只保留未完成任务
 - **规则 13（修复流程自动化）**：CI 全绿后自动开始下一批，无需用户确认
 - **规则 14（移除所有警告抑制）**：所有警告视为错误需修复（阶段 7 baseline 213/213 ✅ 全部清零）
 - **规则 15（v13 复审严格规范 + v14 面料行业特性复审）**：v13 业务/财务/运行逻辑闭环 + 阶段 1-9 完成后触发 v14 复审，新增 17 个维度（通用 3 + 面料行业特性 7 + 面料行业模块专项 7）
@@ -666,5 +507,6 @@
 - v11 复审（批次 340-346）：27 项问题全部修复 ✅
 - v12 复审（批次 347-355）：15 项问题全部修复 ✅
 - v13 复审批次 356-383：详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)
+- v13 复审阶段 1-8（批次 384-407）：详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)
 
 > 详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
