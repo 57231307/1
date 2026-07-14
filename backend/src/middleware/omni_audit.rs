@@ -79,6 +79,9 @@ pub async fn omni_audit_middleware(
         .map(|ctx| ctx.username.clone())
         .unwrap_or_default();
 
+    // 批次 397 修复：提前生成 Trace ID，供请求体读取失败的 warn 日志使用
+    let trace_id = uuid::Uuid::new_v4().to_string();
+
     // 读取请求体（仅对 POST/PUT/PATCH 请求）
     let (req, request_body) = if method == "POST" || method == "PUT" || method == "PATCH" {
         let (parts, body) = req.into_parts();
@@ -127,9 +130,6 @@ pub async fn omni_audit_middleware(
     } else {
         (req, None)
     };
-
-    // 生成 Trace ID
-    let trace_id = uuid::Uuid::new_v4().to_string();
 
     // 记录请求开始日志
     tracing::info!(
