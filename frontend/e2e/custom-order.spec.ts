@@ -5,7 +5,7 @@
 // v8 复审 P0-3 修复（2026-06-30）：
 // 对齐批次 28 P0-1 fail-secure 模式，凭据从环境变量注入，禁止硬编码 admin/admin123。
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080'
 
@@ -16,7 +16,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:8080'
 const TEST_USERNAME = process.env.TEST_USERNAME
 const TEST_PASSWORD = process.env.TEST_PASSWORD
 
-async function login(page: import('@playwright/test').Page) {
+async function login(page: Page) {
   if (!TEST_USERNAME || !TEST_PASSWORD) {
     throw new Error(
       'E2E 测试需要环境变量 TEST_USERNAME / TEST_PASSWORD（fail-secure 模式，对齐批次 28 P0-1）',
