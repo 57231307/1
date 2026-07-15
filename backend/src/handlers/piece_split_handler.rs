@@ -86,6 +86,8 @@ pub async fn split_fabric_piece(
 
     let new_piece = inventory_piece::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
+        // v14 批次 416：dye_lot_id 为 NOT NULL 字段，拆分产生的新布卷继承母卷的缸号
+        dye_lot_id: Set(parent.dye_lot_id),
         batch_no: Set(parent.batch_no.clone()),
         product_id: Set(parent.product_id),
         warehouse_id: Set(parent.warehouse_id),
