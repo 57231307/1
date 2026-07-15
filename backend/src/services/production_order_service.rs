@@ -607,6 +607,8 @@ impl ProductionOrderService {
             cost_object_no: Some(updated.order_no.clone()),
             batch_no: None,
             color_no: None,
+            // v14 批次 422 T-P1-6：按缸号核算成本（生产订单当前无缸号，后续批次补全）
+            dye_lot_no: None,
             workshop: None,
             direct_material: total_material_cost,
             direct_labor: Decimal::ZERO,
