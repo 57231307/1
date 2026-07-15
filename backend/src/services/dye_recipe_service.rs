@@ -241,10 +241,12 @@ impl DyeRecipeService {
     ) -> Result<DyeRecipeModel, AppError> {
         let model = self.get_by_id(id).await?;
         // 在转为 ActiveModel 前记录当前状态，用于状态流转校验
+        // 注意：必须 clone 后再 model.into()，否则 as_deref() 借用 model.status 会与
+        // 后续 model.into() 移动 model 冲突（E0505 cannot move out of borrowed）
         let current_status = model
             .status
-            .as_deref()
-            .unwrap_or(recipe_status::DRAFT);
+            .clone()
+            .unwrap_or_else(|| recipe_status::DRAFT.to_string());
         let mut active: ActiveModel = model.into();
 
         if let Some(color_code) = req.color_code {
@@ -279,7 +281,7 @@ impl DyeRecipeService {
         }
         if let Some(status) = req.status {
             // 校验状态流转合法性
-            Self::validate_status_transition(current_status, &status)?;
+            Self::validate_status_transition(&current_status, &status)?;
             active.status = Set(Some(status));
         }
         if let Some(remarks) = req.remarks {
@@ -333,19 +335,19 @@ impl DyeRecipeService {
         let active = ActiveModel {
             id: Default::default(),
             recipe_no: Set(new_recipe_no),
-            recipe_name: model.recipe_name.clone(),
-            color_no: model.color_no.clone(),
-            formula: model.formula.clone(),
-            color_code: model.color_code.clone(),
-            color_name: model.color_name.clone(),
-            fabric_type: model.fabric_type.clone(),
-            dye_type: model.dye_type.clone(),
-            chemical_formula: model.chemical_formula.clone(),
-            temperature: model.temperature,
-            time_minutes: model.time_minutes,
-            ph_value: model.ph_value,
-            liquor_ratio: model.liquor_ratio,
-            auxiliaries: model.auxiliaries.clone(),
+            recipe_name: Set(model.recipe_name.clone()),
+            color_no: Set(model.color_no.clone()),
+            formula: Set(model.formula.clone()),
+            color_code: Set(model.color_code.clone()),
+            color_name: Set(model.color_name.clone()),
+            fabric_type: Set(model.fabric_type.clone()),
+            dye_type: Set(model.dye_type.clone()),
+            chemical_formula: Set(model.chemical_formula.clone()),
+            temperature: Set(model.temperature),
+            time_minutes: Set(model.time_minutes),
+            ph_value: Set(model.ph_value),
+            liquor_ratio: Set(model.liquor_ratio),
+            auxiliaries: Set(model.auxiliaries.clone()),
             status: Set(Some(recipe_status::DRAFT.to_string())),
             is_deleted: Set(Some(false)),
             version: Set(Some(new_version)),
