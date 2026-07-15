@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-15（批次 422 实施中 + 面料行业真实业务调研文档深度补充第十一至十三章，规划批次 423-432 共 10 批真实业务实现路径）。
+> 最近整理：2026-07-15（批次 424 实施中 + 面料行业真实业务调研文档深度补充第十一至十四章，规划批次 423-432 共 10 批真实业务实现路径；新增批次 425-432 真实业务深度调研文档 76KB）。
 
 ---
 
@@ -10,6 +10,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 424 | #601 | v14 复审 P1 第六批：大货处方与加料处方流程贯通（基于真实业务调研 §11.2）——2 表（production_recipe + production_recipe_addition，7 外键+13 索引）+ 2 SeaORM 模型（显式导入 serde + FromJsonQueryResult）+ 1 Service（41KB，ProductionRecipeService 11 方法+ProductionRecipeAdditionService 6 方法+12 单元测试）+ 15 Handler+15 路由+status.rs 新增 2 组状态常量；真实业务：同一工单号只能开一张大货处方单/追加物料须开加料处方单/审核后自动建立生产领用单据/用量计算=浓度%×布重×浴比/100×加成系数/浴比解析支持 1:8/1：8（全角冒号）/1/8 三种格式；CI 修复 clippy collapsible_str_replace 警告（连续 str::replace 改为 chars().map().collect() 单次遍历，commit a331e51b） |
+| 423B | #600 | v14 复审 P1 第五批 B：化验室打样流程贯通（基于真实业务调研 §11.1）——3 表（lab_dip_request/lab_dip_sample/lab_dip_resample）+ 3 模型 + 3 Service（900 行）+ 21 Handler + 21 路由；真实业务：ABCD=打样版数 4 版供客户选择/OK 样=客户从多版选 1 版/复样=车间半制品布+生产染化料模拟大生产色差 4-5 级方可投产/染色技术卡=复样通过后研发组长开卡含配方表+核可样+复色样；CI 修复 3 轮：①Text→String（8 处）②FromJsonQueryResult 显式导入 ③serde::{Serialize,Deserialize} 显式导入（57 个连锁错误根因）+ manual_range_contains clippy 警告（3 处改用 (a..=b).contains(&x)），CI 全绿 |
 | 423A | #599 | v14 复审 P1 第四批 A：染色配方 schema 修复 + Service 抽象层——迁移 036 补齐 dye_recipe 表 18 个缺失字段（recipe_no NOT NULL+回填 LEGACY-/color_no/formula/temperature/time_minutes/status/is_deleted/color_name/fabric_type/dye_type/chemical_formula/ph_value/liquor_ratio/auxiliaries/version/parent_recipe_id/approved_by/approved_at/remarks）+ 5 索引+2 外键约束；status.rs 新增 dye_recipe 状态常量（草稿/已审核/已停用）；新增 DyeRecipeService 抽象层（CRUD+状态流转校验 DRAFT→APPROVED/DISABLED+版本管理 create_new_version 版本树+色号/版本查询+generate_recipe_no）；handler 重构调用 service（11 个路由保持向后兼容，submit/export 保留原逻辑待 423B）；CI 修复 E0505 借用冲突（as_deref 改 clone）+ E0308 ActiveValue 类型不匹配 × 13（13 个字段补 Set 包装），CI 全绿 |
 | 422 | #598 | v14 复审 P1 第三批（基于面料行业真实业务调研文档 §5.2 按缸号实际成本法 + §5.6 月末成本单价）：T-P1-6 按缸号核算成本打通（cost_collection_service CreateCostCollectionRequest/UpdateCostCollectionRequest 新增 dye_lot_no 字段 + create/update 写入 + handler DTO 同步）+ T-P1-7 染色完成成本结转事件监听器（新增 dye_batch_cost_bridge_service.rs 独立监听 DyeBatchCompleted 事件 + AssertUnwindSafe panic 隔离 + static Mutex 保存 JoinHandle 供 shutdown abort + 创建 cost_collection 草稿关联 batch_no/color_no）；CI 修复 production_order_service.rs 第 603 行构造 CreateCostCollectionRequest 缺失 dye_lot_no 字段（commit e2d04123）；同步深度补充面料行业真实业务调研文档第十一至十三章（化验室打样 5 步闭环/大货处方与加料处方/流转卡条码/车间工序流转/验布打卷/产量工资/能耗管理/缸号状态机 + 批次 423-432 共 10 批规划） |
 | 421 | #597 | v14 复审 P1 面料行业特性首批修复（基于面料行业真实业务调研文档）：T-P1-4 质检 A/B/C 级分级判定（determine_quality_grade 合格率>=95% A 级/80-95% B 级让步接收降级销售/<80% C 级返工报废 + validate_handling_method_by_grade 等级与处理方式匹配校验 + CreateInspectionRecordRequest 新增 grade/color_no/dye_lot_no 字段 + process_unqualified 强制校验 + ProcessUnqualifiedRequest 新增 handling_result）+ T-P1-5 缸号同订单校验（validate_dye_lot_consistency 同一 product_id 必须使用相同 dye_lot_no + ShipOrderItemRequest 新增 color_no/dye_lot_no + ship_order 事务前校验）；迁移 035 为 quality_inspection_records/unqualified_products 添加 grade/color_no/dye_lot_no/handling_result 字段+索引；模型同步 2 文件；17 个单元测试（质检分级 9 个+缸号校验 8 个+build_ship_item 夹具）；CI 修复 Decimal::new 非 const fn 改为函数返回（grade_a_threshold/grade_b_threshold），CI 全绿 |
