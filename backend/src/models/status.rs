@@ -934,6 +934,56 @@ pub mod fabric_grade {
     pub const SECOND: &str = "second";
 }
 
+/// 工序工价状态（process_wage_rate.status）
+///
+/// v14 批次 427：产量工资核算贯通
+/// 依据：面料行业真实业务调研文档 §12.5 产量工资
+/// 状态机：draft(草稿) → active(启用) → disabled(停用)
+pub mod wage_rate_status {
+    /// 草稿：新建工价方案，未启用
+    pub const DRAFT: &str = "draft";
+
+    /// 启用：工价生效，可用于工资计算
+    pub const ACTIVE: &str = "active";
+
+    /// 停用：工价失效，不再用于工资计算
+    pub const DISABLED: &str = "disabled";
+}
+
+/// 工价类型（process_wage_rate.wage_type）
+///
+/// v14 批次 427：产量工资核算贯通
+/// 依据：面料行业真实业务调研文档 §12.5 计件计时工资采集录入
+pub mod wage_type {
+    /// 计件：按产量计酬，wage = qualified_quantity × piece_price × grade_ratio
+    pub const PIECE: &str = "piece";
+
+    /// 计时：按工时计酬，wage = duration_minutes × time_price × grade_ratio
+    pub const TIME: &str = "time";
+
+    /// 混合：计件 + 计时，wage = piece_wage + time_wage
+    pub const MIXED: &str = "mixed";
+}
+
+/// 工资记录状态（wage_record.status）
+///
+/// v14 批次 427：产量工资核算贯通
+/// 依据：面料行业真实业务调研文档 §12.5 自动汇总进入财务工资核算模块
+/// 状态机：draft(草稿) → confirmed(已确认) → paid(已发放) → cancelled(已取消)
+pub mod wage_record_status {
+    /// 草稿：工资计算生成的初始状态，可重新计算或删除
+    pub const DRAFT: &str = "draft";
+
+    /// 已确认：审核通过，等待发放
+    pub const CONFIRMED: &str = "confirmed";
+
+    /// 已发放：工资已发放到工人
+    pub const PAID: &str = "paid";
+
+    /// 已取消：作废，不再发放
+    pub const CANCELLED: &str = "cancelled";
+}
+
 /// 应付核销状态（ap_verification.verification_status，大写值）
 /// 批次 236 v13 真实接入：ap_verification_service.rs
 pub mod ap_verification {

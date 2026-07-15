@@ -20,7 +20,7 @@ use crate::handlers::{
     capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
     fabric_inspection_handler, flow_card_handler, greige_fabric_handler, lab_dip_handler,
     missing_handlers, mrp_handler, production_order_handler, production_recipe_handler,
-    quality_inspection_handler,
+    quality_inspection_handler, wage_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）

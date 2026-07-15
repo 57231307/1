@@ -155,6 +155,10 @@ pub mod production_flow_card;
 // v14 批次 426：验布打卷流程贯通（验布记录 + 疵点明细）
 pub mod fabric_inspection_record;
 pub mod fabric_defect_record;
+// v14 批次 427：产量工资核算贯通（工序工价 + 工资记录 + 工资明细）
+pub mod process_wage_rate;
+pub mod wage_record;
+pub mod wage_record_detail;
 // 匹数管理模块
 pub mod inventory_piece;
 // 仓位/库位模块
