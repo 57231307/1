@@ -54,6 +54,14 @@ pub struct Model {
 
     /// 更新时间
     pub updated_at: DateTime<Utc>,
+
+    // ========== v14 批次 417：面料行业追溯字段（T-P0-4） ==========
+    /// 色号（面料行业追溯字段，便于按色号筛选盘点差异）
+    pub color_no: String,
+    /// 缸号（面料行业追溯字段，便于按缸号筛选盘点差异）
+    pub dye_lot_no: Option<String>,
+    /// 批号（面料行业追溯字段，便于按批号筛选盘点差异）
+    pub batch_no: String,
 }
 
 /// 库存盘点明细 Relation

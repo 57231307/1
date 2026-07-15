@@ -158,6 +158,9 @@ impl SalesService {
                 // 批次 356 v13 复审修复：clone 避免 move，下方 record_transaction_txn 仍需访问 item.batch_no
                 batch_no: Set(item.batch_no.clone()),
                 color_no: Set(None),
+                // v14 批次 417：缸号字段（D-P1-5），当前发货流程暂不支持缸号级发货，后续批次补全
+                dye_lot_id: Set(None),
+                dye_lot_no: Set(None),
                 remarks: Set(None),
                 unit_price: Set(unit_price),
                 amount: Set(line_amount),
