@@ -26,6 +26,8 @@ pub struct UpdateCostCollectionRequest {
     pub dyeing_fee: Option<Decimal>,
     pub output_quantity_meters: Option<Decimal>,
     pub output_quantity_kg: Option<Decimal>,
+    // v14 批次 422 T-P1-6：按缸号核算成本（面料行业实际成本法基础）
+    pub dye_lot_no: Option<String>,
 }
 
 use serde::Deserialize;
@@ -38,6 +40,9 @@ pub struct CreateCostCollectionRequest {
     pub cost_object_no: Option<String>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
+    // v14 批次 422 T-P1-6：按缸号核算成本（面料行业实际成本法基础）
+    // 依据：fabric-industry-research.md §5.2 核算对象——按缸号实际成本法
+    pub dye_lot_no: Option<String>,
     pub workshop: Option<String>,
     pub direct_material: Decimal,
     pub direct_labor: Decimal,
@@ -104,6 +109,8 @@ impl CostCollectionService {
             cost_object_no: sea_orm::Set(req.cost_object_no),
             batch_no: sea_orm::Set(req.batch_no),
             color_no: sea_orm::Set(req.color_no),
+            // v14 批次 422 T-P1-6：写入缸号，打通按缸号核算成本
+            dye_lot_no: sea_orm::Set(req.dye_lot_no),
             workshop: sea_orm::Set(req.workshop),
             direct_material: sea_orm::Set(req.direct_material),
             direct_labor: sea_orm::Set(req.direct_labor),
@@ -214,6 +221,10 @@ impl CostCollectionService {
         }
         if let Some(amt) = req.output_quantity_kg {
             active_collection.output_quantity_kg = Set(Some(amt));
+        }
+        // v14 批次 422 T-P1-6：更新缸号，打通按缸号核算成本
+        if let Some(dye_lot_no) = req.dye_lot_no {
+            active_collection.dye_lot_no = Set(Some(dye_lot_no));
         }
 
         // Recalculate total cost

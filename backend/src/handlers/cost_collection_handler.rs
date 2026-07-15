@@ -38,6 +38,8 @@ pub struct CreateCostCollectionRequestDto {
     pub cost_object_no: Option<String>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
+    // v14 批次 422 T-P1-6：按缸号核算成本
+    pub dye_lot_no: Option<String>,
     pub workshop: Option<String>,
     pub direct_material: Decimal,
     pub direct_labor: Decimal,
@@ -95,6 +97,8 @@ pub async fn create_collection(
         cost_object_no: req.cost_object_no,
         batch_no: req.batch_no,
         color_no: req.color_no,
+        // v14 批次 422 T-P1-6：按缸号核算成本
+        dye_lot_no: req.dye_lot_no,
         workshop: req.workshop,
         direct_material: req.direct_material,
         direct_labor: req.direct_labor,
