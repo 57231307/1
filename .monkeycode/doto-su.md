@@ -7,6 +7,36 @@
 
 ## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
 
+### 批次 418：v14 P0 第三批 - 数据流转硬编码修复（PR #594，sha: 6c4cbe83）
+
+**修复内容**：5 个文件修复 5 个 v14 复审 P0 问题（D-P0-4/5/6 + G-P0-1/2），消除数据流转三节点断裂（采购入库→销售发货→销售退货）中的硬编码占位符。
+
+**修改文件**：
+
+| 文件 | 修复项 | 修改内容 |
+|------|--------|----------|
+| `backend/src/services/po/receipt.rs` | D-P0-4 | CreateStockFabricArgs + RecordTransactionArgs 的 batch_no/color_no 从 "DEFAULT" 改为从采购订单明细获取真实值（item.batch_no/color_code/lot_no） |
+| `backend/src/services/purchase_receipt_private.rs` | D-P0-4 | "DEFAULT" 默认值改为 unwrap_or_default()（空字符串），与库存语义一致 |
+| `backend/src/services/so/delivery.rs` | D-P0-5 + G-P0-1 | reduce_inventory 签名扩展返回 (qty_before, qty_after, color_no, dye_lot_no)；库存流水使用真实 color_no/dye_lot_no；添加产品批量查询调用 DualUnitConverter::meters_to_kg 计算 quantity_kg |
+| `backend/src/services/sales_return_service.rs` | D-P0-6 | 从库存获取真正的 dye_lot_no（s.dye_lot_no），替代原 Some(batch_no.clone()) 错误赋值 |
+| `backend/src/services/voucher_service.rs` | G-P0-2 | batch_no/color_no 为 None 时添加 tracing::warn 日志，便于排查辅助核算记录空字符串问题 |
+
+**技术要点**：
+1. **reduce_inventory 签名变更**：从 `Result<(Decimal, Decimal), AppError>` 扩展为 `Result<(Decimal, Decimal, String, Option<String>), AppError>`，仅 1 处业务调用（ship_order），无测试调用，向后兼容
+2. **DualUnitConverter 双单位换算**：公式 `公斤数 = 米数 × 克重(g/m²) × 幅宽(m) ÷ 1000`，产品 gram_weight/width 为 Option<Decimal>，缺失时回退 Decimal::ZERO
+3. **Clippy 修复**：首次 CI 因 `quantity_kg: quantity_kg` 触发 redundant_field_names 警告，改为简写 `quantity_kg` 后通过
+4. **purchase_order_item 旧命名**：SQL 表使用 color_code/lot_no（非 color_no/dye_lot_no），Rust 模型匹配 DB 列名，术语统一在后续批次处理
+
+**CI 验证**：15 check runs（12 核心 + 3 后处理），13 success + 2 skipped，CI 全绿后 squash 合并。
+
+**v14 复审修复进度**：
+- 批次 416 ✅：D-P0-1/2 + D-P1-1/2/7（数据模型基础）
+- 批次 417 ✅：D-P1-3/4/5/6 + T-P0-1/4（业务字段补全）
+- 批次 418 ✅：D-P0-4/5/6 + G-P0-1/2（数据流转硬编码修复）
+- 批次 419 🔄：F-P0-1/2 + T-P0-3/5（生产订单 + 色卡借出补全缸号）
+
+---
+
 ### 批次 417：v14 P0 第二批 - 业务单据明细补全缸号字段（PR #593，sha: 1b818309）
 
 **背景**：v14 复审发现 6 类业务单据明细缺失缸号/色号/批号追溯字段，导致无法按缸号退货/发货/调拨/盘点，面料行业四层级联关系在业务单据层断裂。
