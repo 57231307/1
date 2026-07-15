@@ -227,7 +227,7 @@ impl SalesService {
                         dye_lot_no: stock_dye_lot_no.clone(),
                         grade: String::new(),
                         quantity_meters: item.quantity,
-                        quantity_kg: quantity_kg,
+                        quantity_kg,
                         source_bill_type: Some("sales_order".to_string()),
                         source_bill_no: Some(order.order_no.clone()),
                         source_bill_id: Some(request.order_id),
