@@ -140,6 +140,10 @@ pub mod dye_batch;
 pub mod dye_lot_mapping;
 pub mod dye_recipe;
 pub mod greige_fabric;
+// v14 批次 423B：化验室打样流程贯通（打样通知单 + ABCD 多版样 + 复样记录）
+pub mod lab_dip_request;
+pub mod lab_dip_resample;
+pub mod lab_dip_sample;
 // 匹数管理模块
 pub mod inventory_piece;
 // 仓位/库位模块
