@@ -50,6 +50,8 @@ pub mod flow_card_service;
 pub mod fabric_inspection_service;
 // v14 批次 427：产量工资核算贯通
 pub mod wage_service;
+// v14 批次 428：能耗管理贯通
+pub mod energy_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;
