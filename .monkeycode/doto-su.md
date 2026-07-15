@@ -7,6 +7,44 @@
 
 ## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
 
+### 批次 419：v14 P0 第四批 - 生产订单+色卡借出补全缸号（PR #595，sha: 5218664b）
+
+**修复内容**：7 个文件（1 迁移 + 6 代码）修复 4 个 v14 复审 P0 问题（F-P0-1/2 + T-P0-3/5），补全生产订单、库存匹号、色卡借出记录的面料行业追溯字段，并修复销售退货按缸号入库的核心逻辑。
+
+**修改文件**：
+| 文件 | 修改类型 | 修复问题 |
+|------|---------|---------|
+| database/migration/034_v14_production_colorcard_dyelot.sql | 新增 | F-P0-1/2 + T-P0-3：3 个表添加面料行业追溯字段 + 索引 |
+| backend/src/models/production_order.rs | 修改 | F-P0-1：添加 color_no/dye_lot_no/batch_no 字段 |
+| backend/src/models/inventory_piece.rs | 修改 | F-P0-2：添加 color_no/dye_lot_no 字段 |
+| backend/src/models/color_card_borrow_record.rs | 修改 | T-P0-3：添加 dye_lot_no 字段 |
+| backend/src/handlers/piece_split_handler.rs | 修改 | F-P0-2：ActiveModel 构造同步更新（NotSet） |
+| backend/src/services/production_order_service.rs | 修改 | F-P0-1：从订单获取缸号替代 DEFAULT 硬编码 |
+| backend/src/services/color_card_borrow_service.rs | 修改 | T-P0-3：ActiveModel 构造同步更新（Set(None)）|
+| backend/src/services/sales_return_service.rs | 修改 | T-P0-5：stock_map 改为四维索引按缸号退货入库 |
+
+**技术要点**：
+1. **迁移 034**：为 production_orders（添加 color_no/dye_lot_no/batch_no）、inventory_piece（添加 color_no/dye_lot_no）、color_card_borrow_records（添加 dye_lot_no）三个表添加面料行业追溯字段及对应索引。
+2. **F-P0-1 修复**：production_order.rs Model 添加 3 个 Option<String> 字段；production_order_service.rs 入库时从订单获取真实缸号替代 "DEFAULT" 硬编码（`batch_no: order.batch_no.clone().unwrap_or_else(|| order.order_no.clone())`）。
+3. **F-P0-2 修复**：inventory_piece.rs Model 添加 2 个 Option<String> 字段；piece_split_handler.rs ActiveModel 构造点同步更新（color_no/dye_lot_no 使用 NotSet）。
+4. **T-P0-3 修复**：color_card_borrow_record.rs Model 添加 1 个 Option<String> 字段；color_card_borrow_service.rs ActiveModel 构造点同步更新（dye_lot_no: Set(None)）。
+5. **T-P0-5 修复**：sales_return_service.rs stock_map 改为四维索引 `HashMap<(i32, String, String, Option<String>), inventory_stock::Model>`，键为 `(product_id, color_no, batch_no, dye_lot_no)`，避免同一产品多缸号库存 HashMap 覆盖；从退货明细获取缸号/色号/批号进行精确查找。
+
+**CI 验证**：
+- 首次 CI 失败：`error[E0063]: missing field 'dye_lot_no' in initializer of 'color_card_borrow_record::ActiveModel'`
+- CI 修复：color_card_borrow_service.rs 中使用 `use ... ActiveModel as BorrowActive` 别名导入的构造点遗漏，补全 `dye_lot_no: Set(None)`（commit adb5a93c）
+- CI 全绿（15 check runs）
+
+**v14 复审修复进度**：
+- 批次 416 ✅：D-P0-1/2 + D-P1-1/2/7（数据模型基础）
+- 批次 417 ✅：D-P1-3/4/5/6 + T-P0-1/4（业务字段补全）
+- 批次 418 ✅：D-P0-4/5/6 + G-P0-1/2（数据流转硬编码修复）
+- 批次 419 ✅：F-P0-1/2 + T-P0-3/5（生产订单+色卡借出补全缸号）—— **P0 全部修复完成**
+- 批次 420 ⏳：T-P1-1/2/3 + G-P1-3（P1 事件贯通修复）
+- 批次 421+ ⏳：P1 面料行业特性 + 模块专项 + 术语统一
+
+---
+
 ### 批次 418：v14 P0 第三批 - 数据流转硬编码修复（PR #594，sha: 6c4cbe83）
 
 **修复内容**：5 个文件修复 5 个 v14 复审 P0 问题（D-P0-4/5/6 + G-P0-1/2），消除数据流转三节点断裂（采购入库→销售发货→销售退货）中的硬编码占位符。
