@@ -155,6 +155,8 @@ impl ColorCardBorrowService {
             purpose: Set(purpose),
             notes: Set(notes),
             compensation_amount: Set(None),
+            // v14 批次 419 新增：缸号（T-P0-3 修复），当前借出流程暂不支持缸号，设为 None
+            dye_lot_no: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
         };
