@@ -27,8 +27,13 @@ pub const QUALITY_GRADE_B: &str = "B"; // 让步接收，降级销售
 pub const QUALITY_GRADE_C: &str = "C"; // 不合格，返工或报废
 
 // 合格率分级阈值（百分比，0-100）
-pub const GRADE_A_THRESHOLD: Decimal = Decimal::new(95, 0); // 95%
-pub const GRADE_B_THRESHOLD: Decimal = Decimal::new(80, 0); // 80%
+// 注意：Decimal::new 非 const fn，用函数返回避免 const 上下文限制
+pub fn grade_a_threshold() -> Decimal {
+    Decimal::new(95, 0) // 95%
+}
+pub fn grade_b_threshold() -> Decimal {
+    Decimal::new(80, 0) // 80%
+}
 
 // 不合格品处理方式常量（依据调研文档 §4.7 质检结果分级）
 pub const HANDLING_DOWNGRADE_SALE: &str = "downgrade_sale"; // B 级降级销售
@@ -45,9 +50,9 @@ pub const HANDLING_SCRAP: &str = "scrap"; // C 级报废
 /// 入参 qualification_rate 为百分比形式（0-100），None 视为 0% 处理为 C 级
 pub fn determine_quality_grade(qualification_rate: Option<Decimal>) -> String {
     let rate = qualification_rate.unwrap_or(Decimal::ZERO);
-    if rate >= GRADE_A_THRESHOLD {
+    if rate >= grade_a_threshold() {
         QUALITY_GRADE_A.to_string()
-    } else if rate >= GRADE_B_THRESHOLD {
+    } else if rate >= grade_b_threshold() {
         QUALITY_GRADE_B.to_string()
     } else {
         QUALITY_GRADE_C.to_string()
@@ -554,8 +559,8 @@ mod tests {
         assert_eq!(QUALITY_GRADE_A, "A");
         assert_eq!(QUALITY_GRADE_B, "B");
         assert_eq!(QUALITY_GRADE_C, "C");
-        assert_eq!(GRADE_A_THRESHOLD, decs!("95"));
-        assert_eq!(GRADE_B_THRESHOLD, decs!("80"));
+        assert_eq!(grade_a_threshold(), decs!("95"));
+        assert_eq!(grade_b_threshold(), decs!("80"));
         assert_eq!(HANDLING_DOWNGRADE_SALE, "downgrade_sale");
         assert_eq!(HANDLING_REWORK, "rework");
         assert_eq!(HANDLING_SCRAP, "scrap");
@@ -563,12 +568,12 @@ mod tests {
 
     /// 测试_decimal阈值解析正确性
     ///
-    /// 校验 GRADE_A_THRESHOLD / GRADE_B_THRESHOLD 通过 Decimal::new 构造的值正确。
+    /// 校验 grade_a_threshold / grade_b_threshold 通过 Decimal::new 构造的值正确。
     #[test]
     fn 测试_decimal阈值解析正确性() {
         let d = Decimal::from_str("95").unwrap();
-        assert_eq!(GRADE_A_THRESHOLD, d);
+        assert_eq!(grade_a_threshold(), d);
         let d = Decimal::from_str("80").unwrap();
-        assert_eq!(GRADE_B_THRESHOLD, d);
+        assert_eq!(grade_b_threshold(), d);
     }
 }
