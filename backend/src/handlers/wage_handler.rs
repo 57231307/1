@@ -9,7 +9,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 use serde::Deserialize;
 
 use crate::models::{process_wage_rate, wage_record, wage_record_detail};
