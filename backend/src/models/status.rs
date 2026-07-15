@@ -1336,9 +1336,8 @@ pub mod outsourcing_order_type {
 /// 委外加工订单状态（outsourcing_order.status）
 ///
 /// v14 批次 430：委托加工物资贯通
-/// 状态机：draft(草稿) → issued(已发料) → processing(加工中) → received(已收回)
-///        → settled(已结算) → closed(已关闭)
-///        任意非 closed 状态 → cancelled(已取消)
+/// 状态机：draft → issued → processing → received → settled → closed
+/// 任意非 closed 状态 → cancelled
 pub mod outsourcing_order_status {
     /// 草稿：新建委外订单，可编辑
     pub const DRAFT: &str = "draft";
