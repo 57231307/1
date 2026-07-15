@@ -19,8 +19,8 @@ use axum::{
 use crate::handlers::{
     capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
     fabric_inspection_handler, flow_card_handler, greige_fabric_handler, lab_dip_handler,
-    missing_handlers, mrp_handler, production_order_handler, production_recipe_handler,
-    quality_inspection_handler, wage_handler, energy_handler,
+    missing_handlers, mrp_handler, outsourcing_handler, production_order_handler,
+    production_recipe_handler, quality_inspection_handler, wage_handler, energy_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -371,6 +371,55 @@ pub fn energy() -> Router<AppState> {
         .route("/energy-allocations/monthly", post(energy_handler::monthly_allocation))
 }
 
+/// 委外加工管理路由（path 前缀 /outsourcing-orders、/outsourcing-receipts、/outsourcing-vouchers）
+///
+/// v14 批次 430：委托加工物资贯通
+/// 依据：面料行业真实业务调研文档 §5.4 委托加工物资核算三步分录 + §5.5 委外织布场景
+///       + §5.7 损耗率标准 + §6.5 委托加工模式
+/// 真实业务流程：
+///   委外订单（draft→issued→processing→received→settled→closed→cancelled）
+///   发料明细（按面料四维标识追溯，发料分录：借 委托加工物资/贷 自制半成品-胚布）
+///   收回入库单（draft→confirmed，含损耗分类；入库分录：借 库存商品-成品布/贷 委托加工物资）
+///   会计凭证（issue 发料 / fee 加工费 / receipt 入库 / loss 损耗处理）
+/// 三步分录（§5.4）：
+///   1. 发料：借 委托加工物资 / 贷 自制半成品-胚布
+///   2. 加工费：借 委托加工物资 + 应交税费-进项税额 / 贷 银行存款
+///   3. 入库：借 库存商品-成品布 / 贷 委托加工物资
+pub fn outsourcing() -> Router<AppState> {
+    Router::new()
+        // ===== 委外订单 CRUD =====
+        .route("/outsourcing-orders", get(outsourcing_handler::list_outsourcing_orders))
+        .route("/outsourcing-orders", post(outsourcing_handler::create_outsourcing_order))
+        .route("/outsourcing-orders/by-no/:no", get(outsourcing_handler::get_outsourcing_order_by_no))
+        .route("/outsourcing-orders/:id", get(outsourcing_handler::get_outsourcing_order))
+        .route("/outsourcing-orders/:id", put(outsourcing_handler::update_outsourcing_order))
+        .route("/outsourcing-orders/:id", delete(outsourcing_handler::delete_outsourcing_order))
+        // 委外订单状态机流转
+        .route("/outsourcing-orders/:id/issue", post(outsourcing_handler::issue_outsourcing_order))
+        .route("/outsourcing-orders/:id/processing", post(outsourcing_handler::record_processing))
+        .route("/outsourcing-orders/:id/settle", post(outsourcing_handler::settle_outsourcing_order))
+        .route("/outsourcing-orders/:id/close", post(outsourcing_handler::close_outsourcing_order))
+        .route("/outsourcing-orders/:id/cancel", post(outsourcing_handler::cancel_outsourcing_order))
+        // ===== 委外发料明细 =====
+        .route("/outsourcing-orders/items/by-order/:order_id", get(outsourcing_handler::list_outsourcing_items))
+        .route("/outsourcing-orders/items", post(outsourcing_handler::create_outsourcing_item))
+        .route("/outsourcing-orders/items/:id", put(outsourcing_handler::update_outsourcing_item))
+        .route("/outsourcing-orders/items/:id", delete(outsourcing_handler::delete_outsourcing_item))
+        // ===== 委外收回入库单 CRUD + 状态机 =====
+        .route("/outsourcing-receipts", get(outsourcing_handler::list_outsourcing_receipts))
+        .route("/outsourcing-receipts", post(outsourcing_handler::create_outsourcing_receipt))
+        .route("/outsourcing-receipts/by-no/:no", get(outsourcing_handler::get_outsourcing_receipt_by_no))
+        .route("/outsourcing-receipts/:id/confirm", post(outsourcing_handler::confirm_outsourcing_receipt))
+        .route("/outsourcing-receipts/:id", put(outsourcing_handler::update_outsourcing_receipt))
+        .route("/outsourcing-receipts/:id", delete(outsourcing_handler::delete_outsourcing_receipt))
+        // ===== 委外会计分录凭证 =====
+        .route("/outsourcing-vouchers", get(outsourcing_handler::list_outsourcing_vouchers))
+        .route("/outsourcing-vouchers", post(outsourcing_handler::create_outsourcing_voucher))
+        .route("/outsourcing-vouchers/by-no/:no", get(outsourcing_handler::get_outsourcing_voucher_by_no))
+        .route("/outsourcing-vouchers/:id/post", post(outsourcing_handler::post_outsourcing_voucher))
+        .route("/outsourcing-vouchers/:id", delete(outsourcing_handler::delete_outsourcing_voucher))
+}
+
 /// 质量检验路由（path 前缀 /quality-inspection）
 ///
 /// 注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。
@@ -571,6 +620,7 @@ pub fn routes() -> Router<AppState> {
         .merge(fabric_inspections())
         .merge(wages())
         .merge(energy())
+        .merge(outsourcing())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())

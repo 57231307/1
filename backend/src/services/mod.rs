@@ -54,6 +54,8 @@ pub mod wage_service;
 pub mod energy_service;
 // v14 批次 429：染化料主数据完善（染化料主数据 + 分类 + 批次 + 领用单）
 pub mod chemical_service;
+// v14 批次 430：委托加工物资贯通（委外订单 + 发料明细 + 收回入库 + 会计凭证）
+pub mod outsourcing_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;

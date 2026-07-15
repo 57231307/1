@@ -96,6 +96,8 @@ pub mod wage_handler;
 pub mod energy_handler;
 // v14 批次 429：染化料主数据完善（染化料主数据 + 分类 + 批次 + 领用单）
 pub mod chemical_handler;
+// v14 批次 430：委托加工物资贯通（委外订单 + 发料明细 + 收回入库 + 会计凭证）
+pub mod outsourcing_handler;
 // v14 批次 424：大货处方与加料处方流程
 pub mod production_recipe_handler;
 pub mod sales_return_handler;
