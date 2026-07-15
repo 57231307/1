@@ -929,7 +929,7 @@ impl LabDipResampleService {
             )));
         }
 
-        if req.color_difference_grade < 1 || req.color_difference_grade > 5 {
+        if !(1..=5).contains(&req.color_difference_grade) {
             return Err(AppError::business("色差等级范围 1-5 级"));
         }
 
