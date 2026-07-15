@@ -472,6 +472,19 @@ pub struct ConsumptionQuery {
     pub page_size: Option<u64>,
 }
 
+/// 车间能耗汇总记录（用于 summarize_by_workshop 返回值，避免复杂元组类型）
+#[derive(Debug, Clone)]
+pub struct WorkshopEnergySummary {
+    /// 车间
+    pub workshop: String,
+    /// 能源类型
+    pub meter_type: String,
+    /// 总消耗量
+    pub total_consumption: Decimal,
+    /// 总成本
+    pub total_cost: Decimal,
+}
+
 /// 能耗记录 Service
 pub struct EnergyConsumptionService {
     db: Arc<DatabaseConnection>,
@@ -798,8 +811,7 @@ impl EnergyConsumptionService {
         period_end: chrono::DateTime<chrono::FixedOffset>,
         workshop: Option<String>,
         meter_type: Option<String>,
-    ) -> Result<Vec<(String, String, Decimal, Decimal)>, AppError> {
-        // 返回 (workshop, meter_type, total_consumption, total_cost) 列表
+    ) -> Result<Vec<WorkshopEnergySummary>, AppError> {
         let mut q = ConsumptionEntity::find()
             .filter(energy_consumption_record::Column::IsDeleted.eq(false))
             .filter(energy_consumption_record::Column::Status.eq(energy_record_status::CONFIRMED))
@@ -827,7 +839,12 @@ impl EnergyConsumptionService {
 
         Ok(summary
             .into_iter()
-            .map(|((ws, mt), (cons, cost))| (ws, mt, cons, cost))
+            .map(|((ws, mt), (cons, cost))| WorkshopEnergySummary {
+                workshop: ws,
+                meter_type: mt,
+                total_consumption: cons,
+                total_cost: cost,
+            })
             .collect())
     }
 }
@@ -1250,7 +1267,7 @@ impl EnergyAllocationRecordService {
         }
 
         // 计算分摊比例、消耗量、成本（若未提供）
-        let allocation_ratio = req.allocation_ratio.unwrap_or_else(|| Decimal::ONE);
+        let allocation_ratio = req.allocation_ratio.unwrap_or(Decimal::ONE);
         let allocated_consumption = req
             .allocated_consumption
             .unwrap_or_else(|| compute_allocated_consumption(req.total_consumption, allocation_ratio));
@@ -1509,7 +1526,11 @@ impl EnergyAllocationRecordService {
 
         let mut results = Vec::new();
 
-        for (workshop, meter_type, total_consumption, total_cost) in summaries {
+        for summary in summaries {
+            let workshop = summary.workshop;
+            let meter_type = summary.meter_type;
+            let total_consumption = summary.total_consumption;
+            let total_cost = summary.total_cost;
             // 2. 查询该车间在该时段内的 completed 工序记录，按缸号+工序分组统计工时
             let step_records = StepEntity::find()
                 .filter(process_step_record::Column::Status.eq("completed"))
