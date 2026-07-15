@@ -299,3 +299,8 @@ pub mod seasonal_price_rule_dto;
 // P2-4 AI 分析深化（工艺优化 + 质量预测）模型
 pub mod ai_process_optimization;
 pub mod ai_quality_prediction;
+// v14 批次 431：多业务模式支持（业务模式配置 + 流程步骤 + 规则 + 单据关联）
+pub mod business_mode_config;
+pub mod business_mode_flow_step;
+pub mod business_mode_rule;
+pub mod business_mode_order_link;
