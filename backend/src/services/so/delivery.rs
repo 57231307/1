@@ -1755,4 +1755,137 @@ mod tests {
             .await;
         assert!(result.is_err());
     }
+
+    // ===== v14 批次 421 T-P1-5：缸号同订单校验 validate_dye_lot_consistency =====
+    // 依据：fabric-industry-research.md §2.3 约束 5
+    // 业务语义：一个缸号代表一次染色，同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺
+
+    /// 测试_缸号同订单校验_空发货明细通过
+    ///
+    /// 无发货明细时校验通过（边界场景）。
+    #[test]
+    fn 测试_缸号同订单校验_空发货明细通过() {
+        let items: Vec<ShipOrderItemRequest> = vec![];
+        assert!(validate_dye_lot_consistency(&items).is_ok());
+    }
+
+    /// 测试_缸号同订单校验_单产品单缸号通过
+    ///
+    /// 同一 product_id 仅一个 dye_lot_no → 通过。
+    #[test]
+    fn 测试_缸号同订单校验_单产品单缸号通过() {
+        let items = vec![
+            build_ship_item(1001, decs!("10"), Some("DL001".to_string())),
+            build_ship_item(1001, decs!("20"), Some("DL001".to_string())),
+            build_ship_item(1001, decs!("5"), Some("DL001".to_string())),
+        ];
+        assert!(validate_dye_lot_consistency(&items).is_ok());
+    }
+
+    /// 测试_缸号同订单校验_多产品各自单缸号通过
+    ///
+    /// 不同 product_id 可使用不同 dye_lot_no，互不影响 → 通过。
+    #[test]
+    fn 测试_缸号同订单校验_多产品各自单缸号通过() {
+        let items = vec![
+            build_ship_item(1001, decs!("10"), Some("DL001".to_string())),
+            build_ship_item(1002, decs!("20"), Some("DL002".to_string())),
+            build_ship_item(1003, decs!("5"), Some("DL003".to_string())),
+        ];
+        assert!(validate_dye_lot_consistency(&items).is_ok());
+    }
+
+    /// 测试_缸号同订单校验_同产品不同缸号拒绝
+    ///
+    /// 同一 product_id 出现多个不同 dye_lot_no → 拒绝（混缸色差风险）。
+    #[test]
+    fn 测试_缸号同订单校验_同产品不同缸号拒绝() {
+        let items = vec![
+            build_ship_item(1001, decs!("10"), Some("DL001".to_string())),
+            build_ship_item(1001, decs!("20"), Some("DL002".to_string())),
+        ];
+        let result = validate_dye_lot_consistency(&items);
+        assert!(result.is_err(), "同产品不同缸号应被拒绝");
+        let err = result.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("1001"), "错误信息应包含 product_id");
+        assert!(msg.contains("DL001"), "错误信息应包含第一个缸号");
+        assert!(msg.contains("DL002"), "错误信息应包含第二个缸号");
+        assert!(msg.contains("色差"), "错误信息应说明色差风险");
+    }
+
+    /// 测试_缸号同订单校验_未指定缸号通过
+    ///
+    /// 所有明细均未指定 dye_lot_no（None 或空字符串）→ 跳过校验通过，兼容无缸号场景。
+    #[test]
+    fn 测试_缸号同订单校验_未指定缸号通过() {
+        let items = vec![
+            build_ship_item(1001, decs!("10"), None),
+            build_ship_item(1001, decs!("20"), None),
+            build_ship_item(1002, decs!("5"), None),
+        ];
+        assert!(validate_dye_lot_consistency(&items).is_ok());
+    }
+
+    /// 测试_缸号同订单校验_空字符串缸号视为未指定
+    ///
+    /// dye_lot_no 为空字符串时视为未指定，跳过校验通过。
+    #[test]
+    fn 测试_缸号同订单校验_空字符串缸号视为未指定() {
+        let items = vec![
+            build_ship_item(1001, decs!("10"), Some("".to_string())),
+            build_ship_item(1001, decs!("20"), Some("".to_string())),
+        ];
+        assert!(validate_dye_lot_consistency(&items).is_ok());
+    }
+
+    /// 测试_缸号同订单校验_部分指定部分未指定通过
+    ///
+    /// 同一 product_id 部分明细指定缸号 DL001，部分未指定 → 仅校验已指定的，
+    /// 未指定不参与比较 → 通过。
+    #[test]
+    fn 测试_缸号同订单校验_部分指定部分未指定通过() {
+        let items = vec![
+            build_ship_item(1001, decs!("10"), Some("DL001".to_string())),
+            build_ship_item(1001, decs!("20"), None),
+            build_ship_item(1001, decs!("5"), Some("DL001".to_string())),
+        ];
+        assert!(validate_dye_lot_consistency(&items).is_ok());
+    }
+
+    /// 测试_缸号同订单校验_错误信息包含缸号列表
+    ///
+    /// 验证错误信息中包含所有冲突的缸号，便于业务人员定位问题。
+    #[test]
+    fn 测试_缸号同订单校验_错误信息包含缸号列表() {
+        let items = vec![
+            build_ship_item(2002, decs!("10"), Some("缸号A".to_string())),
+            build_ship_item(2002, decs!("20"), Some("缸号B".to_string())),
+            build_ship_item(2002, decs!("5"), Some("缸号C".to_string())),
+        ];
+        let err = validate_dye_lot_consistency(&items).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("2002"));
+        assert!(msg.contains("缸号A"));
+        assert!(msg.contains("缸号B"));
+        assert!(msg.contains("缸号C"));
+    }
+
+    /// 测试夹具：构造 ShipOrderItemRequest
+    ///
+    /// 集中构造发货明细，避免每个测试重复字段初始化（规则 6 mock 数据抽取）。
+    /// batch_no 默认 None，color_no 默认 None，仅 product_id/quantity/dye_lot_no 可变。
+    fn build_ship_item(
+        product_id: i32,
+        quantity: Decimal,
+        dye_lot_no: Option<String>,
+    ) -> ShipOrderItemRequest {
+        ShipOrderItemRequest {
+            product_id,
+            quantity,
+            batch_no: None,
+            color_no: None,
+            dye_lot_no,
+        }
+    }
 }
