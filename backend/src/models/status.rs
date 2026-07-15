@@ -723,6 +723,64 @@ pub mod dye_recipe {
     pub const DISABLED: &str = "已停用";
 }
 
+/// 化验室打样通知单状态（lab_dip_request.status，小写值）
+/// v14 批次 423B 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §11.1 化验室打样 5 步闭环
+/// 状态机：pending → sampling → submitted → approved/rejected → completed
+pub mod lab_dip_request {
+    /// 待打样：通知单已下达，待技术科安排打样
+    pub const PENDING: &str = "pending";
+
+    /// 打样中：技术科正在打 ABCD 多版小样
+    pub const SAMPLING: &str = "sampling";
+
+    /// 已送客户：小样已送客户等待确认
+    pub const SUBMITTED: &str = "submitted";
+
+    /// OK 样确认：客户已选中 OK 样
+    pub const APPROVED: &str = "approved";
+
+    /// 重打：客户要求重打
+    pub const REJECTED: &str = "rejected";
+
+    /// 已建库：复样通过，处方已升级为大货模板入库
+    pub const COMPLETED: &str = "completed";
+}
+
+/// 打样小样对色结果（lab_dip_sample.matching_result，小写值）
+/// v14 批次 423B 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §11.1 对色规范（0/45 度观察，色差 4-5 级为 OK）
+pub mod lab_dip_sample {
+    /// 待对色：小样刚打出，尚未对色
+    pub const PENDING: &str = "pending";
+
+    /// 对色 OK：色差达 4-5 级
+    pub const MATCHED: &str = "matched";
+
+    /// 不匹配：色差低于 4 级，需重打
+    pub const NOT_MATCHED: &str = "not_matched";
+
+    /// 客户选中 OK 样：客户从多版中选中此版作为 OK 样
+    pub const SELECTED: &str = "selected";
+}
+
+/// 复样结果状态（lab_dip_resample.result，小写值）
+/// v14 批次 423B 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §11.1 复样（大货前验证，色差 4-5 级方可投产）
+pub mod lab_dip_resample {
+    /// 待复样：复样任务已创建，待执行
+    pub const PENDING: &str = "pending";
+
+    /// 复样通过：色差达 4-5 级，可投产
+    pub const PASSED: &str = "passed";
+
+    /// 复样失败：色差低于 4 级，不可投产
+    pub const FAILED: &str = "failed";
+
+    /// 需调整重试：处方需加成/冲减调整后重新复样
+    pub const ADJUSTED: &str = "adjusted";
+}
+
 /// 应付核销状态（ap_verification.verification_status，大写值）
 /// 批次 236 v13 真实接入：ap_verification_service.rs
 pub mod ap_verification {

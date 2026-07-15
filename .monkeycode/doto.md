@@ -111,6 +111,8 @@
 > **批次 420 状态**：✅ 已完成（PR #596，P1 第一批：事件贯通修复 T-P1-1/2/3 + G-P1-3）
 > **批次 421 状态**：✅ 已完成（PR #597，P1 第二批：面料行业特性首批——T-P1-4 质检 A/B/C 级分级 + T-P1-5 缸号同订单校验，基于 [fabric-industry-research.md](file:///workspace/.monkeycode/docs/research/fabric-industry-research.md) 真实业务调研）
 > **批次 422 状态**：✅ 已完成（PR #598 squash 合并，P1 第三批：T-P1-6 按缸号核算成本打通 + T-P1-7 染色完成成本结转事件监听器；CI 修复 production_order_service 缺失 dye_lot_no 字段，CI 全绿）
+> **批次 423A 状态**：✅ 已完成（PR #599 squash 合并，dye_recipe schema 修复 + Service 抽象层；CI 修复 E0505 借用冲突 + E0308 ActiveValue 类型不匹配 × 13，CI 全绿）
+> **批次 423B 进行中（CI 修复第三轮）**：化验室打样流程贯通——基于真实业务调研（WebSearch 验证 ABCD = 打样版数 4 版供客户选择、OK 样 = 客户从多版选 1 版、复样 = 车间半制品布+生产染化料模拟大生产色差 4-5 级方可投产、染色技术卡 = 复样通过后研发组长开卡含配方表+核可样+复色样）。实现内容：3 表（lab_dip_request/lab_dip_sample/lab_dip_resample）+ 3 模型 + 3 Service（900 行）+ 21 Handler + 21 路由。CI 修复历程：①Text→String（8 处）②FromJsonQueryResult 显式导入 ③serde::{Serialize,Deserialize} 显式导入（57 个连锁错误根因）④manual_range_contains clippy 警告（3 处改用 `(a..=b).contains(&x)`）。PR #600，当前 commit `7f55f215` CI 进行中
 > **批次 423+ 规划**：基于调研文档第十一至十三章真实业务流程，规划 P1-P3 共 10 批（423 化验室打样 / 424 大货处方 / 425 流转卡工序流转 / 426 验布打卷 / 427 产量工资 / 428 能耗管理 / 429 染化料主数据 / 430 委托加工物资 / 431 多业务模式 / 432 缸号状态机），详见 [fabric-industry-research.md §13](file:///workspace/.monkeycode/docs/research/fabric-industry-research.md)
 
 #### 10.0 面料行业核心数据模型（所有维度的基础）

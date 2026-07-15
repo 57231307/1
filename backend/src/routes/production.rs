@@ -18,8 +18,8 @@ use axum::{
 
 use crate::handlers::{
     capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
-    greige_fabric_handler, missing_handlers, mrp_handler, production_order_handler,
-    quality_inspection_handler,
+    greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
+    production_order_handler, quality_inspection_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -122,6 +122,40 @@ pub fn dye_recipes() -> Router<AppState> {
             "/dye-recipes/export",
             get(dye_recipe_handler::export_dye_recipes),
         )
+}
+
+/// 化验室打样路由（path 前缀 /lab-dip）
+///
+/// v14 批次 423B：化验室打样流程贯通
+/// 真实业务流程：打样通知单 → 打样（ABCD 多版样）→ 色样确认（OK 样）→ 复样 → 建数据库
+pub fn lab_dip() -> Router<AppState> {
+    Router::new()
+        // ===== 打样通知单 =====
+        .route("/lab-dip/requests", get(lab_dip_handler::list_requests))
+        .route("/lab-dip/requests", post(lab_dip_handler::create_request))
+        .route("/lab-dip/requests/:id", get(lab_dip_handler::get_request))
+        .route("/lab-dip/requests/:id", put(lab_dip_handler::update_request))
+        .route("/lab-dip/requests/:id", delete(lab_dip_handler::delete_request))
+        // 状态流转
+        .route("/lab-dip/requests/:id/start-sampling", post(lab_dip_handler::start_sampling))
+        .route("/lab-dip/requests/:id/submit", post(lab_dip_handler::submit_to_customer))
+        .route("/lab-dip/requests/:id/approve", post(lab_dip_handler::approve_ok_sample))
+        .route("/lab-dip/requests/:id/reject", post(lab_dip_handler::reject_and_redo))
+        .route("/lab-dip/requests/:id/restart", post(lab_dip_handler::restart_sampling))
+        .route("/lab-dip/requests/:id/complete", post(lab_dip_handler::complete_request))
+        // ===== 打样小样（ABCD 多版样） =====
+        .route("/lab-dip/samples", post(lab_dip_handler::create_sample))
+        .route("/lab-dip/samples/:id", get(lab_dip_handler::get_sample))
+        .route("/lab-dip/samples/:id", put(lab_dip_handler::update_sample))
+        .route("/lab-dip/samples/:id", delete(lab_dip_handler::delete_sample))
+        .route("/lab-dip/samples/:id/matching", post(lab_dip_handler::record_matching_result))
+        .route("/lab-dip/samples/by-request/:request_id", get(lab_dip_handler::list_samples_by_request))
+        // ===== 复样记录 =====
+        .route("/lab-dip/resamples", post(lab_dip_handler::create_resample))
+        .route("/lab-dip/resamples/:id", get(lab_dip_handler::get_resample))
+        .route("/lab-dip/resamples/:id/result", post(lab_dip_handler::record_resample_result))
+        .route("/lab-dip/resamples/:id/tech-card", post(lab_dip_handler::issue_tech_card))
+        .route("/lab-dip/resamples/by-request/:request_id", get(lab_dip_handler::list_resamples_by_request))
 }
 
 /// 质量检验路由（path 前缀 /quality-inspection）
@@ -318,6 +352,7 @@ pub fn routes() -> Router<AppState> {
         .merge(dye_batches())
         .merge(greige_fabrics())
         .merge(dye_recipes())
+        .merge(lab_dip())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())
