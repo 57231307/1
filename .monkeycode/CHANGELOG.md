@@ -2,7 +2,15 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-15（批次 415 完成后，追加批次 415 条目，遗留技术债务清理完毕，v14 复审启动）。
+> 最近整理：2026-07-15（批次 416 完成后，追加批次 416 条目，v14 复审 P0 第一批修复完成）。
+
+---
+
+## v14 面料行业特性复审修复阶段（批次 416+）
+
+| 批次 | PR | 一句话总结 |
+|------|-----|-----------|
+| 416 | #592 | v14 复审 P0 第一批：面料行业核心数据模型唯一约束补全——迁移 032 添加 product_colors UNIQUE(product_id, color_no) + inventory_stocks 四维联合唯一索引（warehouse+product+color_no+batch_no+COALESCE(dye_lot_no,'')）+ inventory_piece piece_no 改为 (dye_lot_id, piece_no) 联合唯一 + 补齐 DB 缺失字段；Rust 模型同步：inventory_piece.rs 添加 dye_lot_id（NOT NULL 关键修复）+ 12 个 SQL 表字段 + DyeLot 关联，dye_lot_mapping.rs 替换错误字段为 15 个正确字段 + Supplier/BatchDyeLot 关联，piece_split_handler.rs ActiveModel 构造同步更新，CI 全绿 |
 
 ---
 

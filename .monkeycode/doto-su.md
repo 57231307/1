@@ -5,6 +5,42 @@
 
 ---
 
+## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
+
+### 批次 416：v14 P0 第一批 - 面料行业核心数据模型唯一约束补全 + Rust 模型同步（PR #592，sha: cc2c1f7d）
+
+**背景**：v14 复审发现面料行业核心数据模型存在严重缺陷——库存表缺少四维联合唯一索引（仓库+产品+色号+批号+缸号），匹号全局唯一约束不正确（应为同缸号下唯一），Rust 模型与 SQL 表严重不同步（inventory_piece 缺失 dye_lot_id NOT NULL 字段，dye_lot_mapping 字段完全错误）。
+
+**修复内容**：创建迁移文件 032 + 同步 3 个 Rust 文件，修复 4 个 v14 复审问题（D-P0-1/2 + D-P1-1/2）。
+
+**修改文件**（4 文件，230 行新增 / 25 行删除）：
+
+| 文件 | 修改内容 | 根因 |
+|------|----------|------|
+| `database/migration/032_v14_fabric_unique_constraints.sql` | 新增迁移文件：4 个修复（product_colors UNIQUE + inventory_stocks 四维唯一索引 + inventory_piece 联合唯一 + 补齐 DB 缺失字段） | D-P0-1/2 + D-P1-1/2 |
+| `backend/src/models/inventory_piece.rs` | 添加 dye_lot_id（NOT NULL 关键修复）+ 12 个 SQL 表字段 + DyeLot 关联关系 | Rust 模型缺失 dye_lot_id 导致 INSERT 违反 NOT NULL 约束 |
+| `backend/src/models/dye_lot_mapping.rs` | 删除 SQL 表不存在的 dye_batch_id/lot_no，添加 15 个正确字段 + Supplier/BatchDyeLot 关联 | Rust 模型字段与 SQL 表完全不匹配 |
+| `backend/src/handlers/piece_split_handler.rs` | ActiveModel 构造添加 dye_lot_id + 11 个 NotSet 字段 | 新增字段后 ActiveModel 构造必须指定所有字段 |
+
+**技术要点**：
+- **四维联合唯一索引**：`CREATE UNIQUE INDEX idx_inv_stock_four_dim_unique ON inventory_stocks (warehouse_id, product_id, color_no, batch_no, COALESCE(dye_lot_no, ''))`，使用 COALESCE 处理白坯布无缸号的 NULL 值
+- **匹号唯一约束修正**：原 `piece_no VARCHAR(100) NOT NULL UNIQUE`（全局唯一）改为 `UNIQUE (dye_lot_id, piece_no)`（同缸号下唯一），业务语义：同一缸号下不能有相同的匹号
+- **dye_lot_id 关键修复**：SQL 表定义 `dye_lot_id INTEGER NOT NULL`，但 Rust 模型缺失此字段。piece_split_handler 创建新 piece 时未设置 dye_lot_id，INSERT 会违反 NOT NULL 约束
+- **ActiveModel 构造规则**：SeaORM 的 `DeriveEntityModel` 宏为 Model 的每个字段生成对应的 ActiveModel 字段，构造 `ActiveModel { ... }` 时必须指定所有字段（`Set(value)` 或 `NotSet`）
+- **dye_lot_mapping 完全重建**：原模型只有 `dye_batch_id` 和 `lot_no` 两个字段，SQL 表有 15 个字段（internal_dye_lot_no/supplier_dye_lot_no/supplier_id/product_code/color_no/batch_dye_lot_id/is_active/mapping_date/validation_status/validated_at/validated_by/remarks/created_at/updated_at/created_by/updated_by），字段完全不匹配
+- **safe_add_constraint 函数**：PostgreSQL 自定义函数，幂等添加约束（检查约束是否存在再添加），避免重复迁移报错
+
+**CI 验证**：15 个 check runs（12 success + 2 skipped 打包/Release + 1 success 构建通知）。第一次 push 因 ActiveModel 构造缺少新增字段导致 `error[E0063]: missing fields` 编译失败，第二次 push 修复后 CI 全绿。PR #592 squash merge 到 main（commit cc2c1f7d）。
+
+**v14 复审修复进度**：
+- D-P0-1: product_colors UNIQUE(product_id, color_no) ✅
+- D-P0-2: inventory_stocks 四维联合唯一索引 ✅
+- D-P1-1: inventory_piece DB 缺失字段补齐 ✅
+- D-P1-2: inventory_piece piece_no 联合唯一 ✅
+- D-P1-7: Rust 模型与 SQL 表同步 ✅
+
+---
+
 ## 📝 已完成批次详细记录（技术债务清理，批次 411-415）
 
 ### 批次 415：遗留技术债务清理 - baseline 吞掉的编译错误修复（PR #591，sha: fe038d6a）
