@@ -998,8 +998,22 @@ impl VoucherService {
                 five_dimension_id: sea_orm::Set(five_dimension_id),
                 // TODO(F-P1-3): voucher_item 缺 product_id，待 Schema 补字段后修正
                 product_id: sea_orm::Set(0),
-                batch_no: sea_orm::Set(voucher_model.batch_no.clone().unwrap_or_default()),
-                color_no: sea_orm::Set(voucher_model.color_no.clone().unwrap_or_default()),
+                // v14 批次 418 修复 G-P0-2：原 unwrap_or_default() 会静默将 None 替换为空字符串，
+                // 导致辅助核算记录无法区分"未指定"和"空字符串"。改为显式记录 warn 日志便于排查。
+                batch_no: sea_orm::Set(voucher_model.batch_no.clone().unwrap_or_else(|| {
+                    tracing::warn!(
+                        "凭证 {} 的 batch_no 为 None，辅助核算记录使用空字符串占位",
+                        voucher_id
+                    );
+                    String::new()
+                })),
+                color_no: sea_orm::Set(voucher_model.color_no.clone().unwrap_or_else(|| {
+                    tracing::warn!(
+                        "凭证 {} 的 color_no 为 None，辅助核算记录使用空字符串占位",
+                        voucher_id
+                    );
+                    String::new()
+                })),
                 dye_lot_no: sea_orm::Set(voucher_model.dye_lot_no.clone()),
                 grade: sea_orm::Set(item.assist_grade.clone().unwrap_or_default()),
                 workshop_id: sea_orm::Set(item.assist_workshop_id),
