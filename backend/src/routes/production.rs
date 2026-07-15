@@ -19,7 +19,7 @@ use axum::{
 use crate::handlers::{
     capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
     greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
-    production_order_handler, quality_inspection_handler,
+    production_order_handler, production_recipe_handler, quality_inspection_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -156,6 +156,57 @@ pub fn lab_dip() -> Router<AppState> {
         .route("/lab-dip/resamples/:id/result", post(lab_dip_handler::record_resample_result))
         .route("/lab-dip/resamples/:id/tech-card", post(lab_dip_handler::issue_tech_card))
         .route("/lab-dip/resamples/by-request/:request_id", get(lab_dip_handler::list_resamples_by_request))
+}
+
+/// 大货处方与加料处方路由（path 前缀 /production-recipes）
+///
+/// v14 批次 424：大货处方与加料处方流程
+/// 真实业务流程：
+///   大货处方单：扫描流转卡条码 → 依据备布数量 → 加载小样处方/历史大货处方 → 根据浴比/浴量
+///              → 填写物料明细 → 计算用量 → 开具大货处方单 → 审核后自动建立生产领用单据
+///   加料处方单：扫描流转卡 → 加载已审核大货处方 → 登记加料物料 → 生成加料处方单
+///   关键约束：同一工单号只能开一张大货处方单，追加物料须开加料处方单
+pub fn production_recipes() -> Router<AppState> {
+    Router::new()
+        // ===== 大货处方 CRUD =====
+        .route("/production-recipes", get(production_recipe_handler::list))
+        .route("/production-recipes", post(production_recipe_handler::create))
+        .route("/production-recipes/:id", get(production_recipe_handler::get))
+        .route("/production-recipes/:id", put(production_recipe_handler::update))
+        .route("/production-recipes/:id", delete(production_recipe_handler::delete))
+        // 大货处方状态流转
+        .route("/production-recipes/:id/approve", post(production_recipe_handler::approve))
+        .route("/production-recipes/:id/close", post(production_recipe_handler::close))
+        .route("/production-recipes/:id/cancel", post(production_recipe_handler::cancel))
+        // 用量计算（纯函数，无需路径参数）
+        .route("/production-recipes/calculate", post(production_recipe_handler::calculate))
+        // 按工单查询大货处方（一工单一处方约束）
+        .route(
+            "/production-recipes/by-work-order/:work_order_id",
+            get(production_recipe_handler::get_by_work_order),
+        )
+        // ===== 加料处方（按大货处方 ID 子资源） =====
+        .route(
+            "/production-recipes/:id/additions",
+            get(production_recipe_handler::list_additions),
+        )
+        .route(
+            "/production-recipes/:id/additions",
+            post(production_recipe_handler::create_addition),
+        )
+        // 加料处方详情与状态流转（按加料处方 ID）
+        .route(
+            "/production-recipes/additions/:id",
+            get(production_recipe_handler::get_addition),
+        )
+        .route(
+            "/production-recipes/additions/:id/approve",
+            post(production_recipe_handler::approve_addition),
+        )
+        .route(
+            "/production-recipes/additions/:id/close",
+            post(production_recipe_handler::close_addition),
+        )
 }
 
 /// 质量检验路由（path 前缀 /quality-inspection）
@@ -353,6 +404,7 @@ pub fn routes() -> Router<AppState> {
         .merge(greige_fabrics())
         .merge(dye_recipes())
         .merge(lab_dip())
+        .merge(production_recipes())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())

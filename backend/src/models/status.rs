@@ -781,6 +781,39 @@ pub mod lab_dip_resample {
     pub const ADJUSTED: &str = "adjusted";
 }
 
+/// 大货处方状态（production_recipe.status，小写值）
+/// v14 批次 424 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §11.2 大货处方（染色配料单）
+/// 状态机：draft → approved → closed → cancelled
+pub mod production_recipe {
+    /// 草稿：大货处方初始状态，可编辑/删除
+    pub const DRAFT: &str = "draft";
+
+    /// 已审核：处方已审核，自动建立生产领用单据，不可再编辑
+    pub const APPROVED: &str = "approved";
+
+    /// 已关闭：生产完成，处方归档
+    pub const CLOSED: &str = "closed";
+
+    /// 已取消：草稿状态作废
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// 加料处方状态（production_recipe_addition.status，小写值）
+/// v14 批次 424 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §11.2 加料处方（染色补料单）
+/// 状态机：draft → approved → closed
+pub mod production_recipe_addition {
+    /// 草稿：加料处方初始状态
+    pub const DRAFT: &str = "draft";
+
+    /// 已审核：加料处方已审核
+    pub const APPROVED: &str = "approved";
+
+    /// 已关闭：加料完成，处方归档
+    pub const CLOSED: &str = "closed";
+}
+
 /// 应付核销状态（ap_verification.verification_status，大写值）
 /// 批次 236 v13 真实接入：ap_verification_service.rs
 pub mod ap_verification {

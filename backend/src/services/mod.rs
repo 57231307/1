@@ -42,6 +42,8 @@ pub mod dye_batch_cost_bridge_service;
 pub mod dye_recipe_service;
 // v14 批次 423B：化验室打样流程贯通（打样通知单 + ABCD 多版样 + OK 样确认 + 复样记录）
 pub mod lab_dip_service;
+// v14 批次 424：大货处方与加料处方流程（染色配料单 + 染色补料单）
+pub mod production_recipe_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;

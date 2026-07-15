@@ -144,6 +144,9 @@ pub mod greige_fabric;
 pub mod lab_dip_request;
 pub mod lab_dip_resample;
 pub mod lab_dip_sample;
+// v14 批次 424：大货处方与加料处方流程（染色配料单 + 染色补料单）
+pub mod production_recipe;
+pub mod production_recipe_addition;
 // 匹数管理模块
 pub mod inventory_piece;
 // 仓位/库位模块
