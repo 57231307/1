@@ -43,11 +43,58 @@ pub struct ShipOrderItemRequest {
     pub quantity: Decimal,
     #[validate(length(max = 50, message = "批次号长度不能超过50个字符"))]
     pub batch_no: Option<String>,
+    // v14 批次 421 T-P1-5：缸号同订单校验支持字段
+    // 依据：fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
+    #[validate(length(max = 50, message = "色号长度不能超过50个字符"))]
+    pub color_no: Option<String>,
+    #[validate(length(max = 50, message = "缸号长度不能超过50个字符"))]
+    pub dye_lot_no: Option<String>,
 }
 
 // =====================================================
 // 销售订单服务 impl 块
 // =====================================================
+
+/// v14 批次 421 T-P1-5：缸号同订单校验
+///
+/// 依据：fabric-industry-research.md §2.3 约束 5
+/// 业务规则：出库时，同一订单必须使用相同缸号的面料，系统校验订单中所有该面料是否来自同一批次，不一致则报警提示
+/// 业务语义：一个缸号代表一次染色，同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺
+///
+/// 校验逻辑：同一 product_id 的所有发货明细必须使用相同的 dye_lot_no
+/// - 同 product_id 但 dye_lot_no 不一致 → 返回业务错误（避免混缸色差）
+/// - dye_lot_no 均为 None → 视为未指定缸号，跳过校验（兼容无缸号场景）
+/// - 单 product_id 单 dye_lot_no → 通过校验
+pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<(), AppError> {
+    use std::collections::HashMap;
+
+    // 按 product_id 分组收集 dye_lot_no
+    let mut product_dye_lots: HashMap<i32, std::collections::HashSet<String>> = HashMap::new();
+    for item in items {
+        if let Some(dye_lot_no) = &item.dye_lot_no {
+            if !dye_lot_no.is_empty() {
+                product_dye_lots
+                    .entry(item.product_id)
+                    .or_default()
+                    .insert(dye_lot_no.clone());
+            }
+        }
+    }
+
+    // 校验每个 product_id 下不能有多个不同的 dye_lot_no
+    for (product_id, dye_lots) in &product_dye_lots {
+        if dye_lots.len() > 1 {
+            let dye_lot_list: Vec<String> = dye_lots.iter().cloned().collect();
+            return Err(AppError::business(format!(
+                "产品 {} 在同一订单中使用了多个不同缸号 {}，违反缸号同订单校验：同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺",
+                product_id,
+                dye_lot_list.join("/")
+            )));
+        }
+    }
+
+    Ok(())
+}
 
 impl SalesService {
     // 生成销售订单号
@@ -65,6 +112,11 @@ impl SalesService {
         request: ShipOrderRequest,
         user_id: i32,
     ) -> Result<(), AppError> {
+        // v14 批次 421 T-P1-5：缸号同订单校验
+        // 依据：fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
+        // 必须在开启事务前校验，避免无效请求占用数据库事务资源
+        validate_dye_lot_consistency(&request.items)?;
+
         // 开启事务
         let txn = (*self.db).begin().await?;
 
@@ -171,10 +223,11 @@ impl SalesService {
                 quantity: Set(item.quantity),
                 // 批次 356 v13 复审修复：clone 避免 move，下方 record_transaction_txn 仍需访问 item.batch_no
                 batch_no: Set(item.batch_no.clone()),
-                color_no: Set(None),
-                // v14 批次 417：缸号字段（D-P1-5），当前发货流程暂不支持缸号级发货，后续批次补全
+                // v14 批次 421 T-P1-5：发货明细使用请求中的 color_no/dye_lot_no
+                // 已通过 validate_dye_lot_consistency 校验同一订单同 product_id 缸号一致
+                color_no: Set(item.color_no.clone()),
                 dye_lot_id: Set(None),
-                dye_lot_no: Set(None),
+                dye_lot_no: Set(item.dye_lot_no.clone()),
                 remarks: Set(None),
                 unit_price: Set(unit_price),
                 amount: Set(line_amount),
