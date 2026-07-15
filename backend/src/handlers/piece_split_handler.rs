@@ -102,6 +102,18 @@ pub async fn split_fabric_piece(
         scan_type: Set(None), // v11 批次 153 P2-A：拆分产生的新布卷无扫码类型
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
+        // v14 批次 416：新增的 nullable 字段，拆分产生的新布卷不设置这些字段
+        supplier_piece_no: sea_orm::ActiveValue::NotSet,
+        width: sea_orm::ActiveValue::NotSet,
+        gram_weight: sea_orm::ActiveValue::NotSet,
+        position_no: sea_orm::ActiveValue::NotSet,
+        package_no: sea_orm::ActiveValue::NotSet,
+        production_date: sea_orm::ActiveValue::NotSet,
+        shelf_life: sea_orm::ActiveValue::NotSet,
+        quality_status: sea_orm::ActiveValue::NotSet,
+        inventory_status: sea_orm::ActiveValue::NotSet,
+        created_by: sea_orm::ActiveValue::NotSet,
+        updated_by: sea_orm::ActiveValue::NotSet,
     };
 
     let inserted_piece = new_piece.insert(&txn).await?;
