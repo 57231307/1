@@ -886,6 +886,54 @@ pub mod quality_feedback {
     pub const CLOSED: &str = "closed";
 }
 
+/// 验布记录状态（fabric_inspection_record.status，小写值）
+/// v14 批次 426 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §12.4 验布打卷与成品入库
+/// 状态机：pending → inspecting → graded → rolled → closed
+pub mod fabric_inspection {
+    /// 待验布：验布记录已创建，等待开始验布
+    pub const PENDING: &str = "pending";
+
+    /// 验布中：验布机正在检验，采集疵点中
+    pub const INSPECTING: &str = "inspecting";
+
+    /// 已评级：验布完成，已计算总扣分/每百平方码分数/等级
+    pub const GRADED: &str = "graded";
+
+    /// 已打卷：已生成成品布卷（inventory_piece），待入库
+    pub const ROLLED: &str = "rolled";
+
+    /// 已关闭：已入库归档
+    pub const CLOSED: &str = "closed";
+}
+
+/// 验布评分制式（fabric_inspection_record.scoring_system，小写值）
+/// v14 批次 426 真实业务常量化
+/// 依据：AATCC 检验标准 / ASTM D5430 / 面料验货基础知识
+pub mod fabric_scoring {
+    /// 四分制：AATCC/ASTM D5430，针织+梭织通用
+    /// 疵点长度 ≤3寸=1分, 3-6寸=2分, 6-9寸=3分, >9寸=4分，破洞/连续=4分
+    /// 等级：每百平方码分数 ≤40 = 首级(first)，>40 = 次级(second)
+    pub const FOUR_POINT: &str = "four_point";
+
+    /// 十分制：梭织布专用
+    /// 经向：1寸下=1/1-5寸=3/5-10寸=5/10-36寸=10
+    /// 纬向：1寸下=1/1-5寸=3/5寸-半门幅=5/半门幅上=10，破洞=10
+    /// 等级：总扣分 < 总码数 = 首级(first)，≥ 总码数 = 次级(second)
+    pub const TEN_POINT: &str = "ten_point";
+}
+
+/// 验布等级（fabric_inspection_record.grade，小写值）
+/// v14 批次 426 真实业务常量化
+/// 依据：面料检验"四分制"与"十分制"的异同点
+pub mod fabric_grade {
+    /// 首级：合格品，可正常入库销售
+    pub const FIRST: &str = "first";
+
+    /// 次级：不合格品，需降级销售或返工
+    pub const SECOND: &str = "second";
+}
+
 /// 应付核销状态（ap_verification.verification_status，大写值）
 /// 批次 236 v13 真实接入：ap_verification_service.rs
 pub mod ap_verification {
