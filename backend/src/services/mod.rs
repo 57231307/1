@@ -38,6 +38,8 @@ pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
 // v14 批次 422 T-P1-7：染色完成→成本归集桥接监听器
 pub mod dye_batch_cost_bridge_service;
+// v14 批次 423A：染色配方 Service 抽象层（CRUD + 状态流转 + 版本管理）
+pub mod dye_recipe_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;

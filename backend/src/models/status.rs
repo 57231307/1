@@ -709,6 +709,20 @@ pub mod quality_handling {
     pub const PENDING: &str = "pending";
 }
 
+/// 染色配方状态（dye_recipe.status，中文值）
+/// v14 批次 423A 常量化：原 handler 硬编码中文字符串，现统一常量
+/// 依据：面料行业真实业务调研文档 §11.1 化验室打样流程
+pub mod dye_recipe {
+    /// 草稿：配方初始状态
+    pub const DRAFT: &str = "草稿";
+
+    /// 已审核：配方已审核通过
+    pub const APPROVED: &str = "已审核";
+
+    /// 已停用：配方已停用
+    pub const DISABLED: &str = "已停用";
+}
+
 /// 应付核销状态（ap_verification.verification_status，大写值）
 /// 批次 236 v13 真实接入：ap_verification_service.rs
 pub mod ap_verification {
