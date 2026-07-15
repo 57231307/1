@@ -236,13 +236,14 @@ impl InventoryTransferService {
         txn.commit().await?;
 
         // v14 批次 420 修复 T-P1-1：commit 成功后统一发布事件，避免回滚造成幻事件
+        let events_count = pending_events.len();
         for event in pending_events {
             crate::services::event_bus::EVENT_BUS.publish(event);
         }
-        if !pending_events.is_empty() {
+        if events_count > 0 {
             tracing::info!(
                 transfer_id,
-                events_count = pending_events.len(),
+                events_count,
                 "调拨出库完成，已发布 InventoryTransactionCreated 事件触发财务凭证生成"
             );
         }
@@ -582,13 +583,14 @@ impl InventoryTransferService {
         txn.commit().await?;
 
         // v14 批次 420 修复 T-P1-1：commit 成功后统一发布事件，避免回滚造成幻事件
+        let events_count = pending_events.len();
         for event in pending_events {
             crate::services::event_bus::EVENT_BUS.publish(event);
         }
-        if !pending_events.is_empty() {
+        if events_count > 0 {
             tracing::info!(
                 transfer_id,
-                events_count = pending_events.len(),
+                events_count,
                 "调拨入库完成，已发布 InventoryTransactionCreated 事件触发财务凭证生成"
             );
         }
