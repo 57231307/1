@@ -31,6 +31,12 @@ pub struct Model {
     #[sea_orm(column_name = "handling_at")]
     pub handling_at: Option<DateTime<Utc>>,
     pub remark: Option<String>,
+    // v14 批次 421 T-P1-4：不合格品等级（B 级降级销售/C 级返工报废）
+    #[sea_orm(column_name = "grade")]
+    pub grade: Option<String>,
+    // v14 批次 421：处理结果（降级销售单价/返工工时/报废损失金额）
+    #[sea_orm(column_name = "handling_result")]
+    pub handling_result: Option<String>,
     #[sea_orm(column_name = "created_at")]
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_name = "updated_at")]

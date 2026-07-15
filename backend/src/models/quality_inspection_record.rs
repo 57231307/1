@@ -43,6 +43,15 @@ pub struct Model {
     #[sea_orm(column_name = "inspection_result")]
     pub inspection_result: String,
     pub remark: Option<String>,
+    // v14 批次 421 T-P1-4：面料行业质检分级 A 级（合格）/B 级（让步接收，降级销售）/C 级（不合格，返工或报废）
+    // 依据：fabric-industry-research.md §4.7 质量检验模块
+    #[sea_orm(column_name = "grade")]
+    pub grade: Option<String>,
+    // v14 批次 421：按缸号追溯质检结果，依据 fabric-industry-research.md §2.1 四层级联关系
+    #[sea_orm(column_name = "color_no")]
+    pub color_no: Option<String>,
+    #[sea_orm(column_name = "dye_lot_no")]
+    pub dye_lot_no: Option<String>,
     #[sea_orm(column_name = "created_at")]
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_name = "updated_at")]
