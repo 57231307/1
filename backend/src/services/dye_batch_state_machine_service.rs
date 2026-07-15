@@ -3,27 +3,12 @@
 //! v14 批次 432：缸号全生命周期状态机
 //! 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪
 //!
-//! 核心能力：
-//! - 缸号生命周期日志 CRUD + 按 batch_id 查询 + 按时间范围查询 + 记录状态流转 + 获取最新状态
-//! - 缸号状态规则 CRUD + 校验流转合法性 + 查询允许的流转
-//! - 缸号回修记录 CRUD + 审批 + 开始回修 + 完成回修 + 取消回修
-//! - 缸号操作记录 CRUD + 按类型查询 + 按缸号查询
+//! 核心能力：缸号生命周期日志 CRUD + 按 batch_id 查询 + 按时间范围查询 + 记录状态流转 + 获取最新状态；
+//! 缸号状态规则 CRUD + 校验流转合法性 + 查询允许的流转；
+//! 缸号回修记录 CRUD + 审批 + 开始回修 + 完成回修 + 取消回修；
+//! 缸号操作记录 CRUD + 按类型查询 + 按缸号查询。
 //!
-//! 14 种状态：
-//! - pending_schedule 待排缸
-//! - scheduled 已排缸
-//! - preparing 备布中
-//! - dyeing 进缸染色
-//! - washing 皂洗
-//! - fixing 固色
-//! - dehydrating 脱水
-//! - drying 烘干
-//! - inspecting 验布
-//! - stored 入库
-//! - shipped 发货（终态）
-//! - cancelled 取消（终态）
-//! - terminated 终止（终态）
-//! - rework 回修中（可回到 dyeing）
+//! 14 种状态：pending_schedule 待排缸 / scheduled 已排缸 / preparing 备布中 / dyeing 进缸染色 / washing 皂洗 / fixing 固色 / dehydrating 脱水 / drying 烘干 / inspecting 验布 / stored 入库 / shipped 发货（终态）/ cancelled 取消（终态）/ terminated 终止（终态）/ rework 回修中（可回到 dyeing）。
 
 use sea_orm::DatabaseConnection;
 use sea_orm::{
