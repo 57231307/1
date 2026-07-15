@@ -18,8 +18,9 @@ use axum::{
 
 use crate::handlers::{
     capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
-    flow_card_handler, greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
-    production_order_handler, production_recipe_handler, quality_inspection_handler,
+    fabric_inspection_handler, flow_card_handler, greige_fabric_handler, lab_dip_handler,
+    missing_handlers, mrp_handler, production_order_handler, production_recipe_handler,
+    quality_inspection_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -254,6 +255,33 @@ pub fn flow_cards() -> Router<AppState> {
         .route("/flow-cards/:flow_card_id/feedbacks", get(flow_card_handler::list_feedbacks_by_card))
 }
 
+/// 验布打卷路由（path 前缀 /fabric-inspections 和 /fabric-defects）
+///
+/// v14 批次 426：验布打卷流程贯通
+/// 真实业务流程：验布机对接码表/电子称 → 疵点采集 → 生成验布报告
+///   → 卷唛标签打印 → PDA 扫描卷唛条码 → 自动入库
+/// 评分制式：四分制（AATCC/ASTM D5430）/ 十分制（梭织布）
+pub fn fabric_inspections() -> Router<AppState> {
+    Router::new()
+        // ===== 验布记录 CRUD =====
+        .route("/fabric-inspections", get(fabric_inspection_handler::list_inspections))
+        .route("/fabric-inspections", post(fabric_inspection_handler::create_inspection))
+        .route("/fabric-inspections/by-no/:no", get(fabric_inspection_handler::get_by_no))
+        .route("/fabric-inspections/:id", get(fabric_inspection_handler::get_inspection))
+        .route("/fabric-inspections/:id", put(fabric_inspection_handler::update_inspection))
+        .route("/fabric-inspections/:id", delete(fabric_inspection_handler::delete_inspection))
+        // ===== 验布记录状态机流转 =====
+        .route("/fabric-inspections/:id/start", post(fabric_inspection_handler::start_inspection))
+        .route("/fabric-inspections/:id/grade", post(fabric_inspection_handler::grade_inspection))
+        .route("/fabric-inspections/:id/roll", post(fabric_inspection_handler::roll_fabric))
+        .route("/fabric-inspections/:id/close", post(fabric_inspection_handler::close_inspection))
+        // ===== 疵点明细 =====
+        .route("/fabric-inspections/:inspection_id/defects", get(fabric_inspection_handler::list_defects_by_inspection))
+        .route("/fabric-defects", post(fabric_inspection_handler::create_defect))
+        .route("/fabric-defects/:id", get(fabric_inspection_handler::get_defect))
+        .route("/fabric-defects/:id", delete(fabric_inspection_handler::delete_defect))
+}
+
 /// 质量检验路由（path 前缀 /quality-inspection）
 ///
 /// 注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。
@@ -451,6 +479,7 @@ pub fn routes() -> Router<AppState> {
         .merge(lab_dip())
         .merge(production_recipes())
         .merge(flow_cards())
+        .merge(fabric_inspections())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())

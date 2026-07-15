@@ -152,6 +152,9 @@ pub mod process_route;
 pub mod process_step_record;
 pub mod process_quality_feedback;
 pub mod production_flow_card;
+// v14 批次 426：验布打卷流程贯通（验布记录 + 疵点明细）
+pub mod fabric_inspection_record;
+pub mod fabric_defect_record;
 // 匹数管理模块
 pub mod inventory_piece;
 // 仓位/库位模块

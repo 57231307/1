@@ -117,6 +117,9 @@ pub async fn split_fabric_piece(
         // v14 批次 419：新增的 nullable 字段，拆分产生的新布卷不设置这些字段
         color_no: sea_orm::ActiveValue::NotSet,
         dye_lot_no: sea_orm::ActiveValue::NotSet,
+        // v14 批次 426：新增的 nullable 字段，拆分产生的新布卷不设置验布关联字段
+        inspection_id: sea_orm::ActiveValue::NotSet,
+        piece_seq: sea_orm::ActiveValue::NotSet,
     };
 
     let inserted_piece = new_piece.insert(&txn).await?;

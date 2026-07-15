@@ -85,6 +85,14 @@ pub struct Model {
     /// 母卷 ID（如果是拆分或剪裁而来的布卷，指向原始布卷 ID）
     pub parent_piece_id: Option<i32>,
 
+    // ========== v14 批次 426：验布打卷关联字段 ==========
+    /// 关联验布记录（仅验布打卷产生的布卷才有，nullable）
+    /// 依据：fabric-industry-research.md §12.4 验布打卷与成品入库
+    pub inspection_id: Option<i32>,
+
+    /// 缸号内匹号序号（用于匹号生成：{dye_lot_no}-{seq:03}）
+    pub piece_seq: Option<i32>,
+
     /// 库位 ID（外键）
     pub location_id: Option<i32>,
 

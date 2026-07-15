@@ -46,6 +46,8 @@ pub mod lab_dip_service;
 pub mod production_recipe_service;
 // v14 批次 425：流转卡条码与车间工序流转
 pub mod flow_card_service;
+// v14 批次 426：验布打卷流程贯通
+pub mod fabric_inspection_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;
