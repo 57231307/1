@@ -155,9 +155,9 @@ impl InventoryTransferService {
                     transaction_type: sea_orm::ActiveValue::Set("TRANSFER_OUT".to_string()),
                     product_id: sea_orm::ActiveValue::Set(item.product_id),
                     warehouse_id: sea_orm::ActiveValue::Set(transfer.from_warehouse_id),
-                    batch_no: sea_orm::ActiveValue::Set(batch_no),
-                    color_no: sea_orm::ActiveValue::Set(color_no),
-                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                    batch_no: sea_orm::ActiveValue::Set(batch_no.clone()),
+                    color_no: sea_orm::ActiveValue::Set(color_no.clone()),
+                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no.clone()),
                     grade: sea_orm::ActiveValue::Set(grade),
                     quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
                     quantity_kg: sea_orm::ActiveValue::Set(quantity_kg - new_quantity_kg),
@@ -175,7 +175,24 @@ impl InventoryTransferService {
                     created_by: sea_orm::ActiveValue::Set(transfer.created_by),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };
-                transaction.insert(&txn).await?;
+                let inserted_transaction = transaction.insert(&txn).await?;
+
+                // v14 批次 420 修复 T-P1-1：事务内收集 InventoryTransactionCreated 事件
+                // 事务内仅收集不发布，避免 commit 失败导致幻事件
+                pending_events.push(crate::services::event_bus::BusinessEvent::InventoryTransactionCreated {
+                    transaction_id: inserted_transaction.id,
+                    transaction_type: inserted_transaction.transaction_type.clone(),
+                    product_id: inserted_transaction.product_id,
+                    warehouse_id: inserted_transaction.warehouse_id,
+                    quantity_meters: inserted_transaction.quantity_meters,
+                    quantity_kg: inserted_transaction.quantity_kg,
+                    source_bill_type: inserted_transaction.source_bill_type.clone(),
+                    source_bill_no: inserted_transaction.source_bill_no.clone(),
+                    source_bill_id: inserted_transaction.source_bill_id,
+                    batch_no: inserted_transaction.batch_no.clone(),
+                    color_no: inserted_transaction.color_no.clone(),
+                    created_by: inserted_transaction.created_by,
+                });
 
                 // 更新明细项已发出数量
                 let item_quantity = item.quantity;
@@ -218,6 +235,18 @@ impl InventoryTransferService {
         // 提交事务
         txn.commit().await?;
 
+        // v14 批次 420 修复 T-P1-1：commit 成功后统一发布事件，避免回滚造成幻事件
+        for event in pending_events {
+            crate::services::event_bus::EVENT_BUS.publish(event);
+        }
+        if !pending_events.is_empty() {
+            tracing::info!(
+                transfer_id,
+                events_count = pending_events.len(),
+                "调拨出库完成，已发布 InventoryTransactionCreated 事件触发财务凭证生成"
+            );
+        }
+
         // 返回调拨详情
         self.get_transfer_detail(transfer_id).await
     }
@@ -230,6 +259,9 @@ impl InventoryTransferService {
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 开启事务
         let txn = (*self.db).begin().await?;
+
+        // v14 批次 420 修复 T-P1-1：调拨接收流程事件收集
+        let mut pending_events: Vec<crate::services::event_bus::BusinessEvent> = Vec::new();
 
         // 检查调拨单是否存在（行锁，串行化并发状态变更）
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
@@ -356,9 +388,9 @@ impl InventoryTransferService {
                     transaction_type: sea_orm::ActiveValue::Set("TRANSFER_IN".to_string()),
                     product_id: sea_orm::ActiveValue::Set(item.product_id),
                     warehouse_id: sea_orm::ActiveValue::Set(transfer.to_warehouse_id),
-                    batch_no: sea_orm::ActiveValue::Set(batch_no),
-                    color_no: sea_orm::ActiveValue::Set(color_no),
-                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                    batch_no: sea_orm::ActiveValue::Set(batch_no.clone()),
+                    color_no: sea_orm::ActiveValue::Set(color_no.clone()),
+                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no.clone()),
                     grade: sea_orm::ActiveValue::Set(grade),
                     quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
                     quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -376,7 +408,23 @@ impl InventoryTransferService {
                     created_by: sea_orm::ActiveValue::Set(transfer.created_by),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };
-                transaction.insert(&txn).await?;
+                let inserted_transaction = transaction.insert(&txn).await?;
+
+                // v14 批次 420 修复 T-P1-1：事务内收集 InventoryTransactionCreated 事件
+                pending_events.push(crate::services::event_bus::BusinessEvent::InventoryTransactionCreated {
+                    transaction_id: inserted_transaction.id,
+                    transaction_type: inserted_transaction.transaction_type.clone(),
+                    product_id: inserted_transaction.product_id,
+                    warehouse_id: inserted_transaction.warehouse_id,
+                    quantity_meters: inserted_transaction.quantity_meters,
+                    quantity_kg: inserted_transaction.quantity_kg,
+                    source_bill_type: inserted_transaction.source_bill_type.clone(),
+                    source_bill_no: inserted_transaction.source_bill_no.clone(),
+                    source_bill_id: inserted_transaction.source_bill_id,
+                    batch_no: inserted_transaction.batch_no.clone(),
+                    color_no: inserted_transaction.color_no.clone(),
+                    created_by: inserted_transaction.created_by,
+                });
 
                 // 更新明细项已接收数量
                 let item_quantity = item.quantity;
@@ -497,7 +545,23 @@ impl InventoryTransferService {
                     created_by: sea_orm::ActiveValue::Set(transfer.created_by),
                     created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 };
-                transaction.insert(&txn).await?;
+                let inserted_transaction = transaction.insert(&txn).await?;
+
+                // v14 批次 420 修复 T-P1-1：事务内收集 InventoryTransactionCreated 事件
+                pending_events.push(crate::services::event_bus::BusinessEvent::InventoryTransactionCreated {
+                    transaction_id: inserted_transaction.id,
+                    transaction_type: inserted_transaction.transaction_type.clone(),
+                    product_id: inserted_transaction.product_id,
+                    warehouse_id: inserted_transaction.warehouse_id,
+                    quantity_meters: inserted_transaction.quantity_meters,
+                    quantity_kg: inserted_transaction.quantity_kg,
+                    source_bill_type: inserted_transaction.source_bill_type.clone(),
+                    source_bill_no: inserted_transaction.source_bill_no.clone(),
+                    source_bill_id: inserted_transaction.source_bill_id,
+                    batch_no: inserted_transaction.batch_no.clone(),
+                    color_no: inserted_transaction.color_no.clone(),
+                    created_by: inserted_transaction.created_by,
+                });
             }
         }
 
@@ -516,6 +580,18 @@ impl InventoryTransferService {
 
         // 提交事务
         txn.commit().await?;
+
+        // v14 批次 420 修复 T-P1-1：commit 成功后统一发布事件，避免回滚造成幻事件
+        for event in pending_events {
+            crate::services::event_bus::EVENT_BUS.publish(event);
+        }
+        if !pending_events.is_empty() {
+            tracing::info!(
+                transfer_id,
+                events_count = pending_events.len(),
+                "调拨入库完成，已发布 InventoryTransactionCreated 事件触发财务凭证生成"
+            );
+        }
 
         // 返回调拨详情
         self.get_transfer_detail(transfer_id).await
