@@ -92,6 +92,8 @@ pub mod flow_card_handler;
 pub mod fabric_inspection_handler;
 // v14 批次 427：产量工资核算贯通
 pub mod wage_handler;
+// v14 批次 428：能耗管理贯通
+pub mod energy_handler;
 // v14 批次 424：大货处方与加料处方流程
 pub mod production_recipe_handler;
 pub mod sales_return_handler;

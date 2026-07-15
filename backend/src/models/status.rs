@@ -984,6 +984,107 @@ pub mod wage_record_status {
     pub const CANCELLED: &str = "cancelled";
 }
 
+/// 能源类型（energy_meter.meter_type / energy_consumption_record.meter_type / energy_allocation_rule.meter_type）
+///
+/// v14 批次 428：能耗管理贯通
+/// 依据：面料行业真实业务调研文档 §12.6 能耗管理
+/// 真实业务：染整厂能耗占总成本 35%+，主要能源为水/电/汽（蒸汽/天然气/压缩空气）
+pub mod energy_type {
+    /// 水：吨
+    pub const WATER: &str = "water";
+
+    /// 电：度（千瓦时）
+    pub const ELECTRICITY: &str = "electricity";
+
+    /// 蒸汽：立方米
+    pub const STEAM: &str = "steam";
+
+    /// 天然气：立方米
+    pub const GAS: &str = "gas";
+
+    /// 压缩空气：立方米
+    pub const COMPRESSED_AIR: &str = "compressed_air";
+}
+
+/// 能耗计量设备状态（energy_meter.status）
+///
+/// v14 批次 428：能耗管理贯通
+/// 状态机：active(启用) → inactive(停用) / maintenance(维护中)
+pub mod energy_meter_status {
+    /// 启用：计量设备正常工作，可采集数据
+    pub const ACTIVE: &str = "active";
+
+    /// 停用：计量设备已停用
+    pub const INACTIVE: &str = "inactive";
+
+    /// 维护中：计量设备正在维护
+    pub const MAINTENANCE: &str = "maintenance";
+}
+
+/// 能耗录入方式（energy_consumption_record.recording_method）
+///
+/// v14 批次 428：能耗管理贯通
+/// 依据：面料行业真实业务调研文档 §12.6 联动设备 IoT 接口实时采集
+pub mod energy_recording_method {
+    /// 手工：人工抄表录入
+    pub const MANUAL: &str = "manual";
+
+    /// IoT 自动：IoT 设备自动采集
+    pub const IOT: &str = "iot";
+
+    /// 自动计算：系统根据分摊规则自动计算
+    pub const AUTO_CALC: &str = "auto_calc";
+}
+
+/// 能耗分摊基准（energy_allocation_rule.allocation_basis / energy_allocation_record.allocation_basis）
+///
+/// v14 批次 428：能耗管理贯通
+/// 依据：面料行业真实业务调研文档 §12.6 按缸号归集 + 月末分摊到成本
+/// 真实业务：按各工序开机时长×设备功率系数分摊电费；能耗成本分摊至订单或产线
+pub mod energy_allocation_basis {
+    /// 按工时：按工序记录的工时分摊（duration_minutes）
+    pub const BY_DURATION: &str = "by_duration";
+
+    /// 按产量：按工序记录的产量分摊（qualified_quantity）
+    pub const BY_OUTPUT: &str = "by_output";
+
+    /// 按设备：按设备运行时长分摊
+    pub const BY_EQUIPMENT: &str = "by_equipment";
+
+    /// 按车间：按车间总产量平均分摊
+    pub const BY_WORKSHOP: &str = "by_workshop";
+}
+
+/// 能耗记录状态（energy_consumption_record.status / energy_allocation_record.status）
+///
+/// v14 批次 428：能耗管理贯通
+/// 状态机：draft(草稿) → confirmed(已确认) → cancelled(已取消)
+pub mod energy_record_status {
+    /// 草稿：新建记录，可编辑
+    pub const DRAFT: &str = "draft";
+
+    /// 已确认：已审核，可参与月末分摊
+    pub const CONFIRMED: &str = "confirmed";
+
+    /// 已取消：作废
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// 能耗分摊规则状态（energy_allocation_rule.status）
+///
+/// v14 批次 428：能耗管理贯通
+/// 状态机：draft(草稿) → active(启用) → disabled(停用)
+pub mod energy_rule_status {
+    /// 草稿：新建规则，未启用
+    pub const DRAFT: &str = "draft";
+
+    /// 启用：规则生效，可用于分摊计算
+    pub const ACTIVE: &str = "active";
+
+    /// 停用：规则失效，不再用于分摊计算
+    pub const DISABLED: &str = "disabled";
+}
+
 /// 应付核销状态（ap_verification.verification_status，大写值）
 /// 批次 236 v13 真实接入：ap_verification_service.rs
 pub mod ap_verification {

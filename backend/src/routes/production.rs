@@ -20,7 +20,7 @@ use crate::handlers::{
     capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
     fabric_inspection_handler, flow_card_handler, greige_fabric_handler, lab_dip_handler,
     missing_handlers, mrp_handler, production_order_handler, production_recipe_handler,
-    quality_inspection_handler, wage_handler,
+    quality_inspection_handler, wage_handler, energy_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -319,6 +319,58 @@ pub fn wages() -> Router<AppState> {
         .route("/wage-details/by-worker/:worker_id", get(wage_handler::list_wage_details_by_worker))
 }
 
+/// 能耗管理路由（v14 批次 428：能耗管理贯通）
+///
+/// 业务来源：面料行业真实业务调研文档 §12.6 能耗管理
+/// 路由分组：
+/// - /energy-meters：能源计量设备 CRUD
+/// - /energy-consumptions：能耗记录 CRUD + 状态机
+/// - /energy-rules：能耗分摊规则 CRUD + 状态机 + 查询生效规则
+/// - /energy-allocations：能耗分摊记录 CRUD + 状态机 + 月末自动分摊
+pub fn energy() -> Router<AppState> {
+    Router::new()
+        // ===== 能源计量设备 CRUD =====
+        .route("/energy-meters", get(energy_handler::list_energy_meters))
+        .route("/energy-meters", post(energy_handler::create_energy_meter))
+        .route("/energy-meters/by-no/:no", get(energy_handler::get_energy_meter_by_no))
+        .route("/energy-meters/:id", get(energy_handler::get_energy_meter))
+        .route("/energy-meters/:id", put(energy_handler::update_energy_meter))
+        .route("/energy-meters/:id", delete(energy_handler::delete_energy_meter))
+        // ===== 能耗记录 CRUD + 状态机 =====
+        .route("/energy-consumptions", get(energy_handler::list_energy_consumptions))
+        .route("/energy-consumptions", post(energy_handler::create_energy_consumption))
+        .route("/energy-consumptions/by-no/:no", get(energy_handler::get_energy_consumption_by_no))
+        .route("/energy-consumptions/:id", get(energy_handler::get_energy_consumption))
+        .route("/energy-consumptions/:id", put(energy_handler::update_energy_consumption))
+        .route("/energy-consumptions/:id", delete(energy_handler::delete_energy_consumption))
+        // 能耗记录状态机
+        .route("/energy-consumptions/:id/confirm", post(energy_handler::confirm_energy_consumption))
+        .route("/energy-consumptions/:id/cancel", post(energy_handler::cancel_energy_consumption))
+        // ===== 能耗分摊规则 CRUD + 状态机 =====
+        .route("/energy-rules", get(energy_handler::list_energy_rules))
+        .route("/energy-rules", post(energy_handler::create_energy_rule))
+        .route("/energy-rules/by-no/:no", get(energy_handler::get_energy_rule_by_no))
+        .route("/energy-rules/:id", get(energy_handler::get_energy_rule))
+        .route("/energy-rules/:id", put(energy_handler::update_energy_rule))
+        .route("/energy-rules/:id", delete(energy_handler::delete_energy_rule))
+        // 分摊规则状态机
+        .route("/energy-rules/:id/activate", post(energy_handler::activate_energy_rule))
+        .route("/energy-rules/:id/disable", post(energy_handler::disable_energy_rule))
+        .route("/energy-rules/effective", get(energy_handler::get_effective_energy_rule))
+        // ===== 能耗分摊记录 CRUD + 状态机 =====
+        .route("/energy-allocations", get(energy_handler::list_energy_allocations))
+        .route("/energy-allocations", post(energy_handler::create_energy_allocation))
+        .route("/energy-allocations/by-no/:no", get(energy_handler::get_energy_allocation_by_no))
+        .route("/energy-allocations/:id", get(energy_handler::get_energy_allocation))
+        .route("/energy-allocations/:id", put(energy_handler::update_energy_allocation))
+        .route("/energy-allocations/:id", delete(energy_handler::delete_energy_allocation))
+        // 分摊记录状态机
+        .route("/energy-allocations/:id/confirm", post(energy_handler::confirm_energy_allocation))
+        .route("/energy-allocations/:id/cancel", post(energy_handler::cancel_energy_allocation))
+        // 月末按工时自动分摊
+        .route("/energy-allocations/monthly", post(energy_handler::monthly_allocation))
+}
+
 /// 质量检验路由（path 前缀 /quality-inspection）
 ///
 /// 注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。
@@ -518,6 +570,7 @@ pub fn routes() -> Router<AppState> {
         .merge(flow_cards())
         .merge(fabric_inspections())
         .merge(wages())
+        .merge(energy())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())
