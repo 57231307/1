@@ -446,8 +446,23 @@ impl SalesReturnService {
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
             .all(txn)
             .await?;
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        // v14 批次 419 修复 T-P0-5：stock_map 改为四维索引 (product_id, color_no, batch_no, dye_lot_no)，
+        // 避免同一产品多缸号库存时 HashMap 覆盖导致库存错配
+        let stock_map: std::collections::HashMap<(i32, String, String, Option<String>), inventory_stock::Model> =
+            stocks
+                .into_iter()
+                .map(|s| {
+                    (
+                        (
+                            s.product_id,
+                            s.color_no.clone(),
+                            s.batch_no.clone(),
+                            s.dye_lot_no.clone(),
+                        ),
+                        s,
+                    )
+                })
+                .collect();
 
         for item in items {
             // 获取商品信息
@@ -455,21 +470,23 @@ impl SalesReturnService {
                 .get(&item.product_id)
                 .ok_or_else(|| AppError::not_found(format!("商品 {} 不存在", item.product_id)))?;
 
-            // 查找是否已有库存记录
-            let stock = stock_map.get(&item.product_id);
+            // v14 批次 419 修复 T-P0-5：从退货明细获取缸号/色号/批号，
+            // 按四维 (product_id, color_no, batch_no, dye_lot_no) 查找匹配库存
+            let item_color_no = item.color_no.clone();
+            let item_dye_lot_no = item.dye_lot_no.clone();
+            let item_batch_no = item.batch_no.clone();
 
-            // v14 批次 418 修复 D-P0-6：从库存获取真正的 dye_lot_no，
-            // 原实现误将 batch_no 赋给 dye_lot_no 导致缸号追溯数据污染
-            let (batch_no, color_no, grade, dye_lot_no) = if let Some(s) = stock {
-                (
-                    s.batch_no.clone(),
-                    s.color_no.clone(),
-                    s.grade.clone(),
-                    s.dye_lot_no.clone(),
-                )
-            } else {
-                (String::new(), String::new(), String::from("A"), None)
-            };
+            let stock = stock_map.get(&(
+                item.product_id,
+                item_color_no.clone(),
+                item_batch_no.clone(),
+                item_dye_lot_no.clone(),
+            ));
+
+            // grade 从库存获取，无库存时使用默认值 "A"
+            let grade = stock
+                .map(|s| s.grade.clone())
+                .unwrap_or_else(|| String::from("A"));
 
             if let Some(s) = stock {
                 // 更新现有库存
@@ -489,11 +506,12 @@ impl SalesReturnService {
                 .await?;
             } else {
                 // 创建新库存记录
+                // v14 批次 419 修复 T-P0-5：使用退货明细的缸号/色号/批号创建库存
                 let new_stock = inventory_stock::ActiveModel {
                     warehouse_id: Set(return_order.warehouse_id),
                     product_id: Set(item.product_id),
-                    batch_no: Set(batch_no.clone()),
-                    color_no: Set(color_no.clone()),
+                    batch_no: Set(item_batch_no.clone()),
+                    color_no: Set(item_color_no.clone()),
                     grade: Set(grade.clone()),
                     quantity_on_hand: Set(item.quantity),
                     quantity_available: Set(item.quantity),
@@ -508,16 +526,16 @@ impl SalesReturnService {
             // 批次 338 v10 复审 P3 修复：使用 RecordTransactionArgs 参数对象替代多参数
             // 批次 358 v13 复审 B-P1-1 修复：改用 record_transaction_txn 关联函数，
             // 流水写入与主事务同生共死，事件返回由调用方在 commit 后统一 publish
+            // v14 批次 419 修复 T-P0-5：库存流水使用退货明细的缸号/色号/批号
             let (_, txn_event) = InventoryStockService::record_transaction_txn(
                 txn,
                 RecordTransactionArgs {
                     transaction_type: "SALES_RETURN".to_string(),
                     product_id: item.product_id,
                     warehouse_id: return_order.warehouse_id,
-                    batch_no: batch_no.clone(),
-                    color_no: color_no.clone(),
-                    // v14 批次 418 修复 D-P0-6：使用从库存获取的真正 dye_lot_no
-                    dye_lot_no: dye_lot_no.clone(),
+                    batch_no: item_batch_no.clone(),
+                    color_no: item_color_no.clone(),
+                    dye_lot_no: item_dye_lot_no.clone(),
                     grade: grade.clone(),
                     quantity_meters: item.quantity, // 正数，表示入库
                     quantity_kg: item.quantity_alt,

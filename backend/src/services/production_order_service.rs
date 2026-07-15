@@ -927,9 +927,14 @@ impl ProductionOrderService {
                     CreateStockFabricArgs {
                         warehouse_id: default_warehouse.id,
                         product_id: order.product_id,
-                        batch_no: order.order_no.clone(),
-                        color_no: "DEFAULT".to_string(),
-                        dye_lot_no: None,
+                        // v14 批次 419 修复 F-P0-1：从生产订单获取缸号/色号/批号，
+                        // 替代原 "DEFAULT" 硬编码，batch_no 优先使用订单批号，回退订单号
+                        batch_no: order
+                            .batch_no
+                            .clone()
+                            .unwrap_or_else(|| order.order_no.clone()),
+                        color_no: order.color_no.clone().unwrap_or_default(),
+                        dye_lot_no: order.dye_lot_no.clone(),
                         grade: "一等品".to_string(),
                         quantity_meters: production_qty,
                         quantity_kg: kg,

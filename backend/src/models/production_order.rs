@@ -92,6 +92,14 @@ pub struct Model {
     /// 备注
     pub remarks: Option<String>,
 
+    // ========== v14 批次 419：面料行业追溯字段（F-P0-1 修复） ==========
+    /// 色号（面料行业追溯字段，记录生产订单对应的颜色）
+    pub color_no: Option<String>,
+    /// 缸号（面料行业追溯字段，记录生产订单对应的染缸批次）
+    pub dye_lot_no: Option<String>,
+    /// 批号（面料行业追溯字段，记录生产订单对应的批号）
+    pub batch_no: Option<String>,
+
     /// 创建人 ID
     pub created_by: i32,
 
