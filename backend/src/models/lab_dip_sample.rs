@@ -10,6 +10,7 @@
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
+use serde::{Deserialize, Serialize};
 
 /// 处方明细项（染料组合+用量）
 ///

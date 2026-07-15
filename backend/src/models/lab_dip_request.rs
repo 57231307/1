@@ -8,6 +8,7 @@
 //! 真实业务：业务跟单接到客户打样需求，录入规范的技术要求（对色光源/色牢度/打样版数/坯布规格/交期）
 
 use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// 打样通知单模型（lab_dip_request 表）
 ///
