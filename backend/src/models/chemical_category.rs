@@ -42,18 +42,6 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    /// 父分类（自引用）
-    #[sea_orm(
-        belongs_to = "super::chemical_category::Entity",
-        from = "Column::ParentId",
-        to = "super::chemical_category::Column::Id",
-        on_update = "Cascade",
-        on_delete = "SetNull"
-    )]
-    Parent,
-    /// 子分类列表
-    #[sea_orm(has_many = "super::chemical_category::Entity")]
-    Children,
     /// 一对多：染化料主数据
     #[sea_orm(has_many = "super::chemical_master::Entity")]
     Chemicals,

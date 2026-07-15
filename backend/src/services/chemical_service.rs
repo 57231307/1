@@ -1004,7 +1004,7 @@ impl ChemicalLotService {
         let mut active: LotActiveModel = model.into();
 
         let mut need_recompute_cost = false;
-        let mut new_quantity = original_quantity_received;
+        let new_quantity = original_quantity_received;
         let mut new_unit_cost = original_unit_cost;
 
         if let Some(v) = req.supplier_id {
