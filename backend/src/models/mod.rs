@@ -147,6 +147,11 @@ pub mod lab_dip_sample;
 // v14 批次 424：大货处方与加料处方流程（染色配料单 + 染色补料单）
 pub mod production_recipe;
 pub mod production_recipe_addition;
+// v14 批次 425：流转卡条码与车间工序流转（流转卡 + 工序路线 + 工序记录 + 质量反馈单）
+pub mod process_route;
+pub mod process_step_record;
+pub mod process_quality_feedback;
+pub mod production_flow_card;
 // 匹数管理模块
 pub mod inventory_piece;
 // 仓位/库位模块
