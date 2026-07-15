@@ -670,14 +670,14 @@ impl FlowCardService {
             return Err(AppError::business("已发货流转卡不可终止"));
         }
 
+        let existing_remarks = model.remarks.clone().unwrap_or_default();
         let mut active: CardActiveModel = model.into();
         active.status = Set(card_status::TERMINATED.to_string());
         if let Some(r) = reason {
-            let existing = active.remarks.clone().unwrap_or_default();
-            let new_remarks = if existing.is_empty() {
+            let new_remarks = if existing_remarks.is_empty() {
                 format!("[终止] {}", r)
             } else {
-                format!("{}\n[终止] {}", existing, r)
+                format!("{}\n[终止] {}", existing_remarks, r)
             };
             active.remarks = Set(Some(new_remarks));
         }
@@ -861,6 +861,14 @@ impl StepRecordService {
         // 计算工时（分钟）
         let duration_minutes = (now - model.start_at).num_minutes();
 
+        // 有异常描述则标记为 abnormal，否则 completed
+        let has_abnormal = req.abnormal_description.is_some();
+        let new_status = if has_abnormal {
+            step_status::ABNORMAL.to_string()
+        } else {
+            step_status::COMPLETED.to_string()
+        };
+
         let mut active: StepActiveModel = model.into();
         active.end_at = Set(Some(now));
         active.duration_minutes = Set(Some(duration_minutes as i32));
@@ -869,13 +877,6 @@ impl StepRecordService {
         active.abnormal_description = Set(req.abnormal_description);
         active.handling_opinion = Set(req.handling_opinion);
         active.remarks = Set(req.remarks);
-
-        // 有异常描述则标记为 abnormal，否则 completed
-        let new_status = if active.abnormal_description.clone().unwrap_or(None).is_some() {
-            step_status::ABNORMAL.to_string()
-        } else {
-            step_status::COMPLETED.to_string()
-        };
         active.status = Set(new_status);
         active.updated_at = Set(now);
 
@@ -1078,16 +1079,14 @@ impl QualityFeedbackService {
         if let Some(v) = req.handling_opinion {
             active.handling_opinion = Set(Some(v));
         }
-        if let Some(v) = req.handling_result {
-            active.handling_result = Set(Some(v));
-        }
         if let Some(v) = req.handled_by {
             active.handled_by = Set(Some(v));
             active.handled_at = Set(Some(now));
         }
 
         // 状态流转：pending → processing（有处理意见但无结果）→ resolved（有处理结果）
-        let new_status = if active.handling_result.clone().unwrap_or(None).is_some() {
+        let new_status = if req.handling_result.is_some() {
+            active.handling_result = Set(req.handling_result);
             feedback_status::RESOLVED.to_string()
         } else {
             feedback_status::PROCESSING.to_string()
