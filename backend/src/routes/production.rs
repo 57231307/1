@@ -468,11 +468,10 @@ pub fn business_mode() -> Router<AppState> {
 /// 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪
 /// 真实业务流程：14 种状态流转（待排缸→已排缸→备布中→进缸染色→皂洗→固色→脱水→烘干→验布→入库→发货）
 ///   + 回修流转（验布/入库 → 回修中 → 重新进缸染色）+ 终态保护（发货/取消/终止不可流转）
-/// 路由分组：
-/// - /dye-batch-lifecycle-logs：生命周期日志 CRUD + 按缸号查询 + 获取最新状态 + 记录流转
-/// - /dye-batch-state-rules：状态流转规则 CRUD + 校验流转 + 查询允许的流转
-/// - /dye-batch-reworks：回修记录 CRUD + 审批 + 开始/完成/取消回修
-/// - /dye-batch-operations：操作记录 CRUD + 按类型查询 + 按缸号查询
+/// 路由分组：/dye-batch-lifecycle-logs 生命周期日志 CRUD + 按缸号查询 + 获取最新状态 + 记录流转；
+/// /dye-batch-state-rules 状态流转规则 CRUD + 校验流转 + 查询允许的流转；
+/// /dye-batch-reworks 回修记录 CRUD + 审批 + 开始/完成/取消回修；
+/// /dye-batch-operations 操作记录 CRUD + 按类型查询 + 按缸号查询。
 pub fn dye_batch_state_machine() -> Router<AppState> {
     Router::new()
         // ===== 缸号生命周期日志 =====
