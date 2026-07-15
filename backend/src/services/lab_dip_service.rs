@@ -223,7 +223,7 @@ impl LabDipRequestService {
             active.eco_requirement = Set(Some(v));
         }
         if let Some(v) = req.sample_versions {
-            if v < 1 || v > 10 {
+            if !(1..=10).contains(&v) {
                 return Err(AppError::business("打样版数范围 1-10"));
             }
             active.sample_versions = Set(v);
@@ -708,7 +708,7 @@ impl LabDipSampleService {
         }
 
         // 业务校验：色差等级范围 1-5
-        if req.color_difference_grade < 1 || req.color_difference_grade > 5 {
+        if !(1..=5).contains(&req.color_difference_grade) {
             return Err(AppError::business("色差等级范围 1-5 级"));
         }
 
