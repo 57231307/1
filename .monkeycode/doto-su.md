@@ -7,6 +7,60 @@
 
 ## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
 
+### 批次 421：v14 P1 第二批 - 面料行业特性首批（质检 A/B/C 级分级 + 缸号同订单校验）（PR #597，sha: de41e89c）
+
+**修复内容**：基于面料行业真实业务调研文档（[fabric-industry-research.md](file:///workspace/.monkeycode/docs/research/fabric-industry-research.md)）实现 2 个 v14 复审 P1 面料行业特性修复（T-P1-4 + T-P1-5），补全面料行业质检分级判定和缸号同订单一致性校验两个核心业务约束。
+
+**修改文件**（5 文件，534 行新增 / 3 行删除）：
+
+| 文件 | 修改类型 | 修复问题 |
+|------|---------|---------|
+| database/migration/035_v14_quality_grade_and_dyelot_validation.sql | 新增 | T-P1-4 + T-P1-5：quality_inspection_records 添加 grade/color_no/dye_lot_no + unqualified_products 添加 grade/handling_result |
+| backend/src/models/quality_inspection_record.rs | 修改 | T-P1-4：Model 添加 grade/color_no/dye_lot_no 字段 |
+| backend/src/models/unqualified_product.rs | 修改 | T-P1-4：Model 添加 grade/handling_result 字段 |
+| backend/src/services/quality_inspection_service.rs | 修改 | T-P1-4：新增 determine_quality_grade + validate_handling_method_by_grade + 常量 + 9 个单元测试 |
+| backend/src/services/so/delivery.rs | 修改 | T-P1-5：新增 validate_dye_lot_consistency + ShipOrderItemRequest 扩展 + ship_order 调用 + 8 个单元测试 |
+
+**技术要点**：
+
+1. **T-P1-4 质检 A/B/C 级分级判定**（依据调研文档 §4.7 质量检验模块）：
+   - 新增 `determine_quality_grade(qualification_rate: Option<Decimal>) -> String` 函数：A 级（合格 rate>=95%）/ B 级（让步接收 80%<=rate<95%，降级销售）/ C 级（不合格 rate<80%，返工或报废）
+   - 新增 `validate_handling_method_by_grade(grade, handling_method) -> Result<()>` 函数：B 级必须降级销售（downgrade_sale），C 级必须返工（rework）或报废（scrap），A 级无需不合格处理
+   - `CreateInspectionRecordRequest` 新增 grade/color_no/dye_lot_no 字段，grade 未显式提供时由 `determine_quality_grade` 根据 qualification_rate 自动判定
+   - `process_unqualified` 调用 `validate_handling_method_by_grade` 强制校验处理方式符合等级，`ProcessUnqualifiedRequest` 新增 handling_result 字段记录处理结果
+   - 阈值函数 `grade_a_threshold()` / `grade_b_threshold()` 返回 Decimal（因 `Decimal::new` 非 const fn，不能用 const）
+
+2. **T-P1-5 缸号同订单校验**（依据调研文档 §2.3 约束 5）：
+   - 新增 `validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<()>` 函数：按 product_id 分组收集 dye_lot_no，同一 product_id 下不能有多个不同 dye_lot_no
+   - 业务语义：一个缸号代表一次染色，同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺
+   - `ShipOrderItemRequest` 新增 color_no/dye_lot_no 字段
+   - `ship_order` 在开启事务前调用 `validate_dye_lot_consistency`，避免无效请求占用事务资源
+   - 发货明细插入使用请求中的 color_no/dye_lot_no（已校验一致性）
+
+3. **数据库迁移 035**：quality_inspection_records 添加 grade/color_no/dye_lot_no 字段 + 3 个索引；unqualified_products 添加 grade/handling_result 字段 + 1 个索引
+
+4. **单元测试（17 个）**：
+   - 质检分级判定（9 个）：determine_quality_grade A/B/C 级边界值 + None 处理（5 个）+ validate_handling_method_by_grade A/B/C/未知等级处理方式匹配（4 个）
+   - 缸号同订单校验（8 个）：空/单缸/多产品/混缸/未指定/空字符串/部分指定/错误信息（8 个）
+   - 测试夹具 `build_ship_item` 集中构造（规则 6 mock 数据抽取）
+
+**CI 验证**：
+- 首次 CI 失败：`error[E0015]: cannot call non-const associated function rust_decimal::Decimal::new in constants`（GRADE_A_THRESHOLD/GRADE_B_THRESHOLD 用 const 声明，但 Decimal::new 非 const fn，Release 构建触发）
+- CI 修复：const 改为函数返回（grade_a_threshold/grade_b_threshold），determine_quality_grade 和测试同步更新（commit c147a50e）
+- CI 全绿（Rust 构建/Clippy/格式/单元测试 + 前端全绿）
+- squash 合并到 main（SHA: de41e89c）
+
+**v14 复审修复进度**：
+- 批次 416 ✅：D-P0-1/2 + D-P1-1/2/7（数据模型基础）
+- 批次 417 ✅：D-P1-3/4/5/6 + T-P0-1/4（业务字段补全）
+- 批次 418 ✅：D-P0-4/5/6 + G-P0-1/2（数据流转硬编码修复）
+- 批次 419 ✅：F-P0-1/2 + T-P0-3/5（生产订单+色卡借出补全缸号）—— **P0 全部修复完成**
+- 批次 420 ✅：T-P1-1/2/3 + G-P1-3（P1 事件贯通修复）+ 面料行业真实业务调研文档
+- 批次 421 ✅：T-P1-4 + T-P1-5（P1 面料行业特性首批——质检 A/B/C 级分级 + 缸号同订单校验）
+- 批次 422+ ⏳：继续基于调研文档推进 P1 面料行业特性 + 模块专项 + 术语统一
+
+---
+
 ### 批次 420：v14 P1 第一批 - 事件贯通修复 + 面料行业真实业务调研（PR #596，sha: e5b68274）
 
 **修复内容**：5 个 Rust 文件修复 4 个 v14 复审 P1 事件贯通问题（T-P1-1/2/3 + G-P1-3），打通调拨流程、染色完成、质检完成 3 个业务事件发布与监听链路；同步完成面料行业真实业务调研文档（覆盖基础信息/染整工艺/ERP 模块/成本核算/业务模式/计量换算/项目映射/术语对照），作为后续批次 421+ 的实现依据。
