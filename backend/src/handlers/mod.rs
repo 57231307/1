@@ -165,3 +165,5 @@ pub mod failover_handler;
 pub mod color_card;
 // 面料多色号定价扩展 handler（P0-5）
 pub mod color_price_handler;
+// v14 批次 431：多业务模式支持 handler
+pub mod business_mode_handler;

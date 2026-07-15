@@ -1395,3 +1395,58 @@ pub mod outsourcing_voucher_type {
     /// 损耗处理凭证：借 营业外支出 / 贷 委托加工物资（非正常损耗单独追责）
     pub const LOSS: &str = "loss";
 }
+
+/// v14 批次 431：多业务模式支持
+///
+/// 依据：面料行业真实业务调研文档 §6 业务模式 6 种
+/// 业务模式代码（business_mode_config.mode_code）
+pub mod business_mode_code {
+    /// 坯布经销模式：采购坯布 → 库存 → 销售坯布
+    pub const GREY_TRADING: &str = "grey_trading";
+    /// 成品经销模式：采购坯布 → 染整加工 → 销售成品
+    pub const FINISHED_TRADING: &str = "finished_trading";
+    /// 染整加工模式（客供坯布）：客户提供坯布 → 染整加工 → 收取加工费
+    pub const DYEING_PROCESSING: &str = "dyeing_processing";
+    /// 自织自染模式：采购原料 → 纺纱 → 织布 → 染整 → 销售成品
+    pub const SELF_WEAVE_DYE: &str = "self_weave_dye";
+    /// 委托加工模式：自制半成品 → 委外加工 → 收回成品 → 销售
+    pub const OUTSOURCING: &str = "outsourcing";
+    /// 来料加工模式：客户来料 → 加工 → 收取加工费
+    pub const TOLL_PROCESSING: &str = "toll_processing";
+}
+
+/// v14 批次 431：多业务模式支持
+///
+/// 物料来源（business_mode_config.material_source）
+pub mod business_material_source {
+    /// 采购：从供应商采购物料
+    pub const PURCHASE: &str = "purchase";
+    /// 客供：客户提供物料
+    pub const CUSTOMER_PROVIDED: &str = "customer_provided";
+    /// 自制：内部生产物料
+    pub const SELF_MADE: &str = "self_made";
+    /// 来料：客户来料加工
+    pub const TOLL: &str = "toll";
+}
+
+/// v14 批次 431：多业务模式支持
+///
+/// 结算方式（business_mode_config.settlement_method）
+pub mod business_settlement_method {
+    /// 销售结算：按销售价格结算
+    pub const SALE_SETTLEMENT: &str = "sale_settlement";
+    /// 加工费结算：按加工费结算
+    pub const PROCESSING_FEE_SETTLEMENT: &str = "processing_fee_settlement";
+}
+
+/// v14 批次 431：多业务模式支持
+///
+/// 业务模式规则类型（business_mode_rule.rule_type）
+pub mod business_rule_type {
+    /// 必需：该模块必须存在
+    pub const REQUIRED: &str = "required";
+    /// 可选：该模块可选存在
+    pub const OPTIONAL: &str = "optional";
+    /// 禁止：该模块禁止存在
+    pub const FORBIDDEN: &str = "forbidden";
+}

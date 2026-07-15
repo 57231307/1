@@ -21,6 +21,7 @@ use crate::handlers::{
     fabric_inspection_handler, flow_card_handler, greige_fabric_handler, lab_dip_handler,
     missing_handlers, mrp_handler, outsourcing_handler, production_order_handler,
     production_recipe_handler, quality_inspection_handler, wage_handler, energy_handler,
+    business_mode_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -420,6 +421,46 @@ pub fn outsourcing() -> Router<AppState> {
         .route("/outsourcing-vouchers/:id", delete(outsourcing_handler::delete_outsourcing_voucher))
 }
 
+/// 多业务模式支持路由（path 前缀 /business-modes、/business-mode-links）
+///
+/// v14 批次 431：多业务模式支持
+/// 依据：面料行业真实业务调研文档 §6 业务模式 6 种
+/// 真实业务：6 种典型业务模式（坯布经销/成品经销/染整加工/自织自染/委托加工/来料加工）
+///   贯穿采购/库存/生产/委外/销售/结算全链路
+/// 路由分组：
+/// - /business-modes：业务模式配置 CRUD + 按代码查询 + 默认模式 + 完整详情
+/// - /business-modes/flow-steps：流程节点 CRUD + 按模式查询
+/// - /business-modes/rules：业务规则 CRUD + 按模式查询
+/// - /business-mode-links：单据-业务模式关联 CRUD + 按单据查询
+pub fn business_mode() -> Router<AppState> {
+    Router::new()
+        // ===== 业务模式配置 CRUD =====
+        .route("/business-modes", get(business_mode_handler::list_business_modes).post(business_mode_handler::create_business_mode))
+        // 静态路径必须在动态路径 /:id 之前，避免 axum 0.7 Overlapping method route panic
+        .route("/business-modes/default", get(business_mode_handler::get_default_business_mode))
+        .route("/business-modes/by-code/:code", get(business_mode_handler::get_business_mode_by_code))
+        .route("/business-modes/:id", get(business_mode_handler::get_business_mode).put(business_mode_handler::update_business_mode).delete(business_mode_handler::delete_business_mode))
+        // 业务模式配置状态流转
+        .route("/business-modes/:id/set-default", post(business_mode_handler::set_default_business_mode))
+        // 业务模式完整详情（含流程节点+规则）
+        .route("/business-modes/:id/detail", get(business_mode_handler::get_business_mode_detail))
+        // ===== 业务模式流程节点 CRUD =====
+        // 静态路径必须在动态路径 /:id 之前
+        .route("/business-modes/flow-steps/by-mode/:mode_id", get(business_mode_handler::list_flow_steps_by_mode))
+        .route("/business-modes/flow-steps", post(business_mode_handler::create_flow_step))
+        .route("/business-modes/flow-steps/:id", put(business_mode_handler::update_flow_step).delete(business_mode_handler::delete_flow_step))
+        // ===== 业务模式规则 CRUD =====
+        // 静态路径必须在动态路径 /:id 之前
+        .route("/business-modes/rules/by-mode/:mode_id", get(business_mode_handler::list_rules_by_mode))
+        .route("/business-modes/rules", post(business_mode_handler::create_rule))
+        .route("/business-modes/rules/:id", put(business_mode_handler::update_rule).delete(business_mode_handler::delete_rule))
+        // ===== 单据-业务模式关联 CRUD =====
+        .route("/business-mode-links", get(business_mode_handler::list_order_links).post(business_mode_handler::link_order))
+        // 静态路径必须在动态路径 /:id 之前
+        .route("/business-mode-links/by-document/:doc_type/:doc_id", get(business_mode_handler::get_order_link_by_document))
+        .route("/business-mode-links/:id", put(business_mode_handler::update_order_link).delete(business_mode_handler::delete_order_link))
+}
+
 /// 质量检验路由（path 前缀 /quality-inspection）
 ///
 /// 注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。
@@ -621,6 +662,7 @@ pub fn routes() -> Router<AppState> {
         .merge(wages())
         .merge(energy())
         .merge(outsourcing())
+        .merge(business_mode())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())
