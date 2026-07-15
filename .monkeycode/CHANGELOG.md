@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-15（批次 416 完成后，追加批次 416 条目，v14 复审 P0 第一批修复完成）。
+> 最近整理：2026-07-15（批次 417 完成后，追加批次 417 条目，v14 复审 P0 第二批修复完成）。
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 417 | #593 | v14 复审 P0 第二批：业务单据明细补全缸号字段——迁移 033 为 4 个表（sales_return_item/purchase_return_item/inventory_transfer_items/inventory_count_items）添加 color_no/dye_lot_no/batch_no 字段 + 索引；6 个 Rust 模型同步（sales_delivery_item 添加 dye_lot_id/dye_lot_no，purchase_order_item 添加 color_code/lot_no/batch_no 匹配 SQL 旧命名）；7 个 service 文件 ActiveModel 构造点同步更新（使用 NotSet 让 DB 默认值处理），CI 全绿 |
 | 416 | #592 | v14 复审 P0 第一批：面料行业核心数据模型唯一约束补全——迁移 032 添加 product_colors UNIQUE(product_id, color_no) + inventory_stocks 四维联合唯一索引（warehouse+product+color_no+batch_no+COALESCE(dye_lot_no,'')）+ inventory_piece piece_no 改为 (dye_lot_id, piece_no) 联合唯一 + 补齐 DB 缺失字段；Rust 模型同步：inventory_piece.rs 添加 dye_lot_id（NOT NULL 关键修复）+ 12 个 SQL 表字段 + DyeLot 关联，dye_lot_mapping.rs 替换错误字段为 15 个正确字段 + Supplier/BatchDyeLot 关联，piece_split_handler.rs ActiveModel 构造同步更新，CI 全绿 |
 
 ---

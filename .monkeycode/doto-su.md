@@ -7,6 +7,49 @@
 
 ## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
 
+### 批次 417：v14 P0 第二批 - 业务单据明细补全缸号字段（PR #593，sha: 1b818309）
+
+**背景**：v14 复审发现 6 类业务单据明细缺失缸号/色号/批号追溯字段，导致无法按缸号退货/发货/调拨/盘点，面料行业四层级联关系在业务单据层断裂。
+
+**修复内容**：创建迁移文件 033 + 同步 6 个 Rust 模型 + 更新 7 个 service 构造点，修复 6 个 v14 复审问题（D-P1-3/4/5/6 + T-P0-1/4）。
+
+**修改文件**（14 文件，136 行新增）：
+
+| 文件 | 修改内容 | 根因 |
+|------|----------|------|
+| `database/migration/033_v14_document_items_dye_lot.sql` | 新增迁移：4 个表添加 color_no/dye_lot_no/batch_no + 索引 | D-P1-3/4 + T-P0-1/4 |
+| `backend/src/models/sales_return_item.rs` | 添加 color_no/dye_lot_no/batch_no | D-P1-3 |
+| `backend/src/models/purchase_return_item.rs` | 添加 color_no/dye_lot_no/batch_no | D-P1-4 |
+| `backend/src/models/sales_delivery_item.rs` | 添加 dye_lot_id/dye_lot_no（最小化变更） | D-P1-5 |
+| `backend/src/models/purchase_order_item.rs` | 添加 color_code/lot_no/batch_no（匹配 SQL 旧命名） | D-P1-6 |
+| `backend/src/models/inventory_transfer_item.rs` | 添加 color_no/dye_lot_no/batch_no | T-P0-1 |
+| `backend/src/models/inventory_count_item.rs` | 添加 color_no/dye_lot_no/batch_no | T-P0-4 |
+| `backend/src/services/so/delivery.rs` | ActiveModel 添加 dye_lot_id/dye_lot_no | D-P1-5 构造点 |
+| `backend/src/services/inv/batch.rs` | ActiveModel 添加 3 字段 | T-P0-1 构造点 |
+| `backend/src/services/inv/inventory_move.rs` | 2 处 ActiveModel 添加 3 字段 | T-P0-1 构造点 |
+| `backend/src/services/inventory_count_service.rs` | ActiveModel 添加 3 字段 | T-P0-4 构造点 |
+| `backend/src/services/po/order.rs` | ActiveModel 添加 3 字段 | D-P1-6 构造点 |
+| `backend/src/services/po/receipt.rs` | ActiveModel 添加 3 字段 | D-P1-6 构造点 |
+| `backend/src/services/purchase_return_service.rs` | ActiveModel 添加 3 字段 | D-P1-4 构造点 |
+
+**技术要点**：
+- **最小化变更原则**：sales_delivery_item 不完全重写模型（SQL 表有 20+ 字段但 Rust 模型只有 10 个），仅添加缺失的 dye_lot_id/dye_lot_no，避免大量构造点重构
+- **术语统一延迟**：purchase_order_item SQL 表使用旧命名 color_code/lot_no（而非项目统一的 color_no/dye_lot_no），本批次保持与 DB 列名一致，术语统一在后续批次处理
+- **NotSet 策略**：所有 ActiveModel 构造点的新字段使用 `sea_orm::ActiveValue::NotSet`，让 DB DEFAULT 值处理（color_no/batch_no DEFAULT ''，dye_lot_no NULL）
+- **replace_all 陷阱**：inventory_move.rs 有两个构造点，缩进不同导致 replace_all 只覆盖了一个，第二个需手动修复
+
+**CI 验证**：15 个 check runs（12 success + 2 skipped + 1 success）。第一次 push 因 inventory_move.rs 第二个构造点遗漏导致 `error[E0063]: missing fields` 编译失败，第二次 push 修复后 CI 全绿。PR #593 squash merge 到 main（commit 1b818309）。
+
+**v14 复审修复进度**：
+- D-P1-3: sales_return_item 缸号字段 ✅
+- D-P1-4: purchase_return_item 缸号字段 ✅
+- D-P1-5: sales_delivery_item dye_lot_no ✅
+- D-P1-6: purchase_order_item 缸号字段 ✅
+- T-P0-1: inventory_transfer_items 缸号字段 ✅
+- T-P0-4: inventory_count_items 缸号字段 ✅
+
+---
+
 ### 批次 416：v14 P0 第一批 - 面料行业核心数据模型唯一约束补全 + Rust 模型同步（PR #592，sha: cc2c1f7d）
 
 **背景**：v14 复审发现面料行业核心数据模型存在严重缺陷——库存表缺少四维联合唯一索引（仓库+产品+色号+批号+缸号），匹号全局唯一约束不正确（应为同缸号下唯一），Rust 模型与 SQL 表严重不同步（inventory_piece 缺失 dye_lot_id NOT NULL 字段，dye_lot_mapping 字段完全错误）。
