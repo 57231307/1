@@ -164,6 +164,11 @@ pub mod energy_meter;
 pub mod energy_consumption_record;
 pub mod energy_allocation_rule;
 pub mod energy_allocation_record;
+// v14 批次 429：染化料主数据完善（染化料主数据 + 分类 + 批次 + 领用单）
+pub mod chemical_master;
+pub mod chemical_category;
+pub mod chemical_lot;
+pub mod chemical_requisition;
 // 匹数管理模块
 pub mod inventory_piece;
 // 仓位/库位模块

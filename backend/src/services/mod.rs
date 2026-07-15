@@ -52,6 +52,8 @@ pub mod fabric_inspection_service;
 pub mod wage_service;
 // v14 批次 428：能耗管理贯通
 pub mod energy_service;
+// v14 批次 429：染化料主数据完善（染化料主数据 + 分类 + 批次 + 领用单）
+pub mod chemical_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;

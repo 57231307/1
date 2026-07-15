@@ -1207,3 +1207,111 @@ pub mod failover {
     /// 备节点
     pub const BACKUP: &str = "backup";
 }
+
+/// 染化料类型（chemical_master.chemical_type / chemical_category.category_type）
+///
+/// v14 批次 429：染化料主数据完善
+/// 依据：面料行业真实业务调研文档 §4.3 染化料管理
+/// 真实业务：染料（分散/活性/还原/硫化/酸性/直接/阳离子）/ 助剂 / 化工原料
+pub mod chemical_type {
+    /// 染料：分散/活性/还原/硫化/酸性/直接/阳离子
+    pub const DYE: &str = "dye";
+
+    /// 助剂：前处理/染色/后整理/印花
+    pub const AUXILIARY: &str = "auxiliary";
+
+    /// 化工原料
+    pub const CHEMICAL: &str = "chemical";
+}
+
+/// 染化料主数据状态（chemical_master.status）
+///
+/// v14 批次 429：染化料主数据完善
+/// 状态机：active(启用) → inactive(停用) / discontinued(停产)
+pub mod chemical_status {
+    /// 启用：染化料可用
+    pub const ACTIVE: &str = "active";
+
+    /// 停用：染化料临时停用
+    pub const INACTIVE: &str = "inactive";
+
+    /// 停产：染化料已停产，仅允许出库不允许入库
+    pub const DISCONTINUED: &str = "discontinued";
+}
+
+/// 染化料批次来料检验状态（chemical_lot.inspection_status）
+///
+/// v14 批次 429：染化料主数据完善
+/// 状态机：pending(待检) → passed(合格) / failed(不合格) / quarantine(隔离)
+pub mod chemical_inspection_status {
+    /// 待检：新到货批次，等待来料检验
+    pub const PENDING: &str = "pending";
+
+    /// 合格：检验通过，可领用
+    pub const PASSED: &str = "passed";
+
+    /// 不合格：检验不通过，需退货或报废
+    pub const FAILED: &str = "failed";
+
+    /// 隔离：存疑批次，暂时隔离待复检
+    pub const QUARANTINE: &str = "quarantine";
+}
+
+/// 染化料批次状态（chemical_lot.status）
+///
+/// v14 批次 429：染化料主数据完善
+/// 状态机：active(可用) → consumed(已耗尽) / expired(已过期) / scrapped(已报废)
+pub mod chemical_lot_status {
+    /// 可用：批次可用库存大于 0 且未过期
+    pub const ACTIVE: &str = "active";
+
+    /// 已耗尽：可用库存为 0
+    pub const CONSUMED: &str = "consumed";
+
+    /// 已过期：超过失效日期
+    pub const EXPIRED: &str = "expired";
+
+    /// 已报废：因检验不合格或损坏而报废
+    pub const SCRAPPED: &str = "scrapped";
+}
+
+/// 染化料领用单类型（chemical_requisition.requisition_type）
+///
+/// v14 批次 429：染化料主数据完善
+/// 依据：面料行业真实业务调研文档 §4.3 染化料管理
+/// 真实业务：生产领用必须关联染色缸号，化验室/研发领用可选
+pub mod chemical_requisition_type {
+    /// 生产领用：从车间仓库领用至染色缸号
+    pub const PRODUCTION: &str = "production";
+
+    /// 化验室领用：化验室打样测试用
+    pub const LAB: &str = "lab";
+
+    /// 研发领用：研发新工艺测试用
+    pub const RD: &str = "rd";
+}
+
+/// 染化料领用单状态（chemical_requisition.status）
+///
+/// v14 批次 429：染化料主数据完善
+/// 状态机：draft(草稿) → approved(已审批) → issued(已发料) → partial_returned(部分退回) → closed(已关闭)
+///        任意非 closed 状态 → cancelled(已取消)
+pub mod chemical_requisition_status {
+    /// 草稿：新建领用单，可编辑
+    pub const DRAFT: &str = "draft";
+
+    /// 已审批：审批通过，待发料
+    pub const APPROVED: &str = "approved";
+
+    /// 已发料：仓库已发料，可部分退回
+    pub const ISSUED: &str = "issued";
+
+    /// 部分退回：发料后部分退回，等待全部退回或结案
+    pub const PARTIAL_RETURNED: &str = "partial_returned";
+
+    /// 已关闭：全部退回或正常结案
+    pub const CLOSED: &str = "closed";
+
+    /// 已取消：任意非 closed 状态可取消
+    pub const CANCELLED: &str = "cancelled";
+}

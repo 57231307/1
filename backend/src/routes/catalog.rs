@@ -14,7 +14,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    bom_handler, bulk_product_handler, product_category_handler, product_handler, warehouse_handler,
+    bom_handler, bulk_product_handler, chemical_handler, product_category_handler, product_handler,
+    warehouse_handler,
 };
 
 /// 产品路由（path 前缀 /products）
@@ -139,6 +140,105 @@ pub fn boms() -> Router<AppState> {
         )
 }
 
+/// 染化料主数据路由（path 前缀 /chemicals）
+pub fn chemicals() -> Router<AppState> {
+    Router::new()
+        // 染化料主数据
+        .route(
+            "/chemicals",
+            get(chemical_handler::list_chemicals).post(chemical_handler::create_chemical),
+        )
+        .route(
+            "/chemicals/by-code/:code",
+            get(chemical_handler::get_chemical_by_code),
+        )
+        .route(
+            "/chemicals/:id",
+            get(chemical_handler::get_chemical)
+                .put(chemical_handler::update_chemical)
+                .delete(chemical_handler::delete_chemical),
+        )
+        // 染化料分类
+        .route(
+            "/chemical-categories",
+            get(chemical_handler::list_chemical_categories)
+                .post(chemical_handler::create_chemical_category),
+        )
+        .route(
+            "/chemical-categories/tree",
+            get(chemical_handler::get_chemical_category_tree),
+        )
+        .route(
+            "/chemical-categories/:id",
+            get(chemical_handler::get_chemical_category)
+                .put(chemical_handler::update_chemical_category)
+                .delete(chemical_handler::delete_chemical_category),
+        )
+        // 染化料批次
+        .route(
+            "/chemical-lots",
+            get(chemical_handler::list_chemical_lots).post(chemical_handler::create_chemical_lot),
+        )
+        .route(
+            "/chemical-lots/by-no/:no",
+            get(chemical_handler::get_chemical_lot_by_no),
+        )
+        .route(
+            "/chemical-lots/:id",
+            get(chemical_handler::get_chemical_lot)
+                .put(chemical_handler::update_chemical_lot)
+                .delete(chemical_handler::delete_chemical_lot),
+        )
+        .route(
+            "/chemical-lots/:id/pass-inspection",
+            post(chemical_handler::pass_inspection),
+        )
+        .route(
+            "/chemical-lots/:id/fail-inspection",
+            post(chemical_handler::fail_inspection),
+        )
+        .route(
+            "/chemical-lots/:id/consume",
+            post(chemical_handler::consume_lot),
+        )
+        .route(
+            "/chemical-lots/:id/scrap",
+            post(chemical_handler::scrap_lot),
+        )
+        // 染化料领用单
+        .route(
+            "/chemical-requisitions",
+            get(chemical_handler::list_requisitions)
+                .post(chemical_handler::create_requisition),
+        )
+        .route(
+            "/chemical-requisitions/by-no/:no",
+            get(chemical_handler::get_requisition_by_no),
+        )
+        .route(
+            "/chemical-requisitions/:id",
+            get(chemical_handler::get_requisition)
+                .put(chemical_handler::update_requisition)
+                .delete(chemical_handler::delete_requisition),
+        )
+        .route(
+            "/chemical-requisitions/:id/approve",
+            post(chemical_handler::approve_requisition),
+        )
+        .route(
+            "/chemical-requisitions/:id/issue",
+            post(chemical_handler::issue_requisition),
+        )
+        .route(
+            "/chemical-requisitions/:id/close",
+            post(chemical_handler::close_requisition),
+        )
+        .route(
+            "/chemical-requisitions/:id/cancel",
+            post(chemical_handler::cancel_requisition),
+        )
+}
+
 /// 目录域统一入口
 ///
 /// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
@@ -148,4 +248,5 @@ pub fn routes() -> Router<AppState> {
         .merge(product_categories())
         .merge(warehouses())
         .merge(boms())
+        .merge(chemicals())
 }
