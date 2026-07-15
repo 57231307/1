@@ -1315,3 +1315,83 @@ pub mod chemical_requisition_status {
     /// 已取消：任意非 closed 状态可取消
     pub const CANCELLED: &str = "cancelled";
 }
+
+/// 委外加工类型（outsourcing_order.order_type）
+///
+/// v14 批次 430：委托加工物资贯通
+/// 依据：面料行业真实业务调研文档 §5.4 委托加工物资核算 + §5.5 委外织布场景
+pub mod outsourcing_order_type {
+    /// 染色
+    pub const DYEING: &str = "dyeing";
+    /// 印花
+    pub const PRINTING: &str = "printing";
+    /// 织布
+    pub const WEAVING: &str = "weaving";
+    /// 后整理
+    pub const FINISHING: &str = "finishing";
+    /// 其他
+    pub const OTHER: &str = "other";
+}
+
+/// 委外加工订单状态（outsourcing_order.status）
+///
+/// v14 批次 430：委托加工物资贯通
+/// 状态机：draft → issued → processing → received → settled → closed
+/// 任意非 closed 状态 → cancelled
+pub mod outsourcing_order_status {
+    /// 草稿：新建委外订单，可编辑
+    pub const DRAFT: &str = "draft";
+    /// 已发料：发出材料给外协厂，已生成发料凭证
+    pub const ISSUED: &str = "issued";
+    /// 加工中：外协厂正在加工
+    pub const PROCESSING: &str = "processing";
+    /// 已收回：成品已收回入库，已生成入库凭证
+    pub const RECEIVED: &str = "received";
+    /// 已结算：加工费已结算，已生成加工费凭证
+    pub const SETTLED: &str = "settled";
+    /// 已关闭：业务流程完结归档
+    pub const CLOSED: &str = "closed";
+    /// 已取消：任意非 closed 状态可取消
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// 委外损耗类型（outsourcing_order.loss_type / outsourcing_receipt.loss_type）
+///
+/// v14 批次 430：委托加工物资贯通
+/// 依据：面料行业真实业务调研文档 §5.4 损耗处理规则
+/// - 正常损耗：摊入委托加工物资成本（不单独做分录）
+/// - 非正常损耗：计入营业外支出/管理费用，不能进成本
+pub mod outsourcing_loss_type {
+    /// 正常损耗：摊入成本（按实际收回数量结转）
+    pub const NORMAL: &str = "normal";
+    /// 非正常损耗：计入营业外支出（超定额损耗，单独追责）
+    pub const ABNORMAL: &str = "abnormal";
+}
+
+/// 委外收回入库状态（outsourcing_receipt.status）
+///
+/// v14 批次 430：委托加工物资贯通
+/// 状态机：draft(草稿) → confirmed(已确认) → cancelled(已取消)
+pub mod outsourcing_receipt_status {
+    /// 草稿：新建收回单，可编辑
+    pub const DRAFT: &str = "draft";
+    /// 已确认：损耗分类与单位成本已计算
+    pub const CONFIRMED: &str = "confirmed";
+    /// 已取消：作废
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// 委外加工凭证类型（outsourcing_voucher.voucher_type）
+///
+/// v14 批次 430：委托加工物资贯通
+/// 依据：面料行业真实业务调研文档 §5.4 委托加工物资核算三步分录
+pub mod outsourcing_voucher_type {
+    /// 发料凭证：借 委托加工物资 / 贷 自制半成品-胚布
+    pub const ISSUE: &str = "issue";
+    /// 加工费凭证：借 委托加工物资+应交税费-进项税额 / 贷 银行存款
+    pub const FEE: &str = "fee";
+    /// 入库凭证：借 库存商品-成品布 / 贷 委托加工物资
+    pub const RECEIPT: &str = "receipt";
+    /// 损耗处理凭证：借 营业外支出 / 贷 委托加工物资（非正常损耗单独追责）
+    pub const LOSS: &str = "loss";
+}

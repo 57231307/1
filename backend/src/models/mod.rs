@@ -169,6 +169,11 @@ pub mod chemical_master;
 pub mod chemical_category;
 pub mod chemical_lot;
 pub mod chemical_requisition;
+// v14 批次 430：委托加工物资贯通（委外订单 + 发料明细 + 收回入库 + 会计凭证）
+pub mod outsourcing_order;
+pub mod outsourcing_order_item;
+pub mod outsourcing_receipt;
+pub mod outsourcing_voucher;
 // 匹数管理模块
 pub mod inventory_piece;
 // 仓位/库位模块
