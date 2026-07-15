@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-15（批次 419 完成后，追加批次 419 条目，v14 复审 P0 第四批修复完成，P0 全部修复完成）。
+> 最近整理：2026-07-15（批次 420 完成后，追加批次 420 条目，v14 复审 P1 第一批事件贯通修复完成；同时完成面料行业真实业务调研文档）。
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 420 | #596 | v14 复审 P1 第一批事件贯通修复：T-P1-1 调拨 ship_transfer/receive_transfer 发布 InventoryTransactionCreated 事件（事务内收集+commit 后发布）+ T-P1-2 染色完成 complete_dye_batch 发布 DyeBatchCompleted 事件 + T-P1-3 新增 DyeBatchCompleted/QualityInspectionCompleted 事件变体（EventPayload 三段同步+event_type_name 映射）+ G-P1-3 主监听器 _ => {} 改为显式分支+warn 日志；CI 修复 pending_events 借用已移动值（先记录 events_count 再消费 Vec），CI 全绿；同步完成面料行业真实业务调研文档（.monkeycode/docs/research/fabric-industry-research.md，覆盖基础信息/染整工艺/ERP 模块/成本核算/业务模式/计量换算/项目映射/术语对照） |
 | 419 | #595 | v14 复审 P0 第四批：生产订单+色卡借出补全缸号——迁移 034 为 3 个表（production_orders/inventory_piece/color_card_borrow_records）添加面料行业追溯字段 + 索引；7 个 Rust 文件修改修复 4 个 P0 问题（F-P0-1 production_order 添加 color_no/dye_lot_no/batch_no 字段 + F-P0-2 inventory_piece 添加 color_no/dye_lot_no + T-P0-3 color_card_borrow_record 添加 dye_lot_no + T-P0-5 销售退货 stock_map 改为四维索引按缸号退货入库），CI 修复 color_card_borrow_service ActiveModel 缺失 dye_lot_no 字段，CI 全绿 |
 | 418 | #594 | v14 复审 P0 第三批：数据流转硬编码修复——5 个文件修复 5 个 P0 问题（D-P0-4 采购入库 DEFAULT 硬编码改为从采购订单明细获取真实值 + D-P0-5 销售发货 reduce_inventory 返回库存 color_no/dye_lot_no + D-P0-6 销售退货 dye_lot_no 误用 batch_no 修复 + G-P0-1 quantity_kg 调用 DualUnitConverter 双单位换算 + G-P0-2 凭证 unwrap_or_default 添加 warn 日志），CI 全绿 |
 | 417 | #593 | v14 复审 P0 第二批：业务单据明细补全缸号字段——迁移 033 为 4 个表（sales_return_item/purchase_return_item/inventory_transfer_items/inventory_count_items）添加 color_no/dye_lot_no/batch_no 字段 + 索引；6 个 Rust 模型同步（sales_delivery_item 添加 dye_lot_id/dye_lot_no，purchase_order_item 添加 color_code/lot_no/batch_no 匹配 SQL 旧命名）；7 个 service 文件 ActiveModel 构造点同步更新（使用 NotSet 让 DB 默认值处理），CI 全绿 |

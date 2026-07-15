@@ -7,6 +7,43 @@
 
 ## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
 
+### 批次 420：v14 P1 第一批 - 事件贯通修复 + 面料行业真实业务调研（PR #596，sha: e5b68274）
+
+**修复内容**：5 个 Rust 文件修复 4 个 v14 复审 P1 事件贯通问题（T-P1-1/2/3 + G-P1-3），打通调拨流程、染色完成、质检完成 3 个业务事件发布与监听链路；同步完成面料行业真实业务调研文档（覆盖基础信息/染整工艺/ERP 模块/成本核算/业务模式/计量换算/项目映射/术语对照），作为后续批次 421+ 的实现依据。
+
+**修改文件**：
+| 文件 | 修改类型 | 修复问题 |
+|------|---------|---------|
+| backend/src/services/event_bus.rs | 修改 | T-P1-3 + G-P1-3：新增 2 个事件变体 + 主监听器显式分支 + warn 日志 |
+| backend/src/services/event_kafka_payload.rs | 修改 | T-P1-3：EventPayload 三段同步新增 2 个变体（枚举+From+TryFrom） |
+| backend/src/services/event_kafka.rs | 修改 | T-P1-3：event_type_name 函数新增 2 个映射 |
+| backend/src/handlers/dye_batch_handler.rs | 修改 | T-P1-2：complete_dye_batch 发布 DyeBatchCompleted 事件 |
+| backend/src/services/inv/batch.rs | 修改 | T-P1-1：ship_transfer/receive_transfer 发布 InventoryTransactionCreated 事件（事务内收集+commit 后发布） |
+| .monkeycode/docs/research/fabric-industry-research.md | 新增 | 面料行业真实业务调研文档（724 行，10 章节） |
+
+**技术要点**：
+1. **T-P1-1 修复（调拨流程事件发布）**：inv/batch.rs 在 ship_transfer 和 receive_transfer 两处引入 `pending_events: Vec<BusinessEvent>` 收集容器；事务内 insert 流水后收集 InventoryTransactionCreated 事件（不发布避免幻事件）；commit 成功后统一 `for event in pending_events { EVENT_BUS.publish(event); }`；先 `let events_count = pending_events.len()` 记录长度再消费 Vec（避免 borrow of moved value 编译错误）。
+2. **T-P1-2 修复（染色完成事件发布）**：dye_batch_handler.rs complete_dye_batch 在 `batch.update(&*state.db).await?` 成功后发布 DyeBatchCompleted 事件，包含 batch_id/batch_no/color_no/greige_fabric_id/planned_quantity/completed_by 字段。
+3. **T-P1-3 修复（事件类型定义）**：event_bus.rs BusinessEvent 枚举新增 DyeBatchCompleted 和 QualityInspectionCompleted 两个变体；event_kafka_payload.rs 三段同步（EventPayload 枚举 + `From<&BusinessEvent>` + `TryFrom<EventPayload>`）；event_kafka.rs event_type_name 函数新增 2 个映射（避免 non-exhaustive patterns 编译错误）。
+4. **G-P1-3 修复（主监听器显式分支）**：event_bus.rs start_event_listener 主监听器将 `_ => {}` 改为显式分支处理 InventoryTransactionCreated（debug 日志，凭证生成由独立监听器处理）+ DyeBatchCompleted（info 日志，触发质检单生成/成本结转）+ QualityInspectionCompleted（info 日志，触发库存入库/成本结转）+ 兜底 `_ => { tracing::warn!("主监听器收到未处理的事件变体: {:?}", event); }`。
+5. **面料行业真实业务调研文档**：基于 WebSearch 真实行业资料（畅捷通好业财/环思印染 ERP/SAP 纺织印染/旺店通 WMS 等）+ 项目代码核对整理，覆盖 10 章节：基础信息/核心概念体系/染整工艺完整流程/ERP 核心模块/成本核算体系/6 种业务模式/计量单位换算/八大系统集成/项目现有实现映射/关键术语对照表。作为后续批次 421+ 的实现依据，所有面料行业特性修复必须基于本调研的真实业务规则进行实现。
+
+**CI 验证**：
+- 首次 CI 失败：`error[E0382]: borrow of moved value: pending_events`（for event in pending_events 消费 Vec 后调用 pending_events.is_empty()）
+- CI 修复：先 `let events_count = pending_events.len()` 记录长度，再消费 Vec，用 `events_count > 0` 判断（commit fa754b27）
+- CI 全绿（12 success + 3 skipped，10 项必检全绿：Rust 构建/Clippy/格式/单元测试 + 前端构建/ESLint/类型检查/测试/格式 + 依赖审计/图）
+- squash 合并到 main（SHA: e5b68274）
+
+**v14 复审修复进度**：
+- 批次 416 ✅：D-P0-1/2 + D-P1-1/2/7（数据模型基础）
+- 批次 417 ✅：D-P1-3/4/5/6 + T-P0-1/4（业务字段补全）
+- 批次 418 ✅：D-P0-4/5/6 + G-P0-1/2（数据流转硬编码修复）
+- 批次 419 ✅：F-P0-1/2 + T-P0-3/5（生产订单+色卡借出补全缸号）—— **P0 全部修复完成**
+- 批次 420 ✅：T-P1-1/2/3 + G-P1-3（P1 事件贯通修复）+ 面料行业真实业务调研
+- 批次 421+ ⏳：P1 面料行业特性 + 模块专项 + 术语统一（基于调研文档推进）
+
+---
+
 ### 批次 419：v14 P0 第四批 - 生产订单+色卡借出补全缸号（PR #595，sha: 5218664b）
 
 **修复内容**：7 个文件（1 迁移 + 6 代码）修复 4 个 v14 复审 P0 问题（F-P0-1/2 + T-P0-3/5），补全生产订单、库存匹号、色卡借出记录的面料行业追溯字段，并修复销售退货按缸号入库的核心逻辑。
