@@ -485,6 +485,17 @@ pub struct WorkshopEnergySummary {
     pub total_cost: Decimal,
 }
 
+/// 工时分组键（用于 monthly_allocation_by_duration 内部分组，避免复杂元组类型）
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct DurationGroupKey {
+    /// 缸号（简化：暂用 equipment_name）
+    dye_lot_no: Option<String>,
+    /// 工序路线 ID
+    route_id: Option<i32>,
+    /// 工序编码
+    route_code: Option<String>,
+}
+
 /// 能耗记录 Service
 pub struct EnergyConsumptionService {
     db: Arc<DatabaseConnection>,
@@ -826,12 +837,12 @@ impl EnergyConsumptionService {
 
         let records = q.all(&*self.db).await?;
 
-        // 按车间 + 能源类型汇总
+        // 按车间 + 能源类型汇总（用元组 key + 累加器结构，避免复杂嵌套元组类型）
         let mut summary: std::collections::HashMap<(String, String), (Decimal, Decimal)> =
             std::collections::HashMap::new();
         for r in records {
             let ws = r.workshop.unwrap_or_else(|| "未分配".to_string());
-            let key = (ws.clone(), r.meter_type.clone());
+            let key = (ws, r.meter_type);
             let entry = summary.entry(key).or_insert((Decimal::ZERO, Decimal::ZERO));
             entry.0 += r.consumption;
             entry.1 += r.total_cost;
@@ -1543,17 +1554,19 @@ impl EnergyAllocationRecordService {
             // 按缸号+工序分组汇总工时
             // 注意：工序记录没有直接的 workshop 字段，这里通过 equipment_name 或 route_code 简化处理
             // 真实业务中应关联设备所属车间
-            let mut grouped_duration: std::collections::HashMap<
-                (Option<String>, Option<i32>, Option<String>),
-                i32,
-            > = std::collections::HashMap::new();
+            let mut grouped_duration: std::collections::HashMap<DurationGroupKey, i32> =
+                std::collections::HashMap::new();
 
             for step in step_records {
                 // 缸号通过 flow_card 关联查询（简化：暂用 equipment_name 作为车间归属）
                 let dye_lot_no = step.equipment_name.clone(); // 简化：实际应通过 flow_card 查询 dye_lot_no
                 let route_id = step.process_route_id;
                 let route_code = Some(step.route_code.clone());
-                let key = (dye_lot_no, route_id, route_code);
+                let key = DurationGroupKey {
+                    dye_lot_no,
+                    route_id,
+                    route_code,
+                };
                 let duration = step.duration_minutes.unwrap_or(0);
                 *grouped_duration.entry(key).or_insert(0) += duration;
             }
@@ -1566,7 +1579,10 @@ impl EnergyAllocationRecordService {
             let total_duration_decimal = Decimal::from(total_duration);
 
             // 3. 按工时比例分摊
-            for ((dye_lot_no, route_id, route_code), duration) in grouped_duration {
+            for (key, duration) in grouped_duration {
+                let dye_lot_no = key.dye_lot_no;
+                let route_id = key.route_id;
+                let route_code = key.route_code;
                 let basis_value = Decimal::from(duration);
                 let ratio = compute_allocation_ratio(basis_value, total_duration_decimal);
                 let allocated_consumption =
