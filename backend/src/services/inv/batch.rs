@@ -34,6 +34,12 @@ impl InventoryTransferService {
         // 开启事务
         let txn = (*self.db).begin().await?;
 
+        // v14 批次 420 修复 T-P1-1：调拨流程事件收集
+        // 原实现直接 insert 流水后未发布 InventoryTransactionCreated 事件，
+        // 导致下游库存财务桥接服务无法感知调拨出/入库，库存账与财务账脱节。
+        // 修复：事务内收集事件，commit 成功后统一 publish（避免回滚造成幻事件）。
+        let mut pending_events: Vec<crate::services::event_bus::BusinessEvent> = Vec::new();
+
         // 检查调拨单是否存在（行锁，串行化并发状态变更）
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .lock_exclusive()

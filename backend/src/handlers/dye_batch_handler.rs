@@ -306,11 +306,33 @@ pub async fn complete_dye_batch(
         )));
     }
 
+    // v14 批次 420 修复 T-P1-2：染色完成发布业务事件
+    // 原实现仅做状态更新，未发布任何业务事件，导致下游（质检单生成、染缸产能统计、
+    // 成本结转、BI 生产报表）无法被动感知染色完成节点。
+    // 修复：在 update 成功后构造 DyeBatchCompleted 事件并发布到事件总线。
     batch.status = Set(Some("已完成".to_string()));
     batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = batch.update(&*state.db).await?;
+
+    // v14 批次 420 修复 T-P1-2：update 成功后发布 DyeBatchCompleted 事件
+    crate::services::event_bus::EVENT_BUS.publish(
+        crate::services::event_bus::BusinessEvent::DyeBatchCompleted {
+            batch_id: updated.id,
+            batch_no: updated.batch_no.clone(),
+            color_no: updated.color_no.clone(),
+            greige_fabric_id: updated.greige_fabric_id,
+            planned_quantity: updated.planned_quantity,
+            completed_by: None,
+        },
+    );
+    tracing::info!(
+        batch_id = updated.id,
+        batch_no = %updated.batch_no,
+        "染色完成，已发布 DyeBatchCompleted 事件"
+    );
+
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "缸号完成成功",

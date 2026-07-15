@@ -88,6 +88,9 @@ fn event_type_name(event: &BusinessEvent) -> &'static str {
         // 批次 415：补全 CustomerUpdated/SupplierUpdated 分支，消除 non-exhaustive patterns 编译错误
         BusinessEvent::CustomerUpdated { .. } => "CustomerUpdated",
         BusinessEvent::SupplierUpdated { .. } => "SupplierUpdated",
+        // v14 批次 420 修复 T-P1-3：染色完成/质检完成事件
+        BusinessEvent::DyeBatchCompleted { .. } => "DyeBatchCompleted",
+        BusinessEvent::QualityInspectionCompleted { .. } => "QualityInspectionCompleted",
     }
 }
 
