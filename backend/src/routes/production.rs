@@ -18,7 +18,7 @@ use axum::{
 
 use crate::handlers::{
     capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
-    greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
+    flow_card_handler, greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
     production_order_handler, production_recipe_handler, quality_inspection_handler,
 };
 
@@ -206,6 +206,59 @@ pub fn production_recipes() -> Router<AppState> {
         .route(
             "/production-recipes/additions/:id/close",
             post(production_recipe_handler::close_addition),
+        )
+}
+
+/// 流转卡工序流转路由（path 前缀 /flow-cards）
+///
+/// v14 批次 425：流转卡工序流转模块
+/// 依据：面料行业真实业务调研文档 §14.1 流转卡工序流转（基于同凯印染 ERP/KESHTECH 真实开卡字段）
+/// 真实业务流程：
+///   流转卡定义：流转卡=生产流程卡/工序流转卡/缸卡，一卡对应一缸布的生产任务
+///   扫码签入签出（PDA/工控终端）：扫码→登记→签入→签出→流转→入库
+///   分卡/合卡/拆卡/缸终止/内修卡
+/// 关键约束：一缸一卡（同缸号只能有一张主卡）
+pub fn flow_cards() -> Router<AppState> {
+    Router::new()
+        // ===== 流转卡 CRUD =====
+        .route("/flow-cards", get(flow_card_handler::list))
+        .route("/flow-cards", post(flow_card_handler::create))
+        .route("/flow-cards/:id", get(flow_card_handler::get))
+        .route("/flow-cards/:id", put(flow_card_handler::update))
+        .route("/flow-cards/:id", delete(flow_card_handler::delete))
+        // 按缸号/条码查询（扫码用）
+        .route(
+            "/flow-cards/by-dye-lot/:dye_lot_no",
+            get(flow_card_handler::get_by_dye_lot),
+        )
+        .route(
+            "/flow-cards/by-barcode/:barcode",
+            get(flow_card_handler::get_by_barcode),
+        )
+        // ===== 扫码签入签出流程 =====
+        .route("/flow-cards/:id/sign-in", post(flow_card_handler::sign_in))
+        .route("/flow-cards/:id/sign-out", post(flow_card_handler::sign_out))
+        .route("/flow-cards/:id/transfer", post(flow_card_handler::transfer))
+        .route("/flow-cards/:id/complete", post(flow_card_handler::complete))
+        .route("/flow-cards/:id/pause", post(flow_card_handler::pause))
+        .route("/flow-cards/:id/resume", post(flow_card_handler::resume))
+        // ===== 分卡/合卡/拆卡/缸终止/内修卡 =====
+        .route("/flow-cards/:id/split", post(flow_card_handler::split))
+        // 合缸无路径参数，独立路由
+        .route("/flow-cards/merge", post(flow_card_handler::merge))
+        .route(
+            "/flow-cards/:id/split-piece",
+            post(flow_card_handler::split_piece),
+        )
+        .route(
+            "/flow-cards/:id/terminate",
+            post(flow_card_handler::terminate),
+        )
+        .route("/flow-cards/:id/rework", post(flow_card_handler::rework))
+        // ===== 工序操作记录 =====
+        .route(
+            "/flow-cards/:id/operations",
+            get(flow_card_handler::list_operations),
         )
 }
 
@@ -405,6 +458,7 @@ pub fn routes() -> Router<AppState> {
         .merge(dye_recipes())
         .merge(lab_dip())
         .merge(production_recipes())
+        .merge(flow_cards())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())

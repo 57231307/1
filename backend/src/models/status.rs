@@ -936,3 +936,80 @@ pub mod failover {
     /// 备节点
     pub const BACKUP: &str = "backup";
 }
+
+/// 流转卡状态（flow_card.status，小写值）
+/// v14 批次 425 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §14.1 流转卡工序流转
+/// 状态机（缸号维度）：
+///   opened → waiting_dyeing → scheduled → preparing → dyeing → dyed
+///         → inspecting → stored → shipped
+/// 分支：paused / rework / terminated / cancelled
+pub mod flow_card {
+    /// 开卡：流转卡初始状态
+    pub const OPENED: &str = "opened";
+
+    /// 待排缸：等待排缸染色
+    pub const WAITING_DYEING: &str = "waiting_dyeing";
+
+    /// 已排缸：已排入染色计划
+    pub const SCHEDULED: &str = "scheduled";
+
+    /// 备布中：备布阶段
+    pub const PREPARING: &str = "preparing";
+
+    /// 进缸染色：正在染色
+    pub const DYEING: &str = "dyeing";
+
+    /// 出缸：染色完成出缸
+    pub const DYED: &str = "dyed";
+
+    /// 验布：验布工序
+    pub const INSPECTING: &str = "inspecting";
+
+    /// 入库：完工入库
+    pub const STORED: &str = "stored";
+
+    /// 发货：已发货
+    pub const SHIPPED: &str = "shipped";
+
+    /// 暂停：生产暂停
+    pub const PAUSED: &str = "paused";
+
+    /// 回修：回修分支
+    pub const REWORK: &str = "rework";
+
+    /// 缸终止：因质量/工艺问题终止该缸生产
+    pub const TERMINATED: &str = "terminated";
+
+    /// 取消：流转卡作废
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// 流转卡工序状态（flow_card_operation.status，小写值）
+/// v14 批次 425 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §14.1 工序状态机
+/// 状态机（单工序维度）：
+///   pending → in_progress → completed → transferred → stored
+/// 分支：paused / rework
+pub mod flow_card_operation {
+    /// 待加工：工序初始状态
+    pub const PENDING: &str = "pending";
+
+    /// 加工中：已签入，正在加工
+    pub const IN_PROGRESS: &str = "in_progress";
+
+    /// 完工：已签出，本道工序完成
+    pub const COMPLETED: &str = "completed";
+
+    /// 转入下道：已转入下一道工序
+    pub const TRANSFERRED: &str = "transferred";
+
+    /// 完工入库：末道工序完工入库
+    pub const STORED: &str = "stored";
+
+    /// 暂停：工序暂停
+    pub const PAUSED: &str = "paused";
+
+    /// 回修：工序回修
+    pub const REWORK: &str = "rework";
+}

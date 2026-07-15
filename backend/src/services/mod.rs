@@ -44,6 +44,8 @@ pub mod dye_recipe_service;
 pub mod lab_dip_service;
 // v14 批次 424：大货处方与加料处方流程（染色配料单 + 染色补料单）
 pub mod production_recipe_service;
+// v14 批次 425：流转卡工序流转模块（流转卡 + 工序操作记录 + 分卡/合卡/拆卡/内修卡）
+pub mod flow_card_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;

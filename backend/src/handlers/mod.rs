@@ -88,6 +88,8 @@ pub mod greige_fabric_handler;
 pub mod lab_dip_handler;
 // v14 批次 424：大货处方与加料处方流程
 pub mod production_recipe_handler;
+// v14 批次 425：流转卡工序流转模块
+pub mod flow_card_handler;
 pub mod sales_return_handler;
 pub mod system_update_handler;
 // MRP生产计划模块
