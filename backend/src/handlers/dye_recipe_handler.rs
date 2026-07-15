@@ -1,22 +1,27 @@
-//! 染色配方管理Handler
+//! 染色配方管理 Handler
+//!
+//! v14 批次 423A 重构：从直接 ActiveModel 操作改为调用 DyeRecipeService 抽象层，
+//! 状态字符串统一引用 status::dye_recipe 常量，业务逻辑下沉到 service 便于单元测试。
+//! 依据：面料行业真实业务调研文档 §11.1 化验室打样流程 + §13.1 批次 423 规划
 
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dye_recipe;
+use crate::services::dye_recipe_service::{
+    CreateDyeRecipeRequest, DyeRecipeQuery, DyeRecipeService, UpdateDyeRecipeRequest,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
+/// 列表查询参数（axum Query 反序列化用）
 #[derive(Debug, Deserialize)]
 pub struct DyeRecipeListQuery {
     pub page: Option<u64>,
@@ -28,85 +33,43 @@ pub struct DyeRecipeListQuery {
     pub status: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CreateDyeRecipeRequest {
-    pub recipe_no: Option<String>,
-    pub recipe_name: Option<String>,
-    pub color_code: Option<String>,
-    pub color_name: Option<String>,
-    pub fabric_type: Option<String>,
-    pub dye_type: Option<String>,
-    pub chemical_formula: Option<String>,
-    pub temperature: Option<f64>,
-    pub time_minutes: Option<i32>,
-    pub ph_value: Option<f64>,
-    pub liquor_ratio: Option<f64>,
-    pub auxiliaries: Option<serde_json::Value>,
-    pub status: Option<String>,
-    pub version: Option<i32>,
-    pub parent_recipe_id: Option<i32>,
-    pub remarks: Option<String>,
-    pub created_by: Option<i32>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateDyeRecipeRequest {
-    pub color_code: Option<String>,
-    pub color_name: Option<String>,
-    pub fabric_type: Option<String>,
-    pub dye_type: Option<String>,
-    pub chemical_formula: Option<String>,
-    pub temperature: Option<f64>,
-    pub time_minutes: Option<i32>,
-    pub ph_value: Option<f64>,
-    pub liquor_ratio: Option<f64>,
-    pub auxiliaries: Option<serde_json::Value>,
-    pub status: Option<String>,
-    pub remarks: Option<String>,
-}
-
+/// 审核请求体
 #[derive(Debug, Deserialize)]
 pub struct ApproveRecipeRequest {
     pub approved_by: i32,
 }
 
+/// 创建新版本请求体
 #[derive(Debug, Deserialize)]
 pub struct CreateVersionRequest {
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
 }
 
+/// 从 AppState 构造 DyeRecipeService（每个请求构造轻量实例，无状态）
+fn service(state: &AppState) -> DyeRecipeService {
+    DyeRecipeService::new(state.db.clone())
+}
+
 pub async fn list_dye_recipes(
     State(state): State<AppState>,
     Query(query): Query<DyeRecipeListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<dye_recipe::Model>>>, AppError> {
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
-    let mut q = dye_recipe::Entity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
+    let svc_query = DyeRecipeQuery {
+        recipe_no: query.recipe_no,
+        color_code: query.color_code,
+        color_name: query.color_name,
+        dye_type: query.dye_type,
+        status: query.status,
+        page,
+        page_size,
+    };
 
-    if let Some(recipe_no) = &query.recipe_no {
-        q = q.filter(dye_recipe::Column::RecipeNo.contains(recipe_no));
-    }
-    if let Some(color_code) = &query.color_code {
-        q = q.filter(dye_recipe::Column::ColorCode.contains(color_code));
-    }
-    if let Some(color_name) = &query.color_name {
-        q = q.filter(dye_recipe::Column::ColorName.contains(color_name));
-    }
-    if let Some(dye_type) = &query.dye_type {
-        q = q.filter(dye_recipe::Column::DyeType.eq(dye_type));
-    }
-    if let Some(status) = &query.status {
-        q = q.filter(dye_recipe::Column::Status.eq(status));
-    }
-
-    q = q.order_by_desc(dye_recipe::Column::CreatedAt);
-
-    let paginator = q.paginate(&*state.db, page_size);
-    let total = paginator.num_items().await?;
-    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let recipes = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+    let (recipes, total) = service(&state).list(svc_query).await?;
     Ok(Json(ApiResponse::success_paginated(
         recipes, total, page, page_size,
     )))
@@ -116,10 +79,7 @@ pub async fn get_dye_recipe(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let recipe = dye_recipe::Entity::find_by_id(id)
-        .one(&*state.db)
-        .await?
-        .ok_or_else(|| AppError::not_found("配方不存在"))?;
+    let recipe = service(&state).get_by_id(id).await?;
     Ok(Json(ApiResponse::success(recipe)))
 }
 
@@ -128,65 +88,7 @@ pub async fn create_dye_recipe(
     _auth: AuthContext,
     Json(req): Json<CreateDyeRecipeRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    // 自动生成配方编号
-    let recipe_no = match req.recipe_no {
-        Some(no) if !no.is_empty() => no,
-        _ => {
-            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = crate::utils::random::random_4_digit();
-            format!("DR-{}-{:04}", timestamp, random)
-        }
-    };
-
-    // 批次 407 修复：配方辅料 JSON 反序列化失败时不能静默写空，避免数据完整性丢失，改为返回验证错误
-    let auxiliaries = req
-        .auxiliaries
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(|e| AppError::validation(format!("配方辅料数据格式无效: {}", e)))?;
-
-    let recipe = dye_recipe::ActiveModel {
-        id: Set(0),
-        recipe_no: Set(recipe_no),
-        recipe_name: Set(Some(
-            req.recipe_name.unwrap_or_else(|| "未命名配方".to_string()),
-        )),
-        color_no: Set(req.color_code.clone()),
-        formula: Set(req.chemical_formula.clone()),
-        color_code: Set(req.color_code),
-        color_name: Set(req.color_name),
-        fabric_type: Set(req.fabric_type),
-        dye_type: Set(req.dye_type),
-        chemical_formula: Set(req.chemical_formula),
-        temperature: Set(req.temperature.and_then(Decimal::from_f64_retain)),
-        time_minutes: Set(req.time_minutes),
-        ph_value: Set(req.ph_value.and_then(Decimal::from_f64_retain)),
-        liquor_ratio: Set(req.liquor_ratio.and_then(Decimal::from_f64_retain)),
-        auxiliaries: Set(auxiliaries),
-        status: Set(Some(req.status.unwrap_or_else(|| "草稿".to_string()))),
-        is_deleted: Set(Some(false)),
-        version: Set(req.version.or(Some(1))),
-        parent_recipe_id: Set(req.parent_recipe_id),
-        approved_by: Set(None),
-        approved_at: Set(None),
-        remarks: Set(req.remarks),
-        created_by: Set(req.created_by),
-        created_at: Set(crate::utils::date_utils::utc_now_fixed()),
-        updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
-    };
-
-    // 使用 insert 获取返回的 Model
-    dye_recipe::Entity::insert(recipe)
-        .exec_without_returning(&*state.db)
-        .await?;
-    // 重新查询获取创建的记录
-    // 批次 407 修复：DB 回查错误不能吞，返回空模型但消息说"创建成功"会误导用户，改为返回错误
-    let created = dye_recipe::Entity::find()
-        .order_by_desc(dye_recipe::Column::Id)
-        .one(&*state.db)
-        .await
-        .map_err(|e| AppError::internal(format!("配方创建后回查失败: {}", e)))?
-        .ok_or_else(|| AppError::internal("配方创建后回查未找到记录"))?;
+    let created = service(&state).create(req).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "配方创建成功",
@@ -199,72 +101,7 @@ pub async fn update_dye_recipe(
     _auth: AuthContext,
     Json(req): Json<UpdateDyeRecipeRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let mut recipe: dye_recipe::ActiveModel = dye_recipe::Entity::find_by_id(id)
-        .one(&*state.db)
-        .await?
-        .ok_or_else(|| AppError::not_found("配方不存在"))?
-        .into();
-
-    if let Some(color_code) = req.color_code {
-        recipe.color_code = Set(Some(color_code));
-    }
-    if let Some(color_name) = req.color_name {
-        recipe.color_name = Set(Some(color_name));
-    }
-    if let Some(fabric_type) = req.fabric_type {
-        recipe.fabric_type = Set(Some(fabric_type));
-    }
-    if let Some(dye_type) = req.dye_type {
-        recipe.dye_type = Set(Some(dye_type));
-    }
-    if let Some(chemical_formula) = req.chemical_formula {
-        recipe.chemical_formula = Set(Some(chemical_formula));
-    }
-    if let Some(temperature) = req.temperature {
-        recipe.temperature = Set(Decimal::from_f64_retain(temperature));
-    }
-    if let Some(time_minutes) = req.time_minutes {
-        recipe.time_minutes = Set(Some(time_minutes));
-    }
-    if let Some(ph_value) = req.ph_value {
-        recipe.ph_value = Set(Decimal::from_f64_retain(ph_value));
-    }
-    if let Some(liquor_ratio) = req.liquor_ratio {
-        recipe.liquor_ratio = Set(Decimal::from_f64_retain(liquor_ratio));
-    }
-    if let Some(auxiliaries) = req.auxiliaries {
-        // 批次 407 修复：配方辅料 JSON 反序列化失败时不能静默写空，避免数据完整性丢失，改为返回验证错误
-        let auxiliaries = serde_json::from_value(auxiliaries)
-            .map_err(|e| AppError::validation(format!("配方辅料数据格式无效: {}", e)))?;
-        recipe.auxiliaries = Set(Some(auxiliaries));
-    }
-    if let Some(status) = req.status {
-        // 验证配方状态流转
-        let current_status = match &recipe.status {
-            sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
-            _ => "草稿",
-        };
-        let valid = match current_status {
-            "草稿" => matches!(status.as_str(), "已审核" | "已停用"),
-            "已审核" => matches!(status.as_str(), "已停用"),
-            "已停用" => matches!(status.as_str(), "已审核"),
-            _ => false,
-        };
-        if !valid {
-            return Err(AppError::business(format!(
-                "配方状态流转不合法：{} -> {}",
-                current_status, status
-            )));
-        }
-        recipe.status = Set(Some(status));
-    }
-    if let Some(remarks) = req.remarks {
-        recipe.remarks = Set(Some(remarks));
-    }
-
-    recipe.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-
-    let updated = recipe.update(&*state.db).await?;
+    let updated = service(&state).update(id, req).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "配方更新成功",
@@ -276,21 +113,7 @@ pub async fn delete_dye_recipe(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let recipe = dye_recipe::Entity::find_by_id(id)
-        .one(&*state.db)
-        .await?
-        .ok_or_else(|| AppError::not_found("配方不存在"))?;
-
-    if recipe.status.as_deref() == Some("已审核") {
-        return Err(AppError::business("已审核的配方不允许删除，请先停用"));
-    }
-
-    // 软删除
-    let mut active: dye_recipe::ActiveModel = recipe.into();
-    active.is_deleted = Set(Some(true));
-    active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-
-    active.update(&*state.db).await?;
+    service(&state).delete(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "配方删除成功",
@@ -303,30 +126,7 @@ pub async fn approve_recipe(
     _auth: AuthContext,
     Json(req): Json<ApproveRecipeRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let mut recipe: dye_recipe::ActiveModel = dye_recipe::Entity::find_by_id(id)
-        .one(&*state.db)
-        .await?
-        .ok_or_else(|| AppError::not_found("配方不存在"))?
-        .into();
-
-    // 检查当前状态是否允许审核
-    let current_status = match &recipe.status {
-        sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
-        _ => "草稿",
-    };
-    if current_status != "草稿" {
-        return Err(AppError::business(format!(
-            "只有草稿状态的配方可以审核，当前状态：{}",
-            current_status
-        )));
-    }
-
-    recipe.status = Set(Some("已审核".to_string()));
-    recipe.approved_by = Set(Some(req.approved_by));
-    recipe.approved_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
-    recipe.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-
-    let updated = recipe.update(&*state.db).await?;
+    let updated = service(&state).approve(id, req.approved_by).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "配方审核成功",
@@ -339,51 +139,9 @@ pub async fn create_new_version(
     _auth: AuthContext,
     Json(req): Json<CreateVersionRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let original = dye_recipe::Entity::find_by_id(id)
-        .one(&*state.db)
-        .await?
-        .ok_or_else(|| AppError::not_found("配方不存在"))?;
-
-    // 只有已审核的配方才能创建新版本
-    if original.status.as_deref() != Some("已审核") {
-        return Err(AppError::business(format!(
-            "只有已审核的配方才能创建新版本，当前状态：{}",
-            original.status.as_deref().unwrap_or("未知")
-        )));
-    }
-
-    let new_version = original.version.unwrap_or(1) + 1;
-    let new_recipe_no = format!("{}-V{}", original.recipe_no, new_version);
-
-    let new_recipe = dye_recipe::ActiveModel {
-        id: Set(0),
-        recipe_no: Set(new_recipe_no),
-        recipe_name: Set(original.recipe_name),
-        color_no: Set(original.color_no),
-        formula: Set(original.formula),
-        color_code: Set(original.color_code),
-        color_name: Set(original.color_name),
-        fabric_type: Set(original.fabric_type),
-        dye_type: Set(original.dye_type),
-        chemical_formula: Set(original.chemical_formula),
-        temperature: Set(original.temperature),
-        time_minutes: Set(original.time_minutes),
-        ph_value: Set(original.ph_value),
-        liquor_ratio: Set(original.liquor_ratio),
-        auxiliaries: Set(original.auxiliaries),
-        status: Set(Some("草稿".to_string())),
-        is_deleted: Set(Some(false)),
-        version: Set(Some(new_version)),
-        parent_recipe_id: Set(Some(id)),
-        approved_by: Set(None),
-        approved_at: Set(None),
-        remarks: Set(req.remarks),
-        created_by: Set(req.created_by),
-        created_at: Set(crate::utils::date_utils::utc_now_fixed()),
-        updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
-    };
-
-    let created = new_recipe.insert(&*state.db).await?;
+    let created = service(&state)
+        .create_new_version(id, req.remarks, req.created_by)
+        .await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "配方新版本创建成功",
@@ -394,13 +152,7 @@ pub async fn get_recipes_by_color(
     State(state): State<AppState>,
     Path(color_code): Path<String>,
 ) -> Result<Json<ApiResponse<Vec<dye_recipe::Model>>>, AppError> {
-    let recipes = dye_recipe::Entity::find()
-        .filter(dye_recipe::Column::ColorCode.eq(color_code))
-        .filter(dye_recipe::Column::Status.eq("已审核"))
-        .filter(dye_recipe::Column::IsDeleted.eq(false))
-        .order_by_desc(dye_recipe::Column::Version)
-        .all(&*state.db)
-        .await?;
+    let recipes = service(&state).get_recipes_by_color(&color_code).await?;
     Ok(Json(ApiResponse::success(recipes)))
 }
 
@@ -408,49 +160,31 @@ pub async fn get_recipe_versions(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<dye_recipe::Model>>>, AppError> {
-    use sea_orm::Condition;
-
-    let recipes = dye_recipe::Entity::find()
-        .filter(
-            Condition::any()
-                .add(dye_recipe::Column::ParentRecipeId.eq(id))
-                .add(dye_recipe::Column::Id.eq(id)),
-        )
-        .filter(dye_recipe::Column::IsDeleted.eq(false))
-        .order_by_asc(dye_recipe::Column::Version)
-        .all(&*state.db)
-        .await?;
+    let recipes = service(&state).get_recipe_versions(id).await?;
     Ok(Json(ApiResponse::success(recipes)))
 }
 
 /// POST /api/v1/erp/dye-recipes/:id/submit - 提交配方审核
+///
+/// 当前实现为轻量提交动作（仅刷新 updated_at + 标记 approved_by=-1 占位），
+/// 状态保持草稿不变。批次 423B 化验室打样流程贯通时将重设计状态机，
+/// 引入"待审核"中间态，由 service 层提供 submit 方法。
 pub async fn submit_dye_recipe(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let mut recipe: dye_recipe::ActiveModel = dye_recipe::Entity::find_by_id(id)
-        .one(&*state.db)
-        .await?
-        .ok_or_else(|| AppError::not_found("配方不存在"))?
-        .into();
+    let recipe = service(&state).get_by_id(id).await?;
+    // 校验：仅草稿状态可提交
+    DyeRecipeService::validate_can_approve(recipe.status.as_deref())?;
 
-    let current_status = match &recipe.status {
-        sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
-        _ => "草稿",
-    };
-    if current_status != "草稿" {
-        return Err(AppError::business(format!(
-            "只有草稿状态的配方可以提交审核，当前状态：{}",
-            current_status
-        )));
-    }
+    // 当前仅记录提交动作占位，不修改状态（保留向后兼容）
+    // TODO(批次 423B)：引入"待审核"中间态，submit 改为 DRAFT → PENDING_APPROVAL 状态转换
+    let mut active: dye_recipe::ActiveModel = recipe.into();
+    active.approved_by = Set(Some(-1));
+    active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    // 提交时设置占位的 approved_by 标识为提交动作
-    recipe.approved_by = Set(Some(-1));
-    recipe.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-
-    let updated = recipe.update(&*state.db).await?;
+    let updated = active.update(&*state.db).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "配方已提交审核",
@@ -466,6 +200,7 @@ pub async fn export_dye_recipes(
     State(state): State<AppState>,
     Query(query): Query<DyeRecipeListQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // 导出全量数据（不分页），保留 handler 直接查询以避免 service 暴露过多内部 select
     let mut q = dye_recipe::Entity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
 
     if let Some(recipe_no) = &query.recipe_no {
