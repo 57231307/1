@@ -814,6 +814,78 @@ pub mod production_recipe_addition {
     pub const CLOSED: &str = "closed";
 }
 
+/// 流转卡状态（production_flow_card.status，小写值）
+/// v14 批次 425 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §12.1 流转卡 + §12.7 缸号状态机
+/// 状态机：pending → scheduled → preparing → dyeing → dyed → inspecting → completed → shipped / terminated
+pub mod flow_card {
+    /// 待排缸：流转卡已生成，等待排缸
+    pub const PENDING: &str = "pending";
+
+    /// 已排缸：已分配缸位，可变更/合缸/终止
+    pub const SCHEDULED: &str = "scheduled";
+
+    /// 备布中：从坯布仓库领坯备布，坯布自动出库
+    pub const PREPARING: &str = "preparing";
+
+    /// 染色中：进缸染色，采集生产进度
+    pub const DYEING: &str = "dyeing";
+
+    /// 已出缸：染色完成出缸，待验布
+    pub const DYED: &str = "dyed";
+
+    /// 验布中：验布打卷，质检分级
+    pub const INSPECTING: &str = "inspecting";
+
+    /// 已完成：验布入库完成
+    pub const COMPLETED: &str = "completed";
+
+    /// 已发货：成品已发货
+    pub const SHIPPED: &str = "shipped";
+
+    /// 已终止：异常终止（合缸/缸变更/取消）
+    pub const TERMINATED: &str = "terminated";
+}
+
+/// 工序流转记录状态（process_step_record.status，小写值）
+/// v14 批次 425 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §12.3 车间工序流转
+/// 状态机：pending → in_progress → completed / abnormal / rework
+pub mod step_record {
+    /// 待开始：工序待扫码开始
+    pub const PENDING: &str = "pending";
+
+    /// 进行中：工序已扫码开始，未扫码结束
+    pub const IN_PROGRESS: &str = "in_progress";
+
+    /// 已完成：工序已扫码结束，产量已确认
+    pub const COMPLETED: &str = "completed";
+
+    /// 异常：工序出现异常，需开工序质量反馈单
+    pub const ABNORMAL: &str = "abnormal";
+
+    /// 回修：回修工序，关联原工序记录
+    pub const REWORK: &str = "rework";
+}
+
+/// 工序质量反馈单状态（process_quality_feedback.status，小写值）
+/// v14 批次 425 真实业务常量化
+/// 依据：面料行业真实业务调研文档 §12.3 工序质量反馈单
+/// 状态机：pending → processing → resolved → closed
+pub mod quality_feedback {
+    /// 待处理：反馈单已登记，待处理
+    pub const PENDING: &str = "pending";
+
+    /// 处理中：正在处理
+    pub const PROCESSING: &str = "processing";
+
+    /// 已解决：处理完成
+    pub const RESOLVED: &str = "resolved";
+
+    /// 已关闭：已关闭归档
+    pub const CLOSED: &str = "closed";
+}
+
 /// 应付核销状态（ap_verification.verification_status，大写值）
 /// 批次 236 v13 真实接入：ap_verification_service.rs
 pub mod ap_verification {

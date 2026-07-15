@@ -18,8 +18,8 @@ use axum::{
 
 use crate::handlers::{
     capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
-    greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
-    production_order_handler, production_recipe_handler, quality_inspection_handler,
+    flow_card_handler, greige_fabric_handler, lab_dip_handler, missing_handlers, mrp_handler,
+    production_order_handler, quality_inspection_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -207,6 +207,51 @@ pub fn production_recipes() -> Router<AppState> {
             "/production-recipes/additions/:id/close",
             post(production_recipe_handler::close_addition),
         )
+}
+
+/// 流转卡与工序流转路由（path 前缀 /process-routes 和 /flow-cards）
+///
+/// v14 批次 425：流转卡条码与车间工序流转
+/// 真实业务流程：生产计划单 → 备布 → 排缸执行 → 流转卡打印（含条码）
+///   扫码应用：白坯出库/染色进度/称料/工序流转/成品入库/发货
+pub fn flow_cards() -> Router<AppState> {
+    Router::new()
+        // ===== 工序路线模板 =====
+        .route("/process-routes", get(flow_card_handler::list_process_routes))
+        .route("/process-routes", post(flow_card_handler::create_process_route))
+        .route("/process-routes/:id", get(flow_card_handler::get_process_route))
+        .route("/process-routes/:id", put(flow_card_handler::update_process_route))
+        .route("/process-routes/:id", delete(flow_card_handler::delete_process_route))
+        // ===== 流转卡 CRUD =====
+        .route("/flow-cards", get(flow_card_handler::list_flow_cards))
+        .route("/flow-cards", post(flow_card_handler::create_flow_card))
+        .route("/flow-cards/by-barcode", get(flow_card_handler::get_by_barcode))
+        .route("/flow-cards/:id", get(flow_card_handler::get_flow_card))
+        .route("/flow-cards/:id", put(flow_card_handler::update_flow_card))
+        .route("/flow-cards/:id", delete(flow_card_handler::delete_flow_card))
+        // ===== 流转卡状态机流转 =====
+        .route("/flow-cards/:id/schedule", post(flow_card_handler::schedule))
+        .route("/flow-cards/:id/start-preparing", post(flow_card_handler::start_preparing))
+        .route("/flow-cards/:id/complete-preparing", post(flow_card_handler::complete_preparing))
+        .route("/flow-cards/:id/start-dyeing", post(flow_card_handler::start_dyeing))
+        .route("/flow-cards/:id/complete-dyeing", post(flow_card_handler::complete_dyeing))
+        .route("/flow-cards/:id/start-inspecting", post(flow_card_handler::start_inspecting))
+        .route("/flow-cards/:id/complete", post(flow_card_handler::complete_flow_card))
+        .route("/flow-cards/:id/ship", post(flow_card_handler::ship_flow_card))
+        .route("/flow-cards/:id/terminate", post(flow_card_handler::terminate_flow_card))
+        .route("/flow-cards/:id/reactivate", post(flow_card_handler::reactivate_flow_card))
+        // ===== 工序流转记录（扫码开始/结束/回修） =====
+        .route("/flow-cards/steps/start", post(flow_card_handler::start_step))
+        .route("/flow-cards/steps/:id/complete", post(flow_card_handler::complete_step))
+        .route("/flow-cards/steps/:id", get(flow_card_handler::get_step))
+        .route("/flow-cards/steps/:source_step_id/rework", post(flow_card_handler::create_rework_step))
+        .route("/flow-cards/:flow_card_id/steps", get(flow_card_handler::list_steps_by_card))
+        // ===== 工序质量反馈单 =====
+        .route("/flow-cards/feedbacks", post(flow_card_handler::create_feedback))
+        .route("/flow-cards/feedbacks/:id", get(flow_card_handler::get_feedback))
+        .route("/flow-cards/feedbacks/:id/handle", post(flow_card_handler::handle_feedback))
+        .route("/flow-cards/feedbacks/:id/close", post(flow_card_handler::close_feedback))
+        .route("/flow-cards/:flow_card_id/feedbacks", get(flow_card_handler::list_feedbacks_by_card))
 }
 
 /// 质量检验路由（path 前缀 /quality-inspection）
@@ -405,6 +450,7 @@ pub fn routes() -> Router<AppState> {
         .merge(dye_recipes())
         .merge(lab_dip())
         .merge(production_recipes())
+        .merge(flow_cards())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())
