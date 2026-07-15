@@ -541,7 +541,9 @@ impl FabricInspectionService {
         }
 
         // 创建 inventory_piece 记录
-        let now = crate::utils::date_utils::utc_now_fixed();
+        // 注意：inventory_piece 模型的 created_at/updated_at 是 DateTime<Utc>，
+        // 需用 chrono::Utc::now() 而非 utc_now_fixed()（返回 DateTime<FixedOffset>）
+        let now_piece = chrono::Utc::now();
         let new_piece = PieceActiveModel {
             id: Default::default(),
             dye_lot_id: Set(dye_lot.id),
@@ -559,8 +561,8 @@ impl FabricInspectionService {
             status: Set(piece_status::AVAILABLE.to_string()),
             remarks: Set(Some(format!("验布打卷生成，验布单号 {}", model.inspection_no))),
             scan_type: Set(None),
-            created_at: Set(now),
-            updated_at: Set(now),
+            created_at: Set(now_piece),
+            updated_at: Set(now_piece),
             supplier_piece_no: Default::default(),
             position_no: Default::default(),
             package_no: Default::default(),
