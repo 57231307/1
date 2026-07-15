@@ -413,6 +413,10 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
     // 启动库存财务桥接服务监听器
     crate::services::inventory_finance_bridge_service::InventoryFinanceBridgeService::start_listener(db.clone());
 
+    // v14 批次 422 T-P1-7：启动染色成本桥接监听器
+    // 监听 DyeBatchCompleted 事件，自动创建成本归集草稿记录
+    crate::services::dye_batch_cost_bridge_service::DyeBatchCostBridgeService::start_listener(db.clone());
+
     let mut receiver = EVENT_BUS.subscribe();
 
     // 批次 125 v8 复审 P1 修复：search_client 移入 tokio::spawn 闭包，
@@ -1021,6 +1025,9 @@ pub fn shutdown_event_bus() {
 
     // L-29：abort 库存财务桥接监听器 task
     crate::services::inventory_finance_bridge_service::InventoryFinanceBridgeService::shutdown_listener();
+
+    // v14 批次 422 T-P1-7：abort 染色成本桥接监听器 task
+    crate::services::dye_batch_cost_bridge_service::DyeBatchCostBridgeService::shutdown_listener();
 }
 
 // ============================================================================

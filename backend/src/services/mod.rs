@@ -36,6 +36,8 @@ pub mod inventory_adjustment_service;
 // v11 批次 143 P1-1：inventory_count_service 真实实现（盘点单 CRUD + 差异计算 + 审批流）
 pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
+// v14 批次 422 T-P1-7：染色完成→成本归集桥接监听器
+pub mod dye_batch_cost_bridge_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;
