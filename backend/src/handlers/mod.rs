@@ -167,3 +167,5 @@ pub mod color_card;
 pub mod color_price_handler;
 // v14 批次 431：多业务模式支持 handler
 pub mod business_mode_handler;
+// v14 批次 432：缸号全生命周期状态机 handler
+pub mod dye_batch_state_machine_handler;
