@@ -458,10 +458,17 @@ impl SalesReturnService {
             // 查找是否已有库存记录
             let stock = stock_map.get(&item.product_id);
 
-            let (batch_no, color_no, grade) = if let Some(s) = stock {
-                (s.batch_no.clone(), s.color_no.clone(), s.grade.clone())
+            // v14 批次 418 修复 D-P0-6：从库存获取真正的 dye_lot_no，
+            // 原实现误将 batch_no 赋给 dye_lot_no 导致缸号追溯数据污染
+            let (batch_no, color_no, grade, dye_lot_no) = if let Some(s) = stock {
+                (
+                    s.batch_no.clone(),
+                    s.color_no.clone(),
+                    s.grade.clone(),
+                    s.dye_lot_no.clone(),
+                )
             } else {
-                (String::new(), String::new(), String::from("A"))
+                (String::new(), String::new(), String::from("A"), None)
             };
 
             if let Some(s) = stock {
@@ -509,7 +516,8 @@ impl SalesReturnService {
                     warehouse_id: return_order.warehouse_id,
                     batch_no: batch_no.clone(),
                     color_no: color_no.clone(),
-                    dye_lot_no: Some(batch_no.clone()), // dye_lot_no
+                    // v14 批次 418 修复 D-P0-6：使用从库存获取的真正 dye_lot_no
+                    dye_lot_no: dye_lot_no.clone(),
                     grade: grade.clone(),
                     quantity_meters: item.quantity, // 正数，表示入库
                     quantity_kg: item.quantity_alt,

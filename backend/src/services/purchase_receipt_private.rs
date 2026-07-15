@@ -160,8 +160,10 @@ impl PurchaseReceiptService {
             };
 
         for item in items {
-            let batch_no = item.batch_no.unwrap_or_else(|| "DEFAULT".to_string());
-            let color_no = item.color_code.unwrap_or_else(|| "DEFAULT".to_string());
+            // v14 批次 418 修复 D-P0-4：使用空字符串替代 "DEFAULT" 占位符，
+            // 与库存流水/库存表的空字符串语义保持一致
+            let batch_no = item.batch_no.unwrap_or_default();
+            let color_no = item.color_code.unwrap_or_default();
             let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
 
             // v16 批次 43 修复：从批量查询结果获取库存记录（O(1) 查找）

@@ -166,9 +166,11 @@ impl PurchaseOrderService {
                             CreateStockFabricArgs {
                                 warehouse_id: order.warehouse_id,
                                 product_id: item.product_id,
-                                batch_no: "DEFAULT".to_string(),
-                                color_no: "DEFAULT".to_string(),
-                                dye_lot_no: None,
+                                // v14 批次 418 修复 D-P0-4：从采购订单明细获取真实缸号/色号/批号，
+                                // 替代原 "DEFAULT" 硬编码占位符，保证颜色追溯链路完整
+                                batch_no: item.batch_no.clone().unwrap_or_default(),
+                                color_no: item.color_code.clone().unwrap_or_default(),
+                                dye_lot_no: item.lot_no.clone(),
                                 grade: "A".to_string(),
                                 quantity_meters: receive_quantity_meters,
                                 quantity_kg: receive_quantity_alt,
@@ -197,9 +199,10 @@ impl PurchaseOrderService {
                         transaction_type: "PURCHASE_RECEIPT".to_string(),
                         product_id: item.product_id,
                         warehouse_id: order.warehouse_id,
-                        batch_no: "DEFAULT".to_string(),
-                        color_no: "DEFAULT".to_string(),
-                        dye_lot_no: None,
+                        // v14 批次 418 修复 D-P0-4：从采购订单明细获取真实缸号/色号/批号
+                        batch_no: item.batch_no.clone().unwrap_or_default(),
+                        color_no: item.color_code.clone().unwrap_or_default(),
+                        dye_lot_no: item.lot_no.clone(),
                         grade: "A".to_string(),
                         quantity_meters: receive_quantity_meters,
                         quantity_kg: receive_quantity_alt,

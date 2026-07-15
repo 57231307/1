@@ -89,6 +89,20 @@ impl SalesService {
         let order_item_map: std::collections::HashMap<i32, &sales_order_item::Model> =
             order_items.iter().map(|oi| (oi.product_id, oi)).collect();
 
+        // v14 批次 418 修复 G-P0-1：批量查询产品获取 gram_weight/width，
+        // 用于库存流水的 quantity_kg 双单位换算（替代原 Decimal::ZERO 硬编码）
+        let product_ids: Vec<i32> = order_items.iter().map(|oi| oi.product_id).collect();
+        let products = if product_ids.is_empty() {
+            Vec::new()
+        } else {
+            crate::models::product::Entity::find()
+                .filter(crate::models::product::Column::Id.is_in(product_ids))
+                .all(&txn)
+                .await?
+        };
+        let product_map: std::collections::HashMap<i32, crate::models::product::Model> =
+            products.into_iter().map(|p| (p.id, p)).collect();
+
         // 查询仓库
         let warehouse = warehouse::Entity::find()
             .filter(warehouse::Column::WarehouseCode.eq(&request.warehouse_code))
@@ -170,7 +184,8 @@ impl SalesService {
             delivery_total_tax += line_tax;
 
             // 扣减库存
-            let (qty_before, qty_after) = self.reduce_inventory(
+            // v14 批次 418 修复 D-P0-5：reduce_inventory 额外返回库存的 color_no/dye_lot_no
+            let (qty_before, qty_after, stock_color_no, stock_dye_lot_no) = self.reduce_inventory(
                 item.product_id,
                 warehouse.id,
                 item.quantity,
@@ -178,6 +193,22 @@ impl SalesService {
                 &txn,
             )
             .await?;
+
+            // v14 批次 418 修复 G-P0-1：调用 DualUnitConverter 双单位换算计算 quantity_kg，
+            // 替代原 Decimal::ZERO 硬编码
+            let quantity_kg = product_map
+                .get(&item.product_id)
+                .and_then(|p| {
+                    let gram_weight = p.gram_weight?;
+                    let width = p.width?;
+                    crate::utils::dual_unit_converter::DualUnitConverter::meters_to_kg(
+                        item.quantity,
+                        gram_weight,
+                        width,
+                    )
+                    .ok()
+                })
+                .unwrap_or(Decimal::ZERO);
 
             // 批次 356 v13 复审 B-P0-2 修复：销售出库生成 SALES_DELIVERY 类型库存流水
             // 触发 inventory_finance_bridge_service 自动生成销售出库凭证（借:主营业务成本/贷:库存商品）
@@ -191,11 +222,12 @@ impl SalesService {
                         // 批次 356 v13 复审修复：item.batch_no 为 Option<String>，RecordTransactionArgs.batch_no 期望 String
                         // 无批次号时使用空字符串占位（与库存流水无批次号语义一致）
                         batch_no: item.batch_no.clone().unwrap_or_default(),
-                        color_no: String::new(),
-                        dye_lot_no: None,
+                        // v14 批次 418 修复 D-P0-5：使用从库存获取的真实 color_no/dye_lot_no
+                        color_no: stock_color_no.clone(),
+                        dye_lot_no: stock_dye_lot_no.clone(),
                         grade: String::new(),
                         quantity_meters: item.quantity,
-                        quantity_kg: Decimal::ZERO,
+                        quantity_kg,
                         source_bill_type: Some("sales_order".to_string()),
                         source_bill_no: Some(order.order_no.clone()),
                         source_bill_id: Some(request.order_id),
@@ -681,7 +713,7 @@ impl SalesService {
         quantity: Decimal,
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(Decimal, Decimal), AppError> {
+    ) -> Result<(Decimal, Decimal, String, Option<String>), AppError> {
         // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发发货导致超扣
         let stock = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::ProductId.eq(product_id))
@@ -748,9 +780,11 @@ impl SalesService {
             .await?;
 
         // 批次 356 v13 复审 B-P0-2 修复：返回变更前后的可用数量，供调用方记录库存流水
+        // v14 批次 418 修复 D-P0-5：同时返回库存的 color_no/dye_lot_no，
+        // 供调用方在库存流水中记录真实缸号/色号，替代原 None/空字符串硬编码
         let qty_before = stock.quantity_available;
         let qty_after = qty_before - quantity;
-        Ok((qty_before, qty_after))
+        Ok((qty_before, qty_after, stock.color_no.clone(), stock.dye_lot_no.clone()))
     }
 
     /// 释放订单的库存预留记录
