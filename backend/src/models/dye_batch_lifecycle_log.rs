@@ -9,10 +9,9 @@ use serde::{Deserialize, Serialize};
 
 /// 缸号生命周期日志模型
 ///
-/// 真实业务要点：
-/// - 记录缸号每次状态流转事件（14 种状态之间的转换）
-/// - PDA 扫码或工控终端确认时自动捕获时间戳/操作人/设备 ID/采集参数
-/// - batch_id 关联 dye_batch.id 但不加外键约束（dye_batch 是已有表，用应用层校验）
+/// 真实业务要点：记录缸号每次状态流转事件（14 种状态之间的转换）；
+/// PDA 扫码或工控终端确认时自动捕获时间戳/操作人/设备 ID/采集参数；
+/// batch_id 关联 dye_batch.id 但不加外键约束（dye_batch 是已有表，用应用层校验）。
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "dye_batch_lifecycle_log")]
 pub struct Model {

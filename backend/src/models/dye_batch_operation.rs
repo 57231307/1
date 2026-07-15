@@ -9,10 +9,9 @@ use serde::{Deserialize, Serialize};
 
 /// 缸号操作记录模型
 ///
-/// 真实业务要点：
-/// - 操作类型 6 种：merge 合缸/split 分缸/priority_adjust 优先级调整/batch_change 缸变更/schedule_change 计划变更/terminate 终止
-/// - 合缸/分缸时 source_batch_ids 记录源缸号 ID 列表
-/// - operation_data 记录优先级值、变更前后信息等
+/// 真实业务要点：操作类型 6 种，merge 合缸/split 分缸/priority_adjust 优先级调整/batch_change 缸变更/schedule_change 计划变更/terminate 终止；
+/// 合缸/分缸时 source_batch_ids 记录源缸号 ID 列表；
+/// operation_data 记录优先级值、变更前后信息等。
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "dye_batch_operation")]
 pub struct Model {

@@ -9,11 +9,10 @@ use serde::{Deserialize, Serialize};
 
 /// 缸号回修记录模型
 ///
-/// 真实业务要点：
-/// - 回修类型 4 种：color_difference 色差/defect 疵点/specification_unqualified 规格不符/other 其他
-/// - 只有 inspecting/stored 状态可发起回修
-/// - 回修单状态机：draft → approved → in_progress → completed / cancelled
-/// - 同缸回修时 rework_batch_id 与 original_batch_id 相同
+/// 真实业务要点：回修类型 4 种，color_difference 色差/defect 疵点/specification_unqualified 规格不符/other 其他；
+/// 只有 inspecting/stored 状态可发起回修；
+/// 回修单状态机：draft → approved → in_progress → completed / cancelled；
+/// 同缸回修时 rework_batch_id 与 original_batch_id 相同。
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "dye_batch_rework")]
 pub struct Model {

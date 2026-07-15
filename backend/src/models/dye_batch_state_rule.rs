@@ -9,11 +9,10 @@ use serde::{Deserialize, Serialize};
 
 /// 缸号状态流转规则模型
 ///
-/// 真实业务要点：
-/// - 定义 14 种状态之间允许的转换规则
-/// - 终态（shipped/cancelled/terminated）不可流转
-/// - 回修状态 rework 可回到 dyeing 重新进缸
-/// - 校验逻辑用 JSONB 描述，支持复杂条件
+/// 真实业务要点：定义 14 种状态之间允许的转换规则；
+/// 终态（shipped/cancelled/terminated）不可流转；
+/// 回修状态 rework 可回到 dyeing 重新进缸；
+/// 校验逻辑用 JSONB 描述，支持复杂条件。
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "dye_batch_state_rule")]
 pub struct Model {
