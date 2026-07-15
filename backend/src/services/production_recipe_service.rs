@@ -152,7 +152,11 @@ impl ProductionRecipeService {
             return Err(AppError::business("浴比不能为空"));
         }
         // 支持 "1:8" / "1：8"（全角冒号）/ "1/8" 三种格式
-        let normalized = trimmed.replace('：', ":").replace('/', ":");
+        // 一次遍历将全角冒号和斜杠统一为半角冒号，避免连续 str::replace 触发 clippy 警告
+        let normalized: String = trimmed
+            .chars()
+            .map(|c| if c == '：' || c == '/' { ':' } else { c })
+            .collect();
         let parts: Vec<&str> = normalized.split(':').collect();
         if parts.len() != 2 {
             return Err(AppError::business(format!(
