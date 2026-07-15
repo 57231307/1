@@ -582,7 +582,7 @@ impl EnergyConsumptionService {
 
         // 若关联计量设备，同步更新设备的当前读数和上次读数
         if let Some(meter_id) = req.meter_id {
-            if let Ok(meter) = MeterEntity::find_by_id(meter_id)
+            if let Some(meter) = MeterEntity::find_by_id(meter_id)
                 .filter(energy_meter::Column::IsDeleted.eq(false))
                 .one(&*self.db)
                 .await?
@@ -613,18 +613,23 @@ impl EnergyConsumptionService {
             )));
         }
 
+        // 在 model.into() 之前记录原值，避免 ActiveValue 取值复杂
+        let original_previous_reading = model.previous_reading;
+        let original_current_reading = model.current_reading;
+        let original_unit_price = model.unit_price;
+
         let mut active: ConsumptionActiveModel = model.into();
 
         // 重新计算消耗量和总成本（若读数变更）
         let previous_reading = req
             .previous_reading
-            .unwrap_or(active.previous_reading.clone().unwrap_or_default());
+            .unwrap_or(original_previous_reading);
         let current_reading = req
             .current_reading
-            .unwrap_or(active.current_reading.clone().unwrap_or_default());
+            .unwrap_or(original_current_reading);
         let unit_price = req
             .unit_price
-            .unwrap_or(active.unit_price.clone().unwrap_or_default());
+            .unwrap_or(original_unit_price);
 
         if req.previous_reading.is_some() || req.current_reading.is_some() {
             let consumption = compute_consumption(previous_reading, current_reading);
@@ -689,7 +694,7 @@ impl EnergyConsumptionService {
     }
 
     /// 确认能耗记录（draft → confirmed）
-    pub async fn confirm(&self, id: i32, confirmed_by: Option<i32>) -> Result<ConsumptionModel, AppError> {
+    pub async fn confirm(&self, id: i32, _confirmed_by: Option<i32>) -> Result<ConsumptionModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != energy_record_status::DRAFT {
             return Err(AppError::business(format!(
@@ -1313,6 +1318,9 @@ impl EnergyAllocationRecordService {
             )));
         }
 
+        // 记录原值（ActiveValue 不支持 unwrap_or_default，需在 model.into() 前保存）
+        let original_allocated_consumption = model.allocated_consumption;
+
         let mut active: AllocationRecordActiveModel = model.into();
 
         if let Some(v) = req.total_consumption {
@@ -1335,10 +1343,10 @@ impl EnergyAllocationRecordService {
         }
         if let Some(v) = req.output_quantity {
             active.output_quantity = Set(Some(v));
-            // 重新计算单位能耗
+            // 重新计算单位能耗（用 req 或原值，避免 ActiveValue unwrap）
             let allocated = req
                 .allocated_consumption
-                .unwrap_or(active.allocated_consumption.clone().unwrap_or_default());
+                .unwrap_or(original_allocated_consumption);
             let unit = compute_unit_consumption(allocated, Some(v));
             active.unit_consumption = Set(unit);
         }
