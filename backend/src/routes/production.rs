@@ -282,6 +282,43 @@ pub fn fabric_inspections() -> Router<AppState> {
         .route("/fabric-defects/:id", delete(fabric_inspection_handler::delete_defect))
 }
 
+/// 产量工资路由（path 前缀 /wage-rates、/wage-records、/wage-details）
+///
+/// v14 批次 427：产量工资核算贯通
+/// 真实业务流程：工序流转扫码 → 工价方案定义 → 工资计算 → 班组汇总 → 进入财务工资核算
+/// 三维度产量统计：工序产量 + 设备产量 + 工人产量工资
+/// 等级系数：A 级全额/B 级 8 折/C 级不计
+pub fn wages() -> Router<AppState> {
+    Router::new()
+        // ===== 工序工价 CRUD =====
+        .route("/wage-rates", get(wage_handler::list_wage_rates))
+        .route("/wage-rates", post(wage_handler::create_wage_rate))
+        .route("/wage-rates/by-no/:no", get(wage_handler::get_wage_rate_by_no))
+        .route("/wage-rates/:id", get(wage_handler::get_wage_rate))
+        .route("/wage-rates/:id", put(wage_handler::update_wage_rate))
+        .route("/wage-rates/:id", delete(wage_handler::delete_wage_rate))
+        // 工价状态机流转
+        .route("/wage-rates/:id/activate", post(wage_handler::activate_wage_rate))
+        .route("/wage-rates/:id/disable", post(wage_handler::disable_wage_rate))
+        // 查询工序当前生效的工价
+        .route("/wage-rates/effective/:route_id", get(wage_handler::get_effective_wage_rate))
+        // ===== 工资记录 CRUD =====
+        .route("/wage-records", get(wage_handler::list_wage_records))
+        .route("/wage-records", post(wage_handler::create_wage_record))
+        .route("/wage-records/by-no/:no", get(wage_handler::get_wage_record_by_no))
+        .route("/wage-records/:id", get(wage_handler::get_wage_record))
+        .route("/wage-records/:id", put(wage_handler::update_wage_record))
+        .route("/wage-records/:id", delete(wage_handler::delete_wage_record))
+        // 工资记录状态机流转
+        .route("/wage-records/:id/calculate", post(wage_handler::calculate_wage))
+        .route("/wage-records/:id/confirm", post(wage_handler::confirm_wage_record))
+        .route("/wage-records/:id/pay", post(wage_handler::pay_wage_record))
+        .route("/wage-records/:id/cancel", post(wage_handler::cancel_wage_record))
+        // ===== 工资明细 =====
+        .route("/wage-records/:id/details", get(wage_handler::list_wage_details))
+        .route("/wage-details/by-worker/:worker_id", get(wage_handler::list_wage_details_by_worker))
+}
+
 /// 质量检验路由（path 前缀 /quality-inspection）
 ///
 /// 注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。
@@ -480,6 +517,7 @@ pub fn routes() -> Router<AppState> {
         .merge(production_recipes())
         .merge(flow_cards())
         .merge(fabric_inspections())
+        .merge(wages())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())

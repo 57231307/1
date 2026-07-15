@@ -28,7 +28,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::models::process_route::{self, Entity as RouteEntity};
+use crate::models::process_route::Entity as RouteEntity;
 use crate::models::process_step_record::{self, Entity as StepEntity, Model as StepModel};
 use crate::models::process_wage_rate::{self, ActiveModel as RateActiveModel, Entity as RateEntity, Model as RateModel};
 use crate::models::status::wage_rate_status;
@@ -912,21 +912,15 @@ impl WageCalculationService {
         }
 
         // 1. 查询周期内 completed 状态的工序记录
+        // 工序记录无 workshop 字段，车间维度在工价匹配阶段通过 process_wage_rate.workshop 间接关联
         let period_start_tz = naive_date_to_date_time_tz(record.period_start);
         let period_end_tz = naive_date_to_end_of_day_tz(record.period_end);
-        let mut step_query = StepEntity::find()
+        let step_query = StepEntity::find()
             .filter(process_step_record::Column::IsDeleted.eq(false))
             .filter(process_step_record::Column::Status.eq("completed"))
             // 周期内：start_at 在 [period_start 00:00, period_end 23:59]
             .filter(process_step_record::Column::StartAt.gte(period_start_tz))
             .filter(process_step_record::Column::StartAt.lte(period_end_tz));
-
-        // 按车间过滤（workshop 是工价表字段，工序记录无 workshop，所以这里不直接过滤；
-        // 车间维度在工价匹配时通过 process_route 关联）
-        if record.workshop.is_some() {
-            // 工序记录无车间字段，通过工价表的 workshop 间接关联
-            // 这里不直接过滤，留给工价匹配阶段
-        }
 
         let step_records: Vec<StepModel> = step_query.all(&*self.db).await?;
 
