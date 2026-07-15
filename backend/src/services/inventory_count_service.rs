@@ -147,6 +147,10 @@ impl InventoryCountService {
                 notes: Set(None),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
+                // v14 批次 417：面料行业追溯字段（T-P0-4），使用 NotSet 让 DB 默认值处理
+                color_no: sea_orm::ActiveValue::NotSet,
+                dye_lot_no: sea_orm::ActiveValue::NotSet,
+                batch_no: sea_orm::ActiveValue::NotSet,
             };
             item_models.push(item.insert(&txn).await?);
         }

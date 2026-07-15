@@ -4,6 +4,7 @@
 //! 销售交货明细 Model
 //!
 //! 销售交货明细模块
+//! v14 批次 417：添加缺失的缸号字段（D-P1-5），保持现有字段不变以最小化变更
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -29,6 +30,12 @@ pub struct Model {
 
     /// 色号
     pub color_no: Option<String>,
+
+    /// v14 批次 417 新增：缸号 ID（D-P1-5 修复，原 Rust 模型缺失此字段）
+    pub dye_lot_id: Option<i32>,
+
+    /// v14 批次 417 新增：缸号（D-P1-5 修复，原 Rust 模型缺失此字段）
+    pub dye_lot_no: Option<String>,
 
     /// 交货数量
     pub quantity: Decimal,

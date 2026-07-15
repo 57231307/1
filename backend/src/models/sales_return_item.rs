@@ -41,6 +41,14 @@ pub struct Model {
     pub notes: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+
+    // ========== v14 批次 417：面料行业追溯字段（D-P1-3） ==========
+    /// 色号（面料行业追溯字段）
+    pub color_no: String,
+    /// 缸号（面料行业追溯字段，白坯布退货时为 NULL）
+    pub dye_lot_no: Option<String>,
+    /// 批号（面料行业追溯字段）
+    pub batch_no: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

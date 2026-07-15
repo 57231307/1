@@ -373,6 +373,10 @@ impl PurchaseOrderService {
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            // v14 批次 417：面料行业追溯字段（D-P1-6），使用 NotSet 让 DB 默认值处理
+            color_code: sea_orm::ActiveValue::NotSet,
+            lot_no: sea_orm::ActiveValue::NotSet,
+            batch_no: sea_orm::ActiveValue::NotSet,
         }
         .insert(&txn)
         .await?;

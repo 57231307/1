@@ -81,6 +81,20 @@ pub struct Model {
 
     /// 更新时间
     pub updated_at: DateTime<Utc>,
+
+    // ========== v14 批次 417：面料行业追溯字段（D-P1-6） ==========
+    // 注：SQL 表使用旧命名 color_code/lot_no，保持与 DB 列名一致
+    // 术语统一（color_no/dye_lot_no）将在后续术语统一批次处理
+
+    /// 色号（SQL 列名：color_code，面料行业追溯字段）
+    pub color_code: Option<String>,
+
+    /// 缸号（SQL 列名：lot_no，面料行业追溯字段）
+    pub lot_no: Option<String>,
+
+    /// 批次号（SQL 列名：batch_no，面料行业追溯字段）
+    #[sea_orm(column_name = "batch_no")]
+    pub batch_no: Option<String>,
 }
 
 /// 采购订单明细 Relation
