@@ -13,9 +13,10 @@ use serde::Deserialize;
 
 use crate::models::{energy_allocation_record, energy_allocation_rule, energy_consumption_record, energy_meter};
 use crate::services::energy_service::{
-    AllocationRecordQuery, AllocationRecordService, ConsumptionQuery,
+    AllocationRecordQuery, ConsumptionQuery,
     CreateAllocationRecordRequest, CreateConsumptionRequest,
-    CreateMeterRequest, CreateRuleRequest, EnergyAllocationRuleService, EnergyConsumptionService,
+    CreateMeterRequest, CreateRuleRequest, EnergyAllocationRecordService,
+    EnergyAllocationRuleService, EnergyConsumptionService,
     EnergyMeterService, MeterQuery, MonthlyAllocationRequest, RuleQuery,
     UpdateAllocationRecordRequest, UpdateConsumptionRequest, UpdateMeterRequest, UpdateRuleRequest,
 };
@@ -39,8 +40,8 @@ fn rule_service(state: &AppState) -> EnergyAllocationRuleService {
     EnergyAllocationRuleService::new(state.db.clone())
 }
 
-fn allocation_record_service(state: &AppState) -> AllocationRecordService {
-    AllocationRecordService::new(state.db.clone())
+fn allocation_record_service(state: &AppState) -> EnergyAllocationRecordService {
+    EnergyAllocationRecordService::new(state.db.clone())
 }
 
 // ============================================================================
