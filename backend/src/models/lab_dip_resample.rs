@@ -44,7 +44,7 @@ pub struct Model {
 
     // ===== 复样处方（基于 OK 样处方+加成系数调整） =====
     /// 调整后处方（加成/冲减）
-    pub adjusted_formula: Option<Text>,
+    pub adjusted_formula: Option<String>,
     /// 加成系数（小样→大货得色差异修正）
     #[sea_orm(column_type = "Decimal(Some((5, 2)))")]
     pub adjustment_factor: Option<Decimal>,
@@ -71,7 +71,7 @@ pub struct Model {
     /// 审核时间
     pub reviewed_at: Option<DateTimeWithTimeZone>,
     /// 审核意见
-    pub review_comment: Option<Text>,
+    pub review_comment: Option<String>,
 
     // ===== 升级大货处方 =====
     /// 复样通过后升级的 dye_recipe ID（大货处方模板）
@@ -86,7 +86,7 @@ pub struct Model {
     pub tech_card_issued_at: Option<DateTimeWithTimeZone>,
 
     /// 备注
-    pub remarks: Option<Text>,
+    pub remarks: Option<String>,
 
     // ===== 软删除与审计 =====
     pub is_deleted: bool,

@@ -9,6 +9,7 @@
 
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
+use sea_orm::FromJsonQueryResult;
 
 /// 处方明细项（染料组合+用量）
 ///
@@ -47,7 +48,7 @@ pub struct Model {
     /// 关联 dye_recipe 表（如已建档）
     pub dye_recipe_id: Option<i32>,
     /// 处方详情（染料组合+用量，文本描述）
-    pub formula: Option<Text>,
+    pub formula: Option<String>,
     /// 处方明细 JSON：[{dye_name, amount, unit, percentage}]
     pub formula_detail: Option<Vec<FormulaDetailItem>>,
 
@@ -91,7 +92,7 @@ pub struct Model {
     /// 审核时间
     pub approved_at: Option<DateTimeWithTimeZone>,
     /// 审核意见
-    pub approval_comment: Option<Text>,
+    pub approval_comment: Option<String>,
 
     // ===== 复样关联（OK 样升级为复样） =====
     /// 复样状态：none(未复样) → resampling(复样中) → resampled(复样通过) → failed(复样失败)
@@ -100,7 +101,7 @@ pub struct Model {
     pub resample_recipe_id: Option<i32>,
 
     /// 备注
-    pub remarks: Option<Text>,
+    pub remarks: Option<String>,
 
     // ===== 软删除与审计 =====
     pub is_deleted: bool,

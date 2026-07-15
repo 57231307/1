@@ -74,7 +74,7 @@ pub struct Model {
     /// 客户确认时间
     pub customer_approved_at: Option<DateTimeWithTimeZone>,
     /// 客户确认意见
-    pub customer_approval_comment: Option<Text>,
+    pub customer_approval_comment: Option<String>,
     /// 客户选中的 OK 样 ID（关联 lab_dip_sample）
     pub approved_sample_id: Option<i32>,
 
@@ -83,7 +83,7 @@ pub struct Model {
     pub production_recipe_id: Option<i32>,
 
     /// 备注
-    pub remarks: Option<Text>,
+    pub remarks: Option<String>,
 
     // ===== 软删除与审计 =====
     pub is_deleted: bool,

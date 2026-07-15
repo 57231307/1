@@ -67,8 +67,8 @@ pub async fn list_requests(
         request_no: query.request_no,
         customer_id: query.customer_id,
         status: query.status,
-        page,
-        page_size,
+        page: Some(page),
+        page_size: Some(page_size),
     };
 
     let (items, total) = request_service(&state).list(svc_query).await?;
