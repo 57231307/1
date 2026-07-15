@@ -128,6 +128,22 @@ pub mod payload_serde {
             supplier_name: String,
             user_id: i32,
         },
+        // v14 批次 420 修复 T-P1-3：染色完成/质检完成事件
+        DyeBatchCompleted {
+            batch_id: i32,
+            batch_no: String,
+            color_no: Option<String>,
+            greige_fabric_id: Option<i32>,
+            planned_quantity: Option<Decimal>,
+            completed_by: Option<i32>,
+        },
+        QualityInspectionCompleted {
+            inspection_id: i32,
+            batch_id: Option<i32>,
+            product_id: i32,
+            result: String,
+            inspector_id: Option<i32>,
+        },
     }
 
     impl From<&BusinessEvent> for EventPayload {
@@ -326,6 +342,35 @@ pub mod payload_serde {
                     supplier_id: *supplier_id,
                     supplier_name: supplier_name.clone(),
                     user_id: *user_id,
+                },
+                // v14 批次 420 修复 T-P1-3：染色完成/质检完成事件转换
+                BusinessEvent::DyeBatchCompleted {
+                    batch_id,
+                    batch_no,
+                    color_no,
+                    greige_fabric_id,
+                    planned_quantity,
+                    completed_by,
+                } => Self::DyeBatchCompleted {
+                    batch_id: *batch_id,
+                    batch_no: batch_no.clone(),
+                    color_no: color_no.clone(),
+                    greige_fabric_id: *greige_fabric_id,
+                    planned_quantity: *planned_quantity,
+                    completed_by: *completed_by,
+                },
+                BusinessEvent::QualityInspectionCompleted {
+                    inspection_id,
+                    batch_id,
+                    product_id,
+                    result,
+                    inspector_id,
+                } => Self::QualityInspectionCompleted {
+                    inspection_id: *inspection_id,
+                    batch_id: *batch_id,
+                    product_id: *product_id,
+                    result: result.clone(),
+                    inspector_id: *inspector_id,
                 },
             }
         }
@@ -528,6 +573,35 @@ pub mod payload_serde {
                     supplier_id,
                     supplier_name,
                     user_id,
+                },
+                // v14 批次 420 修复 T-P1-3：染色完成/质检完成事件反向转换
+                EventPayload::DyeBatchCompleted {
+                    batch_id,
+                    batch_no,
+                    color_no,
+                    greige_fabric_id,
+                    planned_quantity,
+                    completed_by,
+                } => Self::DyeBatchCompleted {
+                    batch_id,
+                    batch_no,
+                    color_no,
+                    greige_fabric_id,
+                    planned_quantity,
+                    completed_by,
+                },
+                EventPayload::QualityInspectionCompleted {
+                    inspection_id,
+                    batch_id,
+                    product_id,
+                    result,
+                    inspector_id,
+                } => Self::QualityInspectionCompleted {
+                    inspection_id,
+                    batch_id,
+                    product_id,
+                    result,
+                    inspector_id,
                 },
             })
         }

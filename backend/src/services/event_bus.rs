@@ -160,6 +160,27 @@ pub enum BusinessEvent {
         supplier_name: String,
         user_id: i32,
     },
+    // v14 批次 420 修复 T-P1-3：染色完成事件
+    // 原实现 complete_dye_batch 仅做状态更新，未发布任何业务事件，
+    // 导致下游（质检单生成、染缸产能统计、成本结转、BI 生产报表）无法被动感知。
+    DyeBatchCompleted {
+        batch_id: i32,
+        batch_no: String,
+        color_no: Option<String>,
+        greige_fabric_id: Option<i32>,
+        planned_quantity: Option<rust_decimal::Decimal>,
+        completed_by: Option<i32>,
+    },
+    // v14 批次 420 修复 T-P1-3：质检完成事件
+    // 用于贯通质检完成→库存入库/成本结转的业务链路。
+    QualityInspectionCompleted {
+        inspection_id: i32,
+        batch_id: Option<i32>,
+        product_id: i32,
+        /// 质检结果（passed/failed/conditional）
+        result: String,
+        inspector_id: Option<i32>,
+    },
 }
 
 // ============================================================================
@@ -890,9 +911,62 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                         }
                     });
                 }
+                // v14 批次 420 修复 G-P1-3：显式处理 InventoryTransactionCreated 事件
+                // 原实现 `_ => {}` 静默吞掉该事件，违背事件贯通原则。
+                // 凭证生成主链路已由独立的 inventory_finance_bridge_service 监听器负责，
+                // 主监听器侧仅打 debug 日志（避免与桥接监听器重复生成凭证）。
+                BusinessEvent::InventoryTransactionCreated {
+                    transaction_id,
+                    transaction_type,
+                    product_id,
+                    warehouse_id,
+                    ..
+                } => {
+                    tracing::debug!(
+                        transaction_id,
+                        transaction_type = %transaction_type,
+                        product_id,
+                        warehouse_id,
+                        "主监听器收到 InventoryTransactionCreated（凭证生成由库存财务桥接监听器独立处理）"
+                    );
+                }
+                // v14 批次 420 修复 T-P1-3：染色完成事件分支
+                // 当前仅打日志记录事件到达，后续可在该分支触发质检单生成等下游业务。
+                BusinessEvent::DyeBatchCompleted {
+                    batch_id,
+                    batch_no,
+                    color_no,
+                    ..
+                } => {
+                    tracing::info!(
+                        batch_id,
+                        batch_no = %batch_no,
+                        color_no = ?color_no,
+                        "收到染色完成事件（DyeBatchCompleted），可触发质检单生成/成本结转"
+                    );
+                }
+                // v14 批次 420 修复 T-P1-3：质检完成事件分支
+                BusinessEvent::QualityInspectionCompleted {
+                    inspection_id,
+                    batch_id,
+                    product_id,
+                    result,
+                    ..
+                } => {
+                    tracing::info!(
+                        inspection_id,
+                        batch_id = ?batch_id,
+                        product_id,
+                        result = %result,
+                        "收到质检完成事件（QualityInspectionCompleted），可触发库存入库/成本结转"
+                    );
+                }
                 // 批次 342 v11 复审 P3 修复：移除过时的 #[allow(unreachable_patterns)]，
-                // InventoryTransactionCreated 变体未在此 match 中处理，`_` 分支是可达的
-                _ => {}
+                // v14 批次 420 修复 G-P1-3：将 `_ => {}` 改为打 warn 日志，
+                // 防止未来新增事件变体被静默吞掉。
+                _ => {
+                    tracing::warn!("主监听器收到未处理的事件变体: {:?}", event);
+                }
             }
             });  // 批次 7：AssertUnwindSafe(async { ... }) 闭合
             let result = result.catch_unwind().await;
