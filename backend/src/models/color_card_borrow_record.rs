@@ -22,6 +22,8 @@ pub struct Model {
     pub purpose: Option<String>,
     pub notes: Option<String>,
     pub compensation_amount: Option<Decimal>,
+    /// v14 批次 419 新增：缸号（面料行业追溯字段，T-P0-3 修复，记录借出色卡对应的染缸批次）
+    pub dye_lot_no: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
