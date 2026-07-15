@@ -396,6 +396,9 @@ impl WageRateService {
             )));
         }
 
+        // 记录原 effective_date（在 model.into() 之前取出，避免 ActiveValue 取值复杂）
+        let original_effective_date = model.effective_date;
+
         let mut active: RateActiveModel = model.into();
 
         if let Some(v) = req.wage_type {
@@ -438,12 +441,8 @@ impl WageRateService {
             active.effective_date = Set(v);
         }
         if let Some(v) = req.expiry_date {
-            // 失效日期必须晚于生效日期
-            let effective = active
-                .effective_date
-                .clone()
-                .into_value()
-                .unwrap_or_default();
+            // 失效日期必须晚于生效日期（用原始 effective_date 或请求中的新 effective_date 比较）
+            let effective = req.effective_date.unwrap_or(original_effective_date);
             if v <= effective {
                 return Err(AppError::business("失效日期必须晚于生效日期"));
             }
@@ -1004,7 +1003,7 @@ impl WageCalculationService {
                     id: Default::default(),
                     wage_record_id: Set(wage_record_id),
                     step_record_id: Set(step.id),
-                    flow_card_id: Set(step.flow_card_id),
+                    flow_card_id: Set(Some(step.flow_card_id)),
                     dye_lot_no: Set(None), // dye_lot_no 在 production_flow_card 上，这里留空
                     process_route_id: Set(step.process_route_id),
                     route_code: Set(Some(step.route_code.clone())),

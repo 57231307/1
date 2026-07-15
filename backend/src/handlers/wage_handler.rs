@@ -9,7 +9,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::{PaginatorTrait, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryOrder};
 use serde::Deserialize;
 
 use crate::models::{process_wage_rate, wage_record, wage_record_detail};
@@ -72,6 +72,8 @@ pub async fn list_wage_rates(
     State(state): State<AppState>,
     Query(q): Query<WageRateListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<process_wage_rate::Model>>>, AppError> {
+    let page = q.page.unwrap_or(1);
+    let page_size = q.page_size.unwrap_or(20);
     let query = WageRateQuery {
         route_code: q.route_code,
         process_route_id: q.process_route_id,
@@ -81,8 +83,6 @@ pub async fn list_wage_rates(
         page_size: q.page_size,
     };
     let (items, total) = rate_service(&state).list(query).await?;
-    let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         items, total, page, page_size,
     ))))
@@ -179,6 +179,8 @@ pub async fn list_wage_records(
     State(state): State<AppState>,
     Query(q): Query<WageRecordListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<wage_record::Model>>>, AppError> {
+    let page = q.page.unwrap_or(1);
+    let page_size = q.page_size.unwrap_or(20);
     let query = WageRecordQuery {
         record_no: q.record_no,
         workshop: q.workshop,
@@ -188,8 +190,6 @@ pub async fn list_wage_records(
         page: q.page,
         page_size: q.page_size,
     };
-    let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
     let (items, total) = record_service(&state).list(query).await?;
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         items, total, page, page_size,
