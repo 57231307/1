@@ -2,11 +2,12 @@
 //!
 //! v14 批次 430：委托加工物资贯通
 //! 依据：面料行业真实业务调研文档 §5.4 委托加工物资核算 + §5.5 委外织布场景 + §5.7 损耗率标准 + §6.5 委托加工模式
+//!
 //! 真实业务流程：
-//!   委外订单（draft→issued→processing→received→settled→closed）
-//!   发料明细（按面料四维标识追溯）
-//!   收回入库单（draft→confirmed，含损耗分类与质量等级）
-//!   会计分录凭证（issue/fee/receipt/loss 四类凭证）
+//! 委外订单（draft→issued→processing→received→settled→closed）
+//! 发料明细（按面料四维标识追溯）
+//! 收回入库单（draft→confirmed，含损耗分类与质量等级）
+//! 会计分录凭证（issue/fee/receipt/loss 四类凭证）
 
 use axum::{
     extract::{Path, Query, State},
