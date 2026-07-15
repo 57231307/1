@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-15（批次 421 完成后，追加批次 421 条目，v14 复审 P1 面料行业特性首批修复——质检 A/B/C 级分级 + 缸号同订单校验）。
+> 最近整理：2026-07-15（批次 422 实施中 + 面料行业真实业务调研文档深度补充第十一至十三章，规划批次 423-432 共 10 批真实业务实现路径）。
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 422 | #598 | v14 复审 P1 第三批（基于面料行业真实业务调研文档 §5.2 按缸号实际成本法 + §5.6 月末成本单价）：T-P1-6 按缸号核算成本打通（cost_collection_service CreateCostCollectionRequest/UpdateCostCollectionRequest 新增 dye_lot_no 字段 + create/update 写入 + handler DTO 同步）+ T-P1-7 染色完成成本结转事件监听器（新增 dye_batch_cost_bridge_service.rs 独立监听 DyeBatchCompleted 事件 + AssertUnwindSafe panic 隔离 + static Mutex 保存 JoinHandle 供 shutdown abort + 创建 cost_collection 草稿关联 batch_no/color_no）；CI 修复 production_order_service.rs 第 603 行构造 CreateCostCollectionRequest 缺失 dye_lot_no 字段（commit e2d04123）；同步深度补充面料行业真实业务调研文档第十一至十三章（化验室打样 5 步闭环/大货处方与加料处方/流转卡条码/车间工序流转/验布打卷/产量工资/能耗管理/缸号状态机 + 批次 423-432 共 10 批规划） |
 | 421 | #597 | v14 复审 P1 面料行业特性首批修复（基于面料行业真实业务调研文档）：T-P1-4 质检 A/B/C 级分级判定（determine_quality_grade 合格率>=95% A 级/80-95% B 级让步接收降级销售/<80% C 级返工报废 + validate_handling_method_by_grade 等级与处理方式匹配校验 + CreateInspectionRecordRequest 新增 grade/color_no/dye_lot_no 字段 + process_unqualified 强制校验 + ProcessUnqualifiedRequest 新增 handling_result）+ T-P1-5 缸号同订单校验（validate_dye_lot_consistency 同一 product_id 必须使用相同 dye_lot_no + ShipOrderItemRequest 新增 color_no/dye_lot_no + ship_order 事务前校验）；迁移 035 为 quality_inspection_records/unqualified_products 添加 grade/color_no/dye_lot_no/handling_result 字段+索引；模型同步 2 文件；17 个单元测试（质检分级 9 个+缸号校验 8 个+build_ship_item 夹具）；CI 修复 Decimal::new 非 const fn 改为函数返回（grade_a_threshold/grade_b_threshold），CI 全绿 |
 | 420 | #596 | v14 复审 P1 第一批事件贯通修复：T-P1-1 调拨 ship_transfer/receive_transfer 发布 InventoryTransactionCreated 事件（事务内收集+commit 后发布）+ T-P1-2 染色完成 complete_dye_batch 发布 DyeBatchCompleted 事件 + T-P1-3 新增 DyeBatchCompleted/QualityInspectionCompleted 事件变体（EventPayload 三段同步+event_type_name 映射）+ G-P1-3 主监听器 _ => {} 改为显式分支+warn 日志；CI 修复 pending_events 借用已移动值（先记录 events_count 再消费 Vec），CI 全绿；同步完成面料行业真实业务调研文档（.monkeycode/docs/research/fabric-industry-research.md，覆盖基础信息/染整工艺/ERP 模块/成本核算/业务模式/计量换算/项目映射/术语对照） |
 | 419 | #595 | v14 复审 P0 第四批：生产订单+色卡借出补全缸号——迁移 034 为 3 个表（production_orders/inventory_piece/color_card_borrow_records）添加面料行业追溯字段 + 索引；7 个 Rust 文件修改修复 4 个 P0 问题（F-P0-1 production_order 添加 color_no/dye_lot_no/batch_no 字段 + F-P0-2 inventory_piece 添加 color_no/dye_lot_no + T-P0-3 color_card_borrow_record 添加 dye_lot_no + T-P0-5 销售退货 stock_map 改为四维索引按缸号退货入库），CI 修复 color_card_borrow_service ActiveModel 缺失 dye_lot_no 字段，CI 全绿 |
