@@ -48,6 +48,8 @@ pub mod production_recipe_service;
 pub mod flow_card_service;
 // v14 批次 426：验布打卷流程贯通
 pub mod fabric_inspection_service;
+// v14 批次 427：产量工资核算贯通
+pub mod wage_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;

@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-15（批次 423B+424 已合并，v13 完整内容已归档到 doto-su.md，doto.md 重组为 v14 修复任务规划，剩余批次 425-432 基于真实业务调研文档第十一至十三章）。
+> 最近整理：2026-07-15（批次 426 已合并 PR #604，验布打卷流程贯通，剩余批次 427-432）。
 
 ---
 
@@ -20,6 +20,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 426 | #604 | v14 复审 P1 验布打卷流程贯通——基于真实业务调研（WebSearch 验证验布机对接码表/电子称→疵点采集→生成验布报告→卷唛标签打印→PDA 扫码卷唛条码→自动入库；四分制 AATCC/ASTM D5430 ≤3寸=1分/3-6寸=2分/6-9寸=3分/>9寸=4分/破洞连续=4分/每百平方码≤40=首级；十分制梭织布经向 1寸下=1/1-5寸=3/5-10寸=5/10-36寸=10 纬向 半门幅以上=10/破洞=10/总扣分<总码数=首级；打卷入库生成匹号 {dye_lot_no}-{seq:03} 唯一校验）；实现 2 表（fabric_inspection_record 验布记录 + fabric_defect_record 疵点明细，2 外键+7 索引）+ 扩展 inventory_piece（inspection_id + piece_seq 字段）+ 2 SeaORM 模型 + 1 Service（fabric_inspection_service.rs ~650 行，FabricInspectionService/FabricDefectService + 评分计算纯函数 + 12 单元测试）+ 状态机 pending→inspecting→graded→rolled→closed + 13 Handler + 14 路由 + status.rs 3 组常量；CI 修复 DateTime<Utc> vs DateTime<FixedOffset> 类型不匹配（inventory_piece 用 chrono::Utc::now()），CI 全绿 |
+| 425 | #603 | v14 复审 P1 流转卡条码与车间工序流转贯通——基于真实业务调研（WebSearch 验证流转卡=缸卡一缸一卡承载缸号/订单/染整要求/工序路线/条码；扫码场景：白坯出库/染色进度/称料/工序流转/成品入库/发货；工序路线后台自定义前处理→染色→印花→后整理→验布；缸号状态机 pending→scheduled→preparing→dyeing→dyed→inspecting→completed→shipped/terminated，验布中可回 DYEING 实现回修订单重新进缸）；实现 4 表（process_route/production_flow_card/process_step_record/process_quality_feedback，9 外键+19 索引+5 条默认工序路线）+ 4 SeaORM 模型 + 1 Service（flow_card_service.rs ~1270 行，4 Service：ProcessRouteService/FlowCardService/StepRecordService/QualityFeedbackService + 7 单元测试）+ 23 Handler + 28 路由；CI 修复 2 类错误（①production_recipe_handler import 遗漏 424 遗留 bug ②ActiveValue<Option<T>> 不支持 unwrap_or_default/unwrap_or 3 处改用 model/req 在 into() 前判断），CI 全绿 |
 | 424 | #601 | v14 复审 P1 大货处方与加料处方流程贯通——基于真实业务调研（WebSearch 验证大货处方单=染色配料单/扫描流转卡条码/同一工单号只能开一张大货处方单/追加物料须开加料处方单/审核后自动建立生产领用单据；用量计算=浓度%×布重×浴比/100×加成系数；浴比解析支持 1:8/1：8（全角冒号）/1/8 三种格式）；实现 2 表（production_recipe + production_recipe_addition，7 外键+13 索引）+ 2 SeaORM 模型 + 1 Service（41KB，ProductionRecipeService 11 方法 + ProductionRecipeAdditionService 6 方法 + 12 单元测试）+ 15 Handler + 15 路由，CI 全绿 |
 | 423B | #600 | v14 复审 P1 化验室打样流程贯通——基于真实业务调研（WebSearch 验证 ABCD=打样版数 4 版供客户选择、OK 样=客户从多版选 1 版、复样=车间半制品布+生产染化料模拟大生产色差 4-5 级方可投产、染色技术卡=复样通过后研发组长开卡含配方表+核可样+复色样）；实现 3 表（lab_dip_request/lab_dip_sample/lab_dip_resample）+ 3 模型 + 3 Service（900 行，状态机 pending→sampling→submitted→approved/rejected→completed + ABCD 多版样管理 + 复样判定 + 染色技术卡开具）+ 21 Handler + 21 路由；CI 修复 3 轮（①Text→String 8 处 ②FromJsonQueryResult 显式导入 ③serde::{Serialize,Deserialize} 显式导入 57 连锁错误根因 + manual_range_contains clippy 3 处），CI 全绿 |
 | 423A | #599 | v14 复审 P1 第四批 A：染色配方 schema 修复 + Service 抽象层——迁移 036 补齐 dye_recipe 表 18 个缺失字段（recipe_no NOT NULL+回填 LEGACY-/color_no/formula/temperature/time_minutes/status/is_deleted/color_name/fabric_type/dye_type/chemical_formula/ph_value/liquor_ratio/auxiliaries/version/parent_recipe_id/approved_by/approved_at/remarks）+ 5 索引+2 外键约束；status.rs 新增 dye_recipe 状态常量（草稿/已审核/已停用）；新增 DyeRecipeService 抽象层（CRUD+状态流转校验 DRAFT→APPROVED/DISABLED+版本管理 create_new_version 版本树+色号/版本查询+generate_recipe_no）；handler 重构调用 service（11 个路由保持向后兼容，submit/export 保留原逻辑待 423B）；CI 修复 E0505 借用冲突（as_deref 改 clone）+ E0308 ActiveValue 类型不匹配 × 13（13 个字段补 Set 包装），CI 全绿 |
