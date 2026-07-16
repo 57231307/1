@@ -16,6 +16,7 @@
 | 436 | #614 | V15 P0-S01 行级数据权限基础设施：新增 migration m0051（role 表 data_scope 字段 all/dept/self）+ data_scope.rs 工具模块（DataScope 枚举 + apply_data_scope + check_resource_owner + 15 单测）+ AuthContext 注入 data_scope/department_id + auth 中间件从 DB 加载 + 33 个角色配置 data_scope；修复编译错误（EntityTrait import）和 clippy 警告（from_str→parse_scope） |
 | 437 | #616 | V15 P0-S18 新增 dye_recipe_master（染色配方主管）角色，含 dye-recipes 全部操作 + approve/audit 审批权限 + lab-dip/production-recipes/color-cards/color-prices 全部操作；与 lab_technician 区别为管理层 vs 执行层 |
 | 438 | #617 | V15 P0-S07 权限缓存不失效修复：permission.rs 新增 invalidate_permission_cache/invalidate_all_permission_cache API + 3 单测；role_permission_service.rs assign_permission/remove_permission 接入缓存失效；user_service.rs update_user 角色变更失效旧+新角色缓存 + 禁用用户补 revoke_user_jtis JWT 吊销（原安全漏洞） |
+| 439 | #618 | V15 P0-S05 SoD 职责分离互斥：新增 role_conflicts 表（migration m0052）+ 8 条预置互斥规则（财务三权分立/采购付款/销售收款/生产质量）+ role_conflict model + user_service check_role_conflict_for_user 校验方法 + update_user 角色变更时校验 |
 
 ---
 
