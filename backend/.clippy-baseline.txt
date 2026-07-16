@@ -1,0 +1,22 @@
+
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#too_many_arguments
+    = note: `#[warn(clippy::too_many_arguments)]` on by default
+    |
+    |                    ^^^^^^^^^^^ missing `data_scope` and `department_id`
+    |         ^^^^^^^^^^^^^^^^^^^^^^ missing `color_no`, `dye_lot_no` and `grade`
+    | |_____^
+   --> src/handlers/init_handler.rs:564:20
+   --> src/services/ai/quality_pred.rs:507:9
+   --> src/services/role_permission_service.rs:471:5
+...   |
+471 | /     async fn write_permission_audit(
+472 | |         &self,
+473 | |         change_type: &str,
+474 | |         operator_id: i32,
+479 | |         new_value: Option<String>,
+480 | |     ) {
+507 |         QualityInspectionModel {
+564 |         let auth = AuthContext {
+error[E0063]: missing fields `color_no`, `dye_lot_no` and `grade` in initializer of `models::quality_inspection_record::Model`
+error[E0063]: missing fields `data_scope` and `department_id` in initializer of `middleware::auth_context::AuthContext`
+warning: this function has too many arguments (8/7)
