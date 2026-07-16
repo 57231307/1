@@ -83,6 +83,7 @@ pub mod m0050_create_event_dead_letters;
 
 // V15 P0-S01：role 表新增 data_scope 字段（行级数据权限）
 pub mod m0051_add_data_scope_to_roles;
+pub mod m0052_create_role_conflicts;
 
 pub struct Migrator;
 
@@ -143,6 +144,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0049_create_processed_events::Migration),
             Box::new(m0050_create_event_dead_letters::Migration),
             Box::new(m0051_add_data_scope_to_roles::Migration),
+            Box::new(m0052_create_role_conflicts::Migration),
         ]
     }
 }
