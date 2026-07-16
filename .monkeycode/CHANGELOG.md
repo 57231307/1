@@ -15,6 +15,7 @@
 | 435 | #613 | V15 P0-S20/S21/S22 权限资源缺口补齐：新增 60+ 类权限资源注册表 + 11 个操作权限码 + 33 个角色完整权限矩阵；path_utils.rs 清理 15+ 脏数据并新增 28 个模块前缀（production/auth/quotations 等）；permission.rs 新增白名单校验 + 路径动作提取（print/export/approve 等 11 个）；修复 2 个 clippy 警告（last→next_back→rfind） |
 | 436 | #614 | V15 P0-S01 行级数据权限基础设施：新增 migration m0051（role 表 data_scope 字段 all/dept/self）+ data_scope.rs 工具模块（DataScope 枚举 + apply_data_scope + check_resource_owner + 15 单测）+ AuthContext 注入 data_scope/department_id + auth 中间件从 DB 加载 + 33 个角色配置 data_scope；修复编译错误（EntityTrait import）和 clippy 警告（from_str→parse_scope） |
 | 437 | #616 | V15 P0-S18 新增 dye_recipe_master（染色配方主管）角色，含 dye-recipes 全部操作 + approve/audit 审批权限 + lab-dip/production-recipes/color-cards/color-prices 全部操作；与 lab_technician 区别为管理层 vs 执行层 |
+| 438 | #617 | V15 P0-S07 权限缓存不失效修复：permission.rs 新增 invalidate_permission_cache/invalidate_all_permission_cache API + 3 单测；role_permission_service.rs assign_permission/remove_permission 接入缓存失效；user_service.rs update_user 角色变更失效旧+新角色缓存 + 禁用用户补 revoke_user_jtis JWT 吊销（原安全漏洞） |
 
 ---
 
