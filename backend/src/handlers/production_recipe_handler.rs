@@ -60,6 +60,7 @@ pub struct ProductionRecipeListQuery {
 /// GET /api/v1/erp/production-recipes - 分页查询大货处方
 pub async fn list(
     State(state): State<AppState>,
+    auth: AuthContext,
     Query(query): Query<ProductionRecipeListQuery>,
 ) -> Result<
     Json<ApiResponse<crate::utils::response::PaginatedResponse<production_recipe::Model>>>,
@@ -78,7 +79,11 @@ pub async fn list(
         page_size: Some(page_size),
     };
 
-    let (items, total) = recipe_service(&state).list(svc_query).await?;
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
+    let (items, total) = recipe_service(&state)
+        .list(svc_query, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success_paginated(items, total, page, page_size)))
 }
 
@@ -100,9 +105,14 @@ pub async fn create(
 /// GET /api/v1/erp/production-recipes/:id - 查询大货处方详情
 pub async fn get(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<production_recipe::Model>>, AppError> {
-    let recipe = recipe_service(&state).get_by_id(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let recipe = recipe_service(&state)
+        .get_by_id(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(recipe)))
 }
 
@@ -197,10 +207,13 @@ pub async fn calculate(
 /// 真实业务约束：同一工单号只能开一张大货处方单
 pub async fn get_by_work_order(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(work_order_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Option<production_recipe::Model>>>, AppError> {
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
     let recipe = recipe_service(&state)
-        .get_by_work_order(work_order_id)
+        .get_by_work_order(work_order_id, Some(&data_scope_ctx))
         .await?;
     Ok(Json(ApiResponse::success(recipe)))
 }
@@ -212,9 +225,14 @@ pub async fn get_by_work_order(
 /// GET /api/v1/erp/production-recipes/:id/additions - 查询大货处方下的加料单列表
 pub async fn list_additions(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<production_recipe_addition::Model>>>, AppError> {
-    let items = recipe_service(&state).list_additions_by_recipe(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护，透传给 list_additions_by_recipe）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let items = recipe_service(&state)
+        .list_additions_by_recipe(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(items)))
 }
 
@@ -240,9 +258,14 @@ pub async fn create_addition(
 /// GET /api/v1/erp/production-recipes/additions/:id - 查询加料处方详情
 pub async fn get_addition(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<production_recipe_addition::Model>>, AppError> {
-    let item = addition_service(&state).get_by_id(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let item = addition_service(&state)
+        .get_by_id(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(item)))
 }
 
