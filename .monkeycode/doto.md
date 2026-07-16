@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段启动，Batch 433 P0-S03 超级权限注入修复完成，PR #611 已合并；剩余 103 P0 + 257 P1 + 248 P2 + 123 P3）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433/434 完成，P0-S03 超级权限修复 + P0-S04 31 类业务角色补齐；剩余 102 P0 + 257 P1 + 248 P2 + 123 P3）。
 
 ---
 
@@ -70,12 +70,11 @@
 - **修复**：auth_handler.rs 将 `is_system` 判断改为 `code == ADMIN_ROLE_CODE`，仅 admin 注入超级通配权限；init_service.rs 新增 `create_default_role_permissions` 为 manager/operator 插入基本 role_permission 记录
 - **状态**：✅ 已合并到 main（c3f3cc7c）
 
-##### P0-S04 14 类业务角色补齐（类十四）
+##### P0-S04 14 类业务角色补齐（类十四）✅ 已完成（Batch 434 / PR #612）
 
 - **来源**：batch-12 P0-12-2/4/5
-- **证据**：当前仅 admin/manager/operator 3 个角色
-- **修复方案**：新增 14 个业务角色（sales_manager/sales_rep/purchase_manager/purchase_clerk/inventory_manager/warehouse_keeper/production_manager/dyeing_master/quality_inspector/finance_manager/accountant/crm_manager/crm_rep/admin_assistant），每个角色配置最小权限矩阵
-- **关联文件**：init_service.rs / role_service.rs / role_handler.rs / schema migrations
+- **修复**：补齐 31 类业务角色覆盖面料行业全业务场景（管理/销售/采购/库存/生产/质量/财务/CRM/物流/人力/安全/IT），为全部角色配置基本 role_permission 权限记录
+- **状态**：✅ 已合并到 main（15652b2a）
 
 ##### P0-S05 SoD 职责分离互斥未实现（类十四）
 
