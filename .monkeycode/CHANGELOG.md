@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433-445 完成，P0-S03/S04/S20/S21/S22/S01(基础设施)/S18/S07/S05/S06/S10/S09(全部)/S11(第1批) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623/#624/#625 已合并）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433-448 完成，P0-S03/S04/S20/S21/S22/S01(基础设施+销售域+采购域)/S18/S07/S05/S06/S10/S09(全部)/S11(全部) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623/#624/#625/#626/#627/#628 已合并）。
 
 ---
 
@@ -27,6 +27,7 @@
 | 445 | #625 | V15 P0-S11 核心业务导出审计日志补齐（第 1 批）：5 文件 6 个 export 函数（sales_order/purchase_order/product/crm_leads/crm_opportunities/mrp_calculation）添加 AuditEvent + AuditLogService::record_async 审计写入（best-effort 异步）；修复 borrow of moved value（提前 clone String 查询条件）；CI 12/12 全绿 |
 | 446 | #626 | V15 P0-S11 报表染色域导出审计日志补齐（第 2 批）：5 文件 5 个 export 函数（report_engine/ar_reconciliation_pdf/sales_analysis/dye_recipe/dye_batch）添加 AuditEvent + AuditLogService::record_async 审计写入（best-effort 异步）；修复 report_engine_handler state.db borrow of moved value（service 改用 state.db.clone()）；CI 15/15 全绿。**P0-S11 全部完成** |
 | 447 | #627 | V15 P0-S01 行级数据权限注入-销售域：为销售域 service 查询入口注入 DataScopeContext（all/dept/self 三级）。so/order_query list_orders/get_order_detail + customer_service list_customers/list_customers_with_filter/get_customer/get_customer_with_filter + sales_return_service list_returns/get_return 增加 data_scope 参数；handler 层提取 auth.to_data_scope_context() 传入；内部调用点传 None；customer/sales_order/sales_return 表无 department_id，Dept 退化为 Self；CI 15/15 全绿 |
+| 448 | #628 | V15 P0-S01 行级数据权限注入-采购域：为采购域 service 查询入口注入 DataScopeContext。po/order list_orders/get_order（PurchaseOrderDto 新增 created_by 字段）+ supplier_service list_suppliers/get_supplier（无 department_id，Dept 退化为 Self）+ purchase_return_service list_returns/get_return（完整 Dept）增加 data_scope 参数；3 个 handler 传 Some(&ctx)；3 处 service 内部调用传 None；CI 15/15 全绿（13 success + 2 skipped） |
 
 ---
 
