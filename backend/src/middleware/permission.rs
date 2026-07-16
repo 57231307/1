@@ -73,9 +73,14 @@ pub async fn permission_middleware(
 
     let (resource_type, resource_id) = extract_resource_info(path);
 
-    // V15 P0-S20 修复：优先从路径提取动作（print/export/import/audit/approve/reject），
-    // 若路径无动作则回退到 HTTP method 映射（read/create/update/delete）
-    let action = extract_action_from_path(path).unwrap_or_else(|| method_to_action(method));
+    // V15 P0-S10 修复：优先级 action 提取顺序：
+    // 1. 查询参数 ?action=print/export/download（显式声明，最高优先级）
+    // 2. 路径末段动作关键字（print/export/import/audit/approve/reject 等）
+    // 3. HTTP method 映射（read/create/update/delete，兜底）
+    let query_action = extract_action_from_query(uri);
+    let action = query_action
+        .or_else(|| extract_action_from_path(path))
+        .unwrap_or_else(|| method_to_action(method));
 
     let has_permission =
         check_permission(&state.db, role_id, &resource_type, resource_id, &action).await;
@@ -148,6 +153,50 @@ fn extract_action_from_path(path: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+/// V15 P0-S10 新增：查询参数 action 关键字集合
+///
+/// 通过 `?action=print` 形式显式声明请求动作，优先级最高。
+/// 支持的动作：print/export/download，这些动作无法通过 HTTP method 或路径推断。
+const QUERY_ACTION_KEYWORDS: &[&str] = &["print", "export", "download"];
+
+/// V15 P0-S10 新增：从查询参数提取动作
+///
+/// 优先级最高的动作提取方式。客户端通过 `?action=print` 显式声明请求动作，
+/// 适用于以下场景：
+/// - `GET /api/v1/erp/sales/orders?action=print` → Some("print")
+/// - `GET /api/v1/erp/inventory/stocks?action=export` → Some("export")
+/// - `GET /api/v1/erp/reports/finance?action=download` → Some("download")
+///
+/// 仅识别 QUERY_ACTION_KEYWORDS 中的动作，其他值返回 None（回退到路径/方法推断）。
+/// 这样可以防止客户端通过查询参数绕过权限（如 `?action=read` 不会生效）。
+///
+/// # 参数
+/// - `uri`: 请求 URI（包含 path 和 query）
+///
+/// # 返回
+/// - `Some(action)`: 查询参数 action 在白名单中
+/// - `None`: 无 action 参数或值不在白名单中
+fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
+    let query = uri.query()?;
+    // 解析 query string，查找 action 参数
+    for pair in query.split('&') {
+        let mut parts = pair.splitn(2, '=');
+        if parts.next()? == "action" {
+            let value = parts.next()?;
+            // URL 解码（处理 %20 等编码）
+            let decoded = percent_encoding::percent_decode_str(value)
+                .decode_utf8()
+                .ok()?;
+            if QUERY_ACTION_KEYWORDS.contains(&&*decoded) {
+                return Some(decoded.into_owned());
+            }
+            // 不在白名单中，返回 None 让调用方回退
+            return None;
+        }
+    }
+    None
 }
 
 fn extract_resource_info(path: &str) -> (String, Option<i32>) {
@@ -603,6 +652,87 @@ mod tests {
         // 清空全部
         invalidate_all_permission_cache();
         assert!(PERMISSION_CACHE.is_empty());
+    }
+
+    // ===== extract_action_from_query 测试（V15 P0-S10）=====
+
+    #[test]
+    fn test_extract_action_from_query_print动作() {
+        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=print"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            extract_action_from_query(&uri),
+            Some("print".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_action_from_query_export动作() {
+        let uri: axum::http::Uri = "/api/v1/erp/inventory/stocks?action=export"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            extract_action_from_query(&uri),
+            Some("export".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_action_from_query_download动作() {
+        let uri: axum::http::Uri = "/api/v1/erp/reports/finance?action=download"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            extract_action_from_query(&uri),
+            Some("download".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_action_from_query_无action参数返回None() {
+        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?page=1"
+            .parse()
+            .unwrap();
+        assert_eq!(extract_action_from_query(&uri), None);
+    }
+
+    #[test]
+    fn test_extract_action_from_query_白名单外动作返回None() {
+        // action=read 不在白名单中，防止客户端绕过权限
+        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=read"
+            .parse()
+            .unwrap();
+        assert_eq!(extract_action_from_query(&uri), None);
+    }
+
+    #[test]
+    fn test_extract_action_from_query_无查询字符串返回None() {
+        let uri: axum::http::Uri = "/api/v1/erp/sales/orders".parse().unwrap();
+        assert_eq!(extract_action_from_query(&uri), None);
+    }
+
+    #[test]
+    fn test_extract_action_from_query_多参数识别action() {
+        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?page=1&action=print&format=pdf"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            extract_action_from_query(&uri),
+            Some("print".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_action_from_query_url编码解码() {
+        // %70%72%69%6e%74 = "print"
+        let uri: axum::http::Uri = "/api/v1/erp/sales/orders?action=%70%72%69%6e%74"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            extract_action_from_query(&uri),
+            Some("print".to_string())
+        );
     }
 
     // ===== matches_permission 测试（安全核心）=====

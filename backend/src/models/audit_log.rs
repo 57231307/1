@@ -21,6 +21,10 @@ pub enum OperationType {
     Logout,
     /// 数据导出
     Export,
+    /// 数据打印（V15 P0-S10 新增）
+    Print,
+    /// 文件下载（V15 P0-S10 新增）
+    Download,
     /// 数据查询（详情 / 列表）
     Query,
     /// 其它类型
@@ -37,6 +41,8 @@ impl OperationType {
             Self::Login => "LOGIN",
             Self::Logout => "LOGOUT",
             Self::Export => "EXPORT",
+            Self::Print => "PRINT",
+            Self::Download => "DOWNLOAD",
             Self::Query => "QUERY",
             Self::Other => "OTHER",
         }
@@ -134,6 +140,8 @@ mod tests {
         assert_eq!(OperationType::Create.as_str(), "CREATE");
         assert_eq!(OperationType::Login.as_str(), "LOGIN");
         assert_eq!(OperationType::Export.as_str(), "EXPORT");
+        assert_eq!(OperationType::Print.as_str(), "PRINT");
+        assert_eq!(OperationType::Download.as_str(), "DOWNLOAD");
         assert_eq!(OperationType::Other.as_str(), "OTHER");
     }
 
