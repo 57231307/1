@@ -504,6 +504,9 @@ pub async fn export_orders(
 ) -> Result<axum::response::Response, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
 
+    // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
+    let audit_status = query.status.clone();
+
     let csv_data = service
         .export_orders_to_csv(query.status, query.supplier_id)
         .await?;
@@ -554,7 +557,7 @@ pub async fn export_orders(
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",
             "total": row_count,
-            "status_filter": query.status,
+            "status_filter": audit_status,
             "supplier_id_filter": query.supplier_id,
         })),
     };

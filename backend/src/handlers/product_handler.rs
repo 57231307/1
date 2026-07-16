@@ -435,6 +435,10 @@ pub async fn export_products(
 ) -> Result<axum::response::Response, AppError> {
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
+    // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
+    let audit_status = query.status.clone();
+    let audit_search = query.search.clone();
+
     let csv_data = product_service
         .export_products_to_csv(query.category_id, query.status, query.search)
         .await
@@ -487,8 +491,8 @@ pub async fn export_products(
             "format": "xlsx",
             "total": row_count,
             "category_id_filter": query.category_id,
-            "status_filter": query.status,
-            "search_filter": query.search,
+            "status_filter": audit_status,
+            "search_filter": audit_search,
         })),
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
