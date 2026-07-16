@@ -515,6 +515,7 @@ impl InitService {
             ("染色主管", "dyeing_master", "染色生产与配方管理", "self"),
             ("后整理主管", "finishing_master", "定型预缩柔软等后整理工序", "self"),
             ("化验室技术员", "lab_technician", "打样配方开发与颜色管理", "self"),
+            ("染色配方主管", "dye_recipe_master", "染色配方管理与审批发布", "self"),
             ("胚布管理员", "greige_manager", "胚布采购库存与委托加工", "self"),
             ("染化料管理员", "chemical_manager", "染料助剂化学品采购存储领用", "self"),
             ("设备维护主管", "maintenance_supervisor", "设备管理与维修计划", "self"),
@@ -736,6 +737,17 @@ impl InitService {
                 ("dye-recipes", "*"), ("lab-dip", "*"),
                 ("dye-batches", "read"), ("color-cards", "*"), ("color-prices", "read"),
                 ("chemicals", "read"), ("chemical-lots", "read"),
+            ]),
+            // V15 P0-S18 新增：染色配方主管，含审批权限
+            ("dye_recipe_master", &[
+                ("dye-recipes", "*"),
+                ("dye-recipes", "approve"), ("dye-recipes", "audit"),
+                ("lab-dip", "*"),
+                ("dye-batches", "read"), ("dye-batches", "update"),
+                ("production-recipes", "*"),
+                ("color-cards", "*"), ("color-prices", "*"),
+                ("chemicals", "read"), ("chemical-lots", "read"),
+                ("reports", "read"),
             ]),
             ("greige_manager", &[
                 ("greige-fabrics", "*"), ("outsourcing-orders", "*"), ("outsourcing-receipts", "*"),
