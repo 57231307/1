@@ -78,3 +78,4 @@ error[E0063]: missing fields `color_no`, `dye_lot_no` and `grade` in initializer
 error[E0063]: missing fields `data_scope` and `department_id` in initializer of `middleware::auth_context::AuthContext`
 help: provide the argument
 note: method defined here
+warning: this function has too many arguments (8/7)
