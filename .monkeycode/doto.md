@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433-443 完成，P0-S09 染色域+print_handler 完成；剩余 91 P0 + 257 P1 + 248 P2 + 123 P3；重新规划为小粒度批次，每批 3-5 文件）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433-445 完成，P0-S09 全部完成 + P0-S11 第 1 批完成；剩余 89 P0 + 257 P1 + 248 P2 + 123 P3；重新规划为小粒度批次，每批 3-5 文件）。
 
 ---
 
@@ -26,7 +26,8 @@
 | 442 | P0-S09 染色域 export AuthContext | 2 | 8 | ✅ 已完成 |
 | 443 | P0-S09 print_handler AuthContext | 1 | 9 | ✅ 已完成 |
 | 444 | P0-S09 其他域 export AuthContext | 5 | 10 | ✅ 已满足（无需修改） |
-| 445-446 | P0-S11 导出审计日志补齐 | 10 | 11-12 | ⏳ |
+| 445 | P0-S11 导出审计日志-核心业务（第 1 批） | 5 | 11 | ✅ 已完成 |
+| 446 | P0-S11 导出审计日志-报表染色域（第 2 批） | 5 | 12 | 🔄 下一个 |
 | 447 | P0-S01 service 注入-销售域 | 5 | 13 | ⏳ |
 | 448 | P0-S01 service 注入-采购域 | 4 | 14 | ⏳ |
 | 449 | P0-S01 service 注入-生产域 | 5 | 15 | ⏳ |
@@ -180,6 +181,10 @@
 - **来源**：batch-11 P0-11-7
 - **修复方案**：为 10 个导出 handler 增加审计日志写入（用户/时间/资源/条件/导出条数/文件大小）
 - **关联文件**：10 个导出 handler + audit_service.rs
+- **修复进度**：
+  - ✅ Batch 445（PR #625）：核心业务导出 6 函数（sales_order/purchase_order/product/crm_leads/crm_opportunities/mrp_calculation），复用 import_export_handler 标准模式（AuditEvent + record_async best-effort）
+  - ⏳ Batch 446：报表染色域导出 5 函数（report_engine/ar_reconciliation/sales_analysis/dye_recipe/dye_batch）
+  - 注：调研发现实际 18 个 export 函数缺审计日志，剩余 7 个（report_enhanced 3 个/audit_enhanced/login_security/color_card/advanced-analytics）归入 P1 阶段
 
 ##### P0-S12 前端本地导出完全无审计（类十三）
 

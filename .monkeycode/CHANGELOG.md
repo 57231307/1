@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433-443 完成，P0-S03/S04/S20/S21/S22/S01(基础设施)/S18/S07/S05/S06/S10/S09(染色域+print_handler) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623/#624 已合并）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433-445 完成，P0-S03/S04/S20/S21/S22/S01(基础设施)/S18/S07/S05/S06/S10/S09(全部)/S11(第1批) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623/#624/#625 已合并）。
 
 ---
 
@@ -24,6 +24,7 @@
 | 442 | #623 | V15 P0-S09 染色域 export 端点补齐 AuthContext：dye_recipe_handler.rs export_dye_recipes + dye_batch_handler.rs export_dye_batches 新增 _auth: AuthContext 参数；权限校验由 permission_middleware 自动根据路径提取 action=export 校验 *:export 权限 |
 | 443 | #624 | V15 P0-S09 print_handler AuthContext 补齐：print_handler.rs 7 个 print/export 函数（5 个 print_html：sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer + list_print_templates + get_print_template）新增 _auth: AuthContext 参数；权限校验由 permission_middleware 自动根据路径提取 action=print 校验 *:print 权限；CI 12/12 全绿 |
 | 444 | 无需 PR | V15 P0-S09 其他域 export AuthContext 核查：5 个目标文件（sales_order/purchase_order/product/report_engine/crm）export 函数均已含 AuthContext，无需修改；quotation/customer/supplier/inventory/finance/quality 无 export/print 端点。**P0-S09 全部完成** |
+| 445 | #625 | V15 P0-S11 核心业务导出审计日志补齐（第 1 批）：5 文件 6 个 export 函数（sales_order/purchase_order/product/crm_leads/crm_opportunities/mrp_calculation）添加 AuditEvent + AuditLogService::record_async 审计写入（best-effort 异步）；修复 borrow of moved value（提前 clone String 查询条件）；CI 12/12 全绿 |
 
 ---
 
