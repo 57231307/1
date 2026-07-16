@@ -18,6 +18,8 @@ use crate::models::user;
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+// V15 P0-S07：用户角色变更/禁用时失效权限缓存 + 吊销 JWT
+use crate::middleware::permission::invalidate_permission_cache;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
@@ -226,11 +228,14 @@ impl UserService {
         department_id: Option<i32>,
         status: Option<String>,
     ) -> Result<user::Model, AppError> {
-        let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
+        // V15 P0-S07：保存旧 role_id，用于角色变更时失效缓存
+        let existing_user = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", user_id)))?
-            .into();
+            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", user_id)))?;
+        let old_role_id = existing_user.role_id;
+
+        let mut user: user::ActiveModel = existing_user.into();
 
         // 只更新提供的字段
         if let Some(email_val) = email {
@@ -266,6 +271,21 @@ impl UserService {
             // 不阻塞用户更新主流程。
             if becoming_active {
                 crate::services::auth_service::unrevoke_user(user_id).await;
+            } else {
+                // V15 P0-S07 修复：禁用用户时吊销 JWT，与 delete_user 行为一致
+                // 原实现仅 becoming_active=true 时调用 unrevoke_user，
+                // 禁用分支缺失 revoke_user_jtis，被禁用用户的旧 JWT 仍可访问系统
+                if let Err(e) =
+                    crate::services::auth_service::revoke_user_jtis(user_id, "USER_DISABLED").await
+                {
+                    warn!(
+                        target: "security_audit",
+                        event = "TOKEN_REVOKE_FAILED",
+                        user_id = user_id,
+                        error = %e,
+                        "禁用用户时吊销 JWT 失败（best-effort，不阻塞主流程）"
+                    );
+                }
             }
         }
         user.updated_at = Set(chrono::Utc::now());
@@ -274,6 +294,14 @@ impl UserService {
             .update(self.db.as_ref())
             .await
             .map_err(AppError::from)?;
+
+        // V15 P0-S07：角色变更后失效旧角色和新角色的权限缓存
+        if let Some(new_role_id) = role_id {
+            if let Some(old_rid) = old_role_id {
+                invalidate_permission_cache(old_rid);
+            }
+            invalidate_permission_cache(new_role_id);
+        }
 
         Ok(updated)
     }

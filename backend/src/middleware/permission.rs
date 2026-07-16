@@ -235,6 +235,23 @@ static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permissio
 /// 权限缓存TTL（5分钟）
 const PERMISSION_CACHE_TTL: i64 = 5;
 
+/// V15 P0-S07 新增：失效指定角色的权限缓存
+///
+/// 当角色权限变更（assign_permission/remove_permission）或角色被删除时调用，
+/// 确保下次 check_permission 重新从数据库加载最新权限。
+pub fn invalidate_permission_cache(role_id: i32) {
+    PERMISSION_CACHE.remove(&role_id);
+    tracing::info!(role_id, "权限缓存已失效");
+}
+
+/// V15 P0-S07 新增：失效全部权限缓存
+///
+/// 当发生大规模权限变更（如批量角色迁移）时调用。
+pub fn invalidate_all_permission_cache() {
+    PERMISSION_CACHE.clear();
+    tracing::info!("全部权限缓存已失效");
+}
+
 
 
 async fn check_permission(
@@ -536,6 +553,56 @@ mod tests {
             expires_at: Utc::now() - Duration::minutes(1),
         };
         assert!(entry.is_expired());
+    }
+
+    // ===== invalidate_permission_cache 测试 =====
+
+    #[test]
+    fn test_invalidate_permission_cache_移除指定角色() {
+        // 插入缓存条目
+        PERMISSION_CACHE.insert(
+            9991,
+            CacheEntry {
+                data: Arc::new(vec![]),
+                expires_at: Utc::now() + Duration::minutes(5),
+            },
+        );
+        assert!(PERMISSION_CACHE.contains_key(&9991));
+
+        // 失效指定角色缓存
+        invalidate_permission_cache(9991);
+        assert!(!PERMISSION_CACHE.contains_key(&9991));
+    }
+
+    #[test]
+    fn test_invalidate_permission_cache_不存在角色不报错() {
+        // 失效不存在的角色缓存不应 panic
+        invalidate_permission_cache(99999);
+    }
+
+    #[test]
+    fn test_invalidate_all_permission_cache_清空全部() {
+        // 插入多个缓存条目
+        PERMISSION_CACHE.insert(
+            9992,
+            CacheEntry {
+                data: Arc::new(vec![]),
+                expires_at: Utc::now() + Duration::minutes(5),
+            },
+        );
+        PERMISSION_CACHE.insert(
+            9993,
+            CacheEntry {
+                data: Arc::new(vec![]),
+                expires_at: Utc::now() + Duration::minutes(5),
+            },
+        );
+        assert!(PERMISSION_CACHE.contains_key(&9992));
+        assert!(PERMISSION_CACHE.contains_key(&9993));
+
+        // 清空全部
+        invalidate_all_permission_cache();
+        assert!(PERMISSION_CACHE.is_empty());
     }
 
     // ===== matches_permission 测试（安全核心）=====
