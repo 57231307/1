@@ -10,6 +10,8 @@ use crate::models::status::purchase_return as pr_status;
 use crate::models::{inventory_stock, product, purchase_return, purchase_return_item};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::inventory_stock_query::RecordTransactionArgs;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -403,10 +405,21 @@ impl PurchaseReturnService {
         page_size: u64,
         status: Option<String>,
         supplier_id: Option<i32>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<purchase_return::Model>, u64), AppError> {
         use sea_orm::PaginatorTrait;
 
         let mut query = purchase_return::Entity::find();
+
+        // V15 P0-S01：行级数据权限过滤（purchase_return 表有 created_by + department_id，支持完整 Dept）
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                purchase_return::Column::CreatedBy,
+                purchase_return::Column::DepartmentId,
+            );
+        }
 
         if let Some(status) = status {
             query = query.filter(purchase_return::Column::ReturnStatus.eq(&status));
@@ -426,11 +439,26 @@ impl PurchaseReturnService {
     }
 
     /// 获取退货单详情
-    pub async fn get_return(&self, return_id: i32) -> Result<purchase_return::Model, AppError> {
+    pub async fn get_return(
+        &self,
+        return_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<purchase_return::Model, AppError> {
         let return_order = purchase_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // purchase_return 表有 created_by + department_id，支持完整 Dept
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, return_order.created_by, return_order.department_id) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问采购退货单 {}（数据范围限制）",
+                    return_id
+                )));
+            }
+        }
 
         Ok(return_order)
     }

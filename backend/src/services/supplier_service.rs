@@ -1,4 +1,6 @@
 use crate::models::{supplier, supplier_contact, supplier_qualification};
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
@@ -154,8 +156,19 @@ impl SupplierService {
     pub async fn list_suppliers(
         &self,
         params: SupplierQueryParams,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<PaginatedResponse<supplier::Model>, AppError> {
         let mut query = supplier::Entity::find();
+
+        // V15 P0-S01：行级数据权限过滤（supplier 表无 department_id，Dept 退化为 Self）
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                supplier::Column::CreatedBy,
+                supplier::Column::CreatedBy,
+            );
+        }
 
         // 筛选
         if let Some(supplier_type) = params.supplier_type {
@@ -227,11 +240,28 @@ impl SupplierService {
     }
 
     /// 获取供应商详情
-    pub async fn get_supplier(&self, id: i32) -> Result<supplier::Model, AppError> {
-        supplier::Entity::find_by_id(id)
+    pub async fn get_supplier(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<supplier::Model, AppError> {
+        let supplier_model = supplier::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("供应商 {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("供应商 {} 不存在", id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // supplier 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, supplier_model.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问供应商 {}（数据范围限制）",
+                    id
+                )));
+            }
+        }
+
+        Ok(supplier_model)
     }
 
     /// 更新供应商信息
@@ -241,7 +271,8 @@ impl SupplierService {
         req: UpdateSupplierRequest,
         user_id: i32,
     ) -> Result<supplier::Model, AppError> {
-        let supplier = self.get_supplier(id).await?;
+        // V15 P0-S01：内部调用传 None（权限校验已由 update_supplier 的 handler 入口完成）
+        let supplier = self.get_supplier(id, None).await?;
         let mut supplier_active: supplier::ActiveModel = supplier.into();
 
         // 更新字段
@@ -428,7 +459,8 @@ impl SupplierService {
         enable: bool,
         user_id: i32,
     ) -> Result<supplier::Model, AppError> {
-        let supplier = self.get_supplier(id).await?;
+        // V15 P0-S01：内部调用传 None（权限校验已由 toggle_supplier_status 的 handler 入口完成）
+        let supplier = self.get_supplier(id, None).await?;
         let mut supplier_active: supplier::ActiveModel = supplier.into();
 
         supplier_active.is_enabled = Set(Some(enable));

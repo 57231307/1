@@ -7,6 +7,8 @@ use crate::models::{
     department, product, purchase_order, purchase_order_item, status, supplier, warehouse,
 };
 use crate::services::po::UpdatePurchaseOrderRequest;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -50,6 +52,7 @@ pub struct PurchaseOrderDto {
     pub payment_terms: Option<String>,
     pub shipping_terms: Option<String>,
     pub notes: Option<String>,
+    pub created_by: i32,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -519,6 +522,7 @@ impl PurchaseOrderService {
         page_size: u64,
         status: Option<String>,
         supplier_id: Option<i32>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PurchaseOrderDto>, u64), AppError> {
         use sea_orm::{JoinType, QuerySelect, RelationTrait};
         let mut query = purchase_order::Entity::find()
@@ -534,6 +538,16 @@ impl PurchaseOrderService {
                 JoinType::LeftJoin,
                 purchase_order::Relation::Department.def(),
             );
+
+        // V15 P0-S01：行级数据权限过滤（purchase_order 表有 created_by + department_id，支持完整 Dept）
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                purchase_order::Column::CreatedBy,
+                purchase_order::Column::DepartmentId,
+            );
+        }
 
         // 添加筛选条件
         if let Some(status) = status {
@@ -554,7 +568,11 @@ impl PurchaseOrderService {
     }
 
     /// 获取订单详情
-    pub async fn get_order(&self, order_id: i32) -> Result<PurchaseOrderDto, AppError> {
+    pub async fn get_order(
+        &self,
+        order_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<PurchaseOrderDto, AppError> {
         use sea_orm::{JoinType, QuerySelect, RelationTrait};
         let order = purchase_order::Entity::find_by_id(order_id)
             .column_as(supplier::Column::SupplierName, "supplier_name")
@@ -573,6 +591,17 @@ impl PurchaseOrderService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // PurchaseOrderDto 的 created_by/department_id 由查询结果携带
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(order.created_by), Some(order.department_id)) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问采购订单 {}（数据范围限制）",
+                    order_id
+                )));
+            }
+        }
 
         Ok(order)
     }
@@ -606,7 +635,10 @@ impl PurchaseOrderService {
         status: Option<String>,
         supplier_id: Option<i32>,
     ) -> Result<Vec<u8>, AppError> {
-        let (orders, _total) = self.list_orders(1, 10000, status, supplier_id).await?;
+        // V15 P0-S01：内部调用传 None（导出由调用方决定权限范围，service 不再二次过滤）
+        let (orders, _total) = self
+            .list_orders(1, 10000, status, supplier_id, None)
+            .await?;
 
         let headers = vec![
             "订单编号".to_string(),

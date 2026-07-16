@@ -29,12 +29,15 @@ pub async fn list_orders(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
     let (orders, _total) = service
         .list_orders(
             params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
             params.supplier_id,
+            Some(&data_scope_ctx),
         )
         .await?;
 
@@ -95,7 +98,9 @@ pub async fn get_order(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
-    let order = service.get_order(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let order = service.get_order(id, Some(&data_scope_ctx)).await?;
     let mut order_json = serde_json::to_value(order)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
