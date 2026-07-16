@@ -115,6 +115,9 @@ pub async fn list_customers(
     // 获取数据权限过滤器
     let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
 
+    // V15 P0-S01：构建数据范围上下文，注入行级数据权限过滤
+    let data_scope_ctx = auth.to_data_scope_context();
+
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let result = customer_service
         .list_customers_with_filter(
@@ -123,6 +126,7 @@ pub async fn list_customers(
             query.customer_type,
             query.keyword,
             permission_filter,
+            &data_scope_ctx,
         )
         .await?;
 

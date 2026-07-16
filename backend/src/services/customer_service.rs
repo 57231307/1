@@ -16,6 +16,7 @@ use crate::search::{CustomerDoc, SearchClient, SearchSyncer};
 // B-P1-3 修复（批次 384 v13 复审）：客户主数据变更事件发布
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::data_permission::{DataPermissionFilter, CUSTOMER_ALL_FIELDS};
+use crate::utils::data_scope::{apply_data_scope_owner_only, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
 
@@ -321,14 +322,23 @@ impl CustomerService {
     }
 
     /// 获取客户列表（v11 批次 154c：已接入 list_customers_with_filter 的无过滤分支）
+    ///
+    /// V15 P0-S01：新增 data_scope_ctx 参数，注入行级数据权限过滤。
+    /// customer 表无 department_id 字段，使用 apply_data_scope_owner_only（dept 退化为 self）。
     pub async fn list_customers(
         &self,
         page_req: PageRequest,
         status: Option<String>,
         customer_type: Option<String>,
         keyword: Option<String>,
+        data_scope_ctx: &DataScopeContext,
     ) -> Result<PaginatedResponse<customer::Model>, AppError> {
-        let mut query = CustomerEntity::find();
+        // V15 P0-S01：行级数据权限过滤（按 created_by 过滤）
+        let mut query = apply_data_scope_owner_only(
+            CustomerEntity::find(),
+            data_scope_ctx,
+            customer::Column::CreatedBy,
+        );
 
         // 状态筛选
         if let Some(status) = status {
@@ -372,6 +382,8 @@ impl CustomerService {
     /// 获取客户列表（带数据权限过滤）
     ///
     /// v11 批次 154c P2-A：当 permission_filter 为 None 时委托给 list_customers，真实接入该方法
+    ///
+    /// V15 P0-S01：新增 data_scope_ctx 参数，注入行级数据权限过滤。
     pub async fn list_customers_with_filter(
         &self,
         page_req: PageRequest,
@@ -379,11 +391,12 @@ impl CustomerService {
         customer_type: Option<String>,
         keyword: Option<String>,
         permission_filter: Option<DataPermissionFilter>,
+        data_scope_ctx: &DataScopeContext,
     ) -> Result<PaginatedResponse<serde_json::Value>, AppError> {
         // v11 批次 154c P2-A：无权限过滤时委托给 list_customers，避免逻辑重复
         if permission_filter.is_none() {
             let paged = self
-                .list_customers(page_req, status, customer_type, keyword)
+                .list_customers(page_req, status, customer_type, keyword, data_scope_ctx)
                 .await?;
             // 转换 PaginatedResponse<customer::Model> → PaginatedResponse<serde_json::Value>
             let items: Vec<serde_json::Value> = paged
@@ -399,7 +412,11 @@ impl CustomerService {
             ));
         }
 
-        let mut query = CustomerEntity::find();
+        let mut query = apply_data_scope_owner_only(
+            CustomerEntity::find(),
+            data_scope_ctx,
+            customer::Column::CreatedBy,
+        );
 
         // 状态筛选
         if let Some(status) = status {

@@ -29,12 +29,15 @@ pub async fn list_orders(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
+    // V15 P0-S01：构建数据范围上下文，注入行级数据权限过滤
+    let data_scope_ctx = auth.to_data_scope_context();
     let (orders, _total) = service
         .list_orders(
             params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
             params.supplier_id,
+            &data_scope_ctx,
         )
         .await?;
 
@@ -495,13 +498,15 @@ use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 /// 导出采购订单
 pub async fn export_orders(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<OrderQueryParams>,
 ) -> Result<axum::response::Response, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
+    // V15 P0-S01：构建数据范围上下文，注入行级数据权限过滤
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let csv_data = service
-        .export_orders_to_csv(query.status, query.supplier_id)
+        .export_orders_to_csv(query.status, query.supplier_id, &data_scope_ctx)
         .await?;
 
     // 规则 3：将 service 返回的 CSV 解析为 xlsx 表格

@@ -1,4 +1,5 @@
 use crate::models::{supplier, supplier_contact, supplier_qualification};
+use crate::utils::data_scope::{apply_data_scope_owner_only, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
@@ -151,11 +152,20 @@ impl SupplierService {
     }
 
     /// 查询供应商列表（分页、筛选、排序）
+    ///
+    /// V15 P0-S01：新增 data_scope_ctx 参数，注入行级数据权限过滤。
+    /// supplier 表无 department_id 字段，使用 apply_data_scope_owner_only（dept 退化为 self）。
     pub async fn list_suppliers(
         &self,
         params: SupplierQueryParams,
+        data_scope_ctx: &DataScopeContext,
     ) -> Result<PaginatedResponse<supplier::Model>, AppError> {
-        let mut query = supplier::Entity::find();
+        // V15 P0-S01：行级数据权限过滤（按 created_by 过滤）
+        let mut query = apply_data_scope_owner_only(
+            supplier::Entity::find(),
+            data_scope_ctx,
+            supplier::Column::CreatedBy,
+        );
 
         // 筛选
         if let Some(supplier_type) = params.supplier_type {

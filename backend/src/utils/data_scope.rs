@@ -195,6 +195,39 @@ where
     query.filter(condition)
 }
 
+/// V15 P0-S01 新增：仅按归属人过滤的数据范围应用（无 department_id 的表使用）
+///
+/// 适用于 customer/supplier/sales_order 等缺少 department_id 字段的表。
+/// 这些表的 dept 范围退化为 self（按 created_by 过滤），
+/// 因为无法按部门过滤，部门经理只能看到本人创建的数据。
+///
+/// 后续批次可通过 migration 给这些表补 department_id 字段，
+/// 然后切换为完整的 apply_data_scope。
+pub fn apply_data_scope_owner_only<E, T>(
+    query: sea_orm::Select<E>,
+    ctx: &DataScopeContext,
+    owner_column: T,
+) -> sea_orm::Select<E>
+where
+    E: sea_orm::EntityTrait,
+    T: ColumnTrait,
+{
+    match ctx.scope {
+        DataScope::All => {
+            // 全部数据：不添加过滤条件
+            query
+        }
+        DataScope::Dept => {
+            // 本部门数据：无 department_id 列时退化为 self（按 created_by 过滤）
+            query.filter(owner_column.eq(ctx.user_id))
+        }
+        DataScope::Self_ => {
+            // 仅本人数据：按 created_by 过滤
+            query.filter(owner_column.eq(ctx.user_id))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -16,6 +16,7 @@ use crate::models::{
     sales_order_item,
 };
 use crate::services::so::{SalesOrderDetail, SalesOrderItemDetail};
+use crate::utils::data_scope::{apply_data_scope_owner_only, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::PaginatedResponse;
@@ -90,16 +91,23 @@ impl SalesService {
         status: Option<String>,
         customer_id: Option<i32>,
         order_no: Option<String>,
+        data_scope_ctx: &DataScopeContext,
     ) -> Result<PaginatedResponse<SalesOrderDetail>, AppError> {
-        let mut query = SalesOrderEntity::find()
-            .column_as(
-                crate::models::customer::Column::CustomerName,
-                "customer_name",
-            )
-            .join(
-                sea_orm::JoinType::LeftJoin,
-                sales_order::Relation::Customer.def(),
-            );
+        // V15 P0-S01：行级数据权限过滤（按 created_by 过滤）
+        // sales_order 表无 department_id 字段，使用 apply_data_scope_owner_only
+        let mut query = apply_data_scope_owner_only(
+            SalesOrderEntity::find(),
+            data_scope_ctx,
+            sales_order::Column::CreatedBy,
+        )
+        .column_as(
+            crate::models::customer::Column::CustomerName,
+            "customer_name",
+        )
+        .join(
+            sea_orm::JoinType::LeftJoin,
+            sales_order::Relation::Customer.def(),
+        );
 
         if let Some(s) = status {
             query = query.filter(sales_order::Column::Status.eq(s));

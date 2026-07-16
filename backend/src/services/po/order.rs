@@ -7,6 +7,7 @@ use crate::models::{
     department, product, purchase_order, purchase_order_item, status, supplier, warehouse,
 };
 use crate::services::po::UpdatePurchaseOrderRequest;
+use crate::utils::data_scope::{apply_data_scope, DataScopeContext};
 use crate::utils::error::AppError;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -513,27 +514,37 @@ impl PurchaseOrderService {
     }
 
     /// 获取订单列表（分页）
+    ///
+    /// V15 P0-S01：新增 data_scope_ctx 参数，注入行级数据权限过滤。
+    /// purchase_order 表有 department_id 字段，使用完整 apply_data_scope。
     pub async fn list_orders(
         &self,
         page: u64,
         page_size: u64,
         status: Option<String>,
         supplier_id: Option<i32>,
+        data_scope_ctx: &DataScopeContext,
     ) -> Result<(Vec<PurchaseOrderDto>, u64), AppError> {
         use sea_orm::{JoinType, QuerySelect, RelationTrait};
-        let mut query = purchase_order::Entity::find()
-            .column_as(supplier::Column::SupplierName, "supplier_name")
-            .column_as(warehouse::Column::Name, "warehouse_name")
-            .column_as(department::Column::Name, "department_name")
-            .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
-            .join(
-                JoinType::LeftJoin,
-                purchase_order::Relation::Warehouse.def(),
-            )
-            .join(
-                JoinType::LeftJoin,
-                purchase_order::Relation::Department.def(),
-            );
+        // V15 P0-S01：行级数据权限过滤（按 created_by + department_id 过滤）
+        let mut query = apply_data_scope(
+            purchase_order::Entity::find(),
+            data_scope_ctx,
+            purchase_order::Column::CreatedBy,
+            purchase_order::Column::DepartmentId,
+        )
+        .column_as(supplier::Column::SupplierName, "supplier_name")
+        .column_as(warehouse::Column::Name, "warehouse_name")
+        .column_as(department::Column::Name, "department_name")
+        .join(JoinType::LeftJoin, purchase_order::Relation::Supplier.def())
+        .join(
+            JoinType::LeftJoin,
+            purchase_order::Relation::Warehouse.def(),
+        )
+        .join(
+            JoinType::LeftJoin,
+            purchase_order::Relation::Department.def(),
+        );
 
         // 添加筛选条件
         if let Some(status) = status {
@@ -601,12 +612,17 @@ impl PurchaseOrderService {
     // ========== 数据导出方法 ==========
 
     /// 导出采购订单为 CSV 格式
+    ///
+    /// V15 P0-S01：新增 data_scope_ctx 参数，确保导出数据同样受行级数据权限约束。
     pub async fn export_orders_to_csv(
         &self,
         status: Option<String>,
         supplier_id: Option<i32>,
+        data_scope_ctx: &DataScopeContext,
     ) -> Result<Vec<u8>, AppError> {
-        let (orders, _total) = self.list_orders(1, 10000, status, supplier_id).await?;
+        let (orders, _total) = self
+            .list_orders(1, 10000, status, supplier_id, data_scope_ctx)
+            .await?;
 
         let headers = vec![
             "订单编号".to_string(),

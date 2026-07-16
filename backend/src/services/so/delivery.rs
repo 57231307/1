@@ -1114,18 +1114,21 @@ impl SalesService {
     // ========== 数据导出方法 ==========
 
     /// 导出销售订单为 CSV 格式
+    ///
+    /// V15 P0-S01：新增 data_scope_ctx 参数，注入行级数据权限过滤。
     pub async fn export_orders_to_csv(
         &self,
         status: Option<String>,
         customer_id: Option<i32>,
         order_no: Option<String>,
+        data_scope_ctx: &crate::utils::data_scope::DataScopeContext,
     ) -> Result<Vec<u8>, AppError> {
         let page_req = crate::models::dto::PageRequest {
             page: 1,
             page_size: 10000,
         };
         let orders = self
-            .list_orders(page_req, status, customer_id, order_no)
+            .list_orders(page_req, status, customer_id, order_no, data_scope_ctx)
             .await?;
 
         let headers = vec![

@@ -47,8 +47,17 @@ pub async fn list_orders(
         page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
 
+    // V15 P0-S01：构建数据范围上下文，注入行级数据权限过滤
+    let data_scope_ctx = auth.to_data_scope_context();
+
     let orders = sales_service
-        .list_orders(page_req, query.status, query.customer_id, query.order_no)
+        .list_orders(
+            page_req,
+            query.status,
+            query.customer_id,
+            query.order_no,
+            &data_scope_ctx,
+        )
         .await?;
 
     let mut orders_json = serde_json::to_value(orders)
@@ -404,13 +413,21 @@ use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 /// 导出销售订单
 pub async fn export_orders(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<SalesOrderQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
+    // V15 P0-S01：构建数据范围上下文，注入行级数据权限过滤
+    let data_scope_ctx = auth.to_data_scope_context();
+
     let csv_data = sales_service
-        .export_orders_to_csv(query.status, query.customer_id, query.order_no)
+        .export_orders_to_csv(
+            query.status,
+            query.customer_id,
+            query.order_no,
+            &data_scope_ctx,
+        )
         .await
         .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
 

@@ -19,10 +19,12 @@ use validator::Validate;
 pub async fn list_suppliers(
     Query(params): Query<SupplierQueryParams>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    // V15 P0-S01：构建数据范围上下文，注入行级数据权限过滤
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = SupplierService::new(state.db.clone());
-    let result = service.list_suppliers(params).await?;
+    let result = service.list_suppliers(params, &data_scope_ctx).await?;
 
     Ok(Json(ApiResponse::success(
         serde_json::to_value(result).map_err(AppError::from)?,
