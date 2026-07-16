@@ -2,12 +2,10 @@
 //!
 //! v14 批次 432：缸号全生命周期状态机
 //! 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪
-//! 真实业务流程：
-//!   缸号生命周期日志（14 种状态流转记录）+ 状态流转规则（28 条预置规则）
-//!   + 回修记录（4 种类型 + 5 种状态机）+ 操作记录（6 种操作类型）
-//! 14 种状态：
-//!   pending_schedule/scheduled/preparing/dyeing/washing/fixing/dehydrating/drying/inspecting/stored
-//!   /shipped/cancelled/terminated/rework
+//! 真实业务流程：缸号生命周期日志（14 种状态流转记录）+ 状态流转规则（28 条预置规则）
+//! 加上回修记录（4 种类型 + 5 种状态机）与操作记录（6 种操作类型）
+//! 14 种状态：pending_schedule/scheduled/preparing/dyeing/washing/fixing/dehydrating/drying/inspecting/stored
+//! /shipped/cancelled/terminated/rework
 
 use axum::{
     extract::{Path, Query, State},
