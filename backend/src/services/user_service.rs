@@ -21,6 +21,8 @@ use crate::utils::pagination::paginate_with_total;
 // V15 P0-S05：SoD 职责分离互斥校验
 use crate::models::role;
 use crate::models::role_conflict;
+// V15 P0-S06：用户角色变更审计
+use crate::models::permission_change_audit;
 // V15 P0-S07：用户角色变更/禁用时失效权限缓存 + 吊销 JWT
 use crate::middleware::permission::invalidate_permission_cache;
 use sea_orm::DatabaseConnection;
@@ -264,6 +266,7 @@ impl UserService {
     /// - `role_id`: 新角色 ID（可选）
     /// - `department_id`: 新部门 ID（可选）
     /// - `status`: 状态字符串，`"active"` 表示激活，其他表示禁用（可选）
+    /// - `operator_id`: 操作人 ID（V15 P0-S06 新增，用于权限变更审计）
     ///
     /// # 返回
     /// - `Ok(user)`: 更新成功
@@ -276,6 +279,7 @@ impl UserService {
         role_id: Option<i32>,
         department_id: Option<i32>,
         status: Option<String>,
+        operator_id: i32,
     ) -> Result<user::Model, AppError> {
         // V15 P0-S07：保存旧 role_id，用于角色变更时失效缓存
         let existing_user = user::Entity::find_by_id(user_id)
@@ -353,6 +357,40 @@ impl UserService {
                 invalidate_permission_cache(old_rid);
             }
             invalidate_permission_cache(new_role_id);
+
+            // V15 P0-S06：写入用户角色变更审计日志（best-effort，失败不阻塞主流程）
+            let audit = permission_change_audit::ActiveModel {
+                id: Default::default(),
+                change_type: Set("user_role_change".to_string()),
+                operator_id: Set(operator_id),
+                role_id: Set(Some(new_role_id)),
+                user_id: Set(Some(user_id)),
+                resource_type: Set(Some("user_role".to_string())),
+                action: Set(Some("assign".to_string())),
+                old_value: Set(old_role_id.map(|v| v.to_string())),
+                new_value: Set(Some(new_role_id.to_string())),
+                changed_at: Set(chrono::Utc::now()),
+                client_ip: Set(None),
+                remark: Set(Some(format!(
+                    "用户 {} 角色变更：{} → {}",
+                    user_id,
+                    old_role_id
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "无".to_string()),
+                    new_role_id
+                ))),
+            };
+            if let Err(e) = audit.insert(self.db.as_ref()).await {
+                warn!(
+                    target: "security_audit",
+                    event = "USER_ROLE_AUDIT_WRITE_FAILED",
+                    user_id = user_id,
+                    operator_id = operator_id,
+                    new_role_id = new_role_id,
+                    error = %e,
+                    "用户角色变更审计日志写入失败（best-effort，不阻塞主流程）"
+                );
+            }
         }
 
         Ok(updated)
