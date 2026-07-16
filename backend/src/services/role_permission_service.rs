@@ -8,6 +8,8 @@ use crate::models::role::{self, Entity as RoleEntity};
 use crate::models::role_permission::{self, Entity as RolePermissionEntity};
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
+// V15 P0-S07：权限变更时失效缓存
+use crate::middleware::permission::invalidate_permission_cache;
 use serde::{Deserialize, Serialize};
 
 /// 角色权限详情
@@ -323,6 +325,9 @@ impl RolePermissionService {
                 )
                 .await?;
 
+            // V15 P0-S07：权限变更后失效该角色的权限缓存
+            invalidate_permission_cache(request.role_id);
+
             Ok(RolePermissionDetail {
                 id: perm_entity.id,
                 role_id: perm_entity.role_id,
@@ -347,6 +352,9 @@ impl RolePermissionService {
             };
 
             let perm_entity = permission.insert(&*self.db).await?;
+
+            // V15 P0-S07：权限变更后失效该角色的权限缓存
+            invalidate_permission_cache(request.role_id);
 
             Ok(RolePermissionDetail {
                 id: perm_entity.id,
@@ -385,11 +393,18 @@ impl RolePermissionService {
 
         // P0 8-3 修复：delete 操作补审计日志
         // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+        let result = crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             RolePermissionEntity,
             _,
         >(&*self.db, "role_permission", permission_id, Some(user_id))
-        .await
+        .await;
+
+        // V15 P0-S07：权限删除后失效该角色的权限缓存
+        if result.is_ok() {
+            invalidate_permission_cache(permission.role_id);
+        }
+
+        result
     }
 
     /// 检查角色是否为管理员角色（带缓存）
