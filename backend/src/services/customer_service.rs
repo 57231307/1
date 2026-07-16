@@ -16,6 +16,8 @@ use crate::search::{CustomerDoc, SearchClient, SearchSyncer};
 // B-P1-3 修复（批次 384 v13 复审）：客户主数据变更事件发布
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::data_permission::{DataPermissionFilter, CUSTOMER_ALL_FIELDS};
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
 
@@ -313,11 +315,28 @@ impl CustomerService {
     }
 
     /// 获取客户详情
-    pub async fn get_customer(&self, customer_id: i32) -> Result<customer::Model, AppError> {
-        CustomerEntity::find_by_id(customer_id)
+    pub async fn get_customer(
+        &self,
+        customer_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<customer::Model, AppError> {
+        let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // customer 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, customer.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问客户 {}（数据范围限制）",
+                    customer_id
+                )));
+            }
+        }
+
+        Ok(customer)
     }
 
     /// 获取客户列表（v11 批次 154c：已接入 list_customers_with_filter 的无过滤分支）
@@ -327,8 +346,19 @@ impl CustomerService {
         status: Option<String>,
         customer_type: Option<String>,
         keyword: Option<String>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<PaginatedResponse<customer::Model>, AppError> {
         let mut query = CustomerEntity::find();
+
+        // V15 P0-S01：行级数据权限过滤（customer 表无 department_id，Dept 退化为 Self）
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                customer::Column::CreatedBy,
+                customer::Column::CreatedBy,
+            );
+        }
 
         // 状态筛选
         if let Some(status) = status {
@@ -379,11 +409,12 @@ impl CustomerService {
         customer_type: Option<String>,
         keyword: Option<String>,
         permission_filter: Option<DataPermissionFilter>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<PaginatedResponse<serde_json::Value>, AppError> {
         // v11 批次 154c P2-A：无权限过滤时委托给 list_customers，避免逻辑重复
         if permission_filter.is_none() {
             let paged = self
-                .list_customers(page_req, status, customer_type, keyword)
+                .list_customers(page_req, status, customer_type, keyword, data_scope)
                 .await?;
             // 转换 PaginatedResponse<customer::Model> → PaginatedResponse<serde_json::Value>
             let items: Vec<serde_json::Value> = paged
@@ -400,6 +431,16 @@ impl CustomerService {
         }
 
         let mut query = CustomerEntity::find();
+
+        // V15 P0-S01：行级数据权限过滤（customer 表无 department_id，Dept 退化为 Self）
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                customer::Column::CreatedBy,
+                customer::Column::CreatedBy,
+            );
+        }
 
         // 状态筛选
         if let Some(status) = status {
@@ -471,15 +512,19 @@ impl CustomerService {
     /// # 参数
     /// - `customer_id`: 客户ID
     /// - `permission_filter`: 数据权限过滤器，用于在数据库层面过滤字段
+    /// - `data_scope`: 行级数据范围上下文（IDOR 防护）
     pub async fn get_customer_with_filter(
         &self,
         customer_id: i32,
         permission_filter: Option<DataPermissionFilter>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<serde_json::Value, AppError> {
-        let query = CustomerEntity::find_by_id(customer_id);
+        // V15 P0-S01：先校验行级数据权限（IDOR 防护），复用 get_customer 的校验逻辑
+        let model = self.get_customer(customer_id, data_scope).await?;
 
         let customer = if let Some(filter) = permission_filter {
-            // 使用辅助函数构建只选择指定字段的查询
+            // 使用辅助函数构建只选择指定字段的查询（基于已校验的 model id 重新查询字段过滤版本）
+            let query = CustomerEntity::find_by_id(customer_id);
             let select_query = build_select_only_query(query, &filter);
 
             select_query
@@ -488,12 +533,7 @@ impl CustomerService {
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?
         } else {
-            // 没有过滤器，查询所有字段
-            let model = query
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
-
+            // 没有过滤器，使用已校验的 model 直接序列化
             serde_json::to_value(model)
                 .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?
         };

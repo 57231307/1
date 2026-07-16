@@ -65,9 +65,11 @@ pub fn router() -> Router<AppState> {
 pub async fn list_sales_returns(
     State(state): State<AppState>,
     Query(params): Query<SalesReturnQueryParams>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<PaginatedResponse<crate::models::sales_return::Model>>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
     let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -78,6 +80,7 @@ pub async fn list_sales_returns(
             params.customer_id,
             page,
             page_size,
+            Some(&data_scope_ctx),
         )
         .await?;
 
@@ -90,10 +93,12 @@ pub async fn list_sales_returns(
 pub async fn get_sales_return(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<crate::models::sales_return::Model>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
-    let return_order = service.get_return(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let return_order = service.get_return(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(return_order)))
 }
 

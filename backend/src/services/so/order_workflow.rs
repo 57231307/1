@@ -81,7 +81,7 @@ impl SalesService {
                 user_id,
             });
 
-        self.get_order_detail(order_id).await
+        self.get_order_detail(order_id, None).await
     }
 
     /// 获取订单统计

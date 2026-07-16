@@ -115,6 +115,9 @@ pub async fn list_customers(
     // 获取数据权限过滤器
     let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
 
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
+
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let result = customer_service
         .list_customers_with_filter(
@@ -123,6 +126,7 @@ pub async fn list_customers(
             query.customer_type,
             query.keyword,
             permission_filter,
+            Some(&data_scope_ctx),
         )
         .await?;
 
@@ -145,9 +149,12 @@ pub async fn get_customer(
     // 获取数据权限过滤器
     let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
 
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let customer_json = customer_service
-        .get_customer_with_filter(id, permission_filter)
+        .get_customer_with_filter(id, permission_filter, Some(&data_scope_ctx))
         .await?;
 
     Ok(Json(ApiResponse::success(customer_json)))
@@ -228,7 +235,7 @@ pub async fn update_customer(
     // 使用 created_by 做数据隔离：
     // - 管理员（role_id=1）可修改所有客户
     // - 普通用户只能修改自己创建的客户
-    let customer = customer_service.get_customer(id).await?;
+    let customer = customer_service.get_customer(id, None).await?;
     let is_admin = auth.role_id == Some(1);
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
@@ -288,7 +295,7 @@ pub async fn delete_customer(
     // 使用 created_by 做数据隔离：
     // - 管理员（role_id=1）可删除所有客户
     // - 普通用户只能删除自己创建的客户
-    let customer = customer_service.get_customer(id).await?;
+    let customer = customer_service.get_customer(id, None).await?;
     let is_admin = auth.role_id == Some(1);
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {

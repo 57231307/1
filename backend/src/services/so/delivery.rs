@@ -1125,7 +1125,7 @@ impl SalesService {
             page_size: 10000,
         };
         let orders = self
-            .list_orders(page_req, status, customer_id, order_no)
+            .list_orders(page_req, status, customer_id, order_no, None)
             .await?;
 
         let headers = vec![
