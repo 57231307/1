@@ -45,7 +45,9 @@ pub async fn list_leads(
     Query(query): Query<LeadQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.list_leads(query).await?;
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
+    let res = service.list_leads(query, Some(&data_scope_ctx)).await?;
     let mut value =
         serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
@@ -173,7 +175,9 @@ pub async fn get_lead(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.get_lead(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let res = service.get_lead(id, Some(&data_scope_ctx)).await?;
     let mut value =
         serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
@@ -262,7 +266,11 @@ pub async fn list_opportunities(
     Query(query): Query<OpportunityQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.list_opportunities(query).await?;
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
+    let res = service
+        .list_opportunities(query, Some(&data_scope_ctx))
+        .await?;
     let mut value =
         serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
@@ -350,7 +358,11 @@ pub async fn get_opportunity(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.get_opportunity(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let res = service
+        .get_opportunity(id, Some(&data_scope_ctx))
+        .await?;
     let mut value =
         serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
@@ -470,10 +482,14 @@ pub struct FollowUpQuery {
 pub async fn get_customer_360(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let value = service.get_customer_360(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let value = service
+        .get_customer_360(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -483,13 +499,17 @@ pub async fn get_customer_360(
 pub async fn list_follow_ups(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<FollowUpQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
     let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
-    let page_resp = service.list_follow_ups(id, page, page_size).await?;
+    let page_resp = service
+        .list_follow_ups(id, page, page_size, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(page_resp)?)))
 }
 

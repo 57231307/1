@@ -47,8 +47,8 @@ pub async fn assign_customer(
     let crm_service = CrmService::new(state.db.clone());
     let history_service = AssignmentHistoryService::new(state.db.clone());
 
-    // 获取线索
-    let lead = crm_service.get_lead(req.lead_id).await?;
+    // 获取线索（业务操作，不注入数据权限）
+    let lead = crm_service.get_lead(req.lead_id, None).await?;
 
     // 记录原归属人
     let from_user_id = lead.owner_id;

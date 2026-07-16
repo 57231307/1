@@ -63,7 +63,7 @@ pub async fn list_pool(
         page_size: Some(page_size),
     };
 
-    let result = service.list_leads(query).await?;
+    let result = service.list_leads(query, None).await?;
 
     // 转换分页结果为列表
     let data = result
@@ -128,7 +128,7 @@ pub async fn claim_from_pool(
     let service = CrmService::new(state.db.clone());
 
     // 获取线索
-    let lead = service.get_lead(req.lead_id).await?;
+    let lead = service.get_lead(req.lead_id, None).await?;
 
     // 检查是否在公海中
     if lead.lead_status.as_deref() != Some("pool") {
@@ -169,7 +169,7 @@ pub async fn recycle_to_pool(
     let service = CrmService::new(state.db.clone());
 
     // 获取线索
-    let lead = service.get_lead(req.lead_id).await?;
+    let lead = service.get_lead(req.lead_id, None).await?;
 
     // 检查状态
     if lead.lead_status.as_deref() == Some("pool") {
