@@ -9,6 +9,8 @@ use crate::utils::request_ext::PublicPathCache;
 use crate::utils::response::unauthorized_response;
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 use axum_extra::extract::cookie::{Key, PrivateCookieJar};
+// V15 P0-S01：auth 中间件需要查询 role 和 user 表以加载 data_scope 和 department_id
+use sea_orm::EntityTrait;
 use dashmap::DashMap;
 use std::sync::OnceLock;
 use std::time::Instant;
