@@ -7,6 +7,7 @@ use crate::services::enhanced_logger::{
     self, DeviceInfo, FailureInfo, LoginAttempt, LoginSecurityLog, SecurityInfo,
 };
 use crate::services::totp_service::TotpService;
+use crate::utils::admin_checker::ADMIN_ROLE_CODE;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -118,8 +119,9 @@ impl UserInfo {
         };
 
         let permissions: Vec<String> = if let Some(role_id) = user.role_id {
-            // P2 1-12 修复：系统管理员角色（is_system=true）注入 *:* 通配权限，
-            // 替代前端 role_name === 'admin' 字符串硬编码绕过，统一走权限码校验
+            // V15 P0-S03 修复：仅 admin 角色注入 *:* 通配权限，与后端 admin_checker::is_admin_role 一致。
+            // 原实现用 is_system 判断导致 manager/operator 也获得 *:* 超级权限（is_system 语义为"系统内置不可删除"，
+            // 不应等同于"超级权限"）。现改为 code == ADMIN_ROLE_CODE 精确匹配，仅 admin 放行。
             let role_model = crate::models::role::Entity::find_by_id(role_id)
                 .one(db)
                 .await
@@ -127,7 +129,7 @@ impl UserInfo {
                 .flatten();
 
             if let Some(ref role) = role_model {
-                if role.is_system {
+                if role.code == ADMIN_ROLE_CODE {
                     vec!["*:*".to_string()]
                 } else {
                     crate::models::role_permission::Entity::find()

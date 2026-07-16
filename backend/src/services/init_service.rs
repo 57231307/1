@@ -2,6 +2,7 @@
 
 use crate::models::department;
 use crate::models::role;
+use crate::models::role_permission;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
 use crate::utils::admin_checker::ADMIN_ROLE_CODE;
@@ -181,6 +182,9 @@ impl InitService {
             self.create_default_roles(),
             self.create_default_departments()
         )?;
+
+        // V15 P0-S03 修复：为 manager/operator 创建基本 role_permission 记录
+        self.create_default_role_permissions().await?;
 
         self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id)
             .await?;
@@ -415,6 +419,93 @@ impl InitService {
         }
 
         Ok(admin_role)
+    }
+
+    /// V15 P0-S03 修复：为 manager/operator 角色创建基本 role_permission 记录。
+    /// 原实现仅将权限 JSON 存入 role.permissions 字段，role_permission 表无记录，
+    /// 导致修改 `*:*` 注入后 manager/operator 完全无权限。此方法补全基本权限记录。
+    async fn create_default_role_permissions(&self) -> Result<(), InitError> {
+        // 检查 role_permission 表是否已有记录，避免重复插入
+        let existing_count = role_permission::Entity::find()
+            .count(self.db.as_ref())
+            .await
+            .unwrap_or(0);
+        if existing_count > 0 {
+            return Ok(());
+        }
+
+        // 查询 manager 和 operator 角色 id
+        let manager_role = role::Entity::find()
+            .filter(role::Column::Code.eq("manager"))
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("查询 manager 角色失败: {}", e)))?;
+
+        let operator_role = role::Entity::find()
+            .filter(role::Column::Code.eq("operator"))
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("查询 operator 角色失败: {}", e)))?;
+
+        let now = chrono::Utc::now();
+        let mut perms: Vec<role_permission::ActiveModel> = Vec::new();
+
+        // manager 权限：用户读取 + 产品/订单/客户/供应商全部操作
+        if let Some(ref mgr) = manager_role {
+            let mid = mgr.id;
+            for (resource, action) in [
+                ("users", "read"),
+                ("products", "*"),
+                ("orders", "*"),
+                ("customers", "*"),
+                ("suppliers", "*"),
+                ("inventory", "read"),
+            ] {
+                perms.push(role_permission::ActiveModel {
+                    id: Default::default(),
+                    role_id: Set(mid),
+                    resource_type: Set(resource.to_string()),
+                    resource_id: Set(None),
+                    action: Set(action.to_string()),
+                    allowed: Set(true),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                });
+            }
+        }
+
+        // operator 权限：产品/订单/客户/库存只读
+        if let Some(ref opr) = operator_role {
+            let oid = opr.id;
+            for (resource, action) in [
+                ("products", "read"),
+                ("orders", "read"),
+                ("customers", "read"),
+                ("inventory", "read"),
+            ] {
+                perms.push(role_permission::ActiveModel {
+                    id: Default::default(),
+                    role_id: Set(oid),
+                    resource_type: Set(resource.to_string()),
+                    resource_id: Set(None),
+                    action: Set(action.to_string()),
+                    allowed: Set(true),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                });
+            }
+        }
+
+        if !perms.is_empty() {
+            if let Err(e) = role_permission::Entity::insert_many(perms)
+                .exec(self.db.as_ref())
+                .await
+            {
+                warn!("批量创建角色权限失败: {}, 可能部分已存在", e);
+            }
+        }
+
+        Ok(())
     }
 
     async fn create_default_departments(&self) -> Result<i32, InitError> {
