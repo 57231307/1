@@ -25,6 +25,7 @@
 | 443 | #624 | V15 P0-S09 print_handler AuthContext 补齐：print_handler.rs 7 个 print/export 函数（5 个 print_html：sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer + list_print_templates + get_print_template）新增 _auth: AuthContext 参数；权限校验由 permission_middleware 自动根据路径提取 action=print 校验 *:print 权限；CI 12/12 全绿 |
 | 444 | 无需 PR | V15 P0-S09 其他域 export AuthContext 核查：5 个目标文件（sales_order/purchase_order/product/report_engine/crm）export 函数均已含 AuthContext，无需修改；quotation/customer/supplier/inventory/finance/quality 无 export/print 端点。**P0-S09 全部完成** |
 | 445 | #625 | V15 P0-S11 核心业务导出审计日志补齐（第 1 批）：5 文件 6 个 export 函数（sales_order/purchase_order/product/crm_leads/crm_opportunities/mrp_calculation）添加 AuditEvent + AuditLogService::record_async 审计写入（best-effort 异步）；修复 borrow of moved value（提前 clone String 查询条件）；CI 12/12 全绿 |
+| 446 | #626 | V15 P0-S11 报表染色域导出审计日志补齐（第 2 批）：5 文件 5 个 export 函数（report_engine/ar_reconciliation_pdf/sales_analysis/dye_recipe/dye_batch）添加 AuditEvent + AuditLogService::record_async 审计写入（best-effort 异步）；修复 report_engine_handler state.db borrow of moved value（service 改用 state.db.clone()）；CI 15/15 全绿。**P0-S11 全部完成** |
 
 ---
 
