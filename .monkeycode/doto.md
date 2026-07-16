@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433/434/435 完成，P0-S03/S04/S20/S21/S22 修复，PR #611/#612/#613 已合并；剩余 99 P0 + 257 P1 + 248 P2 + 123 P3）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433-436 完成，P0-S03/S04/S20/S21/S22/S01(基础设施) 修复，PR #611/#612/#613/#614 已合并；剩余 98 P0 + 257 P1 + 248 P2 + 123 P3，P0-S01 service 注入待 Batch 437）。
 
 ---
 
@@ -40,7 +40,7 @@
 
 #### 优先级 1：安全与权限（约 28 P0，最高优先级）
 
-##### P0-S01 行级数据权限完全未实现（类十二+类十四+类十八）
+##### P0-S01 行级数据权限完全未实现（类十二+类十四+类十八）🔄 进行中（Batch 436 基础设施完成）
 
 - **来源**：batch-10 P0-10-6/7 + batch-12 P0-12-13/14 + batch-15 P0-15-10
 - **证据**：
@@ -49,13 +49,19 @@
   - CRM 所有查询无 owner_id 过滤
 - **业务影响**：销售员可查询所有客户订单、CRM 数据无归属过滤、所有 `/:id` 路由未校验资源归属
 - **修复方案**：
-  1. 实现 `apply_data_scope(query, user_id, scope)` 工具函数（all/department/self 三级）
-  2. 在 customer/supplier/sales_order/purchase_order/crm_* 等 60+ service 查询入口注入
-  3. 新增 `data_scope` 字段到 role 表（all/dept/self）
-  4. 在所有 `/:id` handler 增加 `check_resource_owner` 校验（IDOR 防护）
-  5. PostgreSQL 行级安全 RLS 策略（可选，作为代码层兜底后的二次防护）
+  1. ✅ 实现 `apply_data_scope(query, user_id, scope)` 工具函数（all/department/self 三级）——Batch 436
+  2. ⏳ 在 customer/supplier/sales_order/purchase_order/crm_* 等 60+ service 查询入口注入——Batch 437
+  3. ✅ 新增 `data_scope` 字段到 role 表（all/dept/self）——Batch 436
+  4. ⏳ 在所有 `/:id` handler 增加 `check_resource_owner` 校验（IDOR 防护）——Batch 438
+  5. ⏳ PostgreSQL 行级安全 RLS 策略（可选，作为代码层兜底后的二次防护）——后续
 - **关联文件**（15+）：permission.rs / customer_service.rs / supplier_service.rs / sales_order_service.rs / purchase_order_service.rs / crm_lead_service.rs / crm_opportunity_service.rs / role_service.rs / 各 handler / 前端 customer/supplier/crm 视图
 - **预估批次**：5-6 批（约 30 文件）
+- **完成情况（Batch 436）**：
+  - migration m0051：role 表新增 data_scope 字段（all/dept/self），33 个角色配置默认值
+  - data_scope.rs 工具模块：DataScope 枚举 + DataScopeContext + build_data_scope_condition + apply_data_scope + check_resource_owner + 15 单元测试
+  - AuthContext 新增 department_id 和 data_scope 字段 + to_data_scope_context 方法
+  - auth 中间件从 DB 加载 role.data_scope 和 user.department_id 注入 AuthContext
+  - init_service.rs / role_service.rs / role_permission_service.rs 所有角色创建支持 data_scope
 
 ##### P0-S02 IDOR 越权访问防护未实现（类十二）
 
