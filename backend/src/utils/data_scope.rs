@@ -34,7 +34,10 @@ impl DataScope {
     ///
     /// 支持的值：all / dept / self（不区分大小写）
     /// 未知值默认回退到 Self_（最小权限原则）
-    pub fn from_str(s: &str) -> Self {
+    ///
+    /// V15 clippy 修复：方法名从 from_str 改为 parse_scope，
+    /// 避免与标准库 trait std::str::FromStr::from_str 冲突。
+    pub fn parse_scope(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "all" => DataScope::All,
             "dept" => DataScope::Dept,
@@ -44,7 +47,7 @@ impl DataScope {
 
     /// 从 role model 提取数据范围
     pub fn from_role(role: &crate::models::role::Model) -> Self {
-        Self::from_str(&role.data_scope)
+        Self::parse_scope(&role.data_scope)
     }
 
     /// 转为字符串
@@ -196,33 +199,33 @@ where
 mod tests {
     use super::*;
 
-    // ===== DataScope::from_str 测试 =====
+    // ===== DataScope::parse_scope 测试 =====
 
     #[test]
-    fn test_data_scope_from_str_all() {
-        assert_eq!(DataScope::from_str("all"), DataScope::All);
-        assert_eq!(DataScope::from_str("ALL"), DataScope::All);
-        assert_eq!(DataScope::from_str("All"), DataScope::All);
+    fn test_data_scope_parse_scope_all() {
+        assert_eq!(DataScope::parse_scope("all"), DataScope::All);
+        assert_eq!(DataScope::parse_scope("ALL"), DataScope::All);
+        assert_eq!(DataScope::parse_scope("All"), DataScope::All);
     }
 
     #[test]
-    fn test_data_scope_from_str_dept() {
-        assert_eq!(DataScope::from_str("dept"), DataScope::Dept);
-        assert_eq!(DataScope::from_str("DEPT"), DataScope::Dept);
+    fn test_data_scope_parse_scope_dept() {
+        assert_eq!(DataScope::parse_scope("dept"), DataScope::Dept);
+        assert_eq!(DataScope::parse_scope("DEPT"), DataScope::Dept);
     }
 
     #[test]
-    fn test_data_scope_from_str_self() {
-        assert_eq!(DataScope::from_str("self"), DataScope::Self_);
-        assert_eq!(DataScope::from_str("SELF"), DataScope::Self_);
+    fn test_data_scope_parse_scope_self() {
+        assert_eq!(DataScope::parse_scope("self"), DataScope::Self_);
+        assert_eq!(DataScope::parse_scope("SELF"), DataScope::Self_);
     }
 
     #[test]
-    fn test_data_scope_from_str_未知值默认self() {
+    fn test_data_scope_parse_scope_未知值默认self() {
         // 未知值应回退到 Self_（最小权限原则）
-        assert_eq!(DataScope::from_str("unknown"), DataScope::Self_);
-        assert_eq!(DataScope::from_str(""), DataScope::Self_);
-        assert_eq!(DataScope::from_str("admin"), DataScope::Self_);
+        assert_eq!(DataScope::parse_scope("unknown"), DataScope::Self_);
+        assert_eq!(DataScope::parse_scope(""), DataScope::Self_);
+        assert_eq!(DataScope::parse_scope("admin"), DataScope::Self_);
     }
 
     #[test]

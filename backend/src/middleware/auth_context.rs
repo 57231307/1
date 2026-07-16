@@ -81,7 +81,7 @@ impl AuthContext {
         let scope = self
             .data_scope
             .as_deref()
-            .map(DataScope::from_str)
+            .map(DataScope::parse_scope)
             .unwrap_or(DataScope::Self_);
 
         DataScopeContext {
