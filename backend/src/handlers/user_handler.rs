@@ -339,6 +339,7 @@ pub async fn update_user(
             req.role_id,
             req.department_id,
             req.status,
+            auth.user_id,
         )
         .await?;
 
