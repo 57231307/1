@@ -186,7 +186,8 @@ pub async fn export_report(
     auth: AuthContext,
     Query(query): Query<ExportReportQuery>,
 ) -> Result<Json<ApiResponse<ExportReportResponse>>, AppError> {
-    let service = ReportEngineService::new(state.db);
+    // V15 P0-S11：clone state.db 避免后续审计日志写入时 borrow of moved value
+    let service = ReportEngineService::new(state.db.clone());
 
     let _export_format: ExportFormat = query.format.parse().unwrap_or(ExportFormat::Csv);
 
