@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433-436 完成，P0-S03/S04/S20/S21/S22/S01(基础设施) 修复，PR #611/#612/#613/#614 已合并）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433-440 完成，P0-S03/S04/S20/S21/S22/S01(基础设施)/S18/S07/S05/S06 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621 已合并）。
 
 ---
 
@@ -17,6 +17,9 @@
 | 437 | #616 | V15 P0-S18 新增 dye_recipe_master（染色配方主管）角色，含 dye-recipes 全部操作 + approve/audit 审批权限 + lab-dip/production-recipes/color-cards/color-prices 全部操作；与 lab_technician 区别为管理层 vs 执行层 |
 | 438 | #617 | V15 P0-S07 权限缓存不失效修复：permission.rs 新增 invalidate_permission_cache/invalidate_all_permission_cache API + 3 单测；role_permission_service.rs assign_permission/remove_permission 接入缓存失效；user_service.rs update_user 角色变更失效旧+新角色缓存 + 禁用用户补 revoke_user_jtis JWT 吊销（原安全漏洞） |
 | 439 | #618 | V15 P0-S05 SoD 职责分离互斥：新增 role_conflicts 表（migration m0052）+ 8 条预置互斥规则（财务三权分立/采购付款/销售收款/生产质量）+ role_conflict model + user_service check_role_conflict_for_user 校验方法 + update_user 角色变更时校验 |
+| 440a | #619 | V15 P0-S06 权限变更审计基础设施：新增 migration m0053（permission_change_audits 表 13 字段 + 5 索引）+ permission_change_audit SeaORM model + 注册到 lib.rs/mod.rs；将原 Batch 440（5+ 文件）拆分为 3 个微批次避免卡死 |
+| 440b | #620 | V15 P0-S06 role_permission_service 接入审计日志：assign_permission 保存旧 allowed 值写入审计（old/new value）+ remove_permission 删除前保存信息写入审计 + 新增 write_permission_audit 私有方法（best-effort）；修复 borrow after move + 删除错误 clippy baseline |
+| 440c | #621 | V15 P0-S06 user_service 接入用户角色变更审计：update_user 新增 operator_id 参数 + 角色变更时写入 permission_change_audit（change_type=user_role_change，记录旧/新角色 ID）+ best-effort 策略；完成 P0-S06 全部修复 |
 
 ---
 
