@@ -5,12 +5,16 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+// V15 P0-S11：导出审计日志写入所需依赖
 use crate::services::report::{
     AggregateRequest, AggregationType, DataSource, ExportFormat, ReportEngineService, ReportFilter,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use std::sync::Arc;
 
 #[derive(Debug, Serialize)]
 pub struct ReportTemplateResponse {
@@ -179,10 +183,11 @@ pub struct ExportReportResponse {
 
 pub async fn export_report(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ExportReportQuery>,
 ) -> Result<Json<ApiResponse<ExportReportResponse>>, AppError> {
-    let service = ReportEngineService::new(state.db);
+    // V15 P0-S11：clone state.db 避免后续审计日志写入时 borrow of moved value
+    let service = ReportEngineService::new(state.db.clone());
 
     let _export_format: ExportFormat = query.format.parse().unwrap_or(ExportFormat::Csv);
 
@@ -222,6 +227,37 @@ pub async fn export_report(
                         format: query.format.clone(),
                         filename: format!("{}.{}", query.template_id, query.format),
                     };
+
+                    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+                    let event = AuditEvent {
+                        user_id: Some(auth.user_id),
+                        username: Some(auth.username.clone()),
+                        operation_type: OperationType::Export,
+                        severity: Severity::Info,
+                        resource_type: Some("report".to_string()),
+                        resource_id: None,
+                        resource_name: Some(format!(
+                            "{}.{}",
+                            query.template_id, query.format
+                        )),
+                        description: Some(format!(
+                            "用户 {} 导出报表 {}（格式：{}，大小：{} 字节）",
+                            auth.username, query.template_id, query.format, bytes.len()
+                        )),
+                        request_method: Some("GET".to_string()),
+                        request_path: Some("/api/v1/erp/reports/export".to_string()),
+                        before_snapshot: None,
+                        after_snapshot: Some(serde_json::json!({
+                            "template_id": query.template_id,
+                            "format": query.format,
+                            "size": bytes.len(),
+                            "date_start": query.date_start,
+                            "date_end": query.date_end,
+                        })),
+                    };
+                    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+                    svc.record_async(event, None);
+
                     Ok(Json(ApiResponse::success(response)))
                 }
                 Err(e) => {
