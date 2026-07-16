@@ -2,7 +2,7 @@
 
 > **本文件性质**：审计**计划**（非结果），是 V8-V14 七轮复审 + DB N+1 审计 + E2E 报告 + 面料行业真实业务调研的综合互补与升级版。
 > **触发条件**：v14 复审全部修复完成后（含批次 425-432 流转卡/验布/产量工资/能耗/染化料/委外/多业务模式/缸号状态机）自动触发。
-> **核心目标**：在 v14 面料行业 17 维度之上，**深化面料行业全模块业务闭环**，并把"长期治理维度"（性能/测试/i18n/部署运维/法律合规/RBAC 权限/打印导出审计/权限维度审计/业务主体维度审计/AI 模块/财务深化/CRM 全链路/报表 BI 通知/可观测性运维/胚布拆匹质量/库存排程物料/组织定制物流/前端架构体验/部署流程与升级管理）独立成专项审计，最终形成 **25 大类共 194 个审计维度** 的最严格审计体系。
+> **核心目标**：在 v14 面料行业 17 维度之上，**深化面料行业全模块业务闭环**，并把"长期治理维度"（性能/测试/i18n/部署运维/法律合规/RBAC 权限/打印导出审计/权限维度审计/业务主体维度审计/AI 模块/财务深化/CRM 全链路/报表 BI 通知/可观测性运维/胚布拆匹质量/库存排程物料/组织定制物流/前端架构体验/部署流程与升级管理/多租户残留清理）独立成专项审计，最终形成 **25 大类共 195 个审计维度** 的最严格审计体系。
 > **执行策略**：规则 13+14+15 联动，复审完成后自动连续修复，每批 5-8 文件，CI 全绿后自动进入下一批，无需用户确认；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子。
 > **真实业务依据**：[fabric-industry-research.md](file:///workspace/.monkeycode/docs/research/fabric-industry-research.md)（13 章节，覆盖染整工艺/化验室打样/大货处方/流转卡/车间工序/验布打卷/产量工资/能耗管理/缸号状态机）。
 >
@@ -66,11 +66,11 @@ V15 不是简单叠加，而是**互补升级**：
 19. **库存排程物料审计层**（V15 第九轮新增）：库存调拨/库存告警/物料短缺/排程算法/产能规划/工作中心调度 6 维度
 20. **组织定制物流审计层**（V15 第九轮新增）：部门管理/定制订单/售后/物流/incoterms 国际贸易术语 5 维度
 21. **前端架构与体验审计层**（V15 第九轮新增）：响应式设计/路由懒加载/Pinia 状态管理/组件设计/composables/ECharts/WebSocket 客户端/前端性能/Vite 构建/前端测试/XSS 防护/敏感数据/WCAG 可访问性/错误边界/表单验证/i18n 深化/权限粒度/路由元信息/API 拦截器/主题样式 20 维度
-22. **部署流程与升级管理层**（V15 第十轮新增）：部署流程闭环/CLI 工具完整性/升级流程健壮性/平滑升级（零停机/灰度/回滚）4 维度，覆盖 5 个 deploy 脚本 + backend/src/cli 子模块（admin/migrate/util）
+22. **部署流程与升级管理层**（V15 第十轮新增）：部署流程闭环/CLI 工具完整性/升级流程健壮性/平滑升级（零停机/灰度/回滚）/多租户代码残留与文件残留 5 维度，覆盖 5 个 deploy 脚本 + backend/src/cli 子模块（admin/migrate/util）+ 多租户功能下线后的代码/迁移/文档残留清理
 
 ---
 
-## 二、V15 审计维度全景（25 大类 / 194 维度）
+## 二、V15 审计维度全景（25 大类 / 195 维度）
 
 ```
 V15 审计体系
@@ -98,7 +98,7 @@ V15 审计体系
 ├── 二十二、库存排程物料审计专项（6 维度）⭐ — 用户 2026-07-15 第九轮反馈，覆盖库存调拨/告警/物料短缺/排程/产能/工作中心
 ├── 二十三、组织定制物流审计专项（5 维度）⭐ — 用户 2026-07-15 第九轮反馈，覆盖部门/定制订单/售后/物流/incoterms
 ├── 二十四、前端架构与体验审计专项（20 维度）⭐ — 用户 2026-07-15 第九轮反馈，覆盖前端 75+ views + 17 components + 36 composables + 5 stores + 85+ api + 20 个前端独有维度
-└── 二十五、部署流程与升级管理审计专项（4 维度）⭐ — 用户 2026-07-16 第十轮反馈，覆盖 5 个 deploy 脚本 + CLI 14 个子命令 + 升级流程 + 平滑升级（零停机/灰度/回滚）
+└── 二十五、部署流程与升级管理审计专项（5 维度）⭐ — 用户 2026-07-16 第十轮反馈，覆盖 5 个 deploy 脚本 + CLI 14 个子命令 + 升级流程 + 平滑升级（零停机/灰度/回滚）+ 多租户代码残留与文件残留清理
 ```
 
 ---
@@ -7018,6 +7018,55 @@ grep -rn "anomaly_detect\|abnormal\|异常检测" backend/src/
 
 **合理性评估**：当前完全无零停机/蓝绿/灰度/金丝雀部署能力，升级有 2-5 秒服务中断，无自动回滚，**严重不合理**，需重点改造。
 
+#### 25.5 多租户代码残留与文件残留审计 ⭐ V15 新增（用户 2026-07-16 第十轮反馈"多租户功能已经移除，应该审计他的代码残留和文件残留")
+
+> **背景**：多租户（multi-tenant）功能在 m0029_drop_tenant_columns 迁移（2026-06-28）中已完整下线，删除了所有业务表的 tenant_id 列 + 全部租户管理表（tenants/tenant_users/tenant_configs/tenant_subscriptions/tenant_usage/tenant_invoices/tenant_plans）。但代码库中仍可能存在残留：未清理的常量/注释/迁移文件/文档/配置。
+>
+> **V15 扫描初步发现**（基于 grep 全量扫描）：
+> 1. **代码残留**：
+>    - `backend/src/telemetry.rs:274` `ACTIVE_TENANTS` 常量定义但未被使用（死代码）
+>    - `backend/src/models/slow_query.rs:11` 注释引用已删除的 `idx_slow_query_tenant` 索引
+> 2. **迁移文件残留**（m0029 已删除 DB 列，但创建迁移仍保留 tenant_id 定义，新部署会先创建后删除）：
+>    - `20260527000001_add_basic_data_and_system_tables/up.sql`：api_keys/webhooks 表 tenant_id 列
+>    - `20260617000005_create_after_sales/up.sql`：tenant_id BIGINT NOT NULL
+>    - `20260617000006_create_color_cards/up.sql`：tenant_id BIGINT NOT NULL
+>    - `20260617000011_create_sales_facts/up.sql`：多租户隔离注释
+>    - `20260618000002_create_color_price_history/up.sql`：tenant_id BIGINT NOT NULL
+>    - `20260618000005_create_seasonal_price_rules/up.sql`：tenant_id BIGINT NOT NULL
+> 3. **文档残留**：MEMORY.md / ARCHITECTURE.md / SECURITY.md / DEVELOPER_GUIDE.md / CODE_STYLE_GUIDE.md / INTERFACES.md / PROJECT_HEALTH_REPORT.md 等 20+ 文档仍提及 tenant
+> 4. **历史审计文档残留**：2026-06-18-db-n1-audit.md / 2026-06-28-strict-reaudit-v4.md / v5 等历史审计文档提及 tenant（可保留作为历史记录）
+
+| 检查项 | 期望状态 | 来源 |
+|--------|----------|------|
+| 代码残留扫描 | 全量 grep `tenant\|多租户\|multi_tenant\|TenantId\|tenant_id` 在 backend/src/ 下，除迁移文件注释外必须 0 匹配 | **V15 新增** |
+| 死代码常量 | `telemetry.rs` `ACTIVE_TENANTS` 常量必须删除（未被业务引用） | **V15 新增** |
+| 注释残留 | `slow_query.rs` 注释引用已删除索引 `idx_slow_query_tenant` 必须更新 | **V15 新增** |
+| 模型字段残留 | SeaORM 模型（backend/src/models/）中不得有 `tenant_id` 字段或 `TenantId` 列 | **V15 新增** |
+| Service 残留 | Service 层（backend/src/services/）中不得有 tenant 过滤逻辑（如 `.filter(tenant_id.eq(...))`） | **V15 新增** |
+| Handler 残留 | Handler 层（backend/src/handlers/）中不得有从请求中提取 tenant_id 的逻辑 | **V15 新增** |
+| 中间件残留 | 中间件层（backend/src/middleware/）中不得有 tenant 上下文注入中间件 | **V15 新增** |
+| 路由残留 | 路由层（backend/src/routes/）中不得有 tenant 相关的路由前缀或守卫 | **V15 新增** |
+| 配置残留 | 配置文件（config.toml/.env.example）中不得有 tenant 相关配置项 | **V15 新增** |
+| 迁移文件残留 | 历史迁移 up.sql 中创建 tenant_id 列的语句应评估是否清理（**注意**：修改已执行迁移可能破坏迁移历史，需谨慎，建议保留但标注"已废弃"） | **V15 新增** |
+| 迁移文件残留 - 租户管理表 | 不得有创建 tenants/tenant_users/tenant_configs/tenant_subscriptions/tenant_usage/tenant_invoices/tenant_plans 表的迁移文件（如存在必须确认已被 m0029 删除） | **V15 新增** |
+| 前端残留 | 前端（frontend/src/）全量 grep `tenant\|多租户` 必须 0 匹配 | **V15 新增** |
+| 部署脚本残留 | 部署脚本（deploy/）全量 grep `tenant` 必须 0 匹配 | **V15 新增** |
+| 文档残留 - 活跃文档 | MEMORY.md / ARCHITECTURE.md / SECURITY.md / DEVELOPER_GUIDE.md / CODE_STYLE_GUIDE.md / INTERFACES.md / PROJECT_HEALTH_REPORT.md 等活跃文档必须清理 tenant 引用 | **V15 新增** |
+| 文档残留 - 历史文档 | 历史审计文档（audits/ 目录下的 v4/v5/db-n1-audit 等）可保留 tenant 引用作为历史记录，但需标注"多租户功能已于 2026-06-28 m0029 迁移完整下线" | **V15 新增** |
+| 数据库残留 | 生产数据库中不得有 tenant_id 列或租户管理表（通过 m0029 迁移验证） | **V15 新增** |
+| 索引残留 | 数据库中不得有 tenant 相关索引（idx_*_tenant 系列，通过 m0029 迁移验证） | **V15 新增** |
+| 外键残留 | 数据库中不得有 tenant 相关外键约束 | **V15 新增** |
+| 测试残留 | 测试代码中不得有 tenant 相关的测试用例或 mock 数据 | **V15 新增** |
+| 依赖残留 | Cargo.toml / package.json 中不得有 tenant 相关的依赖包 | **V15 新增** |
+| 环境变量残留 | .env / .env.example 中不得有 TENANT_ID / TENANT_NAME 等环境变量 | **V15 新增** |
+| API 残留 | API 接口中不得有 tenant 相关的请求头/查询参数/响应字段 | **V15 新增** |
+| 错误消息残留 | AppError 错误消息中不得有 tenant 相关的提示（如"租户不存在"） | **V15 新增** |
+| 日志残留 | 日志输出中不得有 tenant_id 字段（除迁移日志外） | **V15 新增** |
+| 监控指标残留 | metrics 指标中不得有 tenant 相关的 label 或 gauge（`active_tenants` 必须删除） | **V15 新增** |
+| 清理验证报告 | 多租户清理完成后生成验证报告，记录清理的文件/代码行数/迁移文件列表 | **V15 新增** |
+
+**合理性评估**：当前存在代码残留（telemetry.rs ACTIVE_TENANTS 死代码 + slow_query.rs 注释残留）+ 迁移文件残留（6 个创建迁移仍保留 tenant_id 定义）+ 20+ 文档残留，**不合理**，必须清理。
+
 ---
 
 ## 四、V15 审计执行流程
@@ -7145,8 +7194,8 @@ P0（N 项阻塞）→ P1（N 项高）→ P2（N 项中）→ P3（N 项低）
 | **库存排程物料审计** | 0（无专项） | 6 | ⭐ V15 第九轮新增（覆盖库存调拨/库存告警/物料短缺/排程算法/产能规划/工作中心调度） |
 | **组织定制物流审计** | 0（无专项） | 5 | ⭐ V15 第九轮新增（覆盖部门管理/定制订单/售后/物流/incoterms 国际贸易术语） |
 | **前端架构与体验审计** | 0（无专项） | 20 | ⭐ V15 第九轮新增（覆盖前端 75+ views + 17 components + 36 composables + 5 stores + 85+ api + 20 个前端独有维度：响应式/路由懒加载/Pinia/组件设计/composables/ECharts/WebSocket/性能/Vite/测试/XSS/敏感数据/WCAG/错误边界/表单/i18n/权限粒度/路由元信息/API 拦截器/主题样式） |
-| **部署流程与升级管理审计** | 0（无专项） | 4 | ⭐ V15 第十轮新增（用户 2026-07-16 明确"添加部署流程/内置 CLI 工具/内置升级流程/平滑升级"，覆盖 5 个 deploy 脚本 + CLI 14 个子命令 + 升级流程 + 平滑升级零停机/灰度/回滚） |
-| **合计** | **~80**（最大单轮） | **194**（互补去重） | ✅ 25 大类 194 维度最全面 |
+| **部署流程与升级管理审计** | 0（无专项） | 5 | ⭐ V15 第十轮新增（用户 2026-07-16 明确"添加部署流程/内置 CLI 工具/内置升级流程/平滑升级"+"多租户功能已经移除应审计残留"，覆盖 5 个 deploy 脚本 + CLI 14 个子命令 + 升级流程 + 平滑升级零停机/灰度/回滚 + 多租户代码/迁移/文档残留清理） |
+| **合计** | **~80**（最大单轮） | **195**（互补去重） | ✅ 25 大类 195 维度最全面 |
 
 ---
 
@@ -7154,9 +7203,9 @@ P0（N 项阻塞）→ P1（N 项高）→ P2（N 项中）→ P3（N 项低）
 
 V15 审计完成的验收标准：
 
-1. **25 大类 194 维度全部扫描完成**，每个维度生成独立报告
+1. **25 大类 195 维度全部扫描完成**，每个维度生成独立报告
 2. **总复审报告**保存到 `docs/audits/v15-review-YYYY-MM-DD.md`
-3. **按优先级排序修复队列**（P0 → P1 → P2 → P3 → 色卡发放修正 → 大货批色修正 → 纺织合规修正 → RBAC 权限修正 → 打印导出审计补齐 → 权限维度修正 → 业务主体维度修正含加工商功能补齐 → AI 模块修正 → 财务深化修正 → CRM 全链路修正 → 报表 BI 通知协同修正 → 可观测性运维修正 → 胚布拆匹质量修正 → 库存排程物料修正 → 组织定制物流修正 → 前端架构体验修正 → 部署流程与升级管理修正含 migrate CLI 实现+零停机部署+灰度升级+自动回滚补齐）
+3. **按优先级排序修复队列**（P0 → P1 → P2 → P3 → 色卡发放修正 → 大货批色修正 → 纺织合规修正 → RBAC 权限修正 → 打印导出审计补齐 → 权限维度修正 → 业务主体维度修正含加工商功能补齐 → AI 模块修正 → 财务深化修正 → CRM 全链路修正 → 报表 BI 通知协同修正 → 可观测性运维修正 → 胚布拆匹质量修正 → 库存排程物料修正 → 组织定制物流修正 → 前端架构体验修正 → 部署流程与升级管理修正含 migrate CLI 实现+零停机部署+灰度升级+自动回滚补齐+多租户残留清理）
 4. **修复阶段**严格按规则 13 流程执行，每批 5-8 文件
 5. **CI 全绿后自动进入下一批**，无需用户确认
 6. **所有警告视为错误**，必须真实修复（规则 14）
@@ -7180,8 +7229,9 @@ V15 审计完成的验收标准：
 24. **库存排程物料审计与补齐实现**：完成调拨流程闭环 + 跨库位调拨 + 跨缸号调拨 + 分级审批 + 安全库存设置 + 补货策略 + 告警通知 + 去重 + 物料短缺识别 + 分级 + 处理闭环 + 月报 + 排程算法 + 冲突检测 + 可视化 + 与生产集成 + 产能模型 + 负荷告警 + 瓶颈识别 + 月报 + 工作中心模型 + 调度规则 + 排程下发 + 异常重排（类二十二）
 25. **组织定制物流审计与补齐实现**：完成部门树形结构 + 权限关联 + 用户关联 + 变更审计 + 定制订单流程 + 专属质量标准 + 客户确认 + 全链路追溯 + 售后 4 类工单 + 流程闭环 + 原因分析 + 与质量集成 + 运单管理 + 物流跟踪 + 运费核算 + 电子签收 + incoterms 2020 11 种术语 + 术语与价格集成 + 责任划分 + 术语报表（类二十三）
 26. **前端架构与体验审计与补齐实现**：完成响应式断点 + 移动端布局 + PWA + 移动端性能 + 路由懒加载率 100% + chunk 体积监控 + 首屏性能 + prefetch + Pinia 模块化 + 持久化 + 跨模块通信 + 测试 + Props/Emits 类型安全 + 组件复用 + 文档 + composables 响应式 + 内存清理 + 错误处理 + 命名规范 + ECharts 大数据性能 + resize + dispose + 按需引入 + WebSocket 客户端重连 + 心跳 + 票据鉴权 + bundle 体积 + Tree Shaking + 防抖节流 + 内存泄漏 + Vite 配置 + Code Splitting + Source Map + 环境变量 + Vitest 单测 70% + 组件测试 + E2E + mock fixtures + v-html 审计 + DOMPurify + CSP + Clickjacking + localStorage 扫描 + token 安全 + 密钥泄露 + 开放重定向 + 键盘导航 + 焦点管理 + ARIA + 色彩对比度 + ErrorBoundary + 全局错误处理 + 监控接入 + 错误去重 + 表单校验 + 异步校验 + 防重复提交 + 脏数据检测 + 资源文件同步 + 语言切换 + Intl 格式化 + RTL + 按钮级权限 + 字段级权限 + 行级权限 + 缓存刷新 + meta 完整性 + 动态路由 + keep-alive + breadcrumb + 请求/响应拦截器 + 请求取消 + 超时重试 + CSS 变量 + 暗黑模式 + 样式作用域 + 主题切换（类二十四）
-27. **部署流程与升级管理审计与补齐实现**：完成部署脚本 set -euo pipefail + 端口冲突检查 + 部署后业务健康检查 + 部署日志持久化 + CLI migrate 子命令真实实现（list/up/down/status）+ CLI 错误处理统一 + CLI 日志持久化 + 权限校验 + 危险操作确认 + 升级 SHA256 校验 + 断点续传 + schema 版本兼容 + API 版本兼容 + 配置文件迁移 + 数据库迁移自动执行 + 回滚 DB schema + 多版本保留 + 零停机部署（蓝绿/滚动）+ 灰度/金丝雀发布 + 优雅退出 + 连接 draining + 长任务处理 + 配置热更新 + 自动回滚触发 + 回滚验证 + 缓存预热 + 流量切换 + 升级演练（类二十五）
-28. **触发 V16**：V15 全部修复完成后视项目状态决定是否需要
+27. **部署流程与升级管理审计与补齐实现**：完成部署脚本 set -euo pipefail + 端口冲突检查 + 部署后业务健康检查 + 部署日志持久化 + CLI migrate 子命令真实实现（list/up/down/status）+ CLI 错误处理统一 + CLI 日志持久化 + 权限校验 + 危险操作确认 + 升级 SHA256 校验 + 断点续传 + schema 版本兼容 + API 版本兼容 + 配置文件迁移 + 数据库迁移自动执行 + 回滚 DB schema + 多版本保留 + 零停机部署（蓝绿/滚动）+ 灰度/金丝雀发布 + 优雅退出 + 连接 draining + 长任务处理 + 配置热更新 + 自动回滚触发 + 回滚验证 + 缓存预热 + 流量切换 + 升级演练（类二十五 25.1-25.4）
+28. **多租户代码残留与文件残留清理**：完成 telemetry.rs ACTIVE_TENANTS 死代码删除 + slow_query.rs 注释更新 + 全量 grep backend/src/ 确保 0 匹配 + 前端/deploy 0 匹配 + 活跃文档（MEMORY.md/ARCHITECTURE.md/SECURITY.md/DEVELOPER_GUIDE.md/CODE_STYLE_GUIDE.md/INTERFACES.md/PROJECT_HEALTH_REPORT.md）tenant 引用清理 + 历史迁移文件标注"已废弃" + 历史审计文档标注"多租户功能已于 2026-06-28 m0029 迁移完整下线" + 生成清理验证报告（类二十五 25.5）
+29. **触发 V16**：V15 全部修复完成后视项目状态决定是否需要
 
 ---
 
@@ -7255,6 +7305,14 @@ V15 审计完成的验收标准：
   - systemd 服务：`deploy/bingxi.service`（或类似，需扫描确认）
   - Nginx 配置：`deploy/nginx.conf`（或类似，需扫描确认）
   - GitHub Release 工作流：`.github/workflows/ci-cd.yml`（打包发布 + GitHub Release 创建）
+- 多租户代码残留与文件残留审计对象（V15 类二十五 25.5）：
+  - 代码残留：`backend/src/telemetry.rs:274`（ACTIVE_TENANTS 死代码常量）+ `backend/src/models/slow_query.rs:11`（注释引用已删除索引 idx_slow_query_tenant）
+  - 多租户下线迁移：`backend/migration/src/m0029_drop_tenant_columns.rs` + `backend/migrations/20260628000001_drop_tenant_columns/up.sql`（删除 39 个业务表 tenant_id 列 + 50+ tenant 索引 + 7 个租户管理表）
+  - 历史迁移残留（创建时仍含 tenant_id）：`20260527000001_add_basic_data_and_system_tables/up.sql`（api_keys/webhooks）+ `20260617000005_create_after_sales/up.sql` + `20260617000006_create_color_cards/up.sql` + `20260617000011_create_sales_facts/up.sql`（多租户隔离注释）+ `20260618000002_create_color_price_history/up.sql` + `20260618000005_create_seasonal_price_rules/up.sql`
+  - 迁移注释残留：`backend/migration/src/m0025_p4_1_perf_indexes.rs`（tenant_id 索引说明）+ `backend/migration/src/m0044_integrate_unreferenced_migrations.rs`（drop_tenant_columns 依赖说明）+ `backend/migration/src/m0019_add_missing_columns.rs`（omni_audit_logs tenant_id 列说明）+ `backend/migration/src/lib.rs`（m0029 注册说明）
+  - 活跃文档残留：`.monkeycode/MEMORY.md` + `.monkeycode/docs/ARCHITECTURE.md` + `.monkeycode/docs/SECURITY.md` + `.monkeycode/docs/DEVELOPER_GUIDE.md` + `.monkeycode/docs/CODE_STYLE_GUIDE.md` + `.monkeycode/docs/INTERFACES.md` + `.monkeycode/docs/PROJECT_HEALTH_REPORT.md`
+  - 历史文档残留（可保留作历史记录）：`.monkeycode/docs/audits/2026-06-18-db-n1-audit.md` + `.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md` + `.monkeycode/docs/audits/2026-06-28-strict-reaudit-v5.md` + `.monkeycode/docs/archives/2026-07-10-职责分工修正/MEMORY-pre-role-fix.md` + `.monkeycode/docs/archives/2026-07-10/MEMORY-2026-07-10-pre-cleanup.md` + `.monkeycode/docs/archives/2026-07-11/MEMORY-pre-cleanup.md` + `.monkeycode/docs/database/legacy-migration-snapshots/backend-database-migration/006_tenant_saas.sql`（旧迁移快照）+ `.monkeycode/docs/database/legacy-migration-snapshots/backend-database-migration/007_api_gateway.sql`
+  - 旧迁移快照：`.monkeycode/docs/database/legacy-migration-snapshots/backend-database-migration/006_tenant_saas.sql`（SaaS 租户管理表完整创建脚本，已被 m0029 删除）
 
 ---
 
@@ -7272,6 +7330,7 @@ V15 审计完成的验收标准：
 | 2026-07-15 | 用户第八轮反馈"添加供货商维度/加工商维度/销售维度/客户维度/数据流传的审计，他们的功能全不全？功能完整吗？有没有需要补充的？合不合理？为什么？"：基于完整代码扫描（supplier_service.rs + supplier_evaluation_service.rs + purchase_order.rs + ap_reconciliation.rs + sales_order.rs + sales_order_item.rs + order_workflow.rs + delivery.rs + sales_return_service.rs + customer_service.rs + customer_credit_limit.rs + customer_credit_evaluate.rs + event_bus.rs + inventory_finance_bridge_service.rs + business_trace.rs）新增类十五业务主体维度审计与数据流转专项（15 维度）：15.1 供货商主数据完整性审计（suppliers 主表 + 7 张关联表 + schema/model 命名不一致 + migration 缺失 + 分类未落地 + 资质管理不完整 + 导入导出缺失）/15.2 供货商业务闭环审计（8/12 完整：创建/更新/删除/采购关联/对账单/等级评估 完整，评估自动触发/账户余额/供货历史/价格清单导入 缺失）/15.3 供货商面料行业特性审计（supplier_type 区分染料/助剂/坯布 合理，色卡能力/染色能力/印花能力字段 缺失不合理）/15.4 加工商维度审计（**完全未实现**重大功能缺口：无独立表/is_processor/委外加工单/加工费核算/收回入库/损耗/Service/Handler/路由/前端，含完整 4 表 DDL 设计：outsourcing_orders + outsourcing_receipts + processor_payments + suppliers 扩展）/15.5 加工商业务流程闭环审计（0/8 打通 0%：外发/核算/收回/损耗/付款/进度/缸号关联/报表 全部缺失）/15.6 销售订单数据模型与状态机审计（主表+明细+8 态状态机+报价单 完整，销售合同缺明细行表 不合理，销售预测 未实现可选）/15.7 销售业务流程闭环审计（12/12 完整 100%：报价→订单→发货→收款→退货闭环 + TOCTOU 防护 + 双单位换算 + 对称恢复 + BPM 补偿）/15.8 销售面料行业特性审计（5/6 完整 83%：缸号校验/双单位/等级价差/纸管重量 完整，按匹号发货 部分可改进）/15.9 客户主数据完整性审计（customers+信用+联系人+色卡价格+行业/质量标准 完整，多地址/多银行表 缺失可选）/15.10 客户信用与应收管理审计（11/12 完整：信用额度/占用/释放/调整/检查/预警/停用/评级算法/AR 关联/PDF/ES 合理，评级自动触发 cron 缺失不合理）/15.11 客户面料行业特性审计（6/8 完整 75%：分级/色卡价格/报价定价/行业/质量标准 完整，批色确认/色卡档案 已规划，特殊工艺要求 缺失可选）/15.12 跨模块数据流转审计（销售/采购/生产 三链路全通 + 事件总线 21 事件/双后端/幂等/死信/panic 隔离/事务一致性/TOCTOU/行锁/冗余刷新/ES 同步/BPM 补偿 合理，染色→质检→入库监听器仅日志无回写 不合理）/15.13 数据流转业务回写审计（库存财务桥接 7 种类型幂等 完整，business_traces 表模型存在无写入 不合理，DyeBatchCompleted/QualityInspectionCompleted 仅日志无回写 不合理）/15.14 数据流转报表与追溯审计（销售分析/AP 账龄/业财一体化/PDF/CSV/财务指标 完整，离线 ETL 未实现可选，business_traces 写入缺失不合理）/15.15 数据流转审计与异常检测审计（操作日志/omni_audit/事务内审计/死信审计/幂等审计 完整，business_traces 写入缺失/主动异常检测引擎/异常告警 缺失不合理）。V15 升级为 15 大类 115 维度最终版 | 主代理 |
 | 2026-07-15 | 用户第九轮反馈"调研项目还有什么维度没有被审计到，所有维度都应该被严格审计"：基于后端完整模块扫描（services 130+/handlers 140+/models 180+/middleware 17/utils 34）+ 前端完整模块扫描（views 85+/components 17/composables 36+/store 6/api 90+）识别出**后端完全未覆盖 19 个模块 + 部分覆盖 54 个模块 + 前端覆盖率 < 5% + 20 个前端独有维度全部缺失**，新增 9 个新类别共 75 维度：类十六 AI 模块审计专项（10 维度：覆盖 14 个 AI 模块 ai_process_optimization/ai_quality_prediction/ai/{detect,pred,rec,recipe_opt}/ai_extend_service/advanced/{analytics,decide,forecast,quality_pred,rec,recipe_opt,reorder}，含模型可解释性/数据安全/训练推理/权限控制/配方优化/质量预测/推荐/补货/性能/测试监控）/类十七财务深化审计专项（8 维度：会计期间结账/辅助核算/应收催收/账龄/财务分析/资金管理/预算/固定资产）/类十八 CRM 全链路审计专项（5 维度：线索/商机/客户池/数据权限/与销售模块数据流转）/类十九报表 BI 与通知协同审计专项（8 维度：报表定义/订阅/BI/仪表板/通知中心/邮件/OA 公告/五维度分析）/类二十可观测性与运维审计专项（8 维度：trace/metrics/WebSocket/failover/slow_query/api_gateway/system_version/log）/类二十一胚布拆匹与质量处理审计专项（5 维度：胚布库存/委托加工/拆匹规则/8D 流程/不合格品处理）/类二十二库存排程物料审计专项（6 维度：库存调拨/库存告警/物料短缺/排程算法/产能规划/工作中心）/类二十三组织定制物流审计专项（5 维度：部门/定制订单/售后/物流/incoterms 国际贸易术语）/类二十四前端架构与体验审计专项（20 维度：响应式/路由懒加载/Pinia/组件设计/composables/ECharts/WebSocket 客户端/前端性能/Vite 构建/前端测试/XSS 防护/敏感数据/WCAG 可访问性/错误边界/表单验证/i18n 深化/权限粒度/路由元信息/API 拦截器/主题样式/虚拟列表）。同步更新：核心目标（24 大类 190 维度）+ 互补逻辑（13-21 层）+ 维度全景图（24 类树状图）+ 触发条件（20 项前置）+ 执行方式（20 批并行子代理）+ 修复顺序（含 9 类补齐）+ 对比表（新增 9 行）+ 验收标准（27 项）+ 修订记录（第九轮）。V15 升级为 24 大类 190 维度最终版 | 主代理 |
 | 2026-07-16 | 用户第十轮反馈"添加部署流程/内置 CLI 工具/内置升级流程/平滑升级，还有没有新的维度没有被审计到"：基于完整部署/CLI/升级代码扫描（deploy/ 5 个脚本 + backend/src/cli/ 子模块 admin/migrate/util + backend/src/cli/util/upgrade.rs cmd_upgrade/cmd_deploy/cmd_rollback + backup.rs + service.rs + misc.rs）新增类二十五部署流程与升级管理审计专项（4 维度）：25.1 部署流程审计（18 项检查：5 个脚本完整性/幂等性/错误处理/路径一致性 + 配置目录/安装目录/systemd/依赖检查/端口冲突/密钥生成/备份前置/部署后健康检查/部署日志/回滚机制/Nginx/防火墙/禁止 Docker/CI/CD 集成）/25.2 内置 CLI 工具审计（18 项检查：3 顶层命令 + 14 个 Util 子命令 + Admin hash-password + Migrate 真实实现（当前占位）+ 服务管理/备份恢复/健康检查/升级部署/清理/配置/系统信息 + 帮助文档/版本号/错误处理统一/日志输出/镜像源配置/权限校验/危险操作确认）/25.3 内置升级流程审计（21 项检查：升级流程完整性 + 版本获取/指定/格式校验/回退检查 + 备份前置 + 下载校验 SHA256/镜像源降级/断点续传 + 包完整性校验 + schema/API 版本兼容 + 配置文件迁移 + 数据库迁移自动执行 + 服务重启策略 + 健康检查 + 升级日志/通知 + 回滚支持 + 回滚 DB schema + 多版本保留）/25.4 平滑升级（零停机/灰度/回滚）审计（20 项检查：零停机部署 + 蓝绿/滚动/金丝雀/灰度发布 + 健康检查门禁 + 优雅退出 + 连接 draining + WebSocket 连接保持 + 长任务处理 + 数据库迁移兼容 + 配置热更新 + 自动回滚触发 + 回滚 RTO/RPO + 回滚验证 + 状态保持 + 缓存预热 + 流量切换 + 监控告警 + 升级演练）。关键发现：migrate CLI 占位未实现、部署有 2-5 秒服务中断、无灰度/蓝绿/金丝雀、回滚不回滚 DB schema、无版本兼容校验、无健康检查自动回滚、CLI 错误处理不统一、无升级日志持久化。同步更新：核心目标（25 大类 194 维度）+ 互补逻辑（22 层）+ 维度全景图（25 类树状图）+ 触发条件（21 项前置）+ 执行方式（21 批并行子代理）+ 修复顺序（含 10 类补齐）+ 对比表（新增 1 行）+ 验收标准（28 项）+ 关联文档（部署/CLI 代码引用）+ 修订记录（第十轮）。V15 升级为 25 大类 194 维度最终版 | 主代理 |
+| 2026-07-16 | 用户第十一轮反馈"多租户功能已经移除，应该审计他的代码残留和文件残留"：基于全量 grep 扫描（tenant\|多租户\|multi_tenant\|TenantId\|tenant_id）发现代码残留（telemetry.rs:274 ACTIVE_TENANTS 死代码常量 + slow_query.rs:11 注释引用已删除索引 idx_slow_query_tenant）+ 迁移文件残留（6 个创建迁移仍保留 tenant_id BIGINT NOT NULL 定义：20260527000001 api_keys/webhooks + 20260617000005 after_sales + 20260617000006 color_cards + 20260617000011 sales_facts 多租户隔离注释 + 20260618000002 color_price_history + 20260618000005 seasonal_price_rules）+ 迁移注释残留（m0025_p4_1_perf_indexes + m0044_integrate_unreferenced_migrations + m0019_add_missing_columns + lib.rs m0029 注册）+ 20+ 活跃文档残留（MEMORY.md/ARCHITECTURE.md/SECURITY.md/DEVELOPER_GUIDE.md/CODE_STYLE_GUIDE.md/INTERFACES.md/PROJECT_HEALTH_REPORT.md）+ 历史文档残留（audits/v4/v5/db-n1-audit + archives/2026-07-10/2026-07-11）+ 旧迁移快照（006_tenant_saas.sql + 007_api_gateway.sql）。新增类二十五 25.5 多租户代码残留与文件残留审计（26 项检查：代码残留扫描/死代码常量/注释残留/模型字段/Service/Handler/中间件/路由/配置/迁移文件/租户管理表/前端/部署脚本/活跃文档/历史文档/数据库/索引/外键/测试/依赖/环境变量/API/错误消息/日志/监控指标/清理验证报告）。关键发现：telemetry.rs ACTIVE_TENANTS 未被业务引用、slow_query.rs 注释引用已删除索引、6 个创建迁移仍保留 tenant_id 定义导致新部署先创建后删除、20+ 活跃文档未清理。同步更新：核心目标（25 大类 195 维度）+ 互补逻辑（22 层含多租户残留清理）+ 维度全景图（25 类 5 维度）+ 对比表（类二十五 4→5 维度）+ 验收标准（28→29 项，新增第 28 项多租户残留清理）+ 修复顺序（含多租户残留清理）+ 关联文档（新增多租户残留审计对象代码引用）+ 9.2 节删除"多租户隔离"（功能已移除不需要审计隔离）+ 修订记录（第十一轮）。V15 升级为 25 大类 195 维度最终版 | 主代理 |
 
 ---
 
@@ -7295,7 +7354,6 @@ V15 审计完成的验收标准：
 
 | 维度 | 重要性 | 建议内容 |
 |------|--------|----------|
-| **多租户隔离** | 中 | 项目当前是单租户，但若未来 SaaS 化需审计：租户数据隔离（共享 DB 共享 Schema/独立 Schema/独立 DB）/租户权限/租户资源配额/租户计费 |
 | **API 版本管理** | 高 | 审计 API 版本策略（URL/Header/Query）/版本兼容性/废弃策略/版本文档/版本迁移工具/客户端兼容性矩阵 |
 | **消息队列治理** | 中 | 审计消息队列（Redis Stream/事件总线 event_bus）的消费者组/死信队列/重试策略/幂等性/消息积压/消息顺序/消息追踪 |
 | **任务调度（cron）治理** | 中 | 审计定时任务（cron job）的注册/调度/执行/失败重试/任务依赖/任务监控/任务日志/分布式锁/任务去重 |
