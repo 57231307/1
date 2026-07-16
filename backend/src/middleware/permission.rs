@@ -141,8 +141,8 @@ const PATH_ACTION_KEYWORDS: &[&str] = &[
 /// - `/api/v1/erp/users/123` → None
 /// - `/api/v1/erp/users` → None
 fn extract_action_from_path(path: &str) -> Option<String> {
-    // V15 clippy 修复：使用 next_back() 替代 last()，避免遍历整个迭代器
-    let last_segment = path.split('/').filter(|p| !p.is_empty()).next_back()?;
+    // V15 clippy 修复：使用 rfind 从后向前查找第一个非空段，等价于 filter().next_back() 但更简洁
+    let last_segment = path.split('/').rfind(|p| !p.is_empty())?;
     if PATH_ACTION_KEYWORDS.contains(&last_segment) {
         Some(last_segment.to_string())
     } else {
