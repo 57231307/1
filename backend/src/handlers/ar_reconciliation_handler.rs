@@ -9,13 +9,17 @@ use serde_json::Value as JsonValue;
 use tracing::info;
 
 use crate::middleware::auth_context::AuthContext;
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
 use crate::services::ar::{
     ArReconciliationService, AutoMatchRequest, CreateReconciliationRequest,
     GenerateReconciliationRequest, ReconciliationQuery, UpdateReconciliationRequest,
 };
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateReconciliationApiRequest {
@@ -574,6 +578,33 @@ pub async fn export_reconciliation_pdf(
 
     use base64::Engine;
     let encoded = base64::engine::general_purpose::STANDARD.encode(&pdf_content);
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("ar_reconciliation".to_string()),
+        resource_id: Some(id.to_string()),
+        resource_name: Some(format!("reconciliation_{}.pdf", id)),
+        description: Some(format!(
+            "用户 {} 导出对账单 PDF（ID: {}，大小：{} 字节）",
+            auth.username,
+            id,
+            pdf_content.len()
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(format!("/api/v1/erp/ar-reconciliations/{}/export-pdf", id)),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "id": id,
+            "content_type": "application/pdf",
+            "size": pdf_content.len(),
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({

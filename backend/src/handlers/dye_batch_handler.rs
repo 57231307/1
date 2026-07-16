@@ -11,11 +11,15 @@ use sea_orm::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::dye_batch;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use std::sync::Arc;
 
 /// 缸号状态枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -355,7 +359,7 @@ pub async fn get_dye_batches_by_color(
 /// GET /api/v1/erp/dye-batches/export - 导出缸号列表（xlsx）
 pub async fn export_dye_batches(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<DyeBatchListQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));
@@ -404,6 +408,35 @@ pub async fn export_dye_batches(
             })
             .collect(),
     };
+
+    let row_count = batches.len();
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("dye_batch".to_string()),
+        resource_id: None,
+        resource_name: Some("dye_batches_export.xlsx".to_string()),
+        description: Some(format!(
+            "用户 {} 导出染色缸号列表（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/dye-batches/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "batch_no_filter": query.batch_no,
+            "color_no_filter": query.color_no,
+            "status_filter": query.status,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
     build_xlsx_response(&table, "dye_batches_export")

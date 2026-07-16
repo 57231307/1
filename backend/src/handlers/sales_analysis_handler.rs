@@ -1,5 +1,8 @@
 use crate::middleware::auth_context::AuthContext;
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::sales_analysis;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::sales_analysis_service::{
     CreateSalesTargetInput, CustomerRankingParams, ExportParams, ProductRankingParams,
     SalesAnalysisService, SalesTargetDto, UpdateSalesTargetRequest,
@@ -13,6 +16,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use std::sync::Arc;
 use tracing::info;
 
 #[derive(Debug, Deserialize)]
@@ -187,10 +191,14 @@ pub async fn update_sales_target(
 /// handler 只需构造下载响应，无需 CSV→xlsx 中间转换。
 pub async fn export_analysis(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ExportParams>,
 ) -> Result<axum::response::Response, AppError> {
     info!("正在导出销售分析报告");
+    // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
+    let audit_period = params.period.clone();
+    let audit_format = params.format.clone();
+
     let service = SalesAnalysisService::new(state.db.clone());
     let bytes = service.export_report(params).await?;
 
@@ -198,6 +206,33 @@ pub async fn export_analysis(
         "sales_analysis_export_{}",
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("sales_analysis".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出销售分析报告（大小：{} 字节）",
+            auth.username,
+            bytes.len()
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/sales-analysis/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "size": bytes.len(),
+            "period_filter": audit_period,
+            "format_filter": audit_format,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     Ok(xlsx_response(bytes, &filename))
 }

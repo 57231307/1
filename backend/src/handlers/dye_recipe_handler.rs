@@ -12,7 +12,10 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrde
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::dye_recipe;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::dye_recipe_service::{
     CreateDyeRecipeRequest, DyeRecipeQuery, DyeRecipeService, UpdateDyeRecipeRequest,
 };
@@ -20,6 +23,7 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use std::sync::Arc;
 
 /// 列表查询参数（axum Query 反序列化用）
 #[derive(Debug, Deserialize)]
@@ -198,7 +202,7 @@ pub async fn submit_dye_recipe(
 /// xlsx Content-Type 的 200 响应；失败时通过 `?` 将 `sea_orm::DbErr` 自动转换为 `AppError`。
 pub async fn export_dye_recipes(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<DyeRecipeListQuery>,
 ) -> Result<axum::response::Response, AppError> {
     // 导出全量数据（不分页），保留 handler 直接查询以避免 service 暴露过多内部 select
@@ -262,6 +266,37 @@ pub async fn export_dye_recipes(
             })
             .collect(),
     };
+
+    let row_count = recipes.len();
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("dye_recipe".to_string()),
+        resource_id: None,
+        resource_name: Some("dye_recipes_export.xlsx".to_string()),
+        description: Some(format!(
+            "用户 {} 导出染色配方列表（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/dye-recipes/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "recipe_no_filter": query.recipe_no,
+            "color_code_filter": query.color_code,
+            "color_name_filter": query.color_name,
+            "dye_type_filter": query.dye_type,
+            "status_filter": query.status,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
     build_xlsx_response(&table, "dye_recipes_export")
