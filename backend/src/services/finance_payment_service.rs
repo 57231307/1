@@ -1,6 +1,8 @@
 
 use crate::models::finance_payment;
 use crate::models::status::finance_payment as payment_status;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -32,11 +34,26 @@ impl FinancePaymentService {
         Self { db }
     }
 
-    pub async fn find_by_id(&self, id: i32) -> Result<finance_payment::Model, AppError> {
-        finance_payment::Entity::find_by_id(id)
+    pub async fn find_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<finance_payment::Model, AppError> {
+        let payment = finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("付款 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("付款 ID {} 不存在", id)))?;
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // finance_payment 表无 department_id，Dept 退化为 Self；
+        // finance_payment.created_by 是 Option<i32>（create_payment 时已显式 Set(Some(auth.user_id))）。
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, payment.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问付款 {}（数据范围限制）", id
+                )));
+            }
+        }
+        Ok(payment)
     }
 
     pub async fn create_payment(
@@ -105,11 +122,24 @@ impl FinancePaymentService {
         page: u64,
         page_size: u64,
         status: Option<String>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<finance_payment::Model>, u64), AppError> {
         let mut query = finance_payment::Entity::find();
 
         if let Some(s) = status {
             query = query.filter(finance_payment::Column::Status.eq(s));
+        }
+
+        // V15 P0-S01：行级数据权限过滤
+        // finance_payment 表无 department_id，Dept 退化为 Self；
+        // finance_payment.created_by 是 Option<i32>（create_payment 时已显式 Set(Some(auth.user_id))）。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                finance_payment::Column::CreatedBy,
+                finance_payment::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
+            );
         }
 
         // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
