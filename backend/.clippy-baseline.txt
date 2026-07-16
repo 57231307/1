@@ -1,6 +1,0 @@
-
-    |
-    |         ^^^^^^^^^^^^^^^^^^^^^^ missing `color_no`, `dye_lot_no` and `grade`
-   --> src/services/ai/quality_pred.rs:507:9
-507 |         QualityInspectionModel {
-error[E0063]: missing fields `color_no`, `dye_lot_no` and `grade` in initializer of `models::quality_inspection_record::Model`
