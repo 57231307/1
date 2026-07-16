@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 全项目综合审计 21 批 195 维度全部完成，发现 732 个问题：104 P0 + 257 P1 + 248 P2 + 123 P3；本文件已重写为 V15 修复阶段超详细任务规划）。
+> 最近整理：2026-07-16（V15 修复阶段启动，Batch 433 P0-S03 超级权限注入修复完成，PR #611 已合并；剩余 103 P0 + 257 P1 + 248 P2 + 123 P3）。
 
 ---
 
@@ -64,17 +64,11 @@
 - **修复方案**：在 get/update/delete handler 增加 `require_resource_owner(resource_id, user_id)` 中间件
 - **关联文件**：所有 handler 文件（140+）
 
-##### P0-S03 `*:*` 超级权限注入修复（类十四）
+##### P0-S03 `*:*` 超级权限注入修复（类十四）✅ 已完成（Batch 433 / PR #611）
 
 - **来源**：batch-12 P0-12-1/3/10/11/12/20
-- **证据**：
-  - [init_service.rs](file:///workspace/backend/src/services/init_service.rs) `build_with_permissions("*:*")` 给 is_system 角色
-  - [permission.rs](file:///workspace/backend/src/middleware/permission.rs) `*:*` 通配放行所有
-- **修复方案**：
-  1. 移除 `*:*` 通配逻辑，改为显式权限码列表
-  2. is_system 角色改为显式授予所有真实权限码（如 `user:read,user:write,...`）
-  3. SQL 修复脚本：UPDATE role SET is_system=false WHERE name IN ('manager','operator')
-- **关联文件**：init_service.rs / permission.rs / path_utils.rs / schema 001/014/025
+- **修复**：auth_handler.rs 将 `is_system` 判断改为 `code == ADMIN_ROLE_CODE`，仅 admin 注入超级通配权限；init_service.rs 新增 `create_default_role_permissions` 为 manager/operator 插入基本 role_permission 记录
+- **状态**：✅ 已合并到 main（c3f3cc7c）
 
 ##### P0-S04 14 类业务角色补齐（类十四）
 

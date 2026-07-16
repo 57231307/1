@@ -2,7 +2,15 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 全项目综合审计 21 批 195 维度全部完成，发现 732 个问题：104 P0 + 257 P1 + 248 P2 + 123 P3，汇总报告 v15-summary-2026-07-16.md 已生成）。
+> 最近整理：2026-07-16（V15 修复阶段启动，Batch 433 P0-S03 超级权限注入修复完成，PR #611 已合并）。
+
+---
+
+## V15 修复阶段（2026-07-16 启动）
+
+| 批次 | PR | 一句话总结 |
+|------|-----|-----------|
+| 433 | #611 | V15 P0-S03 修复超级权限注入漏洞：auth_handler.rs 将 is_system 判断改为 code==ADMIN_ROLE_CODE，仅 admin 注入超级通配权限；init_service.rs 新增 create_default_role_permissions 为 manager/operator 插入基本 role_permission 记录 |
 
 ---
 
