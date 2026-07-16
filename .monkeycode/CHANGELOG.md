@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433-442 完成，P0-S03/S04/S20/S21/S22/S01(基础设施)/S18/S07/S05/S06/S10/S09(第1批) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623 已合并）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433-443 完成，P0-S03/S04/S20/S21/S22/S01(基础设施)/S18/S07/S05/S06/S10/S09(染色域+print_handler) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623/#624 已合并）。
 
 ---
 
@@ -22,6 +22,7 @@
 | 440c | #621 | V15 P0-S06 user_service 接入用户角色变更审计：update_user 新增 operator_id 参数 + 角色变更时写入 permission_change_audit（change_type=user_role_change，记录旧/新角色 ID）+ best-effort 策略；完成 P0-S06 全部修复 |
 | 441 | #622 | V15 P0-S10 method_to_action 升级识别 print/export/download：新增 extract_action_from_query 函数（白名单 print/export/download，防止绕过）+ permission_middleware action 提取优先级升级（查询参数 > 路径关键字 > HTTP method）+ OperationType 新增 Print/Download 变体 + 8 个单元测试；修复 str_as_str 不稳定特性编译错误 |
 | 442 | #623 | V15 P0-S09 染色域 export 端点补齐 AuthContext：dye_recipe_handler.rs export_dye_recipes + dye_batch_handler.rs export_dye_batches 新增 _auth: AuthContext 参数；权限校验由 permission_middleware 自动根据路径提取 action=export 校验 *:export 权限 |
+| 443 | #624 | V15 P0-S09 print_handler AuthContext 补齐：print_handler.rs 7 个 print/export 函数（5 个 print_html：sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer + list_print_templates + get_print_template）新增 _auth: AuthContext 参数；权限校验由 permission_middleware 自动根据路径提取 action=print 校验 *:print 权限；CI 12/12 全绿 |
 
 ---
 

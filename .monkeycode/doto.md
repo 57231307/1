@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433-442 完成，P0-S09 第 1 批完成；剩余 92 P0 + 257 P1 + 248 P2 + 123 P3；重新规划为小粒度批次，每批 3-5 文件）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433-443 完成，P0-S09 染色域+print_handler 完成；剩余 91 P0 + 257 P1 + 248 P2 + 123 P3；重新规划为小粒度批次，每批 3-5 文件）。
 
 ---
 
@@ -24,8 +24,8 @@
 | 440c | P0-S06 权限变更审计-user_service | 2 | 6 | ✅ 已完成 |
 | 441 | P0-S10 method_to_action 升级 | 2 | 7 | ✅ 已完成 |
 | 442 | P0-S09 染色域 export AuthContext | 2 | 8 | ✅ 已完成 |
-| 443 | P0-S09 print_handler AuthContext | 1 | 9 | 🔄 下一个 |
-| 444 | P0-S09 其他域 export AuthContext | 5 | 10 | ⏳ |
+| 443 | P0-S09 print_handler AuthContext | 1 | 9 | ✅ 已完成 |
+| 444 | P0-S09 其他域 export AuthContext | 5 | 10 | 🔄 下一个 |
 | 445-446 | P0-S11 导出审计日志补齐 | 10 | 11-12 | ⏳ |
 | 447 | P0-S01 service 注入-销售域 | 5 | 13 | ⏳ |
 | 448 | P0-S01 service 注入-采购域 | 4 | 14 | ⏳ |
@@ -159,6 +159,10 @@
   - [dye_batch_handler.rs](file:///workspace/backend/src/handlers/dye_batch_handler.rs) export 接口缺 AuthContext
 - **修复方案**：所有 print/export handler 强制注入 AuthContext，校验 `*:print` / `*:export` 权限
 - **关联文件**：13 个 print/export handler（dye_recipe/dye_batch/quotation/sales_order/purchase_order/customer/supplier/product/inventory/report/finance/crm/quality）
+- **修复进度**：
+  - ✅ Batch 442（PR #623）：染色域 dye_recipe + dye_batch export 端点
+  - ✅ Batch 443（PR #624）：print_handler.rs 7 个 print/export 函数（5 个 print_html + list_print_templates + get_print_template）
+  - ⏳ Batch 444：其他域 export 端点（sales_order/purchase_order/product/report_engine/crm handler）
 
 ##### P0-S10 method_to_action 不识别 print/export（类十三）
 
