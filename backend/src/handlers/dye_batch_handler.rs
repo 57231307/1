@@ -355,6 +355,7 @@ pub async fn get_dye_batches_by_color(
 /// GET /api/v1/erp/dye-batches/export - 导出缸号列表（xlsx）
 pub async fn export_dye_batches(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(query): Query<DyeBatchListQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));

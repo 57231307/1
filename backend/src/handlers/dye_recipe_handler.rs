@@ -198,6 +198,7 @@ pub async fn submit_dye_recipe(
 /// xlsx Content-Type 的 200 响应；失败时通过 `?` 将 `sea_orm::DbErr` 自动转换为 `AppError`。
 pub async fn export_dye_recipes(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(query): Query<DyeRecipeListQuery>,
 ) -> Result<axum::response::Response, AppError> {
     // 导出全量数据（不分页），保留 handler 直接查询以避免 service 暴露过多内部 select
