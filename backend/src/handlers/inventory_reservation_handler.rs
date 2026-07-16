@@ -46,7 +46,7 @@ pub struct ReservationResponse {
 /// 获取预留列表
 /// GET /api/v1/erp/inventory/reservations
 pub async fn list_reservations(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ReservationQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -56,6 +56,8 @@ pub async fn list_reservations(
 
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let (reservations, total) = service
         .list_reservations(
@@ -64,6 +66,7 @@ pub async fn list_reservations(
             query.product_id,
             query.warehouse_id,
             query.status,
+            Some(&data_scope_ctx),
         )
         .await
         .map_err(|e| AppError::internal(format!("获取预留列表失败: {}", e)))?;

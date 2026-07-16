@@ -1,6 +1,8 @@
 use crate::models::status::inventory_adjustment as adjustment_status;
 use crate::models::{inventory_adjustment, inventory_adjustment_item, inventory_stock};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -345,9 +347,23 @@ impl InventoryAdjustmentService {
         &self,
         page: u64,
         page_size: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<inventory_adjustment::Model>, u64), AppError> {
+        let mut query = inventory_adjustment::Entity::find();
+
+        // V15 P0-S01：行级数据权限过滤
+        // inventory_adjustment 表无 department_id，Dept 退化为 Self，使用 created_by（Option<i32>）。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                inventory_adjustment::Column::CreatedBy,
+                inventory_adjustment::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
+            );
+        }
+
         // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
-        let paginator = inventory_adjustment::Entity::find()
+        let paginator = query
             .order_by(inventory_adjustment::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
 
@@ -356,11 +372,27 @@ impl InventoryAdjustmentService {
     }
 
     /// 根据 ID 查询调整单
-    pub async fn get_adjustment(&self, adjustment_id: i32) -> Result<AdjustmentDetail, AppError> {
+    pub async fn get_adjustment(
+        &self,
+        adjustment_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdjustmentDetail, AppError> {
         let adjustment = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // inventory_adjustment 表无 department_id，Dept 退化为 Self；
+        // inventory_adjustment.created_by 是 Option<i32>。
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, adjustment.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问调整单 {}（数据范围限制）",
+                    adjustment_id
+                )));
+            }
+        }
 
         let items = inventory_adjustment_item::Entity::find()
             .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
@@ -476,7 +508,7 @@ impl InventoryAdjustmentService {
     ) -> Result<Vec<inventory_adjustment_item::Model>, AppError> {
         // 确认主单存在
         // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
-        self.get_adjustment(adjustment_id).await?;
+        self.get_adjustment(adjustment_id, None).await?;
 
         let items = inventory_adjustment_item::Entity::find()
             .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
@@ -493,7 +525,7 @@ impl InventoryAdjustmentService {
         adjustment_id: i32,
         req: AdjustmentItemRequest,
     ) -> Result<inventory_adjustment_item::Model, AppError> {
-        let detail = self.get_adjustment(adjustment_id).await?;
+        let detail = self.get_adjustment(adjustment_id, None).await?;
 
         if detail.adjustment.status != adjustment_status::PENDING {
             return Err(AppError::business(
@@ -562,7 +594,7 @@ impl InventoryAdjustmentService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单明细 {} 不存在", item_id)))?;
 
-        let detail = self.get_adjustment(item_model.adjustment_id).await?;
+        let detail = self.get_adjustment(item_model.adjustment_id, None).await?;
         if detail.adjustment.status != adjustment_status::PENDING {
             return Err(AppError::business(
                 "只有待审核状态的调整单可以修改明细".to_string(),
@@ -736,7 +768,7 @@ mod tests {
         let service = InventoryAdjustmentService::new(Arc::new(db));
 
         let (adjustments, total) = service
-            .list_adjustments(0, 20)
+            .list_adjustments(0, 20, None)
             .await
             .expect("list_adjustments should succeed");
 
@@ -750,7 +782,7 @@ mod tests {
         let db = setup_test_db().await;
         let service = InventoryAdjustmentService::new(Arc::new(db));
 
-        let result = service.get_adjustment(99999).await;
+        let result = service.get_adjustment(99999, None).await;
 
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
