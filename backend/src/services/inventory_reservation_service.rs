@@ -7,6 +7,8 @@ use std::sync::Arc;
 
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
 use crate::models::status::inventory_reservation as reservation_status;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, DataScopeContext};
 use crate::utils::error::AppError;
 
 /// 库存预留服务
@@ -132,6 +134,7 @@ impl InventoryReservationService {
         product_id: Option<i32>,
         warehouse_id: Option<i32>,
         status: Option<String>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<inventory_reservation::Model>, u64), AppError> {
         use crate::utils::pagination::paginate_with_total;
         use sea_orm::PaginatorTrait;
@@ -146,6 +149,17 @@ impl InventoryReservationService {
         }
         if let Some(s) = status {
             query = query.filter(inventory_reservation::Column::Status.eq(s));
+        }
+
+        // V15 P0-S01：行级数据权限过滤
+        // inventory_reservation 表无 department_id，Dept 退化为 Self，使用 created_by（Option<i32>）。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                inventory_reservation::Column::CreatedBy,
+                inventory_reservation::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
+            );
         }
 
         let paginator = query.paginate(&*self.db, page_size);
@@ -493,7 +507,7 @@ mod tests {
         let service = InventoryReservationService::new(Arc::new(db));
 
         // 无 inventory_reservations 表 schema，分页查询应返回数据库错误
-        let result = service.list_reservations(0, 10, None, None, None).await;
+        let result = service.list_reservations(0, 10, None, None, None, None).await;
         assert!(result.is_err());
     }
 }

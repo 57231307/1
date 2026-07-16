@@ -177,7 +177,7 @@ pub async fn approve_adjustment(
         .map_err(|e| AppError::bad_request(e.to_string()))?;
 
     let detail = service
-        .get_adjustment(id)
+        .get_adjustment(id, None)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
@@ -224,7 +224,7 @@ pub async fn reject_adjustment(
         .map_err(|e| AppError::bad_request(e.to_string()))?;
 
     let detail = service
-        .get_adjustment(id)
+        .get_adjustment(id, None)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
@@ -279,15 +279,19 @@ pub async fn reject_adjustment(
 
 /// 查询调整单列表
 pub async fn list_adjustments(
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(params): Query<ListAdjustmentsParams>,
 ) -> Result<Json<ApiResponse<AdjustmentListResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let (adjustments, total) = service
         .list_adjustments(
             params.page.unwrap_or(1).clamp(1, 1000),
             params.page_size.unwrap_or(20).clamp(1, 100),
+            Some(&data_scope_ctx),
         )
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
@@ -320,13 +324,16 @@ pub struct ListAdjustmentsParams {
 
 /// 查询调整单详情
 pub async fn get_adjustment(
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let detail = service
-        .get_adjustment(id)
+        .get_adjustment(id, Some(&data_scope_ctx))
         .await
         .map_err(|e| AppError::not_found(e.to_string()))?;
 
@@ -401,7 +408,7 @@ pub async fn update_adjustment(
         .map_err(|e| AppError::bad_request(e.to_string()))?;
 
     let detail = service
-        .get_adjustment(id)
+        .get_adjustment(id, None)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
