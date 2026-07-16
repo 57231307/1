@@ -241,6 +241,70 @@
 - D-P1-2: inventory_piece piece_no 联合唯一 ✅
 - D-P1-7: Rust 模型与 SQL 表同步 ✅
 
+### 批次 430：v14 P2 委托加工物资贯通（PR #608，已合并到 main）
+
+**修复内容**：基于面料行业真实业务调研文档 §5.4 委托加工物资核算三步分录 + §5.5 委外织布场景 + §5.7 损耗率标准 + §6.5 委托加工模式，实现委托加工物资全流程贯通。
+
+**修改文件**（DB 迁移 + 4 模型 + 5 组状态常量 + 1 Service + 25 Handler + 26 路由）：
+
+| 文件 | 修改类型 | 内容 |
+|------|---------|------|
+| database/migration/044_v14_outsourcing.sql | 新增 | 4 表（outsourcing_order/outsourcing_order_item/outsourcing_receipt/outsourcing_voucher）+ 10 外键 + 25 索引 + 3 唯一约束 |
+| backend/src/models/outsourcing_{order,order_item,receipt,voucher}.rs | 新增 | 4 个 SeaORM 模型 |
+| backend/src/models/status.rs | 修改 | 追加 5 组状态常量（outsourcing_order_type/outsourcing_order_status/outsourcing_loss_type/outsourcing_receipt_status/outsourcing_voucher_type） |
+| backend/src/services/outsourcing_service.rs | 新增 | ~1790 行，4 Service + 10 个纯函数 + 21 单元测试 |
+| backend/src/handlers/outsourcing_handler.rs | 新增 | 25 Handler |
+| backend/src/routes/outsourcing.rs | 新增 | 26 路由（3 前缀组） |
+
+**真实业务依据**：三步分录（发料→加工费→入库）+ 状态机（draft→issued→processing→received→settled→closed→cancelled）+ 损耗规则（正常损耗摊入成本，非正常损耗计入营业外支出）+ 标准损耗率（dyeing=0.05/weaving=0.035/printing=0.05/finishing=0.03）。
+
+---
+
+### 批次 431：v14 P2 多业务模式支持（PR #609，已合并到 main）
+
+**修复内容**：基于面料行业真实业务调研文档 §6 业务模式（坯布销售/染色加工/印花加工/来料加工/贸易模式），实现多业务模式配置 + 单据流程适配 + 成本核算适配。
+
+**修改文件**：业务模式配置表 + 模型 + Service + Handler + 路由（详见 PR #609）。
+
+**真实业务依据**：5 种业务模式（坯布销售/染色加工/印花加工/来料加工/贸易模式）+ 单据流程适配 + 成本核算适配。
+
+---
+
+### 批次 432：v14 P1 缸号全生命周期状态机完善（PR #610，sha: d4fdf5e6，已合并到 main）
+
+**修复内容**：基于面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪，实现缸号全生命周期状态机。
+
+**修改文件**（DB 迁移 + 4 模型 + 5 组状态常量 + 1 Service + 26 Handler + 4 组路由）：
+
+| 文件 | 修改类型 | 内容 |
+|------|---------|------|
+| database/migration/046_v14_dye_batch_state_machine.sql | 新增 | 4 表（dye_batch_lifecycle_log/dye_batch_state_rule/dye_batch_rework/dye_batch_operation）+ 28 条预置状态流转规则 |
+| backend/src/models/dye_batch_{lifecycle_log,operation,rework,state_rule}.rs | 新增 | 4 个 SeaORM 模型 |
+| backend/src/models/status.rs | 修改 | 追加 5 组状态常量（dye_batch_lifecycle_status 14 种状态 + dye_batch_transition_code 13 种流转代码 + dye_batch_rework_type 4 种回修类型 + dye_batch_rework_status 5 种回修单状态 + dye_batch_operation_type 6 种操作类型） |
+| backend/src/services/dye_batch_state_machine_service.rs | 新增 | ~1525 行，4 Service + 11 个纯函数 + 25 单元测试 |
+| backend/src/handlers/dye_batch_state_machine_handler.rs | 新增 | 430 行，26 个 handler |
+| backend/src/routes/production.rs | 修改 | 追加 dye_batch_state_machine() 4 组路由 |
+
+**真实业务依据**：14 种状态（pending_schedule/scheduled/preparing/dyeing/washing/fixing/dehydrating/drying/inspecting/stored/shipped/cancelled/terminated/rework）+ 28 条预置流转规则 + 终态保护（shipped/cancelled/terminated 不可流转）+ 回修 rework→dyeing + 6 种操作（merge 合缸/split 分缸/priority_adjust 优先级调整/batch_change 缸变更/schedule_change 计划变更/terminate 终止）。
+
+**CI 修复历程**：3 轮 rustdoc `doc list item without indentation` 警告修复（4 个模型文件 `/// - ` 列表 + service `//! - ` 列表 + handler/routes `/// + ` 列表标记改为 plain paragraph text）。
+
+---
+
+### v14 复审修复总结（2026-07-16 全部完成）
+
+| 维度 | 总数 | 已完成 | 状态 |
+|------|------|--------|------|
+| v14 P0 阻塞修复 | 12 | 12 | ✅ 全部完成（批次 416-419） |
+| v14 P1 高优先级 | 31 | 31 | ✅ 全部完成（批次 420-429 + 430-432 真实业务流程贯通覆盖） |
+| v14 P2 中优先级 | 12 | 12 | ✅ 全部完成（批次 397-407 阶段 8） |
+| v14 P3 低优先级 | 6 | 6 | ✅ 全部完成（批次 408-410 阶段 9） |
+| baseline 警告清零 | 213 | 213 | ✅ 全部完成（批次 395-396） |
+| 业务/财务/运行逻辑闭环 | 82 | 82 | ✅ 全部完成（v13 阶段） |
+| **合计** | **~430** | **430** | ✅ **v14 复审修复全部完成** |
+
+**下一步**：等待用户通知是否进入 V15 审计（25 大类 195 维度）。
+
 ---
 
 ## 📝 已完成批次详细记录（技术债务清理，批次 411-415）
