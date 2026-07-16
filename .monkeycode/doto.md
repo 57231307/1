@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433-441 完成，12/104 P0 已修复；剩余 92 P0 + 257 P1 + 248 P2 + 123 P3；重新规划为小粒度批次，每批 3-5 文件）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433-442 完成，P0-S09 第 1 批完成；剩余 92 P0 + 257 P1 + 248 P2 + 123 P3；重新规划为小粒度批次，每批 3-5 文件）。
 
 ---
 
@@ -23,7 +23,9 @@
 | 440b | P0-S06 权限变更审计-role_permission_service | 1 | 5 | ✅ 已完成 |
 | 440c | P0-S06 权限变更审计-user_service | 2 | 6 | ✅ 已完成 |
 | 441 | P0-S10 method_to_action 升级 | 2 | 7 | ✅ 已完成 |
-| 442-444 | P0-S09 打印导出 AuthContext 补齐 | 13 | 8-10 | 🔄 下一个 |
+| 442 | P0-S09 染色域 export AuthContext | 2 | 8 | ✅ 已完成 |
+| 443 | P0-S09 print_handler AuthContext | 1 | 9 | 🔄 下一个 |
+| 444 | P0-S09 其他域 export AuthContext | 5 | 10 | ⏳ |
 | 445-446 | P0-S11 导出审计日志补齐 | 10 | 11-12 | ⏳ |
 | 447 | P0-S01 service 注入-销售域 | 5 | 13 | ⏳ |
 | 448 | P0-S01 service 注入-采购域 | 4 | 14 | ⏳ |
