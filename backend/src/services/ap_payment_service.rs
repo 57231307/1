@@ -6,6 +6,8 @@
 // 批次 100 P3-A 修复（v5 复审）：状态字符串常量化，引用 crate::models::status
 
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 // 批次 259 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -515,12 +517,25 @@ impl ApPaymentService {
     }
 
     /// 获取付款单详情
-    pub async fn get_by_id(&self, id: i32) -> Result<ap_payment::Model, AppError> {
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<ap_payment::Model, AppError> {
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款单 {}", id)))?;
-
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // ap_payment 表无 department_id，Dept 退化为 Self；
+        // ap_payment.created_by 是 i32（必填）。
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(payment.created_by), None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问付款单 {}（数据范围限制）", id
+                )));
+            }
+        }
         Ok(payment)
     }
 
@@ -528,6 +543,7 @@ impl ApPaymentService {
     pub async fn get_list(
         &self,
         params: ApPaymentListQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<ap_payment::Model>, u64), AppError> {
         let mut query = ap_payment::Entity::find();
 
@@ -546,6 +562,18 @@ impl ApPaymentService {
         }
         if let Some(ed) = params.end_date {
             query = query.filter(ap_payment::Column::PaymentDate.lte(ed));
+        }
+
+        // V15 P0-S01：行级数据权限过滤
+        // ap_payment 表无 department_id，Dept 退化为 Self；
+        // ap_payment.created_by 是 i32（必填）。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                ap_payment::Column::CreatedBy,
+                ap_payment::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
+            );
         }
 
         // 批次 259 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
