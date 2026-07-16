@@ -426,8 +426,8 @@ impl SalesService {
         // 提交事务
         txn.commit().await?;
 
-        // 返回订单详情
-        let detail = self.get_order_detail(order_id).await?;
+        // 返回订单详情（service 内部调用，无数据权限过滤）
+        let detail = self.get_order_detail(order_id, None).await?;
 
         // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
         self.sync_sales_order_to_es(&detail, "create").await;
@@ -608,8 +608,8 @@ impl SalesService {
         // 提交事务
         txn.commit().await?;
 
-        // 返回订单详情
-        let detail = self.get_order_detail(order_id).await?;
+        // 返回订单详情（service 内部调用，无数据权限过滤）
+        let detail = self.get_order_detail(order_id, None).await?;
 
         // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
         self.sync_sales_order_to_es(&detail, "update").await;

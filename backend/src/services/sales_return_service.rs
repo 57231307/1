@@ -4,6 +4,8 @@
 
 use crate::models::{inventory_stock, product, sales_return, sales_return_item};
 use crate::models::status::sales_return as sr_status;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;
@@ -618,11 +620,28 @@ impl SalesReturnService {
     }
 
     /// 获取退货单详情
-    pub async fn get_return(&self, return_id: i32) -> Result<sales_return::Model, AppError> {
-        sales_return::Entity::find_by_id(return_id)
+    pub async fn get_return(
+        &self,
+        return_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<sales_return::Model, AppError> {
+        let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // sales_return 表 created_by 为 i32（非 Option），Dept 退化为 Self
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(return_order.created_by), None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问销售退货单 {}（数据范围限制）",
+                    return_id
+                )));
+            }
+        }
+
+        Ok(return_order)
     }
 
     /// 删除退货单
@@ -837,8 +856,19 @@ impl SalesReturnService {
         customer_id: Option<i32>,
         page: u64,
         page_size: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<sales_return::Model>, u64), AppError> {
         let mut query = sales_return::Entity::find();
+
+        // V15 P0-S01：行级数据权限过滤（sales_return 表 created_by 为 i32，Dept 退化为 Self）
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                sales_return::Column::CreatedBy,
+                sales_return::Column::CreatedBy,
+            );
+        }
 
         if let Some(no) = return_no {
             query = query.filter(sales_return::Column::ReturnNo.contains(&no));

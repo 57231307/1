@@ -42,13 +42,22 @@ pub async fn list_orders(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
+
     let page_req = PageRequest {
         page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let orders = sales_service
-        .list_orders(page_req, query.status, query.customer_id, query.order_no)
+        .list_orders(
+            page_req,
+            query.status,
+            query.customer_id,
+            query.order_no,
+            Some(&data_scope_ctx),
+        )
         .await?;
 
     let mut orders_json = serde_json::to_value(orders)
@@ -115,7 +124,11 @@ pub async fn get_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
-    let order = sales_service.get_order_detail(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let order = sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     let mut order_json = serde_json::to_value(order)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
@@ -306,8 +319,8 @@ pub async fn ship_order(
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // 调用原有 ship_order(request, user_id)
     sales_service.ship_order(payload, auth.user_id).await?;
-    // 重新获取订单详情用于通知
-    let order = sales_service.get_order_detail(id).await?;
+    // 重新获取订单详情用于通知（发货操作后内部调用，无数据权限过滤）
+    let order = sales_service.get_order_detail(id, None).await?;
 
     // 订单发货成功后发送通知给申请人
     if let Some(event_service) = &state.event_notification_service {
