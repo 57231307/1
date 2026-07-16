@@ -18,6 +18,8 @@ use crate::models::{
     customer_followup::Entity as CustomerFollowupEntity,
     sales_order::{Column as SalesOrderColumn, Entity as SalesOrderEntity},
 };
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -104,12 +106,27 @@ impl CrmService {
     }
 
     /// 获取客户 360 视图（基本信息 + 关联数据 + 商机简报）
-    pub async fn get_customer_360(&self, customer_id: i32) -> Result<serde_json::Value, AppError> {
+    pub async fn get_customer_360(
+        &self,
+        customer_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<serde_json::Value, AppError> {
         // 客户基本信息
         let customer_info = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // customer 表无 department_id，Dept 退化为 Self；
+        // customer.created_by 是 Option<i32>，可能为 None（None 时 Self 范围拒绝访问）。
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, customer_info.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问客户 {} 的 360 视图（数据范围限制）", customer_id
+                )));
+            }
+        }
 
         // 关联商机
         let opportunities: Vec<super::OpportunityBrief> = CrmOpportunityEntity::find()
@@ -119,7 +136,7 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
-        // 关联摘要
+        // 关联摘要（内部调用传 None，权限已在 customer_info 校验）
         let summary = self.get_customer_relation_summary(customer_id).await?;
 
         // 最近订单
@@ -145,7 +162,23 @@ impl CrmService {
         customer_id: i32,
         page: u64,
         page_size: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<serde_json::Value, AppError> {
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // 先校验用户是否有权访问该 customer，再返回其跟进记录。
+        // customer 表无 department_id，Dept 退化为 Self。
+        if let Some(ctx) = data_scope {
+            let customer_info = CustomerEntity::find_by_id(customer_id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+            if !check_resource_owner(ctx, customer_info.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问客户 {} 的跟进记录（数据范围限制）", customer_id
+                )));
+            }
+        }
+
         let paginator = CustomerFollowupEntity::find()
             .filter(customer_followup::Column::CustomerId.eq(customer_id))
             .order_by(customer_followup::Column::FollowUpAt, sea_orm::Order::Desc)

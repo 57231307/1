@@ -6,6 +6,8 @@
 use crate::models::{crm_opportunity, customer, sales_order};
 // 批次 236 v13 P1-1：商机状态常量接入（规则 0）
 use crate::models::status::crm_opportunity as opp_status;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use sea_orm::{
@@ -78,6 +80,7 @@ impl CrmService {
     pub async fn list_opportunities(
         &self,
         query: crate::models::dto::crm_dto::OpportunityQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<serde_json::Value, AppError> {
         let page = query.page.unwrap_or(1).clamp(1, 1000);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-3 修复：crm 模块统一 clamp(1,100) 防 DoS
@@ -86,6 +89,18 @@ impl CrmService {
 
         if let Some(s) = query.opportunity_stage {
             q = q.filter(crm_opportunity::Column::OpportunityStage.eq(s));
+        }
+
+        // V15 P0-S01：行级数据权限过滤
+        // crm_opportunity 表无 department_id，Dept 退化为 Self；
+        // CRM 业务数据权限语义为"我负责的商机"，使用 owner_id（i32 必填）作为 owner_column。
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                crm_opportunity::Column::OwnerId,
+                crm_opportunity::Column::OwnerId, // 无 department_id，Dept 退化为 Self，复用 owner_id
+            );
         }
 
         let paginator = q
@@ -175,11 +190,22 @@ impl CrmService {
     pub async fn get_opportunity(
         &self,
         opportunity_id: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<crm_opportunity::Model, AppError> {
         let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("商机 {} 不存在", opportunity_id)))?;
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // crm_opportunity 表无 department_id，Dept 退化为 Self；
+        // 使用 owner_id（业务负责人）作为归属判定字段。
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(opportunity.owner_id), None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问商机 {}（数据范围限制）", opportunity_id
+                )));
+            }
+        }
         Ok(opportunity)
     }
 
@@ -214,7 +240,7 @@ impl CrmService {
         req: crate::models::dto::crm_dto::UpdateOpportunityRequest,
         user_id: i32,
     ) -> Result<crm_opportunity::Model, AppError> {
-        let opportunity = self.get_opportunity(opportunity_id).await?;
+        let opportunity = self.get_opportunity(opportunity_id, None).await?;
 
         // 关闭后的商机不能修改
         if let Some(status) = &opportunity.opportunity_status {
@@ -301,7 +327,7 @@ impl CrmService {
         opportunity_id: i32,
         user_id: i32,
     ) -> Result<(), AppError> {
-        let opportunity = self.get_opportunity(opportunity_id).await?;
+        let opportunity = self.get_opportunity(opportunity_id, None).await?;
 
         if let Some(status) = &opportunity.opportunity_status {
             if status == opp_status::CLOSED_WON {
@@ -324,7 +350,7 @@ impl CrmService {
         opportunity_id: i32,
         user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
-        let opportunity = self.get_opportunity(opportunity_id).await?;
+        let opportunity = self.get_opportunity(opportunity_id, None).await?;
 
         if let Some(status) = &opportunity.opportunity_status {
             if status == opp_status::CLOSED_WON {

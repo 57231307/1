@@ -8,6 +8,8 @@ use crate::models::{crm_lead, crm_opportunity, customer};
 use crate::models::status::master_data;
 // 批次 236 v13 P1-1：线索状态常量接入（规则 0）
 use crate::models::status::crm_lead as lead_status;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use sea_orm::{
@@ -91,6 +93,7 @@ impl CrmService {
     pub async fn list_leads(
         &self,
         query: crate::models::dto::crm_dto::LeadQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<serde_json::Value, AppError> {
         let page = query.page.unwrap_or(1).clamp(1, 1000);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-3 修复：crm 模块统一 clamp(1,100) 防 DoS
@@ -122,6 +125,19 @@ impl CrmService {
         // v11 批次 153 P2-A：接入 industry 过滤（精确匹配 industry 列）
         if let Some(industry) = query.industry {
             q = q.filter(crm_lead::Column::Industry.eq(industry));
+        }
+
+        // V15 P0-S01：行级数据权限过滤
+        // crm_lead 表无 department_id，Dept 退化为 Self；
+        // CRM 业务数据权限语义为"我负责的线索"，使用 owner_id（i32 必填）作为 owner_column，
+        // 比 created_by（Option<i32>，create_lead 未显式设置）更可靠且符合业务语义。
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                crm_lead::Column::OwnerId,
+                crm_lead::Column::OwnerId, // 无 department_id，Dept 退化为 Self，复用 owner_id
+            );
         }
 
         let paginator = q
@@ -316,11 +332,25 @@ impl CrmService {
     }
 
     /// 获取线索详情
-    pub async fn get_lead(&self, lead_id: i32) -> Result<crm_lead::Model, AppError> {
+    pub async fn get_lead(
+        &self,
+        lead_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<crm_lead::Model, AppError> {
         let lead = crm_lead::Entity::find_by_id(lead_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // crm_lead 表无 department_id，Dept 退化为 Self；
+        // 使用 owner_id（业务负责人）作为归属判定字段。
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(lead.owner_id), None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问线索 {}（数据范围限制）", lead_id
+                )));
+            }
+        }
         Ok(lead)
     }
 
@@ -331,7 +361,7 @@ impl CrmService {
         req: crate::models::dto::crm_dto::UpdateLeadRequest,
         user_id: i32,
     ) -> Result<crm_lead::Model, AppError> {
-        let lead = self.get_lead(lead_id).await?;
+        let lead = self.get_lead(lead_id, None).await?;
         let mut lead_active: crm_lead::ActiveModel = lead.into();
 
         if let Some(v) = req.lead_source {
@@ -424,7 +454,7 @@ impl CrmService {
         status: &str,
         user_id: i32,
     ) -> Result<(), AppError> {
-        let lead = self.get_lead(lead_id).await?;
+        let lead = self.get_lead(lead_id, None).await?;
         let mut lead_active: crm_lead::ActiveModel = lead.into();
         lead_active.lead_status = Set(Some(status.to_string()));
         lead_active.updated_at = Set(Some(chrono::Utc::now()));
@@ -449,7 +479,7 @@ impl CrmService {
         user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
         // 1. 查询线索
-        let lead = self.get_lead(lead_id).await?;
+        let lead = self.get_lead(lead_id, None).await?;
 
         if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
             return Err(AppError::business("线索已转换为客户".to_string()));

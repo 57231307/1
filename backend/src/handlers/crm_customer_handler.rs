@@ -69,7 +69,7 @@ pub async fn create_customer(
 /// GET /api/v1/erp/crm/customers - 获取客户列表（线索列表）
 pub async fn list_customers(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<CustomerQueryParams>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
@@ -85,18 +85,26 @@ pub async fn list_customers(
         industry: None,
     };
 
-    let result = service.list_leads(query).await?;
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
+    let result = service
+        .list_leads(query, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
 /// GET /api/v1/erp/crm/customers/:id - 获取客户详情
 pub async fn get_customer(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let lead = service.get_lead(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let lead = service
+        .get_lead(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
 }
 
