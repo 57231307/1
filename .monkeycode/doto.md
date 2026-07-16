@@ -2,11 +2,11 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433/434 完成，P0-S03 超级权限修复 + P0-S04 31 类业务角色补齐；剩余 102 P0 + 257 P1 + 248 P2 + 123 P3）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433/434/435 完成，P0-S03/S04/S20/S21/S22 修复，PR #611/#612/#613 已合并；剩余 99 P0 + 257 P1 + 248 P2 + 123 P3）。
 
 ---
 
-## 一、当前状态：V15 审计完成，等待用户通知进入 V15 修复阶段
+## 一、当前状态：V15 修复阶段进行中（自动化修复流程）
 
 ### 1.1 V15 审计完成进度（2026-07-16 全部完成）
 
@@ -195,24 +195,27 @@
 - **修复方案**：补齐 14 端点的 8 个审计字段（user_id/ip/user_agent/resource_id/action/condition/result/duration）
 - **关联文件**：14 个 handler + audit_middleware.rs
 
-##### P0-S20 权限资源缺口（类十四）
+##### P0-S20 权限资源缺口（类十四）✅ 已完成（Batch 435 / PR #613）
 
 - **来源**：batch-12 P0-12-9
 - **证据**：当前 11 类权限资源，实际 60+ 类业务模块
 - **修复方案**：补齐 49+ 类权限资源（fabric/dye_batch/dye_recipe/chemical/energy/wage/outsourcing/energy/quality_issue/8d/custom_order/after_sales/logistics/incoterms/oa/bi/dashboard/notification/email/business_trace 等），每个资源配 11 个操作权限码
 - **关联文件**：init_service.rs / permission.rs / path_utils.rs
+- **完成情况**：新增 PERMISSION_RESOURCES 常量（60+ 类资源）+ PERMISSION_ACTIONS 常量（11 个操作权限码）+ extract_action_from_path 函数（从路径提取 print/export/approve 等 11 个动作）
 
-##### P0-S21 模块前缀白名单不足（类十四）
+##### P0-S21 模块前缀白名单不足（类十四）✅ 已完成（Batch 435 / PR #613）
 
 - **来源**：batch-12 P0-12-10
 - **修复方案**：扩展模块前缀白名单至 60+ 类，未在白名单的路由直接拒绝
 - **关联文件**：path_utils.rs / permission.rs
+- **完成情况**：清理 15+ 脏数据（purchases→purchase 等）+ 新增 28 个模块前缀（production/auth/quotations 等）+ 新增 is_known_resource_segment 函数 + permission_middleware 白名单校验
 
-##### P0-S22 权限矩阵未实现（类十四）
+##### P0-S22 权限矩阵未实现（类十四）✅ 已完成（Batch 435 / PR #613）
 
 - **来源**：batch-12 P0-12-11/12/13
 - **修复方案**：实现 14 角色 × 60+ 资源 × 11 操作的权限矩阵，写入 init_service.rs 初始化
 - **关联文件**：init_service.rs / role_service.rs
+- **完成情况**：create_default_role_permissions 扩展为 33 个角色 × 60+ 资源的完整权限矩阵（管理层全资源 read / 经理本域 * / 执行角色本域 read+create+update）
 
 ##### P0-S23 用户角色无互斥校验（类十四）
 

@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433/434 完成，P0-S03 超级权限修复 + P0-S04 31 类业务角色补齐，PR #611/#612 已合并）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433/434/435 完成，P0-S03/S04/S20/S21/S22 修复，PR #611/#612/#613 已合并）。
 
 ---
 
@@ -12,6 +12,7 @@
 |------|-----|-----------|
 | 433 | #611 | V15 P0-S03 修复超级权限注入漏洞：auth_handler.rs 将 is_system 判断改为 code==ADMIN_ROLE_CODE，仅 admin 注入超级通配权限；init_service.rs 新增 create_default_role_permissions 为 manager/operator 插入基本 role_permission 记录 |
 | 434 | #612 | V15 P0-S04 补齐 31 类业务角色覆盖面料行业全业务场景（管理/销售/采购/库存/生产/质量/财务/CRM/物流/人力/安全/IT），为全部角色配置基本 role_permission 权限记录 |
+| 435 | #613 | V15 P0-S20/S21/S22 权限资源缺口补齐：新增 60+ 类权限资源注册表 + 11 个操作权限码 + 33 个角色完整权限矩阵；path_utils.rs 清理 15+ 脏数据并新增 28 个模块前缀（production/auth/quotations 等）；permission.rs 新增白名单校验 + 路径动作提取（print/export/approve 等 11 个）；修复 2 个 clippy 警告（last→next_back→rfind） |
 
 ---
 
