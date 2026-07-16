@@ -45,16 +45,21 @@ pub async fn list_payments(
     let service = ApPaymentService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
     let (payments, total) = service
-        .get_list(ApPaymentListQuery {
-            supplier_id: params.supplier_id,
-            payment_status: params.payment_status,
-            payment_method: params.payment_method,
-            start_date: params.start_date,
-            end_date: params.end_date,
-            page,
-            page_size,
-        })
+        .get_list(
+            ApPaymentListQuery {
+                supplier_id: params.supplier_id,
+                payment_status: params.payment_status,
+                payment_method: params.payment_method,
+                start_date: params.start_date,
+                end_date: params.end_date,
+                page,
+                page_size,
+            },
+            Some(&data_scope_ctx),
+        )
         .await?;
 
     info!("用户 {} 查询付款成功，共 {} 条记录", auth.username, total);
@@ -79,7 +84,11 @@ pub async fn get_payment(
     info!("用户 {} 查询付款详情 ID: {}", auth.username, id);
 
     let service = ApPaymentService::new(state.db.clone());
-    let payment = service.get_by_id(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let payment = service
+        .get_by_id(id, Some(&data_scope_ctx))
+        .await?;
 
     info!(
         "用户 {} 查询付款详情成功：{}",
