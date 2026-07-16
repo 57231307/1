@@ -160,13 +160,15 @@ pub async fn create_production_order(
 /// 获取生产订单详情
 pub async fn get_production_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let model = service
-        .get_by_id(id)
+        .get_by_id(id, Some(&data_scope_ctx))
         .await?
         .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
@@ -193,10 +195,12 @@ pub async fn get_production_order(
 /// 获取生产订单列表
 pub async fn list_production_orders(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ListProductionOrdersQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<ProductionOrderResponse>>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let query_params = ProductionOrderQuery {
         status: query.status,
@@ -205,7 +209,7 @@ pub async fn list_production_orders(
         page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 
-    let (models, total) = service.list(query_params).await?;
+    let (models, total) = service.list(query_params, Some(&data_scope_ctx)).await?;
 
     let responses: Vec<ProductionOrderResponse> = models
         .into_iter()
@@ -380,7 +384,7 @@ pub async fn update_production_progress(
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
     let model = service
-        .get_by_id(id)
+        .get_by_id(id, None)
         .await?
         .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 

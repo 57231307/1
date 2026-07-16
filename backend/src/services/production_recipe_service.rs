@@ -31,6 +31,8 @@ use crate::models::production_recipe_addition::{
 };
 use crate::models::status::production_recipe as recipe_status;
 use crate::models::status::production_recipe_addition as addition_status;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 
 // ============================================================================
@@ -374,12 +376,28 @@ impl ProductionRecipeService {
     }
 
     /// 按 ID 查询大货处方
-    pub async fn get_by_id(&self, id: i32) -> Result<RecipeModel, AppError> {
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<RecipeModel, AppError> {
         let model = RecipeEntity::find_by_id(id)
             .filter(production_recipe::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("大货处方单 {} 不存在", id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // production_recipe 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, model.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问大货处方单 {}（数据范围限制）",
+                    id
+                )));
+            }
+        }
+
         Ok(model)
     }
 
@@ -387,11 +405,22 @@ impl ProductionRecipeService {
     pub async fn list(
         &self,
         query: ProductionRecipeQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<RecipeModel>, u64), AppError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
         let mut q = RecipeEntity::find().filter(production_recipe::Column::IsDeleted.eq(false));
+
+        // V15 P0-S01：行级数据权限过滤（production_recipe 表无 department_id，Dept 退化为 Self）
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                production_recipe::Column::CreatedBy,
+                production_recipe::Column::CreatedBy,
+            );
+        }
 
         if let Some(wid) = query.work_order_id {
             q = q.filter(production_recipe::Column::WorkOrderId.eq(wid));
@@ -421,6 +450,7 @@ impl ProductionRecipeService {
     pub async fn get_by_work_order(
         &self,
         work_order_id: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Option<RecipeModel>, AppError> {
         let model = RecipeEntity::find()
             .filter(production_recipe::Column::WorkOrderId.eq(work_order_id))
@@ -429,6 +459,17 @@ impl ProductionRecipeService {
             .order_by_desc(production_recipe::Column::CreatedAt)
             .one(&*self.db)
             .await?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        if let (Some(ctx), Some(m)) = (data_scope, &model) {
+            if !check_resource_owner(ctx, m.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问工单 {} 的大货处方（数据范围限制）",
+                    work_order_id
+                )));
+            }
+        }
+
         Ok(model)
     }
 
@@ -527,9 +568,10 @@ impl ProductionRecipeService {
     pub async fn list_additions_by_recipe(
         &self,
         recipe_id: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<AdditionModel>, AppError> {
-        // 校验大货处方存在
-        let _ = self.get_by_id(recipe_id).await?;
+        // V15 P0-S01：校验大货处方存在 + 行级数据权限（透传 data_scope 给 get_by_id）
+        let _ = self.get_by_id(recipe_id, data_scope).await?;
         let items = AdditionEntity::find()
             .filter(production_recipe_addition::Column::ProductionRecipeId.eq(recipe_id))
             .filter(production_recipe_addition::Column::IsDeleted.eq(false))
@@ -688,12 +730,28 @@ impl ProductionRecipeAdditionService {
     }
 
     /// 按 ID 查询加料处方
-    pub async fn get_by_id(&self, id: i32) -> Result<AdditionModel, AppError> {
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdditionModel, AppError> {
         let model = AdditionEntity::find_by_id(id)
             .filter(production_recipe_addition::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("加料处方单 {} 不存在", id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // production_recipe_addition 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, model.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问加料处方单 {}（数据范围限制）",
+                    id
+                )));
+            }
+        }
+
         Ok(model)
     }
 

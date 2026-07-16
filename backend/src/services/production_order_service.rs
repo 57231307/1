@@ -14,9 +14,11 @@ use sea_orm::{
 use std::sync::Arc;
 
 use crate::models::production_order::{
-    ActiveModel, Entity as ProductionOrderEntity, Model as ProductionOrderModel,
+    self, ActiveModel, Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -303,8 +305,23 @@ impl ProductionOrderService {
     }
 
     /// 根据ID获取生产订单
-    pub async fn get_by_id(&self, id: i32) -> Result<Option<ProductionOrderModel>, AppError> {
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Option<ProductionOrderModel>, AppError> {
         let model = ProductionOrderEntity::find_by_id(id).one(&*self.db).await?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // production_order 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        if let (Some(ctx), Some(m)) = (data_scope, &model) {
+            if !check_resource_owner(ctx, Some(m.created_by), None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问生产订单 {}（数据范围限制）",
+                    id
+                )));
+            }
+        }
 
         Ok(model)
     }
@@ -336,8 +353,19 @@ impl ProductionOrderService {
     pub async fn list(
         &self,
         query: ProductionOrderQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<ProductionOrderModel>, u64), AppError> {
         let mut select = ProductionOrderEntity::find();
+
+        // V15 P0-S01：行级数据权限过滤（production_order 表无 department_id，Dept 退化为 Self）
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                production_order::Column::CreatedBy,
+                production_order::Column::CreatedBy,
+            );
+        }
 
         if let Some(status) = query.status {
             select = select.filter(crate::models::production_order::Column::Status.eq(status));
