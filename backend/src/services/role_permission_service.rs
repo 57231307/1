@@ -6,6 +6,8 @@ use std::sync::Arc;
 
 use crate::models::role::{self, Entity as RoleEntity};
 use crate::models::role_permission::{self, Entity as RolePermissionEntity};
+// V15 P0-S06：权限变更审计
+use crate::models::permission_change_audit;
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 // V15 P0-S07：权限变更时失效缓存
@@ -311,6 +313,8 @@ impl RolePermissionService {
         let existing = query.one(&*self.db).await?;
 
         if let Some(perm) = existing {
+            // V15 P0-S06：保存旧 allowed 值用于审计日志
+            let old_allowed = perm.allowed;
             // 更新现有权限
             let mut perm_update: role_permission::ActiveModel = perm.into();
             perm_update.allowed = sea_orm::ActiveValue::Set(request.allowed);
@@ -327,6 +331,18 @@ impl RolePermissionService {
 
             // V15 P0-S07：权限变更后失效该角色的权限缓存
             invalidate_permission_cache(request.role_id);
+
+            // V15 P0-S06：写入权限变更审计日志（best-effort，失败不阻塞主流程）
+            self.write_permission_audit(
+                "role_permission_assign",
+                user_id,
+                request.role_id,
+                &request.resource_type,
+                &request.action,
+                Some(old_allowed.to_string()),
+                Some(request.allowed.to_string()),
+            )
+            .await;
 
             Ok(RolePermissionDetail {
                 id: perm_entity.id,
@@ -355,6 +371,18 @@ impl RolePermissionService {
 
             // V15 P0-S07：权限变更后失效该角色的权限缓存
             invalidate_permission_cache(request.role_id);
+
+            // V15 P0-S06：写入权限变更审计日志（新建权限，old_value=None）
+            self.write_permission_audit(
+                "role_permission_assign",
+                user_id,
+                request.role_id,
+                &request.resource_type,
+                &request.action,
+                None,
+                Some(request.allowed.to_string()),
+            )
+            .await;
 
             Ok(RolePermissionDetail {
                 id: perm_entity.id,
@@ -391,6 +419,12 @@ impl RolePermissionService {
             }
         }
 
+        // V15 P0-S06：保存被删除权限的信息用于审计日志（删除后无法再获取）
+        let audit_role_id = permission.role_id;
+        let audit_resource_type = permission.resource_type.clone();
+        let audit_action = permission.action.clone();
+        let audit_old_allowed = permission.allowed;
+
         // P0 8-3 修复：delete 操作补审计日志
         // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         let result = crate::services::audit_log_service::AuditLogService::delete_with_audit::<
@@ -401,10 +435,72 @@ impl RolePermissionService {
 
         // V15 P0-S07：权限删除后失效该角色的权限缓存
         if result.is_ok() {
-            invalidate_permission_cache(permission.role_id);
+            invalidate_permission_cache(audit_role_id);
+
+            // V15 P0-S06：写入权限删除审计日志（best-effort，失败不阻塞主流程）
+            self.write_permission_audit(
+                "role_permission_remove",
+                user_id,
+                audit_role_id,
+                &audit_resource_type,
+                &audit_action,
+                Some(audit_old_allowed.to_string()),
+                None,
+            )
+            .await;
         }
 
         result
+    }
+
+    /// V15 P0-S06 新增：写入权限变更审计日志（best-effort，失败仅记录 warn 不阻塞主流程）
+    ///
+    /// 记录角色权限的分配/移除变更，用于合规审查和安全追溯。
+    /// 审计日志写入失败不影响业务主流程，仅记录 warn 日志。
+    ///
+    /// # 参数
+    /// - `change_type`：变更类型（role_permission_assign / role_permission_remove）
+    /// - `operator_id`：操作人 ID
+    /// - `role_id`：受影响角色 ID
+    /// - `resource_type`：资源类型
+    /// - `action`：操作权限码
+    /// - `old_value`：旧值（如旧 allowed）
+    /// - `new_value`：新值（如新 allowed）
+    async fn write_permission_audit(
+        &self,
+        change_type: &str,
+        operator_id: i32,
+        role_id: i32,
+        resource_type: &str,
+        action: &str,
+        old_value: Option<String>,
+        new_value: Option<String>,
+    ) {
+        let audit = permission_change_audit::ActiveModel {
+            id: Default::default(),
+            change_type: sea_orm::ActiveValue::Set(change_type.to_string()),
+            operator_id: sea_orm::ActiveValue::Set(operator_id),
+            role_id: sea_orm::ActiveValue::Set(Some(role_id)),
+            user_id: sea_orm::ActiveValue::Set(None),
+            resource_type: sea_orm::ActiveValue::Set(Some(resource_type.to_string())),
+            action: sea_orm::ActiveValue::Set(Some(action.to_string())),
+            old_value: sea_orm::ActiveValue::Set(old_value),
+            new_value: sea_orm::ActiveValue::Set(new_value),
+            changed_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            client_ip: sea_orm::ActiveValue::Set(None),
+            remark: sea_orm::ActiveValue::Set(None),
+        };
+        if let Err(e) = audit.insert(&*self.db).await {
+            tracing::warn!(
+                target: "security_audit",
+                event = "PERMISSION_AUDIT_WRITE_FAILED",
+                change_type = change_type,
+                role_id = role_id,
+                operator_id = operator_id,
+                error = %e,
+                "权限变更审计日志写入失败（best-effort，不阻塞主流程）"
+            );
+        }
     }
 
     /// 检查角色是否为管理员角色（带缓存）
