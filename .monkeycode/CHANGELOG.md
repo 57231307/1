@@ -26,6 +26,7 @@
 | 444 | 无需 PR | V15 P0-S09 其他域 export AuthContext 核查：5 个目标文件（sales_order/purchase_order/product/report_engine/crm）export 函数均已含 AuthContext，无需修改；quotation/customer/supplier/inventory/finance/quality 无 export/print 端点。**P0-S09 全部完成** |
 | 445 | #625 | V15 P0-S11 核心业务导出审计日志补齐（第 1 批）：5 文件 6 个 export 函数（sales_order/purchase_order/product/crm_leads/crm_opportunities/mrp_calculation）添加 AuditEvent + AuditLogService::record_async 审计写入（best-effort 异步）；修复 borrow of moved value（提前 clone String 查询条件）；CI 12/12 全绿 |
 | 446 | #626 | V15 P0-S11 报表染色域导出审计日志补齐（第 2 批）：5 文件 5 个 export 函数（report_engine/ar_reconciliation_pdf/sales_analysis/dye_recipe/dye_batch）添加 AuditEvent + AuditLogService::record_async 审计写入（best-effort 异步）；修复 report_engine_handler state.db borrow of moved value（service 改用 state.db.clone()）；CI 15/15 全绿。**P0-S11 全部完成** |
+| 447 | #627 | V15 P0-S01 行级数据权限注入-销售域：为销售域 service 查询入口注入 DataScopeContext（all/dept/self 三级）。so/order_query list_orders/get_order_detail + customer_service list_customers/list_customers_with_filter/get_customer/get_customer_with_filter + sales_return_service list_returns/get_return 增加 data_scope 参数；handler 层提取 auth.to_data_scope_context() 传入；内部调用点传 None；customer/sales_order/sales_return 表无 department_id，Dept 退化为 Self；CI 15/15 全绿 |
 
 ---
 
