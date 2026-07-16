@@ -189,7 +189,7 @@ fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
             let decoded = percent_encoding::percent_decode_str(value)
                 .decode_utf8()
                 .ok()?;
-            if QUERY_ACTION_KEYWORDS.contains(&decoded.as_str()) {
+            if QUERY_ACTION_KEYWORDS.contains(&&*decoded) {
                 return Some(decoded.into_owned());
             }
             // 不在白名单中，返回 None 让调用方回退
