@@ -24,6 +24,8 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 
 // 批次 102 v6 P3-1 修复：状态字符串常量化，引用 crate::models::status
@@ -74,6 +76,7 @@ impl ArService {
         status: Option<String>,
         customer_id: Option<i32>,
         payment_no: Option<String>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<serde_json::Value>, i64), AppError> {
         let mut query = ar_collection::Entity::find();
 
@@ -85,6 +88,17 @@ impl ArService {
         }
         if let Some(no) = payment_no {
             query = query.filter(ar_collection::Column::CollectionNo.eq(no));
+        }
+
+        // V15 P0-S01：行级数据权限过滤
+        // ar_collection 表无 department_id，Dept 退化为 Self，使用 created_by（i32 必填）。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                ar_collection::Column::CreatedBy,
+                ar_collection::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
+            );
         }
 
         let total = query.clone().count(&*self.db).await? as i64;
@@ -100,11 +114,26 @@ impl ArService {
     }
 
     /// 获取收款详情
-    pub async fn get_payment(&self, payment_id: i32) -> Result<serde_json::Value, AppError> {
+    pub async fn get_payment(
+        &self,
+        payment_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<serde_json::Value, AppError> {
         let payment = ar_collection::Entity::find_by_id(payment_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // ar_collection 表无 department_id，Dept 退化为 Self；
+        // ar_collection.created_by 是 i32（必填）。
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(payment.created_by), None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问收款单 {}（数据范围限制）",
+                    payment_id
+                )));
+            }
+        }
         Ok(collection_to_json(payment))
     }
 
@@ -568,6 +597,7 @@ impl ArService {
         invoice_id: Option<i32>,
         payment_id: Option<i32>,
         status: Option<String>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<serde_json::Value>, i64), AppError> {
         // 若按 invoice_id/payment_id 过滤，需先查 ar_reconciliation_items 拿到 reconciliation_id 集合
         let mut query = ar_reconciliation::Entity::find();
@@ -606,6 +636,17 @@ impl ArService {
             query = query.filter(ar_reconciliation::Column::Id.is_in(rec_ids));
         }
 
+        // V15 P0-S01：行级数据权限过滤
+        // ar_reconciliation 表无 department_id，Dept 退化为 Self，使用 created_by（Option<i32>）。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                ar_reconciliation::Column::CreatedBy,
+                ar_reconciliation::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
+            );
+        }
+
         let total = query.clone().count(&*self.db).await? as i64;
         let items = query
             .order_by(ar_reconciliation::Column::ReconciliationDate, Order::Desc)
@@ -622,11 +663,24 @@ impl ArService {
     pub async fn get_verification(
         &self,
         verification_id: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<serde_json::Value, AppError> {
         let reconciliation = ar_reconciliation::Entity::find_by_id(verification_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("核销单 {} 不存在", verification_id)))?;
+
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // ar_reconciliation 表无 department_id，Dept 退化为 Self；
+        // ar_reconciliation.created_by 是 Option<i32>（可能为空，空时按"无主数据"处理）。
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, reconciliation.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问核销单 {}（数据范围限制）",
+                    verification_id
+                )));
+            }
+        }
 
         let items = ar_reconciliation_item::Entity::find()
             .filter(ar_reconciliation_item::Column::ReconciliationId.eq(verification_id))

@@ -53,7 +53,7 @@ pub struct UpdateArPaymentRequest {
 /// 获取收款列表
 /// GET /api/v1/erp/ar/payments
 pub async fn list_payments(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ArPaymentQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -61,6 +61,8 @@ pub async fn list_payments(
 
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let (payments, total) = service
         .list_payments(
@@ -69,6 +71,7 @@ pub async fn list_payments(
             query.status,
             query.customer_id,
             query.payment_no,
+            Some(&data_scope_ctx),
         )
         .await
         .map_err(|e| AppError::internal(format!("获取收款列表失败: {}", e)))?;
@@ -86,14 +89,16 @@ pub async fn list_payments(
 /// 获取收款详情
 /// GET /api/v1/erp/ar/payments/:id
 pub async fn get_payment(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let payment = service
-        .get_payment(id)
+        .get_payment(id, Some(&data_scope_ctx))
         .await
         .map_err(|e| AppError::internal(format!("获取收款详情失败: {}", e)))?;
 
