@@ -1,5 +1,6 @@
 //! 通用打印 Handler
 
+use crate::middleware::auth_context::AuthContext;
 use crate::services::print_service::PrintService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -19,35 +20,45 @@ async fn render_print_html(doc_type: &str, doc_id: i32) -> Result<Html<String>, 
 pub async fn sales_order_print_html(
     Path(doc_id): Path<i32>,
     State(_): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
+    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
     render_print_html("sales_order", doc_id).await
 }
 
 pub async fn sales_contract_print_html(
     Path(doc_id): Path<i32>,
     State(_): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
+    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
     render_print_html("sales_contract", doc_id).await
 }
 
 pub async fn purchase_order_print_html(
     Path(doc_id): Path<i32>,
     State(_): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
+    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
     render_print_html("purchase_order", doc_id).await
 }
 
 pub async fn purchase_receipt_print_html(
     Path(doc_id): Path<i32>,
     State(_): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
+    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
     render_print_html("purchase_receipt", doc_id).await
 }
 
 pub async fn inventory_transfer_print_html(
     Path(doc_id): Path<i32>,
     State(_): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
+    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
     render_print_html("inventory_transfer", doc_id).await
 }
 
@@ -128,7 +139,9 @@ fn builtin_print_templates() -> Vec<PrintTemplateDto> {
 /// purchase_receipt/inventory_transfer/voucher）。
 pub async fn list_print_templates(
     State(_): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<axum::Json<ApiResponse<Vec<PrintTemplateDto>>>, AppError> {
+    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；打印模板元数据查询走 read 权限
     Ok(axum::Json(ApiResponse::success(builtin_print_templates())))
 }
 
@@ -139,7 +152,9 @@ pub async fn list_print_templates(
 pub async fn get_print_template(
     Path(id): Path<i32>,
     State(_): State<AppState>,
+    _auth: AuthContext,
 ) -> Result<axum::Json<ApiResponse<PrintTemplateDto>>, AppError> {
+    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；打印模板元数据查询走 read 权限
     let template = builtin_print_templates()
         .into_iter()
         .find(|t| t.id == id)
