@@ -4,6 +4,8 @@
 use crate::models::finance_invoice::Model as InvoiceModel;
 use crate::models::finance_invoice::{self, ActiveModel, Entity as FinanceInvoice};
 use crate::models::status::finance_invoice as invoice_status;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -19,19 +21,50 @@ impl FinanceInvoiceService {
         Self { db }
     }
 
-    pub async fn list_invoices(&self) -> Result<Vec<InvoiceModel>, AppError> {
-        FinanceInvoice::find()
+    pub async fn list_invoices(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<InvoiceModel>, AppError> {
+        let mut query = FinanceInvoice::find();
+        // V15 P0-S01：行级数据权限过滤
+        // finance_invoice 表无 department_id，Dept 退化为 Self；
+        // finance_invoice.created_by 是 Option<i32>（create_invoice 当前未显式设置，恒为 None，
+        // Self 范围将拒绝访问；admin 范围 All 不受影响）。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                finance_invoice::Column::CreatedBy,
+                finance_invoice::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
+            );
+        }
+        query
             .order_by(finance_invoice::Column::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
             .await
             .map_err(AppError::from)
     }
 
-    pub async fn get_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
-        FinanceInvoice::find_by_id(id)
+    pub async fn get_invoice(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Option<InvoiceModel>, AppError> {
+        let invoice = FinanceInvoice::find_by_id(id)
             .one(self.db.as_ref())
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // finance_invoice 表无 department_id，Dept 退化为 Self；
+        // finance_invoice.created_by 当前恒为 None（create_invoice 未显式设置）。
+        if let (Some(ctx), Some(inv)) = (data_scope, &invoice) {
+            if !check_resource_owner(ctx, inv.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问发票 {}（数据范围限制）", id
+                )));
+            }
+        }
+        Ok(invoice)
     }
 
     pub async fn create_invoice(

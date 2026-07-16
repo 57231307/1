@@ -56,12 +56,15 @@ pub struct PaymentListResponse {
 
 pub async fn get_payment(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<PaymentResponse>>, AppError> {
     let service = FinancePaymentService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let payment = service
-        .find_by_id(id)
+        .find_by_id(id, Some(&data_scope_ctx))
         .await
         .map_err(|e| AppError::not_found(e.to_string()))?;
 
@@ -116,15 +119,19 @@ pub async fn create_payment(
 
 pub async fn list_payments(
     State(state): State<AppState>,
+    auth: AuthContext,
     Query(params): Query<ListPaymentsParams>,
 ) -> Result<Json<ApiResponse<PaymentListResponse>>, AppError> {
     let service = FinancePaymentService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let (payments, total) = service
         .list_payments(
             params.page.unwrap_or(1).clamp(1, 1000),
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
+            Some(&data_scope_ctx),
         )
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;

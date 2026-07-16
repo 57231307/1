@@ -67,11 +67,14 @@ pub struct UpdateFinanceInvoiceDto {
 
 pub async fn list_finance_invoices(
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<InvoiceListResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let invoices = service
-        .list_invoices()
+        .list_invoices(Some(&data_scope_ctx))
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
@@ -106,11 +109,14 @@ pub async fn list_finance_invoices(
 
 pub async fn get_finance_invoice(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
 
-    match service.get_invoice(id).await {
+    match service.get_invoice(id, Some(&data_scope_ctx)).await {
         Ok(Some(invoice)) => Ok(Json(ApiResponse::success(InvoiceResponse {
             id: invoice.id,
             invoice_no: invoice.invoice_no,
