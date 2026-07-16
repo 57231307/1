@@ -422,14 +422,22 @@ pub async fn batch_create_colors(
 // ========== 数据导入导出接口 ==========
 
 use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use std::sync::Arc;
 
 /// 导出产品数据
 pub async fn export_products(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ExportProductsQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
+
+    // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
+    let audit_status = query.status.clone();
+    let audit_search = query.search.clone();
 
     let csv_data = product_service
         .export_products_to_csv(query.category_id, query.status, query.search)
@@ -451,6 +459,7 @@ pub async fn export_products(
         let record = result.map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?;
         rows.push(record.iter().map(|s| s.to_string()).collect());
     }
+    let row_count = rows.len();
     let table = XlsxTable {
         sheet_name: "产品列表".to_string(),
         headers,
@@ -461,6 +470,33 @@ pub async fn export_products(
         "products_export_{}",
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("product".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出产品数据（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/products/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "category_id_filter": query.category_id,
+            "status_filter": audit_status,
+            "search_filter": audit_search,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     build_xlsx_response(&table, &filename)
 }

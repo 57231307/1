@@ -1,8 +1,10 @@
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::dto::crm_dto::{
     ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest,
     ImportLeadsResult, LeadQuery, OpportunityQuery, UpdateLeadRequest, UpdateOpportunityRequest,
 };
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -13,6 +15,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use std::sync::Arc;
 use validator::Validate;
 
 /// P1-2g 修复（批次 81 v1 复审）：更新线索状态请求 DTO
@@ -91,12 +94,38 @@ pub async fn list_leads(
 /// v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。
 /// 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 pub async fn export_leads(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<LeadQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let service = CrmService::new(state.db.clone());
     let table = service.export_leads(query).await?;
+    let row_count = table.rows.len();
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("crm_lead".to_string()),
+        resource_id: None,
+        resource_name: Some("crm_leads_export.xlsx".to_string()),
+        description: Some(format!(
+            "用户 {} 导出 CRM 线索（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/crm/leads/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
     crate::utils::xlsx_export::build_xlsx_response(&table, "crm_leads_export")
 }
 
@@ -280,12 +309,38 @@ pub async fn list_opportunities(
 /// v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。
 /// 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 pub async fn export_opportunities(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<OpportunityQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let service = CrmService::new(state.db.clone());
     let table = service.export_opportunities(query).await?;
+    let row_count = table.rows.len();
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("crm_opportunity".to_string()),
+        resource_id: None,
+        resource_name: Some("crm_opportunities_export.xlsx".to_string()),
+        description: Some(format!(
+            "用户 {} 导出 CRM 商机（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/crm/opportunities/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
     crate::utils::xlsx_export::build_xlsx_response(&table, "crm_opportunities_export")
 }
 

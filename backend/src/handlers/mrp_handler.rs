@@ -12,12 +12,16 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::mrp_engine_service::{
     MaterialRequirement, MrpCalculationItem, MrpCalculationRequest, MrpEngineService,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+// V15 P0-S11：导出审计日志写入所需依赖
+use std::sync::Arc;
 use crate::utils::xlsx_export::build_xlsx_response;
 
 /// MRP计算请求
@@ -303,16 +307,43 @@ pub async fn cancel_calculation(
 /// 导出 MRP 计算结果为 xlsx
 pub async fn export_calculation(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<axum::response::Response, AppError> {
     let service = MrpEngineService::new(state.db.clone());
     let table = service.export_calculation(id).await?;
+    let row_count = table.rows.len();
     let filename = format!(
         "mrp_calculation_{}_{}",
         id,
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("mrp_calculation".to_string()),
+        resource_id: Some(id.to_string()),
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出 MRP 计算结果 #{}（共 {} 条）",
+            auth.username, id, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(format!("/api/v1/erp/mrp/calculations/{}/export", id)),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "calculation_id": id,
+            "total": row_count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
     build_xlsx_response(&table, &filename)
 }
 
