@@ -370,17 +370,19 @@ impl RolePermissionService {
             let perm_entity = permission.insert(&*self.db).await?;
 
             // V15 P0-S07：权限变更后失效该角色的权限缓存
-            invalidate_permission_cache(request.role_id);
+            invalidate_permission_cache(perm_entity.role_id);
 
             // V15 P0-S06：写入权限变更审计日志（新建权限，old_value=None）
+            // 注意：request.resource_type/action 已在 ActiveModel 构造时 move，
+            // 这里使用 perm_entity 的字段值（实际插入数据库的值）
             self.write_permission_audit(
                 "role_permission_assign",
                 user_id,
-                request.role_id,
-                &request.resource_type,
-                &request.action,
+                perm_entity.role_id,
+                &perm_entity.resource_type,
+                &perm_entity.action,
                 None,
-                Some(request.allowed.to_string()),
+                Some(perm_entity.allowed.to_string()),
             )
             .await;
 
