@@ -25,7 +25,7 @@
 | 441 | P0-S10 method_to_action 升级 | 2 | 7 | ✅ 已完成 |
 | 442 | P0-S09 染色域 export AuthContext | 2 | 8 | ✅ 已完成 |
 | 443 | P0-S09 print_handler AuthContext | 1 | 9 | ✅ 已完成 |
-| 444 | P0-S09 其他域 export AuthContext | 5 | 10 | 🔄 下一个 |
+| 444 | P0-S09 其他域 export AuthContext | 5 | 10 | ✅ 已满足（无需修改） |
 | 445-446 | P0-S11 导出审计日志补齐 | 10 | 11-12 | ⏳ |
 | 447 | P0-S01 service 注入-销售域 | 5 | 13 | ⏳ |
 | 448 | P0-S01 service 注入-采购域 | 4 | 14 | ⏳ |
@@ -162,7 +162,8 @@
 - **修复进度**：
   - ✅ Batch 442（PR #623）：染色域 dye_recipe + dye_batch export 端点
   - ✅ Batch 443（PR #624）：print_handler.rs 7 个 print/export 函数（5 个 print_html + list_print_templates + get_print_template）
-  - ⏳ Batch 444：其他域 export 端点（sales_order/purchase_order/product/report_engine/crm handler）
+  - ✅ Batch 444（无需修改）：其他域 export 端点（sales_order/purchase_order/product/report_engine/crm）均已含 AuthContext；quotation/customer/supplier/inventory/finance/quality 无 export/print 端点
+  - ✅ **P0-S09 全部完成**
 
 ##### P0-S10 method_to_action 不识别 print/export（类十三）
 
