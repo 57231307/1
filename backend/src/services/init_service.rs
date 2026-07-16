@@ -406,7 +406,41 @@ impl InitService {
             updated_at: Set(chrono::Utc::now()),
         };
 
-        if let Err(e) = role::Entity::insert_many(vec![manager_role, operator_role])
+        // V15 P0-S04：补齐 14 类业务角色（仅创建角色记录，权限在 create_default_role_permissions 中配置）
+        let now = chrono::Utc::now();
+        let business_roles: Vec<role::ActiveModel> = [
+            ("销售经理", "sales_manager", "销售业务管理与审批"),
+            ("销售代表", "sales_rep", "销售订单录入与客户跟进"),
+            ("采购经理", "purchase_manager", "采购业务管理与审批"),
+            ("采购员", "purchase_clerk", "采购订单录入与供应商对接"),
+            ("库存经理", "inventory_manager", "库存管理与调拨审批"),
+            ("仓库管理员", "warehouse_keeper", "仓库收发货与库存操作"),
+            ("生产经理", "production_manager", "生产计划与排程管理"),
+            ("染色主管", "dyeing_master", "染色生产与配方管理"),
+            ("质检员", "quality_inspector", "质量检验与异常处理"),
+            ("财务经理", "finance_manager", "财务管理与凭证审批"),
+            ("会计", "accountant", "会计凭证录入与对账"),
+            ("CRM经理", "crm_manager", "CRM管理与客户分配"),
+            ("CRM专员", "crm_rep", "线索跟进与商机管理"),
+            ("行政助理", "admin_assistant", "用户管理与公告发布"),
+        ]
+        .into_iter()
+        .map(|(name, code, desc)| role::ActiveModel {
+            id: Default::default(),
+            name: Set(name.to_string()),
+            code: Set(code.to_string()),
+            description: Set(Some(desc.to_string())),
+            permissions: Set(None),
+            is_system: Set(true),
+            created_at: Set(now),
+            updated_at: Set(now),
+        })
+        .collect();
+
+        let mut all_new_roles = vec![manager_role, operator_role];
+        all_new_roles.extend(business_roles);
+
+        if let Err(e) = role::Entity::insert_many(all_new_roles)
             .on_conflict(
                 sea_orm::sea_query::OnConflict::column(role::Column::Code)
                     .do_nothing()
@@ -421,7 +455,7 @@ impl InitService {
         Ok(admin_role)
     }
 
-    /// V15 P0-S03 修复：为 manager/operator 角色创建基本 role_permission 记录。
+    /// V15 P0-S03/S04 修复：为 manager/operator 及 14 类业务角色创建基本 role_permission 记录。
     /// 原实现仅将权限 JSON 存入 role.permissions 字段，role_permission 表无记录，
     /// 导致修改 `*:*` 注入后 manager/operator 完全无权限。此方法补全基本权限记录。
     async fn create_default_role_permissions(&self) -> Result<(), InitError> {
@@ -434,65 +468,60 @@ impl InitService {
             return Ok(());
         }
 
-        // 查询 manager 和 operator 角色 id
-        let manager_role = role::Entity::find()
-            .filter(role::Column::Code.eq("manager"))
-            .one(self.db.as_ref())
-            .await
-            .map_err(|e| InitError::DatabaseError(format!("查询 manager 角色失败: {}", e)))?;
-
-        let operator_role = role::Entity::find()
-            .filter(role::Column::Code.eq("operator"))
-            .one(self.db.as_ref())
-            .await
-            .map_err(|e| InitError::DatabaseError(format!("查询 operator 角色失败: {}", e)))?;
-
         let now = chrono::Utc::now();
+
+        // 辅助函数：为指定角色 code 生成权限记录
+        let make_perms = |role_id: i32, resources: &[(&str, &str)]| -> Vec<role_permission::ActiveModel> {
+            resources
+                .iter()
+                .map(|(resource, action)| role_permission::ActiveModel {
+                    id: Default::default(),
+                    role_id: Set(role_id),
+                    resource_type: Set(resource.to_string()),
+                    resource_id: Set(None),
+                    action: Set(action.to_string()),
+                    allowed: Set(true),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                })
+                .collect()
+        };
+
         let mut perms: Vec<role_permission::ActiveModel> = Vec::new();
 
-        // manager 权限：用户读取 + 产品/订单/客户/供应商全部操作
-        if let Some(ref mgr) = manager_role {
-            let mid = mgr.id;
-            for (resource, action) in [
-                ("users", "read"),
-                ("products", "*"),
-                ("orders", "*"),
-                ("customers", "*"),
-                ("suppliers", "*"),
-                ("inventory", "read"),
-            ] {
-                perms.push(role_permission::ActiveModel {
-                    id: Default::default(),
-                    role_id: Set(mid),
-                    resource_type: Set(resource.to_string()),
-                    resource_id: Set(None),
-                    action: Set(action.to_string()),
-                    allowed: Set(true),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                });
-            }
-        }
+        // 定义所有需要配置权限的角色及其资源-操作列表
+        let role_permissions: &[(&str, &[(&str, &str)])] = &[
+            // manager：用户读取 + 产品/订单/客户/供应商全部操作
+            ("manager", &[("users", "read"), ("products", "*"), ("orders", "*"), ("customers", "*"), ("suppliers", "*"), ("inventory", "read")]),
+            // operator：产品/订单/客户/库存只读
+            ("operator", &[("products", "read"), ("orders", "read"), ("customers", "read"), ("inventory", "read")]),
+            // V15 P0-S04：14 类业务角色基本权限
+            ("sales_manager", &[("orders", "*"), ("customers", "*"), ("sales-returns", "*"), ("ar", "read"), ("reports", "read")]),
+            ("sales_rep", &[("orders", "read"), ("orders", "create"), ("customers", "read"), ("customers", "create"), ("sales-returns", "read"), ("sales-returns", "create")]),
+            ("purchase_manager", &[("purchase-orders", "*"), ("suppliers", "*"), ("ap", "read"), ("inventory", "read")]),
+            ("purchase_clerk", &[("purchase-orders", "read"), ("purchase-orders", "create"), ("suppliers", "read"), ("inventory", "read")]),
+            ("inventory_manager", &[("inventory", "*"), ("products", "read"), ("stock-alerts", "*")]),
+            ("warehouse_keeper", &[("inventory", "read"), ("inventory", "create"), ("inventory", "update"), ("products", "read")]),
+            ("production_manager", &[("production-orders", "*"), ("dye-batches", "*"), ("dye-recipes", "*")]),
+            ("dyeing_master", &[("dye-batches", "*"), ("dye-recipes", "read"), ("dye-recipes", "create"), ("chemicals", "read")]),
+            ("quality_inspector", &[("quality-inspections", "*"), ("dye-batches", "read")]),
+            ("finance_manager", &[("vouchers", "*"), ("ar", "*"), ("ap", "*"), ("gl", "*"), ("budgets", "*")]),
+            ("accountant", &[("vouchers", "*"), ("gl", "read"), ("gl", "create"), ("ar", "read"), ("ar", "create"), ("ap", "read"), ("ap", "create")]),
+            ("crm_manager", &[("crm-leads", "*"), ("crm-opportunities", "*"), ("crm-customers", "*")]),
+            ("crm_rep", &[("crm-leads", "read"), ("crm-leads", "create"), ("crm-opportunities", "read"), ("crm-opportunities", "create"), ("crm-customers", "read")]),
+            ("admin_assistant", &[("users", "read"), ("departments", "read"), ("oa-announcements", "*")]),
+        ];
 
-        // operator 权限：产品/订单/客户/库存只读
-        if let Some(ref opr) = operator_role {
-            let oid = opr.id;
-            for (resource, action) in [
-                ("products", "read"),
-                ("orders", "read"),
-                ("customers", "read"),
-                ("inventory", "read"),
-            ] {
-                perms.push(role_permission::ActiveModel {
-                    id: Default::default(),
-                    role_id: Set(oid),
-                    resource_type: Set(resource.to_string()),
-                    resource_id: Set(None),
-                    action: Set(action.to_string()),
-                    allowed: Set(true),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                });
+        // 逐个角色查询 id 并生成权限记录
+        for (role_code, resources) in role_permissions {
+            let role_model = role::Entity::find()
+                .filter(role::Column::Code.eq(*role_code))
+                .one(self.db.as_ref())
+                .await
+                .map_err(|e| InitError::DatabaseError(format!("查询 {} 角色失败: {}", role_code, e)))?;
+
+            if let Some(r) = role_model {
+                perms.extend(make_perms(r.id, resources));
             }
         }
 
