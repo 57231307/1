@@ -23,6 +23,8 @@ pub mod product_color;
 pub mod role;
 pub mod role_permission;
 pub mod role_conflict;
+// V15 P0-S06：权限变更审计 model
+pub mod permission_change_audit;
 pub mod sales_order;
 pub mod sales_order_change_history;
 pub mod sales_order_item;
