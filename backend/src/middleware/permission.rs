@@ -4,7 +4,7 @@ use crate::middleware::public_routes::is_public_path;
 use crate::models::role_permission;
 use crate::utils::admin_checker;
 use crate::utils::app_state::AppState;
-use crate::utils::path_utils::is_module_prefix;
+use crate::utils::path_utils::{is_known_resource_segment, is_module_prefix};
 use crate::utils::request_ext::PublicPathCache;
 use crate::utils::response::{forbidden_response, unauthorized_response};
 use axum::{
@@ -59,24 +59,93 @@ pub async fn permission_middleware(
         }
     };
 
+    // V15 P0-S21 修复：白名单校验，拒绝未知路由
+    // 若 segment3 既不是模块前缀，也不是已知直接资源，则拒绝请求
+    if let Some(segment3) = extract_segment3(path) {
+        if !is_known_resource_segment(segment3) {
+            warn!(
+                "拒绝未知路由: path={}, segment3={} 不在白名单中",
+                path, segment3
+            );
+            return Err(forbidden_response("未知的资源路径"));
+        }
+    }
+
     let (resource_type, resource_id) = extract_resource_info(path);
 
-    let has_permission = check_permission(
-        &state.db,
-        role_id,
-        &resource_type,
-        resource_id,
-        &method_to_action(method),
-    )
-    .await;
+    // V15 P0-S20 修复：优先从路径提取动作（print/export/import/audit/approve/reject），
+    // 若路径无动作则回退到 HTTP method 映射（read/create/update/delete）
+    let action = extract_action_from_path(path).unwrap_or_else(|| method_to_action(method));
 
-    tracing::debug!("权限检查结果: path={}, has_perm={}", path, has_permission);
+    let has_permission =
+        check_permission(&state.db, role_id, &resource_type, resource_id, &action).await;
+
+    tracing::debug!(
+        "权限检查结果: path={}, resource={}, action={}, has_perm={}",
+        path,
+        resource_type,
+        action,
+        has_permission
+    );
 
     if has_permission {
         Ok(next.run(request).await)
     } else {
         warn!("权限不足: path={} {}", method, path);
         Err(forbidden_response("权限不足，无法访问该资源"))
+    }
+}
+
+/// V15 P0-S21 新增：提取 URL segment3（/api/v1/erp/{segment3}/...）
+///
+/// 用于白名单校验。若路径不符合 /api/v1/erp/... 格式，返回 None。
+fn extract_segment3(path: &str) -> Option<&str> {
+    let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
+    if path_parts.len() >= 4
+        && path_parts[0] == "api"
+        && path_parts[1] == "v1"
+        && path_parts[2] == "erp"
+    {
+        Some(path_parts[3])
+    } else {
+        None
+    }
+}
+
+/// V15 P0-S20 新增：路径动作关键字集合
+///
+/// 这些动作出现在 URL 最后一段时，优先作为权限校验的 action。
+/// 例如 `/api/v1/erp/sales/orders/123/approve` 的 action 为 "approve"。
+const PATH_ACTION_KEYWORDS: &[&str] = &[
+    "print",
+    "export",
+    "import",
+    "audit",
+    "approve",
+    "reject",
+    "cancel",
+    "close",
+    "confirm",
+    "submit",
+    "release",
+];
+
+/// V15 P0-S20 新增：从路径最后一段提取动作
+///
+/// 若路径最后一段是动作关键字（print/export/import/audit/approve/reject/cancel/close/confirm/submit/release），
+/// 返回该动作字符串；否则返回 None，由调用方回退到 method_to_action。
+///
+/// 示例：
+/// - `/api/v1/erp/sales/orders/123/approve` → Some("approve")
+/// - `/api/v1/erp/users/export` → Some("export")
+/// - `/api/v1/erp/users/123` → None
+/// - `/api/v1/erp/users` → None
+fn extract_action_from_path(path: &str) -> Option<String> {
+    let last_segment = path.split('/').filter(|p| !p.is_empty()).last()?;
+    if PATH_ACTION_KEYWORDS.contains(&last_segment) {
+        Some(last_segment.to_string())
+    } else {
+        None
     }
 }
 
@@ -91,7 +160,7 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     {
         // 处理嵌套路径，如 /api/v1/erp/sales/orders/:id/approve
         // 资源类型由第4段决定，如果第4段是资源类型（如users, products），直接使用
-        // 如果第4段是模块名（如sales, purchases），则使用第5段作为资源类型
+        // 如果第4段是模块名（如sales, purchase），则使用第5段作为资源类型
         let resource_type = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
             path_parts[4].to_string()
         } else {
@@ -99,12 +168,18 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
         };
 
         // 尝试提取资源ID（跳过模块前缀）
+        // V15 P0-S20 修复：跳过路径中的动作段（如 approve/export/print），
+        // 避免动作关键字被误认为资源ID
         let start_idx = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
             5
         } else {
             4
         };
         for part in path_parts.iter().skip(start_idx) {
+            // 跳过动作关键字，避免误判
+            if PATH_ACTION_KEYWORDS.contains(part) {
+                continue;
+            }
             if let Ok(id) = part.parse::<i32>() {
                 return (resource_type, Some(id));
             }
@@ -313,6 +388,101 @@ mod tests {
         let (rt, rid) = extract_resource_info("/");
         assert_eq!(rt, "unknown");
         assert_eq!(rid, None);
+    }
+
+    #[test]
+    fn test_extract_resource_info_动作段不误判为ID() {
+        // V15 P0-S20 新增：动作关键字不应被误认为资源ID
+        let (rt, rid) = extract_resource_info("/api/v1/erp/sales/orders/approve");
+        assert_eq!(rt, "orders");
+        assert_eq!(rid, None);
+    }
+
+    #[test]
+    fn test_extract_resource_info_生产域模块前缀() {
+        // V15 P0-S21 新增：production 模块前缀应正确提取资源
+        let (rt, rid) = extract_resource_info("/api/v1/erp/production/dye-batches/789");
+        assert_eq!(rt, "dye-batches");
+        assert_eq!(rid, Some(789));
+    }
+
+    #[test]
+    fn test_extract_resource_info_采购域修正拼写() {
+        // V15 P0-S21 修正：purchase（单数）应正确识别为模块前缀
+        let (rt, rid) = extract_resource_info("/api/v1/erp/purchase/orders");
+        assert_eq!(rt, "orders");
+        assert_eq!(rid, None);
+    }
+
+    // ===== extract_segment3 测试 =====
+
+    #[test]
+    fn test_extract_segment3_标准路径() {
+        assert_eq!(extract_segment3("/api/v1/erp/users"), Some("users"));
+        assert_eq!(
+            extract_segment3("/api/v1/erp/sales/orders"),
+            Some("sales")
+        );
+        assert_eq!(
+            extract_segment3("/api/v1/erp/production/dye-batches"),
+            Some("production")
+        );
+    }
+
+    #[test]
+    fn test_extract_segment3_非API路径返回None() {
+        assert_eq!(extract_segment3("/health"), None);
+        assert_eq!(extract_segment3("/api/v1"), None);
+        assert_eq!(extract_segment3("/"), None);
+    }
+
+    // ===== extract_action_from_path 测试 =====
+
+    #[test]
+    fn test_extract_action_from_path_approve动作() {
+        assert_eq!(
+            extract_action_from_path("/api/v1/erp/sales/orders/123/approve"),
+            Some("approve".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_action_from_path_export动作() {
+        assert_eq!(
+            extract_action_from_path("/api/v1/erp/users/export"),
+            Some("export".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_action_from_path_print动作() {
+        assert_eq!(
+            extract_action_from_path("/api/v1/erp/orders/456/print"),
+            Some("print".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_action_from_path_reject动作() {
+        assert_eq!(
+            extract_action_from_path("/api/v1/erp/purchase/orders/789/reject"),
+            Some("reject".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_action_from_path_无动作返回None() {
+        assert_eq!(extract_action_from_path("/api/v1/erp/users"), None);
+        assert_eq!(extract_action_from_path("/api/v1/erp/users/123"), None);
+    }
+
+    #[test]
+    fn test_extract_action_from_path_非动作关键字返回None() {
+        // 非动作关键字不应被识别为动作
+        assert_eq!(
+            extract_action_from_path("/api/v1/erp/users/profile"),
+            None
+        );
     }
 
     // ===== method_to_action 测试 =====
