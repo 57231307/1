@@ -22,6 +22,7 @@ pub mod product_category;
 pub mod product_color;
 pub mod role;
 pub mod role_permission;
+pub mod role_conflict;
 pub mod sales_order;
 pub mod sales_order_change_history;
 pub mod sales_order_item;
