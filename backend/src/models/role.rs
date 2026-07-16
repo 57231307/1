@@ -15,6 +15,10 @@ pub struct Model {
     pub description: Option<String>,
     pub permissions: Option<String>,
     pub is_system: bool,
+    /// V15 P0-S01 新增：数据范围（行级数据权限）
+    /// 取值：all（全部数据）/ dept（本部门数据）/ self（仅本人数据）
+    /// 默认 'self'，确保最小权限原则。
+    pub data_scope: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

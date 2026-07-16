@@ -160,6 +160,8 @@ impl RolePermissionService {
             description: sea_orm::ActiveValue::Set(request.description),
             permissions: sea_orm::ActiveValue::NotSet,
             is_system: sea_orm::ActiveValue::Set(request.is_system.unwrap_or(false)),
+            // V15 P0-S01：新角色默认 data_scope=self（最小权限原则）
+            data_scope: sea_orm::ActiveValue::Set("self".to_string()),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
         };
