@@ -261,7 +261,7 @@ impl ProductionRecipeService {
         id: i32,
         req: UpdateProductionRecipeRequest,
     ) -> Result<RecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        let model = self.get_by_id(id, None).await?;
         Self::validate_can_update(&model.status)?;
 
         // 若修改 work_order_id，需重新校验一工单一处方约束
@@ -365,7 +365,7 @@ impl ProductionRecipeService {
 
     /// 软删除大货处方（仅 draft 状态可删除）
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = self.get_by_id(id).await?;
+        let model = self.get_by_id(id, None).await?;
         Self::validate_can_delete(&model.status)?;
 
         let mut active: RecipeActiveModel = model.into();
@@ -481,7 +481,7 @@ impl ProductionRecipeService {
         id: i32,
         req: ApproveRecipeRequest,
     ) -> Result<RecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, recipe_status::APPROVED)?;
 
         // 业务校验：处方明细非空（审核前必须有物料明细）
@@ -505,7 +505,7 @@ impl ProductionRecipeService {
     ///
     /// 真实业务：生产完成，处方归档
     pub async fn close(&self, id: i32) -> Result<RecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, recipe_status::CLOSED)?;
 
         let mut active: RecipeActiveModel = model.into();
@@ -519,7 +519,7 @@ impl ProductionRecipeService {
     ///
     /// 真实业务：草稿状态作废
     pub async fn cancel(&self, id: i32) -> Result<RecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, recipe_status::CANCELLED)?;
 
         let mut active: RecipeActiveModel = model.into();
@@ -804,7 +804,7 @@ impl ProductionRecipeAdditionService {
         id: i32,
         req: ApproveRecipeRequest,
     ) -> Result<AdditionModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, addition_status::APPROVED)?;
 
         // 业务校验：加料明细非空
@@ -826,7 +826,7 @@ impl ProductionRecipeAdditionService {
 
     /// 关闭加料处方（approved → closed）
     pub async fn close(&self, id: i32) -> Result<AdditionModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, addition_status::CLOSED)?;
 
         let mut active: AdditionActiveModel = model.into();
