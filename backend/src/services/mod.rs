@@ -217,3 +217,5 @@ pub mod color_price_seasonal_service;
 pub mod color_price_tier_service;
 // v14 批次 431：多业务模式支持服务（业务模式配置 + 流程步骤 + 规则 + 单据关联）
 pub mod business_mode_service;
+// v14 批次 432：缸号全生命周期状态机服务（生命周期日志 + 状态规则 + 回修记录 + 操作记录 + 纯函数校验）
+pub mod dye_batch_state_machine_service;

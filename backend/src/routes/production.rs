@@ -17,11 +17,11 @@ use axum::{
 };
 
 use crate::handlers::{
-    capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
-    fabric_inspection_handler, flow_card_handler, greige_fabric_handler, lab_dip_handler,
-    missing_handlers, mrp_handler, outsourcing_handler, production_order_handler,
-    production_recipe_handler, quality_inspection_handler, wage_handler, energy_handler,
-    business_mode_handler,
+    capacity_handler, cost_collection_handler, dye_batch_handler, dye_batch_state_machine_handler,
+    dye_recipe_handler, fabric_inspection_handler, flow_card_handler, greige_fabric_handler,
+    lab_dip_handler, missing_handlers, mrp_handler, outsourcing_handler,
+    production_order_handler, production_recipe_handler, quality_inspection_handler, wage_handler,
+    energy_handler, business_mode_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -461,6 +461,47 @@ pub fn business_mode() -> Router<AppState> {
         .route("/business-mode-links/:id", put(business_mode_handler::update_order_link).delete(business_mode_handler::delete_order_link))
 }
 
+/// 缸号全生命周期状态机路由（path 前缀 /dye-batch-lifecycle-logs、/dye-batch-state-rules、
+/// /dye-batch-reworks、/dye-batch-operations）
+///
+/// v14 批次 432：缸号全生命周期状态机
+/// 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪
+/// 真实业务流程：14 种状态流转（待排缸→已排缸→备布中→进缸染色→皂洗→固色→脱水→烘干→验布→入库→发货）
+/// 加上回修流转（验布/入库 → 回修中 → 重新进缸染色）与终态保护（发货/取消/终止不可流转）
+/// 路由分组：/dye-batch-lifecycle-logs 生命周期日志 CRUD + 按缸号查询 + 获取最新状态 + 记录流转；
+/// /dye-batch-state-rules 状态流转规则 CRUD + 校验流转 + 查询允许的流转；
+/// /dye-batch-reworks 回修记录 CRUD + 审批 + 开始/完成/取消回修；
+/// /dye-batch-operations 操作记录 CRUD + 按类型查询 + 按缸号查询。
+pub fn dye_batch_state_machine() -> Router<AppState> {
+    Router::new()
+        // ===== 缸号生命周期日志 =====
+        // 静态路径必须在动态路径 /:id 之前，避免 axum 0.7 Overlapping method route panic
+        .route("/dye-batch-lifecycle-logs/by-batch/:batch_id", get(dye_batch_state_machine_handler::list_lifecycle_logs_by_batch))
+        .route("/dye-batch-lifecycle-logs/latest-status/:batch_id", get(dye_batch_state_machine_handler::get_latest_status))
+        .route("/dye-batch-lifecycle-logs", get(dye_batch_state_machine_handler::list_lifecycle_logs).post(dye_batch_state_machine_handler::record_transition))
+        .route("/dye-batch-lifecycle-logs/:id", get(dye_batch_state_machine_handler::get_lifecycle_log))
+        // ===== 缸号状态流转规则 =====
+        // 静态路径必须在动态路径 /:id 之前
+        .route("/dye-batch-state-rules/allowed-transitions", get(dye_batch_state_machine_handler::list_allowed_transitions))
+        .route("/dye-batch-state-rules/check", get(dye_batch_state_machine_handler::check_transition))
+        .route("/dye-batch-state-rules", get(dye_batch_state_machine_handler::list_state_rules).post(dye_batch_state_machine_handler::create_state_rule))
+        .route("/dye-batch-state-rules/:id", get(dye_batch_state_machine_handler::get_state_rule).put(dye_batch_state_machine_handler::update_state_rule).delete(dye_batch_state_machine_handler::delete_state_rule))
+        // ===== 缸号回修记录 =====
+        .route("/dye-batch-reworks", get(dye_batch_state_machine_handler::list_reworks).post(dye_batch_state_machine_handler::create_rework))
+        .route("/dye-batch-reworks/:id", get(dye_batch_state_machine_handler::get_rework).put(dye_batch_state_machine_handler::update_rework).delete(dye_batch_state_machine_handler::delete_rework))
+        // 回修单状态机流转
+        .route("/dye-batch-reworks/:id/approve", post(dye_batch_state_machine_handler::approve_rework))
+        .route("/dye-batch-reworks/:id/start", post(dye_batch_state_machine_handler::start_rework))
+        .route("/dye-batch-reworks/:id/complete", post(dye_batch_state_machine_handler::complete_rework))
+        .route("/dye-batch-reworks/:id/cancel", post(dye_batch_state_machine_handler::cancel_rework))
+        // ===== 缸号操作记录 =====
+        // 静态路径必须在动态路径 /:id 之前
+        .route("/dye-batch-operations/by-type/:operation_type", get(dye_batch_state_machine_handler::list_operations_by_type))
+        .route("/dye-batch-operations/by-batch/:batch_id", get(dye_batch_state_machine_handler::list_operations_by_batch))
+        .route("/dye-batch-operations", get(dye_batch_state_machine_handler::list_operations).post(dye_batch_state_machine_handler::create_operation))
+        .route("/dye-batch-operations/:id", get(dye_batch_state_machine_handler::get_operation))
+}
+
 /// 质量检验路由（path 前缀 /quality-inspection）
 ///
 /// 注意：原代码用 `/standards`、`/records`、`/defects` 等带前缀 path，已天然不冲突。
@@ -663,6 +704,7 @@ pub fn routes() -> Router<AppState> {
         .merge(energy())
         .merge(outsourcing())
         .merge(business_mode())
+        .merge(dye_batch_state_machine())
         .merge(quality_inspection())
         .merge(cost_collections())
         .merge(production())

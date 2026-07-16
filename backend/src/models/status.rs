@@ -1450,3 +1450,121 @@ pub mod business_rule_type {
     /// 禁止：该模块禁止存在
     pub const FORBIDDEN: &str = "forbidden";
 }
+
+/// v14 批次 432：缸号全生命周期状态机
+///
+/// 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪
+/// 14 种状态：待排缸→已排缸→备布中→进缸染色→皂洗→固色→脱水→烘干→验布→入库→发货 + 取消/终止/回修
+/// 终态：shipped 发货 / cancelled 取消 / terminated 终止
+/// 回修：rework 可回到 dyeing 重新进缸
+pub mod dye_batch_lifecycle_status {
+    /// 待排缸：缸号已创建，等待排缸
+    pub const PENDING_SCHEDULE: &str = "pending_schedule";
+    /// 已排缸：已分配缸位，可变更/合缸/终止
+    pub const SCHEDULED: &str = "scheduled";
+    /// 备布中：从坯布仓库领坯备布
+    pub const PREPARING: &str = "preparing";
+    /// 进缸染色：投缸染色，采集生产进度
+    pub const DYEING: &str = "dyeing";
+    /// 皂洗：染色后皂洗工序
+    pub const WASHING: &str = "washing";
+    /// 固色：皂洗后固色工序
+    pub const FIXING: &str = "fixing";
+    /// 脱水：固色后脱水工序
+    pub const DEHYDRATING: &str = "dehydrating";
+    /// 烘干：脱水后烘干工序
+    pub const DRYING: &str = "drying";
+    /// 验布：烘干后验布打卷
+    pub const INSPECTING: &str = "inspecting";
+    /// 入库：验布完成入库
+    pub const STORED: &str = "stored";
+    /// 发货：成品已发货（终态）
+    pub const SHIPPED: &str = "shipped";
+    /// 取消：缸号作废（终态）
+    pub const CANCELLED: &str = "cancelled";
+    /// 终止：异常终止（终态）
+    pub const TERMINATED: &str = "terminated";
+    /// 回修中：回修订单重新进缸，可回到 dyeing
+    pub const REWORK: &str = "rework";
+}
+
+/// v14 批次 432：缸号全生命周期状态机
+///
+/// 缸号流转操作代码（dye_batch_lifecycle_log.transition_code / dye_batch_state_rule.transition_code）
+pub mod dye_batch_transition_code {
+    /// 排缸：pending_schedule → scheduled
+    pub const SCHEDULE: &str = "schedule";
+    /// 备布：scheduled → preparing
+    pub const PREPARE: &str = "prepare";
+    /// 进缸染色：preparing → dyeing 或 rework → dyeing
+    pub const START_DYEING: &str = "start_dyeing";
+    /// 皂洗：dyeing → washing
+    pub const WASH: &str = "wash";
+    /// 固色：washing → fixing
+    pub const FIX: &str = "fix";
+    /// 脱水：fixing → dehydrating
+    pub const DEHYDRATE: &str = "dehydrate";
+    /// 烘干：dehydrating → drying
+    pub const DRY: &str = "dry";
+    /// 验布：drying → inspecting
+    pub const INSPECT: &str = "inspect";
+    /// 入库：inspecting → stored
+    pub const STORE: &str = "store";
+    /// 发货：stored → shipped（终态）
+    pub const SHIP: &str = "ship";
+    /// 取消：任意非终态 → cancelled（终态）
+    pub const CANCEL: &str = "cancel";
+    /// 回修：inspecting/stored → rework
+    pub const REWORK: &str = "rework";
+    /// 终止：scheduled/preparing/dyeing/rework → terminated（终态）
+    pub const TERMINATE: &str = "terminate";
+}
+
+/// v14 批次 432：缸号全生命周期状态机
+///
+/// 缸号回修类型（dye_batch_rework.rework_type）
+pub mod dye_batch_rework_type {
+    /// 色差：染色色差超允许范围，需回修调色
+    pub const COLOR_DIFFERENCE: &str = "color_difference";
+    /// 疵点：布面疵点超允许范围，需回修修补
+    pub const DEFECT: &str = "defect";
+    /// 规格不符：门幅/克重/纱支等规格不符，需回修调整
+    pub const SPECIFICATION_UNQUALIFIED: &str = "specification_unqualified";
+    /// 其他：其他原因回修
+    pub const OTHER: &str = "other";
+}
+
+/// v14 批次 432：缸号全生命周期状态机
+///
+/// 缸号回修单状态（dye_batch_rework.status）
+/// 状态机：draft 草稿 → approved 已审批 → in_progress 回修中 → completed 已完成 / cancelled 已取消
+pub mod dye_batch_rework_status {
+    /// 草稿：回修单初始状态，可编辑
+    pub const DRAFT: &str = "draft";
+    /// 已审批：审批通过，可开始回修
+    pub const APPROVED: &str = "approved";
+    /// 回修中：回修进行中
+    pub const IN_PROGRESS: &str = "in_progress";
+    /// 已完成：回修完成
+    pub const COMPLETED: &str = "completed";
+    /// 已取消：回修单作废
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// v14 批次 432：缸号全生命周期状态机
+///
+/// 缸号操作类型（dye_batch_operation.operation_type）
+pub mod dye_batch_operation_type {
+    /// 合缸：多个缸号合并为一个缸号
+    pub const MERGE: &str = "merge";
+    /// 分缸：一个缸号拆分为多个缸号
+    pub const SPLIT: &str = "split";
+    /// 优先级调整：调整缸号优先级
+    pub const PRIORITY_ADJUST: &str = "priority_adjust";
+    /// 缸变更：变更缸号所属缸位
+    pub const BATCH_CHANGE: &str = "batch_change";
+    /// 计划变更：变更生产计划
+    pub const SCHEDULE_CHANGE: &str = "schedule_change";
+    /// 终止：终止缸号生产
+    pub const TERMINATE: &str = "terminate";
+}

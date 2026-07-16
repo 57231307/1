@@ -304,3 +304,8 @@ pub mod business_mode_config;
 pub mod business_mode_flow_step;
 pub mod business_mode_rule;
 pub mod business_mode_order_link;
+// v14 批次 432：缸号全生命周期状态机（生命周期日志 + 状态规则 + 回修记录 + 操作记录）
+pub mod dye_batch_lifecycle_log;
+pub mod dye_batch_state_rule;
+pub mod dye_batch_rework;
+pub mod dye_batch_operation;
