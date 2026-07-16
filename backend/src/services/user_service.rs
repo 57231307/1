@@ -296,9 +296,7 @@ impl UserService {
         if let Some(role_id_val) = role_id {
             // V15 P0-S05：SoD 职责分离互斥校验
             // 检查新角色是否与用户已有角色互斥（如制单+审核、采购+付款）
-            if let Err(e) = self.check_role_conflict_for_user(role_id_val).await {
-                return Err(e);
-            }
+            self.check_role_conflict_for_user(role_id_val).await?;
             user.role_id = Set(Some(role_id_val));
         }
         if let Some(department_id_val) = department_id {
