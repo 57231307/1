@@ -37,6 +37,8 @@ impl RoleService {
     }
 
     /// 创建角色
+    ///
+    /// V15 P0-S01：新增 data_scope 参数（all/dept/self），默认 self
     pub async fn create_role(
         &self,
         name: String,
@@ -44,6 +46,7 @@ impl RoleService {
         description: Option<String>,
         permissions: Option<String>,
         is_system: bool,
+        data_scope: Option<String>,
     ) -> Result<role::Model, AppError> {
         let active_role = role::ActiveModel {
             id: Default::default(),
@@ -52,6 +55,8 @@ impl RoleService {
             description: Set(description),
             permissions: Set(permissions),
             is_system: Set(is_system),
+            // V15 P0-S01：数据范围，未指定时默认 self（最小权限原则）
+            data_scope: Set(data_scope.unwrap_or_else(|| "self".to_string())),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };

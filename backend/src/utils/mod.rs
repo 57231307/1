@@ -2,6 +2,8 @@ pub mod admin_checker;
 pub mod app_state;
 pub mod cache;
 pub mod data_permission;
+// V15 P0-S01 新增：行级数据权限工具模块（DataScope + apply_data_scope + check_resource_owner）
+pub mod data_scope;
 pub mod date_utils;
 pub mod path_utils;
 // 批次 322 v9 复审低危修复：抽取 backup.rs 和 upgrade.rs 重复的路径校验逻辑到共享模块

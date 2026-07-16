@@ -333,7 +333,30 @@ pub async fn auth_middleware(
                 return Err(unauthorized_response("账户已被禁用，请联系管理员"));
             }
 
-            let auth_context = AuthContext::from_claims(claims);
+            let mut auth_context = AuthContext::from_claims(claims);
+
+            // V15 P0-S01 修复：从数据库加载 role.data_scope 和 user.department_id
+            // 注入 AuthContext，供 service 层 apply_data_scope 使用。
+            // 查询失败时保持 None，service 层按 Self_ 处理（最小权限原则）。
+            if let Some(role_id) = auth_context.role_id {
+                // 查询 role 表的 data_scope 字段
+                if let Ok(Some(role_model)) =
+                    crate::models::role::Entity::find_by_id(role_id)
+                        .one(state.db.as_ref())
+                        .await
+                {
+                    auth_context.data_scope = Some(role_model.data_scope);
+                }
+            }
+            // 查询 user 表的 department_id 字段
+            if let Ok(Some(user_model)) =
+                crate::models::user::Entity::find_by_id(auth_context.user_id)
+                    .one(state.db.as_ref())
+                    .await
+            {
+                auth_context.department_id = user_model.department_id;
+            }
+
             info!(
                 path = %path,
                 method = %method,

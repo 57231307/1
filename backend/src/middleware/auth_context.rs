@@ -50,6 +50,13 @@ pub struct AuthContext {
     pub username: String,
     /// 角色 ID
     pub role_id: Option<i32>,
+    /// V15 P0-S01 新增：部门 ID（行级数据权限 dept 范围使用）
+    /// 由权限中间件从 user 表查询注入，None 表示用户未分配部门
+    pub department_id: Option<i32>,
+    /// V15 P0-S01 新增：数据范围（行级数据权限）
+    /// 由权限中间件从 role 表查询注入，"all"/"dept"/"self"
+    /// None 表示未加载（此时 service 层应按 self 处理，最小权限原则）
+    pub data_scope: Option<String>,
 }
 
 impl AuthContext {
@@ -58,6 +65,29 @@ impl AuthContext {
             user_id: claims.sub,
             username: claims.username,
             role_id: claims.role_id,
+            // V15 P0-S01：data_scope 和 department_id 由权限中间件从数据库加载后注入
+            department_id: None,
+            data_scope: None,
+        }
+    }
+
+    /// V15 P0-S01 新增：构建数据范围上下文
+    ///
+    /// 从 AuthContext 提取 DataScopeContext，用于 service 层调用 apply_data_scope。
+    /// 若 data_scope 未加载，默认按 Self_ 处理（最小权限原则）。
+    pub fn to_data_scope_context(&self) -> crate::utils::data_scope::DataScopeContext {
+        use crate::utils::data_scope::{DataScope, DataScopeContext};
+
+        let scope = self
+            .data_scope
+            .as_deref()
+            .map(DataScope::from_str)
+            .unwrap_or(DataScope::Self_);
+
+        DataScopeContext {
+            scope,
+            user_id: self.user_id,
+            department_id: self.department_id,
         }
     }
 }
