@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433-448 完成，P0-S03/S04/S20/S21/S22/S01(基础设施+销售域+采购域)/S18/S07/S05/S06/S10/S09(全部)/S11(全部) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623/#624/#625/#626/#627/#628 已合并）。
+> 最近整理：2026-07-16（V15 修复阶段 Batch 433-451b 完成，P0-S03/S04/S20/S21/S22/S01(基础设施+销售域+采购域+生产域+CRM域+财务域finance+AP)/S18/S07/S05/S06/S10/S09(全部)/S11(全部) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623/#624/#625/#626/#627/#628/#629/#630/#631/#632 已合并）。
 
 ---
 
@@ -31,6 +31,7 @@
 | 449 | #629 | V15 P0-S01 行级数据权限注入-生产域：production_order_service get_by_id/list 增加 data_scope 参数 + check_resource_owner IDOR 校验（无 department_id，Dept 退化为 Self）；production_recipe_service 4+1 个查询方法（大货处方 get_by_id/list/get_by_work_order + 加料处方 list_additions_by_recipe/get_by_id）增加 data_scope 参数，7 处内部调用传 None；2 个 handler 传 Some(&ctx)；MRP 域无 created_by 跳过；CI 15/15 全绿（13 success + 2 skipped）；修复 clippy baseline 96fb6e9 误删历史警告（too many arguments 8/7） |
 | 450 | #630 | V15 P0-S01 行级数据权限注入-CRM 域：lead.rs list_leads/get_lead + opp.rs list_opportunities/get_opportunity + cust.rs get_customer_360/list_follow_ups 增加 data_scope 参数 + IDOR 校验；6 处内部调用传 None；7 个 handler 传 Some(&ctx)（crm_handler 6 方法 + crm_customer_handler 2 方法）+ 4 处业务操作传 None（crm_pool_handler 3 处公海池共享数据 + crm_assignment_handler 1 处线索分配）；CRM 域使用 owner_id（业务负责人，i32 必填）作为 owner_column，比 created_by（Option<i32>，crm_lead 未显式设置）更可靠；CI 15/15 全绿（13 success + 2 skipped） |
 | 451 | #631 | V15 P0-S01 行级数据权限注入-财务域（finance_payment+invoice）：finance_payment_service find_by_id/list_payments + finance_invoice_service list_invoices/get_invoice 增加 data_scope 参数 + IDOR 校验；2 个 handler（finance_payment_handler + finance_invoice_handler）的 get_payment/list_payments/list_finance_invoices/get_finance_invoice 新增 auth 参数，传 Some(&ctx)；finance_payment + finance_invoice 表均无 department_id，Dept 退化为 Self；finance_payment.created_by 已显式 Set，finance_invoice.created_by 恒为 None；AP/AR 域留待后续批次；CI 15/15 全绿（13 success + 2 skipped） |
+| 451b | #632 | V15 P0-S01 行级数据权限注入-财务域 AP 域：ap_payment_service get_by_id/get_list + ap_payment_request_service get_by_id/get_list 增加 data_scope 参数 + IDOR 校验/过滤；2 个 handler（ap_payment_handler + ap_payment_request_handler）的 list_payments/get_payment/list_requests/get_request 提取 data_scope_ctx 传 Some(&ctx)；ap_payment + ap_payment_request 表 created_by 均为 i32 必填，无 department_id，Dept 退化为 Self 使用 created_by；CI 15/15 全绿（12 success + 2 skipped + 1 queued 通知）；P0-S01 进度 21→23/104 |
 
 ---
 
