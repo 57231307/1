@@ -117,7 +117,7 @@ export default {
       greigeFabrics: '坯布管理',
       product: '产品管理',
       colorCardsList: '色卡列表',
-      colorCardsBorrow: '色卡借出',
+      colorCardsIssue: '色卡发放',
       colorPricesList: '色号价格',
       colorPricesBatchAdjust: '批量调价',
       /* 库存管理 */

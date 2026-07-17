@@ -117,7 +117,7 @@ export default {
       greigeFabrics: 'Greige Fabrics',
       product: 'Products',
       colorCardsList: 'Color Cards',
-      colorCardsBorrow: 'Color Card Borrow',
+      colorCardsIssue: 'Color Card Issue',
       colorPricesList: 'Color Prices',
       colorPricesBatchAdjust: 'Batch Price Adjust',
       /* Inventory management */
