@@ -787,7 +787,7 @@ impl EmailTemplate {
     /// V15 P0-S14 死代码清理（批次 461）：删除 approval_notification 邮件模板方法
     /// 原因：唯一调用方 EventNotificationService::notify_pending_approval 已被删除，
     /// 该方法变为真实死代码。依据死代码处理规范第六章「真正未使用的项应显式删除」。
-
+    //
     /// 生成库存预警邮件
     pub fn inventory_alert(product_name: &str, current_stock: &str, threshold: &str) -> String {
         let safe_product_name = escape_html(product_name);
