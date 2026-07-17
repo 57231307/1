@@ -1,11 +1,9 @@
 //! 色卡仓储管理路由
 //!
-//! 16 端点：色卡 CRUD + 色号 CRUD + 借出/归还/遗失/扫码/导入/导出
-//! 创建时间: 2026-06-17
-//! 关联 spec: docs/superpowers/specs/2026-06-16-color-card-design.md §4.2
+//! V15 P0-F03~F05 重构：删除借出/归还(borrow)路由，新增发放(issue)路由
+//! 16 端点：色卡 CRUD + 色号 CRUD + 发放/归还/遗失/损坏/取消/列表/详情 + 扫码/导入/导出
 
 use axum::{
-    // 批次 357 v13 复审 baseline 清零：移除 unused import delete
     routing::{get, post, put},
     Router,
 };
@@ -28,7 +26,7 @@ pub fn routes() -> Router<AppState> {
                 .put(color_card::update_color_card)
                 .delete(color_card::archive_color_card),
         )
-        // v11 批次 154b：直接标记色卡为遗失（不同于借出记录遗失 /lost/:record_id）
+        // 直接标记色卡为遗失（不同于发放记录遗失 /issues/:record_id/lost）
         .route(
             "/:id/mark-lost",
             post(color_card::mark_card_lost),
@@ -48,38 +46,35 @@ pub fn routes() -> Router<AppState> {
             put(color_card::update_color_item)
                 .delete(color_card::delete_color_item),
         )
-        // 借出 / 归还 / 遗失 / 损坏
-        .route("/borrow", post(color_card::borrow_color_card))
+        // V15 P0-F05：发放 / 归还 / 遗失 / 损坏 / 取消（替代旧 borrow 路由）
+        .route("/issues", post(color_card::issue_color_card))
         .route(
-            "/return/:record_id",
-            post(color_card::return_color_card),
+            "/issues",
+            get(color_card::list_issues),
         )
         .route(
-            "/lost/:record_id",
-            post(color_card::mark_lost_color_card),
+            "/issues/:record_id",
+            get(color_card::get_issue),
         )
         .route(
-            "/damaged/:record_id",
-            post(color_card::mark_damaged_color_card),
+            "/issues/:record_id/return",
+            post(color_card::return_issue),
         )
-        // 批次 400 修复（规则 0/8/14）：取消借出（错误借出/客户撤回）
         .route(
-            "/cancel/:record_id",
-            post(color_card::cancel_borrow),
+            "/issues/:record_id/lost",
+            post(color_card::mark_issue_lost),
         )
-        // 借出历史
         .route(
-            "/borrow-records",
-            get(color_card::list_borrow_records),
+            "/issues/:record_id/damaged",
+            post(color_card::mark_issue_damaged),
         )
-        // 借出记录详情（v11 P1-5 真实实现：接入 service.get_by_id）
         .route(
-            "/borrow-records/:record_id",
-            get(color_card::get_borrow_record),
+            "/issues/:record_id/cancel",
+            post(color_card::cancel_issue),
         )
         // 扫码查询
         .route("/scan/:code", get(color_card::scan_color_code))
-        // 按 ID 扫码查询（v11 P1-5 真实实现：接入 service.scan_by_id）
+        // 按 ID 扫码查询
         .route("/scan-by-id/:id", get(color_card::scan_color_by_id))
         // 导出 CSV
         .route(

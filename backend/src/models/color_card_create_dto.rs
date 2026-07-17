@@ -50,3 +50,14 @@ pub struct ArchiveColorCardDto {
     /// 归档原因
     pub reason: Option<String>,
 }
+
+/// 色卡列表查询参数（V15 P0-F03：从 color_card_borrow_dto.rs 迁移，borrow 模式已废弃）
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct ListColorCardsQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub card_type: Option<String>,
+    pub season: Option<String>,
+    pub status: Option<String>,
+    pub keyword: Option<String>,
+}

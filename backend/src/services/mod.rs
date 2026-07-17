@@ -209,7 +209,8 @@ pub mod custom_order_aftersales_service;
 // P0-4 色卡仓储管理服务
 pub mod color_card_crud_service;
 pub mod color_card_item_service;
-pub mod color_card_borrow_service;
+// V15 P0-F04：新增 color_card_issue_service（替代 color_card_borrow_service）
+pub mod color_card_issue_service;
 pub mod color_card_scan_service;
 // P0-5 面料多色号定价扩展服务
 pub mod color_price_crud_service;

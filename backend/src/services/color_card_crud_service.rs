@@ -2,7 +2,7 @@
 //!
 //! 提供色卡基础 CRUD 业务：create / list / get_by_id / update / archive
 //! 色号相关业务在 color_card_item_service 中实现
-//! 借出相关业务在 color_card_borrow_service 中实现
+//! 借出相关业务在 color_card_issue_service 中实现（V15 P0-F03 重构：borrow→issue）
 //! 创建时间: 2026-06-17
 
 use chrono::Utc;

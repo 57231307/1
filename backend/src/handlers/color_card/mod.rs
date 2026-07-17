@@ -1,34 +1,31 @@
 //! 色卡仓储管理 Handler 模块入口
 //!
-//! 任务编号: P14 批 2 I-3 第 9 批
-//! 拆分原 handlers/color_card_handler.rs（590 行 → 4 子模块 + helpers）
+//! V15 P0-F03~F05 重构：删除借出/归还(borrow)模式，新增发放(issue)模式
 //!
 //! 拆分结构：
 //! - crud.rs：色卡 CRUD 5 端点（list/create/get/update/archive）
 //! - items.rs：色号 CRUD + 批量导入 5 端点（list/create/update/delete/batch_import）
-//! - borrow.rs：借出/归还/遗失/损坏/历史 5 端点
+//! - issue.rs：发放/归还/遗失/损坏/取消/列表/详情 7 端点（V15 P0-F04 新增）
 //! - scan_export.rs：扫码 + 导出 CSV 2 端点
-//! - error_map.rs：CrudError/ItemError/BorrowError → AppError 转换
-//! - helpers.rs：ListItemsQuery + Model→DTO + CSV 转义
+//! - error_map.rs：CrudError/ItemError → AppError 转换（V15 删除 BorrowError 转换）
+//! - helpers.rs：ListItemsQuery + Model→DTO + CSV 转义（V15 删除 record_to_info）
 //!
-//! 实现 13 个 HTTP 端点：色卡 CRUD + 色号 CRUD + 借出/归还/遗失/扫码/导入/导出
-//! 设计依据：docs/superpowers/specs/2026-06-16-color-card-design.md §4.2
-//! 行为完全保持一致（仅结构重构）
+//! 实现 14 个 HTTP 端点：色卡 CRUD + 色号 CRUD + 发放/归还/遗失/损坏/取消/列表/详情 + 扫码/导入/导出
 
-pub mod borrow;
 pub mod crud;
 pub mod error_map;
 pub mod helpers;
+pub mod issue;
 pub mod items;
 pub mod scan_export;
 
-pub use borrow::{
-    borrow_color_card, cancel_borrow, get_borrow_record, list_borrow_records,
-    mark_damaged_color_card, mark_lost_color_card, return_color_card,
-};
 pub use crud::{
     archive_color_card, create_color_card, get_color_card, list_color_cards, mark_card_lost,
     update_color_card,
+};
+pub use issue::{
+    cancel_issue, get_issue, issue_color_card, list_issues, mark_issue_damaged, mark_issue_lost,
+    return_issue,
 };
 pub use items::{
     batch_import_items, create_color_item, delete_color_item, list_color_items, update_color_item,
