@@ -1,6 +1,9 @@
 pub mod customer;
 pub mod customer_contact;
 pub mod customer_followup;
+// V15 P0-S08 修复：CRM 公海规则配置 + 客户转移审批
+pub mod customer_pool_rule;
+pub mod customer_transfer_approval;
 pub mod department;
 pub mod dto;
 pub mod finance_invoice;

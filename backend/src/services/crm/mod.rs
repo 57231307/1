@@ -8,6 +8,7 @@
 //! - `pool`    公海（客户池）领取
 //! - `assign`  分配（assignment）服务（v10 P1 批次 140 真实实现：自动分配 + 转移分配）
 //! - `recycle_rule` 公海回收规则 CRUD（批次 23 v5 P0-4：内存存储迁移至数据库）
+//! - `customer_transfer_approval` 客户转移审批服务（V15 P0-S08：多级审批流）
 //!
 //! 兼容说明：原 `crate::services::crm::cust::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::crm::*;` 重新导出以保持向后兼容。
@@ -17,6 +18,8 @@ use serde::Serialize;
 
 pub mod assign;
 pub mod cust;
+// V15 P0-S08 修复：客户转移审批服务
+pub mod customer_transfer_approval_service;
 pub mod lead;
 pub mod opp;
 pub mod pool;

@@ -302,6 +302,9 @@ impl CustomerService {
             annual_purchase: sea_orm::ActiveValue::NotSet,
             quality_requirement: sea_orm::ActiveValue::NotSet,
             inspection_standard: sea_orm::ActiveValue::NotSet,
+            // V15 P0-S08 修复：业务负责人默认为创建人，分配时间为创建时间
+            owner_id: sea_orm::ActiveValue::Set(created_by.unwrap_or(0)),
+            owner_assigned_at: sea_orm::ActiveValue::Set(Some(Utc::now())),
         };
 
         let result = customer.insert(&txn).await.map_err(AppError::from)?;
