@@ -295,55 +295,11 @@ impl EventNotificationService {
 
     // ========== 审批相关通知 ==========
 
-    /// 待审批任务通知
-    ///
-    /// v10 P1 修复（批次 139）：原 sender_id: Some(0) 占位，现传入真实申请人 ID
-    pub async fn notify_pending_approval(
-        &self,
-        approver_user_id: i32,
-        task_title: &str,
-        applicant_id: i32,
-        applicant_name: &str,
-        business_type: &str,
-        business_id: i32,
-    ) -> Result<(), AppError> {
-        let should_email = self
-            .setting_service
-            .should_send_email(approver_user_id, "APPROVAL")
-            .await?;
-        let should_internal = self
-            .setting_service
-            .should_send_internal(approver_user_id, "APPROVAL")
-            .await?;
-
-        let approval_url = format!("/approvals/{}", business_id);
-
-        if should_internal {
-            self.notification_service
-                .create_notification(CreateNotificationRequest {
-                    user_id: approver_user_id,
-                    notification_type: NotificationType::Internal,
-                    title: "待审批任务".to_string(),
-                    content: format!("{} 提交的 '{}' 需要您审批", applicant_name, task_title),
-                    priority: NotificationPriority::High,
-                    business_type: Some(business_type.to_string()),
-                    business_id: Some(business_id),
-                    action_url: Some(approval_url.clone()),
-                    sender_id: Some(applicant_id),
-                    sender_name: Some(applicant_name.to_string()),
-                })
-                .await?;
-        }
-
-        if should_email {
-            let html =
-                EmailTemplate::approval_notification(task_title, applicant_name, &approval_url);
-            self.send_email_notification(approver_user_id, "待审批任务提醒", html)
-                .await;
-        }
-
-        Ok(())
-    }
+    // V15 P0-S14 死代码清理（批次 461）：删除 notify_pending_approval 方法
+    // 原因：该方法 pub 但 crate 内无任何调用方，属于真实死代码；
+    // CI clippy 在 baseline 比对中报 `unused variable: applicant_name`（baseline 未收录此警告）
+    // 依据死代码处理规范第六章「真正未使用的项应显式删除」。
+    // 若后续审批流程需要"待审批任务通知"能力，应基于实际业务接入点重新实现。
 
     /// 审批结果通知
     ///
