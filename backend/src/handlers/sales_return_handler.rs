@@ -122,6 +122,9 @@ pub async fn update_sales_return(
     Json(req): Json<UpdateSalesReturnRequest>,
 ) -> Result<Json<ApiResponse<crate::models::sales_return::Model>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_return + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_return(id, Some(&data_scope_ctx)).await?;
     let return_order = service.update_return(id, req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(return_order)))
@@ -134,6 +137,9 @@ pub async fn delete_sales_return(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_return + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_return(id, Some(&data_scope_ctx)).await?;
     service.delete_return(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),

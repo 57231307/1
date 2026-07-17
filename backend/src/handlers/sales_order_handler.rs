@@ -217,6 +217,9 @@ pub async fn update_order(
     Json(request): Json<UpdateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service.get_order_detail(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
     let order = sales_service
         .update_order(id, auth.user_id, request)
@@ -237,6 +240,9 @@ pub async fn delete_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service.get_order_detail(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
     sales_service.delete_order(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
