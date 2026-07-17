@@ -144,6 +144,13 @@ pub async fn update_payment(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_payment + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_payment(id, Some(&data_scope_ctx))
+        .await
+        .map_err(|e| AppError::internal(format!("IDOR 校验失败: {}", e)))?;
+
     let payload_json = serde_json::to_value(payload)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 

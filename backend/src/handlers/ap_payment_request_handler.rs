@@ -205,6 +205,10 @@ pub async fn update_request(
     })?;
 
     let service = ApPaymentRequestService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+
     let request = service.update(id, req, auth.user_id).await?;
 
     info!(
@@ -227,6 +231,10 @@ pub async fn delete_request(
     info!("用户 {} 删除付款申请 ID: {}", auth.username, id);
 
     let service = ApPaymentRequestService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete(id, auth.user_id).await?;
 

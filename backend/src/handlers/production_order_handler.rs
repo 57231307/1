@@ -242,11 +242,14 @@ pub async fn list_production_orders(
 /// 更新生产订单
 pub async fn update_production_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateProductionOrderPayload>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let _ = service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
     let req = UpdateProductionOrderRequest {
         planned_quantity: payload.planned_quantity,
@@ -364,6 +367,9 @@ pub async fn delete_production_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let _ = service.get_by_id(id, Some(&data_scope_ctx)).await?;
     service.delete(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success("生产订单已取消".to_string())))
 }
