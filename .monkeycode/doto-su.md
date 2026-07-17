@@ -244,6 +244,38 @@
 
 ---
 
+## 📝 V15 复审核实发现的已完成项（2026-07-17 复审归档）
+
+> 本节归档 2026-07-17 V15 修复阶段复审审计中发现的"标记未完成但实际已完成"的 4 项 P0 任务。
+> 复审报告：[v15-fix-reaudit-2026-07-17.md](file:///workspace/.monkeycode/docs/audits/v15-fix-reaudit-2026-07-17.md)
+> 这些任务此前在 doto.md 中错误标记为"未完成"，复审核实后归档至此。
+
+### 复审核实已完成项总览表
+
+| P0 任务 | 原标记 | 实际状态 | 核实证据 |
+|---------|--------|----------|----------|
+| P0-S08 CRM 数据权限完全缺失 | 未完成 | ✅ 已完成 | crm_lead.rs:74 / crm_opportunity.rs:68 均含 `owner_id: i32`；crm/lead.rs:130-141 已用 `apply_data_scope` 按 owner_id 过滤；crm/lead.rs:344-353 已用 `check_resource_owner` 做 IDOR 校验；转化客户时 owner_id 继承（lead.rs:530） |
+| P0-S16 导出无条数上限 | 未完成 | ✅ 已完成 | import_export_service.rs:867 `MAX_EXPORT_ROWS: u64 = 10_000`；customer_service.rs:730 / crm/lead.rs:191 / import_export_service.rs:668-673 已落地 limit(10_000) |
+| P0-F14 代码层旧文件处理未实现 | 未完成 | ✅ 已完成 | Glob 查找 `color_card_lend_return_service*` 返回 No file found；旧 borrow_service.rs / borrow_record.rs / borrow_dto.rs 等 5 个旧文件已在 Batch 471 删除 |
+| P0-T04 mockBusinessApi 未移除 | 未完成 | ✅ 已完成 | frontend/e2e/fixtures/ 下仅剩 auth.ts/network.ts/rpa.ts/multi-context.ts；mockBusinessApi.ts 已不存在 |
+
+### 部分实现项（保留在 doto.md 未完成列表，但更新说明）
+
+| P0 任务 | 实际状态 | 剩余工作 |
+|---------|----------|----------|
+| P0-S19 14 端点审计不达标 | ⚠️ 6/8 字段已实现 | 缺 `condition` 字段；`response_status` 可视为 result |
+| P0-F11/F12 前端文件结构 | ⚠️ 2/7 文件已存在 | 已有 issues.vue + color-card.ts；缺 ColorCardIssue.vue / Form.vue / Detail.vue / useColorCardIssue.ts / store |
+| P0-D01 Docker 文件违规 | ⚠️ 3/4 文件已删除 | docker-entrypoint.sh 已删除；剩 Dockerfile / docker-compose.yml / .dockerignore 3 个 |
+| P0-B17 主备切换自动完成 | ⚠️ 基础框架存在 | failover_service.rs 存在仅事件记录/手动切换；缺自动心跳检测/VIP 漂移/10s 内自动完成 |
+
+### 复审发现需重新打开的项（已放回 doto.md 未完成列表）
+
+| P0 任务 | 原标记 | 实际状态 | 重新打开原因 |
+|---------|--------|----------|--------------|
+| P0-S14 二级审批机制完全缺失 | 已完成 | ❌ 功能性缺失 | service/model/handler 均存在，但 **migration 047 完全不存在**（实际 m0047 为 webhooks 相关）；数据库表无法通过 migration 自动创建 |
+
+---
+
 ## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
 
 ### 批次 421：v14 P1 第二批 - 面料行业特性首批（质检 A/B/C 级分级 + 缸号同订单校验）（PR #597，sha: de41e89c）
