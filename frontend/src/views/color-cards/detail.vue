@@ -48,9 +48,9 @@
           <ColorCardGrid :items="items" @delete="handleDeleteItem" @scan="handleScanItem" />
         </el-tab-pane>
 
-        <!-- 借出历史 -->
-        <el-tab-pane label="借出历史" name="borrow">
-          <BorrowRecordTimeline :records="borrowRecords" />
+        <!-- 发放历史 -->
+        <el-tab-pane label="发放历史" name="issue">
+          <IssueRecordTimeline :records="issueRecords" />
         </el-tab-pane>
       </el-tabs>
     </el-card>
@@ -113,22 +113,20 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Plus, Box, Download } from '@element-plus/icons-vue'
 import {
   getColorCard,
-  listBorrowRecords,
+  listIssues,
   createColorItem,
   deleteColorItem,
   batchImportItems,
-  scanColorCode,
   exportColorCardUrl,
-  COLOR_CARD_TYPE_LABELS,
   COLOR_CARD_STATUS,
   COLOR_CARD_STATUS_COLORS,
   type ColorCardDetail,
   type ColorItemInfo,
-  type BorrowRecordInfo,
+  type IssueRecordInfo,
 } from '@/api/color-card'
 import ColorCardGrid from '@/components/ColorCardGrid.vue'
 import ColorItemEditor from '@/components/ColorItemEditor.vue'
-import BorrowRecordTimeline from '@/components/BorrowRecordTimeline.vue'
+import IssueRecordTimeline from '@/components/IssueRecordTimeline.vue'
 
 // v11 批次 173 P2-1 修复：扫码结果接口类型，替代 any
 interface ScanRecipeSummary {
@@ -154,7 +152,7 @@ const cardId = computed(() => Number(route.params.id))
 const loading = ref(false)
 const card = ref<ColorCardDetail | null>(null)
 const items = ref<ColorItemInfo[]>([])
-const borrowRecords = ref<BorrowRecordInfo[]>([])
+const issueRecords = ref<IssueRecordInfo[]>([])
 const activeTab = ref('info')
 
 const showAddItemDialog = ref(false)
@@ -184,10 +182,10 @@ const loadData = async () => {
     card.value = cardRes.data
     items.value = cardRes.data.items || []
 
-    const recordsRes = (await listBorrowRecords({ color_card_id: cardId.value, page_size: 50 })) as {
-      data?: { items?: BorrowRecordInfo[] }
+    const recordsRes = (await listIssues({ color_card_id: cardId.value, page_size: 50 })) as {
+      data?: { items?: IssueRecordInfo[] }
     }
-    borrowRecords.value = recordsRes.data?.items || []
+    issueRecords.value = recordsRes.data?.items || []
   } finally {
     loading.value = false
   }

@@ -8,8 +8,8 @@
             <el-button type="primary" :icon="Plus" @click="$router.push('/color-cards/create')">
               新建色卡
             </el-button>
-            <el-button :icon="Box" @click="$router.push('/color-cards/borrow')">
-              借出管理
+            <el-button :icon="Box" @click="$router.push('/color-cards/issues')">
+              发放管理
             </el-button>
           </div>
         </div>

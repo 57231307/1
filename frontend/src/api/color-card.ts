@@ -1,6 +1,7 @@
 // 色卡仓储管理 API 客户端
 // 16 端点封装
 // 创建时间: 2026-06-17
+// V15 P0-F07 重构（2026-07-17）：删除 borrow 模式，替换为 issue 发放模式
 // 端点路径相对于 baseURL（/api/v1/erp），不要重复添加前缀，否则会产生双重前缀
 
 import { request } from './request'
@@ -33,19 +34,21 @@ export const COLOR_CARD_STATUS_COLORS: Record<string, string> = {
   lost: 'danger',
 }
 
-// 借出状态
-export const BORROW_STATUS = {
-  borrowed: '借出中',
+// 发放状态（V15 P0-F07：替代原 BORROW_STATUS，borrow 模式已废弃）
+export const ISSUE_STATUS = {
+  issued: '发放中',
   returned: '已归还',
   lost: '遗失',
   damaged: '损坏',
+  cancelled: '已取消',
 } as const
 
-export const BORROW_STATUS_COLORS: Record<string, string> = {
-  borrowed: 'warning',
+export const ISSUE_STATUS_COLORS: Record<string, string> = {
+  issued: 'warning',
   returned: 'success',
   lost: 'danger',
   damaged: 'danger',
+  cancelled: 'info',
 }
 
 // 季节标签
@@ -102,22 +105,25 @@ export interface ColorCardDetail extends ColorCardListItem {
   updated_at: string
 }
 
-export interface BorrowRecordInfo {
+// 发放记录信息（V15 P0-F07：替代原 BorrowRecordInfo，borrow 模式已废弃）
+// 与后端 handlers/color_card/issue.rs::IssueRecordInfo 字段对齐
+export interface IssueRecordInfo {
   id: number
   color_card_id: number
-  color_card_no?: string
-  color_card_name?: string
   customer_id: number
-  customer_name?: string
-  borrowed_by: number
-  borrowed_by_name?: string
-  borrowed_at: string
-  expected_return_at?: string
-  actual_return_at?: string
+  issue_qty: number
+  issued_by: number
+  issued_at: string
+  expected_return_date?: string
+  actual_return_date?: string
   status: string
   purpose?: string
-  notes?: string
+  remark?: string
   compensation_amount?: number
+  returned_by?: number
+  dye_lot_no?: string
+  created_at: string
+  updated_at: string
 }
 
 export interface PagedResponse<T> {
@@ -218,41 +224,60 @@ export function batchImportItems(cardId: number, items: Partial<ColorItemInfo>[]
   )
 }
 
-// ============== 借出管理 ==============
+// ============== 发放管理（V15 P0-F07：替代原借出管理，borrow 模式已废弃）==============
 
-export function borrowColorCard(dto: {
+// 创建发放记录 DTO（与后端 handlers/color_card/issue.rs::IssueColorCardDto 对齐）
+export function issueColorCard(dto: {
   color_card_id: number
   customer_id: number
-  borrowed_by?: number
-  expected_return_at?: string
+  issue_qty?: number
+  expected_return_date?: string
   purpose?: string
-  notes?: string
+  remark?: string
+  dye_lot_no?: string
 }) {
-  return request.post<{ data: BorrowRecordInfo }>('/color-cards/borrow', dto)
+  return request.post<{ data: IssueRecordInfo }>('/color-cards/issues', dto)
 }
 
-export function returnColorCard(recordId: number, dto: { actual_return_at?: string; notes?: string }) {
-  return request.post<{ data: BorrowRecordInfo }>(
-    `/color-cards/return/${recordId}`,
+// 归还色卡（与后端 ReturnColorCardDto 对齐）
+export function returnIssue(recordId: number, dto: { actual_return_date?: string; remark?: string }) {
+  return request.post<{ data: IssueRecordInfo }>(
+    `/color-cards/issues/${recordId}/return`,
     dto,
   )
 }
 
-export function markLostColorCard(recordId: number, dto: { compensation_amount: number; notes?: string }) {
-  return request.post<{ data: BorrowRecordInfo }>(
-    `/color-cards/lost/${recordId}`,
+// 登记遗失（与后端 MarkLostDto 对齐）
+export function markIssueLost(recordId: number, dto: { compensation_amount: number; remark?: string }) {
+  return request.post<{ data: IssueRecordInfo }>(
+    `/color-cards/issues/${recordId}/lost`,
     dto,
   )
 }
 
-export function markDamagedColorCard(recordId: number, dto: { compensation_amount?: number; notes?: string }) {
-  return request.post<{ data: BorrowRecordInfo }>(
-    `/color-cards/damaged/${recordId}`,
+// 标记损坏（与后端 MarkDamagedDto 对齐）
+export function markIssueDamaged(recordId: number, dto: { compensation_amount?: number; remark?: string }) {
+  return request.post<{ data: IssueRecordInfo }>(
+    `/color-cards/issues/${recordId}/damaged`,
     dto,
   )
 }
 
-export function listBorrowRecords(params: {
+// 取消发放（与后端 CancelIssueDto 对齐）
+export function cancelIssue(recordId: number, dto: { remark?: string }) {
+  return request.post<{ data: IssueRecordInfo }>(
+    `/color-cards/issues/${recordId}/cancel`,
+    dto,
+  )
+}
+
+// 发放记录详情
+export function getIssue(recordId: number) {
+  return request.get<{ data: IssueRecordInfo }>(`/color-cards/issues/${recordId}`)
+}
+
+// 发放记录列表（与后端 ListIssuesQuery 对齐）
+export function listIssues(params: {
   color_card_id?: number
   customer_id?: number
   status?: string
@@ -261,8 +286,8 @@ export function listBorrowRecords(params: {
   from_date?: string
   to_date?: string
 }) {
-  return request.get<{ data: PagedResponse<BorrowRecordInfo> }>(
-    '/color-cards/borrow-records',
+  return request.get<{ data: PagedResponse<IssueRecordInfo> }>(
+    '/color-cards/issues',
     { params },
   )
 }

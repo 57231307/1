@@ -9,7 +9,7 @@
 //   2. 色卡创建完整流程（填表单 + 提交 + 等待 API 响应 + 断言成功提示）
 //   3. 色卡列表加载断言（等待表格渲染）
 //   4. 色卡详情加载断言（等待描述列表渲染）
-//   5. 借出管理页面加载断言（等待核心组件渲染）
+//   5. 发放管理页面加载断言（等待核心组件渲染，V15 P0-F07：borrow→issue）
 // 同时对齐批次 28 P0-1 fail-secure 模式：凭据从环境变量注入，禁止硬编码 admin/admin123。
 
 import { test, expect, type Page } from '@playwright/test'
@@ -136,21 +136,21 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
     }
   })
 
-  test('色卡借出管理页面加载：等待核心组件渲染', async ({ page }) => {
-    // 1. 导航到借出管理页
-    await page.goto(`${BASE_URL}/color-cards/borrow`)
+  test('色卡发放管理页面加载：等待核心组件渲染', async ({ page }) => {
+    // 1. 导航到发放管理页（V15 P0-F07：borrow→issue）
+    await page.goto(`${BASE_URL}/color-cards/issues`)
 
     // 2. 等待页面标题渲染
-    await page.waitForSelector('text=借出 / 归还 / 遗失登记', { state: 'visible', timeout: 10_000 })
+    await page.waitForSelector('text=发放 / 归还 / 遗失 / 损坏 / 取消登记', { state: 'visible', timeout: 10_000 })
 
-    // 3. 等待借出列表 API 响应完成
+    // 3. 等待发放列表 API 响应完成
     await page.waitForResponse(
       (resp) => resp.url().includes('/color-cards') && resp.request().method() === 'GET',
       { timeout: 15_000 },
     )
 
     // 4. 断言核心业务组件存在
-    await expect(page.getByText('借出 / 归还 / 遗失登记')).toBeVisible()
+    await expect(page.getByText('发放 / 归还 / 遗失 / 损坏 / 取消登记')).toBeVisible()
   })
 
   test('色卡筛选条件区域：所有筛选项均可交互', async ({ page }) => {

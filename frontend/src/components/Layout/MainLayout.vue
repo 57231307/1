@@ -30,7 +30,7 @@
           <el-menu-item role="menuitem" v-if="canAccessMenu('/greige-fabrics')" index="/greige-fabrics">{{ $t('layout.menu.greigeFabrics') }}</el-menu-item>
           <el-menu-item role="menuitem" v-if="canAccessMenu('/product')" index="/product">{{ $t('layout.menu.product') }}</el-menu-item>
           <el-menu-item role="menuitem" v-if="canAccessMenu('/color-cards/list')" index="/color-cards/list">{{ $t('layout.menu.colorCardsList') }}</el-menu-item>
-          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-cards/borrow')" index="/color-cards/borrow">{{ $t('layout.menu.colorCardsBorrow') }}</el-menu-item>
+          <el-menu-item role="menuitem" v-if="canAccessMenu('/color-cards/issues')" index="/color-cards/issues">{{ $t('layout.menu.colorCardsIssue') }}</el-menu-item>
           <el-menu-item role="menuitem" v-if="canAccessMenu('/color-prices/list')" index="/color-prices/list">{{ $t('layout.menu.colorPricesList') }}</el-menu-item>
           <el-menu-item role="menuitem" v-if="canAccessMenu('/color-prices/batch-adjust')" index="/color-prices/batch-adjust">{{ $t('layout.menu.colorPricesBatchAdjust') }}</el-menu-item>
         </el-sub-menu>
@@ -306,7 +306,7 @@ function canAccessMenu(menuItemPath: string): boolean {
 const visibleSubMenu = computed<Record<string, boolean>>(() => {
   // 子菜单 index 与其下属菜单项 path 的映射
   const subMenus: Record<string, string[]> = {
-    fabric: ['/fabric', '/greige-fabrics', '/product', '/color-cards/list', '/color-cards/borrow', '/color-prices/list', '/color-prices/batch-adjust'],
+    fabric: ['/fabric', '/greige-fabrics', '/product', '/color-cards/list', '/color-cards/issues', '/color-prices/list', '/color-prices/batch-adjust'],
     inventory: ['/inventory', '/warehouse', '/inventory-batch', '/inventory-count', '/inventory-transfer', '/inventory-adjustment', '/logistics'],
     sales: ['/sales', '/sales-returns', '/sales-ext', '/customer', '/customer-credit', '/sales-contract', '/sales-price', '/sales-analysis', '/quotations'],
     purchase: ['/purchase', '/purchase-receipt', '/purchase-ext', '/supplier', '/supplier-evaluation', '/purchase-contract', '/purchase-price', '/purchase-inspection', '/purchase-return'],

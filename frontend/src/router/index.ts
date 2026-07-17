@@ -682,10 +682,10 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '色卡详情', icon: 'Goods', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
-        path: 'color-cards/borrow',
-        name: 'ColorCardBorrow',
-        component: () => import('@/views/color-cards/borrow.vue'),
-        meta: { title: '色卡借出管理', icon: 'Goods', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        path: 'color-cards/issues',
+        name: 'ColorCardIssue',
+        component: () => import('@/views/color-cards/issues.vue'),
+        meta: { title: '色卡发放管理', icon: 'Goods', permission: 'inventory:read', requiresAuth: true }, // V15 P0-F07：borrow→issue
       },
       // 面料多色号定价扩展模块（P0-5）
       {
