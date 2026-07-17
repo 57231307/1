@@ -5,6 +5,167 @@
 
 ---
 
+## 📝 V15 修复阶段已完成 P0 任务归档（批次 433-459，2026-07-16 ~ 2026-07-17）
+
+> 本节归档 V15 修复阶段已完成的 16 个 P0 任务（P0-S01/S02/S03/S04/S05/S06/S07/S09/S10/S11/S18/S20/S21/S22/S23/S26）。
+> 一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，详细 PR 信息见 GitHub。
+> 归档时间：2026-07-17（依据规则 10 实时归档要求，从 doto.md 移除已完成 P0 任务详细内容）。
+
+### 总览表
+
+| 批次 | PR | P0 任务 | 文件数 | 一句话总结 |
+|------|-----|---------|--------|-----------|
+| 433 | #611 | P0-S03 | 2 | auth_handler.rs is_system 判断改为 code==ADMIN_ROLE_CODE，仅 admin 注入超级通配权限；init_service.rs 新增 create_default_role_permissions |
+| 434 | #612 | P0-S04 | 2 | 补齐 31 类业务角色覆盖面料行业全业务场景，为全部角色配置基本 role_permission |
+| 435 | #613 | P0-S20/S21/S22 | 3 | 新增 60+ 类权限资源 + 11 个操作权限码 + 33 个角色完整权限矩阵；path_utils 清理脏数据 + 新增 28 个模块前缀；permission.rs 白名单校验 |
+| 436 | #614 | P0-S01 基础设施 | 5 | migration m0051 role.data_scope 字段 + data_scope.rs 工具模块 + AuthContext 注入 + 33 个角色配置 data_scope |
+| 437 | #616 | P0-S18 | 2 | 新增 dye_recipe_master 角色（染色配方主管），含 dye-recipes 全部操作 + approve/audit 审批权限 |
+| 438 | #617 | P0-S07 | 3 | permission.rs 新增 invalidate_permission_cache API + role_permission_service 接入缓存失效 + user_service 角色变更失效 + 禁用用户补 revoke_user_jtis |
+| 439 | #618 | P0-S05 | 3 | 新增 role_conflicts 表（m0052）+ 8 条预置互斥规则 + role_conflict model + check_role_conflict_for_user 校验 |
+| 440a | #619 | P0-S06 基础设施 | 4 | 新增 migration m0053（permission_change_audits 表 13 字段 + 5 索引）+ permission_change_audit SeaORM model |
+| 440b | #620 | P0-S06 role_permission | 1 | role_permission_service assign_permission/remove_permission 接入审计日志（old/new value + best-effort） |
+| 440c | #621 | P0-S06 user_service | 2 | user_service update_user 新增 operator_id + 角色变更写入审计（change_type=user_role_change） |
+| 441 | #622 | P0-S10 | 2 | extract_action_from_query 函数（白名单 print/export/download）+ permission_middleware action 优先级升级 + OperationType 新增 Print/Download |
+| 442 | #623 | P0-S09 染色域 | 2 | dye_recipe_handler export_dye_recipes + dye_batch_handler export_dye_batches 新增 _auth: AuthContext |
+| 443 | #624 | P0-S09 print_handler | 1 | print_handler.rs 7 个 print/export 函数新增 _auth: AuthContext |
+| 444 | 无需 PR | P0-S09 其他域 | 0 | 5 个目标文件均已含 AuthContext，无需修改。**P0-S09 全部完成** |
+| 445 | #625 | P0-S11 核心业务 | 5 | 5 文件 6 个 export 函数添加 AuditEvent + AuditLogService::record_async 审计写入 |
+| 446 | #626 | P0-S11 报表染色 | 5 | 5 文件 5 个 export 函数添加审计日志。**P0-S11 全部完成** |
+| 447 | #637 | P0-S01 销售域 | 5 | so/order_query + customer_service + sales_return_service 增加 data_scope 参数；handler 传 Some(&ctx) |
+| 448 | #638 | P0-S01 采购域 | 4 | po/order + supplier + purchase_return 增加 data_scope 参数；3 个 handler 传 Some(&ctx) |
+| 449 | #639 | P0-S01 生产域 | 5 | production_order + production_recipe 增加 data_scope + check_resource_owner IDOR 校验 |
+| 450 | #640 | P0-S01 CRM 域 | 4 | lead/opp/cust get_by_id/list 增加 data_scope + IDOR 校验；CRM 域使用 owner_id 作为 owner_column |
+| 451 | #641 | P0-S01 财务域 finance | 4 | finance_payment + finance_invoice 增加 data_scope + IDOR 校验 |
+| 451b | #642 | P0-S01 财务域 AP | 4 | ap_payment + ap_payment_request 增加 data_scope + IDOR 校验 |
+| 451c | #643 | P0-S01 财务域 AR | 3 | ar_service list/get 增加 data_scope + IDOR 校验 |
+| 452 | #644 | P0-S01 库存域调整+预留 | 4 | inventory_adjustment + inventory_reservation 增加 data_scope + IDOR 校验 |
+| 452b | #645 | P0-S01 库存域盘点 | 2 | inventory_count_service list/get 增加 data_scope + IDOR 校验 |
+| 452c | #646 | P0-S01 库存域调拨 | 3 | inventory_move list/get 增加 data_scope + IDOR 校验。**P0-S01 主体完成**（stock 子域跳过：无 created_by/department_id） |
+| 453 | #647 | P0-S02 销售域 | 2 | sales_order_handler + sales_return_handler update/delete 前预校验 IDOR |
+| 454 | #648 | P0-S02 采购域 | 3 | purchase_order + supplier + purchase_return handler update/delete 前预校验 IDOR |
+| 455-457 | #649 | P0-S02 生产+CRM+财务 | 7 | 7 文件 11 函数合并批次，update/delete 前预校验 IDOR |
+| 458 | #650 | P0-S02 库存+应收发票 | 7 | 7 文件 11 函数，update/delete 前预校验 IDOR；ar_invoice_service 新增 get_by_id data_scope。**P0-S02 全部完成** |
+| 459 | #651 | P0-S23/S26 | 9 | check_role_conflict_for_user 真实接入互斥校验 + create_default_role_conflicts 9 条 SoD 规则 + PERMISSION_RESOURCES 新增 8 个 AI 域资源 + 路由权限码映射注释 |
+
+### P0 任务完成详情
+
+#### P0-S01 行级数据权限完全未实现 ✅ 主体完成（Batch 436-452c）
+
+- **来源**：batch-10 P0-10-6/7 + batch-12 P0-12-13/14 + batch-15 P0-15-10
+- **修复内容**：
+  1. ✅ Batch 436：`apply_data_scope(query, user_id, scope)` 工具函数（all/department/self 三级）+ role 表新增 data_scope 字段（m0051）+ AuthContext 注入 + 33 个角色配置
+  2. ✅ Batch 447-452c：在 customer/supplier/sales_order/purchase_order/crm_*/production_*/finance_*/inventory_* 等 60+ service 查询入口注入 data_scope 参数
+  3. ✅ Batch 453-458：在所有 `/:id` handler 的 update/delete 增加 `check_resource_owner` 校验（IDOR 防护，见 P0-S02）
+  4. ⏭️ Batch 452d：库存查询 stock 子域跳过（inventory_stock 无 created_by/department_id，共享资源）
+  5. ⏳ PostgreSQL 行级安全 RLS 策略 → 独立为 P0-S25，待后续批次
+- **关联文件**（60+）：permission.rs / data_scope.rs / customer_service.rs / supplier_service.rs / sales_order_service.rs / purchase_order_service.rs / crm_lead_service.rs / crm_opportunity_service.rs / production_order_service.rs / production_recipe_service.rs / finance_payment_service.rs / finance_invoice_service.rs / ap_payment_service.rs / ar_service.rs / inventory_adjustment_service.rs / inventory_count_service.rs / inventory_move.rs / 各 handler / AuthContext
+- **核心交付**：DataScope 枚举 + DataScopeContext + build_data_scope_condition + apply_data_scope + check_resource_owner + 15 单元测试
+- **跳过子域**：inventory_stock（共享资源，权限通过 warehouse 访问控制实现）
+
+#### P0-S02 IDOR 越权访问防护未实现 ✅ 全部完成（Batch 453-458）
+
+- **来源**：batch-10 P0-10-8
+- **修复内容**：在 get/update/delete handler 的 update/delete 调用前显式调用 service.get_xxx_by_id(id, Some(&data_scope_ctx)) 复用 P0-S01 的 check_resource_owner 做归属校验
+- **覆盖域**：销售域（2 函数）+ 采购域（6 函数）+ 生产+CRM+财务域（11 函数）+ 库存+应收发票域（11 函数）
+- **关联文件**（30+ handler）：sales_order_handler / sales_return_handler / purchase_order_handler / supplier_handler / purchase_return_handler / production_order_handler / production_recipe_handler / crm_handler / finance_invoice_handler / ap_payment_handler / ap_payment_request_handler / ar_payment_handler / inventory_adjustment_handler / inventory_count_handler / inventory_transfer_handler / inventory_reservation_handler / ar_invoice_handler
+
+#### P0-S03 `*:*` 超级权限注入修复 ✅ 已完成（Batch 433 / PR #611）
+
+- **来源**：batch-12 P0-12-1/3/10/11/12/20
+- **修复**：auth_handler.rs 将 `is_system` 判断改为 `code == ADMIN_ROLE_CODE`，仅 admin 注入超级通配权限；init_service.rs 新增 `create_default_role_permissions` 为 manager/operator 插入基本 role_permission 记录
+- **状态**：✅ 已合并到 main（c3f3cc7c）
+
+#### P0-S04 14 类业务角色补齐 ✅ 已完成（Batch 434 / PR #612）
+
+- **来源**：batch-12 P0-12-2/4/5
+- **修复**：补齐 31 类业务角色覆盖面料行业全业务场景（管理/销售/采购/库存/生产/质量/财务/CRM/物流/人力/安全/IT），为全部角色配置基本 role_permission 权限记录
+- **状态**：✅ 已合并到 main（15652b2a）
+
+#### P0-S05 SoD 职责分离互斥 ✅ 已完成（Batch 439 + Batch 459）
+
+- **来源**：batch-12 P0-12-6/7/8
+- **修复内容**：
+  1. ✅ Batch 439：新增 role_conflicts 表（m0052）+ 8 条预置互斥规则（财务三权分立/采购付款/销售收款/生产质量）+ role_conflict model + check_role_conflict_for_user 占位实现
+  2. ✅ Batch 459：`check_role_conflict_for_user` 真实接入互斥校验（签名增加 user_id 参数，查询 current_role vs new_role 是否构成互斥对）+ `create_default_role_conflicts` 初始化 9 条 SoD 规则（含面料行业场景：入库+采购、出库+销售互斥）
+- **关联文件**：user_service.rs / init_service.rs / role_conflict.rs / schema m0052
+
+#### P0-S06 权限变更审计 ✅ 已完成（Batch 440a/b/c）
+
+- **来源**：batch-12 P0-12-18/19
+- **修复内容**：
+  1. ✅ Batch 440a：新增 migration m0053（permission_change_audits 表 13 字段 + 5 索引）+ permission_change_audit SeaORM model
+  2. ✅ Batch 440b：role_permission_service assign_permission/remove_permission 接入审计日志（保存 old/new value + best-effort）
+  3. ✅ Batch 440c：user_service update_user 新增 operator_id 参数 + 角色变更写入审计（change_type=user_role_change）
+- **关联文件**：role_permission_service.rs / user_service.rs / permission_change_audit.rs / schema m0053
+
+#### P0-S07 权限缓存不失效 ✅ 已完成（Batch 438 / PR #617）
+
+- **来源**：batch-12 P0-12-15/16
+- **修复**：permission.rs 新增 invalidate_permission_cache/invalidate_all_permission_cache API + 3 单测；role_permission_service.rs assign_permission/remove_permission 接入缓存失效；user_service.rs update_user 角色变更失效旧+新角色缓存 + 禁用用户补 revoke_user_jtis JWT 吊销
+- **关联文件**：permission.rs / user_service.rs / role_permission_service.rs
+
+#### P0-S09 打印导出端点 AuthContext 补齐 ✅ 全部完成（Batch 442-444）
+
+- **来源**：batch-11 P0-11-1/2/3
+- **修复内容**：
+  1. ✅ Batch 442（PR #623）：染色域 dye_recipe + dye_batch export 端点新增 _auth: AuthContext
+  2. ✅ Batch 443（PR #624）：print_handler.rs 7 个 print/export 函数（5 个 print_html + list_print_templates + get_print_template）新增 _auth: AuthContext
+  3. ✅ Batch 444（无需修改）：其他域 export 端点（sales_order/purchase_order/product/report_engine/crm）均已含 AuthContext；quotation/customer/supplier/inventory/finance/quality 无 export/print 端点
+- **关联文件**：dye_recipe_handler.rs / dye_batch_handler.rs / print_handler.rs
+
+#### P0-S10 method_to_action 不识别 print/export ✅ 已完成（Batch 441 / PR #622）
+
+- **来源**：batch-11 P0-11-4/5/6
+- **修复**：新增 extract_action_from_query 函数（白名单 print/export/download）+ permission_middleware action 提取优先级升级（查询参数 > 路径关键字 > HTTP method）+ OperationType 新增 Print/Download 变体 + 8 个单元测试
+- **关联文件**：audit_middleware.rs / models/audit_log.rs / permission.rs
+
+#### P0-S11 10 个导出 handler 缺审计日志 ✅ 全部完成（Batch 445-446）
+
+- **来源**：batch-11 P0-11-7
+- **修复内容**：
+  1. ✅ Batch 445（PR #625）：核心业务导出 6 函数（sales_order/purchase_order/product/crm_leads/crm_opportunities/mrp_calculation），复用 import_export_handler 标准模式（AuditEvent + record_async best-effort）
+  2. ✅ Batch 446（PR #626）：报表染色域导出 5 函数（report_engine/ar_reconciliation_pdf/sales_analysis/dye_recipe/dye_batch），修复 report_engine_handler state.db borrow of moved value
+  3. 注：调研发现实际 18 个 export 函数缺审计日志，剩余 7 个（report_enhanced 3 个/audit_enhanced/login_security/color_card/advanced-analytics）归入 P1 阶段
+- **关联文件**：sales_order_handler / purchase_order_handler / product_handler / crm_handler / report_engine_handler / ar_handler / sales_analysis_handler / dye_recipe_handler / dye_batch_handler / mrp_handler + audit_service.rs
+
+#### P0-S18 dye_recipe_master 角色未创建 ✅ 已完成（Batch 437 / PR #616）
+
+- **来源**：batch-11 P0-11-10
+- **修复**：新增 dye_recipe_master 角色（染色配方主管），含 dye-recipes 全部操作 + approve/audit 审批权限 + lab-dip/production-recipes/color-cards/color-prices 全部操作；与 lab_technician 区别为管理层 vs 执行层
+- **关联文件**：init_service.rs / role_service.rs
+
+#### P0-S20 权限资源缺口 ✅ 已完成（Batch 435 / PR #613）
+
+- **来源**：batch-12 P0-12-9
+- **修复**：新增 PERMISSION_RESOURCES 常量（60+ 类资源）+ PERMISSION_ACTIONS 常量（11 个操作权限码）+ extract_action_from_path 函数（从路径提取 print/export/approve 等 11 个动作）
+- **关联文件**：init_service.rs / permission.rs / path_utils.rs
+
+#### P0-S21 模块前缀白名单不足 ✅ 已完成（Batch 435 / PR #613）
+
+- **来源**：batch-12 P0-12-10
+- **修复**：清理 15+ 脏数据（purchases→purchase 等）+ 新增 28 个模块前缀（production/auth/quotations 等）+ 新增 is_known_resource_segment 函数 + permission_middleware 白名单校验
+- **关联文件**：path_utils.rs / permission.rs
+
+#### P0-S22 权限矩阵未实现 ✅ 已完成（Batch 435 / PR #613）
+
+- **来源**：batch-12 P0-12-11/12/13
+- **修复**：create_default_role_permissions 扩展为 33 个角色 × 60+ 资源的完整权限矩阵（管理层全资源 read / 经理本域 * / 执行角色本域 read+create+update）
+- **关联文件**：init_service.rs / role_service.rs
+
+#### P0-S23 用户角色无互斥校验 ✅ 已完成（Batch 459 / PR #651）
+
+- **来源**：batch-12 P0-12-17
+- **修复**：`check_role_conflict_for_user` 真实接入互斥校验（查询 role_conflicts 表，对比 current_role.code vs new_role.code 是否匹配互斥对）+ `create_default_role_conflicts` 初始化 9 条 SoD 规则（制单+审核、采购+付款、生产+质量、入库+采购、出库+销售、admin+质检员等）+ update_user 调用点同步更新
+- **关联文件**：user_service.rs / init_service.rs / role_conflict.rs
+
+#### P0-S26 AI 端点权限码未注册 ✅ 已完成（Batch 459 / PR #651）
+
+- **来源**：batch-14 P1（升级为 P0）
+- **修复**：PERMISSION_RESOURCES 新增 8 个 AI 域资源（ai-forecast/ai-inventory-opt/ai-anomaly/ai-recommendation/ai-recipe-opt/ai-quality-pred/ai-process-opt/ai-summary）+ gm/deputy_gm role_permission 矩阵补 AI 域 read 权限 + analytics.rs/system.rs 路由权限码映射注释 + ai_analysis_handler 4 个函数 _auth → auth + 调用者日志（P0-S27 预备）
+- **关联文件**：init_service.rs / routes/analytics.rs / routes/system.rs / handlers/ai_analysis_handler.rs / handlers/ai_extend_handler.rs
+
+---
+
 ## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
 
 ### 批次 421：v14 P1 第二批 - 面料行业特性首批（质检 A/B/C 级分级 + 缸号同订单校验）（PR #597，sha: de41e89c）

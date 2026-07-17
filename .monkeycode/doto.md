@@ -2,57 +2,27 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-459 完成，P0-S01/S02/S09/S11/S23/S26 全部完成 + 新增规则 19 工具连接异常重试策略；P0 进度 48/104；剩余 56 P0 + 257 P1 + 248 P2 + 123 P3；批次大小每批 6-8 文件）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-459 已完成 P0 任务归档到 doto-su.md；P0 进度 48/104；剩余 56 P0 + 257 P1 + 248 P2 + 123 P3；批次大小每批 6-8 文件）。
 
 ---
 
-## 一、当前状态：V15 修复阶段进行中（自动化修复流程·重新规划）
+## 一、当前状态：V15 修复阶段进行中（自动化修复流程）
 
-### 1.0 重新规划执行计划（2026-07-16）
+### 1.0 总体进度
 
-> **卡死原因**：P0-S01 service 注入涉及 60+ 文件，单批太大导致上下文/CI 卡死。
-> **新策略**：每批严格 6-8 文件、1-2 个 P0 任务，按"快速胜利优先"排序。
-> **再次拆分**：Batch 440 进一步拆分为 440a/440b/440c 三个微批次，避免单批过大卡死。
-> **批次合并**：Batch 455+456+457 合并为一个大批次（7 文件），遵循用户"每批最少 6-8 文件"反馈。
+| 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
+|--------|------|--------|--------|--------|
+| **P0 阻塞级** | 104 | 48 | **56** | 46.2% |
+| **P1 高优先级** | 257 | 0 | **257** | 0% |
+| **P2 中优先级** | 248 | 0 | **248** | 0% |
+| **P3 低优先级** | 123 | 0 | **123** | 0% |
+| **合计** | **732** | **48** | **684** | **6.6%** |
 
-| 批次 | P0 任务 | 文件数 | 执行顺序 | 状态 |
-|------|---------|--------|----------|------|
-| 437 | P0-S18 dye_recipe_master 角色创建 | 2 | 1 | ✅ 已完成 |
-| 438 | P0-S07 权限缓存不失效 | 3 | 2 | ✅ 已完成 |
-| 439 | P0-S05 SoD 职责分离互斥 | 3 | 3 | ✅ 已完成 |
-| 440a | P0-S06 权限变更审计-基础设施 | 4 | 4 | ✅ 已完成 |
-| 440b | P0-S06 权限变更审计-role_permission_service | 1 | 5 | ✅ 已完成 |
-| 440c | P0-S06 权限变更审计-user_service | 2 | 6 | ✅ 已完成 |
-| 441 | P0-S10 method_to_action 升级 | 2 | 7 | ✅ 已完成 |
-| 442 | P0-S09 染色域 export AuthContext | 2 | 8 | ✅ 已完成 |
-| 443 | P0-S09 print_handler AuthContext | 1 | 9 | ✅ 已完成 |
-| 444 | P0-S09 其他域 export AuthContext | 5 | 10 | ✅ 已满足（无需修改） |
-| 445 | P0-S11 导出审计日志-核心业务（第 1 批） | 5 | 11 | ✅ 已完成 |
-| 446 | P0-S11 导出审计日志-报表染色域（第 2 批） | 5 | 12 | ✅ 已完成 |
-| 447 | P0-S01 service 注入-销售域 | 5 | 13 | ✅ 已完成 |
-| 448 | P0-S01 service 注入-采购域 | 4 | 14 | ✅ 已完成 |
-| 449 | P0-S01 service 注入-生产域 | 5 | 15 | ✅ 已完成 |
-| 450 | P0-S01 service 注入-CRM 域 | 4 | 16 | ✅ 已完成 |
-| 451 | P0-S01 service 注入-财务域（finance_payment+invoice） | 4 | 17 | ✅ 已完成 |
-| 451b | P0-S01 service 注入-财务域（AP 域 ap_payment+ap_payment_request） | 4 | 17.5 | ✅ 已完成 |
-| 451c | P0-S01 service 注入-财务域（AR 域 ar_service） | 3 | 17.7 | ✅ 已完成 |
-| 452 | P0-S01 service 注入-库存域（调整+预留子域） | 4 | 18 | ✅ 已完成 |
-| 452b | P0-S01 service 注入-库存域（盘点子域） | 2 | 18.5 | ✅ 已完成 |
-| 452c | P0-S01 service 注入-库存域（调拨子域） | 3 | 18.6 | ✅ 已完成 |
-| 452d | P0-S01 service 注入-库存域（库存查询 stock 子域） | 0 | 18.7 | ⏭️ 跳过（inventory_stock 无 created_by/department_id，共享资源，权限通过 warehouse 访问控制实现，超出 P0-S01 范围） |
-| 453 | P0-S02 IDOR 防护-handler 层-销售域 | 2 | 19 | ✅ 已完成（PR #637） |
-| 454 | P0-S02 IDOR 防护-handler 层-采购域 | 3 | 20 | ✅ 已完成（PR #638） |
-| 455-457 | P0-S02 IDOR 防护-handler 层-生产+CRM+财务域 | 7 | 21 | ✅ 已完成（PR #639，合并批次 7 文件 11 函数） |
-| 458 | P0-S02 IDOR 防护-handler 层-库存域+应收发票域 | 7 | 22 | ✅ 已完成（PR #640，7 文件 11 函数） |
-| 459 | P0-S23/S26 用户角色互斥校验 + AI 端点权限码注册 | 9 | 23 | ✅ 已完成（PR #641，合并 a199c20，CI 15/15 全绿） |
-| 460+ | P0-S08/S24/S25/S27/S28 | - | 24+ | ⏳ |
-| 470+ | P0-F01~F21 面料行业核心特性 | - | 30+ | ⏳ |
-| 490+ | P0-T01~T08 测试体系 | - | 40+ | ⏳ |
-| 500+ | P0-D01~D17 部署运维 | - | 50+ | ⏳ |
-| 520+ | P0-B01~B30 财务业务流程 | - | 60+ | ⏳ |
+### 1.1 已完成 P0 任务（16 项，详情见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4592026-07-16--2026-07-17)）
 
+P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S09 / P0-S10 / P0-S11 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S26
 
-### 1.1 V15 审计完成进度（2026-07-16 全部完成）
+### 1.2 V15 审计完成进度（2026-07-16 全部完成）
 
 | 批次 | 类别 | 维度数 | P0 | P1 | P2 | P3 | 小计 | 状态 |
 |------|------|--------|----|----|----|----|------|------|
@@ -66,91 +36,33 @@
 | 19-21 | 类二十三~类二十五 | 30 | 5 | 38 | 55 | 41 | 139 | ✅ 完成 |
 | **合计** | **25 大类** | **195** | **104** | **257** | **248** | **123** | **732** | ✅ **审计全部完成** |
 
-### 1.2 核心交付物
+### 1.3 核心交付物
 
 - **审计汇总报告**：[v15-summary-2026-07-16.md](file:///workspace/.monkeycode/docs/audits/v15/v15-summary-2026-07-16.md)
 - **21 批审计报告**：[batch-01 ~ batch-21](file:///workspace/.monkeycode/docs/audits/v15/)
 - **审计计划**：[v15-review-plan-2026-07-15.md](file:///workspace/.monkeycode/docs/audits/v15-review-plan-2026-07-15.md)
 
+### 1.4 下一批次规划
+
+| 批次 | P0 任务 | 文件数 | 状态 |
+|------|---------|--------|------|
+| 460+ | P0-S08/S24/S25/S27/S28 | - | ⏳ |
+| 470+ | P0-F01~F21 面料行业核心特性 | - | ⏳ |
+| 490+ | P0-T01~T08 测试体系 | - | ⏳ |
+| 500+ | P0-D01~D17 部署运维 | - | ⏳ |
+| 520+ | P0-B01~B30 财务业务流程 | - | ⏳ |
+
 ---
 
-## 二、V15 修复任务规划（732 项）
+## 二、V15 未完成修复任务规划（684 项）
 
 > **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批，无需用户确认；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子（§10.0.1 复用现有功能原则）。
-> **批次节奏**：每批 5-6 文件，遵循规则 13 连续执行流程；每 30 批触发 E2E（规则 5）；每 15 批整理记忆（规则 10）。
-> **修复路线图**：阶段一 P0（104）→ 阶段二 P1（257）→ 阶段三 P2（248）→ 阶段四 P3（123）。
+> **批次节奏**：每批 6-8 文件，遵循规则 13 连续执行流程；每 30 批触发 E2E（规则 5）；每 15 批整理记忆（规则 10）。
+> **修复路线图**：阶段一 P0 剩余（56）→ 阶段二 P1（257）→ 阶段三 P2（248）→ 阶段四 P3（123）。
 
-### 2.1 阶段一：P0 阻塞级修复（104 项，分 5 个优先级）
+### 2.1 阶段一：P0 阻塞级修复剩余（56 项，分 5 个优先级）
 
-#### 优先级 1：安全与权限（约 28 P0，最高优先级）
-
-##### P0-S01 行级数据权限完全未实现（类十二+类十四+类十八）🔄 进行中（Batch 436 基础设施完成）
-
-- **来源**：batch-10 P0-10-6/7 + batch-12 P0-12-13/14 + batch-15 P0-15-10
-- **证据**：
-  - [permission.rs](file:///workspace/backend/src/middleware/permission.rs) 缺 `apply_data_scope` 函数
-  - [customer_service.rs](file:///workspace/backend/src/services/customer_service.rs) 查询无数据范围过滤
-  - CRM 所有查询无 owner_id 过滤
-- **业务影响**：销售员可查询所有客户订单、CRM 数据无归属过滤、所有 `/:id` 路由未校验资源归属
-- **修复方案**：
-  1. ✅ 实现 `apply_data_scope(query, user_id, scope)` 工具函数（all/department/self 三级）——Batch 436
-  2. ⏳ 在 customer/supplier/sales_order/purchase_order/crm_* 等 60+ service 查询入口注入——Batch 437
-  3. ✅ 新增 `data_scope` 字段到 role 表（all/dept/self）——Batch 436
-  4. ⏳ 在所有 `/:id` handler 增加 `check_resource_owner` 校验（IDOR 防护）——Batch 438
-  5. ⏳ PostgreSQL 行级安全 RLS 策略（可选，作为代码层兜底后的二次防护）——后续
-- **关联文件**（15+）：permission.rs / customer_service.rs / supplier_service.rs / sales_order_service.rs / purchase_order_service.rs / crm_lead_service.rs / crm_opportunity_service.rs / role_service.rs / 各 handler / 前端 customer/supplier/crm 视图
-- **预估批次**：5-6 批（约 30 文件）
-- **完成情况（Batch 436）**：
-  - migration m0051：role 表新增 data_scope 字段（all/dept/self），33 个角色配置默认值
-  - data_scope.rs 工具模块：DataScope 枚举 + DataScopeContext + build_data_scope_condition + apply_data_scope + check_resource_owner + 15 单元测试
-  - AuthContext 新增 department_id 和 data_scope 字段 + to_data_scope_context 方法
-  - auth 中间件从 DB 加载 role.data_scope 和 user.department_id 注入 AuthContext
-  - init_service.rs / role_service.rs / role_permission_service.rs 所有角色创建支持 data_scope
-
-##### P0-S02 IDOR 越权访问防护未实现（类十二）
-
-- **来源**：batch-10 P0-10-8
-- **证据**：所有 `/:id` 路由仅校验登录状态，未校验资源归属
-- **修复方案**：在 get/update/delete handler 增加 `require_resource_owner(resource_id, user_id)` 中间件
-- **关联文件**：所有 handler 文件（140+）
-
-##### P0-S03 `*:*` 超级权限注入修复（类十四）✅ 已完成（Batch 433 / PR #611）
-
-- **来源**：batch-12 P0-12-1/3/10/11/12/20
-- **修复**：auth_handler.rs 将 `is_system` 判断改为 `code == ADMIN_ROLE_CODE`，仅 admin 注入超级通配权限；init_service.rs 新增 `create_default_role_permissions` 为 manager/operator 插入基本 role_permission 记录
-- **状态**：✅ 已合并到 main（c3f3cc7c）
-
-##### P0-S04 14 类业务角色补齐（类十四）✅ 已完成（Batch 434 / PR #612）
-
-- **来源**：batch-12 P0-12-2/4/5
-- **修复**：补齐 31 类业务角色覆盖面料行业全业务场景（管理/销售/采购/库存/生产/质量/财务/CRM/物流/人力/安全/IT），为全部角色配置基本 role_permission 权限记录
-- **状态**：✅ 已合并到 main（15652b2a）
-
-##### P0-S05 SoD 职责分离互斥未实现（类十四）
-
-- **来源**：batch-12 P0-12-6/7/8
-- **修复方案**：
-  1. 新增 `role_conflict` 表记录互斥角色对
-  2. 新增 `check_role_conflict(user_id, new_role_id)` 函数
-  3. 财务三权分立：制单/审核/支付互斥
-  4. 用户分配角色时校验互斥
-- **关联文件**：role_service.rs / user_service.rs / schema migrations
-
-##### P0-S06 权限变更审计未实现（类十四）
-
-- **来源**：batch-12 P0-12-18/19
-- **修复方案**：新增 `permission_change_audit` 表，记录角色权限变更、用户角色变更；每周 cron 合规审查
-- **关联文件**：role_service.rs / user_service.rs / audit_service.rs / schema migrations
-
-##### P0-S07 权限缓存不失效（类十四）
-
-- **来源**：batch-12 P0-12-15/16
-- **证据**：权限变更/用户禁用后缓存仍命中（5min TTL）
-- **修复方案**：
-  1. 实现 `invalidate_user_permission_cache(user_id)` 函数
-  2. Redis pub/sub 热更新通知
-  3. 用户禁用时主动失效缓存
-- **关联文件**：permission.rs / user_service.rs / role_service.rs
+#### 优先级 1：安全与权限（12 项未完成）
 
 ##### P0-S08 CRM 数据权限完全缺失（类十八）
 
@@ -161,40 +73,6 @@
   2. 公海/私海规则：private_pool 仅 owner 可见，public_pool 所有可见
   3. 客户转移需审批 + 审计
 - **关联文件**：crm_lead_service.rs / crm_opportunity_service.rs / customer_pool_service.rs / 各 handler
-
-##### P0-S09 打印导出端点 AuthContext 补齐（类十三）
-
-- **来源**：batch-11 P0-11-1/2/3
-- **证据**：
-  - [dye_recipe_handler.rs](file:///workspace/backend/src/handlers/dye_recipe_handler.rs) export 接口缺 AuthContext
-  - [dye_batch_handler.rs](file:///workspace/backend/src/handlers/dye_batch_handler.rs) export 接口缺 AuthContext
-- **修复方案**：所有 print/export handler 强制注入 AuthContext，校验 `*:print` / `*:export` 权限
-- **关联文件**：13 个 print/export handler（dye_recipe/dye_batch/quotation/sales_order/purchase_order/customer/supplier/product/inventory/report/finance/crm/quality）
-- **修复进度**：
-  - ✅ Batch 442（PR #623）：染色域 dye_recipe + dye_batch export 端点
-  - ✅ Batch 443（PR #624）：print_handler.rs 7 个 print/export 函数（5 个 print_html + list_print_templates + get_print_template）
-  - ✅ Batch 444（无需修改）：其他域 export 端点（sales_order/purchase_order/product/report_engine/crm）均已含 AuthContext；quotation/customer/supplier/inventory/finance/quality 无 export/print 端点
-  - ✅ **P0-S09 全部完成**
-
-##### P0-S10 method_to_action 不识别 print/export（类十三）
-
-- **来源**：batch-11 P0-11-4/5/6
-- **证据**：[audit_middleware.rs](file:///workspace/backend/src/middleware/audit_middleware.rs) `classify_operation` 仅识别 GET/POST/PUT/DELETE
-- **修复方案**：
-  1. OperationType 新增 Print/Download 变体
-  2. `method_to_action` 识别 `?action=print` / `?action=export` 查询参数
-  3. 权限码表新增 `*:print` / `*:export` 共 38 个权限码
-- **关联文件**：audit_middleware.rs / models/audit_log.rs / init_service.rs（权限码注册）
-
-##### P0-S11 10 个导出 handler 缺审计日志（类十三）
-
-- **来源**：batch-11 P0-11-7
-- **修复方案**：为 10 个导出 handler 增加审计日志写入（用户/时间/资源/条件/导出条数/文件大小）
-- **关联文件**：10 个导出 handler + audit_service.rs
-- **修复进度**：
-  - ✅ Batch 445（PR #625）：核心业务导出 6 函数（sales_order/purchase_order/product/crm_leads/crm_opportunities/mrp_calculation），复用 import_export_handler 标准模式（AuditEvent + record_async best-effort）
-  - ✅ Batch 446（PR #626）：报表染色域导出 5 函数（report_engine/ar_reconciliation_pdf/sales_analysis/dye_recipe/dye_batch），修复 report_engine_handler state.db borrow of moved value
-  - 注：调研发现实际 18 个 export 函数缺审计日志，剩余 7 个（report_enhanced 3 个/audit_enhanced/login_security/color_card/advanced-analytics）归入 P1 阶段
 
 ##### P0-S12 前端本地导出完全无审计（类十三）
 
@@ -241,46 +119,12 @@
 - **修复方案**：print_handler 根据资源类型查询真实数据，使用 handlebars 模板渲染
 - **关联文件**：print_handler.rs / print_templates/ 目录
 
-##### P0-S18 dye_recipe_master 角色未创建（类十三）
-
-- **来源**：batch-11 P0-11-10
-- **修复方案**：新增 dye_recipe_master 角色，配置染色配方 read/write/print/export 权限
-- **关联文件**：init_service.rs / role_service.rs
-
 ##### P0-S19 14 端点审计不达标（类十三）
 
 - **来源**：batch-11 P0-11-12
 - **证据**：15 端点 × 8 字段审计矩阵，仅 23% 达标
 - **修复方案**：补齐 14 端点的 8 个审计字段（user_id/ip/user_agent/resource_id/action/condition/result/duration）
 - **关联文件**：14 个 handler + audit_middleware.rs
-
-##### P0-S20 权限资源缺口（类十四）✅ 已完成（Batch 435 / PR #613）
-
-- **来源**：batch-12 P0-12-9
-- **证据**：当前 11 类权限资源，实际 60+ 类业务模块
-- **修复方案**：补齐 49+ 类权限资源（fabric/dye_batch/dye_recipe/chemical/energy/wage/outsourcing/energy/quality_issue/8d/custom_order/after_sales/logistics/incoterms/oa/bi/dashboard/notification/email/business_trace 等），每个资源配 11 个操作权限码
-- **关联文件**：init_service.rs / permission.rs / path_utils.rs
-- **完成情况**：新增 PERMISSION_RESOURCES 常量（60+ 类资源）+ PERMISSION_ACTIONS 常量（11 个操作权限码）+ extract_action_from_path 函数（从路径提取 print/export/approve 等 11 个动作）
-
-##### P0-S21 模块前缀白名单不足（类十四）✅ 已完成（Batch 435 / PR #613）
-
-- **来源**：batch-12 P0-12-10
-- **修复方案**：扩展模块前缀白名单至 60+ 类，未在白名单的路由直接拒绝
-- **关联文件**：path_utils.rs / permission.rs
-- **完成情况**：清理 15+ 脏数据（purchases→purchase 等）+ 新增 28 个模块前缀（production/auth/quotations 等）+ 新增 is_known_resource_segment 函数 + permission_middleware 白名单校验
-
-##### P0-S22 权限矩阵未实现（类十四）✅ 已完成（Batch 435 / PR #613）
-
-- **来源**：batch-12 P0-12-11/12/13
-- **修复方案**：实现 14 角色 × 60+ 资源 × 11 操作的权限矩阵，写入 init_service.rs 初始化
-- **关联文件**：init_service.rs / role_service.rs
-- **完成情况**：create_default_role_permissions 扩展为 33 个角色 × 60+ 资源的完整权限矩阵（管理层全资源 read / 经理本域 * / 执行角色本域 read+create+update）
-
-##### P0-S23 用户角色无互斥校验（类十四）
-
-- **来源**：batch-12 P0-12-17
-- **修复方案**：用户分配多角色时校验互斥规则（如 sales_manager 与 purchase_manager 不可同持）
-- **关联文件**：user_service.rs / role_service.rs
 
 ##### P0-S24 前后端权限边界一致性（类十四）
 
@@ -293,12 +137,6 @@
 - **来源**：batch-10 P0-10-7
 - **修复方案**：PostgreSQL RLS 策略，按 user_id / department_id 过滤敏感表（customer/supplier/sales_order/crm_*）
 - **关联文件**：schema migrations / database/rls.sql
-
-##### P0-S26 AI 端点权限码未注册（类十六）
-
-- **来源**：batch-14 P1（升级为 P0）
-- **修复方案**：14 个 AI 端点权限码注册（ai:recipe_opt:read/write、ai:quality_pred:read、ai:reorder:read 等）
-- **关联文件**：init_service.rs / ai_route.rs
 
 ##### P0-S27 AI 推理数据范围未过滤（类十六）
 
@@ -314,7 +152,7 @@
 
 ---
 
-#### 优先级 2：面料行业核心特性（约 21 P0）
+#### 优先级 2：面料行业核心特性（21 项全部未完成）
 
 ##### P0-F01 dye_batch 表缺少 dye_lot_no 字段（类四）
 
@@ -476,7 +314,7 @@
 
 ---
 
-#### 优先级 3：测试体系（约 8 P0）
+#### 优先级 3：测试体系（8 项全部未完成）
 
 ##### P0-T01 核心 service 零单元测试（类六）
 
@@ -532,7 +370,7 @@
 
 ---
 
-#### 优先级 4：部署与运维（约 17 P0）
+#### 优先级 4：部署与运维（17 项全部未完成）
 
 ##### P0-D01 Docker 文件违规（类七）
 
@@ -647,7 +485,7 @@
 
 ---
 
-#### 优先级 5：财务与业务流程（约 30 P0）
+#### 优先级 5：财务与业务流程（17 项独立项未完成，另有 13 项归并）
 
 ##### P0-B01 坏账准备计提功能缺失（类十七）
 
@@ -757,37 +595,27 @@
 - **修复方案**：主备切换 10s 内自动完成（心跳检测 + VIP 漂移 + 数据同步）
 - **关联文件**：failover_service.rs / deploy/ha/
 
-##### P0-B18 自动故障检测（重复，归并到 P0-B16）
+##### P0-B18~B30 归并项（13 项，不计入独立项）
 
-##### P0-B19 报表订阅后台调度（归并到 P0-D16）
-
-##### P0-B20 BI 数据权限过滤（归并到 P0-B10）
-
-##### P0-B21 缺料预警状态持久化（归并到 P0-B15）
-
-##### P0-B22 自动故障检测（归并到 P0-B16）
-
-##### P0-B23 主备切换（归并到 P0-B17）
-
-##### P0-B24 大货批色——ship_order 校验（归并到 P0-F19）
-
-##### P0-B25 售后与质量集成（归并到 P0-B12）
-
-##### P0-B26 物流签收（归并到 P0-B13）
-
-##### P0-B27 Incoterms 补齐（归并到 P0-B14）
-
-##### P0-B28 定制订单打样报价（归并到 P0-B11）
-
-##### P0-B29 报表订阅后台调度（归并到 P0-D16）
-
-##### P0-B30 BI 数据权限过滤（归并到 P0-B10）
+- P0-B18 自动故障检测 → 归并到 P0-B16
+- P0-B19 报表订阅后台调度 → 归并到 P0-D16
+- P0-B20 BI 数据权限过滤 → 归并到 P0-B10
+- P0-B21 缺料预警状态持久化 → 归并到 P0-B15
+- P0-B22 自动故障检测 → 归并到 P0-B16
+- P0-B23 主备切换 → 归并到 P0-B17
+- P0-B24 大货批色 ship_order 校验 → 归并到 P0-F19
+- P0-B25 售后与质量集成 → 归并到 P0-B12
+- P0-B26 物流签收 → 归并到 P0-B13
+- P0-B27 Incoterms 补齐 → 归并到 P0-B14
+- P0-B28 定制订单打样报价 → 归并到 P0-B11
+- P0-B29 报表订阅后台调度 → 归并到 P0-D16
+- P0-B30 BI 数据权限过滤 → 归并到 P0-B10
 
 ---
 
 ### 2.2 阶段二：P1 高优先级修复（257 项，按类别分组）
 
-> 每批 5-6 文件，遵循规则 13 连续执行流程。
+> 每批 6-8 文件，遵循规则 13 连续执行流程。详细内容见 V15 审计报告 [docs/audits/v15/](file:///workspace/.monkeycode/docs/audits/v15/)。
 
 #### P1 类一~类四（21 P1）
 
@@ -818,33 +646,10 @@
 
 #### P1 类五~类八（49 P1）
 
-- **类五 运行逻辑闭环**（11 P1）：
-  - 缸号状态机缺 Failed+OnHold
-  - 面料行业配置环境变量缺失（6 个）
-  - 6 个核心业务事件缺失
-  - 生产订单成本归集未按缸号
-  - 染色成本归集草稿 dye_lot_no=None
-  - 销售成本未按移动加权平均法
-  - 其他 5 项
+- **类五 运行逻辑闭环**（11 P1）：缸号状态机缺 Failed+OnHold / 面料行业配置环境变量缺失 / 6 个核心业务事件缺失 / 生产订单成本归集未按缸号 / 染色成本归集草稿 dye_lot_no=None / 销售成本未按移动加权平均法 / 其他 5 项
 - **类六 测试体系**（11 P1）：测试覆盖率 / mock 数据 / fixtures / 测试文档等
 - **类七 可维护性**（11 P1）：i18n / aria-label / 缓存 / 文档等
-- **类八 法律合规**（16 P1）：
-  - 用户协议/隐私政策未接入
-  - HTTPS 强制配置缺失
-  - 手机号展示脱敏缺失
-  - 染整报表导出缺失
-  - .docx 格式不支持
-  - 面料执行标准登记缺失
-  - 合同电子签章缺失
-  - 进项税转出缺失
-  - 出口退税缺失
-  - 环保税缺失
-  - 排污许可证缺失
-  - 废水废气固废监测缺失
-  - 劳动合同电子化缺失
-  - 工时加班合规缺失
-  - 社保公积金合规缺失
-  - 职业健康合规缺失
+- **类八 法律合规**（16 P1）：用户协议/隐私政策未接入 / HTTPS 强制配置缺失 / 手机号展示脱敏缺失 / 染整报表导出缺失 / .docx 格式不支持 / 面料执行标准登记缺失 / 合同电子签章缺失 / 进项税转出缺失 / 出口退税缺失 / 环保税缺失 / 排污许可证缺失 / 废水废气固废监测缺失 / 劳动合同电子化缺失 / 工时加班合规缺失 / 社保公积金合规缺失 / 职业健康合规缺失
 
 #### P1 类九~类十二（16 P1）
 
@@ -859,33 +664,11 @@
 #### P1 类十五~类十六（25 P1）
 
 - **类十五 业务主体**（1 P1）：supplier_evaluation_records 表无 migration
-- **类十六 AI 模块**（24 P1）：
-  - 染料配伍性校验缺失
-  - 化验室集成缺失
-  - 质量预测准确率监控缺失
-  - 模型版本管理缺失
-  - AI 端点权限码未注册
-  - AI 推理数据范围未过滤
-  - AI 推理无超时
-  - AI 并发控制缺失
-  - AI 缓存策略缺失
-  - AI 数据未脱敏
-  - MLOps 完全缺失
-  - 等 13 项
+- **类十六 AI 模块**（24 P1）：染料配伍性校验缺失 / 化验室集成缺失 / 质量预测准确率监控缺失 / 模型版本管理缺失 / AI 端点权限码未注册 / AI 推理数据范围未过滤 / AI 推理无超时 / AI 并发控制缺失 / AI 缓存策略缺失 / AI 数据未脱敏 / MLOps 完全缺失 / 等 13 项
 
 #### P1 类十七~类十九（52 P1）
 
-- **类十七 财务深化**（35 P1）：
-  - 会计期间缺 CLOSING 状态
-  - 反结账缺失
-  - 年结缺失
-  - 坏账准备回转缺失
-  - 账龄快照缺失
-  - 杜邦分析缺失
-  - 资金预测缺失
-  - 预算差异分析缺失
-  - 折旧方法单一
-  - 等 26 项
+- **类十七 财务深化**（35 P1）：会计期间缺 CLOSING 状态 / 反结账缺失 / 年结缺失 / 坏账准备回转缺失 / 账龄快照缺失 / 杜邦分析缺失 / 资金预测缺失 / 预算差异分析缺失 / 折旧方法单一 / 等 26 项
 - **类十八 CRM**（约 12 P1）：线索评分 / 去重 / 客户转移审批等
 - **类十九 报表 BI**（约 5 P1）：报表版本管理 / BI 缓存等
 
@@ -905,7 +688,7 @@
 
 ### 2.3 阶段三：P2 中优先级修复（248 项，按类别分批）
 
-> 按类别分批修复，每批 5-6 文件。
+> 按类别分批修复，每批 6-8 文件。详细内容见 V15 审计报告。
 
 | 类别 | P2 数 | 主要内容 |
 |------|-------|----------|
@@ -961,3 +744,4 @@
 | v13 复审修复 | 270-394 | 213 baseline + 业务/财务/运行逻辑闭环 | doto-su.md §v13 |
 | v14 复审修复 | 395-432 | 12 P0 + 31 P1 + 12 P2 + 6 P3 + 213 baseline | doto-su.md §v14 |
 | V15 审计 | 2026-07-16 | 25 大类 195 维度 21 批并行子代理审计 | docs/audits/v15/ |
+| V15 修复阶段一（P0 部分完成） | 433-459 | 16 P0 任务完成（P0-S01/S02/S03/S04/S05/S06/S07/S09/S10/S11/S18/S20/S21/S22/S23/S26） | doto-su.md §V15 |
