@@ -244,6 +244,203 @@
 
 ---
 
+## 📝 V15 修复阶段 Batch 475c 归档（2026-07-18，P0-S12 前端导出接入后端 B 类批次 1/3）
+
+> 本节归档 Batch 475c 修复内容（PR #660，squash 38e8e43）。
+> 任务：P0-S12 前端导出接入后端 - B 类批次 1/3（inventory + warehouse + production 3 模块）。
+> 一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) Batch 475c 行。
+
+### 总览
+
+| 项目 | 内容 |
+|------|------|
+| 批次 | 475c |
+| PR | #660 |
+| squash commit | 38e8e43 |
+| 任务 | P0-S12 前端导出接入后端 B 类批次 1/3（inventory + warehouse + production 3 模块）⚠️ P0-S12 整体仍部分完成（剩 14 文件在 475d/475e） |
+| 文件数 | 11（后端 6 修改 + 前端 5 修改） |
+| CI 轮次 | 2 轮（第 1 轮 E0599 WarehouseListQuery 未派生 Clone，第 2 轮 13/13 全绿） |
+| 完成时间 | 2026-07-18 |
+| P0 进度 | 69/104（不变，P0-S12 整体未完成） |
+
+### 改动详情
+
+#### 后端 `backend/src/handlers/inventory_stock_handler.rs`（新增 export_stock）
+
+**目标**：库存导出注入水印 + 字段级数据权限对齐 + 异步审计日志。
+
+1. **import 调整**：新增 `build_xlsx_response_with_watermark` / `WatermarkConfig` / `XlsxTable` / `OperationType` / `Severity` / `AuditEvent` / `AuditLogService` / `Arc`
+2. **export_stock handler**：
+   - 直接调 `service.list_stock(page=1, page_size=10000, ...)` 取全量数据（避免复用 list_stock handler 的"低库存预警通知"副作用）
+   - 字段级数据权限：非 admin 角色按 role_data_permission 过滤；查询失败降级 warn 不阻断
+   - 异步审计日志：`AuditEvent { operation_type: Export, ... }` + `svc.record_async(event, None)`
+   - 水印：operator=auth.username / exported_at / extra="库存导出（共 N 条）"
+3. **关键陷阱**：list_stock handler 第 250-321 行有"低库存预警通知"副作用，export handler 必须直接调 service.list_stock，不能复用 list_stock handler。
+
+#### 后端 `backend/src/handlers/warehouse_handler.rs`（新增 export_warehouses）
+
+**目标**：仓库导出注入水印 + 异步审计日志。
+
+1. **import 调整**：同 inventory_stock_handler
+2. **WarehouseListQuery 派生 Clone**（修复 E0599）：
+   ```rust
+   // 修复前：#[derive(Debug, Deserialize, Validate)]
+   // 修复后：
+   #[derive(Debug, Clone, Deserialize, Validate)]
+   pub struct WarehouseListQuery { /* ... */ }
+   ```
+3. **export_warehouses handler**：
+   - `let mut export_query = query.clone(); export_query.page = Some(1); export_query.page_size = Some(10000);` 取全量
+   - 序列化为 JSON 统一处理字段（无字段级数据权限，warehouse 无 created_by 字段不支持行级权限）
+   - 15 列：ID/仓库编码/名称/地址/城市/省份/国家/电话/邮箱/经理ID/是否启用/备注/容量/创建时间/更新时间
+   - 异步审计日志 + 水印
+4. **关键教训**：在 export handler 中调用 `query.clone()` 时，必须确保 struct 派生 Clone，否则 E0599 编译错误。
+
+#### 后端 `backend/src/handlers/production_order_handler.rs`（新增 export_production_orders）
+
+**目标**：生产订单导出注入水印 + 行级数据权限 + 异步审计日志。
+
+1. **import 调整**：同 inventory_stock_handler
+2. **export_production_orders handler**：
+   - 提取 `data_scope_ctx = auth.to_data_scope_context()` 行级数据权限上下文
+   - `service.list(query_params, Some(&data_scope_ctx))` 取全量数据（page=1, page_size=10000）
+   - 转换为 `ProductionOrderResponse`（与 list_production_orders handler 字段一致）
+   - 14 列：ID/订单号/销售订单ID/产品ID/计划数量/实际数量/计划开始/计划结束/状态/优先级/工作中心ID/备注/创建时间/更新时间
+   - 异步审计日志 + 水印
+
+#### 后端路由注册（3 文件）
+
+| 文件 | 注册内容 | 位置 |
+|------|----------|------|
+| `backend/src/routes/inventory.rs` | `/stock/export` → export_stock | 第 31-32 行间（/stock 之后 /:id 之前）|
+| `backend/src/routes/catalog.rs` | `/warehouses/export` → export_warehouses | 第 89-90 行间（/warehouses/select 之后 /:id 之前）|
+| `backend/src/routes/production.rs` | `/production-orders/orders/export` → export_production_orders | 第 589-590 行间（orders 之后 /:id 之前）|
+
+**关键陷阱（axum matchit）**：`/export` 静态路径必须在 `/:id` 之前注册，否则 axum matchit 把 "export" 当 `:id` 匹配。
+
+#### 前端 `frontend/src/views/inventory/index.vue`
+
+**目标**：库存导出从本地 exportToExcel 切换为后端 API。
+
+1. **import 调整**：`import { exportFromBackend } from '@/utils/export'`
+2. **handleExport 改为 async + 传 warehouse_id/product_id**：
+   ```typescript
+   const handleExport = async () => {
+     if (stocks.value.length === 0) {
+       ElMessage.warning('没有可导出的数据')
+       return
+     }
+     const params: Record<string, unknown> = {
+       warehouse_id: queryParams.warehouse_id,
+       product_id: undefined,
+     }
+     await exportFromBackend('/inventory/stock/export', params, 'inventory_stock_export')
+     ElMessage.success('导出成功')
+   }
+   ```
+
+#### 前端 `frontend/src/views/warehouse/index.vue`
+
+**目标**：仓库导出从本地 exportToExcel 切换为后端 API。
+
+1. **import 调整**：`import { exportFromBackend } from '@/utils/export'`
+2. **handleExport 改为 async + keyword→search 映射**：
+   ```typescript
+   const handleExport = async () => {
+     // 注意：后端 WarehouseListQuery 用 search 字段（前端 queryParams.keyword 需映射）
+     const params: Record<string, unknown> = {
+       status: queryParams.status || undefined,
+       search: queryParams.keyword || undefined,
+     }
+     await exportFromBackend('/warehouses/export', params, 'warehouses_export')
+   }
+   ```
+3. **关键陷阱（字段映射）**：后端 `WarehouseListQuery` 使用 `search` 字段，前端 `queryParams.keyword` 必须映射为 `search`。
+
+#### 前端 `frontend/src/views/production/composables/usePrdProc.ts`
+
+**目标**：生产订单导出从本地 exportToExcel 切换为后端 API。
+
+1. **import 调整**：`import { exportFromBackend } from '@/utils/export'`
+2. **PrdCallbacks 接口扩展可选参数**：
+   ```typescript
+   interface PrdCallbacks {
+     data: ProductionOrder[]
+     refresh: () => Promise<void>
+     // V15 P0-S12 修复（Batch 475c）：获取当前筛选条件（status/product_id），用于导出
+     getQueryParams?: () => { status?: string; product_id?: number }
+   }
+   ```
+3. **handleExport 改为 async + 传 status/product_id**：
+   ```typescript
+   const handleExport = async () => {
+     if (cb.data.length === 0) {
+       ElMessage.warning('没有可导出的数据')
+       return
+     }
+     const filters = cb.getQueryParams?.() ?? {}
+     const params: Record<string, unknown> = {
+       status: filters.status || undefined,
+       product_id: filters.product_id,
+     }
+     await exportFromBackend('/production-orders/orders/export', params, 'production_orders_export')
+   }
+   ```
+
+#### 前端 `frontend/src/views/production/index.vue`
+
+**目标**：usePrdProc 调用补传 getQueryParams（含类型断言）。
+
+```typescript
+const prdProc = usePrdProc({
+  data: prd.data,
+  refresh: prd.refresh,
+  getQueryParams: () => ({
+    status: prd.queryParams.status as string | undefined,
+    product_id: prd.queryParams.product_id as number | undefined,
+  }),
+})
+```
+
+### 规则 13 步骤 4 自审门
+
+| 检查项 | 命令 | 结果 |
+|--------|------|------|
+| 后端 build_xlsx_response 调用点 | grep `build_xlsx_response` inventory_stock/warehouse/production_order handler | 仅新增 export handler 使用 with_watermark 版本 |
+| 前端 exportToExcel 残留 | grep `exportToExcel` 3 个文件 | 无残留 |
+| usePrdProc 调用方 | grep `usePrdProc` frontend/ | 仅 production/index.vue（已传入 getQueryParams） |
+| exportFromBackend 调用点 | grep `exportFromBackend` frontend/ | 3 个新切换点（inventory/warehouse/usePrdProc）|
+| 测试文件 | grep `inventory\|warehouse\|production\|usePrdProc` frontend/tests/ | 仅 audit-log.test.ts（Batch 475a 已修复，无关）|
+
+### CI 修复详情
+
+#### 第 1 轮失败（E0599）
+
+- **失败项**：Rust 后端编译
+- **错误**：`error[E0599]: no method named 'clone' found for struct 'WarehouseListQuery' in the current scope`
+- **根因**：export_warehouses 中调用 `query.clone()`，但 WarehouseListQuery 仅派生 Deserialize 未派生 Clone
+
+#### 第 2 轮修复
+
+- **修复**：在 WarehouseListQuery 上添加 Clone derive：`#[derive(Debug, Clone, Deserialize, Validate)]`
+- **结果**：13/13 全绿（2 个 skipping 为发布任务非阻塞）
+
+### 关键教训
+
+1. **Clone derive 缺失陷阱**：在 export handler 中 clone 查询参数时，必须确保 struct 派生 Clone，否则 E0599 编译错误。
+2. **list_stock handler 副作用陷阱**：list_stock handler 有"低库存预警通知"副作用，export handler 必须直接调 service.list_stock，不能复用 list_stock handler。
+3. **路由注册顺序陷阱**：`/export` 静态路径必须在 `/:id` 之前注册，否则 axum matchit 把 "export" 当 `:id` 匹配。
+4. **字段映射一致性**：前端 queryParams 字段名必须与后端 Query struct 字段名对齐（如 warehouse 的 keyword→search）。
+5. **define_crud_handlers! 宏 handler 必须手写 export**：warehouse_handler.rs 使用宏生成 5 个标准 handler，export 必须手写。
+
+### 后续影响（Batch 475d 准备）
+
+Batch 475c 完成后，P0-S12 剩余 14 个 B 类文件（需后端新增端点）：
+- Batch 475d：sales-contract/sales-price + quality/quality-standards（后端新增 5 端点，工作量 XL）
+- Batch 475e：voucher/finance/ar/ap/accountSubject/financeReport + cost/budget/fixed-assets（后端新增 6 端点，工作量 XL）
+
+---
+
 ## 📝 V15 修复阶段 Batch 475b 归档（2026-07-17，P0-S12 前端导出 purchase/customer 闭环）
 
 > 本节归档 Batch 475b 修复内容（PR #659，squash cde7e9a）。
