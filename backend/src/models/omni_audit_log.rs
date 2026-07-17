@@ -29,6 +29,11 @@ pub struct Model {
     pub created_at: Option<DateTimeWithTimeZone>,
     /// HMAC-SHA256 防篡改签名（trace_id|event_type|action|payload）
     pub signature: Option<String>,
+    /// 请求条件/查询条件（query string）
+    /// V15 P0-S19 补齐：与 request_body 区分，condition 仅记录查询条件，
+    /// 用于快速筛选特定条件下的导出/查询审计记录
+    #[sea_orm(column_type = "Text", nullable)]
+    pub condition: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

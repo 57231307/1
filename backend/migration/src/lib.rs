@@ -88,6 +88,10 @@ pub mod m0052_create_role_conflicts;
 pub mod m0053_create_permission_change_audit;
 // Batch 464 P0-S25：行级数据权限 RLS 策略启用（5 张敏感表）
 pub mod m0054_enable_rls_policies;
+// Batch 473 P0-S14：敏感数据导出二级审批表（补齐缺失的 migration）
+pub mod m0055_create_export_approval_request;
+// Batch 473 P0-S19：审计日志补齐 condition 字段（audit_logs + omni_audit_logs）
+pub mod m0056_add_condition_to_audit_logs;
 
 pub struct Migrator;
 
@@ -151,6 +155,8 @@ impl MigratorTrait for Migrator {
             Box::new(m0052_create_role_conflicts::Migration),
             Box::new(m0053_create_permission_change_audit::Migration),
             Box::new(m0054_enable_rls_policies::Migration),
+            Box::new(m0055_create_export_approval_request::Migration),
+            Box::new(m0056_add_condition_to_audit_logs::Migration),
         ]
     }
 }
