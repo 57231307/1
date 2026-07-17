@@ -14,6 +14,10 @@ use crate::utils::app_state::AppState;
 use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+// V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具
+use crate::utils::xlsx_export::{
+    build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable,
+};
 
 /// 创建客户请求
 #[derive(Debug, Deserialize, Validate)]
@@ -387,4 +391,162 @@ async fn get_permission_filter(
             )))
         }
     }
+}
+
+/// V15 P0-S12 + P0-S15 新增（Batch 474）：客户列表导出为带水印的 xlsx
+///
+/// 端点：`GET /api/v1/customers/export`
+///
+/// 设计要点：
+/// - 复用 `list_customers` 的查询参数（status/customer_type/keyword）
+/// - 通过 `CustomerService::list_customers_with_filter` 一次性查询（page_size=10000 防 OOM）
+/// - 行级数据权限：与 `list_customers` 一致，调用 `to_data_scope_context` + `get_permission_filter`
+/// - 水印：操作员（AuthContext.username）+ 导出时间（ISO8601）+ 资源类型说明
+///   - IP 暂为 None（middleware 未把 client_ip 注入 AuthContext，后续批次补齐）
+///
+/// 规则 3：导出统一使用 xlsx 格式（含水印），错误用 AppError 表达。
+pub async fn export_customers(
+    State(state): State<AppState>,
+    Query(query): Query<CustomerListQuery>,
+    auth: AuthContext,
+) -> Result<axum::response::Response, AppError> {
+    // V15 P0-S12：复用 list 逻辑，page_size 取上限 10000 防止单次导出过大
+    let page_req = PageRequest {
+        page: 1,
+        page_size: 10000,
+    };
+
+    let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
+    let data_scope_ctx = auth.to_data_scope_context();
+
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
+    let result = customer_service
+        .list_customers_with_filter(
+            page_req,
+            query.status.clone(),
+            query.customer_type.clone(),
+            query.keyword.clone(),
+            permission_filter,
+            Some(&data_scope_ctx),
+        )
+        .await?;
+
+    // 构造 xlsx 表格（按列顺序：编码/名称/类型/状态/联系人/电话/邮箱/地址/城市/省份/
+    // 税号/开户行/银行账号/信用额度/账期/创建时间）
+    let table = XlsxTable {
+        sheet_name: "客户列表".to_string(),
+        headers: vec![
+            "客户编码".to_string(),
+            "客户名称".to_string(),
+            "客户类型".to_string(),
+            "状态".to_string(),
+            "联系人".to_string(),
+            "联系电话".to_string(),
+            "邮箱".to_string(),
+            "地址".to_string(),
+            "城市".to_string(),
+            "省份".to_string(),
+            "税号".to_string(),
+            "开户行".to_string(),
+            "银行账号".to_string(),
+            "信用额度".to_string(),
+            "账期(天)".to_string(),
+            "创建时间".to_string(),
+        ],
+        rows: result
+            .items
+            .iter()
+            .map(|item| {
+                // V15 P0-S12：从 serde_json::Value 提取字段（list_customers_with_filter 返回 Value）
+                // 统一用空字符串兜底，避免字段缺失导致 panic
+                let s = |k: &str| -> String {
+                    item.get(k)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string()
+                };
+                let opt_s = |k: &str| -> String {
+                    item.get(k)
+                        .and_then(|v| v.as_str())
+                        .map(|x| x.to_string())
+                        .unwrap_or_default()
+                };
+                let opt_d = |k: &str| -> String {
+                    // Decimal 字段序列化后为字符串或数字，统一取字符串形式
+                    item.get(k)
+                        .and_then(|v| v.as_str())
+                        .map(|x| x.to_string())
+                        .unwrap_or_else(|| "0".to_string())
+                };
+                let opt_i = |k: &str| -> String {
+                    item.get(k)
+                        .and_then(|v| v.as_i64())
+                        .map(|x| x.to_string())
+                        .unwrap_or_else(|| "0".to_string())
+                };
+                let opt_ts = |k: &str| -> String {
+                    item.get(k)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string()
+                };
+                vec![
+                    s("customer_code"),
+                    s("customer_name"),
+                    s("customer_type"),
+                    s("status"),
+                    opt_s("contact_person"),
+                    opt_s("contact_phone"),
+                    opt_s("contact_email"),
+                    opt_s("address"),
+                    opt_s("city"),
+                    opt_s("province"),
+                    opt_s("tax_id"),
+                    opt_s("bank_name"),
+                    opt_s("bank_account"),
+                    opt_d("credit_limit"),
+                    opt_i("payment_terms"),
+                    opt_ts("created_at"),
+                ]
+            })
+            .collect(),
+    };
+
+    // V15 P0-S15：构造水印（操作员 + 导出时间 + 资源说明；IP 暂为 None）
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None, // 后续批次从 ConnectInfo 提取
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("客户列表导出（共 {} 条）", result.items.len())),
+    };
+
+    let filename = format!(
+        "customers_export_{}",
+        chrono::Utc::now().format("%Y%m%d%H%M%S")
+    );
+
+    // V15 P0-S12：异步记录导出操作（审计自身）
+    {
+        use crate::models::audit_log::{OperationType, Severity};
+        use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+        use std::sync::Arc;
+        let svc = AuditLogService::new(state.db.clone());
+        let event = AuditEvent {
+            user_id: Some(auth.user_id),
+            username: Some(auth.username.clone()),
+            operation_type: OperationType::Export,
+            severity: Severity::Info,
+            resource_type: Some("customer".to_string()),
+            resource_id: None,
+            resource_name: Some("客户列表导出".to_string()),
+            description: Some(format!("导出 {} 条客户数据（含水印）", result.items.len())),
+            request_method: Some("GET".to_string()),
+            request_path: Some("/api/v1/customers/export".to_string()),
+            before_snapshot: None,
+            after_snapshot: None,
+        };
+        Arc::new(svc).record_async(event, None);
+    }
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

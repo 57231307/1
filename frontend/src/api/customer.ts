@@ -78,4 +78,10 @@ export const customerApi = {
     request.get<ApiResponse<{ credit_limit: number; current_balance: number; available: number }>>(
       `/crm/customers/${id}/credit`
     ),
+
+  // V15 P0-S12 + P0-S15 新增（Batch 474）：带水印的 xlsx 导出
+  // 后端 GET /crm/customers/export 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+  // 水印已由后端注入（操作员/IP/时间戳），前端只需下载 Blob
+  export: (params?: CustomerQueryParams) =>
+    request.get<Blob>('/crm/customers/export', { params, responseType: 'blob' }),
 }

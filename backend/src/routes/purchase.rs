@@ -261,6 +261,13 @@ pub fn suppliers() -> Router<AppState> {
         .route("/suppliers", get(supplier_handler::list_suppliers))
         .route("/suppliers", post(supplier_handler::create_supplier))
         .route("/suppliers/select", get(supplier_handler::list_suppliers))
+        // V15 P0-S12 + P0-S15 新增（Batch 474）：供应商列表带水印导出
+        // 路由顺序：静态路径 /suppliers/export 必须在 /suppliers/:id 之前注册，
+        // 避免 axum 把 "export" 当作 :id 参数匹配
+        .route(
+            "/suppliers/export",
+            get(supplier_handler::export_suppliers),
+        )
         .route("/suppliers/:id", get(supplier_handler::get_supplier))
         .route("/suppliers/:id", put(supplier_handler::update_supplier))
         .route("/suppliers/:id", delete(supplier_handler::delete_supplier))

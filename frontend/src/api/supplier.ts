@@ -97,4 +97,10 @@ export const supplierApi = {
 
   getEvaluationHistory: (id: number) =>
     request.get<ApiResponse<SupplierEvaluationResult[]>>(`/purchase/suppliers/${id}/evaluations`),
+
+  // V15 P0-S12 + P0-S15 新增（Batch 474）：带水印的 xlsx 导出
+  // 后端 GET /purchase/suppliers/export 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+  // 水印已由后端注入（操作员/IP/时间戳），前端只需下载 Blob
+  export: (params?: SupplierQueryParams) =>
+    request.get<Blob>('/purchase/suppliers/export', { params, responseType: 'blob' }),
 }
