@@ -23,7 +23,8 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use std::sync::Arc;
 
 /// 查询参数 - 仓库列表
-#[derive(Debug, Deserialize, Validate)]
+// V15 P0-S12 修复（Batch 475c）：派生 Clone，export_warehouses 需要 clone 后覆盖分页参数用于全量导出
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct WarehouseListQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
