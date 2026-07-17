@@ -116,6 +116,11 @@ import SpHistory from './components/SpHistory.vue'
 const sp = useSp()
 const spProc = useSpProc({
   getList: sp.getList,
+  // V15 P0-S12 修复（Batch 475d）：传入当前筛选条件，用于后端导出
+  getQueryParams: () => ({
+    product_id: sp.queryParams.product_id,
+    status: sp.queryParams.status,
+  }),
 })
 
 // 对话框可见性本地 ref
@@ -139,10 +144,8 @@ const onSubmitForm = async () => {
   if (ok) dialogVisible.value = false
 }
 
-/** 导出当前列表 */
-const onExport = () => {
-  spProc.handleExport(sp.priceList)
-}
+/** 导出当前列表（V15 P0-S12 修复 Batch 475d：改用后端导出，返回 Promise 由 Vue 事件系统处理） */
+const onExport = () => spProc.handleExport()
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {

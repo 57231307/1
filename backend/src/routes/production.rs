@@ -523,6 +523,11 @@ pub fn quality_inspection() -> Router<AppState> {
             "/quality-inspection/records",
             post(quality_inspection_handler::create_record),
         )
+        // V15 P0-S12 修复（Batch 475d）：质量检验记录导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/quality-inspection/records/export",
+            get(quality_inspection_handler::export_records),
+        )
         .route(
             "/quality-inspection/records/:id",
             get(quality_inspection_handler::get_record),

@@ -115,6 +115,11 @@ pub fn sales_contracts() -> Router<AppState> {
             "/sales-contracts",
             post(sales_contract_handler::create_contract),
         )
+        // V15 P0-S12 修复（Batch 475d）：销售合同导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/sales-contracts/export",
+            get(sales_contract_handler::export_contracts),
+        )
         .route(
             "/sales-contracts/:id",
             get(sales_contract_handler::get_contract),
@@ -150,6 +155,11 @@ pub fn sales_prices() -> Router<AppState> {
     Router::new()
         .route("/sales-prices", get(sales_price_handler::list_prices))
         .route("/sales-prices", post(sales_price_handler::create_price))
+        // V15 P0-S12 修复（Batch 475d）：销售价格导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/sales-prices/export",
+            get(sales_price_handler::export_prices),
+        )
         .route(
             "/sales-prices/:id",
             get(sales_price_handler::get_price)

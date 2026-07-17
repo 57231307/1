@@ -102,7 +102,10 @@ import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { getQualityStandard, publishQualityStandard, type QualityStandard } from '@/api/quality'
 import { logger } from '@/utils/logger'
 import { escapeHtml } from '@/utils/print'
-import { exportToExcel } from '@/utils/export'
+// V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
+// 后端 GET /quality-standards/export 已就绪（含异步审计日志 + 水印）
+// 本 Tab 复用主质量标准页面的后端端点（listQualityStandards 调用同一 /quality-standards 路由）
+import { exportFromBackend } from '@/utils/export'
 
 const emit = defineEmits<{
   openApprove: [row: QualityStandard]
@@ -184,40 +187,17 @@ const handlePublish = async (row: QualityStandard) => {
   }
 }
 
-const handleExport = () => {
-  exportToExcel({
-    filename: '质量标准',
-    format: 'excel',
-    data: standards.value.map((item): Record<string, unknown> => ({ ...item })),
-    columns: [
-      { key: 'standard_code', title: '标准编号' },
-      { key: 'standard_name', title: '标准名称' },
-      {
-        key: 'type',
-        title: '类型',
-        formatter: (value: unknown) =>
-          value === 'product' ? '产品标准' : '工艺标准',
-      },
-      { key: 'version', title: '版本' },
-      {
-        key: 'status',
-        title: '状态',
-        formatter: (value: unknown) =>
-          getStatusLabel(value as QualityStandard['status']),
-      },
-      {
-        key: 'created_by_name',
-        title: '创建人',
-        formatter: (value: unknown) => (value ? String(value) : '-'),
-      },
-      {
-        key: 'approved_by_name',
-        title: '审批人',
-        formatter: (value: unknown) => (value ? String(value) : '-'),
-      },
-    ],
-  })
-  logger.info('质量标准列表已导出')
+// 导出 Excel（V15 P0-S12 修复 Batch 475d）
+// 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
+// 改为调用后端 GET /quality-standards/export，后端注入水印 + 异步审计日志
+// 本 Tab 无独立筛选条件，导出全量数据
+const handleExport = async () => {
+  await exportFromBackend(
+    '/quality-standards/export',
+    {},
+    'quality_standards_export'
+  )
+  logger.info('质量标准列表已通过后端导出')
 }
 
 const handlePrint = () => {

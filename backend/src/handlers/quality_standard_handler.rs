@@ -5,6 +5,12 @@ use crate::services::quality_standard_service::QualityStandardService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
+// V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use std::sync::Arc;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -14,7 +20,8 @@ use serde::Deserialize;
 use tracing::info;
 
 /// 质量标准查询参数 DTO
-#[derive(Debug, Deserialize)]
+// V15 P0-S12 修复（Batch 475d）：派生 Clone，export_standards 需要 clone 后覆盖分页参数用于全量导出
+#[derive(Debug, Clone, Deserialize)]
 pub struct QualityStandardQuery {
     pub standard_type: Option<String>,
     pub status: Option<String>,
@@ -310,4 +317,132 @@ pub async fn delete_standard(
         (),
         "质量标准已删除",
     )))
+}
+
+/// GET /api/v1/erp/quality-standards/export - 导出质量标准列表（带水印 + 异步审计日志）
+///
+/// V15 P0-S12 修复（Batch 475d）：导出接入后端
+/// - 注入水印（operator/exported_at/extra 含条数）
+/// - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_standards_list 取全量数据（page=1/page_size=10000）
+/// - 不复用 list_standards handler 逻辑（保持单一职责）
+pub async fn export_standards(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<QualityStandardQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = QualityStandardService::new(state.db.clone());
+
+    // V15 P0-S12 修复（Batch 475d）：导出全量数据
+    let query_params = crate::services::quality_standard_service::QualityStandardQueryParams {
+        standard_type: query.standard_type,
+        status: query.status,
+        page: 1,
+        page_size: 10000,
+    };
+
+    let (standards, _total) = service.get_standards_list(query_params).await?;
+    let row_count = standards.len();
+
+    // 序列化为 JSON 以统一字段处理
+    let standards_json: Vec<serde_json::Value> = standards
+        .into_iter()
+        .map(|s| serde_json::to_value(s).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // 构造 xlsx 表格数据（13 列）
+    let headers: Vec<String> = vec![
+        "ID".to_string(),
+        "标准编码".to_string(),
+        "标准名称".to_string(),
+        "标准类型".to_string(),
+        "版本".to_string(),
+        "生效日期".to_string(),
+        "到期日期".to_string(),
+        "状态".to_string(),
+        "审批人ID".to_string(),
+        "审批时间".to_string(),
+        "创建人ID".to_string(),
+        "创建时间".to_string(),
+        "更新时间".to_string(),
+    ];
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(standards_json.len());
+    for s in standards_json {
+        let obj = s.as_object().ok_or_else(|| {
+            AppError::internal("质量标准序列化失败：期望 JSON 对象")
+        })?;
+        let get_str = |key: &str| -> String {
+            obj.get(key)
+                .map(|v| {
+                    if v.is_null() {
+                        String::new()
+                    } else if v.is_string() {
+                        v.as_str().unwrap_or("").to_string()
+                    } else {
+                        v.to_string()
+                    }
+                })
+                .unwrap_or_default()
+        };
+        rows.push(vec![
+            get_str("id"),
+            get_str("standard_code"),
+            get_str("standard_name"),
+            get_str("standard_type"),
+            get_str("version"),
+            get_str("effective_date"),
+            get_str("expiry_date"),
+            get_str("status"),
+            get_str("approved_by"),
+            get_str("approved_at"),
+            get_str("created_by"),
+            get_str("created_at"),
+            get_str("updated_at"),
+        ]);
+    }
+
+    let table = XlsxTable {
+        sheet_name: "质量标准列表".to_string(),
+        headers,
+        rows,
+    };
+
+    let filename = format!(
+        "quality_standards_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("quality_standard".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出质量标准列表（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/quality-standards/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    // V15 P0-S15 修复（Batch 475d）：注入水印（操作员/导出时间/导出条数）
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("质量标准导出（共 {} 条）", row_count)),
+    };
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

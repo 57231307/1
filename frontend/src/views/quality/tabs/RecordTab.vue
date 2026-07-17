@@ -6,7 +6,7 @@
   - 使用 useTableApi composable 接管分页/loading/重试
   - 保留原交互：page-header / 8 列表 / 结果 el-tag / 查看按钮 /
                     inject('qualityActions') openRecordDialog / openCreate /
-                    handleExport (CSV) / handlePrint (新窗口) /
+                    handleExport (Batch 475d：改用后端 xlsx 导出) / handlePrint (新窗口) /
                     defineExpose({ fetchRecords }) / logger
   - 路径：/production/quality-inspection/records
 -->
@@ -53,7 +53,7 @@
  * - useTableApi：通用数据 composable（分页/loading/重试）
  * 保留原交互：page-header / 8 列表 / 结果 el-tag / 查看按钮 /
  *           inject('qualityActions') openRecordDialog / openCreate /
- *           handleExport (CSV) / handlePrint (新窗口) /
+ *           handleExport (Batch 475d：改用后端 xlsx 导出) / handlePrint (新窗口) /
  *           defineExpose({ fetchRecords }) / logger
  */
 import { h, onMounted, inject } from 'vue'
@@ -65,7 +65,9 @@ import type { ColumnDef } from '@/components/V2Table/types'
 import { type QualityRecord } from '@/api/quality'
 import { logger } from '@/utils/logger'
 import { escapeHtml } from '@/utils/print'
-import { exportToExcel } from '@/utils/export'
+// V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
+// 后端 GET /production/quality-inspection/records/export 已就绪（含异步审计日志 + 水印）
+import { exportFromBackend } from '@/utils/export'
 
 // 父组件注入：openRecordDialog(row | null)
 const actions = inject<{
@@ -135,28 +137,17 @@ const handleView = (row: QualityRecord) => {
   actions?.openRecordDialog(row)
 }
 
-// 导出 Excel（规则 3：禁止 CSV 作为最终交付格式）
-const handleExport = () => {
-  exportToExcel({
-    filename: '检验记录',
-    format: 'excel',
-    data: data.value.map((item): Record<string, unknown> => ({ ...item })),
-    columns: [
-      { key: 'record_no', title: '记录编号' },
-      { key: 'inspection_type', title: '检验类型' },
-      { key: 'product_name', title: '产品' },
-      { key: 'batch_no', title: '批次号' },
-      { key: 'inspection_date', title: '检验日期' },
-      { key: 'inspector', title: '检验员' },
-      {
-        key: 'result',
-        title: '结果',
-        formatter: (value: unknown) =>
-          resultMap[value as string] || String(value),
-      },
-    ],
-  })
-  logger.info('检验记录已导出')
+// 导出 Excel（V15 P0-S12 修复 Batch 475d）
+// 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
+// 改为调用后端 GET /production/quality-inspection/records/export，后端注入水印 + 异步审计日志
+// 当前页面无筛选条件（前端未暴露 queryParams），导出全量数据
+const handleExport = async () => {
+  await exportFromBackend(
+    '/production/quality-inspection/records/export',
+    {},
+    'quality_inspection_records_export'
+  )
+  logger.info('检验记录已通过后端导出')
 }
 
 // 打印

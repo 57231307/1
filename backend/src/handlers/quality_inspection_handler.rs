@@ -10,6 +10,12 @@ use crate::services::quality_inspection_service::{
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
+// V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use std::sync::Arc;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -25,7 +31,8 @@ pub struct QualityInspectionQuery {
     pub page_size: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+// V15 P0-S12 修复（Batch 475d）：派生 Clone，export_records 需要 clone 后覆盖分页参数用于全量导出
+#[derive(Debug, Clone, Deserialize)]
 pub struct RecordQuery {
     pub product_id: Option<i32>,
     pub batch_number: Option<String>,
@@ -165,4 +172,134 @@ pub async fn process_defect(
     info!("质量缺陷处理成功，ID：{}", result.id);
 
     Ok(Json(ApiResponse::success(result)))
+}
+
+/// GET /api/v1/erp/quality-inspection/records/export - 导出质量检验记录列表（带水印 + 异步审计日志）
+///
+/// V15 P0-S12 修复（Batch 475d）：导出接入后端
+/// - 注入水印（operator/exported_at/extra 含条数）
+/// - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_records_list 取全量数据（page=1/page_size=10000）
+/// - 与 list_records handler 行为对齐：inspection_result 映射到 service 的 inspection_type 字段
+///   （service 内部把 inspection_type 过滤到 InspectionResult 列，语义保持一致）
+pub async fn export_records(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<RecordQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = QualityInspectionService::new(state.db.clone());
+
+    // V15 P0-S12 修复（Batch 475d）：导出全量数据
+    // 与 list_records handler 保持一致：inspection_result 映射到 service 的 inspection_type 字段
+    let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
+        inspection_type: query.inspection_result,
+        status: None,
+        page: 1,
+        page_size: 10000,
+    };
+
+    let (records, _total) = service.get_records_list(query_params).await?;
+    let row_count = records.len();
+
+    // 序列化为 JSON 以统一字段处理
+    let records_json: Vec<serde_json::Value> = records
+        .into_iter()
+        .map(|r| serde_json::to_value(r).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // 构造 xlsx 表格数据（13 列）
+    let headers: Vec<String> = vec![
+        "ID".to_string(),
+        "检验编号".to_string(),
+        "检验类型".to_string(),
+        "产品ID".to_string(),
+        "批次号".to_string(),
+        "检验日期".to_string(),
+        "检验员ID".to_string(),
+        "总数量".to_string(),
+        "已检数量".to_string(),
+        "合格数量".to_string(),
+        "不合格数量".to_string(),
+        "检验结果".to_string(),
+        "等级".to_string(),
+    ];
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(records_json.len());
+    for r in records_json {
+        let obj = r.as_object().ok_or_else(|| {
+            AppError::internal("质量检验记录序列化失败：期望 JSON 对象")
+        })?;
+        let get_str = |key: &str| -> String {
+            obj.get(key)
+                .map(|v| {
+                    if v.is_null() {
+                        String::new()
+                    } else if v.is_string() {
+                        v.as_str().unwrap_or("").to_string()
+                    } else {
+                        v.to_string()
+                    }
+                })
+                .unwrap_or_default()
+        };
+        rows.push(vec![
+            get_str("id"),
+            get_str("inspection_no"),
+            get_str("inspection_type"),
+            get_str("product_id"),
+            get_str("batch_no"),
+            get_str("inspection_date"),
+            get_str("inspector_id"),
+            get_str("total_qty"),
+            get_str("inspected_qty"),
+            get_str("qualified_qty"),
+            get_str("unqualified_qty"),
+            get_str("inspection_result"),
+            get_str("grade"),
+        ]);
+    }
+
+    let table = XlsxTable {
+        sheet_name: "质量检验记录".to_string(),
+        headers,
+        rows,
+    };
+
+    let filename = format!(
+        "quality_inspection_records_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("quality_inspection_record".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出质量检验记录列表（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/quality-inspection/records/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    // V15 P0-S15 修复（Batch 475d）：注入水印（操作员/导出时间/导出条数）
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("质量检验记录导出（共 {} 条）", row_count)),
+    };
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
