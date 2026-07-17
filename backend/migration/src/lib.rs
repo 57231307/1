@@ -86,6 +86,8 @@ pub mod m0051_add_data_scope_to_roles;
 pub mod m0052_create_role_conflicts;
 // V15 P0-S06：权限变更审计表
 pub mod m0053_create_permission_change_audit;
+// Batch 464 P0-S25：行级数据权限 RLS 策略启用（5 张敏感表）
+pub mod m0054_enable_rls_policies;
 
 pub struct Migrator;
 
@@ -148,6 +150,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0051_add_data_scope_to_roles::Migration),
             Box::new(m0052_create_role_conflicts::Migration),
             Box::new(m0053_create_permission_change_audit::Migration),
+            Box::new(m0054_enable_rls_policies::Migration),
         ]
     }
 }
