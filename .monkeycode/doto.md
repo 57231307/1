@@ -2,71 +2,90 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-472 已完成 P0 任务归档到 doto-su.md；P0 进度 62/104；剩余 42 P0 + 257 P1 + 248 P2 + 123 P3；批次大小每批 6-8 文件；用户指令变更（2026-07-17 二次）：按顺序修复所有批次，不再限制单数批次；下一批次 473 剩余 P0-F10~F21 + 其他 P0 项；用户术语澄清（2026-07-17）：缸号=染色批次号，dye_lot_no=染色批号；Batch 471 决策保留旧表不重命名以保护 Rust migration m0029 链路；Batch 472 用户特批直接合并 PR #648（squash 99c2af1））。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-472 已完成 P0 任务归档到 doto-su.md；复审发现 4 项标记未完成实际已完成项归档到 doto-su.md §V15 复审核实发现的已完成项；复审发现 P0-S14 migration 047 缺失重新打开；P0 进度 65/104；剩余 39 P0 + 257 P1 + 248 P2 + 123 P3；下一批次 473 剩余 P0-F10~F21 + 其他 P0 项；暂停指令：Batch 472 合并后暂停等待新指令）。
 
 ---
 
-## 一、当前状态：V15 修复阶段进行中（自动化修复流程）
+## 一、当前状态：V15 修复阶段进行中（已暂停等待新指令）
 
 ### 1.0 总体进度
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 62 | **42** | 59.6% |
+| **P0 阻塞级** | 104 | 65 | **39** | 62.5% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **62** | **670** | **8.5%** |
+| **合计** | **732** | **65** | **667** | **8.9%** |
 
-### 1.1 已完成 P0 任务（29 项，详情见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4602026-07-16--2026-07-17)）
+> P0 已完成 65 项：原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）。
+> 详情见 [doto-su.md §V15 修复阶段已完成 P0 任务归档](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4602026-07-16--2026-07-17) 和 [doto-su.md §V15 复审核实发现的已完成项](file:///workspace/.monkeycode/doto-su.md#-v15-复审核实发现的已完成项2026-07-17-复审归档)。
 
-P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S08 / P0-S09 / P0-S10 / P0-S11 / P0-S14 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S24 / P0-S25 / P0-S26 / P0-S27 / P0-S28 / P0-F01 / P0-F02 / P0-F03 / P0-F04 / P0-F05 / P0-F06（部分，新表已建，旧表保留不重命名）/ P0-F07 / P0-F08 / P0-F09（状态机）
-
-> V15 审计已完成（25 大类 195 维度 732 问题），详细审计进度表已归档到 [doto-su.md §V15 审计完成进度](file:///workspace/.monkeycode/doto-su.md#-v15-审计完成进度2026-07-16-全部完成)。
-
-### 1.2 下一批次规划（按顺序连续执行）
+### 1.1 下一批次规划
 
 > **用户指令变更（2026-07-17 二次）**：按顺序修复所有批次，不再限制单数批次。
 > 已合并批次 460-472，下一批次 473 剩余 P0-F10~F21 + 其他 P0 项，按规则 13 自动连续执行。
 > **用户术语澄清（2026-07-17）**：缸号（batch_no）=染色批次号（同一概念不同叫法）；dye_lot_no=染色批号（lot 概念，防色差混批）。
-> **Batch 471 决策（2026-07-17）**：保留旧表 color_card_borrow_records 不重命名为 _legacy，原因是 Rust migration m0029_drop_tenant_columns 会执行 ALTER TABLE color_card_borrow_records DROP COLUMN tenant_id，若表已重命名会导致 migration 失败；应用层不再读写该表，事实等同于 legacy。
-> **Batch 472 决策（2026-07-17）**：前端 borrow.vue→issue.vue 完整重写（10 文件）；CI 第 1 轮 detail.vue 漏 import 失败，第 2 轮全绿；PR #647 分支被仓库自动删除策略清理，重建 PR #648 后用户特批直接合并（squash 99c2af1）。
+> **Batch 471 决策（2026-07-17）**：保留旧表 color_card_borrow_records 不重命名为 _legacy，原因是 Rust migration m0029_drop_tenant_columns 会 ALTER TABLE color_card_borrow_records DROP COLUMN tenant_id，重命名会破坏 migration 链路；应用层不再读写该表，事实等同于 legacy。
+> **Batch 472 决策（2026-07-17）**：前端 borrow.vue→issue.vue 完整重写（10 文件）；用户特批直接合并 PR #648（squash 99c2af1）。
+> **复审决策（2026-07-17）**：复审报告 [v15-fix-reaudit-2026-07-17.md](file:///workspace/.monkeycode/docs/audits/v15-fix-reaudit-2026-07-17.md) PR #649 已合并（用户特批直接合并，squash 534f3c6）。
 > **暂停指令（2026-07-17）**：Batch 472 合并后暂停，等待新指令（不自动进入 Batch 473）。
 
-| 批次 | P0 任务 | 文件数 | 状态 |
-|------|---------|--------|------|
-| 469 | P0-F01 dye_batch 表缺少 dye_lot_no 字段（类四） | - | ✅ 已合并 PR #644 |
-| 470 | P0-F02 面料属性扩展 | - | ✅ 已合并 PR #645 |
-| 471 | P0-F03~F08/F09 色卡发放模式重构-后端核心 | - | ✅ 已合并 PR #646（squash 38ee394）|
-| 472 | P0-F07 色卡发放前端 borrow.vue→issue.vue 重写 | - | ✅ 已合并 PR #648（squash 99c2af1，用户特批直接合并）|
-| 473+ | 剩余 P0-F10~F21 + 其他 P0 项 | - | ⏳ |
+| 批次 | P0 任务 | 状态 |
+|------|---------|------|
+| 469 | P0-F01 dye_batch 表缺少 dye_lot_no 字段 | ✅ 已合并 PR #644 |
+| 470 | P0-F02 面料属性扩展 | ✅ 已合并 PR #645 |
+| 471 | P0-F03~F08/F09 色卡发放模式重构-后端核心 | ✅ 已合并 PR #646（squash 38ee394）|
+| 472 | P0-F07 色卡发放前端 borrow.vue→issue.vue 重写 | ✅ 已合并 PR #648（squash 99c2af1，用户特批直接合并）|
+| 复审 | V15 修复阶段已修复任务实际状态复查报告 | ✅ 已合并 PR #649（squash 534f3c6，用户特批直接合并）|
+| 473+ | 剩余 39 P0 项 + 复审重新打开项 | ⏳ 暂停等待新指令 |
 
 ---
 
-## 二、V15 未完成修复任务规划（684 项）
+## 二、复审发现问题清单（2026-07-17 V15 复审）
 
-> **执行策略**：规则 13+14+15 联动，CI 全绿后自动进入下一批，无需用户确认；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子（§10.0.1 复用现有功能原则）。
+### 2.1 🔴 重新打开项：P0-S14 二级审批机制完全缺失（migration 047 缺失）
+
+- **来源**：batch-11 P0-11-8/9，原标记已完成（Batch 433-459 阶段）
+- **复审发现**：
+  - ✅ `backend/src/services/export_approval_service.rs` 存在
+  - ✅ `backend/src/models/export_approval_request.rs` 存在
+  - ✅ `backend/src/handlers/export_approval_handler.rs` 存在 7 个端点
+  - ❌ **migration 047 完全不存在**：实际 `m0047` 为 `add_last_payload_to_webhooks`（与 export_approval 无关）
+  - ❌ migration 列表（m0001~m0054）中无任何 export_approval 相关 migration
+  - ❌ 全代码库无 `export_approval_requests` 表的 CREATE TABLE 语句
+- **影响**：数据库表无法通过 migration 自动创建。线上环境若已手动建表则功能不受影响；新环境部署会因表不存在导致运行时错误
+- **修复方案**：补充 migration 创建 `export_approval_requests` 表（29 字段 + 6 索引）
+- **关联文件**：待新增 migration / `backend/src/services/export_approval_service.rs`
+
+### 2.2 ⚠️ 部分实现项（保留未完成列表，已更新剩余工作说明）
+
+| P0 任务 | 实际状态 | 剩余工作 |
+|---------|----------|----------|
+| P0-S19 14 端点审计不达标 | 6/8 字段已实现 | 缺 `condition` 字段；`response_status` 可视为 result |
+| P0-F11/F12 前端文件结构 | 2/7 文件已存在 | 已有 issues.vue + color-card.ts；缺 ColorCardIssueForm.vue / Detail.vue / useColorCardIssue.ts / store 等 5 个文件 |
+| P0-D01 Docker 文件违规 | 3/4 文件已删除 | docker-entrypoint.sh 已删除；剩 Dockerfile / docker-compose.yml / .dockerignore 3 个 |
+| P0-B17 主备切换自动完成 | 基础框架存在 | failover_service.rs 仅事件记录/手动切换；缺自动心跳检测/VIP 漂移/10s 内自动完成 |
+
+> 复审完整报告见 [v15-fix-reaudit-2026-07-17.md](file:///workspace/.monkeycode/docs/audits/v15-fix-reaudit-2026-07-17.md)。
+> 复审已归档的 4 项已完成项（P0-S08/S16/F14/T04）见 [doto-su.md §V15 复审核实发现的已完成项](file:///workspace/.monkeycode/doto-su.md#-v15-复审核实发现的已完成项2026-07-17-复审归档)。
+
+---
+
+## 三、V15 未完成修复任务规划（667 项）
+
+> **执行策略**：规则 13+14+15+20 联动，CI 全绿后自动进入下一批，无需用户确认；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子（§10.0.1 复用现有功能原则）；注释必须与功能一致禁止随意编写（规则 20）。
 > **批次节奏**：每批 6-8 文件，遵循规则 13 连续执行流程；每 30 批触发 E2E（规则 5）；每 15 批整理记忆（规则 10）。
-> **修复路线图**：阶段一 P0 剩余（56）→ 阶段二 P1（257）→ 阶段三 P2（248）→ 阶段四 P3（123）。
+> **修复路线图**：阶段一 P0 剩余（39）→ 阶段二 P1（257）→ 阶段三 P2（248）→ 阶段四 P3（123）。
 
-### 2.1 阶段一：P0 阻塞级修复剩余（56 项，分 5 个优先级）
+### 3.1 阶段一：P0 阻塞级修复剩余（39 项）
 
-#### 优先级 1：安全与权限（12 项未完成）
-
-##### P0-S08 CRM 数据权限完全缺失（类十八）
-
-- **来源**：batch-15 P0-15-10
-- **证据**：CRM 所有表（lead/opportunity/customer_pool）无 owner_id 过滤
-- **修复方案**：
-  1. lead/opportunity 表新增 owner_id 字段
-  2. 公海/私海规则：private_pool 仅 owner 可见，public_pool 所有可见
-  3. 客户转移需审批 + 审计
-- **关联文件**：crm_lead_service.rs / crm_opportunity_service.rs / customer_pool_service.rs / 各 handler
+#### 优先级 1：安全与权限（7 项未完成）
 
 ##### P0-S12 前端本地导出完全无审计（类十三）
 
 - **来源**：batch-11 P0-11-10/11
-- **证据**：25+ 前端页面使用 `exportToExcel` 本地生成，绕过后端 API
+- **证据**：`frontend/src/utils/export.ts:79-89` 仍是 exportToExcel 本地 HTML 导出，无后端 API 调用
 - **修复方案**：
   1. 前端 `exportToExcel` 工具改为调用后端 `/api/{resource}/export` 接口
   2. 后端返回 xlsx 文件流（含水印）
@@ -76,151 +95,63 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-S13 审计日志导出"假按钮"陷阱（类十三）
 
 - **来源**：batch-11 P0-11-12
-- **证据**：[audit_log_view.vue](file:///workspace/frontend/src/views/system/audit_log_view.vue) 导出按钮走本地 exportToExcel
+- **证据**：`frontend/src/views/system/audit-log/index.vue:187` import exportToExcel；`:410` handleExport 调用本地 exportToExcel
 - **修复方案**：审计日志导出必须走后端 API，且导出动作本身需二次审计（写入 audit_log_export_log 表）
-- **关联文件**：audit_log_view.vue / audit_log_handler.rs
+- **关联文件**：audit-log/index.vue / audit_log_handler.rs
 
-##### P0-S14 二级审批机制完全缺失（类十三）
+##### P0-S14 二级审批机制完全缺失（类十三，复审重新打开）
 
 - **来源**：batch-11 P0-11-8/9
+- **复审状态**：⚠️ 复审发现 migration 047 完全缺失（详见 §2.1）
 - **修复方案**：
-  1. 新增 `export_approval_request` 表（申请人/审批人/资源/条件/状态/有效期）
+  1. 新增 migration 047（`export_approval_request` 表：申请人/审批人/资源/条件/状态/有效期）
   2. 敏感数据导出（财务报表/客户清单/染色配方/价格清单）需二级审批
   3. 审批通过后生成临时 token（5min 有效）才能下载
-- **关联文件**：export_approval_service.rs / export_approval_handler.rs / schema migrations
+- **关联文件**：待新增 migration / export_approval_service.rs / export_approval_handler.rs
 
 ##### P0-S15 导出文件无水印（类十三）
 
 - **来源**：batch-11 P0-11-13
+- **证据**：`backend/src/utils/xlsx_export.rs` 全文无 watermark/operator/IP/timestamp 关键字，仅做标题加粗和边框
 - **修复方案**：xlsx 文件加水印（操作员+IP+时间戳），PDF 加水印（中文字体支持）
 - **关联文件**：[xlsx_export.rs](file:///workspace/backend/src/utils/xlsx_export.rs) / pdf_export.rs
-
-##### P0-S16 导出无条数上限（类十三）
-
-- **来源**：batch-11 P0-11-14
-- **修复方案**：9 类资源（customer/supplier/product/inventory/order/finance/crm/report/audit_log）导出上限 10000 条，超过需分页或拒绝
-- **关联文件**：9 个导出 handler + export_approval_service.rs
 
 ##### P0-S17 打印 HTML 是占位假数据（类十三）
 
 - **来源**：batch-11 P0-11-15
-- **证据**：[print_handler.rs](file:///workspace/backend/src/handlers/print_handler.rs) 返回硬编码 stub HTML
+- **证据**：print_handler.rs 虽调用 PrintService，但 print_service.rs:57-142 各 get_*_print_data 返回硬编码占位数据如 "客户名称"、format!("SO-{:06}", id)，未真实查询数据库
 - **修复方案**：print_handler 根据资源类型查询真实数据，使用 handlebars 模板渲染
-- **关联文件**：print_handler.rs / print_templates/ 目录
+- **关联文件**：print_handler.rs / print_service.rs / print_templates/ 目录
 
-##### P0-S19 14 端点审计不达标（类十三）
+##### P0-S19 14 端点审计不达标（类十三，部分实现）
 
 - **来源**：batch-11 P0-11-12
-- **证据**：15 端点 × 8 字段审计矩阵，仅 23% 达标
-- **修复方案**：补齐 14 端点的 8 个审计字段（user_id/ip/user_agent/resource_id/action/condition/result/duration）
+- **复审状态**：⚠️ 6/8 字段已实现，缺 `condition` 字段；`response_status` 可视为 result
+- **修复方案**：补齐 14 端点的剩余 2 个审计字段（condition / result）
 - **关联文件**：14 个 handler + audit_middleware.rs
-
-##### P0-S24 前后端权限边界一致性（类十四）
-
-- **来源**：batch-12 P0-12-14
-- **修复方案**：前端 v-permission 指令与后端权限码完全对齐，4 项不一致场景修复
-- **关联文件**：[v-permission.ts](file:///workspace/frontend/src/directives/v-permission.ts) + 所有视图组件
-
-##### P0-S25 行级数据权限 RLS（类十二）
-
-- **来源**：batch-10 P0-10-7
-- **修复方案**：PostgreSQL RLS 策略，按 user_id / department_id 过滤敏感表（customer/supplier/sales_order/crm_*）
-- **关联文件**：schema migrations / database/rls.sql
-
-##### P0-S27 AI 推理数据范围未过滤（类十六）
-
-- **来源**：batch-14 P1（升级为 P0）
-- **修复方案**：AI 推理查询注入 apply_data_scope，销售员调 AI 推荐时仅看自己的客户
-- **关联文件**：ai_*.rs services
-
-##### P0-S28 前端 v-permission 覆盖率仅 4%（类二十四）
-
-- **来源**：batch-20 P1（升级为 P0）
-- **修复方案**：85+ 视图组件全部接入 v-permission 指令，按钮级控制
-- **关联文件**：85+ .vue 文件
 
 ---
 
-#### 优先级 2：面料行业核心特性（20 项，已完成 6 项：F03/F04/F05/F06部分/F08/F09，剩余 14 项含 F07 前端留待 Batch 472）
-
-##### P0-F03 色卡发放专项——旧"借出/归还"模式完全存在（类九）
-
-- **来源**：batch-09 P0-09-1
-- **修复方案**：删除 fabric_color_card_lend_return 表的 lend_return 语义，重命名为 `fabric_color_card_lend_return_legacy`；新表走"发放"模式
-- **关联文件**：schema migrations / color_card_service.rs
-- **状态**：✅ Batch 471 已完成（删除 borrow.rs/borrow_service.rs/borrow_record.rs/borrow_dto.rs/borrow_test.rs 共 5 个旧文件）
-
-##### P0-F04 色卡发放——新"发放"模式后端文件完全缺失（类九）
-
-- **来源**：batch-09 P0-09-2
-- **修复方案**：创建 4 个后端新文件：
-  1. `color_card_issue_service.rs`（发放业务逻辑）
-  2. `color_card_issue_handler.rs`（HTTP handler）
-  3. `color_card_issue.rs`（SeaORM model）
-  4. migration（color_card_issue 表 DDL）
-- **关联文件**：backend/src/services/color_card_issue_service.rs / backend/src/handlers/color_card_issue_handler.rs / backend/src/models/color_card_issue.rs / migrations/
-- **状态**：✅ Batch 471 已完成（handler 拆分在 handlers/color_card/issue.rs 而非独立文件 color_card_issue_handler.rs，等效）
-
-##### P0-F05 色卡发放——旧路由未删除，新路由未注册（类九）
-
-- **来源**：batch-09 P0-09-3
-- **修复方案**：删除 `/color-cards/lend-return` 路由组，新增 `/color-cards/issues` 路由组（POST /issues, GET /issues, GET /issues/:id, POST /issues/:id/return）
-- **关联文件**：[color_card_routes.rs](file:///workspace/backend/src/routes/color_card_routes.rs)
-- **状态**：✅ Batch 471 已完成（routes/color_card.rs 删除 /borrow/* 路由，新增 7 个 /issues/* 端点）
-
-##### P0-F06 色卡发放——旧表未重命名为 legacy，新表未创建（类九）
-
-- **来源**：batch-09 P0-09-4
-- **修复方案**：
-  1. RENAME TABLE `fabric_color_card_lend_return` TO `fabric_color_card_lend_return_legacy`
-  2. CREATE TABLE `color_card_issue`（id, card_id, customer_id, issue_qty, issue_date, expected_return_date, actual_return_date, status, issued_by, returned_by, remark）
-- **关联文件**：migrations
-- **状态**：✅ Batch 471 已完成（部分）——migration 050 创建 color_card_issues 表（16 字段 + 5 索引），但**保留旧表 color_card_borrow_records 不重命名为 _legacy**，原因是 Rust migration m0029_drop_tenant_columns 会 ALTER TABLE color_card_borrow_records DROP COLUMN tenant_id，重命名会破坏 migration 链路；应用层不再读写该表，事实等同 legacy。
-
-##### P0-F07 色卡发放——前端仍是借还模式（类九）
-
-- **来源**：batch-09 P0-09-5
-- **修复方案**：删除 ColorCardLendReturn.vue，创建 ColorCardIssue.vue（发放视图）
-- **关联文件**：[frontend/src/views/fabric/](file:///workspace/frontend/src/views/fabric/)
-- **状态**：✅ Batch 472 已完成——前端 borrow.vue→issue.vue 完整重写（10 文件：api/color-card.ts + issues.vue 新建 + IssueRecordTimeline.vue 新建 + router + MainLayout + list + detail + i18n + e2e + 删除 borrow.vue/BorrowRecordTimeline.vue）；CI 2 轮修复后全绿（第 1 轮 detail.vue 漏 scanColorCode/COLOR_CARD_TYPE_LABELS import，第 2 轮 12/12 success）；PR #647 分支被自动删除策略清理后重建 PR #648 合并（用户特批直接合并，squash 99c2af1）。
-
-##### P0-F08 色卡发放——发放前 5 道闸门校验未实现（类九）
-
-- **来源**：batch-09 P0-09-6
-- **修复方案**：在 issue handler 实现闸门校验：
-  1. 卡片状态 = active
-  2. 库存数量 >= 发放数量
-  3. 客户信用额度未超
-  4. 客户无未归还超期记录
-  5. 客户白名单校验
-- **关联文件**：color_card_issue_service.rs
-- **状态**：✅ Batch 471 已完成（5 道闸门校验全部实现，validate_issue_gates 方法）
-
-##### P0-F09 色卡发放——新状态流转校验未实现（类九）
-
-- **来源**：batch-09 P0-09-7
-- **修复方案**：状态机 `issued → returned / lost / scrapped`，校验流转合法性
-- **关联文件**：color_card_issue_service.rs
-- **状态**：✅ Batch 471 已完成（IssueStatus 状态机：Issued/Returned/Lost/Damaged/Cancelled，终态判定 is_terminal + FromStr 解析 + 状态流转校验 return_card/mark_lost/mark_damaged/cancel_issue 调用前检查 is_terminal）
+#### 优先级 2：面料行业核心特性（11 项未完成，已完成 P0-F03/F04/F05/F06/F07/F08/F09）
 
 ##### P0-F10 色卡发放——库存联动未实现（类九）
 
 - **来源**：batch-09 P0-09-8
+- **证据**：`color_card_issue_service.rs` 的 issue 方法 line 249-284 仅做 validate_issue_gates + insert，全文无 inventory_stock/扣减/deduct 调用
 - **修复方案**：发放时 inventory_stock 扣减，归还时增加，丢失时调拨到报废仓
 - **关联文件**：color_card_issue_service.rs / inventory_stock_service.rs
 
-##### P0-F11 色卡发放——前端文件结构完全未创建（类九）
+##### P0-F11 色卡发放——前端文件结构部分缺失（类九，部分实现）
 
 - **来源**：batch-09 P0-09-9
-- **修复方案**：创建 7 个前端新文件：
-  1. `ColorCardIssue.vue`（发放列表视图）
-  2. `ColorCardIssueForm.vue`（发放表单）
-  3. `ColorCardIssueDetail.vue`（发放详情）
-  4. `useColorCardIssue.ts`（composable）
-  5. `colorCardIssue.ts`（API 模块）
-  6. `colorCardIssue.ts`（类型定义）
-  7. `colorCardIssue.ts`（store）
-- **关联文件**：frontend/src/views/fabric/ + composables/ + api/ + types/ + stores/
+- **复审状态**：⚠️ 2/7 文件已存在（issues.vue + color-card.ts），缺 5 个文件
+- **修复方案**：补齐 5 个前端文件：
+  1. `ColorCardIssueForm.vue`（发放表单组件）
+  2. `ColorCardIssueDetail.vue`（发放详情组件）
+  3. `useColorCardIssue.ts`（composable）
+  4. `colorCardIssue.ts`（类型定义模块）
+  5. `colorCardIssue.ts`（store）
+- **关联文件**：frontend/src/views/color-cards/ + composables/ + types/ + stores/
 
 ##### P0-F12 色卡发放——前端类型/API/视图组件未实现（类九）
 
@@ -231,18 +162,14 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-F13 色卡发放——数据迁移策略未实现（类九）
 
 - **来源**：batch-09 P0-09-13
+- **证据**：backend/migrations/ 全目录无 color_card_migrate_legacy.sql 文件
 - **修复方案**：编写 SQL 迁移脚本，将 legacy 表的 lend 记录转为 issue 记录（status='returned' 或 'lost'）
 - **关联文件**：migrations/color_card_migrate_legacy.sql
-
-##### P0-F14 色卡发放——代码层旧文件处理未实现（类九）
-
-- **来源**：batch-09 P0-09-14
-- **修复方案**：删除旧的 color_card_lend_return_service.rs / handler / model，改为 legacy_ 前缀保留只读
-- **关联文件**：backend/src/services/ + handlers/ + models/
 
 ##### P0-F15 大货批色——bulk_color_approval 表完全不存在（类十一）
 
 - **来源**：batch-10 P0-10-1
+- **证据**：`backend/src/models/bulk_color_approval.rs` model 不存在；`bulk_color_approval_service.rs` 不存在
 - **修复方案**：CREATE TABLE `bulk_color_approval`（id, sales_order_id, dye_batch_id, customer_id, sample_type=cut_sample/lab_sample, approval_status=pending/approved/rejected/rework, approver_id, approval_date, reject_reason, attachment_url, remark）
 - **关联文件**：migrations + bulk_color_approval.rs model
 
@@ -267,13 +194,14 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-F19 大货批色——ship_order 不校验批色状态（类十一）
 
 - **来源**：batch-10 P0-10-5
+- **证据**：so/delivery.rs 无 bulk_color/批色 校验
 - **修复方案**：发货前校验所有 dye_batch 的 bulk_color_approval.status='approved'，否则拒绝发货
 - **关联文件**：[ship_order_service.rs](file:///workspace/backend/src/services/ship_order_service.rs)
 
 ##### P0-F20 8D 质量管理流程完全缺失（类二十一）
 
 - **来源**：batch-18 P0-18-1
-- **证据**：quality_issue 表仅 open/resolved/closed 三态
+- **证据**：quality_issue_service.rs 不存在；quality_issue.rs model 只有 status 字段无 8D 字段；quality_inspection_service.rs 无 D0~D8 实现
 - **修复方案**：实现 D0~D8 八步流程：
   - D0 准备阶段 / D1 组队 / D2 描述问题 / D3 临时措施 / D4 根因分析 / D5 永久措施 / D6 实施 / D7 预防 / D8 表彰
   - quality_issue 表新增 8D 字段，状态机扩展为 11 态
@@ -282,17 +210,18 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-F21 返工未走生产订单（类二十一）
 
 - **来源**：batch-18 P0-18-2
+- **证据**：rework_service.rs 不存在，仅 dye_batch_rework.rs model 存在
 - **修复方案**：返工必须创建 production_order（type='rework'），关联原 dye_batch，扣减库存
 - **关联文件**：[rework_service.rs](file:///workspace/backend/src/services/rework_service.rs) / production_order_service.rs
 
 ---
 
-#### 优先级 3：测试体系（8 项全部未完成）
+#### 优先级 3：测试体系（6 项未完成）
 
 ##### P0-T01 核心 service 零单元测试（类六）
 
 - **来源**：batch-06 P0-06-1
-- **证据**：quotation_service.rs / purchase_receipt_service.rs 零单元测试
+- **证据**：backend/tests/quotation_service_test.rs 不存在；quotation_service.rs 内部无 cfg(test) 模块
 - **修复方案**：为两个 service 编写完整单元测试（覆盖率 ≥80%），抽取 mock 数据到 fixtures
 - **关联文件**：backend/tests/quotation_service_test.rs / purchase_receipt_service_test.rs / tests/fixtures/
 
@@ -305,16 +234,9 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-T03 CI baseline 机制掩盖编译失败（类六）
 
 - **来源**：batch-06 P0-06-3
-- **证据**：bi_analysis_test.rs 16 个测试 API 与源码脱节但 CI 通过
+- **证据**：.github/workflows/ci-cd.yml 仍保留 clippy baseline 机制 line 354-605 和 cargo test baseline 机制 line 897-1031
 - **修复方案**：移除 baseline 机制，所有失败必须真实修复
 - **关联文件**：[.github/workflows/ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) / backend/tests/bi_analysis_test.rs
-
-##### P0-T04 mockBusinessApi 未移除（类六）
-
-- **来源**：batch-06 P0-06-4
-- **证据**：22+ E2E spec 使用 mockBusinessApi 走 mock
-- **修复方案**：移除 mockBusinessApi，E2E 全部走真实后端 API
-- **关联文件**：[frontend/e2e/fixtures/mockBusinessApi.ts](file:///workspace/frontend/e2e/fixtures/mockBusinessApi.ts) + 22+ spec
 
 ##### P0-T05 E2E 通过率 0%（类六）
 
@@ -343,13 +265,13 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 
 ---
 
-#### 优先级 4：部署与运维（17 项全部未完成）
+#### 优先级 4：部署与运维（16 项未完成，D01 部分实现）
 
-##### P0-D01 Docker 文件违规（类七）
+##### P0-D01 Docker 文件违规（类七，部分实现）
 
 - **来源**：batch-07 P0-07-1
-- **证据**：4 个 Docker 文件违反禁止 Docker 规则
-- **修复方案**：删除所有 Docker 文件（Dockerfile / docker-compose.yml / .dockerignore / docker-entrypoint.sh）
+- **复审状态**：⚠️ 3/4 文件已删除，剩 Dockerfile / docker-compose.yml / .dockerignore 3 个
+- **修复方案**：删除剩余 3 个 Docker 文件
 - **关联文件**：项目根 / deploy/ 下的 Docker 文件
 
 ##### P0-D02 快速部署脚本安装 PostgreSQL 客户端（类七）
@@ -362,7 +284,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-D03 5 个 service 全部未接入缓存层（类七）
 
 - **来源**：batch-07 P0-07-3
-- **证据**：user/product/customer/supplier/role_service 直接走 DB
+- **证据**：user_service.rs:67 注释说"命中 Redis 时直接返回缓存"但 find_by_id 方法实际无 Redis 调用；product/customer/supplier/role_service.rs 均无 redis/Redis/cache/moka 关键字。cache_service.rs 使用 moka 进程内缓存非 Redis，且 5 个 service 未使用
 - **修复方案**：5 个 service 接入 Redis 缓存（5min TTL + 主动失效）
 - **关联文件**：user_service.rs / product_service.rs / customer_service.rs / supplier_service.rs / role_service.rs
 
@@ -395,7 +317,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-D08 130+ 超长函数（类七）
 
 - **来源**：batch-07 P0-07-8
-- **证据**：130+ 函数超过 50 行（最长 event_bus.rs:412 start_event_listener 586 行）
+- **证据**：event_bus.rs:412 start_event_listener 函数从 line 412 延续到 line 997，长度约 586 行，超长函数仍存在
 - **修复方案**：拆分超长函数为单一职责小函数（每个 ≤50 行）
 - **关联文件**：event_bus.rs / ar_service.rs（1972 行）/ business_mode_service.rs / 等 26 个 >1000 行的文件
 
@@ -463,6 +385,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-B01 坏账准备计提功能缺失（类十七）
 
 - **来源**：batch-15 P0-15-1
+- **证据**：bad_debt_service.rs 不存在；全代码库无 bad_debt/坏账 关键字匹配
 - **修复方案**：实现坏账准备计提（账龄法：1年内 5% / 1-2年 20% / 2-3年 50% / 3年以上 100%），月末 cron 自动计提
 - **关联文件**：bad_debt_service.rs / schema migrations / cron
 
@@ -517,7 +440,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-B10 BI 无数据权限过滤（类十九）
 
 - **来源**：batch-16 P0-16-2
-- **证据**：销售员可看所有销售数据
+- **证据**：bi_analysis_service.rs 全文无 apply_data_scope 调用，使用 raw SQL 直接查询无权限过滤
 - **修复方案**：BI 查询注入 apply_data_scope，按 user_id / department_id 过滤
 - **关联文件**：bi_analysis_service.rs / dashboard_service.rs
 
@@ -559,12 +482,14 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ##### P0-B16 自动故障检测机制缺失（类二十）
 
 - **来源**：batch-17 P0-17-1
+- **证据**：health_check_service.rs 不存在；只有 health_handler.rs 单次健康检查接口；无 5s 间隔 + 3 次失败告警的 scheduler/cron/loop/sleep 逻辑
 - **修复方案**：实现自动故障检测（5s 间隔 / 连续 3 次失败触发告警）
 - **关联文件**：[health_check_service.rs](file:///workspace/backend/src/observability/health_check_service.rs)
 
-##### P0-B17 主备切换自动完成缺失（类二十）
+##### P0-B17 主备切换自动完成缺失（类二十，部分实现）
 
 - **来源**：batch-17 P0-17-2
+- **复审状态**：⚠️ failover_service.rs 基础框架存在，仅事件记录/手动切换；缺自动心跳检测/VIP 漂移/10s 内自动完成
 - **修复方案**：主备切换 10s 内自动完成（心跳检测 + VIP 漂移 + 数据同步）
 - **关联文件**：failover_service.rs / deploy/ha/
 
@@ -586,7 +511,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 
 ---
 
-### 2.2 阶段二：P1 高优先级修复（257 项，按类别分组）
+### 3.2 阶段二：P1 高优先级修复（257 项，按类别分组）
 
 > 每批 6-8 文件，遵循规则 13 连续执行流程。详细内容见 V15 审计报告 [docs/audits/v15/](file:///workspace/.monkeycode/docs/audits/v15/)。
 
@@ -659,7 +584,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 
 ---
 
-### 2.3 阶段三：P2 中优先级修复（248 项，按类别分批）
+### 3.3 阶段三：P2 中优先级修复（248 项，按类别分批）
 
 > 按类别分批修复，每批 6-8 文件。详细内容见 V15 审计报告。
 
@@ -677,7 +602,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 
 ---
 
-### 2.4 阶段四：P3 低优先级增强（123 项，按需修复）
+### 3.4 阶段四：P3 低优先级增强（123 项，按需修复）
 
 | 类别 | P3 数 | 主要内容 |
 |------|-------|----------|
@@ -693,13 +618,14 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 
 ---
 
-## 三、规则节点提醒
+## 四、规则节点提醒
 
 - **规则 5（E2E 独立工作流，每 30 批次）**：V15 修复阶段每 30 批次触发（批次 30/60/90...）
 - **规则 10（每 15 批次记忆整理 + 实时归档）**：V15 修复阶段每 15 批次整理；**实时归档要求**：每批完成后立即归档到 doto-su.md，doto.md 只保留未完成任务
 - **规则 13（修复流程自动化）**：CI 全绿后自动开始下一批，无需用户确认
 - **规则 14（移除所有警告抑制）**：所有警告视为错误需修复（baseline 213/213 ✅ 全部清零）
 - **规则 15（V15 全项目综合审计）**：25 大类 195 维度审计 ✅ 已完成；下一步为 V15 修复阶段
+- **规则 20（注释与功能一致性）**：**新增**——代码注释必须与功能实现一致，禁止随意编写；包括 doc comment、行内注释、TODO 注释；CI 强制检查
 - **规则 0/1/2/8（真实实现强制）**：所有 P0/P1 修复必须真实实现，禁止占位符
 - **规则 3（成品文档格式）**：导出必须 .xlsx / 报表必须 .docx
 - **规则 6（测试 mock 数据禁止硬编码）**：所有测试 mock 数据抽取到 fixtures
@@ -708,7 +634,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 
 ---
 
-## 四、历史任务（全部完成，详细记录已归档）
+## 五、历史任务（全部完成，详细记录已归档）
 
 > 以下阶段全部完成，详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
 
@@ -717,4 +643,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 | v13 复审修复 | 270-394 | 213 baseline + 业务/财务/运行逻辑闭环 | doto-su.md §v13 |
 | v14 复审修复 | 395-432 | 12 P0 + 31 P1 + 12 P2 + 6 P3 + 213 baseline | doto-su.md §v14 |
 | V15 审计 | 2026-07-16 | 25 大类 195 维度 21 批并行子代理审计 | docs/audits/v15/ |
-| V15 修复阶段一（P0 部分完成） | 433-459 | 16 P0 任务完成（P0-S01/S02/S03/S04/S05/S06/S07/S09/S10/S11/S18/S20/S21/S22/S23/S26） | doto-su.md §V15 |
+| V15 修复阶段一（P0 部分） | 433-459 | 16 P0 任务完成 | doto-su.md §V15 |
+| V15 修复阶段一续（P0 续） | 460-472 | P0-F01~F09 + P0-F07 前端重写 | doto-su.md §V15 |
+| V15 复审归档 | 2026-07-17 | 4 项标记未完成实际已完成项归档 | doto-su.md §V15 复审核实发现的已完成项 |
+| V15 复审报告 | PR #649 | 30 P0 任务实际状态复查报告 | docs/audits/v15-fix-reaudit-2026-07-17.md |

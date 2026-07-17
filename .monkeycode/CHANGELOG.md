@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-472 完成，P0 进度 62/104；PR #611~#648 已合并；规则 13 二次迭代：12 步流程含确定验证+格式验证两道前置门；Batch 471 P0-F03~F09 色卡发放模式重构-后端核心完成；Batch 472 P0-F07 色卡发放前端 borrow.vue→issue.vue 完整重写（10 文件）；用户指令变更（二次）：按顺序修复所有批次，不再限制单数批次；下一批次 473 剩余 P0-F10~F21 + 其他 P0 项；用户术语澄清：缸号=染色批次号，dye_lot_no=染色批号；Batch 471 决策：保留旧表 color_card_borrow_records 不重命名以保护 Rust migration m0029 链路；Batch 472 用户特批直接合并 PR #648（squash 99c2af1）；暂停指令：Batch 472 合并后暂停等待新指令）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-472 + 复审归档完成，P0 进度 65/104；PR #611~#649 已合并；V15 复审发现 4 项标记未完成实际已完成项（P0-S08/S16/F14/T04）归档；复审重新打开 P0-S14（migration 047 缺失）；新增规则 20 注释与功能一致性强制；doto.md 全面核实梳理重写（720→650 行，移除已完成项 + 添加复审发现 + 部分实现项更新说明）；下一批次 473 剩余 39 P0 + 复审重新打开项；暂停指令：等待新指令）。
 
 ---
 
