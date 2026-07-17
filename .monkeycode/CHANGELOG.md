@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-472 + 复审归档完成，P0 进度 65/104；PR #611~#649 已合并；V15 复审发现 4 项标记未完成实际已完成项（P0-S08/S16/F14/T04）归档；复审重新打开 P0-S14（migration 047 缺失）；新增规则 20 注释与功能一致性强制；doto.md 全面核实梳理重写（720→650 行，移除已完成项 + 添加复审发现 + 部分实现项更新说明）；下一批次 473 剩余 39 P0 + 复审重新打开项；暂停指令：等待新指令）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-472 + 复审归档 + MEMORY-SU 第 8 次迭代完成；P0 进度 65/104；PR #611~#653 已合并；MEMORY-SU.md 11 章→6 章压缩 + project_rules.md 删除后内联化 + 6.4 迭代记录精简；下一批次 473 剩余 39 P0 + 复审重新打开项；暂停指令：等待新指令）。
 
 ---
 
