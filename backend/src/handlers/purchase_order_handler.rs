@@ -202,6 +202,9 @@ pub async fn update_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_order + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(id, Some(&data_scope_ctx)).await?;
 
     let order = service.update_order(id, req, user_id).await?;
 
@@ -218,6 +221,9 @@ pub async fn delete_order(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_order + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(id, Some(&data_scope_ctx)).await?;
     service.delete_order(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(

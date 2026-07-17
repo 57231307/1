@@ -75,6 +75,9 @@ pub async fn update_supplier(
     Json(req): Json<UpdateSupplierRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_supplier + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_supplier(id, Some(&data_scope_ctx)).await?;
 
     let supplier = service.update_supplier(id, req, auth.user_id).await?;
 
@@ -91,6 +94,9 @@ pub async fn delete_supplier(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SupplierService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_supplier + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_supplier(id, Some(&data_scope_ctx)).await?;
     service.delete_supplier(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
