@@ -18,7 +18,7 @@
       </div>
       <div class="header-actions">
         <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
-        <el-button v-permission="'suppliers:create'" type="primary" @click="handleCreate">
+        <el-button v-permission="PERMISSIONS.SUPPLIER_CREATE" type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
           新建供应商
         </el-button>
@@ -73,6 +73,8 @@ import { supplierApi, type Supplier, type SupplierQueryParams } from '@/api/supp
 import { exportData } from '@/utils/export'
 import { printData } from '@/utils/print'
 import { useTableApi } from '@/composables/useTableApi'
+// Batch 468 P0-S28：引入权限码常量，与后端 suppliers 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 const submitLoading = ref(false)
 const dialogVisible = ref(false)

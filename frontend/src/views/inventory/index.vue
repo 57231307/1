@@ -17,11 +17,11 @@
         </el-breadcrumb>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="handleAdjustment">
+        <el-button v-permission="PERMISSIONS.INVENTORY_UPDATE" type="primary" @click="handleAdjustment">
           <el-icon><Edit /></el-icon>
           库存调整
         </el-button>
-        <el-button @click="handleTransfer">
+        <el-button v-permission="PERMISSIONS.INVENTORY_TRANSFER" @click="handleTransfer">
           <el-icon><RefreshRight /></el-icon>
           库存调拨
         </el-button>
@@ -101,6 +101,8 @@ import InventoryTransferTab from './tabs/InventoryTransferTab.vue'
 import StatCards from './components/StatCards.vue'
 import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue'
 import TransferDialog from './components/TransferDialog.vue'
+// Batch 468 P0-S28：引入权限码常量，与后端 inventory 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 const hasLoaded = createLazyLoader()
 const router = useRouter()

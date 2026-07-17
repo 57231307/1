@@ -165,6 +165,31 @@ export const PERMISSIONS = {
   INVENTORY_CREATE: 'inventory:create',
   INVENTORY_UPDATE: 'inventory:update',
   INVENTORY_DELETE: 'inventory:delete',
+  // Batch 468 P0-S28：库存调拨动作（后端 PATH_ACTION_KEYWORDS 含 transfer）
+  INVENTORY_TRANSFER: 'inventory:transfer',
+
+  // 销售订单（后端资源：sales-orders）
+  SALES_ORDER_READ: 'sales-orders:read',
+  SALES_ORDER_CREATE: 'sales-orders:create',
+  SALES_ORDER_UPDATE: 'sales-orders:update',
+  SALES_ORDER_DELETE: 'sales-orders:delete',
+  SALES_ORDER_APPROVE: 'sales-orders:approve',
+  SALES_ORDER_CANCEL: 'sales-orders:cancel',
+
+  // 采购订单（后端资源：purchase-orders）
+  PURCHASE_ORDER_READ: 'purchase-orders:read',
+  PURCHASE_ORDER_CREATE: 'purchase-orders:create',
+  PURCHASE_ORDER_UPDATE: 'purchase-orders:update',
+  PURCHASE_ORDER_DELETE: 'purchase-orders:delete',
+  PURCHASE_ORDER_APPROVE: 'purchase-orders:approve',
+  PURCHASE_ORDER_RECEIVE: 'purchase-orders:receive',
+
+  // 凭证（后端资源：vouchers）
+  VOUCHER_READ: 'vouchers:read',
+  VOUCHER_CREATE: 'vouchers:create',
+  VOUCHER_UPDATE: 'vouchers:update',
+  VOUCHER_DELETE: 'vouchers:delete',
+  VOUCHER_APPROVE: 'vouchers:approve',
 
   // 预算（后端资源：budgets）
   BUDGET_READ: 'budgets:read',
