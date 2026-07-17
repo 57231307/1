@@ -2,6 +2,7 @@
 
 use crate::models::department;
 use crate::models::role;
+use crate::models::role_conflict;
 use crate::models::role_permission;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
@@ -96,6 +97,10 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== 系统域 =====
     "system-config", "audit-logs", "slow-queries", "print-templates",
     "data-import", "permissions-audit",
+    // ===== AI 智能域（V15 P0-S26 新增）=====
+    // 对应 routes/analytics.rs ai() + advanced() AI 端点 + routes/system.rs ai_extend 端点
+    "ai-forecast", "ai-inventory-opt", "ai-anomaly", "ai-recommendation",
+    "ai-recipe-opt", "ai-quality-pred", "ai-process-opt", "ai-summary",
 ];
 
 /// 初始化任务状态（L-24 修复：补充终态与恢复路径文档）
@@ -264,6 +269,9 @@ impl InitService {
 
         // V15 P0-S03 修复：为 manager/operator 创建基本 role_permission 记录
         self.create_default_role_permissions().await?;
+
+        // V15 P0-S23 修复：初始化默认角色互斥规则（SoD 职责分离）
+        self.create_default_role_conflicts().await?;
 
         self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id)
             .await?;
@@ -649,6 +657,10 @@ impl InitService {
                 ("crm-leads", "read"), ("crm-opportunities", "read"),
                 ("logistics", "read"), ("employees", "read"), ("wages", "read"),
                 ("reports", "read"), ("bi-analysis", "read"), ("dashboard", "read"),
+                // V15 P0-S26：AI 域只读权限（管理层可查看所有 AI 分析结果）
+                ("ai-forecast", "read"), ("ai-inventory-opt", "read"), ("ai-anomaly", "read"),
+                ("ai-recommendation", "read"), ("ai-recipe-opt", "read"), ("ai-quality-pred", "read"),
+                ("ai-process-opt", "read"), ("ai-summary", "read"),
             ]),
             ("deputy_gm", &[
                 ("users", "read"), ("roles", "read"), ("departments", "read"),
@@ -661,6 +673,10 @@ impl InitService {
                 ("crm-leads", "read"), ("crm-opportunities", "read"),
                 ("logistics", "read"), ("employees", "read"), ("wages", "read"),
                 ("reports", "read"), ("bi-analysis", "read"), ("dashboard", "read"),
+                // V15 P0-S26：AI 域只读权限
+                ("ai-forecast", "read"), ("ai-inventory-opt", "read"), ("ai-anomaly", "read"),
+                ("ai-recommendation", "read"), ("ai-recipe-opt", "read"), ("ai-quality-pred", "read"),
+                ("ai-process-opt", "read"), ("ai-summary", "read"),
             ]),
             // 销售域
             ("sales_manager", &[
@@ -897,6 +913,60 @@ impl InitService {
             {
                 warn!("批量创建角色权限失败: {}, 可能部分已存在", e);
             }
+        }
+
+        Ok(())
+    }
+
+    /// V15 P0-S23 修复：初始化默认角色互斥规则（SoD 职责分离）
+    ///
+    /// 向 role_conflicts 表写入默认互斥角色对，防止用户在互斥角色间切换
+    /// （如制单+审核、采购+付款、生产+质量等经典 SoD 冲突）。
+    /// 幂等：表已有记录时跳过。
+    async fn create_default_role_conflicts(&self) -> Result<(), InitError> {
+        // 幂等检查：表已有记录则跳过
+        let existing_count = role_conflict::Entity::find()
+            .count(self.db.as_ref())
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("查询 role_conflicts 失败: {}", e)))?;
+        if existing_count > 0 {
+            return Ok(());
+        }
+
+        // 默认互斥角色对（role_a_code < role_b_code 字典序约定）
+        // 来源：经典 SoD 职责分离 + 面料行业业务场景
+        let conflicts: &[(&str, &str, &str, &str)] = &[
+            // (role_a_code, role_b_code, conflict_type, description)
+            ("accounting_clerk", "financial_manager", "sod", "制单与审核分离：会计员不可兼任财务经理"),
+            ("purchase_clerk", "purchase_manager", "sod", "采购制单与采购审批分离"),
+            ("purchase_manager", "finance_manager", "sod", "采购审批与付款审批分离"),
+            ("sales_clerk", "sales_manager", "sod", "销售制单与销售审批分离"),
+            ("production_worker", "quality_inspector", "sod", "生产执行与质量检验分离"),
+            ("production_manager", "quality_manager", "sod", "生产管理与质量管理分离"),
+            ("warehouse_keeper", "purchase_clerk", "sod", "入库与采购分离，防止自采自收"),
+            ("warehouse_keeper", "sales_clerk", "sod", "出库与销售分离，防止自销自发"),
+            ("admin", "quality_inspector", "sod", "管理员与质检员互斥（管理员不应直接执行质检）"),
+        ];
+
+        let now = chrono::Utc::now();
+        let models: Vec<role_conflict::ActiveModel> = conflicts
+            .iter()
+            .map(|(a, b, ctype, desc)| role_conflict::ActiveModel {
+                id: Default::default(),
+                role_a_code: Set(a.to_string()),
+                role_b_code: Set(b.to_string()),
+                conflict_type: Set(ctype.to_string()),
+                description: Set(Some(desc.to_string())),
+                created_at: Set(now),
+                updated_at: Set(now),
+            })
+            .collect();
+
+        if let Err(e) = role_conflict::Entity::insert_many(models)
+            .exec(self.db.as_ref())
+            .await
+        {
+            warn!("批量创建角色互斥规则失败: {}, 可能部分已存在", e);
         }
 
         Ok(())

@@ -9,6 +9,13 @@
 //!
 //! 设计依据：doto.md P2-4 任务清单
 //! 创建时间: 2026-06-17
+//!
+//! V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源）
+//! - 工艺优化端点 → ai-process-opt:read / write
+//! - 质量预测端点 → ai-quality-pred:read / write
+//! - /ai/summary   → ai-summary:read
+//! - /ai/health    → 无权限码（健康检查，公开）
+//! V15 P0-S27 预备：所有端点已注入 AuthContext，为后续 data_scope 过滤铺路
 
 use axum::{
     extract::{Path, Query, State},
