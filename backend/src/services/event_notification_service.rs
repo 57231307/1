@@ -300,7 +300,7 @@ impl EventNotificationService {
     // CI clippy 在 baseline 比对中报 `unused variable: applicant_name`（baseline 未收录此警告）
     // 依据死代码处理规范第六章「真正未使用的项应显式删除」。
     // 若后续审批流程需要"待审批任务通知"能力，应基于实际业务接入点重新实现。
-
+    //
     /// 审批结果通知
     ///
     /// v10 P1 修复（批次 139）：原 sender_id: Some(0) 占位，现传入真实审批人 ID
