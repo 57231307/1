@@ -2,7 +2,7 @@
 
 > 本文件是项目的**规则记忆**，记录必须遵守的规则、指令、偏好和工作流规范。
 > 历史归档与详细内容请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
-> 最近整理：2026-07-16（V15 全项目综合审计 21 批 195 维度全部完成，发现 732 个问题：104 P0 + 257 P1 + 248 P2 + 123 P3；规则 15 下"五、V15"标记审计完成；doto.md 更新为 V15 修复队列；汇总报告 v15-summary-2026-07-16.md 已生成）。
+> 最近整理：2026-07-17（自我迭代整理：移除重复的"规则 1-9"节 + 精简第六节批次修复细节 + 合并第七/八节重复内容 + 精简规则 15 下 v13/v14/V15 已完成冗长内容为完成状态表 + 新增规则 16 .monkeycode 全目录强制追踪 + 新增规则 17 审计文档同步规则 + 合并规则 0/8 真实实现强制）。
 
 ---
 
@@ -35,12 +35,13 @@
   - 检查所有引用该字段的 service / handler
 - **禁止假设"只改一处"**：任何代码修改都可能产生级联影响，必须主动评估而非事后修复
 
-### 🔴 规则 0（最高优先级，2026-07-04 追加）：真实实现强制
+### 🔴 规则 0（最高优先级，2026-07-04 追加，2026-07-17 合并规则 8）：真实实现强制
 
 > 对所有预留的 api 及预留的功能/占位符功能/路由进行实现，
 > 对所有未真实接入的功能等需要真实接入，
 > 对所有遇到的错误均进行统一修复，
 > 对所有的功能均需要真实接入。
+> 项目功能/接口/路由/api 等必须进行真实实现（原规则 8 内容已合并至此）。
 
 **强制执行要求**：
 - 所有 `#[allow(dead_code)] + TODO(tech-debt)` 标记的预留 API 逐个评估并真实接入业务或删除
@@ -48,6 +49,7 @@
 - 所有未真实接入的功能 / 中间件 / 路由进行真实接入（不允许遗留死路由）
 - 所有遇到的编译错误 / CI 错误 / 运行时错误必须统一修复，禁止 `|| true` / `unwrap_or_default()` 掩盖
 - 所有功能必须真实接入业务链路：路由 → handler → service → model → DB 全链路打通
+- 任何"未实现"标记必须立即转为真实实现，不允许以"待后续迭代"为由推迟
 
 **修复模式参考**：
 - `let _ = svc.method().await;`（吞错）→ `if let Err(e) = svc.method().await { tracing::warn!(error=%e, context, "描述"); }`
@@ -146,14 +148,13 @@
 - 类型清理、错误修复、功能实现均需按完整业务语义进行，不允许"看起来能过 CI 就行"的取巧写法
 - 与规则 0/1/2 一致：所有方案必须服务于真实业务需求
 
-### 🔴 规则 8（最高优先级，2026-07-08 追加）：真实实现强制（功能/接口/路由/api）
+### 🔴 规则 8（已合并到规则 0，2026-07-17）：真实实现强制（功能/接口/路由/api）
 
-> 项目功能/接口/路由/api 等必须进行真实实现。
-
-**强制执行要求**：
-- 所有功能、接口、路由、API 必须真实实现，禁止占位、stub、mock 返回
-- 与规则 0 形成双重强制：不仅是预留 API 要接入，所有新增/现有功能均需真实实现
-- 任何"未实现"标记必须立即转为真实实现，不允许以"待后续迭代"为由推迟
+> ⚠️ 本规则内容已于 2026-07-17 合并到 [规则 0](#规则-0最高优先级2026-07-04-追加2026-07-17-合并规则-8真实实现强制)，保留编号避免破坏现有引用。
+>
+> 原内容：项目功能/接口/路由/api 等必须进行真实实现。所有功能、接口、路由、API 必须真实实现，禁止占位、stub、mock 返回。与规则 0 形成双重强制。任何"未实现"标记必须立即转为真实实现，不允许以"待后续迭代"为由推迟。
+>
+> **执行要求**：见规则 0。
 
 ### 🔴 规则 9（最高优先级，2026-07-08 追加）：个人规则高于项目规则
 
@@ -285,102 +286,77 @@
 - `#[allow(unused_variables)]` → 使用变量 或 删除变量 或 前缀 `_`
 - `#![allow(dead_code)]` 文件级 → 逐项评估，移除或接入业务（models/ 例外）
 
-### 🔴 规则 15（最高优先级，2026-07-13 追加）：v13 复审严格规范 + 业务/财务/运行逻辑闭环
+### 🔴 规则 15（最高优先级，2026-07-13 追加，2026-07-17 精简）：复审严格规范 + 业务/财务/运行逻辑闭环
 
-> v13 复审严格按照规矩进行复审，所有现存 baseline 警告视为错误需全部修复；额外增加运行逻辑环流程闭环复审维度；复审完自动开始修复，无需用户确认。
+> 所有复审严格按照规矩进行，所有现存 baseline 警告视为错误需全部修复；额外增加运行逻辑环流程闭环复审维度；复审完自动开始修复，无需用户确认。
 
 **强制执行要求**：
 
-#### 一、v13 复审严格规范
+#### 一、复审严格规范（通用要求，适用于所有复审轮次）
 
-1. **复审维度扩展**（在 v8-v12 复审基础上新增）：
-   - **基础维度**：clippy baseline 警告清零（213 条摘要行 / ~993 个警告）
-   - **新增维度：业务场景闭环** — 业务全链路闭环（下单→履约→收付款→售后→报表），跨模块数据/状态/事件必须贯通
-   - **新增维度：财务场景闭环** — 财务全链路闭环（凭证→科目→账簿→报表→对账→结账），业财一致性 + 双向可追溯
-   - **新增维度：运行逻辑环流程闭环** — 所有业务流程必须形成闭环（输入→处理→输出→反馈→输入）
-   - **新增维度：异常路径闭环** — 所有错误处理必须有恢复/降级/告警路径，禁止吞错
-   - **新增维度：状态机闭环** — 所有状态机必须有终态，禁止悬挂中间态
-   - **新增维度：资源生命周期闭环** — 所有资源（连接/文件/锁/事务）必须有显式释放路径
-   - **新增维度：配置依赖闭环** — 所有配置项必须在 .env.example → config.yaml → main.rs 校验形成闭环
+1. **复审必须按维度逐项扫描**，每个维度生成独立报告，包含：问题描述 + 影响范围 + 修复方案 + 优先级 + 关联规则
+2. **复审完成后自动开始修复**，无需用户确认（规则 13 连续执行）；修复按优先级分批：P0 → P1 → P2 → P3
+3. **baseline 警告全部视为错误**：现存所有 baseline 警告必须全部修复，不允许"baseline 中已有的警告可保留"；修复完成后同步清理 baseline 条目；目标：baseline 警告数 → 0，最终移除 baseline 机制
 
-2. **复审流程严格化**：
-   - 复审必须按维度逐项扫描，每个维度生成独立报告
-   - 复审报告必须包含：问题描述 + 影响范围 + 修复方案 + 优先级 + 关联规则
-   - 复审完成后**自动开始修复**，无需用户确认（规则 13 连续执行）
-   - 修复按优先级分批：P0（阻塞）→ P1（高）→ P2（中）→ P3（低），每批 5-6 文件
-
-3. **baseline 警告全部视为错误**（用户 2026-07-13 明确）：
-   - 现存所有 baseline 警告归类为错误，必须全部修复
-   - 不允许"baseline 中已有的警告可以保留"的思维
-   - 修复完成后必须同步清理 baseline 对应条目
-   - 目标：baseline 警告数 → 0，最终移除 baseline 机制
-
-#### 二、业务/财务/运行逻辑闭环核心检查清单
-
-详细检查清单见 [v13 复审报告](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md)，核心要求：
+#### 二、八大闭环维度要求
 
 - **业务全链路闭环**：下单→履约→收付款→售后→报表，数据流连贯无断点
 - **财务全链路闭环**：凭证→科目→账簿→报表→对账→结账，业财一致性 + 双向可追溯
-- **业财一致性**：销售出库→收入凭证+成本凭证；采购入库→存货凭证+应付凭证；生产领料→成本凭证；库存调整→差异凭证；收付款→核销凭证
-- **业务事件闭环**：所有业务事件必须有发布者+订阅者，失败有重试+死信队列+告警，幂等性保证
-- **异常路径闭环**：所有 `Result<T, E>` 必须有错误处理路径（禁止 `let _ =`），所有 `unwrap()`/`expect()` 必须有上下文
-- **状态机闭环**：所有枚举状态必须有终态，禁止"孤儿状态"，失败状态必须有恢复路径
-- **资源生命周期闭环**：所有 `Arc<Mutex<T>>`/文件句柄/网络连接/数据库事务/定时任务必须有显式释放路径
-- **配置依赖闭环**：环境变量必须在 `.env.example` 声明 + `main.rs` 校验 + `config.yaml` 注入，配置缺失必须 fail-fast
+- **业财一致性**：销售出库→收入+成本凭证；采购入库→存货+应付凭证；生产领料→成本凭证；库存调整→差异凭证；收付款→核销凭证
+- **业务事件闭环**：所有业务事件有发布者+订阅者，失败有重试+死信队列+告警，幂等性保证
+- **异常路径闭环**：所有 `Result<T, E>` 有错误处理路径（禁止 `let _ =`），所有 `unwrap()`/`expect()` 有上下文
+- **状态机闭环**：所有枚举状态有终态，禁止"孤儿状态"，失败状态有恢复路径
+- **资源生命周期闭环**：所有 `Arc<Mutex<T>>`/文件句柄/网络连接/数据库事务/定时任务有显式释放路径
+- **配置依赖闭环**：环境变量在 `.env.example` 声明 + `main.rs` 校验 + `config.yaml` 注入，配置缺失 fail-fast
 
-#### 三、v13 复审执行流程
+#### 三、复审轮次完成状态
 
-1. **复审阶段**（自动执行）：
-   - 扫描 clippy baseline 全部警告（按文件分组）
-   - 扫描运行逻辑环流程闭环问题（按维度扫描）
-   - 生成 v13 复审报告（保存到 `.monkeycode/docs/audits/v13-review-2026-07-13.md`）
-   - 按优先级排序修复队列
+| 轮次 | 状态 | 完成内容 | 详细文档 |
+|------|------|----------|----------|
+| v13 | ✅ 已完成 | baseline 清零 + 8 维度闭环 | [v13-review-2026-07-13.md](file:///workspace/.monkeycode/docs/audits/v13-review-2026-07-13.md) |
+| v14 | ✅ 已完成 | 17 维度面料行业特性 + 12 P0 + 31 P1 + 12 P2 + 6 P3 + baseline 清零（批次 397-432） | [audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) §2.2 + [doto-su.md](file:///workspace/.monkeycode/doto-su.md) §v14 |
+| V15 审计 | ✅ 已完成 | 25 大类 195 维度，21 批并行审计，发现 732 问题（104 P0 + 257 P1 + 248 P2 + 123 P3） | [v15-review-plan-2026-07-15.md](file:///workspace/.monkeycode/docs/audits/v15-review-plan-2026-07-15.md) + [v15-summary-2026-07-16.md](file:///workspace/.monkeycode/docs/audits/v15/v15-summary-2026-07-16.md) + [21 批报告](file:///workspace/.monkeycode/docs/audits/v15/) |
+| V15 修复 | ⏳ 待触发 | 按 P0 → P1 → P2 → P3 优先级，规则 13 自动连续执行 | [doto.md](file:///workspace/.monkeycode/doto.md) §二 |
 
-2. **修复阶段**（复审完成后自动开始）：
-   - 严格按规则 13 流程执行：建分支 → 修改 → commit → push → PR → CI → merge → 下一批
-   - 每批 5-6 文件，CI 全绿后自动进入下一批，无需用户确认
-   - 所有警告视为错误，必须真实修复（删除死代码 / 接入业务 / 修复类型）
-   - 修复完成后同步清理 baseline 对应条目
+> **当前阶段**：V15 审计已完成，V15 修复阶段待用户通知触发。
+> **多租户已移除**（2026-06-28 m0029 迁移完整下线），V15 需审计代码残留和文件残留（类二十五 25.5）。
+> **修复前必须调研现有实现**，禁止重复造轮子（复用现有功能原则）。
 
-3. **闭环验证**：
-   - 每批修复后必须更新 doto.md 进度
-   - 每批修复后必须更新 CHANGELOG.md 一句话总结
-   - 所有批次完成后进行 v13 复审回归验证（确认无新增问题）
+### 🔴 规则 16（最高优先级，2026-07-17 追加）：.monkeycode 全目录强制追踪
 
-#### 四、v14 新一轮复审（v13 全部修复完成后触发）✅ 已完成（2026-07-16）
+> `.monkeycode/` 目录下所有文件必须强制追踪变更，不允许忽略任何文件。
 
-> v14 复审的**维度清单、四层级联关系、关键业务约束、复用原则、执行流程**属于审计任务分配内容，已移到 [audit_assignment.md](file:///workspace/.monkeycode/audit_assignment.md) §2.2，MEMORY.md 不再保留。
-> v14 复审各维度**详细检查要点**已完成，详细归档见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) §v14 面料行业特性复审。
-> **规则要求**（保留在此）：v13 阶段 1-9 全部完成后自动触发 v14；新增 17 个审计维度；所有警告视为错误（规则 14）；按规则 13 连续执行修复。
-> **完成状态**（2026-07-16）：12 P0 + 31 P1 + 12 P2 + 6 P3 + 213 baseline 清零 = ~430 项全部完成（批次 397-432）。
+**强制执行要求**：
+- `.gitignore` 已移除 `.monkeycode/` 忽略规则及白名单例外（原规则仅追踪 MEMORY.md/doto.md/doto-su.md/bug.md/CHANGELOG.md 5 个文件）
+- **全目录强制追踪**：包括 docs/、docs/audits/、docs/archives/、docs/database/、docs/refactoring/、docs/reports/、docs/research/、docs/superpowers/ 等所有子目录
+- **不再需要 `git add -f` 强制添加**：所有 `.monkeycode/` 下文件均自动纳入版本控制
+- **新增文件必须 commit + push**：审计报告、规划文档、记忆文件、归档内容等所有新增/修改文件必须 commit 并推送到 main
+- **禁止重新添加忽略规则**：不允许在 .gitignore 中重新添加 `.monkeycode/` 忽略规则
 
-#### 五、V15 全项目综合审计（v14 全部修复完成后触发）✅ 审计完成（2026-07-16）
+### 🔴 规则 17（最高优先级，2026-07-17 追加）：审计文档同步规则
 
-> V15 审计计划的**25 大类 195 维度详细清单、执行方式、修复队列**属于审计计划内容，见 [v15-review-plan-2026-07-15.md](file:///workspace/.monkeycode/docs/audits/v15-review-plan-2026-07-15.md)，MEMORY.md 不再保留。
-> V15 审计**汇总报告**见 [v15-summary-2026-07-16.md](file:///workspace/.monkeycode/docs/audits/v15/v15-summary-2026-07-16.md)（732 个问题：104 P0 + 257 P1 + 248 P2 + 123 P3）。
-> V15 审计**21 批详细报告**见 [.monkeycode/docs/audits/v15/batch-01 ~ batch-21/audit-report.md](file:///workspace/.monkeycode/docs/audits/v15/)。
-> V15 **修复队列**见 [doto.md](file:///workspace/.monkeycode/doto.md) §二。
-> **规则要求**（保留在此）：
-> - v14 复审全部修复完成后触发（✅ 已满足）
-> - 25 大类 195 维度最严格审计体系（十一轮用户反馈迭代）
-> - 21 批并行子代理扫描
-> - 所有警告视为错误（规则 14）
-> - 按规则 13 连续执行修复
-> - 修复前必须调研现有实现禁止重复造轮子（§10.0.1 复用现有功能原则）
-> - **多租户功能已移除**（2026-06-28 m0029 迁移完整下线），V15 需审计代码残留和文件残留（类二十五 25.5）
-> **完成状态**（2026-07-16）：21 批 195 维度审计全部完成，发现 732 个问题（104 P0 + 257 P1 + 248 P2 + 123 P3）；汇总报告 v15-summary-2026-07-16.md 已生成；下一步进入 V15 修复阶段（按 P0 → P1 → P2 → P3 优先级队列，遵循规则 13 自动连续执行，等待用户通知触发）
+> 审计计划/复审规则变更时，所有关联文档必须同步更新，不允许遗漏。
 
-### 规则 1-9（常规规则）
+**强制执行要求**：
+- **主文档变更时必须同步的关联文档**（基于 V15 九轮反馈迭代经验）：
+  1. `v15-review-plan-2026-07-15.md`（审计计划主文档）— 维度清单/执行流程/修复队列/验收标准
+  2. `audit_assignment.md`（审计任务分配）— §2.3 维度全景表/触发条件/执行流程/修复队列
+  3. `CHANGELOG.md`（变更记录）— 每轮升级一行总结
+  4. `doto.md`（未完成任务）— §三 V15 审计计划专项提醒
+  5. `MEMORY.md`（规则记忆）— 规则 15 下复审完成状态表
+- **同步时机**：每次审计计划变更（新增维度/调整类别/修改流程）后立即同步所有关联文档
+- **同步验证**：同步完成后用 `grep` 验证各文档中的维度数、类别数、执行批次数一致
+- **禁止遗漏**：任何一次主文档变更都必须同步全部 5 个关联文档，不允许只更新主文档
+- **历史教训**（V15 第八轮/第九轮反馈）：曾出现 audit_assignment.md/CHANGELOG.md/doto.md 未同步的情况，导致文档间维度数不一致
 
-1. **CI/CD Only 验证**：禁止本地编译/构建。所有验证必须通过 CI/CD pipeline。
-2. **每项修复 1 commit**：bug 修复按"每项 1 commit"原则，便于回滚和审计。
-3. **多语言禁止**：项目所有文本必须使用中文（注释、用户界面、文档）。
-4. **任务管理**：使用 TodoWrite 跟踪进度，状态实时更新。
-5. **memory 优先**：每次操作前查看 MEMORY.md / doto.md / bug.md。
-6. **关键变更必记录**：CHANGELOG.md 记录所有重要变更。
-7. **公开端点收敛**：当前仅登录/刷新/健康检查可匿名访问（2026-06-25 优化）。
-8. **~~租户隔离~~**（2026-06-28 已删除）：租户功能已完整删除，`extract_tenant_id` 函数、`AuthContext.tenant_id`、`AppClaims.tenant_id`、所有 tenant_id 列/字段/过滤/索引/管理表均已移除。项目不再支持多租户。
-9. **批次迭代工作流**（2026-06-27 确认，2026-07-11 规则 13 细化）：每次修复批次完成后必须推送到 main 触发 CI 验证，CI 全绿后才继续下一批。流程详见规则 13。
+### 常规规则（未编号，整合自原"规则 1-9"）
+
+> 以下规则已整合到对应章节，此处仅保留未重复的核心要点。
+
+- **每项修复 1 commit**：bug 修复按"每项 1 commit"原则，便于回滚和审计。
+- **公开端点收敛**：仅登录/刷新/健康检查可匿名访问（2026-06-25 优化），其他所有端点必须认证。
+- **多租户已删除**（2026-06-28）：`extract_tenant_id` 函数、`AuthContext.tenant_id`、`AppClaims.tenant_id`、所有 tenant_id 列/字段/过滤/索引/管理表均已移除，项目不再支持多租户。
+- 其余常规规则（CI/CD Only / 中文文本 / 任务管理 / memory 优先 / 关键变更记录 / 批次迭代工作流）已分别整合到规则 13、规则 14、三、基础规范、五、CI/CD 强制中。
 
 ---
 
@@ -494,44 +470,34 @@
 - `tests/` 目录下的集成测试编译为**独立二进制 crate**，`fn foo()` 对集成测试 crate 不可见
 - 修复：`fn foo()` → `pub fn foo()`（或使用 `pub(crate)` 限制可见性）
 
-### 沙箱网络限制
+### 沙箱网络与凭证限制
 - **限制**：沙箱环境出站 22 端口（github.com SSH）被防火墙阻断
 - **可用**：443 端口（github.com HTTPS）正常，包括 `git push` HTTPS 远程
+- **GitHub Token 存储**：绝不写入任何 git 跟踪文件（.git/config / MEMORY.md / doto.md / CHANGELOG.md / commit message），存储位置为沙箱本地 `~/.git-credentials`（600 权限，git credential helper = store 自动读取）
 
-### .monkeycode 目录 gitignore 规则
-- `.gitignore` 默认忽略 `.monkeycode/`，仅白名单：`MEMORY.md` / `doto.md` / `bug.md` / `CHANGELOG.md`
-- `.monkeycode/docs/` 子目录不在白名单
-- **添加新归档文件**必须用 `git add -f` 强制添加
+### .monkeycode 目录强制追踪（2026-07-17 更新）
+- `.gitignore` 已移除 `.monkeycode/` 忽略规则及白名单例外，**全目录强制追踪**
+- 不再需要 `git add -f` 强制添加，所有 `.monkeycode/` 下文件均纳入版本控制
+- 新增审计/规划/记忆文档变更必须 commit + push 到 main
 
-### Clippy Baseline 脆弱性
+### Clippy Baseline 陷阱（通用经验）
 - `backend/.clippy-baseline.txt` 用 `comm -23` 精确行比较检测"新警告"
 - 修改单行代码会导致 baseline 中后续行号全偏移，触发大量"假新警告"
+- **正确格式**：baseline 文件**必须只含 `^(warning|error):` 开头的摘要行**，每行一条警告
+- **重建方法**：从 CI 日志 `grep -E '^(warning|error):'` 提取纯摘要行，`sort -u` 去重后写入 baseline
 - **修复**：删除 `backend/.clippy-baseline.txt`，让 CI 在 bootstrap 模式下重建
 - **快速诊断**：CI 误报"大量新警告"时，先检查 baseline 首行内容
 
-### Clippy Baseline 文件格式陷阱（批次 398 修复）
-- **陷阱**：baseline 文件若包含完整渲染输出（代码片段、help、note 行），`grep -E '^(warning|error):'` 后只剩极少数摘要行
-- **后果**：`comm -23` 比较时大量已存在警告被误判为新增（批次 398 修复前 274 行 baseline 只有 2 行摘要行，导致 116 条已存在警告被误判为新增）
-- **正确格式**：baseline 文件**必须只含 `^(warning|error):` 开头的摘要行**，每行一条警告
-- **重建方法**：从 CI 日志 `grep -E '^(warning|error):'` 提取纯摘要行，`sort -u` 去重后写入 baseline
-- **验证**：重建后 baseline 行数应接近当前 clippy 警告摘要行数（批次 398 修复后 118 行）
-
-### is_production() 部署陷阱（批次 398 修复）
+### is_production() 部署陷阱（通用经验）
 - **陷阱**：`utils/config.rs::is_production()` 只读 `APP_ENV` 环境变量，不读 `AppSettings.env` 配置字段
 - **后果**：config.yaml 设 `env: "production"` 但未设 `APP_ENV` 环境变量时，`is_production()` 返回 false，导致生产环境脱敏、Cookie Secure 等安全机制失效
-- **修复**：`AppSettings::new()` 中 `load_sensitive_from_env()` 之后添加 APP_ENV 同步逻辑
-  - APP_ENV 环境变量优先（已设置时不覆盖）
-  - APP_ENV 未设置时从 config.yaml env 字段同步
+- **修复**：`AppSettings::new()` 中 `load_sensitive_from_env()` 之后添加 APP_ENV 同步逻辑（APP_ENV 环境变量优先；未设置时从 config.yaml env 字段同步）
 - **配置优先级**：`APP_ENV` 环境变量 > `config.yaml` 的 `env` 字段 > 默认开发环境
 - **部署建议**：生产环境同时在 .env 或 systemd Environment= 中显式设置 APP_ENV=production（双保险）
 
-### systemd EnvironmentFile 路径一致性（批次 398 修复）
+### systemd EnvironmentFile 路径一致性（通用经验）
 - **陷阱**：`deploy.sh` 的 `CONFIG_DIR` 与 systemd 服务文件的 `EnvironmentFile` 路径不一致
-- **后果**：
-  1. 清理 `/etc/bingxi/` 目录后重新部署时未重建该目录
-  2. `cp /etc/bingxi-erp/.env /etc/bingxi/.env` 因目标父目录不存在而失败
-  3. systemd 加载 EnvironmentFile 失败，后端二进制根本未被执行
-- **修复**：所有部署脚本的 `CONFIG_DIR` 必须与 systemd 服务文件的 `EnvironmentFile` 路径一致
+- **后果**：清理目录后重新部署时 systemd 加载 EnvironmentFile 失败，后端二进制根本未被执行
 - **一致性检查清单**：
   - `deploy/deploy.sh`：`CONFIG_DIR="/etc/bingxi"`
   - `deploy/deploy-backend.sh`：`CONFIG_DIR="/etc/bingxi"`
@@ -539,17 +505,10 @@
   - `deploy/bingxi-backend.service`：`EnvironmentFile=/etc/bingxi/.env`
 - **关键教训**：部署脚本修改后必须用 `grep -r '/etc/bingxi' deploy/` 验证所有路径一致性
 
-### 批次 400 修复记录
-- **删除 InventoryStockService::record_transaction**：非事务版本已被 `record_transaction_txn` 取代，死代码清理
-- **接入 AccountSubjectService::refresh_balance**：新增 handler + 路由，完成业务链路接入
-- **接入 ColorCardBorrowService::cancel_borrow**：新增 handler + 路由 + DTO，完成业务链路接入
-- **batch_trace_log.rs 警告抑制收窄**：将文件级 `#[allow(dead_code)]` 收窄为项级，便于后续精确清理
-
-### 批次 401 修复记录
-- **deploy-latest.sh 密钥自动生成**：首次部署时 /etc/bingxi/.env 不存在会导致 config.yaml 生成被跳过，且 WEBHOOK_SECRET/AUDIT_SECRET_KEY 等密钥缺失导致后端启动失败。修复：在生成 config.yaml 前自动检测并生成 JWT_SECRET/COOKIE_SECRET/WEBHOOK_SECRET/AUDIT_SECRET_KEY 四个密钥，持久化到 /etc/bingxi/.env
-- **密钥生成算法 hex → base64**：openssl rand -hex 32 只有 16 种字符（0-9,a-f），熵比 = 16/64 = 0.25；改为 openssl rand -base64 32 后有 64 种字符（约 44 字符），熵比远高于 validate_secret 阈值 0.15，同时 deploy.sh 同步修改
-- **.env.example 更新**：密钥生成建议从 hex 32 改为 base64 32，补充 WEBHOOK_SECRET 注释说明部署脚本自动生成
-- **backend/.clippy-baseline.txt 重建**：从 CI 日志提取当前 2 个 clippy 警告摘要行，替换旧的 274 行混合格式文件
+### 部署密钥自动生成（通用经验）
+- 首次部署时 /etc/bingxi/.env 不存在会导致 config.yaml 生成被跳过，且 WEBHOOK_SECRET/AUDIT_SECRET_KEY 等密钥缺失导致后端启动失败
+- **修复**：在生成 config.yaml 前自动检测并生成 JWT_SECRET/COOKIE_SECRET/WEBHOOK_SECRET/AUDIT_SECRET_KEY 四个密钥，持久化到 /etc/bingxi/.env
+- **密钥生成算法**：使用 `openssl rand -base64 32`（64 种字符，熵比高）而非 `openssl rand -hex 32`（仅 16 种字符，熵比 0.25）
 
 ### SeaORM Trait 必导
 - `Entity::find()` → 需 `use sea_orm::EntityTrait;`
@@ -567,11 +526,6 @@
 - `#[validate(length(max = X))]` 只支持**整数字面量**
 - 必须用：`length(max = 10_485_760)` ✅ 而非 `length(max = 10 * 1024 * 1024)` ❌
 
-### GitHub Token 安全存储
-- **绝不写入任何 git 跟踪文件**（.git/config / MEMORY.md / doto.md / CHANGELOG.md / commit message）
-- **存储位置**：沙箱本地 `~/.git-credentials`（600 权限，git credential helper = store 自动读取）
-- **沙箱网络限制**：SSH 22 端口被防火墙阻断，必须用 HTTPS push
-
 ### GitHub Actions Log 100KB 截断与详细日志获取
 - **限制**：GitHub Web UI 的 CI run log 最多显示尾部 100KB
 - **解决方案**：用 `https://api.github.com/repos/{owner}/{repo}/actions/jobs/{job_id}/logs` 获取**单 job 完整 log**
@@ -586,69 +540,28 @@
 - 子代理不得操作 `.monkeycode/` 目录或 `CHANGELOG.md`（避免污染记忆）
 - 子代理清理 sea_orm trait 导入时**必须**先 grep 使用点，再决定是否删除
 
+> 历史批次修复详情（批次 398/400/401 等）已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
 > 更多历史经验（Cache::get 语义 / JTI 黑名单 Redis 迁移 / SSRF 双重校验 / DashMap vs Mutex / 日志脱敏 / totp-rs 熵源 / u16 永真比较 / 分布式限流回退 / `|| true` 反模式 等）已归档到 [docs/archives/](file:///workspace/.monkeycode/docs/archives/)。
 
 ---
 
-## 七、工作流协作
+## 七、工作流与代码规范补充
 
-### 工作角色定位
-- 主代理角色：总控（项目经理/架构师）
-- 子代理（Task 工具）= 员工，负责具体执行
-- 主代理职责：分析任务 → 拆解 → 分配 → 总结成果 → 推 PR
-
-### GitHub 分支策略
-- `main` 为主分支（正式版），不允许删除，不允许 force push
-- `test` 为测试分支，不允许删除
-- 所有修复/功能变更在修复分支进行（`fix/batchN-简短描述`，合并后立即删除）
-- 修复分支可 force push（仅 amend commit message 时，无协作影响）
-- 验证后自动合并入 main
-
-### 提交信息规范
-- 使用中文编写提交信息，描述"做了什么"和"为什么"
-
-### 代码审查
-- 所有代码变更需经过审查
-- 审查重点：代码质量、安全性、性能、测试覆盖
+> 工作流主流程见规则 13（修复流程自动化与连续执行）；代码规范与死代码处理见规则 14；命名约定/代码组织/注释文档见 [project_rules.md](file:///workspace/.trae/rules/project_rules.md)。本节仅保留未重复的补充规范。
 
 ### 日志诊断技能自动触发
 - 技能名：`/log-diagnosis` 日志诊断技能（自动触发）
 - 触发关键词：日志、错误日志、异常日志、崩溃日志、服务器日志、traceId、错误码、异常堆栈
 - 报告保存：`.diagnosis/reports/{YYYY-MM-DD}_{问题描述}.md`
 
----
-
-## 八、代码规范
-
-### 命名约定
-- 使用有意义、描述性的名称
-- 遵循项目或语言的命名规范
-- 避免缩写和单字母变量（除约定俗成的，如循环中的 `i`）
-
-### 代码组织
-- 相关代码放在一起
-- 保持适当的抽象层次
-- 函数只做一件事，保持单一职责原则
-
-### 注释与文档
-- 注释解释"为什么"而不是"做什么"
-- 为公共 API 提供清晰的文档
-- 保持文档与代码同步更新
-
-### 死代码处理规范
-- **禁止**文件级 `#![allow(dead_code)]` 全局抑制（CI 会失败）
-- **禁止**crate 级 `#![allow(unused_imports)]` / `#![allow(unused_variables)]`
-- 真正未使用项**显式删除**（git 保留历史）；保留项加 `pub` 修饰或 `#[allow(dead_code)]` + TODO
-- **例外**：`backend/src/models/` 下的 SeaORM 自动生成模型可保留文件级 `#![allow(dead_code)]`
-
-### CI 死代码强制
-- 配置：`backend/.clippy.toml` `warn` 段开启 `dead_code`/`unused_imports`/`unused_variables`
-- 工作流：`.github/workflows/ci-cd.yml` `cargo clippy --all-targets -- -D warnings`
-- 任何死代码警告都会让 CI 失败
+### 代码审查重点
+- 审查维度：代码质量、安全性、性能、测试覆盖
+- 与规则 00 一致：修改前评估关联影响范围
+- 与规则 14 一致：禁止警告抑制
 
 ---
 
-## 九、性能与错误处理
+## 八、性能与错误处理
 
 ### 数据库查询
 - 优化查询，避免 N+1
@@ -672,7 +585,7 @@
 
 ---
 
-## 十、文档与持续改进
+## 九、文档与持续改进
 
 ### API 文档
 - 所有 API 接口必须有文档：接口路径、请求参数、响应格式、示例
@@ -689,7 +602,7 @@
 
 ---
 
-## 十一、归档索引
+## 十、归档索引
 
 完整历史内容（整理前的详细记录）：
 
@@ -701,3 +614,4 @@
 
 历史审计报告：
 - `.monkeycode/docs/audits/` 目录下保存历次复审报告（v5/v6/v7/v8/v9/v10/v11/v12/v13 等）
+- V15 审计报告：`.monkeycode/docs/audits/v15/` 目录下 21 批详细报告 + 汇总报告
