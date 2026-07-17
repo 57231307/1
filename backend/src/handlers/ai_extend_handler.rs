@@ -10,7 +10,8 @@
 //! 质量预测端点 → ai-quality-pred:read/write，
 //! /ai/summary → ai-summary:read，
 //! /ai/health → 无权限码（健康检查，公开）
-//! V15 P0-S27 预备：所有端点已注入 AuthContext，为后续 data_scope 过滤铺路
+//! V15 P0-S27：所有查询/写操作端点接入 data_scope 过滤 + 资源归属校验（IDOR 防护）。
+//! 销售员仅看自己创建的 AI 推理记录，部门经理看本部门（AI 表无 department_id，Dept 退化为 Self），管理员看全部。
 
 use axum::{
     extract::{Path, Query, State},
@@ -53,11 +54,12 @@ pub async fn create_process_optimization(
 /// 工艺优化列表
 pub async fn list_process_optimizations(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<ListProcessOptQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let vo = svc.list_process_optimizations(q).await?;
+    let vo = svc.list_process_optimizations(q, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": vo.items,
         "total": vo.total,
@@ -70,11 +72,12 @@ pub async fn list_process_optimizations(
 /// 工艺优化详情
 pub async fn get_process_optimization(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let model = svc.get_process_optimization(id).await?;
+    let model = svc.get_process_optimization(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -86,9 +89,10 @@ pub async fn apply_process_optimization(
     Path(id): Path<i64>,
     Json(mut body): Json<ApplyProcessOptDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     body.operator_id = Some(auth.user_id as i64);
     let svc = AiExtendService::new(state.db);
-    let model = svc.apply_process_optimization(id, body).await?;
+    let model = svc.apply_process_optimization(id, body, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -96,11 +100,12 @@ pub async fn apply_process_optimization(
 /// 删除工艺优化记录
 pub async fn delete_process_optimization(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    svc.delete_process_optimization(id).await?;
+    svc.delete_process_optimization(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "deleted": true,
         "id": id,
@@ -133,11 +138,12 @@ pub async fn create_quality_prediction(
 /// 质量预测列表
 pub async fn list_quality_predictions(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<ListQualityPredQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let vo = svc.list_quality_predictions(q).await?;
+    let vo = svc.list_quality_predictions(q, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": vo.items,
         "total": vo.total,
@@ -150,11 +156,12 @@ pub async fn list_quality_predictions(
 /// 质量预测详情
 pub async fn get_quality_prediction(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let model = svc.get_quality_prediction(id).await?;
+    let model = svc.get_quality_prediction(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -166,9 +173,10 @@ pub async fn acknowledge_quality_prediction(
     Path(id): Path<i64>,
     Json(mut body): Json<AcknowledgeQualityPredDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     body.operator_id = Some(auth.user_id as i64);
     let svc = AiExtendService::new(state.db);
-    let model = svc.acknowledge_quality_prediction(id, body).await?;
+    let model = svc.acknowledge_quality_prediction(id, body, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -176,11 +184,12 @@ pub async fn acknowledge_quality_prediction(
 /// 删除质量预测记录
 pub async fn delete_quality_prediction(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    svc.delete_quality_prediction(id).await?;
+    svc.delete_quality_prediction(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "deleted": true,
         "id": id,
@@ -195,10 +204,11 @@ pub async fn delete_quality_prediction(
 /// AI 概览（应用率 / 风险等级分布 / 最新 5 条）
 pub async fn ai_summary(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
-    let summary = svc.ai_summary().await?;
+    let summary = svc.ai_summary(Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(summary)))
 }
 
@@ -224,12 +234,13 @@ pub struct ByColorQuery {
 /// 按色号 + 布类查询历史
 pub async fn list_process_optimizations_by_color(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<ByColorQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
     let items =
-        svc.list_process_optimizations_by_color(&q.color_no, &q.fabric_type, q.limit.unwrap_or(20).clamp(1, 100)).await?;
+        svc.list_process_optimizations_by_color(&q.color_no, &q.fabric_type, q.limit.unwrap_or(20).clamp(1, 100), Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
     }))))
@@ -245,12 +256,13 @@ pub struct ByProductQuery {
 /// 按产品查询历史
 pub async fn list_quality_predictions_by_product(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<ByProductQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let svc = AiExtendService::new(state.db);
     let items =
-        svc.list_quality_predictions_by_product(q.product_id, q.limit.unwrap_or(20).clamp(1, 100)).await?;
+        svc.list_quality_predictions_by_product(q.product_id, q.limit.unwrap_or(20).clamp(1, 100), Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
     }))))
