@@ -91,7 +91,9 @@ import { Edit, RefreshRight, Download, Printer } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import { useRouter } from 'vue-router'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { exportToExcel } from '@/utils/export'
+// V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
+// 后端 GET /inventory/stock/export 已就绪（含字段级数据权限 + 异步审计日志 + 水印）
+import { exportFromBackend } from '@/utils/export'
 // v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
 import type { InventoryStock, StockAlert, InventoryTransfer, TransferData } from '@/api/inventory'
 import type { Warehouse } from '@/api/warehouse'
@@ -398,23 +400,19 @@ const handlePrint = () => {
   })
 }
 // 批次 157b P1-1 修复：导出改为 .xls 格式（规则 3：禁止 CSV 作为最终交付格式）
-const handleExport = () => {
+// V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
+// 调用后端 GET /inventory/stock/export，传入当前列表筛选条件（warehouse_id），
+// 保证导出数据与列表筛选一致；后端注入水印 + 字段级数据权限 + 异步审计日志
+const handleExport = async () => {
   if (stocks.value.length === 0) {
     ElMessage.warning('没有可导出的数据')
     return
   }
-  exportToExcel({
-    filename: '库存台账',
-    format: 'excel',
-    data: stocks.value.map((s): Record<string, unknown> => ({ ...s })),
-    columns: [
-      { key: 'product_code', title: '产品编码' },
-      { key: 'product_name', title: '产品名称' },
-      { key: 'warehouse_name', title: '仓库' },
-      { key: 'quantity', title: '数量' },
-      { key: 'status', title: '状态' },
-    ],
-  })
+  const params: Record<string, unknown> = {
+    warehouse_id: queryParams.warehouse_id,
+    product_id: undefined,
+  }
+  await exportFromBackend('/inventory/stock/export', params, 'inventory_stock_export')
   ElMessage.success('导出成功')
 }
 

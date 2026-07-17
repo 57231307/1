@@ -21,6 +21,12 @@ use super::inventory_stock_handler_dto::{
     CreateStockFabricRequest, ListStockParams, LowStockParams, StockResponse,
     UpdateStockWithVersionRequest,
 };
+// V15 P0-S12/P0-S15 修复（Batch 475c）：导出端点使用水印版 xlsx 工具
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use std::sync::Arc;
 
 pub async fn get_stock(
     State(state): State<AppState>,
@@ -474,4 +480,174 @@ pub async fn check_low_stock(
     Ok(Json(crate::utils::response::ApiResponse::success(
         stock_responses,
     )))
+}
+
+// ========== 数据导出接口 ==========
+
+/// 导出库存列表
+///
+/// V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志
+///
+/// 规则 3：导出统一使用 xlsx 格式
+/// V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+/// V15 P0-S15：水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
+///
+/// 重要：直接调 `service.list_stock`，**不触发** list_stock handler 内的低库存预警通知副作用
+/// 字段级数据权限对齐：非 admin 角色默认移除 quantity_on_hand/quantity_available 等敏感字段
+pub async fn export_stock(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<ListStockParams>,
+) -> Result<axum::response::Response, AppError> {
+    if let Err(e) = params.validate() {
+        return Err(AppError::validation(e.to_string()));
+    }
+
+    let service = InventoryStockService::new(state.db.clone());
+
+    // V15 P0-S12 修复（Batch 475c）：导出全量数据（不传分页参数到 service 层）
+    // service.list_stock 签名为 (page, page_size, warehouse_id, product_id)
+    // 传 1/10000 取全部数据（避免 service 层签名改动）
+    let page = 1u64;
+    let page_size = 10000u64;
+    let (stock_list, _total) = service
+        .list_stock(page, page_size, params.warehouse_id, params.product_id)
+        .await?;
+
+    // 保存真实记录数（用于水印与审计日志）
+    let row_count = stock_list.len();
+
+    // 字段级数据权限：非 admin 角色默认移除敏感字段
+    // P0-S12 修复：导出与 list_stock handler 保持相同的字段过滤逻辑
+    let mut stock_json: Vec<serde_json::Value> = stock_list
+        .into_iter()
+        .map(|s| serde_json::to_value(s).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if let Some(role_id) = auth.role_id {
+        match state
+            .data_permission_service
+            .get_role_data_permission(role_id, "inventory_stock")
+            .await
+        {
+            Ok(Some(permission)) => {
+                state.data_permission_service.filter_fields_batch(
+                    &mut stock_json,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            }
+            Ok(None) => {
+                // 没有配置数据权限且不是管理员，使用默认字段隐藏
+                if role_id != 1 {
+                    for stock in &mut stock_json {
+                        if let Some(obj) = stock.as_object_mut() {
+                            obj.remove("quantity_on_hand");
+                            obj.remove("quantity_available");
+                            obj.remove("quantity_reserved");
+                            obj.remove("reorder_point");
+                            obj.remove("reorder_quantity");
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    role_id,
+                    error = %e,
+                    "Batch 475c P0-S12: 查询库存数据权限失败，导出跳过字段过滤"
+                );
+            }
+        }
+    }
+
+    // 构造 xlsx 表格数据
+    let headers: Vec<String> = vec![
+        "ID".to_string(),
+        "仓库ID".to_string(),
+        "产品ID".to_string(),
+        "在库量".to_string(),
+        "可用量".to_string(),
+        "预留量".to_string(),
+        "库位".to_string(),
+        "创建时间".to_string(),
+        "更新时间".to_string(),
+    ];
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(stock_json.len());
+    for stock in stock_json {
+        let obj = stock.as_object().ok_or_else(|| {
+            AppError::internal("库存序列化失败：期望 JSON 对象")
+        })?;
+        let get_str = |key: &str| -> String {
+            obj.get(key)
+                .map(|v| {
+                    if v.is_null() {
+                        String::new()
+                    } else if v.is_string() {
+                        v.as_str().unwrap_or("").to_string()
+                    } else {
+                        v.to_string()
+                    }
+                })
+                .unwrap_or_default()
+        };
+        rows.push(vec![
+            get_str("id"),
+            get_str("warehouse_id"),
+            get_str("product_id"),
+            get_str("quantity_on_hand"),
+            get_str("quantity_available"),
+            get_str("quantity_reserved"),
+            get_str("bin_location"),
+            get_str("created_at"),
+            get_str("updated_at"),
+        ]);
+    }
+
+    let table = XlsxTable {
+        sheet_name: "库存列表".to_string(),
+        headers,
+        rows,
+    };
+
+    let filename = format!(
+        "inventory_stock_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("inventory_stock".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出库存列表（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/inventory/stock/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "warehouse_id_filter": params.warehouse_id,
+            "product_id_filter": params.product_id,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    // V15 P0-S15 修复（Batch 475c）：注入水印（操作员/导出时间/导出条数）
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("库存导出（共 {} 条）", row_count)),
+    };
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

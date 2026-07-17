@@ -17,16 +17,23 @@ import {
 } from '@/api/production'
 import { getStatusLabel } from './prdFmts'
 import { escapeHtml } from '@/utils/print'
-import { exportToExcel } from '@/utils/export'
+// V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
+// 后端 GET /production-orders/orders/export 已就绪（含行级数据权限 + 异步审计日志 + 水印）
+import { exportFromBackend } from '@/utils/export'
 
 /**
  * 流程回调（接收 usePrd 返回的状态，自动解包后的值类型）
+ *
+ * V15 P0-S12 修复（Batch 475c）：新增 getQueryParams，用于导出时传递列表筛选条件
+ * 保证导出数据与当前列表筛选一致（status/product_id）
  */
 interface PrdCallbacks {
   // 列表数据
   data: ProductionOrder[]
   // 刷新列表
   refresh: () => Promise<void>
+  // V15 P0-S12 修复（Batch 475c）：获取当前筛选条件（status/product_id），用于导出
+  getQueryParams?: () => { status?: string; product_id?: number }
 }
 
 /**
@@ -73,39 +80,28 @@ export function usePrdProc(cb: PrdCallbacks) {
     }
   }
 
-  /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
-  const handleExport = () => {
-    exportToExcel({
-      filename: '生产订单',
-      format: 'excel',
-      data: cb.data.map((item): Record<string, unknown> => ({ ...item })),
-      columns: [
-        { key: 'order_no', title: '订单编号' },
-        { key: 'product_name', title: '产品名称' },
-        { key: 'planned_quantity', title: '计划数量' },
-        {
-          key: 'actual_quantity',
-          title: '实际数量',
-          formatter: (value: unknown) => (value ? String(value) : '-'),
-        },
-        {
-          key: 'scheduled_start_date',
-          title: '计划开始',
-          formatter: (value: unknown) => (value ? String(value).substring(0, 10) : '-'),
-        },
-        {
-          key: 'scheduled_end_date',
-          title: '计划结束',
-          formatter: (value: unknown) => (value ? String(value).substring(0, 10) : '-'),
-        },
-        {
-          key: 'status',
-          title: '状态',
-          formatter: (value: unknown) => getStatusLabel(value as ProductionOrder['status']),
-        },
-        { key: 'priority', title: '优先级' },
-      ],
-    })
+  /**
+   * 导出 Excel（V15 P0-S12 修复 Batch 475c）
+   *
+   * 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
+   * 改为调用后端 GET /production-orders/orders/export，后端注入水印 + 行级数据权限 + 异步审计日志
+   * 传入当前列表筛选条件（status/product_id），保证导出与列表一致
+   */
+  const handleExport = async () => {
+    if (cb.data.length === 0) {
+      ElMessage.warning('没有可导出的数据')
+      return
+    }
+    const filters = cb.getQueryParams?.() ?? {}
+    const params: Record<string, unknown> = {
+      status: filters.status || undefined,
+      product_id: filters.product_id,
+    }
+    await exportFromBackend(
+      '/production-orders/orders/export',
+      params,
+      'production_orders_export'
+    )
   }
 
   /** 打印 */

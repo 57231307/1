@@ -586,6 +586,11 @@ pub fn production() -> Router<AppState> {
             get(production_order_handler::list_production_orders)
                 .post(production_order_handler::create_production_order),
         )
+        // V15 P0-S12 修复（Batch 475c）：生产订单导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/production-orders/orders/export",
+            get(production_order_handler::export_production_orders),
+        )
         .route(
             "/production-orders/orders/:id",
             get(production_order_handler::get_production_order)

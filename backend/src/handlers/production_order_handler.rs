@@ -22,6 +22,12 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+// V15 P0-S12/P0-S15 修复（Batch 475c）：导出端点使用水印版 xlsx 工具
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use std::sync::Arc;
 
 /// 创建生产订单请求
 #[derive(Debug, Deserialize, Validate)]
@@ -485,4 +491,146 @@ pub async fn update_production_order_status(
     };
 
     Ok(Json(ApiResponse::success(response)))
+}
+
+// ========== 数据导出接口 ==========
+
+/// 导出生产订单列表
+///
+/// V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志
+///
+/// 规则 3：导出统一使用 xlsx 格式
+/// V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+/// V15 P0-S15：水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
+///
+/// 重要：生产订单表有行级数据权限（V15 P0-S01），必须调 `to_data_scope_context`
+/// + `service.list(query, Some(&data_scope_ctx))` 保证数据隔离
+pub async fn export_production_orders(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<ListProductionOrdersQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = ProductionOrderService::new(state.db.clone());
+    // V15 P0-S01：提取行级数据权限上下文（导出与列表查询保持一致的数据隔离）
+    let data_scope_ctx = auth.to_data_scope_context();
+
+    // V15 P0-S12 修复（Batch 475c）：导出全量数据（page=1/page_size=10000）
+    let query_params = ProductionOrderQuery {
+        status: query.status.clone(),
+        product_id: query.product_id,
+        page: 1,
+        page_size: 10000,
+    };
+
+    let (models, _total) = service
+        .list(query_params, Some(&data_scope_ctx))
+        .await?;
+
+    // 保存真实记录数
+    let row_count = models.len();
+
+    // 转换为响应结构（与 list_production_orders handler 保持一致的字段）
+    let responses: Vec<ProductionOrderResponse> = models
+        .into_iter()
+        .map(|model| ProductionOrderResponse {
+            id: model.id,
+            order_no: model.order_no,
+            sales_order_id: model.sales_order_id,
+            product_id: model.product_id,
+            planned_quantity: model.planned_quantity,
+            actual_quantity: model.actual_quantity,
+            planned_start_date: model.planned_start_date,
+            planned_end_date: model.planned_end_date,
+            status: model.status,
+            priority: model.priority,
+            work_center_id: model.work_center_id,
+            remarks: model.remarks,
+            created_at: model.created_at,
+            updated_at: model.updated_at,
+        })
+        .collect();
+
+    // 构造 xlsx 表格数据
+    let headers: Vec<String> = vec![
+        "ID".to_string(),
+        "订单号".to_string(),
+        "销售订单ID".to_string(),
+        "产品ID".to_string(),
+        "计划数量".to_string(),
+        "实际数量".to_string(),
+        "计划开始日期".to_string(),
+        "计划结束日期".to_string(),
+        "状态".to_string(),
+        "优先级".to_string(),
+        "工作中心ID".to_string(),
+        "备注".to_string(),
+        "创建时间".to_string(),
+        "更新时间".to_string(),
+    ];
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(responses.len());
+    for r in responses {
+        rows.push(vec![
+            r.id.to_string(),
+            r.order_no,
+            r.sales_order_id.map_or(String::new(), |v| v.to_string()),
+            r.product_id.to_string(),
+            r.planned_quantity.to_string(),
+            r.actual_quantity.map_or(String::new(), |v| v.to_string()),
+            r.planned_start_date.map_or(String::new(), |d| d.to_string()),
+            r.planned_end_date.map_or(String::new(), |d| d.to_string()),
+            r.status,
+            r.priority.to_string(),
+            r.work_center_id.map_or(String::new(), |v| v.to_string()),
+            r.remarks.unwrap_or_default(),
+            r.created_at.to_string(),
+            r.updated_at.to_string(),
+        ]);
+    }
+
+    let table = XlsxTable {
+        sheet_name: "生产订单".to_string(),
+        headers,
+        rows,
+    };
+
+    let filename = format!(
+        "production_orders_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("production_order".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出生产订单（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/production-orders/orders/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "status_filter": query.status,
+            "product_id_filter": query.product_id,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    // V15 P0-S15 修复（Batch 475c）：注入水印（操作员/导出时间/导出条数）
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("生产订单导出（共 {} 条）", row_count)),
+    };
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

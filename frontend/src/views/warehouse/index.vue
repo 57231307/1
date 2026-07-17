@@ -203,7 +203,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { warehouseApi, type Warehouse } from '@/api/warehouse'
-import { exportData } from '@/utils/export'
+// V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
+// 后端 GET /warehouses/export 已就绪（含异步审计日志 + 水印）
+// 注意：后端 WarehouseListQuery 使用 search 字段而非 keyword，前端需做映射
+import { exportFromBackend } from '@/utils/export'
 import { printData } from '@/utils/print'
 import { useTableApi } from '@/composables/useTableApi'
 // Batch 462 P0-S24：引入权限码常量，与后端 warehouses 资源对齐
@@ -380,21 +383,16 @@ const handleSubmit = async () => {
   })
 }
 
-const handleExport = () => {
-  exportData({
-    filename: '仓库列表',
-    columns: [
-      { key: 'warehouse_code', title: '仓库编码' },
-      { key: 'warehouse_name', title: '仓库名称' },
-      { key: 'warehouse_type', title: '类型', formatter: v => getWarehouseTypeLabel(String(v)) },
-      { key: 'address', title: '地址' },
-      { key: 'contact_person', title: '负责人' },
-      { key: 'phone', title: '电话' },
-      { key: 'capacity', title: '容量(m³)' },
-      { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
-    ],
-    data: warehouses.value as unknown as Record<string, unknown>[],
-  })
+const handleExport = async () => {
+  // V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
+  // 调用后端 GET /warehouses/export，传入当前列表筛选条件（status/search），
+  // 保证导出数据与列表筛选一致；后端注入水印 + 异步审计日志
+  // 注意：后端 WarehouseListQuery 用 search 字段（前端 queryParams.keyword 需映射）
+  const params: Record<string, unknown> = {
+    status: queryParams.status || undefined,
+    search: queryParams.keyword || undefined,
+  }
+  await exportFromBackend('/warehouses/export', params, 'warehouses_export')
 }
 
 const handlePrint = () => {

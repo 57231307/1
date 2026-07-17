@@ -29,6 +29,8 @@ pub fn inventory() -> Router<AppState> {
         )
         .route("/stock", get(inventory_stock_handler::list_stock))
         .route("/stock", post(inventory_stock_handler::create_stock))
+        // V15 P0-S12 修复（Batch 475c）：库存导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route("/stock/export", get(inventory_stock_handler::export_stock))
         .route("/stock/:id", get(inventory_stock_handler::get_stock))
         .route("/stock/:id", put(inventory_stock_handler::update_stock))
         .route("/stock/:id", delete(inventory_stock_handler::delete_stock))
