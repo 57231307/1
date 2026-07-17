@@ -248,7 +248,7 @@
 
 **禁止**：
 - 禁止积累多批未验证的修改
-- 禁止本地 `cargo build` / `cargo test` / `npm run build` 等任何构建命令
+- **禁止本地编译/类型检查/测试命令**（CI 是唯一验证源）：`cargo check` / `cargo build` / `cargo test` / `cargo clippy` / `npm run build` / `npm run type-check` / `vitest` / `vue-tsc` 等；修复后直接 `git commit + git push`，由 CI 验证
 - 禁止 `git push --force` 到 main / test 分支
 - 禁止跳过 CI 直接合并（必须等 12 项必检全绿）
 
