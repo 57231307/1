@@ -172,7 +172,9 @@ import {
   archiveQualityStandard,
   type QualityStandard,
 } from '@/api/quality-standards'
-import { exportToExcel } from '@/utils/export'
+// V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
+// 后端 GET /quality-standards/export 已就绪（含异步审计日志 + 水印）
+import { exportFromBackend } from '@/utils/export'
 import { useTableApi } from '@/composables/useTableApi'
 
 // 批次 277：listQuery 仅保留筛选字段，page/page_size 交给 useTableApi 管理
@@ -369,37 +371,19 @@ const handleArchive = async (row: QualityStandard) => {
   }
 }
 
-const handleExport = () => {
-  exportToExcel({
-    filename: '质量标准',
-    format: 'excel',
-    data: list.value.map((item): Record<string, unknown> => ({ ...item })),
-    columns: [
-      { key: 'standard_code', title: '标准编号' },
-      { key: 'standard_name', title: '标准名称' },
-      {
-        key: 'type',
-        title: '类型',
-        formatter: (value: unknown) => typeMap[value as string] || String(value),
-      },
-      { key: 'version', title: '版本' },
-      {
-        key: 'status',
-        title: '状态',
-        formatter: (value: unknown) => statusMap[value as string] || String(value),
-      },
-      {
-        key: 'created_by_name',
-        title: '创建人',
-        formatter: (value: unknown) => (value ? String(value) : '-'),
-      },
-      {
-        key: 'approved_by_name',
-        title: '审批人',
-        formatter: (value: unknown) => (value ? String(value) : '-'),
-      },
-    ],
-  })
+// 导出 Excel（V15 P0-S12 修复 Batch 475d）
+// 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
+// 改为调用后端 GET /quality-standards/export，后端注入水印 + 异步审计日志
+// 传入当前筛选条件：listQuery.type 映射为后端 standard_type 字段，status 与后端一致
+const handleExport = async () => {
+  await exportFromBackend(
+    '/quality-standards/export',
+    {
+      standard_type: listQuery.type || undefined,
+      status: listQuery.status || undefined,
+    },
+    'quality_standards_export'
+  )
 }
 </script>
 

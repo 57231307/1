@@ -13,11 +13,20 @@ import {
 } from '@/api/sales-contract'
 import { formatCurrency, getStatusLabel } from './scFmts'
 import { escapeHtml } from '@/utils/print'
-import { exportToExcel } from '@/utils/export'
+// V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
+// 后端 GET /sales/sales-contracts/export 已就绪（含异步审计日志 + 水印）
+import { exportFromBackend } from '@/utils/export'
 
-/** 刷新回调 */
+/**
+ * 刷新回调
+ *
+ * V15 P0-S12 修复（Batch 475d）：新增 getQueryParams，用于导出时传递列表筛选条件
+ * 保证导出数据与当前列表筛选一致（keyword/status/customer_id）
+ */
 interface RefreshCallbacks {
   getList: () => Promise<void>
+  // V15 P0-S12 修复（Batch 475d）：获取当前筛选条件（keyword/status/customer_id），用于导出
+  getQueryParams?: () => { keyword?: string; status?: string; customer_id?: number }
 }
 
 /**
@@ -157,27 +166,25 @@ export function useScProc(refresh: RefreshCallbacks) {
     printWindow.onload = () => printWindow.print()
   }
 
-  /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
-  const handleExport = (contractList: { value: SalesContract[] } | SalesContract[]) => {
-    const list = Array.isArray(contractList) ? contractList : contractList.value
-    exportToExcel({
-      filename: '销售合同',
-      format: 'excel',
-      data: list.map((item): Record<string, unknown> => ({ ...item })),
-      columns: [
-        { key: 'contract_no', title: '合同编号' },
-        { key: 'contract_name', title: '合同名称' },
-        { key: 'customer_name', title: '客户' },
-        { key: 'total_amount', title: '金额' },
-        { key: 'signed_date', title: '签订日期' },
-        {
-          key: 'status',
-          title: '状态',
-          formatter: (_v: unknown, row: Record<string, unknown>) =>
-            getStatusLabel(row.status as SalesContract['status']),
-        },
-      ],
-    })
+  /**
+   * 导出 Excel（V15 P0-S12 修复 Batch 475d）
+   *
+   * 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
+   * 改为调用后端 GET /sales/sales-contracts/export，后端注入水印 + 异步审计日志
+   * 传入当前列表筛选条件（keyword/status/customer_id），保证导出与列表一致
+   */
+  const handleExport = async () => {
+    const filters = refresh.getQueryParams?.() ?? {}
+    const params: Record<string, unknown> = {
+      keyword: filters.keyword || undefined,
+      status: filters.status || undefined,
+      customer_id: filters.customer_id,
+    }
+    await exportFromBackend(
+      '/sales/sales-contracts/export',
+      params,
+      'sales_contracts_export'
+    )
   }
 
   return {

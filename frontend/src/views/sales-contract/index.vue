@@ -17,7 +17,7 @@
           <el-icon><Printer /></el-icon>
           打印
         </el-button>
-        <el-button @click="scProc.handleExport(sc.contractList)">
+        <el-button @click="scProc.handleExport()">
           <el-icon><Download /></el-icon>
           导出
         </el-button>
@@ -71,6 +71,13 @@ import ScForm from './components/ScForm.vue'
 const sc = useSc()
 const scProc = useScProc({
   getList: sc.getList,
+  // V15 P0-S12 修复（Batch 475d）：传入当前筛选条件，用于后端导出
+  // useTableApi 的 queryParams 为 Ref<Record<string, unknown>>，需类型断言以满足回调返回类型
+  getQueryParams: () => ({
+    keyword: sc.queryParams.keyword as string | undefined,
+    status: sc.queryParams.status as string | undefined,
+    customer_id: sc.queryParams.customer_id as number | undefined,
+  }),
 })
 
 // 对话框可见性本地 ref

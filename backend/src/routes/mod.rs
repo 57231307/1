@@ -149,6 +149,11 @@ fn quality_standards_routes() -> Router<AppState> {
             "/quality-standards",
             post(quality_standard_handler::create_standard),
         )
+        // V15 P0-S12 修复（Batch 475d）：质量标准导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/quality-standards/export",
+            get(quality_standard_handler::export_standards),
+        )
         .route(
             "/quality-standards/:id",
             get(quality_standard_handler::get_standard),
