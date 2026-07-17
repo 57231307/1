@@ -184,7 +184,10 @@ import {
   type OperationType,
   type Severity,
 } from '@/api/audit'
-import { exportToExcel } from '@/utils/export'
+// V15 P0-S13 修复（Batch 475a）：审计日志导出改用后端带水印 xlsx 接口
+// 后端 GET /audit-logs/export 已就绪（admin 权限 + xlsx + 自审计 + 11 列）
+// 后端会注入水印（操作员/导出时间/导出条数），前端只需下载 Blob
+import { exportFromBackend } from '@/utils/export'
 
 // 操作类型下拉选项（与后端 OperationType 枚举同步）
 const OP_TYPE_OPTIONS: { value: OperationType; label: string }[] = [
@@ -404,39 +407,29 @@ const handleViewDetail = async (row: AuditLogItem) => {
 }
 
 /**
- * 导出 Excel：触发浏览器下载（规则 3：禁止 CSV 作为最终交付格式）
+ * 导出 Excel：调用后端 /audit-logs/export 接口下载带水印 xlsx
+ *
+ * V15 P0-S13 修复（Batch 475a）：原本地 exportToExcel 无水印无审计无合规保障，
+ * 改用后端接口（admin 权限 + xlsx + 自审计 + 11 列 + 水印）。
+ * 后端导出动作本身会写入审计日志（OperationType::Export），形成"导出审计日志"自身的审计闭环。
+ * 后端水印：操作员/导出时间/导出条数（在 xlsx 第 0 行合并所有列）。
+ *
+ * 参数与 syncQueryParams 对齐：dateRange → start_time/end_time + operation_type/severity/resource_type/request_id/keyword
+ * 空字符串改为 undefined 避免后端按空字符串过滤。
  */
-const handleExport = () => {
-  exportToExcel({
-    filename: '审计日志',
-    format: 'excel',
-    data: data.value.map((item): Record<string, unknown> => ({ ...item })),
-    columns: [
-      { key: 'id', title: 'ID' },
-      {
-        key: 'created_at',
-        title: '操作时间',
-        formatter: (value: unknown) => formatDateTime(value as string | null),
-      },
-      {
-        key: 'operation_type',
-        title: '操作类型',
-        formatter: (value: unknown) =>
-          OP_TYPE_LABELS[value as string] ?? (value ? String(value) : '-'),
-      },
-      {
-        key: 'severity',
-        title: '级别',
-        formatter: (value: unknown) => (value ? String(value) : '-'),
-      },
-      { key: 'username', title: '操作人' },
-      { key: 'resource_type', title: '资源类型' },
-      { key: 'resource_id', title: '资源 ID' },
-      { key: 'ip_address', title: '客户端 IP' },
-      { key: 'request_id', title: '请求追踪' },
-      { key: 'description', title: '描述' },
-    ],
-  })
+const handleExport = async () => {
+  const params: Record<string, unknown> = {
+    operation_type: filterForm.operation_type || undefined,
+    severity: filterForm.severity || undefined,
+    resource_type: filterForm.resource_type.trim() || undefined,
+    request_id: filterForm.request_id.trim() || undefined,
+    keyword: filterForm.keyword.trim() || undefined,
+  }
+  if (filterForm.dateRange && filterForm.dateRange.length === 2) {
+    params.start_time = filterForm.dateRange[0]
+    params.end_time = filterForm.dateRange[1]
+  }
+  await exportFromBackend('/audit-logs/export', params, 'audit_logs_export')
 }
 
 /**

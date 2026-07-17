@@ -20,7 +20,8 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+// V15 P0-S15 修复（Batch 475a）：导出注入水印（操作员/导出时间/导出条数）
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 
 /// P0 8-5 修复：审计日志查询要求 admin 角色
 ///
@@ -289,6 +290,9 @@ pub async fn export_audit_logs(
         .await
         .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?;
 
+    // V15 P0-S15 修复（Batch 475a）：保存 logs 数量用于水印（logs 后续被 into_iter 消费）
+    let logs_count = logs.len();
+
     // 异步记录导出操作（审计自身）
     {
         use crate::models::audit_log::{OperationType, Severity};
@@ -358,8 +362,17 @@ pub async fn export_audit_logs(
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
 
+    // V15 P0-S15 修复（Batch 475a）：注入水印（操作员/导出时间/导出条数）
+    // 水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("审计日志导出（共 {} 条，仅 admin 可导出）", logs_count)),
+    };
+
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
-    build_xlsx_response(&table, &filename)
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
 
 #[cfg(test)]
