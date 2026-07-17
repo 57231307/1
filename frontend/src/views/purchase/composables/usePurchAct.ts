@@ -7,15 +7,21 @@ import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import printJS from 'print-js'
 import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
-import { exportToExcel } from '@/utils/export'
+// V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
+// 后端 GET /purchases/orders/export 已就绪（含行级数据权限 + 异步审计日志 + 水印）
+import { exportFromBackend } from '@/utils/export'
 
 /**
  * 采购单业务操作 composable
+ *
+ * V15 P0-S12 修复（Batch 475b）：新增第 4 参数 getQueryParams，用于导出时传递列表筛选条件
+ * 保证导出数据与当前列表筛选一致（status/supplier_id）
  */
 export function usePurchAct(
   orders: () => PurchaseOrder[],
   getStatusText: (s: string) => string,
-  onRefresh: () => void
+  onRefresh: () => void,
+  getQueryParams: () => { status?: string; supplier_id?: number } = () => ({})
 ) {
   // 查看对话框
   const viewDialogVisible = ref(false)
@@ -79,25 +85,19 @@ export function usePurchAct(
   }
 
   /**
-   * 导出采购订单列表为 Excel（规则 3：禁止 CSV 作为最终交付格式）
+   * 导出采购订单列表为 xlsx（V15 P0-S12 修复 Batch 475b）
+   *
+   * 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
+   * 改为调用后端 GET /purchases/orders/export，后端注入水印 + 行级数据权限 + 异步审计日志
+   * 传入当前列表筛选条件（status/supplier_id），保证导出与列表一致
    */
-  const handleExport = () => {
-    exportToExcel({
-      filename: '采购订单',
-      format: 'excel',
-      data: orders().map((item): Record<string, unknown> => ({ ...item })),
-      columns: [
-        { key: 'order_no', title: '订单号' },
-        { key: 'supplier_name', title: '供应商' },
-        { key: 'total_amount', title: '金额' },
-        {
-          key: 'status',
-          title: '状态',
-          formatter: (value: unknown) => getStatusText(String(value)),
-        },
-        { key: 'created_at', title: '创建时间' },
-      ],
-    })
+  const handleExport = async () => {
+    const filters = getQueryParams()
+    const params: Record<string, unknown> = {
+      status: filters.status || undefined,
+      supplier_id: filters.supplier_id,
+    }
+    await exportFromBackend('/purchases/orders/export', params, 'purchase_orders_export')
   }
 
   return {

@@ -246,7 +246,9 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue'
 import crmEnhancedApi, { type CustomerTag, type CustomerWithTags } from '@/api/crm-enhanced'
 import { useTableApi } from '@/composables/useTableApi'
-import { exportData } from '@/utils/export'
+// V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
+// 后端 GET /crm/customers/export 已就绪（Batch 474 注入水印 + 行级数据权限 + 异步审计日志）
+import { exportFromBackend } from '@/utils/export'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import { escapeHtml } from '@/utils/print'
@@ -453,21 +455,20 @@ const viewDetail = (id: number) => {
   router.push(`/crm/detail/${id}`)
 }
 
-const handleExport = () => {
-  exportData({
-    filename: 'CRM客户列表',
-    columns: [
-      { key: 'customer_code', title: '客户编码' },
-      { key: 'customer_name', title: '客户名称' },
-      { key: 'contact_person', title: '联系人' },
-      { key: 'phone', title: '电话' },
-      { key: 'customer_type', title: '类型', formatter: v => getCustomerTypeLabel(String(v)) },
-      { key: 'owner_name', title: '负责人' },
-      { key: 'total_amount', title: '累计金额' },
-      { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
-    ],
-    data: customers.value as unknown as Record<string, unknown>[],
-  })
+/**
+ * 导出客户列表为 xlsx（V15 P0-S12 修复 Batch 475b）
+ *
+ * 规则 3：导出统一使用 xlsx 格式
+ * 改为调用后端 GET /crm/customers/export，后端注入水印 + 行级数据权限 + 异步审计日志
+ * 传入当前列表筛选条件（status/customer_type/keyword），保证导出与列表一致
+ */
+const handleExport = async () => {
+  const params: Record<string, unknown> = {
+    status: queryParams.status || undefined,
+    customer_type: queryParams.customer_type || undefined,
+    keyword: queryParams.keyword.trim() || undefined,
+  }
+  await exportFromBackend('/crm/customers/export', params, 'crm_customers_export')
 }
 
 const handlePrint = () => {
