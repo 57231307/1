@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-472 + 复审归档 + MEMORY-SU 第 8 次迭代完成；P0 进度 65/104；PR #611~#653 已合并；MEMORY-SU.md 11 章→6 章压缩 + project_rules.md 删除后内联化 + 6.4 迭代记录精简；下一批次 473 剩余 39 P0 + 复审重新打开项；暂停指令：等待新指令）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-473 + 复审归档 + MEMORY-SU 第 9 次迭代完成；P0 进度 67/104；PR #611~#656 已合并；规则 13 新增步骤 0 修复前置门 + 步骤 4 修复后推送前自审；下一批次 474 起按业务模块顺序推进 P0-S15 导出水印 + P0-S12 前端导出接入后端核心页面；规则 13 连续执行）。
 
 ---
 
@@ -10,7 +10,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
-| 460 | #642 | V15 P0-S27 AI 推理数据范围未过滤：ai_extend_service.rs 7 个查询方法注入 apply_data_scope 过滤（created_by 为 owner_column，AI 表无 department_id，Dept 退化为 Self）+ 4 个写操作 check_resource_owner 校验防 IDOR + ai_summary 看板聚合 5 处子查询应用 data_scope；ai_extend_handler.rs 11 个查询/写操作端点改 _auth 为 auth，提取 to_data_scope_context() 传入 service；3 个 create/batch 端点保留原 auth；错误用 AppError::permission_denied(403)（修正不存在的 forbidden 方法）；规则 13 二次迭代后首个批次，验证 12 步流程含确定验证+格式验证两道前置门 |
+| 473 | #656 | V15 P0-S14 + P0-S19 审计字段补齐（8 文件，2 新增 + 6 修改）：新增 m0055_create_export_approval_request（29 字段 + 6 索引）补齐 Batch 461 PR #643 遗漏的 migration（m0047 被 webhooks 占用）+ m0056_add_condition_to_audit_logs（audit_logs + omni_audit_logs 两表 condition TEXT 列）+ audit_log.rs/omni_audit_log.rs model 新增 condition + omni_audit_service.rs OmniAuditMessage 新增 condition + ActiveModel 写入 + omni_audit.rs middleware 提取 query_string 作 condition + omni_audit_handler.rs track_event 手动上报 condition 为 None + audit_log_service.rs 3 处 ActiveModel 构造点补齐（CI 修复 commit）；CI 2 轮：首轮 E0063 missing field condition，二轮修复后 13+2 全绿；规则 13 步骤 0 核实审计存在性 + 步骤 4 自审门首次执行；教训：自审必须 grep 所有引用新字段的调用点 |
 | 461 | #643 | V15 P0-S14 敏感数据导出二级审批机制：新增 migration 047（export_approval_request 表 29 字段 + 6 索引）+ export_approval_request model（ApprovalStatus/RiskLevel 枚举 + sensitive_resources 模块）+ export_approval_service（create/approve/reject/cancel/verify_download_token/record_download/list/get/cleanup 9 方法 + 风险等级评估 + 5min token 防重放）+ handler 7 端点 + 路由挂载；CI 6 轮迭代修复：DeriveRelation 冲突/offset→paginator/parse_status 重命名/删除死代码 notify_pending_approval+approval_notification/消除 empty_line_after_doc_comment/消除 main 上 Batch 460 引入的 applicant_name 警告（info! 日志追加用户名） |
 | 462 | - | V15 P0-S24 前后端权限边界一致性修复（场景 A+B 核心，7 文件）：新建 frontend/src/constants/permissions.ts 单一真相源；UserTab.vue/warehouse/index.vue 单复数校正（user→users, warehouse→warehouses）；CI 12/12 全绿 |
 | 464 | - | V15 P0-S25 行级数据权限 RLS 策略启用（5 张敏感表）：新增 backend/database/rls.sql 集中定义；customers/suppliers/sales_orders/crm_lead/crm_opportunity 启用 RLS；CI 12/12 全绿 |

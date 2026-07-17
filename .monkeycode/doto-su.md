@@ -244,6 +244,83 @@
 
 ---
 
+## 📝 V15 修复阶段 Batch 473 归档（2026-07-17，规则 13 步骤 0/4 首次执行）
+
+> 本节归档 Batch 473 修复内容（PR #656，squash e19c1aa）。
+> 规则 13 四次迭代后首个完整执行 12 步流程的批次，含步骤 0"确定审计结果内容是否存在"前置门 + 步骤 4"修复后推送前自审"门。
+> 一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) Batch 473 行。
+
+### 总览
+
+| 项目 | 内容 |
+|------|------|
+| 批次 | 473 |
+| PR | #656 |
+| squash commit | e19c1aaa14033a7b7478de33a6c952f6fffc1881 |
+| 任务 | P0-S14（migration 047 补齐）+ P0-S19（审计字段 condition 补齐） |
+| 文件数 | 8（2 新增 + 6 修改） |
+| CI 轮次 | 2 轮（首轮 E0063 missing field condition，二轮修复后 13+2 全绿） |
+| 完成时间 | 2026-07-17 |
+
+### P0-S14：补齐 export_approval_request 表 migration
+
+**背景**：Batch 461 PR #643 已实现 service/model/handler 3 层完整逻辑，但 m0047 被 webhooks 占用，export_approval_request 表 migration 完全缺失，导致数据库表实际不存在。
+
+**步骤 0 核实结果**：审计内容部分存在（service/model/handler 齐全但 migration 缺失），调整修复方案为仅新增 migration。
+
+**修复内容**：
+- 新增 `backend/migration/src/m0055_create_export_approval_request.rs`
+  - CREATE TABLE 29 字段（按 model 定义）
+  - 6 个索引：status / applicant_user_id / approver_user_id / resource_type / download_token 唯一索引（WHERE NOT NULL 防重放）/ risk_level
+- `backend/migration/src/lib.rs` 注册 m0055
+
+### P0-S19：补齐审计日志 condition 字段
+
+**背景**：6/8 字段已实现，缺 `condition` 字段（与 request_body 区分：condition 仅记录查询条件用于快速筛选）。
+
+**步骤 0 核实结果**：审计内容完全存在（audit_log.rs / omni_audit_log.rs 均无 condition 字段）。
+
+**修复内容**：
+- 新增 `backend/migration/src/m0056_add_condition_to_audit_logs.rs`
+  - audit_logs + omni_audit_logs 两表添加 condition TEXT 列
+- 全链路打通：
+  - `models/audit_log.rs` + `models/omni_audit_log.rs` Model 新增 condition 字段（注释说明与 request_body 区分）
+  - `services/omni_audit_service.rs`：OmniAuditMessage struct 新增 condition 字段 + ActiveModel 写入 `condition: ActiveValue::Set(msg.condition)`
+  - `middleware/omni_audit.rs`：提取 query_string 作为 condition 写入（query_string 为空时为 None）
+  - `handlers/omni_audit_handler.rs`：track_event 手动上报事件 condition 为 None（无 query string）
+
+### CI 修复 commit（e6547aa）
+
+**问题**：首次推送后 CI 失败 E0063 missing field `condition` in initializer of `audit_log::ActiveModel`
+
+**根因**：步骤 4 自审只看了 git diff 的 8 个文件，没有 grep 所有 `audit_log::ActiveModel` 构造点。
+
+**修复**：补齐 `backend/src/services/audit_log_service.rs` 3 处遗漏：
+- 行 248 update_with_audit：`condition: ActiveValue::Set(None)`（无 query string）
+- 行 394 delete_with_audit：`condition: ActiveValue::Set(None)`（无 query string）
+- 行 467 build_active_model：`condition: ActiveValue::Set(None)`（AuditEvent 未携带 query string）
+
+### 关联文件审计（5 项，重新执行）
+
+| 审计项 | 命令 | 结果 |
+|--------|------|------|
+| OmniAuditMessage 构造点 | `grep -rn "OmniAuditMessage \{" backend/src/` | 2 处（middleware/omni_audit.rs:254 + handlers/omni_audit_handler.rs:86），均已补齐 |
+| audit_log::ActiveModel 构造点 | `grep -rn "audit_log::ActiveModel \{" backend/src/` | 3 处（audit_log_service.rs:222/364/443），CI 修复 commit 已补齐 |
+| omni_audit_log::ActiveModel 构造点 | `grep -rn "omni_audit_log::ActiveModel \{" backend/src/` | 1 处（omni_audit_service.rs:140），已补齐 |
+| .condition 字段引用 | `grep -rn "\.condition\b" backend/src/` | 1 处（omni_audit_service.rs:177 `condition: ActiveValue::Set(msg.condition)`），已写入 |
+| export_approval_request 引用 | `grep -rn "export_approval_request" backend/src/` | 5 处（export_approval_handler.rs + models/mod.rs + models/export_approval_request.rs + services/export_approval_service.rs + lib.rs），均为已存在文件 |
+
+### 关键教训（自审门强化）
+
+Batch 473 暴露步骤 4 自审流程缺陷：**只看 git diff 已修改文件，没有 grep 所有引用新字段/新结构体的调用点**。
+
+**正确自审流程**（已写入 doto.md §1.3 关键决策记录）：
+1. 修改 struct / model 新增字段后，必须 `grep -rn "StructName \{" backend/src/` 查找所有构造点
+2. 每个 ActiveModel 构造点必须显式补齐新字段（即使为 None）
+3. 不能只看 git diff 的已修改文件，必须主动搜索未修改但受影响的文件
+
+---
+
 ## 📝 V15 复审核实发现的已完成项（2026-07-17 复审归档）
 
 > 本节归档 2026-07-17 V15 修复阶段复审审计中发现的"标记未完成但实际已完成"的 4 项 P0 任务。
