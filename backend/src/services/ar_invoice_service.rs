@@ -13,6 +13,8 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::models::ar_invoice;
+// V15 P0-S02：行级数据权限工具
+use crate::utils::data_scope::{check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
@@ -261,13 +263,30 @@ impl ArInvoiceService {
     }
 
     /// 查询应收单详情
-    pub async fn get_by_id(&self, id: i32) -> Result<ar_invoice::Model, AppError> {
+    ///
+    /// V15 P0-S02：新增 data_scope 参数，对单资源做 IDOR 校验。
+    /// ar_invoice 表无 department_id，Dept 范围退化为 Self，使用 created_by（i32 必填）。
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<ar_invoice::Model, AppError> {
         info!("查询应收单详情 ID: {}", id);
 
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应收单不存在：{}", id)))?;
+
+        // V15 P0-S02：行级数据权限 IDOR 校验
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, Some(invoice.created_by), None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问应收单 {}（数据范围限制）",
+                    id
+                )));
+            }
+        }
 
         Ok(invoice)
     }

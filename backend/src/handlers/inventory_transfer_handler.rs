@@ -113,6 +113,12 @@ pub async fn update_transfer(
     Json(request): Json<UpdateInventoryTransferRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_transfer_detail + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    transfer_service
+        .get_transfer_detail(id, Some(&data_scope_ctx))
+        .await?;
+
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let transfer = transfer_service
         .update_transfer(id, request, auth.user_id)
@@ -187,6 +193,12 @@ pub async fn delete_transfer(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_transfer_detail + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    transfer_service
+        .get_transfer_detail(id, Some(&data_scope_ctx))
+        .await?;
+
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     transfer_service
         .delete_transfer(id, auth.user_id)
