@@ -13,7 +13,9 @@ import { nextTick } from 'vue'
 // 模块级 refs：跨测试共享 mock 状态
 const mockRequestGet = vi.fn()
 const mockGetAuditLog = vi.fn()
-const mockExportToExcel = vi.fn()
+// V15 P0-S13 修复（Batch 475a）：mock exportFromBackend 替代 exportToExcel
+// exportFromBackend 是 async 函数，返回 Promise<void>
+const mockExportFromBackend = vi.fn()
 
 // 批次 267：mock @/api/request（useTableApi 内部调用 request.get）
 // 返回 ApiResponse 包装结构 { code, message, data: { items, total } }
@@ -28,9 +30,10 @@ vi.mock('@/api/audit', () => ({
   getAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
 }))
 
-// 批次 204：audit-log 导出从前端 exportToExcel 改为 Excel 格式（规则 3 禁止 CSV）
+// V15 P0-S13 修复（Batch 475a）：audit-log 导出从本地 exportToExcel 改为后端 API（带水印 xlsx）
+// mock exportFromBackend 避免真实发起 axios 请求
 vi.mock('@/utils/export', () => ({
-  exportToExcel: (...args: unknown[]) => mockExportToExcel(...args),
+  exportFromBackend: (...args: unknown[]) => mockExportFromBackend(...args),
 }))
 
 // 局部 mock element-plus：保留真实 export（避免 ElMessage 等子组件的运行时错误）
@@ -92,7 +95,7 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
   beforeEach(() => {
     mockRequestGet.mockReset()
     mockGetAuditLog.mockReset()
-    mockExportToExcel.mockReset()
+    mockExportFromBackend.mockReset()
 
     // 批次 267：mock request.get 返回 ApiResponse 包装结构
     mockRequestGet.mockResolvedValue({
@@ -110,7 +113,8 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
       before_snapshot: { amount: 100 },
       after_snapshot: { amount: 200 },
     })
-    mockExportToExcel.mockImplementation(() => {})
+    // V15 P0-S13（Batch 475a）：exportFromBackend 是 async，返回 Promise<void>
+    mockExportFromBackend.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -172,8 +176,8 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
     expect(vm.detailVisible).toBe(true)
   })
 
-  /** 点击导出按钮：调用 exportToExcel 并触发 Excel 下载 */
-  it('点击导出按钮调用 exportToExcel 并触发下载', async () => {
+  /** 点击导出按钮：调用 exportFromBackend 触发后端带水印 xlsx 下载（V15 P0-S13 修复） */
+  it('点击导出按钮调用 exportFromBackend 并触发后端下载', async () => {
     const wrapper = mount(AuditLogView)
     await flushPromises()
 
@@ -181,7 +185,14 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
     await vm.handleExport()
     await flushPromises()
 
-    expect(mockExportToExcel).toHaveBeenCalledTimes(1)
+    // V15 P0-S13（Batch 475a）：验证调用 exportFromBackend 而非 exportToExcel
+    expect(mockExportFromBackend).toHaveBeenCalledTimes(1)
+    // 验证传参：第一参数为后端 API 路径，第二参数为查询条件，第三参数为文件名前缀
+    const [apiPath, params, filename] = mockExportFromBackend.mock.calls[0]
+    expect(apiPath).toBe('/audit-logs/export')
+    expect(filename).toBe('audit_logs_export')
+    // params 应为对象（含筛选条件，空值转 undefined）
+    expect(params).toEqual(expect.objectContaining({}))
   })
 
   /** 分页变化：将 page 传给 API */
