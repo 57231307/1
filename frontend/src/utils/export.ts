@@ -1,6 +1,6 @@
+import axios from 'axios'
+import type { AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
-// V15 P0-S12 修复（Batch 474）：从 ../api/request 导入（utils 目录无 request，request 在 api 目录）
-import { request } from '../api/request'
 
 /** 导出列定义，使用泛型支持类型安全的字段访问 */
 export interface ExportColumn<T extends Record<string, unknown> = Record<string, unknown>> {
@@ -62,7 +62,6 @@ function generateExcelHTML<T extends Record<string, unknown>>(
         <tbody>${rows}</tbody>
       </table>
     </body>
-    </html>
   `
 }
 
@@ -101,15 +100,37 @@ export function exportData<T extends Record<string, unknown>>(options: ExportOpt
 }
 
 /**
+ * V15 P0-S12 修复（Batch 474）：导出专用 axios 实例
+ *
+ * 设计要点（与 request.ts 主实例隔离）：
+ * - 直接使用 axios，绕过 request.ts 响应拦截器，避免 ApiResponse.code 校验误伤 Blob 响应
+ *   （request.ts 拦截器 return res as unknown as AxiosResponse，使得 get<T>() 返回 Promise<T>，
+ *   对 Blob 类型丢失 .headers/.data，导致 TS2339）
+ * - 不导入 request.ts，避免触发 router/index.ts 导入链副作用（router 顶层 beforeEach
+ *   在测试环境外调用，导致 tests/unit/utils.test.ts TypeError）
+ * - GET 请求无需 CSRF Token（与 request.ts isCsrfPublicPath 逻辑一致）
+ * - withCredentials=true 保证 httpOnly Cookie（access_token）随请求发送
+ * - baseURL 与 request.ts 保持一致，避免硬编码
+ */
+const exportAxios = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1/erp',
+  timeout: 60000,
+  withCredentials: true,
+  headers: {
+    'X-Requested-With': 'XMLHttpRequest',
+  },
+})
+
+/**
  * V15 P0-S12 + P0-S15 修复（Batch 474）：从后端下载带水印的 xlsx 文件
  *
  * 设计要点：
- * - 调用后端 GET API（如 `/customers/export`），返回 Blob 流（application/vnd.openxmlformats-officedocument.spreadsheetml.sheet）
+ * - 调用后端 GET API（如 `/crm/customers/export`），返回 Blob 流（application/vnd.openxmlformats-officedocument.spreadsheetml.sheet）
  * - 后端已注入水印（操作员/IP/时间戳），前端无需重复添加
  * - 自动从 Content-Disposition 提取文件名；失败时回退到传入的 filename + 时间戳
  * - 保留本地 exportToExcel 作为兼容方案（资源尚未接入后端 export 时降级使用）
  *
- * @param apiPath 后端导出 API 路径（如 `/customers/export`）
+ * @param apiPath 后端导出 API 路径（如 `/crm/customers/export`）
  * @param params 查询参数（与 list 接口共用）
  * @param filename 下载文件名前缀（不含扩展名，后端会附加 .xlsx）
  */
@@ -119,16 +140,18 @@ export async function exportFromBackend<TParams extends Record<string, unknown>>
   filename: string
 ): Promise<void> {
   try {
-    const response = await request.get<Blob>(apiPath, {
+    // 使用独立的 exportAxios 实例，返回完整 AxiosResponse<Blob>
+    const response: AxiosResponse<Blob> = await exportAxios.get<Blob>(apiPath, {
       params,
       responseType: 'blob',
     })
     // V15 P0-S12：从 Content-Disposition 提取文件名（后端返回 filename="customers_export_xxx.xlsx"）
     const disposition = response.headers?.['content-disposition'] || ''
     const matched = /filename="?([^";]+)"?/.exec(disposition)
-    const downloadName = matched?.[1] || `${filename}_${new Date().toISOString().replace(/[:.]/g, '')}.xlsx`
+    const downloadName =
+      matched?.[1] || `${filename}_${new Date().toISOString().replace(/[:.]/g, '')}.xlsx`
 
-    const blob = response.data as unknown as Blob
+    const blob = response.data
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
     link.download = downloadName

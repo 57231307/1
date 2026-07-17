@@ -242,6 +242,7 @@ pub fn build_xlsx_with_watermark(
                 0,
                 (table.headers.len() - 1) as u16,
                 &watermark_text,
+                &watermark_format,
             )
             .map_err(|e| AppError::internal(format!("xlsx 合并水印行失败: {}", e)))?;
     }
