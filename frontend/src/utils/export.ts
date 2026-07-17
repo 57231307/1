@@ -1,5 +1,6 @@
 import { ElMessage } from 'element-plus'
-import request from '@/utils/request'
+// V15 P0-S12 修复（Batch 474）：从同级 ./request 导入（与 src/api/* 一致）
+import { request } from './request'
 
 /** 导出列定义，使用泛型支持类型安全的字段访问 */
 export interface ExportColumn<T extends Record<string, unknown> = Record<string, unknown>> {
