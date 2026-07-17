@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-471 已完成 P0 任务归档到 doto-su.md；P0 进度 61/104；剩余 43 P0 + 257 P1 + 248 P2 + 123 P3；批次大小每批 6-8 文件；用户指令变更（2026-07-17 二次）：按顺序修复所有批次，不再限制单数批次；下一批次 472 前端 borrow.vue→issue.vue 重写；用户术语澄清（2026-07-17）：缸号=染色批次号，dye_lot_no=染色批号；Batch 471 决策保留旧表不重命名以保护 Rust migration m0029 链路）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-472 已完成 P0 任务归档到 doto-su.md；P0 进度 62/104；剩余 42 P0 + 257 P1 + 248 P2 + 123 P3；批次大小每批 6-8 文件；用户指令变更（2026-07-17 二次）：按顺序修复所有批次，不再限制单数批次；下一批次 473 剩余 P0-F10~F21 + 其他 P0 项；用户术语澄清（2026-07-17）：缸号=染色批次号，dye_lot_no=染色批号；Batch 471 决策保留旧表不重命名以保护 Rust migration m0029 链路；Batch 472 用户特批直接合并 PR #648（squash 99c2af1））。
 
 ---
 
@@ -12,31 +12,33 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 61 | **43** | 58.7% |
+| **P0 阻塞级** | 104 | 62 | **42** | 59.6% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **61** | **671** | **8.3%** |
+| **合计** | **732** | **62** | **670** | **8.5%** |
 
 ### 1.1 已完成 P0 任务（29 项，详情见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4602026-07-16--2026-07-17)）
 
-P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S08 / P0-S09 / P0-S10 / P0-S11 / P0-S14 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S24 / P0-S25 / P0-S26 / P0-S27 / P0-S28 / P0-F01 / P0-F02 / P0-F03 / P0-F04 / P0-F05 / P0-F06（部分，新表已建，旧表保留不重命名）/ P0-F08 / P0-F09（状态机）
+P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S08 / P0-S09 / P0-S10 / P0-S11 / P0-S14 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S24 / P0-S25 / P0-S26 / P0-S27 / P0-S28 / P0-F01 / P0-F02 / P0-F03 / P0-F04 / P0-F05 / P0-F06（部分，新表已建，旧表保留不重命名）/ P0-F07 / P0-F08 / P0-F09（状态机）
 
 > V15 审计已完成（25 大类 195 维度 732 问题），详细审计进度表已归档到 [doto-su.md §V15 审计完成进度](file:///workspace/.monkeycode/doto-su.md#-v15-审计完成进度2026-07-16-全部完成)。
 
 ### 1.2 下一批次规划（按顺序连续执行）
 
 > **用户指令变更（2026-07-17 二次）**：按顺序修复所有批次，不再限制单数批次。
-> 已合并批次 460-471，下一批次 472 前端 borrow.vue→issue.vue 重写，按规则 13 自动连续执行。
+> 已合并批次 460-472，下一批次 473 剩余 P0-F10~F21 + 其他 P0 项，按规则 13 自动连续执行。
 > **用户术语澄清（2026-07-17）**：缸号（batch_no）=染色批次号（同一概念不同叫法）；dye_lot_no=染色批号（lot 概念，防色差混批）。
 > **Batch 471 决策（2026-07-17）**：保留旧表 color_card_borrow_records 不重命名为 _legacy，原因是 Rust migration m0029_drop_tenant_columns 会执行 ALTER TABLE color_card_borrow_records DROP COLUMN tenant_id，若表已重命名会导致 migration 失败；应用层不再读写该表，事实等同于 legacy。
+> **Batch 472 决策（2026-07-17）**：前端 borrow.vue→issue.vue 完整重写（10 文件）；CI 第 1 轮 detail.vue 漏 import 失败，第 2 轮全绿；PR #647 分支被仓库自动删除策略清理，重建 PR #648 后用户特批直接合并（squash 99c2af1）。
+> **暂停指令（2026-07-17）**：Batch 472 合并后暂停，等待新指令（不自动进入 Batch 473）。
 
 | 批次 | P0 任务 | 文件数 | 状态 |
 |------|---------|--------|------|
 | 469 | P0-F01 dye_batch 表缺少 dye_lot_no 字段（类四） | - | ✅ 已合并 PR #644 |
 | 470 | P0-F02 面料属性扩展 | - | ✅ 已合并 PR #645 |
 | 471 | P0-F03~F08/F09 色卡发放模式重构-后端核心 | - | ✅ 已合并 PR #646（squash 38ee394）|
-| 472 | P0-F07 色卡发放前端 borrow.vue→issue.vue 重写 | - | ⏳ 下一个批次 |
+| 472 | P0-F07 色卡发放前端 borrow.vue→issue.vue 重写 | - | ✅ 已合并 PR #648（squash 99c2af1，用户特批直接合并）|
 | 473+ | 剩余 P0-F10~F21 + 其他 P0 项 | - | ⏳ |
 
 ---
@@ -180,7 +182,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 - **来源**：batch-09 P0-09-5
 - **修复方案**：删除 ColorCardLendReturn.vue，创建 ColorCardIssue.vue（发放视图）
 - **关联文件**：[frontend/src/views/fabric/](file:///workspace/frontend/src/views/fabric/)
-- **状态**：⏳ 留待 Batch 472（前端 borrow.vue→issue.vue 重写）
+- **状态**：✅ Batch 472 已完成——前端 borrow.vue→issue.vue 完整重写（10 文件：api/color-card.ts + issues.vue 新建 + IssueRecordTimeline.vue 新建 + router + MainLayout + list + detail + i18n + e2e + 删除 borrow.vue/BorrowRecordTimeline.vue）；CI 2 轮修复后全绿（第 1 轮 detail.vue 漏 scanColorCode/COLOR_CARD_TYPE_LABELS import，第 2 轮 12/12 success）；PR #647 分支被自动删除策略清理后重建 PR #648 合并（用户特批直接合并，squash 99c2af1）。
 
 ##### P0-F08 色卡发放——发放前 5 道闸门校验未实现（类九）
 
