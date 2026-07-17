@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-458 完成，P0-S01 + P0-S02 IDOR 防护全部完成（22 个 handler 函数）；新增规则 16 工具连接异常重试策略；PR #611~#640 已合并）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-460 完成，P0-S01 + P0-S02 IDOR 防护全部完成（22 个 handler 函数）；新增规则 16 工具连接异常重试策略；PR #611~#642 已合并；规则 13 二次迭代：12 步流程含确定验证+格式验证两道前置门；Batch 460 P0-S27 AI 推理数据范围过滤完成；用户指令变更：仅执行单数（奇数）批次，双数批次跳过）。
 
 ---
 
@@ -10,6 +10,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 460 | #642 | V15 P0-S27 AI 推理数据范围未过滤：ai_extend_service.rs 7 个查询方法注入 apply_data_scope 过滤（created_by 为 owner_column，AI 表无 department_id，Dept 退化为 Self）+ 4 个写操作 check_resource_owner 校验防 IDOR + ai_summary 看板聚合 5 处子查询应用 data_scope；ai_extend_handler.rs 11 个查询/写操作端点改 _auth 为 auth，提取 to_data_scope_context() 传入 service；3 个 create/batch 端点保留原 auth；错误用 AppError::permission_denied(403)（修正不存在的 forbidden 方法）；规则 13 二次迭代后首个批次，验证 12 步流程含确定验证+格式验证两道前置门 |
+
 | 433 | #611 | V15 P0-S03 修复超级权限注入漏洞：auth_handler.rs 将 is_system 判断改为 code==ADMIN_ROLE_CODE，仅 admin 注入超级通配权限；init_service.rs 新增 create_default_role_permissions 为 manager/operator 插入基本 role_permission 记录 |
 | 434 | #612 | V15 P0-S04 补齐 31 类业务角色覆盖面料行业全业务场景（管理/销售/采购/库存/生产/质量/财务/CRM/物流/人力/安全/IT），为全部角色配置基本 role_permission 权限记录 |
 | 435 | #613 | V15 P0-S20/S21/S22 权限资源缺口补齐：新增 60+ 类权限资源注册表 + 11 个操作权限码 + 33 个角色完整权限矩阵；path_utils.rs 清理 15+ 脏数据并新增 28 个模块前缀（production/auth/quotations 等）；permission.rs 新增白名单校验 + 路径动作提取（print/export/approve 等 11 个）；修复 2 个 clippy 警告（last→next_back→rfind） |
