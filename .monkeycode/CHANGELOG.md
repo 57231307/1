@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-452b 完成，P0-S03/S04/S20/S21/S22/S01(基础设施+销售域+采购域+生产域+CRM域+财务域finance+AP+AR+库存调整+库存预留+库存盘点)/S18/S07/S05/S06/S10/S09(全部)/S11(全部) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623/#624/#625/#626/#627/#628/#629/#630/#631/#632/#633/#634/#635 已合并）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-452c 完成，P0-S03/S04/S20/S21/S22/S01(基础设施+销售域+采购域+生产域+CRM域+财务域finance+AP+AR+库存调整+库存预留+库存盘点+库存调拨)/S18/S07/S05/S06/S10/S09(全部)/S11(全部) 修复，PR #611/#612/#613/#614/#616/#617/#618/#619/#620/#621/#622/#623/#624/#625/#626/#627/#628/#629/#630/#631/#632/#633/#634/#635/#636 已合并）。
 
 ---
 
@@ -35,6 +35,7 @@
 | 451c | #633 | V15 P0-S01 行级数据权限注入-财务域 AR 域：ar_service list_payments/get_payment/list_verifications/get_verification 增加 data_scope 参数 + IDOR 校验/过滤；2 个 handler（ar_payment_handler + ar_verification_handler）的 4 个查询函数 _auth → auth 传 Some(&ctx)；ar_collection.created_by 是 i32 必填，ar_reconciliation.created_by 是 Option<i32>，均无 department_id，Dept 退化为 Self；报表类方法（原生 SQL）留待后续批次；CI 15/15 全绿（13 success + 2 skipped）；P0-S01 进度 23→25/104 |
 | 452 | #634 | V15 P0-S01 行级数据权限注入-库存域（调整+预留子域）：inventory_adjustment_service list_adjustments/get_adjustment + inventory_reservation_service list_reservations 增加 data_scope 参数 + IDOR 校验/过滤；inventory_adjustment/reservation.created_by 均为 Option<i32>，无 department_id，Dept 退化 Self；handler 补 auth 参数传 Some(&ctx)，3 处 handler 内部调用 + 3 处 service 内部调用 + 3 处单测传 None；库存域其他子域（查询/调拨/盘点）因 inventory_stock 无 created_by 或 handler 缺 AuthContext 待后续；CI 15/15 全绿（13 success + 2 skipped）；P0-S01 进度 25→27/104 |
 | 452b | #635 | V15 P0-S01 行级数据权限注入-库存域（盘点子域）：inventory_count_service list_counts/get_count 增加 data_scope 参数 + IDOR 校验/过滤；inventory_count.created_by 是 Option<i32>，无 department_id，Dept 退化 Self，复用 created_by 作为 dept_column；inventory_count_handler 的 list_counts/get_count 补 auth: AuthContext 参数传 Some(&ctx)，4 处 handler 内部调用（update_count/submit_for_approval/approve_count/reject_count 后获取详情）传 None；库存域调拨子域（inventory_transfer）待后续 Batch 452c；CI 15/15 全绿（13 success + 2 skipped）；P0-S01 进度 27→28/104 |
+| 452c | #636 | V15 P0-S01 行级数据权限注入-库存域（调拨子域）：services/inv/inventory_move.rs list_transfers/get_transfer_detail 增加 data_scope 参数 + IDOR 校验/过滤；inventory_transfer.created_by 是 Option<i32>，无 department_id，Dept 退化 Self，复用 created_by 作为 dept_column；handler 补 auth: AuthContext 参数传 Some(&ctx)，6 处 service 内部调用传 None（inventory_move.rs 3 处 + batch.rs 3 处）；CI 15/15 全绿（13 success + 2 skipped）；P0-S01 进度 28→29/104 |
 
 ---
 
