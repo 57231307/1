@@ -149,6 +149,8 @@ pub mod ai;
 pub mod report;
 // P2-4 AI 分析深化（工艺优化 + 质量预测）持久化
 pub mod ai_extend_service;
+// V15 P0-S14 敏感数据导出二级审批
+pub mod export_approval_service;
 // 扩展能力模块
 pub mod api_key_service;
 pub mod webhook_service;

@@ -192,6 +192,8 @@ pub mod budget_execution;
 pub mod business_trace;
 // 审计模块
 pub mod audit_log;
+// V15 P0-S14 敏感数据导出二级审批请求
+pub mod export_approval_request;
 // CRM 公海回收规则模块（批次 23 v5 P0-4：内存存储迁移至数据库）
 pub mod crm_recycle_rule;
 pub mod crm_lead;
