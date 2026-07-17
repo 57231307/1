@@ -244,6 +244,142 @@
 
 ---
 
+## 📝 V15 修复阶段 Batch 475b 归档（2026-07-17，P0-S12 前端导出 purchase/customer 闭环）
+
+> 本节归档 Batch 475b 修复内容（PR #659，squash cde7e9a）。
+> 任务：P0-S12 前端导出接入后端 - A 类 2 文件（后端端点已存在的纯前端切换 + 后端水印补齐）。
+> 一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) Batch 475b 行。
+
+### 总览
+
+| 项目 | 内容 |
+|------|------|
+| 批次 | 475b |
+| PR | #659 |
+| squash commit | cde7e9a |
+| 任务 | P0-S12 前端导出 purchase/customer 闭环（A 类 2 文件）⚠️ P0-S12 整体仍部分完成（剩 18 文件） |
+| 文件数 | 4（后端 1 修改 + 前端 3 修改） |
+| CI 轮次 | 1 轮（一次过 13/13 全绿） |
+| 完成时间 | 2026-07-17 |
+| P0 进度 | 69/104（不变，P0-S12 整体未完成） |
+
+### 改动详情
+
+#### 后端 `backend/src/handlers/purchase_order_handler.rs`
+
+**目标**：export_orders 注入水印，保持 P0-S15 水印基础设施一致性（原用 `build_xlsx_response` 无水印）。
+
+1. **import 调整**：
+   - 原：`use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable}`
+   - 改：`use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable}`
+
+2. **注入水印**（替代 `build_xlsx_response`）：
+   ```rust
+   // V15 P0-S15 修复（Batch 475b）：注入水印（操作员/导出时间/导出条数）
+   let watermark = WatermarkConfig {
+       operator: Some(auth.username.clone()),
+       ip_address: None,
+       exported_at: Some(chrono::Utc::now().to_rfc3339()),
+       extra: Some(format!("采购订单导出（共 {} 条）", row_count)),
+   };
+   build_xlsx_response_with_watermark(&table, &filename, &watermark)
+   ```
+   `row_count` 变量在 line 540 已定义（`let row_count = rows.len();`），水印使用前已存在。
+
+#### 前端 `frontend/src/views/purchase/composables/usePurchAct.ts`
+
+**目标**：采购订单导出从本地 `exportToExcel` 切换为后端 API。
+
+1. **import 调整**：
+   - 原：`import { exportToExcel } from '@/utils/export'`
+   - 改：`import { exportFromBackend } from '@/utils/export'`
+
+2. **函数签名增加第 4 参数**：
+   ```typescript
+   export function usePurchAct(
+     orders: () => PurchaseOrder[],
+     getStatusText: (s: string) => string,
+     onRefresh: () => void,
+     getQueryParams: () => { status?: string; supplier_id?: number } = () => ({})
+   )
+   ```
+   默认值 `() => ({})` 保证向后兼容（其他调用方不传第 4 参数时不报错）。
+
+3. **handleExport 改为 async + 后端 API**：
+   ```typescript
+   const handleExport = async () => {
+     const filters = getQueryParams()
+     const params: Record<string, unknown> = {
+       status: filters.status || undefined,
+       supplier_id: filters.supplier_id,
+     }
+     await exportFromBackend('/purchases/orders/export', params, 'purchase_orders_export')
+   }
+   ```
+   params 与后端 `OrderQueryParams { status, supplier_id }` 对齐。
+
+#### 前端 `frontend/src/views/purchase/index.vue`
+
+**目标**：usePurchAct 调用传入第 4 参数 getQueryParams。
+
+```typescript
+const act = usePurchAct(
+  () => list.orders.value,
+  list.getStatusText,
+  list.fetchData,
+  () => ({ status: list.queryParams.status, supplier_id: list.queryParams.supplier_id })
+)
+```
+
+#### 前端 `frontend/src/views/crm/tabs/CustomerListTab.vue`
+
+**目标**：CRM 客户列表导出从本地 `exportData` 切换为后端 API。
+
+1. **import 调整**：
+   - 原：`import { exportData } from '@/utils/export'`
+   - 改：`import { exportFromBackend } from '@/utils/export'`
+
+2. **handleExport 改为 async + 后端 API**：
+   ```typescript
+   const handleExport = async () => {
+     const params: Record<string, unknown> = {
+       status: queryParams.status || undefined,
+       customer_type: queryParams.customer_type || undefined,
+       keyword: queryParams.keyword.trim() || undefined,
+     }
+     await exportFromBackend('/crm/customers/export', params, 'crm_customers_export')
+   }
+   ```
+   params 与后端 `CustomerListQuery { status, customer_type, keyword }` 对齐。
+   后端 `/crm/customers/export` 已在 Batch 474 注入水印，无需后端改动。
+
+### 规则 13 步骤 4 自审门
+
+| 检查项 | 命令 | 结果 |
+|--------|------|------|
+| 后端 build_xlsx_response 调用点 | grep `build_xlsx_response` purchase_order_handler.rs | 仅 1 处（line 588）已切换为 with_watermark |
+| 前端 exportToExcel 残留 | grep `exportToExcel\|exportData` usePurchAct.ts | 无残留 |
+| 前端 exportData 残留 | grep `exportData` CustomerListTab.vue | 无残留 |
+| usePurchAct 调用方 | grep `usePurchAct` frontend/ | 仅 purchase/index.vue（已传入第 4 参数） |
+| CustomerListTab 调用方 | grep `CustomerListTab` frontend/ | 仅 crm/index.vue（无 handleExport 调用） |
+| 测试文件 | grep `purchase\|customer\|usePurchAct\|CustomerListTab` frontend/tests/ | 仅 audit-log.test.ts（Batch 475a 已修复，无关） |
+| 后端测试 | grep `purchase_order\|export_orders` backend/tests/ | test_generate_no_endpoints.rs 仅匹配 purchase_order 关键字，不涉及 export_orders |
+
+### 关键教训
+
+1. **A 类文件（后端端点已存在）优先**：本批次 4 文件一次过 CI，验证了"先做后端端点已存在的纯前端切换"策略高效。
+2. **getQueryParams 默认值保证向后兼容**：usePurchAct 第 4 参数默认 `() => ({})`，其他潜在调用方不传时不报错。
+3. **后端水印一致性**：发现 export_orders 未注入水印（用 build_xlsx_response），主动补齐保持 P0-S15 一致性。
+
+### 后续影响（Batch 475c 准备）
+
+Batch 475b 完成后，P0-S12 剩余 18 个 B 类文件（需后端新增端点）：
+- Batch 475c 优先：inventory + warehouse + production（后端新增 3 端点，工作量 M）
+- Batch 475d：sales-contract/sales-price + quality/quality-standards（后端新增 5 端点，工作量 L）
+- Batch 475e：voucher/finance/ar/ap/accountSubject/financeReport + cost/budget/fixed-assets（后端新增 6 端点，工作量 XL）
+
+---
+
 ## 📝 V15 修复阶段 Batch 475a 归档（2026-07-17，P0-S13 审计日志导出闭环）
 
 > 本节归档 Batch 475a 修复内容（PR #658，squash 7c7cfc7）。
