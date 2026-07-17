@@ -245,6 +245,8 @@ impl AuditLogService {
             // P2 8-8 修复：填充 before_snapshot/after_snapshot（推荐字段）
             before_snapshot: ActiveValue::Set(before_snapshot.map(audit_log::AuditValue)),
             after_snapshot: ActiveValue::Set(after_snapshot.map(audit_log::AuditValue)),
+            // V15 P0-S19 补齐：update_with_audit 无 query string，condition 为 None
+            condition: ActiveValue::Set(None),
         };
         log.insert(db).await?;
 
@@ -389,6 +391,8 @@ impl AuditLogService {
                 before_snapshot.map(audit_log::AuditValue),
             ),
             after_snapshot: ActiveValue::Set(None),
+            // V15 P0-S19 补齐：delete_with_audit 无 query string，condition 为 None
+            condition: ActiveValue::Set(None),
         };
         log.insert(db).await?;
         Ok(())
@@ -460,6 +464,8 @@ fn build_active_model(event: &AuditEvent, ctx: Option<&AuditContext>) -> audit_l
         request_id: ActiveValue::Set(request_id),
         before_snapshot: ActiveValue::Set(event.before_snapshot.clone().map(audit_log::AuditValue)),
         after_snapshot: ActiveValue::Set(event.after_snapshot.clone().map(audit_log::AuditValue)),
+        // V15 P0-S19 补齐：AuditEvent 未携带 query string，condition 为 None
+        condition: ActiveValue::Set(None),
     }
 }
 

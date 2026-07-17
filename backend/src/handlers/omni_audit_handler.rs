@@ -107,6 +107,8 @@ pub async fn track_event(
         error_msg: None,
         old_value: None,
         new_value: None,
+        // V15 P0-S19 补齐：track_event 手动上报事件无 query string，condition 为 None
+        condition: None,
     });
 
     Ok(Json(ApiResponse::success(())))

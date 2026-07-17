@@ -33,6 +33,9 @@ pub struct OmniAuditMessage {
     pub error_msg: Option<String>,
     pub old_value: Option<Value>,
     pub new_value: Option<Value>,
+    /// 请求条件/查询条件（query string）
+    /// V15 P0-S19 补齐：从请求 URL query string 提取，用于审计日志快速筛选
+    pub condition: Option<String>,
 }
 
 pub struct OmniAuditEngine {
@@ -170,6 +173,8 @@ impl OmniAuditEngine {
                         )),
                         // P0 8-2 修复（批次 53）：持久化 HMAC-SHA256 签名，实现审计日志防篡改
                         signature: ActiveValue::Set(Some(signature)),
+                        // V15 P0-S19 补齐：请求条件/查询条件写入审计日志
+                        condition: ActiveValue::Set(msg.condition),
                     };
 
                     // 使用 exec_without_returning 避免 last_insert_id 解析问题

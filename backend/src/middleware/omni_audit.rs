@@ -292,6 +292,12 @@ pub async fn omni_audit_middleware(
             },
             old_value: None,
             new_value: None,
+            // V15 P0-S19 补齐：query_string 作为请求条件写入审计日志
+            condition: if query_string.is_empty() {
+                None
+            } else {
+                Some(query_string)
+            },
         });
     }
 
