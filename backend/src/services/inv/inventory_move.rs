@@ -18,6 +18,8 @@ use crate::models::dto::PageRequest;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
 use crate::models::status::inventory_transfer as transfer_status;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::PaginatedResponse;
@@ -29,6 +31,9 @@ use super::{
 
 impl InventoryTransferService {
     /// 获取库存调拨列表
+    ///
+    /// V15 P0-S01：新增 data_scope 参数，按行级数据权限过滤。
+    /// inventory_transfer 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
     pub async fn list_transfers(
         &self,
         page_req: PageRequest,
@@ -36,6 +41,7 @@ impl InventoryTransferService {
         from_warehouse_id: Option<i32>,
         to_warehouse_id: Option<i32>,
         transfer_no: Option<String>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<PaginatedResponse<InventoryTransferDetail>, AppError> {
         let mut query = InventoryTransferEntity::find()
             .order_by(inventory_transfer::Column::CreatedAt, Order::Desc);
@@ -52,6 +58,16 @@ impl InventoryTransferService {
         }
         if let Some(no) = transfer_no {
             query = query.filter(inventory_transfer::Column::TransferNo.contains(&no));
+        }
+        // V15 P0-S01：行级数据权限过滤
+        // inventory_transfer 表无 department_id，Dept 退化为 Self，使用 created_by（Option<i32>）。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                inventory_transfer::Column::CreatedBy,
+                inventory_transfer::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
+            );
         }
 
         // 分页
@@ -92,15 +108,28 @@ impl InventoryTransferService {
     }
 
     /// 获取库存调拨详情（包含明细项）
+    ///
+    /// V15 P0-S01：新增 data_scope 参数，对单资源做 IDOR 校验。
+    /// inventory_transfer 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
     pub async fn get_transfer_detail(
         &self,
         transfer_id: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<InventoryTransferDetail, AppError> {
         // 获取调拨主表数据
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
+        // V15 P0-S01：行级数据权限 IDOR 校验
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, transfer.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问库存调拨单 {}（数据范围限制）",
+                    transfer_id
+                )));
+            }
+        }
 
         // 获取调拨明细项
         let items = InventoryTransferItemEntity::find()
@@ -259,7 +288,7 @@ impl InventoryTransferService {
         txn.commit().await?;
 
         // 返回调拨详情
-        self.get_transfer_detail(transfer_id).await
+        self.get_transfer_detail(transfer_id, None).await
     }
 
     /// 更新库存调拨
@@ -364,7 +393,7 @@ impl InventoryTransferService {
         txn.commit().await?;
 
         // 返回调拨详情
-        self.get_transfer_detail(transfer_id).await
+        self.get_transfer_detail(transfer_id, None).await
     }
 
     /// 审核库存调拨
@@ -420,7 +449,7 @@ impl InventoryTransferService {
         txn.commit().await?;
 
         // 返回调拨详情
-        self.get_transfer_detail(transfer_id).await
+        self.get_transfer_detail(transfer_id, None).await
     }
 
     // 生成调拨单号
