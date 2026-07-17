@@ -189,6 +189,30 @@
 - **修复**：PERMISSION_RESOURCES 新增 8 个 AI 域资源（ai-forecast/ai-inventory-opt/ai-anomaly/ai-recommendation/ai-recipe-opt/ai-quality-pred/ai-process-opt/ai-summary）+ gm/deputy_gm role_permission 矩阵补 AI 域 read 权限 + analytics.rs/system.rs 路由权限码映射注释 + ai_analysis_handler 4 个函数 _auth → auth + 调用者日志（P0-S27 预备）
 - **关联文件**：init_service.rs / routes/analytics.rs / routes/system.rs / handlers/ai_analysis_handler.rs / handlers/ai_extend_handler.rs
 
+#### P0-F01 dye_batch 表缺少 dye_lot_no 字段 ✅ 已完成（Batch 469 / PR #644）
+
+- **来源**：batch-04 P0-04-1/2（类四）
+- **业务背景**：面料行业四维标识 product_id + color_no + dye_lot_no + batch_no，dye_batch 主表历史缺失 dye_lot_no 字段，导致四层级联断裂、成本归集不完整、缸号追溯失效（30+ 张表已实现此字段，唯独主表缺失）
+- **术语澄清（用户 2026-07-17 明确）**：
+  - 缸号（batch_no）= 染色批次号（同一概念不同叫法）
+  - 染色批号（dye_lot_no）= 面料行业 lot 概念，防色差混批
+  - 已固化到 MEMORY.md/MEMORY-SU.md 第四节基础规范"面料行业业务术语"
+- **修复内容**（4 文件）：
+  1. migration 048：新增 `dye_batch.dye_lot_no VARCHAR(50) NOT NULL DEFAULT 'DEFAULT'` + 索引 `idx_dye_batch_dye_lot_no`，历史数据回填 DEFAULT
+  2. backend/src/models/dye_batch.rs：Model struct 新增 `dye_lot_no: String` 字段
+  3. backend/src/handlers/dye_batch_handler.rs：
+     - CreateDyeBatchRequest/UpdateDyeBatchRequest/DyeBatchListQuery 接入 dye_lot_no
+     - list/export 查询过滤接入 `DyeLotNo.contains`
+     - create 设置 dye_lot_no（默认 DEFAULT）
+     - update 支持更新 dye_lot_no
+     - export 表头新增"染色批号"列
+  4. backend/src/services/dye_batch_cost_bridge_service.rs：
+     - handle_dye_batch_completed 通过 batch_id 查询 dye_batch 获取 dye_lot_no
+     - 查询失败/未找到时降级为 None 并 warn 日志（不阻断 cost_collection 创建）
+     - 传入 CreateCostCollectionRequest.dye_lot_no（原写死 None）
+- **CI**：13/13 全绿（一次过，Rust Clippy/单元测试/后端构建全通过）
+- **关联文件**：migration 048 / dye_batch.rs / dye_batch_handler.rs / dye_batch_cost_bridge_service.rs
+
 ---
 
 ## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
