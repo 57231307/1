@@ -249,7 +249,7 @@ impl InventoryTransferService {
         }
 
         // 返回调拨详情
-        self.get_transfer_detail(transfer_id).await
+        self.get_transfer_detail(transfer_id, None).await
     }
 
     /// 接收库存调拨
@@ -596,7 +596,7 @@ impl InventoryTransferService {
         }
 
         // 返回调拨详情
-        self.get_transfer_detail(transfer_id).await
+        self.get_transfer_detail(transfer_id, None).await
     }
 
     /// 列出调拨单的所有明细项
@@ -605,7 +605,7 @@ impl InventoryTransferService {
         transfer_id: i32,
     ) -> Result<Vec<InventoryTransferItemDetail>, AppError> {
         // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
-        self.get_transfer_detail(transfer_id).await?;
+        self.get_transfer_detail(transfer_id, None).await?;
         let items = InventoryTransferItemEntity::find()
             .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
             .order_by(inventory_transfer_item::Column::Id, Order::Asc)

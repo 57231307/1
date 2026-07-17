@@ -36,6 +36,7 @@ pub struct ApproveTransferRequest {
 
 /// 获取库存调拨列表
 pub async fn list_transfers(
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<InventoryTransferQuery>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
@@ -45,6 +46,8 @@ pub async fn list_transfers(
         page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let transfers = transfer_service
         .list_transfers(
@@ -53,6 +56,7 @@ pub async fn list_transfers(
             query.from_warehouse_id,
             query.to_warehouse_id,
             query.transfer_no,
+            Some(&data_scope_ctx),
         )
         .await?;
 
@@ -69,11 +73,16 @@ pub async fn list_transfers(
 
 /// 获取库存调拨详情
 pub async fn get_transfer(
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
-    let transfer = transfer_service.get_transfer_detail(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let transfer = transfer_service
+        .get_transfer_detail(id, Some(&data_scope_ctx))
+        .await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(transfer_json)))
