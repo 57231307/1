@@ -213,6 +213,9 @@ pub async fn update_lead(
     Json(req): Json<UpdateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_lead + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_lead(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let res = service.update_lead(id, req, auth.user_id).await?;
     let value =
@@ -226,6 +229,9 @@ pub async fn delete_lead(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_lead + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_lead(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete_lead(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
@@ -396,6 +402,9 @@ pub async fn update_opportunity(
     Json(req): Json<UpdateOpportunityRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_opportunity + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let res = service.update_opportunity(id, req, auth.user_id).await?;
     let value =
@@ -409,6 +418,9 @@ pub async fn delete_opportunity(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_opportunity + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete_opportunity(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))

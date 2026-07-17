@@ -187,6 +187,7 @@ pub async fn create_finance_invoice(
 
 pub async fn update_finance_invoice(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateFinanceInvoiceDto>,
 ) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
@@ -196,6 +197,10 @@ pub async fn update_finance_invoice(
         .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = FinanceInvoiceService::new(state.db.clone());
+
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_invoice + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let _ = service.get_invoice(id, Some(&data_scope_ctx)).await?;
 
     // service.update_invoice 仍接收 serde_json::Value，
     // 将强类型 DTO 序列化为 Value 传入以保持服务层签名兼容。
@@ -229,6 +234,10 @@ pub async fn delete_finance_invoice(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
+
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_invoice + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let _ = service.get_invoice(id, Some(&data_scope_ctx)).await?;
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service

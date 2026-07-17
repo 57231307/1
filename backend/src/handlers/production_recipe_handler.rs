@@ -119,11 +119,15 @@ pub async fn get(
 /// PUT /api/v1/erp/production-recipes/:id - 更新大货处方（仅 draft 状态）
 pub async fn update(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateProductionRecipeRequest>,
 ) -> Result<Json<ApiResponse<production_recipe::Model>>, AppError> {
-    let updated = recipe_service(&state).update(id, req).await?;
+    let service = recipe_service(&state);
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.update(id, req).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "大货处方单更新成功",
@@ -133,10 +137,14 @@ pub async fn update(
 /// DELETE /api/v1/erp/production-recipes/:id - 软删除大货处方（仅 draft 状态）
 pub async fn delete(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    recipe_service(&state).delete(id).await?;
+    let service = recipe_service(&state);
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    service.delete(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "大货处方单删除成功",
