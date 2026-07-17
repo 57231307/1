@@ -13,6 +13,8 @@
 use crate::models::status::inventory_count as count_status;
 use crate::models::{inventory_count, inventory_count_item, inventory_stock};
 use crate::services::audit_log_service::AuditLogService;
+// V15 P0-S01：行级数据权限工具
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 // 批次 359 v13 复审 B-P1-2 修复：导入 BusinessEvent 和 EVENT_BUS，
 // 在 approve_count commit 成功后发布 InventoryCountCompleted 事件，
@@ -164,12 +166,16 @@ impl InventoryCountService {
     }
 
     /// 查询盘点单列表（分页）
+    ///
+    /// V15 P0-S01：新增 data_scope 参数，按行级数据权限过滤。
+    /// inventory_count 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
     pub async fn list_counts(
         &self,
         page: u64,
         page_size: u64,
         warehouse_id: Option<i32>,
         status: Option<String>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<inventory_count::Model>, u64), AppError> {
         let mut query = inventory_count::Entity::find();
         if let Some(wid) = warehouse_id {
@@ -177,6 +183,16 @@ impl InventoryCountService {
         }
         if let Some(s) = status {
             query = query.filter(inventory_count::Column::Status.eq(s));
+        }
+        // V15 P0-S01：行级数据权限过滤
+        // inventory_count 表无 department_id，Dept 退化为 Self，使用 created_by（Option<i32>）。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                inventory_count::Column::CreatedBy,
+                inventory_count::Column::CreatedBy, // 无 department_id，Dept 退化为 Self，复用 created_by
+            );
         }
         // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
@@ -187,11 +203,27 @@ impl InventoryCountService {
     }
 
     /// 查询盘点单详情
-    pub async fn get_count(&self, count_id: i32) -> Result<CountDetail, AppError> {
+    ///
+    /// V15 P0-S01：新增 data_scope 参数，对单资源做 IDOR 校验。
+    /// inventory_count 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
+    pub async fn get_count(
+        &self,
+        count_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<CountDetail, AppError> {
         let count = inventory_count::Entity::find_by_id(count_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
+        // V15 P0-S01：行级数据权限 IDOR 校验
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, count.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问盘点单 {}（数据范围限制）",
+                    count_id
+                )));
+            }
+        }
         let items = inventory_count_item::Entity::find()
             .filter(inventory_count_item::Column::CountId.eq(count_id))
             .order_by(inventory_count_item::Column::Id, Order::Asc)
