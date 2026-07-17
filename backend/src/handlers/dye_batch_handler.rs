@@ -165,7 +165,8 @@ pub async fn create_dye_batch(
         format!("DB-{}-{:04}", timestamp, random)
     });
 
-    // V15 P0-F01：dye_lot_no 默认 'DEFAULT'，新接口允许调用方传入实际染缸号
+    // V15 P0-F01：dye_lot_no 默认 'DEFAULT'，新接口允许调用方传入实际染色批号
+    // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
     let dye_lot_no = req.dye_lot_no.unwrap_or_else(|| "DEFAULT".to_string());
 
     let batch = dye_batch::ActiveModel {
@@ -399,7 +400,7 @@ pub async fn export_dye_batches(
         headers: vec![
             "ID".to_string(),
             "缸号".to_string(),
-            "染色批次号".to_string(),
+            "染色批号".to_string(),
             "色号".to_string(),
             "坯布ID".to_string(),
             "计划数量".to_string(),

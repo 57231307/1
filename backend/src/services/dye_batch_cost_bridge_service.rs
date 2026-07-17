@@ -147,7 +147,8 @@ impl DyeBatchCostBridgeServiceInternal {
         let cost_service = CostCollectionService::new(self.db.clone());
 
         // V15 P0-F01：通过 batch_id 查询 dye_batch 表获取 dye_lot_no
-        // 历史数据回填为 'DEFAULT'，新数据由创建接口传入实际染缸号
+        // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
+        // 历史数据回填为 'DEFAULT'，新数据由创建接口传入实际染色批号
         let dye_lot_no = match dye_batch::Entity::find_by_id(batch_id).one(&*self.db).await {
             Ok(Some(batch)) => Some(batch.dye_lot_no),
             Ok(None) => {
