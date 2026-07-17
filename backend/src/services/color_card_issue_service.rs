@@ -119,6 +119,21 @@ pub struct ListIssuesQuery {
     pub to_date: Option<chrono::DateTime<Utc>>,
 }
 
+/// 发放参数（封装以避免 clippy::too_many_arguments）
+///
+/// 由 handler 从 DTO 转换而来，传给 ColorCardIssueService::issue。
+#[derive(Debug, Clone)]
+pub struct IssueParams {
+    pub color_card_id: i64,
+    pub customer_id: i64,
+    pub issued_by: i64,
+    pub issue_qty: i32,
+    pub expected_return_date: Option<chrono::NaiveDate>,
+    pub purpose: Option<String>,
+    pub remark: Option<String>,
+    pub dye_lot_no: Option<String>,
+}
+
 /// 发放管理服务
 pub struct ColorCardIssueService {
     db: Arc<DatabaseConnection>,
@@ -233,40 +248,33 @@ impl ColorCardIssueService {
     /// 5 道闸门校验通过后插入 color_card_issues 表
     pub async fn issue(
         &self,
-        color_card_id: i64,
-        customer_id: i64,
-        issued_by: i64,
-        issue_qty: i32,
-        expected_return_date: Option<chrono::NaiveDate>,
-        purpose: Option<String>,
-        remark: Option<String>,
-        dye_lot_no: Option<String>,
+        params: IssueParams,
     ) -> Result<color_card_issue::Model, IssueError> {
         // 5 道闸门校验
         self.validate_issue_gates(
-            color_card_id,
-            customer_id,
-            issue_qty,
-            expected_return_date,
+            params.color_card_id,
+            params.customer_id,
+            params.issue_qty,
+            params.expected_return_date,
         )
         .await?;
 
         let now = Utc::now();
         let active = IssueActive {
             id: Default::default(),
-            color_card_id: Set(color_card_id),
-            customer_id: Set(customer_id),
-            issue_qty: Set(issue_qty),
-            issued_by: Set(issued_by),
+            color_card_id: Set(params.color_card_id),
+            customer_id: Set(params.customer_id),
+            issue_qty: Set(params.issue_qty),
+            issued_by: Set(params.issued_by),
             issued_at: Set(now),
-            expected_return_date: Set(expected_return_date),
+            expected_return_date: Set(params.expected_return_date),
             actual_return_date: Set(None),
             status: Set(IssueStatus::Issued.as_str().to_string()),
-            purpose: Set(purpose),
-            remark: Set(remark),
+            purpose: Set(params.purpose),
+            remark: Set(params.remark),
             compensation_amount: Set(None),
             returned_by: Set(None),
-            dye_lot_no: Set(dye_lot_no),
+            dye_lot_no: Set(params.dye_lot_no),
             created_at: Set(now),
             updated_at: Set(now),
             is_deleted: Set(false),

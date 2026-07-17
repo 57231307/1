@@ -74,11 +74,12 @@ pub struct ColorItemInfo {
     pub sequence: i32,
 }
 
-/// 借出记录信息（V15 P0-F03 已删除，borrow 模式废弃）
-///
-/// 历史说明：原 BorrowRecordInfo struct 已随 color_card_borrow_records 表重命名为 _legacy
-/// 而废弃。新的发放记录响应 DTO 在 handlers/color_card/issue.rs 中定义为 IssueRecordInfo。
-/// 此占位注释保留以说明删除原因，CI 不会因注释报警告。
+// 借出记录信息（V15 P0-F03 已删除，borrow 模式废弃）
+//
+// 历史说明：原 BorrowRecordInfo struct 已随 color_card_borrow_records 表重命名为 _legacy
+// 而废弃。新的发放记录响应 DTO 在 handlers/color_card/issue.rs 中定义为 IssueRecordInfo。
+// 此占位注释保留以说明删除原因，CI 不会因注释报警告。
+// 注释类型用 `//`（非 `///`），避免触发 clippy::empty_line_after_doc_comment。
 
 /// 扫码查询响应（包含色彩空间 + 配方 + 价格）
 #[derive(Debug, Serialize, Clone)]

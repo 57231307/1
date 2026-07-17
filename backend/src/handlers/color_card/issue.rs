@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::middleware::auth_context::AuthContext;
 use crate::models::color_card_issue;
 use crate::services::color_card_issue_service::{
-    ColorCardIssueService, IssueError, ListIssuesQuery,
+    ColorCardIssueService, IssueError, IssueParams, ListIssuesQuery,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -140,19 +140,18 @@ pub async fn issue_color_card(
     let user_id = auth.user_id as i64;
     let service = ColorCardIssueService::from_state(&state);
 
-    let record = service
-        .issue(
-            dto.color_card_id,
-            dto.customer_id,
-            user_id,
-            dto.issue_qty.unwrap_or(1),
-            dto.expected_return_date,
-            dto.purpose,
-            dto.remark,
-            dto.dye_lot_no,
-        )
-        .await
-        .map_err(issue_err)?;
+    let params = IssueParams {
+        color_card_id: dto.color_card_id,
+        customer_id: dto.customer_id,
+        issued_by: user_id,
+        issue_qty: dto.issue_qty.unwrap_or(1),
+        expected_return_date: dto.expected_return_date,
+        purpose: dto.purpose,
+        remark: dto.remark,
+        dye_lot_no: dto.dye_lot_no,
+    };
+
+    let record = service.issue(params).await.map_err(issue_err)?;
 
     Ok(Json(ApiResponse::success(record.into())))
 }
