@@ -87,6 +87,8 @@ pub fn warehouses() -> Router<AppState> {
         .route("/warehouses", get(warehouse_handler::list))
         .route("/warehouses", post(warehouse_handler::create))
         .route("/warehouses/select", get(warehouse_handler::list))
+        // V15 P0-S12 修复（Batch 475c）：仓库导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route("/warehouses/export", get(warehouse_handler::export_warehouses))
         .route("/warehouses/:id", get(warehouse_handler::get))
         .route("/warehouses/:id", put(warehouse_handler::update))
         .route("/warehouses/:id", delete(warehouse_handler::delete))

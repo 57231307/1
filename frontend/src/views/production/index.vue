@@ -84,7 +84,15 @@ import PrdDetail from './components/PrdDetail.vue'
 
 // 业务状态
 const prd = usePrd()
-const prdProc = usePrdProc({ data: prd.data, refresh: prd.refresh })
+// V15 P0-S12 修复（Batch 475c）：传入 getQueryParams，导出时传递列表筛选条件
+const prdProc = usePrdProc({
+  data: prd.data,
+  refresh: prd.refresh,
+  getQueryParams: () => ({
+    status: prd.queryParams.status as string | undefined,
+    product_id: prd.queryParams.product_id as number | undefined,
+  }),
+})
 
 // 对话框状态
 const dialogVisible = ref(false)

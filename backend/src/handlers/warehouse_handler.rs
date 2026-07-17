@@ -15,9 +15,16 @@ use crate::services::warehouse_service::WarehouseService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+// V15 P0-S12/P0-S15 修复（Batch 475c）：导出端点使用水印版 xlsx 工具
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+// V15 P0-S11：导出审计日志写入所需依赖
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use std::sync::Arc;
 
 /// 查询参数 - 仓库列表
-#[derive(Debug, Deserialize, Validate)]
+// V15 P0-S12 修复（Batch 475c）：派生 Clone，export_warehouses 需要 clone 后覆盖分页参数用于全量导出
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct WarehouseListQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
@@ -246,4 +253,143 @@ pub async fn delete_location(
     >(&*state.db, "warehouse_location", id, Some(auth.user_id))
     .await?;
     Ok(Json(ApiResponse::success_with_message((), "库位删除成功")))
+}
+
+// ========== 数据导出接口 ==========
+
+/// 导出仓库列表
+///
+/// V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志
+///
+/// 规则 3：导出统一使用 xlsx 格式
+/// V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+/// V15 P0-S15：水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
+///
+/// 重要：warehouse 表无行级数据权限，直接调 `service.list` 复用筛选条件
+pub async fn export_warehouses(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<WarehouseListQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = WarehouseService::new(state.db.clone());
+
+    // V15 P0-S12 修复（Batch 475c）：导出全量数据
+    // service.list 内部已处理 status/search 筛选，传 page=1/page_size=10000 取全部
+    let mut export_query = query.clone();
+    export_query.page = Some(1);
+    export_query.page_size = Some(10000);
+
+    let result = service.list(export_query).await?;
+
+    // 保存真实记录数
+    let row_count = result.items.len();
+
+    // 序列化为 JSON 以统一字段处理
+    let warehouses_json: Vec<serde_json::Value> = result
+        .items
+        .into_iter()
+        .map(|w| serde_json::to_value(w).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // 构造 xlsx 表格数据
+    let headers: Vec<String> = vec![
+        "ID".to_string(),
+        "仓库编码".to_string(),
+        "仓库名称".to_string(),
+        "地址".to_string(),
+        "城市".to_string(),
+        "省份".to_string(),
+        "国家".to_string(),
+        "电话".to_string(),
+        "邮箱".to_string(),
+        "经理ID".to_string(),
+        "是否启用".to_string(),
+        "备注".to_string(),
+        "容量".to_string(),
+        "创建时间".to_string(),
+        "更新时间".to_string(),
+    ];
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(warehouses_json.len());
+    for w in warehouses_json {
+        let obj = w.as_object().ok_or_else(|| {
+            AppError::internal("仓库序列化失败：期望 JSON 对象")
+        })?;
+        let get_str = |key: &str| -> String {
+            obj.get(key)
+                .map(|v| {
+                    if v.is_null() {
+                        String::new()
+                    } else if v.is_string() {
+                        v.as_str().unwrap_or("").to_string()
+                    } else {
+                        v.to_string()
+                    }
+                })
+                .unwrap_or_default()
+        };
+        rows.push(vec![
+            get_str("id"),
+            get_str("warehouse_code"),
+            get_str("name"),
+            get_str("address"),
+            get_str("city"),
+            get_str("province"),
+            get_str("country"),
+            get_str("phone"),
+            get_str("email"),
+            get_str("manager_id"),
+            get_str("is_active"),
+            get_str("notes"),
+            get_str("capacity"),
+            get_str("created_at"),
+            get_str("updated_at"),
+        ]);
+    }
+
+    let table = XlsxTable {
+        sheet_name: "仓库列表".to_string(),
+        headers,
+        rows,
+    };
+
+    let filename = format!(
+        "warehouses_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("warehouse".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出仓库列表（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/warehouses/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "status_filter": query.status,
+            "search_filter": query.search,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    // V15 P0-S15 修复（Batch 475c）：注入水印（操作员/导出时间/导出条数）
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("仓库导出（共 {} 条）", row_count)),
+    };
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
