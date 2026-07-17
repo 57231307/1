@@ -23,6 +23,7 @@ use crate::models::ai_quality_prediction::{
     ActiveModel as QualityActiveModel, Column as QualityColumn, Entity as QualityEntity,
     Model as QualityModel,
 };
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 
 use super::ai::quality_pred::{QualityPredRequest, QualityPredResponse};
@@ -177,9 +178,14 @@ impl AiExtendService {
     }
 
     /// 工艺优化列表查询
+    ///
+    /// V15 P0-S27：注入行级数据权限过滤。
+    /// AI 推理记录语义为"我创建的工艺优化记录"，使用 created_by（i64 可空）作为 owner_column；
+    /// AI 表无 department_id 字段，Dept 范围退化为 Self（与 CRM/销售域一致）。
     pub async fn list_process_optimizations(
         &self,
         q: ListProcessOptQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<ProcessOptListVo, AppError> {
         let page = q.page.unwrap_or(1).clamp(1, 1000);
         let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
@@ -196,6 +202,15 @@ impl AiExtendService {
         }
         if let Some(s) = &q.source {
             select = select.filter(ProcessColumn::Source.eq(s));
+        }
+        // V15 P0-S27：注入数据范围过滤（无 department_id，Dept 退化为 Self，复用 created_by）
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                ProcessColumn::CreatedBy,
+                ProcessColumn::CreatedBy, // 占位：Dept 退化为 Self 时不会用到 dept_column
+            );
         }
 
         let total = select.clone().count(&*self.db).await?;
@@ -215,27 +230,49 @@ impl AiExtendService {
     }
 
     /// 工艺优化详情
+    ///
+    /// V15 P0-S27：注入归属校验（IDOR 防护）。
     pub async fn get_process_optimization(
         &self,
         id: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<ProcessModel, AppError> {
         let model = ProcessEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
+        // V15 P0-S27：校验归属（created_by 为 i64，需转为 i32 比对 user_id）
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+                return Err(AppError::permission_denied("无权访问该工艺优化记录"));
+            }
+        }
         Ok(model)
     }
 
     /// 按色号 + 布类查询工艺优化历史
+    ///
+    /// V15 P0-S27：注入行级数据权限过滤。
     pub async fn list_process_optimizations_by_color(
         &self,
         color_no: &str,
         fabric_type: &str,
         limit: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<ProcessModel>, AppError> {
-        let items = ProcessEntity::find()
+        let mut select = ProcessEntity::find()
             .filter(ProcessColumn::ColorNo.eq(color_no))
-            .filter(ProcessColumn::FabricType.eq(fabric_type))
+            .filter(ProcessColumn::FabricType.eq(fabric_type));
+        // V15 P0-S27：注入数据范围过滤
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                ProcessColumn::CreatedBy,
+                ProcessColumn::CreatedBy,
+            );
+        }
+        let items = select
             .order_by_desc(ProcessColumn::CreatedAt)
             .limit(limit.min(50))
             .all(&*self.db)
@@ -244,15 +281,24 @@ impl AiExtendService {
     }
 
     /// 标记工艺优化已应用 + 反馈打分
+    ///
+    /// V15 P0-S27：写操作前校验资源归属（防 IDOR）。
     pub async fn apply_process_optimization(
         &self,
         id: i64,
         dto: ApplyProcessOptDto,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<ProcessModel, AppError> {
         let model = ProcessEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
+        // V15 P0-S27：校验归属
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+                return Err(AppError::permission_denied("无权操作该工艺优化记录"));
+            }
+        }
 
         let now = chrono::Utc::now();
         let mut active: ProcessActiveModel = model.into();
@@ -274,10 +320,23 @@ impl AiExtendService {
     }
 
     /// 删除工艺优化记录
+    ///
+    /// V15 P0-S27：写操作前校验资源归属（防 IDOR）。
     pub async fn delete_process_optimization(
         &self,
         id: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(), AppError> {
+        // V15 P0-S27：先查记录校验归属，再删除
+        let model = ProcessEntity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+                return Err(AppError::permission_denied("无权删除该工艺优化记录"));
+            }
+        }
         let res = ProcessEntity::delete_many()
             .filter(ProcessColumn::Id.eq(id))
             .exec(&*self.db)
@@ -355,9 +414,12 @@ impl AiExtendService {
     }
 
     /// 质量预测列表查询
+    ///
+    /// V15 P0-S27：注入行级数据权限过滤。
     pub async fn list_quality_predictions(
         &self,
         q: ListQualityPredQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<QualityPredListVo, AppError> {
         let page = q.page.unwrap_or(1).clamp(1, 1000);
         let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
@@ -374,6 +436,15 @@ impl AiExtendService {
         }
         if let Some(a) = q.is_acknowledged {
             select = select.filter(QualityColumn::IsAcknowledged.eq(a));
+        }
+        // V15 P0-S27：注入数据范围过滤
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                QualityColumn::CreatedBy,
+                QualityColumn::CreatedBy,
+            );
         }
 
         let total = select.clone().count(&*self.db).await?;
@@ -393,25 +464,47 @@ impl AiExtendService {
     }
 
     /// 质量预测详情
+    ///
+    /// V15 P0-S27：注入归属校验（IDOR 防护）。
     pub async fn get_quality_prediction(
         &self,
         id: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<QualityModel, AppError> {
         let model = QualityEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
+        // V15 P0-S27：校验归属
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+                return Err(AppError::permission_denied("无权访问该质量预测记录"));
+            }
+        }
         Ok(model)
     }
 
     /// 按产品查询质量预测历史
+    ///
+    /// V15 P0-S27：注入行级数据权限过滤。
     pub async fn list_quality_predictions_by_product(
         &self,
         product_id: i64,
         limit: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<QualityModel>, AppError> {
-        let items = QualityEntity::find()
-            .filter(QualityColumn::ProductId.eq(product_id))
+        let mut select = QualityEntity::find()
+            .filter(QualityColumn::ProductId.eq(product_id));
+        // V15 P0-S27：注入数据范围过滤
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                QualityColumn::CreatedBy,
+                QualityColumn::CreatedBy,
+            );
+        }
+        let items = select
             .order_by_desc(QualityColumn::CreatedAt)
             .limit(limit.min(50))
             .all(&*self.db)
@@ -420,15 +513,24 @@ impl AiExtendService {
     }
 
     /// 标记质量预测已确认
+    ///
+    /// V15 P0-S27：写操作前校验资源归属（防 IDOR）。
     pub async fn acknowledge_quality_prediction(
         &self,
         id: i64,
         dto: AcknowledgeQualityPredDto,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<QualityModel, AppError> {
         let model = QualityEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
+        // V15 P0-S27：校验归属
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+                return Err(AppError::permission_denied("无权操作该质量预测记录"));
+            }
+        }
 
         let now = chrono::Utc::now();
         let mut active: QualityActiveModel = model.into();
@@ -441,10 +543,23 @@ impl AiExtendService {
     }
 
     /// 删除质量预测记录
+    ///
+    /// V15 P0-S27：写操作前校验资源归属（防 IDOR）。
     pub async fn delete_quality_prediction(
         &self,
         id: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(), AppError> {
+        // V15 P0-S27：先查记录校验归属，再删除
+        let model = QualityEntity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, model.created_by.map(|i| i as i32), None) {
+                return Err(AppError::permission_denied("无权删除该质量预测记录"));
+            }
+        }
         let res = QualityEntity::delete_many()
             .filter(QualityColumn::Id.eq(id))
             .exec(&*self.db)
@@ -460,15 +575,41 @@ impl AiExtendService {
     // =====================================================
 
     /// AI 概览（应用率、平均风险、最新 5 条工艺优化 + 5 条质量预测）
-    pub async fn ai_summary(&self) -> Result<serde_json::Value, AppError> {
-        let total_proc = ProcessEntity::find()
-            .count(&*self.db)
-            .await?;
-        let applied_proc = ProcessEntity::find()
+    ///
+    /// V15 P0-S27：注入行级数据权限过滤。
+    /// 看板聚合数据应受限于调用者的数据范围：销售员仅看自己创建的 AI 推理记录统计，
+    /// 部门经理看本部门（AI 表无 department_id，Dept 退化为 Self），管理员看全部。
+    pub async fn ai_summary(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<serde_json::Value, AppError> {
+        // V15 P0-S27：基础查询应用数据范围过滤
+        let mut base_proc = ProcessEntity::find();
+        if let Some(ctx) = data_scope {
+            base_proc = apply_data_scope(
+                base_proc,
+                ctx,
+                ProcessColumn::CreatedBy,
+                ProcessColumn::CreatedBy,
+            );
+        }
+        let mut base_qual = QualityEntity::find();
+        if let Some(ctx) = data_scope {
+            base_qual = apply_data_scope(
+                base_qual,
+                ctx,
+                QualityColumn::CreatedBy,
+                QualityColumn::CreatedBy,
+            );
+        }
+
+        let total_proc = base_proc.clone().count(&*self.db).await?;
+        let applied_proc = base_proc
+            .clone()
             .filter(ProcessColumn::IsApplied.eq(true))
             .count(&*self.db)
             .await?;
-        let knn_proc = ProcessEntity::find()
+        let knn_proc = base_proc
             .filter(ProcessColumn::Source.eq("knn"))
             .count(&*self.db)
             .await?;
@@ -478,24 +619,43 @@ impl AiExtendService {
             0.0
         };
 
-        let total_qual = QualityEntity::find()
-            .count(&*self.db)
-            .await?;
-        let high_risk = QualityEntity::find()
+        let total_qual = base_qual.clone().count(&*self.db).await?;
+        let high_risk = base_qual
+            .clone()
             .filter(QualityColumn::RiskLevel.eq("high"))
             .count(&*self.db)
             .await?;
-        let unack = QualityEntity::find()
+        let unack = base_qual
             .filter(QualityColumn::IsAcknowledged.eq(false))
             .count(&*self.db)
             .await?;
 
-        let latest_proc = ProcessEntity::find()
+        // 最新 5 条也需应用数据范围过滤
+        let mut latest_proc_q = ProcessEntity::find();
+        if let Some(ctx) = data_scope {
+            latest_proc_q = apply_data_scope(
+                latest_proc_q,
+                ctx,
+                ProcessColumn::CreatedBy,
+                ProcessColumn::CreatedBy,
+            );
+        }
+        let latest_proc = latest_proc_q
             .order_by_desc(ProcessColumn::CreatedAt)
             .limit(5)
             .all(&*self.db)
             .await?;
-        let latest_qual = QualityEntity::find()
+
+        let mut latest_qual_q = QualityEntity::find();
+        if let Some(ctx) = data_scope {
+            latest_qual_q = apply_data_scope(
+                latest_qual_q,
+                ctx,
+                QualityColumn::CreatedBy,
+                QualityColumn::CreatedBy,
+            );
+        }
+        let latest_qual = latest_qual_q
             .order_by_desc(QualityColumn::CreatedAt)
             .limit(5)
             .all(&*self.db)
