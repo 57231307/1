@@ -1,6 +1,7 @@
 //! CRM客户公海 Handler
 //!
 //! 提供客户公海池的列表查询、领取和回收功能
+//! V15 P0-S08 修复：新增公海规则 CRUD 接口（保护期/领取上限/最大持有数）
 
 use axum::{
     extract::{Path, Query, State},
@@ -11,6 +12,8 @@ use serde::Deserialize;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::BatchClaimRequest;
 use crate::services::crm::cust::CrmService;
+// V15 P0-S08：公海规则服务
+use crate::services::crm::pool::PoolRuleService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -245,5 +248,121 @@ pub async fn batch_claim(
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({ "claimed": claimed }),
         &msg,
+    )))
+}
+
+// =====================================================
+// V15 P0-S08 修复：公海规则 CRUD 接口
+// =====================================================
+// 提供保护期/领取上限/最大持有数规则的查询、创建、更新、删除
+// 路由前缀：/pool/rules
+
+/// 创建公海规则请求
+#[derive(Debug, Deserialize)]
+pub struct CreatePoolRuleRequest {
+    pub name: String,
+    /// 规则类型：protection_period / claim_limit / max_holdings
+    pub rule_type: String,
+    pub rule_value: i32,
+    /// 适用客户类型：all / wholesale / retail / vip
+    pub customer_type: String,
+    pub notes: Option<String>,
+}
+
+/// 更新公海规则请求
+#[derive(Debug, Deserialize)]
+pub struct UpdatePoolRuleRequest {
+    pub rule_value: Option<i32>,
+    pub is_enabled: Option<bool>,
+    pub notes: Option<String>,
+}
+
+/// GET /api/v1/erp/crm/pool/rules - 列出所有公海规则
+pub async fn list_pool_rules(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PoolRuleService::new(state.db.clone());
+    let rules = service.list_rules().await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(rules)?)))
+}
+
+/// POST /api/v1/erp/crm/pool/rules - 创建公海规则
+pub async fn create_pool_rule(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CreatePoolRuleRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 参数校验
+    if !matches!(
+        req.rule_type.as_str(),
+        "protection_period" | "claim_limit" | "max_holdings"
+    ) {
+        return Err(AppError::validation(
+            "规则类型必须为 protection_period / claim_limit / max_holdings",
+        ));
+    }
+    if !matches!(
+        req.customer_type.as_str(),
+        "all" | "wholesale" | "retail" | "vip"
+    ) {
+        return Err(AppError::validation(
+            "客户类型必须为 all / wholesale / retail / vip",
+        ));
+    }
+    if req.rule_value < 0 {
+        return Err(AppError::validation("规则数值不能为负数"));
+    }
+
+    let service = PoolRuleService::new(state.db.clone());
+    let rule = service
+        .create_rule(
+            req.name,
+            req.rule_type,
+            req.rule_value,
+            req.customer_type,
+            req.notes,
+        )
+        .await?;
+
+    tracing::info!("用户 {} 创建公海规则 id={}", auth.username, rule.id);
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(rule)?,
+        "公海规则创建成功",
+    )))
+}
+
+/// PUT /api/v1/erp/crm/pool/rules/:id - 更新公海规则
+pub async fn update_pool_rule(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<UpdatePoolRuleRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PoolRuleService::new(state.db.clone());
+    let rule = service
+        .update_rule(id, req.rule_value, req.is_enabled, req.notes)
+        .await?;
+
+    tracing::info!("用户 {} 更新公海规则 id={}", auth.username, id);
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(rule)?,
+        "公海规则更新成功",
+    )))
+}
+
+/// DELETE /api/v1/erp/crm/pool/rules/:id - 删除公海规则
+pub async fn delete_pool_rule(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PoolRuleService::new(state.db.clone());
+    service.delete_rule(id).await?;
+
+    tracing::info!("用户 {} 删除公海规则 id={}", auth.username, id);
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({ "id": id }),
+        "公海规则删除成功",
     )))
 }

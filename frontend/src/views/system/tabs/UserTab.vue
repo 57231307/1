@@ -63,8 +63,8 @@
           <template #default="{ row }">
             <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
             <!-- v11 批次 166 P2-1 修复：row as any 改为 row as User -->
-            <el-button v-permission="'user:update'" size="small" link @click="openUserDialog(row as User)">编辑</el-button>
-            <el-button v-permission="'user:delete'" size="small" link type="danger" @click="deleteUser(row as User)"
+            <el-button v-permission="PERMISSIONS.USER_UPDATE" size="small" link @click="openUserDialog(row as User)">编辑</el-button>
+            <el-button v-permission="PERMISSIONS.USER_DELETE" size="small" link type="danger" @click="deleteUser(row as User)"
               >删除</el-button
             >
           </template>
@@ -128,6 +128,8 @@ import {
   type User,
 } from '@/api/user'
 import { useTableApi } from '@/composables/useTableApi'
+// Batch 462 P0-S24：引入权限码常量，与后端 users 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 // 批次 32 v7 P0-2：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' })

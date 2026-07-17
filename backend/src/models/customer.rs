@@ -93,6 +93,14 @@ pub struct Model {
 
     /// 验货标准
     pub inspection_standard: Option<String>,
+
+    /// 业务负责人用户 ID（0 表示未分配/公海客户）
+    /// V15 P0-S08 修复：客户主数据行级数据权限归属字段
+    pub owner_id: i32,
+
+    /// 业务负责人分配时间（用于公海保护期校验）
+    /// V15 P0-S08 修复：保护期 = now - owner_assigned_at < protection_period
+    pub owner_assigned_at: Option<DateTime<Utc>>,
 }
 
 /// 客户 Relation

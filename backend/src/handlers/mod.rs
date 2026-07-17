@@ -144,6 +144,8 @@ pub mod bpm_definition_handler;
 pub mod crm_assignment_handler;
 pub mod crm_customer_handler;
 pub mod crm_pool_handler;
+// V15 P0-S08 修复：客户转移审批 handler
+pub mod customer_transfer_approval_handler;
 // 系统级功能模块
 pub mod audit_enhanced_handler;
 pub mod audit_log_handler;

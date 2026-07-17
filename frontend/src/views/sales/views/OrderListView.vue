@@ -9,7 +9,7 @@
   <div class="sales-page">
     <div class="page-header">
       <h2 class="page-title">销售订单管理</h2>
-      <el-button type="primary" @click="onCreate">
+      <el-button v-permission="PERMISSIONS.SALES_ORDER_CREATE" type="primary" @click="onCreate">
         <el-icon><Plus /></el-icon> 新建订单
       </el-button>
     </div>
@@ -72,6 +72,8 @@ import OlvTbl from '../components/OlvTbl.vue'
 import OrderFormDialog from '../OrderFormDialog.vue'
 import OrderViewDialog from '../OrderViewDialog.vue'
 import DeliveryDialog from '../DeliveryDialog.vue'
+// Batch 468 P0-S28：引入权限码常量，与后端 sales-orders 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 const olv = useOlv()
 const olvProc = useOlvProc({

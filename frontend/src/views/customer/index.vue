@@ -20,7 +20,7 @@
       </div>
       <div class="header-actions">
         <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
-        <el-button v-permission="'customers:create'" type="primary" @click="openCreateDialog">
+        <el-button v-permission="PERMISSIONS.CUSTOMER_CREATE" type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>
           新建客户
         </el-button>
@@ -92,7 +92,7 @@
           <template #default="{ row }">
             <!-- P3 维度 10 修复（批次 87）：编辑/删除按钮补齐 v-permission -->
             <el-button
-              v-permission="'customers:update'"
+              v-permission="PERMISSIONS.CUSTOMER_UPDATE"
               type="primary"
               link
               size="small"
@@ -100,7 +100,7 @@
               >编辑</el-button
             >
             <el-button
-              v-permission="'customers:delete'"
+              v-permission="PERMISSIONS.CUSTOMER_DELETE"
               type="danger"
               link
               size="small"
@@ -142,6 +142,8 @@ import { exportData } from '@/utils/export'
 import { printData } from '@/utils/print'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
+// Batch 468 P0-S28：引入权限码常量，与后端 customers 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 import CustomerFormTab from './tabs/CustomerFormTab.vue'
 
 const formDialogVisible = ref(false)

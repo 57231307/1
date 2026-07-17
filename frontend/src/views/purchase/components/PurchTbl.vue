@@ -46,6 +46,7 @@
           >
           <el-button
             v-if="row.status === 'approved'"
+            v-permission="PERMISSIONS.PURCHASE_ORDER_RECEIVE"
             type="warning"
             link
             size="small"
@@ -54,6 +55,7 @@
           >
           <el-button
             v-if="row.status === 'pending'"
+            v-permission="PERMISSIONS.PURCHASE_ORDER_APPROVE"
             type="success"
             link
             size="small"
@@ -81,6 +83,8 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import type { PurchaseOrder } from '@/api/purchase'
+// Batch 468 P0-S28：引入权限码常量，与后端 purchase-orders 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 interface QueryParams {
   page: number

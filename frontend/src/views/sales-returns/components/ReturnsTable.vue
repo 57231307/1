@@ -21,7 +21,7 @@
       <template #default="{ row }">
         <el-button size="small" @click="emit('view', row)">详情</el-button>
         <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
-        <el-button v-permission="'sales_return:update'" size="small" @click="emit('edit', row)"
+        <el-button v-permission="PERMISSIONS.SALES_RETURN_UPDATE" size="small" @click="emit('edit', row)"
           >编辑</el-button
         >
         <el-button
@@ -39,6 +39,8 @@
 <script setup lang="ts">
 import type { SalesReturn } from '@/api/sales-return'
 import { getStatusType, getStatusLabel } from '../composables/srFmts'
+// Batch 462 P0-S24：引入权限码常量，与后端 sales-returns 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 defineProps<{
   list: SalesReturn[]

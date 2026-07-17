@@ -526,6 +526,9 @@ impl CrmService {
             annual_purchase: Set(None),
             quality_requirement: Set(None),
             inspection_standard: Set(None),
+            // V15 P0-S08 修复：转化客户时业务负责人继承线索 owner_id
+            owner_id: Set(lead.owner_id),
+            owner_assigned_at: Set(Some(chrono::Utc::now())),
         }
         .insert(&txn)
         .await?;

@@ -23,7 +23,8 @@ use axum::{
 
 use crate::handlers::{
     crm_assignment_handler, crm_customer_handler, crm_pool_handler, customer_credit_handler,
-    customer_handler, five_dimension_handler, missing_handlers, sales_analysis_handler,
+    customer_handler, customer_transfer_approval_handler, five_dimension_handler,
+    missing_handlers, sales_analysis_handler,
 };
 
 /// 客户管理路由（path 前缀 /customers）
@@ -220,6 +221,48 @@ pub fn crm_pool() -> Router<AppState> {
             "/pool/:customer_id/claim",
             post(crm_pool_handler::claim_specific),
         )
+        // V15 P0-S08 修复：公海规则 CRUD（保护期/领取上限/最大持有数）
+        .route(
+            "/pool/rules",
+            get(crm_pool_handler::list_pool_rules).post(crm_pool_handler::create_pool_rule),
+        )
+        .route(
+            "/pool/rules/:id",
+            put(crm_pool_handler::update_pool_rule)
+                .delete(crm_pool_handler::delete_pool_rule),
+        )
+}
+
+/// V15 P0-S08 修复：客户转移审批路由（path 前缀 /transfer-approvals）
+///
+/// 提供客户转移的多级审批流 HTTP 接口：
+/// - 销售员申请转移 → 创建审批单（pending）
+/// - 销售经理审批（普通客户通过即完成转移）
+/// - 总监审批（大客户需总监二次审批）
+/// - 申请人可取消未完成的审批单
+pub fn crm_transfer_approvals() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/transfer-approvals",
+            post(customer_transfer_approval_handler::create_approval)
+                .get(customer_transfer_approval_handler::list_approvals),
+        )
+        .route(
+            "/transfer-approvals/:id",
+            get(customer_transfer_approval_handler::get_approval),
+        )
+        .route(
+            "/transfer-approvals/:id/cancel",
+            post(customer_transfer_approval_handler::cancel_approval),
+        )
+        .route(
+            "/transfer-approvals/:id/manager-approve",
+            post(customer_transfer_approval_handler::manager_approve),
+        )
+        .route(
+            "/transfer-approvals/:id/director-approve",
+            post(customer_transfer_approval_handler::director_approve),
+        )
 }
 
 /// CRM 分配路由（path 前缀 /assignments）
@@ -373,6 +416,8 @@ pub fn routes() -> Router<AppState> {
         .merge(crm_customers())
         .merge(crm_tags())
         .merge(crm_pool())
+        // V15 P0-S08 修复：客户转移审批流
+        .merge(crm_transfer_approvals())
         .merge(crm_assignments())
         .merge(crm_sales_users())
         .merge(crm_recycle_rules())

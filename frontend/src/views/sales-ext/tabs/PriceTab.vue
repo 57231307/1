@@ -55,7 +55,7 @@
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
-            <el-button v-permission="'sales_price:update'" size="small" link @click="openPriceDialog(row as unknown as SalesPrice)"
+            <el-button v-permission="PERMISSIONS.SALES_PRICE_UPDATE" size="small" link @click="openPriceDialog(row as unknown as SalesPrice)"
               >编辑</el-button
             >
             <el-button
@@ -175,6 +175,8 @@ import {
   getSalesPrice,
   type SalesPrice,
 } from '@/api/sales-price'
+// Batch 462 P0-S24：引入权限码常量，与后端 sales-prices 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 const salesPrices = ref<SalesPrice[]>([])
 const priceLoading = ref(false)

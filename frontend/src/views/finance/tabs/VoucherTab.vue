@@ -10,7 +10,7 @@
     <div class="page-header">
       <h2 class="page-title">凭证管理</h2>
       <div class="header-actions">
-        <el-button type="primary" @click="openVoucherDialog()">
+        <el-button v-permission="PERMISSIONS.VOUCHER_CREATE" type="primary" @click="openVoucherDialog()">
           <el-icon><Plus /></el-icon>
           新建凭证
         </el-button>
@@ -84,6 +84,8 @@ import VchrTbl from './components/VchrTbl.vue'
 import VchrForm from './components/VchrForm.vue'
 import VchrDetail from './components/VchrDetail.vue'
 import type { Voucher } from '@/api/finance'
+// Batch 468 P0-S28：引入权限码常量，与后端 vouchers 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 const vchr = useVchr()
 // 使用 toRef 包装 reactive 属性为 ref，保持 useVchrProc 内部能读取最新 vouchers

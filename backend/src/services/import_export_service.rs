@@ -615,6 +615,9 @@ impl ImportExportService {
             annual_purchase: Set(None),
             quality_requirement: Set(None),
             inspection_standard: Set(None),
+            // V15 P0-S08 修复：导入客户时业务负责人默认为操作人
+            owner_id: Set(user_id),
+            owner_assigned_at: Set(Some(now)),
         };
 
         active_model.insert(&*self.db).await?;
