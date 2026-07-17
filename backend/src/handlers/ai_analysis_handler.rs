@@ -27,9 +27,17 @@ pub struct ForecastSalesQuery {
 
 pub async fn forecast_sales(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ForecastSalesQuery>,
 ) -> Result<Json<ApiResponse<Vec<SalesForecastResponse>>>, AppError> {
+    // V15 P0-S26：AI 端点权限码 ai-forecast:read（权限由 middleware 强制）
+    // V15 P0-S27 预备：记录调用者身份，为后续 data_scope 过滤铺路
+    tracing::info!(
+        user_id = auth.user_id,
+        username = %auth.username,
+        product_id = query.product_id,
+        "AI 销售预测调用"
+    );
     let service = AiAnalysisService::new(state.db);
     let days = query.days.unwrap_or(30);
 
@@ -71,9 +79,17 @@ pub struct OptimizeInventoryQuery {
 
 pub async fn optimize_inventory(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<OptimizeInventoryQuery>,
 ) -> Result<Json<ApiResponse<Vec<InventorySuggestionResponse>>>, AppError> {
+    // V15 P0-S26：AI 端点权限码 ai-inventory-opt:read
+    // V15 P0-S27 预备：记录调用者身份
+    tracing::info!(
+        user_id = auth.user_id,
+        username = %auth.username,
+        product_id = ?query.product_id,
+        "AI 库存优化调用"
+    );
     let service = AiAnalysisService::new(state.db);
 
     let suggestions = service
@@ -115,9 +131,17 @@ pub struct DetectAnomaliesQuery {
 
 pub async fn detect_anomalies(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<DetectAnomaliesQuery>,
 ) -> Result<Json<ApiResponse<Vec<AnomalyDetectionResponse>>>, AppError> {
+    // V15 P0-S26：AI 端点权限码 ai-anomaly:read
+    // V15 P0-S27 预备：记录调用者身份
+    tracing::info!(
+        user_id = auth.user_id,
+        username = %auth.username,
+        days = query.days.unwrap_or(7),
+        "AI 异常检测调用"
+    );
     let service = AiAnalysisService::new(state.db);
     let days = query.days.unwrap_or(7);
 
@@ -157,9 +181,17 @@ pub struct RecommendationsQuery {
 
 pub async fn get_recommendations(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<RecommendationsQuery>,
 ) -> Result<Json<ApiResponse<Vec<SmartRecommendationResponse>>>, AppError> {
+    // V15 P0-S26：AI 端点权限码 ai-recommendation:read
+    // V15 P0-S27 预备：记录调用者身份
+    tracing::info!(
+        user_id = auth.user_id,
+        username = %auth.username,
+        rec_type = ?query.recommendation_type,
+        "AI 智能推荐调用"
+    );
     let service = AiAnalysisService::new(state.db);
     let rec_type = query
         .recommendation_type

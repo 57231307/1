@@ -186,19 +186,22 @@ impl UserService {
         Ok(())
     }
 
-    /// V15 P0-S05 新增：检查角色互斥冲突
+    /// V15 P0-S05/P0-S23 修复：检查角色互斥冲突（真实接入）
     ///
-    /// 查询 role_conflicts 表，检查新角色 code 是否与用户当前角色 code 互斥。
+    /// 查询 role_conflicts 表，检查用户当前角色 code 与新角色 code 是否构成互斥对。
+    /// 若构成互斥对，禁止变更并返回业务错误。
     /// 互斥规则示例：制单+审核、采购+付款、生产+质量。
     ///
     /// # 参数
+    /// - `user_id`: 待变更角色的用户 ID
     /// - `new_role_id`: 用户即将分配的新角色 ID
     ///
     /// # 返回
-    /// - `Ok(())`: 无冲突
+    /// - `Ok(())`: 无冲突（或用户当前无角色、新角色不在任何互斥对中）
     /// - `Err(AppError)`: 存在互斥冲突，返回冲突描述
     pub async fn check_role_conflict_for_user(
         &self,
+        user_id: i32,
         new_role_id: i32,
     ) -> Result<(), AppError> {
         // 查询新角色的 code
@@ -207,25 +210,66 @@ impl UserService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("角色 ID {} 不存在", new_role_id)))?;
 
-        // 查询所有互斥规则，检查新角色是否在其中
+        // 查询用户当前角色（单角色模型，role_id 为 Option<i32>）
+        let current_user = user::Entity::find_by_id(user_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", user_id)))?;
+
+        // 用户当前无角色（首次分配），不构成互斥，直接放行
+        let current_role_id = match current_user.role_id {
+            Some(rid) => rid,
+            None => return Ok(()),
+        };
+
+        // 新旧角色相同，不构成互斥
+        if current_role_id == new_role_id {
+            return Ok(());
+        }
+
+        // 查询用户当前角色 code
+        let current_role = role::Entity::find_by_id(current_role_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("用户当前角色 ID {} 不存在", current_role_id))
+            })?;
+
+        // 查询所有互斥规则
         let conflicts = role_conflict::Entity::find()
             .all(self.db.as_ref())
             .await
             .map_err(|e| AppError::database(format!("查询角色互斥规则失败: {}", e)))?;
 
+        // V15 P0-S23：真实互斥校验——检查当前角色与新角色是否构成互斥对
+        // role_conflict 表约定 role_a_code < role_b_code，但此处双向匹配以容错
         for conflict in &conflicts {
-            // 新角色在互斥对中
-            if conflict.role_a_code == new_role.code || conflict.role_b_code == new_role.code {
-                // 由于单角色模型，用户只有一个角色，新角色本身在互斥对中不会与自身冲突
-                // 但如果未来支持多角色，需要查询用户当前角色并比较
-                // 当前仅记录告警日志，不阻止单角色变更
-                tracing::debug!(
+            let pair = (&conflict.role_a_code, &conflict.role_b_code);
+            let matched = pair == (&current_role.code, &new_role.code)
+                || pair == (&new_role.code, &current_role.code);
+
+            if matched {
+                // 记录安全审计日志（best-effort，不阻塞错误返回）
+                warn!(
+                    target: "security_audit",
+                    event = "ROLE_CONFLICT_BLOCKED",
+                    user_id = user_id,
+                    current_role_code = %current_role.code,
                     new_role_code = %new_role.code,
-                    conflict_a = %conflict.role_a_code,
-                    conflict_b = %conflict.role_b_code,
+                    conflict_type = %conflict.conflict_type,
                     description = ?conflict.description,
-                    "新角色属于互斥规则，当前单角色模型下不阻止变更"
+                    "角色互斥冲突，已阻止变更"
                 );
+
+                return Err(AppError::business(format!(
+                    "角色互斥冲突：当前角色「{}」与新角色「{}」互斥（{}），禁止变更",
+                    current_role.code,
+                    new_role.code,
+                    conflict
+                        .description
+                        .as_deref()
+                        .unwrap_or("职责分离互斥规则")
+                )));
             }
         }
 
@@ -298,9 +342,10 @@ impl UserService {
             user.phone = Set(Some(phone_val));
         }
         if let Some(role_id_val) = role_id {
-            // V15 P0-S05：SoD 职责分离互斥校验
-            // 检查新角色是否与用户已有角色互斥（如制单+审核、采购+付款）
-            self.check_role_conflict_for_user(role_id_val).await?;
+            // V15 P0-S05/P0-S23：SoD 职责分离互斥校验（真实接入）
+            // 检查新角色是否与用户当前角色互斥（如制单+审核、采购+付款）
+            self.check_role_conflict_for_user(user_id, role_id_val)
+                .await?;
             user.role_id = Set(Some(role_id_val));
         }
         if let Some(department_id_val) = department_id {

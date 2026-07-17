@@ -288,6 +288,12 @@ pub fn webhook_integrations() -> Router<AppState> {
 }
 
 /// AI 智能分析路由
+///
+/// V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源）
+/// 权限映射：/forecast-sales → ai-forecast:read，
+/// /optimize-inventory → ai-inventory-opt:read，
+/// /detect-anomalies → ai-anomaly:read，
+/// /recommendations → ai-recommendation:read
 pub fn ai() -> Router<AppState> {
     Router::new()
         .route("/forecast-sales", get(ai_analysis_handler::forecast_sales))
@@ -472,6 +478,14 @@ pub fn trading() -> Router<AppState> {
 /// Advanced 分析路由（nest 到 /api/v1/erp/advanced）
 ///
 /// 内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...` 完全一致。
+///
+/// V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源）
+/// 权限映射：/ai/sales-forecast → ai-forecast:read，
+/// /ai/inventory-optimization → ai-inventory-opt:read，
+/// /ai/anomaly-detection → ai-anomaly:read，
+/// /ai/recommendations → ai-recommendation:read，
+/// /ai/recipe-optimization → ai-recipe-opt:read，
+/// /ai/quality-prediction → ai-quality-pred:read
 pub fn advanced() -> Router<AppState> {
     Router::new()
         .route("/ai/sales-forecast", post(advanced::sales_forecast))

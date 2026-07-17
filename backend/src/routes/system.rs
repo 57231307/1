@@ -280,10 +280,13 @@ pub fn init() -> Router<AppState> {
 
 /// AI 分析深化路由（path 前缀 /ai）— P2-4
 ///
-/// 16 个端点：
-/// - 工艺优化 5（创建/列表/详情/应用反馈/删除）+ 1（按色号+布类历史）+ 1（批量）= 7
-/// - 质量预测 5（创建/列表/详情/确认/删除）+ 1（按产品历史）+ 1（批量）= 7
-/// - 看板 / 健康检查 = 2
+/// 16 个端点：工艺优化 7 + 质量预测 7 + 看板/健康检查 2
+///
+/// V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源）
+/// 权限映射：/ai/process-optimizations* → ai-process-opt:read/write，
+/// /ai/quality-predictions* → ai-quality-pred:read/write，
+/// /ai/summary → ai-summary:read，
+/// /ai/health → 无权限码（健康检查，公开）
 pub fn ai() -> Router<AppState> {
     Router::new()
         // 工艺优化

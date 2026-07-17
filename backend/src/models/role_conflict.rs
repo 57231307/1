@@ -1,12 +1,10 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-// V15 P0-S05：SoD 职责分离互斥角色对 model
+// V15 P0-S05/P0-S23：SoD 职责分离互斥角色对 model
 // 记录互斥角色对，防止用户同时持有冲突角色
+// P0-S23 已真实接入业务：user_service.check_role_conflict_for_user + init_service.create_default_role_conflicts
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "role_conflicts")]
