@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-470 已完成 P0 任务归档到 doto-su.md；P0 进度 55/104；剩余 49 P0 + 257 P1 + 248 P2 + 123 P3；批次大小每批 6-8 文件；用户指令变更（2026-07-17 二次）：按顺序修复所有批次，不再限制单数批次；下一批次从 471 起；用户术语澄清（2026-07-17）：缸号=染色批次号，dye_lot_no=染色批号）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-471 已完成 P0 任务归档到 doto-su.md；P0 进度 61/104；剩余 43 P0 + 257 P1 + 248 P2 + 123 P3；批次大小每批 6-8 文件；用户指令变更（2026-07-17 二次）：按顺序修复所有批次，不再限制单数批次；下一批次 472 前端 borrow.vue→issue.vue 重写；用户术语澄清（2026-07-17）：缸号=染色批次号，dye_lot_no=染色批号；Batch 471 决策保留旧表不重命名以保护 Rust migration m0029 链路）。
 
 ---
 
@@ -12,30 +12,32 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 55 | **49** | 52.9% |
+| **P0 阻塞级** | 104 | 61 | **43** | 58.7% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **55** | **677** | **7.5%** |
+| **合计** | **732** | **61** | **671** | **8.3%** |
 
-### 1.1 已完成 P0 任务（23 项，详情见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4602026-07-16--2026-07-17)）
+### 1.1 已完成 P0 任务（29 项，详情见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4602026-07-16--2026-07-17)）
 
-P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S08 / P0-S09 / P0-S10 / P0-S11 / P0-S14 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S24 / P0-S25 / P0-S26 / P0-S27 / P0-S28 / P0-F01 / P0-F02
+P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S08 / P0-S09 / P0-S10 / P0-S11 / P0-S14 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S24 / P0-S25 / P0-S26 / P0-S27 / P0-S28 / P0-F01 / P0-F02 / P0-F03 / P0-F04 / P0-F05 / P0-F06（部分，新表已建，旧表保留不重命名）/ P0-F08 / P0-F09（状态机）
 
 > V15 审计已完成（25 大类 195 维度 732 问题），详细审计进度表已归档到 [doto-su.md §V15 审计完成进度](file:///workspace/.monkeycode/doto-su.md#-v15-审计完成进度2026-07-16-全部完成)。
 
 ### 1.2 下一批次规划（按顺序连续执行）
 
 > **用户指令变更（2026-07-17 二次）**：按顺序修复所有批次，不再限制单数批次。
-> 已合并批次 460-470，下一批次从 471 起，按规则 13 自动连续执行。
+> 已合并批次 460-471，下一批次 472 前端 borrow.vue→issue.vue 重写，按规则 13 自动连续执行。
 > **用户术语澄清（2026-07-17）**：缸号（batch_no）=染色批次号（同一概念不同叫法）；dye_lot_no=染色批号（lot 概念，防色差混批）。
+> **Batch 471 决策（2026-07-17）**：保留旧表 color_card_borrow_records 不重命名为 _legacy，原因是 Rust migration m0029_drop_tenant_columns 会执行 ALTER TABLE color_card_borrow_records DROP COLUMN tenant_id，若表已重命名会导致 migration 失败；应用层不再读写该表，事实等同于 legacy。
 
 | 批次 | P0 任务 | 文件数 | 状态 |
 |------|---------|--------|------|
 | 469 | P0-F01 dye_batch 表缺少 dye_lot_no 字段（类四） | - | ✅ 已合并 PR #644 |
 | 470 | P0-F02 面料属性扩展 | - | ✅ 已合并 PR #645 |
-| 471 | P0-F03 染色配方版本化 | - | ⏳ |
-| 472+ | 剩余 P0-F04~F21 + 其他 P0 项 | - | ⏳ |
+| 471 | P0-F03~F08/F09 色卡发放模式重构-后端核心 | - | ✅ 已合并 PR #646（squash 38ee394）|
+| 472 | P0-F07 色卡发放前端 borrow.vue→issue.vue 重写 | - | ⏳ 下一个批次 |
+| 473+ | 剩余 P0-F10~F21 + 其他 P0 项 | - | ⏳ |
 
 ---
 
@@ -137,13 +139,14 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 
 ---
 
-#### 优先级 2：面料行业核心特性（20 项全部未完成）
+#### 优先级 2：面料行业核心特性（20 项，已完成 6 项：F03/F04/F05/F06部分/F08/F09，剩余 14 项含 F07 前端留待 Batch 472）
 
 ##### P0-F03 色卡发放专项——旧"借出/归还"模式完全存在（类九）
 
 - **来源**：batch-09 P0-09-1
 - **修复方案**：删除 fabric_color_card_lend_return 表的 lend_return 语义，重命名为 `fabric_color_card_lend_return_legacy`；新表走"发放"模式
 - **关联文件**：schema migrations / color_card_service.rs
+- **状态**：✅ Batch 471 已完成（删除 borrow.rs/borrow_service.rs/borrow_record.rs/borrow_dto.rs/borrow_test.rs 共 5 个旧文件）
 
 ##### P0-F04 色卡发放——新"发放"模式后端文件完全缺失（类九）
 
@@ -154,12 +157,14 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
   3. `color_card_issue.rs`（SeaORM model）
   4. migration（color_card_issue 表 DDL）
 - **关联文件**：backend/src/services/color_card_issue_service.rs / backend/src/handlers/color_card_issue_handler.rs / backend/src/models/color_card_issue.rs / migrations/
+- **状态**：✅ Batch 471 已完成（handler 拆分在 handlers/color_card/issue.rs 而非独立文件 color_card_issue_handler.rs，等效）
 
 ##### P0-F05 色卡发放——旧路由未删除，新路由未注册（类九）
 
 - **来源**：batch-09 P0-09-3
 - **修复方案**：删除 `/color-cards/lend-return` 路由组，新增 `/color-cards/issues` 路由组（POST /issues, GET /issues, GET /issues/:id, POST /issues/:id/return）
 - **关联文件**：[color_card_routes.rs](file:///workspace/backend/src/routes/color_card_routes.rs)
+- **状态**：✅ Batch 471 已完成（routes/color_card.rs 删除 /borrow/* 路由，新增 7 个 /issues/* 端点）
 
 ##### P0-F06 色卡发放——旧表未重命名为 legacy，新表未创建（类九）
 
@@ -168,12 +173,14 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
   1. RENAME TABLE `fabric_color_card_lend_return` TO `fabric_color_card_lend_return_legacy`
   2. CREATE TABLE `color_card_issue`（id, card_id, customer_id, issue_qty, issue_date, expected_return_date, actual_return_date, status, issued_by, returned_by, remark）
 - **关联文件**：migrations
+- **状态**：✅ Batch 471 已完成（部分）——migration 050 创建 color_card_issues 表（16 字段 + 5 索引），但**保留旧表 color_card_borrow_records 不重命名为 _legacy**，原因是 Rust migration m0029_drop_tenant_columns 会 ALTER TABLE color_card_borrow_records DROP COLUMN tenant_id，重命名会破坏 migration 链路；应用层不再读写该表，事实等同 legacy。
 
 ##### P0-F07 色卡发放——前端仍是借还模式（类九）
 
 - **来源**：batch-09 P0-09-5
 - **修复方案**：删除 ColorCardLendReturn.vue，创建 ColorCardIssue.vue（发放视图）
 - **关联文件**：[frontend/src/views/fabric/](file:///workspace/frontend/src/views/fabric/)
+- **状态**：⏳ 留待 Batch 472（前端 borrow.vue→issue.vue 重写）
 
 ##### P0-F08 色卡发放——发放前 5 道闸门校验未实现（类九）
 
@@ -185,12 +192,14 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
   4. 客户无未归还超期记录
   5. 客户白名单校验
 - **关联文件**：color_card_issue_service.rs
+- **状态**：✅ Batch 471 已完成（5 道闸门校验全部实现，validate_issue_gates 方法）
 
 ##### P0-F09 色卡发放——新状态流转校验未实现（类九）
 
 - **来源**：batch-09 P0-09-7
 - **修复方案**：状态机 `issued → returned / lost / scrapped`，校验流转合法性
 - **关联文件**：color_card_issue_service.rs
+- **状态**：✅ Batch 471 已完成（IssueStatus 状态机：Issued/Returned/Lost/Damaged/Cancelled，终态判定 is_terminal + FromStr 解析 + 状态流转校验 return_card/mark_lost/mark_damaged/cancel_issue 调用前检查 is_terminal）
 
 ##### P0-F10 色卡发放——库存联动未实现（类九）
 
