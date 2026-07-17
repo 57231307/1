@@ -40,7 +40,10 @@ impl ApprovalStatus {
     }
 
     /// 从数据库字符串解析
-    pub fn from_str(s: &str) -> Option<Self> {
+    ///
+    /// V15 P0-S14 clippy 修复：方法名从 from_str 改为 parse_status，
+    /// 避免与标准库 trait std::str::FromStr::from_str 冲突（clippy::should_implement_trait）
+    pub fn parse_status(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(Self::Pending),
             "approved" => Some(Self::Approved),

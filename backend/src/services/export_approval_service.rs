@@ -13,8 +13,9 @@
 use chrono::{Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    QueryOrder, Set,
 };
+// sea_orm::PaginatorTrait 提供 paginate/fetch_page 方法
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -485,16 +486,16 @@ mod tests {
 
     /// 测试审批状态解析
     #[test]
-    fn test_approval_status_from_str() {
+    fn test_approval_status_parse_status() {
         assert_eq!(
-            ApprovalStatus::from_str("pending"),
+            ApprovalStatus::parse_status("pending"),
             Some(ApprovalStatus::Pending)
         );
         assert_eq!(
-            ApprovalStatus::from_str("approved"),
+            ApprovalStatus::parse_status("approved"),
             Some(ApprovalStatus::Approved)
         );
-        assert_eq!(ApprovalStatus::from_str("unknown"), None);
+        assert_eq!(ApprovalStatus::parse_status("unknown"), None);
     }
 
     /// 测试敏感资源判断
