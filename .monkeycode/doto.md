@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-16（V15 修复阶段 Batch 433-452 完成，P0-S09/S11 全部完成 + P0-S01 销售域+采购域+生产域+CRM 域+财务域（finance+AP+AR）+库存域（调整+预留）完成；剩余 77 P0 + 257 P1 + 248 P2 + 123 P3；重新规划为小粒度批次，每批 3-5 文件）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-452b 完成，P0-S09/S11 全部完成 + P0-S01 销售域+采购域+生产域+CRM 域+财务域（finance+AP+AR）+库存域（调整+预留+盘点）完成；剩余 76 P0 + 257 P1 + 248 P2 + 123 P3；重新规划为小粒度批次，每批 3-5 文件）。
 
 ---
 
@@ -36,7 +36,8 @@
 | 451b | P0-S01 service 注入-财务域（AP 域 ap_payment+ap_payment_request） | 4 | 17.5 | ✅ 已完成 |
 | 451c | P0-S01 service 注入-财务域（AR 域 ar_service） | 3 | 17.7 | ✅ 已完成 |
 | 452 | P0-S01 service 注入-库存域（调整+预留子域） | 4 | 18 | ✅ 已完成 |
-| 452b | P0-S01 service 注入-库存域（调拨+盘点子域） | ~4 | 18.5 | 🔄 下一个 |
+| 452b | P0-S01 service 注入-库存域（盘点子域） | 2 | 18.5 | ✅ 已完成 |
+| 452c | P0-S01 service 注入-库存域（调拨子域） | ~2 | 18.6 | 🔄 下一个 |
 | 453-456 | P0-S02 IDOR 防护-handler 层 | 20 | 19-22 | ⏳ |
 | 457+ | P0-S08/S23/S24/S25/S26/S27/S28 | - | 23+ | ⏳ |
 | 470+ | P0-F01~F21 面料行业核心特性 | - | 30+ | ⏳ |
