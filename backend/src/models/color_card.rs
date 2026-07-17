@@ -28,8 +28,9 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::color_card_item::Entity")]
     Items,
-    #[sea_orm(has_many = "super::color_card_borrow_record::Entity")]
-    BorrowRecords,
+    /// V15 P0-F04：色卡发放记录关联（替代旧 BorrowRecords）
+    #[sea_orm(has_many = "super::color_card_issue::Entity")]
+    Issues,
 }
 
 impl Related<super::color_card_item::Entity> for Entity {
@@ -38,9 +39,9 @@ impl Related<super::color_card_item::Entity> for Entity {
     }
 }
 
-impl Related<super::color_card_borrow_record::Entity> for Entity {
+impl Related<super::color_card_issue::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::BorrowRecords.def()
+        Relation::Issues.def()
     }
 }
 

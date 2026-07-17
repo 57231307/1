@@ -288,10 +288,11 @@ pub mod quality_issue_dto;
 // P0-4 色卡仓储管理模型
 pub mod color_card;
 pub mod color_card_item;
-pub mod color_card_borrow_record;
+// V15 P0-F04：新增 color_card_issue（替代 color_card_borrow_record）
+pub mod color_card_issue;
 pub mod color_card_create_dto;
 pub mod color_card_item_dto;
-pub mod color_card_borrow_dto;
+// V15 P0-F03：删除 color_card_borrow_dto（borrow 模式已废弃）
 pub mod color_card_response_dto;
 // P0-5 面料多色号定价扩展模型
 pub mod color_price_history;
