@@ -128,6 +128,13 @@ pub async fn delete_reservation(
         state.db.clone(),
     );
 
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 get_reservation + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_reservation(id, Some(&data_scope_ctx))
+        .await
+        .map_err(|e| AppError::internal(format!("IDOR 校验失败: {}", e)))?;
+
     service
         .delete_reservation(id, auth.user_id)
         .await

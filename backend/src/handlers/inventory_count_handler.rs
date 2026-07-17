@@ -265,6 +265,10 @@ pub async fn update_count(
     Json(payload): Json<UpdateCountPayload>,
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_count + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_count(id, Some(&data_scope_ctx)).await?;
+
     let count_date = payload
         .count_date
         .map(|s| {
@@ -286,9 +290,14 @@ pub async fn update_count(
 /// 删除盘点单
 pub async fn delete_count(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_count + data_scope_ctx）
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_count(id, Some(&data_scope_ctx)).await?;
+
     service.delete_count(id).await?;
     Ok(Json(ApiResponse::success(())))
 }

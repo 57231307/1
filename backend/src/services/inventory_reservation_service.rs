@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
 use crate::models::status::inventory_reservation as reservation_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_data_scope, DataScopeContext};
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 
 /// 库存预留服务
@@ -166,6 +166,33 @@ impl InventoryReservationService {
         let (reservations, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((reservations, total))
+    }
+
+    /// 查询预留详情
+    ///
+    /// V15 P0-S02：新增 data_scope 参数，对单资源做 IDOR 校验。
+    /// inventory_reservation 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
+    pub async fn get_reservation(
+        &self,
+        reservation_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<inventory_reservation::Model, AppError> {
+        let reservation = InventoryReservationEntity::find_by_id(reservation_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
+
+        // V15 P0-S02：行级数据权限 IDOR 校验
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner(ctx, reservation.created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问库存预留 {}（数据范围限制）",
+                    reservation_id
+                )));
+            }
+        }
+
+        Ok(reservation)
     }
 
     /// 删除预留
