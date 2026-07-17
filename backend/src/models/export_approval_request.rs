@@ -174,22 +174,7 @@ pub enum Relation {
     Approver,
 }
 
-impl RelationTrait for Relation {
-    fn def(&self) -> RelationDef {
-        match self {
-            Self::Applicant => Relation::Applicant.def(),
-            Self::Approver => Relation::Approver.def(),
-        }
-    }
-}
-
 impl ActiveModelBehavior for ActiveModel {}
-
-impl Related<crate::models::user::Entity> for Entity {
-    fn to(&self) -> RelationDef {
-        Relation::Applicant.def()
-    }
-}
 
 /// 敏感资源类型注册表（V15 P0-S14）
 ///

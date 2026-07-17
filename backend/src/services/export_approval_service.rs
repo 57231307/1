@@ -13,14 +13,14 @@
 use chrono::{Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::models::export_approval_request::{
-    ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus, Column, Entity,
+    ActiveModel as ExportApprovalActiveModel, ApprovalStatus, Column, Entity,
     ExportParams, Model, RiskLevel, sensitive_resources,
 };
 use crate::utils::error::AppError;
@@ -121,6 +121,7 @@ impl ExportApprovalService {
 
         let now = Utc::now();
         let active = ExportApprovalActiveModel {
+            id: sea_orm::ActiveValue::NotSet,
             applicant_user_id: Set(applicant_user_id),
             applicant_username: Set(applicant_username),
             approver_user_id: Set(None),
@@ -406,11 +407,12 @@ impl ExportApprovalService {
         }
 
         let total = select.clone().count(&*self.db).await?;
-        let items = select
+        // V15 P0-S14：使用 paginator 替代 offset/limit（Select 无 offset 方法）
+        let paginator = select
             .order_by_desc(Column::CreatedAt)
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-            .all(&*self.db)
+            .paginate(&*self.db, page_size);
+        let items = paginator
+            .fetch_page(page.saturating_sub(1))
             .await?;
 
         Ok(ApprovalListVo {
