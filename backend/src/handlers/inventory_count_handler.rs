@@ -202,14 +202,23 @@ pub async fn create_count(
 
 /// 查询盘点单列表
 pub async fn list_counts(
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(params): Query<ListCountsParams>,
 ) -> Result<Json<ApiResponse<CountListResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+    // V15 P0-S01：提取行级数据权限上下文
+    let data_scope_ctx = auth.to_data_scope_context();
     let (counts, total) = service
-        .list_counts(page, page_size, params.warehouse_id, params.status)
+        .list_counts(
+            page,
+            page_size,
+            params.warehouse_id,
+            params.status,
+            Some(&data_scope_ctx),
+        )
         .await?;
     let summaries = counts
         .into_iter()
@@ -235,11 +244,14 @@ pub async fn list_counts(
 
 /// 查询盘点单详情
 pub async fn get_count(
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
-    let detail = service.get_count(id).await?;
+    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    let data_scope_ctx = auth.to_data_scope_context();
+    let detail = service.get_count(id, Some(&data_scope_ctx)).await?;
     let mut resp: CountResponse = detail.count.into();
     resp.items = detail.items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(resp)))
@@ -265,7 +277,7 @@ pub async fn update_count(
         notes: payload.notes,
     };
     let updated = service.update_count(id, req, Some(auth.user_id)).await?;
-    let detail = service.get_count(id).await?;
+    let detail = service.get_count(id, None).await?;
     let mut resp: CountResponse = updated.into();
     resp.items = detail.items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(resp)))
@@ -313,7 +325,7 @@ pub async fn submit_for_approval(
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
     let updated = service.submit_for_approval(id).await?;
-    let detail = service.get_count(id).await?;
+    let detail = service.get_count(id, None).await?;
     let mut resp: CountResponse = updated.into();
     resp.items = detail.items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(resp)))
@@ -327,7 +339,7 @@ pub async fn approve_count(
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
     let updated = service.approve_count(id, auth.user_id).await?;
-    let detail = service.get_count(id).await?;
+    let detail = service.get_count(id, None).await?;
     let mut resp: CountResponse = updated.into();
     resp.items = detail.items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(resp)))
@@ -340,7 +352,7 @@ pub async fn reject_count(
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
     let updated = service.reject_count(id).await?;
-    let detail = service.get_count(id).await?;
+    let detail = service.get_count(id, None).await?;
     let mut resp: CountResponse = updated.into();
     resp.items = detail.items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(resp)))
