@@ -138,7 +138,9 @@ import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { customerApi, type Customer } from '@/api/customer'
-import { exportData } from '@/utils/export'
+// V15 P0-S12 + P0-S15 修复（Batch 474）：客户导出改用后端带水印 xlsx 接口
+// 保留 exportData 仅用于兼容场景（本视图已切换为 exportFromBackend）
+import { exportFromBackend } from '@/utils/export'
 import { printData } from '@/utils/print'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
@@ -257,26 +259,20 @@ const handleDelete = async (row: Customer) => {
   }
 }
 
-const handleExport = () => {
-  exportData({
-    filename: '客户列表',
-    columns: [
-      { key: 'customer_code', title: '客户编码' },
-      { key: 'customer_name', title: '客户名称' },
-      { key: 'contact_person', title: '联系人' },
-      { key: 'contact_phone', title: '电话' },
-      { key: 'contact_email', title: '邮箱' },
-      { key: 'customer_type', title: '类型', formatter: v => getCustomerTypeLabel(String(v)) },
-      { key: 'province', title: '省份' },
-      {
-        key: 'credit_limit',
-        title: '信用额度',
-        formatter: v => (v ? formatCurrency(Number(v)) : '-'),
-      },
-      { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
-    ],
-    data: customers.value as unknown as Record<string, unknown>[],
-  })
+const handleExport = async () => {
+  // V15 P0-S12 + P0-S15 修复（Batch 474）：改用后端带水印 xlsx 接口
+  // - 后端 GET /crm/customers/export 已注入水印（操作员/导出时间/导出条数）
+  // - 水印在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
+  // - 行级数据权限与 list 一致（后端复用 list_customers_with_filter + to_data_scope_context）
+  // - 异步记录审计日志（OperationType::Export）
+  // queryParams 字段与 CustomerQueryParams 对齐（keyword/customer_type/status）
+  // 空字符串改为 undefined 避免后端按空字符串过滤
+  const params: Record<string, unknown> = {
+    keyword: queryParams.keyword || undefined,
+    customer_type: queryParams.customer_type || undefined,
+    status: queryParams.status || undefined,
+  }
+  await exportFromBackend('/crm/customers/export', params, 'customers_export')
 }
 
 const handlePrint = () => {

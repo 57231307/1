@@ -33,6 +33,13 @@ pub fn customers() -> Router<AppState> {
         .route("/customers", get(customer_handler::list_customers))
         .route("/customers", post(customer_handler::create_customer))
         .route("/customers/select", get(customer_handler::list_customers))
+        // V15 P0-S12 + P0-S15 新增（Batch 474）：客户列表带水印导出
+        // 路由顺序：静态路径 /customers/export 必须在 /customers/:id 之前注册，
+        // 避免 axum 把 "export" 当作 :id 参数匹配（axum matchit 静态优先，但仍按注册顺序保险）
+        .route(
+            "/customers/export",
+            get(customer_handler::export_customers),
+        )
         .route("/customers/:id", get(customer_handler::get_customer))
         .route("/customers/:id", put(customer_handler::update_customer))
         .route("/customers/:id", delete(customer_handler::delete_customer))

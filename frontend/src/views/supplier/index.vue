@@ -70,7 +70,8 @@ import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { supplierApi, type Supplier, type SupplierQueryParams } from '@/api/supplier'
-import { exportData } from '@/utils/export'
+// V15 P0-S12 + P0-S15 修复（Batch 474）：供应商导出改用后端带水印 xlsx 接口
+import { exportFromBackend } from '@/utils/export'
 import { printData } from '@/utils/print'
 import { useTableApi } from '@/composables/useTableApi'
 // Batch 468 P0-S28：引入权限码常量，与后端 suppliers 资源对齐
@@ -230,21 +231,18 @@ const handleSubmit = async () => {
   }
 }
 
-const handleExport = () => {
-  exportData({
-    filename: '供应商列表',
-    columns: [
-      { key: 'supplier_code', title: '供应商编码' },
-      { key: 'supplier_name', title: '供应商名称' },
-      { key: 'supplier_short_name', title: '简称' },
-      { key: 'contact_phone', title: '联系电话' },
-      { key: 'email', title: '邮箱' },
-      { key: 'grade', title: '等级' },
-      { key: 'supplier_type', title: '类型' },
-      { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
-    ],
-    data: suppliers.value as unknown as Record<string, unknown>[],
-  })
+const handleExport = async () => {
+  // V15 P0-S12 + P0-S15 修复（Batch 474）：改用后端带水印 xlsx 接口
+  // - 后端 GET /purchase/suppliers/export 已注入水印（操作员/导出时间/导出条数）
+  // - 行级数据权限与 list 一致
+  // - 异步记录审计日志（OperationType::Export）
+  // queryParams 字段与 SupplierQueryParams 对齐（keyword/grade/status）
+  const params: Record<string, unknown> = {
+    keyword: queryParams.keyword || undefined,
+    grade: queryParams.grade || undefined,
+    status: queryParams.status || undefined,
+  }
+  await exportFromBackend('/purchase/suppliers/export', params, 'suppliers_export')
 }
 
 const handlePrint = () => {
