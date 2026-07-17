@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-460 完成，P0-S01 + P0-S02 IDOR 防护全部完成（22 个 handler 函数）；新增规则 16 工具连接异常重试策略；PR #611~#642 已合并；规则 13 二次迭代：12 步流程含确定验证+格式验证两道前置门；Batch 460 P0-S27 AI 推理数据范围过滤完成；用户指令变更：仅执行单数（奇数）批次，双数批次跳过）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-468 完成，P0 进度 53/104；PR #611~#643 已合并；规则 13 二次迭代：12 步流程含确定验证+格式验证两道前置门；Batch 461 P0-S14 敏感数据导出二级审批完成；用户指令变更（二次）：按顺序修复所有批次，不再限制单数批次）。
 
 ---
 
@@ -11,6 +11,10 @@
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
 | 460 | #642 | V15 P0-S27 AI 推理数据范围未过滤：ai_extend_service.rs 7 个查询方法注入 apply_data_scope 过滤（created_by 为 owner_column，AI 表无 department_id，Dept 退化为 Self）+ 4 个写操作 check_resource_owner 校验防 IDOR + ai_summary 看板聚合 5 处子查询应用 data_scope；ai_extend_handler.rs 11 个查询/写操作端点改 _auth 为 auth，提取 to_data_scope_context() 传入 service；3 个 create/batch 端点保留原 auth；错误用 AppError::permission_denied(403)（修正不存在的 forbidden 方法）；规则 13 二次迭代后首个批次，验证 12 步流程含确定验证+格式验证两道前置门 |
+| 461 | #643 | V15 P0-S14 敏感数据导出二级审批机制：新增 migration 047（export_approval_request 表 29 字段 + 6 索引）+ export_approval_request model（ApprovalStatus/RiskLevel 枚举 + sensitive_resources 模块）+ export_approval_service（create/approve/reject/cancel/verify_download_token/record_download/list/get/cleanup 9 方法 + 风险等级评估 + 5min token 防重放）+ handler 7 端点 + 路由挂载；CI 6 轮迭代修复：DeriveRelation 冲突/offset→paginator/parse_status 重命名/删除死代码 notify_pending_approval+approval_notification/消除 empty_line_after_doc_comment/消除 main 上 Batch 460 引入的 applicant_name 警告（info! 日志追加用户名） |
+| 462 | - | V15 P0-S24 前后端权限边界一致性修复（场景 A+B 核心，7 文件）：新建 frontend/src/constants/permissions.ts 单一真相源；UserTab.vue/warehouse/index.vue 单复数校正（user→users, warehouse→warehouses）；CI 12/12 全绿 |
+| 464 | - | V15 P0-S25 行级数据权限 RLS 策略启用（5 张敏感表）：新增 backend/database/rls.sql 集中定义；customers/suppliers/sales_orders/crm_lead/crm_opportunity 启用 RLS；CI 12/12 全绿 |
+| 468 | - | V15 P0-S28 前端 v-permission 覆盖率提升（核心写操作按钮，7 文件）：permissions.ts 补充 SALES_ORDER_*/PURCHASE_ORDER_*/VOUCHER_*/INVENTORY_TRANSFER 常量；customer/supplier 等视图硬编码常量化；CI 12/12 全绿 |
 
 | 433 | #611 | V15 P0-S03 修复超级权限注入漏洞：auth_handler.rs 将 is_system 判断改为 code==ADMIN_ROLE_CODE，仅 admin 注入超级通配权限；init_service.rs 新增 create_default_role_permissions 为 manager/operator 插入基本 role_permission 记录 |
 | 434 | #612 | V15 P0-S04 补齐 31 类业务角色覆盖面料行业全业务场景（管理/销售/采购/库存/生产/质量/财务/CRM/物流/人力/安全/IT），为全部角色配置基本 role_permission 权限记录 |
