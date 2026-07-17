@@ -18,20 +18,21 @@
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
 | **合计** | **732** | **54** | **678** | **7.4%** |
 
-### 1.1 已完成 P0 任务（21 项，详情见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4602026-07-16--2026-07-17)）
+### 1.1 已完成 P0 任务（22 项，详情见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4602026-07-16--2026-07-17)）
 
-P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S08 / P0-S09 / P0-S10 / P0-S11 / P0-S14 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S24 / P0-S25 / P0-S26 / P0-S27 / P0-S28
+P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S08 / P0-S09 / P0-S10 / P0-S11 / P0-S14 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S24 / P0-S25 / P0-S26 / P0-S27 / P0-S28 / P0-F01
 
 > V15 审计已完成（25 大类 195 维度 732 问题），详细审计进度表已归档到 [doto-su.md §V15 审计完成进度](file:///workspace/.monkeycode/doto-su.md#-v15-审计完成进度2026-07-16-全部完成)。
 
 ### 1.2 下一批次规划（按顺序连续执行）
 
 > **用户指令变更（2026-07-17 二次）**：按顺序修复所有批次，不再限制单数批次。
-> 已合并批次 460-468，下一批次从 469 起，按规则 13 自动连续执行。
+> 已合并批次 460-469，下一批次从 470 起，按规则 13 自动连续执行。
+> **用户术语澄清（2026-07-17）**：缸号（batch_no）=染色批次号（同一概念不同叫法）；dye_lot_no=染色批号（lot 概念，防色差混批）。
 
 | 批次 | P0 任务 | 文件数 | 状态 |
 |------|---------|--------|------|
-| 469 | P0-F01 dye_batch 表缺少 dye_lot_no 字段（类四） | - | ⏳ |
+| 469 | P0-F01 dye_batch 表缺少 dye_lot_no 字段（类四） | - | ✅ 已合并 PR #644 |
 | 470 | P0-F02 面料属性扩展 | - | ⏳ |
 | 471 | P0-F03 染色配方版本化 | - | ⏳ |
 | 472+ | 剩余 P0-F04~F21 + 其他 P0 项 | - | ⏳ |
@@ -137,18 +138,6 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 ---
 
 #### 优先级 2：面料行业核心特性（21 项全部未完成）
-
-##### P0-F01 dye_batch 表缺少 dye_lot_no 字段（类四）
-
-- **来源**：batch-04 P0-04-1/2
-- **证据**：[dye_batch.rs](file:///workspace/backend/src/models/dye_batch.rs) 第 12-26 行无 dye_lot_no 字段
-- **业务影响**：四层级联断裂、成本归集不完整、缸号追溯失效
-- **修复方案**：
-  1. migration 新增 dye_batch.dye_lot_no 字段（VARCHAR(50) NOT NULL）
-  2. 更新 dye_batch model + DTO
-  3. [dye_batch_cost_bridge_service.rs:152-153](file:///workspace/backend/src/services/dye_batch_cost_bridge_service.rs) 补全 dye_lot_no 关联
-  4. 历史数据回填（默认 'DEFAULT'）
-- **关联文件**（9+）：dye_batch.rs / dye_batch_service.rs / dye_batch_cost_bridge_service.rs / dye_batch_handler.rs / migrations / 前端 dye_batch_view.vue
 
 ##### P0-F02 v14 §2.2.2 关键业务约束 UNIQUE 未实现（类一）
 
