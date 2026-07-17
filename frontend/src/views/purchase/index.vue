@@ -93,10 +93,12 @@ import ViewDlg from './components/ViewDlg.vue'
 const list = usePurchList()
 
 // 业务操作（查看/审批/打印/导出）
+// V15 P0-S12 修复（Batch 475b）：传入 getQueryParams，导出时传递列表筛选条件
 const act = usePurchAct(
   () => list.orders.value,
   list.getStatusText,
-  list.fetchData
+  list.fetchData,
+  () => ({ status: list.queryParams.status, supplier_id: list.queryParams.supplier_id })
 )
 
 // 收货（打开收货对话框 + 提交收货）

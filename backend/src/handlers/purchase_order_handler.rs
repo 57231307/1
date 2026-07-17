@@ -501,7 +501,8 @@ pub struct CancelOrderRequest {
 
 // ========== 数据导出接口 ==========
 
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+// V15 P0-S15 修复（Batch 475b）：导出注入水印（操作员/导出时间/导出条数）
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
@@ -575,7 +576,16 @@ pub async fn export_orders(
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
 
-    build_xlsx_response(&table, &filename)
+    // V15 P0-S15 修复（Batch 475b）：注入水印（操作员/导出时间/导出条数）
+    // 水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("采购订单导出（共 {} 条）", row_count)),
+    };
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
 
 /// 生成采购订单号
