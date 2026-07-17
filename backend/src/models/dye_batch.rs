@@ -15,6 +15,10 @@ pub struct Model {
     pub batch_no: String,
     pub greige_fabric_id: Option<i32>,
     pub color_no: Option<String>,
+    // V15 P0-F01：染色批次号（染缸号），面料四维标识之一
+    // 历史：dye_batch 主表缺失此字段，导致四层级联断裂、成本归集不完整
+    // 迁移：048_add_dye_lot_no_to_dye_batch.sql 新增字段，历史数据回填 'DEFAULT'
+    pub dye_lot_no: String,
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub planned_quantity: Option<Decimal>,
     pub status: Option<String>,
