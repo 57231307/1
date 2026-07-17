@@ -244,6 +244,140 @@
 
 ---
 
+## 📝 V15 修复阶段 Batch 475a 归档（2026-07-17，P0-S13 审计日志导出闭环）
+
+> 本节归档 Batch 475a 修复内容（PR #658，squash 7c7cfc7）。
+> 任务：P0-S13（审计日志导出"假按钮"陷阱闭环）。
+> 一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) Batch 475a 行。
+
+### 总览
+
+| 项目 | 内容 |
+|------|------|
+| 批次 | 475a |
+| PR | #658 |
+| squash commit | 7c7cfc7 |
+| 任务 | P0-S13（审计日志导出"假按钮"陷阱）✅ 完成 |
+| 文件数 | 3（后端 1 修改 + 前端 1 修改 + 测试 1 修改） |
+| CI 轮次 | 2 轮（第 1 轮前端测试失败 mock 未更新，第 2 轮修复后 13/13 全绿） |
+| 完成时间 | 2026-07-17 |
+| P0 进度 | 68→69/104（+1） |
+
+### P0-S13：审计日志导出闭环（完成）
+
+**问题**：审计日志导出按钮调用本地 `exportToExcel`，无后端审计记录、无水印、无数据权限校验。
+
+**修复内容**：
+
+#### 后端 `backend/src/handlers/audit_log_handler.rs`
+
+1. **import 调整**：
+   - 原：`use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable}`
+   - 改：`use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable}`
+
+2. **保存 logs_count**（避免 into_iter 消费后无法访问）：
+   ```rust
+   let logs = q.order_by_desc(...).all(...).await?;
+   // V15 P0-S15 修复（Batch 475a）：保存 logs 数量用于水印
+   let logs_count = logs.len();
+   ```
+
+3. **注入水印**（替代 `build_xlsx_response`）：
+   ```rust
+   let watermark = WatermarkConfig {
+       operator: Some(auth.username.clone()),
+       ip_address: None,
+       exported_at: Some(chrono::Utc::now().to_rfc3339()),
+       extra: Some(format!("审计日志导出（共 {} 条，仅 admin 可导出）", logs_count)),
+   };
+   build_xlsx_response_with_watermark(&table, &filename, &watermark)
+   ```
+
+**安全机制**（已存在，本批次未改）：
+- `require_admin_role` 在 handler 入口校验 admin 角色（双重防御：RBAC + admin 深度校验）
+- 异步审计日志（`AuditEvent` OperationType::Export，记录导出条数 + 请求路径）
+
+#### 前端 `frontend/src/views/system/audit-log/index.vue`
+
+1. **import 调整**：
+   - 原：`import { exportToExcel } from '@/utils/export'`
+   - 改：`import { exportFromBackend } from '@/utils/export'`
+
+2. **handleExport 改为 async + 后端 API**：
+   ```typescript
+   const handleExport = async () => {
+     const params: Record<string, unknown> = {
+       operation_type: filterForm.operation_type || undefined,
+       severity: filterForm.severity || undefined,
+       resource_type: filterForm.resource_type.trim() || undefined,
+       request_id: filterForm.request_id.trim() || undefined,
+       keyword: filterForm.keyword.trim() || undefined,
+     }
+     if (filterForm.dateRange && filterForm.dateRange.length === 2) {
+       params.start_time = filterForm.dateRange[0]
+       params.end_time = filterForm.dateRange[1]
+     }
+     await exportFromBackend('/audit-logs/export', params, 'audit_logs_export')
+   }
+   ```
+   参数与 `syncQueryParams` 完全对齐，确保导出与列表筛选一致。
+
+#### 测试 `frontend/tests/unit/audit-log.test.ts`
+
+1. **mock 调整**：
+   - 原：`vi.mock('@/utils/export', () => ({ exportToExcel: ... }))`
+   - 改：`vi.mock('@/utils/export', () => ({ exportFromBackend: ... }))`
+   - mockExportFromBackend 使用 `mockResolvedValue(undefined)`（async 函数返回 Promise<void>）
+
+2. **测试用例更新**：
+   - 用例名："点击导出按钮调用 exportFromBackend 并触发后端下载"
+   - 新增传参验证：
+     ```typescript
+     const [apiPath, params, filename] = mockExportFromBackend.mock.calls[0]
+     expect(apiPath).toBe('/audit-logs/export')
+     expect(filename).toBe('audit_logs_export')
+     ```
+
+### CI 修复详情
+
+#### 第 1 轮失败（commit 11d8f1b）
+
+- **失败项**：前端测试 `audit-log.test.ts`
+- **错误**：`× 点击导出按钮调用 exportToExcel 并触发下载 20ms` + `Test Files 1 failed | 11 passed (12)`
+- **根因**：P0-S13 修复后 `audit-log/index.vue` 已切换为 `exportFromBackend`，但测试仍 mock `exportToExcel`，导致 mock 未被调用
+
+#### 第 2 轮修复（commit d3f3b2f）
+
+- **修复**：测试 mock 从 `exportToExcel` 改为 `exportFromBackend` + `mockResolvedValue(undefined)` + 传参验证
+- **结果**：13/13 全绿（Rust 后端构建 12m44s 末轮通过）
+
+### 关键教训
+
+1. **规则 13 步骤 4 自审门必须 grep 测试文件**：本次仅 grep 了源码文件，未检查 `tests/unit/audit-log.test.ts`，导致 CI 第 1 轮失败。后续自审必须包含 `frontend/tests/` 目录。
+2. **async 函数 mock 必须用 mockResolvedValue**：`exportFromBackend` 返回 `Promise<void>`，mock 必须用 `mockResolvedValue(undefined)`，不能用 `mockReturnValue(undefined)`。
+3. **禁止本地编译验证**：本次严格遵守，直接 push 让 CI 验证，2 轮修复完成。
+
+### 关联文件审计（步骤 4 自审门）
+
+| 文件 | 修改类型 | 自审检查项 |
+|------|----------|------------|
+| `backend/src/handlers/audit_log_handler.rs` | 修改 | grep `build_xlsx_response` 全部调用点确认无遗漏；grep `WatermarkConfig` 结构体字段；`logs_count` 在 `into_iter` 之前保存 |
+| `frontend/src/views/system/audit-log/index.vue` | 修改 | grep `exportToExcel` 全部调用点确认已切换；参数与 `syncQueryParams` 对齐 |
+| `frontend/tests/unit/audit-log.test.ts` | 修改 | grep `exportToExcel` mock 确认已改为 `exportFromBackend`；`mockResolvedValue(undefined)` 匹配 async 返回类型 |
+
+### 后续影响（Batch 475b 准备）
+
+Batch 475a 调研已完成（search 子代理输出），明确剩余 20 个前端文件清单：
+- A 类（后端端点已存在，可立即前端切换）：2 个（`usePurchAct.ts` + `crm/tabs/CustomerListTab.vue`）
+- B 类（需后端新增端点 + 前端改造）：18 个（inventory/warehouse/sales-contract/sales-price/voucher/finance/ar/ap/accountSubject/financeReport/quality/quality-standards/production/cost/budget/fixed-assets）
+
+Batch 475b 建议优先级：
+1. 第一优先：A 类 2 文件（纯前端改造，工作量 S）
+2. 第二优先：inventory + warehouse（需后端新增 2 端点，工作量 M）
+3. 第三优先：剩余 16 文件按业务模块拆分到 475c/475d/475e
+
+---
+
 ## 📝 V15 修复阶段 Batch 474 归档（2026-07-17，规则 13 步骤 0/4 + 禁止本地编译验证）
 
 > 本节归档 Batch 474 修复内容（PR #657，squash 33c2e7c）。

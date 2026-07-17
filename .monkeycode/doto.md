@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近梳理：2026-07-17（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成，剩 23+ 页面 475 批次）；P0 进度 68/104；剩余 36 P0 + 257 P1 + 248 P2 + 123 P3 = 664 项；规划 25 个批次完成 P0；下一批次 475 推进剩余前端导出页面 + P0-S13 审计日志导出；规则 13 连续执行）。
+> 最近梳理：2026-07-17（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；P0 进度 69/104；剩余 35 P0 + 257 P1 + 248 P2 + 123 P3 = 663 项；规划 25 个批次完成 P0；下一批次 475b 推进剩余 20 个前端导出页面 + 14 个后端新增端点（拆分微批次）；规则 13 连续执行；禁止本地编译验证）。
 
 ---
 
@@ -12,20 +12,20 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 68 | **36** | 65.4% |
+| **P0 阻塞级** | 104 | 69 | **35** | 66.3% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **68** | **664** | **9.3%** |
+| **合计** | **732** | **69** | **663** | **9.4%** |
 
-> P0 已完成 68 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）。
-> P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），剩 23+ 页面在 Batch 475 推进（任务整体未完成，不计入已完成）。
+> P0 已完成 69 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）。
+> P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），剩 20 页面在 Batch 475b+ 推进（任务整体未完成，不计入已完成）。
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 474 已合并（PR #657，squash 33c2e7c）—— P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面（customer/supplier）完成
-- **下一批次**：Batch 475（模块 A 安全权限：P0-S12 剩余 23+ 前端导出页面接入后端 + P0-S13 审计日志导出闭环）
-- **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test），必须直接 push 让 CI 验证
+- **当前批次**：Batch 475a 已合并（PR #658，squash 7c7cfc7）—— P0-S13 审计日志导出闭环完成（前端切换后端 API + 后端注入水印）
+- **下一批次**：Batch 475b（模块 A 安全权限：P0-S12 剩余 20 个前端导出页面接入后端 + 14 个后端新增端点，拆分微批次）
+- **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
 
@@ -164,7 +164,8 @@ P0-D17 OA 公告 (M)  ← 独立
 |------|------|------|--------|------|------|
 | ✅ 473 | A | P0-S14 migration 047 + P0-S19 审计字段补齐 | S+M | 无 | 已合并 PR #656（squash e19c1aa）；复审重新打开项优先；解锁后续安全链路 |
 | ✅ 474 | A | P0-S15 导出水印 + P0-S12 前端导出接入后端（核心页面） | M+XL | 473 | 已合并 PR #657（squash 33c2e7c）；P0-S15 完成；P0-S12 完成 customer/supplier 2 页面，剩 23+ 页面在 475 批次；CI 修复 v3：merge_range 补 format + export.ts 改用 axios 绕过 request.ts 拦截器 |
-| 475 | A | P0-S12 前端导出接入后端（剩余页面）+ P0-S13 审计日志导出 | XL+M | 474 | 完成 23+ 页面改造 + 审计日志闭环 |
+| 🟡 475a | A | P0-S13 审计日志导出闭环 | M | 474 | 已合并 PR #658（squash 7c7cfc7）；P0-S13 完成；后端 audit_log_handler 注入水印 + 前端 audit-log/index.vue 切换 exportFromBackend + 测试 mock 更新；CI 2 轮修复 |
+| 475b+ | A | P0-S12 前端导出接入后端（剩余页面）| XL | 474 | 拆分微批次：475b 优先 purchase（后端已存在）+ warehouse/inventory（后端新增）；475c+ 处理剩余 16 个文件 + 14 个后端新增端点 |
 | 476 | A | P0-S17 打印 HTML 真实数据查询 | L | 无 | 独立任务，print_service 真实查询 |
 | 477 | B | P0-F10 色卡发放库存联动 + P0-F13 数据迁移策略 | M+S | 无 | 后端库存扣减 + legacy 迁移脚本 |
 | 478 | B | P0-F11/F12 色卡发放前端文件结构补齐 | L | 477 | 5 个前端文件 |
@@ -215,30 +216,41 @@ P0-D17 OA 公告 (M)  ← 独立
 
 ## 四、未完成任务清单（按业务模块分组）
 
-### 4.1 模块 A：安全与权限（4 项，原 7 项 - Batch 473 完成 P0-S14 + P0-S19，Batch 474 完成 P0-S15）
+### 4.1 模块 A：安全与权限（3 项，原 7 项 - Batch 473 完成 P0-S14 + P0-S19，Batch 474 完成 P0-S15，Batch 475a 完成 P0-S13）
 
 #### P0-S12 前端本地导出完全无审计（类十三，部分完成）
 
 - **来源**：batch-11 P0-11-10/11
-- **进度**：⚠️ Batch 474 已完成核心 2 页面（customer/supplier 接入后端带水印 xlsx 导出），剩 23+ 页面未改造
-- **已完成内容**（Batch 474 PR #657）：
-  - 后端：新增 `/crm/customers/export` + `/purchase/suppliers/export` 路由 + handler，复用 list service 的行级数据权限 + 异步审计日志（OperationType::Export）
-  - 前端：新增 `exportFromBackend` 函数（独立 axios 实例，绕过 request.ts 拦截器避免 Blob 类型丢失 + router 导入链副作用）；customer/index.vue + supplier/index.vue 改用后端 API
-- **剩余工作**：23+ 页面改造（product/inventory/sales_order/purchase_order/finance/crm/report/audit-log 等），每个资源需后端新增 export 端点 + 前端切换为 exportFromBackend
-- **关联文件**：[frontend/src/utils/export.ts](file:///workspace/frontend/src/utils/export.ts) + 23+ 视图文件 + 各资源 handler/service
+- **进度**：⚠️ Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），剩 20 页面未改造
+- **已完成内容**：
+  - Batch 474 PR #657：新增 `exportFromBackend` 函数（独立 axios 实例，绕过 request.ts 拦截器避免 Blob 类型丢失 + router 导入链副作用）；customer/index.vue + supplier/index.vue 改用后端 API；后端 `/crm/customers/export` + `/purchase/suppliers/export` 端点
+  - Batch 475a PR #658：audit-log/index.vue 改用后端 API（`/audit-logs/export`）；后端 audit_log_handler 注入水印
+- **剩余工作**：20 页面改造（详见 Batch 475b 调研报告），每个资源需后端新增 export 端点 + 前端切换为 exportFromBackend
+- **关联文件**：[frontend/src/utils/export.ts](file:///workspace/frontend/src/utils/export.ts) + 20 视图文件 + 各资源 handler/service
 - **依赖**：✅ P0-S14 已完成（Batch 473）/ ✅ P0-S15 水印已完成（Batch 474）
-- **工作量**：XL（剩余部分 L）
-- **批次**：475（剩余页面 + P0-S13 审计日志导出）
+- **工作量**：XL（剩余部分 L，拆分微批次 475b/475c/475d/475e）
+- **批次**：475b 起（拆分微批次）
 
-#### P0-S13 审计日志导出"假按钮"陷阱（类十三）
+#### 待改造前端文件清单（20 个，截至 Batch 475a 后）
 
-- **来源**：batch-11 P0-11-12
-- **证据**：`frontend/src/views/system/audit-log/index.vue:187` import exportToExcel；`:410` handleExport 调用本地 exportToExcel
-- **修复方案**：审计日志导出必须走后端 API，且导出动作本身需二次审计（写入 audit_log_export_log 表）
-- **关联文件**：audit-log/index.vue / audit_log_handler.rs
-- **依赖**：P0-S12（前端导出基础）
-- **工作量**：M
-- **批次**：475
+**A 类：后端端点已存在，可立即前端切换（2 个）**
+| 文件 | 后端端点 |
+|------|----------|
+| `frontend/src/views/purchase/composables/usePurchAct.ts` | `GET /purchases/orders/export` |
+| `frontend/src/views/crm/tabs/CustomerListTab.vue` | `GET /crm/customers/export`（与 customer/index.vue 共用）|
+
+**B 类：需后端新增端点 + 前端改造（18 个）**
+| 模块 | 前端文件数 | 后端需新增端点 |
+|------|------------|----------------|
+| inventory（库存台账）| 1（`inventory/index.vue`）| `GET /inventory/stock/export` |
+| warehouse（仓库）| 1（`warehouse/index.vue`，用 exportData）| `GET /warehouses/export`（catalog 域）|
+| sales-contract / sales-price | 2（composables）| 销售合同/销售报价 export |
+| voucher / finance / ar / ap / accountSubject / financeReport | 7 | 凭证/科目/应收发票/应付发票/财务报表 export |
+| quality / quality-standards | 3 | 质量记录/质量标准 export |
+| production | 1（`production/composables/usePrdProc.ts`）| 生产订单 export |
+| cost / budget / fixed-assets | 3 | 成本归集/预算/固定资产 export |
+
+> P0-S13（审计日志导出"假按钮"陷阱）已 Batch 475a PR #658 完成，详细记录归档到 [doto-su.md §V15 Batch 475a](file:///workspace/.monkeycode/doto-su.md)。
 
 #### P0-S17 打印 HTML 是占位假数据（类十三）
 
