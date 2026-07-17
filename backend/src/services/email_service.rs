@@ -784,19 +784,10 @@ impl EmailTemplate {
         Self::notification_template("订单状态更新", &content, Some(detail_url))
     }
 
-    /// 生成审批通知邮件
-    pub fn approval_notification(task_title: &str, applicant: &str, approval_url: &str) -> String {
-        let safe_task_title = escape_html(task_title);
-        let safe_applicant = escape_html(applicant);
-        let content = format!(
-            r#"<p>您好，</p>
-            <p><strong>{}</strong> 提交了一个审批任务需要您处理。</p>
-            <p>任务标题：{}</p>"#,
-            safe_applicant, safe_task_title
-        );
-        Self::notification_template("待审批任务提醒", &content, Some(approval_url))
-    }
-
+    /// V15 P0-S14 死代码清理（批次 461）：删除 approval_notification 邮件模板方法
+    /// 原因：唯一调用方 EventNotificationService::notify_pending_approval 已被删除，
+    /// 该方法变为真实死代码。依据死代码处理规范第六章「真正未使用的项应显式删除」。
+    //
     /// 生成库存预警邮件
     pub fn inventory_alert(product_name: &str, current_stock: &str, threshold: &str) -> String {
         let safe_product_name = escape_html(product_name);

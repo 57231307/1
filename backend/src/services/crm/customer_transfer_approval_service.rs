@@ -236,8 +236,9 @@ impl CustomerTransferApprovalService {
         .await?;
 
         info!(
-            "用户 {} 创建客户转移审批单 {}：线索 {} 从 {} 转移给 {}（大客户={}，max_level={}）",
+            "用户 {}({}) 创建客户转移审批单 {}：线索 {} 从 {} 转移给 {}（大客户={}，max_level={}）",
             applicant_id,
+            applicant_name,
             approval.approval_no,
             req.lead_id,
             lead.owner_id,

@@ -120,6 +120,8 @@ pub mod currency_handler;
 pub mod report_engine_handler;
 // P2-4 AI 分析深化（工艺优化 + 质量预测）
 pub mod ai_extend_handler;
+// V15 P0-S14 敏感数据导出二级审批
+pub mod export_approval_handler;
 // 消息通知模块
 pub mod notification_handler;
 // 用户通知偏好设置模块

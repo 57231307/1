@@ -16,8 +16,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler, health_handler,
-    init_handler, system_update_handler,
+    ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler, export_approval_handler,
+    health_handler, init_handler, system_update_handler,
 };
 use crate::websocket;
 
@@ -340,6 +340,45 @@ pub fn ai() -> Router<AppState> {
         .route("/ai/health", get(ai_extend_handler::ai_health))
 }
 
+/// V15 P0-S14 敏感数据导出二级审批路由（path 前缀 /export-approvals）
+///
+/// 7 个端点：创建 / 列表 / 详情 / 审批通过 / 审批拒绝 / 取消 / 校验 token
+///
+/// 权限映射：
+/// - 创建审批请求 → export-approval:create
+/// - 列表/详情查询 → export-approval:read
+/// - 审批通过/拒绝 → export-approval:approve
+/// - 取消 → export-approval:create（仅申请人本人）
+/// - 校验 token → export-approval:read（导出 handler 内部调用）
+pub fn export_approval() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/export-approvals",
+            get(export_approval_handler::list_approval_requests)
+                .post(export_approval_handler::create_approval_request),
+        )
+        .route(
+            "/export-approvals/verify-token",
+            get(export_approval_handler::verify_token),
+        )
+        .route(
+            "/export-approvals/:id",
+            get(export_approval_handler::get_approval_request),
+        )
+        .route(
+            "/export-approvals/:id/approve",
+            post(export_approval_handler::approve_request),
+        )
+        .route(
+            "/export-approvals/:id/reject",
+            post(export_approval_handler::reject_request),
+        )
+        .route(
+            "/export-approvals/:id/cancel",
+            post(export_approval_handler::cancel_request),
+        )
+}
+
 /// 系统域统一入口
 ///
 /// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
@@ -354,6 +393,7 @@ pub fn routes() -> Router<AppState> {
         .merge(health())
         .merge(init())
         .merge(ai())
+        .merge(export_approval())
         .merge(ws())
         .merge(audit_logs())
         .merge(slow_queries())
