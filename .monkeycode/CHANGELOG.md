@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-469 完成，P0 进度 54/104；PR #611~#644 已合并；规则 13 二次迭代：12 步流程含确定验证+格式验证两道前置门；Batch 461 P0-S14 敏感数据导出二级审批完成；用户指令变更（二次）：按顺序修复所有批次，不再限制单数批次；Batch 469 P0-F01 dye_batch 表新增 dye_lot_no 字段补全四维标识完成；用户术语澄清：缸号=染色批次号，dye_lot_no=染色批号）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-470 完成，P0 进度 55/104；PR #611~#645 已合并；规则 13 二次迭代：12 步流程含确定验证+格式验证两道前置门；Batch 461 P0-S14 敏感数据导出二级审批完成；用户指令变更（二次）：按顺序修复所有批次，不再限制单数批次；Batch 469 P0-F01 dye_batch 表新增 dye_lot_no 字段补全四维标识完成；Batch 470 P0-F02 面料行业关键业务约束 UNIQUE 补全完成（3 张表）；用户术语澄清：缸号=染色批次号，dye_lot_no=染色批号）。
 
 ---
 
@@ -16,6 +16,7 @@
 | 464 | - | V15 P0-S25 行级数据权限 RLS 策略启用（5 张敏感表）：新增 backend/database/rls.sql 集中定义；customers/suppliers/sales_orders/crm_lead/crm_opportunity 启用 RLS；CI 12/12 全绿 |
 | 468 | - | V15 P0-S28 前端 v-permission 覆盖率提升（核心写操作按钮，7 文件）：permissions.ts 补充 SALES_ORDER_*/PURCHASE_ORDER_*/VOUCHER_*/INVENTORY_TRANSFER 常量；customer/supplier 等视图硬编码常量化；CI 12/12 全绿 |
 | 469 | #644 | V15 P0-F01 dye_batch 表新增 dye_lot_no 字段补全四维标识（4 文件）：migration 048（VARCHAR(50) NOT NULL DEFAULT 'DEFAULT' + 索引）+ dye_batch.rs Model 新增字段 + dye_batch_handler.rs（Create/Update/List Query/导出接入 dye_lot_no，默认 DEFAULT）+ dye_batch_cost_bridge_service.rs（handle_dye_batch_completed 通过 batch_id 查询 dye_batch 获取 dye_lot_no，查询失败降级 None+warn 不阻断）；术语澄清：缸号=染色批次号，dye_lot_no=染色批号（lot 防色差混批）；CI 13/13 全绿（一次过） |
+| 470 | #645 | V15 P0-F02 面料行业关键业务约束 UNIQUE 补全（3 张表，1 文件 migration 049）：dye_batch UNIQUE(greige_fabric_id, color_no, dye_lot_no, batch_no) + sales_delivery_item UNIQUE(delivery_id, sales_order_item_id, dye_lot_no) + purchase_receipt_item UNIQUE(receipt_id, order_item_id, batch_no, lot_no)；任务定义字段名与实际 schema 不符，按真实字段名调整（fabric_id→greige_fabric_id/color_id→color_no/order_id→delivery_id/item_id→sales_order_item_id 或 order_item_id）；COALESCE 处理 NULL 字段；已有约束核对（migration 032 已实现 product_colors/inventory_stocks/inventory_piece 3 项，本批次不重复）；CI 13/13 全绿（一次过） |
 
 | 433 | #611 | V15 P0-S03 修复超级权限注入漏洞：auth_handler.rs 将 is_system 判断改为 code==ADMIN_ROLE_CODE，仅 admin 注入超级通配权限；init_service.rs 新增 create_default_role_permissions 为 manager/operator 插入基本 role_permission 记录 |
 | 434 | #612 | V15 P0-S04 补齐 31 类业务角色覆盖面料行业全业务场景（管理/销售/采购/库存/生产/质量/财务/CRM/物流/人力/安全/IT），为全部角色配置基本 role_permission 权限记录 |

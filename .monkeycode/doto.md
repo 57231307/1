@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-17（V15 修复阶段 Batch 433-469 已完成 P0 任务归档到 doto-su.md；P0 进度 54/104；剩余 50 P0 + 257 P1 + 248 P2 + 123 P3；批次大小每批 6-8 文件；用户指令变更（2026-07-17 二次）：按顺序修复所有批次，不再限制单数批次；下一批次从 470 起；用户术语澄清（2026-07-17）：缸号=染色批次号，dye_lot_no=染色批号）。
+> 最近整理：2026-07-17（V15 修复阶段 Batch 433-470 已完成 P0 任务归档到 doto-su.md；P0 进度 55/104；剩余 49 P0 + 257 P1 + 248 P2 + 123 P3；批次大小每批 6-8 文件；用户指令变更（2026-07-17 二次）：按顺序修复所有批次，不再限制单数批次；下一批次从 471 起；用户术语澄清（2026-07-17）：缸号=染色批次号，dye_lot_no=染色批号）。
 
 ---
 
@@ -12,28 +12,28 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 54 | **50** | 51.9% |
+| **P0 阻塞级** | 104 | 55 | **49** | 52.9% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **54** | **678** | **7.4%** |
+| **合计** | **732** | **55** | **677** | **7.5%** |
 
-### 1.1 已完成 P0 任务（22 项，详情见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4602026-07-16--2026-07-17)）
+### 1.1 已完成 P0 任务（23 项，详情见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md#-v15-修复阶段已完成-p0-任务归档批次-433-4602026-07-16--2026-07-17)）
 
-P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S08 / P0-S09 / P0-S10 / P0-S11 / P0-S14 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S24 / P0-S25 / P0-S26 / P0-S27 / P0-S28 / P0-F01
+P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / P0-S08 / P0-S09 / P0-S10 / P0-S11 / P0-S14 / P0-S18 / P0-S20 / P0-S21 / P0-S22 / P0-S23 / P0-S24 / P0-S25 / P0-S26 / P0-S27 / P0-S28 / P0-F01 / P0-F02
 
 > V15 审计已完成（25 大类 195 维度 732 问题），详细审计进度表已归档到 [doto-su.md §V15 审计完成进度](file:///workspace/.monkeycode/doto-su.md#-v15-审计完成进度2026-07-16-全部完成)。
 
 ### 1.2 下一批次规划（按顺序连续执行）
 
 > **用户指令变更（2026-07-17 二次）**：按顺序修复所有批次，不再限制单数批次。
-> 已合并批次 460-469，下一批次从 470 起，按规则 13 自动连续执行。
+> 已合并批次 460-470，下一批次从 471 起，按规则 13 自动连续执行。
 > **用户术语澄清（2026-07-17）**：缸号（batch_no）=染色批次号（同一概念不同叫法）；dye_lot_no=染色批号（lot 概念，防色差混批）。
 
 | 批次 | P0 任务 | 文件数 | 状态 |
 |------|---------|--------|------|
 | 469 | P0-F01 dye_batch 表缺少 dye_lot_no 字段（类四） | - | ✅ 已合并 PR #644 |
-| 470 | P0-F02 面料属性扩展 | - | ⏳ |
+| 470 | P0-F02 面料属性扩展 | - | ✅ 已合并 PR #645 |
 | 471 | P0-F03 染色配方版本化 | - | ⏳ |
 | 472+ | 剩余 P0-F04~F21 + 其他 P0 项 | - | ⏳ |
 
@@ -137,18 +137,7 @@ P0-S01（主体完成）/ P0-S02 / P0-S03 / P0-S04 / P0-S05 / P0-S06 / P0-S07 / 
 
 ---
 
-#### 优先级 2：面料行业核心特性（21 项全部未完成）
-
-##### P0-F02 v14 §2.2.2 关键业务约束 UNIQUE 未实现（类一）
-
-- **来源**：batch-01 P0-01-01
-- **证据**：[up.sql:4](file:///workspace/backend/migrations/20260518000002_add_dye_tables/up.sql) 仅 batch_no 单字段全局 UNIQUE
-- **修复方案**：新增 4 项联合唯一索引：
-  1. `UNIQUE(fabric_id, color_id, dye_lot_no, batch_no)` 在 dye_batch 表
-  2. `UNIQUE(warehouse_id, product_id, color_id, batch_no, dye_lot_no)` 在 inventory_stock 表
-  3. `UNIQUE(order_id, item_id, batch_no)` 在 sales_delivery_item 表
-  4. `UNIQUE(receipt_id, item_id, batch_no)` 在 purchase_receipt_item 表
-- **关联文件**（9+）：migrations + fabric_inspection_service / inventory_stock_service / purchase_receipt_service / so/delivery / sales_return_service / purchase_return_service / inventory_count_service
+#### 优先级 2：面料行业核心特性（20 项全部未完成）
 
 ##### P0-F03 色卡发放专项——旧"借出/归还"模式完全存在（类九）
 

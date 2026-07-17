@@ -213,6 +213,35 @@
 - **CI**：13/13 全绿（一次过，Rust Clippy/单元测试/后端构建全通过）
 - **关联文件**：migration 048 / dye_batch.rs / dye_batch_handler.rs / dye_batch_cost_bridge_service.rs
 
+#### P0-F02 v14 §2.2.2 关键业务约束 UNIQUE 未实现 ✅ 已完成（Batch 470 / PR #645）
+
+- **来源**：batch-01 P0-01-01（类一）
+- **业务背景**：面料行业四维标识 product_id + color_no + dye_lot_no + batch_no，核心业务表缺少联合唯一约束，导致同维度可存在多条重复记录，破坏数据一致性
+- **任务定义 vs 实际 schema 差异**（按真实 schema 调整）：
+  | 任务定义字段名 | 实际 schema 字段名 | 表 |
+  |---|---|---|
+  | fabric_id | greige_fabric_id | dye_batch |
+  | color_id | color_no | dye_batch / inventory_stocks |
+  | order_id | delivery_id | sales_delivery_item |
+  | item_id | sales_order_item_id / order_item_id | sales_delivery_item / purchase_receipt_item |
+  | dye_lot_no（purchase_receipt_item） | lot_no | purchase_receipt_item |
+- **已有约束核对**（migration 032 已实现，本批次不重复）：
+  - ✅ product_colors: UNIQUE(product_id, color_no)
+  - ✅ inventory_stocks: idx_inv_stock_four_dim_unique(warehouse_id, product_id, color_no, batch_no, COALESCE(dye_lot_no, ''))
+  - ✅ inventory_piece: UNIQUE(dye_lot_id, piece_no)
+- **修复内容**（1 文件 migration 049，3 张表 3 个联合唯一索引）：
+  1. dye_batch: `idx_dye_batch_four_dim_unique (COALESCE(greige_fabric_id, 0), COALESCE(color_no, ''), dye_lot_no, batch_no)`
+     - V15 P0-F01（Batch 469）已新增 dye_lot_no 字段，可建立完整四维唯一约束
+     - COALESCE 处理 greige_fabric_id/color_no 可为 NULL 的情况
+  2. sales_delivery_item: `idx_sales_delivery_item_unique (delivery_id, COALESCE(sales_order_item_id, 0), dye_lot_no)`
+     - 表中无 batch_no 字段，仅有 dye_lot_no（销售发货按染色批号区分）
+     - COALESCE 处理 sales_order_item_id 可为 NULL（无关联订单的直发单）
+  3. purchase_receipt_item: `idx_purchase_receipt_item_unique (receipt_id, COALESCE(order_item_id, 0), COALESCE(batch_no, ''), COALESCE(lot_no, ''))`
+     - lot_no 为历史字段名，与 dye_lot_no 同义（染缸号/染色批号）
+     - COALESCE 处理 order_item_id/batch_no 可为 NULL 的情况
+- **CI**：13/13 全绿（一次过，仅 SQL migration 无 Rust 代码修改）
+- **关联文件**：migration 049
+
 ---
 
 ## 📝 已完成批次详细记录（v14 面料行业特性复审，批次 416+）
