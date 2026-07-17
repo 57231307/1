@@ -38,8 +38,8 @@
 | 452 | P0-S01 service 注入-库存域（调整+预留子域） | 4 | 18 | ✅ 已完成 |
 | 452b | P0-S01 service 注入-库存域（盘点子域） | 2 | 18.5 | ✅ 已完成 |
 | 452c | P0-S01 service 注入-库存域（调拨子域） | 3 | 18.6 | ✅ 已完成 |
-| 452d | P0-S01 service 注入-库存域（库存查询 stock 子域） | ~2 | 18.7 | 🔄 下一个 |
-| 453-456 | P0-S02 IDOR 防护-handler 层 | 20 | 19-22 | ⏳ |
+| 452d | P0-S01 service 注入-库存域（库存查询 stock 子域） | 0 | 18.7 | ⏭️ 跳过（inventory_stock 无 created_by/department_id，共享资源，权限通过 warehouse 访问控制实现，超出 P0-S01 范围） |
+| 453-456 | P0-S02 IDOR 防护-handler 层 | 20 | 19-22 | ⏳ 评估中（P0-S01 已在 service 层做 check_resource_owner IDOR 校验，可能已覆盖） |
 | 457+ | P0-S08/S23/S24/S25/S26/S27/S28 | - | 23+ | ⏳ |
 | 470+ | P0-F01~F21 面料行业核心特性 | - | 30+ | ⏳ |
 | 490+ | P0-T01~T08 测试体系 | - | 40+ | ⏳ |
