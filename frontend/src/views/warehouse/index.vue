@@ -85,10 +85,10 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="'warehouse:update'" type="primary" link size="small" @click="handleEdit(row as Warehouse)"
+            <el-button v-permission="PERMISSIONS.WAREHOUSE_UPDATE" type="primary" link size="small" @click="handleEdit(row as Warehouse)"
               >编辑</el-button
             >
-            <el-button v-permission="'warehouse:delete'" type="danger" link size="small" @click="handleDelete(row as Warehouse)"
+            <el-button v-permission="PERMISSIONS.WAREHOUSE_DELETE" type="danger" link size="small" @click="handleDelete(row as Warehouse)"
               >删除</el-button
             >
           </template>
@@ -206,6 +206,8 @@ import { warehouseApi, type Warehouse } from '@/api/warehouse'
 import { exportData } from '@/utils/export'
 import { printData } from '@/utils/print'
 import { useTableApi } from '@/composables/useTableApi'
+// Batch 462 P0-S24：引入权限码常量，与后端 warehouses 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 const submitLoading = ref(false)
 const dialogVisible = ref(false)

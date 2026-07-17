@@ -61,7 +61,7 @@
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.status === 'draft'"
-              v-permission="'sales_return:update'"
+              v-permission="PERMISSIONS.SALES_RETURN_UPDATE"
               size="small"
               link
               @click="openReturnDialog(row as unknown as SalesReturn)"
@@ -215,6 +215,8 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { salesReturnApi, type SalesReturn, type SalesReturnItem } from '@/api/sales-return'
+// Batch 462 P0-S24：引入权限码常量，与后端 sales-returns 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 const salesReturns = ref<SalesReturn[]>([])
 const returnLoading = ref(false)

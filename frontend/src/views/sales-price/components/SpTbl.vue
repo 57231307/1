@@ -43,7 +43,7 @@
           <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
           <el-button
             v-if="row.status === 'pending'"
-            v-permission="'sales_price:update'"
+            v-permission="PERMISSIONS.SALES_PRICE_UPDATE"
             type="primary"
             link
             size="small"
@@ -82,6 +82,8 @@
 <script setup lang="ts">
 import type { SalesPrice } from '@/api/sales-price'
 import { formatCurrency, getPriceTypeLabel, getStatusType, getStatusLabel } from '../composables/spFmts'
+// Batch 462 P0-S24：引入权限码常量，与后端 sales-prices 资源对齐
+import { PERMISSIONS } from '@/constants/permissions'
 
 /**
  * 销售价格列表表格组件（批次 284：page/pageSize props + v-model 绑定分页）
