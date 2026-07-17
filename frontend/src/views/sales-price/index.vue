@@ -117,9 +117,10 @@ const sp = useSp()
 const spProc = useSpProc({
   getList: sp.getList,
   // V15 P0-S12 修复（Batch 475d）：传入当前筛选条件，用于后端导出
+  // useTableApi 的 queryParams 为 Ref<Record<string, unknown>>，需类型断言以满足回调返回类型
   getQueryParams: () => ({
-    product_id: sp.queryParams.product_id,
-    status: sp.queryParams.status,
+    product_id: sp.queryParams.product_id as number | undefined,
+    status: sp.queryParams.status as string | undefined,
   }),
 })
 
