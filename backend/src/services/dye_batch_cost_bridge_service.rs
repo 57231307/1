@@ -14,10 +14,12 @@ use crate::utils::error::AppError;
 use chrono::Utc;
 use futures::FutureExt;
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, EntityTrait};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
+
+use crate::models::dye_batch;
 
 /// 染色成本桥接监听器 spawn 句柄
 /// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏
@@ -129,6 +131,10 @@ impl DyeBatchCostBridgeServiceInternal {
     /// 关联 batch_no/color_no/cost_object_no，后续由财务人员补充成本明细并审核。
     ///
     /// 依据：fabric-industry-research.md §5.6——染色完成后需归集染料/助剂/能耗成本到对应缸号
+    ///
+    /// V15 P0-F01：补全 dye_lot_no 关联
+    /// 原实现 dye_lot_no 写死为 None（dye_batch 表无此字段），导致四维标识断裂、
+    /// 成本归集无法关联到具体染缸号。修复后通过 batch_id 查询 dye_batch 表获取 dye_lot_no。
     async fn handle_dye_batch_completed(
         &self,
         batch_id: i32,
@@ -140,6 +146,30 @@ impl DyeBatchCostBridgeServiceInternal {
     ) -> Result<(), AppError> {
         let cost_service = CostCollectionService::new(self.db.clone());
 
+        // V15 P0-F01：通过 batch_id 查询 dye_batch 表获取 dye_lot_no
+        // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
+        // 历史数据回填为 'DEFAULT'，新数据由创建接口传入实际染色批号
+        let dye_lot_no = match dye_batch::Entity::find_by_id(batch_id).one(&*self.db).await {
+            Ok(Some(batch)) => Some(batch.dye_lot_no),
+            Ok(None) => {
+                warn!(
+                    batch_id,
+                    batch_no = %batch_no,
+                    "查询 dye_batch 未找到记录，dye_lot_no 降级为 None"
+                );
+                None
+            }
+            Err(e) => {
+                warn!(
+                    batch_id,
+                    batch_no = %batch_no,
+                    error = %e,
+                    "查询 dye_batch 失败，dye_lot_no 降级为 None（cost_collection 仍可创建）"
+                );
+                None
+            }
+        };
+
         // 构造成本归集草稿请求
         // 所有成本字段初始化为 0，后续由财务人员补充
         let req = CreateCostCollectionRequest {
@@ -149,8 +179,8 @@ impl DyeBatchCostBridgeServiceInternal {
             cost_object_no: Some(batch_no.to_string()),
             batch_no: Some(batch_no.to_string()),
             color_no: color_no.map(|s| s.to_string()),
-            // dye_lot_no 暂为 None，dye_batch 表当前无此字段，后续批次补全
-            dye_lot_no: None,
+            // V15 P0-F01：dye_lot_no 已通过 dye_batch 表查询获取（原写死 None）
+            dye_lot_no,
             workshop: Some("染色车间".to_string()),
             direct_material: Decimal::ZERO,
             direct_labor: Decimal::ZERO,

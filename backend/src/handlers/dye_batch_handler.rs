@@ -72,6 +72,7 @@ pub struct DyeBatchListQuery {
     pub page_size: Option<u64>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
     pub status: Option<String>,
 }
 
@@ -80,6 +81,7 @@ pub struct CreateDyeBatchRequest {
     pub batch_no: Option<String>,
     pub greige_fabric_id: Option<i32>,
     pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
     pub planned_quantity: Option<f64>,
     pub status: Option<String>,
 }
@@ -88,6 +90,7 @@ pub struct CreateDyeBatchRequest {
 pub struct UpdateDyeBatchRequest {
     pub greige_fabric_id: Option<i32>,
     pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
     pub planned_quantity: Option<f64>,
     pub status: Option<String>,
 }
@@ -106,6 +109,9 @@ pub async fn list_dye_batches(
     }
     if let Some(color_no) = &query.color_no {
         q = q.filter(dye_batch::Column::ColorNo.contains(color_no));
+    }
+    if let Some(dye_lot_no) = &query.dye_lot_no {
+        q = q.filter(dye_batch::Column::DyeLotNo.contains(dye_lot_no));
     }
     if let Some(status) = &query.status {
         q = q.filter(dye_batch::Column::Status.eq(status));
@@ -159,11 +165,16 @@ pub async fn create_dye_batch(
         format!("DB-{}-{:04}", timestamp, random)
     });
 
+    // V15 P0-F01：dye_lot_no 默认 'DEFAULT'，新接口允许调用方传入实际染色批号
+    // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
+    let dye_lot_no = req.dye_lot_no.unwrap_or_else(|| "DEFAULT".to_string());
+
     let batch = dye_batch::ActiveModel {
         id: Set(0),
         batch_no: Set(batch_no),
         greige_fabric_id: Set(req.greige_fabric_id),
         color_no: Set(req.color_no),
+        dye_lot_no: Set(dye_lot_no),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),
         status: Set(status),
         started_at: Set(None),
@@ -209,6 +220,9 @@ pub async fn update_dye_batch(
     }
     if let Some(color_no) = req.color_no {
         batch.color_no = Set(Some(color_no));
+    }
+    if let Some(dye_lot_no) = req.dye_lot_no {
+        batch.dye_lot_no = Set(dye_lot_no);
     }
     if let Some(planned_quantity) = req.planned_quantity {
         batch.planned_quantity = Set(Decimal::from_f64_retain(planned_quantity));
@@ -370,6 +384,9 @@ pub async fn export_dye_batches(
     if let Some(color_no) = &query.color_no {
         q = q.filter(dye_batch::Column::ColorNo.contains(color_no));
     }
+    if let Some(dye_lot_no) = &query.dye_lot_no {
+        q = q.filter(dye_batch::Column::DyeLotNo.contains(dye_lot_no));
+    }
     if let Some(status) = &query.status {
         q = q.filter(dye_batch::Column::Status.eq(status));
     }
@@ -383,6 +400,7 @@ pub async fn export_dye_batches(
         headers: vec![
             "ID".to_string(),
             "缸号".to_string(),
+            "染色批号".to_string(),
             "色号".to_string(),
             "坯布ID".to_string(),
             "计划数量".to_string(),
@@ -395,6 +413,7 @@ pub async fn export_dye_batches(
                 vec![
                     b.id.to_string(),
                     b.batch_no.clone(),
+                    b.dye_lot_no.clone(),
                     b.color_no.clone().unwrap_or_default(),
                     b.greige_fabric_id
                         .map(|i| i.to_string())

@@ -15,6 +15,12 @@ pub struct Model {
     pub batch_no: String,
     pub greige_fabric_id: Option<i32>,
     pub color_no: Option<String>,
+    // V15 P0-F01：染色批号（dye_lot_no），面料四维标识之一
+    // 术语：与 batch_no（缸号=染色批次号，同一概念不同叫法）不同，
+    //       dye_lot_no 是面料行业 lot 概念，指同产品同颜色不同时间/染缸的批次标识
+    // 历史：dye_batch 主表缺失此字段，导致四层级联断裂、成本归集不完整
+    // 迁移：048_add_dye_lot_no_to_dye_batch.sql 新增字段，历史数据回填 'DEFAULT'
+    pub dye_lot_no: String,
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub planned_quantity: Option<Decimal>,
     pub status: Option<String>,
