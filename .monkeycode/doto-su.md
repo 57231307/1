@@ -244,6 +244,194 @@
 
 ---
 
+## 📝 V15 修复阶段 Batch 475d 归档（2026-07-18，P0-S12 前端导出接入后端 B 类批次 2/3）
+
+> 本节归档 Batch 475d 修复内容（PR #661，squash 4bb7005）。
+> 任务：P0-S12 前端导出接入后端 - B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块）。
+> 一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) Batch 475d 行。
+
+### 总览
+
+| 项目 | 内容 |
+|------|------|
+| 批次 | 475d |
+| PR | #661 |
+| squash commit | 4bb7005 |
+| 任务 | P0-S12 前端导出接入后端 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块）⚠️ P0-S12 整体仍部分完成（剩 10 文件在 475e） |
+| 文件数 | 14（后端 7 修改 + 前端 7 修改） |
+| CI 轮次 | 2 轮（第 1 轮前端类型检查失败 useTableApi queryParams 类型为 Ref<Record<string, unknown>> 与 getQueryParams 强类型返回值不兼容，第 2 轮添加类型断言后 13/13 全绿） |
+| 完成时间 | 2026-07-18 |
+| P0 进度 | 69/104（不变，P0-S12 整体未完成） |
+
+### 改动详情
+
+#### 后端 `backend/src/handlers/sales_contract_handler.rs`（新增 export_contracts）
+
+**目标**：销售合同导出注入水印 + 异步审计日志。
+
+1. **import 调整**：新增 `build_xlsx_response_with_watermark` / `WatermarkConfig` / `XlsxTable` / `OperationType` / `Severity` / `AuditEvent` / `AuditLogService` / `Arc`
+2. **SalesContractQuery 派生 Clone**（防御性，与 Batch 475c WarehouseListQuery 教训对齐）：
+   ```rust
+   // V15 P0-S12 修复（Batch 475d）：派生 Clone，export_contracts 需要 clone 后覆盖分页参数用于全量导出
+   #[derive(Debug, Clone, Deserialize)]
+   pub struct SalesContractQuery { ... }
+   ```
+3. **export_contracts handler**：
+   - 直接调 `service.get_list(page=1, page_size=10000, ...)` 取全量数据（避免复用 list_contracts handler 副作用）
+   - 13 列 xlsx 表格数据（ID/合同编号/合同名称/合同类型/客户ID/客户名称/总金额/签订日期/生效日期/到期日期/付款条款/状态/创建时间）
+   - 异步审计日志：`AuditEvent { operation_type: Export, resource_type: "sales_contract", ... }`
+   - 水印：operator=auth.username / exported_at / extra="销售合同导出（共 N 条）"
+4. **关键设计**：不复用 list_contracts handler 逻辑（保持单一职责），直接构造 query_params 调 service。
+
+#### 后端 `backend/src/handlers/sales_price_handler.rs`（新增 export_prices）
+
+**目标**：销售价格导出注入水印 + 异步审计日志。
+
+1. **SalesPriceQuery 派生 Clone**（防御性）
+2. **export_prices handler**：
+   - 直接调 `service.get_prices_list(page=1, page_size=10000, ...)` 取全量数据
+   - 14 列 xlsx 表格数据
+   - 异步审计日志：resource_type="sales_price"
+   - 水印：extra="销售价格导出（共 N 条）"
+
+#### 后端 `backend/src/handlers/quality_inspection_handler.rs`（新增 export_records）
+
+**目标**：质量检验记录导出注入水印 + 异步审计日志。
+
+1. **RecordQuery 派生 Clone**（防御性）
+2. **export_records handler**：
+   - 直接调 `service.get_records_list(page=1, page_size=10000, ...)` 取全量数据
+   - **关键映射**：`inspection_result` 映射到 service 的 `inspection_type` 字段（与 list_records handler 行为对齐，service 内部把 inspection_type 过滤到 InspectionResult 列，语义保持一致）
+   - 13 列 xlsx 表格数据（ID/检验编号/检验类型/产品ID/批次号/检验日期/检验员ID/总数量/已检数量/合格数量/不合格数量/检验结果/等级）
+   - 异步审计日志：resource_type="quality_inspection_record"
+
+#### 后端 `backend/src/handlers/quality_standard_handler.rs`（新增 export_standards）
+
+**目标**：质量标准导出注入水印 + 异步审计日志。
+
+1. **QualityStandardQuery 派生 Clone**（防御性）
+2. **export_standards handler**：
+   - 直接调 `service.get_standards_list(page=1, page_size=10000, ...)` 取全量数据
+   - 13 列 xlsx 表格数据
+   - 异步审计日志：resource_type="quality_standard"
+
+#### 后端 `backend/src/routes/sales.rs`（注册 2 路由）
+
+```rust
+.route("/sales-contracts/export", get(sales_contract_handler::export_contracts))  // 在 /:id 之前
+.route("/sales-prices/export", get(sales_price_handler::export_prices))  // 在 /:id 之前
+```
+
+#### 后端 `backend/src/routes/production.rs`（注册 1 路由）
+
+```rust
+.route("/quality-inspection/records/export", get(quality_inspection_handler::export_records))
+```
+
+#### 后端 `backend/src/routes/mod.rs`（注册 1 路由）
+
+```rust
+.route("/quality-standards/export", get(quality_standard_handler::export_standards))
+```
+
+#### 前端 `frontend/src/views/sales-contract/composables/useScProc.ts`
+
+- import 从 `exportToExcel` 改为 `exportFromBackend`
+- RefreshCallbacks 新增 `getQueryParams?: () => { keyword?: string; status?: string; customer_id?: number }` 可选回调
+- handleExport 改为 async + 通过 `refresh.getQueryParams?.()` 读取筛选条件，传 keyword/status/customer_id 给 exportFromBackend
+
+#### 前端 `frontend/src/views/sales-contract/index.vue`
+
+- useScProc 初始化传入 `getQueryParams` 回调
+- **CI 修复**：getQueryParams 回调返回值添加类型断言（`as string | undefined` / `as number | undefined`），因为 useTableApi 的 queryParams 类型为 `Ref<Record<string, unknown>>`，访问字段返回 unknown，与 getQueryParams 强类型返回值不兼容
+
+#### 前端 `frontend/src/views/sales-price/composables/useSpProc.ts`
+
+- import 改为 `exportFromBackend`；移除未使用的 `getPriceTypeLabel`/`getStatusLabel` import
+- RefreshCallbacks 新增 `getQueryParams?: () => { product_id?: number; status?: string }` 可选回调
+- handleExport 改为 async + 传 product_id/status 给 exportFromBackend
+
+#### 前端 `frontend/src/views/sales-price/index.vue`
+
+- 传入 `getQueryParams` 回调；onExport 简化为 `() => spProc.handleExport()`
+- **CI 修复**：getQueryParams 回调返回值添加类型断言（与 sales-contract/index.vue 同类修复）
+
+#### 前端 `frontend/src/views/quality/tabs/RecordTab.vue`
+
+- import 改为 `exportFromBackend`
+- handleExport 改为 async + 传空对象（复用 `/production/quality-inspection/records/export` 端点）
+- 修正陈旧注释（"CSV" → "Batch 475d：改用后端 xlsx 导出"）
+
+#### 前端 `frontend/src/views/quality/tabs/StandardTab.vue`（自审门发现遗漏）
+
+- import 改为 `exportFromBackend`
+- handleExport 改为 async + 传空对象（复用 `/quality-standards/export` 端点）
+- **关键**：自审门 grep `getQueryParams` 时发现此文件存在同类问题（虽未直接调用 getQueryParams，但 export 仍是 exportToExcel 假按钮），同步改造
+
+#### 前端 `frontend/src/views/quality-standards/index.vue`
+
+- import 改为 `exportFromBackend`
+- handleExport 改为 async + 传 standard_type（前端 listQuery.type 映射）+ status
+
+### CI 失败修复
+
+#### 第 1 轮失败：前端类型检查
+
+**CI 错误**（GitHub API annotations 获取）：
+
+```
+File: .github:75
+Level: failure
+Message: Type '() => { keyword: unknown; status: unknown; customer_id: unknown; }' is not assignable to type '() => { keyword?: string | undefined; status?: string | undefined; customer_id?: number | undefined; }'.
+
+File: .github:120
+Level: failure
+Message: Type '() => { product_id: unknown; status: unknown; }' is not assignable to type '() => { product_id?: number | undefined; status?: string | undefined; }'.
+```
+
+**根因**：`useTableApi` 的 `queryParams` 类型为 `Ref<Record<string, unknown>>`（见 `/workspace/frontend/src/composables/useTableApi.ts` 第 44 行和第 80 行），访问 `queryParams.value.keyword` 返回 `unknown` 类型。而 `getQueryParams` 回调的返回值类型声明为 `{ keyword?: string; status?: string; customer_id?: number }`，TypeScript 不允许将 `unknown` 赋值给 `string | undefined` / `number | undefined`。
+
+**修复**：在 sales-contract/index.vue 和 sales-price/index.vue 的 getQueryParams 回调中添加类型断言：
+
+```typescript
+// sales-contract/index.vue
+getQueryParams: () => ({
+  keyword: sc.queryParams.keyword as string | undefined,
+  status: sc.queryParams.status as string | undefined,
+  customer_id: sc.queryParams.customer_id as number | undefined,
+})
+
+// sales-price/index.vue
+getQueryParams: () => ({
+  product_id: sp.queryParams.product_id as number | undefined,
+  status: sp.queryParams.status as string | undefined,
+})
+```
+
+**模式参考**：与 Batch 475c 的 production/index.vue 一致（也使用 `as string | undefined` / `as number | undefined` 类型断言）。
+
+#### 第 2 轮全绿
+
+13/13 全绿（环境信息 / 依赖图记录 / 前端格式检查 / Rust 单元测试 / 依赖审计 / 前端构建 / Rust 格式检查 / 前端测试 / Rust 后端构建 / 前端 ESLint / Rust Clippy / 前端类型检查 + 构建通知）。
+
+### 关键教训
+
+1. **useTableApi queryParams 类型陷阱**：`queryParams` 是 `Ref<Record<string, unknown>>`，访问字段返回 unknown，与强类型返回值不兼容，**所有 getQueryParams 回调必须添加类型断言**。未来 Batch 475e 的 6 个新模块如使用 useTableApi，必须沿用此模式。
+2. **自审门价值**：自审门 grep `getQueryParams` 时发现 StandardTab.vue 同类问题（虽未直接调用 getQueryParams，但 export 仍是 exportToExcel 假按钮），同步改造避免后续二次修复。
+3. **防御性 Clone derive**：Batch 475c 的 E0599 教训已应用，475d 中 4 个 Query struct 都提前添加了 Clone derive，未出现同类错误。
+4. **service 方法名各自不同**：get_list/get_prices_list/get_records_list/get_standards_list —— export handler 中使用了正确的方法名（与各 service 实现一致）。
+5. **list handler 副作用陷阱**：export handler 必须直接调 service，不能复用 list handler（可能有副作用或 BUG）。Batch 475c 的 inventory_stock list_stock handler 有"低库存预警通知"副作用是典型案例。
+
+### 关联文件
+
+- 后端 handler：[sales_contract_handler.rs](file:///workspace/backend/src/handlers/sales_contract_handler.rs) / [sales_price_handler.rs](file:///workspace/backend/src/handlers/sales_price_handler.rs) / [quality_inspection_handler.rs](file:///workspace/backend/src/handlers/quality_inspection_handler.rs) / [quality_standard_handler.rs](file:///workspace/backend/src/handlers/quality_standard_handler.rs)
+- 后端路由：[sales.rs](file:///workspace/backend/src/routes/sales.rs) / [production.rs](file:///workspace/backend/src/routes/production.rs) / [mod.rs](file:///workspace/backend/src/routes/mod.rs)
+- 前端 composables：[useScProc.ts](file:///workspace/frontend/src/views/sales-contract/composables/useScProc.ts) / [useSpProc.ts](file:///workspace/frontend/src/views/sales-price/composables/useSpProc.ts)
+- 前端视图：[sales-contract/index.vue](file:///workspace/frontend/src/views/sales-contract/index.vue) / [sales-price/index.vue](file:///workspace/frontend/src/views/sales-price/index.vue) / [RecordTab.vue](file:///workspace/frontend/src/views/quality/tabs/RecordTab.vue) / [StandardTab.vue](file:///workspace/frontend/src/views/quality/tabs/StandardTab.vue) / [quality-standards/index.vue](file:///workspace/frontend/src/views/quality-standards/index.vue)
+- 工具：[export.ts](file:///workspace/frontend/src/utils/export.ts) / [useTableApi.ts](file:///workspace/frontend/src/composables/useTableApi.ts)
+
+---
+
 ## 📝 V15 修复阶段 Batch 475c 归档（2026-07-18，P0-S12 前端导出接入后端 B 类批次 1/3）
 
 > 本节归档 Batch 475c 修复内容（PR #660，squash 38e8e43）。

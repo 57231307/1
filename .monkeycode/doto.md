@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；P0 进度 69/104（P0-S12 整体仍未完成）；剩余 35 P0 + 257 P1 + 248 P2 + 123 P3 = 663 项；规划 22 个批次完成 P0；下一批次 475d 推进剩余 14 个前端导出页面 + 11 个后端新增端点（拆分 2 批）；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
+> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；P0 进度 69/104（P0-S12 整体仍未完成）；剩余 35 P0 + 257 P1 + 248 P2 + 123 P3 = 663 项；规划 22 个批次完成 P0；下一批次 475e 推进剩余 10 个前端导出页面 + 6 个后端新增端点（B 类批次 3/3 收尾）；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
 
 ---
 
@@ -19,12 +19,12 @@
 | **合计** | **732** | **69** | **663** | **9.4%** |
 
 > P0 已完成 69 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）。
-> P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），剩 14 页面在 Batch 475d/475e 推进（任务整体未完成，不计入已完成）。
+> P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），剩 10 页面在 Batch 475e 推进（任务整体未完成，不计入已完成）。
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 475c 已合并（PR #660，squash 38e8e43）—— P0-S12 前端导出 B 类批次 1/3 完成（inventory + warehouse + production 3 模块闭环）
-- **下一批次**：Batch 475d（模块 A 安全权限：P0-S12 剩余 14 个前端导出页面接入后端 + 11 个后端新增端点，拆分微批次 475d/475e）
+- **当前批次**：Batch 475d 已合并（PR #661，squash 4bb7005）—— P0-S12 前端导出 B 类批次 2/3 完成（sales-contract + sales-price + quality + quality-standards 4 模块闭环）
+- **下一批次**：Batch 475e（模块 A 安全权限：P0-S12 剩余 10 个前端导出页面接入后端 + 6 个后端新增端点，B 类批次 3/3 收尾）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
@@ -168,7 +168,7 @@ P0-D17 OA 公告 (M)  ← 独立
 | 🟡 475a | A | P0-S13 审计日志导出闭环 | M | 474 | 已合并 PR #658（squash 7c7cfc7）；P0-S13 完成；后端 audit_log_handler 注入水印 + 前端 audit-log/index.vue 切换 exportFromBackend + 测试 mock 更新；CI 2 轮修复 |
 | 🟡 475b | A | P0-S12 前端导出 purchase/customer 闭环（A 类）| S | 474 | 已合并 PR #659（squash cde7e9a）；A 类 2 文件完成（usePurchAct.ts + CustomerListTab.vue）；后端 export_orders 注入水印；CI 一次过 13/13 全绿 |
 | 🟡 475c | A | P0-S12 前端导出接入后端（B 类批次 1/3）| XL | 474 | 已合并 PR #660（squash 38e8e43）；inventory + warehouse + production 3 模块：后端新增 3 端点（export_stock/export_warehouses/export_production_orders）+ 前端切换 4 文件（inventory/index.vue + warehouse/index.vue + usePrdProc.ts + production/index.vue）+ 3 路由注册 + 自审门 = 11 文件；CI 2 轮（第 1 轮 E0599 WarehouseListQuery 未派生 Clone，第 2 轮修复后 13/13 全绿） |
-| 475d | A | P0-S12 前端导出接入后端（B 类批次 2/3）| XL | 475c | sales-contract/sales-price + quality/quality-standards 2 模块：后端新增 5 端点 + 前端切换 5 文件 + 5 路由注册 + 自审门 = ~11 文件 |
+| 🟡 475d | A | P0-S12 前端导出接入后端（B 类批次 2/3）| XL | 475c | 已合并 PR #661（squash 4bb7005）；sales-contract/sales-price + quality/quality-standards 4 模块：后端新增 4 端点（export_contracts/export_prices/export_records/export_standards）+ 前端切换 7 文件（useScProc.ts + useSpProc.ts + sales-contract/index.vue + sales-price/index.vue + RecordTab.vue + StandardTab.vue + quality-standards/index.vue）+ 4 路由注册 + 自审门 = 14 文件；CI 2 轮（第 1 轮前端类型检查失败 useTableApi queryParams 类型为 Ref<Record<string, unknown>> 与 getQueryParams 强类型返回值不兼容，第 2 轮修复添加类型断言后 13/13 全绿） |
 | 475e | A | P0-S12 前端导出接入后端（B 类批次 3/3）| XL | 475d | voucher/finance/ar/ap/accountSubject/financeReport + cost/budget/fixed-assets 2 模块：后端新增 6 端点 + 前端切换 10 文件 + 6 路由注册 + 自审门 = ~12 文件 |
 | 476 | A | P0-S17 打印 HTML 真实数据查询 | L | 无 | 独立任务，print_service 真实查询；print_handler.rs + print_service.rs + print_templates/ 目录（约 9 文件）|
 | 477 | B | P0-F10 色卡发放库存联动 + P0-F11/F12 前端文件结构 + P0-F13 数据迁移 | M+L+S | 无 | 后端库存扣减 + legacy 迁移脚本 + 5 个前端文件（ColorCardIssueForm.vue + ColorCardIssueDetail.vue + useColorCardIssue.ts + colorCardIssue.ts + colorCardIssue store）= ~9 文件 |
@@ -218,25 +218,24 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-S12 前端本地导出完全无审计（类十三，部分完成）
 
 - **来源**：batch-11 P0-11-10/11
-- **进度**：⚠️ Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），剩 14 页面未改造
+- **进度**：⚠️ Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），剩 10 页面未改造
 - **已完成内容**：
   - Batch 474 PR #657：新增 `exportFromBackend` 函数（独立 axios 实例，绕过 request.ts 拦截器避免 Blob 类型丢失 + router 导入链副作用）；customer/index.vue + supplier/index.vue 改用后端 API；后端 `/crm/customers/export` + `/purchase/suppliers/export` 端点
   - Batch 475a PR #658：audit-log/index.vue 改用后端 API（`/audit-logs/export`）；后端 audit_log_handler 注入水印
   - Batch 475b PR #659：usePurchAct.ts + CustomerListTab.vue 改用后端 API；后端 export_orders 注入水印
   - Batch 475c PR #660：inventory/index.vue + warehouse/index.vue + usePrdProc.ts + production/index.vue 改用后端 API；后端新增 export_stock / export_warehouses / export_production_orders 3 端点 + 3 路由注册；CI 2 轮修复（E0599 WarehouseListQuery 未派生 Clone）
-- **剩余工作**：14 页面改造（B 类，需后端新增端点），详见下方清单
+  - Batch 475d PR #661：useScProc.ts + useSpProc.ts + sales-contract/index.vue + sales-price/index.vue + RecordTab.vue + StandardTab.vue + quality-standards/index.vue 共 7 文件改用后端 API；后端新增 export_contracts / export_prices / export_records / export_standards 4 端点 + 4 路由注册；4 个 Query struct 派生 Clone（防 E0599 重现）；CI 2 轮修复（第 1 轮前端类型检查失败 useTableApi queryParams 类型为 Ref<Record<string, unknown>> 与 getQueryParams 强类型返回值不兼容，第 2 轮添加类型断言后全绿）；自审门发现 StandardTab.vue 同类问题并同步改造
+- **剩余工作**：10 页面改造（B 类，需后端新增端点），详见下方清单
 - **关联文件**：[frontend/src/utils/export.ts](file:///workspace/frontend/src/utils/export.ts) + 14 视图文件 + 各资源 handler/service
 - **依赖**：✅ P0-S14 已完成（Batch 473）/ ✅ P0-S15 水印已完成（Batch 474）
 - **工作量**：XL（剩余部分 L，拆分微批次 475c/475d/475e）
 - **批次**：475c 起（拆分微批次）
 
-#### 待改造前端文件清单（14 个，截至 Batch 475c 后）
+#### 待改造前端文件清单（10 个，截至 Batch 475d 后）
 
-**B 类：需后端新增端点 + 前端改造（14 个）**
+**B 类：需后端新增端点 + 前端改造（10 个）**
 | 模块 | 前端文件数 | 后端需新增端点 | 批次 |
 |------|------------|----------------|------|
-| sales-contract / sales-price | 2（composables）| 销售合同/销售报价 export | 475d |
-| quality / quality-standards | 3 | 质量记录/质量标准 export | 475d |
 | voucher / finance / ar / ap / accountSubject / financeReport | 7 | 凭证/科目/应收发票/应付发票/财务报表 export | 475e |
 | cost / budget / fixed-assets | 3 | 成本归集/预算/固定资产 export | 475e |
 
