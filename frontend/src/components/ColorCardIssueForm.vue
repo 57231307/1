@@ -56,7 +56,7 @@ import { useColorCardIssue } from '@/composables/useColorCardIssue'
 import type { ColorCardListItem } from '@/api/color-card'
 import type { CreateIssueDto, IssueRecordInfo } from '@/types/colorCardIssue'
 
-const props = defineProps<{
+defineProps<{
   availableCards: ColorCardListItem[]
 }>()
 
