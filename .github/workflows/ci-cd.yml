@@ -838,63 +838,22 @@ jobs:
             echo "</html>"
           } > reports/clippy-report.html
 
-          # 9. 决定退出码
-          if [ "$NEW_COUNT" -gt "0" ]; then
+          # 9. 决定退出码（V15 Batch 485 P0-06-3：移除 baseline 机制，任何警告都阻塞 CI）
+          if [ "$CURRENT_COUNT" -gt "0" ]; then
             echo ""
-            echo "❌ 发现 $NEW_COUNT 个新警告，CI 失败"
+            echo "❌ 发现 $CURRENT_COUNT 个 clippy 警告/错误，CI 失败（零容忍）"
             echo ""
-            echo "=== 新增警告列表（完整）==="
-            cat reports/clippy-new.txt
+            echo "=== 警告列表（完整）==="
+            cat reports/clippy-current.txt
             echo "=== 列表结束 ==="
             echo "详见 reports/clippy-report.md 和 artifacts"
             exit 1
           fi
 
-          # 批次 395：写入环境变量供后续步骤使用（自动刷新 baseline）
-          echo "CLIPPY_BASELINE_MODE=$BASELINE_MODE" >> "$GITHUB_ENV"
-          echo "CLIPPY_NEW_COUNT=$NEW_COUNT" >> "$GITHUB_ENV"
-          echo "CLIPPY_FIXED_COUNT=$FIXED_COUNT" >> "$GITHUB_ENV"
           echo "CLIPPY_CURRENT_COUNT=$CURRENT_COUNT" >> "$GITHUB_ENV"
-          echo "CLIPPY_BASELINE_COUNT=$BASELINE_COUNT" >> "$GITHUB_ENV"
 
-          echo "✅ 无新增 clippy 警告"
+          echo "✅ 无 clippy 警告"
           exit 0
-
-      - name: 提交 baseline 文件（首次运行时）+ 自动刷新 baseline（main 分支）
-        if: always()
-        run: |
-          if [ -f "backend/.clippy-baseline.txt" ] || [ -f ".clippy-baseline.txt" ]; then
-            BASELINE_PATH=".clippy-baseline.txt"
-            if [ -f "backend/.clippy-baseline.txt" ]; then
-              BASELINE_PATH="backend/.clippy-baseline.txt"
-            fi
-            if git ls-files --error-unmatch "$BASELINE_PATH" 2>/dev/null; then
-              echo "✅ baseline 文件已纳入版本控制"
-              # 批次 395：main 分支自动刷新 baseline（已修复警告 > 0 且无新警告时）
-              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_FIXED_COUNT" -gt "0" ] && [ "$CLIPPY_NEW_COUNT" = "0" ]; then
-                echo "📝 自动刷新 baseline：移除 $CLIPPY_FIXED_COUNT 条已修复警告（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT）"
-                cd backend
-                cp reports/clippy-current.txt .clippy-baseline.txt
-                cd ..
-                git config user.name "github-actions[bot]"
-                git config user.email "github-actions[bot]@users.noreply.github.com"
-                git add "$BASELINE_PATH"
-                git commit -m "chore(ci): 自动刷新 clippy baseline（移除 $CLIPPY_FIXED_COUNT 条已修复警告，$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT）" || echo "提交失败，跳过"
-                git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-                git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
-              else
-                echo "ℹ️ 不满足自动刷新条件（非 main 分支/非 strict 模式/无已修复警告/有新警告），跳过"
-              fi
-            else
-              echo "📝 提交 baseline 文件: $BASELINE_PATH"
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add "$BASELINE_PATH"
-              git commit -m "chore(ci): 自动建立 clippy 基线" || echo "提交失败，跳过"
-              git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-              git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
-            fi
-          fi
 
       - name: 上传报告
         if: always()
@@ -1297,32 +1256,15 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # 渐进式：仅新失败阻塞 CI
-          if [ "$NEW_FAILED" -gt "0" ]; then
+          # V15 Batch 485 P0-06-3：移除 baseline 机制，任何测试失败都阻塞 CI
+          if [ "$FAILED" -gt "0" ]; then
+            echo ""
+            echo "❌ 发现 $FAILED 个测试失败，CI 失败（零容忍）"
+            echo "详见 reports/cargo-test-report.md 和 artifacts"
             exit 1
           fi
+          echo "✅ 所有 $PASSED 个测试通过"
           exit 0
-
-      - name: 提交 baseline 文件（首次运行时）
-        if: always()
-        run: |
-          if [ -f "backend/.test-baseline.txt" ] || [ -f ".test-baseline.txt" ]; then
-            BASELINE_PATH=".test-baseline.txt"
-            if [ -f "backend/.test-baseline.txt" ]; then
-              BASELINE_PATH="backend/.test-baseline.txt"
-            fi
-            if git log --all --oneline -- "$BASELINE_PATH" 2>/dev/null | head -1 | grep -q .; then
-              echo "✅ baseline 文件已纳入版本控制，跳过"
-            else
-              echo "📝 提交 baseline 文件: $BASELINE_PATH"
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add "$BASELINE_PATH"
-              git commit -m "chore(ci): 自动建立测试基线" || echo "提交失败，跳过"
-              git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-              git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
-            fi
-          fi
 
       - name: 上传报告
         if: always()
@@ -1331,6 +1273,66 @@ jobs:
           name: backend-test-report
           path: reports/
           retention-days: 90
+
+# ==============================================================================
+# Job 7.5: Rust 覆盖率（V15 Batch 485 P0-06-8 新增）
+# ==============================================================================
+  ci-coverage-rust:
+    name: 📊 Rust 覆盖率
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: ci-info
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: 缓存 Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-coverage-
+            ${{ runner.os }}-cargo-
+
+      - name: 安装 cargo-tarpaulin
+        run: cargo install cargo-tarpaulin || echo "cargo-tarpaulin 已安装，跳过"
+
+      - name: 运行覆盖率收集
+        working-directory: backend
+        run: |
+          mkdir -p coverage
+          cargo tarpaulin \
+            --workspace \
+            --out Xml \
+            --output-dir coverage/ \
+            --timeout 300 \
+            -- --test-threads=1 || echo "⚠️ tarpaulin 运行失败，覆盖率收集跳过（不阻塞 CI）"
+
+      - name: 上传覆盖率到 Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          file: backend/coverage/cobertura.xml
+          fail_ci_if_error: false
+          flags: rust
+          name: rust-coverage
+
+      - name: 上传覆盖率报告 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage-report
+          path: backend/coverage/
+          retention-days: 30
 
 # ==============================================================================
 # Job 8: 前端测试
