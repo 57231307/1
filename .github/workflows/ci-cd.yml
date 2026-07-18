@@ -109,7 +109,7 @@ jobs:
             echo ""
             echo "| 文件 | 状态 |"
             echo "|------|------|"
-            for f in backend/Cargo.toml backend/Cargo.lock backend/.clippy.toml backend/.clippy-baseline.txt frontend/package.json frontend/package-lock.json frontend/tsconfig.json .github/workflows/ci-cd.yml; do
+            for f in backend/Cargo.toml backend/Cargo.lock backend/.clippy.toml frontend/package.json frontend/package-lock.json frontend/tsconfig.json .github/workflows/ci-cd.yml; do
               if [ -f "$f" ]; then
                 SIZE=$(stat -c %s "$f")
                 echo "| $f | ✅ 存在（$SIZE 字节）|"
@@ -351,20 +351,17 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
-# Job 4: Rust Clippy 检查（渐进式严格化 + baseline 机制）
+# Job 4: Rust Clippy 检查（V15 Batch 485 零容忍模式）
 # ==============================================================================
   ci-lint-rust:
     name: 🔍 Rust Clippy
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: ci-info
-    # v8 P1-1 修复（2026-06-30）：移除 continue-on-error，恢复 clippy 阻塞 CI 能力。
-    # 项目规范要求 cargo clippy --all-targets -- -D warnings，clippy 警告必须让 CI 失败。
-    # baseline 机制仍保留用于区分"新警告"与"历史警告"，但不再因误报而跳过。
-    # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
-    # PR #238 引入的 baseline 自动 commit 机制因缺此权限而失效，导致基线未纳入版本控制
-    permissions:
-      contents: write
+    # V15 Batch 485 P0-06-3：baseline 机制已移除（零容忍模式）
+    # - 任何 clippy 警告（CURRENT_COUNT > 0）都阻塞 CI
+    # - 不再需要 contents: write 权限（无 baseline 文件需要 push）
+    # - 不再需要 continue-on-error（零容忍直接阻塞）
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -400,12 +397,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
 
-      - name: 运行 clippy（渐进式严格化 + baseline 机制 + 超详细日志）
+      - name: 运行 clippy（V15 Batch 485 零容忍 + 精简日志）
         working-directory: backend
-        env:
-          # 启用 rustc 内部 trace 级别日志，输出到独立文件供深度排查
-          # 注意：会显著增加日志量，仅在 trace-run 步骤启用
-          RUSTC_LOG: debug
+        # V15 Batch 485 P0-06-3 修复：移除 RUSTC_LOG=debug（拖慢主 clippy 运行 5x+）
+        # 和阶段 3 重复 trace 运行（导致 CI 超时 cancelled）
         run: |
           mkdir -p reports
           set +e
@@ -413,10 +408,9 @@ jobs:
           # ============================================================================
           # 阶段 1：主 clippy 运行（JSON 格式，用于机器解析）
           # ============================================================================
-          # v8 P1-1 修复：移除 continue-on-error，让 baseline 机制判定新警告时阻塞 CI。
-          # 注意：不加 -- -D warnings（历史基线警告会直接让 clippy 退出非零码，
-          # 导致 JSON 输出不完整）。baseline 机制已通过 NEW_COUNT > 0 判定来阻塞新警告。
-          echo "▶ 阶段 1/4：主 clippy 运行（JSON 输出）"
+          # V15 Batch 485 P0-06-3：移除 baseline 机制，任何警告都阻塞 CI（零容忍）
+          # 不加 -- -D warnings（避免 JSON 输出截断），由后续 CURRENT_COUNT > 0 判定阻塞
+          echo "▶ 阶段 1/3：主 clippy 运行（JSON 输出）"
           cargo clippy --all-targets --all-features --message-format=json \
             --color=always 2>reports/clippy-stderr.txt \
             | tee reports/clippy-output.json > /dev/null
@@ -428,7 +422,7 @@ jobs:
           # ============================================================================
           # 阶段 2：人类可读详细输出（基于 JSON rendered 字段重渲染）
           # ============================================================================
-          echo "▶ 阶段 2/4：生成人类可读详细日志"
+          echo "▶ 阶段 2/3：生成人类可读详细日志"
           # 用 jq 从 JSON 提取每条 message 的 rendered 字段，生成完整人类可读报告
           # 包含每条警告的完整渲染信息（代码片段、行号、原因说明）
           {
@@ -453,28 +447,14 @@ jobs:
           } > reports/clippy-human-readable-full.txt
 
           # ============================================================================
-          # 阶段 3：rustc 内部 trace 日志（RUSTC_LOG=debug，深度排查用）
+          # 阶段 3：解析 JSON，按多维度统计（lint_id / file / line）
           # ============================================================================
-          echo "▶ 阶段 3/4：生成 rustc 内部 trace 日志（RUSTC_LOG=debug）"
-          # 单独跑一次短运行，仅收集 rustc/clippy 内部 trace 日志
-          # 此输出包含 lint pass 执行过程、检查顺序、注册的 lint 列表等
-          # 注意：输出量极大，仅归档到 artifacts，不打印到 console
-          RUSTC_LOG=debug cargo clippy --all-targets --no-deps --message-format=short \
-            > reports/clippy-rustc-trace.log 2>&1
-          TRACE_EXIT=$?
-          echo "  trace 运行退出码: $TRACE_EXIT"
-          echo "  trace 日志行数: $(wc -l < reports/clippy-rustc-trace.log)"
-          # 同时输出 clippy 的所有可用 lint 列表（便于排查 lint 名称）
-          cargo clippy --help > reports/clippy-help.txt 2>&1
-          rustc -W help > reports/rustc-lint-list.txt 2>&1
-          echo "  可用 lint 数: $(grep -c '^ ' reports/rustc-lint-list.txt)"
+          # V15 Batch 485 P0-06-3：原阶段 3（RUSTC_LOG=debug 重复 clippy 运行）已删除
+          # 原因：重复运行 clippy 一次（带 debug 日志）导致 CI 超时 cancelled（55min > 45min）
+          # 阶段编号调整：原阶段 4 → 阶段 3
+          echo "▶ 阶段 3/3：多维度统计"
 
-          # ============================================================================
-          # 阶段 4：解析 JSON，按多维度统计（lint_id / file / line）
-          # ============================================================================
-          echo "▶ 阶段 4/4：多维度统计"
-
-          # 4.1 原始警告摘要（用于 baseline 对比，保持原有逻辑）
+          # 4.1 原始警告摘要（V15 Batch 485：用于 CURRENT_COUNT 零容忍判定）
           cat reports/clippy-output.json | \
             jq -r 'select(.reason == "compiler-message") |
                    .message |
@@ -552,45 +532,16 @@ jobs:
                  }' reports/clippy-output.json 2>/dev/null \
             > reports/clippy-warnings.json
 
-          # 5. 检查 baseline 是否存在
+          # 5. V15 Batch 485 P0-06-3：baseline 机制已移除（零容忍模式）
+          # 原逻辑：首次跑自动建立 baseline，后续 PR 仅新增警告阻塞 CI
+          # 新逻辑：任何警告（CURRENT_COUNT > 0）都阻塞 CI，无需 baseline 文件
+          # 变量保留为 0/N/A 仅用于报告显示兼容性，不影响退出码判定
           NEW_COUNT=0
           BASELINE_COUNT=0
           FIXED_COUNT=0
-          BASELINE_MODE=""
-
-          if [ ! -f ".clippy-baseline.txt" ]; then
-            # 首次跑：自动建立 baseline，不阻塞
-            BASELINE_MODE="bootstrap"
-            echo "⚠️  未找到 backend/.clippy-baseline.txt"
-            echo "📝 自动建立基线（首次跑，渐进式，不阻塞）"
-
-            # 把当前警告列表作为 baseline
-            cp reports/clippy-current.txt .clippy-baseline.txt
-            BASELINE_COUNT=$CURRENT_COUNT
-            NEW_COUNT=0
-            FIXED_COUNT=0
-            echo "✅ 基线已自动建立：$BASELINE_COUNT 条警告"
-            echo "💡 后续 PR 将严格化：新警告 = 失败"
-            echo "💡 提交 backend/.clippy-baseline.txt 到 git"
-          else
-            BASELINE_MODE="strict"
-            BASELINE_COUNT=$(wc -l < .clippy-baseline.txt)
-            echo "基线警告数: $BASELINE_COUNT"
-
-            # v9 修复：只比较警告摘要行（warning:/error: 开头），忽略代码片段行
-            # 代码片段含行号与代码内容，任何行号偏移都会导致虚假"新警告"。
-            # 摘要行（如 "warning: method `foo` is never used"）与位置无关，比较更稳健。
-            grep -E '^(warning|error):' reports/clippy-current.txt | sort -u > reports/clippy-current-summary.txt
-            grep -E '^(warning|error):' .clippy-baseline.txt | sort -u > reports/clippy-baseline-summary.txt
-            comm -23 reports/clippy-current-summary.txt reports/clippy-baseline-summary.txt > reports/clippy-new.txt
-            NEW_COUNT=$(wc -l < reports/clippy-new.txt)
-            echo "新增警告数: $NEW_COUNT"
-
-            # 找出已修复警告（基线有但当前没有）
-            comm -13 reports/clippy-current-summary.txt reports/clippy-baseline-summary.txt > reports/clippy-fixed.txt
-            FIXED_COUNT=$(wc -l < reports/clippy-fixed.txt)
-            echo "已修复警告数: $FIXED_COUNT"
-          fi
+          BASELINE_MODE="zero-tolerance"
+          echo "模式: zero-tolerance（零容忍，任何警告阻塞 CI）"
+          echo "当前警告数: $CURRENT_COUNT（>0 即 CI 失败）"
 
           # 6. 生成 Markdown 报告
           {
@@ -635,67 +586,26 @@ jobs:
             echo "|------|------|"
             echo "| \`clippy-output.json\` | 原始 JSON 输出（机器可读，最完整） |"
             echo "| \`clippy-human-readable-full.txt\` | 人类可读详细日志（含代码片段、行号） |"
-            echo "| \`clippy-rustc-trace.log\` | rustc 内部 trace 日志（RUSTC_LOG=debug） |"
             echo "| \`clippy-stderr.txt\` | clippy stderr 输出 |"
             echo "| \`clippy-structured.tsv\` | 结构化 TSV（lint_id\\tfile\\tline\\tcol\\tlevel\\tmsg） |"
             echo "| \`clippy-warnings.json\` | 仅警告的结构化 JSON |"
             echo "| \`clippy-by-lint-id.md\` | 按 lint 类型完整统计 |"
             echo "| \`clippy-by-file.md\` | 按文件完整统计 |"
             echo "| \`clippy-by-severity.md\` | 按严重程度完整统计 |"
-            echo "| \`clippy-explain.txt\` | 新增警告的 \`--explain\` 解释 |"
+            echo "| \`clippy-explain.txt\` | 当前警告的 \`--explain\` 解释 |"
             echo "| \`clippy-report.html\` | HTML 可视化报告 |"
-            echo "| \`clippy-help.txt\` | clippy --help 输出 |"
-            echo "| \`rustc-lint-list.txt\` | rustc -W help 完整 lint 列表 |"
             echo ""
-            if [ "$BASELINE_MODE" = "bootstrap" ]; then
-              echo "## 🎯 首次运行（自动建立基线）"
+            if [ "$CURRENT_COUNT" -eq "0" ]; then
+              echo "## ✅ 无 clippy 警告（零容忍通过）"
               echo ""
-              echo "本项目此前未配置 clippy baseline，已自动将当前 $BASELINE_COUNT 条警告作为基线。"
-              echo ""
-              echo "### 后续策略"
-              echo ""
-              echo "- **新警告 = 0 容忍**（CI 失败）"
-              echo "- **历史警告 = 渐进清理**（基线大小 = 剩余债务）"
-              echo ""
-              echo "### 下一步"
-              echo ""
-              echo "1. 检查 \`backend/.clippy-baseline.txt\` 内容"
-              echo "2. 提交 baseline 文件到 git："
-              echo ""
-              echo '```bash'
-              echo "git add backend/.clippy-baseline.txt"
-              echo "git commit -m \"chore(ci): 自动建立 clippy 基线（$BASELINE_COUNT 条历史警告）\""
-              echo '```'
-              echo ""
-              echo "3. 后续 PR 严格化"
-              echo ""
-              echo "### 历史警告 TOP 10"
-              echo ""
-              if [ "$CURRENT_COUNT" -gt "0" ]; then
-                echo "| 文件 | 警告数 |"
-                echo "|------|--------|"
-                grep -oE 'src/[^:]+\.rs' reports/clippy-current.txt | sort | uniq -c | sort -rn | head -10 | \
-                  awk '{printf "| `backend/%s` | %s |\n", $2, $1}'
-              else
-                echo "_（无警告）_"
-              fi
-            elif [ "$NEW_COUNT" -eq "0" ]; then
-              echo "## ✅ 无新增警告"
-              if [ "$FIXED_COUNT" -gt "0" ]; then
-                echo ""
-                echo "🎉 本次运行修复了 $FIXED_COUNT 个历史警告，建议同步更新基线："
-                echo ""
-                echo '```bash'
-                echo "bash scripts/ci/setup-clippy-baseline.sh"
-                echo '```'
-              fi
+              echo "V15 Batch 485 P0-06-3：baseline 机制已移除，任何警告都阻塞 CI。"
             else
-              echo "## ❌ 新增 $NEW_COUNT 个警告（新代码质量不达标）"
+              echo "## ❌ 发现 $CURRENT_COUNT 个 clippy 警告（零容忍，CI 失败）"
               echo ""
-              echo "### 新增警告列表（前 30）"
+              echo "### 警告列表（前 30）"
               echo ""
               echo '```'
-              head -30 reports/clippy-new.txt
+              head -30 reports/clippy-current.txt
               echo '```'
               echo ""
               echo "### 修复命令"
@@ -705,36 +615,29 @@ jobs:
               echo "2. 修复代码"
               echo "3. 重新跑 \`cargo clippy --all-targets\` 验证"
               echo ""
-              echo "如确认是误报，可加 \`#[allow(clippy::lint_name)]\` 抑制。"
+              echo "如确认是误报，可加 \`#[allow(clippy::lint_name)]\` 抑制（需符合规则 14）。"
             fi
             echo ""
-            echo "## 基线文件"
+            echo "## 零容忍模式（V15 Batch 485 P0-06-3）"
             echo ""
-            echo "- \`backend/.clippy-baseline.txt\`（$BASELINE_COUNT 条）"
-            if [ -f "backend/.clippy-baseline.txt" ]; then
-              echo "- 当前大小: $(du -h backend/.clippy-baseline.txt | cut -f1)"
-            fi
-            echo ""
-            if [ -s reports/clippy-fixed.txt ] && [ "$BASELINE_MODE" = "strict" ]; then
-              echo "## 已修复警告（建议从基线移除）"
-              echo ""
-              echo '```'
-              head -30 reports/clippy-fixed.txt
-              echo '```'
-            fi
+            echo "- baseline 机制已移除：不再有 .clippy-baseline.txt"
+            echo "- 任何警告（CURRENT_COUNT > 0）都阻塞 CI"
+            echo "- 历史警告不再渐进清理，必须立即修复"
           } > reports/clippy-report.md
 
-          # 7. 为新增警告生成 --explain 解释（帮助理解 lint 触发原因）
-          echo "▶ 生成新增警告的 --explain 解释"
+          # 7. V15 Batch 485 P0-06-3：为当前警告生成 --explain 解释
+          # 原逻辑依赖 reports/clippy-new.txt（baseline 对比产物），已删除
+          # 新逻辑：直接基于 reports/clippy-structured.tsv 提取 lint code 并 explain
+          echo "▶ 生成当前警告的 --explain 解释"
           {
-            echo "# Clippy 新增警告 --explain 解释"
+            echo "# Clippy 警告 --explain 解释"
             echo ""
             echo "生成时间: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             echo ""
-            if [ ! -s reports/clippy-new.txt ]; then
-              echo "_（无新增警告）_"
+            if [ ! -s reports/clippy-structured.tsv ]; then
+              echo "_（无警告）_"
             else
-              # 提取新警告中涉及到的 lint code（如 clippy::needless_collect）
+              # 提取警告中涉及到的 lint code（如 clippy::needless_collect）
               # 从结构化 TSV 中提取 lint_id，去重后逐个 explain
               LINT_CODES=$(awk -F'\t' '{print $1}' reports/clippy-structured.tsv | \
                 grep -E '^clippy::' | sort -u)
@@ -820,19 +723,17 @@ jobs:
               echo "  <p>无结构化警告记录。</p>"
             fi
             echo ""
-            echo "  <h2>📖 新增警告 --explain 解释</h2>"
+            echo "  <h2>📖 警告 --explain 解释</h2>"
             echo "  <pre>$(head -200 reports/clippy-explain.txt | sed 's/</\&lt;/g; s/>/\&gt;/g')</pre>"
             echo ""
             echo "  <h2>📁 详细日志归档</h2>"
             echo "  <ul>"
             echo "    <li><code>clippy-output.json</code> - 原始 JSON 输出（最完整）</li>"
             echo "    <li><code>clippy-human-readable-full.txt</code> - 人类可读详细日志</li>"
-            echo "    <li><code>clippy-rustc-trace.log</code> - rustc 内部 trace 日志</li>"
             echo "    <li><code>clippy-stderr.txt</code> - clippy stderr 输出</li>"
             echo "    <li><code>clippy-structured.tsv</code> - 结构化 TSV</li>"
             echo "    <li><code>clippy-warnings.json</code> - 仅警告的 JSON</li>"
             echo "    <li><code>clippy-explain.txt</code> - 完整 --explain 解释</li>"
-            echo "    <li><code>clippy-help.txt</code> / <code>rustc-lint-list.txt</code> - 帮助与 lint 列表</li>"
             echo "  </ul>"
             echo "</body>"
             echo "</html>"
@@ -1071,17 +972,14 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
-# Job 7: Rust 单元测试（严格化）
+# Job 7: Rust 单元测试（V15 Batch 485 零容忍模式）
 # ==============================================================================
   ci-test-rust:
     name: 🧪 Rust 单元测试
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
-    # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
-    # PR #238 引入的 baseline 自动 commit 机制因缺此权限而失效，导致基线未纳入版本控制
-    permissions:
-      contents: write
+    # V15 Batch 485 P0-06-3：baseline 机制已移除（零容忍模式），不再需要 contents: write
     # 集成测试依赖 PostgreSQL，使用 service container 提供数据库实例
     # 批次 21 修复：移除 --lib 跳过 47 个集成测试的问题
     services:
@@ -1137,7 +1035,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev postgresql-client protobuf-compiler
 
-      - name: 运行 cargo test（严格化 + baseline 机制）
+      - name: 运行 cargo test（V15 Batch 485 零容忍模式）
         working-directory: backend
         # 批次 21 修复：已添加 Postgres service container + DATABASE_URL 环境变量，
         # 移除 --lib 参数，运行全部测试（lib 单元测试 + backend/tests/ 下集成测试）
@@ -1154,87 +1052,33 @@ jobs:
           FAILED=$(grep -cE "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null || echo 0)
           TOTAL=$((PASSED + FAILED))
 
-          # 与 baseline 对比
+          # V15 Batch 485 P0-06-3：baseline 机制已移除（零容忍模式）
+          # 原逻辑：首次跑自动建立 baseline，后续 PR 仅新增失败阻塞 CI
+          # 新逻辑：任何失败（FAILED > 0）都阻塞 CI，无需 baseline 文件
           NEW_FAILED=0
           BASELINE_FAILED=0
           FIXED=0
-          BASELINE_MODE=""
-
-          if [ ! -f ".test-baseline.txt" ]; then
-            # 首次跑：自动建立 baseline，不阻塞
-            BASELINE_MODE="bootstrap"
-            touch .test-baseline.txt
-            grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | \
-              awk '{print $2}' >> .test-baseline.txt || true
-            BASELINE_FAILED=$FAILED
-            NEW_FAILED=0
-            FIXED=0
-            echo "⚠️  首次跑：自动建立测试基线（$BASELINE_FAILED 个失败）"
-          else
-            BASELINE_MODE="strict"
-            BASELINE_FAILED=$(wc -l < .test-baseline.txt)
-
-            # 当前失败的测试
-            touch reports/test-current-failed.txt
-            grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | \
-              awk '{print $2}' >> reports/test-current-failed.txt || true
-            NEW_FAILED=$(wc -l < reports/test-current-failed.txt)
-
-            # 找出新失败
-            touch reports/test-new-failed.txt reports/test-fixed.txt
-            comm -23 reports/test-current-failed.txt .test-baseline.txt > reports/test-new-failed.txt || true
-            NEW_FAILED_COUNT=$(wc -l < reports/test-new-failed.txt)
-
-            # 找出已修复
-            comm -13 reports/test-current-failed.txt .test-baseline.txt > reports/test-fixed.txt || true
-            FIXED=$(wc -l < reports/test-fixed.txt)
-
-            NEW_FAILED=$NEW_FAILED_COUNT
-          fi
+          BASELINE_MODE="zero-tolerance"
 
           {
             echo "# Rust 单元测试报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**模式**: $BASELINE_MODE  "
+            echo "**模式**: $BASELINE_MODE（零容忍）  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
             echo "**总计**: $TOTAL  "
-            echo "**基线失败**: $BASELINE_FAILED  "
-            echo "**新增失败**: $NEW_FAILED  "
-            echo "**已修复**: $FIXED  "
             echo ""
-            if [ "$BASELINE_MODE" = "bootstrap" ]; then
-              echo "## 🎯 首次运行（自动建立基线）"
+            if [ "$FAILED" -eq "0" ]; then
+              echo "## ✅ 所有 $PASSED 个测试通过（零容忍通过）"
               echo ""
-              echo "本项目此前未配置 test baseline，已自动将当前 $BASELINE_FAILED 个失败作为基线。"
-              echo ""
-              echo "### 后续策略"
-              echo ""
-              echo "- **新失败 = 0 容忍**（CI 失败）"
-              echo "- **历史失败 = 渐进清理**（基线大小 = 剩余债务）"
+              echo "V15 Batch 485 P0-06-3：baseline 机制已移除，任何失败都阻塞 CI。"
+            else
+              echo "## ❌ 发现 $FAILED 个测试失败（零容忍，CI 失败）"
               echo ""
               echo "### 失败列表"
               echo ""
-              if [ "$FAILED" -gt "0" ]; then
-                grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | head -30
-              fi
-            elif [ "$NEW_FAILED" -eq "0" ]; then
-              echo "## ✅ 无新增失败"
-              if [ "$FIXED" -gt "0" ]; then
-                echo ""
-                echo "🎉 本次运行修复了 $FIXED 个历史失败，建议同步更新基线："
-                echo ""
-                echo '```bash'
-                echo "bash scripts/ci/setup-test-baseline.sh"
-                echo '```'
-              fi
-            else
-              echo "## ❌ 新增 $NEW_FAILED 个失败（新代码引入回归）"
-              echo ""
-              echo "### 新增失败列表"
-              echo ""
-              cat reports/test-new-failed.txt
+              grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | head -30
               echo ""
               echo "### 失败详情"
               echo ""
@@ -1245,14 +1089,10 @@ jobs:
           {
             echo "## Rust 单元测试"
             echo ""
-            if [ "$BASELINE_MODE" = "bootstrap" ]; then
-              echo "🎯 首次运行：基线已建立（$BASELINE_FAILED 个历史失败）"
-              echo "  - 通过: $PASSED / $TOTAL"
-              echo "  - 失败: $FAILED（已纳入基线）"
-            elif [ "$NEW_FAILED" -eq "0" ]; then
-              echo "✅ 通过 $PASSED / $TOTAL（$FAILED 历史失败，详见 artifacts）"
+            if [ "$FAILED" -eq "0" ]; then
+              echo "✅ 通过 $PASSED / $TOTAL（零容忍模式）"
             else
-              echo "❌ 新增 $NEW_FAILED 个失败（回归）"
+              echo "❌ 失败 $FAILED / $TOTAL（零容忍，CI 失败）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -2157,13 +1997,14 @@ jobs:
           # 注意：以下 job 是渐进式严格化，不阻塞
           #   - ci-fmt-rust / ci-fmt-fe（格式检查）
           #   - ci-lint-fe（ESLint）
-          #   - ci-lint-rust（Clippy，新警告 0 容忍通过 baseline 机制）
+          # V15 Batch 485 P0-06-3：ci-lint-rust 已升级为零容忍（任何警告阻塞 CI）
           declare -A STRICT_RESULTS=(
             [ci-type-check]="${{ needs.ci-type-check.result }}"
             [ci-test-rust]="${{ needs.ci-test-rust.result }}"
             [ci-test-fe]="${{ needs.ci-test-fe.result }}"
             [ci-build-rust]="${{ needs.ci-build-rust.result }}"
             [ci-build-fe]="${{ needs.ci-build-fe.result }}"
+            [ci-lint-rust]="${{ needs.ci-lint-rust.result }}"
           )
           FAILED=0
           for job in "${!STRICT_RESULTS[@]}"; do
@@ -2187,7 +2028,7 @@ jobs:
           echo "  - env-info              环境信息（rustc/node/npm/系统）"
           echo "  - backend-fmt-report    rustfmt diff 报告"
           echo "  - frontend-fmt-report   prettier diff 报告"
-          echo "  - backend-clippy-report clippy 检查报告（带 baseline 对比）"
+          echo "  - backend-clippy-report clippy 检查报告（V15 Batch 485 零容忍模式）"
           echo "  - frontend-lint-report  ESLint 报告"
           echo "  - frontend-type-check-report  vue-tsc 报告"
           echo "  - backend-test-report   cargo test 报告"
