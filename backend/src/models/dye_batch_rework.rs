@@ -48,6 +48,12 @@ pub struct Model {
     /// 软删除
     pub is_deleted: bool,
 
+    // ========== V15 Batch 479 P0-F21：返工走生产订单流程 ==========
+    /// 关联的返工生产订单 ID（指向 production_orders.id）
+    /// 由 bulk_color_approval customer_rework 触发创建返工订单后回填
+    /// 用于双向追溯：返修单 → 生产订单 → 原批次 → 返修单
+    pub production_order_id: Option<i32>,
+
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

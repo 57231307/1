@@ -453,6 +453,84 @@ impl InventoryStockService {
 
         active_stock.insert(&*self.db).await.map_err(AppError::from)
     }
+
+    // ========== V15 Batch 479 P0-F18：返工/降级/报废联动 ==========
+
+    /// P0-F18: 更新库存等级（降级处理）
+    ///
+    /// 业务场景：bulk_color_approval.downgrade() 触发，
+    /// 将关联库存的 grade 从"一等品"降为"二等品"或"等外品"。
+    /// 同时将 quality_status 改为"待检"（降级后需重新质检）。
+    ///
+    /// 参数：
+    /// - `stock_id`：库存记录 ID
+    /// - `new_grade`：新等级值，仅允许 "一等品" / "二等品" / "等外品"
+    /// - `user_id`：操作人 ID（用于审计日志）
+    pub async fn update_stock_grade(
+        &self,
+        stock_id: i32,
+        new_grade: String,
+        user_id: Option<i32>,
+    ) -> Result<inventory_stock::Model, AppError> {
+        // 校验 new_grade 合法值（与 inventory_stock.rs Model.grade 注释一致）
+        if !matches!(new_grade.as_str(), "一等品" | "二等品" | "等外品") {
+            return Err(AppError::validation(format!(
+                "非法等级值 {}，仅允许 一等品/二等品/等外品",
+                new_grade
+            )));
+        }
+
+        let stock = self.find_by_id(stock_id).await?;
+        let mut active: inventory_stock::ActiveModel = stock.into();
+        active.grade = Set(new_grade);
+        // 降级后质量状态自动降为"待检"（需重新质检判定合格/不合格）
+        active.quality_status = Set("待检".to_string());
+        active.updated_at = Set(Utc::now());
+
+        crate::services::audit_log_service::AuditLogService::update_with_audit::<
+            inventory_stock::Entity,
+            _,
+            _,
+        >(&*self.db, "inventory_stock", active, user_id)
+        .await
+    }
+
+    /// P0-F18: 标记库存为报废
+    ///
+    /// 业务场景：bulk_color_approval.scrap() 触发，
+    /// 将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"。
+    /// 报废原因追加到 bin_location 字段保留可追溯性（不覆盖原有库位信息）。
+    ///
+    /// 参数：
+    /// - `stock_id`：库存记录 ID
+    /// - `reason`：报废原因（写入 bin_location 末尾便于追溯）
+    /// - `user_id`：操作人 ID（用于审计日志）
+    pub async fn mark_stock_as_scrapped(
+        &self,
+        stock_id: i32,
+        reason: String,
+        user_id: Option<i32>,
+    ) -> Result<inventory_stock::Model, AppError> {
+        let stock = self.find_by_id(stock_id).await?;
+        let prev_loc = stock.bin_location.clone();
+        let mut active: inventory_stock::ActiveModel = stock.into();
+        active.stock_status = Set("报废".to_string());
+        active.quality_status = Set("不合格".to_string());
+        // 在 bin_location 追加报废原因（保留原有库位信息便于追溯）
+        let new_loc = match &prev_loc {
+            Some(prev) if !prev.is_empty() => format!("{} [SCRAP:{}]", prev, reason),
+            _ => format!("[SCRAP:{}]", reason),
+        };
+        active.bin_location = Set(Some(new_loc));
+        active.updated_at = Set(Utc::now());
+
+        crate::services::audit_log_service::AuditLogService::update_with_audit::<
+            inventory_stock::Entity,
+            _,
+            _,
+        >(&*self.db, "inventory_stock", active, user_id)
+        .await
+    }
 }
 
 #[cfg(test)]

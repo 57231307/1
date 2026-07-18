@@ -100,6 +100,14 @@ pub struct Model {
     /// 批号（面料行业追溯字段，记录生产订单对应的批号）
     pub batch_no: Option<String>,
 
+    // ========== V15 Batch 479 P0-F21：返工走生产订单流程 ==========
+    /// 订单类型：normal 正常生产订单 / rework 返工订单
+    /// 由 bulk_color_approval customer_rework 触发创建的订单为 rework 类型
+    pub order_type: String,
+    /// 原批次 ID（仅 rework 订单使用，记录返工对应的原 dye_batch id）
+    /// normal 订单此字段为 NULL
+    pub original_batch_id: Option<i32>,
+
     /// 创建人 ID
     pub created_by: i32,
 
