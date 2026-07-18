@@ -76,6 +76,10 @@ fn state_err(e: crate::services::custom_order_state_service::StateError) -> AppE
         InvalidTransition(msg) => AppError::business(msg),
         Database(e) => AppError::database(e.to_string()),
         StateMachine(e) => AppError::business(e.to_string()),
+        // V15 P0-B11：状态门校验失败 + 关联单据不存在
+        GateValidation(msg) => AppError::business(msg),
+        LabDipRequestNotFound(id) => AppError::not_found(format!("打样通知单 {} 不存在", id)),
+        QuotationNotFound(id) => AppError::not_found(format!("报价单 {} 不存在", id)),
     }
 }
 
@@ -109,6 +113,11 @@ fn aftersales_err(e: crate::services::custom_order_aftersales_service::AfterSale
         Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         App(e) => e,
+        // V15 P0-B12：重复触发质量调查（已关联 quality_issue_id）
+        AlreadyLinked(after_sales_id, qi_id) => AppError::business(format!(
+            "售后工单 {} 已关联质量异常 {}，禁止重复触发",
+            after_sales_id, qi_id
+        )),
     }
 }
 
