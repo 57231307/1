@@ -131,6 +131,8 @@ pub fn eight_d_err(e: EightDError) -> AppError {
         )),
         EightDError::Validation(msg) => AppError::validation(msg),
         EightDError::Database(e) => AppError::database(e.to_string()),
+        // paginate_with_total 返回的 AppError 直接透传
+        EightDError::App(e) => e,
     }
 }
 

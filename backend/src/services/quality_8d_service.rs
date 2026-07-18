@@ -38,6 +38,7 @@ use crate::models::quality_8d_dto::{
 };
 use crate::models::quality_issue;
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
 /// 业务错误
@@ -58,6 +59,9 @@ pub enum EightDError {
     Validation(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
+    /// paginate_with_total 返回 AppError，透传所需
+    #[error("应用错误: {0}")]
+    App(#[from] AppError),
 }
 
 /// 11 态状态机枚举
