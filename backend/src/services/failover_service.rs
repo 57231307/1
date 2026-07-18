@@ -429,11 +429,13 @@ impl FailoverService {
             .map_err(|e| format!("查询主备状态失败: {}", e))?;
 
         if let Some(existing) = existing {
+            // 先保存 total_switches，避免 existing.into() 后再访问 existing 触发 E0382
+            let new_total_switches = existing.total_switches + 1;
             let mut active: status_model::ActiveModel = existing.into();
             active.current_state = Set(current_state.to_string());
             active.circuit_state = Set(circuit_state.to_string());
             active.last_switch_at = Set(Some(now));
-            active.total_switches = Set(existing.total_switches + 1); // 累加切换次数
+            active.total_switches = Set(new_total_switches); // 累加切换次数
             active.updated_at = Set(now);
             active
                 .update(&txn)

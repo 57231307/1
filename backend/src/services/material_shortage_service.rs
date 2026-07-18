@@ -10,8 +10,8 @@
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -421,7 +421,7 @@ impl MaterialShortageService {
                     alert_no: Set(alert_no),
                     material_id: Set(item.material_id),
                     material_name: Set(item.material_name.clone()),
-                    material_code: Set(item.material_code.clone()),
+                    material_code: Set(Some(item.material_code.clone())),
                     required_quantity: Set(item.required_quantity),
                     available_quantity: Set(item.available_quantity),
                     shortage_quantity: Set(item.shortage_quantity),
@@ -450,7 +450,7 @@ impl MaterialShortageService {
     ///
     /// 通过查询当天已有的最大序号 + 1 保证唯一性。
     /// 并发场景下可能冲突（UNIQUE 约束会拒绝），调用方需重试。
-    async fn generate_alert_no(&self, db: &DatabaseConnection) -> Result<String, AppError> {
+    async fn generate_alert_no<C: ConnectionTrait>(&self, db: &C) -> Result<String, AppError> {
         let today = Utc::now();
         let date_str = today.format("%Y%m%d").to_string();
         let prefix = format!("MS-{}-", date_str);
