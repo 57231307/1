@@ -20,6 +20,7 @@
 use chrono::Utc;
 use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, Set, TransactionTrait,
