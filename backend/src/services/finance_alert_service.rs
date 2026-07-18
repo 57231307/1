@@ -14,7 +14,6 @@
 //!          handlers/finance_alert_handler.rs / routes/finance_alert.rs
 
 use chrono::Utc;
-use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -131,8 +130,10 @@ fn alert_level_to_priority(level: &str) -> NotificationPriority {
 
 /// 默认阈值
 const CASH_FLOW_MIN_THRESHOLD: Decimal = Decimal::ZERO;
-// Decimal::new 是 const fn，可在常量声明中使用；语义与 from_i128_with_scale(num, scale) 一致
-const BUDGET_OVERRUN_AMOUNT_THRESHOLD: Decimal = Decimal::new(100_000, 2);
+// rust_decimal 1.x 中 Decimal::new 非 const fn，改用函数返回运行期构造的值
+fn budget_overrun_amount_threshold() -> Decimal {
+    Decimal::new(100_000, 2)
+}
 
 /// 财务预警服务
 pub struct FinanceAlertService {
@@ -415,7 +416,7 @@ impl FinanceAlertService {
         let executions = budget_execution::Entity::find()
             .filter(budget_execution::Column::ExecutionType.eq("使用"))
             .filter(
-                budget_execution::Column::Amount.gt(BUDGET_OVERRUN_AMOUNT_THRESHOLD),
+                budget_execution::Column::Amount.gt(budget_overrun_amount_threshold()),
             )
             .all(txn)
             .await?;
@@ -438,7 +439,7 @@ impl FinanceAlertService {
                 ),
                 target_module: Some("budget_execution"),
                 target_id: Some(e.id as i64),
-                threshold_value: Some(BUDGET_OVERRUN_AMOUNT_THRESHOLD),
+                threshold_value: Some(budget_overrun_amount_threshold()),
                 actual_value: Some(e.amount),
                 value_unit: Some("CNY"),
             });

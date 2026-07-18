@@ -18,11 +18,10 @@
 //!          models/bad_debt_dto.rs / handlers/bad_debt_handler.rs / routes/bad_debt.rs
 
 use chrono::Utc;
-use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use thiserror::Error;

@@ -2,7 +2,6 @@
 //!
 //! 包含坏账准备计提（B01）和坏账核销审批（B02）的请求/响应 DTO
 
-use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 

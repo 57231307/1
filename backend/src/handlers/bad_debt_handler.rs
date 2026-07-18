@@ -23,7 +23,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::bad_debt_dto::{
