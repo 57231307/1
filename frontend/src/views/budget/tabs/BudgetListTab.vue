@@ -132,7 +132,7 @@ import {
   type Budget,
 } from '@/api/budget'
 import { logger } from '@/utils/logger'
-import { exportToExcel } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export'
 // 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
 import { useTableApi } from '@/composables/useTableApi'
 
@@ -157,6 +157,7 @@ const {
   loading,
   page,
   pageSize,
+  queryParams,
   setQueryParam,
   refresh: fetchBudgets,
 } = useTableApi<Budget>({
@@ -308,37 +309,13 @@ const handleDelete = async (row: Budget) => {
   }
 }
 
-const handleExport = () => {
-  exportToExcel({
-    filename: '预算列表',
-    format: 'excel',
-    data: budgetList.value.map((b): Record<string, unknown> => ({ ...b })),
-    columns: [
-      { key: 'budget_no', title: '预算编号' },
-      { key: 'name', title: '预算名称' },
-      { key: 'period', title: '期间' },
-      {
-        key: 'department_name',
-        title: '部门',
-        formatter: (value: unknown) => (value ? String(value) : '-'),
-      },
-      {
-        key: 'total_amount',
-        title: '预算总额',
-        formatter: (value: unknown) => Number(value).toFixed(2),
-      },
-      {
-        key: 'status',
-        title: '状态',
-        formatter: (value: unknown) => getStatusLabel(value as Budget['status']),
-      },
-      {
-        key: 'remark',
-        title: '备注',
-        formatter: (value: unknown) => (value ? String(value) : '-'),
-      },
-    ],
-  })
+// V15 P0-S12 修复（Batch 475e）：迁移到后端导出，注入水印 + 审计日志
+const handleExport = async () => {
+  const params: Record<string, unknown> = {
+    item_type: queryParams.value.item_type as string | undefined,
+    status: queryParams.value.status as string | undefined,
+  }
+  await exportFromBackend('/budgets/export', params, 'budget_items_export')
   logger.info('预算列表已导出')
 }
 </script>

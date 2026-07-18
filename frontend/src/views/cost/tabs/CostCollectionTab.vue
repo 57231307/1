@@ -208,7 +208,7 @@ import {
   type CostCollection,
 } from '@/api/cost'
 import { logger } from '@/utils/logger'
-import { exportToExcel } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export'
 // 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
 import { useTableApi } from '@/composables/useTableApi'
 
@@ -233,6 +233,7 @@ const {
   loading,
   page,
   pageSize,
+  queryParams,
   setQueryParam,
   refresh: fetchCollections,
 } = useTableApi<CostCollection>({
@@ -399,51 +400,17 @@ const auditCollection = async (row: CostCollection, approved: boolean) => {
   }
 }
 
-const handleExport = () => {
-  exportToExcel({
-    filename: '成本归集',
-    format: 'excel',
-    data: collectionList.value.map((c): Record<string, unknown> => ({ ...c })),
-    columns: [
-      { key: 'collection_no', title: '归集单号' },
-      { key: 'collection_date', title: '归集日期' },
-      {
-        key: 'batch_no',
-        title: '批号',
-        formatter: (value: unknown) => (value ? String(value) : '-'),
-      },
-      {
-        key: 'color_no',
-        title: '色号',
-        formatter: (value: unknown) => (value ? String(value) : '-'),
-      },
-      {
-        key: 'direct_material',
-        title: '直接材料',
-        formatter: (value: unknown) => Number(value || 0).toFixed(2),
-      },
-      {
-        key: 'direct_labor',
-        title: '直接人工',
-        formatter: (value: unknown) => Number(value || 0).toFixed(2),
-      },
-      {
-        key: 'manufacturing_overhead',
-        title: '制造费用',
-        formatter: (value: unknown) => Number(value || 0).toFixed(2),
-      },
-      {
-        key: 'total_cost',
-        title: '总成本',
-        formatter: (value: unknown) => Number(value || 0).toFixed(2),
-      },
-      {
-        key: 'status',
-        title: '状态',
-        formatter: (value: unknown) => getStatusLabel(String(value)),
-      },
-    ],
-  })
+// V15 P0-S12 修复（Batch 475e）：迁移到后端导出，注入水印 + 审计日志
+const handleExport = async () => {
+  const params: Record<string, unknown> = {
+    batch_no: queryParams.value.batch_no as string | undefined,
+    color_no: queryParams.value.color_no as string | undefined,
+  }
+  await exportFromBackend(
+    '/production/cost-collections/export',
+    params,
+    'cost_collections_export'
+  )
   logger.info('成本归集列表已导出')
 }
 </script>

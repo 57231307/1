@@ -172,6 +172,11 @@ pub fn fixed_assets() -> Router<AppState> {
     Router::new()
         .route("/fixed-assets", get(fixed_asset_handler::list_assets))
         .route("/fixed-assets", post(fixed_asset_handler::create_asset))
+        // V15 P0-S12 修复（Batch 475e）：固定资产导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/fixed-assets/export",
+            get(fixed_asset_handler::export_assets),
+        )
         .route("/fixed-assets/:id", get(fixed_asset_handler::get_asset))
         .route("/fixed-assets/:id", put(fixed_asset_handler::update_asset))
         .route(
@@ -205,6 +210,11 @@ pub fn budgets() -> Router<AppState> {
     Router::new()
         .route("/budgets", get(budget_management_handler::list_budgets))
         .route("/budgets", post(budget_management_handler::create_budget))
+        // V15 P0-S12 修复（Batch 475e）：预算导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/budgets/export",
+            get(budget_management_handler::export_budget_items),
+        )
         .route("/budgets/:id", get(budget_management_handler::get_budget))
         .route(
             "/budgets/:id",
@@ -372,6 +382,11 @@ pub fn ap() -> Router<AppState> {
     Router::new()
         .route("/ap/invoices", get(ap_invoice_handler::list_ap_invoices))
         .route("/ap/invoices", post(ap_invoice_handler::create_ap_invoice))
+        // V15 P0-S12 修复（Batch 475e）：应付发票导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/ap/invoices/export",
+            get(ap_invoice_handler::export_ap_invoices),
+        )
         .route("/ap/invoices/:id", get(ap_invoice_handler::get_ap_invoice))
         .route(
             "/ap/invoices/:id",
@@ -528,6 +543,11 @@ pub fn ar() -> Router<AppState> {
     Router::new()
         .route("/ar/invoices", get(ar_invoice_handler::list_ar_invoices))
         .route("/ar/invoices", post(ar_invoice_handler::create_ar_invoice))
+        // V15 P0-S12 修复（Batch 475e）：应收发票导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/ar/invoices/export",
+            get(ar_invoice_handler::export_ar_invoices),
+        )
         .route("/ar/invoices/:id", get(ar_invoice_handler::get_ar_invoice))
         .route(
             "/ar/invoices/:id",

@@ -208,7 +208,7 @@ import {
   getAPInvoiceStatusText,
   type APInvoice,
 } from '@/api/ap-invoice'
-import { exportToExcel } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export'
 import { logger } from '@/utils/logger'
 import type { Supplier } from '@/api/supplier'
 
@@ -404,32 +404,12 @@ const handlePrintInvoices = () => {
 }
 
 // 批次 157a P1-1 修复：实现应付发票导出（规则 3：使用 .xlsx 格式，非 CSV）
-const handleExportInvoices = () => {
-  if (invoices.value.length === 0) {
-    ElMessage.warning('没有可导出的数据')
-    return
+// V15 P0-S12 修复（Batch 475e）：迁移到后端导出，注入水印 + 审计日志
+const handleExportInvoices = async () => {
+  const params: Record<string, unknown> = {
+    invoice_status: invoiceQuery.status || undefined,
   }
-  exportToExcel({
-    filename: '应付发票',
-    format: 'excel',
-    data: invoices.value.map((inv): Record<string, unknown> => ({ ...inv })),
-    columns: [
-      { key: 'invoice_no', title: '发票号' },
-      { key: 'supplier_name', title: '供应商' },
-      { key: 'invoice_amount', title: '发票金额' },
-      { key: 'tax_amount', title: '税额' },
-      { key: 'verified_amount', title: '已核销金额' },
-      { key: 'unverified_amount', title: '未核销金额' },
-      {
-        key: 'status',
-        title: '状态',
-        formatter: (_v: unknown, row: Record<string, unknown>) =>
-          getInvoiceStatusLabel(String(row.status)),
-      },
-      { key: 'invoice_date', title: '发票日期' },
-      { key: 'due_date', title: '到期日' },
-    ],
-  })
+  await exportFromBackend('/ap/invoices/export', params, 'ap_invoices_export')
   logger.info('应付发票列表已导出')
 }
 
