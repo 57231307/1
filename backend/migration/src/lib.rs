@@ -113,6 +113,8 @@ pub mod m0065_add_custom_order_sample_quotation_fields;
 pub mod m0066_add_after_sales_quality_issue_id;
 // Batch 483 P0-B13：物流电子签收（logistics_waybills 加 signed_by/signed_at/sign_receipt_url/sign_photo_url/sign_remark）
 pub mod m0067_add_logistics_waybill_sign_fields;
+// Batch 484 P0-B15：缺料预警持久化（material_shortage_alerts + threshold_configs 两表）
+pub mod m0068_create_material_shortage_tables;
 
 pub struct Migrator;
 
@@ -189,6 +191,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0065_add_custom_order_sample_quotation_fields::Migration),
             Box::new(m0066_add_after_sales_quality_issue_id::Migration),
             Box::new(m0067_add_logistics_waybill_sign_fields::Migration),
+            Box::new(m0068_create_material_shortage_tables::Migration),
         ]
     }
 }

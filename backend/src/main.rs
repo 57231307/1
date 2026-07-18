@@ -591,6 +591,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("CRM 公海回收规则自动执行任务已启动（间隔 6 小时）");
             }
 
+            // V15 P0-B17（Batch 484）：构造 FailoverExecutor
+            // - 主库 = 当前 db（已连接的主库连接）
+            // - 备库 = DATABASE_BACKUP_URL 环境变量指定的备库（可选，best-effort 连接）
+            //   未设置 / 连接失败 → backup = None（switch_to_backup 返回 Err，降级为仅更新 status 表）
+            let backup_db_url = std::env::var("DATABASE_BACKUP_URL").unwrap_or_default();
+            let backup_db: Option<Arc<sea_orm::DatabaseConnection>> = if !backup_db_url.is_empty() {
+                match sea_orm::Database::connect(&backup_db_url).await {
+                    Ok(conn) => {
+                        info!("DATABASE_BACKUP_URL 已配置，备库连接成功（FailoverExecutor 启用真实切换）");
+                        Some(Arc::new(conn))
+                    }
+                    Err(e) => {
+                        warn!(
+                            error = %e,
+                            "DATABASE_BACKUP_URL 连接失败，FailoverExecutor 降级为仅主库模式（switch_to_backup 将返回 Err）"
+                        );
+                        None
+                    }
+                }
+            } else {
+                info!("DATABASE_BACKUP_URL 未配置，FailoverExecutor 仅主库模式（自动切换将仅更新 status 表，不切换 DB 连接）");
+                None
+            };
+            let failover_executor = Arc::new(
+                crate::services::failover_service::FailoverExecutor::new(
+                    db.clone(),
+                    backup_db,
+                ),
+            );
+
             // 批次 331 v10 复审 P3 修复：使用 AppStateParams 参数对象替代多参数
             let app_state_params = crate::utils::app_state::AppStateParams {
                 db,
@@ -602,6 +632,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 cookie_secret,
                 webhook_secret,
                 allowed_origins: settings.cors.allowed_origins.clone(),
+                // V15 P0-B17（Batch 484）：注入 FailoverExecutor
+                failover_executor: failover_executor.clone(),
             };
             let app_state = match crate::utils::app_state::AppState::with_secrets_and_cors(app_state_params) {
                 Ok(state) => state,
@@ -616,6 +648,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app_state_clone5 = app_state.clone();
             let app_state_clone6 = app_state.clone();
             let app_state_clone7 = app_state.clone();
+
+            // V15 P0-B16（Batch 484）：启动 FailoverMonitor 后台健康监控任务
+            // - 每 5s（FAILOVER_MONITOR_INTERVAL_SECS 可配）执行 SELECT 1 健康探测
+            // - 连续 3 次（FAILOVER_FAILURE_THRESHOLD 可配）失败触发自动切换
+            // - FAILOVER_AUTO_SWITCH_ENABLED=true 时才真正调用 test_switch（默认 false 仅记录日志）
+            // L-26 修复（批次 374）：保存句柄供 shutdown abort
+            {
+                let interval_secs = std::env::var("FAILOVER_MONITOR_INTERVAL_SECS")
+                    .ok()
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .unwrap_or(5);
+                let failure_threshold = std::env::var("FAILOVER_FAILURE_THRESHOLD")
+                    .ok()
+                    .and_then(|s| s.parse::<u32>().ok())
+                    .unwrap_or(3);
+                let auto_switch_enabled = std::env::var("FAILOVER_AUTO_SWITCH_ENABLED")
+                    .map(|v| v == "true" || v == "1")
+                    .unwrap_or(false);
+
+                let monitor_metrics =
+                    crate::handlers::failover_handler::get_global_metrics();
+                let monitor_service =
+                    crate::services::failover_service::FailoverService::new(
+                        (*app_state.db).clone(),
+                        monitor_metrics,
+                    )
+                    .with_executor(app_state.failover_executor.clone());
+                let monitor = crate::services::failover_service::FailoverMonitor::new(
+                    monitor_service,
+                    std::time::Duration::from_secs(interval_secs),
+                    failure_threshold,
+                    auto_switch_enabled,
+                );
+                let monitor_handle = tokio::spawn(monitor.run());
+                if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+                    tasks.push(monitor_handle);
+                }
+                info!(
+                    interval_secs,
+                    failure_threshold,
+                    auto_switch_enabled,
+                    "FailoverMonitor 后台健康监控任务已启动（5s 间隔 SELECT 1 探测，连续 3 次失败触发自动切换）"
+                );
+            }
+
             crate::services::event_bus::start_event_listener(app_state.db.clone(), app_state.search_client.clone()).await;
             crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
             // 批次 120 P2-7 修复：启动时初始化 8 个辅助核算维度（幂等实现）

@@ -94,6 +94,9 @@ sysinfo = "0.31"
 # 并发数据结构
 dashmap = "5.5"
 
+# V15 P0-B17（Batch 484）：主备切换原子替换 DatabaseConnection
+arc-swap = "1.7"
+
 # 其他
 futures = "0.3"
 

@@ -228,6 +228,9 @@ pub async fn get_replenishment_suggestions(
 
 /// PUT /api/v1/erp/material-shortage/:id/status - 更新缺料预警状态
 // 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
+// V15 P0-B15（Batch 484）：状态值与 migration m0068 状态机对齐
+//   identified → purchase_request → purchase_order → received → resolved
+// 并从持久化 alert 读取完整 DTO（替代原桩实现返回零值字段）
 pub async fn update_shortage_status(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -235,31 +238,44 @@ pub async fn update_shortage_status(
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<ApiResponse<MaterialShortageDto>>, AppError> {
     tracing::debug!(user_id = auth.user_id, id = id, "更新缺料预警状态");
-    // 校验状态值
-    let valid = matches!(req.status.as_str(), "pending" | "notified" | "resolved");
+    // 校验状态值（V15 P0-B15：与 migration m0068 状态机一致）
+    let valid = matches!(
+        req.status.as_str(),
+        "identified" | "purchase_request" | "purchase_order" | "received" | "resolved"
+    );
     if !valid {
         return Err(AppError::validation(format!(
-            "无效的缺料状态：{}（允许值：pending / notified / resolved）",
+            "无效的缺料状态：{}（允许值：identified / purchase_request / purchase_order / received / resolved）",
             req.status
         )));
     }
 
     let service = MaterialShortageService::new(state.db.clone());
-    let severity = service.update_status(id, &req.status).await?;
+    // V15 P0-B15：service 返回更新后的 alert 快照，handler 据此构建完整 DTO
+    let alert = service.update_status(id, &req.status).await?;
+
+    // level（Critical/Severe/Warning/Normal）→ severity（critical/high/medium/low）
+    let severity = match alert.level.as_str() {
+        "Critical" => "critical",
+        "Severe" => "high",
+        "Warning" => "medium",
+        _ => "low",
+    }
+    .to_string();
 
     let dto = MaterialShortageDto {
-        id,
-        material_code: String::new(),
-        material_name: format!("物料#{}", id),
+        id: alert.material_id,
+        material_code: alert.material_code.unwrap_or_default(),
+        material_name: alert.material_name,
         spec: None,
-        current_stock: Decimal::ZERO,
-        required_quantity: Decimal::ZERO,
-        shortage_quantity: Decimal::ZERO,
-        unit: None,
+        current_stock: alert.available_quantity,
+        required_quantity: alert.required_quantity,
+        shortage_quantity: alert.shortage_quantity,
+        unit: alert.unit,
         expected_date: None,
         source_type: None,
         source_no: None,
-        status: req.status,
+        status: alert.status,
         severity,
     };
 

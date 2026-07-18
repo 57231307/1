@@ -273,6 +273,8 @@ pub mod report_definition;
 pub mod failover_config;
 pub mod failover_event;
 pub mod failover_status;
+// V15 P0-B15（Batch 484）：缺料预警持久化（material_shortage_alerts + threshold_configs）
+pub mod material_shortage;
 // P0-3 定制订单全流程跟踪模块
 pub mod custom_order;
 pub mod process_node;

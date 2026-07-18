@@ -6,6 +6,7 @@ use std::sync::atomic::AtomicU32;
 
 use crate::services::audit_cleanup_service::AuditCleanupService;
 use crate::services::audit_log_service::AuditLogService;
+use crate::services::failover_service::FailoverExecutor;
 
 /// L-26 修复（批次 374 v13 复审）：app_state 后台任务 spawn 句柄
 /// 保存审计清理 + 用户吊销清理句柄，供 shutdown 时 abort
@@ -87,6 +88,12 @@ pub struct AppState {
     /// 使用场景：Dashboard 聚合查询、配置类数据、报表热点数据
     /// 关闭方式：CACHE_ENABLED=false
     pub cache_service: Arc<CacheService>,
+    /// V15 P0-B17（Batch 484）：主备切换执行器
+    ///
+    /// 维护 primary + optional backup 两个 DatabaseConnection，
+    /// 通过 ArcSwap 原子切换。业务层通过 `failover_executor.get_current()` 获取活跃连接。
+    /// 备库未配置时（DATABASE_BACKUP_URL 未设）switch_to_backup 返回 Err，降级为仅更新 status 表。
+    pub failover_executor: Arc<FailoverExecutor>,
 }
 
 /// 应用状态构造参数对象
@@ -112,6 +119,8 @@ pub struct AppStateParams {
     pub webhook_secret: String,
     /// CORS 允许的源列表
     pub allowed_origins: Vec<String>,
+    /// V15 P0-B17（Batch 484）：主备切换执行器（main.rs 构造后注入）
+    pub failover_executor: Arc<FailoverExecutor>,
 }
 
 impl FromRef<AppState> for Key {
@@ -140,6 +149,7 @@ impl AppState {
         let cookie_secret = params.cookie_secret;
         let webhook_secret = params.webhook_secret;
         let allowed_origins = params.allowed_origins;
+        let failover_executor = params.failover_executor;
 
         // 启动审计日志清理任务（后台任务，失败不阻塞启动）
         let cleanup_clone = audit_cleanup.clone();
@@ -258,6 +268,8 @@ impl AppState {
             // 批次 107 P1-1 修复：L1 本地缓存初始化
             // 根据 CACHE_ENABLED 环境变量决定是否启用
             cache_service: Arc::new(CacheService::new()),
+            // V15 P0-B17（Batch 484）：主备切换执行器（main.rs 注入）
+            failover_executor,
         })
     }
 }
@@ -318,6 +330,8 @@ impl Default for AppState {
             let custom_order_process = Arc::new(CustomOrderProcessService::new(db.clone()));
             let custom_order_quality = Arc::new(CustomOrderQualityService::new(db.clone()));
             let custom_order_aftersales = Arc::new(CustomOrderAfterSalesService::new(db.clone()));
+            // V15 P0-B17（Batch 484）：测试环境构造 FailoverExecutor（仅主库，无备库）
+            let failover_executor = Arc::new(FailoverExecutor::new(db.clone(), None));
             Self {
                 db: db.clone(),
                 omni_audit,
@@ -355,6 +369,8 @@ impl Default for AppState {
                 search_client: init_search_client(),
                 // 批次 107 P1-1 修复：测试环境启用 L1 本地缓存
                 cache_service: Arc::new(CacheService::new()),
+                // V15 P0-B17（Batch 484）：测试环境 failover_executor（仅主库）
+                failover_executor,
             }
         }
     }

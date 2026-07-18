@@ -1,10 +1,18 @@
 //! 缺料预警 Service
 //!
 //! 提供缺料检测、预警阈值配置、缺料清单生成等功能
+//!
+//! V15 P0-B15（Batch 484）：修复审计报告 batch-18 §8.1 缺陷
+//! 缺料预警状态持久化 — save/load/update_status 三个方法从桩实现改为真实 DB 读写，
+//! detect_shortages 检测到缺料时持久化 alert 快照到 material_shortage_alerts 表，
+//! 支持识别→采购申请→采购订单→入库→解除闭环。
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -12,6 +20,8 @@ use std::sync::Arc;
 use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
 use crate::models::bom_item::{Column as BomItemColumn, Entity as BomItemEntity};
 use crate::models::inventory_stock::{Column as StockColumn, Entity as InventoryStockEntity};
+use crate::models::material_shortage as alert_model;
+use crate::models::material_shortage::threshold_config as threshold_model;
 use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
 use crate::models::production_order::{
     Column as ProductionOrderColumn, Entity as ProductionOrderEntity,
@@ -336,6 +346,15 @@ impl MaterialShortageService {
             order(&a.level).cmp(&order(&b.level))
         });
 
+        // V15 P0-B15：持久化 alert 快照（幂等：同物料未解决的 alert 更新快照，否则插入新记录）
+        // 持久化失败不阻断检测（降级为 warn 日志），与事件发布策略一致
+        if let Err(e) = self.persist_alerts(&items).await {
+            tracing::warn!(
+                error = %e,
+                "persist_alerts 持久化缺料预警失败（不阻断检测，降级为 warn）"
+            );
+        }
+
         Ok(ShortageSummary {
             total_materials_checked: material_requirements.len() as i64,
             shortage_count: (critical_count + severe_count + warning_count),
@@ -345,6 +364,118 @@ impl MaterialShortageService {
             affected_orders_count: affected_order_ids.len() as i64,
             items,
         })
+    }
+
+    /// V15 P0-B15：持久化缺料预警快照
+    ///
+    /// 幂等策略：同物料且 status != 'resolved' 的 alert 视为"未解决"，
+    /// 已存在则更新快照字段（required/available/shortage/deficit_rate/level/affected_orders_count/updated_at），
+    /// 不存在则插入新记录（生成 alert_no = MS-YYYYMMDD-NNN）。
+    ///
+    /// 设计考量：
+    /// - 不在循环内做 N 次 DB 查询，先批量查询未解决 alerts 按 material_id 索引
+    /// - 整个持久化过程在一个事务内完成，失败则回滚
+    /// - 持久化失败不阻断 detect_shortages（降级为 warn，与事件发布策略一致）
+    async fn persist_alerts(&self, items: &[MaterialShortageItem]) -> Result<(), AppError> {
+        if items.is_empty() {
+            return Ok(());
+        }
+
+        let material_ids: Vec<i32> = items.iter().map(|i| i.material_id).collect();
+        let now = Utc::now();
+
+        // 批量查询未解决 alerts（status != 'resolved'）按 material_id 索引
+        let existing_alerts = alert_model::Entity::find()
+            .filter(alert_model::Column::MaterialId.is_in(material_ids))
+            .filter(alert_model::Column::Status.ne("resolved"))
+            .all(&*self.db)
+            .await?;
+
+        let mut existing_map: HashMap<i32, alert_model::Model> = HashMap::new();
+        for a in existing_alerts {
+            existing_map.insert(a.material_id, a);
+        }
+
+        let txn = self.db.begin().await?;
+
+        for item in items {
+            let level_str = format!("{:?}", item.level);
+            let affected_orders_count = item.affected_orders.len() as i32;
+
+            if let Some(existing) = existing_map.get(&item.material_id) {
+                // 更新快照字段（保留原 status / purchase_request_id / purchase_order_id / identified_at）
+                let mut active: alert_model::ActiveModel = existing.clone().into();
+                active.required_quantity = Set(item.required_quantity);
+                active.available_quantity = Set(item.available_quantity);
+                active.shortage_quantity = Set(item.shortage_quantity);
+                active.deficit_rate = Set(item.deficit_rate);
+                active.level = Set(level_str);
+                active.affected_orders_count = Set(affected_orders_count);
+                active.unit = Set(item.unit.clone());
+                active.updated_at = Set(now);
+                active.update(&txn).await?;
+            } else {
+                // 插入新 alert（生成 alert_no = MS-YYYYMMDD-NNN）
+                let alert_no = self.generate_alert_no(&txn).await?;
+                let active = alert_model::ActiveModel {
+                    alert_no: Set(alert_no),
+                    material_id: Set(item.material_id),
+                    material_name: Set(item.material_name.clone()),
+                    material_code: Set(item.material_code.clone()),
+                    required_quantity: Set(item.required_quantity),
+                    available_quantity: Set(item.available_quantity),
+                    shortage_quantity: Set(item.shortage_quantity),
+                    deficit_rate: Set(item.deficit_rate),
+                    level: Set(level_str),
+                    status: Set("identified".to_string()),
+                    affected_orders_count: Set(affected_orders_count),
+                    purchase_request_id: Set(None),
+                    purchase_order_id: Set(None),
+                    unit: Set(item.unit.clone()),
+                    identified_at: Set(now),
+                    resolved_at: Set(None),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                active.insert(&txn).await?;
+            }
+        }
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// 生成缺料单号：MS-YYYYMMDD-NNN（NNN 为当天序号，从 001 开始）
+    ///
+    /// 通过查询当天已有的最大序号 + 1 保证唯一性。
+    /// 并发场景下可能冲突（UNIQUE 约束会拒绝），调用方需重试。
+    async fn generate_alert_no(&self, db: &DatabaseConnection) -> Result<String, AppError> {
+        let today = Utc::now();
+        let date_str = today.format("%Y%m%d").to_string();
+        let prefix = format!("MS-{}-", date_str);
+
+        // 查询当天已有的最大序号
+        let today_alerts = alert_model::Entity::find()
+            .filter(alert_model::Column::AlertNo.starts_with(&prefix))
+            .order_by_desc(alert_model::Column::AlertNo)
+            .all(db)
+            .await?;
+
+        let next_seq = if let Some(latest) = today_alerts.first() {
+            // 从 "MS-YYYYMMDD-NNN" 提取 NNN
+            latest
+                .alert_no
+                .rsplit('-')
+                .next()
+                .and_then(|s| s.parse::<u32>().ok())
+                .map(|n| n + 1)
+                .unwrap_or(1)
+        } else {
+            1
+        };
+
+        Ok(format!("{}{:03}", prefix, next_seq))
     }
 
     /// 获取缺料预警列表（可按级别过滤）
@@ -435,20 +566,75 @@ impl MaterialShortageService {
         Ok(map)
     }
 
-    /// 保存预警阈值配置（租户功能已删除，配置不再持久化）
+    /// 保存预警阈值配置（V15 P0-B15：upsert 到 material_shortage_threshold_configs 单行表）
+    ///
+    /// 单行配置表（id=1 固定）：先查询是否存在，存在则 update，不存在则 insert。
+    /// 与 migration m0068 默认行（id=1 + 默认阈值）协同，保证首次启动即可读默认值。
     pub async fn save_threshold_config(
         &self,
-        _config: &ShortageThresholdConfig,
+        config: &ShortageThresholdConfig,
     ) -> Result<(), AppError> {
-        tracing::warn!("save_threshold_config: 租户配置表已删除，配置不再持久化");
+        let now = Utc::now();
+        let existing = threshold_model::Entity::find_by_id(threshold_model::SINGLE_ROW_ID)
+            .one(&*self.db)
+            .await?;
+
+        if existing.is_some() {
+            // update 已有单行配置
+            let mut active: threshold_model::ActiveModel = threshold_model::ActiveModel {
+                id: Set(threshold_model::SINGLE_ROW_ID),
+                ..Default::default()
+            };
+            active.safety_factor = Set(config.safety_factor);
+            active.critical_threshold = Set(config.critical_threshold);
+            active.severe_threshold = Set(config.severe_threshold);
+            active.updated_at = Set(now);
+            active.update(&*self.db).await?;
+        } else {
+            // insert 单行配置（兜底：migration 默认行若被人工删除则重新插入）
+            let active = threshold_model::ActiveModel {
+                id: Set(threshold_model::SINGLE_ROW_ID),
+                safety_factor: Set(config.safety_factor),
+                critical_threshold: Set(config.critical_threshold),
+                severe_threshold: Set(config.severe_threshold),
+                updated_at: Set(now),
+            };
+            active.insert(&*self.db).await?;
+        }
+
+        tracing::info!(
+            safety_factor = %config.safety_factor,
+            critical_threshold = %config.critical_threshold,
+            severe_threshold = %config.severe_threshold,
+            "save_threshold_config: 阈值配置已持久化到 material_shortage_threshold_configs (id=1)"
+        );
         Ok(())
     }
 
-    /// 加载预警阈值配置（租户功能已删除，返回默认值）
+    /// 加载预警阈值配置（V15 P0-B15：从 material_shortage_threshold_configs 单行表读取）
+    ///
+    /// 若 DB 中无行（理论上 migration m0068 默认插入了一行），降级返回默认值。
     pub async fn load_threshold_config(
         &self,
     ) -> Result<ShortageThresholdConfig, AppError> {
-        Ok(ShortageThresholdConfig::default())
+        let row = threshold_model::Entity::find_by_id(threshold_model::SINGLE_ROW_ID)
+            .one(&*self.db)
+            .await?;
+
+        match row {
+            Some(r) => Ok(ShortageThresholdConfig {
+                safety_factor: r.safety_factor,
+                critical_threshold: r.critical_threshold,
+                severe_threshold: r.severe_threshold,
+            }),
+            None => {
+                // 降级：理论上 migration 已插入默认行，此处兜底防止人工删除后崩溃
+                tracing::warn!(
+                    "load_threshold_config: material_shortage_threshold_configs (id=1) 不存在，降级返回默认值"
+                );
+                Ok(ShortageThresholdConfig::default())
+            }
+        }
     }
 
     /// 生成补货建议
@@ -495,38 +681,53 @@ impl MaterialShortageService {
         Ok(suggestions)
     }
 
-    /// 更新缺料预警状态（租户配置表已删除，状态不再持久化，仅返回严重程度）
-    pub async fn update_status(&self, material_id: i32, _status: &str) -> Result<String, AppError> {
-        // 复用现有检测得到当前严重程度
-        let summary = self
-            .detect_shortages(ShortageCheckRequest {
-                product_ids: None,
-                date_from: None,
-                date_to: None,
-                threshold: None,
-            })
-            .await?;
+    /// 更新缺料预警状态（V15 P0-B15：持久化状态到 material_shortage_alerts 表）
+    ///
+    /// 状态机：identified → purchase_request → purchase_order → received → resolved
+    /// - 查找该 material_id 最新未解决（status != 'resolved'）的 alert
+    /// - 更新 status 字段；若新状态为 resolved，同步填入 resolved_at
+    /// - 返回更新后的 alert 快照（含 level / status / 物料信息），供 handler 构建 DTO
+    ///
+    /// 设计：URL `/:id/status` 中的 id 语义为 material_id（与原桩实现一致），
+    /// 因 persist_alerts 保证同 material_id 至多一条未解决 alert，故查找唯一。
+    pub async fn update_status(
+        &self,
+        material_id: i32,
+        new_status: &str,
+    ) -> Result<alert_model::Model, AppError> {
+        // 1. 查找该 material_id 最新未解决 alert
+        let alert = alert_model::Entity::find()
+            .filter(alert_model::Column::MaterialId.eq(material_id))
+            .filter(alert_model::Column::Status.ne("resolved"))
+            .order_by_desc(alert_model::Column::IdentifiedAt)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!(
+                    "未找到物料 {} 的未解决缺料预警（status != resolved），无法更新状态",
+                    material_id
+                ))
+            })?;
 
-        let severity = summary
-            .items
-            .iter()
-            .find(|i| i.material_id == material_id)
-            .map(|i| match i.level {
-                ShortageLevel::Critical => "critical",
-                ShortageLevel::Severe => "high",
-                ShortageLevel::Warning => "medium",
-                ShortageLevel::Normal => "low",
-            })
-            .unwrap_or("low")
-            .to_string();
+        // 2. 更新 status + resolved_at（若为 resolved）+ updated_at
+        let now = Utc::now();
+        let mut active: alert_model::ActiveModel = alert.into();
+        active.status = Set(new_status.to_string());
+        if new_status == "resolved" {
+            active.resolved_at = Set(Some(now));
+        }
+        active.updated_at = Set(now);
+        let updated = active.update(&*self.db).await?;
 
-        tracing::warn!(
+        tracing::info!(
+            alert_id = updated.id,
+            alert_no = %updated.alert_no,
             material_id = material_id,
-            severity = %severity,
-            "update_status: 租户配置表已删除，状态不再持久化"
+            new_status = new_status,
+            "update_status: 缺料预警状态已持久化"
         );
 
-        Ok(severity)
+        Ok(updated)
     }
 }
 
