@@ -244,6 +244,200 @@
 
 ---
 
+## 📝 V15 修复阶段 Batch 475e 归档（2026-07-18，P0-S12 前端导出接入后端 B 类批次 3/3 收尾）
+
+> 本节归档 Batch 475e 修复内容（PR #662，squash ff07549）。
+> 任务：P0-S12 前端导出接入后端 - B 类批次 3/3 收尾（ar + ap + cost + budget + fixed-assets 5 模块）。
+> **里程碑**：本批次完成后，P0-S12 前端导出接入后端**全部完成**（Batch 474+475a+475b+475c+475d+475e 覆盖全部模块）。
+> 一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) Batch 475e 行。
+
+### 总览
+
+| 项目 | 内容 |
+|------|------|
+| 批次 | 475e |
+| PR | #662 |
+| squash commit | ff07549 |
+| 任务 | P0-S12 前端导出接入后端 B 类批次 3/3 收尾（ar + ap + cost + budget + fixed-assets 5 模块）✅ P0-S12 全部完成 |
+| 文件数 | 12（5 后端 handler + 2 路由文件 + 5 前端 Tab.vue）|
+| CI | 一次过 13/13 全绿（2 个 skipping 用于 release） |
+| 合并方式 | squash + delete-branch |
+
+### 后端改动（5 个 export handler）
+
+#### 1. ar_invoice_handler.rs - export_ar_invoices（12 列）
+
+- **Query struct**：`ArInvoiceQuery` 防御性派生 `Clone`（与 Batch 475c/475d 教训对齐，避免 E0599）
+- **service 调用**：`service.get_list(query.customer_id, query.status, 1, 10000)` 取全量
+- **导出列**（12 列）：invoice_number / customer_name / invoice_date / due_date / total_amount / paid_amount / balance / status / invoice_type / currency_code / remark / created_at
+- **水印注入**：`WatermarkConfig { operator, exported_at, extra: format!("共 {} 条应收发票", rows.len()) }`
+- **审计日志**：`AuditEvent` + `record_async` best-effort（OperationType::Export）
+
+#### 2. ap_invoice_handler.rs - export_ap_invoices（11 列）
+
+- **Query struct**：`ApInvoiceQueryParams` 防御性派生 `Clone`
+- **service 调用**：使用 `ApInvoiceListQuery` struct 封装参数调用 service
+- **导出列**（11 列）：invoice_number / supplier_name / invoice_date / due_date / total_amount / paid_amount / balance / invoice_status / currency_code / remark / created_at
+- **字段映射**：前端 `status` → 后端 `invoice_status`（与 list handler 保持一致）
+
+#### 3. cost_collection_handler.rs - export_collections（17 列）
+
+- **Query struct**：`CostCollectionQuery` 防御性派生 `Clone`
+- **导出列**（17 列）：batch_no / dye_lot_no / color_no / workshop / direct_material / direct_labor / overhead / aux_material / total_cost / unit_cost / currency_code / remark / created_at / updated_at / created_by / updated_by / cost_period
+- **特色**：列数最多（17 列），覆盖成本归集全维度
+
+#### 4. budget_management_handler.rs - export_budget_items（11 列）
+
+- **Query struct**：`BudgetItemQuery` 防御性派生 `Clone`
+- **service 调用**：使用 `BudgetItemQueryParams` struct 封装参数
+- **导出列**（11 列）：budget_period / account_name / department_name / planned_amount / actual_amount / variance / variance_rate / status / currency_code / remark / created_at
+- **注意**：使用 `audit_log::OperationType::Export` 全路径（因 import 结构与其他 handler 不同）
+
+#### 5. fixed_asset_handler.rs - export_assets（14 列）
+
+- **Query struct**：`AssetQuery` 防御性派生 `Clone`
+- **service 调用**：使用 `AssetQueryParams` struct 封装参数
+- **导出列**（14 列）：asset_code / asset_name / category / department_name / purchase_date / purchase_amount / salvage_value / accumulated_depreciation / net_value / status / location / custodian / depreciation_method / created_at
+
+### 后端路由改动（2 个路由文件，5 个路由注册）
+
+#### finance.rs - 4 个 export 路由
+
+```rust
+.route("/fixed-assets/export", get(export_assets))
+.route("/budgets/export", get(export_budget_items))
+.route("/ap/invoices/export", get(export_ap_invoices))
+.route("/ar/invoices/export", get(export_ar_invoices))
+```
+
+**全部在 `/:id` 之前注册**（避免 axum matchit 把 "export" 当 `:id` 匹配的陷阱，与 Batch 475c/475d 教训对齐）
+
+#### production.rs - 1 个 export 路由
+
+```rust
+.route("/cost-collections/export", get(export_collections))
+```
+
+**在 `/cost-collections/:id` 之前注册**
+
+### 前端改动（5 个 Tab.vue 文件切换 exportFromBackend）
+
+#### 1. ar/tabs/InvoiceTab.vue - 直接用 invoiceQuery（特殊模式）
+
+**特殊**：不使用 useTableApi，使用响应式 `invoiceQuery` 直接构造参数
+
+```typescript
+const handleExportInvoices = async () => {
+  const params: Record<string, unknown> = {
+    status: invoiceQuery.status || undefined,
+  }
+  await exportFromBackend('/ar/invoices/export', params, 'ar_invoices_export')
+  logger.info('应收发票列表已导出')
+}
+```
+
+#### 2. ap/tabs/InvoiceTab.vue - 字段映射 status→invoice_status
+
+**特殊**：不使用 useTableApi，使用响应式 `invoiceQuery`，且需字段映射
+
+```typescript
+const handleExportInvoices = async () => {
+  const params: Record<string, unknown> = {
+    invoice_status: invoiceQuery.status || undefined,  // 前端 status → 后端 invoice_status
+  }
+  await exportFromBackend('/ap/invoices/export', params, 'ap_invoices_export')
+  logger.info('应付发票列表已导出')
+}
+```
+
+#### 3. cost/tabs/CostCollectionTab.vue - useTableApi + queryParams + 类型断言
+
+```typescript
+const { queryParams } = useTableApi(/* ... */)
+
+const handleExport = async () => {
+  const params: Record<string, unknown> = {
+    batch_no: queryParams.value.batch_no as string | undefined,
+    color_no: queryParams.value.color_no as string | undefined,
+  }
+  await exportFromBackend('/production/cost-collections/export', params, 'cost_collections_export')
+  logger.info('成本归集列表已导出')
+}
+```
+
+#### 4. budget/tabs/BudgetListTab.vue - useTableApi + queryParams + 类型断言
+
+同 cost 模式，参数对齐 BudgetItemQueryParams。
+
+#### 5. fixed-assets/tabs/AssetListTab.vue - useTableApi + 3 参数
+
+```typescript
+const params: Record<string, unknown> = {
+  keyword: queryParams.value.keyword as string | undefined,
+  status: queryParams.value.status as string | undefined,
+  asset_category: queryParams.value.asset_category as string | undefined,
+}
+```
+
+### CI 验证
+
+| 项 | 结果 |
+|----|------|
+| Rust 编译 + clippy | ✅ 一次过 |
+| Rust 单测 | ✅ 一次过 |
+| 前端 type-check | ✅ 一次过 |
+| 前端单测 | ✅ 一次过 |
+| 前端构建 | ✅ 一次过 |
+| 其他 CI | ✅ 全绿 |
+| 总计 | 13/13 全绿，2 个 skipping（release 用） |
+
+### 规则 13 步骤 4 自审门
+
+执行 grep 自审：
+- `grep -r "exportToExcel" frontend/src/views/ar frontend/src/views/ap frontend/src/views/cost frontend/src/views/budget frontend/src/views/fixed-assets` → 无残留
+- `grep -r "exportData" frontend/src/views/ar frontend/src/views/ap` → 无残留
+- 5 个 Query struct 全部派生 Clone ✅
+- 5 个路由全部在 `/:id` 之前注册 ✅
+
+### 关键技术要点与教训
+
+1. **AR/AP InvoiceTab.vue 特殊模式**：这两个 Tab 不使用 useTableApi，而是直接用响应式 `invoiceQuery` 构造参数。与其他模块（cost/budget/fixed-assets）使用 useTableApi + queryParams 模式不同，**不能机械套用统一模式**，需根据文件实际结构判断。
+2. **字段映射一致性**（AP 模块）：前端 `status` 字段需映射到后端 `invoice_status`，与 list handler 字段名保持一致。前端字段名与后端 Query struct 字段名**不一定完全一致**，必须对照 list handler 或 service 查询参数确认。
+3. **防御性 Clone derive**：Batch 475c 的 E0599 教训已应用，475e 中 5 个 Query struct 都提前添加了 Clone derive，未出现同类错误。
+4. **路由注册顺序陷阱**：所有 `/export` 静态路径必须在 `/:id` 之前注册（axum matchit 陷阱），475e 中 5 个路由全部正确注册位置。
+5. **budget_management_handler 特殊导入**：使用 `audit_log::OperationType::Export` 全路径而非 import，因该文件 import 结构与其他 handler 不同，直接全路径调用更清晰。
+6. **CI 一次过**：本批次无 CI 修复轮次，得益于 475c/475d 的教训沉淀（Clone derive / 路由顺序 / queryParams 类型断言 / 字段映射）全部前置应用。
+
+### 关联文件
+
+- 后端 handler：[ar_invoice_handler.rs](file:///workspace/backend/src/handlers/ar_invoice_handler.rs) / [ap_invoice_handler.rs](file:///workspace/backend/src/handlers/ap_invoice_handler.rs) / [cost_collection_handler.rs](file:///workspace/backend/src/handlers/cost_collection_handler.rs) / [budget_management_handler.rs](file:///workspace/backend/src/handlers/budget_management_handler.rs) / [fixed_asset_handler.rs](file:///workspace/backend/src/handlers/fixed_asset_handler.rs)
+- 后端路由：[finance.rs](file:///workspace/backend/src/routes/finance.rs) / [production.rs](file:///workspace/backend/src/routes/production.rs)
+- 前端视图：[ar/tabs/InvoiceTab.vue](file:///workspace/frontend/src/views/ar/tabs/InvoiceTab.vue) / [ap/tabs/InvoiceTab.vue](file:///workspace/frontend/src/views/ap/tabs/InvoiceTab.vue) / [cost/tabs/CostCollectionTab.vue](file:///workspace/frontend/src/views/cost/tabs/CostCollectionTab.vue) / [budget/tabs/BudgetListTab.vue](file:///workspace/frontend/src/views/budget/tabs/BudgetListTab.vue) / [fixed-assets/tabs/AssetListTab.vue](file:///workspace/frontend/src/views/fixed-assets/tabs/AssetListTab.vue)
+- 工具：[export.ts](file:///workspace/frontend/src/utils/export.ts) / [useTableApi.ts](file:///workspace/frontend/src/composables/useTableApi.ts)
+
+### P0-S12 整体完成总结
+
+P0-S12 前端导出接入后端**全部完成**，覆盖全部前端导出页面：
+
+| 批次 | PR | 覆盖模块 | 文件数 |
+|------|-----|---------|--------|
+| 474 | #657 | customer + supplier（A 类核心） | 10 |
+| 475a | #658 | audit-log（P0-S13 闭环） | 3 |
+| 475b | #659 | purchase + customer（A 类闭环） | 4 |
+| 475c | #660 | inventory + warehouse + production（B 类 1/3） | 11 |
+| 475d | #661 | sales-contract + sales-price + quality + quality-standards（B 类 2/3） | 14 |
+| 475e | #662 | ar + ap + cost + budget + fixed-assets（B 类 3/3 收尾） | 12 |
+| **合计** | 6 PR | **全部模块** | **54 文件** |
+
+### 后续影响（Batch 476 准备）
+
+P0-S12 完成后，剩余 P0 任务（34 项）按 doto.md 批次规划：
+- Batch 476：P0-S17 打印 HTML 真实数据查询（独立任务，print_service 真实查询 + handlebars 模板，~9 文件）
+- Batch 477：P0-F10/F11/F12/F13 色卡发放库存联动 + 前端 + 数据迁移（~9 文件）
+- Batch 478-490：按批次规划表顺序执行
+
+---
+
 ## 📝 V15 修复阶段 Batch 475d 归档（2026-07-18，P0-S12 前端导出接入后端 B 类批次 2/3）
 
 > 本节归档 Batch 475d 修复内容（PR #661，squash 4bb7005）。
