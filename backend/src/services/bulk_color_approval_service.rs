@@ -548,22 +548,25 @@ impl BulkColorApprovalService {
 /// 否则阻止发货（delivery_blocking=true 阻断）
 ///
 /// 调用位置：services/so/delivery.rs ship_order 方法，事务开启前
+///
+/// 参数 db 接受 `&Arc<DatabaseConnection>` 以避免调用方 `&*arc` 显式 deref（clippy::deref_arg）
 pub async fn validate_bulk_color_approval(
-    db: &DatabaseConnection,
+    db: &std::sync::Arc<DatabaseConnection>,
     sales_order_id: i32,
 ) -> Result<(), BulkColorApprovalError> {
     use crate::models::sales_order::Entity as SalesOrderEntity;
+    let conn: &DatabaseConnection = db.as_ref();
 
     // 1. 校验销售订单是否存在
     let _order = SalesOrderEntity::find_by_id(sales_order_id)
-        .one(db)
+        .one(conn)
         .await?
         .ok_or(BulkColorApprovalError::SalesOrderNotFound)?;
 
     // 2. 查询该订单关联的所有批色记录
     let approvals = Entity::find()
         .filter(bulk_color_approval::Column::SalesOrderId.eq(sales_order_id))
-        .all(db)
+        .all(conn)
         .await?;
 
     // 3. 校验所有记录必须为 approved 状态（解除发货门禁）

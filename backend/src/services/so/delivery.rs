@@ -122,7 +122,7 @@ impl SalesService {
         // 否则阻止发货（delivery_blocking=true 阻断）
         // 必须在开启事务前校验，避免无效请求占用数据库事务资源
         crate::services::bulk_color_approval_service::validate_bulk_color_approval(
-            &*self.db,
+            &self.db,
             request.order_id,
         )
         .await
