@@ -12,19 +12,19 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 81 | **23** | 77.9% |
+| **P0 阻塞级** | 104 | 82 | **22** | 79.0% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **81** | **651** | **11.1%** |
+| **合计** | **732** | **82** | **650** | **11.2%** |
 
-> P0 已完成 81 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）+ Batch 476 修复 1 项（P0-S17 打印 HTML 真实数据查询）+ Batch 477 修复 4 项（P0-F10 库存联动 + P0-F11 前端文件结构 + P0-F12 前端类型/API/视图 + P0-F13 数据迁移）+ Batch 478 修复 4 项（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验）+ Batch 479 修复 2 项（P0-F18 返工/降级/报废 + P0-F21 返工走生产订单）。
+> P0 已完成 82 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）+ Batch 476 修复 1 项（P0-S17 打印 HTML 真实数据查询）+ Batch 477 修复 4 项（P0-F10 库存联动 + P0-F11 前端文件结构 + P0-F12 前端类型/API/视图 + P0-F13 数据迁移）+ Batch 478 修复 4 项（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验）+ Batch 479 修复 2 项（P0-F18 返工/降级/报废 + P0-F21 返工走生产订单）+ Batch 480 修复 1 项（P0-F20 8D 质量管理流程）。
 > P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），Batch 475e 已完成 B 类批次 3/3 收尾（ar + ap + cost + budget + fixed-assets 5 模块），**P0-S12 前端导出接入后端全部完成**。
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 479 已合并（main 直接提交 642d2c09 + cc1ee381 + c06109fd + bbf38a30）—— P0-F18 返工/降级/报废 + P0-F21 返工走生产订单完成（m0059 迁移 production_orders 加 order_type/original_batch_id + dye_batch_rework 加 production_order_id + production_order_service.rs 新增 create_rework_order 方法 + bulk_color_approval_service.rs customer_rework/downgrade/scrap 三方法联动库存与生产订单 + inventory_stock_service.rs 新增 update_stock_grade + mark_stock_as_scrapped + dye_batch_state_machine_service.rs ActiveModel 补 production_order_id）
-- **下一批次**：Batch 480（P0-F20 8D 质量管理流程，~12 文件）
+- **当前批次**：Batch 480 已合并（main 直接提交 5334bf13 + 8d7ea998 + ae87219f）—— P0-F20 8D 质量管理流程完成（m0060_create_quality_8d_reports 建 quality_8d_reports 表 27 字段 + 11 态状态机 not_started→d0_plan→...→closed + 10 条合法边 + D4 根因方法 5why/fishbone/other + D5 责任人/计划完成日期 + 1:1 唯一约束；quality_8d_report.rs Model 27 字段 + 3 Relations；quality_8d_dto.rs RootCauseMethod serde rename Why5→"5why" + AdvanceStepPayload tagged enum 8 变体；quality_8d_service.rs QualityEightDService 6 方法 + lock_exclusive 事务 + EightDError 7 变体含 App(#[from] AppError) 透传；quality_8d_handler.rs 7 端点；routes/quality_8d.rs nest /api/v1/erp/quality-8d-reports + 静态路径 by-issue 在 :id 前；5 mod.rs 注册；CI 3 轮：E0277 From<AppError> 未实现 + clippy baseline 误删 + 恢复 baseline 后 15/15 全绿）
+- **下一批次**：Batch 481（P0-B01 坏账准备 + P0-B02 坏账核销审批 + P0-B03 催收任务 + P0-B04 财务预警，4 项打包 ~12 文件）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录

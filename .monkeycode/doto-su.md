@@ -5,6 +5,154 @@
 
 ---
 
+## 📦 V15 Batch 480 归档（P0-F20 8D 质量管理流程）
+
+### 任务概述
+
+- **批次**：480
+- **合并方式**：main 直接提交 5334bf13 + 8d7ea998 + ae87219f（3 个 commit，含 2 个 CI 修复）
+- **完成时间**：2026-07-18
+- **审计项**：P0-F20 8D 质量管理流程（D0~D8 八步流程 + 11 态状态机）
+- **变更文件**：13 文件（1 migration + 2 model + 1 service + 1 handler + 1 routes + 5 mod.rs 注册 + 1 baseline + 1 service 修复 + 1 handler 修复）
+- **V15 P0 进度**：81/104 → 82/104（79.0%）
+
+### 问题背景
+
+#### P0-F20：8D 质量管理流程完全缺失（类二十一 维度 4）
+
+- **来源**：V15 审计报告 batch-18 P0-18-1 §4.1 缺陷 4.1（P0）
+- **证据**：
+  - `quality_issues` 表只有 `status` 字段（open/resolved/closed 3 态），无 8D 阶段字段
+  - `quality_issue.rs` model 无 8D 相关字段
+  - `quality_issue_service.rs` 不存在（仅有 `custom_order_quality_service.rs` 3 方法）
+  - 全局 grep `8D|5Why|fishbone` 零结果
+- **影响**：质量异常处理无标准化八步流程，无法满足汽车/纺织行业客户对质量根因分析的合规要求
+- **审计 4 项缺陷**：
+  - 4.1 (P0)：8D 流程完全缺失 — 本批次已修复
+  - 4.2 (P1)：无 5Why/fishbone 根因方法 — 本批次已修复（RootCauseMethod 枚举）
+  - 4.3 (P1)：无责任人+计划完成日期跟踪 — 本批次已修复（d5_action_owner + d5_due_date + d5_completed_at）
+  - 4.4 (P2)：无 8D 月报 — 未在本批次处理（未来工作）
+
+### 修复方案
+
+#### 数据库迁移（m0060_create_quality_8d_reports.rs）
+
+- 新建 `quality_8d_reports` 表（27 字段 + 3 索引 + 2 CHECK 约束 + 1 唯一索引）：
+  - 关联字段：`quality_issue_id` BIGINT FK → quality_issues(id) ON DELETE CASCADE
+  - 状态字段：`status` VARCHAR(20) NOT NULL DEFAULT 'not_started'
+  - D0~D8 八步字段：`d0_date/d0_prepared_by/d0_plan`、`d1_date/d1_team_members`、`d2_date/d2_problem_description`、`d3_date/d3_interim_action`、`d4_date/d4_root_cause_method/d4_root_cause_detail/d4_root_cause_summary`、`d5_permanent_action/d5_action_owner/d5_due_date/d5_completed_at`、`d6_date/d6_verification_result`、`d7_date/d7_prevention_action`、`d8_date/d8_closure_summary`
+  - 闭环字段：`closed_at/closed_by`
+  - 元数据：`created_at/updated_at`
+  - CHECK 约束 `chk_q8d_status`：限定 status ∈ {not_started, d0_plan, d1_team, d2_problem, d3_interim, d4_root_cause, d5_permanent, d6_verify, d7_prevent, d8_recognize, closed}
+  - CHECK 约束 `chk_q8d_root_cause_method`：限定 d4_root_cause_method ∈ {5why, fishbone, other} 或 NULL
+  - 唯一索引 `uq_q8d_quality_issue_id`：一个质量异常只能有一个 8D 报告（1:1 约束）
+  - 3 索引：`idx_q8d_status/idx_q8d_action_owner/idx_q8d_due_date`
+
+#### Model 层（quality_8d_report.rs）
+
+- 27 字段 Sea-ORM 实体，匹配迁移
+- 3 Relations：QualityIssue（belongs_to）、D0PreparedByUser（belongs_to users）、ClosedByUser（belongs_to users）
+
+#### DTO 层（quality_8d_dto.rs）
+
+- `StartEightDRequest`：quality_issue_id + prepared_by + plan
+- `CloseEightDRequest`：closed_by
+- `ListEightDQuery`：quality_issue_id + status + page + page_size
+- `RootCauseMethod` 枚举（serde rename 修复）：
+  - `Why5` → `"5why"`（Rust 标识符不能以数字开头，必须显式 rename）
+  - `Fishbone` → `"fishbone"`
+  - `Other` → `"other"`
+- `AdvanceStepPayload` tagged serde enum（8 变体，每个对应一个 D 阶段）：
+  - `D1Team { team_members }` / `D2Problem { problem_description }` / `D3Interim { interim_action }`
+  - `D4RootCause { method, detail, summary }` / `D5Permanent { permanent_action, action_owner, due_date }`
+  - `D6Verify { verification_result }` / `D7Prevent { prevention_action }` / `D8Recognize { closure_summary }`
+
+#### Service 层（quality_8d_service.rs）
+
+- `QualityEightDService` 6 方法：
+  - `start_8d`：not_started → d0_plan（校验 quality_issue 存在 + 1:1 约束 + 写入 d0_date/d0_prepared_by/d0_plan）
+  - `advance`：10 条合法边的状态机推进（lock_exclusive + 事务）
+    - D6Verify 转换自动设置 `d5_completed_at`
+    - 每条边校验当前 status + payload 匹配 + 写入对应 D 阶段字段
+  - `close_8d`：d8_recognize → closed（写入 closed_at/closed_by）
+  - `get_by_id` / `get_by_quality_issue` / `list`（分页 + 过滤）
+- `EightDStatus` 11 态枚举 + `FromStr` 实现（解析字符串状态）
+- `EightDError` 业务错误（7 变体含 `App(#[from] AppError)` 透传 paginate_with_total）
+
+#### Handler 层（quality_8d_handler.rs）
+
+- 7 HTTP 端点：
+  - `POST /` start_8d（启动 8D 流程）
+  - `GET /` list_8d（列表 + 分页）
+  - `GET /by-issue/:quality_issue_id` get_by_issue（按质量异常查询，**静态路径必须在 /:id 之前**避免 axum matchit 冲突）
+  - `GET /:id` get_8d（详情）
+  - `POST /:id/advance` advance（推进 D 阶段）
+  - `POST /:id/close` close_8d（关闭）
+- `EightDReportInfo` 响应 DTO + `From<Model>` 转换
+- `eight_d_err` 错误转换函数（7 变体匹配，含 `App(e) => e` 透传）
+
+#### 路由注册（routes/quality_8d.rs）
+
+- `nest("/api/v1/erp/quality-8d-reports", quality_8d::routes())`
+- 路由顺序：`/` → `/by-issue/:quality_issue_id`（静态先）→ `/:id` → `/:id/advance` → `/:id/close`
+
+#### 模块注册（5 个 mod.rs）
+
+- `migration/src/lib.rs`：注册 m0060
+- `backend/src/models/mod.rs`：注册 quality_8d_report + quality_8d_dto
+- `backend/src/services/mod.rs`：注册 quality_8d_service
+- `backend/src/handlers/mod.rs`：注册 quality_8d_handler
+- `backend/src/routes/mod.rs`：注册 quality_8d + nest
+
+### CI 验证（3 轮）
+
+#### 第 1 轮（5334bf13）：🏗️ Rust 后端构建 FAILED
+
+- **错误**：`error[E0277]: '?' couldn't convert the error to EightDError`
+- **位置**：`src/services/quality_8d_service.rs:407:87`
+- **原因**：`paginate_with_total` 返回 `Result<_, AppError>`，但 `list` 方法返回 `Result<_, EightDError>`，`?` 运算符需要 `From<AppError> for EightDError` 但未实现
+- **其他 11 job 全绿**：Clippy/单元测试/前端等均通过
+
+#### 第 2 轮（8d7ea998）：🔍 Rust Clippy FAILED
+
+- **错误**：新增警告 `warning: this function has too many arguments (8/7)`
+- **根因**：bab6d617（CI 自动刷新 baseline）误删了历史警告
+  - 5334bf13 编译失败 → clippy 输出不完整 → "too many arguments" 警告未出现
+  - CI 自动判定为"已修复" → 从 baseline 移除
+  - 8d7ea998 修复编译错误 → 警告重新出现 → baseline 中已无 → 误判为"新增警告"
+- **同时 8d7ea998 修复了 E0277**：EightDError 添加 `App(#[from] AppError)` 变体 + handler 添加 `App(e) => e` 透传
+
+#### 第 3 轮（ae87219f）：15/15 全绿
+
+- **修复**：恢复 `warning: this function has too many arguments (8/7)` 到 baseline（与 bbf38a30 同样的操作）
+- **结果**：15/15 job 全部 success
+
+### 关键技术教训
+
+1. **CI 自动刷新 baseline 陷阱（再次复发）**：编译错误导致 clippy 输出不完整时，CI 自动刷新 baseline 会把实际未修复的警告误判为"已修复"并移除。修复编译错误后需检查 baseline 是否被误删。本批次与 Batch 479 同样陷阱，已是第二次复发。
+2. **`From<AppError>` 透传模式**：自定义 service Error 枚举需要用 `#[from]` 属性添加 `App(AppError)` 变体，handler 错误转换函数添加 `App(e) => e` 透传，才能让 `paginate_with_total` 的 `?` 运算符工作。参考 color_price_crud_service.rs 的标准模式。
+3. **Rust 标识符不能以数字开头**：`5why` 无法直接作为枚举变体名，必须用 `Why5` + `#[serde(rename = "5why")]` 显式重命名。
+4. **axum matchit 静态路径优先**：`/by-issue/:quality_issue_id` 必须在 `/:id` 之前注册，否则 axum 会把 `by-issue` 当作 `:id` 匹配。
+5. **tagged serde enum 状态机**：`AdvanceStepPayload` 用 `#[serde(tag = "step", rename_all = "snake_case")]` 实现多态 payload，每个变体携带对应 D 阶段的字段，状态机推进时按 `(current_status, payload_variant)` 模式匹配校验合法性。
+
+### 影响范围
+
+- **新增表**：quality_8d_reports（1 张）
+- **新增 API 端点**：7 个（/api/v1/erp/quality-8d-reports/*）
+- **新增代码行数**：约 1050 行（含修复）
+- **依赖关系解锁**：P0-B12 售后质量集成（Batch 483）现在可以引用 8D 流程
+
+### 自审门（规则 13 步骤 4 + 规则 20 联动）
+
+- ✅ grep `EightDError::` 确认所有变体都被使用（NotFound/QualityIssueNotFound/AlreadyExists/InvalidState/Validation/Database/App）
+- ✅ grep `eight_d_err` 确认所有 6 处调用点都通过 `map_err(eight_d_err)?` 统一转换
+- ✅ 穷尽性匹配：handler 的 `eight_d_err` 函数处理了所有 7 个变体（含新增的 App）
+- ✅ 注释一致性：所有注释与功能实现一致，无 TODO/FIXME 占位
+- ✅ 无未使用 import：`AppError` import 在 service 和 handler 中都被使用
+- ✅ 路由顺序：静态路径 `/by-issue/:quality_issue_id` 在 `/:id` 之前
+
+---
+
 ## 📦 V15 Batch 479 归档（P0-F18/F21 返工降级报废闭环 + 返工走生产订单）
 
 ### 任务概述
