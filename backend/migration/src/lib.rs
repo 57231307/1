@@ -94,6 +94,7 @@ pub mod m0055_create_export_approval_request;
 pub mod m0056_add_condition_to_audit_logs;
 // Batch 477 P0-F10：创建 color_card_issues 表（补齐 Batch 471 遗漏）+ color_cards 表新增库存字段
 pub mod m0057_create_color_card_issues_and_stock_fields;
+pub mod m0058_create_bulk_color_approval;
 
 pub struct Migrator;
 
@@ -160,6 +161,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0055_create_export_approval_request::Migration),
             Box::new(m0056_add_condition_to_audit_logs::Migration),
             Box::new(m0057_create_color_card_issues_and_stock_fields::Migration),
+            Box::new(m0058_create_bulk_color_approval::Migration),
         ]
     }
 }

@@ -117,6 +117,28 @@ impl SalesService {
         // 必须在开启事务前校验，避免无效请求占用数据库事务资源
         validate_dye_lot_consistency(&request.items)?;
 
+        // V15 P0-F19：发货前校验大货批色门禁
+        // 业务规则：销售订单关联的所有 bulk_color_approval 记录必须全部为 approved 状态
+        // 否则阻止发货（delivery_blocking=true 阻断）
+        // 必须在开启事务前校验，避免无效请求占用数据库事务资源
+        crate::services::bulk_color_approval_service::validate_bulk_color_approval(
+            &*self.db,
+            request.order_id,
+        )
+        .await
+        .map_err(|e| match e {
+            crate::services::bulk_color_approval_service::BulkColorApprovalError::InvalidState(
+                msg,
+            ) => AppError::business(msg),
+            crate::services::bulk_color_approval_service::BulkColorApprovalError::SalesOrderNotFound => {
+                AppError::not_found("销售订单不存在")
+            }
+            crate::services::bulk_color_approval_service::BulkColorApprovalError::Database(e) => {
+                AppError::database(e.to_string())
+            }
+            other => AppError::business(other.to_string()),
+        })?;
+
         // 开启事务
         let txn = (*self.db).begin().await?;
 

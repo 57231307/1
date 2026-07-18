@@ -59,6 +59,8 @@ pub mod custom_order;
 pub mod color_card;
 // 面料多色号定价扩展路由（P0-5）
 pub mod color_price;
+// V15 P0-F15/F16/F17：大货批色审批路由
+pub mod bulk_color_approval;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod search_api;
@@ -356,6 +358,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/color-cards", color_card::routes())
         // 面料多色号定价扩展路由（P0-5）
         .nest("/api/v1/erp/color-prices", color_price::routes())
+        // V15 P0-F15/F16/F17：大货批色审批路由
+        .nest("/api/v1/erp/bulk-color-approvals", bulk_color_approval::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())

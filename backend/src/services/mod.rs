@@ -222,3 +222,5 @@ pub mod color_price_tier_service;
 pub mod business_mode_service;
 // v14 批次 432：缸号全生命周期状态机服务（生命周期日志 + 状态规则 + 回修记录 + 操作记录 + 纯函数校验）
 pub mod dye_batch_state_machine_service;
+// V15 P0-F15：大货批色审批服务（8 状态机：pending→sampled→sent_to_customer→approved/rejected/rework→downgraded/scrapped）
+pub mod bulk_color_approval_service;

@@ -173,3 +173,5 @@ pub mod color_price_handler;
 pub mod business_mode_handler;
 // v14 批次 432：缸号全生命周期状态机 handler
 pub mod dye_batch_state_machine_handler;
+// V15 P0-F15/F16/F17：大货批色审批 handler（8 状态机 + 9 端点）
+pub mod bulk_color_approval_handler;

@@ -318,3 +318,5 @@ pub mod dye_batch_lifecycle_log;
 pub mod dye_batch_state_rule;
 pub mod dye_batch_rework;
 pub mod dye_batch_operation;
+// V15 P0-F15：大货批色审批表（8 状态机：pending→sampled→sent_to_customer→approved/rejected/rework→downgraded/scrapped）
+pub mod bulk_color_approval;
