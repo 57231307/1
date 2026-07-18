@@ -386,6 +386,11 @@ pub fn crm_business() -> Router<AppState> {
             "/opportunities/:id/convert",
             post(crate::handlers::crm_handler::convert_opportunity_to_order),
         )
+        // V15 P0-B09（Batch 482）：商机关单（输单流程），必须填写流失原因
+        .route(
+            "/opportunities/:id/close-lost",
+            post(crate::handlers::crm_handler::close_opportunity_as_lost),
+        )
         .route(
             "/customers/:id/summary",
             get(crate::handlers::crm_handler::get_customer_relation_summary),

@@ -38,96 +38,56 @@ pub struct ShortageAlertParams {
 }
 
 impl PurchaseOrderService {
-    /// 检查并占用预算（非阻断）
+    /// 检查并占用预算（V15 P0-B06 强制拦截版本）
+    ///
+    /// 设计依据：审计报告 §17.7-D1 — 预算超支无拦截
+    /// 修复前：返回 () 非阻断，预算不足仅记录 warn 日志，订单仍创建
+    /// 修复后：返回 Result<(), AppError>，预算不足或无方案时返回错误阻断订单创建
+    ///
+    /// 业务流程：
+    /// 1. 调用 BudgetManagementService::enforce_budget_available 强制校验
+    ///    - 部门无预算方案 → 返回 Err 阻断
+    ///    - 预算余额不足 → 返回 Err 阻断（含明细：可用/申请/已下达/已执行）
+    /// 2. 校验通过后调用 occupy_budget 占用预算
+    /// 3. 占用失败 → 返回 Err 阻断（避免订单创建但未关联预算的不一致状态）
     pub(crate) async fn check_and_occupy_budget(
         &self,
         order: &purchase_order::Model,
         department_id: i32,
         total_amount: Decimal,
         user_id: i32,
-    ) {
+    ) -> Result<(), AppError> {
         let budget_service =
             crate::services::budget_management_service::BudgetManagementService::new(
                 self.db.clone(),
             );
 
-        // 查找部门对应的预算方案
-        match budget_service
-            .get_available_plan_by_department(department_id)
+        // V15 P0-B06：强制校验预算可用性，不足时直接返回错误阻断订单创建
+        let plan_id = budget_service
+            .enforce_budget_available(department_id, total_amount)
+            .await?;
+
+        // 预算充足，占用预算
+        budget_service
+            .occupy_budget(
+                department_id,
+                plan_id,
+                total_amount,
+                "purchase_order".to_string(),
+                order.id,
+                user_id,
+            )
             .await
-        {
-            Ok(Some(plan)) => {
-                // 检查预算是否可用
-                match budget_service
-                    .check_budget_available(department_id, plan.id, total_amount)
-                    .await
-                {
-                    Ok(true) => {
-                        // 预算充足，占用预算
-                        match budget_service
-                            .occupy_budget(
-                                department_id,
-                                plan.id,
-                                total_amount,
-                                "purchase_order".to_string(),
-                                order.id,
-                                user_id,
-                            )
-                            .await
-                        {
-                            Ok(_) => {
-                                tracing::info!(
-                                    "订单 {} 预算占用成功，部门ID={}, 方案ID={}, 金额={}",
-                                    order.order_no,
-                                    department_id,
-                                    plan.id,
-                                    total_amount
-                                );
-                            }
-                            Err(e) => {
-                                // 预算占用失败，记录警告但不阻断
-                                tracing::warn!(
-                                    "订单 {} 预算占用失败：{}，订单已创建但未关联预算",
-                                    order.order_no,
-                                    e
-                                );
-                            }
-                        }
-                    }
-                    Ok(false) => {
-                        // 预算不足，记录警告但不阻断
-                        tracing::warn!(
-                            "订单 {} 预算余额不足，部门ID={}, 方案ID={}, 订单金额={}, 订单已创建但未占用预算",
-                            order.order_no, department_id, plan.id, total_amount
-                        );
-                    }
-                    Err(e) => {
-                        // 预算检查失败，记录警告但不阻断
-                        tracing::warn!(
-                            "订单 {} 预算检查失败：{}，订单已创建但未关联预算",
-                            order.order_no,
-                            e
-                        );
-                    }
-                }
-            }
-            Ok(None) => {
-                // 未找到预算方案，记录警告但不阻断
-                tracing::warn!(
-                    "订单 {} 未找到部门 {} 的预算方案，订单已创建但未关联预算",
+            .map(|execution| {
+                tracing::info!(
+                    "订单 {} 预算占用成功，部门ID={}, 方案ID={}, 金额={}, 执行记录ID={}",
                     order.order_no,
-                    department_id
+                    department_id,
+                    plan_id,
+                    total_amount,
+                    execution.id
                 );
-            }
-            Err(e) => {
-                // 查询预算方案失败，记录警告但不阻断
-                tracing::warn!(
-                    "订单 {} 查询预算方案失败：{}，订单已创建但未关联预算",
-                    order.order_no,
-                    e
-                );
-            }
-        }
+            })
     }
 
     /// 根据缺料预警创建采购建议

@@ -818,6 +818,69 @@ impl BudgetManagementService {
         Ok(available_amount >= amount)
     }
 
+    /// 强制拦截预算超支 — V15 P0-B06（Batch 482）
+    ///
+    /// 设计依据：审计报告 §17.7-D1 — 预算超支无拦截
+    /// 修复前：check_budget_available 仅返回 bool，调用方 check_and_occupy_budget 吞掉结果
+    ///         仅记录 warn 日志不阻断，导致预算超支可发生，预算管理形同虚设。
+    /// 修复后：本方法在预算不足时直接返回错误，调用方必须用 ? 传播以阻断业务流程。
+    ///
+    /// 业务规则：
+    /// 1. 部门无预算方案（get_available_plan_by_department 返回 None）→ 返回错误
+    /// 2. 预算方案未审批/未激活 → check_budget_available 内部已校验
+    /// 3. 预算可用金额 < 申请金额 → 返回错误（含明细：可用/申请/已下达/已执行）
+    /// 4. 预算可用金额 ≥ 申请金额 → 返回 Ok(plan_id)，调用方可继续 occupy_budget
+    pub async fn enforce_budget_available(
+        &self,
+        department_id: i32,
+        amount: Decimal,
+    ) -> Result<i32, AppError> {
+        // 1. 查找部门对应的预算方案
+        let plan = self
+            .get_available_plan_by_department(department_id)
+            .await?
+            .ok_or_else(|| {
+                AppError::validation(format!(
+                    "部门 {} 无可用预算方案，无法提交单据（V15 P0-B06 强制拦截）",
+                    department_id
+                ))
+            })?;
+
+        // 2. 检查预算是否充足
+        let available = self
+            .check_budget_available(department_id, plan.id, amount)
+            .await?;
+
+        if !available {
+            // 计算可用金额明细用于错误信息
+            let executed_amount: Decimal = budget_execution::Entity::find()
+                .filter(budget_execution::Column::PlanId.eq(plan.id))
+                .filter(budget_execution::Column::ExecutionType.eq("使用".to_string()))
+                .all(&*self.db)
+                .await?
+                .iter()
+                .map(|e| e.amount)
+                .sum();
+
+            let issued_amount: Decimal = budget_execution::Entity::find()
+                .filter(budget_execution::Column::PlanId.eq(plan.id))
+                .filter(budget_execution::Column::ExecutionType.eq("下达".to_string()))
+                .all(&*self.db)
+                .await?
+                .iter()
+                .map(|e| e.amount)
+                .sum();
+
+            let available_amount = issued_amount - executed_amount;
+            return Err(AppError::validation(format!(
+                "预算余额不足，无法提交单据（V15 P0-B06 强制拦截）：申请金额={}, 可用金额={}, 已下达={}, 已执行={}",
+                amount, available_amount, issued_amount, executed_amount
+            )));
+        }
+
+        Ok(plan.id)
+    }
+
     /// 占用预算
     /// 创建采购订单时调用，记录预算使用
     pub async fn occupy_budget(

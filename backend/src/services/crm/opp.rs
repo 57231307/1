@@ -2,6 +2,13 @@
 //!
 //! 包含商机 CRUD、阶段流转、商机转订单等。
 //! 拆分自原 `crm_service.rs`。
+//!
+//! V15 P0-B08（Batch 482）：赢率自动计算 — 按阶段配置默认赢率，
+//! 创建/更新商机时若用户未传 win_probability 则按阶段自动填充，
+//! 阶段流转时自动重算赢率（用户显式传值时仍可覆盖默认值）。
+//!
+//! V15 P0-B09（Batch 482）：输单原因记录 — 新增 close_as_lost 方法，
+//! 商机转 CLOSED_LOST 时强制要求 lost_reason 字段写入。
 
 use crate::models::{crm_opportunity, customer, sales_order};
 // 批次 236 v13 P1-1：商机状态常量接入（规则 0）
@@ -10,12 +17,45 @@ use crate::models::status::crm_opportunity as opp_status;
 use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
+use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
     Set, TransactionTrait,
 };
 
 use super::cust::CrmService;
+
+// V15 P0-B08：阶段默认赢率（百分比，0-100）
+// 设计依据：审计报告 §18.2-D1 建议 QUALIFICATION 10% / NEGOTIATION 50% / CLOSED_WON 100%
+// 5 个阶段全部覆盖，CLOSED_LOST 固定为 0
+//
+// 注意：rust_decimal 1.42 中 `Decimal::new` 不是 `const fn`（仅 `Decimal::ZERO`/
+// `Decimal::ONE`/`Decimal::TEN`/`Decimal::ONE_HUNDRED` 等为 const），
+// 故阶段赢率通过 `fn default_win_probability_by_stage` 内联返回，不声明为 const。
+// 参考：批次 481 `budget_overrun_amount_threshold()` 同样使用 `fn` 而非 `const`。
+
+/// 按商机阶段返回默认赢率（百分比 0-100）
+///
+/// V15 P0-B08：赢率自动计算
+/// - QUALIFICATION（资质确认）→ 10%
+/// - NEEDS_ANALYSIS（需求分析）→ 25%
+/// - PROPOSAL（方案报价）→ 40%
+/// - NEGOTIATION（谈判议价）→ 50%
+/// - CLOSED_WON（赢单）→ 100%
+/// - CLOSED_LOST（输单）→ 0%
+/// - 其他/空 → None（无法自动计算）
+fn default_win_probability_by_stage(stage: &str) -> Option<Decimal> {
+    match stage {
+        "QUALIFICATION" => Some(Decimal::new(10, 0)),
+        "NEEDS_ANALYSIS" => Some(Decimal::new(25, 0)),
+        "PROPOSAL" => Some(Decimal::new(40, 0)),
+        "NEGOTIATION" => Some(Decimal::new(50, 0)),
+        // Decimal::ONE_HUNDRED / Decimal::ZERO 为 const，可直接使用
+        opp_status::CLOSED_WON => Some(Decimal::ONE_HUNDRED),
+        opp_status::CLOSED_LOST => Some(Decimal::ZERO),
+        _ => None,
+    }
+}
 
 impl CrmService {
     /// 创建商机
@@ -42,6 +82,10 @@ impl CrmService {
         let owner_name = format!("用户{}", user_id);
         let now = chrono::Utc::now();
 
+        // V15 P0-B08：赢率自动计算
+        // 用户未传 win_probability 时，按阶段默认赢率填充；显式传值时保留用户输入
+        let win_probability = req.win_probability.or_else(|| default_win_probability_by_stage(&opportunity_stage));
+
         let opportunity = crm_opportunity::ActiveModel {
             id: Default::default(),
             opportunity_no: Set(opportunity_no),
@@ -50,7 +94,7 @@ impl CrmService {
             lead_id: Set(req.lead_id),
             opportunity_type: Set(req.opportunity_type),
             opportunity_stage: Set(Some(opportunity_stage)),
-            win_probability: Set(req.win_probability),
+            win_probability: Set(win_probability),
             estimated_amount: Set(req.estimated_amount),
             actual_amount: Set(req.actual_amount),
             currency: Set(req.currency),
@@ -268,7 +312,19 @@ impl CrmService {
                 opportunity_active.opportunity_stage.as_ref(),
                 &v,
             )?;
+            // V15 P0-B08：阶段流转时自动重算赢率
+            // 用户未显式传 win_probability 时，按新阶段的默认赢率填充
+            // 若用户同时传了 win_probability，下方 req.win_probability 分支会覆盖此默认值
+            // 注意：需在 Set(Some(v)) 移动 v 之前计算默认赢率
+            let default_prob = if req.win_probability.is_none() {
+                default_win_probability_by_stage(&v)
+            } else {
+                None
+            };
             opportunity_active.opportunity_stage = Set(Some(v));
+            if let Some(prob) = default_prob {
+                opportunity_active.win_probability = Set(Some(prob));
+            }
         }
         if let Some(v) = req.win_probability {
             opportunity_active.win_probability = Set(Some(v));
@@ -403,6 +459,8 @@ impl CrmService {
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
         opp_active.opportunity_status = Set(Some(opp_status::CLOSED_WON.to_string()));
         opp_active.opportunity_stage = Set(Some(opp_status::CLOSED_WON.to_string()));
+        // V15 P0-B08：赢单时赢率自动设为 100%
+        opp_active.win_probability = Set(Some(Decimal::ONE_HUNDRED));
         // 估算金额 -> 实际金额：解包 ActiveValue
         let estimated: Option<rust_decimal::Decimal> = match opp_active.estimated_amount {
             sea_orm::ActiveValue::Set(v) => v,
@@ -428,5 +486,62 @@ impl CrmService {
             "order_id": order.id,
             "order_no": order.order_no,
         }))
+    }
+
+    /// 关单（输单流程）— V15 P0-B09（Batch 482）
+    ///
+    /// 将商机状态置为 CLOSED_LOST，强制要求写入流失原因 lost_reason。
+    /// 设计依据：审计报告 §18.2-D2 — 输单原因未记录，销售改进无依据
+    ///
+    /// 业务规则：
+    /// 1. 商机当前状态不能是 CLOSED_WON / CLOSED_LOST（已关闭不可重复关单）
+    /// 2. lost_reason 必填且非空（保证销售改进有依据）
+    /// 3. 阶段置为 CLOSED_LOST，状态置为 CLOSED_LOST
+    /// 4. 赢率自动置为 0（V15 P0-B08 联动）
+    /// 5. 实际关闭日期置为今天
+    pub async fn close_as_lost(
+        &self,
+        opportunity_id: i32,
+        lost_reason: String,
+        user_id: i32,
+    ) -> Result<crm_opportunity::Model, AppError> {
+        // 流失原因必填校验（非空字符串）
+        let lost_reason_trimmed = lost_reason.trim().to_string();
+        if lost_reason_trimmed.is_empty() {
+            return Err(AppError::validation("输单原因不能为空"));
+        }
+        if lost_reason_trimmed.chars().count() > 500 {
+            return Err(AppError::validation("输单原因长度不能超过 500 字符"));
+        }
+
+        let opportunity = self.get_opportunity(opportunity_id, None).await?;
+
+        // 已关闭的商机不能再关单
+        if let Some(status) = &opportunity.opportunity_status {
+            if status == opp_status::CLOSED_WON {
+                return Err(AppError::business("已赢单的商机不能转为输单".to_string()));
+            }
+            if status == opp_status::CLOSED_LOST {
+                return Err(AppError::business("商机已输单，不能重复关单".to_string()));
+            }
+        }
+
+        let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
+        opp_active.opportunity_status = Set(Some(opp_status::CLOSED_LOST.to_string()));
+        opp_active.opportunity_stage = Set(Some(opp_status::CLOSED_LOST.to_string()));
+        opp_active.win_probability = Set(Some(Decimal::ZERO));
+        opp_active.lost_reason = Set(Some(lost_reason_trimmed));
+        opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
+        opp_active.updated_at = Set(Some(chrono::Utc::now()));
+
+        let opportunity = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            opp_active,
+            Some(user_id),
+        )
+        .await?;
+
+        Ok(opportunity)
     }
 }

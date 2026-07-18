@@ -43,6 +43,18 @@ pub struct UpdateFundAccountRequest {
     pub remark: Option<String>,
 }
 
+/// V15 P0-B05：大额调拨阈值（§17.6-D1）
+///
+/// 金额超过此阈值的调拨必须由前端二次确认（弹窗 + 用户显式确认），
+/// 后端校验 `TransferFundRequest.confirm_large == true` 才放行。
+///
+/// 注意：rust_decimal 1.x 中 `Decimal::new` 不是 `const fn`，
+/// 故使用普通 `fn` 而非 `const`（参考批次 481 经验）。
+fn large_transfer_threshold() -> Decimal {
+    // 10 万（100,000.00）
+    Decimal::new(100_000, 0)
+}
+
 pub struct FundManagementService {
     db: Arc<DatabaseConnection>,
 }
@@ -335,6 +347,17 @@ impl FundManagementService {
             if fee < Decimal::ZERO {
                 return Err(AppError::validation("手续费不能为负"));
             }
+        }
+
+        // V15 P0-B05：大额调拨二次验证（§17.6-D1）
+        // 金额超过 LARGE_TRANSFER_THRESHOLD（10 万）时必须显式确认（confirm_large=true）
+        // 修复前：transfer_fund 直接执行无任何金额阈值/二次审批验证
+        // 修复后：大额调拨必须由前端二次确认（弹窗 + 用户显式确认），后端校验 confirm_large 标记
+        if req.amount > large_transfer_threshold() && !req.confirm_large {
+            return Err(AppError::validation(format!(
+                "大额调拨（>{})必须二次确认，请通过 confirm_large=true 显式确认（V15 P0-B05 强制拦截）",
+                large_transfer_threshold()
+            )));
         }
 
         use sea_orm::TransactionTrait;
