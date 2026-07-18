@@ -400,33 +400,159 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
 
-      - name: 运行 clippy（渐进式严格化 + baseline 机制）
+      - name: 运行 clippy（渐进式严格化 + baseline 机制 + 超详细日志）
         working-directory: backend
+        env:
+          # 启用 rustc 内部 trace 级别日志，输出到独立文件供深度排查
+          # 注意：会显著增加日志量，仅在 trace-run 步骤启用
+          RUSTC_LOG: debug
         run: |
           mkdir -p reports
           set +e
 
-          # 1. 跑 clippy 并收集所有警告
+          # ============================================================================
+          # 阶段 1：主 clippy 运行（JSON 格式，用于机器解析）
+          # ============================================================================
           # v8 P1-1 修复：移除 continue-on-error，让 baseline 机制判定新警告时阻塞 CI。
           # 注意：不加 -- -D warnings（历史基线警告会直接让 clippy 退出非零码，
           # 导致 JSON 输出不完整）。baseline 机制已通过 NEW_COUNT > 0 判定来阻塞新警告。
-          cargo clippy --all-targets --message-format=json 2>reports/clippy-stderr.txt \
+          echo "▶ 阶段 1/4：主 clippy 运行（JSON 输出）"
+          cargo clippy --all-targets --all-features --message-format=json \
+            --color=always 2>reports/clippy-stderr.txt \
             | tee reports/clippy-output.json > /dev/null
+          CLIPPY_MAIN_EXIT=${PIPESTATUS[0]}
+          echo "  主 clippy 退出码: $CLIPPY_MAIN_EXIT"
           # 合并 stderr 中可能的警告
           cat reports/clippy-stderr.txt >> reports/clippy-output.json 2>/dev/null || true
 
-          # 2. 解析警告（去重 + 排序）
+          # ============================================================================
+          # 阶段 2：人类可读详细输出（基于 JSON rendered 字段重渲染）
+          # ============================================================================
+          echo "▶ 阶段 2/4：生成人类可读详细日志"
+          # 用 jq 从 JSON 提取每条 message 的 rendered 字段，生成完整人类可读报告
+          # 包含每条警告的完整渲染信息（代码片段、行号、原因说明）
+          {
+            echo "# Clippy 人类可读详细输出（从 JSON rendered 重渲染）"
+            echo ""
+            echo "生成时间: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "命令: cargo clippy --all-targets --all-features --message-format=json"
+            echo "工具链: $(rustc --version)"
+            echo "clippy 版本: $(cargo clippy --version)"
+            echo ""
+            echo "=========================================="
+            echo ""
+            jq -r 'select(.reason == "compiler-message") |
+                   .message |
+                   select(.level == "warning" or .level == "error") |
+                   .rendered' reports/clippy-output.json 2>/dev/null \
+              > reports/clippy-human-readable.txt
+            cat reports/clippy-human-readable.txt
+            echo ""
+            echo "=========================================="
+            echo "总计渲染 $(wc -l < reports/clippy-human-readable.txt) 行"
+          } > reports/clippy-human-readable-full.txt
+
+          # ============================================================================
+          # 阶段 3：rustc 内部 trace 日志（RUSTC_LOG=debug，深度排查用）
+          # ============================================================================
+          echo "▶ 阶段 3/4：生成 rustc 内部 trace 日志（RUSTC_LOG=debug）"
+          # 单独跑一次短运行，仅收集 rustc/clippy 内部 trace 日志
+          # 此输出包含 lint pass 执行过程、检查顺序、注册的 lint 列表等
+          # 注意：输出量极大，仅归档到 artifacts，不打印到 console
+          RUSTC_LOG=debug cargo clippy --all-targets --no-deps --message-format=short \
+            > reports/clippy-rustc-trace.log 2>&1
+          TRACE_EXIT=$?
+          echo "  trace 运行退出码: $TRACE_EXIT"
+          echo "  trace 日志行数: $(wc -l < reports/clippy-rustc-trace.log)"
+          # 同时输出 clippy 的所有可用 lint 列表（便于排查 lint 名称）
+          cargo clippy --help > reports/clippy-help.txt 2>&1
+          rustc -W help > reports/rustc-lint-list.txt 2>&1
+          echo "  可用 lint 数: $(grep -c '^ ' reports/rustc-lint-list.txt)"
+
+          # ============================================================================
+          # 阶段 4：解析 JSON，按多维度统计（lint_id / file / line）
+          # ============================================================================
+          echo "▶ 阶段 4/4：多维度统计"
+
+          # 4.1 原始警告摘要（用于 baseline 对比，保持原有逻辑）
           cat reports/clippy-output.json | \
             jq -r 'select(.reason == "compiler-message") |
                    .message |
                    select(.level == "warning" or .level == "error") |
                    .rendered' 2>/dev/null | \
             sort -u > reports/clippy-current.txt
-
           CURRENT_COUNT=$(wc -l < reports/clippy-current.txt)
           echo "当前 clippy 警告/错误数: $CURRENT_COUNT"
 
-          # 3. 检查 baseline 是否存在
+          # 4.2 提取结构化数据：每条警告的 lint_id / file / line / column / message
+          # 输出 TSV 格式：lint_id \t file \t line \t column \t message
+          jq -r 'select(.reason == "compiler-message") |
+                 .message |
+                 select(.level == "warning" or .level == "error") |
+                 {
+                   lint_id: (.code.code // "unknown"),
+                   file: (.spans[0].file_name // "N/A"),
+                   line: (.spans[0].line_start // 0),
+                   column: (.spans[0].column_start // 0),
+                   level: .level,
+                   message: .message
+                 } | [.lint_id, .file, (.line|tostring), (.column|tostring), .level, .message] | @tsv' \
+            reports/clippy-output.json 2>/dev/null > reports/clippy-structured.tsv
+          STRUCTURED_COUNT=$(wc -l < reports/clippy-structured.tsv)
+          echo "结构化警告记录数: $STRUCTURED_COUNT"
+
+          # 4.3 按 lint_id 分组统计
+          {
+            echo "# Clippy 警告按 lint 类型分布"
+            echo ""
+            echo "生成时间: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo ""
+            echo "| Lint ID | 数量 |"
+            echo "|---------|------|"
+            awk -F'\t' '{count[$1]++} END {for (k in count) printf "| `%s` | %s |\n", k, count[k]}' \
+              reports/clippy-structured.tsv | sort -t'|' -k3 -rn
+          } > reports/clippy-by-lint-id.md
+
+          # 4.4 按 file 分组统计
+          {
+            echo "# Clippy 警告按文件分布"
+            echo ""
+            echo "生成时间: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo ""
+            echo "| 文件 | 数量 |"
+            echo "|------|------|"
+            awk -F'\t' '{count[$2]++} END {for (k in count) printf "| `%s` | %s |\n", k, count[k]}' \
+              reports/clippy-structured.tsv | sort -t'|' -k3 -rn
+          } > reports/clippy-by-file.md
+
+          # 4.5 按严重程度分组
+          {
+            echo "# Clippy 警告按严重程度分布"
+            echo ""
+            echo "生成时间: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo ""
+            echo "| 严重程度 | 数量 |"
+            echo "|----------|------|"
+            awk -F'\t' '{count[$5]++} END {for (k in count) printf "| %s | %s |\n", k, count[k]}' \
+              reports/clippy-structured.tsv | sort
+          } > reports/clippy-by-severity.md
+
+          # 4.6 生成完整 JSON 摘要（机器可读）
+          jq -r 'select(.reason == "compiler-message") |
+                 .message |
+                 select(.level == "warning" or .level == "error") |
+                 {
+                   lint_id: (.code.code // "unknown"),
+                   file: (.spans[0].file_name // "N/A"),
+                   line: (.spans[0].line_start // 0),
+                   column: (.spans[0].column_start // 0),
+                   level: .level,
+                   message: .message,
+                   rendered: .rendered
+                 }' reports/clippy-output.json 2>/dev/null \
+            > reports/clippy-warnings.json
+
+          # 5. 检查 baseline 是否存在
           NEW_COUNT=0
           BASELINE_COUNT=0
           FIXED_COUNT=0
@@ -466,16 +592,60 @@ jobs:
             echo "已修复警告数: $FIXED_COUNT"
           fi
 
-          # 4. 生成 Markdown 报告
+          # 6. 生成 Markdown 报告
           {
-            echo "# Rust Clippy 检查报告"
+            echo "# Rust Clippy 检查报告（超详细版）"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**模式**: $BASELINE_MODE  "
             echo "**当前警告总数**: $CURRENT_COUNT  "
+            echo "**结构化记录数**: $STRUCTURED_COUNT  "
             echo "**基线警告数**: $BASELINE_COUNT  "
             echo "**新增警告数**: $NEW_COUNT  "
             echo "**已修复警告数**: $FIXED_COUNT  "
+            echo "**工具链**: $(rustc --version)  "
+            echo "**clippy 版本**: $(cargo clippy --version 2>&1 | head -1)  "
+            echo ""
+            echo "## 📊 多维度统计"
+            echo ""
+            echo "### 按 lint 类型分布（TOP 20）"
+            echo ""
+            echo "| Lint ID | 数量 |"
+            echo "|---------|------|"
+            awk -F'\t' '{count[$1]++} END {for (k in count) printf "| \`%s\` | %s |\n", k, count[k]}' \
+              reports/clippy-structured.tsv 2>/dev/null | sort -t'|' -k3 -rn | head -20
+            echo ""
+            echo "### 按文件分布（TOP 20）"
+            echo ""
+            echo "| 文件 | 数量 |"
+            echo "|------|------|"
+            awk -F'\t' '{count[$2]++} END {for (k in count) printf "| \`%s\` | %s |\n", k, count[k]}' \
+              reports/clippy-structured.tsv 2>/dev/null | sort -t'|' -k3 -rn | head -20
+            echo ""
+            echo "### 按严重程度分布"
+            echo ""
+            echo "| 严重程度 | 数量 |"
+            echo "|----------|------|"
+            awk -F'\t' '{count[$5]++} END {for (k in count) printf "| %s | %s |\n", k, count[k]}' \
+              reports/clippy-structured.tsv 2>/dev/null | sort
+            echo ""
+            echo "## 📁 详细日志归档（artifacts: \`backend-clippy-report\`）"
+            echo ""
+            echo "| 文件 | 说明 |"
+            echo "|------|------|"
+            echo "| \`clippy-output.json\` | 原始 JSON 输出（机器可读，最完整） |"
+            echo "| \`clippy-human-readable-full.txt\` | 人类可读详细日志（含代码片段、行号） |"
+            echo "| \`clippy-rustc-trace.log\` | rustc 内部 trace 日志（RUSTC_LOG=debug） |"
+            echo "| \`clippy-stderr.txt\` | clippy stderr 输出 |"
+            echo "| \`clippy-structured.tsv\` | 结构化 TSV（lint_id\\tfile\\tline\\tcol\\tlevel\\tmsg） |"
+            echo "| \`clippy-warnings.json\` | 仅警告的结构化 JSON |"
+            echo "| \`clippy-by-lint-id.md\` | 按 lint 类型完整统计 |"
+            echo "| \`clippy-by-file.md\` | 按文件完整统计 |"
+            echo "| \`clippy-by-severity.md\` | 按严重程度完整统计 |"
+            echo "| \`clippy-explain.txt\` | 新增警告的 \`--explain\` 解释 |"
+            echo "| \`clippy-report.html\` | HTML 可视化报告 |"
+            echo "| \`clippy-help.txt\` | clippy --help 输出 |"
+            echo "| \`rustc-lint-list.txt\` | rustc -W help 完整 lint 列表 |"
             echo ""
             if [ "$BASELINE_MODE" = "bootstrap" ]; then
               echo "## 🎯 首次运行（自动建立基线）"
@@ -554,7 +724,121 @@ jobs:
             fi
           } > reports/clippy-report.md
 
-          # 5. 决定退出码
+          # 7. 为新增警告生成 --explain 解释（帮助理解 lint 触发原因）
+          echo "▶ 生成新增警告的 --explain 解释"
+          {
+            echo "# Clippy 新增警告 --explain 解释"
+            echo ""
+            echo "生成时间: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo ""
+            if [ ! -s reports/clippy-new.txt ]; then
+              echo "_（无新增警告）_"
+            else
+              # 提取新警告中涉及到的 lint code（如 clippy::needless_collect）
+              # 从结构化 TSV 中提取 lint_id，去重后逐个 explain
+              LINT_CODES=$(awk -F'\t' '{print $1}' reports/clippy-structured.tsv | \
+                grep -E '^clippy::' | sort -u)
+              if [ -n "$LINT_CODES" ]; then
+                for code in $LINT_CODES; do
+                  echo "## \`$code\`"
+                  echo ""
+                  echo '```'
+                  # explain 输出可能失败（某些 lint 无解释），不阻塞
+                  rustc --explain "$code" 2>&1 | head -50 || echo "（无解释）"
+                  echo '```'
+                  echo ""
+                done
+              else
+                echo "_（未提取到 clippy:: 前缀的 lint code）_"
+              fi
+            fi
+          } > reports/clippy-explain.txt
+
+          # 8. 生成 HTML 可视化报告（便于在 artifacts 中直接预览）
+          echo "▶ 生成 HTML 可视化报告"
+          {
+            echo '<!DOCTYPE html>'
+            echo '<html lang="zh-CN">'
+            echo '<head>'
+            echo '  <meta charset="UTF-8">'
+            echo '  <title>Clippy 检查报告</title>'
+            echo '  <style>'
+            echo '    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2em auto; max-width: 1200px; color: #24292e; }'
+            echo '    h1 { border-bottom: 2px solid #0366d6; padding-bottom: 0.3em; }'
+            echo '    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.2em; margin-top: 2em; }'
+            echo '    table { border-collapse: collapse; width: 100%; margin: 1em 0; }'
+            echo '    th, td { border: 1px solid #d0d7de; padding: 6px 13px; text-align: left; }'
+            echo '    th { background: #f6f8fa; }'
+            echo '    tr:nth-child(2n) { background: #f6f8fa; }'
+            echo '    .warning { color: #d29922; }'
+            echo '    .error { color: #cf222e; }'
+            echo '    code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-family: "SFMono-Regular", Consolas, monospace; }'
+            echo '    .summary { background: #f6f8fa; padding: 1em 1.5em; border-radius: 6px; border-left: 4px solid #0366d6; }'
+            echo '    pre { background: #f6f8fa; padding: 1em; border-radius: 6px; overflow-x: auto; }'
+            echo '  </style>'
+            echo '</head>'
+            echo '<body>'
+            echo "  <h1>🔍 Clippy 检查报告</h1>"
+            echo "  <div class='summary'>"
+            echo "    <p><strong>生成时间</strong>: $(date -u +'%Y-%m-%dT%H:%M:%SZ')</p>"
+            echo "    <p><strong>模式</strong>: $BASELINE_MODE</p>"
+            echo "    <p><strong>当前警告总数</strong>: $CURRENT_COUNT</p>"
+            echo "    <p><strong>结构化记录数</strong>: $STRUCTURED_COUNT</p>"
+            echo "    <p><strong>基线警告数</strong>: $BASELINE_COUNT</p>"
+            echo "    <p><strong>新增警告数</strong>: <span class='error'>$NEW_COUNT</span></p>"
+            echo "    <p><strong>已修复警告数</strong>: <span class='warning'>$FIXED_COUNT</span></p>"
+            echo "    <p><strong>工具链</strong>: $(rustc --version)</p>"
+            echo "    <p><strong>clippy 版本</strong>: $(cargo clippy --version 2>&1 | head -1)</p>"
+            echo "  </div>"
+            echo ""
+            echo "  <h2>📊 按 lint 类型分布</h2>"
+            echo "  <table><thead><tr><th>Lint ID</th><th>数量</th></tr></thead><tbody>"
+            awk -F'\t' '{count[$1]++} END {for (k in count) printf "    <tr><td><code>%s</code></td><td>%s</td></tr>\n", k, count[k]}' \
+              reports/clippy-structured.tsv 2>/dev/null | sort -t'>' -k4 -rn
+            echo "  </tbody></table>"
+            echo ""
+            echo "  <h2>📊 按文件分布</h2>"
+            echo "  <table><thead><tr><th>文件</th><th>数量</th></tr></thead><tbody>"
+            awk -F'\t' '{count[$2]++} END {for (k in count) printf "    <tr><td><code>%s</code></td><td>%s</td></tr>\n", k, count[k]}' \
+              reports/clippy-structured.tsv 2>/dev/null | sort -t'>' -k4 -rn
+            echo "  </tbody></table>"
+            echo ""
+            echo "  <h2>📝 警告详情（结构化列表）</h2>"
+            if [ -s reports/clippy-structured.tsv ]; then
+              echo "  <table><thead><tr><th>Lint ID</th><th>文件</th><th>行</th><th>列</th><th>级别</th><th>消息</th></tr></thead><tbody>"
+              awk -F'\t' '{
+                lvl = $5
+                color = (lvl == "error") ? "error" : "warning"
+                printf "    <tr><td><code>%s</code></td><td><code>%s</code></td><td>%s</td><td>%s</td><td class=\"%s\">%s</td><td>%s</td></tr>\n", $1, $2, $3, $4, color, lvl, $6
+              }' reports/clippy-structured.tsv | head -500
+              echo "  </tbody></table>"
+              TOTAL_ROWS=$(wc -l < reports/clippy-structured.tsv)
+              if [ "$TOTAL_ROWS" -gt 500 ]; then
+                echo "  <p><em>仅显示前 500 条，完整 $TOTAL_ROWS 条见 clippy-structured.tsv</em></p>"
+              fi
+            else
+              echo "  <p>无结构化警告记录。</p>"
+            fi
+            echo ""
+            echo "  <h2>📖 新增警告 --explain 解释</h2>"
+            echo "  <pre>$(head -200 reports/clippy-explain.txt | sed 's/</\&lt;/g; s/>/\&gt;/g')</pre>"
+            echo ""
+            echo "  <h2>📁 详细日志归档</h2>"
+            echo "  <ul>"
+            echo "    <li><code>clippy-output.json</code> - 原始 JSON 输出（最完整）</li>"
+            echo "    <li><code>clippy-human-readable-full.txt</code> - 人类可读详细日志</li>"
+            echo "    <li><code>clippy-rustc-trace.log</code> - rustc 内部 trace 日志</li>"
+            echo "    <li><code>clippy-stderr.txt</code> - clippy stderr 输出</li>"
+            echo "    <li><code>clippy-structured.tsv</code> - 结构化 TSV</li>"
+            echo "    <li><code>clippy-warnings.json</code> - 仅警告的 JSON</li>"
+            echo "    <li><code>clippy-explain.txt</code> - 完整 --explain 解释</li>"
+            echo "    <li><code>clippy-help.txt</code> / <code>rustc-lint-list.txt</code> - 帮助与 lint 列表</li>"
+            echo "  </ul>"
+            echo "</body>"
+            echo "</html>"
+          } > reports/clippy-report.html
+
+          # 9. 决定退出码
           if [ "$NEW_COUNT" -gt "0" ]; then
             echo ""
             echo "❌ 发现 $NEW_COUNT 个新警告，CI 失败"
