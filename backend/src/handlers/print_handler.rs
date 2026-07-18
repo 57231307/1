@@ -10,8 +10,16 @@ use axum::{
     response::Html,
 };
 
-async fn render_print_html(doc_type: &str, doc_id: i32) -> Result<Html<String>, AppError> {
-    let service = PrintService::new();
+/// V15 P0-S17（Batch 476）：渲染打印 HTML
+///
+/// 从原无状态 `PrintService::new()` 改为接收 `state: &AppState`，
+/// 将 `db` 与 `search_client` 注入 PrintService，使其能真实查询数据库。
+async fn render_print_html(
+    state: &AppState,
+    doc_type: &str,
+    doc_id: i32,
+) -> Result<Html<String>, AppError> {
+    let service = PrintService::new(state.db.clone(), state.search_client.clone());
     let print_data = service.get_print_data(doc_type, doc_id).await?;
     let html = service.generate_pdf(&print_data)?;
     Ok(Html(html))
@@ -19,47 +27,52 @@ async fn render_print_html(doc_type: &str, doc_id: i32) -> Result<Html<String>, 
 
 pub async fn sales_order_print_html(
     Path(doc_id): Path<i32>,
-    State(_): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
     // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html("sales_order", doc_id).await
+    // V15 P0-S17（Batch 476）：注入 state，PrintService 真实查询数据库
+    render_print_html(&state, "sales_order", doc_id).await
 }
 
 pub async fn sales_contract_print_html(
     Path(doc_id): Path<i32>,
-    State(_): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
     // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html("sales_contract", doc_id).await
+    // V15 P0-S17（Batch 476）：注入 state，PrintService 真实查询数据库
+    render_print_html(&state, "sales_contract", doc_id).await
 }
 
 pub async fn purchase_order_print_html(
     Path(doc_id): Path<i32>,
-    State(_): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
     // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html("purchase_order", doc_id).await
+    // V15 P0-S17（Batch 476）：注入 state，PrintService 真实查询数据库
+    render_print_html(&state, "purchase_order", doc_id).await
 }
 
 pub async fn purchase_receipt_print_html(
     Path(doc_id): Path<i32>,
-    State(_): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
     // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html("purchase_receipt", doc_id).await
+    // V15 P0-S17（Batch 476）：注入 state，PrintService 真实查询数据库
+    render_print_html(&state, "purchase_receipt", doc_id).await
 }
 
 pub async fn inventory_transfer_print_html(
     Path(doc_id): Path<i32>,
-    State(_): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
     // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html("inventory_transfer", doc_id).await
+    // V15 P0-S17（Batch 476）：注入 state，PrintService 真实查询数据库
+    render_print_html(&state, "inventory_transfer", doc_id).await
 }
 
 
