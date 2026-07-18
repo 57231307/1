@@ -5,6 +5,118 @@
 
 ---
 
+## 📦 V15 Batch 477 归档（P0-F10/F11/F12/F13 色卡发放库存联动）
+
+### 任务概述
+
+- **批次**：477
+- **合并方式**：main 直接提交 a3798f4 + daeab0f（PR #665 因 main 抢先直接提交被关闭冲突）
+- **完成时间**：2026-07-18
+- **审计项**：P0-F10 库存联动 + P0-F11 前端文件结构 + P0-F12 前端类型/API/视图 + P0-F13 数据迁移策略（4 项合并）
+- **变更文件**：15 文件（3 后端 migration + 4 后端 source + 5 前端新文件 + 1 前端重构 + 1 前端 API 模块 + 1 SQL 迁移脚本）
+- **V15 P0 进度**：71/104 → 75/104（72.1%）
+
+### 问题背景
+
+#### P0-F10：色卡发放库存联动未实现（类九）
+
+- **证据**：`color_card_issue_service.rs` 的 issue/return_card/mark_lost/mark_damaged/cancel_issue 5 方法仅做状态机变更，无任何库存扣减/还原逻辑
+- **影响**：色卡发放后实际库存数量不变，无法防止超发
+
+#### P0-F11/F12：前端文件结构部分缺失（类九）
+
+- **复审状态**：2/7 文件已存在（issues.vue + color-card.ts），缺 5 个文件
+- **缺失文件**：ColorCardIssueForm.vue / ColorCardIssueDetail.vue / useColorCardIssue.ts / colorCardIssue.ts types / colorCardIssue store
+
+#### P0-F13：数据迁移策略未实现（类九）+ 关键审计发现
+
+- **关键发现**：Batch 471 创建了 `color_card_issue.rs` model + `color_card_issue_service.rs` service + handlers，**但完全遗漏了数据库表迁移**
+- **证据**：`backend/migrations/` 全目录无 color_card_issues 建表 SQL
+- **影响**：API 运行时直接报 "relation color_card_issues does not exist"
+
+### 修复方案
+
+#### 后端：方案 A（color_cards.stock_quantity 字段直接管理）
+
+**设计决策**：
+- 方案 A（采用）：color_cards.stock_quantity INT NOT NULL DEFAULT 0，简单直接，色卡作为「实物资产」管理（一张卡就是一件），与 fabric inventory_stock 解耦
+- 方案 B（未采用）：关联 inventory_stock 表，需新增 (product_id, color_no, dye_lot_no) 关联，复杂度高且语义错位（色卡本身不是面料）
+
+**迁移文件**：
+- `m0057_create_color_card_issues_and_stock_fields.rs`：合并建表（color_card_issues 表 17 字段 + 6 索引 + CHECK 约束，状态枚举 issued/returned/lost/damaged/cancelled）+ 新增 stock_quantity 字段（INT NOT NULL DEFAULT 0，初始化存量色卡 stock = GREATEST(total_colors, 1) 兼容旧数据）
+- `m0058_migrate_color_card_borrow_records.rs`：迁移旧表数据到新表
+  - 字段映射：borrowed_by→issued_by，borrowed_at→issued_at，expected_return_at::date→expected_return_date，notes→remark
+  - 状态映射：status='borrowed'→'issued'，其他状态直接映射
+  - 幂等保护：`WHERE NOT EXISTS (SELECT 1 FROM color_card_issues i WHERE i.id = b.id)`
+  - 序列同步：`setval(pg_get_serial_sequence(...))` 防止主键冲突
+- `color_card_migrate_legacy.sql`：SQL 迁移脚本（旧表→新表数据迁移）
+
+**Model 字段新增**：
+- `models/color_card.rs`：Model 新增 `stock_quantity: i32` 字段（V15 P0-F10：色卡库存数量，发放扣减 / 归还还原 / 遗失损坏不还原）
+
+**Service 层库存联动**（5 方法）：
+- `color_card_crud_service.rs` `create()`：设置 stock_quantity=0 初始值
+- `color_card_issue_service.rs`：
+  - `validate_issue_gates()` gate 2 增强：`card.stock_quantity >= issue_qty`
+  - `issue()`：事务 + `lock_exclusive()` + `stock_quantity -= issue_qty`（再次加锁查询防并发扣减）
+  - `return_card()`：事务 + lock_exclusive + `stock_quantity += issue_qty`
+  - `cancel_issue()`：事务 + lock_exclusive + `stock_quantity += issue_qty`
+  - `mark_lost()` / `mark_damaged()`：不还原 stock（色卡消耗）
+
+#### 前端：5 新文件 + 重构 issues.vue
+
+- `types/colorCardIssue.ts`：类型定义模块（re-export IssueRecordInfo/ColorCardListItem + 业务专用类型 IssueFormState/ReturnDialogState/LostDialogState/DamagedDialogState/CancelDialogState/IssueAction）
+- `store/colorCardIssue.ts`：Pinia store（state: availableCards/issueRecords/loading/actionLoading；getters: activeIssues/historyRecords；actions: loadCards/loadRecords/issue/returnRecord/markLost/markDamaged/cancelRecord）
+- `composables/useColorCardIssue.ts`：业务 composable（storeToRefs + init/refreshRecords/handleIssue/handleReturn/handleMarkLost/handleMarkDamaged/handleCancel）
+- `components/ColorCardIssueForm.vue`：发放表单组件（受控表单 + validate + emit submit）
+- `components/ColorCardIssueDetail.vue`：4 合 1 操作对话框（归还/遗失/损坏/取消 4 个 el-dialog 聚合）
+- `views/color-cards/issues.vue`：重构为使用新组件 + composable + store（消除原内联业务逻辑）
+- `api/color-card-issue.ts`：独立 API 模块（main 直接提交路径中新增）
+
+### CI 验证
+
+- **CI 2 轮**：
+  - 第 1 轮：前端类型检查失败 `src/store/colorCardIssue.ts(23,8): error TS6133: 'PagedResponse' is declared but its value is never read.`（多 agent 并行导致 main 提交版本中 ColorCardIssueForm.vue 还存在 `const props = defineProps<...>()` 但 props 变量未使用）
+  - 第 2 轮：修复 commit `daeab0f` `fix(batch477): ColorCardIssueForm.vue 移除未使用的 props 变量赋值（修复 vue-tsc TS6133）`后 13/13 全绿
+
+### 自审门（规则 13 步骤 4）
+
+- ✅ grep `color_card::ActiveModel` 调用点：5 处全部分析（issue_service.rs 5 方法 + crud_service.rs 5 处）
+- ✅ grep `ColorCardActive` / `color_card::ActiveModel {` 调用点：5 处全部确认
+- ✅ grep `IssueActive {` 调用点：1 处（issue_service.rs:290 issue() 方法构造）
+- ✅ grep `stock_quantity` 引用：model + service + migration 全部一致
+- ✅ 确认无遗漏字段补齐：color_card.rs Model 字段与 m0059 ALTER TABLE 完全对齐
+
+### 关键技术教训
+
+1. **多 agent 并行路径冲突**：本批次同时有两个修复路径
+   - 路径 A（本 PR #665）：使用独立 m0057 + m0058 + m0059 三个迁移文件，前端组件放在 `components/color-cards/` 子目录
+   - 路径 B（main 直接提交 a3798f4 + daeab0f）：使用合并 m0057_create_color_card_issues_and_stock_fields.rs，前端组件放在 `components/` 顶层
+   - 结果：main 路径 B 抢先合并，PR #665 被关闭避免重复合并
+   - 教训：当 main 直接提交路径启动时，应主动关闭 PR 路径避免重复工作
+
+2. **defineProps TS6133 陷阱**：
+   - 错误写法：`const props = defineProps<{...}>()` 但 `props` 变量未使用 → TS6133
+   - 正确写法：`defineProps<{...}>()`（直接调用不赋值）或显式使用 `props.xxx`
+   - Vue 3 `<script setup>` 中模板自动绑定 props，不需要 const 赋值
+
+3. **建表迁移遗漏**：Batch 471 创建 model + service + handler + routes 但完全遗漏 CREATE TABLE 迁移，导致 API 运行时报错
+   - 教训：新增 model 时必须同时检查 migrations 目录是否有对应 CREATE TABLE，否则补齐建表迁移
+
+4. **库存联动方案选择**：
+   - 方案 A（color_cards.stock_quantity 字段）适用于色卡作为「实物资产」的场景（一张卡就是一件），简单直接
+   - 方案 B（关联 inventory_stock）适用于色卡作为「面料批次」的场景，需要 (product_id, color_no, dye_lot_no) 关联
+   - 决策依据：色卡本身不是面料，与 fabric inventory 体系语义错位，故选择方案 A
+
+### 影响范围
+
+- **后端**：color_card_issue_service.rs 5 方法 + color_card_crud_service.rs create() + color_card.rs Model + 3 migration 文件
+- **前端**：5 新文件 + issues.vue 重构 + color-card-issue.ts API 模块
+- **数据库**：新增 color_card_issues 表 + color_cards.stock_quantity 字段 + 旧表数据迁移到新表
+- **业务**：色卡发放流程加入库存联动，防止超发；归还/取消还原库存；遗失/损坏不还原（色卡消耗）
+
+---
+
 ## 📝 V15 审计完成进度（2026-07-16 全部完成）
 
 > V15 全项目综合审计 25 大类 195 维度 21 批并行子代理审计已全部完成，共发现 732 个问题（104 P0 + 257 P1 + 248 P2 + 123 P3）。

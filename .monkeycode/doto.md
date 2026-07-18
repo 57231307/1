@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；Batch 475e 已合并 PR #662（P0-S12 前端导出 B 类批次 3/3 收尾完成，ar + ap + cost + budget + fixed-assets 5 模块闭环，P0-S12 前端导出接入后端全部完成）；Batch 476 已合并 main 直接提交 eb57484（P0-S17 打印 HTML 真实数据查询完成，print_service + print_handler 2 文件，6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB）；P0 进度 71/104；剩余 33 P0 + 257 P1 + 248 P2 + 123 P3 = 661 项；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
+> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；Batch 475e 已合并 PR #662（P0-S12 前端导出 B 类批次 3/3 收尾完成，ar + ap + cost + budget + fixed-assets 5 模块闭环，P0-S12 前端导出接入后端全部完成）；Batch 476 已合并 main 直接提交 eb57484（P0-S17 打印 HTML 真实数据查询完成，print_service + print_handler 2 文件，6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB）；Batch 477 已合并 main 直接提交 a3798f4 + daeab0f（P0-F10/F11/F12/F13 色卡发放库存联动 + 前端文件结构 + legacy 数据迁移完成，15 文件，PR #665 因 main 抢先直接提交被关闭冲突）；P0 进度 75/104；剩余 29 P0 + 257 P1 + 248 P2 + 123 P3 = 657 项；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
 
 ---
 
@@ -12,19 +12,19 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 71 | **33** | 68.3% |
+| **P0 阻塞级** | 104 | 75 | **29** | 72.1% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **71** | **661** | **9.7%** |
+| **合计** | **732** | **75** | **657** | **10.2%** |
 
-> P0 已完成 71 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）+ Batch 476 修复 1 项（P0-S17 打印 HTML 真实数据查询）。
+> P0 已完成 75 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）+ Batch 476 修复 1 项（P0-S17 打印 HTML 真实数据查询）+ Batch 477 修复 4 项（P0-F10 库存联动 + P0-F11 前端文件结构 + P0-F12 前端类型/API/视图 + P0-F13 数据迁移）。
 > P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），Batch 475e 已完成 B 类批次 3/3 收尾（ar + ap + cost + budget + fixed-assets 5 模块），**P0-S12 前端导出接入后端全部完成**。
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 476 已合并（main 直接提交 eb57484）—— P0-S17 打印 HTML 真实数据查询完成（print_service.rs 6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB；print_handler.rs 注入 AppState）
-- **下一批次**：Batch 477（P0-F10 色卡发放库存联动 + P0-F11/F12 前端文件结构 + P0-F13 数据迁移，~9 文件）
+- **当前批次**：Batch 477 已合并（main 直接提交 a3798f4 + daeab0f）—— P0-F10/F11/F12/F13 色卡发放库存联动 + 前端文件结构 + legacy 数据迁移完成（m0057 建表+stock_quantity 合并迁移 + m0058 旧表数据迁移 + color_card_migrate_legacy.sql + 5 方法接入库存联动 + 5 前端新文件 + 重构 issues.vue）
+- **下一批次**：Batch 478（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验，~10 文件）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
@@ -171,7 +171,7 @@ P0-D17 OA 公告 (M)  ← 独立
 | 🟡 475d | A | P0-S12 前端导出接入后端（B 类批次 2/3）| XL | 475c | 已合并 PR #661（squash 4bb7005）；sales-contract/sales-price + quality/quality-standards 4 模块：后端新增 4 端点（export_contracts/export_prices/export_records/export_standards）+ 前端切换 7 文件（useScProc.ts + useSpProc.ts + sales-contract/index.vue + sales-price/index.vue + RecordTab.vue + StandardTab.vue + quality-standards/index.vue）+ 4 路由注册 + 自审门 = 14 文件；CI 2 轮（第 1 轮前端类型检查失败 useTableApi queryParams 类型为 Ref<Record<string, unknown>> 与 getQueryParams 强类型返回值不兼容，第 2 轮修复添加类型断言后 13/13 全绿） |
 | ✅ 475e | A | P0-S12 前端导出接入后端（B 类批次 3/3）| XL | 475d | 已合并 PR #662（squash ff07549）；ar/ap/cost/budget/fixed-assets 5 模块：后端新增 5 端点（export_ar_invoices/export_ap_invoices/export_cost_items/export_budgets/export_fixed_assets）+ 前端切换 5 文件（Tab.vue × 5）+ 5 路由注册 = 12 文件；CI 一次过 13/13 全绿；**P0-S12 前端导出接入后端全部完成** |
 | ✅ 476 | A | P0-S17 打印 HTML 真实数据查询 | L | 无 | 已合并 main 直接提交 eb57484（PR #664 因 main 抢先直接提交被关闭冲突）；print_service.rs 6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB（sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer/voucher）+ print_handler.rs 注入 AppState；2 文件；CI 13/13 全绿 + 2 skipped |
-| 477 | B | P0-F10 色卡发放库存联动 + P0-F11/F12 前端文件结构 + P0-F13 数据迁移 | M+L+S | 无 | 后端库存扣减 + legacy 迁移脚本 + 5 个前端文件（ColorCardIssueForm.vue + ColorCardIssueDetail.vue + useColorCardIssue.ts + colorCardIssue.ts + colorCardIssue store）= ~9 文件 |
+| ✅ 477 | B | P0-F10 色卡发放库存联动 + P0-F11/F12 前端文件结构 + P0-F13 数据迁移 | M+L+S | 无 | 已合并 main 直接提交 a3798f4 + daeab0f（PR #665 因 main 抢先直接提交被关闭冲突）；m0057_create_color_card_issues_and_stock_fields（建表+stock_quantity 合并迁移）+ m0058_migrate_color_card_borrow_records（旧表数据迁移）+ color_card_migrate_legacy.sql + color_card.rs Model 新增 stock_quantity + color_card_crud_service.rs create() 初始化 + color_card_issue_service.rs 5 方法接入库存联动（issue 扣减/return_card+cancel_issue 还原/mark_lost+mark_damaged 不还原）+ 事务+lock_exclusive + 前端 5 新文件（types/colorCardIssue.ts + store/colorCardIssue.ts + composables/useColorCardIssue.ts + components/ColorCardIssueForm.vue + components/ColorCardIssueDetail.vue）+ 重构 issues.vue + color-card-issue.ts 独立 API 模块 = 15 文件；CI 2 轮（第 1 轮前端类型检查失败 ColorCardIssueForm.vue 未使用 props 变量 TS6133，第 2 轮修复后 13/13 全绿） |
 | 478 | C | P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验 | M+M+M+S | 无 | 数据库基础 + 业务规则 + 末端校验 = ~10 文件 |
 | 479 | C | P0-F18 返工/降级/报废 + P0-F21 返工走生产订单 | L+M | 478 | 批色闭环：返工走生产订单 + 库存转报废仓 + 等级降级 = ~9 文件 |
 | 480 | D | P0-F20 8D 质量管理流程 | XL | 无 | D0~D8 八步流程：quality_issue_service.rs + quality_issue_handler.rs + schema migrations + 11 态状态机 = ~12 文件 |
@@ -250,51 +250,43 @@ P0-D17 OA 公告 (M)  ← 独立
 
 ---
 
-### 4.2 模块 B：面料行业-色卡发放（4 项）
+### 4.2 模块 B：面料行业-色卡发放（0 项未完成，4 项已完成）
 
-#### P0-F10 色卡发放——库存联动未实现（类九）
+#### ✅ P0-F10 色卡发放——库存联动（已完成，Batch 477）
 
-- **来源**：batch-09 P0-09-8
-- **证据**：`color_card_issue_service.rs` 的 issue 方法 line 249-284 仅做 validate_issue_gates + insert，全文无 inventory_stock/扣减/deduct 调用
-- **修复方案**：发放时 inventory_stock 扣减，归还时增加，丢失时调拨到报废仓
-- **关联文件**：color_card_issue_service.rs / inventory_stock_service.rs
-- **依赖**：无
-- **工作量**：M
-- **批次**：477（合并 F10+F11/F12+F13 为单批 ~9 文件）
+- **状态**：✅ 已完成（main 直接提交 a3798f4 + daeab0f）
+- **修复方案**：方案 A 采用 color_cards.stock_quantity INT NOT NULL DEFAULT 0 字段直接管理
+  - m0057_create_color_card_issues_and_stock_fields.rs：建表 + 新增 stock_quantity 字段
+  - color_card.rs Model 新增 stock_quantity: i32
+  - color_card_crud_service.rs create() 初始化 stock_quantity=0
+  - color_card_issue_service.rs 5 方法接入库存联动：
+    - issue(): 事务 + lock_exclusive + stock_quantity -= issue_qty
+    - return_card(): 事务 + lock_exclusive + stock_quantity += issue_qty
+    - cancel_issue(): 事务 + lock_exclusive + stock_quantity += issue_qty
+    - mark_lost / mark_damaged: 不还原（色卡消耗）
+  - validate_issue_gates gate 2 增强：card.stock_quantity >= issue_qty
 
-#### P0-F11 色卡发放——前端文件结构部分缺失（类九，部分实现）
+#### ✅ P0-F11 色卡发放——前端文件结构（已完成，Batch 477）
 
-- **来源**：batch-09 P0-09-9
-- **复审状态**：⚠️ 2/7 文件已存在（issues.vue + color-card.ts），缺 5 个文件
-- **修复方案**：补齐 5 个前端文件：
-  1. `ColorCardIssueForm.vue`（发放表单组件）
-  2. `ColorCardIssueDetail.vue`（发放详情组件）
-  3. `useColorCardIssue.ts`（composable）
-  4. `colorCardIssue.ts`（类型定义模块）
-  5. `colorCardIssue.ts`（store）
-- **关联文件**：frontend/src/views/color-cards/ + composables/ + types/ + stores/
-- **依赖**：P0-F10（后端库存联动先行）
-- **工作量**：L
-- **批次**：477（与 F10/F13 合并）
+- **状态**：✅ 已完成
+- **修复方案**：补齐 5 个前端文件
+  - types/colorCardIssue.ts（类型定义模块，re-export + 业务专用类型）
+  - store/colorCardIssue.ts（Pinia store，availableCards + issueRecords + 5 actions）
+  - composables/useColorCardIssue.ts（业务 composable，封装 store + API）
+  - components/ColorCardIssueForm.vue（发放表单组件）
+  - components/ColorCardIssueDetail.vue（4 合 1 操作对话框）
+- **重构**：issues.vue 使用新组件 + composable + store
 
-#### P0-F12 色卡发放——前端类型/API/视图组件未实现（类九）
+#### ✅ P0-F12 色卡发放——前端类型/API/视图（已完成，Batch 477）
 
-- **来源**：batch-09 P0-09-10/11/12
-- **修复方案**：实现 TypeScript 类型定义、API 调用、Vue 视图组件
-- **关联文件**：见 P0-F11
-- **依赖**：P0-F11
-- **工作量**：与 P0-F11 合并
-- **批次**：477（与 F10/F11/F13 合并）
+- **状态**：✅ 已完成
+- **修复方案**：api/color-card.ts 类型/API 完整（含 IssueRecordInfo + 6 API 函数）；新增 color-card-issue.ts 独立 API 模块
 
-#### P0-F13 色卡发放——数据迁移策略未实现（类九）
+#### ✅ P0-F13 色卡发放——数据迁移策略（已完成，Batch 477）
 
-- **来源**：batch-09 P0-09-13
-- **证据**：backend/migrations/ 全目录无 color_card_migrate_legacy.sql 文件
-- **修复方案**：编写 SQL 迁移脚本，将 legacy 表的 lend 记录转为 issue 记录（status='returned' 或 'lost'）
-- **关联文件**：migrations/color_card_migrate_legacy.sql
-- **依赖**：无
-- **工作量**：S
-- **批次**：477（与 F10/F11/F12 合并）
+- **状态**：✅ 已完成
+- **修复方案**：m0057_create_color_card_issues_and_stock_fields.rs 创建 color_card_issues 表（补齐 Batch 471 遗漏的建表迁移）+ m0058_migrate_color_card_borrow_records.rs 迁移旧表数据到新表（borrowed→issued 状态映射，幂等保护，序列同步 setval）+ color_card_migrate_legacy.sql SQL 迁移脚本
+- **关键背景**：Batch 471 创建 model 但遗漏建表迁移，导致 API 运行时报 "relation color_card_issues does not exist"
 
 ---
 
