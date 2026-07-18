@@ -1,15 +1,28 @@
 
+      but trait `From<migration::DbErr>` is implemented for it
+    = help: for that trait implementation, expected `migration::DbErr`, found `utils::error::AppError`
+    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+    = note: this error originates in the derive macro `Error` (in Nightly builds, run with -Z macro-backtrace for more info)
     |
-    |                      ^^^^^^^^^^^^^^^^^ missing `production_order_id`
+    |                              ---------------------------------------------------------^ the trait `std::convert::From<utils::error::AppError>` is not implemented for `services::quality_8d_service::EightDError`
+    |                              this can't be annotated with `?` because it has type `Result<_, utils::error::AppError>`
+    |                              |
     |                    ^^^^^^^^^^^ missing `data_scope` and `department_id`
+    |                 ^^^^^
     |         ^^^^^^^^^^^^^^^^^^^^^^ missing `color_no`, `dye_lot_no` and `grade`
+    | ^^^^^^^^^^^^^^^^^^^^
    --> src/handlers/init_handler.rs:564:20
    --> src/services/ai/quality_pred.rs:507:9
-   --> src/services/dye_batch_state_machine_service.rs:849:22
+   --> src/services/quality_8d_service.rs:407:87
+   --> src/services/quality_8d_service.rs:44:17
+   --> src/services/quality_8d_service.rs:45:1
+ 44 | #[derive(Debug, Error)]
+ 45 | pub enum EightDError {
+407 |         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 507 |         QualityInspectionModel {
 564 |         let auth = AuthContext {
-849 |         let active = ReworkActiveModel {
-error[E0063]: missing field `production_order_id` in initializer of `models::dye_batch_rework::ActiveModel`
 error[E0063]: missing fields `color_no`, `dye_lot_no` and `grade` in initializer of `models::quality_inspection_record::Model`
 error[E0063]: missing fields `data_scope` and `department_id` in initializer of `middleware::auth_context::AuthContext`
-warning: this function has too many arguments (8/7)
+error[E0277]: `?` couldn't convert the error to `services::quality_8d_service::EightDError`
+help: the trait `From<utils::error::AppError>` is not implemented for `services::quality_8d_service::EightDError`
+note: `services::quality_8d_service::EightDError` needs to implement `From<utils::error::AppError>`
