@@ -34,6 +34,18 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
     /// 批次 88 PH-1 占位符实现：订单备注（TEXT，可选）
     pub notes: Option<String>,
+    /// V15 P0-B11：关联打样通知单 ID（指向 lab_dip_request.id）
+    ///
+    /// 业务语义：定制订单 draft → lab_dip 状态时关联打样通知单，
+    /// 客户在打样通知单上确认 OK 样（approved_sample_id）后，
+    /// 定制订单才能推进到报价阶段。
+    pub lab_dip_request_id: Option<i32>,
+    /// V15 P0-B11：关联报价单 ID（指向 sales_quotations.id）
+    ///
+    /// 业务语义：定制订单 lab_dip → quotation 状态时关联报价单，
+    /// 报价单审批通过后 total_amount 自动同步到定制订单，
+    /// 定制订单才能推进到 yarn_purchasing（纱线采购）阶段。
+    pub quotation_id: Option<i64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -74,6 +86,20 @@ pub enum Relation {
         to = "super::user::Column::Id"
     )]
     CreatedByUser,
+    /// V15 P0-B11：关联打样通知单（lab_dip_request）
+    #[sea_orm(
+        belongs_to = "super::lab_dip_request::Entity",
+        from = "Column::LabDipRequestId",
+        to = "super::lab_dip_request::Column::Id"
+    )]
+    LabDipRequest,
+    /// V15 P0-B11：关联报价单（sales_quotation）
+    #[sea_orm(
+        belongs_to = "super::sales_quotation::Entity",
+        from = "Column::QuotationId",
+        to = "super::sales_quotation::Column::Id"
+    )]
+    SalesQuotation,
 }
 
 impl Related<super::process_node::Entity> for Entity {

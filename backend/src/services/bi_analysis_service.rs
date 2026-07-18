@@ -17,6 +17,7 @@ use sea_orm::{DatabaseConnection, FromQueryResult, Statement};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::utils::data_scope::{build_data_scope_sql, DataScope, DataScopeContext};
 use crate::utils::error::AppError;
 
 /// 通用响应包装
@@ -290,13 +291,44 @@ fn measure_to_expr(measure: &str, item_level: bool) -> Result<&'static str, AppE
 /// v9 批次 130 修复：原全部方法返回硬编码 mock 数据，现真实查询数据库。
 /// 查询 sales_orders / sales_order_items / customers / products / product_categories 表，
 /// 排除 CANCELLED 和 DRAFT 状态的订单。
+///
+/// V15 P0-B10（Batch 483）：新增 data_scope 字段，所有 raw SQL 查询注入行级数据权限过滤。
+/// - All：不过滤（管理员/总经理）
+/// - Dept：按 users.department_id 过滤（部门经理）
+/// - Self_：按 sales_orders.created_by 过滤（普通员工）
 pub struct BiAnalysisService {
     db: Arc<DatabaseConnection>,
+    /// V15 P0-B10：行级数据权限上下文，所有查询自动注入
+    data_scope: DataScopeContext,
 }
 
 impl BiAnalysisService {
+    /// 创建 BI 服务（默认 All 数据范围，仅用于测试/内部调用）
+    ///
+    /// 生产环境应使用 `new_with_data_scope` 注入真实数据范围。
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+        Self {
+            db,
+            data_scope: DataScopeContext {
+                scope: DataScope::All,
+                user_id: 0,
+                department_id: None,
+            },
+        }
+    }
+
+    /// V15 P0-B10：创建带数据范围上下文的 BI 服务
+    ///
+    /// 由 handler 调用，从 AuthContext.to_data_scope_context() 注入。
+    pub fn new_with_data_scope(db: Arc<DatabaseConnection>, ctx: DataScopeContext) -> Self {
+        Self { db, data_scope: ctx }
+    }
+
+    /// V15 P0-B10：构建数据范围 SQL 片段（带别名和起始索引）
+    ///
+    /// 内部辅助方法，封装 build_data_scope_sql 调用。
+    fn scope_sql(&self, table_alias: &str, next_index: usize) -> (String, Vec<sea_orm::Value>) {
+        build_data_scope_sql(&self.data_scope, table_alias, next_index)
     }
 
     /// 按时间聚合销售
@@ -323,6 +355,9 @@ impl BiAnalysisService {
             _ => "to_char(order_date, 'YYYY-MM')",
         };
 
+        // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s，已有 $1/$2 两个参数）
+        let (scope_sql, scope_values) = self.scope_sql("s", 3);
+
         let sql = format!(
             r#"
             SELECT
@@ -341,16 +376,20 @@ impl BiAnalysisService {
             FROM sales_orders s
             WHERE s.order_date >= $1 AND s.order_date <= $2
               AND s.status NOT IN ('CANCELLED', 'DRAFT')
+              {scope_sql}
             GROUP BY period
             ORDER BY period ASC
             "#,
-            period = period_expr
+            period = period_expr,
+            scope_sql = scope_sql,
         );
 
+        let mut values = vec![start_date.into(), end_date.into()];
+        values.extend(scope_values);
         let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             sql,
-            [start_date.into(), end_date.into()],
+            values,
         );
 
         let rows = TimeSeriesRow::find_by_statement(stmt)
@@ -385,8 +424,12 @@ impl BiAnalysisService {
     ) -> Result<Vec<CustomerRank>, AppError> {
         let limit = limit.clamp(1, 100);
 
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（LEFT JOIN sales_orders s，过滤条件加在 WHERE）
+        // 注：将过滤加到 WHERE 会把 LEFT JOIN 变为 INNER JOIN 效果，
+        //     即只返回有符合数据范围订单的客户（业务期望：员工只看到自己客户的排行）
+        let (scope_sql, scope_values) = self.scope_sql("s", 2);
+
+        let sql = format!(
             r#"
             SELECT
                 c.id as customer_id,
@@ -396,23 +439,39 @@ impl BiAnalysisService {
             FROM customers c
             LEFT JOIN sales_orders s ON s.customer_id = c.id
                 AND s.status NOT IN ('CANCELLED', 'DRAFT')
+            WHERE 1=1 {scope_sql}
             GROUP BY c.id, c.customer_name
             ORDER BY total_amount DESC
             LIMIT $1
             "#,
-            [limit.into()],
+            scope_sql = scope_sql,
+        );
+
+        let mut values = vec![limit.into()];
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
         );
 
         let rows = CustomerRankRow::find_by_statement(stmt)
             .all(&*self.db)
             .await?;
 
-        // 计算全部销售额用于 percentage
+        // 计算全部销售额用于 percentage（同样应用数据范围过滤）
+        let (total_scope_sql, total_scope_values) = self.scope_sql("sales_orders", 1);
+        let total_sql = format!(
+            r#"SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders
+               WHERE status NOT IN ('CANCELLED', 'DRAFT') {scope_sql}"#,
+            scope_sql = total_scope_sql,
+        );
+        let mut total_values: Vec<sea_orm::Value> = Vec::new();
+        total_values.extend(total_scope_values);
         let total_stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
-            r#"SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders
-               WHERE status NOT IN ('CANCELLED', 'DRAFT')"#,
-            [],
+            total_sql,
+            total_values,
         );
         let total_row: Option<TotalRow> = TotalRow::find_by_statement(total_stmt)
             .one(&*self.db)
@@ -452,8 +511,10 @@ impl BiAnalysisService {
     ) -> Result<Vec<ProductRank>, AppError> {
         let limit = limit.clamp(1, 100);
 
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（LEFT JOIN sales_orders s）
+        let (scope_sql, scope_values) = self.scope_sql("s", 2);
+
+        let sql = format!(
             r#"
             SELECT
                 p.id as product_id,
@@ -467,12 +528,20 @@ impl BiAnalysisService {
             LEFT JOIN sales_order_items si ON si.product_id = p.id
             LEFT JOIN sales_orders s ON s.id = si.order_id
                 AND s.status NOT IN ('CANCELLED', 'DRAFT')
-            LEFT JOIN product_categories pc ON pc.id = p.category_id
+            WHERE 1=1 {scope_sql}
             GROUP BY p.id, p.name, p.code, category
             ORDER BY total_amount DESC
             LIMIT $1
             "#,
-            [limit.into()],
+            scope_sql = scope_sql,
+        );
+
+        let mut values = vec![limit.into()];
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
         );
 
         let rows = ProductRankRow::find_by_statement(stmt)
@@ -499,8 +568,10 @@ impl BiAnalysisService {
     ///
     /// 按客户所在省份聚合销售额、订单数、客户数。
     pub async fn sales_by_region(&self) -> Result<Vec<RegionStat>, AppError> {
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s）
+        let (scope_sql, scope_values) = self.scope_sql("s", 1);
+
+        let sql = format!(
             r#"
             SELECT
                 COALESCE(c.province, '未知') as region,
@@ -510,10 +581,19 @@ impl BiAnalysisService {
             FROM sales_orders s
             LEFT JOIN customers c ON c.id = s.customer_id
             WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+            {scope_sql}
             GROUP BY region
             ORDER BY total_amount DESC
             "#,
-            [],
+            scope_sql = scope_sql,
+        );
+
+        let mut values: Vec<sea_orm::Value> = Vec::new();
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
         );
 
         let rows = RegionStatRow::find_by_statement(stmt)
@@ -537,8 +617,10 @@ impl BiAnalysisService {
     ///
     /// 按 product_categories.name 聚合销售额，percentage = 品类销售额 / 全部销售额 * 100。
     pub async fn sales_by_category(&self) -> Result<Vec<CategoryStat>, AppError> {
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s）
+        let (scope_sql, scope_values) = self.scope_sql("s", 1);
+
+        let sql = format!(
             r#"
             SELECT
                 COALESCE(pc.name, '未分类') as category,
@@ -548,10 +630,19 @@ impl BiAnalysisService {
                 AND s.status NOT IN ('CANCELLED', 'DRAFT')
             LEFT JOIN products p ON p.id = si.product_id
             LEFT JOIN product_categories pc ON pc.id = p.category_id
+            WHERE 1=1 {scope_sql}
             GROUP BY category
             ORDER BY total_amount DESC
             "#,
-            [],
+            scope_sql = scope_sql,
+        );
+
+        let mut values: Vec<sea_orm::Value> = Vec::new();
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
         );
 
         let rows = CategoryStatRow::find_by_statement(stmt)
@@ -598,8 +689,10 @@ impl BiAnalysisService {
     /// 聚合全部有效订单的销售额、成本、利润。
     /// 利润 = 销售额 - 成本，成本 = SUM(sales_order_items.quantity * products.cost_price)。
     pub async fn profit_analysis(&self) -> Result<ProfitAnalysis, AppError> {
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s）
+        let (scope_sql, scope_values) = self.scope_sql("s", 1);
+
+        let sql = format!(
             r#"
             SELECT
                 COALESCE(SUM(s.total_amount), 0) as total_revenue,
@@ -612,8 +705,17 @@ impl BiAnalysisService {
                 COUNT(*) as order_count
             FROM sales_orders s
             WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+            {scope_sql}
             "#,
-            [],
+            scope_sql = scope_sql,
+        );
+
+        let mut values: Vec<sea_orm::Value> = Vec::new();
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
         );
 
         let row: Option<ProfitRow> = ProfitRow::find_by_statement(stmt)
@@ -655,9 +757,11 @@ impl BiAnalysisService {
     ///
     /// 聚合总销售额、订单数、客户数、客单价，并计算同比增长率（与去年同期）和环比增长率（与上月）。
     pub async fn kpi_summary(&self) -> Result<KpiSummary, AppError> {
-        // 当前周期 KPI
-        let current_stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（sales_orders 无别名）
+        // 当前周期 KPI：1 个参数索引
+        let (scope_sql_1, scope_values_1) = self.scope_sql("", 1);
+
+        let current_sql = format!(
             r#"
             SELECT
                 COALESCE(SUM(total_amount), 0) as total_sales,
@@ -665,8 +769,17 @@ impl BiAnalysisService {
                 COUNT(DISTINCT customer_id) as customer_count
             FROM sales_orders
             WHERE status NOT IN ('CANCELLED', 'DRAFT')
+            {scope_sql}
             "#,
-            [],
+            scope_sql = scope_sql_1,
+        );
+
+        let mut current_values: Vec<sea_orm::Value> = Vec::new();
+        current_values.extend(scope_values_1);
+        let current_stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            current_sql,
+            current_values,
         );
         let current: KpiRow = KpiRow::find_by_statement(current_stmt)
             .one(&*self.db)
@@ -688,20 +801,37 @@ impl BiAnalysisService {
         let last_year = (now.format("%Y").to_string().parse::<i32>().unwrap_or(2026) - 1).to_string();
         let month = now.format("%m").to_string();
 
-        let yoy_stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：同比查询有 2 个子查询，每个都注入数据范围过滤
+        // 子查询 1 (this_year)：参数 $1=this_year, $2=month, $3=scope
+        // 子查询 2 (last_year)：参数 $1=this_year, $2=month, $3=last_year, $4=scope
+        let (scope_sql_yoy_1, scope_values_yoy_1) = self.scope_sql("", 3);
+        let (scope_sql_yoy_2, scope_values_yoy_2) = self.scope_sql("", 4);
+
+        let yoy_sql = format!(
             r#"
             SELECT
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
                  WHERE status NOT IN ('CANCELLED', 'DRAFT')
                    AND to_char(order_date, 'YYYY') = $1
-                   AND to_char(order_date, 'MM') = $2) as this_year,
+                   AND to_char(order_date, 'MM') = $2
+                   {scope_sql_yoy_1}) as this_year,
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
                  WHERE status NOT IN ('CANCELLED', 'DRAFT')
                    AND to_char(order_date, 'YYYY') = $3
-                   AND to_char(order_date, 'MM') = $2) as last_year
+                   AND to_char(order_date, 'MM') = $2
+                   {scope_sql_yoy_2}) as last_year
             "#,
-            [this_year.clone().into(), month.clone().into(), last_year.into()],
+            scope_sql_yoy_1 = scope_sql_yoy_1,
+            scope_sql_yoy_2 = scope_sql_yoy_2,
+        );
+
+        let mut yoy_values = vec![this_year.clone().into(), month.clone().into(), last_year.into()];
+        yoy_values.extend(scope_values_yoy_1);
+        yoy_values.extend(scope_values_yoy_2);
+        let yoy_stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            yoy_sql,
+            yoy_values,
         );
         let yoy_row: Option<YoYRow> = YoYRow::find_by_statement(yoy_stmt)
             .one(&*self.db)
@@ -724,25 +854,43 @@ impl BiAnalysisService {
         } else {
             this_year.clone()
         };
-        let mom_stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+
+        // V15 P0-B10：环比查询有 2 个子查询，每个都注入数据范围过滤
+        // 子查询 1 (this_month)：参数 $1=this_year, $2=month, $5=scope
+        // 子查询 2 (last_month)：参数 $3=last_month_year, $4=last_month, $6=scope
+        let (scope_sql_mom_1, scope_values_mom_1) = self.scope_sql("", 5);
+        let (scope_sql_mom_2, scope_values_mom_2) = self.scope_sql("", 6);
+
+        let mom_sql = format!(
             r#"
             SELECT
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
                  WHERE status NOT IN ('CANCELLED', 'DRAFT')
                    AND to_char(order_date, 'YYYY') = $1
-                   AND to_char(order_date, 'MM') = $2) as this_month,
+                   AND to_char(order_date, 'MM') = $2
+                   {scope_sql_mom_1}) as this_month,
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
                  WHERE status NOT IN ('CANCELLED', 'DRAFT')
                    AND to_char(order_date, 'YYYY') = $3
-                   AND to_char(order_date, 'MM') = $4) as last_month
+                   AND to_char(order_date, 'MM') = $4
+                   {scope_sql_mom_2}) as last_month
             "#,
-            [
-                this_year.into(),
-                month.into(),
-                last_month_year.into(),
-                format!("{:02}", last_month).into(),
-            ],
+            scope_sql_mom_1 = scope_sql_mom_1,
+            scope_sql_mom_2 = scope_sql_mom_2,
+        );
+
+        let mut mom_values = vec![
+            this_year.into(),
+            month.into(),
+            last_month_year.into(),
+            format!("{:02}", last_month).into(),
+        ];
+        mom_values.extend(scope_values_mom_1);
+        mom_values.extend(scope_values_mom_2);
+        let mom_stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            mom_sql,
+            mom_values,
         );
         let mom_row: Option<MoMRow> = MoMRow::find_by_statement(mom_stmt)
             .one(&*self.db)
@@ -781,8 +929,10 @@ impl BiAnalysisService {
             return Err(AppError::validation("年份无效"));
         }
 
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（sales_orders 无别名，已有 $1 参数）
+        let (scope_sql, scope_values) = self.scope_sql("", 2);
+
+        let sql = format!(
             r#"
             SELECT
                 to_char(order_date, 'YYYY-MM') as period,
@@ -800,10 +950,19 @@ impl BiAnalysisService {
             FROM sales_orders
             WHERE EXTRACT(YEAR FROM order_date) = $1
               AND status NOT IN ('CANCELLED', 'DRAFT')
+              {scope_sql}
             GROUP BY period
             ORDER BY period ASC
             "#,
-            [(year as i64).into()],
+            scope_sql = scope_sql,
+        );
+
+        let mut values = vec![(year as i64).into()];
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
         );
 
         let rows = TimeSeriesRow::find_by_statement(stmt)
@@ -858,8 +1017,10 @@ impl BiAnalysisService {
             return Err(AppError::validation("月份无效"));
         }
 
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（sales_orders 无别名，已有 $1/$2 参数）
+        let (scope_sql, scope_values) = self.scope_sql("", 3);
+
+        let sql = format!(
             r#"
             SELECT
                 to_char(order_date, 'YYYY-MM-DD') as period,
@@ -878,10 +1039,19 @@ impl BiAnalysisService {
             WHERE EXTRACT(YEAR FROM order_date) = $1
               AND EXTRACT(MONTH FROM order_date) = $2
               AND status NOT IN ('CANCELLED', 'DRAFT')
+              {scope_sql}
             GROUP BY period
             ORDER BY period ASC
             "#,
-            [(year as i64).into(), (month as i64).into()],
+            scope_sql = scope_sql,
+        );
+
+        let mut values = vec![(year as i64).into(), (month as i64).into()];
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
         );
 
         let rows = TimeSeriesRow::find_by_statement(stmt)
@@ -943,8 +1113,10 @@ impl BiAnalysisService {
             return Err(AppError::validation("客户 ID 无效"));
         }
 
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（sales_orders 无别名，已有 $1 参数）
+        let (scope_sql, scope_values) = self.scope_sql("", 2);
+
+        let sql = format!(
             r#"
             SELECT
                 id as order_id,
@@ -953,10 +1125,19 @@ impl BiAnalysisService {
             FROM sales_orders
             WHERE customer_id = $1
               AND status NOT IN ('CANCELLED', 'DRAFT')
+              {scope_sql}
             ORDER BY order_date DESC
             LIMIT 100
             "#,
-            [customer_id.into()],
+            scope_sql = scope_sql,
+        );
+
+        let mut values = vec![customer_id.into()];
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
         );
 
         let rows = CustomerOrderRow::find_by_statement(stmt)
@@ -991,8 +1172,10 @@ impl BiAnalysisService {
             return Err(AppError::validation("产品 ID 无效"));
         }
 
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
+        // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s，已有 $1 参数）
+        let (scope_sql, scope_values) = self.scope_sql("s", 2);
+
+        let sql = format!(
             r#"
             SELECT
                 si.order_id,
@@ -1002,10 +1185,19 @@ impl BiAnalysisService {
             INNER JOIN sales_orders s ON s.id = si.order_id
                 AND s.status NOT IN ('CANCELLED', 'DRAFT')
             WHERE si.product_id = $1
+            {scope_sql}
             ORDER BY s.order_date DESC
             LIMIT 100
             "#,
-            [product_id.into()],
+            scope_sql = scope_sql,
+        );
+
+        let mut values = vec![product_id.into()];
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
         );
 
         let rows = ProductOrderRow::find_by_statement(stmt)
@@ -1216,6 +1408,9 @@ impl BiAnalysisService {
             (joins, measure_expr)
         };
 
+        // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s，无其他参数，scope 从 $1 开始）
+        let (scope_sql, scope_values) = self.scope_sql("s", 1);
+
         let sql = format!(
             r#"
             SELECT
@@ -1228,6 +1423,7 @@ impl BiAnalysisService {
             LEFT JOIN customers c ON c.id = s.customer_id
             {joins}
             WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+              {scope_sql}
             GROUP BY row_key, row_label, col_key, col_label
             ORDER BY row_label ASC, col_label ASC
             "#,
@@ -1237,9 +1433,14 @@ impl BiAnalysisService {
             col_label = col_label_expr,
             measure = measure_expr,
             joins = joins,
+            scope_sql = scope_sql,
         );
 
-        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, []);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            scope_values,
+        );
 
         let rows = PivotRow::find_by_statement(stmt).all(&*self.db).await?;
 

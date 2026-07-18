@@ -38,10 +38,10 @@ pub struct ByTimeQuery {
 
 pub async fn sales_by_time(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<ByTimeQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service
         .sales_by_time(q.start_date, q.end_date, &q.granularity)
         .await?;
@@ -57,11 +57,11 @@ pub struct ByCustomerQuery {
 
 pub async fn sales_by_customer(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<ByCustomerQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<CustomerRank>>>>, AppError> {
     let limit = q.limit.unwrap_or(10).clamp(1, 100);
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.sales_by_customer(limit).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -70,11 +70,11 @@ pub async fn sales_by_customer(
 /// 按产品聚合
 pub async fn sales_by_product(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<ByCustomerQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<ProductRank>>>>, AppError> {
     let limit = q.limit.unwrap_or(10).clamp(1, 100);
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.sales_by_product(limit).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -83,9 +83,9 @@ pub async fn sales_by_product(
 /// 按区域聚合
 pub async fn sales_by_region(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<RegionStat>>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.sales_by_region().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -94,9 +94,9 @@ pub async fn sales_by_region(
 /// 按品类聚合
 pub async fn sales_by_category(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<CategoryStat>>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.sales_by_category().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -110,11 +110,11 @@ pub struct TrendQuery {
 
 pub async fn sales_trend(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<TrendQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
     let days = q.days.unwrap_or(30);
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.sales_trend(days).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -123,9 +123,9 @@ pub async fn sales_trend(
 /// 利润分析
 pub async fn profit_analysis(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<ProfitAnalysis>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.profit_analysis().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -134,9 +134,9 @@ pub async fn profit_analysis(
 /// 核心 KPI
 pub async fn kpi_summary(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<KpiSummary>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.kpi_summary().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -154,10 +154,10 @@ pub struct DrillYearMonthQuery {
 
 pub async fn drilldown_year_to_month(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<DrillYearMonthQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.drilldown_year_to_month(q.year).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -172,10 +172,10 @@ pub struct DrillMonthDayQuery {
 
 pub async fn drilldown_month_to_day(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<DrillMonthDayQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.drilldown_month_to_day(q.year, q.month).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -184,10 +184,10 @@ pub async fn drilldown_month_to_day(
 /// 钻取：客户 → 订单
 pub async fn drilldown_customer_to_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(customer_id): Path<i64>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.drilldown_customer_to_order(customer_id).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -196,10 +196,10 @@ pub async fn drilldown_customer_to_order(
 /// 钻取：产品 → 订单
 pub async fn drilldown_product_to_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(product_id): Path<i64>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.drilldown_product_to_order(product_id).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -218,10 +218,10 @@ pub struct SliceRequest {
 
 pub async fn slice(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(body): Json<SliceRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.slice(&body.dimension, &body.filters).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -235,10 +235,10 @@ pub struct DiceRequest {
 
 pub async fn dice(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(body): Json<DiceRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.dice(&body.filters).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -253,10 +253,10 @@ pub struct RollupRequest {
 
 pub async fn rollup(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(body): Json<RollupRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.rollup(&body.from, &body.to).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
@@ -272,10 +272,10 @@ pub struct PivotRequest {
 
 pub async fn pivot(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(body): Json<PivotRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let service = BiAnalysisService::new(state.db.clone());
+    let service = BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context());
     let data = service.pivot(&body.row, &body.col, &body.measure).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }

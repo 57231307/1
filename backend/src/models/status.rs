@@ -320,13 +320,20 @@ pub mod accounting_period {
 /// 运单状态常量（大写值）
 ///
 /// 批次 232 v13 P1-1 修复：logistics_waybill.status 字段状态常量化
-/// 状态机：IN_TRANSIT（运输中）→ DELIVERED（已送达）
+/// 状态机：IN_TRANSIT（运输中）→ DELIVERED（已送达）→ SIGNED（已签收）
+///
+/// V15 P0-B13（Batch 483）：新增 SIGNED 已签收状态
+/// - 签收时调用 sign_waybill handler，状态推进到 SIGNED
+/// - SIGNED 状态触发 AR 应收确认（财务做收款计划）
 pub mod logistics_waybill {
     /// 运输中：运单已创建，货物在途
     pub const IN_TRANSIT: &str = "IN_TRANSIT";
 
     /// 已送达：货物已送达目的地
     pub const DELIVERED: &str = "DELIVERED";
+
+    /// V15 P0-B13：已签收：客户已签收，触发 AR 应收确认
+    pub const SIGNED: &str = "SIGNED";
 }
 
 /// 销售退货状态常量（大写值）
