@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；Batch 475e 已合并 PR #662（P0-S12 前端导出 B 类批次 3/3 收尾完成，ar + ap + cost + budget + fixed-assets 5 模块闭环，P0-S12 前端导出接入后端全部完成）；Batch 476 已合并 main 直接提交 eb57484（P0-S17 打印 HTML 真实数据查询完成，print_service + print_handler 2 文件，6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB）；Batch 477 已合并 main 直接提交 a3798f4 + daeab0f（P0-F10/F11/F12/F13 色卡发放库存联动 + 前端文件结构 + legacy 数据迁移完成，15 文件，PR #665 因 main 抢先直接提交被关闭冲突）；Batch 478 已合并 main 直接提交 9d01a42 + 6aca804（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验完成，11 文件，8 态状态机 + 9 端点；CI 2 轮，第 1 轮 clippy::deref_arg 警告，第 2 轮修复后 14/14 全绿）；Batch 479 已合并 main 直接提交 642d2c09 + cc1ee381 + c06109fd + bbf38a30（P0-F18 返工/降级/报废 + P0-F21 返工走生产订单完成，7 文件，customer_rework 联动创建返工生产订单 + downgrade 联动库存等级降级 + scrap 联动库存报废标记；CI 3 轮，第 1 轮 E0063 missing field production_order_id，第 2 轮 clippy baseline 误删 too many arguments 警告，第 3 轮恢复 baseline 后 14/14 全绿；教训：CI 自动刷新 baseline 在编译错误时会误删预存警告）；Batch 480 已合并 main 直接提交 5334bf13 + 8d7ea998 + ae87219f（P0-F20 8D 质量管理流程完成，13 文件，11 态状态机 + 10 条合法边 + From<AppError> 透传；CI 3 轮）；Batch 481 已合并 PR #666 squash 00261365（P0-B01 坏账准备 + P0-B02 坏账核销审批 + P0-B03 催收任务 + P0-B04 财务预警完成，25 文件，账龄分析法 + 二级审批 + 4 类预警 + 7 端点催收；CI 5 轮，rust_decimal_macros::dec 宏不可用 + HashMap 键需 Hash + AlertType 未实现 Display + const Decimal::new 非 const fn + 5 unused import + doc list item overindented + from_str 与 std trait 冲突；教训：rust_decimal 1.x Decimal::new 非 const fn 需用函数替代 + 自定义 from_str 方法名与 std::str::FromStr 冲突需改名为 parse_str）；Batch 482 已合并 PR #667（P0-B05 大额调拨 + P0-B06 预算超支 + P0-B07 CRM 回收 + P0-B08 赢率 + P0-B09 输单原因 + P0-B14 Incoterms 完成，13 文件，large_transfer_threshold 10万阈值 + enforce_budget_available 阻塞式 + RecycleExecutor 6h 定时 + default_win_probability_by_stage 5阶段 + close_as_lost 输单原因 + Incoterms 11种术语全量；CI 2 轮，第 1 轮 E0382 borrow of moved value v 在 Set 后 &v，第 2 轮改为先算 default_prob 再 Set 后 14/14 全绿；教训：变量移动顺序需在 Set 前计算衍生值）；P0 进度 92/104；剩余 12 P0 + 257 P1 + 248 P2 + 123 P3 = 640 项；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
+> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；Batch 475e 已合并 PR #662（P0-S12 前端导出 B 类批次 3/3 收尾完成，ar + ap + cost + budget + fixed-assets 5 模块闭环，P0-S12 前端导出接入后端全部完成）；Batch 476 已合并 main 直接提交 eb57484（P0-S17 打印 HTML 真实数据查询完成，print_service + print_handler 2 文件，6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB）；Batch 477 已合并 main 直接提交 a3798f4 + daeab0f（P0-F10/F11/F12/F13 色卡发放库存联动 + 前端文件结构 + legacy 数据迁移完成，15 文件，PR #665 因 main 抢先直接提交被关闭冲突）；Batch 478 已合并 main 直接提交 9d01a42 + 6aca804（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验完成，11 文件，8 态状态机 + 9 端点；CI 2 轮，第 1 轮 clippy::deref_arg 警告，第 2 轮修复后 14/14 全绿）；Batch 479 已合并 main 直接提交 642d2c09 + cc1ee381 + c06109fd + bbf38a30（P0-F18 返工/降级/报废 + P0-F21 返工走生产订单完成，7 文件，customer_rework 联动创建返工生产订单 + downgrade 联动库存等级降级 + scrap 联动库存报废标记；CI 3 轮，第 1 轮 E0063 missing field production_order_id，第 2 轮 clippy baseline 误删 too many arguments 警告，第 3 轮恢复 baseline 后 14/14 全绿；教训：CI 自动刷新 baseline 在编译错误时会误删预存警告）；Batch 480 已合并 main 直接提交 5334bf13 + 8d7ea998 + ae87219f（P0-F20 8D 质量管理流程完成，13 文件，11 态状态机 + 10 条合法边 + From<AppError> 透传；CI 3 轮）；Batch 481 已合并 PR #666 squash 00261365（P0-B01 坏账准备 + P0-B02 坏账核销审批 + P0-B03 催收任务 + P0-B04 财务预警完成，25 文件，账龄分析法 + 二级审批 + 4 类预警 + 7 端点催收；CI 5 轮，rust_decimal_macros::dec 宏不可用 + HashMap 键需 Hash + AlertType 未实现 Display + const Decimal::new 非 const fn + 5 unused import + doc list item overindented + from_str 与 std trait 冲突；教训：rust_decimal 1.x Decimal::new 非 const fn 需用函数替代 + 自定义 from_str 方法名与 std::str::FromStr 冲突需改名为 parse_str）；Batch 482 已合并 PR #667（P0-B05 大额调拨 + P0-B06 预算超支 + P0-B07 CRM 回收 + P0-B08 赢率 + P0-B09 输单原因 + P0-B14 Incoterms 完成，13 文件，large_transfer_threshold 10万阈值 + enforce_budget_available 阻塞式 + RecycleExecutor 6h 定时 + default_win_probability_by_stage 5阶段 + close_as_lost 输单原因 + Incoterms 11种术语全量；CI 2 轮，第 1 轮 E0382 borrow of moved value v 在 Set 后 &v，第 2 轮改为先算 default_prob 再 Set 后 14/14 全绿；教训：变量移动顺序需在 Set 前计算衍生值）；Batch 483 已合并 PR #668（P0-B10 BI 权限过滤 + P0-B11 定制订单打样报价 + P0-B12 售后质量集成 + P0-B13 物流电子签收 完成，15 文件）；Batch 484 已合并 main 直接提交 df5286ee + c012a3b9（P0-B15 缺料预警持久化 + P0-B16 自动故障检测 + P0-B17 主备切换 完成，11 文件，m0068 两表 + material_shortage.rs Model + 3 桩方法改真实 DB 读写 + FailoverExecutor ArcSwap 原子切换 + FailoverMonitor 后台任务 + 熔断器状态机；CI 2 轮，第 1 轮 3 处编译错误 E0382/E0308/E0308，第 2 轮 Rust 构建和单元测试全绿，clippy 1 条 too many arguments 8/7 新增警告用户特批直接合并不等 CI；教训：sea-orm ActiveModel into() 消费原值后不可再访问 + DatabaseTransaction 与 DatabaseConnection 需用 ConnectionTrait 泛型统一 + MaterialShortageItem.material_code 是 String 但 alert_model.material_code 是 Option<String> 需 Some 包裹）；P0 进度 99/104；剩余 5 P0 + 257 P1 + 248 P2 + 123 P3 = 633 项；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
 
 ---
 
@@ -12,19 +12,19 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 96 | **8** | 92.3% |
+| **P0 阻塞级** | 104 | 99 | **5** | 95.2% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **96** | **636** | **13.1%** |
+| **合计** | **732** | **99** | **633** | **13.5%** |
 
-> P0 已完成 96 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）+ Batch 476 修复 1 项（P0-S17 打印 HTML 真实数据查询）+ Batch 477 修复 4 项（P0-F10 库存联动 + P0-F11 前端文件结构 + P0-F12 前端类型/API/视图 + P0-F13 数据迁移）+ Batch 478 修复 4 项（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验）+ Batch 479 修复 2 项（P0-F18 返工/降级/报废 + P0-F21 返工走生产订单）+ Batch 480 修复 1 项（P0-F20 8D 质量管理流程）+ Batch 481 修复 4 项（P0-B01 坏账准备 + P0-B02 坏账核销审批 + P0-B03 催收任务 + P0-B04 财务预警）+ Batch 482 修复 6 项（P0-B05 大额调拨 + P0-B06 预算超支 + P0-B07 CRM 回收 + P0-B08 赢率 + P0-B09 输单原因 + P0-B14 Incoterms）+ Batch 483 修复 4 项（P0-B10 BI 权限过滤 + P0-B11 定制订单打样报价 + P0-B12 售后质量集成 + P0-B13 物流电子签收）。
+> P0 已完成 99 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）+ Batch 476 修复 1 项（P0-S17 打印 HTML 真实数据查询）+ Batch 477 修复 4 项（P0-F10 库存联动 + P0-F11 前端文件结构 + P0-F12 前端类型/API/视图 + P0-F13 数据迁移）+ Batch 478 修复 4 项（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验）+ Batch 479 修复 2 项（P0-F18 返工/降级/报废 + P0-F21 返工走生产订单）+ Batch 480 修复 1 项（P0-F20 8D 质量管理流程）+ Batch 481 修复 4 项（P0-B01 坏账准备 + P0-B02 坏账核销审批 + P0-B03 催收任务 + P0-B04 财务预警）+ Batch 482 修复 6 项（P0-B05 大额调拨 + P0-B06 预算超支 + P0-B07 CRM 回收 + P0-B08 赢率 + P0-B09 输单原因 + P0-B14 Incoterms）+ Batch 483 修复 4 项（P0-B10 BI 权限过滤 + P0-B11 定制订单打样报价 + P0-B12 售后质量集成 + P0-B13 物流电子签收）+ Batch 484 修复 3 项（P0-B15 缺料预警持久化 + P0-B16 自动故障检测 + P0-B17 主备切换）。
 > P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），Batch 475e 已完成 B 类批次 3/3 收尾（ar + ap + cost + budget + fixed-assets 5 模块），**P0-S12 前端导出接入后端全部完成**。
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 483 已合并（PR #668）—— P0-B10 BI 权限过滤 + P0-B11 定制订单打样报价 + P0-B12 售后质量集成 + P0-B13 物流电子签收 完成（data_scope.rs build_data_scope_sql 函数支持 raw SQL 注入数据范围 + bi_analysis_service.rs 16 方法全部注入 + bi_handler.rs 16 handler 改用 new_with_data_scope + custom_order.rs 2 字段+2 Relation + process_state_machine.rs LabDip/Quotation 2 状态 + custom_order_state_service.rs 状态门校验 + after_sales.rs quality_issue_id + trigger_quality_investigation 方法 + logistics_waybill.rs 5 签收字段 + status.rs SIGNED 常量 + sign_waybill handler 签收+AR 应收确认 + 路由 = 15 文件，3 migration m0065/m0066/m0067 由 main 预置；CI 2 轮：第 1 轮 3 处编译错误（CustomOrderActive 缺 lab_dip_request_id/quotation_id + state_err match 缺 3 变体 + aftersales_err match 缺 AlreadyLinked），第 2 轮 14/14 全绿；教训：main 已预置迁移文件时需 reset 到 main 只应用代码变更，避免 rebase 冲突）
-- **下一批次**：Batch 484（P0-B15 缺料预警持久化 + P0-B16 自动故障检测 + P0-B17 主备切换，运维相关 3 项打包 ~9 文件）
+- **当前批次**：Batch 484 已合并（main 直接提交 df5286ee + c012a3b9）—— P0-B15 缺料预警持久化 + P0-B16 自动故障检测 + P0-B17 主备切换 完成（m0068 两表 migration + material_shortage.rs Model + material_shortage_service.rs 3 桩方法改真实 DB 读写 + handler 状态机对齐 + failover_service.rs health_check 真实 SELECT 1 + ping_db + FailoverMonitor 后台任务 + 熔断器状态机 + FailoverExecutor ArcSwap 原子切换 + app_state.rs + main.rs + failover_handler.rs = 11 文件；CI 2 轮：第 1 轮 3 处编译错误 E0382/E0308/E0308，第 2 轮 Rust 后端构建/单元测试全绿，clippy 1 条 too many arguments 8/7 新增警告用户特批直接合并不等 CI；教训：sea-orm ActiveModel into() 消费原值后不可再访问 + DatabaseTransaction 与 DatabaseConnection 需用 ConnectionTrait 泛型统一 + MaterialShortageItem.material_code 是 String 但 alert_model.material_code 是 Option<String> 需 Some 包裹）
+- **下一批次**：Batch 485（P0-T03 baseline 移除 + P0-T08 覆盖率工具 + P0-T01 核心 service 单测 + P0-T06 bi_analysis 测试，CI 信号解锁 + 单测先行 4 项打包 ~12 文件）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
@@ -178,7 +178,7 @@ P0-D17 OA 公告 (M)  ← 独立
 | ✅ 481 | E | P0-B01 坏账准备 + P0-B02 坏账核销审批 + P0-B03 催收任务 + P0-B04 财务预警 | L+M+M+L | 无 | 已合并 PR #666 squash 00261365；4 migration + 4 Model + 3 DTO + 3 Service + 3 Handler + 3 Route + 5 mod.rs = 25 文件；账龄分析法 + 二级审批 + 4 类预警 + 催收任务；CI 5 轮修复 |
 | ✅ 482 | E | P0-B05 大额调拨 + P0-B06 预算超支 + P0-B07 CRM 回收 + P0-B08 赢率 + P0-B09 输单原因 + P0-B14 Incoterms | S+M+S+S+S+S | 无 | 已合并 PR #667；13 文件（1 新建 + 12 修改）；fund_management_service.rs large_transfer_threshold() 10万阈值 + fund_dto.rs confirm_large 字段 + budget_management_service.rs enforce_budget_available 阻塞式 + po/price.rs check_and_occupy_budget ? 传播 + po/order.rs 事务回滚 + crm/recycle_executor.rs RecycleExecutor 6h 定时扫描 + main.rs 后台任务启动 + opp.rs default_win_probability_by_stage 5阶段映射 + close_as_lost 输单原因 + crm_dto.rs CloseAsLostRequest + crm_handler.rs close_opportunity_as_lost + routes/crm.rs /close-lost + incoterms.rs 11种术语全量；CI 2 轮（第 1 轮 E0382 borrow of moved value v 在 Set 后 &v，第 2 轮改为先算 default_prob 再 Set 后 14/14 全绿）；教训：rust_decimal 1.42 Decimal::new 非 const fn 确认 + 变量移动顺序需在 Set 前计算衍生值 |
 | ✅ 483 | E | P0-B10 BI 权限过滤 + P0-B11 定制订单打样报价 + P0-B12 售后质量集成 + P0-B13 物流电子签收 | M+L+M+M | 480 | 已合并 PR #668 squash e094846e；15 文件（3 migration m0065/m0066/m0067 由 main 预置 + 14 代码文件修改）；data_scope.rs build_data_scope_sql 函数 + bi_analysis_service.rs 16 方法注入 + bi_handler.rs 16 handler 改用 new_with_data_scope + custom_order.rs 2 字段+2 Relation + process_state_machine.rs LabDip/Quotation 2 状态 + custom_order_state_service.rs 状态门校验 + after_sales.rs quality_issue_id + trigger_quality_investigation 方法 + logistics_waybill.rs 5 签收字段 + status.rs SIGNED 常量 + sign_waybill handler + 路由；CI 2 轮（第 1 轮 3 处编译错误：CustomOrderActive 缺 lab_dip_request_id/quotation_id + state_err match 缺 3 变体 + aftersales_err match 缺 AlreadyLinked；第 2 轮 14/14 全绿）；教训：main 已预置迁移文件时需 reset 到 main 只应用代码变更，避免 rebase 冲突 |
-| 484 | E | P0-B15 缺料预警持久化 + P0-B16 自动故障检测 + P0-B17 主备切换 | M+M+L | 无 | 运维相关 3 项打包 = ~9 文件 |
+| ✅ 484 | E | P0-B15 缺料预警持久化 + P0-B16 自动故障检测 + P0-B17 主备切换 | M+M+L | 无 | 已合并 main 直接提交 df5286ee + c012a3b9；m0068_create_material_shortage_tables（alerts + threshold_configs 两表）+ material_shortage.rs Model（alerts + threshold_config 子模块）+ material_shortage_service.rs 3 桩方法改真实 DB 读写（save/load/update_status）+ persist_alerts 幂等 upsert + generate_alert_no MS-YYYYMMDD-NNN + handler 状态机对齐 + failover_service.rs health_check 真实 SELECT 1 + ping_db + FailoverMonitor 后台任务（5s/3次/环境变量控制）+ 熔断器状态机（closed→open→closed）+ increment/reset_consecutive_failures + FailoverExecutor（ArcSwap 原子切换）+ with_executor builder + test_switch 真实切换 + update_status_on_switch + app_state.rs failover_executor 字段 + main.rs DATABASE_BACKUP_URL 备库构造 + FailoverMonitor spawn + failover_handler.rs 注入 executor = 11 文件；CI 2 轮（第 1 轮 3 处编译错误：E0382 use of moved value existing + E0308 material_code Option<String> + E0308 generate_alert_no 事务类型不匹配，第 2 轮修复后 Rust 后端构建/单元测试全绿，clippy 1 条 too many arguments 8/7 新增警告用户特批直接合并不等 CI）；教训：sea-orm ActiveModel into() 消费原值后不可再访问 + DatabaseTransaction 与 DatabaseConnection 需用 ConnectionTrait 泛型统一 + MaterialShortageItem.material_code 是 String 但 alert_model.material_code 是 Option<String> 需 Some 包裹 |
 | 485 | F | P0-T03 baseline 移除 + P0-T08 覆盖率工具 + P0-T01 核心 service 单测 + P0-T06 bi_analysis 测试 | M+S+L+M | 无 | CI 信号解锁 + 单测先行 4 项打包 = ~12 文件 |
 | 486 | F | P0-T02 7 项集成测试 + P0-T07 性能基准 + P0-T05 E2E 通过率 | XL+M+XL | 485 | 集成测试 + 性能 + E2E 3 项打包 = ~12 文件 |
 | 487 | G | P0-D01 Docker + P0-D02 install.sh + P0-D07 img alt + P0-D05 useI18n | S+S+S+XL | 无 | 部署小项 + 可访问性 4 项打包 = ~10 文件 |
@@ -498,35 +498,52 @@ P0-D17 OA 公告 (M)  ← 独立
 - **工作量**：S
 - **批次**：482（与 B05/B06/B07/B08/B09 合并）
 
-#### P0-B15 缺料预警状态不持久化（类二十二）
+#### ✅ P0-B15 缺料预警状态不持久化（已完成，Batch 484）
 
+- **状态**：✅ 已完成（main 直接提交 df5286ee）
 - **来源**：batch-18 P0-18-3
-- **证据**：缺料预警仅内存计算，无法形成处理闭环
-- **修复方案**：新增 material_shortage_alert 表（持久化预警记录 + 处理状态 + 责任人 + 月报）
-- **关联文件**：material_shortage_service.rs / schema migrations
-- **依赖**：无
-- **工作量**：M
-- **批次**：484（合并 B15+B16+B17 为单批 ~9 文件）
+- **修复方案**：m0068_create_material_shortage_tables 创建两表（material_shortage_alerts + material_shortage_threshold_configs）+ material_shortage.rs Model（alerts + threshold_config 子模块）+ material_shortage_service.rs 3 桩方法改真实 DB 读写：
+  - save_threshold_config：upsert 到 threshold_configs 表（id=1 单行配置，先 find_by_id 再 update/insert）
+  - load_threshold_config：从 DB 读取，无行时降级返回默认值
+  - update_status：返回 alert_model::Model，查找 material_id 最新未解决 alert，更新 status + resolved_at + updated_at
+  - persist_alerts：保证同 material_id 至多一条未解决 alert
+  - generate_alert_no：MS-YYYYMMDD-NNN 格式，查询当天最大序号 + 1
+- handler 状态校验值对齐 migration 状态机：identified → purchase_request → purchase_order → received → resolved
+- handler DTO 从持久化 alert 读取完整字段（替代原零值填充），level → severity 映射：Critical→critical / Severe→high / Warning→medium / _→low
 
-#### P0-B16 自动故障检测机制缺失（类二十）
+#### ✅ P0-B16 自动故障检测机制缺失（已完成，Batch 484）
 
+- **状态**：✅ 已完成（main 直接提交 df5286ee）
 - **来源**：batch-17 P0-17-1
-- **证据**：health_check_service.rs 不存在；只有 health_handler.rs 单次健康检查接口；无 5s 间隔 + 3 次失败告警的 scheduler/cron/loop/sleep 逻辑
-- **修复方案**：实现自动故障检测（5s 间隔 / 连续 3 次失败触发告警）
-- **关联文件**：[health_check_service.rs](file:///workspace/backend/src/observability/health_check_service.rs)
-- **依赖**：无
-- **工作量**：M
-- **批次**：484（与 B15/B17 合并）
+- **修复方案**：failover_service.rs 健康检查 + 后台监控 + 熔断器状态机
+  - health_check 重写为真实 SELECT 1 探测（替代仅读 status 表）：`ConnectionTrait::execute(Statement::from_sql_and_values(backend, "SELECT 1", Vec::new()))`
+  - ping_db：轻量 bool 返回的健康探测，供 FailoverMonitor 使用
+  - FailoverMonitor：后台健康监控任务（5s 间隔 + 连续 3 次失败阈值 + 环境变量控制 FAILOVER_MONITOR_INTERVAL_SECS / FAILOVER_FAILURE_THRESHOLD / FAILOVER_AUTO_SWITCH_ENABLED，默认 false 仅记录日志）
+  - 熔断器状态机：closed（正常）→ 连续失败 >= 3 → open（熔断）→ 健康恢复 → closed
+  - increment_consecutive_failures：递增 DB 中的 consecutive_failures，达阈值(3)时 circuit_state → "open"
+  - reset_consecutive_failures：重置为 0 + circuit_state → "closed" + 更新 last_success_at
+  - record_event 改为 pub，供 FailoverMonitor 调用
+- consecutive_failures 字段激活（原为 zombie 字段，现已递增/重置）
 
-#### P0-B17 主备切换自动完成缺失（类二十，部分实现）
+#### ✅ P0-B17 主备切换自动完成缺失（已完成，Batch 484）
 
+- **状态**：✅ 已完成（main 直接提交 df5286ee）
 - **来源**：batch-17 P0-17-2
-- **复审状态**：⚠️ failover_service.rs 基础框架存在，仅事件记录/手动切换；缺自动心跳检测/VIP 漂移/10s 内自动完成
-- **修复方案**：主备切换 10s 内自动完成（心跳检测 + VIP 漂移 + 数据同步）
-- **关联文件**：failover_service.rs / deploy/ha/
-- **依赖**：无
-- **工作量**：L
-- **批次**：484（与 B15/B16 合并）
+- **修复方案**：FailoverExecutor ArcSwap 原子切换 DatabaseConnection
+  - 新增 arc-swap = "1.7" 依赖
+  - FailoverExecutor：维护 primary + optional backup 两个连接
+    - `current: Arc<ArcSwap<DatabaseConnection>>` 运行时无锁 DB 连接替换
+    - switch_to_backup() 原子 store 备库连接（备库未配置时返回 Err 降级）
+    - switch_to_primary() 原子 store 主库连接（供人工 failback）
+    - is_on_backup() 通过 Arc::ptr_eq 判断
+    - has_backup() / get_current()
+  - FailoverService 新增 executor 字段 + with_executor builder
+  - get_active_db：返回当前活跃 DB 连接（executor 存在时从 ArcSwap load，否则克隆主库）
+  - test_switch 先执行真实 DB 连接切换，再更新 status + 记录 event
+  - update_status_on_switch：递增 total_switches + 设置 last_switch_at（替代原通用 update_status，已删除避免死代码）
+  - app_state.rs：AppState + AppStateParams 添加 failover_executor 字段
+  - main.rs：支持 DATABASE_BACKUP_URL 环境变量构造备库连接（连接失败降级为 None）
+  - failover_handler.rs：build_service 注入 executor
 
 #### P0-B18~B30 归并项（13 项，不计入独立项）
 

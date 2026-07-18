@@ -5,6 +5,145 @@
 
 ---
 
+## 📦 V15 Batch 484 归档（P0-B15/B16/B17 缺料预警持久化+自动故障检测+主备切换）
+
+### 任务概述
+
+- **批次**：484
+- **PR**：无（main 直接提交 df5286ee + c012a3b9）
+- **合并时间**：2026-07-18
+- **修复项**：3 项 P0（P0-B15 + P0-B16 + P0-B17）
+- **文件数**：11 文件（2 新建 + 9 修改）
+- **CI 验证**：2 轮（第 1 轮 3 处编译错误，第 2 轮 Rust 后端构建/单元测试全绿，clippy 1 条 too many arguments 8/7 新增警告用户特批直接合并不等 CI）
+
+### 修复内容
+
+#### P0-B15 缺料预警状态不持久化（audit-report batch-18 §8.1）
+
+**缺陷**：`material_shortage_service.rs` 三个方法（save_threshold_config / load_threshold_config / update_status）为桩实现，仅打印日志或返回默认值，缺料预警状态不持久化无法形成处理闭环。
+
+**修复**：
+1. **新建 migration m0068_create_material_shortage_tables**：
+   - `material_shortage_alerts` 表：预警记录（material_id / material_code / material_name / available_quantity / required_quantity / shortage_quantity / unit / level / status / alert_no / identified_at / resolved_at / created_at / updated_at）
+   - `material_shortage_threshold_configs` 表：阈值配置（id=1 单行配置 / low_stock_threshold / reorder_point / safety_stock / enabled / updated_at）
+   - 5 态状态机 CHECK 约束：identified → purchase_request → purchase_order → received → resolved
+2. **新建 models/material_shortage.rs**：Sea-ORM Entity（alerts + threshold_config 子模块避免 Entity 名冲突）
+3. **material_shortage_service.rs 3 桩方法改真实 DB 读写**：
+   - `save_threshold_config`：upsert 到 threshold_configs 表（先 find_by_id(1)，存在 update 不存在 insert）
+   - `load_threshold_config`：从 DB 读取，无行时降级返回 `ShortageThresholdConfig::default()`
+   - `update_status`：签名从 `Result<String, AppError>` 改为 `Result<alert_model::Model, AppError>`，查找 material_id 最新未解决 alert（status != "resolved"），更新 status + resolved_at（若 resolved）+ updated_at
+4. **persist_alerts 幂等 upsert**：保证同 material_id 至多一条未解决 alert
+5. **generate_alert_no**：MS-YYYYMMDD-NNN 格式，查询当天最大序号 + 1；泛型 `<C: ConnectionTrait>` 支持事务和连接
+6. **material_shortage_handler.rs 状态校验值对齐 migration 状态机**：从 `"pending"|"notified"|"resolved"` 改为 `"identified"|"purchase_request"|"purchase_order"|"received"|"resolved"`
+7. **handler DTO 从持久化 alert 读取完整字段**（替代原零值填充）；level → severity 映射：Critical→critical / Severe→high / Warning→medium / _→low
+
+#### P0-B16 自动故障检测机制缺失（audit-report batch-17 §20.4-A）
+
+**缺陷**：`failover_service.rs` `health_check` 仅读取 status 表不执行真实 DB 探测；无后台监控任务；consecutive_failures 字段为 zombie 字段（从不递增/重置）。
+
+**修复**：
+1. **health_check 重写为真实 SELECT 1 探测**（替代仅读 status 表）：
+   ```rust
+   ConnectionTrait::execute(Statement::from_sql_and_values(backend, "SELECT 1", Vec::new()))
+   ```
+2. **ping_db**：轻量 bool 返回的健康探测，供 FailoverMonitor 使用
+3. **FailoverMonitor 后台任务**：5s 间隔 `ping_db()`，连续 3 次失败触发 `test_switch`
+   - 环境变量控制：`FAILOVER_MONITOR_INTERVAL_SECS`（默认 5）/ `FAILOVER_FAILURE_THRESHOLD`（默认 3）/ `FAILOVER_AUTO_SWITCH_ENABLED`（默认 false 仅记录日志）
+4. **熔断器状态机**：closed（正常）→ 连续失败 >= 3 → open（熔断）→ 健康恢复 → closed
+5. **increment_consecutive_failures**：递增 DB 中的 consecutive_failures，达阈值(3)时 circuit_state → "open"
+6. **reset_consecutive_failures**：重置为 0 + circuit_state → "closed" + 更新 last_success_at
+7. **record_event 改为 pub**：供 FailoverMonitor 调用
+
+#### P0-B17 主备切换自动完成缺失（audit-report batch-17 §20.4-B）
+
+**缺陷**：`failover_service.rs` 基础框架存在（事件记录/手动切换），但缺真实 DB 连接切换；test_switch 仅更新 status 表不切换实际连接。
+
+**修复**：
+1. **新增 arc-swap = "1.7" 依赖**（Cargo.toml）
+2. **FailoverExecutor 结构体**：ArcSwap 原子切换 DatabaseConnection
+   ```rust
+   pub struct FailoverExecutor {
+       current: Arc<ArcSwap<DatabaseConnection>>,
+       primary: Arc<DatabaseConnection>,
+       backup: Option<Arc<DatabaseConnection>>,
+   }
+   ```
+   - `switch_to_backup()`：原子 store 备库连接（备库未配置时返回 Err 降级）
+   - `switch_to_primary()`：原子 store 主库连接（供人工 failback）
+   - `is_on_backup()`：通过 `Arc::ptr_eq` 判断
+   - `has_backup()` / `get_current()`
+3. **FailoverService 新增 executor 字段 + with_executor builder**
+4. **get_active_db**：返回当前活跃 DB 连接（executor 存在时从 ArcSwap load，否则克隆主库）
+5. **test_switch 先执行真实 DB 连接切换**，再更新 status + 记录 event
+6. **update_status_on_switch**：递增 total_switches + 设置 last_switch_at（替代原通用 update_status，已删除避免死代码 Rule 14 合规）
+7. **app_state.rs**：AppState + AppStateParams 添加 `failover_executor: Arc<FailoverExecutor>` 字段；Default impl（测试环境）添加 `FailoverExecutor::new(db.clone(), None)`
+8. **main.rs**：支持 `DATABASE_BACKUP_URL` 环境变量构造备库连接（连接失败降级为 None）；FailoverMonitor 后台任务 spawn
+9. **failover_handler.rs**：build_service 注入 `.with_executor(state.failover_executor.clone())`
+
+### CI 验证
+
+- **第 1 轮（df5286ee）**：3 处编译错误
+  - `failover_service.rs:436 E0382 use of moved value`：`existing.into()` 消费 existing 后又访问 `existing.total_switches`
+  - `material_shortage_service.rs:424 E0308 mismatched types`：`material_code: Set(item.material_code.clone())` 但 alert_model.material_code 字段为 `Option<String>`
+  - `material_shortage_service.rs:419 E0308 mismatched types`：`self.generate_alert_no(&txn)` 传入 DatabaseTransaction 但方法签名期望 `&DatabaseConnection`
+- **第 2 轮（c012a3b9）**：Rust 后端构建/单元测试全绿；clippy 1 条 `too many arguments (8/7)` 新增警告（用户特批直接合并不等 CI）
+
+### 修复细节
+
+**E0382 修复**（failover_service.rs update_status_on_switch）：
+```rust
+// 修复前：existing.into() 后访问 existing.total_switches
+let mut active: status_model::ActiveModel = existing.into();
+active.total_switches = Set(existing.total_switches + 1); // ❌ E0382
+
+// 修复后：提前保存衍生值
+let new_total_switches = existing.total_switches + 1;
+let mut active: status_model::ActiveModel = existing.into();
+active.total_switches = Set(new_total_switches); // ✅
+```
+
+**E0308 修复**（material_shortage_service.rs material_code 字段类型）：
+```rust
+// 修复前：MaterialShortageItem.material_code 是 String，alert_model.material_code 是 Option<String>
+material_code: Set(item.material_code.clone()), // ❌ E0308
+
+// 修复后：Some 包裹
+material_code: Set(Some(item.material_code.clone())), // ✅
+```
+
+**E0308 修复**（material_shortage_service.rs generate_alert_no 泛型化）：
+```rust
+// 修复前：签名只接受 &DatabaseConnection，但调用方传 &txn（DatabaseTransaction）
+async fn generate_alert_no(&self, db: &DatabaseConnection) -> Result<String, AppError> // ❌
+
+// 修复后：泛型 <C: ConnectionTrait>，DatabaseTransaction 和 DatabaseConnection 均实现 ConnectionTrait
+async fn generate_alert_no<C: ConnectionTrait>(&self, db: &C) -> Result<String, AppError> // ✅
+```
+
+### 教训
+
+1. **sea-orm ActiveModel into() 消费原值**：`existing.into()` 会移动 existing，之后不可再访问原字段。需提前 `let new_x = existing.x + 1` 保存衍生值
+2. **DatabaseTransaction 与 DatabaseConnection 类型统一**：事务内调用的辅助方法应使用泛型 `<C: ConnectionTrait>` 而非固定 `&DatabaseConnection`
+3. **Model 字段 Option<T> vs 业务结构体 T**：当 Model 字段为 `Option<String>` 但业务结构体为 `String` 时，需 `Set(Some(item.x.clone()))` 包裹
+4. **死代码清理 Rule 14 合规**：`update_status` 被 `update_status_on_switch` 替代后立即删除，避免 unused method 警告
+5. **ArcSwap 原子切换模式**：`Arc<ArcSwap<DatabaseConnection>>` 实现运行时无锁 DB 连接替换；`load_full()` 返回 `Arc<DatabaseConnection>`，`store()` 原子替换
+
+### 关联文件
+
+- [backend/Cargo.toml](file:///workspace/backend/Cargo.toml)（arc-swap 依赖）
+- [backend/migration/src/m0068_create_material_shortage_tables.rs](file:///workspace/backend/migration/src/m0068_create_material_shortage_tables.rs)（新建）
+- [backend/migration/src/lib.rs](file:///workspace/backend/migration/src/lib.rs)（注册 m0068）
+- [backend/src/models/material_shortage.rs](file:///workspace/backend/src/models/material_shortage.rs)（新建）
+- [backend/src/models/mod.rs](file:///workspace/backend/src/models/mod.rs)（注册模块）
+- [backend/src/services/material_shortage_service.rs](file:///workspace/backend/src/services/material_shortage_service.rs)（3 桩方法改真实 DB）
+- [backend/src/handlers/material_shortage_handler.rs](file:///workspace/backend/src/handlers/material_shortage_handler.rs)（状态机对齐 + DTO）
+- [backend/src/services/failover_service.rs](file:///workspace/backend/src/services/failover_service.rs)（health_check + FailoverMonitor + FailoverExecutor）
+- [backend/src/handlers/failover_handler.rs](file:///workspace/backend/src/handlers/failover_handler.rs)（注入 executor）
+- [backend/src/utils/app_state.rs](file:///workspace/backend/src/utils/app_state.rs)（failover_executor 字段）
+- [backend/src/main.rs](file:///workspace/backend/src/main.rs)（备库构造 + FailoverMonitor spawn）
+
+---
+
 ## 📦 V15 Batch 483 归档（P0-B10/B11/B12/B13 BI 权限过滤+定制订单打样报价+售后质量集成+物流电子签收）
 
 ### 任务概述
