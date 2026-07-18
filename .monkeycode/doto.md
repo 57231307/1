@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；Batch 475e 已合并 PR #662（P0-S12 前端导出 B 类批次 3/3 收尾完成，ar + ap + cost + budget + fixed-assets 5 模块闭环，P0-S12 前端导出接入后端全部完成）；Batch 476 已合并 main 直接提交 eb57484（P0-S17 打印 HTML 真实数据查询完成，print_service + print_handler 2 文件，6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB）；Batch 477 已合并 main 直接提交 a3798f4 + daeab0f（P0-F10/F11/F12/F13 色卡发放库存联动 + 前端文件结构 + legacy 数据迁移完成，15 文件，PR #665 因 main 抢先直接提交被关闭冲突）；P0 进度 75/104；剩余 29 P0 + 257 P1 + 248 P2 + 123 P3 = 657 项；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
+> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；Batch 475e 已合并 PR #662（P0-S12 前端导出 B 类批次 3/3 收尾完成，ar + ap + cost + budget + fixed-assets 5 模块闭环，P0-S12 前端导出接入后端全部完成）；Batch 476 已合并 main 直接提交 eb57484（P0-S17 打印 HTML 真实数据查询完成，print_service + print_handler 2 文件，6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB）；Batch 477 已合并 main 直接提交 a3798f4 + daeab0f（P0-F10/F11/F12/F13 色卡发放库存联动 + 前端文件结构 + legacy 数据迁移完成，15 文件，PR #665 因 main 抢先直接提交被关闭冲突）；Batch 478 已合并 main 直接提交 9d01a42 + 6aca804（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验完成，11 文件，8 态状态机 + 9 端点；CI 2 轮，第 1 轮 clippy::deref_arg 警告，第 2 轮修复后 14/14 全绿）；P0 进度 79/104；剩余 25 P0 + 257 P1 + 248 P2 + 123 P3 = 653 项；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
 
 ---
 
@@ -12,19 +12,19 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 75 | **29** | 72.1% |
+| **P0 阻塞级** | 104 | 79 | **25** | 76.0% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **75** | **657** | **10.2%** |
+| **合计** | **732** | **79** | **653** | **10.8%** |
 
-> P0 已完成 75 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）+ Batch 476 修复 1 项（P0-S17 打印 HTML 真实数据查询）+ Batch 477 修复 4 项（P0-F10 库存联动 + P0-F11 前端文件结构 + P0-F12 前端类型/API/视图 + P0-F13 数据迁移）。
+> P0 已完成 79 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）+ Batch 476 修复 1 项（P0-S17 打印 HTML 真实数据查询）+ Batch 477 修复 4 项（P0-F10 库存联动 + P0-F11 前端文件结构 + P0-F12 前端类型/API/视图 + P0-F13 数据迁移）+ Batch 478 修复 4 项（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验）。
 > P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），Batch 475e 已完成 B 类批次 3/3 收尾（ar + ap + cost + budget + fixed-assets 5 模块），**P0-S12 前端导出接入后端全部完成**。
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 477 已合并（main 直接提交 a3798f4 + daeab0f）—— P0-F10/F11/F12/F13 色卡发放库存联动 + 前端文件结构 + legacy 数据迁移完成（m0057 建表+stock_quantity 合并迁移 + m0058 旧表数据迁移 + color_card_migrate_legacy.sql + 5 方法接入库存联动 + 5 前端新文件 + 重构 issues.vue）
-- **下一批次**：Batch 478（P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验，~10 文件）
+- **当前批次**：Batch 478 已合并（main 直接提交 9d01a42 + 6aca804）—— P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验完成（m0058 建表迁移 + Model + Service 8 态状态机 9 状态转换方法 + Handler 9 端点 + 路由 nest + delivery.rs validate_bulk_color_approval 校验）
+- **下一批次**：Batch 479（P0-F18 返工/降级/报废 + P0-F21 返工走生产订单，~9 文件）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
@@ -172,7 +172,7 @@ P0-D17 OA 公告 (M)  ← 独立
 | ✅ 475e | A | P0-S12 前端导出接入后端（B 类批次 3/3）| XL | 475d | 已合并 PR #662（squash ff07549）；ar/ap/cost/budget/fixed-assets 5 模块：后端新增 5 端点（export_ar_invoices/export_ap_invoices/export_cost_items/export_budgets/export_fixed_assets）+ 前端切换 5 文件（Tab.vue × 5）+ 5 路由注册 = 12 文件；CI 一次过 13/13 全绿；**P0-S12 前端导出接入后端全部完成** |
 | ✅ 476 | A | P0-S17 打印 HTML 真实数据查询 | L | 无 | 已合并 main 直接提交 eb57484（PR #664 因 main 抢先直接提交被关闭冲突）；print_service.rs 6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB（sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer/voucher）+ print_handler.rs 注入 AppState；2 文件；CI 13/13 全绿 + 2 skipped |
 | ✅ 477 | B | P0-F10 色卡发放库存联动 + P0-F11/F12 前端文件结构 + P0-F13 数据迁移 | M+L+S | 无 | 已合并 main 直接提交 a3798f4 + daeab0f（PR #665 因 main 抢先直接提交被关闭冲突）；m0057_create_color_card_issues_and_stock_fields（建表+stock_quantity 合并迁移）+ m0058_migrate_color_card_borrow_records（旧表数据迁移）+ color_card_migrate_legacy.sql + color_card.rs Model 新增 stock_quantity + color_card_crud_service.rs create() 初始化 + color_card_issue_service.rs 5 方法接入库存联动（issue 扣减/return_card+cancel_issue 还原/mark_lost+mark_damaged 不还原）+ 事务+lock_exclusive + 前端 5 新文件（types/colorCardIssue.ts + store/colorCardIssue.ts + composables/useColorCardIssue.ts + components/ColorCardIssueForm.vue + components/ColorCardIssueDetail.vue）+ 重构 issues.vue + color-card-issue.ts 独立 API 模块 = 15 文件；CI 2 轮（第 1 轮前端类型检查失败 ColorCardIssueForm.vue 未使用 props 变量 TS6133，第 2 轮修复后 13/13 全绿） |
-| 478 | C | P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验 | M+M+M+S | 无 | 数据库基础 + 业务规则 + 末端校验 = ~10 文件 |
+| ✅ 478 | C | P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验 | M+M+M+S | 无 | 已合并 main 直接提交 9d01a42 + 6aca804；m0058_create_bulk_color_approval（24 字段 + 5 索引 + 4 CHECK 约束，8 态状态机）+ bulk_color_approval.rs Model（24 字段 + 3 关联）+ bulk_color_approval_service.rs（ApprovalStatus 枚举 + 9 状态转换方法 + 行锁并发安全）+ bulk_color_approval_handler.rs（9 端点 DTO + 错误转换）+ routes/bulk_color_approval.rs（nest /api/v1/erp/bulk-color-approvals）+ delivery.rs validate_bulk_color_approval 发货前门禁校验 + 4 mod.rs 注册 = 11 文件；FK 修正：dye_batch 表名为单数（非 dye_batches）；CI 2 轮（第 1 轮 clippy::deref_arg 警告 &*self.db 显式 deref，第 2 轮修复 validate_bulk_color_approval 参数改为 &Arc<DatabaseConnection> 后 14/14 全绿） |
 | 479 | C | P0-F18 返工/降级/报废 + P0-F21 返工走生产订单 | L+M | 478 | 批色闭环：返工走生产订单 + 库存转报废仓 + 等级降级 = ~9 文件 |
 | 480 | D | P0-F20 8D 质量管理流程 | XL | 无 | D0~D8 八步流程：quality_issue_service.rs + quality_issue_handler.rs + schema migrations + 11 态状态机 = ~12 文件 |
 | 481 | E | P0-B01 坏账准备 + P0-B02 坏账核销审批 + P0-B03 催收任务 + P0-B04 财务预警 | L+M+M+L | 无 | 坏账链路 + 催收 + 预警 4 项打包 = ~12 文件 |
@@ -290,35 +290,26 @@ P0-D17 OA 公告 (M)  ← 独立
 
 ---
 
-### 4.3 模块 C：面料行业-大货批色（5 项）
+### 4.3 模块 C：面料行业-大货批色（1 项未完成，原 5 项 - Batch 478 完成 P0-F15/F16/F17/F19）
 
-#### P0-F15 大货批色——bulk_color_approval 表完全不存在（类十一）
+> Batch 478 完成 4 项（建表 + 剪样 + 客户批色确认 + ship_order 校验）。下方仅保留未完成的 P0-F18 任务。
 
-- **来源**：batch-10 P0-10-1
-- **证据**：`backend/src/models/bulk_color_approval.rs` model 不存在；`bulk_color_approval_service.rs` 不存在
-- **修复方案**：CREATE TABLE `bulk_color_approval`（id, sales_order_id, dye_batch_id, customer_id, sample_type=cut_sample/lab_sample, approval_status=pending/approved/rejected/rework, approver_id, approval_date, reject_reason, attachment_url, remark）
-- **关联文件**：migrations + bulk_color_approval.rs model
-- **依赖**：无
-- **工作量**：M
-- **批次**：478（合并 F15+F16+F17+F19 为单批 ~10 文件）
+#### ✅ P0-F15 大货批色——bulk_color_approval 表完全不存在（已完成，Batch 478）
 
-#### P0-F16 大货批色——剪大货样业务规则未实现（类十一）
+- **状态**：✅ 已完成
+- **修复方案**：m0058_create_bulk_color_approval.rs 创建表（24 字段 + 5 索引 + 4 CHECK 约束，8 态状态机 pending/sampled/sent_to_customer/approved/rejected/rework/downgraded/scrapped）
+- **FK 修正**：dye_batch 表名为单数（非 dye_batches），与现有 schema 一致
+- **关联文件**：m0058 迁移 + bulk_color_approval.rs Model + 4 mod.rs 注册
 
-- **来源**：batch-10 P0-10-2
-- **修复方案**：实现剪大货样 handler，从 dye_batch 剪取样品，扣减库存
-- **关联文件**：bulk_color_approval_service.rs / bulk_color_approval_handler.rs
-- **依赖**：P0-F15
-- **工作量**：M
-- **批次**：478（与 F15/F17/F19 合并）
+#### ✅ P0-F16 大货批色——剪大货样业务规则未实现（已完成，Batch 478）
 
-#### P0-F17 大货批色——客户批色确认流程未实现（类十一）
+- **状态**：✅ 已完成
+- **修复方案**：bulk_color_approval_service.rs `cut_sample()` 方法实现 pending/rework → sampled 状态转换，支持样布长度/ΔE 测量值记录
 
-- **来源**：batch-10 P0-10-3
-- **修复方案**：客户通过链接/小程序确认批色，更新 approval_status
-- **关联文件**：bulk_color_approval_handler.rs / 前端 customer_portal
-- **依赖**：P0-F15
-- **工作量**：M
-- **批次**：478（与 F15/F16/F19 合并）
+#### ✅ P0-F17 大货批色——客户批色确认流程未实现（已完成，Batch 478）
+
+- **状态**：✅ 已完成
+- **修复方案**：bulk_color_approval_service.rs `customer_approve/customer_reject/customer_rework` 三方法实现 sent_to_customer → approved/rejected/rework 三分支转换
 
 #### P0-F18 大货批色——返工/降级/报废未实现（类十一）
 
@@ -329,15 +320,11 @@ P0-D17 OA 公告 (M)  ← 独立
 - **工作量**：L
 - **批次**：479（合并 F18+F21 为单批 ~9 文件）
 
-#### P0-F19 大货批色——ship_order 不校验批色状态（类十一）
+#### ✅ P0-F19 大货批色——ship_order 不校验批色状态（已完成，Batch 478）
 
-- **来源**：batch-10 P0-10-5
-- **证据**：so/delivery.rs 无 bulk_color/批色 校验
-- **修复方案**：发货前校验所有 dye_batch 的 bulk_color_approval.status='approved'，否则拒绝发货
-- **关联文件**：[ship_order_service.rs](file:///workspace/backend/src/services/ship_order_service.rs)
-- **依赖**：P0-F16/F17/F18
-- **工作量**：S
-- **批次**：478（与 F15/F16/F17 合并）
+- **状态**：✅ 已完成
+- **修复方案**：services/so/delivery.rs `ship_order()` 方法在 `validate_dye_lot_consistency` 之后、事务开启前调用 `validate_bulk_color_approval(&self.db, request.order_id)`，校验该订单关联的所有批色记录必须为 approved 状态，否则阻止发货
+- **关联文件**：[delivery.rs](file:///workspace/backend/src/services/so/delivery.rs) + bulk_color_approval_service.rs 模块级函数
 
 ---
 

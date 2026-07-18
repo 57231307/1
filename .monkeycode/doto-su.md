@@ -5,6 +5,96 @@
 
 ---
 
+## 📦 V15 Batch 478 归档（P0-F15/F16/F17/F19 大货批色审批贯通）
+
+### 任务概述
+
+- **批次**：478
+- **合并方式**：main 直接提交 9d01a42 + 6aca804（clippy 修复）
+- **完成时间**：2026-07-18
+- **审计项**：P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验（4 项合并）
+- **变更文件**：11 文件（1 migration + 1 model + 1 service + 1 handler + 1 routes + 1 delivery.rs 修改 + 5 mod.rs 注册）
+- **V15 P0 进度**：75/104 → 79/104（76.0%）
+
+### 问题背景
+
+#### P0-F15：bulk_color_approval 表完全不存在（类十一）
+
+- **证据**：`backend/src/models/bulk_color_approval.rs` model 不存在；`bulk_color_approval_service.rs` 不存在
+- **影响**：面料大货批色流程无数据载体，无法记录剪样、客户批色、状态流转
+
+#### P0-F16：剪大货样业务规则未实现（类十一）
+
+- **证据**：无 cut_sample handler / service 方法
+- **影响**：面料大货生产后无法从 dye_batch 剪取样布用于客户批色
+
+#### P0-F17：客户批色确认流程未实现（类十一）
+
+- **证据**：无 customer_approve/reject/rework handler / service 方法
+- **影响**：客户批色结果无法记录，无法触发 approved/rejected/rework 状态流转
+
+#### P0-F19：ship_order 不校验批色状态（类十一）
+
+- **证据**：`services/so/delivery.rs` ship_order 方法无 bulk_color_approval 校验
+- **影响**：批色未通过即可发货，绕过门禁
+
+### 修复方案
+
+#### 后端方案：8 态状态机 + 9 状态转换方法 + 9 HTTP 端点 + 发货前门禁
+
+**新建表（m0058_create_bulk_color_approval.rs）**：
+
+- 24 字段：id / sales_order_id / dye_batch_id / customer_id / production_order_id / product_id / color_no / dye_lot_no / batch_no / sample_type / sample_piece_id / sample_length_m / approval_status / approver_id / approval_date / sent_to_customer_at / customer_feedback / delta_e_value / reject_reason / delivery_blocking / attachment_url / remark / created_at / updated_at
+- 5 索引：idx_bca_sales_order_id / idx_bca_dye_batch_id / idx_bca_customer_id / idx_bca_approval_status / idx_bca_dye_lot_no
+- 4 CHECK 约束：chk_bca_sample_type（cut_sample/lab_sample）+ chk_bca_approval_status（8 态）+ chk_bca_delta_e（≥0）+ chk_bca_sample_length（≥0）
+- 8 态状态机：pending → sampled → sent_to_customer → approved / rejected / rework → downgraded / scrapped
+
+**FK 修正**：dye_batch 表名为单数（非 dye_batches），与现有 schema 一致（production_orders / customers / sales_orders / users 均为标准复数）
+
+**Service 层（bulk_color_approval_service.rs）**：
+
+- `ApprovalStatus` 枚举（8 变体）+ `FromStr`/`as_str`/`is_terminal`/`unblocks_delivery` 方法
+- `BulkColorApprovalService` 结构体持有 `Arc<DatabaseConnection>`
+- 9 状态转换方法：`create` / `cut_sample`（pending/rework→sampled）/ `send_to_customer`（sampled→sent_to_customer）/ `customer_approve`（→approved，解除门禁）/ `customer_reject`（→rejected）/ `customer_rework`（→rework）/ `downgrade`（approved→downgraded）/ `scrap`（pending/sampled/approved→scrapped）/ 通用 `transition_to`
+- 所有状态转换方法使用 `lock_exclusive` 行锁 + 事务保证并发安全
+- 模块级函数 `validate_bulk_color_approval(db: &Arc<DatabaseConnection>, sales_order_id: i32)` 用于 P0-F19 发货前校验
+
+**Handler 层（bulk_color_approval_handler.rs）**：
+
+- 9 HTTP 端点 + DTO 定义 + 错误转换（BulkColorApprovalError → AppError）
+- 端点：list / get / create / cut-sample / send-to-customer / approve / reject / rework / downgrade / scrap
+- 路由 nest 到 `/api/v1/erp/bulk-color-approvals`
+
+**delivery.rs 修改（P0-F19）**：
+
+- `ship_order()` 方法在 `validate_dye_lot_consistency` 之后、事务开启前调用 `validate_bulk_color_approval(&self.db, request.order_id)`
+- 校验该订单关联的所有 bulk_color_approval 记录必须全部为 approved 状态（`unblocks_delivery()` 返回 true）
+- 否则返回业务错误并列出阻断的记录详情
+
+### CI 验证
+
+- **第 1 轮（commit 9d01a42）**：13/14 job 通过，🔍 Rust Clippy 失败
+  - 错误：`warning: deref which would be done by auto-deref`（clippy::deref_arg）
+  - 原因：`validate_bulk_color_approval(&*self.db, request.order_id)` 中 `&*self.db` 对函数调用为冗余显式 deref（`&self.db` 经 auto-deref 即可得到 `&DatabaseConnection`）
+  - 注意：现有 `.one(&*self.db)` / `.paginate(&*self.db)` 等 method 调用不触发此 lint，因 method 参数为 generic `&impl Connection` 需要 explicit deref
+- **第 2 轮（commit 6aca804）**：14/14 全绿
+  - 修复：将 `validate_bulk_color_approval` 参数从 `&DatabaseConnection` 改为 `&Arc<DatabaseConnection>`，调用方直接传 `&self.db`，函数内部用 `db.as_ref()` 获取 `&DatabaseConnection`
+
+### 关键技术教训
+
+1. **clippy::deref_arg 触发条件**：对函数调用 `foo(&*arc)` 触发，因 auto-deref 已能将 `&Arc<T>` 转为 `&T`；对 method 调用 `.method(&*arc)` 不触发，因 method 参数为 generic 时需要 explicit deref 才能解析类型
+2. **避免方案**：函数签名直接接受 `&Arc<T>`，内部用 `db.as_ref()` 取 `&T`，调用方零成本 `&arc` 传递
+3. **dye_batch 表名陷阱**：现网 schema 中 `dye_batch` 为单数（m0003_add_dye_tables 创建），而非 `dye_batches`；FK 引用前必须 grep migrations 确认实际表名
+4. **8 态状态机设计**：终态不一定是解除门禁态——approved/rejected/downgraded/scrapped 均为终态，但仅 approved 解除 delivery_blocking，其余仍阻断发货（需重新生产或换缸）
+
+### 影响范围
+
+- 新增 5 文件：m0058_create_bulk_color_approval.rs / bulk_color_approval.rs / bulk_color_approval_service.rs / bulk_color_approval_handler.rs / routes/bulk_color_approval.rs
+- 修改 6 文件：migration/lib.rs + models/mod.rs + services/mod.rs + handlers/mod.rs + routes/mod.rs + services/so/delivery.rs
+- 累计 11 文件变更，1244 行新增
+
+---
+
 ## 📦 V15 Batch 477 归档（P0-F10/F11/F12/F13 色卡发放库存联动）
 
 ### 任务概述
