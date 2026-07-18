@@ -77,6 +77,9 @@ impl ColorCardCrudService {
             status: Set(master_data::ACTIVE.to_string()),
             description: Set(dto.description),
             cover_image_url: Set(dto.cover_image_url),
+            // V15 P0-F10：新建色卡默认库存为 0，需后续库存初始化或入库调整
+            stock_quantity: Set(0),
+            issued_quantity: Set(0),
             created_at: Set(now),
             updated_at: Set(now),
         };

@@ -92,6 +92,8 @@ pub mod m0054_enable_rls_policies;
 pub mod m0055_create_export_approval_request;
 // Batch 473 P0-S19：审计日志补齐 condition 字段（audit_logs + omni_audit_logs）
 pub mod m0056_add_condition_to_audit_logs;
+// Batch 477 P0-F10：创建 color_card_issues 表（补齐 Batch 471 遗漏）+ color_cards 表新增库存字段
+pub mod m0057_create_color_card_issues_and_stock_fields;
 
 pub struct Migrator;
 
@@ -157,6 +159,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0054_enable_rls_policies::Migration),
             Box::new(m0055_create_export_approval_request::Migration),
             Box::new(m0056_add_condition_to_audit_logs::Migration),
+            Box::new(m0057_create_color_card_issues_and_stock_fields::Migration),
         ]
     }
 }

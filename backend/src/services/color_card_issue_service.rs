@@ -181,6 +181,14 @@ impl ColorCardIssueService {
                 "闸门 2 失败：发放数量必须 > 0".to_string(),
             ));
         }
+        // V15 P0-F10：库存充足校验（可用 = stock - issued）
+        let available = card.stock_quantity - card.issued_quantity;
+        if available < issue_qty {
+            return Err(IssueError::GateCheckFailed(format!(
+                "闸门 2 失败：库存不足，可用 {} 张，本次发放 {} 张",
+                available, issue_qty
+            )));
+        }
 
         // 闸门 3：客户信用额度 > 0
         let customer = CustomerEntity::find_by_id(customer_id as i32)
@@ -245,12 +253,12 @@ impl ColorCardIssueService {
 
     /// 创建发放记录
     ///
-    /// 5 道闸门校验通过后插入 color_card_issues 表
+    /// 5 道闸门校验通过后，在事务内插入 color_card_issues 记录并扣减色卡库存（V15 P0-F10）
     pub async fn issue(
         &self,
         params: IssueParams,
     ) -> Result<color_card_issue::Model, IssueError> {
-        // 5 道闸门校验
+        // 5 道闸门校验（校验阶段不持锁）
         self.validate_issue_gates(
             params.color_card_id,
             params.customer_id,
@@ -258,6 +266,23 @@ impl ColorCardIssueService {
             params.expected_return_date,
         )
         .await?;
+
+        // V15 P0-F10：事务 + 行锁，串行化并发库存扣减，避免超量发放
+        let txn = self.db.begin().await?;
+
+        // 锁定色卡行，重检库存（避免并发超额）
+        let card = ColorCardEntity::find_by_id(params.color_card_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(IssueError::ColorCardNotFound)?;
+        let available = card.stock_quantity - card.issued_quantity;
+        if available < params.issue_qty {
+            return Err(IssueError::GateCheckFailed(format!(
+                "并发发放冲突：库存不足，可用 {} 张，本次发放 {} 张",
+                available, params.issue_qty
+            )));
+        }
 
         let now = Utc::now();
         let active = IssueActive {
@@ -279,11 +304,22 @@ impl ColorCardIssueService {
             updated_at: Set(now),
             is_deleted: Set(false),
         };
-        let result = active.insert(&*self.db).await?;
+        let result = active.insert(&txn).await?;
+
+        // 扣减库存：issued_quantity += issue_qty（stock_quantity 不变）
+        let new_issued = card.issued_quantity + params.issue_qty;
+        let mut card_active: color_card::ActiveModel = card.into();
+        card_active.issued_quantity = Set(new_issued);
+        card_active.updated_at = Set(now);
+        card_active.update(&txn).await?;
+
+        txn.commit().await?;
         Ok(result)
     }
 
     /// 归还色卡
+    ///
+    /// V15 P0-F10：归还后 issued_quantity -= issue_qty（库存恢复可用）
     pub async fn return_card(
         &self,
         record_id: i64,
@@ -309,22 +345,38 @@ impl ColorCardIssueService {
             )));
         }
 
-        let mut active: IssueActive = existing.into();
+        let now = Utc::now();
+        let mut active: IssueActive = existing.clone().into();
         active.status = Set(IssueStatus::Returned.as_str().to_string());
         active.actual_return_date =
-            Set(Some(actual_return_date.unwrap_or_else(|| Utc::now().date_naive())));
+            Set(Some(actual_return_date.unwrap_or_else(|| now.date_naive())));
         active.returned_by = Set(Some(returned_by));
         if let Some(r) = remark {
             active.remark = Set(Some(r));
         }
-        active.updated_at = Set(Utc::now());
-
+        active.updated_at = Set(now);
         let result = active.update(&txn).await?;
+
+        // V15 P0-F10：恢复色卡 issued_quantity（ -= issue_qty）
+        let card = ColorCardEntity::find_by_id(existing.color_card_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(IssueError::ColorCardNotFound)?;
+        let new_issued = (card.issued_quantity - existing.issue_qty).max(0);
+        let mut card_active: color_card::ActiveModel = card.into();
+        card_active.issued_quantity = Set(new_issued);
+        card_active.updated_at = Set(now);
+        card_active.update(&txn).await?;
+
         txn.commit().await?;
         Ok(result)
     }
 
     /// 登记遗失（含赔付金额）
+    ///
+    /// V15 P0-F10：遗失后 issued_quantity -= issue_qty（色卡永久丢失，既不算库存也不算已发放）
+    /// 色卡状态变更为 lost，整个色卡不可再用
     pub async fn mark_lost(
         &self,
         record_id: i64,
@@ -351,6 +403,7 @@ impl ColorCardIssueService {
             )));
         }
 
+        let now = Utc::now();
         // 1. 更新发放记录
         let mut active: IssueActive = existing.clone().into();
         active.status = Set(IssueStatus::Lost.as_str().to_string());
@@ -358,18 +411,21 @@ impl ColorCardIssueService {
         if let Some(r) = remark.clone() {
             active.remark = Set(Some(r));
         }
-        active.actual_return_date = Set(Some(Utc::now().date_naive()));
-        active.updated_at = Set(Utc::now());
+        active.actual_return_date = Set(Some(now.date_naive()));
+        active.updated_at = Set(now);
         let updated = active.update(&txn).await?;
 
-        // 2. 更新色卡状态为 lost
+        // 2. 更新色卡：status = 'lost' + issued_quantity -= issue_qty（V15 P0-F10 库存联动）
         let card = ColorCardEntity::find_by_id(existing.color_card_id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or(IssueError::ColorCardNotFound)?;
+        let new_issued = (card.issued_quantity - existing.issue_qty).max(0);
         let mut card_active: color_card::ActiveModel = card.into();
         card_active.status = Set(IssueStatus::Lost.as_str().to_string());
-        card_active.updated_at = Set(Utc::now());
+        card_active.issued_quantity = Set(new_issued);
+        card_active.updated_at = Set(now);
         card_active.update(&txn).await?;
 
         txn.commit().await?;
@@ -377,6 +433,8 @@ impl ColorCardIssueService {
     }
 
     /// 标记损坏
+    ///
+    /// V15 P0-F10：损坏后 issued_quantity -= issue_qty（损坏的色卡不可再用，从已发放中扣除）
     pub async fn mark_damaged(
         &self,
         record_id: i64,
@@ -405,16 +463,29 @@ impl ColorCardIssueService {
             )));
         }
 
-        let mut active: IssueActive = existing.into();
+        let now = Utc::now();
+        let mut active: IssueActive = existing.clone().into();
         active.status = Set(IssueStatus::Damaged.as_str().to_string());
         active.compensation_amount = Set(compensation_amount);
         if let Some(r) = remark {
             active.remark = Set(Some(r));
         }
-        active.actual_return_date = Set(Some(Utc::now().date_naive()));
-        active.updated_at = Set(Utc::now());
-
+        active.actual_return_date = Set(Some(now.date_naive()));
+        active.updated_at = Set(now);
         let result = active.update(&txn).await?;
+
+        // V15 P0-F10：损坏色卡从已发放中扣除（不可再用）
+        let card = ColorCardEntity::find_by_id(existing.color_card_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(IssueError::ColorCardNotFound)?;
+        let new_issued = (card.issued_quantity - existing.issue_qty).max(0);
+        let mut card_active: color_card::ActiveModel = card.into();
+        card_active.issued_quantity = Set(new_issued);
+        card_active.updated_at = Set(now);
+        card_active.update(&txn).await?;
+
         txn.commit().await?;
         Ok(result)
     }
@@ -422,6 +493,7 @@ impl ColorCardIssueService {
     /// 取消发放记录
     ///
     /// 仅允许 Issued 状态取消，取消后为终态不可再变更
+    /// V15 P0-F10：取消后 issued_quantity -= issue_qty（库存恢复，等同从未发放）
     pub async fn cancel_issue(
         &self,
         record_id: i64,
@@ -444,14 +516,27 @@ impl ColorCardIssueService {
             )));
         }
 
-        let mut active: IssueActive = existing.into();
+        let now = Utc::now();
+        let mut active: IssueActive = existing.clone().into();
         active.status = Set(IssueStatus::Cancelled.as_str().to_string());
         if let Some(r) = remark {
             active.remark = Set(Some(r));
         }
-        active.updated_at = Set(Utc::now());
-
+        active.updated_at = Set(now);
         let result = active.update(&txn).await?;
+
+        // V15 P0-F10：恢复色卡 issued_quantity（ -= issue_qty，等同从未发放）
+        let card = ColorCardEntity::find_by_id(existing.color_card_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(IssueError::ColorCardNotFound)?;
+        let new_issued = (card.issued_quantity - existing.issue_qty).max(0);
+        let mut card_active: color_card::ActiveModel = card.into();
+        card_active.issued_quantity = Set(new_issued);
+        card_active.updated_at = Set(now);
+        card_active.update(&txn).await?;
+
         txn.commit().await?;
         Ok(result)
     }

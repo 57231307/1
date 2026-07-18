@@ -27,6 +27,10 @@ pub struct ColorCardListItem {
     pub total_colors: i32,
     pub status: String,
     pub cover_image_url: Option<String>,
+    /// V15 P0-F10：色卡总库存数量
+    pub stock_quantity: i32,
+    /// V15 P0-F10：已发放数量（可用 = stock_quantity - issued_quantity）
+    pub issued_quantity: i32,
     pub created_at: DateTime<Utc>,
 }
 
@@ -43,6 +47,10 @@ pub struct ColorCardDetail {
     pub status: String,
     pub description: Option<String>,
     pub cover_image_url: Option<String>,
+    /// V15 P0-F10：色卡总库存数量
+    pub stock_quantity: i32,
+    /// V15 P0-F10：已发放数量（可用 = stock_quantity - issued_quantity）
+    pub issued_quantity: i32,
     pub items: Vec<ColorItemInfo>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

@@ -72,6 +72,10 @@ export interface ColorCardListItem {
   total_colors: number
   status: string
   cover_image_url?: string
+  // V15 P0-F10：色卡总库存数量
+  stock_quantity: number
+  // V15 P0-F10：已发放数量（可用 = stock_quantity - issued_quantity）
+  issued_quantity: number
   created_at: string
 }
 
@@ -104,7 +108,6 @@ export interface ColorCardDetail extends ColorCardListItem {
   items: ColorItemInfo[]
   updated_at: string
 }
-
 // 发放记录信息（V15 P0-F07：替代原 BorrowRecordInfo，borrow 模式已废弃）
 // 与后端 handlers/color_card/issue.rs::IssueRecordInfo 字段对齐
 export interface IssueRecordInfo {

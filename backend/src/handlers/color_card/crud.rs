@@ -58,6 +58,8 @@ pub async fn list_color_cards(
             total_colors: m.total_colors,
             status: m.status,
             cover_image_url: m.cover_image_url,
+            stock_quantity: m.stock_quantity,
+            issued_quantity: m.issued_quantity,
             created_at: m.created_at,
         })
         .collect();
@@ -90,6 +92,8 @@ pub async fn create_color_card(
         total_colors: created.total_colors,
         status: created.status,
         cover_image_url: created.cover_image_url,
+        stock_quantity: created.stock_quantity,
+        issued_quantity: created.issued_quantity,
         created_at: created.created_at,
     })))
 }
@@ -125,6 +129,8 @@ pub async fn get_color_card(
         status: card.status,
         description: card.description,
         cover_image_url: card.cover_image_url,
+        stock_quantity: card.stock_quantity,
+        issued_quantity: card.issued_quantity,
         items: item_infos,
         created_at: card.created_at,
         updated_at: card.updated_at,
@@ -155,6 +161,8 @@ pub async fn update_color_card(
         total_colors: updated.total_colors,
         status: updated.status,
         cover_image_url: updated.cover_image_url,
+        stock_quantity: updated.stock_quantity,
+        issued_quantity: updated.issued_quantity,
         created_at: updated.created_at,
     })))
 }
@@ -183,6 +191,8 @@ pub async fn archive_color_card(
         total_colors: updated.total_colors,
         status: updated.status,
         cover_image_url: updated.cover_image_url,
+        stock_quantity: updated.stock_quantity,
+        issued_quantity: updated.issued_quantity,
         created_at: updated.created_at,
     })))
 }
@@ -213,6 +223,8 @@ pub async fn mark_card_lost(
         total_colors: updated.total_colors,
         status: updated.status,
         cover_image_url: updated.cover_image_url,
+        stock_quantity: updated.stock_quantity,
+        issued_quantity: updated.issued_quantity,
         created_at: updated.created_at,
     })))
 }
