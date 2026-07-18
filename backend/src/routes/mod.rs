@@ -63,6 +63,10 @@ pub mod color_price;
 pub mod bulk_color_approval;
 // V15 P0-F20 Batch 480：8D 质量管理流程路由（11 状态机 + D0~D8 八步流程）
 pub mod quality_8d;
+// V15 P0-B01/B02/B03/B04 Batch 481：坏账管理 + 催收任务 + 财务预警路由
+pub mod bad_debt;
+pub mod collection_task;
+pub mod finance_alert;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod search_api;
@@ -364,6 +368,12 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/bulk-color-approvals", bulk_color_approval::routes())
         // V15 P0-F20 Batch 480：8D 质量管理流程路由
         .nest("/api/v1/erp/quality-8d-reports", quality_8d::routes())
+        // V15 P0-B01/B02 Batch 481：坏账管理路由（坏账准备计提 + 核销审批）
+        .nest("/api/v1/erp/bad-debts", bad_debt::routes())
+        // V15 P0-B03 Batch 481：催收任务路由
+        .nest("/api/v1/erp/collection-tasks", collection_task::routes())
+        // V15 P0-B04 Batch 481：财务预警路由
+        .nest("/api/v1/erp/finance-alerts", finance_alert::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())
