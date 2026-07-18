@@ -77,7 +77,7 @@ impl AlertType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_str(s: &str) -> Option<Self> {
         match s {
             "ar_overdue" => Some(Self::ArOverdue),
             "inventory_backlog" => Some(Self::InventoryBacklog),
@@ -159,7 +159,7 @@ impl FinanceAlertService {
         triggered_by: Option<i32>,
     ) -> Result<Vec<finance_alert::Model>, FinanceAlertError> {
         let scan_types: Vec<AlertType> = match req.alert_type.as_deref() {
-            Some(t) => vec![AlertType::from_str(t)
+            Some(t) => vec![AlertType::parse_str(t)
                 .ok_or_else(|| FinanceAlertError::Validation(format!("非法 alert_type: {}", t)))?],
             None => vec![
                 AlertType::ArOverdue,
@@ -453,7 +453,7 @@ impl FinanceAlertService {
         req: CreateAlertRequest,
     ) -> Result<finance_alert::Model, FinanceAlertError> {
         // 校验 alert_type
-        if AlertType::from_str(&req.alert_type).is_none() {
+        if AlertType::parse_str(&req.alert_type).is_none() {
             return Err(FinanceAlertError::Validation(format!(
                 "非法 alert_type: {}，合法值：ar_overdue/inventory_backlog/cash_flow_shortage/budget_overrun",
                 req.alert_type
@@ -605,7 +605,7 @@ impl FinanceAlertService {
 
         let mut select = Entity::find();
         if let Some(v) = query.alert_type {
-            if AlertType::from_str(&v).is_none() {
+            if AlertType::parse_str(&v).is_none() {
                 return Err(FinanceAlertError::Validation(format!(
                     "非法 alert_type: {}",
                     v

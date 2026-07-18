@@ -9,9 +9,7 @@
 //!
 //! **B02 坏账核销审批**（二级审批流）
 //! - 申请人 → 财务经理（一级）→ 总经理（二级）→ 核销执行
-//! - 状态机：pending → finance_approved → approved（终态）
-//!                 → rejected（任一级拒绝，终态）
-//!                 → cancelled（申请人取消，终态）
+//! - 状态机：pending → finance_approved → approved（终态） / rejected（任一级拒绝，终态） / cancelled（申请人取消，终态）
 //!
 //! 关联任务：P0-B01（§17.3-D1）/ P0-B02（§17.3-D2）
 //! 关联文件：models/bad_debt_provision.rs / models/bad_debt_writeoff.rs /
