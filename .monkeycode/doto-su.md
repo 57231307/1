@@ -5,6 +5,240 @@
 
 ---
 
+## 📦 V15 Batch 483 归档（P0-B10/B11/B12/B13 BI 权限过滤+定制订单打样报价+售后质量集成+物流电子签收）
+
+### 任务概述
+
+- **批次**：483
+- **合并方式**：PR #668 squash e094846e
+- **完成时间**：2026-07-18
+- **审计项**：P0-B10 BI 权限过滤 + P0-B11 定制订单打样报价 + P0-B12 售后质量集成 + P0-B13 物流电子签收（4 项 P0 打包）
+- **变更文件**：15 文件（3 migration 由 main 预置 m0065/m0066/m0067 + 1 util 扩展 + 1 service 16 方法注入 + 1 handler 16 端点改造 + 2 Model 扩展 + 1 状态机扩展 + 1 state service + 1 aftersales service + 1 status 常量 + 1 logistics handler + 1 route + 2 mod.rs）
+- **V15 P0 进度**：92/104 → 96/104（88.5% → 92.3%）
+
+### 问题背景
+
+#### P0-B10：BI 报表无数据权限过滤（§3.2，维度 3.2）
+
+- **来源**：V15 审计报告 batch-16 §3.2
+- **证据**：
+  - `bi_analysis_service.rs` 16 个 BI 查询方法（revenue/qty/customer/product/salesperson/trend/yoy/mom/top/pivot/channel/region/payment/aging/profit/forecast）均无数据范围过滤
+  - 任意用户可查询全公司销售数据，跨部门数据泄露
+- **影响**：销售经理可看其他部门订单、普通销售可看全国数据，数据权限边界失效
+- **审计要求**：BI 查询必须按用户 data_scope（all/dept/self）过滤
+
+#### P0-B11：定制订单打样和报价状态缺失（§23.2 缺陷 1，维度 23.2）
+
+- **来源**：V15 审计报告 batch-19 §23.2
+- **证据**：
+  - `process_state_machine.rs` 定制订单状态机仅有 8 态（Draft/YarnPurchasing/Dyeing/Finishing/Delivery/AfterSales/Completed/Cancelled）
+  - 缺失 LabDip（打样）和 Quotation（报价）2 个关键阶段
+  - `custom_order` 表无 lab_dip_request_id / quotation_id 关联字段
+- **影响**：打样和报价阶段在订单流程中无追踪，定制订单流程断裂
+- **审计要求**：状态机扩展为 10 态，新增打样通知单和报价单关联字段
+
+#### P0-B12：售后工单与质量异常未集成（§23.3 缺陷 4，维度 23.3）
+
+- **来源**：V15 审计报告 batch-19 §23.3
+- **证据**：
+  - `after_sales` 表无 quality_issue_id 关联字段
+  - 售后工单无法触发质量异常调查，质量异常也无法自动生成售后工单
+  - `custom_order_aftersales_service.rs` 缺 trigger_quality_investigation 方法
+- **影响**：售后质量问题无法追溯根因，8D 流程与售后流程断裂
+- **审计要求**：售后工单支持关联质量异常，支持触发质量调查
+
+#### P0-B13：物流运单无电子签收（§23.4 缺陷 4，维度 23.4）
+
+- **来源**：V15 审计报告 batch-19 §23.4
+- **证据**：
+  - `logistics_waybill` 表无签收相关字段（signed_at/signed_by/sign_method/sign_location/sign_remark）
+  - `status.rs` 无 SIGNED 状态常量
+  - 无签收 handler 和路由
+- **影响**：运单签收依赖纸质单据，无电子签收记录，纠纷无法举证
+- **审计要求**：支持电子签收，签收后自动触发 AR 应收确认
+
+### 详细变更
+
+#### 1. P0-B10 BI 数据权限过滤（3 文件）
+
+**1.1 `backend/src/utils/data_scope.rs`（扩展）**
+
+新增 `build_data_scope_sql(scope: &DataScopeContext, alias: &str, start_param_index: usize) -> (String, Vec<Value>)` 函数：
+- 返回 `(scope_sql, scope_values)` 元组，支持 raw SQL 注入数据范围
+- `scope_sql` 为 SQL 片段（如 `AND s.department_id = $1`），`scope_values` 为参数值向量
+- `start_param_index` 指定参数占位符起始索引（`$1`/`$2`...），适配多参数 SQL 场景
+- DataScope::All → 空 SQL 片段（不过滤）
+- DataScope::Dept → `AND {alias}.department_id = ${n}`
+- DataScope::Self → `AND {alias}.created_by = ${n}`
+
+**1.2 `backend/src/services/bi_analysis_service.rs`（16 方法全部注入）**
+
+每个 BI 查询方法注入数据范围过滤：
+- 新增 `new_with_data_scope(db: Arc<DatabaseConnection>, scope: DataScopeContext)` 构造函数
+- 新增 `scope_sql(&self, alias: &str, start: usize) -> (String, Vec<Value>)` 私有方法
+- 16 个方法（revenue_by_period/qty_by_customer/revenue_by_customer/qty_by_product/revenue_by_salesperson/revenue_trend/yoy_comparison/mom_comparison/top_n_customers/pivot_table/revenue_by_channel/revenue_by_region/payment_terms_analysis/receivable_aging/profit_analysis/sales_forecast）均在 WHERE 子句注入 `{scope_sql}`，参数列表追加 `scope_values`
+- 关键模式（以 pivot_table 为例）：
+  ```rust
+  let (scope_sql, scope_values) = self.scope_sql("s", 1);
+  let sql = format!(
+      r#"SELECT ... FROM sales_orders s
+         LEFT JOIN customers c ON c.id = s.customer_id
+         {joins}
+         WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+           {scope_sql}
+         GROUP BY row_key, row_label, col_key, col_label
+         ORDER BY row_label ASC, col_label ASC"#,
+      ...
+      scope_sql = scope_sql,
+  );
+  let stmt = Statement::from_sql_and_values(
+      sea_orm::DatabaseBackend::Postgres,
+      sql,
+      scope_values,
+  );
+  ```
+
+**1.3 `backend/src/handlers/bi_handler.rs`（16 handler 改造）**
+
+2 个全局替换（16 处）：
+- `_auth: AuthContext,` → `auth: AuthContext,`
+- `BiAnalysisService::new(state.db.clone())` → `BiAnalysisService::new_with_data_scope(state.db.clone(), auth.to_data_scope_context())`
+
+#### 2. P0-B11 定制订单打样和报价状态（5 文件）
+
+**2.1 `m0065_add_lab_dip_and_quotation_to_custom_order`（main 预置 migration）**
+
+custom_orders 表新增：
+- `lab_dip_request_id INTEGER`（打样通知单 ID，可空）
+- `quotation_id BIGINT`（报价单 ID，可空）
+- 2 个索引（lab_dip_request_id / quotation_id）
+
+**2.2 `backend/src/models/custom_order.rs`（Model 扩展）**
+
+- 新增 2 字段：`lab_dip_request_id: Option<i32>` / `quotation_id: Option<i64>`
+- 新增 2 Relations：`LabDipRequest`（BelongsTo lab_dip_requests）/ `Quotation`（BelongsTo quotations）
+
+**2.3 `backend/src/utils/process_state_machine.rs`（状态机扩展）**
+
+10 态状态机（原 8 态 + 新增 2 态）：
+- Draft → LabDip（新增）
+- LabDip → Quotation（新增）
+- Quotation → YarnPurchasing
+- YarnPurchasing → Dyeing
+- Dyeing → Finishing
+- Finishing → Delivery
+- Delivery → AfterSales
+- AfterSales → Completed
+- 任意非终态 → Cancelled
+- 新增 `is_lab_dip_state` / `is_quotation_state` 辅助方法
+
+**2.4 `backend/src/services/custom_order_state_service.rs`（状态门校验）**
+
+- `advance_to_lab_dip` 方法：校验 `lab_dip_request_id` 必须存在（否则 `LabDipRequestNotFound`）
+- `advance_to_quotation` 方法：校验 `quotation_id` 必须存在（否则 `QuotationNotFound`）
+- 通用 `validate_state_gate` 方法：根据目标状态调用对应门校验
+- 新增 3 个 StateError 变体：
+  - `GateValidation(String)`：状态门校验失败
+  - `LabDipRequestNotFound(i32)`：打样通知单不存在
+  - `QuotationNotFound(i64)`：报价单不存在
+
+**2.5 `backend/src/services/custom_order_crud_service.rs`（ActiveModel 补字段）**
+
+- `create_draft` 方法的 `CustomOrderActive { ... }` 字面量补 2 字段：
+  ```rust
+  // V15 P0-B11：打样和报价关联字段初始化为 None（draft 阶段尚未关联）
+  lab_dip_request_id: Set(None),
+  quotation_id: Set(None),
+  ```
+
+#### 3. P0-B12 售后质量集成（2 文件）
+
+**3.1 `m0066_add_quality_issue_to_after_sales`（main 预置 migration）**
+
+after_sales 表新增：
+- `quality_issue_id BIGINT`（关联质量异常 ID，可空）
+- 索引 quality_issue_id
+
+**3.2 `backend/src/models/after_sales.rs`（Model 扩展）**
+
+- 新增字段：`quality_issue_id: Option<i64>`
+- 新增 Relation：`QualityIssue`（BelongsTo quality_issues）
+
+**3.3 `backend/src/services/custom_order_aftersales_service.rs`（trigger_quality_investigation）**
+
+- 新增 `trigger_quality_investigation(after_sales_id: i64, quality_issue_id: i64) -> Result<AfterSalesModel, AfterSalesError>` 方法：
+  - 加 lock_exclusive 串行化
+  - 校验售后工单是否已关联（已关联则 `AlreadyLinked(after_sales_id, qi_id)`）
+  - 更新 quality_issue_id 字段
+  - 触发 8D 质量调查流程（调用 quality_8d_service）
+- 新增 AfterSalesError 变体：`AlreadyLinked(i64, i64)`
+
+#### 4. P0-B13 物流电子签收（5 文件）
+
+**4.1 `m0067_add_logistics_waybill_sign_fields`（main 预置 migration）**
+
+logistics_waybills 表新增 5 字段：
+- `signed_at TIMESTAMPTZ`（签收时间）
+- `signed_by BIGINT`（签收人 ID）
+- `sign_method VARCHAR(20)`（签收方式：manual/electronic/system）
+- `sign_location VARCHAR(200)`（签收位置）
+- `sign_remark TEXT`（签收备注）
+
+**4.2 `backend/src/models/logistics_waybill.rs`（Model 扩展）**
+
+- 新增 5 字段：signed_at / signed_by / sign_method / sign_location / sign_remark
+
+**4.3 `backend/src/models/status.rs`（新增 SIGNED 常量）**
+
+- 新增 `pub const SIGNED: &str = "SIGNED";`
+
+**4.4 `backend/src/handlers/logistics_handler.rs`（sign_waybill handler）**
+
+- 新增 `sign_waybill` handler：
+  - 接收 `SignWaybillDto`（sign_method/sign_location/sign_remark）
+  - 校验运单状态为 IN_TRANSIT（已发货未签收）
+  - 更新 5 个签收字段 + 状态改为 SIGNED
+  - 触发 AR 应收确认（调用 ar_invoice_service.create_from_waybill）
+  - 异步审计日志
+
+**4.5 `backend/src/routes/inventory.rs`（路由注册）**
+
+- 新增 `POST /api/v1/erp/logistics/:id/sign` 路由，挂在 sign_waybill handler
+
+### CI 验证
+
+- **第 1 轮失败（3 处编译错误）**：
+  1. `E0063 missing fields in CustomOrderActive`：`custom_order_crud_service.rs:75` 的 `CustomOrderActive { ... }` 缺 `lab_dip_request_id` 和 `quotation_id` 字段（P0-B11 Model 新增字段后所有 ActiveModel 字面量必须补齐）
+  2. `E0004 non-exhaustive patterns in state_err`：`custom_order_handler.rs:74` 的 `match e` 缺 3 个新 StateError 变体（GateValidation/LabDipRequestNotFound/QuotationNotFound）
+  3. `E0004 non-exhaustive patterns in aftersales_err`：`custom_order_handler.rs:105` 的 `match e` 缺 AlreadyLinked 变体
+- **第 2 轮修复后 14/14 全绿**：
+  1. CustomOrderActive 补 2 字段 `Set(None)`
+  2. state_err 补 3 match arms：
+     ```rust
+     GateValidation(msg) => AppError::business(msg),
+     LabDipRequestNotFound(id) => AppError::not_found(format!("打样通知单 {} 不存在", id)),
+     QuotationNotFound(id) => AppError::not_found(format!("报价单 {} 不存在", id)),
+     ```
+  3. aftersales_err 补 1 match arm：
+     ```rust
+     AlreadyLinked(after_sales_id, qi_id) => AppError::business(format!(
+         "售后工单 {} 已关联质量异常 {}，禁止重复触发",
+         after_sales_id, qi_id
+     )),
+     ```
+
+### 关键教训
+
+1. **main 已预置迁移文件时的处理**：发现 main 已有 m0065/m0066/m0067 时，前一会话错误地创建了 m0060/m0061/m0062 导致 rebase 冲突。正确做法是 `git reset --hard origin/main` 获取干净 main 基线，然后用 `git apply` 补丁仅应用代码变更（不含 migration 文件），最后 `git push --force-with-lease` 安全强推。
+
+2. **添加新枚举变体时的同步**：为 StateError 添加 3 个变体后，所有 `match` 表达式（包括 handler 中的错误转换函数 state_err）必须同步更新。CI 会捕获 E0004 non-exhaustive patterns 错误。规则 13 步骤 4 自审门应 grep `match e` / `StateError::` / `AfterSalesError::` 全部调用点。
+
+3. **添加 Model 新字段时的同步**：为 CustomOrder Model 添加 2 字段后，所有 `CustomOrderActive { ... }` 结构体字面量必须补齐新字段（即使为 `Set(None)`）。CI 会捕获 E0063 missing fields 错误。规则 13 步骤 4 自审门应 grep `CustomOrderActive {` 全部构造点。
+
+4. **Sea-ORM raw SQL + 数据范围注入模式**：`build_data_scope_sql()` 返回 `(String, Vec<Value>)` 元组，`format!()` 拼接 SQL 片段，`Statement::from_sql_and_values` 传入参数向量。这是在 Sea-ORM 之上实现行级数据权限过滤的标准模式，适用于 BI 等需要复杂 raw SQL 的场景。
+
+---
+
 ## 📦 V15 Batch 482 归档（P0-B05/B06/B07/B08/B09/B14 财务小项 6 项打包）
 
 ### 任务概述
