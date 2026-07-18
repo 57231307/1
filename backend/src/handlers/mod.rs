@@ -175,3 +175,5 @@ pub mod business_mode_handler;
 pub mod dye_batch_state_machine_handler;
 // V15 P0-F15/F16/F17：大货批色审批 handler（8 状态机 + 9 端点）
 pub mod bulk_color_approval_handler;
+// V15 P0-F20 Batch 480：8D 质量管理流程 handler（11 状态机 + 7 端点）
+pub mod quality_8d_handler;

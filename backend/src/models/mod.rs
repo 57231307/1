@@ -285,6 +285,9 @@ pub mod custom_order_update_dto;
 pub mod custom_order_response_dto;
 pub mod process_node_dto;
 pub mod quality_issue_dto;
+// V15 P0-F20 Batch 480：8D 质量管理流程 DTO + Model
+pub mod quality_8d_dto;
+pub mod quality_8d_report;
 // P0-4 色卡仓储管理模型
 pub mod color_card;
 pub mod color_card_item;

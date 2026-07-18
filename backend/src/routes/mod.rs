@@ -61,6 +61,8 @@ pub mod color_card;
 pub mod color_price;
 // V15 P0-F15/F16/F17：大货批色审批路由
 pub mod bulk_color_approval;
+// V15 P0-F20 Batch 480：8D 质量管理流程路由（11 状态机 + D0~D8 八步流程）
+pub mod quality_8d;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod search_api;
@@ -360,6 +362,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/color-prices", color_price::routes())
         // V15 P0-F15/F16/F17：大货批色审批路由
         .nest("/api/v1/erp/bulk-color-approvals", bulk_color_approval::routes())
+        // V15 P0-F20 Batch 480：8D 质量管理流程路由
+        .nest("/api/v1/erp/quality-8d-reports", quality_8d::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())

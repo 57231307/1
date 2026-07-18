@@ -224,3 +224,5 @@ pub mod business_mode_service;
 pub mod dye_batch_state_machine_service;
 // V15 P0-F15：大货批色审批服务（8 状态机：pending→sampled→sent_to_customer→approved/rejected/rework→downgraded/scrapped）
 pub mod bulk_color_approval_service;
+// V15 P0-F20 Batch 480：8D 质量管理流程服务（11 状态机：not_started→d0_plan→d1_team→...→d8_recognize→closed）
+pub mod quality_8d_service;
