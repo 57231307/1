@@ -410,8 +410,11 @@ jobs:
           # ============================================================================
           # V15 Batch 485 P0-06-3：移除 baseline 机制，任何警告都阻塞 CI（零容忍）
           # 不加 -- -D warnings（避免 JSON 输出截断），由后续 CURRENT_COUNT > 0 判定阻塞
+          # V15 Batch 485：移除 --all-features（与 cargo build/test 一致使用默认 features）
+          # 原因：--all-features 启用从未在生产中组合使用的 feature 组合，产生 1773 个
+          # false positive dead_code 警告（如 swagger feature 启用时暴露未使用常量）
           echo "▶ 阶段 1/3：主 clippy 运行（JSON 输出）"
-          cargo clippy --all-targets --all-features --message-format=json \
+          cargo clippy --all-targets --message-format=json \
             --color=always 2>reports/clippy-stderr.txt \
             | tee reports/clippy-output.json > /dev/null
           CLIPPY_MAIN_EXIT=${PIPESTATUS[0]}
@@ -429,7 +432,7 @@ jobs:
             echo "# Clippy 人类可读详细输出（从 JSON rendered 重渲染）"
             echo ""
             echo "生成时间: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-            echo "命令: cargo clippy --all-targets --all-features --message-format=json"
+            echo "命令: cargo clippy --all-targets --message-format=json（默认 features）"
             echo "工具链: $(rustc --version)"
             echo "clippy 版本: $(cargo clippy --version)"
             echo ""
