@@ -565,6 +565,10 @@ mod tests {
             user_id: 42,
             username: "no_role_user".to_string(),
             role_id: None,
+            // V15 Batch 485：补齐 P0-S01 新增字段（data_scope/department_id）
+            // 测试场景不涉及数据权限，使用 None（service 层按 Self_ 处理）
+            department_id: None,
+            data_scope: None,
         };
         let result = require_admin_role(&state, &auth).await;
         assert!(

@@ -527,6 +527,11 @@ mod tests {
                 "fail".to_string()
             },
             remark: remark.map(|s| s.to_string()),
+            // V15 Batch 485：补齐 v14 批次 421 新增字段（color_no/dye_lot_no/grade）
+            // 测试夹具不涉及缸号/颜色追溯，使用 None
+            grade: None,
+            color_no: None,
+            dye_lot_no: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }

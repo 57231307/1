@@ -29,6 +29,9 @@ use axum::{
 };
 #[cfg(feature = "swagger")]
 use utoipa_swagger_ui::SwaggerUi;
+// V15 Batch 485：swagger feature 启用时，ApiDoc::openapi() 需要 OpenApi trait 在作用域内
+#[cfg(feature = "swagger")]
+use utoipa::OpenApi;
 
 use crate::handlers::{
     import_export_handler, material_shortage_handler, print_handler, quality_standard_handler,
