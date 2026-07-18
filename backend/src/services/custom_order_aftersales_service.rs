@@ -12,6 +12,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::models::after_sales::{self, ActiveModel, Entity};
+use crate::models::quality_issue;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -25,6 +26,9 @@ pub struct CreateAfterSalesDto {
     pub issue_type: String,
     pub description: String,
     pub refund_amount: Option<Decimal>,
+    /// V15 P0-B12：可选关联已有质量异常 ID
+    /// 若不填，可后续调用 trigger_quality_investigation 方法自动创建质量异常并回填
+    pub quality_issue_id: Option<i64>,
 }
 
 /// 更新售后工单 DTO
@@ -49,6 +53,9 @@ pub enum AfterSalesError {
     /// 批次 263：接入 paginate_with_total（返回 AppError）所需的错误转换
     #[error("应用错误: {0}")]
     App(#[from] AppError),
+    /// V15 P0-B12：售后工单已关联质量异常，禁止重复触发
+    #[error("售后工单 {0} 已关联质量异常 {1}，禁止重复触发质量调查")]
+    AlreadyLinked(i64, i64),
 }
 
 /// 售后服务
@@ -99,6 +106,7 @@ impl CustomOrderAfterSalesService {
             closed_at: Set(None),
             resolution: Set(None),
             refund_amount: Set(dto.refund_amount),
+            quality_issue_id: Set(dto.quality_issue_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -144,6 +152,93 @@ impl CustomOrderAfterSalesService {
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;
         Ok(updated)
+    }
+
+    /// V15 P0-B12：触发质量调查
+    ///
+    /// 根据售后工单信息自动创建一条 quality_issue 记录，并回填 quality_issue_id 到售后工单。
+    /// 用于售后→质量改进闭环：客诉/维修/换货类售后工单可触发质量调查，避免同类问题重复发生。
+    ///
+    /// 业务规则：
+    ///   1. 售后工单必须存在且未关闭（status != closed/rejected）
+    ///   2. 售后工单不能已关联 quality_issue_id（禁止重复触发，避免产生冗余质量异常）
+    ///   3. 自动创建的 quality_issue 字段映射：
+    ///      - custom_order_id：从售后工单继承
+    ///      - issue_type："after_sales_reported"（售后上报）
+    ///      - severity：根据售后类型推断（complaint=high / repair=medium / exchange=low / refund=high）
+    ///      - description：售后工单描述
+    ///      - discovered_at：当前时间
+    ///      - status："open"
+    ///   4. 注：8D 流程（quality_8d_service）当前不存在，本方法仅创建 quality_issue 记录，
+    ///      8D 触发部分待后续批次补齐
+    ///
+    /// 参数说明：
+    /// - `after_sales_id`：售后工单 ID
+    /// - `severity_override`：可选严重程度覆盖（high/medium/low），None 时按售后类型自动推断
+    ///
+    /// 返回：(更新后的售后工单, 新创建的质量异常)
+    pub async fn trigger_quality_investigation(
+        &self,
+        after_sales_id: i64,
+        severity_override: Option<String>,
+    ) -> Result<(after_sales::Model, quality_issue::Model), AfterSalesError> {
+        let existing = Entity::find_by_id(after_sales_id)
+            .one(&*self.db)
+            .await?
+            .ok_or(AfterSalesError::NotFound)?;
+
+        // 校验：已关闭/已拒绝的售后工单不允许触发质量调查
+        if existing.status == "closed" || existing.status == "rejected" {
+            return Err(AfterSalesError::Validation(format!(
+                "售后工单状态为 {}，已关闭/拒绝的工单不允许触发质量调查",
+                existing.status
+            )));
+        }
+
+        // 校验：禁止重复触发（已关联 quality_issue_id 的工单不允许再次触发）
+        if let Some(existing_qi_id) = existing.quality_issue_id {
+            return Err(AfterSalesError::AlreadyLinked(after_sales_id, existing_qi_id));
+        }
+
+        // 严重程度推断：优先使用 severity_override，否则按售后类型自动推断
+        let severity = severity_override.unwrap_or_else(|| {
+            match existing.issue_type.as_str() {
+                "complaint" | "refund" => "high".to_string(),
+                "repair" => "medium".to_string(),
+                "exchange" => "low".to_string(),
+                _ => "medium".to_string(),
+            }
+        });
+
+        let now = Utc::now();
+
+        // 创建 quality_issue 记录
+        let new_issue = quality_issue::ActiveModel {
+            id: Default::default(),
+            custom_order_id: Set(existing.custom_order_id),
+            process_node_id: Set(None),
+            issue_type: Set("after_sales_reported".to_string()),
+            severity: Set(severity),
+            description: Set(format!(
+                "[售后工单 #{}] {}",
+                after_sales_id, existing.description
+            )),
+            discovered_at: Set(now),
+            resolved_at: Set(None),
+            resolution: Set(None),
+            status: Set("open".to_string()),
+            created_at: Set(now),
+            updated_at: Set(now),
+        };
+        let inserted_issue = new_issue.insert(&*self.db).await?;
+
+        // 回填 quality_issue_id 到售后工单
+        let mut active: ActiveModel = existing.into();
+        active.quality_issue_id = Set(Some(inserted_issue.id));
+        active.updated_at = Set(now);
+        let updated_after_sales = active.update(&*self.db).await?;
+
+        Ok((updated_after_sales, inserted_issue))
     }
 
     /// 列出订单的售后工单

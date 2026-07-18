@@ -1,18 +1,26 @@
 //! 定制订单工艺流程状态机
 //!
-//! 5 阶段工艺流程：draft → yarn_purchasing → dyeing → finishing → delivery → after_sales → completed
-//! 设计依据：docs/superpowers/specs/2026-06-16-custom-order-design.md §3.3
+//! V15 P0-B11（Batch 483）：补齐打样和报价环节
+//! 7 阶段工艺流程：draft → lab_dip → quotation → yarn_purchasing → dyeing → finishing → delivery → after_sales → completed
+//! 设计依据：V15 审计报告 batch-19 §23.2 缺陷 1 + docs/superpowers/specs/2026-06-16-custom-order-design.md §3.3
 //! 创建时间: 2026-06-17
 
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
 
-/// 定制订单状态枚举（5 阶段工艺 + 终态）
+/// 定制订单状态枚举（7 阶段工艺 + 终态）
+///
+/// V15 P0-B11：新增 `LabDip`（打样中）和 `Quotation`（报价中）两个状态，
+/// 插入在 `Draft` 和 `YarnPurchasing` 之间，强制定制订单走"打样→报价→生产"完整流程。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CustomOrderStatus {
     /// 草稿（初始状态）
     Draft,
+    /// V15 P0-B11：打样中（关联 lab_dip_request，客户确认 OK 样后推进）
+    LabDip,
+    /// V15 P0-B11：报价中（关联 sales_quotation，报价审批通过后推进）
+    Quotation,
     /// 纱线采购中
     YarnPurchasing,
     /// 染整中
@@ -34,6 +42,8 @@ impl CustomOrderStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Draft => "draft",
+            Self::LabDip => "lab_dip",
+            Self::Quotation => "quotation",
             Self::YarnPurchasing => "yarn_purchasing",
             Self::Dyeing => "dyeing",
             Self::Finishing => "finishing",
@@ -57,6 +67,8 @@ impl FromStr for CustomOrderStatus {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "draft" => Ok(Self::Draft),
+            "lab_dip" => Ok(Self::LabDip),
+            "quotation" => Ok(Self::Quotation),
             "yarn_purchasing" => Ok(Self::YarnPurchasing),
             "dyeing" => Ok(Self::Dyeing),
             "finishing" => Ok(Self::Finishing),
@@ -80,8 +92,10 @@ pub enum StateMachineError {
 
 /// 状态机推进：返回下一状态
 ///
-/// 转换规则：
-/// - draft → yarn_purchasing
+/// V15 P0-B11 转换规则（7 阶段）：
+/// - draft → lab_dip（进入打样阶段）
+/// - lab_dip → quotation（打样确认后进入报价阶段）
+/// - quotation → yarn_purchasing（报价确认后进入生产阶段）
 /// - yarn_purchasing → dyeing
 /// - dyeing → finishing
 /// - finishing → delivery
@@ -99,7 +113,9 @@ pub fn next_status(current: &str) -> Result<CustomOrderStatus, StateMachineError
     }
 
     let next = match cur {
-        CustomOrderStatus::Draft => CustomOrderStatus::YarnPurchasing,
+        CustomOrderStatus::Draft => CustomOrderStatus::LabDip,
+        CustomOrderStatus::LabDip => CustomOrderStatus::Quotation,
+        CustomOrderStatus::Quotation => CustomOrderStatus::YarnPurchasing,
         CustomOrderStatus::YarnPurchasing => CustomOrderStatus::Dyeing,
         CustomOrderStatus::Dyeing => CustomOrderStatus::Finishing,
         CustomOrderStatus::Finishing => CustomOrderStatus::Delivery,
@@ -163,7 +179,10 @@ mod tests {
                 Err(e) => panic!("P9-1: 测试夹具 {ctx} 状态机返回错误: {e}"),
             }
         };
-        assert_eq!(unwrap_p9(next_status("draft"), "draft"), CustomOrderStatus::YarnPurchasing);
+        // V15 P0-B11：新增 lab_dip / quotation 状态，draft → lab_dip → quotation → yarn_purchasing
+        assert_eq!(unwrap_p9(next_status("draft"), "draft"), CustomOrderStatus::LabDip);
+        assert_eq!(unwrap_p9(next_status("lab_dip"), "lab_dip"), CustomOrderStatus::Quotation);
+        assert_eq!(unwrap_p9(next_status("quotation"), "quotation"), CustomOrderStatus::YarnPurchasing);
         assert_eq!(unwrap_p9(next_status("yarn_purchasing"), "yarn_purchasing"), CustomOrderStatus::Dyeing);
         assert_eq!(unwrap_p9(next_status("dyeing"), "dyeing"), CustomOrderStatus::Finishing);
         assert_eq!(unwrap_p9(next_status("finishing"), "finishing"), CustomOrderStatus::Delivery);
@@ -184,7 +203,10 @@ mod tests {
 
     #[test]
     fn test_can_transition_normal() {
-        assert!(can_transition("draft", "yarn_purchasing"));
+        // V15 P0-B11：7 阶段工艺流程
+        assert!(can_transition("draft", "lab_dip"));
+        assert!(can_transition("lab_dip", "quotation"));
+        assert!(can_transition("quotation", "yarn_purchasing"));
         assert!(can_transition("yarn_purchasing", "dyeing"));
         assert!(can_transition("dyeing", "finishing"));
         assert!(can_transition("finishing", "delivery"));
@@ -195,6 +217,8 @@ mod tests {
     #[test]
     fn test_can_transition_to_cancelled() {
         assert!(can_transition("draft", "cancelled"));
+        assert!(can_transition("lab_dip", "cancelled"));
+        assert!(can_transition("quotation", "cancelled"));
         assert!(can_transition("yarn_purchasing", "cancelled"));
         assert!(can_transition("delivery", "cancelled"));
     }
@@ -207,8 +231,12 @@ mod tests {
 
     #[test]
     fn test_cannot_skip_stages() {
+        // V15 P0-B11：禁止跳过打样/报价阶段
+        assert!(!can_transition("draft", "yarn_purchasing"));
+        assert!(!can_transition("draft", "quotation"));
         assert!(!can_transition("draft", "dyeing"));
         assert!(!can_transition("draft", "delivery"));
+        assert!(!can_transition("lab_dip", "yarn_purchasing"));
         assert!(!can_transition("yarn_purchasing", "finishing"));
     }
 

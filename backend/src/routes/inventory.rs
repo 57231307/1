@@ -215,6 +215,8 @@ pub fn logistics() -> Router<AppState> {
             "/logistics/:id",
             put(logistics_handler::update_waybill_status),
         )
+        // V15 P0-B13：电子签收路由（DELIVERED → SIGNED）
+        .route("/logistics/:id/sign", post(logistics_handler::sign_waybill))
         .route("/logistics/:id", delete(logistics_handler::delete_waybill))
 }
 

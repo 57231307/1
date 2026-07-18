@@ -105,6 +105,8 @@ pub struct AfterSalesInfo {
     pub closed_at: Option<DateTime<Utc>>,
     pub resolution: Option<String>,
     pub refund_amount: Option<Decimal>,
+    /// V15 P0-B12：关联质量异常 ID（trigger_quality_investigation 触发后回填）
+    pub quality_issue_id: Option<i64>,
 }
 
 /// 工艺流程时间线（节点 + 日志合并）

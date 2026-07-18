@@ -294,6 +294,7 @@ pub async fn get_custom_order(
                 closed_at: a.closed_at,
                 resolution: a.resolution,
                 refund_amount: a.refund_amount,
+                quality_issue_id: a.quality_issue_id,
             })
             .collect(),
     })))
@@ -663,6 +664,7 @@ pub async fn create_after_sales(
         closed_at: after.closed_at,
         resolution: after.resolution,
         refund_amount: after.refund_amount,
+        quality_issue_id: after.quality_issue_id,
     })))
 }
 
@@ -692,6 +694,7 @@ pub async fn list_after_sales(
             closed_at: a.closed_at,
             resolution: a.resolution,
             refund_amount: a.refund_amount,
+            quality_issue_id: a.quality_issue_id,
         })
         .collect();
 
@@ -724,6 +727,7 @@ pub async fn update_after_sales(
         closed_at: after.closed_at,
         resolution: after.resolution,
         refund_amount: after.refund_amount,
+        quality_issue_id: after.quality_issue_id,
     })))
 }
 

@@ -10,8 +10,10 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::models::custom_order::{self, ActiveModel, Entity};
+use crate::models::lab_dip_request;
 use crate::models::process_log::{self, ActiveModel as LogActive, Entity as LogEntity};
 use crate::models::process_node::{self, Entity as NodeEntity};
+use crate::models::sales_quotation;
 use crate::models::status::process_node as node_status;
 use crate::utils::app_state::AppState;
 use crate::utils::process_state_machine::{
@@ -29,6 +31,15 @@ pub enum StateError {
     Database(#[from] sea_orm::DbErr),
     #[error("状态机错误: {0}")]
     StateMachine(#[from] StateMachineError),
+    /// V15 P0-B11：状态门校验失败（打样未确认 / 报价未审批等）
+    #[error("状态门校验失败: {0}")]
+    GateValidation(String),
+    /// V15 P0-B11：关联的打样通知单不存在
+    #[error("关联的打样通知单不存在: lab_dip_request_id={0}")]
+    LabDipRequestNotFound(i32),
+    /// V15 P0-B11：关联的报价单不存在
+    #[error("关联的报价单不存在: quotation_id={0}")]
+    QuotationNotFound(i64),
 }
 
 /// 定制订单状态机服务
@@ -48,6 +59,12 @@ impl CustomOrderStateService {
     }
 
     /// 推进到下一阶段（自动判断下一状态）
+    ///
+    /// V15 P0-B11：状态门校验
+    /// - `lab_dip → quotation`：校验 `lab_dip_request_id` 已关联且打样通知单 `approved_sample_id IS NOT NULL`
+    ///   （客户已确认 OK 样才允许进入报价阶段）
+    /// - `quotation → yarn_purchasing`：校验 `quotation_id` 已关联且报价单 `status = 'approved'`
+    ///   （报价审批通过才允许进入生产阶段），并自动同步 `total_amount` 从报价单到定制订单
     pub async fn advance(
         &self,
         order_id: i64,
@@ -63,10 +80,65 @@ impl CustomOrderStateService {
         let next = next_status(&order.status)?;
         let next_str = next.as_str().to_string();
 
+        // V15 P0-B11：状态门校验
+        // 在推进状态前，校验业务前置条件（打样确认 / 报价审批）
+        match next {
+            CustomOrderStatus::Quotation => {
+                // lab_dip → quotation：校验打样通知单已关联且客户已确认 OK 样
+                let lab_dip_id = order.lab_dip_request_id.ok_or_else(|| {
+                    StateError::GateValidation(
+                        "推进到报价阶段前必须关联打样通知单（lab_dip_request_id 不能为空）".to_string(),
+                    )
+                })?;
+                let lab_dip = lab_dip_request::Entity::find_by_id(lab_dip_id)
+                    .one(&*self.db)
+                    .await?
+                    .ok_or(StateError::LabDipRequestNotFound(lab_dip_id))?;
+                if lab_dip.approved_sample_id.is_none() {
+                    return Err(StateError::GateValidation(format!(
+                        "打样通知单 {} 未确认 OK 样（approved_sample_id 为空），禁止推进到报价阶段",
+                        lab_dip_id
+                    )));
+                }
+            }
+            CustomOrderStatus::YarnPurchasing => {
+                // quotation → yarn_purchasing：校验报价单已关联且已审批通过
+                let quotation_id = order.quotation_id.ok_or_else(|| {
+                    StateError::GateValidation(
+                        "推进到生产阶段前必须关联报价单（quotation_id 不能为空）".to_string(),
+                    )
+                })?;
+                let quotation = sales_quotation::Entity::find_by_id(quotation_id)
+                    .one(&*self.db)
+                    .await?
+                    .ok_or(StateError::QuotationNotFound(quotation_id))?;
+                // 报价单状态校验：仅 approved 状态允许推进（status 字段为 String，兼容大小写）
+                if !quotation.status.eq_ignore_ascii_case("approved") {
+                    return Err(StateError::GateValidation(format!(
+                        "报价单 {} 状态为 {}，未审批通过（approved），禁止推进到生产阶段",
+                        quotation_id, quotation.status
+                    )));
+                }
+            }
+            _ => {}
+        }
+
         // 更新主表状态
         let mut active: ActiveModel = order.clone().into();
         active.status = Set(next_str.clone());
         active.updated_at = Set(Utc::now());
+
+        // V15 P0-B11：quotation → yarn_purchasing 时自动同步 total_amount 从报价单到定制订单
+        if next == CustomOrderStatus::YarnPurchasing {
+            if let Some(qid) = order.quotation_id {
+                if let Ok(Some(quotation)) = sales_quotation::Entity::find_by_id(qid)
+                    .one(&*self.db)
+                    .await
+                {
+                    active.total_amount = Set(Some(quotation.total_amount));
+                }
+            }
+        }
 
         // 若推进到 delivery 阶段，记录 expected_delivery_date 为 actual_delivery_date
         if next == CustomOrderStatus::Delivery {

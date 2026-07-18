@@ -11,7 +11,7 @@
 //   let condition = apply_data_scope(scope, auth.user_id, auth.department_id, "created_by", "department_id");
 //   let query = Entity::find().filter(condition);
 
-use sea_orm::{ColumnTrait, Condition, QueryFilter};
+use sea_orm::{ColumnTrait, Condition, QueryFilter, Value};
 
 /// 数据范围枚举（行级数据权限）
 ///
@@ -193,6 +193,93 @@ where
 {
     let condition = build_data_scope_condition(ctx, owner_column, dept_column);
     query.filter(condition)
+}
+
+/// V15 P0-B10：为 raw SQL 查询构建数据范围过滤片段
+///
+/// 与 `apply_data_scope` 不同，此函数用于 `Statement::from_sql_and_values` 的 raw SQL 场景，
+/// 返回可直接拼接到 WHERE 子句的 SQL 片段和对应的绑定参数。
+///
+/// 业务背景：
+///   BI 模块的 16 个查询方法使用 raw SQL（Statement::from_sql_and_values），
+///   原实现无任何数据权限过滤，所有用户都能看到全部销售数据。
+///   此函数为这些 raw SQL 查询提供统一的数据范围过滤能力。
+///
+/// 参数说明：
+/// - `ctx`：数据范围上下文（scope + user_id + department_id）
+/// - `table_alias`：sales_orders 表在 SQL 中的别名（如 "s"、"sales_orders"、""）
+///   - "s" → 生成 "AND s.created_by = $N"
+///   - "sales_orders" → 生成 "AND sales_orders.created_by = $N"
+///   - "" → 生成 "AND created_by = $N"
+/// - `next_index`：下一个可用的参数占位符索引（如现有查询用 $1/$2，则传 3）
+///
+/// 返回 (sql_fragment, bind_values)：
+/// - sql_fragment：可直接拼接到 WHERE 子句的 SQL 片段（All 范围为空字符串）
+/// - bind_values：对应的参数值（All 范围为空 Vec），需追加到原查询的参数列表
+///
+/// 数据范围行为：
+/// - All：返回空片段（不过滤）
+/// - Dept：通过 EXISTS 子查询关联 users 表过滤部门（用户无部门时退化为 self）
+/// - Self_：按 created_by = user_id 过滤
+///
+/// 使用示例：
+/// ```ignore
+/// let ctx = auth.to_data_scope_context();
+/// let (scope_sql, scope_values) = build_data_scope_sql(&ctx, "s", 3);
+/// let sql = format!(
+///     "SELECT ... FROM sales_orders s WHERE s.status != 'CANCELLED' {scope_sql}",
+///     scope_sql = scope_sql,
+/// );
+/// let mut values = vec![start_date.into(), end_date.into()];
+/// values.extend(scope_values);
+/// let stmt = Statement::from_sql_and_values(DatabaseBackend::Postgres, sql, values);
+/// ```
+pub fn build_data_scope_sql(
+    ctx: &DataScopeContext,
+    table_alias: &str,
+    next_index: usize,
+) -> (String, Vec<Value>) {
+    let prefix = if table_alias.is_empty() {
+        String::new()
+    } else {
+        format!("{}.", table_alias)
+    };
+
+    match ctx.scope {
+        DataScope::All => {
+            // 全部数据：不添加任何过滤条件
+            (String::new(), Vec::new())
+        }
+        DataScope::Dept => {
+            // 本部门数据：通过 EXISTS 子查询关联 users 表
+            // 若用户无部门，退化为 self（按 created_by = user_id 过滤）
+            if let Some(dept_id) = ctx.department_id {
+                let sql = format!(
+                    "AND EXISTS (SELECT 1 FROM users u WHERE u.id = {prefix}created_by AND u.department_id = ${next_index})",
+                    prefix = prefix,
+                    next_index = next_index,
+                );
+                (sql, vec![Value::Int(Some(dept_id))])
+            } else {
+                // 用户无部门时退化为 self（最小权限原则）
+                let sql = format!(
+                    "AND {prefix}created_by = ${next_index}",
+                    prefix = prefix,
+                    next_index = next_index,
+                );
+                (sql, vec![Value::Int(Some(ctx.user_id))])
+            }
+        }
+        DataScope::Self_ => {
+            // 仅本人数据：按 created_by = user_id 过滤
+            let sql = format!(
+                "AND {prefix}created_by = ${next_index}",
+                prefix = prefix,
+                next_index = next_index,
+            );
+            (sql, vec![Value::Int(Some(ctx.user_id))])
+        }
+    }
 }
 
 #[cfg(test)]
