@@ -20,7 +20,6 @@ import {
   cancelIssue,
   type IssueRecordInfo,
   type ColorCardListItem,
-  type PagedResponse,
 } from '@/api/color-card'
 import type {
   IssueFormState,
