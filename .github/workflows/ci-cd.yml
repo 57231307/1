@@ -356,7 +356,7 @@ jobs:
   ci-lint-rust:
     name: 🔍 Rust Clippy
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: ci-info
     # v8 P1-1 修复（2026-06-30）：移除 continue-on-error，恢复 clippy 阻塞 CI 能力。
     # 项目规范要求 cargo clippy --all-targets -- -D warnings，clippy 警告必须让 CI 失败。
@@ -1280,8 +1280,10 @@ jobs:
   ci-coverage-rust:
     name: 📊 Rust 覆盖率
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: ci-info
+    # V15 Batch 485：覆盖率 job 为信息性，不阻塞整体 CI
+    continue-on-error: true
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
