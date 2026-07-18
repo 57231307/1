@@ -20,7 +20,6 @@
 use chrono::Utc;
 use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, Set, TransactionTrait,
@@ -71,7 +70,7 @@ pub enum BadDebtError {
 // ==================== B01 坏账准备计提 ====================
 
 /// 账龄桶枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AgingBucket {
     Within1Y,
     OneTo2Y,
@@ -92,9 +91,9 @@ impl AgingBucket {
     /// 计提比例（账龄法）
     pub fn provision_rate(&self) -> Decimal {
         match self {
-            Self::Within1Y => dec!(0.05),
-            Self::OneTo2Y => dec!(0.20),
-            Self::TwoTo3Y => dec!(0.50),
+            Self::Within1Y => Decimal::new(5, 2),
+            Self::OneTo2Y => Decimal::new(20, 2),
+            Self::TwoTo3Y => Decimal::new(50, 2),
             Self::Over3Y => Decimal::ONE,
         }
     }
@@ -526,11 +525,13 @@ impl BadDebtService {
         }
 
         let now = Utc::now();
+        // 在 existing.into() 移动前保存 approval_status，用于判断当前审批层级
+        let prev_status = existing.approval_status.clone();
         let mut active: WriteoffActiveModel = existing.into();
         active.approval_status = Set("rejected".to_string());
 
         // 根据当前层级写入对应审批人字段
-        if existing.approval_status == "pending" {
+        if prev_status == "pending" {
             active.finance_manager_id = Set(Some(approver_user_id));
             active.finance_manager_at = Set(Some(now));
             active.finance_manager_comment = Set(Some(req.comment));

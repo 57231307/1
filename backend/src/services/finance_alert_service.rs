@@ -131,7 +131,8 @@ fn alert_level_to_priority(level: &str) -> NotificationPriority {
 
 /// 默认阈值
 const CASH_FLOW_MIN_THRESHOLD: Decimal = Decimal::ZERO;
-const BUDGET_OVERRUN_AMOUNT_THRESHOLD: Decimal = Decimal::from_i128_with_scale(100_000, 2);
+// Decimal::new 是 const fn，可在常量声明中使用；语义与 from_i128_with_scale(num, scale) 一致
+const BUDGET_OVERRUN_AMOUNT_THRESHOLD: Decimal = Decimal::new(100_000, 2);
 
 /// 财务预警服务
 pub struct FinanceAlertService {
@@ -178,7 +179,7 @@ impl FinanceAlertService {
                 // 幂等：同类型同 target 的 active 预警已存在则跳过
                 if let (Some(module), Some(target_id)) = (cand.target_module, cand.target_id) {
                     let existing = Entity::find()
-                        .filter(finance_alert::Column::AlertType.eq(cand.alert_type))
+                        .filter(finance_alert::Column::AlertType.eq(cand.alert_type.as_str()))
                         .filter(finance_alert::Column::TargetModule.eq(module))
                         .filter(finance_alert::Column::TargetId.eq(target_id))
                         .filter(
@@ -201,7 +202,7 @@ impl FinanceAlertService {
                 let active = ActiveModel {
                     id: Default::default(),
                     alert_no: Set(alert_no),
-                    alert_type: Set(cand.alert_type.to_string()),
+                    alert_type: Set(cand.alert_type.as_str().to_string()),
                     alert_level: Set(cand.alert_level.to_string()),
                     title: Set(cand.title),
                     content: Set(cand.content),
