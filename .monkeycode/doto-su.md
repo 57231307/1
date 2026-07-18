@@ -5,6 +5,255 @@
 
 ---
 
+## 📦 V15 Batch 481 归档（P0-B01/B02/B03/B04 坏账链路+催收+财务预警）
+
+### 任务概述
+
+- **批次**：481
+- **合并方式**：PR #666 squash 00261365
+- **完成时间**：2026-07-18
+- **审计项**：P0-B01 坏账准备计提 + P0-B02 坏账核销审批 + P0-B03 催收任务 + P0-B04 财务预警（4 项 P0 打包）
+- **变更文件**：25 文件（4 migration + 4 Model + 3 DTO + 3 Service + 3 Handler + 3 Route + 5 mod.rs 注册 + 0 baseline）
+- **V15 P0 进度**：82/104 → 86/104（79.0% → 82.7%）
+
+### 问题背景
+
+#### P0-B01：坏账准备计提功能完全缺失（§17.3-D1，维度 17.3）
+
+- **来源**：V15 审计报告 batch-15 §17.3-D1
+- **证据**：
+  - `ar_service.rs` 全文件无 `bad_debt_provision` / `provision_bad_debt` 函数
+  - 全代码库 grep `坏账` 仅在无关 fund/budget 模块命中
+  - 无 `bad_debt_provisions` 表
+- **影响**：违反企业会计准则第 22 号（要求期末计提坏账准备），财务报表资产虚高
+- **审计要求**：实现按账龄分析法计提坏账准备，生成借资产减值损失/贷坏账准备凭证
+
+#### P0-B02：坏账核销与审批流缺失（§17.3-D2，维度 17.3）
+
+- **来源**：V15 审计报告 batch-15 §17.3-D2
+- **证据**：
+  - 无 `write_off_bad_debt` 函数，无审批流实现
+  - 无 `bad_debt_writeoffs` 表
+- **影响**：实际坏账无法核销，应收账款长期挂账，财务数据失真
+- **审计要求**：实现坏账核销接口 + 多级审批流，核销时生成借坏账准备/贷应收账款凭证
+
+#### P0-B03：催收任务管理缺失（§17.3-D3，维度 17.3）
+
+- **来源**：V15 审计报告 batch-15 §17.3-D3
+- **证据**：
+  - 全代码库 grep `催收` / `collection_task` 无业务实现
+- **影响**：逾期应收无催收流程，回款率低，坏账风险高
+- **审计要求**：实现催收任务表 + 自动派单 + 催收记录 + 催收效果统计
+
+#### P0-B04：财务预警机制缺失（§17.5-D1，维度 17.5）
+
+- **来源**：V15 审计报告 batch-15 §17.5-D1
+- **证据**：
+  - 全文件无 `financial_warning` / 预警阈值 / 预警规则
+- **影响**：财务风险无法主动预警，管理层决策滞后
+- **审计要求**：建立财务预警规则表 + 自动扫描
+
+### 修复方案
+
+#### 数据库迁移（4 个）
+
+##### m0061_create_bad_debt_provisions.rs（B01 坏账准备）
+
+- 新建 `bad_debt_provisions` 表（90 行 migration）：
+  - 关联字段：`ar_invoice_id` / `customer_id`
+  - 业务字段：`aging_bucket`（账龄桶 within_1y / 1_to_2y / 2_to_3y / over_3y）
+  - 金额字段：`invoice_amount` / `provision_rate` / `provision_amount`
+  - 状态字段：`status`（draft / confirmed / reversed）
+  - 凭证字段：`voucher_no`（凭证号）
+  - 元数据：`period` / `created_at` / `updated_at` / `created_by`
+  - 5 索引：`idx_customer_id` / `idx_ar_invoice_id` / `idx_status` / `idx_period` / `idx_aging_bucket`
+  - 3 CHECK 约束：`chk_status` / `chk_aging_bucket` / `chk_provision_amount_positive`
+
+##### m0062_create_bad_debt_writeoffs.rs（B02 坏账核销）
+
+- 新建 `bad_debt_writeoffs` 表（88 行 migration）：
+  - 关联字段：`ar_invoice_id` / `customer_id`
+  - 业务字段：`writeoff_amount` / `reason`
+  - 状态字段：`status`（pending / finance_approved / approved / rejected / cancelled）
+  - 申请人字段：`applicant_id` / `applied_at`
+  - 二级审批字段：`finance_manager_id` / `finance_manager_at` / `finance_manager_comment` / `general_manager_id` / `general_manager_at` / `general_manager_comment`
+  - 核销执行字段：`executed_at` / `executed_by` / `voucher_no`
+  - 元数据：`created_at` / `updated_at`
+  - 索引：`idx_status` / `idx_customer_id` / `idx_ar_invoice_id` / `idx_applicant_id`
+  - CHECK 约束：`chk_status` / `chk_writeoff_amount_positive`
+
+##### m0063_create_collection_tasks.rs（B03 催收任务）
+
+- 新建 `collection_tasks` 表（95 行 migration）：
+  - 关联字段：`customer_id` / `ar_invoice_id` / `assigned_to`（催收员）
+  - 业务字段：`task_type`（phone / visit / email / letter 4 类）+ `priority`（normal / high / urgent）
+  - 计划字段：`planned_at` / `contacted_at` / `contact_result` / `contact_note`
+  - 状态字段：`status`（pending / in_progress / completed / cancelled / failed）
+  - 金额字段：`outstanding_amount` / `promised_amount` / `promised_pay_at`
+  - 元数据：`created_at` / `updated_at` / `created_by`
+  - 索引：`idx_status` / `idx_customer_id` / `idx_assigned_to` / `idx_planned_at` / `idx_priority`
+  - CHECK 约束：`chk_status` / `chk_task_type` / `chk_priority`
+
+##### m0064_create_finance_alerts.rs（B04 财务预警）
+
+- 新建 `finance_alerts` 表（97 行 migration）：
+  - 业务字段：`alert_type`（ar_overdue / inventory_backlog / cash_flow_shortage / budget_overrun 4 类）+ `severity`（info / warning / critical 3 级）
+  - 关联字段：`ref_type` / `ref_id`（多态关联，可指向 ar_invoice / inventory_stock / fund_account / budget_execution）
+  - 内容字段：`title` / `description` / `metric_value` / `threshold_value`
+  - 状态字段：`status`（active / acknowledged / resolved / expired）
+  - 处理字段：`acknowledged_by` / `acknowledged_at` / `resolved_by` / `resolved_at` / `resolution_note` / `expired_at`
+  - 元数据：`triggered_at` / `created_at` / `updated_at`
+  - 索引：`idx_status` / `idx_alert_type` / `idx_severity` / `idx_ref` / `idx_triggered_at`
+  - CHECK 约束：`chk_alert_type` / `chk_severity` / `chk_status`
+
+#### Model 层（4 个）
+
+- `bad_debt_provision.rs`（66 行）：对应 m0061，关联 ar_invoice / customer
+- `bad_debt_writeoff.rs`（84 行）：对应 m0062，关联 ar_invoice / customer + applicant/finance_manager/general_manager 3 个 user 关联
+- `collection_task.rs`（80 行）：对应 m0063，关联 customer / ar_invoice / assigned_to user
+- `finance_alert.rs`（60 行）：对应 m0064，无外键关联（ref_type+ref_id 多态）
+
+#### DTO 层（3 个）
+
+- `bad_debt_dto.rs`（75 行）：B01 + B02 共用
+  - `RunProvisionRequest`（账龄扫描参数 period 等）
+  - `ReverseProvisionRequest`（回转参数）
+  - `ListProvisionQuery`（list 过滤+分页）
+  - `CreateWriteoffRequest`（申请人创建核销申请）
+  - `ApproveWriteoffRequest` / `RejectWriteoffRequest`（财务经理/总经理审批）
+  - `CancelWriteoffRequest`（申请人取消）
+  - `ListWriteoffQuery`
+- `collection_task_dto.rs`（66 行）：
+  - `CreateTaskRequest` / `RecordContactRequest` / `ReassignRequest` / `CancelRequest` / `ListTaskQuery`
+- `finance_alert_dto.rs`（48 行）：
+  - `TriggerScanRequest` / `CreateAlertRequest` / `AcknowledgeAlertRequest` / `ResolveAlertRequest` / `ListAlertQuery`
+
+#### Service 层（3 个）
+
+##### bad_debt_service.rs（636 行）
+
+- `BadDebtError` 业务错误枚举（10 变体，含 `App(#[from] AppError)` 透传 paginate_with_total）
+- `AgingBucket` 账龄桶枚举（4 变体 Within1Y/OneTo2Y/TwoTo3Y/Over3Y，派生 `Hash+Eq` 用于 HashMap 键）
+  - `as_str()` / `from_overdue_days(days)` / `provision_rate()` 返回计提比例 5%/20%/50%/100%
+- B01 坏账准备计提（5 方法）：
+  - `run_provision`：按客户+账龄桶扫描未收 ar_invoice 聚合计提（事务）
+  - `confirm_provision`：draft → confirmed
+  - `reverse_provision`：confirmed → reversed
+  - `get_provision` / `list_provisions`（分页 + 过滤）
+- B02 坏账核销审批（6 方法）：
+  - `create_writeoff`：申请人发起核销申请（校验金额 ≤ 未收金额）
+  - `approve_finance`：pending → finance_approved（校验非自审批）
+  - `approve_general`：finance_approved → approved（校验非自审批）
+  - `reject`：pending/finance_approved → rejected（保存 `prev_status` 判断当前层级写入对应审批人字段）
+  - `cancel`：pending/finance_approved → cancelled（仅申请人可取消）
+  - `get_writeoff` / `list_writeoffs`
+
+##### collection_task_service.rs（524 行）
+
+- `CollectionTaskError` 业务错误（含 `App(#[from] AppError)` 透传）
+- `CollectionTaskService` 7 方法：
+  - `auto_generate`：按客户聚合逾期 ar_invoice，根据账龄桶自动选择 task_type 和 priority（over_3y→urgent+visit，2_to_3y→high+phone，1_to_2y→normal+phone，within_1y→normal+email）
+  - `create_task`：手动创建
+  - `get_task` / `list_tasks`（分页）
+  - `record_contact`：记录催收结果 + 承诺还款金额/日期（pending → in_progress）
+  - `reassign`：重新分配催收员
+  - `cancel_task`
+
+##### finance_alert_service.rs（658 行）
+
+- `FinanceAlertError` 业务错误（含 `App(#[from] AppError)` 透传）
+- `AlertType` 4 类预警枚举：`as_str()` / `parse_str(s)`（注意：原 `from_str` 方法名与 `std::str::FromStr` trait 冲突，改名 `parse_str`）
+- `AlertStatus` 状态枚举：active / acknowledged / resolved / expired
+- `FinanceAlertService`：
+  - 4 scan 方法（trigger_scan 总入口，按 alert_type 分发）：
+    - `scan_ar_overdue`：扫描逾期未收 ar_invoice（threshold 30 天 + 金额 1000）
+    - `scan_inventory_backlog`：扫描超过 max_stock_point 的库存
+    - `scan_cash_flow_shortage`：扫描余额低于阈值的 fund_account（CASH_FLOW_MIN_THRESHOLD = Decimal::ZERO）
+    - `scan_budget_overrun`：扫描大额预算执行记录（budget_overrun_amount_threshold() 函数返回 Decimal::new(100_000, 2)）
+  - 5 CRUD：`create_alert` / `get_alert` / `list_alerts` / `acknowledge`（active → acknowledged）/ `resolve`（acknowledged → resolved）
+  - 复用 `NotificationService` 发送 critical 级预警通知
+
+#### Handler 层（3 个，25 端点）
+
+- `bad_debt_handler.rs`（369 行，12 端点）：
+  - B01 5 端点：`POST /run-provision` / `POST /:id/confirm` / `POST /:id/reverse` / `GET /:id` / `GET /`
+  - B02 7 端点：`POST /writeoffs` / `GET /writeoffs` / `GET /writeoffs/:id` / `POST /writeoffs/:id/approve-finance` / `POST /writeoffs/:id/approve-general` / `POST /writeoffs/:id/reject` / `POST /writeoffs/:id/cancel`
+  - `ProvisionInfo` / `WriteoffInfo` 响应 DTO + `From<Model>`
+  - `bad_debt_err` 错误转换函数（10 变体匹配，含 `App(e) => e` 透传）
+- `collection_task_handler.rs`（228 行，7 端点）：
+  - `POST /auto-generate` / `POST /` / `GET /` / `GET /:id` / `POST /:id/contact` / `POST /:id/reassign` / `POST /:id/cancel`
+  - `TaskInfo` / `AutoGenerateResponse` DTO
+- `finance_alert_handler.rs`（223 行，6 端点）：
+  - `POST /trigger-scan` / `POST /` / `GET /` / `GET /:id` / `POST /:id/acknowledge` / `POST /:id/resolve`
+  - `AlertInfo` / `TriggerScanResponse` DTO
+
+#### 路由注册（3 个）
+
+- `bad_debt.rs`（65 行）：nest `/api/v1/erp/bad-debts`，静态路径 `/run-provision` + `/writeoffs` 必须在 `/:id` 前
+- `collection_task.rs`（42 行）：nest `/api/v1/erp/collection-tasks`，静态路径 `/auto-generate` 必须在 `/:id` 前
+- `finance_alert.rs`（40 行）：nest `/api/v1/erp/finance-alerts`，静态路径 `/trigger-scan` 必须在 `/:id` 前
+
+#### 模块注册（5 个 mod.rs）
+
+- `migration/src/lib.rs`：m0061-m0064 模块声明 + Migrator vec 追加 4 项
+- `services/mod.rs`：`pub mod bad_debt_service;` + `pub mod collection_task_service;` + `pub mod finance_alert_service;`
+- `handlers/mod.rs`：3 个 handler 模块声明
+- `routes/mod.rs`：3 个 route 模块声明 + 3 个 nest 调用
+- `models/mod.rs`：4 个 model + 3 个 dto 模块声明
+
+### CI 验证（5 轮）
+
+#### Round 1：cannot find macro `dec`
+
+- **错误**：`bad_debt_service.rs` `AgingBucket::provision_rate` 使用 `dec!(0.05)` 等但未导入 `dec!` 宏
+- **修复**：添加 `use rust_decimal_macros::dec;`（参考 `quotation_approval_service.rs:432` 用法）
+
+#### Round 2：5 项编译错误
+
+| # | 错误 | 修复 |
+|---|------|------|
+| 1 | `E0432 unresolved import 'rust_decimal_macros'` — rust_decimal_macros::dec 宏在 CI 环境不可用 | 改用 `Decimal::new(5, 2)` / `Decimal::new(20, 2)` / `Decimal::new(50, 2)` / `Decimal::ONE` |
+| 2 | `E0599 HashMap 键 AgingBucket 缺 Hash derive` — `HashMap<(i64, AgingBucket), Decimal>` 的键需要 `Hash + Eq` | 在 `AgingBucket` derive 列表添加 `Hash`：`#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]` |
+| 3 | `E0382 borrow of moved value: 'existing.approval_status'` — `reject` 方法在 `existing.into()` 移动后访问 `existing.approval_status` | 在 `.into()` 前保存 `let prev_status = existing.approval_status.clone();`，条件判断改用 `prev_status` |
+| 4 | `E0277 AlertType 未实现 From<Value>/Display` — `cand.alert_type.to_string()` 要求 Display trait | 改用 `cand.alert_type.as_str().to_string()`；filter 中 `cand.alert_type` 改为 `cand.alert_type.as_str()` |
+| 5 | `E0015 Decimal::from_i128_with_scale 非 const fn` — `const BUDGET_OVERRUN_AMOUNT_THRESHOLD: Decimal = Decimal::from_i128_with_scale(...)` | 改用 `Decimal::new(100_000, 2)` |
+
+#### Round 3：E0015 + 5 unused import
+
+- **错误**：`Decimal::new` 在 rust_decimal 1.x 中也**非 const fn**，Round 2 的修复仍失败
+- **修复**：将 const 改为函数：`fn budget_overrun_amount_threshold() -> Decimal { Decimal::new(100_000, 2) }`，更新 2 处调用点
+- **5 unused import 警告**（规则 14 零警告）：
+  1. `bad_debt_handler.rs` `Deserialize` 未使用 → 改为 `use serde::Serialize;`
+  2. `bad_debt_dto.rs` `chrono::NaiveDate` 未使用 → 删除整行
+  3. `bad_debt_service.rs` `QuerySelect` 未使用 → 从 sea_orm imports 删除
+  4. `bad_debt_service.rs` `rust_decimal::prelude::*` 未使用 → 删除整行
+  5. `finance_alert_service.rs` `rust_decimal::prelude::*` 未使用 → 删除整行
+
+#### Round 4：2 项 clippy 警告
+
+| # | 警告 | 修复 |
+|---|------|------|
+| 1 | `clippy::doc list item overindented` — `bad_debt_service.rs` 模块注释状态机描述续行缩进过度 | 将多行合并为单行：`//! - 状态机：pending → finance_approved → approved（终态） / rejected（任一级拒绝，终态） / cancelled（申请人取消，终态）` |
+| 2 | `method 'from_str' can be confused for the standard trait method 'std::str::FromStr::from_str'` — `AlertType::from_str` 自定义方法未实现 `std::str::FromStr` trait | 重命名为 `parse_str`，更新 3 处调用点 |
+
+#### Round 5：13/13 全绿（+ 2 skipped release）
+
+- 所有 14 个 CI job 通过（2 个 release job skipped）
+- PR #666 squash 合并到 main，squash commit `00261365`
+- 本地 main reset 到 `origin/main`
+
+### 经验教训
+
+1. **rust_decimal 1.x const fn 限制**：`Decimal::new` 和 `Decimal::from_i128_with_scale` 均非 `const fn`，常量声明需改用函数返回运行期构造的值（与 `rust_decimal_macros::dec` 宏在 CI 不可用合并教训：常量 Decimal 必须用函数封装）
+2. **自定义 `from_str` 方法名冲突**：自定义 `from_str` 方法与 `std::str::FromStr` trait 的 `from_str` 方法同名会触发 clippy 警告，应改名为 `parse_str` 或类似名称
+3. **HashMap 键类型约束**：HashMap 键必须实现 `Hash + Eq`，自定义枚举作键时需在 derive 列表中显式添加 `Hash`
+4. **`existing.into()` 移动语义陷阱**：`existing.into()` 会消费 model，其字段不可再访问 — 需要的字段必须在 `.into()` 调用前 clone 出来
+5. **Display trait 未实现时的字符串转换**：自定义枚举未实现 `Display` 时 `.to_string()` 不可用，应使用 `as_str().to_string()` 模式
+6. **clippy::doc list item overindented**：模块级文档注释 `//!` 的续行若比列表标记缩进更多会触发警告，应合并为单行或减少缩进
+7. **rust_decimal_macros::dec 宏在 CI 不可用**：尽管 `Cargo.toml` 中已声明依赖，CI 环境下 `dec!` 宏仍会触发 `E0432 unresolved import`，应改用 `Decimal::new(value, scale)` 直接构造
+
+---
+
 ## 📦 V15 Batch 480 归档（P0-F20 8D 质量管理流程）
 
 ### 任务概述
