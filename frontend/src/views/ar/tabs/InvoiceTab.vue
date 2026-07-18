@@ -206,7 +206,7 @@ import {
 } from '@/api/ar'
 import type { Customer } from '@/api/customer'
 import { logger } from '@/utils/logger'
-import { exportToExcel } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export'
 
 const invoices = ref<ARInvoice[]>([])
 const customers = ref<Customer[]>([])
@@ -395,24 +395,11 @@ const handlePrintInvoices = () => {
   } as never)
 }
 
-const handleExportInvoices = () => {
-  exportToExcel({
-    filename: '应收发票',
-    format: 'excel',
-    data: invoices.value.map((item): Record<string, unknown> => ({ ...item })),
-    columns: [
-      { key: 'invoice_no', title: '发票号' },
-      { key: 'customer_name', title: '客户' },
-      { key: 'invoice_amount', title: '发票金额' },
-      { key: 'tax_amount', title: '税额' },
-      {
-        key: 'status',
-        title: '状态',
-        formatter: (value: unknown) => getInvoiceStatusLabel(String(value)),
-      },
-      { key: 'invoice_date', title: '发票日期' },
-    ],
-  })
+const handleExportInvoices = async () => {
+  const params: Record<string, unknown> = {
+    status: invoiceQuery.status || undefined,
+  }
+  await exportFromBackend('/ar/invoices/export', params, 'ar_invoices_export')
   logger.info('应收发票列表已导出')
 }
 

@@ -557,6 +557,11 @@ pub fn cost_collections() -> Router<AppState> {
             "/cost-collections",
             post(cost_collection_handler::create_collection),
         )
+        // V15 P0-S12 修复（Batch 475e）：成本归集导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
+        .route(
+            "/cost-collections/export",
+            get(cost_collection_handler::export_collections),
+        )
         .route(
             "/cost-collections/:id",
             get(cost_collection_handler::get_collection),

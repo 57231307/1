@@ -275,7 +275,7 @@ import {
 } from '@/api/asset'
 import { useUserStore } from '@/store/user'
 import { logger } from '@/utils/logger'
-import { exportToExcel } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export'
 // 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
 import { useTableApi } from '@/composables/useTableApi'
 
@@ -318,6 +318,7 @@ const {
   loading,
   page,
   pageSize,
+  queryParams,
   setQueryParam,
   refresh: fetchAssets,
 } = useTableApi<FixedAsset>({
@@ -593,41 +594,14 @@ const handleDepreciateAll = async () => {
   }
 }
 
-const handleExport = () => {
-  exportToExcel({
-    filename: '固定资产',
-    format: 'excel',
-    data: assetList.value.map((a): Record<string, unknown> => ({ ...a })),
-    columns: [
-      { key: 'asset_code', title: '资产编码' },
-      { key: 'asset_name', title: '资产名称' },
-      {
-        key: 'category',
-        title: '类别',
-        formatter: (value: unknown) => getCategoryLabel(String(value)),
-      },
-      {
-        key: 'purchase_amount',
-        title: '原值',
-        formatter: (value: unknown) => Number(value).toFixed(2),
-      },
-      {
-        key: 'accumulated_depreciation',
-        title: '累计折旧',
-        formatter: (value: unknown) => Number(value).toFixed(2),
-      },
-      {
-        key: 'net_value',
-        title: '净值',
-        formatter: (value: unknown) => Number(value).toFixed(2),
-      },
-      {
-        key: 'status',
-        title: '状态',
-        formatter: (value: unknown) => getStatusLabel(String(value)),
-      },
-    ],
-  })
+// V15 P0-S12 修复（Batch 475e）：迁移到后端导出，注入水印 + 审计日志
+const handleExport = async () => {
+  const params: Record<string, unknown> = {
+    keyword: queryParams.value.keyword as string | undefined,
+    status: queryParams.value.status as string | undefined,
+    asset_category: queryParams.value.asset_category as string | undefined,
+  }
+  await exportFromBackend('/fixed-assets/export', params, 'fixed_assets_export')
   logger.info('固定资产列表已导出')
 }
 </script>

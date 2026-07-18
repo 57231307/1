@@ -3,23 +3,28 @@
 //! 应付单 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
 use crate::services::ap_invoice_service::{
     ApInvoiceListQuery, ApInvoiceService, CreateApInvoiceRequest, UpdateApInvoiceRequest,
 };
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
 use chrono::NaiveDate;
 use serde::Deserialize;
+use std::sync::Arc;
 use tracing::{info, warn};
 use validator::Validate;
 
 /// 查询应付单列表参数
-#[derive(Debug, Deserialize)]
+// V15 P0-S12 修复（Batch 475e）：派生 Clone，export_ap_invoices 需要 clone 后覆盖分页参数用于全量导出
+#[derive(Debug, Clone, Deserialize)]
 pub struct ApInvoiceQueryParams {
     pub supplier_id: Option<i32>,
     pub invoice_status: Option<String>,
@@ -320,4 +325,125 @@ pub async fn get_statistics(
     Ok(Json(ApiResponse::success(serde_json::to_value(
         statistics,
     )?)))
+}
+
+/// GET /api/v1/erp/ap/invoices/export - 导出应付发票列表（带水印 + 异步审计日志）
+///
+/// V15 P0-S12 修复（Batch 475e）：导出接入后端
+/// - 注入水印（operator/exported_at/extra 含条数）
+/// - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
+pub async fn export_ap_invoices(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<ApInvoiceQueryParams>,
+) -> Result<axum::response::Response, AppError> {
+    let service = ApInvoiceService::new(state.db.clone());
+
+    let (invoices, _total) = service
+        .get_list(ApInvoiceListQuery {
+            supplier_id: query.supplier_id,
+            invoice_status: query.invoice_status,
+            invoice_type: query.invoice_type,
+            start_date: query.start_date,
+            end_date: query.end_date,
+            page: 1,
+            page_size: 10000,
+        })
+        .await?;
+    let row_count = invoices.len();
+
+    let invoices_json: Vec<serde_json::Value> = invoices
+        .into_iter()
+        .map(|i| serde_json::to_value(i).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let headers: Vec<String> = vec![
+        "ID".to_string(),
+        "发票编号".to_string(),
+        "供应商ID".to_string(),
+        "供应商名称".to_string(),
+        "发票日期".to_string(),
+        "到期日".to_string(),
+        "发票金额".to_string(),
+        "税额".to_string(),
+        "发票类型".to_string(),
+        "状态".to_string(),
+        "创建时间".to_string(),
+    ];
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(invoices_json.len());
+    for i in invoices_json {
+        let obj = i.as_object().ok_or_else(|| {
+            AppError::internal("应付发票序列化失败：期望 JSON 对象")
+        })?;
+        let get_str = |key: &str| -> String {
+            obj.get(key)
+                .map(|v| {
+                    if v.is_null() {
+                        String::new()
+                    } else if v.is_string() {
+                        v.as_str().unwrap_or("").to_string()
+                    } else {
+                        v.to_string()
+                    }
+                })
+                .unwrap_or_default()
+        };
+        rows.push(vec![
+            get_str("id"),
+            get_str("invoice_no"),
+            get_str("supplier_id"),
+            get_str("supplier_name"),
+            get_str("invoice_date"),
+            get_str("due_date"),
+            get_str("invoice_amount"),
+            get_str("tax_amount"),
+            get_str("invoice_type"),
+            get_str("invoice_status"),
+            get_str("created_at"),
+        ]);
+    }
+
+    let table = XlsxTable {
+        sheet_name: "应付发票".to_string(),
+        headers,
+        rows,
+    };
+
+    let filename = format!(
+        "ap_invoices_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("ap_invoice".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出应付发票列表（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/ap/invoices/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("应付发票导出（共 {} 条）", row_count)),
+    };
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
