@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 /// 跟进记录创建请求
 #[derive(Debug, Deserialize)]
@@ -157,4 +158,15 @@ pub struct UpdateOpportunityRequest {
     pub priority: Option<String>,
     pub rating: Option<i32>,
     pub tags: Option<Vec<String>>,
+}
+
+/// 关单（输单）请求 — V15 P0-B09（Batch 482）
+///
+/// 业务语义：将商机状态置为 CLOSED_LOST，必须填写流失原因
+/// 设计依据：审计报告 §18.2-D2 — 输单原因未记录，销售改进无依据
+#[derive(Debug, Deserialize, Validate)]
+pub struct CloseAsLostRequest {
+    /// 流失原因（必填，1-500 字符）
+    #[validate(length(min = 1, max = 500, message = "输单原因长度必须在 1-500 字符之间"))]
+    pub lost_reason: String,
 }

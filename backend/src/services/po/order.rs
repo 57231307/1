@@ -142,9 +142,11 @@ impl PurchaseOrderService {
         )
         .await?;
 
-        // 5. 预算检查与占用（非阻断）
+        // 5. 预算检查与占用（V15 P0-B06 强制拦截：预算不足或无方案时阻断订单创建）
+        // 注意：此处使用 ? 传播错误，事务会自动回滚（Drop 时 rollback）
+        // 避免订单已创建但未关联预算的不一致状态
         self.check_and_occupy_budget(&order, department_id, total_amount, user_id)
-            .await;
+            .await?;
 
         // 6. 提交事务
         txn.commit().await?;

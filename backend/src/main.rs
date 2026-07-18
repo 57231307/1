@@ -573,6 +573,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("JTI 黑名单清理任务已启动（间隔 3600 秒，Redis 模式下为 noop）");
             }
 
+            // V15 P0-B07（Batch 482）：CRM 公海回收规则自动执行任务
+            // 设计依据：审计报告 §18.3-D1 — 回收规则仅有 CRUD 无自动执行
+            // 每 6 小时扫描一次超过 N 天未跟进的活跃线索，自动回收到公海
+            // L-26 修复（批次 374）：保存句柄供 shutdown abort
+            {
+                let recycle_executor = std::sync::Arc::new(
+                    crate::services::crm::recycle_executor::RecycleExecutor::new(
+                        db.clone(),
+                    ),
+                );
+                let recycle_handle =
+                    recycle_executor.start_background_task();
+                if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+                    tasks.push(recycle_handle);
+                }
+                info!("CRM 公海回收规则自动执行任务已启动（间隔 6 小时）");
+            }
+
             // 批次 331 v10 复审 P3 修复：使用 AppStateParams 参数对象替代多参数
             let app_state_params = crate::utils::app_state::AppStateParams {
                 db,

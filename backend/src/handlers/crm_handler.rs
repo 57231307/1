@@ -1,8 +1,9 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::dto::crm_dto::{
-    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest,
-    ImportLeadsResult, LeadQuery, OpportunityQuery, UpdateLeadRequest, UpdateOpportunityRequest,
+    CloseAsLostRequest, ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest,
+    FollowUpRequest, ImportLeadsResult, LeadQuery, OpportunityQuery, UpdateLeadRequest,
+    UpdateOpportunityRequest,
 };
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
@@ -437,6 +438,28 @@ pub async fn convert_opportunity_to_order(
         .convert_opportunity_to_order(id, auth.user_id)
         .await?;
     let value = serde_json::to_value(order)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// 关单（输单流程）— V15 P0-B09（Batch 482）
+///
+/// 将商机状态置为 CLOSED_LOST，必须填写流失原因
+/// 设计依据：审计报告 §18.2-D2 — 输单原因未记录，销售改进无依据
+pub async fn close_opportunity_as_lost(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<CloseAsLostRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    // V15 P0-S02：IDOR 防护 — 关单操作前先校验资源归属
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    let res = service
+        .close_as_lost(id, req.lost_reason, auth.user_id)
+        .await?;
+    let value = serde_json::to_value(res)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
