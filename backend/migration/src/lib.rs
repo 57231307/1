@@ -107,6 +107,12 @@ pub mod m0062_create_bad_debt_writeoffs;
 pub mod m0063_create_collection_tasks;
 // Batch 481 P0-B04：财务预警表（4 类 ar_overdue/inventory_backlog/cash_flow_shortage/budget_overrun）
 pub mod m0064_create_finance_alerts;
+// Batch 483 P0-B11：定制订单补齐打样和报价环节（custom_orders 加 lab_dip_request_id + quotation_id）
+pub mod m0065_add_custom_order_sample_quotation_fields;
+// Batch 483 P0-B12：售后与质量集成（after_sales 加 quality_issue_id 关联 quality_issues）
+pub mod m0066_add_after_sales_quality_issue_id;
+// Batch 483 P0-B13：物流电子签收（logistics_waybills 加 signed_by/signed_at/sign_receipt_url/sign_photo_url/sign_remark）
+pub mod m0067_add_logistics_waybill_sign_fields;
 
 pub struct Migrator;
 
@@ -180,6 +186,9 @@ impl MigratorTrait for Migrator {
             Box::new(m0062_create_bad_debt_writeoffs::Migration),
             Box::new(m0063_create_collection_tasks::Migration),
             Box::new(m0064_create_finance_alerts::Migration),
+            Box::new(m0065_add_custom_order_sample_quotation_fields::Migration),
+            Box::new(m0066_add_after_sales_quality_issue_id::Migration),
+            Box::new(m0067_add_logistics_waybill_sign_fields::Migration),
         ]
     }
 }
