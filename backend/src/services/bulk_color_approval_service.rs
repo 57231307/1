@@ -32,6 +32,8 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::models::bulk_color_approval::{self, ActiveModel, Entity};
+use crate::models::dye_batch;
+use crate::models::inventory_stock;
 use crate::utils::app_state::AppState;
 
 /// 业务错误
@@ -414,37 +416,125 @@ impl BulkColorApprovalService {
         reject_reason: String,
         feedback: Option<String>,
     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
-        self.transition_to(
-            id,
-            ApprovalStatus::Rework,
-            Some(approver_id),
-            feedback,
-            None,
-            Some(reject_reason),
-            false,
-        )
-        .await
+        // P0-F17：状态转换 sent_to_customer → rework
+        let model = self
+            .transition_to(
+                id,
+                ApprovalStatus::Rework,
+                Some(approver_id),
+                feedback,
+                None,
+                Some(reject_reason.clone()),
+                false,
+            )
+            .await?;
+
+        // P0-F21：返工走生产订单流程（审计报告：返工无工单跟踪，返工成本无法归集到原缸号）
+        // 创建返工生产订单，order_type='rework'，original_batch_id 指向原 dye_batch
+        // 失败时仅记录警告，不阻塞状态转换（状态已提交，返工订单可后续补建）
+        if let Err(e) = self
+            .create_rework_production_order(&model, approver_id, &reject_reason)
+            .await
+        {
+            tracing::warn!(
+                bulk_color_approval_id = model.id,
+                dye_batch_id = model.dye_batch_id,
+                error = %e,
+                "P0-F21: 返工生产订单创建失败，状态已转换，请人工补建返工订单"
+            );
+        }
+
+        Ok(model)
+    }
+
+    /// P0-F21：为返工创建生产订单
+    ///
+    /// 业务规则（审计报告 P0-F21）：
+    /// - 返工必须走生产订单流程，不能直接修改原批次状态
+    /// - 返工订单 order_type='rework'，original_batch_id 指向原 dye_batch
+    /// - 返工成本归集到原缸号
+    ///
+    /// 产品 ID 来源：bulk_color_approval.product_id（若为 None 则返回错误）
+    async fn create_rework_production_order(
+        &self,
+        model: &bulk_color_approval::Model,
+        created_by: i32,
+        reject_reason: &str,
+    ) -> Result<(), BulkColorApprovalError> {
+        use crate::services::production_order_service::ProductionOrderService;
+
+        let product_id = model.product_id.ok_or_else(|| {
+            BulkColorApprovalError::Validation(
+                "返工创建生产订单失败：bulk_color_approval.product_id 为空，无法创建返工订单"
+                    .to_string(),
+            )
+        })?;
+
+        let service = ProductionOrderService::new(self.db.clone());
+        let remarks = format!(
+            "大货批色返工（bulk_color_approval_id={}）：{}",
+            model.id, reject_reason
+        );
+
+        service
+            .create_rework_order(
+                product_id,
+                model.dye_batch_id,
+                Some(model.sales_order_id),
+                created_by,
+                Some(remarks),
+            )
+            .await
+            .map_err(|e| {
+                BulkColorApprovalError::InvalidState(format!("返工订单创建失败: {}", e))
+            })?;
+
+        Ok(())
     }
 
     /// approved → downgraded（终态）
+    ///
+    /// P0-F18：降级流程联动库存等级
+    /// - 将关联库存的 grade 从"一等品"降为"二等品"或"二等品"降为"等外品"
+    /// - 降级后质量状态自动降为"待检"（需重新质检）
+    /// - downgraded 仍保持 delivery_blocking=true（不解除发货门禁）
     pub async fn downgrade(
         &self,
         id: i64,
         reject_reason: String,
     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
-        self.transition_to(
-            id,
-            ApprovalStatus::Downgraded,
-            None,
-            None,
-            None,
-            Some(reject_reason),
-            false, // downgraded 仍保持 blocking=true
-        )
-        .await
+        let model = self
+            .transition_to(
+                id,
+                ApprovalStatus::Downgraded,
+                None,
+                None,
+                None,
+                Some(reject_reason),
+                false, // downgraded 仍保持 blocking=true
+            )
+            .await?;
+
+        // P0-F18：联动库存等级降级（审计报告：降级流程需更新 inventory_stocks.grade）
+        // 失败时仅记录警告，不阻塞状态转换（状态已提交，库存等级可后续补降）
+        if let Err(e) = self.apply_stock_downgrade(&model).await {
+            tracing::warn!(
+                bulk_color_approval_id = model.id,
+                dye_batch_id = model.dye_batch_id,
+                error = %e,
+                "P0-F18: 库存等级降级失败，状态已转换，请人工补降库存等级"
+            );
+        }
+
+        Ok(model)
     }
 
     /// approved → scrapped 或 pending/sampled → scrapped（终态）
+    ///
+    /// P0-F18：报废流程联动库存状态
+    /// - 将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"
+    /// - 报废原因追加到 bin_location 保留可追溯性
+    /// - scrapped 保持 delivery_blocking=true（需重新生产或换缸）
     pub async fn scrap(
         &self,
         id: i64,
@@ -474,13 +564,162 @@ impl BulkColorApprovalService {
         let now = Utc::now();
         let mut active: ActiveModel = model.into();
         active.approval_status = Set(ApprovalStatus::Scrapped.as_str().to_string());
-        active.reject_reason = Set(Some(reject_reason));
+        active.reject_reason = Set(Some(reject_reason.clone()));
         active.updated_at = Set(now);
         // scrapped 保持 delivery_blocking=true（需重新生产或换缸）
 
         let updated = active.update(&txn).await?;
         txn.commit().await?;
+
+        // P0-F18：联动库存报废（审计报告：报废流程需更新 inventory_stocks.stock_status='报废'）
+        // 失败时仅记录警告，不阻塞状态转换（状态已提交，库存报废可后续补执行）
+        if let Err(e) = self.apply_stock_scrap(&updated, &reject_reason).await {
+            tracing::warn!(
+                bulk_color_approval_id = updated.id,
+                dye_batch_id = updated.dye_batch_id,
+                error = %e,
+                "P0-F18: 库存报废标记失败，状态已转换，请人工补执行库存报废"
+            );
+        }
+
         Ok(updated)
+    }
+
+    /// P0-F18：查找批色记录关联的库存记录
+    ///
+    /// 关联路径：bulk_color_approval.dye_batch_id → dye_batch.batch_no/color_no/dye_lot_no
+    ///          → inventory_stock.batch_no/color_no/dye_lot_no
+    ///
+    /// 若 bulk_color_approval 的 batch_no/color_no/dye_lot_no 字段已填充，优先使用；
+    /// 否则回退到加载 dye_batch 表获取。
+    async fn find_related_stocks(
+        &self,
+        model: &bulk_color_approval::Model,
+    ) -> Result<Vec<inventory_stock::Model>, BulkColorApprovalError> {
+        // 优先使用 bulk_color_approval 自带的标识字段
+        let (batch_no, color_no, dye_lot_no) = if model.batch_no.is_some() {
+            (
+                model.batch_no.clone(),
+                model.color_no.clone(),
+                model.dye_lot_no.clone(),
+            )
+        } else {
+            // 回退：加载 dye_batch 获取 batch_no（dye_batch.batch_no 为必填）
+            let batch = dye_batch::Entity::find_by_id(model.dye_batch_id)
+                .one(&*self.db)
+                .await?
+                .ok_or(BulkColorApprovalError::DyeBatchNotFound)?;
+            (Some(batch.batch_no), batch.color_no, Some(batch.dye_lot_no))
+        };
+
+        let batch_no = batch_no.ok_or_else(|| {
+            BulkColorApprovalError::InvalidState(
+                "库存联动失败：无法确定批次号 batch_no".to_string(),
+            )
+        })?;
+
+        let mut cond = Condition::all().add(inventory_stock::Column::BatchNo.eq(&batch_no));
+        if let Some(cn) = &color_no {
+            cond = cond.add(inventory_stock::Column::ColorNo.eq(cn));
+        }
+        if let Some(dln) = &dye_lot_no {
+            cond = cond.add(inventory_stock::Column::DyeLotNo.eq(dln));
+        }
+
+        let stocks = inventory_stock::Entity::find()
+            .filter(cond)
+            .all(&*self.db)
+            .await?;
+        Ok(stocks)
+    }
+
+    /// P0-F18：降级联动库存等级
+    ///
+    /// 等级降级规则：
+    /// - 一等品 → 二等品
+    /// - 二等品 → 等外品
+    /// - 等外品 → 跳过（已是最低等级，无法继续降级）
+    async fn apply_stock_downgrade(
+        &self,
+        model: &bulk_color_approval::Model,
+    ) -> Result<(), BulkColorApprovalError> {
+        use crate::services::inventory_stock_service::InventoryStockService;
+
+        let stocks = self.find_related_stocks(model).await?;
+        if stocks.is_empty() {
+            tracing::info!(
+                bulk_color_approval_id = model.id,
+                dye_batch_id = model.dye_batch_id,
+                "P0-F18: 未找到关联库存记录，跳过等级降级"
+            );
+            return Ok(());
+        }
+
+        let service = InventoryStockService::new(self.db.clone());
+        for stock in stocks {
+            let new_grade = match stock.grade.as_str() {
+                "一等品" => "二等品",
+                "二等品" => "等外品",
+                other => {
+                    tracing::info!(
+                        stock_id = stock.id,
+                        grade = other,
+                        "P0-F18: 库存等级为 {}，无法继续降级，跳过",
+                        other
+                    );
+                    continue;
+                }
+            };
+            service
+                .update_stock_grade(stock.id, new_grade.to_string(), None)
+                .await
+                .map_err(|e| {
+                    BulkColorApprovalError::InvalidState(format!(
+                        "库存等级降级失败 (stock_id={}): {}",
+                        stock.id, e
+                    ))
+                })?;
+        }
+        Ok(())
+    }
+
+    /// P0-F18：报废联动库存状态
+    ///
+    /// 将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"
+    async fn apply_stock_scrap(
+        &self,
+        model: &bulk_color_approval::Model,
+        reason: &str,
+    ) -> Result<(), BulkColorApprovalError> {
+        use crate::services::inventory_stock_service::InventoryStockService;
+
+        let stocks = self.find_related_stocks(model).await?;
+        if stocks.is_empty() {
+            tracing::info!(
+                bulk_color_approval_id = model.id,
+                dye_batch_id = model.dye_batch_id,
+                "P0-F18: 未找到关联库存记录，跳过报废标记"
+            );
+            return Ok(());
+        }
+
+        let service = InventoryStockService::new(self.db.clone());
+        let scrap_reason = format!(
+            "大货批色报废（bulk_color_approval_id={}）：{}",
+            model.id, reason
+        );
+        for stock in stocks {
+            service
+                .mark_stock_as_scrapped(stock.id, scrap_reason.clone(), None)
+                .await
+                .map_err(|e| {
+                    BulkColorApprovalError::InvalidState(format!(
+                        "库存报废标记失败 (stock_id={}): {}",
+                        stock.id, e
+                    ))
+                })?;
+        }
+        Ok(())
     }
 
     /// 通用状态转换：sent_to_customer → approved/rejected/rework 或 approved → downgraded

@@ -862,6 +862,8 @@ impl DyeBatchReworkService {
             completed_at: Set(None),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
+            // V15 Batch 479 P0-F21：返工走生产订单流程（创建时未关联生产订单，后续回填）
+            production_order_id: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
         };

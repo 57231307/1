@@ -304,6 +304,109 @@ impl ProductionOrderService {
         Ok(model)
     }
 
+    /// V15 Batch 479 P0-F21：创建返工生产订单
+    ///
+    /// 业务背景：bulk_color_approval customer_rework 触发，返工必须走生产订单流程
+    /// （审计报告 P0-F21：返工无工单跟踪，返工成本无法归集到原缸号）
+    ///
+    /// 与普通 create() 的差异：
+    /// - order_type = 'rework'（标记为返工订单）
+    /// - original_batch_id 指向原 dye_batch（返工成本归集锚点）
+    /// - 不触发 MRP 物料需求计算（返工使用已有物料，不产生新采购计划）
+    /// - 自动生成订单号 RW-YYYYMMDD-NNN
+    ///
+    /// 参数：
+    /// - `product_id`：产品 ID（来自 bulk_color_approval.product_id）
+    /// - `original_batch_id`：原 dye_batch ID（返工成本归集到原缸号）
+    /// - `sales_order_id`：关联销售订单 ID（可选，来自 bulk_color_approval.sales_order_id）
+    /// - `created_by`：操作人 ID
+    /// - `remarks`：备注（可选，通常包含返工原因）
+    pub async fn create_rework_order(
+        &self,
+        product_id: i32,
+        original_batch_id: i32,
+        sales_order_id: Option<i32>,
+        created_by: i32,
+        remarks: Option<String>,
+    ) -> Result<ProductionOrderModel, AppError> {
+        // 验证产品是否存在
+        self.validate_product_exists(product_id).await?;
+
+        // 验证销售订单是否存在（如果提供）
+        if let Some(sales_order_id) = sales_order_id {
+            self.validate_sales_order_exists(sales_order_id).await?;
+        }
+
+        // 生成返工订单号 RW-YYYYMMDD-NNN
+        let order_no = self.generate_rework_order_no().await?;
+
+        let now = Utc::now();
+        let active_model = ActiveModel {
+            order_no: Set(order_no),
+            sales_order_id: Set(sales_order_id),
+            product_id: Set(product_id),
+            planned_quantity: Set(Decimal::ZERO),
+            planned_start_date: Set(None),
+            planned_end_date: Set(None),
+            status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
+            priority: Set(1), // 返工订单优先级最高
+            work_center_id: Set(None),
+            remarks: Set(remarks),
+            created_by: Set(created_by),
+            // V15 Batch 479 P0-F21：返工订单标识
+            order_type: Set("rework".to_string()),
+            original_batch_id: Set(Some(original_batch_id)),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+
+        let model = active_model.insert(&*self.db).await.map_err(|e| {
+            let err_str = e.to_string();
+            if err_str.contains("unique constraint") || err_str.contains("duplicate") {
+                AppError::validation("返工订单号已存在，请稍后重试")
+            } else {
+                AppError::database(e.to_string())
+            }
+        })?;
+
+        // 注意：返工订单不触发 MRP 计算（返工使用已有物料，不产生新采购计划）
+        // 如需物料调整，由配方调整流程单独处理
+
+        Ok(model)
+    }
+
+    /// 生成唯一返工订单号 RW-YYYYMMDD-NNN
+    ///
+    /// 与 generate_unique_order_no 区别：使用 RW- 前缀标识返工订单
+    async fn generate_rework_order_no(&self) -> Result<String, AppError> {
+        let date_str = chrono::Utc::now().format("%Y%m%d").to_string();
+        for attempt in 0..10 {
+            let seq = if attempt == 0 {
+                // 首次尝试基于当前秒数生成，减少 DB 查询
+                let secs = chrono::Utc::now().timestamp() % 1000;
+                format!("{:03}", secs)
+            } else {
+                format!("{:03}", 100 + attempt)
+            };
+            let order_no = format!("RW-{}-{}", date_str, seq);
+            let exists = ProductionOrderEntity::find()
+                .filter(crate::models::production_order::Column::OrderNo.eq(&order_no))
+                .one(&*self.db)
+                .await?
+                .is_some();
+            if !exists {
+                return Ok(order_no);
+            }
+        }
+        // 兜底：使用 UUID 片段
+        Ok(format!(
+            "RW-{}-{}",
+            date_str,
+            chrono::Utc::now().timestamp_millis() % 10000
+        ))
+    }
+
     /// 根据ID获取生产订单
     pub async fn get_by_id(
         &self,
