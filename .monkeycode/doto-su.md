@@ -5,6 +5,248 @@
 
 ---
 
+## 📦 V15 Batch 482 归档（P0-B05/B06/B07/B08/B09/B14 财务小项 6 项打包）
+
+### 任务概述
+
+- **批次**：482
+- **合并方式**：PR #667 squash fd7914b4
+- **完成时间**：2026-07-18
+- **审计项**：P0-B05 大额调拨 + P0-B06 预算超支 + P0-B07 CRM 回收 + P0-B08 赢率 + P0-B09 输单原因 + P0-B14 Incoterms（6 项 P0 打包）
+- **变更文件**：13 文件（无新增 migration + 无新增 Model + 1 DTO 改造 + 6 Service 改造 + 1 Handler 新增 + 1 Route 新增 + 1 util 扩展 + 2 mod.rs 注册 + 1 main.rs 后台任务）
+- **V15 P0 进度**：86/104 → 92/104（82.7% → 88.5%）
+
+### 问题背景
+
+#### P0-B05：大额调拨无二次确认（§17.6-D1，维度 17.6）
+
+- **来源**：V15 审计报告 batch-15 §17.6-D1
+- **证据**：
+  - `fund_management_service.rs::transfer_fund` 无金额阈值校验
+  - 任何金额的资金调拨均可一键完成，无二次确认机制
+- **影响**：误操作或恶意调用可造成巨额资金转移，财务风险高
+- **审计要求**：金额超过阈值（10 万）的调拨必须二次确认
+
+#### P0-B06：预算超支不拦截（§17.7-D1，维度 17.7）
+
+- **来源**：V15 审计报告 batch-15 §17.7-D1
+- **证据**：
+  - `budget_management_service.rs::check_budget_available` 返回 `bool` 不阻塞
+  - `po/price.rs::check_and_occupy_budget` 不传播错误
+  - `po/order.rs` 创建采购订单时即使预算不足仍能创建
+- **影响**：预算形同虚设，采购订单超支创建，财务失控
+- **审计要求**：预算不足时必须阻塞采购订单创建
+
+#### P0-B07：CRM 线索回收规则缺失（§18.3-D1，维度 18.3）
+
+- **来源**：V15 审计报告 batch-15 §18.3-D1
+- **证据**：
+  - 无 `recycle_executor` / `lead_recycle` 实现
+  - `crm_lead` 表中 `lead_status='new'` 的线索长期不跟进仍归属原销售
+- **影响**：线索沉淀在个人手中无法回收公海，销售机会浪费
+- **审计要求**：超过规定天数未跟进的"新"线索自动回收至公海池
+
+#### P0-B08：商机赢率未自动计算（§18.2-D1，维度 18.2）
+
+- **来源**：V15 审计报告 batch-15 §18.2-D1
+- **证据**：
+  - `opp.rs` 创建/更新商机时不自动填充 `win_probability`
+  - `opportunity_stage` 流转时赢率不联动调整
+- **影响**：销售预测失真，管理层无法准确评估销售管道
+- **审计要求**：按阶段配置默认赢率，流转时自动重算
+
+#### P0-B09：输单原因未记录（§18.2-D2，维度 18.2）
+
+- **来源**：V15 审计报告 batch-15 §18.2-D2
+- **证据**：
+  - 无 `close_as_lost` 方法
+  - `crm_opportunity` 表有 `lost_reason` 字段但无写入入口
+- **影响**：输单原因无记录，销售改进无依据
+- **审计要求**：商机转 CLOSED_LOST 时强制填写输单原因
+
+#### P0-B14：Incoterms 2020 术语不全（§23.5 缺陷 1，维度 23.5）
+
+- **来源**：V15 审计报告 batch-19 §23.5 缺陷 1
+- **证据**：
+  - `incoterms.rs` 仅支持 5 种术语：FOB / CIF / EXW / DDP / DAP
+  - Incoterms 2020 国际标准共 11 种术语
+- **影响**：6 种术语（FCA/CPT/CIP/DPU/FAS/CFR）无法选择，国际贸易场景受限
+- **审计要求**：补齐 Incoterms 2020 全部 11 种术语
+
+### 修复方案
+
+#### P0-B05：大额调拨二次确认
+
+##### `backend/src/services/fund_management_service.rs`
+
+- 新增 `large_transfer_threshold()` 函数（注意：`fn` 而非 `const fn`，因 `rust_decimal 1.42` 中 `Decimal::new` 不是 `const fn`，参考批次 481 经验）：
+  ```rust
+  fn large_transfer_threshold() -> Decimal {
+      // 10 万（100,000.00）
+      Decimal::new(100_000, 0)
+  }
+  ```
+- `transfer_fund` 方法内新增阈值校验：
+  ```rust
+  if req.amount > large_transfer_threshold() && !req.confirm_large {
+      return Err(AppError::validation(format!(
+          "大额调拨（>{})必须二次确认，请通过 confirm_large=true 显式确认（V15 P0-B05 强制拦截）",
+          large_transfer_threshold()
+      )));
+  }
+  ```
+
+##### `backend/src/models/dto/fund_dto.rs`
+
+- `TransferFundRequest` 新增 `confirm_large: bool` 字段：
+  - `#[serde(default)]` 保证旧客户端未传该字段时按 `false` 处理
+  - 对大额调拨采取"默认拒绝"策略，强制前端升级接入二次确认
+
+#### P0-B06：预算超支阻塞式拦截
+
+##### `backend/src/services/budget_management_service.rs`
+
+- 新增 `enforce_budget_available()` 方法，返回 `Result<i32, AppError>`：
+  - 预算充足 → 返回 `Ok(remaining_amount)`
+  - 预算不足 → 返回 `Err(AppError::business(...))` 阻塞流程
+- 与原 `check_budget_available()` 返回 `bool` 形成对比，前者阻塞后者仅查询
+
+##### `backend/src/services/po/price.rs`
+
+- `check_and_occupy_budget` 方法改为 `?` 传播 `enforce_budget_available` 的 `Result`
+- 预算不足时立即返回错误，不再继续占用
+
+##### `backend/src/services/po/order.rs`
+
+- 创建采购订单事务内调用 `check_and_occupy_budget`，预算不足时事务回滚
+
+#### P0-B07：CRM 线索回收规则
+
+##### `backend/src/services/crm/recycle_executor.rs`（新增）
+
+- 新建 `RecycleExecutor` 结构体，持有 `Arc<DatabaseConnection>`
+- `recycle_leads()` 方法：
+  - 查询 `crm_recycle_rule` 表中 `is_enabled=true` 的规则
+  - 按规则 `days` 字段计算截止日期 `cutoff_date = Utc::now() - Duration::days(rule.days)`
+  - 查询 `lead_status='new'` 且（`last_follow_up_date IS NULL AND created_at < cutoff_date`）OR（`last_follow_up_date < cutoff_date`）的线索
+  - 批量更新这些线索 `lead_status='pool'`（回收至公海）
+  - 分页处理（每页 100 条）避免大表锁
+- 类型修正：`last_follow_up_date: Option<NaiveDate>`，需用 `cutoff_date.date_naive()` 转换为 `NaiveDate`（非 `naive_utc()` 产生 `NaiveDateTime`）
+
+##### `backend/src/services/crm/mod.rs`
+
+- 新增 `pub mod recycle_executor;` 模块注册
+
+##### `backend/src/main.rs`
+
+- 启动时 `tokio::spawn` 后台任务，每 6 小时执行一次 `recycle_leads()`
+
+#### P0-B08：商机赢率自动计算
+
+##### `backend/src/services/crm/opp.rs`
+
+- 新增 `default_win_probability_by_stage(stage: &str) -> Option<Decimal>` 函数（注意：`fn` 而非 `const fn`，因 `Decimal::new` 非 `const fn`）：
+  - `QUALIFICATION` → 10%
+  - `NEEDS_ANALYSIS` → 25%
+  - `PROPOSAL` → 40%
+  - `NEGOTIATION` → 50%
+  - `CLOSED_WON` → 100%（使用 `Decimal::ONE_HUNDRED` const）
+  - `CLOSED_LOST` → 0%（使用 `Decimal::ZERO` const）
+  - 其他 → `None`
+- `create_opportunity` 方法：用户未传 `win_probability` 时按阶段默认赢率填充
+- `update_opportunity` 方法：阶段流转时自动重算赢率（用户显式传值时仍可覆盖）
+  - 关键修复（E0382）：在 `Set(Some(v))` 移动 `v` 之前计算 `default_prob`，避免 borrow of moved value
+
+#### P0-B09：输单原因记录
+
+##### `backend/src/models/dto/crm_dto.rs`
+
+- 新增 `CloseAsLostRequest` 结构体：
+  ```rust
+  #[derive(Debug, Deserialize, Validate)]
+  pub struct CloseAsLostRequest {
+      #[validate(length(min = 1, max = 500, message = "输单原因长度必须在 1-500 字符之间"))]
+      pub lost_reason: String,
+  }
+  ```
+- 顶部新增 `use validator::Validate;` import（`#[derive(Validate)]` 必需）
+
+##### `backend/src/services/crm/opp.rs`
+
+- 新增 `close_as_lost(opportunity_id, req)` 方法：
+  - 校验商机存在且当前状态非 CLOSED_LOST
+  - 更新 `opportunity_status = CLOSED_LOST` + `lost_reason = req.lost_reason` + `actual_close_date = today`
+  - 赢率联动置为 0%
+
+##### `backend/src/handlers/crm_handler.rs`
+
+- 新增 `close_opportunity_as_lost` handler
+
+##### `backend/src/routes/crm.rs`
+
+- 新增路由 `POST /api/v1/crm/opportunities/:id/close-lost`
+
+#### P0-B14：Incoterms 2020 术语补齐
+
+##### `backend/src/utils/incoterms.rs`
+
+- 原 5 种术语扩展为 11 种（Incoterms 2020 全量）：
+  - 原有：EXW / FOB / CIF / DDP / DAP
+  - 新增：FCA / CPT / CIP / DPU / FAS / CFR
+- 每种术语包含：`code` / `name_zh` / `name_en` / `category`（海运/任何运输）
+
+### CI 验证
+
+#### 第 1 轮 FAIL
+
+- **错误**：`error[E0382]: borrow of moved value: 'v'` at `src/services/crm/opp.rs:320:78`
+- **根因**：`opportunity_active.opportunity_stage = Set(Some(v));` 移动 `v` 后，`default_win_probability_by_stage(&v)` 尝试借用已移动的值
+- **修复**：在 `Set(Some(v))` 之前计算 `default_prob`：
+  ```rust
+  let default_prob = if req.win_probability.is_none() {
+      default_win_probability_by_stage(&v)
+  } else {
+      None
+  };
+  opportunity_active.opportunity_stage = Set(Some(v));
+  if let Some(prob) = default_prob {
+      opportunity_active.win_probability = Set(Some(prob));
+  }
+  ```
+
+#### 第 2 轮 SUCCESS
+
+- 所有 14 个 CI job 全绿（2 个 release job skipped）
+- PR #667 squash 合并到 main，squash commit `fd7914b4`
+
+### 规则 13 步骤 4 自审门
+
+- 步骤 0：审计报告条目存在性核实 ✅（batch-15 §17.6-D1/§17.7-D1/§18.3-D1/§18.2-D1/§18.2-D2 + batch-19 §23.5 缺陷 1）
+- 步骤 1：现有实现调研 ✅（fund_management_service.transfer_fund 无阈值校验 / budget_management_service.check_budget_available 返回 bool / 无 recycle_executor / opp.rs 无赢率自动计算 / 无 close_as_lost / incoterms.rs 仅 5 种术语）
+- 步骤 3：本地自检 ✅
+  - rust_decimal 1.42 `Decimal::new` 非 const fn（docs.rs 验证 `pub fn new` 非 `pub const fn new`）→ 改用 `fn` 而非 `const`
+  - `last_follow_up_date: Option<NaiveDate>` 类型匹配 → 用 `cutoff_date.date_naive()` 而非 `cutoff_date.naive_utc()`
+  - `#[derive(Validate)]` 缺 `use validator::Validate;` → 补 import
+- 步骤 4：推送前自审 ✅
+  - grep `large_transfer_threshold` 调用点 ✅
+  - grep `confirm_large` 字段引用 ✅
+  - grep `enforce_budget_available` 调用链 ✅
+  - grep `default_win_probability_by_stage` 引用 ✅
+  - grep `close_as_lost` 调用链 ✅
+  - grep `Incoterms2020` 使用点 ✅（quotation_service.rs 使用 `from_code`/`all`/`code`，enum 扩展安全）
+- 步骤 5：CI 验证 ✅（2 轮全绿）
+
+### 经验教训
+
+1. **rust_decimal 1.42 `Decimal::new` 非 `const fn`**：docs.rs 验证 `pub fn new` 非 `pub const fn new`，常量声明需改用函数返回运行期构造的值（与批次 481 `budget_overrun_amount_threshold()` 同模式，第二次确认）
+2. **变量移动顺序需在 `Set` 前计算衍生值**：`Set(Some(v))` 会移动 `v`，后续 `&v` 借用触发 E0382；衍生计算（如 `default_win_probability_by_stage(&v)`）必须在 `Set` 之前完成
+3. **`NaiveDate` 类型匹配需 `date_naive()` 非 `naive_utc()`**：`DateTime<Utc>::naive_utc()` 产生 `NaiveDateTime`，`DateTime<Utc>::date_naive()` 产生 `NaiveDate`；Sea-ORM `Column::LastFollowUpDate` 类型为 `Option<NaiveDate>`，必须用 `date_naive()`
+4. **`validator::Validate` 需显式 import**：`#[derive(Validate)]` 需要 `use validator::Validate;`，当文件首次使用 Validate 时容易遗漏 import
+5. **`#[serde(default)]` 实现"默认拒绝"策略**：`confirm_large: bool` 默认 `false`，旧客户端未传该字段时按 `false` 处理，强制前端升级接入二次确认，向后兼容同时保证安全性
+6. **阻塞式 vs 查询式 API 设计**：`enforce_budget_available` 返回 `Result<i32, AppError>` 阻塞式 vs `check_budget_available` 返回 `bool` 查询式；前者用于强制约束（预算超支拦截），后者用于柔性提示（预算接近预警）
+
+---
+
 ## 📦 V15 Batch 481 归档（P0-B01/B02/B03/B04 坏账链路+催收+财务预警）
 
 ### 任务概述
