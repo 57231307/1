@@ -26,3 +26,4 @@ error[E0063]: missing fields `data_scope` and `department_id` in initializer of 
 error[E0277]: `?` couldn't convert the error to `services::quality_8d_service::EightDError`
 help: the trait `From<utils::error::AppError>` is not implemented for `services::quality_8d_service::EightDError`
 note: `services::quality_8d_service::EightDError` needs to implement `From<utils::error::AppError>`
+warning: this function has too many arguments (8/7)
