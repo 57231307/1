@@ -2,10 +2,10 @@
 
 use crate::search::SearchClient;
 use crate::services::inv::InventoryTransferService;
-use crate::services::po::PurchaseOrderService;
+use crate::services::po::order::PurchaseOrderService;
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
 use crate::services::sales_contract_service::SalesContractService;
-use crate::services::so::SalesService;
+use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
