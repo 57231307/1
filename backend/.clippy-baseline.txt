@@ -1,81 +1,14 @@
 
     |
-    |                                                                   +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    |                                                               +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    |                                                     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    |                                                 ^^^^----------- argument #2 of type `std::option::Option<&utils::data_scope::DataScopeContext>` is missing
-    |                                         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    |                                         ^^^^^^^^^---- argument #2 of type `std::option::Option<&utils::data_scope::DataScopeContext>` is missing
-    |                                        ^^^^^^^^^^^^^^^^^^^^^^^^---- argument #2 of type `std::option::Option<&utils::data_scope::DataScopeContext>` is missing
-    |                                      +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    |                          ^^^^^^^^^---- argument #2 of type `std::option::Option<&utils::data_scope::DataScopeContext>` is missing
+    |                      ^^^^^^^^^^^^^^^^^ missing `production_order_id`
     |                    ^^^^^^^^^^^ missing `data_scope` and `department_id`
-    |                  ^^^^
-    |                  ^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^^^^^^^^^^
-    |          ^^^^^^^^^^^^^^^^^--------------- argument #2 of type `std::option::Option<&utils::data_scope::DataScopeContext>` is missing
-    |         -------------------------------------
     |         ^^^^^^^^^^^^^^^^^^^^^^ missing `color_no`, `dye_lot_no` and `grade`
    --> src/handlers/init_handler.rs:564:20
-   --> src/handlers/production_recipe_handler.rs:105:41
-   --> src/handlers/production_recipe_handler.rs:203:10
-   --> src/handlers/production_recipe_handler.rs:217:40
-   --> src/handlers/production_recipe_handler.rs:245:41
-   --> src/handlers/production_recipe_handler.rs:81:49
    --> src/services/ai/quality_pred.rs:507:9
-   --> src/services/production_recipe_service.rs:264:26
-   --> src/services/production_recipe_service.rs:368:26
-   --> src/services/production_recipe_service.rs:379:18
-   --> src/services/production_recipe_service.rs:405:18
-   --> src/services/production_recipe_service.rs:450:18
-   --> src/services/production_recipe_service.rs:484:26
-   --> src/services/production_recipe_service.rs:508:26
-   --> src/services/production_recipe_service.rs:522:26
-   --> src/services/production_recipe_service.rs:568:18
-   --> src/services/production_recipe_service.rs:733:18
-   --> src/services/production_recipe_service.rs:807:26
-   --> src/services/production_recipe_service.rs:829:26
- 81 |     let (items, total) = recipe_service(&state).list(svc_query).await?;
- 81 |     let (items, total) = recipe_service(&state).list(svc_query, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
-...
-105 |     let recipe = recipe_service(&state).get_by_id(id).await?;
-105 |     let recipe = recipe_service(&state).get_by_id(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
-203 |         .get_by_work_order(work_order_id)
-203 |         .get_by_work_order(work_order_id, /* std::option::Option<&utils::data_scope::DataScopeContext> */)
-217 |     let items = recipe_service(&state).list_additions_by_recipe(id).await?;
-217 |     let items = recipe_service(&state).list_additions_by_recipe(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
-245 |     let item = addition_service(&state).get_by_id(id).await?;
-245 |     let item = addition_service(&state).get_by_id(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
-264 |         let model = self.get_by_id(id).await?;
-264 |         let model = self.get_by_id(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
-368 |         let model = self.get_by_id(id).await?;
-368 |         let model = self.get_by_id(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
-379 |     pub async fn get_by_id(
-382 |         data_scope: Option<&DataScopeContext>,
-405 |     pub async fn list(
-408 |         data_scope: Option<&DataScopeContext>,
-450 |     pub async fn get_by_work_order(
-453 |         data_scope: Option<&DataScopeContext>,
-484 |         let model = self.get_by_id(id).await?;
-484 |         let model = self.get_by_id(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
+   --> src/services/dye_batch_state_machine_service.rs:849:22
 507 |         QualityInspectionModel {
-508 |         let model = self.get_by_id(id).await?;
-508 |         let model = self.get_by_id(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
-522 |         let model = self.get_by_id(id).await?;
-522 |         let model = self.get_by_id(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
 564 |         let auth = AuthContext {
-568 |     pub async fn list_additions_by_recipe(
-571 |         data_scope: Option<&DataScopeContext>,
-733 |     pub async fn get_by_id(
-736 |         data_scope: Option<&DataScopeContext>,
-807 |         let model = self.get_by_id(id).await?;
-807 |         let model = self.get_by_id(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
-829 |         let model = self.get_by_id(id).await?;
-829 |         let model = self.get_by_id(id, /* std::option::Option<&utils::data_scope::DataScopeContext> */).await?;
-error[E0061]: this method takes 2 arguments but 1 argument was supplied
+849 |         let active = ReworkActiveModel {
+error[E0063]: missing field `production_order_id` in initializer of `models::dye_batch_rework::ActiveModel`
 error[E0063]: missing fields `color_no`, `dye_lot_no` and `grade` in initializer of `models::quality_inspection_record::Model`
 error[E0063]: missing fields `data_scope` and `department_id` in initializer of `middleware::auth_context::AuthContext`
-help: provide the argument
-note: method defined here
-warning: this function has too many arguments (8/7)
