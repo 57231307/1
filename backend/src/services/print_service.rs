@@ -4,7 +4,7 @@
 //! 改为真实查询数据库（主表 + 关联客户/供应商/仓库 + 明细项）。
 
 use crate::utils::error::AppError;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, LoaderTrait, ModelTrait, Order, QueryFilter, QueryOrder, RelationTrait};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, LoaderTrait, ModelTrait, Order, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
