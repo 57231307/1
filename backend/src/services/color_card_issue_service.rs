@@ -156,6 +156,8 @@ impl ColorCardIssueService {
     /// 3. 客户信用额度 > 0（未超额）
     /// 4. 客户无未归还超期记录
     /// 5. 客户状态 = active（白名单校验）
+    ///
+    /// V15 P0-F10：闸门 2 增强为「发放数量 > 0 且 卡片库存 >= 发放数量」
     async fn validate_issue_gates(
         &self,
         color_card_id: i64,
@@ -175,11 +177,17 @@ impl ColorCardIssueService {
             )));
         }
 
-        // 闸门 2：发放数量 > 0（色卡单张发放，库存数量 >= 发放数量）
+        // 闸门 2：发放数量 > 0 且 卡片库存 >= 发放数量（V15 P0-F10 库存联动）
         if issue_qty <= 0 {
             return Err(IssueError::GateCheckFailed(
                 "闸门 2 失败：发放数量必须 > 0".to_string(),
             ));
+        }
+        if card.stock_quantity < issue_qty {
+            return Err(IssueError::GateCheckFailed(format!(
+                "闸门 2 失败：色卡库存不足，当前库存 {}，申请发放 {}",
+                card.stock_quantity, issue_qty
+            )));
         }
 
         // 闸门 3：客户信用额度 > 0
@@ -246,11 +254,13 @@ impl ColorCardIssueService {
     /// 创建发放记录
     ///
     /// 5 道闸门校验通过后插入 color_card_issues 表
+    ///
+    /// V15 P0-F10：库存联动 - 在事务内扣减 color_cards.stock_quantity
     pub async fn issue(
         &self,
         params: IssueParams,
     ) -> Result<color_card_issue::Model, IssueError> {
-        // 5 道闸门校验
+        // 5 道闸门校验（含库存数量校验）
         self.validate_issue_gates(
             params.color_card_id,
             params.customer_id,
@@ -259,6 +269,23 @@ impl ColorCardIssueService {
         )
         .await?;
 
+        // V15 P0-F10：事务 + 行锁，串行化并发发放以保护库存数量一致性
+        let txn = self.db.begin().await?;
+
+        // 再次加锁查询色卡，防止闸门校验后并发扣减
+        let card = ColorCardEntity::find_by_id(params.color_card_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(IssueError::ColorCardNotFound)?;
+        if card.stock_quantity < params.issue_qty {
+            return Err(IssueError::GateCheckFailed(format!(
+                "并发校验失败：色卡库存不足，当前库存 {}，申请发放 {}",
+                card.stock_quantity, params.issue_qty
+            )));
+        }
+
+        // 1. 插入发放记录
         let now = Utc::now();
         let active = IssueActive {
             id: Default::default(),
@@ -279,11 +306,22 @@ impl ColorCardIssueService {
             updated_at: Set(now),
             is_deleted: Set(false),
         };
-        let result = active.insert(&*self.db).await?;
+        let result = active.insert(&txn).await?;
+
+        // 2. 扣减色卡库存数量（V15 P0-F10 库存联动核心逻辑）
+        let new_stock = card.stock_quantity - params.issue_qty;
+        let mut card_active: color_card::ActiveModel = card.into();
+        card_active.stock_quantity = Set(new_stock);
+        card_active.updated_at = Set(now);
+        card_active.update(&txn).await?;
+
+        txn.commit().await?;
         Ok(result)
     }
 
     /// 归还色卡
+    ///
+    /// V15 P0-F10：库存联动 - 在事务内还原 color_cards.stock_quantity
     pub async fn return_card(
         &self,
         record_id: i64,
@@ -309,6 +347,9 @@ impl ColorCardIssueService {
             )));
         }
 
+        // V15 P0-F10：捕获 issue_qty 用于库存还原
+        let issue_qty = existing.issue_qty;
+
         let mut active: IssueActive = existing.into();
         active.status = Set(IssueStatus::Returned.as_str().to_string());
         active.actual_return_date =
@@ -320,6 +361,20 @@ impl ColorCardIssueService {
         active.updated_at = Set(Utc::now());
 
         let result = active.update(&txn).await?;
+
+        // V15 P0-F10：归还时还原色卡库存数量
+        let now = Utc::now();
+        let card = ColorCardEntity::find_by_id(result.color_card_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(IssueError::ColorCardNotFound)?;
+        let new_stock = card.stock_quantity + issue_qty;
+        let mut card_active: color_card::ActiveModel = card.into();
+        card_active.stock_quantity = Set(new_stock);
+        card_active.updated_at = Set(now);
+        card_active.update(&txn).await?;
+
         txn.commit().await?;
         Ok(result)
     }
@@ -422,6 +477,8 @@ impl ColorCardIssueService {
     /// 取消发放记录
     ///
     /// 仅允许 Issued 状态取消，取消后为终态不可再变更
+    ///
+    /// V15 P0-F10：库存联动 - 取消时还原 color_cards.stock_quantity
     pub async fn cancel_issue(
         &self,
         record_id: i64,
@@ -444,6 +501,10 @@ impl ColorCardIssueService {
             )));
         }
 
+        // V15 P0-F10：捕获 issue_qty 用于库存还原
+        let issue_qty = existing.issue_qty;
+        let color_card_id = existing.color_card_id;
+
         let mut active: IssueActive = existing.into();
         active.status = Set(IssueStatus::Cancelled.as_str().to_string());
         if let Some(r) = remark {
@@ -452,6 +513,20 @@ impl ColorCardIssueService {
         active.updated_at = Set(Utc::now());
 
         let result = active.update(&txn).await?;
+
+        // V15 P0-F10：取消时还原色卡库存数量
+        let now = Utc::now();
+        let card = ColorCardEntity::find_by_id(color_card_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(IssueError::ColorCardNotFound)?;
+        let new_stock = card.stock_quantity + issue_qty;
+        let mut card_active: color_card::ActiveModel = card.into();
+        card_active.stock_quantity = Set(new_stock);
+        card_active.updated_at = Set(now);
+        card_active.update(&txn).await?;
+
         txn.commit().await?;
         Ok(result)
     }

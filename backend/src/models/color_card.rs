@@ -20,6 +20,8 @@ pub struct Model {
     pub status: String,
     pub description: Option<String>,
     pub cover_image_url: Option<String>,
+    /// V15 P0-F10：色卡库存数量（发放扣减 / 归还还原 / 遗失损坏不还原）
+    pub stock_quantity: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

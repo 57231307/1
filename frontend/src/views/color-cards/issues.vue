@@ -10,45 +10,11 @@
       <el-tabs v-model="activeTab">
         <!-- 发放 -->
         <el-tab-pane label="发放色卡" name="issue">
-          <el-form :model="issueForm" :rules="issueRules" ref="issueFormRef" label-width="100px" style="max-width: 600px">
-            <el-form-item label="选择色卡" prop="color_card_id">
-              <el-select v-model="issueForm.color_card_id" filterable placeholder="搜索色卡编号或名称" style="width: 100%">
-                <el-option
-                  v-for="card in availableCards"
-                  :key="card.id"
-                  :label="`${card.card_no} - ${card.card_name}`"
-                  :value="card.id"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="客户 ID" prop="customer_id">
-              <el-input-number v-model="issueForm.customer_id" :min="1" style="width: 100%" placeholder="请输入客户 ID" />
-            </el-form-item>
-            <el-form-item label="发放数量">
-              <el-input-number v-model="issueForm.issue_qty" :min="1" :step="1" style="width: 100%" />
-            </el-form-item>
-            <el-form-item label="染色批号">
-              <el-input v-model="issueForm.dye_lot_no" placeholder="可选: 染色批号（lot 概念，防色差混批）" />
-            </el-form-item>
-            <el-form-item label="预计归还">
-              <el-date-picker
-                v-model="issueForm.expected_return_date"
-                type="date"
-                placeholder="可选: 预计归还日期（不超过 30 天）"
-                style="width: 100%"
-                value-format="YYYY-MM-DD"
-              />
-            </el-form-item>
-            <el-form-item label="用途">
-              <el-input v-model="issueForm.purpose" placeholder="例如: 客户选色 / 展会展示" />
-            </el-form-item>
-            <el-form-item label="备注">
-              <el-input v-model="issueForm.remark" type="textarea" :rows="2" />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" :loading="issuing" @click="handleIssue">确认发放</el-button>
-            </el-form-item>
-          </el-form>
+          <ColorCardIssueForm
+            :available-cards="availableCards"
+            :loading="actionLoading"
+            @submit="handleIssueSubmit"
+          />
         </el-tab-pane>
 
         <!-- 发放中列表 -->
@@ -68,10 +34,10 @@
             <el-table-column label="用途" prop="purpose" />
             <el-table-column label="操作" width="360" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" @click="handleReturn(row)">归还</el-button>
-                <el-button link type="warning" @click="handleMarkDamaged(row)">损坏</el-button>
-                <el-button link type="danger" @click="handleMarkLost(row)">遗失</el-button>
-                <el-button link type="info" @click="handleCancel(row)">取消</el-button>
+                <el-button link type="primary" @click="openAction(row, 'return')">归还</el-button>
+                <el-button link type="warning" @click="openAction(row, 'damaged')">损坏</el-button>
+                <el-button link type="danger" @click="openAction(row, 'lost')">遗失</el-button>
+                <el-button link type="info" @click="openAction(row, 'cancel')">取消</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -107,269 +73,97 @@
       </el-tabs>
     </el-card>
 
-    <!-- 归还对话框 -->
-    <el-dialog v-model="showReturnDialog" title="归还色卡" width="480px">
-      <el-form label-width="80px">
-        <el-form-item label="实际归还">
-          <el-date-picker v-model="returnForm.actual_return_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="returnForm.remark" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showReturnDialog = false">取消</el-button>
-        <el-button type="primary" :loading="actionLoading" @click="confirmReturn">确认归还</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 遗失对话框 -->
-    <el-dialog v-model="showLostDialog" title="登记遗失" width="480px">
-      <el-alert type="warning" :closable="false" style="margin-bottom: 16px">
-        登记遗失后色卡状态将变为「遗失」，需要填写赔付金额。
-      </el-alert>
-      <el-form label-width="100px">
-        <el-form-item label="赔付金额" required>
-          <el-input-number v-model="lostForm.compensation_amount" :min="0.01" :precision="2" :step="100" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="遗失原因">
-          <el-input v-model="lostForm.remark" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showLostDialog = false">取消</el-button>
-        <el-button type="danger" :loading="actionLoading" @click="confirmLost">确认登记</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 损坏对话框 -->
-    <el-dialog v-model="showDamagedDialog" title="标记损坏" width="480px">
-      <el-form label-width="100px">
-        <el-form-item label="赔付金额">
-          <el-input-number v-model="damagedForm.compensation_amount" :min="0" :precision="2" :step="100" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="损坏原因">
-          <el-input v-model="damagedForm.remark" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showDamagedDialog = false">取消</el-button>
-        <el-button type="warning" :loading="actionLoading" @click="confirmDamaged">确认标记</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 取消对话框 -->
-    <el-dialog v-model="showCancelDialog" title="取消发放" width="480px">
-      <el-alert type="info" :closable="false" style="margin-bottom: 16px">
-        取消发放后记录将变为「已取消」终态，不可再变更。
-      </el-alert>
-      <el-form label-width="80px">
-        <el-form-item label="取消原因">
-          <el-input v-model="cancelForm.remark" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showCancelDialog = false">关闭</el-button>
-        <el-button type="info" :loading="actionLoading" @click="confirmCancel">确认取消</el-button>
-      </template>
-    </el-dialog>
+    <!-- V15 P0-F11：详情操作对话框（归还/遗失/损坏/取消 4 合 1） -->
+    <ColorCardIssueDetail
+      :record="currentRecord"
+      :action="currentAction"
+      :visible="detailVisible"
+      :loading="actionLoading"
+      @update:visible="detailVisible = $event"
+      @confirm="handleConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import {
-  listColorCards,
-  listIssues,
-  issueColorCard,
-  returnIssue,
-  markIssueLost,
-  markIssueDamaged,
-  cancelIssue,
-  ISSUE_STATUS,
-  ISSUE_STATUS_COLORS,
-  type IssueRecordInfo,
-  type ColorCardListItem,
-} from '@/api/color-card'
+import { ISSUE_STATUS, ISSUE_STATUS_COLORS } from '@/api/color-card'
+import type { IssueRecordInfo } from '@/api/color-card'
+import ColorCardIssueForm from '@/components/color-cards/ColorCardIssueForm.vue'
+import ColorCardIssueDetail from '@/components/color-cards/ColorCardIssueDetail.vue'
+import { useColorCardIssue } from '@/composables/useColorCardIssue'
+import type { IssueFormState, IssueAction, ReturnDialogState, LostDialogState, DamagedDialogState, CancelDialogState } from '@/types/colorCardIssue'
+
+// V15 P0-F11：从 composable 获取状态与业务函数
+const {
+  availableCards,
+  activeIssues,
+  historyRecords,
+  actionLoading,
+  init,
+  handleIssue,
+  handleReturn,
+  handleMarkLost,
+  handleMarkDamaged,
+  handleCancel,
+} = useColorCardIssue()
 
 const activeTab = ref('issue')
-const availableCards = ref<ColorCardListItem[]>([])
-const issueRecords = ref<IssueRecordInfo[]>([])
 
-// 发放中：状态为 issued 的记录
-const activeIssues = computed(() => issueRecords.value.filter((r) => r.status === 'issued'))
-// 历史：状态非 issued 的记录（已归还/遗失/损坏/已取消）
-const historyRecords = computed(() => issueRecords.value.filter((r) => r.status !== 'issued'))
+// 详情对话框状态
+const detailVisible = ref(false)
+const currentRecord = ref<IssueRecordInfo | null>(null)
+const currentAction = ref<IssueAction | null>(null)
 
-const issueFormRef = ref()
-const issuing = ref(false)
-const issueForm = reactive({
-  color_card_id: undefined as number | undefined,
-  customer_id: 1,
-  issue_qty: 1,
-  expected_return_date: '',
-  purpose: '',
-  remark: '',
-  dye_lot_no: '',
-})
-
-const issueRules = {
-  color_card_id: [{ required: true, message: '请选择色卡', trigger: 'change' }],
-  customer_id: [{ required: true, message: '请输入客户 ID', trigger: 'blur' }],
+function openAction(row: IssueRecordInfo, action: IssueAction): void {
+  currentRecord.value = row
+  currentAction.value = action
+  detailVisible.value = true
 }
 
-const showReturnDialog = ref(false)
-const showLostDialog = ref(false)
-const showDamagedDialog = ref(false)
-const showCancelDialog = ref(false)
-const actionLoading = ref(false)
-const currentRecordId = ref<number | null>(null)
-
-const returnForm = reactive({ actual_return_date: '', remark: '' })
-const lostForm = reactive({ compensation_amount: 0, remark: '' })
-const damagedForm = reactive({ compensation_amount: 0, remark: '' })
-const cancelForm = reactive({ remark: '' })
-
-const loadCards = async () => {
-  const res = await listColorCards({ status: 'active', page_size: 200 })
-  availableCards.value = res.data?.items || []
-}
-
-const loadRecords = async () => {
-  const res = await listIssues({ page_size: 100 })
-  issueRecords.value = res.data?.items || []
-}
-
-const handleIssue = async () => {
-  if (!issueFormRef.value) return
-  await issueFormRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-    issuing.value = true
-    try {
-      await issueColorCard({
-        color_card_id: issueForm.color_card_id!,
-        customer_id: issueForm.customer_id,
-        issue_qty: issueForm.issue_qty || 1,
-        expected_return_date: issueForm.expected_return_date || undefined,
-        purpose: issueForm.purpose || undefined,
-        remark: issueForm.remark || undefined,
-        dye_lot_no: issueForm.dye_lot_no || undefined,
-      })
-      ElMessage.success('发放成功')
-      issueForm.color_card_id = undefined
-      issueForm.purpose = ''
-      issueForm.remark = ''
-      issueForm.dye_lot_no = ''
-      loadRecords()
-    } finally {
-      issuing.value = false
-    }
-  })
-}
-
-const handleReturn = (row: IssueRecordInfo) => {
-  currentRecordId.value = row.id
-  returnForm.actual_return_date = ''
-  returnForm.remark = ''
-  showReturnDialog.value = true
-}
-
-const confirmReturn = async () => {
-  if (!currentRecordId.value) return
-  actionLoading.value = true
-  try {
-    await returnIssue(currentRecordId.value, {
-      actual_return_date: returnForm.actual_return_date || undefined,
-      remark: returnForm.remark || undefined,
-    })
-    ElMessage.success('归还成功')
-    showReturnDialog.value = false
-    loadRecords()
-  } finally {
-    actionLoading.value = false
+async function handleIssueSubmit(form: IssueFormState): Promise<void> {
+  const ok = await handleIssue(form)
+  if (ok) {
+    ElMessage.success('发放成功')
   }
 }
 
-const handleMarkLost = (row: IssueRecordInfo) => {
-  currentRecordId.value = row.id
-  lostForm.compensation_amount = 0
-  lostForm.remark = ''
-  showLostDialog.value = true
-}
-
-const confirmLost = async () => {
-  if (!currentRecordId.value || lostForm.compensation_amount <= 0) {
-    ElMessage.warning('请填写赔付金额（必须 > 0）')
-    return
+async function handleConfirm(payload: {
+  action: IssueAction
+  recordId: number
+  data: ReturnDialogState | LostDialogState | DamagedDialogState | CancelDialogState
+}): Promise<void> {
+  const { action, recordId, data } = payload
+  let ok = false
+  let msg = ''
+  switch (action) {
+    case 'return':
+      ok = await handleReturn(recordId, data as ReturnDialogState)
+      msg = '归还成功'
+      break
+    case 'lost':
+      ok = await handleMarkLost(recordId, data as LostDialogState)
+      msg = '已登记遗失'
+      break
+    case 'damaged':
+      ok = await handleMarkDamaged(recordId, data as DamagedDialogState)
+      msg = '已标记损坏'
+      break
+    case 'cancel':
+      ok = await handleCancel(recordId, (data as CancelDialogState).remark)
+      msg = '已取消发放'
+      break
   }
-  actionLoading.value = true
-  try {
-    await markIssueLost(currentRecordId.value, {
-      compensation_amount: lostForm.compensation_amount,
-      remark: lostForm.remark || undefined,
-    })
-    ElMessage.success('已登记遗失')
-    showLostDialog.value = false
-    loadRecords()
-  } finally {
-    actionLoading.value = false
-  }
-}
-
-const handleMarkDamaged = (row: IssueRecordInfo) => {
-  currentRecordId.value = row.id
-  damagedForm.compensation_amount = 0
-  damagedForm.remark = ''
-  showDamagedDialog.value = true
-}
-
-const confirmDamaged = async () => {
-  if (!currentRecordId.value) return
-  actionLoading.value = true
-  try {
-    await markIssueDamaged(currentRecordId.value, {
-      compensation_amount: damagedForm.compensation_amount || undefined,
-      remark: damagedForm.remark || undefined,
-    })
-    ElMessage.success('已标记损坏')
-    showDamagedDialog.value = false
-    loadRecords()
-  } finally {
-    actionLoading.value = false
+  if (ok) {
+    ElMessage.success(msg)
   }
 }
 
-const handleCancel = (row: IssueRecordInfo) => {
-  currentRecordId.value = row.id
-  cancelForm.remark = ''
-  showCancelDialog.value = true
-}
-
-const confirmCancel = async () => {
-  if (!currentRecordId.value) return
-  actionLoading.value = true
-  try {
-    await cancelIssue(currentRecordId.value, {
-      remark: cancelForm.remark || undefined,
-    })
-    ElMessage.success('已取消发放')
-    showCancelDialog.value = false
-    loadRecords()
-  } finally {
-    actionLoading.value = false
-  }
-}
-
-const formatDate = (s?: string) => (s ? new Date(s).toLocaleString('zh-CN') : '-')
+const formatDate = (s?: string): string => (s ? new Date(s).toLocaleString('zh-CN') : '-')
 
 onMounted(() => {
-  loadCards()
-  loadRecords()
+  init()
 })
 </script>
-
-<style scoped>
-.color-card-issue { padding: 16px; }
-</style>

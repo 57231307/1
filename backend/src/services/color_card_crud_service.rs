@@ -77,6 +77,8 @@ impl ColorCardCrudService {
             status: Set(master_data::ACTIVE.to_string()),
             description: Set(dto.description),
             cover_image_url: Set(dto.cover_image_url),
+            // V15 P0-F10：色卡库存联动初始库存=0（实际库存由发放/归还流程或后续入库管理）
+            stock_quantity: Set(0),
             created_at: Set(now),
             updated_at: Set(now),
         };

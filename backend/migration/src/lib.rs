@@ -92,6 +92,12 @@ pub mod m0054_enable_rls_policies;
 pub mod m0055_create_export_approval_request;
 // Batch 473 P0-S19：审计日志补齐 condition 字段（audit_logs + omni_audit_logs）
 pub mod m0056_add_condition_to_audit_logs;
+// Batch 477 P0-F13：创建 color_card_issues 表（补齐 Batch 471 遗漏的建表迁移）
+pub mod m0057_create_color_card_issues;
+// Batch 477 P0-F13：迁移 color_card_borrow_records 旧数据到 color_card_issues
+pub mod m0058_migrate_color_card_borrow_records;
+// Batch 477 P0-F10：color_cards 表新增 stock_quantity 字段（色卡库存联动）
+pub mod m0059_add_stock_quantity_to_color_cards;
 
 pub struct Migrator;
 
@@ -157,6 +163,9 @@ impl MigratorTrait for Migrator {
             Box::new(m0054_enable_rls_policies::Migration),
             Box::new(m0055_create_export_approval_request::Migration),
             Box::new(m0056_add_condition_to_audit_logs::Migration),
+            Box::new(m0057_create_color_card_issues::Migration),
+            Box::new(m0058_migrate_color_card_borrow_records::Migration),
+            Box::new(m0059_add_stock_quantity_to_color_cards::Migration),
         ]
     }
 }
