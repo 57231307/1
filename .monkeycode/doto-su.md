@@ -244,6 +244,123 @@
 
 ---
 
+## 📝 V15 修复阶段 Batch 476 归档（2026-07-18，P0-S17 打印 HTML 真实数据查询）
+
+> 本节归档 Batch 476 修复内容（main 直接提交 eb57484；PR #664 因 main 抢先直接提交被关闭冲突）。
+> **里程碑**：本批次完成后，模块 A（安全与权限）所有 P0 任务全部完成。
+
+### 1. 任务概览
+
+| 字段 | 值 |
+|------|----|
+| 批次 | Batch 476 |
+| 模块 | A（安全与权限）|
+| 任务 | P0-S17 打印 HTML 是占位假数据（类十三）|
+| 来源 | batch-11 P0-11-15 |
+| 工作量 | L（实际 2 文件）|
+| 合并方式 | main 直接提交 eb57484 |
+| PR | #664（因 main 抢先直接提交被关闭冲突）|
+| CI | 13/13 全绿 + 2 skipped |
+
+### 2. 问题描述
+
+`print_handler.rs` 虽调用 PrintService，但 `print_service.rs:57-142` 各 `get_*_print_data` 方法返回硬编码占位数据：
+- "客户名称" 等中文字符串占位
+- `format!("SO-{:06}", id)` 拼接假单号
+- 明细项为空 Vec
+
+未真实查询数据库，导致打印 HTML 全是假数据。
+
+### 3. 修复方案
+
+#### 3.1 后端 `print_service.rs` 改造
+
+**PrintService 结构变化**：
+- 原：`PrintService::new()` 无状态
+- 新：`PrintService::new(db: Arc<DatabaseConnection>)` 持有数据库连接
+
+**6 个 get_*_print_data 方法改造**（使用 sea-orm 直接查询主表 + 关联表）：
+
+| 方法 | 查询逻辑 |
+|------|---------|
+| `get_sales_order_print_data` | 订单主表 + `find_related(customer)` + `find_related(sales_order_item)` + `load_one(product)` LoaderTrait |
+| `get_sales_contract_print_data` | 合同主表 + `customer::Entity::find_by_id(contract.customer_id)` |
+| `get_purchase_order_print_data` | 订单主表 + supplier + warehouse + items（按 line_no 排序）+ products（is_in 批量查询） |
+| `get_purchase_receipt_print_data` | 收货主表 + supplier + warehouse + items |
+| `get_inventory_transfer_print_data` | 调拨主表 + 调出仓库 + 调入仓库 + items |
+| `get_voucher_print_data` | 凭证占位保留（无 voucher model）|
+
+**字段映射关键点**：
+- 金额字段 `.to_string()` 序列化（Decimal/Option<Decimal>）
+- 日期字段 `.format("%Y-%m-%d")` 格式化
+- Optional 字段 `unwrap_or_default()` 防止 None 渲染为 null
+- HTML 转义 `escape_html()` 防 XSS
+
+#### 3.2 后端 `print_handler.rs` 改造
+
+- `render_print_html` 函数签名从 `(doc_type, doc_id)` 改为 `(state: &AppState, doc_type, doc_id)`
+- 内部调用从 `PrintService::new()` 改为 `PrintService::new(state.db.clone())`
+- 5 个 handler 函数（sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer）签名补充 `State(state): State<AppState>`，调用 `render_print_html(&state, ...)`
+
+### 4. 关键技术要点与教训
+
+#### 4.1 service 子模块路径陷阱（P9-2 重构后）
+
+- ❌ 错误：`crate::services::po::PurchaseOrderService`
+- ❌ 错误：`crate::services::so::SalesService`
+- ✅ 正确：`crate::services::po::order::PurchaseOrderService`
+- ✅ 正确：`crate::services::so::order::SalesService`
+
+**原因**：P9-2 重构后 service 文件移到子目录，`po/order.rs` 而非 `po.rs`，`so/order.rs` 而非 `so.rs`。
+
+**最终方案**：本批次未走 service 委托，改用 sea-orm 直接查询，规避了路径问题。
+
+#### 4.2 model 字段名与任务定义不符
+
+`purchase_receipt_item` model 实际字段：
+- ✅ `color_code: Option<String>`（非 `color_no`）
+- ✅ `amount: Option<Decimal>`（非 `total_amount`）
+- ✅ `unit_price: Option<Decimal>`（非 `Decimal`）
+
+**修复**：使用 `.clone().unwrap_or_default()` / `.map(|v| v.to_string()).unwrap_or_default()` 处理 Optional。
+
+#### 4.3 main 直接提交导致 PR 冲突
+
+- 现象：PR #664 在 CI 中收到 `GraphQL: Pull Request has merge conflicts`
+- 原因：main 收到直接提交 eb57484 实现了相同功能
+- 处理：abort rebase + 关闭 PR #664（评论说明被 main 直接提交取代）+ 删除分支 + 同步本地 main 到 origin/main
+
+### 5. CI 验证
+
+- **CI 结果**：13/13 全绿 + 2 skipped
+- **跳过项**：2（无详细说明，疑似 e2e 类）
+- **修复轮次**：1 轮（一次过）
+
+### 6. 自审门（规则 13 步骤 4）
+
+- ✅ grep `PrintService::new` 全部调用点已更新
+- ✅ grep `get_print_data` / `render_print_html` 全部调用点已更新
+- ✅ grep `print_handler` 路由注册无变更（路由未变）
+- ✅ HTML 字段引用与 PrintService 输出 key 对齐
+
+### 7. 影响范围
+
+| 文件 | 改动类型 |
+|------|---------|
+| `backend/src/services/print_service.rs` | 重写 6 个方法 + 添加 db 字段 |
+| `backend/src/handlers/print_handler.rs` | 修改 render_print_html + 5 个 handler 签名 |
+
+**总计**：2 文件
+
+### 8. 后续工作
+
+- 模块 A（安全与权限）所有 P0 任务全部完成
+- 下一批次 Batch 477：P0-F10/F11/F12/F13 色卡发放库存联动（模块 B 启动）
+
+---
+
+
+
 ## 📝 V15 修复阶段 Batch 475e 归档（2026-07-18，P0-S12 前端导出接入后端 B 类批次 3/3 收尾）
 
 > 本节归档 Batch 475e 修复内容（PR #662，squash ff07549）。

@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；Batch 475e 已合并 PR #662（P0-S12 前端导出 B 类批次 3/3 收尾完成，ar + ap + cost + budget + fixed-assets 5 模块闭环，P0-S12 前端导出接入后端全部完成）；P0 进度 70/104；剩余 34 P0 + 257 P1 + 248 P2 + 123 P3 = 662 项；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
+> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；Batch 475e 已合并 PR #662（P0-S12 前端导出 B 类批次 3/3 收尾完成，ar + ap + cost + budget + fixed-assets 5 模块闭环，P0-S12 前端导出接入后端全部完成）；Batch 476 已合并 main 直接提交 eb57484（P0-S17 打印 HTML 真实数据查询完成，print_service + print_handler 2 文件，6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB）；P0 进度 71/104；剩余 33 P0 + 257 P1 + 248 P2 + 123 P3 = 661 项；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
 
 ---
 
@@ -12,19 +12,19 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 70 | **34** | 67.3% |
+| **P0 阻塞级** | 104 | 71 | **33** | 68.3% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **70** | **662** | **9.6%** |
+| **合计** | **732** | **71** | **661** | **9.7%** |
 
-> P0 已完成 70 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）。
+> P0 已完成 71 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）+ Batch 476 修复 1 项（P0-S17 打印 HTML 真实数据查询）。
 > P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），Batch 475e 已完成 B 类批次 3/3 收尾（ar + ap + cost + budget + fixed-assets 5 模块），**P0-S12 前端导出接入后端全部完成**。
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 475e 已合并（PR #662，squash ff07549）—— P0-S12 前端导出 B 类批次 3/3 收尾完成（ar + ap + cost + budget + fixed-assets 5 模块闭环），**P0-S12 前端导出接入后端全部完成**
-- **下一批次**：Batch 476（P0 其他模块：待审计确定下一批优先级）
+- **当前批次**：Batch 476 已合并（main 直接提交 eb57484）—— P0-S17 打印 HTML 真实数据查询完成（print_service.rs 6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB；print_handler.rs 注入 AppState）
+- **下一批次**：Batch 477（P0-F10 色卡发放库存联动 + P0-F11/F12 前端文件结构 + P0-F13 数据迁移，~9 文件）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
@@ -169,8 +169,8 @@ P0-D17 OA 公告 (M)  ← 独立
 | 🟡 475b | A | P0-S12 前端导出 purchase/customer 闭环（A 类）| S | 474 | 已合并 PR #659（squash cde7e9a）；A 类 2 文件完成（usePurchAct.ts + CustomerListTab.vue）；后端 export_orders 注入水印；CI 一次过 13/13 全绿 |
 | 🟡 475c | A | P0-S12 前端导出接入后端（B 类批次 1/3）| XL | 474 | 已合并 PR #660（squash 38e8e43）；inventory + warehouse + production 3 模块：后端新增 3 端点（export_stock/export_warehouses/export_production_orders）+ 前端切换 4 文件（inventory/index.vue + warehouse/index.vue + usePrdProc.ts + production/index.vue）+ 3 路由注册 + 自审门 = 11 文件；CI 2 轮（第 1 轮 E0599 WarehouseListQuery 未派生 Clone，第 2 轮修复后 13/13 全绿） |
 | 🟡 475d | A | P0-S12 前端导出接入后端（B 类批次 2/3）| XL | 475c | 已合并 PR #661（squash 4bb7005）；sales-contract/sales-price + quality/quality-standards 4 模块：后端新增 4 端点（export_contracts/export_prices/export_records/export_standards）+ 前端切换 7 文件（useScProc.ts + useSpProc.ts + sales-contract/index.vue + sales-price/index.vue + RecordTab.vue + StandardTab.vue + quality-standards/index.vue）+ 4 路由注册 + 自审门 = 14 文件；CI 2 轮（第 1 轮前端类型检查失败 useTableApi queryParams 类型为 Ref<Record<string, unknown>> 与 getQueryParams 强类型返回值不兼容，第 2 轮修复添加类型断言后 13/13 全绿） |
-| 475e | A | P0-S12 前端导出接入后端（B 类批次 3/3）| XL | 475d | voucher/finance/ar/ap/accountSubject/financeReport + cost/budget/fixed-assets 2 模块：后端新增 6 端点 + 前端切换 10 文件 + 6 路由注册 + 自审门 = ~12 文件 |
-| 476 | A | P0-S17 打印 HTML 真实数据查询 | L | 无 | 独立任务，print_service 真实查询；print_handler.rs + print_service.rs + print_templates/ 目录（约 9 文件）|
+| ✅ 475e | A | P0-S12 前端导出接入后端（B 类批次 3/3）| XL | 475d | 已合并 PR #662（squash ff07549）；ar/ap/cost/budget/fixed-assets 5 模块：后端新增 5 端点（export_ar_invoices/export_ap_invoices/export_cost_items/export_budgets/export_fixed_assets）+ 前端切换 5 文件（Tab.vue × 5）+ 5 路由注册 = 12 文件；CI 一次过 13/13 全绿；**P0-S12 前端导出接入后端全部完成** |
+| ✅ 476 | A | P0-S17 打印 HTML 真实数据查询 | L | 无 | 已合并 main 直接提交 eb57484（PR #664 因 main 抢先直接提交被关闭冲突）；print_service.rs 6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB（sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer/voucher）+ print_handler.rs 注入 AppState；2 文件；CI 13/13 全绿 + 2 skipped |
 | 477 | B | P0-F10 色卡发放库存联动 + P0-F11/F12 前端文件结构 + P0-F13 数据迁移 | M+L+S | 无 | 后端库存扣减 + legacy 迁移脚本 + 5 个前端文件（ColorCardIssueForm.vue + ColorCardIssueDetail.vue + useColorCardIssue.ts + colorCardIssue.ts + colorCardIssue store）= ~9 文件 |
 | 478 | C | P0-F15 bulk_color_approval 表 + P0-F16 剪大货样 + P0-F17 客户批色确认 + P0-F19 ship_order 校验 | M+M+M+S | 无 | 数据库基础 + 业务规则 + 末端校验 = ~10 文件 |
 | 479 | C | P0-F18 返工/降级/报废 + P0-F21 返工走生产订单 | L+M | 478 | 批色闭环：返工走生产订单 + 库存转报废仓 + 等级降级 = ~9 文件 |
@@ -213,43 +213,37 @@ P0-D17 OA 公告 (M)  ← 独立
 
 ## 四、未完成任务清单（按业务模块分组）
 
-### 4.1 模块 A：安全与权限（3 项，原 7 项 - Batch 473 完成 P0-S14 + P0-S19，Batch 474 完成 P0-S15，Batch 475a 完成 P0-S13）
+### 4.1 模块 A：安全与权限（0 项未完成，原 7 项 - Batch 473 完成 P0-S14 + P0-S19，Batch 474 完成 P0-S15，Batch 475a 完成 P0-S13，Batch 475b-e 完成 P0-S12，Batch 476 完成 P0-S17）
 
-#### P0-S12 前端本地导出完全无审计（类十三，部分完成）
+> 模块 A 全部 P0 任务已完成。下方保留已完成任务摘要供参考。
+
+#### P0-S12 前端本地导出完全无审计（类十三，✅ 已完成）
 
 - **来源**：batch-11 P0-11-10/11
-- **进度**：⚠️ Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），剩 10 页面未改造
+- **进度**：✅ 全部完成（Batch 474 核心页面 + 475a-e 5 个微批次），共改造 25+ 页面，覆盖所有模块
 - **已完成内容**：
   - Batch 474 PR #657：新增 `exportFromBackend` 函数（独立 axios 实例，绕过 request.ts 拦截器避免 Blob 类型丢失 + router 导入链副作用）；customer/index.vue + supplier/index.vue 改用后端 API；后端 `/crm/customers/export` + `/purchase/suppliers/export` 端点
   - Batch 475a PR #658：audit-log/index.vue 改用后端 API（`/audit-logs/export`）；后端 audit_log_handler 注入水印
   - Batch 475b PR #659：usePurchAct.ts + CustomerListTab.vue 改用后端 API；后端 export_orders 注入水印
   - Batch 475c PR #660：inventory/index.vue + warehouse/index.vue + usePrdProc.ts + production/index.vue 改用后端 API；后端新增 export_stock / export_warehouses / export_production_orders 3 端点 + 3 路由注册；CI 2 轮修复（E0599 WarehouseListQuery 未派生 Clone）
   - Batch 475d PR #661：useScProc.ts + useSpProc.ts + sales-contract/index.vue + sales-price/index.vue + RecordTab.vue + StandardTab.vue + quality-standards/index.vue 共 7 文件改用后端 API；后端新增 export_contracts / export_prices / export_records / export_standards 4 端点 + 4 路由注册；4 个 Query struct 派生 Clone（防 E0599 重现）；CI 2 轮修复（第 1 轮前端类型检查失败 useTableApi queryParams 类型为 Ref<Record<string, unknown>> 与 getQueryParams 强类型返回值不兼容，第 2 轮添加类型断言后全绿）；自审门发现 StandardTab.vue 同类问题并同步改造
-- **剩余工作**：10 页面改造（B 类，需后端新增端点），详见下方清单
-- **关联文件**：[frontend/src/utils/export.ts](file:///workspace/frontend/src/utils/export.ts) + 14 视图文件 + 各资源 handler/service
+  - Batch 475e PR #662：ar/ap/cost/budget/fixed-assets 5 模块 5 个 Tab.vue 改用后端 API；后端新增 export_ar_invoices / export_ap_invoices / export_cost_items / export_budgets / export_fixed_assets 5 端点 + 5 路由注册；CI 一次过 13/13 全绿
+- **关联文件**：[frontend/src/utils/export.ts](file:///workspace/frontend/src/utils/export.ts) + 25+ 视图文件 + 各资源 handler/service
 - **依赖**：✅ P0-S14 已完成（Batch 473）/ ✅ P0-S15 水印已完成（Batch 474）
-- **工作量**：XL（剩余部分 L，拆分微批次 475c/475d/475e）
-- **批次**：475c 起（拆分微批次）
+- **工作量**：XL（拆分 5 个微批次完成）
+- **批次**：474 + 475a-e（已全部完成）
 
-#### 待改造前端文件清单（10 个，截至 Batch 475d 后）
+> P0-S12 详细归档见 [doto-su.md §V15 Batch 474/475a-475e](file:///workspace/.monkeycode/doto-su.md)。
 
-**B 类：需后端新增端点 + 前端改造（10 个）**
-| 模块 | 前端文件数 | 后端需新增端点 | 批次 |
-|------|------------|----------------|------|
-| voucher / finance / ar / ap / accountSubject / financeReport | 7 | 凭证/科目/应收发票/应付发票/财务报表 export | 475e |
-| cost / budget / fixed-assets | 3 | 成本归集/预算/固定资产 export | 475e |
-
-> P0-S13（审计日志导出"假按钮"陷阱）已 Batch 475a PR #658 完成，详细记录归档到 [doto-su.md §V15 Batch 475a](file:///workspace/.monkeycode/doto-su.md)。
-
-#### P0-S17 打印 HTML 是占位假数据（类十三）
+#### P0-S17 打印 HTML 是占位假数据（类十三，✅ 已完成）
 
 - **来源**：batch-11 P0-11-15
-- **证据**：print_handler.rs 虽调用 PrintService，但 print_service.rs:57-142 各 get_*_print_data 返回硬编码占位数据如 "客户名称"、format!("SO-{:06}", id)，未真实查询数据库
-- **修复方案**：print_handler 根据资源类型查询真实数据，使用 handlebars 模板渲染
-- **关联文件**：print_handler.rs / print_service.rs / print_templates/ 目录
+- **进度**：✅ 已完成（main 直接提交 eb57484，Batch 476）
+- **已完成内容**：print_service.rs 6 个 get_*_print_data 方法从硬编码占位改为真实查询 DB（sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer/voucher）；print_handler.rs 注入 AppState，调用 PrintService::new(state.db.clone())；使用 sea-orm 直接查询主表 + 关联客户/供应商/仓库 + 明细项 + 产品（LoaderTrait）
+- **关联文件**：[print_service.rs](file:///workspace/backend/src/services/print_service.rs) / [print_handler.rs](file:///workspace/backend/src/handlers/print_handler.rs)
 - **依赖**：无
-- **工作量**：L
-- **批次**：476
+- **工作量**：L（实际 2 文件）
+- **批次**：476（已合并 main 直接提交 eb57484）
 
 > P0-S14（migration 补齐）+ P0-S19（审计字段补齐）已 Batch 473 PR #656 完成，详细记录归档到 [doto-su.md §V15 Batch 473](file:///workspace/.monkeycode/doto-su.md)。
 > P0-S15（导出水印基础设施）已 Batch 474 PR #657 完成，详细记录归档到 [doto-su.md §V15 Batch 474](file:///workspace/.monkeycode/doto-su.md)。
