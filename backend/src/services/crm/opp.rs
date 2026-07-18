@@ -312,14 +312,18 @@ impl CrmService {
                 opportunity_active.opportunity_stage.as_ref(),
                 &v,
             )?;
-            opportunity_active.opportunity_stage = Set(Some(v));
             // V15 P0-B08：阶段流转时自动重算赢率
             // 用户未显式传 win_probability 时，按新阶段的默认赢率填充
             // 若用户同时传了 win_probability，下方 req.win_probability 分支会覆盖此默认值
-            if req.win_probability.is_none() {
-                if let Some(default_prob) = default_win_probability_by_stage(&v) {
-                    opportunity_active.win_probability = Set(Some(default_prob));
-                }
+            // 注意：需在 Set(Some(v)) 移动 v 之前计算默认赢率
+            let default_prob = if req.win_probability.is_none() {
+                default_win_probability_by_stage(&v)
+            } else {
+                None
+            };
+            opportunity_active.opportunity_stage = Set(Some(v));
+            if let Some(prob) = default_prob {
+                opportunity_active.win_probability = Set(Some(prob));
             }
         }
         if let Some(v) = req.win_probability {
