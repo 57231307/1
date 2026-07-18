@@ -323,3 +323,13 @@ pub mod dye_batch_rework;
 pub mod dye_batch_operation;
 // V15 P0-F15：大货批色审批表（8 状态机：pending→sampled→sent_to_customer→approved/rejected/rework→downgraded/scrapped）
 pub mod bulk_color_approval;
+// V15 P0-B01/B02 Batch 481：坏账准备 + 坏账核销 Model + DTO
+pub mod bad_debt_provision;
+pub mod bad_debt_writeoff;
+pub mod bad_debt_dto;
+// V15 P0-B03 Batch 481：催收任务 Model + DTO
+pub mod collection_task;
+pub mod collection_task_dto;
+// V15 P0-B04 Batch 481：财务预警 Model + DTO
+pub mod finance_alert;
+pub mod finance_alert_dto;

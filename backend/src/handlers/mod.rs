@@ -177,3 +177,7 @@ pub mod dye_batch_state_machine_handler;
 pub mod bulk_color_approval_handler;
 // V15 P0-F20 Batch 480：8D 质量管理流程 handler（11 状态机 + 7 端点）
 pub mod quality_8d_handler;
+// V15 P0-B01/B02/B03/B04 Batch 481：坏账管理 + 催收任务 + 财务预警 handler
+pub mod bad_debt_handler;
+pub mod collection_task_handler;
+pub mod finance_alert_handler;

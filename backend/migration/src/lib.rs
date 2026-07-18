@@ -99,6 +99,14 @@ pub mod m0058_create_bulk_color_approval;
 pub mod m0059_add_rework_order_fields;
 // Batch 480 P0-F20：8D 质量管理流程（quality_8d_reports 表 + 11 态状态机 D0~D8 + closed）
 pub mod m0060_create_quality_8d_reports;
+// Batch 481 P0-B01：坏账准备计提表（账龄法：1y/2y/3y/over 5%/20%/50%/100%）
+pub mod m0061_create_bad_debt_provisions;
+// Batch 481 P0-B02：坏账核销审批表（二级审批流 pending→finance_approved→approved/rejected/cancelled）
+pub mod m0062_create_bad_debt_writeoffs;
+// Batch 481 P0-B03：催收任务表（自动生成 + 4 类型 phone/visit/email/letter + 优先级）
+pub mod m0063_create_collection_tasks;
+// Batch 481 P0-B04：财务预警表（4 类 ar_overdue/inventory_backlog/cash_flow_shortage/budget_overrun）
+pub mod m0064_create_finance_alerts;
 
 pub struct Migrator;
 
@@ -168,6 +176,10 @@ impl MigratorTrait for Migrator {
             Box::new(m0058_create_bulk_color_approval::Migration),
             Box::new(m0059_add_rework_order_fields::Migration),
             Box::new(m0060_create_quality_8d_reports::Migration),
+            Box::new(m0061_create_bad_debt_provisions::Migration),
+            Box::new(m0062_create_bad_debt_writeoffs::Migration),
+            Box::new(m0063_create_collection_tasks::Migration),
+            Box::new(m0064_create_finance_alerts::Migration),
         ]
     }
 }
