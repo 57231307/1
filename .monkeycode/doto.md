@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；P0 进度 69/104（P0-S12 整体仍未完成）；剩余 35 P0 + 257 P1 + 248 P2 + 123 P3 = 663 项；规划 22 个批次完成 P0；下一批次 475e 推进剩余 10 个前端导出页面 + 6 个后端新增端点（B 类批次 3/3 收尾）；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
+> 最近梳理：2026-07-18（规则 13 四次迭代新增步骤 0"确定审计结果内容是否存在"修复前置门 + 步骤 4"修复后推送前自审"与规则 20 联动；按业务模块重组未完成任务 + 新增依赖关系图 + 新增批次规划表 + 新增工作量预估；Batch 473 已合并 PR #656（P0-S14 migration + P0-S19 审计字段补齐）；Batch 474 已合并 PR #657（P0-S15 导出水印基础设施完成 + P0-S12 前端导出接入后端核心 2 页面完成）；Batch 475a 已合并 PR #658（P0-S13 审计日志导出闭环完成）；Batch 475b 已合并 PR #659（P0-S12 前端导出 purchase/customer 闭环，A 类 2 文件完成）；Batch 475c 已合并 PR #660（P0-S12 前端导出 B 类批次 1/3 完成，inventory + warehouse + production 3 模块闭环）；Batch 475d 已合并 PR #661（P0-S12 前端导出 B 类批次 2/3 完成，sales-contract + sales-price + quality + quality-standards 4 模块闭环）；Batch 475e 已合并 PR #662（P0-S12 前端导出 B 类批次 3/3 收尾完成，ar + ap + cost + budget + fixed-assets 5 模块闭环，P0-S12 前端导出接入后端全部完成）；P0 进度 70/104；剩余 34 P0 + 257 P1 + 248 P2 + 123 P3 = 662 项；规则 13 连续执行；禁止本地编译验证；批次节奏调整为每批 9-12 文件）。
 
 ---
 
@@ -12,19 +12,19 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 69 | **35** | 66.3% |
+| **P0 阻塞级** | 104 | 70 | **34** | 67.3% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **69** | **663** | **9.4%** |
+| **合计** | **732** | **70** | **662** | **9.6%** |
 
-> P0 已完成 69 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）。
-> P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），剩 10 页面在 Batch 475e 推进（任务整体未完成，不计入已完成）。
+> P0 已完成 70 项 = 原 62 项 + 复审发现已完成 4 项（P0-S08/S16/F14/T04）- 复审重新打开 1 项（P0-S14）+ Batch 473 修复 2 项（P0-S14 migration 补齐 + P0-S19 condition 字段补齐）+ Batch 474 修复 1 项（P0-S15 导出水印基础设施）+ Batch 475a 修复 1 项（P0-S13 审计日志导出闭环）。
+> P0-S12 前端导出接入后端：Batch 474 已完成核心 2 页面（customer/supplier），Batch 475a 已完成 audit-log（P0-S13 闭环），Batch 475b 已完成 purchase/customer 闭环（A 类 2 文件），Batch 475c 已完成 B 类批次 1/3（inventory + warehouse + production 3 模块），Batch 475d 已完成 B 类批次 2/3（sales-contract + sales-price + quality + quality-standards 4 模块），Batch 475e 已完成 B 类批次 3/3 收尾（ar + ap + cost + budget + fixed-assets 5 模块），**P0-S12 前端导出接入后端全部完成**。
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 475d 已合并（PR #661，squash 4bb7005）—— P0-S12 前端导出 B 类批次 2/3 完成（sales-contract + sales-price + quality + quality-standards 4 模块闭环）
-- **下一批次**：Batch 475e（模块 A 安全权限：P0-S12 剩余 10 个前端导出页面接入后端 + 6 个后端新增端点，B 类批次 3/3 收尾）
+- **当前批次**：Batch 475e 已合并（PR #662，squash ff07549）—— P0-S12 前端导出 B 类批次 3/3 收尾完成（ar + ap + cost + budget + fixed-assets 5 模块闭环），**P0-S12 前端导出接入后端全部完成**
+- **下一批次**：Batch 476（P0 其他模块：待审计确定下一批优先级）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
