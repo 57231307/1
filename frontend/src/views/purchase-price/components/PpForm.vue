@@ -10,9 +10,10 @@
     :title="title"
     width="700px"
     :close-on-click-modal="false"
+    :aria-label="title"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localFormData" label-width="100px">
+    <el-form :model="localFormData" label-width="100px" aria-label="采购价格表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="产品" prop="product_id">

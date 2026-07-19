@@ -8,9 +8,10 @@
     :model-value="visible"
     title="价格历史"
     width="800px"
+    aria-label="采购价格历史对话框"
     @update:model-value="onVisibleChange"
   >
-    <el-table :data="historyList" border stripe>
+    <el-table :data="historyList" border stripe aria-label="采购价格历史记录列表">
       <el-table-column prop="price" label="采购价格" width="120" align="right">
         <template #default="{ row }">
           {{ formatCurrency(row.price) }}
