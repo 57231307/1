@@ -1,6 +1,10 @@
 use crate::models::role;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+// P0-D03（Batch 488）：Redis 分布式缓存接入（find_by_id 读穿透 + 写失效）
+use crate::utils::redis_cache::{
+    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+};
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
@@ -20,11 +24,27 @@ impl RoleService {
     }
 
     /// 根据 ID 查找角色
+    ///
+    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）
+    /// - 读穿透：先查 Redis，未命中查 DB 后回填 Redis
+    /// - 写失效：update/delete 时清除对应 key
     pub async fn find_by_id(&self, id: i32) -> Result<role::Model, AppError> {
-        role::Entity::find_by_id(id)
+        // P0-D03：先查 Redis 缓存
+        let cache_key_str = cache_key("role", id);
+        if let Some(cached) = redis_cache_get_json::<role::Model>(&cache_key_str).await {
+            return Ok(cached);
+        }
+
+        // 缓存未命中 → 查询 DB
+        let role = role::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("角色 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("角色 ID {} 不存在", id)))?;
+
+        // 回填 Redis 缓存（5 分钟 TTL）
+        redis_cache_set_json(&cache_key_str, &role, DEFAULT_CACHE_TTL_SECS).await;
+
+        Ok(role)
     }
 
     /// 根据编码查找角色
@@ -113,6 +133,10 @@ impl RoleService {
         role_active.updated_at = Set(Utc::now());
         let result = role_active.update(&txn).await?;
         txn.commit().await?;
+
+        // P0-D03：失效角色缓存（角色信息已更新）
+        redis_cache_del(&cache_key("role", role_id)).await;
+
         Ok(result)
     }
 
@@ -137,6 +161,10 @@ impl RoleService {
         let role_active: role::ActiveModel = role_model.into();
         role_active.delete(&txn).await?;
         txn.commit().await?;
+
+        // P0-D03：失效角色缓存（角色已删除）
+        redis_cache_del(&cache_key("role", role_id)).await;
+
         Ok(())
     }
 

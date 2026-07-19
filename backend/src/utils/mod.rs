@@ -1,6 +1,8 @@
 pub mod admin_checker;
 pub mod app_state;
 pub mod cache;
+// P0-D03/D04（Batch 488）：Redis 分布式缓存工具（L2 层，配合 cache_service 的 moka L1）
+pub mod redis_cache;
 pub mod data_permission;
 // V15 P0-S01 新增：行级数据权限工具模块（DataScope + apply_data_scope + check_resource_owner）
 pub mod data_scope;

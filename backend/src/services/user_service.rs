@@ -25,6 +25,10 @@ use crate::models::role_conflict;
 use crate::models::permission_change_audit;
 // V15 P0-S07：用户角色变更/禁用时失效权限缓存 + 吊销 JWT
 use crate::middleware::permission::invalidate_permission_cache;
+// P0-D03（Batch 488）：Redis 分布式缓存接入（find_by_id 读穿透 + 写失效）
+use crate::utils::redis_cache::{
+    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+};
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
@@ -66,6 +70,10 @@ impl UserService {
 
     /// 按 ID 查找用户（命中 Redis 时直接返回缓存）
     ///
+    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）
+    /// - 读穿透：先查 Redis，未命中查 DB 后回填 Redis
+    /// - 写失效：create/update/delete 时清除对应 key
+    ///
     /// # 参数
     /// - `id`: 用户 ID
     ///
@@ -73,10 +81,22 @@ impl UserService {
     /// - `Ok(user)`: 找到用户
     /// - `Err(DbErr::RecordNotFound)`: 用户不存在
     pub async fn find_by_id(&self, id: i32) -> Result<user::Model, AppError> {
-        user::Entity::find_by_id(id)
+        // P0-D03：先查 Redis 缓存
+        let cache_key_str = cache_key("user", id);
+        if let Some(cached) = redis_cache_get_json::<user::Model>(&cache_key_str).await {
+            return Ok(cached);
+        }
+
+        // 缓存未命中 → 查询 DB
+        let user = user::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", id)))?;
+
+        // 回填 Redis 缓存（5 分钟 TTL）
+        redis_cache_set_json(&cache_key_str, &user, DEFAULT_CACHE_TTL_SECS).await;
+
+        Ok(user)
     }
 
     /// 创建新用户
@@ -174,6 +194,9 @@ impl UserService {
 
         user.last_login_at = Set(Some(chrono::Utc::now()));
         user.update(self.db.as_ref()).await?;
+
+        // P0-D03：失效用户缓存（last_login_at 已变更）
+        redis_cache_del(&cache_key("user", user_id)).await;
 
         // 批次 389 P2-2：用户登录时间更新记录 security_audit 安全审计日志
         info!(
@@ -396,6 +419,9 @@ impl UserService {
             .await
             .map_err(AppError::from)?;
 
+        // P0-D03：失效用户缓存（用户信息已更新）
+        redis_cache_del(&cache_key("user", user_id)).await;
+
         // V15 P0-S07：角色变更后失效旧角色和新角色的权限缓存
         if let Some(new_role_id) = role_id {
             if let Some(old_rid) = old_role_id {
@@ -471,6 +497,9 @@ impl UserService {
         user.is_active = Set(false);
         user.updated_at = Set(chrono::Utc::now());
         user.update(self.db.as_ref()).await?;
+
+        // P0-D03：失效用户缓存（用户已软删除）
+        redis_cache_del(&cache_key("user", user_id)).await;
 
         // 批次 389 P2-2：用户软删除记录 security_audit 安全审计日志
         info!(

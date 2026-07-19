@@ -19,6 +19,10 @@ use crate::utils::data_permission::{DataPermissionFilter, CUSTOMER_ALL_FIELDS};
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
+// P0-D03（Batch 488）：Redis 分布式缓存接入（get_customer 读穿透 + 写失效）
+use crate::utils::redis_cache::{
+    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+};
 use crate::utils::PaginatedResponse;
 
 /// 将字段名映射到客户实体的列枚举
@@ -318,18 +322,37 @@ impl CustomerService {
     }
 
     /// 获取客户详情
+    ///
+    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）
+    /// - 读穿透：先查 Redis，未命中查 DB 后回填 Redis
+    /// - 写失效：update/delete 时清除对应 key
+    /// - 权限校验：基于 customer.created_by，缓存命中时同样校验
     pub async fn get_customer(
         &self,
         customer_id: i32,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<customer::Model, AppError> {
-        let customer = CustomerEntity::find_by_id(customer_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
+        // P0-D03：先查 Redis 缓存
+        let cache_key_str = cache_key("customer", customer_id);
+        let cached: Option<customer::Model> =
+            redis_cache_get_json::<customer::Model>(&cache_key_str).await;
+
+        let customer = if let Some(model) = cached {
+            model
+        } else {
+            // 缓存未命中 → 查询 DB
+            let model = CustomerEntity::find_by_id(customer_id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
+            // 回填 Redis 缓存（5 分钟 TTL）
+            redis_cache_set_json(&cache_key_str, &model, DEFAULT_CACHE_TTL_SECS).await;
+            model
+        };
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // customer 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        // P0-D03：缓存命中的 model 同样需要校验权限，防止越权读取缓存
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, customer.created_by, None) {
                 return Err(AppError::permission_denied(format!(
@@ -649,6 +672,9 @@ impl CustomerService {
 
         txn.commit().await?;
 
+        // P0-D03：失效客户缓存（客户信息已更新）
+        redis_cache_del(&cache_key("customer", customer_id)).await;
+
         // B-P1-3 修复（批次 384 v13 复审）：客户主数据变更后发布事件，触发关联单据冗余字段刷新
         EVENT_BUS.publish(BusinessEvent::CustomerUpdated {
             customer_id: updated.id,
@@ -704,6 +730,9 @@ impl CustomerService {
         .await?;
 
         txn.commit().await?;
+
+        // P0-D03：失效客户缓存（客户状态已变更为 inactive）
+        redis_cache_del(&cache_key("customer", customer_id)).await;
 
         // 批次 124 v8 复审 P1 修复：软删除后同步 status=inactive 到 ES
         // 设计决策：软删除不删除 ES 文档，保留便于搜索历史客户（status 字段已同步）

@@ -4,6 +4,10 @@ use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScope
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
+// P0-D03（Batch 488）：Redis 分布式缓存接入（get_supplier 读穿透 + 写失效）
+use crate::utils::redis_cache::{
+    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+};
 use crate::utils::response::PaginatedResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -240,18 +244,37 @@ impl SupplierService {
     }
 
     /// 获取供应商详情
+    ///
+    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）
+    /// - 读穿透：先查 Redis，未命中查 DB 后回填 Redis
+    /// - 写失效：update/delete/toggle_status 时清除对应 key
+    /// - 权限校验：基于 supplier.created_by，缓存命中时同样校验
     pub async fn get_supplier(
         &self,
         id: i32,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<supplier::Model, AppError> {
-        let supplier_model = supplier::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("供应商 {} 不存在", id)))?;
+        // P0-D03：先查 Redis 缓存
+        let cache_key_str = cache_key("supplier", id);
+        let cached: Option<supplier::Model> =
+            redis_cache_get_json::<supplier::Model>(&cache_key_str).await;
+
+        let supplier_model = if let Some(model) = cached {
+            model
+        } else {
+            // 缓存未命中 → 查询 DB
+            let model = supplier::Entity::find_by_id(id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("供应商 {} 不存在", id)))?;
+            // 回填 Redis 缓存（5 分钟 TTL）
+            redis_cache_set_json(&cache_key_str, &model, DEFAULT_CACHE_TTL_SECS).await;
+            model
+        };
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
         // supplier 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        // P0-D03：缓存命中的 model 同样需要校验权限，防止越权读取缓存
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, supplier_model.created_by, None) {
                 return Err(AppError::permission_denied(format!(
@@ -379,6 +402,9 @@ impl SupplierService {
             },
         );
 
+        // P0-D03：失效供应商缓存（供应商信息已更新）
+        redis_cache_del(&cache_key("supplier", id)).await;
+
         Ok(updated)
     }
 
@@ -415,6 +441,10 @@ impl SupplierService {
         .await?;
 
         txn.commit().await?;
+
+        // P0-D03：失效供应商缓存（供应商已硬删除）
+        redis_cache_del(&cache_key("supplier", id)).await;
+
         Ok(())
     }
 
@@ -480,6 +510,10 @@ impl SupplierService {
             Some(user_id),
         )
         .await?;
+
+        // P0-D03：失效供应商缓存（启用/禁用状态已变更）
+        redis_cache_del(&cache_key("supplier", id)).await;
+
         Ok(updated)
     }
 

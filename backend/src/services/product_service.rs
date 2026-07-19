@@ -13,6 +13,10 @@ use crate::models::product_color::{self, Entity as ProductColorEntity};
 // 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::search::{ProductDoc, SearchClient, SearchSyncer};
+// P0-D03（Batch 488）：Redis 分布式缓存接入（get_product 读穿透 + 写失效）
+use crate::utils::redis_cache::{
+    cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json, DEFAULT_CACHE_TTL_SECS,
+};
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 
@@ -277,10 +281,22 @@ impl ProductService {
 
     /// 获取产品详情
     pub async fn get_product(&self, id: i32) -> Result<product::Model, AppError> {
-        ProductEntity::find_by_id(id)
+        // P0-D03：先查 Redis 缓存
+        let cache_key_str = cache_key("product", id);
+        if let Some(cached) = redis_cache_get_json::<product::Model>(&cache_key_str).await {
+            return Ok(cached);
+        }
+
+        // 缓存未命中 → 查询 DB
+        let product = ProductEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", id)))?;
+
+        // 回填 Redis 缓存（5 分钟 TTL）
+        redis_cache_set_json(&cache_key_str, &product, DEFAULT_CACHE_TTL_SECS).await;
+
+        Ok(product)
     }
 
     /// 创建产品（面料行业版）
@@ -368,6 +384,9 @@ impl ProductService {
             _,
         >(&*self.db, "product", id, Some(user_id))
         .await?;
+
+        // P0-D03：失效产品缓存（产品已删除）
+        redis_cache_del(&cache_key("product", id)).await;
 
         // 批次 125 v8 复审 P1 修复：PG 事务提交后删除 ES 文档（最终一致性）
         // 产品是硬删除，ES 文档也需删除
@@ -483,6 +502,9 @@ impl ProductService {
             Some(user_id),
         )
         .await?;
+
+        // P0-D03：失效产品缓存（产品信息已更新）
+        redis_cache_del(&cache_key("product", id)).await;
 
         // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
         self.sync_product_to_es(&result, "update").await;
