@@ -42,7 +42,7 @@
         </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" stripe>
+      <el-table v-loading="loading" :data="list" stripe aria-label="质量标准列表">
         <el-table-column prop="standard_code" label="标准编号" width="140" />
         <el-table-column prop="standard_name" label="标准名称" min-width="180" />
         <el-table-column prop="type" label="类型" width="100">
@@ -113,12 +113,18 @@
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
+          aria-label="质量标准列表分页"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑标准' : '新建标准'" width="700px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="form.id ? '编辑标准' : '新建标准'"
+      width="700px"
+      :aria-label="form.id ? '编辑标准对话框' : '新建标准对话框'"
+    >
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="质量标准表单">
         <el-form-item label="标准编号" prop="standard_code">
           <el-input
             v-model="form.standard_code"

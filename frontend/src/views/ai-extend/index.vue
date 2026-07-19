@@ -133,7 +133,7 @@ const applyRateColor = computed(() => {
           <template #header>
             <div class="card-header">最新工艺优化</div>
           </template>
-          <el-table :data="summary.latest_process_optimizations" size="small" max-height="300">
+          <el-table :data="summary.latest_process_optimizations" size="small" max-height="300" aria-label="最新工艺优化列表">
             <el-table-column prop="color_no" label="色号" width="100" />
             <el-table-column prop="fabric_type" label="布类" width="100" />
             <el-table-column prop="source" label="来源" width="100">
@@ -158,7 +158,7 @@ const applyRateColor = computed(() => {
           <template #header>
             <div class="card-header">最新质量预测</div>
           </template>
-          <el-table :data="summary.latest_quality_predictions" size="small" max-height="300">
+          <el-table :data="summary.latest_quality_predictions" size="small" max-height="300" aria-label="最新质量预测列表">
             <el-table-column prop="product_id" label="产品 ID" width="80" />
             <el-table-column prop="risk_level" label="风险" width="90">
               <template #default="{ row }">

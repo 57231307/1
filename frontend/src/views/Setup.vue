@@ -45,6 +45,7 @@
           :rules="dbRules"
           label-width="120px"
           class="config-form"
+          aria-label="系统初始化表单"
         >
           <el-form-item label="数据库主机" prop="host">
             <el-input v-model="dbConfig.host" placeholder="localhost" />
@@ -87,6 +88,7 @@
           :rules="adminRules"
           label-width="120px"
           class="config-form"
+          aria-label="管理员账户表单"
         >
           <el-form-item label="管理员用户名" prop="username">
             <el-input v-model="adminConfig.username" placeholder="admin" />

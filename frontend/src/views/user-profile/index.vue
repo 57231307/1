@@ -45,6 +45,7 @@
               :rules="profileRules"
               label-width="100px"
               class="profile-form"
+              aria-label="个人资料表单"
             >
               <el-form-item label="用户名">
                 <el-input v-model="profileForm.username" disabled />
@@ -113,6 +114,7 @@
           :rules="passwordRules"
           label-width="100px"
           class="password-form"
+          aria-label="修改密码表单"
         >
           <el-form-item label="原密码" prop="old_password">
             <el-input

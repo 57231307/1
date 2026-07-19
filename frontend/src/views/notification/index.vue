@@ -67,11 +67,12 @@
         v-model:page-size="pageSize"
         :total="total"
         layout="total, prev, pager, next, jumper"
+        aria-label="通知列表分页"
       />
     </el-card>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="通知详情" width="600px">
+    <el-dialog v-model="detailDialogVisible" title="通知详情" width="600px" aria-label="通知详情对话框">
       <div v-if="currentNotification" class="notification-detail">
         <div class="detail-info">
           <div class="info-item">
