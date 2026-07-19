@@ -70,6 +70,8 @@ pub mod quality_8d;
 pub mod bad_debt;
 pub mod collection_task;
 pub mod finance_alert;
+// P0-D17（Batch 488）：OA 公告路由
+pub mod oa_announcement;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod search_api;
@@ -377,6 +379,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/collection-tasks", collection_task::routes())
         // V15 P0-B04 Batch 481：财务预警路由
         .nest("/api/v1/erp/finance-alerts", finance_alert::routes())
+        // P0-D17（Batch 488）：OA 公告路由
+        .nest("/api/v1/erp/oa-announcements", oa_announcement::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())

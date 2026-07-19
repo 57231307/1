@@ -235,3 +235,5 @@ pub mod quality_8d_service;
 pub mod bad_debt_service;
 pub mod collection_task_service;
 pub mod finance_alert_service;
+// P0-D17（Batch 488）：OA 公告 service（CRUD + 发布/归档状态转换）
+pub mod oa_announcement_service;

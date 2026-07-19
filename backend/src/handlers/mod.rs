@@ -181,3 +181,5 @@ pub mod quality_8d_handler;
 pub mod bad_debt_handler;
 pub mod collection_task_handler;
 pub mod finance_alert_handler;
+// P0-D17（Batch 488）：OA 公告 handler
+pub mod oa_announcement_handler;
