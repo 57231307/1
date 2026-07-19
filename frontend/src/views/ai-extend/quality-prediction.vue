@@ -181,7 +181,7 @@ const detailRecommendations = computed(() => {
     </div>
 
     <el-card class="filter-card">
-      <el-form :inline="true" :model="queryFilter">
+      <el-form :inline="true" :model="queryFilter" aria-label="AI 质量预测筛选表单">
         <el-form-item label="产品 ID">
           <el-input-number v-model="queryFilter.product_id" :min="1" controls-position="right" style="width: 140px" />
         </el-form-item>
@@ -208,7 +208,7 @@ const detailRecommendations = computed(() => {
     </el-card>
 
     <el-card>
-      <el-table v-loading="loading" :data="items" stripe border>
+      <el-table v-loading="loading" :data="items" stripe border aria-label="AI 质量预测列表">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="product_id" label="产品 ID" width="90">
           <template #default="{ row }">{{ row.product_id ?? '全局' }}</template>
@@ -260,13 +260,14 @@ const detailRecommendations = computed(() => {
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
+        aria-label="AI 质量预测列表分页"
         style="margin-top: 16px; justify-content: flex-end"
       />
     </el-card>
 
     <!-- 创建弹窗 -->
-    <el-dialog v-model="dialogVisible" title="触发 AI 质量预测" width="540px">
-      <el-form :model="form" label-width="100px">
+    <el-dialog v-model="dialogVisible" title="触发 AI 质量预测" width="540px" aria-label="触发 AI 质量预测对话框">
+      <el-form :model="form" label-width="100px" aria-label="AI 质量预测表单">
         <el-form-item label="产品 ID" required>
           <el-input-number v-model="form.product_id" :min="1" controls-position="right" style="width: 100%" />
         </el-form-item>
@@ -338,7 +339,7 @@ const detailRecommendations = computed(() => {
 
         <div v-if="detailIssues.length" class="detail-section">
           <div class="detail-section-title">主要问题归因</div>
-          <el-table :data="detailIssues" size="small" border>
+          <el-table :data="detailIssues" size="small" border aria-label="主要问题归因列表">
             <el-table-column prop="issue" label="问题类型" />
             <el-table-column prop="count" label="次数" width="100" />
             <el-table-column prop="percentage" label="占比" width="200">

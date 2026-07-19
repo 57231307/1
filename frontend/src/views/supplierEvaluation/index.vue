@@ -7,13 +7,13 @@
         </div>
       </template>
 
-      <el-tabs v-model="activeTab">
+      <el-tabs v-model="activeTab" aria-label="供应商评估管理标签页">
         <el-tab-pane label="评估记录" name="records">
           <div class="toolbar">
             <el-button type="primary" @click="handleCreateRecord">新建评估</el-button>
           </div>
 
-          <el-table :data="recordList" border stripe>
+          <el-table :data="recordList" border stripe aria-label="供应商评估记录列表">
             <el-table-column prop="supplierName" label="供应商名称" />
             <el-table-column prop="period" label="评估周期" />
             <el-table-column prop="totalScore" label="总分" />
@@ -42,6 +42,7 @@
             v-model:page-size="recordPageSize"
             :total="recordTotal"
             layout="total, prev, pager, next, jumper"
+            aria-label="供应商评估记录分页"
             @current-change="onRecordPageChange"
           />
         </el-tab-pane>
@@ -49,7 +50,7 @@
         <el-tab-pane label="供应商排名" name="rankings">
           <el-button type="primary" @click="fetchRankings">刷新排名</el-button>
 
-          <el-table :data="rankingList" border stripe>
+          <el-table :data="rankingList" border stripe aria-label="供应商排名列表">
             <el-table-column prop="rank" label="排名" width="80">
               <template #default="{ row }">
                 <span v-if="row.rank === 1" class="rank-first">🥇 {{ row.rank }}</span>
@@ -78,8 +79,9 @@
       v-model="recordDialogVisible"
       :title="isEdit ? '编辑评估' : '新建评估'"
       width="600px"
+      aria-label="供应商评估编辑对话框"
     >
-      <el-form ref="recordFormRef" :model="recordForm" :rules="recordRules" label-width="120px">
+      <el-form ref="recordFormRef" :model="recordForm" :rules="recordRules" label-width="120px" aria-label="供应商评估表单">
         <el-form-item label="供应商" prop="supplierId">
           <el-select
             v-model="recordForm.supplierId"
@@ -112,8 +114,8 @@
     </el-dialog>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="评估详情" width="700px">
-      <el-descriptions v-if="currentRecord" :column="2" border>
+    <el-dialog v-model="detailDialogVisible" title="评估详情" width="700px" aria-label="供应商评估详情对话框">
+      <el-descriptions v-if="currentRecord" :column="2" border aria-label="供应商评估详情">
         <el-descriptions-item label="供应商">{{ currentRecord.supplierName }}</el-descriptions-item>
         <el-descriptions-item label="评估周期">{{ currentRecord.period }}</el-descriptions-item>
         <el-descriptions-item label="总分">{{ currentRecord.totalScore }}</el-descriptions-item>

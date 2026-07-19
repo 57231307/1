@@ -12,7 +12,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" class="filter-form">
+      <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="流程模板筛选表单">
         <el-form-item label="模板分类">
           <el-select
             v-model="filterForm.category"
@@ -96,14 +96,15 @@
         :total="total"
         :page-sizes="[8, 16, 32]"
         layout="total, sizes, prev, pager, next"
+        aria-label="流程模板分页"
         @size-change="handleSizeChange"
         @current-change="handlePageChange"
       />
     </div>
 
-    <el-dialog v-model="detailDialogVisible" title="模板详情" width="700px" destroy-on-close>
+    <el-dialog v-model="detailDialogVisible" title="模板详情" width="700px" destroy-on-close aria-label="流程模板详情对话框">
       <div v-if="currentTemplate" class="template-detail">
-        <el-descriptions :column="2" border>
+        <el-descriptions :column="2" border aria-label="流程模板详情">
           <el-descriptions-item label="模板名称">{{
             currentTemplate.template_name
           }}</el-descriptions-item>
@@ -129,6 +130,7 @@
             :data="currentTemplate.process_definition.nodes || []"
             size="small"
             style="margin-top: 12px"
+            aria-label="流程节点预览列表"
           >
             <el-table-column prop="type" label="节点类型" width="120">
               <template #default="{ row }">
@@ -154,8 +156,8 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="createDialogVisible" title="从模板创建流程" width="500px" destroy-on-close>
-      <el-form :model="createForm" label-width="100px">
+    <el-dialog v-model="createDialogVisible" title="从模板创建流程" width="500px" destroy-on-close aria-label="从模板创建流程对话框">
+      <el-form :model="createForm" label-width="100px" aria-label="从模板创建流程表单">
         <el-form-item label="模板名称">
           <span>{{ currentTemplate?.template_name }}</span>
         </el-form-item>

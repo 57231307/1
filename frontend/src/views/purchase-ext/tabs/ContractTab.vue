@@ -12,7 +12,7 @@
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="contractLoading" :data="purchaseContracts" stripe>
+      <el-table v-loading="contractLoading" :data="purchaseContracts" stripe aria-label="采购合同列表">
         <el-table-column prop="contract_no" label="合同编号" width="140" />
         <el-table-column prop="supplier_name" label="供应商" min-width="150" />
         <el-table-column prop="contract_date" label="合同日期" width="120" />
@@ -79,12 +79,14 @@
       v-model="contractDialogVisible"
       :title="contractForm.id ? '编辑采购合同' : '新建采购合同'"
       width="800px"
+      aria-label="采购合同编辑对话框"
     >
       <el-form
         ref="contractFormRef"
         :model="contractForm"
         :rules="contractRules"
         label-width="100px"
+        aria-label="采购合同表单"
       >
         <el-row :gutter="20">
           <el-col :span="12">
@@ -152,7 +154,7 @@
           </el-col>
         </el-row>
         <el-divider>合同明细</el-divider>
-        <el-table :data="contractForm.items" border style="width: 100%">
+        <el-table :data="contractForm.items" border style="width: 100%" aria-label="采购合同明细编辑表">
           <el-table-column prop="product_name" label="产品名称" min-width="150">
             <template #default="{ row }">
               <el-input v-model="row.product_name" placeholder="产品名称" />
@@ -210,7 +212,7 @@
     </el-dialog>
 
     <!-- 合同详情对话框 -->
-    <el-dialog v-model="contractViewVisible" title="采购合同详情" width="800px">
+    <el-dialog v-model="contractViewVisible" title="采购合同详情" width="800px" aria-label="采购合同详情对话框">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="合同编号">{{
           currentContract?.contract_no
@@ -238,7 +240,7 @@
         }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>合同明细</el-divider>
-      <el-table :data="currentContract?.items || []" stripe>
+      <el-table :data="currentContract?.items || []" stripe aria-label="采购合同明细列表">
         <el-table-column prop="product_name" label="产品名称" min-width="150" />
         <el-table-column prop="product_code" label="产品编码" width="120" />
         <el-table-column prop="quantity" label="数量" width="100" align="right" />
