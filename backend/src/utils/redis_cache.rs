@@ -123,14 +123,11 @@ pub async fn redis_cache_set_json<T: Serialize>(key: &str, value: &T, ttl_secs: 
     };
 
     let mut conn = conn_arc.lock().await;
-    let _: redis::RedisResult<()> = conn
-        .set_ex(key, json_str, ttl_secs)
-        .await
-        .map_err(|e| {
-            tracing::warn!(key = %key, error = %e, "Redis SET 失败");
-            e
-        })
-        .ok();
+    // P0-D03 修复：原 .map_err(...).ok() 类型不匹配（Result → Option），
+    // 改用 if let Err 直接处理错误，保持优雅降级语义
+    if let Err(e) = conn.set_ex(key, json_str, ttl_secs).await {
+        tracing::warn!(key = %key, error = %e, "Redis SET 失败");
+    }
 }
 
 /// 删除指定 key
@@ -143,14 +140,10 @@ pub async fn redis_cache_del(key: &str) {
     };
 
     let mut conn = conn_arc.lock().await;
-    let _: redis::RedisResult<()> = conn
-        .del(key)
-        .await
-        .map_err(|e| {
-            tracing::warn!(key = %key, error = %e, "Redis DEL 失败");
-            e
-        })
-        .ok();
+    // P0-D03 修复：原 .map_err(...).ok() 类型不匹配，改用 if let Err 直接处理
+    if let Err(e) = conn.del(key).await {
+        tracing::warn!(key = %key, error = %e, "Redis DEL 失败");
+    }
 }
 
 /// 按前缀批量删除（使用 SCAN 避免阻塞 Redis）
@@ -187,14 +180,10 @@ pub async fn redis_cache_del_prefix(prefix: &str) {
         };
 
         if !keys.is_empty() {
-            let _: redis::RedisResult<()> = conn
-                .del(&keys)
-                .await
-                .map_err(|e| {
-                    tracing::warn!(prefix = %prefix, error = %e, "Redis 批量 DEL 失败");
-                    e
-                })
-                .ok();
+            // P0-D03 修复：原 .map_err(...).ok() 类型不匹配，改用 if let Err 直接处理
+            if let Err(e) = conn.del(&keys).await {
+                tracing::warn!(prefix = %prefix, error = %e, "Redis 批量 DEL 失败");
+            }
         }
 
         if next_cursor == 0 {

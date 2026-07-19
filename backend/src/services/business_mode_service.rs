@@ -189,157 +189,201 @@ pub fn check_module_consistency(
     validate_material_source(material_source)?;
     validate_settlement_method(settlement_method)?;
 
+    // P0-D12（Batch 488）：抽取 match 各 arm 校验为独立函数，主函数仅做调度
+    // 圈复杂度从 ~35（6 arms × 6 if）降至 7（单一 match 调度）
+    let args = ModeConsistencyArgs {
+        require_purchase,
+        require_production,
+        require_outsourcing,
+        require_sales,
+        material_source,
+        settlement_method,
+    };
+
     match mode_code {
-        business_mode_code::GREY_TRADING => {
-            if !require_purchase {
-                return Err(AppError::business("坯布经销模式必须 require_purchase=true"));
-            }
-            if !require_sales {
-                return Err(AppError::business("坯布经销模式必须 require_sales=true"));
-            }
-            if require_production {
-                return Err(AppError::business("坯布经销模式必须 require_production=false"));
-            }
-            if require_outsourcing {
-                return Err(AppError::business("坯布经销模式必须 require_outsourcing=false"));
-            }
-            if material_source != business_material_source::PURCHASE {
-                return Err(AppError::business(
-                    "坯布经销模式物料来源必须是 purchase 采购",
-                ));
-            }
-            if settlement_method != business_settlement_method::SALE_SETTLEMENT {
-                return Err(AppError::business(
-                    "坯布经销模式结算方式必须是 sale_settlement 销售结算",
-                ));
-            }
-        }
-        business_mode_code::FINISHED_TRADING => {
-            if !require_purchase {
-                return Err(AppError::business("成品经销模式必须 require_purchase=true"));
-            }
-            if !require_production {
-                return Err(AppError::business("成品经销模式必须 require_production=true"));
-            }
-            if !require_sales {
-                return Err(AppError::business("成品经销模式必须 require_sales=true"));
-            }
-            if require_outsourcing {
-                return Err(AppError::business("成品经销模式必须 require_outsourcing=false"));
-            }
-            if material_source != business_material_source::PURCHASE {
-                return Err(AppError::business(
-                    "成品经销模式物料来源必须是 purchase 采购",
-                ));
-            }
-            if settlement_method != business_settlement_method::SALE_SETTLEMENT {
-                return Err(AppError::business(
-                    "成品经销模式结算方式必须是 sale_settlement 销售结算",
-                ));
-            }
-        }
-        business_mode_code::DYEING_PROCESSING => {
-            if !require_production {
-                return Err(AppError::business("染整加工模式必须 require_production=true"));
-            }
-            if require_purchase {
-                return Err(AppError::business("染整加工模式必须 require_purchase=false"));
-            }
-            if require_outsourcing {
-                return Err(AppError::business("染整加工模式必须 require_outsourcing=false"));
-            }
-            if require_sales {
-                return Err(AppError::business("染整加工模式必须 require_sales=false"));
-            }
-            if material_source != business_material_source::CUSTOMER_PROVIDED {
-                return Err(AppError::business(
-                    "染整加工模式物料来源必须是 customer_provided 客供",
-                ));
-            }
-            if settlement_method != business_settlement_method::PROCESSING_FEE_SETTLEMENT {
-                return Err(AppError::business(
-                    "染整加工模式结算方式必须是 processing_fee_settlement 加工费结算",
-                ));
-            }
-        }
-        business_mode_code::SELF_WEAVE_DYE => {
-            if !require_purchase {
-                return Err(AppError::business("自织自染模式必须 require_purchase=true"));
-            }
-            if !require_production {
-                return Err(AppError::business("自织自染模式必须 require_production=true"));
-            }
-            if !require_sales {
-                return Err(AppError::business("自织自染模式必须 require_sales=true"));
-            }
-            if require_outsourcing {
-                return Err(AppError::business("自织自染模式必须 require_outsourcing=false"));
-            }
-            if material_source != business_material_source::PURCHASE {
-                return Err(AppError::business(
-                    "自织自染模式物料来源必须是 purchase 采购",
-                ));
-            }
-            if settlement_method != business_settlement_method::SALE_SETTLEMENT {
-                return Err(AppError::business(
-                    "自织自染模式结算方式必须是 sale_settlement 销售结算",
-                ));
-            }
-        }
-        business_mode_code::OUTSOURCING => {
-            if !require_production {
-                return Err(AppError::business("委托加工模式必须 require_production=true"));
-            }
-            if !require_outsourcing {
-                return Err(AppError::business("委托加工模式必须 require_outsourcing=true"));
-            }
-            if !require_sales {
-                return Err(AppError::business("委托加工模式必须 require_sales=true"));
-            }
-            if require_purchase {
-                return Err(AppError::business("委托加工模式必须 require_purchase=false"));
-            }
-            if material_source != business_material_source::SELF_MADE {
-                return Err(AppError::business(
-                    "委托加工模式物料来源必须是 self_made 自制",
-                ));
-            }
-            if settlement_method != business_settlement_method::SALE_SETTLEMENT {
-                return Err(AppError::business(
-                    "委托加工模式结算方式必须是 sale_settlement 销售结算",
-                ));
-            }
-        }
-        business_mode_code::TOLL_PROCESSING => {
-            if !require_production {
-                return Err(AppError::business("来料加工模式必须 require_production=true"));
-            }
-            if require_purchase {
-                return Err(AppError::business("来料加工模式必须 require_purchase=false"));
-            }
-            if require_outsourcing {
-                return Err(AppError::business("来料加工模式必须 require_outsourcing=false"));
-            }
-            if require_sales {
-                return Err(AppError::business("来料加工模式必须 require_sales=false"));
-            }
-            if material_source != business_material_source::TOLL {
-                return Err(AppError::business(
-                    "来料加工模式物料来源必须是 toll 来料",
-                ));
-            }
-            if settlement_method != business_settlement_method::PROCESSING_FEE_SETTLEMENT {
-                return Err(AppError::business(
-                    "来料加工模式结算方式必须是 processing_fee_settlement 加工费结算",
-                ));
-            }
-        }
-        _ => {
-            return Err(AppError::business(format!(
-                "未知的业务模式代码: {}",
-                mode_code
-            )));
-        }
+        business_mode_code::GREY_TRADING => validate_grey_trading(&args),
+        business_mode_code::FINISHED_TRADING => validate_finished_trading(&args),
+        business_mode_code::DYEING_PROCESSING => validate_dyeing_processing(&args),
+        business_mode_code::SELF_WEAVE_DYE => validate_self_weave_dye(&args),
+        business_mode_code::OUTSOURCING => validate_outsourcing(&args),
+        business_mode_code::TOLL_PROCESSING => validate_toll_processing(&args),
+        _ => Err(AppError::business(format!(
+            "未知的业务模式代码: {}",
+            mode_code
+        ))),
+    }
+}
+
+/// P0-D12：业务模式一致性校验参数聚合体
+///
+/// 避免 6 个 validate_xxx 函数重复传递 6 个参数，降低签名复杂度
+struct ModeConsistencyArgs<'a> {
+    require_purchase: bool,
+    require_production: bool,
+    require_outsourcing: bool,
+    require_sales: bool,
+    material_source: &'a str,
+    settlement_method: &'a str,
+}
+
+/// P0-D12：坯布经销模式校验
+fn validate_grey_trading(args: &ModeConsistencyArgs) -> Result<(), AppError> {
+    if !args.require_purchase {
+        return Err(AppError::business("坯布经销模式必须 require_purchase=true"));
+    }
+    if !args.require_sales {
+        return Err(AppError::business("坯布经销模式必须 require_sales=true"));
+    }
+    if args.require_production {
+        return Err(AppError::business("坯布经销模式必须 require_production=false"));
+    }
+    if args.require_outsourcing {
+        return Err(AppError::business("坯布经销模式必须 require_outsourcing=false"));
+    }
+    if args.material_source != business_material_source::PURCHASE {
+        return Err(AppError::business(
+            "坯布经销模式物料来源必须是 purchase 采购",
+        ));
+    }
+    if args.settlement_method != business_settlement_method::SALE_SETTLEMENT {
+        return Err(AppError::business(
+            "坯布经销模式结算方式必须是 sale_settlement 销售结算",
+        ));
+    }
+    Ok(())
+}
+
+/// P0-D12：成品经销模式校验
+fn validate_finished_trading(args: &ModeConsistencyArgs) -> Result<(), AppError> {
+    if !args.require_purchase {
+        return Err(AppError::business("成品经销模式必须 require_purchase=true"));
+    }
+    if !args.require_production {
+        return Err(AppError::business("成品经销模式必须 require_production=true"));
+    }
+    if !args.require_sales {
+        return Err(AppError::business("成品经销模式必须 require_sales=true"));
+    }
+    if args.require_outsourcing {
+        return Err(AppError::business("成品经销模式必须 require_outsourcing=false"));
+    }
+    if args.material_source != business_material_source::PURCHASE {
+        return Err(AppError::business(
+            "成品经销模式物料来源必须是 purchase 采购",
+        ));
+    }
+    if args.settlement_method != business_settlement_method::SALE_SETTLEMENT {
+        return Err(AppError::business(
+            "成品经销模式结算方式必须是 sale_settlement 销售结算",
+        ));
+    }
+    Ok(())
+}
+
+/// P0-D12：染整加工模式校验
+fn validate_dyeing_processing(args: &ModeConsistencyArgs) -> Result<(), AppError> {
+    if !args.require_production {
+        return Err(AppError::business("染整加工模式必须 require_production=true"));
+    }
+    if args.require_purchase {
+        return Err(AppError::business("染整加工模式必须 require_purchase=false"));
+    }
+    if args.require_outsourcing {
+        return Err(AppError::business("染整加工模式必须 require_outsourcing=false"));
+    }
+    if args.require_sales {
+        return Err(AppError::business("染整加工模式必须 require_sales=false"));
+    }
+    if args.material_source != business_material_source::CUSTOMER_PROVIDED {
+        return Err(AppError::business(
+            "染整加工模式物料来源必须是 customer_provided 客供",
+        ));
+    }
+    if args.settlement_method != business_settlement_method::PROCESSING_FEE_SETTLEMENT {
+        return Err(AppError::business(
+            "染整加工模式结算方式必须是 processing_fee_settlement 加工费结算",
+        ));
+    }
+    Ok(())
+}
+
+/// P0-D12：自织自染模式校验
+fn validate_self_weave_dye(args: &ModeConsistencyArgs) -> Result<(), AppError> {
+    if !args.require_purchase {
+        return Err(AppError::business("自织自染模式必须 require_purchase=true"));
+    }
+    if !args.require_production {
+        return Err(AppError::business("自织自染模式必须 require_production=true"));
+    }
+    if !args.require_sales {
+        return Err(AppError::business("自织自染模式必须 require_sales=true"));
+    }
+    if args.require_outsourcing {
+        return Err(AppError::business("自织自染模式必须 require_outsourcing=false"));
+    }
+    if args.material_source != business_material_source::PURCHASE {
+        return Err(AppError::business(
+            "自织自染模式物料来源必须是 purchase 采购",
+        ));
+    }
+    if args.settlement_method != business_settlement_method::SALE_SETTLEMENT {
+        return Err(AppError::business(
+            "自织自染模式结算方式必须是 sale_settlement 销售结算",
+        ));
+    }
+    Ok(())
+}
+
+/// P0-D12：委托加工模式校验
+fn validate_outsourcing(args: &ModeConsistencyArgs) -> Result<(), AppError> {
+    if !args.require_production {
+        return Err(AppError::business("委托加工模式必须 require_production=true"));
+    }
+    if !args.require_outsourcing {
+        return Err(AppError::business("委托加工模式必须 require_outsourcing=true"));
+    }
+    if !args.require_sales {
+        return Err(AppError::business("委托加工模式必须 require_sales=true"));
+    }
+    if args.require_purchase {
+        return Err(AppError::business("委托加工模式必须 require_purchase=false"));
+    }
+    if args.material_source != business_material_source::SELF_MADE {
+        return Err(AppError::business(
+            "委托加工模式物料来源必须是 self_made 自制",
+        ));
+    }
+    if args.settlement_method != business_settlement_method::SALE_SETTLEMENT {
+        return Err(AppError::business(
+            "委托加工模式结算方式必须是 sale_settlement 销售结算",
+        ));
+    }
+    Ok(())
+}
+
+/// P0-D12：来料加工模式校验
+fn validate_toll_processing(args: &ModeConsistencyArgs) -> Result<(), AppError> {
+    if !args.require_production {
+        return Err(AppError::business("来料加工模式必须 require_production=true"));
+    }
+    if args.require_purchase {
+        return Err(AppError::business("来料加工模式必须 require_purchase=false"));
+    }
+    if args.require_outsourcing {
+        return Err(AppError::business("来料加工模式必须 require_outsourcing=false"));
+    }
+    if args.require_sales {
+        return Err(AppError::business("来料加工模式必须 require_sales=false"));
+    }
+    if args.material_source != business_material_source::TOLL {
+        return Err(AppError::business(
+            "来料加工模式物料来源必须是 toll 来料",
+        ));
+    }
+    if args.settlement_method != business_settlement_method::PROCESSING_FEE_SETTLEMENT {
+        return Err(AppError::business(
+            "来料加工模式结算方式必须是 processing_fee_settlement 加工费结算",
+        ));
     }
     Ok(())
 }
