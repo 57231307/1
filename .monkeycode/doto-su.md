@@ -5,6 +5,280 @@
 
 ---
 
+## 📦 V15 Batch 487 归档（P0-T02 7 项集成测试 + P0-T07 性能基准 + P0-T05 E2E 配置修复）
+
+### 任务概述
+
+V15 测试体系审计（batch-06）发现的 P0-T02 / T05 / T07 三项缺陷打包修复（**用户特批本次不拆分处理**）。
+- **P0-T02**：7 项关键业务路径（生产订单/采购收货/销售发货/AP 付款/染整/化验室打样/大货处方）无集成测试，需补全。
+- **P0-T07**：4 项关键 service（库存计算/凭证生成/染整成本归集/工资计算）性能基准测试缺失。
+- **P0-T05**：E2E 通过率 0%，95 个 E2E 测试 88 个失败；其中 `mockBusinessApi` 未移除（违反规则 5）+ `playwright.config.ts` `webServer` 不是数组是核心缺陷。
+
+### 修改文件清单（28 文件 +1836 -29，CI 验证中）
+
+#### P0-T02 集成测试（7 文件新建，73 测试）
+
+| 文件 | 变更类型 | 测试数 | 说明 |
+|------|----------|--------|------|
+| `backend/tests/production_order_workflow_test.rs` | 新建 | 9 | DRAFT → PENDING_APPROVAL → APPROVED → SCHEDULED → IN_PROGRESS → COMPLETED |
+| `backend/tests/purchase_receipt_workflow_test.rs` | 新建 | 8 | DRAFT → CONFIRMED（COMPLETED 无公开方法触发） |
+| `backend/tests/sales_delivery_workflow_test.rs` | 新建 | 9 | PENDING → SHIPPED → CANCELLED |
+| `backend/tests/ap_payment_workflow_test.rs` | 新建 | 8 | REGISTERED → CONFIRMED → PAID（PAID 由事件触发） |
+| `backend/tests/dye_batch_workflow_test.rs` | 新建 | 14 | 14 状态 + 13 流转码 + 30+ 合法边 |
+| `backend/tests/lab_dip_workflow_test.rs` | 新建 | 10 | PENDING → SAMPLING → SUBMITTED → APPROVED/REJECTED → COMPLETED |
+| `backend/tests/production_recipe_workflow_test.rs` | 新建 | 15 | DRAFT → APPROVED → CLOSED（或 DRAFT → CANCELLED） |
+
+#### P0-T07 性能基准（5 文件，11 基准）
+
+| 文件 | 变更类型 | 基准数 | 说明 |
+|------|----------|--------|------|
+| `backend/Cargo.toml` | 修改 | - | criterion optional=true + bench feature 门控 + 4 [[bench]] required-features=["bench"] |
+| `backend/benches/inventory_calculation_bench.rs` | 新建 | 3 | 库存计算性能基准 |
+| `backend/benches/voucher_generation_bench.rs` | 新建 | 2 | 凭证生成性能基准 |
+| `backend/benches/dye_cost_collection_bench.rs` | 新建 | 3 | 染整成本归集性能基准 |
+| `backend/benches/wage_calculation_bench.rs` | 新建 | 3 | 工资计算性能基准 |
+
+#### P0-T05 E2E 配置修复（2 文件 + 14 文件注释更新）
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `frontend/e2e/fixtures/auth.ts` | 修改 | `applyAuthMocks` 移除 `await mockBusinessApi(context)` 调用；`mockBusinessApi` 函数保留供 enhanced 显式调用 |
+| `frontend/playwright.config.ts` | 修改 | `webServer` 从单对象改为数组，前端 + 后端同时启动 |
+| `frontend/e2e/purchase/01-create-po.spec.ts` ~ `07-supplier-report.spec.ts` | 修改 | beforeEach 注释更新（规则 20） |
+| `frontend/e2e/sales/01-create-quotation.spec.ts` ~ `07-report.spec.ts` | 修改 | beforeEach 注释更新（规则 20） |
+
+### 核心变更详解
+
+#### 1. P0-T02 集成测试 — `#[ignore]` + 纯函数双模式
+
+**设计原则**：完整业务流程测试需 PostgreSQL 真实 DB，CI 默认环境无法支持；纯函数测试（状态机校验/解析/计算）无 DB 依赖可直接测试。
+
+**测试模式 A：纯函数 `#[test]`**（CI 默认执行）
+
+```rust
+#[test]
+fn 测试_生产订单状态转换_DRAFT_to_PENDING_APPROVAL_合法() {
+    assert!(validate_status_transition("DRAFT", "PENDING_APPROVAL").unwrap());
+}
+
+#[test]
+fn 测试_生产订单状态转换_DRAFT_to_COMPLETED_非法() {
+    assert!(validate_status_transition("DRAFT", "COMPLETED").is_err());
+}
+```
+
+**测试模式 B：完整业务流程 `#[ignore]`**（CI 默认跳过，本地或专用 CI 通过 `TEST_DATABASE_URL` 触发）
+
+```rust
+#[tokio::test]
+#[ignore = "需要 PostgreSQL 真实数据库，通过 TEST_DATABASE_URL 环境变量启用"]
+async fn 测试_生产订单完整流程_DRAFT_到_COMPLETED() {
+    let db_url = std::env::var("TEST_DATABASE_URL").unwrap_or_default();
+    if db_url.is_empty() {
+        eprintln!("跳过：未设置 TEST_DATABASE_URL");
+        return;
+    }
+    // 完整业务流程测试代码...
+}
+```
+
+**7 业务路径状态机覆盖**：
+- 生产订单：DRAFT → PENDING_APPROVAL → APPROVED → SCHEDULED → IN_PROGRESS → COMPLETED（6 状态 5 边）
+- 采购收货：DRAFT → CONFIRMED（COMPLETED 无公开方法触发，2 状态 1 边）
+- 销售发货：PENDING → SHIPPED → CANCELLED（3 状态 2 边）
+- AP 付款：REGISTERED → CONFIRMED → PAID（PAID 由事件触发，3 状态 2 边）
+- 染整：14 状态 + 13 流转码 + 30+ 合法边（最复杂）
+- 化验室打样：PENDING → SAMPLING → SUBMITTED → APPROVED/REJECTED → COMPLETED（5 状态 5 边）
+- 大货处方：DRAFT → APPROVED → CLOSED（或 DRAFT → CANCELLED，3 状态 3 边）
+
+#### 2. P0-T07 性能基准 — criterion optional feature 机制
+
+**Cargo.toml 配置**：
+
+```toml
+[dependencies]
+criterion = { version = "0.5", optional = true }  # ← optional = true
+
+[features]
+bench = ["criterion"]  # ← feature 门控
+
+[[bench]]
+name = "inventory_calculation"
+harness = false
+required-features = ["bench"]  # ← 关键：cargo test 默认 features 不编译此 bench
+
+[[bench]]
+name = "voucher_generation"
+harness = false
+required-features = ["bench"]
+
+[[bench]]
+name = "dye_cost_collection"
+harness = false
+required-features = ["bench"]
+
+[[bench]]
+name = "wage_calculation"
+harness = false
+required-features = ["bench"]
+```
+
+**关键设计**：默认 features 不启用 `bench`，因此 `cargo test`（CI 默认）不会编译 `benches/` 目录下的文件，减少 CI 编译时间。运行 bench 时显式启用：`cargo bench --features bench`。
+
+**bench 文件结构**（以 inventory_calculation_bench.rs 为例）：
+
+```rust
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+
+fn bench_parse_liquor_ratio(c: &mut Criterion) {
+    c.bench_function("parse_liquor_ratio 1:10", |b| {
+        b.iter(|| black_box(parse_liquor_ratio("1:10").unwrap()))
+    });
+}
+
+criterion_group!(benches, bench_parse_liquor_ratio /* ... */);
+criterion_main!(benches);
+```
+
+**11 基准分布**：inventory_calculation 3 + voucher_generation 2 + dye_cost_collection 3 + wage_calculation 3。
+
+#### 3. P0-T05 E2E 配置修复
+
+**缺陷 1：`applyAuthMocks` 自动调用 `mockBusinessApi`**
+
+修复前（`frontend/e2e/fixtures/auth.ts`）：
+
+```typescript
+export async function applyAuthMocks(context: BrowserContext): Promise<void> {
+  await injectAuthToken(context)
+  await mockAuthMe(context)
+  await mockInitStatus(context)
+  await mockBusinessApi(context)  // ← 问题：所有 sales/purchase 测试都 mock 业务 API
+}
+```
+
+修复后：
+
+```typescript
+/**
+ * 一站式应用 auth mock（仅 smoke 测试使用）
+ *
+ * V15 Batch 487 P0-T05 修复（规则 5）：
+ * 不再自动调用 mockBusinessApi，让 sales/* / purchase/* 等业务流程 E2E
+ * 走真实后端。如需 mock 业务 API（如 enhanced 多上下文隔离测试），
+ * 应显式调用 mockBusinessApi(context)。
+ */
+export async function applyAuthMocks(context: BrowserContext): Promise<void> {
+  await injectAuthToken(context)
+  await mockAuthMe(context)
+  await mockInitStatus(context)
+  // mockBusinessApi 不再自动调用 — 业务 API 走真实后端
+}
+```
+
+**`mockBusinessApi` 函数保留策略**：函数不删除，因 `frontend/e2e/enhanced/multi-role-collaboration.spec.ts` 中 5 处显式调用（多上下文隔离测试不依赖业务数据，只需页面可加载）。该文件测试多角色协作场景，使用 mock 业务 API 合理。
+
+**缺陷 2：`webServer` 不是数组**
+
+修复前（`frontend/playwright.config.ts`）：
+
+```typescript
+webServer: {
+  command: 'npm run dev',
+  url: 'http://localhost:3000',
+  reuseExistingServer: !process.env.CI,
+  timeout: 120_000,
+}
+```
+
+修复后（数组配置）：
+
+```typescript
+webServer: [
+  {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  },
+  {
+    // 后端二进制路径：frontend/ → ../backend/target/release/server
+    // 健康检查端点：GET /health（与 e2e-batch.yml 一致，端口 8082）
+    command: 'cd ../backend && ./target/release/server',
+    url: 'http://localhost:8082/health',
+    reuseExistingServer: true,  // ← 关键：CI 中 e2e-batch.yml 已独立启动后端
+    timeout: 60_000,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  },
+],
+```
+
+**关键设计：后端 `reuseExistingServer: true`**
+
+CI 中 `.github/workflows/e2e-batch.yml` 已独立启动后端（端口 8082 + 健康检查 + 系统初始化）。Playwright 后端 webServer 必须 `reuseExistingServer: true` 复用该实例，避免与 e2e-batch.yml 启动的后端端口冲突。如果设为 `!process.env.CI`，CI 中 Playwright 会尝试启动第二个后端实例导致端口 8082 占用错误。
+
+**缺陷 3：14 个 sales/purchase spec 注释更新（规则 20）**
+
+修复前（beforeEach 注释）：
+```typescript
+// P1 6-7 修复（批次 66）：注入 auth mock + mock 业务 API，避免 CI 无后端 timeout
+await applyAuthMocks(context)
+```
+
+修复后：
+```typescript
+// V15 Batch 487 P0-T05：注入 auth mock，业务 API 走真实后端（applyAuthMocks 不再 mock 业务 API）
+await applyAuthMocks(context)
+```
+
+### 关键决策与教训
+
+#### 决策 1：criterion optional feature 机制
+
+**背景**：性能基准测试是 P0-T07 要求，但 bench 文件会增加 CI 编译时间。
+**决策**：将 criterion 设为 `optional = true` 依赖，通过 `bench` feature 门控，`[[bench]]` 段加 `required-features = ["bench"]`。
+**效果**：`cargo test`（CI 默认 features）不编译 bench 文件，减少 CI 编译时间；需要运行 bench 时显式 `cargo bench --features bench`。
+
+#### 决策 2：`#[ignore]` + 纯函数双模式
+
+**背景**：完整业务流程集成测试需 PostgreSQL 真实 DB，CI 默认环境（无 DB service container）无法支持；但状态机校验/解析/计算等纯函数无 DB 依赖可直接测试。
+**决策**：完整业务流程测试标记 `#[ignore = "需要 PostgreSQL..."]`，通过 `TEST_DATABASE_URL` 环境变量切换真实 DB，CI 默认跳过；纯函数测试直接 `#[test]`。
+**效果**：CI 中纯函数测试覆盖状态机正确性（73 测试中约 60% 是纯函数测试），完整业务流程测试在本地或专用 CI（如 e2e-batch.yml 类似的集成测试工作流）中运行。
+
+#### 决策 3：`mockBusinessApi` 保留策略
+
+**背景**：`mockBusinessApi` 函数被 `enhanced/multi-role-collaboration.spec.ts` 5 处显式调用，该测试是多上下文隔离测试，不依赖业务数据，只需页面可加载。
+**决策**：`mockBusinessApi` 函数保留不删除，但 `applyAuthMocks` 不再自动调用。需要 mock 业务 API 的测试应显式调用 `mockBusinessApi(context)`。
+**效果**：sales/purchase 业务流程 E2E 走真实后端（符合规则 5 要求），enhanced 多上下文隔离测试保持原有行为。
+
+#### 决策 4：`webServer` 数组配置 + 后端 `reuseExistingServer: true`
+
+**背景**：CI 中 `e2e-batch.yml` 已独立启动后端（端口 8082 + 健康检查 + 系统初始化），Playwright 后端 webServer 不能再启动第二个实例。
+**决策**：`webServer` 改为数组，前端 `reuseExistingServer: !process.env.CI`（CI 中复用，本地启动），后端 `reuseExistingServer: true`（始终复用，避免与 e2e-batch.yml 启动的后端端口冲突）。
+**效果**：Playwright 配置与 e2e-batch.yml 工作流协同，CI 中后端由 e2e-batch.yml 独立管理，Playwright 仅复用。
+
+### CI 验证状态
+
+**commit 3919255 已推送 origin/main**，CI 验证中：
+- 当前环境无 `GH_TOKEN`，无法直接通过 `gh` CLI 监控 CI 运行状态
+- 需后续会话或 GitHub Web UI 确认 CI 是否全绿
+- 预期 CI 结果：Rust 单元测试（73 个新测试中纯函数部分通过 + `#[ignore]` 部分跳过）+ Rust 后端构建（criterion optional feature 不影响默认 features 编译）+ 前端类型检查 + 前端 ESLint + 前端测试全绿
+
+### 关键教训
+
+1. **criterion optional feature 机制**：性能基准测试不应拖慢常规 CI。通过 `optional = true` + feature 门控 + `required-features`，让 `cargo test` 不编译 bench 文件，是 Rust 生态最佳实践。
+2. **`#[ignore]` 集成测试模式**：完整业务流程测试需真实 DB 时，标记 `#[ignore]` + 环境变量切换，让 CI 默认跳过、本地或专用 CI 启用，是平衡测试覆盖与 CI 复杂度的合理方案。
+3. **纯函数测试模式**：状态机校验/解析/计算等纯函数无 DB 依赖，应优先编写为 `#[test]` 直接测试，最大化 CI 覆盖。
+4. **`mockBusinessApi` 保留策略**：删除函数会破坏仍依赖它的测试（如 enhanced 多上下文隔离测试）。应分析所有引用点，保留函数但调整自动调用策略。
+5. **playwright `webServer` 数组配置**：前后端分离项目应使用数组配置同时启动前端 dev server + 后端服务。CI 中后端由独立工作流（如 e2e-batch.yml）管理时，Playwright 后端 webServer 必须 `reuseExistingServer: true` 避免端口冲突。
+6. **规则 20 注释一致性**：修改功能时必须同步更新相关注释。Batch 473 教训复发：14 个 spec 文件的 beforeEach 注释需从"mock 业务 API"改为"业务 API 走真实后端"，与 `applyAuthMocks` 的新行为一致。
+7. **用户特批不拆分处理**：当多项任务（T02+T07+T05）逻辑相关且用户特批时，可打包为一个批次处理，但需在归档中明确标注"用户特批不拆分"以备追溯。
+
+---
+
 ## 📦 V15 Batch 486 归档（P0-T01 核心 service 单测补全）
 
 ### 任务概述
