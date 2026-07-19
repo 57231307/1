@@ -661,9 +661,9 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-D01 Docker 文件违规（类七，部分实现）
 
 - **来源**：batch-07 P0-07-1
-- **复审状态**：⚠️ 3/4 文件已删除，剩 Dockerfile / docker-compose.yml / .dockerignore 3 个
-- **修复方案**：删除剩余 3 个 Docker 文件
-- **关联文件**：项目根 / deploy/ 下的 Docker 文件
+- **复审状态**：⚠️ Batch 488 审计发现实际 5 个 Docker 文件待删（非 3 个）
+- **修复方案**：删除全部 5 个 Docker 文件 + 清理遗留引用
+- **关联文件**：Dockerfile / backend/Dockerfile / frontend/Dockerfile / docker-compose.yml / .dockerignore + 项目根 / deploy/ 下的引用
 - **依赖**：无
 - **工作量**：S
 - **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
@@ -671,9 +671,9 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-D02 快速部署脚本安装 PostgreSQL 客户端（类七）
 
 - **来源**：batch-07 P0-07-2
-- **证据**：[install.sh](file:///workspace/deploy/install.sh) 安装 postgresql-client
-- **修复方案**：移除 postgresql-client 安装步骤（数据库连接走远程模式）
-- **关联文件**：deploy/install.sh / deploy/deploy.sh
+- **证据**：[install.sh](file:///workspace/快速部署/install.sh) 第 43/45 行安装 postgresql-client（路径非 deploy/install.sh）
+- **修复方案**：移除 postgresql-client 安装步骤（数据库连接走远程模式）+ 联动处理 install.sh 第 158-159/194/279 行 systemctl stop
+- **关联文件**：快速部署/install.sh / deploy/deploy.sh
 - **依赖**：无
 - **工作量**：S
 - **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
@@ -691,8 +691,9 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-D04 缓存是内存缓存(moka)非 Redis（类七）
 
 - **来源**：batch-07 P0-07-4
-- **修复方案**：将 moka 内存缓存迁移到 Redis（多实例共享 + 持久化）
-- **关联文件**：[cache.rs](file:///workspace/backend/src/utils/cache.rs) + 所有使用 moka 的 service
+- **证据**：cache.rs 实际用 DashMap 非 moka；仅 cache_service.rs 用 moka；Batch 488 审计修正
+- **修复方案**：moka→Redis 迁移（多实例共享 + 持久化）+ DashMap 保留进程内（双缓存策略）
+- **关联文件**：[cache.rs](file:///workspace/backend/src/utils/cache.rs)（DashMap）+ [cache_service.rs](file:///workspace/backend/src/services/cache_service.rs)（moka）+ 所有使用 moka 的 service
 - **依赖**：P0-D03
 - **工作量**：L
 - **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
@@ -700,7 +701,8 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-D05 useI18n 接入率仅 3.2%（类七）
 
 - **来源**：batch-07 P0-07-5
-- **修复方案**：85+ 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts
+- **证据**：Batch 488 审计发现实际 ~347 个 .vue 文件（非 85+），工作量是原预估 4 倍
+- **修复方案**：347 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts
 - **关联文件**：frontend/src/views/ + locales/
 - **依赖**：无
 - **工作量**：XL
@@ -719,9 +721,9 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-D07 图片 alt 属性完全缺失（类七）
 
 - **来源**：batch-07 P0-07-7
-- **证据**：0 处 alt 属性
-- **修复方案**：所有 `<img>` 补 alt 描述
-- **关联文件**：所有 .vue 文件
+- **证据**：Batch 488 审计发现仅 2 处需修复（非 0 处）：[user-profile/index.vue:30](file:///workspace/frontend/src/views/user-profile/index.vue#L30) 原生 `<img>` 缺 alt + [TfaStep2.vue:14](file:///workspace/frontend/src/views/security/two-factor/components/TfaStep2.vue#L14) `<el-image>` 缺 alt
+- **修复方案**：补齐 2 处缺失的 alt 描述
+- **关联文件**：frontend/src/views/user-profile/index.vue + frontend/src/views/security/two-factor/components/TfaStep2.vue
 - **依赖**：无
 - **工作量**：S
 - **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
@@ -757,8 +759,9 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-D11 setup_test_db 在 14 个文件重复定义（类二）
 
 - **来源**：batch-02 P0-02-03
-- **修复方案**：抽取到 backend/tests/common/mod.rs，所有测试文件引用
-- **关联文件**：backend/tests/common/mod.rs + 14 个测试文件
+- **证据**：Batch 488 审计发现实际 21 处重复定义（非 14 处）：tests/ 3 处 + src/services/ 18 处
+- **修复方案**：抽取到 backend/tests/common/mod.rs（tests/ 部分）+ backend/src/services/common.rs（src/services/ 部分），所有引用文件统一引用
+- **关联文件**：backend/tests/common/mod.rs + backend/src/services/common.rs + 21 处重复定义的文件
 - **依赖**：无
 - **工作量**：M
 - **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
@@ -775,8 +778,9 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-D13 前端 60+ 组件缩写命名（类二）
 
 - **来源**：batch-02 P0-02-05
+- **证据**：Batch 488 审计发现实际 ~119 个缩写命名文件（非 60+）
 - **修复方案**：重命名为描述性名称（如 SOList → SalesOrderList）
-- **关联文件**：60+ .vue 文件
+- **关联文件**：~119 个缩写命名的 .vue 文件
 - **依赖**：无
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
@@ -784,8 +788,9 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-D14 前端 api 命名不统一（类二）
 
 - **来源**：batch-02 P0-02-06
+- **证据**：Batch 488 审计发现实际 96 个 api 文件 2 种导出风格（function + object 混合）
 - **修复方案**：统一为 `getXxxList / createXxx / updateXxx / deleteXxx` 命名
-- **关联文件**：90+ api/*.ts 文件
+- **关联文件**：96 个 api/*.ts 文件
 - **依赖**：无
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
@@ -793,9 +798,9 @@ P0-D17 OA 公告 (M)  ← 独立
 #### P0-D15 升级流程非零停机（类二十五）
 
 - **来源**：batch-21 P0-21-1
-- **证据**：[upgrade.sh](file:///workspace/deploy/upgrade.sh) `systemctl stop` 导致 2-5s 服务中断
+- **证据**：Batch 488 审计发现 upgrade.sh 不存在，升级逻辑在 [upgrade.rs](file:///workspace/backend/src/cli/util/upgrade.rs)；systemctl stop 在第 184 行（deploy_release）和第 125 行（cmd_rollback）
 - **修复方案**：改为蓝绿部署 / 滚动重启，使用 systemctl reload nginx + 双实例切换
-- **关联文件**：deploy/upgrade.sh / deploy/deploy.sh
+- **关联文件**：backend/src/cli/util/upgrade.rs / deploy/deploy.sh
 - **依赖**：无
 - **工作量**：M
 - **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）

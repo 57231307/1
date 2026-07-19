@@ -1,0 +1,45 @@
+# P0-D15：双实例蓝绿部署 systemd template 服务文件
+#
+# 用法：
+#   systemctl start bingxi-backend@blue   # 启动 blue 实例（端口 8082）
+#   systemctl start bingxi-backend@green  # 启动 green 实例（端口 8083）
+#
+# 实例配置文件：
+#   /etc/bingxi/instances/blue.env  包含 BINGXI_PORT=8082
+#   /etc/bingxi/instances/green.env 包含 BINGXI_PORT=8083
+#
+# 环境变量 BINGXI_PORT 由 backend/src/config/settings.rs::load_sensitive_from_env 读取，
+# 覆盖 config.yaml 的 server.port 字段，实现同机器双实例端口隔离。
+
+[Unit]
+Description=Bingxi ERP Backend Service (%i instance)
+After=network.target postgresql.service
+Wants=network-online.target
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+User=bingxi
+Group=bingxi
+WorkingDirectory=/opt/bingxi-erp/backend
+EnvironmentFile=/etc/bingxi/.env
+EnvironmentFile=-/etc/bingxi/instances/%i.env
+Environment=CONFIG_FILE=/opt/bingxi-erp/backend/config.yaml
+ExecStart=/opt/bingxi-erp/backend/server
+Restart=always
+RestartSec=2
+StartLimitBurst=5
+
+# P0-D15：快速停止配置，配合 nginx upstream 切换实现零停机
+TimeoutStopSec=3
+KillSignal=SIGTERM
+SendSIGKILL=yes
+
+LimitNOFILE=65535
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bingxi-backend-%i
+
+[Install]
+WantedBy=multi-user.target

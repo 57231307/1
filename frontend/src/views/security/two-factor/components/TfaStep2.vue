@@ -16,6 +16,7 @@
         :src="qrCodeDataUrl"
         fit="contain"
         class="qr-image"
+        alt="二步验证二维码"
       />
       <div v-else class="qr-loading">
         <el-icon class="is-loading"><Loading /></el-icon>

@@ -27,7 +27,12 @@
                 :on-change="handleAvatarChange"
                 accept="image/*"
               >
-                <img v-if="profileForm.avatar" :src="profileForm.avatar" class="avatar" />
+                <img
+                  v-if="profileForm.avatar"
+                  :src="profileForm.avatar"
+                  class="avatar"
+                  :alt="profileForm.real_name ? `${profileForm.real_name}的头像` : '用户头像'"
+                />
                 <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
               </el-upload>
               <div class="avatar-tip">点击上传头像</div>

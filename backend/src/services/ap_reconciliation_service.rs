@@ -665,10 +665,10 @@ pub struct InvoiceRelationInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::decs;
     use crate::ymd;
     use crate::models::status::{common, payment};
-    use sea_orm::Database;
     use std::str::FromStr;
 
     /// 复现 generate_reconciliation 中的期末余额计算公式
@@ -710,15 +710,6 @@ mod tests {
     /// 这里把 today 参数化，避免测试依赖系统当前时间导致用例非幂等。
     fn is_overdue(due_date: NaiveDate, today: NaiveDate, unpaid_amount: Decimal) -> bool {
         due_date < today && unpaid_amount > Decimal::ZERO
-    }
-
-    /// 测试 SQLite 内存数据库连接夹具
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试夹具：数据库连接失败")
     }
 
     // =====================================================

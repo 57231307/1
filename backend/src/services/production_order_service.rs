@@ -1361,25 +1361,13 @@ impl ProductionOrderService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::decs;
     use crate::ymd;
     use crate::models::status::common;
     use crate::models::status::production;
     use rust_decimal::Decimal;
-    use sea_orm::Database;
     use std::str::FromStr;
-
-    /// 测试夹具：建立 SQLite 内存数据库连接
-    ///
-    /// 复用 inventory_reservation_service.rs 的夹具模式，支持通过 TEST_DATABASE_URL
-    /// 环境变量切换到真实数据库进行本地手动验证。
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试夹具：数据库连接失败")
-    }
 
     /// 复现 deduct_raw_materials_txn 中的 BOM 用量计算（纯算法）
     ///

@@ -78,17 +78,6 @@ check_file "backend/config.yaml.example" "配置文件示例"
 
 echo ""
 
-# 检查 Docker 配置
-echo "Docker 配置:"
-check_file "Dockerfile" "主 Dockerfile"
-check_file "Dockerfile.backend" "后端 Dockerfile"
-check_file "Dockerfile.frontend" "前端 Dockerfile"
-check_file "docker-compose.yml" "Docker Compose"
-check_file "docker-entrypoint.sh" "Docker 入口脚本"
-check_file ".dockerignore" "Docker 忽略文件"
-
-echo ""
-
 # 检查 CI/CD 配置
 echo "CI/CD 配置:"
 check_file ".github/workflows/ci-cd.yml" "GitHub Actions"
@@ -111,10 +100,7 @@ echo ""
 
 # 检查必要的工具
 echo "必要工具:"
-check_command "docker"
-check_command "docker-compose"
 check_command "nginx"
-check_command "psql"
 
 echo ""
 echo "=========================================="

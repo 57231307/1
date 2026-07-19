@@ -1093,11 +1093,12 @@ pub struct VoucherDetail {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::decs;
     use crate::ymd;
     use crate::models::status::voucher as voucher_status;
     use chrono::Utc;
-    use sea_orm::{Database, DatabaseConnection};
+    use sea_orm::DatabaseConnection;
     use std::str::FromStr;
 
     /// 构建测试用凭证分录请求夹具
@@ -1224,15 +1225,6 @@ mod tests {
                 (ending_balance.abs(), Decimal::ZERO)
             }
         }
-    }
-
-    /// 测试 SQLite 内存数据库连接
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试夹具：数据库连接失败")
     }
 
     // ============ 凭证状态常量值正确性测试 ============

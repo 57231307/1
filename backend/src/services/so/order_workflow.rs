@@ -400,6 +400,7 @@ impl SalesService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::decs;
     // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
     use std::str::FromStr;
@@ -407,7 +408,7 @@ mod tests {
     use crate::search::{ElasticClient, SearchClient};
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use sea_orm::{Database, DatabaseConnection};
+    use sea_orm::DatabaseConnection;
     use std::sync::Arc;
 
     /// 构建测试用销售订单模型夹具
@@ -446,15 +447,6 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
-    }
-
-    /// 测试 SQLite 内存数据库连接夹具
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试夹具：数据库连接失败")
     }
 
     /// 复现 cancel_order 的状态校验门（不涉及数据库）

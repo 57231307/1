@@ -4,6 +4,8 @@
 //! PAID 状态由 event_bus 监听器自动标记（confirm 后异步触发），
 //! 集成测试覆盖到 CONFIRMED 流转即可（REGISTERED → CONFIRMED）。
 
+mod common;
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -12,14 +14,8 @@ mod tests {
     use bingxi_backend::services::ap_payment_service::{
         ApPaymentListQuery, ApPaymentService,
     };
-    use sea_orm::{Database, DatabaseConnection};
-
-    /// 构造测试用 SQLite 内存数据库连接
-    async fn setup_test_db() -> DatabaseConnection {
-        Database::connect("sqlite::memory:")
-            .await
-            .expect("sqlite 内存数据库连接失败")
-    }
+    use sea_orm::DatabaseConnection;
+    use common::setup_test_db;
 
     // ===== 状态常量值正确性 =====
 

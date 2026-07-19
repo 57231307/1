@@ -504,17 +504,8 @@ impl UserService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::models::status::master_data;
-    use sea_orm::Database;
-
-    /// 测试 SQLite 内存数据库连接夹具
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试夹具：数据库连接失败")
-    }
 
     /// 构造用户模型夹具（复用于多个测试，遵循规则 6 避免硬编码）
     fn make_user_model(id: i32, username: &str, is_active: bool) -> user::Model {

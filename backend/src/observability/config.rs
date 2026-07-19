@@ -6,13 +6,6 @@
 //! 3. **Prometheus**：指标采集（与 OTel 兼容）
 //! 4. **Grafana**：可视化面板
 //!
-//! ## 启动
-//!
-//! ```bash
-//! cd deploy/observability
-//! docker-compose up -d
-//! ```
-//!
 //! ## 访问
 //!
 //! - Jaeger UI: http://localhost:16686

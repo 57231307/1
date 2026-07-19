@@ -4,6 +4,8 @@
 //! COMPLETED 状态当前在 PurchaseReceiptService 中无公开方法触发，
 //! 集成测试覆盖到 CONFIRMED 流转即可（DRAFT → CONFIRMED）。
 
+mod common;
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -12,13 +14,7 @@ mod tests {
     use bingxi_backend::services::purchase_receipt_dto::CreatePurchaseReceiptRequest;
     use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
     use sea_orm::{Database, DatabaseConnection};
-
-    /// 构造测试用 SQLite 内存数据库连接
-    async fn setup_test_db() -> DatabaseConnection {
-        Database::connect("sqlite::memory:")
-            .await
-            .expect("sqlite 内存数据库连接失败")
-    }
+    use common::setup_test_db;
 
     /// 构造最小 CreatePurchaseReceiptRequest（仅必填字段）
     fn sample_request() -> CreatePurchaseReceiptRequest {

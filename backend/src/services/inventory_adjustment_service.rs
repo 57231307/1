@@ -683,16 +683,9 @@ impl InventoryAdjustmentService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sea_orm::{Database, DatabaseConnection};
+    use crate::services::test_common::setup_test_db;
+    use sea_orm::DatabaseConnection;
     use std::sync::Arc;
-
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("Failed to connect to db")
-    }
 
     #[tokio::test]
     async fn test_inventory_adjustment_service_creation() {

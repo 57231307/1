@@ -693,6 +693,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
 
+            // P0-D16（Batch 488）：报表订阅调度任务
+            // 设计依据：审计报告 batch-16 P0-16-1 — report_subscription 有 next_run_at 字段但无后台调度
+            // 每 60 秒扫描 next_run_at <= now 的启用订阅，发送邮件通知 + 更新执行状态
+            // 环境变量门控：REPORT_SUBSCRIPTION_SCHEDULER_ENABLED（默认 true）/ REPORT_SUBSCRIPTION_SCHEDULER_INTERVAL_SECS（默认 60）
+            {
+                let scheduler = std::sync::Arc::new(
+                    crate::services::report_subscription_scheduler::ReportSubscriptionScheduler::new(
+                        app_state.db.clone(),
+                    ),
+                );
+                let scheduler_handle = scheduler.start_background_task();
+                if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+                    tasks.push(scheduler_handle);
+                }
+                info!("报表订阅调度任务已启动（默认每 60 秒扫描一次到期订阅）");
+            }
+
             crate::services::event_bus::start_event_listener(app_state.db.clone(), app_state.search_client.clone()).await;
             crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
             // 批次 120 P2-7 修复：启动时初始化 8 个辅助核算维度（幂等实现）

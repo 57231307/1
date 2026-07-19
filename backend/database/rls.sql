@@ -27,7 +27,7 @@
 -- 注意事项：
 -- - 不可使用 FORCE ROW LEVEL SECURITY（会限制表 owner，导致迁移用户无法访问）
 -- - 应用连接用户必须不是 SUPERUSER 且无 BYPASSRLS 属性
--- - docker-compose/CI 环境的 SUPERUSER 用户会绕过 RLS，仅生产环境生效
+-- - CI 环境的 SUPERUSER 用户会绕过 RLS，仅生产环境生效
 -- ============================================================================
 
 -- ============================================================================
@@ -149,7 +149,6 @@ CREATE POLICY crm_opportunity_isolation ON crm_opportunity
 -- 2. 双用户部署架构
 --    - bingxi_app：应用连接，NOSUPERUSER 无 BYPASSRLS
 --    - bingxi_migrate：迁移用，BYPASSRLS
---    - docker-compose 开发环境调整：ALTER USER bingxi NOSUPERUSER
 --
 -- 3. department_id 字段扩展（可选）
 --    - 当前所有敏感表无 department_id，dept 数据范围退化为 self

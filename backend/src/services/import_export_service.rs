@@ -887,19 +887,7 @@ mod tests {
     //! 备注：handler 层 DTO 校验 + 早期校验在路由层单测覆盖；
     //! 本处只覆盖 service 层入口校验（最关键的 defense-in-depth 屏障）。
     use super::*;
-    use sea_orm::Database;
-
-    /// 测试夹具：创建内存 SQLite 测试连接
-    /// 用途：service 层 import_data 测试不依赖生产 PostgreSQL；
-    /// 校验在 DB 调用之前触发，因此 DB 内容无关紧要。
-    async fn setup_test_db() -> Arc<DatabaseConnection> {
-        let db_url = std::env::var("TEST_DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite::memory:".to_string());
-        let db = Database::connect(&db_url)
-            .await
-            .expect("漏洞 #8 单测：测试数据库连接失败");
-        Arc::new(db)
-    }
+    use crate::services::test_common::setup_test_db;
 
     /// 测试常量定义正确（防止误改后引发业务可用性问题）
     #[test]
@@ -918,7 +906,7 @@ mod tests {
     /// 超过 MAX_EXCEL_ROWS 行 → 立即拒绝（不进入 DB 查询）
     #[tokio::test]
     async fn test_import_data_rejects_exceeding_max_rows() {
-        let db = setup_test_db().await;
+        let db = Arc::new(setup_test_db().await);
         let service = ImportExportService::new(db);
 
         // 构造超过 MAX_EXCEL_ROWS + 1 行的数据
@@ -946,7 +934,7 @@ mod tests {
     /// 单行列数超过 MAX_EXCEL_COLS → 立即拒绝
     #[tokio::test]
     async fn test_import_data_rejects_exceeding_max_cols() {
-        let db = setup_test_db().await;
+        let db = Arc::new(setup_test_db().await);
         let service = ImportExportService::new(db);
 
         // 构造 1 行 MAX_EXCEL_COLS + 1 列的数据
@@ -968,7 +956,7 @@ mod tests {
     /// 单个单元格超过 MAX_CELL_LEN 字符 → 立即拒绝
     #[tokio::test]
     async fn test_import_data_rejects_exceeding_max_cell_len() {
-        let db = setup_test_db().await;
+        let db = Arc::new(setup_test_db().await);
         let service = ImportExportService::new(db);
 
         // 构造 1 个超过 MAX_CELL_LEN 字符的单元格
@@ -987,7 +975,7 @@ mod tests {
     /// 边界值测试：在所有上限内的数据应通过校验（即使后续因 unknown import_type 失败）
     #[tokio::test]
     async fn test_import_data_allows_within_limits() {
-        let db = setup_test_db().await;
+        let db = Arc::new(setup_test_db().await);
         let service = ImportExportService::new(db);
 
         // 构造 1 行 100 列的合法数据

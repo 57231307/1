@@ -4,6 +4,8 @@
 //! 纯状态机校验函数 validate_status_transition 为私有方法，通过 DB 异常路径间接验证状态门逻辑。
 //! 完整业务流程测试（create → submit → approve → complete）需要真实 PostgreSQL，标记 #[ignore]。
 
+mod common;
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -14,13 +16,7 @@ mod tests {
     };
     use rust_decimal::Decimal;
     use sea_orm::{Database, DatabaseConnection};
-
-    /// 构造测试用 SQLite 内存数据库连接
-    async fn setup_test_db() -> DatabaseConnection {
-        Database::connect("sqlite::memory:")
-            .await
-            .expect("sqlite 内存数据库连接失败")
-    }
+    use common::setup_test_db;
 
     /// 构造最小 CreateProductionOrderRequest（仅必填字段）
     fn sample_create_request() -> CreateProductionOrderRequest {

@@ -21,6 +21,9 @@ pub mod inventory_unit_tests;
 pub mod ar_unit_tests;
 #[cfg(test)]
 pub mod bi_unit_tests;
+// P0-D11：测试公共夹具模块（抽取自 18 处 src/services/ 重复定义的 setup_test_db）
+#[cfg(test)]
+pub mod test_common;
 pub mod business_trace_service;
 pub mod crm;
 pub mod customer_service;
@@ -184,6 +187,8 @@ pub mod email_log_service;
 pub mod assignment_history_service;
 // 报表订阅模块
 pub mod report_subscription_service;
+// P0-D16（Batch 488）：报表订阅调度任务（后台扫描 next_run_at 到期的订阅）
+pub mod report_subscription_scheduler;
 // 导出服务模块
 pub mod export_service;
 // 通用打印服务

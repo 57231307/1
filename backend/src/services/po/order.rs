@@ -725,9 +725,9 @@ impl PurchaseOrderService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::decs;
     use crate::ymd;
-    use sea_orm::Database;
     use std::str::FromStr;
 
     // ---------- 纯算法复现夹具（与 create_order_items / create_order_header 保持一致） ----------
@@ -755,15 +755,6 @@ mod tests {
     /// 复现 create_order_items 的明细行号默认值计算
     fn default_line_no(index: usize) -> i32 {
         (index + 1) as i32
-    }
-
-    /// 测试 SQLite 内存数据库连接
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试夹具：数据库连接失败")
     }
 
     // ---------- 金额计算 ----------

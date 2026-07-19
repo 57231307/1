@@ -400,6 +400,15 @@ impl AppSettings {
             }
         }
 
+        // P0-D15：BINGXI_PORT 环境变量覆盖 config.yaml 的 server.port
+        // 用途：双实例蓝绿部署时，bingxi-backend@blue.service 用 8082，
+        // bingxi-backend@green.service 用 8083，通过环境变量区分实例端口。
+        if let Ok(v) = std::env::var("BINGXI_PORT") {
+            if !v.trim().is_empty() {
+                self.server.port = v;
+            }
+        }
+
         Ok(())
     }
 

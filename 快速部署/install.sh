@@ -40,9 +40,11 @@ install_deps() {
     log "安装依赖..."
     if command -v apt-get >/dev/null; then
         apt-get update -y >/dev/null
-        apt-get install -y curl jq unzip tar nginx postgresql-client >/dev/null
+        # P0-D02：移除 postgresql-client 安装（数据库连接走远程模式，迁移由后端 bingxi migrate run 内置）
+        apt-get install -y curl jq unzip tar nginx >/dev/null
     elif command -v yum >/dev/null; then
-        yum install -y curl jq unzip tar nginx postgresql >/dev/null
+        # P0-D02：移除 postgresql 安装（同上）
+        yum install -y curl jq unzip tar nginx >/dev/null
     fi
 }
 
@@ -204,13 +206,10 @@ case "$1" in
         ;;
     8|migrate)
         echo "执行数据库迁移..."
+        # P0-D02：迁移改用后端内置 bingxi migrate run（移除 postgresql-client 依赖）
         source /etc/bingxi/.env
-        for f in /opt/bingxi-erp/database/migration/*.sql; do
-            if [ -f "$f" ]; then
-                echo "执行: $(basename $f)"
-                PGPASSWORD="$DATABASE__PASSWORD" psql -h "$DATABASE__HOST" -U "$DATABASE__USERNAME" -d "$DATABASE__NAME" -f "$f" 2>/dev/null || true
-            fi
-        done
+        export DATABASE_URL="postgres://${DATABASE__USERNAME}:${DATABASE__PASSWORD}@${DATABASE__HOST}:${DATABASE__PORT}/${DATABASE__NAME}?sslmode=require"
+        /opt/bingxi-erp/backend/bingxi migrate run
         echo "迁移完成"
         ;;
     9|health)

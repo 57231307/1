@@ -357,6 +357,8 @@ EOF
 # 执行数据库迁移
 run_migrations() {
     log "执行数据库迁移..."
+    # P0-D02：迁移改用后端内置 bingxi migrate run（移除 postgresql-client 依赖）
+    # 依赖 DATABASE_URL 环境变量，从 /etc/bingxi/.env 构造
     if [ -f "$ENV_FILE" ]; then
         set -a
         . "$ENV_FILE"
@@ -367,20 +369,13 @@ run_migrations() {
         local DB_USER="${DATABASE__USERNAME:-bingxi}"
         local DB_PASS="${DATABASE__PASSWORD:-}"
 
-        local migration_dir=""
-        if [ -d "/tmp/bingxi-deploy/database/migration" ]; then
-            migration_dir="/tmp/bingxi-deploy/database/migration"
-        elif [ -d "database/migration" ]; then
-            migration_dir="database/migration"
-        fi
-
-        if [ -n "$migration_dir" ]; then
-            for f in "$migration_dir"/*.sql; do
-                if [ -f "$f" ]; then
-                    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$f" 2>/dev/null || true
-                fi
-            done
+        # 优先使用已部署的后端二进制执行迁移；若不存在（首次部署）则跳过，由引导页配置后调用 bingxi migrate
+        local BINGXI_BIN="$BACKEND_DIR/bingxi"
+        if [ -x "$BINGXI_BIN" ]; then
+            DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require" "$BINGXI_BIN" migrate run
             log "数据库迁移完成"
+        else
+            warn "后端二进制不存在，跳过自动迁移（首次部署由引导页触发）"
         fi
     fi
 }
@@ -678,13 +673,10 @@ case "$1" in
         ;;
     8|migrate)
         echo "执行数据库迁移..."
+        # P0-D02：迁移改用后端内置 bingxi migrate run（移除 postgresql-client 依赖）
         source /etc/bingxi/.env
-        for f in /opt/bingxi-erp/database/migration/*.sql; do
-            if [ -f "$f" ]; then
-                echo "执行: $(basename $f)"
-                PGPASSWORD="$DATABASE__PASSWORD" psql -h "$DATABASE__HOST" -U "$DATABASE__USERNAME" -d "$DATABASE__NAME" -f "$f" 2>/dev/null || true
-            fi
-        done
+        export DATABASE_URL="postgres://${DATABASE__USERNAME}:${DATABASE__PASSWORD}@${DATABASE__HOST}:${DATABASE__PORT}/${DATABASE__NAME}?sslmode=require"
+        /opt/bingxi-erp/backend/bingxi migrate run
         echo "迁移完成"
         ;;
     9|health)

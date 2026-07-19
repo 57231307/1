@@ -370,10 +370,11 @@ impl AccountingPeriodService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::decs;
     use crate::ymd;
     use chrono::NaiveDate;
-    use sea_orm::{Database, DatabaseConnection};
+    use sea_orm::DatabaseConnection;
     use std::str::FromStr;
     use std::sync::Arc;
 
@@ -439,15 +440,6 @@ mod tests {
             "日期 {} 不在任何已设置的会计期间内，请先创建对应的会计期间。",
             date.format("%Y-%m-%d")
         )
-    }
-
-    /// 测试夹具：建立 SQLite 内存数据库连接（参考 inventory_adjustment_service.rs 的 setup_test_db 模式）
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试夹具：数据库连接失败")
     }
 
     #[test]

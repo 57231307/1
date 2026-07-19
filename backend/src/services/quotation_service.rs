@@ -550,25 +550,14 @@ impl QuotationService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::decs;
     use crate::ymd;
     use rust_decimal::Decimal;
-    use sea_orm::{Database, DatabaseConnection};
+    use sea_orm::DatabaseConnection;
     use std::sync::Arc;
     // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
     use std::str::FromStr;
-
-    /// 构造测试用 SQLite 内存数据库连接
-    ///
-    /// voucher_service 测试夹具模式的复用：通过 `sqlite::memory:` 内存数据库
-    /// 避免依赖外部 PostgreSQL，CI 环境可直接运行（规则 13：禁止本地编译验证）。
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试夹具：数据库连接失败")
-    }
 
     /// 构造合法的 CreateQuotationItemDto（单条明细）
     fn sample_item() -> CreateQuotationItemDto {

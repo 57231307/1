@@ -343,10 +343,11 @@ impl CustomerCreditService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::decs;
     use crate::ymd;
     use chrono::Utc;
-    use sea_orm::{Database, DatabaseConnection};
+    use sea_orm::DatabaseConnection;
     use std::str::FromStr;
     // 批次 415：测试中使用 Arc::new(db)，需导入（文件顶部在批次 357 移除了 unused Arc 导入）
     use std::sync::Arc;
@@ -378,15 +379,6 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
-    }
-
-    /// 测试 SQLite 内存数据库连接
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试数据库连接失败")
     }
 
     /// 测试_信用额度计算_占用场景正常

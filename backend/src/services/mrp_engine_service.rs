@@ -1014,10 +1014,10 @@ impl MrpEngineService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::test_common::setup_test_db;
     use crate::decs;
     use crate::models::status::common;
     use crate::ymd;
-    use sea_orm::Database;
     use std::str::FromStr;
 
     // MRP 专属状态值（源码 mrp_engine_service.rs 中使用，status.rs 暂无 mrp 子模块）
@@ -1027,15 +1027,6 @@ mod tests {
     const MRP_STATUS_RELEASED: &str = "RELEASED";
     const MRP_STATUS_CANCELLED: &str = "CANCELLED";
     const BOM_STATUS_ACTIVE: &str = "ACTIVE";
-
-    /// 测试夹具：SQLite 内存数据库连接
-    async fn setup_test_db() -> DatabaseConnection {
-        let db_url =
-            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-        Database::connect(&db_url)
-            .await
-            .expect("测试夹具：数据库连接失败")
-    }
 
     /// 构造测试用 StockInfo 夹具
     ///
