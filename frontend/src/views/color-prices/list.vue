@@ -20,7 +20,7 @@
         </div>
       </template>
 
-      <el-form :inline="true" :model="filterForm" class="filter-form">
+      <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="色卡价格筛选表单">
         <el-form-item label="产品 ID">
           <el-input v-model.number="filterForm.product_id" placeholder="产品 ID" clearable style="width: 140px" />
         </el-form-item>
@@ -68,7 +68,7 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="tableData" v-loading="loading" border stripe @selection-change="handleSelectionChange">
+      <el-table :data="tableData" v-loading="loading" border stripe aria-label="色卡价格列表" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="product_id" label="产品" width="100" />
@@ -124,6 +124,7 @@
           :total="total"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="色卡价格列表分页"
         />
       </div>
     </el-card>

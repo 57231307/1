@@ -5,7 +5,7 @@
       <el-button type="primary" @click="handleCreate">新建坯布</el-button>
     </div>
 
-    <el-table v-loading="loading" :data="greigeList" border>
+    <el-table v-loading="loading" :data="greigeList" border aria-label="坯布列表">
       <el-table-column prop="fabric_code" label="面料编码" min-width="120" />
       <el-table-column prop="fabric_name" label="面料名称" min-width="120" />
       <el-table-column prop="fabric_type" label="面料类型" width="100" />
@@ -32,9 +32,10 @@
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '新建坯布' : '编辑坯布'"
       width="600px"
+      aria-label="坯布编辑对话框"
       @close="handleDialogClose"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" aria-label="坯布信息表单">
         <el-form-item label="面料编码" prop="fabric_code">
           <el-input v-model="formData.fabric_code" placeholder="请输入面料编码" />
         </el-form-item>

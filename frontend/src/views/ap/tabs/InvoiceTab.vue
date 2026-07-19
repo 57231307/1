@@ -21,7 +21,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="invoiceQuery">
+      <el-form :inline="true" :model="invoiceQuery" aria-label="应付发票筛选表单">
         <el-form-item label="供应商">
           <el-input v-model="invoiceQuery.supplier_name" placeholder="供应商名称" clearable />
         </el-form-item>
@@ -44,7 +44,7 @@
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="invoiceLoading" :data="invoices" stripe>
+      <el-table v-loading="invoiceLoading" :data="invoices" stripe aria-label="应付发票列表">
         <el-table-column prop="invoice_no" label="发票号" width="140" />
         <el-table-column prop="supplier_name" label="供应商" width="150" />
         <el-table-column prop="invoice_date" label="发票日期" width="120" />
@@ -108,8 +108,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="invoiceDialogVisible" title="新建应付发票" width="600px">
-      <el-form ref="invoiceFormRef" :model="invoiceForm" :rules="invoiceRules" label-width="80px">
+    <el-dialog v-model="invoiceDialogVisible" title="新建应付发票" width="600px" aria-label="新建应付发票对话框">
+      <el-form ref="invoiceFormRef" :model="invoiceForm" :rules="invoiceRules" label-width="80px" aria-label="应付发票表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplier_id">

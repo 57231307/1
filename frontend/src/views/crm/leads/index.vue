@@ -35,7 +35,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="销售线索筛选表单">
         <el-form-item label="关键词">
           <el-input
             v-model="queryParams.keyword"
@@ -116,6 +116,7 @@
         :data="leadList"
         border
         stripe
+        aria-label="销售线索列表"
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" align="center" />
@@ -199,6 +200,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="销售线索列表分页"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
         />
