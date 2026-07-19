@@ -16,7 +16,7 @@
       </template>
 
       <!-- 筛选 -->
-      <el-form :inline="true" :model="filterForm" class="filter-form">
+      <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="色卡列表筛选表单">
         <el-form-item label="色卡类型">
           <el-select v-model="filterForm.card_type" placeholder="全部" clearable style="width: 140px">
             <el-option v-for="(label, value) in COLOR_CARD_TYPE_LABELS" :key="value" :label="label" :value="value" />
@@ -42,7 +42,7 @@
       </el-form>
 
       <!-- 列表 -->
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table :data="tableData" v-loading="loading" border stripe aria-label="色卡列表">
         <el-table-column prop="card_no" label="色卡编号" width="180" />
         <el-table-column prop="card_name" label="色卡名称" min-width="200" />
         <el-table-column label="类型" width="100">
@@ -84,6 +84,7 @@
           :total="total"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="色卡列表分页"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
         />

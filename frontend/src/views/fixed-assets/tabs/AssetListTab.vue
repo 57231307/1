@@ -21,7 +21,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm">
+      <el-form :inline="true" :model="queryForm" aria-label="固定资产筛选表单">
         <el-form-item label="资产编码">
           <el-input v-model="queryForm.asset_code" placeholder="编码" clearable />
         </el-form-item>
@@ -52,7 +52,7 @@
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="assetList" stripe>
+      <el-table v-loading="loading" :data="assetList" stripe aria-label="固定资产列表">
         <el-table-column prop="asset_code" label="资产编码" width="120" />
         <el-table-column prop="asset_name" label="资产名称" min-width="150" />
         <el-table-column prop="category" label="类别" width="100">
@@ -101,14 +101,15 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="固定资产列表分页"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑资产' : '新建资产'" width="600px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑资产' : '新建资产'" width="600px" aria-label="资产编辑对话框">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="资产信息表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="资产编码" prop="asset_code">
@@ -204,12 +205,13 @@
     </el-dialog>
 
     <!-- v3 复审 P1-2：资产处置对话框 -->
-    <el-dialog v-model="disposalDialogVisible" title="资产处置" width="520px">
+    <el-dialog v-model="disposalDialogVisible" title="资产处置" width="520px" aria-label="资产处置对话框">
       <el-form
         ref="disposalFormRef"
         :model="disposalForm"
         :rules="disposalRules"
         label-width="100px"
+        aria-label="资产处置表单"
       >
         <el-form-item label="处置方式" prop="disposal_type">
           <el-select v-model="disposalForm.disposal_type" placeholder="选择处置方式" style="width: 100%">

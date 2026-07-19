@@ -7,7 +7,7 @@
         <span>发放 / 归还 / 遗失 / 损坏 / 取消登记</span>
       </template>
 
-      <el-tabs v-model="activeTab">
+      <el-tabs v-model="activeTab" aria-label="色卡发放管理标签页">
         <!-- 发放 -->
         <el-tab-pane label="发放色卡" name="issue">
           <el-form :model="issueForm" :rules="issueRules" ref="issueFormRef" label-width="100px" style="max-width: 600px">
@@ -53,7 +53,7 @@
 
         <!-- 发放中列表 -->
         <el-tab-pane :label="`发放中 (${activeIssues.length})`" name="active">
-          <el-table :data="activeIssues" border>
+          <el-table :data="activeIssues" border aria-label="发放中色卡列表">
             <el-table-column prop="color_card_id" label="色卡 ID" width="100" />
             <el-table-column label="客户 ID" prop="customer_id" width="100" />
             <el-table-column label="发放数量" prop="issue_qty" width="100" />
@@ -68,10 +68,10 @@
             <el-table-column label="用途" prop="purpose" />
             <el-table-column label="操作" width="360" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" @click="handleReturn(row)">归还</el-button>
-                <el-button link type="warning" @click="handleMarkDamaged(row)">损坏</el-button>
-                <el-button link type="danger" @click="handleMarkLost(row)">遗失</el-button>
-                <el-button link type="info" @click="handleCancel(row)">取消</el-button>
+                <el-button link type="primary" aria-label="归还色卡" @click="handleReturn(row)">归还</el-button>
+                <el-button link type="warning" aria-label="标记色卡损坏" @click="handleMarkDamaged(row)">损坏</el-button>
+                <el-button link type="danger" aria-label="登记色卡遗失" @click="handleMarkLost(row)">遗失</el-button>
+                <el-button link type="info" aria-label="取消色卡发放" @click="handleCancel(row)">取消</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -79,7 +79,7 @@
 
         <!-- 历史 -->
         <el-tab-pane label="历史记录" name="history">
-          <el-table :data="historyRecords" border>
+          <el-table :data="historyRecords" border aria-label="色卡发放历史记录">
             <el-table-column prop="id" label="记录 ID" width="100" />
             <el-table-column prop="color_card_id" label="色卡 ID" width="100" />
             <el-table-column prop="customer_id" label="客户 ID" width="100" />
@@ -108,8 +108,8 @@
     </el-card>
 
     <!-- 归还对话框 -->
-    <el-dialog v-model="showReturnDialog" title="归还色卡" width="480px">
-      <el-form label-width="80px">
+    <el-dialog v-model="showReturnDialog" title="归还色卡" aria-label="归还色卡对话框" width="480px">
+      <el-form label-width="80px" aria-label="归还色卡表单">
         <el-form-item label="实际归还">
           <el-date-picker v-model="returnForm.actual_return_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
@@ -124,11 +124,11 @@
     </el-dialog>
 
     <!-- 遗失对话框 -->
-    <el-dialog v-model="showLostDialog" title="登记遗失" width="480px">
+    <el-dialog v-model="showLostDialog" title="登记遗失" aria-label="登记遗失对话框" width="480px">
       <el-alert type="warning" :closable="false" style="margin-bottom: 16px">
         登记遗失后色卡状态将变为「遗失」，需要填写赔付金额。
       </el-alert>
-      <el-form label-width="100px">
+      <el-form label-width="100px" aria-label="登记遗失表单">
         <el-form-item label="赔付金额" required>
           <el-input-number v-model="lostForm.compensation_amount" :min="0.01" :precision="2" :step="100" style="width: 100%" />
         </el-form-item>
@@ -143,8 +143,8 @@
     </el-dialog>
 
     <!-- 损坏对话框 -->
-    <el-dialog v-model="showDamagedDialog" title="标记损坏" width="480px">
-      <el-form label-width="100px">
+    <el-dialog v-model="showDamagedDialog" title="标记损坏" aria-label="标记损坏对话框" width="480px">
+      <el-form label-width="100px" aria-label="标记损坏表单">
         <el-form-item label="赔付金额">
           <el-input-number v-model="damagedForm.compensation_amount" :min="0" :precision="2" :step="100" style="width: 100%" />
         </el-form-item>
@@ -159,11 +159,11 @@
     </el-dialog>
 
     <!-- 取消对话框 -->
-    <el-dialog v-model="showCancelDialog" title="取消发放" width="480px">
+    <el-dialog v-model="showCancelDialog" title="取消发放" aria-label="取消发放对话框" width="480px">
       <el-alert type="info" :closable="false" style="margin-bottom: 16px">
         取消发放后记录将变为「已取消」终态，不可再变更。
       </el-alert>
-      <el-form label-width="80px">
+      <el-form label-width="80px" aria-label="取消发放表单">
         <el-form-item label="取消原因">
           <el-input v-model="cancelForm.remark" type="textarea" :rows="2" />
         </el-form-item>

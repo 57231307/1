@@ -22,7 +22,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="染色配方筛选表单">
         <el-form-item label="关键词">
           <el-input
             v-model="queryParams.keyword"
@@ -66,7 +66,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="recipeList" border stripe>
+      <el-table v-loading="loading" :data="recipeList" border stripe aria-label="染色配方列表">
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="recipe_no" label="配方编号" width="120" show-overflow-tooltip />
         <el-table-column
@@ -128,6 +128,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="染色配方列表分页"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
         />
@@ -140,8 +141,9 @@
       :title="dialogTitle"
       width="800px"
       :close-on-click-modal="false"
+      aria-label="染色配方编辑对话框"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" :disabled="isView" label-width="100px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" :disabled="isView" label-width="100px" aria-label="染色配方表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="配方编号" prop="recipe_no">
@@ -185,8 +187,8 @@
     </el-dialog>
 
     <!-- 版本历史对话框 -->
-    <el-dialog v-model="versionVisible" title="版本历史" width="800px">
-      <el-table :data="versionList" border stripe>
+    <el-dialog v-model="versionVisible" title="版本历史" width="800px" aria-label="版本历史对话框">
+      <el-table :data="versionList" border stripe aria-label="染色配方版本历史列表">
         <el-table-column prop="version" label="版本" width="80" align="center" />
         <el-table-column
           prop="recipe_name"
