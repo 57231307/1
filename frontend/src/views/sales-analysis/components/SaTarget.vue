@@ -14,7 +14,7 @@
         </el-button>
       </div>
     </template>
-    <el-table :data="data" border>
+    <el-table :data="data" border aria-label="销售目标列表">
       <el-table-column prop="period" label="周期" width="120" align="center" />
       <el-table-column prop="target_amount" label="目标金额" width="150" align="right">
         <template #default="{ row }">

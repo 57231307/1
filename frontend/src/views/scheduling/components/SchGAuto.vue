@@ -8,9 +8,10 @@
     :model-value="visible"
     title="自动排程参数"
     width="500px"
+    aria-label="自动排程参数对话框"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localForm" label-width="120px">
+    <el-form :model="localForm" label-width="120px" aria-label="自动排程参数表单">
       <el-form-item label="排程开始日期">
         <el-date-picker
           v-model="localForm.start_date"

@@ -7,9 +7,10 @@
     :model-value="visible"
     title="排程冲突"
     width="700px"
+    aria-label="排程冲突列表对话框"
     @update:model-value="onVisibleChange"
   >
-    <el-table :data="conflictList" stripe>
+    <el-table :data="conflictList" stripe aria-label="排程冲突列表">
       <el-table-column prop="work_center_name" label="工作中心" width="140" />
       <el-table-column label="冲突工单" width="260">
         <template #default="{ row }">

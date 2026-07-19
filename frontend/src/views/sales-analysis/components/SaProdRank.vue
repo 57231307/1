@@ -19,7 +19,7 @@
         </el-select>
       </div>
     </template>
-    <el-table :data="data" size="small">
+    <el-table :data="data" size="small" aria-label="产品销售排名列表">
       <el-table-column type="index" label="排名" width="60" align="center" />
       <el-table-column prop="product_name" label="产品名称" min-width="150" show-overflow-tooltip />
       <el-table-column prop="amount" label="销售额" width="120" align="right">
