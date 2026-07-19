@@ -12,7 +12,7 @@
       添加产品
     </el-button>
 
-    <el-table :data="modelValue" border style="margin-top: 10px" empty-text="暂无明细，请点击添加">
+    <el-table :data="modelValue" border style="margin-top: 10px" empty-text="暂无明细，请点击添加" aria-label="报价明细编辑表">
       <el-table-column type="index" label="#" width="50" align="center" />
 
       <el-table-column label="产品" min-width="180">

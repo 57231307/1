@@ -8,6 +8,7 @@
     :model-value="visible"
     title="订单详情"
     width="1000px"
+    aria-label="订单详情对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="2" border>
@@ -32,7 +33,7 @@
     </el-descriptions>
 
     <el-divider content-position="left">订单明细</el-divider>
-    <el-table :data="order?.items" border>
+    <el-table :data="order?.items" border aria-label="订单明细列表">
       <el-table-column prop="product_name" label="产品名称" />
       <el-table-column prop="product_code" label="产品编码" width="120" />
       <el-table-column prop="quantity" label="数量" width="80" align="right" />

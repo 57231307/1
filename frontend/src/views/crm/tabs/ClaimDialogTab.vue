@@ -4,11 +4,11 @@
   拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" title="领取客户" width="500px">
+  <el-dialog v-model="visible" title="领取客户" width="500px" aria-label="领取客户对话框">
     <p>
       确认将客户 <strong>{{ customerName }}</strong> 领取到我的客户池？
     </p>
-    <el-form :model="form" label-width="80px">
+    <el-form :model="form" label-width="80px" aria-label="领取客户表单">
       <el-form-item label="备注">
         <el-input v-model="form.remark" type="textarea" :rows="3" />
       </el-form-item>

@@ -24,7 +24,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="subjectLoading" :data="subjects" stripe row-key="id" default-expand-all>
+      <el-table v-loading="subjectLoading" :data="subjects" stripe row-key="id" default-expand-all aria-label="会计科目列表">
         <el-table-column prop="code" label="科目编码" width="120" />
         <el-table-column prop="name" label="科目名称" min-width="200" />
         <el-table-column prop="category" label="科目类别" width="100">
@@ -70,8 +70,9 @@
       v-model="subjectDialogVisible"
       :title="subjectForm.id ? '编辑科目' : '新建科目'"
       width="500px"
+      :aria-label="subjectForm.id ? '编辑科目对话框' : '新建科目对话框'"
     >
-      <el-form ref="subjectFormRef" :model="subjectForm" :rules="subjectRules" label-width="80px">
+      <el-form ref="subjectFormRef" :model="subjectForm" :rules="subjectRules" label-width="80px" aria-label="会计科目表单">
         <el-form-item label="科目编码" prop="code">
           <el-input v-model="subjectForm.code" placeholder="请输入科目编码" />
         </el-form-item>

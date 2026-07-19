@@ -9,9 +9,10 @@
     :title="title"
     width="900px"
     destroy-on-close
+    :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localData" :rules="formRules" label-width="100px">
+    <el-form ref="formRef" :model="localData" :rules="formRules" label-width="100px" aria-label="销售订单表单">
       <el-divider content-position="left">基本信息</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
@@ -73,7 +74,7 @@
 
       <el-divider content-position="left">订单明细</el-divider>
       <div class="order-items">
-        <el-table :data="localData.items" border style="width: 100%">
+        <el-table :data="localData.items" border style="width: 100%" aria-label="销售订单明细编辑表">
           <el-table-column label="产品" width="200">
             <template #default="{ row, $index }">
               <el-select
