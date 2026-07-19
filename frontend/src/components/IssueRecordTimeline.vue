@@ -1,7 +1,7 @@
 <template>
   <div class="issue-record-timeline">
     <el-empty v-if="records.length === 0" description="暂无发放记录" />
-    <el-timeline v-else>
+    <el-timeline v-else aria-label="色卡发放记录时间线">
       <el-timeline-item
         v-for="record in records"
         :key="record.id"

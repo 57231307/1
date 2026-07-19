@@ -25,6 +25,8 @@
           :estimated-row-height="estimatedRowHeight"
           :header-height="48"
           :row-event-handlers="rowEventHandlers"
+          role="table"
+          aria-label="虚拟滚动数据表格"
           fixed
         />
       </template>
@@ -36,6 +38,7 @@
         :total="total"
         :page-sizes="pageSizes"
         layout="total, sizes, prev, pager, next, jumper"
+        aria-label="虚拟表格分页"
         @current-change="handlePageChange"
         @size-change="handleSizeChange"
       />

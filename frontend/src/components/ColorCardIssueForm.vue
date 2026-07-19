@@ -4,7 +4,7 @@
     拆分自 views/color-cards/issues.vue 的「发放色卡」Tab
     供 issues.vue / 其他页面复用，emit('success', record) 通知父组件刷新
   -->
-  <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" style="max-width: 600px">
+  <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" aria-label="色卡发放表单" style="max-width: 600px">
     <el-form-item label="选择色卡" prop="color_card_id">
       <el-select v-model="form.color_card_id" filterable placeholder="搜索色卡编号或名称" style="width: 100%">
         <el-option

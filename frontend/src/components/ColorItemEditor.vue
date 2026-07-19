@@ -1,6 +1,6 @@
 <template>
   <div class="color-item-editor">
-    <el-form label-width="100px">
+    <el-form label-width="100px" aria-label="色号编辑表单">
       <el-form-item label="色号编码" required>
         <el-input v-model="localValue.color_code" placeholder="例如: 18-1664 TPX" />
       </el-form-item>

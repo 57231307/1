@@ -76,8 +76,8 @@
     </el-table>
 
     <!-- 创建工单 -->
-    <el-dialog v-model="createVisible" title="创建售后工单" width="540px">
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+    <el-dialog v-model="createVisible" title="创建售后工单" aria-label="创建售后工单对话框" width="540px">
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" aria-label="创建售后工单表单">
         <el-form-item label="售后类型" prop="issue_type">
           <el-radio-group v-model="form.issue_type">
             <el-radio-button label="complaint">客诉</el-radio-button>
@@ -103,8 +103,8 @@
     </el-dialog>
 
     <!-- 解决工单 -->
-    <el-dialog v-model="resolveVisible" title="解决售后工单" width="500px">
-      <el-form :model="resolveForm" label-width="80px">
+    <el-dialog v-model="resolveVisible" title="解决售后工单" aria-label="解决售后工单对话框" width="500px">
+      <el-form :model="resolveForm" label-width="80px" aria-label="解决售后工单表单">
         <el-form-item label="解决方案" required>
           <el-input v-model="resolveForm.resolution" type="textarea" :rows="3" />
         </el-form-item>

@@ -3,7 +3,7 @@
     色卡发放详情展示组件（V15 P0-F12）
     展示单条发放记录的全字段，供详情对话框/抽屉使用
   -->
-  <el-descriptions :column="2" border>
+  <el-descriptions :column="2" border aria-label="色卡发放详情">
     <el-descriptions-item label="记录 ID">{{ record.id }}</el-descriptions-item>
     <el-descriptions-item label="色卡 ID">{{ record.color_card_id }}</el-descriptions-item>
     <el-descriptions-item label="客户 ID">{{ record.customer_id }}</el-descriptions-item>

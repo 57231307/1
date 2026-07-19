@@ -22,8 +22,8 @@
           </div>
         </div>
         <div class="actions" @click.stop>
-          <el-button link type="primary" size="small" @click.stop="$emit('scan', item)">扫码</el-button>
-          <el-button link type="danger" size="small" @click.stop="$emit('delete', item)">删除</el-button>
+          <el-button link type="primary" size="small" aria-label="扫码查看色卡详情" @click.stop="$emit('scan', item)">扫码</el-button>
+          <el-button link type="danger" size="small" aria-label="删除色卡" @click.stop="$emit('delete', item)">删除</el-button>
         </div>
       </div>
     </div>

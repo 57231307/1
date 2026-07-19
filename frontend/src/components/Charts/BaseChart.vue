@@ -1,5 +1,5 @@
 <template>
-  <div ref="chartRef" class="chart-container" :style="{ width: '100%', height: height }"></div>
+  <div ref="chartRef" class="chart-container" role="img" :aria-label="chartAriaLabel" :style="{ width: '100%', height: height }"></div>
 </template>
 
 <script setup lang="ts">
@@ -34,6 +34,17 @@ const defaultOption = computed<EChartsOption>(() => ({
   grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
   ...props.option,
 }))
+
+/// 图表 aria-label：从 option.title 提取文本，无 title 时降级为"数据图表"
+const chartAriaLabel = computed<string>(() => {
+  const title = props.option?.title
+  if (!title) return '数据图表'
+  if (typeof title === 'string') return title
+  if (typeof title === 'object' && 'text' in title && typeof title.text === 'string') {
+    return title.text
+  }
+  return '数据图表'
+})
 
 const initChart = () => {
   if (!chartRef.value) return
