@@ -8,6 +8,7 @@
     :model-value="visible"
     title="凭证详情"
     width="800px"
+    aria-label="凭证详情对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="3" border>
@@ -31,7 +32,7 @@
       }}</el-descriptions-item>
     </el-descriptions>
     <el-divider>分录明细</el-divider>
-    <el-table :data="currentVoucher?.entries" stripe>
+    <el-table :data="currentVoucher?.entries" stripe aria-label="凭证分录列表">
       <el-table-column prop="summary" label="摘要" min-width="150" />
       <el-table-column prop="subject_code" label="科目编码" width="100" />
       <el-table-column prop="subject_name" label="科目名称" min-width="150" />

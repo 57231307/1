@@ -9,6 +9,7 @@
     :model-value="visible"
     title="新建凭证"
     width="800px"
+    aria-label="新建凭证对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -16,6 +17,7 @@
       :model="localVoucherForm"
       :rules="voucherRules"
       label-width="80px"
+      aria-label="凭证表单"
     >
       <el-row :gutter="20">
         <el-col :span="12">
@@ -45,7 +47,7 @@
         </el-col>
       </el-row>
       <el-divider>分录明细</el-divider>
-      <el-table :data="localVoucherForm.entries" stripe>
+      <el-table :data="localVoucherForm.entries" stripe aria-label="凭证分录编辑表">
         <el-table-column label="摘要" min-width="150">
           <template #default="{ row }">
             <el-input v-model="row.summary" placeholder="摘要" />

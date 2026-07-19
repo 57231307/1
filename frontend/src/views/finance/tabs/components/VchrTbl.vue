@@ -5,7 +5,7 @@
 -->
 <template>
   <el-card shadow="hover">
-    <el-table v-loading="voucherLoading" :data="vouchers" stripe>
+    <el-table v-loading="voucherLoading" :data="vouchers" stripe aria-label="凭证列表">
       <el-table-column prop="voucher_no" label="凭证号" width="120" />
       <el-table-column prop="voucher_date" label="凭证日期" width="120" />
       <el-table-column prop="voucher_type" label="凭证类型" width="100" />
@@ -65,6 +65,7 @@
         :page-sizes="[10, 20, 50, 100]"
         :total="voucherTotal"
         layout="total, sizes, prev, pager, next, jumper"
+        aria-label="凭证列表分页"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
       />

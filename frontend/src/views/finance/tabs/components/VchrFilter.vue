@@ -6,7 +6,7 @@
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localQuery">
+    <el-form :inline="true" :model="localQuery" aria-label="凭证筛选表单">
       <el-form-item label="凭证号">
         <el-input
           v-model="localQuery.voucher_no"
