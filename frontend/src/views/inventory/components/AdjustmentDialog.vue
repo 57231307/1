@@ -12,9 +12,10 @@
     title="库存调整"
     width="500px"
     :close-on-click-modal="false"
+    aria-label="库存调整对话框"
     @update:model-value="onClose"
   >
-    <el-form :model="localForm" label-width="100px">
+    <el-form :model="localForm" label-width="100px" aria-label="库存调整表单">
       <el-form-item v-if="localForm.product_name" label="产品">
         <el-input :value="localForm.product_name" disabled />
       </el-form-item>

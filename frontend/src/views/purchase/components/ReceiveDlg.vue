@@ -8,9 +8,10 @@
     :model-value="modelValue"
     title="采购收货"
     width="800px"
+    aria-label="采购收货对话框"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
-    <el-form :model="localForm" label-width="100px">
+    <el-form :model="localForm" label-width="100px" aria-label="采购收货表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="采购单号">
@@ -52,7 +53,7 @@
         </el-col>
       </el-row>
       <el-form-item label="收货明细">
-        <el-table :data="localForm.items" border style="width: 100%">
+        <el-table :data="localForm.items" border style="width: 100%" aria-label="采购收货明细列表">
           <el-table-column prop="product_name" label="产品" width="150" />
           <el-table-column prop="ordered_quantity" label="订购数量" width="100" />
           <el-table-column prop="received_quantity" label="已收货" width="100" />

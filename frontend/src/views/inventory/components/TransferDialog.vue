@@ -12,9 +12,10 @@
     title="新建调拨单"
     width="700px"
     :close-on-click-modal="false"
+    aria-label="新建调拨单对话框"
     @update:model-value="onClose"
   >
-    <el-form :model="localForm" label-width="100px">
+    <el-form :model="localForm" label-width="100px" aria-label="新建调拨单表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="调出仓库">

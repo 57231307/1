@@ -5,7 +5,7 @@
 -->
 <template>
   <el-card shadow="hover" class="table-card">
-    <el-table v-loading="loading" :data="orders" stripe>
+    <el-table v-loading="loading" :data="orders" stripe aria-label="采购订单列表">
       <el-table-column prop="order_no" label="订单号" width="160" fixed>
         <template #default="{ row }">
           <el-link type="primary" @click="onView(row as PurchaseOrder)">{{ row.order_no }}</el-link>
@@ -73,6 +73,7 @@
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
+        aria-label="采购订单列表分页"
         @size-change="onQuery"
         @current-change="onQuery"
       />
