@@ -5,7 +5,7 @@
 -->
 <template>
   <el-card shadow="hover" class="table-card">
-    <el-table v-loading="loading" :data="priceList" border stripe>
+    <el-table v-loading="loading" :data="priceList" border stripe aria-label="销售价格列表">
       <el-table-column type="index" label="序号" width="60" align="center" />
       <el-table-column
         prop="product_name"
@@ -74,6 +74,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
+        aria-label="销售价格列表分页"
       />
     </div>
   </el-card>
