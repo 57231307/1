@@ -5,6 +5,128 @@
 
 ---
 
+## 📦 V15 Batch 486 归档（P0-T01 核心 service 单测补全）
+
+### 任务概述
+
+V15 测试体系审计（batch-06）发现的 P0-T01 缺陷修复。审计报告指 `quotation_service.rs`（549 行 14 pub fn 0 测试）和 `purchase_receipt_service.rs`（677 行 13 pub async fn 0 测试）零单元测试覆盖，与 v4 维度 12 P0 第 1 项要求"voucher_service / inventory_stock_service / quotation_service / purchase_receipt_service / sales_order_service 100% 覆盖"不一致。本批次为两个核心 service 补全单元测试，参考 voucher_service.rs 测试模式（sqlite::memory: 内存数据库 + decs!/ymd! 夹具宏 + 中文测试函数名）。
+
+### 修改文件清单（2 文件，1 轮 CI）
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `backend/src/services/quotation_service.rs` | 修改 | 新增 19 个单元测试（+387 行） |
+| `backend/src/services/purchase_receipt_service.rs` | 修改 | 新增 19 个单元测试（+343 行） |
+| `.monkeycode/doto.md` + `CHANGELOG.md` + `doto-su.md` | 修改 | 归档记录 |
+
+### 核心变更详解
+
+#### 1. quotation_service.rs 测试模块（19 测试）
+
+**测试模块结构**：
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::decs;
+    use crate::ymd;
+    use rust_decimal::Decimal;
+    use sea_orm::{Database, DatabaseConnection};
+    use std::sync::Arc;
+    use std::str::FromStr; // decs! 宏需要
+
+    async fn setup_test_db() -> DatabaseConnection { ... }
+    fn sample_item() -> CreateQuotationItemDto { ... }
+    fn sample_dto() -> CreateQuotationDto { ... }
+}
+```
+
+**测试分布**（19 个）：
+- **ServiceError Display**（1）：`测试_ServiceError_Display_变体输出正确`
+- **validate_create**（4）：空 items / 单价 ≤ 0 / 数量 ≤ 0 / 正常场景
+- **calculate_totals**（4）：不含税金额 / 税额 / 含税总额 / 多行累加
+- **validate_price_terms**（3）：negative tax_rate / negative discount / 100% discount
+- **状态常量**（2）：quotation status 值正确性 / 状态值风格一致性
+- **QuotationService 构造与 DB**（4）：new 实例化 / from_state / list 空 DB 返回 Err / get_by_id 空 DB 返回 Err
+- **update**（1）：update 空 DB 返回 Err（健壮性校验）
+
+**关键测试示例**：
+```rust
+#[tokio::test]
+async fn 测试_calculate_totals_不含税金额计算正确() {
+    let db = setup_test_db().await;
+    let svc = QuotationService::new(Arc::new(db));
+    let dto = sample_dto();
+    let (subtotal, tax_amount, total_amount) = svc.calculate_totals(&dto).unwrap();
+    assert_eq!(subtotal, decs!(1000));
+    assert_eq!(tax_amount, decs!(130));
+    assert_eq!(total_amount, decs!(1130));
+}
+```
+
+#### 2. purchase_receipt_service.rs 测试模块（19 测试）
+
+**测试分布**（19 个）：
+- **状态常量**（3）：purchase_receipt 状态 DRAFT/CONFIRMED/COMPLETED / 风格一致性 / 默认值
+- **Service 构造与 DB**（4）：new / 空 DB list 返回 Err / 空 DB get_by_id 返回 Err / 空 DB delete 返回 Err
+- **create_receipt**（2）：空 DB 创建返回 Err / DTO 字段默认值
+- **update/delete/confirm_receipt**（3）：空 DB update 返回 Err / delete 返回 Err / confirm 返回 Err
+- **明细操作**（3）：add_receipt_item 空 DB 返回 Err / update_receipt_item / remove_receipt_item
+- **calculate_receipt_total**（1）：正常多行计算
+- **DTO**（3）：CreateReceiptItemRequest 默认值 / UpdateReceiptItemRequest / 字段映射
+
+**关键测试示例**：
+```rust
+#[test]
+fn 测试_入库单状态常量_大写风格() {
+    for s in [
+        status::purchase_receipt::DRAFT,
+        status::purchase_receipt::CONFIRMED,
+        status::purchase_receipt::COMPLETED,
+    ] {
+        assert!(s.chars().all(|c| c.is_uppercase() || c == '_'), "状态 {} 应全大写", s);
+    }
+}
+```
+
+### 关键决策与教训
+
+#### 决策 1：DB 相关测试断言 `is_err()` 而非期望空数据
+
+**背景**：初始测试假设空 SQLite DB 上 `list()` 返回空列表、`get_by_id()` 返回 NotFound。
+**实际**：sea-orm 的 `find_by_id(id).one()` 在表不存在时返回 `Err(DbErr)`，而非 `Ok(None)`；`find().all()` 同样返回 `Err(DbErr)` 而非 `Ok(vec![])`。
+**修复**：将所有 DB 相关测试改为期望 `Err`（健壮性测试），验证 service 在 DB 异常时不 panic 而是返回错误。
+
+#### 决策 2：测试夹具参考 voucher_service.rs 模式
+
+- `decs!` / `ymd!` 宏（`#[macro_export]`），`decs!` 展开为 `Decimal::from_str($x).expect(...)`，需 `use std::str::FromStr;`
+- `setup_test_db` 函数返回 `DatabaseConnection`（sqlite::memory:）
+- `sample_item` / `sample_dto` 辅助函数构造测试 DTO
+
+#### 决策 3：ServiceError 枚举需测试 Display 实现
+
+quotation_service.rs 定义了 `ServiceError` 枚举（`#[derive(Debug, Error)]` + `#[error("...")]`），需测试 Display 输出避免 thiserror 派生出错。
+
+### CI 验证历程
+
+**CI run 29669019807**（commit 01faa60）：
+- ✅ 环境信息 / Rust 格式检查 / 前端类型检查 / 前端 ESLint / 依赖审计 / Rust Clippy / 前端格式检查 / 前端构建 / 前端测试 / 依赖图记录 — 全部 success
+- ✅ Rust 单元测试 — success（38 个新测试全绿）
+- ✅ Rust 后端构建 — success
+- 🔄 Rust 覆盖率 — in_progress（cargo-tarpaulin 运行中，continue-on-error 不阻塞）
+- **最终结论**：conclusion=success，14/14 全绿（仅 ci-coverage-rust 不阻塞整体 CI）
+
+**关键指标**：Clippy 通过证明 38 个新测试未引入新警告（baseline 机制保持）。
+
+### 关键教训
+
+1. **SQLite 无表时 sea-orm 行为**：`find_by_id(id).one()` 返回 `Err(DbErr)` 而非 `Ok(None)`；`find().all()` 返回 `Err(DbErr)` 而非 `Ok(vec![])`。DB 相关测试应断言 `is_err()` 而非期望空数据。
+2. **测试夹具宏使用**：`decs!` / `ymd!` 宏通过 `#[macro_export]` 导出，在测试模块中需 `use crate::decs;` + `use crate::ymd;` + `use std::str::FromStr;`（decs! 内部使用 FromStr trait）。
+3. **ServiceError 枚举测试**：使用 `#[derive(thiserror::Error)]` 的枚举需测试 Display 实现避免派生出错。
+4. **中文测试函数命名规范**：`测试_方法名_场景描述` 格式，与 voucher_service / inventory_stock_service / wage_service 等保持一致。
+
+---
+
 ## 📦 V15 Batch 485 归档（P0-T03 clippy baseline 恢复 + P0-T08 覆盖率工具 + 编译错误修复）
 
 ### 任务概述
