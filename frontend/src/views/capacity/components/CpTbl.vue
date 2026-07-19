@@ -14,7 +14,7 @@
         </el-button>
       </div>
     </template>
-    <el-table v-loading="tableLoading" :data="data" stripe style="width: 100%">
+    <el-table v-loading="tableLoading" :data="data" stripe style="width: 100%" aria-label="工作中心列表">
       <el-table-column prop="code" label="编号" width="120" />
       <el-table-column prop="name" label="名称" width="150" />
       <el-table-column prop="capacity_hours" label="产能工时" width="120" />
@@ -45,6 +45,7 @@
       :page-sizes="[10, 20, 50]"
       layout="total, sizes, prev, pager, next"
       class="pagination"
+      aria-label="工作中心列表分页"
       @update:current-page="(v: number) => emit('update:page', v)"
       @update:page-size="(v: number) => emit('update:size', v)"
     />

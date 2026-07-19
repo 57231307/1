@@ -11,7 +11,7 @@
       </div>
     </template>
 
-    <el-table v-loading="loading" :data="data" border stripe>
+    <el-table v-loading="loading" :data="data" border stripe aria-label="锁定账户管理表">
       <el-table-column type="index" label="序号" width="60" align="center" />
       <el-table-column prop="username" label="用户名" width="120" show-overflow-tooltip />
       <el-table-column prop="lock_reason" label="锁定原因" min-width="200" show-overflow-tooltip />

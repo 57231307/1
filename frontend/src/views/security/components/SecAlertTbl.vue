@@ -11,7 +11,7 @@
       </div>
     </template>
 
-    <el-table v-loading="loading" :data="data" border stripe>
+    <el-table v-loading="loading" :data="data" border stripe aria-label="安全告警表">
       <el-table-column type="index" label="序号" width="60" align="center" />
       <el-table-column prop="alert_type" label="告警类型" width="120" align="center">
         <template #default="{ row }">

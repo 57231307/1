@@ -38,7 +38,7 @@ const closeReportResult = () => emit('update:report-result-visible', false)
   </div>
 
   <el-card shadow="hover">
-    <el-table v-loading="reportLoading" :data="reportTemplates" stripe>
+    <el-table v-loading="reportLoading" :data="reportTemplates" stripe aria-label="报表模板列表">
       <el-table-column prop="template_name" label="报表名称" width="180" />
       <el-table-column prop="template_code" label="报表编码" width="120" />
       <el-table-column prop="category" label="分类" width="120" />
@@ -64,11 +64,12 @@ const closeReportResult = () => emit('update:report-result-visible', false)
     :model-value="reportResultVisible"
     title="报表结果"
     width="80%"
+    aria-label="报表结果对话框"
     @update:model-value="(v: boolean) => emit('update:report-result-visible', v)"
   >
     <div class="report-result">
       <el-empty v-if="!reportData" description="暂无数据" />
-      <el-table v-else :data="reportData" border stripe>
+      <el-table v-else :data="reportData" border stripe aria-label="报表结果数据表">
         <el-table-column
           v-for="col in reportColumns"
           :key="col.key"
