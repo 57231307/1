@@ -266,6 +266,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
       fit
       highlight-current-row
       style="width: 100%"
+      aria-label="五维分析列表"
     >
       <ElTableColumn prop="dimension.product_id" label="产品ID" width="100" />
       <ElTableColumn prop="dimension.product_name" label="产品名称" width="150" />
@@ -299,6 +300,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handlePageSizeChange"
         @current-change="handlePageChange"
+        aria-label="五维分析列表分页"
       />
     </div>
 
@@ -306,6 +308,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
       title="五维统计详情"
       :visible="viewDialogVisible"
       width="800px"
+      aria-label="五维统计详情"
       @close="viewDialogVisible = false"
     >
       <div v-if="viewData">
@@ -328,7 +331,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
         </ElDescriptions>
         <div style="margin-top: 20px">
           <h4>仓库分布</h4>
-          <ElTable :data="viewData.warehouse_distribution" border style="width: 100%">
+          <ElTable :data="viewData.warehouse_distribution" border style="width: 100%" aria-label="仓库分布表">
             <ElTableColumn prop="warehouse_id" label="仓库ID" width="100" />
             <ElTableColumn prop="warehouse_name" label="仓库名称" width="150" />
             <ElTableColumn prop="quantity_meters" label="米数" width="120" align="right" />
@@ -342,9 +345,10 @@ const selectFromSearch = (item: FiveDimensionItem) => {
       title="快速搜索"
       :visible="searchDialogVisible"
       width="700px"
+      aria-label="快速搜索"
       @close="searchDialogVisible = false"
     >
-      <ElForm :model="searchFormRef" label-width="80px">
+      <ElForm :model="searchFormRef" label-width="80px" aria-label="快速搜索表单">
         <ElFormItem label="搜索关键词">
           <ElInput v-model="searchFormRef.keyword" placeholder="请输入搜索关键词" />
         </ElFormItem>
@@ -365,7 +369,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
       </template>
       <div v-if="searchResults.length > 0" style="margin-top: 10px">
         <ElDivider />
-        <ElTable :data="searchResults" border style="width: 100%" size="small">
+        <ElTable :data="searchResults" border style="width: 100%" size="small" aria-label="搜索结果列表">
           <ElTableColumn prop="product_id" label="产品ID" width="80" />
           <ElTableColumn prop="product_name" label="产品名称" width="120" />
           <ElTableColumn prop="batch_no" label="批次号" width="120" />

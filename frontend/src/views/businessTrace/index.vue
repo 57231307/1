@@ -219,7 +219,7 @@ const handleCreateSnapshot = async () => {
             <ElDivider />
 
             <h4>环节明细</h4>
-            <ElTable :data="traceResult.stages" border style="width: 100%">
+            <ElTable :data="traceResult.stages" border style="width: 100%" aria-label="追溯环节明细列表">
               <ElTableColumn prop="stage_id" label="环节ID" width="100" />
               <ElTableColumn prop="stage_name" label="环节名称" width="120" />
               <ElTableColumn prop="bill_type" label="单据类型" width="120" />
@@ -244,7 +244,7 @@ const handleCreateSnapshot = async () => {
 
       <ElTabPane label="正向追溯" name="forward">
         <ElCard title="从供应商追溯到客户" class="trace-card">
-          <ElForm :model="forwardForm" label-width="100px">
+          <ElForm :model="forwardForm" label-width="100px" aria-label="正向追溯表单">
             <ElRow :gutter="20">
               <ElCol :span="10">
                 <ElFormItem label="供应商ID">
@@ -278,6 +278,7 @@ const handleCreateSnapshot = async () => {
           fit
           highlight-current-row
           style="width: 100%"
+          aria-label="正向追溯结果列表"
         >
           <ElTableColumn prop="id" label="ID" width="80" />
           <ElTableColumn prop="trace_chain_id" label="追溯链ID" width="150" />
@@ -300,7 +301,7 @@ const handleCreateSnapshot = async () => {
 
       <ElTabPane label="反向追溯" name="backward">
         <ElCard title="从客户追溯到供应商" class="trace-card">
-          <ElForm :model="backwardForm" label-width="100px">
+          <ElForm :model="backwardForm" label-width="100px" aria-label="反向追溯表单">
             <ElRow :gutter="20">
               <ElCol :span="10">
                 <ElFormItem label="客户ID">
@@ -334,6 +335,7 @@ const handleCreateSnapshot = async () => {
           fit
           highlight-current-row
           style="width: 100%"
+          aria-label="反向追溯结果列表"
         >
           <ElTableColumn prop="id" label="ID" width="80" />
           <ElTableColumn prop="trace_chain_id" label="追溯链ID" width="150" />

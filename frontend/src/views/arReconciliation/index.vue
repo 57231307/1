@@ -269,6 +269,7 @@ loadCustomers()
       fit
       highlight-current-row
       style="width: 100%"
+      aria-label="对账列表"
     >
       <ElTableColumn prop="customer_code" label="客户编码" width="120" />
       <ElTableColumn prop="customer_name" label="客户名称" width="150" />
@@ -334,6 +335,7 @@ loadCustomers()
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handlePageSizeChange"
         @current-change="handlePageChange"
+        aria-label="对账列表分页"
       />
     </div>
 
@@ -341,9 +343,10 @@ loadCustomers()
       :title="dialogTitle"
       :visible="dialogVisible"
       width="500px"
+      :aria-label="dialogTitle"
       @close="dialogVisible = false"
     >
-      <ElForm :model="form" label-width="100px">
+      <ElForm :model="form" label-width="100px" aria-label="对账表单">
         <ElFormItem label="客户" prop="customer_id">
           <ElSelect v-model="form.customer_id" placeholder="请选择客户">
             <ElOption
@@ -377,6 +380,7 @@ loadCustomers()
       title="对账详情"
       :visible="viewDialogVisible"
       width="800px"
+      aria-label="对账详情"
       @close="viewDialogVisible = false"
     >
       <div v-if="viewData">
@@ -407,7 +411,7 @@ loadCustomers()
 
         <div style="margin-top: 20px">
           <h4>对账明细</h4>
-          <ElTable :data="detailData" border style="width: 100%">
+          <ElTable :data="detailData" border style="width: 100%" aria-label="对账明细列表">
             <ElTableColumn prop="type" label="类型" width="100" />
             <ElTableColumn prop="source_no" label="单据号" width="150" />
             <ElTableColumn prop="source_date" label="日期" width="120" />

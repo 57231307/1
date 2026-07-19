@@ -171,7 +171,7 @@ loadStats()
         <ElRow :gutter="20">
           <ElCol :span="12">
             <ElCard title="热门资源" class="chart-card">
-              <ElTable :data="stats?.top_resources || []" border style="width: 100%">
+              <ElTable :data="stats?.top_resources || []" border style="width: 100%" aria-label="热门资源列表">
                 <ElTableColumn prop="name" label="资源名称" />
                 <ElTableColumn prop="count" label="访问次数" align="right" />
               </ElTable>
@@ -179,7 +179,7 @@ loadStats()
           </ElCol>
           <ElCol :span="12">
             <ElCard title="活跃用户" class="chart-card">
-              <ElTable :data="stats?.top_users || []" border style="width: 100%">
+              <ElTable :data="stats?.top_users || []" border style="width: 100%" aria-label="活跃用户列表">
                 <ElTableColumn prop="name" label="用户名称" />
                 <ElTableColumn prop="count" label="操作次数" align="right" />
               </ElTable>
@@ -259,6 +259,7 @@ loadStats()
           fit
           highlight-current-row
           style="width: 100%"
+          aria-label="审计日志列表"
         >
           <ElTableColumn prop="id" label="ID" width="80" />
           <ElTableColumn prop="user_name" label="用户" width="100" />
@@ -291,6 +292,7 @@ loadStats()
             layout="total, sizes, prev, pager, next, jumper"
             @size-change="handlePageSizeChange"
             @current-change="handlePageChange"
+            aria-label="审计日志列表分页"
           />
         </div>
       </ElTabPane>
@@ -300,6 +302,7 @@ loadStats()
       title="审计日志详情"
       :visible="viewDialogVisible"
       width="800px"
+      aria-label="审计日志详情"
       @close="viewDialogVisible = false"
     >
       <div v-if="viewData">

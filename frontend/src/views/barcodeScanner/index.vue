@@ -199,7 +199,7 @@ const handleScanToShip = async () => {
 
       <ElTabPane label="扫码发货" name="ship">
         <ElCard title="扫码出库" class="scan-card">
-          <ElForm :model="shipForm" label-width="100px">
+          <ElForm :model="shipForm" label-width="100px" aria-label="扫码发货表单">
             <ElRow :gutter="20">
               <ElCol :span="8">
                 <ElFormItem label="订单ID">
@@ -263,6 +263,7 @@ const handleScanToShip = async () => {
           fit
           highlight-current-row
           style="width: 100%"
+          aria-label="扫码历史列表"
         >
           <ElTableColumn prop="id" label="ID" width="80" />
           <ElTableColumn prop="barcode" label="条码" width="180" />
@@ -280,6 +281,7 @@ const handleScanToShip = async () => {
             :page-sizes="[10, 20, 50, 100]"
             :total="total"
             layout="total, sizes, prev, pager, next, jumper"
+            aria-label="扫码历史列表分页"
           />
         </div>
       </ElTabPane>
