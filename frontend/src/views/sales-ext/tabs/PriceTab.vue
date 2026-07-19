@@ -12,7 +12,7 @@
       </el-button>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="priceQuery">
+      <el-form :inline="true" :model="priceQuery" aria-label="销售价格筛选表单">
         <el-form-item label="产品">
           <el-input v-model="priceQuery.productName" placeholder="产品名称" clearable />
         </el-form-item>
@@ -32,7 +32,7 @@
       </el-form>
     </el-card>
     <el-card shadow="hover">
-      <el-table v-loading="priceLoading" :data="salesPrices" stripe>
+      <el-table v-loading="priceLoading" :data="salesPrices" stripe aria-label="销售价格列表">
         <el-table-column prop="productName" label="产品名称" min-width="150" />
         <el-table-column prop="productCode" label="产品编码" width="120" />
         <el-table-column prop="customerName" label="客户" min-width="150" />
@@ -76,8 +76,9 @@
       v-model="priceDialogVisible"
       :title="priceForm.id ? '编辑销售价格' : '新建销售价格'"
       width="600px"
+      aria-label="销售价格编辑对话框"
     >
-      <el-form ref="priceFormRef" :model="priceForm" :rules="priceRules" label-width="100px">
+      <el-form ref="priceFormRef" :model="priceForm" :rules="priceRules" label-width="100px" aria-label="销售价格表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="产品名称" prop="product_name">

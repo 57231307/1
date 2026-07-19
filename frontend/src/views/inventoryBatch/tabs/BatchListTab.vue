@@ -13,7 +13,7 @@
       </template>
 
       <div class="toolbar">
-        <el-form inline>
+        <el-form inline aria-label="批次列表筛选表单">
           <el-form-item label="批次号">
             <el-input
               v-model="queryParams.batchNo"
@@ -53,7 +53,7 @@
         </div>
       </div>
 
-      <el-table v-loading="loading" :data="batchList" border stripe>
+      <el-table v-loading="loading" :data="batchList" border stripe aria-label="批次列表">
         <el-table-column prop="batchNo" label="批次号" width="140" />
         <el-table-column prop="productName" label="产品名称" />
         <el-table-column prop="colorNo" label="色号" width="100" />
@@ -101,12 +101,13 @@
         :total="total"
         layout="total, prev, pager, next, jumper"
         @current-change="handlePageChange"
+        aria-label="批次列表分页"
       />
     </el-card>
 
     <!-- 批次 157b P1-1 修复：批次调拨对话框 -->
-    <el-dialog v-model="transferDialogVisible" title="批次调拨" width="480px">
-      <el-form ref="transferFormRef" :model="transferForm" :rules="transferRules" label-width="100px">
+    <el-dialog v-model="transferDialogVisible" title="批次调拨" width="480px" aria-label="批次调拨对话框">
+      <el-form ref="transferFormRef" :model="transferForm" :rules="transferRules" label-width="100px" aria-label="批次调拨表单">
         <el-form-item label="调出仓库">
           <el-input :model-value="transferForm.fromWarehouseName" disabled />
         </el-form-item>

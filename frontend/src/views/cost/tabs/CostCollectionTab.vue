@@ -18,7 +18,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm">
+      <el-form :inline="true" :model="queryForm" aria-label="成本归集筛选表单">
         <el-form-item label="归集单号">
           <el-input v-model="queryForm.collection_no" placeholder="单号" clearable />
         </el-form-item>
@@ -41,7 +41,7 @@
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="collectionList" stripe>
+      <el-table v-loading="loading" :data="collectionList" stripe aria-label="成本归集列表">
         <el-table-column prop="collection_no" label="归集单号" width="140" />
         <el-table-column prop="collection_date" label="归集日期" width="120" />
         <el-table-column prop="batch_no" label="批号" width="120" />
@@ -103,6 +103,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
+          aria-label="成本归集列表分页"
         />
       </div>
     </el-card>
@@ -111,8 +112,9 @@
       v-model="dialogVisible"
       :title="form.id ? '编辑成本归集' : '新建成本归集'"
       width="600px"
+      aria-label="成本归集编辑对话框"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="成本归集表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="归集日期" prop="collection_date">

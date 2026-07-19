@@ -22,7 +22,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="缸号筛选表单">
         <el-form-item label="关键词">
           <el-input
             v-model="queryParams.keyword"
@@ -85,7 +85,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="dyeBatchList" border stripe>
+      <el-table v-loading="loading" :data="dyeBatchList" border stripe aria-label="缸号列表">
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="batch_no" label="缸号" width="120" show-overflow-tooltip />
         <el-table-column prop="product_name" label="产品" width="150" show-overflow-tooltip />
@@ -141,6 +141,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
+          aria-label="缸号列表分页"
         />
       </div>
     </el-card>
@@ -151,8 +152,9 @@
       :title="dialogTitle"
       width="700px"
       :close-on-click-modal="false"
+      aria-label="缸号编辑对话框"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" :disabled="isView" label-width="100px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" :disabled="isView" label-width="100px" aria-label="缸号表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="缸号" prop="batch_no">
