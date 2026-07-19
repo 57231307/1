@@ -6,13 +6,14 @@
 -->
 <template>
   <el-dialog
+    aria-label="审批对话框"
     :model-value="visible"
     :title="action === 'approve' ? '审批通过' : '审批拒绝'"
     width="500px"
     destroy-on-close
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localApproveForm" label-width="80px">
+    <el-form :model="localApproveForm" label-width="80px" aria-label="审批表单">
       <el-form-item label="任务名称">
         <span>{{ currentTask?.task_name }}</span>
       </el-form-item>

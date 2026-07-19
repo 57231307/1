@@ -9,7 +9,7 @@
       <h2 class="page-title">通知设置</h2>
     </div>
     <el-card shadow="hover" style="max-width: 600px">
-      <el-form :model="notificationForm" label-width="140px">
+      <el-form :model="notificationForm" label-width="140px" aria-label="通知设置表单">
         <el-form-item label="邮件通知">
           <el-switch v-model="notificationForm.email_enabled" />
         </el-form-item>

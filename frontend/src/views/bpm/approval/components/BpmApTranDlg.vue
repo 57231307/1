@@ -6,6 +6,7 @@
 -->
 <template>
   <el-dialog
+    aria-label="流程转交对话框"
     :model-value="visible"
     title="转交任务"
     width="500px"
@@ -17,6 +18,7 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
+      aria-label="流程转交表单"
     >
       <el-form-item label="任务名称">
         <span>{{ currentTask?.task_name }}</span>

@@ -5,6 +5,7 @@
 -->
 <template>
   <el-dialog
+    aria-label="审批链路对话框"
     :model-value="visible"
     title="审批链"
     width="700px"

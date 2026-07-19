@@ -24,7 +24,7 @@
       </div>
     </div>
 
-    <el-form label-position="top" class="info-form">
+    <el-form label-position="top" class="info-form" aria-label="双因素认证信息表单">
       <el-form-item label="账户名">
         <el-input :model-value="username" readonly />
       </el-form-item>
