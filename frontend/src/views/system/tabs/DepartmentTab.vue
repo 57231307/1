@@ -12,7 +12,7 @@
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="deptLoading" :data="departments" stripe row-key="id" default-expand-all>
+      <el-table v-loading="deptLoading" :data="departments" stripe row-key="id" default-expand-all aria-label="部门列表">
         <el-table-column prop="name" label="部门名称" min-width="200" />
         <el-table-column prop="code" label="部门编码" width="120" />
         <el-table-column prop="manager_name" label="负责人" width="100" />
@@ -40,8 +40,9 @@
       v-model="deptDialogVisible"
       :title="deptForm.id ? '编辑部门' : '新建部门'"
       width="500px"
+      aria-label="部门编辑对话框"
     >
-      <el-form ref="deptFormRef" :model="deptForm" :rules="deptRules" label-width="80px">
+      <el-form ref="deptFormRef" :model="deptForm" :rules="deptRules" label-width="80px" aria-label="部门信息表单">
         <el-form-item label="部门名称" prop="name">
           <el-input v-model="deptForm.name" />
         </el-form-item>

@@ -13,7 +13,7 @@
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="roleLoading" :data="roles" stripe>
+      <el-table v-loading="roleLoading" :data="roles" stripe aria-label="角色列表">
         <el-table-column prop="name" label="角色名称" width="150" />
         <el-table-column prop="code" label="角色编码" width="150" />
         <el-table-column prop="description" label="描述" min-width="200" />
@@ -43,8 +43,9 @@
       v-model="roleDialogVisible"
       :title="roleForm.id ? '编辑角色' : '新建角色'"
       width="600px"
+      aria-label="角色编辑对话框"
     >
-      <el-form ref="roleFormRef" :model="roleForm" :rules="roleRules" label-width="100px">
+      <el-form ref="roleFormRef" :model="roleForm" :rules="roleRules" label-width="100px" aria-label="角色信息表单">
         <el-form-item label="角色名称" prop="name">
           <el-input v-model="roleForm.name" :disabled="!!roleForm.id" />
         </el-form-item>
@@ -69,6 +70,7 @@
       v-model="permissionDialogVisible"
       :title="`权限配置 - ${currentRoleName}`"
       width="600px"
+      aria-label="角色权限配置对话框"
     >
       <el-card v-loading="permissionLoading">
         <el-tree

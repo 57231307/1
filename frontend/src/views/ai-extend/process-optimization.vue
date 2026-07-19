@@ -149,7 +149,7 @@ const appliedOptions = [
     </div>
 
     <el-card class="filter-card">
-      <el-form :inline="true" :model="filter">
+      <el-form :inline="true" :model="filter" aria-label="工艺优化筛选表单">
         <el-form-item label="色号">
           <el-input v-model="filter.color_no" placeholder="如 BL-301" clearable style="width: 160px" />
         </el-form-item>
@@ -174,7 +174,7 @@ const appliedOptions = [
     </el-card>
 
     <el-card>
-      <el-table v-loading="loading" :data="items" stripe border>
+      <el-table v-loading="loading" :data="items" stripe border aria-label="工艺优化列表">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="color_no" label="色号" width="100" />
         <el-table-column prop="color_name" label="色名" width="120" show-overflow-tooltip />
@@ -225,12 +225,13 @@ const appliedOptions = [
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         style="margin-top: 16px; justify-content: flex-end"
+        aria-label="工艺优化列表分页"
       />
     </el-card>
 
     <!-- 创建弹窗 -->
-    <el-dialog v-model="dialogVisible" title="触发 AI 工艺优化" width="540px">
-      <el-form :model="form" label-width="100px">
+    <el-dialog v-model="dialogVisible" title="触发 AI 工艺优化" width="540px" aria-label="工艺优化创建对话框">
+      <el-form :model="form" label-width="100px" aria-label="工艺优化表单">
         <el-form-item label="色号" required>
           <el-input v-model="form.color_no" placeholder="如 BL-301" maxlength="64" />
         </el-form-item>

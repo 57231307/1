@@ -9,9 +9,10 @@
     :title="title"
     width="700px"
     :close-on-click-modal="false"
+    aria-label="客户编辑对话框"
     @close="handleClose"
   >
-    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
+    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px" aria-label="客户信息表单">
       <el-divider content-position="left">基本信息</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">

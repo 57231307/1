@@ -13,7 +13,7 @@
       </el-button>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="userQuery">
+      <el-form :inline="true" :model="userQuery" aria-label="用户筛选表单">
         <el-form-item label="关键词">
           <el-input
             v-model="userQuery.keyword"
@@ -35,7 +35,7 @@
       </el-form>
     </el-card>
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="users" stripe>
+      <el-table v-loading="loading" :data="users" stripe aria-label="用户列表">
         <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="real_name" label="姓名" width="100" />
         <el-table-column prop="phone" label="手机号" width="130" />
@@ -78,6 +78,7 @@
         style="margin-top: 16px; justify-content: flex-end"
         @current-change="handlePageChange"
         @size-change="handleSizeChange"
+        aria-label="用户列表分页"
       />
     </el-card>
 
@@ -86,8 +87,9 @@
       v-model="userDialogVisible"
       :title="userForm.id ? '编辑用户' : '新建用户'"
       width="600px"
+      aria-label="用户编辑对话框"
     >
-      <el-form ref="userFormRef" :model="userForm" :rules="userRules" label-width="100px">
+      <el-form ref="userFormRef" :model="userForm" :rules="userRules" label-width="100px" aria-label="用户信息表单">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="userForm.username" :disabled="!!userForm.id" />
         </el-form-item>
