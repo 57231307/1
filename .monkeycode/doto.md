@@ -23,7 +23,7 @@
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 488 进行中（12/17 完成）—— ✅ D01/D02/D07/D11/D15/D16/D17 审计误判 + ✅ D03+D04 5 service Redis 缓存接入（cead770）+ ✅ D12 圈复杂度优化（6 项重构 + 2 项误判跳过）+ ✅ D06 aria-label 全部完成（55 个子批次累计 ~225 文件，commit 22c842a 已推送；遵循 WCAG 2.1 AA 标准；最终扫描确认全部补齐无遗漏）；剩余 5 项大型任务审计完成（2026-07-19）：D05 useI18n（XL，355 文件实际接入率 3.1%）/ D08 超长函数（XL，91 个 >80 行 + 54 个 >100 行 + 6 个 >200 行 + 0 个 >500 行）/ D09 100+ 行函数（L，D08 子集自动完成）/ D10 1000+ 行文件（L，实际 30 个非 26 个，1 个 >2000 行）/ D13 缩写命名（XL，实际 123 个非 ~119 个，25 类缩写前缀）/ D14 api 命名（XL，96 文件准确，listXxx 偏差 47 文件 84 处为最大源）
+- **当前批次**：Batch 488 进行中（12/17 完成）—— ✅ D01/D02/D07/D11/D15/D16/D17 审计误判 + ✅ D03+D04 5 service Redis 缓存接入（cead770）+ ✅ D12 圈复杂度优化（6 项重构 + 2 项误判跳过）+ ✅ D06 aria-label 全部完成（55 个子批次累计 ~225 文件，commit 22c842a 已推送；遵循 WCAG 2.1 AA 标准；最终扫描确认全部补齐无遗漏）+ 🔄 D08-1 第一梯队 3/6 完成（ship_order/create_order/manual_verify 已拆分，本地提交 aca0187 待推送 CI 验证）；剩余 5 项大型任务审计完成（2026-07-19）：D05 useI18n（XL，355 文件实际接入率 3.1%）/ D08 超长函数（XL，91 个 >80 行 + 54 个 >100 行 + 6 个 >200 行 + 0 个 >500 行）/ D09 100+ 行函数（L，D08 子集自动完成）/ D10 1000+ 行文件（L，实际 30 个非 26 个，1 个 >2000 行）/ D13 缩写命名（XL，实际 123 个非 ~119 个，25 类缩写前缀）/ D14 api 命名（XL，96 文件准确，listXxx 偏差 47 文件 84 处为最大源）
 - **下一批次**：Batch 488 继续 —— 按依赖关系推荐顺序：① D08 超长函数（第 1 顺位，无前置 + 解锁 D09/D10，预估 10-12 子批次）→ ② D10 大文件拆分（第 2 顺位，D08 完成后立即推进，预估 5-6 子批次）→ ③ D14 api 命名（第 3 顺位，与 D05/D13 解耦，预估 10-12 子批次）→ ④ D13 缩写命名（第 4 顺位，D14 完成后推进，预估 12-15 子批次）→ ⑤ D05 useI18n（第 5 顺位，D13/D14 完成后最后推进，预估 30-36 子批次）；累计预估 67-81 子批次
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
@@ -780,7 +780,7 @@ P0-D17 OA 公告 (M)  ← 独立
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包；预估 10-12 子批次）
 - **执行优先级**：第 1 顺位（无前置依赖 + 解锁 D09/D10）
-- **进度**：D08-1 第一梯队 3/6 完成（ship_order 346→22+6helper+3struct / create_order 344→36+9helper+1struct / manual_verify 254→52+7helper+1struct）；剩余 3 函数（approve_task / calculate / auto_verify）
+- **进度**：D08-1 第一梯队 3/6 完成（ship_order 346→22+6helper+3struct / create_order 344→36+9helper+1struct / manual_verify 254→52+7helper+1struct）；本地提交 aca0187 待推送（无 GH_TOKEN 无法 push，待用户手动推送 CI 验证）；剩余 3 函数（approve_task / calculate / auto_verify）
 - **批次规划**：
   - 第一梯队（>200 行 6 函数，2 批）：✅ ship_order / ✅ create_order / ✅ manual_verify / approve_task / calculate / auto_verify
   - 第二梯队（150-200 行 ~30 函数，3-4 批）：含 update_order / update_account_balances / ap_verification_auto_verify / 等
