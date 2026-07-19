@@ -8,9 +8,10 @@
     :model-value="modelValue"
     :title="formData.id ? '编辑调整单' : '新建调整单'"
     width="800px"
+    :aria-label="mode === 'view' ? '库存调整详情对话框' : (formData.id ? '编辑库存调整对话框' : '新建库存调整对话框')"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" :disabled="mode === 'view'">
+    <el-form ref="formRef" :model="formData" label-width="100px" :disabled="mode === 'view'" aria-label="库存调整表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="调整单号" prop="adjust_no">

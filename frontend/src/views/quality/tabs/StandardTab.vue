@@ -24,7 +24,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="standards" stripe>
+      <el-table v-loading="loading" :data="standards" stripe aria-label="质量标准列表">
         <el-table-column prop="standard_code" label="标准编号" width="140" />
         <el-table-column prop="standard_name" label="标准名称" width="180" />
         <el-table-column prop="type" label="类型" width="100">

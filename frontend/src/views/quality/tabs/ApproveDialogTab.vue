@@ -8,9 +8,10 @@
     :model-value="modelValue"
     title="审批质量标准"
     width="500px"
+    aria-label="质量审批对话框"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px">
+    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px" aria-label="质量审批表单">
       <el-form-item label="标准编号">
         <el-input :model-value="currentRow?.standard_code" disabled />
       </el-form-item>

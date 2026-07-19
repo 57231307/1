@@ -8,9 +8,10 @@
     :model-value="modelValue"
     title="审批调整单"
     width="500px"
+    aria-label="库存调整审批对话框"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="80px">
+    <el-form ref="formRef" :model="formData" label-width="80px" aria-label="库存调整审批表单">
       <el-form-item label="调整单号">
         <el-input :model-value="currentRow?.adjust_no" disabled />
       </el-form-item>

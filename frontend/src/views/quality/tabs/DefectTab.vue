@@ -10,7 +10,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="defects" stripe>
+      <el-table v-loading="loading" :data="defects" stripe aria-label="质量缺陷列表">
         <el-table-column prop="defect_type" label="缺陷类型" width="140" />
         <el-table-column prop="defect_description" label="缺陷描述" min-width="200" />
         <el-table-column prop="severity" label="严重程度" width="100" align="center">
