@@ -6,7 +6,7 @@
 -->
 <template>
   <el-card class="table-card">
-    <el-table v-loading="loading" :data="data" border stripe>
+    <el-table v-loading="loading" :data="data" border stripe aria-label="采购验货列表">
       <el-table-column prop="inspection_no" label="检验单号" min-width="140" />
       <el-table-column prop="receipt_no" label="入库单号" min-width="140" />
       <el-table-column prop="supplier_name" label="供应商" min-width="150" />
@@ -59,6 +59,7 @@
       layout="total, sizes, prev, pager, next, jumper"
       @update:current-page="(v: number) => emit('update:page', v)"
       @update:page-size="(v: number) => emit('update:page-size', v)"
+      aria-label="采购验货列表分页"
     />
   </el-card>
 </template>

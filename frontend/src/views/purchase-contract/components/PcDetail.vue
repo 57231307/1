@@ -8,6 +8,7 @@
     :model-value="visible"
     title="合同详情"
     width="800px"
+    aria-label="采购合同详情对话框"
     @update:model-value="onVisibleChange"
   >
     <el-descriptions :column="2" border>
