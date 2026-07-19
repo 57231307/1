@@ -769,31 +769,13 @@ impl ArService {
 
             for payment in cust_payments {
                 let already_verified = verified_map.get(&payment.id).copied().unwrap_or(Decimal::ZERO);
-                let mut remaining = payment.collection_amount - already_verified;
-                if remaining <= Decimal::ZERO {
-                    continue;
-                }
-
-                // 批量创建该收款匹配的明细（先收集，统一 insert）
-                let mut matched_items: Vec<(i32, Decimal)> = Vec::new();
-
-                for inv in cust_invoices {
-                    if remaining <= Decimal::ZERO {
-                        break;
-                    }
-                    let unpaid = invoice_remaining
-                        .get(&inv.id)
-                        .copied()
-                        .unwrap_or(Decimal::ZERO);
-                    if unpaid <= Decimal::ZERO {
-                        continue;
-                    }
-                    let verify_amount = remaining.min(unpaid);
-                    matched_items.push((inv.id, verify_amount));
-                    remaining -= verify_amount;
-                    invoice_remaining.insert(inv.id, unpaid - verify_amount);
-                }
-
+                // D12 重构：匹配逻辑提取到 match_payment_to_invoices，消除内层循环+3 分支
+                let matched_items = Self::match_payment_to_invoices(
+                    payment,
+                    cust_invoices,
+                    &mut invoice_remaining,
+                    already_verified,
+                );
                 if matched_items.is_empty() {
                     continue;
                 }
@@ -853,54 +835,19 @@ impl ArService {
                         AppError::not_found(format!("应收单 {}", inv_id))
                     })?;
 
-                    // INVOICE 明细（正金额，收集不立即 INSERT）
-                    items_to_insert.push(ar_reconciliation_item::ActiveModel {
-                        reconciliation_id: Set(reconciliation.id),
-                        item_type: Set("INVOICE".to_string()),
-                        document_type: Set(Some("SALES_INVOICE".to_string())),
-                        document_id: Set(Some(inv_id)),
-                        document_no: Set(Some(inv.invoice_no.clone())),
-                        document_date: Set(Some(inv.invoice_date)),
-                        amount: Set(verify_amount),
-                        matched_amount: Set(Some(verify_amount)),
-                        match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
-                        matched_item_id: Set(None),
-                        remarks: Set(None),
-                        created_at: Set(now),
-                        updated_at: Set(now),
-                        ..Default::default()
-                    });
+                    // D12 重构：明细构造提取到 make_invoice_verify_item / make_receipt_verify_item
+                    items_to_insert.push(Self::make_invoice_verify_item(
+                        reconciliation.id, inv_id, inv, verify_amount, now,
+                    ));
+                    items_to_insert.push(Self::make_receipt_verify_item(
+                        reconciliation.id, payment.id, payment, verify_amount, now,
+                    ));
 
-                    // RECEIPT 明细（负金额，按惯例收款为负，收集不立即 INSERT）
-                    items_to_insert.push(ar_reconciliation_item::ActiveModel {
-                        reconciliation_id: Set(reconciliation.id),
-                        item_type: Set("RECEIPT".to_string()),
-                        document_type: Set(Some("AR_COLLECTION".to_string())),
-                        document_id: Set(Some(payment.id)),
-                        document_no: Set(Some(payment.collection_no.clone())),
-                        document_date: Set(Some(payment.collection_date)),
-                        amount: Set(-verify_amount),
-                        matched_amount: Set(Some(verify_amount)),
-                        match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
-                        matched_item_id: Set(None),
-                        remarks: Set(None),
-                        created_at: Set(now),
-                        updated_at: Set(now),
-                        ..Default::default()
-                    });
-
-                    // 内存中累计发票状态变更（不立即 UPDATE）
+                    // D12 重构：发票状态更新提取到 update_invoice_state（消除 if-else 三元分支）
                     let invoice = inv_map.get_mut(&inv_id).ok_or_else(|| {
                         AppError::not_found(format!("应收单 {}", inv_id))
                     })?;
-                    invoice.received_amount += verify_amount;
-                    invoice.unpaid_amount =
-                        (invoice.invoice_amount - invoice.received_amount).max(Decimal::ZERO);
-                    if invoice.unpaid_amount == Decimal::ZERO {
-                        invoice.status = crate::models::status::payment::PAYMENT_PAID.to_string();
-                    } else {
-                        invoice.status = crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string();
-                    }
+                    Self::update_invoice_state(invoice, verify_amount);
                     touched_invoice_ids.push(inv_id);
 
                     total_verified_count += 1;
@@ -945,6 +892,100 @@ impl ArService {
             "verified_count": total_verified_count,
             "verified_amount": total_verified_amount.to_string(),
         }))
+    }
+
+    /// 收款匹配发票（贪心，返回 (inv_id, verify_amount) 列表，并更新 invoice_remaining）
+    fn match_payment_to_invoices<'a>(
+        payment: &ar_collection::Model,
+        cust_invoices: &[&'a ar_invoice::Model],
+        invoice_remaining: &mut std::collections::HashMap<i32, Decimal>,
+        already_verified: Decimal,
+    ) -> Vec<(i32, Decimal)> {
+        let mut remaining = payment.collection_amount - already_verified;
+        if remaining <= Decimal::ZERO {
+            return Vec::new();
+        }
+        let mut matched_items: Vec<(i32, Decimal)> = Vec::new();
+        for inv in cust_invoices {
+            if remaining <= Decimal::ZERO {
+                break;
+            }
+            let unpaid = invoice_remaining
+                .get(&inv.id)
+                .copied()
+                .unwrap_or(Decimal::ZERO);
+            if unpaid <= Decimal::ZERO {
+                continue;
+            }
+            let verify_amount = remaining.min(unpaid);
+            matched_items.push((inv.id, verify_amount));
+            remaining -= verify_amount;
+            invoice_remaining.insert(inv.id, unpaid - verify_amount);
+        }
+        matched_items
+    }
+
+    /// 构造 INVOICE 核销明细（正金额）
+    fn make_invoice_verify_item(
+        reconciliation_id: i32,
+        inv_id: i32,
+        inv: &ar_invoice::Model,
+        verify_amount: Decimal,
+        now: chrono::DateTime<Utc>,
+    ) -> ar_reconciliation_item::ActiveModel {
+        ar_reconciliation_item::ActiveModel {
+            reconciliation_id: Set(reconciliation_id),
+            item_type: Set("INVOICE".to_string()),
+            document_type: Set(Some("SALES_INVOICE".to_string())),
+            document_id: Set(Some(inv_id)),
+            document_no: Set(Some(inv.invoice_no.clone())),
+            document_date: Set(Some(inv.invoice_date)),
+            amount: Set(verify_amount),
+            matched_amount: Set(Some(verify_amount)),
+            match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
+            matched_item_id: Set(None),
+            remarks: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+    }
+
+    /// 构造 RECEIPT 核销明细（负金额，按惯例收款为负）
+    fn make_receipt_verify_item(
+        reconciliation_id: i32,
+        payment_id: i32,
+        payment: &ar_collection::Model,
+        verify_amount: Decimal,
+        now: chrono::DateTime<Utc>,
+    ) -> ar_reconciliation_item::ActiveModel {
+        ar_reconciliation_item::ActiveModel {
+            reconciliation_id: Set(reconciliation_id),
+            item_type: Set("RECEIPT".to_string()),
+            document_type: Set(Some("AR_COLLECTION".to_string())),
+            document_id: Set(Some(payment_id)),
+            document_no: Set(Some(payment.collection_no.clone())),
+            document_date: Set(Some(payment.collection_date)),
+            amount: Set(-verify_amount),
+            matched_amount: Set(Some(verify_amount)),
+            match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
+            matched_item_id: Set(None),
+            remarks: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+    }
+
+    /// 累加发票核销金额并更新状态（PAID / PARTIAL_PAID）
+    fn update_invoice_state(invoice: &mut ar_invoice::Model, verify_amount: Decimal) {
+        invoice.received_amount += verify_amount;
+        invoice.unpaid_amount = (invoice.invoice_amount - invoice.received_amount).max(Decimal::ZERO);
+        invoice.status = if invoice.unpaid_amount == Decimal::ZERO {
+            crate::models::status::payment::PAYMENT_PAID.to_string()
+        } else {
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
+        };
     }
 
     /// 手动核销
