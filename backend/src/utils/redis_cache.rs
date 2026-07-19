@@ -125,7 +125,8 @@ pub async fn redis_cache_set_json<T: Serialize>(key: &str, value: &T, ttl_secs: 
     let mut conn = conn_arc.lock().await;
     // P0-D03 修复：原 .map_err(...).ok() 类型不匹配（Result → Option），
     // 改用 if let Err 直接处理错误，保持优雅降级语义
-    if let Err(e) = conn.set_ex(key, json_str, ttl_secs).await {
+    // P0-D03 CI 修复：set_ex 是泛型方法，需显式标注 RV=() 协助类型推断（原 .ok() 帮助推断但 if let 不会）
+    if let Err(e) = conn.set_ex::<_, _, ()>(key, json_str, ttl_secs).await {
         tracing::warn!(key = %key, error = %e, "Redis SET 失败");
     }
 }
@@ -141,7 +142,8 @@ pub async fn redis_cache_del(key: &str) {
 
     let mut conn = conn_arc.lock().await;
     // P0-D03 修复：原 .map_err(...).ok() 类型不匹配，改用 if let Err 直接处理
-    if let Err(e) = conn.del(key).await {
+    // P0-D03 CI 修复：del 是泛型方法，需显式标注 RV=() 协助类型推断
+    if let Err(e) = conn.del::<_, ()>(key).await {
         tracing::warn!(key = %key, error = %e, "Redis DEL 失败");
     }
 }
@@ -181,7 +183,8 @@ pub async fn redis_cache_del_prefix(prefix: &str) {
 
         if !keys.is_empty() {
             // P0-D03 修复：原 .map_err(...).ok() 类型不匹配，改用 if let Err 直接处理
-            if let Err(e) = conn.del(&keys).await {
+            // P0-D03 CI 修复：del 是泛型方法，需显式标注 RV=() 协助类型推断（K 由 &keys 推断为 &Vec<String>）
+            if let Err(e) = conn.del::<_, ()>(&keys).await {
                 tracing::warn!(prefix = %prefix, error = %e, "Redis 批量 DEL 失败");
             }
         }
