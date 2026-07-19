@@ -8,6 +8,7 @@
     :model-value="visible"
     title="运单详情"
     width="600px"
+    aria-label="运单详情对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="2" border>

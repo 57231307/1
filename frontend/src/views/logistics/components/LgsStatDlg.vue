@@ -9,9 +9,10 @@
     :model-value="visible"
     title="更新运单状态"
     width="400px"
+    aria-label="更新运单状态对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localForm" label-width="80px">
+    <el-form :model="localForm" label-width="80px" aria-label="更新运单状态表单">
       <el-form-item label="当前状态">
         <el-tag :type="getStatusTypeFmt(localForm.currentStatus)">
           {{ getStatusTextFmt(localForm.currentStatus) }}

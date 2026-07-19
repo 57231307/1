@@ -5,7 +5,7 @@
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localQuery" class="filter-form">
+    <el-form :inline="true" :model="localQuery" class="filter-form" aria-label="采购价格筛选表单">
       <el-form-item label="关键词">
         <el-input
           v-model="localQuery.keyword"

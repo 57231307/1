@@ -9,9 +9,10 @@
     :model-value="visible"
     :title="isEdit ? '编辑运单' : '新建运单'"
     width="600px"
+    :aria-label="isEdit ? '编辑运单对话框' : '新建运单对话框'"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px" aria-label="运单表单">
       <el-form-item label="关联订单" prop="order_id">
         <el-select v-model="localForm.order_id" placeholder="选择关联订单" filterable>
           <el-option
