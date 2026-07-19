@@ -72,6 +72,11 @@ pub fn hex_to_rgb(hex: &str) -> Result<Rgb, ColorSpaceError> {
     Ok(Rgb::new(r, g, b))
 }
 
+/// RGB 转 HEX（#RRGGBB 格式，大写）
+pub fn rgb_to_hex(r: u8, g: u8, b: u8) -> String {
+    format!("#{:02X}{:02X}{:02X}", r, g, b)
+}
+
 /// RGB 转 CMYK（0-100 百分比）
 pub fn rgb_to_cmyk(r: u8, g: u8, b: u8) -> Cmyk {
     let r_norm = r as f64 / 255.0;

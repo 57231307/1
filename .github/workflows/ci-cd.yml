@@ -1163,9 +1163,11 @@ jobs:
           EXIT_CODE=$?
           set -e
 
-          # 统计测试结果
-          PASSED=$(grep -cE "^test .* ok$" reports/cargo-test-output.txt 2>/dev/null || echo 0)
-          FAILED=$(grep -cE "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null || echo 0)
+          # 统计测试结果（V15 Batch 485 修订：grep -c 在无匹配时返回 exit 1 触发 || echo 0
+          # 会导致 FAILED 变量变成多行 "0\n0"，破坏后续 $((..)) 算术和 [ -gt ] 整数判定。
+          # 修复：用 awk 显式输出单行数字，避免 || echo 0 重复输出）
+          PASSED=$(awk '/^test .* ok$/{c++} END{print c+0}' reports/cargo-test-output.txt 2>/dev/null)
+          FAILED=$(awk '/^test .* FAILED$/{c++} END{print c+0}' reports/cargo-test-output.txt 2>/dev/null)
           TOTAL=$((PASSED + FAILED))
 
           # V15 Batch 485 P0-06-3：baseline 机制已移除（零容忍模式）
