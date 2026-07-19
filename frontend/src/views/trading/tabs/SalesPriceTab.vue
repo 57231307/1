@@ -12,7 +12,7 @@
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="salesPriceLoading" :data="salesPrices" stripe>
+      <el-table v-loading="salesPriceLoading" :data="salesPrices" stripe aria-label="销售价格列表">
         <el-table-column prop="product_name" label="产品" width="150" />
         <el-table-column prop="customer_name" label="客户" width="150" />
         <el-table-column prop="price" label="价格" width="100" align="right">
@@ -44,8 +44,8 @@
     </el-card>
 
     <!-- 批次 157c P1-1 修复：销售价格编辑对话框 -->
-    <el-dialog v-model="priceDialogVisible" :title="priceDialogTitle" width="520px">
-      <el-form ref="priceFormRef" :model="priceForm" :rules="priceRules" label-width="100px">
+    <el-dialog v-model="priceDialogVisible" :title="priceDialogTitle" width="520px" aria-label="销售价格编辑对话框">
+      <el-form ref="priceFormRef" :model="priceForm" :rules="priceRules" label-width="100px" aria-label="销售价格表单">
         <el-form-item label="产品名称" prop="product_name">
           <el-input v-model="priceForm.product_name" placeholder="请输入产品名称" />
         </el-form-item>

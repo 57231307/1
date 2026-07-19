@@ -12,7 +12,7 @@
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="purchaseContractLoading" :data="purchaseContracts" stripe>
+      <el-table v-loading="purchaseContractLoading" :data="purchaseContracts" stripe aria-label="采购合同列表">
         <el-table-column prop="contract_no" label="合同编号" width="140" />
         <el-table-column prop="supplier_name" label="供应商" width="150" />
         <el-table-column prop="contract_date" label="合同日期" width="120" />

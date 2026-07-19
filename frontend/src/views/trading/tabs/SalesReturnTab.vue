@@ -12,7 +12,7 @@
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="salesReturnLoading" :data="salesReturns" stripe>
+      <el-table v-loading="salesReturnLoading" :data="salesReturns" stripe aria-label="销售退货列表">
         <el-table-column prop="return_no" label="退货单号" width="140" />
         <el-table-column prop="customer_name" label="客户" width="150" />
         <el-table-column prop="return_date" label="退货日期" width="120" />
