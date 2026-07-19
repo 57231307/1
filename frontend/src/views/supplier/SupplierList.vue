@@ -6,7 +6,7 @@
 <template>
   <div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="localQuery" class="filter-form">
+      <el-form :inline="true" :model="localQuery" class="filter-form" aria-label="供应商筛选表单">
         <el-form-item label="关键词">
           <el-input v-model="localQuery.keyword" placeholder="供应商编码/名称" clearable />
         </el-form-item>
@@ -32,7 +32,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="suppliers" stripe>
+      <el-table v-loading="loading" :data="suppliers" stripe aria-label="供应商列表">
         <el-table-column prop="supplier_code" label="供应商编码" width="120" fixed />
         <el-table-column prop="supplier_name" label="供应商名称" min-width="180" fixed />
         <el-table-column prop="supplier_short_name" label="简称" width="100" />
@@ -74,6 +74,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleQuery"
           @current-change="handleQuery"
+          aria-label="供应商列表分页"
         />
       </div>
     </el-card>

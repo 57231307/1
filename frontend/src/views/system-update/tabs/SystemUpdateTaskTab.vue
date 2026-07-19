@@ -6,7 +6,7 @@
 -->
 <template>
   <el-card shadow="hover">
-    <el-table v-loading="loading" :data="tasks" stripe>
+    <el-table v-loading="loading" :data="tasks" stripe aria-label="系统更新任务列表">
       <el-table-column prop="task_code" label="任务编号" width="140" />
       <el-table-column prop="from_version" label="原版本" width="100" />
       <el-table-column prop="to_version" label="目标版本" width="100" />
@@ -74,6 +74,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
+        aria-label="系统更新任务列表分页"
       />
     </div>
   </el-card>

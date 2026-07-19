@@ -6,7 +6,7 @@
 -->
 <template>
   <el-card shadow="hover">
-    <el-table v-loading="loading" :data="backups" stripe>
+    <el-table v-loading="loading" :data="backups" stripe aria-label="系统备份列表">
       <el-table-column prop="backup_code" label="备份编号" width="140" />
       <el-table-column prop="backup_type" label="备份类型" width="100">
         <template #default="{ row }">
@@ -60,6 +60,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
+        aria-label="系统备份列表分页"
       />
     </div>
   </el-card>

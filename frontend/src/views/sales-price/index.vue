@@ -71,9 +71,10 @@
       :model-value="spProc.strategyVisible"
       title="价格策略"
       width="800px"
+      aria-label="价格策略对话框"
       @update:model-value="(v: boolean) => (spProc.strategyVisible = v)"
     >
-      <el-table v-loading="spProc.strategyLoading" :data="spProc.strategyList" border>
+      <el-table v-loading="spProc.strategyLoading" :data="spProc.strategyList" border aria-label="价格策略列表">
         <el-table-column prop="name" label="策略名称" min-width="120" show-overflow-tooltip />
         <el-table-column
           prop="description"

@@ -6,7 +6,7 @@
 -->
 <template>
   <el-card shadow="hover">
-    <el-table v-loading="loading" :data="versions" stripe>
+    <el-table v-loading="loading" :data="versions" stripe aria-label="系统版本列表">
       <el-table-column prop="version" label="版本号" width="120" />
       <el-table-column prop="release_date" label="发布日期" width="120" />
       <el-table-column
@@ -61,6 +61,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
+        aria-label="系统版本列表分页"
       />
     </div>
   </el-card>
