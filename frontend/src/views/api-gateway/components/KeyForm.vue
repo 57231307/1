@@ -9,6 +9,7 @@
     :model-value="visible"
     :title="form?.id ? '编辑密钥' : '新建密钥'"
     width="600px"
+    :aria-label="form?.id ? '编辑密钥对话框' : '新建密钥对话框'"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -16,6 +17,7 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
+      aria-label="API 密钥表单"
     >
       <el-form-item label="密钥名称" prop="key_name">
         <el-input

@@ -9,9 +9,10 @@
     :model-value="visible"
     title="创建备份"
     width="500px"
+    aria-label="创建系统备份对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localForm" label-width="100px">
+    <el-form :model="localForm" label-width="100px" aria-label="创建系统备份表单">
       <el-form-item label="备份类型" prop="backup_type">
         <el-select
           v-model="localForm.backup_type"

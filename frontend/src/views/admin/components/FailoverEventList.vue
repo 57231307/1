@@ -11,6 +11,7 @@
     stripe
     border
     empty-text="暂无切换事件"
+    aria-label="故障切换事件列表"
   >
     <el-table-column prop="created_at" label="时间" width="180">
       <template #default="{ row }">
