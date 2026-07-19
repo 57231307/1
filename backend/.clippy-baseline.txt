@@ -7,37 +7,17 @@
      = note: `#[deny(clippy::erasing_op)]` on by default
      = note: `#[warn(clippy::doc_lazy_continuation)]` on by default
      = note: `#[warn(clippy::identity_op)]` on by default
-     = note: `CreateBusinessModeOrderLinkRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-     = note: `VoucherDetail` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
      |
      |                                     ^^^^^^^^^
      |                                     ^^^^^^^^^ help: consider reducing it to: `7`
-     |                  ^^^^^^^^^^^^^
-     |               ^^^^
-     |               ^^^^^
-     |               ^^^^^^
-     |               ^^^^^^^
-     |               ^^^^^^^^
-     |               ^^^^^^^^^
-     |               ^^^^^^^^^^^^
-     |               ^^^^^^^^^^^^^^
-     |               ^^^^^^^^^^^^^^^
-     |               ^^^^^^^^^^^^^^^^
-     |               ^^^^^^^^^^^^^^^^^
-     |               ^^^^^^^^^^^^^^^^^^^
-     |               ^^^^^^^^^^^^^^^^^^^^^^
      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom展开_需要真实数据库`
      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_获取_bom树_需要真实数据库`
      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_查询_mrp结果_需要真实数据库`
      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_服务实例化_sqlite内存数据库`
      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_服务实例化_使用_sqlite内存数据库`
-     |            ------------- field in this struct
-     |            ---------------------------------- field in this struct
      |         ++
      |         +++
      |         ^
-     |         ^^^^^
-     |         ^^^^^^^
      |        ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_工人_ids解析_空值`
      |        ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_ap状态常量值正确性`
      |        ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_ar状态常量值正确性`
@@ -83,35 +63,7 @@
      |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_mark_as_paid状态机门_仅_audited和_partial_paid允许`
      |  _____________________^
      |  ____________________________^
-     | ------------------------------ method in this implementation
      | |_________^
-    --> src/models/status.rs:1099:15
-    --> src/models/status.rs:1102:15
-    --> src/models/status.rs:1109:15
-    --> src/models/status.rs:1112:15
-    --> src/models/status.rs:1119:15
-    --> src/models/status.rs:1122:15
-    --> src/models/status.rs:1129:15
-    --> src/models/status.rs:1132:15
-    --> src/models/status.rs:1139:15
-    --> src/models/status.rs:1146:15
-    --> src/models/status.rs:1149:15
-    --> src/models/status.rs:1152:15
-    --> src/models/status.rs:1155:15
-    --> src/models/status.rs:1158:15
-    --> src/models/status.rs:1161:15
-    --> src/models/status.rs:1168:15
-    --> src/models/status.rs:1175:15
-    --> src/models/status.rs:1182:15
-    --> src/models/status.rs:1185:15
-    --> src/models/status.rs:1188:15
-    --> src/models/status.rs:1195:15
-    --> src/models/status.rs:1198:15
-    --> src/models/status.rs:1205:15
-    --> src/models/status.rs:1212:15
-    --> src/models/status.rs:1215:15
-    --> src/models/status.rs:1279:15
-    --> src/models/status.rs:1388:15
     --> src/services/ap_invoice_service.rs:1074:8
     --> src/services/ap_invoice_service.rs:1210:8
     --> src/services/ap_invoice_service.rs:1226:8
@@ -121,7 +73,6 @@
     --> src/services/ar_service.rs:1883:8
     --> src/services/ar_service.rs:2017:14
     --> src/services/bom_service.rs:1013:14
-    --> src/services/business_mode_service.rs:1171:9
     --> src/services/chemical_service.rs:1570:8
     --> src/services/dye_batch_state_machine_service.rs:1394:8
     --> src/services/dye_batch_state_machine_service.rs:1465:8
@@ -140,7 +91,6 @@
     --> src/services/mrp_engine_service.rs:1452:8
     --> src/services/mrp_engine_service.rs:1534:14
     --> src/services/mrp_engine_service.rs:1558:14
-    --> src/services/outsourcing_service.rs:1566:18
     --> src/services/po/order.rs:1005:8
     --> src/services/po/order.rs:1057:14
     --> src/services/po/order.rs:1142:8
@@ -154,7 +104,6 @@
     --> src/services/production_order_service.rs:1916:8
     --> src/services/production_order_service.rs:1939:8
     --> src/services/production_order_service.rs:1953:14
-    --> src/services/voucher_service.rs:1090:9
     --> src/services/voucher_service.rs:1204:9
     --> src/services/voucher_service.rs:1371:21
     --> src/services/voucher_service.rs:1381:21
@@ -189,11 +138,6 @@
     = note: `#[warn(clippy::unnecessary_literal_unwrap)]` on by default
     = note: `#[warn(clippy::useless_vec)]` on by default
     = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
-    = note: `BudgetExecuteRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-    = note: `CreateChemicalCategoryRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-    = note: `CutSampleParams` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-    = note: `TaskPriority` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-    = note: `UpdateReceiptItemRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
     = note: you might want to preserve the comments from inside the `match`
     |
     |                                                                       ^^^^^^^^^^^^^^
@@ -215,34 +159,12 @@
     |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |                   ^^^^^^^^^^^^^^^^^^
-    |                  ^^^^
-    |                  ^^^^^^^^^
-    |                  ^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^^^^^^^
-    |                  ^^^^^^^^^^^^^^^^^^^^^^
     |                 ^^^^^^^^^^^^^^^^^^^ help: try: `credit_ok != false`
     |                 ^^^^^^^^^^^^^^^^^^^ help: try: `credit_ok`
     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(expected_same >= order_date)`
     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(expected_after >= order_date)`
     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(customer_active == master_data::ACTIVE)`
     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(model_active.status == master_data::ACTIVE)`
-    |               ^^^^^
-    |               ^^^^^^
-    |               ^^^^^^^
-    |               ^^^^^^^^
-    |               ^^^^^^^^^
-    |               ^^^^^^^^^^^^^^^
-    |               ^^^^^^^^^^^^^^^^
-    |              ^^^^^^^^^^^^^^^^^^^^
     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求收集_单叶子节点`
     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_创建_bom_需要真实数据库`
     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求数量计算_递归多层级`
@@ -252,48 +174,11 @@
     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求数量计算_损耗率为零不放大`
     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求数量计算_精度归一化四位小数`
     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |            --------------- field in this struct
-    |            -------------------- field in this struct
-    |            ------------------------ fields in this struct
-    |            ----------------------------- field in this struct
-    |            ^^^
-    |            ^^^^
-    |            ^^^^^
-    |            ^^^^^^
-    |            ^^^^^^^
-    |            ^^^^^^^^^^^
-    |            ^^^^^^^^^^^^^
-    |            ^^^^^^^^^^^^^^
-    |            ^^^^^^^^^^^^^^^^^
-    |            ^^^^^^^^^^^^^^^^^^
-    |            ^^^^^^^^^^^^^^^^^^^
-    |            ^^^^^^^^^^^^^^^^^^^^^
-    |            ^^^^^^^^^^^^^^^^^^^^^^^
-    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |          ------------ variant in this enum
-    |          ^^^^
-    |         ^^^^^
-    |         ^^^^^^
-    |         ^^^^^^^
-    |         ^^^^^^^^
-    |         ^^^^^^^^^^
-    |         ^^^^^^^^^^^
-    |         ^^^^^^^^^^^^^
     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |        ^^^^^^^^^^
     |        ^^^^^^^^^^^^
-    |        ^^^^^^^^^^^^^^^
-    |        ^^^^^^^^^^^^^^^^
-    |        ^^^^^^^^^^^^^^^^^^
-    |        ^^^^^^^^^^^^^^^^^^^
-    |        ^^^^^^^^^^^^^^^^^^^^^
-    |        ^^^^^^^^^^^^^^^^^^^^^^
     |        ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom损耗率乘数公式`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^
     |        ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_错误消息_bom不存在`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom树根节点数量为一`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `测试_质检分级_c级_不合格区间`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_verify_zip_magic合法_zip`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_质检分级_a级_合格率达标`
@@ -302,7 +187,6 @@
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_verify_zip_magic非_zip文件`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_质检分级_b级_让步接收区间`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_质检分级_none视为零合格率`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom状态常量_inactive值正确`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_对账状态常量_pending值正确`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_订单初始状态_使用_draft常量`
@@ -312,7 +196,6 @@
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_method_to_action_get映射read`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_状态机转换_确认需_pending状态`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_错误消息_bom已处于审核中状态`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_method_to_action_put映射update`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_resource_info_非_api路径`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_matches_permission_全部匹配无_id`
@@ -359,50 +242,17 @@
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_推导付款状态_已收金额等于发票金额_边界返回_paid`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_推导付款状态_已收金额和发票金额均为零_边界返回_paid`
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_推导付款状态_已收金额小于发票金额_返回_partial_paid`
-    |     ^^^
     |  ______________________^
-    | ----------------- method in this implementation
-    | ------------------ associated function in this implementation
-    | ------------------ methods in this implementation
-    | ------------------- associated functions in this implementation
-    | -------------------- method in this implementation
-    | -------------------- methods in this implementation
-    | --------------------- associated items in this implementation
-    | --------------------- method in this implementation
-    | ---------------------- associated function in this implementation
-    | ---------------------- associated items in this implementation
-    | ---------------------- method in this implementation
-    | ---------------------- methods in this implementation
-    | ------------------------ associated functions in this implementation
-    | ------------------------ associated items in this implementation
-    | ------------------------ methods in this implementation
-    | ------------------------- method in this implementation
-    | -------------------------- methods in this implementation
-    | --------------------------- method in this implementation
-    | --------------------------- methods in this implementation
-    | ---------------------------- method in this implementation
-    | ----------------------------- method in this implementation
-    | ------------------------------ method in this implementation
-    | ------------------------------ methods in this implementation
-    | -------------------------------- method in this implementation
-    | ------------------------------------ methods in this implementation
     | |_____^
     | |_________^
     | |_________^ help: try: `if let Ok(opt) = result { assert!(opt.is_none(), "空库应返回 None") }`
     | |______________________________________^
     | |___________________________________________________________________^
-   --> src/handlers/ap_payment_handler.rs:189:12
-   --> src/handlers/ap_payment_handler.rs:195:14
-   --> src/handlers/budget_management_handler.rs:116:9
    --> src/handlers/data_permission_handler.rs:363:8
    --> src/handlers/print_handler.rs:243:36
    --> src/handlers/system_update_handler.rs:429:8
    --> src/handlers/system_update_handler.rs:447:8
    --> src/handlers/system_update_handler.rs:481:8
-   --> src/middleware/auth_context.rs:121:12
-   --> src/middleware/auth_context.rs:128:12
-   --> src/middleware/auth_context.rs:147:10
-   --> src/middleware/permission.rs:299:8
    --> src/middleware/permission.rs:405:8
    --> src/middleware/permission.rs:412:8
    --> src/middleware/permission.rs:419:8
@@ -427,40 +277,12 @@
    --> src/middleware/permission.rs:774:8
    --> src/middleware/permission.rs:782:8
    --> src/middleware/permission.rs:794:8
-   --> src/models/export_approval_request.rs:208:12
-   --> src/models/status.rs:445:15
-   --> src/models/status.rs:623:15
-   --> src/models/status.rs:626:15
-   --> src/models/status.rs:647:15
-   --> src/models/status.rs:650:15
-   --> src/models/status.rs:658:15
-   --> src/models/status.rs:661:15
-   --> src/models/status.rs:668:15
-   --> src/models/status.rs:671:15
-   --> src/models/status.rs:680:15
-   --> src/models/status.rs:683:15
-   --> src/models/status.rs:686:15
-   --> src/models/status.rs:693:15
-   --> src/models/status.rs:696:15
-   --> src/models/status.rs:703:15
-   --> src/models/status.rs:706:15
-   --> src/models/status.rs:709:15
-   --> src/models/status.rs:716:15
-   --> src/models/status.rs:788:15
-   --> src/models/status.rs:863:15
-   --> src/observability/config.rs:107:12
-   --> src/services/account_subject_service.rs:456:12
    --> src/services/accounting_period_service.rs:573:9
-   --> src/services/ai/rec.rs:173:18
-   --> src/services/ap_invoice_service.rs:538:18
-   --> src/services/ap_payment_service.rs:589:18
-   --> src/services/ap_payment_service.rs:680:12
    --> src/services/ap_reconciliation_service.rs:734:8
    --> src/services/ap_reconciliation_service.rs:746:8
    --> src/services/ap_reconciliation_service.rs:759:8
    --> src/services/ap_reconciliation_service.rs:838:8
    --> src/services/ap_reconciliation_service.rs:876:8
-   --> src/services/api_key_service.rs:247:12
    --> src/services/ar/recon.rs:866:41
    --> src/services/ar/recon.rs:867:24
    --> src/services/ar_invoice_service.rs:552:8
@@ -468,8 +290,6 @@
    --> src/services/ar_invoice_service.rs:572:8
    --> src/services/ar_invoice_service.rs:585:8
    --> src/services/ar_invoice_service.rs:598:8
-   --> src/services/ar_invoice_service.rs:62:19
-   --> src/services/bi_analysis_service.rs:309:12
    --> src/services/bom_service.rs:666:8
    --> src/services/bom_service.rs:676:8
    --> src/services/bom_service.rs:685:8
@@ -486,14 +306,7 @@
    --> src/services/bom_service.rs:942:8
    --> src/services/bom_service.rs:952:8
    --> src/services/bom_service.rs:984:14
-   --> src/services/bulk_color_approval_service.rs:175:9
    --> src/services/bulk_color_approval_service.rs:729:5
-   --> src/services/business_mode_service.rs:686:18
-   --> src/services/chemical_service.rs:108:8
-   --> src/services/chemical_service.rs:141:8
-   --> src/services/chemical_service.rs:165:8
-   --> src/services/chemical_service.rs:655:9
-   --> src/services/collection_task_service.rs:106:5
    --> src/services/customer_credit_limit.rs:520:17
    --> src/services/customer_credit_limit.rs:800:8
    --> src/services/customer_credit_limit.rs:806:49
@@ -511,18 +324,7 @@
    --> src/services/customer_credit_limit.rs:878:49
    --> src/services/customer_credit_limit.rs:880:21
    --> src/services/customer_credit_service.rs:230:8
-   --> src/services/department_service.rs:257:18
-   --> src/services/dye_batch_state_machine_service.rs:116:8
-   --> src/services/dye_batch_state_machine_service.rs:346:8
-   --> src/services/dye_batch_state_machine_service.rs:504:18
-   --> src/services/email_log_service.rs:128:18
-   --> src/services/energy_service.rs:131:8
-   --> src/services/event_kafka.rs:191:12
    --> src/services/event_kafka.rs:405:8
-   --> src/services/event_retry_service.rs:28:12
-   --> src/services/export_approval_service.rs:359:18
-   --> src/services/failover_service.rs:88:12
-   --> src/services/field_permission_service.rs:233:12
    --> src/services/inv/stock.rs:165:8
    --> src/services/inv/stock.rs:177:8
    --> src/services/inv/stock.rs:189:8
@@ -537,10 +339,6 @@
    --> src/services/inventory_stock_service.rs:591:8
    --> src/services/inventory_stock_service.rs:611:8
    --> src/services/inventory_stock_service.rs:681:14
-   --> src/services/order_change_history_service.rs:52:18
-   --> src/services/outsourcing_service.rs:169:8
-   --> src/services/outsourcing_service.rs:189:8
-   --> src/services/outsourcing_service.rs:553:18
    --> src/services/po/order.rs:920:8
    --> src/services/po/order.rs:922:44
    --> src/services/po/order.rs:924:13
@@ -551,13 +349,6 @@
    --> src/services/po/order.rs:956:8
    --> src/services/po/order.rs:990:17
    --> src/services/po/order.rs:993:17
-   --> src/services/po/receipt.rs:579:18
-   --> src/services/product_category_service.rs:175:18
-   --> src/services/production_recipe_service.rs:653:12
-   --> src/services/production_recipe_service.rs:759:18
-   --> src/services/purchase_receipt_dto.rs:122:9
-   --> src/services/quality_8d_service.rs:101:12
-   --> src/services/quality_inspection_service.rs:227:18
    --> src/services/quality_inspection_service.rs:429:8
    --> src/services/quality_inspection_service.rs:450:8
    --> src/services/quality_inspection_service.rs:471:8
@@ -565,61 +356,24 @@
    --> src/services/quality_inspection_service.rs:498:8
    --> src/services/quality_inspection_service.rs:512:8
    --> src/services/quality_inspection_service.rs:528:8
-   --> src/services/report/exp.rs:454:18
-   --> src/services/report/job.rs:20:12
    --> src/services/role_permission_service.rs:471:5
    --> src/services/sales_unit_tests.rs:123:22
    --> src/services/so/order_workflow.rs:653:17
    --> src/services/so/order_workflow.rs:678:17
    --> src/services/user_service.rs:318:5
    --> src/services/user_service.rs:620:14
-   --> src/utils/color_space_converter.rs:161:8
-   --> src/utils/import_export.rs:219:12
-   --> src/utils/incoterms.rs:127:12
    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#ptr_arg
    = note: `#[warn(clippy::ptr_arg)]` on by default
-   = note: `AbcClassification` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `AlertStatus` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
    = note: `ArInvoice` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `AuthConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `BatchListQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `BulkColorApprovalError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `ColorSpaceError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `CreateBatchRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `CreateContractRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `CreateFabricOrderRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `CreateQualityStandardRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `CreateSalesContractRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `CreateVersionHistoryRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `CreditLimitAdjustmentRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `CreditRatingRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
    = note: `CustomerCredit` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `DefectQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `ExecuteContractRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `ExecuteSalesContractRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `FabricOrderItemRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `FabricOrderQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `InventorySummaryQueryResult` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `LocationListQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
    = note: `PurchaseOrder` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
    = note: `PurchaseStatus` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `RecordQuery` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
    = note: `SalesOrder` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
    = note: `StockRow` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
    = note: `SupplierRating` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `TaskType` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `TierError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `TransferBatchRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `UpdateFabricOrderRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
-   = note: `UpdateQualityStandardRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `VoucherQueryParams` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
    = note: requested on the command line with `-W dead-code`
    |
    |                       ^^^^^^^^^^^^^^^^^ help: change this to: `&mut [Decimal]`
-   |               ^^^^
-   |               ^^^^^^^
-   |               ^^^^^^^^
-   |               ^^^^^^^^^^
    |             ^^
    |             ^^^^^^
    |             ^^^^^^^^^^
@@ -627,332 +381,69 @@
    |             ^^^^^^^^^^^^
    |            -------- field in this struct
    |            --------- fields in this struct
-   |            ---------- field in this struct
    |            ---------- fields in this struct
-   |            ----------- field in this struct
-   |            ----------- fields in this struct
    |            ------------- fields in this struct
    |            -------------- field in this struct
    |            -------------- fields in this struct
-   |            --------------- fields in this struct
-   |            ---------------- fields in this struct
-   |            ----------------- field in this struct
-   |            ----------------- fields in this struct
-   |            ------------------ fields in this struct
-   |            ------------------- field in this struct
-   |            -------------------- fields in this struct
-   |            --------------------- field in this struct
-   |            ---------------------- fields in this struct
-   |            ------------------------ fields in this struct
-   |            -------------------------- field in this struct
-   |            --------------------------- field in this struct
-   |            ---------------------------- field in this struct
-   |            ^^^
-   |            ^^^^
-   |            ^^^^^^
-   |            ^^^^^^^^
-   |            ^^^^^^^^^
    |            ^^^^^^^^^^
-   |            ^^^^^^^^^^^
-   |            ^^^^^^^^^^^^
-   |            ^^^^^^^^^^^^^
-   |            ^^^^^^^^^^^^^^^^
-   |            ^^^^^^^^^^^^^^^^^
-   |            ^^^^^^^^^^^^^^^^^^
-   |            ^^^^^^^^^^^^^^^^^^^
-   |            ^^^^^^^^^^^^^^^^^^^^
-   |            ^^^^^^^^^^^^^^^^^^^^^^
-   |            ^^^^^^^^^^^^^^^^^^^^^^^
-   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |           ^^^^^^^^^^^^^^
-   |           ^^^^^^^^^^^^^^^
-   |           ^^^^^^^^^^^^^^^^^
-   |           ^^^^^^^^^^^^^^^^^^
-   |           ^^^^^^^^^^^^^^^^^^^
-   |           ^^^^^^^^^^^^^^^^^^^^
-   |          -------- variant in this enum
-   |          --------- variant in this enum
-   |          ----------- variant in this enum
    |          -------------- variants in this enum
-   |          --------------- variant in this enum
-   |          ---------------------- variant in this enum
-   |          ^^^^^^^^
-   |          ^^^^^^^^^^
-   |          ^^^^^^^^^^^^^^
-   |         ^^^^^
-   |         ^^^^^^
-   |         ^^^^^^^
    |         ^^^^^^^^
    |         ^^^^^^^^^
-   |         ^^^^^^^^^^
-   |         ^^^^^^^^^^^
-   |         ^^^^^^^^^^^^
-   |         ^^^^^^^^^^^^^
-   |         ^^^^^^^^^^^^^^^
-   |         ^^^^^^^^^^^^^^^^
-   |         ^^^^^^^^^^^^^^^^^
-   |         ^^^^^^^^^^^^^^^^^^^^
-   |         ^^^^^^^^^^^^^^^^^^^^^
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |        ^^^^^^^^^^^^^^^^^^^^^^
-   |        ^^^^^^^^^^^^^^^^^^^^^^^^
-   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |       ^^^^^^^^^^^^^^^
-   |     ^^^^^
-   |     ^^^^^^^
-   |     ^^^^^^^^^^^^^
-   |     ^^^^^^^^^^^^^^^^
-   | ----------- associated function in this implementation
-   | -------------- associated items in this implementation
-   | -------------- method in this implementation
-   | --------------- method in this implementation
-   | --------------- methods in this implementation
-   | ----------------- method in this implementation
-   | ------------------- associated function in this implementation
-   | ------------------- method in this implementation
-   | ----------------------- associated function in this implementation
-   | ------------------------ associated function in this implementation
-   | ------------------------- associated function in this implementation
-   | -------------------------- associated function in this implementation
-   | --------------------------- associated function in this implementation
-   | ----------------------------- associated function in this implementation
-  --> src/config/settings.rs:82:9
-  --> src/docs.rs:53:12
-  --> src/docs.rs:57:12
-  --> src/handlers/business_mode_handler.rs:65:12
-  --> src/handlers/business_mode_handler.rs:68:12
-  --> src/handlers/inventory_batch_handler.rs:22:9
-  --> src/handlers/inventory_batch_handler.rs:38:9
-  --> src/handlers/inventory_batch_handler.rs:69:9
-  --> src/handlers/outsourcing_handler.rs:71:12
-  --> src/handlers/quality_inspection_handler.rs:37:9
-  --> src/handlers/quality_inspection_handler.rs:46:9
-  --> src/handlers/sales_fabric_order_handler.rs:28:9
-  --> src/handlers/sales_fabric_order_handler.rs:41:9
-  --> src/handlers/sales_fabric_order_handler.rs:58:9
-  --> src/handlers/sales_fabric_order_handler.rs:88:9
-  --> src/handlers/warehouse_handler.rs:78:9
-  --> src/models/color_price_history_dto.rs:33:12
-  --> src/models/color_price_tier_dto.rs:37:12
-  --> src/models/customer_color_price_dto.rs:49:12
-  --> src/models/dto/mod.rs:53:12
-  --> src/models/event_dead_letter.rs:39:10
-  --> src/models/event_dead_letter.rs:46:15
-  --> src/models/event_dead_letter.rs:48:15
-  --> src/models/event_dead_letter.rs:50:15
-  --> src/models/export_approval_request.rs:46:12
-  --> src/models/process_node_dto.rs:11:12
-  --> src/models/process_node_dto.rs:30:12
-  --> src/models/process_node_dto.rs:38:12
-  --> src/models/quality_issue_dto.rs:44:12
-  --> src/models/quotation_convert_dto.rs:11:12
-  --> src/models/seasonal_price_rule_dto.rs:73:12
-  --> src/observability/config.rs:33:12
-  --> src/observability/config.rs:69:12
-  --> src/observability/config.rs:99:12
-  --> src/services/ai/mod.rs:75:9
-  --> src/services/ai/mod.rs:81:12
-  --> src/services/ai_extend_service.rs:46:12
   --> src/services/ar_unit_tests.rs:12:13
   --> src/services/ar_unit_tests.rs:48:13
   --> src/services/bi_unit_tests.rs:13:12
   --> src/services/bi_unit_tests.rs:38:23
-  --> src/services/bulk_color_approval_service.rs:49:5
-  --> src/services/bulk_color_approval_service.rs:94:12
-  --> src/services/chemical_service.rs:62:8
-  --> src/services/chemical_service.rs:91:8
-  --> src/services/collection_task_service.rs:76:5
-  --> src/services/color_card_crud_service.rs:45:12
-  --> src/services/color_card_item_service.rs:59:12
-  --> src/services/color_price_batch_service.rs:45:12
-  --> src/services/color_price_crud_service.rs:50:12
-  --> src/services/color_price_history_service.rs:32:12
-  --> src/services/color_price_tier_service.rs:21:5
-  --> src/services/color_price_tier_service.rs:33:12
-  --> src/services/customer_credit_service.rs:52:9
-  --> src/services/customer_credit_service.rs:61:9
-  --> src/services/event_retry_service.rs:17:11
-  --> src/services/event_retry_service.rs:20:7
-  --> src/services/event_retry_service.rs:23:12
-  --> src/services/failover_service.rs:32:9
-  --> src/services/finance_alert_service.rs:97:5
-  --> src/services/init_service.rs:33:11
-  --> src/services/init_service.rs:51:11
-  --> src/services/inventory_stock_service.rs:16:12
-  --> src/services/inventory_stock_service.rs:37:9
   --> src/services/inventory_unit_tests.rs:15:13
-  --> src/services/order_change_history_service.rs:22:12
-  --> src/services/purchase_contract_service.rs:34:9
-  --> src/services/purchase_contract_service.rs:43:9
   --> src/services/purchase_unit_tests.rs:18:9
   --> src/services/purchase_unit_tests.rs:26:13
   --> src/services/purchase_unit_tests.rs:55:13
-  --> src/services/quality_standard_service.rs:32:9
-  --> src/services/quality_standard_service.rs:42:9
-  --> src/services/quality_standard_service.rs:50:9
-  --> src/services/quotation_approval_service.rs:63:12
-  --> src/services/sales_contract_service.rs:34:9
-  --> src/services/sales_contract_service.rs:44:9
   --> src/services/sales_unit_tests.rs:52:13
-  --> src/services/scheduling_auto.rs:26:11
-  --> src/services/scheduling_auto.rs:30:10
-  --> src/services/scheduling_auto.rs:38:12
-  --> src/services/scheduling_manual.rs:17:11
-  --> src/services/scheduling_manual.rs:21:10
-  --> src/services/scheduling_manual.rs:31:12
-  --> src/services/scheduling_service.rs:40:12
-  --> src/services/scheduling_service.rs:49:12
-  --> src/services/so/order_crud.rs:33:11
-  --> src/services/so/order_query.rs:29:11
-  --> src/services/so/order_query.rs:33:12
-  --> src/services/so/order_query.rs:48:12
-  --> src/services/stock_alert.rs:50:12
-  --> src/services/voucher_service.rs:76:9
-  --> src/utils/color_space_converter.rs:20:5
-  --> src/utils/data_scope.rs:49:12
-  --> src/utils/messages.rs:25:15
-  --> src/utils/path_validator.rs:15:11
-  --> src/utils/path_validator.rs:29:8
-  --> src/utils/path_validator.rs:45:8
   |
-  |            ^^^^^
- --> src/models/event_dead_letter.rs:9:12
- 15 | impl ReportEngineService {
- 19 | impl ProductCategoryService {
- 20 |     pub fn calculate_next_run(
- 21 | impl PurchaseOrderService {
- 25 | impl DepartmentService {
- 27 | impl EventRetryService {
- 27 | impl ReportEngineService {
- 28 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
- 29 | impl AiAnalysisService {
- 41 | impl ApPaymentService {
- 42 |     pub async fn handle_failure(
- 43 | impl OrderChangeHistoryService {
- 44 | impl ApiKeyService {
- 45 | impl FailoverMetrics {
- 46 | impl Incoterms2020 {
- 47 | impl EmailLogService {
- 48 | impl ApInvoiceService {
- 51 | impl FieldPermissionService {
- 52 |     pub async fn record_change(&self, record: OrderChangeRecord) -> Result<(), AppError> {
- 52 | impl ArInvoiceService {
- 62 |     pub(crate) fn derive_paid_status(received: Decimal, invoice: Decimal) -> &'static str {
- 72 | impl ExportApprovalService {
- 83 | impl EightDStatus {
- 85 |     pub fn calculate_backoff_delay(retry_count: i32) -> Duration {
- 88 |     pub fn record_primary(&self, function: &str) {
- 93 |     pub fn record_primary_failed(&self, function: &str) {
- 94 |     async fn write_to_dead_letter(
+  |                                ^^^^^^^^^^^^^^^^^^^ no `node_type_to_status` in `utils::process_state_machine`
+ --> tests/custom_order_process_test.rs:9:32
 ...
 ...    |
 ...   |
-100 |     pub fn record_backup(&self, function: &str) {
 1005 |     fn 测试_CSV表头_列数与列名验证() {
-101 |     pub fn is_terminal(&self) -> bool {
 1013 |     async fn 测试_获取BOM树_需要真实数据库() {
 1021 |     ///   注："PARTIAL" 在 status 模块无对应常量，沿用 vfy.rs 字面量。
 1021 |     /// 注："PARTIAL" 在 status 模块无对应常量，沿用 vfy.rs 字面量。
-105 |     pub async fn record_order_created(
-105 | pub enum TaskPriority {
 1057 |     async fn 测试_服务实例化_SQLite内存数据库() {
-106 |     Low,
-106 | impl ResourceAttrs {
 1067 |     fn 测试_MRP状态常量值正确性() {
-107 |     fn parse_cron_field(
-107 |     pub fn from_config(cfg: &ObservabilityConfig) -> Self {
 1074 |     fn 测试_AP状态常量值正确性() {
-108 | pub fn validate_lot_status(status: &str) -> Result<(), AppError> {
-1088 | pub struct VoucherDetail {
-1089 |     pub voucher: voucher::Model,
-1090 |     pub items: Vec<voucher_item::Model>,
-1099 |     pub const COMPLETED: &str = "COMPLETED";
 11 |     struct ArInvoice {
-11 | pub struct ConvertToOrderDto {
-11 | pub struct ProcessNodeDetail {
-110 |     pub fn set_circuit_state(&self, function: &str, state: i64) {
-1102 |     pub const CANCELLED: &str = "CANCELLED";
-1109 |     pub const DISPOSED: &str = "disposed";
-1112 |     pub const DEPRECIATION_COMPLETED: &str = "COMPLETED";
 1117 |     fn 测试_合格率计算_None按零处理() {
-1119 |     pub const FAILED: &str = "FAILED";
-1122 |     pub const DENIED: &str = "DENIED";
 1128 |     fn 测试_等级判定_A级_95以上() {
-1129 |     pub const ARCHIVED: &str = "archived";
-1132 |     pub const LOST: &str = "lost";
-1139 |     pub const DRAFT: &str = "draft";
-114 | impl KafkaBackend {
 1142 |     fn 测试_delete_order状态校验门_仅DRAFT允许() {
-1146 |     pub const QUALITY_OPEN: &str = "open";
 1147 |     fn 测试_等级判定_B级_80到95区间() {
-1149 |     pub const QUALITY_CLOSED: &str = "closed";
-115 | pub struct BudgetExecuteRequest {
 1150 |     fn 测试_delete_order状态校验门_非DRAFT禁止() {
-1152 |     pub const QUALITY_RESOLVED: &str = "resolved";
-1155 |     pub const AFTERSALES_OPENED: &str = "opened";
-1158 |     pub const AFTERSALES_REJECTED: &str = "rejected";
-116 |     pub plan_id: i32,
-116 | pub fn validate_rework_status(status: &str) -> Result<(), AppError> {
-1161 |     pub const PROCESS_PENDING: &str = "pending";
-1165 | pub struct CreateBusinessModeOrderLinkRequest {
 1166 |     fn 测试_等级判定_C级_80以下() {
-1168 |     pub const PENDING: &str = "PENDING";
-1171 |     pub remarks: Option<String>,
-1175 |     pub const CLOSING: &str = "CLOSING";
-1182 |     pub const HEALTHY: &str = "healthy";
-1185 |     pub const UNHEALTHY: &str = "unhealthy";
-1188 |     pub const DEGRADED: &str = "degraded";
-1195 |     pub const PENDING: &str = "pending";
-1198 |     pub const APPROVED: &str = "approved";
 12 |         pub id: i64,
 1204 |     ///   返回 (期末借方余额, 期末贷方余额)
 1204 |     /// 返回 (期末借方余额, 期末贷方余额)
-1205 |     pub const FAILED: &str = "FAILED";
-121 | pub struct OptionalAuthContext {
-121 | pub struct UpdateReceiptItemRequest {
 1210 |     fn 测试_approve状态机门_仅DRAFT允许() {
-1212 |     pub const PRIMARY: &str = "primary";
-1215 |     pub const BACKUP: &str = "backup";
-122 |     pub line_no: Option<i32>,
 1226 |     fn 测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许() {
 123 |           let orders = vec![
-123 |     pub material_id: Option<i32>,
 123 ~         let orders = [SalesOrder {
 1234 |     fn 测试_工资计算_计件_A级全额() {
 1236 |     fn 测试_对账单号格式_REC前缀() {
 124 +                 id: 1,
-124 |     pub async fn list_dead_letters(
-124 |     pub material_code: Option<String>,
 124 | |             SalesOrder {
 1242 |     fn 测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许() {
 125 +                 customer_id: 1,
-125 |     pub material_name: Option<String>,
 125 | |                 id: 1,
 126 +                 quantity: Decimal::from(10),
-126 |     pub batch_no: Option<String>,
 126 | |                 customer_id: 1,
 127 +                 unit_price: Decimal::from(20),
-127 |     pub color_code: Option<String>,
-127 |     pub fn risk_transfer_point(&self) -> &'static str {
-127 | impl OptionalAuthContext {
 1277 |     fn 测试_工资计算_计件_B级8折() {
-1279 |     pub const EXPIRED: &str = "expired";
 128 +                 status: OrderStatus::Completed,
-128 |     pub async fn get_by_id(&self, id: i32) -> Result<Option<EmailLogModel>, AppError> {
-128 |     pub fn from_claims(claims: AppClaims) -> Self {
-128 |     pub lot_no: Option<String>,
 129 +             },
-129 |     pub grade: Option<String>,
 1290 |     fn 测试_BOM数量计算_基础数量无损耗() {
 13 |         pub customer_id: i64,
 13 |     struct SalesPoint {
 130 +             SalesOrder {
-130 |     pub gram_weight: Option<Decimal>,
 1302 |     fn 测试_BOM数量计算_含损耗率() {
 131 +                 id: 2,
-131 |     pub width: Option<Decimal>,
-131 | pub fn check_consumption_exceeds_standard(
 1319 |     fn 测试_BOM数量计算_精度归一化() {
 132 +                 customer_id: 2,
 1321 |     fn 测试_工资计算_计件_C级不计() {
@@ -962,7 +453,6 @@
 134 +                 unit_price: decs!("15.50"),
 1343 |         let lead_0 = Duration::days(7 * 0_i64);
 135 +                 status: OrderStatus::Completed,
-135 |     pub location_code: Option<String>,
 1353 |           let requirements = vec![
 1353 ~         let requirements = [MaterialRequirement {
 1354 +                 product_id: 1,
@@ -986,7 +476,6 @@
 1368 +                 required_quantity: decs!("30"),
 1369 +                 required_date: date,
 137 +             SalesOrder {
-137 |     pub fn empty() -> Self {
 1370 +                 on_hand_quantity: decs!("100"),
 1371 +                 in_transit_quantity: Decimal::ZERO,
 1371 |           let items = vec![
@@ -1021,7 +510,6 @@
 1386 +                 available_quantity: decs!("10"),
 1387 +                 shortage_quantity: decs!("70"),
 1388 +                 source_type: "MANUAL".to_string(),
-1388 |     pub const CANCELLED: &str = "cancelled";
 1389 +                 source_id: None,
 139 +                 customer_id: 1,
 1390 +                 bom_level: 1,
@@ -1032,50 +520,29 @@
 14 |     enum PurchaseStatus {
 14 |     struct StockRow {
 140 +                 quantity: Decimal::from(3),
-140 |     pub async fn resolve_dead_letter(
 141 +                 unit_price: Decimal::from(100),
-141 | pub fn validate_requisition_status(status: &str) -> Result<(), AppError> {
 142 +                 status: OrderStatus::Cancelled,
 143 ~             }];
 144 | |             },
 1448 |     fn 测试_工人IDs解析_正常情况() {
 145 | |         ];
 1452 |     fn 测试_订单类型转换_非PLANNED状态拒绝() {
-1452 | impl OutsourcingVoucherService {
 1455 |     fn 测试_工人IDs解析_带空格() {
-146 |     pub fn is_sea_only(&self) -> bool {
 1462 |     fn 测试_工人IDs解析_空值() {
 1465 |     fn 测试流转校验_合法返回Ok() {
-147 | pub type Auth = axum::extract::Extension<AuthContext>;
 1470 |     fn 测试_工人IDs解析_非法值过滤() {
 1472 |     fn 测试流转校验_非法返回Err() {
 1478 |     fn 测试流转校验_非法状态返回Err() {
 15 |         pub product_id: i64,
-15 | pub const MAX_RECURSION_DEPTH: usize = 100;
 1534 |     async fn 测试_BOM展开_需要真实数据库() {
 1558 |     async fn 测试_查询MRP结果_需要真实数据库() {
-1566 |     pub async fn list_by_order(&self, order_id: i32) -> Result<Vec<VoucherModel>, AppError> {
 1570 |     fn 测试计算剩余保质期_无失效日期返回None() {
-16 | pub enum ColorSpaceError {
-16 | pub struct InventorySummaryItem {
-160 |     pub async fn count_by_status(
-161 | pub fn delta_e_76(lab1: Lab, lab2: Lab) -> f64 {
 165 |     fn 测试_product_id过滤_全部Some时收集所有id() {
-165 | pub fn check_low_stock(
-167 | impl QualityInspectionService {
-169 | pub fn validate_order_status(status: &str) -> Result<(), AppError> {
-17 | pub const MAX_RETRY_COUNT: i32 = 5;
-17 | pub const P92_MANUAL_MODULE: &str = "scheduling_manual";
-17 | pub enum TierError {
-170 | pub struct CutSampleParams {
 1722 |     fn 测试_数量计算_BOM用量乘以生产数量_整数结果() {
 1728 |     fn 测试计算单位能耗_产量为零返回None() {
-173 |     pub async fn get_abc_classification(&self) -> Result<Vec<AbcClassification>, AppError> {
 1732 |     fn 测试_VoucherTypeDefinition_new构造器() {
 1733 |     fn 测试_数量计算_BOM用量乘以生产数量_小数结果() {
 1734 |     fn 测试计算单位能耗_产量为None返回None() {
-175 |     pub async fn find_by_name(&self, name: &str) -> Result<product_category::Model, AppError> {
-175 |     pub operator_id: i32,
 177 |     fn 测试_product_id过滤_含None时过滤掉None() {
 1776 |     ///    （批次 102 v6 P3-4：后者已从 bad_request 改为 not_found）
 1776 |     /// （批次 102 v6 P3-4：后者已从 bad_request 改为 not_found）
@@ -1086,168 +553,43 @@
 1834 |     fn 测试_错误消息_工作中心不存在包含ID() {
 1883 |     fn 测试_AR状态常量值正确性() {
 189 |     fn 测试_product_id过滤_全部None时返回空vec() {
-189 | pub fn validate_loss_type(loss_type: &str) -> Result<(), AppError> {
-189 | pub struct PaymentScheduleParams {
 19 |         Closed,
-19 | pub struct BatchListQuery {
 1909 |     fn 测试_decs_宏_解析字符串为Decimal() {
-191 |     pub fn config(&self) -> &KafkaSettings {
 1916 |     fn 测试_decs_宏_解析整数串为Decimal() {
 1939 |     fn 测试_FromStr_与decs宏结果一致() {
-195 | pub async fn get_payment_schedule(
 1953 |     async fn 测试_服务实例化_使用SQLite内存数据库() {
 20 |         Cancelled,
-20 |     RgbOutOfRange(String),
-20 | const BASE_DELAY_SECS: u64 = 1;
 2017 |     async fn 测试_服务实例化_SQLite内存数据库() {
 204 |         let quantity: Option<Decimal> = None;
 205 |         let resolved = quantity.unwrap_or(Decimal::ZERO);
-208 |     pub fn all_sensitive() -> &'static [&'static str] {
-208 | impl FieldValidator {
-21 |     PriceNotFound,
-21 | pub enum AdjustType {
 217 |         let quantity: Option<Decimal> = Some(original);
 218 |         let resolved = quantity.unwrap_or(Decimal::ZERO);
-219 |     pub fn integer(value: &str, field_name: &str) -> Result<i32, String> {
-22 |     pub product_id: Option<i32>,
-22 | pub struct FabricOrderQuery {
-22 | pub struct OrderChangeRecord {
-226 |     pub fn decimal(value: &str, field_name: &str) -> Result<rust_decimal::Decimal, String> {
-227 |     pub async fn get_standard_by_id(&self, id: i32) -> Result<quality_inspection::Model, AppError> {
-23 |     pub batch_no: Option<String>,
-23 | pub struct EventRetryService {
 230 |     fn 测试_查询参数_Default实现_全部字段为空或零() {
-233 |     pub fn date(value: &str, field_name: &str) -> Result<chrono::NaiveDate, String> {
-233 |     pub fn filter_fields_by_read_permission(
-239 |     pub fn boolean(value: &str, field_name: &str) -> Result<bool, String> {
-24 |     pub color_no: Option<String>,
-24 | pub struct CreateQualityStandardRequest {
 243 |                 doc_types.contains(&t),
-247 |     pub fn is_api_key_revoked(cache: &AppCache, plain_key: &str) -> bool {
-25 |     pub const OPERATE_OK: &str = "操作成功";
-25 |     pub grade: Option<String>,
 25 |     struct PurchaseOrder {
-257 |     pub async fn find_by_name(&self, name: &str) -> Result<department::Model, AppError> {
 26 |         pub id: i64,
-26 |     pub warehouse_id: Option<i32>,
-26 | pub const P92_AUTO_MODULE: &str = "scheduling_auto";
-263 |     pub async fn get_inventory_turnover(
-263 |     pub fn mask_fields(&self, data: &mut serde_json::Value, permissions: &[FieldPermissionDetail]) {
-27 |     pub start_date: Option<DateTime<Utc>>,
-27 | pub struct CreateContractRequest {
-27 | pub struct CreateSalesContractRequest {
-28 |     pub batch_no: Option<String>,
-28 |     pub end_date: Option<DateTime<Utc>>,
-280 | impl OutsourcingOrderService {
-29 |     pub color_no: Option<String>,
-29 | pub const P92_QRY_MODULE: &str = "sales_order_query";
-29 | pub fn validate_extracted_paths(base_dir: &str) -> Result<(), String> {
-299 | pub fn invalidate_all_permission_cache() {
-30 | impl AdjustType {
-30 | impl ApprovalStatus {
-30 | pub enum SchedulingAlgo {
-30 | pub struct FailoverMetrics {
-30 | pub struct ProcessNodeQuery {
-305 | impl BiAnalysisService {
-309 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
 31 |         pub status: PurchaseStatus,
-31 |     /// 主调用总次数
-31 |     pub fn desc(&self) -> &'static str {
-31 | impl ColorPriceHistoryService {
 318 | /     pub async fn update_user(
 319 | |         &self,
-32 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-32 |     pub primary_total: IntCounterVec,
-32 |     pub remark: Option<String>,
-32 | impl ColorPriceTierService {
-32 | impl DataScope {
 320 | |         user_id: i32,
 321 | |         email: Option<String>,
 326 | |         operator_id: i32,
 327 | |     ) -> Result<user::Model, AppError> {
-33 |     /// 主调用失败总次数
-33 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-33 | pub const P92_CRUD_MODULE: &str = "sales_order_crud";
-33 | pub const PERMISSION_ACTIONS: &[&str] = &[
-33 | pub struct CreateBatchRequest {
-33 | pub struct ObservabilityConfig {
-33 | pub struct OrderQuery {
-33 | pub struct PriceHistoryQuery {
-34 |     pub primary_failed_total: IntCounterVec,
-34 |     pub remark: Option<String>,
-34 | pub struct CreateFabricOrderRequest {
-34 | pub struct InventorySummaryQueryResult {
-346 | pub fn get_allowed_transitions(from_status: &str) -> Vec<(&'static str, &'static str)> {
-35 |     /// 备用调用总次数
-359 |     pub async fn record_download(
-36 |     pub backup_total: IntCounterVec,
-36 | pub struct RecordQuery {
 363 |     fn 测试_validate_custom_condition拒绝SQL关键字() {
-37 |     pub product_id: Option<i32>,
-37 |     pub warehouse_id: i32,
-37 | impl SchedulingAlgo {
-37 | pub struct PriceTierInfo {
-37 | pub struct UpdateQualityStandardRequest {
 38 |     fn median(values: &mut Vec<Decimal>) -> Decimal {
-38 |     pub batch_number: Option<String>,
-38 |     pub color_name: Option<String>,
-38 |     pub fn desc(&self) -> &'static str {
-38 | pub struct AdvanceNodeRequest {
-39 | pub enum Relation {}
-39 | pub struct ExecuteContractRequest {
-39 | pub struct ExecuteSalesContractRequest {
-40 |     pub circuit_state: IntGaugeVec,
-40 | pub struct WorkCenterCapacity {
 405 |     fn sample_event() -> BusinessEvent {
 405 |     fn test_extract_resource_info_标准路径无ID() {
-41 |     pub payment_terms: Option<String>,
-41 | pub enum BulkColorApprovalError {
-411 | impl BusinessModeConfigService {
 412 |     fn test_extract_resource_info_标准路径带ID() {
 419 |     fn test_extract_resource_info_模块前缀路径无ID() {
-42 |     pub remark: Option<String>,
-42 |     pub remarks: Option<String>,
 426 |     fn test_extract_resource_info_模块前缀路径带ID() {
 429 |     fn 测试_verify_zip_magic合法ZIP() {
 429 |     fn 测试_质检分级_A级_合格率达标() {
-43 |     pub batch_no: Option<String>,
-43 |     pub related_bill_type: Option<String>,
-43 | impl ApproverRole {
-43 | impl ColorCardCrudService {
 433 |     fn test_extract_resource_info_嵌套路径带ID和动作() {
-433 |     pub async fn mark_as_paid(
-434 | impl DyeBatchLifecycleLogService {
-438 |     pub async fn cleanup_expired_tokens(&self) -> Result<u64, AppError> {
-44 |     /// 从数据库连接构造
-44 |     pub color_no: Option<String>,
-44 |     pub related_bill_id: Option<i32>,
-44 |     pub remark: Option<String>,
-44 | impl ColorPriceBatchService {
-44 | pub struct QualityIssueDetail {
 440 |     fn test_extract_resource_info_非API路径() {
-445 |     pub const APPROVED: &str = "approved";
 447 |     fn 测试_verify_zip_magic非ZIP文件() {
-45 |     pub dye_lot_no: Option<String>,
-45 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-45 | pub fn validate_dir_recursive(dir: &Path, base: &Path, depth: usize) -> Result<(), String> {
-45 | pub struct CreditRatingRequest {
-45 | pub struct DefectQuery {
 450 |     fn 测试_质检分级_B级_让步接收区间() {
-454 |     pub async fn export_excel_bytes(
-456 | pub struct SubjectBalance {
-46 |     pub const PENDING: &str = "PENDING";
-46 |     pub fn parse_status(s: &str) -> Option<Self> {
-46 |     pub grade: Option<String>,
-46 |     pub record_id: Option<i32>,
-46 | impl OrderQuery {
-46 | pub struct ProcessOptDetailVo {
 461 |     fn test_extract_resource_info_动作段不误判为ID() {
-465 |     pub async fn export_pdf_bytes(
-47 |     /// 是否为空查询
-47 |     pub packaging_requirement: Option<String>,
-47 |     pub supplier_id: Option<i32>,
 47 |     struct CustomerCredit {
-47 | pub struct CreateVersionHistoryRequest {
 471 |     fn 测试_质检分级_C级_不合格区间() {
 471 | /     async fn write_permission_audit(
 472 | |         &self,
@@ -1255,64 +597,30 @@
 474 | |         operator_id: i32,
 479 | |         new_value: Option<String>,
 48 |         pub customer_id: i64,
-48 |     pub const DEAD: &str = "DEAD";
-48 |     pub fn is_empty(&self) -> bool {
-48 |     pub purchase_order_no: Option<String>,
-48 |     pub quality_standard: Option<String>,
-48 | impl AlertType {
-48 | impl ColorPriceCrudService {
 480 | |     ) {
 481 |     fn 测试_VersionResponse和UpdateResult构造() {
 488 |     fn 测试_质检分级_None视为零合格率() {
-49 |     /// 中文描述
-49 |     /// 从数据库连接构造
-49 |     CustomerNotFound,
-49 |     pub fn from_role(role: &crate::models::role::Model) -> Self {
-49 |     pub remarks: Option<String>,
-49 | pub struct CustomerColorPriceInfo {
-49 | pub struct TimeSlot {
 498 |     fn 测试_等级处理方式校验_A级品无需不合格处理() {
-50 |     pub change_reason: String,
-50 |     pub const RESOLVED: &str = "RESOLVED";
-50 |     pub fn desc(&self) -> &'static str {
-50 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
 500 |     fn test_extract_segment3_非API路径返回None() {
-504 |     pub async fn list_by_batch_no(
 51 |     struct SalesOrder {
-51 | impl<T> PageResponse<T> {
-51 | pub const PERMISSION_RESOURCES: &[&str] = &[
 512 |     fn 测试_等级处理方式校验_B级品必须降级销售() {
 52 |         pub id: i64,
-52 |     /// 创建分页响应
-52 |     pub remark: Option<String>,
 520 |         assert!(!(model_active.status != master_data::ACTIVE));
 528 |     fn 测试_等级处理方式校验_C级品返工或报废() {
 53 |         pub customer_id: i64,
-53 |     pub fn new(data: Vec<T>, total: u64, page: u64, page_size: u64) -> Self {
-53 | pub struct ApiDoc;
-538 |     pub async fn mark_as_paid(&self, id: i32, user_id: i32) -> Result<ap_invoice::Model, AppError> {
-54 |     pub fn as_str(&self) -> &'static str {
 54 |     struct SupplierRating {
 541 |     fn test_extract_action_from_path_无动作返回None() {
 547 |     fn test_extract_action_from_path_非动作关键字返回None() {
 55 |         pub supplier_id: i64,
-55 | impl ApiDoc {
 552 |     fn 测试_推导付款状态_已收金额大于发票金额_返回PAID() {
-553 |     pub async fn record_receipt(
 558 |     fn test_method_to_action_GET映射read() {
 56 |         pub score: u8,
-56 |     /// 创建 OpenAPI 文档
-56 | pub struct FabricOrderItemRequest {
 562 |     fn 测试_推导付款状态_已收金额等于发票金额_边界返回PAID() {
 563 |     fn test_method_to_action_POST映射create() {
 568 |         let gram_weight = Some(Decimal::new(200, 0));
 568 |     fn test_method_to_action_PUT映射update() {
 569 |         let width = Some(Decimal::new(150, 0));
 57 |         pub on_time_rate: Decimal,
-57 |     pub fn desc(&self) -> String {
-57 |     pub fn new() -> Self {
-57 |     pub product_id: i32,
-57 | pub struct CreditLimitAdjustmentRequest {
 572 |     fn 测试_推导付款状态_已收金额为零_返回PARTIAL_PAID() {
 573 |     fn test_method_to_action_PATCH映射update() {
 573 | /         match result {
@@ -1320,70 +628,23 @@
 575 | |             Err(_) => {} // 无 schema 时数据库报错属于预期降级
 576 | |         }
 578 |     fn test_method_to_action_DELETE映射delete() {
-579 |     pub async fn calculate_order_total(
-58 |     pub product_name: Option<String>,
-58 | impl ColorCardItemService {
 581 |         let expected = calc_kg(quantity_meters, gram_weight.unwrap(), width.unwrap()).unwrap();
 585 |     fn 测试_推导付款状态_已收金额小于发票金额_返回PARTIAL_PAID() {
-589 |     pub async fn get_payment_schedule(
-59 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
 591 |     fn 测试_calculate_quantity_kg_克重为None回退fallback() {
 598 |     fn 测试_推导付款状态_已收金额和发票金额均为零_边界返回PAID() {
-61 |     pub reason: String,
 611 |     fn 测试_calculate_quantity_kg_幅宽为None回退fallback() {
-62 | pub fn compute_remaining_shelf_life(
 620 |     async fn 测试_服务实例化_SQLite内存数据库() {
-623 |     pub const SUCCESS: &str = "SUCCESS";
-626 |     pub const FAILED: &str = "FAILED";
-63 |     pub fn code(&self) -> &'static str {
-63 | pub struct AuthConfig {
-647 |     pub const ACTIVE: &str = "ACTIVE";
-648 | pub struct CreateChemicalCategoryRequest {
-65 |     pub batch_no: Option<String>,
-65 | pub struct FlowStepListByModeQuery {}
-650 |     pub const INACTIVE: &str = "INACTIVE";
 653 |         assert!(!(customer_active != master_data::ACTIVE));
-653 | pub struct ProductionRecipeAdditionQuery {
-655 |     pub created_by: Option<i32>,
-658 |     pub const LOAD_IDLE: &str = "IDLE";
-66 |     pub dye_lot_no: Option<String>,
-661 |     pub const LOAD_OVERLOADED: &str = "OVERLOADED";
 666 |     fn 测试_BOM状态常量_Active值正确() {
-666 | impl ProductionRecipeAdditionService {
-668 |     pub const DRAFT: &str = "draft";
-67 | impl ObservabilityConfig {
-671 |     pub const CANCELLED: &str = "cancelled";
 676 |     fn 测试_BOM状态常量_Inactive值正确() {
 678 |         assert!(!credit_ok == false);
-68 |     /// 从环境变量加载
-68 | pub struct RuleListByModeQuery {}
-68 | pub struct TransferBatchRequest {
-680 |     pub const PENDING_APPROVAL: &str = "pending_approval";
-680 | pub struct PaymentScheduleItem {
 681 |     async fn 测试_服务实例化_SQLite内存数据库() {
-683 |     pub const EXPIRED: &str = "expired";
 685 |     fn 测试_BOM状态常量_Pending值正确() {
-686 |     pub async fn get_with_rules(
-686 |     pub const CONVERTED: &str = "converted";
-69 |     pub fn from_env() -> Self {
-69 |     pub from_warehouse_id: i32,
 693 |     fn test_extract_action_from_query_无action参数返回None() {
-693 |     pub const PENDING: &str = "pending";
 694 |     fn 测试_BOM状态枚举_Display实现互不相同() {
-696 |     pub const APPROVED: &str = "approved";
 701 |     fn test_extract_action_from_query_白名单外动作返回None() {
-703 |     pub const DRAFT: &str = "draft";
-706 |     pub const APPROVED: &str = "approved";
-709 |     pub const REJECTED: &str = "rejected";
-71 | pub struct OutsourcingOrderItemListQuery {
-71 | pub struct VoucherQueryParams {
 710 |     fn test_extract_action_from_query_无查询字符串返回None() {
-716 |     pub const PENDING: &str = "pending";
-72 | pub struct AbcClassification {
 729 | /     async fn transition_to(
-73 |     pub remarks: Option<String>,
-73 | pub enum TaskType {
-73 | pub struct SeasonalRuleInfo {
 730 | |         &self,
 731 | |         id: i64,
 732 | |         target: ApprovalStatus,
@@ -1391,37 +652,23 @@
 734 |     fn 测试_对账状态常量_Pending值正确() {
 737 | |         unblock_delivery: bool,
 738 | |     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
-74 | pub struct LocationListQuery {
 746 |     fn 测试_对账状态常量_Cancelled值正确() {
 747 |     fn test_matches_permission_全部匹配无ID() {
-75 |     pub total_sales: rust_decimal::Decimal,
 755 |     async fn 测试_BOM需求数量计算_叶子节点有损耗率() {
 759 |     fn 测试_付款状态常量_Confirmed值正确() {
-759 |     pub async fn list_by_recipe(
-76 |     Email,
-76 |     pub batch_no: Option<String>,
-76 |     pub cumulative_ratio: f64,
 761 |     fn test_matches_permission_ID精确匹配相等() {
 767 |     fn test_matches_permission_ID精确匹配不等返回false() {
-77 |     pub color_no: Option<String>,
-773 |     pub async fn list(
 774 |     fn test_matches_permission_权限无ID请求有ID返回false() {
 775 |     async fn 测试_BOM需求数量计算_损耗率为零不放大() {
-78 |     pub search: Option<String>,
 782 |     fn test_matches_permission_权限有ID请求无ID返回false() {
-788 |     pub const ADJUSTED: &str = "adjusted";
-79 | impl ApprovalStatus {
 794 |     fn test_matches_permission_通配符加ID精确匹配() {
 795 |     async fn 测试_BOM需求数量计算_精度归一化四位小数() {
 800 |     fn 测试_credit_limit语义_更新场景None保持原值() {
 806 |         let req_credit_limit: Option<Decimal> = None;
 809 |         let new_limit = req_credit_limit.unwrap_or(old_limit);
-81 | pub struct InventoryTurnover {
 816 |     async fn 测试_BOM需求数量计算_递归多层级() {
-82 |     pub webhook_inherit_jwt_secret: bool,
 823 |     fn 测试_credit_limit语义_更新场景Some0显式置零() {
 828 |         let req_credit_limit: Option<Decimal> = Some(Decimal::ZERO);
-83 | pub struct UpdateFabricOrderRequest {
 830 |         let new_limit = req_credit_limit.unwrap_or(old_limit);
 838 |     fn 测试_状态机转换_确认需Pending状态() {
 842 |     fn 测试_BOM损耗率乘数公式() {
@@ -1430,7 +677,6 @@
 851 |         let new_limit = req_credit_limit.unwrap_or(old_limit);
 862 |     fn 测试_credit_limit语义_创建场景None默认零() {
 863 |         let req_credit_limit: Option<Decimal> = None;
-863 |     pub const PENDING: &str = "pending";
 866 |         let limit = req_credit_limit.unwrap_or_default();
 866 |         let none_status: Option<&str> = None;
 866 |     fn 测试_BOM树根节点数量为一() {
@@ -1438,25 +684,15 @@
 876 |     fn 测试_credit_limit语义_创建场景SomeV设置初始值() {
 876 |     fn 测试_状态机转换_争议或Pending可继续争议() {
 878 |         let req_credit_limit: Option<Decimal> = Some(initial);
-88 |     pub payment_terms: Option<String>,
 880 |         let limit = req_credit_limit.unwrap_or_default();
 881 |     async fn 测试_BOM需求收集_单叶子节点() {
-89 |     pub remarks: Option<String>,
-9 | pub struct Model {
-90 |     pub items: Option<Vec<FabricOrderItemRequest>>,
-91 |     pub batch_no: Option<String>,
-91 | pub fn validate_inspection_status(status: &str) -> Result<(), AppError> {
-92 |     pub color_no: Option<String>,
+9 |         default_process_nodes, node_type_to_status, CustomOrderStatus,
 920 |     fn 测试_货币默认值_未指定时使用CNY() {
 922 |         let req_currency: Option<String> = None;
 924 |             req_currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string());
-93 |     pub packaging_requirement: Option<String>,
-93 | pub enum AlertStatus {
 935 +         assert!(!req.is_default.unwrap_or(false));
 935 -         assert_eq!(req.is_default.unwrap_or(false), false);
 935 |         assert_eq!(req.is_default.unwrap_or(false), false);
-94 |     pub fn is_terminal(&self) -> bool {
-94 |     pub quality_standard: Option<String>,
 942 |         let req_exchange_rate: Option<Decimal> = None;
 942 |     fn 测试_错误消息_BOM不存在() {
 943 |         let exchange_rate = req_exchange_rate.unwrap_or(Decimal::new(1, 0));
@@ -1464,12 +700,11 @@
 947 |         let exchange_rate_explicit = explicit.unwrap_or(Decimal::new(1, 0));
 952 |     fn 测试_错误消息_BOM已处于审核中状态() {
 956 |     fn 测试_订单初始状态_使用DRAFT常量() {
-97 |     Expired,
 984 |     async fn 测试_创建BOM_需要真实数据库() {
-99 | pub struct ResourceAttrs {
 990 |         assert!(!(expected_same < order_date));
 993 |         assert!(!(expected_after < order_date));
 error: this operation will always return zero. This is likely not the intended outcome
+error[E0432]: unresolved import `bingxi_backend::utils::process_state_machine::node_type_to_status`
 help: indent this line
 help: remove the `None` and `unwrap_or()`
 help: remove the `None` and `unwrap_or_default()`
@@ -1479,99 +714,13 @@ help: remove the `Some` and `unwrap_or()`
 help: remove the `Some` and `unwrap_or_default()`
 help: replace it with `assert!(..)`
 help: you can use an array directly
-warning: associated function `from_config` is never used
-warning: associated function `from_env` is never used
-warning: associated function `is_api_key_revoked` is never used
-warning: associated function `new` is never used
-warning: associated function `parse_status` is never used
-warning: associated functions `from_claims` and `empty` are never used
-warning: associated functions `integer`, `decimal`, `date`, and `boolean` are never used
-warning: associated items `calculate_next_run` and `parse_cron_field` are never used
-warning: associated items `derive_paid_status` and `mark_as_paid` are never used
-warning: associated items `from_role` and `as_str` are never used
-warning: constant `ACTIVE` is never used
-warning: constant `ADJUSTED` is never used
-warning: constant `AFTERSALES_OPENED` is never used
-warning: constant `AFTERSALES_REJECTED` is never used
-warning: constant `APPROVED` is never used
-warning: constant `ARCHIVED` is never used
-warning: constant `BACKUP` is never used
-warning: constant `BASE_DELAY_SECS` is never used
-warning: constant `CANCELLED` is never used
-warning: constant `CLOSING` is never used
-warning: constant `COMPLETED` is never used
-warning: constant `CONVERTED` is never used
-warning: constant `DEAD` is never used
-warning: constant `DEGRADED` is never used
-warning: constant `DENIED` is never used
-warning: constant `DEPRECIATION_COMPLETED` is never used
-warning: constant `DISPOSED` is never used
-warning: constant `DRAFT` is never used
-warning: constant `EXPIRED` is never used
-warning: constant `FAILED` is never used
-warning: constant `HEALTHY` is never used
-warning: constant `INACTIVE` is never used
-warning: constant `LOAD_IDLE` is never used
-warning: constant `LOAD_OVERLOADED` is never used
-warning: constant `LOST` is never used
-warning: constant `MAX_RECURSION_DEPTH` is never used
-warning: constant `MAX_RETRY_COUNT` is never used
-warning: constant `OPERATE_OK` is never used
-warning: constant `P92_AUTO_MODULE` is never used
-warning: constant `P92_CRUD_MODULE` is never used
-warning: constant `P92_MANUAL_MODULE` is never used
-warning: constant `P92_QRY_MODULE` is never used
-warning: constant `PENDING_APPROVAL` is never used
-warning: constant `PENDING` is never used
-warning: constant `PERMISSION_ACTIONS` is never used
-warning: constant `PERMISSION_RESOURCES` is never used
-warning: constant `PRIMARY` is never used
-warning: constant `PROCESS_PENDING` is never used
-warning: constant `QUALITY_CLOSED` is never used
-warning: constant `QUALITY_OPEN` is never used
-warning: constant `QUALITY_RESOLVED` is never used
-warning: constant `REJECTED` is never used
-warning: constant `RESOLVED` is never used
-warning: constant `SUCCESS` is never used
-warning: constant `UNHEALTHY` is never used
 warning: doc list item without indentation
-warning: enum `AdjustType` is never used
-warning: enum `Relation` is never used
-warning: enum `SchedulingAlgo` is never used
 warning: equality checks against false can be replaced by a negation
-warning: field `change_reason` is never read
-warning: field `created_by` is never read
 warning: field `customer_id` is never read
-warning: field `items` is never read
-warning: field `operator_id` is never read
-warning: field `plan_id` is never read
 warning: field `product_id` is never read
-warning: field `reason` is never read
-warning: field `record_id` is never read
-warning: field `remark` is never read
-warning: field `remarks` is never read
-warning: field `search` is never read
-warning: field `warehouse_id` is never read
-warning: field `webhook_inherit_jwt_secret` is never read
-warning: fields `batch_no` and `color_no` are never read
-warning: fields `color_name`, `supplier_id`, `purchase_order_no`, and `remarks` are never read
-warning: fields `from_warehouse_id` and `remarks` are never read
 warning: fields `id` and `customer_id` are never read
 warning: fields `id` and `status` are never read
-warning: fields `primary_total`, `primary_failed_total`, `backup_total`, and `circuit_state` are never read
-warning: fields `product_id` and `batch_number` are never read
-warning: fields `product_name`, `batch_no`, and `dye_lot_no` are never read
-warning: fields `related_bill_type` and `related_bill_id` are never read
 warning: fields `supplier_id` and `on_time_rate` are never read
-warning: fields `total_sales` and `cumulative_ratio` are never read
-warning: function `all_sensitive` is never used
-warning: function `check_consumption_exceeds_standard` is never used
-warning: function `check_low_stock` is never used
-warning: function `compute_remaining_shelf_life` is never used
-warning: function `delta_e_76` is never used
-warning: function `get_allowed_transitions` is never used
-warning: function `get_payment_schedule` is never used
-warning: function `invalidate_all_permission_cache` is never used
 warning: function `sample_event` is never used
 warning: function `test_extract_action_from_path_无动作返回None` should have a snake case name
 warning: function `test_extract_action_from_path_非动作关键字返回None` should have a snake case name
@@ -1597,14 +746,6 @@ warning: function `test_method_to_action_GET映射read` should have a snake case
 warning: function `test_method_to_action_PATCH映射update` should have a snake case name
 warning: function `test_method_to_action_POST映射create` should have a snake case name
 warning: function `test_method_to_action_PUT映射update` should have a snake case name
-warning: function `validate_dir_recursive` is never used
-warning: function `validate_extracted_paths` is never used
-warning: function `validate_inspection_status` is never used
-warning: function `validate_loss_type` is never used
-warning: function `validate_lot_status` is never used
-warning: function `validate_order_status` is never used
-warning: function `validate_requisition_status` is never used
-warning: function `validate_rework_status` is never used
 warning: function `测试_AP状态常量值正确性` should have a snake case name
 warning: function `测试_AR状态常量值正确性` should have a snake case name
 warning: function `测试_BOM展开_需要真实数据库` should have a snake case name
@@ -1702,66 +843,11 @@ warning: function `测试状态流转_from_status为None返回false` should have
 warning: function `测试计算剩余保质期_无失效日期返回None` should have a snake case name
 warning: function `测试计算单位能耗_产量为None返回None` should have a snake case name
 warning: function `测试计算单位能耗_产量为零返回None` should have a snake case name
-warning: method `calculate_order_total` is never used
-warning: method `code` is never used
-warning: method `config` is never used
-warning: method `desc` is never used
-warning: method `find_by_name` is never used
-warning: method `get_by_id` is never used
-warning: method `get_payment_schedule` is never used
-warning: method `get_standard_by_id` is never used
-warning: method `get_with_rules` is never used
-warning: method `is_terminal` is never used
-warning: method `list_by_batch_no` is never used
-warning: method `list_by_order` is never used
-warning: method `mark_as_paid` is never used
-warning: method `record_receipt` is never used
-warning: methods `export_excel_bytes` and `export_pdf_bytes` are never used
-warning: methods `filter_fields_by_read_permission` and `mask_fields` are never used
-warning: methods `get_abc_classification` and `get_inventory_turnover` are never used
-warning: methods `is_empty` and `desc` are never used
-warning: methods `list_by_recipe` and `list` are never used
-warning: methods `record_change` and `record_order_created` are never used
-warning: methods `record_download` and `cleanup_expired_tokens` are never used
-warning: methods `record_primary`, `record_primary_failed`, `record_backup`, and `set_circuit_state` are never used
-warning: methods `risk_transfer_point` and `is_sea_only` are never used
-warning: multiple associated items are never used
-warning: multiple fields are never read
-warning: struct `AdvanceNodeRequest` is never constructed
-warning: struct `ApiDoc` is never constructed
-warning: struct `ConvertToOrderDto` is never constructed
-warning: struct `CustomerColorPriceInfo` is never constructed
-warning: struct `EventRetryService` is never constructed
-warning: struct `FlowStepListByModeQuery` is never constructed
-warning: struct `InventorySummaryItem` is never constructed
-warning: struct `InventoryTurnover` is never constructed
-warning: struct `Model` is never constructed
-warning: struct `ObservabilityConfig` is never constructed
-warning: struct `OptionalAuthContext` is never constructed
-warning: struct `OrderChangeRecord` is never constructed
-warning: struct `OrderQuery` is never constructed
-warning: struct `OutsourcingOrderItemListQuery` is never constructed
-warning: struct `PaymentScheduleItem` is never constructed
-warning: struct `PaymentScheduleParams` is never constructed
-warning: struct `PriceHistoryQuery` is never constructed
-warning: struct `PriceTierInfo` is never constructed
-warning: struct `ProcessNodeDetail` is never constructed
-warning: struct `ProcessNodeQuery` is never constructed
-warning: struct `ProcessOptDetailVo` is never constructed
-warning: struct `ProductionRecipeAdditionQuery` is never constructed
-warning: struct `QualityIssueDetail` is never constructed
-warning: struct `ResourceAttrs` is never constructed
-warning: struct `RuleListByModeQuery` is never constructed
 warning: struct `SalesPoint` is never constructed
-warning: struct `SeasonalRuleInfo` is never constructed
-warning: struct `SubjectBalance` is never constructed
-warning: struct `TimeSlot` is never constructed
-warning: struct `WorkCenterCapacity` is never constructed
 warning: this boolean expression can be simplified
 warning: this expression creates a reference which is immediately dereferenced by the compiler
 warning: this function has too many arguments (8/7)
 warning: this operation has no effect
-warning: type alias `Auth` is never used
 warning: used `assert_eq!` with a literal bool
 warning: used `unwrap()` on `Some` value
 warning: used `unwrap_or()` on `None` value
@@ -1770,12 +856,6 @@ warning: used `unwrap_or_default()` on `None` value
 warning: used `unwrap_or_default()` on `Some` value
 warning: used `unwrap_or_else()` on `None` value
 warning: useless use of `vec!`
-warning: variant `CustomerNotFound` is never constructed
-warning: variant `Email` is never constructed
-warning: variant `Expired` is never constructed
-warning: variant `Low` is never constructed
-warning: variant `PriceNotFound` is never constructed
-warning: variant `RgbOutOfRange` is never constructed
 warning: variants `Received` and `Cancelled` are never constructed
 warning: writing `&mut Vec` instead of `&mut [_]` involves a new object where a slice will do
 warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
