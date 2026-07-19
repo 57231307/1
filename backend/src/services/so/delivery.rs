@@ -349,13 +349,8 @@ impl SalesService {
             .all(&txn)
             .await?;
 
-        let mut is_fully_shipped = true;
-        for oi in &order_items_total {
-            if oi.shipped_quantity < oi.quantity {
-                is_fully_shipped = false;
-                break;
-            }
-        }
+        // D12 重构：全额发货判断提取到 check_order_fully_shipped（消除 for + if 分支）
+        let is_fully_shipped = Self::check_order_fully_shipped(&order_items_total);
 
         let new_status = if is_fully_shipped {
             so_status::SHIPPED
@@ -424,97 +419,19 @@ impl SalesService {
         // 提交事务
         txn.commit().await?;
 
+        // D12 重构：收入凭证生成提取到 create_revenue_voucher_for_delivery（消除 if + if let Err 分支）
         // F-P0-3+F-P0-6 修复（批次 381+382 v13 复审）：每次发货都生成收入确认凭证
         // 借：应收账款（含税总额，挂客户辅助核算）
         // 贷：主营业务收入（不含税）/ 应交税费-销项税额
         // 失败时仅 warn 不阻断主流程（与采购入库容错模式一致）
-        let delivery_total_incl_tax = delivery_total_amount + delivery_total_tax;
-        if delivery_total_incl_tax > Decimal::ZERO {
-            let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
-                voucher_type: "转".to_string(),
-                voucher_date: chrono::Utc::now().date_naive(),
-                source_type: Some("SALES_DELIVERY".to_string()),
-                source_module: Some("sales".to_string()),
-                source_bill_id: Some(delivery.id),
-                source_bill_no: Some(delivery.delivery_no.clone()),
-                batch_no: None,
-                color_no: None,
-                items: vec![
-                    crate::services::voucher_service::VoucherItemRequest {
-                        line_no: Some(1),
-                        subject_code: Some("1131".to_string()),
-                        subject_name: Some("应收账款".to_string()),
-                        debit: delivery_total_incl_tax,
-                        credit: Decimal::ZERO,
-                        summary: Some(format!("销售出库收入确认-{}", delivery.delivery_no)),
-                        assist_customer_id: Some(ship_customer_id),
-                        assist_supplier_id: None,
-                        assist_department_id: None,
-                        assist_employee_id: None,
-                        assist_project_id: None,
-                        assist_batch_id: None,
-                        assist_color_no_id: None,
-                        assist_dye_lot_id: None,
-                        assist_grade: None,
-                        assist_workshop_id: None,
-                        quantity_meters: None,
-                        quantity_kg: None,
-                        unit_price: None,
-                    },
-                    crate::services::voucher_service::VoucherItemRequest {
-                        line_no: Some(2),
-                        subject_code: Some("6001".to_string()),
-                        subject_name: Some("主营业务收入".to_string()),
-                        debit: Decimal::ZERO,
-                        credit: delivery_total_amount,
-                        summary: Some(format!("销售出库收入确认-{}", delivery.delivery_no)),
-                        assist_customer_id: Some(ship_customer_id),
-                        assist_supplier_id: None,
-                        assist_department_id: None,
-                        assist_employee_id: None,
-                        assist_project_id: None,
-                        assist_batch_id: None,
-                        assist_color_no_id: None,
-                        assist_dye_lot_id: None,
-                        assist_grade: None,
-                        assist_workshop_id: None,
-                        quantity_meters: None,
-                        quantity_kg: None,
-                        unit_price: None,
-                    },
-                    crate::services::voucher_service::VoucherItemRequest {
-                        line_no: Some(3),
-                        subject_code: Some("222101".to_string()),
-                        subject_name: Some("应交税费-应交增值税-销项税额".to_string()),
-                        debit: Decimal::ZERO,
-                        credit: delivery_total_tax,
-                        summary: Some(format!("销售出库收入确认-{}", delivery.delivery_no)),
-                        assist_customer_id: Some(ship_customer_id),
-                        assist_supplier_id: None,
-                        assist_department_id: None,
-                        assist_employee_id: None,
-                        assist_project_id: None,
-                        assist_batch_id: None,
-                        assist_color_no_id: None,
-                        assist_dye_lot_id: None,
-                        assist_grade: None,
-                        assist_workshop_id: None,
-                        quantity_meters: None,
-                        quantity_kg: None,
-                        unit_price: None,
-                    },
-                ],
-            };
-            let voucher_service =
-                crate::services::voucher_service::VoucherService::new(self.db.clone());
-            if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
-                tracing::warn!(
-                    "发货单 {} 收入凭证生成失败：{}",
-                    delivery.delivery_no,
-                    e
-                );
-            }
-        }
+        self.create_revenue_voucher_for_delivery(
+            &delivery,
+            delivery_total_amount,
+            delivery_total_tax,
+            ship_customer_id,
+            user_id,
+        )
+        .await;
 
         // 批次 356 v13 复审 B-P0-2 修复：commit 后统一发布库存流水事件
         // 触发 inventory_finance_bridge_service 自动生成销售出库凭证
@@ -533,6 +450,117 @@ impl SalesService {
             });
 
         Ok(())
+    }
+
+    /// 判断订单是否全额发货（所有明细 shipped_quantity >= quantity）
+    fn check_order_fully_shipped(order_items_total: &[sales_order_item::Model]) -> bool {
+        for oi in order_items_total {
+            if oi.shipped_quantity < oi.quantity {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// 为发货单生成收入确认凭证（借应收/贷收入+销项税）
+    /// 失败时仅 warn 不阻断主流程（与采购入库容错模式一致）
+    async fn create_revenue_voucher_for_delivery(
+        &self,
+        delivery: &sales_delivery::Model,
+        delivery_total_amount: Decimal,
+        delivery_total_tax: Decimal,
+        ship_customer_id: i32,
+        user_id: i32,
+    ) {
+        let delivery_total_incl_tax = delivery_total_amount + delivery_total_tax;
+        if delivery_total_incl_tax <= Decimal::ZERO {
+            return;
+        }
+        let summary = format!("销售出库收入确认-{}", delivery.delivery_no);
+        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+            voucher_type: "转".to_string(),
+            voucher_date: chrono::Utc::now().date_naive(),
+            source_type: Some("SALES_DELIVERY".to_string()),
+            source_module: Some("sales".to_string()),
+            source_bill_id: Some(delivery.id),
+            source_bill_no: Some(delivery.delivery_no.clone()),
+            batch_no: None,
+            color_no: None,
+            items: vec![
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(1),
+                    subject_code: Some("1131".to_string()),
+                    subject_name: Some("应收账款".to_string()),
+                    debit: delivery_total_incl_tax,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.clone()),
+                    assist_customer_id: Some(ship_customer_id),
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(2),
+                    subject_code: Some("6001".to_string()),
+                    subject_name: Some("主营业务收入".to_string()),
+                    debit: Decimal::ZERO,
+                    credit: delivery_total_amount,
+                    summary: Some(summary.clone()),
+                    assist_customer_id: Some(ship_customer_id),
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+                crate::services::voucher_service::VoucherItemRequest {
+                    line_no: Some(3),
+                    subject_code: Some("222101".to_string()),
+                    subject_name: Some("应交税费-应交增值税-销项税额".to_string()),
+                    debit: Decimal::ZERO,
+                    credit: delivery_total_tax,
+                    summary: Some(summary),
+                    assist_customer_id: Some(ship_customer_id),
+                    assist_supplier_id: None,
+                    assist_department_id: None,
+                    assist_employee_id: None,
+                    assist_project_id: None,
+                    assist_batch_id: None,
+                    assist_color_no_id: None,
+                    assist_dye_lot_id: None,
+                    assist_grade: None,
+                    assist_workshop_id: None,
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                },
+            ],
+        };
+        let voucher_service =
+            crate::services::voucher_service::VoucherService::new(self.db.clone());
+        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+            tracing::warn!(
+                "发货单 {} 收入凭证生成失败：{}",
+                delivery.delivery_no,
+                e
+            );
+        }
     }
 
     /// 获取订单发货记录
