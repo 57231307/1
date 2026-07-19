@@ -12,7 +12,7 @@
       </el-button>
     </div>
 
-    <el-table :data="afterSales" border stripe empty-text="暂无售后工单">
+    <el-table :data="afterSales" border stripe empty-text="暂无售后工单" aria-label="售后工单列表">
       <el-table-column label="类型" width="100">
         <template #default="{ row }">
           <el-tag>{{ AFTER_SALES_TYPE[row.issue_type] || row.issue_type }}</el-tag>

@@ -45,6 +45,7 @@
               :icon="Delete"
               circle
               :disabled="conditions.length <= 1"
+              aria-label="删除条件组"
               @click="removeGroup(groupIndex)"
             />
           </div>
@@ -87,6 +88,7 @@
             :icon="Delete"
             circle
             :disabled="group.items.length <= 1"
+            aria-label="删除条件"
             @click="removeCondition(groupIndex, condIndex)"
           />
         </div>
@@ -116,8 +118,8 @@
       </el-space>
     </div>
 
-    <el-dialog v-model="showSaveDialog" title="保存筛选方案" width="400px">
-      <el-form @submit.prevent="saveScheme">
+    <el-dialog v-model="showSaveDialog" title="保存筛选方案" aria-label="保存筛选方案对话框" width="400px">
+      <el-form @submit.prevent="saveScheme" aria-label="保存筛选方案表单">
         <el-form-item label="方案名称">
           <el-input v-model="newSchemeName" placeholder="输入方案名称" autofocus />
         </el-form-item>

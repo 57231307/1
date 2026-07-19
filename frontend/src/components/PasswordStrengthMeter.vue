@@ -6,19 +6,20 @@
   - 复用：修改密码页面、注册/重置密码页面
 -->
 <template>
-  <div v-if="password.length > 0" class="pwd-strength">
+  <div v-if="password.length > 0" class="pwd-strength" role="status" aria-live="polite" aria-label="密码强度指示器">
     <div class="pwd-strength-bar">
       <el-progress
         :percentage="strengthPct"
         :color="color"
         :stroke-width="8"
         :show-text="false"
+        aria-label="密码强度进度条"
       />
     </div>
-    <div class="pwd-strength-label" :style="{ color }">
+    <div class="pwd-strength-label" :style="{ color }" :aria-label="`密码强度：${strengthText}`">
       强度：{{ strengthText }}
     </div>
-    <ul v-if="feedback.length > 0" class="pwd-strength-feedback">
+    <ul v-if="feedback.length > 0" class="pwd-strength-feedback" aria-label="密码强度改进建议">
       <li v-for="(tip, idx) in feedback" :key="idx">{{ tip }}</li>
     </ul>
   </div>

@@ -190,14 +190,14 @@
     <el-container>
       <el-header class="header">
         <div class="header-left">
-          <el-breadcrumb separator="/">
+          <el-breadcrumb separator="/" aria-label="面包屑导航">
             <el-breadcrumb-item :to="{ path: '/' }">{{ $t('layout.breadcrumb.home') }}</el-breadcrumb-item>
             <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
         <div class="header-right">
-          <el-dropdown>
-            <span class="user-info">
+          <el-dropdown aria-label="用户菜单">
+            <span class="user-info" role="button" tabindex="0">
               {{ userStore.userInfo?.username || $t('layout.user.defaultName') }}
               <el-icon><ArrowDown /></el-icon>
             </span>

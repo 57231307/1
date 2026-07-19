@@ -13,7 +13,7 @@
       </el-button>
     </div>
 
-    <el-table :data="issues" border stripe empty-text="暂无质量异常">
+    <el-table :data="issues" border stripe empty-text="暂无质量异常" aria-label="质量异常列表">
       <el-table-column prop="issue_type" label="异常类型" width="140" />
       <el-table-column label="严重度" width="100" align="center">
         <template #default="{ row }">
@@ -52,8 +52,8 @@
     </el-table>
 
     <!-- 上报异常对话框 -->
-    <el-dialog v-model="reportVisible" title="上报质量异常" width="540px">
-      <el-form :model="reportForm" :rules="reportRules" ref="reportFormRef" label-width="100px">
+    <el-dialog v-model="reportVisible" title="上报质量异常" aria-label="上报质量异常对话框" width="540px">
+      <el-form :model="reportForm" :rules="reportRules" ref="reportFormRef" label-width="100px" aria-label="上报质量异常表单">
         <el-form-item label="异常类型" prop="issue_type">
           <el-select v-model="reportForm.issue_type" placeholder="选择异常类型">
             <el-option label="色差 (GB/T 26377)" value="color_diff" />

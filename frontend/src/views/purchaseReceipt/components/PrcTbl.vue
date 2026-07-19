@@ -10,6 +10,7 @@
     border
     fit
     highlight-current-row
+    aria-label="采购入库单列表"
     style="width: 100%"
   >
     <el-table-column prop="receipt_no" label="入库单号" width="150" />
@@ -33,13 +34,14 @@
     <el-table-column prop="created_at" label="创建时间" width="150" />
     <el-table-column label="操作" width="250" align="center">
       <template #default="scope">
-        <el-button size="small" @click="emit('view', scope.row as PurchaseReceiptEntity)">
+        <el-button size="small" aria-label="查看入库单详情" @click="emit('view', scope.row as PurchaseReceiptEntity)">
           <el-icon><View /></el-icon>
         </el-button>
         <el-button
           v-if="scope.row.status === 'draft'"
           size="small"
           type="primary"
+          aria-label="编辑入库单"
           @click="emit('edit', scope.row as PurchaseReceiptEntity)"
         >
           <el-icon><Edit /></el-icon>
@@ -56,6 +58,7 @@
           v-if="scope.row.status === 'draft'"
           size="small"
           type="danger"
+          aria-label="删除入库单"
           @click="emit('delete', scope.row as PurchaseReceiptEntity)"
         >
           <el-icon><Delete /></el-icon>
@@ -71,6 +74,7 @@
       :page-sizes="[10, 20, 50, 100]"
       :total="total"
       layout="total, sizes, prev, pager, next, jumper"
+      aria-label="采购入库单分页"
       @update:current-page="(v: number) => emit('update:page', v)"
       @update:page-size="(v: number) => emit('update:page-size', v)"
     />

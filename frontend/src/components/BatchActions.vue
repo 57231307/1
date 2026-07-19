@@ -22,6 +22,7 @@
     <el-dialog
       v-model="confirmDialogVisible"
       :title="currentAction?.confirmTitle || '确认操作'"
+      :aria-label="currentAction?.confirmTitle || '确认操作对话框'"
       width="500px"
       :close-on-click-modal="false"
     >
@@ -50,6 +51,7 @@
     <el-dialog
       v-model="progressDialogVisible"
       title="执行进度"
+      aria-label="批量操作执行进度对话框"
       width="500px"
       :close-on-click-modal="false"
       :show-close="false"

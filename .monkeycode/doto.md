@@ -182,7 +182,7 @@ P0-D17 OA 公告 (M)  ← 独立
 | ✅ 485 | F | P0-T03 baseline 恢复 + P0-T08 覆盖率工具 + P0-T06 bi_analysis 测试 | M+S+M | 无 | 已合并 main 直接提交 af0f16b + 5e4e78f + 7cc82cc；4 文件；CI 7 轮修复；教训：默认 features 下 1781 个预存 dead_code 警告无法一个批次清零，clippy baseline 机制（仅新增警告阻塞）是合理渐进式策略 |
 | ✅ 486 | F | P0-T01 核心 service 单测补全 | L | 无 | 已合并 main 直接提交 01faa60；2 文件；quotation_service 19 测试 + purchase_receipt_service 19 测试 = 38 测试；CI 一次过 14/14 全绿 |
 | ✅ 487 | F | P0-T02 7 项集成测试 + P0-T07 性能基准 + P0-T05 E2E 通过率 | XL+M+XL | 486 | 已合并 main 直接提交 3919255 + d7e3b73 + a456a53（用户特批不拆分打包）；28 文件 +1836 -29；T02 7 业务路径 73 测试 + T07 4 benches 11 基准（criterion optional feature 机制，criterion 必须在 [dependencies] 不能在 [dev-dependencies]）+ T05 applyAuthMocks 移除 mockBusinessApi + webServer 数组化；CI 3 轮全绿 conclusion=success；教训：CI 自动刷新 baseline 陷阱第三次复发需手动恢复 |
-| 488 | G | P0-D01~D17 全部 17 项打包（用户指令合并为单批） | S+S+L+L+XL+XL+S+XL+L+L+M+M+XL+XL+M+M+M | 无 | D 系列 17 项一次性打包（部署+缓存+可访问性+代码质量+命名+运维收尾）；用户指令合并为单批；预计 ~44 文件；CI 全绿后立马推进 |
+| 🔄 488 | G | P0-D01~D17 全部 17 项打包（用户指令合并为单批） | S+S+L+L+XL+XL+S+XL+L+L+M+M+XL+XL+M+M+M | 无 | D 系列 17 项已完成 10 项：✅ D01/D02/D07/D11/D15/D16/D17 审计误判（已在之前批次完成）+ ✅ D03+D04 5 service Redis 缓存接入（commit cead770）+ ✅ D12 圈复杂度优化（6/6 实际目标 + 2 审计误判跳过；本地 5 commit 待推送）；剩余 7 项大型任务：D05 useI18n（XL）/ D06 aria-label（XL）/ D08 超长函数（XL）/ D09 100+ 行函数（L）/ D10 1000+ 行文件（L）/ D13 缩写命名（XL）/ D14 api 命名（XL）；阻塞中：git 认证丢失 5 个 D12 本地 commit 无法推送 CI 验证 |
 
 **总计**：19 个批次（含 475c/475d/475e 微批次拆分），覆盖 39 P0 任务。
 
@@ -656,49 +656,35 @@ P0-D17 OA 公告 (M)  ← 独立
 
 ---
 
-### 4.7 模块 G：部署与运维（17 项，D01 部分实现）
+### 4.7 模块 G：部署与运维（17 项，10 项已完成 / 7 项剩余）
 
-#### P0-D01 Docker 文件违规（类七，部分实现）
+#### ✅ P0-D01 Docker 文件违规（类七，审计误判已完成）
 
 - **来源**：batch-07 P0-07-1
-- **复审状态**：⚠️ Batch 488 审计发现实际 5 个 Docker 文件待删（非 3 个）
-- **修复方案**：删除全部 5 个 Docker 文件 + 清理遗留引用
-- **关联文件**：Dockerfile / backend/Dockerfile / frontend/Dockerfile / docker-compose.yml / .dockerignore + 项目根 / deploy/ 下的引用
-- **依赖**：无
-- **工作量**：S
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 审计误判 —— Batch 488 步骤 0 验证 5 个 Docker 文件均不存在（Dockerfile / backend/Dockerfile / frontend/Dockerfile / docker-compose.yml / .dockerignore），已在之前批次删除
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D02 快速部署脚本安装 PostgreSQL 客户端（类七）
+#### ✅ P0-D02 快速部署脚本安装 PostgreSQL 客户端（类七，审计误判已完成）
 
 - **来源**：batch-07 P0-07-2
-- **证据**：[install.sh](file:///workspace/快速部署/install.sh) 第 43/45 行安装 postgresql-client（路径非 deploy/install.sh）
-- **修复方案**：移除 postgresql-client 安装步骤（数据库连接走远程模式）+ 联动处理 install.sh 第 158-159/194/279 行 systemctl stop
-- **关联文件**：快速部署/install.sh / deploy/deploy.sh
-- **依赖**：无
-- **工作量**：S
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 审计误判 —— [install.sh](file:///workspace/快速部署/install.sh) L43 已有 `# P0-D02：移除 postgresql-client 安装` 注释，L44 `apt-get install -y curl jq unzip tar nginx`（已无 postgresql-client）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D03 5 个 service 全部未接入缓存层（类七）
+#### ✅ P0-D03 5 个 service 全部未接入缓存层（类七，已完成 commit cead770）
 
 - **来源**：batch-07 P0-07-3
-- **证据**：user_service.rs:67 注释说"命中 Redis 时直接返回缓存"但 find_by_id 方法实际无 Redis 调用；product/customer/supplier/role_service.rs 均无 redis/Redis/cache/moka 关键字。cache_service.rs 使用 moka 进程内缓存非 Redis，且 5 个 service 未使用
-- **修复方案**：5 个 service 接入 Redis 缓存（5min TTL + 主动失效）
-- **关联文件**：user_service.rs / product_service.rs / customer_service.rs / supplier_service.rs / role_service.rs
-- **依赖**：无
-- **工作量**：L
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 已完成 —— 新增 utils/redis_cache.rs L2 层双缓存工具，user/product/customer/supplier/role 5 service 读穿透+写失效，TTL 5 分钟，customer/supplier 缓存命中时 data_scope 权限校验仍执行防越权，REDIS_URL 未配置时优雅降级
+- **关联文件**：[redis_cache.rs](file:///workspace/backend/src/utils/redis_cache.rs) + 5 service 文件
+- **批次**：488（commit cead770 已推送）
 
-#### P0-D04 缓存是内存缓存(moka)非 Redis（类七）
+#### ✅ P0-D04 缓存是内存缓存(moka)非 Redis（类七，已完成 commit cead770）
 
 - **来源**：batch-07 P0-07-4
-- **证据**：cache.rs 实际用 DashMap 非 moka；仅 cache_service.rs 用 moka；Batch 488 审计修正
-- **修复方案**：moka→Redis 迁移（多实例共享 + 持久化）+ DashMap 保留进程内（双缓存策略）
-- **关联文件**：[cache.rs](file:///workspace/backend/src/utils/cache.rs)（DashMap）+ [cache_service.rs](file:///workspace/backend/src/services/cache_service.rs)（moka）+ 所有使用 moka 的 service
-- **依赖**：P0-D03
-- **工作量**：L
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 已完成 —— 与 D03 同批，moka + Redis 双缓存策略，moka 进程内 L1 + Redis 跨实例 L2
+- **关联文件**：[redis_cache.rs](file:///workspace/backend/src/utils/redis_cache.rs) + [cache_service.rs](file:///workspace/backend/src/services/cache_service.rs)
+- **批次**：488（commit cead770 已推送）
 
-#### P0-D05 useI18n 接入率仅 3.2%（类七）
+#### P0-D05 useI18n 接入率仅 3.2%（类七，XL，未开始）
 
 - **来源**：batch-07 P0-07-5
 - **证据**：Batch 488 审计发现实际 ~347 个 .vue 文件（非 85+），工作量是原预估 4 倍
@@ -706,9 +692,9 @@ P0-D17 OA 公告 (M)  ← 独立
 - **关联文件**：frontend/src/views/ + locales/
 - **依赖**：无
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D06 aria-label 严重不足（类七）
+#### P0-D06 aria-label 严重不足（类七，XL，未开始）
 
 - **来源**：batch-07 P0-07-6
 - **证据**：仅 2 个文件 8 处 aria-label
@@ -716,66 +702,56 @@ P0-D17 OA 公告 (M)  ← 独立
 - **关联文件**：所有 .vue 文件
 - **依赖**：无
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D07 图片 alt 属性完全缺失（类七）
+#### ✅ P0-D07 图片 alt 属性完全缺失（类七，审计误判已完成）
 
 - **来源**：batch-07 P0-07-7
-- **证据**：Batch 488 审计发现仅 2 处需修复（非 0 处）：[user-profile/index.vue:30](file:///workspace/frontend/src/views/user-profile/index.vue#L30) 原生 `<img>` 缺 alt + [TfaStep2.vue:14](file:///workspace/frontend/src/views/security/two-factor/components/TfaStep2.vue#L14) `<el-image>` 缺 alt
-- **修复方案**：补齐 2 处缺失的 alt 描述
-- **关联文件**：frontend/src/views/user-profile/index.vue + frontend/src/views/security/two-factor/components/TfaStep2.vue
-- **依赖**：无
-- **工作量**：S
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 审计误判 —— [user-profile/index.vue:30](file:///workspace/frontend/src/views/user-profile/index.vue#L30) 原生 `<img>` 已有 `:alt="profileForm.real_name ? '${profileForm.real_name}的头像' : '用户头像'"`；[TfaStep2.vue:14](file:///workspace/frontend/src/views/security/two-factor/components/TfaStep2.vue#L14) `<el-image>` 已有 `alt="二步验证二维码"`
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D08 130+ 超长函数（类七）
+#### P0-D08 130+ 超长函数（类七，XL，未开始）
 
 - **来源**：batch-07 P0-07-8
-- **证据**：event_bus.rs:412 start_event_listener 函数从 line 412 延续到 line 997，长度约 586 行，超长函数仍存在
+- **证据**：event_bus.rs:412 start_event_listener 函数已通过 D12-2 重构（CC 33→10），但 D08 范围更广（130+ 函数）需独立推进
 - **修复方案**：拆分超长函数为单一职责小函数（每个 ≤50 行）
 - **关联文件**：event_bus.rs / ar_service.rs（1972 行）/ business_mode_service.rs / 等 26 个 >1000 行的文件
 - **依赖**：无
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D09 30+ 函数超过 100 行（类二）
+#### P0-D09 30+ 函数超过 100 行（类二，L，未开始）
 
 - **来源**：batch-02 P0-02-01
 - **修复方案**：拆分为 ≤50 行小函数
 - **关联文件**：同 P0-D08
 - **依赖**：P0-D08
 - **工作量**：L
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D10 26 个后端文件超过 1000 行（类二）
+#### P0-D10 26 个后端文件超过 1000 行（类二，L，未开始）
 
 - **来源**：batch-02 P0-02-02
 - **修复方案**：按职责拆分为多个文件（如 ar_service.rs 拆分为 ar_service / ar_aging_service / ar_collection_service）
 - **关联文件**：26 个 >1000 行的文件
 - **依赖**：P0-D09
 - **工作量**：L
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D11 setup_test_db 在 14 个文件重复定义（类二）
+#### ✅ P0-D11 setup_test_db 在 14 个文件重复定义（类二，审计误判已完成）
 
 - **来源**：batch-02 P0-02-03
-- **证据**：Batch 488 审计发现实际 21 处重复定义（非 14 处）：tests/ 3 处 + src/services/ 18 处
-- **修复方案**：抽取到 backend/tests/common/mod.rs（tests/ 部分）+ backend/src/services/common.rs（src/services/ 部分），所有引用文件统一引用
-- **关联文件**：backend/tests/common/mod.rs + backend/src/services/common.rs + 21 处重复定义的文件
-- **依赖**：无
-- **工作量**：M
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 审计误判 —— [test_common.rs](file:///workspace/backend/src/services/test_common.rs) 完整 setup_test_db 实现（18 行，模块头注释标注"抽取自 21 处重复定义"）+ [tests/common/mod.rs](file:///workspace/backend/tests/common/mod.rs) 完整 setup_test_db 实现（19 行，供 tests/ 下 3 个集成测试文件使用）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D12 8 个函数圈复杂度 >15（类二）
+#### ✅ P0-D12 8 个函数圈复杂度 >15（类二，已完成 commit 25efd76~ae73f42）
 
 - **来源**：batch-02 P0-02-04
-- **修复方案**：重构降低复杂度（如 business_mode_service.rs:179 check_module_consistency ~35 → 拆分为多个 match 分支函数）
-- **关联文件**：business_mode_service.rs / 等 8 个文件
-- **依赖**：无
-- **工作量**：M
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 已完成 —— 8 个目标函数全部处理：6 项实际重构（check_module_consistency CC 35→7 / auto_match CC 25→15 / update_account_balances CC 17→11 / auto_verify CC 20→15 / ship_order CC 17→13 / start_event_listener CC 33→10 通过提取 8 个 helper）+ 2 项审计误判跳过（manual_verify CC=11 已低于阈值 15 / builtin_transition_rules CC=1 已远低于阈值）
+- **关联文件**：[business_mode_service.rs](file:///workspace/backend/src/services/business_mode_service.rs) / [ar/vfy.rs](file:///workspace/backend/src/services/ar/vfy.rs) / [voucher_service.rs](file:///workspace/backend/src/services/voucher_service.rs) / [ar_service.rs](file:///workspace/backend/src/services/ar_service.rs) / [so/delivery.rs](file:///workspace/backend/src/services/so/delivery.rs) / [event_bus.rs](file:///workspace/backend/src/services/event_bus.rs)
+- **批次**：488（本地 5 commit 待推送：25efd76 + 319c471 + e32048b + 30a1352 + ae73f42）
 
-#### P0-D13 前端 60+ 组件缩写命名（类二）
+#### P0-D13 前端 60+ 组件缩写命名（类二，XL，未开始）
 
 - **来源**：batch-02 P0-02-05
 - **证据**：Batch 488 审计发现实际 ~119 个缩写命名文件（非 60+）
@@ -783,9 +759,9 @@ P0-D17 OA 公告 (M)  ← 独立
 - **关联文件**：~119 个缩写命名的 .vue 文件
 - **依赖**：无
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D14 前端 api 命名不统一（类二）
+#### P0-D14 前端 api 命名不统一（类二，XL，未开始）
 
 - **来源**：batch-02 P0-02-06
 - **证据**：Batch 488 审计发现实际 96 个 api 文件 2 种导出风格（function + object 混合）
@@ -793,37 +769,25 @@ P0-D17 OA 公告 (M)  ← 独立
 - **关联文件**：96 个 api/*.ts 文件
 - **依赖**：无
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D15 升级流程非零停机（类二十五）
+#### ✅ P0-D15 升级流程非零停机（类二十五，审计误判已完成）
 
 - **来源**：batch-21 P0-21-1
-- **证据**：Batch 488 审计发现 upgrade.sh 不存在，升级逻辑在 [upgrade.rs](file:///workspace/backend/src/cli/util/upgrade.rs)；systemctl stop 在第 184 行（deploy_release）和第 125 行（cmd_rollback）
-- **修复方案**：改为蓝绿部署 / 滚动重启，使用 systemctl reload nginx + 双实例切换
-- **关联文件**：backend/src/cli/util/upgrade.rs / deploy/deploy.sh
-- **依赖**：无
-- **工作量**：M
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 审计误判 —— [upgrade.rs](file:///workspace/backend/src/cli/util/upgrade.rs) 蓝绿部署已完整实现（14 个函数：is_blue_green_mode / get_active_instance / instance_service / instance_port / opposite_instance / health_check_instance / switch_nginx_upstream / cleanup_temp / cmd_rollback_blue_green / cmd_rollback_legacy / deploy_release / deploy_release_blue_green / deploy_release_legacy + 常量 BLUE_GREEN_TEMPLATE/BLUE_PORT/GREEN_PORT/NGINX_UPSTREAM_ACTIVE/HEALTH_PATH/HEALTH_CHECK_RETRIES）
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D16 报表订阅无后台调度任务（类十九）
+#### ✅ P0-D16 报表订阅无后台调度任务（类十九，审计误判已完成）
 
 - **来源**：batch-16 P0-16-1
-- **证据**：report_subscription 表有 next_run_at 字段但无 cron 任务触发
-- **修复方案**：新增 report_subscription_scheduler_service，每分钟扫描 next_run_at 到期的订阅，生成报表并发送通知
-- **关联文件**：report_subscription_scheduler_service.rs / main.rs（启动 cron）
-- **依赖**：无
-- **工作量**：M
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 审计误判 —— [report_subscription_scheduler.rs](file:///workspace/backend/src/services/report_subscription_scheduler.rs) 完整实现 268 行（run_once / execute_subscription / extract_recipients / update_subscription_status / start_background_task）+ main.rs L696-L711 已接入启动 cron
+- **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D17 OA 公告完全未实现（类十九）
+#### ✅ P0-D17 OA 公告完全未实现（类十九，审计误判已完成）
 
 - **来源**：batch-16 P0-16-3
-- **证据**：oa_announcement 仅有 Model，无 service/handler/路由
-- **修复方案**：实现 oa_announcement_service / handler / 路由（CRUD + 可见性 + 权限）
-- **关联文件**：oa_announcement_service.rs / oa_announcement_handler.rs / routes/
-- **依赖**：无
-- **工作量**：M
-- **批次**：488（D 系列 17 项一次性打包，用户指令合并为单批）
+- **状态**：✅ 审计误判 —— [oa_announcement_service.rs](file:///workspace/backend/src/services/oa_announcement_service.rs) 完整 CRUD 实现（CreateOaAnnouncementRequest / UpdateOaAnnouncementRequest DTO + create/get_by_id/update/delete/publish/archive/list 7 方法 + validate_announcement_type/validate_status 校验）+ oa_announcement_handler + routes + model 4 件套均已存在
+- **批次**：488（D 系列 17 项一次性打包）
 
 ---
 
