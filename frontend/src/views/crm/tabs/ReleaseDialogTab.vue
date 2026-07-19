@@ -4,11 +4,11 @@
   拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" title="释放到公海" width="500px">
+  <el-dialog v-model="visible" title="释放到公海" width="500px" aria-label="释放到公海对话框">
     <p>
       将客户 <strong>{{ customerName }}</strong> 释放到公海池？
     </p>
-    <el-form :model="form" label-width="80px">
+    <el-form :model="form" label-width="80px" aria-label="释放到公海表单">
       <el-form-item label="释放原因">
         <el-input v-model="form.reason" type="textarea" :rows="3" />
       </el-form-item>

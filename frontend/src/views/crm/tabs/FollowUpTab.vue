@@ -39,6 +39,7 @@
 
     <div class="pagination-wrapper">
       <el-pagination
+        aria-label="客户跟进记录分页"
         v-model:current-page="query.page"
         v-model:page-size="query.page_size"
         :page-sizes="[10, 20, 50]"
@@ -50,12 +51,13 @@
     </div>
 
     <el-dialog
+      aria-label="新增跟进记录对话框"
       v-model="dialogVisible"
       title="新增跟进记录"
       width="500px"
       :close-on-click-modal="false"
     >
-      <el-form ref="formRef" :model="form" label-width="100px">
+      <el-form ref="formRef" :model="form" label-width="100px" aria-label="跟进记录表单">
         <el-form-item label="跟进方式" prop="type">
           <el-select v-model="form.type" placeholder="请选择跟进方式" style="width: 100%">
             <el-option label="电话" value="phone" />

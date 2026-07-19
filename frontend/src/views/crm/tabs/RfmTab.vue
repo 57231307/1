@@ -23,7 +23,7 @@
         </el-col>
       </el-row>
 
-      <el-table v-loading="rfmLoading" :data="rfmCustomers" stripe>
+      <el-table v-loading="rfmLoading" :data="rfmCustomers" stripe aria-label="RFM 客户分析列表">
         <el-table-column prop="customer_code" label="客户编码" width="120" />
         <el-table-column prop="customer_name" label="客户名称" min-width="180">
           <template #default="{ row }">

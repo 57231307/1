@@ -4,8 +4,8 @@
   拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" :title="title" width="700px" :close-on-click-modal="false">
-    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
+  <el-dialog v-model="visible" :title="title" width="700px" :close-on-click-modal="false" :aria-label="title">
+    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px" aria-label="公海规则表单">
       <el-form-item label="规则名称" prop="name">
         <el-input v-model="formData.name" placeholder="请输入规则名称" />
       </el-form-item>
