@@ -61,7 +61,7 @@
     </el-row>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="库存调整筛选表单">
         <el-form-item label="调整单号">
           <el-input v-model="queryParams.adjust_no" placeholder="输入单号" clearable />
         </el-form-item>
@@ -84,7 +84,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="adjustments" stripe>
+      <el-table v-loading="loading" :data="adjustments" stripe aria-label="库存调整列表">
         <el-table-column prop="adjust_no" label="调整单号" width="160" fixed />
         <el-table-column prop="adjust_date" label="调整日期" width="120" />
         <el-table-column prop="warehouse_name" label="仓库" width="120" />
@@ -134,6 +134,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="库存调整列表分页"
         />
       </div>
     </el-card>

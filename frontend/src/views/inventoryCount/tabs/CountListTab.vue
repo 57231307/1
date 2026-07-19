@@ -61,7 +61,7 @@
     </el-row>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" class="filter-form">
+      <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="盘点筛选表单">
         <el-form-item label="盘点单号">
           <el-input v-model="filterForm.count_no" placeholder="输入单号" clearable />
         </el-form-item>
@@ -83,7 +83,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="counts" stripe>
+      <el-table v-loading="loading" :data="counts" stripe aria-label="盘点列表">
         <el-table-column prop="count_no" label="盘点单号" width="160" fixed />
         <el-table-column prop="count_date" label="盘点日期" width="120" />
         <el-table-column prop="warehouse_name" label="仓库" width="120" />
@@ -131,6 +131,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="盘点列表分页"
         />
       </div>
     </el-card>

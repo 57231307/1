@@ -8,9 +8,10 @@
     :model-value="modelValue"
     :title="formData.id ? '编辑盘点单' : '新建盘点单'"
     width="600px"
+    :aria-label="mode === 'view' ? '盘点详情对话框' : (formData.id ? '编辑盘点单对话框' : '新建盘点单对话框')"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" :disabled="mode === 'view'">
+    <el-form ref="formRef" :model="formData" label-width="100px" :disabled="mode === 'view'" aria-label="盘点单表单">
       <el-form-item label="盘点单号" prop="count_no">
         <el-input v-model="formData.count_no" :disabled="!!formData.id" />
       </el-form-item>

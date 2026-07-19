@@ -8,6 +8,7 @@
     :model-value="modelValue"
     title="盘点单详情"
     width="800px"
+    aria-label="盘点详情对话框"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
     <el-descriptions v-if="currentRow" :column="2" border>
