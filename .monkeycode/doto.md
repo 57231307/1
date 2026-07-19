@@ -23,8 +23,8 @@
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 488 进行中（12/17 完成）—— ✅ D01/D02/D07/D11/D15/D16/D17 审计误判 + ✅ D03+D04 5 service Redis 缓存接入（cead770）+ ✅ D12 圈复杂度优化（6 项重构 + 2 项误判跳过）+ ✅ D06 aria-label 全部完成（55 个子批次累计 ~225 文件，commit 22c842a 已推送；遵循 WCAG 2.1 AA 标准；最终扫描确认全部补齐无遗漏）；剩余 5 项大型任务：D05 useI18n（XL，347 文件）/ D08 超长函数（XL，130+ 函数）/ D09 100+ 行函数（L，30+ 函数）/ D10 1000+ 行文件（L，26 文件）/ D13 缩写命名（XL，119 文件）/ D14 api 命名（XL，96 文件）
-- **下一批次**：Batch 488 继续 —— 推进 D05 useI18n 或 D08 超长函数（用户选择）
+- **当前批次**：Batch 488 进行中（12/17 完成）—— ✅ D01/D02/D07/D11/D15/D16/D17 审计误判 + ✅ D03+D04 5 service Redis 缓存接入（cead770）+ ✅ D12 圈复杂度优化（6 项重构 + 2 项误判跳过）+ ✅ D06 aria-label 全部完成（55 个子批次累计 ~225 文件，commit 22c842a 已推送；遵循 WCAG 2.1 AA 标准；最终扫描确认全部补齐无遗漏）；剩余 5 项大型任务审计完成（2026-07-19）：D05 useI18n（XL，355 文件实际接入率 3.1%）/ D08 超长函数（XL，91 个 >80 行 + 54 个 >100 行 + 6 个 >200 行 + 0 个 >500 行）/ D09 100+ 行函数（L，D08 子集自动完成）/ D10 1000+ 行文件（L，实际 30 个非 26 个，1 个 >2000 行）/ D13 缩写命名（XL，实际 123 个非 ~119 个，25 类缩写前缀）/ D14 api 命名（XL，96 文件准确，listXxx 偏差 47 文件 84 处为最大源）
+- **下一批次**：Batch 488 继续 —— 按依赖关系推荐顺序：① D08 超长函数（第 1 顺位，无前置 + 解锁 D09/D10，预估 10-12 子批次）→ ② D10 大文件拆分（第 2 顺位，D08 完成后立即推进，预估 5-6 子批次）→ ③ D14 api 命名（第 3 顺位，与 D05/D13 解耦，预估 10-12 子批次）→ ④ D13 缩写命名（第 4 顺位，D14 完成后推进，预估 12-15 子批次）→ ⑤ D05 useI18n（第 5 顺位，D13/D14 完成后最后推进，预估 30-36 子批次）；累计预估 67-81 子批次
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
@@ -684,15 +684,16 @@ P0-D17 OA 公告 (M)  ← 独立
 - **关联文件**：[redis_cache.rs](file:///workspace/backend/src/utils/redis_cache.rs) + [cache_service.rs](file:///workspace/backend/src/services/cache_service.rs)
 - **批次**：488（commit cead770 已推送）
 
-#### P0-D05 useI18n 接入率仅 3.2%（类七，XL，未开始）
+#### P0-D05 useI18n 接入率仅 3.1%（类七，XL，未开始）
 
 - **来源**：batch-07 P0-07-5
-- **证据**：Batch 488 审计发现实际 ~347 个 .vue 文件（非 85+），工作量是原预估 4 倍
-- **修复方案**：347 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts
-- **关联文件**：frontend/src/views/ + locales/
-- **依赖**：无
-- **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包）
+- **证据**：2026-07-19 精确审计：实际 355 个 .vue 文件（非 85+ 也非 347），已接入 11 个（接入率 3.1%），未接入 344 个；locales/zh-CN.ts 467 行 15 模块 332 键，预估需扩容至 5000+ 键；Top 20 硬编码密集文件累计 10746 行中文（占全模块 15%），单文件最大 fixed-assets/tabs/AssetListTab.vue 864 行
+- **修复方案**：355 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts 同步；按业务模块横向切片，每批 10-12 文件，预估需 30-36 批次
+- **关联文件**：[frontend/src/views/](file:///workspace/frontend/src/views/) + [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts) + [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)
+- **依赖**：建议在 D13/D14 完成后推进（避免同时修改 .vue 文件造成冲突）
+- **工作量**：XL（5 项中最大）
+- **批次**：488（D 系列 17 项一次性打包；预估 30-36 子批次）
+- **执行优先级**：第 5 顺位（最后推进）
 
 #### ✅ P0-D06 aria-label 严重不足（类七，XL，已完成）
 
@@ -767,33 +768,52 @@ P0-D17 OA 公告 (M)  ← 独立
 - **状态**：✅ 审计误判 —— [user-profile/index.vue:30](file:///workspace/frontend/src/views/user-profile/index.vue#L30) 原生 `<img>` 已有 `:alt="profileForm.real_name ? '${profileForm.real_name}的头像' : '用户头像'"`；[TfaStep2.vue:14](file:///workspace/frontend/src/views/security/two-factor/components/TfaStep2.vue#L14) `<el-image>` 已有 `alt="二步验证二维码"`
 - **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D08 130+ 超长函数（类七，XL，未开始）
+#### P0-D08 91+ 超长函数（类七，XL，未开始）
 
 - **来源**：batch-07 P0-07-8
-- **证据**：event_bus.rs:412 start_event_listener 函数已通过 D12-2 重构（CC 33→10），但 D08 范围更广（130+ 函数）需独立推进
-- **修复方案**：拆分超长函数为单一职责小函数（每个 ≤50 行）
-- **关联文件**：event_bus.rs / ar_service.rs（1972 行）/ business_mode_service.rs / 等 26 个 >1000 行的文件
-- **依赖**：无
+- **证据**：2026-07-19 精确扫描（fn-to-next-fn 口径）：>80 行函数约 91 个，>100 行函数约 54 个，>200 行函数 6 个，>500 行函数 0 个；最严重案例 so/delivery.rs:110 ship_order 346 行、so/order_crud.rs:98 create_order 344 行、ar_service.rs:993 manual_verify 257 行、bpm_service.rs:242 approve_task 211 行、wage_service.rs:873 calculate 211 行、ar_service.rs:706 auto_verify 192 行；预估还有 10-20 个 D08 函数未捕获（services/ai、services/ar/inv.rs、services/inv/adjust.rs 等未完整展开）
+- **已重构确认**：event_bus.rs:412 start_event_listener D12-2 已重构（实际 279 行，CC 33→10 达标，列入观察名单不强拆）
+- **豁免函数**：dye_batch_state_machine_service.rs:165 builtin_transition_rules 154 行纯数据表（27 条状态机三元组定义）豁免拆分
+- **修复方案**：拆分超长函数为单一职责小函数（每个 ≤50 行），主函数仅做协调；按 ROI 分四梯队推进
+- **关联文件**：[backend/src/services/so/delivery.rs](file:///workspace/backend/src/services/so/delivery.rs) / [ar_service.rs](file:///workspace/backend/src/services/ar_service.rs) / [bpm_service.rs](file:///workspace/backend/src/services/bpm_service.rs) / [wage_service.rs](file:///workspace/backend/src/services/wage_service.rs) / [voucher_service.rs](file:///workspace/backend/src/services/voucher_service.rs) / [quotation_service.rs](file:///workspace/backend/src/services/quotation_service.rs) / 等 35+ 文件
+- **依赖**：无前置依赖
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包）
+- **批次**：488（D 系列 17 项一次性打包；预估 10-12 子批次）
+- **执行优先级**：第 1 顺位（无前置依赖 + 解锁 D09/D10）
+- **批次规划**：
+  - 第一梯队（>200 行 6 函数，2 批）：ship_order / create_order / manual_verify / approve_task / calculate / auto_verify
+  - 第二梯队（150-200 行 ~30 函数，3-4 批）：含 update_order / update_account_balances / ap_verification_auto_verify / 等
+  - 第三梯队（100-150 行 ~20 函数，2-3 批）：含 create_payment / list_orders / approve_adjustment / 等
+  - 第四梯队（80-100 行 ~37 函数，3-4 批）：含 inventory_finance_bridge 7 个 create_*_voucher 模板化提取
+  - 模板化提取候选：inventory_finance_bridge_service.rs 7 个 create_*_voucher 函数提取通用 create_bridge_voucher<VoucherBuilder>
 
-#### P0-D09 30+ 函数超过 100 行（类二，L，未开始）
+#### P0-D09 54+ 函数超过 100 行（类二，L，D08 完成后自动完成）
 
 - **来源**：batch-02 P0-02-01
-- **修复方案**：拆分为 ≤50 行小函数
+- **证据**：2026-07-19 精确扫描：>100 行函数约 54 个（与 D08 范围重叠，D08 是 D09 的超集）
+- **修复方案**：D08 完成后 D09 自动完成（D09 是 D08 子集，D08 阈值 >80 行涵盖 D09 阈值 >100 行）
 - **关联文件**：同 P0-D08
 - **依赖**：P0-D08
-- **工作量**：L
-- **批次**：488（D 系列 17 项一次性打包）
+- **工作量**：L（实际 0 增量工作，D08 完成即 D09 完成）
+- **批次**：488（D08 子集，不独立成批）
 
-#### P0-D10 26 个后端文件超过 1000 行（类二，L，未开始）
+#### P0-D10 30 个后端文件超过 1000 行（类二，L，未开始）
 
 - **来源**：batch-02 P0-02-02
-- **修复方案**：按职责拆分为多个文件（如 ar_service.rs 拆分为 ar_service / ar_aging_service / ar_collection_service）
-- **关联文件**：26 个 >1000 行的文件
-- **依赖**：P0-D09
+- **证据**：2026-07-19 精确扫描：实际 30 个 >1000 行文件（doto.md 原标记 26 个不准），13 个 >1500 行，1 个 >2000 行（ar_service.rs 2067 行）；审计后新增越线 main.rs 1005 行 + init_service.rs 1287 行；28 个原审计文件全部仍 >1000 行无一下降；bi_analysis_service.rs 增长最快（+201 行 1461→1662）
+- **修复方案**：按职责拆分为多个文件（如 ar_service.rs 拆分为 ar_service / ar_aging_service / ar_collection_service；models/status.rs 拆分为 status/sales / status/purchase / status/inventory；main.rs 拆为 main / routes_bootstrap / middleware_bootstrap）
+- **关联文件**：[backend/src/services/ar_service.rs](file:///workspace/backend/src/services/ar_service.rs) (2067) / [production_order_service.rs](file:///workspace/backend/src/services/production_order_service.rs) (1998) / [so/delivery.rs](file:///workspace/backend/src/services/so/delivery.rs) (1930) / [voucher_service.rs](file:///workspace/backend/src/services/voucher_service.rs) (1841) / [energy_service.rs](file:///workspace/backend/src/services/energy_service.rs) (1800) / 等 30 文件
+- **依赖**：P0-D08/D09（避免函数拆分和文件拆分同时进行造成冲突）
 - **工作量**：L
-- **批次**：488（D 系列 17 项一次性打包）
+- **批次**：488（D 系列 17 项一次性打包；预估 5-6 子批次，每批 5-6 文件）
+- **执行优先级**：第 2 顺位（D08 完成后立即推进）
+- **批次规划**：
+  - 第 1 批：ar_service.rs (2067) + production_order_service.rs (1998) + so/delivery.rs (1930) 3 个 >1800 行文件
+  - 第 2 批：voucher_service.rs (1841) + energy_service.rs (1800) + outsourcing_service.rs (1782) + business_mode_service.rs (1718) 4 个 >1700 行文件
+  - 第 3 批：chemical_service.rs (1676) + bi_analysis_service.rs (1662) + models/status.rs (1577) + mrp_engine_service.rs (1556) 4 个 >1500 行文件
+  - 第 4 批：dye_batch_state_machine_service.rs (1512) + wage_service.rs (1507) + ar/vfy.rs (1320) + ap_invoice_service.rs (1306) 4 个 >1300 行文件
+  - 第 5 批：init_service.rs (1287) + flow_card_service.rs (1271) + ap_reconciliation_service.rs (1243) + search/elastic.rs (1230) 4 个 >1200 行文件
+  - 第 6 批：剩余 11 个 1000-1200 行文件
 
 #### ✅ P0-D11 setup_test_db 在 14 个文件重复定义（类二，审计误判已完成）
 
@@ -808,25 +828,41 @@ P0-D17 OA 公告 (M)  ← 独立
 - **关联文件**：[business_mode_service.rs](file:///workspace/backend/src/services/business_mode_service.rs) / [ar/vfy.rs](file:///workspace/backend/src/services/ar/vfy.rs) / [voucher_service.rs](file:///workspace/backend/src/services/voucher_service.rs) / [ar_service.rs](file:///workspace/backend/src/services/ar_service.rs) / [so/delivery.rs](file:///workspace/backend/src/services/so/delivery.rs) / [event_bus.rs](file:///workspace/backend/src/services/event_bus.rs)
 - **批次**：488（本地 5 commit 待推送：25efd76 + 319c471 + e32048b + 30a1352 + ae73f42）
 
-#### P0-D13 前端 60+ 组件缩写命名（类二，XL，未开始）
+#### P0-D13 前端 123 个组件缩写命名（类二，XL，未开始）
 
 - **来源**：batch-02 P0-02-05
-- **证据**：Batch 488 审计发现实际 ~119 个缩写命名文件（非 60+）
-- **修复方案**：重命名为描述性名称（如 SOList → SalesOrderList）
-- **关联文件**：~119 个缩写命名的 .vue 文件
-- **依赖**：无
+- **证据**：2026-07-19 精确扫描：实际 123 个缩写命名 .vue 文件（views/ 122 + components/ 1，doto.md 原标记 ~119 误差 ±4）；25 类缩写前缀（Sc/Su/Lgs/Vchr/Pp/Di/Tfa/Sec/Cp/Sch/Prd/Bpm/Pc/Pi/Sa/Db/Purch/Prc/PrRtn/Ms/Sp/Olv/Ep/Bom/AI）；32 个父级 .vue 文件需更新 import（99 处 import 语句）；0 路由风险（router/index.ts 不直接 import 缩写文件）；0 e2e 风险（e2e 测试通过 Playwright 交互不直接 import 组件）；约 30 个 composables 同步重命名（D14/D15 范畴）
+- **修复方案**：重命名为描述性全名（如 ScFilter→SalesContractFilter、SuVerDetail→SystemUpdateVersionDetail、LgsTbl→LogisticsTable、VchrForm→VoucherForm、BomForm→BillOfMaterialsForm）；同步重命名 composables 和父级 import；保留白名单：API（ApiEndpointTab 已描述性）/ i18n / a11y / V2Table（30+ 文件引用影响大）
+- **关联文件**：[frontend/src/views/](file:///workspace/frontend/src/views/) 25 个模块的 components/ 子目录 + [frontend/src/components/ai/AIPredictionChart.vue](file:///workspace/frontend/src/components/ai/AIPredictionChart.vue)
+- **依赖**：建议在 D14 完成后推进（避免同时修改 import 路径造成冲突）
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包）
+- **批次**：488（D 系列 17 项一次性打包；预估 12-15 子批次，每批 8-10 文件）
+- **执行优先级**：第 4 顺位（D14 完成后推进）
+- **批次规划**：按模块分组（每模块独立批次）
+  - sales-contract (3) + system-update (3) + sales-price (5) + purchase-price (5) 第 1 批 16 文件
+  - logistics (6) + finance/tabs (4) + voucher/tabs (4) + data-import (4) 第 2 批 18 文件
+  - security/two-factor (5) + security/components (4) + capacity (4) + advanced (4) 第 3 批 17 文件
+  - api-gateway (1) + sales (3) + scheduling (10) + arReconciliation (6) 第 4 批 20 文件
+  - purchase-return (5) + material-shortage (3) + production (4) + bpm/definitions (5) 第 5 批 17 文件
+  - bpm/approval (6) + purchase-contract (4) + purchase-inspection (5) + sales-analysis (5) 第 6 批 20 文件
+  - bom (1) + dashboard (4) + purchase (6) + purchaseReceipt (4) + components/ai (1) 第 7 批 16 文件
 
 #### P0-D14 前端 api 命名不统一（类二，XL，未开始）
 
 - **来源**：batch-02 P0-02-06
-- **证据**：Batch 488 审计发现实际 96 个 api 文件 2 种导出风格（function + object 混合）
-- **修复方案**：统一为 `getXxxList / createXxx / updateXxx / deleteXxx` 命名
-- **关联文件**：96 个 api/*.ts 文件
-- **依赖**：无
+- **证据**：2026-07-19 精确扫描：96 个 api/*.ts 文件（准确）；风格 A（object 形式 `export const xxxApi = {}`）21 个 + 风格 B（function 形式）68 个 + 混合风格 4 个（supplier/customer/financial-analysis/five-dimension）+ 纯 re-export 3 个（index/ap-reconciliation/ap-verification）；最大偏差源 listXxx 47 文件 84 处需改名为 getXxxList；次要偏差 addXxx 5 文件 6 处 / removeXxx 2 文件 2 处 / fetchXxx 1 文件 1 处 / queryXxx 2 文件 2 处
+- **修复方案**：统一为风格 B（function 形式）+ 命名规范 `getXxxList / createXxx / updateXxx / deleteXxx / getXxxById`；保留 request.ts 不改名（基础设施）；4 个混合文件先去重再统一；3 个 re-export 文件同步更新导出列表；预估影响 2000+ 处调用点
+- **关联文件**：[frontend/src/api/](file:///workspace/frontend/src/api/) 96 个 .ts 文件
+- **依赖**：无前置依赖（独立任务）
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包）
+- **批次**：488（D 系列 17 项一次性打包；预估 10-12 子批次，每批 8-10 文件）
+- **执行优先级**：第 3 顺位（与 D05/D13 解耦）
+- **批次规划**：
+  - Batch 1：财务 AP/AR 9 文件（ap.ts/ap-invoice.ts/ap-payment.ts/ar.ts/ar-reconciliation.ts/ar-reconciliation-enhanced.ts/ap-reconciliation.ts/ap-verification.ts/voucher.ts）
+  - Batch 2：采购/销售/库存 18 文件
+  - Batch 3：生产/质量/BOM/MRP 12 文件
+  - Batch 4：CRM/客户/供应商/贸易 14 文件
+  - Batch 5a/5b：系统/权限/基础/报表/其他 40 文件（拆 2 子批）
 
 #### ✅ P0-D15 升级流程非零停机（类二十五，审计误判已完成）
 
