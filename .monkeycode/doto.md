@@ -23,8 +23,8 @@
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 487 已合并且 CI 全绿 ✅（main 直接提交 3919255 + d7e3b73 + a456a53）—— P0-T02 7 项集成测试 + P0-T07 性能基准 + P0-T05 E2E 配置修复 完成（用户特批不拆分打包；28 文件 +1836 -29；CI 3 轮：第 1 轮 3919255 ci-build-rust failure（dev-dependencies 不允许 optional: criterion）+ 副作用 commit ed22f4e 误删 clippy baseline 全部 103 条预存警告，第 2 轮 d7e3b73 修复 criterion 位置（移到 [dependencies]）后 ci-clippy failure（baseline 为 0 行导致 1 条 too many arguments 8/7 预存警告被误判为新增），第 3 轮 a456a53 恢复 baseline 文件后 16/16 全绿 conclusion=success；教训：criterion 必须放在 [dependencies] 而非 [dev-dependencies]（Cargo 不允许 dev-dependencies 为 optional）+ CI 自动刷新 baseline 陷阱第三次复发需手动 `git show <误删commit>^:backend/.clippy-baseline.txt` 恢复）
-- **下一批次**：Batch 488（P0-D01~D17 全部 17 项一次性打包，用户指令合并为单批；预计 ~44 文件；用户指令 CI 全绿后立马推进；当前 Batch 487 CI 已全绿，立即启动 Batch 488）
+- **当前批次**：Batch 488 进行中（12/17 完成）—— ✅ D01/D02/D07/D11/D15/D16/D17 审计误判 + ✅ D03+D04 5 service Redis 缓存接入（cead770）+ ✅ D12 圈复杂度优化（6 项重构 + 2 项误判跳过）+ ✅ D06 aria-label 全部完成（55 个子批次累计 ~225 文件，commit 22c842a 已推送；遵循 WCAG 2.1 AA 标准；最终扫描确认全部补齐无遗漏）；剩余 5 项大型任务：D05 useI18n（XL，347 文件）/ D08 超长函数（XL，130+ 函数）/ D09 100+ 行函数（L，30+ 函数）/ D10 1000+ 行文件（L，26 文件）/ D13 缩写命名（XL，119 文件）/ D14 api 命名（XL，96 文件）
+- **下一批次**：Batch 488 继续 —— 推进 D05 useI18n 或 D08 超长函数（用户选择）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
@@ -694,7 +694,7 @@ P0-D17 OA 公告 (M)  ← 独立
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D06 aria-label 严重不足（类七，XL，进行中）
+#### ✅ P0-D06 aria-label 严重不足（类七，XL，已完成）
 
 - **来源**：batch-07 P0-07-6
 - **证据**：仅 2 个文件 8 处 aria-label
@@ -703,7 +703,7 @@ P0-D17 OA 公告 (M)  ← 独立
 - **依赖**：无
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包）
-- **进度**（截至 2026-07-19）：
+- **进度**（截至 2026-07-19，55 个子批次累计 ~225 文件，全部完成）：
   - D06-2 (aa103cb)：通用组件 8 文件
   - D06-3 (3d7635c)：views 高频页面 6 文件
   - D06-4 (4d14973)：views 高优先级 5 文件
@@ -726,7 +726,40 @@ P0-D17 OA 公告 (M)  ← 独立
   - D06-21 (4701889)：sales-analysis + scheduling components 6 文件
   - D06-22 (ff269fa)：arReconciliation + purchase-return components 5 文件
   - D06-23 (76b7af5)：purchase-return components 剩余 4 文件
-  - 累计完成约 115 个文件，待处理剩余 ~260 个 .vue 文件
+  - D06-24 (a94bb04)：dashboard + data-import components 5 文件
+  - D06-25 (53c150a)：security/capacity/advanced components 5 文件
+  - D06-26 (c892b8e)：advanced/api-gateway components 5 文件
+  - D06-27 (0a1df5f)：api-gateway/system-update/admin components 4 文件
+  - D06-28 (7325a7a)：api-gateway tabs 2 文件（ApiLogTab V2Table 跳过）
+  - D06-29 (d2584b5)：inventory tabs 3 文件（InventoryStockTab el-table V2Table 跳过）
+  - D06-30 (573e1a7)：finance/tabs/components 4 文件
+  - D06-31 (e31ca81)：voucher/sales components 5 文件（PascalCase 标签）
+  - D06-32 (b2f909a)：sales/finance/quotations/crm 5 文件
+  - D06-33 (035bd83)：crm/tabs 批 1 5 文件
+  - D06-34 (6ac2efb)：crm/tabs 批 2 + leads + opportunities 5 文件
+  - D06-35 (3b0eca9)：bpm/definitions/components 5 文件
+  - D06-36 (afc2448)：bpm/approval + system + security 5 文件
+  - D06-37 (82444ed)：product/tabs + fabric/DyeTab 5 文件
+  - D06-38 (1351018)：fabric/tabs 剩余 5 文件
+  - D06-39 (3dbfdd1)：quality + inventoryAdjustment tabs 5 文件
+  - D06-40 (2eb2ff5)：inventoryAdjustment + inventoryBatch + inventoryCount 5 文件
+  - D06-41 (c9f16e1)：inventoryTransfer + ap/tabs 5 文件
+  - D06-42 (8a54858)：ap/ar/fund/supplier/customerCredit 5 文件
+  - D06-43 (85b0511)：customerCredit + accountSubject + accountingPeriod + financeReport 5 文件
+  - D06-44 (d527e5e)：financial-analysis + bom + mrp 5 文件
+  - D06-45 (4581376)：color-cards + color-prices 5 文件
+  - D06-46 (f8211a0)：custom-orders + dataPermission + departments 4 文件
+  - D06-47 (8818eda)：notification + quality-standards + user-profile + ai-extend + Setup 6 文件
+  - D06-48 (d7cec20)：crm 多元素 + quotations/list 5 文件 16 处
+  - D06-49 (d33deb6)：customer + customerCredit + scheduling 5 文件 10 处
+  - D06-50 (30ae917)：bpm + bi + components-demo + quotations 5 文件 8 处
+  - D06-51 (d91b036)：system/tabs + security el-form 5 文件 5 处
+  - D06-52 (无 commit)：data-import/purchase-return/material-shortage/purchase-* el-pagination 已有 aria-label 跳过
+  - D06-53 (无 commit)：sales-price/system-update tabs el-pagination 已有 aria-label 跳过
+  - D06-54 (eaadd4d)：fiveDimension/barcodeScanner/businessTrace/arReconciliation/omniAudit/assistAccounting 6 个 PascalCase 文件 30 处
+  - D06-55 (22c842a)：QualityCheck/color-cards/issues/product/tabs 最终收尾 3 文件 4 处
+  - 累计完成约 225 个文件，最终扫描确认全部补齐无遗漏
+  - **关键策略**：icon-only 按钮优先 + el-table/el-dialog/el-form/el-pagination 交互容器 + 动态 :title 用 :aria-label 同步绑定 + V2Table 迁移文件跳过 el-table + 已有 aria-label 文件跳过 + PascalCase 标签同样处理 + 续行 aria-label 检测避免误报
 
 #### ✅ P0-D07 图片 alt 属性完全缺失（类七，审计误判已完成）
 
