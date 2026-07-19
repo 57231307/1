@@ -262,20 +262,33 @@ await applyAuthMocks(context)
 
 ### CI 验证状态
 
-**commit 3919255 已推送 origin/main**，CI 验证中：
-- 当前环境无 `GH_TOKEN`，无法直接通过 `gh` CLI 监控 CI 运行状态
-- 需后续会话或 GitHub Web UI 确认 CI 是否全绿
-- 预期 CI 结果：Rust 单元测试（73 个新测试中纯函数部分通过 + `#[ignore]` 部分跳过）+ Rust 后端构建（criterion optional feature 不影响默认 features 编译）+ 前端类型检查 + 前端 ESLint + 前端测试全绿
+**Batch 487 CI 经历 3 轮修复后全绿**（conclusion=success）：
+
+1. **第 1 轮**：commit 3919255 推送 → ❌ Rust 后端构建 failure
+   - 错误：`dev-dependencies are not allowed to be optional: criterion`
+   - 原因：criterion 放在 `[dev-dependencies]` 段下设为 `optional = true`，但 Cargo 不允许 dev-dependencies 为 optional
+   - 副作用：编译失败导致 clippy 输出不完整，CI 自动刷新 baseline 误删全部 103 条预存警告（commit ed22f4e: 103 → 0）
+
+2. **第 2 轮**：commit d7e3b73 修复 criterion 位置（移到 `[dependencies]`）→ ❌ Rust Clippy failure
+   - 错误：`warning: this function has too many arguments (8/7)` 被判定为新增警告
+   - 原因：baseline 被 commit ed22f4e 误删为 0 行，clippy 能完整运行后 103 条预存警告中 1 条 warning: 摘要行被误判为新增
+   - 这条 too many arguments 警告是 Batch 484 用户特批合并的遗留警告，本就在 baseline 中
+
+3. **第 3 轮**：commit a456a53 恢复 baseline 文件（103 条预存警告）→ ✅ CI 全绿 conclusion=success
+   - 恢复方式：`git show ed22f4e^:backend/.clippy-baseline.txt > backend/.clippy-baseline.txt`
+   - 16/16 job 全绿（Rust 覆盖率 failure 但 continue-on-error 不阻塞，与 Batch 485 一致）
 
 ### 关键教训
 
 1. **criterion optional feature 机制**：性能基准测试不应拖慢常规 CI。通过 `optional = true` + feature 门控 + `required-features`，让 `cargo test` 不编译 bench 文件，是 Rust 生态最佳实践。
-2. **`#[ignore]` 集成测试模式**：完整业务流程测试需真实 DB 时，标记 `#[ignore]` + 环境变量切换，让 CI 默认跳过、本地或专用 CI 启用，是平衡测试覆盖与 CI 复杂度的合理方案。
-3. **纯函数测试模式**：状态机校验/解析/计算等纯函数无 DB 依赖，应优先编写为 `#[test]` 直接测试，最大化 CI 覆盖。
-4. **`mockBusinessApi` 保留策略**：删除函数会破坏仍依赖它的测试（如 enhanced 多上下文隔离测试）。应分析所有引用点，保留函数但调整自动调用策略。
-5. **playwright `webServer` 数组配置**：前后端分离项目应使用数组配置同时启动前端 dev server + 后端服务。CI 中后端由独立工作流（如 e2e-batch.yml）管理时，Playwright 后端 webServer 必须 `reuseExistingServer: true` 避免端口冲突。
-6. **规则 20 注释一致性**：修改功能时必须同步更新相关注释。Batch 473 教训复发：14 个 spec 文件的 beforeEach 注释需从"mock 业务 API"改为"业务 API 走真实后端"，与 `applyAuthMocks` 的新行为一致。
-7. **用户特批不拆分处理**：当多项任务（T02+T07+T05）逻辑相关且用户特批时，可打包为一个批次处理，但需在归档中明确标注"用户特批不拆分"以备追溯。
+2. **criterion 必须放在 `[dependencies]` 而非 `[dev-dependencies]`**：Cargo 不允许 dev-dependencies 为 optional。这是 criterion optional feature 机制的关键约束，文档中常省略。
+3. **`#[ignore]` 集成测试模式**：完整业务流程测试需真实 DB 时，标记 `#[ignore]` + 环境变量切换，让 CI 默认跳过、本地或专用 CI 启用，是平衡测试覆盖与 CI 复杂度的合理方案。
+4. **纯函数测试模式**：状态机校验/解析/计算等纯函数无 DB 依赖，应优先编写为 `#[test]` 直接测试，最大化 CI 覆盖。
+5. **`mockBusinessApi` 保留策略**：删除函数会破坏仍依赖它的测试（如 enhanced 多上下文隔离测试）。应分析所有引用点，保留函数但调整自动调用策略。
+6. **playwright `webServer` 数组配置**：前后端分离项目应使用数组配置同时启动前端 dev server + 后端服务。CI 中后端由独立工作流（如 e2e-batch.yml）管理时，Playwright 后端 webServer 必须 `reuseExistingServer: true` 避免端口冲突。
+7. **规则 20 注释一致性**：修改功能时必须同步更新相关注释。Batch 473 教训复发：14 个 spec 文件的 beforeEach 注释需从"mock 业务 API"改为"业务 API 走真实后端"，与 `applyAuthMocks` 的新行为一致。
+8. **用户特批不拆分处理**：当多项任务（T02+T07+T05）逻辑相关且用户特批时，可打包为一个批次处理，但需在归档中明确标注"用户特批不拆分"以备追溯。
+9. **CI 自动刷新 baseline 陷阱第三次复发**：编译错误导致 clippy 无法完整分析时，CI 自动刷新 baseline 会误删预存警告。修复编译错误后需检查 baseline 是否被误删，必要时手动恢复（`git show <误删commit>^:backend/.clippy-baseline.txt`）。
 
 ---
 
