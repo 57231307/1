@@ -826,28 +826,16 @@ impl VoucherService {
                 active_model.current_period_debit = sea_orm::Set(new_period_debit);
                 active_model.current_period_credit = sea_orm::Set(new_period_credit);
 
-                // 根据余额方向计算期末余额
-                // 借方科目：期末余额 = 期初借方 + 本期借方发生 - 本期贷方发生
-                // 贷方科目：期末余额 = 期初贷方 + 本期贷方发生 - 本期借方发生
-                if balance_direction == "借" {
-                    let ending_balance = initial_debit + new_period_debit - new_period_credit;
-                    if ending_balance >= Decimal::ZERO {
-                        active_model.ending_balance_debit = sea_orm::Set(ending_balance);
-                        active_model.ending_balance_credit = sea_orm::Set(Decimal::ZERO);
-                    } else {
-                        active_model.ending_balance_debit = sea_orm::Set(Decimal::ZERO);
-                        active_model.ending_balance_credit = sea_orm::Set(ending_balance.abs());
-                    }
-                } else {
-                    let ending_balance = initial_credit + new_period_credit - new_period_debit;
-                    if ending_balance >= Decimal::ZERO {
-                        active_model.ending_balance_debit = sea_orm::Set(Decimal::ZERO);
-                        active_model.ending_balance_credit = sea_orm::Set(ending_balance);
-                    } else {
-                        active_model.ending_balance_debit = sea_orm::Set(ending_balance.abs());
-                        active_model.ending_balance_credit = sea_orm::Set(Decimal::ZERO);
-                    }
-                }
+                // D12 重构：期末余额计算提取到 compute_ending_balance，消除嵌套 4 分支
+                let (ending_dr, ending_cr) = Self::compute_ending_balance(
+                    balance_direction,
+                    initial_debit,
+                    initial_credit,
+                    new_period_debit,
+                    new_period_credit,
+                );
+                active_model.ending_balance_debit = sea_orm::Set(ending_dr);
+                active_model.ending_balance_credit = sea_orm::Set(ending_cr);
 
                 crate::services::audit_log_service::AuditLogService::update_with_audit(
                     txn,
@@ -859,26 +847,14 @@ impl VoucherService {
                 .await?;
             } else {
                 // 创建新余额记录
-                // 根据余额方向设置期末余额
-                let (ending_debit, ending_credit) = if balance_direction == "借" {
-                    // 借方科目新账：期末余额 = 本期借方 - 本期贷方
-                    let net = debit_amount - credit_amount;
-                    if net >= Decimal::ZERO {
-                        (net, Decimal::ZERO)
-                    } else {
-                        // 借方科目出现贷方余额，记录在贷方
-                        (Decimal::ZERO, net.abs())
-                    }
-                } else {
-                    // 贷方科目新账：期末余额 = 本期贷方 - 本期借方
-                    let net = credit_amount - debit_amount;
-                    if net >= Decimal::ZERO {
-                        (Decimal::ZERO, net)
-                    } else {
-                        // 贷方科目出现借方余额，记录在借方
-                        (net.abs(), Decimal::ZERO)
-                    }
-                };
+                // D12 重构：新账期末余额计算复用 compute_ending_balance（initial_dr=0, initial_cr=0）
+                let (ending_debit, ending_credit) = Self::compute_ending_balance(
+                    balance_direction,
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    debit_amount,
+                    credit_amount,
+                );
 
                 let active_model = account_balance::ActiveModel {
                     subject_id: sea_orm::Set(subject_id),
@@ -897,6 +873,32 @@ impl VoucherService {
 
         info!("科目余额更新成功");
         Ok(())
+    }
+
+    /// 计算期末余额（借/贷双方向，余额为正记同向，为负记反向）
+    /// 借方：期初借+本期借-本期贷；贷方：期初贷+本期贷-本期借
+    fn compute_ending_balance(
+        balance_direction: &str,
+        initial_dr: Decimal,
+        initial_cr: Decimal,
+        period_dr: Decimal,
+        period_cr: Decimal,
+    ) -> (Decimal, Decimal) {
+        if balance_direction == "借" {
+            let ending = initial_dr + period_dr - period_cr;
+            if ending >= Decimal::ZERO {
+                (ending, Decimal::ZERO)
+            } else {
+                (Decimal::ZERO, ending.abs())
+            }
+        } else {
+            let ending = initial_cr + period_cr - period_dr;
+            if ending >= Decimal::ZERO {
+                (Decimal::ZERO, ending)
+            } else {
+                (ending.abs(), Decimal::ZERO)
+            }
+        }
     }
 
     /// F-P1-3 修复（批次 359 v13 复审）：凭证过账时写入辅助核算记录
