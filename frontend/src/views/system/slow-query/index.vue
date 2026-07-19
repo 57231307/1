@@ -52,7 +52,7 @@
 
     <!-- 筛选 + 表格 -->
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" @submit.prevent="handleQuery">
+      <el-form :inline="true" :model="filterForm" aria-label="慢查询筛选表单" @submit.prevent="handleQuery">
         <el-form-item label="时间范围">
           <el-date-picker
             v-model="filterForm.dateRange"

@@ -30,6 +30,7 @@
         :rules="rules"
         label-width="100px"
         class="change-pwd-form"
+        aria-label="修改密码表单"
       >
         <el-form-item label="当前密码" prop="old_password">
           <el-input

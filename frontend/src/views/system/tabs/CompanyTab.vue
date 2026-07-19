@@ -15,6 +15,7 @@
         :rules="companyRules"
         label-width="120px"
         style="max-width: 800px"
+        aria-label="公司信息表单"
       >
         <el-divider content-position="left">基本信息</el-divider>
         <el-row :gutter="20">

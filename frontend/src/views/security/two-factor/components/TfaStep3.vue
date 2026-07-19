@@ -14,6 +14,7 @@
       :rules="rules"
       label-width="0"
       class="verify-form"
+      aria-label="双因素验证码表单"
       @submit.prevent
     >
       <el-form-item prop="token">
