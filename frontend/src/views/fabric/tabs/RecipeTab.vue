@@ -14,7 +14,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="recipes" stripe>
+      <el-table v-loading="loading" :data="recipes" stripe aria-label="染色配方列表">
         <el-table-column prop="recipe_no" label="配方号" width="120" />
         <el-table-column prop="recipe_name" label="名称" width="150" />
         <el-table-column prop="color_name" label="颜色" width="120" />

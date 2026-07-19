@@ -8,9 +8,10 @@
     :model-value="modelValue"
     :title="formData.id ? '编辑批次' : '新建批次'"
     width="700px"
+    :aria-label="formData.id ? '编辑批次' : '新建批次'"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px">
+    <el-form ref="formRef" :model="formData" label-width="100px" aria-label="染色配方表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="批次号" prop="batch_no">

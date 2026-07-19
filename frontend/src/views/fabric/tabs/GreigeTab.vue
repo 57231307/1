@@ -14,7 +14,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="fabrics" stripe>
+      <el-table v-loading="loading" :data="fabrics" stripe aria-label="坯布列表">
         <el-table-column prop="fabric_code" label="编号" width="120" />
         <el-table-column prop="fabric_name" label="名称" min-width="150" />
         <el-table-column prop="supplier_name" label="供应商" width="150" />

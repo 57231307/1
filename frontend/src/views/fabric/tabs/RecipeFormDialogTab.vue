@@ -8,9 +8,10 @@
     :model-value="modelValue"
     :title="formData.id ? '编辑配方' : '新建配方'"
     width="700px"
+    :aria-label="formData.id ? '编辑配方' : '新建配方'"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px">
+    <el-form ref="formRef" :model="formData" label-width="100px" aria-label="染色配方表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="配方号" prop="recipe_no">
