@@ -15,7 +15,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm">
+      <el-form :inline="true" :model="queryForm" aria-label="财务报表筛选表单">
         <el-form-item label="报表类型">
           <el-select
             v-model="queryForm.report_type"
@@ -70,7 +70,7 @@
           <span>期间：{{ reportData.period_name || reportData.period }}</span>
           <span v-if="reportData.total != null">合计：¥{{ reportData.total.toFixed(2) }}</span>
         </div>
-        <el-table :data="reportData.items || []" stripe border>
+        <el-table :data="reportData.items || []" stripe border aria-label="财务报表列表">
           <el-table-column
             v-for="col in reportColumns"
             :key="col.key"

@@ -17,7 +17,7 @@
       </div>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm">
+      <el-form :inline="true" :model="queryForm" aria-label="会计科目筛选表单">
         <el-form-item label="科目编码">
           <el-input v-model="queryForm.code" placeholder="编码" clearable />
         </el-form-item>
@@ -48,6 +48,7 @@
         row-key="id"
         default-expand-all
         :tree-props="{ children: 'children' }"
+        aria-label="会计科目列表"
       >
         <el-table-column prop="code" label="科目编码" width="120" />
         <el-table-column prop="name" label="科目名称" min-width="200" />
@@ -80,8 +81,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑科目' : '新建科目'" width="500px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑科目' : '新建科目'" width="500px" :aria-label="form.id ? '编辑科目对话框' : '新建科目对话框'">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="会计科目表单">
         <el-form-item label="科目编码" prop="code">
           <el-input v-model="form.code" :disabled="!!form.id" />
         </el-form-item>

@@ -4,8 +4,8 @@
   拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" title="设置信用评级" width="500px">
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
+  <el-dialog v-model="visible" title="设置信用评级" width="500px" aria-label="设置信用评级对话框">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" aria-label="设置信用评级表单">
       <el-form-item label="客户" prop="customer_id">
         <el-select v-model="form.customer_id" placeholder="请选择客户" style="width: 100%">
           <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />

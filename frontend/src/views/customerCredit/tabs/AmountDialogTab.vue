@@ -8,8 +8,9 @@
     v-model="visible"
     :title="operationType === 'occupy' ? '占用额度' : '释放额度'"
     width="500px"
+    aria-label="信用额度变更对话框"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" aria-label="信用额度变更表单">
       <el-form-item label="金额" prop="amount">
         <el-input-number v-model="form.amount" :min="0" style="width: 100%" />
       </el-form-item>

@@ -18,7 +18,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm">
+      <el-form :inline="true" :model="queryForm" aria-label="会计期间筛选表单">
         <el-form-item label="年度">
           <el-input-number v-model="queryForm.year" :min="2000" :max="2100" style="width: 140px" />
         </el-form-item>
@@ -37,7 +37,7 @@
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="periodList" stripe>
+      <el-table v-loading="loading" :data="periodList" stripe aria-label="会计期间列表">
         <el-table-column prop="name" label="期间名称" width="160" />
         <el-table-column prop="year" label="年度" width="80" align="center" />
         <el-table-column prop="month" label="月份" width="80" align="center" />
@@ -89,8 +89,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑期间' : '新建期间'" width="500px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑期间' : '新建期间'" width="500px" :aria-label="form.id ? '编辑期间对话框' : '新建期间对话框'">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="会计期间表单">
         <el-form-item label="年度" prop="year">
           <el-input-number v-model="form.year" :min="2000" :max="2100" style="width: 100%" />
         </el-form-item>
