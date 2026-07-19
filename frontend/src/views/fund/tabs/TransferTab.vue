@@ -15,7 +15,7 @@
         </div>
       </template>
 
-      <el-table v-loading="transferLoading" :data="transferList" stripe border>
+      <el-table v-loading="transferLoading" :data="transferList" stripe border aria-label="资金转账列表">
         <el-table-column prop="transfer_no" label="转账编号" width="180" />
         <el-table-column prop="from_account_name" label="转出账户" min-width="140" />
         <el-table-column prop="to_account_name" label="转入账户" min-width="140" />
@@ -49,16 +49,18 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="transferTotal"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="资金转账列表分页"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="transferVisible" title="资金转账" width="600px">
+    <el-dialog v-model="transferVisible" title="资金转账" width="600px" aria-label="资金转账对话框">
       <el-form
         ref="transferFormRef"
         :model="transferForm"
         :rules="transferRules"
         label-width="120px"
+        aria-label="资金转账表单"
       >
         <el-form-item label="转出账户" prop="from_account_id">
           <el-select

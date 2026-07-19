@@ -10,12 +10,13 @@
   <el-dialog
     :model-value="visible"
     :title="title"
+    :aria-label="title"
     width="800px"
     :close-on-click-modal="false"
     @update:model-value="onVisibleChange"
     @close="emit('close')"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="120px">
+    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="120px" aria-label="供应商表单">
       <el-divider content-position="left">基本信息</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">

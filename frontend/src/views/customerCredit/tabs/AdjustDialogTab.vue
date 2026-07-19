@@ -4,8 +4,8 @@
   拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" title="调整信用额度" width="500px">
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
+  <el-dialog v-model="visible" title="调整信用额度" width="500px" aria-label="调整信用额度对话框">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" aria-label="调整信用额度表单">
       <el-form-item label="调整类型" prop="adjustmentType">
         <el-radio-group v-model="form.adjustmentType">
           <el-radio value="increase">增加额度</el-radio>

@@ -14,7 +14,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe>
+      <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe aria-label="对账列表">
         <el-table-column prop="reconciliation_no" label="对账单号" width="140" />
         <el-table-column prop="customer_name" label="客户" width="150" />
         <el-table-column prop="reconciliation_date" label="对账日期" width="120" />
@@ -59,8 +59,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="reconciliationDialogVisible" title="新建对账" width="500px">
-      <el-form ref="reconciliationFormRef" :model="reconciliationForm" label-width="80px">
+    <el-dialog v-model="reconciliationDialogVisible" title="新建对账" width="500px" aria-label="新建对账对话框">
+      <el-form ref="reconciliationFormRef" :model="reconciliationForm" label-width="80px" aria-label="对账表单">
         <el-form-item label="客户">
           <el-select
             v-model="reconciliationForm.customer_id"

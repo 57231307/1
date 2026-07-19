@@ -13,7 +13,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="verificationLoading" :data="verifications" stripe>
+      <el-table v-loading="verificationLoading" :data="verifications" stripe aria-label="核销列表">
         <el-table-column prop="verification_no" label="核销单号" width="140" />
         <el-table-column prop="invoice_no" label="发票号" width="140" />
         <el-table-column prop="payment_no" label="付款单号" width="140" />
@@ -34,8 +34,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="verificationDialogVisible" title="新建核销" width="600px">
-      <el-form :model="verificationForm" label-width="100px">
+    <el-dialog v-model="verificationDialogVisible" title="新建核销" width="600px" aria-label="新建核销对话框">
+      <el-form :model="verificationForm" label-width="100px" aria-label="核销表单">
         <el-form-item label="发票号">
           <el-select
             v-model="verificationForm.invoice_id"
