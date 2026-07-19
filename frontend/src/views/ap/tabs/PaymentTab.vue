@@ -13,7 +13,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="paymentLoading" :data="payments" stripe>
+      <el-table v-loading="paymentLoading" :data="payments" stripe aria-label="付款列表">
         <el-table-column prop="payment_no" label="付款单号" width="140" />
         <el-table-column prop="supplier_name" label="供应商" width="150" />
         <el-table-column prop="payment_date" label="付款日期" width="120" />
@@ -51,8 +51,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="paymentDialogVisible" title="新建付款" width="600px">
-      <el-form ref="paymentFormRef" :model="paymentForm" :rules="paymentRules" label-width="100px">
+    <el-dialog v-model="paymentDialogVisible" title="新建付款" width="600px" aria-label="新建付款对话框">
+      <el-form ref="paymentFormRef" :model="paymentForm" :rules="paymentRules" label-width="100px" aria-label="付款表单">
         <el-form-item label="供应商" prop="supplier_id">
           <el-select v-model="paymentForm.supplier_id" placeholder="选择供应商" style="width: 100%">
             <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />

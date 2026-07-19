@@ -8,9 +8,10 @@
     :model-value="modelValue"
     :title="formData.id ? '编辑调拨单' : '新建调拨单'"
     width="800px"
+    :aria-label="mode === 'view' ? '调拨详情对话框' : (formData.id ? '编辑调拨单对话框' : '新建调拨单对话框')"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" :disabled="mode === 'view'">
+    <el-form ref="formRef" :model="formData" label-width="100px" :disabled="mode === 'view'" aria-label="库存调拨表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="调出仓库" prop="from_warehouse_id">

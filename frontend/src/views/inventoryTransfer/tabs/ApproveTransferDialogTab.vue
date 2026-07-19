@@ -8,9 +8,10 @@
     :model-value="modelValue"
     title="审批调拨单"
     width="500px"
+    aria-label="库存调拨审批对话框"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="80px">
+    <el-form ref="formRef" :model="formData" label-width="80px" aria-label="库存调拨审批表单">
       <el-form-item label="调拨单号">
         <el-input :model-value="currentRow?.transfer_no" disabled />
       </el-form-item>

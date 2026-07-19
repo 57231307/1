@@ -61,7 +61,7 @@
     </el-row>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="库存调拨筛选表单">
         <el-form-item label="调拨单号">
           <el-input v-model="queryParams.transfer_no" placeholder="输入单号" clearable />
         </el-form-item>
@@ -85,7 +85,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="transfers" stripe>
+      <el-table v-loading="loading" :data="transfers" stripe aria-label="库存调拨列表">
         <el-table-column prop="transfer_no" label="调拨单号" width="160" fixed />
         <el-table-column prop="transfer_date" label="调拨日期" width="120" />
         <el-table-column prop="from_warehouse_name" label="调出仓库" width="120" />
@@ -135,6 +135,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="库存调拨列表分页"
         />
       </div>
     </el-card>
