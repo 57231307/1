@@ -8,9 +8,10 @@
     :model-value="visible"
     title="审批退货单"
     width="500px"
+    aria-label="审批退货单对话框"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localApproveForm" label-width="80px">
+    <el-form :model="localApproveForm" label-width="80px" aria-label="退货单审批表单">
       <el-form-item label="审批意见">
         <el-input
           v-model="localApproveForm.remark"

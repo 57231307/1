@@ -7,6 +7,7 @@
     :model-value="visible"
     title="退货单详情"
     width="900px"
+    aria-label="退货单详情对话框"
     @update:model-value="onVisibleChange"
   >
     <el-descriptions :column="2" border>
@@ -31,7 +32,7 @@
     </el-descriptions>
 
     <el-divider content-position="left">退货明细</el-divider>
-    <el-table :data="detailData.items || []" border>
+    <el-table :data="detailData.items || []" border aria-label="退货单明细表">
       <el-table-column prop="productName" label="产品名称" min-width="150" />
       <el-table-column prop="quantity" label="退货数量" width="100" />
       <el-table-column prop="unitPrice" label="单价" width="100" />

@@ -8,9 +8,10 @@
     :model-value="visible"
     :title="isEdit ? '编辑退货单' : '新建退货单'"
     width="900px"
+    :aria-label="isEdit ? '编辑退货单对话框' : '新建退货单对话框'"
     @update:model-value="onVisibleChange"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px">
+    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px" aria-label="退货单表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="采购订单" prop="purchaseOrderId">
@@ -62,7 +63,7 @@
       <el-button type="primary" size="small" class="mb-10" @click="onAddItem">
         添加明细
       </el-button>
-      <el-table :data="localFormData.items" border>
+      <el-table :data="localFormData.items" border aria-label="退货明细编辑表">
         <el-table-column prop="productName" label="产品名称" min-width="150">
           <template #default="{ row }">
             <el-select
