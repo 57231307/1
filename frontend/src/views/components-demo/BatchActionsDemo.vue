@@ -9,7 +9,7 @@
         @complete="handleComplete"
       />
 
-      <el-table :data="tableData" row-key="id" border @selection-change="handleSelectionChange">
+      <el-table :data="tableData" row-key="id" border @selection-change="handleSelectionChange" aria-label="批量操作演示表">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="名称" />

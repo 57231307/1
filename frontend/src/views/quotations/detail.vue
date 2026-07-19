@@ -83,7 +83,7 @@
 
       <!-- 报价明细 -->
       <h3 class="section-title">报价明细（{{ quotation.items?.length || 0 }} 项）</h3>
-      <el-table :data="quotation.items" border empty-text="无明细">
+      <el-table :data="quotation.items" border empty-text="无明细" aria-label="报价明细列表">
         <el-table-column type="index" label="#" width="50" align="center" />
         <el-table-column label="产品" min-width="180">
           <template #default="{ row }">

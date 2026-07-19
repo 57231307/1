@@ -215,7 +215,7 @@ function resizeCharts() {
     <!-- 5. 月度钻取 -->
     <el-card class="chart-card">
       <h3>2026 年月度销售（钻取：年 → 月）</h3>
-      <el-table :data="monthlyData" stripe>
+      <el-table :data="monthlyData" stripe aria-label="月度销售数据表">
         <el-table-column prop="period" label="月份" width="120" />
         <el-table-column prop="total_amount" label="销售额">
           <template #default="{ row }">{{ formatCurrency(row.total_amount) }}</template>

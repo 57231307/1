@@ -15,7 +15,7 @@
         </div>
       </template>
 
-      <el-form ref="formRef" v-loading="loading" :model="form" :rules="rules" label-width="120px">
+      <el-form ref="formRef" v-loading="loading" :model="form" :rules="rules" label-width="120px" aria-label="报价单创建表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="客户" prop="customer_id">

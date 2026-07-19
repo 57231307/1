@@ -69,7 +69,7 @@
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <el-tab-pane label="待审批任务" name="pending">
         <el-card shadow="hover" class="table-card">
-          <el-table :data="pendingTasks" stripe>
+          <el-table :data="pendingTasks" stripe aria-label="待审批任务列表">
             <el-table-column prop="task_name" label="任务名称" min-width="180" fixed />
             <el-table-column prop="process_name" label="流程名称" width="150" />
             <el-table-column prop="assignee_name" label="申请人" width="120" />
@@ -111,7 +111,7 @@
 
       <el-tab-pane label="我发起的" name="initiated">
         <el-card shadow="hover" class="table-card">
-          <el-table :data="initiatedProcesses" stripe>
+          <el-table :data="initiatedProcesses" stripe aria-label="我发起的流程列表">
             <el-table-column prop="process_name" label="流程名称" min-width="150" />
             <el-table-column prop="business_key" label="业务单号" width="180" />
             <el-table-column prop="start_time" label="发起时间" width="160" />
@@ -143,7 +143,7 @@
 
       <el-tab-pane label="已处理记录" name="processed">
         <el-card shadow="hover" class="table-card">
-          <el-table :data="processedTasks" stripe>
+          <el-table :data="processedTasks" stripe aria-label="已处理任务列表">
             <el-table-column prop="task_name" label="任务名称" min-width="150" />
             <el-table-column prop="process_name" label="流程名称" width="150" />
             <el-table-column prop="start_user_name" label="申请人" width="120" />
@@ -167,7 +167,7 @@
 
       <el-tab-pane label="流程监控" name="monitor">
         <el-card shadow="hover" class="table-card">
-          <el-table :data="processInstances" stripe>
+          <el-table :data="processInstances" stripe aria-label="流程实例监控列表">
             <el-table-column prop="instance_id" label="实例ID" width="180" />
             <el-table-column prop="process_name" label="流程名称" min-width="150" />
             <el-table-column prop="start_user_name" label="发起人" width="120" />
