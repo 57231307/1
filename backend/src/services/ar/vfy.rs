@@ -189,40 +189,22 @@ impl ArReconciliationService {
                         let coll = unmatched_collections.remove(idx);
 
                         // 创建发票明细（收集不立即 INSERT）
-                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
-                            id: Default::default(),
-                            reconciliation_id: Set(rec_model.id),
-                            item_type: Set("INVOICE".to_string()),
-                            document_type: Set(Some("SALES_INVOICE".to_string())),
-                            document_id: Set(Some(inv.id)),
-                            document_no: Set(Some(inv.invoice_no.clone())),
-                            document_date: Set(Some(inv.invoice_date)),
-                            amount: Set(inv.invoice_amount),
-                            matched_amount: Set(Some(inv.invoice_amount)),
-                            match_status: Set("MATCHED".to_string()),
-                            matched_item_id: Set(Some(coll.id)),
-                            remarks: Set(None),
-                            created_at: Set(Utc::now()),
-                            updated_at: Set(Utc::now()),
-                        });
+                        all_items_to_insert.push(Self::make_invoice_recon_item(
+                            rec_model.id,
+                            inv,
+                            Some(inv.invoice_amount),
+                            "MATCHED",
+                            Some(coll.id),
+                        ));
 
                         // 创建收款明细（收集不立即 INSERT）
-                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
-                            id: Default::default(),
-                            reconciliation_id: Set(rec_model.id),
-                            item_type: Set("RECEIPT".to_string()),
-                            document_type: Set(Some("COLLECTION".to_string())),
-                            document_id: Set(Some(coll.id)),
-                            document_no: Set(Some(coll.collection_no.clone())),
-                            document_date: Set(Some(coll.collection_date)),
-                            amount: Set(-coll.collection_amount),
-                            matched_amount: Set(Some(coll.collection_amount)),
-                            match_status: Set("MATCHED".to_string()),
-                            matched_item_id: Set(Some(inv.id)),
-                            remarks: Set(None),
-                            created_at: Set(Utc::now()),
-                            updated_at: Set(Utc::now()),
-                        });
+                        all_items_to_insert.push(Self::make_collection_recon_item(
+                            rec_model.id,
+                            coll,
+                            Some(coll.collection_amount),
+                            "MATCHED",
+                            Some(inv.id),
+                        ));
 
                         matched_count += 1;
                     } else {
@@ -246,127 +228,75 @@ impl ArReconciliationService {
                     if let Some(idx) = date_match {
                         let coll = remaining_collections.remove(idx);
                         let matched = std::cmp::min(inv.invoice_amount, coll.collection_amount);
+                        let inv_status = if matched == inv.invoice_amount {
+                            "MATCHED"
+                        } else {
+                            "PARTIAL"
+                        };
+                        let coll_status = if matched == coll.collection_amount {
+                            "MATCHED"
+                        } else {
+                            "PARTIAL"
+                        };
 
-                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
-                            id: Default::default(),
-                            reconciliation_id: Set(rec_model.id),
-                            item_type: Set("INVOICE".to_string()),
-                            document_type: Set(Some("SALES_INVOICE".to_string())),
-                            document_id: Set(Some(inv.id)),
-                            document_no: Set(Some(inv.invoice_no.clone())),
-                            document_date: Set(Some(inv.invoice_date)),
-                            amount: Set(inv.invoice_amount),
-                            matched_amount: Set(Some(matched)),
-                            match_status: Set(if matched == inv.invoice_amount {
-                                "MATCHED".to_string()
-                            } else {
-                                "PARTIAL".to_string()
-                            }),
-                            matched_item_id: Set(Some(coll.id)),
-                            remarks: Set(None),
-                            created_at: Set(Utc::now()),
-                            updated_at: Set(Utc::now()),
-                        });
+                        all_items_to_insert.push(Self::make_invoice_recon_item(
+                            rec_model.id,
+                            inv,
+                            Some(matched),
+                            inv_status,
+                            Some(coll.id),
+                        ));
 
-                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
-                            id: Default::default(),
-                            reconciliation_id: Set(rec_model.id),
-                            item_type: Set("RECEIPT".to_string()),
-                            document_type: Set(Some("COLLECTION".to_string())),
-                            document_id: Set(Some(coll.id)),
-                            document_no: Set(Some(coll.collection_no.clone())),
-                            document_date: Set(Some(coll.collection_date)),
-                            amount: Set(-coll.collection_amount),
-                            matched_amount: Set(Some(matched)),
-                            match_status: Set(if matched == coll.collection_amount {
-                                "MATCHED".to_string()
-                            } else {
-                                "PARTIAL".to_string()
-                            }),
-                            matched_item_id: Set(Some(inv.id)),
-                            remarks: Set(None),
-                            created_at: Set(Utc::now()),
-                            updated_at: Set(Utc::now()),
-                        });
+                        all_items_to_insert.push(Self::make_collection_recon_item(
+                            rec_model.id,
+                            coll,
+                            Some(matched),
+                            coll_status,
+                            Some(inv.id),
+                        ));
 
                         matched_count += 1;
                     } else {
                         // 未匹配发票（收集不立即 INSERT）
-                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
-                            id: Default::default(),
-                            reconciliation_id: Set(rec_model.id),
-                            item_type: Set("INVOICE".to_string()),
-                            document_type: Set(Some("SALES_INVOICE".to_string())),
-                            document_id: Set(Some(inv.id)),
-                            document_no: Set(Some(inv.invoice_no.clone())),
-                            document_date: Set(Some(inv.invoice_date)),
-                            amount: Set(inv.invoice_amount),
-                            matched_amount: Set(None),
-                            match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
-                            matched_item_id: Set(None),
-                            remarks: Set(None),
-                            created_at: Set(Utc::now()),
-                            updated_at: Set(Utc::now()),
-                        });
+                        all_items_to_insert.push(Self::make_invoice_recon_item(
+                            rec_model.id,
+                            inv,
+                            None,
+                            ar_status::MATCH_UNMATCHED,
+                            None,
+                        ));
                     }
                 }
 
                 // 剩余未匹配收款（收集不立即 INSERT）
                 for coll in remaining_collections {
-                    all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Default::default(),
-                        reconciliation_id: Set(rec_model.id),
-                        item_type: Set("RECEIPT".to_string()),
-                        document_type: Set(Some("COLLECTION".to_string())),
-                        document_id: Set(Some(coll.id)),
-                        document_no: Set(Some(coll.collection_no.clone())),
-                        document_date: Set(Some(coll.collection_date)),
-                        amount: Set(-coll.collection_amount),
-                        matched_amount: Set(None),
-                        match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
-                        matched_item_id: Set(None),
-                        remarks: Set(None),
-                        created_at: Set(Utc::now()),
-                        updated_at: Set(Utc::now()),
-                    });
+                    all_items_to_insert.push(Self::make_collection_recon_item(
+                        rec_model.id,
+                        coll,
+                        None,
+                        ar_status::MATCH_UNMATCHED,
+                        None,
+                    ));
                 }
             } else {
                 // 跳过日期顺序匹配：所有未精确匹配的发票与收款直接收集为 UNMATCHED
                 for inv in unmatched_invoices {
-                    all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Default::default(),
-                        reconciliation_id: Set(rec_model.id),
-                        item_type: Set("INVOICE".to_string()),
-                        document_type: Set(Some("SALES_INVOICE".to_string())),
-                        document_id: Set(Some(inv.id)),
-                        document_no: Set(Some(inv.invoice_no.clone())),
-                        document_date: Set(Some(inv.invoice_date)),
-                        amount: Set(inv.invoice_amount),
-                        matched_amount: Set(None),
-                        match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
-                        matched_item_id: Set(None),
-                        remarks: Set(None),
-                        created_at: Set(Utc::now()),
-                        updated_at: Set(Utc::now()),
-                    });
+                    all_items_to_insert.push(Self::make_invoice_recon_item(
+                        rec_model.id,
+                        inv,
+                        None,
+                        ar_status::MATCH_UNMATCHED,
+                        None,
+                    ));
                 }
                 for coll in &unmatched_collections {
-                    all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Default::default(),
-                        reconciliation_id: Set(rec_model.id),
-                        item_type: Set("RECEIPT".to_string()),
-                        document_type: Set(Some("COLLECTION".to_string())),
-                        document_id: Set(Some(coll.id)),
-                        document_no: Set(Some(coll.collection_no.clone())),
-                        document_date: Set(Some(coll.collection_date)),
-                        amount: Set(-coll.collection_amount),
-                        matched_amount: Set(None),
-                        match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
-                        matched_item_id: Set(None),
-                        remarks: Set(None),
-                        created_at: Set(Utc::now()),
-                        updated_at: Set(Utc::now()),
-                    });
+                    all_items_to_insert.push(Self::make_collection_recon_item(
+                        rec_model.id,
+                        *coll,
+                        None,
+                        ar_status::MATCH_UNMATCHED,
+                        None,
+                    ));
                 }
             }
 
@@ -773,6 +703,72 @@ impl ArReconciliationService {
 
         info!("客户对账单提出争议：id={}, reason={}", id, reason);
         Ok(updated)
+    }
+
+    // ===== auto_match 明细创建辅助函数（D12 圈复杂度优化） =====
+    // 抽取自 auto_match 内 8 处重复的 ActiveModel 构造代码，消除冗余并降低圈复杂度
+    // 调用方负责传入正确的 matched_amount / match_status / matched_item_id
+
+    /// 创建发票对账明细 ActiveModel（未插入）
+    ///
+    /// 统一 auto_match 三种场景的发票明细创建：
+    /// - 精确匹配命中：matched_amount=Some(inv.invoice_amount), status=MATCHED
+    /// - 日期顺序匹配命中：matched_amount=Some(matched), status=MATCHED/PARTIAL
+    /// - 未匹配：matched_amount=None, status=UNMATCHED
+    fn make_invoice_recon_item(
+        reconciliation_id: i32,
+        inv: &ar_invoice::Model,
+        matched_amount: Option<Decimal>,
+        match_status: &str,
+        matched_item_id: Option<i32>,
+    ) -> crate::models::ar_reconciliation_item::ActiveModel {
+        crate::models::ar_reconciliation_item::ActiveModel {
+            id: Default::default(),
+            reconciliation_id: Set(reconciliation_id),
+            item_type: Set("INVOICE".to_string()),
+            document_type: Set(Some("SALES_INVOICE".to_string())),
+            document_id: Set(Some(inv.id)),
+            document_no: Set(Some(inv.invoice_no.clone())),
+            document_date: Set(Some(inv.invoice_date)),
+            amount: Set(inv.invoice_amount),
+            matched_amount: Set(matched_amount),
+            match_status: Set(match_status.to_string()),
+            matched_item_id: Set(matched_item_id),
+            remarks: Set(None),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        }
+    }
+
+    /// 创建收款对账明细 ActiveModel（未插入）
+    ///
+    /// 统一 auto_match 三种场景的收款明细创建：
+    /// - 精确匹配命中：matched_amount=Some(coll.collection_amount), status=MATCHED
+    /// - 日期顺序匹配命中：matched_amount=Some(matched), status=MATCHED/PARTIAL
+    /// - 未匹配：matched_amount=None, status=UNMATCHED
+    fn make_collection_recon_item(
+        reconciliation_id: i32,
+        coll: &ar_collection::Model,
+        matched_amount: Option<Decimal>,
+        match_status: &str,
+        matched_item_id: Option<i32>,
+    ) -> crate::models::ar_reconciliation_item::ActiveModel {
+        crate::models::ar_reconciliation_item::ActiveModel {
+            id: Default::default(),
+            reconciliation_id: Set(reconciliation_id),
+            item_type: Set("RECEIPT".to_string()),
+            document_type: Set(Some("COLLECTION".to_string())),
+            document_id: Set(Some(coll.id)),
+            document_no: Set(Some(coll.collection_no.clone())),
+            document_date: Set(Some(coll.collection_date)),
+            amount: Set(-coll.collection_amount),
+            matched_amount: Set(matched_amount),
+            match_status: Set(match_status.to_string()),
+            matched_item_id: Set(matched_item_id),
+            remarks: Set(None),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        }
     }
 }
 
