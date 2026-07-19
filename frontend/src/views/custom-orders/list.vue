@@ -18,7 +18,7 @@
       </template>
 
       <!-- 筛选区 -->
-      <el-form :inline="true" :model="filters" class="filter-form">
+      <el-form :inline="true" :model="filters" class="filter-form" aria-label="定制订单筛选表单">
         <el-form-item label="状态">
           <el-select v-model="filters.status" clearable placeholder="全部状态" style="width: 180px">
             <el-option
@@ -46,6 +46,7 @@
         border
         style="width: 100%"
         empty-text="暂无定制订单"
+        aria-label="定制订单列表"
       >
         <el-table-column prop="order_no" label="订单号" width="180" />
         <el-table-column prop="spec" label="规格" min-width="150" show-overflow-tooltip />
@@ -120,6 +121,7 @@
         @current-change="handleCurrentChange"
         @size-change="handleSizeChange"
         style="margin-top: 16px; text-align: right"
+        aria-label="定制订单列表分页"
       />
     </el-card>
   </div>

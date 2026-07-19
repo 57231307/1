@@ -5,7 +5,7 @@
       <el-button type="primary" @click="handleCreate">新建部门</el-button>
     </div>
 
-    <el-table v-loading="loading" :data="departmentList" border>
+    <el-table v-loading="loading" :data="departmentList" border aria-label="部门列表">
       <el-table-column prop="name" label="部门名称" />
       <el-table-column prop="code" label="部门编码" />
       <el-table-column label="上级部门">
@@ -36,8 +36,9 @@
       :title="dialogMode === 'create' ? '新建部门' : '编辑部门'"
       width="600px"
       @close="handleDialogClose"
+      :aria-label="dialogMode === 'create' ? '新建部门对话框' : '编辑部门对话框'"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" aria-label="部门表单">
         <el-form-item label="部门名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入部门名称" />
         </el-form-item>

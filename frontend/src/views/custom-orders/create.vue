@@ -14,7 +14,7 @@
         </div>
       </template>
 
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="120px" aria-label="定制订单创建表单">
         <el-form-item label="客户" prop="customer_id">
           <el-input-number v-model="form.customer_id" :min="1" placeholder="客户 ID" />
         </el-form-item>

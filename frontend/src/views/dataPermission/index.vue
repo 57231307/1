@@ -23,7 +23,7 @@
             <el-button type="primary" @click="handleAddPermission">添加权限</el-button>
           </div>
 
-          <el-table :data="permissionList" border stripe>
+          <el-table :data="permissionList" border stripe aria-label="数据权限列表">
             <el-table-column prop="resourceType" label="资源类型" />
             <el-table-column prop="scopeType" label="数据范围">
               <template #default="{ row }">
@@ -62,12 +62,14 @@
       v-model="permissionDialogVisible"
       :title="isEdit ? '编辑数据权限' : '添加数据权限'"
       width="600px"
+      :aria-label="isEdit ? '编辑数据权限对话框' : '新建数据权限对话框'"
     >
       <el-form
         ref="permissionFormRef"
         :model="permissionForm"
         :rules="permissionRules"
         label-width="120px"
+        aria-label="数据权限表单"
       >
         <el-form-item label="资源类型" prop="resourceType">
           <el-select v-model="permissionForm.resourceType" placeholder="请选择" style="width: 100%">
