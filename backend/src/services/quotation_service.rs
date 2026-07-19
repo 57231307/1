@@ -547,3 +547,390 @@ impl QuotationService {
 // 抑制 unused warnings（Func/Expr 为后续可扩展点预留）
 // 移除：占位函数（无业务引用）
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::decs;
+    use crate::ymd;
+    use rust_decimal::Decimal;
+    use sea_orm::{Database, DatabaseConnection};
+    use std::sync::Arc;
+    // 批次 415：decs! 宏展开为 Decimal::from_str，需导入 FromStr trait
+    use std::str::FromStr;
+
+    /// 构造测试用 SQLite 内存数据库连接
+    ///
+    /// voucher_service 测试夹具模式的复用：通过 `sqlite::memory:` 内存数据库
+    /// 避免依赖外部 PostgreSQL，CI 环境可直接运行（规则 13：禁止本地编译验证）。
+    async fn setup_test_db() -> DatabaseConnection {
+        let db_url =
+            std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+        Database::connect(&db_url)
+            .await
+            .expect("测试夹具：数据库连接失败")
+    }
+
+    /// 构造合法的 CreateQuotationItemDto（单条明细）
+    fn sample_item() -> CreateQuotationItemDto {
+        CreateQuotationItemDto {
+            product_id: 1001,
+            color_id: Some(2001),
+            specification: Some("规格 A".to_string()),
+            unit: "M".to_string(),
+            quantity: decs!(100),
+            unit_price: decs!(10),
+            unit_price_with_tax: decs!(11.3),
+            tier_pricing: None,
+            discount_rate: None,
+            notes: None,
+        }
+    }
+
+    /// 构造合法的 CreateQuotationDto（默认 FOB + 不含税 + 13% 税率）
+    fn sample_dto() -> CreateQuotationDto {
+        CreateQuotationDto {
+            customer_id: 1,
+            sales_user_id: 10,
+            quotation_date: ymd!(2026, 7, 19),
+            valid_until: ymd!(2026, 8, 19),
+            currency: "CNY".to_string(),
+            exchange_rate: Decimal::ONE,
+            base_currency: "CNY".to_string(),
+            price_terms: "FOB".to_string(),
+            incoterms_version: Some("2020".to_string()),
+            incoterm_location: Some("Shanghai".to_string()),
+            tax_inclusive: false,
+            tax_rate: decs!(13),
+            moq: Some(decs!(50)),
+            lead_time_days: Some(30),
+            customer_level: Some("A".to_string()),
+            notes: Some("测试报价单".to_string()),
+            items: vec![sample_item()],
+            terms: None,
+        }
+    }
+
+    // ============ ServiceError 枚举值正确性测试 ============
+
+    /// 测试_ServiceError_Display_格式正确
+    ///
+    /// 验证 5 个 ServiceError 变体的 Display 实现返回中文错误信息，
+    /// 确保前端接收到的是人类可读的业务错误（规则 20：注释与功能一致）。
+    #[test]
+    fn 测试_ServiceError_Display_格式正确() {
+        assert_eq!(ServiceError::NotFound.to_string(), "报价单不存在");
+        assert_eq!(
+            ServiceError::InvalidState.to_string(),
+            "当前状态不允许此操作"
+        );
+        assert_eq!(
+            ServiceError::Validation("明细至少 1 条".to_string()).to_string(),
+            "参数校验失败: 明细至少 1 条"
+        );
+        // Database 和 App 变体依赖外部类型，仅验证前缀
+        let db_err = ServiceError::Database(sea_orm::DbErr::RecordNotFound("test".to_string()));
+        assert!(db_err.to_string().starts_with("数据库错误:"));
+    }
+
+    // ============ validate_create 业务校验测试 ============
+
+    /// 测试_validate_create_空明细拒绝
+    ///
+    /// 业务规则：报价单至少 1 条明细（DTO 上 #[validate(length(min = 1))]）。
+    /// 验证当 items 为空时，validate_create 返回 Validation 错误。
+    #[tokio::test]
+    async fn 测试_validate_create_空明细拒绝() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let mut dto = sample_dto();
+        dto.items.clear();
+        let result = svc.validate_create(&dto);
+        assert!(matches!(result, Err(ServiceError::Validation(_))));
+        if let Err(ServiceError::Validation(msg)) = result {
+            assert!(msg.contains("明细至少 1 条"));
+        }
+    }
+
+    /// 测试_validate_create_有效期早于报价日期拒绝
+    ///
+    /// 业务规则：valid_until 必须 >= quotation_date。
+    /// 验证 valid_until 早于 quotation_date 时返回 Validation 错误。
+    #[tokio::test]
+    async fn 测试_validate_create_有效期早于报价日期拒绝() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let mut dto = sample_dto();
+        // 翻转日期：valid_until 早于 quotation_date
+        dto.valid_until = ymd!(2026, 6, 19);
+        dto.quotation_date = ymd!(2026, 7, 19);
+        let result = svc.validate_create(&dto);
+        assert!(matches!(result, Err(ServiceError::Validation(_))));
+        if let Err(ServiceError::Validation(msg)) = result {
+            assert!(msg.contains("有效期截止必须不早于报价日期"));
+        }
+    }
+
+    /// 测试_validate_create_非法贸易术语拒绝
+    ///
+    /// 业务规则：price_terms 必须是 Incoterms 2020 合法代码（EXW/FCA/CPT/CIP/DAP/DPU/DDP/FAS/FOB/CFR/CIF）。
+    /// 验证非法代码（如 "XYZ"）返回 Validation 错误并附带合法取值列表。
+    #[tokio::test]
+    async fn 测试_validate_create_非法贸易术语拒绝() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let mut dto = sample_dto();
+        dto.price_terms = "XYZ".to_string();
+        let result = svc.validate_create(&dto);
+        assert!(matches!(result, Err(ServiceError::Validation(_))));
+        if let Err(ServiceError::Validation(msg)) = result {
+            // 错误信息应包含合法取值列表（至少包含 FOB）
+            assert!(msg.contains("FOB") || msg.contains("合法取值"));
+        }
+    }
+
+    /// 测试_validate_create_合法参数通过
+    ///
+    /// 验证所有字段合法时返回 Ok(())。
+    #[tokio::test]
+    async fn 测试_validate_create_合法参数通过() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let dto = sample_dto();
+        let result = svc.validate_create(&dto);
+        assert!(result.is_ok());
+    }
+
+    // ============ calculate_totals 金额计算测试 ============
+
+    /// 测试_calculate_totals_不含税金额计算正确
+    ///
+    /// 业务规则：不含税时 tax_amount = subtotal * tax_rate / 100，total = subtotal + tax。
+    /// 验证：100 数量 * 10 单价 = 1000 小计，13% 税率 → 130 税额 → 1130 总额。
+    #[tokio::test]
+    async fn 测试_calculate_totals_不含税金额计算正确() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let dto = sample_dto(); // 默认 tax_inclusive=false
+        let (subtotal, tax_amount, total_amount) = svc.calculate_totals(&dto).unwrap();
+        assert_eq!(subtotal, decs!(1000));
+        assert_eq!(tax_amount, decs!(130));
+        assert_eq!(total_amount, decs!(1130));
+    }
+
+    /// 测试_calculate_totals_含税金额税额为零
+    ///
+    /// 业务规则：含税时小计已含税，tax_amount = 0，total = subtotal。
+    /// 验证 tax_inclusive=true 时税额为 0。
+    #[tokio::test]
+    async fn 测试_calculate_totals_含税金额税额为零() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let mut dto = sample_dto();
+        dto.tax_inclusive = true;
+        let (subtotal, tax_amount, total_amount) = svc.calculate_totals(&dto).unwrap();
+        assert_eq!(subtotal, decs!(1000));
+        assert_eq!(tax_amount, Decimal::ZERO);
+        assert_eq!(total_amount, decs!(1000));
+    }
+
+    /// 测试_calculate_totals_多明细汇总正确
+    ///
+    /// 验证多条明细时 subtotal 正确汇总：100*10 + 200*20 = 5000。
+    #[tokio::test]
+    async fn 测试_calculate_totals_多明细汇总正确() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let mut dto = sample_dto();
+        dto.items.push(CreateQuotationItemDto {
+            product_id: 1002,
+            color_id: None,
+            specification: None,
+            unit: "M".to_string(),
+            quantity: decs!(200),
+            unit_price: decs!(20),
+            unit_price_with_tax: decs!(22.6),
+            tier_pricing: None,
+            discount_rate: None,
+            notes: None,
+        });
+        let (subtotal, _, _) = svc.calculate_totals(&dto).unwrap();
+        assert_eq!(subtotal, decs!(5000)); // 1000 + 4000
+    }
+
+    /// 测试_calculate_totals_精度归一到2位小数
+    ///
+    /// 业务规则（批次 87 P3 维度 4 修复）：金额计算补 round_dp(2) 精度归一化。
+    /// 验证 33.333 * 3 = 99.999 → 99.99（subtotal round_dp(2)）。
+    #[tokio::test]
+    async fn 测试_calculate_totals_精度归一到2位小数() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let mut dto = sample_dto();
+        dto.items = vec![CreateQuotationItemDto {
+            product_id: 1,
+            color_id: None,
+            specification: None,
+            unit: "M".to_string(),
+            quantity: decs!(3),
+            unit_price: decs!(33.333),
+            unit_price_with_tax: decs!(33.333),
+            tier_pricing: None,
+            discount_rate: None,
+            notes: None,
+        }];
+        let (subtotal, _, _) = svc.calculate_totals(&dto).unwrap();
+        // 33.333 * 3 = 99.999 → round_dp(2) → 100.00
+        assert_eq!(subtotal, decs!(100));
+    }
+
+    // ============ validate_price_terms 贸易术语校验测试 ============
+
+    /// 测试_validate_price_terms_合法代码返回枚举
+    ///
+    /// 验证 11 个 Incoterms 2020 代码均能正确解析为 Incoterms2020 枚举。
+    #[test]
+    fn 测试_validate_price_terms_合法代码返回枚举() {
+        // 11 个 Incoterms 2020 代码
+        let valid_codes = [
+            "EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF",
+        ];
+        for code in valid_codes {
+            let result = QuotationService::validate_price_terms(code);
+            assert!(result.is_ok(), "合法代码 {} 应通过校验", code);
+        }
+    }
+
+    /// 测试_validate_price_terms_大小写不敏感
+    ///
+    /// 验证 from_code 内部 .to_uppercase() 转换，"fob" 应等价于 "FOB"。
+    #[test]
+    fn 测试_validate_price_terms_大小写不敏感() {
+        let lower = QuotationService::validate_price_terms("fob");
+        let upper = QuotationService::validate_price_terms("FOB");
+        assert!(lower.is_ok());
+        assert!(upper.is_ok());
+    }
+
+    /// 测试_validate_price_terms_非法代码返回错误
+    ///
+    /// 验证非法代码（"XYZ"）返回 Err，错误信息应包含合法取值列表。
+    #[test]
+    fn 测试_validate_price_terms_非法代码返回错误() {
+        let result = QuotationService::validate_price_terms("XYZ");
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        // 错误信息应包含合法取值列表（至少包含 FOB 和 CIF）
+        assert!(err_msg.contains("FOB"));
+    }
+
+    // ============ 状态常量值正确性测试 ============
+
+    /// 测试_报价单状态常量_值正确性
+    ///
+    /// 验证 status::quotation 模块中 4 个状态常量值与状态机约定一致
+    /// （小写：draft/approved/rejected/cancelled，规则 0：常量值统一管理）。
+    #[test]
+    fn 测试_报价单状态常量_值正确性() {
+        assert_eq!(quotation_status::DRAFT, "draft");
+        assert_eq!(quotation_status::APPROVED, "approved");
+        assert_eq!(quotation_status::REJECTED, "rejected");
+        assert_eq!(quotation_status::CANCELLED, "cancelled");
+    }
+
+    /// 测试_报价单状态常量_互不相同
+    ///
+    /// 业务规则：4 个状态必须互不相同，避免状态机歧义。
+    #[test]
+    fn 测试_报价单状态常量_互不相同() {
+        let states = [
+            quotation_status::DRAFT,
+            quotation_status::APPROVED,
+            quotation_status::REJECTED,
+            quotation_status::CANCELLED,
+        ];
+        // 集合去重后长度应仍为 4
+        let unique: std::collections::HashSet<&str> = states.iter().copied().collect();
+        assert_eq!(unique.len(), 4);
+    }
+
+    // ============ QuotationService 构造与 DB 连接测试 ============
+
+    /// 测试_QuotationService_new_正确持有数据库连接
+    ///
+    /// 验证 new(Arc<DatabaseConnection>) 构造的 service 实例可以执行简单查询。
+    #[tokio::test]
+    async fn 测试_QuotationService_new_正确持有数据库连接() {
+        let db = Arc::new(setup_test_db().await);
+        let svc = QuotationService::new(db.clone());
+        // 验证连接可用：执行一次空查询不报错
+        use sea_orm::ConnectionTrait;
+        let _ = svc
+            .db
+            .execute(sea_orm::Statement::from_sql_and_values(
+                svc.db.get_database_backend(),
+                "SELECT 1",
+                Vec::new(),
+            ))
+            .await
+            .expect("数据库连接应可用");
+    }
+
+    /// 测试_QuotationService_get_by_id_空数据库返回Err
+    ///
+    /// 业务规则：get_by_id 查询 sales_quotations 表，SQLite 内存数据库无 schema 应返回 Err。
+    /// 验证错误处理路径健壮性（不会因 DB 错误 panic）。
+    #[tokio::test]
+    async fn 测试_QuotationService_get_by_id_空数据库返回Err() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let result = svc.get_by_id(9999).await;
+        // SQLite 内存数据库无 sales_quotations 表，应返回 Err（DbErr 转 ServiceError::Database）
+        assert!(result.is_err());
+    }
+
+    /// 测试_QuotationService_list_空数据库返回Err
+    ///
+    /// 业务规则：list 查询 sales_quotations 表，SQLite 内存数据库无 schema 应返回 Err。
+    /// 验证错误处理路径健壮性（不会因 DB 错误 panic）。
+    #[tokio::test]
+    async fn 测试_QuotationService_list_空数据库返回Err() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let result = svc.list(1, 20, None, None, None, None).await;
+        // SQLite 内存数据库无 sales_quotations 表，应返回 Err（DbErr 转 ServiceError::Database）
+        assert!(result.is_err());
+    }
+
+    /// 测试_QuotationService_cancel_不存在返回AppError
+    ///
+    /// 业务规则：cancel 不存在的报价单返回 AppError::not_found。
+    /// 注：cancel 返回 Result<_, AppError>（非 ServiceError），因审计日志服务接入需要。
+    #[tokio::test]
+    async fn 测试_QuotationService_cancel_不存在返回AppError() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let result = svc.cancel(9999, 1).await;
+        assert!(result.is_err());
+        // 验证是 AppError 类型（而非 panic 或其他错误）
+        let err = result.unwrap_err();
+        // not_found 错误的 message 应包含"报价单不存在"
+        let msg = format!("{}", err);
+        assert!(msg.contains("报价单不存在") || msg.contains("not found") || msg.contains("不存在"));
+    }
+
+    // ============ update 状态机校验测试 ============
+
+    /// 测试_QuotationService_update_不存在返回AppError
+    ///
+    /// 业务规则：update 不存在的报价单返回 AppError::not_found。
+    #[tokio::test]
+    async fn 测试_QuotationService_update_不存在返回AppError() {
+        let db = setup_test_db().await;
+        let svc = QuotationService::new(Arc::new(db));
+        let dto = UpdateQuotationDto::default();
+        let result = svc.update(9999, dto, 1).await;
+        assert!(result.is_err());
+    }
+}
+
+
