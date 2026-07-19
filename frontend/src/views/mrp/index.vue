@@ -15,7 +15,7 @@
         </div>
       </template>
 
-      <el-form ref="calcFormRef" :model="calcForm" :rules="calcRules" label-width="120px">
+      <el-form ref="calcFormRef" :model="calcForm" :rules="calcRules" label-width="120px" aria-label="MRP 计算表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="产品选择" prop="product_ids">
@@ -110,6 +110,7 @@
         stripe
         border
         @selection-change="handleSelectionChange"
+        aria-label="MRP 计算结果列表"
       >
         <el-table-column type="selection" width="55" />
         <el-table-column prop="material_code" label="物料编码" width="140" />

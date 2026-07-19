@@ -18,7 +18,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="BOM 筛选表单">
         <el-form-item label="产品名称">
           <el-input v-model="queryParams.product_name" placeholder="请输入产品名称" clearable />
         </el-form-item>
@@ -37,7 +37,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="boms" stripe>
+      <el-table v-loading="loading" :data="boms" stripe aria-label="BOM 列表">
         <el-table-column prop="product_code" label="产品编码" width="140" fixed />
         <el-table-column prop="product_name" label="产品名称" min-width="180" fixed />
         <el-table-column prop="version" label="版本号" width="100" />
@@ -107,6 +107,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
+          aria-label="BOM 列表分页"
         />
       </div>
     </el-card>
@@ -118,6 +119,7 @@
       width="900px"
       :close-on-click-modal="false"
       @close="resetForm"
+      :aria-label="form.id ? '编辑 BOM 对话框' : '新建 BOM 对话框'"
     >
       <BomForm
         ref="bomFormRef"

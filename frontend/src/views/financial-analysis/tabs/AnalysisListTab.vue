@@ -10,7 +10,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm">
+      <el-form :inline="true" :model="queryForm" aria-label="财务分析筛选表单">
         <el-form-item label="报表类型">
           <el-select v-model="queryForm.reportType" placeholder="选择报表类型" style="width: 180px">
             <el-option label="盈利能力" value="profitability" />
@@ -43,7 +43,7 @@
           </el-button>
         </div>
       </template>
-      <el-table v-loading="loading" :data="reports" stripe>
+      <el-table v-loading="loading" :data="reports" stripe aria-label="财务分析报表列表">
         <el-table-column prop="reportName" label="报表名称" min-width="180" />
         <el-table-column prop="reportType" label="类型" width="120">
           <template #default="{ row }">
@@ -68,8 +68,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑报表' : '新建报表'" width="500px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑报表' : '新建报表'" width="500px" :aria-label="form.id ? '编辑报表对话框' : '新建报表对话框'">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="财务分析报表表单">
         <el-form-item label="报表名称" prop="reportName">
           <el-input v-model="form.reportName" placeholder="请输入报表名称" />
         </el-form-item>

@@ -1,6 +1,6 @@
 <template>
   <div class="bom-form">
-    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px">
+    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px" aria-label="BOM 表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="产品名称" prop="product_name">
@@ -48,7 +48,7 @@
         </el-button>
       </div>
 
-      <el-table :data="localFormData.items" border size="small" class="items-table">
+      <el-table :data="localFormData.items" border size="small" class="items-table" aria-label="BOM 明细列表">
         <el-table-column label="物料名称" min-width="180">
           <template #default="{ row }">
             <el-input v-model="row.material_name" placeholder="请输入物料名称" />

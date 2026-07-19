@@ -9,7 +9,7 @@
 
     <!-- 历史记录列表 -->
     <el-card class="table-card">
-      <el-table v-loading="loading" :data="historyList" stripe border>
+      <el-table v-loading="loading" :data="historyList" stripe border aria-label="MRP 历史列表">
         <el-table-column prop="calculation_no" label="计算编号" width="180" />
         <el-table-column label="产品" min-width="200">
           <template #default="{ row }">
@@ -59,12 +59,13 @@
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
+          aria-label="MRP 历史列表分页"
         />
       </div>
     </el-card>
 
     <!-- 结果详情对话框 -->
-    <el-dialog v-model="resultVisible" title="MRP 计算结果" width="90%" top="5vh">
+    <el-dialog v-model="resultVisible" title="MRP 计算结果" width="90%" top="5vh" aria-label="MRP 计算结果对话框">
       <template v-if="currentResult">
         <el-descriptions :column="3" border class="result-header">
           <el-descriptions-item label="计算编号">{{
@@ -100,7 +101,7 @@
 
         <el-divider content-position="left">物料需求清单</el-divider>
 
-        <el-table :data="currentResult.materials" stripe border max-height="400">
+        <el-table :data="currentResult.materials" stripe border max-height="400" aria-label="MRP 计算结果明细列表">
           <el-table-column prop="material_code" label="物料编码" width="140" />
           <el-table-column prop="material_name" label="物料名称" min-width="160" />
           <el-table-column prop="specification" label="规格" min-width="120" />
