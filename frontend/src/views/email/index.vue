@@ -4,7 +4,7 @@
       <h2>邮件管理</h2>
     </div>
 
-    <el-tabs v-model="activeTab" type="border-card" @tab-change="handleTabChange">
+    <el-tabs v-model="activeTab" type="border-card" aria-label="邮件管理标签页" @tab-change="handleTabChange">
       <!-- 邮件模板 Tab -->
       <el-tab-pane label="邮件模板" name="templates">
         <div class="tab-header">
@@ -14,7 +14,7 @@
           </el-button>
         </div>
 
-        <el-table v-loading="templatesLoading" :data="templates" border stripe>
+        <el-table v-loading="templatesLoading" :data="templates" border stripe aria-label="邮件模板列表">
           <el-table-column prop="name" label="模板名称" min-width="150" />
           <el-table-column prop="code" label="模板编码" min-width="120" />
           <el-table-column prop="template_type" label="模板类型" min-width="100">
@@ -46,13 +46,14 @@
           :total="templateTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="邮件模板列表分页"
         />
       </el-tab-pane>
 
       <!-- 发送记录 Tab -->
       <el-tab-pane label="发送记录" name="records">
         <div class="tab-header">
-          <el-form :inline="true" :model="recordStatus">
+          <el-form :inline="true" :model="recordStatus" aria-label="邮件发送记录筛选表单">
             <el-form-item label="状态">
               <el-select v-model="recordStatus" clearable placeholder="选择状态">
                 <el-option label="成功" value="sent" />
@@ -76,7 +77,7 @@
           </el-form>
         </div>
 
-        <el-table v-loading="recordsLoading" :data="records" border stripe>
+        <el-table v-loading="recordsLoading" :data="records" border stripe aria-label="邮件发送记录列表">
           <el-table-column prop="to" label="收件人" min-width="150" />
           <el-table-column prop="subject" label="主题" min-width="200" show-overflow-tooltip />
           <el-table-column prop="status" label="状态" width="80" align="center">
@@ -101,6 +102,7 @@
           :total="recordTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="邮件发送记录分页"
         />
       </el-tab-pane>
 
@@ -140,12 +142,14 @@
       v-model="templateDialogVisible"
       :title="isEditTemplate ? '编辑模板' : '新建模板'"
       width="600px"
+      aria-label="邮件模板编辑对话框"
     >
       <el-form
         ref="templateFormRef"
         :model="templateForm"
         :rules="templateRules"
         label-width="100px"
+        aria-label="邮件模板表单"
       >
         <el-form-item label="模板名称" prop="name">
           <el-input v-model="templateForm.name" placeholder="请输入模板名称" />

@@ -28,7 +28,7 @@
         </div>
       </template>
 
-      <el-table v-loading="loading" :data="accountList" stripe border>
+      <el-table v-loading="loading" :data="accountList" stripe border aria-label="资金账户列表">
         <el-table-column prop="account_no" label="账户编号" width="160" />
         <el-table-column prop="account_name" label="账户名称" min-width="160" />
         <el-table-column prop="bank_name" label="开户行" min-width="160" />
@@ -102,6 +102,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="资金账户列表分页"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
@@ -112,9 +113,10 @@
       v-model="dialogVisible"
       :title="dialogType === 'create' ? '新建账户' : '编辑账户'"
       width="600px"
+      aria-label="资金账户编辑对话框"
       @close="resetForm"
     >
-      <el-form ref="accountFormRef" :model="accountForm" :rules="accountRules" label-width="120px">
+      <el-form ref="accountFormRef" :model="accountForm" :rules="accountRules" label-width="120px" aria-label="资金账户表单">
         <el-form-item label="账户编号" prop="account_no">
           <el-input v-model="accountForm.account_no" placeholder="请输入账户编号" />
         </el-form-item>
@@ -161,8 +163,8 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" title="账户详情" width="600px">
-      <el-descriptions :column="2" border>
+    <el-dialog v-model="detailVisible" title="账户详情" width="600px" aria-label="资金账户详情对话框">
+      <el-descriptions :column="2" border aria-label="资金账户详情">
         <el-descriptions-item label="账户编号">{{
           currentAccount?.account_no || currentAccount?.account_code
         }}</el-descriptions-item>
@@ -217,12 +219,14 @@
       v-model="operationVisible"
       :title="operationType === 'deposit' ? '存款' : '取款'"
       width="500px"
+      aria-label="资金存取款对话框"
     >
       <el-form
         ref="operationFormRef"
         :model="operationForm"
         :rules="operationRules"
         label-width="120px"
+        aria-label="资金存取款表单"
       >
         <el-form-item label="操作账户">
           <el-input :value="currentAccount?.account_name" disabled />

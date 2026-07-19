@@ -1,6 +1,6 @@
 <template>
   <div class="quality-page">
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" aria-label="质量管理标签页">
       <el-tab-pane label="质量标准" name="standard">
         <StandardTab
           @open-history="viewVersionHistory"
@@ -21,12 +21,14 @@
       v-model="standardDialogVisible"
       :title="standardForm.id ? '编辑标准' : '新建标准'"
       width="700px"
+      aria-label="质量标准编辑对话框"
     >
       <el-form
         ref="standardFormRef"
         :model="standardForm"
         :rules="standardFormRules"
         label-width="100px"
+        aria-label="质量标准表单"
       >
         <el-form-item label="标准编号" prop="standard_code">
           <el-input
@@ -71,12 +73,13 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="approveDialogVisible" title="审批质量标准" width="500px">
+    <el-dialog v-model="approveDialogVisible" title="审批质量标准" width="500px" aria-label="质量标准审批对话框">
       <el-form
         ref="approveFormRef"
         :model="approveForm"
         :rules="approveFormRules"
         label-width="80px"
+        aria-label="质量标准审批表单"
       >
         <el-form-item label="标准编号">
           <el-input :model-value="approveStandardItem?.standard_code" disabled />
@@ -107,8 +110,8 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="versionHistoryVisible" title="版本历史" width="800px">
-      <el-table v-loading="versionHistoryLoading" :data="versionHistoryList" stripe>
+    <el-dialog v-model="versionHistoryVisible" title="版本历史" width="800px" aria-label="质量标准版本历史对话框">
+      <el-table v-loading="versionHistoryLoading" :data="versionHistoryList" stripe aria-label="质量标准版本历史列表">
         <el-table-column prop="version" label="版本" width="100" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
@@ -139,8 +142,9 @@
       v-model="recordDialogVisible"
       :title="recordForm.id ? '编辑检验' : '新建检验'"
       width="700px"
+      aria-label="检验记录编辑对话框"
     >
-      <el-form ref="recordFormRef" :model="recordForm" label-width="100px">
+      <el-form ref="recordFormRef" :model="recordForm" label-width="100px" aria-label="检验记录表单">
         <el-form-item label="记录编号" prop="record_no">
           <el-input v-model="recordForm.record_no" :disabled="!!recordForm.id" />
         </el-form-item>

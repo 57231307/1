@@ -12,7 +12,7 @@
       </el-button>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="returnQuery">
+      <el-form :inline="true" :model="returnQuery" aria-label="采购退货筛选表单">
         <el-form-item label="退货单号">
           <el-input v-model="returnQuery.returnNo" placeholder="退货单号" clearable />
         </el-form-item>
@@ -35,7 +35,7 @@
       </el-form>
     </el-card>
     <el-card shadow="hover">
-      <el-table v-loading="returnLoading" :data="purchaseReturns" stripe>
+      <el-table v-loading="returnLoading" :data="purchaseReturns" stripe aria-label="采购退货列表">
         <el-table-column prop="returnNo" label="退货单号" width="140" />
         <el-table-column prop="supplierName" label="供应商" min-width="150" />
         <el-table-column prop="purchaseOrderNo" label="订单号" width="140" />
@@ -77,8 +77,9 @@
       v-model="returnDialogVisible"
       :title="returnForm.id ? '编辑采购退货' : '新建采购退货'"
       width="800px"
+      aria-label="采购退货编辑对话框"
     >
-      <el-form ref="returnFormRef" :model="returnForm" :rules="returnRules" label-width="100px">
+      <el-form ref="returnFormRef" :model="returnForm" :rules="returnRules" label-width="100px" aria-label="采购退货表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="退货单号" prop="returnNo">
@@ -112,7 +113,7 @@
           <el-input v-model="returnForm.reason" type="textarea" />
         </el-form-item>
         <el-divider>退货明细</el-divider>
-        <el-table :data="returnForm.items" border style="width: 100%">
+        <el-table :data="returnForm.items" border style="width: 100%" aria-label="采购退货明细编辑表">
           <el-table-column prop="productName" label="产品名称" min-width="150">
             <template #default="{ row }">
               <el-input v-model="row.productName" placeholder="产品名称" />
@@ -169,8 +170,8 @@
     </el-dialog>
 
     <!-- 退货详情对话框 -->
-    <el-dialog v-model="returnViewVisible" title="采购退货详情" width="800px">
-      <el-descriptions :column="2" border>
+    <el-dialog v-model="returnViewVisible" title="采购退货详情" width="800px" aria-label="采购退货详情对话框">
+      <el-descriptions :column="2" border aria-label="采购退货详情">
         <el-descriptions-item label="退货单号">{{ currentReturn?.returnNo }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{
           currentReturn?.supplierName
@@ -195,7 +196,7 @@
       <el-divider>退货原因</el-divider>
       <p>{{ currentReturn?.reason }}</p>
       <el-divider>退货明细</el-divider>
-      <el-table :data="currentReturn?.items || []" stripe>
+      <el-table :data="currentReturn?.items || []" stripe aria-label="采购退货明细列表">
         <el-table-column prop="productName" label="产品名称" min-width="150" />
         <el-table-column prop="productCode" label="产品编码" width="120" />
         <el-table-column prop="quantity" label="数量" width="100" align="right" />
