@@ -995,7 +995,7 @@ impl ArService {
     /// 批量 UPDATE 发票状态：去重后逐个 update_with_audit
     async fn batch_update_invoice_states(
         &self,
-        inv_map: std::collections::HashMap<i32, ar_invoice::Model>,
+        mut inv_map: std::collections::HashMap<i32, ar_invoice::Model>,
         touched_invoice_ids: Vec<i32>,
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,

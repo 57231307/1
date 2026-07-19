@@ -125,12 +125,13 @@ impl SalesService {
         let totals = self
             .create_order_items_and_calculate_totals(request.items, order_entity.id, &txn)
             .await?;
+        let total_amount_for_writeback = totals.total_amount;
         let order_id = self
             .update_order_totals(order_entity, totals, user_id, &txn)
             .await?;
         self.occupy_credit_and_warn(customer_id, order_amount, user_id)
             .await?;
-        self.writeback_opportunity(opportunity_id, totals.total_amount, &txn)
+        self.writeback_opportunity(opportunity_id, total_amount_for_writeback, &txn)
             .await?;
         txn.commit().await?;
         // 返回订单详情（service 内部调用，无数据权限过滤）
@@ -157,9 +158,6 @@ impl SalesService {
             .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(30));
         if required_date < chrono::Utc::now() {
             tracing::error!("Transaction rolled back: 交付日期不能早于当前时间");
-            if let Err(e) = txn.rollback().await {
-                tracing::error!("事务回滚失败: {}", e);
-            }
             return Err(AppError::business(
                 "创建面料订单失败: 交付日期不能早于当前时间".to_string(),
             ));
@@ -222,7 +220,6 @@ impl SalesService {
             .map_err(|err| AppError::business(format!("信用检查失败: {}", err)))?;
         if !credit_available {
             tracing::error!("Transaction rolled back: 信用额度不足");
-            txn.rollback().await?;
             return Err(AppError::business(format!(
                 "信用额度不足：订单金额 {} 超出可用信用额度",
                 order_amount
@@ -245,7 +242,6 @@ impl SalesService {
             .await?;
         if existing_order.is_some() {
             tracing::error!("Transaction rolled back: 订单号 {} 已存在", order_no);
-            txn.rollback().await?;
             return Err(AppError::business("订单号已存在，请重试"));
         }
         Ok(order_no)
@@ -314,9 +310,6 @@ impl SalesService {
         for product_id in product_ids {
             if !existing_product_ids.contains(&product_id) {
                 tracing::error!("Transaction rolled back: 产品 ID {} 不存在", product_id);
-                if let Err(e) = txn.rollback().await {
-                    tracing::error!("事务回滚失败: {}", e);
-                }
                 return Err(AppError::business(format!("产品 ID {} 不存在", product_id)));
             }
         }

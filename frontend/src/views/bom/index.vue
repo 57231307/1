@@ -119,7 +119,7 @@
       width="900px"
       :close-on-click-modal="false"
       @close="resetForm"
-      :aria-label="form.id ? '编辑 BOM 对话框' : '新建 BOM 对话框'"
+      :aria-label="formData.id ? '编辑 BOM 对话框' : '新建 BOM 对话框'"
     >
       <BomForm
         ref="bomFormRef"
