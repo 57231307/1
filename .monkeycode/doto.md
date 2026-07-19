@@ -716,8 +716,12 @@ P0-D17 OA 公告 (M)  ← 独立
   - D06-11 (8cc4506)：trading/tabs 5 个 Tab
   - D06-12 (c1f638a)：system-update + supplier + sales-price 5 文件
   - D06-13 (e77f276)：sales-price/components 5 个组件（SpTbl/SpForm/SpFilter/SpHistory/SpView）
-  - D06-14 (本批)：sales-contract/components + sales-returns/components 5 文件（ScFilter/ScForm/ReturnsTable/ReturnEditDialog/ReturnDetailDialog，ScTbl 已迁移 V2Table 跳过）
-  - 累计完成约 70 个文件，待处理剩余 ~305 个 .vue 文件
+  - D06-14 (b01b1c5)：sales-contract/components + sales-returns/components 5 文件（ScTbl 已迁移 V2Table 跳过）
+  - D06-15 (c41f443)：logistics/components + purchase-price/components 5 文件（LgsStat 无目标元素 + LgsTbl 已迁移 V2Table 跳过）
+  - D06-16 (a0e0986)：purchase-price/components 剩余 + purchase-contract/components 5 文件
+  - D06-17 (9d1a109)：purchase-contract/components 剩余 + purchase-inspection/components 5 文件
+  - D06-18 (ffc04cd)：purchase-inspection/components 剩余 + production/components 5 文件（PiStat 无目标元素 + PrdTbl 已迁移 V2Table 跳过）
+  - 累计完成约 90 个文件，待处理剩余 ~285 个 .vue 文件
 
 #### ✅ P0-D07 图片 alt 属性完全缺失（类七，审计误判已完成）
 
