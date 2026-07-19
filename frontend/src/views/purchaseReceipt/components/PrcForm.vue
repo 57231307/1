@@ -9,9 +9,10 @@
     :model-value="visible"
     :title="title"
     width="800px"
+    :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px" aria-label="采购入库单表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="入库单号" prop="receipt_no">

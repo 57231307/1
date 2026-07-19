@@ -8,6 +8,7 @@
     :model-value="modelValue"
     title="新建采购单"
     width="800px"
+    aria-label="新建采购单对话框"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
     <el-form
@@ -15,6 +16,7 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
+      aria-label="采购单表单"
     >
       <el-row :gutter="20">
         <el-col :span="12">

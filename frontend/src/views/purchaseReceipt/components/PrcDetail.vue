@@ -8,6 +8,7 @@
     :model-value="visible"
     title="入库单详情"
     width="800px"
+    aria-label="采购入库单详情对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <div v-if="data">
@@ -27,7 +28,7 @@
       </el-descriptions>
       <div class="detail-items">
         <h4>入库明细</h4>
-        <el-table :data="items" border style="width: 100%">
+        <el-table :data="items" border style="width: 100%" aria-label="入库单明细列表">
           <el-table-column prop="product_code" label="产品编码" width="120" />
           <el-table-column prop="product_name" label="产品名称" width="150" />
           <el-table-column prop="color_no" label="色号" width="100" />

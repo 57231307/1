@@ -26,6 +26,7 @@ const emit = defineEmits<{
     :model-value="modelValue"
     title="采购单详情"
     width="800px"
+    aria-label="采购单详情对话框"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
     <template v-if="data">
@@ -60,7 +61,7 @@ const emit = defineEmits<{
       </el-descriptions>
       <div style="margin-top: 20px">
         <h4>采购明细</h4>
-        <el-table :data="data.items || []" border style="width: 100%">
+        <el-table :data="data.items || []" border style="width: 100%" aria-label="采购单明细列表">
           <el-table-column prop="product_name" label="产品" width="150" />
           <el-table-column prop="product_code" label="产品编码" width="120" />
           <el-table-column prop="quantity" label="数量" width="100" />
