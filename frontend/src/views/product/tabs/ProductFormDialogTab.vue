@@ -18,6 +18,7 @@
       :rules="formRules"
       label-width="100px"
       :disabled="mode === 'view'"
+      aria-label="产品表单"
     >
       <el-row :gutter="20">
         <el-col :span="12">

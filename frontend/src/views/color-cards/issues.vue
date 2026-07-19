@@ -10,7 +10,7 @@
       <el-tabs v-model="activeTab" aria-label="色卡发放管理标签页">
         <!-- 发放 -->
         <el-tab-pane label="发放色卡" name="issue">
-          <el-form :model="issueForm" :rules="issueRules" ref="issueFormRef" label-width="100px" style="max-width: 600px">
+          <el-form :model="issueForm" :rules="issueRules" ref="issueFormRef" label-width="100px" style="max-width: 600px" aria-label="发放色卡表单">
             <el-form-item label="选择色卡" prop="color_card_id">
               <el-select v-model="issueForm.color_card_id" filterable placeholder="搜索色卡编号或名称" style="width: 100%">
                 <el-option

@@ -93,8 +93,8 @@
     </el-dialog>
 
     <!-- 解决异常对话框 -->
-    <el-dialog v-model="resolveVisible" title="解决质量异常" width="500px">
-      <el-form :model="resolveForm" label-width="80px">
+    <el-dialog v-model="resolveVisible" title="解决质量异常" width="500px" aria-label="解决质量异常对话框">
+      <el-form :model="resolveForm" label-width="80px" aria-label="解决质量异常表单">
         <el-form-item label="解决方案" required>
           <el-input v-model="resolveForm.resolution" type="textarea" :rows="3" />
         </el-form-item>
