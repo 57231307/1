@@ -22,7 +22,7 @@
         <el-button type="primary" @click="openRatingDialog">设置信用评级</el-button>
       </div>
 
-      <el-table :data="creditList" border stripe>
+      <el-table :data="creditList" border stripe aria-label="客户信用列表">
         <el-table-column prop="customer_name" label="客户名称" />
         <el-table-column prop="credit_rating" label="信用等级">
           <template #default="{ row }">
@@ -76,6 +76,7 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
+        aria-label="客户信用列表分页"
         @size-change="handleSizeChange"
       />
     </el-card>

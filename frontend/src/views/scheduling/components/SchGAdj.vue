@@ -8,9 +8,10 @@
     :model-value="visible"
     title="调整排程时间"
     width="450px"
+    aria-label="调整排程时间"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localForm" label-width="100px">
+    <el-form :model="localForm" label-width="100px" aria-label="排班调整表单">
       <el-form-item label="工单号">
         <span>{{ adjustTask.order_no }}</span>
       </el-form-item>

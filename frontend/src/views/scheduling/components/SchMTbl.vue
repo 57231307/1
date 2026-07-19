@@ -30,7 +30,7 @@
         </div>
       </div>
     </template>
-    <el-table v-loading="taskLoading" :data="taskList" stripe>
+    <el-table v-loading="taskLoading" :data="taskList" stripe aria-label="排班列表">
       <el-table-column prop="order_no" label="工单号" width="140" />
       <el-table-column prop="product_name" label="产品名称" width="160" />
       <el-table-column prop="work_center_name" label="工作中心" width="130" />
@@ -76,6 +76,7 @@
       :page-sizes="[10, 20, 50]"
       layout="total, sizes, prev, pager, next"
       class="pagination"
+      aria-label="排班列表分页"
       @update:current-page="(v: number) => emit('update:currentPage', v)"
       @update:page-size="(v: number) => emit('update:pageSize', v)"
     />

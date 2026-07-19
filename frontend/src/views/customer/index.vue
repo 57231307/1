@@ -36,7 +36,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="客户筛选表单">
         <el-form-item label="关键词">
           <el-input v-model="queryParams.keyword" placeholder="客户编码/名称/联系人" clearable />
         </el-form-item>
@@ -61,7 +61,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="customers" stripe>
+      <el-table v-loading="loading" :data="customers" stripe aria-label="客户列表">
         <el-table-column prop="customer_code" label="客户编码" width="120" fixed />
         <el-table-column prop="customer_name" label="客户名称" min-width="180" fixed />
         <el-table-column prop="contact_person" label="联系人" width="100" />
@@ -118,6 +118,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="客户列表分页"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />

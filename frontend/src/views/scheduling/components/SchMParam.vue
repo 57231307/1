@@ -9,7 +9,7 @@
         <span>排程参数</span>
       </div>
     </template>
-    <el-form :model="scheduleParams" label-width="90px" size="small">
+    <el-form :model="scheduleParams" label-width="90px" size="small" aria-label="排班参数表单">
       <el-form-item label="排程范围">
         <el-date-picker
           :model-value="dateRange"
