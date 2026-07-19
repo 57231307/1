@@ -26,7 +26,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="仓库筛选表单">
         <el-form-item label="关键词">
           <el-input v-model="queryParams.keyword" placeholder="仓库编码/名称" clearable />
         </el-form-item>
@@ -52,7 +52,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="warehouses" stripe>
+      <el-table v-loading="loading" :data="warehouses" stripe aria-label="仓库列表">
         <el-table-column prop="warehouse_code" label="仓库编码" width="120" fixed />
         <el-table-column prop="warehouse_name" label="仓库名称" min-width="180" fixed />
         <el-table-column prop="warehouse_type" label="类型" width="100">
@@ -102,6 +102,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="仓库列表分页"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
@@ -114,9 +115,10 @@
       :title="dialogTitle"
       width="600px"
       :close-on-click-modal="false"
+      aria-label="仓库编辑对话框"
       @close="resetForm"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" aria-label="仓库信息表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="仓库编码" prop="warehouse_code">

@@ -18,7 +18,7 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm">
+      <el-form :inline="true" :model="queryForm" aria-label="预算筛选表单">
         <el-form-item label="预算编号">
           <el-input v-model="queryForm.budget_no" placeholder="编号" clearable />
         </el-form-item>
@@ -41,7 +41,7 @@
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="budgetList" stripe>
+      <el-table v-loading="loading" :data="budgetList" stripe aria-label="预算列表">
         <el-table-column prop="budget_no" label="预算编号" width="140" />
         <el-table-column prop="name" label="预算名称" min-width="180" />
         <el-table-column prop="period" label="期间" width="120" />
@@ -79,14 +79,15 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="预算列表分页"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑预算' : '新建预算'" width="500px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑预算' : '新建预算'" width="500px" aria-label="预算编辑对话框">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="预算表单">
         <el-form-item label="预算编号" prop="budget_no">
           <el-input v-model="form.budget_no" :disabled="!!form.id" />
         </el-form-item>

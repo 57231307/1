@@ -37,7 +37,7 @@
         </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" stripe>
+      <el-table v-loading="loading" :data="list" stripe aria-label="报表模板列表">
         <el-table-column prop="template_code" label="模板编号" width="140" />
         <el-table-column prop="template_name" label="模板名称" min-width="180" />
         <el-table-column prop="category" label="分类" width="100">
@@ -92,14 +92,15 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="报表模板列表分页"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑模板' : '新建模板'" width="800px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑模板' : '新建模板'" width="800px" aria-label="报表模板编辑对话框">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="报表模板表单">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="模板编号" prop="template_code">
@@ -165,7 +166,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="previewVisible" title="报表预览" width="900px">
+    <el-dialog v-model="previewVisible" title="报表预览" width="900px" aria-label="报表预览对话框">
       <div v-loading="previewLoading" class="preview-container">
         <!-- Wave B-2 修复（B3-1）：使用 DOMPurify 净化后端返回的 HTML，防止 XSS 注入 -->
         <div v-if="previewData" v-html="sanitizedPreview"></div>

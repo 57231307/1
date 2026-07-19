@@ -18,7 +18,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="currencyList" stripe>
+      <el-table v-loading="loading" :data="currencyList" stripe aria-label="币种列表">
         <el-table-column prop="code" label="编码" width="80" />
         <el-table-column prop="name" label="名称" width="120" />
         <el-table-column prop="symbol" label="符号" width="60" align="center" />
@@ -49,8 +49,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" title="新建币种" width="500px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-dialog v-model="dialogVisible" title="新建币种" width="500px" aria-label="新建币种对话框">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="新建币种表单">
         <el-form-item label="币种编码" prop="code">
           <el-input v-model="form.code" placeholder="如 USD" />
         </el-form-item>
@@ -73,8 +73,8 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="rateDialogVisible" title="新增汇率" width="500px">
-      <el-form ref="rateFormRef" :model="rateForm" :rules="rateRules" label-width="100px">
+    <el-dialog v-model="rateDialogVisible" title="新增汇率" width="500px" aria-label="新增汇率对话框">
+      <el-form ref="rateFormRef" :model="rateForm" :rules="rateRules" label-width="100px" aria-label="新增汇率表单">
         <el-form-item label="源币种" prop="fromCurrency">
           <el-select v-model="rateForm.fromCurrency" placeholder="选择源币种" style="width: 100%">
             <el-option

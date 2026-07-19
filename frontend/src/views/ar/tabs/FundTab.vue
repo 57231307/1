@@ -49,7 +49,7 @@
     </el-row>
 
     <el-card shadow="hover" class="mt-20">
-      <el-table v-loading="fundLoading" :data="funds" stripe>
+      <el-table v-loading="fundLoading" :data="funds" stripe aria-label="资金账户列表">
         <el-table-column prop="account_code" label="账户编码" width="120" />
         <el-table-column prop="account_name" label="账户名称" min-width="150" />
         <el-table-column prop="account_type" label="账户类型" width="100">
@@ -91,8 +91,8 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="fundDialogVisible" title="新建资金账户" width="500px">
-      <el-form ref="fundFormRef" :model="fundForm" :rules="fundRules" label-width="80px">
+    <el-dialog v-model="fundDialogVisible" title="新建资金账户" width="500px" aria-label="新建资金账户对话框">
+      <el-form ref="fundFormRef" :model="fundForm" :rules="fundRules" label-width="80px" aria-label="新建资金账户表单">
         <el-form-item label="账户编码" prop="account_code">
           <el-input v-model="fundForm.account_code" placeholder="请输入账户编码" />
         </el-form-item>
@@ -120,8 +120,8 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="fundOperationDialogVisible" :title="fundOperationTitle" width="400px">
-      <el-form label-width="80px">
+    <el-dialog v-model="fundOperationDialogVisible" :title="fundOperationTitle" width="400px" aria-label="资金账户操作对话框">
+      <el-form label-width="80px" aria-label="资金账户操作表单">
         <el-form-item label="金额">
           <el-input-number
             v-model="fundOperationAmount"
