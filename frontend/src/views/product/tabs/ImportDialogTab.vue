@@ -9,6 +9,7 @@
     title="导入产品"
     width="500px"
     :close-on-click-modal="false"
+    aria-label="产品导入对话框"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
     <div style="margin-bottom: 16px">

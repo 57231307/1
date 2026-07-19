@@ -8,6 +8,7 @@
     :model-value="modelValue"
     title="产品分类管理"
     width="600px"
+    aria-label="产品分类对话框"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
     <div class="category-dialog-content">
@@ -22,7 +23,13 @@
           添加分类
         </el-button>
       </div>
-      <el-table v-loading="loading" :data="categories" stripe style="margin-top: 15px">
+      <el-table
+        v-loading="loading"
+        :data="categories"
+        stripe
+        aria-label="产品分类列表"
+        style="margin-top: 15px"
+      >
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="分类名称" />
         <el-table-column prop="description" label="描述" />

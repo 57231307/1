@@ -14,7 +14,7 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="batches" stripe>
+      <el-table v-loading="loading" :data="batches" stripe aria-label="染色批次列表">
         <el-table-column prop="batch_no" label="批次号" width="140" />
         <el-table-column prop="color_name" label="颜色" width="120" />
         <el-table-column prop="greige_fabric_name" label="坯布" width="150" />

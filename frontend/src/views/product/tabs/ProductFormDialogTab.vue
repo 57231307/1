@@ -9,6 +9,7 @@
     :title="title"
     width="700px"
     :close-on-click-modal="false"
+    :aria-label="title"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
     <el-form

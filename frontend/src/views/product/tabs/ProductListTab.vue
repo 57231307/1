@@ -66,7 +66,7 @@
     </el-row>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="产品筛选表单">
         <el-form-item label="关键词">
           <el-input v-model="queryParams.keyword" placeholder="产品编码/名称" clearable />
         </el-form-item>
@@ -100,7 +100,7 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="products" stripe>
+      <el-table v-loading="loading" :data="products" stripe aria-label="产品列表">
         <el-table-column prop="product_code" label="产品编码" width="140" fixed />
         <el-table-column prop="product_name" label="产品名称" min-width="180" fixed />
         <el-table-column prop="category_name" label="分类" width="120">
@@ -152,6 +152,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="产品列表分页"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
