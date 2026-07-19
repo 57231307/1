@@ -140,6 +140,12 @@ rskafka = { version = "0.5", default-features = false }
 # 异步 trait（Redis 缓存层使用）
 async-trait = "0.1"
 
+# 性能基准测试（V15 Batch 487 P0-T07）
+# 必须放在 [dependencies] 而非 [dev-dependencies]，因为 Cargo 不允许 dev-dependencies 为 optional
+# optional = true 避免在 default features 下编译 criterion，减少 CI cargo test/build 编译时间
+# 运行性能基准：cargo bench --features bench
+criterion = { version = "0.5", features = ["async_tokio"], optional = true }
+
 [dev-dependencies]
 # 开发测试相关依赖
 tokio-test = "0.4"
@@ -149,10 +155,6 @@ tower = "0.5"
 sea-orm = { version = "1.1.20", features = ["sqlx-sqlite", "runtime-tokio"] }
 # 测试用 Decimal 字面量宏
 rust_decimal_macros = "1.34"
-# 性能基准测试（V15 Batch 487 P0-T07）
-# optional = true 避免在 default features 下编译 criterion，减少 CI cargo test 编译时间
-# 运行性能基准：cargo bench --features bench
-criterion = { version = "0.5", features = ["async_tokio"], optional = true }
 
 [build-dependencies]
 
