@@ -1,861 +1,103 @@
 
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#doc_lazy_continuation
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#erasing_op
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#identity_op
-     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#useless_vec
-     = help: if this is supposed to be its own paragraph, add a blank line
-     = note: `#[deny(clippy::erasing_op)]` on by default
-     = note: `#[warn(clippy::doc_lazy_continuation)]` on by default
-     = note: `#[warn(clippy::identity_op)]` on by default
-     |
-     |                                     ^^^^^^^^^
-     |                                     ^^^^^^^^^ help: consider reducing it to: `7`
-     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom展开_需要真实数据库`
-     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_获取_bom树_需要真实数据库`
-     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_查询_mrp结果_需要真实数据库`
-     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_服务实例化_sqlite内存数据库`
-     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_服务实例化_使用_sqlite内存数据库`
-     |         ++
-     |         +++
-     |         ^
-     |        ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_工人_ids解析_空值`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_ap状态常量值正确性`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_ar状态常量值正确性`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_工人_ids解析_带空格`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试流转校验_合法返回_ok`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `测试_等级判定_c级_80以下`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_mrp状态常量值正确性`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_等级判定_a级_95以上`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试流转校验_非法返回_err`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom数量计算_含损耗率`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_对账单号格式_rec前缀`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_工人_ids解析_正常情况`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_工资计算_计件_b级8折`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `测试_工资计算_计件_c级不计`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_工资计算_计件_a级全额`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `测试_csv表头_列数与列名验证`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom提前期计算_层级递减`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom数量计算_精度归一化`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_工人_ids解析_非法值过滤`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_辅助核算五维_id拼接格式`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_合格率计算_none按零处理`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_等级判定_b级_80到95区间`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试流转校验_非法状态返回_err`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_from_str_与decs宏结果一致`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_错误消息_产品不存在包含_id`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom数量计算_基础数量无损耗`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_approve状态机门_仅_draft允许`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_decs_宏_解析字符串为_decimal`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_decs_宏_解析整数串为_decimal`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试计算单位能耗_产量为零返回_none`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_错误消息_工作中心不存在包含_id`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_错误消息_销售订单不存在包含_id`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_订单类型转换_非_planned状态拒绝`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试计算单位能耗_产量为_none返回_none`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_voucher_type_definition_new构造器`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试计算剩余保质期_无失效日期返回_none`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_delete_order状态校验门_仅_draft允许`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_delete_order状态校验门_非_draft禁止`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试状态流转_from_status为_none返回false`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_数量计算_bom用量乘以生产数量_小数结果`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_数量计算_bom用量乘以生产数量_整数结果`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_cancel状态机门_仅_audited和_partial_paid允许`
-     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_mark_as_paid状态机门_仅_audited和_partial_paid允许`
-     |  _____________________^
-     |  ____________________________^
-     | |_________^
-    --> src/services/ap_invoice_service.rs:1074:8
-    --> src/services/ap_invoice_service.rs:1210:8
-    --> src/services/ap_invoice_service.rs:1226:8
-    --> src/services/ap_invoice_service.rs:1242:8
-    --> src/services/ap_reconciliation_service.rs:1236:8
-    --> src/services/ar/vfy.rs:1021:9
-    --> src/services/ar_service.rs:1883:8
-    --> src/services/ar_service.rs:2017:14
-    --> src/services/bom_service.rs:1013:14
-    --> src/services/chemical_service.rs:1570:8
-    --> src/services/dye_batch_state_machine_service.rs:1394:8
-    --> src/services/dye_batch_state_machine_service.rs:1465:8
-    --> src/services/dye_batch_state_machine_service.rs:1472:8
-    --> src/services/dye_batch_state_machine_service.rs:1478:8
-    --> src/services/energy_service.rs:1728:8
-    --> src/services/energy_service.rs:1734:8
-    --> src/services/mrp_engine_service.rs:1067:8
-    --> src/services/mrp_engine_service.rs:1290:8
-    --> src/services/mrp_engine_service.rs:1302:8
-    --> src/services/mrp_engine_service.rs:1319:8
-    --> src/services/mrp_engine_service.rs:1331:8
-    --> src/services/mrp_engine_service.rs:1335:37
-    --> src/services/mrp_engine_service.rs:1343:37
-    --> src/services/mrp_engine_service.rs:1353:28
-    --> src/services/mrp_engine_service.rs:1452:8
-    --> src/services/mrp_engine_service.rs:1534:14
-    --> src/services/mrp_engine_service.rs:1558:14
-    --> src/services/po/order.rs:1005:8
-    --> src/services/po/order.rs:1057:14
-    --> src/services/po/order.rs:1142:8
-    --> src/services/po/order.rs:1150:8
-    --> src/services/production_order_service.rs:1722:8
-    --> src/services/production_order_service.rs:1733:8
-    --> src/services/production_order_service.rs:1818:8
-    --> src/services/production_order_service.rs:1827:8
-    --> src/services/production_order_service.rs:1834:8
-    --> src/services/production_order_service.rs:1909:8
-    --> src/services/production_order_service.rs:1916:8
-    --> src/services/production_order_service.rs:1939:8
-    --> src/services/production_order_service.rs:1953:14
-    --> src/services/voucher_service.rs:1204:9
-    --> src/services/voucher_service.rs:1371:21
-    --> src/services/voucher_service.rs:1381:21
-    --> src/services/voucher_service.rs:1732:8
-    --> src/services/voucher_service.rs:1776:9
-    --> src/services/voucher_service.rs:1807:8
-    --> src/services/wage_service.rs:1117:8
-    --> src/services/wage_service.rs:1128:8
-    --> src/services/wage_service.rs:1147:8
-    --> src/services/wage_service.rs:1166:8
-    --> src/services/wage_service.rs:1234:8
-    --> src/services/wage_service.rs:1277:8
-    --> src/services/wage_service.rs:1321:8
-    --> src/services/wage_service.rs:1448:8
-    --> src/services/wage_service.rs:1455:8
-    --> src/services/wage_service.rs:1462:8
-    --> src/services/wage_service.rs:1470:8
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#bool_assert_comparison
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#bool_comparison
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrow
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#nonminimal_bool
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#single_match
     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#too_many_arguments
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#unnecessary_literal_unwrap
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#useless_vec
-    = note: `#[warn(clippy::bool_assert_comparison)]` on by default
-    = note: `#[warn(clippy::bool_comparison)]` on by default
-    = note: `#[warn(clippy::needless_borrow)]` on by default
-    = note: `#[warn(clippy::nonminimal_bool)]` on by default
-    = note: `#[warn(clippy::single_match)]` on by default
     = note: `#[warn(clippy::too_many_arguments)]` on by default
-    = note: `#[warn(clippy::unnecessary_literal_unwrap)]` on by default
-    = note: `#[warn(clippy::useless_vec)]` on by default
-    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
-    = note: you might want to preserve the comments from inside the `match`
     |
-    |                                                                       ^^^^^^^^^^^^^^
-    |                                                  ^^^^
-    |                                                 ^^^^
-    |                                                 ^^^^^^^^^^^^^
-    |                                                 ^^^^^^^^^^^^^^^^^^^
-    |                                                 ^^^^^^^^^^^^^^^^^^^^
-    |                                            ^^^^
-    |                                         ^^^^
-    |                                         ^^^^^^^^^^^^^^
-    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |                                    ^^ help: change this to: `t`
-    |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |                        ^^^^^^^^^^^^^^^^^^
-    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |                 ^^^^^^^^^^^^^^^^^^^ help: try: `credit_ok != false`
-    |                 ^^^^^^^^^^^^^^^^^^^ help: try: `credit_ok`
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(expected_same >= order_date)`
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(expected_after >= order_date)`
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(customer_active == master_data::ACTIVE)`
-    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `(model_active.status == master_data::ACTIVE)`
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求收集_单叶子节点`
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_创建_bom_需要真实数据库`
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求数量计算_递归多层级`
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_服务实例化_sqlite内存数据库`
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求数量计算_叶子节点无损耗率`
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求数量计算_叶子节点有损耗率`
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求数量计算_损耗率为零不放大`
-    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom需求数量计算_精度归一化四位小数`
-    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |        ^^^^^^^^^^^^
-    |        ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom损耗率乘数公式`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_错误消息_bom不存在`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom树根节点数量为一`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `测试_质检分级_c级_不合格区间`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_verify_zip_magic合法_zip`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_质检分级_a级_合格率达标`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom状态常量_active值正确`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom状态常量_pending值正确`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_verify_zip_magic非_zip文件`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_质检分级_b级_让步接收区间`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_质检分级_none视为零合格率`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom状态常量_inactive值正确`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_对账状态常量_pending值正确`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_订单初始状态_使用_draft常量`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_货币默认值_未指定时使用_cny`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `测试_付款状态常量_confirmed值正确`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `测试_对账状态常量_cancelled值正确`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_method_to_action_get映射read`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_状态机转换_确认需_pending状态`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_错误消息_bom已处于审核中状态`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_method_to_action_put映射update`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_resource_info_非_api路径`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_matches_permission_全部匹配无_id`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_method_to_action_post映射create`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_bom状态枚举_display实现互不相同`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `测试_等级处理方式校验_c级品返工或报废`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_method_to_action_patch映射update`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_matches_permission_id精确匹配相等`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_method_to_action_delete映射delete`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_product_id过滤_含_none时过滤掉_none`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_version_response和_update_result构造`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_resource_info_标准路径带_id`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_resource_info_标准路径无_id`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_segment3_非_api路径返回_none`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_product_id过滤_全部_none时返回空vec`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_状态机转换_争议或_pending可继续争议`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_等级处理方式校验_b级品必须降级销售`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_credit_limit语义_创建场景_none默认零`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_product_id过滤_全部_some时收集所有id`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_等级处理方式校验_a级品无需不合格处理`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_matches_permission_通配符加_id精确匹配`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_credit_limit语义_更新场景_none保持原值`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_查询参数_default实现_全部字段为空或零`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_resource_info_动作段不误判为_id`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_resource_info_模块前缀路径带_id`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_resource_info_模块前缀路径无_id`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_credit_limit语义_更新场景_some0显式置零`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_credit_limit语义_更新场景_some_v设置新值`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_validate_custom_condition拒绝_sql关键字`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_action_from_path_无动作返回_none`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_resource_info_嵌套路径带_id和动作`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_credit_limit语义_创建场景_some_v设置初始值`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_matches_permission_id精确匹配不等返回false`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_推导付款状态_已收金额为零_返回_partial_paid`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_推导付款状态_已收金额大于发票金额_返回_paid`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_matches_permission_权限无_id请求有_id返回false`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_matches_permission_权限有_id请求无_id返回false`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_calculate_quantity_kg_克重为_none回退fallback`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_calculate_quantity_kg_幅宽为_none回退fallback`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_action_from_path_非动作关键字返回_none`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_action_from_query_无action参数返回_none`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_action_from_query_无查询字符串返回_none`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `test_extract_action_from_query_白名单外动作返回_none`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_推导付款状态_已收金额等于发票金额_边界返回_paid`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_推导付款状态_已收金额和发票金额均为零_边界返回_paid`
-    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `测试_推导付款状态_已收金额小于发票金额_返回_partial_paid`
-    |  ______________________^
+    |                                                ^^ expected `&str`, found integer
+    |                                         ^^^ expected `&str`, found integer
+    |                                        ^^^^ expected `&str`, found floating-point number
+    |                                        ^^^^ expected `&str`, found integer
+    |                                        ^^^^^^ expected `&str`, found floating-point number
+    |                                      ^^^ expected `&str`, found integer
+    |                                     ^^^ expected `&str`, found integer
+    |                                    ^^ expected `&str`, found integer
+    |                                    ^^^ expected `&str`, found integer
+    |                                    ^^^^ expected `&str`, found integer
+    |                                 ^^ expected `&str`, found integer
+    |                               ^^ expected `&str`, found integer
+    |                               ^^^ expected `&str`, found integer
+    |                               ^^^^^^ expected `&str`, found floating-point number
+    |                             ^ expected `&str`, found integer
+    |                             ^^ expected `&str`, found integer
+    |                             ^^^ expected `&str`, found integer
+    |         ------------------------------- arguments to this function are incorrect
     | |_____^
-    | |_________^
-    | |_________^ help: try: `if let Ok(opt) = result { assert!(opt.is_none(), "空库应返回 None") }`
     | |______________________________________^
     | |___________________________________________________________________^
-   --> src/handlers/data_permission_handler.rs:363:8
-   --> src/handlers/print_handler.rs:243:36
-   --> src/handlers/system_update_handler.rs:429:8
-   --> src/handlers/system_update_handler.rs:447:8
-   --> src/handlers/system_update_handler.rs:481:8
-   --> src/middleware/permission.rs:405:8
-   --> src/middleware/permission.rs:412:8
-   --> src/middleware/permission.rs:419:8
-   --> src/middleware/permission.rs:426:8
-   --> src/middleware/permission.rs:433:8
-   --> src/middleware/permission.rs:440:8
-   --> src/middleware/permission.rs:461:8
-   --> src/middleware/permission.rs:500:8
-   --> src/middleware/permission.rs:541:8
-   --> src/middleware/permission.rs:547:8
-   --> src/middleware/permission.rs:558:8
-   --> src/middleware/permission.rs:563:8
-   --> src/middleware/permission.rs:568:8
-   --> src/middleware/permission.rs:573:8
-   --> src/middleware/permission.rs:578:8
-   --> src/middleware/permission.rs:693:8
-   --> src/middleware/permission.rs:701:8
-   --> src/middleware/permission.rs:710:8
-   --> src/middleware/permission.rs:747:8
-   --> src/middleware/permission.rs:761:8
-   --> src/middleware/permission.rs:767:8
-   --> src/middleware/permission.rs:774:8
-   --> src/middleware/permission.rs:782:8
-   --> src/middleware/permission.rs:794:8
-   --> src/services/accounting_period_service.rs:573:9
-   --> src/services/ap_reconciliation_service.rs:734:8
-   --> src/services/ap_reconciliation_service.rs:746:8
-   --> src/services/ap_reconciliation_service.rs:759:8
-   --> src/services/ap_reconciliation_service.rs:838:8
-   --> src/services/ap_reconciliation_service.rs:876:8
-   --> src/services/ar/recon.rs:866:41
-   --> src/services/ar/recon.rs:867:24
-   --> src/services/ar_invoice_service.rs:552:8
-   --> src/services/ar_invoice_service.rs:562:8
-   --> src/services/ar_invoice_service.rs:572:8
-   --> src/services/ar_invoice_service.rs:585:8
-   --> src/services/ar_invoice_service.rs:598:8
-   --> src/services/bom_service.rs:666:8
-   --> src/services/bom_service.rs:676:8
-   --> src/services/bom_service.rs:685:8
-   --> src/services/bom_service.rs:694:8
-   --> src/services/bom_service.rs:733:14
-   --> src/services/bom_service.rs:755:14
-   --> src/services/bom_service.rs:775:14
-   --> src/services/bom_service.rs:795:14
-   --> src/services/bom_service.rs:816:14
-   --> src/services/bom_service.rs:842:8
-   --> src/services/bom_service.rs:866:8
-   --> src/services/bom_service.rs:881:14
-   --> src/services/bom_service.rs:935:9
-   --> src/services/bom_service.rs:942:8
-   --> src/services/bom_service.rs:952:8
-   --> src/services/bom_service.rs:984:14
+   --> /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/str/traits.rs:855:7
    --> src/services/bulk_color_approval_service.rs:729:5
-   --> src/services/customer_credit_limit.rs:520:17
-   --> src/services/customer_credit_limit.rs:800:8
-   --> src/services/customer_credit_limit.rs:806:49
-   --> src/services/customer_credit_limit.rs:809:25
-   --> src/services/customer_credit_limit.rs:823:8
-   --> src/services/customer_credit_limit.rs:828:49
-   --> src/services/customer_credit_limit.rs:830:25
-   --> src/services/customer_credit_limit.rs:844:8
-   --> src/services/customer_credit_limit.rs:849:49
-   --> src/services/customer_credit_limit.rs:851:25
-   --> src/services/customer_credit_limit.rs:862:8
-   --> src/services/customer_credit_limit.rs:863:49
-   --> src/services/customer_credit_limit.rs:866:21
-   --> src/services/customer_credit_limit.rs:876:8
-   --> src/services/customer_credit_limit.rs:878:49
-   --> src/services/customer_credit_limit.rs:880:21
-   --> src/services/customer_credit_service.rs:230:8
-   --> src/services/event_kafka.rs:405:8
-   --> src/services/inv/stock.rs:165:8
-   --> src/services/inv/stock.rs:177:8
-   --> src/services/inv/stock.rs:189:8
-   --> src/services/inv/stock.rs:204:41
-   --> src/services/inv/stock.rs:205:24
-   --> src/services/inv/stock.rs:217:41
-   --> src/services/inv/stock.rs:218:24
-   --> src/services/inventory_stock_service.rs:568:27
-   --> src/services/inventory_stock_service.rs:569:21
-   --> src/services/inventory_stock_service.rs:581:49
-   --> src/services/inventory_stock_service.rs:581:71
-   --> src/services/inventory_stock_service.rs:591:8
-   --> src/services/inventory_stock_service.rs:611:8
-   --> src/services/inventory_stock_service.rs:681:14
-   --> src/services/po/order.rs:920:8
-   --> src/services/po/order.rs:922:44
-   --> src/services/po/order.rs:924:13
-   --> src/services/po/order.rs:942:50
-   --> src/services/po/order.rs:943:29
-   --> src/services/po/order.rs:946:24
-   --> src/services/po/order.rs:947:38
-   --> src/services/po/order.rs:956:8
-   --> src/services/po/order.rs:990:17
-   --> src/services/po/order.rs:993:17
-   --> src/services/quality_inspection_service.rs:429:8
-   --> src/services/quality_inspection_service.rs:450:8
-   --> src/services/quality_inspection_service.rs:471:8
-   --> src/services/quality_inspection_service.rs:488:8
-   --> src/services/quality_inspection_service.rs:498:8
-   --> src/services/quality_inspection_service.rs:512:8
-   --> src/services/quality_inspection_service.rs:528:8
+   --> src/services/purchase_receipt_service.rs:714:37
+   --> src/services/purchase_receipt_service.rs:715:31
+   --> src/services/purchase_receipt_service.rs:716:29
+   --> src/services/purchase_receipt_service.rs:717:33
+   --> src/services/purchase_receipt_service.rs:720:36
+   --> src/services/purchase_receipt_service.rs:982:41
+   --> src/services/purchase_receipt_service.rs:983:48
+   --> src/services/quotation_service.rs:580:29
+   --> src/services/quotation_service.rs:581:31
+   --> src/services/quotation_service.rs:582:40
+   --> src/services/quotation_service.rs:603:29
+   --> src/services/quotation_service.rs:604:29
+   --> src/services/quotation_service.rs:715:36
+   --> src/services/quotation_service.rs:716:38
+   --> src/services/quotation_service.rs:717:40
+   --> src/services/quotation_service.rs:731:36
+   --> src/services/quotation_service.rs:733:40
+   --> src/services/quotation_service.rs:749:29
+   --> src/services/quotation_service.rs:750:31
+   --> src/services/quotation_service.rs:751:40
+   --> src/services/quotation_service.rs:757:36
+   --> src/services/quotation_service.rs:774:29
+   --> src/services/quotation_service.rs:775:31
+   --> src/services/quotation_service.rs:776:40
+   --> src/services/quotation_service.rs:783:36
    --> src/services/role_permission_service.rs:471:5
-   --> src/services/sales_unit_tests.rs:123:22
-   --> src/services/so/order_workflow.rs:653:17
-   --> src/services/so/order_workflow.rs:678:17
    --> src/services/user_service.rs:318:5
-   --> src/services/user_service.rs:620:14
-   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#ptr_arg
-   = note: `#[warn(clippy::ptr_arg)]` on by default
-   = note: `ArInvoice` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `CustomerCredit` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `PurchaseOrder` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `PurchaseStatus` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `SalesOrder` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `StockRow` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: `SupplierRating` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
-   = note: requested on the command line with `-W dead-code`
-   |
-   |                       ^^^^^^^^^^^^^^^^^ help: change this to: `&mut [Decimal]`
-   |             ^^
-   |             ^^^^^^
-   |             ^^^^^^^^^^
-   |             ^^^^^^^^^^^
-   |             ^^^^^^^^^^^^
-   |            -------- field in this struct
-   |            --------- fields in this struct
-   |            ---------- fields in this struct
-   |            ------------- fields in this struct
-   |            -------------- field in this struct
-   |            -------------- fields in this struct
-   |            ^^^^^^^^^^
-   |          -------------- variants in this enum
-   |         ^^^^^^^^
-   |         ^^^^^^^^^
-  --> src/services/ar_unit_tests.rs:12:13
-  --> src/services/ar_unit_tests.rs:48:13
-  --> src/services/bi_unit_tests.rs:13:12
-  --> src/services/bi_unit_tests.rs:38:23
-  --> src/services/inventory_unit_tests.rs:15:13
-  --> src/services/purchase_unit_tests.rs:18:9
-  --> src/services/purchase_unit_tests.rs:26:13
-  --> src/services/purchase_unit_tests.rs:55:13
-  --> src/services/sales_unit_tests.rs:52:13
-  |
-  |                                ^^^^^^^^^^^^^^^^^^^ no `node_type_to_status` in `utils::process_state_machine`
- --> tests/custom_order_process_test.rs:9:32
-...
-...    |
+   ::: src/utils/unwrap_safe.rs:30:9
+ 30 |         rust_decimal::Decimal::from_str($x).expect("P9-1: 测试夹具 Decimal 字符串解析失败")
 ...   |
-1005 |     fn 测试_CSV表头_列数与列名验证() {
-1013 |     async fn 测试_获取BOM树_需要真实数据库() {
-1021 |     ///   注："PARTIAL" 在 status 模块无对应常量，沿用 vfy.rs 字面量。
-1021 |     /// 注："PARTIAL" 在 status 模块无对应常量，沿用 vfy.rs 字面量。
-1057 |     async fn 测试_服务实例化_SQLite内存数据库() {
-1067 |     fn 测试_MRP状态常量值正确性() {
-1074 |     fn 测试_AP状态常量值正确性() {
-11 |     struct ArInvoice {
-1117 |     fn 测试_合格率计算_None按零处理() {
-1128 |     fn 测试_等级判定_A级_95以上() {
-1142 |     fn 测试_delete_order状态校验门_仅DRAFT允许() {
-1147 |     fn 测试_等级判定_B级_80到95区间() {
-1150 |     fn 测试_delete_order状态校验门_非DRAFT禁止() {
-1166 |     fn 测试_等级判定_C级_80以下() {
-12 |         pub id: i64,
-1204 |     ///   返回 (期末借方余额, 期末贷方余额)
-1204 |     /// 返回 (期末借方余额, 期末贷方余额)
-1210 |     fn 测试_approve状态机门_仅DRAFT允许() {
-1226 |     fn 测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许() {
-123 |           let orders = vec![
-123 ~         let orders = [SalesOrder {
-1234 |     fn 测试_工资计算_计件_A级全额() {
-1236 |     fn 测试_对账单号格式_REC前缀() {
-124 +                 id: 1,
-124 | |             SalesOrder {
-1242 |     fn 测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许() {
-125 +                 customer_id: 1,
-125 | |                 id: 1,
-126 +                 quantity: Decimal::from(10),
-126 | |                 customer_id: 1,
-127 +                 unit_price: Decimal::from(20),
-1277 |     fn 测试_工资计算_计件_B级8折() {
-128 +                 status: OrderStatus::Completed,
-129 +             },
-1290 |     fn 测试_BOM数量计算_基础数量无损耗() {
-13 |         pub customer_id: i64,
-13 |     struct SalesPoint {
-130 +             SalesOrder {
-1302 |     fn 测试_BOM数量计算_含损耗率() {
-131 +                 id: 2,
-1319 |     fn 测试_BOM数量计算_精度归一化() {
-132 +                 customer_id: 2,
-1321 |     fn 测试_工资计算_计件_C级不计() {
-133 +                 quantity: Decimal::from(5),
-1331 |     fn 测试_BOM提前期计算_层级递减() {
-1335 |         let lead_1 = Duration::days(7 * 1_i64);
-134 +                 unit_price: decs!("15.50"),
-1343 |         let lead_0 = Duration::days(7 * 0_i64);
-135 +                 status: OrderStatus::Completed,
-1353 |           let requirements = vec![
-1353 ~         let requirements = [MaterialRequirement {
-1354 +                 product_id: 1,
-1354 | |             MaterialRequirement {
-1355 +                 required_quantity: decs!("100"),
-1355 | |                 product_id: 1,
-1356 +                 required_date: date,
-1356 | |                 required_quantity: decs!("100"),
-1357 +                 on_hand_quantity: decs!("50"),
-1358 +                 in_transit_quantity: Decimal::ZERO,
-1359 +                 safety_stock: Decimal::ZERO,
-136 +             },
-1360 +                 available_quantity: decs!("50"),
-1361 +                 shortage_quantity: decs!("50"),
-1362 +                 source_type: "MANUAL".to_string(),
-1363 +                 source_id: None,
-1364 +                 bom_level: 0,
-1365 +             },
-1366 +             MaterialRequirement {
-1367 +                 product_id: 2,
-1368 +                 required_quantity: decs!("30"),
-1369 +                 required_date: date,
-137 +             SalesOrder {
-1370 +                 on_hand_quantity: decs!("100"),
-1371 +                 in_transit_quantity: Decimal::ZERO,
-1371 |           let items = vec![
-1371 ~         let items = [make_voucher_item_request(decs!("0.1"), Decimal::ZERO),
-1372 +                 safety_stock: Decimal::ZERO,
-1372 +             make_voucher_item_request(decs!("0.2"), Decimal::ZERO),
-1372 | |             make_voucher_item_request(decs!("0.1"), Decimal::ZERO),
-1373 +                 available_quantity: decs!("100"),
-1373 | |             make_voucher_item_request(decs!("0.2"), Decimal::ZERO),
-1373 ~             make_voucher_item_request(decs!("0.3"), Decimal::ZERO)];
-1374 +                 shortage_quantity: Decimal::ZERO,
-1374 | |             make_voucher_item_request(decs!("0.3"), Decimal::ZERO),
-1375 +                 source_type: "MANUAL".to_string(),
-1375 | |         ];
-1376 +                 source_id: None,
-1377 +                 bom_level: 0,
-1378 +             },
-1379 +             MaterialRequirement {
-138 +                 id: 3,
-1380 +                 product_id: 3,
-1381 +                 required_quantity: decs!("80"),
-1381 |           let mixed = vec![
-1381 ~         let mixed = [make_voucher_item_request(decs!("100.125"), Decimal::ZERO),
-1382 +                 required_date: date,
-1382 | |             make_voucher_item_request(decs!("100.125"), Decimal::ZERO),
-1382 ~             make_voucher_item_request(decs!("200.875"), Decimal::ZERO)];
-1383 +                 on_hand_quantity: decs!("10"),
-1383 | |             make_voucher_item_request(decs!("200.875"), Decimal::ZERO),
-1384 +                 in_transit_quantity: Decimal::ZERO,
-1384 | |         ];
-1385 +                 safety_stock: Decimal::ZERO,
-1386 +                 available_quantity: decs!("10"),
-1387 +                 shortage_quantity: decs!("70"),
-1388 +                 source_type: "MANUAL".to_string(),
-1389 +                 source_id: None,
-139 +                 customer_id: 1,
-1390 +                 bom_level: 1,
-1391 ~             }];
-1392 | |             },
-1393 | |         ];
-1394 |     fn 测试状态流转_from_status为None返回false() {
-14 |     enum PurchaseStatus {
-14 |     struct StockRow {
-140 +                 quantity: Decimal::from(3),
-141 +                 unit_price: Decimal::from(100),
-142 +                 status: OrderStatus::Cancelled,
-143 ~             }];
-144 | |             },
-1448 |     fn 测试_工人IDs解析_正常情况() {
-145 | |         ];
-1452 |     fn 测试_订单类型转换_非PLANNED状态拒绝() {
-1455 |     fn 测试_工人IDs解析_带空格() {
-1462 |     fn 测试_工人IDs解析_空值() {
-1465 |     fn 测试流转校验_合法返回Ok() {
-1470 |     fn 测试_工人IDs解析_非法值过滤() {
-1472 |     fn 测试流转校验_非法返回Err() {
-1478 |     fn 测试流转校验_非法状态返回Err() {
-15 |         pub product_id: i64,
-1534 |     async fn 测试_BOM展开_需要真实数据库() {
-1558 |     async fn 测试_查询MRP结果_需要真实数据库() {
-1570 |     fn 测试计算剩余保质期_无失效日期返回None() {
-165 |     fn 测试_product_id过滤_全部Some时收集所有id() {
-1722 |     fn 测试_数量计算_BOM用量乘以生产数量_整数结果() {
-1728 |     fn 测试计算单位能耗_产量为零返回None() {
-1732 |     fn 测试_VoucherTypeDefinition_new构造器() {
-1733 |     fn 测试_数量计算_BOM用量乘以生产数量_小数结果() {
-1734 |     fn 测试计算单位能耗_产量为None返回None() {
-177 |     fn 测试_product_id过滤_含None时过滤掉None() {
-1776 |     ///    （批次 102 v6 P3-4：后者已从 bad_request 改为 not_found）
-1776 |     /// （批次 102 v6 P3-4：后者已从 bad_request 改为 not_found）
-18 |         Received,
-1807 |     fn 测试_辅助核算五维ID拼接格式() {
-1818 |     fn 测试_错误消息_产品不存在包含ID() {
-1827 |     fn 测试_错误消息_销售订单不存在包含ID() {
-1834 |     fn 测试_错误消息_工作中心不存在包含ID() {
-1883 |     fn 测试_AR状态常量值正确性() {
-189 |     fn 测试_product_id过滤_全部None时返回空vec() {
-19 |         Closed,
-1909 |     fn 测试_decs_宏_解析字符串为Decimal() {
-1916 |     fn 测试_decs_宏_解析整数串为Decimal() {
-1939 |     fn 测试_FromStr_与decs宏结果一致() {
-1953 |     async fn 测试_服务实例化_使用SQLite内存数据库() {
-20 |         Cancelled,
-2017 |     async fn 测试_服务实例化_SQLite内存数据库() {
-204 |         let quantity: Option<Decimal> = None;
-205 |         let resolved = quantity.unwrap_or(Decimal::ZERO);
-217 |         let quantity: Option<Decimal> = Some(original);
-218 |         let resolved = quantity.unwrap_or(Decimal::ZERO);
-230 |     fn 测试_查询参数_Default实现_全部字段为空或零() {
-243 |                 doc_types.contains(&t),
-25 |     struct PurchaseOrder {
-26 |         pub id: i64,
-31 |         pub status: PurchaseStatus,
 318 | /     pub async fn update_user(
 319 | |         &self,
 320 | |         user_id: i32,
 321 | |         email: Option<String>,
 326 | |         operator_id: i32,
 327 | |     ) -> Result<user::Model, AppError> {
-363 |     fn 测试_validate_custom_condition拒绝SQL关键字() {
-38 |     fn median(values: &mut Vec<Decimal>) -> Decimal {
-405 |     fn sample_event() -> BusinessEvent {
-405 |     fn test_extract_resource_info_标准路径无ID() {
-412 |     fn test_extract_resource_info_标准路径带ID() {
-419 |     fn test_extract_resource_info_模块前缀路径无ID() {
-426 |     fn test_extract_resource_info_模块前缀路径带ID() {
-429 |     fn 测试_verify_zip_magic合法ZIP() {
-429 |     fn 测试_质检分级_A级_合格率达标() {
-433 |     fn test_extract_resource_info_嵌套路径带ID和动作() {
-440 |     fn test_extract_resource_info_非API路径() {
-447 |     fn 测试_verify_zip_magic非ZIP文件() {
-450 |     fn 测试_质检分级_B级_让步接收区间() {
-461 |     fn test_extract_resource_info_动作段不误判为ID() {
-47 |     struct CustomerCredit {
-471 |     fn 测试_质检分级_C级_不合格区间() {
 471 | /     async fn write_permission_audit(
 472 | |         &self,
 473 | |         change_type: &str,
 474 | |         operator_id: i32,
 479 | |         new_value: Option<String>,
-48 |         pub customer_id: i64,
 480 | |     ) {
-481 |     fn 测试_VersionResponse和UpdateResult构造() {
-488 |     fn 测试_质检分级_None视为零合格率() {
-498 |     fn 测试_等级处理方式校验_A级品无需不合格处理() {
-500 |     fn test_extract_segment3_非API路径返回None() {
-51 |     struct SalesOrder {
-512 |     fn 测试_等级处理方式校验_B级品必须降级销售() {
-52 |         pub id: i64,
-520 |         assert!(!(model_active.status != master_data::ACTIVE));
-528 |     fn 测试_等级处理方式校验_C级品返工或报废() {
-53 |         pub customer_id: i64,
-54 |     struct SupplierRating {
-541 |     fn test_extract_action_from_path_无动作返回None() {
-547 |     fn test_extract_action_from_path_非动作关键字返回None() {
-55 |         pub supplier_id: i64,
-552 |     fn 测试_推导付款状态_已收金额大于发票金额_返回PAID() {
-558 |     fn test_method_to_action_GET映射read() {
-56 |         pub score: u8,
-562 |     fn 测试_推导付款状态_已收金额等于发票金额_边界返回PAID() {
-563 |     fn test_method_to_action_POST映射create() {
-568 |         let gram_weight = Some(Decimal::new(200, 0));
-568 |     fn test_method_to_action_PUT映射update() {
-569 |         let width = Some(Decimal::new(150, 0));
-57 |         pub on_time_rate: Decimal,
-572 |     fn 测试_推导付款状态_已收金额为零_返回PARTIAL_PAID() {
-573 |     fn test_method_to_action_PATCH映射update() {
-573 | /         match result {
-574 | |             Ok(opt) => assert!(opt.is_none(), "空库应返回 None"),
-575 | |             Err(_) => {} // 无 schema 时数据库报错属于预期降级
-576 | |         }
-578 |     fn test_method_to_action_DELETE映射delete() {
-581 |         let expected = calc_kg(quantity_meters, gram_weight.unwrap(), width.unwrap()).unwrap();
-585 |     fn 测试_推导付款状态_已收金额小于发票金额_返回PARTIAL_PAID() {
-591 |     fn 测试_calculate_quantity_kg_克重为None回退fallback() {
-598 |     fn 测试_推导付款状态_已收金额和发票金额均为零_边界返回PAID() {
-611 |     fn 测试_calculate_quantity_kg_幅宽为None回退fallback() {
-620 |     async fn 测试_服务实例化_SQLite内存数据库() {
-653 |         assert!(!(customer_active != master_data::ACTIVE));
-666 |     fn 测试_BOM状态常量_Active值正确() {
-676 |     fn 测试_BOM状态常量_Inactive值正确() {
-678 |         assert!(!credit_ok == false);
-681 |     async fn 测试_服务实例化_SQLite内存数据库() {
-685 |     fn 测试_BOM状态常量_Pending值正确() {
-693 |     fn test_extract_action_from_query_无action参数返回None() {
-694 |     fn 测试_BOM状态枚举_Display实现互不相同() {
-701 |     fn test_extract_action_from_query_白名单外动作返回None() {
-710 |     fn test_extract_action_from_query_无查询字符串返回None() {
+580 |             quantity: decs!(100),
+581 |             unit_price: decs!(10),
+582 |             unit_price_with_tax: decs!(11.3),
+603 |             tax_rate: decs!(13),
+604 |             moq: Some(decs!(50)),
+714 |             gram_weight: Some(decs!(200)),
+715 |             width: Some(decs!(150)),
+715 |         assert_eq!(subtotal, decs!(1000));
+716 |             quantity: decs!(100),
+716 |         assert_eq!(tax_amount, decs!(130));
+717 |             quantity_alt: decs!(50),
+717 |         assert_eq!(total_amount, decs!(1130));
+720 |             unit_price: Some(decs!(10)),
 729 | /     async fn transition_to(
 730 | |         &self,
+731 |         assert_eq!(subtotal, decs!(1000));
 731 | |         id: i64,
 732 | |         target: ApprovalStatus,
-733 |     async fn 测试_BOM需求数量计算_叶子节点无损耗率() {
-734 |     fn 测试_对账状态常量_Pending值正确() {
+733 |         assert_eq!(total_amount, decs!(1000));
 737 | |         unblock_delivery: bool,
 738 | |     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
-746 |     fn 测试_对账状态常量_Cancelled值正确() {
-747 |     fn test_matches_permission_全部匹配无ID() {
-755 |     async fn 测试_BOM需求数量计算_叶子节点有损耗率() {
-759 |     fn 测试_付款状态常量_Confirmed值正确() {
-761 |     fn test_matches_permission_ID精确匹配相等() {
-767 |     fn test_matches_permission_ID精确匹配不等返回false() {
-774 |     fn test_matches_permission_权限无ID请求有ID返回false() {
-775 |     async fn 测试_BOM需求数量计算_损耗率为零不放大() {
-782 |     fn test_matches_permission_权限有ID请求无ID返回false() {
-794 |     fn test_matches_permission_通配符加ID精确匹配() {
-795 |     async fn 测试_BOM需求数量计算_精度归一化四位小数() {
-800 |     fn 测试_credit_limit语义_更新场景None保持原值() {
-806 |         let req_credit_limit: Option<Decimal> = None;
-809 |         let new_limit = req_credit_limit.unwrap_or(old_limit);
-816 |     async fn 测试_BOM需求数量计算_递归多层级() {
-823 |     fn 测试_credit_limit语义_更新场景Some0显式置零() {
-828 |         let req_credit_limit: Option<Decimal> = Some(Decimal::ZERO);
-830 |         let new_limit = req_credit_limit.unwrap_or(old_limit);
-838 |     fn 测试_状态机转换_确认需Pending状态() {
-842 |     fn 测试_BOM损耗率乘数公式() {
-844 |     fn 测试_credit_limit语义_更新场景SomeV设置新值() {
-849 |         let req_credit_limit: Option<Decimal> = Some(new_requested);
-851 |         let new_limit = req_credit_limit.unwrap_or(old_limit);
-862 |     fn 测试_credit_limit语义_创建场景None默认零() {
-863 |         let req_credit_limit: Option<Decimal> = None;
-866 |         let limit = req_credit_limit.unwrap_or_default();
-866 |         let none_status: Option<&str> = None;
-866 |     fn 测试_BOM树根节点数量为一() {
-867 |         let resolved = none_status.unwrap_or(recon_status::DRAFT);
-876 |     fn 测试_credit_limit语义_创建场景SomeV设置初始值() {
-876 |     fn 测试_状态机转换_争议或Pending可继续争议() {
-878 |         let req_credit_limit: Option<Decimal> = Some(initial);
-880 |         let limit = req_credit_limit.unwrap_or_default();
-881 |     async fn 测试_BOM需求收集_单叶子节点() {
-9 |         default_process_nodes, node_type_to_status, CustomOrderStatus,
-920 |     fn 测试_货币默认值_未指定时使用CNY() {
-922 |         let req_currency: Option<String> = None;
-924 |             req_currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string());
-935 +         assert!(!req.is_default.unwrap_or(false));
-935 -         assert_eq!(req.is_default.unwrap_or(false), false);
-935 |         assert_eq!(req.is_default.unwrap_or(false), false);
-942 |         let req_exchange_rate: Option<Decimal> = None;
-942 |     fn 测试_错误消息_BOM不存在() {
-943 |         let exchange_rate = req_exchange_rate.unwrap_or(Decimal::new(1, 0));
-946 |         let explicit = Some(decs!("6.5"));
-947 |         let exchange_rate_explicit = explicit.unwrap_or(Decimal::new(1, 0));
-952 |     fn 测试_错误消息_BOM已处于审核中状态() {
-956 |     fn 测试_订单初始状态_使用DRAFT常量() {
-984 |     async fn 测试_创建BOM_需要真实数据库() {
-990 |         assert!(!(expected_same < order_date));
-993 |         assert!(!(expected_after < order_date));
-error: this operation will always return zero. This is likely not the intended outcome
-error[E0432]: unresolved import `bingxi_backend::utils::process_state_machine::node_type_to_status`
-help: indent this line
-help: remove the `None` and `unwrap_or()`
-help: remove the `None` and `unwrap_or_default()`
-help: remove the `None` and `unwrap_or_else()`
-help: remove the `Some` and `unwrap()`
-help: remove the `Some` and `unwrap_or()`
-help: remove the `Some` and `unwrap_or_default()`
-help: replace it with `assert!(..)`
-help: you can use an array directly
-warning: doc list item without indentation
-warning: equality checks against false can be replaced by a negation
-warning: field `customer_id` is never read
-warning: field `product_id` is never read
-warning: fields `id` and `customer_id` are never read
-warning: fields `id` and `status` are never read
-warning: fields `supplier_id` and `on_time_rate` are never read
-warning: function `sample_event` is never used
-warning: function `test_extract_action_from_path_无动作返回None` should have a snake case name
-warning: function `test_extract_action_from_path_非动作关键字返回None` should have a snake case name
-warning: function `test_extract_action_from_query_无action参数返回None` should have a snake case name
-warning: function `test_extract_action_from_query_无查询字符串返回None` should have a snake case name
-warning: function `test_extract_action_from_query_白名单外动作返回None` should have a snake case name
-warning: function `test_extract_resource_info_动作段不误判为ID` should have a snake case name
-warning: function `test_extract_resource_info_嵌套路径带ID和动作` should have a snake case name
-warning: function `test_extract_resource_info_标准路径带ID` should have a snake case name
-warning: function `test_extract_resource_info_标准路径无ID` should have a snake case name
-warning: function `test_extract_resource_info_模块前缀路径带ID` should have a snake case name
-warning: function `test_extract_resource_info_模块前缀路径无ID` should have a snake case name
-warning: function `test_extract_resource_info_非API路径` should have a snake case name
-warning: function `test_extract_segment3_非API路径返回None` should have a snake case name
-warning: function `test_matches_permission_ID精确匹配不等返回false` should have a snake case name
-warning: function `test_matches_permission_ID精确匹配相等` should have a snake case name
-warning: function `test_matches_permission_全部匹配无ID` should have a snake case name
-warning: function `test_matches_permission_权限无ID请求有ID返回false` should have a snake case name
-warning: function `test_matches_permission_权限有ID请求无ID返回false` should have a snake case name
-warning: function `test_matches_permission_通配符加ID精确匹配` should have a snake case name
-warning: function `test_method_to_action_DELETE映射delete` should have a snake case name
-warning: function `test_method_to_action_GET映射read` should have a snake case name
-warning: function `test_method_to_action_PATCH映射update` should have a snake case name
-warning: function `test_method_to_action_POST映射create` should have a snake case name
-warning: function `test_method_to_action_PUT映射update` should have a snake case name
-warning: function `测试_AP状态常量值正确性` should have a snake case name
-warning: function `测试_AR状态常量值正确性` should have a snake case name
-warning: function `测试_BOM展开_需要真实数据库` should have a snake case name
-warning: function `测试_BOM损耗率乘数公式` should have a snake case name
-warning: function `测试_BOM提前期计算_层级递减` should have a snake case name
-warning: function `测试_BOM数量计算_含损耗率` should have a snake case name
-warning: function `测试_BOM数量计算_基础数量无损耗` should have a snake case name
-warning: function `测试_BOM数量计算_精度归一化` should have a snake case name
-warning: function `测试_BOM树根节点数量为一` should have a snake case name
-warning: function `测试_BOM状态常量_Active值正确` should have a snake case name
-warning: function `测试_BOM状态常量_Inactive值正确` should have a snake case name
-warning: function `测试_BOM状态常量_Pending值正确` should have a snake case name
-warning: function `测试_BOM状态枚举_Display实现互不相同` should have a snake case name
-warning: function `测试_BOM需求收集_单叶子节点` should have a snake case name
-warning: function `测试_BOM需求数量计算_叶子节点无损耗率` should have a snake case name
-warning: function `测试_BOM需求数量计算_叶子节点有损耗率` should have a snake case name
-warning: function `测试_BOM需求数量计算_损耗率为零不放大` should have a snake case name
-warning: function `测试_BOM需求数量计算_精度归一化四位小数` should have a snake case name
-warning: function `测试_BOM需求数量计算_递归多层级` should have a snake case name
-warning: function `测试_CSV表头_列数与列名验证` should have a snake case name
-warning: function `测试_FromStr_与decs宏结果一致` should have a snake case name
-warning: function `测试_MRP状态常量值正确性` should have a snake case name
-warning: function `测试_VersionResponse和UpdateResult构造` should have a snake case name
-warning: function `测试_VoucherTypeDefinition_new构造器` should have a snake case name
-warning: function `测试_approve状态机门_仅DRAFT允许` should have a snake case name
-warning: function `测试_calculate_quantity_kg_克重为None回退fallback` should have a snake case name
-warning: function `测试_calculate_quantity_kg_幅宽为None回退fallback` should have a snake case name
-warning: function `测试_cancel状态机门_仅AUDITED和PARTIAL_PAID允许` should have a snake case name
-warning: function `测试_credit_limit语义_创建场景None默认零` should have a snake case name
-warning: function `测试_credit_limit语义_创建场景SomeV设置初始值` should have a snake case name
-warning: function `测试_credit_limit语义_更新场景None保持原值` should have a snake case name
-warning: function `测试_credit_limit语义_更新场景Some0显式置零` should have a snake case name
-warning: function `测试_credit_limit语义_更新场景SomeV设置新值` should have a snake case name
-warning: function `测试_decs_宏_解析字符串为Decimal` should have a snake case name
-warning: function `测试_decs_宏_解析整数串为Decimal` should have a snake case name
-warning: function `测试_delete_order状态校验门_仅DRAFT允许` should have a snake case name
-warning: function `测试_delete_order状态校验门_非DRAFT禁止` should have a snake case name
-warning: function `测试_mark_as_paid状态机门_仅AUDITED和PARTIAL_PAID允许` should have a snake case name
-warning: function `测试_product_id过滤_全部None时返回空vec` should have a snake case name
-warning: function `测试_product_id过滤_全部Some时收集所有id` should have a snake case name
-warning: function `测试_product_id过滤_含None时过滤掉None` should have a snake case name
-warning: function `测试_validate_custom_condition拒绝SQL关键字` should have a snake case name
-warning: function `测试_verify_zip_magic合法ZIP` should have a snake case name
-warning: function `测试_verify_zip_magic非ZIP文件` should have a snake case name
-warning: function `测试_付款状态常量_Confirmed值正确` should have a snake case name
-warning: function `测试_创建BOM_需要真实数据库` should have a snake case name
-warning: function `测试_合格率计算_None按零处理` should have a snake case name
-warning: function `测试_对账单号格式_REC前缀` should have a snake case name
-warning: function `测试_对账状态常量_Cancelled值正确` should have a snake case name
-warning: function `测试_对账状态常量_Pending值正确` should have a snake case name
-warning: function `测试_工人IDs解析_带空格` should have a snake case name
-warning: function `测试_工人IDs解析_正常情况` should have a snake case name
-warning: function `测试_工人IDs解析_空值` should have a snake case name
-warning: function `测试_工人IDs解析_非法值过滤` should have a snake case name
-warning: function `测试_工资计算_计件_A级全额` should have a snake case name
-warning: function `测试_工资计算_计件_B级8折` should have a snake case name
-warning: function `测试_工资计算_计件_C级不计` should have a snake case name
-warning: function `测试_推导付款状态_已收金额为零_返回PARTIAL_PAID` should have a snake case name
-warning: function `测试_推导付款状态_已收金额和发票金额均为零_边界返回PAID` should have a snake case name
-warning: function `测试_推导付款状态_已收金额大于发票金额_返回PAID` should have a snake case name
-warning: function `测试_推导付款状态_已收金额小于发票金额_返回PARTIAL_PAID` should have a snake case name
-warning: function `测试_推导付款状态_已收金额等于发票金额_边界返回PAID` should have a snake case name
-warning: function `测试_数量计算_BOM用量乘以生产数量_小数结果` should have a snake case name
-warning: function `测试_数量计算_BOM用量乘以生产数量_整数结果` should have a snake case name
-warning: function `测试_服务实例化_SQLite内存数据库` should have a snake case name
-warning: function `测试_服务实例化_使用SQLite内存数据库` should have a snake case name
-warning: function `测试_查询MRP结果_需要真实数据库` should have a snake case name
-warning: function `测试_查询参数_Default实现_全部字段为空或零` should have a snake case name
-warning: function `测试_状态机转换_争议或Pending可继续争议` should have a snake case name
-warning: function `测试_状态机转换_确认需Pending状态` should have a snake case name
-warning: function `测试_等级判定_A级_95以上` should have a snake case name
-warning: function `测试_等级判定_B级_80到95区间` should have a snake case name
-warning: function `测试_等级判定_C级_80以下` should have a snake case name
-warning: function `测试_等级处理方式校验_A级品无需不合格处理` should have a snake case name
-warning: function `测试_等级处理方式校验_B级品必须降级销售` should have a snake case name
-warning: function `测试_等级处理方式校验_C级品返工或报废` should have a snake case name
-warning: function `测试_获取BOM树_需要真实数据库` should have a snake case name
-warning: function `测试_订单初始状态_使用DRAFT常量` should have a snake case name
-warning: function `测试_订单类型转换_非PLANNED状态拒绝` should have a snake case name
-warning: function `测试_货币默认值_未指定时使用CNY` should have a snake case name
-warning: function `测试_质检分级_A级_合格率达标` should have a snake case name
-warning: function `测试_质检分级_B级_让步接收区间` should have a snake case name
-warning: function `测试_质检分级_C级_不合格区间` should have a snake case name
-warning: function `测试_质检分级_None视为零合格率` should have a snake case name
-warning: function `测试_辅助核算五维ID拼接格式` should have a snake case name
-warning: function `测试_错误消息_BOM不存在` should have a snake case name
-warning: function `测试_错误消息_BOM已处于审核中状态` should have a snake case name
-warning: function `测试_错误消息_产品不存在包含ID` should have a snake case name
-warning: function `测试_错误消息_工作中心不存在包含ID` should have a snake case name
-warning: function `测试_错误消息_销售订单不存在包含ID` should have a snake case name
-warning: function `测试流转校验_合法返回Ok` should have a snake case name
-warning: function `测试流转校验_非法状态返回Err` should have a snake case name
-warning: function `测试流转校验_非法返回Err` should have a snake case name
-warning: function `测试状态流转_from_status为None返回false` should have a snake case name
-warning: function `测试计算剩余保质期_无失效日期返回None` should have a snake case name
-warning: function `测试计算单位能耗_产量为None返回None` should have a snake case name
-warning: function `测试计算单位能耗_产量为零返回None` should have a snake case name
-warning: struct `SalesPoint` is never constructed
-warning: this boolean expression can be simplified
-warning: this expression creates a reference which is immediately dereferenced by the compiler
+749 |             quantity: decs!(200),
+750 |             unit_price: decs!(20),
+751 |             unit_price_with_tax: decs!(22.6),
+757 |         assert_eq!(subtotal, decs!(5000)); // 1000 + 4000
+774 |             quantity: decs!(3),
+775 |             unit_price: decs!(33.333),
+776 |             unit_price_with_tax: decs!(33.333),
+783 |         assert_eq!(subtotal, decs!(100));
+982 |         assert_eq!(item.quantity, decs!(100));
+983 |         assert_eq!(item.unit_price, Some(decs!(10)));
+error[E0308]: mismatched types
+note: associated function defined here
 warning: this function has too many arguments (8/7)
-warning: this operation has no effect
-warning: used `assert_eq!` with a literal bool
-warning: used `unwrap()` on `Some` value
-warning: used `unwrap_or()` on `None` value
-warning: used `unwrap_or()` on `Some` value
-warning: used `unwrap_or_default()` on `None` value
-warning: used `unwrap_or_default()` on `Some` value
-warning: used `unwrap_or_else()` on `None` value
-warning: useless use of `vec!`
-warning: variants `Received` and `Cancelled` are never constructed
-warning: writing `&mut Vec` instead of `&mut [_]` involves a new object where a slice will do
-warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
