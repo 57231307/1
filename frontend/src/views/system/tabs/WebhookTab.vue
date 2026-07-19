@@ -12,7 +12,7 @@
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="webhookLoading" :data="webhookList" stripe>
+      <el-table v-loading="webhookLoading" :data="webhookList" stripe aria-label="Webhook 列表">
         <el-table-column prop="name" label="名称" width="150" />
         <el-table-column prop="url" label="URL" min-width="250" show-overflow-tooltip />
         <el-table-column prop="event_type" label="事件" width="120" />
@@ -53,8 +53,9 @@
       v-model="webhookDialogVisible"
       :title="webhookForm.id ? '编辑 Webhook' : '新建 Webhook'"
       width="500px"
+      aria-label="Webhook 编辑对话框"
     >
-      <el-form ref="webhookFormRef" :model="webhookForm" label-width="100px">
+      <el-form ref="webhookFormRef" :model="webhookForm" label-width="100px" aria-label="Webhook 信息表单">
         <el-form-item label="名称" prop="name">
           <el-input v-model="webhookForm.name" />
         </el-form-item>

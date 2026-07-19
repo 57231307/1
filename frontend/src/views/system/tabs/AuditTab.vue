@@ -10,7 +10,7 @@
       <h2 class="page-title">审计日志</h2>
     </div>
     <el-card shadow="hover">
-      <el-form :inline="true" :model="filterForm" class="mb-4">
+      <el-form :inline="true" :model="filterForm" class="mb-4" aria-label="审计日志筛选表单">
         <el-form-item label="操作人">
           <el-input v-model="filterForm.operator" placeholder="用户名" clearable />
         </el-form-item>
@@ -31,7 +31,7 @@
           <el-button type="primary" @click="handleSearch">查询</el-button>
         </el-form-item>
       </el-form>
-      <el-table v-loading="loading" :data="auditLogs" stripe>
+      <el-table v-loading="loading" :data="auditLogs" stripe aria-label="审计日志列表">
         <el-table-column prop="created_at" label="时间" width="180" />
         <el-table-column prop="operator_name" label="操作人" width="120" />
         <el-table-column prop="module" label="模块" width="120" />
@@ -47,6 +47,7 @@
         :page-sizes="[20, 50, 100]"
         layout="total, sizes, prev, pager, next"
         class="mt-4"
+        aria-label="审计日志列表分页"
       />
     </el-card>
   </div>

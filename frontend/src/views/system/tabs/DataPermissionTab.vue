@@ -9,7 +9,7 @@
       <h2 class="page-title">数据权限</h2>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="dataPermLoading" :data="dataPermissionList" stripe>
+      <el-table v-loading="dataPermLoading" :data="dataPermissionList" stripe aria-label="数据权限列表">
         <el-table-column prop="role_name" label="角色" width="120" />
         <el-table-column prop="scope_type" label="权限范围" width="120" />
         <el-table-column prop="scope_value" label="范围值" min-width="200" />

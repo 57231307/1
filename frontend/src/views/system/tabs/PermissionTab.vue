@@ -9,7 +9,7 @@
       <h2 class="page-title">权限管理</h2>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="permissionListLoading" :data="permissionList" stripe>
+      <el-table v-loading="permissionListLoading" :data="permissionList" stripe aria-label="权限列表">
         <el-table-column prop="resource_type" label="资源类型" width="150" />
         <el-table-column prop="action" label="操作" width="120" />
         <el-table-column prop="allowed" label="状态" width="100" align="center">

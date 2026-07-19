@@ -9,7 +9,7 @@
       <h2 class="page-title">字段权限</h2>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="fieldPermLoading" :data="fieldPermissionList" stripe>
+      <el-table v-loading="fieldPermLoading" :data="fieldPermissionList" stripe aria-label="字段权限列表">
         <el-table-column prop="role_name" label="角色" width="120" />
         <el-table-column prop="resource_type" label="资源" width="120" />
         <el-table-column prop="field_name" label="字段名" width="150" />
