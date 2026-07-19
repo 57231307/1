@@ -48,7 +48,7 @@ const emit = defineEmits<{
     <el-col :span="12">
       <el-card shadow="hover" class="mb-20">
         <template #header><div class="card-header">销售预测</div></template>
-        <el-form label-width="100px">
+        <el-form label-width="100px" aria-label="销售预测表单">
           <el-form-item label="预测周期">
             <el-select
               :model-value="forecastPeriod"
@@ -99,7 +99,7 @@ const emit = defineEmits<{
         <el-empty v-if="!inventoryResult" description="点击生成优化建议" />
         <div v-else>
           <el-alert type="success" :title="inventoryResult.summary" show-icon class="mb-10" />
-          <el-table :data="inventoryResult.items" stripe>
+          <el-table :data="inventoryResult.items" stripe aria-label="库存优化建议列表">
             <el-table-column prop="product_name" label="产品" width="150" />
             <el-table-column prop="suggestion" label="建议" min-width="200" />
             <el-table-column prop="priority" label="优先级" width="100">
@@ -128,7 +128,7 @@ const emit = defineEmits<{
     <el-col :span="12">
       <el-card shadow="hover" class="mb-20">
         <template #header><div class="card-header">异常检测</div></template>
-        <el-form label-width="100px">
+        <el-form label-width="100px" aria-label="异常检测表单">
           <el-form-item label="数据类型">
             <el-select
               :model-value="anomalyType"
@@ -148,7 +148,7 @@ const emit = defineEmits<{
         </el-form>
         <el-empty v-if="!anomalyResult" description="点击开始检测" />
         <div v-else>
-          <el-table :data="anomalyResult" stripe>
+          <el-table :data="anomalyResult" stripe aria-label="异常检测结果列表">
             <el-table-column prop="item" label="检测项" width="150" />
             <el-table-column prop="type" label="类型" width="100">
               <template #default="{ row }">

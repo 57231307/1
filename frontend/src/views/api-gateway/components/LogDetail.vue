@@ -8,6 +8,7 @@
     :model-value="visible"
     title="日志详情"
     width="800px"
+    aria-label="日志详情对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="2" border>

@@ -9,6 +9,7 @@
     :model-value="visible"
     :title="form?.id ? '编辑接口' : '新建接口'"
     width="700px"
+    :aria-label="form?.id ? '编辑接口对话框' : '新建接口对话框'"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -16,6 +17,7 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
+      aria-label="接口表单"
     >
       <el-row :gutter="20">
         <el-col :span="16">

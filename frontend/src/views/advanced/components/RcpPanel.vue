@@ -66,7 +66,7 @@ watch(
     <el-col :span="8">
       <el-card shadow="hover" class="mb-20">
         <template #header><div class="card-header">推荐条件</div></template>
-        <el-form :model="localForm" label-width="100px">
+        <el-form :model="localForm" label-width="100px" aria-label="染色工艺推荐条件表单">
           <el-form-item label="色号" required>
             <el-input v-model="localForm.color_no" placeholder="如 BL-301" />
           </el-form-item>
@@ -172,6 +172,7 @@ watch(
             stripe
             size="small"
             border
+            aria-label="相似候选案例列表"
           >
             <el-table-column prop="recipe_no" label="配方编号" width="160" />
             <el-table-column prop="color_no" label="色号" width="120" />

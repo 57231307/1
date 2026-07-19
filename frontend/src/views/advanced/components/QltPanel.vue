@@ -66,7 +66,7 @@ watch(
     <el-col :span="8">
       <el-card shadow="hover" class="mb-20">
         <template #header><div class="card-header">预测条件</div></template>
-        <el-form :model="localForm" label-width="100px">
+        <el-form :model="localForm" label-width="100px" aria-label="质量预测条件表单">
           <el-form-item label="产品 ID">
             <el-input-number
               v-model="localForm.product_id"
@@ -174,6 +174,7 @@ watch(
             stripe
             size="small"
             border
+            aria-label="主要问题归因列表"
           >
             <el-table-column prop="issue_type" label="问题类型" min-width="160" />
             <el-table-column prop="occurrences" label="出现次数" width="120" align="right" />
@@ -209,6 +210,7 @@ watch(
             stripe
             size="small"
             border
+            aria-label="质量周期明细列表"
           >
             <el-table-column prop="period" label="周期" width="120" />
             <el-table-column prop="inspections" label="检验次数" width="120" align="right" />
