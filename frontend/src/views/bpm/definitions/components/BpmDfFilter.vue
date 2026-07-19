@@ -6,7 +6,7 @@
 -->
 <template>
   <el-card class="filter-card">
-    <el-form :inline="true" :model="localQuery">
+    <el-form :inline="true" :model="localQuery" aria-label="流程定义筛选表单">
       <el-form-item label="流程名称">
         <el-input
           v-model="localQuery.keyword"

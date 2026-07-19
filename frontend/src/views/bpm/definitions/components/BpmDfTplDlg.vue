@@ -8,10 +8,11 @@
   <el-dialog
     :model-value="visible"
     title="保存为模板"
+    aria-label="流程模板对话框"
     width="500px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" aria-label="流程模板表单">
       <el-form-item label="模板名称" prop="template_name">
         <el-input
           v-model="localFormData.template_name"

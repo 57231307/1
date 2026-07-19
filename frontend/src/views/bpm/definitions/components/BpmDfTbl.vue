@@ -5,7 +5,7 @@
 -->
 <template>
   <el-card class="table-card">
-    <el-table v-loading="loading" :data="data" border stripe>
+    <el-table v-loading="loading" :data="data" border stripe aria-label="流程定义列表">
       <el-table-column prop="process_key" label="流程标识" min-width="140" />
       <el-table-column prop="process_name" label="流程名称" min-width="180" />
       <el-table-column prop="category" label="分类" width="100">
@@ -41,6 +41,7 @@
       :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next, jumper"
+      aria-label="流程定义列表分页"
       @update:current-page="(v: number) => emit('update:page', v)"
       @update:page-size="(v: number) => emit('update:page-size', v)"
     />

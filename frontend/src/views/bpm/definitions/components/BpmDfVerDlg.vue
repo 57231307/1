@@ -7,6 +7,7 @@
   <el-dialog
     :model-value="visible"
     :title="`版本管理 - ${definition ? definition.process_name : ''}`"
+    aria-label="流程版本对话框"
     width="700px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
@@ -16,7 +17,7 @@
         创建新版本
       </el-button>
     </div>
-    <el-table v-loading="loading" :data="data" border>
+    <el-table v-loading="loading" :data="data" border aria-label="流程版本列表">
       <el-table-column prop="version" label="版本号" width="100" align="center" />
       <el-table-column prop="status" label="状态" width="100" align="center">
         <template #default="{ row }">

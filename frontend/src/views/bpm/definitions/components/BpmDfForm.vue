@@ -9,10 +9,11 @@
   <el-dialog
     :model-value="visible"
     :title="isEdit ? '编辑流程定义' : '新建流程定义'"
+    :aria-label="isEdit ? '编辑流程定义对话框' : '新建流程定义对话框'"
     width="900px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" aria-label="流程定义表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="流程标识" prop="process_key">
@@ -68,7 +69,7 @@
           添加节点
         </el-button>
       </div>
-      <el-table :data="localFormData.nodes" border>
+      <el-table :data="localFormData.nodes" border aria-label="流程节点列表">
         <el-table-column label="节点类型" width="120">
           <template #default="{ row }">
             <el-select
