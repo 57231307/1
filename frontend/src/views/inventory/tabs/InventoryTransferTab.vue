@@ -11,7 +11,7 @@
         新建调拨单
       </el-button>
     </div>
-    <el-table :data="transfers" stripe>
+    <el-table :data="transfers" stripe aria-label="库存调拨列表">
       <el-table-column prop="transfer_no" label="调拨单号" width="160" />
       <el-table-column prop="from_warehouse_name" label="调出仓库" width="120" />
       <el-table-column prop="to_warehouse_name" label="调入仓库" width="120" />

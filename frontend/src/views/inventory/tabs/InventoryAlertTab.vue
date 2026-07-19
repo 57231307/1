@@ -5,7 +5,7 @@
 -->
 <template>
   <el-card shadow="hover">
-    <el-table :data="alerts" stripe>
+    <el-table :data="alerts" stripe aria-label="库存预警列表">
       <el-table-column prop="product_code" label="产品编码" width="140" />
       <el-table-column prop="product_name" label="产品名称" min-width="180" />
       <el-table-column prop="warehouse_name" label="仓库" width="120" />
