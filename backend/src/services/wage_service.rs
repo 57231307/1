@@ -858,6 +858,25 @@ pub struct WageCalculationService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 工资计算累计：用于 calculate 拆分时在 helper 间传递汇总
+struct WageTotals {
+    total_amount: Decimal,
+    total_qualified: Decimal,
+    total_minutes: i64,
+    worker_set: HashSet<i32>,
+    step_set: HashSet<i32>,
+    detail_count: u64,
+}
+
+/// 单工序工资计算结果：用于在 helper 间传递 5 个返回值
+struct StepWageComputed {
+    grade: String,
+    grade_ratio: Decimal,
+    piece_wage: Decimal,
+    time_wage: Decimal,
+    wage_amount: Decimal,
+}
+
 impl WageCalculationService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -865,15 +884,53 @@ impl WageCalculationService {
 
     /// 触发工资计算
     ///
-    /// 业务流程：
-    /// 1. 查询周期内 completed 状态的工序记录
-    /// 2. 按工序路线匹配生效工价
-    /// 3. 计算每个工人每道工序的工资
-    /// 4. 生成工资明细 + 汇总工资记录
+    /// 业务流程：查询周期内 completed 工序记录 → 按工序匹配生效工价
+    /// → 计算每个工人工资 → 生成明细 + 汇总工资记录
     pub async fn calculate(
         &self,
         wage_record_id: i32,
         req: CalculateWageRequest,
+    ) -> Result<RecordModel, AppError> {
+        let record = self.validate_wage_record(wage_record_id).await?;
+        self.clear_or_check_details(wage_record_id, req.recalculate.unwrap_or(false))
+            .await?;
+        let step_records = self.load_step_records(&record).await?;
+
+        // 2. 按工序路线匹配生效工价，生成工资明细
+        let now = crate::utils::date_utils::utc_now_fixed();
+        let mut totals = WageTotals {
+            total_amount: Decimal::ZERO,
+            total_qualified: Decimal::ZERO,
+            total_minutes: 0,
+            worker_set: HashSet::new(),
+            step_set: HashSet::new(),
+            detail_count: 0,
+        };
+
+        for step in &step_records {
+            // 查找工价（按工序路线匹配）；无 route_id 或无生效工价时跳过
+            let rate = match self.find_wage_rate_for_step(step, &record).await? {
+                Some(r) => r,
+                None => continue,
+            };
+            self.process_step_and_accumulate(step, &rate, wage_record_id, now, &mut totals)
+                .await?;
+        }
+
+        if totals.detail_count == 0 {
+            return Err(AppError::business(
+                "未生成任何工资明细，请检查工价方案配置或工序记录状态",
+            ));
+        }
+
+        let updated = self.update_wage_record_summary(record, totals, now).await?;
+        Ok(updated)
+    }
+
+    /// 加载工资记录并校验：仅 draft 状态可计算
+    async fn validate_wage_record(
+        &self,
+        wage_record_id: i32,
     ) -> Result<RecordModel, AppError> {
         let record = RecordEntity::find_by_id(wage_record_id)
             .filter(wage_record::Column::IsDeleted.eq(false))
@@ -888,9 +945,17 @@ impl WageCalculationService {
                 record.status
             )));
         }
+        Ok(record)
+    }
 
+    /// recalculate=true 删除旧明细 / 否则检查已有明细
+    async fn clear_or_check_details(
+        &self,
+        wage_record_id: i32,
+        recalculate: bool,
+    ) -> Result<(), AppError> {
         // 重新计算时先删除旧明细
-        if req.recalculate.unwrap_or(false) {
+        if recalculate {
             wage_record_detail::Entity::delete_many()
                 .filter(wage_record_detail::Column::WageRecordId.eq(wage_record_id))
                 .exec(&*self.db)
@@ -909,7 +974,11 @@ impl WageCalculationService {
                 )));
             }
         }
+        Ok(())
+    }
 
+    /// 查询周期内 completed 工序记录
+    async fn load_step_records(&self, record: &RecordModel) -> Result<Vec<StepModel>, AppError> {
         // 1. 查询周期内 completed 状态的工序记录
         // 工序记录无 workshop 字段，车间维度在工价匹配阶段通过 process_wage_rate.workshop 间接关联
         let period_start_tz = naive_date_to_date_time_tz(record.period_start);
@@ -922,143 +991,181 @@ impl WageCalculationService {
             .filter(process_step_record::Column::StartAt.lte(period_end_tz));
 
         let step_records: Vec<StepModel> = step_query.all(&*self.db).await?;
-
         if step_records.is_empty() {
             return Err(AppError::business(format!(
                 "周期 {} ~ {} 内无已完成的工序记录，无法计算工资",
                 record.period_start, record.period_end
             )));
         }
+        Ok(step_records)
+    }
 
-        // 2. 按工序路线匹配生效工价，生成工资明细
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let mut total_amount = Decimal::ZERO;
-        let mut total_qualified = Decimal::ZERO;
-        let mut total_minutes: i64 = 0;
-        let mut worker_set: HashSet<i32> = HashSet::new();
-        let mut step_set: HashSet<i32> = HashSet::new();
-        let mut detail_count: u64 = 0;
+    /// 按工序路线匹配生效工价（route_id 缺失或无匹配返回 None，调用方 continue）
+    async fn find_wage_rate_for_step(
+        &self,
+        step: &StepModel,
+        record: &RecordModel,
+    ) -> Result<Option<RateModel>, AppError> {
+        // 查找工价（按工序路线匹配）
+        let route_id = match step.process_route_id {
+            Some(id) => id,
+            None => return Ok(None), // 无工序路线的记录跳过
+        };
 
-        for step in &step_records {
-            // 查找工价（按工序路线匹配）
-            let route_id = match step.process_route_id {
-                Some(id) => id,
-                None => continue, // 无工序路线的记录跳过
-            };
-
-            // 工价匹配条件：工序路线 + 当前生效 + 车间过滤
-            // effective_date 和 expiry_date 是 NaiveDate 类型，直接用 NaiveDate 比较
-            let mut rate_query = RateEntity::find()
-                .filter(process_wage_rate::Column::ProcessRouteId.eq(route_id))
-                .filter(process_wage_rate::Column::Status.eq(wage_rate_status::ACTIVE))
-                .filter(process_wage_rate::Column::IsDeleted.eq(false))
-                .filter(process_wage_rate::Column::EffectiveDate.lte(record.period_end))
-                .filter(
-                    sea_orm::Condition::any()
-                        .add(process_wage_rate::Column::ExpiryDate.is_null())
-                        .add(process_wage_rate::Column::ExpiryDate.gt(record.period_start)),
-                );
-
-            if let Some(ref workshop) = record.workshop {
-                rate_query = rate_query.filter(
-                    sea_orm::Condition::any()
-                        .add(process_wage_rate::Column::Workshop.is_null())
-                        .add(process_wage_rate::Column::Workshop.eq(workshop)),
-                );
-            }
-
-            let rate = match rate_query
-                .order_by_desc(process_wage_rate::Column::EffectiveDate)
-                .one(&*self.db)
-                .await?
-            {
-                Some(r) => r,
-                None => continue, // 无生效工价的工序跳过
-            };
-
-            // 3. 计算工资
-            let (grade, grade_ratio, piece_wage, time_wage, wage_amount) = calculate_wage_for_step(
-                &rate,
-                step.actual_quantity,
-                step.qualified_quantity,
-                step.duration_minutes,
+        // 工价匹配条件：工序路线 + 当前生效 + 车间过滤
+        // effective_date 和 expiry_date 是 NaiveDate 类型，直接用 NaiveDate 比较
+        let mut rate_query = RateEntity::find()
+            .filter(process_wage_rate::Column::ProcessRouteId.eq(route_id))
+            .filter(process_wage_rate::Column::Status.eq(wage_rate_status::ACTIVE))
+            .filter(process_wage_rate::Column::IsDeleted.eq(false))
+            .filter(process_wage_rate::Column::EffectiveDate.lte(record.period_end))
+            .filter(
+                sea_orm::Condition::any()
+                    .add(process_wage_rate::Column::ExpiryDate.is_null())
+                    .add(process_wage_rate::Column::ExpiryDate.gt(record.period_start)),
             );
 
-            // 4. 按工人 IDs 分配工资（多人共同完成时按人均分配）
-            let worker_ids = parse_worker_ids(&step.worker_ids);
-            let worker_names = parse_worker_names(&step.worker_names);
-            if worker_ids.is_empty() {
-                continue; // 无工人的记录跳过
-            }
-
-            let worker_count = worker_ids.len();
-            let per_worker_piece = split_wage_among_workers(piece_wage, worker_count);
-            let per_worker_time = split_wage_among_workers(time_wage, worker_count);
-            let per_worker_amount = split_wage_among_workers(wage_amount, worker_count);
-
-            for (idx, &worker_id) in worker_ids.iter().enumerate() {
-                let worker_name = worker_names.get(idx).cloned();
-
-                let detail = DetailActiveModel {
-                    id: Default::default(),
-                    wage_record_id: Set(wage_record_id),
-                    step_record_id: Set(step.id),
-                    flow_card_id: Set(Some(step.flow_card_id)),
-                    dye_lot_no: Set(None), // dye_lot_no 在 production_flow_card 上，这里留空
-                    process_route_id: Set(step.process_route_id),
-                    route_code: Set(Some(step.route_code.clone())),
-                    route_name: Set(Some(step.route_name.clone())),
-                    process_type: Set(Some(step.process_type.clone())),
-                    worker_id: Set(worker_id),
-                    worker_name: Set(worker_name),
-                    equipment_id: Set(step.equipment_id),
-                    equipment_name: Set(step.equipment_name.clone()),
-                    wage_type: Set(rate.wage_type.clone()),
-                    grade: Set(grade.clone()),
-                    actual_quantity: Set(step.actual_quantity.unwrap_or(Decimal::ZERO)
-                        / Decimal::from(worker_count)),
-                    qualified_quantity: Set(step.qualified_quantity.unwrap_or(Decimal::ZERO)
-                        / Decimal::from(worker_count)),
-                    qualification_rate: Set(compute_qualification_rate(
-                        step.actual_quantity,
-                        step.qualified_quantity,
-                    )),
-                    piece_price: Set(rate.piece_price),
-                    time_price: Set(rate.time_price),
-                    grade_ratio: Set(grade_ratio),
-                    duration_minutes: Set(step.duration_minutes.unwrap_or(0) / worker_count as i32),
-                    piece_wage: Set(per_worker_piece),
-                    time_wage: Set(per_worker_time),
-                    wage_amount: Set(per_worker_amount),
-                    remarks: Set(None),
-                    is_deleted: Set(false),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                detail.insert(&*self.db).await?;
-                detail_count += 1;
-                total_amount += per_worker_amount;
-                total_qualified += step.qualified_quantity.unwrap_or(Decimal::ZERO)
-                    / Decimal::from(worker_count);
-                total_minutes += (step.duration_minutes.unwrap_or(0) as i64) / worker_count as i64;
-                worker_set.insert(worker_id);
-                step_set.insert(step.id);
-            }
+        if let Some(ref workshop) = record.workshop {
+            rate_query = rate_query.filter(
+                sea_orm::Condition::any()
+                    .add(process_wage_rate::Column::Workshop.is_null())
+                    .add(process_wage_rate::Column::Workshop.eq(workshop)),
+            );
         }
 
-        if detail_count == 0 {
-            return Err(AppError::business(
-                "未生成任何工资明细，请检查工价方案配置或工序记录状态",
-            ));
-        }
+        let rate = rate_query
+            .order_by_desc(process_wage_rate::Column::EffectiveDate)
+            .one(&*self.db)
+            .await?;
+        Ok(rate) // None 表示无生效工价，调用方 continue
+    }
 
+    /// 计算单工序工资 + 派发按工人创建明细
+    async fn process_step_and_accumulate(
+        &self,
+        step: &StepModel,
+        rate: &RateModel,
+        wage_record_id: i32,
+        now: chrono::DateTime<chrono::FixedOffset>,
+        totals: &mut WageTotals,
+    ) -> Result<(), AppError> {
+        // 3. 计算工资
+        let (grade, grade_ratio, piece_wage, time_wage, wage_amount) = calculate_wage_for_step(
+            rate,
+            step.actual_quantity,
+            step.qualified_quantity,
+            step.duration_minutes,
+        );
+        let computed = StepWageComputed {
+            grade,
+            grade_ratio,
+            piece_wage,
+            time_wage,
+            wage_amount,
+        };
+
+        // 4. 按工人 IDs 分配工资（多人共同完成时按人均分配）
+        let worker_ids = parse_worker_ids(&step.worker_ids);
+        if worker_ids.is_empty() {
+            return Ok(()); // 无工人的记录跳过
+        }
+        let worker_names = parse_worker_names(&step.worker_names);
+
+        self.create_wage_details_for_workers(
+            step,
+            rate,
+            &computed,
+            wage_record_id,
+            now,
+            &worker_ids,
+            &worker_names,
+            totals,
+        )
+        .await
+    }
+
+    /// 为每个工人创建工资明细 + 累计（多人按人均分配）
+    async fn create_wage_details_for_workers(
+        &self,
+        step: &StepModel,
+        rate: &RateModel,
+        computed: &StepWageComputed,
+        wage_record_id: i32,
+        now: chrono::DateTime<chrono::FixedOffset>,
+        worker_ids: &[i32],
+        worker_names: &[String],
+        totals: &mut WageTotals,
+    ) -> Result<(), AppError> {
+        let worker_count = worker_ids.len();
+        let per_worker_piece = split_wage_among_workers(computed.piece_wage, worker_count);
+        let per_worker_time = split_wage_among_workers(computed.time_wage, worker_count);
+        let per_worker_amount = split_wage_among_workers(computed.wage_amount, worker_count);
+
+        for (idx, &worker_id) in worker_ids.iter().enumerate() {
+            let worker_name = worker_names.get(idx).cloned();
+
+            let detail = DetailActiveModel {
+                id: Default::default(),
+                wage_record_id: Set(wage_record_id),
+                step_record_id: Set(step.id),
+                flow_card_id: Set(Some(step.flow_card_id)),
+                dye_lot_no: Set(None), // dye_lot_no 在 production_flow_card 上，这里留空
+                process_route_id: Set(step.process_route_id),
+                route_code: Set(Some(step.route_code.clone())),
+                route_name: Set(Some(step.route_name.clone())),
+                process_type: Set(Some(step.process_type.clone())),
+                worker_id: Set(worker_id),
+                worker_name: Set(worker_name),
+                equipment_id: Set(step.equipment_id),
+                equipment_name: Set(step.equipment_name.clone()),
+                wage_type: Set(rate.wage_type.clone()),
+                grade: Set(computed.grade.clone()),
+                actual_quantity: Set(step.actual_quantity.unwrap_or(Decimal::ZERO)
+                    / Decimal::from(worker_count)),
+                qualified_quantity: Set(step.qualified_quantity.unwrap_or(Decimal::ZERO)
+                    / Decimal::from(worker_count)),
+                qualification_rate: Set(compute_qualification_rate(
+                    step.actual_quantity,
+                    step.qualified_quantity,
+                )),
+                piece_price: Set(rate.piece_price),
+                time_price: Set(rate.time_price),
+                grade_ratio: Set(computed.grade_ratio),
+                duration_minutes: Set(step.duration_minutes.unwrap_or(0) / worker_count as i32),
+                piece_wage: Set(per_worker_piece),
+                time_wage: Set(per_worker_time),
+                wage_amount: Set(per_worker_amount),
+                remarks: Set(None),
+                is_deleted: Set(false),
+                created_at: Set(now),
+                updated_at: Set(now),
+            };
+            detail.insert(&*self.db).await?;
+            totals.detail_count += 1;
+            totals.total_amount += per_worker_amount;
+            totals.total_qualified += step.qualified_quantity.unwrap_or(Decimal::ZERO)
+                / Decimal::from(worker_count);
+            totals.total_minutes += (step.duration_minutes.unwrap_or(0) as i64) / worker_count as i64;
+            totals.worker_set.insert(worker_id);
+            totals.step_set.insert(step.id);
+        }
+        Ok(())
+    }
+
+    /// 更新工资记录汇总（工人数 / 工序数 / 合格产量 / 工时 / 总额）
+    async fn update_wage_record_summary(
+        &self,
+        record: RecordModel,
+        totals: WageTotals,
+        now: chrono::DateTime<chrono::FixedOffset>,
+    ) -> Result<RecordModel, AppError> {
         // 5. 更新工资记录汇总
         let mut active: RecordActiveModel = record.into();
-        active.total_workers = Set(worker_set.len() as i32);
-        active.total_step_records = Set(step_set.len() as i32);
-        active.total_qualified_quantity = Set(total_qualified);
-        active.total_duration_minutes = Set(total_minutes as i32);
-        active.total_amount = Set(total_amount);
+        active.total_workers = Set(totals.worker_set.len() as i32);
+        active.total_step_records = Set(totals.step_set.len() as i32);
+        active.total_qualified_quantity = Set(totals.total_qualified);
+        active.total_duration_minutes = Set(totals.total_minutes as i32);
+        active.total_amount = Set(totals.total_amount);
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;
         Ok(updated)

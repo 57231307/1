@@ -780,9 +780,9 @@ P0-D17 OA 公告 (M)  ← 独立
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包；预估 10-12 子批次）
 - **执行优先级**：第 1 顺位（无前置依赖 + 解锁 D09/D10）
-- **进度**：D08-1 第一梯队 3/6 完成（ship_order 346→22+6helper+3struct / create_order 344→36+9helper+1struct / manual_verify 254→52+7helper+1struct）；本地提交 aca0187 待推送（无 GH_TOKEN 无法 push，待用户手动推送 CI 验证）；剩余 3 函数（approve_task / calculate / auto_verify）
+- **进度**：D08-1 第一梯队 6/6 完成（ship_order 346→22+6helper+3struct / create_order 344→36+9helper+1struct / manual_verify 254→52+7helper+1struct / approve_task 211→29+7helper+1struct / calculate 211→44+7helper+2struct / auto_verify 192→41+5helper+2struct）；本地提交待推送（无 GH_TOKEN 无法 push，待用户手动推送 CI 验证）；第一梯队全部完成，等待 CI 验证后进入第二梯队
 - **批次规划**：
-  - 第一梯队（>200 行 6 函数，2 批）：✅ ship_order / ✅ create_order / ✅ manual_verify / approve_task / calculate / auto_verify
+  - 第一梯队（>200 行 6 函数，2 批）：✅ ship_order / ✅ create_order / ✅ manual_verify / ✅ approve_task / ✅ calculate / ✅ auto_verify
   - 第二梯队（150-200 行 ~30 函数，3-4 批）：含 update_order / update_account_balances / ap_verification_auto_verify / 等
   - 第三梯队（100-150 行 ~20 函数，2-3 批）：含 create_payment / list_orders / approve_adjustment / 等
   - 第四梯队（80-100 行 ~37 函数，3-4 批）：含 inventory_finance_bridge 7 个 create_*_voucher 模板化提取
