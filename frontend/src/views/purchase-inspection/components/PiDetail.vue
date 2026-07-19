@@ -8,6 +8,7 @@
     :model-value="visible"
     title="检验单详情"
     width="800px"
+    aria-label="检验单详情对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="2" border>
@@ -30,7 +31,7 @@
     </el-descriptions>
 
     <el-divider content-position="left">检验明细</el-divider>
-    <el-table :data="data.items || []" border>
+    <el-table :data="data.items || []" border aria-label="检验明细表">
       <el-table-column prop="product_name" label="产品名称" min-width="150" />
       <el-table-column prop="expected_quantity" label="预期数量" width="100" />
       <el-table-column prop="inspected_quantity" label="检验数量" width="100" />

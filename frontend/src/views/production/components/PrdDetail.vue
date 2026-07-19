@@ -9,6 +9,7 @@
     title="订单详情"
     width="800px"
     destroy-on-close
+    aria-label="生产订单详情对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <div v-if="order" class="detail-content">

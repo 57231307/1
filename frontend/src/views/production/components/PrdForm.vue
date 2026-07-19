@@ -10,9 +10,10 @@
     :title="localForm.id ? '编辑生产订单' : '新建生产订单'"
     width="700px"
     destroy-on-close
+    :aria-label="localForm.id ? '编辑生产订单对话框' : '新建生产订单对话框'"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px" aria-label="生产订单表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="订单编号" prop="order_no">

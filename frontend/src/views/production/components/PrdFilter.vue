@@ -6,7 +6,7 @@
 -->
 <template>
   <el-card shadow="never" class="filter-card">
-    <el-form :inline="true" :model="localForm" @submit.prevent>
+    <el-form :inline="true" :model="localForm" @submit.prevent aria-label="生产订单筛选表单">
       <el-form-item label="订单编号">
         <el-input
           v-model="localForm.order_no"

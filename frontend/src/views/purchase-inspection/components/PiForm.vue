@@ -9,9 +9,10 @@
     :model-value="visible"
     :title="isEdit ? '编辑检验单' : '新建检验单'"
     width="800px"
+    :aria-label="isEdit ? '编辑检验单对话框' : '新建检验单对话框'"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" aria-label="采购验货检验单表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="入库单号" prop="receipt_id">
@@ -54,7 +55,7 @@
 
       <!-- 检验明细 -->
       <el-divider content-position="left">检验明细</el-divider>
-      <el-table :data="localFormData.items" border>
+      <el-table :data="localFormData.items" border aria-label="检验明细编辑表">
         <el-table-column prop="product_name" label="产品名称" min-width="150" />
         <el-table-column prop="expected_quantity" label="预期数量" width="100" />
         <el-table-column prop="inspected_quantity" label="检验数量" width="120">
