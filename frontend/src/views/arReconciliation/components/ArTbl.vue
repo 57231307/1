@@ -18,6 +18,7 @@
       fit
       highlight-current-row
       style="width: 100%"
+      aria-label="AR 对账结果列表"
     >
       <el-table-column prop="customer_code" label="客户编码" width="120" />
       <el-table-column prop="customer_name" label="客户名称" width="160" />
@@ -69,6 +70,7 @@
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
       class="pagination-container"
+      aria-label="AR 对账结果分页"
       @current-change="(p: number) => emit('page-change', p)"
       @size-change="(s: number) => emit('page-size-change', s)"
     />

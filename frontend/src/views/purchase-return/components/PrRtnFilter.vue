@@ -5,7 +5,7 @@
 -->
 <template>
   <el-card class="filter-card">
-    <el-form :inline="true" :model="localQuery">
+    <el-form :inline="true" :model="localQuery" aria-label="采购退货筛选表单">
       <el-form-item label="退货单号">
         <el-input
           v-model="localQuery.keyword"

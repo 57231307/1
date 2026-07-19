@@ -8,9 +8,10 @@
     :model-value="visible"
     title="客户确认记录"
     width="900px"
+    aria-label="客户确认记录对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-table :data="data" border style="width: 100%">
+    <el-table :data="data" border style="width: 100%" aria-label="客户确认记录列表">
       <el-table-column prop="customer_name" label="客户名称" width="160" />
       <el-table-column label="确认状态" width="100">
         <template #default="scope">

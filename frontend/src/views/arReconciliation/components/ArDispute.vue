@@ -9,9 +9,10 @@
     :model-value="visible"
     title="争议处理"
     width="900px"
+    aria-label="争议处理对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localForm" label-width="100px">
+    <el-form :model="localForm" label-width="100px" aria-label="争议处理表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="争议类型">
@@ -55,7 +56,7 @@
     </el-form>
 
     <el-divider>争议记录</el-divider>
-    <el-table :data="disputes" border style="width: 100%">
+    <el-table :data="disputes" border style="width: 100%" aria-label="争议记录列表">
       <el-table-column label="争议类型" width="100">
         <template #default="scope">
           {{ getDisputeTypeLabel(scope.row.dispute_type) }}

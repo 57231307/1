@@ -8,6 +8,7 @@
     :model-value="visible"
     title="对账明细"
     width="900px"
+    aria-label="对账明细对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <div v-if="currentReconciliation" class="detail-header">
@@ -34,7 +35,7 @@
         </el-descriptions-item>
       </el-descriptions>
     </div>
-    <el-table :data="detailData" border style="width: 100%; margin-top: 16px">
+    <el-table :data="detailData" border style="width: 100%; margin-top: 16px" aria-label="对账明细数据表">
       <el-table-column prop="type" label="类型" width="100">
         <template #default="scope">
           <el-tag
