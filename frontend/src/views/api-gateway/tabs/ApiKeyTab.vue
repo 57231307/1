@@ -28,7 +28,7 @@
       </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="apiKeys" stripe>
+    <el-table v-loading="loading" :data="apiKeys" stripe aria-label="API 密钥列表">
       <el-table-column prop="key_name" label="密钥名称" width="200" />
       <el-table-column prop="app_id" label="应用 ID" width="200" />
       <el-table-column label="密钥" min-width="200">
@@ -72,6 +72,7 @@
         :page-sizes="[10, 20, 50]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
+        aria-label="API 密钥列表分页"
         @current-change="(v: number) => emit('update:page', v)"
         @size-change="(v: number) => emit('update:page-size', v)"
       />

@@ -41,7 +41,7 @@
       </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="endpoints" stripe>
+    <el-table v-loading="loading" :data="endpoints" stripe aria-label="API 接口列表">
       <el-table-column prop="path" label="接口路径" min-width="200" />
       <el-table-column prop="method" label="方法" width="80">
         <template #default="{ row }">
@@ -79,6 +79,7 @@
         :page-sizes="[10, 20, 50]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
+        aria-label="API 接口列表分页"
         @current-change="(v: number) => emit('update:page', v)"
         @size-change="(v: number) => emit('update:page-size', v)"
       />
