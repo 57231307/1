@@ -116,7 +116,7 @@
                 </div>
               </template>
 
-              <el-table :data="contacts" stripe v-loading="contactsLoading">
+              <el-table :data="contacts" stripe v-loading="contactsLoading" aria-label="客户联系人列表">
                 <el-table-column prop="name" label="姓名" width="120" />
                 <el-table-column prop="title" label="职务" width="150">
                   <template #default="{ row }">{{ row.title || '-' }}</template>
@@ -207,6 +207,7 @@
     <el-dialog
       v-model="contactDialogVisible"
       :title="contactDialogTitle"
+      :aria-label="contactDialogTitle"
       width="500px"
       @closed="resetContactForm"
     >
@@ -215,6 +216,7 @@
         :model="contactForm"
         :rules="contactFormRules"
         label-width="80px"
+        aria-label="联系人表单"
       >
         <el-form-item label="姓名" prop="name">
           <el-input v-model="contactForm.name" placeholder="请输入联系人姓名" maxlength="50" />

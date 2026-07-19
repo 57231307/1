@@ -18,7 +18,7 @@
       </template>
 
       <!-- 筛选区 -->
-      <el-form :inline="true" :model="filters" class="filter-form">
+      <el-form :inline="true" :model="filters" class="filter-form" aria-label="报价单筛选表单">
         <el-form-item label="客户">
           <el-select
             v-model="filters.customer_id"
@@ -59,6 +59,7 @@
         border
         style="width: 100%"
         empty-text="暂无报价单"
+        aria-label="报价单列表"
       >
         <el-table-column prop="quotation_no" label="报价单号" width="170" />
         <el-table-column label="客户" min-width="160">
@@ -116,6 +117,7 @@
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
+        aria-label="报价单列表分页"
         @current-change="onPageChange"
         @size-change="onSizeChange"
       />

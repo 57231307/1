@@ -30,7 +30,7 @@
     <el-tabs v-model="activeTab" class="assignment-tabs">
       <el-tab-pane label="分配规则" name="rules">
         <el-card shadow="hover">
-          <el-table v-loading="ruleLoading" :data="ruleList" border stripe>
+          <el-table v-loading="ruleLoading" :data="ruleList" border stripe aria-label="分配规则列表">
             <el-table-column type="index" label="序号" width="60" align="center" />
             <el-table-column prop="name" label="规则名称" min-width="150" show-overflow-tooltip />
             <el-table-column prop="strategy" label="分配策略" width="120" align="center">
@@ -70,7 +70,7 @@
       <el-tab-pane label="手动分配" name="manual">
         <el-card shadow="hover">
           <div class="toolbar">
-            <el-form :inline="true" :model="assignQuery" class="filter-form">
+            <el-form :inline="true" :model="assignQuery" class="filter-form" aria-label="待分配客户筛选表单">
               <el-form-item label="关键词">
                 <el-input
                   v-model="assignQuery.keyword"
@@ -86,7 +86,7 @@
             </el-form>
           </div>
 
-          <el-table v-loading="assignLoading" :data="assignableCustomers" border stripe>
+          <el-table v-loading="assignLoading" :data="assignableCustomers" border stripe aria-label="待分配客户列表">
             <el-table-column type="index" label="序号" width="60" align="center" />
             <el-table-column
               prop="customer_name"
