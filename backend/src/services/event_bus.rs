@@ -432,23 +432,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
             let result = AssertUnwindSafe(async {
             match event {
                 BusinessEvent::PurchaseReceiptCompleted { receipt_id, order_id, .. } => {
-                    tracing::info!(
-                        "Event received: PurchaseReceiptCompleted for order {}, receipt {}",
-                        order_id,
-                        receipt_id
-                    );
-                    let po_service =
-                        crate::services::po::order::PurchaseOrderService::new(db.clone());
-                    // P0 3-6 修复：传入 receipt_id 做幂等校验，防止事件重投导致重复入库
-                    match po_service.receive_order(order_id, Some(receipt_id)).await {
-                        Ok(_) => tracing::info!(
-                            "Successfully updated purchase order {} status to RECEIVED",
-                            order_id
-                        ),
-                        Err(e) => {
-                            tracing::error!("Failed to update purchase order {}: {}", order_id, e)
-                        }
-                    }
+                    handle_purchase_receipt_completed(db.clone(), receipt_id, order_id).await;
                 }
                 BusinessEvent::SalesOrderShipped { order_id, customer_id, .. } => {
                     tracing::info!(
@@ -525,128 +509,15 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                     approved,
                     approver_id,
                 } => {
-                    tracing::info!(
-                        "处理BPM流程结束事件: type={}, id={}, approved={}, approver_id={}",
+                    handle_bpm_process_finished(
+                        db.clone(),
+                        search_client.clone(),
                         business_type,
                         business_id,
                         approved,
-                        approver_id
-                    );
-                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
-                    let idempotency_service =
-                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
-                    let event_key = format!("bpm:{}:{}:{}", business_type, business_id, approved);
-                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "BpmProcessFinished").await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            tracing::error!("BpmProcessFinished 幂等检查失败 type={} id={}: {}", business_type, business_id, e);
-                            false
-                        }
-                    };
-                    if should_process {
-                    if business_type == "purchase_order" {
-                        if approved {
-                            let po_service =
-                                crate::services::po::order::PurchaseOrderService::new(db.clone());
-                            // P2 5-18 修复：使用事件携带的 approver_id 替代硬编码 0
-                            if let Err(e) = po_service.approve_order(business_id, approver_id).await {
-                                tracing::error!(
-                                    "Failed to approve purchase_order {} via BPM: {}",
-                                    business_id,
-                                    e
-                                );
-                            } else {
-                                tracing::info!(
-                                    "Successfully approved purchase_order {} via BPM",
-                                    business_id
-                                );
-                            }
-                        } else {
-                            let po_service =
-                                crate::services::po::order::PurchaseOrderService::new(db.clone());
-                            if let Err(e) = po_service
-                                .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
-                                .await
-                            {
-                                tracing::error!(
-                                    "Failed to reject purchase_order {} via BPM: {}",
-                                    business_id,
-                                    e
-                                );
-                            }
-                        }
-                    } else if business_type == "sales_order" {
-                        if approved {
-                            let sales_service =
-                                crate::services::so::order::SalesService::new(db.clone(), search_client.clone());
-                            if let Err(e) = sales_service.approve_order(business_id, approver_id).await {
-                                tracing::error!(
-                                    "Failed to approve sales_order {} via BPM: {}",
-                                    business_id,
-                                    e
-                                );
-                            } else {
-                                tracing::info!(
-                                    "Successfully approved sales_order {} via BPM",
-                                    business_id
-                                );
-                            }
-                        } else {
-                            let sales_service =
-                                crate::services::so::order::SalesService::new(db.clone(), search_client.clone());
-                            match sales_service
-                                .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
-                                .await
-                            {
-                                Ok(_) => tracing::info!(
-                                    "Successfully rejected sales_order {} via BPM",
-                                    business_id
-                                ),
-                                Err(e) => tracing::error!(
-                                    "Failed to reject sales_order {} via BPM: {}",
-                                    business_id,
-                                    e
-                                ),
-                            }
-                        }
-                    } else if business_type == "production_order" {
-                        // B-P1-9 修复（批次 360 v13 复审）：生产订单 BPM 审批结果回写
-                        // 原实现仅处理 purchase_order/sales_order，生产订单 BPM 审批结果无法回写。
-                        // 使用 approve_order_via_bpm/reject_order_via_bpm 专用方法，不回调 BPM 避免循环。
-                        let prod_service =
-                            crate::services::production_order_service::ProductionOrderService::new(db.clone());
-                        if approved {
-                            if let Err(e) = prod_service.approve_order_via_bpm(business_id, approver_id).await {
-                                tracing::error!(
-                                    "Failed to approve production_order {} via BPM: {}",
-                                    business_id,
-                                    e
-                                );
-                            } else {
-                                tracing::info!(
-                                    "Successfully approved production_order {} via BPM",
-                                    business_id
-                                );
-                            }
-                        } else {
-                            if let Err(e) = prod_service
-                                .reject_order_via_bpm(business_id, "BPM审批拒绝".to_string(), approver_id)
-                                .await
-                            {
-                                tracing::error!(
-                                    "Failed to reject production_order {} via BPM: {}",
-                                    business_id,
-                                    e
-                                );
-                            } else {
-                                tracing::info!(
-                                    "Successfully rejected production_order {} via BPM",
-                                    business_id
-                                );
-                            }
-                        }
-                    }
-                    } // if should_process
+                        approver_id,
+                    )
+                    .await;
                 }
                 BusinessEvent::LowStockAlert {
                     product_id,
@@ -655,153 +526,21 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                     reorder_point,
                     reorder_quantity,
                 } => {
-                    tracing::info!(
-                        "处理低库存预警事件: 产品ID={}, 仓库ID={}, 当前库存={}, 补货点={}, 建议补货量={}",
+                    handle_low_stock_alert(
+                        db.clone(),
                         product_id,
                         warehouse_id,
                         current_quantity,
                         reorder_point,
-                        reorder_quantity
-                    );
-                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
-                    // 幂等键含日期，同产品同仓库同一天仅处理一次低库存预警
-                    let idempotency_service =
-                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
-                    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-                    let event_key = format!("low_stock:{}:{}:{}", product_id, warehouse_id, today);
-                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "LowStockAlert").await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            tracing::error!("LowStockAlert 幂等检查失败 product={} warehouse={}: {}", product_id, warehouse_id, e);
-                            false
-                        }
-                    };
-                    if should_process {
-                    // 创建采购建议
-                    let po_service =
-                        crate::services::po::order::PurchaseOrderService::new(db.clone());
-                    match po_service
-                        .create_purchase_suggestion(
-                            product_id,
-                            warehouse_id,
-                            current_quantity,
-                            reorder_point,
-                            reorder_quantity,
-                        )
-                        .await
-                    {
-                        Ok(order) => {
-                            tracing::info!(
-                                "成功创建采购建议: 订单ID={}, 订单号={}",
-                                order.id,
-                                order.order_no
-                            );
-                        }
-                        Err(e) => {
-                            tracing::error!("创建采购建议失败: {}", e);
-                        }
-                    }
-
-                    // 发送低库存预警通知给仓库管理员和采购人员
-                    let notification_service =
-                        crate::services::event_notification_service::EventNotificationService::new(
-                            db.clone(),
-                        );
-                    let product_name = crate::models::product::Entity::find_by_id(product_id)
-                        .one(db.as_ref())
-                        .await
-                        .ok()
-                        .flatten()
-                        .map(|p| p.name)
-                        .unwrap_or_else(|| format!("产品{}", product_id));
-
-                    // P2 5-19 修复：按角色过滤通知用户，仅通知 admin 和 manager 角色
-                    // 原实现查所有 is_active 用户，无关角色也收低库存预警
-                    // 系统无 user_role 表，通过 user.role_id 关联 role.code 过滤
-                    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
-
-                    // 1. 查询 admin 和 manager 角色的 ID
-                    let target_role_ids: Vec<i32> = crate::models::role::Entity::find()
-                        .filter(
-                            crate::models::role::Column::Code
-                                .eq(ADMIN_ROLE_CODE)
-                                .or(crate::models::role::Column::Code.eq(MANAGER_ROLE_CODE)),
-                        )
-                        .all(db.as_ref())
-                        .await
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|r| r.id)
-                        .collect();
-
-                    // 2. 查询这些角色下的 active 用户
-                    let notify_user_ids = if target_role_ids.is_empty() {
-                        Vec::new()
-                    } else {
-                        crate::models::user::Entity::find()
-                            .filter(crate::models::user::Column::IsActive.eq(true))
-                            .filter(
-                                crate::models::user::Column::RoleId.is_in(target_role_ids),
-                            )
-                            .all(db.as_ref())
-                            .await
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|u| u.id)
-                            .collect::<Vec<i32>>()
-                    };
-
-                    let notify_count = notify_user_ids.len();
-                    // v17 批次 47 修复：改用批量通知方法，循环外一次获取所有用户设置（避免 N+1）
-                    if let Err(e) = notification_service
-                        .notify_inventory_alert_batch(
-                            &notify_user_ids,
-                            &product_name,
-                            product_id,
-                            &format!("{}米", current_quantity),
-                            &format!("{}米", reorder_point),
-                        )
-                        .await
-                    {
-                        tracing::error!(
-                            "发送低库存预警批量通知失败: 通知人数={}, 错误={}",
-                            notify_count,
-                            e
-                        );
-                    }
-                    tracing::info!(
-                        "低库存预警通知已发送: 产品={}, 仓库ID={}, 通知人数={}",
-                        product_name,
-                        warehouse_id,
-                        notify_count
-                    );
-                    } // if should_process
+                        reorder_quantity,
+                    )
+                    .await;
                 }
                 BusinessEvent::FinancialIndicatorUpdate {
                     period,
                     trigger_source,
                 } => {
-                    tracing::info!(
-                        "处理财务指标更新事件: 期间={}, 触发源={}",
-                        period,
-                        trigger_source
-                    );
-                    let fa_service =
-                        crate::services::financial_analysis_service::FinancialAnalysisService::new(
-                            db.clone(),
-                        );
-                    match fa_service.calculate_indicators(&period, 0).await {
-                        Ok(results) => {
-                            tracing::info!(
-                                "财务指标自动计算完成: 期间={}, 计算 {} 个指标",
-                                period,
-                                results.len()
-                            );
-                        }
-                        Err(e) => {
-                            tracing::error!("财务指标自动计算失败: 期间={}, 错误={}", period, e);
-                        }
-                    }
+                    handle_financial_indicator_update(db.clone(), period, trigger_source).await;
                 }
                 BusinessEvent::MaterialShortageAlert {
                     material_id,
@@ -813,63 +552,18 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                     shortage_level,
                     affected_orders_count,
                 } => {
-                    tracing::info!(
-                        "处理缺料预警事件: 物料ID={}, 物料名称={}, 缺料数量={}, 预警级别={}, 受影响订单数={}",
+                    handle_material_shortage_alert(
+                        db.clone(),
                         material_id,
                         material_name,
+                        material_code,
+                        required_quantity,
+                        available_quantity,
                         shortage_quantity,
                         shortage_level,
-                        affected_orders_count
-                    );
-                    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
-                    // 幂等键含日期，同物料同一天仅处理一次缺料预警
-                    let idempotency_service =
-                        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
-                    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-                    let event_key = format!("material_shortage:{}:{}", material_id, today);
-                    let should_process = match idempotency_service.try_mark_processed("event_bus_main", &event_key, "MaterialShortageAlert").await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            tracing::error!("MaterialShortageAlert 幂等检查失败 material={}: {}", material_id, e);
-                            false
-                        }
-                    };
-                    if should_process {
-                    let po_service =
-                        crate::services::po::order::PurchaseOrderService::new(db.clone());
-                    // 批次 333 v10 复审 P3 修复：使用 ShortageAlertParams 参数对象替代多参数
-                    let shortage_params =
-                        crate::services::po::price::ShortageAlertParams {
-                            material_id,
-                            material_name: material_name.clone(),
-                            material_code: material_code.clone(),
-                            required_quantity,
-                            available_quantity,
-                            shortage_quantity,
-                            shortage_level: shortage_level.clone(),
-                            affected_orders_count,
-                        };
-                    match po_service
-                        .create_purchase_suggestion_from_shortage(shortage_params)
-                        .await
-                    {
-                        Ok(order) => {
-                            tracing::info!(
-                                "成功创建缺料采购建议: 订单ID={}, 订单号={}, 物料={}",
-                                order.id,
-                                order.order_no,
-                                material_name
-                            );
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "创建缺料采购建议失败: 物料ID={}, 错误={}",
-                                material_id,
-                                e
-                            );
-                        }
-                    }
-                    } // if should_process
+                        affected_orders_count,
+                    )
+                    .await;
                 }
                 // B-P1-3 修复（批次 384 v13 复审）：客户主数据变更事件
                 // 异步刷新关联单据的 customer_name 冗余字段
@@ -993,6 +687,319 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
     // L-28 修复（批次 373 v13 复审）：保存主监听器句柄到全局 static
     if let Ok(mut guard) = MAIN_LISTENER_HANDLE.lock() {
         *guard = Some(listener_handle);
+    }
+}
+
+// ============================================================================
+// start_event_listener 的 match arm 处理 helper（D12 圈复杂度优化）
+//
+// 主监听器原始 CC≈33，提取 5 个复杂 arm 为独立 helper 后主函数仅保留 match 分发，
+// 圈复杂度降至阈值 15 以下。helper 均为自由 async fn，按业务事件边界组织。
+// ============================================================================
+
+/// 处理采购收货完成事件：调用 po_service.receive_order 并传入 receipt_id 做幂等校验
+async fn handle_purchase_receipt_completed(db: Arc<DatabaseConnection>, receipt_id: i32, order_id: i32) {
+    tracing::info!(
+        "Event received: PurchaseReceiptCompleted for order {}, receipt {}",
+        order_id, receipt_id
+    );
+    let po_service = crate::services::po::order::PurchaseOrderService::new(db);
+    // P0 3-6 修复：传入 receipt_id 做幂等校验，防止事件重投导致重复入库
+    match po_service.receive_order(order_id, Some(receipt_id)).await {
+        Ok(_) => tracing::info!("Successfully updated purchase order {} status to RECEIVED", order_id),
+        Err(e) => tracing::error!("Failed to update purchase order {}: {}", order_id, e),
+    }
+}
+
+/// 处理 BPM 流程结束事件：幂等校验后按 business_type 分发到对应 service 的 approve/reject 方法
+async fn handle_bpm_process_finished(
+    db: Arc<DatabaseConnection>,
+    search_client: Arc<dyn SearchClient>,
+    business_type: String,
+    business_id: i32,
+    approved: bool,
+    approver_id: i32,
+) {
+    tracing::info!(
+        "处理BPM流程结束事件: type={}, id={}, approved={}, approver_id={}",
+        business_type, business_id, approved, approver_id
+    );
+    // B-P1-8 修复（批次 366 v13 复审）：事件幂等处理
+    let idempotency_service =
+        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+    let event_key = format!("bpm:{}:{}:{}", business_type, business_id, approved);
+    let should_process = match idempotency_service
+        .try_mark_processed("event_bus_main", &event_key, "BpmProcessFinished")
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(
+                "BpmProcessFinished 幂等检查失败 type={} id={}: {}",
+                business_type, business_id, e
+            );
+            false
+        }
+    };
+    if !should_process {
+        return;
+    }
+    match business_type.as_str() {
+        "purchase_order" => {
+            handle_bpm_purchase_order(db, business_id, approved, approver_id).await;
+        }
+        "sales_order" => {
+            handle_bpm_sales_order(db, search_client, business_id, approved, approver_id).await;
+        }
+        "production_order" => {
+            handle_bpm_production_order(db, business_id, approved, approver_id).await;
+        }
+        other => tracing::warn!("未识别的 BPM business_type: {}", other),
+    }
+}
+
+/// 处理采购订单 BPM 审批结果回写（approve_order / reject_order）
+async fn handle_bpm_purchase_order(db: Arc<DatabaseConnection>, business_id: i32, approved: bool, approver_id: i32) {
+    let po_service = crate::services::po::order::PurchaseOrderService::new(db);
+    // P2 5-18 修复：使用事件携带的 approver_id 替代硬编码 0
+    if approved {
+        if let Err(e) = po_service.approve_order(business_id, approver_id).await {
+            tracing::error!("Failed to approve purchase_order {} via BPM: {}", business_id, e);
+        } else {
+            tracing::info!("Successfully approved purchase_order {} via BPM", business_id);
+        }
+    } else if let Err(e) = po_service
+        .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
+        .await
+    {
+        tracing::error!("Failed to reject purchase_order {} via BPM: {}", business_id, e);
+    }
+}
+
+/// 处理销售订单 BPM 审批结果回写（approve_order / reject_order）
+async fn handle_bpm_sales_order(
+    db: Arc<DatabaseConnection>,
+    search_client: Arc<dyn SearchClient>,
+    business_id: i32,
+    approved: bool,
+    approver_id: i32,
+) {
+    let sales_service = crate::services::so::order::SalesService::new(db, search_client);
+    if approved {
+        if let Err(e) = sales_service.approve_order(business_id, approver_id).await {
+            tracing::error!("Failed to approve sales_order {} via BPM: {}", business_id, e);
+        } else {
+            tracing::info!("Successfully approved sales_order {} via BPM", business_id);
+        }
+    } else {
+        match sales_service
+            .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
+            .await
+        {
+            Ok(_) => tracing::info!("Successfully rejected sales_order {} via BPM", business_id),
+            Err(e) => tracing::error!("Failed to reject sales_order {} via BPM: {}", business_id, e),
+        }
+    }
+}
+
+/// 处理生产订单 BPM 审批结果回写（专用 approve_order_via_bpm/reject_order_via_bpm，不回调 BPM 避免循环）
+async fn handle_bpm_production_order(db: Arc<DatabaseConnection>, business_id: i32, approved: bool, approver_id: i32) {
+    // B-P1-9 修复（批次 360 v13 复审）：原实现仅处理 purchase_order/sales_order，生产订单 BPM 审批结果无法回写
+    let prod_service = crate::services::production_order_service::ProductionOrderService::new(db);
+    if approved {
+        if let Err(e) = prod_service.approve_order_via_bpm(business_id, approver_id).await {
+            tracing::error!("Failed to approve production_order {} via BPM: {}", business_id, e);
+        } else {
+            tracing::info!("Successfully approved production_order {} via BPM", business_id);
+        }
+    } else {
+        if let Err(e) = prod_service
+            .reject_order_via_bpm(business_id, "BPM审批拒绝".to_string(), approver_id)
+            .await
+        {
+            tracing::error!("Failed to reject production_order {} via BPM: {}", business_id, e);
+        } else {
+            tracing::info!("Successfully rejected production_order {} via BPM", business_id);
+        }
+    }
+}
+
+/// 处理低库存预警事件：幂等校验后创建采购建议 + 通知 admin/manager 角色用户
+async fn handle_low_stock_alert(
+    db: Arc<DatabaseConnection>,
+    product_id: i32,
+    warehouse_id: i32,
+    current_quantity: rust_decimal::Decimal,
+    reorder_point: rust_decimal::Decimal,
+    reorder_quantity: rust_decimal::Decimal,
+) {
+    tracing::info!(
+        "处理低库存预警事件: 产品ID={}, 仓库ID={}, 当前库存={}, 补货点={}, 建议补货量={}",
+        product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity
+    );
+    // B-P1-8 修复（批次 366 v13 复审）：幂等键含日期，同产品同仓库同一天仅处理一次低库存预警
+    let idempotency_service =
+        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let event_key = format!("low_stock:{}:{}:{}", product_id, warehouse_id, today);
+    let should_process = match idempotency_service
+        .try_mark_processed("event_bus_main", &event_key, "LowStockAlert")
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(
+                "LowStockAlert 幂等检查失败 product={} warehouse={}: {}",
+                product_id, warehouse_id, e
+            );
+            false
+        }
+    };
+    if !should_process {
+        return;
+    }
+    // 创建采购建议
+    let po_service = crate::services::po::order::PurchaseOrderService::new(db.clone());
+    match po_service
+        .create_purchase_suggestion(product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity)
+        .await
+    {
+        Ok(order) => tracing::info!("成功创建采购建议: 订单ID={}, 订单号={}", order.id, order.order_no),
+        Err(e) => tracing::error!("创建采购建议失败: {}", e),
+    }
+
+    // 发送低库存预警通知给仓库管理员和采购人员
+    let notification_service =
+        crate::services::event_notification_service::EventNotificationService::new(db.clone());
+    let product_name = crate::models::product::Entity::find_by_id(product_id)
+        .one(db.as_ref())
+        .await
+        .ok()
+        .flatten()
+        .map(|p| p.name)
+        .unwrap_or_else(|| format!("产品{}", product_id));
+
+    // P2 5-19 修复：按角色过滤通知用户，仅通知 admin 和 manager 角色
+    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
+    let target_role_ids: Vec<i32> = crate::models::role::Entity::find()
+        .filter(
+            crate::models::role::Column::Code
+                .eq(ADMIN_ROLE_CODE)
+                .or(crate::models::role::Column::Code.eq(MANAGER_ROLE_CODE)),
+        )
+        .all(db.as_ref())
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| r.id)
+        .collect();
+
+    let notify_user_ids = if target_role_ids.is_empty() {
+        Vec::new()
+    } else {
+        crate::models::user::Entity::find()
+            .filter(crate::models::user::Column::IsActive.eq(true))
+            .filter(crate::models::user::Column::RoleId.is_in(target_role_ids))
+            .all(db.as_ref())
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|u| u.id)
+            .collect::<Vec<i32>>()
+    };
+
+    let notify_count = notify_user_ids.len();
+    // v17 批次 47 修复：改用批量通知方法，循环外一次获取所有用户设置（避免 N+1）
+    if let Err(e) = notification_service
+        .notify_inventory_alert_batch(
+            &notify_user_ids,
+            &product_name,
+            product_id,
+            &format!("{}米", current_quantity),
+            &format!("{}米", reorder_point),
+        )
+        .await
+    {
+        tracing::error!(
+            "发送低库存预警批量通知失败: 通知人数={}, 错误={}",
+            notify_count, e
+        );
+    }
+    tracing::info!(
+        "低库存预警通知已发送: 产品={}, 仓库ID={}, 通知人数={}",
+        product_name, warehouse_id, notify_count
+    );
+}
+
+/// 处理缺料预警事件：幂等校验后创建缺料采购建议
+async fn handle_material_shortage_alert(
+    db: Arc<DatabaseConnection>,
+    material_id: i32,
+    material_name: String,
+    material_code: String,
+    required_quantity: rust_decimal::Decimal,
+    available_quantity: rust_decimal::Decimal,
+    shortage_quantity: rust_decimal::Decimal,
+    shortage_level: String,
+    affected_orders_count: i32,
+) {
+    tracing::info!(
+        "处理缺料预警事件: 物料ID={}, 物料名称={}, 缺料数量={}, 预警级别={}, 受影响订单数={}",
+        material_id, material_name, shortage_quantity, shortage_level, affected_orders_count
+    );
+    // B-P1-8 修复（批次 366 v13 复审）：幂等键含日期，同物料同一天仅处理一次缺料预警
+    let idempotency_service =
+        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let event_key = format!("material_shortage:{}:{}", material_id, today);
+    let should_process = match idempotency_service
+        .try_mark_processed("event_bus_main", &event_key, "MaterialShortageAlert")
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(
+                "MaterialShortageAlert 幂等检查失败 material={}: {}",
+                material_id, e
+            );
+            false
+        }
+    };
+    if !should_process {
+        return;
+    }
+    let po_service = crate::services::po::order::PurchaseOrderService::new(db.clone());
+    // 批次 333 v10 复审 P3 修复：使用 ShortageAlertParams 参数对象替代多参数
+    let shortage_params = crate::services::po::price::ShortageAlertParams {
+        material_id,
+        material_name: material_name.clone(),
+        material_code: material_code.clone(),
+        required_quantity,
+        available_quantity,
+        shortage_quantity,
+        shortage_level: shortage_level.clone(),
+        affected_orders_count,
+    };
+    match po_service.create_purchase_suggestion_from_shortage(shortage_params).await {
+        Ok(order) => tracing::info!(
+            "成功创建缺料采购建议: 订单ID={}, 订单号={}, 物料={}",
+            order.id, order.order_no, material_name
+        ),
+        Err(e) => tracing::error!("创建缺料采购建议失败: 物料ID={}, 错误={}", material_id, e),
+    }
+}
+
+/// 处理财务指标更新事件：调用 FinancialAnalysisService.calculate_indicators 刷新指标
+async fn handle_financial_indicator_update(db: Arc<DatabaseConnection>, period: String, trigger_source: String) {
+    tracing::info!("处理财务指标更新事件: 期间={}, 触发源={}", period, trigger_source);
+    let fa_service =
+        crate::services::financial_analysis_service::FinancialAnalysisService::new(db);
+    match fa_service.calculate_indicators(&period, 0).await {
+        Ok(results) => tracing::info!(
+            "财务指标自动计算完成: 期间={}, 计算 {} 个指标",
+            period, results.len()
+        ),
+        Err(e) => tracing::error!("财务指标自动计算失败: 期间={}, 错误={}", period, e),
     }
 }
 
