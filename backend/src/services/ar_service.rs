@@ -55,6 +55,18 @@ pub struct CreateArPaymentParams {
     pub invoice_ids: Option<Vec<i32>>,
 }
 
+/// 手动核销明细创建上下文：封装 reconciliation/invoice/payment 等参数
+///
+/// 批次 488 D08-1 拆分：引入参数对象消除 too_many_arguments 警告
+struct ReconciliationItemContext<'a> {
+    reconciliation: &'a ar_reconciliation::Model,
+    invoice: &'a ar_invoice::Model,
+    payment: &'a ar_collection::Model,
+    amount: Decimal,
+    remark: Option<String>,
+    now: chrono::DateTime<chrono::Utc>,
+}
+
 /// 应收账款服务
 pub struct ArService {
     db: Arc<DatabaseConnection>,
@@ -998,6 +1010,58 @@ impl ArService {
         remark: Option<String>,
         user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
+        Self::validate_verify_amount(invoice_id, payment_id, amount, user_id)?;
+        let txn = (*self.db).begin().await?;
+        let invoice = self
+            .lock_and_validate_invoice(invoice_id, amount, user_id, &txn)
+            .await?;
+        let payment = self
+            .lock_and_validate_payment(&invoice, payment_id, user_id, &txn)
+            .await?;
+        self.check_payment_available_balance(payment_id, &payment, amount, user_id, &txn)
+            .await?;
+        let now = Utc::now();
+        let reconciliation = self
+            .create_reconciliation_record(&invoice, amount, user_id, now, &txn)
+            .await?;
+        let ctx = ReconciliationItemContext {
+            reconciliation: &reconciliation,
+            invoice: &invoice,
+            payment: &payment,
+            amount,
+            remark,
+            now,
+        };
+        self.create_reconciliation_items(ctx, &txn).await?;
+        let (new_status, updated_invoice) = self
+            .update_invoice_after_verify(&invoice, amount, user_id, now, &txn)
+            .await?;
+        txn.commit().await?;
+        info!(
+            "AR 手动核销成功：reconciliation_id={}, invoice={}, payment={}, amount={}, 新状态={}",
+            reconciliation.id, invoice_id, payment_id, amount, new_status
+        );
+        Ok(json!({
+            "id": reconciliation.id,
+            "reconciliation_no": reconciliation.reconciliation_no,
+            "invoice_id": invoice_id,
+            "payment_id": payment_id,
+            "amount": amount.to_string(),
+            "status": crate::models::status::ar::RECONCILIATION_CLOSED,
+            "verified_by": user_id,
+            "verified_at": now,
+            "invoice_status": new_status,
+            "invoice_unpaid_amount": updated_invoice.unpaid_amount.to_string(),
+        }))
+    }
+
+    /// 核销金额前置校验：金额>0 + 精度≤2 位小数
+    fn validate_verify_amount(
+        invoice_id: i32,
+        payment_id: i32,
+        amount: Decimal,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         // 金额校验
         if amount <= Decimal::ZERO {
             // 批次 389 P2-2：金额校验失败记录 warn 日志，便于审计异常核销行为
@@ -1025,16 +1089,23 @@ impl ArService {
             );
             return Err(AppError::validation("核销金额精度不能超过 2 位小数"));
         }
+        Ok(())
+    }
 
-        let txn = (*self.db).begin().await?;
-
-        // 锁定发票和收款单
+    /// 锁定发票并校验：未取消 + 未收金额充足
+    async fn lock_and_validate_invoice(
+        &self,
+        invoice_id: i32,
+        amount: Decimal,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<ar_invoice::Model, AppError> {
+        // 锁定发票
         let invoice = ar_invoice::Entity::find_by_id(invoice_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应收单 {}", invoice_id)))?;
-
         if invoice.status == crate::models::status::common::STATUS_CANCELLED {
             // 批次 389 P2-2：应收单已取消拒绝核销记录 warn 日志
             warn!(
@@ -1064,13 +1135,23 @@ impl ArService {
                 invoice.invoice_no, invoice.unpaid_amount, amount
             )));
         }
+        Ok(invoice)
+    }
 
+    /// 锁定收款单并校验：已确认 + 客户与发票一致
+    async fn lock_and_validate_payment(
+        &self,
+        invoice: &ar_invoice::Model,
+        payment_id: i32,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<ar_collection::Model, AppError> {
+        // 锁定收款单
         let payment = ar_collection::Entity::find_by_id(payment_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("收款单 {}", payment_id)))?;
-
         if payment.status != crate::models::status::ar::COLLECTION_CONFIRMED {
             // 批次 389 P2-2：收款未确认拒绝核销记录 warn 日志
             warn!(
@@ -1092,7 +1173,7 @@ impl ArService {
             warn!(
                 target: "business_audit",
                 event = "AR_VERIFY_CUSTOMER_MISMATCH",
-                invoice_id = invoice_id,
+                invoice_id = invoice.id,
                 payment_id = payment_id,
                 invoice_customer_id = invoice.customer_id,
                 payment_customer_id = payment.customer_id,
@@ -1101,12 +1182,23 @@ impl ArService {
             );
             return Err(AppError::business("发票客户与收款客户不一致，不可核销"));
         }
+        Ok(payment)
+    }
 
+    /// 校验收款单可用余额：已核销金额 + 本次核销金额 ≤ 收款金额
+    async fn check_payment_available_balance(
+        &self,
+        payment_id: i32,
+        payment: &ar_collection::Model,
+        amount: Decimal,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
         // 查询该收款单已核销金额
         let existing_verified: Decimal = ar_reconciliation_item::Entity::find()
             .filter(ar_reconciliation_item::Column::ItemType.eq("RECEIPT"))
             .filter(ar_reconciliation_item::Column::DocumentId.eq(payment_id))
-            .all(&txn)
+            .all(txn)
             .await?
             .into_iter()
             .map(|i| i.amount.abs())
@@ -1129,18 +1221,27 @@ impl ArService {
                 payment.collection_no, available, amount
             )));
         }
+        Ok(())
+    }
 
+    /// 创建核销单主记录（生成 VER 单号 + 初始化金额）
+    async fn create_reconciliation_record(
+        &self,
+        invoice: &ar_invoice::Model,
+        amount: Decimal,
+        user_id: i32,
+        now: chrono::DateTime<chrono::Utc>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<ar_reconciliation::Model, AppError> {
         // 创建核销单
         let verify_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-            &txn,
+            txn,
             "VER",
             ar_reconciliation::Entity,
             ar_reconciliation::Column::ReconciliationNo,
         )
         .await?;
-        let now = Utc::now();
         let today = now.date_naive();
-
         let reconciliation = ar_reconciliation::ActiveModel {
             reconciliation_no: Set(verify_no),
             reconciliation_date: Set(today),
@@ -1152,7 +1253,9 @@ impl ArService {
             total_invoices: Set(amount),
             total_collections: Set(amount),
             closing_balance: Set(Decimal::ZERO),
-            reconciliation_status: Set(Some(crate::models::status::ar::RECONCILIATION_CLOSED.to_string())),
+            reconciliation_status: Set(Some(
+                crate::models::status::ar::RECONCILIATION_CLOSED.to_string(),
+            )),
             confirmed_by: Set(Some(user_id)),
             confirmed_at: Set(Some(now)),
             created_by: Set(Some(user_id)),
@@ -1160,49 +1263,67 @@ impl ArService {
             updated_at: Set(now),
             ..Default::default()
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
+        Ok(reconciliation)
+    }
 
+    /// 创建核销明细：INVOICE 明细 + RECEIPT 明细
+    async fn create_reconciliation_items(
+        &self,
+        ctx: ReconciliationItemContext<'_>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
         // INVOICE 明细
         ar_reconciliation_item::ActiveModel {
-            reconciliation_id: Set(reconciliation.id),
+            reconciliation_id: Set(ctx.reconciliation.id),
             item_type: Set("INVOICE".to_string()),
             document_type: Set(Some("SALES_INVOICE".to_string())),
-            document_id: Set(Some(invoice_id)),
-            document_no: Set(Some(invoice.invoice_no.clone())),
-            document_date: Set(Some(invoice.invoice_date)),
-            amount: Set(amount),
-            matched_amount: Set(Some(amount)),
+            document_id: Set(Some(ctx.invoice.id)),
+            document_no: Set(Some(ctx.invoice.invoice_no.clone())),
+            document_date: Set(Some(ctx.invoice.invoice_date)),
+            amount: Set(ctx.amount),
+            matched_amount: Set(Some(ctx.amount)),
             match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
             matched_item_id: Set(None),
-            remarks: Set(remark.clone()),
-            created_at: Set(now),
-            updated_at: Set(now),
+            remarks: Set(ctx.remark.clone()),
+            created_at: Set(ctx.now),
+            updated_at: Set(ctx.now),
             ..Default::default()
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
-
         // RECEIPT 明细
         ar_reconciliation_item::ActiveModel {
-            reconciliation_id: Set(reconciliation.id),
+            reconciliation_id: Set(ctx.reconciliation.id),
             item_type: Set("RECEIPT".to_string()),
             document_type: Set(Some("AR_COLLECTION".to_string())),
-            document_id: Set(Some(payment_id)),
-            document_no: Set(Some(payment.collection_no.clone())),
-            document_date: Set(Some(payment.collection_date)),
-            amount: Set(-amount),
-            matched_amount: Set(Some(amount)),
+            document_id: Set(Some(ctx.payment.id)),
+            document_no: Set(Some(ctx.payment.collection_no.clone())),
+            document_date: Set(Some(ctx.payment.collection_date)),
+            amount: Set(-ctx.amount),
+            matched_amount: Set(Some(ctx.amount)),
             match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
             matched_item_id: Set(None),
-            remarks: Set(remark),
-            created_at: Set(now),
-            updated_at: Set(now),
+            remarks: Set(ctx.remark),
+            created_at: Set(ctx.now),
+            updated_at: Set(ctx.now),
             ..Default::default()
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
+        Ok(())
+    }
 
+    /// 核销后更新发票状态（received_amount/unpaid_amount/status + 审计）
+    async fn update_invoice_after_verify(
+        &self,
+        invoice: &ar_invoice::Model,
+        amount: Decimal,
+        user_id: i32,
+        now: chrono::DateTime<chrono::Utc>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(String, ar_invoice::Model), AppError> {
         // 更新发票
         let mut inv_active: ar_invoice::ActiveModel = invoice.clone().into();
         let new_received = invoice.received_amount + amount;
@@ -1221,28 +1342,9 @@ impl ArService {
                 ar_invoice::Entity,
                 _,
                 _,
-            >(&txn, "ar_invoice", inv_active, Some(user_id))
+            >(txn, "ar_invoice", inv_active, Some(user_id))
             .await?;
-
-        txn.commit().await?;
-
-        info!(
-            "AR 手动核销成功：reconciliation_id={}, invoice={}, payment={}, amount={}, 新状态={}",
-            reconciliation.id, invoice_id, payment_id, amount, new_status
-        );
-
-        Ok(json!({
-            "id": reconciliation.id,
-            "reconciliation_no": reconciliation.reconciliation_no,
-            "invoice_id": invoice_id,
-            "payment_id": payment_id,
-            "amount": amount.to_string(),
-            "status": crate::models::status::ar::RECONCILIATION_CLOSED,
-            "verified_by": user_id,
-            "verified_at": now,
-            "invoice_status": new_status,
-            "invoice_unpaid_amount": updated_invoice.unpaid_amount.to_string(),
-        }))
+        Ok((new_status, updated_invoice))
     }
 
     /// 取消核销

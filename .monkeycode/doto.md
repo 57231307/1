@@ -768,7 +768,7 @@ P0-D17 OA 公告 (M)  ← 独立
 - **状态**：✅ 审计误判 —— [user-profile/index.vue:30](file:///workspace/frontend/src/views/user-profile/index.vue#L30) 原生 `<img>` 已有 `:alt="profileForm.real_name ? '${profileForm.real_name}的头像' : '用户头像'"`；[TfaStep2.vue:14](file:///workspace/frontend/src/views/security/two-factor/components/TfaStep2.vue#L14) `<el-image>` 已有 `alt="二步验证二维码"`
 - **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D08 91+ 超长函数（类七，XL，未开始）
+#### P0-D08 91+ 超长函数（类七，XL，进行中）
 
 - **来源**：batch-07 P0-07-8
 - **证据**：2026-07-19 精确扫描（fn-to-next-fn 口径）：>80 行函数约 91 个，>100 行函数约 54 个，>200 行函数 6 个，>500 行函数 0 个；最严重案例 so/delivery.rs:110 ship_order 346 行、so/order_crud.rs:98 create_order 344 行、ar_service.rs:993 manual_verify 257 行、bpm_service.rs:242 approve_task 211 行、wage_service.rs:873 calculate 211 行、ar_service.rs:706 auto_verify 192 行；预估还有 10-20 个 D08 函数未捕获（services/ai、services/ar/inv.rs、services/inv/adjust.rs 等未完整展开）
@@ -780,8 +780,9 @@ P0-D17 OA 公告 (M)  ← 独立
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包；预估 10-12 子批次）
 - **执行优先级**：第 1 顺位（无前置依赖 + 解锁 D09/D10）
+- **进度**：D08-1 第一梯队 3/6 完成（ship_order 346→22+6helper+3struct / create_order 344→36+9helper+1struct / manual_verify 254→52+7helper+1struct）；剩余 3 函数（approve_task / calculate / auto_verify）
 - **批次规划**：
-  - 第一梯队（>200 行 6 函数，2 批）：ship_order / create_order / manual_verify / approve_task / calculate / auto_verify
+  - 第一梯队（>200 行 6 函数，2 批）：✅ ship_order / ✅ create_order / ✅ manual_verify / approve_task / calculate / auto_verify
   - 第二梯队（150-200 行 ~30 函数，3-4 批）：含 update_order / update_account_balances / ap_verification_auto_verify / 等
   - 第三梯队（100-150 行 ~20 函数，2-3 批）：含 create_payment / list_orders / approve_adjustment / 等
   - 第四梯队（80-100 行 ~37 函数，3-4 批）：含 inventory_finance_bridge 7 个 create_*_voucher 模板化提取
