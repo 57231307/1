@@ -8,6 +8,7 @@
     :model-value="visible"
     title="导入数据"
     width="500px"
+    aria-label="导入数据对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-upload

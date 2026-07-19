@@ -24,7 +24,7 @@
       </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="data" stripe>
+    <el-table v-loading="loading" :data="data" stripe aria-label="数据导入任务列表">
       <el-table-column prop="task_code" label="任务编号" width="140" />
       <el-table-column prop="template_name" label="导入模板" width="150" />
       <el-table-column prop="file_name" label="文件名" min-width="180" />
@@ -87,6 +87,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
+        aria-label="数据导入任务分页"
       />
     </div>
   </el-card>

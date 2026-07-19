@@ -9,6 +9,7 @@
     :model-value="visible"
     :title="localForm.id ? '编辑模板' : '新建模板'"
     width="800px"
+    :aria-label="localForm.id ? '编辑模板对话框' : '新建模板对话框'"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -16,6 +17,7 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
+      aria-label="数据导入模板表单"
     >
       <el-row :gutter="20">
         <el-col :span="12">

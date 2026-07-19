@@ -14,7 +14,7 @@
         </el-button>
       </div>
     </template>
-    <el-table :data="data" stripe style="width: 100%">
+    <el-table :data="data" stripe style="width: 100%" aria-label="最新活动表格">
       <el-table-column prop="time" label="时间" width="180">
         <template #default="{ row }">
           <el-icon><Clock /></el-icon>

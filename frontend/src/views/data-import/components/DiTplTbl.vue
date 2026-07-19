@@ -34,7 +34,7 @@
       </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="data" stripe>
+    <el-table v-loading="loading" :data="data" stripe aria-label="数据导入模板列表">
       <el-table-column prop="template_code" label="模板编号" width="140" />
       <el-table-column prop="template_name" label="模板名称" min-width="180" />
       <el-table-column prop="module" label="模块" width="100">
@@ -78,6 +78,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
+        aria-label="数据导入模板分页"
       />
     </div>
   </el-card>
