@@ -8,6 +8,7 @@
     :model-value="visible"
     title="凭证详情"
     width="800px"
+    aria-label="凭证详情对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <div v-if="viewData" class="voucher-detail">

@@ -9,9 +9,10 @@
     :model-value="visible"
     title="销售发货"
     width="800px"
+    aria-label="销售发货对话框"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form>
+    <el-form aria-label="销售发货表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="销售单号">
@@ -55,7 +56,7 @@
         </el-col>
       </el-row>
       <el-form-item label="发货明细">
-        <el-table :data="form.items" border style="width: 100%">
+        <el-table :data="form.items" border style="width: 100%" aria-label="销售发货明细表">
           <el-table-column prop="product_name" label="产品" width="150" />
           <el-table-column prop="quantity" label="订单数量" width="100" />
           <el-table-column prop="delivered_quantity" label="已发货" width="100" />

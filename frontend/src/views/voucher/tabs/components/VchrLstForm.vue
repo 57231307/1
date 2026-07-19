@@ -9,9 +9,10 @@
     :model-value="visible"
     :title="title"
     width="800px"
+    :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <ElForm :model="localForm" label-width="100px">
+    <ElForm :model="localForm" label-width="100px" aria-label="凭证表单">
       <ElRow :gutter="20">
         <ElCol :span="12">
           <ElFormItem label="凭证号" prop="voucher_no">

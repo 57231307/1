@@ -11,6 +11,7 @@
     border
     fit
     highlight-current-row
+    aria-label="凭证列表"
     style="width: 100%"
   >
     <ElTableColumn prop="voucher_no" label="凭证号" width="120" />
@@ -92,6 +93,7 @@
       :page-sizes="[10, 20, 50, 100]"
       :total="total"
       layout="total, sizes, prev, pager, next, jumper"
+      aria-label="凭证列表分页"
       @update:current-page="emit('update:page', $event as number)"
       @update:page-size="emit('update:page-size', $event as number)"
     />

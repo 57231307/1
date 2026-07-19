@@ -6,7 +6,7 @@
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localFilterForm">
+    <el-form :inline="true" :model="localFilterForm" aria-label="销售订单筛选表单">
       <el-form-item label="订单号">
         <el-input
           v-model="localFilterForm.order_no"
