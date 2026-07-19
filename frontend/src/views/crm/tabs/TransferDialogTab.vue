@@ -4,11 +4,11 @@
   拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" title="分配客户" width="500px">
+  <el-dialog v-model="visible" title="分配客户" width="500px" aria-label="分配客户对话框">
     <p>
       将客户 <strong>{{ customerName }}</strong> 分配给：
     </p>
-    <el-form :model="form" label-width="80px">
+    <el-form :model="form" label-width="80px" aria-label="分配客户表单">
       <el-form-item label="负责人">
         <el-select v-model="form.ownerId" placeholder="请选择负责人" filterable>
           <el-option

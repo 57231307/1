@@ -4,8 +4,8 @@
   拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" :title="title" width="800px" :close-on-click-modal="false">
-    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+  <el-dialog v-model="visible" :title="title" width="800px" :close-on-click-modal="false" :aria-label="title">
+    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" aria-label="商机表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="商机名称" prop="opportunity_name">

@@ -29,8 +29,8 @@
       <span v-if="!tags.length" class="no-tags">暂无标签</span>
     </div>
 
-    <el-dialog v-model="dialogVisible" title="添加标签" width="400px">
-      <el-form ref="formRef" :model="form" label-width="80px">
+    <el-dialog v-model="dialogVisible" title="添加标签" width="400px" aria-label="添加标签对话框">
+      <el-form ref="formRef" :model="form" label-width="80px" aria-label="添加标签表单">
         <el-form-item label="标签名称" prop="name">
           <el-select v-model="form.name" placeholder="选择已有标签" style="width: 100%">
             <el-option

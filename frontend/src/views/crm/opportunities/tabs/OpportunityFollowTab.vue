@@ -4,8 +4,8 @@
   拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" title="跟进记录" width="600px">
-    <el-form :model="formData" label-width="80px">
+  <el-dialog v-model="visible" title="跟进记录" width="600px" aria-label="跟进记录对话框">
+    <el-form :model="formData" label-width="80px" aria-label="商机跟进表单">
       <el-form-item label="跟进内容">
         <el-input
           v-model="formData.content"
