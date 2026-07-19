@@ -69,7 +69,7 @@
           <el-button type="primary" :icon="Plus" @click="handleAddTier">添加阶梯</el-button>
         </div>
       </template>
-      <el-table :data="tiers" border aria-label="色卡阶梯价列表">
+      <el-table :data="tiers" border aria-label="色卡价格阶梯列表">
         <el-table-column prop="sequence" label="顺序" width="80" />
         <el-table-column prop="min_quantity" label="起订量" width="120" />
         <el-table-column prop="max_quantity" label="上限" width="120">

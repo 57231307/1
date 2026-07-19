@@ -45,7 +45,7 @@
               :rules="profileRules"
               label-width="100px"
               class="profile-form"
-              aria-label="个人资料表单"
+              aria-label="用户资料表单"
             >
               <el-form-item label="用户名">
                 <el-input v-model="profileForm.username" disabled />

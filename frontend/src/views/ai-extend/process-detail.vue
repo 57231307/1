@@ -143,7 +143,7 @@ onMounted(load)
         <template #header>
           <div class="card-header">相似历史案例（最多 10 条）</div>
         </template>
-        <el-table :data="candidates" size="small" border aria-label="相似候选案例列表">
+        <el-table :data="candidates" size="small" border aria-label="工艺优化候选案例列表">
           <el-table-column prop="case_id" label="案例 ID" width="100" />
           <el-table-column prop="color_no" label="色号" width="120" />
           <el-table-column prop="fabric_type" label="布类" width="100" />
