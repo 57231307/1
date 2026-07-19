@@ -10,7 +10,7 @@
     <el-row :gutter="20" style="margin-top: 20px">
       <el-col :span="14">
         <el-card header="选择色号">
-          <el-form :inline="true" :model="filterForm" class="filter-form">
+          <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="色卡价格批量调整筛选表单">
             <el-form-item label="产品 ID">
               <el-input v-model.number="filterForm.product_id" placeholder="产品 ID" clearable style="width: 140px" />
             </el-form-item>
@@ -33,6 +33,7 @@
             stripe
             @selection-change="handleSelectionChange"
             max-height="500"
+            aria-label="色卡价格批量调整列表"
           >
             <el-table-column type="selection" width="55" />
             <el-table-column prop="id" label="ID" width="80" />
@@ -56,7 +57,7 @@
 
       <el-col :span="10">
         <el-card header="调价设置">
-          <el-form :model="form" label-width="120px">
+          <el-form :model="form" label-width="120px" aria-label="色卡价格批量调整表单">
             <el-form-item label="已选色号">
               <el-tag type="info">共 {{ selectedRows.length }} 条</el-tag>
             </el-form-item>

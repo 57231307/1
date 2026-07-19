@@ -5,7 +5,7 @@
         <span>新建色卡</span>
       </template>
 
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" style="max-width: 800px">
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" style="max-width: 800px" aria-label="色卡创建表单">
         <el-form-item label="色卡编号" prop="card_no">
           <el-input v-model="form.card_no" placeholder="例如: PANTONE-TPX-2024-SS" />
         </el-form-item>

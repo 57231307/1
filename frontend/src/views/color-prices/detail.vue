@@ -69,7 +69,7 @@
           <el-button type="primary" :icon="Plus" @click="handleAddTier">添加阶梯</el-button>
         </div>
       </template>
-      <el-table :data="tiers" border>
+      <el-table :data="tiers" border aria-label="色卡阶梯价列表">
         <el-table-column prop="sequence" label="顺序" width="80" />
         <el-table-column prop="min_quantity" label="起订量" width="120" />
         <el-table-column prop="max_quantity" label="上限" width="120">
@@ -93,8 +93,8 @@
     </el-card>
 
     <!-- 批次 157c P1-1 修复：添加阶梯价对话框 -->
-    <el-dialog v-model="tierDialogVisible" title="添加阶梯价" width="480px">
-      <el-form ref="tierFormRef" :model="tierForm" :rules="tierRules" label-width="100px">
+    <el-dialog v-model="tierDialogVisible" title="添加阶梯价" width="480px" aria-label="添加阶梯价对话框">
+      <el-form ref="tierFormRef" :model="tierForm" :rules="tierRules" label-width="100px" aria-label="阶梯价表单">
         <el-form-item label="起订量" prop="min_quantity">
           <el-input-number v-model="tierForm.min_quantity" :min="1" style="width: 100%" />
         </el-form-item>

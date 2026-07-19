@@ -56,7 +56,7 @@
     </el-card>
 
     <!-- 添加色号对话框 -->
-    <el-dialog v-model="showAddItemDialog" title="添加色号" width="640px">
+    <el-dialog v-model="showAddItemDialog" title="添加色号" width="640px" aria-label="添加色号对话框">
       <ColorItemEditor v-model="newItem" />
       <template #footer>
         <el-button @click="showAddItemDialog = false">取消</el-button>
@@ -65,7 +65,7 @@
     </el-dialog>
 
     <!-- 批量导入对话框 -->
-    <el-dialog v-model="showImportDialog" title="批量导入色号" width="600px">
+    <el-dialog v-model="showImportDialog" title="批量导入色号" width="600px" aria-label="批量导入色号对话框">
       <el-alert type="info" :closable="false" style="margin-bottom: 16px">
         支持 CSV 格式，必填字段：color_code, color_name, rgb_r, rgb_g, rgb_b, hex_value
       </el-alert>
@@ -77,7 +77,7 @@
     </el-dialog>
 
     <!-- 扫码详情对话框 -->
-    <el-dialog v-model="showScanDialog" title="色号详情" width="720px">
+    <el-dialog v-model="showScanDialog" title="色号详情" width="720px" aria-label="色号详情对话框">
       <el-descriptions v-if="scanResult" :column="3" border>
         <el-descriptions-item label="色号编码">{{ scanResult.color_item?.color_code }}</el-descriptions-item>
         <el-descriptions-item label="色号名称">{{ scanResult.color_item?.color_name }}</el-descriptions-item>

@@ -17,6 +17,7 @@
         ref="formRef"
         label-width="120px"
         style="max-width: 800px"
+        aria-label="色卡价格创建表单"
       >
         <el-form-item label="产品 ID" prop="product_id">
           <el-input v-model.number="form.product_id" placeholder="产品 ID" />
