@@ -694,7 +694,7 @@ P0-D17 OA 公告 (M)  ← 独立
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包）
 
-#### P0-D06 aria-label 严重不足（类七，XL，未开始）
+#### P0-D06 aria-label 严重不足（类七，XL，进行中）
 
 - **来源**：batch-07 P0-07-6
 - **证据**：仅 2 个文件 8 处 aria-label
@@ -703,6 +703,21 @@ P0-D17 OA 公告 (M)  ← 独立
 - **依赖**：无
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包）
+- **进度**（截至 2026-07-19）：
+  - D06-2 (aa103cb)：通用组件 8 文件
+  - D06-3 (3d7635c)：views 高频页面 6 文件
+  - D06-4 (4d14973)：views 高优先级 5 文件
+  - D06-5 (5e09b20)：views priority 6-10 5 文件
+  - D06-6 (f598caf, another agent)：views priority 11-15 5 文件
+  - D06-7 (cfb1fc6)：views priority 11-15 5 文件（本会话）
+  - D06-8 (4b4e690)：高缺失文件 5 个（cost/inventoryBatch/sales-ext/purchase-ext/dye-batch）
+  - D06-9 (957454a)：系统管理 + 工艺优化 5 文件
+  - D06-10 (b93f12f)：system/tabs 剩余 5 个 Tab
+  - D06-11 (8cc4506)：trading/tabs 5 个 Tab
+  - D06-12 (c1f638a)：system-update + supplier + sales-price 5 文件
+  - D06-13 (e77f276)：sales-price/components 5 个组件（SpTbl/SpForm/SpFilter/SpHistory/SpView）
+  - D06-14 (本批)：sales-contract/components + sales-returns/components 5 文件（ScFilter/ScForm/ReturnsTable/ReturnEditDialog/ReturnDetailDialog，ScTbl 已迁移 V2Table 跳过）
+  - 累计完成约 70 个文件，待处理剩余 ~305 个 .vue 文件
 
 #### ✅ P0-D07 图片 alt 属性完全缺失（类七，审计误判已完成）
 

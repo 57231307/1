@@ -10,6 +10,7 @@
     :model-value="visible"
     :title="dialogMode === 'create' ? '新建退货单' : '编辑退货单'"
     width="900px"
+    :aria-label="dialogMode === 'create' ? '新建退货单' : '编辑退货单'"
     @update:model-value="onClose"
     @close="onDialogClose"
   >
@@ -18,6 +19,7 @@
       :model="localFormData"
       :rules="formRules"
       label-width="120px"
+      aria-label="退货单表单"
     >
       <el-row :gutter="20">
         <el-col :span="12">
@@ -102,7 +104,7 @@
         <el-button type="primary" size="small" style="margin-bottom: 10px" @click="onAddItem">
           添加明细
         </el-button>
-        <el-table :data="localFormData.items" border style="width: 100%">
+        <el-table :data="localFormData.items" border style="width: 100%" aria-label="退货明细表格">
           <el-table-column label="产品名称" width="200">
             <template #default="{ row }">
               <el-select

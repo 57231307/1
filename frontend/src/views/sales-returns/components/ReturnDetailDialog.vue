@@ -4,7 +4,13 @@
   拆分原 sales-returns/index.vue 的详情对话框部分
 -->
 <template>
-  <el-dialog :model-value="visible" title="退货单详情" width="800px" @update:model-value="onClose">
+  <el-dialog
+    :model-value="visible"
+    title="退货单详情"
+    width="800px"
+    aria-label="退货单详情对话框"
+    @update:model-value="onClose"
+  >
     <template v-if="currentReturn">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="退货单号">{{ currentReturn.returnNo }}</el-descriptions-item>
@@ -25,7 +31,7 @@
 
       <div style="margin-top: 20px">
         <h4>退货明细</h4>
-        <el-table :data="currentReturn.items || []" border size="small">
+        <el-table :data="currentReturn.items || []" border size="small" aria-label="退货明细列表">
           <el-table-column prop="productName" label="产品名称" />
           <el-table-column prop="productCode" label="产品编码" />
           <el-table-column prop="quantity" label="退货数量" />

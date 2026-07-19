@@ -4,7 +4,7 @@
   拆分原 sales-returns/index.vue 的列表表格部分
 -->
 <template>
-  <el-table v-loading="loading" :data="list" border>
+  <el-table v-loading="loading" :data="list" border aria-label="销售退货列表">
     <el-table-column prop="returnNo" label="退货单号" />
     <el-table-column prop="salesOrderNo" label="销售订单号" />
     <el-table-column prop="customerName" label="客户名称" />

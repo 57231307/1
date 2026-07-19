@@ -10,9 +10,10 @@
     :title="title"
     width="800px"
     :close-on-click-modal="false"
+    :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localFormData" label-width="100px">
+    <el-form :model="localFormData" label-width="100px" aria-label="销售合同表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="合同编号" prop="contract_no">
