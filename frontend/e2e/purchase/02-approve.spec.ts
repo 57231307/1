@@ -15,7 +15,7 @@ import { applyAuthMocks } from '../smoke/_helpers'
  */
 test.describe('02 采购订单审批', () => {
   test.beforeEach(async ({ page, context }) => {
-    // P1 6-7 修复（批次 66）：注入 auth mock + mock 业务 API，避免 CI 无后端 timeout
+    // V15 Batch 487 P0-T05：注入 auth mock，业务 API 走真实后端（applyAuthMocks 不再 mock 业务 API）
     await applyAuthMocks(context)
     await page.goto('/')
   })

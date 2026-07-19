@@ -4,6 +4,13 @@
  *
  * 说明：smoke 测试使用 mock 绕过鉴权（不依赖后端）；
  * 业务流程测试（color-card/sales/purchase 等）使用真实后端登录，不使用本文件。
+ *
+ * V15 Batch 487 P0-T05 修复（规则 5）：
+ * - applyAuthMocks 不再自动调用 mockBusinessApi，让 sales/* / purchase/* 等业务流程
+ *   E2E 走真实后端（修复批次 190 E2E 通过率 0% 的根因之一）
+ * - mockBusinessApi 函数保留，仅供 enhanced/multi-role-collaboration.spec.ts 等
+ *   多上下文隔离测试显式调用（此类测试不依赖业务数据，只需页面可加载）
+ * - 业务流程测试严禁调用 mockBusinessApi（违反规则 5）
  */
 import type { BrowserContext, Page } from '@playwright/test'
 
@@ -94,8 +101,12 @@ const EMPTY_PAGINATION = {
  * 无响应会导致断言超时。此函数注册在 mockAuthMe / mockInitStatus 之后，
  * 对未匹配的业务 API 返回空分页数据。
  *
- * 注意：批次 190 规则 5 修复后，CI 已启动真实后端，本 mock 仅在
- * 后端不可达时作为兜底（route.fallback 机制）。
+ * V15 Batch 487 P0-T05 修复（规则 5）：
+ * - applyAuthMocks 不再自动调用本函数，业务流程测试（sales/purchase 等）
+ *   必须走真实后端，禁止调用本函数
+ * - 本函数仅供 enhanced/multi-role-collaboration.spec.ts 等多上下文隔离
+ *   测试显式调用（此类测试不依赖业务数据，只需页面可加载）
+ * - smoke 测试如需使用，应显式调用（不再通过 applyAuthMocks 自动应用）
  */
 export async function mockBusinessApi(context: BrowserContext): Promise<void> {
   await context.route('**/api/v1/erp/**', (route) => {
@@ -117,13 +128,17 @@ export async function mockBusinessApi(context: BrowserContext): Promise<void> {
 }
 
 /**
- * 一站式应用所有 auth mock + 业务 API mock（仅 smoke 测试使用）
+ * 一站式应用 auth mock（仅 smoke 测试使用）
+ *
+ * V15 Batch 487 P0-T05 修复（规则 5）：
+ * 不再自动调用 mockBusinessApi，让 sales/* / purchase/* 等业务流程 E2E
+ * 走真实后端。如需 mock 业务 API（如 enhanced 多上下文隔离测试），
+ * 应显式调用 mockBusinessApi(context)。
  */
 export async function applyAuthMocks(context: BrowserContext): Promise<void> {
   await injectAuthToken(context)
   await mockAuthMe(context)
   await mockInitStatus(context)
-  await mockBusinessApi(context)
 }
 
 /**
