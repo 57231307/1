@@ -14,7 +14,9 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
-use crate::models::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
+use crate::models::quotation_create_dto::{
+    CreateQuotationDto, CreateQuotationItemDto, CreateQuotationTermDto,
+};
 use crate::models::quotation_update_dto::UpdateQuotationDto;
 use crate::models::sales_quotation::{self, ActiveModel as QuotationActive, Entity as QuotationEntity};
 use crate::models::sales_quotation_item::{
@@ -243,17 +245,62 @@ impl QuotationService {
     ) -> Result<sales_quotation::Model, AppError> {
         let txn = self.db.begin().await?;
 
+        // 加 lock_exclusive 串行化并发状态变更 + 状态门校验
+        let existing = Self::load_for_update(&txn, id).await?;
+        let mut active: QuotationActive = existing.clone().into();
+        Self::apply_field_updates(&mut active, &dto, id)?;
+
+        // 批次 94 P2-13 修复：用 update_with_audit 记录审计日志（原 active.update 无审计）
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "quotation",
+            active,
+            Some(user_id as i32),
+        )
+        .await?;
+
+        // 如果 dto.items 存在，全量替换明细：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
+        if let Some(items) = dto.items {
+            Self::replace_items(&txn, id, items).await?;
+        }
+
+        // 如果 dto.terms 存在，全量替换条款：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
+        if let Some(terms) = dto.terms {
+            Self::replace_terms(&txn, id, terms).await?;
+        }
+
+        // 重算 subtotal/tax/total（在 txn 内查询和 update，保证原子性）
+        let final_model = Self::recalculate_totals_and_update(&txn, &updated).await?;
+
+        txn.commit().await?;
+        Ok(final_model)
+    }
+
+    // ===== update 私有 helpers（D08-1 第二梯队拆分）=====
+
+    /// 加载报价单并校验状态（draft / rejected 可更新）
+    async fn load_for_update(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i64,
+    ) -> Result<sales_quotation::Model, AppError> {
         // 加 lock_exclusive 串行化并发状态变更
         let existing = QuotationEntity::find_by_id(id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
         if ![quotation_status::DRAFT, quotation_status::REJECTED].contains(&existing.status.as_str()) {
             return Err(AppError::validation("当前状态不允许此操作".to_string()));
         }
+        Ok(existing)
+    }
 
-        let mut active: QuotationActive = existing.clone().into();
+    /// 应用 DTO 标量字段更新到 ActiveModel（不含 items / terms）
+    fn apply_field_updates(
+        active: &mut QuotationActive,
+        dto: &UpdateQuotationDto,
+        id: i64,
+    ) -> Result<(), AppError> {
         if let Some(v) = dto.customer_id {
             active.customer_id = Set(v);
         }
@@ -266,31 +313,21 @@ impl QuotationService {
         if let Some(v) = dto.valid_until {
             active.valid_until = Set(v);
         }
-        if let Some(v) = dto.currency {
-            active.currency = Set(v);
+        if let Some(v) = &dto.currency {
+            active.currency = Set(v.clone());
         }
         if let Some(v) = dto.exchange_rate {
             active.exchange_rate = Set(v);
         }
-        if let Some(v) = dto.base_currency {
-            active.base_currency = Set(v);
+        if let Some(v) = &dto.base_currency {
+            active.base_currency = Set(v.clone());
         }
-        if let Some(v) = dto.price_terms {
-            // 批次 111 P1-2：更新时同样校验贸易术语合法性（原 update 未校验）
-            let incoterm = Self::validate_price_terms(&v)?;
-            tracing::info!(
-                quotation_id = id,
-                incoterm_code = %v,
-                incoterm_description = %incoterm.description(),
-                "报价单贸易术语已更新"
-            );
-            active.price_terms = Set(v);
+        Self::apply_price_terms_update(active, &dto.price_terms, id)?;
+        if let Some(v) = &dto.incoterms_version {
+            active.incoterms_version = Set(Some(v.clone()));
         }
-        if let Some(v) = dto.incoterms_version {
-            active.incoterms_version = Set(Some(v));
-        }
-        if let Some(v) = dto.incoterm_location {
-            active.incoterm_location = Set(Some(v));
+        if let Some(v) = &dto.incoterm_location {
+            active.incoterm_location = Set(Some(v.clone()));
         }
         if let Some(v) = dto.tax_inclusive {
             active.tax_inclusive = Set(v);
@@ -304,104 +341,131 @@ impl QuotationService {
         if let Some(v) = dto.lead_time_days {
             active.lead_time_days = Set(Some(v));
         }
-        if let Some(v) = dto.customer_level {
-            active.customer_level = Set(Some(v));
+        if let Some(v) = &dto.customer_level {
+            active.customer_level = Set(Some(v.clone()));
         }
-        if let Some(v) = dto.notes {
-            active.notes = Set(Some(v));
+        if let Some(v) = &dto.notes {
+            active.notes = Set(Some(v.clone()));
         }
         active.updated_at = Set(Utc::now());
-        // 批次 94 P2-13 修复：用 update_with_audit 记录审计日志（原 active.update 无审计）
-        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
-            "quotation",
-            active,
-            Some(user_id as i32),
-        )
-        .await?;
+        Ok(())
+    }
 
-        // 如果 dto.items 存在，全量替换明细：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
-        if let Some(items) = dto.items {
-            // 校验：非空
-            if items.is_empty() {
-                return Err(AppError::validation("明细至少 1 条".to_string()));
-            }
-            // 删除旧明细
-            ItemEntity::delete_many()
-                .filter(sales_quotation_item::Column::QuotationId.eq(id))
-                .exec(&txn)
+    /// 校验并应用 price_terms 更新（批次 111 P1-2：更新时同样校验贸易术语合法性）
+    fn apply_price_terms_update(
+        active: &mut QuotationActive,
+        price_terms: &Option<String>,
+        id: i64,
+    ) -> Result<(), AppError> {
+        if let Some(v) = price_terms {
+            // 批次 111 P1-2：更新时同样校验贸易术语合法性（原 update 未校验）
+            let incoterm = Self::validate_price_terms(v)?;
+            tracing::info!(
+                quotation_id = id,
+                incoterm_code = %v,
+                incoterm_description = %incoterm.description(),
+                "报价单贸易术语已更新"
+            );
+            active.price_terms = Set(v.clone());
+        }
+        Ok(())
+    }
+
+    /// 全量替换报价单明细（删除旧明细 + 批量插入新明细）
+    async fn replace_items(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i64,
+        items: Vec<CreateQuotationItemDto>,
+    ) -> Result<(), AppError> {
+        // 校验：非空
+        if items.is_empty() {
+            return Err(AppError::validation("明细至少 1 条".to_string()));
+        }
+        // 删除旧明细
+        ItemEntity::delete_many()
+            .filter(sales_quotation_item::Column::QuotationId.eq(id))
+            .exec(txn)
+            .await?;
+        // 插入新明细：批量插入
+        let mut item_active_models: Vec<ItemActive> = Vec::with_capacity(items.len());
+        for (idx, item_dto) in items.iter().enumerate() {
+            item_active_models.push(ItemActive {
+                id: Default::default(),
+                quotation_id: Set(id),
+                product_id: Set(item_dto.product_id),
+                color_id: Set(item_dto.color_id),
+                color_code: Set(None),
+                pantone_code: Set(None),
+                cncs_code: Set(None),
+                specification: Set(item_dto.specification.clone()),
+                unit: Set(item_dto.unit.clone()),
+                quantity: Set(item_dto.quantity),
+                unit_price: Set(item_dto.unit_price),
+                unit_price_with_tax: Set(item_dto.unit_price_with_tax),
+                // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+                amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
+                amount_with_tax: Set(
+                    (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2),
+                ),
+                tier_pricing: Set(item_dto
+                    .tier_pricing
+                    .as_ref()
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())),
+                discount_rate: Set(item_dto.discount_rate),
+                discount_amount: Set(item_dto.discount_rate.map(|r| {
+                    (item_dto.quantity * item_dto.unit_price * r / Decimal::from(100)).round_dp(2)
+                })),
+                notes: Set(item_dto.notes.clone()),
+                sequence: Set(idx as i32),
+            });
+        }
+        if !item_active_models.is_empty() {
+            ItemEntity::insert_many(item_active_models)
+                .exec(txn)
                 .await?;
-            // 插入新明细：批量插入
-            let mut item_active_models: Vec<ItemActive> = Vec::with_capacity(items.len());
-            for (idx, item_dto) in items.iter().enumerate() {
-                item_active_models.push(ItemActive {
+        }
+        Ok(())
+    }
+
+    /// 全量替换报价单条款（删除旧条款 + 批量插入新条款）
+    async fn replace_terms(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i64,
+        terms: Vec<CreateQuotationTermDto>,
+    ) -> Result<(), AppError> {
+        // 删除旧条款
+        TermEntity::delete_many()
+            .filter(sales_quotation_term::Column::QuotationId.eq(id))
+            .exec(txn)
+            .await?;
+        // 插入新条款：批量插入
+        if !terms.is_empty() {
+            let term_active_models: Vec<TermActive> = terms
+                .into_iter()
+                .map(|term| TermActive {
                     id: Default::default(),
                     quotation_id: Set(id),
-                    product_id: Set(item_dto.product_id),
-                    color_id: Set(item_dto.color_id),
-                    color_code: Set(None),
-                    pantone_code: Set(None),
-                    cncs_code: Set(None),
-                    specification: Set(item_dto.specification.clone()),
-                    unit: Set(item_dto.unit.clone()),
-                    quantity: Set(item_dto.quantity),
-                    unit_price: Set(item_dto.unit_price),
-                    unit_price_with_tax: Set(item_dto.unit_price_with_tax),
-                    // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
-                    amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
-                    amount_with_tax: Set(
-                        (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2),
-                    ),
-                    tier_pricing: Set(item_dto
-                        .tier_pricing
-                        .as_ref()
-                        .and_then(|v| serde_json::from_value(v.clone()).ok())),
-                    discount_rate: Set(item_dto.discount_rate),
-                    discount_amount: Set(item_dto.discount_rate.map(|r| {
-                        (item_dto.quantity * item_dto.unit_price * r / Decimal::from(100))
-                            .round_dp(2)
-                    })),
-                    notes: Set(item_dto.notes.clone()),
-                    sequence: Set(idx as i32),
-                });
-            }
-            if !item_active_models.is_empty() {
-                ItemEntity::insert_many(item_active_models)
-                    .exec(&txn)
-                    .await?;
-            }
-        }
-
-        // 如果 dto.terms 存在，全量替换条款：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
-        if let Some(terms) = dto.terms {
-            // 删除旧条款
-            TermEntity::delete_many()
-                .filter(sales_quotation_term::Column::QuotationId.eq(id))
-                .exec(&txn)
+                    term_type: Set(term.term_type),
+                    term_key: Set(term.term_key),
+                    term_value: Set(term.term_value),
+                    sequence: Set(term.sequence),
+                })
+                .collect();
+            TermEntity::insert_many(term_active_models)
+                .exec(txn)
                 .await?;
-            // 插入新条款：批量插入
-            if !terms.is_empty() {
-                let term_active_models: Vec<TermActive> = terms
-                    .into_iter()
-                    .map(|term| TermActive {
-                        id: Default::default(),
-                        quotation_id: Set(id),
-                        term_type: Set(term.term_type),
-                        term_key: Set(term.term_key),
-                        term_value: Set(term.term_value),
-                        sequence: Set(term.sequence),
-                    })
-                    .collect();
-                TermEntity::insert_many(term_active_models)
-                    .exec(&txn)
-                    .await?;
-            }
         }
+        Ok(())
+    }
 
-        // 重算 subtotal/tax/total（在 txn 内查询和 update，保证原子性）
+    /// 重算 subtotal/tax/total 并更新主表（在 txn 内查询和 update，保证原子性）
+    async fn recalculate_totals_and_update(
+        txn: &sea_orm::DatabaseTransaction,
+        updated: &sales_quotation::Model,
+    ) -> Result<sales_quotation::Model, AppError> {
         let recalc_items: Vec<sales_quotation_item::Model> = ItemEntity::find()
-            .filter(sales_quotation_item::Column::QuotationId.eq(id))
-            .all(&txn)
+            .filter(sales_quotation_item::Column::QuotationId.eq(updated.id))
+            .all(txn)
             .await?;
         let subtotal: Decimal = recalc_items
             .iter()
@@ -419,9 +483,7 @@ impl QuotationService {
         re_active.tax_amount = Set(tax_amount);
         re_active.total_amount = Set(total_amount);
         re_active.updated_at = Set(Utc::now());
-        let final_model = re_active.update(&txn).await?;
-
-        txn.commit().await?;
+        let final_model = re_active.update(txn).await?;
         Ok(final_model)
     }
 

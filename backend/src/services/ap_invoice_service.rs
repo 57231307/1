@@ -9,8 +9,8 @@ use crate::utils::pagination::paginate_with_total;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -45,6 +45,32 @@ pub struct ApInvoiceListQuery {
     pub page_size: u64,
 }
 
+/// 采购入库应付单凭证上下文（D08-1 第二梯队拆分辅助结构）
+///
+/// F-P0-7 修复（批次 382 v13 复审）：commit 前保存生成应付凭证所需字段，
+/// invoice 在 Ok 返回时被 move，提前捕获避免后续 voucher 生成无法访问。
+struct ReceiptVoucherContext {
+    invoice_no: String,
+    invoice_id: i32,
+    supplier_id: i32,
+    amount: Decimal,
+    tax_amount: Decimal,
+    invoice_date: NaiveDate,
+}
+
+impl ReceiptVoucherContext {
+    fn from_invoice(invoice: &ap_invoice::Model) -> Self {
+        Self {
+            invoice_no: invoice.invoice_no.clone(),
+            invoice_id: invoice.id,
+            supplier_id: invoice.supplier_id,
+            amount: invoice.amount,
+            tax_amount: invoice.tax_amount,
+            invoice_date: invoice.invoice_date,
+        }
+    }
+}
+
 impl ApInvoiceService {
     /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -68,9 +94,34 @@ impl ApInvoiceService {
     ) -> Result<ap_invoice::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
+        // 1. 查询入库单 + 检查是否已生成应付 + 校验供应商
+        let receipt = Self::find_receipt_and_check_exists(&txn, receipt_id).await?;
+
+        // 2. 生成应付单
+        let invoice_no = self.generate_invoice_no().await?;
+        let invoice =
+            Self::build_and_insert_receipt_invoice(&txn, &receipt, invoice_no, user_id).await?;
+
+        // F-P0-7 修复（批次 382 v13 复审）：commit 前保存生成应付凭证所需字段
+        // invoice 在 Ok 返回时被 move，提前捕获避免后续 voucher 生成无法访问
+        let voucher_ctx = ReceiptVoucherContext::from_invoice(&invoice);
+
+        txn.commit().await?;
+
+        // F-P0-7 修复：commit 后生成应付凭证（失败仅 warn 不阻断主流程）
+        Self::try_generate_receipt_voucher(&self.db, voucher_ctx, user_id).await;
+
+        Ok(invoice)
+    }
+
+    /// 查询采购入库单 + 检查重复生成 + 校验供应商存在
+    async fn find_receipt_and_check_exists(
+        txn: &DatabaseTransaction,
+        receipt_id: i32,
+    ) -> Result<purchase_receipt::Model, AppError> {
         // 1. 查询采购入库单
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
@@ -78,7 +129,7 @@ impl ApInvoiceService {
         let exists = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SourceType.eq("PURCHASE_RECEIPT"))
             .filter(ap_invoice::Column::SourceId.eq(receipt_id))
-            .one(&txn)
+            .one(txn)
             .await?;
 
         if exists.is_some() {
@@ -87,15 +138,24 @@ impl ApInvoiceService {
 
         // 3. 获取供应商信息
         let _supplier = crate::models::supplier::Entity::find_by_id(receipt.supplier_id)
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("供应商 {}", receipt.supplier_id)))?;
 
+        Ok(receipt)
+    }
+
+    /// 构造并插入应付单 ActiveModel（账期 30 天 / 初始 DRAFT）
+    async fn build_and_insert_receipt_invoice(
+        txn: &DatabaseTransaction,
+        receipt: &purchase_receipt::Model,
+        invoice_no: String,
+        user_id: i32,
+    ) -> Result<ap_invoice::Model, AppError> {
         // 使用默认账期 30 天
         let payment_terms = crate::constants::DEFAULT_PAYMENT_TERMS_DAYS;
 
         // 4. 生成应付单
-        let invoice_no = self.generate_invoice_no().await?;
         let invoice_date = receipt.receipt_date;
         let due_date = invoice_date + Duration::days(payment_terms as i64);
 
@@ -104,7 +164,7 @@ impl ApInvoiceService {
             supplier_id: Set(receipt.supplier_id),
             invoice_type: Set("PURCHASE".to_string()),
             source_type: Set(Some("PURCHASE_RECEIPT".to_string())),
-            source_id: Set(Some(receipt_id)),
+            source_id: Set(Some(receipt.id)),
             invoice_date: Set(invoice_date),
             due_date: Set(due_date),
             payment_terms: Set(payment_terms),
@@ -126,124 +186,163 @@ impl ApInvoiceService {
             created_by: Set(user_id),
             ..Default::default()
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
 
-        // F-P0-7 修复（批次 382 v13 复审）：commit 前保存生成应付凭证所需字段
-        // invoice 在 Ok 返回时被 move，提前捕获避免后续 voucher 生成无法访问
-        let voucher_invoice_no = invoice.invoice_no.clone();
-        let voucher_invoice_id = invoice.id;
-        let voucher_supplier_id = invoice.supplier_id;
-        let voucher_amount = invoice.amount;
-        let voucher_tax_amount = invoice.tax_amount;
-        let voucher_invoice_date = invoice.invoice_date;
+        Ok(invoice)
+    }
 
-        txn.commit().await?;
+    /// 采购入库应付确认 - 库存商品分录（借：1405，不含税金额）
+    fn build_inventory_voucher_item(
+        invoice_no: &str,
+        supplier_id: i32,
+        amount: Decimal,
+    ) -> crate::services::voucher_service::VoucherItemRequest {
+        crate::services::voucher_service::VoucherItemRequest {
+            line_no: Some(1),
+            subject_code: Some("1405".to_string()),
+            subject_name: Some("库存商品".to_string()),
+            debit: amount,
+            credit: Decimal::ZERO,
+            summary: Some(format!("采购入库应付确认-{}", invoice_no)),
+            assist_customer_id: None,
+            assist_supplier_id: Some(supplier_id),
+            assist_department_id: None,
+            assist_employee_id: None,
+            assist_project_id: None,
+            assist_batch_id: None,
+            assist_color_no_id: None,
+            assist_dye_lot_id: None,
+            assist_grade: None,
+            assist_workshop_id: None,
+            quantity_meters: None,
+            quantity_kg: None,
+            unit_price: None,
+        }
+    }
 
-        // F-P0-7 修复（批次 382 v13 复审）：采购入库生成应付单后同步生成应付凭证
-        // 借：1405 库存商品（不含税金额）
-        // 借：222101 应交税费-进项税额（tax_amount > 0 时）
-        // 贷：2202 应付账款（含税总额，挂供应商辅助核算）
-        // 失败时仅 warn 不阻断主流程（与采购入库 confirm_receipt 容错模式一致），
-        // 避免凭证生成失败影响主业务流程，便于人工补偿。
-        let voucher_total = voucher_amount + voucher_tax_amount;
-        if voucher_total > Decimal::ZERO {
-            let mut voucher_items = vec![
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(1),
-                    subject_code: Some("1405".to_string()),
-                    subject_name: Some("库存商品".to_string()),
-                    debit: voucher_amount,
-                    credit: Decimal::ZERO,
-                    summary: Some(format!("采购入库应付确认-{}", voucher_invoice_no)),
-                    assist_customer_id: None,
-                    assist_supplier_id: Some(voucher_supplier_id),
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(2),
-                    subject_code: Some("2202".to_string()),
-                    subject_name: Some("应付账款".to_string()),
-                    debit: Decimal::ZERO,
-                    credit: voucher_total,
-                    summary: Some(format!("采购入库应付确认-{}", voucher_invoice_no)),
-                    assist_customer_id: None,
-                    assist_supplier_id: Some(voucher_supplier_id),
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
-            ];
-            // 进项税额仅在 tax_amount > 0 时插入，避免零额凭证分录引起校验告警
-            if voucher_tax_amount > Decimal::ZERO {
-                voucher_items.insert(
-                    1,
-                    crate::services::voucher_service::VoucherItemRequest {
-                        line_no: Some(2),
-                        subject_code: Some("222101".to_string()),
-                        subject_name: Some("应交税费-应交增值税-进项税额".to_string()),
-                        debit: voucher_tax_amount,
-                        credit: Decimal::ZERO,
-                        summary: Some(format!("采购入库应付确认-{}", voucher_invoice_no)),
-                        assist_customer_id: None,
-                        assist_supplier_id: Some(voucher_supplier_id),
-                        assist_department_id: None,
-                        assist_employee_id: None,
-                        assist_project_id: None,
-                        assist_batch_id: None,
-                        assist_color_no_id: None,
-                        assist_dye_lot_id: None,
-                        assist_grade: None,
-                        assist_workshop_id: None,
-                        quantity_meters: None,
-                        quantity_kg: None,
-                        unit_price: None,
-                    },
-                );
-                // 重排行号：1=库存商品 / 2=进项税额 / 3=应付账款
-                voucher_items[2].line_no = Some(3);
-            }
-            let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
-                voucher_type: "转".to_string(),
-                voucher_date: voucher_invoice_date,
-                source_type: Some("PURCHASE_RECEIPT".to_string()),
-                source_module: Some("purchase".to_string()),
-                source_bill_id: Some(voucher_invoice_id),
-                source_bill_no: Some(voucher_invoice_no.clone()),
-                batch_no: None,
-                color_no: None,
-                items: voucher_items,
-            };
-            let voucher_service =
-                crate::services::voucher_service::VoucherService::new(self.db.clone());
-            if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
-                tracing::warn!(
-                    "应付单 {} 应付凭证生成失败，需人工补生成：{}",
-                    voucher_invoice_no,
-                    e
-                );
-            }
+    /// 采购入库应付确认 - 进项税额分录（借：222101，仅 tax_amount > 0 时插入）
+    fn build_tax_voucher_item(
+        invoice_no: &str,
+        supplier_id: i32,
+        tax_amount: Decimal,
+    ) -> crate::services::voucher_service::VoucherItemRequest {
+        crate::services::voucher_service::VoucherItemRequest {
+            line_no: Some(2),
+            subject_code: Some("222101".to_string()),
+            subject_name: Some("应交税费-应交增值税-进项税额".to_string()),
+            debit: tax_amount,
+            credit: Decimal::ZERO,
+            summary: Some(format!("采购入库应付确认-{}", invoice_no)),
+            assist_customer_id: None,
+            assist_supplier_id: Some(supplier_id),
+            assist_department_id: None,
+            assist_employee_id: None,
+            assist_project_id: None,
+            assist_batch_id: None,
+            assist_color_no_id: None,
+            assist_dye_lot_id: None,
+            assist_grade: None,
+            assist_workshop_id: None,
+            quantity_meters: None,
+            quantity_kg: None,
+            unit_price: None,
+        }
+    }
+
+    /// 采购入库应付确认 - 应付账款分录（贷：2202，含税总额，挂供应商辅助核算）
+    fn build_payable_voucher_item(
+        invoice_no: &str,
+        supplier_id: i32,
+        total: Decimal,
+    ) -> crate::services::voucher_service::VoucherItemRequest {
+        crate::services::voucher_service::VoucherItemRequest {
+            line_no: Some(2),
+            subject_code: Some("2202".to_string()),
+            subject_name: Some("应付账款".to_string()),
+            debit: Decimal::ZERO,
+            credit: total,
+            summary: Some(format!("采购入库应付确认-{}", invoice_no)),
+            assist_customer_id: None,
+            assist_supplier_id: Some(supplier_id),
+            assist_department_id: None,
+            assist_employee_id: None,
+            assist_project_id: None,
+            assist_batch_id: None,
+            assist_color_no_id: None,
+            assist_dye_lot_id: None,
+            assist_grade: None,
+            assist_workshop_id: None,
+            quantity_meters: None,
+            quantity_kg: None,
+            unit_price: None,
+        }
+    }
+
+    /// 组装采购入库应付确认凭证分录列表
+    ///
+    /// 默认 2 行（库存商品 / 应付账款），tax_amount > 0 时插入进项税额，
+    /// 重排为 3 行：1=库存商品 / 2=进项税额 / 3=应付账款。
+    fn build_receipt_voucher_items(
+        ctx: &ReceiptVoucherContext,
+    ) -> Vec<crate::services::voucher_service::VoucherItemRequest> {
+        let voucher_total = ctx.amount + ctx.tax_amount;
+        let mut voucher_items = vec![
+            Self::build_inventory_voucher_item(&ctx.invoice_no, ctx.supplier_id, ctx.amount),
+            Self::build_payable_voucher_item(&ctx.invoice_no, ctx.supplier_id, voucher_total),
+        ];
+
+        // 进项税额仅在 tax_amount > 0 时插入，避免零额凭证分录引起校验告警
+        if ctx.tax_amount > Decimal::ZERO {
+            voucher_items.insert(
+                1,
+                Self::build_tax_voucher_item(&ctx.invoice_no, ctx.supplier_id, ctx.tax_amount),
+            );
+            // 重排行号：1=库存商品 / 2=进项税额 / 3=应付账款
+            voucher_items[2].line_no = Some(3);
         }
 
-        Ok(invoice)
+        voucher_items
+    }
+
+    /// 采购入库生成应付单后同步生成应付凭证（失败仅 warn 不阻断主流程）
+    ///
+    /// F-P0-7 修复（批次 382 v13 复审）：采购入库生成应付单后同步生成应付凭证
+    /// 借：1405 库存商品（不含税金额）
+    /// 借：222101 应交税费-进项税额（tax_amount > 0 时）
+    /// 贷：2202 应付账款（含税总额，挂供应商辅助核算）
+    /// 失败时仅 warn 不阻断主流程（与采购入库 confirm_receipt 容错模式一致），
+    /// 避免凭证生成失败影响主业务流程，便于人工补偿。
+    async fn try_generate_receipt_voucher(
+        db: &Arc<DatabaseConnection>,
+        ctx: ReceiptVoucherContext,
+        user_id: i32,
+    ) {
+        let voucher_total = ctx.amount + ctx.tax_amount;
+        if voucher_total <= Decimal::ZERO {
+            return;
+        }
+
+        let voucher_items = Self::build_receipt_voucher_items(&ctx);
+        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+            voucher_type: "转".to_string(),
+            voucher_date: ctx.invoice_date,
+            source_type: Some("PURCHASE_RECEIPT".to_string()),
+            source_module: Some("purchase".to_string()),
+            source_bill_id: Some(ctx.invoice_id),
+            source_bill_no: Some(ctx.invoice_no.clone()),
+            batch_no: None,
+            color_no: None,
+            items: voucher_items,
+        };
+        let voucher_service = crate::services::voucher_service::VoucherService::new(db.clone());
+        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+            tracing::warn!(
+                "应付单 {} 应付凭证生成失败，需人工补生成：{}",
+                ctx.invoice_no,
+                e
+            );
+        }
     }
 
     /// 从采购退货单自动生成应付单（红字）
