@@ -132,10 +132,5 @@ error[E0507]: cannot move out of `request.shipping_address` as enum variant `Som
 error[E0507]: cannot move out of `request.status` as enum variant `Some` which is behind a shared reference
 help: consider borrowing here
 note: associated function defined here
-warning: deref which would be done by auto-deref
-warning: doc list item without indentation
-warning: the following explicit lifetimes could be elided: 'a
-warning: this function has too many arguments (8/7)
-warning: this function has too many arguments (9/7)
 warning: unused import: `sea_orm::DatabaseConnection`
 warning: unused variable: `txn`
