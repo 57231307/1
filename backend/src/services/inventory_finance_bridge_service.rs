@@ -77,6 +77,32 @@ pub struct VoucherCreateArgs<'a> {
     pub created_by: Option<i32>,
 }
 
+/// 库存盘盈盘亏凭证构造参数对象
+///
+/// D08 第三梯队修复：引入参数对象消除 build_overage_voucher_request /
+/// build_shortage_voucher_request 两个函数的 too_many_arguments 警告。
+/// 两函数签名一致，统一聚合为单一参数对象，避免函数签名携带 9 个参数。
+pub struct BridgeVoucherArgs<'a> {
+    /// 来源单据类型（可选）
+    pub source_bill_type: Option<&'a str>,
+    /// 来源单据号（可选）
+    pub source_bill_no: Option<&'a str>,
+    /// 来源单据 ID（可选）
+    pub source_bill_id: Option<i32>,
+    /// 批次号
+    pub batch_no: &'a str,
+    /// 色号
+    pub color_no: &'a str,
+    /// 摘要
+    pub summary: &'a str,
+    /// 金额
+    pub amount: Decimal,
+    /// 数量（米）
+    pub quantity_meters: Decimal,
+    /// 数量（公斤）
+    pub quantity_kg: Decimal,
+}
+
 impl InventoryFinanceBridgeService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -512,9 +538,31 @@ impl InventoryFinanceBridgeService {
         let amount = (cost_price * quantity_meters.abs()).round_dp(2);
 
         let voucher_request = if quantity_meters > Decimal::ZERO {
-            self.build_overage_voucher_request(source_bill_type, source_bill_no, source_bill_id, batch_no, color_no, &summary, amount, quantity_meters, quantity_kg)
+            let args = BridgeVoucherArgs {
+                source_bill_type,
+                source_bill_no,
+                source_bill_id,
+                batch_no,
+                color_no,
+                summary: &summary,
+                amount,
+                quantity_meters,
+                quantity_kg,
+            };
+            self.build_overage_voucher_request(&args)
         } else {
-            self.build_shortage_voucher_request(source_bill_type, source_bill_no, source_bill_id, batch_no, color_no, &summary, amount, quantity_meters, quantity_kg)
+            let args = BridgeVoucherArgs {
+                source_bill_type,
+                source_bill_no,
+                source_bill_id,
+                batch_no,
+                color_no,
+                summary: &summary,
+                amount,
+                quantity_meters,
+                quantity_kg,
+            };
+            self.build_shortage_voucher_request(&args)
         };
 
         self.create_and_log_voucher(voucher_request, user_id, batch_no, color_no).await?;
@@ -548,46 +596,35 @@ impl InventoryFinanceBridgeService {
         )
     }
 
-    fn build_overage_voucher_request(
-        &self,
-        source_bill_type: Option<&str>,
-        source_bill_no: Option<&str>,
-        source_bill_id: Option<i32>,
-        batch_no: &str,
-        color_no: &str,
-        summary: &str,
-        amount: Decimal,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-    ) -> CreateVoucherRequest {
+    fn build_overage_voucher_request(&self, args: &BridgeVoucherArgs) -> CreateVoucherRequest {
         CreateVoucherRequest {
             voucher_type: "记".to_string(),
             voucher_date: chrono::Utc::now().date_naive(),
-            source_type: source_bill_type.map(|s| s.to_string()),
+            source_type: args.source_bill_type.map(|s| s.to_string()),
             source_module: Some("inventory".to_string()),
-            source_bill_id,
-            source_bill_no: source_bill_no.map(|s| s.to_string()),
-            batch_no: Some(batch_no.to_string()),
-            color_no: Some(color_no.to_string()),
+            source_bill_id: args.source_bill_id,
+            source_bill_no: args.source_bill_no.map(|s| s.to_string()),
+            batch_no: Some(args.batch_no.to_string()),
+            color_no: Some(args.color_no.to_string()),
             items: vec![
                 Self::make_voucher_item(VoucherItemArgs {
                     line_no: 1,
                     subject_code: "1405",
                     subject_name: "库存商品",
-                    debit: amount,
+                    debit: args.amount,
                     credit: Decimal::ZERO,
-                    summary: Some(summary.to_string()),
-                    quantity_meters: Some(quantity_meters),
-                    quantity_kg: Some(quantity_kg),
-                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                    summary: Some(args.summary.to_string()),
+                    quantity_meters: Some(args.quantity_meters),
+                    quantity_kg: Some(args.quantity_kg),
+                    unit_price: Some((args.amount / args.quantity_meters).round_dp(2)),
                 }),
                 Self::make_voucher_item(VoucherItemArgs {
                     line_no: 2,
                     subject_code: "1901",
                     subject_name: "待处理财产损溢",
                     debit: Decimal::ZERO,
-                    credit: amount,
-                    summary: Some(summary.to_string()),
+                    credit: args.amount,
+                    summary: Some(args.summary.to_string()),
                     quantity_meters: None,
                     quantity_kg: None,
                     unit_price: None,
@@ -596,35 +633,24 @@ impl InventoryFinanceBridgeService {
         }
     }
 
-    fn build_shortage_voucher_request(
-        &self,
-        source_bill_type: Option<&str>,
-        source_bill_no: Option<&str>,
-        source_bill_id: Option<i32>,
-        batch_no: &str,
-        color_no: &str,
-        summary: &str,
-        amount: Decimal,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-    ) -> CreateVoucherRequest {
+    fn build_shortage_voucher_request(&self, args: &BridgeVoucherArgs) -> CreateVoucherRequest {
         CreateVoucherRequest {
             voucher_type: "记".to_string(),
             voucher_date: chrono::Utc::now().date_naive(),
-            source_type: source_bill_type.map(|s| s.to_string()),
+            source_type: args.source_bill_type.map(|s| s.to_string()),
             source_module: Some("inventory".to_string()),
-            source_bill_id,
-            source_bill_no: source_bill_no.map(|s| s.to_string()),
-            batch_no: Some(batch_no.to_string()),
-            color_no: Some(color_no.to_string()),
+            source_bill_id: args.source_bill_id,
+            source_bill_no: args.source_bill_no.map(|s| s.to_string()),
+            batch_no: Some(args.batch_no.to_string()),
+            color_no: Some(args.color_no.to_string()),
             items: vec![
                 Self::make_voucher_item(VoucherItemArgs {
                     line_no: 1,
                     subject_code: "1901",
                     subject_name: "待处理财产损溢",
-                    debit: amount,
+                    debit: args.amount,
                     credit: Decimal::ZERO,
-                    summary: Some(summary.to_string()),
+                    summary: Some(args.summary.to_string()),
                     quantity_meters: None,
                     quantity_kg: None,
                     unit_price: None,
@@ -634,11 +660,11 @@ impl InventoryFinanceBridgeService {
                     subject_code: "1405",
                     subject_name: "库存商品",
                     debit: Decimal::ZERO,
-                    credit: amount,
-                    summary: Some(summary.to_string()),
-                    quantity_meters: Some(-quantity_meters),
-                    quantity_kg: Some(-quantity_kg),
-                    unit_price: Some((amount / (-quantity_meters)).round_dp(2)),
+                    credit: args.amount,
+                    summary: Some(args.summary.to_string()),
+                    quantity_meters: Some(-args.quantity_meters),
+                    quantity_kg: Some(-args.quantity_kg),
+                    unit_price: Some((args.amount / (-args.quantity_meters)).round_dp(2)),
                 }),
             ],
         }

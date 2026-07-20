@@ -410,8 +410,6 @@ impl ApReconciliationService {
         end_date: NaiveDate,
         user_id: i32,
     ) -> Result<Vec<AutoReconciliationResult>, AppError> {
-        use crate::models::supplier;
-
         // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
         let suppliers = Self::fetch_all_suppliers(&*self.db).await?;
         let supplier_ids: Vec<i32> = suppliers.iter().map(|s| s.id).collect();

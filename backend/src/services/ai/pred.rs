@@ -24,6 +24,20 @@ use crate::utils::error::AppError;
 
 use super::{mean, std_deviation, AiAnalysisService, SalesForecast};
 
+/// 预测输入参数聚合体（避免函数参数过多触发 clippy::too_many_arguments）
+struct ForecastInputs<'a> {
+    product_id: i32,
+    days: i64,
+    level: f64,
+    trend: f64,
+    wma: f64,
+    residual_std: f64,
+    trend_direction: &'a str,
+    seasonal_factors: &'a HashMap<usize, f64>,
+    values: &'a [f64],
+    n: usize,
+}
+
 impl AiAnalysisService {
     /// 销售预测 - 基于历史销售数据预测未来销量
     /// 使用加权移动平均(WMA) + 指数平滑(Exponential Smoothing)组合算法
@@ -46,7 +60,7 @@ impl AiAnalysisService {
         let trend_direction = Self::determine_trend_direction(&values, n);
         let seasonal_factors = self.build_seasonal_factors(&sorted_dates, &values);
 
-        let forecasts = Self::generate_forecast_results(
+        let inputs = ForecastInputs {
             product_id,
             days,
             level,
@@ -54,10 +68,11 @@ impl AiAnalysisService {
             wma,
             residual_std,
             trend_direction,
-            &seasonal_factors,
-            &values,
+            seasonal_factors: &seasonal_factors,
+            values: &values,
             n,
-        );
+        };
+        let forecasts = Self::generate_forecast_results(&inputs);
 
         Ok(forecasts)
     }
@@ -161,44 +176,33 @@ impl AiAnalysisService {
         }
     }
 
-    fn generate_forecast_results(
-        product_id: i32,
-        days: i64,
-        level: f64,
-        trend: f64,
-        wma: f64,
-        residual_std: f64,
-        trend_direction: &str,
-        seasonal_factors: &HashMap<usize, f64>,
-        values: &[f64],
-        n: usize,
-    ) -> Vec<SalesForecast> {
+    fn generate_forecast_results(inputs: &ForecastInputs) -> Vec<SalesForecast> {
         let today = Utc::now().date_naive();
-        let recent_avg = mean(&values[n.saturating_sub(14)..]);
-        let base_confidence = if residual_std > 0.0 {
-            (1.0 - (residual_std / (recent_avg.max(1.0)))).clamp(0.3, 0.95)
+        let recent_avg = mean(&inputs.values[inputs.n.saturating_sub(14)..]);
+        let base_confidence = if inputs.residual_std > 0.0 {
+            (1.0 - (inputs.residual_std / (recent_avg.max(1.0)))).clamp(0.3, 0.95)
         } else {
             0.85
         };
 
         let mut forecasts = Vec::new();
-        for i in 1..=days {
+        for i in 1..=inputs.days {
             let forecast_date = today + Duration::days(i);
             let month = forecast_date.month() as usize;
 
-            let holt_pred = level + trend * (i as f64);
-            let combined = 0.6 * holt_pred + 0.4 * wma;
-            let seasonal = seasonal_factors.get(&month).copied().unwrap_or(1.0);
+            let holt_pred = inputs.level + inputs.trend * (i as f64);
+            let combined = 0.6 * holt_pred + 0.4 * inputs.wma;
+            let seasonal = inputs.seasonal_factors.get(&month).copied().unwrap_or(1.0);
             let predicted = (combined * seasonal).max(0.0);
 
             let confidence = (base_confidence * (0.99_f64).powi(i as i32 - 1)).clamp(0.3, 0.95);
 
             forecasts.push(SalesForecast {
-                product_id,
+                product_id: inputs.product_id,
                 forecast_date,
                 predicted_quantity: Decimal::try_from(predicted).unwrap_or(Decimal::ZERO),
                 confidence: (confidence * 100.0).round() / 100.0,
-                trend: trend_direction.to_string(),
+                trend: inputs.trend_direction.to_string(),
             });
         }
 

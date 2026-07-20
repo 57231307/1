@@ -91,6 +91,27 @@ struct BalanceUpdateContext {
     existing_balances: Vec<crate::models::account_balance::Model>,
 }
 
+/// 辅助核算记录写入上下文（D08 第三梯队修复：消除 too_many_arguments 警告）
+///
+/// 封装业务关联字段与凭证上下文，避免 insert_assist_records_for_items /
+/// build_assist_record 函数签名携带过多参数。
+struct AssistRecordContext<'a> {
+    /// 业务类型
+    business_type: &'a str,
+    /// 业务单号
+    business_no: &'a str,
+    /// 业务单据 ID
+    business_id: i32,
+    /// 凭证 ID
+    voucher_id: i32,
+    /// 凭证模型
+    voucher_model: &'a voucher::Model,
+    /// 创建人 ID
+    user_id: i32,
+    /// 创建时间
+    now: chrono::DateTime<chrono::Utc>,
+}
+
 impl VoucherService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -1042,16 +1063,23 @@ impl VoucherService {
         let business_no = self.determine_business_no(&voucher_model);
         let business_id = voucher_model.source_bill_id.unwrap_or(voucher_id);
 
+        // D08 第三梯队修复：使用 AssistRecordContext 聚合业务上下文参数，
+        // 消除 insert_assist_records_for_items / build_assist_record 的 too_many_arguments 警告。
+        let ctx = AssistRecordContext {
+            business_type: &business_type,
+            business_no: &business_no,
+            business_id,
+            voucher_id,
+            voucher_model: &voucher_model,
+            user_id,
+            now: chrono::Utc::now(),
+        };
+
         self.insert_assist_records_for_items(
             txn,
-            voucher_id,
-            user_id,
             &items,
             &subject_id_by_code,
-            &business_type,
-            &business_no,
-            business_id,
-            &voucher_model,
+            &ctx,
         ).await?;
 
         info!("辅助核算记录写入成功 voucher_id={}", voucher_id);
@@ -1120,17 +1148,10 @@ impl VoucherService {
     async fn insert_assist_records_for_items(
         &self,
         txn: &sea_orm::DatabaseTransaction,
-        voucher_id: i32,
-        user_id: i32,
         items: &[crate::models::voucher_item::Model],
         subject_id_by_code: &std::collections::HashMap<String, i32>,
-        business_type: &str,
-        business_no: &str,
-        business_id: i32,
-        voucher_model: &crate::models::voucher::Model,
+        ctx: &AssistRecordContext<'_>,
     ) -> Result<(), AppError> {
-        let now = chrono::Utc::now();
-
         for item in items {
             if !self.has_assist_dimensions(item) {
                 continue;
@@ -1143,13 +1164,7 @@ impl VoucherService {
                 item,
                 account_subject_id,
                 five_dimension_id,
-                business_type,
-                business_no,
-                business_id,
-                voucher_id,
-                voucher_model,
-                user_id,
-                now,
+                ctx,
             );
 
             record.insert(txn).await?;
@@ -1197,40 +1212,34 @@ impl VoucherService {
         item: &crate::models::voucher_item::Model,
         account_subject_id: i32,
         five_dimension_id: String,
-        business_type: &str,
-        business_no: &str,
-        business_id: i32,
-        voucher_id: i32,
-        voucher_model: &crate::models::voucher::Model,
-        user_id: i32,
-        now: chrono::DateTime<chrono::Utc>,
+        ctx: &AssistRecordContext<'_>,
     ) -> crate::models::assist_accounting_record::ActiveModel {
         use crate::models::assist_accounting_record;
 
         assist_accounting_record::ActiveModel {
-            business_type: sea_orm::Set(business_type.to_string()),
-            business_no: sea_orm::Set(business_no.to_string()),
-            business_id: sea_orm::Set(business_id),
+            business_type: sea_orm::Set(ctx.business_type.to_string()),
+            business_no: sea_orm::Set(ctx.business_no.to_string()),
+            business_id: sea_orm::Set(ctx.business_id),
             account_subject_id: sea_orm::Set(account_subject_id),
             debit_amount: sea_orm::Set(item.debit),
             credit_amount: sea_orm::Set(item.credit),
             five_dimension_id: sea_orm::Set(five_dimension_id),
             product_id: sea_orm::Set(0),
-            batch_no: sea_orm::Set(voucher_model.batch_no.clone().unwrap_or_else(|| {
+            batch_no: sea_orm::Set(ctx.voucher_model.batch_no.clone().unwrap_or_else(|| {
                 tracing::warn!(
                     "凭证 {} 的 batch_no 为 None，辅助核算记录使用空字符串占位",
-                    voucher_id
+                    ctx.voucher_id
                 );
                 String::new()
             })),
-            color_no: sea_orm::Set(voucher_model.color_no.clone().unwrap_or_else(|| {
+            color_no: sea_orm::Set(ctx.voucher_model.color_no.clone().unwrap_or_else(|| {
                 tracing::warn!(
                     "凭证 {} 的 color_no 为 None，辅助核算记录使用空字符串占位",
-                    voucher_id
+                    ctx.voucher_id
                 );
                 String::new()
             })),
-            dye_lot_no: sea_orm::Set(voucher_model.dye_lot_no.clone()),
+            dye_lot_no: sea_orm::Set(ctx.voucher_model.dye_lot_no.clone()),
             grade: sea_orm::Set(item.assist_grade.clone().unwrap_or_default()),
             workshop_id: sea_orm::Set(item.assist_workshop_id),
             warehouse_id: sea_orm::Set(0),
@@ -1238,9 +1247,9 @@ impl VoucherService {
             supplier_id: sea_orm::Set(item.assist_supplier_id),
             quantity_meters: sea_orm::Set(item.quantity_meters.unwrap_or(Decimal::ZERO)),
             quantity_kg: sea_orm::Set(item.quantity_kg.unwrap_or(Decimal::ZERO)),
-            remarks: sea_orm::Set(Some(format!("voucher_id={}", voucher_id))),
-            created_at: sea_orm::Set(now),
-            created_by: sea_orm::Set(Some(user_id)),
+            remarks: sea_orm::Set(Some(format!("voucher_id={}", ctx.voucher_id))),
+            created_at: sea_orm::Set(ctx.now),
+            created_by: sea_orm::Set(Some(ctx.user_id)),
             ..Default::default()
         }
     }
