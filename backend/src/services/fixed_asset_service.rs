@@ -268,15 +268,10 @@ impl FixedAssetService {
         // 让前端能区分"重复计提"(400 VALIDATION_ERROR) 与"系统错误"(500 DATABASE_ERROR)
         if let Err(err) = depreciation_record.insert(txn).await {
             let err_str = err.to_string();
-            // 显式回滚事务（asset_active.save 已写入 txn，不能依赖 drop 自动回滚）
-            // L-4 修复（批次 368 v13 复审）：回滚失败不再吞错，记录 error 日志便于排查
-            if let Err(rb_err) = txn.rollback().await {
-                tracing::error!(error = %rb_err, "事务回滚失败，可能存在连接异常");
-            }
             // 批次 95 P3-11 修复：收紧唯一约束匹配，仅匹配特定约束名
             if err_str.contains("uk_fa_depreciation_records_asset_period") {
                 tracing::warn!(
-                    "资产 {} 期间 {} 重复计提折旧，已回滚事务",
+                    "资产 {} 期间 {} 重复计提折旧",
                     asset_id,
                     period
                 );
@@ -351,8 +346,8 @@ impl FixedAssetService {
         asset_active.net_value = Set(Some(new_net_value));
         asset_active.save(&txn).await?;
 
-        // 插入折旧记录
-        Self::insert_depreciation_record(
+        // 插入折旧记录（失败时显式回滚，因为 asset_active.save 已写入 txn）
+        if let Err(e) = Self::insert_depreciation_record(
             &txn,
             asset_id,
             period,
@@ -364,7 +359,13 @@ impl FixedAssetService {
             &depreciation_method,
             user_id,
         )
-        .await?;
+        .await
+        {
+            if let Err(rb_err) = txn.rollback().await {
+                tracing::error!(error = %rb_err, "事务回滚失败，可能存在连接异常");
+            }
+            return Err(e);
+        }
 
         // 提交事务
         txn.commit().await?;
