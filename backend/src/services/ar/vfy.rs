@@ -437,7 +437,7 @@ impl ArReconciliationService {
     fn build_customer_aging_summaries(
         customer_map: &std::collections::HashMap<i32, (String, Vec<&ar_invoice::Model>)>,
         today: chrono::NaiveDate,
-        overall_buckets: &mut Vec<AgingBucket>,
+        overall_buckets: &mut [AgingBucket],
     ) -> (Vec<CustomerAgingSummary>, Decimal) {
         let mut customer_summaries = Vec::new();
         let mut total_receivable = Decimal::ZERO;
