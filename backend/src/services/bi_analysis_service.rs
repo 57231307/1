@@ -1330,46 +1330,8 @@ impl BiAnalysisService {
         }))
     }
 
-    /// 透视（行列转换）
-    ///
-    /// 按 row_dim × col_dim 构建二维聚合矩阵，measure 为度量字段。
-    ///
-    /// 支持的维度（row_dim / col_dim）：
-    /// - customer: 客户
-    /// - product: 产品
-    /// - region: 区域（客户所在省份）
-    /// - category: 品类
-    /// - time: 时间（按月聚合，YYYY-MM）
-    ///
-    /// 支持的度量（measure）：
-    /// - total_amount: 销售额
-    /// - order_count: 订单数
-    /// - quantity: 销售数量
-    /// - profit_amount: 利润（销售额 - 成本）
-    ///
-    /// 返回结构：
-    /// ```json
-    /// {
-    ///   "row_dim": "customer",
-    ///   "col_dim": "product",
-    ///   "measure": "total_amount",
-    ///   "rows": [{ "key": "1", "label": "客户A" }, ...],
-    ///   "columns": [{ "key": "10", "label": "产品X" }, ...],
-    ///   "matrix": { "1|10": 1500.0, "1|11": 2300.0, ... }
-    /// }
-    /// ```
-    ///
-    /// 实现说明（v11 批次 144 P1-3 修复）：
-    /// - 原实现返回占位 note 字段，col 维度分组未实现
-    /// - 现使用动态 SQL 构建真实的 row × col 交叉聚合矩阵
-    /// - 当任一维度为 product/category 时，需要关联 sales_order_items 表进行项级聚合
-    /// - 否则在订单级别聚合，避免因 JOIN 倍增导致 total_amount 重复计算
-    pub async fn pivot(
-        &self,
-        row_dim: &str,
-        col_dim: &str,
-        measure: &str,
-    ) -> Result<serde_json::Value, AppError> {
+    /// 校验 pivot 参数（行/列维度、度量）
+    fn validate_pivot_params(row_dim: &str, col_dim: &str, measure: &str) -> Result<(), AppError> {
         let valid_dims = ["customer", "product", "region", "category", "time"];
         if !valid_dims.contains(&row_dim) {
             return Err(AppError::validation(format!(
@@ -1394,7 +1356,16 @@ impl BiAnalysisService {
                 measure
             )));
         }
+        Ok(())
+    }
 
+    /// 构建 pivot SQL 查询并执行，返回原始行
+    async fn execute_pivot_query(
+        &self,
+        row_dim: &str,
+        col_dim: &str,
+        measure: &str,
+    ) -> Result<Vec<PivotRow>, AppError> {
         let (row_key_expr, row_label_expr) = dim_to_expr(row_dim)?;
         let (col_key_expr, col_label_expr) = dim_to_expr(col_dim)?;
 
@@ -1453,8 +1424,16 @@ impl BiAnalysisService {
             scope_values,
         );
 
-        let rows = PivotRow::find_by_statement(stmt).all(&*self.db).await?;
+        PivotRow::find_by_statement(stmt).all(&*self.db).await
+    }
 
+    /// 从查询结果构建交叉聚合矩阵
+    fn build_pivot_matrix(
+        rows: Vec<PivotRow>,
+        row_dim: &str,
+        col_dim: &str,
+        measure: &str,
+    ) -> serde_json::Value {
         // 收集唯一的行/列键（保持有序），并构建矩阵
         let mut row_set: std::collections::BTreeMap<String, String> =
             std::collections::BTreeMap::new();
@@ -1488,14 +1467,34 @@ impl BiAnalysisService {
             .map(|(k, v)| (k, serde_json::json!(v)))
             .collect();
 
-        Ok(serde_json::json!({
+        serde_json::json!({
             "row_dim": row_dim,
             "col_dim": col_dim,
             "measure": measure,
             "rows": rows_json,
             "columns": cols_json,
             "matrix": matrix_json,
-        }))
+        })
+    }
+
+    /// 透视（行列转换），按 row_dim × col_dim 构建二维聚合矩阵
+    ///
+    /// 实现说明（v11 批次 144 P1-3 修复）：
+    /// - 原实现返回占位 note 字段，col 维度分组未实现
+    /// - 现使用动态 SQL 构建真实的 row × col 交叉聚合矩阵
+    /// - 当任一维度为 product/category 时，需要关联 sales_order_items 表进行项级聚合
+    /// - 否则在订单级别聚合，避免因 JOIN 倍增导致 total_amount 重复计算
+    pub async fn pivot(
+        &self,
+        row_dim: &str,
+        col_dim: &str,
+        measure: &str,
+    ) -> Result<serde_json::Value, AppError> {
+        Self::validate_pivot_params(row_dim, col_dim, measure)?;
+
+        let rows = self.execute_pivot_query(row_dim, col_dim, measure).await?;
+
+        Ok(Self::build_pivot_matrix(rows, row_dim, col_dim, measure))
     }
 }
 

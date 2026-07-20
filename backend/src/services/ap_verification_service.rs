@@ -283,23 +283,19 @@ impl ApVerificationService {
         Ok(())
     }
 
-    /// 手工核销（指定核销关系）
-    pub async fn manual_verify(
-        &self,
-        req: ManualVerifyRequest,
-        user_id: i32,
-    ) -> Result<ap_verification::Model, AppError> {
-        let txn = (*self.db).begin().await?;
-
-        // 1. 验证所有应付单和付款单
-        let mut total_amount = Decimal::ZERO;
-
-        // v16 批次 44 修复：循环外批量查询并锁定所有 invoice 和 payment，
-        // 避免循环内逐个 find_by_id + lock_exclusive（N+1 查询）
-        // 行锁在事务内持续到 commit，批量锁定与逐个锁定效果一致
-        let invoice_ids: Vec<i32> = req.items.iter().map(|i| i.invoice_id).collect();
-        let payment_ids: Vec<i32> = req.items.iter().map(|i| i.payment_id).collect();
-        let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
+    /// 批量查询并锁定所有应付单和付款单（优化N+1查询）
+    async fn batch_lock_invoices_and_payments(
+        txn: &sea_orm::DatabaseTransaction,
+        invoice_ids: Vec<i32>,
+        payment_ids: Vec<i32>,
+    ) -> Result<
+        (
+            std::collections::HashMap<i32, ap_invoice::Model>,
+            std::collections::HashMap<i32, ap_payment::Model>,
+        ),
+        AppError,
+    > {
+        let invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
             if invoice_ids.is_empty() {
                 std::collections::HashMap::new()
             } else {
@@ -307,7 +303,7 @@ impl ApVerificationService {
                 ap_invoice::Entity::find()
                     .filter(ap_invoice::Column::Id.is_in(invoice_ids))
                     .lock_exclusive()
-                    .all(&txn)
+                    .all(txn)
                     .await?
                     .into_iter()
                     .map(|inv| (inv.id, inv))
@@ -321,14 +317,23 @@ impl ApVerificationService {
                 ap_payment::Entity::find()
                     .filter(ap_payment::Column::Id.is_in(payment_ids))
                     .lock_exclusive()
-                    .all(&txn)
+                    .all(txn)
                     .await?
                     .into_iter()
                     .map(|p| (p.id, p))
                     .collect()
             };
+        Ok((invoice_map, payment_map))
+    }
 
-        for item in &req.items {
+    /// 验证所有核销明细的应付单和付款单，返回核销总金额
+    fn validate_verify_items(
+        items: &[ApVerificationItemDto],
+        invoice_map: &std::collections::HashMap<i32, ap_invoice::Model>,
+        payment_map: &std::collections::HashMap<i32, ap_payment::Model>,
+    ) -> Result<Decimal, AppError> {
+        let mut total_amount = Decimal::ZERO;
+        for item in items {
             // 验证应付单（v16 批次 44 修复：从批量查询结果获取）
             let invoice = invoice_map
                 .get(&item.invoice_id)
@@ -355,37 +360,27 @@ impl ApVerificationService {
 
             total_amount += item.verify_amount;
         }
+        Ok(total_amount)
+    }
 
-        // 2. 创建核销单
-        // P1 5-11 修复（批次 60）：传入外层 txn，确保单号生成与 INSERT 在同一事务内
-        let verification_no = self.generate_verification_no(&txn).await?;
-        let verification_date = Utc::now().naive_utc().date();
-
-        let verification = ap_verification::ActiveModel {
-            verification_no: Set(verification_no),
-            verification_date: Set(verification_date),
-            supplier_id: Set(req.supplier_id),
-            verification_type: Set("MANUAL".to_string()),
-            total_amount: Set(total_amount),
-            verification_status: Set("COMPLETED".to_string()),
-            notes: Set(req.notes),
-            created_by: Set(user_id),
-            ..Default::default()
-        }
-        .insert(&txn)
-        .await?;
-
-        // 3. 创建核销明细并更新应付单和付款单
-        for item in req.items {
+    /// 创建核销明细并更新应付单（含同 invoice_id 重复处理）
+    async fn process_verify_items(
+        txn: &sea_orm::DatabaseTransaction,
+        items: Vec<ApVerificationItemDto>,
+        verification_id: i32,
+        invoice_map: &mut std::collections::HashMap<i32, ap_invoice::Model>,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        for item in items {
             let _item = ap_verification_item::ActiveModel {
-                verification_id: Set(verification.id),
+                verification_id: Set(verification_id),
                 invoice_id: Set(item.invoice_id),
                 payment_id: Set(item.payment_id),
                 verify_amount: Set(item.verify_amount),
                 notes: Set(item.notes),
                 ..Default::default()
             }
-            .insert(&txn)
+            .insert(txn)
             .await?;
 
             // 更新应付单
@@ -406,7 +401,7 @@ impl ApVerificationService {
 
             let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
             crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
+                txn,
                 "auto_audit",
                 invoice_active,
                 // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
@@ -414,6 +409,55 @@ impl ApVerificationService {
             )
             .await?;
         }
+        Ok(())
+    }
+
+    /// 手工核销（指定核销关系）
+    pub async fn manual_verify(
+        &self,
+        req: ManualVerifyRequest,
+        user_id: i32,
+    ) -> Result<ap_verification::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 1. 批量查询并锁定所有 invoice 和 payment
+        let invoice_ids: Vec<i32> = req.items.iter().map(|i| i.invoice_id).collect();
+        let payment_ids: Vec<i32> = req.items.iter().map(|i| i.payment_id).collect();
+        let (invoice_map, payment_map) =
+            Self::batch_lock_invoices_and_payments(&txn, invoice_ids, payment_ids).await?;
+
+        // 2. 验证所有核销明细
+        let total_amount = Self::validate_verify_items(&req.items, &invoice_map, &payment_map)?;
+
+        // 3. 创建核销单
+        // P1 5-11 修复（批次 60）：传入外层 txn，确保单号生成与 INSERT 在同一事务内
+        let verification_no = self.generate_verification_no(&txn).await?;
+        let verification_date = Utc::now().naive_utc().date();
+
+        let verification = ap_verification::ActiveModel {
+            verification_no: Set(verification_no),
+            verification_date: Set(verification_date),
+            supplier_id: Set(req.supplier_id),
+            verification_type: Set("MANUAL".to_string()),
+            total_amount: Set(total_amount),
+            verification_status: Set("COMPLETED".to_string()),
+            notes: Set(req.notes),
+            created_by: Set(user_id),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+
+        // 4. 创建核销明细并更新应付单
+        let mut invoice_map = invoice_map;
+        Self::process_verify_items(
+            &txn,
+            req.items,
+            verification.id,
+            &mut invoice_map,
+            user_id,
+        )
+        .await?;
 
         txn.commit().await?;
 

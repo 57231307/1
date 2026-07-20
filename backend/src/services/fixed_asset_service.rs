@@ -192,6 +192,101 @@ impl FixedAssetService {
         Ok(monthly_depreciation)
     }
 
+    /// 查询资产并校验状态（加 lock_exclusive 串行化并发）
+    async fn validate_asset_for_depreciation(
+        txn: &sea_orm::DatabaseTransaction,
+        asset_id: i32,
+    ) -> Result<fixed_asset::Model, AppError> {
+        let asset = fixed_asset::Entity::find_by_id(asset_id)
+            .lock_exclusive()
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
+
+        if asset.status != master_data::ACTIVE {
+            return Err(AppError::validation(
+                "只有活跃状态的资产才能计提折旧".to_string(),
+            ));
+        }
+
+        Ok(asset)
+    }
+
+    /// 计算折旧值（封顶到可折旧上限），返回 (actual_depreciation, new_accumulated, new_net_value, depreciable_cap)
+    fn compute_depreciation_values(
+        asset: &fixed_asset::Model,
+        monthly_depreciation: Decimal,
+    ) -> (Decimal, Decimal, Decimal, Decimal) {
+        let accumulated_depreciation = asset.accumulated_depreciation;
+        let original_value = asset.original_value;
+        let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
+
+        // 可折旧上限 = original_value - residual_value
+        let depreciable_cap = original_value - residual_value;
+
+        // 封顶到 depreciable_cap，防止最后一期溢出残值
+        let raw_new_accumulated = accumulated_depreciation + monthly_depreciation;
+        let new_accumulated = raw_new_accumulated.min(depreciable_cap);
+        // 实际计提额（封顶后可能小于月折旧额）
+        let actual_depreciation = new_accumulated - accumulated_depreciation;
+        // 净值 = 原值 - 累计折旧，不能低于残值
+        let new_net_value = (original_value - new_accumulated).max(residual_value);
+
+        (actual_depreciation, new_accumulated, new_net_value, depreciable_cap)
+    }
+
+    /// 插入折旧记录，唯一约束冲突转为业务校验错误
+    async fn insert_depreciation_record(
+        txn: &sea_orm::DatabaseTransaction,
+        asset_id: i32,
+        period: &str,
+        actual_depreciation: Decimal,
+        accumulated_depreciation: Decimal,
+        new_accumulated: Decimal,
+        net_value_before: Decimal,
+        new_net_value: Decimal,
+        depreciation_method: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        // v3 P1-1 修复：id: Set(0) 会覆盖 SERIAL 默认值导致第二次插入主键冲突，改为 Default::default()
+        let depreciation_record = crate::models::fixed_asset_depreciation_record::ActiveModel {
+            id: Default::default(),
+            asset_id: Set(asset_id),
+            period: Set(period.to_string()),
+            // 批次 92 P3-14：使用封顶后的实际计提额，而非月折旧额（最后一期可能小于月折旧额）
+            depreciation_amount: Set(actual_depreciation),
+            accumulated_before: Set(accumulated_depreciation),
+            accumulated_after: Set(new_accumulated),
+            net_value_before: Set(net_value_before),
+            net_value_after: Set(Some(new_net_value)),
+            depreciation_method: Set(depreciation_method.to_string()),
+            created_by: Set(user_id),
+            created_at: Set(chrono::Utc::now()),
+        };
+        use sea_orm::ActiveModelTrait;
+        // P2-1 修复：(asset_id, period) 唯一约束冲突转为业务校验错误，
+        // 让前端能区分"重复计提"(400 VALIDATION_ERROR) 与"系统错误"(500 DATABASE_ERROR)
+        if let Err(err) = depreciation_record.insert(txn).await {
+            let err_str = err.to_string();
+            // 显式回滚事务（asset_active.save 已写入 txn，不能依赖 drop 自动回滚）
+            // L-4 修复（批次 368 v13 复审）：回滚失败不再吞错，记录 error 日志便于排查
+            if let Err(rb_err) = txn.rollback().await {
+                tracing::error!(error = %rb_err, "事务回滚失败，可能存在连接异常");
+            }
+            // 批次 95 P3-11 修复：收紧唯一约束匹配，仅匹配特定约束名
+            if err_str.contains("uk_fa_depreciation_records_asset_period") {
+                tracing::warn!(
+                    "资产 {} 期间 {} 重复计提折旧，已回滚事务",
+                    asset_id,
+                    period
+                );
+                return Err(AppError::validation("该资产此期间已计提折旧"));
+            }
+            return Err(err.into());
+        }
+        Ok(())
+    }
+
     /// 计提折旧
     ///
     /// 批次 85 v2 复审 P1-4 修复：状态门移入 txn + lock_exclusive 串行化
@@ -212,47 +307,26 @@ impl FixedAssetService {
         let txn = (*self.db).begin().await?;
 
         // 加 lock_exclusive 串行化并发状态变更
-        let asset = fixed_asset::Entity::find_by_id(asset_id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
-
-        // 检查资产状态
-        if asset.status != master_data::ACTIVE {
-            return Err(AppError::validation(
-                "只有活跃状态的资产才能计提折旧".to_string(),
-            ));
-        }
+        let asset = Self::validate_asset_for_depreciation(&txn, asset_id).await?;
 
         // 计算月折旧额（批次 92 P3-10 修复：复用事务内已 lock_exclusive 读出的 asset，
         // 调用纯计算函数 calc_monthly_depreciation_for，消除事务外重复 self.get_by_id 读取）
         let monthly_depreciation = Self::calc_monthly_depreciation_for(&asset)?;
 
-        // 批次 92 P3-14 修复：零值改为正常返回（useful_life=0 或已折旧完毕均可能产生 0）
-        // 原实现 `return Err("月折旧额不能为零")` 会把"已足额折旧"误判为业务错误，
-        // 让前端误以为计提失败；改为 Ok 后调用方按幂等处理。
+        // 批次 92 P3-14 修复：零值改为正常返回
         if monthly_depreciation <= Decimal::ZERO {
             info!(
                 "资产 {} 月折旧额为 0（已足额折旧或使用寿命为 0），跳过本次计提",
                 asset_id
             );
-            // 显式回滚事务（无写入但保持事务语义清晰）
             txn.rollback().await?;
             return Ok(());
         }
 
-        // 保留需要使用的字段值，避免 moved value 错误
+        // 批次 92 P3-14 修复：已足额折旧短路
         let accumulated_depreciation = asset.accumulated_depreciation;
         let original_value = asset.original_value;
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
-        // 批次 88 PH-2：保留 net_value / depreciation_method，用于折旧记录表插入
-        let net_value_before = asset.net_value;
-        let depreciation_method = asset.depreciation_method.clone();
-
-        // 批次 92 P3-14 修复：已足额折旧短路
-        // 若累计折旧已达可折旧上限（原值 - 残值），跳过本次计提避免超额折旧。
-        // 可折旧上限 = original_value - residual_value
         let depreciable_cap = original_value - residual_value;
         if accumulated_depreciation >= depreciable_cap {
             info!(
@@ -263,13 +337,13 @@ impl FixedAssetService {
             return Ok(());
         }
 
-        // 计算新的累计折旧（批次 92 P3-14：封顶到 depreciable_cap，防止最后一期溢出残值）
-        let raw_new_accumulated = accumulated_depreciation + monthly_depreciation;
-        let new_accumulated = raw_new_accumulated.min(depreciable_cap);
-        // 实际计提额（封顶后可能小于月折旧额）
-        let actual_depreciation = new_accumulated - accumulated_depreciation;
-        // 净值 = 原值 - 累计折旧，不能低于残值
-        let new_net_value = (original_value - new_accumulated).max(residual_value);
+        // 保留需要使用的字段值
+        let net_value_before = asset.net_value;
+        let depreciation_method = asset.depreciation_method.clone();
+
+        // 计算折旧值（封顶到可折旧上限）
+        let (actual_depreciation, new_accumulated, new_net_value, _) =
+            Self::compute_depreciation_values(&asset, monthly_depreciation);
 
         // 更新资产累计折旧
         let mut asset_active: crate::models::fixed_asset::ActiveModel = asset.into();
@@ -277,48 +351,20 @@ impl FixedAssetService {
         asset_active.net_value = Set(Some(new_net_value));
         asset_active.save(&txn).await?;
 
-        // 批次 88 PH-2 占位符实现：插入折旧期间记录
-        // (asset_id, period) 唯一约束防止同一资产同一期间重复计提
-        // v3 P1-1 修复：id: Set(0) 会覆盖 SERIAL 默认值导致第二次插入主键冲突，改为 Default::default()
-        let depreciation_record = crate::models::fixed_asset_depreciation_record::ActiveModel {
-            id: Default::default(),
-            asset_id: Set(asset_id),
-            period: Set(period.to_string()),
-            // 批次 92 P3-14：使用封顶后的实际计提额，而非月折旧额（最后一期可能小于月折旧额）
-            depreciation_amount: Set(actual_depreciation),
-            accumulated_before: Set(accumulated_depreciation),
-            accumulated_after: Set(new_accumulated),
-            net_value_before: Set(net_value_before),
-            net_value_after: Set(Some(new_net_value)),
-            depreciation_method: Set(depreciation_method),
-            created_by: Set(user_id),
-            created_at: Set(chrono::Utc::now()),
-        };
-        use sea_orm::ActiveModelTrait;
-        // P2-1 修复：(asset_id, period) 唯一约束冲突转为业务校验错误，
-        // 让前端能区分"重复计提"(400 VALIDATION_ERROR) 与"系统错误"(500 DATABASE_ERROR)
-        // 唯一约束名 uk_fa_depreciation_records_asset_period 定义于
-        // migrations/20260703000003_create_fixed_asset_depreciation_records/up.sql
-        if let Err(err) = depreciation_record.insert(&txn).await {
-            let err_str = err.to_string();
-            // 显式回滚事务（asset_active.save 已写入 txn，不能依赖 drop 自动回滚）
-            // L-4 修复（批次 368 v13 复审）：回滚失败不再吞错，记录 error 日志便于排查
-            if let Err(rb_err) = txn.rollback().await {
-                tracing::error!(error = %rb_err, "事务回滚失败，可能存在连接异常");
-            }
-            // 批次 95 P3-11 修复：收紧唯一约束匹配，仅匹配特定约束名
-            // uk_fa_depreciation_records_asset_period，避免吞掉其他表的其他唯一约束冲突
-            // （原实现包含 "unique constraint"/"duplicate key" 宽泛匹配，会把无关唯一冲突误判为重复计提）
-            if err_str.contains("uk_fa_depreciation_records_asset_period") {
-                tracing::warn!(
-                    "资产 {} 期间 {} 重复计提折旧，已回滚事务",
-                    asset_id,
-                    period
-                );
-                return Err(AppError::validation("该资产此期间已计提折旧"));
-            }
-            return Err(err.into());
-        }
+        // 插入折旧记录
+        Self::insert_depreciation_record(
+            &txn,
+            asset_id,
+            period,
+            actual_depreciation,
+            accumulated_depreciation,
+            new_accumulated,
+            net_value_before,
+            new_net_value,
+            &depreciation_method,
+            user_id,
+        )
+        .await?;
 
         // 提交事务
         txn.commit().await?;

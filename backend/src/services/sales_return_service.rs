@@ -413,28 +413,18 @@ impl SalesReturnService {
         Ok((return_order, items))
     }
 
-    /// P2 1-5 修复：批量库存入库（从 approve_return 抽取）
-    ///
-    /// 批量获取商品信息和库存记录（优化 N+1 查询），循环更新或创建库存记录并记录 SALES_RETURN 流水
-    ///
-    /// 批次 358 v13 复审 B-P1-1 修复：原实现使用 `stock_service.record_transaction(...)`（非事务版本），
-    /// 该方法内部使用 `self.db` 而非传入的 `txn`，且函数内立即 `EVENT_BUS.publish(event)`，
-    /// 存在双重风险：
-    /// （1）事务边界泄漏：库存流水写入与退货主事务不在同一事务，commit 失败时流水残留；
-    /// （2）幻事件风险：commit 失败时事件已发布，订阅方（库存财务桥接）会基于不存在的流水生成凭证。
-    /// 改用 `InventoryStockService::record_transaction_txn(txn, ...)` 关联函数：
-    /// 流水写入与主事务同生共死，事件由调用方在 commit 成功后统一 publish。
-    async fn apply_stock_inbound_txn(
-        &self,
+    /// 批量获取商品信息和库存记录（优化N+1查询），返回 (product_map, stock_map)
+    async fn load_stock_batch_maps(
         txn: &sea_orm::DatabaseTransaction,
-        return_order: &sales_return::Model,
         items: &[sales_return_item::Model],
-        user_id: i32,
-    ) -> Result<Vec<BusinessEvent>, AppError> {
-        // 收集待发布事件，由调用方在 commit 成功后统一 publish
-        let mut pending_events: Vec<BusinessEvent> = Vec::new();
-
-        // 批量获取商品信息和库存记录（优化N+1查询）
+        warehouse_id: i32,
+    ) -> Result<
+        (
+            std::collections::HashMap<i32, product::Model>,
+            std::collections::HashMap<(i32, String, String, Option<String>), inventory_stock::Model>,
+        ),
+        AppError,
+    > {
         let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
         let products = product::Entity::find()
             .filter(product::Column::Id.is_in(product_ids.clone()))
@@ -444,7 +434,7 @@ impl SalesReturnService {
             products.into_iter().map(|p| (p.id, p)).collect();
 
         let stocks = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::WarehouseId.eq(return_order.warehouse_id))
+            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
             .all(txn)
             .await?;
@@ -466,93 +456,130 @@ impl SalesReturnService {
                 })
                 .collect();
 
-        for item in items {
-            // 获取商品信息
-            let _product_info = product_map
-                .get(&item.product_id)
-                .ok_or_else(|| AppError::not_found(format!("商品 {} 不存在", item.product_id)))?;
+        Ok((product_map, stock_map))
+    }
 
-            // v14 批次 419 修复 T-P0-5：从退货明细获取缸号/色号/批号，
-            // 按四维 (product_id, color_no, batch_no, dye_lot_no) 查找匹配库存
-            let item_color_no = item.color_no.clone();
-            let item_dye_lot_no = item.dye_lot_no.clone();
-            let item_batch_no = item.batch_no.clone();
+    /// 处理单个退货明细的库存入库（更新/创建库存 + 记录流水）
+    async fn process_inbound_item(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: &sales_return::Model,
+        item: &sales_return_item::Model,
+        product_map: &std::collections::HashMap<i32, product::Model>,
+        stock_map: &std::collections::HashMap<(i32, String, String, Option<String>), inventory_stock::Model>,
+        user_id: i32,
+    ) -> Result<Option<BusinessEvent>, AppError> {
+        // 获取商品信息
+        let _product_info = product_map
+            .get(&item.product_id)
+            .ok_or_else(|| AppError::not_found(format!("商品 {} 不存在", item.product_id)))?;
 
-            let stock = stock_map.get(&(
-                item.product_id,
-                item_color_no.clone(),
-                item_batch_no.clone(),
-                item_dye_lot_no.clone(),
-            ));
+        // v14 批次 419 修复 T-P0-5：从退货明细获取缸号/色号/批号，
+        // 按四维 (product_id, color_no, batch_no, dye_lot_no) 查找匹配库存
+        let item_color_no = item.color_no.clone();
+        let item_dye_lot_no = item.dye_lot_no.clone();
+        let item_batch_no = item.batch_no.clone();
 
-            // grade 从库存获取，无库存时使用默认值 "A"
-            let grade = stock
-                .map(|s| s.grade.clone())
-                .unwrap_or_else(|| String::from("A"));
+        let stock = stock_map.get(&(
+            item.product_id,
+            item_color_no.clone(),
+            item_batch_no.clone(),
+            item_dye_lot_no.clone(),
+        ));
 
-            if let Some(s) = stock {
-                // 更新现有库存
-                let new_qty = s.quantity_on_hand + item.quantity;
-                let new_avail = s.quantity_available + item.quantity;
-                let mut stock_update: inventory_stock::ActiveModel = s.clone().into();
-                stock_update.quantity_on_hand = Set(new_qty);
-                stock_update.quantity_available = Set(new_avail);
-                stock_update.updated_at = Set(Utc::now());
-                crate::services::audit_log_service::AuditLogService::update_with_audit(
-                    txn,
-                    "auto_audit",
-                    stock_update,
-                    // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
-                    Some(user_id),
-                )
-                .await?;
-            } else {
-                // 创建新库存记录
-                // v14 批次 419 修复 T-P0-5：使用退货明细的缸号/色号/批号创建库存
-                let new_stock = inventory_stock::ActiveModel {
-                    warehouse_id: Set(return_order.warehouse_id),
-                    product_id: Set(item.product_id),
-                    batch_no: Set(item_batch_no.clone()),
-                    color_no: Set(item_color_no.clone()),
-                    grade: Set(grade.clone()),
-                    quantity_on_hand: Set(item.quantity),
-                    quantity_available: Set(item.quantity),
-                    quantity_reserved: Set(Decimal::ZERO),
-                    version: Set(0),
-                    ..Default::default()
-                };
-                new_stock.insert(txn).await?;
-            }
+        // grade 从库存获取，无库存时使用默认值 "A"
+        let grade = stock
+            .map(|s| s.grade.clone())
+            .unwrap_or_else(|| String::from("A"));
 
-            // 增加库存交易记录
-            // 批次 338 v10 复审 P3 修复：使用 RecordTransactionArgs 参数对象替代多参数
-            // 批次 358 v13 复审 B-P1-1 修复：改用 record_transaction_txn 关联函数，
-            // 流水写入与主事务同生共死，事件返回由调用方在 commit 后统一 publish
-            // v14 批次 419 修复 T-P0-5：库存流水使用退货明细的缸号/色号/批号
-            let (_, txn_event) = InventoryStockService::record_transaction_txn(
+        if let Some(s) = stock {
+            // 更新现有库存
+            let new_qty = s.quantity_on_hand + item.quantity;
+            let new_avail = s.quantity_available + item.quantity;
+            let mut stock_update: inventory_stock::ActiveModel = s.clone().into();
+            stock_update.quantity_on_hand = Set(new_qty);
+            stock_update.quantity_available = Set(new_avail);
+            stock_update.updated_at = Set(Utc::now());
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
                 txn,
-                RecordTransactionArgs {
-                    transaction_type: "SALES_RETURN".to_string(),
-                    product_id: item.product_id,
-                    warehouse_id: return_order.warehouse_id,
-                    batch_no: item_batch_no.clone(),
-                    color_no: item_color_no.clone(),
-                    dye_lot_no: item_dye_lot_no.clone(),
-                    grade: grade.clone(),
-                    quantity_meters: item.quantity, // 正数，表示入库
-                    quantity_kg: item.quantity_alt,
-                    source_bill_type: Some("SALES_RETURN".to_string()),
-                    source_bill_no: Some(return_order.return_no.clone()),
-                    source_bill_id: Some(return_order.id),
-                    quantity_before_meters: None,
-                    quantity_before_kg: None,
-                    quantity_after_meters: None,
-                    quantity_after_kg: None,
-                    notes: Some("销售退货入库".to_string()),
-                    created_by: Some(user_id),
-                },
+                "auto_audit",
+                stock_update,
+                // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+                Some(user_id),
             )
             .await?;
+        } else {
+            // 创建新库存记录
+            // v14 批次 419 修复 T-P0-5：使用退货明细的缸号/色号/批号创建库存
+            let new_stock = inventory_stock::ActiveModel {
+                warehouse_id: Set(return_order.warehouse_id),
+                product_id: Set(item.product_id),
+                batch_no: Set(item_batch_no.clone()),
+                color_no: Set(item_color_no.clone()),
+                grade: Set(grade.clone()),
+                quantity_on_hand: Set(item.quantity),
+                quantity_available: Set(item.quantity),
+                quantity_reserved: Set(Decimal::ZERO),
+                version: Set(0),
+                ..Default::default()
+            };
+            new_stock.insert(txn).await?;
+        }
+
+        // 增加库存交易记录
+        // 批次 338 v10 复审 P3 修复：使用 RecordTransactionArgs 参数对象替代多参数
+        // 批次 358 v13 复审 B-P1-1 修复：改用 record_transaction_txn 关联函数，
+        // 流水写入与主事务同生共死，事件返回由调用方在 commit 后统一 publish
+        // v14 批次 419 修复 T-P0-5：库存流水使用退货明细的缸号/色号/批号
+        let (_, txn_event) = InventoryStockService::record_transaction_txn(
+            txn,
+            RecordTransactionArgs {
+                transaction_type: "SALES_RETURN".to_string(),
+                product_id: item.product_id,
+                warehouse_id: return_order.warehouse_id,
+                batch_no: item_batch_no.clone(),
+                color_no: item_color_no.clone(),
+                dye_lot_no: item_dye_lot_no.clone(),
+                grade: grade.clone(),
+                quantity_meters: item.quantity, // 正数，表示入库
+                quantity_kg: item.quantity_alt,
+                source_bill_type: Some("SALES_RETURN".to_string()),
+                source_bill_no: Some(return_order.return_no.clone()),
+                source_bill_id: Some(return_order.id),
+                quantity_before_meters: None,
+                quantity_before_kg: None,
+                quantity_after_meters: None,
+                quantity_after_kg: None,
+                notes: Some("销售退货入库".to_string()),
+                created_by: Some(user_id),
+            },
+        )
+        .await?;
+        Ok(txn_event)
+    }
+
+    /// P2 1-5 修复：批量库存入库（从 approve_return 抽取）
+    ///
+    /// 改用 `InventoryStockService::record_transaction_txn(txn, ...)` 关联函数：
+    /// 流水写入与主事务同生共死，事件由调用方在 commit 成功后统一 publish。
+    async fn apply_stock_inbound_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: &sales_return::Model,
+        items: &[sales_return_item::Model],
+        user_id: i32,
+    ) -> Result<Vec<BusinessEvent>, AppError> {
+        // 收集待发布事件，由调用方在 commit 成功后统一 publish
+        let mut pending_events: Vec<BusinessEvent> = Vec::new();
+
+        // 批量获取商品信息和库存记录（优化N+1查询）
+        let (product_map, stock_map) =
+            Self::load_stock_batch_maps(txn, items, return_order.warehouse_id).await?;
+
+        for item in items {
+            let txn_event = self
+                .process_inbound_item(txn, return_order, item, &product_map, &stock_map, user_id)
+                .await?;
             if let Some(ev) = txn_event {
                 pending_events.push(ev);
             }
