@@ -501,14 +501,13 @@ impl InventoryFinanceBridgeService {
             color_no,
             created_by,
         } = args;
-        // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
-        // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
+
         if quantity_meters.is_zero() {
             return Err(AppError::validation(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
-        // P2 5-12 修复：合并产品名称+成本价为单次查询
+
         let (product_name, cost_price) = self
             .get_product_info(product_id)
             .await
@@ -523,90 +522,37 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
         let amount = (cost_price * quantity_meters.abs()).round_dp(2);
 
         let voucher_request = if quantity_meters > Decimal::ZERO {
-            // 盘盈：借：库存商品，贷：待处理财产损溢
-            CreateVoucherRequest {
-                voucher_type: "记".to_string(),
-                voucher_date: chrono::Utc::now().date_naive(),
-                source_type: source_bill_type.map(|s| s.to_string()),
-                source_module: Some("inventory".to_string()),
+            Self::build_surplus_voucher(
+                source_bill_type,
                 source_bill_id,
-                source_bill_no: source_bill_no.map(|s| s.to_string()),
-                batch_no: Some(batch_no.to_string()),
-                color_no: Some(color_no.to_string()),
-                items: vec![
-                    Self::make_voucher_item(VoucherItemArgs {
-                        line_no: 1,
-                        subject_code: "1405",
-                        subject_name: "库存商品",
-                        debit: amount,
-                        credit: Decimal::ZERO,
-                        summary: Some(summary.clone()),
-                        quantity_meters: Some(quantity_meters),
-                        quantity_kg: Some(quantity_kg),
-                        // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                        unit_price: Some((amount / quantity_meters).round_dp(2)),
-                    }),
-                    Self::make_voucher_item(VoucherItemArgs {
-                        line_no: 2,
-                        subject_code: "1901",
-                        subject_name: "待处理财产损溢",
-                        debit: Decimal::ZERO,
-                        credit: amount,
-                        summary: Some(summary.clone()),
-                        quantity_meters: None,
-                        quantity_kg: None,
-                        unit_price: None,
-                    }),
-                ],
-            }
+                source_bill_no,
+                batch_no,
+                color_no,
+                &summary,
+                amount,
+                quantity_meters,
+                quantity_kg,
+            )
         } else {
-            // 盘亏：借：待处理财产损溢，贷：库存商品
-            CreateVoucherRequest {
-                voucher_type: "记".to_string(),
-                voucher_date: chrono::Utc::now().date_naive(),
-                source_type: source_bill_type.map(|s| s.to_string()),
-                source_module: Some("inventory".to_string()),
+            Self::build_shortage_voucher(
+                source_bill_type,
                 source_bill_id,
-                source_bill_no: source_bill_no.map(|s| s.to_string()),
-                batch_no: Some(batch_no.to_string()),
-                color_no: Some(color_no.to_string()),
-                items: vec![
-                    Self::make_voucher_item(VoucherItemArgs {
-                        line_no: 1,
-                        subject_code: "1901",
-                        subject_name: "待处理财产损溢",
-                        debit: amount,
-                        credit: Decimal::ZERO,
-                        summary: Some(summary.clone()),
-                        quantity_meters: None,
-                        quantity_kg: None,
-                        unit_price: None,
-                    }),
-                    Self::make_voucher_item(VoucherItemArgs {
-                        line_no: 2,
-                        subject_code: "1405",
-                        subject_name: "库存商品",
-                        debit: Decimal::ZERO,
-                        credit: amount,
-                        summary: Some(summary.clone()),
-                        quantity_meters: Some(-quantity_meters),
-                        quantity_kg: Some(-quantity_kg),
-                        // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                        unit_price: Some((amount / (-quantity_meters)).round_dp(2)),
-                    }),
-                ],
-            }
+                source_bill_no,
+                batch_no,
+                color_no,
+                &summary,
+                amount,
+                quantity_meters,
+                quantity_kg,
+            )
         };
 
         let voucher_service = VoucherService::new(self.db.clone());
-        // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
         let user_id =
             created_by.ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
-        // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
         let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
 
         info!(
@@ -615,6 +561,102 @@ impl InventoryFinanceBridgeService {
         );
 
         Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_surplus_voucher(
+        source_bill_type: Option<&str>,
+        source_bill_id: Option<i32>,
+        source_bill_no: Option<&str>,
+        batch_no: &str,
+        color_no: &str,
+        summary: &str,
+        amount: Decimal,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+    ) -> CreateVoucherRequest {
+        CreateVoucherRequest {
+            voucher_type: "记".to_string(),
+            voucher_date: chrono::Utc::now().date_naive(),
+            source_type: source_bill_type.map(|s| s.to_string()),
+            source_module: Some("inventory".to_string()),
+            source_bill_id,
+            source_bill_no: source_bill_no.map(|s| s.to_string()),
+            batch_no: Some(batch_no.to_string()),
+            color_no: Some(color_no.to_string()),
+            items: vec![
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 1,
+                    subject_code: "1405",
+                    subject_name: "库存商品",
+                    debit: amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.to_string()),
+                    quantity_meters: Some(quantity_meters),
+                    quantity_kg: Some(quantity_kg),
+                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                }),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 2,
+                    subject_code: "1901",
+                    subject_name: "待处理财产损溢",
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    summary: Some(summary.to_string()),
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                }),
+            ],
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_shortage_voucher(
+        source_bill_type: Option<&str>,
+        source_bill_id: Option<i32>,
+        source_bill_no: Option<&str>,
+        batch_no: &str,
+        color_no: &str,
+        summary: &str,
+        amount: Decimal,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+    ) -> CreateVoucherRequest {
+        CreateVoucherRequest {
+            voucher_type: "记".to_string(),
+            voucher_date: chrono::Utc::now().date_naive(),
+            source_type: source_bill_type.map(|s| s.to_string()),
+            source_module: Some("inventory".to_string()),
+            source_bill_id,
+            source_bill_no: source_bill_no.map(|s| s.to_string()),
+            batch_no: Some(batch_no.to_string()),
+            color_no: Some(color_no.to_string()),
+            items: vec![
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 1,
+                    subject_code: "1901",
+                    subject_name: "待处理财产损溢",
+                    debit: amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.to_string()),
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                }),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 2,
+                    subject_code: "1405",
+                    subject_name: "库存商品",
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    summary: Some(summary.to_string()),
+                    quantity_meters: Some(-quantity_meters),
+                    quantity_kg: Some(-quantity_kg),
+                    unit_price: Some((amount / (-quantity_meters)).round_dp(2)),
+                }),
+            ],
+        }
     }
 
     /// 创建生产入库凭证

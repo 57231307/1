@@ -70,38 +70,58 @@ impl QuotationService {
         dto: CreateQuotationDto,
         user_id: i64,
     ) -> Result<sales_quotation::Model, ServiceError> {
-        // 1. 生成 quotation_no（QT + YYYYMMDD + 4 位序号）
         let quotation_no = self.generate_quotation_no().await?;
-
-        // 2. 计算金额
         let (subtotal, tax_amount, total_amount) = self.calculate_totals(&dto)?;
-
-        // 3. 业务校验
         self.validate_create(&dto)?;
 
-        // 4. 开始事务
         let txn = self.db.begin().await?;
+        let result = Self::build_quotation_active(&dto, quotation_no, subtotal, tax_amount, total_amount, user_id)
+            .insert(&txn)
+            .await?;
 
-        // 5. 插入主表
+        let item_models = Self::build_quotation_item_models(&dto.items, result.id);
+        if !item_models.is_empty() {
+            ItemEntity::insert_many(item_models).exec(&txn).await?;
+        }
+
+        if let Some(terms) = dto.terms {
+            let term_models = Self::build_quotation_term_models(&terms, result.id);
+            if !term_models.is_empty() {
+                TermEntity::insert_many(term_models).exec(&txn).await?;
+            }
+        }
+
+        txn.commit().await?;
+        Ok(result)
+    }
+
+    fn build_quotation_active(
+        dto: &CreateQuotationDto,
+        quotation_no: String,
+        subtotal: Decimal,
+        tax_amount: Decimal,
+        total_amount: Decimal,
+        user_id: i64,
+    ) -> QuotationActive {
         let now = Utc::now();
-        let active = QuotationActive {
+        QuotationActive {
             id: Default::default(),
             quotation_no: Set(quotation_no),
             customer_id: Set(dto.customer_id),
             sales_user_id: Set(dto.sales_user_id),
             quotation_date: Set(dto.quotation_date),
             valid_until: Set(dto.valid_until),
-            currency: Set(dto.currency),
+            currency: Set(dto.currency.clone()),
             exchange_rate: Set(dto.exchange_rate),
-            base_currency: Set(dto.base_currency),
-            price_terms: Set(dto.price_terms),
-            incoterms_version: Set(dto.incoterms_version),
-            incoterm_location: Set(dto.incoterm_location),
+            base_currency: Set(dto.base_currency.clone()),
+            price_terms: Set(dto.price_terms.clone()),
+            incoterms_version: Set(dto.incoterms_version.clone()),
+            incoterm_location: Set(dto.incoterm_location.clone()),
             tax_inclusive: Set(dto.tax_inclusive),
             tax_rate: Set(dto.tax_rate),
             moq: Set(dto.moq),
             lead_time_days: Set(dto.lead_time_days),
-            customer_level: Set(dto.customer_level),
+            customer_level: Set(dto.customer_level.clone()),
             subtotal: Set(subtotal),
             tax_amount: Set(tax_amount),
             total_amount: Set(total_amount),
@@ -112,19 +132,19 @@ impl QuotationService {
             rejection_reason: Set(None),
             converted_sales_order_id: Set(None),
             converted_at: Set(None),
-            notes: Set(dto.notes),
+            notes: Set(dto.notes.clone()),
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
-        };
-        let result = active.insert(&txn).await?;
+        }
+    }
 
-        // 6. 插入明细：改用 insert_many 批量 INSERT（原为循环内逐条 insert 导致 N 条=N 次 INSERT）
-        let mut item_active_models: Vec<ItemActive> = Vec::with_capacity(dto.items.len());
-        for (idx, item_dto) in dto.items.iter().enumerate() {
-            item_active_models.push(ItemActive {
+    fn build_quotation_item_models(items: &[CreateQuotationItemDto], quotation_id: i64) -> Vec<ItemActive> {
+        let mut models: Vec<ItemActive> = Vec::with_capacity(items.len());
+        for (idx, item_dto) in items.iter().enumerate() {
+            models.push(ItemActive {
                 id: Default::default(),
-                quotation_id: Set(result.id),
+                quotation_id: Set(quotation_id),
                 product_id: Set(item_dto.product_id),
                 color_id: Set(item_dto.color_id),
                 color_code: Set(None),
@@ -135,7 +155,6 @@ impl QuotationService {
                 quantity: Set(item_dto.quantity),
                 unit_price: Set(item_dto.unit_price),
                 unit_price_with_tax: Set(item_dto.unit_price_with_tax),
-                // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
                 amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
                 amount_with_tax: Set(
                     (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2),
@@ -152,36 +171,21 @@ impl QuotationService {
                 sequence: Set(idx as i32),
             });
         }
-        if !item_active_models.is_empty() {
-            ItemEntity::insert_many(item_active_models)
-                .exec(&txn)
-                .await?;
-        }
+        models
+    }
 
-        // 7. 插入贸易条款：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
-        if let Some(terms) = dto.terms {
-            if !terms.is_empty() {
-                let term_active_models: Vec<TermActive> = terms
-                    .into_iter()
-                    .map(|term| TermActive {
-                        id: Default::default(),
-                        quotation_id: Set(result.id),
-                        term_type: Set(term.term_type),
-                        term_key: Set(term.term_key),
-                        term_value: Set(term.term_value),
-                        sequence: Set(term.sequence),
-                    })
-                    .collect();
-                TermEntity::insert_many(term_active_models)
-                    .exec(&txn)
-                    .await?;
-            }
-        }
-
-        // 8. 提交事务
-        txn.commit().await?;
-
-        Ok(result)
+    fn build_quotation_term_models(terms: &[CreateQuotationTermDto], quotation_id: i64) -> Vec<TermActive> {
+        terms
+            .iter()
+            .map(|term| TermActive {
+                id: Default::default(),
+                quotation_id: Set(quotation_id),
+                term_type: Set(term.term_type.clone()),
+                term_key: Set(term.term_key.clone()),
+                term_value: Set(term.term_value.clone()),
+                sequence: Set(term.sequence),
+            })
+            .collect()
     }
 
     /// 列表查询（分页 + 过滤）
