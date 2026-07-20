@@ -1,16 +1,15 @@
 
-            `services::batch_service::BatchError: std::clone::Clone`
-            which is required by `std::vec::Vec<services::batch_service::BatchError>: std::clone::Clone`
      |
      |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
     --> src/services/so/delivery.rs:1358:9
-    --> src/services/voucher_service.rs:1103:9
+    --> src/services/voucher_service.rs:1216:9
     = note: requested on the command line with `-W unused-imports`
     = note: requested on the command line with `-W unused-variables`
-    = note: the following trait bounds were not satisfied:
     |
     |                                                ^^ expected `&str`, found integer
+    |                                         +
     |                                         ^^^ expected `&str`, found integer
+    |                                        +
     |                                        ^^^^ expected `&str`, found floating-point number
     |                                        ^^^^ expected `&str`, found integer
     |                                        ^^^^^^ expected `&str`, found floating-point number
@@ -20,22 +19,31 @@
     |                                    ^^^ expected `&str`, found integer
     |                                    ^^^^ expected `&str`, found integer
     |                                 ^^ expected `&str`, found integer
-    |                                ^^^^^
+    |                               +
     |                               ^^ expected `&str`, found integer
     |                               ^^^ expected `&str`, found integer
     |                               ^^^^^^ expected `&str`, found floating-point number
+    |                              +
     |                             ^ expected `&str`, found integer
     |                             ^^ expected `&str`, found integer
     |                             ^^^ expected `&str`, found integer
+    |                     -----    ^^^^^^^^^^^^^
+    |                     ------    ^^^^^^^^^^^^^^
+    |                     ---------------    ^^^^^^^^^^^^^^^^^^^^^^^
+    |                     ----------------    ^^^^^^^^^^^^^^^^^^^^^^^^
+    |                     data moved here
+    |                     move occurs because `billing_address` has type `std::string::String`, which does not implement the `Copy` trait
+    |                     move occurs because `notes` has type `std::string::String`, which does not implement the `Copy` trait
+    |                     move occurs because `shipping_address` has type `std::string::String`, which does not implement the `Copy` trait
+    |                     move occurs because `status` has type `std::string::String`, which does not implement the `Copy` trait
+    |                     |
     |         ------------------------------- arguments to this function are incorrect
     |         ^^^ help: if this is intentional, prefix it with an underscore: `_txn`
     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | --------------------- doesn't satisfy `_: Clone`
    --> /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/str/traits.rs:855:7
    --> src/services/accounting_period_service.rs:377:9
    --> src/services/ar/recon.rs:456:9
    --> src/services/ar/vfy.rs:782:9
-   --> src/services/batch_service.rs:444:32
    --> src/services/customer_credit_limit.rs:350:9
    --> src/services/inventory_adjustment_service.rs:687:9
    --> src/services/purchase_receipt_service.rs:685:9
@@ -66,21 +74,28 @@
    --> src/services/quotation_service.rs:827:40
    --> src/services/quotation_service.rs:834:36
    --> src/services/so/order_crud.rs:211:9
+   --> src/services/so/order_crud.rs:585:31
+   --> src/services/so/order_crud.rs:588:41
+   --> src/services/so/order_crud.rs:591:40
+   --> src/services/so/order_crud.rs:594:30
    --> src/services/so/order_workflow.rs:411:9
    ::: src/utils/unwrap_safe.rs:30:9
  30 |         rust_decimal::Decimal::from_str($x).expect("P9-1: 测试夹具 Decimal 字符串解析失败")
- 32 + #[derive(Clone)]
- 32 | pub struct BatchError {
- 33 | pub struct BatchError {
-...
-1103 |     use sea_orm::DatabaseConnection;
+1216 |     use sea_orm::DatabaseConnection;
 1358 |     use sea_orm::DatabaseConnection;
 211 |         txn: &sea_orm::DatabaseTransaction,
 350 |     use sea_orm::DatabaseConnection;
 377 |     use sea_orm::DatabaseConnection;
 411 |     use sea_orm::DatabaseConnection;
-444 |             errors: ctx.errors.clone(),
 456 |     use sea_orm::DatabaseConnection;
+585 |         if let Some(status) = &request.status {
+585 |         if let Some(status) = request.status {
+588 |         if let Some(shipping_address) = &request.shipping_address {
+588 |         if let Some(shipping_address) = request.shipping_address {
+591 |         if let Some(billing_address) = &request.billing_address {
+591 |         if let Some(billing_address) = request.billing_address {
+594 |         if let Some(notes) = &request.notes {
+594 |         if let Some(notes) = request.notes {
 619 |     use sea_orm::DatabaseConnection;
 631 |             quantity: decs!(100),
 632 |             unit_price: decs!(10),
@@ -111,13 +126,11 @@
 970 |         assert_eq!(item.quantity, decs!(100));
 971 |         assert_eq!(item.unit_price, Some(decs!(10)));
 error[E0308]: mismatched types
-error[E0599]: the method `clone` exists for struct `std::vec::Vec<services::batch_service::BatchError>`, but its trait bounds were not satisfied
-help: consider annotating `services::batch_service::BatchError` with `#[derive(Clone)]`
+error[E0507]: cannot move out of `request.billing_address` as enum variant `Some` which is behind a shared reference
+error[E0507]: cannot move out of `request.notes` as enum variant `Some` which is behind a shared reference
+error[E0507]: cannot move out of `request.shipping_address` as enum variant `Some` which is behind a shared reference
+error[E0507]: cannot move out of `request.status` as enum variant `Some` which is behind a shared reference
+help: consider borrowing here
 note: associated function defined here
-warning: deref which would be done by auto-deref
-warning: doc list item without indentation
-warning: the following explicit lifetimes could be elided: 'a
-warning: this function has too many arguments (8/7)
-warning: this function has too many arguments (9/7)
 warning: unused import: `sea_orm::DatabaseConnection`
 warning: unused variable: `txn`
