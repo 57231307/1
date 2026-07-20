@@ -101,7 +101,9 @@
 error[E0308]: mismatched types
 note: associated function defined here
 warning: this function has too many arguments (8/7)
+warning: this function has too many arguments (9/7)
 warning: deref which would be done by auto-deref
 warning: doc list item without indentation
 warning: unused import: `sea_orm::DatabaseConnection`
 warning: unused variable: `txn`
+warning: the following explicit lifetimes could be elided: 'a
