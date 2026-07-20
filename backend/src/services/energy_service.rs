@@ -1557,12 +1557,6 @@ impl EnergyAllocationRecordService {
 
             // 3. 按工时比例分摊
             for (key, duration) in grouped_duration {
-                let basis_value = Decimal::from(duration);
-                let ratio = compute_allocation_ratio(basis_value, total_duration_decimal);
-                let allocated_consumption =
-                    compute_allocated_consumption(total_consumption, ratio);
-                let allocated_cost = compute_allocated_cost(total_cost, ratio);
-
                 // 查询生效规则
                 let rule = if let Some(rid) = key.route_id {
                     rule_service
