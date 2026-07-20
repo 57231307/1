@@ -1176,9 +1176,9 @@ impl VoucherService {
         subject_id_by_code: &std::collections::HashMap<String, i32>,
         item: &crate::models::voucher_item::Model,
     ) -> Result<i32, AppError> {
-        *subject_id_by_code
+        Ok(*subject_id_by_code
             .get(item.subject_code.as_str())
-            .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", item.subject_code)))?
+            .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", item.subject_code)))?)
     }
 
     fn build_five_dimension_id(&self, item: &crate::models::voucher_item::Model) -> String {

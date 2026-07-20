@@ -352,6 +352,7 @@ impl SalesService {
             .filter(crate::models::sales_order_item::Column::OrderId.eq(order_id))
             .all(&*self.db)
             .await
+            .map_err(AppError::from)
     }
 
     /// 批次 356 v13 复审 B-P0-1 修复：销售订单审批后触发库存预留
@@ -372,10 +373,22 @@ impl SalesService {
             );
         for item in order_items {
             // 查询产品默认仓库（使用第一个活跃仓库作为默认仓库）
-            let default_warehouse = crate::models::warehouse::Entity::find()
+            let default_warehouse = match crate::models::warehouse::Entity::find()
                 .filter(crate::models::warehouse::Column::IsActive.eq(true))
                 .one(&*self.db)
-                .await?;
+                .await
+            {
+                Ok(wh) => wh,
+                Err(e) => {
+                    tracing::warn!(
+                        order_id,
+                        product_id = item.product_id,
+                        error = %e,
+                        "批次 356 B-P0-1: 查询默认仓库失败，跳过该订单项的库存预留"
+                    );
+                    continue;
+                }
+            };
 
             if let Some(wh) = default_warehouse {
                 if let Err(e) = reservation_service

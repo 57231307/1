@@ -470,7 +470,11 @@ impl ApReconciliationService {
     ) -> Result<Vec<crate::models::supplier::Model>, AppError> {
         use crate::models::supplier;
         // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
-        supplier::Entity::find().limit(10_000).all(db).await
+        supplier::Entity::find()
+            .limit(10_000)
+            .all(db)
+            .await
+            .map_err(AppError::from)
     }
 
     async fn fetch_invoice_counts_by_supplier(
