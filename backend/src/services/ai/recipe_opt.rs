@@ -308,7 +308,7 @@ impl AiAnalysisService {
         }
 
         let candidates = self.fetch_recipe_candidates().await?;
-        let mut scored = Self::score_and_sort_candidates(&candidates, &request);
+        let scored = Self::score_and_sort_candidates(&candidates, &request);
         let top: Vec<(f64, &DyeRecipeModel)> = scored.iter().take(k).copied().collect();
         let resp_candidates = build_candidates(&scored, 10);
 

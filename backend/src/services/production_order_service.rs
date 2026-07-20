@@ -847,13 +847,10 @@ impl ProductionOrderService {
         default_warehouse: &crate::models::warehouse::Model,
         production_qty: Decimal,
     ) -> Result<Vec<BusinessEvent>, AppError> {
-        use crate::services::inventory_stock_query::RecordTransactionArgs;
-        use crate::services::inventory_stock_service::InventoryStockService;
-
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
-        let (bom, bom_items) = match Self::fetch_bom_with_items(txn, order.product_id).await? {
-            Some(v) => v,
+        let bom_items = match Self::fetch_bom_with_items(txn, order.product_id).await? {
+            Some(v) => v.1,
             None => return Ok(pending_events),
         };
 

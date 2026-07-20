@@ -92,7 +92,7 @@ impl SalesService {
     ) -> Result<sales_order::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        let order = Self::fetch_order_for_update(&txn, order_id).await?;
+        let order = Self::fetch_order_for_submit(&txn, order_id).await?;
         Self::validate_order_for_submit(&txn, &order, self.db.clone()).await?;
 
         let order = Self::update_order_status_to_pending(&txn, order, user_id).await?;
@@ -110,7 +110,7 @@ impl SalesService {
         Ok(order)
     }
 
-    async fn fetch_order_for_update(
+    async fn fetch_order_for_submit(
         txn: &sea_orm::DatabaseTransaction,
         order_id: i32,
     ) -> Result<sales_order::Model, AppError> {
