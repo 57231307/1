@@ -247,7 +247,7 @@ impl BpmService {
             initiator_id: Set(req.initiator_id),
             initiator_name: Set("".to_string()),
             status: Set(Some(instance_status::PROCESSING.to_string())),
-            variables: Set(req.variables),
+            variables: Set(req.variables.clone()),
             started_at: Set(Some(chrono::Utc::now())),
             ..Default::default()
         };

@@ -257,9 +257,9 @@ impl FixedAssetService {
             depreciation_amount: Set(actual_depreciation),
             accumulated_before: Set(accumulated_depreciation),
             accumulated_after: Set(new_accumulated),
-            net_value_before: Set(net_value_before),
+            net_value_before: Set(Some(net_value_before)),
             net_value_after: Set(Some(new_net_value)),
-            depreciation_method: Set(depreciation_method.to_string()),
+            depreciation_method: Set(Some(depreciation_method.to_string())),
             created_by: Set(user_id),
             created_at: Set(chrono::Utc::now()),
         };
@@ -338,8 +338,8 @@ impl FixedAssetService {
         }
 
         // 保留需要使用的字段值
-        let net_value_before = asset.net_value;
-        let depreciation_method = asset.depreciation_method.clone();
+        let net_value_before = asset.net_value.unwrap_or(Decimal::ZERO);
+        let depreciation_method = asset.depreciation_method.clone().unwrap_or_default();
 
         // 计算折旧值（封顶到可折旧上限）
         let (actual_depreciation, new_accumulated, new_net_value, _) =

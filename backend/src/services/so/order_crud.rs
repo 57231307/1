@@ -208,7 +208,7 @@ impl SalesService {
     async fn check_credit_available(
         &self,
         customer_id: i32,
-        txn: &sea_orm::DatabaseTransaction,
+        _txn: &sea_orm::DatabaseTransaction,
         order_amount: rust_decimal::Decimal,
     ) -> Result<(), AppError> {
         // 使用信用服务检查额度

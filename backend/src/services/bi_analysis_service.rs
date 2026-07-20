@@ -1424,7 +1424,10 @@ impl BiAnalysisService {
             scope_values,
         );
 
-        PivotRow::find_by_statement(stmt).all(&*self.db).await
+        PivotRow::find_by_statement(stmt)
+            .all(&*self.db)
+            .await
+            .map_err(|e| AppError::database(format!("透视查询执行失败: {}", e)))
     }
 
     /// 从查询结果构建交叉聚合矩阵

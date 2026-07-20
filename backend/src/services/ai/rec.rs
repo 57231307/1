@@ -56,7 +56,7 @@ impl AiAnalysisService {
         let current = stock.quantity_available.to_f64().unwrap_or(0.0);
 
         // 计算出库统计
-        let (avg_daily_demand, demand_std, safety_stock, reorder_point, reorder_quantity, suggested) =
+        let (_avg_daily_demand, _demand_std, safety_stock, reorder_point, reorder_quantity, suggested) =
             if let Some(qtys) = outbound_qtys {
                 let daily_map = self.aggregate_daily_from_transactions(pid, transactions);
                 let daily_values: Vec<f64> = daily_map.values().copied().collect();
