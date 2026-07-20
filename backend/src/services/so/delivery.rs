@@ -120,9 +120,7 @@ struct ShipmentItemsResult {
 struct ShipPostCommitContext {
     ship_customer_id: i32,
     ship_order_id: i32,
-    ship_order_total: Decimal,
     ship_items_for_event: Vec<crate::services::event_bus::ShippedItem>,
-    is_full_shipment: bool,
 }
 
 impl SalesService {
@@ -444,7 +442,6 @@ impl SalesService {
                 quantity: *qty,
             })
             .collect();
-        let is_full_shipment = is_fully_shipped;
         let mut order_update: sales_order::ActiveModel = ctx.order.into();
         order_update.status = Set(new_status.to_string());
         order_update.ship_date = Set(Some(chrono::Utc::now()));
@@ -459,7 +456,7 @@ impl SalesService {
         .await?;
         // P1 3-7/5-1 修复（批次 62）：销售→AR 业务流补全
         // 修复：全额发货时在 commit 前调用 create_receivable 生成 AR（与订单状态更新共用事务）
-        if is_full_shipment {
+        if is_fully_shipped {
             // 查询客户账期（payment_terms <= 0 时 create_receivable 内部回退 30 天）
             let customer = crate::models::customer::Entity::find_by_id(ship_customer_id)
                 .one(txn)
@@ -484,9 +481,7 @@ impl SalesService {
         Ok(ShipPostCommitContext {
             ship_customer_id,
             ship_order_id,
-            ship_order_total,
             ship_items_for_event,
-            is_full_shipment,
         })
     }
 

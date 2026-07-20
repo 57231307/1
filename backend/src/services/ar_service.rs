@@ -820,11 +820,11 @@ impl ArService {
     }
 
     /// 处理单客户所有收款的核销：遍历收款，匹配发票，创建核销单
-    async fn process_customer_reconciliations<'a>(
+    async fn process_customer_reconciliations(
         &self,
         customer_id: i32,
-        cust_invoices: &'a [&'a ar_invoice::Model],
-        data: &'a AutoVerifyData,
+        cust_invoices: &[&ar_invoice::Model],
+        data: &AutoVerifyData,
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
         totals: &mut VerifyTotals,

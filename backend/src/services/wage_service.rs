@@ -877,6 +877,17 @@ struct StepWageComputed {
     wage_amount: Decimal,
 }
 
+/// 工人工资明细创建上下文：封装 step/rate/computed 等参数消除 too_many_arguments 警告
+struct WorkerDetailContext<'a> {
+    step: &'a StepModel,
+    rate: &'a RateModel,
+    computed: &'a StepWageComputed,
+    wage_record_id: i32,
+    now: chrono::DateTime<chrono::FixedOffset>,
+    worker_ids: &'a [i32],
+    worker_names: &'a [String],
+}
+
 impl WageCalculationService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -1072,13 +1083,15 @@ impl WageCalculationService {
         let worker_names = parse_worker_names(&step.worker_names);
 
         self.create_wage_details_for_workers(
-            step,
-            rate,
-            &computed,
-            wage_record_id,
-            now,
-            &worker_ids,
-            &worker_names,
+            WorkerDetailContext {
+                step,
+                rate,
+                computed: &computed,
+                wage_record_id,
+                now,
+                worker_ids: &worker_ids,
+                worker_names: &worker_names,
+            },
             totals,
         )
         .await
@@ -1087,67 +1100,61 @@ impl WageCalculationService {
     /// 为每个工人创建工资明细 + 累计（多人按人均分配）
     async fn create_wage_details_for_workers(
         &self,
-        step: &StepModel,
-        rate: &RateModel,
-        computed: &StepWageComputed,
-        wage_record_id: i32,
-        now: chrono::DateTime<chrono::FixedOffset>,
-        worker_ids: &[i32],
-        worker_names: &[String],
+        ctx: WorkerDetailContext<'_>,
         totals: &mut WageTotals,
     ) -> Result<(), AppError> {
-        let worker_count = worker_ids.len();
-        let per_worker_piece = split_wage_among_workers(computed.piece_wage, worker_count);
-        let per_worker_time = split_wage_among_workers(computed.time_wage, worker_count);
-        let per_worker_amount = split_wage_among_workers(computed.wage_amount, worker_count);
+        let worker_count = ctx.worker_ids.len();
+        let per_worker_piece = split_wage_among_workers(ctx.computed.piece_wage, worker_count);
+        let per_worker_time = split_wage_among_workers(ctx.computed.time_wage, worker_count);
+        let per_worker_amount = split_wage_among_workers(ctx.computed.wage_amount, worker_count);
 
-        for (idx, &worker_id) in worker_ids.iter().enumerate() {
-            let worker_name = worker_names.get(idx).cloned();
+        for (idx, &worker_id) in ctx.worker_ids.iter().enumerate() {
+            let worker_name = ctx.worker_names.get(idx).cloned();
 
             let detail = DetailActiveModel {
                 id: Default::default(),
-                wage_record_id: Set(wage_record_id),
-                step_record_id: Set(step.id),
-                flow_card_id: Set(Some(step.flow_card_id)),
+                wage_record_id: Set(ctx.wage_record_id),
+                step_record_id: Set(ctx.step.id),
+                flow_card_id: Set(Some(ctx.step.flow_card_id)),
                 dye_lot_no: Set(None), // dye_lot_no 在 production_flow_card 上，这里留空
-                process_route_id: Set(step.process_route_id),
-                route_code: Set(Some(step.route_code.clone())),
-                route_name: Set(Some(step.route_name.clone())),
-                process_type: Set(Some(step.process_type.clone())),
+                process_route_id: Set(ctx.step.process_route_id),
+                route_code: Set(Some(ctx.step.route_code.clone())),
+                route_name: Set(Some(ctx.step.route_name.clone())),
+                process_type: Set(Some(ctx.step.process_type.clone())),
                 worker_id: Set(worker_id),
                 worker_name: Set(worker_name),
-                equipment_id: Set(step.equipment_id),
-                equipment_name: Set(step.equipment_name.clone()),
-                wage_type: Set(rate.wage_type.clone()),
-                grade: Set(computed.grade.clone()),
-                actual_quantity: Set(step.actual_quantity.unwrap_or(Decimal::ZERO)
+                equipment_id: Set(ctx.step.equipment_id),
+                equipment_name: Set(ctx.step.equipment_name.clone()),
+                wage_type: Set(ctx.rate.wage_type.clone()),
+                grade: Set(ctx.computed.grade.clone()),
+                actual_quantity: Set(ctx.step.actual_quantity.unwrap_or(Decimal::ZERO)
                     / Decimal::from(worker_count)),
-                qualified_quantity: Set(step.qualified_quantity.unwrap_or(Decimal::ZERO)
+                qualified_quantity: Set(ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO)
                     / Decimal::from(worker_count)),
                 qualification_rate: Set(compute_qualification_rate(
-                    step.actual_quantity,
-                    step.qualified_quantity,
+                    ctx.step.actual_quantity,
+                    ctx.step.qualified_quantity,
                 )),
-                piece_price: Set(rate.piece_price),
-                time_price: Set(rate.time_price),
-                grade_ratio: Set(computed.grade_ratio),
-                duration_minutes: Set(step.duration_minutes.unwrap_or(0) / worker_count as i32),
+                piece_price: Set(ctx.rate.piece_price),
+                time_price: Set(ctx.rate.time_price),
+                grade_ratio: Set(ctx.computed.grade_ratio),
+                duration_minutes: Set(ctx.step.duration_minutes.unwrap_or(0) / worker_count as i32),
                 piece_wage: Set(per_worker_piece),
                 time_wage: Set(per_worker_time),
                 wage_amount: Set(per_worker_amount),
                 remarks: Set(None),
                 is_deleted: Set(false),
-                created_at: Set(now),
-                updated_at: Set(now),
+                created_at: Set(ctx.now),
+                updated_at: Set(ctx.now),
             };
             detail.insert(&*self.db).await?;
             totals.detail_count += 1;
             totals.total_amount += per_worker_amount;
-            totals.total_qualified += step.qualified_quantity.unwrap_or(Decimal::ZERO)
+            totals.total_qualified += ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO)
                 / Decimal::from(worker_count);
-            totals.total_minutes += (step.duration_minutes.unwrap_or(0) as i64) / worker_count as i64;
+            totals.total_minutes += (ctx.step.duration_minutes.unwrap_or(0) as i64) / worker_count as i64;
             totals.worker_set.insert(worker_id);
-            totals.step_set.insert(step.id);
+            totals.step_set.insert(ctx.step.id);
         }
         Ok(())
     }
