@@ -114,135 +114,18 @@ pub struct BusinessMetrics {
 impl BusinessMetrics {
     /// 创建并注册所有业务指标
     pub fn new(registry: &Registry) -> Result<Self, prometheus::Error> {
-        // ===== 业务核心 =====
-        let orders_total = IntCounterVec::new(
-            Opts::new("erp_orders_total", "Total number of orders by status"),
-            &["status"],
-        )?;
-        registry.register(Box::new(orders_total.clone()))?;
-
-        let users_active = IntGauge::new("erp_users_active", "Number of active users")?;
-        registry.register(Box::new(users_active.clone()))?;
-
-        let ar_balance = IntGauge::new("erp_ar_balance_total", "Accounts receivable balance (fen)")?;
-        registry.register(Box::new(ar_balance.clone()))?;
-
-        let ap_balance = IntGauge::new("erp_ap_balance_total", "Accounts payable balance (fen)")?;
-        registry.register(Box::new(ap_balance.clone()))?;
-
-        let inventory_value = IntGauge::new("erp_inventory_value_total", "Inventory value (fen)")?;
-        registry.register(Box::new(inventory_value.clone()))?;
-
-        // ===== 会话与缓存 =====
-        let sessions_active = IntGauge::new(
-            "erp_sessions_active",
-            "Number of active user sessions",
-        )?;
-        registry.register(Box::new(sessions_active.clone()))?;
-
-        let cache_hits = IntCounter::new("erp_cache_hits_total", "Cache hit count")?;
-        registry.register(Box::new(cache_hits.clone()))?;
-
-        let cache_misses = IntCounter::new("erp_cache_misses_total", "Cache miss count")?;
-        registry.register(Box::new(cache_misses.clone()))?;
-
-        let login_attempts = IntCounterVec::new(
-            Opts::new("erp_login_attempts_total", "Login attempts by result"),
-            &["result"],
-        )?;
-        registry.register(Box::new(login_attempts.clone()))?;
-
-        let login_lockouts =
-            IntCounter::new("erp_login_lockouts_total", "Number of account lockouts")?;
-        registry.register(Box::new(login_lockouts.clone()))?;
-
-        // ===== 性能 =====
-        let slow_queries = IntCounterVec::new(
-            Opts::new("erp_slow_queries_total", "Slow queries count by label"),
-            &["label"],
-        )?;
-        registry.register(Box::new(slow_queries.clone()))?;
-
-        let slow_query_duration = HistogramVec::new(
-            HistogramOpts::new(
-                "erp_slow_query_duration_seconds",
-                "Slow query duration in seconds",
-            ),
-            &["label"],
-        )?;
-        registry.register(Box::new(slow_query_duration.clone()))?;
-
-        let db_pool_size = IntGauge::new(
-            "erp_db_pool_size",
-            "Current database connection pool size",
-        )?;
-        registry.register(Box::new(db_pool_size.clone()))?;
-
-        let db_pool_overflow = IntCounter::new(
-            "erp_db_pool_overflow_total",
-            "Database pool overflow events",
-        )?;
-        registry.register(Box::new(db_pool_overflow.clone()))?;
-
-        // ===== 安全 =====
-        let ws_connections = IntGauge::new(
-            "erp_websocket_connections",
-            "Active WebSocket connections",
-        )?;
-        registry.register(Box::new(ws_connections.clone()))?;
-
-        let rate_limit_blocked = IntCounterVec::new(
-            Opts::new(
-                "erp_rate_limit_blocked_total",
-                "Requests blocked by rate limit by scope",
-            ),
-            &["scope"],
-        )?;
-        registry.register(Box::new(rate_limit_blocked.clone()))?;
-
-        let security_alerts = IntCounterVec::new(
-            Opts::new("erp_security_alerts_total", "Security alerts by type"),
-            &["type"],
-        )?;
-        registry.register(Box::new(security_alerts.clone()))?;
-
-        let sql_injection_blocked = IntCounter::new(
-            "erp_sql_injection_blocked_total",
-            "SQL injection patterns blocked",
-        )?;
-        registry.register(Box::new(sql_injection_blocked.clone()))?;
-
-        // ===== 业务功能 =====
-        let file_uploads = IntCounter::new("erp_file_uploads_total", "File uploads count")?;
-        registry.register(Box::new(file_uploads.clone()))?;
-
-        let report_executions = IntCounterVec::new(
-            Opts::new(
-                "erp_report_executions_total",
-                "Report executions by report name",
-            ),
-            &["report"],
-        )?;
-        registry.register(Box::new(report_executions.clone()))?;
-
-        let ai_predictions = IntCounterVec::new(
-            Opts::new("erp_ai_predictions_total", "AI predictions by model"),
-            &["model"],
-        )?;
-        registry.register(Box::new(ai_predictions.clone()))?;
-
-        // ===== HTTP 增强 =====
-        let http_request_size_bytes = Histogram::with_opts(HistogramOpts::new(
-            "http_request_size_bytes",
-            "HTTP request body size in bytes",
-        ))?;
-        registry.register(Box::new(http_request_size_bytes.clone()))?;
-
-        let http_response_size_bytes = Histogram::with_opts(HistogramOpts::new(
-            "http_response_size_bytes",
-            "HTTP response body size in bytes",
-        ))?;
-        registry.register(Box::new(http_response_size_bytes.clone()))?;
+        let (orders_total, users_active, ar_balance, ap_balance, inventory_value) =
+            register_business_core_metrics(registry)?;
+        let (sessions_active, cache_hits, cache_misses, login_attempts, login_lockouts) =
+            register_session_cache_metrics(registry)?;
+        let (slow_queries, slow_query_duration, db_pool_size, db_pool_overflow) =
+            register_performance_metrics(registry)?;
+        let (ws_connections, rate_limit_blocked, security_alerts, sql_injection_blocked) =
+            register_security_metrics(registry)?;
+        let (file_uploads, report_executions, ai_predictions) =
+            register_business_feature_metrics(registry)?;
+        let (http_request_size_bytes, http_response_size_bytes) =
+            register_http_metrics(registry)?;
 
         Ok(Self {
             orders_total,
@@ -350,6 +233,172 @@ impl BusinessMetrics {
     pub fn record_sql_injection_blocked(&self) {
         self.sql_injection_blocked.inc();
     }
+}
+
+/// 注册业务核心指标：订单/用户/应收/应付/库存
+fn register_business_core_metrics(
+    registry: &Registry,
+) -> Result<(IntCounterVec, IntGauge, IntGauge, IntGauge, IntGauge), prometheus::Error> {
+    let orders_total = IntCounterVec::new(
+        Opts::new("erp_orders_total", "Total number of orders by status"),
+        &["status"],
+    )?;
+    registry.register(Box::new(orders_total.clone()))?;
+
+    let users_active = IntGauge::new("erp_users_active", "Number of active users")?;
+    registry.register(Box::new(users_active.clone()))?;
+
+    let ar_balance = IntGauge::new("erp_ar_balance_total", "Accounts receivable balance (fen)")?;
+    registry.register(Box::new(ar_balance.clone()))?;
+
+    let ap_balance = IntGauge::new("erp_ap_balance_total", "Accounts payable balance (fen)")?;
+    registry.register(Box::new(ap_balance.clone()))?;
+
+    let inventory_value = IntGauge::new("erp_inventory_value_total", "Inventory value (fen)")?;
+    registry.register(Box::new(inventory_value.clone()))?;
+
+    Ok((orders_total, users_active, ar_balance, ap_balance, inventory_value))
+}
+
+/// 注册会话与缓存指标
+fn register_session_cache_metrics(
+    registry: &Registry,
+) -> Result<(IntGauge, IntCounter, IntCounter, IntCounterVec, IntCounter), prometheus::Error> {
+    let sessions_active = IntGauge::new(
+        "erp_sessions_active",
+        "Number of active user sessions",
+    )?;
+    registry.register(Box::new(sessions_active.clone()))?;
+
+    let cache_hits = IntCounter::new("erp_cache_hits_total", "Cache hit count")?;
+    registry.register(Box::new(cache_hits.clone()))?;
+
+    let cache_misses = IntCounter::new("erp_cache_misses_total", "Cache miss count")?;
+    registry.register(Box::new(cache_misses.clone()))?;
+
+    let login_attempts = IntCounterVec::new(
+        Opts::new("erp_login_attempts_total", "Login attempts by result"),
+        &["result"],
+    )?;
+    registry.register(Box::new(login_attempts.clone()))?;
+
+    let login_lockouts =
+        IntCounter::new("erp_login_lockouts_total", "Number of account lockouts")?;
+    registry.register(Box::new(login_lockouts.clone()))?;
+
+    Ok((sessions_active, cache_hits, cache_misses, login_attempts, login_lockouts))
+}
+
+/// 注册性能指标：慢查询/DB 连接池
+fn register_performance_metrics(
+    registry: &Registry,
+) -> Result<(IntCounterVec, HistogramVec, IntGauge, IntCounter), prometheus::Error> {
+    let slow_queries = IntCounterVec::new(
+        Opts::new("erp_slow_queries_total", "Slow queries count by label"),
+        &["label"],
+    )?;
+    registry.register(Box::new(slow_queries.clone()))?;
+
+    let slow_query_duration = HistogramVec::new(
+        HistogramOpts::new(
+            "erp_slow_query_duration_seconds",
+            "Slow query duration in seconds",
+        ),
+        &["label"],
+    )?;
+    registry.register(Box::new(slow_query_duration.clone()))?;
+
+    let db_pool_size = IntGauge::new(
+        "erp_db_pool_size",
+        "Current database connection pool size",
+    )?;
+    registry.register(Box::new(db_pool_size.clone()))?;
+
+    let db_pool_overflow = IntCounter::new(
+        "erp_db_pool_overflow_total",
+        "Database pool overflow events",
+    )?;
+    registry.register(Box::new(db_pool_overflow.clone()))?;
+
+    Ok((slow_queries, slow_query_duration, db_pool_size, db_pool_overflow))
+}
+
+/// 注册安全指标：WebSocket/限流/告警/SQL 注入
+fn register_security_metrics(
+    registry: &Registry,
+) -> Result<(IntGauge, IntCounterVec, IntCounterVec, IntCounter), prometheus::Error> {
+    let ws_connections = IntGauge::new(
+        "erp_websocket_connections",
+        "Active WebSocket connections",
+    )?;
+    registry.register(Box::new(ws_connections.clone()))?;
+
+    let rate_limit_blocked = IntCounterVec::new(
+        Opts::new(
+            "erp_rate_limit_blocked_total",
+            "Requests blocked by rate limit by scope",
+        ),
+        &["scope"],
+    )?;
+    registry.register(Box::new(rate_limit_blocked.clone()))?;
+
+    let security_alerts = IntCounterVec::new(
+        Opts::new("erp_security_alerts_total", "Security alerts by type"),
+        &["type"],
+    )?;
+    registry.register(Box::new(security_alerts.clone()))?;
+
+    let sql_injection_blocked = IntCounter::new(
+        "erp_sql_injection_blocked_total",
+        "SQL injection patterns blocked",
+    )?;
+    registry.register(Box::new(sql_injection_blocked.clone()))?;
+
+    Ok((ws_connections, rate_limit_blocked, security_alerts, sql_injection_blocked))
+}
+
+/// 注册业务功能指标：文件上传/报表/AI 预测
+fn register_business_feature_metrics(
+    registry: &Registry,
+) -> Result<(IntCounter, IntCounterVec, IntCounterVec), prometheus::Error> {
+    let file_uploads = IntCounter::new("erp_file_uploads_total", "File uploads count")?;
+    registry.register(Box::new(file_uploads.clone()))?;
+
+    let report_executions = IntCounterVec::new(
+        Opts::new(
+            "erp_report_executions_total",
+            "Report executions by report name",
+        ),
+        &["report"],
+    )?;
+    registry.register(Box::new(report_executions.clone()))?;
+
+    let ai_predictions = IntCounterVec::new(
+        Opts::new("erp_ai_predictions_total", "AI predictions by model"),
+        &["model"],
+    )?;
+    registry.register(Box::new(ai_predictions.clone()))?;
+
+    Ok((file_uploads, report_executions, ai_predictions))
+}
+
+/// 注册 HTTP 增强指标：请求/响应体大小
+fn register_http_metrics(
+    registry: &Registry,
+) -> Result<(Histogram, Histogram), prometheus::Error> {
+    let http_request_size_bytes = Histogram::with_opts(HistogramOpts::new(
+        "http_request_size_bytes",
+        "HTTP request body size in bytes",
+    ))?;
+    registry.register(Box::new(http_request_size_bytes.clone()))?;
+
+    let http_response_size_bytes = Histogram::with_opts(HistogramOpts::new(
+        "http_response_size_bytes",
+        "HTTP response body size in bytes",
+    ))?;
+    registry.register(Box::new(http_response_size_bytes.clone()))?;
+
+    Ok((http_request_size_bytes, http_response_size_bytes))
 }
 
 /// 指标注册表构建器（仅测试用）

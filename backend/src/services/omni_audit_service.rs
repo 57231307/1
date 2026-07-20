@@ -50,15 +50,25 @@ pub struct OmniAuditEngine {
 
 impl OmniAuditEngine {
     pub fn new(db: Arc<DatabaseConnection>) -> Result<Self, String> {
-        // v5 审计批次 21：测试环境专用默认密钥
-        // 该字符串包含 "test" 关键词，会命中 validate_secret 黑名单：
-        // 即使误将此值通过 AUDIT_SECRET_KEY 环境变量注入生产环境，
-        // AppSettings::new 中的 validate_secret 校验也会拒绝启动（fail-secure）。
-        // 仅在 cfg!(test) 或 ENV=test/development 时作为兜底默认密钥使用。
+        let secret_key = Self::resolve_secret_key()?;
+        let (sender, receiver) = mpsc::channel::<OmniAuditMessage>(10000);
+        // L-30 修复（批次 372 v13 复审）：保存 spawn 句柄供 shutdown 使用
+        let handle = Self::spawn_audit_worker(db, secret_key.clone(), receiver);
+        Ok(Self {
+            sender,
+            secret_key: secret_key.into_bytes(),
+            handle: std::sync::Mutex::new(Some(handle)),
+        })
+    }
+
+    /// 解析并校验审计签名密钥（生产环境必须显式设置 AUDIT_SECRET_KEY）
+    fn resolve_secret_key() -> Result<String, String> {
+        // v5 审计批次 21：测试环境专用默认密钥（含 "test" 关键词命中 validate_secret 黑名单，避免误用生产）
+        // 仅在 cfg!(test) 或 ENV=test/development 时作为兜底默认密钥使用
         const TEST_DEFAULT_KEY: &str = "test-only-audit-secret-do-not-use-in-production-32b";
 
-        // 批次 92 P3-7：用 match 替代 unwrap_or_else，使生产环境缺失密钥时
-        // 能直接 return Err 从 OmniAuditEngine::new 返回（闭包内的 return 仅从闭包返回）
+        // 批次 92 P3-7：用 match 替代 unwrap_or_else，生产缺失密钥时直接 return Err
+        // （闭包内的 return 仅从闭包返回，无法跳出 new）
         let secret_key = match std::env::var("AUDIT_SECRET_KEY") {
             Ok(k) => k,
             Err(_) => {
@@ -84,108 +94,26 @@ impl OmniAuditEngine {
         if secret_key.len() < 32 {
             return Err("AUDIT_SECRET_KEY 长度必须至少 32 字节".to_string());
         }
+        Ok(secret_key)
+    }
 
-        let (sender, mut receiver) = mpsc::channel::<OmniAuditMessage>(10000);
-
+    /// 启动异步审计工作线程（单条消息 panic 隔离，确保引擎持续运行）
+    fn spawn_audit_worker(
+        db: Arc<DatabaseConnection>,
+        secret_key: String,
+        mut receiver: mpsc::Receiver<OmniAuditMessage>,
+    ) -> tokio::task::JoinHandle<()> {
         let db_clone = db.clone();
         let secret_key_clone = secret_key.clone();
-
-        // L-30 修复（批次 372 v13 复审）：保存 spawn 返回的 JoinHandle，
-        // 供 shutdown() 方法 abort，避免 detached task 泄漏
-        let handle = tokio::spawn(async move {
+        // L-30 修复（批次 372 v13 复审）：保存 spawn 返回的 JoinHandle 供 shutdown() abort
+        tokio::spawn(async move {
             tracing::info!("OmniAudit 异步收集引擎已启动");
             while let Some(msg) = receiver.recv().await {
-                // 批次 7（2026-06-28）：单次消息处理 panic 隔离
-                // 防御性 catch_unwind：当前 spawn 块直接代码已无 .unwrap()/.expect()，
-                // 但调用链路（如未来重构引入的 panic）可能导致整个审计引擎 spawn 死亡，
-                // 确保单次 panic 不退出循环，继续处理后续消息。
+                // 批次 7（2026-06-28）：单次消息处理 panic 隔离，确保单次 panic 不退出循环
+                // 防御性 catch_unwind：避免调用链路未来 panic 导致整个审计引擎 spawn 死亡
                 let result = AssertUnwindSafe(async {
-                    let payload_str = msg
-                        .payload
-                        .as_ref()
-                        .map(|p| p.to_string())
-                        .unwrap_or_default();
-                    let sign_material = format!(
-                        "{}|{}|{}|{}",
-                        msg.trace_id, msg.event_type, msg.action, payload_str
-                    );
-
-                    // 使用 HMAC-SHA256 对关键字段进行签名
-                    // 批次 7（2026-06-28）：hmac_sha256_hex 已改为返回 Result，
-                    // 签名失败时降级为空字符串，不阻断审计日志写入
-                    // P0 8-2 修复（批次 53）：签名持久化至 signature 列，实现防篡改
-                    let signature = match crate::utils::hash::hmac_sha256_hex(
-                        secret_key_clone.as_bytes(),
-                        sign_material.as_bytes(),
-                    ) {
-                        Ok(sig) => sig,
-                        Err(e) => {
-                            tracing::error!("HMAC 签名失败: {}（审计日志将不带签名）", e);
-                            String::new()
-                        }
-                    };
-                    if msg.status == "FAILED"
-                        || msg.status == "DENIED"
-                        || msg.event_type == "SECURITY_ALERT"
-                    {
-                        tracing::warn!(
-                            "【审计告警】触发告警规则! 用户ID: {:?}, 事件: {}, 资源: {}, 状态: {}",
-                            msg.user_id,
-                            msg.event_name,
-                            msg.resource,
-                            msg.status
-                        );
-                    }
-
-                    let log = omni_audit_log::ActiveModel {
-                        id: ActiveValue::NotSet,
-                        trace_id: ActiveValue::Set(Some(msg.trace_id)),
-                        span_id: ActiveValue::Set(None),
-                        parent_span_id: ActiveValue::Set(None),
-                        user_id: ActiveValue::Set(msg.user_id),
-                        username: ActiveValue::Set(msg.username),
-                        module: ActiveValue::Set(Some(msg.event_type)),
-                        action: ActiveValue::Set(Some(msg.event_name)),
-                        resource_type: ActiveValue::Set(msg.resource_type),
-                        resource_id: ActiveValue::Set(msg.resource_id),
-                        resource_name: ActiveValue::Set(msg.resource_name),
-                        description: ActiveValue::Set(msg.description),
-                        ip_address: ActiveValue::Set(msg.ip_address),
-                        user_agent: ActiveValue::Set(msg.user_agent),
-                        request_method: ActiveValue::Set(msg.request_method),
-                        request_path: ActiveValue::Set(msg.request_path),
-                        request_body: ActiveValue::Set(msg.request_body),
-                        response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or(
-                            match msg.status.as_str() {
-                                "SUCCESS" => 200,
-                                "FAILED" => 500,
-                                "DENIED" => 403,
-                                _ => 0,
-                            },
-                        ))),
-                        duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
-                        old_value: ActiveValue::Set(msg.old_value),
-                        new_value: ActiveValue::Set(msg.new_value),
-                        created_at: ActiveValue::Set(Some(
-                            // P0 修复（批次 5，2026-06-27）：原 .expect("UTC offset 0 is always valid")
-                            // 已改为 DateTime::fixed_offset()，消除 panic 风险
-                            Utc::now().fixed_offset(),
-                        )),
-                        // P0 8-2 修复（批次 53）：持久化 HMAC-SHA256 签名，实现审计日志防篡改
-                        signature: ActiveValue::Set(Some(signature)),
-                        // V15 P0-S19 补齐：请求条件/查询条件写入审计日志
-                        condition: ActiveValue::Set(msg.condition),
-                    };
-
-                    // 使用 exec_without_returning 避免 last_insert_id 解析问题
-                    if let Err(e) = omni_audit_log::Entity::insert(log)
-                        .exec_without_returning(db_clone.as_ref())
-                        .await
-                    {
-                        tracing::error!("写入综合审计日志失败: {}", e);
-                    } else {
-                        tracing::debug!("审计日志写入成功");
-                    }
+                    Self::process_single_message(db_clone.as_ref(), secret_key_clone.as_bytes(), msg)
+                        .await;
                 })
                 .catch_unwind()
                 .await;
@@ -203,14 +131,105 @@ impl OmniAuditEngine {
                     );
                 }
             }
-        });
-
-        Ok(Self {
-            sender,
-            secret_key: secret_key.into_bytes(),
-            // L-30 修复（批次 372 v13 复审）：保存 spawn 句柄供 shutdown 使用
-            handle: std::sync::Mutex::new(Some(handle)),
         })
+    }
+
+    /// 处理单条审计消息：签名、告警判定、构建模型并写入数据库
+    async fn process_single_message(
+        db: &DatabaseConnection,
+        secret_key: &[u8],
+        msg: OmniAuditMessage,
+    ) {
+        let signature = Self::compute_signature(secret_key, &msg);
+        Self::log_alert_if_needed(&msg);
+        let log = Self::build_audit_log_model(msg, signature);
+        // 使用 exec_without_returning 避免 last_insert_id 解析问题
+        if let Err(e) = omni_audit_log::Entity::insert(log)
+            .exec_without_returning(db)
+            .await
+        {
+            tracing::error!("写入综合审计日志失败: {}", e);
+        } else {
+            tracing::debug!("审计日志写入成功");
+        }
+    }
+
+    /// 计算审计消息 HMAC-SHA256 签名（失败时降级为空字符串，不阻断写入）
+    fn compute_signature(secret_key: &[u8], msg: &OmniAuditMessage) -> String {
+        let payload_str = msg
+            .payload
+            .as_ref()
+            .map(|p| p.to_string())
+            .unwrap_or_default();
+        let sign_material = format!(
+            "{}|{}|{}|{}",
+            msg.trace_id, msg.event_type, msg.action, payload_str
+        );
+        // 使用 HMAC-SHA256 对关键字段签名；签名失败降级为空字符串不阻断写入
+        // P0 8-2 修复（批次 53）：签名持久化至 signature 列实现防篡改
+        match crate::utils::hash::hmac_sha256_hex(secret_key, sign_material.as_bytes()) {
+            Ok(sig) => sig,
+            Err(e) => {
+                tracing::error!("HMAC 签名失败: {}（审计日志将不带签名）", e);
+                String::new()
+            }
+        }
+    }
+
+    /// 失败/拒绝/安全告警事件输出告警日志
+    fn log_alert_if_needed(msg: &OmniAuditMessage) {
+        if msg.status == "FAILED" || msg.status == "DENIED" || msg.event_type == "SECURITY_ALERT" {
+            tracing::warn!(
+                "【审计告警】触发告警规则! 用户ID: {:?}, 事件: {}, 资源: {}, 状态: {}",
+                msg.user_id,
+                msg.event_name,
+                msg.resource,
+                msg.status
+            );
+        }
+    }
+
+    /// 由审计消息构建 omni_audit_log ActiveModel（含 HMAC 签名与时间戳）
+    fn build_audit_log_model(
+        msg: OmniAuditMessage,
+        signature: String,
+    ) -> omni_audit_log::ActiveModel {
+        omni_audit_log::ActiveModel {
+            id: ActiveValue::NotSet,
+            trace_id: ActiveValue::Set(Some(msg.trace_id)),
+            span_id: ActiveValue::Set(None),
+            parent_span_id: ActiveValue::Set(None),
+            user_id: ActiveValue::Set(msg.user_id),
+            username: ActiveValue::Set(msg.username),
+            module: ActiveValue::Set(Some(msg.event_type)),
+            action: ActiveValue::Set(Some(msg.event_name)),
+            resource_type: ActiveValue::Set(msg.resource_type),
+            resource_id: ActiveValue::Set(msg.resource_id),
+            resource_name: ActiveValue::Set(msg.resource_name),
+            description: ActiveValue::Set(msg.description),
+            ip_address: ActiveValue::Set(msg.ip_address),
+            user_agent: ActiveValue::Set(msg.user_agent),
+            request_method: ActiveValue::Set(msg.request_method),
+            request_path: ActiveValue::Set(msg.request_path),
+            request_body: ActiveValue::Set(msg.request_body),
+            response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or(
+                match msg.status.as_str() {
+                    "SUCCESS" => 200,
+                    "FAILED" => 500,
+                    "DENIED" => 403,
+                    _ => 0,
+                },
+            ))),
+            duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
+            old_value: ActiveValue::Set(msg.old_value),
+            new_value: ActiveValue::Set(msg.new_value),
+            // P0 修复（批次 5）：原 .expect() 改为 fixed_offset() 消除 panic 风险
+            created_at: ActiveValue::Set(Some(Utc::now().fixed_offset())),
+            // P0 8-2 修复（批次 53）：持久化 HMAC-SHA256 签名实现审计日志防篡改
+            signature: ActiveValue::Set(Some(signature)),
+            // V15 P0-S19 补齐：请求条件/查询条件写入审计日志
+            condition: ActiveValue::Set(msg.condition),
+        }
     }
 
     pub fn log(&self, msg: OmniAuditMessage) {

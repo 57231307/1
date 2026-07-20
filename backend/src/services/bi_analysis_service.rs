@@ -211,6 +211,14 @@ struct MoMRow {
     last_month: Option<Decimal>,
 }
 
+/// KPI 当前周期指标（内部传递用）
+struct KpiCurrentMetrics {
+    total_sales: f64,
+    order_count: i64,
+    customer_count: i64,
+    avg_order_value: f64,
+}
+
 /// 透视矩阵行（v11 批次 144 P1-3：动态 SQL 透视矩阵）
 #[derive(Debug, FromQueryResult)]
 struct PivotRow {
@@ -753,15 +761,26 @@ impl BiAnalysisService {
         })
     }
 
-    /// 核心 KPI
-    ///
-    /// 聚合总销售额、订单数、客户数、客单价，并计算同比增长率（与去年同期）和环比增长率（与上月）。
+    /// 核心 KPI：聚合总销售额/订单数/客户数/客单价，并计算同比/环比增长率
     pub async fn kpi_summary(&self) -> Result<KpiSummary, AppError> {
-        // V15 P0-B10：注入数据范围过滤（sales_orders 无别名）
-        // 当前周期 KPI：1 个参数索引
-        let (scope_sql_1, scope_values_1) = self.scope_sql("", 1);
+        let now = chrono::Utc::now();
+        let current = self.fetch_current_kpi().await?;
+        let yoy_growth = self.fetch_yoy_growth(now).await?;
+        let mom_growth = self.fetch_mom_growth(now).await?;
+        Ok(KpiSummary {
+            total_sales: current.total_sales,
+            order_count: current.order_count,
+            customer_count: current.customer_count,
+            avg_order_value: current.avg_order_value,
+            yoy_growth,
+            mom_growth,
+        })
+    }
 
-        let current_sql = format!(
+    /// 查询当前周期 KPI（总销售额/订单数/客户数/客单价），注入数据范围过滤
+    async fn fetch_current_kpi(&self) -> Result<KpiCurrentMetrics, AppError> {
+        let (scope_sql, scope_values) = self.scope_sql("", 1);
+        let sql = format!(
             r#"
             SELECT
                 COALESCE(SUM(total_amount), 0) as total_sales,
@@ -771,149 +790,141 @@ impl BiAnalysisService {
             WHERE status NOT IN ('CANCELLED', 'DRAFT')
             {scope_sql}
             "#,
-            scope_sql = scope_sql_1,
+            scope_sql = scope_sql,
         );
-
-        let mut current_values: Vec<sea_orm::Value> = Vec::new();
-        current_values.extend(scope_values_1);
-        let current_stmt = Statement::from_sql_and_values(
+        let mut values: Vec<sea_orm::Value> = Vec::new();
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
-            current_sql,
-            current_values,
+            sql,
+            values,
         );
-        let current: KpiRow = KpiRow::find_by_statement(current_stmt)
+        let row: KpiRow = KpiRow::find_by_statement(stmt)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::internal("KPI 查询失败"))?;
-
-        let total_sales = dec_to_f64(current.total_sales);
-        let order_count = current.order_count.unwrap_or(0);
-        let customer_count = current.customer_count.unwrap_or(0);
+        let total_sales = dec_to_f64(row.total_sales);
+        let order_count = row.order_count.unwrap_or(0);
+        let customer_count = row.customer_count.unwrap_or(0);
         let avg_order_value = if order_count > 0 {
             total_sales / order_count as f64
         } else {
             0.0
         };
+        Ok(KpiCurrentMetrics {
+            total_sales,
+            order_count,
+            customer_count,
+            avg_order_value,
+        })
+    }
 
-        // 同比：今年 vs 去年同期（按月对齐，本月 vs 去年同月）
-        let now = chrono::Utc::now();
+    /// 查询同比增长率（本月 vs 去年同月），注入数据范围过滤
+    async fn fetch_yoy_growth(&self, now: chrono::DateTime<chrono::Utc>) -> Result<f64, AppError> {
         let this_year = now.format("%Y").to_string();
-        let last_year = (now.format("%Y").to_string().parse::<i32>().unwrap_or(2026) - 1).to_string();
+        let last_year = (this_year.parse::<i32>().unwrap_or(2026) - 1).to_string();
         let month = now.format("%m").to_string();
-
-        // V15 P0-B10：同比查询有 2 个子查询，每个都注入数据范围过滤
-        // 子查询 1 (this_year)：参数 $1=this_year, $2=month, $3=scope
-        // 子查询 2 (last_year)：参数 $1=this_year, $2=month, $3=last_year, $4=scope
-        let (scope_sql_yoy_1, scope_values_yoy_1) = self.scope_sql("", 3);
-        let (scope_sql_yoy_2, scope_values_yoy_2) = self.scope_sql("", 4);
-
-        let yoy_sql = format!(
+        // 同比 2 个子查询，每个注入数据范围过滤（参数 $3/$4 起）
+        let (scope_sql_1, scope_values_1) = self.scope_sql("", 3);
+        let (scope_sql_2, scope_values_2) = self.scope_sql("", 4);
+        let sql = format!(
             r#"
             SELECT
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
                  WHERE status NOT IN ('CANCELLED', 'DRAFT')
                    AND to_char(order_date, 'YYYY') = $1
                    AND to_char(order_date, 'MM') = $2
-                   {scope_sql_yoy_1}) as this_year,
+                   {scope_sql_1}) as this_year,
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
                  WHERE status NOT IN ('CANCELLED', 'DRAFT')
                    AND to_char(order_date, 'YYYY') = $3
                    AND to_char(order_date, 'MM') = $2
-                   {scope_sql_yoy_2}) as last_year
+                   {scope_sql_2}) as last_year
             "#,
-            scope_sql_yoy_1 = scope_sql_yoy_1,
-            scope_sql_yoy_2 = scope_sql_yoy_2,
+            scope_sql_1 = scope_sql_1,
+            scope_sql_2 = scope_sql_2,
         );
-
-        let mut yoy_values = vec![this_year.clone().into(), month.clone().into(), last_year.into()];
-        yoy_values.extend(scope_values_yoy_1);
-        yoy_values.extend(scope_values_yoy_2);
-        let yoy_stmt = Statement::from_sql_and_values(
+        let mut values = vec![this_year.into(), month.into(), last_year.into()];
+        values.extend(scope_values_1);
+        values.extend(scope_values_2);
+        let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
-            yoy_sql,
-            yoy_values,
+            sql,
+            values,
         );
-        let yoy_row: Option<YoYRow> = YoYRow::find_by_statement(yoy_stmt)
+        let row: Option<YoYRow> = YoYRow::find_by_statement(stmt)
             .one(&*self.db)
             .await?;
-        let (this_year_sales, last_year_sales) = if let Some(r) = yoy_row {
+        let (this_year_sales, last_year_sales) = if let Some(r) = row {
             (dec_to_f64(r.this_year), dec_to_f64(r.last_year))
         } else {
             (0.0, 0.0)
         };
-        let yoy_growth = if last_year_sales > 0.0 {
+        let growth = if last_year_sales > 0.0 {
             (this_year_sales - last_year_sales) / last_year_sales * 100.0
         } else {
             0.0
         };
+        Ok(growth)
+    }
 
-        // 环比：本月 vs 上月
+    /// 查询环比增长率（本月 vs 上月），注入数据范围过滤
+    async fn fetch_mom_growth(&self, now: chrono::DateTime<chrono::Utc>) -> Result<f64, AppError> {
+        let this_year = now.format("%Y").to_string();
+        let month = now.format("%m").to_string();
         let last_month = if now.month() == 1 { 12 } else { now.month() - 1 };
         let last_month_year = if now.month() == 1 {
-            (now.format("%Y").to_string().parse::<i32>().unwrap_or(2026) - 1).to_string()
+            (this_year.parse::<i32>().unwrap_or(2026) - 1).to_string()
         } else {
             this_year.clone()
         };
-
-        // V15 P0-B10：环比查询有 2 个子查询，每个都注入数据范围过滤
-        // 子查询 1 (this_month)：参数 $1=this_year, $2=month, $5=scope
-        // 子查询 2 (last_month)：参数 $3=last_month_year, $4=last_month, $6=scope
-        let (scope_sql_mom_1, scope_values_mom_1) = self.scope_sql("", 5);
-        let (scope_sql_mom_2, scope_values_mom_2) = self.scope_sql("", 6);
-
-        let mom_sql = format!(
+        // 环比 2 个子查询，每个注入数据范围过滤（参数 $5/$6 起）
+        let (scope_sql_1, scope_values_1) = self.scope_sql("", 5);
+        let (scope_sql_2, scope_values_2) = self.scope_sql("", 6);
+        let sql = format!(
             r#"
             SELECT
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
                  WHERE status NOT IN ('CANCELLED', 'DRAFT')
                    AND to_char(order_date, 'YYYY') = $1
                    AND to_char(order_date, 'MM') = $2
-                   {scope_sql_mom_1}) as this_month,
+                   {scope_sql_1}) as this_month,
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
                  WHERE status NOT IN ('CANCELLED', 'DRAFT')
                    AND to_char(order_date, 'YYYY') = $3
                    AND to_char(order_date, 'MM') = $4
-                   {scope_sql_mom_2}) as last_month
+                   {scope_sql_2}) as last_month
             "#,
-            scope_sql_mom_1 = scope_sql_mom_1,
-            scope_sql_mom_2 = scope_sql_mom_2,
+            scope_sql_1 = scope_sql_1,
+            scope_sql_2 = scope_sql_2,
         );
-
-        let mut mom_values = vec![
+        let mut values = vec![
             this_year.into(),
             month.into(),
             last_month_year.into(),
             format!("{:02}", last_month).into(),
         ];
-        mom_values.extend(scope_values_mom_1);
-        mom_values.extend(scope_values_mom_2);
-        let mom_stmt = Statement::from_sql_and_values(
+        values.extend(scope_values_1);
+        values.extend(scope_values_2);
+        let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
-            mom_sql,
-            mom_values,
+            sql,
+            values,
         );
-        let mom_row: Option<MoMRow> = MoMRow::find_by_statement(mom_stmt)
+        let row: Option<MoMRow> = MoMRow::find_by_statement(stmt)
             .one(&*self.db)
             .await?;
-        let (this_month_sales, last_month_sales) = if let Some(r) = mom_row {
+        let (this_month_sales, last_month_sales) = if let Some(r) = row {
             (dec_to_f64(r.this_month), dec_to_f64(r.last_month))
         } else {
             (0.0, 0.0)
         };
-        let mom_growth = if last_month_sales > 0.0 {
+        let growth = if last_month_sales > 0.0 {
             (this_month_sales - last_month_sales) / last_month_sales * 100.0
         } else {
             0.0
         };
-
-        Ok(KpiSummary {
-            total_sales,
-            order_count,
-            customer_count,
-            avg_order_value,
-            yoy_growth,
-            mom_growth,
-        })
+        Ok(growth)
     }
 
     // ==================== 钻取 ====================

@@ -20,26 +20,57 @@ impl ApReportService {
         Self { db }
     }
 
-    /// 获取应付统计报表
-    /// v14 中风险性能修复（批次 245）：SQL 层聚合，避免全量加载发票到内存
+    /// 获取应付统计报表（SQL 层聚合避免全量加载）
     pub async fn get_statistics_report(
         &self,
         supplier_id: Option<i32>,
         start_date: NaiveDate,
         end_date: NaiveDate,
     ) -> Result<ApStatisticsReport, AppError> {
+        let today = Utc::now().naive_utc().date();
+        let main = self
+            .fetch_ap_statistics_main_aggregate(supplier_id, start_date, end_date, today)
+            .await?;
+        let by_status = self
+            .fetch_ap_statistics_by_status(supplier_id, start_date, end_date)
+            .await?;
+        let by_type = self
+            .fetch_ap_statistics_by_type(supplier_id, start_date, end_date)
+            .await?;
+        Ok(ApStatisticsReport {
+            period_start: start_date,
+            period_end: end_date,
+            total_invoice_count: main.total_invoice_count,
+            total_invoice_amount: main.total_invoice_amount,
+            total_paid_amount: main.total_paid_amount,
+            total_unpaid_amount: main.total_unpaid_amount,
+            paid_invoice_count: main.paid_invoice_count,
+            partial_paid_count: main.partial_paid_count,
+            unpaid_count: main.unpaid_count,
+            overdue_count: main.overdue_count,
+            overdue_amount: main.overdue_amount,
+            by_status,
+            by_type,
+        })
+    }
+
+    /// 查询应付统计主聚合数据（COUNT/SUM/逾期分桶）
+    async fn fetch_ap_statistics_main_aggregate(
+        &self,
+        supplier_id: Option<i32>,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+        today: NaiveDate,
+    ) -> Result<ApStatisticsMainAggregate, AppError> {
         use sea_orm::ConnectionTrait;
 
-        let today = Utc::now().naive_utc().date();
-
         // 规则 12 合规：全部参数使用 $N 参数化绑定
-        // 主聚合查询：COUNT + SUM + 条件 COUNT/SUM（overdue/paid/partial/unpaid）
         let mut params: Vec<sea_orm::Value> = vec![
             start_date.into(),
             end_date.into(),
             "CANCELLED".into(),
         ];
-        // 规则 12 合规：supplier_id 使用 $N 参数化绑定（i32 为 Copy，可直接 map）
+        // supplier_id 为 Copy 类型，可直接 map 后 push
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());
@@ -82,82 +113,100 @@ impl ApReportService {
         let row = row
             .ok_or_else(|| AppError::internal("应付统计报表主聚合查询无结果".to_string()))?;
 
-        let total_invoice_count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
-        let total_invoice_amount: Decimal =
-            row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
-        let total_paid_amount: Decimal =
-            row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
-        let total_unpaid_amount: Decimal =
-            row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO);
-        let paid_invoice_count: i64 = row.try_get_by_index::<i64>(4).unwrap_or(0);
-        let partial_paid_count: i64 = row.try_get_by_index::<i64>(5).unwrap_or(0);
-        let unpaid_count: i64 = row.try_get_by_index::<i64>(6).unwrap_or(0);
-        let overdue_count: i64 = row.try_get_by_index::<i64>(7).unwrap_or(0);
-        let overdue_amount: Decimal =
-            row.try_get_by_index::<Decimal>(8).unwrap_or(Decimal::ZERO);
+        Ok(ApStatisticsMainAggregate {
+            total_invoice_count: row.try_get_by_index::<i64>(0).unwrap_or(0),
+            total_invoice_amount: row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO),
+            total_paid_amount: row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO),
+            total_unpaid_amount: row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO),
+            paid_invoice_count: row.try_get_by_index::<i64>(4).unwrap_or(0),
+            partial_paid_count: row.try_get_by_index::<i64>(5).unwrap_or(0),
+            unpaid_count: row.try_get_by_index::<i64>(6).unwrap_or(0),
+            overdue_count: row.try_get_by_index::<i64>(7).unwrap_or(0),
+            overdue_amount: row.try_get_by_index::<Decimal>(8).unwrap_or(Decimal::ZERO),
+        })
+    }
 
-        // by_status 子查询：GROUP BY invoice_status
-        let mut status_params: Vec<sea_orm::Value> = vec![start_date.into(), end_date.into(), "CANCELLED".into()];
-        let status_supplier_filter = supplier_id
+    /// 按状态聚合应付统计（GROUP BY invoice_status）
+    async fn fetch_ap_statistics_by_status(
+        &self,
+        supplier_id: Option<i32>,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Result<Vec<StatusStatistics>, AppError> {
+        use sea_orm::ConnectionTrait;
+
+        let mut params: Vec<sea_orm::Value> =
+            vec![start_date.into(), end_date.into(), "CANCELLED".into()];
+        let supplier_filter = supplier_id
             .map(|sid| {
-                status_params.push(sid.into());
-                format!(" AND supplier_id = ${}", status_params.len())
+                params.push(sid.into());
+                format!(" AND supplier_id = ${}", params.len())
             })
             .unwrap_or_default();
-        let status_sql = format!(
+        let sql = format!(
             r#"
             SELECT invoice_status, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount
             FROM ap_invoice
-            WHERE invoice_date >= $1 AND invoice_date <= $2 AND invoice_status <> $3{ssf}
+            WHERE invoice_date >= $1 AND invoice_date <= $2 AND invoice_status <> $3{sf}
             GROUP BY invoice_status
             "#,
-            ssf = status_supplier_filter
+            sf = supplier_filter
         );
-        let status_rows: Vec<sea_orm::QueryResult> = self
+        let rows: Vec<sea_orm::QueryResult> = self
             .db
             .query_all(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
-                status_sql,
-                status_params,
+                sql,
+                params,
             ))
             .await
             .map_err(|e| AppError::internal(format!("按状态聚合查询失败: {}", e)))?;
-        let by_status: Vec<StatusStatistics> = status_rows
+        Ok(rows
             .into_iter()
             .map(|r| StatusStatistics {
                 status: r.try_get_by_index::<String>(0).unwrap_or_default(),
                 count: r.try_get_by_index::<i64>(1).unwrap_or(0),
                 amount: r.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO),
             })
-            .collect();
+            .collect())
+    }
 
-        // by_type 子查询：GROUP BY invoice_type
-        let mut type_params: Vec<sea_orm::Value> = vec![start_date.into(), end_date.into(), "CANCELLED".into()];
-        let type_supplier_filter = supplier_id
+    /// 按类型聚合应付统计（GROUP BY invoice_type）
+    async fn fetch_ap_statistics_by_type(
+        &self,
+        supplier_id: Option<i32>,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Result<Vec<TypeStatistics>, AppError> {
+        use sea_orm::ConnectionTrait;
+
+        let mut params: Vec<sea_orm::Value> =
+            vec![start_date.into(), end_date.into(), "CANCELLED".into()];
+        let supplier_filter = supplier_id
             .map(|sid| {
-                type_params.push(sid.into());
-                format!(" AND supplier_id = ${}", type_params.len())
+                params.push(sid.into());
+                format!(" AND supplier_id = ${}", params.len())
             })
             .unwrap_or_default();
-        let type_sql = format!(
+        let sql = format!(
             r#"
             SELECT invoice_type, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount, COALESCE(SUM(unpaid_amount), 0) AS unpaid_amount
             FROM ap_invoice
-            WHERE invoice_date >= $1 AND invoice_date <= $2 AND invoice_status <> $3{tsf}
+            WHERE invoice_date >= $1 AND invoice_date <= $2 AND invoice_status <> $3{sf}
             GROUP BY invoice_type
             "#,
-            tsf = type_supplier_filter
+            sf = supplier_filter
         );
-        let type_rows: Vec<sea_orm::QueryResult> = self
+        let rows: Vec<sea_orm::QueryResult> = self
             .db
             .query_all(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
-                type_sql,
-                type_params,
+                sql,
+                params,
             ))
             .await
             .map_err(|e| AppError::internal(format!("按类型聚合查询失败: {}", e)))?;
-        let by_type: Vec<TypeStatistics> = type_rows
+        Ok(rows
             .into_iter()
             .map(|r| TypeStatistics {
                 invoice_type: r.try_get_by_index::<String>(0).unwrap_or_default(),
@@ -165,23 +214,7 @@ impl ApReportService {
                 amount: r.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO),
                 unpaid_amount: r.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO),
             })
-            .collect();
-
-        Ok(ApStatisticsReport {
-            period_start: start_date,
-            period_end: end_date,
-            total_invoice_count,
-            total_invoice_amount,
-            total_paid_amount,
-            total_unpaid_amount,
-            paid_invoice_count,
-            partial_paid_count,
-            unpaid_count,
-            overdue_count,
-            overdue_amount,
-            by_status,
-            by_type,
-        })
+            .collect())
     }
 
     /// 获取应付日报
@@ -557,6 +590,29 @@ impl ApReportService {
 // =====================================================
 // 数据传输对象（DTO）
 // =====================================================
+
+/// 应付统计主聚合查询结果（内部传递用）
+#[derive(Debug)]
+struct ApStatisticsMainAggregate {
+    /// 应付单总数
+    total_invoice_count: i64,
+    /// 应付总金额
+    total_invoice_amount: Decimal,
+    /// 已付总金额
+    total_paid_amount: Decimal,
+    /// 未付总金额
+    total_unpaid_amount: Decimal,
+    /// 已付清应付单数量
+    paid_invoice_count: i64,
+    /// 部分付款应付单数量
+    partial_paid_count: i64,
+    /// 未付款应付单数量
+    unpaid_count: i64,
+    /// 逾期应付单数量
+    overdue_count: i64,
+    /// 逾期金额
+    overdue_amount: Decimal,
+}
 
 /// 应付统计报表
 #[derive(Debug, Serialize, Deserialize)]
