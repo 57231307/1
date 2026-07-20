@@ -110,49 +110,7 @@ impl BatchService {
         let mut errors = Vec::new();
 
         for (index, req) in requests.iter().enumerate() {
-            // 解析价格
-            let standard_price = req
-                .standard_price
-                .as_ref()
-                .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
-            let cost_price = req
-                .cost_price
-                .as_ref()
-                .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
-
-            let product = product::ActiveModel {
-                id: Default::default(),
-                name: Set(req.name.clone()),
-                code: Set(req.code.clone()),
-                category_id: Set(req.category_id),
-                specification: Set(req.specification.clone()),
-                unit: Set(req.unit.clone().unwrap_or_else(|| "件".to_string())),
-                standard_price: Set(standard_price),
-                cost_price: Set(cost_price),
-                description: Set(req.description.clone()),
-                status: Set(master_data::ACTIVE.to_string()),
-                is_deleted: Set(false),
-                created_at: Set(chrono::Utc::now()),
-                updated_at: Set(chrono::Utc::now()),
-                // 面料行业特色字段
-                product_type: Set(req
-                    .product_type
-                    .clone()
-                    .unwrap_or_else(|| "成品布".to_string())),
-                fabric_composition: Set(req.fabric_composition.clone()),
-                yarn_count: Set(req.yarn_count.clone()),
-                density: Set(req.density.clone()),
-                width: Set(req.width),
-                gram_weight: Set(req.gram_weight),
-                structure: Set(req.structure.clone()),
-                finish: Set(req.finish.clone()),
-                min_order_quantity: Set(req.min_order_quantity),
-                lead_time: Set(req.lead_time),
-                supplier_product_code: sea_orm::ActiveValue::NotSet,
-                supplier_id: sea_orm::ActiveValue::NotSet,
-                is_batch_managed: sea_orm::ActiveValue::NotSet,
-                batch_level: sea_orm::ActiveValue::NotSet,
-            };
+            let product = Self::build_product_active_model(req);
 
             match product.insert(&txn).await {
                 Ok(model) => {
@@ -168,31 +126,9 @@ impl BatchService {
                     });
                     let failed = errors.len();
                     // 审计日志记录在主连接上（非事务），确保回滚后仍可追溯
-                    let event = AuditEvent {
-                        user_id: Some(user_id),
-                        username: None,
-                        operation_type: OperationType::Create,
-                        severity: Severity::Warn,
-                        resource_type: Some("product_batch".to_string()),
-                        resource_id: None,
-                        resource_name: Some(format!("batch_create_{}", chrono::Utc::now().timestamp())),
-                        description: Some(format!(
-                            "批量创建产品（已回滚）：总数={} 成功=0 失败={} 首错索引={}",
-                            requests.len(), failed, index
-                        )),
-                        request_method: Some("POST".to_string()),
-                        request_path: Some("/api/v1/erp/products/batch/create".to_string()),
-                        before_snapshot: None,
-                        after_snapshot: Some(serde_json::json!({
-                            "total": requests.len(),
-                            "created": 0,
-                            "failed": failed,
-                            "rolled_back": true,
-                            "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
-                        })),
-                    };
-                    let svc = Arc::new(AuditLogService::new(self.db.clone()));
-                    svc.record_async(event, None);
+                    Self::record_batch_create_audit(
+                        &self.db, user_id, &requests, 0, &errors, true,
+                    );
                     return Ok(BatchResult {
                         success: false,
                         total: requests.len(),
@@ -208,31 +144,9 @@ impl BatchService {
         txn.commit().await?;
 
         // P1 8-4 修复：批量创建完成后记录汇总审计日志
-        let event = AuditEvent {
-            user_id: Some(user_id),
-            username: None,
-            operation_type: OperationType::Create,
-            severity: Severity::Info,
-            resource_type: Some("product_batch".to_string()),
-            resource_id: None,
-            resource_name: Some(format!("batch_create_{}", chrono::Utc::now().timestamp())),
-            description: Some(format!(
-                "批量创建产品：总数={} 成功={} 失败=0",
-                requests.len(),
-                created
-            )),
-            request_method: Some("POST".to_string()),
-            request_path: Some("/api/v1/erp/products/batch/create".to_string()),
-            before_snapshot: None,
-            after_snapshot: Some(serde_json::json!({
-                "total": requests.len(),
-                "created": created,
-                "failed": 0,
-                "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
-            })),
-        };
-        let svc = Arc::new(AuditLogService::new(self.db.clone()));
-        svc.record_async(event, None);
+        Self::record_batch_create_audit(
+            &self.db, user_id, &requests, created, &errors, false,
+        );
 
         Ok(BatchResult {
             success: true,
@@ -243,6 +157,108 @@ impl BatchService {
             data,
             errors,
         })
+    }
+
+    /// 从请求构建产品 ActiveModel
+    fn build_product_active_model(req: &BatchCreateProductRequest) -> product::ActiveModel {
+        // 解析价格
+        let standard_price = req
+            .standard_price
+            .as_ref()
+            .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
+        let cost_price = req
+            .cost_price
+            .as_ref()
+            .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
+
+        product::ActiveModel {
+            id: Default::default(),
+            name: Set(req.name.clone()),
+            code: Set(req.code.clone()),
+            category_id: Set(req.category_id),
+            specification: Set(req.specification.clone()),
+            unit: Set(req.unit.clone().unwrap_or_else(|| "件".to_string())),
+            standard_price: Set(standard_price),
+            cost_price: Set(cost_price),
+            description: Set(req.description.clone()),
+            status: Set(master_data::ACTIVE.to_string()),
+            is_deleted: Set(false),
+            created_at: Set(chrono::Utc::now()),
+            updated_at: Set(chrono::Utc::now()),
+            // 面料行业特色字段
+            product_type: Set(req
+                .product_type
+                .clone()
+                .unwrap_or_else(|| "成品布".to_string())),
+            fabric_composition: Set(req.fabric_composition.clone()),
+            yarn_count: Set(req.yarn_count.clone()),
+            density: Set(req.density.clone()),
+            width: Set(req.width),
+            gram_weight: Set(req.gram_weight),
+            structure: Set(req.structure.clone()),
+            finish: Set(req.finish.clone()),
+            min_order_quantity: Set(req.min_order_quantity),
+            lead_time: Set(req.lead_time),
+            supplier_product_code: sea_orm::ActiveValue::NotSet,
+            supplier_id: sea_orm::ActiveValue::NotSet,
+            is_batch_managed: sea_orm::ActiveValue::NotSet,
+            batch_level: sea_orm::ActiveValue::NotSet,
+        }
+    }
+
+    /// 批量创建产品审计日志记录（成功/失败合并，rolled_back 区分）
+    fn record_batch_create_audit(
+        db: &DatabaseConnection,
+        user_id: i32,
+        requests: &[BatchCreateProductRequest],
+        created: usize,
+        errors: &[BatchError],
+        rolled_back: bool,
+    ) {
+        let failed = errors.len();
+        let (severity, description) = if rolled_back {
+            (
+                Severity::Warn,
+                format!(
+                    "批量创建产品（已回滚）：总数={} 成功=0 失败={} 首错索引={}",
+                    requests.len(),
+                    failed,
+                    errors.first().map(|e| e.index).unwrap_or(0)
+                ),
+            )
+        } else {
+            (
+                Severity::Info,
+                format!(
+                    "批量创建产品：总数={} 成功={} 失败=0",
+                    requests.len(),
+                    created
+                ),
+            )
+        };
+
+        let event = AuditEvent {
+            user_id: Some(user_id),
+            username: None,
+            operation_type: OperationType::Create,
+            severity,
+            resource_type: Some("product_batch".to_string()),
+            resource_id: None,
+            resource_name: Some(format!("batch_create_{}", chrono::Utc::now().timestamp())),
+            description: Some(description),
+            request_method: Some("POST".to_string()),
+            request_path: Some("/api/v1/erp/products/batch/create".to_string()),
+            before_snapshot: None,
+            after_snapshot: Some(serde_json::json!({
+                "total": requests.len(),
+                "created": if rolled_back { 0 } else { created },
+                "failed": failed,
+                "rolled_back": rolled_back,
+                "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
+            })),
+        };
+        let svc = Arc::new(AuditLogService::new(Arc::new(db.clone())));
+        svc.record_async(event, None);
     }
 
     /// 批量更新产品

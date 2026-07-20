@@ -183,7 +183,7 @@ impl InventoryAdjustmentService {
         }
 
         // 转换为 ActiveModel 用于更新
-        let mut adjustment: inventory_adjustment::ActiveModel = adjustment_model.into();
+        let mut adjustment: inventory_adjustment::ActiveModel = adjustment_model.clone().into();
 
         // 更新状态
         adjustment.status = Set(adjustment_status::APPROVED.to_string());
@@ -207,6 +207,37 @@ impl InventoryAdjustmentService {
             .all(&txn)
             .await?;
 
+        // 乐观锁更新库存 + 构建事件列表
+        let transaction_events = Self::apply_stock_updates_for_adjustment(
+            &txn, items, adjustment_id, adjustment_model.adjustment_no.clone(),
+            adjustment_model.warehouse_id, approved_by,
+        )
+        .await?;
+
+        // 提交事务
+        txn.commit().await?;
+
+        // 事务提交后发布库存交易事件，触发财务凭证生成
+        for event in transaction_events {
+            EVENT_BUS.publish(event);
+            tracing::info!(
+                "库存调整审核通过，已发布库存交易事件触发财务凭证生成: 调整单号={}",
+                adjustment_model.adjustment_no
+            );
+        }
+
+        Ok(adjustment_model)
+    }
+
+    /// 乐观锁更新库存 + 构建事件列表
+    async fn apply_stock_updates_for_adjustment(
+        txn: &sea_orm::DatabaseTransaction,
+        items: Vec<inventory_adjustment_item::Model>,
+        adjustment_id: i32,
+        adjustment_no: String,
+        warehouse_id: i32,
+        approved_by: i32,
+    ) -> Result<Vec<BusinessEvent>, AppError> {
         // 批量查询调整明细涉及的库存，避免循环内 N+1 查询
         let stock_ids: Vec<i32> = items.iter().map(|item| item.stock_id).collect();
         let stocks = if stock_ids.is_empty() {
@@ -214,7 +245,7 @@ impl InventoryAdjustmentService {
         } else {
             inventory_stock::Entity::find()
                 .filter(inventory_stock::Column::Id.is_in(stock_ids))
-                .all(&txn)
+                .all(txn)
                 .await?
         };
         let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
@@ -264,7 +295,7 @@ impl InventoryAdjustmentService {
                 )
                 .filter(inventory_stock::Column::Id.eq(item.stock_id))
                 .filter(inventory_stock::Column::Version.eq(expected_version))
-                .exec(&txn)
+                .exec(txn)
                 .await?;
 
             // 检查乐观锁是否成功
@@ -282,11 +313,11 @@ impl InventoryAdjustmentService {
                 transaction_id: adjustment_id,
                 transaction_type: "INVENTORY_ADJUSTMENT".to_string(),
                 product_id: stock_model.product_id,
-                warehouse_id: adjustment_model.warehouse_id,
+                warehouse_id,
                 quantity_meters: quantity_change,
                 quantity_kg: Decimal::ZERO,
                 source_bill_type: Some("inventory_adjustment".to_string()),
-                source_bill_no: Some(adjustment_model.adjustment_no.clone()),
+                source_bill_no: Some(adjustment_no.clone()),
                 source_bill_id: Some(adjustment_id),
                 batch_no: stock_model.batch_no.clone(),
                 color_no: stock_model.color_no.clone(),
@@ -294,19 +325,7 @@ impl InventoryAdjustmentService {
             });
         }
 
-        // 提交事务
-        txn.commit().await?;
-
-        // 事务提交后发布库存交易事件，触发财务凭证生成
-        for event in transaction_events {
-            EVENT_BUS.publish(event);
-            tracing::info!(
-                "库存调整审核通过，已发布库存交易事件触发财务凭证生成: 调整单号={}",
-                adjustment_model.adjustment_no
-            );
-        }
-
-        Ok(adjustment_model)
+        Ok(transaction_events)
     }
 
     /// 驳回库存调整单

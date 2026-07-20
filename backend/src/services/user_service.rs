@@ -325,19 +325,6 @@ impl UserService {
     /// 更新用户信息
     ///
     /// 只更新提供的字段，未提供的字段保持不变
-    ///
-    /// # 参数
-    /// - `user_id`: 用户 ID
-    /// - `email`: 新邮箱（可选）
-    /// - `phone`: 新电话（可选）
-    /// - `role_id`: 新角色 ID（可选）
-    /// - `department_id`: 新部门 ID（可选）
-    /// - `status`: 状态字符串，`"active"` 表示激活，其他表示禁用（可选）
-    /// - `operator_id`: 操作人 ID（V15 P0-S06 新增，用于权限变更审计）
-    ///
-    /// # 返回
-    /// - `Ok(user)`: 更新成功
-    /// - `Err(DbErr::RecordNotFound)`: 用户不存在
     pub async fn update_user(
         &self,
         user_id: i32,
@@ -366,7 +353,6 @@ impl UserService {
         }
         if let Some(role_id_val) = role_id {
             // V15 P0-S05/P0-S23：SoD 职责分离互斥校验（真实接入）
-            // 检查新角色是否与用户当前角色互斥（如制单+审核、采购+付款）
             self.check_role_conflict_for_user(user_id, role_id_val)
                 .await?;
             user.role_id = Set(Some(role_id_val));
@@ -375,42 +361,9 @@ impl UserService {
             user.department_id = Set(Some(department_id_val));
         }
         if let Some(status_val) = status {
-            // 将 status 字符串转换为 is_active 布尔值
             let becoming_active = status_val == master_data::ACTIVE;
             user.is_active = Set(becoming_active);
-
-            // 批次 389 P2-2：用户状态变更记录 security_audit 安全审计日志
-            info!(
-                target: "security_audit",
-                event = "USER_STATUS_CHANGE",
-                user_id = user_id,
-                becoming_active = becoming_active,
-                "用户状态变更"
-            );
-
-            // v11 批次 145 P1-7：用户状态恢复为 active 时清除吊销标记
-            //
-            // 当用户从"禁用"恢复为"active"时，调用 unrevoke_user 清除进程内
-            // 吊销标记，允许用户重新登录获取新 Token。此为 best-effort 操作，
-            // 不阻塞用户更新主流程。
-            if becoming_active {
-                crate::services::auth_service::unrevoke_user(user_id).await;
-            } else {
-                // V15 P0-S07 修复：禁用用户时吊销 JWT，与 delete_user 行为一致
-                // 原实现仅 becoming_active=true 时调用 unrevoke_user，
-                // 禁用分支缺失 revoke_user_jtis，被禁用用户的旧 JWT 仍可访问系统
-                if let Err(e) =
-                    crate::services::auth_service::revoke_user_jtis(user_id, "USER_DISABLED").await
-                {
-                    warn!(
-                        target: "security_audit",
-                        event = "TOKEN_REVOKE_FAILED",
-                        user_id = user_id,
-                        error = %e,
-                        "禁用用户时吊销 JWT 失败（best-effort，不阻塞主流程）"
-                    );
-                }
-            }
+            self.handle_user_status_change(user_id, becoming_active).await;
         }
         user.updated_at = Set(chrono::Utc::now());
 
@@ -428,43 +381,84 @@ impl UserService {
                 invalidate_permission_cache(old_rid);
             }
             invalidate_permission_cache(new_role_id);
-
-            // V15 P0-S06：写入用户角色变更审计日志（best-effort，失败不阻塞主流程）
-            let audit = permission_change_audit::ActiveModel {
-                id: Default::default(),
-                change_type: Set("user_role_change".to_string()),
-                operator_id: Set(operator_id),
-                role_id: Set(Some(new_role_id)),
-                user_id: Set(Some(user_id)),
-                resource_type: Set(Some("user_role".to_string())),
-                action: Set(Some("assign".to_string())),
-                old_value: Set(old_role_id.map(|v| v.to_string())),
-                new_value: Set(Some(new_role_id.to_string())),
-                changed_at: Set(chrono::Utc::now()),
-                client_ip: Set(None),
-                remark: Set(Some(format!(
-                    "用户 {} 角色变更：{} → {}",
-                    user_id,
-                    old_role_id
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| "无".to_string()),
-                    new_role_id
-                ))),
-            };
-            if let Err(e) = audit.insert(self.db.as_ref()).await {
-                warn!(
-                    target: "security_audit",
-                    event = "USER_ROLE_AUDIT_WRITE_FAILED",
-                    user_id = user_id,
-                    operator_id = operator_id,
-                    new_role_id = new_role_id,
-                    error = %e,
-                    "用户角色变更审计日志写入失败（best-effort，不阻塞主流程）"
-                );
-            }
+            self.write_role_change_audit(user_id, operator_id, old_role_id, new_role_id)
+                .await;
         }
 
         Ok(updated)
+    }
+
+    /// 用户状态变更处理（吊销/恢复 JWT）
+    async fn handle_user_status_change(&self, user_id: i32, becoming_active: bool) {
+        // 批次 389 P2-2：用户状态变更记录 security_audit 安全审计日志
+        info!(
+            target: "security_audit",
+            event = "USER_STATUS_CHANGE",
+            user_id = user_id,
+            becoming_active = becoming_active,
+            "用户状态变更"
+        );
+
+        if becoming_active {
+            // v11 批次 145 P1-7：用户状态恢复为 active 时清除吊销标记
+            crate::services::auth_service::unrevoke_user(user_id).await;
+        } else {
+            // V15 P0-S07 修复：禁用用户时吊销 JWT，与 delete_user 行为一致
+            if let Err(e) =
+                crate::services::auth_service::revoke_user_jtis(user_id, "USER_DISABLED").await
+            {
+                warn!(
+                    target: "security_audit",
+                    event = "TOKEN_REVOKE_FAILED",
+                    user_id = user_id,
+                    error = %e,
+                    "禁用用户时吊销 JWT 失败（best-effort，不阻塞主流程）"
+                );
+            }
+        }
+    }
+
+    /// 角色变更审计日志写入
+    async fn write_role_change_audit(
+        &self,
+        user_id: i32,
+        operator_id: i32,
+        old_role_id: Option<i32>,
+        new_role_id: i32,
+    ) {
+        // V15 P0-S06：写入用户角色变更审计日志（best-effort，失败不阻塞主流程）
+        let audit = permission_change_audit::ActiveModel {
+            id: Default::default(),
+            change_type: Set("user_role_change".to_string()),
+            operator_id: Set(operator_id),
+            role_id: Set(Some(new_role_id)),
+            user_id: Set(Some(user_id)),
+            resource_type: Set(Some("user_role".to_string())),
+            action: Set(Some("assign".to_string())),
+            old_value: Set(old_role_id.map(|v| v.to_string())),
+            new_value: Set(Some(new_role_id.to_string())),
+            changed_at: Set(chrono::Utc::now()),
+            client_ip: Set(None),
+            remark: Set(Some(format!(
+                "用户 {} 角色变更：{} → {}",
+                user_id,
+                old_role_id
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "无".to_string()),
+                new_role_id
+            ))),
+        };
+        if let Err(e) = audit.insert(self.db.as_ref()).await {
+            warn!(
+                target: "security_audit",
+                event = "USER_ROLE_AUDIT_WRITE_FAILED",
+                user_id = user_id,
+                operator_id = operator_id,
+                new_role_id = new_role_id,
+                error = %e,
+                "用户角色变更审计日志写入失败（best-effort，不阻塞主流程）"
+            );
+        }
     }
 
     /// 删除用户（软删除）
