@@ -582,17 +582,17 @@ impl SalesService {
         if let Some(required_date) = request.required_date {
             order_update.required_date = sea_orm::ActiveValue::Set(required_date);
         }
-        if let Some(status) = request.status {
-            order_update.status = sea_orm::ActiveValue::Set(status);
+        if let Some(status) = &request.status {
+            order_update.status = sea_orm::ActiveValue::Set(status.clone());
         }
-        if let Some(shipping_address) = request.shipping_address {
-            order_update.shipping_address = sea_orm::ActiveValue::Set(Some(shipping_address));
+        if let Some(shipping_address) = &request.shipping_address {
+            order_update.shipping_address = sea_orm::ActiveValue::Set(Some(shipping_address.clone()));
         }
-        if let Some(billing_address) = request.billing_address {
-            order_update.billing_address = sea_orm::ActiveValue::Set(Some(billing_address));
+        if let Some(billing_address) = &request.billing_address {
+            order_update.billing_address = sea_orm::ActiveValue::Set(Some(billing_address.clone()));
         }
-        if let Some(notes) = request.notes {
-            order_update.notes = sea_orm::ActiveValue::Set(Some(notes));
+        if let Some(notes) = &request.notes {
+            order_update.notes = sea_orm::ActiveValue::Set(Some(notes.clone()));
         }
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id
