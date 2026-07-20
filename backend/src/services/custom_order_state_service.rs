@@ -71,64 +71,87 @@ impl CustomOrderStateService {
         operator_id: i64,
         notes: Option<String>,
     ) -> Result<custom_order::Model, StateError> {
-        let order = Entity::find_by_id(order_id)
-            .one(&*self.db)
-            .await?
-            .ok_or(StateError::NotFound)?;
-
-        // 计算下一状态
+        let order = self.lookup_order(order_id).await?;
         let next = next_status(&order.status)?;
         let next_str = next.as_str().to_string();
 
-        // V15 P0-B11：状态门校验
-        // 在推进状态前，校验业务前置条件（打样确认 / 报价审批）
-        match next {
-            CustomOrderStatus::Quotation => {
-                // lab_dip → quotation：校验打样通知单已关联且客户已确认 OK 样
-                let lab_dip_id = order.lab_dip_request_id.ok_or_else(|| {
-                    StateError::GateValidation(
-                        "推进到报价阶段前必须关联打样通知单（lab_dip_request_id 不能为空）".to_string(),
-                    )
-                })?;
-                let lab_dip = lab_dip_request::Entity::find_by_id(lab_dip_id)
-                    .one(&*self.db)
-                    .await?
-                    .ok_or(StateError::LabDipRequestNotFound(lab_dip_id))?;
-                if lab_dip.approved_sample_id.is_none() {
-                    return Err(StateError::GateValidation(format!(
-                        "打样通知单 {} 未确认 OK 样（approved_sample_id 为空），禁止推进到报价阶段",
-                        lab_dip_id
-                    )));
-                }
-            }
-            CustomOrderStatus::YarnPurchasing => {
-                // quotation → yarn_purchasing：校验报价单已关联且已审批通过
-                let quotation_id = order.quotation_id.ok_or_else(|| {
-                    StateError::GateValidation(
-                        "推进到生产阶段前必须关联报价单（quotation_id 不能为空）".to_string(),
-                    )
-                })?;
-                let quotation = sales_quotation::Entity::find_by_id(quotation_id)
-                    .one(&*self.db)
-                    .await?
-                    .ok_or(StateError::QuotationNotFound(quotation_id))?;
-                // 报价单状态校验：仅 approved 状态允许推进（status 字段为 String，兼容大小写）
-                if !quotation.status.eq_ignore_ascii_case("approved") {
-                    return Err(StateError::GateValidation(format!(
-                        "报价单 {} 状态为 {}，未审批通过（approved），禁止推进到生产阶段",
-                        quotation_id, quotation.status
-                    )));
-                }
-            }
-            _ => {}
-        }
+        self.validate_gate_before_advance(&order, next).await?;
 
-        // 更新主表状态
+        let updated = self.update_order_status(&order, next, next_str.clone()).await?;
+
+        self.complete_current_node(order_id, operator_id, notes.clone()).await?;
+        self.start_next_node(order_id, operator_id, &next_str).await?;
+
+        Ok(updated)
+    }
+
+    async fn lookup_order(&self, order_id: i64) -> Result<custom_order::Model, StateError> {
+        Entity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or(StateError::NotFound)
+    }
+
+    async fn validate_gate_before_advance(
+        &self,
+        order: &custom_order::Model,
+        next: CustomOrderStatus,
+    ) -> Result<(), StateError> {
+        match next {
+            CustomOrderStatus::Quotation => self.validate_quotation_gate(order).await,
+            CustomOrderStatus::YarnPurchasing => self.validate_yarn_purchasing_gate(order).await,
+            _ => Ok(()),
+        }
+    }
+
+    async fn validate_quotation_gate(&self, order: &custom_order::Model) -> Result<(), StateError> {
+        let lab_dip_id = order.lab_dip_request_id.ok_or_else(|| {
+            StateError::GateValidation(
+                "推进到报价阶段前必须关联打样通知单（lab_dip_request_id 不能为空）".to_string(),
+            )
+        })?;
+        let lab_dip = lab_dip_request::Entity::find_by_id(lab_dip_id)
+            .one(&*self.db)
+            .await?
+            .ok_or(StateError::LabDipRequestNotFound(lab_dip_id))?;
+        if lab_dip.approved_sample_id.is_none() {
+            return Err(StateError::GateValidation(format!(
+                "打样通知单 {} 未确认 OK 样（approved_sample_id 为空），禁止推进到报价阶段",
+                lab_dip_id
+            )));
+        }
+        Ok(())
+    }
+
+    async fn validate_yarn_purchasing_gate(&self, order: &custom_order::Model) -> Result<(), StateError> {
+        let quotation_id = order.quotation_id.ok_or_else(|| {
+            StateError::GateValidation(
+                "推进到生产阶段前必须关联报价单（quotation_id 不能为空）".to_string(),
+            )
+        })?;
+        let quotation = sales_quotation::Entity::find_by_id(quotation_id)
+            .one(&*self.db)
+            .await?
+            .ok_or(StateError::QuotationNotFound(quotation_id))?;
+        if !quotation.status.eq_ignore_ascii_case("approved") {
+            return Err(StateError::GateValidation(format!(
+                "报价单 {} 状态为 {}，未审批通过（approved），禁止推进到生产阶段",
+                quotation_id, quotation.status
+            )));
+        }
+        Ok(())
+    }
+
+    async fn update_order_status(
+        &self,
+        order: &custom_order::Model,
+        next: CustomOrderStatus,
+        next_str: String,
+    ) -> Result<custom_order::Model, StateError> {
         let mut active: ActiveModel = order.clone().into();
-        active.status = Set(next_str.clone());
+        active.status = Set(next_str);
         active.updated_at = Set(Utc::now());
 
-        // V15 P0-B11：quotation → yarn_purchasing 时自动同步 total_amount 从报价单到定制订单
         if next == CustomOrderStatus::YarnPurchasing {
             if let Some(qid) = order.quotation_id {
                 if let Ok(Some(quotation)) = sales_quotation::Entity::find_by_id(qid)
@@ -140,14 +163,15 @@ impl CustomOrderStateService {
             }
         }
 
-        // 若推进到 delivery 阶段，记录 expected_delivery_date 为 actual_delivery_date
-        if next == CustomOrderStatus::Delivery {
-            // 保持原值
-        }
+        active.update(&*self.db).await.map_err(StateError::Database)
+    }
 
-        let updated = active.update(&*self.db).await?;
-
-        // 更新对应工艺节点状态
+    async fn complete_current_node(
+        &self,
+        order_id: i64,
+        operator_id: i64,
+        notes: Option<String>,
+    ) -> Result<(), StateError> {
         let node = NodeEntity::find()
             .filter(process_node::Column::CustomOrderId.eq(order_id))
             .filter(process_node::Column::Status.eq(node_status::IN_PROGRESS))
@@ -155,14 +179,12 @@ impl CustomOrderStateService {
             .await?;
 
         if let Some(n) = node {
-            // 当前 in_progress 节点标记为 completed
             let mut n_active: process_node::ActiveModel = n.clone().into();
             n_active.status = Set(node_status::COMPLETED.to_string());
             n_active.actual_end_date = Set(Some(Utc::now()));
             n_active.updated_at = Set(Utc::now());
-            n_active.update(&*self.db).await?;
+            n_active.update(&*self.db).await.map_err(StateError::Database)?;
 
-            // 记录日志
             let log = LogActive {
                 id: Default::default(),
                 process_node_id: Set(n.id),
@@ -171,16 +193,24 @@ impl CustomOrderStateService {
                 before_status: Set(Some(node_status::IN_PROGRESS.to_string())),
                 after_status: Set(Some(node_status::COMPLETED.to_string())),
                 log_time: Set(Utc::now()),
-                log_content: Set(notes.clone()),
+                log_content: Set(notes),
                 attachments: Set(serde_json::json!([])),
             };
-            log.insert(&*self.db).await?;
+            log.insert(&*self.db).await.map_err(StateError::Database)?;
         }
 
-        // 启动下一节点
+        Ok(())
+    }
+
+    async fn start_next_node(
+        &self,
+        order_id: i64,
+        operator_id: i64,
+        next_str: &str,
+    ) -> Result<(), StateError> {
         let next_node = NodeEntity::find()
             .filter(process_node::Column::CustomOrderId.eq(order_id))
-            .filter(process_node::Column::NodeType.eq(next_str.clone()))
+            .filter(process_node::Column::NodeType.eq(next_str))
             .one(&*self.db)
             .await?;
 
@@ -190,10 +220,10 @@ impl CustomOrderStateService {
             n_active.actual_start_date = Set(Some(Utc::now()));
             n_active.operator_id = Set(Some(operator_id));
             n_active.updated_at = Set(Utc::now());
-            n_active.update(&*self.db).await?;
+            n_active.update(&*self.db).await.map_err(StateError::Database)?;
         }
 
-        Ok(updated)
+        Ok(())
     }
 
     /// 直接设置状态（用于取消等场景）

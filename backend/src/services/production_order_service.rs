@@ -847,130 +847,187 @@ impl ProductionOrderService {
         default_warehouse: &crate::models::warehouse::Model,
         production_qty: Decimal,
     ) -> Result<Vec<BusinessEvent>, AppError> {
+        let bom = Self::lookup_default_bom(txn, order.product_id).await?;
+
+        if let Some(bom) = bom {
+            let bom_items = Self::lookup_bom_items(txn, bom.id).await?;
+            let stock_map = Self::batch_load_stock_records(txn, &bom_items, default_warehouse).await?;
+            Self::deduct_for_each_bom_item(txn, order, default_warehouse, production_qty, &bom_items, &stock_map).await
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    async fn lookup_default_bom(
+        txn: &sea_orm::DatabaseTransaction,
+        product_id: i32,
+    ) -> Result<Option<crate::models::bom::Model>, AppError> {
+        BomEntity::find()
+            .filter(BomColumn::ProductId.eq(product_id))
+            .filter(BomColumn::IsDefault.eq(true))
+            .filter(BomColumn::Status.eq(crate::models::status::common::STATUS_ACTIVE))
+            .one(txn)
+            .await
+    }
+
+    async fn lookup_bom_items(
+        txn: &sea_orm::DatabaseTransaction,
+        bom_id: i32,
+    ) -> Result<Vec<crate::models::bom_item::Model>, AppError> {
+        BomItemEntity::find()
+            .filter(BomItemColumn::BomId.eq(bom_id))
+            .all(txn)
+            .await
+    }
+
+    async fn batch_load_stock_records(
+        txn: &sea_orm::DatabaseTransaction,
+        bom_items: &[crate::models::bom_item::Model],
+        default_warehouse: &crate::models::warehouse::Model,
+    ) -> Result<std::collections::HashMap<i32, crate::models::inventory_stock::Model>, AppError> {
+        let material_ids: Vec<i32> = bom_items.iter().map(|b| b.material_id).collect();
+
+        if material_ids.is_empty() {
+            Ok(std::collections::HashMap::new())
+        } else {
+            let stocks = InventoryStockEntity::find()
+                .filter(
+                    crate::models::inventory_stock::Column::ProductId.is_in(material_ids),
+                )
+                .filter(
+                    crate::models::inventory_stock::Column::WarehouseId
+                        .eq(default_warehouse.id),
+                )
+                .lock_exclusive()
+                .all(txn)
+                .await?;
+
+            Ok(stocks.into_iter().map(|s| (s.product_id, s)).collect())
+        }
+    }
+
+    async fn deduct_for_each_bom_item(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &ProductionOrderModel,
+        default_warehouse: &crate::models::warehouse::Model,
+        production_qty: Decimal,
+        bom_items: &[crate::models::bom_item::Model],
+        stock_map: &std::collections::HashMap<i32, crate::models::inventory_stock::Model>,
+    ) -> Result<Vec<BusinessEvent>, AppError> {
         use crate::services::inventory_stock_query::RecordTransactionArgs;
         use crate::services::inventory_stock_service::InventoryStockService;
 
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
-        // 查询该产品的默认BOM
-        let bom = BomEntity::find()
-            .filter(BomColumn::ProductId.eq(order.product_id))
-            .filter(BomColumn::IsDefault.eq(true))
-            .filter(BomColumn::Status.eq(crate::models::status::common::STATUS_ACTIVE))
-            .one(txn)
+        for bom_item in bom_items {
+            let consumption_qty = (bom_item.quantity * production_qty).round_dp(4);
+
+            let stock_record = stock_map
+                .get(&bom_item.material_id)
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::business(format!(
+                        "原材料(ID={})在默认仓库中无库存记录，无法扣减",
+                        bom_item.material_id
+                    ))
+                })?;
+
+            let (qty_after_meters, qty_after_kg) = Self::calculate_deduct_qty(
+                bom_item.material_id,
+                stock_record.quantity_meters,
+                stock_record.quantity_kg,
+                consumption_qty,
+            )?;
+
+            InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+                txn,
+                stock_record.id,
+                qty_after_meters,
+                qty_after_kg,
+                stock_record.version,
+            )
             .await?;
 
-        if let Some(bom) = bom {
-            // 查询BOM明细
-            let bom_items = BomItemEntity::find()
-                .filter(BomItemColumn::BomId.eq(bom.id))
-                .all(txn)
-                .await?;
-
-            // v16 批次 43 修复：循环外批量查询并锁定所有原材料在默认仓库的库存记录，
-            // 避免循环内逐个 lock_exclusive 查询（N+1 查询）
-            // 批次 9（2026-06-28）：FOR UPDATE 行锁批量获取，同样防止并发扣减丢失更新
-            let material_ids: Vec<i32> = bom_items.iter().map(|b| b.material_id).collect();
-            let stock_map: std::collections::HashMap<i32, crate::models::inventory_stock::Model> =
-                if material_ids.is_empty() {
-                    std::collections::HashMap::new()
-                } else {
-                    InventoryStockEntity::find()
-                        .filter(
-                            crate::models::inventory_stock::Column::ProductId.is_in(material_ids),
-                        )
-                        .filter(
-                            crate::models::inventory_stock::Column::WarehouseId
-                                .eq(default_warehouse.id),
-                        )
-                        .lock_exclusive()
-                        .all(txn)
-                        .await?
-                        .into_iter()
-                        .map(|s| (s.product_id, s))
-                        .collect()
-                };
-
-            for bom_item in bom_items {
-                // 批次 97 P1-10 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移
-                let consumption_qty = (bom_item.quantity * production_qty).round_dp(4);
-
-                // v16 批次 43 修复：从批量查询结果获取库存记录（O(1) 查找）
-                let stock_record = stock_map
-                    .get(&bom_item.material_id)
-                    .cloned()
-                    .ok_or_else(|| {
-                        AppError::business(format!(
-                            "原材料(ID={})在默认仓库中无库存记录，无法扣减",
-                            bom_item.material_id
-                        ))
-                    })?;
-
-                let qty_before_meters = stock_record.quantity_meters;
-                let qty_before_kg = stock_record.quantity_kg;
-
-                // 检查库存是否充足
-                if qty_before_meters < consumption_qty {
-                    return Err(AppError::business(format!(
-                        "原材料(ID={})库存不足，需要 {}，当前库存 {}",
-                        bom_item.material_id, consumption_qty, qty_before_meters
-                    )));
-                }
-
-                let qty_after_meters = qty_before_meters - consumption_qty;
-
-                // 按比例计算公斤数扣减
-                let qty_after_kg = if qty_before_meters > Decimal::ZERO {
-                    qty_before_kg - (qty_before_kg * consumption_qty / qty_before_meters)
-                } else {
-                    qty_before_kg
-                };
-
-                // 更新库存数量（带乐观锁）
-                InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
-                    txn,
-                    stock_record.id,
-                    qty_after_meters,
-                    qty_after_kg,
-                    stock_record.version,
-                )
-                .await?;
-
-                // 记录库存流水：生产消耗
-                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
-                // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
-                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
-                let (_, txn_event) = InventoryStockService::record_transaction_txn(
-                    txn,
-                    RecordTransactionArgs {
-                        transaction_type: "PRODUCTION_CONSUMPTION".to_string(),
-                        product_id: bom_item.material_id,
-                        warehouse_id: default_warehouse.id,
-                        batch_no: stock_record.batch_no.clone(),
-                        color_no: stock_record.color_no.clone(),
-                        dye_lot_no: stock_record.dye_lot_no.clone(),
-                        grade: stock_record.grade.clone(),
-                        quantity_meters: consumption_qty,
-                        quantity_kg: Decimal::ZERO,
-                        source_bill_type: Some("production_order".to_string()),
-                        source_bill_no: Some(order.order_no.clone()),
-                        source_bill_id: Some(order.id),
-                        quantity_before_meters: Some(qty_before_meters),
-                        quantity_before_kg: Some(qty_before_kg),
-                        quantity_after_meters: Some(qty_after_meters),
-                        quantity_after_kg: Some(qty_after_kg),
-                        notes: Some(format!("生产消耗 - 订单 {}", order.order_no)),
-                        created_by: Some(order.created_by),
-                    },
-                )
-                .await?;
-                if let Some(ev) = txn_event {
-                    pending_events.push(ev);
-                }
+            if let Some(ev) = Self::record_production_consumption(
+                txn,
+                bom_item.material_id,
+                default_warehouse.id,
+                &stock_record,
+                consumption_qty,
+                qty_after_meters,
+                qty_after_kg,
+                order,
+            ).await? {
+                pending_events.push(ev);
             }
         }
 
         Ok(pending_events)
+    }
+
+    fn calculate_deduct_qty(
+        material_id: i32,
+        qty_before_meters: Decimal,
+        qty_before_kg: Decimal,
+        consumption_qty: Decimal,
+    ) -> Result<(Decimal, Decimal), AppError> {
+        if qty_before_meters < consumption_qty {
+            return Err(AppError::business(format!(
+                "原材料(ID={})库存不足，需要 {}，当前库存 {}",
+                material_id, consumption_qty, qty_before_meters
+            )));
+        }
+
+        let qty_after_meters = qty_before_meters - consumption_qty;
+
+        let qty_after_kg = if qty_before_meters > Decimal::ZERO {
+            qty_before_kg - (qty_before_kg * consumption_qty / qty_before_meters)
+        } else {
+            qty_before_kg
+        };
+
+        Ok((qty_after_meters, qty_after_kg))
+    }
+
+    async fn record_production_consumption(
+        txn: &sea_orm::DatabaseTransaction,
+        material_id: i32,
+        warehouse_id: i32,
+        stock_record: &crate::models::inventory_stock::Model,
+        consumption_qty: Decimal,
+        qty_after_meters: Decimal,
+        qty_after_kg: Decimal,
+        order: &ProductionOrderModel,
+    ) -> Result<Option<BusinessEvent>, AppError> {
+        use crate::services::inventory_stock_query::RecordTransactionArgs;
+        use crate::services::inventory_stock_service::InventoryStockService;
+
+        let (_, txn_event) = InventoryStockService::record_transaction_txn(
+            txn,
+            RecordTransactionArgs {
+                transaction_type: "PRODUCTION_CONSUMPTION".to_string(),
+                product_id: material_id,
+                warehouse_id,
+                batch_no: stock_record.batch_no.clone(),
+                color_no: stock_record.color_no.clone(),
+                dye_lot_no: stock_record.dye_lot_no.clone(),
+                grade: stock_record.grade.clone(),
+                quantity_meters: consumption_qty,
+                quantity_kg: Decimal::ZERO,
+                source_bill_type: Some("production_order".to_string()),
+                source_bill_no: Some(order.order_no.clone()),
+                source_bill_id: Some(order.id),
+                quantity_before_meters: Some(stock_record.quantity_meters),
+                quantity_before_kg: Some(stock_record.quantity_kg),
+                quantity_after_meters: Some(qty_after_meters),
+                quantity_after_kg: Some(qty_after_kg),
+                notes: Some(format!("生产消耗 - 订单 {}", order.order_no)),
+                created_by: Some(order.created_by),
+            },
+        )
+        .await?;
+
+        Ok(txn_event)
     }
 
     /// P2 1-4 修复：增加成品库存（从 handle_production_completion_inventory_txn 抽取）

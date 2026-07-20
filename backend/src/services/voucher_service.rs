@@ -1034,129 +1034,213 @@ impl VoucherService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        use crate::models::assist_accounting_record;
+        let voucher_model = self.lookup_voucher(txn, voucher_id).await?;
+        let items = self.lookup_voucher_items(txn, voucher_id).await?;
+        let subject_id_by_code = self.build_subject_id_map(txn, &items).await?;
 
-        // 获取凭证主表（含 source_module/source_bill_no/批次/色号等）
-        let voucher_model = voucher::Entity::find_by_id(voucher_id)
-            .one(txn)
-            .await?
-            .ok_or_else(|| AppError::not_found("凭证不存在"))?;
-
-        // 获取凭证分录
-        let items = voucher_item::Entity::find()
-            .filter(voucher_item::Column::VoucherId.eq(voucher_id))
-            .all(txn)
-            .await?;
-
-        // 批量查询科目，构建 code→id 映射（复用 update_account_balances 的批量模式）
-        let subject_codes: Vec<String> =
-            items.iter().map(|i| i.subject_code.clone()).collect();
-        let subjects = if subject_codes.is_empty() {
-            Vec::new()
-        } else {
-            account_subject::Entity::find()
-                .filter(account_subject::Column::Code.is_in(subject_codes))
-                .all(txn)
-                .await?
-        };
-        let subject_id_by_code: std::collections::HashMap<&str, i32> =
-            subjects.iter().map(|s| (s.code.as_str(), s.id)).collect();
-
-        // 业务类型：优先 source_module，其次 source_type，兜底 "VOUCHER"
-        let business_type = voucher_model
-            .source_module
-            .clone()
-            .or(voucher_model.source_type.clone())
-            .unwrap_or_else(|| "VOUCHER".to_string());
-        // 业务单号：优先 source_bill_no，其次 voucher_no
-        let business_no = voucher_model
-            .source_bill_no
-            .clone()
-            .unwrap_or_else(|| voucher_model.voucher_no.clone());
-        // 业务单 ID：优先 source_bill_id，其次 voucher_id
+        let business_type = self.determine_business_type(&voucher_model);
+        let business_no = self.determine_business_no(&voucher_model);
         let business_id = voucher_model.source_bill_id.unwrap_or(voucher_id);
 
-        let now = chrono::Utc::now();
-
-        for item in &items {
-            // 仅对包含任意辅助核算维度的分录生成记录，避免空记录污染
-            let has_assist = item.assist_customer_id.is_some()
-                || item.assist_supplier_id.is_some()
-                || item.assist_batch_id.is_some()
-                || item.assist_color_no_id.is_some()
-                || item.assist_dye_lot_id.is_some()
-                || item.assist_grade.is_some()
-                || item.assist_workshop_id.is_some()
-                || item.assist_department_id.is_some()
-                || item.assist_employee_id.is_some()
-                || item.assist_project_id.is_some();
-            if !has_assist {
-                continue;
-            }
-
-            let account_subject_id = *subject_id_by_code
-                .get(item.subject_code.as_str())
-                .ok_or_else(|| {
-                    AppError::not_found(format!("科目不存在：{}", item.subject_code))
-                })?;
-
-            // 构造五维 ID（复合键，便于按维度反查）
-            let five_dimension_id = format!(
-                "BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}",
-                item.assist_batch_id.unwrap_or(0),
-                item.assist_color_no_id.unwrap_or(0),
-                item.assist_dye_lot_id.unwrap_or(0),
-                item.assist_grade.clone().unwrap_or_default(),
-                item.assist_workshop_id.unwrap_or(0),
-            );
-
-            // F-P1-3 已知 Schema 缺口：voucher_item 无 product_id/warehouse_id 字段，
-            // 暂用 0 占位，待后续 Schema 补字段后修正。
-            let record = assist_accounting_record::ActiveModel {
-                business_type: sea_orm::Set(business_type.clone()),
-                business_no: sea_orm::Set(business_no.clone()),
-                business_id: sea_orm::Set(business_id),
-                account_subject_id: sea_orm::Set(account_subject_id),
-                debit_amount: sea_orm::Set(item.debit),
-                credit_amount: sea_orm::Set(item.credit),
-                five_dimension_id: sea_orm::Set(five_dimension_id),
-                // TODO(F-P1-3): voucher_item 缺 product_id，待 Schema 补字段后修正
-                product_id: sea_orm::Set(0),
-                // v14 批次 418 修复 G-P0-2：原 unwrap_or_default() 会静默将 None 替换为空字符串，
-                // 导致辅助核算记录无法区分"未指定"和"空字符串"。改为显式记录 warn 日志便于排查。
-                batch_no: sea_orm::Set(voucher_model.batch_no.clone().unwrap_or_else(|| {
-                    tracing::warn!(
-                        "凭证 {} 的 batch_no 为 None，辅助核算记录使用空字符串占位",
-                        voucher_id
-                    );
-                    String::new()
-                })),
-                color_no: sea_orm::Set(voucher_model.color_no.clone().unwrap_or_else(|| {
-                    tracing::warn!(
-                        "凭证 {} 的 color_no 为 None，辅助核算记录使用空字符串占位",
-                        voucher_id
-                    );
-                    String::new()
-                })),
-                dye_lot_no: sea_orm::Set(voucher_model.dye_lot_no.clone()),
-                grade: sea_orm::Set(item.assist_grade.clone().unwrap_or_default()),
-                workshop_id: sea_orm::Set(item.assist_workshop_id),
-                // TODO(F-P1-3): voucher_item 缺 warehouse_id，待 Schema 补字段后修正
-                warehouse_id: sea_orm::Set(0),
-                customer_id: sea_orm::Set(item.assist_customer_id),
-                supplier_id: sea_orm::Set(item.assist_supplier_id),
-                quantity_meters: sea_orm::Set(item.quantity_meters.unwrap_or(Decimal::ZERO)),
-                quantity_kg: sea_orm::Set(item.quantity_kg.unwrap_or(Decimal::ZERO)),
-                remarks: sea_orm::Set(Some(format!("voucher_id={}", voucher_id))),
-                created_at: sea_orm::Set(now),
-                created_by: sea_orm::Set(Some(user_id)),
-                ..Default::default()
-            };
-            record.insert(txn).await?;
-        }
+        self.insert_assist_records_for_items(
+            txn,
+            voucher_id,
+            user_id,
+            &items,
+            &subject_id_by_code,
+            &business_type,
+            &business_no,
+            business_id,
+            &voucher_model,
+        ).await?;
 
         info!("辅助核算记录写入成功 voucher_id={}", voucher_id);
         Ok(())
+    }
+
+    async fn lookup_voucher(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        voucher_id: i32,
+    ) -> Result<crate::models::voucher::Model, AppError> {
+        voucher::Entity::find_by_id(voucher_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("凭证不存在"))
+    }
+
+    async fn lookup_voucher_items(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        voucher_id: i32,
+    ) -> Result<Vec<crate::models::voucher_item::Model>, AppError> {
+        voucher_item::Entity::find()
+            .filter(voucher_item::Column::VoucherId.eq(voucher_id))
+            .all(txn)
+            .await
+    }
+
+    async fn build_subject_id_map(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[crate::models::voucher_item::Model],
+    ) -> Result<std::collections::HashMap<&str, i32>, AppError> {
+        let subject_codes: Vec<String> = items.iter().map(|i| i.subject_code.clone()).collect();
+
+        if subject_codes.is_empty() {
+            Ok(std::collections::HashMap::new())
+        } else {
+            let subjects = account_subject::Entity::find()
+                .filter(account_subject::Column::Code.is_in(subject_codes))
+                .all(txn)
+                .await?;
+            Ok(subjects.iter().map(|s| (s.code.as_str(), s.id)).collect())
+        }
+    }
+
+    fn determine_business_type(&self, voucher_model: &crate::models::voucher::Model) -> String {
+        voucher_model
+            .source_module
+            .clone()
+            .or(voucher_model.source_type.clone())
+            .unwrap_or_else(|| "VOUCHER".to_string())
+    }
+
+    fn determine_business_no(&self, voucher_model: &crate::models::voucher::Model) -> String {
+        voucher_model
+            .source_bill_no
+            .clone()
+            .unwrap_or_else(|| voucher_model.voucher_no.clone())
+    }
+
+    async fn insert_assist_records_for_items(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        voucher_id: i32,
+        user_id: i32,
+        items: &[crate::models::voucher_item::Model],
+        subject_id_by_code: &std::collections::HashMap<&str, i32>,
+        business_type: &str,
+        business_no: &str,
+        business_id: i32,
+        voucher_model: &crate::models::voucher::Model,
+    ) -> Result<(), AppError> {
+        use crate::models::assist_accounting_record;
+
+        let now = chrono::Utc::now();
+
+        for item in items {
+            if !self.has_assist_dimensions(item) {
+                continue;
+            }
+
+            let account_subject_id = self.lookup_subject_id(subject_id_by_code, item).await?;
+            let five_dimension_id = self.build_five_dimension_id(item);
+
+            let record = self.build_assist_record(
+                item,
+                account_subject_id,
+                five_dimension_id,
+                business_type,
+                business_no,
+                business_id,
+                voucher_id,
+                voucher_model,
+                user_id,
+                now,
+            );
+
+            record.insert(txn).await?;
+        }
+
+        Ok(())
+    }
+
+    fn has_assist_dimensions(&self, item: &crate::models::voucher_item::Model) -> bool {
+        item.assist_customer_id.is_some()
+            || item.assist_supplier_id.is_some()
+            || item.assist_batch_id.is_some()
+            || item.assist_color_no_id.is_some()
+            || item.assist_dye_lot_id.is_some()
+            || item.assist_grade.is_some()
+            || item.assist_workshop_id.is_some()
+            || item.assist_department_id.is_some()
+            || item.assist_employee_id.is_some()
+            || item.assist_project_id.is_some()
+    }
+
+    async fn lookup_subject_id(
+        &self,
+        subject_id_by_code: &std::collections::HashMap<&str, i32>,
+        item: &crate::models::voucher_item::Model,
+    ) -> Result<i32, AppError> {
+        *subject_id_by_code
+            .get(item.subject_code.as_str())
+            .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", item.subject_code)))
+    }
+
+    fn build_five_dimension_id(&self, item: &crate::models::voucher_item::Model) -> String {
+        format!(
+            "BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}",
+            item.assist_batch_id.unwrap_or(0),
+            item.assist_color_no_id.unwrap_or(0),
+            item.assist_dye_lot_id.unwrap_or(0),
+            item.assist_grade.clone().unwrap_or_default(),
+            item.assist_workshop_id.unwrap_or(0),
+        )
+    }
+
+    fn build_assist_record(
+        &self,
+        item: &crate::models::voucher_item::Model,
+        account_subject_id: i32,
+        five_dimension_id: String,
+        business_type: &str,
+        business_no: &str,
+        business_id: i32,
+        voucher_id: i32,
+        voucher_model: &crate::models::voucher::Model,
+        user_id: i32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> crate::models::assist_accounting_record::ActiveModel {
+        use crate::models::assist_accounting_record;
+
+        assist_accounting_record::ActiveModel {
+            business_type: sea_orm::Set(business_type.to_string()),
+            business_no: sea_orm::Set(business_no.to_string()),
+            business_id: sea_orm::Set(business_id),
+            account_subject_id: sea_orm::Set(account_subject_id),
+            debit_amount: sea_orm::Set(item.debit),
+            credit_amount: sea_orm::Set(item.credit),
+            five_dimension_id: sea_orm::Set(five_dimension_id),
+            product_id: sea_orm::Set(0),
+            batch_no: sea_orm::Set(voucher_model.batch_no.clone().unwrap_or_else(|| {
+                tracing::warn!(
+                    "凭证 {} 的 batch_no 为 None，辅助核算记录使用空字符串占位",
+                    voucher_id
+                );
+                String::new()
+            })),
+            color_no: sea_orm::Set(voucher_model.color_no.clone().unwrap_or_else(|| {
+                tracing::warn!(
+                    "凭证 {} 的 color_no 为 None，辅助核算记录使用空字符串占位",
+                    voucher_id
+                );
+                String::new()
+            })),
+            dye_lot_no: sea_orm::Set(voucher_model.dye_lot_no.clone()),
+            grade: sea_orm::Set(item.assist_grade.clone().unwrap_or_default()),
+            workshop_id: sea_orm::Set(item.assist_workshop_id),
+            warehouse_id: sea_orm::Set(0),
+            customer_id: sea_orm::Set(item.assist_customer_id),
+            supplier_id: sea_orm::Set(item.assist_supplier_id),
+            quantity_meters: sea_orm::Set(item.quantity_meters.unwrap_or(Decimal::ZERO)),
+            quantity_kg: sea_orm::Set(item.quantity_kg.unwrap_or(Decimal::ZERO)),
+            remarks: sea_orm::Set(Some(format!("voucher_id={}", voucher_id))),
+            created_at: sea_orm::Set(now),
+            created_by: sea_orm::Set(Some(user_id)),
+            ..Default::default()
+        }
     }
 
     /// 生成凭证编号

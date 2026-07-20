@@ -90,46 +90,71 @@ impl SalesService {
         order_id: i32,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
-        // 批次 12（2026-06-28）：事务包裹"查询 + 状态检查 + update_with_audit"，
-        // 加 lock_exclusive 防止并发提交同一订单导致状态不一致；
-        // update_with_audit 内部 2 次写入（实体 update + 审计 insert）非原子，事务包裹保证原子性。
         let txn = (*self.db).begin().await?;
 
-        let order = SalesOrderEntity::find_by_id(order_id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
+        let order = self.lookup_order_for_submit(&txn, order_id).await?;
+        self.validate_order_status(&order)?;
 
+        let total_amount_decimal = order.total_amount.to_string().parse::<rust_decimal::Decimal>().unwrap_or_else(|_| rust_decimal::Decimal::from(0));
+        self.validate_customer_credit(&txn, order.customer_id, total_amount_decimal).await?;
+        self.validate_customer_active(&txn, order.customer_id).await?;
+
+        let order = self.update_order_to_pending(&txn, order, user_id).await?;
+        txn.commit().await?;
+
+        self.start_bpm_process(order_id, user_id, &order.order_no).await?;
+        self.publish_submitted_event(order_id, order.customer_id, user_id);
+
+        Ok(order)
+    }
+
+    async fn lookup_order_for_submit(
+        &self,
+        txn: &Transaction,
+        order_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
+        SalesOrderEntity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))
+    }
+
+    fn validate_order_status(&self, order: &sales_order::Model) -> Result<(), AppError> {
         if order.status != so_status::DRAFT {
             return Err(AppError::business(format!(
                 "订单状态为 {}，无法提交",
                 order.status
             )));
         }
+        Ok(())
+    }
 
-        // 客户信用度复检（P2 3-20 修复：改用 _txn 变体在事务内查询，避免 TOCTOU）
+    async fn validate_customer_credit(
+        &self,
+        txn: &Transaction,
+        customer_id: i32,
+        total_amount: rust_decimal::Decimal,
+    ) -> Result<(), AppError> {
         let credit_service =
             crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
-        let total_amount_decimal = {
-            use rust_decimal::Decimal;
-            order
-                .total_amount
-                .to_string()
-                .parse::<rust_decimal::Decimal>()
-                .unwrap_or_else(|_| Decimal::from(0))
-        };
         let credit_available = credit_service
-            .check_credit_available_txn(&txn, order.customer_id, total_amount_decimal)
+            .check_credit_available_txn(txn, customer_id, total_amount)
             .await
             .map_err(|e| AppError::business(format!("信用检查失败: {}", e)))?;
         if !credit_available {
             return Err(AppError::business("信用额度不足，无法提交订单"));
         }
+        Ok(())
+    }
 
-        // 客户状态校验（事务内，保证校验与提交一致）
-        let customer = crate::models::customer::Entity::find_by_id(order.customer_id)
-            .one(&txn)
+    async fn validate_customer_active(
+        &self,
+        txn: &Transaction,
+        customer_id: i32,
+    ) -> Result<(), AppError> {
+        let customer = crate::models::customer::Entity::find_by_id(customer_id)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("客户不存在"))?;
         if customer.status != master_data::ACTIVE {
@@ -138,36 +163,41 @@ impl SalesService {
                 customer.status
             )));
         }
+        Ok(())
+    }
 
+    async fn update_order_to_pending(
+        &self,
+        txn: &Transaction,
+        order: sales_order::Model,
+        user_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = sea_orm::ActiveValue::Set(so_status::PENDING.to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
-        // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
-        // 原 Some(0) 硬编码导致审计日志无法追溯提交人。
-        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
             "auto_audit",
             order_update,
             Some(user_id),
         )
-        .await?;
+        .await
+    }
 
-        txn.commit().await?;
-
-        // P1 3-11 修复（批次 62）：BPM 启动失败时补偿回滚订单状态
-        // 原实现 BPM 启动在 commit 后，失败仅 warn 不阻断，导致订单已提交但无审批流，
-        // 业务流断点（订单卡在 pending 状态无人审批）。
-        // 修复：BPM 启动失败时将订单状态补偿回滚为 draft 并返回错误，用户可重新提交。
-        // BpmService::start_process 内部独立事务（不支持外部 txn），无法与订单状态更新共用事务，
-        // 故采用补偿机制：commit 成功后调用 BPM，BPM 失败则开启新事务回滚订单状态。
+    async fn start_bpm_process(
+        &self,
+        order_id: i32,
+        user_id: i32,
+        order_no: &str,
+    ) -> Result<(), AppError> {
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         if let Err(e) = bpm_service
             .start_process(crate::models::dto::bpm_dto::StartProcessRequest {
                 process_key: "sales_order_approval".to_string(),
                 business_type: "sales_order".to_string(),
                 business_id: order_id,
-                title: format!("销售订单审批 - {}", order.order_no),
+                title: format!("销售订单审批 - {}", order_no),
                 initiator_id: user_id,
                 initiator_name: String::new(),
                 initiator_department_id: None,
@@ -177,47 +207,51 @@ impl SalesService {
             })
             .await
         {
-            tracing::error!(
-                error = %e,
-                order_id = order_id,
-                "BPM 启动销售订单审批流程失败，开始补偿回滚订单状态"
-            );
-            // 补偿：开启新事务回滚订单状态为 draft，使用户可重新提交
-            let compensating_txn = (*self.db).begin().await?;
-            let order_for_rollback = SalesOrderEntity::find_by_id(order_id)
-                .lock_exclusive()
-                .one(&compensating_txn)
-                .await?
-                .ok_or_else(|| {
-                    AppError::not_found(format!("补偿回滚时销售订单 {} 不存在", order_id))
-                })?;
-            let mut rollback_model: sales_order::ActiveModel = order_for_rollback.into();
-            rollback_model.status = sea_orm::ActiveValue::Set(so_status::DRAFT.to_string());
-            rollback_model.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &compensating_txn,
-                "auto_audit",
-                rollback_model,
-                Some(user_id),
-            )
-            .await?;
-            compensating_txn.commit().await?;
+            self.rollback_order_to_draft(order_id, user_id).await?;
             return Err(AppError::business(format!(
                 "BPM 审批流程启动失败，订单已回滚为草稿状态，请重新提交：{}",
                 e
             )));
         }
+        Ok(())
+    }
 
-        // B-P1-4 修复（批次 361 v13 复审）：BPM 启动成功后发布 SalesOrderSubmitted 事件
-        // 放在 BPM 成功后而非 commit 后，避免 BPM 失败补偿回滚时已发布事件造成幻事件。
+    async fn rollback_order_to_draft(&self, order_id: i32, user_id: i32) -> Result<(), AppError> {
+        tracing::error!(
+            order_id = order_id,
+            "BPM 启动销售订单审批流程失败，开始补偿回滚订单状态"
+        );
+
+        let compensating_txn = (*self.db).begin().await?;
+        let order_for_rollback = SalesOrderEntity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(&compensating_txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("补偿回滚时销售订单 {} 不存在", order_id))
+            })?;
+        let mut rollback_model: sales_order::ActiveModel = order_for_rollback.into();
+        rollback_model.status = sea_orm::ActiveValue::Set(so_status::DRAFT.to_string());
+        rollback_model.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &compensating_txn,
+            "auto_audit",
+            rollback_model,
+            Some(user_id),
+        )
+        .await?;
+        compensating_txn.commit().await?;
+
+        Ok(())
+    }
+
+    fn publish_submitted_event(&self, order_id: i32, customer_id: i32, user_id: i32) {
         crate::services::event_bus::EVENT_BUS
             .publish(crate::services::event_bus::BusinessEvent::SalesOrderSubmitted {
                 order_id,
-                customer_id: order.customer_id,
+                customer_id,
                 user_id,
             });
-
-        Ok(order)
     }
 
     /// 审核订单：通过或拒绝

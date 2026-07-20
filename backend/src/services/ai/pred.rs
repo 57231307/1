@@ -32,7 +32,40 @@ impl AiAnalysisService {
         product_id: i32,
         days: i64,
     ) -> Result<Vec<SalesForecast>, AppError> {
-        // 获取该产品最近 180 天的每日销售数据
+        let daily_sales = self.fetch_and_aggregate_daily_sales(product_id).await?;
+
+        if daily_sales.len() < 7 {
+            return self.fallback_forecast(product_id, days).await;
+        }
+
+        let (sorted_dates, values) = self.build_time_series(&daily_sales);
+        let n = values.len();
+
+        let wma = Self::calculate_wma(&values, n);
+        let (level, trend, residual_std) = Self::calculate_holt_forecast(&values, n);
+        let trend_direction = Self::determine_trend_direction(&values, n);
+        let seasonal_factors = self.build_seasonal_factors(&sorted_dates, &values);
+
+        let forecasts = Self::generate_forecast_results(
+            product_id,
+            days,
+            level,
+            trend,
+            wma,
+            residual_std,
+            trend_direction,
+            &seasonal_factors,
+            &values,
+            n,
+        );
+
+        Ok(forecasts)
+    }
+
+    async fn fetch_and_aggregate_daily_sales(
+        &self,
+        product_id: i32,
+    ) -> Result<HashMap<NaiveDate, f64>, AppError> {
         let start_date = Utc::now().date_naive() - Duration::days(180);
 
         let items = SalesOrderItemEntity::find()
@@ -49,7 +82,6 @@ impl AiAnalysisService {
             .all(&*self.db)
             .await?;
 
-        // 按日期聚合每日销量
         let mut daily_sales: HashMap<NaiveDate, f64> = HashMap::new();
         for item in &items {
             let date = item.created_at.date_naive();
@@ -57,19 +89,20 @@ impl AiAnalysisService {
             *daily_sales.entry(date).or_insert(0.0) += qty;
         }
 
-        // 如果数据不足，返回基于全局订单的粗略预测
-        if daily_sales.len() < 7 {
-            return self.fallback_forecast(product_id, days).await;
-        }
+        Ok(daily_sales)
+    }
 
-        // 构建有序时间序列
+    fn build_time_series(
+        &self,
+        daily_sales: &HashMap<NaiveDate, f64>,
+    ) -> (Vec<NaiveDate>, Vec<f64>) {
         let mut sorted_dates: Vec<NaiveDate> = daily_sales.keys().cloned().collect();
         sorted_dates.sort();
-
         let values: Vec<f64> = sorted_dates.iter().map(|d| daily_sales[d]).collect();
-        let n = values.len();
+        (sorted_dates, values)
+    }
 
-        // --- 移动平均 (7日加权移动平均) ---
+    fn calculate_wma(values: &[f64], n: usize) -> f64 {
         let window = 7.min(n);
         let mut wma_sum = 0.0;
         let mut wma_weight_sum = 0.0;
@@ -78,11 +111,12 @@ impl AiAnalysisService {
             wma_sum += values[n - window + i] * weight;
             wma_weight_sum += weight;
         }
-        let wma = wma_sum / wma_weight_sum;
+        wma_sum / wma_weight_sum
+    }
 
-        // --- 指数平滑 (Holt 线性趋势) ---
-        let alpha = 0.3; // 水平平滑因子
-        let beta = 0.1; // 趋势平滑因子
+    fn calculate_holt_forecast(values: &[f64], n: usize) -> (f64, f64, f64) {
+        let alpha = 0.3;
+        let beta = 0.1;
 
         let mut level = values[0];
         let mut trend = if n > 1 { values[1] - values[0] } else { 0.0 };
@@ -93,7 +127,6 @@ impl AiAnalysisService {
             trend = beta * (level - prev_level) + (1.0 - beta) * trend;
         }
 
-        // 计算拟合残差的标准差，用于置信度
         let mut residuals = Vec::new();
         let mut fit_level = values[0];
         let mut fit_trend = if n > 1 { values[1] - values[0] } else { 0.0 };
@@ -108,46 +141,56 @@ impl AiAnalysisService {
         }
         let residual_std = std_deviation(&residuals);
 
-        // 计算趋势方向
+        (level, trend, residual_std)
+    }
+
+    fn determine_trend_direction(values: &[f64], n: usize) -> &'static str {
         let recent_avg = mean(&values[n.saturating_sub(14)..]);
         let earlier_avg = if n > 14 {
             mean(&values[..n - 14])
         } else {
             mean(&values[..n / 2])
         };
-        let trend_direction = if recent_avg > earlier_avg * 1.1 {
+
+        if recent_avg > earlier_avg * 1.1 {
             "UP"
         } else if recent_avg < earlier_avg * 0.9 {
             "DOWN"
         } else {
             "STABLE"
+        }
+    }
+
+    fn generate_forecast_results(
+        product_id: i32,
+        days: i64,
+        level: f64,
+        trend: f64,
+        wma: f64,
+        residual_std: f64,
+        trend_direction: &str,
+        seasonal_factors: &HashMap<usize, f64>,
+        values: &[f64],
+        n: usize,
+    ) -> Vec<SalesForecast> {
+        let today = Utc::now().date_naive();
+        let recent_avg = mean(&values[n.saturating_sub(14)..]);
+        let base_confidence = if residual_std > 0.0 {
+            (1.0 - (residual_std / (recent_avg.max(1.0)))).clamp(0.3, 0.95)
+        } else {
+            0.85
         };
 
-        // 季节性因子
-        let seasonal_factors = self.build_seasonal_factors(&sorted_dates, &values);
-
-        // 生成预测
-        let today = Utc::now().date_naive();
         let mut forecasts = Vec::new();
-
         for i in 1..=days {
             let forecast_date = today + Duration::days(i);
             let month = forecast_date.month() as usize;
 
-            // 组合预测: 60% 指数平滑 + 40% 加权移动平均
             let holt_pred = level + trend * (i as f64);
             let combined = 0.6 * holt_pred + 0.4 * wma;
-
-            // 应用季节性因子
             let seasonal = seasonal_factors.get(&month).copied().unwrap_or(1.0);
             let predicted = (combined * seasonal).max(0.0);
 
-            // 置信度随预测距离衰减
-            let base_confidence = if residual_std > 0.0 {
-                (1.0 - (residual_std / (recent_avg.max(1.0)))).clamp(0.3, 0.95)
-            } else {
-                0.85
-            };
             let confidence = (base_confidence * (0.99_f64).powi(i as i32 - 1)).clamp(0.3, 0.95);
 
             forecasts.push(SalesForecast {
@@ -159,7 +202,7 @@ impl AiAnalysisService {
             });
         }
 
-        Ok(forecasts)
+        forecasts
     }
 
     /// 数据不足时的降级预测
