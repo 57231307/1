@@ -413,43 +413,24 @@ impl ApReconciliationService {
         use crate::models::supplier;
 
         // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
-        let suppliers = supplier::Entity::find()
-            .limit(10_000)
-            .all(&*self.db)
-            .await?;
+        let suppliers = Self::fetch_all_suppliers(&*self.db).await?;
         let supplier_ids: Vec<i32> = suppliers.iter().map(|s| s.id).collect();
 
         // v12 批次 39 修复：批量预加载所有供应商的发票数和付款数，避免 for_each_concurrent 内逐个 count（N+1，2N 次查询）
-        let invoice_counts = if supplier_ids.is_empty() {
-            std::collections::HashMap::<i32, usize>::new()
-        } else {
-            ap_invoice::Entity::find()
-                .filter(ap_invoice::Column::SupplierId.is_in(supplier_ids.clone()))
-                .filter(ap_invoice::Column::InvoiceDate.gte(start_date))
-                .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
-                .all(&*self.db)
-                .await?
-                .into_iter()
-                .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, inv| {
-                    *acc.entry(inv.supplier_id).or_default() += 1;
-                    acc
-                })
-        };
-        let payment_counts = if supplier_ids.is_empty() {
-            std::collections::HashMap::<i32, usize>::new()
-        } else {
-            ap_payment::Entity::find()
-                .filter(ap_payment::Column::SupplierId.is_in(supplier_ids))
-                .filter(ap_payment::Column::PaymentDate.gte(start_date))
-                .filter(ap_payment::Column::PaymentDate.lte(end_date))
-                .all(&*self.db)
-                .await?
-                .into_iter()
-                .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, pay| {
-                    *acc.entry(pay.supplier_id).or_default() += 1;
-                    acc
-                })
-        };
+        let invoice_counts = Self::fetch_invoice_counts_by_supplier(
+            &*self.db,
+            &supplier_ids,
+            start_date,
+            end_date,
+        )
+        .await?;
+        let payment_counts = Self::fetch_payment_counts_by_supplier(
+            &*self.db,
+            &supplier_ids,
+            start_date,
+            end_date,
+        )
+        .await?;
 
         let results = Arc::new(Mutex::new(Vec::new()));
 
@@ -461,56 +442,16 @@ impl ApReconciliationService {
                 let invoice_counts = invoice_counts.clone();
                 let payment_counts = payment_counts.clone();
                 async move {
-                    let service = ApReconciliationService::new(db.clone());
-                    let req = GenerateReconciliationRequest {
-                        supplier_id: sup.id,
+                    let result = Self::process_supplier_reconciliation(
+                        db,
+                        sup,
+                        user_id,
                         start_date,
                         end_date,
-                        notes: Some(format!(
-                            "Auto-generated reconciliation for {}",
-                            sup.supplier_name
-                        )),
-                    };
-
-                    let result = match service.generate_reconciliation(req, user_id).await {
-                        Ok(rec) => {
-                            // v12 批次 39 修复：从预加载的计数 map 中取，避免循环内逐个 count（N+1）
-                            let invoice_count = invoice_counts.get(&sup.id).copied().unwrap_or(0);
-                            let payment_count = payment_counts.get(&sup.id).copied().unwrap_or(0);
-
-                            AutoReconciliationResult {
-                                reconciliation_id: rec.id,
-                                reconciliation_no: rec.reconciliation_no,
-                                supplier_id: sup.id,
-                                start_date,
-                                end_date,
-                                opening_balance: rec.opening_balance,
-                                total_invoice: rec.total_invoice,
-                                total_payment: rec.total_payment,
-                                closing_balance: rec.closing_balance,
-                                invoice_count,
-                                payment_count,
-                                status: rec.reconciliation_status,
-                                message: "Auto reconciliation successful".to_string(),
-                            }
-                        }
-                        Err(e) => AutoReconciliationResult {
-                            reconciliation_id: 0,
-                            reconciliation_no: String::new(),
-                            supplier_id: sup.id,
-                            start_date,
-                            end_date,
-                            opening_balance: Decimal::ZERO,
-                            total_invoice: Decimal::ZERO,
-                            total_payment: Decimal::ZERO,
-                            closing_balance: Decimal::ZERO,
-                            invoice_count: 0,
-                            payment_count: 0,
-                            status: "FAILED".to_string(),
-                            message: format!("Failed: {}", e),
-                        },
-                    };
-
+                        invoice_counts,
+                        payment_counts,
+                    )
+                    .await;
                     let mut results_guard = results.lock().await;
                     results_guard.push(result);
                 }
@@ -522,6 +463,154 @@ impl ApReconciliationService {
         // 改为 lock().await.clone() 模式，安全且无 panic 风险（auto_reconcile 是低频批处理，clone 成本可接受）。
         let results = results.lock().await.clone();
         Ok(results)
+    }
+
+    async fn fetch_all_suppliers(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<crate::models::supplier::Model>, AppError> {
+        use crate::models::supplier;
+        // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
+        supplier::Entity::find().limit(10_000).all(db).await
+    }
+
+    async fn fetch_invoice_counts_by_supplier(
+        db: &DatabaseConnection,
+        supplier_ids: &[i32],
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Result<std::collections::HashMap<i32, usize>, AppError> {
+        if supplier_ids.is_empty() {
+            return Ok(std::collections::HashMap::<i32, usize>::new());
+        }
+        Ok(ap_invoice::Entity::find()
+            .filter(ap_invoice::Column::SupplierId.is_in(supplier_ids.to_vec()))
+            .filter(ap_invoice::Column::InvoiceDate.gte(start_date))
+            .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
+            .all(db)
+            .await?
+            .into_iter()
+            .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, inv| {
+                *acc.entry(inv.supplier_id).or_default() += 1;
+                acc
+            }))
+    }
+
+    async fn fetch_payment_counts_by_supplier(
+        db: &DatabaseConnection,
+        supplier_ids: &[i32],
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Result<std::collections::HashMap<i32, usize>, AppError> {
+        if supplier_ids.is_empty() {
+            return Ok(std::collections::HashMap::<i32, usize>::new());
+        }
+        Ok(ap_payment::Entity::find()
+            .filter(ap_payment::Column::SupplierId.is_in(supplier_ids.to_vec()))
+            .filter(ap_payment::Column::PaymentDate.gte(start_date))
+            .filter(ap_payment::Column::PaymentDate.lte(end_date))
+            .all(db)
+            .await?
+            .into_iter()
+            .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, pay| {
+                *acc.entry(pay.supplier_id).or_default() += 1;
+                acc
+            }))
+    }
+
+    fn build_auto_reconciliation_request(
+        sup: &crate::models::supplier::Model,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> GenerateReconciliationRequest {
+        GenerateReconciliationRequest {
+            supplier_id: sup.id,
+            start_date,
+            end_date,
+            notes: Some(format!("Auto-generated reconciliation for {}", sup.supplier_name)),
+        }
+    }
+
+    fn build_success_reconciliation_result(
+        rec: ap_reconciliation::Model,
+        supplier_id: i32,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+        invoice_count: usize,
+        payment_count: usize,
+    ) -> AutoReconciliationResult {
+        AutoReconciliationResult {
+            reconciliation_id: rec.id,
+            reconciliation_no: rec.reconciliation_no,
+            supplier_id,
+            start_date,
+            end_date,
+            opening_balance: rec.opening_balance,
+            total_invoice: rec.total_invoice,
+            total_payment: rec.total_payment,
+            closing_balance: rec.closing_balance,
+            invoice_count,
+            payment_count,
+            status: rec.reconciliation_status,
+            message: "Auto reconciliation successful".to_string(),
+        }
+    }
+
+    fn build_failure_reconciliation_result(
+        supplier_id: i32,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+        error: AppError,
+    ) -> AutoReconciliationResult {
+        AutoReconciliationResult {
+            reconciliation_id: 0,
+            reconciliation_no: String::new(),
+            supplier_id,
+            start_date,
+            end_date,
+            opening_balance: Decimal::ZERO,
+            total_invoice: Decimal::ZERO,
+            total_payment: Decimal::ZERO,
+            closing_balance: Decimal::ZERO,
+            invoice_count: 0,
+            payment_count: 0,
+            status: "FAILED".to_string(),
+            message: format!("Failed: {}", error),
+        }
+    }
+
+    async fn process_supplier_reconciliation(
+        db: Arc<DatabaseConnection>,
+        sup: crate::models::supplier::Model,
+        user_id: i32,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+        invoice_counts: std::collections::HashMap<i32, usize>,
+        payment_counts: std::collections::HashMap<i32, usize>,
+    ) -> AutoReconciliationResult {
+        let supplier_id = sup.id;
+        // v12 批次 39 修复：从预加载的计数 map 中取，避免循环内逐个 count（N+1）
+        let invoice_count = invoice_counts.get(&sup.id).copied().unwrap_or(0);
+        let payment_count = payment_counts.get(&sup.id).copied().unwrap_or(0);
+
+        let service = ApReconciliationService::new(db);
+        let req = Self::build_auto_reconciliation_request(&sup, start_date, end_date);
+
+        match service.generate_reconciliation(req, user_id).await {
+            Ok(rec) => Self::build_success_reconciliation_result(
+                rec,
+                supplier_id,
+                start_date,
+                end_date,
+                invoice_count,
+                payment_count,
+            ),
+            Err(e) => Self::build_failure_reconciliation_result(
+                supplier_id,
+                start_date,
+                end_date,
+                e,
+            ),
+        }
     }
 
     /// 获取发票关联信息

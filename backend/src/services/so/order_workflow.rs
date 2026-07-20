@@ -110,7 +110,7 @@ impl SalesService {
 
     async fn lookup_order_for_submit(
         &self,
-        txn: &Transaction,
+        txn: &sea_orm::DatabaseTransaction,
         order_id: i32,
     ) -> Result<sales_order::Model, AppError> {
         SalesOrderEntity::find_by_id(order_id)
@@ -132,7 +132,7 @@ impl SalesService {
 
     async fn validate_customer_credit(
         &self,
-        txn: &Transaction,
+        txn: &sea_orm::DatabaseTransaction,
         customer_id: i32,
         total_amount: rust_decimal::Decimal,
     ) -> Result<(), AppError> {
@@ -150,7 +150,7 @@ impl SalesService {
 
     async fn validate_customer_active(
         &self,
-        txn: &Transaction,
+        txn: &sea_orm::DatabaseTransaction,
         customer_id: i32,
     ) -> Result<(), AppError> {
         let customer = crate::models::customer::Entity::find_by_id(customer_id)
@@ -168,7 +168,7 @@ impl SalesService {
 
     async fn update_order_to_pending(
         &self,
-        txn: &Transaction,
+        txn: &sea_orm::DatabaseTransaction,
         order: sales_order::Model,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
@@ -264,19 +264,59 @@ impl SalesService {
         // 加 lock_exclusive 防止并发审批同一订单导致重复审批或字段覆盖
         let txn = (*self.db).begin().await?;
 
-        let order = SalesOrderEntity::find_by_id(order_id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
+        let order = self.lookup_order_for_approval(&txn, order_id).await?;
+        self.validate_order_for_approval(&order)?;
+        let order = self.update_order_to_approved(&txn, order, user_id).await?;
 
+        txn.commit().await?;
+
+        // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderApproved 事件
+        self.publish_approval_event(order_id, order.customer_id, user_id);
+
+        // 批次 356 v13 复审 B-P0-1：commit 后查询订单明细，为每个明细创建库存预留记录
+        let order_items = self.fetch_order_items_for_approval(order_id).await?;
+        self.create_inventory_reservations_for_order(
+            order_id,
+            &order.order_no,
+            &order_items,
+            user_id,
+        )
+        .await;
+
+        // B-P2-4 修复（批次 386 v13 复审）：commit 后对每个订单明细调用 MRP 计算
+        self.run_mrp_for_order_items(order_id, &order_items).await;
+
+        Ok(order)
+    }
+
+    async fn lookup_order_for_approval(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
+        SalesOrderEntity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))
+    }
+
+    fn validate_order_for_approval(&self, order: &sales_order::Model) -> Result<(), AppError> {
         if order.status != so_status::PENDING {
             return Err(AppError::business(format!(
                 "订单状态为 {}，无法审核",
                 order.status
             )));
         }
+        Ok(())
+    }
 
+    async fn update_order_to_approved(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        order: sales_order::Model,
+        user_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = sea_orm::ActiveValue::Set(so_status::APPROVED.to_string());
         order_update.approved_by = sea_orm::ActiveValue::Set(Some(user_id));
@@ -285,39 +325,52 @@ impl SalesService {
 
         // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
         // 原 Some(0) 硬编码导致审计日志无法追溯审批人。
-        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
             "auto_audit",
             order_update,
             Some(user_id),
         )
-        .await?;
+        .await
+    }
 
-        txn.commit().await?;
-
-        // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderApproved 事件
+    fn publish_approval_event(&self, order_id: i32, customer_id: i32, user_id: i32) {
         crate::services::event_bus::EVENT_BUS
             .publish(crate::services::event_bus::BusinessEvent::SalesOrderApproved {
                 order_id,
-                customer_id: order.customer_id,
+                customer_id,
                 user_id,
             });
+    }
 
-        // 批次 356 v13 复审 B-P0-1 修复：销售订单审批后触发库存预留
-        // 原实现 approve_order 仅更新订单状态，不调用 InventoryReservationService::create_reservation，
-        // 导致销售订单→库存锁定链路完全断开，存在超卖风险。
-        // 修复：commit 成功后查询订单明细，为每个明细创建库存预留记录。
-        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
-        let order_items = crate::models::sales_order_item::Entity::find()
+    async fn fetch_order_items_for_approval(
+        &self,
+        order_id: i32,
+    ) -> Result<Vec<crate::models::sales_order_item::Model>, AppError> {
+        use sea_orm::{ColumnTrait, QueryFilter};
+        crate::models::sales_order_item::Entity::find()
             .filter(crate::models::sales_order_item::Column::OrderId.eq(order_id))
             .all(&*self.db)
-            .await?;
+            .await
+    }
+
+    /// 批次 356 v13 复审 B-P0-1 修复：销售订单审批后触发库存预留
+    /// 原实现 approve_order 仅更新订单状态，不调用 InventoryReservationService::create_reservation，
+    /// 导致销售订单→库存锁定链路完全断开，存在超卖风险。
+    async fn create_inventory_reservations_for_order(
+        &self,
+        order_id: i32,
+        order_no: &str,
+        order_items: &[crate::models::sales_order_item::Model],
+        user_id: i32,
+    ) {
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
         let reservation_service =
             crate::services::inventory_reservation_service::InventoryReservationService::new(
                 self.db.clone(),
             );
-        for item in &order_items {
+        for item in order_items {
             // 查询产品默认仓库（使用第一个活跃仓库作为默认仓库）
             let default_warehouse = crate::models::warehouse::Entity::find()
                 .filter(crate::models::warehouse::Column::IsActive.eq(true))
@@ -332,7 +385,7 @@ impl SalesService {
                         wh.id,
                         item.quantity,
                         Some(user_id),
-                        Some(format!("销售订单 {} 审批通过，自动预留库存", order.order_no)),
+                        Some(format!("销售订单 {} 审批通过，自动预留库存", order_no)),
                     )
                     .await
                 {
@@ -345,15 +398,20 @@ impl SalesService {
                 }
             }
         }
+    }
 
-        // B-P2-4 修复（批次 386 v13 复审）：销售订单审批后触发 MRP 物料需求计算
-        // 原实现 approve_order 仅做库存预留，不调用 MrpEngineService，
-        // 导致销售→MRP 物料需求链路断开，采购计划无法基于销售订单自动生成。
-        // 修复：commit 成功后对每个订单明细调用 MRP 计算（source_type=SALES_ORDER），
-        // 失败时 tracing::warn 不阻塞主流程（订单已审批，MRP 可后续重算）。
+    /// B-P2-4 修复（批次 386 v13 复审）：销售订单审批后触发 MRP 物料需求计算
+    /// 原实现 approve_order 仅做库存预留，不调用 MrpEngineService，
+    /// 导致销售→MRP 物料需求链路断开，采购计划无法基于销售订单自动生成。
+    /// 失败时 tracing::warn 不阻塞主流程（订单已审批，MRP 可后续重算）。
+    async fn run_mrp_for_order_items(
+        &self,
+        order_id: i32,
+        order_items: &[crate::models::sales_order_item::Model],
+    ) {
         let mrp_service = crate::services::mrp_engine_service::MrpEngineService::new(self.db.clone());
         let required_date = chrono::Utc::now().date_naive() + chrono::Duration::days(7);
-        for item in &order_items {
+        for item in order_items {
             if let Err(e) = mrp_service
                 .run_mrp_calculation(crate::services::mrp_engine_service::MrpCalculationQuery {
                     product_id: item.product_id,
@@ -374,8 +432,6 @@ impl SalesService {
                 );
             }
         }
-
-        Ok(order)
     }
 
     /// 完成订单

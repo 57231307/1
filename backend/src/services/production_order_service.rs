@@ -868,6 +868,7 @@ impl ProductionOrderService {
             .filter(BomColumn::Status.eq(crate::models::status::common::STATUS_ACTIVE))
             .one(txn)
             .await
+            .map_err(AppError::from)
     }
 
     async fn lookup_bom_items(
@@ -878,6 +879,7 @@ impl ProductionOrderService {
             .filter(BomItemColumn::BomId.eq(bom_id))
             .all(txn)
             .await
+            .map_err(AppError::from)
     }
 
     async fn batch_load_stock_records(
@@ -914,7 +916,6 @@ impl ProductionOrderService {
         bom_items: &[crate::models::bom_item::Model],
         stock_map: &std::collections::HashMap<i32, crate::models::inventory_stock::Model>,
     ) -> Result<Vec<BusinessEvent>, AppError> {
-        use crate::services::inventory_stock_query::RecordTransactionArgs;
         use crate::services::inventory_stock_service::InventoryStockService;
 
         let mut pending_events: Vec<BusinessEvent> = Vec::new();

@@ -121,15 +121,9 @@ impl CrmAssignService {
             ));
         }
 
-        // clamp limit 防 DoS（上限 1000）
         let limit = req.limit.unwrap_or(100).clamp(1, 1000);
 
-        // 查询有效的销售用户（is_active=true，id 在 assignee_user_ids 中）
-        let assignees: Vec<user::Model> = user::Entity::find()
-            .filter(user::Column::Id.is_in(req.assignee_user_ids.clone()))
-            .filter(user::Column::IsActive.eq(true))
-            .all(&*self.db)
-            .await?;
+        let assignees = Self::fetch_active_assignees(&*self.db, &req.assignee_user_ids).await?;
 
         if assignees.is_empty() {
             return Err(AppError::validation(
@@ -137,76 +131,26 @@ impl CrmAssignService {
             ));
         }
 
-        // 查询待分配线索（lead_status='new'，按 id ASC 排序）
-        let pending_leads: Vec<crm_lead::Model> = crm_lead::Entity::find()
-            .filter(crm_lead::Column::LeadStatus.eq(lead_status::NEW))
-            .order_by(crm_lead::Column::Id, sea_orm::Order::Asc)
-            .limit(limit)
-            .all(&*self.db)
-            .await?;
+        let pending_leads = Self::fetch_pending_leads(&*self.db, limit).await?;
 
         if pending_leads.is_empty() {
             info!("自动分配：无 lead_status='new' 的待分配线索");
             return Ok(AutoAssignResult {
                 assigned_count: 0,
                 assignee_count: assignees.len(),
-                distribution: assignees
-                    .iter()
-                    .map(|u| AssigneeDistribution {
-                        user_id: u.id,
-                        username: u.username.clone(),
-                        assigned_count: 0,
-                    })
-                    .collect(),
+                distribution: Self::build_zero_distribution(&assignees),
             });
         }
 
-        // round-robin 轮询分配
-        let mut distribution_map: std::collections::HashMap<i32, (String, u64)> =
-            std::collections::HashMap::new();
-        for a in &assignees {
-            distribution_map.insert(a.id, (a.username.clone(), 0));
-        }
+        let mut distribution_map = Self::init_distribution_map(&assignees);
 
         let txn = (*self.db).begin().await?;
         let mut assigned_count: u64 = 0;
 
         for (idx, lead) in pending_leads.iter().enumerate() {
             let assignee = &assignees[idx % assignees.len()];
-            let from_user_id = lead.owner_id;
-            let from_user_name = lead.owner_name.clone();
-
-            // 更新线索归属人
-            let mut active: crm_lead::ActiveModel = lead.clone().into();
-            active.owner_id = Set(assignee.id);
-            active.owner_name = Set(assignee.username.clone());
-            active.lead_status = Set(Some("assigned".to_string()));
-            active.updated_at = Set(Some(chrono::Utc::now()));
-            active.updated_by = Set(Some(operator_id));
-            let updated = active.update(&txn).await?;
-
-            // 写入分配历史
-            self.history_service
-                .create_with_txn(
-                    &txn,
-                    operator_id,
-                    operator_name,
-                    CreateAssignmentHistoryRequest {
-                        lead_id: updated.id,
-                        lead_no: updated.lead_no.clone(),
-                        company_name: updated.company_name.clone(),
-                        from_user_id: Some(from_user_id),
-                        from_user_name: Some(from_user_name),
-                        to_user_id: Some(assignee.id),
-                        to_user_name: Some(assignee.username.clone()),
-                        action: "ASSIGN".to_string(),
-                        reason: Some("auto_assign_round_robin".to_string()),
-                        notes: Some(format!("自动轮询分配 #{}", idx + 1)),
-                    },
-                )
+            self.assign_lead_to_user(&txn, lead, assignee, operator_id, operator_name, idx)
                 .await?;
-
-            // 累计分布
             if let Some(entry) = distribution_map.get_mut(&assignee.id) {
                 entry.1 += 1;
             }
@@ -222,7 +166,103 @@ impl CrmAssignService {
             assignees.len()
         );
 
-        Ok(AutoAssignResult {
+        Ok(Self::build_auto_assign_result(
+            assigned_count,
+            &assignees,
+            distribution_map,
+        ))
+    }
+
+    async fn fetch_active_assignees(
+        db: &sea_orm::DatabaseConnection,
+        user_ids: &[i32],
+    ) -> Result<Vec<user::Model>, AppError> {
+        Ok(user::Entity::find()
+            .filter(user::Column::Id.is_in(user_ids.to_vec()))
+            .filter(user::Column::IsActive.eq(true))
+            .all(db)
+            .await?)
+    }
+
+    async fn fetch_pending_leads(
+        db: &sea_orm::DatabaseConnection,
+        limit: u64,
+    ) -> Result<Vec<crm_lead::Model>, AppError> {
+        Ok(crm_lead::Entity::find()
+            .filter(crm_lead::Column::LeadStatus.eq(lead_status::NEW))
+            .order_by(crm_lead::Column::Id, sea_orm::Order::Asc)
+            .limit(limit)
+            .all(db)
+            .await?)
+    }
+
+    fn build_zero_distribution(assignees: &[user::Model]) -> Vec<AssigneeDistribution> {
+        assignees
+            .iter()
+            .map(|u| AssigneeDistribution {
+                user_id: u.id,
+                username: u.username.clone(),
+                assigned_count: 0,
+            })
+            .collect()
+    }
+
+    fn init_distribution_map(
+        assignees: &[user::Model],
+    ) -> std::collections::HashMap<i32, (String, u64)> {
+        let mut map = std::collections::HashMap::new();
+        for a in assignees {
+            map.insert(a.id, (a.username.clone(), 0));
+        }
+        map
+    }
+
+    async fn assign_lead_to_user(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        lead: &crm_lead::Model,
+        assignee: &user::Model,
+        operator_id: i32,
+        operator_name: &str,
+        idx: usize,
+    ) -> Result<crm_lead::Model, AppError> {
+        let from_user_id = lead.owner_id;
+        let from_user_name = lead.owner_name.clone();
+        let mut active: crm_lead::ActiveModel = lead.clone().into();
+        active.owner_id = Set(assignee.id);
+        active.owner_name = Set(assignee.username.clone());
+        active.lead_status = Set(Some("assigned".to_string()));
+        active.updated_at = Set(Some(chrono::Utc::now()));
+        active.updated_by = Set(Some(operator_id));
+        let updated = active.update(txn).await?;
+        self.history_service
+            .create_with_txn(
+                txn,
+                operator_id,
+                operator_name,
+                CreateAssignmentHistoryRequest {
+                    lead_id: updated.id,
+                    lead_no: updated.lead_no.clone(),
+                    company_name: updated.company_name.clone(),
+                    from_user_id: Some(from_user_id),
+                    from_user_name: Some(from_user_name),
+                    to_user_id: Some(assignee.id),
+                    to_user_name: Some(assignee.username.clone()),
+                    action: "ASSIGN".to_string(),
+                    reason: Some("auto_assign_round_robin".to_string()),
+                    notes: Some(format!("自动轮询分配 #{}", idx + 1)),
+                },
+            )
+            .await?;
+        Ok(updated)
+    }
+
+    fn build_auto_assign_result(
+        assigned_count: u64,
+        assignees: &[user::Model],
+        distribution_map: std::collections::HashMap<i32, (String, u64)>,
+    ) -> AutoAssignResult {
+        AutoAssignResult {
             assigned_count,
             assignee_count: assignees.len(),
             distribution: distribution_map
@@ -233,7 +273,7 @@ impl CrmAssignService {
                     assigned_count: count,
                 })
                 .collect(),
-        })
+        }
     }
 
     /// 转移线索归属人（带审计）

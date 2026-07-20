@@ -57,22 +57,7 @@ impl QuotationConvertService {
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
 
-        if quotation.status != "approved" {
-            return Err(AppError::business(format!(
-                "报价单状态不允许转订单：{}（仅 approved 状态可转换）",
-                quotation.status
-            )));
-        }
-
-        // 2. 校验有效期
-        if quotation.valid_until < Utc::now().date_naive() {
-            // 标记为 expired
-            let mut active: QuotationActive = quotation.clone().into();
-            active.status = Set("expired".to_string());
-            active.updated_at = Set(Utc::now());
-            active.update(&txn).await?;
-            return Err(AppError::business("报价单已过期，无法转订单"));
-        }
+        Self::validate_quotation_for_convert(&quotation, &txn).await?;
 
         // 3. 加载报价单明细
         let items = QuotationItemEntity::find()
@@ -85,6 +70,53 @@ impl QuotationConvertService {
 
         // 5. 创建销售订单草稿
         let now = Utc::now();
+        let order = Self::create_order_from_quotation(&quotation, user_id, order_no, now, &txn)
+            .await?;
+
+        // 6. 复制明细
+        Self::copy_quotation_items_to_order(&items, &quotation, order.id, now, &txn).await?;
+
+        // 7. 更新报价单状态为 converted
+        Self::update_quotation_to_converted(&quotation, order.id, now, &txn).await?;
+
+        txn.commit().await?;
+
+        Ok(order)
+    }
+
+    async fn validate_quotation_for_convert<C>(
+        quotation: &sales_quotation::Model,
+        txn: &C,
+    ) -> Result<(), AppError>
+    where
+        C: sea_orm::ConnectionTrait,
+    {
+        if quotation.status != "approved" {
+            return Err(AppError::business(format!(
+                "报价单状态不允许转订单：{}（仅 approved 状态可转换）",
+                quotation.status
+            )));
+        }
+        if quotation.valid_until < Utc::now().date_naive() {
+            let mut active: QuotationActive = quotation.clone().into();
+            active.status = Set("expired".to_string());
+            active.updated_at = Set(Utc::now());
+            active.update(txn).await?;
+            return Err(AppError::business("报价单已过期，无法转订单"));
+        }
+        Ok(())
+    }
+
+    async fn create_order_from_quotation<C>(
+        quotation: &sales_quotation::Model,
+        user_id: i32,
+        order_no: String,
+        now: chrono::DateTime<Utc>,
+        txn: &C,
+    ) -> Result<sales_order::Model, AppError>
+    where
+        C: sea_orm::ConnectionTrait,
+    {
         let new_order = OrderActive {
             id: Default::default(),
             order_no: Set(order_no),
@@ -114,16 +146,26 @@ impl QuotationConvertService {
             created_at: Set(now),
             updated_at: Set(now),
         };
-        let order = new_order.insert(&txn).await?;
+        let order = new_order.insert(txn).await?;
+        Ok(order)
+    }
 
-        // 6. 复制明细
-        for item in &items {
-            // 计算明细金额
+    async fn copy_quotation_items_to_order<C>(
+        items: &[sales_quotation_item::Model],
+        quotation: &sales_quotation::Model,
+        order_id: i32,
+        now: chrono::DateTime<Utc>,
+        txn: &C,
+    ) -> Result<(), AppError>
+    where
+        C: sea_orm::ConnectionTrait,
+    {
+        for item in items {
             let subtotal = item.amount;
             let tax_amount = item.amount_with_tax - item.amount;
             let new_item = OrderItemActive {
                 id: Default::default(),
-                order_id: Set(order.id),
+                order_id: Set(order_id),
                 product_id: Set(item.product_id as i32),
                 quantity: Set(item.quantity),
                 unit_price: Set(item.unit_price),
@@ -137,7 +179,6 @@ impl QuotationConvertService {
                 notes: Set(item.notes.clone()),
                 created_at: Set(now),
                 updated_at: Set(now),
-                // 颜色字段：拼接所有色号
                 color_no: Set(Self::compose_color_no(item)),
                 color_name: Set(None),
                 pantone_code: Set(item.pantone_code.clone()),
@@ -157,20 +198,27 @@ impl QuotationConvertService {
                 paper_tube_weight: Set(None),
                 is_net_weight: Set(None),
             };
-            new_item.insert(&txn).await?;
+            new_item.insert(txn).await?;
         }
+        Ok(())
+    }
 
-        // 7. 更新报价单状态为 converted
-        let mut active: QuotationActive = quotation.into();
+    async fn update_quotation_to_converted<C>(
+        quotation: &sales_quotation::Model,
+        order_id: i32,
+        now: chrono::DateTime<Utc>,
+        txn: &C,
+    ) -> Result<(), AppError>
+    where
+        C: sea_orm::ConnectionTrait,
+    {
+        let mut active: QuotationActive = quotation.clone().into();
         active.status = Set("converted".to_string());
-        active.converted_sales_order_id = Set(Some(order.id as i64));
+        active.converted_sales_order_id = Set(Some(order_id as i64));
         active.converted_at = Set(Some(now));
         active.updated_at = Set(now);
-        active.update(&txn).await?;
-
-        txn.commit().await?;
-
-        Ok(order)
+        active.update(txn).await?;
+        Ok(())
     }
 
     /// 拼接色号（color_code / pantone_code / cncs_code）

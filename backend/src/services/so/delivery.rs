@@ -289,113 +289,48 @@ impl SalesService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<ShipmentItemsResult, AppError> {
-        // 构建 product_id → order_item 映射，用于发货明细金额计算
         let order_item_map: std::collections::HashMap<i32, &sales_order_item::Model> =
             ctx.order_items.iter().map(|oi| (oi.product_id, oi)).collect();
-        // 创建发货单明细并扣减库存（v13 P1-3：发货明细批量 INSERT，库存扣减与订单明细更新保持逐条以确保乐观锁语义）
         let mut delivery_items_to_insert: Vec<sales_delivery_item::ActiveModel> = Vec::new();
-        // 批次 356 v13 复审 B-P0-2 修复：收集库存流水事件，commit 后统一 publish
         let mut pending_inventory_events: Vec<crate::services::event_bus::BusinessEvent> = Vec::new();
-        // F-P0-6 修复（批次 382 v13 复审）：累加发货金额用于收入凭证生成
         let mut delivery_total_amount = Decimal::ZERO;
         let mut delivery_total_tax = Decimal::ZERO;
         for item in &request.items {
-            // F-P0-6 修复：从订单明细查询单价和税率，计算发货明细金额
-            let (unit_price, tax_percent) = order_item_map
-                .get(&item.product_id)
-                .map(|oi| (oi.unit_price, oi.tax_percent))
-                .unwrap_or((Decimal::ZERO, Decimal::ZERO));
-            let line_amount = (item.quantity * unit_price).round_dp(2);
-            let line_tax = (line_amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
-            // 收集发货明细（不立即 INSERT）
-            delivery_items_to_insert.push(sales_delivery_item::ActiveModel {
-                id: Default::default(),
-                delivery_id: Set(delivery.id),
-                product_id: Set(item.product_id),
-                quantity: Set(item.quantity),
-                // 批次 356 v13 复审修复：clone 避免 move，下方 record_transaction_txn 仍需访问 item.batch_no
-                batch_no: Set(item.batch_no.clone()),
-                // v14 批次 421 T-P1-5：发货明细使用请求中的 color_no/dye_lot_no
-                // 已通过 validate_dye_lot_consistency 校验同一订单同 product_id 缸号一致
-                color_no: Set(item.color_no.clone()),
-                dye_lot_id: Set(None),
-                dye_lot_no: Set(item.dye_lot_no.clone()),
-                remarks: Set(None),
-                unit_price: Set(unit_price),
-                amount: Set(line_amount),
-                created_at: Set(chrono::Utc::now()),
-            });
+            let (unit_price, line_amount, line_tax) = Self::compute_line_amounts(&order_item_map, item);
+            delivery_items_to_insert.push(Self::build_delivery_item(
+                item,
+                delivery.id,
+                unit_price,
+                line_amount,
+            ));
             delivery_total_amount += line_amount;
             delivery_total_tax += line_tax;
-            // 扣减库存
-            // v14 批次 418 修复 D-P0-5：reduce_inventory 额外返回库存的 color_no/dye_lot_no
             let (qty_before, qty_after, stock_color_no, stock_dye_lot_no) = self
                 .reduce_inventory(item.product_id, ctx.warehouse.id, item.quantity, request.order_id, txn)
                 .await?;
-            // v14 批次 418 修复 G-P0-1：调用 DualUnitConverter 双单位换算计算 quantity_kg
-            let quantity_kg = ctx
-                .product_map
-                .get(&item.product_id)
-                .and_then(|p| {
-                    let gram_weight = p.gram_weight?;
-                    let width = p.width?;
-                    crate::utils::dual_unit_converter::DualUnitConverter::meters_to_kg(
-                        item.quantity,
-                        gram_weight,
-                        width,
-                    )
-                    .ok()
-                })
-                .unwrap_or(Decimal::ZERO);
-            // 批次 356 v13 复审 B-P0-2 修复：销售出库生成 SALES_DELIVERY 类型库存流水
-            // 触发 inventory_finance_bridge_service 自动生成销售出库凭证（借:主营业务成本/贷:库存商品）
+            let quantity_kg = Self::compute_quantity_kg(&ctx.product_map, item.product_id, item.quantity);
+            let args = Self::build_record_transaction_args(
+                item,
+                request,
+                ctx,
+                qty_before,
+                qty_after,
+                stock_color_no,
+                stock_dye_lot_no,
+                quantity_kg,
+                user_id,
+            );
             let (_, txn_event) =
                 crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
-                    txn,
-                    crate::services::inventory_stock_query::RecordTransactionArgs {
-                        transaction_type: "SALES_DELIVERY".to_string(),
-                        product_id: item.product_id,
-                        warehouse_id: ctx.warehouse.id,
-                        // 批次 356 v13 复审修复：item.batch_no 为 Option<String>，RecordTransactionArgs.batch_no 期望 String
-                        batch_no: item.batch_no.clone().unwrap_or_default(),
-                        // v14 批次 418 修复 D-P0-5：使用从库存获取的真实 color_no/dye_lot_no
-                        color_no: stock_color_no.clone(),
-                        dye_lot_no: stock_dye_lot_no.clone(),
-                        grade: String::new(),
-                        quantity_meters: item.quantity,
-                        quantity_kg,
-                        source_bill_type: Some("sales_order".to_string()),
-                        source_bill_no: Some(ctx.order.order_no.clone()),
-                        source_bill_id: Some(request.order_id),
-                        quantity_before_meters: Some(qty_before),
-                        quantity_before_kg: None,
-                        quantity_after_meters: Some(qty_after),
-                        quantity_after_kg: None,
-                        notes: Some(format!("销售出库 - 订单 {}", ctx.order.order_no)),
-                        created_by: Some(user_id),
-                    },
+                    txn, args,
                 )
                 .await?;
             if let Some(ev) = txn_event {
                 pending_inventory_events.push(ev);
             }
-            // 使用 update_many 批量更新订单明细已发货数量
-            sales_order_item::Entity::update_many()
-                .filter(sales_order_item::Column::OrderId.eq(request.order_id))
-                .filter(sales_order_item::Column::ProductId.eq(item.product_id))
-                .col_expr(
-                    sales_order_item::Column::ShippedQuantity,
-                    sea_orm::sea_query::Expr::col(sales_order_item::Column::ShippedQuantity)
-                        .add(item.quantity),
-                )
-                .col_expr(
-                    sales_order_item::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
-                )
-                .exec(txn)
+            Self::update_order_item_shipped_qty(txn, request.order_id, item.product_id, item.quantity)
                 .await?;
         }
-        // 批量 INSERT 发货明细，替代逐条 INSERT
         if !delivery_items_to_insert.is_empty() {
             sales_delivery_item::Entity::insert_many(delivery_items_to_insert)
                 .exec(txn)
@@ -406,6 +341,117 @@ impl SalesService {
             delivery_total_tax,
             pending_inventory_events,
         })
+    }
+
+    fn compute_line_amounts(
+        order_item_map: &std::collections::HashMap<i32, &sales_order_item::Model>,
+        item: &ShipOrderItemRequest,
+    ) -> (Decimal, Decimal, Decimal) {
+        let (unit_price, tax_percent) = order_item_map
+            .get(&item.product_id)
+            .map(|oi| (oi.unit_price, oi.tax_percent))
+            .unwrap_or((Decimal::ZERO, Decimal::ZERO));
+        let line_amount = (item.quantity * unit_price).round_dp(2);
+        let line_tax = (line_amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
+        (unit_price, line_amount, line_tax)
+    }
+
+    fn build_delivery_item(
+        item: &ShipOrderItemRequest,
+        delivery_id: i32,
+        unit_price: Decimal,
+        line_amount: Decimal,
+    ) -> sales_delivery_item::ActiveModel {
+        sales_delivery_item::ActiveModel {
+            id: Default::default(),
+            delivery_id: Set(delivery_id),
+            product_id: Set(item.product_id),
+            quantity: Set(item.quantity),
+            batch_no: Set(item.batch_no.clone()),
+            color_no: Set(item.color_no.clone()),
+            dye_lot_id: Set(None),
+            dye_lot_no: Set(item.dye_lot_no.clone()),
+            remarks: Set(None),
+            unit_price: Set(unit_price),
+            amount: Set(line_amount),
+            created_at: Set(chrono::Utc::now()),
+        }
+    }
+
+    fn compute_quantity_kg(
+        product_map: &std::collections::HashMap<i32, crate::models::product::Model>,
+        product_id: i32,
+        quantity: Decimal,
+    ) -> Decimal {
+        product_map
+            .get(&product_id)
+            .and_then(|p| {
+                let gram_weight = p.gram_weight?;
+                let width = p.width?;
+                crate::utils::dual_unit_converter::DualUnitConverter::meters_to_kg(
+                    quantity,
+                    gram_weight,
+                    width,
+                )
+                .ok()
+            })
+            .unwrap_or(Decimal::ZERO)
+    }
+
+    fn build_record_transaction_args(
+        item: &ShipOrderItemRequest,
+        request: &ShipOrderRequest,
+        ctx: &ShipOrderContext,
+        qty_before: Decimal,
+        qty_after: Decimal,
+        stock_color_no: String,
+        stock_dye_lot_no: Option<String>,
+        quantity_kg: Decimal,
+        user_id: i32,
+    ) -> crate::services::inventory_stock_query::RecordTransactionArgs {
+        crate::services::inventory_stock_query::RecordTransactionArgs {
+            transaction_type: "SALES_DELIVERY".to_string(),
+            product_id: item.product_id,
+            warehouse_id: ctx.warehouse.id,
+            batch_no: item.batch_no.clone().unwrap_or_default(),
+            color_no: stock_color_no,
+            dye_lot_no: stock_dye_lot_no,
+            grade: String::new(),
+            quantity_meters: item.quantity,
+            quantity_kg,
+            source_bill_type: Some("sales_order".to_string()),
+            source_bill_no: Some(ctx.order.order_no.clone()),
+            source_bill_id: Some(request.order_id),
+            quantity_before_meters: Some(qty_before),
+            quantity_before_kg: None,
+            quantity_after_meters: Some(qty_after),
+            quantity_after_kg: None,
+            notes: Some(format!("销售出库 - 订单 {}", ctx.order.order_no)),
+            created_by: Some(user_id),
+        }
+    }
+
+    async fn update_order_item_shipped_qty(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+        product_id: i32,
+        quantity: Decimal,
+    ) -> Result<(), AppError> {
+        sales_order_item::Entity::update_many()
+            .filter(sales_order_item::Column::OrderId.eq(order_id))
+            .filter(sales_order_item::Column::ProductId.eq(product_id))
+            .col_expr(
+                sales_order_item::Column::ShippedQuantity,
+                sea_orm::sea_query::Expr::col(sales_order_item::Column::ShippedQuantity)
+                    .add(quantity),
+            )
+            .col_expr(
+                sales_order_item::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+            )
+            .exec(txn)
+            .await?;
+        Ok(())
     }
 
     /// 更新订单状态 + 全额发货时生成 AR 应收

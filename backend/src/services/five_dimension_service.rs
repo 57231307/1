@@ -79,17 +79,28 @@ impl FiveDimensionService {
         &self,
         query: FiveDimensionQuery,
     ) -> Result<(Vec<FiveDimensionStats>, u64), AppError> {
-        let mut stock_query = InventoryStockEntity::find()
+        let stock_query = InventoryStockEntity::find()
             .filter(StockColumn::StockStatus.eq("ACTIVE"))
             .filter(StockColumn::QuantityAvailable.gt(Decimal::ZERO));
+        let stock_query = Self::apply_stock_filters(stock_query, &query);
+        let stocks = stock_query.all(&*self.db).await?;
+        let product_map = Self::fetch_product_map(&self.db, &stocks).await?;
+        let stats_map = Self::aggregate_stock_stats(stocks, &product_map);
+        let mut results: Vec<FiveDimensionStats> = stats_map.into_values().collect();
+        results.sort_by_key(|a| a.product_id);
+        Ok(Self::paginate_stats(results, &query))
+    }
 
+    fn apply_stock_filters(
+        mut stock_query: sea_orm::Select<InventoryStockEntity>,
+        query: &FiveDimensionQuery,
+    ) -> sea_orm::Select<InventoryStockEntity> {
         if let Some(product_id) = query.product_id {
             stock_query = stock_query.filter(StockColumn::ProductId.eq(product_id));
         }
         if let Some(warehouse_id) = query.warehouse_id {
             stock_query = stock_query.filter(StockColumn::WarehouseId.eq(warehouse_id));
         }
-        // 在数据库层面进行五维字段筛选
         if let Some(ref batch_no) = query.batch_no {
             stock_query = stock_query.filter(StockColumn::BatchNo.contains(batch_no));
         }
@@ -102,92 +113,103 @@ impl FiveDimensionService {
         if let Some(ref grade) = query.grade {
             stock_query = stock_query.filter(StockColumn::Grade.contains(grade));
         }
+        stock_query
+    }
 
-        let stocks = stock_query.all(&*self.db).await?;
-
-        // 获取产品信息
+    async fn fetch_product_map(
+        db: &DatabaseConnection,
+        stocks: &[crate::models::inventory_stock::Model],
+    ) -> Result<HashMap<i32, String>, AppError> {
         let product_ids: Vec<i32> = stocks.iter().map(|s| s.product_id).collect();
         let products = if product_ids.is_empty() {
             vec![]
         } else {
             ProductEntity::find()
                 .filter(ProductColumn::Id.is_in(product_ids))
-                .all(&*self.db)
+                .all(db)
                 .await?
         };
+        Ok(products.into_iter().map(|p| (p.id, p.name)).collect())
+    }
 
-        let product_map: HashMap<i32, String> =
-            products.into_iter().map(|p| (p.id, p.name)).collect();
-
-        // 按五维分组统计
+    fn aggregate_stock_stats(
+        stocks: Vec<crate::models::inventory_stock::Model>,
+        product_map: &HashMap<i32, String>,
+    ) -> HashMap<String, FiveDimensionStats> {
         let mut stats_map: HashMap<String, FiveDimensionStats> = HashMap::new();
-
         for stock in stocks {
-            // 从库存记录中提取五维信息
-            let batch_no = stock.batch_no.clone();
-            let color_no = stock.color_no.clone();
-            let dye_lot_no = stock.dye_lot_no.clone();
-            let grade = stock.grade.clone();
-
+            let five_dimension_id = Self::build_five_dimension_id(&stock);
             let product_name = product_map
                 .get(&stock.product_id)
                 .cloned()
                 .unwrap_or_else(|| "未知产品".to_string());
-
-            let five_dimension_id = format!(
-                "P{}|B{}|C{}|D{}|G{}",
-                stock.product_id,
-                batch_no,
-                color_no,
-                dye_lot_no.as_deref().unwrap_or("DN"),
-                grade
-            );
-
             let stats = stats_map
                 .entry(five_dimension_id.clone())
-                .or_insert_with(|| FiveDimensionStats {
-                    product_id: stock.product_id,
-                    product_name: product_name.clone(),
-                    batch_no: batch_no.clone(),
-                    color_no: color_no.clone(),
-                    dye_lot_no: dye_lot_no.clone(),
-                    grade: grade.clone(),
-                    five_dimension_id: five_dimension_id.clone(),
-                    total_meters: Decimal::ZERO,
-                    total_kg: Decimal::ZERO,
-                    stock_count: 0,
-                    warehouse_distribution: Vec::new(),
-                });
-
-            stats.total_meters += stock.quantity_available;
-            stats.total_kg += stock.quantity_kg;
-            stats.stock_count += 1;
-
-            // 添加仓库分布
-            if let Some(wh) = stats
-                .warehouse_distribution
-                .iter_mut()
-                .find(|w| w.warehouse_id == stock.warehouse_id)
-            {
-                wh.quantity_meters += stock.quantity_available;
-                wh.quantity_kg += stock.quantity_kg;
-            } else {
-                stats.warehouse_distribution.push(WarehouseStock {
-                    warehouse_id: stock.warehouse_id,
-                    warehouse_name: format!("仓库{}", stock.warehouse_id),
-                    quantity_meters: stock.quantity_available,
-                    quantity_kg: stock.quantity_kg,
-                });
-            }
+                .or_insert_with(|| Self::new_stats_entry(&stock, &product_name, &five_dimension_id));
+            Self::update_stats_with_stock(stats, &stock);
         }
+        stats_map
+    }
 
-        let mut results: Vec<FiveDimensionStats> = stats_map.into_values().collect();
+    fn build_five_dimension_id(stock: &crate::models::inventory_stock::Model) -> String {
+        format!(
+            "P{}|B{}|C{}|D{}|G{}",
+            stock.product_id,
+            stock.batch_no,
+            stock.color_no,
+            stock.dye_lot_no.as_deref().unwrap_or("DN"),
+            stock.grade
+        )
+    }
 
-        // 排序
-        results.sort_by_key(|a| a.product_id);
+    fn new_stats_entry(
+        stock: &crate::models::inventory_stock::Model,
+        product_name: &str,
+        five_dimension_id: &str,
+    ) -> FiveDimensionStats {
+        FiveDimensionStats {
+            product_id: stock.product_id,
+            product_name: product_name.to_string(),
+            batch_no: stock.batch_no.clone(),
+            color_no: stock.color_no.clone(),
+            dye_lot_no: stock.dye_lot_no.clone(),
+            grade: stock.grade.clone(),
+            five_dimension_id: five_dimension_id.to_string(),
+            total_meters: Decimal::ZERO,
+            total_kg: Decimal::ZERO,
+            stock_count: 0,
+            warehouse_distribution: Vec::new(),
+        }
+    }
 
-        // v11 批次 150 P2-A：接入 page/page_size 内存分页
-        // page_size 为 None 时返回全量数据（供 get_summary 等内部方法使用）
+    fn update_stats_with_stock(
+        stats: &mut FiveDimensionStats,
+        stock: &crate::models::inventory_stock::Model,
+    ) {
+        stats.total_meters += stock.quantity_available;
+        stats.total_kg += stock.quantity_kg;
+        stats.stock_count += 1;
+        if let Some(wh) = stats
+            .warehouse_distribution
+            .iter_mut()
+            .find(|w| w.warehouse_id == stock.warehouse_id)
+        {
+            wh.quantity_meters += stock.quantity_available;
+            wh.quantity_kg += stock.quantity_kg;
+        } else {
+            stats.warehouse_distribution.push(WarehouseStock {
+                warehouse_id: stock.warehouse_id,
+                warehouse_name: format!("仓库{}", stock.warehouse_id),
+                quantity_meters: stock.quantity_available,
+                quantity_kg: stock.quantity_kg,
+            });
+        }
+    }
+
+    fn paginate_stats(
+        results: Vec<FiveDimensionStats>,
+        query: &FiveDimensionQuery,
+    ) -> (Vec<FiveDimensionStats>, u64) {
         let total = results.len() as u64;
         let paged: Vec<FiveDimensionStats> = if let Some(page_size) = query.page_size {
             let page = query.page.unwrap_or(1).max(1);
@@ -201,8 +223,7 @@ impl FiveDimensionService {
         } else {
             results
         };
-
-        Ok((paged, total))
+        (paged, total)
     }
 
     /// 按五维ID查询统计

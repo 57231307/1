@@ -1078,13 +1078,14 @@ impl VoucherService {
             .filter(voucher_item::Column::VoucherId.eq(voucher_id))
             .all(txn)
             .await
+            .map_err(AppError::from)
     }
 
     async fn build_subject_id_map(
         &self,
         txn: &sea_orm::DatabaseTransaction,
         items: &[crate::models::voucher_item::Model],
-    ) -> Result<std::collections::HashMap<&str, i32>, AppError> {
+    ) -> Result<std::collections::HashMap<String, i32>, AppError> {
         let subject_codes: Vec<String> = items.iter().map(|i| i.subject_code.clone()).collect();
 
         if subject_codes.is_empty() {
@@ -1094,7 +1095,10 @@ impl VoucherService {
                 .filter(account_subject::Column::Code.is_in(subject_codes))
                 .all(txn)
                 .await?;
-            Ok(subjects.iter().map(|s| (s.code.as_str(), s.id)).collect())
+            Ok(subjects
+                .iter()
+                .map(|s| (s.code.clone(), s.id))
+                .collect())
         }
     }
 
@@ -1119,14 +1123,12 @@ impl VoucherService {
         voucher_id: i32,
         user_id: i32,
         items: &[crate::models::voucher_item::Model],
-        subject_id_by_code: &std::collections::HashMap<&str, i32>,
+        subject_id_by_code: &std::collections::HashMap<String, i32>,
         business_type: &str,
         business_no: &str,
         business_id: i32,
         voucher_model: &crate::models::voucher::Model,
     ) -> Result<(), AppError> {
-        use crate::models::assist_accounting_record;
-
         let now = chrono::Utc::now();
 
         for item in items {
@@ -1171,12 +1173,12 @@ impl VoucherService {
 
     async fn lookup_subject_id(
         &self,
-        subject_id_by_code: &std::collections::HashMap<&str, i32>,
+        subject_id_by_code: &std::collections::HashMap<String, i32>,
         item: &crate::models::voucher_item::Model,
     ) -> Result<i32, AppError> {
         *subject_id_by_code
             .get(item.subject_code.as_str())
-            .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", item.subject_code)))
+            .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", item.subject_code)))?
     }
 
     fn build_five_dimension_id(&self, item: &crate::models::voucher_item::Model) -> String {
