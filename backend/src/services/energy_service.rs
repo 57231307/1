@@ -1511,10 +1511,9 @@ impl EnergyAllocationRecordService {
     /// 月末按工时自动分摊
     ///
     /// 业务流程：
-    /// 1. 查询时段内所有已确认的能耗记录，按车间+能源类型汇总总消耗和总成本
-    /// 2. 查询时段内所有 completed 工序记录，按缸号+工序分组统计工时
-    /// 3. 按工时比例分摊总能耗到每个缸号+工序
-    /// 4. 生成分摊记录
+    /// 1. 查询时段内已确认的能耗记录，按车间+能源类型汇总
+    /// 2. 查询工序记录按缸号+工序分组统计工时
+    /// 3. 按工时比例分摊总能耗，生成分摊记录
     pub async fn monthly_allocation_by_duration(
         &self,
         req: MonthlyAllocationRequest,
@@ -1542,34 +1541,12 @@ impl EnergyAllocationRecordService {
             let meter_type = summary.meter_type;
             let total_consumption = summary.total_consumption;
             let total_cost = summary.total_cost;
-            // 2. 查询该车间在该时段内的 completed 工序记录，按缸号+工序分组统计工时
-            let step_records = StepEntity::find()
-                .filter(process_step_record::Column::Status.eq("completed"))
-                .filter(process_step_record::Column::IsDeleted.eq(false))
-                .filter(process_step_record::Column::StartAt.gte(req.period_start))
-                .filter(process_step_record::Column::StartAt.lte(req.period_end))
-                .all(&*self.db)
-                .await?;
 
-            // 按缸号+工序分组汇总工时
-            // 注意：工序记录没有直接的 workshop 字段，这里通过 equipment_name 或 route_code 简化处理
-            // 真实业务中应关联设备所属车间
-            let mut grouped_duration: std::collections::HashMap<DurationGroupKey, i32> =
-                std::collections::HashMap::new();
-
-            for step in step_records {
-                // 缸号通过 flow_card 关联查询（简化：暂用 equipment_name 作为车间归属）
-                let dye_lot_no = step.equipment_name.clone(); // 简化：实际应通过 flow_card 查询 dye_lot_no
-                let route_id = step.process_route_id;
-                let route_code = Some(step.route_code.clone());
-                let key = DurationGroupKey {
-                    dye_lot_no,
-                    route_id,
-                    route_code,
-                };
-                let duration = step.duration_minutes.unwrap_or(0);
-                *grouped_duration.entry(key).or_insert(0) += duration;
-            }
+            // 2. 按缸号+工序分组统计工时
+            let grouped_duration = Self::group_step_duration_by_key(
+                &self.db, req.period_start, req.period_end,
+            )
+            .await?;
 
             let total_duration: i32 = grouped_duration.values().sum();
             if total_duration == 0 {
@@ -1580,17 +1557,8 @@ impl EnergyAllocationRecordService {
 
             // 3. 按工时比例分摊
             for (key, duration) in grouped_duration {
-                let dye_lot_no = key.dye_lot_no;
-                let route_id = key.route_id;
-                let route_code = key.route_code;
-                let basis_value = Decimal::from(duration);
-                let ratio = compute_allocation_ratio(basis_value, total_duration_decimal);
-                let allocated_consumption =
-                    compute_allocated_consumption(total_consumption, ratio);
-                let allocated_cost = compute_allocated_cost(total_cost, ratio);
-
                 // 查询生效规则
-                let rule = if let Some(rid) = route_id {
+                let rule = if let Some(rid) = key.route_id {
                     rule_service
                         .get_effective_rule(
                             &workshop,
@@ -1603,42 +1571,11 @@ impl EnergyAllocationRecordService {
                     None
                 };
 
-                let allocation_no = Self::generate_allocation_no();
-                let now = crate::utils::date_utils::utc_now_fixed();
-
-                let active = AllocationRecordActiveModel {
-                    id: Default::default(),
-                    allocation_no: Set(allocation_no),
-                    period_start: Set(req.period_start),
-                    period_end: Set(req.period_end),
-                    meter_type: Set(meter_type.clone()),
-                    workshop: Set(Some(workshop.clone())),
-                    allocation_rule_id: Set(rule.as_ref().map(|r| r.id)),
-                    allocation_basis: Set(energy_allocation_basis::BY_DURATION.to_string()),
-                    total_consumption: Set(total_consumption),
-                    total_cost: Set(total_cost),
-                    dye_lot_no: Set(dye_lot_no.clone()),
-                    production_order_id: Set(None),
-                    production_order_no: Set(None),
-                    process_route_id: Set(route_id),
-                    route_code: Set(route_code),
-                    flow_card_id: Set(None),
-                    allocation_basis_value: Set(basis_value),
-                    allocation_ratio: Set(ratio),
-                    allocated_consumption: Set(allocated_consumption),
-                    allocated_cost: Set(allocated_cost),
-                    output_quantity: Set(None),
-                    unit_consumption: Set(None),
-                    cost_collection_id: Set(None),
-                    status: Set(energy_record_status::DRAFT.to_string()),
-                    confirmed_by: Set(None),
-                    confirmed_at: Set(None),
-                    remarks: Set(Some("月末按工时自动分摊".to_string())),
-                    is_deleted: Set(false),
-                    created_by: Set(req.created_by),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
+                let active = Self::build_allocation_record(
+                    &req, &workshop, &meter_type,
+                    total_consumption, total_cost,
+                    &key, duration, total_duration_decimal, &rule,
+                );
 
                 let result = active
                     .insert(&*self.db)
@@ -1649,6 +1586,95 @@ impl EnergyAllocationRecordService {
         }
 
         Ok(results)
+    }
+
+    /// 按缸号+工序分组统计工时
+    async fn group_step_duration_by_key(
+        db: &DatabaseConnection,
+        period_start: chrono::DateTime<chrono::FixedOffset>,
+        period_end: chrono::DateTime<chrono::FixedOffset>,
+    ) -> Result<std::collections::HashMap<DurationGroupKey, i32>, AppError> {
+        let step_records = StepEntity::find()
+            .filter(process_step_record::Column::Status.eq("completed"))
+            .filter(process_step_record::Column::IsDeleted.eq(false))
+            .filter(process_step_record::Column::StartAt.gte(period_start))
+            .filter(process_step_record::Column::StartAt.lte(period_end))
+            .all(db)
+            .await?;
+
+        let mut grouped_duration: std::collections::HashMap<DurationGroupKey, i32> =
+            std::collections::HashMap::new();
+
+        for step in step_records {
+            // 缸号通过 flow_card 关联查询（简化：暂用 equipment_name 作为车间归属）
+            let dye_lot_no = step.equipment_name.clone();
+            let route_id = step.process_route_id;
+            let route_code = Some(step.route_code.clone());
+            let key = DurationGroupKey {
+                dye_lot_no,
+                route_id,
+                route_code,
+            };
+            let duration = step.duration_minutes.unwrap_or(0);
+            *grouped_duration.entry(key).or_insert(0) += duration;
+        }
+
+        Ok(grouped_duration)
+    }
+
+    /// 构建分摊记录 ActiveModel
+    fn build_allocation_record(
+        req: &MonthlyAllocationRequest,
+        workshop: &str,
+        meter_type: &str,
+        total_consumption: Decimal,
+        total_cost: Decimal,
+        key: &DurationGroupKey,
+        duration: i32,
+        total_duration_decimal: Decimal,
+        rule: &Option<RuleModel>,
+    ) -> AllocationRecordActiveModel {
+        let basis_value = Decimal::from(duration);
+        let ratio = compute_allocation_ratio(basis_value, total_duration_decimal);
+        let allocated_consumption = compute_allocated_consumption(total_consumption, ratio);
+        let allocated_cost = compute_allocated_cost(total_cost, ratio);
+
+        let allocation_no = Self::generate_allocation_no();
+        let now = crate::utils::date_utils::utc_now_fixed();
+
+        AllocationRecordActiveModel {
+            id: Default::default(),
+            allocation_no: Set(allocation_no),
+            period_start: Set(req.period_start),
+            period_end: Set(req.period_end),
+            meter_type: Set(meter_type.to_string()),
+            workshop: Set(Some(workshop.to_string())),
+            allocation_rule_id: Set(rule.as_ref().map(|r| r.id)),
+            allocation_basis: Set(energy_allocation_basis::BY_DURATION.to_string()),
+            total_consumption: Set(total_consumption),
+            total_cost: Set(total_cost),
+            dye_lot_no: Set(key.dye_lot_no.clone()),
+            production_order_id: Set(None),
+            production_order_no: Set(None),
+            process_route_id: Set(key.route_id),
+            route_code: Set(key.route_code.clone()),
+            flow_card_id: Set(None),
+            allocation_basis_value: Set(basis_value),
+            allocation_ratio: Set(ratio),
+            allocated_consumption: Set(allocated_consumption),
+            allocated_cost: Set(allocated_cost),
+            output_quantity: Set(None),
+            unit_consumption: Set(None),
+            cost_collection_id: Set(None),
+            status: Set(energy_record_status::DRAFT.to_string()),
+            confirmed_by: Set(None),
+            confirmed_at: Set(None),
+            remarks: Set(Some("月末按工时自动分摊".to_string())),
+            is_deleted: Set(false),
+            created_by: Set(req.created_by),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
     }
 }
 

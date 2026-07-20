@@ -465,13 +465,7 @@ impl DashboardService {
     /// 获取库存统计数据
     ///
     /// 批次 135 v9 P1 修复：原 turnover_rate/by_category/aging_analysis 为硬编码占位，
-    /// 现真实聚合查询：
-    ///
-    /// - turnover_rate: 销售数量 / 库存数量（无量纲周转率）
-    /// - by_category: raw SQL 关联 products + product_categories 表按品类分组
-    /// - aging_analysis: raw SQL 按 last_movement_date/created_at 计算账龄区间
-    ///
-    /// 同时修复 by_warehouse.value 从 "0.0" 改为按品类查询同款 SQL 聚合真实库存价值
+    /// 现真实聚合查询。
     pub async fn get_inventory_statistics(
         &self,
         _start_date: Option<DateTime<Utc>>,
@@ -538,6 +532,46 @@ impl DashboardService {
 
         let total_quantity = total_quantity_opt.flatten().unwrap_or(Decimal::ZERO);
 
+        // 仓库分布 + 价值查询
+        let warehouse_stats = self
+            .query_warehouse_distribution_with_value(warehouse_distribution, db)
+            .await?;
+
+        // 批次 135：by_category 按品类分组聚合（关联 products + product_categories）
+        let by_category = self.query_inventory_by_category().await?;
+
+        // 批次 135：aging_analysis 库存账龄分析（按 last_movement_date/created_at）
+        let aging_analysis = self.query_inventory_aging().await?;
+
+        // 批次 135：turnover_rate 库存周转率 = 销售数量 / 库存数量
+        let turnover_rate = self.query_turnover_rate().await?;
+
+        let statistics = InventoryStatistics {
+            total_inventory: total_quantity.to_string(),
+            turnover_rate,
+            by_warehouse: warehouse_stats,
+            by_category,
+            aging_analysis,
+        };
+
+        // 缓存结果，有效期5分钟
+        if let Ok(statistics_json) = serde_json::to_value(statistics.clone()) {
+            self.cache.get_dashboard_cache().set(
+                cache_key,
+                statistics_json,
+                Some(Duration::from_secs(300)),
+            );
+        }
+
+        Ok(statistics)
+    }
+
+    /// 查询仓库分布+价值，返回格式化后的仓库统计列表
+    async fn query_warehouse_distribution_with_value(
+        &self,
+        warehouse_distribution: Vec<(i32, Option<Decimal>)>,
+        db: &DatabaseConnection,
+    ) -> Result<Vec<InventoryByWarehouse>, AppError> {
         let warehouse_ids: Vec<i32> = warehouse_distribution
             .iter()
             .map(|(wh_id, _)| *wh_id)
@@ -587,33 +621,7 @@ impl DashboardService {
             }
         }
 
-        // 批次 135：by_category 按品类分组聚合（关联 products + product_categories）
-        let by_category = self.query_inventory_by_category().await?;
-
-        // 批次 135：aging_analysis 库存账龄分析（按 last_movement_date/created_at）
-        let aging_analysis = self.query_inventory_aging().await?;
-
-        // 批次 135：turnover_rate 库存周转率 = 销售数量 / 库存数量
-        let turnover_rate = self.query_turnover_rate().await?;
-
-        let statistics = InventoryStatistics {
-            total_inventory: total_quantity.to_string(),
-            turnover_rate,
-            by_warehouse: warehouse_stats,
-            by_category,
-            aging_analysis,
-        };
-
-        // 缓存结果，有效期5分钟
-        if let Ok(statistics_json) = serde_json::to_value(statistics.clone()) {
-            self.cache.get_dashboard_cache().set(
-                cache_key,
-                statistics_json,
-                Some(Duration::from_secs(300)),
-            );
-        }
-
-        Ok(statistics)
+        Ok(warehouse_stats)
     }
 
     /// 按品类分组聚合库存（批次 135 v9 P1 修复）
