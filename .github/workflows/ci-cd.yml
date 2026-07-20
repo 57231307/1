@@ -815,6 +815,12 @@ jobs:
           } > reports/clippy-report.html
 
           # 9. 决定退出码（V15 Batch 485 修订：恢复 baseline 机制，仅新增警告阻塞 CI）
+          # Batch 488 D08-1 教训：clippy 编译失败（退出码 101）时 reports/clippy-current.txt
+          # 可能不完整（缺少部分 warning 摘要行），导致 FIXED_COUNT > 0 误触发自动刷新，
+          # 把 baseline 缩小到不完整的 current，下次 CI 又报新增警告。三次复发。
+          # 修复：写入 CLIPPY_MAIN_EXIT 到文件，供后续 step 读取；自动刷新条件增加 clippy 正常退出。
+          echo "CLIPPY_MAIN_EXIT=$CLIPPY_MAIN_EXIT" > reports/clippy-main-exit.txt
+
           if [ "$NEW_COUNT" -gt "0" ]; then
             echo ""
             echo "❌ 发现 $NEW_COUNT 个新警告，CI 失败"
@@ -832,6 +838,7 @@ jobs:
           echo "CLIPPY_FIXED_COUNT=$FIXED_COUNT" >> "$GITHUB_ENV"
           echo "CLIPPY_CURRENT_COUNT=$CURRENT_COUNT" >> "$GITHUB_ENV"
           echo "CLIPPY_BASELINE_COUNT=$BASELINE_COUNT" >> "$GITHUB_ENV"
+          echo "CLIPPY_MAIN_EXIT=$CLIPPY_MAIN_EXIT" >> "$GITHUB_ENV"
 
           echo "✅ 无新增 clippy 警告"
           exit 0
@@ -844,10 +851,20 @@ jobs:
             if [ -f "backend/.clippy-baseline.txt" ]; then
               BASELINE_PATH="backend/.clippy-baseline.txt"
             fi
+            # 从文件读取 clippy 主退出码（NEW_COUNT > 0 时 step 提前 exit 1，$GITHUB_ENV 未写入）
+            CLIPPY_MAIN_EXIT_VAL="unknown"
+            if [ -f "reports/clippy-main-exit.txt" ]; then
+              CLIPPY_MAIN_EXIT_VAL=$(grep -E '^CLIPPY_MAIN_EXIT=' reports/clippy-main-exit.txt | cut -d= -f2)
+            fi
+            echo "CLIPPY_MAIN_EXIT_VAL=$CLIPPY_MAIN_EXIT_VAL"
             if git ls-files --error-unmatch "$BASELINE_PATH" 2>/dev/null; then
               echo "✅ baseline 文件已纳入版本控制"
-              # main 分支自动刷新 baseline（已修复警告 > 0 且无新警告时）
-              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_FIXED_COUNT" -gt "0" ] && [ "$CLIPPY_NEW_COUNT" = "0" ]; then
+              # main 分支自动刷新 baseline（已修复警告 > 0 且无新警告且 clippy 正常退出时）
+              # Batch 488 D08-1 教训：clippy 编译失败（退出码 101）时 reports/clippy-current.txt
+              # 可能不完整（缺少部分 warning 摘要行），导致 FIXED_COUNT > 0 误触发自动刷新，
+              # 把 baseline 缩小到不完整的 current，下次 CI 又报新增警告。三次复发。
+              # 修复：增加 CLIPPY_MAIN_EXIT = 0 条件，clippy 必须正常退出才能刷新 baseline。
+              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_FIXED_COUNT" -gt "0" ] && [ "$CLIPPY_NEW_COUNT" = "0" ] && [ "$CLIPPY_MAIN_EXIT_VAL" = "0" ]; then
                 echo "📝 自动刷新 baseline：移除 $CLIPPY_FIXED_COUNT 条已修复警告（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT）"
                 cd backend
                 cp reports/clippy-current.txt .clippy-baseline.txt
