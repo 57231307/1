@@ -1,6 +1,13 @@
 
-    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#too_many_arguments
-    = note: `#[warn(clippy::too_many_arguments)]` on by default
+            `services::batch_service::BatchError: std::clone::Clone`
+            which is required by `std::vec::Vec<services::batch_service::BatchError>: std::clone::Clone`
+     |
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    --> src/services/so/delivery.rs:1358:9
+    --> src/services/voucher_service.rs:1103:9
+    = note: requested on the command line with `-W unused-imports`
+    = note: requested on the command line with `-W unused-variables`
+    = note: the following trait bounds were not satisfied:
     |
     |                                                ^^ expected `&str`, found integer
     |                                         ^^^ expected `&str`, found integer
@@ -13,6 +20,7 @@
     |                                    ^^^ expected `&str`, found integer
     |                                    ^^^^ expected `&str`, found integer
     |                                 ^^ expected `&str`, found integer
+    |                                ^^^^^
     |                               ^^ expected `&str`, found integer
     |                               ^^^ expected `&str`, found integer
     |                               ^^^^^^ expected `&str`, found floating-point number
@@ -20,90 +28,91 @@
     |                             ^^ expected `&str`, found integer
     |                             ^^^ expected `&str`, found integer
     |         ------------------------------- arguments to this function are incorrect
-    | |_____^
-    | |______________________________________^
-    | |___________________________________________________________________^
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_txn`
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | --------------------- doesn't satisfy `_: Clone`
    --> /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/str/traits.rs:855:7
-   --> src/services/bulk_color_approval_service.rs:729:5
-   --> src/services/purchase_receipt_service.rs:714:37
-   --> src/services/purchase_receipt_service.rs:715:31
-   --> src/services/purchase_receipt_service.rs:716:29
-   --> src/services/purchase_receipt_service.rs:717:33
-   --> src/services/purchase_receipt_service.rs:720:36
-   --> src/services/purchase_receipt_service.rs:982:41
-   --> src/services/purchase_receipt_service.rs:983:48
-   --> src/services/quotation_service.rs:580:29
-   --> src/services/quotation_service.rs:581:31
-   --> src/services/quotation_service.rs:582:40
-   --> src/services/quotation_service.rs:603:29
-   --> src/services/quotation_service.rs:604:29
-   --> src/services/quotation_service.rs:715:36
-   --> src/services/quotation_service.rs:716:38
-   --> src/services/quotation_service.rs:717:40
-   --> src/services/quotation_service.rs:731:36
-   --> src/services/quotation_service.rs:733:40
-   --> src/services/quotation_service.rs:749:29
-   --> src/services/quotation_service.rs:750:31
-   --> src/services/quotation_service.rs:751:40
-   --> src/services/quotation_service.rs:757:36
-   --> src/services/quotation_service.rs:774:29
-   --> src/services/quotation_service.rs:775:31
-   --> src/services/quotation_service.rs:776:40
-   --> src/services/quotation_service.rs:783:36
-   --> src/services/role_permission_service.rs:471:5
-   --> src/services/user_service.rs:318:5
+   --> src/services/accounting_period_service.rs:377:9
+   --> src/services/ar/recon.rs:456:9
+   --> src/services/ar/vfy.rs:782:9
+   --> src/services/batch_service.rs:444:32
+   --> src/services/customer_credit_limit.rs:350:9
+   --> src/services/inventory_adjustment_service.rs:687:9
+   --> src/services/purchase_receipt_service.rs:685:9
+   --> src/services/purchase_receipt_service.rs:702:37
+   --> src/services/purchase_receipt_service.rs:703:31
+   --> src/services/purchase_receipt_service.rs:704:29
+   --> src/services/purchase_receipt_service.rs:705:33
+   --> src/services/purchase_receipt_service.rs:708:36
+   --> src/services/purchase_receipt_service.rs:970:41
+   --> src/services/purchase_receipt_service.rs:971:48
+   --> src/services/quotation_service.rs:619:9
+   --> src/services/quotation_service.rs:631:29
+   --> src/services/quotation_service.rs:632:31
+   --> src/services/quotation_service.rs:633:40
+   --> src/services/quotation_service.rs:654:29
+   --> src/services/quotation_service.rs:655:29
+   --> src/services/quotation_service.rs:766:36
+   --> src/services/quotation_service.rs:767:38
+   --> src/services/quotation_service.rs:768:40
+   --> src/services/quotation_service.rs:782:36
+   --> src/services/quotation_service.rs:784:40
+   --> src/services/quotation_service.rs:800:29
+   --> src/services/quotation_service.rs:801:31
+   --> src/services/quotation_service.rs:802:40
+   --> src/services/quotation_service.rs:808:36
+   --> src/services/quotation_service.rs:825:29
+   --> src/services/quotation_service.rs:826:31
+   --> src/services/quotation_service.rs:827:40
+   --> src/services/quotation_service.rs:834:36
+   --> src/services/so/order_crud.rs:211:9
+   --> src/services/so/order_workflow.rs:411:9
    ::: src/utils/unwrap_safe.rs:30:9
  30 |         rust_decimal::Decimal::from_str($x).expect("P9-1: 测试夹具 Decimal 字符串解析失败")
-...   |
-318 | /     pub async fn update_user(
-319 | |         &self,
-320 | |         user_id: i32,
-321 | |         email: Option<String>,
-326 | |         operator_id: i32,
-327 | |     ) -> Result<user::Model, AppError> {
-471 | /     async fn write_permission_audit(
-472 | |         &self,
-473 | |         change_type: &str,
-474 | |         operator_id: i32,
-479 | |         new_value: Option<String>,
-480 | |     ) {
-580 |             quantity: decs!(100),
-581 |             unit_price: decs!(10),
-582 |             unit_price_with_tax: decs!(11.3),
-603 |             tax_rate: decs!(13),
-604 |             moq: Some(decs!(50)),
-714 |             gram_weight: Some(decs!(200)),
-715 |             width: Some(decs!(150)),
-715 |         assert_eq!(subtotal, decs!(1000));
-716 |             quantity: decs!(100),
-716 |         assert_eq!(tax_amount, decs!(130));
-717 |             quantity_alt: decs!(50),
-717 |         assert_eq!(total_amount, decs!(1130));
-720 |             unit_price: Some(decs!(10)),
-729 | /     async fn transition_to(
-730 | |         &self,
-731 |         assert_eq!(subtotal, decs!(1000));
-731 | |         id: i64,
-732 | |         target: ApprovalStatus,
-733 |         assert_eq!(total_amount, decs!(1000));
-737 | |         unblock_delivery: bool,
-738 | |     ) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
-749 |             quantity: decs!(200),
-750 |             unit_price: decs!(20),
-751 |             unit_price_with_tax: decs!(22.6),
-757 |         assert_eq!(subtotal, decs!(5000)); // 1000 + 4000
-774 |             quantity: decs!(3),
-775 |             unit_price: decs!(33.333),
-776 |             unit_price_with_tax: decs!(33.333),
-783 |         assert_eq!(subtotal, decs!(100));
-982 |         assert_eq!(item.quantity, decs!(100));
-983 |         assert_eq!(item.unit_price, Some(decs!(10)));
+ 32 + #[derive(Clone)]
+ 32 | pub struct BatchError {
+ 33 | pub struct BatchError {
+...
+1103 |     use sea_orm::DatabaseConnection;
+1358 |     use sea_orm::DatabaseConnection;
+211 |         txn: &sea_orm::DatabaseTransaction,
+350 |     use sea_orm::DatabaseConnection;
+377 |     use sea_orm::DatabaseConnection;
+411 |     use sea_orm::DatabaseConnection;
+444 |             errors: ctx.errors.clone(),
+456 |     use sea_orm::DatabaseConnection;
+619 |     use sea_orm::DatabaseConnection;
+631 |             quantity: decs!(100),
+632 |             unit_price: decs!(10),
+633 |             unit_price_with_tax: decs!(11.3),
+654 |             tax_rate: decs!(13),
+655 |             moq: Some(decs!(50)),
+685 |     use sea_orm::DatabaseConnection;
+687 |     use sea_orm::DatabaseConnection;
+702 |             gram_weight: Some(decs!(200)),
+703 |             width: Some(decs!(150)),
+704 |             quantity: decs!(100),
+705 |             quantity_alt: decs!(50),
+708 |             unit_price: Some(decs!(10)),
+766 |         assert_eq!(subtotal, decs!(1000));
+767 |         assert_eq!(tax_amount, decs!(130));
+768 |         assert_eq!(total_amount, decs!(1130));
+782 |         assert_eq!(subtotal, decs!(1000));
+782 |     use sea_orm::DatabaseConnection;
+784 |         assert_eq!(total_amount, decs!(1000));
+800 |             quantity: decs!(200),
+801 |             unit_price: decs!(20),
+802 |             unit_price_with_tax: decs!(22.6),
+808 |         assert_eq!(subtotal, decs!(5000)); // 1000 + 4000
+825 |             quantity: decs!(3),
+826 |             unit_price: decs!(33.333),
+827 |             unit_price_with_tax: decs!(33.333),
+834 |         assert_eq!(subtotal, decs!(100));
+970 |         assert_eq!(item.quantity, decs!(100));
+971 |         assert_eq!(item.unit_price, Some(decs!(10)));
 error[E0308]: mismatched types
+error[E0599]: the method `clone` exists for struct `std::vec::Vec<services::batch_service::BatchError>`, but its trait bounds were not satisfied
+help: consider annotating `services::batch_service::BatchError` with `#[derive(Clone)]`
 note: associated function defined here
-warning: this function has too many arguments (8/7)
-warning: this function has too many arguments (9/7)
-warning: deref which would be done by auto-deref
-warning: doc list item without indentation
 warning: unused import: `sea_orm::DatabaseConnection`
 warning: unused variable: `txn`
-warning: the following explicit lifetimes could be elided: 'a
