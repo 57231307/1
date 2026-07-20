@@ -101,6 +101,121 @@ impl BpmService {
         Self { db }
     }
 
+    /// 从流程定义配置中解析首个任务节点
+    fn resolve_first_task_node(
+        flow_def: &serde_json::Value,
+    ) -> Option<&serde_json::Value> {
+        let nodes = flow_def.get("nodes").and_then(|n| n.as_array())?;
+
+        // 查找 start_event 节点
+        let start_node = nodes
+            .iter()
+            .find(|n| n.get("type").and_then(|t| t.as_str()) == Some("start_event"));
+
+        let mut first_task_node = None;
+
+        if let Some(start) = start_node {
+            let start_id = start.get("id").and_then(|i| i.as_str()).unwrap_or("");
+            if let Some(edges) = flow_def.get("edges").and_then(|e| e.as_array()) {
+                if let Some(edge) = edges
+                    .iter()
+                    .find(|e| e.get("source").and_then(|s| s.as_str()) == Some(start_id))
+                {
+                    let target_id =
+                        edge.get("target").and_then(|t| t.as_str()).unwrap_or("");
+                    first_task_node = nodes
+                        .iter()
+                        .find(|n| n.get("id").and_then(|i| i.as_str()) == Some(target_id));
+                }
+            }
+        }
+
+        // 未通过 start_event 边找到，则回退到第一个 user_task
+        if first_task_node.is_none() {
+            first_task_node = nodes
+                .iter()
+                .find(|n| n.get("type").and_then(|t| t.as_str()) == Some("user_task"));
+        }
+
+        first_task_node
+    }
+
+    /// 创建首个任务或自动完成流程
+    async fn create_first_task_or_complete(
+        &self,
+        txn: &DatabaseTransaction,
+        definition: &bpm_process_definition::Model,
+        instance: &bpm_process_instance::Model,
+        req: &StartProcessRequest,
+    ) -> Result<(Vec<i32>, Option<crate::services::event_bus::BusinessEvent>), AppError> {
+        let mut task_ids = vec![];
+        let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
+
+        if let Some(flow_def) = &definition.config {
+            let first_task_node = Self::resolve_first_task_node(flow_def);
+
+            if let Some(first_task) = first_task_node {
+                // 创建首个用户任务
+                let task_model = bpm_task::ActiveModel {
+                    instance_id: Set(instance.id),
+                    process_definition_id: Set(definition.id),
+                    // P1 3-6 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
+                    task_no: Set(
+                        crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                            txn,
+                            "TSK",
+                            bpm_task::Entity,
+                            bpm_task::Column::TaskNo,
+                        )
+                        .await?
+                    ),
+                    node_id: Set(first_task
+                        .get("id")
+                        .and_then(|i| i.as_str())
+                        .unwrap_or("unknown")
+                        .to_string()),
+                    node_name: Set(first_task
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("Task")
+                        .to_string()),
+                    node_type: Set("user_task".to_string()),
+                    task_type: Set(Some("user_task".to_string())),
+                    actual_handler_id: Set(first_task
+                        .get("assignee_value")
+                        .and_then(|a| a.as_str())
+                        .and_then(|s| s.parse::<i32>().ok())),
+                    status: Set(Some(task_status::PENDING.to_string())),
+                    created_at: Set(Some(chrono::Utc::now())),
+                    updated_at: Set(Some(chrono::Utc::now())),
+                    ..Default::default()
+                };
+                let task = task_model.insert(txn).await?;
+                task_ids.push(task.id);
+            } else {
+                // 无任务节点，自动完成流程
+                let mut instance_active: bpm_process_instance::ActiveModel =
+                    instance.clone().into();
+                instance_active.status = Set(Some(instance_status::COMPLETED.to_string()));
+                instance_active.completed_at = Set(Some(chrono::Utc::now()));
+                instance_active.update(txn).await?;
+
+                // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
+                // P2 5-18 修复：携带 initiator_id 作为 approver_id（start_process 自动完成时审批人=发起人）
+                pending_event = Some(
+                    crate::services::event_bus::BusinessEvent::BpmProcessFinished {
+                        business_type: req.business_type.clone(),
+                        business_id: req.business_id,
+                        approved: true,
+                        approver_id: req.initiator_id,
+                    },
+                );
+            }
+        }
+
+        Ok((task_ids, pending_event))
+    }
+
     pub async fn start_process(
         &self,
         req: StartProcessRequest,
@@ -132,105 +247,17 @@ impl BpmService {
             initiator_id: Set(req.initiator_id),
             initiator_name: Set("".to_string()),
             status: Set(Some(instance_status::PROCESSING.to_string())),
-            variables: Set(req.variables),
+            variables: Set(req.variables.clone()),
             started_at: Set(Some(chrono::Utc::now())),
             ..Default::default()
         };
 
         let instance = instance_model.insert(&txn).await?;
 
-        let mut task_ids = vec![];
-        // P0 5-3 修复：事务内仅收集待发事件，commit 成功后再 publish，避免 commit 失败产生幻事件
-        let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
-        if let Some(flow_def) = definition.config {
-            if let Some(nodes) = flow_def.get("nodes").and_then(|n| n.as_array()) {
-                // Find start_event or first user_task
-                let start_node = nodes
-                    .iter()
-                    .find(|n| n.get("type").and_then(|t| t.as_str()) == Some("start_event"));
-
-                let mut first_task_node = None;
-
-                if let Some(start) = start_node {
-                    let start_id = start.get("id").and_then(|i| i.as_str()).unwrap_or("");
-                    if let Some(edges) = flow_def.get("edges").and_then(|e| e.as_array()) {
-                        if let Some(edge) = edges
-                            .iter()
-                            .find(|e| e.get("source").and_then(|s| s.as_str()) == Some(start_id))
-                        {
-                            let target_id =
-                                edge.get("target").and_then(|t| t.as_str()).unwrap_or("");
-                            first_task_node = nodes
-                                .iter()
-                                .find(|n| n.get("id").and_then(|i| i.as_str()) == Some(target_id));
-                        }
-                    }
-                }
-
-                if first_task_node.is_none() {
-                    first_task_node = nodes
-                        .iter()
-                        .find(|n| n.get("type").and_then(|t| t.as_str()) == Some("user_task"));
-                }
-
-                if let Some(first_task) = first_task_node {
-                    let task_model = bpm_task::ActiveModel {
-                        instance_id: Set(instance.id),
-                        process_definition_id: Set(definition.id),
-                        // P1 3-6 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
-                        task_no: Set(
-                            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
-                                &txn,
-                                "TSK",
-                                bpm_task::Entity,
-                                bpm_task::Column::TaskNo,
-                            )
-                            .await?
-                        ),
-                        node_id: Set(first_task
-                            .get("id")
-                            .and_then(|i| i.as_str())
-                            .unwrap_or("unknown")
-                            .to_string()),
-                        node_name: Set(first_task
-                            .get("name")
-                            .and_then(|n| n.as_str())
-                            .unwrap_or("Task")
-                            .to_string()),
-                        node_type: Set("user_task".to_string()),
-                        task_type: Set(Some("user_task".to_string())),
-                        actual_handler_id: Set(first_task
-                            .get("assignee_value")
-                            .and_then(|a| a.as_str())
-                            .and_then(|s| s.parse::<i32>().ok())),
-                        status: Set(Some(task_status::PENDING.to_string())),
-                        created_at: Set(Some(chrono::Utc::now())),
-                        updated_at: Set(Some(chrono::Utc::now())),
-                        ..Default::default()
-                    };
-                    let task = task_model.insert(&txn).await?;
-                    task_ids.push(task.id);
-                } else {
-                    // No task found, auto complete
-                    let mut instance_active: bpm_process_instance::ActiveModel =
-                        instance.clone().into();
-                    instance_active.status = Set(Some(instance_status::COMPLETED.to_string()));
-                    instance_active.completed_at = Set(Some(chrono::Utc::now()));
-                    instance_active.update(&txn).await?;
-
-                    // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
-                    // P2 5-18 修复：携带 initiator_id 作为 approver_id（start_process 自动完成时审批人=发起人）
-                    pending_event = Some(
-                        crate::services::event_bus::BusinessEvent::BpmProcessFinished {
-                            business_type: req.business_type.clone(),
-                            business_id: req.business_id,
-                            approved: true,
-                            approver_id: req.initiator_id,
-                        },
-                    );
-                }
-            }
-        }
+        // 创建首个任务或自动完成流程
+        let (task_ids, pending_event) = self
+            .create_first_task_or_complete(&txn, &definition, &instance, &req)
+            .await?;
 
         txn.commit().await?;
 

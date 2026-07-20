@@ -27,6 +27,103 @@ use super::{
 };
 
 impl AiAnalysisService {
+    /// 按产品聚合出库数据
+    fn collect_outbound_by_product(
+        transactions: &[crate::models::inventory_transaction::Model],
+    ) -> HashMap<i32, Vec<f64>> {
+        let mut outbound_by_product: HashMap<i32, Vec<f64>> = HashMap::new();
+        for tx in transactions {
+            if tx.transaction_type == "销售出库" || tx.transaction_type == "出库" {
+                let qty = tx.quantity_meters.to_f64().unwrap_or(0.0);
+                outbound_by_product
+                    .entry(tx.product_id)
+                    .or_default()
+                    .push(qty);
+            }
+        }
+        outbound_by_product
+    }
+
+    /// 计算单产品的需求统计（日均值、标准差）和库存优化建议
+    fn compute_inventory_suggestion(
+        &self,
+        stock: &InventoryStockModel,
+        outbound_qtys: Option<&Vec<f64>>,
+        transactions: &[crate::models::inventory_transaction::Model],
+        abc: &str,
+    ) -> InventorySuggestion {
+        let pid = stock.product_id;
+        let current = stock.quantity_available.to_f64().unwrap_or(0.0);
+
+        // 计算出库统计
+        let (_avg_daily_demand, _demand_std, safety_stock, reorder_point, reorder_quantity, suggested) =
+            if let Some(qtys) = outbound_qtys {
+                let daily_map = self.aggregate_daily_from_transactions(pid, transactions);
+                let daily_values: Vec<f64> = daily_map.values().copied().collect();
+                let avg = if daily_values.is_empty() {
+                    0.0
+                } else {
+                    mean(&daily_values)
+                };
+                let std = if daily_values.len() > 1 {
+                    std_deviation(&daily_values)
+                } else {
+                    avg * 0.3
+                };
+                let _total: f64 = qtys.iter().sum();
+
+                // ABC 分类影响服务水平
+                let service_level_z = match abc {
+                    "A" => 2.33, // 99% 服务水平
+                    "B" => 1.65, // 95% 服务水平
+                    _ => 1.28,   // 90% 服务水平
+                };
+
+                // 安全库存 = Z * σ * √(LT)  假设提前期 LT = 7 天
+                let lead_time = 7.0_f64;
+                let ss = service_level_z * std * lead_time.sqrt();
+                let rp = avg * lead_time + ss;
+                let rq = avg * 30.0;
+                let sg = ss + avg * 30.0;
+
+                (avg, std, ss, rp, rq, sg)
+            } else {
+                (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            };
+
+        let reason = if current <= 0.0 {
+            format!(
+                "库存为零! ABC分类={}, 安全库存={:.0}, 建议立即补货 {:.0}",
+                abc, safety_stock, reorder_quantity
+            )
+        } else if current < reorder_point {
+            format!(
+                "库存({:.0})低于再订货点({:.0}), ABC分类={}, 安全库存={:.0}, 建议补货 {:.0}",
+                current, reorder_point, abc, safety_stock, reorder_quantity
+            )
+        } else if current > suggested * 2.0 {
+            format!(
+                "库存({:.0})过高, 超过建议水平({:.0})的2倍, ABC分类={}, 建议减少采购或促销",
+                current, suggested, abc
+            )
+        } else {
+            format!(
+                "库存水平正常, ABC分类={}, 安全库存={:.0}",
+                abc, safety_stock
+            )
+        };
+
+        InventorySuggestion {
+            product_id: pid,
+            current_stock: stock.quantity_available,
+            suggested_stock: Decimal::try_from(suggested.max(0.0)).unwrap_or(Decimal::ZERO),
+            reorder_point: Decimal::try_from(reorder_point.max(0.0)).unwrap_or(Decimal::ZERO),
+            reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0))
+                .unwrap_or(Decimal::ZERO),
+            reason,
+        }
+    }
+
     /// 库存优化建议
     /// 基于历史出库数据计算安全库存，结合 ABC 分类给出建议
     pub async fn optimize_inventory(
@@ -60,16 +157,7 @@ impl AiAnalysisService {
             .await?;
 
         // 按产品聚合出库数据
-        let mut outbound_by_product: HashMap<i32, Vec<f64>> = HashMap::new();
-        for tx in &transactions {
-            if tx.transaction_type == "销售出库" || tx.transaction_type == "出库" {
-                let qty = tx.quantity_meters.to_f64().unwrap_or(0.0);
-                outbound_by_product
-                    .entry(tx.product_id)
-                    .or_default()
-                    .push(qty);
-            }
-        }
+        let outbound_by_product = Self::collect_outbound_by_product(&transactions);
 
         // ABC 分类
         let abc_classifications = self.compute_abc_classification(&stocks, &outbound_by_product);
@@ -82,82 +170,15 @@ impl AiAnalysisService {
 
         for stock in stocks {
             let pid = stock.product_id;
-            let current = stock.quantity_available.to_f64().unwrap_or(0.0);
-
-            // 计算出库统计
-            let outbound_qtys = outbound_by_product.get(&pid);
-            let (avg_daily_demand, demand_std, _total_outbound) = if let Some(qtys) = outbound_qtys
-            {
-                let daily_map = self.aggregate_daily_from_transactions(pid, &transactions);
-                let daily_values: Vec<f64> = daily_map.values().copied().collect();
-                let avg = if daily_values.is_empty() {
-                    0.0
-                } else {
-                    mean(&daily_values)
-                };
-                let std = if daily_values.len() > 1 {
-                    std_deviation(&daily_values)
-                } else {
-                    avg * 0.3
-                };
-                let total: f64 = qtys.iter().sum();
-                (avg, std, total)
-            } else {
-                (0.0, 0.0, 0.0)
-            };
-
-            // ABC 分类影响服务水平
             let abc = abc_map.get(&pid).copied().unwrap_or("C");
-            let service_level_z = match abc {
-                "A" => 2.33, // 99% 服务水平
-                "B" => 1.65, // 95% 服务水平
-                _ => 1.28,   // 90% 服务水平
-            };
 
-            // 安全库存 = Z * σ * √(LT)  假设提前期 LT = 7 天
-            let lead_time = 7.0_f64;
-            let safety_stock = service_level_z * demand_std * lead_time.sqrt();
-
-            // 再订货点 = 平均日需求 * 提前期 + 安全库存
-            let reorder_point = avg_daily_demand * lead_time + safety_stock;
-
-            // 建议订货量 = 30 天需求量（EOQ 简化版）
-            let reorder_quantity = avg_daily_demand * 30.0;
-
-            // 建议库存水平 = 安全库存 + 30天需求
-            let suggested = safety_stock + avg_daily_demand * 30.0;
-
-            let reason = if current <= 0.0 {
-                format!(
-                    "库存为零! ABC分类={}, 安全库存={:.0}, 建议立即补货 {:.0}",
-                    abc, safety_stock, reorder_quantity
-                )
-            } else if current < reorder_point {
-                format!(
-                    "库存({:.0})低于再订货点({:.0}), ABC分类={}, 安全库存={:.0}, 建议补货 {:.0}",
-                    current, reorder_point, abc, safety_stock, reorder_quantity
-                )
-            } else if current > suggested * 2.0 {
-                format!(
-                    "库存({:.0})过高, 超过建议水平({:.0})的2倍, ABC分类={}, 建议减少采购或促销",
-                    current, suggested, abc
-                )
-            } else {
-                format!(
-                    "库存水平正常, ABC分类={}, 安全库存={:.0}",
-                    abc, safety_stock
-                )
-            };
-
-            suggestions.push(InventorySuggestion {
-                product_id: pid,
-                current_stock: stock.quantity_available,
-                suggested_stock: Decimal::try_from(suggested.max(0.0)).unwrap_or(Decimal::ZERO),
-                reorder_point: Decimal::try_from(reorder_point.max(0.0)).unwrap_or(Decimal::ZERO),
-                reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0))
-                    .unwrap_or(Decimal::ZERO),
-                reason,
-            });
+            let suggestion = self.compute_inventory_suggestion(
+                &stock,
+                outbound_by_product.get(&pid),
+                &transactions,
+                abc,
+            );
+            suggestions.push(suggestion);
         }
 
         Ok(suggestions)

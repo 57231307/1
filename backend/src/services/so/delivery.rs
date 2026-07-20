@@ -1027,6 +1027,106 @@ impl SalesService {
     /// 移除 sales_delivery::CANCELLED 的 #[allow(dead_code)] 标注。
     ///
     /// 业务规则：
+    /// 恢复库存 + 回退订单明细已发货数量 + 恢复预留（取消发货循环体）
+    async fn revert_delivery_items(
+        &self,
+        delivery_items: &[sales_delivery_item::Model],
+        order_id: i32,
+        warehouse_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        for item in delivery_items {
+            // 恢复库存（对称反向）：quantity_available += qty，quantity_shipped -= qty
+            self.restore_inventory(item.product_id, warehouse_id, item.quantity, txn)
+                .await?;
+
+            // 回退订单明细已发货数量
+            sales_order_item::Entity::update_many()
+                .filter(sales_order_item::Column::OrderId.eq(order_id))
+                .filter(sales_order_item::Column::ProductId.eq(item.product_id))
+                .col_expr(
+                    sales_order_item::Column::ShippedQuantity,
+                    sea_orm::sea_query::Expr::col(sales_order_item::Column::ShippedQuantity)
+                        .sub(item.quantity),
+                )
+                .col_expr(
+                    sales_order_item::Column::UpdatedAt,
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                )
+                .exec(txn)
+                .await?;
+
+            // 恢复预留：将 CONSUMED 状态的预留恢复为 PENDING
+            inventory_reservation::Entity::update_many()
+                .filter(inventory_reservation::Column::OrderId.eq(order_id))
+                .filter(inventory_reservation::Column::ProductId.eq(item.product_id))
+                .filter(inventory_reservation::Column::Status.eq(reservation_status::CONSUMED))
+                .col_expr(
+                    inventory_reservation::Column::Status,
+                    sea_orm::sea_query::Expr::val(reservation_status::PENDING.to_string())
+                        .into(),
+                )
+                .col_expr(
+                    inventory_reservation::Column::ReleasedAt,
+                    sea_orm::sea_query::Expr::val(None::<chrono::DateTime<chrono::Utc>>).into(),
+                )
+                .col_expr(
+                    inventory_reservation::Column::UpdatedAt,
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                )
+                .exec(txn)
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// 判定取消发货后订单状态是否需要回退，如需回退则更新订单状态
+    async fn revert_order_status_if_needed(
+        &self,
+        order: sales_order::Model,
+        order_id: i32,
+        user_id: i32,
+        now: chrono::DateTime<chrono::Utc>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        // 查询订单所有明细，判断是否还有已发货项
+        let order_items = sales_order_item::Entity::find()
+            .filter(sales_order_item::Column::OrderId.eq(order_id))
+            .all(txn)
+            .await?;
+
+        let mut has_shipped = false;
+        for oi in &order_items {
+            if oi.shipped_quantity > Decimal::ZERO {
+                has_shipped = true;
+                break;
+            }
+        }
+
+        // 订单状态回退：若所有发货都已取消，订单回退到 APPROVED；否则回退到 PARTIAL_SHIPPED
+        let new_order_status = if has_shipped {
+            so_status::PARTIAL_SHIPPED
+        } else {
+            so_status::APPROVED
+        };
+
+        // 仅当订单当前状态为 SHIPPED 或 PARTIAL_SHIPPED 时才回退（避免覆盖 CANCELLED 等终态）
+        if order.status == so_status::SHIPPED || order.status == so_status::PARTIAL_SHIPPED {
+            let mut order_active: sales_order::ActiveModel = order.into();
+            order_active.status = Set(new_order_status.to_string());
+            order_active.updated_at = Set(now);
+
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                txn,
+                "auto_audit",
+                order_active,
+                Some(user_id),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
     /// - 仅 SHIPPED 状态的发货单可取消（PENDING 是预留态，本系统发货即 SHIPPED）
     /// - 库存恢复（对称反向）：quantity_available += qty，quantity_shipped -= qty
     /// - 预留恢复：将 CONSUMED 状态的预留恢复为 PENDING
@@ -1073,48 +1173,8 @@ impl SalesService {
             .ok_or_else(|| AppError::not_found(format!("销售订单 {}", order_id)))?;
 
         // 5. 恢复库存 + 回退订单明细已发货数量 + 恢复预留
-        for item in &delivery_items {
-            // 5.1 恢复库存（对称反向）：quantity_available += qty，quantity_shipped -= qty
-            self.restore_inventory(item.product_id, warehouse_id, item.quantity, &txn)
-                .await?;
-
-            // 5.2 回退订单明细已发货数量
-            sales_order_item::Entity::update_many()
-                .filter(sales_order_item::Column::OrderId.eq(order_id))
-                .filter(sales_order_item::Column::ProductId.eq(item.product_id))
-                .col_expr(
-                    sales_order_item::Column::ShippedQuantity,
-                    sea_orm::sea_query::Expr::col(sales_order_item::Column::ShippedQuantity)
-                        .sub(item.quantity),
-                )
-                .col_expr(
-                    sales_order_item::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
-                )
-                .exec(&txn)
-                .await?;
-
-            // 5.3 恢复预留：将 CONSUMED 状态的预留恢复为 PENDING
-            inventory_reservation::Entity::update_many()
-                .filter(inventory_reservation::Column::OrderId.eq(order_id))
-                .filter(inventory_reservation::Column::ProductId.eq(item.product_id))
-                .filter(inventory_reservation::Column::Status.eq(reservation_status::CONSUMED))
-                .col_expr(
-                    inventory_reservation::Column::Status,
-                    sea_orm::sea_query::Expr::val(reservation_status::PENDING.to_string())
-                        .into(),
-                )
-                .col_expr(
-                    inventory_reservation::Column::ReleasedAt,
-                    sea_orm::sea_query::Expr::val(None::<chrono::DateTime<chrono::Utc>>).into(),
-                )
-                .col_expr(
-                    inventory_reservation::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
-                )
-                .exec(&txn)
-                .await?;
-        }
+        self.revert_delivery_items(&delivery_items, order_id, warehouse_id, &txn)
+            .await?;
 
         // 6. 更新发货单状态为 CANCELLED，记录取消原因到 remarks
         let now = chrono::Utc::now();
@@ -1133,40 +1193,8 @@ impl SalesService {
         .await?;
 
         // 7. 判定订单状态是否需要回退
-        let order_items = sales_order_item::Entity::find()
-            .filter(sales_order_item::Column::OrderId.eq(order_id))
-            .all(&txn)
+        self.revert_order_status_if_needed(order, order_id, user_id, now, &txn)
             .await?;
-
-        let mut has_shipped = false;
-        for oi in &order_items {
-            if oi.shipped_quantity > Decimal::ZERO {
-                has_shipped = true;
-                break;
-            }
-        }
-
-        // 订单状态回退：若所有发货都已取消，订单回退到 APPROVED；否则回退到 PARTIAL_SHIPPED
-        let new_order_status = if has_shipped {
-            so_status::PARTIAL_SHIPPED
-        } else {
-            so_status::APPROVED
-        };
-
-        // 仅当订单当前状态为 SHIPPED 或 PARTIAL_SHIPPED 时才回退（避免覆盖 CANCELLED 等终态）
-        if order.status == so_status::SHIPPED || order.status == so_status::PARTIAL_SHIPPED {
-            let mut order_active: sales_order::ActiveModel = order.into();
-            order_active.status = Set(new_order_status.to_string());
-            order_active.updated_at = Set(now);
-
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                order_active,
-                Some(user_id),
-            )
-            .await?;
-        }
 
         txn.commit().await?;
 
