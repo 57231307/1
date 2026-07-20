@@ -30,6 +30,18 @@ pub struct PurchaseReturnService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 退货扣减库存上下文：approve_return 循环内逐项扣减时复用的字段
+///
+/// D08-1 第二梯队拆分：将逐项扣减所需的 txn/仓库/单号/单 ID/操作人封装为单一上下文，
+/// 避免逐项 helper 出现 7+ 参数触发 clippy too_many_arguments。
+struct ReturnItemDeductionCtx<'a> {
+    txn: &'a sea_orm::DatabaseTransaction,
+    warehouse_id: i32,
+    return_no: &'a str,
+    return_id: i32,
+    user_id: i32,
+}
+
 impl PurchaseReturnService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -190,10 +202,48 @@ impl PurchaseReturnService {
         // 在 commit 成功后统一 publish，避免事务回滚时幻事件
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
+        let return_order =
+            Self::load_and_validate_return_for_approval(&txn, return_id).await?;
+        let return_order =
+            Self::update_return_status_to_approved(&txn, return_order, user_id).await?;
+
+        // 1. 扣减库存（在事务内执行，保证原子性）
+        let (items, stock_map) =
+            Self::load_return_items_with_stock_map(&txn, &return_order).await?;
+        Self::deduct_stock_for_return_items(
+            &txn,
+            &return_order,
+            items,
+            &stock_map,
+            user_id,
+            &mut pending_events,
+        )
+        .await?;
+
+        // 2. 提交事务（库存扣减和状态更新在同一事务内）
+        txn.commit().await?;
+
+        // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
+        for ev in pending_events {
+            EVENT_BUS.publish(ev);
+        }
+
+        // 3. 自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
+        self.try_generate_ap_invoice_from_return(return_id, user_id, &return_order.return_no)
+            .await;
+
+        Ok(return_order)
+    }
+
+    /// 锁定退货单（lock_exclusive）+ 状态校验（SUBMITTED）+ 明细非空校验
+    async fn load_and_validate_return_for_approval(
+        txn: &sea_orm::DatabaseTransaction,
+        return_id: i32,
+    ) -> Result<purchase_return::Model, AppError> {
         // 获取退货单（加 lock_exclusive 串行化并发状态变更）
         let return_order = purchase_return::Entity::find_by_id(return_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
@@ -209,13 +259,22 @@ impl PurchaseReturnService {
         // 存在 TOCTOU 风险（并发 approve + add_item 时计数读快照不一致，可绕过"明细非空"校验）
         let item_count = purchase_return_item::Entity::find()
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
-            .count(&txn)
+            .count(txn)
             .await?;
 
         if item_count == 0 {
             return Err(AppError::business("退货单至少需要一行明细".to_string()));
         }
 
+        Ok(return_order)
+    }
+
+    /// 更新退货单状态为 APPROVED + 写入审计日志
+    async fn update_return_status_to_approved(
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: purchase_return::Model,
+        user_id: i32,
+    ) -> Result<purchase_return::Model, AppError> {
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.return_status = Set(Some(pr_status::APPROVED.to_string()));
         return_active.approved_by = Set(Some(user_id));
@@ -223,7 +282,7 @@ impl PurchaseReturnService {
         return_active.updated_at = Set(Utc::now());
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             return_active,
             // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
@@ -231,15 +290,26 @@ impl PurchaseReturnService {
         )
         .await?;
 
-        // 1. 扣减库存（在事务内执行，保证原子性）
+        Ok(return_order)
+    }
+
+    /// 加载退货明细 + 批量加载库存记录
+    ///
+    /// v14 批次 41 修复：批量查询所有退货明细对应的库存记录（同一 warehouse_id），
+    /// 避免循环内逐个调用 find_by_product_and_warehouse_txn（N+1 查询）。
+    /// 若 return_order.warehouse_id 为 None，stock_map 为空，循环内逐项 continue（保留原行为）。
+    async fn load_return_items_with_stock_map(
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: &purchase_return::Model,
+    ) -> Result<(
+        Vec<purchase_return_item::Model>,
+        std::collections::HashMap<i32, inventory_stock::Model>,
+    ), AppError> {
         let items = purchase_return_item::Entity::find()
-            .filter(purchase_return_item::Column::ReturnId.eq(return_id))
-            .all(&txn)
+            .filter(purchase_return_item::Column::ReturnId.eq(return_order.id))
+            .all(txn)
             .await?;
 
-        // v14 批次 41 修复：批量查询所有退货明细对应的库存记录（同一 warehouse_id），
-        // 避免循环内逐个调用 find_by_product_and_warehouse_txn（N+1 查询）。
-        // 若 return_order.warehouse_id 为 None，stock_map 为空，循环内逐项 continue（保留原行为）。
         let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
             match return_order.warehouse_id {
                 Some(warehouse_id) => {
@@ -251,7 +321,7 @@ impl PurchaseReturnService {
                         let stocks = inventory_stock::Entity::find()
                             .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
                             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
-                            .all(&txn)
+                            .all(txn)
                             .await?;
                         stocks.into_iter().map(|s| (s.product_id, s)).collect()
                     }
@@ -259,79 +329,110 @@ impl PurchaseReturnService {
                 None => std::collections::HashMap::new(),
             };
 
-        for item in items {
-            // return_order.warehouse_id 在采购退货单创建时应必填；缺失时跳过该项
-            let Some(warehouse_id) = return_order.warehouse_id else {
+        Ok((items, stock_map))
+    }
+
+    /// 循环扣减每项退货明细的库存
+    async fn deduct_stock_for_return_items(
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: &purchase_return::Model,
+        items: Vec<purchase_return_item::Model>,
+        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        user_id: i32,
+        pending_events: &mut Vec<BusinessEvent>,
+    ) -> Result<(), AppError> {
+        // return_order.warehouse_id 在采购退货单创建时应必填；缺失时跳过所有项
+        let Some(warehouse_id) = return_order.warehouse_id else {
+            for item in items {
                 tracing::warn!(
                     "采购退货单 {} 缺少调入仓库ID，跳过行项 {}",
-                    return_id,
+                    return_order.id,
                     item.id
                 );
-                continue;
-            };
-            let existing_stock = stock_map.get(&item.product_id).cloned();
+            }
+            return Ok(());
+        };
 
-            if let Some(s) = existing_stock {
-                if s.quantity_meters < item.quantity {
-                    return Err(AppError::business(format!(
-                        "产品 {} 库存不足，当前库存：{}，需要退货：{}",
-                        item.product_id, s.quantity_meters, item.quantity
-                    )));
-                }
+        let ctx = ReturnItemDeductionCtx {
+            txn,
+            warehouse_id,
+            return_no: &return_order.return_no,
+            return_id: return_order.id,
+            user_id,
+        };
 
-                let new_quantity_meters = s.quantity_meters - item.quantity;
-                let new_quantity_kg = s.quantity_kg - item.quantity_alt;
-
-                crate::services::inventory_stock_service::InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
-                    &txn, s.id, new_quantity_meters, new_quantity_kg, s.version,
-                ).await?;
-
-                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
-                // 改为返回 (Model, Option<BusinessEvent>)，由调用方在 commit 后统一 publish
-                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
-                let (_, txn_event) = crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
-                    &txn,
-                    RecordTransactionArgs {
-                        transaction_type: "PURCHASE_RETURN".to_string(),
-                        product_id: item.product_id,
-                        warehouse_id,
-                        batch_no: s.batch_no.clone(),
-                        color_no: s.color_no.clone(),
-                        dye_lot_no: s.dye_lot_no.clone(),
-                        grade: s.grade.clone(),
-                        quantity_meters: -item.quantity,
-                        quantity_kg: -item.quantity_alt,
-                        source_bill_type: Some("purchase_return".to_string()),
-                        source_bill_no: Some(return_order.return_no.clone()),
-                        source_bill_id: Some(return_order.id),
-                        quantity_before_meters: Some(s.quantity_meters),
-                        quantity_before_kg: Some(s.quantity_kg),
-                        quantity_after_meters: Some(new_quantity_meters),
-                        quantity_after_kg: Some(new_quantity_kg),
-                        notes: Some("采购退货扣减库存".to_string()),
-                        created_by: Some(user_id),
-                    },
-                ).await?;
-                if let Some(ev) = txn_event {
-                    pending_events.push(ev);
-                }
-            } else {
+        for item in items {
+            let Some(s) = stock_map.get(&item.product_id).cloned() else {
                 return Err(AppError::business(format!(
                     "产品 {} 在仓库 {} 没有库存记录，无法退货",
                     item.product_id, warehouse_id
                 )));
+            };
+
+            let event = Self::deduct_single_item_stock(&ctx, &item, &s).await?;
+            if let Some(ev) = event {
+                pending_events.push(ev);
             }
         }
+        Ok(())
+    }
 
-        // 2. 提交事务（库存扣减和状态更新在同一事务内）
-        txn.commit().await?;
-
-        // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
-        for ev in pending_events {
-            EVENT_BUS.publish(ev);
+    /// 扣减单个明细项的库存 + 记录库存流水
+    async fn deduct_single_item_stock(
+        ctx: &ReturnItemDeductionCtx<'_>,
+        item: &purchase_return_item::Model,
+        stock: &inventory_stock::Model,
+    ) -> Result<Option<BusinessEvent>, AppError> {
+        if stock.quantity_meters < item.quantity {
+            return Err(AppError::business(format!(
+                "产品 {} 库存不足，当前库存：{}，需要退货：{}",
+                item.product_id, stock.quantity_meters, item.quantity
+            )));
         }
 
-        // 3. 自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
+        let new_quantity_meters = stock.quantity_meters - item.quantity;
+        let new_quantity_kg = stock.quantity_kg - item.quantity_alt;
+
+        crate::services::inventory_stock_service::InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+            ctx.txn, stock.id, new_quantity_meters, new_quantity_kg, stock.version,
+        ).await?;
+
+        // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
+        // 改为返回 (Model, Option<BusinessEvent>)，由调用方在 commit 后统一 publish
+        // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
+        let (_, txn_event) = crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
+            ctx.txn,
+            RecordTransactionArgs {
+                transaction_type: "PURCHASE_RETURN".to_string(),
+                product_id: item.product_id,
+                warehouse_id: ctx.warehouse_id,
+                batch_no: stock.batch_no.clone(),
+                color_no: stock.color_no.clone(),
+                dye_lot_no: stock.dye_lot_no.clone(),
+                grade: stock.grade.clone(),
+                quantity_meters: -item.quantity,
+                quantity_kg: -item.quantity_alt,
+                source_bill_type: Some("purchase_return".to_string()),
+                source_bill_no: Some(ctx.return_no.to_string()),
+                source_bill_id: Some(ctx.return_id),
+                quantity_before_meters: Some(stock.quantity_meters),
+                quantity_before_kg: Some(stock.quantity_kg),
+                quantity_after_meters: Some(new_quantity_meters),
+                quantity_after_kg: Some(new_quantity_kg),
+                notes: Some("采购退货扣减库存".to_string()),
+                created_by: Some(ctx.user_id),
+            },
+        ).await?;
+        Ok(txn_event)
+    }
+
+    /// 后置：自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
+    async fn try_generate_ap_invoice_from_return(
+        &self,
+        return_id: i32,
+        user_id: i32,
+        return_no: &str,
+    ) {
         let ap_service =
             crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
         if let Err(e) = ap_service
@@ -340,15 +441,13 @@ impl PurchaseReturnService {
         {
             tracing::error!(
                 "自动生成应付账单失败 (退货单 {}): {}",
-                return_order.return_no,
+                return_no,
                 e
             );
             // 记录失败但不阻断流程，可以后续手动重试
         } else {
-            tracing::info!("成功自动生成应付账单 (退货单 {})", return_order.return_no);
+            tracing::info!("成功自动生成应付账单 (退货单 {})", return_no);
         }
-
-        Ok(return_order)
     }
 
     /// 拒绝采购退货单

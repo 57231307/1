@@ -518,20 +518,65 @@ impl SalesService {
         let txn = (*self.db).begin().await?;
 
         // 检查订单是否存在（加 lock_exclusive 串行化并发修改，防止基于过期状态写入）
-        let order = SalesOrderEntity::find_by_id(order_id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
+        let order = Self::fetch_order_for_update(order_id, &txn).await?;
 
         // 检查订单状态
+        Self::validate_order_status_for_update(&order)?;
+
+        // 更新订单主表
+        Self::apply_order_header_updates(order, &request, user_id, &txn).await?;
+
+        // 如果需要更新明细项
+        if let Some(items) = request.items {
+            self.replace_order_items_and_update_totals(order_id, items, user_id, &txn)
+                .await?;
+        }
+
+        // 提交事务
+        txn.commit().await?;
+
+        // 返回订单详情（service 内部调用，无数据权限过滤）
+        let detail = self.get_order_detail(order_id, None).await?;
+
+        // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
+        self.sync_sales_order_to_es(&detail, "update").await;
+
+        Ok(detail)
+    }
+
+    /// 加锁查询订单（update_order 专用，事务内 lock_exclusive 串行化并发修改）
+    async fn fetch_order_for_update(
+        order_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<sales_order::Model, AppError> {
+        SalesOrderEntity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))
+    }
+
+    /// 校验订单状态：已发货 / 已完成不允许修改
+    fn validate_order_status_for_update(order: &sales_order::Model) -> Result<(), AppError> {
         if order.status == so_status::SHIPPED || order.status == so_status::COMPLETED {
             return Err(AppError::business(format!(
                 "订单状态为{}，不允许修改",
                 order.status
             )));
         }
+        Ok(())
+    }
 
+    /// 应用订单头字段更新（required_date / status / shipping_address / billing_address / notes）
+    /// 并通过 AuditLogService 写入审计日志
+    ///
+    /// 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id（P3 3-27 TODO 已解决）
+    async fn apply_order_header_updates(
+        order: sales_order::Model,
+        request: &UpdateSalesOrderRequest,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
         // 更新订单主表
         let mut order_update: sales_order::ActiveModel = order.into();
         if let Some(required_date) = request.required_date {
@@ -550,138 +595,51 @@ impl SalesService {
             order_update.notes = sea_orm::ActiveValue::Set(Some(notes));
         }
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id（P3 3-27 TODO 已解决）
+        // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id
         crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             order_update,
             Some(user_id),
         )
         .await?;
+        Ok(())
+    }
 
-        // 如果需要更新明细项
-        if let Some(items) = request.items {
-            SalesOrderItemEntity::delete_many()
-                .filter(sales_order_item::Column::OrderId.eq(order_id))
-                .exec(&txn)
-                .await?;
-
-            let mut subtotal = rust_decimal::Decimal::ZERO;
-            let mut tax_amount = rust_decimal::Decimal::ZERO;
-            let mut discount_amount = rust_decimal::Decimal::ZERO;
-            let mut total_amount = rust_decimal::Decimal::ZERO;
-
-            let mut item_models = Vec::new();
-            for item_req in items {
-                let discount_pct = item_req
-                    .discount_percent
-                    .unwrap_or(rust_decimal::Decimal::ZERO);
-                let tax_pct = item_req.tax_percent.unwrap_or(rust_decimal::Decimal::ZERO);
-
-                // 批次 97 P1-6 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
-                let item_subtotal = (item_req.quantity * item_req.unit_price).round_dp(2);
-                let item_discount =
-                    (item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
-                let item_after_discount = (item_subtotal - item_discount).round_dp(2);
-                let item_tax = (item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
-                let item_total = (item_after_discount + item_tax).round_dp(2);
-
-                subtotal += &item_subtotal;
-                discount_amount += &item_discount;
-                tax_amount += &item_tax;
-                total_amount += &item_total;
-
-                let item = sales_order_item::ActiveModel {
-                    id: Default::default(),
-                    order_id: sea_orm::ActiveValue::Set(order_id),
-                    product_id: sea_orm::ActiveValue::Set(item_req.product_id),
-                    quantity: sea_orm::ActiveValue::Set(item_req.quantity),
-                    unit_price: sea_orm::ActiveValue::Set(item_req.unit_price),
-                    discount_percent: sea_orm::ActiveValue::Set(discount_pct),
-                    tax_percent: sea_orm::ActiveValue::Set(tax_pct),
-                    subtotal: sea_orm::ActiveValue::Set(item_subtotal),
-                    tax_amount: sea_orm::ActiveValue::Set(item_tax),
-                    discount_amount: sea_orm::ActiveValue::Set(item_discount),
-                    total_amount: sea_orm::ActiveValue::Set(item_total),
-                    shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                    notes: sea_orm::ActiveValue::Set(item_req.notes),
-                    created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                    updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                    color_no: sea_orm::ActiveValue::Set(item_req.color_no.unwrap_or_default()),
-                    color_name: sea_orm::ActiveValue::Set(item_req.color_name),
-                    pantone_code: sea_orm::ActiveValue::Set(item_req.pantone_code),
-                    grade_required: sea_orm::ActiveValue::Set(item_req.grade_required),
-                    quantity_meters: sea_orm::ActiveValue::Set(
-                        item_req
-                            .quantity_meters
-                            .unwrap_or(rust_decimal::Decimal::ZERO),
-                    ),
-                    quantity_kg: sea_orm::ActiveValue::Set(
-                        item_req.quantity_kg.unwrap_or(rust_decimal::Decimal::ZERO),
-                    ),
-                    gram_weight: sea_orm::ActiveValue::Set(item_req.gram_weight),
-                    width: sea_orm::ActiveValue::Set(item_req.width),
-                    batch_requirement: sea_orm::ActiveValue::Set(item_req.batch_requirement),
-                    dye_lot_requirement: sea_orm::ActiveValue::Set(item_req.dye_lot_requirement),
-                    base_price: sea_orm::ActiveValue::Set(item_req.base_price),
-                    color_extra_cost: sea_orm::ActiveValue::Set(
-                        item_req
-                            .color_extra_cost
-                            .unwrap_or(rust_decimal::Decimal::ZERO),
-                    ),
-                    grade_price_diff: sea_orm::ActiveValue::Set(
-                        item_req
-                            .grade_price_diff
-                            .unwrap_or(rust_decimal::Decimal::ZERO),
-                    ),
-                    final_price: sea_orm::ActiveValue::Set(item_req.final_price),
-                    shipped_quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                    shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                    paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
-                    is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
-                };
-
-                item_models.push(item);
-            }
-
-            if !item_models.is_empty() {
-                sales_order_item::Entity::insert_many(item_models)
-                    .exec(&txn)
-                    .await?;
-            }
-
-            // 更新订单总金额
-            let order_entity = SalesOrderEntity::find_by_id(order_id)
-                .one(&txn)
-                .await?
-                .ok_or_else(|| AppError::business("销售订单不存在"))?;
-            let mut order_update: sales_order::ActiveModel = order_entity.into();
-            order_update.subtotal = sea_orm::ActiveValue::Set(subtotal);
-            order_update.tax_amount = sea_orm::ActiveValue::Set(tax_amount);
-            order_update.discount_amount = sea_orm::ActiveValue::Set(discount_amount);
-            order_update.total_amount = sea_orm::ActiveValue::Set(total_amount);
-            order_update.balance_amount = sea_orm::ActiveValue::Set(total_amount);
-            order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                order_update,
-                Some(user_id),
-            )
+    /// 替换订单明细项并重算订单总金额
+    ///
+    /// 流程：删除旧明细 → 批量插入新明细（复用 create_order_items_and_calculate_totals，
+    /// 保留批次 97 P1-6 round_dp(2) 精度修复） → 重新查询订单实体 → 复用
+    /// update_order_totals 写入金额（保留批次 94 P2-10 user_id 注入）
+    async fn replace_order_items_and_update_totals(
+        &self,
+        order_id: i32,
+        items: Vec<crate::services::so::SalesOrderItemRequest>,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        // 删除旧明细
+        SalesOrderItemEntity::delete_many()
+            .filter(sales_order_item::Column::OrderId.eq(order_id))
+            .exec(txn)
             .await?;
-        }
 
-        // 提交事务
-        txn.commit().await?;
+        // 插入新明细 + 累计金额
+        let totals = self
+            .create_order_items_and_calculate_totals(items, order_id, txn)
+            .await?;
 
-        // 返回订单详情（service 内部调用，无数据权限过滤）
-        let detail = self.get_order_detail(order_id, None).await?;
+        // 重新查询订单实体用于更新总金额（header 已被 apply_order_header_updates 消费）
+        let order_entity = SalesOrderEntity::find_by_id(order_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::business("销售订单不存在"))?;
 
-        // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
-        self.sync_sales_order_to_es(&detail, "update").await;
+        // 更新订单总金额
+        self.update_order_totals(order_entity, totals, user_id, txn)
+            .await?;
 
-        Ok(detail)
+        Ok(())
     }
 
     /// 删除销售订单

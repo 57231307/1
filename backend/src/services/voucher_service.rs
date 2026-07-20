@@ -84,6 +84,16 @@ pub struct VoucherService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 余额更新上下文（D08-1 第二梯队拆分辅助结构）
+///
+/// 封装 update_account_balances 在多个 helper 间共享的批量加载结果：
+/// 科目列表、按科目聚合的借贷发生额、锁定的现有余额记录。
+struct BalanceUpdateContext {
+    subjects: Vec<account_subject::Model>,
+    balance_map: std::collections::HashMap<i32, (Decimal, Decimal)>,
+    existing_balances: Vec<crate::models::account_balance::Model>,
+}
+
 impl VoucherService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -703,6 +713,29 @@ impl VoucherService {
     ) -> Result<(), AppError> {
         info!("更新科目余额 voucher_id={}", voucher_id);
 
+        let (voucher, items) = Self::fetch_voucher_and_items(voucher_id, txn).await?;
+        let period = Self::compute_period_from_date(voucher.voucher_date);
+        let subjects = Self::fetch_subjects_for_items(&items, txn).await?;
+        let balance_map = Self::aggregate_balance_by_subject(&items, &subjects)?;
+        let subject_ids: Vec<i32> = balance_map.keys().copied().collect();
+        let existing_balances =
+            Self::fetch_existing_balances(&subject_ids, &period, txn).await?;
+        let ctx = BalanceUpdateContext {
+            subjects,
+            balance_map,
+            existing_balances,
+        };
+        Self::apply_balance_updates(ctx, &period, user_id, txn).await?;
+
+        info!("科目余额更新成功");
+        Ok(())
+    }
+
+    /// 获取凭证及其分录
+    async fn fetch_voucher_and_items(
+        voucher_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(voucher::Model, Vec<voucher_item::Model>), AppError> {
         // 获取凭证信息
         let voucher = voucher::Entity::find_by_id(voucher_id)
             .one(txn)
@@ -715,19 +748,21 @@ impl VoucherService {
             .all(txn)
             .await?;
 
-        // 提取会计期间
-        let period = format!(
-            "{:04}-{:02}",
-            voucher.voucher_date.year(),
-            voucher.voucher_date.month()
-        );
+        Ok((voucher, items))
+    }
 
-        // 按科目分组汇总借贷发生额
-        use std::collections::HashMap;
-        let mut balance_map: HashMap<i32, (Decimal, Decimal)> = HashMap::new();
+    /// 从凭证日期生成会计期间字符串 (YYYY-MM)
+    fn compute_period_from_date(voucher_date: chrono::NaiveDate) -> String {
+        format!("{:04}-{:02}", voucher_date.year(), voucher_date.month())
+    }
 
-        // v11 批次 37 修复：批量查询所有科目，避免循环内逐个查询（N+1，同一科目可能重复查询）
+    /// 批量查询分录涉及的所有科目（v11 批次 37 修复：避免循环内逐个查询 N+1）
+    async fn fetch_subjects_for_items(
+        items: &[voucher_item::Model],
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<Vec<account_subject::Model>, AppError> {
         use crate::models::account_subject;
+
         let subject_codes: Vec<String> =
             items.iter().map(|item| item.subject_code.clone()).collect();
         let subjects = if subject_codes.is_empty() {
@@ -738,13 +773,21 @@ impl VoucherService {
                 .all(txn)
                 .await?
         };
-        // v11 批次 37 修复：构建 code→Model 和 id→Model 两个引用映射，供下方两个循环复用
+        Ok(subjects)
+    }
+
+    /// 按科目聚合借贷发生额（v11 批次 37 修复：构建 code→Model 引用映射复用批量结果）
+    fn aggregate_balance_by_subject(
+        items: &[voucher_item::Model],
+        subjects: &[account_subject::Model],
+    ) -> Result<std::collections::HashMap<i32, (Decimal, Decimal)>, AppError> {
+        use std::collections::HashMap;
+
         let subject_by_code: HashMap<&str, &account_subject::Model> =
             subjects.iter().map(|s| (s.code.as_str(), s)).collect();
-        let subject_by_id: HashMap<i32, &account_subject::Model> =
-            subjects.iter().map(|s| (s.id, s)).collect();
 
-        for item in &items {
+        let mut balance_map: HashMap<i32, (Decimal, Decimal)> = HashMap::new();
+        for item in items {
             // 查找科目 ID 和余额方向（从批量查询结果中取）
             let subject_code = &item.subject_code;
             let subject = subject_by_code
@@ -764,21 +807,47 @@ impl VoucherService {
                 entry.1 += item.credit;
             }
         }
+        Ok(balance_map)
+    }
 
-        // 更新或创建余额记录
+    /// 批量锁定查询现有余额记录（v16 批次 45 修复：避免循环内逐个 lock 查询 N+1）
+    async fn fetch_existing_balances(
+        subject_ids: &[i32],
+        period: &str,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<Vec<crate::models::account_balance::Model>, AppError> {
         use crate::models::account_balance;
-        // v16 批次 45 修复：循环外批量锁定查询所有余额记录，避免循环内逐个 lock 查询（N+1）
-        let all_subject_ids: Vec<i32> = balance_map.keys().copied().collect();
-        let existing_balances: Vec<account_balance::Model> = if all_subject_ids.is_empty() {
-            Vec::new()
-        } else {
-            account_balance::Entity::find()
-                .filter(account_balance::Column::SubjectId.is_in(all_subject_ids))
-                .filter(account_balance::Column::Period.eq(&period))
-                .lock(sea_orm::sea_query::LockType::Update)
-                .all(txn)
-                .await?
-        };
+
+        if subject_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let balances = account_balance::Entity::find()
+            .filter(account_balance::Column::SubjectId.is_in(subject_ids.to_vec()))
+            .filter(account_balance::Column::Period.eq(period))
+            .lock(sea_orm::sea_query::LockType::Update)
+            .all(txn)
+            .await?;
+        Ok(balances)
+    }
+
+    /// 应用余额更新：遍历聚合后的发生额，按科目更新或创建余额记录
+    async fn apply_balance_updates(
+        ctx: BalanceUpdateContext,
+        period: &str,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        use crate::models::account_balance;
+        use std::collections::HashMap;
+
+        let BalanceUpdateContext {
+            subjects,
+            balance_map,
+            existing_balances,
+        } = ctx;
+        // v11 批次 37 修复：构建 id→Model 引用映射，供更新循环复用
+        let subject_by_id: HashMap<i32, &account_subject::Model> =
+            subjects.iter().map(|s| (s.id, s)).collect();
         let mut balance_record_map: HashMap<i32, account_balance::Model> = existing_balances
             .into_iter()
             .map(|b| (b.subject_id, b))
@@ -790,88 +859,132 @@ impl VoucherService {
                 .get(&subject_id)
                 // 批次 102 v6 P3-4 修复：科目不存在属于资源未找到，应为 not_found 而非 bad_request
                 .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", subject_id)))?;
-
             let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
 
             // v16 批次 45 修复：从批量查询结果获取余额记录（带行锁）
-            let existing = balance_record_map.remove(&subject_id);
-
-            if let Some(balance) = existing {
+            if let Some(balance) = balance_record_map.remove(&subject_id) {
                 // 更新现有余额
-                let mut active_model: account_balance::ActiveModel = balance.into_active_model();
-                let current_debit = active_model
-                    .current_period_debit
-                    .take()
-                    .unwrap_or(Decimal::ZERO);
-                let current_credit = active_model
-                    .current_period_credit
-                    .take()
-                    .unwrap_or(Decimal::ZERO);
-
-                // 获取期初余额
-                let initial_debit = active_model
-                    .initial_balance_debit
-                    .take()
-                    .unwrap_or(Decimal::ZERO);
-                let initial_credit = active_model
-                    .initial_balance_credit
-                    .take()
-                    .unwrap_or(Decimal::ZERO);
-
-                // 计算新的本期发生额（累加）
-                let new_period_debit = current_debit + debit_amount;
-                let new_period_credit = current_credit + credit_amount;
-
-                // 更新本期发生额
-                active_model.current_period_debit = sea_orm::Set(new_period_debit);
-                active_model.current_period_credit = sea_orm::Set(new_period_credit);
-
-                // D12 重构：期末余额计算提取到 compute_ending_balance，消除嵌套 4 分支
-                let (ending_dr, ending_cr) = Self::compute_ending_balance(
-                    balance_direction,
-                    initial_debit,
-                    initial_credit,
-                    new_period_debit,
-                    new_period_credit,
-                );
-                active_model.ending_balance_debit = sea_orm::Set(ending_dr);
-                active_model.ending_balance_credit = sea_orm::Set(ending_cr);
-
-                crate::services::audit_log_service::AuditLogService::update_with_audit(
-                    txn,
-                    "auto_audit",
-                    active_model,
-                    // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id
-                    Some(user_id),
+                Self::update_existing_balance(
+                    balance, debit_amount, credit_amount, balance_direction, user_id, txn,
                 )
                 .await?;
             } else {
                 // 创建新余额记录
-                // D12 重构：新账期末余额计算复用 compute_ending_balance（initial_dr=0, initial_cr=0）
-                let (ending_debit, ending_credit) = Self::compute_ending_balance(
-                    balance_direction,
-                    Decimal::ZERO,
-                    Decimal::ZERO,
-                    debit_amount,
-                    credit_amount,
-                );
-
-                let active_model = account_balance::ActiveModel {
-                    subject_id: sea_orm::Set(subject_id),
-                    period: sea_orm::Set(period.clone()),
-                    current_period_debit: sea_orm::Set(debit_amount),
-                    current_period_credit: sea_orm::Set(credit_amount),
-                    initial_balance_debit: sea_orm::Set(Decimal::ZERO),
-                    initial_balance_credit: sea_orm::Set(Decimal::ZERO),
-                    ending_balance_debit: sea_orm::Set(ending_debit),
-                    ending_balance_credit: sea_orm::Set(ending_credit),
-                    ..Default::default()
-                };
-                active_model.insert(txn).await?;
+                Self::create_new_balance(
+                    subject_id, period, debit_amount, credit_amount, balance_direction, txn,
+                )
+                .await?;
             }
         }
+        Ok(())
+    }
 
-        info!("科目余额更新成功");
+    /// 更新现有余额记录：累加本期发生额并重算期末余额
+    async fn update_existing_balance(
+        balance: crate::models::account_balance::Model,
+        debit_amount: Decimal,
+        credit_amount: Decimal,
+        balance_direction: &str,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        use crate::models::account_balance;
+
+        // 更新现有余额
+        let mut active_model: account_balance::ActiveModel = balance.into_active_model();
+        // D12 重构：期末余额计算提取到 compute_ending_balance，消除嵌套 4 分支
+        let (ending_dr, ending_cr) = Self::compute_updated_balance_amounts(
+            &mut active_model,
+            debit_amount,
+            credit_amount,
+            balance_direction,
+        );
+        active_model.ending_balance_debit = sea_orm::Set(ending_dr);
+        active_model.ending_balance_credit = sea_orm::Set(ending_cr);
+
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            active_model,
+            // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// 从现有余额 ActiveModel 提取字段、累加本期发生额并返回期末余额（借,贷）
+    fn compute_updated_balance_amounts(
+        active_model: &mut crate::models::account_balance::ActiveModel,
+        debit_amount: Decimal,
+        credit_amount: Decimal,
+        balance_direction: &str,
+    ) -> (Decimal, Decimal) {
+        let current_debit = active_model
+            .current_period_debit
+            .take()
+            .unwrap_or(Decimal::ZERO);
+        let current_credit = active_model
+            .current_period_credit
+            .take()
+            .unwrap_or(Decimal::ZERO);
+        // 获取期初余额
+        let initial_debit = active_model
+            .initial_balance_debit
+            .take()
+            .unwrap_or(Decimal::ZERO);
+        let initial_credit = active_model
+            .initial_balance_credit
+            .take()
+            .unwrap_or(Decimal::ZERO);
+        // 计算新的本期发生额（累加）
+        let new_period_debit = current_debit + debit_amount;
+        let new_period_credit = current_credit + credit_amount;
+        // 更新本期发生额
+        active_model.current_period_debit = sea_orm::Set(new_period_debit);
+        active_model.current_period_credit = sea_orm::Set(new_period_credit);
+        Self::compute_ending_balance(
+            balance_direction,
+            initial_debit,
+            initial_credit,
+            new_period_debit,
+            new_period_credit,
+        )
+    }
+
+    /// 创建新余额记录：新账期首次出现该科目的余额记录
+    async fn create_new_balance(
+        subject_id: i32,
+        period: &str,
+        debit_amount: Decimal,
+        credit_amount: Decimal,
+        balance_direction: &str,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        use crate::models::account_balance;
+
+        // 创建新余额记录
+        // D12 重构：新账期末余额计算复用 compute_ending_balance（initial_dr=0, initial_cr=0）
+        let (ending_debit, ending_credit) = Self::compute_ending_balance(
+            balance_direction,
+            Decimal::ZERO,
+            Decimal::ZERO,
+            debit_amount,
+            credit_amount,
+        );
+
+        let active_model = account_balance::ActiveModel {
+            subject_id: sea_orm::Set(subject_id),
+            period: sea_orm::Set(period.to_string()),
+            current_period_debit: sea_orm::Set(debit_amount),
+            current_period_credit: sea_orm::Set(credit_amount),
+            initial_balance_debit: sea_orm::Set(Decimal::ZERO),
+            initial_balance_credit: sea_orm::Set(Decimal::ZERO),
+            ending_balance_debit: sea_orm::Set(ending_debit),
+            ending_balance_credit: sea_orm::Set(ending_credit),
+            ..Default::default()
+        };
+        active_model.insert(txn).await?;
         Ok(())
     }
 

@@ -84,6 +84,21 @@ struct VerifyTotals {
     amount: Decimal,
 }
 
+/// 收款单构建上下文：封装构造 ar_collection::ActiveModel 所需字段
+///
+/// 批次 488 D08-1 拆分：引入参数对象消除 too_many_arguments 警告
+struct CollectionBuildContext {
+    collection_no: String,
+    payment_date: NaiveDate,
+    customer_id: i32,
+    customer_name: Option<String>,
+    amount: Decimal,
+    payment_method: String,
+    bank_account: Option<String>,
+    user_id: i32,
+    now: chrono::DateTime<chrono::Utc>,
+}
+
 /// 应收账款服务
 pub struct ArService {
     db: Arc<DatabaseConnection>,
@@ -171,6 +186,7 @@ impl ArService {
     /// 关联多张发票（更新 received_amount/unpaid_amount/status）→ 事件发布
     ///
     /// 批次 329 v10 复审 P3 修复：使用 CreateArPaymentParams 参数对象替代 8 个独立参数
+    /// 批次 488 D08-1 拆分：主函数仅做协调，细节逻辑提取到 helper
     pub async fn create_payment(
         &self,
         params: CreateArPaymentParams,
@@ -178,14 +194,83 @@ impl ArService {
     ) -> Result<serde_json::Value, AppError> {
         let customer_id = params.customer_id;
         let amount = params.amount;
-        let payment_method = params.payment_method;
         let payment_date = params.payment_date;
+        let payment_method = params.payment_method;
         let bank_account = params.bank_account;
         // 批次 96 CI 修复：ar_collections 表无 remark 列，备注暂不持久化（schema 扩展后接入）
         let _remark = params.remark;
         let invoice_ids = params.invoice_ids;
 
         // 金额校验
+        Self::validate_payment_amount(customer_id, amount)?;
+
+        let txn = (*self.db).begin().await?;
+
+        // 期间锁定检查（事务内，避免 TOCTOU）
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
+            self.db.clone(),
+        );
+        period_svc
+            .check_date_locked_txn(&txn, payment_date)
+            .await
+            .map_err(|e| AppError::business(e.to_string()))?;
+
+        // 客户存在性校验 + 名称查询
+        let customer = Self::load_customer_for_payment(&txn, customer_id).await?;
+
+        // 单号生成（事务内，advisory_xact_lock 串行化）
+        let collection_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &txn,
+            "COL",
+            ar_collection::Entity,
+            ar_collection::Column::CollectionNo,
+        )
+        .await?;
+
+        // 插入收款单
+        let now = Utc::now();
+        let ctx = CollectionBuildContext {
+            collection_no,
+            payment_date,
+            customer_id,
+            customer_name: Some(customer.customer_name),
+            amount,
+            payment_method,
+            bank_account,
+            user_id,
+            now,
+        };
+        let collection_model = Self::build_collection_active_model(ctx).insert(&txn).await?;
+
+        // 关联多张发票：累加 received_amount、扣减 unpaid_amount、按需更新状态
+        let linked_invoices =
+            Self::link_invoices_to_payment(&txn, invoice_ids, amount, customer_id, user_id, now)
+                .await?;
+
+        txn.commit().await?;
+
+        info!(
+            "AR 收款创建成功：collection_no={}, customer_id={}, amount={}, 关联发票数={}",
+            collection_model.collection_no,
+            customer_id,
+            amount,
+            linked_invoices.len()
+        );
+
+        // 事件发布（commit 后，避免事件处理器回写导致事务膨胀）
+        Self::publish_payment_events(
+            &collection_model,
+            &linked_invoices,
+            amount,
+            user_id,
+            payment_date,
+        );
+
+        Ok(collection_to_json(collection_model))
+    }
+
+    /// 金额校验：必须大于零且精度不超过 2 位小数
+    fn validate_payment_amount(customer_id: i32, amount: Decimal) -> Result<(), AppError> {
         if amount <= Decimal::ZERO {
             // 批次 389 P2-2：金额校验失败记录 warn 日志，便于审计异常收款行为
             warn!(
@@ -207,53 +292,47 @@ impl ArService {
             );
             return Err(AppError::validation("收款金额精度不能超过 2 位小数"));
         }
+        Ok(())
+    }
 
-        let txn = (*self.db).begin().await?;
-
-        // 期间锁定检查（事务内，避免 TOCTOU）
-        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
-            self.db.clone(),
-        );
-        period_svc
-            .check_date_locked_txn(&txn, payment_date)
-            .await
-            .map_err(|e| AppError::business(e.to_string()))?;
-
-        // 客户存在性校验 + 名称查询
-        let customer = crate::models::customer::Entity::find_by_id(customer_id)
-            .one(&txn)
+    /// 客户存在性校验 + 名称查询（事务内）
+    async fn load_customer_for_payment(
+        txn: &sea_orm::DatabaseTransaction,
+        customer_id: i32,
+    ) -> Result<crate::models::customer::Model, AppError> {
+        crate::models::customer::Entity::find_by_id(customer_id)
+            .one(txn)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
-        let customer_name = customer.customer_name;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))
+    }
 
-        // 单号生成（事务内，advisory_xact_lock 串行化）
-        let collection_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-            &txn,
-            "COL",
-            ar_collection::Entity,
-            ar_collection::Column::CollectionNo,
-        )
-        .await?;
-
-        // 插入收款单
-        let now = Utc::now();
-        let collection = ar_collection::ActiveModel {
-            collection_no: Set(collection_no.clone()),
-            collection_date: Set(payment_date),
-            customer_id: Set(customer_id),
-            customer_name: Set(Some(customer_name)),
-            collection_amount: Set(amount),
-            collection_method: Set(Some(payment_method)),
-            bank_account: Set(bank_account),
+    /// 构造收款单 ActiveModel（纯函数，无 IO）
+    fn build_collection_active_model(ctx: CollectionBuildContext) -> ar_collection::ActiveModel {
+        ar_collection::ActiveModel {
+            collection_no: Set(ctx.collection_no),
+            collection_date: Set(ctx.payment_date),
+            customer_id: Set(ctx.customer_id),
+            customer_name: Set(ctx.customer_name),
+            collection_amount: Set(ctx.amount),
+            collection_method: Set(Some(ctx.payment_method)),
+            bank_account: Set(ctx.bank_account),
             status: Set(crate::models::status::ar::COLLECTION_PENDING.to_string()),
-            created_by: Set(user_id),
-            created_at: Set(now),
-            updated_at: Set(now),
+            created_by: Set(ctx.user_id),
+            created_at: Set(ctx.now),
+            updated_at: Set(ctx.now),
             ..Default::default()
-        };
-        let collection_model = collection.insert(&txn).await?;
+        }
+    }
 
-        // 关联多张发票：累加 received_amount、扣减 unpaid_amount、按需更新状态
+    /// 关联多张发票：累加 received_amount、扣减 unpaid_amount、按需更新状态
+    async fn link_invoices_to_payment(
+        txn: &sea_orm::DatabaseTransaction,
+        invoice_ids: Option<Vec<i32>>,
+        amount: Decimal,
+        customer_id: i32,
+        user_id: i32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<i32>, AppError> {
         let mut linked_invoices: Vec<i32> = Vec::new();
         if let Some(inv_ids) = invoice_ids {
             // 批量查询所有发票并加锁，避免循环内 N+1
@@ -263,7 +342,7 @@ impl ArService {
                 ar_invoice::Entity::find()
                     .filter(ar_invoice::Column::Id.is_in(inv_ids.clone()))
                     .lock_exclusive()
-                    .all(&txn)
+                    .all(txn)
                     .await?
                     .into_iter()
                     .map(|inv| (inv.id, inv))
@@ -280,64 +359,86 @@ impl ArService {
                 let invoice = invoice_map.get(&inv_id).ok_or_else(|| {
                     AppError::not_found(format!("应收单 {} 不存在", inv_id))
                 })?;
-                if invoice.status == crate::models::status::common::STATUS_CANCELLED {
-                    return Err(AppError::bad_request(format!(
-                        "应收单 {} 已取消，无法关联收款",
-                        inv_id
-                    )));
-                }
-                if invoice.customer_id != customer_id {
-                    return Err(AppError::bad_request(format!(
-                        "应收单 {} 客户与收款客户不一致",
-                        inv_id
-                    )));
-                }
-                let allocate = remaining.min(invoice.unpaid_amount);
-                if allocate <= Decimal::ZERO {
-                    continue;
-                }
-                let new_received = invoice.received_amount + allocate;
-                let new_unpaid = (invoice.invoice_amount - new_received).max(Decimal::ZERO);
-                let new_status = if new_unpaid == Decimal::ZERO {
-                    crate::models::status::payment::PAYMENT_PAID.to_string()
-                } else if new_received > Decimal::ZERO {
-                    crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
-                } else {
-                    invoice.status.clone()
-                };
-
-                let mut active: ar_invoice::ActiveModel = invoice.clone().into();
-                active.received_amount = Set(new_received);
-                active.unpaid_amount = Set(new_unpaid);
-                active.status = Set(new_status);
-                active.updated_at = Set(now);
-                crate::services::audit_log_service::AuditLogService::update_with_audit::<
-                    ar_invoice::Entity,
-                    _,
-                    _,
-                >(&txn, "ar_invoice", active, Some(user_id))
+                let linked = Self::allocate_payment_to_invoice(
+                    invoice,
+                    &mut remaining,
+                    customer_id,
+                    user_id,
+                    now,
+                    txn,
+                )
                 .await?;
-
-                remaining -= allocate;
-                linked_invoices.push(inv_id);
+                if linked {
+                    linked_invoices.push(inv_id);
+                }
             }
         }
+        Ok(linked_invoices)
+    }
 
-        txn.commit().await?;
+    /// 单张发票的扣减分配：校验 + 计算 allocate + 更新 received/unpaid/status
+    async fn allocate_payment_to_invoice(
+        invoice: &ar_invoice::Model,
+        remaining: &mut Decimal,
+        customer_id: i32,
+        user_id: i32,
+        now: chrono::DateTime<chrono::Utc>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<bool, AppError> {
+        if invoice.status == crate::models::status::common::STATUS_CANCELLED {
+            return Err(AppError::bad_request(format!(
+                "应收单 {} 已取消，无法关联收款",
+                invoice.id
+            )));
+        }
+        if invoice.customer_id != customer_id {
+            return Err(AppError::bad_request(format!(
+                "应收单 {} 客户与收款客户不一致",
+                invoice.id
+            )));
+        }
+        let allocate = (*remaining).min(invoice.unpaid_amount);
+        if allocate <= Decimal::ZERO {
+            return Ok(false);
+        }
+        let new_received = invoice.received_amount + allocate;
+        let new_unpaid = (invoice.invoice_amount - new_received).max(Decimal::ZERO);
+        let new_status = if new_unpaid == Decimal::ZERO {
+            crate::models::status::payment::PAYMENT_PAID.to_string()
+        } else if new_received > Decimal::ZERO {
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
+        } else {
+            invoice.status.clone()
+        };
 
-        info!(
-            "AR 收款创建成功：collection_no={}, customer_id={}, amount={}, 关联发票数={}",
-            collection_no,
-            customer_id,
-            amount,
-            linked_invoices.len()
-        );
+        let mut active: ar_invoice::ActiveModel = invoice.clone().into();
+        active.received_amount = Set(new_received);
+        active.unpaid_amount = Set(new_unpaid);
+        active.status = Set(new_status);
+        active.updated_at = Set(now);
+        crate::services::audit_log_service::AuditLogService::update_with_audit::<
+            ar_invoice::Entity,
+            _,
+            _,
+        >(txn, "ar_invoice", active, Some(user_id))
+        .await?;
 
-        // 事件发布（commit 后，避免事件处理器回写导致事务膨胀）
+        *remaining -= allocate;
+        Ok(true)
+    }
+
+    /// 事件发布（commit 后，避免事件处理器回写导致事务膨胀）
+    fn publish_payment_events(
+        collection: &ar_collection::Model,
+        linked_invoices: &[i32],
+        amount: Decimal,
+        user_id: i32,
+        payment_date: NaiveDate,
+    ) {
         use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
-        for inv_id in &linked_invoices {
+        for inv_id in linked_invoices {
             EVENT_BUS.publish(BusinessEvent::CollectionCompleted {
-                collection_id: collection_model.id,
+                collection_id: collection.id,
                 invoice_id: Some(*inv_id),
                 amount,
                 user_id,
@@ -346,10 +447,8 @@ impl ArService {
         let period = format!("{:04}-{:02}", payment_date.year(), payment_date.month());
         EVENT_BUS.publish(BusinessEvent::FinancialIndicatorUpdate {
             period,
-            trigger_source: format!("ar_collection_completed:{}", collection_no),
+            trigger_source: format!("ar_collection_completed:{}", collection.collection_no),
         });
-
-        Ok(collection_to_json(collection_model))
     }
 
     /// 更新收款

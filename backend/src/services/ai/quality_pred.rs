@@ -320,104 +320,34 @@ impl AiAnalysisService {
         request: QualityPredRequest,
     ) -> Result<QualityPredResponse, AppError> {
         // 1. 参数标准化
-        let window_days = request.window_days.unwrap_or(90).clamp(1, 365);
-        let inspection_type = request
-            .inspection_type
-            .as_ref()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
-        let product_id = request.product_id;
-        let type_label = inspection_type.clone().unwrap_or_else(|| "all".to_string());
+        let params = normalize_pred_params(request);
 
         // 2. 拉取窗口内的全部检验记录
-        let cutoff = chrono::Utc::now().date_naive() - chrono::Duration::days(window_days as i64);
-
-        let mut select = QualityInspectionEntity::find()
-            .filter(crate::models::quality_inspection_record::Column::InspectionDate.gte(cutoff));
-        if let Some(pid) = product_id {
-            select =
-                select.filter(crate::models::quality_inspection_record::Column::ProductId.eq(pid));
-        }
-        if let Some(ref t) = inspection_type {
-            select = select
-                .filter(crate::models::quality_inspection_record::Column::InspectionType.eq(t));
-        }
-
-        let records = select.all(&*self.db).await?;
+        let records = self
+            .fetch_quality_records(
+                params.window_days,
+                params.product_id,
+                params.inspection_type.as_deref(),
+            )
+            .await?;
 
         // 3. 历史数据不足 → 退化路径
         if (records.len() as i64) < MIN_HISTORY_RECORDS {
-            let recommendations = build_recommendations("中");
-            return Ok(QualityPredResponse {
-                product_id,
-                inspection_type: type_label,
-                window_days,
-                total_inspections: 0,
-                avg_qualification_rate: FALLBACK_QUALIFICATION_RATE,
-                trend: "无数据".to_string(),
-                trend_rate: 0.0,
-                risk_score: 30,
-                risk_level: "中".to_string(),
-                confidence: FALLBACK_CONFIDENCE,
-                top_issues: Vec::new(),
-                recommendations,
-                period_breakdown: Vec::new(),
-                source: "fallback".to_string(),
-            });
+            return Ok(build_fallback_response(
+                params.product_id,
+                &params.type_label,
+                params.window_days,
+            ));
         }
 
         // 4. 聚合：平均合格率
         let avg_rate = mean_qualification_rate(&records);
 
         // 5. 按月分段统计
-        let mut monthly: std::collections::BTreeMap<String, Vec<f64>> =
-            std::collections::BTreeMap::new();
-        for r in &records {
-            let key = r.inspection_date.format("%Y-%m").to_string();
-            let rate = r
-                .qualification_rate
-                .as_ref()
-                .and_then(|d| d.to_f64())
-                .unwrap_or(0.0);
-            monthly.entry(key).or_default().push(rate);
-        }
-        let period_breakdown: Vec<PeriodStat> = monthly
-            .iter()
-            .map(|(k, v)| PeriodStat {
-                period: k.clone(),
-                inspections: v.len() as i64,
-                avg_qualification_rate: round2(mean(v)),
-            })
-            .collect();
+        let period_breakdown = build_period_breakdown(&records);
 
         // 6. 趋势：最近 30 天 vs 之前 30 天
-        let now = chrono::Utc::now().date_naive();
-        let recent_cutoff = now - chrono::Duration::days(30);
-        let previous_cutoff = now - chrono::Duration::days(60);
-        let recent_avg = mean_qualification_rate(
-            &records
-                .iter()
-                .filter(|r| r.inspection_date >= recent_cutoff)
-                .cloned()
-                .collect::<Vec<_>>(),
-        );
-        let previous_avg = mean_qualification_rate(
-            &records
-                .iter()
-                .filter(|r| {
-                    r.inspection_date >= previous_cutoff && r.inspection_date < recent_cutoff
-                })
-                .cloned()
-                .collect::<Vec<_>>(),
-        );
-
-        let trend_rate_value = compute_trend_rate(recent_avg, previous_avg);
-        let trend_label = if recent_avg <= 0.0 || previous_avg <= 0.0 {
-            "无数据".to_string()
-        } else {
-            classify_trend(trend_rate_value)
-        };
-        let trend_is_down = trend_label == "下降";
+        let (trend_label, trend_rate_value, trend_is_down) = compute_recent_trend(&records);
 
         // 7. 风险评分 + 风险等级
         let risk_score = compute_risk_score(avg_rate, trend_is_down);
@@ -428,48 +358,15 @@ impl AiAnalysisService {
         let confidence = compute_confidence(records.len() as i64);
 
         // 9. 问题归因：仅统计不合格记录
-        let mut issue_counter: std::collections::HashMap<String, i64> =
-            std::collections::HashMap::new();
-        let mut unqualified_total: i64 = 0;
-        for r in &records {
-            let is_unqualified = r
-                .qualification_rate
-                .as_ref()
-                .and_then(|d| d.to_f64())
-                .map(|v| v < 100.0)
-                .unwrap_or(false);
-            if !is_unqualified {
-                continue;
-            }
-            unqualified_total += 1;
-            let key = extract_issue_keyword(r.remark.as_deref());
-            *issue_counter.entry(key).or_insert(0) += 1;
-        }
-        let mut top_issues: Vec<QualityIssue> = issue_counter
-            .into_iter()
-            .map(|(k, v)| {
-                let pct = if unqualified_total > 0 {
-                    (v as f64 / unqualified_total as f64) * 100.0
-                } else {
-                    0.0
-                };
-                QualityIssue {
-                    issue_type: k,
-                    occurrences: v,
-                    percentage: round2(pct),
-                }
-            })
-            .collect();
-        top_issues.sort_by(|a, b| b.occurrences.cmp(&a.occurrences));
-        top_issues.truncate(3);
+        let top_issues = compute_top_issues(&records);
 
         // 10. 建议措施
         let recommendations = build_recommendations(&risk_level);
 
         Ok(QualityPredResponse {
-            product_id,
-            inspection_type: type_label,
-            window_days,
+            product_id: params.product_id,
+            inspection_type: params.type_label,
+            window_days: params.window_days,
             total_inspections: records.len() as i64,
             avg_qualification_rate: round2(avg_rate),
             trend: trend_label,
@@ -483,6 +380,202 @@ impl AiAnalysisService {
             source: "history".to_string(),
         })
     }
+
+    /// 拉取指定时间窗口内的全部质量检验记录
+    ///
+    /// 按 `product_id` / `inspection_type` 可选过滤；
+    /// 时间下界为 `today - window_days`。
+    async fn fetch_quality_records(
+        &self,
+        window_days: i32,
+        product_id: Option<i32>,
+        inspection_type: Option<&str>,
+    ) -> Result<Vec<QualityInspectionModel>, AppError> {
+        let cutoff = chrono::Utc::now().date_naive() - chrono::Duration::days(window_days as i64);
+
+        let mut select = QualityInspectionEntity::find()
+            .filter(crate::models::quality_inspection_record::Column::InspectionDate.gte(cutoff));
+        if let Some(pid) = product_id {
+            select =
+                select.filter(crate::models::quality_inspection_record::Column::ProductId.eq(pid));
+        }
+        if let Some(t) = inspection_type {
+            select = select
+                .filter(crate::models::quality_inspection_record::Column::InspectionType.eq(t));
+        }
+
+        let records = select.all(&*self.db).await?;
+        Ok(records)
+    }
+}
+
+// =====================================================
+// predict_quality 内部辅助函数（不依赖数据库，可直接单测）
+// =====================================================
+
+/// `predict_quality` 入参标准化后的上下文
+///
+/// 封装 `window_days` / `inspection_type` / `product_id` / `type_label`，
+/// 避免主函数散落 4 个局部变量；参考已有 `WageTotals` / `ApproveContext` 模式。
+struct NormalizedPredParams {
+    window_days: i32,
+    inspection_type: Option<String>,
+    product_id: Option<i32>,
+    type_label: String,
+}
+
+/// 标准化 `predict_quality` 入参
+///
+/// - `window_days`：默认 90，限幅 1-365
+/// - `inspection_type`：trim 后若为空字符串则视为 None
+/// - `type_label`：用于响应的展示标签，未指定时为 "all"
+fn normalize_pred_params(request: QualityPredRequest) -> NormalizedPredParams {
+    let window_days = request.window_days.unwrap_or(90).clamp(1, 365);
+    let inspection_type = request
+        .inspection_type
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let product_id = request.product_id;
+    let type_label = inspection_type.clone().unwrap_or_else(|| "all".to_string());
+    NormalizedPredParams {
+        window_days,
+        inspection_type,
+        product_id,
+        type_label,
+    }
+}
+
+/// 构造历史数据不足时的退化响应
+///
+/// 固定值：合格率 95% + 置信度 0.3 + 风险等级"中" + 风险分 30。
+fn build_fallback_response(
+    product_id: Option<i32>,
+    type_label: &str,
+    window_days: i32,
+) -> QualityPredResponse {
+    let recommendations = build_recommendations("中");
+    QualityPredResponse {
+        product_id,
+        inspection_type: type_label.to_string(),
+        window_days,
+        total_inspections: 0,
+        avg_qualification_rate: FALLBACK_QUALIFICATION_RATE,
+        trend: "无数据".to_string(),
+        trend_rate: 0.0,
+        risk_score: 30,
+        risk_level: "中".to_string(),
+        confidence: FALLBACK_CONFIDENCE,
+        top_issues: Vec::new(),
+        recommendations,
+        period_breakdown: Vec::new(),
+        source: "fallback".to_string(),
+    }
+}
+
+/// 按月分段统计
+///
+/// 以 `inspection_date` 的 `YYYY-MM` 为 key 聚合每条记录的 `qualification_rate`，
+/// 生成 `PeriodStat` 列表（BTreeMap 保证时间升序）。
+fn build_period_breakdown(records: &[QualityInspectionModel]) -> Vec<PeriodStat> {
+    let mut monthly: std::collections::BTreeMap<String, Vec<f64>> =
+        std::collections::BTreeMap::new();
+    for r in records {
+        let key = r.inspection_date.format("%Y-%m").to_string();
+        let rate = r
+            .qualification_rate
+            .as_ref()
+            .and_then(|d| d.to_f64())
+            .unwrap_or(0.0);
+        monthly.entry(key).or_default().push(rate);
+    }
+    monthly
+        .iter()
+        .map(|(k, v)| PeriodStat {
+            period: k.clone(),
+            inspections: v.len() as i64,
+            avg_qualification_rate: round2(mean(v)),
+        })
+        .collect()
+}
+
+/// 计算最近 30 天 vs 之前 30 天的趋势
+///
+/// 返回 `(trend_label, trend_rate_value, trend_is_down)`：
+/// - `trend_label`：上升 / 平稳 / 下降 / 无数据
+/// - `trend_rate_value`：原始变化率（如 0.125），由调用方转为百分点
+/// - `trend_is_down`：是否处于下降趋势（用于风险评分）
+fn compute_recent_trend(records: &[QualityInspectionModel]) -> (String, f64, bool) {
+    let now = chrono::Utc::now().date_naive();
+    let recent_cutoff = now - chrono::Duration::days(30);
+    let previous_cutoff = now - chrono::Duration::days(60);
+    let recent_avg = mean_qualification_rate(
+        &records
+            .iter()
+            .filter(|r| r.inspection_date >= recent_cutoff)
+            .cloned()
+            .collect::<Vec<_>>(),
+    );
+    let previous_avg = mean_qualification_rate(
+        &records
+            .iter()
+            .filter(|r| {
+                r.inspection_date >= previous_cutoff && r.inspection_date < recent_cutoff
+            })
+            .cloned()
+            .collect::<Vec<_>>(),
+    );
+
+    let trend_rate_value = compute_trend_rate(recent_avg, previous_avg);
+    let trend_label = if recent_avg <= 0.0 || previous_avg <= 0.0 {
+        "无数据".to_string()
+    } else {
+        classify_trend(trend_rate_value)
+    };
+    let trend_is_down = trend_label == "下降";
+    (trend_label, trend_rate_value, trend_is_down)
+}
+
+/// 问题归因：仅统计不合格记录，按出现频次取 top 3
+///
+/// 不合格定义：`qualification_rate < 100.0`。
+/// 归因类别由 `extract_issue_keyword` 从 `remark` 提取。
+fn compute_top_issues(records: &[QualityInspectionModel]) -> Vec<QualityIssue> {
+    let mut issue_counter: std::collections::HashMap<String, i64> =
+        std::collections::HashMap::new();
+    let mut unqualified_total: i64 = 0;
+    for r in records {
+        let is_unqualified = r
+            .qualification_rate
+            .as_ref()
+            .and_then(|d| d.to_f64())
+            .map(|v| v < 100.0)
+            .unwrap_or(false);
+        if !is_unqualified {
+            continue;
+        }
+        unqualified_total += 1;
+        let key = extract_issue_keyword(r.remark.as_deref());
+        *issue_counter.entry(key).or_insert(0) += 1;
+    }
+    let mut top_issues: Vec<QualityIssue> = issue_counter
+        .into_iter()
+        .map(|(k, v)| {
+            let pct = if unqualified_total > 0 {
+                (v as f64 / unqualified_total as f64) * 100.0
+            } else {
+                0.0
+            };
+            QualityIssue {
+                issue_type: k,
+                occurrences: v,
+                percentage: round2(pct),
+            }
+        })
+        .collect();
+    top_issues.sort_by(|a, b| b.occurrences.cmp(&a.occurrences));
+    top_issues.truncate(3);
+    top_issues
 }
 
 // =====================================================
