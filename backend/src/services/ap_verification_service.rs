@@ -48,27 +48,65 @@ impl ApVerificationService {
     ) -> Result<ap_verification::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询该供应商未核销的应付单（按到期日排序）
-        let invoices = ap_invoice::Entity::find()
+        let invoices = Self::query_unverified_invoices_txn(&txn, supplier_id).await?;
+        let payments = Self::query_confirmed_payments_txn(&txn, supplier_id).await?;
+        let available_payments = Self::filter_available_payments_txn(&txn, payments).await?;
+        let (verification_items, total_amount) =
+            Self::match_invoices_payments(&invoices, &available_payments);
+
+        if verification_items.is_empty() {
+            return Err(AppError::business("没有可核销的应付单和付款单".to_string()));
+        }
+
+        let verification = self
+            .create_verification_record_txn(&txn, supplier_id, user_id, total_amount)
+            .await?;
+
+        Self::create_items_and_update_invoices_txn(
+            &txn,
+            verification.id,
+            verification_items,
+            user_id,
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        Ok(verification)
+    }
+
+    async fn query_unverified_invoices_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        supplier_id: i32,
+    ) -> Result<Vec<ap_invoice::Model>, AppError> {
+        Ok(ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(supplier_id))
             .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
             .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ap_invoice::Column::DueDate, Order::Asc)
-            .all(&txn)
-            .await?;
+            .all(txn)
+            .await?)
+    }
 
-        // 2. 查询该供应商已确认未核销的付款单
-        let payments = ap_payment::Entity::find()
+    async fn query_confirmed_payments_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        supplier_id: i32,
+    ) -> Result<Vec<ap_payment::Model>, AppError> {
+        Ok(ap_payment::Entity::find()
             .filter(ap_payment::Column::SupplierId.eq(supplier_id))
             .filter(ap_payment::Column::PaymentStatus.eq("CONFIRMED"))
-            .all(&txn)
-            .await?;
+            .all(txn)
+            .await?)
+    }
 
-        // 3. 查询已核销记录，排除已核销的付款单
+    async fn filter_available_payments_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        payments: Vec<ap_payment::Model>,
+    ) -> Result<Vec<ap_payment::Model>, AppError> {
         let payment_ids: Vec<i32> = payments.iter().map(|p| p.id).collect();
         let existing_verification_payments = ap_verification_item::Entity::find()
             .filter(ap_verification_item::Column::PaymentId.is_in(payment_ids))
-            .all(&txn)
+            .all(txn)
             .await?;
 
         // v13 批次 40 修复 + v14 批次 41 清理：
@@ -82,12 +120,16 @@ impl ApVerificationService {
             .map(|item| item.payment_id)
             .collect();
 
-        let available_payments: Vec<ap_payment::Model> = payments
+        Ok(payments
             .into_iter()
             .filter(|p| !verified_payment_ids.contains(&p.id))
-            .collect();
+            .collect())
+    }
 
-        // 4. 逐个匹配核销
+    fn match_invoices_payments(
+        invoices: &[ap_invoice::Model],
+        available_payments: &[ap_payment::Model],
+    ) -> (Vec<ApVerificationItemDto>, Decimal) {
         let mut verification_items = Vec::new();
         let mut total_amount = Decimal::ZERO;
         let mut invoice_remaining: std::collections::HashMap<i32, Decimal> = invoices
@@ -130,16 +172,21 @@ impl ApVerificationService {
             }
         }
 
-        if verification_items.is_empty() {
-            return Err(AppError::business("没有可核销的应付单和付款单".to_string()));
-        }
+        (verification_items, total_amount)
+    }
 
-        // 5. 创建核销单
+    async fn create_verification_record_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        supplier_id: i32,
+        user_id: i32,
+        total_amount: Decimal,
+    ) -> Result<ap_verification::Model, AppError> {
         // P1 5-11 修复（批次 60）：传入外层 txn，确保单号生成与 INSERT 在同一事务内
-        let verification_no = self.generate_verification_no(&txn).await?;
+        let verification_no = self.generate_verification_no(txn).await?;
         let verification_date = Utc::now().naive_utc().date();
 
-        let verification = ap_verification::ActiveModel {
+        Ok(ap_verification::ActiveModel {
             verification_no: Set(verification_no),
             verification_date: Set(verification_date),
             supplier_id: Set(supplier_id),
@@ -149,10 +196,16 @@ impl ApVerificationService {
             created_by: Set(user_id),
             ..Default::default()
         }
-        .insert(&txn)
-        .await?;
+        .insert(txn)
+        .await?)
+    }
 
-        // 6. 创建核销明细并更新应付单和付款单
+    async fn create_items_and_update_invoices_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        verification_id: i32,
+        verification_items: Vec<ApVerificationItemDto>,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         // v17 批次 46 修复：循环外批量查询并锁定所有 invoice，避免循环内逐个 find_by_id + lock_exclusive（N+1）
         // 使用 get_mut + clone 模式，同一 invoice_id 重复核销时复用 map 中已更新的值，无需回退查询
         let invoice_ids: Vec<i32> = verification_items.iter().map(|i| i.invoice_id).collect();
@@ -164,7 +217,7 @@ impl ApVerificationService {
                 ap_invoice::Entity::find()
                     .filter(ap_invoice::Column::Id.is_in(invoice_ids))
                     .lock_exclusive()
-                    .all(&txn)
+                    .all(txn)
                     .await?
                     .into_iter()
                     .map(|inv| (inv.id, inv))
@@ -172,45 +225,62 @@ impl ApVerificationService {
             };
 
         for item_dto in verification_items {
-            let _item = ap_verification_item::ActiveModel {
-                verification_id: Set(verification.id),
-                invoice_id: Set(item_dto.invoice_id),
-                payment_id: Set(item_dto.payment_id),
-                verify_amount: Set(item_dto.verify_amount),
-                notes: Set(item_dto.notes),
-                ..Default::default()
-            }
-            .insert(&txn)
-            .await?;
-
-            // 更新应付单（v17 批次 46 修复：从批量查询结果获取，get_mut 复用已更新值）
-            let invoice = invoice_map
-                .get_mut(&item_dto.invoice_id)
-                .ok_or_else(|| AppError::not_found(format!("应付单 {}", item_dto.invoice_id)))?;
-
-            invoice.paid_amount += item_dto.verify_amount;
-            invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
-
-            if invoice.unpaid_amount <= Decimal::ZERO {
-                invoice.invoice_status = "PAID".to_string();
-            } else {
-                invoice.invoice_status = "PARTIAL_PAID".to_string();
-            }
-
-            let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                invoice_active,
-                // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
-                Some(user_id),
+            Self::update_invoice_for_item_txn(
+                txn,
+                item_dto,
+                verification_id,
+                &mut invoice_map,
+                user_id,
             )
             .await?;
         }
 
-        txn.commit().await?;
+        Ok(())
+    }
 
-        Ok(verification)
+    async fn update_invoice_for_item_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        item_dto: ApVerificationItemDto,
+        verification_id: i32,
+        invoice_map: &mut std::collections::HashMap<i32, ap_invoice::Model>,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let _item = ap_verification_item::ActiveModel {
+            verification_id: Set(verification_id),
+            invoice_id: Set(item_dto.invoice_id),
+            payment_id: Set(item_dto.payment_id),
+            verify_amount: Set(item_dto.verify_amount),
+            notes: Set(item_dto.notes),
+            ..Default::default()
+        }
+        .insert(txn)
+        .await?;
+
+        // 更新应付单（v17 批次 46 修复：从批量查询结果获取，get_mut 复用已更新值）
+        let invoice = invoice_map
+            .get_mut(&item_dto.invoice_id)
+            .ok_or_else(|| AppError::not_found(format!("应付单 {}", item_dto.invoice_id)))?;
+
+        invoice.paid_amount += item_dto.verify_amount;
+        invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
+
+        if invoice.unpaid_amount <= Decimal::ZERO {
+            invoice.invoice_status = "PAID".to_string();
+        } else {
+            invoice.invoice_status = "PARTIAL_PAID".to_string();
+        }
+
+        let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            invoice_active,
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
+        )
+        .await?;
+
+        Ok(())
     }
 
     /// 手工核销（指定核销关系）

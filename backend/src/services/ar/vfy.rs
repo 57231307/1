@@ -339,29 +339,49 @@ impl ArReconciliationService {
         customer_id: Option<i32>,
     ) -> Result<AgingReport, AppError> {
         let today = Utc::now().date_naive();
+        let invoices = self.load_unpaid_invoices(customer_id).await?;
+        let customer_map = Self::group_invoices_by_customer(&invoices);
+        let mut overall_buckets = Self::init_aging_buckets();
+        let (mut customer_summaries, total_receivable) =
+            Self::build_customer_aging_summaries(&customer_map, today, &mut overall_buckets);
+        customer_summaries.sort_by_key(|b| std::cmp::Reverse(b.total_amount));
+        Ok(AgingReport {
+            analysis_date: today,
+            total_receivable,
+            customer_summaries,
+            overall_buckets,
+        })
+    }
 
-        let mut invoice_query = ar_invoice::Entity::find()
+    async fn load_unpaid_invoices(
+        &self,
+        customer_id: Option<i32>,
+    ) -> Result<Vec<ar_invoice::Model>, AppError> {
+        let mut query = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::Status.ne("CANCELLED"))
             .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO));
-
         if let Some(cid) = customer_id {
-            invoice_query = invoice_query.filter(ar_invoice::Column::CustomerId.eq(cid));
+            query = query.filter(ar_invoice::Column::CustomerId.eq(cid));
         }
+        Ok(query.all(&*self.db).await?)
+    }
 
-        let invoices = invoice_query.all(&*self.db).await?;
-
-        let mut customer_map: std::collections::HashMap<i32, (String, Vec<&ar_invoice::Model>)> =
+    fn group_invoices_by_customer(
+        invoices: &[ar_invoice::Model],
+    ) -> std::collections::HashMap<i32, (String, Vec<&ar_invoice::Model>)> {
+        let mut map: std::collections::HashMap<i32, (String, Vec<&ar_invoice::Model>)> =
             std::collections::HashMap::new();
-
-        for inv in &invoices {
-            let entry = customer_map
+        for inv in invoices {
+            let entry = map
                 .entry(inv.customer_id)
                 .or_insert_with(|| (inv.customer_name.clone().unwrap_or_default(), Vec::new()));
             entry.1.push(inv);
         }
+        map
+    }
 
-        let mut customer_summaries = Vec::new();
-        let mut overall_buckets = vec![
+    fn init_aging_buckets() -> Vec<AgingBucket> {
+        vec![
             AgingBucket {
                 label: "当期".to_string(),
                 min_days: 0,
@@ -397,76 +417,44 @@ impl ArReconciliationService {
                 amount: Decimal::ZERO,
                 count: 0,
             },
-        ];
+        ]
+    }
 
+    fn compute_aging_bucket_index(overdue_days: i64) -> usize {
+        if overdue_days <= 0 {
+            0
+        } else if overdue_days <= 30 {
+            1
+        } else if overdue_days <= 60 {
+            2
+        } else if overdue_days <= 90 {
+            3
+        } else {
+            4
+        }
+    }
+
+    fn build_customer_aging_summaries(
+        customer_map: &std::collections::HashMap<i32, (String, Vec<&ar_invoice::Model>)>,
+        today: chrono::NaiveDate,
+        overall_buckets: &mut Vec<AgingBucket>,
+    ) -> (Vec<CustomerAgingSummary>, Decimal) {
+        let mut customer_summaries = Vec::new();
         let mut total_receivable = Decimal::ZERO;
-
-        for (cust_id, (cust_name, cust_invoices)) in &customer_map {
-            let mut buckets = vec![
-                AgingBucket {
-                    label: "当期".to_string(),
-                    min_days: 0,
-                    max_days: Some(0),
-                    amount: Decimal::ZERO,
-                    count: 0,
-                },
-                AgingBucket {
-                    label: "1-30天".to_string(),
-                    min_days: 1,
-                    max_days: Some(30),
-                    amount: Decimal::ZERO,
-                    count: 0,
-                },
-                AgingBucket {
-                    label: "31-60天".to_string(),
-                    min_days: 31,
-                    max_days: Some(60),
-                    amount: Decimal::ZERO,
-                    count: 0,
-                },
-                AgingBucket {
-                    label: "61-90天".to_string(),
-                    min_days: 61,
-                    max_days: Some(90),
-                    amount: Decimal::ZERO,
-                    count: 0,
-                },
-                AgingBucket {
-                    label: "90天以上".to_string(),
-                    min_days: 91,
-                    max_days: None,
-                    amount: Decimal::ZERO,
-                    count: 0,
-                },
-            ];
-
+        for (cust_id, (cust_name, cust_invoices)) in customer_map {
+            let mut buckets = Self::init_aging_buckets();
             let mut cust_total = Decimal::ZERO;
-
             for inv in cust_invoices {
                 let overdue_days = (today - inv.due_date).num_days();
                 let amount = inv.unpaid_amount;
                 cust_total += amount;
-
-                let bucket_idx = if overdue_days <= 0 {
-                    0
-                } else if overdue_days <= 30 {
-                    1
-                } else if overdue_days <= 60 {
-                    2
-                } else if overdue_days <= 90 {
-                    3
-                } else {
-                    4
-                };
-
+                let bucket_idx = Self::compute_aging_bucket_index(overdue_days);
                 buckets[bucket_idx].amount += amount;
                 buckets[bucket_idx].count += 1;
                 overall_buckets[bucket_idx].amount += amount;
                 overall_buckets[bucket_idx].count += 1;
             }
-
             total_receivable += cust_total;
-
             customer_summaries.push(CustomerAgingSummary {
                 customer_id: *cust_id,
                 customer_name: cust_name.clone(),
@@ -474,15 +462,7 @@ impl ArReconciliationService {
                 buckets,
             });
         }
-
-        customer_summaries.sort_by_key(|b| std::cmp::Reverse(b.total_amount));
-
-        Ok(AgingReport {
-            analysis_date: today,
-            total_receivable,
-            customer_summaries,
-            overall_buckets,
-        })
+        (customer_summaries, total_receivable)
     }
 
     /// 为指定客户自动生成对账单（从发票/收款汇总）

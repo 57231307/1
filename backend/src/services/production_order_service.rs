@@ -70,6 +70,19 @@ pub struct ProductionOrderService {
     db: Arc<DatabaseConnection>,
 }
 
+/// increase_finished_goods_txn 内部共享的成品入库流水上下文
+struct ProductionOutputRecord {
+    batch_no: String,
+    color_no: String,
+    dye_lot_no: Option<String>,
+    grade: String,
+    added_kg: Decimal,
+    qty_before_meters: Decimal,
+    qty_before_kg: Decimal,
+    qty_after_meters: Decimal,
+    qty_after_kg: Decimal,
+}
+
 impl ProductionOrderService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -970,18 +983,13 @@ impl ProductionOrderService {
         default_warehouse: &crate::models::warehouse::Model,
         production_qty: Decimal,
     ) -> Result<Vec<BusinessEvent>, AppError> {
-        use crate::services::inventory_stock_query::RecordTransactionArgs;
-        use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
-
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
-        // 查询成品产品信息以获取克重和幅宽
         let product = ProductEntity::find_by_id(order.product_id)
             .one(txn)
             .await?
             .ok_or_else(|| AppError::business(format!("产品ID {} 不存在", order.product_id)))?;
 
-        // 查找成品在默认仓库的已有库存记录
         // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发入库丢失更新
         let existing_stock = InventoryStockEntity::find()
             .filter(crate::models::inventory_stock::Column::ProductId.eq(order.product_id))
@@ -990,131 +998,158 @@ impl ProductionOrderService {
             .one(txn)
             .await?;
 
-        match existing_stock {
-            Some(stock_record) => {
-                // 更新已有库存
-                let qty_before_meters = stock_record.quantity_meters;
-                let qty_before_kg = stock_record.quantity_kg;
-                let qty_after_meters = qty_before_meters + production_qty;
+        let txn_event = match existing_stock {
+            Some(stock_record) => Self::update_existing_finished_stock_txn(
+                txn, order, default_warehouse, &product, stock_record, production_qty,
+            )
+            .await?,
+            None => Self::create_new_finished_stock_txn(
+                txn, order, default_warehouse, &product, production_qty,
+            )
+            .await?,
+        };
 
-                // 计算公斤数（如果有克重和幅宽）
-                let added_kg = if let (Some(gw), Some(w)) = (product.gram_weight, product.width) {
-                    production_qty * gw * w / Decimal::new(100000, 0)
-                } else {
-                    Decimal::ZERO
-                };
-                let qty_after_kg = qty_before_kg + added_kg;
-
-                InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
-                    txn,
-                    stock_record.id,
-                    qty_after_meters,
-                    qty_after_kg,
-                    stock_record.version,
-                )
-                .await?;
-
-                // 记录库存流水：生产入库
-                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
-                // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
-                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
-                let (_, txn_event) = InventoryStockService::record_transaction_txn(
-                    txn,
-                    RecordTransactionArgs {
-                        transaction_type: "PRODUCTION_OUTPUT".to_string(),
-                        product_id: order.product_id,
-                        warehouse_id: default_warehouse.id,
-                        batch_no: stock_record.batch_no.clone(),
-                        color_no: stock_record.color_no.clone(),
-                        dye_lot_no: stock_record.dye_lot_no.clone(),
-                        grade: stock_record.grade.clone(),
-                        quantity_meters: production_qty,
-                        quantity_kg: added_kg,
-                        source_bill_type: Some("production_order".to_string()),
-                        source_bill_no: Some(order.order_no.clone()),
-                        source_bill_id: Some(order.id),
-                        quantity_before_meters: Some(qty_before_meters),
-                        quantity_before_kg: Some(qty_before_kg),
-                        quantity_after_meters: Some(qty_after_meters),
-                        quantity_after_kg: Some(qty_after_kg),
-                        notes: Some(format!("生产入库 - 订单 {}", order.order_no)),
-                        created_by: Some(order.created_by),
-                    },
-                )
-                .await?;
-                if let Some(ev) = txn_event {
-                    pending_events.push(ev);
-                }
-            }
-            None => {
-                // 创建新的库存记录
-                let kg = if let (Some(gw), Some(w)) = (product.gram_weight, product.width) {
-                    production_qty * gw * w / Decimal::new(100000, 0)
-                } else {
-                    Decimal::ZERO
-                };
-
-                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
-                let new_stock = InventoryStockService::create_stock_fabric_txn(
-                    txn,
-                    CreateStockFabricArgs {
-                        warehouse_id: default_warehouse.id,
-                        product_id: order.product_id,
-                        // v14 批次 419 修复 F-P0-1：从生产订单获取缸号/色号/批号，
-                        // 替代原 "DEFAULT" 硬编码，batch_no 优先使用订单批号，回退订单号
-                        batch_no: order
-                            .batch_no
-                            .clone()
-                            .unwrap_or_else(|| order.order_no.clone()),
-                        color_no: order.color_no.clone().unwrap_or_default(),
-                        dye_lot_no: order.dye_lot_no.clone(),
-                        grade: "一等品".to_string(),
-                        quantity_meters: production_qty,
-                        quantity_kg: kg,
-                        gram_weight: product.gram_weight,
-                        width: product.width,
-                        location_id: None,
-                        shelf_no: None,
-                        layer_no: None,
-                    },
-                )
-                .await?;
-
-                // 记录库存流水：生产入库
-                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
-                // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
-                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
-                let (_, txn_event) = InventoryStockService::record_transaction_txn(
-                    txn,
-                    RecordTransactionArgs {
-                        transaction_type: "PRODUCTION_OUTPUT".to_string(),
-                        product_id: order.product_id,
-                        warehouse_id: default_warehouse.id,
-                        batch_no: new_stock.batch_no.clone(),
-                        color_no: new_stock.color_no.clone(),
-                        dye_lot_no: new_stock.dye_lot_no.clone(),
-                        grade: new_stock.grade.clone(),
-                        quantity_meters: production_qty,
-                        quantity_kg: kg,
-                        source_bill_type: Some("production_order".to_string()),
-                        source_bill_no: Some(order.order_no.clone()),
-                        source_bill_id: Some(order.id),
-                        quantity_before_meters: Some(Decimal::ZERO),
-                        quantity_before_kg: Some(Decimal::ZERO),
-                        quantity_after_meters: Some(production_qty),
-                        quantity_after_kg: Some(kg),
-                        notes: Some(format!("生产入库 - 订单 {}", order.order_no)),
-                        created_by: Some(order.created_by),
-                    },
-                )
-                .await?;
-                if let Some(ev) = txn_event {
-                    pending_events.push(ev);
-                }
-            }
+        if let Some(ev) = txn_event {
+            pending_events.push(ev);
         }
 
         Ok(pending_events)
+    }
+
+    /// P0-D08 拆分：更新已有成品库存并记录 PRODUCTION_OUTPUT 流水
+    async fn update_existing_finished_stock_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &ProductionOrderModel,
+        default_warehouse: &crate::models::warehouse::Model,
+        product: &crate::models::product::Model,
+        stock_record: crate::models::inventory_stock::Model,
+        production_qty: Decimal,
+    ) -> Result<Option<BusinessEvent>, AppError> {
+        use crate::services::inventory_stock_service::InventoryStockService;
+
+        let qty_before_meters = stock_record.quantity_meters;
+        let qty_before_kg = stock_record.quantity_kg;
+        let qty_after_meters = qty_before_meters + production_qty;
+
+        let added_kg = if let (Some(gw), Some(w)) = (product.gram_weight, product.width) {
+            production_qty * gw * w / Decimal::new(100000, 0)
+        } else {
+            Decimal::ZERO
+        };
+        let qty_after_kg = qty_before_kg + added_kg;
+
+        InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+            txn,
+            stock_record.id,
+            qty_after_meters,
+            qty_after_kg,
+            stock_record.version,
+        )
+        .await?;
+
+        let record = ProductionOutputRecord {
+            batch_no: stock_record.batch_no.clone(),
+            color_no: stock_record.color_no.clone(),
+            dye_lot_no: stock_record.dye_lot_no.clone(),
+            grade: stock_record.grade.clone(),
+            added_kg,
+            qty_before_meters,
+            qty_before_kg,
+            qty_after_meters,
+            qty_after_kg,
+        };
+
+        Self::record_production_output_txn(txn, order, default_warehouse, production_qty, record).await
+    }
+
+    /// P0-D08 拆分：创建新成品库存记录并记录 PRODUCTION_OUTPUT 流水
+    async fn create_new_finished_stock_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &ProductionOrderModel,
+        default_warehouse: &crate::models::warehouse::Model,
+        product: &crate::models::product::Model,
+        production_qty: Decimal,
+    ) -> Result<Option<BusinessEvent>, AppError> {
+        use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
+        let kg = if let (Some(gw), Some(w)) = (product.gram_weight, product.width) {
+            production_qty * gw * w / Decimal::new(100000, 0)
+        } else {
+            Decimal::ZERO
+        };
+
+        // v14 批次 419 修复 F-P0-1：从订单获取缸号/色号/批号，替代原 "DEFAULT" 硬编码
+        let new_stock = InventoryStockService::create_stock_fabric_txn(
+            txn,
+            CreateStockFabricArgs {
+                warehouse_id: default_warehouse.id,
+                product_id: order.product_id,
+                batch_no: order.batch_no.clone().unwrap_or_else(|| order.order_no.clone()),
+                color_no: order.color_no.clone().unwrap_or_default(),
+                dye_lot_no: order.dye_lot_no.clone(),
+                grade: "一等品".to_string(),
+                quantity_meters: production_qty,
+                quantity_kg: kg,
+                gram_weight: product.gram_weight,
+                width: product.width,
+                location_id: None,
+                shelf_no: None,
+                layer_no: None,
+            },
+        )
+        .await?;
+
+        let record = ProductionOutputRecord {
+            batch_no: new_stock.batch_no.clone(),
+            color_no: new_stock.color_no.clone(),
+            dye_lot_no: new_stock.dye_lot_no.clone(),
+            grade: new_stock.grade.clone(),
+            added_kg: kg,
+            qty_before_meters: Decimal::ZERO,
+            qty_before_kg: Decimal::ZERO,
+            qty_after_meters: production_qty,
+            qty_after_kg: kg,
+        };
+
+        Self::record_production_output_txn(txn, order, default_warehouse, production_qty, record).await
+    }
+
+    /// P0-D08 拆分：记录 PRODUCTION_OUTPUT 库存流水（P0 5-2：返回事件由调用方收集后 commit 后统一 publish）
+    async fn record_production_output_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &ProductionOrderModel,
+        default_warehouse: &crate::models::warehouse::Model,
+        production_qty: Decimal,
+        record: ProductionOutputRecord,
+    ) -> Result<Option<BusinessEvent>, AppError> {
+        use crate::services::inventory_stock_query::RecordTransactionArgs;
+        use crate::services::inventory_stock_service::InventoryStockService;
+
+        let (_, txn_event) = InventoryStockService::record_transaction_txn(
+            txn,
+            RecordTransactionArgs {
+                transaction_type: "PRODUCTION_OUTPUT".to_string(),
+                product_id: order.product_id,
+                warehouse_id: default_warehouse.id,
+                batch_no: record.batch_no,
+                color_no: record.color_no,
+                dye_lot_no: record.dye_lot_no,
+                grade: record.grade,
+                quantity_meters: production_qty,
+                quantity_kg: record.added_kg,
+                source_bill_type: Some("production_order".to_string()),
+                source_bill_no: Some(order.order_no.clone()),
+                source_bill_id: Some(order.id),
+                quantity_before_meters: Some(record.qty_before_meters),
+                quantity_before_kg: Some(record.qty_before_kg),
+                quantity_after_meters: Some(record.qty_after_meters),
+                quantity_after_kg: Some(record.qty_after_kg),
+                notes: Some(format!("生产入库 - 订单 {}", order.order_no)),
+                created_by: Some(order.created_by),
+            },
+        )
+        .await?;
+
+        Ok(txn_event)
     }
 
     /// 提交生产订单审批

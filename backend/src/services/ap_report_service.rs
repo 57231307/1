@@ -436,12 +436,34 @@ impl ApReportService {
         &self,
         supplier_id: Option<i32>,
     ) -> Result<ApAgingReport, AppError> {
+        let today = Utc::now().naive_utc().date();
+        let overdue = self
+            .fetch_aging_overdue_aggregate(today, supplier_id)
+            .await?;
+        let not_due = self
+            .fetch_aging_not_due_aggregate(today, supplier_id)
+            .await?;
+        let total_amount = not_due.amount + overdue.overdue_total;
+        let aging_buckets = build_aging_buckets(not_due, overdue, total_amount);
+        Ok(ApAgingReport {
+            report_date: today,
+            supplier_id,
+            total_unpaid_amount: total_amount,
+            aging_buckets,
+        })
+    }
+
+    /// 查询账龄逾期分桶聚合数据（5 个区间 + 逾期合计）
+    async fn fetch_aging_overdue_aggregate(
+        &self,
+        today: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> Result<AgingOverdueAggregate, AppError> {
         use sea_orm::ConnectionTrait;
 
-        let today = Utc::now().naive_utc().date();
-
         // 规则 12 合规：全部参数使用 $N 参数化绑定
-        let mut params: Vec<sea_orm::Value> = vec![today.into(), "PAID".into(), "CANCELLED".into()];
+        let mut params: Vec<sea_orm::Value> =
+            vec![today.into(), "PAID".into(), "CANCELLED".into()];
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());
@@ -484,107 +506,115 @@ impl ApReportService {
         let row = row
             .ok_or_else(|| AppError::internal("应付账龄报表聚合查询无结果".to_string()))?;
 
-        // 未到期单独查询（due_date >= today）
-        let mut not_due_params: Vec<sea_orm::Value> = vec![today.into(), "PAID".into(), "CANCELLED".into()];
-        let not_due_supplier_filter = supplier_id
+        Ok(AgingOverdueAggregate {
+            b1_amt: row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO),
+            b1_cnt: row.try_get_by_index::<i64>(1).unwrap_or(0),
+            b2_amt: row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO),
+            b2_cnt: row.try_get_by_index::<i64>(3).unwrap_or(0),
+            b3_amt: row.try_get_by_index::<Decimal>(4).unwrap_or(Decimal::ZERO),
+            b3_cnt: row.try_get_by_index::<i64>(5).unwrap_or(0),
+            b4_amt: row.try_get_by_index::<Decimal>(6).unwrap_or(Decimal::ZERO),
+            b4_cnt: row.try_get_by_index::<i64>(7).unwrap_or(0),
+            b5_amt: row.try_get_by_index::<Decimal>(8).unwrap_or(Decimal::ZERO),
+            b5_cnt: row.try_get_by_index::<i64>(9).unwrap_or(0),
+            overdue_total: row.try_get_by_index::<Decimal>(10).unwrap_or(Decimal::ZERO),
+        })
+    }
+
+    /// 查询未到期聚合数据（due_date >= today）
+    async fn fetch_aging_not_due_aggregate(
+        &self,
+        today: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> Result<AgingNotDueAggregate, AppError> {
+        use sea_orm::ConnectionTrait;
+
+        let mut params: Vec<sea_orm::Value> =
+            vec![today.into(), "PAID".into(), "CANCELLED".into()];
+        let supplier_filter = supplier_id
             .map(|sid| {
-                not_due_params.push(sid.into());
-                format!(" AND supplier_id = ${}", not_due_params.len())
+                params.push(sid.into());
+                format!(" AND supplier_id = ${}", params.len())
             })
             .unwrap_or_default();
-        let not_due_sql = format!(
+        let sql = format!(
             r#"
             SELECT COALESCE(SUM(unpaid_amount), 0) AS amt, COUNT(*) AS cnt
             FROM ap_invoice
             WHERE due_date >= $1 AND invoice_status <> $2 AND invoice_status <> $3 AND unpaid_amount > 0{sf}
             "#,
-            sf = not_due_supplier_filter
+            sf = supplier_filter
         );
-        let not_due_row: Option<sea_orm::QueryResult> = self
+        let row: Option<sea_orm::QueryResult> = self
             .db
             .query_one(sea_orm::Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
-                not_due_sql,
-                not_due_params,
+                sql,
+                params,
             ))
             .await
             .map_err(|e| AppError::internal(format!("未到期聚合查询失败: {}", e)))?;
-        let not_due_row = not_due_row
+        let row = row
             .ok_or_else(|| AppError::internal("未到期聚合查询无结果".to_string()))?;
-        let not_due_amt: Decimal =
-            not_due_row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO);
-        let not_due_cnt: i64 = not_due_row.try_get_by_index::<i64>(1).unwrap_or(0);
-
-        // 读取逾期分桶（索引 0-9 是 5 个分桶的 amt/cnt，索引 10 是 overdue total）
-        let b1_amt: Decimal = row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO);
-        let b1_cnt: i64 = row.try_get_by_index::<i64>(1).unwrap_or(0);
-        let b2_amt: Decimal = row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
-        let b2_cnt: i64 = row.try_get_by_index::<i64>(3).unwrap_or(0);
-        let b3_amt: Decimal = row.try_get_by_index::<Decimal>(4).unwrap_or(Decimal::ZERO);
-        let b3_cnt: i64 = row.try_get_by_index::<i64>(5).unwrap_or(0);
-        let b4_amt: Decimal = row.try_get_by_index::<Decimal>(6).unwrap_or(Decimal::ZERO);
-        let b4_cnt: i64 = row.try_get_by_index::<i64>(7).unwrap_or(0);
-        let b5_amt: Decimal = row.try_get_by_index::<Decimal>(8).unwrap_or(Decimal::ZERO);
-        let b5_cnt: i64 = row.try_get_by_index::<i64>(9).unwrap_or(0);
-        let overdue_total: Decimal =
-            row.try_get_by_index::<Decimal>(10).unwrap_or(Decimal::ZERO);
-
-        let total_amount = not_due_amt + overdue_total;
-
-        // 构建分桶（百分比在应用层计算，因为依赖 total_amount）
-        let mut aging_buckets = vec![
-            AgingBucket {
-                bucket_name: "未到期".to_string(),
-                invoice_count: not_due_cnt,
-                total_amount: not_due_amt,
-                percentage: Decimal::ZERO,
-            },
-            AgingBucket {
-                bucket_name: "逾期 1-30 天".to_string(),
-                invoice_count: b1_cnt,
-                total_amount: b1_amt,
-                percentage: Decimal::ZERO,
-            },
-            AgingBucket {
-                bucket_name: "逾期 31-60 天".to_string(),
-                invoice_count: b2_cnt,
-                total_amount: b2_amt,
-                percentage: Decimal::ZERO,
-            },
-            AgingBucket {
-                bucket_name: "逾期 61-90 天".to_string(),
-                invoice_count: b3_cnt,
-                total_amount: b3_amt,
-                percentage: Decimal::ZERO,
-            },
-            AgingBucket {
-                bucket_name: "逾期 91-180 天".to_string(),
-                invoice_count: b4_cnt,
-                total_amount: b4_amt,
-                percentage: Decimal::ZERO,
-            },
-            AgingBucket {
-                bucket_name: "逾期 180 天以上".to_string(),
-                invoice_count: b5_cnt,
-                total_amount: b5_amt,
-                percentage: Decimal::ZERO,
-            },
-        ];
-
-        // 计算百分比
-        if total_amount > Decimal::ZERO {
-            for bucket in &mut aging_buckets {
-                bucket.percentage = (bucket.total_amount / total_amount) * Decimal::new(100, 0);
-            }
-        }
-
-        Ok(ApAgingReport {
-            report_date: today,
-            supplier_id,
-            total_unpaid_amount: total_amount,
-            aging_buckets,
+        Ok(AgingNotDueAggregate {
+            amount: row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO),
+            count: row.try_get_by_index::<i64>(1).unwrap_or(0),
         })
     }
+}
+
+/// 构建账龄分桶列表并计算百分比
+fn build_aging_buckets(
+    not_due: AgingNotDueAggregate,
+    overdue: AgingOverdueAggregate,
+    total_amount: Decimal,
+) -> Vec<AgingBucket> {
+    let mut aging_buckets = vec![
+        AgingBucket {
+            bucket_name: "未到期".to_string(),
+            invoice_count: not_due.count,
+            total_amount: not_due.amount,
+            percentage: Decimal::ZERO,
+        },
+        AgingBucket {
+            bucket_name: "逾期 1-30 天".to_string(),
+            invoice_count: overdue.b1_cnt,
+            total_amount: overdue.b1_amt,
+            percentage: Decimal::ZERO,
+        },
+        AgingBucket {
+            bucket_name: "逾期 31-60 天".to_string(),
+            invoice_count: overdue.b2_cnt,
+            total_amount: overdue.b2_amt,
+            percentage: Decimal::ZERO,
+        },
+        AgingBucket {
+            bucket_name: "逾期 61-90 天".to_string(),
+            invoice_count: overdue.b3_cnt,
+            total_amount: overdue.b3_amt,
+            percentage: Decimal::ZERO,
+        },
+        AgingBucket {
+            bucket_name: "逾期 91-180 天".to_string(),
+            invoice_count: overdue.b4_cnt,
+            total_amount: overdue.b4_amt,
+            percentage: Decimal::ZERO,
+        },
+        AgingBucket {
+            bucket_name: "逾期 180 天以上".to_string(),
+            invoice_count: overdue.b5_cnt,
+            total_amount: overdue.b5_amt,
+            percentage: Decimal::ZERO,
+        },
+    ];
+
+    if total_amount > Decimal::ZERO {
+        for bucket in &mut aging_buckets {
+            bucket.percentage = (bucket.total_amount / total_amount) * Decimal::new(100, 0);
+        }
+    }
+
+    aging_buckets
 }
 
 // =====================================================
@@ -612,6 +642,29 @@ struct ApStatisticsMainAggregate {
     overdue_count: i64,
     /// 逾期金额
     overdue_amount: Decimal,
+}
+
+/// 应付账龄逾期分桶聚合查询结果（内部传递用）
+#[derive(Debug)]
+struct AgingOverdueAggregate {
+    b1_amt: Decimal,
+    b1_cnt: i64,
+    b2_amt: Decimal,
+    b2_cnt: i64,
+    b3_amt: Decimal,
+    b3_cnt: i64,
+    b4_amt: Decimal,
+    b4_cnt: i64,
+    b5_amt: Decimal,
+    b5_cnt: i64,
+    overdue_total: Decimal,
+}
+
+/// 应付账龄未到期聚合查询结果（内部传递用）
+#[derive(Debug)]
+struct AgingNotDueAggregate {
+    amount: Decimal,
+    count: i64,
 }
 
 /// 应付统计报表

@@ -433,7 +433,23 @@ impl InitService {
     async fn create_default_roles(&self) -> Result<role::Model, InitError> {
         // 批次 24 v6 P0-1 修复：使用 ADMIN_ROLE_CODE 常量替代硬编码 "admin"，
         // 与 admin_checker.rs 保持单一真相源，避免角色编码变更时多处不同步。
-        let existing_admin = role::Entity::find()
+        if let Some(admin_role) = self.find_existing_admin_role().await? {
+            return Ok(admin_role);
+        }
+
+        // 如果不存在，则创建角色
+        let admin_role = self.create_admin_role().await?;
+
+        // 创建其他角色
+        let mut all_new_roles = vec![Self::build_manager_role(), Self::build_operator_role()];
+        all_new_roles.extend(Self::build_business_roles());
+        self.batch_insert_roles(all_new_roles).await;
+
+        Ok(admin_role)
+    }
+
+    async fn find_existing_admin_role(&self) -> Result<Option<role::Model>, InitError> {
+        role::Entity::find()
             .filter(role::Column::Code.eq(ADMIN_ROLE_CODE))
             .one(self.db.as_ref())
             .await
@@ -444,13 +460,10 @@ impl InitService {
                 } else {
                     InitError::DatabaseError(format!("查询角色失败: {}", e))
                 }
-            })?;
+            })
+    }
 
-        if let Some(admin_role) = existing_admin {
-            return Ok(admin_role);
-        }
-
-        // 如果不存在，则创建角色
+    async fn create_admin_role(&self) -> Result<role::Model, InitError> {
         let admin_role = role::ActiveModel {
             id: Default::default(),
             name: Set("管理员".to_string()),
@@ -463,13 +476,28 @@ impl InitService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        let admin_role = admin_role
+        admin_role
             .insert(self.db.as_ref())
             .await
-            .map_err(|e| InitError::DatabaseError(format!("创建管理员角色失败: {}", e)))?;
+            .map_err(|e| InitError::DatabaseError(format!("创建管理员角色失败: {}", e)))
+    }
 
-        // 创建其他角色
-        let manager_role = role::ActiveModel {
+    async fn batch_insert_roles(&self, roles: Vec<role::ActiveModel>) {
+        if let Err(e) = role::Entity::insert_many(roles)
+            .on_conflict(
+                sea_orm::sea_query::OnConflict::column(role::Column::Code)
+                    .do_nothing()
+                    .to_owned(),
+            )
+            .exec(self.db.as_ref())
+            .await
+        {
+            warn!("批量创建角色失败: {}, 可能部分已存在", e);
+        }
+    }
+
+    fn build_manager_role() -> role::ActiveModel {
+        role::ActiveModel {
             id: Default::default(),
             name: Set("部门经理".to_string()),
             code: Set("manager".to_string()),
@@ -482,9 +510,11 @@ impl InitService {
             data_scope: Set("dept".to_string()),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
-        };
+        }
+    }
 
-        let operator_role = role::ActiveModel {
+    fn build_operator_role() -> role::ActiveModel {
+        role::ActiveModel {
             id: Default::default(),
             name: Set("操作员".to_string()),
             code: Set("operator".to_string()),
@@ -497,14 +527,22 @@ impl InitService {
             data_scope: Set("self".to_string()),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
-        };
+        }
+    }
 
+    fn build_business_roles() -> Vec<role::ActiveModel> {
         // V15 P0-S04：补齐业务角色（仅创建角色记录，权限在 create_default_role_permissions 中配置）
         // 覆盖面料行业 ERP 全业务场景：管理/销售/采购/库存/生产/质量/财务/CRM/物流/人力/安全/IT
         // V15 P0-S01：每个角色配置 data_scope（all/dept/self）
-        let now = chrono::Utc::now();
         // 元组第四项为 data_scope：all（管理层）/ dept（经理）/ self（执行角色）
-        let business_roles: Vec<role::ActiveModel> = [
+        let now = chrono::Utc::now();
+        let mut roles = Self::build_front_business_roles(now);
+        roles.extend(Self::build_back_business_roles(now));
+        roles
+    }
+
+    fn build_front_business_roles(now: chrono::DateTime<chrono::Utc>) -> Vec<role::ActiveModel> {
+        let tuples: &[(&str, &str, &str, &str)] = &[
             // 管理层 → all
             ("总经理", "gm", "全公司最高管理权限", "all"),
             ("副总经理", "deputy_gm", "分管副总管理权限", "all"),
@@ -527,6 +565,17 @@ impl InitService {
             ("胚布管理员", "greige_manager", "胚布采购库存与委托加工", "self"),
             ("染化料管理员", "chemical_manager", "染料助剂化学品采购存储领用", "self"),
             ("设备维护主管", "maintenance_supervisor", "设备管理与维修计划", "self"),
+        ];
+        tuples
+            .iter()
+            .map(|(name, code, desc, scope)| {
+                Self::build_role_active_model(name, code, desc, scope, now)
+            })
+            .collect()
+    }
+
+    fn build_back_business_roles(now: chrono::DateTime<chrono::Utc>) -> Vec<role::ActiveModel> {
+        let tuples: &[(&str, &str, &str, &str)] = &[
             // 质量域
             ("质量管理经理", "qc_manager", "质量体系管理与8D流程协调", "dept"),
             ("质检员", "quality_inspector", "质量检验与异常处理", "self"),
@@ -552,9 +601,23 @@ impl InitService {
             ("数据分析师", "data_analyst", "BI报表与数据分析", "all"),
             // 行政
             ("行政助理", "admin_assistant", "用户管理与公告发布", "self"),
-        ]
-        .into_iter()
-        .map(|(name, code, desc, scope)| role::ActiveModel {
+        ];
+        tuples
+            .iter()
+            .map(|(name, code, desc, scope)| {
+                Self::build_role_active_model(name, code, desc, scope, now)
+            })
+            .collect()
+    }
+
+    fn build_role_active_model(
+        name: &str,
+        code: &str,
+        desc: &str,
+        scope: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> role::ActiveModel {
+        role::ActiveModel {
             id: Default::default(),
             name: Set(name.to_string()),
             code: Set(code.to_string()),
@@ -565,25 +628,7 @@ impl InitService {
             data_scope: Set(scope.to_string()),
             created_at: Set(now),
             updated_at: Set(now),
-        })
-        .collect();
-
-        let mut all_new_roles = vec![manager_role, operator_role];
-        all_new_roles.extend(business_roles);
-
-        if let Err(e) = role::Entity::insert_many(all_new_roles)
-            .on_conflict(
-                sea_orm::sea_query::OnConflict::column(role::Column::Code)
-                    .do_nothing()
-                    .to_owned(),
-            )
-            .exec(self.db.as_ref())
-            .await
-        {
-            warn!("批量创建角色失败: {}, 可能部分已存在", e);
         }
-
-        Ok(admin_role)
     }
 
     /// V15 P0-S03/S04/S20 修复：为全部 33 个角色创建完整 role_permission 权限矩阵。

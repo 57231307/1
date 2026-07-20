@@ -410,9 +410,25 @@ impl ChemicalMasterService {
         req: UpdateChemicalMasterRequest,
     ) -> Result<MasterModel, AppError> {
         let model = self.get_by_id(id).await?;
-
         let mut active: MasterActiveModel = model.into();
 
+        Self::apply_basic_info(&mut active, &req);
+        Self::apply_chemical_properties(&mut active, &req);
+        Self::apply_pricing(&mut active, &req)?;
+        Self::apply_ghs_msds(&mut active, &req);
+        Self::apply_storage_params(&mut active, &req);
+        Self::apply_inventory_params(&mut active, &req)?;
+        Self::apply_packaging(&mut active, &req);
+        Self::apply_supplier_info(&mut active, &req);
+        Self::apply_dye_fastness(&mut active, &req);
+        Self::apply_status_and_remarks(&mut active, &req)?;
+
+        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    fn apply_basic_info(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
         if let Some(v) = req.chemical_name {
             active.chemical_name = Set(v);
         }
@@ -431,6 +447,12 @@ impl ChemicalMasterService {
         if let Some(v) = req.auxiliary_category {
             active.auxiliary_category = Set(Some(v));
         }
+    }
+
+    fn apply_chemical_properties(
+        active: &mut MasterActiveModel,
+        req: &UpdateChemicalMasterRequest,
+    ) {
         if let Some(v) = req.cas_number {
             active.cas_number = Set(Some(v));
         }
@@ -446,6 +468,12 @@ impl ChemicalMasterService {
         if let Some(v) = req.unit {
             active.unit = Set(v);
         }
+    }
+
+    fn apply_pricing(
+        active: &mut MasterActiveModel,
+        req: &UpdateChemicalMasterRequest,
+    ) -> Result<(), AppError> {
         if let Some(v) = req.standard_price {
             if v < Decimal::ZERO {
                 return Err(AppError::business("标准价不能为负"));
@@ -458,6 +486,10 @@ impl ChemicalMasterService {
             }
             active.cost_price = Set(v);
         }
+        Ok(())
+    }
+
+    fn apply_ghs_msds(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
         if let Some(v) = req.ghs_classification {
             active.ghs_classification = Set(Some(v));
         }
@@ -480,6 +512,9 @@ impl ChemicalMasterService {
         if let Some(v) = req.msds_version {
             active.msds_version = Set(Some(v));
         }
+    }
+
+    fn apply_storage_params(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
         if let Some(v) = req.shelf_life_days {
             active.shelf_life_days = Set(Some(v));
         }
@@ -489,6 +524,12 @@ impl ChemicalMasterService {
         if let Some(v) = req.storage_temperature {
             active.storage_temperature = Set(Some(v));
         }
+    }
+
+    fn apply_inventory_params(
+        active: &mut MasterActiveModel,
+        req: &UpdateChemicalMasterRequest,
+    ) -> Result<(), AppError> {
         if let Some(v) = req.safety_stock {
             if v < Decimal::ZERO {
                 return Err(AppError::business("安全库存不能为负"));
@@ -507,6 +548,10 @@ impl ChemicalMasterService {
             }
             active.reorder_quantity = Set(v);
         }
+        Ok(())
+    }
+
+    fn apply_packaging(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
         if let Some(v) = req.package_unit {
             active.package_unit = Set(Some(v));
         }
@@ -516,12 +561,18 @@ impl ChemicalMasterService {
         if let Some(v) = req.packages_per_pallet {
             active.packages_per_pallet = Set(Some(v));
         }
+    }
+
+    fn apply_supplier_info(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
         if let Some(v) = req.supplier_id {
             active.supplier_id = Set(Some(v));
         }
         if let Some(v) = req.supplier_product_code {
             active.supplier_product_code = Set(Some(v));
         }
+    }
+
+    fn apply_dye_fastness(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
         if let Some(v) = req.fastness_light {
             active.fastness_light = Set(Some(v));
         }
@@ -534,6 +585,12 @@ impl ChemicalMasterService {
         if let Some(v) = req.concentration {
             active.concentration = Set(Some(v));
         }
+    }
+
+    fn apply_status_and_remarks(
+        active: &mut MasterActiveModel,
+        req: &UpdateChemicalMasterRequest,
+    ) -> Result<(), AppError> {
         if let Some(v) = req.status {
             if v != chemical_status::ACTIVE
                 && v != chemical_status::INACTIVE
@@ -549,10 +606,7 @@ impl ChemicalMasterService {
         if let Some(v) = req.remarks {
             active.remarks = Set(Some(v));
         }
-
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
+        Ok(())
     }
 
     /// 软删除染化料主数据
