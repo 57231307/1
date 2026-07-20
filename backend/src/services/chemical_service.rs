@@ -429,23 +429,23 @@ impl ChemicalMasterService {
     }
 
     fn apply_basic_info(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
-        if let Some(v) = req.chemical_name {
-            active.chemical_name = Set(v);
+        if let Some(v) = &req.chemical_name {
+            active.chemical_name = Set(v.clone());
         }
-        if let Some(v) = req.chemical_name_en {
-            active.chemical_name_en = Set(Some(v));
+        if let Some(v) = &req.chemical_name_en {
+            active.chemical_name_en = Set(Some(v.clone()));
         }
         if let Some(v) = req.category_id {
             active.category_id = Set(Some(v));
         }
-        if let Some(v) = req.dye_category {
-            active.dye_category = Set(Some(v));
+        if let Some(v) = &req.dye_category {
+            active.dye_category = Set(Some(v.clone()));
         }
-        if let Some(v) = req.color_index {
-            active.color_index = Set(Some(v));
+        if let Some(v) = &req.color_index {
+            active.color_index = Set(Some(v.clone()));
         }
-        if let Some(v) = req.auxiliary_category {
-            active.auxiliary_category = Set(Some(v));
+        if let Some(v) = &req.auxiliary_category {
+            active.auxiliary_category = Set(Some(v.clone()));
         }
     }
 
@@ -453,20 +453,20 @@ impl ChemicalMasterService {
         active: &mut MasterActiveModel,
         req: &UpdateChemicalMasterRequest,
     ) {
-        if let Some(v) = req.cas_number {
-            active.cas_number = Set(Some(v));
+        if let Some(v) = &req.cas_number {
+            active.cas_number = Set(Some(v.clone()));
         }
-        if let Some(v) = req.molecular_formula {
-            active.molecular_formula = Set(Some(v));
+        if let Some(v) = &req.molecular_formula {
+            active.molecular_formula = Set(Some(v.clone()));
         }
         if let Some(v) = req.molecular_weight {
             active.molecular_weight = Set(Some(v));
         }
-        if let Some(v) = req.specification {
-            active.specification = Set(Some(v));
+        if let Some(v) = &req.specification {
+            active.specification = Set(Some(v.clone()));
         }
-        if let Some(v) = req.unit {
-            active.unit = Set(v);
+        if let Some(v) = &req.unit {
+            active.unit = Set(v.clone());
         }
     }
 
@@ -490,27 +490,27 @@ impl ChemicalMasterService {
     }
 
     fn apply_ghs_msds(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
-        if let Some(v) = req.ghs_classification {
-            active.ghs_classification = Set(Some(v));
+        if let Some(v) = &req.ghs_classification {
+            active.ghs_classification = Set(Some(v.clone()));
         }
-        if let Some(v) = req.un_number {
-            active.un_number = Set(Some(v));
+        if let Some(v) = &req.un_number {
+            active.un_number = Set(Some(v.clone()));
         }
-        if let Some(v) = req.hazard_class {
-            active.hazard_class = Set(Some(v));
+        if let Some(v) = &req.hazard_class {
+            active.hazard_class = Set(Some(v.clone()));
         }
-        if let Some(v) = req.hazard_pictogram {
-            active.hazard_pictogram = Set(Some(v));
+        if let Some(v) = &req.hazard_pictogram {
+            active.hazard_pictogram = Set(Some(v.clone()));
         }
-        if let Some(v) = req.signal_word {
-            active.signal_word = Set(Some(v));
+        if let Some(v) = &req.signal_word {
+            active.signal_word = Set(Some(v.clone()));
         }
-        if let Some(v) = req.msds_url {
-            active.msds_url = Set(Some(v));
+        if let Some(v) = &req.msds_url {
+            active.msds_url = Set(Some(v.clone()));
             active.msds_updated_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
         }
-        if let Some(v) = req.msds_version {
-            active.msds_version = Set(Some(v));
+        if let Some(v) = &req.msds_version {
+            active.msds_version = Set(Some(v.clone()));
         }
     }
 
@@ -518,11 +518,11 @@ impl ChemicalMasterService {
         if let Some(v) = req.shelf_life_days {
             active.shelf_life_days = Set(Some(v));
         }
-        if let Some(v) = req.storage_condition {
-            active.storage_condition = Set(Some(v));
+        if let Some(v) = &req.storage_condition {
+            active.storage_condition = Set(Some(v.clone()));
         }
-        if let Some(v) = req.storage_temperature {
-            active.storage_temperature = Set(Some(v));
+        if let Some(v) = &req.storage_temperature {
+            active.storage_temperature = Set(Some(v.clone()));
         }
     }
 
@@ -552,8 +552,8 @@ impl ChemicalMasterService {
     }
 
     fn apply_packaging(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
-        if let Some(v) = req.package_unit {
-            active.package_unit = Set(Some(v));
+        if let Some(v) = &req.package_unit {
+            active.package_unit = Set(Some(v.clone()));
         }
         if let Some(v) = req.package_capacity {
             active.package_capacity = Set(Some(v));
@@ -567,20 +567,20 @@ impl ChemicalMasterService {
         if let Some(v) = req.supplier_id {
             active.supplier_id = Set(Some(v));
         }
-        if let Some(v) = req.supplier_product_code {
-            active.supplier_product_code = Set(Some(v));
+        if let Some(v) = &req.supplier_product_code {
+            active.supplier_product_code = Set(Some(v.clone()));
         }
     }
 
     fn apply_dye_fastness(active: &mut MasterActiveModel, req: &UpdateChemicalMasterRequest) {
-        if let Some(v) = req.fastness_light {
-            active.fastness_light = Set(Some(v));
+        if let Some(v) = &req.fastness_light {
+            active.fastness_light = Set(Some(v.clone()));
         }
-        if let Some(v) = req.fastness_washing {
-            active.fastness_washing = Set(Some(v));
+        if let Some(v) = &req.fastness_washing {
+            active.fastness_washing = Set(Some(v.clone()));
         }
-        if let Some(v) = req.active_ingredient {
-            active.active_ingredient = Set(Some(v));
+        if let Some(v) = &req.active_ingredient {
+            active.active_ingredient = Set(Some(v.clone()));
         }
         if let Some(v) = req.concentration {
             active.concentration = Set(Some(v));
@@ -591,7 +591,7 @@ impl ChemicalMasterService {
         active: &mut MasterActiveModel,
         req: &UpdateChemicalMasterRequest,
     ) -> Result<(), AppError> {
-        if let Some(v) = req.status {
+        if let Some(v) = &req.status {
             if v != chemical_status::ACTIVE
                 && v != chemical_status::INACTIVE
                 && v != chemical_status::DISCONTINUED
@@ -601,10 +601,10 @@ impl ChemicalMasterService {
                     v
                 )));
             }
-            active.status = Set(v);
+            active.status = Set(v.clone());
         }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
+        if let Some(v) = &req.remarks {
+            active.remarks = Set(Some(v.clone()));
         }
         Ok(())
     }
