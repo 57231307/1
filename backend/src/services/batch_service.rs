@@ -28,7 +28,7 @@ pub struct BatchResult<T> {
 }
 
 /// 批量操作错误
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BatchError {
     pub index: usize,
     pub message: String,
