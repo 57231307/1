@@ -311,18 +311,13 @@ fn round2(v: f64) -> f64 {
 // =====================================================
 
 impl AiAnalysisService {
-    /// 质量预测主入口
-    ///
-    /// 优先使用历史真实数据（≥ 5 条），不足时回退到保守默认值
-    /// （合格率 95% + 置信度 0.3 + 风险等级中）。
+    /// 质量预测主入口：标准化 → 拉取 → 聚合或退化
     pub async fn predict_quality(
         &self,
         request: QualityPredRequest,
     ) -> Result<QualityPredResponse, AppError> {
-        // 1. 参数标准化
         let params = normalize_pred_params(request);
 
-        // 2. 拉取窗口内的全部检验记录
         let records = self
             .fetch_quality_records(
                 params.window_days,
@@ -331,7 +326,6 @@ impl AiAnalysisService {
             )
             .await?;
 
-        // 3. 历史数据不足 → 退化路径
         if (records.len() as i64) < MIN_HISTORY_RECORDS {
             return Ok(build_fallback_response(
                 params.product_id,
@@ -340,45 +334,7 @@ impl AiAnalysisService {
             ));
         }
 
-        // 4. 聚合：平均合格率
-        let avg_rate = mean_qualification_rate(&records);
-
-        // 5. 按月分段统计
-        let period_breakdown = build_period_breakdown(&records);
-
-        // 6. 趋势：最近 30 天 vs 之前 30 天
-        let (trend_label, trend_rate_value, trend_is_down) = compute_recent_trend(&records);
-
-        // 7. 风险评分 + 风险等级
-        let risk_score = compute_risk_score(avg_rate, trend_is_down);
-        let risk_level = classify_risk_level(risk_score);
-        let risk_score_u32 = risk_score.round() as u32;
-
-        // 8. 置信度
-        let confidence = compute_confidence(records.len() as i64);
-
-        // 9. 问题归因：仅统计不合格记录
-        let top_issues = compute_top_issues(&records);
-
-        // 10. 建议措施
-        let recommendations = build_recommendations(&risk_level);
-
-        Ok(QualityPredResponse {
-            product_id: params.product_id,
-            inspection_type: params.type_label,
-            window_days: params.window_days,
-            total_inspections: records.len() as i64,
-            avg_qualification_rate: round2(avg_rate),
-            trend: trend_label,
-            trend_rate: round2(trend_rate_value * 100.0), // 转为百分点
-            risk_score: risk_score_u32,
-            risk_level,
-            confidence,
-            top_issues,
-            recommendations,
-            period_breakdown,
-            source: "history".to_string(),
-        })
+        Ok(build_history_response(params, &records))
     }
 
     /// 拉取指定时间窗口内的全部质量检验记录
@@ -470,6 +426,38 @@ fn build_fallback_response(
         recommendations,
         period_breakdown: Vec::new(),
         source: "fallback".to_string(),
+    }
+}
+
+/// 基于历史记录构造预测响应（聚合 / 趋势 / 风险 / 归因 / 建议）
+fn build_history_response(
+    params: NormalizedPredParams,
+    records: &[QualityInspectionModel],
+) -> QualityPredResponse {
+    let avg_rate = mean_qualification_rate(records);
+    let period_breakdown = build_period_breakdown(records);
+    let (trend_label, trend_rate_value, trend_is_down) = compute_recent_trend(records);
+    let risk_score = compute_risk_score(avg_rate, trend_is_down);
+    let risk_level = classify_risk_level(risk_score);
+    let confidence = compute_confidence(records.len() as i64);
+    let top_issues = compute_top_issues(records);
+    let recommendations = build_recommendations(&risk_level);
+
+    QualityPredResponse {
+        product_id: params.product_id,
+        inspection_type: params.type_label,
+        window_days: params.window_days,
+        total_inspections: records.len() as i64,
+        avg_qualification_rate: round2(avg_rate),
+        trend: trend_label,
+        trend_rate: round2(trend_rate_value * 100.0), // 转为百分点
+        risk_score: risk_score.round() as u32,
+        risk_level,
+        confidence,
+        top_issues,
+        recommendations,
+        period_breakdown,
+        source: "history".to_string(),
     }
 }
 

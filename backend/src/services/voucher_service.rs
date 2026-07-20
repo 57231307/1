@@ -84,10 +84,7 @@ pub struct VoucherService {
     db: Arc<DatabaseConnection>,
 }
 
-/// 余额更新上下文（D08-1 第二梯队拆分辅助结构）
-///
-/// 封装 update_account_balances 在多个 helper 间共享的批量加载结果：
-/// 科目列表、按科目聚合的借贷发生额、锁定的现有余额记录。
+/// 余额更新上下文：封装科目列表、聚合发生额、锁定的现有余额记录
 struct BalanceUpdateContext {
     subjects: Vec<account_subject::Model>,
     balance_map: std::collections::HashMap<i32, (Decimal, Decimal)>,
@@ -698,13 +695,7 @@ impl VoucherService {
         Ok(())
     }
 
-    /// 更新科目余额（核心逻辑）
-    /// 根据会计制度正确计算期末余额
-    /// - 借方科目：期末余额 = 期初余额(借) + 本期借方发生 - 本期贷方发生
-    /// - 贷方科目：期末余额 = 期初余额(贷) + 本期贷方发生 - 本期借方发生
-    ///
-    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
-    /// 保证余额变更审计日志能追溯实际操作人。
+    /// 更新科目余额：按会计制度计算期末余额（借方=期初借+本期借-本期贷，贷方反之）
     async fn update_account_balances(
         &self,
         voucher_id: i32,
@@ -830,7 +821,7 @@ impl VoucherService {
         Ok(balances)
     }
 
-    /// 应用余额更新：遍历聚合后的发生额，按科目更新或创建余额记录
+    /// 应用余额更新：构建查找映射并分发到更新或新建余额记录
     async fn apply_balance_updates(
         ctx: BalanceUpdateContext,
         period: &str,
@@ -853,23 +844,41 @@ impl VoucherService {
             .map(|b| (b.subject_id, b))
             .collect();
 
+        Self::dispatch_balance_updates(
+            balance_map,
+            &subject_by_id,
+            &mut balance_record_map,
+            period,
+            user_id,
+            txn,
+        )
+        .await
+    }
+
+    /// 遍历聚合发生额，按科目分发到更新现有余额或创建新余额记录
+    async fn dispatch_balance_updates(
+        balance_map: std::collections::HashMap<i32, (Decimal, Decimal)>,
+        subject_by_id: &std::collections::HashMap<i32, &account_subject::Model>,
+        balance_record_map: &mut std::collections::HashMap<i32, crate::models::account_balance::Model>,
+        period: &str,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
         for (subject_id, (debit_amount, credit_amount)) in balance_map {
-            // 获取科目信息以确定余额方向（复用批量查询结果，避免 N+1）
+            // 复用批量查询结果获取科目信息以确定余额方向，避免 N+1
             let subject = subject_by_id
                 .get(&subject_id)
-                // 批次 102 v6 P3-4 修复：科目不存在属于资源未找到，应为 not_found 而非 bad_request
+                // 批次 102 v6 P3-4 修复：科目不存在属于资源未找到，应为 not_found
                 .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", subject_id)))?;
             let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
 
             // v16 批次 45 修复：从批量查询结果获取余额记录（带行锁）
             if let Some(balance) = balance_record_map.remove(&subject_id) {
-                // 更新现有余额
                 Self::update_existing_balance(
                     balance, debit_amount, credit_amount, balance_direction, user_id, txn,
                 )
                 .await?;
             } else {
-                // 创建新余额记录
                 Self::create_new_balance(
                     subject_id, period, debit_amount, credit_amount, balance_direction, txn,
                 )

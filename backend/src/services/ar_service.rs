@@ -181,89 +181,55 @@ impl ArService {
         Ok(collection_to_json(payment))
     }
 
-    /// 创建收款
-    /// 在事务内：期间锁定检查 → 客户存在性校验 → 单号生成 → 插入收款单 →
-    /// 关联多张发票（更新 received_amount/unpaid_amount/status）→ 事件发布
-    ///
-    /// 批次 329 v10 复审 P3 修复：使用 CreateArPaymentParams 参数对象替代 8 个独立参数
+    /// 创建收款：金额校验→期间锁定→客户校验→单号生成→插入收款→关联发票→事件发布
     /// 批次 488 D08-1 拆分：主函数仅做协调，细节逻辑提取到 helper
     pub async fn create_payment(
         &self,
         params: CreateArPaymentParams,
         user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
-        let customer_id = params.customer_id;
-        let amount = params.amount;
-        let payment_date = params.payment_date;
-        let payment_method = params.payment_method;
-        let bank_account = params.bank_account;
-        // 批次 96 CI 修复：ar_collections 表无 remark 列，备注暂不持久化（schema 扩展后接入）
-        let _remark = params.remark;
-        let invoice_ids = params.invoice_ids;
-
-        // 金额校验
-        Self::validate_payment_amount(customer_id, amount)?;
+        Self::validate_payment_amount(params.customer_id, params.amount)?;
 
         let txn = (*self.db).begin().await?;
 
         // 期间锁定检查（事务内，避免 TOCTOU）
-        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
-            self.db.clone(),
-        );
-        period_svc
-            .check_date_locked_txn(&txn, payment_date)
-            .await
-            .map_err(|e| AppError::business(e.to_string()))?;
+        self.check_payment_period_locked(&txn, params.payment_date)
+            .await?;
 
-        // 客户存在性校验 + 名称查询
-        let customer = Self::load_customer_for_payment(&txn, customer_id).await?;
+        let customer = Self::load_customer_for_payment(&txn, params.customer_id).await?;
 
-        // 单号生成（事务内，advisory_xact_lock 串行化）
-        let collection_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+        let collection_no = Self::generate_collection_no(&txn).await?;
+
+        let now = Utc::now();
+        let collection_model = Self::build_and_insert_collection(
             &txn,
-            "COL",
-            ar_collection::Entity,
-            ar_collection::Column::CollectionNo,
+            collection_no,
+            &params,
+            customer.customer_name,
+            user_id,
+            now,
         )
         .await?;
 
-        // 插入收款单
-        let now = Utc::now();
-        let ctx = CollectionBuildContext {
-            collection_no,
-            payment_date,
-            customer_id,
-            customer_name: Some(customer.customer_name),
-            amount,
-            payment_method,
-            bank_account,
+        // 关联多张发票：累加 received_amount、扣减 unpaid_amount、按需更新状态
+        let linked_invoices = Self::link_invoices_to_payment(
+            &txn,
+            params.invoice_ids,
+            params.amount,
+            params.customer_id,
             user_id,
             now,
-        };
-        let collection_model = Self::build_collection_active_model(ctx).insert(&txn).await?;
-
-        // 关联多张发票：累加 received_amount、扣减 unpaid_amount、按需更新状态
-        let linked_invoices =
-            Self::link_invoices_to_payment(&txn, invoice_ids, amount, customer_id, user_id, now)
-                .await?;
+        )
+        .await?;
 
         txn.commit().await?;
 
-        info!(
-            "AR 收款创建成功：collection_no={}, customer_id={}, amount={}, 关联发票数={}",
-            collection_model.collection_no,
-            customer_id,
-            amount,
-            linked_invoices.len()
-        );
-
-        // 事件发布（commit 后，避免事件处理器回写导致事务膨胀）
         Self::publish_payment_events(
             &collection_model,
             &linked_invoices,
-            amount,
+            params.amount,
             user_id,
-            payment_date,
+            params.payment_date,
         );
 
         Ok(collection_to_json(collection_model))
@@ -295,6 +261,21 @@ impl ArService {
         Ok(())
     }
 
+    /// 期间锁定检查（事务内，避免 TOCTOU）
+    async fn check_payment_period_locked(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        payment_date: NaiveDate,
+    ) -> Result<(), AppError> {
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
+            self.db.clone(),
+        );
+        period_svc
+            .check_date_locked_txn(txn, payment_date)
+            .await
+            .map_err(|e| AppError::business(e.to_string()))
+    }
+
     /// 客户存在性校验 + 名称查询（事务内）
     async fn load_customer_for_payment(
         txn: &sea_orm::DatabaseTransaction,
@@ -304,6 +285,19 @@ impl ArService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))
+    }
+
+    /// 单号生成（事务内，advisory_xact_lock 串行化）
+    async fn generate_collection_no(
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            txn,
+            "COL",
+            ar_collection::Entity,
+            ar_collection::Column::CollectionNo,
+        )
+        .await
     }
 
     /// 构造收款单 ActiveModel（纯函数，无 IO）
@@ -322,6 +316,29 @@ impl ArService {
             updated_at: Set(ctx.now),
             ..Default::default()
         }
+    }
+
+    /// 构造收款单上下文并插入：复用 CollectionBuildContext + build_collection_active_model
+    async fn build_and_insert_collection(
+        txn: &sea_orm::DatabaseTransaction,
+        collection_no: String,
+        params: &CreateArPaymentParams,
+        customer_name: String,
+        user_id: i32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<ar_collection::Model, AppError> {
+        let ctx = CollectionBuildContext {
+            collection_no,
+            payment_date: params.payment_date,
+            customer_id: params.customer_id,
+            customer_name: Some(customer_name),
+            amount: params.amount,
+            payment_method: params.payment_method.clone(),
+            bank_account: params.bank_account.clone(),
+            user_id,
+            now,
+        };
+        Ok(Self::build_collection_active_model(ctx).insert(txn).await?)
     }
 
     /// 关联多张发票：累加 received_amount、扣减 unpaid_amount、按需更新状态
@@ -435,6 +452,13 @@ impl ArService {
         user_id: i32,
         payment_date: NaiveDate,
     ) {
+        info!(
+            "AR 收款创建成功：collection_no={}, customer_id={}, amount={}, 关联发票数={}",
+            collection.collection_no,
+            collection.customer_id,
+            amount,
+            linked_invoices.len()
+        );
         use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
         for inv_id in linked_invoices {
             EVENT_BUS.publish(BusinessEvent::CollectionCompleted {

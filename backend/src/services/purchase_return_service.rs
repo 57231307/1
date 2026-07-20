@@ -30,10 +30,7 @@ pub struct PurchaseReturnService {
     db: Arc<DatabaseConnection>,
 }
 
-/// 退货扣减库存上下文：approve_return 循环内逐项扣减时复用的字段
-///
-/// D08-1 第二梯队拆分：将逐项扣减所需的 txn/仓库/单号/单 ID/操作人封装为单一上下文，
-/// 避免逐项 helper 出现 7+ 参数触发 clippy too_many_arguments。
+/// 退货扣减库存上下文：封装逐项扣减所需 txn/仓库/单号/单 ID/操作人，避免 7+ 参数触发 clippy
 struct ReturnItemDeductionCtx<'a> {
     txn: &'a sea_orm::DatabaseTransaction,
     warehouse_id: i32,
@@ -293,11 +290,7 @@ impl PurchaseReturnService {
         Ok(return_order)
     }
 
-    /// 加载退货明细 + 批量加载库存记录
-    ///
-    /// v14 批次 41 修复：批量查询所有退货明细对应的库存记录（同一 warehouse_id），
-    /// 避免循环内逐个调用 find_by_product_and_warehouse_txn（N+1 查询）。
-    /// 若 return_order.warehouse_id 为 None，stock_map 为空，循环内逐项 continue（保留原行为）。
+    /// 加载退货明细 + 批量加载库存记录（避免 N+1；warehouse_id 缺失时 stock_map 为空）
     async fn load_return_items_with_stock_map(
         txn: &sea_orm::DatabaseTransaction,
         return_order: &purchase_return::Model,

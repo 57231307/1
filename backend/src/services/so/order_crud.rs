@@ -502,10 +502,7 @@ impl SalesService {
         Ok(())
     }
 
-    /// 更新销售订单
-    ///
-    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
-    /// 保证订单更新审计日志能追溯实际操作人。
+    /// 更新销售订单（批次 94 P2-10 补 user_id 用于审计追溯）
     pub async fn update_order(
         &self,
         order_id: i32,
@@ -535,12 +532,18 @@ impl SalesService {
         // 提交事务
         txn.commit().await?;
 
-        // 返回订单详情（service 内部调用，无数据权限过滤）
+        // 事务提交后构建详情并同步 ES（最终一致性）
+        self.finalize_order_update_after_commit(order_id).await
+    }
+
+    /// 事务提交后构建订单详情并同步 ES（批次 125 v8 复审 P1 最终一致性）
+    async fn finalize_order_update_after_commit(
+        &self,
+        order_id: i32,
+    ) -> Result<SalesOrderDetail, AppError> {
+        // service 内部调用，无数据权限过滤
         let detail = self.get_order_detail(order_id, None).await?;
-
-        // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
         self.sync_sales_order_to_es(&detail, "update").await;
-
         Ok(detail)
     }
 
@@ -567,10 +570,7 @@ impl SalesService {
         Ok(())
     }
 
-    /// 应用订单头字段更新（required_date / status / shipping_address / billing_address / notes）
-    /// 并通过 AuditLogService 写入审计日志
-    ///
-    /// 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id（P3 3-27 TODO 已解决）
+    /// 应用订单头字段更新并写审计日志（批次 94 P2-10 补 user_id）
     async fn apply_order_header_updates(
         order: sales_order::Model,
         request: &UpdateSalesOrderRequest,
@@ -606,11 +606,7 @@ impl SalesService {
         Ok(())
     }
 
-    /// 替换订单明细项并重算订单总金额
-    ///
-    /// 流程：删除旧明细 → 批量插入新明细（复用 create_order_items_and_calculate_totals，
-    /// 保留批次 97 P1-6 round_dp(2) 精度修复） → 重新查询订单实体 → 复用
-    /// update_order_totals 写入金额（保留批次 94 P2-10 user_id 注入）
+    /// 替换订单明细项并重算总金额（复用 create_items + update_totals）
     async fn replace_order_items_and_update_totals(
         &self,
         order_id: i32,
