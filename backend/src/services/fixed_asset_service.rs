@@ -50,6 +50,19 @@ pub struct DisposalRequest {
     pub buyer_info: Option<String>,
 }
 
+/// 折旧记录插入参数（减少 helper 函数参数数量）
+struct DepreciationRecordParams {
+    asset_id: i32,
+    period: String,
+    actual_depreciation: Decimal,
+    accumulated_depreciation: Decimal,
+    new_accumulated: Decimal,
+    net_value_before: Decimal,
+    new_net_value: Decimal,
+    depreciation_method: String,
+    user_id: i32,
+}
+
 pub struct FixedAssetService {
     db: Arc<DatabaseConnection>,
 }
@@ -238,42 +251,29 @@ impl FixedAssetService {
     /// 插入折旧记录，唯一约束冲突转为业务校验错误
     async fn insert_depreciation_record(
         txn: &sea_orm::DatabaseTransaction,
-        asset_id: i32,
-        period: &str,
-        actual_depreciation: Decimal,
-        accumulated_depreciation: Decimal,
-        new_accumulated: Decimal,
-        net_value_before: Decimal,
-        new_net_value: Decimal,
-        depreciation_method: &str,
-        user_id: i32,
+        params: &DepreciationRecordParams,
     ) -> Result<(), AppError> {
-        // v3 P1-1 修复：id: Set(0) 会覆盖 SERIAL 默认值导致第二次插入主键冲突，改为 Default::default()
         let depreciation_record = crate::models::fixed_asset_depreciation_record::ActiveModel {
             id: Default::default(),
-            asset_id: Set(asset_id),
-            period: Set(period.to_string()),
-            // 批次 92 P3-14：使用封顶后的实际计提额，而非月折旧额（最后一期可能小于月折旧额）
-            depreciation_amount: Set(actual_depreciation),
-            accumulated_before: Set(accumulated_depreciation),
-            accumulated_after: Set(new_accumulated),
-            net_value_before: Set(Some(net_value_before)),
-            net_value_after: Set(Some(new_net_value)),
-            depreciation_method: Set(Some(depreciation_method.to_string())),
-            created_by: Set(user_id),
+            asset_id: Set(params.asset_id),
+            period: Set(params.period.clone()),
+            depreciation_amount: Set(params.actual_depreciation),
+            accumulated_before: Set(params.accumulated_depreciation),
+            accumulated_after: Set(params.new_accumulated),
+            net_value_before: Set(Some(params.net_value_before)),
+            net_value_after: Set(Some(params.new_net_value)),
+            depreciation_method: Set(Some(params.depreciation_method.clone())),
+            created_by: Set(params.user_id),
             created_at: Set(chrono::Utc::now()),
         };
         use sea_orm::ActiveModelTrait;
-        // P2-1 修复：(asset_id, period) 唯一约束冲突转为业务校验错误，
-        // 让前端能区分"重复计提"(400 VALIDATION_ERROR) 与"系统错误"(500 DATABASE_ERROR)
         if let Err(err) = depreciation_record.insert(txn).await {
             let err_str = err.to_string();
-            // 批次 95 P3-11 修复：收紧唯一约束匹配，仅匹配特定约束名
             if err_str.contains("uk_fa_depreciation_records_asset_period") {
                 tracing::warn!(
                     "资产 {} 期间 {} 重复计提折旧",
-                    asset_id,
-                    period
+                    params.asset_id,
+                    params.period
                 );
                 return Err(AppError::validation("该资产此期间已计提折旧"));
             }
@@ -347,20 +347,18 @@ impl FixedAssetService {
         asset_active.save(&txn).await?;
 
         // 插入折旧记录（失败时显式回滚，因为 asset_active.save 已写入 txn）
-        if let Err(e) = Self::insert_depreciation_record(
-            &txn,
+        let record_params = DepreciationRecordParams {
             asset_id,
-            period,
+            period: period.to_string(),
             actual_depreciation,
             accumulated_depreciation,
             new_accumulated,
             net_value_before,
             new_net_value,
-            &depreciation_method,
+            depreciation_method,
             user_id,
-        )
-        .await
-        {
+        };
+        if let Err(e) = Self::insert_depreciation_record(&txn, &record_params).await {
             if let Err(rb_err) = txn.rollback().await {
                 tracing::error!(error = %rb_err, "事务回滚失败，可能存在连接异常");
             }
