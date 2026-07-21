@@ -428,19 +428,44 @@ impl CrmService {
         user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
         let opportunity = self.get_opportunity(opportunity_id, None).await?;
+        let customer_id = Self::validate_opportunity_for_conversion(&opportunity)?;
+        let txn = self.db.begin().await?;
+        let order = Self::create_draft_sales_order_from_opp(
+            &txn,
+            &opportunity,
+            opportunity_id,
+            customer_id,
+            user_id,
+        )
+        .await?;
+        Self::mark_opportunity_won_with_audit(&txn, opportunity, user_id).await?;
+        txn.commit().await?;
+        Ok(serde_json::json!({
+            "order_id": order.id,
+            "order_no": order.order_no,
+        }))
+    }
 
+    /// 校验商机可转订单（未关闭赢单且有关联客户）
+    fn validate_opportunity_for_conversion(
+        opportunity: &crm_opportunity::Model,
+    ) -> Result<i32, AppError> {
         if let Some(status) = &opportunity.opportunity_status {
             if status == opp_status::CLOSED_WON {
                 return Err(AppError::business("商机已赢单".to_string()));
             }
         }
+        Ok(opportunity.customer_id)
+    }
 
-        // 校验：商机必须有关联客户
-        let customer_id = opportunity.customer_id;
-
-        let txn = self.db.begin().await?;
-
-        // 1. 创建销售订单（草稿状态）
+    /// 从商机创建草稿销售订单
+    async fn create_draft_sales_order_from_opp(
+        txn: &sea_orm::DatabaseTransaction,
+        opportunity: &crm_opportunity::Model,
+        opportunity_id: i32,
+        customer_id: i32,
+        user_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
         let order_no = format!("SO-TEMP-{}", chrono::Utc::now().timestamp());
         let total_amount = opportunity
             .estimated_amount
@@ -473,10 +498,17 @@ impl CrmService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
+        Ok(order)
+    }
 
-        // 2. 更新商机状态
+    /// 更新商机为赢单状态并写入审计日志
+    async fn mark_opportunity_won_with_audit(
+        txn: &sea_orm::DatabaseTransaction,
+        opportunity: crm_opportunity::Model,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
         opp_active.opportunity_status = Set(Some(opp_status::CLOSED_WON.to_string()));
         opp_active.opportunity_stage = Set(Some(opp_status::CLOSED_WON.to_string()));
@@ -491,22 +523,15 @@ impl CrmService {
         opp_active.actual_amount = Set(estimated);
         opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
         opp_active.updated_at = Set(Some(chrono::Utc::now()));
+        // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
         crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             opp_active,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
             Some(user_id),
         )
         .await?;
-
-        // 3. 提交事务
-        txn.commit().await?;
-
-        Ok(serde_json::json!({
-            "order_id": order.id,
-            "order_no": order.order_no,
-        }))
+        Ok(())
     }
 
     /// 关单（输单流程）— V15 P0-B09（Batch 482）

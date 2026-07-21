@@ -433,9 +433,25 @@ impl AiAnalysisService {
         &self,
         limit: usize,
     ) -> Result<Vec<SmartRecommendation>, AppError> {
-        let start_date = Utc::now().date_naive() - Duration::days(60);
+        let items = self.query_recent_sales_items(60).await?;
+        let (co_occurrence, product_count, total_orders) =
+            Self::compute_co_occurrence_stats(&items);
+        let assoc_scores = Self::find_strong_associations(
+            &co_occurrence,
+            &product_count,
+            total_orders,
+        );
+        let recommendations = Self::build_assoc_recommendations(assoc_scores, limit);
+        Ok(recommendations)
+    }
 
-        let items = SalesOrderItemEntity::find()
+    /// 查询近 N 天销售订单明细
+    async fn query_recent_sales_items(
+        &self,
+        days: i64,
+    ) -> Result<Vec<crate::models::sales_order_item::Model>, AppError> {
+        let start_date = Utc::now().date_naive() - Duration::days(days);
+        SalesOrderItemEntity::find()
             .filter(
                 crate::models::sales_order_item::Column::CreatedAt.gte(
                     start_date
@@ -445,21 +461,26 @@ impl AiAnalysisService {
                 ),
             )
             .all(&*self.db)
-            .await?;
+            .await
+    }
 
-        // 按订单分组产品
+    /// 按订单分组产品并计算共现频率与产品频次
+    fn compute_co_occurrence_stats(
+        items: &[crate::models::sales_order_item::Model],
+    ) -> (
+        HashMap<(i32, i32), usize>,
+        HashMap<i32, usize>,
+        usize,
+    ) {
         let mut order_products: HashMap<i32, Vec<i32>> = HashMap::new();
-        for item in &items {
+        for item in items {
             order_products
                 .entry(item.order_id)
                 .or_default()
                 .push(item.product_id);
         }
-
-        // 计算产品共现频率
         let mut co_occurrence: HashMap<(i32, i32), usize> = HashMap::new();
         let mut product_count: HashMap<i32, usize> = HashMap::new();
-
         for products in order_products.values() {
             let unique: std::collections::HashSet<i32> = products.iter().cloned().collect();
             for &pid in &unique {
@@ -476,41 +497,49 @@ impl AiAnalysisService {
                 }
             }
         }
+        let total_orders = order_products.len().max(1);
+        (co_occurrence, product_count, total_orders)
+    }
 
-        let total_orders = order_products.len().max(1) as f64;
-
-        // 找出强关联规则 (support > 5%, confidence > 30%)
+    /// 找出强关联规则（support>5%, confidence>30%），返回 (p1,p2,lift,reason)
+    fn find_strong_associations(
+        co_occurrence: &HashMap<(i32, i32), usize>,
+        product_count: &HashMap<i32, usize>,
+        total_orders: usize,
+    ) -> Vec<(i32, i32, f64, String)> {
+        let total = total_orders as f64;
         let mut assoc_scores: Vec<(i32, i32, f64, String)> = Vec::new();
-        for ((p1, p2), &count) in &co_occurrence {
-            let support = count as f64 / total_orders;
-            let conf1 = count as f64 / product_count.get(p1).copied().unwrap_or(1).max(1) as f64;
-            let _conf2 = count as f64 / product_count.get(p2).copied().unwrap_or(1).max(1) as f64;
-
+        for ((p1, p2), &count) in co_occurrence {
+            let support = count as f64 / total;
+            let conf1 = count as f64
+                / product_count.get(p1).copied().unwrap_or(1).max(1) as f64;
+            let _conf2 = count as f64
+                / product_count.get(p2).copied().unwrap_or(1).max(1) as f64;
             if support > 0.05 && conf1 > 0.3 {
                 let lift = support
-                    / ((product_count.get(p1).unwrap_or(&0).to_f64().unwrap_or(0.0)
-                        / total_orders)
-                        * (product_count.get(p2).unwrap_or(&0).to_f64().unwrap_or(0.0)
-                            / total_orders));
+                    / ((product_count.get(p1).unwrap_or(&0).to_f64().unwrap_or(0.0) / total)
+                        * (product_count.get(p2).unwrap_or(&0).to_f64().unwrap_or(0.0) / total));
                 assoc_scores.push((
                     *p1,
                     *p2,
                     lift,
                     format!(
                         "产品 {} 与产品 {} 经常一起被购买 (共现率={:.0}%, 提升度={:.2})",
-                        p1,
-                        p2,
-                        conf1 * 100.0,
-                        lift
+                        p1, p2, conf1 * 100.0, lift
                     ),
                 ));
             }
         }
+        assoc_scores
+    }
 
+    /// 按提升度降序构建关联推荐列表
+    fn build_assoc_recommendations(
+        mut assoc_scores: Vec<(i32, i32, f64, String)>,
+        limit: usize,
+    ) -> Vec<SmartRecommendation> {
         assoc_scores.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
-
-        // 为销量较低的产品推荐关联的高销量产品
-        let recommendations: Vec<SmartRecommendation> = assoc_scores
+        assoc_scores
             .into_iter()
             .take(limit)
             .map(|(source, target, score, reason)| SmartRecommendation {
@@ -520,9 +549,7 @@ impl AiAnalysisService {
                 score,
                 reason: format!("与产品 {} 关联推荐: {}", source, reason),
             })
-            .collect();
-
-        Ok(recommendations)
+            .collect()
     }
 
     /// 基于销售趋势的产品推荐

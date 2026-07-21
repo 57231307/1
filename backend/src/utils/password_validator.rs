@@ -330,49 +330,72 @@ pub fn validate_password_with_policy(
     policy: &PasswordPolicy,
 ) -> PasswordValidationResult {
     let mut errors = Vec::new();
-    let mut score = 0u8;
+    let (mut score, has_uppercase, has_lowercase, has_digit, has_special) =
+        score_length_and_char_types(password, policy, &mut errors);
+    score = apply_pattern_penalties(password, score, &mut errors);
+    score = apply_complexity_bonuses(
+        password.len(),
+        has_uppercase,
+        has_lowercase,
+        has_digit,
+        has_special,
+        score,
+    );
+    let strength = evaluate_strength_and_check_min(score, policy, &mut errors);
+    let is_valid = errors.is_empty();
+    PasswordValidationResult {
+        strength,
+        is_valid,
+        errors,
+    }
+}
 
+/// 校验长度与字符类型，返回基础分数与 4 类字符存在标志
+fn score_length_and_char_types(
+    password: &str,
+    policy: &PasswordPolicy,
+    errors: &mut Vec<String>,
+) -> (u8, bool, bool, bool, bool) {
+    let mut score = 0u8;
     if password.len() < policy.min_length {
         errors.push(format!("密码长度至少为 {} 个字符", policy.min_length));
     } else {
         score += 20;
     }
-
     if password.len() > policy.max_length {
         errors.push(format!("密码长度不能超过 {} 个字符", policy.max_length));
     }
-
     let has_uppercase = RE_UPPERCASE.is_match(password);
     if policy.require_uppercase && !has_uppercase {
         errors.push("密码必须包含大写字母".to_string());
     } else if has_uppercase {
         score += 20;
     }
-
     let has_lowercase = RE_LOWERCASE.is_match(password);
     if policy.require_lowercase && !has_lowercase {
         errors.push("密码必须包含小写字母".to_string());
     } else if has_lowercase {
         score += 20;
     }
-
     let has_digit = RE_DIGIT.is_match(password);
     if policy.require_digit && !has_digit {
         errors.push("密码必须包含数字".to_string());
     } else if has_digit {
         score += 20;
     }
-
     let has_special = has_special_char(password);
     if policy.require_special && !has_special {
         errors.push("密码必须包含特殊字符".to_string());
     } else if has_special {
         score += 20;
     }
+    (score, has_uppercase, has_lowercase, has_digit, has_special)
+}
 
+/// 应用黑名单/键盘序列/连续/重复字符的模式惩罚
+fn apply_pattern_penalties(password: &str, score: u8, errors: &mut Vec<String>) -> u8 {
+    let mut score = score;
     // 漏洞 #7 修复：使用严格黑名单匹配（matches_blacklist）+ 键盘序列检测
-    // 历史问题：原 `lower_password.contains(common)` 模糊匹配，导致
-    // "P@ssw0rd1!"（"p@ssw0rd"在黑名单但非子串）绕过；同时缺键盘序列检测
     if matches_blacklist(password) {
         errors.push("密码过于常见，不安全（命中常见密码黑名单）".to_string());
         score = score.saturating_sub(50);
@@ -381,22 +404,39 @@ pub fn validate_password_with_policy(
         errors.push("密码包含键盘序列（如 qwer/asdf/zxcv），不安全".to_string());
         score = score.saturating_sub(20);
     }
-
     if has_consecutive_chars(password) {
         score = score.saturating_sub(10);
     }
-
     if has_repeated_chars(password) {
         score = score.saturating_sub(10);
     }
+    score
+}
 
-    if password.len() >= 16 {
+/// 应用长度≥16 与四类字符齐备的复杂度奖励
+fn apply_complexity_bonuses(
+    password_len: usize,
+    has_uppercase: bool,
+    has_lowercase: bool,
+    has_digit: bool,
+    has_special: bool,
+    mut score: u8,
+) -> u8 {
+    if password_len >= 16 {
         score += 10;
     }
     if has_uppercase && has_lowercase && has_digit && has_special {
         score += 10;
     }
+    score
+}
 
+/// 按分数映射强度等级，并校验是否满足策略最低强度要求
+fn evaluate_strength_and_check_min(
+    score: u8,
+    policy: &PasswordPolicy,
+    errors: &mut Vec<String>,
+) -> PasswordStrength {
     let strength = match score {
         0..=20 => PasswordStrength::VeryWeak,
         21..=40 => PasswordStrength::Weak,
@@ -404,7 +444,6 @@ pub fn validate_password_with_policy(
         61..=80 => PasswordStrength::Strong,
         _ => PasswordStrength::VeryStrong,
     };
-
     let strength_score = strength.score();
     let min_strength_score = policy.min_strength.score();
     if strength_score < min_strength_score {
@@ -414,14 +453,7 @@ pub fn validate_password_with_policy(
             policy.min_strength.description()
         ));
     }
-
-    let is_valid = errors.is_empty();
-
-    PasswordValidationResult {
-        strength,
-        is_valid,
-        errors,
-    }
+    strength
 }
 
 fn has_consecutive_chars(password: &str) -> bool {

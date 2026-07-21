@@ -172,95 +172,112 @@ impl CapacityService {
         query: LoadAnalysisQuery,
     ) -> Result<Vec<CapacityLoadItem>, AppError> {
         // v11 批次 149 P2-A：接入 work_center_id filter，支持按工作中心筛选产能负荷
-        let mut wc_query = WorkCenterEntity::find()
-            .filter(WorkCenterColumn::Status.eq("ACTIVE"));
-        if let Some(wc_id) = query.work_center_id {
-            wc_query = wc_query.filter(WorkCenterColumn::Id.eq(wc_id));
-        }
-        let work_centers = wc_query.all(&*self.db).await?;
-
+        let work_centers = self.query_active_work_centers(query.work_center_id).await?;
         // v15 批次 42 修复：批量查询所有工作中心的订单，避免循环内逐个查询（N+1）
         let wc_ids: Vec<i32> = work_centers.iter().map(|wc| wc.id).collect();
-        let all_orders = if wc_ids.is_empty() {
-            Vec::new()
-        } else {
-            let mut order_query = ProductionOrderEntity::find()
-                .filter(ProductionOrderColumn::WorkCenterId.is_in(wc_ids))
-                .filter(ProductionOrderColumn::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]));
-            if let Some(from) = query.date_from {
-                order_query = order_query.filter(ProductionOrderColumn::PlannedEndDate.gte(from));
-            }
-            if let Some(to) = query.date_to {
-                order_query = order_query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
-            }
-            order_query.all(&*self.db).await?
-        };
-        let orders_by_wc: std::collections::HashMap<i32, Vec<crate::models::production_order::Model>> =
-            all_orders.into_iter().fold(
-                std::collections::HashMap::new(),
-                |mut acc, o| {
-                    // work_center_id 为 Option<i32>，None 时丢弃（与原 WorkCenterId.eq(wc.id) 语义一致）
-                    if let Some(wc_id) = o.work_center_id {
-                        acc.entry(wc_id).or_default().push(o);
-                    }
-                    acc
-                },
-            );
-
+        let orders_by_wc = self
+            .query_orders_by_work_center(&wc_ids, query.date_from, query.date_to)
+            .await?;
         let mut results = Vec::new();
-
         for wc in work_centers {
-            let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
-
-            // 从批量查询结果获取该工作中心的订单
             let orders = orders_by_wc.get(&wc.id).cloned().unwrap_or_default();
-
-            let mut planned_quantity = Decimal::ZERO;
-            let mut in_progress_quantity = Decimal::ZERO;
-
-            for order in &orders {
-                match order.status.as_str() {
-                    "SCHEDULED" => planned_quantity += order.planned_quantity,
-                    "IN_PROGRESS" => in_progress_quantity += order.planned_quantity,
-                    _ => {}
-                }
-            }
-
-            let total_demand = planned_quantity + in_progress_quantity;
-            let load_rate = if daily_capacity > Decimal::ZERO {
-                (total_demand / daily_capacity * Decimal::from(100))
-                    .round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero)
-            } else {
-                Decimal::ZERO
-            };
-
-            let status = if load_rate > Decimal::from(100) {
-                "OVERLOADED".to_string()
-            } else if load_rate > Decimal::from(80) {
-                "HIGH".to_string()
-            } else if load_rate > Decimal::from(20) {
-                "NORMAL".to_string()
-            } else {
-                "IDLE".to_string()
-            };
-
-            results.push(CapacityLoadItem {
-                work_center_id: wc.id,
-                work_center_code: wc.code,
-                work_center_name: wc.name,
-                daily_capacity,
-                capacity_unit: wc.capacity_unit,
-                planned_quantity,
-                in_progress_quantity,
-                total_demand,
-                load_rate,
-                status,
-            });
+            results.push(Self::build_capacity_load_item(wc, &orders));
         }
-
         // 按负荷率降序排列
         results.sort_by_key(|b| std::cmp::Reverse(b.load_rate));
         Ok(results)
+    }
+
+    /// 查询活动工作中心（可选按 ID 过滤）
+    async fn query_active_work_centers(
+        &self,
+        work_center_id: Option<i32>,
+    ) -> Result<Vec<crate::models::work_center::Model>, AppError> {
+        let mut wc_query = WorkCenterEntity::find()
+            .filter(WorkCenterColumn::Status.eq("ACTIVE"));
+        if let Some(wc_id) = work_center_id {
+            wc_query = wc_query.filter(WorkCenterColumn::Id.eq(wc_id));
+        }
+        wc_query.all(&*self.db).await
+    }
+
+    /// 批量查询多个工作中心的生产订单并按工作中心分组
+    async fn query_orders_by_work_center(
+        &self,
+        wc_ids: &[i32],
+        date_from: Option<NaiveDate>,
+        date_to: Option<NaiveDate>,
+    ) -> Result<std::collections::HashMap<i32, Vec<crate::models::production_order::Model>>, AppError>
+    {
+        if wc_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let mut order_query = ProductionOrderEntity::find()
+            .filter(ProductionOrderColumn::WorkCenterId.is_in(wc_ids.iter().copied()))
+            .filter(ProductionOrderColumn::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]));
+        if let Some(from) = date_from {
+            order_query = order_query.filter(ProductionOrderColumn::PlannedEndDate.gte(from));
+        }
+        if let Some(to) = date_to {
+            order_query = order_query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
+        }
+        let all_orders = order_query.all(&*self.db).await?;
+        let orders_by_wc = all_orders.into_iter().fold(
+            std::collections::HashMap::new(),
+            |mut acc, o| {
+                // work_center_id 为 Option<i32>，None 时丢弃
+                if let Some(wc_id) = o.work_center_id {
+                    acc.entry(wc_id).or_default().push(o);
+                }
+                acc
+            },
+        );
+        Ok(orders_by_wc)
+    }
+
+    /// 按工作中心与订单计算产能负荷项（含负荷率与状态分级）
+    fn build_capacity_load_item(
+        wc: crate::models::work_center::Model,
+        orders: &[crate::models::production_order::Model],
+    ) -> CapacityLoadItem {
+        let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
+        let mut planned_quantity = Decimal::ZERO;
+        let mut in_progress_quantity = Decimal::ZERO;
+        for order in orders {
+            match order.status.as_str() {
+                "SCHEDULED" => planned_quantity += order.planned_quantity,
+                "IN_PROGRESS" => in_progress_quantity += order.planned_quantity,
+                _ => {}
+            }
+        }
+        let total_demand = planned_quantity + in_progress_quantity;
+        let load_rate = if daily_capacity > Decimal::ZERO {
+            (total_demand / daily_capacity * Decimal::from(100))
+                .round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero)
+        } else {
+            Decimal::ZERO
+        };
+        let status = if load_rate > Decimal::from(100) {
+            "OVERLOADED".to_string()
+        } else if load_rate > Decimal::from(80) {
+            "HIGH".to_string()
+        } else if load_rate > Decimal::from(20) {
+            "NORMAL".to_string()
+        } else {
+            "IDLE".to_string()
+        };
+        CapacityLoadItem {
+            work_center_id: wc.id,
+            work_center_code: wc.code,
+            work_center_name: wc.name,
+            daily_capacity,
+            capacity_unit: wc.capacity_unit,
+            planned_quantity,
+            in_progress_quantity,
+            total_demand,
+            load_rate,
+            status,
+        }
     }
 
     /// 产能概览

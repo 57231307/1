@@ -602,84 +602,90 @@ impl ProductionOrderService {
         if status == crate::models::status::common::STATUS_COMPLETED {
             return self.complete_production_order(id, actual_quantity).await;
         }
-
         // 批次 22（2026-06-28 v5 P0-3）：非 COMPLETED 路径补全事务 + lock_exclusive + update_with_audit
-        // 原 `update_status` 在非 COMPLETED 分支直接调用 `&*self.db` 进行查询和更新，
-        // 既没有事务边界也没有行锁，并发状态变更可能基于过期快照导致状态覆盖；
-        // 同时未走 update_with_audit 会导致状态变更丢失审计追溯。
-        // 改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit + commit。
         let txn = (*self.db).begin().await?;
-
         // 状态门查询加 lock_exclusive 串行化并发状态变更
         let model = ProductionOrderEntity::find_by_id(id)
             .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
-
         // 验证状态转换是否合法
         Self::validate_status_transition(&model.status, &status)?;
-
         // B-P2-5 修复（批次 386 v13 复审）：排产状态变更时进行产能负荷校验
-        // 原实现 update_status 在状态转为 SCHEDULED 时不调用 CapacityService，
-        // 导致超负荷工作中心仍可排产，存在产能超载风险。
-        // 修复：当目标状态为 SCHEDULED 且订单绑定了工作中心时，
-        // 调用 CapacityService::load_analysis 检查负荷率，超载则拒绝排产。
-        if status == crate::models::status::production::PRODUCTION_SCHEDULED {
-            if let Some(work_center_id) = model.work_center_id {
-                let capacity_service =
-                    crate::services::capacity_service::CapacityService::new(self.db.clone());
-                let analysis = capacity_service
-                    .load_analysis(crate::services::capacity_service::LoadAnalysisQuery {
-                        date_from: model.planned_start_date,
-                        date_to: model.planned_end_date,
-                        work_center_id: Some(work_center_id),
-                    })
-                    .await?;
+        self.check_capacity_for_scheduling(&model, id, &status)
+            .await?;
+        let audit_user_id = model.created_by;
+        let updated = Self::apply_status_update_with_audit(&txn, model, status, audit_user_id)
+            .await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
 
-                // 检查目标工作中心的负荷率（load_rate > 100 视为超载）
-                if let Some(item) = analysis.iter().find(|i| i.work_center_id == work_center_id) {
-                    if item.load_rate > Decimal::from(100) {
-                        return Err(AppError::business(format!(
-                            "工作中心 {}（{}）当前负荷率 {:.2}% 已超载，无法排产，请调整计划或分配至其他工作中心",
-                            item.work_center_name, item.work_center_code, item.load_rate
-                        )));
-                    }
-                    if item.load_rate > Decimal::from(80) {
-                        tracing::warn!(
-                            order_id = id,
-                            work_center_id,
-                            load_rate = %item.load_rate,
-                            "批次 386 B-P2-5: 工作中心负荷率较高（>80%），排产成功但建议关注产能瓶颈"
-                        );
-                    }
-                }
+    /// 排产状态变更时检查目标工作中心负荷率
+    async fn check_capacity_for_scheduling(
+        &self,
+        model: &ProductionOrderModel,
+        order_id: i32,
+        status: &str,
+    ) -> Result<(), AppError> {
+        if status != crate::models::status::production::PRODUCTION_SCHEDULED {
+            return Ok(());
+        }
+        let Some(work_center_id) = model.work_center_id else {
+            return Ok(());
+        };
+        let capacity_service =
+            crate::services::capacity_service::CapacityService::new(self.db.clone());
+        let analysis = capacity_service
+            .load_analysis(crate::services::capacity_service::LoadAnalysisQuery {
+                date_from: model.planned_start_date,
+                date_to: model.planned_end_date,
+                work_center_id: Some(work_center_id),
+            })
+            .await?;
+        // 检查目标工作中心的负荷率（load_rate > 100 视为超载）
+        if let Some(item) = analysis.iter().find(|i| i.work_center_id == work_center_id) {
+            if item.load_rate > Decimal::from(100) {
+                return Err(AppError::business(format!(
+                    "工作中心 {}（{}）当前负荷率 {:.2}% 已超载，无法排产，请调整计划或分配至其他工作中心",
+                    item.work_center_name, item.work_center_code, item.load_rate
+                )));
+            }
+            if item.load_rate > Decimal::from(80) {
+                tracing::warn!(
+                    order_id,
+                    work_center_id,
+                    load_rate = %item.load_rate,
+                    "批次 386 B-P2-5: 工作中心负荷率较高（>80%），排产成功但建议关注产能瓶颈"
+                );
             }
         }
+        Ok(())
+    }
 
-        // 提取审计用户ID（update_status 入参无 user_id，使用订单创建者作为审计主体）
-        let audit_user_id = model.created_by;
-
+    /// 应用状态变更并写入审计日志（生产中状态同时设置实际开始日期）
+    async fn apply_status_update_with_audit(
+        txn: &sea_orm::DatabaseTransaction,
+        model: ProductionOrderModel,
+        status: String,
+        audit_user_id: i32,
+    ) -> Result<ProductionOrderModel, AppError> {
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set(status.clone());
         active_model.updated_at = Set(Utc::now());
-
         // 如果状态变为生产中，设置实际开始日期
         if status == crate::models::status::production::PRODUCTION_IN_PROGRESS {
             active_model.actual_start_date = Set(Some(chrono::Utc::now().date_naive()));
         }
-
         // 走 update_with_audit 保留审计追溯
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             active_model,
             Some(audit_user_id),
         )
         .await?;
-
-        txn.commit().await?;
-
         Ok(updated)
     }
 

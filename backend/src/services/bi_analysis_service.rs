@@ -1027,11 +1027,28 @@ impl BiAnalysisService {
         if !(1..=12).contains(&month) {
             return Err(AppError::validation("月份无效"));
         }
-
         // V15 P0-B10：注入数据范围过滤（sales_orders 无别名，已有 $1/$2 参数）
         let (scope_sql, scope_values) = self.scope_sql("", 3);
+        let sql = Self::build_month_drilldown_sql(&scope_sql);
+        let mut values = vec![(year as i64).into(), (month as i64).into()];
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            values,
+        );
+        let rows = TimeSeriesRow::find_by_statement(stmt)
+            .all(&*self.db)
+            .await?;
+        let days_in_month = Self::compute_days_in_month(year, month);
+        let period_map = Self::rows_to_period_map(rows);
+        let results = Self::fill_missing_days_with_zeros(period_map, year, month, days_in_month);
+        Ok(results)
+    }
 
-        let sql = format!(
+    /// 构建月→日钻取的 SQL（含数据范围过滤片段）
+    fn build_month_drilldown_sql(scope_sql: &str) -> String {
+        format!(
             r#"
             SELECT
                 to_char(order_date, 'YYYY-MM-DD') as period,
@@ -1055,30 +1072,26 @@ impl BiAnalysisService {
             ORDER BY period ASC
             "#,
             scope_sql = scope_sql,
-        );
+        )
+    }
 
-        let mut values = vec![(year as i64).into(), (month as i64).into()];
-        values.extend(scope_values);
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            values,
-        );
-
-        let rows = TimeSeriesRow::find_by_statement(stmt)
-            .all(&*self.db)
-            .await?;
-
-        // 计算该月天数
-        let days_in_month = chrono::NaiveDate::from_ymd_opt(
+    /// 计算指定月份的天数（处理 12 月跨年）
+    fn compute_days_in_month(year: i32, month: u32) -> u32 {
+        chrono::NaiveDate::from_ymd_opt(
             if month == 12 { year + 1 } else { year },
             if month == 12 { 1 } else { month + 1 },
             1,
         )
         .map(|next_month_first| (next_month_first - chrono::Duration::days(1)).day())
-        .unwrap_or(30);
+        .unwrap_or(30)
+    }
 
-        let mut period_map: std::collections::HashMap<String, TimeSeriesPoint> = std::collections::HashMap::new();
+    /// 将查询行转换为 period→TimeSeriesPoint 映射
+    fn rows_to_period_map(
+        rows: Vec<TimeSeriesRow>,
+    ) -> std::collections::HashMap<String, TimeSeriesPoint> {
+        let mut period_map: std::collections::HashMap<String, TimeSeriesPoint> =
+            std::collections::HashMap::new();
         for r in rows {
             let revenue = dec_to_f64(r.total_amount);
             let cost = dec_to_f64(r.profit_amount);
@@ -1093,8 +1106,17 @@ impl BiAnalysisService {
                 },
             );
         }
+        period_map
+    }
 
-        let results = (1..=days_in_month)
+    /// 按日填充缺失日期为零值点，返回完整每日序列
+    fn fill_missing_days_with_zeros(
+        mut period_map: std::collections::HashMap<String, TimeSeriesPoint>,
+        year: i32,
+        month: u32,
+        days_in_month: u32,
+    ) -> Vec<TimeSeriesPoint> {
+        (1..=days_in_month)
             .map(|d| {
                 let period = format!("{}-{:02}-{:02}", year, month, d);
                 match period_map.remove(&period) {
@@ -1108,9 +1130,7 @@ impl BiAnalysisService {
                     },
                 }
             })
-            .collect();
-
-        Ok(results)
+            .collect()
     }
 
     /// 钻取：客户 → 订单
