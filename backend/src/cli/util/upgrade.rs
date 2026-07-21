@@ -632,85 +632,109 @@ fn deploy_release_blue_green(package: &str) {
 /// 保留作为非蓝绿部署环境的回退路径。
 fn deploy_release_legacy(package: &str) {
     println!("停止服务...");
-    if let Err(e) = run_cmd("systemctl", &["stop", super::SERVICE_NAME]) {
-        println!("[ERROR] 停止服务失败（继续部署）: {}", e);
-    }
+    stop_service_for_legacy_deploy();
     std::thread::sleep(std::time::Duration::from_secs(2));
 
-    // H-1 修复（v9 复审）：对齐 backup.rs M4 方案 — UUID 随机目录 + 先 tar -tf 校验再解压 + 二次校验
-    // 原方案解压到固定路径 /tmp，存在符号链接竞争（TOCTOU）和校验范围不足问题：
-    // 1. 固定路径 /tmp/bingxi-erp 可被攻击者预先创建符号链接指向 /etc
-    // 2. 校验仅覆盖 /tmp/bingxi-erp 子目录，tar 可解压出 /tmp 其他文件绕过校验
-    // 3. 先解压后校验，恶意文件在校验前已写入磁盘
-    let temp_dir_owned = format!(
-        "{}/bingxi_upgrade_{}",
-        std::env::temp_dir().to_string_lossy(),
-        uuid::Uuid::new_v4()
-    );
-    let temp_dir = temp_dir_owned.as_str();
-
-    // 创建随机临时目录（关键路径）
-    if let Err(e) = run_cmd("mkdir", &["-p", temp_dir]) {
-        println!("[ERROR] 创建临时目录失败，终止部署: {}", e);
-        return;
-    }
-
-    // 1. 先列出 tar 内容并校验路径，防止恶意文件在校验前已写入磁盘
-    println!("校验更新包内容...");
-    let tar_list = match run_cmd("tar", &["-tf", package]) {
-        Ok(list) => list,
+    let temp_dir = match prepare_random_temp_dir() {
+        Ok(d) => d,
         Err(e) => {
-            println!("[ERROR] 列出更新包内容失败: {}", e);
-            cleanup_temp(temp_dir);
+            println!("[ERROR] 创建临时目录失败，终止部署: {}", e);
             return;
         }
     };
 
-    // 解压前校验：检查每个路径不包含 .. 和不以 / 开头（防止 Tar Slip 路径穿越）
+    // H-1 修复（v9 复审）：UUID 随机目录 + 先 tar -tf 校验再解压 + 二次校验，防止 Tar Slip 与符号链接竞争
+    if let Err(e) = validate_tar_contents(package) {
+        println!("[ERROR] {}", e);
+        cleanup_temp(&temp_dir);
+        return;
+    }
+
+    let extract_dir = match extract_package_and_validate(package, &temp_dir) {
+        Ok(d) => d,
+        Err(e) => {
+            println!("[ERROR] {}", e);
+            cleanup_temp(&temp_dir);
+            return;
+        }
+    };
+
+    let install_dir = get_install_dir();
+    if let Err(e) = backup_old_files_legacy(&install_dir) {
+        println!("[ERROR] {}", e);
+        cleanup_temp(&temp_dir);
+        return;
+    }
+    if let Err(e) = copy_new_backend(&extract_dir, &install_dir) {
+        println!("[ERROR] {}", e);
+        cleanup_temp(&temp_dir);
+        return;
+    }
+    if let Err(e) = copy_new_frontend(&extract_dir, &install_dir) {
+        println!("[ERROR] {}", e);
+        cleanup_temp(&temp_dir);
+        return;
+    }
+    cleanup_temp(&temp_dir);
+    start_service_and_check();
+}
+
+/// 停止 systemd 服务（非关键路径，失败仅记录继续部署）。
+fn stop_service_for_legacy_deploy() {
+    if let Err(e) = run_cmd("systemctl", &["stop", super::SERVICE_NAME]) {
+        println!("[ERROR] 停止服务失败（继续部署）: {}", e);
+    }
+}
+
+/// 创建 UUID 随机临时目录（关键路径，失败终止部署）。
+fn prepare_random_temp_dir() -> Result<String, String> {
+    let temp_dir = format!(
+        "{}/bingxi_upgrade_{}",
+        std::env::temp_dir().to_string_lossy(),
+        uuid::Uuid::new_v4()
+    );
+    run_cmd("mkdir", &["-p", &temp_dir]).map_err(|e| format!("创建临时目录失败: {}", e))?;
+    Ok(temp_dir)
+}
+
+/// 先列出 tar 内容并校验路径，防止恶意文件在校验前写入磁盘（Tar Slip 防护）。
+fn validate_tar_contents(package: &str) -> Result<(), String> {
+    println!("校验更新包内容...");
+    let tar_list = run_cmd("tar", &["-tf", package])
+        .map_err(|e| format!("列出更新包内容失败: {}", e))?;
     for line in tar_list.lines() {
         let path = line.trim();
         if path.is_empty() || path == "./" {
             continue;
         }
         if path.contains("..") {
-            println!("[ERROR] 检测到路径穿越攻击：文件 {} 包含 ..", path);
-            cleanup_temp(temp_dir);
-            return;
+            return Err(format!("检测到路径穿越攻击：文件 {} 包含 ..", path));
         }
         if path.starts_with('/') {
-            println!("[ERROR] 检测到绝对路径：文件 {}", path);
-            cleanup_temp(temp_dir);
-            return;
+            return Err(format!("检测到绝对路径：文件 {}", path));
         }
     }
+    Ok(())
+}
 
-    // 2. 解压到随机临时目录
+/// 解压到随机临时目录并做二次校验（canonicalize 解析符号链接，双重防护）。
+fn extract_package_and_validate(package: &str, temp_dir: &str) -> Result<String, String> {
     println!("解压更新包...");
-    if let Err(e) = run_cmd("tar", &["-xzf", package, "-C", temp_dir]) {
-        println!("[ERROR] 解压失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
-    }
-
-    // 3. 解压后二次校验（canonicalize 解析符号链接），双重防护
+    run_cmd("tar", &["-xzf", package, "-C", temp_dir])
+        .map_err(|e| format!("解压失败: {}", e))?;
     // 批次 322 v9 复审低危修复：改用共享模块 utils::path_validator::validate_extracted_paths
     let extract_dir = format!("{}/bingxi-erp", temp_dir);
-    if let Err(e) = validate_extracted_paths(&extract_dir) {
-        println!("[ERROR] 安全校验失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
-    }
-    let install_dir = get_install_dir();
+    validate_extracted_paths(&extract_dir).map_err(|e| format!("安全校验失败: {}", e))?;
+    Ok(extract_dir)
+}
 
-    // 备份旧文件
+/// 备份旧后端文件到 old.{ts} 目录（非关键路径，单文件失败仅记录）。
+fn backup_old_files_legacy(install_dir: &str) -> Result<(), String> {
     println!("备份旧文件...");
     let ts = timestamp();
     let old_backup = format!("{}/old.{}", install_dir, ts);
-    if let Err(e) = run_cmd("mkdir", &["-p", &old_backup]) {
-        println!("[ERROR] 创建旧文件备份目录失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
-    }
+    run_cmd("mkdir", &["-p", &old_backup])
+        .map_err(|e| format!("创建旧文件备份目录失败: {}", e))?;
     let server_src = format!("{}/backend/server", install_dir);
     let bingxi_src = format!("{}/backend/bingxi", install_dir);
     if let Err(e) = run_cmd("cp", &["-r", &server_src, &old_backup]) {
@@ -719,61 +743,42 @@ fn deploy_release_legacy(package: &str) {
     if let Err(e) = run_cmd("cp", &["-r", &bingxi_src, &old_backup]) {
         println!("[ERROR] 备份 bingxi 失败: {}", e);
     }
+    Ok(())
+}
 
-    // 更新后端
+/// 覆盖后端二进制并 chmod（批次 95 P3-13：关键路径，失败立即中止部署）。
+fn copy_new_backend(extract_dir: &str, install_dir: &str) -> Result<(), String> {
     println!("更新后端...");
     let new_server = format!("{}/backend/server", extract_dir);
     let new_bingxi = format!("{}/backend/bingxi", extract_dir);
     let dst_server = format!("{}/backend/server", install_dir);
     let dst_bingxi = format!("{}/backend/bingxi", install_dir);
+    run_cmd("cp", &["-r", &new_server, &dst_server]).map_err(|e| format!("覆盖 server 失败: {}", e))?;
+    run_cmd("cp", &["-r", &new_bingxi, &dst_bingxi]).map_err(|e| format!("覆盖 bingxi 失败: {}", e))?;
+    run_cmd("chmod", &["+x", &dst_server]).map_err(|e| format!("chmod server 失败: {}", e))?;
+    run_cmd("chmod", &["+x", &dst_bingxi]).map_err(|e| format!("chmod bingxi 失败: {}", e))?;
+    Ok(())
+}
 
-    // 批次 95 P3-13 修复：覆盖二进制 + chmod 为关键路径，失败立即中止部署
-    // （避免启动残缺版本；服务保持停止状态等待运维介入）
-    if let Err(e) = run_cmd("cp", &["-r", &new_server, &dst_server]) {
-        println!("[ERROR] 覆盖 server 失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
-    }
-    if let Err(e) = run_cmd("cp", &["-r", &new_bingxi, &dst_bingxi]) {
-        println!("[ERROR] 覆盖 bingxi 失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
-    }
-    if let Err(e) = run_cmd("chmod", &["+x", &dst_server]) {
-        println!("[ERROR] chmod server 失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
-    }
-    if let Err(e) = run_cmd("chmod", &["+x", &dst_bingxi]) {
-        println!("[ERROR] chmod bingxi 失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
-    }
-
-    // 更新前端
+/// 移动新前端 dist（批次 95 P3-13：关键路径，失败立即中止部署，避免前端缺失上线）。
+fn copy_new_frontend(extract_dir: &str, install_dir: &str) -> Result<(), String> {
     println!("更新前端...");
     let frontend_dist = format!("{}/frontend/dist", install_dir);
     if let Err(e) = run_cmd("rm", &["-rf", &frontend_dist]) {
         println!("[WARN] 清理旧前端 dist 失败（继续 mv 覆盖）: {}", e);
     }
     let new_dist = format!("{}/frontend/dist", extract_dir);
-    // 批次 95 P3-13 修复：移动前端 dist 为关键路径，失败立即中止部署（避免前端缺失上线）
-    if let Err(e) = run_cmd("mv", &[&new_dist, &frontend_dist]) {
-        println!("[ERROR] 移动新前端 dist 失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
-    }
+    run_cmd("mv", &[&new_dist, &frontend_dist]).map_err(|e| format!("移动新前端 dist 失败: {}", e))?;
+    Ok(())
+}
 
-    cleanup_temp(temp_dir);
-
-    // 启动
+/// 启动服务并健康检查（启动失败仅记录，等待运维介入）。
+fn start_service_and_check() {
     println!("启动服务...");
     if let Err(e) = run_cmd("systemctl", &["start", super::SERVICE_NAME]) {
         println!("[ERROR] 启动服务失败: {}", e);
     }
-
     std::thread::sleep(std::time::Duration::from_secs(3));
-
     if is_service_active(super::SERVICE_NAME) {
         println!("[OK] 部署成功");
     } else {

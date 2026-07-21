@@ -140,137 +140,186 @@ impl AppState {
     ///
     /// 批次 331 v10 复审 P3 修复：使用 AppStateParams 参数对象替代 8 个独立参数
     pub fn with_secrets_and_cors(params: AppStateParams) -> Result<Self, String> {
-        let db = params.db;
-        let omni_audit = params.omni_audit;
-        let audit_log = params.audit_log;
-        let audit_cleanup = params.audit_cleanup;
-        let jwt_secret = params.jwt_secret;
-        let previous_jwt_secret = params.previous_jwt_secret;
-        let cookie_secret = params.cookie_secret;
-        let webhook_secret = params.webhook_secret;
-        let allowed_origins = params.allowed_origins;
-        let failover_executor = params.failover_executor;
+        // 启动审计日志清理任务 + 用户吊销记录定期清理任务（后台任务，失败不阻塞启动）
+        spawn_background_tasks(&params.audit_cleanup);
+        // P2-B/M-2 修复：cookie_secret + webhook_secret 强度校验 + 互不相同校验
+        validate_app_secrets(&params.cookie_secret, &params.webhook_secret, &params.jwt_secret)?;
+        // 构建业务服务集合（指标、cookie_key、DI 容器、邮件/通知/报价/定制订单服务）
+        let services = build_app_services(&params.db, &params.cookie_secret)?;
+        // 构造 AppState（消费 params 与 services）
+        Ok(construct_app_state(params, services))
+    }
+}
 
-        // 启动审计日志清理任务（后台任务，失败不阻塞启动）
-        let cleanup_clone = audit_cleanup.clone();
-        let audit_handle = tokio::spawn(async move {
-            // 批次 8（2026-06-28）：启动器 spawn panic 隔离
-            let result = AssertUnwindSafe(async {
-                cleanup_clone.start_cleanup_task();
-            })
-            .catch_unwind()
-            .await;
-            if let Err(panic_payload) = result {
-                let panic_msg = panic_payload
-                    .downcast_ref::<String>()
-                    .map(|s| s.as_str())
-                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                    .unwrap_or("<非字符串 panic payload>");
-                tracing::error!(
-                    panic = %panic_msg,
-                    "⚠ 审计清理启动器 spawn panic 已被隔离"
-                );
-            }
-        });
-        // L-26 修复（批次 374）：保存审计清理句柄供 shutdown abort
-        if let Ok(mut tasks) = APP_STATE_BACKGROUND_TASKS.lock() {
-            tasks.push(audit_handle);
-        }
+/// 应用服务集合（with_secrets_and_cors 内部构建的 Arc 服务打包，避免 construct_app_state 参数过多）。
+struct AppServices {
+    metrics: MetricsService,
+    cookie_key: Key,
+    di_container: Arc<DIContainer>,
+    email_service: Option<Arc<EmailService>>,
+    event_notification_service: Option<Arc<EventNotificationService>>,
+    data_permission_service: Arc<DataPermissionService>,
+    notification_service: Arc<NotificationService>,
+    quotation_service: Arc<QuotationService>,
+    quotation_pricing_service: Arc<QuotationPricingService>,
+    quotation_approval_service: Arc<QuotationApprovalService>,
+    quotation_convert_service: Arc<QuotationConvertService>,
+    custom_order_crud: Arc<CustomOrderCrudService>,
+    custom_order_state: Arc<CustomOrderStateService>,
+    custom_order_process: Arc<CustomOrderProcessService>,
+    custom_order_quality: Arc<CustomOrderQualityService>,
+    custom_order_aftersales: Arc<CustomOrderAfterSalesService>,
+}
 
-        // v11 批次 145 P1-7：启动用户吊销记录定期清理任务（每 24 小时清理一次）
-        // L-26 修复（批次 374）：保存句柄供 shutdown abort
-        let revoked_handle = crate::services::auth_service::start_revoked_user_cleanup_task();
-        if let Ok(mut tasks) = APP_STATE_BACKGROUND_TASKS.lock() {
-            tasks.push(revoked_handle);
-        }
-
-        // P2-B 修复：cookie_secret 长度不足 32 字节时 fail-fast，禁止自动补 0 弱化密钥
-        // 安全原因：补 0 / 截断会让攻击者仅需爆破 1-N 字节即可还原密钥，违背 fail-secure 原则
-        if cookie_secret.len() < 32 {
-            return Err(format!(
-                "cookie_secret 长度不足 32 字节（当前: {} 字节）。禁止补 0/截断弱化，请通过环境变量 COOKIE_SECRET 提供至少 32 字节的强随机密钥（openssl rand -hex 32）",
-                cookie_secret.len()
-            ));
-        }
-        let final_cookie_secret = cookie_secret;
-
-        // M-2 修复：webhook_secret 强度校验 + 与 jwt_secret 互不相同校验
-        if webhook_secret.len() < 32 {
-            return Err(format!(
-                "webhook_secret 长度不足 32 字节（当前: {} 字节）。请通过环境变量 WEBHOOK_SECRET 提供至少 32 字节的强随机密钥（openssl rand -hex 32）",
-                webhook_secret.len()
-            ));
-        }
-        if webhook_secret == jwt_secret {
-            return Err(
-                "FATAL: webhook_secret 与 jwt_secret 相同，违反 M-2 修复（密钥单一违反，泄漏面扩大）。请为 webhook 单独生成密钥"
-                    .to_string(),
+/// 启动审计清理 + 用户吊销记录清理后台任务（L-26 修复：保存句柄供 shutdown abort）。
+fn spawn_background_tasks(audit_cleanup: &Arc<AuditCleanupService>) {
+    let cleanup_clone = audit_cleanup.clone();
+    let audit_handle = tokio::spawn(async move {
+        // 批次 8（2026-06-28）：启动器 spawn panic 隔离
+        let result = AssertUnwindSafe(async {
+            cleanup_clone.start_cleanup_task();
+        })
+        .catch_unwind()
+        .await;
+        if let Err(panic_payload) = result {
+            let panic_msg = panic_payload
+                .downcast_ref::<String>()
+                .map(|s| s.as_str())
+                .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                .unwrap_or("<非字符串 panic payload>");
+            tracing::error!(
+                panic = %panic_msg,
+                "⚠ 审计清理启动器 spawn panic 已被隔离"
             );
         }
+    });
+    if let Ok(mut tasks) = APP_STATE_BACKGROUND_TASKS.lock() {
+        tasks.push(audit_handle);
+    }
+    // v11 批次 145 P1-7：启动用户吊销记录定期清理任务（每 24 小时清理一次）
+    let revoked_handle = crate::services::auth_service::start_revoked_user_cleanup_task();
+    if let Ok(mut tasks) = APP_STATE_BACKGROUND_TASKS.lock() {
+        tasks.push(revoked_handle);
+    }
+}
 
-        // 指标服务构造失败时显式返回错误（之前是 .expect() panic，违背 Result 语义）
-        let metrics = MetricsService::new().map_err(|e| {
-            format!(
-                "创建 Prometheus 指标服务失败（指标名称冲突或注册表初始化错误）: {}",
-                e
-            )
-        })?;
-        let cookie_key = Key::derive_from(final_cookie_secret.as_bytes());
-        let di_container = Arc::new(DIContainer::new());
-        let email_service = EmailService::from_env().map(Arc::new);
-        let event_notification_service = email_service.as_ref().map(|email_svc| {
-            Arc::new(EventNotificationService::with_email(
-                db.clone(),
-                email_svc.clone(),
-            ))
-        });
-        let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
-        let notification_service = Arc::new(NotificationService::new(db.clone()));
-        let quotation_service = Arc::new(QuotationService::new(db.clone()));
-        let quotation_pricing_service = Arc::new(QuotationPricingService::new(db.clone()));
-        let quotation_approval_service = Arc::new(QuotationApprovalService::new(db.clone()));
-        let quotation_convert_service = Arc::new(QuotationConvertService::new(db.clone()));
+/// 校验 cookie_secret 与 webhook_secret 强度（P2-B/M-2 修复：fail-fast，禁止补 0/截断弱化密钥）。
+fn validate_app_secrets(
+    cookie_secret: &str,
+    webhook_secret: &str,
+    jwt_secret: &str,
+) -> Result<(), String> {
+    if cookie_secret.len() < 32 {
+        return Err(format!(
+            "cookie_secret 长度不足 32 字节（当前: {} 字节）。禁止补 0/截断弱化，请通过环境变量 COOKIE_SECRET 提供至少 32 字节的强随机密钥（openssl rand -hex 32）",
+            cookie_secret.len()
+        ));
+    }
+    if webhook_secret.len() < 32 {
+        return Err(format!(
+            "webhook_secret 长度不足 32 字节（当前: {} 字节）。请通过环境变量 WEBHOOK_SECRET 提供至少 32 字节的强随机密钥（openssl rand -hex 32）",
+            webhook_secret.len()
+        ));
+    }
+    if webhook_secret == jwt_secret {
+        return Err(
+            "FATAL: webhook_secret 与 jwt_secret 相同，违反 M-2 修复（密钥单一违反，泄漏面扩大）。请为 webhook 单独生成密钥"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
 
-        Ok(Self {
-            db: db.clone(),
-            omni_audit,
-            audit_log,
-            audit_cleanup,
-            jwt_secret,
-            previous_jwt_secret,
-            cookie_secret: final_cookie_secret,
-            // M-2 修复：独立 Webhook 密钥
-            webhook_secret,
-            cache: AppCache::arc(),
-            metrics: Arc::new(metrics),
-            cookie_key,
-            di_container,
-            email_service,
-            event_notification_service,
-            data_permission_service,
-            notification_service,
-            allowed_origins,
-            quotation_service,
-            quotation_pricing_service,
-            quotation_approval_service,
-            quotation_convert_service,
-            // P0-3 定制订单服务（延迟构造以避免影响启动）
-            custom_order_crud: Arc::new(CustomOrderCrudService::new(db.clone())),
-            custom_order_state: Arc::new(CustomOrderStateService::new(db.clone())),
-            custom_order_process: Arc::new(CustomOrderProcessService::new(db.clone())),
-            custom_order_quality: Arc::new(CustomOrderQualityService::new(db.clone())),
-            custom_order_aftersales: Arc::new(CustomOrderAfterSalesService::new(db.clone())),
-            // M-1 修复：邮件发送配额计数器
-            email_send_counters: Arc::new(DashMap::new()),
-            // 批次 104 P0-1 修复：搜索客户端初始化
-            // 根据环境变量决定使用真实 ES 客户端或 mock 客户端
-            search_client: init_search_client(),
-            // 批次 107 P1-1 修复：L1 本地缓存初始化
-            // 根据 CACHE_ENABLED 环境变量决定是否启用
-            cache_service: Arc::new(CacheService::new()),
-            // V15 P0-B17（Batch 484）：主备切换执行器（main.rs 注入）
-            failover_executor,
-        })
+/// 构建业务服务集合（指标服务构造失败时显式返回错误，原 .expect() panic 违背 Result 语义）。
+fn build_app_services(
+    db: &Arc<DatabaseConnection>,
+    cookie_secret: &str,
+) -> Result<AppServices, String> {
+    let metrics = MetricsService::new().map_err(|e| {
+        format!(
+            "创建 Prometheus 指标服务失败（指标名称冲突或注册表初始化错误）: {}",
+            e
+        )
+    })?;
+    let cookie_key = Key::derive_from(cookie_secret.as_bytes());
+    let di_container = Arc::new(DIContainer::new());
+    let email_service = EmailService::from_env().map(Arc::new);
+    let event_notification_service = email_service.as_ref().map(|email_svc| {
+        Arc::new(EventNotificationService::with_email(
+            db.clone(),
+            email_svc.clone(),
+        ))
+    });
+    let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
+    let notification_service = Arc::new(NotificationService::new(db.clone()));
+    let quotation_service = Arc::new(QuotationService::new(db.clone()));
+    let quotation_pricing_service = Arc::new(QuotationPricingService::new(db.clone()));
+    let quotation_approval_service = Arc::new(QuotationApprovalService::new(db.clone()));
+    let quotation_convert_service = Arc::new(QuotationConvertService::new(db.clone()));
+    // P0-3 定制订单服务（延迟构造以避免影响启动）
+    let custom_order_crud = Arc::new(CustomOrderCrudService::new(db.clone()));
+    let custom_order_state = Arc::new(CustomOrderStateService::new(db.clone()));
+    let custom_order_process = Arc::new(CustomOrderProcessService::new(db.clone()));
+    let custom_order_quality = Arc::new(CustomOrderQualityService::new(db.clone()));
+    let custom_order_aftersales = Arc::new(CustomOrderAfterSalesService::new(db.clone()));
+    Ok(AppServices {
+        metrics,
+        cookie_key,
+        di_container,
+        email_service,
+        event_notification_service,
+        data_permission_service,
+        notification_service,
+        quotation_service,
+        quotation_pricing_service,
+        quotation_approval_service,
+        quotation_convert_service,
+        custom_order_crud,
+        custom_order_state,
+        custom_order_process,
+        custom_order_quality,
+        custom_order_aftersales,
+    })
+}
+
+/// 构造 AppState（消费 params 与 services，inline 构造 cache/计数器/搜索/缓存服务）。
+fn construct_app_state(params: AppStateParams, services: AppServices) -> AppState {
+    AppState {
+        db: params.db.clone(),
+        omni_audit: params.omni_audit,
+        audit_log: params.audit_log,
+        audit_cleanup: params.audit_cleanup,
+        jwt_secret: params.jwt_secret,
+        previous_jwt_secret: params.previous_jwt_secret,
+        cookie_secret: params.cookie_secret,
+        // M-2 修复：独立 Webhook 密钥
+        webhook_secret: params.webhook_secret,
+        cache: AppCache::arc(),
+        metrics: Arc::new(services.metrics),
+        cookie_key: services.cookie_key,
+        di_container: services.di_container,
+        email_service: services.email_service,
+        event_notification_service: services.event_notification_service,
+        data_permission_service: services.data_permission_service,
+        notification_service: services.notification_service,
+        allowed_origins: params.allowed_origins,
+        quotation_service: services.quotation_service,
+        quotation_pricing_service: services.quotation_pricing_service,
+        quotation_approval_service: services.quotation_approval_service,
+        quotation_convert_service: services.quotation_convert_service,
+        custom_order_crud: services.custom_order_crud,
+        custom_order_state: services.custom_order_state,
+        custom_order_process: services.custom_order_process,
+        custom_order_quality: services.custom_order_quality,
+        custom_order_aftersales: services.custom_order_aftersales,
+        // M-1 修复：邮件发送配额计数器
+        email_send_counters: Arc::new(DashMap::new()),
+        // 批次 104 P0-1 修复：搜索客户端初始化（根据环境变量决定真实 ES 或 mock）
+        search_client: init_search_client(),
+        // 批次 107 P1-1 修复：L1 本地缓存初始化（根据 CACHE_ENABLED 环境变量决定是否启用）
+        cache_service: Arc::new(CacheService::new()),
+        // V15 P0-B17（Batch 484）：主备切换执行器（main.rs 注入）
+        failover_executor: params.failover_executor,
     }
 }
 

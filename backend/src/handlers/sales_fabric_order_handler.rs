@@ -160,96 +160,148 @@ pub async fn create_fabric_order(
     Json(req): Json<CreateFabricOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use chrono::Utc;
-    use rust_decimal::Decimal;
-
     // P2-11 修复（批次 86 v2 复审）：金额/数量非负校验 + round_dp(2) 精度校验
-    for (idx, item) in req.items.iter().enumerate() {
-        if item.quantity_meters < Decimal::ZERO {
-            return Err(AppError::validation(format!(
-                "第 {} 项 quantity_meters 不能为负数",
-                idx + 1
-            )));
-        }
-        if item.quantity_kg < Decimal::ZERO {
-            return Err(AppError::validation(format!(
-                "第 {} 项 quantity_kg 不能为负数",
-                idx + 1
-            )));
-        }
-        if item.unit_price_meters < Decimal::ZERO {
-            return Err(AppError::validation(format!(
-                "第 {} 项 unit_price_meters 不能为负数",
-                idx + 1
-            )));
-        }
-        // 金额字段最多 2 位小数（货币精度）
-        if item.unit_price_meters.round_dp(2) != item.unit_price_meters {
-            return Err(AppError::validation(format!(
-                "第 {} 项 unit_price_meters 精度不能超过 2 位小数",
-                idx + 1
-            )));
-        }
-        if let Some(p) = item.base_price {
-            if p < Decimal::ZERO {
-                return Err(AppError::validation(format!(
-                    "第 {} 项 base_price 不能为负数",
-                    idx + 1
-                )));
-            }
-            if p.round_dp(2) != p {
-                return Err(AppError::validation(format!(
-                    "第 {} 项 base_price 精度不能超过 2 位小数",
-                    idx + 1
-                )));
-            }
-        }
-        if let Some(p) = item.final_price {
-            if p < Decimal::ZERO {
-                return Err(AppError::validation(format!(
-                    "第 {} 项 final_price 不能为负数",
-                    idx + 1
-                )));
-            }
-            if p.round_dp(2) != p {
-                return Err(AppError::validation(format!(
-                    "第 {} 项 final_price 精度不能超过 2 位小数",
-                    idx + 1
-                )));
-            }
-        }
-    }
-
+    validate_fabric_order_items(&req.items)?;
     // 开启事务
     let txn = state
         .db
         .begin()
         .await
         .map_err(|e| AppError::internal(format!("开启事务失败：{}", e)))?;
-
     // 生成订单号
     let order_no = format!("SO{}", Utc::now().format("%Y%m%d%H%M%S"));
+    // 计算总金额和总数量（total_quantity_* 未使用，保留以备扩展）
+    let (total_amount, _total_quantity_meters, _total_quantity_kg) =
+        calculate_order_totals(&req.items);
+    // 创建订单主表
+    let order = build_order_active_model(&req, order_no, total_amount);
+    let created_order = order
+        .insert(&txn)
+        .await
+        .map_err(|e| AppError::bad_request(format!("创建订单失败：{}", e)))?;
+    // 创建订单明细
+    for item in &req.items {
+        let order_item = build_order_item_active_model(item, created_order.id);
+        order_item
+            .insert(&txn)
+            .await
+            .map_err(|e| AppError::bad_request(format!("创建订单明细失败：{}", e)))?;
+    }
+    // 提交事务
+    txn.commit()
+        .await
+        .map_err(|e| AppError::internal(format!("提交事务失败：{}", e)))?;
+    let order_json = serde_json::to_value(created_order)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success_with_message(
+        order_json,
+        "订单创建成功",
+    )))
+}
 
-    // 计算总金额和总数量
+/// 校验订单明细列表（P2-11 修复：金额/数量非负 + round_dp(2) 精度）。
+fn validate_fabric_order_items(items: &[FabricOrderItemRequest]) -> Result<(), AppError> {
+    for (idx, item) in items.iter().enumerate() {
+        validate_fabric_item(item, idx)?;
+    }
+    Ok(())
+}
+
+/// 校验单个订单明细项的非负与精度（P2-11 修复）。
+fn validate_fabric_item(item: &FabricOrderItemRequest, idx: usize) -> Result<(), AppError> {
+    use rust_decimal::Decimal;
+
+    if item.quantity_meters < Decimal::ZERO {
+        return Err(AppError::validation(format!(
+            "第 {} 项 quantity_meters 不能为负数",
+            idx + 1
+        )));
+    }
+    if item.quantity_kg < Decimal::ZERO {
+        return Err(AppError::validation(format!(
+            "第 {} 项 quantity_kg 不能为负数",
+            idx + 1
+        )));
+    }
+    if item.unit_price_meters < Decimal::ZERO {
+        return Err(AppError::validation(format!(
+            "第 {} 项 unit_price_meters 不能为负数",
+            idx + 1
+        )));
+    }
+    if item.unit_price_meters.round_dp(2) != item.unit_price_meters {
+        return Err(AppError::validation(format!(
+            "第 {} 项 unit_price_meters 精度不能超过 2 位小数",
+            idx + 1
+        )));
+    }
+    if let Some(p) = item.base_price {
+        validate_price_precision(p, "base_price", idx)?;
+    }
+    if let Some(p) = item.final_price {
+        validate_price_precision(p, "final_price", idx)?;
+    }
+    Ok(())
+}
+
+/// 校验可选价格字段的非负与精度（货币精度 2 位小数）。
+fn validate_price_precision(
+    p: rust_decimal::Decimal,
+    field: &str,
+    idx: usize,
+) -> Result<(), AppError> {
+    use rust_decimal::Decimal;
+
+    if p < Decimal::ZERO {
+        return Err(AppError::validation(format!(
+            "第 {} 项 {} 不能为负数",
+            idx + 1,
+            field
+        )));
+    }
+    if p.round_dp(2) != p {
+        return Err(AppError::validation(format!(
+            "第 {} 项 {} 精度不能超过 2 位小数",
+            idx + 1,
+            field
+        )));
+    }
+    Ok(())
+}
+
+/// 计算订单总金额与总数量（P2-11 修复：字段已是 Decimal，无需 from_f64_retain 转换）。
+fn calculate_order_totals(
+    items: &[FabricOrderItemRequest],
+) -> (rust_decimal::Decimal, rust_decimal::Decimal, rust_decimal::Decimal) {
+    use rust_decimal::Decimal;
+
     let mut total_amount = Decimal::ZERO;
     let mut total_quantity_meters = Decimal::ZERO;
     let mut total_quantity_kg = Decimal::ZERO;
 
-    for item in &req.items {
-        // P2-11 修复：字段已是 Decimal，无需 from_f64_retain 转换
-        let quantity_meters = item.quantity_meters;
-        let unit_price = item.unit_price_meters;
-        let quantity_kg = item.quantity_kg;
-
-        let amount = quantity_meters * unit_price;
+    for item in items {
+        let amount = item.quantity_meters * item.unit_price_meters;
         total_amount += amount;
-        total_quantity_meters += quantity_meters;
-        total_quantity_kg += quantity_kg;
+        total_quantity_meters += item.quantity_meters;
+        total_quantity_kg += item.quantity_kg;
     }
 
-    // 创建订单主表
-    let order = sales_order::ActiveModel {
+    (total_amount, total_quantity_meters, total_quantity_kg)
+}
+
+/// 构建订单主表 ActiveModel（String 字段借用 req 后 clone）。
+fn build_order_active_model(
+    req: &CreateFabricOrderRequest,
+    order_no: String,
+    total_amount: rust_decimal::Decimal,
+) -> sales_order::ActiveModel {
+    use chrono::Utc;
+    use rust_decimal::Decimal;
+    use sea_orm::Set;
+
+    sales_order::ActiveModel {
         id: Set(0),
-        order_no: Set(order_no.clone()),
+        order_no: Set(order_no),
         customer_id: Set(req.customer_id),
         opportunity_id: Set(None),
         order_date: Set(req.order_date),
@@ -263,85 +315,67 @@ pub async fn create_fabric_order(
         total_amount: Set(total_amount),
         paid_amount: Set(Decimal::ZERO),
         balance_amount: Set(total_amount),
-        shipping_address: Set(req.shipping_address),
-        billing_address: Set(req.delivery_address),
-        notes: Set(req.remarks), // 使用 notes 字段存储备注
+        shipping_address: Set(req.shipping_address.clone()),
+        billing_address: Set(req.delivery_address.clone()),
+        notes: Set(req.remarks.clone()),
         created_by: Set(None),
         approved_by: Set(None),
         approved_at: Set(None),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
-    };
-
-    let created_order = order
-        .insert(&txn)
-        .await
-        .map_err(|e| AppError::bad_request(format!("创建订单失败：{}", e)))?;
-
-    // 创建订单明细
-    for item in &req.items {
-        // P2-11 修复：字段已是 Decimal，无需 from_f64_retain 转换
-        let quantity_meters = item.quantity_meters;
-        let quantity_kg = item.quantity_kg;
-        let base_price_val = item.base_price.unwrap_or(item.unit_price_meters);
-        let color_extra = item.color_extra_cost.unwrap_or_default();
-        let grade_diff = item.grade_price_diff.unwrap_or_default();
-        let final_p = item.final_price.unwrap_or(item.unit_price_meters);
-        let subtotal = quantity_meters * final_p;
-
-        let order_item = sales_order_item::ActiveModel {
-            id: Set(0),
-            order_id: Set(created_order.id),
-            product_id: Set(item.product_id),
-            quantity: Set(quantity_meters),
-            unit_price: Set(final_p),
-            discount_percent: Set(Decimal::ZERO),
-            tax_percent: Set(Decimal::ZERO),
-            subtotal: Set(subtotal),
-            tax_amount: Set(Decimal::ZERO),
-            discount_amount: Set(Decimal::ZERO),
-            total_amount: Set(subtotal),
-            shipped_quantity: Set(Decimal::ZERO),
-            notes: Set(item.remarks.clone()),
-            created_at: Set(Utc::now()),
-            updated_at: Set(Utc::now()),
-            color_no: Set(item.color_no.clone()),
-            color_name: Set(item.color_name.clone()),
-            pantone_code: Set(item.pantone_code.clone()),
-            grade_required: Set(item.grade.clone()),
-            quantity_meters: Set(quantity_meters),
-            quantity_kg: Set(quantity_kg),
-            gram_weight: Set(item.gram_weight),
-            width: Set(item.width),
-            batch_requirement: Set(item.batch_requirement.clone()),
-            dye_lot_requirement: Set(item.dye_lot_requirement.clone()),
-            base_price: Set(Some(base_price_val)),
-            color_extra_cost: Set(color_extra),
-            grade_price_diff: Set(grade_diff),
-            final_price: Set(Some(final_p)),
-            shipped_quantity_meters: Set(Decimal::ZERO),
-            shipped_quantity_kg: Set(Decimal::ZERO),
-            paper_tube_weight: Set(item.paper_tube_weight),
-            is_net_weight: Set(item.is_net_weight),
-        };
-
-        order_item
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::bad_request(format!("创建订单明细失败：{}", e)))?;
     }
+}
 
-    // 提交事务
-    txn.commit()
-        .await
-        .map_err(|e| AppError::internal(format!("提交事务失败：{}", e)))?;
-
-    let order_json = serde_json::to_value(created_order)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
-    Ok(Json(ApiResponse::success_with_message(
-        order_json,
-        "订单创建成功",
-    )))
+/// 构建订单明细 ActiveModel（String 字段借用 item 后 clone）。
+fn build_order_item_active_model(
+    item: &FabricOrderItemRequest,
+    order_id: i32,
+) -> sales_order_item::ActiveModel {
+    use chrono::Utc;
+    use rust_decimal::Decimal;
+    use sea_orm::Set;
+    let quantity_meters = item.quantity_meters;
+    let quantity_kg = item.quantity_kg;
+    let base_price_val = item.base_price.unwrap_or(item.unit_price_meters);
+    let color_extra = item.color_extra_cost.unwrap_or_default();
+    let grade_diff = item.grade_price_diff.unwrap_or_default();
+    let final_p = item.final_price.unwrap_or(item.unit_price_meters);
+    let subtotal = quantity_meters * final_p;
+    sales_order_item::ActiveModel {
+        id: Set(0),
+        order_id: Set(order_id),
+        product_id: Set(item.product_id),
+        quantity: Set(quantity_meters),
+        unit_price: Set(final_p),
+        discount_percent: Set(Decimal::ZERO),
+        tax_percent: Set(Decimal::ZERO),
+        subtotal: Set(subtotal),
+        tax_amount: Set(Decimal::ZERO),
+        discount_amount: Set(Decimal::ZERO),
+        total_amount: Set(subtotal),
+        shipped_quantity: Set(Decimal::ZERO),
+        notes: Set(item.remarks.clone()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        color_no: Set(item.color_no.clone()),
+        color_name: Set(item.color_name.clone()),
+        pantone_code: Set(item.pantone_code.clone()),
+        grade_required: Set(item.grade.clone()),
+        quantity_meters: Set(quantity_meters),
+        quantity_kg: Set(quantity_kg),
+        gram_weight: Set(item.gram_weight),
+        width: Set(item.width),
+        batch_requirement: Set(item.batch_requirement.clone()),
+        dye_lot_requirement: Set(item.dye_lot_requirement.clone()),
+        base_price: Set(Some(base_price_val)),
+        color_extra_cost: Set(color_extra),
+        grade_price_diff: Set(grade_diff),
+        final_price: Set(Some(final_p)),
+        shipped_quantity_meters: Set(Decimal::ZERO),
+        shipped_quantity_kg: Set(Decimal::ZERO),
+        paper_tube_weight: Set(item.paper_tube_weight),
+        is_net_weight: Set(item.is_net_weight),
+    }
 }
 
 /// 更新销售订单

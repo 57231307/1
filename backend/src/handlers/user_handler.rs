@@ -382,80 +382,102 @@ pub async fn delete_user(
     audit_ctx: Option<Extension<AuditContext>>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<DeleteUserResponse>>, AppError> {
-    // 检查是否是删除自己的账户
-    if auth.user_id != id {
-        // 非自己账户需要权限检查
-        let role_permission_service = RolePermissionService::new(state.db.clone());
-
-        // 缺角色时直接拒绝（避免 role_id=0 误匹配"超级管理员"角色）
-        let role_id = auth
-            .role_id
-            .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行删除操作"))?;
-
-        // 检查是否有权限删除用户
-        let has_permission = role_permission_service
-            .check_permission(role_id, "user", "delete", Some(id))
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
-
-        if !has_permission {
-            return Err(AppError::permission_denied("没有删除用户的权限"));
-        }
-    }
-
+    // 权限检查：非自己账户需要 user:delete 权限
+    check_delete_user_permission(&state.db, auth.user_id, auth.role_id, id).await?;
     let user_service = UserService::new(state.db.clone());
-
     // 检查用户是否存在
     let existing_user = user_service.find_by_id(id).await?;
-
-    // P1 2-4 修复（批次 64）：保护最后一个 admin 禁止删除
-    // 原实现未保护最后一个 admin，admin 被删除后系统永久锁定（无管理员可操作）。
-    // 修复：被删除用户是 admin 角色时，查询活跃 admin 用户数量，仅剩 1 个则禁止删除。
+    // P1 2-4 修复：保护最后一个 admin 禁止删除
     if let Some(user_role_id) = existing_user.role_id {
-        if is_admin_role(&state.db, user_role_id).await {
-            use crate::models::user;
-            use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
-            let active_admin_count = user::Entity::find()
-                .filter(user::Column::RoleId.eq(user_role_id))
-                .filter(user::Column::IsActive.eq(true))
-                .count(&*state.db)
-                .await
-                .map_err(|e| AppError::internal(e.to_string()))?;
-            if active_admin_count <= 1 {
-                return Err(AppError::bad_request(
-                    "系统仅剩最后一个管理员，禁止删除（删除后系统将永久锁定）",
-                ));
-            }
-        }
+        protect_last_admin(&state.db, user_role_id).await?;
     }
-
-    // 这里可以添加更多禁止删除的逻辑，例如：
-    // 1. 系统管理员不允许删除
-    // 2. 有特殊权限的用户不允许删除
-    // 3. 正在使用中的用户不允许删除
-
     // P1 8-7 修复：删除前捕获用户完整信息作为 before_snapshot
-    // 修复背景：原 delete_user 仅调 log_security_event（只 tracing 不落库），
-    // 软删除无 before_snapshot，无法追溯被删除用户的完整信息。
-    let before_snapshot = serde_json::json!({
-        "user_id": existing_user.id,
-        "username": existing_user.username,
-        "email": existing_user.email,
-        "phone": existing_user.phone,
-        "role_id": existing_user.role_id,
-        "department_id": existing_user.department_id,
-        "is_active": existing_user.is_active,
-        "is_totp_enabled": existing_user.is_totp_enabled,
-    });
-
+    let before_snapshot = build_before_snapshot(&existing_user);
     // 软删除：将 is_active 标记为 false
-    // P0 7-3 修复：JWT 吊销逻辑已下沉到 UserService::delete_user 内部，
-    //    作为单一真相源保证任何调用方都自动获得吊销保护。
+    // P0 7-3 修复：JWT 吊销逻辑已下沉到 UserService::delete_user 内部（单一真相源）
     user_service.delete_user(id).await?;
-
     // P1 8-7 修复：改用 AuditLogService::record_async 落库审计日志
-    // 修复背景：原 log_security_event 仅 tracing 输出不写 DB，可被篡改/丢失。
-    let event = AuditEvent {
+    let event = build_delete_audit_event(&auth, &existing_user, id, before_snapshot);
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
+    // v11 批次 156 P2-D：双写 log_security_event（结构化告警，与 AuditLogService 落库互补）
+    log_user_deleted_security_event(&auth, &existing_user, id).await;
+    Ok(Json(ApiResponse::success(DeleteUserResponse {
+        success: true,
+    })))
+}
+
+/// 检查删除用户权限（非自己账户需要 role_id + user:delete 权限）。
+async fn check_delete_user_permission(
+    db: &Arc<sea_orm::DatabaseConnection>,
+    auth_user_id: i32,
+    auth_role_id: Option<i32>,
+    target_id: i32,
+) -> Result<(), AppError> {
+    // 自己账户允许删除（自服务场景）
+    if auth_user_id == target_id {
+        return Ok(());
+    }
+    let role_permission_service = RolePermissionService::new(db.clone());
+    // 缺角色时直接拒绝（避免 role_id=0 误匹配"超级管理员"角色）
+    let role_id = auth_role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行删除操作"))?;
+    let has_permission = role_permission_service
+        .check_permission(role_id, "user", "delete", Some(target_id))
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    if !has_permission {
+        return Err(AppError::permission_denied("没有删除用户的权限"));
+    }
+    Ok(())
+}
+
+/// P1 2-4 修复：保护最后一个 admin 禁止删除（删除后系统将永久锁定）。
+async fn protect_last_admin(
+    db: &Arc<sea_orm::DatabaseConnection>,
+    user_role_id: i32,
+) -> Result<(), AppError> {
+    if !is_admin_role(db, user_role_id).await {
+        return Ok(());
+    }
+    use crate::models::user;
+    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+    let active_admin_count = user::Entity::find()
+        .filter(user::Column::RoleId.eq(user_role_id))
+        .filter(user::Column::IsActive.eq(true))
+        .count(db.as_ref())
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    if active_admin_count <= 1 {
+        return Err(AppError::bad_request(
+            "系统仅剩最后一个管理员，禁止删除（删除后系统将永久锁定）",
+        ));
+    }
+    Ok(())
+}
+
+/// P1 8-7 修复：删除前捕获用户完整信息作为 before_snapshot。
+fn build_before_snapshot(user: &user::Model) -> serde_json::Value {
+    serde_json::json!({
+        "user_id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "phone": user.phone,
+        "role_id": user.role_id,
+        "department_id": user.department_id,
+        "is_active": user.is_active,
+        "is_totp_enabled": user.is_totp_enabled,
+    })
+}
+
+/// 构建删除用户审计事件（P1 8-7 修复：落库审计日志，可追溯）。
+fn build_delete_audit_event(
+    auth: &AuthContext,
+    existing_user: &user::Model,
+    id: i32,
+    before_snapshot: serde_json::Value,
+) -> AuditEvent {
+    AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
         operation_type: OperationType::Delete,
@@ -475,12 +497,15 @@ pub async fn delete_user(
             "is_active": false,
             "action": "soft_delete",
         })),
-    };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, audit_ctx.map(|e| e.0));
+    }
+}
 
-    // v11 批次 156 P2-D：同时调用 log_security_event 接入 SecurityEvent::UserDeleted 变体
-    // 双写策略：AuditLogService 落库（可追溯）+ log_security_event tracing 日志（结构化告警）
+/// v11 批次 156 P2-D：双写 log_security_event（结构化告警，与 AuditLogService 落库互补）。
+async fn log_user_deleted_security_event(
+    auth: &AuthContext,
+    existing_user: &user::Model,
+    id: i32,
+) {
     audit::log_security_event(
         audit::SecurityEvent::UserDeleted,
         auth.user_id,
@@ -491,10 +516,6 @@ pub async fn delete_user(
         None,
     )
     .await;
-
-    Ok(Json(ApiResponse::success(DeleteUserResponse {
-        success: true,
-    })))
 }
 
 /// 修改密码请求

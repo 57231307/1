@@ -347,80 +347,26 @@ pub async fn ws_notifications_handler(
 
 /// 处理 WebSocket 连接
 async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
-    // 批次 24 v6 P0-2 修复：使用全局 NotificationBroadcaster 的 manager，
-    // 与 notification_service 的 broadcast_notification 共享同一份数据。
+    // 批次 24 v6 P0-2：使用全局 NotificationBroadcaster 的 manager（与 broadcast_notification 共享数据）
     let manager = get_notification_broadcaster().manager();
     let mut rx = manager.register(auth.user_id);
     let (mut sender, mut receiver) = socket.split();
+    let user_id = auth.user_id;
+    tracing::info!("WebSocket 连接建立：user_id={}", user_id);
 
-    tracing::info!("WebSocket 连接建立：user_id={}", auth.user_id);
-
-    // 接收客户端消息任务
-    // L-31 修复（批次 371 v13 复审）：声明为 mut，供 select! 借用，以便后续 abort
+    // L-31 修复（批次 371）：recv_task/send_task 声明 mut 供 select! &mut 借用以便后续 abort
     let mut recv_task = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
             // 批次 8（2026-06-28）：单次消息处理 panic 隔离
-            let result = AssertUnwindSafe(async {
-                match msg {
-                    Ok(Message::Text(text)) => {
-                        if let Ok(ws_msg) = serde_json::from_str::<WsMessage>(&text) {
-                            match ws_msg {
-                                WsMessage::Ping { timestamp } => {
-                                    tracing::debug!(
-                                        "收到 ping：user_id={}, timestamp={}",
-                                        auth.user_id, timestamp
-                                    );
-                                }
-                                WsMessage::MarkAsRead { id } => {
-                                    tracing::info!(
-                                        "客户端标记已读：user_id={}, id={}",
-                                        auth.user_id, id
-                                    );
-                                }
-                                _ => {
-                                    tracing::warn!("收到不支持的客户端消息类型");
-                                }
-                            }
-                        } else {
-                            tracing::warn!("客户端消息 JSON 解析失败: {}", text);
-                        }
-                    }
-                    Ok(Message::Close(_)) => {
-                        tracing::info!("客户端主动关闭：user_id={}", auth.user_id);
-                        return false; // break
-                    }
-                    Ok(Message::Ping(_)) => {}
-                    Ok(Message::Pong(_)) => {}
-                    Err(e) => {
-                        tracing::error!("WebSocket 接收错误: {}", e);
-                        return false; // break
-                    }
-                    _ => {}
-                }
-                true
-            })
-            .catch_unwind()
-            .await;
+            let result = AssertUnwindSafe(async { handle_recv_message(msg, user_id) }).catch_unwind().await;
             match result {
                 Ok(true) => {}
                 Ok(false) => break,
-                Err(panic_payload) => {
-                    let panic_msg = panic_payload
-                        .downcast_ref::<String>()
-                        .map(|s| s.as_str())
-                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                        .unwrap_or("<非字符串 panic payload>");
-                    tracing::error!(
-                        panic = %panic_msg,
-                        "⚠ WebSocket 接收 spawn panic 已被隔离，继续运行（不退出循环）"
-                    );
-                }
+                Err(p) => log_spawn_panic_isolation(p, "WebSocket 接收"),
             }
         }
     });
 
-    // 推送消息任务（接收 broadcast 并写入 socket）
-    // L-31 修复（批次 371 v13 复审）：声明为 mut，供 select! 借用，以便后续 abort
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             // 批次 8（2026-06-28）：单次消息推送 panic 隔离
@@ -430,50 +376,79 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
                     return false;
                 }
                 true
-            })
-            .catch_unwind()
-            .await;
+            }).catch_unwind().await;
             match result {
                 Ok(true) => {}
                 Ok(false) => break,
-                Err(panic_payload) => {
-                    let panic_msg = panic_payload
-                        .downcast_ref::<String>()
-                        .map(|s| s.as_str())
-                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                        .unwrap_or("<非字符串 panic payload>");
-                    tracing::error!(
-                        panic = %panic_msg,
-                        "⚠ WebSocket 发送 spawn panic 已被隔离，继续运行（不退出循环）"
-                    );
-                }
+                Err(p) => log_spawn_panic_isolation(p, "WebSocket 发送"),
             }
         }
     });
 
-    // 等待任一任务结束
-    // L-31 修复（批次 371 v13 复审）：select! 用 &mut 借用 JoinHandle 而非消费，
-    // 以便 select! 后显式 abort 未完成的 task，避免后台 detached task 泄漏。
-    // 原实现 select! 消费 JoinHandle 后，未完成的 task 仍在后台运行（detached），
-    // 浪费资源且可能继续尝试写入已关闭的 socket。
+    // L-31 修复：select! 用 &mut 借用 JoinHandle，显式 abort 未完成 task 避免 detached 泄漏
     tokio::select! {
-        _ = &mut recv_task => {
-            tracing::info!("接收任务结束");
-        }
-        _ = &mut send_task => {
-            tracing::info!("发送任务结束");
-        }
+        _ = &mut recv_task => { tracing::info!("接收任务结束"); }
+        _ = &mut send_task => { tracing::info!("发送任务结束"); }
     }
-
-    // L-31 修复：显式 abort 两个 task
-    // 已完成的 task 调用 abort() 是 no-op，无副作用
-    // 未完成的 task 会被终止，避免后台 detached task 泄漏
     recv_task.abort();
     send_task.abort();
+    manager.unregister(user_id);
+    tracing::info!("WebSocket 连接清理完成：user_id={}", user_id);
+}
 
-    // 清理
-    manager.unregister(auth.user_id);
-    tracing::info!("WebSocket 连接清理完成：user_id={}", auth.user_id);
+/// 处理单条客户端消息（返回 true=继续循环，false=break 关闭连接）。
+fn handle_recv_message(msg: Result<Message, axum::Error>, user_id: i64) -> bool {
+    match msg {
+        Ok(Message::Text(text)) => {
+            if let Ok(ws_msg) = serde_json::from_str::<WsMessage>(&text) {
+                match ws_msg {
+                    WsMessage::Ping { timestamp } => {
+                        tracing::debug!(
+                            "收到 ping：user_id={}, timestamp={}",
+                            user_id, timestamp
+                        );
+                    }
+                    WsMessage::MarkAsRead { id } => {
+                        tracing::info!(
+                            "客户端标记已读：user_id={}, id={}",
+                            user_id, id
+                        );
+                    }
+                    _ => {
+                        tracing::warn!("收到不支持的客户端消息类型");
+                    }
+                }
+            } else {
+                tracing::warn!("客户端消息 JSON 解析失败: {}", text);
+            }
+        }
+        Ok(Message::Close(_)) => {
+            tracing::info!("客户端主动关闭：user_id={}", user_id);
+            return false; // break
+        }
+        Ok(Message::Ping(_)) => {}
+        Ok(Message::Pong(_)) => {}
+        Err(e) => {
+            tracing::error!("WebSocket 接收错误: {}", e);
+            return false; // break
+        }
+        _ => {}
+    }
+    true
+}
+
+/// 记录 spawn panic 隔离日志（批次 8：recv/send 单次消息 panic 隔离共用）。
+fn log_spawn_panic_isolation(panic_payload: Box<dyn std::any::Any + Send>, context: &str) {
+    let panic_msg = panic_payload
+        .downcast_ref::<String>()
+        .map(|s| s.as_str())
+        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+        .unwrap_or("<非字符串 panic payload>");
+    tracing::error!(
+        panic = %panic_msg,
+        "⚠ {} spawn panic 已被隔离，继续运行（不退出循环）",
+        context
+    );
 }
 
 #[cfg(test)]

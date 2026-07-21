@@ -63,6 +63,31 @@ pub async fn send_email(
     Json(req): Json<SendEmailRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // M-1 修复：仅 admin 角色可调用 send_email
+    check_send_email_permission(&state, &auth).await?;
+    // M-1 修复：每用户每小时发送配额检查
+    check_email_rate_limit(&state, auth.user_id).await?;
+
+    let email_service = state
+        .email_service
+        .as_ref()
+        .ok_or_else(|| AppError::business("邮件服务未配置"))?;
+
+    // v11 批次 151 P2-A：接入 template_params 模板参数渲染
+    let mut req = req;
+    apply_template_rendering(&state, &mut req).await?;
+
+    let log_service = EmailLogService::new(state.db.clone());
+    let log_id = create_email_log(&log_service, &auth, &req).await?;
+    let message = build_email_message(req);
+
+    send_email_and_update_status(email_service, &log_service, message, log_id, &auth.username).await
+}
+
+/// 校验仅 admin 角色可调用 send_email（M-1 修复）。
+async fn check_send_email_permission(
+    state: &AppState,
+    auth: &AuthContext,
+) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
@@ -71,14 +96,17 @@ pub async fn send_email(
             "邮件发送仅限管理员（code=admin）执行",
         ));
     }
+    Ok(())
+}
 
-    // M-1 修复：每用户每小时发送配额检查
+/// 每用户每小时发送配额检查（M-1 修复：避免邮件炸弹/DoS 滥用组织 SMTP 配额）。
+async fn check_email_rate_limit(state: &AppState, user_id: i32) -> Result<(), AppError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| AppError::internal(e.to_string()))?
         .as_secs();
     let hour_bucket = now / 3600;
-    let key = (auth.user_id, hour_bucket);
+    let key = (user_id, hour_bucket);
     let counter = state
         .email_send_counters
         .entry(key)
@@ -93,26 +121,23 @@ pub async fn send_email(
             EMAIL_PER_USER_PER_HOUR
         )));
     }
+    Ok(())
+}
 
-    let email_service = state
-        .email_service
-        .as_ref()
-        .ok_or_else(|| AppError::business("邮件服务未配置"))?;
-
-    // v11 批次 151 P2-A：接入 template_params 模板参数渲染
-    // 当 template_id 存在时，加载模板并用 template_params 替换占位符 {{key}}
-    let mut req = req;
+/// 渲染模板（v11 批次 151 P2-A：template_id + template_params 替换 {{key}} 占位符）。
+async fn apply_template_rendering(
+    state: &AppState,
+    req: &mut SendEmailRequest,
+) -> Result<(), AppError> {
     if let Some(template_id) = req.template_id {
         let template_service = EmailTemplateService::new(state.db.clone());
         let template = template_service
             .get_by_id(template_id)
             .await?
             .ok_or_else(|| AppError::not_found("邮件模板不存在"))?;
-
         if !template.is_active {
             return Err(AppError::business("邮件模板已停用，无法使用"));
         }
-
         // template_params 必须配合 template_id 使用，且必须为 JSON 对象
         if let Some(params) = req.template_params.clone() {
             if !params.is_object() {
@@ -120,7 +145,6 @@ pub async fn send_email(
                     "template_params 必须为 JSON 对象（如 {\"name\": \"张三\"}）",
                 ));
             }
-            // 用 params 渲染 subject_template 和 body_template
             req.subject = render_template(&template.subject_template, &params);
             req.html_content = Some(render_template(&template.body_template, &params));
         } else {
@@ -133,48 +157,60 @@ pub async fn send_email(
             "template_params 必须配合 template_id 使用",
         ));
     }
+    Ok(())
+}
 
-    let log_service = EmailLogService::new(state.db.clone());
-
-    // 创建邮件发送记录
+/// 创建邮件发送记录（PENDING 状态）。
+async fn create_email_log(
+    log_service: &EmailLogService,
+    auth: &AuthContext,
+    req: &SendEmailRequest,
+) -> Result<i32, AppError> {
     let log = log_service
-        .create(
-            CreateEmailLogRequest {
-                user_id: Some(auth.user_id),
-                recipients: req.to.clone(),
-                cc: req.cc.clone(),
-                bcc: req.bcc.clone(),
-                subject: req.subject.clone(),
-                body: req.html_content.clone().or(req.text_content.clone()),
-                template_id: req.template_id,
-            },
-        )
+        .create(CreateEmailLogRequest {
+            user_id: Some(auth.user_id),
+            recipients: req.to.clone(),
+            cc: req.cc.clone(),
+            bcc: req.bcc.clone(),
+            subject: req.subject.clone(),
+            body: req.html_content.clone().or(req.text_content.clone()),
+            template_id: req.template_id,
+        })
         .await?;
+    Ok(log.id)
+}
 
-    // 构建邮件消息
-    let message = crate::services::email_service::EmailMessage {
-        to: req.to.clone(),
+/// 构建邮件消息（消费 req 的 cc/bcc/html_content/text_content 字段）。
+fn build_email_message(req: SendEmailRequest) -> crate::services::email_service::EmailMessage {
+    crate::services::email_service::EmailMessage {
+        to: req.to,
         cc: req.cc,
         bcc: req.bcc,
-        subject: req.subject.clone(),
+        subject: req.subject,
         html_content: req.html_content,
         text_content: req.text_content,
         attachments: None,
-    };
+    }
+}
 
-    // 发送邮件
+/// 发送邮件并更新日志状态（成功→SENT，失败→FAILED 并累加重试计数）。
+async fn send_email_and_update_status(
+    email_service: &Arc<crate::services::email_service::EmailService>,
+    log_service: &EmailLogService,
+    message: crate::services::email_service::EmailMessage,
+    log_id: i32,
+    username: &str,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let recipients = message.to.clone();
     match email_service.send_email(message).await {
         Ok(_) => {
-            // 更新发送状态为成功
             log_service
-                .update_status(log.id, "SENT", None, Some(uuid::Uuid::new_v4().to_string()))
+                .update_status(log_id, "SENT", None, Some(uuid::Uuid::new_v4().to_string()))
                 .await?;
-
-            tracing::info!("用户 {} 发送邮件成功，收件人: {:?}", auth.username, req.to);
-
+            tracing::info!("用户 {} 发送邮件成功，收件人: {:?}", username, recipients);
             Ok(Json(ApiResponse::success_with_message(
                 serde_json::json!({
-                    "message_id": log.id,
+                    "message_id": log_id,
                     "status": "SENT",
                     "sent_at": chrono::Utc::now().to_rfc3339(),
                 }),
@@ -182,19 +218,17 @@ pub async fn send_email(
             )))
         }
         Err(e) => {
-            // 更新发送状态为失败
             log_service
-                .update_status(log.id, "FAILED", Some(e.to_string()), None)
+                .update_status(log_id, "FAILED", Some(e.to_string()), None)
                 .await?;
             // v11 批次 154c P2-A：发送失败时累加重试计数，供重试调度任务识别待重试邮件
-            if let Err(retry_err) = log_service.increment_retry(log.id).await {
+            if let Err(retry_err) = log_service.increment_retry(log_id).await {
                 tracing::warn!(
                     error = %retry_err,
-                    email_log_id = log.id,
+                    email_log_id = log_id,
                     "累加邮件重试计数失败（不影响本次失败响应）"
                 );
             }
-
             Err(e)
         }
     }

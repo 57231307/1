@@ -297,102 +297,21 @@ impl SupplierService {
         // V15 P0-S01：内部调用传 None（权限校验已由 update_supplier 的 handler 入口完成）
         let supplier = self.get_supplier(id, None).await?;
         let mut supplier_active: supplier::ActiveModel = supplier.into();
-
-        // 更新字段
-        if let Some(name) = req.supplier_name {
-            supplier_active.supplier_name = Set(name);
-        }
-        if let Some(short_name) = req.supplier_short_name {
-            supplier_active.supplier_short_name = Set(short_name);
-        }
-        if let Some(supplier_type) = req.supplier_type {
-            supplier_active.supplier_type = Set(supplier_type);
-        }
-        if let Some(credit_code) = req.credit_code {
-            supplier_active.credit_code = Set(credit_code);
-        }
-        if let Some(registered_address) = req.registered_address {
-            supplier_active.registered_address = Set(registered_address);
-        }
-        if let Some(business_address) = req.business_address {
-            supplier_active.business_address = Set(Some(business_address));
-        }
-        if let Some(legal_representative) = req.legal_representative {
-            supplier_active.legal_representative = Set(legal_representative);
-        }
-        if let Some(registered_capital) = req.registered_capital {
-            supplier_active.registered_capital = Set(registered_capital);
-        }
-        if let Some(establishment_date) = req.establishment_date {
-            supplier_active.establishment_date = Set(establishment_date);
-        }
-        if let Some(business_term) = req.business_term {
-            supplier_active.business_term = Set(Some(business_term));
-        }
-        if let Some(business_scope) = req.business_scope {
-            supplier_active.business_scope = Set(Some(business_scope));
-        }
-        if let Some(taxpayer_type) = req.taxpayer_type {
-            supplier_active.taxpayer_type = Set(taxpayer_type);
-        }
-        if let Some(bank_name) = req.bank_name {
-            supplier_active.bank_name = Set(bank_name);
-        }
-        if let Some(bank_account) = req.bank_account {
-            supplier_active.bank_account = Set(bank_account);
-        }
-        if let Some(contact_phone) = req.contact_phone {
-            supplier_active.contact_phone = Set(contact_phone);
-        }
-        if let Some(fax) = req.fax {
-            supplier_active.fax = Set(Some(fax));
-        }
-        if let Some(website) = req.website {
-            supplier_active.website = Set(Some(website));
-        }
-        if let Some(email) = req.email {
-            supplier_active.email = Set(Some(email));
-        }
-        if let Some(main_business) = req.main_business {
-            supplier_active.main_business = Set(Some(main_business));
-        }
-        if let Some(main_market) = req.main_market {
-            supplier_active.main_market = Set(Some(main_market));
-        }
-        if let Some(employee_count) = req.employee_count {
-            supplier_active.employee_count = Set(Some(employee_count));
-        }
-        if let Some(annual_revenue) = req.annual_revenue {
-            supplier_active.annual_revenue = Set(Some(annual_revenue));
-        }
-        if let Some(grade) = req.grade {
-            supplier_active.grade = Set(Some(grade));
-        }
-        if let Some(grade_score) = req.grade_score {
-            supplier_active.grade_score = Set(Some(grade_score));
-        }
-        if let Some(status) = req.status {
-            supplier_active.status = Set(Some(status));
-        }
-        if let Some(is_enabled) = req.is_enabled {
-            supplier_active.is_enabled = Set(Some(is_enabled));
-        }
-        if let Some(remarks) = req.remarks {
-            supplier_active.remarks = Set(Some(remarks));
-        }
-
+        let mut req = req;
+        // 更新字段（分组应用，每组 ≤50 行；使用 .take() 从 &mut req 移出字段值）
+        Self::apply_supplier_basic_fields(&mut supplier_active, &mut req);
+        Self::apply_supplier_contact_fields(&mut supplier_active, &mut req);
+        Self::apply_supplier_business_fields(&mut supplier_active, &mut req);
         supplier_active.updated_by = Set(Some(user_id));
         supplier_active.updated_at = Set(Utc::now().into());
-
+        // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
             supplier_active,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
             Some(user_id),
         )
         .await?;
-
         // B-P1-3 修复（批次 384 v13 复审）：供应商主数据变更后发布事件，触发关联单据冗余字段刷新
         crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::SupplierUpdated {
@@ -401,11 +320,111 @@ impl SupplierService {
                 user_id,
             },
         );
-
         // P0-D03：失效供应商缓存（供应商信息已更新）
         redis_cache_del(&cache_key("supplier", id)).await;
-
         Ok(updated)
+    }
+
+    /// 应用供应商基本字段更新（名称/类型/地址/法人/资本/成立日期，共 9 字段）。
+    fn apply_supplier_basic_fields(
+        active: &mut supplier::ActiveModel,
+        req: &mut UpdateSupplierRequest,
+    ) {
+        if let Some(v) = req.supplier_name.take() {
+            active.supplier_name = Set(v);
+        }
+        if let Some(v) = req.supplier_short_name.take() {
+            active.supplier_short_name = Set(v);
+        }
+        if let Some(v) = req.supplier_type.take() {
+            active.supplier_type = Set(v);
+        }
+        if let Some(v) = req.credit_code.take() {
+            active.credit_code = Set(v);
+        }
+        if let Some(v) = req.registered_address.take() {
+            active.registered_address = Set(v);
+        }
+        if let Some(v) = req.business_address.take() {
+            active.business_address = Set(Some(v));
+        }
+        if let Some(v) = req.legal_representative.take() {
+            active.legal_representative = Set(v);
+        }
+        if let Some(v) = req.registered_capital.take() {
+            active.registered_capital = Set(v);
+        }
+        if let Some(v) = req.establishment_date.take() {
+            active.establishment_date = Set(v);
+        }
+    }
+
+    /// 应用供应商联系与银行字段更新（经营范围/纳税/银行/电话/传真/网址/邮箱，共 9 字段）。
+    fn apply_supplier_contact_fields(
+        active: &mut supplier::ActiveModel,
+        req: &mut UpdateSupplierRequest,
+    ) {
+        if let Some(v) = req.business_term.take() {
+            active.business_term = Set(Some(v));
+        }
+        if let Some(v) = req.business_scope.take() {
+            active.business_scope = Set(Some(v));
+        }
+        if let Some(v) = req.taxpayer_type.take() {
+            active.taxpayer_type = Set(v);
+        }
+        if let Some(v) = req.bank_name.take() {
+            active.bank_name = Set(v);
+        }
+        if let Some(v) = req.bank_account.take() {
+            active.bank_account = Set(v);
+        }
+        if let Some(v) = req.contact_phone.take() {
+            active.contact_phone = Set(v);
+        }
+        if let Some(v) = req.fax.take() {
+            active.fax = Set(Some(v));
+        }
+        if let Some(v) = req.website.take() {
+            active.website = Set(Some(v));
+        }
+        if let Some(v) = req.email.take() {
+            active.email = Set(Some(v));
+        }
+    }
+
+    /// 应用供应商业务与评级字段更新（主营/市场/员工/营收/等级/状态/备注，共 9 字段）。
+    fn apply_supplier_business_fields(
+        active: &mut supplier::ActiveModel,
+        req: &mut UpdateSupplierRequest,
+    ) {
+        if let Some(v) = req.main_business.take() {
+            active.main_business = Set(Some(v));
+        }
+        if let Some(v) = req.main_market.take() {
+            active.main_market = Set(Some(v));
+        }
+        if let Some(v) = req.employee_count.take() {
+            active.employee_count = Set(Some(v));
+        }
+        if let Some(v) = req.annual_revenue.take() {
+            active.annual_revenue = Set(Some(v));
+        }
+        if let Some(v) = req.grade.take() {
+            active.grade = Set(Some(v));
+        }
+        if let Some(v) = req.grade_score.take() {
+            active.grade_score = Set(Some(v));
+        }
+        if let Some(v) = req.status.take() {
+            active.status = Set(Some(v));
+        }
+        if let Some(v) = req.is_enabled.take() {
+            active.is_enabled = Set(Some(v));
+        }
+        if let Some(v) = req.remarks.take() {
+            active.remarks = Set(Some(v));
+        }
     }
 
     /// 删除供应商
