@@ -161,7 +161,7 @@ impl PurchaseContractService {
             .await?;
         }
         let execution_amount = req.execution_amount;
-        let execution = build_execution_active_model(contract_id, req, user_id);
+        let execution = Self::build_execution_active_model(contract_id, req, user_id);
         execution.insert(&txn).await?;
         // 更新合同时间戳
         let mut contract_active: purchase_contract::ActiveModel = contract.into();

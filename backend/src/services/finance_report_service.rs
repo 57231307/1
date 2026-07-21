@@ -173,7 +173,7 @@ impl FinanceReportService {
         let (ap_total, advance_total) = self
             .fetch_all_liability_balances(report_date)
             .await?;
-        Ok(build_balance_sheet_response(
+        Ok(Self::build_balance_sheet_response(
             cash_total,
             ar_total,
             inventory_total,

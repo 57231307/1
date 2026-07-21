@@ -167,7 +167,7 @@ impl ColorCardIssueService {
             .await?;
         self.check_customer_credit_and_status(customer_id).await?;
         self.check_customer_overdue(customer_id).await?;
-        self.validate_expected_return_date(expected_return_date)?;
+        Self::validate_expected_return_date(expected_return_date)?;
         Ok(())
     }
 
