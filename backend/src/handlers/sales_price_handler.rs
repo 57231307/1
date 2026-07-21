@@ -187,6 +187,106 @@ pub async fn delete_price(
 
 /// GET /api/v1/erp/sales-prices/export - 导出销售价格列表（带水印 + 异步审计日志）
 ///
+/// 销售价格导出表头（14 列）
+fn price_export_headers() -> Vec<String> {
+    vec![
+        "ID".to_string(),
+        "产品ID".to_string(),
+        "客户ID".to_string(),
+        "客户类型".to_string(),
+        "价格".to_string(),
+        "币种".to_string(),
+        "单位".to_string(),
+        "最小订购量".to_string(),
+        "价格类型".to_string(),
+        "价格等级".to_string(),
+        "生效日期".to_string(),
+        "到期日期".to_string(),
+        "状态".to_string(),
+        "创建时间".to_string(),
+    ]
+}
+
+/// 从销售价格 JSON 对象构建 xlsx 行
+fn build_price_row(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<String> {
+    let get_str = |key: &str| -> String {
+        obj.get(key)
+            .map(|v| {
+                if v.is_null() {
+                    String::new()
+                } else if v.is_string() {
+                    v.as_str().unwrap_or("").to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or_default()
+    };
+    vec![
+        get_str("id"),
+        get_str("product_id"),
+        get_str("customer_id"),
+        get_str("customer_type"),
+        get_str("price"),
+        get_str("currency"),
+        get_str("unit"),
+        get_str("min_order_qty"),
+        get_str("price_type"),
+        get_str("price_level"),
+        get_str("effective_date"),
+        get_str("expiry_date"),
+        get_str("status"),
+        get_str("created_at"),
+    ]
+}
+
+/// 构造销售价格列表 xlsx 表格
+fn build_prices_table(prices_json: Vec<serde_json::Value>) -> Result<XlsxTable, AppError> {
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(prices_json.len());
+    for p in prices_json {
+        let obj = p.as_object().ok_or_else(|| {
+            AppError::internal("销售价格序列化失败：期望 JSON 对象")
+        })?;
+        rows.push(build_price_row(obj));
+    }
+    Ok(XlsxTable {
+        sheet_name: "销售价格列表".to_string(),
+        headers: price_export_headers(),
+        rows,
+    })
+}
+
+/// 异步记录销售价格导出操作（审计自身）
+fn record_prices_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    filename: &str,
+) {
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("sales_price".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出销售价格列表（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/sales-prices/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+}
+
 /// V15 P0-S12 修复（Batch 475d）：导出接入后端
 /// - 注入水印（operator/exported_at/extra 含条数）
 /// - 异步审计日志（OperationType::Export）
@@ -217,93 +317,12 @@ pub async fn export_prices(
         .map(|p| serde_json::to_value(p).map_err(AppError::from))
         .collect::<Result<Vec<_>, _>>()?;
 
-    // 构造 xlsx 表格数据（14 列）
-    let headers: Vec<String> = vec![
-        "ID".to_string(),
-        "产品ID".to_string(),
-        "客户ID".to_string(),
-        "客户类型".to_string(),
-        "价格".to_string(),
-        "币种".to_string(),
-        "单位".to_string(),
-        "最小订购量".to_string(),
-        "价格类型".to_string(),
-        "价格等级".to_string(),
-        "生效日期".to_string(),
-        "到期日期".to_string(),
-        "状态".to_string(),
-        "创建时间".to_string(),
-    ];
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(prices_json.len());
-    for p in prices_json {
-        let obj = p.as_object().ok_or_else(|| {
-            AppError::internal("销售价格序列化失败：期望 JSON 对象")
-        })?;
-        let get_str = |key: &str| -> String {
-            obj.get(key)
-                .map(|v| {
-                    if v.is_null() {
-                        String::new()
-                    } else if v.is_string() {
-                        v.as_str().unwrap_or("").to_string()
-                    } else {
-                        v.to_string()
-                    }
-                })
-                .unwrap_or_default()
-        };
-        rows.push(vec![
-            get_str("id"),
-            get_str("product_id"),
-            get_str("customer_id"),
-            get_str("customer_type"),
-            get_str("price"),
-            get_str("currency"),
-            get_str("unit"),
-            get_str("min_order_qty"),
-            get_str("price_type"),
-            get_str("price_level"),
-            get_str("effective_date"),
-            get_str("expiry_date"),
-            get_str("status"),
-            get_str("created_at"),
-        ]);
-    }
-
-    let table = XlsxTable {
-        sheet_name: "销售价格列表".to_string(),
-        headers,
-        rows,
-    };
-
+    let table = build_prices_table(prices_json)?;
     let filename = format!(
         "sales_prices_export_{}",
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
-
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
-    let event = AuditEvent {
-        user_id: Some(auth.user_id),
-        username: Some(auth.username.clone()),
-        operation_type: OperationType::Export,
-        severity: Severity::Info,
-        resource_type: Some("sales_price".to_string()),
-        resource_id: None,
-        resource_name: Some(format!("{}.xlsx", filename)),
-        description: Some(format!(
-            "用户 {} 导出销售价格列表（共 {} 条）",
-            auth.username, row_count
-        )),
-        request_method: Some("GET".to_string()),
-        request_path: Some("/api/v1/erp/sales-prices/export".to_string()),
-        before_snapshot: None,
-        after_snapshot: Some(serde_json::json!({
-            "format": "xlsx",
-            "total": row_count,
-        })),
-    };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, None);
+    record_prices_export_audit(&state, &auth, row_count, &filename);
 
     // V15 P0-S15 修复（Batch 475d）：注入水印（操作员/导出时间/导出条数）
     let watermark = WatermarkConfig {

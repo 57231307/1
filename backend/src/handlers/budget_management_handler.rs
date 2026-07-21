@@ -673,35 +673,9 @@ pub async fn reject_plan(
     Ok(Json(ApiResponse::success("预算方案已驳回".to_string())))
 }
 
-/// GET /api/v1/erp/budgets/export - 导出预算科目列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475e）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_items_list 取全量数据
-pub async fn export_budget_items(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Query(query): Query<BudgetItemQuery>,
-) -> Result<axum::response::Response, AppError> {
-    let service = BudgetManagementService::new(state.db.clone());
-
-    let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
-        item_type: query.item_type,
-        status: query.status,
-        page: 1,
-        page_size: 10000,
-    };
-
-    let (items, _total) = service.get_items_list(query_params).await?;
-    let row_count = items.len();
-
-    let items_json: Vec<serde_json::Value> = items
-        .into_iter()
-        .map(|i| serde_json::to_value(i).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let headers: Vec<String> = vec![
+/// 预算科目导出表头（11 列）
+fn budget_items_export_headers() -> Vec<String> {
+    vec![
         "ID".to_string(),
         "预算编码".to_string(),
         "预算名称".to_string(),
@@ -713,51 +687,56 @@ pub async fn export_budget_items(
         "状态".to_string(),
         "备注".to_string(),
         "创建时间".to_string(),
-    ];
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(items_json.len());
-    for i in items_json {
-        let obj = i.as_object().ok_or_else(|| {
-            AppError::internal("预算科目序列化失败：期望 JSON 对象")
-        })?;
-        let get_str = |key: &str| -> String {
-            obj.get(key)
-                .map(|v| {
-                    if v.is_null() {
-                        String::new()
-                    } else if v.is_string() {
-                        v.as_str().unwrap_or("").to_string()
-                    } else {
-                        v.to_string()
-                    }
-                })
-                .unwrap_or_default()
-        };
-        rows.push(vec![
-            get_str("id"),
-            get_str("item_code"),
-            get_str("item_name"),
-            get_str("item_type"),
-            get_str("budget_year"),
-            get_str("planned_amount"),
-            get_str("used_amount"),
-            get_str("available_amount"),
-            get_str("status"),
-            get_str("remark"),
-            get_str("created_at"),
-        ]);
-    }
+    ]
+}
 
-    let table = XlsxTable {
-        sheet_name: "预算科目".to_string(),
-        headers,
-        rows,
+/// 从 serde_json::Value 提取预算科目行数据
+fn build_budget_item_row(i: &serde_json::Value) -> Vec<String> {
+    let get_str = |key: &str| -> String {
+        i.get(key)
+            .map(|v| {
+                if v.is_null() {
+                    String::new()
+                } else if v.is_string() {
+                    v.as_str().unwrap_or("").to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or_default()
     };
+    vec![
+        get_str("id"),
+        get_str("item_code"),
+        get_str("item_name"),
+        get_str("item_type"),
+        get_str("budget_year"),
+        get_str("planned_amount"),
+        get_str("used_amount"),
+        get_str("available_amount"),
+        get_str("status"),
+        get_str("remark"),
+        get_str("created_at"),
+    ]
+}
 
-    let filename = format!(
-        "budget_items_export_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
-    );
+/// 构造预算科目列表 xlsx 表格
+fn build_budget_items_table(items_json: &[serde_json::Value]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "预算科目".to_string(),
+        headers: budget_items_export_headers(),
+        rows: items_json.iter().map(build_budget_item_row).collect(),
+    }
+}
 
+/// 异步记录预算科目导出操作（审计自身，best-effort 不阻塞响应）
+fn record_budget_items_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    filename: &str,
+) {
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -778,15 +757,44 @@ pub async fn export_budget_items(
             "total": row_count,
         })),
     };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
+}
 
+/// GET /api/v1/erp/budgets/export - 导出预算科目列表（带水印 + 异步审计日志）
+///
+/// V15 P0-S12 修复（Batch 475e）：导出接入后端
+/// - 注入水印（operator/exported_at/extra 含条数）
+/// - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_items_list 取全量数据
+pub async fn export_budget_items(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<BudgetItemQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = BudgetManagementService::new(state.db.clone());
+    let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
+        item_type: query.item_type,
+        status: query.status,
+        page: 1,
+        page_size: 10000,
+    };
+    let (items, _total) = service.get_items_list(query_params).await?;
+    let row_count = items.len();
+    let items_json: Vec<serde_json::Value> = items
+        .into_iter()
+        .map(|i| serde_json::to_value(i).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+    let table = build_budget_items_table(&items_json);
+    let filename = format!(
+        "budget_items_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+    record_budget_items_export_audit(&state, &auth, row_count, &filename);
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
         extra: Some(format!("预算科目导出（共 {} 条）", row_count)),
     };
-
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

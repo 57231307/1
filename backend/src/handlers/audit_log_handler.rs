@@ -246,6 +246,106 @@ pub async fn get_audit_log(
     Ok(Json(ApiResponse::success(response)))
 }
 
+/// 构建审计日志查询过滤条件（start_time/end_time/user_id/operation_type/severity/
+/// resource_type/request_id）
+fn build_audit_log_condition(query: &AuditLogListQuery) -> sea_orm::Condition {
+    let mut cond = sea_orm::Condition::all();
+    if let Some(start) = &query.start_time {
+        if let Ok(ts) = start.parse::<DateTime<Utc>>() {
+            cond = cond.add(audit_log::Column::CreatedAt.gte(ts.naive_utc()));
+        }
+    }
+    if let Some(end) = &query.end_time {
+        if let Ok(ts) = end.parse::<DateTime<Utc>>() {
+            cond = cond.add(audit_log::Column::CreatedAt.lte(ts.naive_utc()));
+        }
+    }
+    if let Some(uid) = query.user_id {
+        cond = cond.add(audit_log::Column::UserId.eq(uid));
+    }
+    if let Some(op) = &query.operation_type {
+        cond = cond.add(audit_log::Column::OperationType.eq(op.clone()));
+    }
+    if let Some(sev) = &query.severity {
+        cond = cond.add(audit_log::Column::Severity.eq(sev.clone()));
+    }
+    if let Some(rt) = &query.resource_type {
+        cond = cond.add(audit_log::Column::ResourceType.eq(rt.clone()));
+    }
+    if let Some(rid) = &query.request_id {
+        cond = cond.add(audit_log::Column::RequestId.eq(rid.clone()));
+    }
+    cond
+}
+
+/// 审计日志导出表头（11 列）
+fn audit_log_export_headers() -> Vec<String> {
+    vec![
+        "ID".to_string(),
+        "创建时间".to_string(),
+        "用户ID".to_string(),
+        "用户名".to_string(),
+        "操作类型".to_string(),
+        "严重级别".to_string(),
+        "资源类型".to_string(),
+        "资源ID".to_string(),
+        "描述".to_string(),
+        "IP地址".to_string(),
+        "请求ID".to_string(),
+    ]
+}
+
+/// 从单条审计日志 model 构建 xlsx 行
+fn build_audit_log_row(log: audit_log::Model) -> Vec<String> {
+    vec![
+        log.id.to_string(),
+        log.created_at
+            .map(|t| t.to_rfc3339())
+            .unwrap_or_default(),
+        log.user_id.map(|i| i.to_string()).unwrap_or_default(),
+        log.username.unwrap_or_default(),
+        log.operation_type.unwrap_or_default(),
+        log.severity.unwrap_or_default(),
+        log.resource_type.unwrap_or_default(),
+        log.resource_id.unwrap_or_default(),
+        log.description.unwrap_or_default(),
+        log.ip_address.unwrap_or_default(),
+        log.request_id.unwrap_or_default(),
+    ]
+}
+
+/// 构造审计日志 xlsx 表格
+fn build_audit_logs_table(logs: Vec<audit_log::Model>) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "审计日志".to_string(),
+        headers: audit_log_export_headers(),
+        rows: logs.into_iter().map(build_audit_log_row).collect(),
+    }
+}
+
+/// 异步记录审计日志导出操作（审计自身）
+fn record_audit_logs_export_audit(state: &AppState, auth: &AuthContext, logs_count: usize) {
+    use crate::models::audit_log::{OperationType, Severity};
+    use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+    use std::sync::Arc;
+    let svc = AuditLogService::new(state.db.clone());
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("audit_log".to_string()),
+        resource_id: None,
+        resource_name: Some("审计日志导出".to_string()),
+        description: Some(format!("导出 {} 条审计日志", logs_count)),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/audit-logs/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    };
+    Arc::new(svc).record_async(event, None);
+}
+
 /// GET /api/v1/erp/audit-logs/export
 ///
 /// 返回 xlsx 格式（Excel），前端直接 `window.URL.createObjectURL(blob)` 下载。
@@ -257,34 +357,9 @@ pub async fn export_audit_logs(
     // P0 8-5 修复：审计日志导出仅限 admin
     require_admin_role(&state, &auth).await?;
 
-    let mut q = audit_log::Entity::find();
-    if let Some(start) = &query.start_time {
-        if let Ok(ts) = start.parse::<DateTime<Utc>>() {
-            q = q.filter(audit_log::Column::CreatedAt.gte(ts.naive_utc()));
-        }
-    }
-    if let Some(end) = &query.end_time {
-        if let Ok(ts) = end.parse::<DateTime<Utc>>() {
-            q = q.filter(audit_log::Column::CreatedAt.lte(ts.naive_utc()));
-        }
-    }
-    if let Some(uid) = query.user_id {
-        q = q.filter(audit_log::Column::UserId.eq(uid));
-    }
-    if let Some(op) = &query.operation_type {
-        q = q.filter(audit_log::Column::OperationType.eq(op.clone()));
-    }
-    if let Some(sev) = &query.severity {
-        q = q.filter(audit_log::Column::Severity.eq(sev.clone()));
-    }
-    if let Some(rt) = &query.resource_type {
-        q = q.filter(audit_log::Column::ResourceType.eq(rt.clone()));
-    }
-    if let Some(rid) = &query.request_id {
-        q = q.filter(audit_log::Column::RequestId.eq(rid.clone()));
-    }
-
-    let logs = q
+    let cond = build_audit_log_condition(&query);
+    let logs = audit_log::Entity::find()
+        .filter(cond)
         .order_by_desc(audit_log::Column::CreatedAt)
         .all(state.db.as_ref())
         .await
@@ -292,71 +367,9 @@ pub async fn export_audit_logs(
 
     // V15 P0-S15 修复（Batch 475a）：保存 logs 数量用于水印（logs 后续被 into_iter 消费）
     let logs_count = logs.len();
+    record_audit_logs_export_audit(&state, &auth, logs_count);
 
-    // 异步记录导出操作（审计自身）
-    {
-        use crate::models::audit_log::{OperationType, Severity};
-        use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-        use std::sync::Arc;
-        let svc = AuditLogService::new(state.db.clone());
-        let event = AuditEvent {
-            user_id: Some(auth.user_id),
-            username: Some(auth.username.clone()),
-            operation_type: OperationType::Export,
-            severity: Severity::Info,
-            resource_type: Some("audit_log".to_string()),
-            resource_id: None,
-            resource_name: Some("审计日志导出".to_string()),
-            description: Some(format!("导出 {} 条审计日志", logs.len())),
-            request_method: Some("GET".to_string()),
-            request_path: Some("/api/v1/erp/audit-logs/export".to_string()),
-            before_snapshot: None,
-            after_snapshot: None,
-        };
-        Arc::new(svc).record_async(event, None);
-    }
-
-    // 构造 xlsx 表格（按列顺序：id/created_at/user_id/username/operation_type/severity/
-    // resource_type/resource_id/description/ip_address/request_id）
-    let table = XlsxTable {
-        sheet_name: "审计日志".to_string(),
-        headers: vec![
-            "ID".to_string(),
-            "创建时间".to_string(),
-            "用户ID".to_string(),
-            "用户名".to_string(),
-            "操作类型".to_string(),
-            "严重级别".to_string(),
-            "资源类型".to_string(),
-            "资源ID".to_string(),
-            "描述".to_string(),
-            "IP地址".to_string(),
-            "请求ID".to_string(),
-        ],
-        rows: logs
-            .into_iter()
-            .map(|log| {
-                vec![
-                    log.id.to_string(),
-                    log.created_at
-                        .map(|t| t.to_rfc3339())
-                        .unwrap_or_default(),
-                    log.user_id
-                        .map(|i| i.to_string())
-                        .unwrap_or_default(),
-                    log.username.unwrap_or_default(),
-                    log.operation_type.unwrap_or_default(),
-                    log.severity.unwrap_or_default(),
-                    log.resource_type.unwrap_or_default(),
-                    log.resource_id.unwrap_or_default(),
-                    log.description.unwrap_or_default(),
-                    log.ip_address.unwrap_or_default(),
-                    log.request_id.unwrap_or_default(),
-                ]
-            })
-            .collect(),
-    };
-
+    let table = build_audit_logs_table(logs);
     let filename = format!(
         "audit_logs_{}",
         chrono::Utc::now().format("%Y%m%d%H%M%S")

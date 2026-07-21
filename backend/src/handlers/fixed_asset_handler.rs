@@ -331,36 +331,9 @@ pub struct BatchDepreciateRequest {
     pub calculation_date: String,
 }
 
-/// GET /api/v1/erp/fixed-assets/export - 导出固定资产列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475e）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_list 取全量数据
-pub async fn export_assets(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Query(query): Query<AssetQuery>,
-) -> Result<axum::response::Response, AppError> {
-    let service = FixedAssetService::new(state.db.clone());
-
-    let query_params = crate::services::fixed_asset_service::AssetQueryParams {
-        keyword: query.keyword,
-        status: query.status,
-        asset_category: query.asset_category,
-        page: 1,
-        page_size: 10000,
-    };
-
-    let (assets, _total) = service.get_list(query_params).await?;
-    let row_count = assets.len();
-
-    let assets_json: Vec<serde_json::Value> = assets
-        .into_iter()
-        .map(|i| serde_json::to_value(i).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let headers: Vec<String> = vec![
+/// 固定资产导出表头（14 列）
+fn assets_export_headers() -> Vec<String> {
+    vec![
         "ID".to_string(),
         "资产编号".to_string(),
         "资产名称".to_string(),
@@ -375,54 +348,59 @@ pub async fn export_assets(
         "状态".to_string(),
         "备注".to_string(),
         "创建时间".to_string(),
-    ];
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(assets_json.len());
-    for i in assets_json {
-        let obj = i.as_object().ok_or_else(|| {
-            AppError::internal("固定资产序列化失败：期望 JSON 对象")
-        })?;
-        let get_str = |key: &str| -> String {
-            obj.get(key)
-                .map(|v| {
-                    if v.is_null() {
-                        String::new()
-                    } else if v.is_string() {
-                        v.as_str().unwrap_or("").to_string()
-                    } else {
-                        v.to_string()
-                    }
-                })
-                .unwrap_or_default()
-        };
-        rows.push(vec![
-            get_str("id"),
-            get_str("asset_no"),
-            get_str("asset_name"),
-            get_str("asset_category"),
-            get_str("specification"),
-            get_str("location"),
-            get_str("original_value"),
-            get_str("useful_life"),
-            get_str("depreciation_method"),
-            get_str("purchase_date"),
-            get_str("put_in_date"),
-            get_str("status"),
-            get_str("remark"),
-            get_str("created_at"),
-        ]);
-    }
+    ]
+}
 
-    let table = XlsxTable {
-        sheet_name: "固定资产".to_string(),
-        headers,
-        rows,
+/// 从 serde_json::Value 提取固定资产行数据
+fn build_asset_row(i: &serde_json::Value) -> Vec<String> {
+    let get_str = |key: &str| -> String {
+        i.get(key)
+            .map(|v| {
+                if v.is_null() {
+                    String::new()
+                } else if v.is_string() {
+                    v.as_str().unwrap_or("").to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or_default()
     };
+    vec![
+        get_str("id"),
+        get_str("asset_no"),
+        get_str("asset_name"),
+        get_str("asset_category"),
+        get_str("specification"),
+        get_str("location"),
+        get_str("original_value"),
+        get_str("useful_life"),
+        get_str("depreciation_method"),
+        get_str("purchase_date"),
+        get_str("put_in_date"),
+        get_str("status"),
+        get_str("remark"),
+        get_str("created_at"),
+    ]
+}
 
-    let filename = format!(
-        "fixed_assets_export_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
-    );
+/// 构造固定资产列表 xlsx 表格
+fn build_assets_table(assets_json: &[serde_json::Value]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "固定资产".to_string(),
+        headers: assets_export_headers(),
+        rows: assets_json.iter().map(build_asset_row).collect(),
+    }
+}
 
+/// 异步记录固定资产导出操作（审计自身，best-effort 不阻塞响应）
+fn record_assets_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    filename: &str,
+) {
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -443,15 +421,45 @@ pub async fn export_assets(
             "total": row_count,
         })),
     };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
+}
 
+/// GET /api/v1/erp/fixed-assets/export - 导出固定资产列表（带水印 + 异步审计日志）
+///
+/// V15 P0-S12 修复（Batch 475e）：导出接入后端
+/// - 注入水印（operator/exported_at/extra 含条数）
+/// - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_list 取全量数据
+pub async fn export_assets(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<AssetQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = FixedAssetService::new(state.db.clone());
+    let query_params = crate::services::fixed_asset_service::AssetQueryParams {
+        keyword: query.keyword,
+        status: query.status,
+        asset_category: query.asset_category,
+        page: 1,
+        page_size: 10000,
+    };
+    let (assets, _total) = service.get_list(query_params).await?;
+    let row_count = assets.len();
+    let assets_json: Vec<serde_json::Value> = assets
+        .into_iter()
+        .map(|i| serde_json::to_value(i).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+    let table = build_assets_table(&assets_json);
+    let filename = format!(
+        "fixed_assets_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+    record_assets_export_audit(&state, &auth, row_count, &filename);
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
         extra: Some(format!("固定资产导出（共 {} 条）", row_count)),
     };
-
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

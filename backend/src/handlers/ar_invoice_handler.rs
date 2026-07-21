@@ -221,30 +221,9 @@ pub async fn cancel_ar_invoice(
     )))
 }
 
-/// GET /api/v1/erp/ar/invoices/export - 导出应收发票列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475e）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
-pub async fn export_ar_invoices(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Query(query): Query<ArInvoiceQuery>,
-) -> Result<axum::response::Response, AppError> {
-    let service = ArInvoiceService::new(state.db.clone());
-
-    let (invoices, _total) = service
-        .get_list(query.customer_id, query.status, 1, 10000)
-        .await?;
-    let row_count = invoices.len();
-
-    let invoices_json: Vec<serde_json::Value> = invoices
-        .into_iter()
-        .map(|i| serde_json::to_value(i).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let headers: Vec<String> = vec![
+/// 应收发票导出表头（12 列）
+fn ar_invoices_export_headers() -> Vec<String> {
+    vec![
         "ID".to_string(),
         "发票编号".to_string(),
         "客户ID".to_string(),
@@ -257,52 +236,57 @@ pub async fn export_ar_invoices(
         "源单编号".to_string(),
         "状态".to_string(),
         "创建时间".to_string(),
-    ];
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(invoices_json.len());
-    for i in invoices_json {
-        let obj = i.as_object().ok_or_else(|| {
-            AppError::internal("应收发票序列化失败：期望 JSON 对象")
-        })?;
-        let get_str = |key: &str| -> String {
-            obj.get(key)
-                .map(|v| {
-                    if v.is_null() {
-                        String::new()
-                    } else if v.is_string() {
-                        v.as_str().unwrap_or("").to_string()
-                    } else {
-                        v.to_string()
-                    }
-                })
-                .unwrap_or_default()
-        };
-        rows.push(vec![
-            get_str("id"),
-            get_str("invoice_no"),
-            get_str("customer_id"),
-            get_str("customer_name"),
-            get_str("invoice_date"),
-            get_str("due_date"),
-            get_str("invoice_amount"),
-            get_str("tax_amount"),
-            get_str("source_type"),
-            get_str("source_bill_no"),
-            get_str("status"),
-            get_str("created_at"),
-        ]);
-    }
+    ]
+}
 
-    let table = XlsxTable {
-        sheet_name: "应收发票".to_string(),
-        headers,
-        rows,
+/// 从 serde_json::Value 提取应收发票行数据
+fn build_ar_invoice_row(i: &serde_json::Value) -> Vec<String> {
+    let get_str = |key: &str| -> String {
+        i.get(key)
+            .map(|v| {
+                if v.is_null() {
+                    String::new()
+                } else if v.is_string() {
+                    v.as_str().unwrap_or("").to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or_default()
     };
+    vec![
+        get_str("id"),
+        get_str("invoice_no"),
+        get_str("customer_id"),
+        get_str("customer_name"),
+        get_str("invoice_date"),
+        get_str("due_date"),
+        get_str("invoice_amount"),
+        get_str("tax_amount"),
+        get_str("source_type"),
+        get_str("source_bill_no"),
+        get_str("status"),
+        get_str("created_at"),
+    ]
+}
 
-    let filename = format!(
-        "ar_invoices_export_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
-    );
+/// 构造应收发票列表 xlsx 表格
+fn build_ar_invoices_table(invoices_json: &[serde_json::Value]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "应收发票".to_string(),
+        headers: ar_invoices_export_headers(),
+        rows: invoices_json.iter().map(build_ar_invoice_row).collect(),
+    }
+}
 
+/// 异步记录应收发票导出操作（审计自身，best-effort 不阻塞响应）
+fn record_ar_invoices_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    filename: &str,
+) {
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -323,15 +307,40 @@ pub async fn export_ar_invoices(
             "total": row_count,
         })),
     };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
+}
 
+/// GET /api/v1/erp/ar/invoices/export - 导出应收发票列表（带水印 + 异步审计日志）
+///
+/// V15 P0-S12 修复（Batch 475e）：导出接入后端
+/// - 注入水印（operator/exported_at/extra 含条数）
+/// - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
+pub async fn export_ar_invoices(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<ArInvoiceQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = ArInvoiceService::new(state.db.clone());
+    let (invoices, _total) = service
+        .get_list(query.customer_id, query.status, 1, 10000)
+        .await?;
+    let row_count = invoices.len();
+    let invoices_json: Vec<serde_json::Value> = invoices
+        .into_iter()
+        .map(|i| serde_json::to_value(i).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+    let table = build_ar_invoices_table(&invoices_json);
+    let filename = format!(
+        "ar_invoices_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+    record_ar_invoices_export_audit(&state, &auth, row_count, &filename);
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
         extra: Some(format!("应收发票导出（共 {} 条）", row_count)),
     };
-
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

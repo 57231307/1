@@ -319,39 +319,9 @@ pub async fn delete_standard(
     )))
 }
 
-/// GET /api/v1/erp/quality-standards/export - 导出质量标准列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475d）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_standards_list 取全量数据（page=1/page_size=10000）
-/// - 不复用 list_standards handler 逻辑（保持单一职责）
-pub async fn export_standards(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Query(query): Query<QualityStandardQuery>,
-) -> Result<axum::response::Response, AppError> {
-    let service = QualityStandardService::new(state.db.clone());
-
-    // V15 P0-S12 修复（Batch 475d）：导出全量数据
-    let query_params = crate::services::quality_standard_service::QualityStandardQueryParams {
-        standard_type: query.standard_type,
-        status: query.status,
-        page: 1,
-        page_size: 10000,
-    };
-
-    let (standards, _total) = service.get_standards_list(query_params).await?;
-    let row_count = standards.len();
-
-    // 序列化为 JSON 以统一字段处理
-    let standards_json: Vec<serde_json::Value> = standards
-        .into_iter()
-        .map(|s| serde_json::to_value(s).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    // 构造 xlsx 表格数据（13 列）
-    let headers: Vec<String> = vec![
+/// 质量标准导出表头（13 列）
+fn standards_export_headers() -> Vec<String> {
+    vec![
         "ID".to_string(),
         "标准编码".to_string(),
         "标准名称".to_string(),
@@ -365,54 +335,58 @@ pub async fn export_standards(
         "创建人ID".to_string(),
         "创建时间".to_string(),
         "更新时间".to_string(),
-    ];
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(standards_json.len());
-    for s in standards_json {
-        let obj = s.as_object().ok_or_else(|| {
-            AppError::internal("质量标准序列化失败：期望 JSON 对象")
-        })?;
-        let get_str = |key: &str| -> String {
-            obj.get(key)
-                .map(|v| {
-                    if v.is_null() {
-                        String::new()
-                    } else if v.is_string() {
-                        v.as_str().unwrap_or("").to_string()
-                    } else {
-                        v.to_string()
-                    }
-                })
-                .unwrap_or_default()
-        };
-        rows.push(vec![
-            get_str("id"),
-            get_str("standard_code"),
-            get_str("standard_name"),
-            get_str("standard_type"),
-            get_str("version"),
-            get_str("effective_date"),
-            get_str("expiry_date"),
-            get_str("status"),
-            get_str("approved_by"),
-            get_str("approved_at"),
-            get_str("created_by"),
-            get_str("created_at"),
-            get_str("updated_at"),
-        ]);
-    }
+    ]
+}
 
-    let table = XlsxTable {
-        sheet_name: "质量标准列表".to_string(),
-        headers,
-        rows,
+/// 从 serde_json::Value 提取质量标准行数据
+fn build_standard_row(s: &serde_json::Value) -> Vec<String> {
+    let get_str = |key: &str| -> String {
+        s.get(key)
+            .map(|v| {
+                if v.is_null() {
+                    String::new()
+                } else if v.is_string() {
+                    v.as_str().unwrap_or("").to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or_default()
     };
+    vec![
+        get_str("id"),
+        get_str("standard_code"),
+        get_str("standard_name"),
+        get_str("standard_type"),
+        get_str("version"),
+        get_str("effective_date"),
+        get_str("expiry_date"),
+        get_str("status"),
+        get_str("approved_by"),
+        get_str("approved_at"),
+        get_str("created_by"),
+        get_str("created_at"),
+        get_str("updated_at"),
+    ]
+}
 
-    let filename = format!(
-        "quality_standards_export_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
-    );
+/// 构造质量标准列表 xlsx 表格
+fn build_standards_table(standards_json: &[serde_json::Value]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "质量标准列表".to_string(),
+        headers: standards_export_headers(),
+        rows: standards_json.iter().map(build_standard_row).collect(),
+    }
+}
 
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+/// 异步记录质量标准导出操作（审计自身，best-effort 不阻塞响应）
+fn record_standards_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    filename: &str,
+) {
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -433,9 +407,42 @@ pub async fn export_standards(
             "total": row_count,
         })),
     };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
+}
 
+/// GET /api/v1/erp/quality-standards/export - 导出质量标准列表（带水印 + 异步审计日志）
+///
+/// V15 P0-S12 修复（Batch 475d）：导出接入后端
+/// - 注入水印（operator/exported_at/extra 含条数）
+/// - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_standards_list 取全量数据（page=1/page_size=10000）
+/// - 不复用 list_standards handler 逻辑（保持单一职责）
+pub async fn export_standards(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<QualityStandardQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = QualityStandardService::new(state.db.clone());
+    // V15 P0-S12 修复（Batch 475d）：导出全量数据
+    let query_params = crate::services::quality_standard_service::QualityStandardQueryParams {
+        standard_type: query.standard_type,
+        status: query.status,
+        page: 1,
+        page_size: 10000,
+    };
+    let (standards, _total) = service.get_standards_list(query_params).await?;
+    let row_count = standards.len();
+    // 序列化为 JSON 以统一字段处理
+    let standards_json: Vec<serde_json::Value> = standards
+        .into_iter()
+        .map(|s| serde_json::to_value(s).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+    let table = build_standards_table(&standards_json);
+    let filename = format!(
+        "quality_standards_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+    record_standards_export_audit(&state, &auth, row_count, &filename);
     // V15 P0-S15 修复（Batch 475d）：注入水印（操作员/导出时间/导出条数）
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
@@ -443,6 +450,5 @@ pub async fn export_standards(
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
         extra: Some(format!("质量标准导出（共 {} 条）", row_count)),
     };
-
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

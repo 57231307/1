@@ -495,6 +495,119 @@ pub async fn update_production_order_status(
 
 // ========== 数据导出接口 ==========
 
+/// 生产订单导出表头（14 列）
+fn production_order_export_headers() -> Vec<String> {
+    vec![
+        "ID".to_string(),
+        "订单号".to_string(),
+        "销售订单ID".to_string(),
+        "产品ID".to_string(),
+        "计划数量".to_string(),
+        "实际数量".to_string(),
+        "计划开始日期".to_string(),
+        "计划结束日期".to_string(),
+        "状态".to_string(),
+        "优先级".to_string(),
+        "工作中心ID".to_string(),
+        "备注".to_string(),
+        "创建时间".to_string(),
+        "更新时间".to_string(),
+    ]
+}
+
+/// 将生产订单 model 转换为响应结构（与 list_production_orders handler 字段一致）
+fn convert_orders_to_responses(
+    models: Vec<crate::models::production_order::Model>,
+) -> Vec<ProductionOrderResponse> {
+    models
+        .into_iter()
+        .map(|model| ProductionOrderResponse {
+            id: model.id,
+            order_no: model.order_no,
+            sales_order_id: model.sales_order_id,
+            product_id: model.product_id,
+            planned_quantity: model.planned_quantity,
+            actual_quantity: model.actual_quantity,
+            planned_start_date: model.planned_start_date,
+            planned_end_date: model.planned_end_date,
+            status: model.status,
+            priority: model.priority,
+            work_center_id: model.work_center_id,
+            remarks: model.remarks,
+            created_at: model.created_at,
+            updated_at: model.updated_at,
+        })
+        .collect()
+}
+
+/// 从单条生产订单响应构建 xlsx 行
+fn build_production_order_row(r: ProductionOrderResponse) -> Vec<String> {
+    vec![
+        r.id.to_string(),
+        r.order_no,
+        r.sales_order_id.map_or(String::new(), |v| v.to_string()),
+        r.product_id.to_string(),
+        r.planned_quantity.to_string(),
+        r.actual_quantity.map_or(String::new(), |v| v.to_string()),
+        r.planned_start_date.map_or(String::new(), |d| d.to_string()),
+        r.planned_end_date.map_or(String::new(), |d| d.to_string()),
+        r.status,
+        r.priority.to_string(),
+        r.work_center_id.map_or(String::new(), |v| v.to_string()),
+        r.remarks.unwrap_or_default(),
+        r.created_at.to_string(),
+        r.updated_at.to_string(),
+    ]
+}
+
+/// 构造生产订单 xlsx 表格
+fn build_production_orders_table(responses: Vec<ProductionOrderResponse>) -> XlsxTable {
+    let headers = production_order_export_headers();
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(responses.len());
+    for r in responses {
+        rows.push(build_production_order_row(r));
+    }
+    XlsxTable {
+        sheet_name: "生产订单".to_string(),
+        headers,
+        rows,
+    }
+}
+
+/// 异步记录生产订单导出操作（审计自身）
+fn record_production_orders_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    query: &ListProductionOrdersQuery,
+    filename: &str,
+) {
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("production_order".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出生产订单（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/production-orders/orders/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "status_filter": query.status,
+            "product_id_filter": query.product_id,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+}
+
 /// 导出生产订单列表
 ///
 /// V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志
@@ -526,103 +639,14 @@ pub async fn export_production_orders(
         .list(query_params, Some(&data_scope_ctx))
         .await?;
 
-    // 保存真实记录数
     let row_count = models.len();
-
-    // 转换为响应结构（与 list_production_orders handler 保持一致的字段）
-    let responses: Vec<ProductionOrderResponse> = models
-        .into_iter()
-        .map(|model| ProductionOrderResponse {
-            id: model.id,
-            order_no: model.order_no,
-            sales_order_id: model.sales_order_id,
-            product_id: model.product_id,
-            planned_quantity: model.planned_quantity,
-            actual_quantity: model.actual_quantity,
-            planned_start_date: model.planned_start_date,
-            planned_end_date: model.planned_end_date,
-            status: model.status,
-            priority: model.priority,
-            work_center_id: model.work_center_id,
-            remarks: model.remarks,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
-        })
-        .collect();
-
-    // 构造 xlsx 表格数据
-    let headers: Vec<String> = vec![
-        "ID".to_string(),
-        "订单号".to_string(),
-        "销售订单ID".to_string(),
-        "产品ID".to_string(),
-        "计划数量".to_string(),
-        "实际数量".to_string(),
-        "计划开始日期".to_string(),
-        "计划结束日期".to_string(),
-        "状态".to_string(),
-        "优先级".to_string(),
-        "工作中心ID".to_string(),
-        "备注".to_string(),
-        "创建时间".to_string(),
-        "更新时间".to_string(),
-    ];
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(responses.len());
-    for r in responses {
-        rows.push(vec![
-            r.id.to_string(),
-            r.order_no,
-            r.sales_order_id.map_or(String::new(), |v| v.to_string()),
-            r.product_id.to_string(),
-            r.planned_quantity.to_string(),
-            r.actual_quantity.map_or(String::new(), |v| v.to_string()),
-            r.planned_start_date.map_or(String::new(), |d| d.to_string()),
-            r.planned_end_date.map_or(String::new(), |d| d.to_string()),
-            r.status,
-            r.priority.to_string(),
-            r.work_center_id.map_or(String::new(), |v| v.to_string()),
-            r.remarks.unwrap_or_default(),
-            r.created_at.to_string(),
-            r.updated_at.to_string(),
-        ]);
-    }
-
-    let table = XlsxTable {
-        sheet_name: "生产订单".to_string(),
-        headers,
-        rows,
-    };
-
+    let responses = convert_orders_to_responses(models);
+    let table = build_production_orders_table(responses);
     let filename = format!(
         "production_orders_export_{}",
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
-
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
-    let event = AuditEvent {
-        user_id: Some(auth.user_id),
-        username: Some(auth.username.clone()),
-        operation_type: OperationType::Export,
-        severity: Severity::Info,
-        resource_type: Some("production_order".to_string()),
-        resource_id: None,
-        resource_name: Some(format!("{}.xlsx", filename)),
-        description: Some(format!(
-            "用户 {} 导出生产订单（共 {} 条）",
-            auth.username, row_count
-        )),
-        request_method: Some("GET".to_string()),
-        request_path: Some("/api/v1/erp/production-orders/orders/export".to_string()),
-        before_snapshot: None,
-        after_snapshot: Some(serde_json::json!({
-            "format": "xlsx",
-            "total": row_count,
-            "status_filter": query.status,
-            "product_id_filter": query.product_id,
-        })),
-    };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, None);
+    record_production_orders_export_audit(&state, &auth, row_count, &query, &filename);
 
     // V15 P0-S15 修复（Batch 475c）：注入水印（操作员/导出时间/导出条数）
     let watermark = WatermarkConfig {

@@ -57,64 +57,72 @@ pub struct LogoutResponse {
     pub success: bool,
 }
 
-pub async fn logout(
-    State(state): State<AppState>,
-    audit_ctx: Option<Extension<AuditContext>>,
-    jar: axum_extra::extract::PrivateCookieJar,
-    headers: HeaderMap,
-) -> Result<axum::response::Response, AppError> {
-    // 提取 Token
+/// 提取并处理 Bearer Token：验证、加入进程内黑名单、吊销 JTI
+async fn process_logout_token(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> (Option<i32>, Option<String>) {
     let auth_header = headers
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
         .filter(|h| h.starts_with("Bearer "));
-
     let mut logout_user_id: Option<i32> = None;
     let mut logout_username: Option<String> = None;
-
     if let Some(auth_header) = auth_header {
         let token = &auth_header[7..];
-
-        // 验证 Token 是否有效
         match AuthService::validate_token_static(token, &state.jwt_secret) {
             Ok(claims) => {
                 logout_user_id = Some(claims.sub);
                 logout_username = Some(claims.username.clone());
-                let now = chrono::Utc::now().timestamp() as usize;
-                let exp = claims.exp.timestamp() as usize;
-
-                if exp > now {
-                    let ttl = std::time::Duration::from_secs((exp - now) as u64);
-                    // 将 Token 加入进程内黑名单（兼容单实例）
-                    state
-                        .cache
-                        .get_token_blacklist()
-                        .set(token.to_string(), true, Some(ttl));
-
-                    // P1 7-3 修复：同时吊销 JTI 到 Redis 分布式黑名单
-                    // 修复背景：原 logout 仅写进程内 state.cache 黑名单，多实例部署时
-                    // 登出后 token 在其他实例仍可用（最长 2 小时）。
-                    // 修复方案：与 refresh_token 流程对齐，调用 revoke_jti 写入 Redis，
-                    // 使所有实例通过 is_jti_revoked 检测到吊销状态。
-                    crate::services::auth_service::revoke_jti(
-                        &claims.session_id,
-                        claims.exp.timestamp(),
-                    )
-                    .await;
-                    tracing::info!(
-                        "Token blacklisted + JTI revoked for user {} (session_id={})",
-                        claims.username,
-                        claims.session_id
-                    );
-                }
+                blacklist_and_revoke_token(state, token, &claims).await;
             }
             Err(e) => {
                 tracing::warn!("Logout attempted with invalid token: {:?}", e);
             }
         }
     }
+    (logout_user_id, logout_username)
+}
 
-    // 异步记录审计日志：登出（P13 批 1 P3-2）
+/// 将 Token 加入进程内黑名单 + 吊销 JTI 到 Redis 分布式黑名单
+///
+/// P1 7-3 修复：原 logout 仅写进程内 state.cache 黑名单，多实例部署时
+/// 登出后 token 在其他实例仍可用（最长 2 小时）。
+/// 修复方案：与 refresh_token 流程对齐，调用 revoke_jti 写入 Redis，
+/// 使所有实例通过 is_jti_revoked 检测到吊销状态。
+async fn blacklist_and_revoke_token(
+    state: &AppState,
+    token: &str,
+    claims: &crate::services::auth_service::AppClaims,
+) {
+    let now = chrono::Utc::now().timestamp() as usize;
+    let exp = claims.exp.timestamp() as usize;
+    if exp > now {
+        let ttl = std::time::Duration::from_secs((exp - now) as u64);
+        state
+            .cache
+            .get_token_blacklist()
+            .set(token.to_string(), true, Some(ttl));
+        crate::services::auth_service::revoke_jti(
+            &claims.session_id,
+            claims.exp.timestamp(),
+        )
+        .await;
+        tracing::info!(
+            "Token blacklisted + JTI revoked for user {} (session_id={})",
+            claims.username,
+            claims.session_id
+        );
+    }
+}
+
+/// 异步记录登出审计日志（P13 批 1 P3-2）
+fn record_logout_audit(
+    state: &AppState,
+    audit_ctx: Option<AuditContext>,
+    logout_user_id: Option<i32>,
+    logout_username: Option<String>,
+) {
     let logout_event = AuditEvent {
         user_id: logout_user_id,
         username: logout_username.clone(),
@@ -130,50 +138,54 @@ pub async fn logout(
         after_snapshot: None,
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(logout_event, audit_ctx.map(|e| e.0));
+    svc.record_async(logout_event, audit_ctx);
+}
 
+/// 构建清除登录态的 Cookie（max_age 设为 0 即立刻过期）
+fn build_removal_cookie(
+    name: &'static str,
+    http_only: bool,
+    is_production: bool,
+) -> axum_extra::extract::cookie::Cookie<'static> {
+    axum_extra::extract::cookie::Cookie::build((name, ""))
+        .path("/")
+        .http_only(http_only)
+        .secure(is_production)
+        .same_site(SameSite::Strict)
+        .max_age(CookieDuration::seconds(0))
+        .build()
+}
+
+/// 清除所有登录态 Cookie
+///
+/// - access_token / refresh_token: httpOnly，防 XSS
+/// - csrf_token: 非 httpOnly，CSRF 头读取使用
+/// - jwt: 旧版兼容 Cookie
+fn clear_auth_cookies(
+    jar: axum_extra::extract::PrivateCookieJar,
+    is_production: bool,
+) -> axum_extra::extract::PrivateCookieJar {
+    jar.add(build_removal_cookie("access_token", true, is_production))
+        .add(build_removal_cookie("refresh_token", true, is_production))
+        .add(build_removal_cookie("csrf_token", false, is_production))
+        .add(build_removal_cookie("jwt", true, is_production))
+}
+
+pub async fn logout(
+    State(state): State<AppState>,
+    audit_ctx: Option<Extension<AuditContext>>,
+    jar: axum_extra::extract::PrivateCookieJar,
+    headers: HeaderMap,
+) -> Result<axum::response::Response, AppError> {
+    let (logout_user_id, logout_username) = process_logout_token(&state, &headers).await;
+    record_logout_audit(
+        &state,
+        audit_ctx.map(|e| e.0),
+        logout_user_id,
+        logout_username.clone(),
+    );
     // 漏洞 #12 修复：统一从 `crate::utils::config::is_production()` 读取 APP_ENV
-    let is_production = crate::utils::config::is_production();
-
-    // 清除所有登录态 Cookie（max_age 设为 0 即立刻过期）
-    // - access_token / refresh_token: httpOnly，防 XSS
-    // - csrf_token: 非 httpOnly，CSRF 头读取使用
-    // - jwt: 旧版兼容 Cookie
-    let removal_access = axum_extra::extract::cookie::Cookie::build(("access_token", ""))
-        .path("/")
-        .http_only(true)
-        .secure(is_production)
-        .same_site(SameSite::Strict)
-        .max_age(CookieDuration::seconds(0))
-        .build();
-    let removal_refresh = axum_extra::extract::cookie::Cookie::build(("refresh_token", ""))
-        .path("/")
-        .http_only(true)
-        .secure(is_production)
-        .same_site(SameSite::Strict)
-        .max_age(CookieDuration::seconds(0))
-        .build();
-    let removal_csrf = axum_extra::extract::cookie::Cookie::build(("csrf_token", ""))
-        .path("/")
-        .http_only(false)
-        .secure(is_production)
-        .same_site(SameSite::Strict)
-        .max_age(CookieDuration::seconds(0))
-        .build();
-    let removal_jwt = axum_extra::extract::cookie::Cookie::build(("jwt", ""))
-        .path("/")
-        .http_only(true)
-        .secure(is_production)
-        .same_site(SameSite::Strict)
-        .max_age(CookieDuration::seconds(0))
-        .build();
-
-    let jar = jar
-        .add(removal_access)
-        .add(removal_refresh)
-        .add(removal_csrf)
-        .add(removal_jwt);
-
+    let jar = clear_auth_cookies(jar, crate::utils::config::is_production());
     Ok((
         jar,
         axum::Json(ApiResponse::success(LogoutResponse { success: true })),

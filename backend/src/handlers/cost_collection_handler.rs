@@ -249,30 +249,9 @@ pub struct AuditCostRequest {
     pub comment: Option<String>,
 }
 
-/// GET /api/v1/erp/cost-collections/export - 导出成本归集列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475e）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
-pub async fn export_collections(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Query(query): Query<CostCollectionQuery>,
-) -> Result<axum::response::Response, AppError> {
-    let service = CostCollectionService::new(state.db.clone());
-
-    let (collections, _total) = service
-        .get_list(query.batch_no, query.color_no, 1, 10000)
-        .await?;
-    let row_count = collections.len();
-
-    let collections_json: Vec<serde_json::Value> = collections
-        .into_iter()
-        .map(|i| serde_json::to_value(i).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let headers: Vec<String> = vec![
+/// 成本归集导出表头（17 列）
+fn collections_export_headers() -> Vec<String> {
+    vec![
         "ID".to_string(),
         "归集单号".to_string(),
         "归集日期".to_string(),
@@ -290,57 +269,62 @@ pub async fn export_collections(
         "产量(公斤)".to_string(),
         "状态".to_string(),
         "创建时间".to_string(),
-    ];
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(collections_json.len());
-    for i in collections_json {
-        let obj = i.as_object().ok_or_else(|| {
-            AppError::internal("成本归集序列化失败：期望 JSON 对象")
-        })?;
-        let get_str = |key: &str| -> String {
-            obj.get(key)
-                .map(|v| {
-                    if v.is_null() {
-                        String::new()
-                    } else if v.is_string() {
-                        v.as_str().unwrap_or("").to_string()
-                    } else {
-                        v.to_string()
-                    }
-                })
-                .unwrap_or_default()
-        };
-        rows.push(vec![
-            get_str("id"),
-            get_str("collection_no"),
-            get_str("collection_date"),
-            get_str("cost_object_type"),
-            get_str("batch_no"),
-            get_str("dye_lot_no"),
-            get_str("color_no"),
-            get_str("workshop"),
-            get_str("direct_material"),
-            get_str("direct_labor"),
-            get_str("manufacturing_overhead"),
-            get_str("processing_fee"),
-            get_str("dyeing_fee"),
-            get_str("output_quantity_meters"),
-            get_str("output_quantity_kg"),
-            get_str("status"),
-            get_str("created_at"),
-        ]);
-    }
+    ]
+}
 
-    let table = XlsxTable {
-        sheet_name: "成本归集".to_string(),
-        headers,
-        rows,
+/// 从 serde_json::Value 提取成本归集行数据
+fn build_collection_row(i: &serde_json::Value) -> Vec<String> {
+    let get_str = |key: &str| -> String {
+        i.get(key)
+            .map(|v| {
+                if v.is_null() {
+                    String::new()
+                } else if v.is_string() {
+                    v.as_str().unwrap_or("").to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or_default()
     };
+    vec![
+        get_str("id"),
+        get_str("collection_no"),
+        get_str("collection_date"),
+        get_str("cost_object_type"),
+        get_str("batch_no"),
+        get_str("dye_lot_no"),
+        get_str("color_no"),
+        get_str("workshop"),
+        get_str("direct_material"),
+        get_str("direct_labor"),
+        get_str("manufacturing_overhead"),
+        get_str("processing_fee"),
+        get_str("dyeing_fee"),
+        get_str("output_quantity_meters"),
+        get_str("output_quantity_kg"),
+        get_str("status"),
+        get_str("created_at"),
+    ]
+}
 
-    let filename = format!(
-        "cost_collections_export_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
-    );
+/// 构造成本归集列表 xlsx 表格
+fn build_collections_table(collections_json: &[serde_json::Value]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "成本归集".to_string(),
+        headers: collections_export_headers(),
+        rows: collections_json.iter().map(build_collection_row).collect(),
+    }
+}
 
+/// 异步记录成本归集导出操作（审计自身，best-effort 不阻塞响应）
+fn record_collections_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    filename: &str,
+) {
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -361,15 +345,40 @@ pub async fn export_collections(
             "total": row_count,
         })),
     };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
+}
 
+/// GET /api/v1/erp/cost-collections/export - 导出成本归集列表（带水印 + 异步审计日志）
+///
+/// V15 P0-S12 修复（Batch 475e）：导出接入后端
+/// - 注入水印（operator/exported_at/extra 含条数）
+/// - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
+pub async fn export_collections(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<CostCollectionQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = CostCollectionService::new(state.db.clone());
+    let (collections, _total) = service
+        .get_list(query.batch_no, query.color_no, 1, 10000)
+        .await?;
+    let row_count = collections.len();
+    let collections_json: Vec<serde_json::Value> = collections
+        .into_iter()
+        .map(|i| serde_json::to_value(i).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+    let table = build_collections_table(&collections_json);
+    let filename = format!(
+        "cost_collections_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+    record_collections_export_audit(&state, &auth, row_count, &filename);
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
         extra: Some(format!("成本归集导出（共 {} 条）", row_count)),
     };
-
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

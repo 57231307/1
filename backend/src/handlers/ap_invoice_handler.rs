@@ -327,38 +327,9 @@ pub async fn get_statistics(
     )?)))
 }
 
-/// GET /api/v1/erp/ap/invoices/export - 导出应付发票列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475e）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
-pub async fn export_ap_invoices(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Query(query): Query<ApInvoiceQueryParams>,
-) -> Result<axum::response::Response, AppError> {
-    let service = ApInvoiceService::new(state.db.clone());
-
-    let (invoices, _total) = service
-        .get_list(ApInvoiceListQuery {
-            supplier_id: query.supplier_id,
-            invoice_status: query.invoice_status,
-            invoice_type: query.invoice_type,
-            start_date: query.start_date,
-            end_date: query.end_date,
-            page: 1,
-            page_size: 10000,
-        })
-        .await?;
-    let row_count = invoices.len();
-
-    let invoices_json: Vec<serde_json::Value> = invoices
-        .into_iter()
-        .map(|i| serde_json::to_value(i).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let headers: Vec<String> = vec![
+/// 应付发票导出表头（11 列）
+fn ap_invoices_export_headers() -> Vec<String> {
+    vec![
         "ID".to_string(),
         "发票编号".to_string(),
         "供应商ID".to_string(),
@@ -370,51 +341,56 @@ pub async fn export_ap_invoices(
         "发票类型".to_string(),
         "状态".to_string(),
         "创建时间".to_string(),
-    ];
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(invoices_json.len());
-    for i in invoices_json {
-        let obj = i.as_object().ok_or_else(|| {
-            AppError::internal("应付发票序列化失败：期望 JSON 对象")
-        })?;
-        let get_str = |key: &str| -> String {
-            obj.get(key)
-                .map(|v| {
-                    if v.is_null() {
-                        String::new()
-                    } else if v.is_string() {
-                        v.as_str().unwrap_or("").to_string()
-                    } else {
-                        v.to_string()
-                    }
-                })
-                .unwrap_or_default()
-        };
-        rows.push(vec![
-            get_str("id"),
-            get_str("invoice_no"),
-            get_str("supplier_id"),
-            get_str("supplier_name"),
-            get_str("invoice_date"),
-            get_str("due_date"),
-            get_str("invoice_amount"),
-            get_str("tax_amount"),
-            get_str("invoice_type"),
-            get_str("invoice_status"),
-            get_str("created_at"),
-        ]);
-    }
+    ]
+}
 
-    let table = XlsxTable {
-        sheet_name: "应付发票".to_string(),
-        headers,
-        rows,
+/// 从 serde_json::Value 提取应付发票行数据
+fn build_ap_invoice_row(i: &serde_json::Value) -> Vec<String> {
+    let get_str = |key: &str| -> String {
+        i.get(key)
+            .map(|v| {
+                if v.is_null() {
+                    String::new()
+                } else if v.is_string() {
+                    v.as_str().unwrap_or("").to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or_default()
     };
+    vec![
+        get_str("id"),
+        get_str("invoice_no"),
+        get_str("supplier_id"),
+        get_str("supplier_name"),
+        get_str("invoice_date"),
+        get_str("due_date"),
+        get_str("invoice_amount"),
+        get_str("tax_amount"),
+        get_str("invoice_type"),
+        get_str("invoice_status"),
+        get_str("created_at"),
+    ]
+}
 
-    let filename = format!(
-        "ap_invoices_export_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
-    );
+/// 构造应付发票列表 xlsx 表格
+fn build_ap_invoices_table(invoices_json: &[serde_json::Value]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "应付发票".to_string(),
+        headers: ap_invoices_export_headers(),
+        rows: invoices_json.iter().map(build_ap_invoice_row).collect(),
+    }
+}
 
+/// 异步记录应付发票导出操作（审计自身，best-effort 不阻塞响应）
+fn record_ap_invoices_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    filename: &str,
+) {
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -435,15 +411,48 @@ pub async fn export_ap_invoices(
             "total": row_count,
         })),
     };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
+}
 
+/// GET /api/v1/erp/ap/invoices/export - 导出应付发票列表（带水印 + 异步审计日志）
+///
+/// V15 P0-S12 修复（Batch 475e）：导出接入后端
+/// - 注入水印（operator/exported_at/extra 含条数）
+/// - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
+pub async fn export_ap_invoices(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<ApInvoiceQueryParams>,
+) -> Result<axum::response::Response, AppError> {
+    let service = ApInvoiceService::new(state.db.clone());
+    let (invoices, _total) = service
+        .get_list(ApInvoiceListQuery {
+            supplier_id: query.supplier_id,
+            invoice_status: query.invoice_status,
+            invoice_type: query.invoice_type,
+            start_date: query.start_date,
+            end_date: query.end_date,
+            page: 1,
+            page_size: 10000,
+        })
+        .await?;
+    let row_count = invoices.len();
+    let invoices_json: Vec<serde_json::Value> = invoices
+        .into_iter()
+        .map(|i| serde_json::to_value(i).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+    let table = build_ap_invoices_table(&invoices_json);
+    let filename = format!(
+        "ap_invoices_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+    record_ap_invoices_export_audit(&state, &auth, row_count, &filename);
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
         extra: Some(format!("应付发票导出（共 {} 条）", row_count)),
     };
-
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
