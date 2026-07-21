@@ -744,15 +744,33 @@ impl StepRecordService {
     }
 
     /// 扫码开始工序（自动创建 pending 记录并切换到 in_progress）
+    /// D08 Tier 4 子批次2：拆分为 ≤50 行主函数 + 3 个 helper（validate_card_for_step_start / fetch_route_or_default / build_step_active_model）
     pub async fn start_step(&self, req: StartStepRequest) -> Result<StepModel, AppError> {
-        // 校验流转卡存在
         let card = CardEntity::find_by_id(req.flow_card_id)
             .filter(production_flow_card::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("流转卡 {} 不存在", req.flow_card_id)))?;
+        Self::validate_card_for_step_start(&card)?;
+        let (route_code, route_name, process_type, step_seq) =
+            Self::fetch_route_or_default(self.db.as_ref(), req.process_route_id, &card).await?;
+        let now = crate::utils::date_utils::utc_now_fixed();
+        let active = Self::build_step_active_model(
+            &req, &card, route_code, route_name, process_type, step_seq, now,
+        );
+        let result = active
+            .insert(&*self.db)
+            .await
+            .map_err(|e| AppError::database(format!("工序记录创建失败: {}", e)))?;
+        let mut card_active: CardActiveModel = card.into();
+        card_active.current_step_seq = Set(step_seq);
+        card_active.updated_at = Set(now);
+        card_active.update(&*self.db).await?;
+        Ok(result)
+    }
 
-        // 业务校验：流转卡状态必须为 dyeing/inspecting/preparing 等生产中状态
+    /// 校验流转卡状态可开始工序
+    fn validate_card_for_step_start(card: &CardModel) -> Result<(), AppError> {
         let valid_statuses = [
             card_status::SCHEDULED,
             card_status::PREPARING,
@@ -766,34 +784,43 @@ impl StepRecordService {
                 card.status, valid_statuses
             )));
         }
+        Ok(())
+    }
 
-        // 获取工序路线信息
-        let (route_code, route_name, process_type, step_seq) = if let Some(route_id) =
-            req.process_route_id
-        {
-            let route = RouteEntity::find_by_id(route_id)
+    /// 获取工序路线信息（无路线时使用占位默认值）
+    async fn fetch_route_or_default(
+        db: &DatabaseConnection,
+        route_id: Option<i32>,
+        card: &CardModel,
+    ) -> Result<(String, String, String, i32), AppError> {
+        if let Some(rid) = route_id {
+            let route = RouteEntity::find_by_id(rid)
                 .filter(process_route::Column::IsDeleted.eq(false))
-                .one(&*self.db)
+                .one(db)
                 .await?
-                .ok_or_else(|| AppError::not_found(format!("工序路线 {} 不存在", route_id)))?;
-            (
-                route.route_code,
-                route.route_name,
-                route.process_type,
-                route.seq,
-            )
+                .ok_or_else(|| AppError::not_found(format!("工序路线 {} 不存在", rid)))?;
+            Ok((route.route_code, route.route_name, route.process_type, route.seq))
         } else {
-            // 无工序路线时使用当前工序序号占位
-            (
+            Ok((
                 "CUSTOM".to_string(),
                 "自定义工序".to_string(),
                 "other".to_string(),
                 card.current_step_seq,
-            )
-        };
+            ))
+        }
+    }
 
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let active = StepActiveModel {
+    /// 构建 StepActiveModel（含所有字段填充）
+    fn build_step_active_model(
+        req: &StartStepRequest,
+        card: &CardModel,
+        route_code: String,
+        route_name: String,
+        process_type: String,
+        step_seq: i32,
+        now: chrono::DateTime<chrono::FixedOffset>,
+    ) -> StepActiveModel {
+        StepActiveModel {
             id: Default::default(),
             flow_card_id: Set(req.flow_card_id),
             process_route_id: Set(req.process_route_id),
@@ -801,10 +828,10 @@ impl StepRecordService {
             route_code: Set(route_code),
             route_name: Set(route_name),
             process_type: Set(process_type),
-            worker_ids: Set(req.worker_ids),
-            worker_names: Set(req.worker_names),
+            worker_ids: Set(req.worker_ids.clone()),
+            worker_names: Set(req.worker_names.clone()),
             equipment_id: Set(req.equipment_id),
-            equipment_name: Set(req.equipment_name),
+            equipment_name: Set(req.equipment_name.clone()),
             start_at: Set(now),
             end_at: Set(None),
             duration_minutes: Set(None),
@@ -820,20 +847,7 @@ impl StepRecordService {
             created_by: Set(req.created_by),
             created_at: Set(now),
             updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("工序记录创建失败: {}", e)))?;
-
-        // 更新流转卡当前工序序号
-        let mut card_active: CardActiveModel = card.into();
-        card_active.current_step_seq = Set(step_seq);
-        card_active.updated_at = Set(now);
-        card_active.update(&*self.db).await?;
-
-        Ok(result)
+        }
     }
 
     /// 扫码结束工序（in_progress → completed）

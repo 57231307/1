@@ -66,74 +66,100 @@ impl InventoryAdjustmentService {
     }
 
     /// 创建库存调整单（带事务）
+    /// D08 Tier 4 子批次2：拆分为 ≤50 行主函数 + 3 个 helper（build_adjustment_active_model / fetch_stocks_map / create_adjustment_items）
     pub async fn create_adjustment(
         &self,
         request: CreateAdjustmentRequest,
     ) -> Result<AdjustmentDetail, AppError> {
-        // 开启事务
         let txn = (*self.db).begin().await?;
-
-        // 生成调整单号
         let adjustment_no = self.generate_adjustment_no().await?;
-
-        // 计算总数量
         let total_quantity: Decimal = request.items.iter().map(|item| item.quantity).sum();
-
-        // 保存调整类型用于后续计算
         let adjustment_type = request.adjustment_type.clone();
+        let adjustment =
+            Self::build_adjustment_active_model(&request, adjustment_no, total_quantity);
+        let adjustment_model = adjustment.insert(&txn).await?;
+        let stock_ids: Vec<i32> = request.items.iter().map(|item| item.stock_id).collect();
+        let stock_map = Self::fetch_stocks_map(&txn, stock_ids).await?;
+        let item_models = Self::create_adjustment_items(
+            &txn,
+            request.items,
+            adjustment_model.id,
+            &stock_map,
+            &adjustment_type,
+        )
+        .await?;
+        txn.commit().await?;
+        Ok(AdjustmentDetail {
+            adjustment: adjustment_model,
+            items: item_models,
+        })
+    }
 
-        // 创建调整单主表
-        let adjustment = inventory_adjustment::ActiveModel {
+    /// 构建库存调整单 ActiveModel（不插入数据库）
+    fn build_adjustment_active_model(
+        request: &CreateAdjustmentRequest,
+        adjustment_no: String,
+        total_quantity: Decimal,
+    ) -> inventory_adjustment::ActiveModel {
+        inventory_adjustment::ActiveModel {
             id: Default::default(),
             adjustment_no: Set(adjustment_no),
             warehouse_id: Set(request.warehouse_id),
             adjustment_date: Set(request.adjustment_date),
-            adjustment_type: Set(request.adjustment_type),
-            reason_type: Set(request.reason_type),
-            reason_description: Set(request.reason_description),
+            adjustment_type: Set(request.adjustment_type.clone()),
+            reason_type: Set(request.reason_type.clone()),
+            reason_description: Set(request.reason_description.clone()),
             total_quantity: Set(total_quantity),
-            notes: Set(request.notes),
+            notes: Set(request.notes.clone()),
             created_by: Set(request.created_by),
             approved_by: Set(None),
             approved_at: Set(None),
             status: Set(adjustment_status::PENDING.to_string()),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+        }
+    }
+
+    /// 批量查询库存记录并构建 stock_id → Model 映射
+    async fn fetch_stocks_map(
+        txn: &sea_orm::DatabaseTransaction,
+        stock_ids: Vec<i32>,
+    ) -> Result<std::collections::HashMap<i32, inventory_stock::Model>, AppError> {
+        let stocks = if stock_ids.is_empty() {
+            Vec::new()
+        } else {
+            inventory_stock::Entity::find()
+                .filter(inventory_stock::Column::Id.is_in(stock_ids))
+                .all(txn)
+                .await?
         };
+        Ok(stocks.into_iter().map(|s| (s.id, s)).collect())
+    }
 
-        let adjustment_model = adjustment.insert(&txn).await?;
-
-        // 批量获取库存记录（优化N+1查询）
-        let stock_ids: Vec<i32> = request.items.iter().map(|item| item.stock_id).collect();
-        let stocks = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::Id.is_in(stock_ids.clone()))
-            .all(&txn)
-            .await?;
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            stocks.into_iter().map(|s| (s.id, s)).collect();
-
-        // 创建调整明细项
+    /// 循环创建调整明细项（含数量计算 + 金额精度归一化）
+    async fn create_adjustment_items(
+        txn: &sea_orm::DatabaseTransaction,
+        items: Vec<AdjustmentItemRequest>,
+        adjustment_id: i32,
+        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        adjustment_type: &str,
+    ) -> Result<Vec<inventory_adjustment_item::Model>, AppError> {
         let mut item_models = Vec::new();
-        for item_req in request.items {
-            // 获取当前库存数量
+        for item_req in items {
             let stock = stock_map.get(&item_req.stock_id).ok_or_else(|| {
                 AppError::not_found(format!("库存 ID {} 不存在", item_req.stock_id))
             })?;
-
-            // 计算调整前后的数量（使用 quantity_on_hand 字段）
             let quantity_before = stock.quantity_on_hand;
             let quantity_after = if adjustment_type == "increase" {
                 quantity_before + item_req.quantity
             } else {
                 quantity_before - item_req.quantity
             };
-
-            // 计算调整金额（批次 97 P1-5 修复：补 round_dp(2) 防止精度漂移）
-            let amount = item_req.unit_cost.map(|cost| (cost * item_req.quantity).round_dp(2));
-
+            let amount =
+                item_req.unit_cost.map(|cost| (cost * item_req.quantity).round_dp(2));
             let item = inventory_adjustment_item::ActiveModel {
                 id: Default::default(),
-                adjustment_id: Set(adjustment_model.id),
+                adjustment_id: Set(adjustment_id),
                 stock_id: Set(item_req.stock_id),
                 quantity: Set(item_req.quantity),
                 quantity_before: Set(quantity_before),
@@ -144,18 +170,10 @@ impl InventoryAdjustmentService {
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
             };
-
-            let item_model = item.insert(&txn).await?;
+            let item_model = item.insert(txn).await?;
             item_models.push(item_model);
         }
-
-        // 提交事务
-        txn.commit().await?;
-
-        Ok(AdjustmentDetail {
-            adjustment: adjustment_model,
-            items: item_models,
-        })
+        Ok(item_models)
     }
 
     /// 审核库存调整单
@@ -230,6 +248,7 @@ impl InventoryAdjustmentService {
     }
 
     /// 乐观锁更新库存 + 构建事件列表
+    /// D08 Tier 4 子批次2：拆分为 ≤50 行主函数 + 3 个 helper（fetch_stocks_for_adjustment / apply_single_stock_update / build_adjustment_event）
     async fn apply_stock_updates_for_adjustment(
         txn: &sea_orm::DatabaseTransaction,
         items: Vec<inventory_adjustment_item::Model>,
@@ -238,7 +257,25 @@ impl InventoryAdjustmentService {
         warehouse_id: i32,
         approved_by: i32,
     ) -> Result<Vec<BusinessEvent>, AppError> {
-        // 批量查询调整明细涉及的库存，避免循环内 N+1 查询
+        let stock_map = Self::fetch_stocks_for_adjustment(txn, &items).await?;
+        let mut transaction_events = Vec::new();
+        for item in items {
+            let stock_model = stock_map
+                .get(&item.stock_id)
+                .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", item.stock_id)))?;
+            Self::apply_single_stock_update(txn, &item, stock_model).await?;
+            transaction_events.push(Self::build_adjustment_event(
+                &item, stock_model, adjustment_id, &adjustment_no, warehouse_id, approved_by,
+            ));
+        }
+        Ok(transaction_events)
+    }
+
+    /// 批量查询调整明细涉及的库存（避免循环内 N+1 查询）
+    async fn fetch_stocks_for_adjustment(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[inventory_adjustment_item::Model],
+    ) -> Result<std::collections::HashMap<i32, inventory_stock::Model>, AppError> {
         let stock_ids: Vec<i32> = items.iter().map(|item| item.stock_id).collect();
         let stocks = if stock_ids.is_empty() {
             Vec::new()
@@ -248,84 +285,85 @@ impl InventoryAdjustmentService {
                 .all(txn)
                 .await?
         };
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            stocks.into_iter().map(|s| (s.id, s)).collect();
+        Ok(stocks.into_iter().map(|s| (s.id, s)).collect())
+    }
 
-        // 更新库存数量
-        let mut transaction_events = Vec::new();
-        for item in items {
-            let stock_model = stock_map
-                .get(&item.stock_id)
-                .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", item.stock_id)))?;
-
-            let quantity_before = stock_model.quantity_on_hand;
-            let expected_version = stock_model.version;
-            let current_quantity_kg = stock_model.quantity_kg;
-
-            // 使用乐观锁条件更新
-            let update_result = inventory_stock::Entity::update_many()
-                .col_expr(
-                    inventory_stock::Column::QuantityOnHand,
-                    sea_orm::sea_query::Expr::val(item.quantity_after).into(),
-                )
-                .col_expr(
-                    inventory_stock::Column::QuantityAvailable,
-                    sea_orm::sea_query::Expr::val(item.quantity_after).into(),
-                )
-                .col_expr(
-                    inventory_stock::Column::QuantityMeters,
-                    sea_orm::sea_query::Expr::val(item.quantity_after).into(),
-                )
-                .col_expr(
-                    inventory_stock::Column::QuantityKg,
-                    sea_orm::sea_query::Expr::val(if quantity_before > Decimal::ZERO {
-                        let kg_ratio = current_quantity_kg / quantity_before;
-                        item.quantity_after * kg_ratio
-                    } else {
-                        current_quantity_kg
-                    }).into(),
-                )
-                .col_expr(
-                    inventory_stock::Column::Version,
-                    sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
-                )
-                .col_expr(
-                    inventory_stock::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(Utc::now()).into(),
-                )
-                .filter(inventory_stock::Column::Id.eq(item.stock_id))
-                .filter(inventory_stock::Column::Version.eq(expected_version))
-                .exec(txn)
-                .await?;
-
-            // 检查乐观锁是否成功
-            if update_result.rows_affected == 0 {
-                return Err(AppError::business(format!(
-                    "库存 ID {} 已被其他用户修改，请重试",
-                    item.stock_id
-                )));
-            }
-
-            // v16 批次 45 修复：product_id/batch_no/color_no 在上方 update_many 中未变更，
-            // 直接从循环前批量查询的 stock_map 取值，避免循环内 find_by_id（N+1 查询）
-            let quantity_change = item.quantity_after - quantity_before;
-            transaction_events.push(BusinessEvent::InventoryTransactionCreated {
-                transaction_id: adjustment_id,
-                transaction_type: "INVENTORY_ADJUSTMENT".to_string(),
-                product_id: stock_model.product_id,
-                warehouse_id,
-                quantity_meters: quantity_change,
-                quantity_kg: Decimal::ZERO,
-                source_bill_type: Some("inventory_adjustment".to_string()),
-                source_bill_no: Some(adjustment_no.clone()),
-                source_bill_id: Some(adjustment_id),
-                batch_no: stock_model.batch_no.clone(),
-                color_no: stock_model.color_no.clone(),
-                created_by: Some(approved_by),
-            });
+    /// 单条库存乐观锁更新（version 条件 + rows_affected 检查）
+    async fn apply_single_stock_update(
+        txn: &sea_orm::DatabaseTransaction,
+        item: &inventory_adjustment_item::Model,
+        stock_model: &inventory_stock::Model,
+    ) -> Result<(), AppError> {
+        let quantity_before = stock_model.quantity_on_hand;
+        let expected_version = stock_model.version;
+        let current_quantity_kg = stock_model.quantity_kg;
+        let update_result = inventory_stock::Entity::update_many()
+            .col_expr(
+                inventory_stock::Column::QuantityOnHand,
+                sea_orm::sea_query::Expr::val(item.quantity_after).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityAvailable,
+                sea_orm::sea_query::Expr::val(item.quantity_after).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityMeters,
+                sea_orm::sea_query::Expr::val(item.quantity_after).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityKg,
+                sea_orm::sea_query::Expr::val(if quantity_before > Decimal::ZERO {
+                    let kg_ratio = current_quantity_kg / quantity_before;
+                    item.quantity_after * kg_ratio
+                } else {
+                    current_quantity_kg
+                }).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::Version,
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+            )
+            .col_expr(
+                inventory_stock::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(Utc::now()).into(),
+            )
+            .filter(inventory_stock::Column::Id.eq(item.stock_id))
+            .filter(inventory_stock::Column::Version.eq(expected_version))
+            .exec(txn)
+            .await?;
+        if update_result.rows_affected == 0 {
+            return Err(AppError::business(format!(
+                "库存 ID {} 已被其他用户修改，请重试",
+                item.stock_id
+            )));
         }
+        Ok(())
+    }
 
-        Ok(transaction_events)
+    /// 构建库存调整交易事件（quantity_change 基于更新前数量计算）
+    fn build_adjustment_event(
+        item: &inventory_adjustment_item::Model,
+        stock_model: &inventory_stock::Model,
+        adjustment_id: i32,
+        adjustment_no: &str,
+        warehouse_id: i32,
+        approved_by: i32,
+    ) -> BusinessEvent {
+        let quantity_change = item.quantity_after - stock_model.quantity_on_hand;
+        BusinessEvent::InventoryTransactionCreated {
+            transaction_id: adjustment_id,
+            transaction_type: "INVENTORY_ADJUSTMENT".to_string(),
+            product_id: stock_model.product_id,
+            warehouse_id,
+            quantity_meters: quantity_change,
+            quantity_kg: Decimal::ZERO,
+            source_bill_type: Some("inventory_adjustment".to_string()),
+            source_bill_no: Some(adjustment_no.to_string()),
+            source_bill_id: Some(adjustment_id),
+            batch_no: stock_model.batch_no.clone(),
+            color_no: stock_model.color_no.clone(),
+            created_by: Some(approved_by),
+        }
     }
 
     /// 驳回库存调整单

@@ -273,14 +273,13 @@ impl ReportEngineService {
     ///
     /// P2-2 修复（v12 复审）：原实现返回 `Ok(Vec::new())` 桩代码，
     /// 现真实接入 finance_payments 表，按 month/payment_method 分组聚合 amount 与 payment_count。
+    /// D08 Tier 4 子批次2：拆分为 ≤50 行主函数 + 3 个 helper（aggregate_payments_by_group / compute_finance_group_key / build_aggregate_results）
     pub async fn aggregate_finance_data(
         &self,
         req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
         let mut select = FinancePaymentEntity::find();
-
         if let Some(date_range) = &req.date_range {
-            // finance_payments.payment_date 为 DateTime<Utc>，需将 NaiveDate 转换为 DateTime
             let start = date_range
                 .start
                 .and_hms_opt(0, 0, 0)
@@ -295,34 +294,20 @@ impl ReportEngineService {
                 crate::models::finance_payment::Column::PaymentDate.between(start, end),
             );
         }
-
         let payments = select.all(&*self.db).await?;
+        let aggregation = Self::aggregate_payments_by_group(&payments, &req);
+        Ok(Self::build_aggregate_results(aggregation))
+    }
 
-        let mut results = Vec::new();
+    /// 按分组键聚合付款记录（total_amount + payment_count）
+    fn aggregate_payments_by_group(
+        payments: &[crate::models::finance_payment::Model],
+        req: &AggregateRequest,
+    ) -> HashMap<String, HashMap<String, rust_decimal::Decimal>> {
         let mut aggregation: HashMap<String, HashMap<String, rust_decimal::Decimal>> =
             HashMap::new();
-
-        for payment in &payments {
-            // 分组键：按 month/payment_method 维度
-            let group_key = match req.aggregation_type {
-                AggregationType::GroupBy => {
-                    if req.group_by.iter().any(|g| g == "month") {
-                        format!("month_{}", payment.payment_date.format("%Y-%m"))
-                    } else if req.group_by.iter().any(|g| g == "payment_method") {
-                        format!(
-                            "payment_method_{}",
-                            payment
-                                .payment_method
-                                .clone()
-                                .unwrap_or_else(|| "unknown".to_string())
-                        )
-                    } else {
-                        "total".to_string()
-                    }
-                }
-                _ => "total".to_string(),
-            };
-
+        for payment in payments {
+            let group_key = Self::compute_finance_group_key(payment, req);
             let entry = aggregation.entry(group_key).or_default();
             *entry
                 .entry("total_amount".to_string())
@@ -331,7 +316,39 @@ impl ReportEngineService {
                 .entry("payment_count".to_string())
                 .or_insert(rust_decimal::Decimal::ZERO) += rust_decimal::Decimal::ONE;
         }
+        aggregation
+    }
 
+    /// 计算付款记录的分组键（month_ / payment_method_ / total）
+    fn compute_finance_group_key(
+        payment: &crate::models::finance_payment::Model,
+        req: &AggregateRequest,
+    ) -> String {
+        match req.aggregation_type {
+            AggregationType::GroupBy => {
+                if req.group_by.iter().any(|g| g == "month") {
+                    format!("month_{}", payment.payment_date.format("%Y-%m"))
+                } else if req.group_by.iter().any(|g| g == "payment_method") {
+                    format!(
+                        "payment_method_{}",
+                        payment
+                            .payment_method
+                            .clone()
+                            .unwrap_or_else(|| "unknown".to_string())
+                    )
+                } else {
+                    "total".to_string()
+                }
+            }
+            _ => "total".to_string(),
+        }
+    }
+
+    /// 将聚合 HashMap 转换为 AggregateResult 列表
+    fn build_aggregate_results(
+        aggregation: HashMap<String, HashMap<String, rust_decimal::Decimal>>,
+    ) -> Vec<AggregateResult> {
+        let mut results = Vec::new();
         for (group_key, values) in aggregation {
             let groups = if group_key.contains('_') {
                 let parts: Vec<&str> = group_key.splitn(2, '_').collect();
@@ -345,19 +362,16 @@ impl ReportEngineService {
                     serde_json::Value::String(group_key.clone()),
                 )]
             };
-
             let aggregations: Vec<(String, serde_json::Value)> = values
                 .iter()
                 .map(|(k, v)| (k.clone(), serde_json::json!(v.to_string())))
                 .collect();
-
             let mut columns = vec!["group".to_string()];
             let mut row_values = vec![group_key.clone()];
             for (k, v) in &values {
                 columns.push(k.clone());
                 row_values.push(v.to_string());
             }
-
             results.push(AggregateResult {
                 columns,
                 rows: vec![row_values],
@@ -367,8 +381,7 @@ impl ReportEngineService {
                 count: 1,
             });
         }
-
-        Ok(results)
+        results
     }
 
     /// 执行报表（统一入口：缓存 + 数据加载 + 元数据）

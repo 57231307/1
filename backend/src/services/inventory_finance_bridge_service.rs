@@ -328,13 +328,9 @@ impl InventoryFinanceBridgeService {
             color_no,
             created_by,
         } = args;
-        // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
-        // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
-        if quantity_meters.is_zero() {
-            return Err(AppError::validation(
-                "quantity_meters 不能为 0，无法计算单价",
-            ));
-        }
+        // P0 5-4 修复：除零保护；created_by 缺失拒绝生成凭证
+        self.validate_quantity_meters(quantity_meters)?;
+        let user_id = self.validate_created_by(created_by)?;
         // P2 5-12 修复：合并产品名称+成本价为单次查询（原为 2 次 product 查询）
         let (product_name, cost_price) = self
             .get_product_info(product_id)
@@ -344,37 +340,70 @@ impl InventoryFinanceBridgeService {
             .get_warehouse_name(warehouse_id)
             .await
             .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
-
-        let summary = format!(
-            "采购入库：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
+        let summary = self.build_purchase_receipt_summary(
+            &product_name, quantity_meters, quantity_kg, batch_no, color_no, &warehouse_name,
         );
-
         // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
         let amount = (cost_price * quantity_meters).round_dp(2);
+        let voucher_request = self.build_purchase_receipt_voucher_request(BridgeVoucherArgs {
+            source_bill_type, source_bill_no, source_bill_id,
+            batch_no, color_no, summary: &summary, amount,
+            quantity_meters, quantity_kg,
+        });
+        let voucher_service = VoucherService::new(self.db.clone());
+        // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
+        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
+        info!(
+            "自动生成采购入库凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
+            voucher.voucher_no, batch_no, color_no
+        );
+        Ok(())
+    }
 
-        let voucher_request = CreateVoucherRequest {
+    /// 构建采购入库凭证摘要
+    fn build_purchase_receipt_summary(
+        &self,
+        product_name: &str,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+        batch_no: &str,
+        color_no: &str,
+        warehouse_name: &str,
+    ) -> String {
+        format!(
+            "采购入库：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
+        )
+    }
+
+    /// 构建采购入库凭证请求体（借：库存商品 / 贷：应付账款），复用 BridgeVoucherArgs 避免新增参数对象
+    fn build_purchase_receipt_voucher_request(
+        &self,
+        args: BridgeVoucherArgs<'_>,
+    ) -> CreateVoucherRequest {
+        // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
+        let unit_price = (args.amount / args.quantity_meters).round_dp(2);
+        CreateVoucherRequest {
             voucher_type: "记".to_string(),
             voucher_date: chrono::Utc::now().date_naive(),
-            source_type: source_bill_type.map(|s| s.to_string()),
+            source_type: args.source_bill_type.map(|s| s.to_string()),
             source_module: Some("inventory".to_string()),
-            source_bill_id,
-            source_bill_no: source_bill_no.map(|s| s.to_string()),
-            batch_no: Some(batch_no.to_string()),
-            color_no: Some(color_no.to_string()),
+            source_bill_id: args.source_bill_id,
+            source_bill_no: args.source_bill_no.map(|s| s.to_string()),
+            batch_no: Some(args.batch_no.to_string()),
+            color_no: Some(args.color_no.to_string()),
             items: vec![
                 // 借：库存商品
                 Self::make_voucher_item(VoucherItemArgs {
                     line_no: 1,
                     subject_code: "1405",
                     subject_name: "库存商品",
-                    debit: amount,
+                    debit: args.amount,
                     credit: Decimal::ZERO,
-                    summary: Some(summary.clone()),
-                    quantity_meters: Some(quantity_meters),
-                    quantity_kg: Some(quantity_kg),
-                    // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                    summary: Some(args.summary.to_string()),
+                    quantity_meters: Some(args.quantity_meters),
+                    quantity_kg: Some(args.quantity_kg),
+                    unit_price: Some(unit_price),
                 }),
                 // 贷：应付账款
                 Self::make_voucher_item(VoucherItemArgs {
@@ -382,28 +411,14 @@ impl InventoryFinanceBridgeService {
                     subject_code: "2202",
                     subject_name: "应付账款",
                     debit: Decimal::ZERO,
-                    credit: amount,
-                    summary: Some(summary.clone()),
+                    credit: args.amount,
+                    summary: Some(args.summary.to_string()),
                     quantity_meters: None,
                     quantity_kg: None,
                     unit_price: None,
                 }),
             ],
-        };
-
-        let voucher_service = VoucherService::new(self.db.clone());
-        // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
-        let user_id =
-            created_by.ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
-        // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
-        let voucher = voucher_service.create_and_post(voucher_request, user_id).await?;
-
-        info!(
-            "自动生成采购入库凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
-            voucher.voucher_no, batch_no, color_no
-        );
-
-        Ok(())
+        }
     }
 
     /// 创建销售出库凭证

@@ -24,7 +24,7 @@ use futures::stream::Stream;
 use futures::FutureExt;
 use rskafka::client::partition::{Compression, OffsetAt, PartitionClient, UnknownTopicHandling};
 use rskafka::client::{Client, ClientBuilder};
-use rskafka::record::Record;
+use rskafka::record::{Record, RecordAndOffset};
 // 批次 357 v13 复审 baseline 清零：移除 unused import（Deserialize, Serialize 编译器报未使用）
 use tokio::sync::mpsc;
 
@@ -305,83 +305,34 @@ async fn run_consumer_loop(
     let mut initialised = false;
     let mut consecutive_failures: u32 = 0;
     const MAX_FAILURES: u32 = 3;
-
     loop {
         for partition in 0..partitions {
             if consecutive_failures >= MAX_FAILURES {
-                tracing::error!(
-                    "Kafka 消费连续失败 {} 次，退出消费循环",
-                    consecutive_failures
-                );
+                tracing::error!("Kafka 消费连续失败 {} 次，退出消费循环", consecutive_failures);
                 return Err(KafkaError("消费连续失败次数超过上限".to_string()));
             }
-
-            let pc = match client
-                .partition_client(config.topic.clone(), partition, UnknownTopicHandling::Retry)
-                .await
-            {
+            let pc = match acquire_partition_client(&client, &config, partition).await {
                 Ok(p) => p,
-                Err(e) => {
+                Err(()) => {
                     consecutive_failures = consecutive_failures.saturating_add(1);
-                    tracing::error!("Kafka 获取 partition {} 客户端失败: {}", partition, e);
                     continue;
                 }
             };
-
-            // 首次启动：从 earliest 开始读
             if !initialised {
-                match pc.get_offset(OffsetAt::Earliest).await {
-                    Ok(off) => last_offsets[partition as usize] = off,
-                    Err(e) => {
-                        consecutive_failures = consecutive_failures.saturating_add(1);
-                        tracing::error!(
-                            "Kafka 拉取 partition {} earliest offset 失败: {}",
-                            partition,
-                            e
-                        );
-                        continue;
-                    }
+                if let Err(e) = init_partition_offset(&pc, partition, &mut last_offsets).await {
+                    consecutive_failures = consecutive_failures.saturating_add(1);
+                    tracing::error!("Kafka 拉取 partition {} earliest offset 失败: {}", partition, e);
+                    continue;
                 }
             }
             initialised = true;
-
             let current_off = last_offsets[partition as usize];
-            let fetch_result = pc
-                .fetch_records(current_off, 1_048_576..1_048_576, 1_000)
-                .await;
+            let fetch_result = pc.fetch_records(current_off, 1_048_576..1_048_576, 1_000).await;
             match fetch_result {
-                Ok((records, _high_watermark)) => {
+                Ok((records, _)) => {
                     consecutive_failures = 0;
-                    if let Some(last) = records.last() {
-                        last_offsets[partition as usize] = last.offset + 1;
-                    }
-                    for record_and_off in records {
-                        let bytes = match record_and_off.record.value {
-                            Some(b) => b,
-                            None => continue,
-                        };
-                        let payload: EventPayload =
-                            match serde_json::from_slice(&bytes) {
-                                Ok(p) => p,
-                                Err(e) => {
-                                    tracing::error!(
-                                        "Kafka 事件反序列化为 EventPayload 失败: {}",
-                                        e
-                                    );
-                                    continue;
-                                }
-                            };
-                        match BusinessEvent::try_from(payload) {
-                            Ok(event) => {
-                                if tx.send(event).await.is_err() {
-                                    tracing::warn!("Kafka 消费通道已关闭，停止消费");
-                                    return Ok(());
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!("Kafka 事件转换 BusinessEvent 失败: {}", e);
-                            }
-                        }
+                    if process_fetched_records(records, &tx, &mut last_offsets, partition).await {
+                        return Ok(());
                     }
                 }
                 Err(e) => {
@@ -390,9 +341,84 @@ async fn run_consumer_loop(
                 }
             }
         }
-
         // 简单节流：200ms 拉一次
         tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}
+
+/// 获取 partition 客户端。失败时已记录日志，返回 Err(()) 由调用方累计失败次数。
+async fn acquire_partition_client(
+    client: &Arc<Client>,
+    config: &KafkaSettings,
+    partition: i32,
+) -> Result<PartitionClient, ()> {
+    client
+        .partition_client(config.topic.clone(), partition, UnknownTopicHandling::Retry)
+        .await
+        .map_err(|e| {
+            tracing::error!("Kafka 获取 partition {} 客户端失败: {}", partition, e);
+        })
+}
+
+/// 首次启动时拉取 partition 的 earliest offset 并写入 last_offsets。
+async fn init_partition_offset(
+    pc: &PartitionClient,
+    partition: i32,
+    last_offsets: &mut [i64],
+) -> Result<(), rskafka::client::error::Error> {
+    let off = pc.get_offset(OffsetAt::Earliest).await?;
+    last_offsets[partition as usize] = off;
+    Ok(())
+}
+
+/// 处理拉取到的记录：更新 last_offset 并逐条转发到通道。
+/// 返回 true 表示消费通道已关闭，调用方应停止消费循环。
+async fn process_fetched_records(
+    records: Vec<RecordAndOffset>,
+    tx: &mpsc::Sender<BusinessEvent>,
+    last_offsets: &mut [i64],
+    partition: i32,
+) -> bool {
+    if let Some(last) = records.last() {
+        last_offsets[partition as usize] = last.offset + 1;
+    }
+    for record_and_off in records {
+        if process_kafka_record(record_and_off, tx).await {
+            return true;
+        }
+    }
+    false
+}
+
+/// 处理单条 Kafka 记录：反序列化为 EventPayload 并转换为 BusinessEvent 后转发。
+/// 返回 true 表示消费通道已关闭，调用方应停止消费循环。
+async fn process_kafka_record(
+    record_and_off: RecordAndOffset,
+    tx: &mpsc::Sender<BusinessEvent>,
+) -> bool {
+    let bytes = match record_and_off.record.value {
+        Some(b) => b,
+        None => return false,
+    };
+    let payload: EventPayload = match serde_json::from_slice(&bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("Kafka 事件反序列化为 EventPayload 失败: {}", e);
+            return false;
+        }
+    };
+    match BusinessEvent::try_from(payload) {
+        Ok(event) => {
+            if tx.send(event).await.is_err() {
+                tracing::warn!("Kafka 消费通道已关闭，停止消费");
+                return true;
+            }
+            false
+        }
+        Err(e) => {
+            tracing::error!("Kafka 事件转换 BusinessEvent 失败: {}", e);
+            false
+        }
     }
 }
 

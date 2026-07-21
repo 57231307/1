@@ -333,93 +333,23 @@ impl ApReportService {
 
     /// 获取应付月报
     /// v14 中风险性能修复（批次 245）：月初/月末余额改为 SQL 聚合查询
+    /// D08 Tier 4 子批次2：拆分为 ≤50 行主函数 + 2 个 helper（compute_month_date_range / query_ap_invoice_balance）
     pub async fn get_monthly_report(
         &self,
         year: i32,
         month: u32,
         supplier_id: Option<i32>,
     ) -> Result<ApMonthlyReport, AppError> {
-        use sea_orm::ConnectionTrait;
-
-        let start_date = NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| AppError::bad_request("无效的日期参数"))?;
-        let end_date = if month == 12 {
-            NaiveDate::from_ymd_opt(year + 1, 1, 1)
-                .ok_or_else(|| AppError::bad_request("无效的日期参数"))?
-                .pred_opt()
-                .ok_or_else(|| AppError::bad_request("无效的日期参数"))?
-        } else {
-            NaiveDate::from_ymd_opt(year, month + 1, 1)
-                .ok_or_else(|| AppError::bad_request("无效的日期参数"))?
-                .pred_opt()
-                .ok_or_else(|| AppError::bad_request("无效的日期参数"))?
-        };
-
-        // 获取统计报表（已在上一步改为 SQL 聚合）
+        let (start_date, end_date) = Self::compute_month_date_range(year, month)?;
         let statistics = self
             .get_statistics_report(supplier_id, start_date, end_date)
             .await?;
-
-        // 查询月初余额：SQL 聚合 SUM(unpaid_amount)
-        let mut opening_params: Vec<sea_orm::Value> = vec!["CANCELLED".into(), start_date.into()];
-        let opening_supplier_filter = supplier_id
-            .map(|sid| {
-                opening_params.push(sid.into());
-                format!(" AND supplier_id = ${}", opening_params.len())
-            })
-            .unwrap_or_default();
-        let opening_sql = format!(
-            r#"
-            SELECT COALESCE(SUM(unpaid_amount), 0) AS opening_balance
-            FROM ap_invoice
-            WHERE invoice_status <> $1 AND invoice_date < $2{sf}
-            "#,
-            sf = opening_supplier_filter
-        );
-        let opening_row: Option<sea_orm::QueryResult> = self
-            .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
-                sea_orm::DatabaseBackend::Postgres,
-                opening_sql,
-                opening_params,
-            ))
-            .await
-            .map_err(|e| AppError::internal(format!("月初余额聚合查询失败: {}", e)))?;
-        let opening_row = opening_row
-            .ok_or_else(|| AppError::internal("月初余额聚合查询无结果".to_string()))?;
-        let opening_balance: Decimal =
-            opening_row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO);
-
-        // 查询月末余额：SQL 聚合 SUM(unpaid_amount)
-        let mut closing_params: Vec<sea_orm::Value> = vec!["CANCELLED".into(), end_date.into()];
-        let closing_supplier_filter = supplier_id
-            .map(|sid| {
-                closing_params.push(sid.into());
-                format!(" AND supplier_id = ${}", closing_params.len())
-            })
-            .unwrap_or_default();
-        let closing_sql = format!(
-            r#"
-            SELECT COALESCE(SUM(unpaid_amount), 0) AS closing_balance
-            FROM ap_invoice
-            WHERE invoice_status <> $1 AND invoice_date <= $2{sf}
-            "#,
-            sf = closing_supplier_filter
-        );
-        let closing_row: Option<sea_orm::QueryResult> = self
-            .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
-                sea_orm::DatabaseBackend::Postgres,
-                closing_sql,
-                closing_params,
-            ))
-            .await
-            .map_err(|e| AppError::internal(format!("月末余额聚合查询失败: {}", e)))?;
-        let closing_row = closing_row
-            .ok_or_else(|| AppError::internal("月末余额聚合查询无结果".to_string()))?;
-        let closing_balance: Decimal =
-            closing_row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO);
-
+        let opening_balance = self
+            .query_ap_invoice_balance(supplier_id, start_date, "<", "月初")
+            .await?;
+        let closing_balance = self
+            .query_ap_invoice_balance(supplier_id, end_date, "<=", "月末")
+            .await?;
         Ok(ApMonthlyReport {
             year,
             month,
@@ -428,6 +358,65 @@ impl ApReportService {
             closing_balance,
             statistics,
         })
+    }
+
+    /// 计算月报日期范围（月初第一天 + 月末最后一天）
+    fn compute_month_date_range(
+        year: i32,
+        month: u32,
+    ) -> Result<(NaiveDate, NaiveDate), AppError> {
+        let start_date = NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| AppError::bad_request("无效的日期参数"))?;
+        let next_month_first = if month == 12 {
+            NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            NaiveDate::from_ymd_opt(year, month + 1, 1)
+        }
+        .ok_or_else(|| AppError::bad_request("无效的日期参数"))?;
+        let end_date = next_month_first
+            .pred_opt()
+            .ok_or_else(|| AppError::bad_request("无效的日期参数"))?;
+        Ok((start_date, end_date))
+    }
+
+    /// 查询应付发票余额聚合（月初/月末复用）
+    /// comparison_op: "<" 用于月初（invoice_date < start_date），"<=" 用于月末（invoice_date <= end_date）
+    async fn query_ap_invoice_balance(
+        &self,
+        supplier_id: Option<i32>,
+        boundary_date: NaiveDate,
+        comparison_op: &str,
+        label: &str,
+    ) -> Result<Decimal, AppError> {
+        use sea_orm::ConnectionTrait;
+        let mut params: Vec<sea_orm::Value> = vec!["CANCELLED".into(), boundary_date.into()];
+        let supplier_filter = supplier_id
+            .map(|sid| {
+                params.push(sid.into());
+                format!(" AND supplier_id = ${}", params.len())
+            })
+            .unwrap_or_default();
+        let sql = format!(
+            r#"
+            SELECT COALESCE(SUM(unpaid_amount), 0) AS balance
+            FROM ap_invoice
+            WHERE invoice_status <> $1 AND invoice_date {op} $2{sf}
+            "#,
+            op = comparison_op,
+            sf = supplier_filter
+        );
+        let row: Option<sea_orm::QueryResult> = self
+            .db
+            .query_one(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("{}余额聚合查询失败: {}", label, e)))?;
+        let row = row
+            .ok_or_else(|| AppError::internal(format!("{}余额聚合查询无结果", label)))?;
+        Ok(row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO))
     }
 
     /// 获取账龄分析报告
