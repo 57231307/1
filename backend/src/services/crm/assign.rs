@@ -276,13 +276,8 @@ impl CrmAssignService {
         }
     }
 
-    /// 转移线索归属人（带审计）
-    ///
-    /// 业务规则：
-    /// 1. 线索必须存在且未转化为客户（lead_status != 'converted'）
-    /// 2. 新归属人必须是活跃用户（is_active=true）
-    /// 3. 不能转移给自己（to_user_id != lead.owner_id）
-    /// 4. 记录转移历史（action="TRANSFER"），携带 reason 和 notes 供审计
+    /// 转移线索归属人（带审计）：校验 + 事务内更新归属人 + 写历史
+    /// 业务规则：线索未转化、新归属人活跃、非自转、记录 TRANSFER 历史
     pub async fn transfer_lead(
         &self,
         req: TransferLeadRequest,
@@ -292,84 +287,124 @@ impl CrmAssignService {
         if req.reason.trim().is_empty() {
             return Err(AppError::validation("转移分配失败：转移原因不能为空"));
         }
-
-        // 查询线索
-        let lead = crm_lead::Entity::find_by_id(req.lead_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", req.lead_id)))?;
-
-        if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
-            return Err(AppError::validation(format!(
-                "线索 {} 已转化为客户，无法转移",
-                req.lead_id
-            )));
-        }
-
-        if lead.owner_id == req.to_user_id {
-            return Err(AppError::validation(
-                format!("转移失败：线索当前归属人已是用户 {}", req.to_user_id),
-            ));
-        }
-
-        // 校验新归属人存在且活跃
-        let new_owner = user::Entity::find_by_id(req.to_user_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("新归属人用户 {} 不存在", req.to_user_id))
-            })?;
-
-        if !new_owner.is_active {
-            return Err(AppError::validation(format!(
-                "新归属人用户 {} 已停用，无法接收线索",
-                req.to_user_id
-            )));
-        }
-
+        let lead = self.fetch_lead_for_transfer(req.lead_id, req.to_user_id).await?;
+        let new_owner = self.fetch_and_validate_new_owner(req.to_user_id).await?;
         let from_user_id = lead.owner_id;
         let from_user_name = lead.owner_name.clone();
         let now = chrono::Utc::now();
-
         // 事务：更新归属人 + 写入转移历史
         let txn = (*self.db).begin().await?;
-
-        let mut active: crm_lead::ActiveModel = lead.into();
-        active.owner_id = Set(new_owner.id);
-        active.owner_name = Set(new_owner.username.clone());
-        // 转移后状态保持原值不变（不强制改为 assigned），仅更新归属人
-        active.updated_at = Set(Some(now));
-        active.updated_by = Set(Some(operator_id));
-        let updated = active.update(&txn).await?;
-
+        let updated = Self::apply_lead_owner_update(&txn, lead, &new_owner, operator_id, now).await?;
         self.history_service
             .create_with_txn(
                 &txn,
                 operator_id,
                 operator_name,
-                CreateAssignmentHistoryRequest {
-                    lead_id: updated.id,
-                    lead_no: updated.lead_no.clone(),
-                    company_name: updated.company_name.clone(),
-                    from_user_id: Some(from_user_id),
-                    from_user_name: Some(from_user_name.clone()),
-                    to_user_id: Some(new_owner.id),
-                    to_user_name: Some(new_owner.username.clone()),
-                    action: "TRANSFER".to_string(),
-                    reason: Some(req.reason.clone()),
-                    notes: req.notes.clone(),
-                },
+                Self::build_transfer_history_request(
+                    &updated, from_user_id, &from_user_name, &new_owner, &req,
+                ),
             )
             .await?;
-
         txn.commit().await?;
-
         info!(
             "用户 {} 将线索 {} 从用户 {} 转移给用户 {}",
             operator_id, updated.id, from_user_id, new_owner.id
         );
+        Ok(Self::build_transfer_result(updated, from_user_id, from_user_name, new_owner, now))
+    }
 
-        Ok(TransferLeadResult {
+    /// 查询线索并校验可转移性：存在 + 未转化为客户 + 非自转
+    async fn fetch_lead_for_transfer(
+        &self,
+        lead_id: i32,
+        to_user_id: i32,
+    ) -> Result<crm_lead::Model, AppError> {
+        let lead = crm_lead::Entity::find_by_id(lead_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
+        if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
+            return Err(AppError::validation(format!(
+                "线索 {} 已转化为客户，无法转移",
+                lead_id
+            )));
+        }
+        if lead.owner_id == to_user_id {
+            return Err(AppError::validation(format!(
+                "转移失败：线索当前归属人已是用户 {}",
+                to_user_id
+            )));
+        }
+        Ok(lead)
+    }
+
+    /// 查询新归属人并校验：存在 + 活跃
+    async fn fetch_and_validate_new_owner(
+        &self,
+        to_user_id: i32,
+    ) -> Result<user::Model, AppError> {
+        let new_owner = user::Entity::find_by_id(to_user_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::validation(format!("新归属人用户 {} 不存在", to_user_id))
+            })?;
+        if !new_owner.is_active {
+            return Err(AppError::validation(format!(
+                "新归属人用户 {} 已停用，无法接收线索",
+                to_user_id
+            )));
+        }
+        Ok(new_owner)
+    }
+
+    /// 在事务内更新线索归属人（转移后状态保持原值，仅更新归属人字段）
+    async fn apply_lead_owner_update(
+        txn: &sea_orm::DatabaseTransaction,
+        lead: crm_lead::Model,
+        new_owner: &user::Model,
+        operator_id: i32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<crm_lead::Model, AppError> {
+        let mut active: crm_lead::ActiveModel = lead.into();
+        active.owner_id = Set(new_owner.id);
+        active.owner_name = Set(new_owner.username.clone());
+        active.updated_at = Set(Some(now));
+        active.updated_by = Set(Some(operator_id));
+        Ok(active.update(txn).await?)
+    }
+
+    /// 构建转移历史请求（action="TRANSFER"，携带 reason 和 notes）
+    fn build_transfer_history_request(
+        updated: &crm_lead::Model,
+        from_user_id: i32,
+        from_user_name: &str,
+        new_owner: &user::Model,
+        req: &TransferLeadRequest,
+    ) -> CreateAssignmentHistoryRequest {
+        CreateAssignmentHistoryRequest {
+            lead_id: updated.id,
+            lead_no: updated.lead_no.clone(),
+            company_name: updated.company_name.clone(),
+            from_user_id: Some(from_user_id),
+            from_user_name: Some(from_user_name.to_string()),
+            to_user_id: Some(new_owner.id),
+            to_user_name: Some(new_owner.username.clone()),
+            action: "TRANSFER".to_string(),
+            reason: Some(req.reason.clone()),
+            notes: req.notes.clone(),
+        }
+    }
+
+    /// 构建转移结果
+    fn build_transfer_result(
+        updated: crm_lead::Model,
+        from_user_id: i32,
+        from_user_name: String,
+        new_owner: user::Model,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> TransferLeadResult {
+        TransferLeadResult {
             lead_id: updated.id,
             lead_no: updated.lead_no,
             from_user_id,
@@ -377,7 +412,7 @@ impl CrmAssignService {
             to_user_id: new_owner.id,
             to_user_name: new_owner.username,
             transferred_at: now,
-        })
+        }
     }
 
     /// 查询销售用户的当前线索负载（用于自动分配前的预览）

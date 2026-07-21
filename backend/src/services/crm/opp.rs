@@ -285,96 +285,117 @@ impl CrmService {
         user_id: i32,
     ) -> Result<crm_opportunity::Model, AppError> {
         let opportunity = self.get_opportunity(opportunity_id, None).await?;
+        self.ensure_opportunity_not_closed(&opportunity)?;
 
-        // 关闭后的商机不能修改
-        if let Some(status) = &opportunity.opportunity_status {
-            if status == opp_status::CLOSED_WON || status == opp_status::CLOSED_LOST {
-                return Err(AppError::business("已关闭的商机不能修改".to_string()));
-            }
-        }
-
-        let mut opportunity_active: crm_opportunity::ActiveModel = opportunity.into();
-
-        if let Some(v) = req.opportunity_name {
-            opportunity_active.opportunity_name = Set(v);
-        }
-        if let Some(v) = req.customer_id {
-            opportunity_active.customer_id = Set(v);
-        }
-        if let Some(v) = req.lead_id {
-            opportunity_active.lead_id = Set(Some(v));
-        }
-        if let Some(v) = req.opportunity_type {
-            opportunity_active.opportunity_type = Set(Some(v));
-        }
-        if let Some(v) = req.opportunity_stage.clone() {
-            self.validate_opportunity_stage_transition(
-                opportunity_active.opportunity_stage.as_ref(),
-                &v,
-            )?;
-            // V15 P0-B08：阶段流转时自动重算赢率
-            // 用户未显式传 win_probability 时，按新阶段的默认赢率填充
-            // 若用户同时传了 win_probability，下方 req.win_probability 分支会覆盖此默认值
-            // 注意：需在 Set(Some(v)) 移动 v 之前计算默认赢率
-            let default_prob = if req.win_probability.is_none() {
-                default_win_probability_by_stage(&v)
-            } else {
-                None
-            };
-            opportunity_active.opportunity_stage = Set(Some(v));
-            if let Some(prob) = default_prob {
-                opportunity_active.win_probability = Set(Some(prob));
-            }
-        }
-        if let Some(v) = req.win_probability {
-            opportunity_active.win_probability = Set(Some(v));
-        }
-        if let Some(v) = req.estimated_amount {
-            opportunity_active.estimated_amount = Set(Some(v));
-        }
-        if let Some(v) = req.actual_amount {
-            opportunity_active.actual_amount = Set(Some(v));
-        }
-        if let Some(v) = req.currency {
-            opportunity_active.currency = Set(Some(v));
-        }
-        if let Some(v) = req.expected_close_date {
-            opportunity_active.expected_close_date = Set(Some(v));
-        }
-        if let Some(v) = req.actual_close_date {
-            opportunity_active.actual_close_date = Set(Some(v));
-        }
-        if let Some(v) = req.product_ids {
-            opportunity_active.product_ids = Set(Some(v));
-        }
-        if let Some(v) = req.product_names {
-            opportunity_active.product_names = Set(Some(v));
-        }
-        if let Some(v) = req.product_desc {
-            opportunity_active.product_desc = Set(Some(v));
-        }
-        if let Some(v) = req.priority {
-            opportunity_active.priority = Set(Some(v));
-        }
-        if let Some(v) = req.rating {
-            opportunity_active.rating = Set(Some(v));
-        }
-        if let Some(v) = req.tags {
-            opportunity_active.tags = Set(Some(v));
-        }
-
-        opportunity_active.updated_at = Set(Some(chrono::Utc::now()));
+        let mut active: crm_opportunity::ActiveModel = opportunity.into();
+        Self::apply_opportunity_basic_fields(&mut active, &req);
+        self.apply_opportunity_stage_and_rest(&mut active, &req)
+            .await?;
+        active.updated_at = Set(Some(chrono::Utc::now()));
 
         let opportunity = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
-            opportunity_active,
+            active,
             // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
             Some(user_id),
         )
         .await?;
 
         Ok(opportunity)
+    }
+
+    /// 关闭后的商机不能修改
+    fn ensure_opportunity_not_closed(
+        &self,
+        opportunity: &crm_opportunity::Model,
+    ) -> Result<(), AppError> {
+        if let Some(status) = &opportunity.opportunity_status {
+            if status == opp_status::CLOSED_WON || status == opp_status::CLOSED_LOST {
+                return Err(AppError::business("已关闭的商机不能修改".to_string()));
+            }
+        }
+        Ok(())
+    }
+
+    /// 应用基础字段（不含阶段流转和赢率，这两者需在 stage_and_rest 中按顺序处理）
+    fn apply_opportunity_basic_fields(
+        active: &mut crm_opportunity::ActiveModel,
+        req: &crate::models::dto::crm_dto::UpdateOpportunityRequest,
+    ) {
+        if let Some(v) = &req.opportunity_name {
+            active.opportunity_name = Set(v.clone());
+        }
+        if let Some(v) = &req.customer_id {
+            active.customer_id = Set(*v);
+        }
+        if let Some(v) = &req.lead_id {
+            active.lead_id = Set(Some(*v));
+        }
+        if let Some(v) = &req.opportunity_type {
+            active.opportunity_type = Set(Some(v.clone()));
+        }
+        if let Some(v) = &req.estimated_amount {
+            active.estimated_amount = Set(*v);
+        }
+        if let Some(v) = &req.actual_amount {
+            active.actual_amount = Set(*v);
+        }
+        if let Some(v) = &req.currency {
+            active.currency = Set(v.clone());
+        }
+        if let Some(v) = &req.expected_close_date {
+            active.expected_close_date = Set(*v);
+        }
+        if let Some(v) = &req.actual_close_date {
+            active.actual_close_date = Set(*v);
+        }
+    }
+
+    /// 应用阶段流转（含默认赢率重算）+ 赢率覆盖 + 其余字段
+    /// 顺序约束：阶段流转必须在 win_probability 之前，以允许用户显式传入的赢率覆盖阶段默认值
+    async fn apply_opportunity_stage_and_rest(
+        &self,
+        active: &mut crm_opportunity::ActiveModel,
+        req: &crate::models::dto::crm_dto::UpdateOpportunityRequest,
+    ) -> Result<(), AppError> {
+        if let Some(v) = &req.opportunity_stage {
+            self.validate_opportunity_stage_transition(active.opportunity_stage.as_ref(), v)?;
+            // V15 P0-B08：阶段流转时自动重算赢率
+            // 用户未显式传 win_probability 时，按新阶段的默认赢率填充
+            // 若用户同时传了 win_probability，下方 req.win_probability 分支会覆盖此默认值
+            let default_prob = if req.win_probability.is_none() {
+                default_win_probability_by_stage(v)
+            } else {
+                None
+            };
+            active.opportunity_stage = Set(Some(v.clone()));
+            if let Some(prob) = default_prob {
+                active.win_probability = Set(Some(prob));
+            }
+        }
+        if let Some(v) = &req.win_probability {
+            active.win_probability = Set(Some(*v));
+        }
+        if let Some(v) = &req.product_ids {
+            active.product_ids = Set(Some(v.clone()));
+        }
+        if let Some(v) = &req.product_names {
+            active.product_names = Set(Some(v.clone()));
+        }
+        if let Some(v) = &req.product_desc {
+            active.product_desc = Set(Some(v.clone()));
+        }
+        if let Some(v) = &req.priority {
+            active.priority = Set(v.clone());
+        }
+        if let Some(v) = &req.rating {
+            active.rating = Set(*v);
+        }
+        if let Some(v) = &req.tags {
+            active.tags = Set(Some(v.clone()));
+        }
+        Ok(())
     }
 
     /// 删除商机

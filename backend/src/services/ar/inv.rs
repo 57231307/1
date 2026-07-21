@@ -102,21 +102,8 @@ impl ArReconciliationService {
 
     /// 创建应收单（P0-2 销售发货→AR 入口）
     ///
-    /// 业务触发：在销售订单 `ship_order` 库存扣减成功后由调用方发起。
-    /// 事务语义：调用方传入 `txn`，本方法**不会**独立 commit/rollback，
-    ///           与库存扣减、订单状态更新共用同一事务，任意步骤失败则整体回滚。
-    /// 幂等保证：按 `source_type=SALES_ORDER` + `source_bill_id=order_id` 判定，
-    ///           若已存在应收单则返回 `BusinessError`，由调用方决定走更新/取消流程。
-    /// 客户账期：优先使用 `payment_terms_days`；若 <= 0 则回退为 30 天默认值。
-    /// 单号连续：复用 `DocumentNumberGenerator`，格式 AR + YYYYMMDD + 3 位流水号。
-    ///
-    /// 参数说明：
-    /// - `customer_id`        客户主档 ID（已审批订单的客户）
-    /// - `order_id`           销售订单 ID
-    /// - `total_amount`       本次发货应收金额（含税），必须 > 0
-    /// - `payment_terms_days` 客户账期（天），<= 0 时回退 30 天
-    /// - `user_id`            当前操作人
-    /// - `txn`                外部数据库事务引用
+    /// 复用调用方 txn 保证原子提交；幂等：source_type=SALES_ORDER + source_bill_id=order_id。
+    /// 账期 payment_terms_days<=0 回退 30 天；状态 DRAFT 待审（P0 3-5 修复）。
     pub async fn create_receivable(
         &self,
         customer_id: i32,
@@ -128,19 +115,43 @@ impl ArReconciliationService {
     ) -> Result<ArInvoiceModel, AppError> {
         // 1. 金额校验：必须 > 0，避免生成 0 元应收单污染账龄报表
         if total_amount <= Decimal::ZERO {
-            return Err(AppError::validation(format!(
-                "应收金额必须大于 0，实际为 {}",
-                total_amount
-            )));
+            return Err(AppError::validation(format!("应收金额必须大于 0，实际为 {}", total_amount)));
         }
+        // 2-4. 加载订单/客户 + 幂等校验
+        let (order, cust) = Self::load_receivable_context(txn, customer_id, order_id).await?;
+        // 5. 账期校验：<= 0 时统一回退为 30 天
+        let terms = if payment_terms_days <= 0 { 30 } else { payment_terms_days };
+        // 6. 计算日期：发票日期 = 今日；到期日 = 发票日期 + 账期天数
+        let invoice_date = Utc::now().date_naive();
+        let due_date = invoice_date + Duration::days(terms as i64);
+        // 7. 生成应收单号（与销售订单/采购订单/对账单共用流水号生成器）
+        let invoice_no = DocumentNumberGenerator::generate_no(
+            txn, "AR", ArInvoiceEntity, ArInvoiceColumn::InvoiceNo).await?;
+        // 8. 写入 ar_invoices 表（DRAFT 待审，由 AR 审批节点确认后转 APPROVED）
+        let active = Self::build_receivable_active(
+            invoice_no, invoice_date, due_date, customer_id, order_id,
+            total_amount, user_id, &order, &cust,
+        );
+        let invoice = active.insert(txn).await?;
+        tracing::info!(
+            "P0-2 销售→AR：应收单创建成功，invoice_no={}, amount={}, 账期={}天, 客户={}",
+            invoice.invoice_no, invoice.invoice_amount, terms, cust.customer_name
+        );
+        Ok(invoice)
+    }
 
-        // 2. 查询销售订单（取 order_no 作为 source_bill_no 写入应收单）
+    /// 加载应收单上下文：销售订单 + 幂等校验 + 客户主档
+    async fn load_receivable_context(
+        txn: &DatabaseTransaction,
+        customer_id: i32,
+        order_id: i32,
+    ) -> Result<(sales_order::Model, customer::Model), AppError> {
+        // 查询销售订单（取 order_no 作为 source_bill_no 写入应收单）
         let order = sales_order::Entity::find_by_id(order_id)
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
-
-        // 3. 幂等检查：同订单只允许存在一张应收单
+        // 幂等检查：同订单只允许存在一张应收单
         let exists = ArInvoiceEntity::find()
             .filter(ArInvoiceColumn::SourceType.eq("SALES_ORDER"))
             .filter(ArInvoiceColumn::SourceBillId.eq(order_id))
@@ -152,38 +163,27 @@ impl ArReconciliationService {
                 order_id
             )));
         }
-
-        // 4. 查询客户主档（用于冗余客户名称字段）
+        // 查询客户主档（用于冗余客户名称字段）
         let cust = customer::Entity::find_by_id(customer_id)
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+        Ok((order, cust))
+    }
 
-        // 5. 账期校验：<= 0 时统一回退为 30 天，避免脏数据导致应收单到期日异常
-        let terms = if payment_terms_days <= 0 {
-            30
-        } else {
-            payment_terms_days
-        };
-
-        // 6. 计算日期：发票日期 = 今日；到期日 = 发票日期 + 账期天数
-        let invoice_date = Utc::now().date_naive();
-        let due_date = invoice_date + Duration::days(terms as i64);
-
-        // 7. 生成应收单号（与销售订单/采购订单/对账单共用流水号生成器）
-        let invoice_no = DocumentNumberGenerator::generate_no(
-            txn,
-            "AR",
-            ArInvoiceEntity,
-            ArInvoiceColumn::InvoiceNo,
-        )
-        .await?;
-
-        // 8. 写入 ar_invoices 表
-        // P0 3-5 修复（2026-07-01 八维度审计）：销售→AR 走 DRAFT 待审，
-        // 由 AR 审批节点确认后转 APPROVED，与手动创建路径（ar_invoice_service::create）对齐。
-        // 原 APPROVED 跳过审批违反业务流程，且 approve 方法的状态门（仅 DRAFT 可审）无法生效。
-        let active = ArInvoiceActive {
+    /// 构建应收单 ActiveModel（DRAFT 待审 + PENDING 审批），冗余客户名/订单号
+    fn build_receivable_active(
+        invoice_no: String,
+        invoice_date: chrono::NaiveDate,
+        due_date: chrono::NaiveDate,
+        customer_id: i32,
+        order_id: i32,
+        total_amount: Decimal,
+        user_id: i32,
+        order: &sales_order::Model,
+        cust: &customer::Model,
+    ) -> ArInvoiceActive {
+        ArInvoiceActive {
             invoice_no: Set(invoice_no),
             invoice_date: Set(invoice_date),
             due_date: Set(due_date),
@@ -203,19 +203,7 @@ impl ArReconciliationService {
             approval_status: Set(approval::PENDING.to_string()),
             created_by: Set(user_id),
             ..Default::default()
-        };
-
-        let invoice = active.insert(txn).await?;
-
-        tracing::info!(
-            "P0-2 销售→AR：应收单创建成功，invoice_no={}, amount={}, 账期={}天, 客户={}",
-            invoice.invoice_no,
-            invoice.invoice_amount,
-            terms,
-            cust.customer_name
-        );
-
-        Ok(invoice)
+        }
     }
 }
 

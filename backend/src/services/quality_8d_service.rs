@@ -224,106 +224,114 @@ impl QualityEightDService {
 
     /// 推进到下一 D 阶段（10 条合法边的 2-9 条，第 1 条由 start_8d 完成，第 10 条由 close_8d 完成）
     ///
-    /// 校验规则：
-    /// 1. 报告存在
-    /// 2. 当前 status 与 payload 期望的源状态匹配
-    /// 3. 必填字段非空（payload 字段已强制为 String，非空校验由类型系统保证）
+    /// 校验规则：报告存在 + 当前 status 与 payload 期望源状态匹配 + 必填字段非空。
     pub async fn advance(
         &self,
         report_id: i64,
         payload: AdvanceStepPayload,
     ) -> Result<quality_8d_report::Model, EightDError> {
         let txn = (*self.db).begin().await?;
+        let now = Utc::now();
+        let (mut active, current) = Self::load_active_for_advance(&txn, report_id, now).await?;
+        // 校验 + 应用 payload：先尝试 D0-D3 转换，再尝试 D4-D8 转换；均不匹配则报状态错误
+        let next_status = Self::apply_d0_to_d3_step(&mut active, now, &current, &payload)
+            .or_else(|| Self::apply_d4_to_d8_step(&mut active, now, &current, &payload))
+            .ok_or_else(|| EightDError::InvalidState {
+                current: current.to_string(),
+                expected: expected_source_status_for_payload(&payload),
+            })?;
+        active.status = Set(next_status.as_str().to_string());
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
 
+    /// 加载 8D 报告 ActiveModel 并解析当前状态（lock_exclusive 防并发推进；写入 updated_at）
+    async fn load_active_for_advance(
+        txn: &sea_orm::DatabaseTransaction,
+        report_id: i64,
+        now: chrono::DateTime<Utc>,
+    ) -> Result<(ActiveModel, EightDStatus), EightDError> {
         let existing = Entity::find_by_id(report_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or(EightDError::NotFound)?;
-
         let current = EightDStatus::from_str(&existing.status)
             .map_err(|_| EightDError::Validation(format!("非法 status: {}", existing.status)))?;
-
-        let now = Utc::now();
         let mut active: ActiveModel = existing.into();
         active.updated_at = Set(now);
+        Ok((active, current))
+    }
 
-        // 校验 + 应用 payload
-        let next_status = match (&current, &payload) {
+    /// 应用 D0→D1、D1→D2、D2→D3 状态转换；匹配则写入字段并返回下一状态，不匹配返回 None
+    fn apply_d0_to_d3_step(
+        active: &mut ActiveModel,
+        now: chrono::DateTime<Utc>,
+        current: &EightDStatus,
+        payload: &AdvanceStepPayload,
+    ) -> Option<EightDStatus> {
+        match (current, payload) {
             (EightDStatus::D0Plan, AdvanceStepPayload::D1Team { team_members }) => {
                 active.d1_date = Set(Some(now));
                 active.d1_team_members = Set(Some(team_members.clone()));
-                EightDStatus::D1Team
+                Some(EightDStatus::D1Team)
             }
             (EightDStatus::D1Team, AdvanceStepPayload::D2Problem { problem_description }) => {
                 active.d2_date = Set(Some(now));
                 active.d2_problem_description = Set(Some(problem_description.clone()));
-                EightDStatus::D2Problem
+                Some(EightDStatus::D2Problem)
             }
             (EightDStatus::D2Problem, AdvanceStepPayload::D3Interim { interim_action }) => {
                 active.d3_date = Set(Some(now));
                 active.d3_interim_action = Set(Some(interim_action.clone()));
-                EightDStatus::D3Interim
+                Some(EightDStatus::D3Interim)
             }
-            (
-                EightDStatus::D3Interim,
-                AdvanceStepPayload::D4RootCause {
-                    method,
-                    detail,
-                    summary,
-                },
-            ) => {
+            _ => None,
+        }
+    }
+
+    /// 应用 D3→D4 ... D7→D8 状态转换；匹配则写入字段并返回下一状态，不匹配返回 None
+    fn apply_d4_to_d8_step(
+        active: &mut ActiveModel,
+        now: chrono::DateTime<Utc>,
+        current: &EightDStatus,
+        payload: &AdvanceStepPayload,
+    ) -> Option<EightDStatus> {
+        match (current, payload) {
+            (EightDStatus::D3Interim, AdvanceStepPayload::D4RootCause { method, detail, summary }) => {
                 active.d4_date = Set(Some(now));
                 active.d4_root_cause_method = Set(Some(method.as_str().to_string()));
                 active.d4_root_cause_detail = Set(Some(detail.clone()));
                 active.d4_root_cause_summary = Set(Some(summary.clone()));
-                EightDStatus::D4RootCause
+                Some(EightDStatus::D4RootCause)
             }
-            (
-                EightDStatus::D4RootCause,
-                AdvanceStepPayload::D5Permanent {
-                    permanent_action,
-                    action_owner,
-                    due_date,
-                },
-            ) => {
+            (EightDStatus::D4RootCause, AdvanceStepPayload::D5Permanent { permanent_action, action_owner, due_date }) => {
                 active.d5_date = Set(Some(now));
                 active.d5_permanent_action = Set(Some(permanent_action.clone()));
                 active.d5_action_owner = Set(Some(action_owner.clone()));
                 active.d5_due_date = Set(Some(*due_date));
-                EightDStatus::D5Permanent
+                Some(EightDStatus::D5Permanent)
             }
             (EightDStatus::D5Permanent, AdvanceStepPayload::D6Verify { verification_result }) => {
                 active.d6_date = Set(Some(now));
                 active.d6_verification_result = Set(Some(verification_result.clone()));
                 // D6 验证通过即视为 D5 永久措施已完成
                 active.d5_completed_at = Set(Some(now));
-                EightDStatus::D6Verify
+                Some(EightDStatus::D6Verify)
             }
             (EightDStatus::D6Verify, AdvanceStepPayload::D7Prevent { prevention_action }) => {
                 active.d7_date = Set(Some(now));
                 active.d7_prevention_action = Set(Some(prevention_action.clone()));
-                EightDStatus::D7Prevent
+                Some(EightDStatus::D7Prevent)
             }
             (EightDStatus::D7Prevent, AdvanceStepPayload::D8Recognize { closure_summary }) => {
                 active.d8_date = Set(Some(now));
                 active.d8_closure_summary = Set(Some(closure_summary.clone()));
-                EightDStatus::D8Recognize
+                Some(EightDStatus::D8Recognize)
             }
-            // 状态不匹配的兜底错误
-            (current, payload) => {
-                let expected = expected_source_status_for_payload(payload);
-                return Err(EightDError::InvalidState {
-                    current: current.to_string(),
-                    expected,
-                });
-            }
-        };
-
-        active.status = Set(next_status.as_str().to_string());
-        let updated = active.update(&txn).await?;
-        txn.commit().await?;
-        Ok(updated)
+            _ => None,
+        }
     }
 
     /// 关闭 8D 流程（d8_recognize → closed）

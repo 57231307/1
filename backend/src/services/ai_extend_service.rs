@@ -583,84 +583,12 @@ impl AiExtendService {
         &self,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<serde_json::Value, AppError> {
-        // V15 P0-S27：基础查询应用数据范围过滤
-        let mut base_proc = ProcessEntity::find();
-        if let Some(ctx) = data_scope {
-            base_proc = apply_data_scope(
-                base_proc,
-                ctx,
-                ProcessColumn::CreatedBy,
-                ProcessColumn::CreatedBy,
-            );
-        }
-        let mut base_qual = QualityEntity::find();
-        if let Some(ctx) = data_scope {
-            base_qual = apply_data_scope(
-                base_qual,
-                ctx,
-                QualityColumn::CreatedBy,
-                QualityColumn::CreatedBy,
-            );
-        }
-
-        let total_proc = base_proc.clone().count(&*self.db).await?;
-        let applied_proc = base_proc
-            .clone()
-            .filter(ProcessColumn::IsApplied.eq(true))
-            .count(&*self.db)
-            .await?;
-        let knn_proc = base_proc
-            .filter(ProcessColumn::Source.eq("knn"))
-            .count(&*self.db)
-            .await?;
-        let apply_rate = if total_proc > 0 {
-            applied_proc as f64 / total_proc as f64
-        } else {
-            0.0
-        };
-
-        let total_qual = base_qual.clone().count(&*self.db).await?;
-        let high_risk = base_qual
-            .clone()
-            .filter(QualityColumn::RiskLevel.eq("high"))
-            .count(&*self.db)
-            .await?;
-        let unack = base_qual
-            .filter(QualityColumn::IsAcknowledged.eq(false))
-            .count(&*self.db)
-            .await?;
-
-        // 最新 5 条也需应用数据范围过滤
-        let mut latest_proc_q = ProcessEntity::find();
-        if let Some(ctx) = data_scope {
-            latest_proc_q = apply_data_scope(
-                latest_proc_q,
-                ctx,
-                ProcessColumn::CreatedBy,
-                ProcessColumn::CreatedBy,
-            );
-        }
-        let latest_proc = latest_proc_q
-            .order_by_desc(ProcessColumn::CreatedAt)
-            .limit(5)
-            .all(&*self.db)
-            .await?;
-
-        let mut latest_qual_q = QualityEntity::find();
-        if let Some(ctx) = data_scope {
-            latest_qual_q = apply_data_scope(
-                latest_qual_q,
-                ctx,
-                QualityColumn::CreatedBy,
-                QualityColumn::CreatedBy,
-            );
-        }
-        let latest_qual = latest_qual_q
-            .order_by_desc(QualityColumn::CreatedAt)
-            .limit(5)
-            .all(&*self.db)
-            .await?;
-
+        let (total_proc, applied_proc, knn_proc, apply_rate) =
+            self.collect_process_stats(data_scope).await?;
+        let (total_qual, high_risk, unack) =
+            self.collect_quality_stats(data_scope).await?;
+        let latest_proc = self.fetch_latest_process(data_scope).await?;
+        let latest_qual = self.fetch_latest_quality(data_scope).await?;
         Ok(serde_json::json!({
             "process_optimization": {
                 "total": total_proc,
@@ -676,6 +604,79 @@ impl AiExtendService {
             "latest_process_optimizations": latest_proc,
             "latest_quality_predictions": latest_qual,
         }))
+    }
+
+    /// 统计工艺优化指标（总数 / 已应用 / KNN 推荐 / 应用率），应用数据范围过滤
+    async fn collect_process_stats(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<(u64, u64, u64, f64), AppError> {
+        let mut base = ProcessEntity::find();
+        if let Some(ctx) = data_scope {
+            base = apply_data_scope(base, ctx, ProcessColumn::CreatedBy, ProcessColumn::CreatedBy);
+        }
+        let total = base.clone().count(&*self.db).await?;
+        let applied = base
+            .clone()
+            .filter(ProcessColumn::IsApplied.eq(true))
+            .count(&*self.db)
+            .await?;
+        let knn = base
+            .filter(ProcessColumn::Source.eq("knn"))
+            .count(&*self.db)
+            .await?;
+        let rate = if total > 0 {
+            applied as f64 / total as f64
+        } else {
+            0.0
+        };
+        Ok((total, applied, knn, rate))
+    }
+
+    /// 统计质量预测指标（总数 / 高风险 / 未确认），应用数据范围过滤
+    async fn collect_quality_stats(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<(u64, u64, u64), AppError> {
+        let mut base = QualityEntity::find();
+        if let Some(ctx) = data_scope {
+            base = apply_data_scope(base, ctx, QualityColumn::CreatedBy, QualityColumn::CreatedBy);
+        }
+        let total = base.clone().count(&*self.db).await?;
+        let high_risk = base
+            .clone()
+            .filter(QualityColumn::RiskLevel.eq("high"))
+            .count(&*self.db)
+            .await?;
+        let unack = base
+            .filter(QualityColumn::IsAcknowledged.eq(false))
+            .count(&*self.db)
+            .await?;
+        Ok((total, high_risk, unack))
+    }
+
+    /// 获取最新 5 条工艺优化记录（应用数据范围过滤，按创建时间倒序）
+    async fn fetch_latest_process(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<ProcessModel>, AppError> {
+        let mut q = ProcessEntity::find();
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(q, ctx, ProcessColumn::CreatedBy, ProcessColumn::CreatedBy);
+        }
+        Ok(q.order_by_desc(ProcessColumn::CreatedAt).limit(5).all(&*self.db).await?)
+    }
+
+    /// 获取最新 5 条质量预测记录（应用数据范围过滤，按创建时间倒序）
+    async fn fetch_latest_quality(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<QualityModel>, AppError> {
+        let mut q = QualityEntity::find();
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(q, ctx, QualityColumn::CreatedBy, QualityColumn::CreatedBy);
+        }
+        Ok(q.order_by_desc(QualityColumn::CreatedAt).limit(5).all(&*self.db).await?)
     }
 
     /// 返回 AI 模块算法元信息（v11 批次 155 P2-C：从 handler 下沉到 service，避免描述脱钩）
