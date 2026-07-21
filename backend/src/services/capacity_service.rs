@@ -19,6 +19,9 @@ use crate::models::work_center::{
 };
 use crate::utils::error::AppError;
 
+/// 工作中心 ID → 生产订单列表的映射
+type OrdersByWorkCenter = std::collections::HashMap<i32, Vec<crate::models::production_order::Model>>;
+
 /// 可用产能查询结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AvailableCapacity {
@@ -207,10 +210,10 @@ impl CapacityService {
         wc_ids: &[i32],
         date_from: Option<NaiveDate>,
         date_to: Option<NaiveDate>,
-    ) -> Result<std::collections::HashMap<i32, Vec<crate::models::production_order::Model>>, AppError>
+    ) -> Result<OrdersByWorkCenter, AppError>
     {
         if wc_ids.is_empty() {
-            return Ok(std::collections::HashMap::new());
+            return Ok(OrdersByWorkCenter::new());
         }
         let mut order_query = ProductionOrderEntity::find()
             .filter(ProductionOrderColumn::WorkCenterId.is_in(wc_ids.iter().copied()))
@@ -223,7 +226,7 @@ impl CapacityService {
         }
         let all_orders = order_query.all(&*self.db).await?;
         let orders_by_wc = all_orders.into_iter().fold(
-            std::collections::HashMap::<i32, Vec<crate::models::production_order::Model>>::new(),
+            OrdersByWorkCenter::new(),
             |mut acc, o| {
                 // work_center_id 为 Option<i32>，None 时丢弃
                 if let Some(wc_id) = o.work_center_id {
