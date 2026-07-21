@@ -438,9 +438,10 @@ async fn load_low_stock_product_map(
     }
     // P2-1 修复（批次 388 v13 复审）：原 unwrap_or_default() 吞 DB 错误导致预警丢失，
     // 改为 match 记录 warn 日志后降级为空集合（跳过本轮预警通知）
+    // ConnectionTrait 为 DatabaseConnection 实现，需 db.as_ref() 解引用 Arc
     let products = match product::Entity::find()
         .filter(product::Column::Id.is_in(product_ids))
-        .all(db)
+        .all(db.as_ref())
         .await
     {
         Ok(p) => p,

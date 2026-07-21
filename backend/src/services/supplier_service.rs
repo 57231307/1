@@ -896,7 +896,7 @@ pub struct CreateQualificationRequest {
 }
 
 /// 供应商查询参数
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct SupplierQueryParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,

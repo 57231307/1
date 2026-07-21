@@ -243,7 +243,8 @@ async fn query_dye_recipes_for_export(
         q = q.filter(dye_recipe::Column::Status.eq(status));
     }
     q = q.order_by_desc(dye_recipe::Column::CreatedAt);
-    Ok(q.all(db).await?)
+    // ConnectionTrait 为 DatabaseConnection 实现，需 db.as_ref() 解引用 Arc
+    Ok(q.all(db.as_ref()).await?)
 }
 
 /// 染色配方导出表头（13 列）

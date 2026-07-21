@@ -165,9 +165,11 @@ async fn load_lead_map(
         return std::collections::HashMap::new();
     }
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    // ConnectionTrait 为 DatabaseConnection 实现，需 db.as_ref() 解引用 Arc
+    // is_in 需要 IntoIterator<Item = T> where T: Into<Value>，&i32 不满足，需 cloned 到 i32
     crate::models::crm_lead::Entity::find()
-        .filter(crate::models::crm_lead::Column::Id.is_in(lead_ids))
-        .all(db)
+        .filter(crate::models::crm_lead::Column::Id.is_in(lead_ids.iter().copied()))
+        .all(db.as_ref())
         .await
         .unwrap_or_default()
         .into_iter()
