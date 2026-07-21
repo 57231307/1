@@ -163,7 +163,20 @@ impl ColorCardIssueService {
         issue_qty: i32,
         expected_return_date: Option<chrono::NaiveDate>,
     ) -> Result<(), IssueError> {
-        // 闸门 1：卡片状态 = active
+        self.check_card_status_and_stock(color_card_id, issue_qty)
+            .await?;
+        self.check_customer_credit_and_status(customer_id).await?;
+        self.check_customer_overdue(customer_id).await?;
+        self.validate_expected_return_date(expected_return_date)?;
+        Ok(())
+    }
+
+    /// 闸门 1+2：校验色卡状态为 active 且库存充足
+    async fn check_card_status_and_stock(
+        &self,
+        color_card_id: i64,
+        issue_qty: i32,
+    ) -> Result<(), IssueError> {
         let card = ColorCardEntity::find_by_id(color_card_id)
             .one(&*self.db)
             .await?
@@ -174,8 +187,6 @@ impl ColorCardIssueService {
                 card.status
             )));
         }
-
-        // 闸门 2：发放数量 > 0（色卡单张发放，库存数量 >= 发放数量）
         if issue_qty <= 0 {
             return Err(IssueError::GateCheckFailed(
                 "闸门 2 失败：发放数量必须 > 0".to_string(),
@@ -189,8 +200,14 @@ impl ColorCardIssueService {
                 available, issue_qty
             )));
         }
+        Ok(())
+    }
 
-        // 闸门 3：客户信用额度 > 0
+    /// 闸门 3+5：校验客户信用额度 > 0 且状态为 active
+    async fn check_customer_credit_and_status(
+        &self,
+        customer_id: i64,
+    ) -> Result<(), IssueError> {
         let customer = CustomerEntity::find_by_id(customer_id as i32)
             .one(&*self.db)
             .await?
@@ -200,9 +217,17 @@ impl ColorCardIssueService {
                 "闸门 3 失败：客户信用额度 <= 0，不允许发放".to_string(),
             ));
         }
+        if customer.status != "active" {
+            return Err(IssueError::GateCheckFailed(format!(
+                "闸门 5 失败：客户状态为 {}，非 active，不在白名单",
+                customer.status
+            )));
+        }
+        Ok(())
+    }
 
-        // 闸门 4：客户无未归还超期记录
-        // 查询该客户是否有 status=issued 且 expected_return_date < today 的记录
+    /// 闸门 4：校验客户无未归还超期记录
+    async fn check_customer_overdue(&self, customer_id: i64) -> Result<(), IssueError> {
         let today = Utc::now().date_naive();
         let overdue_count = IssueEntity::find()
             .filter(color_card_issue::Column::CustomerId.eq(customer_id))
@@ -223,17 +248,14 @@ impl ColorCardIssueService {
                 overdue_count
             )));
         }
+        Ok(())
+    }
 
-        // 闸门 5：客户状态 = active（白名单校验）
-        if customer.status != "active" {
-            return Err(IssueError::GateCheckFailed(format!(
-                "闸门 5 失败：客户状态为 {}，非 active，不在白名单",
-                customer.status
-            )));
-        }
-
-        // 预计归还时间校验：不能超过发放时间 + 30 天
-        if let Some(expected) = expected_return_date {
+    /// 校验预计归还时间：不早于今天且不超过发放时间 + 30 天
+    fn validate_expected_return_date(
+        expected: Option<chrono::NaiveDate>,
+    ) -> Result<(), IssueError> {
+        if let Some(expected) = expected {
             let today = Utc::now().date_naive();
             if expected < today {
                 return Err(IssueError::Validation(
@@ -247,7 +269,6 @@ impl ColorCardIssueService {
                 ));
             }
         }
-
         Ok(())
     }
 

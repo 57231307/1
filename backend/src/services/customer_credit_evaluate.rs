@@ -22,78 +22,13 @@ impl CustomerCreditService {
             .parse::<NaiveDate>()
             .map_err(|_| AppError::validation("日期格式错误"))?;
 
-        // 获取客户信用信息（通过 customer_id 过滤）
-        let customer = customer_credit::Entity::find()
-            .filter(customer_credit::Column::CustomerId.eq(customer_id))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
-
-        // 获取客户名称
-        let customer_name = crate::models::customer::Entity::find_by_id(customer_id)
-            .one(&*self.db)
-            .await
-            .ok()
-            .flatten()
-            .map(|c| c.customer_name)
-            .unwrap_or_else(|| format!("客户#{}", customer_id));
-
-        // 获取历史信用记录
-        let credit_history = customer_credit::Entity::find()
-            .filter(customer_credit::Column::CustomerId.eq(customer_id))
-            .all(&*self.db)
+        let (customer, customer_name, credit_history) = self
+            .load_customer_credit_and_name(customer_id)
             .await?;
-
-        // 获取客户创建时间
         let created_at = customer.created_at.format("%Y-%m-%d %H:%M:%S").to_string();
-
-        // 计算评估因子分数
-        let mut factors = Vec::new();
-        let mut total_score = 0;
-
-        // 1. 历史付款记录（权重 30%）
-        let payment_score = self
-            .evaluate_payment_history(customer_id, eval_date)
+        let (factors, total_score) = self
+            .compute_evaluation_factors(customer_id, created_at, eval_date, &credit_history)
             .await?;
-        factors.push(EvaluationFactor {
-            factor_name: "历史付款记录".to_string(),
-            weight: 0.3,
-            score: payment_score,
-            description: "基于过去 12 个月的付款及时性".to_string(),
-        });
-        total_score += (payment_score as f64 * 0.3) as i32;
-
-        // 2. 合作时长（权重 20%）
-        let cooperation_score = self.evaluate_cooperation_duration(created_at, eval_date);
-        factors.push(EvaluationFactor {
-            factor_name: "合作时长".to_string(),
-            weight: 0.2,
-            score: cooperation_score,
-            description: "基于客户创建时间计算".to_string(),
-        });
-        total_score += (cooperation_score as f64 * 0.2) as i32;
-
-        // 3. 订单规模（权重 25%）
-        let order_score = self.evaluate_order_volume(customer_id, eval_date).await?;
-        factors.push(EvaluationFactor {
-            factor_name: "订单规模".to_string(),
-            weight: 0.25,
-            score: order_score,
-            description: "基于年度订单总额".to_string(),
-        });
-        total_score += (order_score as f64 * 0.25) as i32;
-
-        // 4. 信用记录（权重 25%）
-        let credit_score = self.evaluate_credit_history(&credit_history);
-        factors.push(EvaluationFactor {
-            factor_name: "信用记录".to_string(),
-            weight: 0.25,
-            score: credit_score,
-            description: "基于历史信用记录".to_string(),
-        });
-        total_score += (credit_score as f64 * 0.25) as i32;
-
-        // 计算信用等级和推荐额度
         let (rating, recommended_limit) = self.calculate_rating_and_limit(total_score);
 
         Ok(CreditEvaluationResult {
@@ -105,6 +40,90 @@ impl CustomerCreditService {
             evaluation_factors: factors,
             evaluation_date: evaluation_date.to_string(),
         })
+    }
+
+    /// 加载客户信用记录、客户名称及历史信用
+    async fn load_customer_credit_and_name(
+        &self,
+        customer_id: i32,
+    ) -> Result<
+        (
+            customer_credit::Model,
+            String,
+            Vec<customer_credit::Model>,
+        ),
+        AppError,
+    > {
+        let customer = customer_credit::Entity::find()
+            .filter(customer_credit::Column::CustomerId.eq(customer_id))
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id))
+            })?;
+        let customer_name = crate::models::customer::Entity::find_by_id(customer_id)
+            .one(&*self.db)
+            .await
+            .ok()
+            .flatten()
+            .map(|c| c.customer_name)
+            .unwrap_or_else(|| format!("客户#{}", customer_id));
+        let credit_history = customer_credit::Entity::find()
+            .filter(customer_credit::Column::CustomerId.eq(customer_id))
+            .all(&*self.db)
+            .await?;
+        Ok((customer, customer_name, credit_history))
+    }
+
+    /// 计算四个评估因子并汇总加权总分
+    async fn compute_evaluation_factors(
+        &self,
+        customer_id: i32,
+        created_at: String,
+        eval_date: NaiveDate,
+        credit_history: &[customer_credit::Model],
+    ) -> Result<(Vec<EvaluationFactor>, i32), AppError> {
+        let mut factors = Vec::new();
+        let mut total_score = 0;
+        // 1. 历史付款记录（权重 30%）
+        let payment_score = self
+            .evaluate_payment_history(customer_id, eval_date)
+            .await?;
+        factors.push(EvaluationFactor {
+            factor_name: "历史付款记录".to_string(),
+            weight: 0.3,
+            score: payment_score,
+            description: "基于过去 12 个月的付款及时性".to_string(),
+        });
+        total_score += (payment_score as f64 * 0.3) as i32;
+        // 2. 合作时长（权重 20%）
+        let cooperation_score = self.evaluate_cooperation_duration(created_at, eval_date);
+        factors.push(EvaluationFactor {
+            factor_name: "合作时长".to_string(),
+            weight: 0.2,
+            score: cooperation_score,
+            description: "基于客户创建时间计算".to_string(),
+        });
+        total_score += (cooperation_score as f64 * 0.2) as i32;
+        // 3. 订单规模（权重 25%）
+        let order_score = self.evaluate_order_volume(customer_id, eval_date).await?;
+        factors.push(EvaluationFactor {
+            factor_name: "订单规模".to_string(),
+            weight: 0.25,
+            score: order_score,
+            description: "基于年度订单总额".to_string(),
+        });
+        total_score += (order_score as f64 * 0.25) as i32;
+        // 4. 信用记录（权重 25%）
+        let credit_score = self.evaluate_credit_history(credit_history);
+        factors.push(EvaluationFactor {
+            factor_name: "信用记录".to_string(),
+            weight: 0.25,
+            score: credit_score,
+            description: "基于历史信用记录".to_string(),
+        });
+        total_score += (credit_score as f64 * 0.25) as i32;
+        Ok((factors, total_score))
     }
 
     /// 评估付款历史

@@ -78,89 +78,91 @@ impl AccountingPeriodService {
     ) -> Result<accounting_period::Model, AppError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         let txn = (*self.db).begin().await?;
+        let period = self.lock_period_for_close_txn(&txn, period_id).await?;
+        self.check_unposted_vouchers_txn(&txn, period.start_date, period.end_date)
+            .await?;
+        // F-P1-1 修复（批次 360 v13 复审）：试算平衡校验兜底
+        let (total_debit, total_credit) =
+            self.check_trial_balance_txn(&txn, period.start_date, period.end_date).await?;
+        if total_debit != total_credit {
+            return Err(AppError::business(format!(
+                "试算不平衡：本期借方总额 {} ≠ 贷方总额 {}，差额 {}，无法关闭期间",
+                total_debit, total_credit, total_debit - total_credit
+            )));
+        }
+        let closed_period = self
+            .mark_period_closed_txn(&txn, &period, user_id)
+            .await?;
+        // F-P1-1 修复（批次 384 v13 复审）：期末余额结转到下期期初
+        let (next_year, next_month) = calc_next_period(period.year, period.period);
+        let current_period_str = format!("{:04}-{:02}", period.year, period.period);
+        let next_period_str = format!("{:04}-{:02}", next_year, next_month);
+        self.carry_forward_balances_txn(&txn, &current_period_str, &next_period_str)
+            .await?;
+        txn.commit().await?;
+        self.init_first_period(next_year, next_month as u32).await?;
+        Ok(closed_period)
+    }
 
+    /// 事务内锁定会计期间并校验是否已结账
+    async fn lock_period_for_close_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        period_id: i32,
+    ) -> Result<accounting_period::Model, AppError> {
         let period = accounting_period::Entity::find_by_id(period_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| {
                 AppError::not_found(format!("Accounting period {} not found", period_id))
             })?;
-
         if period.status == period_status::CLOSED {
             return Err(AppError::business("期间已经结账，不能重复结账".to_string()));
         }
+        Ok(period)
+    }
 
-        // 检查该期间内是否有未过账的凭证
-        let start_date = period.start_date;
-        let end_date = period.end_date;
-
+    /// 校验期间内是否存在未过账凭证，存在则返回错误
+    async fn check_unposted_vouchers_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        start_date: chrono::DateTime<Utc>,
+        end_date: chrono::DateTime<Utc>,
+    ) -> Result<(), AppError> {
         let unposted_vouchers = crate::models::voucher::Entity::find()
             .filter(crate::models::voucher::Column::VoucherDate.gte(start_date))
             .filter(crate::models::voucher::Column::VoucherDate.lte(end_date))
             .filter(crate::models::voucher::Column::Status.ne(VOUCHER_POSTED))
-            .count(&txn)
+            .count(txn)
             .await?;
-
         if unposted_vouchers > 0 {
             return Err(AppError::business(format!(
                 "该期间有 {} 张凭证未过账，请先完成所有凭证的过账操作",
                 unposted_vouchers
             )));
         }
+        Ok(())
+    }
 
-        // F-P1-1 修复（批次 360 v13 复审）：试算平衡校验
-        // 汇总本期已过账凭证的借方总额与贷方总额，若不相等则拒绝关闭期间。
-        // 兜底防止单条凭证过账校验被绕过（历史数据漂移、外部导入、并发问题等）。
-        let (total_debit, total_credit) =
-            self.check_trial_balance_txn(&txn, start_date, end_date).await?;
-        if total_debit != total_credit {
-            return Err(AppError::business(format!(
-                "试算不平衡：本期借方总额 {} ≠ 贷方总额 {}，差额 {}，无法关闭期间",
-                total_debit,
-                total_credit,
-                total_debit - total_credit
-            )));
-        }
-
-        // 1. 将当前期间设置为 CLOSED（事务内更新并写入审计日志）
+    /// 将期间标记为 CLOSED 并写入审计日志
+    async fn mark_period_closed_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        period: &accounting_period::Model,
+        user_id: i32,
+    ) -> Result<accounting_period::Model, AppError> {
         let mut active_period: accounting_period::ActiveModel = period.clone().into();
         active_period.status = Set(period_status::CLOSED.to_string());
         active_period.closed_at = Set(Some(Utc::now()));
         active_period.closed_by = Set(Some(user_id));
         let closed_period = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             active_period,
             Some(user_id),
         )
         .await?;
-
-        // F-P1-1 修复（批次 384 v13 复审）：期末结转逻辑
-        // 将本期期末余额（ending_balance_debit/credit）结转到下期期初余额（initial_balance_debit/credit）。
-        // 原实现 close_period 仅切换期间状态，不处理 account_balance 表的期初/期末余额传递，
-        // 导致下期期初余额为零，资产负债表本年累计数与科目余额表不一致。
-        let current_period_str = format!("{:04}-{:02}", period.year, period.period);
-        let next_month = if period.period == 12 {
-            1
-        } else {
-            period.period + 1
-        };
-        let next_year = if period.period == 12 {
-            period.year + 1
-        } else {
-            period.year
-        };
-        let next_period_str = format!("{:04}-{:02}", next_year, next_month);
-        self.carry_forward_balances_txn(&txn, &current_period_str, &next_period_str)
-            .await?;
-
-        txn.commit().await?;
-
-        // 2. 创建下一个期间并设置为 OPEN
-        // next_month/next_year 已在上方期末结转逻辑中计算
-        self.init_first_period(next_year, next_month as u32).await?;
-
         Ok(closed_period)
     }
 
@@ -364,6 +366,15 @@ impl AccountingPeriodService {
         }
 
         Ok(())
+    }
+}
+
+/// 计算下一个期间的年份与月份（12 月跨年到次年 1 月）
+fn calc_next_period(year: i32, period: i32) -> (i32, i32) {
+    if period == 12 {
+        (year + 1, 1)
+    } else {
+        (year, period + 1)
     }
 }
 

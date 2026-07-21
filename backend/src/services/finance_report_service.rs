@@ -166,15 +166,33 @@ impl FinanceReportService {
         // 原实现：存货取 QuantityAvailable（数量非金额，会计口径错误）；_ap_total 应付账款
         // 计算后未使用（死代码）；预收账款从客户信用额度取数（业务口径与会计口径混淆）。
         // 修复：按中国企业会计准则科目编码从已过账凭证分录累计借贷方差额取余额。
-        // 报表时点 = 当前日期。
         let report_date = chrono::Utc::now().date_naive();
+        let (cash_total, ar_total, inventory_total, fixed_asset_total) = self
+            .fetch_all_asset_balances(report_date)
+            .await?;
+        let (ap_total, advance_total) = self
+            .fetch_all_liability_balances(report_date)
+            .await?;
+        Ok(build_balance_sheet_response(
+            cash_total,
+            ar_total,
+            inventory_total,
+            fixed_asset_total,
+            ap_total,
+            advance_total,
+            report_date,
+        ))
+    }
 
-        // 1. 流动资产
+    /// 获取资产类科目余额：货币资金、应收账款、存货、固定资产
+    async fn fetch_all_asset_balances(
+        &self,
+        report_date: chrono::NaiveDate,
+    ) -> Result<(Decimal, Decimal, Decimal, Decimal), AppError> {
         // 应收账款：1122 应收账款（资产类，借方-贷方）
         let ar_total = self
             .get_subject_balance_by_prefix("1122", true, report_date)
             .await?;
-
         // 货币资金：1001 库存现金 + 1002 银行存款（资产类，借方-贷方）
         let cash_on_hand = self
             .get_subject_balance_by_prefix("1001", true, report_date)
@@ -183,20 +201,22 @@ impl FinanceReportService {
             .get_subject_balance_by_prefix("1002", true, report_date)
             .await?;
         let cash_total = cash_on_hand + cash_in_bank;
-
         // 存货：14xx 库存商品/原材料（资产类，借方-贷方，修复原取数量非金额）
         let inventory_total = self
             .get_subject_balance_by_prefix("14", true, report_date)
             .await?;
-
         // 固定资产：16xx 固定资产（资产类，借方-贷方）
         let fixed_asset_total = self
             .get_subject_balance_by_prefix("16", true, report_date)
             .await?;
+        Ok((cash_total, ar_total, inventory_total, fixed_asset_total))
+    }
 
-        let total_assets = ar_total + cash_total + inventory_total + fixed_asset_total;
-
-        // 2. 负债
+    /// 获取负债类科目余额：应付账款、预收账款
+    async fn fetch_all_liability_balances(
+        &self,
+        report_date: chrono::NaiveDate,
+    ) -> Result<(Decimal, Decimal), AppError> {
         // 应付账款：2202 应付账款（负债类，贷方-借方，修复 _ap_total 未使用死代码）
         let ap_total = self
             .get_subject_balance_by_prefix("2202", false, report_date)
@@ -205,57 +225,53 @@ impl FinanceReportService {
         let advance_total = self
             .get_subject_balance_by_prefix("2203", false, report_date)
             .await?;
+        Ok((ap_total, advance_total))
+    }
 
+    /// 构造 ReportItem（统一 description 为 Some）
+    fn make_report_item(name: &str, amount: Decimal, description: &str) -> ReportItem {
+        ReportItem {
+            name: name.to_string(),
+            amount,
+            description: Some(description.to_string()),
+        }
+    }
+
+    /// 根据资产/负债科目余额组装资产负债表响应
+    fn build_balance_sheet_response(
+        cash_total: Decimal,
+        ar_total: Decimal,
+        inventory_total: Decimal,
+        fixed_asset_total: Decimal,
+        ap_total: Decimal,
+        advance_total: Decimal,
+        report_date: chrono::NaiveDate,
+    ) -> BalanceSheet {
+        let total_assets = ar_total + cash_total + inventory_total + fixed_asset_total;
         let total_liabilities = ap_total + advance_total;
-
-        // 3. 所有者权益
+        // 所有者权益 = 资产 - 负债
         let total_equity = total_assets - total_liabilities;
-
-        Ok(BalanceSheet {
+        BalanceSheet {
             assets: vec![
-                ReportItem {
-                    name: "货币资金".to_string(),
-                    amount: cash_total,
-                    description: Some("现金及银行存款".to_string()),
-                },
-                ReportItem {
-                    name: "应收账款".to_string(),
-                    amount: ar_total,
-                    description: Some("未结清发票金额".to_string()),
-                },
-                ReportItem {
-                    name: "存货".to_string(),
-                    amount: inventory_total,
-                    description: Some("库存商品价值".to_string()),
-                },
-                ReportItem {
-                    name: "固定资产".to_string(),
-                    amount: fixed_asset_total,
-                    description: Some("固定资产净值".to_string()),
-                },
+                Self::make_report_item("货币资金", cash_total, "现金及银行存款"),
+                Self::make_report_item("应收账款", ar_total, "未结清发票金额"),
+                Self::make_report_item("存货", inventory_total, "库存商品价值"),
+                Self::make_report_item("固定资产", fixed_asset_total, "固定资产净值"),
             ],
             total_assets,
             liabilities: vec![
-                ReportItem {
-                    name: "应付账款".to_string(),
-                    amount: ap_total,
-                    description: Some("未结清供应商款项".to_string()),
-                },
-                ReportItem {
-                    name: "预收账款".to_string(),
-                    amount: advance_total,
-                    description: Some("客户预付款".to_string()),
-                },
+                Self::make_report_item("应付账款", ap_total, "未结清供应商款项"),
+                Self::make_report_item("预收账款", advance_total, "客户预付款"),
             ],
             total_liabilities,
-            equity: vec![ReportItem {
-                name: "所有者权益".to_string(),
-                amount: total_equity,
-                description: Some("资产-负债".to_string()),
-            }],
+            equity: vec![Self::make_report_item(
+                "所有者权益",
+                total_equity,
+                "资产-负债",
+            )],
             total_equity,
             report_date: report_date.format("%Y-%m-%d").to_string(),
-        })
+        }
     }
 
     /// 利润表

@@ -146,52 +146,92 @@ impl PurchaseContractService {
         // 原实现先在事务外用 get_by_id 裸查询合同状态，再 begin() 开启事务，
         // 并发 execute 均通过状态检查后基于过期状态写入，导致状态门失效。
         let txn = (*self.db).begin().await?;
+        let contract = self
+            .lock_and_validate_contract_txn(&txn, contract_id, &req)
+            .await?;
+        // 批次 27 v7 P1 修复：事务边界内校验已执行金额（防 TOCTOU）
+        let total_amount = contract.total_amount.unwrap_or(Decimal::ZERO);
+        if total_amount > Decimal::ZERO {
+            self.check_remaining_amount_txn(
+                &txn,
+                contract_id,
+                total_amount,
+                req.execution_amount,
+            )
+            .await?;
+        }
+        let execution_amount = req.execution_amount;
+        let execution = build_execution_active_model(contract_id, req, user_id);
+        execution.insert(&txn).await?;
+        // 更新合同时间戳
+        let mut contract_active: purchase_contract::ActiveModel = contract.into();
+        contract_active.updated_at = Set(chrono::Utc::now());
+        contract_active.save(&txn).await?;
+        txn.commit().await?;
+        info!(
+            "合同 {} 执行成功，执行金额：{}",
+            contract_id, execution_amount
+        );
+        Ok(())
+    }
 
-        // 获取合同（加 lock_exclusive 串行化并发状态变更）
+    /// 事务内锁定合同并校验状态与执行金额
+    async fn lock_and_validate_contract_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        contract_id: i32,
+        req: &ExecuteContractRequest,
+    ) -> Result<purchase_contract::Model, AppError> {
         let contract = purchase_contract::Entity::find_by_id(contract_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", contract_id)))?;
-
-        // 检查合同状态
         if contract.status != contract::ACTIVE {
             return Err(AppError::validation(
                 "只有活跃状态的合同才能执行".to_string(),
             ));
         }
-
-        // 验证执行金额为正数
         if req.execution_amount <= Decimal::ZERO {
             return Err(AppError::validation("执行金额必须大于零"));
         }
+        Ok(contract)
+    }
 
-        // 计算已执行金额并验证不超过合同总额
-        // 批次 27 v7 P1 修复：事务边界泄漏，原实现 executed_amount 用 &*self.db 裸查询
-        // 存在 TOCTOU 风险（并发 execute 同一合同时，超合同总额校验可被绕过）
-        let total_amount = contract.total_amount.unwrap_or(Decimal::ZERO);
-        if total_amount > Decimal::ZERO {
-            let executed_amount = crate::models::purchase_contract_execution::Entity::find()
-                .filter(
-                    crate::models::purchase_contract_execution::Column::ContractId.eq(contract_id),
-                )
-                .all(&txn)
-                .await?
-                .iter()
-                .map(|e| e.amount)
-                .fold(Decimal::ZERO, |acc, x| acc + x);
-
-            let remaining = total_amount - executed_amount;
-            if req.execution_amount > remaining {
-                return Err(AppError::validation(format!(
-                    "执行金额 {} 超过合同剩余可执行金额 {}（合同总额 {}，已执行 {}）",
-                    req.execution_amount, remaining, total_amount, executed_amount
-                )));
-            }
+    /// 校验执行金额不超过合同剩余可执行金额（防 TOCTOU，事务内查询）
+    async fn check_remaining_amount_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        contract_id: i32,
+        total_amount: Decimal,
+        execution_amount: Decimal,
+    ) -> Result<(), AppError> {
+        let executed_amount = crate::models::purchase_contract_execution::Entity::find()
+            .filter(
+                crate::models::purchase_contract_execution::Column::ContractId.eq(contract_id),
+            )
+            .all(txn)
+            .await?
+            .iter()
+            .map(|e| e.amount)
+            .fold(Decimal::ZERO, |acc, x| acc + x);
+        let remaining = total_amount - executed_amount;
+        if execution_amount > remaining {
+            return Err(AppError::validation(format!(
+                "执行金额 {} 超过合同剩余可执行金额 {}（合同总额 {}，已执行 {}）",
+                execution_amount, remaining, total_amount, executed_amount
+            )));
         }
+        Ok(())
+    }
 
-        // 创建执行记录
-        let execution = crate::models::purchase_contract_execution::ActiveModel {
+    /// 构造采购合同执行记录 ActiveModel
+    fn build_execution_active_model(
+        contract_id: i32,
+        req: ExecuteContractRequest,
+        user_id: i32,
+    ) -> crate::models::purchase_contract_execution::ActiveModel {
+        crate::models::purchase_contract_execution::ActiveModel {
             id: Default::default(),
             contract_id: Set(contract_id),
             execution_no: Set(format!(
@@ -208,24 +248,7 @@ impl PurchaseContractService {
             created_by: Set(user_id),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
-        };
-
-        execution.insert(&txn).await?;
-
-        // 更新合同时间戳
-        let mut contract_active: purchase_contract::ActiveModel = contract.into();
-        contract_active.updated_at = Set(chrono::Utc::now());
-
-        contract_active.save(&txn).await?;
-
-        // 提交事务
-        txn.commit().await?;
-
-        info!(
-            "合同 {} 执行成功，执行金额：{}",
-            contract_id, req.execution_amount
-        );
-        Ok(())
+        }
     }
 
     /// 审核合同

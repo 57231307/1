@@ -304,37 +304,50 @@ pub async fn aggregate_report(
     Json(request): Json<AggregateReportRequest>,
 ) -> Result<Json<ApiResponse<AggregateReportResponse>>, AppError> {
     let service = ReportEngineService::new(state.db);
-
-    let data_source: DataSource = match request.data_source.as_str() {
-        "sales" => DataSource::Sales,
-        "purchase" => DataSource::Purchase,
-        "inventory" => DataSource::Inventory,
-        "finance" => DataSource::Finance,
-        _ => {
-            return Err(AppError::bad_request(format!(
-                "无效的数据源: {}",
-                request.data_source
-            )));
+    let aggregate_request = build_aggregate_request(request)?;
+    // v11 批次 154 P2-A：接入 DataSource::as_str / AggregationType::as_str 到诊断日志
+    tracing::info!(
+        data_source = aggregate_request.data_source.as_str(),
+        aggregation_type = aggregate_request.aggregation_type.as_str(),
+        group_by_count = aggregate_request.group_by.len(),
+        "报表聚合查询开始"
+    );
+    match service.aggregate_data(aggregate_request).await {
+        Ok(results) => Ok(Json(ApiResponse::success(build_aggregate_response(results)))),
+        Err(e) => {
+            tracing::error!("数据聚合失败: {}", e);
+            Err(AppError::internal(format!("数据聚合失败: {}", e)))
         }
-    };
+    }
+}
 
-    let aggregation_type: AggregationType = match request.aggregation_type.as_str() {
-        "sum" => AggregationType::Sum,
-        "count" => AggregationType::Count,
-        "average" | "avg" => AggregationType::Average,
-        "min" => AggregationType::Min,
-        "max" => AggregationType::Max,
-        "group_by" | "group" => AggregationType::GroupBy,
-        _ => {
-            return Err(AppError::bad_request(format!(
-                "无效的聚合类型: {}",
-                request.aggregation_type
-            )));
-        }
-    };
+/// 解析数据源字符串为 DataSource 枚举
+fn parse_data_source(s: &str) -> Result<DataSource, AppError> {
+    match s {
+        "sales" => Ok(DataSource::Sales),
+        "purchase" => Ok(DataSource::Purchase),
+        "inventory" => Ok(DataSource::Inventory),
+        "finance" => Ok(DataSource::Finance),
+        _ => Err(AppError::bad_request(format!("无效的数据源: {}", s))),
+    }
+}
 
-    let filters = request
-        .filters
+/// 解析聚合类型字符串为 AggregationType 枚举
+fn parse_aggregation_type(s: &str) -> Result<AggregationType, AppError> {
+    match s {
+        "sum" => Ok(AggregationType::Sum),
+        "count" => Ok(AggregationType::Count),
+        "average" | "avg" => Ok(AggregationType::Average),
+        "min" => Ok(AggregationType::Min),
+        "max" => Ok(AggregationType::Max),
+        "group_by" | "group" => Ok(AggregationType::GroupBy),
+        _ => Err(AppError::bad_request(format!("无效的聚合类型: {}", s))),
+    }
+}
+
+/// 将 FilterRequest 列表转换为 ReportFilter 列表
+fn build_report_filters(filters: Option<Vec<FilterRequest>>) -> Vec<ReportFilter> {
+    filters
         .unwrap_or_default()
         .into_iter()
         .map(|f| ReportFilter {
@@ -348,52 +361,47 @@ pub async fn aggregate_report(
             options: None,
             required: false,
         })
-        .collect();
+        .collect()
+}
 
-    let aggregate_request = AggregateRequest {
+/// 将 AggregateReportRequest 转换为 AggregateRequest
+fn build_aggregate_request(
+    req: AggregateReportRequest,
+) -> Result<AggregateRequest, AppError> {
+    let data_source = parse_data_source(&req.data_source)?;
+    let aggregation_type = parse_aggregation_type(&req.aggregation_type)?;
+    let filters = build_report_filters(req.filters);
+    // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let _page = req.page.unwrap_or(1).clamp(1, 1000);
+    let _page_size = req.page_size.unwrap_or(50).clamp(1, 100);
+    Ok(AggregateRequest {
         data_source,
-        data_source_str: Some(request.data_source),
+        data_source_str: Some(req.data_source),
         aggregation_type,
-        group_by: request.group_by.unwrap_or_default(),
+        group_by: req.group_by.unwrap_or_default(),
         filters,
         date_range: None,
         parameters: None,
         limit: None,
-        aggregation_field: request.aggregation_field,
-    };
+        aggregation_field: req.aggregation_field,
+    })
+}
 
-    // v11 批次 154 P2-A：接入 DataSource::as_str / AggregationType::as_str 到诊断日志
-    tracing::info!(
-        data_source = aggregate_request.data_source.as_str(),
-        aggregation_type = aggregate_request.aggregation_type.as_str(),
-        group_by_count = aggregate_request.group_by.len(),
-        "报表聚合查询开始"
-    );
-
-    let _page = request.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-    let _page_size = request.page_size.unwrap_or(50).clamp(1, 100);
-
-    match service.aggregate_data(aggregate_request).await {
-        Ok(results) => {
-            // 取第一个结果作为响应（如果存在）
-            if let Some(first) = results.into_iter().next() {
-                let response = AggregateReportResponse {
-                    columns: first.columns,
-                    rows: first.rows,
-                    total_count: first.total_count,
-                };
-                Ok(Json(ApiResponse::success(response)))
-            } else {
-                Ok(Json(ApiResponse::success(AggregateReportResponse {
-                    columns: Vec::new(),
-                    rows: Vec::new(),
-                    total_count: 0,
-                })))
-            }
+/// 将聚合结果转换为响应（取第一个结果或返回空响应）
+fn build_aggregate_response(
+    results: Vec<crate::services::report::AggregateResult>,
+) -> AggregateReportResponse {
+    if let Some(first) = results.into_iter().next() {
+        AggregateReportResponse {
+            columns: first.columns,
+            rows: first.rows,
+            total_count: first.total_count,
         }
-        Err(e) => {
-            tracing::error!("数据聚合失败: {}", e);
-            Err(AppError::internal(format!("数据聚合失败: {}", e)))
+    } else {
+        AggregateReportResponse {
+            columns: Vec::new(),
+            rows: Vec::new(),
+            total_count: 0,
         }
     }
 }

@@ -178,54 +178,73 @@ impl AuditLogService {
         <<E as EntityTrait>::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: From<i32>,
     {
         // 获取主键
-        let pk_col = E::PrimaryKey::iter()
-            .next()
-            .ok_or_else(|| AppError::business("Entity has no primary key"))?
-            .into_column();
-
-        let pk_val = active_model.get(pk_col);
-
-        let pk_val_unwrapped = pk_val.into_value().unwrap_or(sea_orm::Value::Int(None));
-
+        let pk_col = E::PrimaryKey::iter().next()
+            .ok_or_else(|| AppError::business("Entity has no primary key"))?.into_column();
+        let pk_val_unwrapped = active_model
+            .get(pk_col)
+            .into_value()
+            .unwrap_or(sea_orm::Value::Int(None));
         let record_id = if let sea_orm::Value::Int(Some(id)) = pk_val_unwrapped.clone() {
             id.to_string()
         } else {
             "0".to_string()
         };
-
         // P2 8-8 修复：update 前查询 old_model 序列化为 before_snapshot
-        // 仅 i32 主键支持；其他类型保持 before_snapshot=None
         let before_snapshot = if let sea_orm::Value::Int(Some(id)) = pk_val_unwrapped.clone() {
             let old_model = E::find_by_id(id).one(db).await?;
             old_model.and_then(|m| serde_json::to_value(&m).ok())
         } else {
             None
         };
-
         let new_model = active_model.update(db).await?;
-
-        // P2 8-8 修复：update 后用 new_model 序列化为 after_snapshot
         let after_snapshot = serde_json::to_value(&new_model).ok();
-
         // P3 8-20 修复：如果有 user_id，查询 users 表填充 username
-        let username = if let Some(uid) = user_id {
+        let username = Self::fetch_username(db, user_id).await?;
+        // 记录审计日志
+        let log = Self::build_update_audit_log(
+            resource_type,
+            &record_id,
+            user_id,
+            username,
+            before_snapshot,
+            after_snapshot,
+        );
+        log.insert(db).await?;
+        Ok(new_model)
+    }
+
+    /// 查询用户名（用于审计日志），无 user_id 返回 None
+    async fn fetch_username<C: ConnectionTrait>(
+        db: &C,
+        user_id: Option<i32>,
+    ) -> Result<Option<String>, AppError> {
+        if let Some(uid) = user_id {
             use crate::models::user;
-            user::Entity::find_by_id(uid)
+            Ok(user::Entity::find_by_id(uid)
                 .one(db)
                 .await?
-                .map(|u| u.username)
+                .map(|u| u.username))
         } else {
-            None
-        };
+            Ok(None)
+        }
+    }
 
-        // 记录审计日志
-        let log = audit_log::ActiveModel {
+    /// 构建 UPDATE 审计日志 ActiveModel（双写 old/new 与 before/after 快照）
+    fn build_update_audit_log(
+        resource_type: &str,
+        record_id: &str,
+        user_id: Option<i32>,
+        username: Option<String>,
+        before_snapshot: Option<Value>,
+        after_snapshot: Option<Value>,
+    ) -> audit_log::ActiveModel {
+        audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
             username: ActiveValue::Set(username),
             action: ActiveValue::Set("UPDATE".to_string()),
             resource_type: ActiveValue::Set(Some(resource_type.to_string())),
-            resource_id: ActiveValue::Set(Some(record_id)),
+            resource_id: ActiveValue::Set(Some(record_id.to_string())),
             resource_name: ActiveValue::Set(None),
             description: ActiveValue::Set(None),
             ip_address: ActiveValue::Set(None),
@@ -247,10 +266,7 @@ impl AuditLogService {
             after_snapshot: ActiveValue::Set(after_snapshot.map(audit_log::AuditValue)),
             // V15 P0-S19 补齐：update_with_audit 无 query string，condition 为 None
             condition: ActiveValue::Set(None),
-        };
-        log.insert(db).await?;
-
-        Ok(new_model)
+        }
     }
 
     /// 作为 SeaORM 中间件，自动拦截并生成 Delete 审计日志（P0 8-3）
