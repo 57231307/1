@@ -206,8 +206,27 @@ pub async fn export_dye_recipes(
     Query(query): Query<DyeRecipeListQuery>,
 ) -> Result<axum::response::Response, AppError> {
     // 导出全量数据（不分页），保留 handler 直接查询以避免 service 暴露过多内部 select
-    let mut q = dye_recipe::Entity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
+    let recipes = query_dye_recipes_for_export(&state.db, &query).await?;
+    let row_count = recipes.len();
 
+    let recipes_json: Vec<serde_json::Value> = recipes
+        .into_iter()
+        .map(|r| serde_json::to_value(r).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+    let table = build_dye_recipes_table(&recipes_json);
+
+    record_dye_recipes_export_audit(&state, &auth, row_count, &query);
+
+    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
+    build_xlsx_response(&table, "dye_recipes_export")
+}
+
+/// 按查询条件构建导用配方查询（全量不分页）
+async fn query_dye_recipes_for_export(
+    db: &std::sync::Arc<sea_orm::DatabaseConnection>,
+    query: &DyeRecipeListQuery,
+) -> Result<Vec<dye_recipe::Model>, AppError> {
+    let mut q = dye_recipe::Entity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
     if let Some(recipe_no) = &query.recipe_no {
         q = q.filter(dye_recipe::Column::RecipeNo.contains(recipe_no));
     }
@@ -223,53 +242,78 @@ pub async fn export_dye_recipes(
     if let Some(status) = &query.status {
         q = q.filter(dye_recipe::Column::Status.eq(status));
     }
-
     q = q.order_by_desc(dye_recipe::Column::CreatedAt);
+    Ok(q.all(db).await?)
+}
 
-    let recipes = q.all(&*state.db).await?;
+/// 染色配方导出表头（13 列）
+fn dye_recipes_export_headers() -> Vec<String> {
+    vec![
+        "ID".to_string(),
+        "配方编号".to_string(),
+        "配方名称".to_string(),
+        "色号".to_string(),
+        "颜色名称".to_string(),
+        "布种".to_string(),
+        "染料类型".to_string(),
+        "温度".to_string(),
+        "时间".to_string(),
+        "PH值".to_string(),
+        "浴比".to_string(),
+        "状态".to_string(),
+        "版本".to_string(),
+    ]
+}
 
-    let table = XlsxTable {
-        sheet_name: "染色配方列表".to_string(),
-        headers: vec![
-            "ID".to_string(),
-            "配方编号".to_string(),
-            "配方名称".to_string(),
-            "色号".to_string(),
-            "颜色名称".to_string(),
-            "布种".to_string(),
-            "染料类型".to_string(),
-            "温度".to_string(),
-            "时间".to_string(),
-            "PH值".to_string(),
-            "浴比".to_string(),
-            "状态".to_string(),
-            "版本".to_string(),
-        ],
-        rows: recipes
-            .iter()
-            .map(|r| {
-                vec![
-                    r.id.to_string(),
-                    r.recipe_no.clone(),
-                    r.recipe_name.clone().unwrap_or_default(),
-                    r.color_code.clone().unwrap_or_default(),
-                    r.color_name.clone().unwrap_or_default(),
-                    r.fabric_type.clone().unwrap_or_default(),
-                    r.dye_type.clone().unwrap_or_default(),
-                    r.temperature.map(|d| d.to_string()).unwrap_or_default(),
-                    r.time_minutes.map(|i| i.to_string()).unwrap_or_default(),
-                    r.ph_value.map(|d| d.to_string()).unwrap_or_default(),
-                    r.liquor_ratio.map(|d| d.to_string()).unwrap_or_default(),
-                    r.status.clone().unwrap_or_default(),
-                    r.version.map(|i| i.to_string()).unwrap_or_default(),
-                ]
+/// 从 serde_json::Value 提取染色配方行数据
+fn build_dye_recipe_row(r: &serde_json::Value) -> Vec<String> {
+    let get_str = |key: &str| -> String {
+        r.get(key)
+            .map(|v| {
+                if v.is_null() {
+                    String::new()
+                } else if v.is_string() {
+                    v.as_str().unwrap_or("").to_string()
+                } else {
+                    v.to_string()
+                }
             })
-            .collect(),
+            .unwrap_or_default()
     };
+    vec![
+        get_str("id"),
+        get_str("recipe_no"),
+        get_str("recipe_name"),
+        get_str("color_code"),
+        get_str("color_name"),
+        get_str("fabric_type"),
+        get_str("dye_type"),
+        get_str("temperature"),
+        get_str("time_minutes"),
+        get_str("ph_value"),
+        get_str("liquor_ratio"),
+        get_str("status"),
+        get_str("version"),
+    ]
+}
 
-    let row_count = recipes.len();
+/// 构造染色配方列表 xlsx 表格
+fn build_dye_recipes_table(recipes_json: &[serde_json::Value]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "染色配方列表".to_string(),
+        headers: dye_recipes_export_headers(),
+        rows: recipes_json.iter().map(build_dye_recipe_row).collect(),
+    }
+}
 
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+/// 异步记录染色配方导出操作（审计自身，best-effort 不阻塞响应）
+fn record_dye_recipes_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    query: &DyeRecipeListQuery,
+) {
+    // V15 P0-S11：导出审计日志写入
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -288,16 +332,13 @@ pub async fn export_dye_recipes(
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",
             "total": row_count,
-            "recipe_no_filter": query.recipe_no,
-            "color_code_filter": query.color_code,
-            "color_name_filter": query.color_name,
-            "dye_type_filter": query.dye_type,
-            "status_filter": query.status,
+            "recipe_no_filter": query.recipe_no.clone(),
+            "color_code_filter": query.color_code.clone(),
+            "color_name_filter": query.color_name.clone(),
+            "dye_type_filter": query.dye_type.clone(),
+            "status_filter": query.status.clone(),
         })),
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-
-    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
-    build_xlsx_response(&table, "dye_recipes_export")
 }

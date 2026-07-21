@@ -42,28 +42,58 @@ pub async fn split_fabric_piece(
         .await?
         .ok_or_else(|| AppError::not_found("未找到母卷(原始布卷)"))?;
 
-    // 状态检查
+    validate_parent_piece(&parent, req.cut_length)?;
+
+    // 2. 更新母卷剩余长度与重量
+    let updated_parent =
+        update_parent_piece(&parent, req.cut_length, req.cut_weight, &txn).await?;
+
+    // 3. 生成新布卷 (子卷)
+    let new_piece_no = generate_piece_no(&parent, &req.new_barcode);
+    let new_piece = build_new_piece(&parent, req.cut_length, req.cut_weight, new_piece_no);
+    let inserted_piece = new_piece.insert(&txn).await?;
+
+    txn.commit().await?;
+
+    Ok(Json(ApiResponse::success(SplitPieceResponse {
+        message: "布卷剪裁拆分成功".to_string(),
+        parent_piece: updated_parent,
+        new_piece: inserted_piece,
+    })))
+}
+
+/// 校验母卷状态和剪裁长度
+fn validate_parent_piece(
+    parent: &inventory_piece::Model,
+    cut_length: Decimal,
+) -> Result<(), AppError> {
     if parent.status == piece_status::SHIPPED || parent.status == piece_status::UNAVAILABLE {
         return Err(AppError::bad_request(
             "当前布卷已发货或不可用，无法进行剪裁拆分".to_string(),
         ));
     }
-
-    // 长度校验
-    if parent.length < req.cut_length {
+    if parent.length < cut_length {
         return Err(AppError::bad_request(format!(
             "剪裁长度 ({}) 超过母卷可用长度 ({})",
-            req.cut_length, parent.length
+            cut_length, parent.length
         )));
     }
+    Ok(())
+}
 
-    // 2. 更新母卷剩余长度与重量
+/// 更新母卷剩余长度与重量，返回更新后的母卷
+async fn update_parent_piece(
+    parent: &inventory_piece::Model,
+    cut_length: Decimal,
+    cut_weight: Option<Decimal>,
+    txn: &sea_orm::DatabaseTransaction,
+) -> Result<inventory_piece::Model, AppError> {
     let mut active_parent: inventory_piece::ActiveModel = parent.clone().into();
-    let remaining_length = parent.length - req.cut_length;
+    let remaining_length = parent.length - cut_length;
     active_parent.length = Set(remaining_length);
 
     // 如果母卷原本有重量，且输入了剪裁重量，则按比例或直接扣减
-    if let (Some(pw), Some(cw)) = (parent.weight, req.cut_weight) {
+    if let (Some(pw), Some(cw)) = (parent.weight, cut_weight) {
         if pw >= cw {
             active_parent.weight = Set(Some(pw - cw));
         } else {
@@ -73,18 +103,33 @@ pub async fn split_fabric_piece(
         }
     }
     active_parent.updated_at = Set(Utc::now());
-    let updated_parent = active_parent.update(&txn).await?;
+    Ok(active_parent.update(txn).await?)
+}
 
-    // 3. 生成新布卷 (子卷)
-    let new_piece_no = req.new_barcode.unwrap_or_else(|| {
+/// 生成新布卷编号（优先使用请求中的条码，否则自动生成）
+fn generate_piece_no(
+    parent: &inventory_piece::Model,
+    new_barcode: &Option<String>,
+) -> String {
+    if let Some(barcode) = new_barcode {
+        barcode.clone()
+    } else {
         format!(
             "{}-CUT-{}",
             parent.piece_no,
             Utc::now().timestamp_subsec_millis()
         )
-    });
+    }
+}
 
-    let new_piece = inventory_piece::ActiveModel {
+/// 构建新布卷 ActiveModel（继承母卷属性）
+fn build_new_piece(
+    parent: &inventory_piece::Model,
+    cut_length: Decimal,
+    cut_weight: Option<Decimal>,
+    new_piece_no: String,
+) -> inventory_piece::ActiveModel {
+    inventory_piece::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
         // v14 批次 416：dye_lot_id 为 NOT NULL 字段，拆分产生的新布卷继承母卷的缸号
         dye_lot_id: Set(parent.dye_lot_id),
@@ -95,8 +140,8 @@ pub async fn split_fabric_piece(
         piece_no: Set(new_piece_no.clone()),
         barcode: Set(Some(new_piece_no)),
         parent_piece_id: Set(Some(parent.id)), // 关联母卷
-        length: Set(req.cut_length),
-        weight: Set(req.cut_weight),
+        length: Set(cut_length),
+        weight: Set(cut_weight),
         status: Set(piece_status::AVAILABLE.to_string()),
         remarks: Set(Some(format!("从布卷 {} 剪裁拆分而来", parent.piece_no))),
         scan_type: Set(None), // v11 批次 153 P2-A：拆分产生的新布卷无扫码类型
@@ -120,15 +165,5 @@ pub async fn split_fabric_piece(
         // v14 批次 426：新增的 nullable 字段，拆分产生的新布卷不设置验布关联字段
         inspection_id: sea_orm::ActiveValue::NotSet,
         piece_seq: sea_orm::ActiveValue::NotSet,
-    };
-
-    let inserted_piece = new_piece.insert(&txn).await?;
-
-    txn.commit().await?;
-
-    Ok(Json(ApiResponse::success(SplitPieceResponse {
-        message: "布卷剪裁拆分成功".to_string(),
-        parent_piece: updated_parent,
-        new_piece: inserted_piece,
-    })))
+    }
 }

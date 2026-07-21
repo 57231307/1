@@ -389,7 +389,24 @@ pub async fn check_low_stock(
         .check_low_stock(params.warehouse_id, params.product_id, params.batch_no)
         .await?;
 
-    let stock_responses: Vec<StockResponse> = stock_list
+    let stock_responses = convert_to_stock_responses(stock_list);
+
+    // 发送库存预警通知
+    if let Some(ref event_service) = state.event_notification_service {
+        let product_map = load_low_stock_product_map(&state.db, &stock_responses).await;
+        send_low_stock_notifications(event_service, &stock_responses, &product_map).await;
+    }
+
+    Ok(Json(crate::utils::response::ApiResponse::success(
+        stock_responses,
+    )))
+}
+
+/// 将库存 model 列表转换为响应 DTO
+fn convert_to_stock_responses(
+    stock_list: Vec<crate::models::inventory_stock::Model>,
+) -> Vec<StockResponse> {
+    stock_list
         .into_iter()
         .map(|stock| StockResponse {
             id: stock.id,
@@ -404,82 +421,91 @@ pub async fn check_low_stock(
             created_at: stock.created_at,
             updated_at: stock.updated_at,
         })
+        .collect()
+}
+
+/// 批量查询产品信息，返回以 id 为键的 map（P2-1 修复：DB 错误降级为空集合）
+async fn load_low_stock_product_map(
+    db: &std::sync::Arc<sea_orm::DatabaseConnection>,
+    stock_responses: &[StockResponse],
+) -> std::collections::HashMap<i32, product::Model> {
+    let product_ids: Vec<i32> = stock_responses
+        .iter()
+        .map(|stock| stock.product_id)
         .collect();
+    if product_ids.is_empty() {
+        return std::collections::HashMap::new();
+    }
+    // P2-1 修复（批次 388 v13 复审）：原 unwrap_or_default() 吞 DB 错误导致预警丢失，
+    // 改为 match 记录 warn 日志后降级为空集合（跳过本轮预警通知）
+    let products = match product::Entity::find()
+        .filter(product::Column::Id.is_in(product_ids))
+        .all(db)
+        .await
+    {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "批次 388 P2-1: 查询库存预警产品信息失败，本轮预警通知将跳过"
+            );
+            vec![]
+        }
+    };
+    products.into_iter().map(|p| (p.id, p)).collect()
+}
 
-    // 发送库存预警通知
-    if let Some(ref event_service) = state.event_notification_service {
-        // 批量查询 product，避免循环内 N+1 查询
-        let product_ids: Vec<i32> = stock_responses
-            .iter()
-            .map(|stock| stock.product_id)
-            .collect();
-        let product_map: std::collections::HashMap<i32, product::Model> =
-            if product_ids.is_empty() {
-                std::collections::HashMap::new()
-            } else {
-                // P2-1 修复（批次 388 v13 复审）：原 unwrap_or_default() 吞 DB 错误导致预警丢失，
-                // 改为 match 记录 warn 日志后降级为空集合（跳过本轮预警通知）
-                let products = match product::Entity::find()
-                    .filter(product::Column::Id.is_in(product_ids))
-                    .all(&*state.db)
-                    .await
-                {
-                    Ok(p) => p,
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            "批次 388 P2-1: 查询库存预警产品信息失败，本轮预警通知将跳过"
-                        );
-                        vec![]
-                    }
-                };
-                products.into_iter().map(|p| (p.id, p)).collect()
-            };
-
-        // v17 批次 47 修复：循环外预先查询 user_id=0 的通知设置（1 次查询），
-        // 避免循环内每个产品都查一次设置（N+1 查询）
-        let setting = event_service.get_setting_for_user(0).await.ok();
-
-        for stock in &stock_responses {
-            if let Some(product) = product_map.get(&stock.product_id) {
-                if let Some(ref s) = setting {
-                    // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
-                    if let Err(e) = event_service
-                        .notify_inventory_alert_with_setting(
-                            0,
-                            s,
-                            &product.name,
-                            product.id,
-                            &stock.quantity_on_hand.to_string(),
-                            &stock.reorder_point.to_string(),
-                        )
-                        .await
-                    {
-                        tracing::warn!("批次 94 P2-11：库存预警通知(with_setting)发送失败: {}", e);
-                    }
-                } else {
-                    // 设置查询失败时回退到原方法（兼容性保留）
-                    // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
-                    if let Err(e) = event_service
-                        .notify_inventory_alert(
-                            0,
-                            &product.name,
-                            product.id,
-                            &stock.quantity_on_hand.to_string(),
-                            &stock.reorder_point.to_string(),
-                        )
-                        .await
-                    {
-                        tracing::warn!("批次 94 P2-11：库存预警通知发送失败: {}", e);
-                    }
-                }
-            }
+/// 发送库存预警通知（v17 批次 47：循环外查询 setting 避免 N+1）
+async fn send_low_stock_notifications(
+    event_service: &Arc<crate::services::event_notification_service::EventNotificationService>,
+    stock_responses: &[StockResponse],
+    product_map: &std::collections::HashMap<i32, product::Model>,
+) {
+    let setting = event_service.get_setting_for_user(0).await.ok();
+    for stock in stock_responses {
+        if let Some(product) = product_map.get(&stock.product_id) {
+            notify_single_low_stock(event_service, stock, product, setting.as_ref()).await;
         }
     }
+}
 
-    Ok(Json(crate::utils::response::ApiResponse::success(
-        stock_responses,
-    )))
+/// 发送单个库存预警通知（有 setting 走 with_setting，否则回退原方法）
+async fn notify_single_low_stock(
+    event_service: &Arc<crate::services::event_notification_service::EventNotificationService>,
+    stock: &StockResponse,
+    product: &product::Model,
+    setting: Option<&crate::models::user_notification_setting::Model>,
+) {
+    // 批次 94 P2-11：原 let _ = 静默吞错，改为 warn 日志记录
+    if let Some(s) = setting {
+        if let Err(e) = event_service
+            .notify_inventory_alert_with_setting(
+                0,
+                s,
+                &product.name,
+                product.id,
+                &stock.quantity_on_hand.to_string(),
+                &stock.reorder_point.to_string(),
+            )
+            .await
+        {
+            tracing::warn!("批次 94 P2-11：库存预警通知(with_setting)发送失败: {}", e);
+        }
+    } else {
+        // 设置查询失败时回退到原方法（兼容性保留）
+        if let Err(e) = event_service
+            .notify_inventory_alert(
+                0,
+                &product.name,
+                product.id,
+                &stock.quantity_on_hand.to_string(),
+                &stock.reorder_point.to_string(),
+            )
+            .await
+        {
+            tracing::warn!("批次 94 P2-11：库存预警通知发送失败: {}", e);
+        }
+    }
 }
 
 // ========== 数据导出接口 ==========

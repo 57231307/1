@@ -114,86 +114,21 @@ pub async fn batch_assign(
     let crm_service = CrmService::new(state.db.clone());
     let history_service = AssignmentHistoryService::new(state.db.clone());
 
-    let mut assigned_count = 0;
-    let mut failed_count = 0;
-    let mut errors = Vec::new();
-
     // v16 批次 44 修复：循环外批量查询所有 lead，避免循环内逐个 get_lead（N+1 查询）
-    let lead_ids = req.lead_ids.clone();
-    let lead_map: std::collections::HashMap<i32, crate::models::crm_lead::Model> =
-        if lead_ids.is_empty() {
-            std::collections::HashMap::new()
-        } else {
-            use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-            crate::models::crm_lead::Entity::find()
-                .filter(crate::models::crm_lead::Column::Id.is_in(lead_ids))
-                .all(&*state.db)
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .map(|l| (l.id, l))
-                .collect()
-        };
+    let lead_map = load_lead_map(&state.db, &req.lead_ids).await;
 
-    for lead_id in &req.lead_ids {
-        match lead_map.get(lead_id) {
-            Some(lead) => {
-                // 检查是否可以分配
-                if lead.lead_status.as_deref() == Some("converted") {
-                    errors.push(format!("客户 {} 已转化为客户，无法分配", lead_id));
-                    failed_count += 1;
-                    continue;
-                }
+    let ctx = LeadAssignCtx {
+        crm_service: &crm_service,
+        history_service: &history_service,
+        user_id: auth.user_id,
+        username: &auth.username,
+        assignee_id: req.assignee_id,
+        assignee_name: &req.assignee_name,
+        notes: &req.notes,
+    };
 
-                // 更新归属人
-                let update_req = crate::models::dto::crm_dto::UpdateLeadRequest {
-                    lead_status: Some("assigned".to_string()),
-                    ..Default::default()
-                };
-
-                match crm_service
-                    .update_lead(*lead_id, update_req, auth.user_id)
-                    .await
-                {
-                    Ok(_) => {
-                        // 记录分配历史
-                        // 批次 114 P1-6：历史记录失败改 warn 日志（原 `let _ =` 静默吞错）
-                        if let Err(e) = history_service
-                            .create(
-                                auth.user_id,
-                                &auth.username,
-                                CreateAssignmentHistoryRequest {
-                                    lead_id: *lead_id,
-                                    lead_no: lead.lead_no.clone(),
-                                    company_name: lead.company_name.clone(),
-                                    from_user_id: Some(lead.owner_id),
-                                    from_user_name: Some(lead.owner_name.clone()),
-                                    to_user_id: Some(req.assignee_id),
-                                    to_user_name: Some(req.assignee_name.clone()),
-                                    action: "ASSIGN".to_string(),
-                                    reason: None,
-                                    notes: req.notes.clone(),
-                                },
-                            )
-                            .await
-                        {
-                            tracing::warn!(error = %e, lead_id, "客户分配历史记录失败");
-                        }
-
-                        assigned_count += 1;
-                    }
-                    Err(e) => {
-                        errors.push(format!("分配客户 {} 失败: {}", lead_id, e));
-                        failed_count += 1;
-                    }
-                }
-            }
-            None => {
-                errors.push(format!("获取客户 {} 失败: 线索不存在", lead_id));
-                failed_count += 1;
-            }
-        }
-    }
+    let (assigned_count, failed_count, errors) =
+        run_batch_assign_loop(&ctx, &lead_map, &req.lead_ids).await;
 
     tracing::info!(
         "用户 {} 批量分配客户: 成功={}, 失败={}",
@@ -208,6 +143,113 @@ pub async fn batch_assign(
         "failed": failed_count,
         "errors": errors,
     }))))
+}
+
+/// 单个 lead 分配上下文（参数对象，避免 helper 参数过多）
+struct LeadAssignCtx<'a> {
+    crm_service: &'a CrmService,
+    history_service: &'a AssignmentHistoryService,
+    user_id: i32,
+    username: &'a str,
+    assignee_id: i32,
+    assignee_name: &'a str,
+    notes: &'a Option<String>,
+}
+
+/// 批量查询 lead 列表，返回以 id 为键的 map（空 ids 返回空 map）
+async fn load_lead_map(
+    db: &std::sync::Arc<sea_orm::DatabaseConnection>,
+    lead_ids: &[i32],
+) -> std::collections::HashMap<i32, crate::models::crm_lead::Model> {
+    if lead_ids.is_empty() {
+        return std::collections::HashMap::new();
+    }
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    crate::models::crm_lead::Entity::find()
+        .filter(crate::models::crm_lead::Column::Id.is_in(lead_ids))
+        .all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|l| (l.id, l))
+        .collect()
+}
+
+/// 执行批量分配循环，返回 (成功数, 失败数, 错误列表)
+async fn run_batch_assign_loop(
+    ctx: &LeadAssignCtx<'_>,
+    lead_map: &std::collections::HashMap<i32, crate::models::crm_lead::Model>,
+    lead_ids: &[i32],
+) -> (u32, u32, Vec<String>) {
+    let mut assigned_count = 0u32;
+    let mut failed_count = 0u32;
+    let mut errors = Vec::new();
+
+    for lead_id in lead_ids {
+        match lead_map.get(lead_id) {
+            Some(lead) => match assign_single_lead(ctx, lead, *lead_id).await {
+                Ok(_) => assigned_count += 1,
+                Err(msg) => {
+                    errors.push(msg);
+                    failed_count += 1;
+                }
+            },
+            None => {
+                errors.push(format!("获取客户 {} 失败: 线索不存在", lead_id));
+                failed_count += 1;
+            }
+        }
+    }
+
+    (assigned_count, failed_count, errors)
+}
+
+/// 处理单个 lead 的分配：状态检查、更新归属人、记录历史
+async fn assign_single_lead(
+    ctx: &LeadAssignCtx<'_>,
+    lead: &crate::models::crm_lead::Model,
+    lead_id: i32,
+) -> Result<(), String> {
+    // 检查是否可以分配
+    if lead.lead_status.as_deref() == Some("converted") {
+        return Err(format!("客户 {} 已转化为客户，无法分配", lead_id));
+    }
+
+    // 更新归属人
+    let update_req = crate::models::dto::crm_dto::UpdateLeadRequest {
+        lead_status: Some("assigned".to_string()),
+        ..Default::default()
+    };
+    ctx.crm_service
+        .update_lead(lead_id, update_req, ctx.user_id)
+        .await
+        .map_err(|e| format!("分配客户 {} 失败: {}", lead_id, e))?;
+
+    // 记录分配历史（批次 114 P1-6：失败改 warn 日志，不静默吞错）
+    if let Err(e) = ctx
+        .history_service
+        .create(
+            ctx.user_id,
+            ctx.username,
+            CreateAssignmentHistoryRequest {
+                lead_id,
+                lead_no: lead.lead_no.clone(),
+                company_name: lead.company_name.clone(),
+                from_user_id: Some(lead.owner_id),
+                from_user_name: Some(lead.owner_name.clone()),
+                to_user_id: Some(ctx.assignee_id),
+                to_user_name: Some(ctx.assignee_name.to_string()),
+                action: "ASSIGN".to_string(),
+                reason: None,
+                notes: ctx.notes.clone(),
+            },
+        )
+        .await
+    {
+        tracing::warn!(error = %e, lead_id, "客户分配历史记录失败");
+    }
+
+    Ok(())
 }
 
 /// GET /api/v1/erp/crm/assignments - 获取分配列表

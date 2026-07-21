@@ -275,98 +275,138 @@ pub async fn export_suppliers(
     auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
     // V15 P0-S12：复用 list 逻辑，page_size 取上限 10000 防止单次导出过大
-    params.page = Some(1);
-    params.page_size = Some(10000);
+    let items = query_suppliers_for_export(&state, &auth, &mut params).await?;
+    let row_count = items.len();
 
-    let service = SupplierService::new(state.db.clone());
-    let data_scope_ctx = auth.to_data_scope_context();
-    let result = service
-        .list_suppliers(params, Some(&data_scope_ctx))
-        .await?;
+    let items_json: Vec<serde_json::Value> = items
+        .into_iter()
+        .map(|s| serde_json::to_value(s).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+    let table = build_suppliers_table(&items_json);
 
-    // 构造 xlsx 表格（按列顺序：编码/名称/简称/类型/统一社会信用代码/法人/联系电话/
-    // 邮箱/注册地址/经营地址/纳税人类型/开户行/银行账号/等级/状态/创建时间）
-    let table = XlsxTable {
-        sheet_name: "供应商列表".to_string(),
-        headers: vec![
-            "供应商编码".to_string(),
-            "供应商名称".to_string(),
-            "简称".to_string(),
-            "类型".to_string(),
-            "统一社会信用代码".to_string(),
-            "法人代表".to_string(),
-            "联系电话".to_string(),
-            "邮箱".to_string(),
-            "注册地址".to_string(),
-            "经营地址".to_string(),
-            "纳税人类型".to_string(),
-            "开户行".to_string(),
-            "银行账号".to_string(),
-            "等级".to_string(),
-            "状态".to_string(),
-            "创建时间".to_string(),
-        ],
-        rows: result
-            .items
-            .iter()
-            .map(|s| {
-                vec![
-                    s.supplier_code.clone(),
-                    s.supplier_name.clone(),
-                    s.supplier_short_name.clone(),
-                    s.supplier_type.clone(),
-                    s.credit_code.clone(),
-                    s.legal_representative.clone(),
-                    s.contact_phone.clone(),
-                    s.email.clone().unwrap_or_default(),
-                    s.registered_address.clone(),
-                    s.business_address.clone().unwrap_or_default(),
-                    s.taxpayer_type.clone(),
-                    s.bank_name.clone(),
-                    s.bank_account.clone(),
-                    s.grade.clone().unwrap_or_default(),
-                    s.status.clone().unwrap_or_default(),
-                    s.created_at.to_rfc3339(),
-                ]
-            })
-            .collect(),
-    };
-
-    // V15 P0-S15：构造水印（操作员 + 导出时间 + 资源说明；IP 暂为 None）
-    let watermark = WatermarkConfig {
-        operator: Some(auth.username.clone()),
-        ip_address: None, // 后续批次从 ConnectInfo 提取
-        exported_at: Some(chrono::Utc::now().to_rfc3339()),
-        extra: Some(format!("供应商列表导出（共 {} 条）", result.items.len())),
-    };
-
+    let watermark = build_suppliers_watermark(&auth, row_count);
     let filename = format!(
         "suppliers_export_{}",
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
 
-    // V15 P0-S12：异步记录导出操作（审计自身）
-    {
-        use crate::models::audit_log::{OperationType, Severity};
-        use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-        use std::sync::Arc;
-        let svc = AuditLogService::new(state.db.clone());
-        let event = AuditEvent {
-            user_id: Some(auth.user_id),
-            username: Some(auth.username.clone()),
-            operation_type: OperationType::Export,
-            severity: Severity::Info,
-            resource_type: Some("supplier".to_string()),
-            resource_id: None,
-            resource_name: Some("供应商列表导出".to_string()),
-            description: Some(format!("导出 {} 条供应商数据（含水印）", result.items.len())),
-            request_method: Some("GET".to_string()),
-            request_path: Some("/api/v1/suppliers/export".to_string()),
-            before_snapshot: None,
-            after_snapshot: None,
-        };
-        Arc::new(svc).record_async(event, None);
-    }
+    record_suppliers_export_audit(&state, &auth, row_count);
 
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
+}
+
+/// 查询供应商列表用于导出（强制 page=1, page_size=10000）
+async fn query_suppliers_for_export(
+    state: &AppState,
+    auth: &AuthContext,
+    params: &mut SupplierQueryParams,
+) -> Result<Vec<crate::models::supplier::Model>, AppError> {
+    params.page = Some(1);
+    params.page_size = Some(10000);
+    let service = SupplierService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    let result = service
+        .list_suppliers(params.clone(), Some(&data_scope_ctx))
+        .await?;
+    Ok(result.items)
+}
+
+/// 供应商导出表头（16 列）
+fn suppliers_export_headers() -> Vec<String> {
+    vec![
+        "供应商编码".to_string(),
+        "供应商名称".to_string(),
+        "简称".to_string(),
+        "类型".to_string(),
+        "统一社会信用代码".to_string(),
+        "法人代表".to_string(),
+        "联系电话".to_string(),
+        "邮箱".to_string(),
+        "注册地址".to_string(),
+        "经营地址".to_string(),
+        "纳税人类型".to_string(),
+        "开户行".to_string(),
+        "银行账号".to_string(),
+        "等级".to_string(),
+        "状态".to_string(),
+        "创建时间".to_string(),
+    ]
+}
+
+/// 从 serde_json::Value 提取供应商行数据
+fn build_supplier_row(s: &serde_json::Value) -> Vec<String> {
+    let get_str = |key: &str| -> String {
+        s.get(key)
+            .map(|v| {
+                if v.is_null() {
+                    String::new()
+                } else if v.is_string() {
+                    v.as_str().unwrap_or("").to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .unwrap_or_default()
+    };
+    vec![
+        get_str("supplier_code"),
+        get_str("supplier_name"),
+        get_str("supplier_short_name"),
+        get_str("supplier_type"),
+        get_str("credit_code"),
+        get_str("legal_representative"),
+        get_str("contact_phone"),
+        get_str("email"),
+        get_str("registered_address"),
+        get_str("business_address"),
+        get_str("taxpayer_type"),
+        get_str("bank_name"),
+        get_str("bank_account"),
+        get_str("grade"),
+        get_str("status"),
+        get_str("created_at"),
+    ]
+}
+
+/// 构造供应商列表 xlsx 表格
+fn build_suppliers_table(items_json: &[serde_json::Value]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "供应商列表".to_string(),
+        headers: suppliers_export_headers(),
+        rows: items_json.iter().map(build_supplier_row).collect(),
+    }
+}
+
+/// 构造供应商导出水印（操作员 + 导出时间 + 资源说明；IP 暂为 None）
+fn build_suppliers_watermark(auth: &AuthContext, row_count: usize) -> WatermarkConfig {
+    WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None, // 后续批次从 ConnectInfo 提取
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!("供应商列表导出（共 {} 条）", row_count)),
+    }
+}
+
+/// 异步记录供应商导出操作（审计自身，best-effort 不阻塞响应）
+fn record_suppliers_export_audit(state: &AppState, auth: &AuthContext, row_count: usize) {
+    use crate::models::audit_log::{OperationType, Severity};
+    use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+    use std::sync::Arc;
+    // V15 P0-S12：异步记录导出操作
+    let svc = AuditLogService::new(state.db.clone());
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("supplier".to_string()),
+        resource_id: None,
+        resource_name: Some("供应商列表导出".to_string()),
+        description: Some(format!("导出 {} 条供应商数据（含水印）", row_count)),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/suppliers/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    };
+    Arc::new(svc).record_async(event, None);
 }

@@ -340,22 +340,63 @@ impl AccountSubjectService {
         subject_id: i32,
         period: &str,
     ) -> Result<account_subject::Model, AppError> {
-        info!(
-            "刷新科目余额：subject_id={}, period={}",
-            subject_id, period
+        info!("刷新科目余额：subject_id={}, period={}", subject_id, period);
+
+        let subject = self.find_subject(subject_id).await?;
+        let (start_date, end_date) = Self::parse_period_to_range(period)?;
+        let (current_period_debit, current_period_credit) = self
+            .query_voucher_sums(&subject.code, start_date, end_date)
+            .await?;
+        let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
+        let (ending_balance_debit, ending_balance_credit) = Self::compute_ending_balance(
+            balance_direction,
+            subject.initial_balance_debit,
+            subject.initial_balance_credit,
+            current_period_debit,
+            current_period_credit,
         );
 
-        // 1. 查询科目信息（含期初余额和余额方向）
-        let subject = account_subject::Entity::find_by_id(subject_id)
+        let updated = self
+            .apply_balance_update(
+                subject,
+                current_period_debit,
+                current_period_credit,
+                ending_balance_debit,
+                ending_balance_credit,
+            )
+            .await?;
+
+        info!(
+            "科目余额刷新成功：subject_id={}, period={}, 本期借={}, 本期贷={}, 期末借={}, 期末贷={}",
+            updated.id, period, current_period_debit, current_period_credit,
+            ending_balance_debit, ending_balance_credit
+        );
+        Ok(updated)
+    }
+
+    /// 根据科目 ID 查询科目主数据
+    async fn find_subject(
+        &self,
+        subject_id: i32,
+    ) -> Result<account_subject::Model, AppError> {
+        account_subject::Entity::find_by_id(subject_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("会计科目 {}", subject_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("会计科目 {}", subject_id)))
+    }
 
-        // 2. 解析期间字符串 "YYYY-MM" 为日期范围
-        let year: i32 = period.get(0..4).ok_or_else(|| AppError::bad_request("期间格式错误，应为 YYYY-MM"))?
+    /// 解析期间字符串 "YYYY-MM" 为日期范围 [月初, 下月月初)
+    fn parse_period_to_range(
+        period: &str,
+    ) -> Result<(chrono::NaiveDate, chrono::NaiveDate), AppError> {
+        let year: i32 = period
+            .get(0..4)
+            .ok_or_else(|| AppError::bad_request("期间格式错误，应为 YYYY-MM"))?
             .parse()
             .map_err(|_| AppError::bad_request("期间年份解析失败，应为 YYYY-MM"))?;
-        let month: u32 = period.get(5..7).ok_or_else(|| AppError::bad_request("期间格式错误，应为 YYYY-MM"))?
+        let month: u32 = period
+            .get(5..7)
+            .ok_or_else(|| AppError::bad_request("期间格式错误，应为 YYYY-MM"))?
             .parse()
             .map_err(|_| AppError::bad_request("期间月份解析失败，应为 YYYY-MM"))?;
         let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
@@ -367,41 +408,50 @@ impl AccountSubjectService {
         };
         let next_month_first = chrono::NaiveDate::from_ymd_opt(next_year, next_month, 1)
             .ok_or_else(|| AppError::bad_request("期间结束日期无效"))?;
+        Ok((start_date, next_month_first))
+    }
 
-        // 3. 联表查询已过账凭证分录的借贷汇总
+    /// 查询已过账凭证分录在指定期间的借贷汇总
+    async fn query_voucher_sums(
+        &self,
+        subject_code: &str,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<(Decimal, Decimal), AppError> {
         let result: Option<(Option<Decimal>, Option<Decimal>)> =
             voucher_item::Entity::find()
                 .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
-                .filter(voucher_item::Column::SubjectCode.eq(&subject.code))
-                .filter(voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED))
+                .filter(voucher_item::Column::SubjectCode.eq(subject_code))
+                .filter(
+                    voucher::Column::Status.eq(crate::models::status::voucher::VOUCHER_POSTED),
+                )
                 .filter(voucher::Column::VoucherDate.gte(start_date))
-                .filter(voucher::Column::VoucherDate.lt(next_month_first))
+                .filter(voucher::Column::VoucherDate.lt(end_date))
                 .select_only()
-                .column_as(
-                    Expr::col(voucher_item::Column::Debit).sum(),
-                    "total_debit",
-                )
-                .column_as(
-                    Expr::col(voucher_item::Column::Credit).sum(),
-                    "total_credit",
-                )
+                .column_as(Expr::col(voucher_item::Column::Debit).sum(), "total_debit")
+                .column_as(Expr::col(voucher_item::Column::Credit).sum(), "total_credit")
                 .into_tuple()
                 .one(&*self.db)
                 .await?;
 
         let (total_debit_opt, total_credit_opt) = result.unwrap_or((None, None));
+        Ok((
+            total_debit_opt.unwrap_or(Decimal::ZERO),
+            total_credit_opt.unwrap_or(Decimal::ZERO),
+        ))
+    }
 
-        let current_period_debit = total_debit_opt.unwrap_or(Decimal::ZERO);
-        let current_period_credit = total_credit_opt.unwrap_or(Decimal::ZERO);
-
-        // 4. 根据余额方向计算期末余额
-        let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
-        let initial_debit = subject.initial_balance_debit;
-        let initial_credit = subject.initial_balance_credit;
-
-        let (ending_balance_debit, ending_balance_credit) = if balance_direction == "借" {
+    /// 根据余额方向计算期末余额（借/贷方）
+    fn compute_ending_balance(
+        balance_direction: &str,
+        initial_debit: Decimal,
+        initial_credit: Decimal,
+        current_debit: Decimal,
+        current_credit: Decimal,
+    ) -> (Decimal, Decimal) {
+        if balance_direction == "借" {
             // 借方科目：期末余额 = 期初借方 + 本期借方 - 本期贷方
-            let ending_balance = initial_debit + current_period_debit - current_period_credit;
+            let ending_balance = initial_debit + current_debit - current_credit;
             if ending_balance >= Decimal::ZERO {
                 (ending_balance, Decimal::ZERO)
             } else {
@@ -409,35 +459,31 @@ impl AccountSubjectService {
             }
         } else {
             // 贷方科目：期末余额 = 期初贷方 + 本期贷方 - 本期借方
-            let ending_balance = initial_credit + current_period_credit - current_period_debit;
+            let ending_balance = initial_credit + current_credit - current_debit;
             if ending_balance >= Decimal::ZERO {
                 (Decimal::ZERO, ending_balance)
             } else {
                 (ending_balance.abs(), Decimal::ZERO)
             }
-        };
+        }
+    }
 
-        // 5. 写回科目主数据的余额字段
+    /// 写回科目主数据的余额字段
+    async fn apply_balance_update(
+        &self,
+        subject: account_subject::Model,
+        current_period_debit: Decimal,
+        current_period_credit: Decimal,
+        ending_balance_debit: Decimal,
+        ending_balance_credit: Decimal,
+    ) -> Result<account_subject::Model, AppError> {
         let mut active_model: account_subject::ActiveModel = subject.into();
         active_model.current_period_debit = Set(current_period_debit);
         active_model.current_period_credit = Set(current_period_credit);
         active_model.ending_balance_debit = Set(ending_balance_debit);
         active_model.ending_balance_credit = Set(ending_balance_credit);
         active_model.updated_at = Set(chrono::Utc::now());
-
-        let updated = active_model.update(&*self.db).await?;
-
-        info!(
-            "科目余额刷新成功：subject_id={}, period={}, 本期借={}, 本期贷={}, 期末借={}, 期末贷={}",
-            updated.id,
-            period,
-            current_period_debit,
-            current_period_credit,
-            ending_balance_debit,
-            ending_balance_credit
-        );
-
-        Ok(updated)
+        Ok(active_model.update(&*self.db).await?)
     }
 }
 
