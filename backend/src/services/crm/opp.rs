@@ -336,19 +336,19 @@ impl CrmService {
             active.opportunity_type = Set(Some(v.clone()));
         }
         if let Some(v) = &req.estimated_amount {
-            active.estimated_amount = Set(*v);
+            active.estimated_amount = Set(Some(*v));
         }
         if let Some(v) = &req.actual_amount {
-            active.actual_amount = Set(*v);
+            active.actual_amount = Set(Some(*v));
         }
         if let Some(v) = &req.currency {
-            active.currency = Set(v.clone());
+            active.currency = Set(Some(v.clone()));
         }
         if let Some(v) = &req.expected_close_date {
-            active.expected_close_date = Set(*v);
+            active.expected_close_date = Set(Some(*v));
         }
         if let Some(v) = &req.actual_close_date {
-            active.actual_close_date = Set(*v);
+            active.actual_close_date = Set(Some(*v));
         }
     }
 
@@ -387,10 +387,10 @@ impl CrmService {
             active.product_desc = Set(Some(v.clone()));
         }
         if let Some(v) = &req.priority {
-            active.priority = Set(v.clone());
+            active.priority = Set(Some(v.clone()));
         }
         if let Some(v) = &req.rating {
-            active.rating = Set(*v);
+            active.rating = Set(Some(*v));
         }
         if let Some(v) = &req.tags {
             active.tags = Set(Some(v.clone()));
