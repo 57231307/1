@@ -198,7 +198,7 @@ impl CapacityService {
         if let Some(wc_id) = work_center_id {
             wc_query = wc_query.filter(WorkCenterColumn::Id.eq(wc_id));
         }
-        wc_query.all(&*self.db).await
+        wc_query.all(&*self.db).await.map_err(AppError::from)
     }
 
     /// 批量查询多个工作中心的生产订单并按工作中心分组
@@ -223,7 +223,7 @@ impl CapacityService {
         }
         let all_orders = order_query.all(&*self.db).await?;
         let orders_by_wc = all_orders.into_iter().fold(
-            std::collections::HashMap::new(),
+            std::collections::HashMap::<i32, Vec<crate::models::production_order::Model>>::new(),
             |mut acc, o| {
                 // work_center_id 为 Option<i32>，None 时丢弃
                 if let Some(wc_id) = o.work_center_id {

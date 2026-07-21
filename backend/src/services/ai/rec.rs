@@ -462,6 +462,7 @@ impl AiAnalysisService {
             )
             .all(&*self.db)
             .await
+            .map_err(AppError::from)
     }
 
     /// 按订单分组产品并计算共现频率与产品频次
