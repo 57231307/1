@@ -472,59 +472,79 @@ impl ApVerificationService {
         user_id: i32,
     ) -> Result<ap_verification::Model, AppError> {
         let txn = (*self.db).begin().await?;
+        let verification = Self::fetch_verification_for_cancel(&txn, id).await?;
+        let items = Self::fetch_verification_items_for_cancel(&txn, id).await?;
+        let invoice_map = Self::lock_invoices_for_cancel(&txn, &items).await?;
+        Self::restore_invoices_on_cancel(&txn, invoice_map, items, user_id).await?;
+        let verification =
+            Self::update_verification_to_cancelled(&txn, verification, reason, user_id).await?;
+        txn.commit().await?;
+        Ok(verification)
+    }
 
-        // 1. 查询核销单（批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更）
+    /// 取消核销：查询核销单并锁（状态机 lock_exclusive 串行化并发状态变更）
+    async fn fetch_verification_for_cancel(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i32,
+    ) -> Result<ap_verification::Model, AppError> {
         let verification = ap_verification::Entity::find_by_id(id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("核销单 ID: {}", id)))?;
-
-        // 2. 检查状态
         if verification.verification_status == "CANCELLED" {
             return Err(AppError::business("核销单已取消"));
         }
+        Ok(verification)
+    }
 
-        // 3. 查询核销明细
-        let items = ap_verification_item::Entity::find()
+    /// 取消核销：查询核销明细
+    async fn fetch_verification_items_for_cancel(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i32,
+    ) -> Result<Vec<ap_verification_item::Model>, AppError> {
+        ap_verification_item::Entity::find()
             .filter(ap_verification_item::Column::VerificationId.eq(id))
-            .all(&txn)
-            .await?;
+            .all(txn)
+            .await
+            .map_err(Into::into)
+    }
 
-        // 4. 恢复应付单状态
-        // v16 批次 44 修复：循环外批量查询并锁定所有 invoice，避免循环内逐个 lock_exclusive（N+1）
+    /// 取消核销：批量锁应付单（循环外批量查询并锁定，避免循环内 N+1）
+    async fn lock_invoices_for_cancel(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[ap_verification_item::Model],
+    ) -> Result<std::collections::HashMap<i32, ap_invoice::Model>, AppError> {
         let invoice_ids: Vec<i32> = items.iter().map(|i| i.invoice_id).collect();
-        let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
-            if invoice_ids.is_empty() {
-                std::collections::HashMap::new()
-            } else {
-                use sea_orm::QuerySelect;
-                ap_invoice::Entity::find()
-                    .filter(ap_invoice::Column::Id.is_in(invoice_ids))
-                    .lock_exclusive()
-                    .all(&txn)
-                    .await?
-                    .into_iter()
-                    .map(|inv| (inv.id, inv))
-                    .collect()
-            };
+        if invoice_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let map = ap_invoice::Entity::find()
+            .filter(ap_invoice::Column::Id.is_in(invoice_ids))
+            .lock_exclusive()
+            .all(txn)
+            .await?
+            .into_iter()
+            .map(|inv| (inv.id, inv))
+            .collect();
+        Ok(map)
+    }
 
+    /// 取消核销：恢复应付单状态（paid_amount/unpaid_amount/invoice_status 三态恢复 + 审计）
+    async fn restore_invoices_on_cancel(
+        txn: &sea_orm::DatabaseTransaction,
+        mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model>,
+        items: Vec<ap_verification_item::Model>,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         for item in items {
-            // v17 批次 46 修复：改用 get_mut + clone，同一 invoice_id 重复时复用 map 中已更新的值，
-            // 无需回退到 find_by_id（消除重复 invoice_id 场景的 N+1 查询）
+            // 改用 get_mut + clone，同一 invoice_id 重复时复用 map 中已更新的值
             let invoice = invoice_map
                 .get_mut(&item.invoice_id)
                 .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
-
             invoice.paid_amount -= item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
-
-            // P2 3-15 修复：取消核销后状态恢复应区分 PAID/PARTIAL_PAID/AUDITED 三态，
-            // 原实现 paid_amount<=0 一律设 AUDITED，但若 paid_amount 仍等于 amount
-            // （即仅取消部分核销且全额仍付清）应保留 PAID 语义。
-            // - paid_amount >= amount：仍有全额付款 → PAID
-            // - 0 < paid_amount < amount：部分付款 → PARTIAL_PAID
-            // - paid_amount <= 0：无付款 → AUDITED
+            // 取消核销后状态恢复：paid_amount>=amount→PAID，0<paid_amount<amount→PARTIAL_PAID，否则→AUDITED
             if invoice.paid_amount >= invoice.amount {
                 invoice.invoice_status = "PAID".to_string();
             } else if invoice.paid_amount > Decimal::ZERO {
@@ -532,38 +552,38 @@ impl ApVerificationService {
             } else {
                 invoice.invoice_status = "AUDITED".to_string();
             }
-
             let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
             crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
+                txn,
                 "auto_audit",
                 invoice_active,
-                // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
                 Some(user_id),
             )
             .await?;
         }
+        Ok(())
+    }
 
-        // 5. 取消核销单
+    /// 取消核销：更新核销单状态为 CANCELLED 并审计
+    async fn update_verification_to_cancelled(
+        txn: &sea_orm::DatabaseTransaction,
+        verification: ap_verification::Model,
+        reason: String,
+        user_id: i32,
+    ) -> Result<ap_verification::Model, AppError> {
         let now = Utc::now();
         let mut verification_active: ap_verification::ActiveModel = verification.into();
         verification_active.verification_status = Set("CANCELLED".to_string());
         verification_active.cancelled_by = Set(Some(user_id));
         verification_active.cancelled_at = Set(Some(now));
         verification_active.cancelled_reason = Set(Some(reason));
-
-        let verification = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
             "auto_audit",
             verification_active,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
             Some(user_id),
         )
-        .await?;
-
-        txn.commit().await?;
-
-        Ok(verification)
+        .await
     }
 
     /// 获取核销单详情

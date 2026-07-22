@@ -723,36 +723,59 @@ impl FinanceReportService {
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
     ) -> Result<SubsidiaryLedger, AppError> {
-        let mut query = assist_accounting_record::Entity::find();
+        let query = Self::apply_dimension_filter(
+            assist_accounting_record::Entity::find(),
+            &dimension_type,
+            &dimension_value,
+        );
+        let (start, end) = Self::parse_subsidiary_date_range(start_date, end_date)?;
+        let records = query
+            .filter(assist_accounting_record::Column::CreatedAt.gte(start))
+            .filter(assist_accounting_record::Column::CreatedAt.lte(end))
+            .all(self.db.as_ref())
+            .await?;
+        let subject_map = Self::build_subject_map(self.db.as_ref(), &records).await?;
+        let (entries, total_debit, total_credit) =
+            Self::build_subsidiary_entries(records, &subject_map);
+        Ok(SubsidiaryLedger {
+            dimension_type,
+            dimension_value,
+            entries,
+            total_debit,
+            total_credit,
+            period_start: start_date.format("%Y-%m-%d").to_string(),
+            period_end: end_date.format("%Y-%m-%d").to_string(),
+        })
+    }
 
-        // 根据维度类型设置过滤条件
-        match dimension_type.as_str() {
-            "CUSTOMER" => {
-                if let Ok(customer_id) = dimension_value.parse::<i32>() {
-                    query =
-                        query.filter(assist_accounting_record::Column::CustomerId.eq(customer_id));
-                }
-            }
-            "SUPPLIER" => {
-                if let Ok(supplier_id) = dimension_value.parse::<i32>() {
-                    query =
-                        query.filter(assist_accounting_record::Column::SupplierId.eq(supplier_id));
-                }
-            }
-            "DEPARTMENT" => {
-                if let Ok(department_id) = dimension_value.parse::<i32>() {
-                    query = query
-                        .filter(assist_accounting_record::Column::WorkshopId.eq(department_id));
-                }
-            }
-            _ => {
-                // 其他维度: 返回空结果，但保持结构完整
-            }
+    /// 明细账：按维度类型应用过滤条件（客户/供应商/部门）
+    fn apply_dimension_filter(
+        query: sea_orm::Select<assist_accounting_record::Entity>,
+        dimension_type: &str,
+        dimension_value: &str,
+    ) -> sea_orm::Select<assist_accounting_record::Entity> {
+        match dimension_type {
+            "CUSTOMER" => match dimension_value.parse::<i32>() {
+                Ok(id) => query.filter(assist_accounting_record::Column::CustomerId.eq(id)),
+                Err(_) => query,
+            },
+            "SUPPLIER" => match dimension_value.parse::<i32>() {
+                Ok(id) => query.filter(assist_accounting_record::Column::SupplierId.eq(id)),
+                Err(_) => query,
+            },
+            "DEPARTMENT" => match dimension_value.parse::<i32>() {
+                Ok(id) => query.filter(assist_accounting_record::Column::WorkshopId.eq(id)),
+                Err(_) => query,
+            },
+            _ => query,
         }
+    }
 
-        // 批次 95 P3-2 修复：and_hms_opt 返回 Option，原 .unwrap() 在非法参数时 panic。
-        // 虽然此处 0,0,0 / 23,59,59 是合法值不会触发 panic，但保留 unwrap 不符合错误处理规范。
-        // 改为 ok_or_else + ? 将失败显式传播为 AppError（函数返回 Result）。
+    /// 明细账：构造查询时间范围（and_hms_opt 失败显式传播 AppError）
+    fn parse_subsidiary_date_range(
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>), AppError> {
         let start = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
             start_date
                 .and_hms_opt(0, 0, 0)
@@ -765,29 +788,33 @@ impl FinanceReportService {
                 .ok_or_else(|| AppError::internal("批次 95 P3-2: 结束日期时间构造失败".to_string()))?,
             chrono::Utc,
         );
-        let records = query
-            .filter(assist_accounting_record::Column::CreatedAt.gte(start))
-            .filter(assist_accounting_record::Column::CreatedAt.lte(end))
-            .all(self.db.as_ref())
-            .await?;
+        Ok((start, end))
+    }
 
-        // 联表查询科目名称
+    /// 明细账：联表查询科目名称构建 id→Model 映射
+    async fn build_subject_map(
+        db: &sea_orm::DatabaseConnection,
+        records: &[assist_accounting_record::Model],
+    ) -> Result<std::collections::HashMap<i32, account_subject::Model>, AppError> {
         let subject_ids: Vec<i32> = records.iter().map(|r| r.account_subject_id).collect();
-        let subjects: Vec<account_subject::Model> = if subject_ids.is_empty() {
-            vec![]
-        } else {
-            account_subject::Entity::find()
-                .filter(account_subject::Column::Id.is_in(subject_ids))
-                .all(self.db.as_ref())
-                .await?
-        };
-        let subject_map: std::collections::HashMap<i32, account_subject::Model> =
-            subjects.into_iter().map(|s| (s.id, s)).collect();
+        if subject_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let subjects = account_subject::Entity::find()
+            .filter(account_subject::Column::Id.is_in(subject_ids))
+            .all(db)
+            .await?;
+        Ok(subjects.into_iter().map(|s| (s.id, s)).collect())
+    }
 
+    /// 明细账：构造响应条目并汇总借贷总额
+    fn build_subsidiary_entries(
+        records: Vec<assist_accounting_record::Model>,
+        subject_map: &std::collections::HashMap<i32, account_subject::Model>,
+    ) -> (Vec<SubsidiaryLedgerEntry>, Decimal, Decimal) {
         let mut entries: Vec<SubsidiaryLedgerEntry> = Vec::with_capacity(records.len());
         let mut total_debit = Decimal::ZERO;
         let mut total_credit = Decimal::ZERO;
-
         for r in records {
             total_debit += r.debit_amount;
             total_credit += r.credit_amount;
@@ -805,16 +832,7 @@ impl FinanceReportService {
                 supplier_id: r.supplier_id,
             });
         }
-
-        Ok(SubsidiaryLedger {
-            dimension_type,
-            dimension_value,
-            entries,
-            total_debit,
-            total_credit,
-            period_start: start_date.format("%Y-%m-%d").to_string(),
-            period_end: end_date.format("%Y-%m-%d").to_string(),
-        })
+        (entries, total_debit, total_credit)
     }
 
     /// 按科目编码前缀穿透到凭证分录（F-P2-2 修复，批次 387 v13 复审）

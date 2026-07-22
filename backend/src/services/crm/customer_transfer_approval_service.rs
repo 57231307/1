@@ -155,59 +155,109 @@ impl CustomerTransferApprovalService {
         applicant_id: i32,
         applicant_name: &str,
     ) -> Result<TransferApprovalDto, AppError> {
+        Self::validate_create_request(&req)?;
+        let lead = self.fetch_and_validate_lead(req.lead_id, req.to_user_id).await?;
+        Self::ensure_no_pending_approval(&*self.db, req.lead_id).await?;
+        let is_large_customer = self.check_large_customer(&lead).await?;
+        let max_level = if is_large_customer { 2 } else { 1 };
+        let approval_no = Self::generate_approval_no(req.lead_id);
+        let approval = Self::build_approval_active(
+            &req,
+            &lead,
+            applicant_id,
+            is_large_customer,
+            max_level,
+            approval_no,
+        )
+        .insert(&*self.db)
+        .await?;
+        info!(
+            "用户 {}({}) 创建客户转移审批单 {}：线索 {} 从 {} 转移给 {}（大客户={}，max_level={}）",
+            applicant_id,
+            applicant_name,
+            approval.approval_no,
+            req.lead_id,
+            lead.owner_id,
+            req.to_user_id,
+            is_large_customer,
+            max_level
+        );
+        Ok(approval.into())
+    }
+
+    /// 创建审批：校验申请原因非空
+    fn validate_create_request(req: &CreateTransferApprovalRequest) -> Result<(), AppError> {
         if req.reason.trim().is_empty() {
             return Err(AppError::validation("转移审批申请失败：申请原因不能为空"));
         }
+        Ok(())
+    }
 
-        // 查询线索
-        let lead = CrmLeadEntity::find_by_id(req.lead_id)
+    /// 创建审批：查询线索并校验状态/归属人
+    async fn fetch_and_validate_lead(
+        &self,
+        lead_id: i32,
+        to_user_id: i32,
+    ) -> Result<crm_lead::Model, AppError> {
+        let lead = CrmLeadEntity::find_by_id(lead_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", req.lead_id)))?;
-
+            .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
         if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
             return Err(AppError::validation(format!(
                 "线索 {} 已转化为客户，无法转移",
-                req.lead_id
+                lead_id
             )));
         }
-
-        if lead.owner_id == req.to_user_id {
+        if lead.owner_id == to_user_id {
             return Err(AppError::validation(
                 "转移审批申请失败：新归属人已是当前归属人",
             ));
         }
+        Ok(lead)
+    }
 
-        // 校验同一线索无 pending 审批
+    /// 创建审批：校验同一线索无 pending 审批
+    async fn ensure_no_pending_approval(
+        db: &sea_orm::DatabaseConnection,
+        lead_id: i32,
+    ) -> Result<(), AppError> {
         let existing_pending = TransferApprovalEntity::find()
-            .filter(customer_transfer_approval::Column::LeadId.eq(req.lead_id))
+            .filter(customer_transfer_approval::Column::LeadId.eq(lead_id))
             .filter(
                 customer_transfer_approval::Column::ApprovalStatus
                     .eq(customer_transfer_approval::STATUS_PENDING),
             )
-            .count(&*self.db)
+            .count(db)
             .await?;
         if existing_pending > 0 {
             return Err(AppError::validation(
                 "转移审批申请失败：该线索已存在待审批的转移申请",
             ));
         }
+        Ok(())
+    }
 
-        // 判断是否大客户转移
-        let is_large_customer = self.check_large_customer(&lead).await?;
-
-        // 设置最大审批层级：大客户 2 层（经理 + 总监），普通客户 1 层（经理）
-        let max_level = if is_large_customer { 2 } else { 1 };
-
-        // 生成审批单号：TA + 时间戳 + lead_id
-        let approval_no = format!(
+    /// 创建审批：生成审批单号 TA + 时间戳 + lead_id
+    fn generate_approval_no(lead_id: i32) -> String {
+        format!(
             "TA{}{:06}",
             chrono::Utc::now().format("%Y%m%d%H%M%S"),
-            req.lead_id.rem_euclid(1_000_000)
-        );
+            lead_id.rem_euclid(1_000_000)
+        )
+    }
 
+    /// 创建审批：构造审批单 ActiveModel（to_user_name 待审批通过时由 transfer_lead 填充）
+    fn build_approval_active(
+        req: &CreateTransferApprovalRequest,
+        lead: &crm_lead::Model,
+        applicant_id: i32,
+        is_large_customer: bool,
+        max_level: i32,
+        approval_no: String,
+    ) -> customer_transfer_approval::ActiveModel {
         let now = chrono::Utc::now();
-        let approval = customer_transfer_approval::ActiveModel {
+        customer_transfer_approval::ActiveModel {
             id: Default::default(),
             approval_no: Set(approval_no),
             lead_id: Set(req.lead_id),
@@ -215,9 +265,9 @@ impl CustomerTransferApprovalService {
             from_user_id: Set(lead.owner_id),
             from_user_name: Set(Some(lead.owner_name.clone())),
             to_user_id: Set(req.to_user_id),
-            to_user_name: Set(None), // 待审批通过时由 transfer_lead 填充
+            to_user_name: Set(None),
             applicant_id: Set(applicant_id),
-            reason: Set(req.reason),
+            reason: Set(req.reason.clone()),
             is_large_customer: Set(is_large_customer),
             approval_status: Set(customer_transfer_approval::STATUS_PENDING.to_string()),
             current_level: Set(1),
@@ -232,22 +282,6 @@ impl CustomerTransferApprovalService {
             created_at: Set(now),
             updated_at: Set(now),
         }
-        .insert(&*self.db)
-        .await?;
-
-        info!(
-            "用户 {}({}) 创建客户转移审批单 {}：线索 {} 从 {} 转移给 {}（大客户={}，max_level={}）",
-            applicant_id,
-            applicant_name,
-            approval.approval_no,
-            req.lead_id,
-            lead.owner_id,
-            req.to_user_id,
-            is_large_customer,
-            max_level
-        );
-
-        Ok(approval.into())
     }
 
     /// 销售经理审批
