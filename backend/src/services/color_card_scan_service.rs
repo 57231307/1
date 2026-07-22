@@ -97,7 +97,7 @@ impl ColorCardScanService {
     /// 加载配方摘要（如有）
     async fn load_recipe_summary(
         &self,
-        recipe_id: Option<i64>,
+        recipe_id: Option<i32>,
     ) -> Result<Option<RecipeSummary>, AppError> {
         if let Some(recipe_id) = recipe_id {
             let recipe = crate::models::dye_recipe::Entity::find_by_id(recipe_id)
@@ -120,7 +120,7 @@ impl ColorCardScanService {
     /// 加载价格摘要（如有）
     async fn load_price_summary(
         &self,
-        price_id: Option<i32>,
+        price_id: Option<i64>,
     ) -> Result<Option<PriceSummary>, AppError> {
         if let Some(price_id) = price_id {
             let price = crate::models::product_color_price::Entity::find_by_id(price_id)
