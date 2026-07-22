@@ -337,84 +337,99 @@ impl InitService {
         admin_password: &str,
     ) -> Result<String, InitError> {
         Self::test_database(db_config).await?;
+        let db = Self::connect_database(db_config).await?;
+        let task_id = uuid::Uuid::new_v4().to_string();
+        Self::mark_task_running(&task_id).await;
+        Self::spawn_background_init(
+            db,
+            task_id.clone(),
+            admin_username.to_string(),
+            admin_password.to_string(),
+        );
+        Ok(task_id)
+    }
 
+    /// 构建 ConnectOptions 并连接数据库
+    async fn connect_database(
+        db_config: &DatabaseConfig,
+    ) -> Result<Arc<DatabaseConnection>, InitError> {
         let conn_str = db_config.to_connection_string();
-
         let mut opt = ConnectOptions::new(&conn_str);
         opt.max_connections(10)
             .min_connections(1)
             .connect_timeout(Duration::from_secs(10))
             .acquire_timeout(Duration::from_secs(10));
-
         let db = Database::connect(opt)
             .await
             .map_err(|e| InitError::DatabaseError(format!("数据库连接失败: {}", e)))?;
+        Ok(Arc::new(db))
+    }
 
-        let db = Arc::new(db);
-        let task_id = uuid::Uuid::new_v4().to_string();
-
-        // 存储任务状态
+    /// 标记任务为 Running
+    async fn mark_task_running(task_id: &str) {
         get_init_tasks()
             .lock()
             .await
-            .insert(task_id.clone(), InitTaskStatus::Running);
+            .insert(task_id.to_string(), InitTaskStatus::Running);
+    }
 
-        // 后台执行剩余迁移
+    /// 后台 spawn 迁移与默认数据创建任务，panic 隔离并更新最终状态
+    fn spawn_background_init(
+        db: Arc<DatabaseConnection>,
+        task_id: String,
+        admin_username: String,
+        admin_password: String,
+    ) {
         let db_clone = db.clone();
         let task_id_clone = task_id.clone();
-        let admin_username = admin_username.to_string();
-        let admin_password = admin_password.to_string();
-
         tokio::spawn(async move {
             use migration::{Migrator, MigratorTrait};
-
             // 批次 7（2026-06-28）：一次性 spawn 任务 panic 隔离
             // 后台迁移任务 panic 会导致 task_id 永远停留在 Running，
             // 前端永远显示"初始化中"且无人能再次触发迁移。
             // 用 catch_unwind 包裹整个 async 块，panic 时也更新 task 状态为 Failed。
             let result = AssertUnwindSafe(async {
-                // 执行剩余迁移（从第 6 个开始）
                 if let Err(e) = Migrator::up(db_clone.as_ref(), None).await {
                     tracing::error!("后台迁移失败: {}", e);
                     return InitTaskStatus::Failed;
                 }
-
-                // 创建默认数据
                 let service = InitService::new(db_clone);
                 if let Err(e) = service.initialize(&admin_username, &admin_password).await {
                     tracing::error!("创建默认数据失败: {}", e);
                     return InitTaskStatus::Failed;
                 }
-
                 InitTaskStatus::Completed
             })
             .catch_unwind()
             .await;
-
             // 批次 7：统一更新 task 状态（业务失败 / panic 都更新为 Failed）
-            let final_status = match result {
-                Ok(status) => status,
-                Err(panic_payload) => {
-                    let panic_msg = panic_payload
-                        .downcast_ref::<String>()
-                        .map(|s| s.as_str())
-                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                        .unwrap_or("<非字符串 panic payload>");
-                    tracing::error!(
-                        panic = %panic_msg,
-                        "⚠ 后台初始化任务 panic 已被隔离，确保 task_id 状态不卡在 Running"
-                    );
-                    InitTaskStatus::Failed
-                }
-            };
-
+            let final_status = Self::resolve_final_status(result);
             get_init_tasks()
                 .lock()
                 .await
                 .insert(task_id_clone, final_status);
         });
+    }
 
-        Ok(task_id)
+    /// 将 catch_unwind 结果归一为 InitTaskStatus（业务失败或 panic 均视为 Failed）
+    fn resolve_final_status(
+        result: Result<InitTaskStatus, Box<dyn std::any::Any + Send>>,
+    ) -> InitTaskStatus {
+        match result {
+            Ok(status) => status,
+            Err(panic_payload) => {
+                let panic_msg = panic_payload
+                    .downcast_ref::<String>()
+                    .map(|s| s.as_str())
+                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                    .unwrap_or("<非字符串 panic payload>");
+                tracing::error!(
+                    panic = %panic_msg,
+                    "⚠ 后台初始化任务 panic 已被隔离，确保 task_id 状态不卡在 Running"
+                );
+                InitTaskStatus::Failed
+            }
+        }
     }
 
     async fn run_migrations(&self) -> Result<(), InitError> {

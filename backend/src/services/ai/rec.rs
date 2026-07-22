@@ -294,7 +294,26 @@ impl AiAnalysisService {
         days: i64,
     ) -> Result<Vec<InventoryTurnover>, AppError> {
         let start_date = Utc::now().date_naive() - Duration::days(days);
+        let transactions = Self::fetch_turnover_transactions(&*self.db, product_id, start_date).await?;
+        let stocks = Self::fetch_turnover_stocks(&*self.db, product_id).await?;
+        let outbound_map = Self::aggregate_outbound_by_product(&transactions);
+        let stock_map = Self::aggregate_stock_by_product(&stocks);
+        let mut results = Self::build_turnover_results(&outbound_map, &stock_map, days);
+        // 按周转率降序排列
+        results.sort_by(|a, b| {
+            b.turnover_rate
+                .partial_cmp(&a.turnover_rate)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        Ok(results)
+    }
 
+    /// 查询指定起始日期后的库存交易记录（可选按产品过滤）
+    async fn fetch_turnover_transactions(
+        db: &sea_orm::DatabaseConnection,
+        product_id: Option<i32>,
+        start_date: chrono::NaiveDate,
+    ) -> Result<Vec<crate::models::inventory_transaction::Model>, AppError> {
         let mut tx_select = InventoryTransactionEntity::find().filter(
             crate::models::inventory_transaction::Column::CreatedAt.gte(
                 start_date
@@ -307,44 +326,63 @@ impl AiAnalysisService {
             tx_select =
                 tx_select.filter(crate::models::inventory_transaction::Column::ProductId.eq(pid));
         }
+        Ok(tx_select.all(db).await?)
+    }
 
-        let transactions = tx_select.all(&*self.db).await?;
-
-        // 按产品聚合出库量
-        let mut outbound_map: HashMap<i32, f64> = HashMap::new();
-        for tx in &transactions {
-            if tx.transaction_type == "销售出库" || tx.transaction_type == "出库" {
-                let qty = tx.quantity_meters.to_f64().unwrap_or(0.0);
-                *outbound_map.entry(tx.product_id).or_insert(0.0) += qty;
-            }
-        }
-
-        // 获取当前库存
+    /// 查询当前库存记录（可选按产品过滤）
+    async fn fetch_turnover_stocks(
+        db: &sea_orm::DatabaseConnection,
+        product_id: Option<i32>,
+    ) -> Result<Vec<crate::models::inventory_stock::Model>, AppError> {
         let mut stock_select = InventoryStockEntity::find();
         if let Some(pid) = product_id {
             stock_select =
                 stock_select.filter(crate::models::inventory_stock::Column::ProductId.eq(pid));
         }
-        let stocks = stock_select.all(&*self.db).await?;
+        Ok(stock_select.all(db).await?)
+    }
 
-        // 按产品聚合当前库存
+    /// 按产品聚合出库量（销售出库 + 一般出库）
+    fn aggregate_outbound_by_product(
+        transactions: &[crate::models::inventory_transaction::Model],
+    ) -> HashMap<i32, f64> {
+        let mut outbound_map: HashMap<i32, f64> = HashMap::new();
+        for tx in transactions {
+            if tx.transaction_type == "销售出库" || tx.transaction_type == "出库" {
+                let qty = tx.quantity_meters.to_f64().unwrap_or(0.0);
+                *outbound_map.entry(tx.product_id).or_insert(0.0) += qty;
+            }
+        }
+        outbound_map
+    }
+
+    /// 按产品聚合当前库存量
+    fn aggregate_stock_by_product(
+        stocks: &[crate::models::inventory_stock::Model],
+    ) -> HashMap<i32, f64> {
         let mut stock_map: HashMap<i32, f64> = HashMap::new();
-        for s in &stocks {
+        for s in stocks {
             let qty = s.quantity_on_hand.to_f64().unwrap_or(0.0);
             *stock_map.entry(s.product_id).or_insert(0.0) += qty;
         }
+        stock_map
+    }
 
-        let mut results = Vec::new();
+    /// 根据出库量与库存量构建周转率结果（平均库存近似为当前库存）
+    fn build_turnover_results(
+        outbound_map: &HashMap<i32, f64>,
+        stock_map: &HashMap<i32, f64>,
+        days: i64,
+    ) -> Vec<InventoryTurnover> {
         let all_pids: std::collections::HashSet<i32> = outbound_map
             .keys()
             .chain(stock_map.keys())
             .cloned()
             .collect();
-
+        let mut results = Vec::new();
         for pid in all_pids {
             let total_outbound = outbound_map.get(&pid).copied().unwrap_or(0.0);
             let current_stock = stock_map.get(&pid).copied().unwrap_or(0.0);
-
             // 平均库存近似为当前库存（简化处理）
             let avg_stock = current_stock;
             let turnover_rate = if avg_stock > 0.0 {
@@ -352,7 +390,6 @@ impl AiAnalysisService {
             } else {
                 0.0
             };
-
             results.push(InventoryTurnover {
                 product_id: pid,
                 turnover_rate,
@@ -361,15 +398,7 @@ impl AiAnalysisService {
                 period_days: days,
             });
         }
-
-        // 按周转率降序排列
-        results.sort_by(|a, b| {
-            b.turnover_rate
-                .partial_cmp(&a.turnover_rate)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        Ok(results)
+        results
     }
 
     /// 智能推荐 - 基于历史数据生成推荐
