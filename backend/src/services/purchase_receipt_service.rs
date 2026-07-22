@@ -276,14 +276,49 @@ impl PurchaseReceiptService {
     ) -> Result<purchase_receipt::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询入库单（加 lock_exclusive 串行化并发 confirm_receipt）
+        // 锁定并校验入库单（DRAFT + 明细数 > 0），串行化并发 confirm
+        let receipt = self.lock_and_validate_receipt_txn(receipt_id, &txn).await?;
+
+        // 关联采购单时更新已收数量
+        if let Some(order_id) = receipt.order_id {
+            self.update_order_received_quantity(order_id, receipt_id, &txn, user_id)
+                .await?;
+        }
+
+        // 更新状态为 CONFIRMED 并写入审计
+        let receipt_active = Self::build_confirmed_receipt_active_model(receipt, user_id);
+        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            receipt_active,
+            Some(user_id),
+        )
+        .await?;
+
+        // 事务内更新库存，收集待发布事件
+        let pending_events = self.update_inventory_txn(&receipt, &txn).await?;
+
+        txn.commit().await?;
+
+        // commit 后发布事件并自动生成应付账单
+        self.publish_events_and_generate_ap(&receipt, pending_events, user_id)
+            .await;
+
+        Ok(receipt)
+    }
+
+    /// 锁定入库单并校验状态为 DRAFT 且明细数 > 0
+    async fn lock_and_validate_receipt_txn(
+        &self,
+        receipt_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<purchase_receipt::Model, AppError> {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
-        // 2. 检查状态
         if receipt.receipt_status != status::purchase_receipt::DRAFT {
             return Err(AppError::business(format!(
                 "入库单状态不允许确认，当前状态：{}",
@@ -291,59 +326,44 @@ impl PurchaseReceiptService {
             )));
         }
 
-        // 3. 检查是否有明细
         let item_count = purchase_receipt_item::Entity::find()
             .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt_id))
-            .count(&txn)
+            .count(txn)
             .await?;
 
         if item_count == 0 {
             return Err(AppError::business("入库单至少需要一行明细".to_string()));
         }
 
-        // 4. 检查是否有关联的采购订单
-        if let Some(order_id) = receipt.order_id {
-            // 已实现: 更新采购订单的已入库数量
-            // 批次 94 P2-10：透传 user_id 用于审计日志
-            self.update_order_received_quantity(order_id, receipt_id, &txn, user_id)
-                .await?;
-        }
+        Ok(receipt)
+    }
 
-        // 5. 更新状态
+    /// 构造 CONFIRMED 状态 ActiveModel，写入确认时间与审计字段
+    fn build_confirmed_receipt_active_model(
+        receipt: purchase_receipt::Model,
+        user_id: i32,
+    ) -> purchase_receipt::ActiveModel {
         let now = chrono::Utc::now();
-        let mut receipt_active: purchase_receipt::ActiveModel = receipt.into();
-        receipt_active.receipt_status = Set(status::purchase_receipt::CONFIRMED.to_string());
-        receipt_active.confirmed_at = Set(Some(now));
-        receipt_active.confirmed_by = Set(Some(user_id));
-        receipt_active.updated_by = Set(Some(user_id));
-        receipt_active.updated_at = Set(now);
+        let mut active: purchase_receipt::ActiveModel = receipt.into();
+        active.receipt_status = Set(status::purchase_receipt::CONFIRMED.to_string());
+        active.confirmed_at = Set(Some(now));
+        active.confirmed_by = Set(Some(user_id));
+        active.updated_by = Set(Some(user_id));
+        active.updated_at = Set(now);
+        active
+    }
 
-        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
-            "auto_audit",
-            receipt_active,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
-            Some(user_id),
-        )
-        .await?;
-
-        // 6. 更新库存（在事务内执行，保证原子性）
-        // P0 5-2 修复：update_inventory_txn 不再在内部 publish 事件，改为返回收集到的库存流水事件，
-        // 由本处在 commit 成功后统一 publish，避免事务回滚时幻事件
-        let pending_events = self.update_inventory_txn(&receipt, &txn).await?;
-
-        // 7. 提交事务
-        txn.commit().await?;
-
-        // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
+    /// commit 后发布库存事件并自动生成应付账单（失败仅告警不阻塞）
+    async fn publish_events_and_generate_ap(
+        &self,
+        receipt: &purchase_receipt::Model,
+        pending_events: Vec<crate::services::event_bus::BusinessEvent>,
+        user_id: i32,
+    ) {
         for ev in pending_events {
             EVENT_BUS.publish(ev);
         }
 
-        // 8. 自动生成应付账款（事务外执行，失败不影响入库）
-        // P0 5-5 修复：auto_generate_from_receipt 内部自建事务、不接受外部 txn，无法纳入主事务。
-        // 失败时改为 warn 级补偿提示，明确需人工补生成应付单，避免仅 error 日志无补偿指引
-        // 导致入库成功但应付账款缺失的问题被遗漏。
         let ap_service =
             crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
         if let Err(e) = ap_service
@@ -358,8 +378,6 @@ impl PurchaseReceiptService {
         } else {
             tracing::info!("成功自动生成应付账单 (入库单 {})", receipt.receipt_no);
         }
-
-        Ok(receipt)
     }
 
     /// 添加入库明细

@@ -48,6 +48,16 @@ struct OrderTotals {
     total_amount: rust_decimal::Decimal,
 }
 
+/// 单行明细金额计算结果（避免 tuple 返回触发 clippy::type_complexity）
+struct SalesItemAmounts {
+    item_subtotal: rust_decimal::Decimal,
+    item_discount: rust_decimal::Decimal,
+    item_tax: rust_decimal::Decimal,
+    item_total: rust_decimal::Decimal,
+    discount_pct: rust_decimal::Decimal,
+    tax_pct: rust_decimal::Decimal,
+}
+
 impl SalesService {
     // create_order / update_order / delete_order
     // 内容来自原 order.rs L277-610 + L611-777 + L778-814
@@ -316,6 +326,75 @@ impl SalesService {
         Ok(())
     }
 
+    /// 计算单行明细金额（含 round_dp(2) 防精度漂移）
+    fn calculate_sales_item_amounts(
+        item_req: &crate::services::so::SalesOrderItemRequest,
+    ) -> SalesItemAmounts {
+        let discount_pct = item_req
+            .discount_percent
+            .unwrap_or(rust_decimal::Decimal::ZERO);
+        let tax_pct = item_req.tax_percent.unwrap_or(rust_decimal::Decimal::ZERO);
+        let item_subtotal = (item_req.quantity * item_req.unit_price).round_dp(2);
+        let item_discount =
+            (item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
+        let item_after_discount = (item_subtotal - item_discount).round_dp(2);
+        let item_tax =
+            (item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
+        let item_total = (item_after_discount + item_tax).round_dp(2);
+        SalesItemAmounts {
+            item_subtotal,
+            item_discount,
+            item_tax,
+            item_total,
+            discount_pct,
+            tax_pct,
+        }
+    }
+
+    /// 构建单行明细 ActiveModel（含金额与所有业务字段）
+    fn build_sales_order_item_active_model(
+        item_req: &crate::services::so::SalesOrderItemRequest,
+        order_id: i32,
+        amounts: &SalesItemAmounts,
+    ) -> sales_order_item::ActiveModel {
+        let zero = rust_decimal::Decimal::ZERO;
+        sales_order_item::ActiveModel {
+            id: Default::default(),
+            order_id: sea_orm::ActiveValue::Set(order_id),
+            product_id: sea_orm::ActiveValue::Set(item_req.product_id),
+            quantity: sea_orm::ActiveValue::Set(item_req.quantity),
+            unit_price: sea_orm::ActiveValue::Set(item_req.unit_price),
+            discount_percent: sea_orm::ActiveValue::Set(amounts.discount_pct),
+            tax_percent: sea_orm::ActiveValue::Set(amounts.tax_pct),
+            subtotal: sea_orm::ActiveValue::Set(amounts.item_subtotal),
+            tax_amount: sea_orm::ActiveValue::Set(amounts.item_tax),
+            discount_amount: sea_orm::ActiveValue::Set(amounts.item_discount),
+            total_amount: sea_orm::ActiveValue::Set(amounts.item_total),
+            shipped_quantity: sea_orm::ActiveValue::Set(zero),
+            notes: sea_orm::ActiveValue::Set(item_req.notes.clone()),
+            created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            color_no: sea_orm::ActiveValue::Set(item_req.color_no.clone().unwrap_or_default()),
+            color_name: sea_orm::ActiveValue::Set(item_req.color_name.clone()),
+            pantone_code: sea_orm::ActiveValue::Set(item_req.pantone_code.clone()),
+            grade_required: sea_orm::ActiveValue::Set(item_req.grade_required.clone()),
+            quantity_meters: sea_orm::ActiveValue::Set(item_req.quantity_meters.unwrap_or(zero)),
+            quantity_kg: sea_orm::ActiveValue::Set(item_req.quantity_kg.unwrap_or(zero)),
+            gram_weight: sea_orm::ActiveValue::Set(item_req.gram_weight),
+            width: sea_orm::ActiveValue::Set(item_req.width),
+            batch_requirement: sea_orm::ActiveValue::Set(item_req.batch_requirement.clone()),
+            dye_lot_requirement: sea_orm::ActiveValue::Set(item_req.dye_lot_requirement.clone()),
+            base_price: sea_orm::ActiveValue::Set(item_req.base_price),
+            color_extra_cost: sea_orm::ActiveValue::Set(item_req.color_extra_cost.unwrap_or(zero)),
+            grade_price_diff: sea_orm::ActiveValue::Set(item_req.grade_price_diff.unwrap_or(zero)),
+            final_price: sea_orm::ActiveValue::Set(item_req.final_price),
+            shipped_quantity_meters: sea_orm::ActiveValue::Set(zero),
+            shipped_quantity_kg: sea_orm::ActiveValue::Set(zero),
+            paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
+            is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
+        }
+    }
+
     /// 创建订单明细 + 累计金额（批量 INSERT 优化）
     async fn create_order_items_and_calculate_totals(
         &self,
@@ -329,74 +408,16 @@ impl SalesService {
         let mut total_amount = rust_decimal::Decimal::ZERO;
         let mut item_models = Vec::new();
         for item_req in items {
-            let discount_pct = item_req
-                .discount_percent
-                .unwrap_or(rust_decimal::Decimal::ZERO);
-            let tax_pct = item_req.tax_percent.unwrap_or(rust_decimal::Decimal::ZERO);
-            // 批次 97 P1-6 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
-            let item_subtotal = (item_req.quantity * item_req.unit_price).round_dp(2);
-            let item_discount =
-                (item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
-            let item_after_discount = (item_subtotal - item_discount).round_dp(2);
-            let item_tax =
-                (item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
-            let item_total = (item_after_discount + item_tax).round_dp(2);
-
-            subtotal += &item_subtotal;
-            discount_amount += &item_discount;
-            tax_amount += &item_tax;
-            total_amount += &item_total;
-
-            let item = sales_order_item::ActiveModel {
-                id: Default::default(),
-                order_id: sea_orm::ActiveValue::Set(order_id),
-                product_id: sea_orm::ActiveValue::Set(item_req.product_id),
-                quantity: sea_orm::ActiveValue::Set(item_req.quantity),
-                unit_price: sea_orm::ActiveValue::Set(item_req.unit_price),
-                discount_percent: sea_orm::ActiveValue::Set(discount_pct),
-                tax_percent: sea_orm::ActiveValue::Set(tax_pct),
-                subtotal: sea_orm::ActiveValue::Set(item_subtotal),
-                tax_amount: sea_orm::ActiveValue::Set(item_tax),
-                discount_amount: sea_orm::ActiveValue::Set(item_discount),
-                total_amount: sea_orm::ActiveValue::Set(item_total),
-                shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                notes: sea_orm::ActiveValue::Set(item_req.notes),
-                created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                color_no: sea_orm::ActiveValue::Set(item_req.color_no.unwrap_or_default()),
-                color_name: sea_orm::ActiveValue::Set(item_req.color_name),
-                pantone_code: sea_orm::ActiveValue::Set(item_req.pantone_code),
-                grade_required: sea_orm::ActiveValue::Set(item_req.grade_required),
-                quantity_meters: sea_orm::ActiveValue::Set(
-                    item_req
-                        .quantity_meters
-                        .unwrap_or(rust_decimal::Decimal::ZERO),
-                ),
-                quantity_kg: sea_orm::ActiveValue::Set(
-                    item_req.quantity_kg.unwrap_or(rust_decimal::Decimal::ZERO),
-                ),
-                gram_weight: sea_orm::ActiveValue::Set(item_req.gram_weight),
-                width: sea_orm::ActiveValue::Set(item_req.width),
-                batch_requirement: sea_orm::ActiveValue::Set(item_req.batch_requirement),
-                dye_lot_requirement: sea_orm::ActiveValue::Set(item_req.dye_lot_requirement),
-                base_price: sea_orm::ActiveValue::Set(item_req.base_price),
-                color_extra_cost: sea_orm::ActiveValue::Set(
-                    item_req
-                        .color_extra_cost
-                        .unwrap_or(rust_decimal::Decimal::ZERO),
-                ),
-                grade_price_diff: sea_orm::ActiveValue::Set(
-                    item_req
-                        .grade_price_diff
-                        .unwrap_or(rust_decimal::Decimal::ZERO),
-                ),
-                final_price: sea_orm::ActiveValue::Set(item_req.final_price),
-                shipped_quantity_meters: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                shipped_quantity_kg: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
-                is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
-            };
-            item_models.push(item);
+            let amounts = Self::calculate_sales_item_amounts(&item_req);
+            subtotal += &amounts.item_subtotal;
+            discount_amount += &amounts.item_discount;
+            tax_amount += &amounts.item_tax;
+            total_amount += &amounts.item_total;
+            item_models.push(Self::build_sales_order_item_active_model(
+                &item_req,
+                order_id,
+                &amounts,
+            ));
         }
         if !item_models.is_empty() {
             sales_order_item::Entity::insert_many(item_models)
