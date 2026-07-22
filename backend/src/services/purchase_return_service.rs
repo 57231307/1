@@ -39,6 +39,14 @@ struct ReturnItemDeductionCtx<'a> {
     user_id: i32,
 }
 
+/// compute_item_amounts 计算结果：明细金额四元组
+struct ItemAmounts {
+    subtotal: Decimal,
+    discount_amount: Decimal,
+    tax_amount: Decimal,
+    total_amount: Decimal,
+}
+
 impl PurchaseReturnService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -751,49 +759,16 @@ impl PurchaseReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("退货单 {}", item.return_id)))?;
 
-        if return_record.return_status.as_deref() != Some(pr_status::DRAFT) {
-            return Err(AppError::business(
-                "只有草稿状态的退货单可以修改明细".to_string(),
-            ));
-        }
+        // 状态门校验：仅草稿状态可修改明细
+        Self::validate_update_item(&return_record)?;
 
-        let mut active_item: purchase_return_item::ActiveModel = item.clone().into();
+        // 解析请求字段并计算金额
+        let (quantity, unit_price, discount_percent, tax_percent) =
+            Self::resolve_item_params(&req, &item);
+        let amounts = Self::compute_item_amounts(quantity, unit_price, discount_percent, tax_percent);
 
-        if let Some(line_no) = req.line_no {
-            active_item.line_no = Set(line_no);
-        }
-        if let Some(material_id) = req.material_id {
-            active_item.product_id = Set(material_id);
-        }
-
-        let quantity = req.quantity_returned.unwrap_or(item.quantity);
-        let unit_price = req.unit_price.unwrap_or(item.unit_price);
-        let discount_percent = req.discount_percent.unwrap_or(item.discount_percent);
-        let tax_percent = req.tax_rate.unwrap_or(item.tax_percent);
-
-        active_item.quantity = Set(quantity);
-        active_item.unit_price = Set(unit_price);
-        active_item.unit_price_foreign = Set(unit_price);
-        active_item.discount_percent = Set(discount_percent);
-        active_item.tax_percent = Set(tax_percent);
-
-        // 批次 97 P1-4 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
-        let subtotal = (quantity * unit_price).round_dp(2);
-        let discount_amount = (subtotal * (discount_percent / Decimal::new(100, 0))).round_dp(2);
-        let taxable_amount = (subtotal - discount_amount).round_dp(2);
-        let tax_amount = (taxable_amount * (tax_percent / Decimal::new(100, 0))).round_dp(2);
-        let total_amount = (taxable_amount + tax_amount).round_dp(2);
-
-        active_item.subtotal = Set(subtotal);
-        active_item.discount_amount = Set(discount_amount);
-        active_item.tax_amount = Set(tax_amount);
-        active_item.total_amount = Set(total_amount);
-
-        if let Some(notes) = req.notes {
-            active_item.notes = Set(Some(notes));
-        }
-
-        active_item.updated_at = Set(Utc::now());
+        // 构建 ActiveModel
+        let active_item = Self::build_update_item_active(item, req, quantity, unit_price, discount_percent, tax_percent, amounts);
 
         let updated_item = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
@@ -809,6 +784,90 @@ impl PurchaseReturnService {
         txn.commit().await?;
 
         Ok(updated_item)
+    }
+
+    /// 校验退货单状态：仅草稿状态可修改明细
+    fn validate_update_item(return_record: &purchase_return::Model) -> Result<(), AppError> {
+        if return_record.return_status.as_deref() != Some(pr_status::DRAFT) {
+            return Err(AppError::business(
+                "只有草稿状态的退货单可以修改明细".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// 解析请求中的明细参数，未提供则使用原值
+    ///
+    /// 返回 (quantity, unit_price, discount_percent, tax_percent)
+    fn resolve_item_params(
+        req: &UpdateReturnItemRequest,
+        item: &purchase_return_item::Model,
+    ) -> (Decimal, Decimal, Decimal, Decimal) {
+        let quantity = req.quantity_returned.unwrap_or(item.quantity);
+        let unit_price = req.unit_price.unwrap_or(item.unit_price);
+        let discount_percent = req.discount_percent.unwrap_or(item.discount_percent);
+        let tax_percent = req.tax_rate.unwrap_or(item.tax_percent);
+        (quantity, unit_price, discount_percent, tax_percent)
+    }
+
+    /// 计算明细金额（含 round_dp(2) 防精度漂移）
+    ///
+    /// 批次 97 P1-4 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
+    fn compute_item_amounts(
+        quantity: Decimal,
+        unit_price: Decimal,
+        discount_percent: Decimal,
+        tax_percent: Decimal,
+    ) -> ItemAmounts {
+        let subtotal = (quantity * unit_price).round_dp(2);
+        let discount_amount = (subtotal * (discount_percent / Decimal::new(100, 0))).round_dp(2);
+        let taxable_amount = (subtotal - discount_amount).round_dp(2);
+        let tax_amount = (taxable_amount * (tax_percent / Decimal::new(100, 0))).round_dp(2);
+        let total_amount = (taxable_amount + tax_amount).round_dp(2);
+        ItemAmounts {
+            subtotal,
+            discount_amount,
+            tax_amount,
+            total_amount,
+        }
+    }
+
+    /// 构建更新后的明细 ActiveModel
+    fn build_update_item_active(
+        item: purchase_return_item::Model,
+        req: UpdateReturnItemRequest,
+        quantity: Decimal,
+        unit_price: Decimal,
+        discount_percent: Decimal,
+        tax_percent: Decimal,
+        amounts: ItemAmounts,
+    ) -> purchase_return_item::ActiveModel {
+        let mut active_item: purchase_return_item::ActiveModel = item.clone().into();
+
+        if let Some(line_no) = req.line_no {
+            active_item.line_no = Set(line_no);
+        }
+        if let Some(material_id) = req.material_id {
+            active_item.product_id = Set(material_id);
+        }
+
+        active_item.quantity = Set(quantity);
+        active_item.unit_price = Set(unit_price);
+        active_item.unit_price_foreign = Set(unit_price);
+        active_item.discount_percent = Set(discount_percent);
+        active_item.tax_percent = Set(tax_percent);
+
+        active_item.subtotal = Set(amounts.subtotal);
+        active_item.discount_amount = Set(amounts.discount_amount);
+        active_item.tax_amount = Set(amounts.tax_amount);
+        active_item.total_amount = Set(amounts.total_amount);
+
+        if let Some(notes) = req.notes {
+            active_item.notes = Set(Some(notes));
+        }
+
+        active_item.updated_at = Set(Utc::now());
+        active_item
     }
 
     /// 删除退货单明细
