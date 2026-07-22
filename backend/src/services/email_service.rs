@@ -460,12 +460,28 @@ impl EmailService {
     ///
     /// api_key 格式：`<SecretId>:<SecretKey>`，冒号分隔两部分。
     async fn send_via_tencent(&self, message: EmailMessage) -> Result<(), AppError> {
-        // 解析 api_key：格式为 "<SecretId>:<SecretKey>"
         let (secret_id, secret_key) = self
             .split_tencent_credentials()
             .ok_or_else(|| AppError::business("腾讯云邮件配置 api_key 格式错误，应为 <SecretId>:<SecretKey>"))?;
+        let payload = self.build_tencent_payload(message)?;
+        let timestamp = Utc::now().timestamp();
+        let authorization = self.tencent_sign(TencentSignParams {
+            action: "SendMail",
+            service: "ses",
+            version: "2020-10-02",
+            timestamp,
+            payload: payload.as_str(),
+            secret_id: secret_id.as_str(),
+            secret_key: secret_key.as_str(),
+        })?;
+        let (status, body) = self
+            .send_tencent_http_request(&payload, timestamp, &authorization)
+            .await?;
+        Self::handle_tencent_response(status, body)
+    }
 
-        // 构造请求体（SendMail API 入参）
+    /// 构建腾讯云邮件发送请求体并序列化为 JSON
+    fn build_tencent_payload(&self, message: EmailMessage) -> Result<String, AppError> {
         #[derive(Serialize)]
         #[serde(rename_all = "PascalCase")]
         struct TencentSimple {
@@ -493,22 +509,17 @@ impl EmailService {
                 text: message.text_content,
             },
         };
+        serde_json::to_string(&request_body)
+            .map_err(|e| AppError::internal(format!("腾讯云请求体序列化失败: {}", e)))
+    }
 
-        let payload = serde_json::to_string(&request_body)
-            .map_err(|e| AppError::internal(format!("腾讯云请求体序列化失败: {}", e)))?;
-
-        // 计算 V3 签名
-        let timestamp = Utc::now().timestamp();
-        let authorization = self.tencent_sign(TencentSignParams {
-            action: "SendMail",
-            service: "ses",
-            version: "2020-10-02",
-            timestamp,
-            payload: payload.as_str(),
-            secret_id: secret_id.as_str(),
-            secret_key: secret_key.as_str(),
-        })?;
-
+    /// 发送腾讯云 HTTP 请求并返回状态码与响应体
+    async fn send_tencent_http_request(
+        &self,
+        payload: &str,
+        timestamp: i64,
+        authorization: &str,
+    ) -> Result<(reqwest::StatusCode, String), AppError> {
         let response = self
             .http_client
             .post(TENCENT_SES_API_URL)
@@ -518,16 +529,24 @@ impl EmailService {
             .header("X-TC-Version", "2020-10-02")
             .header("Authorization", authorization)
             .header("Content-Type", "application/json; charset=utf-8")
-            .body(payload)
+            .body(payload.to_string())
             .send()
             .await
             .map_err(|e| AppError::internal(format!("腾讯云邮件发送请求失败: {}", e)))?;
-
         let status = response.status();
-        let body = response.text().await.unwrap_or_else(|_| "未知错误".to_string());
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "未知错误".to_string());
+        Ok((status, body))
+    }
 
+    /// 解析腾讯云响应：HTTP 2xx 且 body 无 Error 字段才算成功
+    fn handle_tencent_response(
+        status: reqwest::StatusCode,
+        body: String,
+    ) -> Result<(), AppError> {
         if status.is_success() {
-            // 腾讯云业务错误码在 200 响应 body 的 Response.Error 字段中
             if body.contains("\"Error\"") {
                 Err(AppError::internal(format!(
                     "腾讯云邮件发送业务失败: {}",

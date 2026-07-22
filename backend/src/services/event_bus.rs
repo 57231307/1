@@ -1042,27 +1042,34 @@ pub fn shutdown_event_bus() {
 // ============================================================================
 
 /// 刷新客户关联单据的 customer_name 冗余字段
-///
-/// 当客户主数据 customer_name 变更时，异步刷新以下表的冗余字段：
-/// - ar_invoices.customer_name
-/// - ar_collections.customer_name
-/// - ar_reconciliations.customer_name
-/// - customer_credits.customer_name
-/// - sales_contracts.customer_name
-///
-/// 采用 update_many 批量更新，单次 DB 往返完成一张表的刷新。
 async fn refresh_customer_name_redundancy(
     db: &sea_orm::DatabaseConnection,
     customer_id: i32,
     new_name: &str,
 ) -> Result<(), sea_orm::DbErr> {
-    use sea_orm::sea_query::Expr;
-    use sea_orm::ColumnTrait;
-    use sea_orm::EntityTrait;
-    use sea_orm::QueryFilter;
-
     let now = chrono::Utc::now();
-    // ar_invoices
+    update_ar_invoices_customer_name(db, customer_id, new_name, now).await?;
+    update_ar_collections_customer_name(db, customer_id, new_name, now).await?;
+    update_ar_reconciliations_customer_name(db, customer_id, new_name, now).await?;
+    update_customer_credits_customer_name(db, customer_id, new_name, now).await?;
+    update_sales_contracts_customer_name(db, customer_id, new_name, now).await?;
+    tracing::info!(
+        "客户 {} 名称已刷新至所有关联单据冗余字段：{}",
+        customer_id,
+        new_name
+    );
+    Ok(())
+}
+
+/// 更新 ar_invoices.customer_name 冗余字段
+async fn update_ar_invoices_customer_name(
+    db: &sea_orm::DatabaseConnection,
+    customer_id: i32,
+    new_name: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::sea_query::Expr;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_invoice::Entity::update_many()
         .filter(crate::models::ar_invoice::Column::CustomerId.eq(customer_id))
         .col_expr(
@@ -1075,8 +1082,18 @@ async fn refresh_customer_name_redundancy(
         )
         .exec(db)
         .await?;
+    Ok(())
+}
 
-    // ar_collections
+/// 更新 ar_collections.customer_name 冗余字段
+async fn update_ar_collections_customer_name(
+    db: &sea_orm::DatabaseConnection,
+    customer_id: i32,
+    new_name: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::sea_query::Expr;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_collection::Entity::update_many()
         .filter(crate::models::ar_collection::Column::CustomerId.eq(customer_id))
         .col_expr(
@@ -1089,8 +1106,18 @@ async fn refresh_customer_name_redundancy(
         )
         .exec(db)
         .await?;
+    Ok(())
+}
 
-    // ar_reconciliations
+/// 更新 ar_reconciliations.customer_name 冗余字段
+async fn update_ar_reconciliations_customer_name(
+    db: &sea_orm::DatabaseConnection,
+    customer_id: i32,
+    new_name: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::sea_query::Expr;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_reconciliation::Entity::update_many()
         .filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id))
         .col_expr(
@@ -1103,8 +1130,18 @@ async fn refresh_customer_name_redundancy(
         )
         .exec(db)
         .await?;
+    Ok(())
+}
 
-    // customer_credits
+/// 更新 customer_credits.customer_name 冗余字段
+async fn update_customer_credits_customer_name(
+    db: &sea_orm::DatabaseConnection,
+    customer_id: i32,
+    new_name: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::sea_query::Expr;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::customer_credit::Entity::update_many()
         .filter(crate::models::customer_credit::Column::CustomerId.eq(customer_id))
         .col_expr(
@@ -1117,8 +1154,18 @@ async fn refresh_customer_name_redundancy(
         )
         .exec(db)
         .await?;
+    Ok(())
+}
 
-    // sales_contracts
+/// 更新 sales_contracts.customer_name 冗余字段
+async fn update_sales_contracts_customer_name(
+    db: &sea_orm::DatabaseConnection,
+    customer_id: i32,
+    new_name: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::sea_query::Expr;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::sales_contract::Entity::update_many()
         .filter(crate::models::sales_contract::Column::CustomerId.eq(customer_id))
         .col_expr(
@@ -1131,12 +1178,6 @@ async fn refresh_customer_name_redundancy(
         )
         .exec(db)
         .await?;
-
-    tracing::info!(
-        "客户 {} 名称已刷新至所有关联单据冗余字段：{}",
-        customer_id,
-        new_name
-    );
     Ok(())
 }
 

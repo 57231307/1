@@ -392,17 +392,31 @@ impl PurchaseOrderService {
         req: UpdatePurchaseOrderRequest,
         user_id: i32,
     ) -> Result<purchase_order::Model, AppError> {
-        // 批次 18（2026-06-28）：补全事务边界，原实现无事务且 update_with_audit 传 &*self.db 非原子
         let txn = (*self.db).begin().await?;
-
-        // 1. 查询订单（加 lock_exclusive 串行化并发修改）
         let order = purchase_order::Entity::find_by_id(order_id)
             .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
+        Self::validate_order_modification(&order, user_id)?;
+        let mut order_active: purchase_order::ActiveModel = order.into();
+        Self::apply_order_field_updates(&mut order_active, &req, user_id);
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            order_active,
+            Some(user_id),
+        )
+        .await?;
+        txn.commit().await?;
+        Ok(order)
+    }
 
-        // 2. 检查状态
+    /// 校验订单是否可修改（状态+权限）
+    fn validate_order_modification(
+        order: &purchase_order::Model,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         if order.order_status != status::purchase_order::DRAFT
             && order.order_status != status::purchase_order::REJECTED
         {
@@ -411,17 +425,20 @@ impl PurchaseOrderService {
                 order.order_status
             )));
         }
-
-        // 3. 检查权限
         if order.created_by != user_id {
             return Err(AppError::permission_denied(
                 "只能修改自己创建的订单".to_string(),
             ));
         }
+        Ok(())
+    }
 
-        // 4. 更新订单（update_with_audit 传 &txn 纳入事务，保证原子性）
-        let mut order_active: purchase_order::ActiveModel = order.into();
-
+    /// 将请求字段应用到 ActiveModel
+    fn apply_order_field_updates(
+        order_active: &mut purchase_order::ActiveModel,
+        req: &UpdatePurchaseOrderRequest,
+        user_id: i32,
+    ) {
         if let Some(supplier_id) = req.supplier_id {
             order_active.supplier_id = Set(supplier_id);
         }
@@ -437,39 +454,26 @@ impl PurchaseOrderService {
         if let Some(department_id) = req.department_id {
             order_active.department_id = Set(department_id);
         }
-        if let Some(currency) = req.currency {
-            order_active.currency = Set(currency);
+        if let Some(currency) = &req.currency {
+            order_active.currency = Set(currency.clone());
         }
         if let Some(exchange_rate) = req.exchange_rate {
             order_active.exchange_rate = Set(exchange_rate);
         }
-        if let Some(payment_terms) = req.payment_terms {
-            order_active.payment_terms = Set(Some(payment_terms));
+        if let Some(payment_terms) = &req.payment_terms {
+            order_active.payment_terms = Set(Some(payment_terms.clone()));
         }
-        if let Some(shipping_terms) = req.shipping_terms {
-            order_active.shipping_terms = Set(Some(shipping_terms));
+        if let Some(shipping_terms) = &req.shipping_terms {
+            order_active.shipping_terms = Set(Some(shipping_terms.clone()));
         }
-        if let Some(notes) = req.notes {
-            order_active.notes = Set(Some(notes));
+        if let Some(notes) = &req.notes {
+            order_active.notes = Set(Some(notes.clone()));
         }
-        if let Some(attachment_urls) = req.attachment_urls {
-            order_active.attachment_urls = Set(Some(attachment_urls));
+        if let Some(attachment_urls) = &req.attachment_urls {
+            order_active.attachment_urls = Set(Some(attachment_urls.clone()));
         }
-
         order_active.updated_by = Set(Some(user_id));
         order_active.updated_at = Set(Utc::now());
-
-        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
-            "auto_audit",
-            order_active,
-            Some(user_id),
-        )
-        .await?;
-
-        txn.commit().await?;
-
-        Ok(order)
     }
 
     /// 删除采购订单（仅草稿状态）
