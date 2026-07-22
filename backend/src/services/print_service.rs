@@ -35,6 +35,15 @@ pub struct PrintService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 库存调拨打印上下文：聚合主表、调出/调入仓库、明细及产品映射
+struct TransferPrintContext {
+    transfer: crate::models::inventory_transfer::Model,
+    from_warehouse: Option<crate::models::warehouse::Model>,
+    to_warehouse: Option<crate::models::warehouse::Model>,
+    items: Vec<crate::models::inventory_transfer_item::Model>,
+    product_map: HashMap<i32, crate::models::product::Model>,
+}
+
 impl PrintService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -395,6 +404,18 @@ impl PrintService {
 
     /// 库存调拨单打印数据：调拨主表 + 调出/调入仓库 + 明细项（含产品）
     async fn get_inventory_transfer_print_data(&self, id: i32) -> Result<PrintData, AppError> {
+        let ctx = self.fetch_transfer_print_context(id).await?;
+        let data = Self::build_transfer_main_data(&ctx);
+        let item_list = Self::build_transfer_item_list(&ctx);
+        Ok(PrintData {
+            template: "inventory_transfer".to_string(),
+            data,
+            items: item_list,
+        })
+    }
+
+    /// 查询调拨单所有关联数据：主表、调出/调入仓库、明细、产品映射
+    async fn fetch_transfer_print_context(&self, id: i32) -> Result<TransferPrintContext, AppError> {
         use crate::models::{inventory_transfer, inventory_transfer_item, product, warehouse};
 
         let transfer = inventory_transfer::Entity::find_by_id(id)
@@ -423,27 +444,51 @@ impl PrintService {
         let product_map: HashMap<i32, product::Model> =
             products.into_iter().map(|p| (p.id, p)).collect();
 
+        Ok(TransferPrintContext {
+            transfer,
+            from_warehouse,
+            to_warehouse,
+            items,
+            product_map,
+        })
+    }
+
+    /// 构建调拨单主表数据 HashMap
+    fn build_transfer_main_data(ctx: &TransferPrintContext) -> HashMap<String, serde_json::Value> {
         let mut data = HashMap::new();
-        data.insert("transfer_no".to_string(), serde_json::json!(transfer.transfer_no));
+        data.insert(
+            "transfer_no".to_string(),
+            serde_json::json!(ctx.transfer.transfer_no.clone()),
+        );
         data.insert(
             "from_warehouse_name".to_string(),
-            serde_json::json!(from_warehouse.as_ref().map(|w| w.name.clone()).unwrap_or_default()),
+            serde_json::json!(ctx.from_warehouse.as_ref().map(|w| w.name.clone()).unwrap_or_default()),
         );
         data.insert(
             "to_warehouse_name".to_string(),
-            serde_json::json!(to_warehouse.as_ref().map(|w| w.name.clone()).unwrap_or_default()),
+            serde_json::json!(ctx.to_warehouse.as_ref().map(|w| w.name.clone()).unwrap_or_default()),
         );
         data.insert(
             "transfer_date".to_string(),
-            serde_json::json!(transfer.transfer_date.format("%Y-%m-%d %H:%M").to_string()),
+            serde_json::json!(ctx.transfer.transfer_date.format("%Y-%m-%d %H:%M").to_string()),
         );
-        data.insert("status".to_string(), serde_json::json!(transfer.status));
-        data.insert("total_quantity".to_string(), serde_json::json!(transfer.total_quantity.to_string()));
-        data.insert("notes".to_string(), serde_json::json!(transfer.notes.unwrap_or_default()));
+        data.insert("status".to_string(), serde_json::json!(ctx.transfer.status.clone()));
+        data.insert(
+            "total_quantity".to_string(),
+            serde_json::json!(ctx.transfer.total_quantity.to_string()),
+        );
+        data.insert(
+            "notes".to_string(),
+            serde_json::json!(ctx.transfer.notes.clone().unwrap_or_default()),
+        );
+        data
+    }
 
-        let mut item_list = Vec::with_capacity(items.len());
-        for (i, item) in items.into_iter().enumerate() {
-            let product = product_map.get(&item.product_id);
+    /// 构建调拨单明细项列表
+    fn build_transfer_item_list(ctx: &TransferPrintContext) -> Vec<HashMap<String, serde_json::Value>> {
+        let mut item_list = Vec::with_capacity(ctx.items.len());
+        for (i, item) in ctx.items.iter().enumerate() {
+            let product = ctx.product_map.get(&item.product_id);
             let mut row = HashMap::new();
             row.insert("line_no".to_string(), serde_json::json!((i + 1).to_string()));
             row.insert(
@@ -454,12 +499,12 @@ impl PrintService {
                 "product_name".to_string(),
                 serde_json::json!(product.map(|p| p.name.clone()).unwrap_or_default()),
             );
-            row.insert("color_no".to_string(), serde_json::json!(item.color_no));
+            row.insert("color_no".to_string(), serde_json::json!(item.color_no.clone()));
             row.insert(
                 "dye_lot_no".to_string(),
-                serde_json::json!(item.dye_lot_no.unwrap_or_default()),
+                serde_json::json!(item.dye_lot_no.clone().unwrap_or_default()),
             );
-            row.insert("batch_no".to_string(), serde_json::json!(item.batch_no));
+            row.insert("batch_no".to_string(), serde_json::json!(item.batch_no.clone()));
             row.insert("quantity".to_string(), serde_json::json!(item.quantity.to_string()));
             row.insert(
                 "shipped_quantity".to_string(),
@@ -475,12 +520,7 @@ impl PrintService {
             );
             item_list.push(row);
         }
-
-        Ok(PrintData {
-            template: "inventory_transfer".to_string(),
-            data,
-            items: item_list,
-        })
+        item_list
     }
 
     /// 会计凭证打印数据：凭证主表 + 分录明细

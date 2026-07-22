@@ -553,6 +553,7 @@ impl MrpEngineService {
         let mut results = Vec::new();
         let calculation_no = format!("MRP{}", Utc::now().timestamp_millis());
 
+        // 计算主物料需求
         let main_req = self
             .calculate_requirement(RequirementCalcParams {
                 product_id: query.product_id,
@@ -566,8 +567,43 @@ impl MrpEngineService {
             })
             .await?;
 
-        let main_active_model = MrpResultActiveModel {
-            calculation_no: Set(calculation_no.clone()),
+        // 构建并保存主物料结果
+        let main_active_model =
+            Self::build_main_result_active_model(&calculation_no, &main_req);
+        let main_result = main_active_model.insert(&*self.db).await?;
+        results.push(main_result);
+
+        // 展开 BOM 获取子物料需求
+        let sub_requirements = self
+            .explode_bom(MrpExplodeQuery {
+                product_id: query.product_id,
+                parent_quantity: query.required_quantity,
+                required_date: query.required_date,
+                source_type: query.source_type,
+                source_id: query.source_id,
+                consider_safety_stock: query.consider_safety_stock,
+                consider_in_transit: query.consider_in_transit,
+            })
+            .await?;
+
+        // 遍历构建并保存子物料结果
+        for (idx, req) in sub_requirements.iter().enumerate() {
+            let sub_active_model =
+                Self::build_sub_result_active_model(&calculation_no, idx, req);
+            let sub_result = sub_active_model.insert(&*self.db).await?;
+            results.push(sub_result);
+        }
+
+        Ok(results)
+    }
+
+    /// 构建主物料 MRP 结果 ActiveModel
+    fn build_main_result_active_model(
+        calculation_no: &str,
+        main_req: &MaterialRequirement,
+    ) -> MrpResultActiveModel {
+        MrpResultActiveModel {
+            calculation_no: Set(calculation_no.to_string()),
             product_id: Set(main_req.product_id),
             required_quantity: Set(main_req.required_quantity),
             required_date: Set(Some(main_req.required_date)),
@@ -583,54 +619,38 @@ impl MrpEngineService {
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
-        };
-
-        let main_result = main_active_model.insert(&*self.db).await?;
-        results.push(main_result);
-
-        let sub_requirements = self
-            .explode_bom(MrpExplodeQuery {
-                product_id: query.product_id,
-                parent_quantity: query.required_quantity,
-                required_date: query.required_date,
-                source_type: query.source_type,
-                source_id: query.source_id,
-                consider_safety_stock: query.consider_safety_stock,
-                consider_in_transit: query.consider_in_transit,
-            })
-            .await?;
-
-        for (idx, req) in sub_requirements.iter().enumerate() {
-            // 保存所有子物料需求到MRP结果（包括有库存和短缺的）
-            let sub_active_model = MrpResultActiveModel {
-                calculation_no: Set(format!("{}-{}", calculation_no, idx + 1)),
-                product_id: Set(req.product_id),
-                required_quantity: Set(req.required_quantity),
-                required_date: Set(Some(req.required_date)),
-                source_type: Set(req.source_type.clone()),
-                source_id: Set(req.source_id),
-                planned_order_quantity: Set(Some(req.shortage_quantity)),
-                planned_order_date: Set(Some(
-                    req.required_date - Duration::days(7 * req.bom_level as i64),
-                )),
-                status: Set(mrp_status::PLANNED.to_string()),
-                remarks: Set(Some(format!(
-                    "BOM Level: {}, On Hand: {}, In Transit: {}, Shortage: {}",
-                    req.bom_level,
-                    req.on_hand_quantity,
-                    req.in_transit_quantity,
-                    req.shortage_quantity
-                ))),
-                created_at: Set(Utc::now()),
-                updated_at: Set(Utc::now()),
-                ..Default::default()
-            };
-
-            let sub_result = sub_active_model.insert(&*self.db).await?;
-            results.push(sub_result);
         }
+    }
 
-        Ok(results)
+    /// 构建子物料 MRP 结果 ActiveModel
+    fn build_sub_result_active_model(
+        calculation_no: &str,
+        idx: usize,
+        req: &MaterialRequirement,
+    ) -> MrpResultActiveModel {
+        MrpResultActiveModel {
+            calculation_no: Set(format!("{}-{}", calculation_no, idx + 1)),
+            product_id: Set(req.product_id),
+            required_quantity: Set(req.required_quantity),
+            required_date: Set(Some(req.required_date)),
+            source_type: Set(req.source_type.clone()),
+            source_id: Set(req.source_id),
+            planned_order_quantity: Set(Some(req.shortage_quantity)),
+            planned_order_date: Set(Some(
+                req.required_date - Duration::days(7 * req.bom_level as i64),
+            )),
+            status: Set(mrp_status::PLANNED.to_string()),
+            remarks: Set(Some(format!(
+                "BOM Level: {}, On Hand: {}, In Transit: {}, Shortage: {}",
+                req.bom_level,
+                req.on_hand_quantity,
+                req.in_transit_quantity,
+                req.shortage_quantity
+            ))),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            ..Default::default()
+        }
     }
 
     /// 批量MRP计算

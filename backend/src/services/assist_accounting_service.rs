@@ -117,11 +117,24 @@ impl AssistAccountingService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<assist_accounting_record::Model>, u64), AppError> {
-        use sea_orm::ColumnTrait;
+        let query = assist_accounting_record::Entity::find();
+        let query = Self::apply_period_filter(query, accounting_period);
+        let query = Self::apply_assist_filters(query, dimension_code, business_type, warehouse_id);
 
-        let mut query = assist_accounting_record::Entity::find();
+        // 分页查询
+        let paginator = query.paginate(&*self.db, page_size);
+        let total = paginator.num_items().await?;
+        // SeaORM fetch_page 为 0-indexed，HTTP 层 page 为 1-indexed，需减 1 对齐
+        let records = paginator.fetch_page(page.saturating_sub(1)).await?;
 
-        // 按会计期间过滤（将期间转换为日期范围）
+        Ok((records, total))
+    }
+
+    /// 应用会计期间过滤，将期间字符串解析为日期范围
+    fn apply_period_filter(
+        query: sea_orm::Select<assist_accounting_record::Entity>,
+        accounting_period: Option<&str>,
+    ) -> sea_orm::Select<assist_accounting_record::Entity> {
         if let Some(period) = accounting_period {
             if let Ok((year, month)) = parse_period(period) {
                 let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1).map(|d| {
@@ -138,16 +151,27 @@ impl AssistAccountingService {
                 .map(|d| d - chrono::Duration::seconds(1))
                 .map(|d| d.and_utc());
 
+                let mut query = query;
                 if let Some(start) = start_date {
                     query = query.filter(assist_accounting_record::Column::CreatedAt.gte(start));
                 }
                 if let Some(end) = end_date {
                     query = query.filter(assist_accounting_record::Column::CreatedAt.lte(end));
                 }
+                return query;
             }
         }
+        query
+    }
 
-        // 按维度过滤
+    /// 应用维度、业务类型、仓库过滤
+    fn apply_assist_filters(
+        query: sea_orm::Select<assist_accounting_record::Entity>,
+        dimension_code: Option<&str>,
+        business_type: Option<&str>,
+        warehouse_id: Option<i32>,
+    ) -> sea_orm::Select<assist_accounting_record::Entity> {
+        // 按维度过滤（大部分为占位，保留原样不动）
         if let Some(dimension) = dimension_code {
             match dimension {
                 "BATCH" => {
@@ -178,21 +202,14 @@ impl AssistAccountingService {
             }
         }
 
+        let mut query = query;
         if let Some(biz_type) = business_type {
             query = query.filter(assist_accounting_record::Column::BusinessType.eq(biz_type));
         }
-
         if let Some(wid) = warehouse_id {
             query = query.filter(assist_accounting_record::Column::WarehouseId.eq(wid));
         }
-
-        // 分页查询
-        let paginator = query.paginate(&*self.db, page_size);
-        let total = paginator.num_items().await?;
-        // SeaORM fetch_page 为 0-indexed，HTTP 层 page 为 1-indexed，需减 1 对齐
-        let records = paginator.fetch_page(page.saturating_sub(1)).await?;
-
-        Ok((records, total))
+        query
     }
 
 

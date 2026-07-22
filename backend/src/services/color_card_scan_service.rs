@@ -6,7 +6,7 @@
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 
-use crate::models::color_card::Entity as ColorCardEntity;
+use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_item::{self, Entity as ItemEntity};
 use crate::models::color_card_response_dto::{PriceSummary, RecipeSummary, ScanResult};
 use crate::utils::app_state::AppState;
@@ -32,56 +32,14 @@ impl ColorCardScanService {
         &self,
         color_code: &str,
     ) -> Result<ScanResult, AppError> {
-        // 1. 查找色号
-        let item = ItemEntity::find()
-            .filter(color_card_item::Column::ColorCode.eq(color_code))
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::database(e.to_string()))?
-            .ok_or_else(|| AppError::not_found("色号不存在"))?;
+        // 查找色号 + 关联色卡
+        let (item, card) = self.fetch_color_item_and_card(color_code).await?;
 
-        // 2. 加载色卡
-        let card = ColorCardEntity::find_by_id(item.color_card_id)
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::database(e.to_string()))?
-            .ok_or_else(|| AppError::not_found("色卡不存在"))?;
+        // 加载配方 / 价格（Copy 字段直接取用，无需 clone）
+        let recipe_summary = self.load_recipe_summary(item.dye_recipe_id).await?;
+        let price_summary = self.load_price_summary(item.product_color_price_id).await?;
 
-        // 3. 加载配方（如有）
-        let recipe_summary = if let Some(recipe_id) = item.dye_recipe_id {
-            let recipe = crate::models::dye_recipe::Entity::find_by_id(recipe_id)
-                .one(&*self.db)
-                .await
-                .map_err(|e| AppError::database(e.to_string()))?;
-            recipe.map(|r| RecipeSummary {
-                id: i64::from(r.id),
-                recipe_name: r.recipe_name.unwrap_or_default(),
-                fabric_type: r.fabric_type,
-                color_no: r.color_no,
-                temperature: r.temperature,
-                time_minutes: r.time_minutes,
-            })
-        } else {
-            None
-        };
-
-        // 4. 加载价格（如有）
-        let price_summary = if let Some(price_id) = item.product_color_price_id {
-            let price = crate::models::product_color_price::Entity::find_by_id(price_id)
-                .one(&*self.db)
-                .await
-                .map_err(|e| AppError::database(e.to_string()))?;
-            price.map(|p| PriceSummary {
-                id: p.id,
-                base_price: p.base_price,
-                currency: p.currency,
-                effective_from: p.effective_from,
-                customer_level: p.customer_level,
-            })
-        } else {
-            None
-        };
-
+        // 组装返回结果
         Ok(ScanResult {
             color_item: crate::models::color_card_response_dto::ColorItemInfo {
                 id: item.id,
@@ -111,6 +69,74 @@ impl ColorCardScanService {
             recipe_summary,
             price_summary,
         })
+    }
+
+    /// 查找色号并加载关联色卡
+    async fn fetch_color_item_and_card(
+        &self,
+        color_code: &str,
+    ) -> Result<(color_card_item::Model, color_card::Model), AppError> {
+        // 按色号编码查找
+        let item = ItemEntity::find()
+            .filter(color_card_item::Column::ColorCode.eq(color_code))
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?
+            .ok_or_else(|| AppError::not_found("色号不存在"))?;
+
+        // 加载所属色卡
+        let card = ColorCardEntity::find_by_id(item.color_card_id)
+            .one(&*self.db)
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?
+            .ok_or_else(|| AppError::not_found("色卡不存在"))?;
+
+        Ok((item, card))
+    }
+
+    /// 加载配方摘要（如有）
+    async fn load_recipe_summary(
+        &self,
+        recipe_id: Option<i64>,
+    ) -> Result<Option<RecipeSummary>, AppError> {
+        if let Some(recipe_id) = recipe_id {
+            let recipe = crate::models::dye_recipe::Entity::find_by_id(recipe_id)
+                .one(&*self.db)
+                .await
+                .map_err(|e| AppError::database(e.to_string()))?;
+            Ok(recipe.map(|r| RecipeSummary {
+                id: i64::from(r.id),
+                recipe_name: r.recipe_name.unwrap_or_default(),
+                fabric_type: r.fabric_type,
+                color_no: r.color_no,
+                temperature: r.temperature,
+                time_minutes: r.time_minutes,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 加载价格摘要（如有）
+    async fn load_price_summary(
+        &self,
+        price_id: Option<i32>,
+    ) -> Result<Option<PriceSummary>, AppError> {
+        if let Some(price_id) = price_id {
+            let price = crate::models::product_color_price::Entity::find_by_id(price_id)
+                .one(&*self.db)
+                .await
+                .map_err(|e| AppError::database(e.to_string()))?;
+            Ok(price.map(|p| PriceSummary {
+                id: p.id,
+                base_price: p.base_price,
+                currency: p.currency,
+                effective_from: p.effective_from,
+                customer_level: p.customer_level,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     /// 按色号 ID 扫码查询

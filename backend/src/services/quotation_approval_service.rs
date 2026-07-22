@@ -356,89 +356,95 @@ impl QuotationApprovalService {
         approver_id: i32,
         reason: String,
     ) -> Result<sales_quotation::Model, AppError> {
-        // 批次 12（2026-06-28）：事务包裹"查询 + 状态检查 + update_with_audit"，
-        // 加 lock_exclusive 防止并发拒绝同一报价单导致重复拒绝或字段覆盖；
+        // 事务包裹"查询 + 状态检查 + update_with_audit"，加 lock_exclusive 防并发；
         // BPM 任务审批在事务外执行（容错，失败不阻断已提交状态）
         let txn = (*self.db).begin().await?;
+        let updated = self
+            .reject_quotation_txn(quotation_id, approver_id, &reason, &txn)
+            .await?;
+        txn.commit().await?;
+        // 完成 BPM 任务（事务外，容错）
+        self.complete_rejection_bpm(&updated, approver_id, &reason)
+            .await;
+        Ok(updated)
+    }
 
-        let quotation = QuotationEntity::find_by_id(quotation_id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found("报价单不存在"))?;
-
-        if quotation.status != "pending_approval" {
-            return Err(AppError::business(format!(
-                "报价单不在待审批状态：{}",
-                quotation.status
-            )));
-        }
-
+    /// 事务内执行拒绝：lock_exclusive + 状态校验 + 构建更新 + 审计更新
+    async fn reject_quotation_txn(
+        &self,
+        quotation_id: i64,
+        approver_id: i32,
+        reason: &str,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<sales_quotation::Model, AppError> {
+        // 复用审批锁校验：lock_exclusive + 状态为待审批
+        let quotation = self
+            .lock_and_validate_quotation_for_approval_txn(quotation_id, txn)
+            .await?;
         let mut active: QuotationActive = quotation.into();
         active.status = Set("rejected".to_string());
         active.approved_by = Set(Some(approver_id as i64));
-        active.rejection_reason = Set(Some(reason.clone()));
+        active.rejection_reason = Set(Some(reason.to_string()));
         active.updated_at = Set(Utc::now());
-
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             active,
             Some(approver_id),
         )
         .await?;
+        Ok(updated)
+    }
 
-        txn.commit().await?;
-
-        // 完成 BPM 任务（事务外，容错）
-        if updated.approval_instance_id.is_some() {
-            let bpm_service = BpmService::new(self.db.clone());
-            if let Ok(Some(instance)) = bpm_service
-                .get_process_by_business("quotation", updated.id as i32)
+    /// 事务外完成 BPM 拒绝任务（容错，失败只 warn）
+    async fn complete_rejection_bpm(
+        &self,
+        updated: &sales_quotation::Model,
+        approver_id: i32,
+        reason: &str,
+    ) {
+        if updated.approval_instance_id.is_none() {
+            return;
+        }
+        let bpm_service = BpmService::new(self.db.clone());
+        let Ok(Some(instance)) = bpm_service
+            .get_process_by_business("quotation", updated.id as i32)
+            .await
+        else { return; };
+        let Ok(tasks) = bpm_service
+            .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
+                user_id: Some(approver_id),
+                status: Some("PENDING".to_string()),
+                page: Some(1),
+                page_size: Some(10),
+            })
+            .await
+        else { return; };
+        for task in tasks.data {
+            if task.instance_id != instance.id {
+                continue;
+            }
+            if let Err(e) = bpm_service
+                .approve_task(
+                    crate::models::dto::bpm_dto::ApproveTaskRequest {
+                        task_id: task.id,
+                        handler_id: approver_id,
+                        handler_name: format!("user_{}", approver_id),
+                        action: "reject".to_string(),
+                        approval_opinion: Some(reason.to_string()),
+                        attachment_urls: None,
+                    },
+                    Some(approver_id),
+                )
                 .await
             {
-                if let Ok(tasks) = bpm_service
-                    .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
-                        user_id: Some(approver_id),
-                        status: Some("PENDING".to_string()),
-                        page: Some(1),
-                        page_size: Some(10),
-                    })
-                    .await
-                {
-                    for task in tasks.data {
-                        if task.instance_id == instance.id {
-                            // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉
-                            // BPM 任务审批错误，改为 warn 日志记录，确保运维可观测。
-                            if let Err(e) = bpm_service
-                                .approve_task(
-                                    crate::models::dto::bpm_dto::ApproveTaskRequest {
-                                        task_id: task.id,
-                                        handler_id: approver_id,
-                                        handler_name: format!("user_{}", approver_id),
-                                        action: "reject".to_string(),
-                                        approval_opinion: Some(reason.clone()),
-                                        attachment_urls: None,
-                                    },
-                                    // P0 8-4 修复：传入真实操作用户 approver_id 用于 BPM 审计追溯
-                                    Some(approver_id),
-                                )
-                                .await
-                            {
-                                tracing::warn!(
-                                    error = %e,
-                                    task_id = task.id,
-                                    quotation_id = updated.id,
-                                    "BPM 报价单审批拒绝任务失败（不阻断主流程）"
-                                );
-                            }
-                        }
-                    }
-                }
+                tracing::warn!(
+                    error = %e, task_id = task.id,
+                    quotation_id = updated.id,
+                    "BPM 报价单审批拒绝任务失败（不阻断主流程）"
+                );
             }
         }
-
-        Ok(updated)
     }
 }
 

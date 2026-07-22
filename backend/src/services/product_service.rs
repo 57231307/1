@@ -656,11 +656,26 @@ impl ProductService {
         status: Option<String>,
         search: Option<String>,
     ) -> Result<Vec<u8>, AppError> {
+        // 查询产品列表（单页拉取全量用于导出）
         let (products, _total) = self
             .list_products(1, 10000, category_id, status, search)
             .await?;
 
-        let headers = vec![
+        // 构建 CSV 表头与行数据
+        let headers = Self::build_product_csv_headers();
+        let rows: Vec<std::collections::HashMap<String, String>> = products
+            .iter()
+            .map(Self::build_product_csv_row)
+            .collect();
+
+        // 生成 CSV 字节流
+        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
+            .map_err(|e| AppError::business(format!("CSV 生成失败: {}", e)))
+    }
+
+    /// 构建 CSV 表头（19 列）
+    fn build_product_csv_headers() -> Vec<String> {
+        vec![
             "产品编码".to_string(),
             "产品名称".to_string(),
             "产品类型".to_string(),
@@ -680,63 +695,58 @@ impl ProductService {
             "交货期".to_string(),
             "状态".to_string(),
             "产品描述".to_string(),
-        ];
+        ]
+    }
 
-        let rows: Vec<std::collections::HashMap<String, String>> = products
-            .into_iter()
-            .map(|p| {
-                let mut row = std::collections::HashMap::new();
-                row.insert("产品编码".to_string(), p.code);
-                row.insert("产品名称".to_string(), p.name);
-                row.insert("产品类型".to_string(), p.product_type);
-                row.insert(
-                    "类别ID".to_string(),
-                    p.category_id.map(|id| id.to_string()).unwrap_or_default(),
-                );
-                row.insert("规格型号".to_string(), p.specification.unwrap_or_default());
-                row.insert("计量单位".to_string(), p.unit);
-                row.insert(
-                    "标准价格".to_string(),
-                    p.standard_price.map(|p| p.to_string()).unwrap_or_default(),
-                );
-                row.insert(
-                    "成本价格".to_string(),
-                    p.cost_price.map(|p| p.to_string()).unwrap_or_default(),
-                );
-                row.insert(
-                    "面料成分".to_string(),
-                    p.fabric_composition.unwrap_or_default(),
-                );
-                row.insert("纱支".to_string(), p.yarn_count.unwrap_or_default());
-                row.insert("密度".to_string(), p.density.unwrap_or_default());
-                row.insert(
-                    "幅宽".to_string(),
-                    p.width.map(|w| w.to_string()).unwrap_or_default(),
-                );
-                row.insert(
-                    "克重".to_string(),
-                    p.gram_weight.map(|g| g.to_string()).unwrap_or_default(),
-                );
-                row.insert("组织结构".to_string(), p.structure.unwrap_or_default());
-                row.insert("后整理".to_string(), p.finish.unwrap_or_default());
-                row.insert(
-                    "最小起订量".to_string(),
-                    p.min_order_quantity
-                        .map(|m| m.to_string())
-                        .unwrap_or_default(),
-                );
-                row.insert(
-                    "交货期".to_string(),
-                    p.lead_time.map(|l| l.to_string()).unwrap_or_default(),
-                );
-                row.insert("状态".to_string(), p.status);
-                row.insert("产品描述".to_string(), p.description.unwrap_or_default());
-                row
-            })
-            .collect();
-
-        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| AppError::business(format!("CSV 生成失败: {}", e)))
+    /// 将单个产品转为 CSV 行 HashMap
+    fn build_product_csv_row(p: &product::Model) -> std::collections::HashMap<String, String> {
+        let mut row = std::collections::HashMap::new();
+        row.insert("产品编码".to_string(), p.code.clone());
+        row.insert("产品名称".to_string(), p.name.clone());
+        row.insert("产品类型".to_string(), p.product_type.clone());
+        row.insert(
+            "类别ID".to_string(),
+            p.category_id.map(|id| id.to_string()).unwrap_or_default(),
+        );
+        row.insert("规格型号".to_string(), p.specification.clone().unwrap_or_default());
+        row.insert("计量单位".to_string(), p.unit.clone());
+        row.insert(
+            "标准价格".to_string(),
+            p.standard_price.map(|price| price.to_string()).unwrap_or_default(),
+        );
+        row.insert(
+            "成本价格".to_string(),
+            p.cost_price.map(|price| price.to_string()).unwrap_or_default(),
+        );
+        row.insert(
+            "面料成分".to_string(),
+            p.fabric_composition.clone().unwrap_or_default(),
+        );
+        row.insert("纱支".to_string(), p.yarn_count.clone().unwrap_or_default());
+        row.insert("密度".to_string(), p.density.clone().unwrap_or_default());
+        row.insert(
+            "幅宽".to_string(),
+            p.width.map(|w| w.to_string()).unwrap_or_default(),
+        );
+        row.insert(
+            "克重".to_string(),
+            p.gram_weight.map(|g| g.to_string()).unwrap_or_default(),
+        );
+        row.insert("组织结构".to_string(), p.structure.clone().unwrap_or_default());
+        row.insert("后整理".to_string(), p.finish.clone().unwrap_or_default());
+        row.insert(
+            "最小起订量".to_string(),
+            p.min_order_quantity
+                .map(|m| m.to_string())
+                .unwrap_or_default(),
+        );
+        row.insert(
+            "交货期".to_string(),
+            p.lead_time.map(|l| l.to_string()).unwrap_or_default(),
+        );
+        row.insert("状态".to_string(), p.status.clone());
+        row.insert("产品描述".to_string(), p.description.clone().unwrap_or_default());
+        row
     }
 
     /// 生成产品导入模板
