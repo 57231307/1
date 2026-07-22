@@ -452,6 +452,16 @@ pub struct BusinessModeConfigService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 更新时用于一致性校验的最终值聚合
+struct FinalConsistencyValues {
+    material_source: String,
+    settlement_method: String,
+    require_purchase: bool,
+    require_production: bool,
+    require_outsourcing: bool,
+    require_sales: bool,
+}
+
 impl BusinessModeConfigService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -542,31 +552,46 @@ impl BusinessModeConfigService {
         req: UpdateBusinessModeConfigRequest,
     ) -> Result<ConfigModel, AppError> {
         let model = self.get_by_id(id).await?;
-
-        // 在 model.into() 之前记录原值
         let original_mode_code = model.mode_code.clone();
-        let original_material_source = model.material_source.clone();
-        let original_settlement_method = model.settlement_method.clone();
-        let original_require_purchase = model.require_purchase;
-        let original_require_production = model.require_production;
-        let original_require_outsourcing = model.require_outsourcing;
-        let original_require_sales = model.require_sales;
-
+        let mut finals = FinalConsistencyValues {
+            material_source: model.material_source.clone(),
+            settlement_method: model.settlement_method.clone(),
+            require_purchase: model.require_purchase,
+            require_production: model.require_production,
+            require_outsourcing: model.require_outsourcing,
+            require_sales: model.require_sales,
+        };
         let mut active: ConfigActiveModel = model.into();
-
-        // 计算最终值用于一致性校验
-        let mut final_material_source = original_material_source.clone();
-        let mut final_settlement_method = original_settlement_method.clone();
-        let mut final_require_purchase = original_require_purchase;
-        let mut final_require_production = original_require_production;
-        let mut final_require_outsourcing = original_require_outsourcing;
-        let mut final_require_sales = original_require_sales;
-
-        if let Some(v) = req.mode_name {
-            active.mode_name = Set(v);
+        Self::apply_basic_fields(&mut active, &req);
+        Self::apply_validated_fields(&mut active, &req, &mut finals)?;
+        Self::apply_module_flags(&mut active, &req, &mut finals);
+        check_module_consistency(
+            &original_mode_code,
+            finals.require_purchase,
+            finals.require_production,
+            finals.require_outsourcing,
+            finals.require_sales,
+            &finals.material_source,
+            &finals.settlement_method,
+        )?;
+        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
+        let updated = active.update(&*self.db).await?;
+        if updated.is_default {
+            self.clear_other_defaults(updated.id).await?;
         }
-        if let Some(v) = req.description {
-            active.description = Set(Some(v));
+        Ok(updated)
+    }
+
+    /// 应用基础字段（无校验）
+    fn apply_basic_fields(
+        active: &mut ConfigActiveModel,
+        req: &UpdateBusinessModeConfigRequest,
+    ) {
+        if let Some(v) = &req.mode_name {
+            active.mode_name = Set(v.clone());
+        }
+        if let Some(v) = &req.description {
+            active.description = Set(Some(v.clone()));
         }
         if let Some(v) = req.is_active {
             active.is_active = Set(v);
@@ -574,71 +599,67 @@ impl BusinessModeConfigService {
         if let Some(v) = req.is_default {
             active.is_default = Set(v);
         }
-        if let Some(v) = req.process_chain {
-            active.process_chain = Set(v);
+        if let Some(v) = &req.process_chain {
+            active.process_chain = Set(v.clone());
         }
-        if let Some(v) = req.material_source {
-            validate_material_source(&v)?;
-            final_material_source = v.clone();
-            active.material_source = Set(v);
+        if let Some(v) = &req.remarks {
+            active.remarks = Set(Some(v.clone()));
         }
-        if let Some(v) = req.settlement_method {
-            validate_settlement_method(&v)?;
-            final_settlement_method = v.clone();
-            active.settlement_method = Set(v);
+    }
+
+    /// 应用需校验的字段（material_source/settlement_method/inventory_type/cost_method/mode_category）
+    fn apply_validated_fields(
+        active: &mut ConfigActiveModel,
+        req: &UpdateBusinessModeConfigRequest,
+        finals: &mut FinalConsistencyValues,
+    ) -> Result<(), AppError> {
+        if let Some(v) = &req.material_source {
+            validate_material_source(v)?;
+            finals.material_source = v.clone();
+            active.material_source = Set(v.clone());
         }
-        if let Some(v) = req.inventory_type {
-            validate_inventory_type(&v)?;
-            active.inventory_type = Set(v);
+        if let Some(v) = &req.settlement_method {
+            validate_settlement_method(v)?;
+            finals.settlement_method = v.clone();
+            active.settlement_method = Set(v.clone());
         }
-        if let Some(v) = req.cost_method {
-            validate_cost_method(&v)?;
-            active.cost_method = Set(v);
+        if let Some(v) = &req.inventory_type {
+            validate_inventory_type(v)?;
+            active.inventory_type = Set(v.clone());
         }
+        if let Some(v) = &req.cost_method {
+            validate_cost_method(v)?;
+            active.cost_method = Set(v.clone());
+        }
+        if let Some(v) = &req.mode_category {
+            validate_mode_category(v)?;
+            active.mode_category = Set(v.clone());
+        }
+        Ok(())
+    }
+
+    /// 应用模块标志字段（require_*）
+    fn apply_module_flags(
+        active: &mut ConfigActiveModel,
+        req: &UpdateBusinessModeConfigRequest,
+        finals: &mut FinalConsistencyValues,
+    ) {
         if let Some(v) = req.require_purchase {
-            final_require_purchase = v;
+            finals.require_purchase = v;
             active.require_purchase = Set(v);
         }
         if let Some(v) = req.require_production {
-            final_require_production = v;
+            finals.require_production = v;
             active.require_production = Set(v);
         }
         if let Some(v) = req.require_outsourcing {
-            final_require_outsourcing = v;
+            finals.require_outsourcing = v;
             active.require_outsourcing = Set(v);
         }
         if let Some(v) = req.require_sales {
-            final_require_sales = v;
+            finals.require_sales = v;
             active.require_sales = Set(v);
         }
-        if let Some(v) = req.mode_category {
-            validate_mode_category(&v)?;
-            active.mode_category = Set(v);
-        }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
-        }
-
-        // 校验业务模式配置一致性
-        check_module_consistency(
-            &original_mode_code,
-            final_require_purchase,
-            final_require_production,
-            final_require_outsourcing,
-            final_require_sales,
-            &final_material_source,
-            &final_settlement_method,
-        )?;
-
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-
-        // 若设置为默认，先清除其他默认
-        if updated.is_default {
-            self.clear_other_defaults(updated.id).await?;
-        }
-
-        Ok(updated)
     }
 
     /// 软删除业务模式配置

@@ -149,26 +149,13 @@ impl FinanceAlertService {
         Self::new(state.db.clone())
     }
 
-    /// 触发预警扫描
-    ///
-    /// 按 alert_type 过滤扫描（None=全部 4 类），生成 active 状态预警
-    /// 已存在同类型同 target 的 active 预警则跳过（幂等）
+    /// 触发预警扫描（按 alert_type 过滤，幂等生成 active 预警）
     pub async fn trigger_scan(
         &self,
         req: TriggerScanRequest,
         triggered_by: Option<i32>,
     ) -> Result<Vec<finance_alert::Model>, FinanceAlertError> {
-        let scan_types: Vec<AlertType> = match req.alert_type.as_deref() {
-            Some(t) => vec![AlertType::parse_str(t)
-                .ok_or_else(|| FinanceAlertError::Validation(format!("非法 alert_type: {}", t)))?],
-            None => vec![
-                AlertType::ArOverdue,
-                AlertType::InventoryBacklog,
-                AlertType::CashFlowShortage,
-                AlertType::BudgetOverrun,
-            ],
-        };
-
+        let scan_types = Self::parse_scan_types(&req)?;
         let txn = (*self.db).begin().await?;
         let now = Utc::now();
         let today = now.date_naive();
@@ -177,90 +164,127 @@ impl FinanceAlertService {
         for scan_type in scan_types {
             let candidates = self.scan_candidates(scan_type, &txn).await?;
             for cand in candidates {
-                // 幂等：同类型同 target 的 active 预警已存在则跳过
-                if let (Some(module), Some(target_id)) = (cand.target_module, cand.target_id) {
-                    let existing = Entity::find()
-                        .filter(finance_alert::Column::AlertType.eq(cand.alert_type.as_str()))
-                        .filter(finance_alert::Column::TargetModule.eq(module))
-                        .filter(finance_alert::Column::TargetId.eq(target_id))
-                        .filter(
-                            finance_alert::Column::Status
-                                .is_in([AlertStatus::Active.as_str(), AlertStatus::Acknowledged.as_str()]),
-                        )
-                        .one(&txn)
-                        .await?;
-                    if existing.is_some() {
-                        continue;
-                    }
+                if Self::alert_already_exists(&txn, &cand).await? {
+                    continue;
                 }
-
-                // 创建预警记录
-                let alert_no = format!(
-                    "FA-{}-{:04}",
-                    today.format("%Y%m%d"),
-                    created.len() + 1
-                );
-                let active = ActiveModel {
-                    id: Default::default(),
-                    alert_no: Set(alert_no),
-                    alert_type: Set(cand.alert_type.as_str().to_string()),
-                    alert_level: Set(cand.alert_level.to_string()),
-                    title: Set(cand.title),
-                    content: Set(cand.content),
-                    target_module: Set(cand.target_module.map(String::from)),
-                    target_id: Set(cand.target_id),
-                    threshold_value: Set(cand.threshold_value),
-                    actual_value: Set(cand.actual_value),
-                    value_unit: Set(cand.value_unit.map(String::from)),
-                    triggered_at: Set(now),
-                    triggered_by: Set(triggered_by),
-                    status: Set(AlertStatus::Active.as_str().to_string()),
-                    acknowledged_at: Set(None),
-                    acknowledged_by: Set(None),
-                    resolved_at: Set(None),
-                    resolved_by: Set(None),
-                    resolve_note: Set(None),
-                    expired_at: Set(None),
-                    notification_id: Set(None),
-                    remark: Set(None),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
+                let alert_no = format!("FA-{}-{:04}", today.format("%Y%m%d"), created.len() + 1);
+                let active = Self::build_alert_active(&cand, &alert_no, now, triggered_by);
                 let model = active.insert(&txn).await?;
-
-                // 复用 NotificationService 创建通知（如有触发人）
-                if let Some(user_id) = triggered_by {
-                    let notif_req = CreateNotificationRequest {
-                        user_id,
-                        notification_type: NotificationType::System,
-                        title: format!("[财务预警] {}", model.title),
-                        content: model.content.clone(),
-                        priority: alert_level_to_priority(&model.alert_level),
-                        business_type: Some("finance_alert".to_string()),
-                        business_id: Some(model.id as i32),
-                        action_url: Some(format!("/finance/alerts/{}", model.id)),
-                        sender_id: None,
-                        sender_name: Some("系统财务预警".to_string()),
-                    };
-                    let notif_service = NotificationService::new(self.db.clone());
-                    if let Ok(notif) = notif_service.create_notification(notif_req).await {
-                        // 回填 notification_id
-                        let mut active: ActiveModel = model.into();
-                        active.notification_id = Set(Some(notif.id));
-                        active.updated_at = Set(now);
-                        let updated = active.update(&txn).await?;
-                        created.push(updated);
-                    } else {
-                        created.push(model);
-                    }
-                } else {
-                    created.push(model);
-                }
+                let model = self.attach_notification(&txn, model, now, triggered_by).await?;
+                created.push(model);
             }
         }
 
         txn.commit().await?;
         Ok(created)
+    }
+
+    /// 解析扫描类型（None=全部 4 类）
+    fn parse_scan_types(
+        req: &TriggerScanRequest,
+    ) -> Result<Vec<AlertType>, FinanceAlertError> {
+        match req.alert_type.as_deref() {
+            Some(t) => Ok(vec![AlertType::parse_str(t)
+                .ok_or_else(|| FinanceAlertError::Validation(format!("非法 alert_type: {}", t)))?]),
+            None => Ok(vec![
+                AlertType::ArOverdue,
+                AlertType::InventoryBacklog,
+                AlertType::CashFlowShortage,
+                AlertType::BudgetOverrun,
+            ]),
+        }
+    }
+
+    /// 幂等检查：同类型同 target 的 active 预警是否已存在
+    async fn alert_already_exists(
+        txn: &sea_orm::DatabaseTransaction,
+        cand: &AlertCandidate,
+    ) -> Result<bool, FinanceAlertError> {
+        if let (Some(module), Some(target_id)) = (cand.target_module, cand.target_id) {
+            let existing = Entity::find()
+                .filter(finance_alert::Column::AlertType.eq(cand.alert_type.as_str()))
+                .filter(finance_alert::Column::TargetModule.eq(module))
+                .filter(finance_alert::Column::TargetId.eq(target_id))
+                .filter(
+                    finance_alert::Column::Status
+                        .is_in([AlertStatus::Active.as_str(), AlertStatus::Acknowledged.as_str()]),
+                )
+                .one(txn)
+                .await?;
+            Ok(existing.is_some())
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// 构建预警 ActiveModel
+    fn build_alert_active(
+        cand: &AlertCandidate,
+        alert_no: &str,
+        now: chrono::DateTime<Utc>,
+        triggered_by: Option<i32>,
+    ) -> ActiveModel {
+        ActiveModel {
+            id: Default::default(),
+            alert_no: Set(alert_no.to_string()),
+            alert_type: Set(cand.alert_type.as_str().to_string()),
+            alert_level: Set(cand.alert_level.clone()),
+            title: Set(cand.title.clone()),
+            content: Set(cand.content.clone()),
+            target_module: Set(cand.target_module.map(String::from)),
+            target_id: Set(cand.target_id),
+            threshold_value: Set(cand.threshold_value),
+            actual_value: Set(cand.actual_value),
+            value_unit: Set(cand.value_unit.map(String::from)),
+            triggered_at: Set(now),
+            triggered_by: Set(triggered_by),
+            status: Set(AlertStatus::Active.as_str().to_string()),
+            acknowledged_at: Set(None),
+            acknowledged_by: Set(None),
+            resolved_at: Set(None),
+            resolved_by: Set(None),
+            resolve_note: Set(None),
+            expired_at: Set(None),
+            notification_id: Set(None),
+            remark: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+    }
+
+    /// 创建通知并回填 notification_id（如有触发人）
+    async fn attach_notification(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        model: finance_alert::Model,
+        now: chrono::DateTime<Utc>,
+        triggered_by: Option<i32>,
+    ) -> Result<finance_alert::Model, FinanceAlertError> {
+        let Some(user_id) = triggered_by else {
+            return Ok(model);
+        };
+        let notif_req = CreateNotificationRequest {
+            user_id,
+            notification_type: NotificationType::System,
+            title: format!("[财务预警] {}", model.title),
+            content: model.content.clone(),
+            priority: alert_level_to_priority(&model.alert_level),
+            business_type: Some("finance_alert".to_string()),
+            business_id: Some(model.id as i32),
+            action_url: Some(format!("/finance/alerts/{}", model.id)),
+            sender_id: None,
+            sender_name: Some("系统财务预警".to_string()),
+        };
+        let notif_service = NotificationService::new(self.db.clone());
+        match notif_service.create_notification(notif_req).await {
+            Ok(notif) => {
+                let mut active: ActiveModel = model.into();
+                active.notification_id = Set(Some(notif.id));
+                active.updated_at = Set(now);
+                Ok(active.update(txn).await?)
+            }
+            Err(_) => Ok(model),
+        }
     }
 
     /// 扫描指定类型的候选预警
