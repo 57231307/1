@@ -11,7 +11,7 @@
 
 use chrono::Utc;
 // 批次 357 v13 复审 baseline 清零：移除 unused import ActiveModelTrait
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::info;
@@ -51,23 +51,34 @@ impl ReportEngineService {
         &self,
         req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
-        let mut select = SalesOrderEntity::find();
+        let orders = Self::fetch_sales_orders(&*self.db, &req).await?;
+        let aggregation = Self::aggregate_sales_by_group(&orders, &req);
+        Ok(Self::build_aggregate_results(aggregation))
+    }
 
+    /// 按日期范围查询销售订单
+    async fn fetch_sales_orders(
+        db: &DatabaseConnection,
+        req: &AggregateRequest,
+    ) -> Result<Vec<crate::models::sales_order::Model>, AppError> {
+        let mut select = SalesOrderEntity::find();
         if let Some(date_range) = &req.date_range {
             select = select.filter(
                 crate::models::sales_order::Column::OrderDate
                     .between(date_range.start, date_range.end),
             );
         }
+        select.all(db).await.map_err(AppError::from)
+    }
 
-        let orders = select.all(&*self.db).await?;
-
-        let mut results = Vec::new();
+    /// 按分组维度聚合销售订单（customer/month/total，累计 total_amount + order_count）
+    fn aggregate_sales_by_group(
+        orders: &[crate::models::sales_order::Model],
+        req: &AggregateRequest,
+    ) -> HashMap<String, HashMap<String, rust_decimal::Decimal>> {
         let mut aggregation: HashMap<String, HashMap<String, rust_decimal::Decimal>> =
             HashMap::new();
-
-        for order in &orders {
-            // 简化的分组逻辑
+        for order in orders {
             let group_key = match req.aggregation_type {
                 AggregationType::GroupBy => {
                     if req.group_by.iter().any(|g| g == "customer") {
@@ -80,7 +91,6 @@ impl ReportEngineService {
                 }
                 _ => "total".to_string(),
             };
-
             let entry = aggregation.entry(group_key).or_default();
             *entry
                 .entry("total_amount".to_string())
@@ -89,45 +99,7 @@ impl ReportEngineService {
                 .entry("order_count".to_string())
                 .or_insert(rust_decimal::Decimal::ZERO) += rust_decimal::Decimal::ONE;
         }
-
-        for (group_key, values) in aggregation {
-            let groups = if group_key.contains('_') {
-                let parts: Vec<&str> = group_key.splitn(2, '_').collect();
-                vec![(
-                    parts[0].to_string(),
-                    serde_json::Value::String(parts[1].to_string()),
-                )]
-            } else {
-                vec![(
-                    group_key.clone(),
-                    serde_json::Value::String(group_key.clone()),
-                )]
-            };
-
-            let aggregations: Vec<(String, serde_json::Value)> = values
-                .iter()
-                .map(|(k, v)| (k.clone(), serde_json::json!(v.to_string())))
-                .collect();
-
-            // 同时构造 columns/rows/total_count 给 handler 使用
-            let mut columns = vec!["group".to_string()];
-            let mut row_values = vec![group_key.clone()];
-            for (k, v) in &values {
-                columns.push(k.clone());
-                row_values.push(v.to_string());
-            }
-
-            results.push(AggregateResult {
-                columns,
-                rows: vec![row_values],
-                total_count: 1,
-                groups,
-                aggregations,
-                count: 1,
-            });
-        }
-
-        Ok(results)
+        aggregation
     }
 
     /// 采购数据聚合

@@ -276,25 +276,44 @@ impl QualityInspectionService {
             user_id, req.inspection_no
         );
 
-        // P1 5-3 修复（批次 63）：整体包裹 txn，质检记录与入库单状态更新原子化
-        // 原实现质检记录用 &*self.db 插入，入库单状态更新也用 &*self.db，
-        // 两者非事务包裹，并发或中途失败会导致质检记录已创建但入库单状态未更新（数据不一致）。
+        // P1 5-3 修复：整体包裹 txn，质检记录与入库单状态更新原子化
         use sea_orm::TransactionTrait;
         let txn = (*self.db).begin().await?;
 
-        // v14 批次 421 T-P1-4：面料行业质检等级自动判定
-        // grade 未显式提供时由 determine_quality_grade 根据 qualification_rate 自动判定
-        // 依据：fabric-industry-research.md §4.7 - A 级 >= 95% / B 级 80-95% / C 级 < 80%
-        let grade = req.grade.clone().unwrap_or_else(|| {
-            let determined = determine_quality_grade(req.qualification_rate);
-            info!(
-                "质检记录 {} 未显式指定等级，根据合格率 {:?}% 自动判定为 {} 级",
-                req.inspection_no, req.qualification_rate, determined
-            );
-            determined
-        });
+        // v14 批次 421 T-P1-4：grade 未显式提供时由 determine_quality_grade 自动判定
+        let grade = Self::resolve_record_grade(&req);
 
-        let active_model = quality_inspection_record::ActiveModel {
+        let active_model = Self::build_inspection_record_active_model(req, grade);
+        let result = active_model.insert(&txn).await?;
+        info!("质量检验记录创建成功：{}", result.inspection_no);
+
+        // 采购入库质检同步更新入库单状态
+        Self::sync_receipt_inspection_status(&txn, &result, user_id).await?;
+
+        txn.commit().await?;
+
+        Ok(result)
+    }
+
+    /// 解析质检记录等级（未显式提供时根据合格率自动判定 A/B/C）
+    fn resolve_record_grade(req: &CreateInspectionRecordRequest) -> String {
+        if let Some(grade) = &req.grade {
+            return grade.clone();
+        }
+        let determined = determine_quality_grade(req.qualification_rate);
+        info!(
+            "质检记录 {} 未显式指定等级，根据合格率 {:?}% 自动判定为 {} 级",
+            req.inspection_no, req.qualification_rate, determined
+        );
+        determined
+    }
+
+    /// 构建质检记录 ActiveModel（消费 req 字段，grade 由外部解析传入）
+    fn build_inspection_record_active_model(
+        req: CreateInspectionRecordRequest,
+        grade: String,
+    ) -> quality_inspection_record::ActiveModel {
+        quality_inspection_record::ActiveModel {
             inspection_no: Set(req.inspection_no),
             inspection_type: Set(req.inspection_type),
             related_type: Set(req.related_type),
@@ -316,36 +335,38 @@ impl QualityInspectionService {
             color_no: Set(req.color_no),
             dye_lot_no: Set(req.dye_lot_no),
             ..Default::default()
-        };
-
-        let result = active_model.insert(&txn).await?;
-        info!("质量检验记录创建成功：{}", result.inspection_no);
-
-        // 如果是采购入库的质检，同步更新入库单状态
-        if result.related_type.as_deref() == Some("PURCHASE_RECEIPT") {
-            if let Some(receipt_id) = result.related_id {
-                let receipt = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
-                    .one(&txn)
-                    .await?;
-
-                if let Some(r) = receipt {
-                    let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
-                    receipt_active.inspection_status = Set(result.inspection_result.clone());
-                    crate::services::audit_log_service::AuditLogService::update_with_audit(
-                        &txn,
-                        "auto_audit",
-                        receipt_active,
-                        // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
-                        Some(user_id),
-                    )
-                    .await?;
-                }
-            }
         }
+    }
 
-        txn.commit().await?;
-
-        Ok(result)
+    /// 采购入库质检同步更新入库单状态（仅 PURCHASE_RECEIPT 类型）
+    async fn sync_receipt_inspection_status(
+        txn: &sea_orm::DatabaseTransaction,
+        result: &quality_inspection_record::Model,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        if result.related_type.as_deref() != Some("PURCHASE_RECEIPT") {
+            return Ok(());
+        }
+        let receipt_id = match result.related_id {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        let receipt = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
+            .one(txn)
+            .await?;
+        if let Some(r) = receipt {
+            let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
+            receipt_active.inspection_status = Set(result.inspection_result.clone());
+            // P1 1-1 修复：原 Some(0) 占位符改为真实操作人 user_id
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                txn,
+                "auto_audit",
+                receipt_active,
+                Some(user_id),
+            )
+            .await?;
+        }
+        Ok(())
     }
 
     pub async fn process_unqualified(
