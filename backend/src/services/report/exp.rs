@@ -65,7 +65,7 @@ impl ReportEngineService {
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         Self::draw_pdf_header(&layer, &font, template_name, &now);
         let _final_y = Self::draw_pdf_table(&doc, &layer, &font, data);
-        Self::draw_pdf_footer(&layer, &font, data.total_rows);
+        Self::draw_pdf_footer(&layer, &font, data.total_rows as usize);
         let buffer = Self::save_pdf_to_buffer(doc)?;
         info!(
             "PDF 导出成功: template={}, rows={}, size={}",

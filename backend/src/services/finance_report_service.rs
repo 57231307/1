@@ -755,22 +755,18 @@ impl FinanceReportService {
         dimension_value: &str,
     ) -> sea_orm::Select<assist_accounting_record::Entity> {
         match dimension_type {
-            "CUSTOMER" => dimension_value
-                .parse::<i32>()
-                .map(|id| {
-                    query.filter(assist_accounting_record::Column::CustomerId.eq(id))
-                })
-                .unwrap_or(query),
-            "SUPPLIER" => dimension_value
-                .parse::<i32>()
-                .map(|id| {
-                    query.filter(assist_accounting_record::Column::SupplierId.eq(id))
-                })
-                .unwrap_or(query),
-            "DEPARTMENT" => dimension_value
-                .parse::<i32>()
-                .map(|id| query.filter(assist_accounting_record::Column::WorkshopId.eq(id)))
-                .unwrap_or(query),
+            "CUSTOMER" => match dimension_value.parse::<i32>() {
+                Ok(id) => query.filter(assist_accounting_record::Column::CustomerId.eq(id)),
+                Err(_) => query,
+            },
+            "SUPPLIER" => match dimension_value.parse::<i32>() {
+                Ok(id) => query.filter(assist_accounting_record::Column::SupplierId.eq(id)),
+                Err(_) => query,
+            },
+            "DEPARTMENT" => match dimension_value.parse::<i32>() {
+                Ok(id) => query.filter(assist_accounting_record::Column::WorkshopId.eq(id)),
+                Err(_) => query,
+            },
             _ => query,
         }
     }

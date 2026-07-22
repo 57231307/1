@@ -500,7 +500,8 @@ impl DashboardService {
         cache: &AppCache,
         cache_key: &str,
     ) -> Option<InventoryStatistics> {
-        let cached = cache.get_dashboard_cache().get(cache_key)?;
+        let cache_key_string = cache_key.to_string();
+        let cached = cache.get_dashboard_cache().get(&cache_key_string)?;
         serde_json::from_value(cached).ok()
     }
 
