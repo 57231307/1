@@ -333,42 +333,60 @@ impl PurchaseOrderService {
         order: &purchase_order::Model,
         txn: &sea_orm::DatabaseTransaction,
     ) {
-        use crate::models::budget_execution;
-        use sea_orm::ColumnTrait;
-        use sea_orm::EntityTrait;
-        use sea_orm::QueryFilter;
+        let occupations = match Self::fetch_budget_occupations(txn, order.id).await {
+            Some(records) if !records.is_empty() => records,
+            _ => return,
+        };
 
-        // 查询该订单的预算占用记录
-        let occupations = budget_execution::Entity::find()
+        Self::insert_release_records(txn, order, &occupations).await;
+    }
+
+    /// 查询订单的预算占用记录（查询失败或为空时返回 None）
+    async fn fetch_budget_occupations(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+    ) -> Option<Vec<crate::models::budget_execution::Model>> {
+        use crate::models::budget_execution;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        match budget_execution::Entity::find()
             .filter(budget_execution::Column::RelatedDocumentType.eq("purchase_order"))
-            .filter(budget_execution::Column::RelatedDocumentId.eq(order.id))
+            .filter(budget_execution::Column::RelatedDocumentId.eq(order_id))
             .filter(budget_execution::Column::ExecutionType.eq("使用"))
             .all(txn)
-            .await;
-
-        let occupations = match occupations {
-            Ok(records) => records,
+            .await
+        {
+            Ok(records) => {
+                if records.is_empty() {
+                    tracing::info!(
+                        order_id = order_id,
+                        "采购订单无预算占用记录，无需释放预算"
+                    );
+                }
+                Some(records)
+            }
             Err(e) => {
                 tracing::warn!(
                     error = %e,
-                    order_id = order.id,
+                    order_id = order_id,
                     "查询采购订单预算占用记录失败，跳过预算释放（不阻断取消主流程）"
                 );
-                return;
+                None
             }
-        };
-
-        if occupations.is_empty() {
-            tracing::info!(
-                order_id = order.id,
-                "采购订单无预算占用记录，无需释放预算"
-            );
-            return;
         }
+    }
 
-        // 在同一事务内插入反向"调整"冲销记录，保证原子性
+    /// 在同一事务内插入反向"调整"冲销记录，保证原子性
+    async fn insert_release_records(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &purchase_order::Model,
+        occupations: &[crate::models::budget_execution::Model],
+    ) {
+        use crate::models::budget_execution;
+        use sea_orm::EntityTrait;
+
         let now = chrono::Utc::now();
-        for occupation in &occupations {
+        for occupation in occupations {
             let release_active = budget_execution::ActiveModel {
                 plan_id: Set(occupation.plan_id),
                 execution_type: Set("调整".to_string()),

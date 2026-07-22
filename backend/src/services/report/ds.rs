@@ -106,26 +106,40 @@ impl ReportEngineService {
     ///
     /// P2-2 修复（v12 复审）：原实现返回 `Ok(Vec::new())` 桩代码，
     /// 现真实接入 purchase_orders 表，按 supplier/month 分组聚合 total_amount 与 order_count。
+    /// D08 Tier 4 子批次9：拆分为 ≤10 行主函数 + 2 个 helper（fetch_purchase_orders / group_purchase_orders），
+    /// 复用已有 build_aggregate_results 构建最终结果。
     pub async fn aggregate_purchase_data(
         &self,
         req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
-        let mut select = PurchaseOrderEntity::find();
+        let orders = Self::fetch_purchase_orders(&*self.db, &req).await?;
+        let aggregation = Self::group_purchase_orders(&orders, &req);
+        Ok(Self::build_aggregate_results(aggregation))
+    }
 
+    /// 按日期范围查询采购订单
+    async fn fetch_purchase_orders(
+        db: &sea_orm::DatabaseConnection,
+        req: &AggregateRequest,
+    ) -> Result<Vec<crate::models::purchase_order::Model>, AppError> {
+        let mut select = PurchaseOrderEntity::find();
         if let Some(date_range) = &req.date_range {
             select = select.filter(
                 crate::models::purchase_order::Column::OrderDate
                     .between(date_range.start, date_range.end),
             );
         }
+        Ok(select.all(db).await?)
+    }
 
-        let orders = select.all(&*self.db).await?;
-
-        let mut results = Vec::new();
+    /// 按 supplier/month 维度分组聚合采购订单（total_amount + order_count）
+    fn group_purchase_orders(
+        orders: &[crate::models::purchase_order::Model],
+        req: &AggregateRequest,
+    ) -> HashMap<String, HashMap<String, rust_decimal::Decimal>> {
         let mut aggregation: HashMap<String, HashMap<String, rust_decimal::Decimal>> =
             HashMap::new();
-
-        for order in &orders {
+        for order in orders {
             // 分组键：按 supplier/month 维度，与 aggregate_sales_data 保持一致
             let group_key = match req.aggregation_type {
                 AggregationType::GroupBy => {
@@ -139,7 +153,6 @@ impl ReportEngineService {
                 }
                 _ => "total".to_string(),
             };
-
             let entry = aggregation.entry(group_key).or_default();
             *entry
                 .entry("total_amount".to_string())
@@ -148,45 +161,7 @@ impl ReportEngineService {
                 .entry("order_count".to_string())
                 .or_insert(rust_decimal::Decimal::ZERO) += rust_decimal::Decimal::ONE;
         }
-
-        for (group_key, values) in aggregation {
-            let groups = if group_key.contains('_') {
-                let parts: Vec<&str> = group_key.splitn(2, '_').collect();
-                vec![(
-                    parts[0].to_string(),
-                    serde_json::Value::String(parts[1].to_string()),
-                )]
-            } else {
-                vec![(
-                    group_key.clone(),
-                    serde_json::Value::String(group_key.clone()),
-                )]
-            };
-
-            let aggregations: Vec<(String, serde_json::Value)> = values
-                .iter()
-                .map(|(k, v)| (k.clone(), serde_json::json!(v.to_string())))
-                .collect();
-
-            // 同时构造 columns/rows/total_count 给 handler 使用
-            let mut columns = vec!["group".to_string()];
-            let mut row_values = vec![group_key.clone()];
-            for (k, v) in &values {
-                columns.push(k.clone());
-                row_values.push(v.to_string());
-            }
-
-            results.push(AggregateResult {
-                columns,
-                rows: vec![row_values],
-                total_count: 1,
-                groups,
-                aggregations,
-                count: 1,
-            });
-        }
-
-        Ok(results)
+        aggregation
     }
 
     /// 库存数据聚合
