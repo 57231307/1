@@ -26,6 +26,13 @@ use super::{
     InventoryTurnover, SmartRecommendation,
 };
 
+/// 共现统计结果（拆分复杂元组返回类型，避免 clippy::type_complexity）
+struct CoOccurrenceStats {
+    co_occurrence: HashMap<(i32, i32), usize>,
+    product_count: HashMap<i32, usize>,
+    total_orders: usize,
+}
+
 impl AiAnalysisService {
     /// 按产品聚合出库数据
     fn collect_outbound_by_product(
@@ -434,12 +441,11 @@ impl AiAnalysisService {
         limit: usize,
     ) -> Result<Vec<SmartRecommendation>, AppError> {
         let items = self.query_recent_sales_items(60).await?;
-        let (co_occurrence, product_count, total_orders) =
-            Self::compute_co_occurrence_stats(&items);
+        let stats = Self::compute_co_occurrence_stats(&items);
         let assoc_scores = Self::find_strong_associations(
-            &co_occurrence,
-            &product_count,
-            total_orders,
+            &stats.co_occurrence,
+            &stats.product_count,
+            stats.total_orders,
         );
         let recommendations = Self::build_assoc_recommendations(assoc_scores, limit);
         Ok(recommendations)
@@ -468,11 +474,7 @@ impl AiAnalysisService {
     /// 按订单分组产品并计算共现频率与产品频次
     fn compute_co_occurrence_stats(
         items: &[crate::models::sales_order_item::Model],
-    ) -> (
-        HashMap<(i32, i32), usize>,
-        HashMap<i32, usize>,
-        usize,
-    ) {
+    ) -> CoOccurrenceStats {
         let mut order_products: HashMap<i32, Vec<i32>> = HashMap::new();
         for item in items {
             order_products
@@ -499,7 +501,11 @@ impl AiAnalysisService {
             }
         }
         let total_orders = order_products.len().max(1);
-        (co_occurrence, product_count, total_orders)
+        CoOccurrenceStats {
+            co_occurrence,
+            product_count,
+            total_orders,
+        }
     }
 
     /// 找出强关联规则（support>5%, confidence>30%），返回 (p1,p2,lift,reason)
