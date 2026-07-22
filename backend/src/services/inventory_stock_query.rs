@@ -300,14 +300,14 @@ impl InventoryStockService {
         if let Some(pid) = params.product_id {
             query = query.filter(inventory_stock::Column::ProductId.eq(pid));
         }
-        if let Some(batch) = params.batch_no {
-            query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
+        if let Some(batch) = params.batch_no.as_ref() {
+            query = query.filter(inventory_stock::Column::BatchNo.eq(batch.as_str()));
         }
-        if let Some(color) = params.color_no {
-            query = query.filter(inventory_stock::Column::ColorNo.eq(color));
+        if let Some(color) = params.color_no.as_ref() {
+            query = query.filter(inventory_stock::Column::ColorNo.eq(color.as_str()));
         }
-        if let Some(g) = params.grade {
-            query = query.filter(inventory_stock::Column::Grade.eq(g));
+        if let Some(g) = params.grade.as_ref() {
+            query = query.filter(inventory_stock::Column::Grade.eq(g.as_str()));
         }
         query
     }
