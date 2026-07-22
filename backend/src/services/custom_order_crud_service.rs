@@ -72,7 +72,28 @@ impl CustomOrderCrudService {
 
         // 4. 插入主表
         let now = Utc::now();
-        let active = CustomOrderActive {
+        let active = Self::build_custom_order_active(order_no, dto, user_id, now);
+        let result = active.insert(&txn).await?;
+
+        // 5. 自动生成 5 阶段工艺节点
+        for (node_type, node_name, sequence) in default_process_nodes() {
+            let node = Self::build_process_node_active(result.id, node_type, node_name, sequence, now);
+            node.insert(&txn).await?;
+        }
+
+        // 6. 提交事务
+        txn.commit().await?;
+        Ok(result)
+    }
+
+    /// 构建定制订单主表 ActiveModel（draft 状态）
+    fn build_custom_order_active(
+        order_no: String,
+        dto: CreateCustomOrderDto,
+        user_id: i64,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> CustomOrderActive {
+        CustomOrderActive {
             id: Default::default(),
             order_no: Set(order_no),
             customer_id: Set(dto.customer_id),
@@ -102,33 +123,33 @@ impl CustomOrderCrudService {
             // V15 P0-B11：打样和报价关联字段初始化为 None（draft 阶段尚未关联）
             lab_dip_request_id: Set(None),
             quotation_id: Set(None),
-        };
-        let result = active.insert(&txn).await?;
-
-        // 5. 自动生成 5 阶段工艺节点
-        for (node_type, node_name, sequence) in default_process_nodes() {
-            let node = NodeActive {
-                id: Default::default(),
-                custom_order_id: Set(result.id),
-                node_type: Set(node_type.to_string()),
-                node_name: Set(node_name.to_string()),
-                sequence: Set(sequence),
-                status: Set(co_status::PENDING.to_string()),
-                planned_start_date: Set(None),
-                planned_end_date: Set(None),
-                actual_start_date: Set(None),
-                actual_end_date: Set(None),
-                operator_id: Set(None),
-                notes: Set(None),
-                created_at: Set(now),
-                updated_at: Set(now),
-            };
-            node.insert(&txn).await?;
         }
+    }
 
-        // 6. 提交事务
-        txn.commit().await?;
-        Ok(result)
+    /// 构建工艺节点 ActiveModel（pending 状态）
+    fn build_process_node_active(
+        custom_order_id: i64,
+        node_type: &str,
+        node_name: &str,
+        sequence: i32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> NodeActive {
+        NodeActive {
+            id: Default::default(),
+            custom_order_id: Set(custom_order_id),
+            node_type: Set(node_type.to_string()),
+            node_name: Set(node_name.to_string()),
+            sequence: Set(sequence),
+            status: Set(co_status::PENDING.to_string()),
+            planned_start_date: Set(None),
+            planned_end_date: Set(None),
+            actual_start_date: Set(None),
+            actual_end_date: Set(None),
+            operator_id: Set(None),
+            notes: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
     }
 
     /// 列表查询（分页 + 过滤）

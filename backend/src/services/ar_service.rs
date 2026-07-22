@@ -673,50 +673,10 @@ impl ArService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
 
-        if collection.status != crate::models::status::ar::COLLECTION_PENDING {
-            // 批次 389 P2-2：状态门拒绝记录 warn 日志，便于审计非法状态变更
-            warn!(
-                target: "business_audit",
-                event = "AR_COLLECTION_CANCEL_REJECTED",
-                payment_id = payment_id,
-                status = %collection.status,
-                operator = user_id,
-                "AR 收款取消被拒：状态非 pending"
-            );
-            return Err(AppError::bad_request(format!(
-                "收款单状态为 {}，仅 pending 状态可直接取消；confirmed 状态请先取消关联核销单",
-                collection.status
-            )));
-        }
+        // 状态门 + 核销引用校验
+        Self::validate_cancel_collection(&txn, &collection, payment_id, user_id).await?;
 
-        // 校验：收款未被任何核销单引用（pending 状态通常未被核销，防御性检查）
-        let referenced_count = ar_reconciliation_item::Entity::find()
-            .filter(ar_reconciliation_item::Column::ItemType.eq("RECEIPT"))
-            .filter(ar_reconciliation_item::Column::DocumentId.eq(payment_id))
-            .count(&txn)
-            .await?;
-        if referenced_count > 0 {
-            // 批次 389 P2-2：被核销单引用拒绝取消记录 warn 日志，便于审计异常取消行为
-            warn!(
-                target: "business_audit",
-                event = "AR_COLLECTION_CANCEL_REFERENCED",
-                payment_id = payment_id,
-                referenced_count = referenced_count,
-                operator = user_id,
-                "AR 收款取消被拒：已被核销单引用"
-            );
-            return Err(AppError::bad_request(format!(
-                "收款单 {} 已被 {} 笔核销单引用，请先取消关联核销单",
-                payment_id, referenced_count
-            )));
-        }
-
-        let now = Utc::now();
-        let mut active: ar_collection::ActiveModel = collection.into();
-        active.status = Set(crate::models::status::ar::COLLECTION_CANCELLED.to_string());
-        active.confirmed_by = Set(None);
-        active.confirmed_at = Set(None);
-        active.updated_at = Set(now);
+        let active = Self::build_cancelled_active(collection);
 
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit::<
             ar_collection::Entity,
@@ -733,6 +693,61 @@ impl ArService {
         );
 
         Ok(collection_to_json(updated))
+    }
+
+    /// 校验收款单取消条件：状态必须为 pending，且未被核销单引用
+    async fn validate_cancel_collection(
+        txn: &sea_orm::DatabaseTransaction,
+        collection: &ar_collection::Model,
+        payment_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        if collection.status != crate::models::status::ar::COLLECTION_PENDING {
+            warn!(
+                target: "business_audit",
+                event = "AR_COLLECTION_CANCEL_REJECTED",
+                payment_id = payment_id,
+                status = %collection.status,
+                operator = user_id,
+                "AR 收款取消被拒：状态非 pending"
+            );
+            return Err(AppError::bad_request(format!(
+                "收款单状态为 {}，仅 pending 状态可直接取消；confirmed 状态请先取消关联核销单",
+                collection.status
+            )));
+        }
+
+        let referenced_count = ar_reconciliation_item::Entity::find()
+            .filter(ar_reconciliation_item::Column::ItemType.eq("RECEIPT"))
+            .filter(ar_reconciliation_item::Column::DocumentId.eq(payment_id))
+            .count(txn)
+            .await?;
+        if referenced_count > 0 {
+            warn!(
+                target: "business_audit",
+                event = "AR_COLLECTION_CANCEL_REFERENCED",
+                payment_id = payment_id,
+                referenced_count = referenced_count,
+                operator = user_id,
+                "AR 收款取消被拒：已被核销单引用"
+            );
+            return Err(AppError::bad_request(format!(
+                "收款单 {} 已被 {} 笔核销单引用，请先取消关联核销单",
+                payment_id, referenced_count
+            )));
+        }
+        Ok(())
+    }
+
+    /// 构建取消状态的 ActiveModel（status=cancelled，清空 confirmed_by/at）
+    fn build_cancelled_active(collection: ar_collection::Model) -> ar_collection::ActiveModel {
+        let now = Utc::now();
+        let mut active: ar_collection::ActiveModel = collection.into();
+        active.status = Set(crate::models::status::ar::COLLECTION_CANCELLED.to_string());
+        active.confirmed_by = Set(None);
+        active.confirmed_at = Set(None);
+        active.updated_at = Set(now);
+        active
     }
 
     // ========== 核销管理 ==========

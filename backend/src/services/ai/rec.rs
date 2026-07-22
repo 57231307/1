@@ -62,43 +62,78 @@ impl AiAnalysisService {
         let pid = stock.product_id;
         let current = stock.quantity_available.to_f64().unwrap_or(0.0);
 
-        // 计算出库统计
+        // 计算出库统计：avg/std/安全库存/再订货点/建议量
         let (_avg_daily_demand, _demand_std, safety_stock, reorder_point, reorder_quantity, suggested) =
-            if let Some(qtys) = outbound_qtys {
-                let daily_map = self.aggregate_daily_from_transactions(pid, transactions);
-                let daily_values: Vec<f64> = daily_map.values().copied().collect();
-                let avg = if daily_values.is_empty() {
-                    0.0
-                } else {
-                    mean(&daily_values)
-                };
-                let std = if daily_values.len() > 1 {
-                    std_deviation(&daily_values)
-                } else {
-                    avg * 0.3
-                };
-                let _total: f64 = qtys.iter().sum();
+            self.compute_demand_stats(pid, outbound_qtys, transactions, abc);
 
-                // ABC 分类影响服务水平
-                let service_level_z = match abc {
-                    "A" => 2.33, // 99% 服务水平
-                    "B" => 1.65, // 95% 服务水平
-                    _ => 1.28,   // 90% 服务水平
-                };
+        let reason = Self::build_suggestion_reason(current, abc, safety_stock, reorder_point, reorder_quantity, suggested);
 
-                // 安全库存 = Z * σ * √(LT)  假设提前期 LT = 7 天
-                let lead_time = 7.0_f64;
-                let ss = service_level_z * std * lead_time.sqrt();
-                let rp = avg * lead_time + ss;
-                let rq = avg * 30.0;
-                let sg = ss + avg * 30.0;
+        InventorySuggestion {
+            product_id: pid,
+            current_stock: stock.quantity_available,
+            suggested_stock: Decimal::try_from(suggested.max(0.0)).unwrap_or(Decimal::ZERO),
+            reorder_point: Decimal::try_from(reorder_point.max(0.0)).unwrap_or(Decimal::ZERO),
+            reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0))
+                .unwrap_or(Decimal::ZERO),
+            reason,
+        }
+    }
 
-                (avg, std, ss, rp, rq, sg)
+    /// 计算需求统计：日均值、标准差、安全库存、再订货点、建议量
+    ///
+    /// 返回 (avg, std, safety_stock, reorder_point, reorder_quantity, suggested)
+    fn compute_demand_stats(
+        &self,
+        pid: i32,
+        outbound_qtys: Option<&Vec<f64>>,
+        transactions: &[crate::models::inventory_transaction::Model],
+        abc: &str,
+    ) -> (f64, f64, f64, f64, f64, f64) {
+        if let Some(qtys) = outbound_qtys {
+            let daily_map = self.aggregate_daily_from_transactions(pid, transactions);
+            let daily_values: Vec<f64> = daily_map.values().copied().collect();
+            let avg = if daily_values.is_empty() {
+                0.0
             } else {
-                (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                mean(&daily_values)
+            };
+            let std = if daily_values.len() > 1 {
+                std_deviation(&daily_values)
+            } else {
+                avg * 0.3
+            };
+            let _total: f64 = qtys.iter().sum();
+
+            // ABC 分类影响服务水平
+            let service_level_z = match abc {
+                "A" => 2.33, // 99% 服务水平
+                "B" => 1.65, // 95% 服务水平
+                _ => 1.28,   // 90% 服务水平
             };
 
-        let reason = if current <= 0.0 {
+            // 安全库存 = Z * σ * √(LT)  假设提前期 LT = 7 天
+            let lead_time = 7.0_f64;
+            let ss = service_level_z * std * lead_time.sqrt();
+            let rp = avg * lead_time + ss;
+            let rq = avg * 30.0;
+            let sg = ss + avg * 30.0;
+
+            (avg, std, ss, rp, rq, sg)
+        } else {
+            (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        }
+    }
+
+    /// 根据当前库存与统计指标生成建议理由文本
+    fn build_suggestion_reason(
+        current: f64,
+        abc: &str,
+        safety_stock: f64,
+        reorder_point: f64,
+        reorder_quantity: f64,
+        suggested: f64,
+    ) -> String {
+        if current <= 0.0 {
             format!(
                 "库存为零! ABC分类={}, 安全库存={:.0}, 建议立即补货 {:.0}",
                 abc, safety_stock, reorder_quantity
@@ -118,16 +153,6 @@ impl AiAnalysisService {
                 "库存水平正常, ABC分类={}, 安全库存={:.0}",
                 abc, safety_stock
             )
-        };
-
-        InventorySuggestion {
-            product_id: pid,
-            current_stock: stock.quantity_available,
-            suggested_stock: Decimal::try_from(suggested.max(0.0)).unwrap_or(Decimal::ZERO),
-            reorder_point: Decimal::try_from(reorder_point.max(0.0)).unwrap_or(Decimal::ZERO),
-            reorder_quantity: Decimal::try_from(reorder_quantity.max(0.0))
-                .unwrap_or(Decimal::ZERO),
-            reason,
         }
     }
 

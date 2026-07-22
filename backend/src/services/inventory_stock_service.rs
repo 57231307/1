@@ -115,6 +115,25 @@ pub struct CreateStockFabricArgs {
     pub layer_no: Option<String>,
 }
 
+/// build_stock_fabric_active 内部传递字段（解构 CreateStockFabricArgs 后 + 计算的 final_quantity_kg）
+///
+/// 避免主函数调用 helper 时传递 13 个参数，使用结构体封装更整洁。
+struct StockFabricFields {
+    warehouse_id: i32,
+    product_id: i32,
+    batch_no: String,
+    color_no: String,
+    dye_lot_no: Option<String>,
+    grade: String,
+    quantity_meters: Decimal,
+    final_quantity_kg: Decimal,
+    gram_weight: Option<Decimal>,
+    width: Option<Decimal>,
+    location_id: Option<i32>,
+    shelf_no: Option<String>,
+    layer_no: Option<String>,
+}
+
 impl InventoryStockService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -394,28 +413,75 @@ impl InventoryStockService {
             shelf_no,
             layer_no,
         } = args;
-        // P2 5-23 修复：service 层校验仓库/产品存在性，外键完整性不再仅依赖数据库
-        use crate::models::{product, warehouse};
-        use sea_orm::EntityTrait;
 
-        let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("仓库不存在: {}", warehouse_id))
-            })?;
-        let _product = product::Entity::find_by_id(product_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("产品不存在: {}", product_id))
-            })?;
+        // P2 5-23 修复：service 层校验仓库/产品存在性，外键完整性不再仅依赖数据库
+        Self::validate_stock_references(&*self.db, warehouse_id, product_id).await?;
 
         // 自动计算公斤数（如果提供了克重和幅宽）
         let final_quantity_kg =
             Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
 
-        let active_stock = inventory_stock::ActiveModel {
+        let active_stock = Self::build_stock_fabric_active(StockFabricFields {
+            warehouse_id,
+            product_id,
+            batch_no,
+            color_no,
+            dye_lot_no,
+            grade,
+            quantity_meters,
+            final_quantity_kg,
+            gram_weight,
+            width,
+            location_id,
+            shelf_no,
+            layer_no,
+        });
+
+        active_stock.insert(&*self.db).await.map_err(AppError::from)
+    }
+
+    /// 校验仓库和产品存在性（service 层外键完整性防御）
+    async fn validate_stock_references(
+        db: &sea_orm::DatabaseConnection,
+        warehouse_id: i32,
+        product_id: i32,
+    ) -> Result<(), AppError> {
+        use crate::models::{product, warehouse};
+        use sea_orm::EntityTrait;
+
+        let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| {
+                AppError::validation(format!("仓库不存在: {}", warehouse_id))
+            })?;
+        let _product = product::Entity::find_by_id(product_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| {
+                AppError::validation(format!("产品不存在: {}", product_id))
+            })?;
+        Ok(())
+    }
+
+    /// 构建面料库存 ActiveModel（初始状态：正常/合格，version=0）
+    fn build_stock_fabric_active(fields: StockFabricFields) -> inventory_stock::ActiveModel {
+        let StockFabricFields {
+            warehouse_id,
+            product_id,
+            batch_no,
+            color_no,
+            dye_lot_no,
+            grade,
+            quantity_meters,
+            final_quantity_kg,
+            gram_weight,
+            width,
+            location_id,
+            shelf_no,
+            layer_no,
+        } = fields;
+        inventory_stock::ActiveModel {
             id: Default::default(),
             warehouse_id: Set(warehouse_id),
             product_id: Set(product_id),
@@ -449,9 +515,7 @@ impl InventoryStockService {
             stock_status: Set("正常".to_string()),
             quality_status: Set("合格".to_string()),
             version: Set(0),
-        };
-
-        active_stock.insert(&*self.db).await.map_err(AppError::from)
+        }
     }
 
     // ========== V15 Batch 479 P0-F18：返工/降级/报废联动 ==========

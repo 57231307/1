@@ -90,7 +90,33 @@ impl ExportApprovalService {
         applicant_user_agent: Option<String>,
         req: CreateApprovalRequest,
     ) -> Result<Model, AppError> {
-        // 验证资源类型是否为敏感资源
+        // 验证资源类型 + 文件格式
+        let file_format = Self::validate_create_request_fields(&req)?;
+
+        // 风险等级评估 + 审批层级
+        let (risk_level, approval_level) = Self::assess_risk_level(req.estimated_rows.unwrap_or(0));
+
+        let now = Utc::now();
+        let active = Self::build_export_approval_active(
+            applicant_user_id,
+            applicant_username,
+            applicant_ip,
+            applicant_user_agent,
+            req,
+            file_format,
+            risk_level,
+            approval_level,
+            now,
+        );
+
+        let model = active.insert(&*self.db).await?;
+        Ok(model)
+    }
+
+    /// 校验创建审批请求字段：资源类型必须敏感，文件格式仅支持 xlsx/pdf/csv
+    ///
+    /// 返回规范化后的 file_format（小写）
+    fn validate_create_request_fields(req: &CreateApprovalRequest) -> Result<String, AppError> {
         if !sensitive_resources::is_sensitive(&req.resource_type) {
             return Err(AppError::validation(format!(
                 "资源类型 {} 不在敏感资源清单内，无需二级审批",
@@ -98,9 +124,9 @@ impl ExportApprovalService {
             )));
         }
 
-        // 文件格式校验
         let file_format = req
             .file_format
+            .clone()
             .unwrap_or_else(|| "xlsx".to_string())
             .to_lowercase();
         if !matches!(file_format.as_str(), "xlsx" | "pdf" | "csv") {
@@ -108,20 +134,36 @@ impl ExportApprovalService {
                 "file_format 仅支持 xlsx/pdf/csv",
             ));
         }
+        Ok(file_format)
+    }
 
-        // 风险等级评估
-        let estimated_rows = req.estimated_rows.unwrap_or(0);
+    /// 评估风险等级和审批层级
+    ///
+    /// 审批层级：high/critical 必须二级审批；medium 默认二级；low 可一级
+    fn assess_risk_level(estimated_rows: i64) -> (String, i32) {
         let risk = RiskLevel::from_row_count(estimated_rows);
         let risk_level = risk.as_str().to_string();
-
-        // 审批层级：high/critical 必须二级审批；medium 默认二级；low 可一级
         let approval_level = match risk {
             RiskLevel::Low => 1,
             RiskLevel::Medium | RiskLevel::High | RiskLevel::Critical => 2,
         };
+        (risk_level, approval_level)
+    }
 
-        let now = Utc::now();
-        let active = ExportApprovalActiveModel {
+    /// 构建导出审批请求 ActiveModel（pending 状态）
+    fn build_export_approval_active(
+        applicant_user_id: i32,
+        applicant_username: String,
+        applicant_ip: Option<String>,
+        applicant_user_agent: Option<String>,
+        req: CreateApprovalRequest,
+        file_format: String,
+        risk_level: String,
+        approval_level: i32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> ExportApprovalActiveModel {
+        let estimated_rows = req.estimated_rows.unwrap_or(0);
+        ExportApprovalActiveModel {
             id: sea_orm::ActiveValue::NotSet,
             applicant_user_id: Set(applicant_user_id),
             applicant_username: Set(applicant_username),
@@ -151,10 +193,7 @@ impl ExportApprovalService {
             created_at: Set(now.into()),
             updated_at: Set(now.into()),
             completed_at: Set(None),
-        };
-
-        let model = active.insert(&*self.db).await?;
-        Ok(model)
+        }
     }
 
     /// 审批通过（一级或二级）

@@ -73,27 +73,13 @@ impl CrmService {
             }
 
             // V15 P0-S08：保护期校验
-            // 公海线索落入公海前若刚被领取过（owner_assigned_at），
-            // 在保护期内不允许被他人再次领取，防止恶意抢单
-            if let Some(assigned_at) = lead.updated_at {
-                let elapsed = now.signed_duration_since(assigned_at).num_days();
-                if elapsed < protection_days as i64 {
-                    tracing::warn!(
-                        "线索 {} 处于保护期内（已过 {} 天，需 {} 天），用户 {} 领取被拒",
-                        lid, elapsed, protection_days, user_id
-                    );
-                    // 跳过该条，继续处理其他线索（不整体失败）
-                    continue;
-                }
+            if Self::is_within_protection_period(&lead, lid, now, protection_days, user_id) {
+                continue;
             }
 
             // 领取：更新状态为 new，并更新 owner_id
             // 注：update_with_audit 需逐条执行以生成审计日志，此处保留循环
-            let mut lead_active: crm_lead::ActiveModel = lead.into();
-            lead_active.lead_status = Set(Some(lead_status::NEW.to_string()));
-            lead_active.owner_id = Set(user_id);
-            lead_active.owner_name = Set(format!("用户{}", user_id));
-            lead_active.updated_at = Set(Some(now));
+            let lead_active = Self::build_claimed_active(lead, user_id, now);
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &*self.db,
                 "auto_audit",
@@ -106,6 +92,43 @@ impl CrmService {
         }
 
         Ok(claimed)
+    }
+
+    /// 保护期校验：公海线索在保护期内不允许被他人再次领取，防止恶意抢单
+    ///
+    /// 返回 true 表示处于保护期内（应跳过），false 表示可领取
+    fn is_within_protection_period(
+        lead: &crm_lead::Model,
+        lid: i32,
+        now: chrono::DateTime<chrono::Utc>,
+        protection_days: i32,
+        user_id: i32,
+    ) -> bool {
+        if let Some(assigned_at) = lead.updated_at {
+            let elapsed = now.signed_duration_since(assigned_at).num_days();
+            if elapsed < protection_days as i64 {
+                tracing::warn!(
+                    "线索 {} 处于保护期内（已过 {} 天，需 {} 天），用户 {} 领取被拒",
+                    lid, elapsed, protection_days, user_id
+                );
+                return true;
+            }
+        }
+        false
+    }
+
+    /// 构建领取后的 ActiveModel（status=new，更新 owner_id/owner_name/updated_at）
+    fn build_claimed_active(
+        lead: crm_lead::Model,
+        user_id: i32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> crm_lead::ActiveModel {
+        let mut lead_active: crm_lead::ActiveModel = lead.into();
+        lead_active.lead_status = Set(Some(lead_status::NEW.to_string()));
+        lead_active.owner_id = Set(user_id);
+        lead_active.owner_name = Set(format!("用户{}", user_id));
+        lead_active.updated_at = Set(Some(now));
+        lead_active
     }
 
     /// V15 P0-S08：领取前规则校验
