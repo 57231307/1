@@ -80,7 +80,7 @@
 - **服务器**：bingxi-backend systemd，端口 8082，部署命令 `bingxi update`
 - **禁止 Docker**：不得创建 Dockerfile、docker-compose.yml
 
-> 详细规范见 [MEMORY-SU §五、CI/CD 强制](file:///workspace/.monkeycode/MEMORY-SU.md#五cicd-强制)
+> 详细规范见 [MEMORY-SU §四、CI/CD 强制](file:///workspace/.monkeycode/MEMORY-SU.md#四cicd-强制)
 
 ---
 
@@ -92,7 +92,7 @@
 - **systemd EnvironmentFile 一致性**：deploy 脚本 CONFIG_DIR 必须与 service 文件路径一致
 - **SeaORM Trait 必导**：find/filter/column/count 各需对应 trait，清理时逐个静态验证
 
-> 详细经验见 [MEMORY-SU §六、核心经验](file:///workspace/.monkeycode/MEMORY-SU.md#六核心经验关键排错与开发经验)
+> 详细经验见 [MEMORY-SU §五、核心经验](file:///workspace/.monkeycode/MEMORY-SU.md#五核心经验关键排错与开发经验)
 
 ---
 
@@ -106,4 +106,4 @@
 
 ## 八、规则自我迭代日志（索引）
 
-> 详细迭代日志见 [MEMORY-SU §十一、规则自我迭代日志](file:///workspace/.monkeycode/MEMORY-SU.md#十一规则自我迭代日志)
+> 详细迭代日志见 [MEMORY-SU §六、规则自我迭代日志](file:///workspace/.monkeycode/MEMORY-SU.md#六规则自我迭代日志)
