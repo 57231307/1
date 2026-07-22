@@ -625,40 +625,65 @@ impl FinanceReportService {
         })
     }
 
-    /// 总账（按科目代码）
-    ///
-    /// 返回指定科目在某个期间内的所有凭证分录，附带借贷方向与逐笔余额。
+    /// 总账（按科目代码）：返回指定科目区间内凭证分录，附借贷方向与逐笔余额
     pub async fn get_general_ledger(
         &self,
         subject_code: String,
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
     ) -> Result<GeneralLedger, AppError> {
-        // 查询科目基本信息
-        let subject = account_subject::Entity::find()
-            .filter(account_subject::Column::Code.eq(&subject_code))
-            .one(self.db.as_ref())
-            .await?;
+        let (subject_name, opening_balance) =
+            Self::fetch_ledger_subject_opening(self.db.as_ref(), &subject_code).await?;
+        let rows = Self::fetch_ledger_voucher_rows(
+            self.db.as_ref(),
+            &subject_code,
+            start_date,
+            end_date,
+        )
+        .await?;
+        let (entries, closing_balance, total_debit, total_credit) =
+            Self::build_general_ledger_entries(rows, opening_balance);
+        Ok(GeneralLedger {
+            subject_code,
+            subject_name,
+            entries,
+            opening_balance,
+            closing_balance,
+            total_debit,
+            total_credit,
+            period_start: start_date.format("%Y-%m-%d").to_string(),
+            period_end: end_date.format("%Y-%m-%d").to_string(),
+        })
+    }
 
-        let (subject_name, opening_balance) = match subject {
+    /// 查询科目并计算期初余额
+    async fn fetch_ledger_subject_opening(
+        db: &DatabaseConnection,
+        subject_code: &str,
+    ) -> Result<(String, Decimal), AppError> {
+        let subject = account_subject::Entity::find()
+            .filter(account_subject::Column::Code.eq(subject_code))
+            .one(db)
+            .await?;
+        Ok(match subject {
             Some(s) => {
                 let open = s.initial_balance_debit - s.initial_balance_credit;
                 (s.name, open)
             }
-            None => (subject_code.clone(), Decimal::ZERO),
-        };
+            None => (subject_code.to_string(), Decimal::ZERO),
+        })
+    }
 
-        // 联表查询凭证分录
-        let rows: Vec<(
-            chrono::NaiveDate,
-            String,
-            i32,
-            Option<String>,
-            Decimal,
-            Decimal,
-        )> = voucher_item::Entity::find()
+    /// 联表查询科目区间内凭证分录
+    async fn fetch_ledger_voucher_rows(
+        db: &DatabaseConnection,
+        subject_code: &str,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<Vec<(chrono::NaiveDate, String, i32, Option<String>, Decimal, Decimal)>, AppError> {
+        Ok(voucher_item::Entity::find()
             .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
-            .filter(voucher_item::Column::SubjectCode.eq(&subject_code))
+            .filter(voucher_item::Column::SubjectCode.eq(subject_code))
             .filter(voucher::Column::VoucherDate.gte(start_date))
             .filter(voucher::Column::VoucherDate.lte(end_date))
             .select_only()
@@ -669,14 +694,19 @@ impl FinanceReportService {
             .column_as(voucher_item::Column::Debit, "debit")
             .column_as(voucher_item::Column::Credit, "credit")
             .into_tuple()
-            .all(self.db.as_ref())
-            .await?;
+            .all(db)
+            .await?)
+    }
 
+    /// 构建总账条目并累计余额与借贷合计
+    fn build_general_ledger_entries(
+        rows: Vec<(chrono::NaiveDate, String, i32, Option<String>, Decimal, Decimal)>,
+        opening_balance: Decimal,
+    ) -> (Vec<GeneralLedgerEntry>, Decimal, Decimal, Decimal) {
         let mut entries: Vec<GeneralLedgerEntry> = Vec::with_capacity(rows.len());
         let mut running_balance = opening_balance;
         let mut total_debit = Decimal::ZERO;
         let mut total_credit = Decimal::ZERO;
-
         for (voucher_date, voucher_no, line_no, summary, debit, credit) in rows {
             total_debit += debit;
             total_credit += credit;
@@ -699,18 +729,7 @@ impl FinanceReportService {
                 balance: running_balance,
             });
         }
-
-        Ok(GeneralLedger {
-            subject_code,
-            subject_name,
-            entries,
-            opening_balance,
-            closing_balance: running_balance,
-            total_debit,
-            total_credit,
-            period_start: start_date.format("%Y-%m-%d").to_string(),
-            period_end: end_date.format("%Y-%m-%d").to_string(),
-        })
+        (entries, running_balance, total_debit, total_credit)
     }
 
     /// 明细账（按辅助核算维度）

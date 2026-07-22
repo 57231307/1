@@ -861,48 +861,86 @@ impl LabDipResampleService {
         format!("RS-{}-{:03}", timestamp, random)
     }
 
-    /// 创建复样记录
-    ///
-    /// 真实业务：OK 样确认后（通知单 approved 状态），大货生产前必须复样
+    /// 创建复样记录：OK 样确认后大货生产前必须复样
     pub async fn create(&self, req: CreateResampleRequest) -> Result<ResampleModel, AppError> {
-        // 校验通知单存在且处于 approved 状态
-        let request = RequestEntity::find_by_id(req.request_id)
-            .filter(lab_dip_request::Column::IsDeleted.eq(false))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("打样通知单 {} 不存在", req.request_id)))?;
+        Self::validate_resample_request(&*self.db, req.request_id).await?;
+        let source_sample = Self::validate_resample_source_sample(
+            &*self.db,
+            req.request_id,
+            req.source_sample_id,
+        )
+        .await?;
+        Self::validate_workshop_fabric_batch(&req.workshop_fabric_batch)?;
+        let resample_no = Self::generate_resample_no();
+        let now = crate::utils::date_utils::utc_now_fixed();
+        let active = Self::build_resample_active_model(req, resample_no, now);
+        let result = active
+            .insert(&*self.db)
+            .await
+            .map_err(|e| AppError::database(format!("复样记录创建失败: {}", e)))?;
+        Self::mark_source_sample_resampling(&*self.db, source_sample, now).await?;
+        Ok(result)
+    }
 
+    /// 校验通知单存在且处于 approved 状态
+    async fn validate_resample_request(
+        db: &DatabaseConnection,
+        request_id: i32,
+    ) -> Result<(), AppError> {
+        let request = RequestEntity::find_by_id(request_id)
+            .filter(lab_dip_request::Column::IsDeleted.eq(false))
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("打样通知单 {} 不存在", request_id)))?;
         if request.status != req_status::APPROVED {
             return Err(AppError::business(format!(
                 "通知单状态 {} 不可创建复样（仅 approved 状态可复样）",
                 request.status
             )));
         }
+        Ok(())
+    }
 
-        // 校验源样存在且为 selected（OK 样）
-        let source_sample = SampleEntity::find_by_id(req.source_sample_id)
-            .filter(lab_dip_sample::Column::RequestId.eq(req.request_id))
+    /// 校验源样存在且为 selected（OK 样）
+    async fn validate_resample_source_sample(
+        db: &DatabaseConnection,
+        request_id: i32,
+        source_sample_id: i32,
+    ) -> Result<SampleModel, AppError> {
+        let source_sample = SampleEntity::find_by_id(source_sample_id)
+            .filter(lab_dip_sample::Column::RequestId.eq(request_id))
             .filter(lab_dip_sample::Column::IsDeleted.eq(false))
-            .one(&*self.db)
+            .one(db)
             .await?
-            .ok_or_else(|| AppError::business(format!("OK 样 {} 不存在或不属于该通知单", req.source_sample_id)))?;
-
+            .ok_or_else(|| {
+                AppError::business(format!("OK 样 {} 不存在或不属于该通知单", source_sample_id))
+            })?;
         if source_sample.matching_result != sample_status::SELECTED {
             return Err(AppError::business(format!(
                 "源样对色结果 {} 不可复样（仅 selected OK 样可复样）",
                 source_sample.matching_result
             )));
         }
+        Ok(source_sample)
+    }
 
-        // 真实业务校验：车间半制品布批号必填（不可用化验室存布）
-        if req.workshop_fabric_batch.as_ref().map(|s| s.trim().is_empty()).unwrap_or(true) {
-            return Err(AppError::business("车间半制品布批号必填（复样必须用车间半制品布，不可用化验室存布）"));
+    /// 校验车间半制品布批号必填
+    fn validate_workshop_fabric_batch(batch: &Option<String>) -> Result<(), AppError> {
+        if batch.as_ref().map(|s| s.trim().is_empty()).unwrap_or(true) {
+            return Err(AppError::business(
+                "车间半制品布批号必填（复样必须用车间半制品布，不可用化验室存布）",
+            ));
         }
+        Ok(())
+    }
 
-        let resample_no = Self::generate_resample_no();
-        let now = crate::utils::date_utils::utc_now_fixed();
-
-        let active = ResampleActiveModel {
+    /// 构建复样 ActiveModel（含全部字段）
+    fn build_resample_active_model(
+        req: CreateResampleRequest,
+        resample_no: String,
+        now: chrono::DateTime<chrono::FixedOffset>,
+    ) -> ResampleActiveModel {
+        ResampleActiveModel {
             id: Default::default(),
             request_id: Set(req.request_id),
             source_sample_id: Set(req.source_sample_id),
@@ -931,21 +969,20 @@ impl LabDipResampleService {
             created_by: Set(req.created_by),
             created_at: Set(now),
             updated_at: Set(now),
-        };
+        }
+    }
 
-        // 创建复样记录同时更新源样复样状态
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("复样记录创建失败: {}", e)))?;
-
-        // 更新源样 resample_status
+    /// 更新源样复样状态为 resampling
+    async fn mark_source_sample_resampling(
+        db: &DatabaseConnection,
+        source_sample: SampleModel,
+        now: chrono::DateTime<chrono::FixedOffset>,
+    ) -> Result<(), AppError> {
         let mut sample_active: SampleActiveModel = source_sample.into();
         sample_active.resample_status = Set(Some("resampling".to_string()));
         sample_active.updated_at = Set(now);
-        sample_active.update(&*self.db).await?;
-
-        Ok(result)
+        sample_active.update(db).await?;
+        Ok(())
     }
 
     /// 记录复样结果（真实业务：色差 4-5 级方可投产）

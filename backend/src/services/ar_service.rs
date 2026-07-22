@@ -1774,6 +1774,47 @@ impl ArService {
     ) -> Result<serde_json::Value, AppError> {
         // 规则 12 合规：全部参数使用参数化绑定，禁止字符串拼接
         let today = Utc::now().date_naive();
+        let (sql, params) = Self::build_statistics_sql_and_params(
+            start_date, end_date, customer_id, today,
+        );
+
+        let row: Option<sea_orm::QueryResult> = self
+            .db
+            .query_one(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("统计报表聚合查询失败: {}", e)))?;
+
+        let row = row
+            .ok_or_else(|| AppError::internal("统计报表聚合查询无结果".to_string()))?;
+
+        let total_invoices: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
+        let total_amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
+        let paid_amount: Decimal = row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
+        let unpaid_amount: Decimal = row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO);
+        let overdue_count: i64 = row.try_get_by_index::<i64>(4).unwrap_or(0);
+        let overdue_amount: Decimal = row.try_get_by_index::<Decimal>(5).unwrap_or(Decimal::ZERO);
+
+        Ok(Self::build_statistics_response(
+            total_invoices,
+            total_amount,
+            paid_amount,
+            unpaid_amount,
+            overdue_count,
+            overdue_amount,
+        ))
+    }
+
+    /// 构建统计报表 SQL 与参数（参数化绑定 where 条件 + today 逾期占位）
+    fn build_statistics_sql_and_params(
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+        customer_id: Option<i32>,
+        today: NaiveDate,
+    ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = vec![];
         let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
         params.push(crate::models::status::common::STATUS_CANCELLED.into());
@@ -1809,27 +1850,18 @@ impl ArService {
             today_idx = today_param_idx,
             where = where_clauses.join(" AND ")
         );
+        (sql, params)
+    }
 
-        let row: Option<sea_orm::QueryResult> = self
-            .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
-                sea_orm::DatabaseBackend::Postgres,
-                sql,
-                params,
-            ))
-            .await
-            .map_err(|e| AppError::internal(format!("统计报表聚合查询失败: {}", e)))?;
-
-        let row = row
-            .ok_or_else(|| AppError::internal("统计报表聚合查询无结果".to_string()))?;
-
-        let total_invoices: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
-        let total_amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
-        let paid_amount: Decimal = row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
-        let unpaid_amount: Decimal = row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO);
-        let overdue_count: i64 = row.try_get_by_index::<i64>(4).unwrap_or(0);
-        let overdue_amount: Decimal = row.try_get_by_index::<Decimal>(5).unwrap_or(Decimal::ZERO);
-
+    /// 构建统计报表响应 JSON（含 collection_rate 回款率计算）
+    fn build_statistics_response(
+        total_invoices: i64,
+        total_amount: Decimal,
+        paid_amount: Decimal,
+        unpaid_amount: Decimal,
+        overdue_count: i64,
+        overdue_amount: Decimal,
+    ) -> serde_json::Value {
         let collection_rate = if total_amount > Decimal::ZERO {
             (paid_amount / total_amount)
                 .to_string()
@@ -1838,8 +1870,7 @@ impl ArService {
         } else {
             0.0
         };
-
-        Ok(json!({
+        json!({
             "total_invoices": total_invoices,
             "total_amount": total_amount.to_string(),
             "paid_amount": paid_amount.to_string(),
@@ -1847,7 +1878,7 @@ impl ArService {
             "overdue_count": overdue_count,
             "overdue_amount": overdue_amount.to_string(),
             "collection_rate": collection_rate,
-        }))
+        })
     }
 
     /// 获取日报表
@@ -2013,8 +2044,40 @@ impl ArService {
         // 避免全表数据加载到应用层导致内存溢出风险（原实现 .all() 加载全部发票到内存）
         // 规则 12 合规：customer_id 使用参数化绑定，禁止字符串拼接
         let today = Utc::now().date_naive();
+        let (sql, params) = Self::build_aging_sql_and_params(customer_id, today);
 
-        let (sql, params): (&str, Vec<sea_orm::Value>) = if let Some(cid) = customer_id {
+        let result: Option<sea_orm::QueryResult> = self
+            .db
+            .query_one(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("账龄报表聚合查询失败: {}", e)))?;
+
+        let row = result
+            .ok_or_else(|| AppError::internal("账龄报表聚合查询无结果".to_string()))?;
+
+        let (not_due, bucket_0_30, bucket_31_60, bucket_61_90, bucket_90_plus, invoice_count) =
+            Self::parse_aging_row(&row);
+
+        Ok(Self::build_aging_response(
+            not_due,
+            bucket_0_30,
+            bucket_31_60,
+            bucket_61_90,
+            bucket_90_plus,
+            invoice_count,
+        ))
+    }
+
+    /// 构建账龄报表 SQL 与参数（按 customer_id 是否存在分支）
+    fn build_aging_sql_and_params(
+        customer_id: Option<i32>,
+        today: NaiveDate,
+    ) -> (&'static str, Vec<sea_orm::Value>) {
+        if let Some(cid) = customer_id {
             (
                 r#"
                 SELECT
@@ -2054,33 +2117,40 @@ impl ArService {
                     crate::models::status::common::STATUS_CANCELLED.into(),
                 ],
             )
-        };
+        }
+    }
 
-        let result: Option<sea_orm::QueryResult> = self
-            .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
-                sea_orm::DatabaseBackend::Postgres,
-                sql,
-                params,
-            ))
-            .await
-            .map_err(|e| AppError::internal(format!("账龄报表聚合查询失败: {}", e)))?;
-
-        let row = result
-            .ok_or_else(|| AppError::internal("账龄报表聚合查询无结果".to_string()))?;
-
-        // 按索引读取聚合字段（与 purchase_delivery_calculator.rs 一致的项目风格）
+    /// 解析账龄报表查询结果行（按索引读取 6 个聚合字段）
+    fn parse_aging_row(
+        row: &sea_orm::QueryResult,
+    ) -> (Decimal, Decimal, Decimal, Decimal, Decimal, i64) {
         let not_due: Decimal = row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO);
         let bucket_0_30: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
         let bucket_31_60: Decimal = row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
         let bucket_61_90: Decimal = row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO);
         let bucket_90_plus: Decimal = row.try_get_by_index::<Decimal>(4).unwrap_or(Decimal::ZERO);
         let invoice_count: i64 = row.try_get_by_index::<i64>(5).unwrap_or(0);
+        (
+            not_due,
+            bucket_0_30,
+            bucket_31_60,
+            bucket_61_90,
+            bucket_90_plus,
+            invoice_count,
+        )
+    }
 
-        let total_overdue =
-            bucket_0_30 + bucket_31_60 + bucket_61_90 + bucket_90_plus;
-
-        Ok(json!({
+    /// 构建账龄报表响应 JSON（含 total_overdue 汇总）
+    fn build_aging_response(
+        not_due: Decimal,
+        bucket_0_30: Decimal,
+        bucket_31_60: Decimal,
+        bucket_61_90: Decimal,
+        bucket_90_plus: Decimal,
+        invoice_count: i64,
+    ) -> serde_json::Value {
+        let total_overdue = bucket_0_30 + bucket_31_60 + bucket_61_90 + bucket_90_plus;
+        json!({
             "not_due": not_due.to_string(),
             "bucket_0_30": bucket_0_30.to_string(),
             "bucket_31_60": bucket_31_60.to_string(),
@@ -2088,7 +2158,7 @@ impl ArService {
             "bucket_90_plus": bucket_90_plus.to_string(),
             "total_overdue": total_overdue.to_string(),
             "invoice_count": invoice_count,
-        }))
+        })
     }
 }
 
