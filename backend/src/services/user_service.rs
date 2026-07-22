@@ -265,38 +265,45 @@ impl UserService {
             .map_err(|e| AppError::database(format!("查询角色互斥规则失败: {}", e)))?;
 
         // V15 P0-S23：真实互斥校验——检查当前角色与新角色是否构成互斥对
-        // role_conflict 表约定 role_a_code < role_b_code，但此处双向匹配以容错
-        for conflict in &conflicts {
-            let pair = (&conflict.role_a_code, &conflict.role_b_code);
-            let matched = pair == (&current_role.code, &new_role.code)
-                || pair == (&new_role.code, &current_role.code);
+        if let Some(conflict) =
+            Self::find_conflict_pair(&current_role.code, &new_role.code, &conflicts)
+        {
+            warn!(
+                target: "security_audit",
+                event = "ROLE_CONFLICT_BLOCKED",
+                user_id = user_id,
+                current_role_code = %current_role.code,
+                new_role_code = %new_role.code,
+                conflict_type = %conflict.conflict_type,
+                description = ?conflict.description,
+                "角色互斥冲突，已阻止变更"
+            );
 
-            if matched {
-                // 记录安全审计日志（best-effort，不阻塞错误返回）
-                warn!(
-                    target: "security_audit",
-                    event = "ROLE_CONFLICT_BLOCKED",
-                    user_id = user_id,
-                    current_role_code = %current_role.code,
-                    new_role_code = %new_role.code,
-                    conflict_type = %conflict.conflict_type,
-                    description = ?conflict.description,
-                    "角色互斥冲突，已阻止变更"
-                );
-
-                return Err(AppError::business(format!(
-                    "角色互斥冲突：当前角色「{}」与新角色「{}」互斥（{}），禁止变更",
-                    current_role.code,
-                    new_role.code,
-                    conflict
-                        .description
-                        .as_deref()
-                        .unwrap_or("职责分离互斥规则")
-                )));
-            }
+            return Err(AppError::business(format!(
+                "角色互斥冲突：当前角色「{}」与新角色「{}」互斥（{}），禁止变更",
+                current_role.code,
+                new_role.code,
+                conflict
+                    .description
+                    .as_deref()
+                    .unwrap_or("职责分离互斥规则")
+            )));
         }
 
         Ok(())
+    }
+
+    /// 在互斥规则中查找匹配的冲突对（双向匹配容错）
+    fn find_conflict_pair<'a>(
+        current_code: &str,
+        new_code: &str,
+        conflicts: &'a [role_conflict::Model],
+    ) -> Option<&'a role_conflict::Model> {
+        conflicts.iter().find(|conflict| {
+            let a = conflict.role_a_code.as_str();
+            let b = conflict.role_b_code.as_str();
+            (a == current_code && b == new_code) || (a == new_code && b == current_code)
+        })
     }
 
     /// 查询用户列表（分页）

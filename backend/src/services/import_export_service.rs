@@ -297,9 +297,43 @@ impl ImportExportService {
         data: &[Vec<String>],
         user_id: i32,
     ) -> Result<ImportResult, AppError> {
-        // 安全漏洞 #8 修复：service 层 defense-in-depth 校验
-        // 即使 handler 层校验被绕过（内部调用 / 其他 endpoint 复用），
-        // 本入口仍会拒绝超限数据，防止 OOM DoS / 数据库压力。
+        Self::validate_import_data_size(data)?;
+
+        let mut imported = 0u64;
+        let mut failed = 0u64;
+        let mut errors = Vec::new();
+
+        // P2 1-7 修复：抽取重复的"结果收集"逻辑为 record_import_result 方法
+        match import_type {
+            "products" => {
+                for (idx, row) in data.iter().enumerate() {
+                    let result = self.import_product_row(row, user_id).await;
+                    Self::record_import_result(idx, result, &mut imported, &mut failed, &mut errors);
+                }
+            }
+            "customers" => {
+                for (idx, row) in data.iter().enumerate() {
+                    let result = self.import_customer_row(row, user_id).await;
+                    Self::record_import_result(idx, result, &mut imported, &mut failed, &mut errors);
+                }
+            }
+            _ => {
+                return Err(AppError::validation(format!(
+                    "不支持的导入类型: {}",
+                    import_type
+                )));
+            }
+        }
+
+        Ok(ImportResult {
+            imported,
+            failed,
+            errors,
+        })
+    }
+
+    /// 校验导入数据尺寸（service 层 defense-in-depth）
+    fn validate_import_data_size(data: &[Vec<String>]) -> Result<(), AppError> {
         if data.len() > MAX_EXCEL_ROWS {
             return Err(AppError::validation(format!(
                 "导入数据超过最大行数限制：当前 {} 行，上限 {} 行",
@@ -328,39 +362,7 @@ impl ImportExportService {
                 }
             }
         }
-
-        let mut imported = 0u64;
-        let mut failed = 0u64;
-        let mut errors = Vec::new();
-
-        // P2 1-7 修复：抽取重复的"结果收集"逻辑为 record_import_result 方法
-        // 原 "products" 和 "customers" 两个 match 分支的结果收集代码完全相同
-        match import_type {
-            "products" => {
-                for (idx, row) in data.iter().enumerate() {
-                    let result = self.import_product_row(row, user_id).await;
-                    Self::record_import_result(idx, result, &mut imported, &mut failed, &mut errors);
-                }
-            }
-            "customers" => {
-                for (idx, row) in data.iter().enumerate() {
-                    let result = self.import_customer_row(row, user_id).await;
-                    Self::record_import_result(idx, result, &mut imported, &mut failed, &mut errors);
-                }
-            }
-            _ => {
-                return Err(AppError::validation(format!(
-                    "不支持的导入类型: {}",
-                    import_type
-                )));
-            }
-        }
-
-        Ok(ImportResult {
-            imported,
-            failed,
-            errors,
-        })
+        Ok(())
     }
 
     // ========================================================================

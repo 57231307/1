@@ -139,6 +139,17 @@ impl InventoryStockService {
         txn: &sea_orm::DatabaseTransaction,
         args: RecordTransactionArgs,
     ) -> Result<(inventory_transaction::Model, Option<BusinessEvent>), AppError> {
+        let active_transaction = Self::build_transaction_active_model(args);
+        let transaction = active_transaction.insert(txn).await?;
+        let event = Self::build_transaction_event(&transaction);
+        // P0 5-2 修复：事件由调用方在 commit 成功后统一 publish，避免幻事件
+        Ok((transaction, Some(event)))
+    }
+
+    /// 构建库存流水 ActiveModel
+    fn build_transaction_active_model(
+        args: RecordTransactionArgs,
+    ) -> inventory_transaction::ActiveModel {
         let RecordTransactionArgs {
             transaction_type,
             product_id,
@@ -159,7 +170,7 @@ impl InventoryStockService {
             notes,
             created_by,
         } = args;
-        let active_transaction = inventory_transaction::ActiveModel {
+        inventory_transaction::ActiveModel {
             id: Default::default(),
             transaction_type: Set(transaction_type),
             product_id: Set(product_id),
@@ -180,11 +191,14 @@ impl InventoryStockService {
             notes: Set(notes),
             created_by: Set(created_by),
             created_at: Set(Utc::now()),
-        };
+        }
+    }
 
-        let transaction = active_transaction.insert(txn).await?;
-
-        let event = BusinessEvent::InventoryTransactionCreated {
+    /// 从已插入的流水 Model 构建业务事件
+    fn build_transaction_event(
+        transaction: &inventory_transaction::Model,
+    ) -> BusinessEvent {
+        BusinessEvent::InventoryTransactionCreated {
             transaction_id: transaction.id,
             transaction_type: transaction.transaction_type.clone(),
             product_id: transaction.product_id,
@@ -197,12 +211,7 @@ impl InventoryStockService {
             batch_no: transaction.batch_no.clone(),
             color_no: transaction.color_no.clone(),
             created_by: transaction.created_by,
-        };
-
-        // P0 5-2 修复：移除事务内的 EVENT_BUS.publish(event) 调用。
-        // 原实现在此处直接 publish，但事务由调用方 commit，commit 失败时事件已发造成幻事件。
-        // 现将构造好的事件作为返回值的一部分交给调用方，由调用方在 commit 成功后统一 publish。
-        Ok((transaction, Some(event)))
+        }
     }
 }
 
