@@ -152,7 +152,7 @@ impl InventoryCountService {
             id: Default::default(),
             count_no: Set(count_no),
             warehouse_id: Set(req.warehouse_id),
-            count_date: Set(req.count_date.clone()),
+            count_date: Set(req.count_date),
             status: Set(count_status::PENDING.to_string()),
             total_items: Set(total_items),
             counted_items: Set(0),
