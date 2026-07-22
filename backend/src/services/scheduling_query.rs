@@ -50,25 +50,41 @@ impl SchedulingService {
             ?date_to,
             "排程甘特图数据查询开始"
         );
+        let orders = Self::fetch_gantt_orders(&*self.db, work_center_id).await?;
+        let scheduled_details =
+            Self::build_scheduled_details(&orders, date_from, date_to);
+        let work_centers = Self::fetch_work_centers(&*self.db, &orders).await?;
+        Ok(self.build_gantt_data(&scheduled_details, &work_centers))
+    }
+
+    /// 查询未取消的生产订单（按优先级升序），可选按工作中心过滤
+    async fn fetch_gantt_orders(
+        db: &sea_orm::DatabaseConnection,
+        work_center_id: Option<i32>,
+    ) -> Result<Vec<crate::models::production_order::Model>, AppError> {
         // BE-P 优化（2026-06-26）：work_center_id 过滤下推到 SQL，避免全量加载后 retain
         let mut query = ProductionOrderEntity::find()
             .filter(crate::models::production_order::Column::Status.ne("CANCELLED"));
-
         if let Some(wc_id) = work_center_id {
             query = query.filter(crate::models::production_order::Column::WorkCenterId.eq(wc_id));
         }
-
-        let orders = query
+        Ok(query
             .order_by_asc(crate::models::production_order::Column::Priority)
-            .all(&*self.db)
-            .await?;
+            .all(db)
+            .await?)
+    }
 
-        let scheduled_details: Vec<ScheduleDetail> = orders
+    /// 将生产订单转换为甘特图明细，按日期范围过滤
+    fn build_scheduled_details(
+        orders: &[crate::models::production_order::Model],
+        date_from: Option<NaiveDate>,
+        date_to: Option<NaiveDate>,
+    ) -> Vec<ScheduleDetail> {
+        orders
             .iter()
             .filter_map(|o| {
                 let start = o.planned_start_date?;
                 let end = o.planned_end_date?;
-
                 if let Some(df) = date_from {
                     if end < df {
                         return None;
@@ -79,7 +95,6 @@ impl SchedulingService {
                         return None;
                     }
                 }
-
                 // work_center_id 为 None 时表示"未指定"，有 ID 时由于当前闭包无法 await DB 查询，
                 // 暂时 fallback 到"未知"（待后续重构为批量查询）
                 let wc_name = if o.work_center_id.is_none() {
@@ -87,7 +102,6 @@ impl SchedulingService {
                 } else {
                     "未知".to_string()
                 };
-
                 Some(ScheduleDetail {
                     order_id: o.id,
                     order_no: Some(o.order_no.clone()),
@@ -100,25 +114,27 @@ impl SchedulingService {
                     status: Some(o.status.clone()),
                 })
             })
-            .collect();
+            .collect()
+    }
 
-        // 从生产订单关联的 work_center_id 列表批量查询工作中心，避免 N+1
+    /// 批量查询订单关联的工作中心，避免 N+1
+    async fn fetch_work_centers(
+        db: &sea_orm::DatabaseConnection,
+        orders: &[crate::models::production_order::Model],
+    ) -> Result<Vec<crate::models::work_center::Model>, AppError> {
         let work_center_ids: Vec<i32> = orders
             .iter()
             .filter_map(|o| o.work_center_id)
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
             .collect();
-        let work_centers = if work_center_ids.is_empty() {
-            Vec::new()
-        } else {
-            WorkCenterEntity::find()
-                .filter(crate::models::work_center::Column::Id.is_in(work_center_ids))
-                .all(&*self.db)
-                .await?
-        };
-        let gantt = self.build_gantt_data(&scheduled_details, &work_centers);
-        Ok(gantt)
+        if work_center_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(WorkCenterEntity::find()
+            .filter(crate::models::work_center::Column::Id.is_in(work_center_ids))
+            .all(db)
+            .await?)
     }
 
     /// 检测排程冲突

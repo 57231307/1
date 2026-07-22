@@ -277,83 +277,90 @@ impl CostCollectionService {
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
     ) -> Result<CostAnalysisSummary, AppError> {
-        let mut query = cost_collection::Entity::find();
+        let collections = Self::fetch_cost_collections(&*self.db, start_date, end_date).await?;
+        let totals = Self::aggregate_cost_totals(&collections);
+        Ok(Self::build_cost_summary(totals))
+    }
 
+    /// 按日期范围查询成本归集记录
+    async fn fetch_cost_collections(
+        db: &sea_orm::DatabaseConnection,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<Vec<cost_collection::Model>, AppError> {
+        let mut query = cost_collection::Entity::find();
         if let Some(start) = start_date {
             query = query.filter(cost_collection::Column::CollectionDate.gte(start));
         }
         if let Some(end) = end_date {
             query = query.filter(cost_collection::Column::CollectionDate.lte(end));
         }
+        Ok(query.all(db).await?)
+    }
 
-        let collections = query.all(&*self.db).await?;
-
-        let mut total_direct_material = Decimal::ZERO;
-        let mut total_direct_labor = Decimal::ZERO;
-        let mut total_overhead = Decimal::ZERO;
-        let mut total_processing = Decimal::ZERO;
-        let mut total_dyeing = Decimal::ZERO;
-        let mut total_cost = Decimal::ZERO;
-        let mut total_output_meters = Decimal::ZERO;
-        let mut total_output_kg = Decimal::ZERO;
-        let mut record_count = 0;
-
-        for c in &collections {
-            total_direct_material += c.direct_material;
-            total_direct_labor += c.direct_labor;
-            total_overhead += c.manufacturing_overhead;
-            total_processing += c.processing_fee;
-            total_dyeing += c.dyeing_fee;
-            total_cost += c.total_cost;
+    /// 聚合成本归集记录的各项合计值
+    fn aggregate_cost_totals(
+        collections: &[cost_collection::Model],
+    ) -> CostTotals {
+        let mut totals = CostTotals::default();
+        for c in collections {
+            totals.direct_material += c.direct_material;
+            totals.direct_labor += c.direct_labor;
+            totals.overhead += c.manufacturing_overhead;
+            totals.processing += c.processing_fee;
+            totals.dyeing += c.dyeing_fee;
+            totals.cost += c.total_cost;
             if let Some(m) = c.output_quantity_meters {
-                total_output_meters += m;
+                totals.output_meters += m;
             }
             if let Some(k) = c.output_quantity_kg {
-                total_output_kg += k;
+                totals.output_kg += k;
             }
-            record_count += 1;
+            totals.record_count += 1;
         }
+        totals
+    }
 
-        let avg_unit_cost_meters = if total_output_meters > Decimal::ZERO {
-            Some(total_cost / total_output_meters)
+    /// 根据合计值构建成本分析汇总（含平均值与占比计算）
+    fn build_cost_summary(t: CostTotals) -> CostAnalysisSummary {
+        let avg_unit_cost_meters = if t.output_meters > Decimal::ZERO {
+            Some(t.cost / t.output_meters)
         } else {
             None
         };
-
-        let avg_unit_cost_kg = if total_output_kg > Decimal::ZERO {
-            Some(total_cost / total_output_kg)
+        let avg_unit_cost_kg = if t.output_kg > Decimal::ZERO {
+            Some(t.cost / t.output_kg)
         } else {
             None
         };
-
-        Ok(CostAnalysisSummary {
-            record_count,
-            total_direct_material,
-            total_direct_labor,
-            total_overhead,
-            total_processing,
-            total_dyeing,
-            total_cost,
-            total_output_meters,
-            total_output_kg,
+        CostAnalysisSummary {
+            record_count: t.record_count,
+            total_direct_material: t.direct_material,
+            total_direct_labor: t.direct_labor,
+            total_overhead: t.overhead,
+            total_processing: t.processing,
+            total_dyeing: t.dyeing,
+            total_cost: t.cost,
+            total_output_meters: t.output_meters,
+            total_output_kg: t.output_kg,
             avg_unit_cost_meters,
             avg_unit_cost_kg,
-            material_ratio: if total_cost > Decimal::ZERO {
-                Some(total_direct_material / total_cost)
+            material_ratio: if t.cost > Decimal::ZERO {
+                Some(t.direct_material / t.cost)
             } else {
                 None
             },
-            labor_ratio: if total_cost > Decimal::ZERO {
-                Some(total_direct_labor / total_cost)
+            labor_ratio: if t.cost > Decimal::ZERO {
+                Some(t.direct_labor / t.cost)
             } else {
                 None
             },
-            overhead_ratio: if total_cost > Decimal::ZERO {
-                Some(total_overhead / total_cost)
+            overhead_ratio: if t.cost > Decimal::ZERO {
+                Some(t.overhead / t.cost)
             } else {
                 None
             },
-        })
+        }
     }
 
     /// 按批次获取成本分析
@@ -454,6 +461,20 @@ pub struct CostAnalysisSummary {
     pub material_ratio: Option<Decimal>,
     pub labor_ratio: Option<Decimal>,
     pub overhead_ratio: Option<Decimal>,
+}
+
+/// 成本归集合计中间结构（聚合阶段使用）
+#[derive(Default)]
+struct CostTotals {
+    record_count: i32,
+    direct_material: Decimal,
+    direct_labor: Decimal,
+    overhead: Decimal,
+    processing: Decimal,
+    dyeing: Decimal,
+    cost: Decimal,
+    output_meters: Decimal,
+    output_kg: Decimal,
 }
 
 /// 批次成本分析

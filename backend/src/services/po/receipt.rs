@@ -319,30 +319,52 @@ impl PurchaseOrderService {
         // 原实现明细 insert 与 calculate_order_total 非原子且均用 &*self.db，
         // 并发 add_order_item 会导致总金额丢失更新。
         let txn = (*self.db).begin().await?;
+        let order = Self::lock_order_for_item(&txn, order_id).await?;
+        Self::validate_order_for_item(&order, user_id)?;
+        let item = Self::build_order_item_active(order_id, req, &txn).await?;
+        // 事务内调用 _txn 变体，保证明细写与重算原子性；透传 user_id 用于审计日志
+        self.calculate_order_total_txn(order_id, &txn, user_id).await?;
+        txn.commit().await?;
+        Ok(item)
+    }
 
-        // 1. 查询订单（加 lock_exclusive 串行化并发明细操作）
-        let order = purchase_order::Entity::find_by_id(order_id)
+    /// 加锁查询订单（串行化并发明细操作）
+    async fn lock_order_for_item(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+    ) -> Result<purchase_order::Model, AppError> {
+        purchase_order::Entity::find_by_id(order_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))
+    }
 
-        // 2. 检查状态
+    /// 校验订单状态与权限（仅 DRAFT 状态且创建人本人可添加明细）
+    fn validate_order_for_item(
+        order: &purchase_order::Model,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         if order.order_status != status::purchase_order::DRAFT {
             return Err(AppError::business(format!(
                 "订单状态不允许添加明细，当前状态：{}",
                 order.order_status
             )));
         }
-
-        // 3. 检查权限
         if order.created_by != user_id {
             return Err(AppError::permission_denied(
                 "只能为自己创建的订单添加明细".to_string(),
             ));
         }
+        Ok(())
+    }
 
-        // 4. 创建明细
+    /// 构建并插入订单明细行（金额计算 round_dp(2) 精度归一化）
+    async fn build_order_item_active(
+        order_id: i32,
+        req: CreateOrderItemRequest,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<purchase_order_item::Model, AppError> {
         // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
         let quantity_ordered = req.quantity_ordered.unwrap_or(Decimal::ZERO);
         let unit_price = req.unit_price.unwrap_or(Decimal::ZERO);
@@ -352,7 +374,6 @@ impl PurchaseOrderService {
         let discount_percent = req.discount_percent.unwrap_or(Decimal::ZERO);
         let discount_amount = (amount * discount_percent / Decimal::new(100, 0)).round_dp(2);
         let quantity_alt_ordered = req.quantity_alt_ordered.unwrap_or(Decimal::ZERO);
-
         let item = purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
@@ -381,15 +402,8 @@ impl PurchaseOrderService {
             lot_no: sea_orm::ActiveValue::NotSet,
             batch_no: sea_orm::ActiveValue::NotSet,
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
-
-        // 5. 更新订单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
-        // 批次 94 P2-10：透传 user_id 用于审计日志
-        self.calculate_order_total_txn(order_id, &txn, user_id).await?;
-
-        txn.commit().await?;
-
         Ok(item)
     }
 

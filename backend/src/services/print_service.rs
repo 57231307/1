@@ -265,39 +265,62 @@ impl PrintService {
 
     /// 采购订单打印数据：订单主表 + 供应商 + 仓库 + 明细项（含产品）
     async fn get_purchase_order_print_data(&self, id: i32) -> Result<PrintData, AppError> {
-        use crate::models::{product, purchase_order, purchase_order_item, supplier, warehouse};
+        let (order, supplier, warehouse, items, product_map) =
+            Self::fetch_purchase_order_relations(&*self.db, id).await?;
+        let data =
+            Self::build_purchase_order_main_data(&order, supplier.as_ref(), warehouse.as_ref());
+        let item_list = Self::build_purchase_order_item_list(items, &product_map);
+        Ok(PrintData {
+            template: "purchase_order".to_string(),
+            data,
+            items: item_list,
+        })
+    }
 
+    /// 采购订单打印：批量查询订单 + 供应商 + 仓库 + 明细 + 产品
+    async fn fetch_purchase_order_relations(
+        db: &DatabaseConnection,
+        id: i32,
+    ) -> Result<(
+        crate::models::purchase_order::Model,
+        Option<crate::models::supplier::Model>,
+        Option<crate::models::warehouse::Model>,
+        Vec<crate::models::purchase_order_item::Model>,
+        HashMap<i32, crate::models::product::Model>,
+    ), AppError> {
+        use crate::models::{product, purchase_order, purchase_order_item, supplier, warehouse};
         let order = purchase_order::Entity::find_by_id(id)
-            .one(&*self.db)
+            .one(db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {} 未找到", id)))?;
-
-        let supplier = supplier::Entity::find_by_id(order.supplier_id)
-            .one(&*self.db)
-            .await?;
-        let warehouse = warehouse::Entity::find_by_id(order.warehouse_id)
-            .one(&*self.db)
-            .await?;
-
+        let supplier = supplier::Entity::find_by_id(order.supplier_id).one(db).await?;
+        let warehouse = warehouse::Entity::find_by_id(order.warehouse_id).one(db).await?;
         let items = purchase_order_item::Entity::find()
             .filter(purchase_order_item::Column::OrderId.eq(id))
             .order_by(purchase_order_item::Column::LineNo, Order::Asc)
-            .all(&*self.db)
+            .all(db)
             .await?;
-
         let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
         let products = product::Entity::find()
             .filter(product::Column::Id.is_in(product_ids))
-            .all(&*self.db)
+            .all(db)
             .await?;
         let product_map: HashMap<i32, product::Model> =
             products.into_iter().map(|p| (p.id, p)).collect();
+        Ok((order, supplier, warehouse, items, product_map))
+    }
 
+    /// 采购订单打印：构造主表 data
+    fn build_purchase_order_main_data(
+        order: &crate::models::purchase_order::Model,
+        supplier: Option<&crate::models::supplier::Model>,
+        warehouse: Option<&crate::models::warehouse::Model>,
+    ) -> HashMap<String, serde_json::Value> {
         let mut data = HashMap::new();
-        data.insert("order_no".to_string(), serde_json::json!(order.order_no));
+        data.insert("order_no".to_string(), serde_json::json!(order.order_no.clone()));
         data.insert(
             "supplier_name".to_string(),
-            serde_json::json!(supplier.as_ref().map(|s| s.supplier_name.clone()).unwrap_or_default()),
+            serde_json::json!(supplier.map(|s| s.supplier_name.clone()).unwrap_or_default()),
         );
         data.insert("order_date".to_string(), serde_json::json!(order.order_date.format("%Y-%m-%d").to_string()));
         data.insert(
@@ -310,13 +333,20 @@ impl PrintService {
         );
         data.insert(
             "warehouse_name".to_string(),
-            serde_json::json!(warehouse.as_ref().map(|w| w.name.clone()).unwrap_or_default()),
+            serde_json::json!(warehouse.map(|w| w.name.clone()).unwrap_or_default()),
         );
-        data.insert("currency".to_string(), serde_json::json!(order.currency));
+        data.insert("currency".to_string(), serde_json::json!(order.currency.clone()));
         data.insert("total_amount".to_string(), serde_json::json!(order.total_amount.to_string()));
         data.insert("total_quantity".to_string(), serde_json::json!(order.total_quantity.to_string()));
-        data.insert("notes".to_string(), serde_json::json!(order.notes.unwrap_or_default()));
+        data.insert("notes".to_string(), serde_json::json!(order.notes.clone().unwrap_or_default()));
+        data
+    }
 
+    /// 采购订单打印：构造明细行列表
+    fn build_purchase_order_item_list(
+        items: Vec<crate::models::purchase_order_item::Model>,
+        product_map: &HashMap<i32, crate::models::product::Model>,
+    ) -> Vec<HashMap<String, serde_json::Value>> {
         let mut item_list = Vec::with_capacity(items.len());
         for item in items {
             let product = product_map.get(&item.product_id);
@@ -340,12 +370,7 @@ impl PrintService {
             );
             item_list.push(row);
         }
-
-        Ok(PrintData {
-            template: "purchase_order".to_string(),
-            data,
-            items: item_list,
-        })
+        item_list
     }
 
     /// 采购收货单打印数据：收货主表 + 供应商 + 仓库 + 明细项

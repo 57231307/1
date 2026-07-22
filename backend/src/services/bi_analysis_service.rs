@@ -431,12 +431,21 @@ impl BiAnalysisService {
         limit: i64,
     ) -> Result<Vec<CustomerRank>, AppError> {
         let limit = limit.clamp(1, 100);
+        let rows = Self::query_customer_rank_rows(&*self.db, &self.data_scope, limit).await?;
+        let total_sales = Self::query_total_sales(&*self.db, &self.data_scope).await?;
+        Ok(Self::build_customer_ranks(rows, total_sales))
+    }
 
+    /// 查询客户销售排行原始行（应用数据范围过滤）
+    async fn query_customer_rank_rows(
+        db: &sea_orm::DatabaseConnection,
+        scope_ctx: &crate::utils::data_scope::DataScopeContext,
+        limit: i64,
+    ) -> Result<Vec<CustomerRankRow>, AppError> {
         // V15 P0-B10：注入数据范围过滤（LEFT JOIN sales_orders s，过滤条件加在 WHERE）
         // 注：将过滤加到 WHERE 会把 LEFT JOIN 变为 INNER JOIN 效果，
         //     即只返回有符合数据范围订单的客户（业务期望：员工只看到自己客户的排行）
-        let (scope_sql, scope_values) = self.scope_sql("s", 2);
-
+        let (scope_sql, scope_values) = build_data_scope_sql(scope_ctx, "s", 2);
         let sql = format!(
             r#"
             SELECT
@@ -454,7 +463,6 @@ impl BiAnalysisService {
             "#,
             scope_sql = scope_sql,
         );
-
         let mut values = vec![limit.into()];
         values.extend(scope_values);
         let stmt = Statement::from_sql_and_values(
@@ -462,13 +470,15 @@ impl BiAnalysisService {
             sql,
             values,
         );
+        Ok(CustomerRankRow::find_by_statement(stmt).all(db).await?)
+    }
 
-        let rows = CustomerRankRow::find_by_statement(stmt)
-            .all(&*self.db)
-            .await?;
-
-        // 计算全部销售额用于 percentage（同样应用数据范围过滤）
-        let (total_scope_sql, total_scope_values) = self.scope_sql("sales_orders", 1);
+    /// 查询全部销售额（应用数据范围过滤，用于 percentage 计算）
+    async fn query_total_sales(
+        db: &sea_orm::DatabaseConnection,
+        scope_ctx: &crate::utils::data_scope::DataScopeContext,
+    ) -> Result<f64, AppError> {
+        let (total_scope_sql, total_scope_values) = build_data_scope_sql(scope_ctx, "sales_orders", 1);
         let total_sql = format!(
             r#"SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders
                WHERE status NOT IN ('CANCELLED', 'DRAFT') {scope_sql}"#,
@@ -482,14 +492,14 @@ impl BiAnalysisService {
             total_values,
         );
         let total_row: Option<TotalRow> = TotalRow::find_by_statement(total_stmt)
-            .one(&*self.db)
+            .one(db)
             .await?;
-        let total_sales = total_row
-            .map(|r| dec_to_f64(r.total))
-            .unwrap_or(0.0);
+        Ok(total_row.map(|r| dec_to_f64(r.total)).unwrap_or(0.0))
+    }
 
-        let results = rows
-            .into_iter()
+    /// 将原始行转换为客户排行结果（计算 percentage）
+    fn build_customer_ranks(rows: Vec<CustomerRankRow>, total_sales: f64) -> Vec<CustomerRank> {
+        rows.into_iter()
             .map(|r| {
                 let amount = dec_to_f64(r.total_amount);
                 let percentage = if total_sales > 0.0 {
@@ -505,9 +515,7 @@ impl BiAnalysisService {
                     percentage,
                 }
             })
-            .collect();
-
-        Ok(results)
+            .collect()
     }
 
     /// 按产品聚合销售
@@ -939,10 +947,18 @@ impl BiAnalysisService {
         if !(1900..=2999).contains(&year) {
             return Err(AppError::validation("年份无效"));
         }
+        let rows = Self::query_year_month_rows(&*self.db, &self.data_scope, year).await?;
+        Ok(Self::fill_year_month_points(rows, year))
+    }
 
+    /// 查询指定年份的月度销售聚合行（应用数据范围过滤）
+    async fn query_year_month_rows(
+        db: &sea_orm::DatabaseConnection,
+        scope_ctx: &DataScopeContext,
+        year: i32,
+    ) -> Result<Vec<TimeSeriesRow>, AppError> {
         // V15 P0-B10：注入数据范围过滤（sales_orders 无别名，已有 $1 参数）
-        let (scope_sql, scope_values) = self.scope_sql("", 2);
-
+        let (scope_sql, scope_values) = build_data_scope_sql(scope_ctx, "", 2);
         let sql = format!(
             r#"
             SELECT
@@ -967,7 +983,6 @@ impl BiAnalysisService {
             "#,
             scope_sql = scope_sql,
         );
-
         let mut values = vec![(year as i64).into()];
         values.extend(scope_values);
         let stmt = Statement::from_sql_and_values(
@@ -975,12 +990,11 @@ impl BiAnalysisService {
             sql,
             values,
         );
+        Ok(TimeSeriesRow::find_by_statement(stmt).all(db).await?)
+    }
 
-        let rows = TimeSeriesRow::find_by_statement(stmt)
-            .all(&*self.db)
-            .await?;
-
-        // 构建 12 个月完整数据，缺失月份补 0
+    /// 构建 12 个月完整时间序列，缺失月份补 0
+    fn fill_year_month_points(rows: Vec<TimeSeriesRow>, year: i32) -> Vec<TimeSeriesPoint> {
         let mut period_map: std::collections::HashMap<String, TimeSeriesPoint> = std::collections::HashMap::new();
         for r in rows {
             let revenue = dec_to_f64(r.total_amount);
@@ -996,8 +1010,7 @@ impl BiAnalysisService {
                 },
             );
         }
-
-        let results = (1..=12)
+        (1..=12)
             .map(|m| {
                 let period = format!("{}-{:02}", year, m);
                 match period_map.remove(&period) {
@@ -1011,9 +1024,7 @@ impl BiAnalysisService {
                     },
                 }
             })
-            .collect();
-
-        Ok(results)
+            .collect()
     }
 
     /// 钻取：月 → 日
