@@ -118,34 +118,61 @@ impl BusinessTraceService {
             .last()
             .ok_or_else(|| AppError::not_found("No trace found"))?;
 
-        // 获取追溯链中的供应商ID和客户ID（第一个环节有供应商，最后一个环节有客户）
-        let supplier_id = first_trace.supplier_id;
-        let customer_id = last_trace.customer_id;
+        // 第一个环节有供应商，最后一个环节有客户
+        let supplier_name =
+            Self::fetch_supplier_name(&*self.db, first_trace.supplier_id).await?;
+        let customer_name =
+            Self::fetch_customer_name(&*self.db, last_trace.customer_id).await?;
+        let trace_path = Self::build_trace_path(&traces);
 
-        // 查询供应商名称
-        let supplier_name = if let Some(supplier_id_val) = supplier_id {
-            use crate::models::supplier;
-            supplier::Entity::find_by_id(supplier_id_val)
-                .one(&*self.db)
+        let active_snapshot = Self::build_snapshot_active_model(
+            trace_chain_id,
+            first_trace,
+            last_trace,
+            supplier_name,
+            customer_name,
+            trace_path,
+        );
+
+        active_snapshot
+            .insert(&*self.db)
+            .await
+            .map_err(AppError::from)
+    }
+
+    /// 查询供应商名称（supplier_id 为 None 时返回 None）
+    async fn fetch_supplier_name(
+        db: &DatabaseConnection,
+        supplier_id: Option<i32>,
+    ) -> Result<Option<String>, AppError> {
+        use crate::models::supplier;
+        match supplier_id {
+            Some(id) => Ok(supplier::Entity::find_by_id(id)
+                .one(db)
                 .await?
-                .map(|s| s.supplier_name)
-        } else {
-            None
-        };
+                .map(|s| s.supplier_name)),
+            None => Ok(None),
+        }
+    }
 
-        // 查询客户名称
-        let customer_name = if let Some(customer_id_val) = customer_id {
-            use crate::models::customer;
-            customer::Entity::find_by_id(customer_id_val)
-                .one(&*self.db)
+    /// 查询客户名称（customer_id 为 None 时返回 None）
+    async fn fetch_customer_name(
+        db: &DatabaseConnection,
+        customer_id: Option<i32>,
+    ) -> Result<Option<String>, AppError> {
+        use crate::models::customer;
+        match customer_id {
+            Some(id) => Ok(customer::Entity::find_by_id(id)
+                .one(db)
                 .await?
-                .map(|c| c.customer_name)
-        } else {
-            None
-        };
+                .map(|c| c.customer_name)),
+            None => Ok(None),
+        }
+    }
 
-        // 构建追溯路径
-        let trace_path = json!(traces
+    /// 构建追溯路径 JSON（stage/bill_type/bill_no/quantity_meters/warehouse_id/created_at）
+    fn build_trace_path(traces: &[business_trace_chain::Model]) -> serde_json::Value {
+        json!(traces
             .iter()
             .map(|t| {
                 json!({
@@ -157,9 +184,19 @@ impl BusinessTraceService {
                     "created_at": t.created_at
                 })
             })
-            .collect::<Vec<_>>());
+            .collect::<Vec<_>>())
+    }
 
-        let active_snapshot = business_trace_snapshot::ActiveModel {
+    /// 构建追溯快照 ActiveModel（聚合首/末环节信息与供应商/客户名称）
+    fn build_snapshot_active_model(
+        trace_chain_id: &str,
+        first_trace: &business_trace_chain::Model,
+        last_trace: &business_trace_chain::Model,
+        supplier_name: Option<String>,
+        customer_name: Option<String>,
+        trace_path: serde_json::Value,
+    ) -> business_trace_snapshot::ActiveModel {
+        business_trace_snapshot::ActiveModel {
             id: Default::default(),
             trace_chain_id: Set(trace_chain_id.to_string()),
             five_dimension_id: Set(first_trace.five_dimension_id.clone()),
@@ -175,12 +212,7 @@ impl BusinessTraceService {
             customer_name: Set(customer_name),
             trace_path: Set(trace_path),
             snapshot_time: Set(Utc::now()),
-        };
-
-        active_snapshot
-            .insert(&*self.db)
-            .await
-            .map_err(AppError::from)
+        }
     }
 
 }

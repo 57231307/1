@@ -12,15 +12,48 @@ use crate::utils::error::AppError;
 
 use super::ReportEngineService;
 
+/// cron 表达式 5 字段解析结果（分/时/日/月/周）
+struct CronFields {
+    minute: std::collections::HashSet<u32>,
+    hour: std::collections::HashSet<u32>,
+    day: std::collections::HashSet<u32>,
+    month: std::collections::HashSet<u32>,
+    weekday: std::collections::HashSet<u32>,
+}
+
 impl ReportEngineService {
-    /// 计算下次运行时间
-    ///
-    /// 支持标准 5 字段 cron 表达式（minute hour day-of-month month day-of-week）。
-    /// 简化实现：精确计算到分钟级匹配的下一次执行时间。
+    /// 计算下次运行时间（支持 5 字段 cron：分 时 日 月 周，遍历未来 366 天精确到分钟）
     pub fn calculate_next_run(
         &self,
         cron_expression: &str,
     ) -> Result<Option<chrono::DateTime<Utc>>, AppError> {
+        let fields = Self::parse_cron_expression(cron_expression)?;
+
+        let now = Utc::now();
+        let start = now + chrono::Duration::minutes(1);
+
+        // 遍历未来 366 天，找到第一个匹配的执行时间
+        for day_offset in 0..366i64 {
+            let candidate_date = (start.date_naive() + chrono::Duration::days(day_offset))
+                // P1-3 修复：expect 改为 ok_or_else 返回 AppError，保持防御性
+                .and_hms_opt(0, 0, 0)
+                .ok_or_else(|| AppError::internal("cron 候选日期时分秒非法"))?
+                .and_utc();
+
+            if !Self::date_matches_cron(&candidate_date, &fields) {
+                continue;
+            }
+
+            if let Some(candidate) = Self::find_next_time_in_day(candidate_date, now, &fields)? {
+                return Ok(Some(candidate));
+            }
+        }
+
+        Err(AppError::business("无法计算下次运行时间".to_string()))
+    }
+
+    /// 解析 cron 表达式为 5 字段集合（分 时 日 月 周）
+    fn parse_cron_expression(cron_expression: &str) -> Result<CronFields, AppError> {
         let parts: Vec<&str> = cron_expression.split_whitespace().collect();
         if parts.len() != 5 {
             return Err(AppError::bad_request(format!(
@@ -28,78 +61,62 @@ impl ReportEngineService {
                 cron_expression
             )));
         }
+        Ok(CronFields {
+            minute: Self::parse_cron_field(parts[0], 0, 59)?,
+            hour: Self::parse_cron_field(parts[1], 0, 23)?,
+            day: Self::parse_cron_field(parts[2], 1, 31)?,
+            month: Self::parse_cron_field(parts[3], 1, 12)?,
+            weekday: Self::parse_cron_field(parts[4], 0, 6)?,
+        })
+    }
 
-        let minute = Self::parse_cron_field(parts[0], 0, 59)?;
-        let hour = Self::parse_cron_field(parts[1], 0, 23)?;
-        let day = Self::parse_cron_field(parts[2], 1, 31)?;
-        let month = Self::parse_cron_field(parts[3], 1, 12)?;
-        let weekday = Self::parse_cron_field(parts[4], 0, 6)?;
+    /// 校验候选日期的月/日/周是否匹配 cron 字段
+    fn date_matches_cron(candidate_date: &chrono::DateTime<Utc>, fields: &CronFields) -> bool {
+        // chrono 解析不会失败，unwrap_or_default 仅为防御
+        let m = candidate_date
+            .format("%m")
+            .to_string()
+            .parse::<u32>()
+            .unwrap_or_default();
+        let d = candidate_date
+            .format("%d")
+            .to_string()
+            .parse::<u32>()
+            .unwrap_or_default();
+        let dow = candidate_date
+            .format("%w")
+            .to_string()
+            .parse::<u32>()
+            .unwrap_or_default();
+        fields.month.contains(&m) && fields.day.contains(&d) && fields.weekday.contains(&dow)
+    }
 
-        // 简化实现: 使用 cron 库或者基础算法
-        // 这里采用基础实现：遍历未来 366 天，找到第一个匹配的时间
-        let now = Utc::now();
-        let start = now + chrono::Duration::minutes(1);
-
-        for day_offset in 0..366i64 {
-            let candidate_date = (start.date_naive() + chrono::Duration::days(day_offset))
-                // P1-3 修复（批次 80 v1 复审）：expect 改为 ok_or_else 返回 AppError，
-                // 0,0,0 始终合法，但保持防御性返回错误而非 panic
-                .and_hms_opt(0, 0, 0)
-                .ok_or_else(|| AppError::internal("cron 候选日期时分秒非法"))?
-                .and_utc();
-
-            // 解析时间字段（chrono 不会失败，0 仅为防御默认值）
-            let m = candidate_date
-                .format("%m")
-                .to_string()
-                .parse::<u32>()
-                .unwrap_or_default();
-            let d = candidate_date
-                .format("%d")
-                .to_string()
-                .parse::<u32>()
-                .unwrap_or_default();
-            let dow = candidate_date
-                .format("%w")
-                .to_string()
-                .parse::<u32>()
-                .unwrap_or_default();
-
-            if !month.contains(&m) {
+    /// 在指定日期内查找第一个晚于 now 的匹配时间（小时/分钟级）
+    fn find_next_time_in_day(
+        candidate_date: chrono::DateTime<Utc>,
+        now: chrono::DateTime<Utc>,
+        fields: &CronFields,
+    ) -> Result<Option<chrono::DateTime<Utc>>, AppError> {
+        for h in 0..24 {
+            if !fields.hour.contains(&(h as u32)) {
                 continue;
             }
-            if !day.contains(&d) {
-                continue;
-            }
-            if !weekday.contains(&dow) {
-                continue;
-            }
-
-            for h in 0..24 {
-                if !hour.contains(&(h as u32)) {
+            for mn in 0..60 {
+                if !fields.minute.contains(&(mn as u32)) {
                     continue;
                 }
-                for mn in 0..60 {
-                    if !minute.contains(&(mn as u32)) {
-                        continue;
-                    }
-
-                    let candidate = candidate_date
-                        .date_naive()
-                        // P1-3 修复（批次 80 v1 复审）：expect 改为 ok_or_else 返回 AppError，
-                        // h/mn 来自 cron 表达式解析，理论上合法但保持防御性返回错误而非 panic
-                        .and_hms_opt(h as u32, mn as u32, 0)
-                        .ok_or_else(|| AppError::internal("cron 候选时间时分秒非法"))?
-                        .and_utc();
-
-                    if candidate > now {
-                        return Ok(Some(candidate));
-                    }
+                // P1-3 修复：expect 改为 ok_or_else 返回 AppError，保持防御性
+                let candidate = candidate_date
+                    .date_naive()
+                    .and_hms_opt(h as u32, mn as u32, 0)
+                    .ok_or_else(|| AppError::internal("cron 候选时间时分秒非法"))?
+                    .and_utc();
+                if candidate > now {
+                    return Ok(Some(candidate));
                 }
             }
         }
-
-        Err(AppError::business("无法计算下次运行时间".to_string()))
+        Ok(None)
     }
 
     /// 解析 cron 字段

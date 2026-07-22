@@ -375,6 +375,26 @@ impl CrmService {
         let lead = self.get_lead(lead_id, None).await?;
         let mut lead_active: crm_lead::ActiveModel = lead.into();
 
+        Self::apply_lead_update_fields(&mut lead_active, req);
+        lead_active.updated_at = Set(Some(chrono::Utc::now()));
+
+        let lead = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            lead_active,
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
+        )
+        .await?;
+
+        Ok(lead)
+    }
+
+    /// 应用线索更新字段到 ActiveModel（消费 req 各 Option 字段）
+    fn apply_lead_update_fields(
+        lead_active: &mut crm_lead::ActiveModel,
+        req: crate::models::dto::crm_dto::UpdateLeadRequest,
+    ) {
         if let Some(v) = req.lead_source {
             lead_active.lead_source = Set(v);
         }
@@ -432,19 +452,6 @@ impl CrmService {
         if let Some(v) = req.tags {
             lead_active.tags = Set(Some(v));
         }
-
-        lead_active.updated_at = Set(Some(chrono::Utc::now()));
-
-        let lead = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
-            "auto_audit",
-            lead_active,
-            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-            Some(user_id),
-        )
-        .await?;
-
-        Ok(lead)
     }
 
     /// 删除线索

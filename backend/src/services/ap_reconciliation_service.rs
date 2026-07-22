@@ -326,39 +326,46 @@ impl ApReconciliationService {
         &self,
         supplier_id: Option<i32>,
     ) -> Result<Vec<SupplierApSummary>, AppError> {
-        use crate::models::ap_invoice;
-        use crate::models::supplier;
+        let invoices = Self::query_invoices_for_summary(&*self.db, supplier_id).await?;
+        let mut summary_map = Self::aggregate_invoices_by_supplier(&invoices);
+        Self::enrich_supplier_names(&*self.db, &mut summary_map).await?;
+        Ok(summary_map.into_values().collect())
+    }
 
-        // 查询应付发票
+    /// 查询应付发票（按 supplier_id 可选过滤）
+    async fn query_invoices_for_summary(
+        db: &DatabaseConnection,
+        supplier_id: Option<i32>,
+    ) -> Result<Vec<ap_invoice::Model>, AppError> {
         let mut invoice_query = ap_invoice::Entity::find();
-
         if let Some(sid) = supplier_id {
             invoice_query = invoice_query.filter(ap_invoice::Column::SupplierId.eq(sid));
         }
+        invoice_query.all(db).await.map_err(AppError::from)
+    }
 
-        let invoices = invoice_query.all(&*self.db).await?;
-
-        // 按供应商分组统计
+    /// 按供应商分组统计发票（金额/付款状态/逾期）
+    fn aggregate_invoices_by_supplier(
+        invoices: &[ap_invoice::Model],
+    ) -> std::collections::HashMap<i32, SupplierApSummary> {
         let mut summary_map: std::collections::HashMap<i32, SupplierApSummary> =
             std::collections::HashMap::new();
-
-        for invoice in &invoices {
-            let entry =
-                summary_map
-                    .entry(invoice.supplier_id)
-                    .or_insert_with(|| SupplierApSummary {
-                        supplier_id: invoice.supplier_id,
-                        supplier_code: String::new(),
-                        supplier_name: String::new(),
-                        total_invoice_count: 0,
-                        total_invoice_amount: Decimal::ZERO,
-                        total_paid_amount: Decimal::ZERO,
-                        total_unpaid_amount: Decimal::ZERO,
-                        paid_invoice_count: 0,
-                        partial_paid_invoice_count: 0,
-                        overdue_invoice_count: 0,
-                        overdue_amount: Decimal::ZERO,
-                    });
+        for invoice in invoices {
+            let entry = summary_map
+                .entry(invoice.supplier_id)
+                .or_insert_with(|| SupplierApSummary {
+                    supplier_id: invoice.supplier_id,
+                    supplier_code: String::new(),
+                    supplier_name: String::new(),
+                    total_invoice_count: 0,
+                    total_invoice_amount: Decimal::ZERO,
+                    total_paid_amount: Decimal::ZERO,
+                    total_unpaid_amount: Decimal::ZERO,
+                    paid_invoice_count: 0,
+                    partial_paid_invoice_count: 0,
+                    overdue_invoice_count: 0,
+                    overdue_amount: Decimal::ZERO,
+                });
 
             entry.total_invoice_count += 1;
             entry.total_invoice_amount += invoice.amount;
@@ -382,25 +389,30 @@ impl ApReconciliationService {
                 entry.overdue_amount += invoice.unpaid_amount;
             }
         }
+        summary_map
+    }
 
-        // 查询供应商信息
+    /// 查询供应商信息并填充到汇总 map（code/name）
+    async fn enrich_supplier_names(
+        db: &DatabaseConnection,
+        summary_map: &mut std::collections::HashMap<i32, SupplierApSummary>,
+    ) -> Result<(), AppError> {
+        use crate::models::supplier;
         let supplier_ids: Vec<i32> = summary_map.keys().cloned().collect();
-        if !supplier_ids.is_empty() {
-            let suppliers = supplier::Entity::find()
-                .filter(supplier::Column::Id.is_in(supplier_ids))
-                .all(&*self.db)
-                .await?;
-
-            for s in suppliers {
-                if let Some(entry) = summary_map.get_mut(&s.id) {
-                    entry.supplier_code = s.supplier_code;
-                    entry.supplier_name = s.supplier_name;
-                }
+        if supplier_ids.is_empty() {
+            return Ok(());
+        }
+        let suppliers = supplier::Entity::find()
+            .filter(supplier::Column::Id.is_in(supplier_ids))
+            .all(db)
+            .await?;
+        for s in suppliers {
+            if let Some(entry) = summary_map.get_mut(&s.id) {
+                entry.supplier_code = s.supplier_code;
+                entry.supplier_name = s.supplier_name;
             }
         }
-
-        let result: Vec<SupplierApSummary> = summary_map.into_values().collect();
-        Ok(result)
+        Ok(())
     }
 
     /// 自动对账 - 为所有供应商自动生成对账单

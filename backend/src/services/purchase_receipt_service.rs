@@ -75,7 +75,43 @@ impl PurchaseReceiptService {
         let receipt_no = self.generate_receipt_no().await?;
 
         // 2. 创建入库单主表
-        let receipt = purchase_receipt::ActiveModel {
+        let receipt = Self::build_receipt_active_model(&req, receipt_no, user_id)
+            .insert(&txn)
+            .await?;
+
+        // 3. 创建入库明细（批量 insert_many，避免循环逐条 INSERT）
+        let (item_active_models, total_quantity, total_quantity_alt, total_amount) =
+            Self::build_receipt_items_and_totals(req.items, receipt.id);
+        if !item_active_models.is_empty() {
+            purchase_receipt_item::Entity::insert_many(item_active_models)
+                .exec(&txn)
+                .await?;
+        }
+
+        // 4. 更新入库单总金额和数量
+        let receipt = Self::update_receipt_totals(
+            &txn,
+            receipt,
+            total_quantity,
+            total_quantity_alt,
+            total_amount,
+            user_id,
+        )
+        .await?;
+
+        // 5. 提交事务
+        txn.commit().await?;
+
+        Ok(receipt)
+    }
+
+    /// 构建入库单主表 ActiveModel（String 字段 clone 避免移动 req）
+    fn build_receipt_active_model(
+        req: &CreatePurchaseReceiptRequest,
+        receipt_no: String,
+        user_id: i32,
+    ) -> purchase_receipt::ActiveModel {
+        purchase_receipt::ActiveModel {
             receipt_no: Set(receipt_no),
             order_id: Set(req.order_id),
             supplier_id: Set(req.supplier_id),
@@ -86,29 +122,37 @@ impl PurchaseReceiptService {
             inspector_id: Set(req.inspector_id),
             inspection_status: Set("PENDING".to_string()),
             receipt_status: Set(status::purchase_receipt::DRAFT.to_string()),
-            notes: Set(req.notes),
-            attachment_urls: Set(req.attachment_urls),
+            notes: Set(req.notes.clone()),
+            attachment_urls: Set(req.attachment_urls.clone()),
             created_by: Set(user_id),
             ..Default::default()
         }
-        .insert(&txn)
-        .await?;
+    }
 
-        // 3. 创建入库明细（P2 5-13/3-18 修复：改用 insert_many 批量插入，原为循环内逐条 insert 导致 N 条=N 次 INSERT）
+    /// 构建入库明细 ActiveModel 列表并累计数量/金额（消费 items）
+    fn build_receipt_items_and_totals(
+        items: Vec<CreateReceiptItemRequest>,
+        receipt_id: i32,
+    ) -> (
+        Vec<purchase_receipt_item::ActiveModel>,
+        Decimal,
+        Decimal,
+        Decimal,
+    ) {
         let mut total_quantity = Decimal::new(0, 0);
         let mut total_quantity_alt = Decimal::new(0, 0);
         let mut total_amount = Decimal::new(0, 0);
-
         let mut item_active_models: Vec<purchase_receipt_item::ActiveModel> =
-            Vec::with_capacity(req.items.len());
-        for item_req in req.items {
-            let amount = item_req.quantity * item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0));
+            Vec::with_capacity(items.len());
+        for item_req in items {
+            let amount =
+                item_req.quantity * item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0));
             total_quantity += item_req.quantity;
             total_quantity_alt += item_req.quantity_alt;
             total_amount += amount;
 
             item_active_models.push(purchase_receipt_item::ActiveModel {
-                receipt_id: Set(receipt.id),
+                receipt_id: Set(receipt_id),
                 order_item_id: Set(item_req.order_item_id),
                 product_id: Set(item_req.material_id),
                 quantity: Set(item_req.quantity),
@@ -121,31 +165,35 @@ impl PurchaseReceiptService {
                 ..Default::default()
             });
         }
+        (
+            item_active_models,
+            total_quantity,
+            total_quantity_alt,
+            total_amount,
+        )
+    }
 
-        if !item_active_models.is_empty() {
-            purchase_receipt_item::Entity::insert_many(item_active_models)
-                .exec(&txn)
-                .await?;
-        }
-
-        // 4. 更新入库单总金额和数量
+    /// 更新入库单总金额和数量（含审计日志），返回更新后的入库单
+    async fn update_receipt_totals(
+        txn: &sea_orm::DatabaseTransaction,
+        receipt: purchase_receipt::Model,
+        total_quantity: Decimal,
+        total_quantity_alt: Decimal,
+        total_amount: Decimal,
+        user_id: i32,
+    ) -> Result<purchase_receipt::Model, AppError> {
         let mut receipt_active: purchase_receipt::ActiveModel = receipt.into();
         receipt_active.total_quantity = Set(total_quantity);
         receipt_active.total_quantity_alt = Set(total_quantity_alt);
         receipt_active.total_amount = Set(total_amount);
-        let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+        // P1 1-1 修复：原 Some(0) 占位符改为真实操作人 user_id
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
             "auto_audit",
             receipt_active,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
             Some(user_id),
         )
-        .await?;
-
-        // 5. 提交事务
-        txn.commit().await?;
-
-        Ok(receipt)
+        .await
     }
 
     /// 更新采购入库单（仅草稿状态）
