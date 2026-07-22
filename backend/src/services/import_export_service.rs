@@ -91,115 +91,130 @@ impl ImportExportService {
     /// 获取导入模板
     pub fn get_import_template(import_type: &str) -> Result<ImportTemplate, AppError> {
         match import_type {
-            "products" => Ok(ImportTemplate {
-                import_type: "products".to_string(),
-                name: "产品导入模板".to_string(),
-                description: "用于批量导入产品信息".to_string(),
-                columns: vec![
-                    ImportColumnDef {
-                        field: "code".to_string(),
-                        title: "产品编码".to_string(),
-                        data_type: "string".to_string(),
-                        required: true,
-                        example: Some("P001".to_string()),
-                    },
-                    ImportColumnDef {
-                        field: "name".to_string(),
-                        title: "产品名称".to_string(),
-                        data_type: "string".to_string(),
-                        required: true,
-                        example: Some("棉布A".to_string()),
-                    },
-                    ImportColumnDef {
-                        field: "category".to_string(),
-                        title: "产品类别".to_string(),
-                        data_type: "string".to_string(),
-                        required: false,
-                        example: Some("面料".to_string()),
-                    },
-                    ImportColumnDef {
-                        field: "unit".to_string(),
-                        title: "单位".to_string(),
-                        data_type: "string".to_string(),
-                        required: true,
-                        example: Some("米".to_string()),
-                    },
-                    ImportColumnDef {
-                        field: "price".to_string(),
-                        title: "单价".to_string(),
-                        data_type: "decimal".to_string(),
-                        required: false,
-                        example: Some("15.50".to_string()),
-                    },
-                ],
-            }),
-            "customers" => Ok(ImportTemplate {
-                import_type: "customers".to_string(),
-                name: "客户导入模板".to_string(),
-                description: "用于批量导入客户信息".to_string(),
-                columns: vec![
-                    ImportColumnDef {
-                        field: "code".to_string(),
-                        title: "客户编码".to_string(),
-                        data_type: "string".to_string(),
-                        required: true,
-                        example: Some("C001".to_string()),
-                    },
-                    ImportColumnDef {
-                        field: "name".to_string(),
-                        title: "客户名称".to_string(),
-                        data_type: "string".to_string(),
-                        required: true,
-                        example: Some("ABC公司".to_string()),
-                    },
-                    ImportColumnDef {
-                        field: "contact".to_string(),
-                        title: "联系人".to_string(),
-                        data_type: "string".to_string(),
-                        required: false,
-                        example: Some("张三".to_string()),
-                    },
-                    ImportColumnDef {
-                        field: "phone".to_string(),
-                        title: "电话".to_string(),
-                        data_type: "string".to_string(),
-                        required: false,
-                        example: Some("13800138000".to_string()),
-                    },
-                ],
-            }),
-            "inventory" => Ok(ImportTemplate {
-                import_type: "inventory".to_string(),
-                name: "库存导入模板".to_string(),
-                description: "用于批量导入库存信息".to_string(),
-                columns: vec![
-                    ImportColumnDef {
-                        field: "product_code".to_string(),
-                        title: "产品编码".to_string(),
-                        data_type: "string".to_string(),
-                        required: true,
-                        example: Some("P001".to_string()),
-                    },
-                    ImportColumnDef {
-                        field: "warehouse_code".to_string(),
-                        title: "仓库编码".to_string(),
-                        data_type: "string".to_string(),
-                        required: true,
-                        example: Some("WH01".to_string()),
-                    },
-                    ImportColumnDef {
-                        field: "quantity".to_string(),
-                        title: "数量".to_string(),
-                        data_type: "decimal".to_string(),
-                        required: true,
-                        example: Some("1000".to_string()),
-                    },
-                ],
-            }),
+            "products" => Ok(Self::build_products_template()),
+            "customers" => Ok(Self::build_customers_template()),
+            "inventory" => Ok(Self::build_inventory_template()),
             _ => Err(AppError::validation(format!(
                 "不支持的导入类型: {}",
                 import_type
             ))),
+        }
+    }
+
+    /// 构建产品导入模板
+    fn build_products_template() -> ImportTemplate {
+        ImportTemplate {
+            import_type: "products".to_string(),
+            name: "产品导入模板".to_string(),
+            description: "用于批量导入产品信息".to_string(),
+            columns: vec![
+                ImportColumnDef {
+                    field: "code".to_string(),
+                    title: "产品编码".to_string(),
+                    data_type: "string".to_string(),
+                    required: true,
+                    example: Some("P001".to_string()),
+                },
+                ImportColumnDef {
+                    field: "name".to_string(),
+                    title: "产品名称".to_string(),
+                    data_type: "string".to_string(),
+                    required: true,
+                    example: Some("棉布A".to_string()),
+                },
+                ImportColumnDef {
+                    field: "category".to_string(),
+                    title: "产品类别".to_string(),
+                    data_type: "string".to_string(),
+                    required: false,
+                    example: Some("面料".to_string()),
+                },
+                ImportColumnDef {
+                    field: "unit".to_string(),
+                    title: "单位".to_string(),
+                    data_type: "string".to_string(),
+                    required: true,
+                    example: Some("米".to_string()),
+                },
+                ImportColumnDef {
+                    field: "price".to_string(),
+                    title: "单价".to_string(),
+                    data_type: "decimal".to_string(),
+                    required: false,
+                    example: Some("15.50".to_string()),
+                },
+            ],
+        }
+    }
+
+    /// 构建客户导入模板
+    fn build_customers_template() -> ImportTemplate {
+        ImportTemplate {
+            import_type: "customers".to_string(),
+            name: "客户导入模板".to_string(),
+            description: "用于批量导入客户信息".to_string(),
+            columns: vec![
+                ImportColumnDef {
+                    field: "code".to_string(),
+                    title: "客户编码".to_string(),
+                    data_type: "string".to_string(),
+                    required: true,
+                    example: Some("C001".to_string()),
+                },
+                ImportColumnDef {
+                    field: "name".to_string(),
+                    title: "客户名称".to_string(),
+                    data_type: "string".to_string(),
+                    required: true,
+                    example: Some("ABC公司".to_string()),
+                },
+                ImportColumnDef {
+                    field: "contact".to_string(),
+                    title: "联系人".to_string(),
+                    data_type: "string".to_string(),
+                    required: false,
+                    example: Some("张三".to_string()),
+                },
+                ImportColumnDef {
+                    field: "phone".to_string(),
+                    title: "电话".to_string(),
+                    data_type: "string".to_string(),
+                    required: false,
+                    example: Some("13800138000".to_string()),
+                },
+            ],
+        }
+    }
+
+    /// 构建库存导入模板
+    fn build_inventory_template() -> ImportTemplate {
+        ImportTemplate {
+            import_type: "inventory".to_string(),
+            name: "库存导入模板".to_string(),
+            description: "用于批量导入库存信息".to_string(),
+            columns: vec![
+                ImportColumnDef {
+                    field: "product_code".to_string(),
+                    title: "产品编码".to_string(),
+                    data_type: "string".to_string(),
+                    required: true,
+                    example: Some("P001".to_string()),
+                },
+                ImportColumnDef {
+                    field: "warehouse_code".to_string(),
+                    title: "仓库编码".to_string(),
+                    data_type: "string".to_string(),
+                    required: true,
+                    example: Some("WH01".to_string()),
+                },
+                ImportColumnDef {
+                    field: "quantity".to_string(),
+                    title: "数量".to_string(),
+                    data_type: "decimal".to_string(),
+                    required: true,
+                    example: Some("1000".to_string()),
+                },
+            ],
         }
     }
 
