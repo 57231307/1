@@ -718,10 +718,10 @@ impl SystemUpdateService {
     }
 
     /// 在发布信息中查找匹配的资源（按名称匹配或按扩展名自动选择 .zip/.tar.gz）
-    fn find_release_asset(
-        release: &GitHubRelease,
+    fn find_release_asset<'a>(
+        release: &'a GitHubRelease,
         asset_name: Option<&str>,
-    ) -> Result<&GitHubAsset, UpdateError> {
+    ) -> Result<&'a GitHubAsset, UpdateError> {
         if let Some(name) = asset_name {
             release
                 .assets

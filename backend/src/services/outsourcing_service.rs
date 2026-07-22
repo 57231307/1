@@ -1284,7 +1284,7 @@ impl OutsourcingReceiptService {
     /// 构造委外收回入库单 ActiveModel（draft 状态）
     fn build_receipt_active_model(
         req: &CreateOutsourcingReceiptRequest,
-        now: chrono::DateTime<chrono::Utc>,
+        now: chrono::DateTime<chrono::FixedOffset>,
     ) -> ReceiptActiveModel {
         ReceiptActiveModel {
             id: Default::default(),
