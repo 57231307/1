@@ -32,14 +32,41 @@ impl PurchaseOrderService {
     ) -> Result<purchase_order::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询订单（加 lock_exclusive 串行化并发提交）
+        // 事务内：加锁查询 + 状态/权限/明细校验
+        let order = self
+            .lock_and_validate_order_for_submit_txn(order_id, user_id, &txn)
+            .await?;
+
+        // 事务内：更新状态为 PENDING_APPROVAL（走 update_with_audit 保留审计追溯）
+        let updated_order = self
+            .build_and_update_order_status_txn(order, user_id, &txn)
+            .await?;
+
+        txn.commit().await?;
+
+        // 事务外：启动 BPM 审批流程，失败仅 warn 不阻断已提交状态
+        self.start_purchase_order_bpm(order_id, &updated_order.order_no, user_id)
+            .await;
+
+        Ok(updated_order)
+    }
+
+    /// 事务内加锁查询订单并校验状态/权限/明细
+    /// 串行化并发提交，避免基于过期快照的状态覆盖
+    async fn lock_and_validate_order_for_submit_txn(
+        &self,
+        order_id: i32,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<purchase_order::Model, AppError> {
+        // 加 lock_exclusive 串行化并发提交
         let order = purchase_order::Entity::find_by_id(order_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
-        // 2. 检查状态
+        // 检查状态：仅 DRAFT 或 REJECTED 可提交
         if order.order_status != status::purchase_order::DRAFT
             && order.order_status != status::purchase_order::REJECTED
         {
@@ -49,46 +76,59 @@ impl PurchaseOrderService {
             )));
         }
 
-        // 3. 检查权限
+        // 检查权限：只能提交自己创建的订单
         if order.created_by != user_id {
             return Err(AppError::permission_denied(
                 "只能提交自己创建的订单".to_string(),
             ));
         }
 
-        // 4. 检查是否有明细（事务内查询以保证快照一致）
+        // 检查是否有明细（事务内查询以保证快照一致）
         let item_count = purchase_order_item::Entity::find()
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
-            .count(&txn)
+            .count(txn)
             .await?;
 
         if item_count == 0 {
             return Err(AppError::business("订单至少需要一行明细"));
         }
 
-        // 5. 更新状态为 PENDING_APPROVAL（走 update_with_audit 保留审计追溯，使用真实 user_id）
+        Ok(order)
+    }
+
+    /// 事务内构建 ActiveModel 并通过 update_with_audit 更新状态
+    /// 使用真实 user_id 写入审计日志，避免原 Some(0) 的用户缺失问题
+    async fn build_and_update_order_status_txn(
+        &self,
+        order: purchase_order::Model,
+        user_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<purchase_order::Model, AppError> {
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.order_status = Set(status::purchase_order::PENDING_APPROVAL.to_string());
         order_active.updated_at = Set(Utc::now());
         order_active.updated_by = Set(Some(user_id));
 
         let updated_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             order_active,
             Some(user_id),
         )
         .await?;
 
-        txn.commit().await?;
+        Ok(updated_order)
+    }
 
-        // 6. 挂载 BPM 引擎（事务外，失败不阻断已提交状态）
+    /// 事务外启动 BPM 采购订单审批流程
+    /// 失败仅 warn 不阻断已提交状态（兼容旧数据，确保运维可观测）
+    async fn start_purchase_order_bpm(&self, order_id: i32, order_no: &str, user_id: i32) {
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
             process_key: "purchase_order_approval".to_string(),
             business_type: "purchase_order".to_string(),
             business_id: order_id,
-            title: format!("采购订单审批 - {}", updated_order.order_no),
+            title: format!("采购订单审批 - {}", order_no),
             initiator_id: user_id,
             initiator_name: String::new(),
             initiator_department_id: None,
@@ -96,8 +136,7 @@ impl PurchaseOrderService {
             form_data: None,
             variables: None,
         };
-        // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉 BPM 启动错误，
-        // 改为 warn 日志记录，保留兼容性（不阻断主流程），确保运维可观测。
+
         if let Err(e) = bpm_service.start_process(req).await {
             tracing::warn!(
                 error = %e,
@@ -105,8 +144,6 @@ impl PurchaseOrderService {
                 "BPM 启动采购订单审批流程失败（兼容旧数据，不阻断主流程）"
             );
         }
-
-        Ok(updated_order)
     }
 
     /// 审批采购订单

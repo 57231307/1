@@ -66,22 +66,43 @@ impl ApPaymentRequestService {
     ) -> Result<ap_payment_request::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 生成付款申请单号
+        // 生成付款申请单号
         let request_no = self.generate_request_no().await?;
 
-        // 2. 验证应付单是否存在且有效
-        // 批次 31 v7 P1-1 修复：原循环内逐条 find_by_id（N 次查询），
-        // 改为批量查询所有 invoice_id（1 次查询），消除 N+1 问题。
-        let invoice_ids: Vec<i32> = req.items.iter().map(|i| i.invoice_id).collect();
+        // 校验明细关联的应付单
+        self.validate_invoice_items_txn(&req.items, &txn).await?;
+
+        // 构建并插入付款申请主表
+        let request = Self::build_payment_request_active_model(&req, request_no, user_id)
+            .insert(&txn)
+            .await?;
+
+        // 创建付款申请明细
+        self.create_payment_request_items_txn(req.items, request.id, &txn)
+            .await?;
+
+        txn.commit().await?;
+
+        Ok(request)
+    }
+
+    // 校验付款申请明细：批量查询应付单并校验状态与金额
+    async fn validate_invoice_items_txn(
+        &self,
+        items: &[ApPaymentRequestItemDto],
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        // 批量查询应付单，消除 N+1
+        let invoice_ids: Vec<i32> = items.iter().map(|i| i.invoice_id).collect();
         let invoices = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::Id.is_in(invoice_ids))
-            .all(&txn)
+            .all(txn)
             .await?;
-        // 构建 invoice_id -> Model 的映射，便于循环内 O(1) 查找
+        // 构建 invoice_id -> Model 的映射
         let invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
             invoices.into_iter().map(|inv| (inv.id, inv)).collect();
 
-        for item in &req.items {
+        for item in items {
             let invoice = invoice_map
                 .get(&item.invoice_id)
                 .ok_or_else(|| AppError::not_found(format!("应付单 ID: {}", item.invoice_id)))?;
@@ -106,45 +127,56 @@ impl ApPaymentRequestService {
             }
         }
 
-        // 3. 创建付款申请主表
-        let request = ap_payment_request::ActiveModel {
+        Ok(())
+    }
+
+    // 构建付款申请主表 ActiveModel
+    fn build_payment_request_active_model(
+        req: &CreateApPaymentRequest,
+        request_no: String,
+        user_id: i32,
+    ) -> ap_payment_request::ActiveModel {
+        ap_payment_request::ActiveModel {
             request_no: Set(request_no),
             request_date: Set(req.request_date),
             supplier_id: Set(req.supplier_id),
-            payment_type: Set(req.payment_type),
-            payment_method: Set(req.payment_method),
+            payment_type: Set(req.payment_type.clone()),
+            payment_method: Set(req.payment_method.clone()),
             request_amount: Set(req.request_amount),
             approval_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            currency: Set(req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
+            currency: Set(req.currency.clone().unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
             expected_payment_date: Set(req.expected_payment_date),
-            bank_name: Set(req.bank_name),
-            bank_account: Set(req.bank_account),
-            bank_account_name: Set(req.bank_account_name),
-            notes: Set(req.notes),
-            attachment_urls: Set(req.attachment_urls),
+            bank_name: Set(req.bank_name.clone()),
+            bank_account: Set(req.bank_account.clone()),
+            bank_account_name: Set(req.bank_account_name.clone()),
+            notes: Set(req.notes.clone()),
+            attachment_urls: Set(req.attachment_urls.clone()),
             created_by: Set(user_id),
             ..Default::default()
         }
-        .insert(&txn)
-        .await?;
+    }
 
-        // 4. 创建付款申请明细
-        for item_req in req.items {
+    // 批量创建付款申请明细
+    async fn create_payment_request_items_txn(
+        &self,
+        items: Vec<ApPaymentRequestItemDto>,
+        request_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        for item_req in items {
             let _item = ap_payment_request_item::ActiveModel {
-                request_id: Set(request.id),
+                request_id: Set(request_id),
                 invoice_id: Set(item_req.invoice_id),
                 apply_amount: Set(item_req.apply_amount),
                 notes: Set(item_req.notes),
                 ..Default::default()
             }
-            .insert(&txn)
+            .insert(txn)
             .await?;
         }
 
-        txn.commit().await?;
-
-        Ok(request)
+        Ok(())
     }
 
     /// 更新付款申请（仅草稿状态）

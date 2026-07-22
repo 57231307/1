@@ -282,6 +282,63 @@ impl FixedAssetService {
         Ok(())
     }
 
+    /// 判断是否跳过折旧：返回 Some(原因) 时跳过
+    fn should_skip_depreciation(
+        asset: &fixed_asset::Model,
+        monthly_depreciation: Decimal,
+    ) -> Option<&'static str> {
+        // 月折旧额为 0（使用寿命为 0 或已封顶）
+        if monthly_depreciation <= Decimal::ZERO {
+            return Some("月折旧额为 0，跳过本次计提");
+        }
+        // 已足额折旧（累计 >= 可折旧上限）
+        let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
+        let depreciable_cap = asset.original_value - residual_value;
+        if asset.accumulated_depreciation >= depreciable_cap {
+            return Some("已足额折旧，跳过本次计提");
+        }
+        None
+    }
+
+    /// 更新资产累计折旧和净值
+    async fn apply_depreciation_update(
+        txn: &sea_orm::DatabaseTransaction,
+        asset: fixed_asset::Model,
+        new_accumulated: Decimal,
+        new_net_value: Decimal,
+    ) -> Result<(), AppError> {
+        let mut asset_active: crate::models::fixed_asset::ActiveModel = asset.into();
+        asset_active.accumulated_depreciation = Set(new_accumulated);
+        asset_active.net_value = Set(Some(new_net_value));
+        asset_active.save(txn).await?;
+        Ok(())
+    }
+
+    /// 构建折旧记录参数
+    fn build_depreciation_record_params(
+        asset_id: i32,
+        period: &str,
+        actual_depreciation: Decimal,
+        accumulated_depreciation: Decimal,
+        new_accumulated: Decimal,
+        net_value_before: Decimal,
+        new_net_value: Decimal,
+        depreciation_method: String,
+        user_id: i32,
+    ) -> DepreciationRecordParams {
+        DepreciationRecordParams {
+            asset_id,
+            period: period.to_string(),
+            actual_depreciation,
+            accumulated_depreciation,
+            new_accumulated,
+            net_value_before,
+            new_net_value,
+            depreciation_method,
+            user_id,
+        }
+    }
+
     /// 计提折旧
     ///
     /// 批次 85 v2 复审 P1-4 修复：状态门移入 txn + lock_exclusive 串行化
@@ -293,63 +350,34 @@ impl FixedAssetService {
         period: &str,
         user_id: i32,
     ) -> Result<(), AppError> {
-        info!(
-            "用户 {} 正在计提资产 {} 的 {} 折旧",
-            user_id, asset_id, period
-        );
+        info!("用户 {} 正在计提资产 {} 的 {} 折旧", user_id, asset_id, period);
 
         // 开启事务，状态门 + update 在同一事务内
         let txn = (*self.db).begin().await?;
-
-        // 加 lock_exclusive 串行化并发状态变更
         let asset = Self::validate_asset_for_depreciation(&txn, asset_id).await?;
-
-        // 计算月折旧额（批次 92 P3-10 修复：复用事务内已 lock_exclusive 读出的 asset，
-        // 调用纯计算函数 calc_monthly_depreciation_for，消除事务外重复 self.get_by_id 读取）
         let monthly_depreciation = Self::calc_monthly_depreciation_for(&asset)?;
 
-        // 批次 92 P3-14 修复：零值改为正常返回
-        if monthly_depreciation <= Decimal::ZERO {
-            info!(
-                "资产 {} 月折旧额为 0（已足额折旧或使用寿命为 0），跳过本次计提",
-                asset_id
-            );
+        // 零值或已足额折旧则跳过（rollback + Ok 返回）
+        if let Some(reason) = Self::should_skip_depreciation(&asset, monthly_depreciation) {
+            info!("资产 {} {}", asset_id, reason);
             txn.rollback().await?;
             return Ok(());
         }
 
-        // 批次 92 P3-14 修复：已足额折旧短路
+        // 保留记录所需字段（asset 即将被 apply_depreciation_update 消费）
         let accumulated_depreciation = asset.accumulated_depreciation;
-        let original_value = asset.original_value;
-        let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
-        let depreciable_cap = original_value - residual_value;
-        if accumulated_depreciation >= depreciable_cap {
-            info!(
-                "资产 {} 已足额折旧（累计={} 可折旧上限={}），跳过本次计提",
-                asset_id, accumulated_depreciation, depreciable_cap
-            );
-            txn.rollback().await?;
-            return Ok(());
-        }
-
-        // 保留需要使用的字段值
         let net_value_before = asset.net_value.unwrap_or(Decimal::ZERO);
         let depreciation_method = asset.depreciation_method.clone().unwrap_or_default();
-
-        // 计算折旧值（封顶到可折旧上限）
         let (actual_depreciation, new_accumulated, new_net_value, _) =
             Self::compute_depreciation_values(&asset, monthly_depreciation);
 
-        // 更新资产累计折旧
-        let mut asset_active: crate::models::fixed_asset::ActiveModel = asset.into();
-        asset_active.accumulated_depreciation = Set(new_accumulated);
-        asset_active.net_value = Set(Some(new_net_value));
-        asset_active.save(&txn).await?;
+        // 更新资产累计折旧和净值
+        Self::apply_depreciation_update(&txn, asset, new_accumulated, new_net_value).await?;
 
-        // 插入折旧记录（失败时显式回滚，因为 asset_active.save 已写入 txn）
-        let record_params = DepreciationRecordParams {
+        // 构建并插入折旧记录（失败时显式回滚）
+        let record_params = Self::build_depreciation_record_params(
             asset_id,
-            period: period.to_string(),
+            period,
             actual_depreciation,
             accumulated_depreciation,
             new_accumulated,
@@ -357,7 +385,7 @@ impl FixedAssetService {
             new_net_value,
             depreciation_method,
             user_id,
-        };
+        );
         if let Err(e) = Self::insert_depreciation_record(&txn, &record_params).await {
             if let Err(rb_err) = txn.rollback().await {
                 tracing::error!(error = %rb_err, "事务回滚失败，可能存在连接异常");
@@ -367,7 +395,6 @@ impl FixedAssetService {
 
         // 提交事务
         txn.commit().await?;
-
         info!(
             "资产 {} 折旧计提成功，实际计提额：{}（月折旧额：{}，累计：{} -> {}）",
             asset_id, actual_depreciation, monthly_depreciation, accumulated_depreciation, new_accumulated

@@ -91,17 +91,9 @@ impl InventoryCountService {
         .await?;
 
         // 查询仓库下的库存快照（按 stock_ids 过滤或全量）
-        let stock_query = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::WarehouseId.eq(req.warehouse_id));
-        let stocks: Vec<inventory_stock::Model> = match req.stock_ids.as_ref() {
-            Some(ids) if !ids.is_empty() => {
-                stock_query
-                    .filter(inventory_stock::Column::Id.is_in(ids.clone()))
-                    .all(&txn)
-                    .await?
-            }
-            _ => stock_query.all(&txn).await?,
-        };
+        let stocks = self
+            .fetch_stocks_for_count_txn(req.warehouse_id, req.stock_ids.as_ref(), &txn)
+            .await?;
 
         if stocks.is_empty() {
             return Err(AppError::business(format!(
@@ -113,31 +105,80 @@ impl InventoryCountService {
         let total_items = stocks.len() as i32;
 
         // 创建盘点单主表
-        let count_active = inventory_count::ActiveModel {
+        let count_active = Self::build_count_active_model(&req, count_no, total_items);
+        let count_model = count_active.insert(&txn).await?;
+
+        // 批量创建盘点明细
+        let item_models = self
+            .create_count_items_txn(stocks, count_model.id, &txn)
+            .await?;
+
+        txn.commit().await?;
+
+        Ok(CountDetail {
+            count: count_model,
+            items: item_models,
+        })
+    }
+
+    /// 查询仓库下的库存快照（可按 stock_ids 过滤）
+    async fn fetch_stocks_for_count_txn(
+        &self,
+        warehouse_id: i32,
+        stock_ids: Option<&Vec<i32>>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<Vec<inventory_stock::Model>, AppError> {
+        let stock_query = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id));
+        let stocks: Vec<inventory_stock::Model> = match stock_ids {
+            Some(ids) if !ids.is_empty() => {
+                stock_query
+                    .filter(inventory_stock::Column::Id.is_in(ids.clone()))
+                    .all(txn)
+                    .await?
+            }
+            _ => stock_query.all(txn).await?,
+        };
+        Ok(stocks)
+    }
+
+    /// 构建盘点单主表 ActiveModel
+    fn build_count_active_model(
+        req: &CreateCountRequest,
+        count_no: String,
+        total_items: i32,
+    ) -> inventory_count::ActiveModel {
+        inventory_count::ActiveModel {
             id: Default::default(),
-            count_no: Set(count_no.clone()),
+            count_no: Set(count_no),
             warehouse_id: Set(req.warehouse_id),
-            count_date: Set(req.count_date),
+            count_date: Set(req.count_date.clone()),
             status: Set(count_status::PENDING.to_string()),
             total_items: Set(total_items),
             counted_items: Set(0),
             variance_items: Set(0),
-            notes: Set(req.notes),
+            notes: Set(req.notes.clone()),
             created_by: Set(req.created_by),
             approved_by: Set(None),
             approved_at: Set(None),
             completed_at: Set(None),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-        };
-        let count_model = count_active.insert(&txn).await?;
+        }
+    }
 
-        // 批量创建盘点明细（quantity_actual 初始化为 0，待实际盘点时录入）
+    /// 批量创建盘点明细（实盘数量初始化为 0）
+    async fn create_count_items_txn(
+        &self,
+        stocks: Vec<inventory_stock::Model>,
+        count_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<Vec<inventory_count_item::Model>, AppError> {
         let mut item_models = Vec::with_capacity(stocks.len());
         for stock in stocks {
             let item = inventory_count_item::ActiveModel {
                 id: Default::default(),
-                count_id: Set(count_model.id),
+                count_id: Set(count_id),
                 stock_id: Set(stock.id),
                 product_id: Set(stock.product_id),
                 warehouse_id: Set(stock.warehouse_id),
@@ -149,20 +190,14 @@ impl InventoryCountService {
                 notes: Set(None),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
-                // v14 批次 417：面料行业追溯字段（T-P0-4），使用 NotSet 让 DB 默认值处理
+                // 面料追溯字段使用 NotSet，由 DB 默认值处理
                 color_no: sea_orm::ActiveValue::NotSet,
                 dye_lot_no: sea_orm::ActiveValue::NotSet,
                 batch_no: sea_orm::ActiveValue::NotSet,
             };
-            item_models.push(item.insert(&txn).await?);
+            item_models.push(item.insert(txn).await?);
         }
-
-        txn.commit().await?;
-
-        Ok(CountDetail {
-            count: count_model,
-            items: item_models,
-        })
+        Ok(item_models)
     }
 
     /// 查询盘点单列表（分页）

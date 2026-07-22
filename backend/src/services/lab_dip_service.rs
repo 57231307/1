@@ -537,11 +537,36 @@ impl LabDipSampleService {
     /// 创建打样小样
     pub async fn create(&self, req: CreateLabDipSampleRequest) -> Result<SampleModel, AppError> {
         // 校验通知单存在且处于 sampling 状态
-        let request = RequestEntity::find_by_id(req.request_id)
+        let request = self.validate_and_get_request(req.request_id).await?;
+
+        // 计算版本序号并校验标识唯一
+        let (version_seq, version_label) = self
+            .compute_version_seq_and_label(
+                req.request_id,
+                request.sample_versions,
+                req.version_label.clone(),
+            )
+            .await?;
+
+        // 构建小样 ActiveModel 并入库
+        let active = Self::build_sample_active_model(&req, version_label, version_seq);
+        let result = active
+            .insert(&*self.db)
+            .await
+            .map_err(|e| AppError::database(format!("打样小样创建失败: {}", e)))?;
+        Ok(result)
+    }
+
+    /// 校验通知单存在且处于 sampling 状态
+    async fn validate_and_get_request(
+        &self,
+        request_id: i32,
+    ) -> Result<RequestModel, AppError> {
+        let request = RequestEntity::find_by_id(request_id)
             .filter(lab_dip_request::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("打样通知单 {} 不存在", req.request_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("打样通知单 {} 不存在", request_id)))?;
 
         if request.status != req_status::SAMPLING {
             return Err(AppError::business(format!(
@@ -549,10 +574,19 @@ impl LabDipSampleService {
                 request.status
             )));
         }
+        Ok(request)
+    }
 
-        // 计算版本序号和标识
+    /// 计算版本序号，校验版数上限与标识唯一性
+    async fn compute_version_seq_and_label(
+        &self,
+        request_id: i32,
+        request_sample_versions: i32,
+        custom_label: Option<String>,
+    ) -> Result<(i32, String), AppError> {
+        // 统计已有小样数量
         let existing_count = SampleEntity::find()
-            .filter(lab_dip_sample::Column::RequestId.eq(req.request_id))
+            .filter(lab_dip_sample::Column::RequestId.eq(request_id))
             .filter(lab_dip_sample::Column::IsDeleted.eq(false))
             .count(&*self.db)
             .await? as i32;
@@ -560,20 +594,18 @@ impl LabDipSampleService {
         let version_seq = existing_count + 1;
 
         // 业务校验：小样数量不能超过通知单规定的打样版数
-        if version_seq > request.sample_versions {
+        if version_seq > request_sample_versions {
             return Err(AppError::business(format!(
                 "小样数量已达上限 {}（通知单规定打样版数）",
-                request.sample_versions
+                request_sample_versions
             )));
         }
 
-        let version_label = req
-            .version_label
-            .unwrap_or_else(|| Self::label_from_seq(version_seq));
+        let version_label = custom_label.unwrap_or_else(|| Self::label_from_seq(version_seq));
 
         // 业务校验：版本标识唯一（同一通知单下）
         let exists = SampleEntity::find()
-            .filter(lab_dip_sample::Column::RequestId.eq(req.request_id))
+            .filter(lab_dip_sample::Column::RequestId.eq(request_id))
             .filter(lab_dip_sample::Column::VersionLabel.eq(&version_label))
             .filter(lab_dip_sample::Column::IsDeleted.eq(false))
             .count(&*self.db)
@@ -584,23 +616,30 @@ impl LabDipSampleService {
                 version_label
             )));
         }
+        Ok((version_seq, version_label))
+    }
 
+    /// 构建小样 ActiveModel（含全部字段）
+    fn build_sample_active_model(
+        req: &CreateLabDipSampleRequest,
+        version_label: String,
+        version_seq: i32,
+    ) -> SampleActiveModel {
         let now = crate::utils::date_utils::utc_now_fixed();
-
-        let active = SampleActiveModel {
+        SampleActiveModel {
             id: Default::default(),
             request_id: Set(req.request_id),
             version_label: Set(version_label),
             version_seq: Set(version_seq),
-            recipe_no: Set(req.recipe_no),
+            recipe_no: Set(req.recipe_no.clone()),
             dye_recipe_id: Set(req.dye_recipe_id),
-            formula: Set(req.formula),
-            formula_detail: Set(req.formula_detail),
+            formula: Set(req.formula.clone()),
+            formula_detail: Set(req.formula_detail.clone()),
             temperature: Set(req.temperature),
             time_minutes: Set(req.time_minutes),
-            liquor_ratio: Set(req.liquor_ratio),
+            liquor_ratio: Set(req.liquor_ratio.clone()),
             ph_value: Set(req.ph_value),
-            dyeing_method: Set(req.dyeing_method),
+            dyeing_method: Set(req.dyeing_method.clone()),
             dye_cost: Set(req.dye_cost),
             auxiliary_cost: Set(req.auxiliary_cost),
             total_cost: Set(req.total_cost),
@@ -612,18 +651,12 @@ impl LabDipSampleService {
             approval_comment: Set(None),
             resample_status: Set(Some("none".to_string())),
             resample_recipe_id: Set(None),
-            remarks: Set(req.remarks),
+            remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
             created_by: Set(req.created_by),
             created_at: Set(now),
             updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("打样小样创建失败: {}", e)))?;
-        Ok(result)
+        }
     }
 
     /// 更新打样小样（仅 pending 对色状态可更新）

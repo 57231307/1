@@ -174,62 +174,11 @@ impl SupplierService {
             );
         }
 
-        // 筛选
-        if let Some(supplier_type) = params.supplier_type {
-            query = query.filter(supplier::Column::SupplierType.eq(supplier_type));
-        }
-        if let Some(grade) = params.grade {
-            query = query.filter(supplier::Column::Grade.eq(grade));
-        }
-        if let Some(status) = params.status {
-            query = query.filter(supplier::Column::Status.eq(status));
-        }
-        if let Some(keyword) = params.keyword {
-            query = query.filter(
-                supplier::Column::SupplierName
-                    .contains(&keyword)
-                    .or(supplier::Column::SupplierCode.contains(&keyword))
-                    .or(supplier::Column::CreditCode.contains(&keyword)),
-            );
-        }
-        if let Some(is_enabled) = params.is_enabled {
-            query = query.filter(supplier::Column::IsEnabled.eq(is_enabled));
-        }
-
-        // 排序
+        // 应用筛选与排序
+        query = Self::apply_supplier_filters(query, &params);
         let sort_by = params.sort_by.unwrap_or_else(|| "created_at".to_string());
         let sort_order = params.sort_order.unwrap_or_else(|| "DESC".to_string());
-
-        query = match sort_by.as_str() {
-            "supplier_code" => {
-                if sort_order == "ASC" {
-                    query.order_by(supplier::Column::SupplierCode, Order::Asc)
-                } else {
-                    query.order_by(supplier::Column::SupplierCode, Order::Desc)
-                }
-            }
-            "supplier_name" => {
-                if sort_order == "ASC" {
-                    query.order_by(supplier::Column::SupplierName, Order::Asc)
-                } else {
-                    query.order_by(supplier::Column::SupplierName, Order::Desc)
-                }
-            }
-            "grade" => {
-                if sort_order == "ASC" {
-                    query.order_by(supplier::Column::Grade, Order::Asc)
-                } else {
-                    query.order_by(supplier::Column::Grade, Order::Desc)
-                }
-            }
-            _ => {
-                if sort_order == "ASC" {
-                    query.order_by(supplier::Column::CreatedAt, Order::Asc)
-                } else {
-                    query.order_by(supplier::Column::CreatedAt, Order::Desc)
-                }
-            }
-        };
+        query = Self::apply_supplier_sorting(query, &sort_by, &sort_order);
 
         // 分页
         let page = params.page.unwrap_or(1);
@@ -241,6 +190,73 @@ impl SupplierService {
         let (data, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok(PaginatedResponse::new(data, total, page, page_size))
+    }
+
+    /// 应用供应商筛选条件（类型/等级/状态/关键字/启用状态）
+    fn apply_supplier_filters(
+        mut query: sea_orm::Select<supplier::Entity>,
+        params: &SupplierQueryParams,
+    ) -> sea_orm::Select<supplier::Entity> {
+        if let Some(v) = &params.supplier_type {
+            query = query.filter(supplier::Column::SupplierType.eq(v.as_str()));
+        }
+        if let Some(v) = &params.grade {
+            query = query.filter(supplier::Column::Grade.eq(v.as_str()));
+        }
+        if let Some(v) = &params.status {
+            query = query.filter(supplier::Column::Status.eq(v.as_str()));
+        }
+        if let Some(v) = &params.keyword {
+            query = query.filter(
+                supplier::Column::SupplierName
+                    .contains(v.as_str())
+                    .or(supplier::Column::SupplierCode.contains(v.as_str()))
+                    .or(supplier::Column::CreditCode.contains(v.as_str())),
+            );
+        }
+        if let Some(is_enabled) = params.is_enabled {
+            query = query.filter(supplier::Column::IsEnabled.eq(is_enabled));
+        }
+        query
+    }
+
+    /// 应用供应商排序（按 sort_by 字段与 sort_order 方向）
+    fn apply_supplier_sorting(
+        query: sea_orm::Select<supplier::Entity>,
+        sort_by: &str,
+        sort_order: &str,
+    ) -> sea_orm::Select<supplier::Entity> {
+        let is_asc = sort_order == "ASC";
+        match sort_by {
+            "supplier_code" => {
+                if is_asc {
+                    query.order_by(supplier::Column::SupplierCode, Order::Asc)
+                } else {
+                    query.order_by(supplier::Column::SupplierCode, Order::Desc)
+                }
+            }
+            "supplier_name" => {
+                if is_asc {
+                    query.order_by(supplier::Column::SupplierName, Order::Asc)
+                } else {
+                    query.order_by(supplier::Column::SupplierName, Order::Desc)
+                }
+            }
+            "grade" => {
+                if is_asc {
+                    query.order_by(supplier::Column::Grade, Order::Asc)
+                } else {
+                    query.order_by(supplier::Column::Grade, Order::Desc)
+                }
+            }
+            _ => {
+                if is_asc {
+                    query.order_by(supplier::Column::CreatedAt, Order::Asc)
+                } else {
+                    query.order_by(supplier::Column::CreatedAt, Order::Desc)
+                }
+            }
+        }
     }
 
     /// 获取供应商详情
