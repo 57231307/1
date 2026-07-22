@@ -689,29 +689,28 @@ impl ProductionOrderService {
         Ok(updated)
     }
 
-    /// 完成生产订单（事务包裹状态变更 + 库存联动）
-    ///
-    /// 批次 9（2026-06-28）：原 `update_status` 在 COMPLETED 时先提交状态变更，
-    /// 然后调用库存联动；如果库存联动失败，状态已变更但库存未扣减导致账实不符。
-    /// 改为：在事务内更新状态 + 调用库存联动，任一失败回滚全部。
-    /// 同时给订单查询加 FOR UPDATE 行锁，防止并发完成同一订单。
-    async fn complete_production_order(
-        &self,
+    /// FOR UPDATE 行锁查询订单并校验状态转换合法性
+    async fn lock_and_validate_order_for_completion_txn(
+        txn: &sea_orm::DatabaseTransaction,
         id: i32,
-        actual_quantity: Option<Decimal>,
     ) -> Result<ProductionOrderModel, AppError> {
-        let txn = self.db.begin().await?;
-
-        // 加 FOR UPDATE 行锁，防止并发完成同一订单
         let model = ProductionOrderEntity::find_by_id(id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+        Self::validate_status_transition(
+            &model.status,
+            crate::models::status::common::STATUS_COMPLETED,
+        )?;
+        Ok(model)
+    }
 
-        // 验证状态转换是否合法
-        Self::validate_status_transition(&model.status, crate::models::status::common::STATUS_COMPLETED)?;
-
+    /// 构造完成状态 ActiveModel（状态 + 完工日期 + 实际数量）
+    fn build_completed_active_model(
+        model: ProductionOrderModel,
+        actual_quantity: Option<Decimal>,
+    ) -> ActiveModel {
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set(crate::models::status::common::STATUS_COMPLETED.to_string());
         active_model.actual_end_date = Set(Some(chrono::Utc::now().date_naive()));
@@ -719,31 +718,28 @@ impl ProductionOrderService {
         if let Some(qty) = actual_quantity {
             active_model.actual_quantity = Set(Some(qty));
         }
+        active_model
+    }
 
-        let updated = active_model.update(&txn).await?;
-
-        // 在同一事务内执行库存联动（含原材料扣减 + 成品入库）
-        // P0 5-2 修复：handle_production_completion_inventory_txn 不再在内部 publish 事件，
-        // 改为返回收集到的库存流水事件，由本处在 commit 成功后统一 publish，避免事务回滚时幻事件
-        let pending_events =
-            Self::handle_production_completion_inventory_txn(&txn, &updated).await?;
-
-        txn.commit().await?;
-
-        // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
+    /// commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
+    fn publish_pending_events(pending_events: Vec<BusinessEvent>) {
         for ev in pending_events {
             EVENT_BUS.publish(ev);
         }
+    }
 
-        // 批次 356 v13 复审 B-P0-3 修复：生产订单成本核算链路闭环
-        // 原实现 complete_production_order 不调用 CostCollectionService，
-        // 导致生产成本无法归集，产品成本失真，BI 报表成本数据缺失。
-        // 修复：commit 成功后调用 CostCollectionService 做成本归集。
+    /// 生产订单成本归集（失败仅 warn 不传播，保持原逻辑）
+    ///
+    /// 批次 356 v13 复审 B-P0-3 修复：commit 成功后调用 CostCollectionService 做成本归集，
+    /// 避免生产成本无法归集导致产品成本失真、BI 报表成本数据缺失。
+    async fn record_production_cost(&self, updated: &ProductionOrderModel) {
         let cost_service =
             crate::services::cost_collection_service::CostCollectionService::new(self.db.clone());
         let product = ProductEntity::find_by_id(updated.product_id)
             .one(&*self.db)
-            .await?;
+            .await
+            .ok()
+            .flatten();
         let cost_price = product
             .as_ref()
             .and_then(|p| p.cost_price)
@@ -775,6 +771,36 @@ impl ProductionOrderService {
                 "批次 356 B-P0-3: 生产订单成本归集失败，请人工检查"
             );
         }
+    }
+
+    /// 完成生产订单（事务包裹状态变更 + 库存联动）
+    ///
+    /// 批次 9（2026-06-28）：原 `update_status` 在 COMPLETED 时先提交状态变更，
+    /// 然后调用库存联动；如果库存联动失败，状态已变更但库存未扣减导致账实不符。
+    /// 改为：在事务内更新状态 + 调用库存联动，任一失败回滚全部。
+    /// 同时给订单查询加 FOR UPDATE 行锁，防止并发完成同一订单。
+    async fn complete_production_order(
+        &self,
+        id: i32,
+        actual_quantity: Option<Decimal>,
+    ) -> Result<ProductionOrderModel, AppError> {
+        let txn = self.db.begin().await?;
+
+        let model =
+            Self::lock_and_validate_order_for_completion_txn(&txn, id).await?;
+        let active_model = Self::build_completed_active_model(model, actual_quantity);
+        let updated = active_model.update(&txn).await?;
+
+        // 在同一事务内执行库存联动（含原材料扣减 + 成品入库）
+        // P0 5-2 修复：handle_production_completion_inventory_txn 不再在内部 publish 事件，
+        // 改为返回收集到的库存流水事件，由本处在 commit 成功后统一 publish，避免事务回滚时幻事件
+        let pending_events =
+            Self::handle_production_completion_inventory_txn(&txn, &updated).await?;
+
+        txn.commit().await?;
+
+        Self::publish_pending_events(pending_events);
+        self.record_production_cost(&updated).await;
 
         Ok(updated)
     }

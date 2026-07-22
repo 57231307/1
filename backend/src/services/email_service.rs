@@ -137,6 +137,35 @@ pub struct TencentSignParams<'a> {
     pub secret_key: &'a str,
 }
 
+/// SendGrid 收件人/发件人邮箱
+#[derive(Serialize)]
+struct SendGridEmail {
+    email: String,
+}
+
+/// SendGrid 邮件内容块
+#[derive(Serialize)]
+struct SendGridContent {
+    #[serde(rename = "type")]
+    content_type: String,
+    value: String,
+}
+
+/// SendGrid personalization（收件人列表）
+#[derive(Serialize)]
+struct SendGridPersonalization {
+    to: Vec<SendGridEmail>,
+}
+
+/// SendGrid 发送请求体
+#[derive(Serialize)]
+struct SendGridMessage {
+    personalizations: Vec<SendGridPersonalization>,
+    from: SendGridEmail,
+    subject: String,
+    content: Vec<SendGridContent>,
+}
+
 /// 邮件服务
 pub struct EmailService {
     config: EmailConfig,
@@ -279,31 +308,12 @@ impl EmailService {
 
     /// 通过 SendGrid 发送邮件
     async fn send_via_sendgrid(&self, message: EmailMessage) -> Result<(), AppError> {
-        #[derive(Serialize)]
-        struct SendGridEmail {
-            email: String,
-        }
+        let sendgrid_message = Self::build_sendgrid_message(&self.config.from_email, message);
+        self.execute_sendgrid_request(sendgrid_message).await
+    }
 
-        #[derive(Serialize)]
-        struct SendGridContent {
-            #[serde(rename = "type")]
-            content_type: String,
-            value: String,
-        }
-
-        #[derive(Serialize)]
-        struct SendGridMessage {
-            personalizations: Vec<SendGridPersonalization>,
-            from: SendGridEmail,
-            subject: String,
-            content: Vec<SendGridContent>,
-        }
-
-        #[derive(Serialize)]
-        struct SendGridPersonalization {
-            to: Vec<SendGridEmail>,
-        }
-
+    /// 构造 SendGrid 请求体（personalizations + content + from + subject）
+    fn build_sendgrid_message(from_email: &str, message: EmailMessage) -> SendGridMessage {
         let personalizations = vec![SendGridPersonalization {
             to: message
                 .to
@@ -326,15 +336,21 @@ impl EmailService {
             });
         }
 
-        let sendgrid_message = SendGridMessage {
+        SendGridMessage {
             personalizations,
             from: SendGridEmail {
-                email: self.config.from_email.clone(),
+                email: from_email.to_string(),
             },
             subject: message.subject,
             content,
-        };
+        }
+    }
 
+    /// 执行 SendGrid POST 请求并处理响应
+    async fn execute_sendgrid_request(
+        &self,
+        sendgrid_message: SendGridMessage,
+    ) -> Result<(), AppError> {
         // H-2 修复：使用硬编码的 SendGrid 官方 API URL，
         // 禁止从环境变量或配置中读取自定义 URL，防止 API Key 泄露到攻击者服务器。
         // SENDGRID_API_URL 是 &'static str，IntoUrl 已为 &str 实现，直接传值。

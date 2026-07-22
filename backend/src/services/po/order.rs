@@ -91,6 +91,18 @@ pub struct PurchaseOrderService {
     pub(crate) db: Arc<DatabaseConnection>,
 }
 
+/// 单行明细金额计算结果（create_order_items 内部 helper 数据载体）
+struct ItemAmounts {
+    quantity_ordered: Decimal,
+    unit_price: Decimal,
+    quantity_alt_ordered: Decimal,
+    tax_percent: Decimal,
+    discount_percent: Decimal,
+    amount: Decimal,
+    tax_amount: Decimal,
+    discount_amount: Decimal,
+}
+
 impl PurchaseOrderService {
     /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -256,6 +268,96 @@ impl PurchaseOrderService {
         Ok(order)
     }
 
+    /// 批量校验订单明细引用的产品是否存在
+    async fn validate_products_exist_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[crate::services::po::CreateOrderItemRequest],
+    ) -> Result<(), AppError> {
+        let mut product_ids = std::collections::HashSet::new();
+        for item in items {
+            if let Some(material_id) = item.material_id {
+                if material_id != 0 {
+                    product_ids.insert(material_id);
+                }
+            }
+        }
+        if product_ids.is_empty() {
+            return Ok(());
+        }
+        let existing_products = product::Entity::find()
+            .filter(product::Column::Id.is_in(product_ids.iter().cloned().collect::<Vec<_>>()))
+            .all(txn)
+            .await?;
+        let existing_product_ids: std::collections::HashSet<i32> =
+            existing_products.into_iter().map(|p| p.id).collect();
+        for material_id in &product_ids {
+            if !existing_product_ids.contains(material_id) {
+                tracing::error!("Transaction rolled back: 物料 ID {} 不存在", material_id);
+                return Err(AppError::bad_request(format!("物料 ID {} 不存在", material_id)));
+            }
+        }
+        Ok(())
+    }
+
+    /// 计算单行明细金额（round_dp(2) 精度归一化）
+    fn calculate_item_amounts(item: &crate::services::po::CreateOrderItemRequest) -> ItemAmounts {
+        let quantity_ordered = item.quantity_ordered.unwrap_or(Decimal::ZERO);
+        let unit_price = item.unit_price.unwrap_or(Decimal::ZERO);
+        let amount = (quantity_ordered * unit_price).round_dp(2);
+        let tax_percent = item.tax_rate.unwrap_or(Decimal::new(13, 2));
+        let tax_amount = (amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
+        let discount_percent = item.discount_percent.unwrap_or(Decimal::ZERO);
+        let discount_amount = (amount * discount_percent / Decimal::new(100, 0)).round_dp(2);
+        let quantity_alt_ordered = item.quantity_alt_ordered.unwrap_or(Decimal::ZERO);
+        ItemAmounts {
+            quantity_ordered,
+            unit_price,
+            quantity_alt_ordered,
+            tax_percent,
+            discount_percent,
+            amount,
+            tax_amount,
+            discount_amount,
+        }
+    }
+
+    /// 构造订单明细 ActiveModel（material_id 缺失拒绝创建）
+    fn build_order_item_active_model(
+        item: &crate::services::po::CreateOrderItemRequest,
+        order_id: i32,
+        index: usize,
+        amounts: &ItemAmounts,
+    ) -> Result<purchase_order_item::ActiveModel, AppError> {
+        let material_id = item
+            .material_id
+            .ok_or_else(|| AppError::validation(format!("订单行 {} 缺少物料ID", index + 1)))?;
+        Ok(purchase_order_item::ActiveModel {
+            id: Default::default(),
+            order_id: Set(order_id),
+            line_no: Set(item.line_no.unwrap_or((index + 1) as i32)),
+            product_id: Set(material_id),
+            quantity: Set(amounts.quantity_ordered),
+            quantity_alt: Set(amounts.quantity_alt_ordered),
+            unit_price: Set(amounts.unit_price),
+            unit_price_foreign: Set(amounts.unit_price),
+            discount_percent: Set(amounts.discount_percent),
+            tax_percent: Set(amounts.tax_percent),
+            subtotal: Set(amounts.amount),
+            tax_amount: Set(amounts.tax_amount),
+            discount_amount: Set(amounts.discount_amount),
+            total_amount: Set(amounts.amount + amounts.tax_amount - amounts.discount_amount),
+            received_quantity: Set(Decimal::ZERO),
+            received_quantity_alt: Set(Decimal::ZERO),
+            notes: Set(item.notes.clone()),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            // v14 批次 417：面料行业追溯字段，使用 NotSet 让 DB 默认值处理
+            color_code: sea_orm::ActiveValue::NotSet,
+            lot_no: sea_orm::ActiveValue::NotSet,
+            batch_no: sea_orm::ActiveValue::NotSet,
+        })
+    }
+
     /// 创建采购订单明细
     async fn create_order_items(
         &self,
@@ -268,84 +370,16 @@ impl PurchaseOrderService {
         let mut total_quantity_alt = Decimal::new(0, 0);
 
         let items = req.items.clone().unwrap_or_default();
+        Self::validate_products_exist_txn(txn, &items).await?;
 
-        // 业务验证：产品是否存在（批量查询优化）
-        {
-            let mut product_ids = std::collections::HashSet::new();
-            for item in &items {
-                if let Some(material_id) = item.material_id {
-                    if material_id != 0 {
-                        product_ids.insert(material_id);
-                    }
-                }
-            }
-            if !product_ids.is_empty() {
-                let existing_products = product::Entity::find()
-                    .filter(
-                        product::Column::Id.is_in(product_ids.iter().cloned().collect::<Vec<_>>()),
-                    )
-                    .all(txn)
-                    .await?;
-                let existing_product_ids: std::collections::HashSet<i32> =
-                    existing_products.into_iter().map(|p| p.id).collect();
-                for material_id in &product_ids {
-                    if !existing_product_ids.contains(material_id) {
-                        tracing::error!("Transaction rolled back: 物料 ID {} 不存在", material_id);
-                        // 事务将在 ? 传播 Err 时由 DatabaseTransaction 的 Drop 自动回滚
-                        return Err(AppError::bad_request(format!(
-                            "物料 ID {} 不存在",
-                            material_id
-                        )));
-                    }
-                }
-            }
-        }
-
-        // 创建订单明细
         for (index, item) in items.iter().enumerate() {
-            // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
-            let quantity_ordered = item.quantity_ordered.unwrap_or(Decimal::ZERO);
-            let unit_price = item.unit_price.unwrap_or(Decimal::ZERO);
-            let amount = (quantity_ordered * unit_price).round_dp(2);
-            let tax_percent = item.tax_rate.unwrap_or(Decimal::new(13, 2));
-            let tax_amount = (amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
-            let discount_percent = item.discount_percent.unwrap_or(Decimal::ZERO);
-            let discount_amount = (amount * discount_percent / Decimal::new(100, 0)).round_dp(2);
-            let quantity_alt_ordered = item.quantity_alt_ordered.unwrap_or(Decimal::ZERO);
-
-            let order_item = purchase_order_item::ActiveModel {
-                id: Default::default(),
-                order_id: Set(order_id),
-                line_no: Set(item.line_no.unwrap_or((index + 1) as i32)),
-                // material_id 缺失时拒绝创建订单行项，避免脏 product_id=0 记录
-                product_id: Set(item.material_id.ok_or_else(|| {
-                    AppError::validation(format!("订单行 {} 缺少物料ID", index + 1))
-                })?),
-                quantity: Set(quantity_ordered),
-                quantity_alt: Set(quantity_alt_ordered),
-                unit_price: Set(unit_price),
-                unit_price_foreign: Set(unit_price),
-                discount_percent: Set(discount_percent),
-                tax_percent: Set(tax_percent),
-                subtotal: Set(amount),
-                tax_amount: Set(tax_amount),
-                discount_amount: Set(discount_amount),
-                total_amount: Set(amount + tax_amount - discount_amount),
-                received_quantity: Set(Decimal::ZERO),
-                received_quantity_alt: Set(Decimal::ZERO),
-                notes: Set(item.notes.clone()),
-                created_at: Set(Utc::now()),
-                updated_at: Set(Utc::now()),
-                // v14 批次 417：面料行业追溯字段（D-P1-6），使用 NotSet 让 DB 默认值处理
-                color_code: sea_orm::ActiveValue::NotSet,
-                lot_no: sea_orm::ActiveValue::NotSet,
-                batch_no: sea_orm::ActiveValue::NotSet,
-            };
+            let amounts = Self::calculate_item_amounts(item);
+            let order_item = Self::build_order_item_active_model(item, order_id, index, &amounts)?;
             order_item.insert(txn).await?;
 
-            total_amount += amount + tax_amount - discount_amount;
-            total_quantity += quantity_ordered;
-            total_quantity_alt += quantity_alt_ordered;
+            total_amount += amounts.amount + amounts.tax_amount - amounts.discount_amount;
+            total_quantity += amounts.quantity_ordered;
+            total_quantity_alt += amounts.quantity_alt_ordered;
         }
 
         Ok((total_amount, total_quantity, total_quantity_alt))

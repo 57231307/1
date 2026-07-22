@@ -180,12 +180,28 @@ impl ReportEngineService {
     /// 构建 XLSX 文件（ZIP 容器）
     fn build_xlsx(&self, data: &ReportData, template_name: &str) -> Result<Vec<u8>, AppError> {
         let mut zip = ZipWriter::new(std::io::Cursor::new(Vec::new()));
-
         let options = SimpleFileOptions::default()
             .compression_method(CompressionMethod::Deflated)
             .unix_permissions(0o644);
 
-        // 1. [Content_Types].xml
+        Self::write_content_types_xml(&mut zip, options)?;
+        Self::write_rels_xml(&mut zip, options)?;
+        Self::write_workbook_rels_xml(&mut zip, options)?;
+        Self::write_workbook_xml(&mut zip, options, template_name)?;
+        Self::write_styles_xml(&mut zip, options)?;
+        self.write_shared_strings_and_sheet_xml(&mut zip, options, data)?;
+
+        let cursor = zip
+            .finish()
+            .map_err(|e| AppError::internal(format!("ZIP 结束失败: {}", e)))?;
+        Ok(cursor.into_inner())
+    }
+
+    /// 写入 [Content_Types].xml
+    fn write_content_types_xml(
+        zip: &mut ZipWriter<std::io::Cursor<Vec<u8>>>,
+        options: SimpleFileOptions,
+    ) -> Result<(), AppError> {
         zip.start_file("[Content_Types].xml", options)
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
         let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -199,8 +215,14 @@ impl ReportEngineService {
 </Types>"#;
         zip.write_all(content_types.as_bytes())
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
+        Ok(())
+    }
 
-        // 2. _rels/.rels
+    /// 写入 _rels/.rels
+    fn write_rels_xml(
+        zip: &mut ZipWriter<std::io::Cursor<Vec<u8>>>,
+        options: SimpleFileOptions,
+    ) -> Result<(), AppError> {
         zip.start_file("_rels/.rels", options)
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
         let rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -209,8 +231,14 @@ impl ReportEngineService {
 </Relationships>"#;
         zip.write_all(rels.as_bytes())
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
+        Ok(())
+    }
 
-        // 3. xl/_rels/workbook.xml.rels
+    /// 写入 xl/_rels/workbook.xml.rels
+    fn write_workbook_rels_xml(
+        zip: &mut ZipWriter<std::io::Cursor<Vec<u8>>>,
+        options: SimpleFileOptions,
+    ) -> Result<(), AppError> {
         zip.start_file("xl/_rels/workbook.xml.rels", options)
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
         let wb_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -221,8 +249,15 @@ impl ReportEngineService {
 </Relationships>"#;
         zip.write_all(wb_rels.as_bytes())
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
+        Ok(())
+    }
 
-        // 4. xl/workbook.xml
+    /// 写入 xl/workbook.xml
+    fn write_workbook_xml(
+        zip: &mut ZipWriter<std::io::Cursor<Vec<u8>>>,
+        options: SimpleFileOptions,
+        template_name: &str,
+    ) -> Result<(), AppError> {
         zip.start_file("xl/workbook.xml", options)
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
         let workbook = format!(
@@ -236,8 +271,14 @@ impl ReportEngineService {
         );
         zip.write_all(workbook.as_bytes())
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
+        Ok(())
+    }
 
-        // 5. xl/styles.xml
+    /// 写入 xl/styles.xml
+    fn write_styles_xml(
+        zip: &mut ZipWriter<std::io::Cursor<Vec<u8>>>,
+        options: SimpleFileOptions,
+    ) -> Result<(), AppError> {
         zip.start_file("xl/styles.xml", options)
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
         let styles = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -251,25 +292,28 @@ impl ReportEngineService {
 </styleSheet>"#;
         zip.write_all(styles.as_bytes())
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
+        Ok(())
+    }
 
-        // 6. xl/sharedStrings.xml
+    /// 写入 xl/sharedStrings.xml + xl/worksheets/sheet1.xml
+    fn write_shared_strings_and_sheet_xml(
+        &self,
+        zip: &mut ZipWriter<std::io::Cursor<Vec<u8>>>,
+        options: SimpleFileOptions,
+        data: &ReportData,
+    ) -> Result<(), AppError> {
         let (shared_strings, string_lookup) = self.build_shared_strings_xml(data);
         zip.start_file("xl/sharedStrings.xml", options)
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
         zip.write_all(shared_strings.as_bytes())
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
 
-        // 7. xl/worksheets/sheet1.xml
         let sheet_xml = self.build_sheet_xml(data, &string_lookup);
         zip.start_file("xl/worksheets/sheet1.xml", options)
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
         zip.write_all(sheet_xml.as_bytes())
             .map_err(|e| AppError::internal(format!("ZIP写入失败: {}", e)))?;
-
-        let cursor = zip
-            .finish()
-            .map_err(|e| AppError::internal(format!("ZIP 结束失败: {}", e)))?;
-        Ok(cursor.into_inner())
+        Ok(())
     }
 
     /// 构建 sharedStrings.xml

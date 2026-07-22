@@ -15,12 +15,13 @@
 //! 关联文件：models/bad_debt_provision.rs / models/bad_debt_writeoff.rs /
 //!          models/bad_debt_dto.rs / handlers/bad_debt_handler.rs / routes/bad_debt.rs
 
-use chrono::Utc;
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -114,6 +115,24 @@ pub struct BadDebtService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 计提模型构造参数集（避免 helper 参数过多）
+struct ProvisionModelParams<'a> {
+    customer_id: i64,
+    customer_name: Option<String>,
+    req: &'a RunProvisionRequest,
+    bucket: AgingBucket,
+    base_amount: Decimal,
+    rate: Decimal,
+    created_by: i32,
+    now: DateTime<Utc>,
+}
+
+/// 未收应收单按客户和账龄桶的聚合结果
+struct InvoiceAggregation {
+    buckets: HashMap<(i64, AgingBucket), Decimal>,
+    customer_names: HashMap<i64, Option<String>>,
+}
+
 impl BadDebtService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -123,19 +142,56 @@ impl BadDebtService {
         Self::new(state.db.clone())
     }
 
-    /// 触发期末计提（B01）
-    ///
-    /// 业务规则：
-    /// 1. 扫描所有 unpaid_amount > 0 的 ar_invoice
-    /// 2. 按 customer_id + aging_bucket 聚合 base_amount
-    /// 3. 每个聚合生成一条 draft 状态的计提记录
-    /// 4. 同期同客户同桶已存在 draft/confirmed 记录则跳过（避免重复计提）
+    /// 触发期末计提（B01）：扫描未收 ar_invoice，按客户+账龄桶聚合并生成 draft 计提记录
     pub async fn run_monthly_provision(
         &self,
         req: RunProvisionRequest,
         created_by: i32,
     ) -> Result<Vec<bad_debt_provision::Model>, BadDebtError> {
-        // 期间校验
+        Self::validate_provision_period(&req)?;
+
+        let txn = (*self.db).begin().await?;
+        let invoices = Self::query_unpaid_invoices_txn(&txn).await?;
+        let today = Utc::now().date_naive();
+        let agg = Self::aggregate_invoices_by_bucket(invoices, today);
+        let now = Utc::now();
+        let mut created: Vec<bad_debt_provision::Model> = Vec::new();
+
+        for ((customer_id, bucket), base_amount) in agg.buckets {
+            let exists = Self::check_existing_provision_txn(
+                &txn,
+                customer_id,
+                req.period_year,
+                req.period_month,
+                bucket,
+            )
+            .await?;
+            if exists {
+                continue;
+            }
+
+            let rate = bucket.provision_rate();
+            let params = ProvisionModelParams {
+                customer_id,
+                customer_name: agg.customer_names.get(&customer_id).cloned().flatten(),
+                req: &req,
+                bucket,
+                base_amount,
+                rate,
+                created_by,
+                now,
+            };
+            let active = Self::build_provision_active_model(params);
+            let model = active.insert(&txn).await?;
+            created.push(model);
+        }
+
+        txn.commit().await?;
+        Ok(created)
+    }
+
+    /// 校验计提期间参数（period_month 1-12，period_year 2000-2100）
+    fn validate_provision_period(req: &RunProvisionRequest) -> Result<(), BadDebtError> {
         if !(1..=12).contains(&req.period_month) {
             return Err(BadDebtError::Validation(format!(
                 "period_month {} 不合法（1-12）",
@@ -148,29 +204,32 @@ impl BadDebtService {
                 req.period_year
             )));
         }
+        Ok(())
+    }
 
-        let txn = (*self.db).begin().await?;
-
-        // 扫描未收 ar_invoice
+    /// 事务内扫描未收应收单（unpaid_amount > 0 且已审批）
+    async fn query_unpaid_invoices_txn(
+        txn: &impl ConnectionTrait,
+    ) -> Result<Vec<ar_invoice::Model>, BadDebtError> {
         let invoices = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .filter(ar_invoice::Column::ApprovalStatus.eq("approved"))
-            .all(&txn)
+            .all(txn)
             .await?;
+        Ok(invoices)
+    }
 
-        let today = Utc::now().date_naive();
-
-        // 按 (customer_id, aging_bucket) 聚合
-        let mut buckets: std::collections::HashMap<(i64, AgingBucket), Decimal> =
-            std::collections::HashMap::new();
-        let mut customer_names: std::collections::HashMap<i64, Option<String>> =
-            std::collections::HashMap::new();
+    /// 按客户和账龄桶聚合未收应收单
+    fn aggregate_invoices_by_bucket(
+        invoices: Vec<ar_invoice::Model>,
+        today: NaiveDate,
+    ) -> InvoiceAggregation {
+        let mut buckets: HashMap<(i64, AgingBucket), Decimal> = HashMap::new();
+        let mut customer_names: HashMap<i64, Option<String>> = HashMap::new();
 
         for inv in invoices {
-            // 计算逾期天数：today - due_date（负数表示未到期，按 0 桶处理）
             let overdue_days = (today - inv.due_date).num_days().max(0);
             let bucket = AgingBucket::from_overdue_days(overdue_days);
-
             let customer_id = inv.customer_id as i64;
             *buckets.entry((customer_id, bucket)).or_default() += inv.unpaid_amount;
             customer_names
@@ -178,51 +237,64 @@ impl BadDebtService {
                 .or_insert_with(|| inv.customer_name.clone());
         }
 
-        let now = Utc::now();
-        let mut created: Vec<bad_debt_provision::Model> = Vec::new();
-
-        for ((customer_id, bucket), base_amount) in buckets {
-            // 幂等检查：同期同客户同桶已存在 draft/confirmed 记录则跳过
-            let existing = ProvisionEntity::find()
-                .filter(bad_debt_provision::Column::CustomerId.eq(customer_id))
-                .filter(bad_debt_provision::Column::PeriodYear.eq(req.period_year))
-                .filter(bad_debt_provision::Column::PeriodMonth.eq(req.period_month))
-                .filter(bad_debt_provision::Column::AgingBucket.eq(bucket.as_str()))
-                .filter(bad_debt_provision::Column::Status.is_in(["draft", "confirmed"]))
-                .one(&txn)
-                .await?;
-            if existing.is_some() {
-                continue;
-            }
-
-            let rate = bucket.provision_rate();
-            let provision_amount = base_amount * rate;
-            let active = ProvisionActiveModel {
-                id: Default::default(),
-                customer_id: Set(customer_id),
-                customer_name: Set(customer_names.get(&customer_id).cloned().flatten()),
-                period_year: Set(req.period_year),
-                period_month: Set(req.period_month),
-                aging_bucket: Set(bucket.as_str().to_string()),
-                base_amount: Set(base_amount),
-                provision_rate: Set(rate),
-                provision_amount: Set(provision_amount),
-                voucher_id: Set(None),
-                status: Set("draft".to_string()),
-                created_by: Set(created_by),
-                confirmed_at: Set(None),
-                reversed_at: Set(None),
-                reverse_voucher_id: Set(None),
-                remark: Set(None),
-                created_at: Set(now),
-                updated_at: Set(now),
-            };
-            let model = active.insert(&txn).await?;
-            created.push(model);
+        InvoiceAggregation {
+            buckets,
+            customer_names,
         }
+    }
 
-        txn.commit().await?;
-        Ok(created)
+    /// 事务内检查同期同客户同桶是否已存在 draft/confirmed 计提记录
+    async fn check_existing_provision_txn(
+        txn: &impl ConnectionTrait,
+        customer_id: i64,
+        period_year: i32,
+        period_month: i32,
+        bucket: AgingBucket,
+    ) -> Result<bool, BadDebtError> {
+        let existing = ProvisionEntity::find()
+            .filter(bad_debt_provision::Column::CustomerId.eq(customer_id))
+            .filter(bad_debt_provision::Column::PeriodYear.eq(period_year))
+            .filter(bad_debt_provision::Column::PeriodMonth.eq(period_month))
+            .filter(bad_debt_provision::Column::AgingBucket.eq(bucket.as_str()))
+            .filter(bad_debt_provision::Column::Status.is_in(["draft", "confirmed"]))
+            .one(txn)
+            .await?;
+        Ok(existing.is_some())
+    }
+
+    /// 构造计提 ActiveModel（参数集模式避免参数过多）
+    fn build_provision_active_model(params: ProvisionModelParams<'_>) -> ProvisionActiveModel {
+        let ProvisionModelParams {
+            customer_id,
+            customer_name,
+            req,
+            bucket,
+            base_amount,
+            rate,
+            created_by,
+            now,
+        } = params;
+        let provision_amount = base_amount * rate;
+        ProvisionActiveModel {
+            id: Default::default(),
+            customer_id: Set(customer_id),
+            customer_name: Set(customer_name),
+            period_year: Set(req.period_year),
+            period_month: Set(req.period_month),
+            aging_bucket: Set(bucket.as_str().to_string()),
+            base_amount: Set(base_amount),
+            provision_rate: Set(rate),
+            provision_amount: Set(provision_amount),
+            voucher_id: Set(None),
+            status: Set("draft".to_string()),
+            created_by: Set(created_by),
+            confirmed_at: Set(None),
+            reversed_at: Set(None),
+            reverse_voucher_id: Set(None),
+            remark: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
     }
 
     /// 确认计提（draft → confirmed）

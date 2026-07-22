@@ -103,10 +103,51 @@ pub struct Metrics {
     pub business_operations_by_type: IntCounterVec,
 }
 
+/// 基础指标集合（无标签，向后兼容）
+#[derive(Debug, Clone)]
+struct BasicMetrics {
+    http_requests_total: IntCounter,
+    http_requests_in_flight: IntGauge,
+    http_request_duration_seconds: Histogram,
+    db_connections: IntGauge,
+    db_query_duration_seconds: Histogram,
+    business_operations_total: IntCounter,
+    errors_total: IntCounter,
+}
+
+/// 带标签指标集合（per-route / per-status）
+#[derive(Debug, Clone)]
+struct LabeledMetrics {
+    http_requests_by_route: IntCounterVec,
+    http_request_duration_by_route: HistogramVec,
+    http_requests_by_status_class: IntCounterVec,
+    business_operations_by_type: IntCounterVec,
+}
+
 impl Metrics {
     /// 创建新的指标集合并注册
     pub fn new(registry: &MetricsRegistry) -> Result<Self, prometheus::Error> {
-        // ===== 基础指标注册（保持原行为） =====
+        let basic = Self::register_basic_metrics(registry)?;
+        let labeled = Self::register_labeled_metrics(registry)?;
+        Ok(Self {
+            http_requests_total: basic.http_requests_total,
+            http_requests_in_flight: basic.http_requests_in_flight,
+            http_request_duration_seconds: basic.http_request_duration_seconds,
+            db_connections: basic.db_connections,
+            db_query_duration_seconds: basic.db_query_duration_seconds,
+            business_operations_total: basic.business_operations_total,
+            errors_total: basic.errors_total,
+            http_requests_by_route: labeled.http_requests_by_route,
+            http_request_duration_by_route: labeled.http_request_duration_by_route,
+            http_requests_by_status_class: labeled.http_requests_by_status_class,
+            business_operations_by_type: labeled.business_operations_by_type,
+        })
+    }
+
+    /// 注册基础指标（无标签，保持向后兼容）
+    fn register_basic_metrics(
+        registry: &MetricsRegistry,
+    ) -> Result<BasicMetrics, prometheus::Error> {
         let http_requests_total =
             IntCounter::new("http_requests_total", "Total number of HTTP requests")?;
         registry.register(Box::new(http_requests_total.clone()))?;
@@ -141,9 +182,21 @@ impl Metrics {
         let errors_total = IntCounter::new("errors_total", "Total number of errors")?;
         registry.register(Box::new(errors_total.clone()))?;
 
-        // ===== 带标签指标注册（P3.2 新增） =====
+        Ok(BasicMetrics {
+            http_requests_total,
+            http_requests_in_flight,
+            http_request_duration_seconds,
+            db_connections,
+            db_query_duration_seconds,
+            business_operations_total,
+            errors_total,
+        })
+    }
 
-        // per-route 请求计数
+    /// 注册带标签指标（per-route / per-status）
+    fn register_labeled_metrics(
+        registry: &MetricsRegistry,
+    ) -> Result<LabeledMetrics, prometheus::Error> {
         let http_requests_by_route = IntCounterVec::new(
             Opts::new(
                 "http_requests_by_route",
@@ -153,7 +206,6 @@ impl Metrics {
         )?;
         registry.register(Box::new(http_requests_by_route.clone()))?;
 
-        // per-route 请求耗时直方图
         let http_request_duration_by_route = HistogramVec::new(
             HistogramOpts::new(
                 "http_request_duration_by_route",
@@ -163,7 +215,6 @@ impl Metrics {
         )?;
         registry.register(Box::new(http_request_duration_by_route.clone()))?;
 
-        // 状态码分类计数
         let http_requests_by_status_class = IntCounterVec::new(
             Opts::new(
                 "http_requests_by_status_class",
@@ -173,7 +224,6 @@ impl Metrics {
         )?;
         registry.register(Box::new(http_requests_by_status_class.clone()))?;
 
-        // 业务操作按类型计数
         let business_operations_by_type = IntCounterVec::new(
             Opts::new(
                 "business_operations_by_type",
@@ -183,14 +233,7 @@ impl Metrics {
         )?;
         registry.register(Box::new(business_operations_by_type.clone()))?;
 
-        Ok(Self {
-            http_requests_total,
-            http_requests_in_flight,
-            http_request_duration_seconds,
-            db_connections,
-            db_query_duration_seconds,
-            business_operations_total,
-            errors_total,
+        Ok(LabeledMetrics {
             http_requests_by_route,
             http_request_duration_by_route,
             http_requests_by_status_class,
