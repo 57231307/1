@@ -304,13 +304,13 @@ impl SalesService {
 
         let item_details = Self::build_item_details(items, &products);
 
-        Ok(Self::build_order_detail(order, customer, item_details))
+        Ok(Self::build_order_detail(order, customer.as_ref(), item_details))
     }
 
     /// 行级数据权限校验（IDOR 防护）
     fn validate_order_data_scope(
         data_scope: Option<&DataScopeContext>,
-        created_by: i32,
+        created_by: Option<i32>,
         order_id: i32,
     ) -> Result<(), AppError> {
         if let Some(ctx) = data_scope {
@@ -378,41 +378,6 @@ impl SalesService {
             final_price: item.final_price,
             shipped_quantity_meters: item.shipped_quantity_meters,
             shipped_quantity_kg: item.shipped_quantity_kg,
-        }
-    }
-
-    /// 构建销售订单详情响应
-    fn build_order_detail(
-        order: sales_order::Model,
-        customer: Option<crate::models::customer::Model>,
-        items: Vec<SalesOrderItemDetail>,
-    ) -> SalesOrderDetail {
-        SalesOrderDetail {
-            id: order.id,
-            order_no: order.order_no,
-            customer_id: order.customer_id,
-            customer_name: customer.map(|c| c.customer_name),
-            opportunity_id: order.opportunity_id,
-            order_date: order.order_date,
-            required_date: order.required_date,
-            ship_date: order.ship_date,
-            status: order.status,
-            subtotal: order.subtotal,
-            tax_amount: order.tax_amount,
-            discount_amount: order.discount_amount,
-            shipping_cost: order.shipping_cost,
-            total_amount: order.total_amount,
-            paid_amount: order.paid_amount,
-            balance_amount: order.balance_amount,
-            shipping_address: order.shipping_address,
-            billing_address: order.billing_address,
-            notes: order.notes,
-            created_by: order.created_by,
-            approved_by: order.approved_by,
-            approved_at: order.approved_at,
-            created_at: order.created_at,
-            updated_at: order.updated_at,
-            items,
         }
     }
 
