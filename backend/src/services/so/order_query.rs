@@ -284,16 +284,8 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // sales_order 表无 department_id，Dept 退化为 Self（按 created_by 校验）
-        if let Some(ctx) = data_scope {
-            if !crate::utils::data_scope::check_resource_owner(ctx, order.created_by, None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问销售订单 {}（数据范围限制）",
-                    order_id
-                )));
-            }
-        }
+        // V15 P0-S01：行级数据权限校验（IDOR 防护，按 created_by 校验）
+        Self::validate_order_data_scope(data_scope, order.created_by, order_id)?;
 
         let customer = order
             .find_related(crate::models::customer::Entity)
@@ -310,49 +302,92 @@ impl SalesService {
             .load_one(crate::models::product::Entity, &*self.db)
             .await?;
 
-        let mut item_details = Vec::with_capacity(items.len());
+        let item_details = Self::build_item_details(items, &products);
+
+        Ok(Self::build_order_detail(order, customer, item_details))
+    }
+
+    /// 行级数据权限校验（IDOR 防护）
+    fn validate_order_data_scope(
+        data_scope: Option<&DataScopeContext>,
+        created_by: i32,
+        order_id: i32,
+    ) -> Result<(), AppError> {
+        if let Some(ctx) = data_scope {
+            if !crate::utils::data_scope::check_resource_owner(ctx, created_by, None) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问销售订单 {}（数据范围限制）",
+                    order_id
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// 批量构建订单明细项列表
+    fn build_item_details(
+        items: Vec<sales_order_item::Model>,
+        products: &[Option<crate::models::product::Model>],
+    ) -> Vec<SalesOrderItemDetail> {
+        let mut details = Vec::with_capacity(items.len());
         for (i, item) in items.into_iter().enumerate() {
             let product = products[i].as_ref();
-            item_details.push(SalesOrderItemDetail {
-                id: item.id,
-                order_id: item.order_id,
-                product_id: item.product_id,
-                product_code: product.map(|p| p.code.clone()),
-                product_name: product.map(|p| p.name.clone()),
-                quantity: item.quantity,
-                unit_price: item.unit_price,
-                discount_percent: item.discount_percent,
-                tax_percent: item.tax_percent,
-                subtotal: item.subtotal,
-                tax_amount: item.tax_amount,
-                discount_amount: item.discount_amount,
-                total_amount: item.total_amount,
-                shipped_quantity: item.shipped_quantity,
-                notes: item.notes,
-                created_at: item.created_at,
-                updated_at: item.updated_at,
-                color_no: item.color_no,
-                color_name: item.color_name,
-                pantone_code: item.pantone_code,
-                grade_required: item.grade_required,
-                quantity_meters: item.quantity_meters,
-                quantity_kg: item.quantity_kg,
-                gram_weight: item.gram_weight,
-                width: item.width,
-                paper_tube_weight: item.paper_tube_weight,
-                is_net_weight: item.is_net_weight,
-                batch_requirement: item.batch_requirement,
-                dye_lot_requirement: item.dye_lot_requirement,
-                base_price: item.base_price,
-                color_extra_cost: item.color_extra_cost,
-                grade_price_diff: item.grade_price_diff,
-                final_price: item.final_price,
-                shipped_quantity_meters: item.shipped_quantity_meters,
-                shipped_quantity_kg: item.shipped_quantity_kg,
-            });
+            details.push(Self::build_single_item_detail(item, product));
         }
+        details
+    }
 
-        Ok(SalesOrderDetail {
+    /// 构建单个订单明细项
+    fn build_single_item_detail(
+        item: sales_order_item::Model,
+        product: Option<&crate::models::product::Model>,
+    ) -> SalesOrderItemDetail {
+        SalesOrderItemDetail {
+            id: item.id,
+            order_id: item.order_id,
+            product_id: item.product_id,
+            product_code: product.map(|p| p.code.clone()),
+            product_name: product.map(|p| p.name.clone()),
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            discount_percent: item.discount_percent,
+            tax_percent: item.tax_percent,
+            subtotal: item.subtotal,
+            tax_amount: item.tax_amount,
+            discount_amount: item.discount_amount,
+            total_amount: item.total_amount,
+            shipped_quantity: item.shipped_quantity,
+            notes: item.notes,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            color_no: item.color_no,
+            color_name: item.color_name,
+            pantone_code: item.pantone_code,
+            grade_required: item.grade_required,
+            quantity_meters: item.quantity_meters,
+            quantity_kg: item.quantity_kg,
+            gram_weight: item.gram_weight,
+            width: item.width,
+            paper_tube_weight: item.paper_tube_weight,
+            is_net_weight: item.is_net_weight,
+            batch_requirement: item.batch_requirement,
+            dye_lot_requirement: item.dye_lot_requirement,
+            base_price: item.base_price,
+            color_extra_cost: item.color_extra_cost,
+            grade_price_diff: item.grade_price_diff,
+            final_price: item.final_price,
+            shipped_quantity_meters: item.shipped_quantity_meters,
+            shipped_quantity_kg: item.shipped_quantity_kg,
+        }
+    }
+
+    /// 构建销售订单详情响应
+    fn build_order_detail(
+        order: sales_order::Model,
+        customer: Option<crate::models::customer::Model>,
+        items: Vec<SalesOrderItemDetail>,
+    ) -> SalesOrderDetail {
+        SalesOrderDetail {
             id: order.id,
             order_no: order.order_no,
             customer_id: order.customer_id,
@@ -377,8 +412,8 @@ impl SalesService {
             approved_at: order.approved_at,
             created_at: order.created_at,
             updated_at: order.updated_at,
-            items: item_details,
-        })
+            items,
+        }
     }
 
     /// 创建销售订单

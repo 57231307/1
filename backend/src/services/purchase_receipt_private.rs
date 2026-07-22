@@ -129,12 +129,7 @@ impl PurchaseReceiptService {
         receipt: &purchase_receipt::Model,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<Vec<BusinessEvent>, AppError> {
-        use crate::services::inventory_stock_query::RecordTransactionArgs;
-        use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
-
-        // P0 5-2 修复：本函数不 commit 事务（由调用方 confirm_receipt commit），
-        // 收集 record_transaction_txn 返回的库存流水事件交给调用方，
-        // 在 commit 成功后统一 publish，避免事务回滚时幻事件
+        // 不 commit 事务（由调用方 commit），收集库存流水事件交调用方 publish
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
         let items = purchase_receipt_item::Entity::find()
@@ -142,102 +137,129 @@ impl PurchaseReceiptService {
             .all(txn)
             .await?;
 
-        // v16 批次 43 修复：循环外批量查询所有 product_id 在 receipt.warehouse_id 的库存记录，
-        // 避免循环内逐个调用 find_by_product_and_warehouse_txn（N+1 查询）
-        let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
-        let stock_map: std::collections::HashMap<i32, crate::models::inventory_stock::Model> =
-            if product_ids.is_empty() {
-                std::collections::HashMap::new()
-            } else {
-                crate::models::inventory_stock::Entity::find()
-                    .filter(crate::models::inventory_stock::Column::WarehouseId.eq(receipt.warehouse_id))
-                    .filter(crate::models::inventory_stock::Column::ProductId.is_in(product_ids))
-                    .all(txn)
-                    .await?
-                    .into_iter()
-                    .map(|s| (s.product_id, s))
-                    .collect()
-            };
+        let stock_map = Self::fetch_stock_map(txn, &items, receipt.warehouse_id).await?;
 
         for item in items {
-            // v14 批次 418 修复 D-P0-4：使用空字符串替代 "DEFAULT" 占位符，
-            // 与库存流水/库存表的空字符串语义保持一致
-            let batch_no = item.batch_no.unwrap_or_default();
-            let color_no = item.color_code.unwrap_or_default();
-            let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
-
-            // v16 批次 43 修复：从批量查询结果获取库存记录（O(1) 查找）
-            let existing_stock = stock_map.get(&item.product_id).cloned();
-
-            let stock_model = if let Some(stock) = existing_stock {
-                let new_quantity_meters = stock.quantity_meters + item.quantity;
-                let new_quantity_kg =
-                    stock.quantity_kg + item.quantity_alt.unwrap_or(Decimal::new(0, 0));
-
-                InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
-                    txn,
-                    stock.id,
-                    new_quantity_meters,
-                    new_quantity_kg,
-                    stock.version,
-                )
-                .await?;
-
-                stock
-            } else {
-                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
-                InventoryStockService::create_stock_fabric_txn(
-                    txn,
-                    CreateStockFabricArgs {
-                        warehouse_id: receipt.warehouse_id,
-                        product_id: item.product_id,
-                        batch_no: batch_no.clone(),
-                        color_no: color_no.clone(),
-                        dye_lot_no: item.lot_no.clone(),
-                        grade: grade.clone(),
-                        quantity_meters: item.quantity,
-                        quantity_kg: item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
-                        gram_weight: item.gram_weight,
-                        width: item.width,
-                        location_id: None,
-                        shelf_no: None,
-                        layer_no: None,
-                    },
-                )
-                .await?
-            };
-
-            // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
-            // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
-            // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
-            let (_, txn_event) = InventoryStockService::record_transaction_txn(
-                txn,
-                RecordTransactionArgs {
-                    transaction_type: "PURCHASE_RECEIPT".to_string(),
-                    product_id: item.product_id,
-                    warehouse_id: receipt.warehouse_id,
-                    batch_no,
-                    color_no,
-                    dye_lot_no: item.lot_no,
-                    grade,
-                    quantity_meters: item.quantity,
-                    quantity_kg: item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
-                    source_bill_type: Some("PURCHASE_RECEIPT".to_string()),
-                    source_bill_no: Some(receipt.receipt_no.clone()),
-                    source_bill_id: Some(receipt.id),
-                    quantity_before_meters: Some(stock_model.quantity_meters),
-                    quantity_before_kg: Some(stock_model.quantity_kg),
-                    quantity_after_meters: Some(stock_model.quantity_meters + item.quantity),
-                    quantity_after_kg: Some(stock_model.quantity_kg + item.quantity_alt.unwrap_or(Decimal::new(0, 0))),
-                    notes: Some("入库自动增加库存".to_string()),
-                    created_by: Some(receipt.created_by),
-                },
-            )
-            .await?;
-            if let Some(ev) = txn_event {
+            let existing = stock_map.get(&item.product_id);
+            let stock_model = Self::upsert_stock_for_item(txn, &item, existing, receipt).await?;
+            if let Some(ev) =
+                Self::record_receipt_transaction(txn, &item, &stock_model, receipt).await?
+            {
                 pending_events.push(ev);
             }
         }
         Ok(pending_events)
+    }
+
+    /// 批量查询入库明细关联的库存记录（避免 N+1 查询）
+    async fn fetch_stock_map(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[purchase_receipt_item::Model],
+        warehouse_id: i32,
+    ) -> Result<std::collections::HashMap<i32, crate::models::inventory_stock::Model>, AppError>
+    {
+        let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
+        if product_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let map = crate::models::inventory_stock::Entity::find()
+            .filter(crate::models::inventory_stock::Column::WarehouseId.eq(warehouse_id))
+            .filter(crate::models::inventory_stock::Column::ProductId.is_in(product_ids))
+            .all(txn)
+            .await?
+            .into_iter()
+            .map(|s| (s.product_id, s))
+            .collect();
+        Ok(map)
+    }
+
+    /// 更新或创建库存记录（存在则加库存，不存在则新建）
+    async fn upsert_stock_for_item(
+        txn: &sea_orm::DatabaseTransaction,
+        item: &purchase_receipt_item::Model,
+        existing_stock: Option<&crate::models::inventory_stock::Model>,
+        receipt: &purchase_receipt::Model,
+    ) -> Result<crate::models::inventory_stock::Model, AppError> {
+        use crate::services::inventory_stock_service::{
+            CreateStockFabricArgs, InventoryStockService,
+        };
+        if let Some(stock) = existing_stock {
+            let new_meters = stock.quantity_meters + item.quantity;
+            let new_kg = stock.quantity_kg + item.quantity_alt.unwrap_or(Decimal::ZERO);
+            InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+                txn,
+                stock.id,
+                new_meters,
+                new_kg,
+                stock.version,
+            )
+            .await?;
+            Ok(stock.clone())
+        } else {
+            let batch_no = item.batch_no.clone().unwrap_or_default();
+            let color_no = item.color_code.clone().unwrap_or_default();
+            let grade = item.grade.clone().unwrap_or_else(|| "一等品".to_string());
+            let stock = InventoryStockService::create_stock_fabric_txn(
+                txn,
+                CreateStockFabricArgs {
+                    warehouse_id: receipt.warehouse_id,
+                    product_id: item.product_id,
+                    batch_no,
+                    color_no,
+                    dye_lot_no: item.lot_no.clone(),
+                    grade,
+                    quantity_meters: item.quantity,
+                    quantity_kg: item.quantity_alt.unwrap_or(Decimal::ZERO),
+                    gram_weight: item.gram_weight,
+                    width: item.width,
+                    location_id: None,
+                    shelf_no: None,
+                    layer_no: None,
+                },
+            )
+            .await?;
+            Ok(stock)
+        }
+    }
+
+    /// 记录库存流水并返回事件（由调用方在 commit 后 publish）
+    async fn record_receipt_transaction(
+        txn: &sea_orm::DatabaseTransaction,
+        item: &purchase_receipt_item::Model,
+        stock_model: &crate::models::inventory_stock::Model,
+        receipt: &purchase_receipt::Model,
+    ) -> Result<Option<BusinessEvent>, AppError> {
+        use crate::services::inventory_stock_query::RecordTransactionArgs;
+        use crate::services::inventory_stock_service::InventoryStockService;
+        let batch_no = item.batch_no.clone().unwrap_or_default();
+        let color_no = item.color_code.clone().unwrap_or_default();
+        let grade = item.grade.clone().unwrap_or_else(|| "一等品".to_string());
+        let (_, txn_event) = InventoryStockService::record_transaction_txn(
+            txn,
+            RecordTransactionArgs {
+                transaction_type: "PURCHASE_RECEIPT".to_string(),
+                product_id: item.product_id,
+                warehouse_id: receipt.warehouse_id,
+                batch_no,
+                color_no,
+                dye_lot_no: item.lot_no.clone(),
+                grade,
+                quantity_meters: item.quantity,
+                quantity_kg: item.quantity_alt.unwrap_or(Decimal::ZERO),
+                source_bill_type: Some("PURCHASE_RECEIPT".to_string()),
+                source_bill_no: Some(receipt.receipt_no.clone()),
+                source_bill_id: Some(receipt.id),
+                quantity_before_meters: Some(stock_model.quantity_meters),
+                quantity_before_kg: Some(stock_model.quantity_kg),
+                quantity_after_meters: Some(stock_model.quantity_meters + item.quantity),
+                quantity_after_kg: Some(
+                    stock_model.quantity_kg + item.quantity_alt.unwrap_or(Decimal::ZERO),
+                ),
+                notes: Some("入库自动增加库存".to_string()),
+                created_by: Some(receipt.created_by),
+            },
+        )
+        .await?;
+        Ok(txn_event)
     }
 }

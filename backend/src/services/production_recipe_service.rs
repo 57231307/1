@@ -263,8 +263,23 @@ impl ProductionRecipeService {
     ) -> Result<RecipeModel, AppError> {
         let model = self.get_by_id(id, None).await?;
         Self::validate_can_update(&model.status)?;
+        self.validate_work_order_change(id, &req, &model).await?;
+        Self::validate_update_fields(&req)?;
+        let mut active: RecipeActiveModel = model.into();
+        Self::apply_recipe_relation_fields(&mut active, &req);
+        Self::apply_recipe_text_fields(&mut active, &req);
+        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
 
-        // 若修改 work_order_id，需重新校验一工单一处方约束
+    /// 校验工单变更后的一工单一处方约束
+    async fn validate_work_order_change(
+        &self,
+        id: i32,
+        req: &UpdateProductionRecipeRequest,
+        model: &RecipeModel,
+    ) -> Result<(), AppError> {
         if let Some(new_work_order_id) = req.work_order_id {
             if Some(new_work_order_id) != model.work_order_id {
                 let exists = RecipeEntity::find()
@@ -282,24 +297,30 @@ impl ProductionRecipeService {
                 }
             }
         }
+        Ok(())
+    }
 
-        // 若修改备布重量，需 > 0
+    /// 校验备布重量和浴比格式
+    fn validate_update_fields(req: &UpdateProductionRecipeRequest) -> Result<(), AppError> {
         if let Some(w) = req.fabric_weight {
             if w <= Decimal::ZERO {
                 return Err(AppError::business("备布重量必须大于 0"));
             }
         }
-
-        // 若修改浴比，需格式正确
-        if let Some(ref r) = req.liquor_ratio {
+        if let Some(r) = &req.liquor_ratio {
             if r.trim().is_empty() {
                 return Err(AppError::business("浴比不能为空"));
             }
             let _ = Self::parse_liquor_ratio(r)?;
         }
+        Ok(())
+    }
 
-        let mut active: RecipeActiveModel = model.into();
-
+    /// 应用关联 ID 和数值型字段
+    fn apply_recipe_relation_fields(
+        active: &mut RecipeActiveModel,
+        req: &UpdateProductionRecipeRequest,
+    ) {
         if let Some(v) = req.work_order_id {
             active.work_order_id = Set(Some(v));
         }
@@ -315,15 +336,6 @@ impl ProductionRecipeService {
         if let Some(v) = req.customer_id {
             active.customer_id = Set(Some(v));
         }
-        if let Some(v) = req.color_no {
-            active.color_no = Set(Some(v));
-        }
-        if let Some(v) = req.fabric_name {
-            active.fabric_name = Set(Some(v));
-        }
-        if let Some(v) = req.fabric_spec {
-            active.fabric_spec = Set(Some(v));
-        }
         if let Some(v) = req.fabric_width {
             active.fabric_width = Set(Some(v));
         }
@@ -333,20 +345,11 @@ impl ProductionRecipeService {
         if let Some(v) = req.fabric_weight {
             active.fabric_weight = Set(v);
         }
-        if let Some(v) = req.equipment_no {
-            active.equipment_no = Set(Some(v));
-        }
-        if let Some(v) = req.liquor_ratio {
-            active.liquor_ratio = Set(v);
-        }
         if let Some(v) = req.bath_volume {
             active.bath_volume = Set(Some(v));
         }
         if let Some(v) = req.adjustment_factor {
             active.adjustment_factor = Set(Some(v));
-        }
-        if let Some(v) = req.recipe_detail {
-            active.recipe_detail = Set(Some(v));
         }
         if let Some(v) = req.total_dye_cost {
             active.total_dye_cost = Set(Some(v));
@@ -354,13 +357,34 @@ impl ProductionRecipeService {
         if let Some(v) = req.total_auxiliary_cost {
             active.total_auxiliary_cost = Set(Some(v));
         }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
-        }
+    }
 
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
+    /// 应用文本和明细字段（需 clone 避免移动）
+    fn apply_recipe_text_fields(
+        active: &mut RecipeActiveModel,
+        req: &UpdateProductionRecipeRequest,
+    ) {
+        if let Some(v) = &req.color_no {
+            active.color_no = Set(Some(v.clone()));
+        }
+        if let Some(v) = &req.fabric_name {
+            active.fabric_name = Set(Some(v.clone()));
+        }
+        if let Some(v) = &req.fabric_spec {
+            active.fabric_spec = Set(Some(v.clone()));
+        }
+        if let Some(v) = &req.equipment_no {
+            active.equipment_no = Set(Some(v.clone()));
+        }
+        if let Some(v) = &req.liquor_ratio {
+            active.liquor_ratio = Set(v.clone());
+        }
+        if let Some(v) = &req.recipe_detail {
+            active.recipe_detail = Set(Some(v.clone()));
+        }
+        if let Some(v) = &req.remarks {
+            active.remarks = Set(Some(v.clone()));
+        }
     }
 
     /// 软删除大货处方（仅 draft 状态可删除）

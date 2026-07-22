@@ -489,31 +489,58 @@ impl FabricInspectionService {
         req: RollFabricRequest,
     ) -> Result<InspectionModel, AppError> {
         let model = self.get_by_id(id).await?;
+        Self::validate_roll_preconditions(&model, &req)?;
+        let dye_lot_no = model.dye_lot_no.clone().ok_or_else(|| {
+            AppError::business("打卷入库需要缸号(dye_lot_no)，请先在验布记录中设置缸号")
+        })?;
+        let dye_lot = self.fetch_dye_lot(&dye_lot_no).await?;
+        let dye_lot_id = dye_lot.id;
+        let (piece_no, next_seq) = self
+            .generate_next_piece_no(dye_lot_id, &dye_lot_no)
+            .await?;
+        let new_piece = Self::build_piece_active_model(
+            &req, dye_lot_id, &dye_lot_no, &model, &piece_no, next_seq, id,
+        );
+        new_piece.insert(&*self.db).await?;
+        self.apply_roll_summary(model, &req).await
+    }
+
+    /// 校验打卷前置条件（状态 + 长度）
+    fn validate_roll_preconditions(
+        model: &InspectionModel,
+        req: &RollFabricRequest,
+    ) -> Result<(), AppError> {
         if model.status != inspection_status::GRADED {
             return Err(AppError::business(format!(
                 "仅已评级(graded)状态可打卷入库，当前状态: {}",
                 model.status
             )));
         }
-
-        // 业务校验：打卷长度必须为正
         if req.roll_length <= Decimal::ZERO {
             return Err(AppError::business("打卷长度必须 > 0"));
         }
+        Ok(())
+    }
 
-        // 查询缸号 ID（通过 dye_lot_no 查 batch_dye_lot）
-        let dye_lot_no = model.dye_lot_no.clone().ok_or_else(|| {
-            AppError::business("打卷入库需要缸号(dye_lot_no)，请先在验布记录中设置缸号")
-        })?;
-        let dye_lot = DyeLotEntity::find()
-            .filter(batch_dye_lot::Column::DyeLotNo.eq(dye_lot_no.clone()))
+    /// 按缸号查询 dye_lot 记录
+    async fn fetch_dye_lot(&self, dye_lot_no: &str) -> Result<batch_dye_lot::Model, AppError> {
+        DyeLotEntity::find()
+            .filter(batch_dye_lot::Column::DyeLotNo.eq(dye_lot_no))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::business(format!("缸号 {} 在 batch_dye_lot 表中不存在", dye_lot_no)))?;
+            .ok_or_else(|| {
+                AppError::business(format!("缸号 {} 在 batch_dye_lot 表中不存在", dye_lot_no))
+            })
+    }
 
-        // 生成匹号序号：当前缸号下最大 piece_seq + 1
+    /// 生成下一个匹号（含唯一性校验）
+    async fn generate_next_piece_no(
+        &self,
+        dye_lot_id: i32,
+        dye_lot_no: &str,
+    ) -> Result<(String, i32), AppError> {
         let max_seq_piece = inventory_piece::Entity::find()
-            .filter(inventory_piece::Column::DyeLotId.eq(dye_lot.id))
+            .filter(inventory_piece::Column::DyeLotId.eq(dye_lot_id))
             .filter(inventory_piece::Column::PieceSeq.is_not_null())
             .order_by_desc(inventory_piece::Column::PieceSeq)
             .one(&*self.db)
@@ -523,36 +550,41 @@ impl FabricInspectionService {
             .and_then(|p| p.piece_seq)
             .map(|s| s + 1)
             .unwrap_or(1);
-
-        // 生成匹号：{dye_lot_no}-{seq:03}
         let piece_no = format!("{}-{:03}", dye_lot_no, next_seq);
-
-        // 业务校验：匹号唯一性（同一缸号下不能有相同匹号）
-        let existing_piece = inventory_piece::Entity::find()
-            .filter(inventory_piece::Column::DyeLotId.eq(dye_lot.id))
+        let existing = inventory_piece::Entity::find()
+            .filter(inventory_piece::Column::DyeLotId.eq(dye_lot_id))
             .filter(inventory_piece::Column::PieceNo.eq(piece_no.clone()))
             .one(&*self.db)
             .await?;
-        if existing_piece.is_some() {
+        if existing.is_some() {
             return Err(AppError::business(format!(
                 "匹号 {} 已存在，同一缸号下匹号不能重复",
                 piece_no
             )));
         }
+        Ok((piece_no, next_seq))
+    }
 
-        // 创建 inventory_piece 记录
-        // 注意：inventory_piece 模型的 created_at/updated_at 是 DateTime<Utc>，
-        // 需用 chrono::Utc::now() 而非 utc_now_fixed()（返回 DateTime<FixedOffset>）
+    /// 构建 inventory_piece ActiveModel
+    fn build_piece_active_model(
+        req: &RollFabricRequest,
+        dye_lot_id: i32,
+        dye_lot_no: &str,
+        model: &InspectionModel,
+        piece_no: &str,
+        next_seq: i32,
+        inspection_id: i32,
+    ) -> PieceActiveModel {
         let now_piece = chrono::Utc::now();
-        let new_piece = PieceActiveModel {
+        PieceActiveModel {
             id: Default::default(),
-            dye_lot_id: Set(dye_lot.id),
-            batch_no: Set(dye_lot_no.clone()),
+            dye_lot_id: Set(dye_lot_id),
+            batch_no: Set(dye_lot_no.to_string()),
             product_id: Set(model.product_id.unwrap_or(0)),
             warehouse_id: Set(req.warehouse_id),
             location_id: Set(None),
-            piece_no: Set(piece_no.clone()),
-            barcode: Set(Some(piece_no.clone())),
+            piece_no: Set(piece_no.to_string()),
+            barcode: Set(Some(piece_no.to_string())),
             parent_piece_id: Set(None),
             length: Set(req.roll_length),
             weight: Set(req.roll_weight),
@@ -574,16 +606,20 @@ impl FabricInspectionService {
             updated_by: Default::default(),
             color_no: Set(model.color_no.clone()),
             dye_lot_no: Set(model.dye_lot_no.clone()),
-            inspection_id: Set(Some(id)),
+            inspection_id: Set(Some(inspection_id)),
             piece_seq: Set(Some(next_seq)),
-        };
-        new_piece.insert(&*self.db).await?;
+        }
+    }
 
-        // 更新验布记录的打卷汇总
+    /// 更新验布记录的打卷汇总并流转状态
+    async fn apply_roll_summary(
+        &self,
+        model: InspectionModel,
+        req: &RollFabricRequest,
+    ) -> Result<InspectionModel, AppError> {
         let new_total_rolls = model.total_rolls + 1;
         let new_total_length = model.total_roll_length + req.roll_length;
         let new_total_weight = model.total_roll_weight + req.roll_weight.unwrap_or(Decimal::ZERO);
-
         let mut active: InspectionActiveModel = model.into();
         active.total_rolls = Set(new_total_rolls);
         active.total_roll_length = Set(new_total_length);

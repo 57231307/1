@@ -90,60 +90,69 @@ impl PurchaseOrderService {
             })
     }
 
-    /// 根据缺料预警创建采购建议
-    ///
-    /// 批次 333 v10 复审 P3 修复：签名从 8 参数改为单一参数对象 `ShortageAlertParams`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 根据缺料预警创建采购建议（参数对象消除 too_many_arguments）
     pub async fn create_purchase_suggestion_from_shortage(
         &self,
         params: ShortageAlertParams,
     ) -> Result<purchase_order::Model, AppError> {
-        // 解构参数对象，便于函数体内按字段名访问
-        let ShortageAlertParams {
-            material_id,
-            material_name,
-            material_code,
-            required_quantity,
-            available_quantity,
-            shortage_quantity,
-            shortage_level,
-            affected_orders_count,
-        } = params;
-
-        // 开启事务
         let txn = (*self.db).begin().await?;
+        let (product, supplier) =
+            Self::fetch_shortage_product_and_supplier(&txn, params.material_id).await?;
+        let suggested_quantity = params.shortage_quantity * Decimal::new(12, 1);
+        let order_no = self.generate_order_no_with_txn(&txn).await?;
+        let priority = Self::shortage_priority(&params.shortage_level);
+        let order = Self::build_shortage_order(&order_no, supplier.id, &params)
+            .insert(&txn)
+            .await?;
+        Self::create_shortage_order_item(
+            &txn, order.id, &product, &params, suggested_quantity, priority,
+        )
+        .await?;
+        txn.commit().await?;
+        tracing::info!(
+            "创建缺料预警采购建议: 订单号={}, 物料={} ({})，建议采购量={}, 优先级={}",
+            order.order_no, params.material_name, params.material_code,
+            suggested_quantity, priority
+        );
+        Ok(order)
+    }
 
-        // 1. 获取产品信息
+    /// 获取物料和默认活跃供应商
+    async fn fetch_shortage_product_and_supplier(
+        txn: &sea_orm::DatabaseTransaction,
+        material_id: i32,
+    ) -> Result<(product::Model, supplier::Model), AppError> {
         let product = product::Entity::find_by_id(material_id)
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("物料 ID {} 不存在", material_id)))?;
-
-        // 2. 查找默认供应商
         let supplier = supplier::Entity::find()
             .filter(supplier::Column::Status.eq(master_data::ACTIVE))
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("没有可用的活跃供应商"))?;
+        Ok((product, supplier))
+    }
 
-        // 3. 计算建议采购量（缺口数量 * 1.2，20%余量）
-        let suggested_quantity = shortage_quantity * Decimal::new(12, 1);
-
-        // 4. 生成采购订单号（使用事务连接）
-        let order_no = self.generate_order_no_with_txn(&txn).await?;
-
-        // 5. 根据缺料级别确定优先级
-        let priority = match shortage_level.as_str() {
+    /// 根据缺料级别确定优先级
+    fn shortage_priority(level: &str) -> &'static str {
+        match level {
             "Critical" => "URGENT",
             "Severe" => "HIGH",
             "Warning" => "MEDIUM",
             _ => "LOW",
-        };
+        }
+    }
 
-        // 6. 创建采购订单
-        let order = purchase_order::ActiveModel {
-            order_no: Set(order_no),
-            supplier_id: Set(supplier.id),
+    /// 构建缺料预警采购订单 ActiveModel
+    fn build_shortage_order(
+        order_no: &str,
+        supplier_id: i32,
+        params: &ShortageAlertParams,
+    ) -> purchase_order::ActiveModel {
+        purchase_order::ActiveModel {
+            order_no: Set(order_no.to_string()),
+            supplier_id: Set(supplier_id),
             order_date: Set(Utc::now().date_naive()),
             expected_delivery_date: Set(Some(
                 (Utc::now() + chrono::Duration::days(7)).date_naive(),
@@ -156,25 +165,32 @@ impl PurchaseOrderService {
             order_status: Set("DRAFT".to_string()),
             notes: Set(Some(format!(
                 "缺料预警自动生成 | 物料: {} ({}) | 需求量: {} | 可用量: {} | 缺口: {} | 级别: {} | 受影响订单: {}",
-                material_name, material_code, required_quantity, available_quantity, shortage_quantity, shortage_level, affected_orders_count
+                params.material_name, params.material_code, params.required_quantity,
+                params.available_quantity, params.shortage_quantity,
+                params.shortage_level, params.affected_orders_count
             ))),
-            created_by: Set(1), // 系统用户
+            created_by: Set(1),
             ..Default::default()
         }
-        .insert(&txn)
-        .await?;
+    }
 
-        // 7. 创建订单明细
-        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+    /// 创建采购订单明细（金额补 round_dp(2) 精度归一化）
+    async fn create_shortage_order_item(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+        product: &product::Model,
+        params: &ShortageAlertParams,
+        suggested_quantity: Decimal,
+        priority: &str,
+    ) -> Result<(), AppError> {
         let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
         let amount = (suggested_quantity * unit_price).round_dp(2);
-        let tax_rate = Decimal::new(13, 2); // 13% 增值税
+        let tax_rate = Decimal::new(13, 2);
         let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
-
         purchase_order_item::ActiveModel {
             id: Default::default(),
-            order_id: Set(order.id),
-            product_id: Set(material_id),
+            order_id: Set(order_id),
+            product_id: Set(params.material_id),
             quantity: Set(suggested_quantity),
             quantity_alt: Set(Decimal::ZERO),
             unit_price: Set(unit_price),
@@ -189,28 +205,15 @@ impl PurchaseOrderService {
             received_quantity_alt: Set(Decimal::ZERO),
             notes: Set(Some(format!(
                 "缺料预警自动生成 | 物料: {} ({}) | 优先级: {}",
-                material_name, material_code, priority
+                params.material_name, params.material_code, priority
             ))),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
-
-        // 8. 提交事务
-        txn.commit().await?;
-
-        tracing::info!(
-            "创建缺料预警采购建议: 订单号={}, 物料={} ({})，建议采购量={}, 优先级={}",
-            order.order_no,
-            material_name,
-            material_code,
-            suggested_quantity,
-            priority
-        );
-
-        Ok(order)
+        Ok(())
     }
 
     /// 根据库存预警创建采购建议
