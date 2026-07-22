@@ -334,51 +334,13 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
     match crate::services::event_kafka::KafkaBackend::try_new(kafka_cfg).await {
         Ok(backend) => {
             let backend = Arc::new(backend);
-            // 启动消费后台任务，把 Kafka 事件桥接到本地 channel
             let local_tx = {
                 let state = lock_event_bus_state();
                 state.local_tx.clone()
             };
-            let backend_for_consumer = backend.clone();
             // L-27 修复（批次 373 v13 复审）：保存 Kafka 消费桥接 spawn 句柄到 EventBusState，
             // 供 shutdown_event_bus() abort，避免 detached task 泄漏
-            let consumer_handle = tokio::spawn(async move {
-                // 批次 8（2026-06-28）：单次事件处理 panic 隔离
-                match backend_for_consumer.subscribe().await {
-                    Ok(mut stream) => {
-                        use futures::stream::StreamExt;
-                        while let Some(event) = stream.next().await {
-                            let result = AssertUnwindSafe(async {
-                                if local_tx.send(event).is_err() {
-                                    tracing::warn!("Kafka 消费桥接：本地 channel 已关闭，停止消费");
-                                    return false;
-                                }
-                                true
-                            })
-                            .catch_unwind()
-                            .await;
-                            match result {
-                                Ok(true) => {} // 继续
-                                Ok(false) => break, // channel 关闭，退出
-                                Err(panic_payload) => {
-                                    let panic_msg = panic_payload
-                                        .downcast_ref::<String>()
-                                        .map(|s| s.as_str())
-                                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                                        .unwrap_or("<非字符串 panic payload>");
-                                    tracing::error!(
-                                        panic = %panic_msg,
-                                        "⚠ Kafka 消费桥接 spawn panic 已被隔离，继续运行（不退出循环）"
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!("Kafka 订阅失败: {}", e);
-                    }
-                }
-            });
+            let consumer_handle = spawn_kafka_consumer_bridge(backend.clone(), local_tx);
 
             {
                 let mut state = lock_event_bus_state();
@@ -398,6 +360,54 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
             // 不修改 backend_kind，保持 Broadcast
         }
     }
+}
+
+/// 启动 Kafka 消费桥接后台任务：订阅 Kafka 流，把事件转发到本地 channel
+///
+/// 单次事件处理 panic 隔离（批次 8 2026-06-28）：
+/// 用 `AssertUnwindSafe + catch_unwind` 包裹 `local_tx.send`，
+/// panic 不传播、不退出循环，仅记 error 日志后继续消费下一条。
+fn spawn_kafka_consumer_bridge(
+    backend: Arc<crate::services::event_kafka::KafkaBackend>,
+    local_tx: broadcast::Sender<BusinessEvent>,
+) -> tokio::task::JoinHandle<()> {
+    let backend_for_consumer = backend;
+    tokio::spawn(async move {
+        match backend_for_consumer.subscribe().await {
+            Ok(mut stream) => {
+                use futures::stream::StreamExt;
+                while let Some(event) = stream.next().await {
+                    let result = AssertUnwindSafe(async {
+                        if local_tx.send(event).is_err() {
+                            tracing::warn!("Kafka 消费桥接：本地 channel 已关闭，停止消费");
+                            return false;
+                        }
+                        true
+                    })
+                    .catch_unwind()
+                    .await;
+                    match result {
+                        Ok(true) => {} // 继续
+                        Ok(false) => break, // channel 关闭，退出
+                        Err(panic_payload) => {
+                            let panic_msg = panic_payload
+                                .downcast_ref::<String>()
+                                .map(|s| s.as_str())
+                                .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                                .unwrap_or("<非字符串 panic payload>");
+                            tracing::error!(
+                                panic = %panic_msg,
+                                "⚠ Kafka 消费桥接 spawn panic 已被隔离，继续运行（不退出循环）"
+                            );
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!("Kafka 订阅失败: {}", e);
+            }
+        }
+    })
 }
 
 // ============================================================================

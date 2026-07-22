@@ -369,43 +369,62 @@ impl PurchaseOrderService {
         // 在同一事务内插入反向"调整"冲销记录，保证原子性
         let now = chrono::Utc::now();
         for occupation in &occupations {
-            let release_active = budget_execution::ActiveModel {
-                plan_id: Set(occupation.plan_id),
-                execution_type: Set("调整".to_string()),
-                amount: Set(-occupation.amount),
-                expense_type: Set(Some("采购订单取消释放".to_string())),
-                expense_date: Set(now.date_naive()),
-                related_document_type: Set(Some("purchase_order".to_string())),
-                related_document_id: Set(Some(order.id)),
-                remark: Set(Some(format!(
-                    "采购订单取消冲销预算占用，订单 {}，原执行ID: {}",
-                    order.order_no, occupation.id
-                ))),
-                created_by: Set(Some(order.created_by)),
-                ..Default::default()
-            };
+            let release_active = Self::build_budget_release_active(occupation, order, now);
+            Self::insert_budget_release_record(release_active, occupation, order, txn).await;
+        }
+    }
 
-            match budget_execution::Entity::insert(release_active)
-                .exec(txn)
-                .await
-            {
-                Ok(insert_result) => {
-                    tracing::info!(
-                        order_id = order.id,
-                        original_execution_id = occupation.id,
-                        release_execution_id = insert_result.last_insert_id,
-                        amount = %occupation.amount,
-                        "采购订单预算释放成功"
-                    );
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        error = %e,
-                        order_id = order.id,
-                        original_execution_id = occupation.id,
-                        "采购订单预算释放记录插入失败（不阻断取消主流程）"
-                    );
-                }
+    /// 构造预算释放反向"调整"冲销记录（金额为负抵消原占用）
+    fn build_budget_release_active(
+        occupation: &crate::models::budget_execution::Model,
+        order: &purchase_order::Model,
+        now: chrono::DateTime<Utc>,
+    ) -> crate::models::budget_execution::ActiveModel {
+        use crate::models::budget_execution;
+        use sea_orm::Set;
+        budget_execution::ActiveModel {
+            plan_id: Set(occupation.plan_id),
+            execution_type: Set("调整".to_string()),
+            amount: Set(-occupation.amount),
+            expense_type: Set(Some("采购订单取消释放".to_string())),
+            expense_date: Set(now.date_naive()),
+            related_document_type: Set(Some("purchase_order".to_string())),
+            related_document_id: Set(Some(order.id)),
+            remark: Set(Some(format!(
+                "采购订单取消冲销预算占用，订单 {}，原执行ID: {}",
+                order.order_no, occupation.id
+            ))),
+            created_by: Set(Some(order.created_by)),
+            ..Default::default()
+        }
+    }
+
+    /// 事务内插入预算释放记录，失败仅 warn 不阻断取消主流程
+    async fn insert_budget_release_record(
+        release_active: crate::models::budget_execution::ActiveModel,
+        occupation: &crate::models::budget_execution::Model,
+        order: &purchase_order::Model,
+        txn: &sea_orm::DatabaseTransaction,
+    ) {
+        use crate::models::budget_execution;
+        use sea_orm::EntityTrait;
+        match budget_execution::Entity::insert(release_active).exec(txn).await {
+            Ok(insert_result) => {
+                tracing::info!(
+                    order_id = order.id,
+                    original_execution_id = occupation.id,
+                    release_execution_id = insert_result.last_insert_id,
+                    amount = %occupation.amount,
+                    "采购订单预算释放成功"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    order_id = order.id,
+                    original_execution_id = occupation.id,
+                    "采购订单预算释放记录插入失败（不阻断取消主流程）"
+                );
             }
         }
     }

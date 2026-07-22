@@ -386,9 +386,26 @@ impl DashboardService {
         end_date: Option<DateTime<Utc>>,
         dimension: &str,
     ) -> Result<Vec<SalesByDimension>, AppError> {
-        // 动态拼接 SQL（dimension 为代码内常量，非用户输入，不存在 SQL 注入风险）
-        let sql = match dimension {
-            "customer" => r#"
+        let base_sql = match Self::select_sales_dimension_sql(dimension) {
+            Some(sql) => sql,
+            None => return Ok(vec![]),
+        };
+        let (sql, params) =
+            Self::append_date_filters_and_grouping(base_sql, start_date, end_date);
+
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, params);
+        let rows = SalesByDimensionRow::find_by_statement(stmt)
+            .all(self.db.as_ref())
+            .await?;
+
+        Ok(Self::map_sales_dimension_rows(rows))
+    }
+
+    /// 按维度选择销售聚合的基础 SQL（dimension 为代码内常量，非用户输入，不存在 SQL 注入风险）
+    fn select_sales_dimension_sql(dimension: &str) -> Option<String> {
+        match dimension {
+            "customer" => Some(
+                r#"
                 SELECT
                     COALESCE(c.customer_name, '未关联客户') as name,
                     COALESCE(SUM(s.total_amount), 0) as total_amount,
@@ -397,8 +414,10 @@ impl DashboardService {
                 LEFT JOIN customers c ON c.id = s.customer_id
                 WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
             "#
-            .to_string(),
-            "product" => r#"
+                .to_string(),
+            ),
+            "product" => Some(
+                r#"
                 SELECT
                     COALESCE(p.name, '未关联产品') as name,
                     COALESCE(SUM(si.total_amount), 0) as total_amount,
@@ -409,8 +428,10 @@ impl DashboardService {
                 LEFT JOIN products p ON p.id = si.product_id
                 WHERE 1=1
             "#
-            .to_string(),
-            "salesperson" => r#"
+                .to_string(),
+            ),
+            "salesperson" => Some(
+                r#"
                 SELECT
                     COALESCE(u.username, '未关联销售员') as name,
                     COALESCE(SUM(s.total_amount), 0) as total_amount,
@@ -419,12 +440,18 @@ impl DashboardService {
                 LEFT JOIN users u ON u.id = s.created_by
                 WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
             "#
-            .to_string(),
-            _ => return Ok(vec![]),
-        };
+                .to_string(),
+            ),
+            _ => None,
+        }
+    }
 
-        // 追加日期过滤与分组排序
-        let mut sql = sql;
+    /// 在基础 SQL 后追加可选日期过滤 + 分组排序（LIMIT 20）
+    fn append_date_filters_and_grouping(
+        mut sql: String,
+        start_date: Option<DateTime<Utc>>,
+        end_date: Option<DateTime<Utc>>,
+    ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = Vec::new();
         let mut param_idx = 1usize;
 
@@ -439,27 +466,18 @@ impl DashboardService {
         }
 
         sql.push_str(" GROUP BY name ORDER BY total_amount DESC LIMIT 20");
+        (sql, params)
+    }
 
-        let stmt = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-            params,
-        );
-
-        let rows = SalesByDimensionRow::find_by_statement(stmt)
-            .all(self.db.as_ref())
-            .await?;
-
-        let results = rows
-            .into_iter()
+    /// 将 raw SQL 行映射为 SalesByDimension 列表
+    fn map_sales_dimension_rows(rows: Vec<SalesByDimensionRow>) -> Vec<SalesByDimension> {
+        rows.into_iter()
             .map(|r| SalesByDimension {
                 name: r.name,
                 amount: r.total_amount.unwrap_or(Decimal::ZERO).to_string(),
                 count: r.order_count.unwrap_or(0),
             })
-            .collect();
-
-        Ok(results)
+            .collect()
     }
 
     /// 获取库存统计数据
