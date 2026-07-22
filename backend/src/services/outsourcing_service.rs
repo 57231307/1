@@ -1227,10 +1227,26 @@ impl OutsourcingReceiptService {
             return Err(AppError::business("收回数量不能为负"));
         }
 
+        Self::validate_create_request(&*self.db, &req).await?;
+
+        let now = crate::utils::date_utils::utc_now_fixed();
+        let active = Self::build_receipt_active_model(&req, now);
+
+        active
+            .insert(&*self.db)
+            .await
+            .map_err(|e| AppError::database(format!("委外收回单创建失败: {}", e)))
+    }
+
+    /// 校验创建请求：委外订单存在 + 成品存在 + 收回单号唯一
+    async fn validate_create_request(
+        db: &DatabaseConnection,
+        req: &CreateOutsourcingReceiptRequest,
+    ) -> Result<(), AppError> {
         // 校验委外订单存在
         if OrderEntity::find_by_id(req.outsourcing_order_id)
             .filter(outsourcing_order::Column::IsDeleted.eq(false))
-            .one(&*self.db)
+            .one(db)
             .await?
             .is_none()
         {
@@ -1242,7 +1258,7 @@ impl OutsourcingReceiptService {
 
         // 校验成品存在
         if crate::models::product::Entity::find_by_id(req.product_id)
-            .one(&*self.db)
+            .one(db)
             .await?
             .is_none()
         {
@@ -1253,7 +1269,7 @@ impl OutsourcingReceiptService {
         if let Some(_existing) = ReceiptEntity::find()
             .filter(outsourcing_receipt::Column::ReceiptNo.eq(&req.receipt_no))
             .filter(outsourcing_receipt::Column::IsDeleted.eq(false))
-            .one(&*self.db)
+            .one(db)
             .await?
         {
             return Err(AppError::business(format!(
@@ -1262,17 +1278,23 @@ impl OutsourcingReceiptService {
             )));
         }
 
-        let now = crate::utils::date_utils::utc_now_fixed();
+        Ok(())
+    }
 
-        let active = ReceiptActiveModel {
+    /// 构造委外收回入库单 ActiveModel（draft 状态）
+    fn build_receipt_active_model(
+        req: &CreateOutsourcingReceiptRequest,
+        now: chrono::DateTime<chrono::FixedOffset>,
+    ) -> ReceiptActiveModel {
+        ReceiptActiveModel {
             id: Default::default(),
-            receipt_no: Set(req.receipt_no),
+            receipt_no: Set(req.receipt_no.clone()),
             outsourcing_order_id: Set(req.outsourcing_order_id),
             receipt_date: Set(req.receipt_date),
             product_id: Set(req.product_id),
-            color_no: Set(req.color_no),
-            dye_lot_no: Set(req.dye_lot_no),
-            batch_no: Set(req.batch_no),
+            color_no: Set(req.color_no.clone()),
+            dye_lot_no: Set(req.dye_lot_no.clone()),
+            batch_no: Set(req.batch_no.clone()),
             warehouse_id: Set(req.warehouse_id),
             return_quantity: Set(req.return_quantity),
             loss_quantity: Set(req.loss_quantity.unwrap_or(Decimal::ZERO)),
@@ -1282,22 +1304,16 @@ impl OutsourcingReceiptService {
             unit_cost: Set(Decimal::ZERO),
             total_cost: Set(Decimal::ZERO),
             abnormal_loss_amount: Set(Decimal::ZERO),
-            quality_status: Set(req.quality_status),
-            grade: Set(req.grade),
+            quality_status: Set(req.quality_status.clone()),
+            grade: Set(req.grade.clone()),
             inventory_transaction_id: Set(None),
             status: Set(outsourcing_receipt_status::DRAFT.to_string()),
-            remarks: Set(req.remarks),
+            remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
             created_by: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("委外收回单创建失败: {}", e)))?;
-        Ok(result)
+        }
     }
 
     /// 更新委外收回入库单（仅 draft 状态可更新）

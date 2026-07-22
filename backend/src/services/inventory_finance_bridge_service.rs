@@ -173,56 +173,10 @@ impl InventoryFinanceBridgeService {
                 // 批次 8（2026-06-28）：单次事件处理 panic 隔离
                 // 库存财务桥接监听器 panic 会导致库存交易不再生成会计凭证，
                 // 财务报表与库存数据不一致。
-                let result = AssertUnwindSafe(async {
-                if let BusinessEvent::InventoryTransactionCreated {
-                    transaction_id,
-                    transaction_type,
-                    product_id,
-                    warehouse_id,
-                    quantity_meters,
-                    quantity_kg,
-                    source_bill_type,
-                    source_bill_no,
-                    source_bill_id,
-                    batch_no,
-                    color_no,
-                    created_by,
-                } = event
-                {
-                    info!(
-                        "处理库存交易创建事件: 交易ID={}, 类型={}, 产品ID={}, 仓库ID={}",
-                        transaction_id, transaction_type, product_id, warehouse_id
-                    );
-
-                    let bridge_service = InventoryFinanceBridgeService::new(db.clone());
-                    // 批次 337 v10 复审 P3 修复：使用 VoucherCreateArgs 参数对象替代多参数
-                    let voucher_args = VoucherCreateArgs {
-                        product_id,
-                        warehouse_id,
-                        quantity_meters,
-                        quantity_kg,
-                        source_bill_type: source_bill_type.as_deref(),
-                        source_bill_no: source_bill_no.as_deref(),
-                        source_bill_id,
-                        batch_no: &batch_no,
-                        color_no: &color_no,
-                        created_by,
-                    };
-                    if let Err(e) = bridge_service
-                        .handle_inventory_transaction(
-                            transaction_id,
-                            &transaction_type,
-                            voucher_args,
-                        )
-                        .await
-                    {
-                        error!(
-                            "处理库存交易事件失败: 交易ID={}, 错误={}",
-                            transaction_id, e
-                        );
-                    }
-                }
-                })
+                let result = AssertUnwindSafe(Self::handle_inventory_event_safe(
+                    db.clone(),
+                    event,
+                ))
                 .catch_unwind()
                 .await;
                 if let Err(panic_payload) = result {
@@ -242,6 +196,56 @@ impl InventoryFinanceBridgeService {
         // L-29 修复（批次 373 v13 复审）：保存句柄到全局 static
         if let Ok(mut guard) = BRIDGE_LISTENER_HANDLE.lock() {
             *guard = Some(listener_handle);
+        }
+    }
+
+    /// 处理单个库存交易创建事件（panic 隔离由调用方 catch_unwind 包裹）
+    ///
+    /// 仅处理 `InventoryTransactionCreated` 事件，调用 handle_inventory_transaction 生成会计凭证。
+    async fn handle_inventory_event_safe(db: Arc<DatabaseConnection>, event: BusinessEvent) {
+        if let BusinessEvent::InventoryTransactionCreated {
+            transaction_id,
+            transaction_type,
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = event
+        {
+            info!(
+                "处理库存交易创建事件: 交易ID={}, 类型={}, 产品ID={}, 仓库ID={}",
+                transaction_id, transaction_type, product_id, warehouse_id
+            );
+
+            let bridge_service = InventoryFinanceBridgeService::new(db);
+            // 批次 337 v10 复审 P3 修复：使用 VoucherCreateArgs 参数对象替代多参数
+            let voucher_args = VoucherCreateArgs {
+                product_id,
+                warehouse_id,
+                quantity_meters,
+                quantity_kg,
+                source_bill_type: source_bill_type.as_deref(),
+                source_bill_no: source_bill_no.as_deref(),
+                source_bill_id,
+                batch_no: &batch_no,
+                color_no: &color_no,
+                created_by,
+            };
+            if let Err(e) = bridge_service
+                .handle_inventory_transaction(transaction_id, &transaction_type, voucher_args)
+                .await
+            {
+                error!(
+                    "处理库存交易事件失败: 交易ID={}, 错误={}",
+                    transaction_id, e
+                );
+            }
         }
     }
 
