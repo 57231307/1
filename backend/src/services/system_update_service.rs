@@ -679,50 +679,20 @@ impl SystemUpdateService {
             .release_info
             .ok_or_else(|| UpdateError::NetworkError("无法获取发布信息".to_string()))?;
 
-        let asset = if let Some(name) = asset_name {
-            release
-                .assets
-                .iter()
-                .find(|a| a.name.contains(name))
-                .ok_or_else(|| UpdateError::NetworkError(format!("找不到资源: {}", name)))?
-        } else {
-            release
-                .assets
-                .iter()
-                .find(|a| a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
-                .ok_or_else(|| UpdateError::NetworkError("找不到更新包".to_string()))?
-        };
+        let asset = Self::find_release_asset(&release, asset_name)?;
 
         self.log_update(&format!("开始下载更新包: {}", asset.name));
 
         // M-2 修复（v9 复审）：校验 asset.name 防止路径穿越
-        // asset.name 来自 GitHub API，若账号被入侵可设置为 "../../../etc/cron.d/evil"
-        // 导致 download_path.join(&asset.name) 写入任意路径
         validate_asset_name(&asset.name)?;
 
         let download_dir = self.app_dir.join("downloads");
         if !download_dir.exists() {
             fs::create_dir_all(&download_dir)?;
         }
-
         let download_path = download_dir.join(&asset.name);
 
-        // TS-S-7 安全加固（2026-06-26）：校验下载域名，防止 SSRF / 中间人攻击
-        validate_download_url(&asset.browser_download_url)?;
-
-        // M1 修复（v8 复审）：DNS Rebinding 防御，用 resolve_to_addrs 固定连接到已校验 IP
-        let (dl_host, dl_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(
-            &asset.browser_download_url,
-        )
-        .map_err(|e| UpdateError::NetworkError(format!("下载 URL SSRF 校验失败: {}", e)))?;
-
-        // TS-S-7：限制重定向次数并校验最终 URL 域名
-        let client = reqwest::Client::builder()
-            .user_agent("BingxiERP/1.0")
-            .redirect(reqwest::redirect::Policy::limited(3))
-            .resolve_to_addrs(&dl_host, &dl_safe_addrs)
-            .build()
-            .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+        let client = Self::build_safe_download_client(&asset.browser_download_url)?;
 
         let mut response = client
             .get(&asset.browser_download_url)
@@ -735,7 +705,6 @@ impl SystemUpdateService {
         validate_download_url(final_url.as_str())?;
 
         let mut file = fs::File::create(&download_path)?;
-
         while let Some(chunk) = response
             .chunk()
             .await
@@ -745,8 +714,43 @@ impl SystemUpdateService {
         }
 
         self.log_update(&format!("更新包下载完成: {:?}", download_path));
-
         Ok(download_path)
+    }
+
+    /// 在发布信息中查找匹配的资源（按名称匹配或按扩展名自动选择 .zip/.tar.gz）
+    fn find_release_asset(
+        release: &GitHubRelease,
+        asset_name: Option<&str>,
+    ) -> Result<&GitHubAsset, UpdateError> {
+        if let Some(name) = asset_name {
+            release
+                .assets
+                .iter()
+                .find(|a| a.name.contains(name))
+                .ok_or_else(|| UpdateError::NetworkError(format!("找不到资源: {}", name)))
+        } else {
+            release
+                .assets
+                .iter()
+                .find(|a| a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
+                .ok_or_else(|| UpdateError::NetworkError("找不到更新包".to_string()))
+        }
+    }
+
+    /// 构建 SSRF 防御的下载客户端（URL 校验 + DNS Rebinding 防御 + 重定向限制）
+    ///
+    /// TS-S-7 安全加固：校验下载域名防止 SSRF / 中间人攻击。
+    /// M1 修复（v8 复审）：DNS Rebinding 防御，用 resolve_to_addrs 固定连接到已校验 IP。
+    fn build_safe_download_client(url: &str) -> Result<reqwest::Client, UpdateError> {
+        validate_download_url(url)?;
+        let (dl_host, dl_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(url)
+            .map_err(|e| UpdateError::NetworkError(format!("下载 URL SSRF 校验失败: {}", e)))?;
+        reqwest::Client::builder()
+            .user_agent("BingxiERP/1.0")
+            .redirect(reqwest::redirect::Policy::limited(3))
+            .resolve_to_addrs(&dl_host, &dl_safe_addrs)
+            .build()
+            .map_err(|e| UpdateError::NetworkError(e.to_string()))
     }
 
     pub async fn download_and_update(&self) -> Result<String, UpdateError> {

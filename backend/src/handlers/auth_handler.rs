@@ -107,66 +107,9 @@ impl UserInfo {
         db: &sea_orm::DatabaseConnection,
         user: &crate::models::user::Model,
     ) -> Self {
-        let role_name = if let Some(role_id) = user.role_id {
-            crate::models::role::Entity::find_by_id(role_id)
-                .one(db)
-                .await
-                .ok()
-                .flatten()
-                .map(|r| r.code)
-        } else {
-            None
-        };
-
-        let permissions: Vec<String> = if let Some(role_id) = user.role_id {
-            // V15 P0-S03 修复：仅 admin 角色注入 *:* 通配权限，与后端 admin_checker::is_admin_role 一致。
-            // 原实现用 is_system 判断导致 manager/operator 也获得 *:* 超级权限（is_system 语义为"系统内置不可删除"，
-            // 不应等同于"超级权限"）。现改为 code == ADMIN_ROLE_CODE 精确匹配，仅 admin 放行。
-            let role_model = crate::models::role::Entity::find_by_id(role_id)
-                .one(db)
-                .await
-                .ok()
-                .flatten();
-
-            if let Some(ref role) = role_model {
-                if role.code == ADMIN_ROLE_CODE {
-                    vec!["*:*".to_string()]
-                } else {
-                    crate::models::role_permission::Entity::find()
-                        .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
-                        .filter(crate::models::role_permission::Column::Allowed.eq(true))
-                        .all(db)
-                        .await
-                        .map(|perms| {
-                            perms
-                                .into_iter()
-                                .map(|p| format!("{}:{}", p.resource_type, p.action))
-                                .collect()
-                        })
-                        .unwrap_or_else(|e| {
-                            // 批次 407 修复：权限查询失败时 fail-secure 返回空 Vec，但必须记录告警日志便于排查
-                            tracing::warn!(error = %e, "权限查询失败，按无权限处理");
-                            Vec::new()
-                        })
-                }
-            } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
-        };
-
-        // 批次 29 v7 P0-5 修复：JOIN departments 表获取 department_name
-        let department_name = if let Some(dept_id) = user.department_id {
-            crate::models::department::Entity::find_by_id(dept_id)
-                .one(db)
-                .await
-                .ok()
-                .flatten()
-                .map(|d| d.name)
-        } else {
-            None
-        };
+        let role_name = Self::fetch_role_name(db, user.role_id).await;
+        let permissions = Self::fetch_role_permissions(db, user.role_id).await;
+        let department_name = Self::fetch_department_name(db, user.department_id).await;
 
         UserInfo {
             id: user.id,
@@ -183,6 +126,80 @@ impl UserInfo {
             real_name: None,
             avatar: None,
         }
+    }
+
+    /// 查询用户角色名（None 表示未分配角色或角色不存在）
+    async fn fetch_role_name(
+        db: &sea_orm::DatabaseConnection,
+        role_id: Option<i32>,
+    ) -> Option<String> {
+        let role_id = role_id?;
+        crate::models::role::Entity::find_by_id(role_id)
+            .one(db)
+            .await
+            .ok()
+            .flatten()
+            .map(|r| r.code)
+    }
+
+    /// 查询用户权限列表（admin 角色返回 *:* 通配权限，其余按 role_permission 表查询）
+    ///
+    /// V15 P0-S03 修复：仅 admin 角色注入 *:* 通配权限，与后端 admin_checker::is_admin_role 一致。
+    /// 原实现用 is_system 判断导致 manager/operator 也获得 *:* 超级权限（is_system 语义为"系统内置不可删除"，
+    /// 不应等同于"超级权限"）。现改为 code == ADMIN_ROLE_CODE 精确匹配，仅 admin 放行。
+    async fn fetch_role_permissions(
+        db: &sea_orm::DatabaseConnection,
+        role_id: Option<i32>,
+    ) -> Vec<String> {
+        let role_id = match role_id {
+            Some(id) => id,
+            None => return Vec::new(),
+        };
+
+        let role_model = crate::models::role::Entity::find_by_id(role_id)
+            .one(db)
+            .await
+            .ok()
+            .flatten();
+
+        match role_model {
+            Some(ref role) if role.code == ADMIN_ROLE_CODE => {
+                vec!["*:*".to_string()]
+            }
+            Some(_) => {
+                crate::models::role_permission::Entity::find()
+                    .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
+                    .filter(crate::models::role_permission::Column::Allowed.eq(true))
+                    .all(db)
+                    .await
+                    .map(|perms| {
+                        perms
+                            .into_iter()
+                            .map(|p| format!("{}:{}", p.resource_type, p.action))
+                            .collect()
+                    })
+                    .unwrap_or_else(|e| {
+                        // 批次 407 修复：权限查询失败时 fail-secure 返回空 Vec，但必须记录告警日志便于排查
+                        tracing::warn!(error = %e, "权限查询失败，按无权限处理");
+                        Vec::new()
+                    })
+            }
+            None => Vec::new(),
+        }
+    }
+
+    /// 查询用户部门名（None 表示未分配部门或部门不存在）
+    async fn fetch_department_name(
+        db: &sea_orm::DatabaseConnection,
+        dept_id: Option<i32>,
+    ) -> Option<String> {
+        let dept_id = dept_id?;
+        crate::models::department::Entity::find_by_id(dept_id)
+            .one(db)
+            .await
+            .ok()
+            .flatten()
+            .map(|d| d.name)
     }
 }
 

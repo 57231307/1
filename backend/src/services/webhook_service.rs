@@ -240,41 +240,56 @@ impl WebhookService {
         body: &str,
         secret: Option<&str>,
     ) -> Result<WebhookDeliveryResult, AppError> {
-        // SSRF 缓解：URL 验证
+        // SSRF 缓解：仅允许 HTTPS 协议
         if !url.to_lowercase().starts_with("https://") {
             return Err(AppError::validation("仅允许 HTTPS 协议"));
         }
 
-        // BE-V-2/TS-S-2 修复（2026-06-25 第二次全面审计）：TOCTOU 根治
-        // 原实现 validate_url(url) 校验通过后，client.post(url) 传 URL 字符串给
-        // reqwest，reqwest 内部会第三次解析 DNS，DNS Rebinding 可绕过校验。
-        // 修复：validate_url_and_resolve 返回校验通过的安全 IP 列表，
-        // 用 resolve_to_addrs 将 host 固定到已校验 IP，reqwest 不再独立解析 DNS，
-        // 彻底消除"校验时解析为公网 IP、连接时解析为内网 IP"的 TOCTOU 窗口。
-        let (host, safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(url)?;
-
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none()) // SSRF 缓解：禁止跟随重定向
-            .resolve_to_addrs(&host, &safe_addrs) // TOCTOU 修复：固定连接到已校验 IP
-            .build()
-            .map_err(|e| AppError::internal(format!("HTTP 客户端构建失败: {}", e)))?;
-
-        let mut request = client
+        let client = Self::build_webhook_client(url)?;
+        let request = client
             .post(url)
             .header("Content-Type", "application/json")
             .header("User-Agent", "BingXi-ERP-Webhook/1.0");
+        let request = Self::attach_webhook_signature(request, url, body, secret);
+        let request = request.body(body.to_string());
 
-        // P1-B 修复：出站签名从 SHA256(body || secret) 改为 HMAC-SHA256(secret, body)，
-        // 与 webhook_signature.rs 入站验证使用同一份算法（sign_webhook_payload）。
-        // 旧实现 SHA256(body || secret) 存在长度扩展攻击风险：攻击者可在不知 secret 的情况下
-        // 推算 secret + padding 后的扩展摘要。
+        let result = request.send().await;
+        Ok(Self::parse_webhook_response(result).await)
+    }
+
+    /// 构建 SSRF 防御的 webhook 客户端（HTTPS 校验 + DNS Rebinding 防御 + 禁止重定向）
+    ///
+    /// BE-V-2/TS-S-2 修复（2026-06-25 第二次全面审计）：TOCTOU 根治。
+    /// validate_url_and_resolve 返回校验通过的安全 IP 列表，
+    /// 用 resolve_to_addrs 将 host 固定到已校验 IP，reqwest 不再独立解析 DNS，
+    /// 彻底消除"校验时解析为公网 IP、连接时解析为内网 IP"的 TOCTOU 窗口。
+    fn build_webhook_client(url: &str) -> Result<reqwest::Client, AppError> {
+        let (host, safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(url)?;
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none())
+            .resolve_to_addrs(&host, &safe_addrs)
+            .build()
+            .map_err(|e| AppError::internal(format!("HTTP 客户端构建失败: {}", e)))
+    }
+
+    /// 附加 HMAC-SHA256 签名头（P1-B 修复：出站签名与入站验证使用同一份算法）
+    ///
+    /// 旧实现 SHA256(body || secret) 存在长度扩展攻击风险：攻击者可在不知 secret 的情况下
+    /// 推算 secret + padding 后的扩展摘要。现改为 HMAC-SHA256(secret, body)。
+    /// 签名失败时 warn 日志降级，不阻塞 webhook 发送。
+    fn attach_webhook_signature(
+        mut request: reqwest::RequestBuilder,
+        url: &str,
+        body: &str,
+        secret: Option<&str>,
+    ) -> reqwest::RequestBuilder {
         if let Some(secret) = secret {
-            // 批次 117 P1-5：sign_webhook_payload 返回 Result，失败时 warn 日志降级（不阻塞 webhook 发送）
             match crate::utils::webhook_signature::sign_webhook_payload(body, secret) {
                 Ok(signature) => {
-                    request = request.header("X-Webhook-Signature", format!("sha256={}", signature));
+                    request = request
+                        .header("X-Webhook-Signature", format!("sha256={}", signature));
                 }
                 Err(e) => {
                     // 规则 12 合规：日志只记录主机名，不记录完整 URL，防止 URL 中的敏感参数泄露
@@ -286,16 +301,19 @@ impl WebhookService {
                 }
             }
         }
+        request
+    }
 
-        request = request.body(body.to_string());
-
-        match request.send().await {
+    /// 解析 webhook 响应为 WebhookDeliveryResult（发送失败也封装为结构体，不返回 Err）
+    async fn parse_webhook_response(
+        result: Result<reqwest::Response, reqwest::Error>,
+    ) -> WebhookDeliveryResult {
+        match result {
             Ok(response) => {
                 let status_code = response.status().as_u16();
                 let response_body = response.text().await.unwrap_or_default();
                 let success = (200..300).contains(&status_code);
-
-                Ok(WebhookDeliveryResult {
+                WebhookDeliveryResult {
                     success,
                     status_code: Some(status_code),
                     response_body: Some(response_body),
@@ -304,14 +322,14 @@ impl WebhookService {
                     } else {
                         Some(format!("HTTP {}", status_code))
                     },
-                })
+                }
             }
-            Err(e) => Ok(WebhookDeliveryResult {
+            Err(e) => WebhookDeliveryResult {
                 success: false,
                 status_code: None,
                 response_body: None,
                 error: Some(e.to_string()),
-            }),
+            },
         }
     }
 

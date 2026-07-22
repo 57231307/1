@@ -240,47 +240,17 @@ impl AccountingPeriodService {
         let mut updated_count = 0u64;
 
         for balance in current_balances {
-            // 查询下期是否已有该科目的余额记录
-            let existing = account_balance::Entity::find()
-                .filter(account_balance::Column::SubjectId.eq(balance.subject_id))
-                .filter(account_balance::Column::Period.eq(next_period))
-                .one(txn)
-                .await?;
-
-            if let Some(existing) = existing {
-                // 下期记录已存在，更新期初余额
-                // 先保存下期已发生的本期借贷金额（existing.current_period_*）
-                let next_period_debit = existing.current_period_debit;
-                let next_period_credit = existing.current_period_credit;
-                let mut active: account_balance::ActiveModel = existing.into();
-                active.initial_balance_debit = Set(balance.ending_balance_debit);
-                active.initial_balance_credit = Set(balance.ending_balance_credit);
-                // 期末余额 = 期初 + 本期发生额，若本期发生额为零则期末 = 期初
-                // 这里不重置 current_period_*，因为下期可能已有业务发生
-                active.ending_balance_debit =
-                    Set(balance.ending_balance_debit + next_period_debit);
-                active.ending_balance_credit =
-                    Set(balance.ending_balance_credit + next_period_credit);
-                active.updated_at = Set(now);
-                active.update(txn).await?;
-                updated_count += 1;
-            } else {
-                // 下期记录不存在，插入新记录
-                let new_balance = account_balance::ActiveModel {
-                    subject_id: Set(balance.subject_id),
-                    period: Set(next_period.to_string()),
-                    initial_balance_debit: Set(balance.ending_balance_debit),
-                    initial_balance_credit: Set(balance.ending_balance_credit),
-                    current_period_debit: Set(Decimal::ZERO),
-                    current_period_credit: Set(Decimal::ZERO),
-                    ending_balance_debit: Set(balance.ending_balance_debit),
-                    ending_balance_credit: Set(balance.ending_balance_credit),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                new_balance.insert(txn).await?;
+            let inserted = Self::upsert_next_period_balance_txn(
+                txn,
+                &balance,
+                next_period,
+                now,
+            )
+            .await?;
+            if inserted {
                 inserted_count += 1;
+            } else {
+                updated_count += 1;
             }
         }
 
@@ -292,6 +262,59 @@ impl AccountingPeriodService {
             updated_count
         );
         Ok(())
+    }
+
+    /// 结转单条余额到下期：已存在则更新期初余额，不存在则插入新记录
+    /// 返回 true=inserted, false=updated
+    ///
+    /// 期末余额 = 期初 + 本期发生额，若本期发生额为零则期末 = 期初。
+    /// 这里不重置 current_period_*，因为下期可能已有业务发生。
+    async fn upsert_next_period_balance_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        balance: &crate::models::account_balance::Model,
+        next_period: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool, AppError> {
+        use crate::models::account_balance;
+
+        let existing = account_balance::Entity::find()
+            .filter(account_balance::Column::SubjectId.eq(balance.subject_id))
+            .filter(account_balance::Column::Period.eq(next_period))
+            .one(txn)
+            .await?;
+
+        if let Some(existing) = existing {
+            // 下期记录已存在，更新期初余额
+            let next_period_debit = existing.current_period_debit;
+            let next_period_credit = existing.current_period_credit;
+            let mut active: account_balance::ActiveModel = existing.into();
+            active.initial_balance_debit = Set(balance.ending_balance_debit);
+            active.initial_balance_credit = Set(balance.ending_balance_credit);
+            active.ending_balance_debit =
+                Set(balance.ending_balance_debit + next_period_debit);
+            active.ending_balance_credit =
+                Set(balance.ending_balance_credit + next_period_credit);
+            active.updated_at = Set(now);
+            active.update(txn).await?;
+            Ok(false)
+        } else {
+            // 下期记录不存在，插入新记录
+            let new_balance = account_balance::ActiveModel {
+                subject_id: Set(balance.subject_id),
+                period: Set(next_period.to_string()),
+                initial_balance_debit: Set(balance.ending_balance_debit),
+                initial_balance_credit: Set(balance.ending_balance_credit),
+                current_period_debit: Set(Decimal::ZERO),
+                current_period_credit: Set(Decimal::ZERO),
+                ending_balance_debit: Set(balance.ending_balance_debit),
+                ending_balance_credit: Set(balance.ending_balance_credit),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            };
+            new_balance.insert(txn).await?;
+            Ok(true)
+        }
     }
 
     /// 校验指定日期是否在已结账的期间内（防止篡改历史数据）

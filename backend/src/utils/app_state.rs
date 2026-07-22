@@ -323,22 +323,97 @@ fn construct_app_state(params: AppStateParams, services: AppServices) -> AppStat
     }
 }
 
+/// 测试环境服务集合（default() 内部构建的 Arc 服务 + db + cookie 密钥打包）。
+#[cfg(test)]
+struct TestServices {
+    db: Arc<DatabaseConnection>,
+    metrics: MetricsService,
+    cookie_key: Key,
+    random_cookie_secret: String,
+    omni_audit: Arc<OmniAuditEngine>,
+    audit_log: Arc<AuditLogService>,
+    audit_cleanup: Arc<AuditCleanupService>,
+    di_container: Arc<DIContainer>,
+    email_service: Option<Arc<EmailService>>,
+    event_notification_service: Option<Arc<EventNotificationService>>,
+    data_permission_service: Arc<DataPermissionService>,
+    notification_service: Arc<NotificationService>,
+    quotation_service: Arc<QuotationService>,
+    quotation_pricing_service: Arc<QuotationPricingService>,
+    quotation_approval_service: Arc<QuotationApprovalService>,
+    quotation_convert_service: Arc<QuotationConvertService>,
+    custom_order_crud: Arc<CustomOrderCrudService>,
+    custom_order_state: Arc<CustomOrderStateService>,
+    custom_order_process: Arc<CustomOrderProcessService>,
+    custom_order_quality: Arc<CustomOrderQualityService>,
+    custom_order_aftersales: Arc<CustomOrderAfterSalesService>,
+    failover_executor: Arc<FailoverExecutor>,
+}
+
+/// 构建测试环境服务集合（default() 调用，构造失败时显式 panic）。
+#[cfg(test)]
+fn build_test_services() -> TestServices {
+    let metrics = MetricsService::new()
+        .expect("测试环境创建 Prometheus 指标服务不应失败（指标命名冲突？）");
+    let random_cookie_secret = format!("{}{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let cookie_key = Key::derive_from(random_cookie_secret.as_bytes());
+    let db = Arc::new(DatabaseConnection::default());
+    let omni_audit = Arc::new(
+        OmniAuditEngine::new(db.clone())
+            .expect("测试环境创建 OmniAuditEngine 不应失败（检查 AUDIT_SECRET_KEY）"),
+    );
+    let audit_log = Arc::new(AuditLogService::new(db.clone()));
+    let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 999));
+    let di_container = Arc::new(DIContainer::new());
+    let email_service = EmailService::from_env().map(Arc::new);
+    let event_notification_service = Some(Arc::new(EventNotificationService::new(db.clone())));
+    let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
+    let notification_service = Arc::new(NotificationService::new(db.clone()));
+    let quotation_service = Arc::new(QuotationService::new(db.clone()));
+    let quotation_pricing_service = Arc::new(QuotationPricingService::new(db.clone()));
+    let quotation_approval_service = Arc::new(QuotationApprovalService::new(db.clone()));
+    let quotation_convert_service = Arc::new(QuotationConvertService::new(db.clone()));
+    let custom_order_crud = Arc::new(CustomOrderCrudService::new(db.clone()));
+    let custom_order_state = Arc::new(CustomOrderStateService::new(db.clone()));
+    let custom_order_process = Arc::new(CustomOrderProcessService::new(db.clone()));
+    let custom_order_quality = Arc::new(CustomOrderQualityService::new(db.clone()));
+    let custom_order_aftersales = Arc::new(CustomOrderAfterSalesService::new(db.clone()));
+    let failover_executor = Arc::new(FailoverExecutor::new(db.clone(), None));
+    TestServices {
+        db,
+        metrics,
+        cookie_key,
+        random_cookie_secret,
+        omni_audit,
+        audit_log,
+        audit_cleanup,
+        di_container,
+        email_service,
+        event_notification_service,
+        data_permission_service,
+        notification_service,
+        quotation_service,
+        quotation_pricing_service,
+        quotation_approval_service,
+        quotation_convert_service,
+        custom_order_crud,
+        custom_order_state,
+        custom_order_process,
+        custom_order_quality,
+        custom_order_aftersales,
+        failover_executor,
+    }
+}
+
 impl Default for AppState {
     /// **警告**：此 Default 实现仅用于测试环境。
     ///
     /// 生产环境必须使用 [`AppState::with_secrets_and_cors`] 并提供真实的密钥配置。
     /// 随机生成的密钥与数据库连接（`DatabaseConnection::default()`）仅能保证单测可运行，
     /// 不具备任何业务可用性。
-    ///
-    /// 批次 345 v11 复审 P2-8 修复：重构 default() 方法消除 #[allow(dead_code, unused_variables)]。
-    /// 原实现在 jwt_secret 字段初始化器中通过 #[cfg(not(test))] 调用 std::process::exit(1)，
-    /// 导致后续字段初始化代码在非测试构建中被判定为不可达，触发 dead_code + unreachable_code 警告，
-    /// 需要文件级抑制掩盖。重构方案：将 #[cfg(not(test))] 的 fail-fast 提前到函数体最开头，
-    /// panic! 返回 `!` 类型可 coerce 到 Self，后续不构造任何变量；测试构建中所有局部变量均被
-    /// 字段初始化器使用，消除 unused_variables。规则 14 合规：移除所有警告抑制。
     fn default() -> Self {
         // 非测试环境直接 panic，禁止使用 Default 构造 AppState
-        // （测试环境构造见下方 #[cfg(test)] 块；panic! 返回 `!` 可 coerce 到 Self）
+        // （panic! 返回 `!` 可 coerce 到 Self；测试环境构造见下方 #[cfg(test)] 块）
         #[cfg(not(test))]
         {
             panic!(
@@ -348,70 +423,39 @@ impl Default for AppState {
             );
         }
 
-        // 测试环境构造：所有局部变量均被字段初始化器使用，消除 unused_variables
+        // 测试环境构造：服务集合由 build_test_services 构建，default 仅负责组装 struct literal
         #[cfg(test)]
         {
-            // 指标服务构造失败时显式 panic（测试环境指标命名冲突属致命错误）
-            let metrics = MetricsService::new()
-                .expect("测试环境创建 Prometheus 指标服务不应失败（指标命名冲突？）");
-            // 使用随机生成的密钥，而不是硬编码的默认值
-            let random_cookie_secret = format!("{}{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
-            let cookie_key = Key::derive_from(random_cookie_secret.as_bytes());
-            let db = Arc::new(DatabaseConnection::default());
-            let omni_audit = Arc::new(
-                OmniAuditEngine::new(db.clone())
-                    .expect("测试环境创建 OmniAuditEngine 不应失败（检查 AUDIT_SECRET_KEY）"),
-            );
-            let audit_log = Arc::new(AuditLogService::new(db.clone()));
-            let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 999));
-            let di_container = Arc::new(DIContainer::new());
-            let email_service = EmailService::from_env().map(Arc::new);
-            let event_notification_service = Some(Arc::new(EventNotificationService::new(db.clone())));
-            let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
-            let notification_service = Arc::new(NotificationService::new(db.clone()));
-            let quotation_service = Arc::new(QuotationService::new(db.clone()));
-            let quotation_pricing_service = Arc::new(QuotationPricingService::new(db.clone()));
-            let quotation_approval_service = Arc::new(QuotationApprovalService::new(db.clone()));
-            let quotation_convert_service = Arc::new(QuotationConvertService::new(db.clone()));
-            // P0-3 定制订单服务（测试环境）
-            let custom_order_crud = Arc::new(CustomOrderCrudService::new(db.clone()));
-            let custom_order_state = Arc::new(CustomOrderStateService::new(db.clone()));
-            let custom_order_process = Arc::new(CustomOrderProcessService::new(db.clone()));
-            let custom_order_quality = Arc::new(CustomOrderQualityService::new(db.clone()));
-            let custom_order_aftersales = Arc::new(CustomOrderAfterSalesService::new(db.clone()));
-            // V15 P0-B17（Batch 484）：测试环境构造 FailoverExecutor（仅主库，无备库）
-            let failover_executor = Arc::new(FailoverExecutor::new(db.clone(), None));
+            let svc = build_test_services();
             Self {
-                db: db.clone(),
-                omni_audit,
-                audit_log,
-                audit_cleanup,
+                db: svc.db,
+                omni_audit: svc.omni_audit,
+                audit_log: svc.audit_log,
+                audit_cleanup: svc.audit_cleanup,
                 // Wave B-2 修复（B2-2）：测试环境使用固定 JWT 密钥
-                // 生产环境必须通过环境变量 JWT_SECRET 注入，且调用方应使用 with_secrets_and_cors
-                // 显式传递真实密钥（main.rs 启动时已强制校验 JWT_SECRET 强度）。
                 jwt_secret: "test_secret_for_unit_tests_only_min_32_bytes".to_string(),
                 previous_jwt_secret: None,
-                cookie_secret: random_cookie_secret,
+                cookie_secret: svc.random_cookie_secret,
                 // M-2 修复：测试环境使用独立 webhook 密钥（与 jwt_secret 错开）
                 webhook_secret: "test_webhook_secret_for_unit_tests_only_min_32_bytes".to_string(),
                 cache: AppCache::arc(),
-                metrics: Arc::new(metrics),
-                cookie_key,
-                di_container,
-                email_service,
-                event_notification_service,
-                data_permission_service,
-                notification_service,
+                metrics: Arc::new(svc.metrics),
+                cookie_key: svc.cookie_key,
+                di_container: svc.di_container,
+                email_service: svc.email_service,
+                event_notification_service: svc.event_notification_service,
+                data_permission_service: svc.data_permission_service,
+                notification_service: svc.notification_service,
                 allowed_origins: vec![],
-                quotation_service,
-                quotation_pricing_service,
-                quotation_approval_service,
-                quotation_convert_service,
-                custom_order_crud,
-                custom_order_state,
-                custom_order_process,
-                custom_order_quality,
-                custom_order_aftersales,
+                quotation_service: svc.quotation_service,
+                quotation_pricing_service: svc.quotation_pricing_service,
+                quotation_approval_service: svc.quotation_approval_service,
+                quotation_convert_service: svc.quotation_convert_service,
+                custom_order_crud: svc.custom_order_crud,
+                custom_order_state: svc.custom_order_state,
+                custom_order_process: svc.custom_order_process,
+                custom_order_quality: svc.custom_order_quality,
+                custom_order_aftersales: svc.custom_order_aftersales,
                 // M-1 修复：测试环境也使用独立配额计数器
                 email_send_counters: Arc::new(DashMap::new()),
                 // 批次 104 P0-1 修复：测试环境使用 mock 搜索客户端
@@ -419,7 +463,7 @@ impl Default for AppState {
                 // 批次 107 P1-1 修复：测试环境启用 L1 本地缓存
                 cache_service: Arc::new(CacheService::new()),
                 // V15 P0-B17（Batch 484）：测试环境 failover_executor（仅主库）
-                failover_executor,
+                failover_executor: svc.failover_executor,
             }
         }
     }
