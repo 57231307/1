@@ -273,7 +273,27 @@ impl InventoryStockService {
             .order_by_asc(inventory_stock::Column::BatchNo)
             .order_by_asc(inventory_stock::Column::ColorNo);
 
-        // 添加过滤条件
+        query = Self::apply_inventory_filters(query, &params);
+        query = query
+            .filter(inventory_stock::Column::StockStatus.eq("正常"))
+            .filter(inventory_stock::Column::QualityStatus.eq("合格"));
+
+        // 批次 266：接入 paginate_with_total，消除手写 count + fetch_page 重复
+        // 聚合查询使用 into_model::<InventorySummaryQueryResult>，泛型 M = InventorySummaryQueryResult
+        let paginator = query
+            .into_model::<InventorySummaryQueryResult>()
+            .paginate(&*self.db, params.page_size);
+        let (result, total) =
+            paginate_with_total(paginator, params.page.clamp(1, 1000)).await?;
+
+        Ok((Self::map_summary_items(result), total))
+    }
+
+    /// 应用库存查询过滤条件（warehouse/product/batch/color/grade）
+    fn apply_inventory_filters<Q: sea_orm::QueryFilter>(
+        mut query: Q,
+        params: &InventorySummaryQuery,
+    ) -> Q {
         if let Some(wid) = params.warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
         }
@@ -289,21 +309,14 @@ impl InventoryStockService {
         if let Some(g) = params.grade {
             query = query.filter(inventory_stock::Column::Grade.eq(g));
         }
+        query
+    }
 
-        // 添加库存状态和质量状态过滤
-        query = query
-            .filter(inventory_stock::Column::StockStatus.eq("正常"))
-            .filter(inventory_stock::Column::QualityStatus.eq("合格"));
-
-        // 批次 266：接入 paginate_with_total，消除手写 count + fetch_page 重复
-        // 聚合查询使用 into_model::<InventorySummaryQueryResult>，泛型 M = InventorySummaryQueryResult
-        let paginator = query
-            .into_model::<InventorySummaryQueryResult>()
-            .paginate(&*self.db, params.page_size);
-        let (result, total) =
-            paginate_with_total(paginator, params.page.clamp(1, 1000)).await?;
-
-        let items = result
+    /// 将查询结果转换为库存汇总条目
+    fn map_summary_items(
+        result: Vec<InventorySummaryQueryResult>,
+    ) -> Vec<InventorySummaryItem> {
+        result
             .into_iter()
             .map(|r| InventorySummaryItem {
                 product_id: r.product_id,
@@ -315,9 +328,7 @@ impl InventoryStockService {
                 total_quantity_meters: r.total_quantity_meters,
                 total_quantity_kg: r.total_quantity_kg,
             })
-            .collect();
-
-        Ok((items, total))
+            .collect()
     }
 
     /// 按产品查询库存
