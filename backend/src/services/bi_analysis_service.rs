@@ -353,15 +353,7 @@ impl BiAnalysisService {
             return Err(AppError::validation("结束日期不能早于开始日期"));
         }
 
-        // 使用 CASE WHEN 实现 granularity 动态分组（Postgres date_trunc 第一参数不支持参数化）
-        let period_expr = match granularity {
-            "day" => "to_char(order_date, 'YYYY-MM-DD')",
-            "week" => "to_char(order_date, 'IYYY-IW')",
-            "month" => "to_char(order_date, 'YYYY-MM')",
-            "quarter" => "to_char(order_date, 'YYYY-Q')",
-            "year" => "to_char(order_date, 'YYYY')",
-            _ => "to_char(order_date, 'YYYY-MM')",
-        };
+        let period_expr = Self::build_period_expr(granularity);
 
         // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s，已有 $1/$2 两个参数）
         let (scope_sql, scope_values) = self.scope_sql("s", 3);
@@ -404,9 +396,24 @@ impl BiAnalysisService {
             .all(&*self.db)
             .await?;
 
-        // profit_amount 实际是总成本，需要用 total_amount - cost 计算真实利润
-        let results = rows
-            .into_iter()
+        Ok(Self::map_time_series_rows(rows))
+    }
+
+    /// 根据 granularity 返回 Postgres to_char 分组表达式
+    fn build_period_expr(granularity: &str) -> &'static str {
+        match granularity {
+            "day" => "to_char(order_date, 'YYYY-MM-DD')",
+            "week" => "to_char(order_date, 'IYYY-IW')",
+            "month" => "to_char(order_date, 'YYYY-MM')",
+            "quarter" => "to_char(order_date, 'YYYY-Q')",
+            "year" => "to_char(order_date, 'YYYY')",
+            _ => "to_char(order_date, 'YYYY-MM')",
+        }
+    }
+
+    /// 将查询行映射为 TimeSeriesPoint（profit_amount = 收入 - 成本）
+    fn map_time_series_rows(rows: Vec<TimeSeriesRow>) -> Vec<TimeSeriesPoint> {
+        rows.into_iter()
             .map(|r| {
                 let revenue = dec_to_f64(r.total_amount);
                 let cost = dec_to_f64(r.profit_amount);
@@ -418,9 +425,7 @@ impl BiAnalysisService {
                     profit_amount: revenue - cost,
                 }
             })
-            .collect();
-
-        Ok(results)
+            .collect()
     }
 
     /// 按客户聚合销售

@@ -73,15 +73,41 @@ impl ArInvoiceService {
         req: CreateArInvoiceRequest,
         user_id: i32,
     ) -> Result<ar_invoice::Model, AppError> {
-        // 验证客户ID
+        let (customer_id, invoice_amount) = Self::validate_create_request(&req)?;
+
+        info!(
+            "创建应收单：customer_id={}, amount={}",
+            customer_id, invoice_amount
+        );
+
+        // 批次 22（2026-06-28 v5 P0-4）：校验客户存在性，防止凭空创建 AR 发票
+        let txn = (*self.db).begin().await?;
+        let _customer = crate::models::customer::Entity::find_by_id(customer_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+
+        let invoice_no = self.generate_invoice_no().await?;
+        let active_model = Self::build_ar_invoice_active_model(
+            req, invoice_no, customer_id, invoice_amount, user_id,
+        );
+        let result = active_model.insert(&txn).await?;
+        txn.commit().await?;
+        info!("应收单创建成功：no={}", result.invoice_no);
+
+        Ok(result)
+    }
+
+    /// 校验创建应收单请求（客户ID + 金额 + 精度）
+    fn validate_create_request(
+        req: &CreateArInvoiceRequest,
+    ) -> Result<(i32, Decimal), AppError> {
         let customer_id = req
             .customer_id
             .ok_or_else(|| AppError::validation("客户ID不能为空"))?;
         if customer_id <= 0 {
             return Err(AppError::validation("客户ID无效"));
         }
-
-        // 验证发票金额
         let invoice_amount = req
             .invoice_amount
             .ok_or_else(|| AppError::validation("发票金额不能为空"))?;
@@ -92,24 +118,18 @@ impl ArInvoiceService {
         if invoice_amount.round_dp(2) != invoice_amount {
             return Err(AppError::validation("发票金额精度不能超过 2 位小数"));
         }
+        Ok((customer_id, invoice_amount))
+    }
 
-        info!(
-            "创建应收单：customer_id={}, amount={}",
-            customer_id, invoice_amount
-        );
-
-        // 批次 22（2026-06-28 v5 P0-4）：校验客户存在性，防止凭空创建 AR 发票
-        // 原实现不验证 customer_id 是否真实存在，攻击者可传任意 customer_id 创建发票
-        let txn = (*self.db).begin().await?;
-        let _customer = crate::models::customer::Entity::find_by_id(customer_id)
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
-
-        // 生成应收单编号
-        let invoice_no = self.generate_invoice_no().await?;
-
-        let active_model = ar_invoice::ActiveModel {
+    /// 构建应收单 ActiveModel
+    fn build_ar_invoice_active_model(
+        req: CreateArInvoiceRequest,
+        invoice_no: String,
+        customer_id: i32,
+        invoice_amount: Decimal,
+        user_id: i32,
+    ) -> ar_invoice::ActiveModel {
+        ar_invoice::ActiveModel {
             invoice_no: sea_orm::Set(invoice_no),
             invoice_date: sea_orm::Set(
                 req.invoice_date
@@ -134,13 +154,7 @@ impl ArInvoiceService {
             approval_status: sea_orm::Set(crate::models::status::common::STATUS_PENDING.to_string()),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
-        };
-
-        let result = active_model.insert(&txn).await?;
-        txn.commit().await?;
-        info!("应收单创建成功：no={}", result.invoice_no);
-
-        Ok(result)
+        }
     }
 
     /// 创建红字应收单（销售退货专用，支持负金额 + 外部事务）

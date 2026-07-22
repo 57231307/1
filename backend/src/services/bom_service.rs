@@ -88,7 +88,6 @@ impl BomService {
     pub async fn create(&self, req: CreateBomRequest) -> Result<BomDetail, AppError> {
         let txn = self.db.begin().await?;
 
-        // 计算版本号
         let version = if let Some(v) = req.version {
             v
         } else {
@@ -97,21 +96,10 @@ impl BomService {
 
         let is_default = req.is_default.unwrap_or(false);
 
-        // 如果设置为默认，先取消同产品其他默认BOM
         if is_default {
-            BomEntity::update_many()
-                .filter(BomColumn::ProductId.eq(req.product_id))
-                .filter(BomColumn::IsDefault.eq(true))
-                .set(ActiveModel {
-                    is_default: Set(false),
-                    updated_at: Set(Utc::now()),
-                    ..Default::default()
-                })
-                .exec(&txn)
-                .await?;
+            Self::cancel_existing_default_bom(&txn, req.product_id).await?;
         }
 
-        // 创建BOM主记录
         let bom_active_model = ActiveModel {
             product_id: Set(req.product_id),
             version: Set(version),
@@ -126,23 +114,7 @@ impl BomService {
 
         let bom_model = bom_active_model.insert(&txn).await?;
 
-        // 创建BOM明细：改用 insert_many 批量 INSERT（原为循环内逐条 insert 导致 N 条=N 次 INSERT）
-        let mut item_active_models: Vec<BomItemActiveModel> =
-            Vec::with_capacity(req.items.len());
-        for (index, item_req) in req.items.iter().enumerate() {
-            item_active_models.push(BomItemActiveModel {
-                bom_id: Set(bom_model.id),
-                material_id: Set(item_req.material_id),
-                quantity: Set(item_req.quantity),
-                unit: Set(item_req.unit.clone()),
-                scrap_rate: Set(item_req.scrap_rate),
-                sort_order: Set(Some(item_req.sort_order.unwrap_or(index as i32))),
-                created_at: Set(Utc::now()),
-                updated_at: Set(Utc::now()),
-                ..Default::default()
-            });
-        }
-
+        let item_active_models = Self::build_bom_item_models(bom_model.id, &req.items);
         if !item_active_models.is_empty() {
             BomItemEntity::insert_many(item_active_models)
                 .exec(&txn)
@@ -162,6 +134,46 @@ impl BomService {
             bom: bom_model,
             items,
         })
+    }
+
+    /// 取消同产品其他默认 BOM（事务内执行）
+    async fn cancel_existing_default_bom(
+        txn: &sea_orm::DatabaseTransaction,
+        product_id: i32,
+    ) -> Result<(), AppError> {
+        BomEntity::update_many()
+            .filter(BomColumn::ProductId.eq(product_id))
+            .filter(BomColumn::IsDefault.eq(true))
+            .set(ActiveModel {
+                is_default: Set(false),
+                updated_at: Set(Utc::now()),
+                ..Default::default()
+            })
+            .exec(txn)
+            .await?;
+        Ok(())
+    }
+
+    /// 构建 BOM 明细 ActiveModel 列表（批量插入用）
+    fn build_bom_item_models(
+        bom_id: i32,
+        items: &[CreateBomItemRequest],
+    ) -> Vec<BomItemActiveModel> {
+        items
+            .iter()
+            .enumerate()
+            .map(|(index, item_req)| BomItemActiveModel {
+                bom_id: Set(bom_id),
+                material_id: Set(item_req.material_id),
+                quantity: Set(item_req.quantity),
+                unit: Set(item_req.unit.clone()),
+                scrap_rate: Set(item_req.scrap_rate),
+                sort_order: Set(Some(item_req.sort_order.unwrap_or(index as i32))),
+                created_at: Set(Utc::now()),
+                updated_at: Set(Utc::now()),
+                ..Default::default()
+            })
+            .collect()
     }
 
     /// 根据ID获取BOM详情

@@ -245,6 +245,32 @@ impl CustomerService {
         &self,
         args: CreateCustomerArgs,
     ) -> Result<customer::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 检查客户编码是否已存在（加 lock_exclusive 防止并发创建相同编码）
+        let existing = CustomerEntity::find()
+            .filter(customer::Column::CustomerCode.eq(&args.customer_code))
+            .lock_exclusive()
+            .one(&txn)
+            .await?;
+
+        if existing.is_some() {
+            return Err(AppError::business("客户编码已存在"));
+        }
+
+        let customer = Self::build_customer_active_model(args);
+        let result = customer.insert(&txn).await.map_err(AppError::from)?;
+        txn.commit().await?;
+
+        // 批次 124 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
+        // ES 同步失败仅记录日志，不回滚 PG（PG 是主数据源，ES 是搜索副本）
+        self.sync_customer_to_es(&result, "create").await;
+
+        Ok(result)
+    }
+
+    /// 构建客户 ActiveModel
+    fn build_customer_active_model(args: CreateCustomerArgs) -> customer::ActiveModel {
         let CreateCustomerArgs {
             customer_code,
             customer_name,
@@ -265,20 +291,7 @@ impl CustomerService {
             notes,
             created_by,
         } = args;
-        let txn = (*self.db).begin().await?;
-
-        // 检查客户编码是否已存在（加 lock_exclusive 防止并发创建相同编码）
-        let existing = CustomerEntity::find()
-            .filter(customer::Column::CustomerCode.eq(&customer_code))
-            .lock_exclusive()
-            .one(&txn)
-            .await?;
-
-        if existing.is_some() {
-            return Err(AppError::business("客户编码已存在"));
-        }
-
-        let customer = customer::ActiveModel {
+        customer::ActiveModel {
             id: Default::default(),
             customer_code: sea_orm::ActiveValue::Set(customer_code),
             customer_name: sea_orm::ActiveValue::Set(customer_name),
@@ -309,16 +322,7 @@ impl CustomerService {
             // V15 P0-S08 修复：业务负责人默认为创建人，分配时间为创建时间
             owner_id: sea_orm::ActiveValue::Set(created_by.unwrap_or(0)),
             owner_assigned_at: sea_orm::ActiveValue::Set(Some(Utc::now())),
-        };
-
-        let result = customer.insert(&txn).await.map_err(AppError::from)?;
-        txn.commit().await?;
-
-        // 批次 124 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
-        // ES 同步失败仅记录日志，不回滚 PG（PG 是主数据源，ES 是搜索副本）
-        self.sync_customer_to_es(&result, "create").await;
-
-        Ok(result)
+        }
     }
 
     /// 获取客户详情
