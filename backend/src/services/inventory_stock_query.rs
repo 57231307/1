@@ -242,9 +242,24 @@ impl InventoryStockService {
         &self,
         params: InventorySummaryQuery,
     ) -> Result<(Vec<InventorySummaryItem>, u64), AppError> {
-        use sea_orm::QuerySelect;
+        let query = Self::build_inventory_summary_base_query();
+        let query = Self::apply_inventory_summary_filters(query, &params);
 
-        let mut query = inventory_stock::Entity::find()
+        // 批次 266：接入 paginate_with_total，消除手写 count + fetch_page 重复
+        // 聚合查询使用 into_model::<InventorySummaryQueryResult>，泛型 M = InventorySummaryQueryResult
+        let paginator = query
+            .into_model::<InventorySummaryQueryResult>()
+            .paginate(&*self.db, params.page_size);
+        let (result, total) =
+            paginate_with_total(paginator, params.page.clamp(1, 1000)).await?;
+
+        Ok((Self::map_summary_results(result), total))
+    }
+
+    /// 构建库存汇总基础查询（select 列 + join + group_by + order_by）
+    fn build_inventory_summary_base_query() -> sea_orm::Select<inventory_stock::Entity> {
+        use sea_orm::QuerySelect;
+        inventory_stock::Entity::find()
             .inner_join(crate::models::product::Entity)
             .inner_join(crate::models::warehouse::Entity)
             .select_only()
@@ -271,39 +286,40 @@ impl InventoryStockService {
             .group_by(inventory_stock::Column::ColorNo)
             .group_by(inventory_stock::Column::Grade)
             .order_by_asc(inventory_stock::Column::BatchNo)
-            .order_by_asc(inventory_stock::Column::ColorNo);
+            .order_by_asc(inventory_stock::Column::ColorNo)
+    }
 
-        // 添加过滤条件
+    /// 应用库存汇总查询的可选过滤条件 + 强制库存/质量状态过滤
+    fn apply_inventory_summary_filters(
+        mut query: sea_orm::Select<inventory_stock::Entity>,
+        params: &InventorySummaryQuery,
+    ) -> sea_orm::Select<inventory_stock::Entity> {
         if let Some(wid) = params.warehouse_id {
             query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
         }
         if let Some(pid) = params.product_id {
             query = query.filter(inventory_stock::Column::ProductId.eq(pid));
         }
-        if let Some(batch) = params.batch_no {
+        if let Some(batch) = &params.batch_no {
             query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
         }
-        if let Some(color) = params.color_no {
+        if let Some(color) = &params.color_no {
             query = query.filter(inventory_stock::Column::ColorNo.eq(color));
         }
-        if let Some(g) = params.grade {
+        if let Some(g) = &params.grade {
             query = query.filter(inventory_stock::Column::Grade.eq(g));
         }
-
-        // 添加库存状态和质量状态过滤
-        query = query
+        // 强制库存状态和质量状态过滤（仅汇总"正常/合格"库存）
+        query
             .filter(inventory_stock::Column::StockStatus.eq("正常"))
-            .filter(inventory_stock::Column::QualityStatus.eq("合格"));
+            .filter(inventory_stock::Column::QualityStatus.eq("合格"))
+    }
 
-        // 批次 266：接入 paginate_with_total，消除手写 count + fetch_page 重复
-        // 聚合查询使用 into_model::<InventorySummaryQueryResult>，泛型 M = InventorySummaryQueryResult
-        let paginator = query
-            .into_model::<InventorySummaryQueryResult>()
-            .paginate(&*self.db, params.page_size);
-        let (result, total) =
-            paginate_with_total(paginator, params.page.clamp(1, 1000)).await?;
-
-        let items = result
+    /// 将查询结果映射为 InventorySummaryItem 列表
+    fn map_summary_results(
+        result: Vec<InventorySummaryQueryResult>,
+    ) -> Vec<InventorySummaryItem> {
+        result
             .into_iter()
             .map(|r| InventorySummaryItem {
                 product_id: r.product_id,
@@ -315,9 +331,7 @@ impl InventoryStockService {
                 total_quantity_meters: r.total_quantity_meters,
                 total_quantity_kg: r.total_quantity_kg,
             })
-            .collect();
-
-        Ok((items, total))
+            .collect()
     }
 
     /// 按产品查询库存

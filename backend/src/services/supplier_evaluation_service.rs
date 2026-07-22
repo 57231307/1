@@ -199,12 +199,7 @@ impl SupplierEvaluationService {
     ) -> Result<SupplierScoreResponse, AppError> {
         info!("查询供应商 {} 的评分", supplier_id);
 
-        // 查询该供应商的所有评估记录
-        let records = supplier_evaluation_record::Entity::find()
-            .filter(supplier_evaluation_record::Column::SupplierId.eq(supplier_id))
-            .all(&*self.db)
-            .await?;
-
+        let records = Self::fetch_supplier_evaluation_records(&*self.db, supplier_id).await?;
         if records.is_empty() {
             return Err(AppError::not_found(format!(
                 "供应商 {} 暂无评估记录",
@@ -212,58 +207,23 @@ impl SupplierEvaluationService {
             )));
         }
 
-        // 计算加权平均分
-        let total_weighted_score: Decimal = records.iter().filter_map(|r| r.weighted_score).sum();
-
-        // 使用 HashSet 去重指标 ID，批量查询指标权重
-        let indicator_ids: std::collections::HashSet<i32> =
-            records.iter().map(|r| r.indicator_id).collect();
-        let indicator_weight_map: HashMap<i32, Decimal> = supplier_evaluation::Entity::find()
-            .filter(supplier_evaluation::Column::Id.is_in(indicator_ids.iter().cloned()))
-            .all(&*self.db)
-            .await?
-            .into_iter()
-            .map(|ind| (ind.id, ind.weight))
-            .collect();
+        let indicator_weight_map =
+            Self::build_indicator_weight_map(&*self.db, &records).await?;
+        let total_weighted_score: Decimal =
+            records.iter().filter_map(|r| r.weighted_score).sum();
         let total_weight: Decimal = indicator_weight_map.values().sum();
-
         let average_score = if total_weight > Decimal::ZERO {
             total_weighted_score / total_weight * Decimal::from(100)
         } else {
             Decimal::ZERO
         };
 
-        // 计算等级（解析失败时记 warn 并按 0 分处理）
-        let rating = match average_score.to_string().parse::<i32>() {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::warn!("供应商评分解析失败: {} ({})", average_score, e);
-                0
-            }
-        };
-        let rating_label = match rating {
-            90..=100 => "A".to_string(),
-            80..=89 => "B".to_string(),
-            70..=79 => "C".to_string(),
-            _ => "D".to_string(),
-        };
-
-        // 获取最近评估日期
-        let latest_evaluation_date =
-            records
-                .iter()
-                .filter_map(|r| r.evaluation_date)
-                .max()
-                .map(|d| {
-                    DateTime::<Utc>::from_naive_utc_and_offset(
-                        d.and_hms_opt(0, 0, 0).unwrap_or_default(),
-                        Utc,
-                    )
-                });
+        let (rating_label, rating_value) = Self::compute_supplier_rating(average_score);
+        let latest_evaluation_date = Self::find_latest_evaluation_date(&records);
 
         info!(
             "供应商 {} 评分查询完成，平均分：{}，等级：{}",
-            supplier_id, average_score, rating
+            supplier_id, average_score, rating_value
         );
 
         Ok(SupplierScoreResponse {
@@ -273,6 +233,67 @@ impl SupplierEvaluationService {
             rating: rating_label,
             latest_evaluation_date,
         })
+    }
+
+    /// 查询指定供应商的所有评估记录
+    async fn fetch_supplier_evaluation_records(
+        db: &DatabaseConnection,
+        supplier_id: i32,
+    ) -> Result<Vec<supplier_evaluation_record::Model>, AppError> {
+        Ok(supplier_evaluation_record::Entity::find()
+            .filter(supplier_evaluation_record::Column::SupplierId.eq(supplier_id))
+            .all(db)
+            .await?)
+    }
+
+    /// 按评估记录中的指标 ID 批量查询指标权重，构建 indicator_id → weight 映射
+    async fn build_indicator_weight_map(
+        db: &DatabaseConnection,
+        records: &[supplier_evaluation_record::Model],
+    ) -> Result<HashMap<i32, Decimal>, AppError> {
+        let indicator_ids: std::collections::HashSet<i32> =
+            records.iter().map(|r| r.indicator_id).collect();
+        Ok(supplier_evaluation::Entity::find()
+            .filter(supplier_evaluation::Column::Id.is_in(indicator_ids.iter().cloned()))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|ind| (ind.id, ind.weight))
+            .collect())
+    }
+
+    /// 按平均分映射等级（A 90-100 / B 80-89 / C 70-79 / D 其他；解析失败按 0 分处理）
+    fn compute_supplier_rating(average_score: Decimal) -> (String, i32) {
+        let rating = match average_score.to_string().parse::<i32>() {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!("供应商评分解析失败: {} ({})", average_score, e);
+                0
+            }
+        };
+        let label = match rating {
+            90..=100 => "A".to_string(),
+            80..=89 => "B".to_string(),
+            70..=79 => "C".to_string(),
+            _ => "D".to_string(),
+        };
+        (label, rating)
+    }
+
+    /// 取评估记录中最近的 evaluation_date，转换为 DateTime<Utc>
+    fn find_latest_evaluation_date(
+        records: &[supplier_evaluation_record::Model],
+    ) -> Option<DateTime<Utc>> {
+        records
+            .iter()
+            .filter_map(|r| r.evaluation_date)
+            .max()
+            .map(|d| {
+                DateTime::<Utc>::from_naive_utc_and_offset(
+                    d.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                    Utc,
+                )
+            })
     }
 
     /// 查询供应商评级列表

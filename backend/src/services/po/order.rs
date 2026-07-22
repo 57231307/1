@@ -679,8 +679,15 @@ impl PurchaseOrderService {
         let (orders, _total) = self
             .list_orders(1, 10000, status, supplier_id, None)
             .await?;
+        let headers = Self::csv_headers();
+        let rows = Self::build_csv_rows(orders);
+        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
+            .map_err(|e| AppError::internal(format!("CSV 生成失败: {}", e)))
+    }
 
-        let headers = vec![
+    /// CSV 导出表头定义
+    fn csv_headers() -> Vec<String> {
+        vec![
             "订单编号".to_string(),
             "供应商ID".to_string(),
             "供应商名称".to_string(),
@@ -702,9 +709,14 @@ impl PurchaseOrderService {
             "付款条件".to_string(),
             "运输条款".to_string(),
             "备注".to_string(),
-        ];
+        ]
+    }
 
-        let rows: Vec<std::collections::HashMap<String, String>> = orders
+    /// 将订单列表转换为 CSV 行数据（HashMap<表头, 值>）
+    fn build_csv_rows(
+        orders: Vec<PurchaseOrderDto>,
+    ) -> Vec<std::collections::HashMap<String, String>> {
+        orders
             .into_iter()
             .map(|o| {
                 let mut row = std::collections::HashMap::new();
@@ -747,10 +759,7 @@ impl PurchaseOrderService {
                 row.insert("备注".to_string(), o.notes.unwrap_or_default());
                 row
             })
-            .collect();
-
-        crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| AppError::internal(format!("CSV 生成失败: {}", e)))
+            .collect()
     }
 }
 
