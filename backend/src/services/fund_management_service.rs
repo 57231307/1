@@ -338,64 +338,82 @@ impl FundManagementService {
         req: crate::models::dto::fund_dto::TransferFundRequest,
         user_id: i32,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
-        // 输入校验：转账金额必须大于零，防止 0 或负数转账破坏账户余额一致性
+        Self::validate_transfer_request(&req)?;
+        use sea_orm::TransactionTrait;
+        let txn = self.db.begin().await?;
+        Self::deduct_from_account_txn(&txn, req.from_account_id, req.amount, req.fee).await?;
+        Self::credit_to_account_txn(&txn, req.to_account_id, req.amount).await?;
+        let record = Self::insert_transfer_record_txn(&txn, &req, user_id).await?;
+        txn.commit().await?;
+        Ok(record)
+    }
+
+    /// 校验转账请求（金额、手续费、大额确认）
+    fn validate_transfer_request(
+        req: &crate::models::dto::fund_dto::TransferFundRequest,
+    ) -> Result<(), AppError> {
         if req.amount <= Decimal::ZERO {
             return Err(AppError::validation("转账金额必须大于零"));
         }
-        // 手续费可为 0 但不能为负
         if let Some(fee) = req.fee {
             if fee < Decimal::ZERO {
                 return Err(AppError::validation("手续费不能为负"));
             }
         }
-
-        // V15 P0-B05：大额调拨二次验证（§17.6-D1）
-        // 金额超过 LARGE_TRANSFER_THRESHOLD（10 万）时必须显式确认（confirm_large=true）
-        // 修复前：transfer_fund 直接执行无任何金额阈值/二次审批验证
-        // 修复后：大额调拨必须由前端二次确认（弹窗 + 用户显式确认），后端校验 confirm_large 标记
         if req.amount > large_transfer_threshold() && !req.confirm_large {
             return Err(AppError::validation(format!(
                 "大额调拨（>{})必须二次确认，请通过 confirm_large=true 显式确认（V15 P0-B05 强制拦截）",
                 large_transfer_threshold()
             )));
         }
+        Ok(())
+    }
 
-        use sea_orm::TransactionTrait;
-        let txn = self.db.begin().await?;
-
-        // 1. 扣减转出账户
-        let from_acc = crate::models::fund_management::Entity::find_by_id(req.from_account_id)
-            .one(&txn)
+    /// 从转出账户扣减金额+手续费
+    async fn deduct_from_account_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        account_id: i32,
+        amount: Decimal,
+        fee: Option<Decimal>,
+    ) -> Result<(), AppError> {
+        let acc = crate::models::fund_management::Entity::find_by_id(account_id)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("From account not found"))?;
-        let total_deduct = req.amount + req.fee.unwrap_or_default();
-        if from_acc.available_balance < total_deduct {
+        let total_deduct = amount + fee.unwrap_or_default();
+        if acc.available_balance < total_deduct {
             return Err(AppError::validation("Insufficient balance"));
         }
-        let mut from_active: crate::models::fund_management::ActiveModel = from_acc.clone().into();
+        let mut active: crate::models::fund_management::ActiveModel = acc.clone().into();
+        active.balance = sea_orm::Set(acc.balance - total_deduct);
+        active.available_balance = sea_orm::Set(acc.available_balance - total_deduct);
+        active.update(txn).await?;
+        Ok(())
+    }
 
-        let from_balance = from_acc.balance;
-        let from_available_balance = from_acc.available_balance;
-
-        from_active.balance = sea_orm::Set(from_balance - total_deduct);
-        from_active.available_balance = sea_orm::Set(from_available_balance - total_deduct);
-        let _from_acc = from_active.update(&txn).await?;
-
-        // 2. 增加转入账户
-        let to_acc = crate::models::fund_management::Entity::find_by_id(req.to_account_id)
-            .one(&txn)
+    /// 向转入账户增加金额
+    async fn credit_to_account_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        account_id: i32,
+        amount: Decimal,
+    ) -> Result<(), AppError> {
+        let acc = crate::models::fund_management::Entity::find_by_id(account_id)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("To account not found"))?;
-        let mut to_active: crate::models::fund_management::ActiveModel = to_acc.clone().into();
+        let mut active: crate::models::fund_management::ActiveModel = acc.clone().into();
+        active.balance = sea_orm::Set(acc.balance + amount);
+        active.available_balance = sea_orm::Set(acc.available_balance + amount);
+        active.update(txn).await?;
+        Ok(())
+    }
 
-        let to_balance = to_acc.balance;
-        let to_available_balance = to_acc.available_balance;
-
-        to_active.balance = sea_orm::Set(to_balance + req.amount);
-        to_active.available_balance = sea_orm::Set(to_available_balance + req.amount);
-        to_active.update(&txn).await?;
-
-        // 3. 记录 Transfer
+    /// 创建转账记录
+    async fn insert_transfer_record_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        req: &crate::models::dto::fund_dto::TransferFundRequest,
+        user_id: i32,
+    ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
         let transfer_no = format!("TR{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
         let record = crate::models::fund_transfer_record::ActiveModel {
             transfer_no: sea_orm::Set(transfer_no),
@@ -405,14 +423,12 @@ impl FundManagementService {
             amount: sea_orm::Set(req.amount),
             transfer_type: sea_orm::Set("TRANSFER".to_string()),
             status: sea_orm::Set(Some("COMPLETED".to_string())),
-            purpose: sea_orm::Set(req.reason),
+            purpose: sea_orm::Set(req.reason.clone()),
             applied_by: sea_orm::Set(Some(user_id)),
             ..Default::default()
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
-
-        txn.commit().await?;
         Ok(record)
     }
 

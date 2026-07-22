@@ -273,24 +273,31 @@ impl SchedulingService {
             .all(&*self.db)
             .await?;
 
-        let mut conflicts: Vec<ScheduleConflict> = Vec::new();
         let mut wc_orders: HashMap<i32, Vec<&ProductionOrderModel>> = HashMap::new();
-
         for order in &orders {
             if let Some(wc_id) = order.work_center_id {
                 wc_orders.entry(wc_id).or_default().push(order);
             }
         }
 
-        for (wc_id, wc_order_list) in &wc_orders {
+        let mut conflicts = Self::detect_time_overlap_conflicts(&wc_orders);
+        conflicts.extend(Self::detect_missing_date_conflicts(&orders));
+        conflicts.extend(Self::detect_invalid_date_conflicts(&orders));
+        Ok(conflicts)
+    }
+
+    /// 检测同一工作中心的时间重叠冲突
+    fn detect_time_overlap_conflicts(
+        wc_orders: &HashMap<i32, Vec<&ProductionOrderModel>>,
+    ) -> Vec<ScheduleConflict> {
+        let mut conflicts = Vec::new();
+        for (wc_id, wc_order_list) in wc_orders {
             let mut sorted = wc_order_list.clone();
             sorted.sort_by_key(|o| o.planned_start_date.unwrap_or(NaiveDate::MAX));
-
             for i in 0..sorted.len() {
                 for j in (i + 1)..sorted.len() {
                     let a = sorted[i];
                     let b = sorted[j];
-
                     if let (Some(a_start), Some(a_end), Some(b_start), Some(b_end)) = (
                         a.planned_start_date,
                         a.planned_end_date,
@@ -317,8 +324,13 @@ impl SchedulingService {
                 }
             }
         }
+        conflicts
+    }
 
-        for order in &orders {
+    /// 检测缺少计划日期的工单
+    fn detect_missing_date_conflicts(orders: &[ProductionOrderModel]) -> Vec<ScheduleConflict> {
+        let mut conflicts = Vec::new();
+        for order in orders {
             if order.planned_start_date.is_none() || order.planned_end_date.is_none() {
                 conflicts.push(ScheduleConflict {
                     conflict_type: "MISSING_DATES".to_string(),
@@ -332,7 +344,14 @@ impl SchedulingService {
                     severity: Some("MEDIUM".to_string()),
                 });
             }
+        }
+        conflicts
+    }
 
+    /// 检测结束日期早于开始日期的工单
+    fn detect_invalid_date_conflicts(orders: &[ProductionOrderModel]) -> Vec<ScheduleConflict> {
+        let mut conflicts = Vec::new();
+        for order in orders {
             if let (Some(start), Some(end)) = (order.planned_start_date, order.planned_end_date) {
                 if end < start {
                     conflicts.push(ScheduleConflict {
@@ -349,8 +368,7 @@ impl SchedulingService {
                 }
             }
         }
-
-        Ok(conflicts)
+        conflicts
     }
 
     /// 保存排程结果

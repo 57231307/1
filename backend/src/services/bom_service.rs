@@ -395,68 +395,21 @@ impl BomService {
         Box<dyn std::future::Future<Output = Result<BomTreeNode, AppError>> + Send + '_>,
     > {
         Box::pin(async move {
-            let bom = BomEntity::find_by_id(bom_id)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::not_found("BOM不存在"))?;
-
-            let items = BomItemEntity::find()
-                .filter(BomItemColumn::BomId.eq(bom_id))
-                .order_by_asc(BomItemColumn::SortOrder)
-                .all(&*self.db)
-                .await?;
-
+            let (bom, items) = self.fetch_bom_with_items(bom_id).await?;
             let mut children = Vec::new();
             let depth = max_depth.unwrap_or(10);
-
             if depth > 0 {
-                // v13 批次 40 修复：当前层批量查询所有子物料的默认 BOM，
-                // 避免循环内逐个查询（N+1）。递归层保持递归调用，
-                // 每层都应用同样的批量化策略，将 N 次查询减少为 1 次。
-                let material_ids: Vec<i32> =
-                    items.iter().map(|item| item.material_id).collect();
-                let child_boms: Vec<BomModel> = if material_ids.is_empty() {
-                    Vec::new()
-                } else {
-                    BomEntity::find()
-                        .filter(BomColumn::ProductId.is_in(material_ids))
-                        .filter(BomColumn::IsDefault.eq(true))
-                        .filter(BomColumn::Status.eq("ACTIVE"))
-                        .all(&*self.db)
-                        .await?
-                };
-                // 按 product_id 索引；正常数据下 product_id + is_default + ACTIVE 唯一。
-                // 若同 product_id 存在多个 default BOM（数据异常），后者覆盖前者，
-                // 与原 .one() 均为非确定行为（无 ORDER BY），差异不暴露。
-                let child_bom_map: std::collections::HashMap<i32, BomModel> = child_boms
-                    .into_iter()
-                    .map(|bom| (bom.product_id, bom))
-                    .collect();
-
+                let child_bom_map = self.fetch_child_bom_map(&items).await?;
                 for item in &items {
                     let child_node = match child_bom_map.get(&item.material_id) {
                         Some(child_bom) => {
-                            // 递归展开子BOM
                             self.get_bom_tree(child_bom.id, Some(depth - 1)).await?
                         }
-                        None => {
-                            // 叶子节点
-                            BomTreeNode {
-                                id: format!("item-{}", item.id),
-                                product_id: item.material_id,
-                                product_name: format!("物料 #{}", item.material_id),
-                                quantity: item.quantity,
-                                unit: item.unit.clone(),
-                                scrap_rate: item.scrap_rate,
-                                children: vec![],
-                            }
-                        }
+                        None => Self::build_leaf_bom_node(item),
                     };
-
                     children.push(child_node);
                 }
             }
-
             Ok(BomTreeNode {
                 id: format!("bom-{}", bom.id),
                 product_id: bom.product_id,
@@ -467,6 +420,58 @@ impl BomService {
                 children,
             })
         })
+    }
+
+    /// 查询 BOM 主记录及其子项列表
+    async fn fetch_bom_with_items(
+        &self,
+        bom_id: i32,
+    ) -> Result<(BomModel, Vec<BomItemModel>), AppError> {
+        let bom = BomEntity::find_by_id(bom_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("BOM不存在"))?;
+        let items = BomItemEntity::find()
+            .filter(BomItemColumn::BomId.eq(bom_id))
+            .order_by_asc(BomItemColumn::SortOrder)
+            .all(&*self.db)
+            .await?;
+        Ok((bom, items))
+    }
+
+    /// 批量查询子物料的默认 BOM 并按 product_id 索引
+    async fn fetch_child_bom_map(
+        &self,
+        items: &[BomItemModel],
+    ) -> Result<std::collections::HashMap<i32, BomModel>, AppError> {
+        let material_ids: Vec<i32> = items.iter().map(|item| item.material_id).collect();
+        let child_boms: Vec<BomModel> = if material_ids.is_empty() {
+            Vec::new()
+        } else {
+            BomEntity::find()
+                .filter(BomColumn::ProductId.is_in(material_ids))
+                .filter(BomColumn::IsDefault.eq(true))
+                .filter(BomColumn::Status.eq("ACTIVE"))
+                .all(&*self.db)
+                .await?
+        };
+        Ok(child_boms
+            .into_iter()
+            .map(|bom| (bom.product_id, bom))
+            .collect())
+    }
+
+    /// 构建叶子节点 BomTreeNode
+    fn build_leaf_bom_node(item: &BomItemModel) -> BomTreeNode {
+        BomTreeNode {
+            id: format!("item-{}", item.id),
+            product_id: item.material_id,
+            product_name: format!("物料 #{}", item.material_id),
+            quantity: item.quantity,
+            unit: item.unit.clone(),
+            scrap_rate: item.scrap_rate,
+            children: vec![],
+        }
     }
 
     /// 获取BOM用量计算（多层级）
