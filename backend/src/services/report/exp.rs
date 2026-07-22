@@ -57,43 +57,68 @@ impl ReportEngineService {
         template_name: &str,
     ) -> Result<PdfExportResult, AppError> {
         use printpdf::*;
-
         let (doc, page1, layer1) = PdfDocument::new(template_name, Mm(297.0), Mm(210.0), "Layer 1");
         let layer = doc.get_page(page1).get_layer(layer1);
-
-        // 设置字体
         let font = doc
             .add_builtin_font(BuiltinFont::Helvetica)
             .map_err(|e| AppError::internal(format!("加载字体失败: {}", e)))?;
-
-        // 标题
-        layer.use_text(template_name, 16.0, Mm(20.0), Mm(280.0), &font);
-
-        // 生成时间
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        Self::draw_pdf_header(&layer, &font, template_name, &now);
+        let _final_y = Self::draw_pdf_table(&doc, &layer, &font, data);
+        Self::draw_pdf_footer(&layer, &font, data.total_rows);
+        let buffer = Self::save_pdf_to_buffer(doc)?;
+        info!(
+            "PDF 导出成功: template={}, rows={}, size={}",
+            template_name,
+            data.total_rows,
+            buffer.len()
+        );
+        Ok(PdfExportResult {
+            file_name: format!("{}_{}.pdf", template_name, now),
+            file_size: buffer.len() as u64,
+            page_count: 1,
+            content: buffer,
+        })
+    }
+
+    /// PDF 导出：绘制标题与生成时间
+    fn draw_pdf_header(
+        layer: &printpdf::PdfLayerReference,
+        font: &printpdf::IndirectFontRef,
+        template_name: &str,
+        now: &str,
+    ) {
+        use printpdf::*;
+        layer.use_text(template_name, 16.0, Mm(20.0), Mm(280.0), font);
         layer.use_text(
             format!("生成时间: {}", now),
             10.0,
             Mm(20.0),
             Mm(270.0),
-            &font,
+            font,
         );
+    }
 
-        // 表格头部
+    /// PDF 导出：绘制表头与表格内容（含分页），返回最终 y 坐标
+    fn draw_pdf_table(
+        doc: &printpdf::PdfDocumentReference,
+        layer: &printpdf::PdfLayerReference,
+        font: &printpdf::IndirectFontRef,
+        data: &ReportData,
+    ) -> f32 {
+        use printpdf::*;
         let mut y_pos = 250.0_f32;
-        let mut x_pos = 20.0_f32;
         let col_width = 35.0_f32;
-
+        // 表头
+        let mut x_pos = 20.0_f32;
         for column in &data.columns {
-            layer.use_text(&column.label, 10.0, Mm(x_pos), Mm(y_pos), &font);
+            layer.use_text(&column.label, 10.0, Mm(x_pos), Mm(y_pos), font);
             x_pos += col_width;
         }
-
         y_pos -= 8.0;
-
-        // 表格内容
+        // 内容
         for row in &data.rows {
-            x_pos = 20.0;
+            let mut x_pos = 20.0_f32;
             for column in &data.columns {
                 let value = row
                     .get(&column.key)
@@ -105,50 +130,45 @@ impl ReportEngineService {
                 } else {
                     value
                 };
-                layer.use_text(&display_value, 8.0, Mm(x_pos), Mm(y_pos), &font);
+                layer.use_text(&display_value, 8.0, Mm(x_pos), Mm(y_pos), font);
                 x_pos += col_width;
             }
             y_pos -= 6.0;
-
             // 分页
             if y_pos < 20.0 {
                 let (new_page, new_layer) = doc.add_page(Mm(297.0), Mm(210.0), "Layer 1");
-                // 批次 102 v6 P3-7 修复：删除冗余 `let _ = new_layer;`（new_layer 已作为 get_layer 参数使用）
                 let _layer = doc.get_page(new_page).get_layer(new_layer);
                 y_pos = 280.0;
             }
         }
+        y_pos
+    }
 
-        // 页脚
+    /// PDF 导出：绘制页脚记录数
+    fn draw_pdf_footer(
+        layer: &printpdf::PdfLayerReference,
+        font: &printpdf::IndirectFontRef,
+        total_rows: usize,
+    ) {
+        use printpdf::*;
         layer.use_text(
-            format!("共 {} 条记录", data.total_rows),
+            format!("共 {} 条记录", total_rows),
             10.0,
             Mm(20.0),
             Mm(10.0),
-            &font,
+            font,
         );
+    }
 
-        // 保存到内存
+    /// PDF 导出：保存文档到内存缓冲区
+    fn save_pdf_to_buffer(doc: printpdf::PdfDocumentReference) -> Result<Vec<u8>, AppError> {
         let mut buffer = Vec::new();
         {
             let mut writer = std::io::BufWriter::new(&mut buffer);
             doc.save(&mut writer)
                 .map_err(|e| AppError::internal(format!("PDF 保存失败: {}", e)))?;
         }
-
-        info!(
-            "PDF 导出成功: template={}, rows={}, size={}",
-            template_name,
-            data.total_rows,
-            buffer.len()
-        );
-
-        Ok(PdfExportResult {
-            file_name: format!("{}_{}.pdf", template_name, now),
-            file_size: buffer.len() as u64,
-            page_count: 1,
-            content: buffer,
-        })
+        Ok(buffer)
     }
 
     /// 导出 Excel

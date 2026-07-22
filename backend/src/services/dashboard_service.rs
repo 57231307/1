@@ -471,20 +471,43 @@ impl DashboardService {
         _start_date: Option<DateTime<Utc>>,
         _end_date: Option<DateTime<Utc>>,
     ) -> Result<InventoryStatistics, AppError> {
-        // 生成缓存键
         let cache_key = "dashboard:inventory:all".to_string();
-
-        // 尝试从缓存获取
-        if let Some(cached) = self.cache.get_dashboard_cache().get(&cache_key) {
-            if let Ok(statistics) = serde_json::from_value(cached) {
-                return Ok(statistics);
-            }
+        if let Some(statistics) = Self::read_inventory_cache(&self.cache, &cache_key) {
+            return Ok(statistics);
         }
-
-        // 并行执行 4 个独立的库存聚合查询，提升性能
         let db = self.db.as_ref();
+        let (total_quantity, warehouse_distribution) =
+            Self::fetch_inventory_aggregations(db).await?;
+        let warehouse_stats = self
+            .query_warehouse_distribution_with_value(warehouse_distribution, db)
+            .await?;
+        let by_category = self.query_inventory_by_category().await?;
+        let aging_analysis = self.query_inventory_aging().await?;
+        let turnover_rate = self.query_turnover_rate().await?;
+        let statistics = InventoryStatistics {
+            total_inventory: total_quantity.to_string(),
+            turnover_rate,
+            by_warehouse: warehouse_stats,
+            by_category,
+            aging_analysis,
+        };
+        Self::write_inventory_cache(&self.cache, cache_key, &statistics);
+        Ok(statistics)
+    }
 
-        // 总库存数量查询
+    /// 库存统计：尝试从缓存读取（命中且反序列化成功时返回）
+    fn read_inventory_cache(
+        cache: &AppCache,
+        cache_key: &str,
+    ) -> Option<InventoryStatistics> {
+        let cached = cache.get_dashboard_cache().get(cache_key)?;
+        serde_json::from_value(cached).ok()
+    }
+
+    /// 库存统计：并行执行 4 个独立聚合查询（总库存数量/低库存数/零库存数/仓库分布）
+    async fn fetch_inventory_aggregations(
+        db: &DatabaseConnection,
+    ) -> Result<(Decimal, Vec<(i32, Option<Decimal>)>), AppError> {
         let total_quantity_fut = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .select_only()
@@ -494,8 +517,6 @@ impl DashboardService {
             )
             .into_tuple::<Option<Decimal>>()
             .one(db);
-
-        // 低库存产品数查询
         let low_stock_count_fut = inventory_stock::Entity::find()
             .filter(
                 Expr::col(inventory_stock::Column::QuantityMeters)
@@ -503,14 +524,10 @@ impl DashboardService {
             )
             .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .count(db);
-
-        // 零库存产品数查询
         let zero_stock_count_fut = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::QuantityMeters.eq(Decimal::ZERO))
             .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .count(db);
-
-        // 仓库分布统计查询（含价值，按库存数量 * 产品成本价汇总）
         let warehouse_distribution_fut = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .select_only()
@@ -522,48 +539,30 @@ impl DashboardService {
             .group_by(inventory_stock::Column::WarehouseId)
             .into_tuple::<(i32, Option<Decimal>)>()
             .all(db);
+        let (total_quantity_opt, _low_stock_count, _zero_stock_count, warehouse_distribution) =
+            tokio::try_join!(
+                total_quantity_fut,
+                low_stock_count_fut,
+                zero_stock_count_fut,
+                warehouse_distribution_fut,
+            )?;
+        Ok((
+            total_quantity_opt.flatten().unwrap_or(Decimal::ZERO),
+            warehouse_distribution,
+        ))
+    }
 
-        let (total_quantity_opt, _low_stock_count, _zero_stock_count, warehouse_distribution) = tokio::try_join!(
-            total_quantity_fut,
-            low_stock_count_fut,
-            zero_stock_count_fut,
-            warehouse_distribution_fut,
-        )?;
-
-        let total_quantity = total_quantity_opt.flatten().unwrap_or(Decimal::ZERO);
-
-        // 仓库分布 + 价值查询
-        let warehouse_stats = self
-            .query_warehouse_distribution_with_value(warehouse_distribution, db)
-            .await?;
-
-        // 批次 135：by_category 按品类分组聚合（关联 products + product_categories）
-        let by_category = self.query_inventory_by_category().await?;
-
-        // 批次 135：aging_analysis 库存账龄分析（按 last_movement_date/created_at）
-        let aging_analysis = self.query_inventory_aging().await?;
-
-        // 批次 135：turnover_rate 库存周转率 = 销售数量 / 库存数量
-        let turnover_rate = self.query_turnover_rate().await?;
-
-        let statistics = InventoryStatistics {
-            total_inventory: total_quantity.to_string(),
-            turnover_rate,
-            by_warehouse: warehouse_stats,
-            by_category,
-            aging_analysis,
-        };
-
-        // 缓存结果，有效期5分钟
-        if let Ok(statistics_json) = serde_json::to_value(statistics.clone()) {
-            self.cache.get_dashboard_cache().set(
-                cache_key,
-                statistics_json,
-                Some(Duration::from_secs(300)),
-            );
+    /// 库存统计：写入缓存（有效期 5 分钟）
+    fn write_inventory_cache(
+        cache: &AppCache,
+        cache_key: String,
+        statistics: &InventoryStatistics,
+    ) {
+        if let Ok(statistics_json) = serde_json::to_value(statistics) {
+            cache
+                .get_dashboard_cache()
+                .set(cache_key, statistics_json, Some(Duration::from_secs(300)));
         }
-
-        Ok(statistics)
     }
 
     /// 查询仓库分布+价值，返回格式化后的仓库统计列表

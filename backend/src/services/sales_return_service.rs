@@ -473,89 +473,128 @@ impl SalesReturnService {
         let _product_info = product_map
             .get(&item.product_id)
             .ok_or_else(|| AppError::not_found(format!("商品 {} 不存在", item.product_id)))?;
-
         // v14 批次 419 修复 T-P0-5：从退货明细获取缸号/色号/批号，
         // 按四维 (product_id, color_no, batch_no, dye_lot_no) 查找匹配库存
         let item_color_no = item.color_no.clone();
         let item_dye_lot_no = item.dye_lot_no.clone();
         let item_batch_no = item.batch_no.clone();
-
         let stock = stock_map.get(&(
             item.product_id,
             item_color_no.clone(),
             item_batch_no.clone(),
             item_dye_lot_no.clone(),
         ));
-
         // grade 从库存获取，无库存时使用默认值 "A"
         let grade = stock
             .map(|s| s.grade.clone())
             .unwrap_or_else(|| String::from("A"));
-
         if let Some(s) = stock {
-            // 更新现有库存
-            let new_qty = s.quantity_on_hand + item.quantity;
-            let new_avail = s.quantity_available + item.quantity;
-            let mut stock_update: inventory_stock::ActiveModel = s.clone().into();
-            stock_update.quantity_on_hand = Set(new_qty);
-            stock_update.quantity_available = Set(new_avail);
-            stock_update.updated_at = Set(Utc::now());
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
+            Self::update_existing_stock_txn(txn, s, item, user_id).await?;
+        } else {
+            Self::create_new_stock_txn(
                 txn,
-                "auto_audit",
-                stock_update,
-                // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
-                Some(user_id),
+                return_order,
+                item,
+                &item_color_no,
+                &item_batch_no,
+                &grade,
             )
             .await?;
-        } else {
-            // 创建新库存记录
-            // v14 批次 419 修复 T-P0-5：使用退货明细的缸号/色号/批号创建库存
-            let new_stock = inventory_stock::ActiveModel {
-                warehouse_id: Set(return_order.warehouse_id),
-                product_id: Set(item.product_id),
-                batch_no: Set(item_batch_no.clone()),
-                color_no: Set(item_color_no.clone()),
-                grade: Set(grade.clone()),
-                quantity_on_hand: Set(item.quantity),
-                quantity_available: Set(item.quantity),
-                quantity_reserved: Set(Decimal::ZERO),
-                version: Set(0),
-                ..Default::default()
-            };
-            new_stock.insert(txn).await?;
         }
-
-        // 增加库存交易记录
-        // 批次 338 v10 复审 P3 修复：使用 RecordTransactionArgs 参数对象替代多参数
         // 批次 358 v13 复审 B-P1-1 修复：改用 record_transaction_txn 关联函数，
         // 流水写入与主事务同生共死，事件返回由调用方在 commit 后统一 publish
-        // v14 批次 419 修复 T-P0-5：库存流水使用退货明细的缸号/色号/批号
-        let (_, txn_event) = InventoryStockService::record_transaction_txn(
+        let args = Self::build_inbound_txn_args(
+            return_order,
+            item,
+            &item_color_no,
+            &item_batch_no,
+            &item_dye_lot_no,
+            &grade,
+            user_id,
+        );
+        let (_, txn_event) =
+            InventoryStockService::record_transaction_txn(txn, args).await?;
+        Ok(txn_event)
+    }
+
+    /// 退货入库：更新现有库存（quantity_on_hand + quantity_available + updated_at + 审计）
+    async fn update_existing_stock_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        stock: &inventory_stock::Model,
+        item: &sales_return_item::Model,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let new_qty = stock.quantity_on_hand + item.quantity;
+        let new_avail = stock.quantity_available + item.quantity;
+        let mut stock_update: inventory_stock::ActiveModel = stock.clone().into();
+        stock_update.quantity_on_hand = Set(new_qty);
+        stock_update.quantity_available = Set(new_avail);
+        stock_update.updated_at = Set(Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
-            RecordTransactionArgs {
-                transaction_type: "SALES_RETURN".to_string(),
-                product_id: item.product_id,
-                warehouse_id: return_order.warehouse_id,
-                batch_no: item_batch_no.clone(),
-                color_no: item_color_no.clone(),
-                dye_lot_no: item_dye_lot_no.clone(),
-                grade: grade.clone(),
-                quantity_meters: item.quantity, // 正数，表示入库
-                quantity_kg: item.quantity_alt,
-                source_bill_type: Some("SALES_RETURN".to_string()),
-                source_bill_no: Some(return_order.return_no.clone()),
-                source_bill_id: Some(return_order.id),
-                quantity_before_meters: None,
-                quantity_before_kg: None,
-                quantity_after_meters: None,
-                quantity_after_kg: None,
-                notes: Some("销售退货入库".to_string()),
-                created_by: Some(user_id),
-            },
+            "auto_audit",
+            stock_update,
+            Some(user_id),
         )
         .await?;
-        Ok(txn_event)
+        Ok(())
+    }
+
+    /// 退货入库：创建新库存记录（使用退货明细的缸号/色号/批号）
+    async fn create_new_stock_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: &sales_return::Model,
+        item: &sales_return_item::Model,
+        item_color_no: &str,
+        item_batch_no: &str,
+        grade: &str,
+    ) -> Result<(), AppError> {
+        let new_stock = inventory_stock::ActiveModel {
+            warehouse_id: Set(return_order.warehouse_id),
+            product_id: Set(item.product_id),
+            batch_no: Set(item_batch_no.to_string()),
+            color_no: Set(item_color_no.to_string()),
+            grade: Set(grade.to_string()),
+            quantity_on_hand: Set(item.quantity),
+            quantity_available: Set(item.quantity),
+            quantity_reserved: Set(Decimal::ZERO),
+            version: Set(0),
+            ..Default::default()
+        };
+        new_stock.insert(txn).await?;
+        Ok(())
+    }
+
+    /// 退货入库：构造库存交易记录参数（流水写入与主事务同生共死）
+    fn build_inbound_txn_args(
+        return_order: &sales_return::Model,
+        item: &sales_return_item::Model,
+        item_color_no: &str,
+        item_batch_no: &str,
+        item_dye_lot_no: &Option<String>,
+        grade: &str,
+        user_id: i32,
+    ) -> RecordTransactionArgs {
+        RecordTransactionArgs {
+            transaction_type: "SALES_RETURN".to_string(),
+            product_id: item.product_id,
+            warehouse_id: return_order.warehouse_id,
+            batch_no: item_batch_no.to_string(),
+            color_no: item_color_no.to_string(),
+            dye_lot_no: item_dye_lot_no.clone(),
+            grade: grade.to_string(),
+            quantity_meters: item.quantity,
+            quantity_kg: item.quantity_alt,
+            source_bill_type: Some("SALES_RETURN".to_string()),
+            source_bill_no: Some(return_order.return_no.clone()),
+            source_bill_id: Some(return_order.id),
+            quantity_before_meters: None,
+            quantity_before_kg: None,
+            quantity_after_meters: None,
+            quantity_after_kg: None,
+            notes: Some("销售退货入库".to_string()),
+            created_by: Some(user_id),
+        }
     }
 
     /// P2 1-5 修复：批量库存入库（从 approve_return 抽取）
