@@ -22,6 +22,8 @@ use validator::Validate;
 
 pub mod contract;
 pub mod delivery;
+// 批次 488 D10-3 拆分：delivery 的业务实现子模块（ship/inventory/cancel/export/types）
+pub mod delivery_ops;
 pub mod order;
 pub mod price;
 pub mod sales_return;

@@ -12,6 +12,7 @@
 |------|-----|-----------|
 | 488（进行中，13/17 完成） | main 多 commit + PR #669-#683 | V15 P0-D 系列 17 项打包：已完成 13 项（D01/D02/D07/D11/D15/D16/D17 审计误判 + D03+D04 Redis 缓存接入 + D12 圈复杂度优化 6 项 + D06 aria-label ~225 文件 + D08 全部 167 函数超长函数拆分 + D09 收尾 2 个100+行函数 + D10-1 ar_service.rs 2489→259 facade + 5 子模块），剩余 4 项大型任务（D05/D10 第 2-6 批/D13/D14） |
 | D10-1 | #683 main 34b8cae | D10 第 1 批 1/3：ar_service.rs (2489行) 拆为 facade (259行) + ar_ops/{types 75, json_helpers 98, collection 676, verification 1062, report 422, mod 23}，49 方法按职责分散到多 impl 块，外部 17 处调用路径不变 |
+| D10-3 | 待 push CI 验证 | D10 第 1 批 2/3：so/delivery.rs (2095行) 拆为 facade (822行) + delivery_ops/{mod 17, types 35, ship 676, inventory 336, cancel 270, export 136}，30 方法按职责分散到多 impl 块，DTO+validate+测试保留在 facade，外部调用路径不变 |
 | 487 | main 3919255 + d7e3b73 + a456a53 | V15 P0-T02 7 项集成测试 73 测试 + P0-T07 性能基准 11 bench + P0-T05 E2E 配置修复（28 文件 +1836 -29） |
 | 486 | main 01faa60 | V15 P0-T01 核心 service 单测补全（quotation + purchase_receipt 共 38 测试） |
 | 485 | main af0f16b + 5e4e78f + 7cc82cc | V15 P0-T03 clippy baseline 恢复 + P0-T08 覆盖率工具 + 编译错误修复（4 文件，CI 7 轮） |
