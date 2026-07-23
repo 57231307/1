@@ -3,7 +3,12 @@
 //! 由原 `services/ar_reconciliation_service.rs`（1121 行）按业务子领域拆分而来。
 //! 子模块：
 //! - `recon` 对账单主流程（CRUD / 状态机：draft → sent → confirmed/disputed → closed）
-//! - `vfy`   核销：自动对账算法、账龄分桶、自动生成对账单、客户确认/争议
+//! - `vfy`   核销门面（facade）：重导出 DTO 与 `ArReconciliationService`，保留测试模块
+//! - `vfy_ops` 核销业务实现子模块（批次 490 D10-4b 由 `vfy` 拆分而来）：
+//!     - `match`         自动对账（精确 + 日期顺序 + 客户汇总）
+//!     - `aging`         账龄分桶分析
+//!     - `reconciliation` 自动生成对账单
+//!     - `confirm`       客户确认/争议
 //! - `inv`   发票 PDF 导出（含明细拼装与 ExportService 协作）
 //! - `pay`   付款：占位模块，实际收款业务由 `services/ar_service.rs`（ArService）提供
 //!
@@ -26,6 +31,8 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 pub mod inv;
 pub mod recon;
 pub mod vfy;
+// 批次 490 D10-4b：vfy 门面拆出的业务实现子模块（match / aging / reconciliation / confirm）
+pub mod vfy_ops;
 
 // =====================================================
 // 共享 DTO（与原 ar_reconciliation_service.rs 保持一致）

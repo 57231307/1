@@ -93,6 +93,8 @@ pub mod purchase_receipt_service;
 pub mod purchase_return_service;
 // 应付管理模块
 pub mod ap_invoice_service;
+// 批次 490 D10-4b 拆分：ap_invoice_service.rs facade 的业务实现子模块（receipt/crud/report/types）
+pub mod ap_invoice_ops;
 pub mod ap_payment_request_service;
 pub mod ap_payment_service;
 pub mod ap_reconciliation_service;
