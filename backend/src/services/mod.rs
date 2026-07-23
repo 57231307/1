@@ -1,5 +1,7 @@
 pub mod assist_accounting_service;
 pub mod auth_service;
+// 批次 D10 拆分：auth_service.rs facade 的业务实现子模块（auth/jti）
+pub mod auth_service_ops;
 // P4-2 安全加固 - 密码策略服务（密码历史/锁定/过期）
 pub mod auth;
 pub mod batch_service;
@@ -43,6 +45,8 @@ pub mod inventory_adjustment_service;
 // v11 批次 143 P1-1：inventory_count_service 真实实现（盘点单 CRUD + 差异计算 + 审批流）
 pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
+// 拆分：inventory_finance_bridge_service.rs facade 的业务实现子模块（listener/voucher）
+pub mod inventory_finance_bridge_ops;
 // v14 批次 422 T-P1-7：染色完成→成本归集桥接监听器
 pub mod dye_batch_cost_bridge_service;
 // v14 批次 423A：染色配方 Service 抽象层（CRUD + 状态流转 + 版本管理）
@@ -130,6 +134,8 @@ pub mod customer_credit_evaluate;
 pub mod customer_credit_limit;
 pub mod customer_credit_service;
 pub mod event_bus;
+// 批次 491 D10-6 拆分：event_bus.rs facade 的业务实现子模块（kafka/listener）
+pub mod event_bus_ops;
 pub mod event_kafka;
 pub mod event_kafka_payload;
 // 批次 365 v13 复审 B-P1-8：事件幂等服务
