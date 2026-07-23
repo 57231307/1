@@ -1,4 +1,4 @@
-//! 产量工资 Service
+//! 产量工资 Service（facade）
 //!
 //! v14 批次 427：产量工资核算贯通
 //! 依据：面料行业真实业务调研文档 §12.5 产量工资（计件计时）
@@ -18,35 +18,32 @@
 //! - process_step_record 表：作为产量数据源（批次 425 已建）
 //! - process_route 表：作为工序定义（批次 425 已建）
 //! - determine_quality_grade 函数：A/B/C 等级判定（批次 421 已建）
+//!
+//! 批次 490 D10-4a 拆分：本文件作为 facade，保留 9 个工资计算纯函数 + 3 个 Service struct
+//! + new 构造函数 + 7 个 DTOs + 单元测试。3 个 Service 的 impl 块迁移至 `wage_ops` 子模块
+//!（rate / record / calculation），通过 db 字段 pub(crate) 让 ops 访问，外部引用路径不变。
 
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
-};
 use serde::Deserialize;
-use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::models::process_route::Entity as RouteEntity;
-use crate::models::process_step_record::{self, Entity as StepEntity, Model as StepModel};
-use crate::models::process_wage_rate::{self, ActiveModel as RateActiveModel, Entity as RateEntity, Model as RateModel};
-use crate::models::status::wage_rate_status;
-use crate::models::status::wage_record_status;
+use crate::models::process_wage_rate::Model as RateModel;
 use crate::models::status::wage_type;
-use crate::models::wage_record::{self, ActiveModel as RecordActiveModel, Entity as RecordEntity, Model as RecordModel};
-use crate::models::wage_record_detail::{self, ActiveModel as DetailActiveModel};
-use crate::utils::error::AppError;
-
-// 复用批次 421 的质量分级函数和常量
 use crate::services::quality_inspection_service::{
     determine_quality_grade, QUALITY_GRADE_A, QUALITY_GRADE_B, QUALITY_GRADE_C,
 };
 
+// ============================================================================
+// 工资计算纯函数
+// ============================================================================
+
 /// 将 NaiveDate 转换为带时区的 DateTime（当天 00:00:00 UTC）
 ///
 /// 用于工序记录的 start_at 字段比较
-fn naive_date_to_date_time_tz(date: chrono::NaiveDate) -> chrono::DateTime<chrono::FixedOffset> {
+pub(crate) fn naive_date_to_date_time_tz(
+    date: chrono::NaiveDate,
+) -> chrono::DateTime<chrono::FixedOffset> {
     let naive_time = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let naive_date_time = chrono::NaiveDateTime::new(date, naive_time);
     chrono::DateTime::<chrono::FixedOffset>::from_naive_utc_and_offset(
@@ -56,7 +53,9 @@ fn naive_date_to_date_time_tz(date: chrono::NaiveDate) -> chrono::DateTime<chron
 }
 
 /// 将 NaiveDate 转换为带时区的当天 23:59:59（用于区间右边界）
-fn naive_date_to_end_of_day_tz(date: chrono::NaiveDate) -> chrono::DateTime<chrono::FixedOffset> {
+pub(crate) fn naive_date_to_end_of_day_tz(
+    date: chrono::NaiveDate,
+) -> chrono::DateTime<chrono::FixedOffset> {
     let naive_time = chrono::NaiveTime::from_hms_opt(23, 59, 59).unwrap();
     let naive_date_time = chrono::NaiveDateTime::new(date, naive_time);
     chrono::DateTime::<chrono::FixedOffset>::from_naive_utc_and_offset(
@@ -64,10 +63,6 @@ fn naive_date_to_end_of_day_tz(date: chrono::NaiveDate) -> chrono::DateTime<chro
         chrono::FixedOffset::east_opt(0).unwrap(),
     )
 }
-
-// ============================================================================
-// 评分计算纯函数
-// ============================================================================
 
 /// 计算合格率（百分比，0-100）
 ///
@@ -211,7 +206,7 @@ pub fn split_wage_among_workers(wage: Decimal, worker_count: usize) -> Decimal {
 }
 
 // ============================================================================
-// 工序工价 Service
+// 工序工价 Service struct 定义（impl 块在 wage_ops/rate 子模块）
 // ============================================================================
 
 /// 创建工价请求
@@ -259,335 +254,17 @@ pub struct WageRateQuery {
 
 /// 工序工价 Service
 pub struct WageRateService {
-    db: Arc<DatabaseConnection>,
+    pub(crate) db: Arc<DatabaseConnection>,
 }
 
 impl WageRateService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-
-    /// 生成工价单号：PWR-YYYYMMDDHHMMSS-NNN
-    fn generate_rate_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("PWR-{}-{:03}", timestamp, random)
-    }
-
-    /// 创建工价
-    pub async fn create(&self, req: CreateWageRateRequest) -> Result<RateModel, AppError> {
-        // 业务校验：工序路线存在
-        let route = RouteEntity::find_by_id(req.process_route_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| {
-                AppError::business(format!("工序路线 {} 不存在", req.process_route_id))
-            })?;
-
-        // 业务校验：工价类型合法
-        let wage_type_value = req
-            .wage_type
-            .unwrap_or_else(|| wage_type::PIECE.to_string());
-        if wage_type_value != wage_type::PIECE
-            && wage_type_value != wage_type::TIME
-            && wage_type_value != wage_type::MIXED
-        {
-            return Err(AppError::business(format!(
-                "工价类型必须是 {} / {} / {}",
-                wage_type::PIECE,
-                wage_type::TIME,
-                wage_type::MIXED
-            )));
-        }
-
-        // 业务校验：单价非负
-        let piece_price = req.piece_price.unwrap_or(Decimal::ZERO);
-        let time_price = req.time_price.unwrap_or(Decimal::ZERO);
-        if piece_price < Decimal::ZERO {
-            return Err(AppError::business("计件单价不能为负"));
-        }
-        if time_price < Decimal::ZERO {
-            return Err(AppError::business("计时单价不能为负"));
-        }
-
-        // 业务校验：计件类型必须有计件单价，计时类型必须有计时单价
-        if wage_type_value == wage_type::PIECE && piece_price <= Decimal::ZERO {
-            return Err(AppError::business("计件工价必须设置计件单价 > 0"));
-        }
-        if wage_type_value == wage_type::TIME && time_price <= Decimal::ZERO {
-            return Err(AppError::business("计时工价必须设置计时单价 > 0"));
-        }
-        if wage_type_value == wage_type::MIXED
-            && piece_price <= Decimal::ZERO
-            && time_price <= Decimal::ZERO
-        {
-            return Err(AppError::business("混合工价必须设置计件或计时单价 > 0"));
-        }
-
-        // 业务校验：等级系数范围 [0, 1]
-        let grade_a_ratio = req.grade_a_ratio.unwrap_or_else(|| Decimal::new(10, 1)); // 1.0
-        let grade_b_ratio = req.grade_b_ratio.unwrap_or_else(|| Decimal::new(8, 1)); // 0.8
-        let grade_c_ratio = req.grade_c_ratio.unwrap_or(Decimal::ZERO);
-        for (name, value) in [
-            ("A 级", grade_a_ratio),
-            ("B 级", grade_b_ratio),
-            ("C 级", grade_c_ratio),
-        ] {
-            if value < Decimal::ZERO || value > Decimal::new(10, 1) {
-                return Err(AppError::business(format!(
-                    "{} 等级系数必须在 [0, 1] 范围内",
-                    name
-                )));
-            }
-        }
-
-        // 业务校验：失效日期必须晚于生效日期
-        if let Some(expiry) = req.expiry_date {
-            if expiry <= req.effective_date {
-                return Err(AppError::business("失效日期必须晚于生效日期"));
-            }
-        }
-
-        let rate_no = Self::generate_rate_no();
-        let now = crate::utils::date_utils::utc_now_fixed();
-
-        let active = RateActiveModel {
-            id: Default::default(),
-            rate_no: Set(rate_no),
-            process_route_id: Set(req.process_route_id),
-            route_code: Set(route.route_code.clone()),
-            route_name: Set(route.route_name.clone()),
-            wage_type: Set(wage_type_value),
-            piece_price: Set(piece_price),
-            time_price: Set(time_price),
-            grade_a_ratio: Set(grade_a_ratio),
-            grade_b_ratio: Set(grade_b_ratio),
-            grade_c_ratio: Set(grade_c_ratio),
-            effective_date: Set(req.effective_date),
-            expiry_date: Set(req.expiry_date),
-            workshop: Set(req.workshop),
-            status: Set(wage_rate_status::DRAFT.to_string()),
-            remarks: Set(req.remarks),
-            is_deleted: Set(false),
-            created_by: Set(req.created_by),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("工价创建失败: {}", e)))?;
-        Ok(result)
-    }
-
-    /// 更新工价（仅 draft 状态可更新）
-    pub async fn update(
-        &self,
-        id: i32,
-        req: UpdateWageRateRequest,
-    ) -> Result<RateModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != wage_rate_status::DRAFT {
-            return Err(AppError::business(format!(
-                "仅草稿(draft)状态可更新，当前状态: {}",
-                model.status
-            )));
-        }
-
-        // 记录原 effective_date（在 model.into() 之前取出，避免 ActiveValue 取值复杂）
-        let original_effective_date = model.effective_date;
-
-        let mut active: RateActiveModel = model.into();
-
-        if let Some(v) = req.wage_type {
-            if v != wage_type::PIECE && v != wage_type::TIME && v != wage_type::MIXED {
-                return Err(AppError::business("工价类型不合法"));
-            }
-            active.wage_type = Set(v);
-        }
-        if let Some(v) = req.piece_price {
-            if v < Decimal::ZERO {
-                return Err(AppError::business("计件单价不能为负"));
-            }
-            active.piece_price = Set(v);
-        }
-        if let Some(v) = req.time_price {
-            if v < Decimal::ZERO {
-                return Err(AppError::business("计时单价不能为负"));
-            }
-            active.time_price = Set(v);
-        }
-        if let Some(v) = req.grade_a_ratio {
-            if v < Decimal::ZERO || v > Decimal::new(10, 1) {
-                return Err(AppError::business("A 级等级系数必须在 [0, 1] 范围内"));
-            }
-            active.grade_a_ratio = Set(v);
-        }
-        if let Some(v) = req.grade_b_ratio {
-            if v < Decimal::ZERO || v > Decimal::new(10, 1) {
-                return Err(AppError::business("B 级等级系数必须在 [0, 1] 范围内"));
-            }
-            active.grade_b_ratio = Set(v);
-        }
-        if let Some(v) = req.grade_c_ratio {
-            if v < Decimal::ZERO || v > Decimal::new(10, 1) {
-                return Err(AppError::business("C 级等级系数必须在 [0, 1] 范围内"));
-            }
-            active.grade_c_ratio = Set(v);
-        }
-        if let Some(v) = req.effective_date {
-            active.effective_date = Set(v);
-        }
-        if let Some(v) = req.expiry_date {
-            // 失效日期必须晚于生效日期（用原始 effective_date 或请求中的新 effective_date 比较）
-            let effective = req.effective_date.unwrap_or(original_effective_date);
-            if v <= effective {
-                return Err(AppError::business("失效日期必须晚于生效日期"));
-            }
-            active.expiry_date = Set(Some(v));
-        }
-        if let Some(v) = req.workshop {
-            active.workshop = Set(Some(v));
-        }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
-        }
-
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 软删除工价（仅 draft 状态可删除）
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != wage_rate_status::DRAFT {
-            return Err(AppError::business(format!(
-                "仅草稿(draft)状态可删除，当前状态: {}",
-                model.status
-            )));
-        }
-        let mut active: RateActiveModel = model.into();
-        active.is_deleted = Set(true);
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        active.update(&*self.db).await?;
-        Ok(())
-    }
-
-    /// 启用工价（draft → active）
-    pub async fn activate(&self, id: i32) -> Result<RateModel, AppError> {
-        self.transition_status(id, wage_rate_status::DRAFT, wage_rate_status::ACTIVE)
-            .await
-    }
-
-    /// 停用工价（active → disabled）
-    pub async fn disable(&self, id: i32) -> Result<RateModel, AppError> {
-        self.transition_status(id, wage_rate_status::ACTIVE, wage_rate_status::DISABLED)
-            .await
-    }
-
-    /// 状态流转通用方法
-    async fn transition_status(
-        &self,
-        id: i32,
-        from: &str,
-        to: &str,
-    ) -> Result<RateModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != from {
-            return Err(AppError::business(format!(
-                "状态流转非法：当前 {}，期望 {}",
-                model.status, from
-            )));
-        }
-        let mut active: RateActiveModel = model.into();
-        active.status = Set(to.to_string());
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 按 ID 查询
-    pub async fn get_by_id(&self, id: i32) -> Result<RateModel, AppError> {
-        let model = RateEntity::find_by_id(id)
-            .filter(process_wage_rate::Column::IsDeleted.eq(false))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("工价 {} 不存在", id)))?;
-        Ok(model)
-    }
-
-    /// 按单号查询
-    pub async fn get_by_no(&self, rate_no: &str) -> Result<RateModel, AppError> {
-        let model = RateEntity::find()
-            .filter(process_wage_rate::Column::RateNo.eq(rate_no))
-            .filter(process_wage_rate::Column::IsDeleted.eq(false))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("工价单号 {} 不存在", rate_no)))?;
-        Ok(model)
-    }
-
-    /// 查询工序当前生效的工价
-    pub async fn get_effective_by_route(
-        &self,
-        process_route_id: i32,
-        on_date: chrono::NaiveDate,
-    ) -> Result<Option<RateModel>, AppError> {
-        let model = RateEntity::find()
-            .filter(process_wage_rate::Column::ProcessRouteId.eq(process_route_id))
-            .filter(process_wage_rate::Column::Status.eq(wage_rate_status::ACTIVE))
-            .filter(process_wage_rate::Column::IsDeleted.eq(false))
-            .filter(process_wage_rate::Column::EffectiveDate.lte(on_date))
-            .filter(
-                sea_orm::Condition::any()
-                    .add(process_wage_rate::Column::ExpiryDate.is_null())
-                    .add(process_wage_rate::Column::ExpiryDate.gt(on_date)),
-            )
-            .order_by_desc(process_wage_rate::Column::EffectiveDate)
-            .one(&*self.db)
-            .await?;
-        Ok(model)
-    }
-
-    /// 分页查询
-    pub async fn list(
-        &self,
-        query: WageRateQuery,
-    ) -> Result<(Vec<RateModel>, u64), AppError> {
-        let page = query.page.unwrap_or(1).clamp(1, 1000);
-        let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
-
-        let mut q = RateEntity::find()
-            .filter(process_wage_rate::Column::IsDeleted.eq(false));
-
-        if let Some(v) = query.route_code {
-            q = q.filter(process_wage_rate::Column::RouteCode.eq(v));
-        }
-        if let Some(v) = query.process_route_id {
-            q = q.filter(process_wage_rate::Column::ProcessRouteId.eq(v));
-        }
-        if let Some(v) = query.workshop {
-            q = q.filter(process_wage_rate::Column::Workshop.eq(v));
-        }
-        if let Some(v) = query.status {
-            q = q.filter(process_wage_rate::Column::Status.eq(v));
-        }
-
-        let total = q.clone().count(&*self.db).await?;
-        let items = q
-            .order_by_desc(process_wage_rate::Column::CreatedAt)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page - 1)
-            .await?;
-        Ok((items, total))
-    }
 }
 
 // ============================================================================
-// 工资记录 + 工资计算 Service
+// 工资记录 Service struct 定义（impl 块在 wage_ops/record 子模块）
 // ============================================================================
 
 /// 创建工资记录请求
@@ -628,554 +305,29 @@ pub struct WageRecordQuery {
 
 /// 工资记录 Service
 pub struct WageRecordService {
-    db: Arc<DatabaseConnection>,
+    pub(crate) db: Arc<DatabaseConnection>,
 }
 
 impl WageRecordService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-
-    /// 生成工资单号：WR-YYYYMM-NNN
-    fn generate_record_no(period: chrono::NaiveDate) -> String {
-        let ym = period.format("%Y%m");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("WR-{}-{:03}", ym, random)
-    }
-
-    /// 创建工资记录（仅创建空记录，需调用 calculate 触发计算）
-    pub async fn create(&self, req: CreateWageRecordRequest) -> Result<RecordModel, AppError> {
-        // 业务校验：周期结束必须 ≥ 周期开始
-        if req.period_end < req.period_start {
-            return Err(AppError::business("周期结束日期必须 ≥ 周期开始日期"));
-        }
-
-        let record_no = Self::generate_record_no(req.period_start);
-        let now = crate::utils::date_utils::utc_now_fixed();
-
-        let active = RecordActiveModel {
-            id: Default::default(),
-            record_no: Set(record_no),
-            period_start: Set(req.period_start),
-            period_end: Set(req.period_end),
-            workshop: Set(req.workshop),
-            total_workers: Set(0),
-            total_step_records: Set(0),
-            total_qualified_quantity: Set(Decimal::ZERO),
-            total_duration_minutes: Set(0),
-            total_amount: Set(Decimal::ZERO),
-            status: Set(wage_record_status::DRAFT.to_string()),
-            confirmed_by: Set(None),
-            confirmed_at: Set(None),
-            paid_by: Set(None),
-            paid_at: Set(None),
-            remarks: Set(req.remarks),
-            is_deleted: Set(false),
-            created_by: Set(req.created_by),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("工资记录创建失败: {}", e)))?;
-        Ok(result)
-    }
-
-    /// 更新工资记录（仅 draft 状态可更新）
-    pub async fn update(
-        &self,
-        id: i32,
-        req: UpdateWageRecordRequest,
-    ) -> Result<RecordModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != wage_record_status::DRAFT {
-            return Err(AppError::business(format!(
-                "仅草稿(draft)状态可更新，当前状态: {}",
-                model.status
-            )));
-        }
-
-        let mut active: RecordActiveModel = model.into();
-
-        if let Some(v) = req.workshop {
-            active.workshop = Set(Some(v));
-        }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
-        }
-
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 软删除工资记录（仅 draft 状态可删除，连带删除明细）
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != wage_record_status::DRAFT {
-            return Err(AppError::business(format!(
-                "仅草稿(draft)状态可删除，当前状态: {}",
-                model.status
-            )));
-        }
-        let mut active: RecordActiveModel = model.into();
-        active.is_deleted = Set(true);
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        active.update(&*self.db).await?;
-        Ok(())
-    }
-
-    /// 确认工资（draft → confirmed）
-    pub async fn confirm(&self, id: i32, confirmed_by: i32) -> Result<RecordModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != wage_record_status::DRAFT {
-            return Err(AppError::business(format!(
-                "仅草稿(draft)状态可确认，当前状态: {}",
-                model.status
-            )));
-        }
-        // 业务校验：必须有明细才能确认
-        let detail_count = wage_record_detail::Entity::find()
-            .filter(wage_record_detail::Column::WageRecordId.eq(id))
-            .filter(wage_record_detail::Column::IsDeleted.eq(false))
-            .count(&*self.db)
-            .await?;
-        if detail_count == 0 {
-            return Err(AppError::business("工资记录无明细，请先调用 calculate 触发计算"));
-        }
-
-        let mut active: RecordActiveModel = model.into();
-        active.status = Set(wage_record_status::CONFIRMED.to_string());
-        active.confirmed_by = Set(Some(confirmed_by));
-        active.confirmed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 发放工资（confirmed → paid）
-    pub async fn pay(&self, id: i32, paid_by: i32) -> Result<RecordModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != wage_record_status::CONFIRMED {
-            return Err(AppError::business(format!(
-                "仅已确认(confirmed)状态可发放，当前状态: {}",
-                model.status
-            )));
-        }
-        let mut active: RecordActiveModel = model.into();
-        active.status = Set(wage_record_status::PAID.to_string());
-        active.paid_by = Set(Some(paid_by));
-        active.paid_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 取消工资（draft/confirmed → cancelled）
-    pub async fn cancel(&self, id: i32) -> Result<RecordModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != wage_record_status::DRAFT && model.status != wage_record_status::CONFIRMED
-        {
-            return Err(AppError::business(format!(
-                "仅草稿(draft)或已确认(confirmed)状态可取消，当前状态: {}",
-                model.status
-            )));
-        }
-        let mut active: RecordActiveModel = model.into();
-        active.status = Set(wage_record_status::CANCELLED.to_string());
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 按 ID 查询
-    pub async fn get_by_id(&self, id: i32) -> Result<RecordModel, AppError> {
-        let model = RecordEntity::find_by_id(id)
-            .filter(wage_record::Column::IsDeleted.eq(false))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("工资记录 {} 不存在", id)))?;
-        Ok(model)
-    }
-
-    /// 按单号查询
-    pub async fn get_by_no(&self, record_no: &str) -> Result<RecordModel, AppError> {
-        let model = RecordEntity::find()
-            .filter(wage_record::Column::RecordNo.eq(record_no))
-            .filter(wage_record::Column::IsDeleted.eq(false))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("工资单号 {} 不存在", record_no)))?;
-        Ok(model)
-    }
-
-    /// 分页查询
-    pub async fn list(
-        &self,
-        query: WageRecordQuery,
-    ) -> Result<(Vec<RecordModel>, u64), AppError> {
-        let page = query.page.unwrap_or(1).clamp(1, 1000);
-        let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
-
-        let mut q = RecordEntity::find().filter(wage_record::Column::IsDeleted.eq(false));
-
-        if let Some(v) = query.record_no {
-            q = q.filter(wage_record::Column::RecordNo.like(format!("%{}%", v)));
-        }
-        if let Some(v) = query.workshop {
-            q = q.filter(wage_record::Column::Workshop.eq(v));
-        }
-        if let Some(v) = query.status {
-            q = q.filter(wage_record::Column::Status.eq(v));
-        }
-        if let Some(v) = query.period_start {
-            q = q.filter(wage_record::Column::PeriodStart.gte(v));
-        }
-        if let Some(v) = query.period_end {
-            q = q.filter(wage_record::Column::PeriodEnd.lte(v));
-        }
-
-        let total = q.clone().count(&*self.db).await?;
-        let items = q
-            .order_by_desc(wage_record::Column::CreatedAt)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page - 1)
-            .await?;
-        Ok((items, total))
-    }
 }
 
 // ============================================================================
-// 工资计算 Service
+// 工资计算 Service struct 定义（impl 块在 wage_ops/calculation 子模块）
 // ============================================================================
 
 /// 工资计算 Service
 ///
 /// 真实业务：按周期 + 车间查询工序记录 → 按工序匹配生效工价 → 计算每个工人的应得工资
 pub struct WageCalculationService {
-    db: Arc<DatabaseConnection>,
-}
-
-/// 工资计算累计：用于 calculate 拆分时在 helper 间传递汇总
-struct WageTotals {
-    total_amount: Decimal,
-    total_qualified: Decimal,
-    total_minutes: i64,
-    worker_set: HashSet<i32>,
-    step_set: HashSet<i32>,
-    detail_count: u64,
-}
-
-/// 单工序工资计算结果：用于在 helper 间传递 5 个返回值
-struct StepWageComputed {
-    grade: String,
-    grade_ratio: Decimal,
-    piece_wage: Decimal,
-    time_wage: Decimal,
-    wage_amount: Decimal,
-}
-
-/// 工人工资明细创建上下文：封装 step/rate/computed 等参数消除 too_many_arguments 警告
-struct WorkerDetailContext<'a> {
-    step: &'a StepModel,
-    rate: &'a RateModel,
-    computed: &'a StepWageComputed,
-    wage_record_id: i32,
-    now: chrono::DateTime<chrono::FixedOffset>,
-    worker_ids: &'a [i32],
-    worker_names: &'a [String],
+    pub(crate) db: Arc<DatabaseConnection>,
 }
 
 impl WageCalculationService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 触发工资计算
-    ///
-    /// 业务流程：查询周期内 completed 工序记录 → 按工序匹配生效工价
-    /// → 计算每个工人工资 → 生成明细 + 汇总工资记录
-    pub async fn calculate(
-        &self,
-        wage_record_id: i32,
-        req: CalculateWageRequest,
-    ) -> Result<RecordModel, AppError> {
-        let record = self.validate_wage_record(wage_record_id).await?;
-        self.clear_or_check_details(wage_record_id, req.recalculate.unwrap_or(false))
-            .await?;
-        let step_records = self.load_step_records(&record).await?;
-
-        // 2. 按工序路线匹配生效工价，生成工资明细
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let mut totals = WageTotals {
-            total_amount: Decimal::ZERO,
-            total_qualified: Decimal::ZERO,
-            total_minutes: 0,
-            worker_set: HashSet::new(),
-            step_set: HashSet::new(),
-            detail_count: 0,
-        };
-
-        for step in &step_records {
-            // 查找工价（按工序路线匹配）；无 route_id 或无生效工价时跳过
-            let rate = match self.find_wage_rate_for_step(step, &record).await? {
-                Some(r) => r,
-                None => continue,
-            };
-            self.process_step_and_accumulate(step, &rate, wage_record_id, now, &mut totals)
-                .await?;
-        }
-
-        if totals.detail_count == 0 {
-            return Err(AppError::business(
-                "未生成任何工资明细，请检查工价方案配置或工序记录状态",
-            ));
-        }
-
-        let updated = self.update_wage_record_summary(record, totals, now).await?;
-        Ok(updated)
-    }
-
-    /// 加载工资记录并校验：仅 draft 状态可计算
-    async fn validate_wage_record(
-        &self,
-        wage_record_id: i32,
-    ) -> Result<RecordModel, AppError> {
-        let record = RecordEntity::find_by_id(wage_record_id)
-            .filter(wage_record::Column::IsDeleted.eq(false))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("工资记录 {} 不存在", wage_record_id)))?;
-
-        // 业务校验：仅 draft 状态可计算
-        if record.status != wage_record_status::DRAFT {
-            return Err(AppError::business(format!(
-                "仅草稿(draft)状态可触发计算，当前状态: {}",
-                record.status
-            )));
-        }
-        Ok(record)
-    }
-
-    /// recalculate=true 删除旧明细 / 否则检查已有明细
-    async fn clear_or_check_details(
-        &self,
-        wage_record_id: i32,
-        recalculate: bool,
-    ) -> Result<(), AppError> {
-        // 重新计算时先删除旧明细
-        if recalculate {
-            wage_record_detail::Entity::delete_many()
-                .filter(wage_record_detail::Column::WageRecordId.eq(wage_record_id))
-                .exec(&*self.db)
-                .await?;
-        } else {
-            // 不重新计算时，检查是否已有明细
-            let existing = wage_record_detail::Entity::find()
-                .filter(wage_record_detail::Column::WageRecordId.eq(wage_record_id))
-                .filter(wage_record_detail::Column::IsDeleted.eq(false))
-                .count(&*self.db)
-                .await?;
-            if existing > 0 {
-                return Err(AppError::business(format!(
-                    "工资记录已有 {} 条明细，如需重新计算请设置 recalculate=true",
-                    existing
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    /// 查询周期内 completed 工序记录
-    async fn load_step_records(&self, record: &RecordModel) -> Result<Vec<StepModel>, AppError> {
-        // 1. 查询周期内 completed 状态的工序记录
-        // 工序记录无 workshop 字段，车间维度在工价匹配阶段通过 process_wage_rate.workshop 间接关联
-        let period_start_tz = naive_date_to_date_time_tz(record.period_start);
-        let period_end_tz = naive_date_to_end_of_day_tz(record.period_end);
-        let step_query = StepEntity::find()
-            .filter(process_step_record::Column::IsDeleted.eq(false))
-            .filter(process_step_record::Column::Status.eq("completed"))
-            // 周期内：start_at 在 [period_start 00:00, period_end 23:59]
-            .filter(process_step_record::Column::StartAt.gte(period_start_tz))
-            .filter(process_step_record::Column::StartAt.lte(period_end_tz));
-
-        let step_records: Vec<StepModel> = step_query.all(&*self.db).await?;
-        if step_records.is_empty() {
-            return Err(AppError::business(format!(
-                "周期 {} ~ {} 内无已完成的工序记录，无法计算工资",
-                record.period_start, record.period_end
-            )));
-        }
-        Ok(step_records)
-    }
-
-    /// 按工序路线匹配生效工价（route_id 缺失或无匹配返回 None，调用方 continue）
-    async fn find_wage_rate_for_step(
-        &self,
-        step: &StepModel,
-        record: &RecordModel,
-    ) -> Result<Option<RateModel>, AppError> {
-        // 查找工价（按工序路线匹配）
-        let route_id = match step.process_route_id {
-            Some(id) => id,
-            None => return Ok(None), // 无工序路线的记录跳过
-        };
-
-        // 工价匹配条件：工序路线 + 当前生效 + 车间过滤
-        // effective_date 和 expiry_date 是 NaiveDate 类型，直接用 NaiveDate 比较
-        let mut rate_query = RateEntity::find()
-            .filter(process_wage_rate::Column::ProcessRouteId.eq(route_id))
-            .filter(process_wage_rate::Column::Status.eq(wage_rate_status::ACTIVE))
-            .filter(process_wage_rate::Column::IsDeleted.eq(false))
-            .filter(process_wage_rate::Column::EffectiveDate.lte(record.period_end))
-            .filter(
-                sea_orm::Condition::any()
-                    .add(process_wage_rate::Column::ExpiryDate.is_null())
-                    .add(process_wage_rate::Column::ExpiryDate.gt(record.period_start)),
-            );
-
-        if let Some(ref workshop) = record.workshop {
-            rate_query = rate_query.filter(
-                sea_orm::Condition::any()
-                    .add(process_wage_rate::Column::Workshop.is_null())
-                    .add(process_wage_rate::Column::Workshop.eq(workshop)),
-            );
-        }
-
-        let rate = rate_query
-            .order_by_desc(process_wage_rate::Column::EffectiveDate)
-            .one(&*self.db)
-            .await?;
-        Ok(rate) // None 表示无生效工价，调用方 continue
-    }
-
-    /// 计算单工序工资 + 派发按工人创建明细
-    async fn process_step_and_accumulate(
-        &self,
-        step: &StepModel,
-        rate: &RateModel,
-        wage_record_id: i32,
-        now: chrono::DateTime<chrono::FixedOffset>,
-        totals: &mut WageTotals,
-    ) -> Result<(), AppError> {
-        // 3. 计算工资
-        let (grade, grade_ratio, piece_wage, time_wage, wage_amount) = calculate_wage_for_step(
-            rate,
-            step.actual_quantity,
-            step.qualified_quantity,
-            step.duration_minutes,
-        );
-        let computed = StepWageComputed {
-            grade,
-            grade_ratio,
-            piece_wage,
-            time_wage,
-            wage_amount,
-        };
-
-        // 4. 按工人 IDs 分配工资（多人共同完成时按人均分配）
-        let worker_ids = parse_worker_ids(&step.worker_ids);
-        if worker_ids.is_empty() {
-            return Ok(()); // 无工人的记录跳过
-        }
-        let worker_names = parse_worker_names(&step.worker_names);
-
-        self.create_wage_details_for_workers(
-            WorkerDetailContext {
-                step,
-                rate,
-                computed: &computed,
-                wage_record_id,
-                now,
-                worker_ids: &worker_ids,
-                worker_names: &worker_names,
-            },
-            totals,
-        )
-        .await
-    }
-
-    /// 为每个工人创建工资明细 + 累计（多人按人均分配）
-    async fn create_wage_details_for_workers(
-        &self,
-        ctx: WorkerDetailContext<'_>,
-        totals: &mut WageTotals,
-    ) -> Result<(), AppError> {
-        let worker_count = ctx.worker_ids.len();
-        let per_worker_piece = split_wage_among_workers(ctx.computed.piece_wage, worker_count);
-        let per_worker_time = split_wage_among_workers(ctx.computed.time_wage, worker_count);
-        let per_worker_amount = split_wage_among_workers(ctx.computed.wage_amount, worker_count);
-
-        for (idx, &worker_id) in ctx.worker_ids.iter().enumerate() {
-            let worker_name = ctx.worker_names.get(idx).cloned();
-
-            let detail = DetailActiveModel {
-                id: Default::default(),
-                wage_record_id: Set(ctx.wage_record_id),
-                step_record_id: Set(ctx.step.id),
-                flow_card_id: Set(Some(ctx.step.flow_card_id)),
-                dye_lot_no: Set(None), // dye_lot_no 在 production_flow_card 上，这里留空
-                process_route_id: Set(ctx.step.process_route_id),
-                route_code: Set(Some(ctx.step.route_code.clone())),
-                route_name: Set(Some(ctx.step.route_name.clone())),
-                process_type: Set(Some(ctx.step.process_type.clone())),
-                worker_id: Set(worker_id),
-                worker_name: Set(worker_name),
-                equipment_id: Set(ctx.step.equipment_id),
-                equipment_name: Set(ctx.step.equipment_name.clone()),
-                wage_type: Set(ctx.rate.wage_type.clone()),
-                grade: Set(ctx.computed.grade.clone()),
-                actual_quantity: Set(ctx.step.actual_quantity.unwrap_or(Decimal::ZERO)
-                    / Decimal::from(worker_count)),
-                qualified_quantity: Set(ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO)
-                    / Decimal::from(worker_count)),
-                qualification_rate: Set(compute_qualification_rate(
-                    ctx.step.actual_quantity,
-                    ctx.step.qualified_quantity,
-                )),
-                piece_price: Set(ctx.rate.piece_price),
-                time_price: Set(ctx.rate.time_price),
-                grade_ratio: Set(ctx.computed.grade_ratio),
-                duration_minutes: Set(ctx.step.duration_minutes.unwrap_or(0) / worker_count as i32),
-                piece_wage: Set(per_worker_piece),
-                time_wage: Set(per_worker_time),
-                wage_amount: Set(per_worker_amount),
-                remarks: Set(None),
-                is_deleted: Set(false),
-                created_at: Set(ctx.now),
-                updated_at: Set(ctx.now),
-            };
-            detail.insert(&*self.db).await?;
-            totals.detail_count += 1;
-            totals.total_amount += per_worker_amount;
-            totals.total_qualified += ctx.step.qualified_quantity.unwrap_or(Decimal::ZERO)
-                / Decimal::from(worker_count);
-            totals.total_minutes += (ctx.step.duration_minutes.unwrap_or(0) as i64) / worker_count as i64;
-            totals.worker_set.insert(worker_id);
-            totals.step_set.insert(ctx.step.id);
-        }
-        Ok(())
-    }
-
-    /// 更新工资记录汇总（工人数 / 工序数 / 合格产量 / 工时 / 总额）
-    async fn update_wage_record_summary(
-        &self,
-        record: RecordModel,
-        totals: WageTotals,
-        now: chrono::DateTime<chrono::FixedOffset>,
-    ) -> Result<RecordModel, AppError> {
-        // 5. 更新工资记录汇总
-        let mut active: RecordActiveModel = record.into();
-        active.total_workers = Set(totals.worker_set.len() as i32);
-        active.total_step_records = Set(totals.step_set.len() as i32);
-        active.total_qualified_quantity = Set(totals.total_qualified);
-        active.total_duration_minutes = Set(totals.total_minutes as i32);
-        active.total_amount = Set(totals.total_amount);
-        active.updated_at = Set(now);
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
     }
 }
 
@@ -1186,6 +338,7 @@ impl WageCalculationService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::status::wage_rate_status;
     use rust_decimal::Decimal;
     use rust_decimal::prelude::ToPrimitive;
 
