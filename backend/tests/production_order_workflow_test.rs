@@ -16,7 +16,8 @@ mod tests {
     };
     use rust_decimal::Decimal;
     use sea_orm::{Database, DatabaseConnection};
-    use common::setup_test_db;
+    // 批次 490 D10-3b 修复：使用 super:: 限定本地 mod common，避免被 status::common 遮蔽
+    use super::common::setup_test_db;
 
     /// 构造最小 CreateProductionOrderRequest（仅必填字段）
     fn sample_create_request() -> CreateProductionOrderRequest {
