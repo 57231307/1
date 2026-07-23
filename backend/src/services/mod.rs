@@ -146,6 +146,8 @@ pub mod tracking_service;
 pub mod bom_service;
 pub mod mrp_engine_service;
 pub mod production_order_service;
+// 批次 488 D10-2 拆分：production_order_service 业务实现子模块
+pub mod production_order_ops;
 // 应收对账与多币种模块
 pub mod ar;
 pub mod currency_service;
