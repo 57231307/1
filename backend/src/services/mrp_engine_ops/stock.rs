@@ -5,7 +5,7 @@
 //! + calculate_requirement_with_stock/calculate_requirement（需求计算）
 
 use rust_decimal::Decimal;
-use sea_orm::EntityTrait;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
 use crate::utils::error::AppError;

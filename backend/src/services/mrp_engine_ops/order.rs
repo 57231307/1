@@ -5,7 +5,7 @@
 //! + list_products_for_mrp（产品列表查询）
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait};
 
 use crate::models::mrp_result::{
     ActiveModel as MrpResultActiveModel, Entity as MrpResultEntity, Model as MrpResultModel,
