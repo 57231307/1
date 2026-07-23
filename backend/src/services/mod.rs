@@ -53,8 +53,12 @@ pub mod dye_batch_cost_bridge_service;
 pub mod dye_recipe_service;
 // v14 批次 423B：化验室打样流程贯通（打样通知单 + ABCD 多版样 + OK 样确认 + 复样记录）
 pub mod lab_dip_service;
+// 批次 D10 拆分：lab_dip_service.rs facade 的业务实现子模块（request/sample/resample/types）
+pub mod lab_dip_ops;
 // v14 批次 424：大货处方与加料处方流程（染色配料单 + 染色补料单）
 pub mod production_recipe_service;
+// D10-6a 拆分：production_recipe_service.rs facade 的业务实现子模块（recipe_crud/recipe_state/addition）
+pub mod production_recipe_ops;
 // v14 批次 425：流转卡条码与车间工序流转
 pub mod flow_card_service;
 // 批次 491 D10-5 拆分：flow_card_service.rs facade 的业务实现子模块（route/card_crud/card_state/step/feedback）
@@ -85,6 +89,8 @@ pub mod inventory_stock_txn;
 pub mod stock_alert;
 pub mod product_category_service;
 pub mod product_service;
+// 批次 D10 拆分：product_service.rs facade 的业务实现子模块（sync/crud/color/import_export）
+pub mod product_ops;
 pub mod role_permission_service;
 pub mod so;
 pub mod user_service;
@@ -165,6 +171,8 @@ pub mod quotation_service;
 // 销售报价单转销售订单 Service（P12 批 1 P0 port PR-4：审批流 + 报价转订单 + 集成测试）
 pub mod quotation_convert_service;
 pub mod system_update_service;
+// D10 拆分：system_update_service.rs facade 的业务实现子模块（status/apply/backup/github）
+pub mod system_update_ops;
 pub mod totp_service;
 // v11 批次 143 P1-2：用户行为追踪分析服务
 pub mod tracking_service;
