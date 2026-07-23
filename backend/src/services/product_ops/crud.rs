@@ -16,7 +16,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 
 use crate::models::product::{self, Entity as ProductEntity};
