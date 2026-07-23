@@ -14,11 +14,11 @@
 //!
 //! 跨模块依赖：
 //! - `do_update` 调用 `status::get_current_version`（pub）、`backup::create_backup` /
-//!   `rollback` / `cleanup_old_backups`（`pub(crate)`）
+//!  `rollback` / `cleanup_old_backups`（`pub(crate)`）
 //! - `apply_files` 调用 `backup::copy_dir`（`pub(crate)`）
 //! - `extract_update_package` 调用 facade 纯函数 `extract_zip_entry`（`pub(crate)`）
 //! - `log_update` 被 `backup::rollback` / `github::download_update` /
-//!   `github::download_and_update` 跨模块调用
+//!  `github::download_and_update` 跨模块调用
 
 use crate::services::system_update_service::{
     extract_zip_entry, LocalRelease, SystemUpdateService, UpdateError,

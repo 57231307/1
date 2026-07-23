@@ -5,7 +5,7 @@
 //! - create / update / delete（CRUD）
 //! - get_by_id / list（查询）
 //! - start_sampling / submit_to_customer / approve_ok_sample / reject_and_redo
-//!   / restart_sampling / complete（状态流转）
+//!  / restart_sampling / complete（状态流转）
 //!
 //! 业务规则：
 //! - 打样版数范围 1-10，对色光源必填，交期不能早于今天

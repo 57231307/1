@@ -15,7 +15,6 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::prelude::*;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, QueryFilter, QueryOrder, Set,
 };

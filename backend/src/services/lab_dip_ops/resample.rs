@@ -5,8 +5,8 @@
 //! - create / record_result / issue_tech_card（业务流转）
 //! - get_by_id / list_by_request（查询）
 //! - validate_resample_request / validate_resample_source_sample
-//!   / validate_workshop_fabric_batch / build_resample_active_model
-//!   / mark_source_sample_resampling（私有 helper）
+//!  / validate_workshop_fabric_batch / build_resample_active_model
+//!  / mark_source_sample_resampling（私有 helper）
 //!
 //! 业务规则：
 //! - 复样需通知单处于 approved 状态，源样为 selected（OK 样）

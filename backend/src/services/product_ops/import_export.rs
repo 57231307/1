@@ -6,10 +6,10 @@
 //! - `import_products_from_csv`：从 CSV 导入
 //! - `process_csv_import_row`：单行处理（跨模块调用 `crud::create_product`）
 //! - 静态/私有 helper：build_product_csv_headers / build_product_csv_row /
-//!   generate_product_import_template / get_required_field_value /
-//!   parse_optional_csv_{string,f64,i32} / parse_csv_status_field /
-//!   validate_csv_{code,name,product_type,unit}_field / validate_csv_import_row /
-//!   build_csv_create_args
+//!  generate_product_import_template / get_required_field_value /
+//!  parse_optional_csv_{string,f64,i32} / parse_csv_status_field /
+//!  validate_csv_{code,name,product_type,unit}_field / validate_csv_import_row /
+//!  build_csv_create_args
 //!
 //! `ValidatedRowFields` struct 从 facade 迁移到本模块（私有，仅 CSV import 内部使用）。
 

@@ -4,7 +4,7 @@
 //! - `check_for_updates`：查询 GitHub Releases 最新版本（pub，handler 调用）
 //! - `fetch_latest_release`：调用 GitHub API `/repos/{owner}/{repo}/releases/latest`（私有）
 //! - `compare_versions`：比较 current < latest（`pub(crate)`，供 status 子模块 `check_local_updates`
-//!   + facade 测试调用）
+//!  + facade 测试调用）
 //! - `compare_versions_for_sort`：版本号排序比较（`pub(crate)`，供 status 子模块 `list_local_releases` 调用）
 //! - `download_update`：下载 GitHub Release asset（pub，handler + `download_and_update` 调用）
 //! - `find_release_asset`：在 Release 中查找匹配 asset（私有，关联函数）
@@ -15,7 +15,7 @@
 //! - `check_for_updates` 调用 `status::get_current_version`（pub）
 //! - `compare_versions` / `compare_versions_for_sort` 调用 facade 纯函数 `parse_version`（`pub(crate)`）
 //! - `download_update` 调用 `apply::log_update`（`pub(crate)`）+ facade 纯函数
-//!   `validate_asset_name` / `validate_download_url`（`pub(crate)`）
+//!  `validate_asset_name` / `validate_download_url`（`pub(crate)`）
 //! - `download_and_update` 调用 `apply::apply_update`（pub）+ `apply::log_update`（`pub(crate)`）
 //! - `fetch_latest_release` 使用 facade 常量 `GITHUB_API_URL` / `GITHUB_REPO`（`pub(crate)`）
 
