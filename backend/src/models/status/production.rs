@@ -1,22 +1,21 @@
 //! 生产状态常量分组
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的生产/排程/MRP/流转卡状态常量子模块组。
-//! 包含：production/scheduling/process_node/mrp/work_center/flow_card/step_record
+//! 包含：production(顶层常量)/scheduling/process_node/mrp/work_center/flow_card/step_record
+//!
+//! 注意：生产订单状态常量直接定义在文件顶层（非内部子模块），因为调用方引用路径为
+//! `crate::models::status::production::PRODUCTION_*`，本文件即 `status::production` 模块。
+/// 已排产：草稿审批通过后排入生产计划
+pub const PRODUCTION_SCHEDULED: &str = "SCHEDULED";
 
-/// 生产订单状态常量
-pub mod production {
-    /// 已排产：草稿审批通过后排入生产计划
-    pub const PRODUCTION_SCHEDULED: &str = "SCHEDULED";
+/// 生产中：实际开始投料生产
+pub const PRODUCTION_IN_PROGRESS: &str = "IN_PROGRESS";
 
-    /// 生产中：实际开始投料生产
-    pub const PRODUCTION_IN_PROGRESS: &str = "IN_PROGRESS";
+/// 待审批：提交审批流程，等待审批结果
+pub const PRODUCTION_PENDING_APPROVAL: &str = "PENDING_APPROVAL";
 
-    /// 待审批：提交审批流程，等待审批结果
-    pub const PRODUCTION_PENDING_APPROVAL: &str = "PENDING_APPROVAL";
-
-    /// 已拒绝：审批未通过，可退回草稿重新编辑
-    pub const PRODUCTION_REJECTED: &str = "REJECTED";
-}
+/// 已拒绝：审批未通过，可退回草稿重新编辑
+pub const PRODUCTION_REJECTED: &str = "REJECTED";
 
 /// 排程结果状态（scheduling_result.status，大写值）
 /// 批次 234 v13 真实接入：scheduling_query.rs 中排程结果状态字符串字面量统一引用此模块（规则 0）
