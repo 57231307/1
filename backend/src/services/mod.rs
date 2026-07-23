@@ -36,6 +36,8 @@ pub mod finance_payment_service;
 pub mod finance_report_service;
 pub mod five_dimension_service;
 pub mod init_service;
+// 批次 491 D10-5 拆分：init_service.rs facade 的业务实现子模块（setup/role/permission/dept_user）
+pub mod init_service_ops;
 pub mod inv;
 pub mod inventory_adjustment_service;
 // v11 批次 143 P1-1：inventory_count_service 真实实现（盘点单 CRUD + 差异计算 + 审批流）
@@ -51,6 +53,8 @@ pub mod lab_dip_service;
 pub mod production_recipe_service;
 // v14 批次 425：流转卡条码与车间工序流转
 pub mod flow_card_service;
+// 批次 491 D10-5 拆分：flow_card_service.rs facade 的业务实现子模块（route/card_crud/card_state/step/feedback）
+pub mod flow_card_ops;
 // v14 批次 426：验布打卷流程贯通
 pub mod fabric_inspection_service;
 // v14 批次 427：产量工资核算贯通
@@ -98,6 +102,8 @@ pub mod ap_invoice_ops;
 pub mod ap_payment_request_service;
 pub mod ap_payment_service;
 pub mod ap_reconciliation_service;
+// D10-5 拆分：ap_reconciliation_service.rs facade 的业务实现子模块（crud/confirm/report/auto/types）
+pub mod ap_reconciliation_ops;
 pub mod ap_report_service;
 pub mod ap_verification_service;
 // 应收管理模块

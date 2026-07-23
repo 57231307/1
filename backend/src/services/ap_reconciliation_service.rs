@@ -1,29 +1,24 @@
-//! 供应商对账 Service
+//! 供应商对账 Service（facade）
 //!
-//! 供应商对账服务层，负责对账的核心业务逻辑
-//! 包含生成对账单、确认对账、争议处理等管理
+//! D10-5 拆分：本文件作为 facade，保留 ApReconciliationService struct + new 构造函数
+//! + 单号生成宏 + 单元测试。impl 业务方法迁移至 `ap_reconciliation_ops` 子模块
+//!（crud / confirm / report / auto），DTOs 迁移至 `ap_reconciliation_ops::types`，
+//! 通过 db 字段 pub(crate) 让 ops 访问，外部引用路径保持不变。
 
-use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
-use crate::models::status::ap_reconciliation as reconciliation_status;
-use crate::models::status::payment;
-use crate::utils::error::AppError;
-// 批次 259 修复：接入 paginate_with_total 统一分页逻辑
-use crate::utils::pagination::paginate_with_total;
-use chrono::{NaiveDate, Utc};
-use futures::stream::{self, StreamExt};
-use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
-};
-use serde::{Deserialize, Serialize};
+use crate::models::ap_reconciliation;
+use sea_orm::DatabaseConnection;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use validator::Validate;
+
+// 重新导出 DTOs（迁移至 ap_reconciliation_ops::types），保持外部引用路径不变
+// 外部仍可通过 crate::services::ap_reconciliation_service::{GenerateReconciliationRequest, ...} 访问
+// 仅 re-export facade 测试与外部 handler 实际使用的 DTO，避免 unused imports 警告
+pub use crate::services::ap_reconciliation_ops::types::{
+    AutoReconciliationResult, GenerateReconciliationRequest,
+};
 
 /// 供应商对账服务
 pub struct ApReconciliationService {
-    db: Arc<DatabaseConnection>,
+    pub(crate) db: Arc<DatabaseConnection>,
 }
 
 impl ApReconciliationService {
@@ -40,729 +35,6 @@ impl ApReconciliationService {
         ap_reconciliation::Entity,
         ap_reconciliation::Column::ReconciliationNo
     );
-
-    /// 生成供应商对账单
-    pub async fn generate_reconciliation(
-        &self,
-        req: GenerateReconciliationRequest,
-        user_id: i32,
-    ) -> Result<ap_reconciliation::Model, AppError> {
-        let txn = (*self.db).begin().await?;
-
-        // 1. 生成对账单号
-        let reconciliation_no = self.generate_reconciliation_no().await?;
-
-        // 2. 查询该供应商在对账期间内的应付单
-        let invoices = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::SupplierId.eq(req.supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
-            .filter(ap_invoice::Column::InvoiceDate.gte(req.start_date))
-            .filter(ap_invoice::Column::InvoiceDate.lte(req.end_date))
-            .all(&txn)
-            .await?;
-
-        // 3. 查询该供应商在对账期间内的付款单
-        let payments = ap_payment::Entity::find()
-            .filter(ap_payment::Column::SupplierId.eq(req.supplier_id))
-            .filter(ap_payment::Column::PaymentStatus.eq(payment::PAYMENT_CONFIRMED))
-            .filter(ap_payment::Column::PaymentDate.gte(req.start_date))
-            .filter(ap_payment::Column::PaymentDate.lte(req.end_date))
-            .all(&txn)
-            .await?;
-
-        // 4. 计算期初余额（对账开始日期前的未付金额）
-        let opening_balance = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::SupplierId.eq(req.supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
-            .filter(ap_invoice::Column::InvoiceDate.lt(req.start_date))
-            .all(&txn)
-            .await?
-            .iter()
-            .map(|inv| inv.unpaid_amount)
-            .sum::<Decimal>();
-
-        // 5. 计算本期应付合计
-        let total_invoice: Decimal = invoices.iter().map(|inv| inv.amount).sum();
-
-        // 6. 计算本期付款合计
-        let total_payment: Decimal = payments.iter().map(|pay| pay.payment_amount).sum();
-
-        // 7. 计算期末余额
-        let closing_balance = opening_balance + total_invoice - total_payment;
-
-        // 8. 创建对账单
-        let reconciliation = ap_reconciliation::ActiveModel {
-            reconciliation_no: Set(reconciliation_no),
-            supplier_id: Set(req.supplier_id),
-            start_date: Set(req.start_date),
-            end_date: Set(req.end_date),
-            opening_balance: Set(opening_balance),
-            total_invoice: Set(total_invoice),
-            total_payment: Set(total_payment),
-            closing_balance: Set(closing_balance),
-            reconciliation_status: Set(reconciliation_status::PENDING.to_string()),
-            notes: Set(req.notes),
-            created_by: Set(user_id),
-            ..Default::default()
-        }
-        .insert(&txn)
-        .await?;
-
-        txn.commit().await?;
-
-        Ok(reconciliation)
-    }
-
-    /// 确认对账单
-    ///
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-    /// 原实现已有 txn 但状态门查询未加 lock_exclusive，两并发 confirm_reconciliation 同时通过
-    /// PENDING 检查后基于过期状态写入，导致 confirmed_by/confirmed_at 被覆盖。
-    pub async fn confirm_reconciliation(
-        &self,
-        id: i32,
-        user_id: i32,
-    ) -> Result<ap_reconciliation::Model, AppError> {
-        let txn = (*self.db).begin().await?;
-
-        // 1. 查询对账单（加 lock_exclusive 串行化并发 confirm_reconciliation）
-        let reconciliation = ap_reconciliation::Entity::find_by_id(id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
-
-        // 2. 检查状态
-        if reconciliation.reconciliation_status != reconciliation_status::PENDING {
-            return Err(AppError::business(format!(
-                "对账单状态为{}，不可确认",
-                reconciliation.reconciliation_status
-            )));
-        }
-
-        // 3. 确认对账单
-        let now = Utc::now();
-        let mut reconciliation_active: ap_reconciliation::ActiveModel = reconciliation.into();
-        reconciliation_active.reconciliation_status = Set(reconciliation_status::CONFIRMED.to_string());
-        reconciliation_active.confirmed_by = Set(Some(user_id));
-        reconciliation_active.confirmed_at = Set(Some(now));
-
-        let reconciliation =
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                reconciliation_active,
-                Some(user_id),
-            )
-            .await?;
-
-        txn.commit().await?;
-
-        // F-P2-4 修复（批次 387 v13 复审）：对账单确认后生成对账确认凭证
-        // 原实现 confirm_reconciliation 仅更新对账单状态，不生成凭证，
-        // 导致对账确认结果无法在凭证体系中追溯。
-        // 修复：commit 成功后生成转账凭证（借贷均为应付账款，金额=期末余额），
-        // 作为对账确认的审计凭证，不改变账面净余额。失败时仅 warn 不阻断主流程。
-        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
-            voucher_type: "转".to_string(),
-            voucher_date: reconciliation.end_date,
-            source_type: Some("AP_RECONCILIATION".to_string()),
-            source_module: Some("ap".to_string()),
-            source_bill_id: Some(reconciliation.id),
-            source_bill_no: Some(reconciliation.reconciliation_no.clone()),
-            batch_no: None,
-            color_no: None,
-            items: vec![
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(1),
-                    subject_code: Some("2202".to_string()),
-                    subject_name: Some("应付账款".to_string()),
-                    debit: reconciliation.closing_balance,
-                    credit: Decimal::ZERO,
-                    summary: Some(format!("对账确认-{}", reconciliation.reconciliation_no)),
-                    assist_customer_id: None,
-                    assist_supplier_id: Some(reconciliation.supplier_id),
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(2),
-                    subject_code: Some("2202".to_string()),
-                    subject_name: Some("应付账款".to_string()),
-                    debit: Decimal::ZERO,
-                    credit: reconciliation.closing_balance,
-                    summary: Some(format!("对账确认-{}", reconciliation.reconciliation_no)),
-                    assist_customer_id: None,
-                    assist_supplier_id: Some(reconciliation.supplier_id),
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
-            ],
-        };
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
-        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
-            tracing::warn!(
-                "对账单 {} 确认成功，但生成对账确认凭证失败：{}",
-                reconciliation.reconciliation_no,
-                e
-            );
-        }
-
-        Ok(reconciliation)
-    }
-
-    /// 提出争议
-    ///
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-    /// 原实现已有 txn 但状态门查询未加 lock_exclusive，两并发 dispute 同时通过门控后
-    /// 基于过期状态写入，导致 disputed_reason 被覆盖。
-    pub async fn dispute(
-        &self,
-        id: i32,
-        reason: String,
-        user_id: i32,
-    ) -> Result<ap_reconciliation::Model, AppError> {
-        let txn = (*self.db).begin().await?;
-
-        // 1. 查询对账单（加 lock_exclusive 串行化并发 dispute）
-        let reconciliation = ap_reconciliation::Entity::find_by_id(id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
-
-        // 2. 检查状态
-        if reconciliation.reconciliation_status == reconciliation_status::CONFIRMED {
-            return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
-        }
-
-        // 3. 提出争议
-        let now = Utc::now();
-        let mut reconciliation_active: ap_reconciliation::ActiveModel = reconciliation.into();
-        reconciliation_active.reconciliation_status = Set(reconciliation_status::DISPUTED.to_string());
-        reconciliation_active.disputed_by = Set(Some(user_id));
-        reconciliation_active.disputed_at = Set(Some(now));
-        reconciliation_active.disputed_reason = Set(Some(reason));
-
-        let reconciliation =
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                reconciliation_active,
-                Some(user_id),
-            )
-            .await?;
-
-        txn.commit().await?;
-
-        Ok(reconciliation)
-    }
-
-    /// 获取对账单详情
-    pub async fn get_by_id(&self, id: i32) -> Result<ap_reconciliation::Model, AppError> {
-        let reconciliation = ap_reconciliation::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
-
-        Ok(reconciliation)
-    }
-
-    /// 获取对账单列表
-    pub async fn get_list(
-        &self,
-        supplier_id: Option<i32>,
-        reconciliation_status: Option<String>,
-        start_date: Option<NaiveDate>,
-        end_date: Option<NaiveDate>,
-        page: u64,
-        page_size: u64,
-    ) -> Result<(Vec<ap_reconciliation::Model>, u64), AppError> {
-        let mut query = ap_reconciliation::Entity::find();
-
-        // 筛选条件
-        if let Some(sid) = supplier_id {
-            query = query.filter(ap_reconciliation::Column::SupplierId.eq(sid));
-        }
-        if let Some(status) = reconciliation_status {
-            query = query.filter(ap_reconciliation::Column::ReconciliationStatus.eq(status));
-        }
-        if let Some(sd) = start_date {
-            query = query.filter(ap_reconciliation::Column::StartDate.gte(sd));
-        }
-        if let Some(ed) = end_date {
-            query = query.filter(ap_reconciliation::Column::EndDate.lte(ed));
-        }
-
-        // 批次 259 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
-        let paginator = query
-            .order_by(ap_reconciliation::Column::CreatedAt, Order::Desc)
-            .paginate(&*self.db, page_size);
-
-        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
-        Ok((items, total))
-    }
-
-    /// 获取供应商应付汇总（从物化视图）
-    pub async fn get_supplier_summary(
-        &self,
-        supplier_id: Option<i32>,
-    ) -> Result<Vec<SupplierApSummary>, AppError> {
-        let invoices = Self::query_invoices_for_summary(&*self.db, supplier_id).await?;
-        let mut summary_map = Self::aggregate_invoices_by_supplier(&invoices);
-        Self::enrich_supplier_names(&*self.db, &mut summary_map).await?;
-        Ok(summary_map.into_values().collect())
-    }
-
-    /// 查询应付发票（按 supplier_id 可选过滤）
-    async fn query_invoices_for_summary(
-        db: &DatabaseConnection,
-        supplier_id: Option<i32>,
-    ) -> Result<Vec<ap_invoice::Model>, AppError> {
-        let mut invoice_query = ap_invoice::Entity::find();
-        if let Some(sid) = supplier_id {
-            invoice_query = invoice_query.filter(ap_invoice::Column::SupplierId.eq(sid));
-        }
-        invoice_query.all(db).await.map_err(AppError::from)
-    }
-
-    /// 按供应商分组统计发票（金额/付款状态/逾期）
-    fn aggregate_invoices_by_supplier(
-        invoices: &[ap_invoice::Model],
-    ) -> std::collections::HashMap<i32, SupplierApSummary> {
-        let mut summary_map: std::collections::HashMap<i32, SupplierApSummary> =
-            std::collections::HashMap::new();
-        for invoice in invoices {
-            let entry = summary_map
-                .entry(invoice.supplier_id)
-                .or_insert_with(|| SupplierApSummary {
-                    supplier_id: invoice.supplier_id,
-                    supplier_code: String::new(),
-                    supplier_name: String::new(),
-                    total_invoice_count: 0,
-                    total_invoice_amount: Decimal::ZERO,
-                    total_paid_amount: Decimal::ZERO,
-                    total_unpaid_amount: Decimal::ZERO,
-                    paid_invoice_count: 0,
-                    partial_paid_invoice_count: 0,
-                    overdue_invoice_count: 0,
-                    overdue_amount: Decimal::ZERO,
-                });
-
-            entry.total_invoice_count += 1;
-            entry.total_invoice_amount += invoice.amount;
-            entry.total_paid_amount += invoice.paid_amount;
-            entry.total_unpaid_amount += invoice.unpaid_amount;
-
-            // 判断付款状态
-            if (invoice.amount > Decimal::ZERO && invoice.paid_amount >= invoice.amount)
-                || (invoice.amount < Decimal::ZERO && invoice.paid_amount <= invoice.amount)
-            {
-                entry.paid_invoice_count += 1;
-            } else if invoice.paid_amount != Decimal::ZERO {
-                entry.partial_paid_invoice_count += 1;
-            }
-
-            // 判断是否逾期
-            if invoice.due_date < chrono::Utc::now().date_naive()
-                && invoice.unpaid_amount > Decimal::ZERO
-            {
-                entry.overdue_invoice_count += 1;
-                entry.overdue_amount += invoice.unpaid_amount;
-            }
-        }
-        summary_map
-    }
-
-    /// 查询供应商信息并填充到汇总 map（code/name）
-    async fn enrich_supplier_names(
-        db: &DatabaseConnection,
-        summary_map: &mut std::collections::HashMap<i32, SupplierApSummary>,
-    ) -> Result<(), AppError> {
-        use crate::models::supplier;
-        let supplier_ids: Vec<i32> = summary_map.keys().cloned().collect();
-        if supplier_ids.is_empty() {
-            return Ok(());
-        }
-        let suppliers = supplier::Entity::find()
-            .filter(supplier::Column::Id.is_in(supplier_ids))
-            .all(db)
-            .await?;
-        for s in suppliers {
-            if let Some(entry) = summary_map.get_mut(&s.id) {
-                entry.supplier_code = s.supplier_code;
-                entry.supplier_name = s.supplier_name;
-            }
-        }
-        Ok(())
-    }
-
-    /// 自动对账 - 为所有供应商自动生成对账单
-    pub async fn auto_reconcile_all(
-        &self,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-        user_id: i32,
-    ) -> Result<Vec<AutoReconciliationResult>, AppError> {
-        // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
-        let suppliers = Self::fetch_all_suppliers(&*self.db).await?;
-        let supplier_ids: Vec<i32> = suppliers.iter().map(|s| s.id).collect();
-
-        // v12 批次 39 修复：批量预加载所有供应商的发票数和付款数，避免 for_each_concurrent 内逐个 count（N+1，2N 次查询）
-        let invoice_counts = Self::fetch_invoice_counts_by_supplier(
-            &*self.db,
-            &supplier_ids,
-            start_date,
-            end_date,
-        )
-        .await?;
-        let payment_counts = Self::fetch_payment_counts_by_supplier(
-            &*self.db,
-            &supplier_ids,
-            start_date,
-            end_date,
-        )
-        .await?;
-
-        let results = Arc::new(Mutex::new(Vec::new()));
-
-        stream::iter(suppliers)
-            .for_each_concurrent(10, |sup| {
-                let results = results.clone();
-                let db = self.db.clone();
-                // v12 批次 39 修复：克隆预加载的计数 map 供并发任务读取（避免在闭包内查询 DB）
-                let invoice_counts = invoice_counts.clone();
-                let payment_counts = payment_counts.clone();
-                async move {
-                    let result = Self::process_supplier_reconciliation(
-                        db,
-                        sup,
-                        user_id,
-                        start_date,
-                        end_date,
-                        invoice_counts,
-                        payment_counts,
-                    )
-                    .await;
-                    let mut results_guard = results.lock().await;
-                    results_guard.push(result);
-                }
-            })
-            .await;
-
-        // 批次 23（2026-06-29 v5 P0-1）：避免 Arc::try_unwrap().unwrap() 在 future 被取消时 panic
-        // 原 try_unwrap 依赖"所有 clone 已 drop"的隐含契约，future 取消时 strong_count > 1 导致 panic。
-        // 改为 lock().await.clone() 模式，安全且无 panic 风险（auto_reconcile 是低频批处理，clone 成本可接受）。
-        let results = results.lock().await.clone();
-        Ok(results)
-    }
-
-    async fn fetch_all_suppliers(
-        db: &DatabaseConnection,
-    ) -> Result<Vec<crate::models::supplier::Model>, AppError> {
-        use crate::models::supplier;
-        // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
-        supplier::Entity::find()
-            .limit(10_000)
-            .all(db)
-            .await
-            .map_err(AppError::from)
-    }
-
-    async fn fetch_invoice_counts_by_supplier(
-        db: &DatabaseConnection,
-        supplier_ids: &[i32],
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-    ) -> Result<std::collections::HashMap<i32, usize>, AppError> {
-        if supplier_ids.is_empty() {
-            return Ok(std::collections::HashMap::<i32, usize>::new());
-        }
-        Ok(ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::SupplierId.is_in(supplier_ids.to_vec()))
-            .filter(ap_invoice::Column::InvoiceDate.gte(start_date))
-            .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
-            .all(db)
-            .await?
-            .into_iter()
-            .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, inv| {
-                *acc.entry(inv.supplier_id).or_default() += 1;
-                acc
-            }))
-    }
-
-    async fn fetch_payment_counts_by_supplier(
-        db: &DatabaseConnection,
-        supplier_ids: &[i32],
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-    ) -> Result<std::collections::HashMap<i32, usize>, AppError> {
-        if supplier_ids.is_empty() {
-            return Ok(std::collections::HashMap::<i32, usize>::new());
-        }
-        Ok(ap_payment::Entity::find()
-            .filter(ap_payment::Column::SupplierId.is_in(supplier_ids.to_vec()))
-            .filter(ap_payment::Column::PaymentDate.gte(start_date))
-            .filter(ap_payment::Column::PaymentDate.lte(end_date))
-            .all(db)
-            .await?
-            .into_iter()
-            .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, pay| {
-                *acc.entry(pay.supplier_id).or_default() += 1;
-                acc
-            }))
-    }
-
-    fn build_auto_reconciliation_request(
-        sup: &crate::models::supplier::Model,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-    ) -> GenerateReconciliationRequest {
-        GenerateReconciliationRequest {
-            supplier_id: sup.id,
-            start_date,
-            end_date,
-            notes: Some(format!("Auto-generated reconciliation for {}", sup.supplier_name)),
-        }
-    }
-
-    fn build_success_reconciliation_result(
-        rec: ap_reconciliation::Model,
-        supplier_id: i32,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-        invoice_count: usize,
-        payment_count: usize,
-    ) -> AutoReconciliationResult {
-        AutoReconciliationResult {
-            reconciliation_id: rec.id,
-            reconciliation_no: rec.reconciliation_no,
-            supplier_id,
-            start_date,
-            end_date,
-            opening_balance: rec.opening_balance,
-            total_invoice: rec.total_invoice,
-            total_payment: rec.total_payment,
-            closing_balance: rec.closing_balance,
-            invoice_count,
-            payment_count,
-            status: rec.reconciliation_status,
-            message: "Auto reconciliation successful".to_string(),
-        }
-    }
-
-    fn build_failure_reconciliation_result(
-        supplier_id: i32,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-        error: AppError,
-    ) -> AutoReconciliationResult {
-        AutoReconciliationResult {
-            reconciliation_id: 0,
-            reconciliation_no: String::new(),
-            supplier_id,
-            start_date,
-            end_date,
-            opening_balance: Decimal::ZERO,
-            total_invoice: Decimal::ZERO,
-            total_payment: Decimal::ZERO,
-            closing_balance: Decimal::ZERO,
-            invoice_count: 0,
-            payment_count: 0,
-            status: "FAILED".to_string(),
-            message: format!("Failed: {}", error),
-        }
-    }
-
-    async fn process_supplier_reconciliation(
-        db: Arc<DatabaseConnection>,
-        sup: crate::models::supplier::Model,
-        user_id: i32,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-        invoice_counts: std::collections::HashMap<i32, usize>,
-        payment_counts: std::collections::HashMap<i32, usize>,
-    ) -> AutoReconciliationResult {
-        let supplier_id = sup.id;
-        // v12 批次 39 修复：从预加载的计数 map 中取，避免循环内逐个 count（N+1）
-        let invoice_count = invoice_counts.get(&sup.id).copied().unwrap_or(0);
-        let payment_count = payment_counts.get(&sup.id).copied().unwrap_or(0);
-
-        let service = ApReconciliationService::new(db);
-        let req = Self::build_auto_reconciliation_request(&sup, start_date, end_date);
-
-        match service.generate_reconciliation(req, user_id).await {
-            Ok(rec) => Self::build_success_reconciliation_result(
-                rec,
-                supplier_id,
-                start_date,
-                end_date,
-                invoice_count,
-                payment_count,
-            ),
-            Err(e) => Self::build_failure_reconciliation_result(
-                supplier_id,
-                start_date,
-                end_date,
-                e,
-            ),
-        }
-    }
-
-    /// 获取发票关联信息
-    pub async fn get_invoice_relations(
-        &self,
-        invoice_id: i32,
-    ) -> Result<Vec<InvoiceRelationInfo>, AppError> {
-        let invoice = ap_invoice::Entity::find_by_id(invoice_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("应付单 {}", invoice_id)))?;
-
-        let mut relations = Vec::new();
-
-        // 关联采购入库单
-        if invoice.source_type.as_deref() == Some("PURCHASE_RECEIPT") {
-            relations.push(InvoiceRelationInfo {
-                invoice_id: invoice.id,
-                invoice_no: invoice.invoice_no.clone(),
-                source_type: invoice.source_type.clone().unwrap_or_default(),
-                source_id: invoice.source_id.unwrap_or_default(),
-                source_no: None,
-                supplier_id: invoice.supplier_id,
-                amount: invoice.amount,
-                status: invoice.invoice_status.clone(),
-            });
-        }
-
-        // 关联付款记录
-        let payments = ap_payment::Entity::find()
-            .filter(ap_payment::Column::SupplierId.eq(invoice.supplier_id))
-            .all(&*self.db)
-            .await?;
-
-        for payment in payments {
-            relations.push(InvoiceRelationInfo {
-                invoice_id: invoice.id,
-                invoice_no: invoice.invoice_no.clone(),
-                source_type: "PAYMENT".to_string(),
-                source_id: payment.id,
-                source_no: Some(payment.payment_no.clone()),
-                supplier_id: invoice.supplier_id,
-                amount: payment.payment_amount,
-                status: payment.payment_status.clone(),
-            });
-        }
-
-        Ok(relations)
-    }
-}
-
-// =====================================================
-// 数据传输对象（DTO）
-// =====================================================
-
-/// 生成对账单请求
-#[derive(Debug, Deserialize, Serialize, Validate)]
-pub struct GenerateReconciliationRequest {
-    /// 供应商 ID
-    pub supplier_id: i32,
-
-    /// 对账开始日期
-    pub start_date: NaiveDate,
-
-    /// 对账结束日期
-    pub end_date: NaiveDate,
-
-    /// 备注
-    pub notes: Option<String>,
-}
-
-/// 供应商应付汇总
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SupplierApSummary {
-    /// 供应商 ID
-    pub supplier_id: i32,
-
-    /// 供应商编码
-    pub supplier_code: String,
-
-    /// 供应商名称
-    pub supplier_name: String,
-
-    /// 应付单总数
-    pub total_invoice_count: i64,
-
-    /// 应付总金额
-    pub total_invoice_amount: Decimal,
-
-    /// 已付总金额
-    pub total_paid_amount: Decimal,
-
-    /// 未付总金额
-    pub total_unpaid_amount: Decimal,
-
-    /// 已付清应付单数量
-    pub paid_invoice_count: i64,
-
-    /// 部分付款应付单数量
-    pub partial_paid_invoice_count: i64,
-
-    /// 逾期应付单数量
-    pub overdue_invoice_count: i64,
-
-    /// 逾期金额
-    pub overdue_amount: Decimal,
-}
-
-/// 自动对账结果
-// 批次 23（2026-06-29 v5 P0-1 修复补充）：新增 Clone 派生，支持 lock().await.clone() 模式
-#[derive(Debug, Clone, Serialize)]
-pub struct AutoReconciliationResult {
-    pub reconciliation_id: i32,
-    pub reconciliation_no: String,
-    pub supplier_id: i32,
-    pub start_date: NaiveDate,
-    pub end_date: NaiveDate,
-    pub opening_balance: Decimal,
-    pub total_invoice: Decimal,
-    pub total_payment: Decimal,
-    pub closing_balance: Decimal,
-    pub invoice_count: usize,
-    pub payment_count: usize,
-    pub status: String,
-    pub message: String,
-}
-
-/// 发票关联信息
-#[derive(Debug, Serialize)]
-pub struct InvoiceRelationInfo {
-    pub invoice_id: i32,
-    pub invoice_no: String,
-    pub source_type: String,
-    pub source_id: i32,
-    pub source_no: Option<String>,
-    pub supplier_id: i32,
-    pub amount: Decimal,
-    pub status: String,
 }
 
 #[cfg(test)]
@@ -772,11 +44,14 @@ mod tests {
     use crate::decs;
     use crate::ymd;
     use crate::models::status::{common, payment};
+    use crate::utils::error::AppError;
+    use chrono::{NaiveDate, Utc};
+    use rust_decimal::Decimal;
     use std::str::FromStr;
 
     /// 复现 generate_reconciliation 中的期末余额计算公式
     ///
-    /// 业务公式（ap_reconciliation_service.rs 第 87 行）：
+    /// 业务公式（ap_reconciliation_ops/crud.rs generate_reconciliation）：
     /// `closing_balance = opening_balance + total_invoice - total_payment`
     fn compute_closing_balance(
         opening_balance: Decimal,
@@ -788,7 +63,7 @@ mod tests {
 
     /// 复现 get_supplier_summary 中的付款状态判断逻辑
     ///
-    /// 业务逻辑（ap_reconciliation_service.rs 第 300-306 行）：
+    /// 业务逻辑（ap_reconciliation_ops/report.rs aggregate_invoices_by_supplier）：
     /// - 已付清：amount > 0 且 paid >= amount，或 amount < 0 且 paid <= amount（红冲场景）
     /// - 部分付款：paid != 0 且未付清
     /// - 未付款：paid == 0
@@ -808,7 +83,7 @@ mod tests {
 
     /// 复现 get_supplier_summary 中的逾期判断逻辑
     ///
-    /// 业务逻辑（ap_reconciliation_service.rs 第 309-314 行）：
+    /// 业务逻辑（ap_reconciliation_ops/report.rs aggregate_invoices_by_supplier）：
     /// `due_date < today && unpaid_amount > 0` 视为逾期
     /// 这里把 today 参数化，避免测试依赖系统当前时间导致用例非幂等。
     fn is_overdue(due_date: NaiveDate, today: NaiveDate, unpaid_amount: Decimal) -> bool {
@@ -822,8 +97,8 @@ mod tests {
     /// 测试_对账状态常量_Pending值正确
     ///
     /// 验证 "PENDING" 与 common::STATUS_PENDING 一致，
-    /// 用于 generate_reconciliation 创建对账单时的初始状态（第 99 行），
-    /// 以及 confirm_reconciliation 中允许确认的唯一状态（第 132 行）。
+    /// 用于 generate_reconciliation 创建对账单时的初始状态，
+    /// 以及 confirm_reconciliation 中允许确认的唯一状态。
     #[test]
     fn 测试_对账状态常量_Pending值正确() {
         assert_eq!(common::STATUS_PENDING, "PENDING");
@@ -835,7 +110,7 @@ mod tests {
     /// 测试_对账状态常量_Cancelled值正确
     ///
     /// 验证 "CANCELLED" 与 common::STATUS_CANCELLED 一致，
-    /// 用于 generate_reconciliation 排除已取消的应付单（第 54、72 行）。
+    /// 用于 generate_reconciliation 排除已取消的应付单。
     #[test]
     fn 测试_对账状态常量_Cancelled值正确() {
         assert_eq!(common::STATUS_CANCELLED, "CANCELLED");
@@ -847,8 +122,8 @@ mod tests {
     /// 测试_付款状态常量_Confirmed值正确
     ///
     /// 验证 "CONFIRMED" 与 payment::PAYMENT_CONFIRMED 一致，
-    /// 用于 generate_reconciliation 查询已确认付款单（第 64 行），
-    /// 以及 confirm_reconciliation 中对账单确认后的状态值（第 142 行）。
+    /// 用于 generate_reconciliation 查询已确认付款单，
+    /// 以及 confirm_reconciliation 中对账单确认后的状态值。
     #[test]
     fn 测试_付款状态常量_Confirmed值正确() {
         assert_eq!(payment::PAYMENT_CONFIRMED, "CONFIRMED");
@@ -925,7 +200,7 @@ mod tests {
 
     /// 测试_状态机转换_确认需Pending状态
     ///
-    /// 验证 confirm_reconciliation 中状态门控逻辑（第 132 行）：
+    /// 验证 confirm_reconciliation 中状态门控逻辑：
     /// 仅当 reconciliation_status == "PENDING" 时允许确认，
     /// 其他状态（CONFIRMED/DISPUTED 等）应被拒绝。
     #[test]
@@ -949,7 +224,7 @@ mod tests {
 
     /// 测试_状态机转换_已确认不可争议
     ///
-    /// 验证 dispute 中状态门控逻辑（第 181 行）：
+    /// 验证 dispute 中状态门控逻辑：
     /// 当 reconciliation_status == "CONFIRMED" 时拒绝提出争议
     #[test]
     fn 测试_状态机转换_已确认不可争议() {
@@ -958,7 +233,7 @@ mod tests {
         let should_reject = confirmed_status == payment::PAYMENT_CONFIRMED;
         assert!(should_reject);
 
-        // 复现错误消息构造（业务第 182 行）
+        // 复现错误消息构造（业务 dispute 方法）
         let err = AppError::business("对账单已确认，不可提出争议".to_string());
         assert!(matches!(err, AppError::BusinessError(_)));
     }
@@ -1055,7 +330,7 @@ mod tests {
 
         assert!(is_overdue(due_date, today, unpaid));
 
-        // 累计逾期金额应等于未付金额（业务第 314 行）
+        // 累计逾期金额应等于未付金额
         let overdue_amount = unpaid;
         assert_eq!(overdue_amount, decs!("500"));
     }
@@ -1103,7 +378,7 @@ mod tests {
         let id = 9999;
         let err = AppError::not_found(format!("对账单 {}", id));
 
-        // 复现业务第 129/178/212 行的错误消息格式
+        // 复现业务方法的错误消息格式
         assert_eq!(format!("对账单 {}", id), "对账单 9999");
         assert!(matches!(err, AppError::NotFound(_)));
     }
@@ -1111,7 +386,7 @@ mod tests {
     /// 测试_错误消息格式_状态不可确认
     ///
     /// 验证 confirm_reconciliation 中
-    /// "对账单状态为{status}，不可确认" 格式的 business 错误消息（第 134 行）
+    /// "对账单状态为{status}，不可确认" 格式的 business 错误消息
     #[test]
     fn 测试_错误消息格式_状态不可确认() {
         let status = payment::PAYMENT_CONFIRMED; // 已确认状态再次确认
@@ -1129,7 +404,7 @@ mod tests {
     /// 测试_错误消息格式_已确认不可争议
     ///
     /// 验证 dispute 中
-    /// "对账单已确认，不可提出争议" 固定消息的 business 错误（第 182 行）
+    /// "对账单已确认，不可提出争议" 固定消息的 business 错误
     #[test]
     fn 测试_错误消息格式_已确认不可争议() {
         let err = AppError::business("对账单已确认，不可提出争议".to_string());
@@ -1140,7 +415,7 @@ mod tests {
     /// 测试_错误消息格式_应付单未找到
     ///
     /// 验证 get_invoice_relations 中
-    /// "应付单 {invoice_id}" 格式的 not_found 错误消息（第 466 行）
+    /// "应付单 {invoice_id}" 格式的 not_found 错误消息
     #[test]
     fn 测试_错误消息格式_应付单未找到() {
         let invoice_id = 8888;
@@ -1297,7 +572,7 @@ mod tests {
 
     /// 测试_自动对账结果_失败状态字符串
     ///
-    /// 验证 auto_reconcile_all 中失败分支使用的 "FAILED" 状态字符串（第 440 行），
+    /// 验证 auto_reconcile_all 中失败分支使用的 "FAILED" 状态字符串，
     /// 与成功分支的 reconciliation_status（来自数据库）形成对照。
     #[test]
     fn 测试_自动对账结果_失败状态字符串() {
@@ -1323,7 +598,7 @@ mod tests {
 
     /// 测试_对账单号格式_REC前缀
     ///
-    /// 验证 impl_generate_no! 宏生成对账单号使用 "REC" 前缀（第 33-38 行），
+    /// 验证 impl_generate_no! 宏生成对账单号使用 "REC" 前缀，
     /// 格式为 REC + 年月日 + 三位序号（如 REC20260315001）。
     /// 此处不实际调用数据库生成，仅校验前缀与格式约定。
     #[test]
