@@ -8,6 +8,8 @@ pub mod cache_service;
 // 批次 106 修复：performance_optimizer 模块已删除（死代码样板，能力已被 utils/n_plus_one + cache_service + slow_query 中间件覆盖）
 // P3-4 数据仓库/BI 关键路径 demo
 pub mod bi_analysis_service;
+// 批次 490 D10-3a 拆分：bi_analysis_service.rs facade 的业务实现子模块（sales/profit/drilldown/olap/types）
+pub mod bi_analysis_ops;
 // P4-3 监控告警 - 业务指标扩展（20+ 指标）
 pub mod business_metrics;
 // P4-5 单元测试覆盖 - 5 个 service 单元测试模块
@@ -59,6 +61,8 @@ pub mod energy_service;
 pub mod energy_ops;
 // v14 批次 429：染化料主数据完善（染化料主数据 + 分类 + 批次 + 领用单）
 pub mod chemical_service;
+// 批次 490 D10-3a 拆分：chemical_service.rs facade 的业务实现子模块（master/category/lot/requisition/types）
+pub mod chemical_ops;
 // v14 批次 430：委托加工物资贯通（委外订单 + 发料明细 + 收回入库 + 会计凭证）
 pub mod outsourcing_service;
 // 批次 489 D10-2b 拆分：委外加工 ops 子模块（order/order_item/receipt/voucher/types）
