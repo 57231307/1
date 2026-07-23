@@ -110,18 +110,19 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **批次**：488（D08 子集，不独立成批）
 - **当前进度**：✅ 全部完成（PR #682 main ba8e97f，精确扫描确认 100+行函数仅2个已拆分：get_import_template + export_orders_to_csv）
 
-### 3.4 P0-D10 30 个后端文件超过 1000 行（类二，L，未开始）
+### 3.4 P0-D10 30 个后端文件超过 1000 行（类二，L，进行中）
 
 - **来源**：batch-02 P0-02-02
 - **证据**：2026-07-19 精确扫描：实际 30 个 >1000 行文件，13 个 >1500 行，1 个 >2000 行（ar_service.rs 2067 行）；审计后新增越线 main.rs 1005 行 + init_service.rs 1287 行；28 个原审计文件全部仍 >1000 行无一下降；bi_analysis_service.rs 增长最快（+201 行 1461→1662）
-- **修复方案**：按职责拆分为多个文件（如 ar_service.rs 拆分为 ar_service / ar_aging_service / ar_collection_service；models/status.rs 拆分为 status/sales / status/purchase / status/inventory；main.rs 拆为 main / routes_bootstrap / middleware_bootstrap）
-- **关联文件**：[backend/src/services/ar_service.rs](file:///workspace/backend/src/services/ar_service.rs) (2067) / [production_order_service.rs](file:///workspace/backend/src/services/production_order_service.rs) (1998) / [so/delivery.rs](file:///workspace/backend/src/services/so/delivery.rs) (1930) / [voucher_service.rs](file:///workspace/backend/src/services/voucher_service.rs) (1841) / [energy_service.rs](file:///workspace/backend/src/services/energy_service.rs) (1800) / 等 30 文件
+- **修复方案**：按职责拆分为多个文件（如 ar_service.rs 拆分为 ar_service facade + ar_ops/{types,json_helpers,collection,verification,report}；models/status.rs 拆分为 status/sales / status/purchase / status/inventory；main.rs 拆为 main / routes_bootstrap / middleware_bootstrap）
+- **关联文件**：[backend/src/services/ar_service.rs](file:///workspace/backend/src/services/ar_service.rs) (259, 原 2489) / [production_order_service.rs](file:///workspace/backend/src/services/production_order_service.rs) (1998) / [so/delivery.rs](file:///workspace/backend/src/services/so/delivery.rs) (1930) / [voucher_service.rs](file:///workspace/backend/src/services/voucher_service.rs) (1841) / [energy_service.rs](file:///workspace/backend/src/services/energy_service.rs) (1800) / 等 30 文件
 - **依赖**：P0-D08/D09（避免函数拆分和文件拆分同时进行造成冲突）
 - **工作量**：L
 - **批次**：488（D 系列 17 项一次性打包；预估 5-6 子批次，每批 5-6 文件）
 - **执行优先级**：第 2 顺位（D08 完成后立即推进）
+- **当前进度**：D10-1 ✅ 完成（ar_service.rs 2489→259 行 facade + 5 子模块 2256 行，PR #683 main 34b8cae）；D10-2/D10-3 待推进
 - **批次规划**：
-  - 第 1 批：ar_service.rs (2067) + production_order_service.rs (1998) + so/delivery.rs (1930) 3 个 >1800 行文件
+  - 第 1 批：✅ ar_service.rs (2489→259 facade + ar_ops/{types 75, json_helpers 98, collection 676, verification 1062, report 422, mod 23}) / ⏳ production_order_service.rs (1998) / ⏳ so/delivery.rs (1930) 3 个 >1800 行文件
   - 第 2 批：voucher_service.rs (1841) + energy_service.rs (1800) + outsourcing_service.rs (1782) + business_mode_service.rs (1718) 4 个 >1700 行文件
   - 第 3 批：chemical_service.rs (1676) + bi_analysis_service.rs (1662) + models/status.rs (1577) + mrp_engine_service.rs (1556) 4 个 >1500 行文件
   - 第 4 批：dye_batch_state_machine_service.rs (1512) + wage_service.rs (1507) + ar/vfy.rs (1320) + ap_invoice_service.rs (1306) 4 个 >1300 行文件
