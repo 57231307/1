@@ -6,7 +6,6 @@
 
 use rust_decimal::Decimal;
 use sea_orm::EntityTrait;
-use std::sync::Arc;
 
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
 use crate::utils::error::AppError;

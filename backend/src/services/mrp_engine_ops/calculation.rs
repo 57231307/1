@@ -6,18 +6,16 @@
 
 use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, Set};
 
-use crate::models::mrp_result::{
-    ActiveModel as MrpResultActiveModel, Entity as MrpResultEntity, Model as MrpResultModel,
-};
+use crate::models::mrp_result::{ActiveModel as MrpResultActiveModel, Model as MrpResultModel};
 // 批次 235 v13 P1-1：MRP 结果状态常量接入（规则 0）
 use crate::models::status::mrp as mrp_status;
 use crate::utils::error::AppError;
 
 use super::types::{
-    ExplodeBomArgs, MaterialRequirement, MrpCalculationQuery, MrpCalculationRequest,
-    MrpCalculationSummary, MrpExplodeQuery, RequirementCalcParams, StockInfo,
+    MaterialRequirement, MrpCalculationQuery, MrpCalculationRequest, MrpCalculationSummary,
+    MrpExplodeQuery, RequirementCalcParams, StockInfo,
 };
 use crate::services::mrp_engine_service::MrpEngineService;
 
