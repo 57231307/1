@@ -15,8 +15,8 @@
 use chrono::{Duration, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
+    QueryFilter, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
