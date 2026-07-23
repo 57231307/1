@@ -27,7 +27,8 @@
 //! - wage_energy_chemical_business：wage_*/energy_*/color_card/chemical_*/outsourcing_*/business_*
 
 mod general;
-mod production;
+// production 需为 pub：调用方直接访问 status::production::PRODUCTION_*（文件名与原始内部模块名相同）
+pub mod production;
 mod sales;
 mod purchase_inventory;
 mod finance;
