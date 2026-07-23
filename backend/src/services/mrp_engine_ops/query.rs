@@ -5,7 +5,7 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 
 use crate::models::mrp_result::{Entity as MrpResultEntity, Model as MrpResultModel};
 use crate::models::status::mrp as mrp_status;
