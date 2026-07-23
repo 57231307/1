@@ -38,7 +38,7 @@ pub use crate::services::energy_ops::{
     CreateMeterRequest, EnergyMeterService, MeterQuery, UpdateMeterRequest,
     // consumption
     ConsumptionQuery, CreateConsumptionRequest, EnergyConsumptionService,
-    UpdateConsumptionRequest, WorkshopEnergySummary,
+    UpdateConsumptionRequest,
     // allocation_rule
     CreateRuleRequest, EnergyAllocationRuleService, RuleQuery, UpdateRuleRequest,
     // allocation_record

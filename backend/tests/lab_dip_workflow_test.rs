@@ -119,19 +119,19 @@ mod tests {
 
     // ===== validate_can_delete 可删除校验 =====
 
-    /// 测试_validate_can_delete_仅PENDING可删除
+    /// test validate_can_delete: only PENDING allows delete
     ///
     /// 验证只有 PENDING 状态允许删除。
     #[test]
-    fn 测试_validate_can_delete_仅PENDING可删除() {
+    fn test_validate_can_delete_only_pending() {
         assert!(LabDipRequestService::validate_can_delete(status::PENDING).is_ok());
     }
 
-    /// 测试_validate_can_delete_非PENDING不可删除
+    /// test validate_can_delete: non-PENDING states reject delete
     ///
     /// 验证 SAMPLING 及之后的状态不允许删除。
     #[test]
-    fn 测试_validate_can_delete_非PENDING不可删除() {
+    fn test_validate_can_delete_non_pending_rejected() {
         assert!(LabDipRequestService::validate_can_delete(status::SAMPLING).is_err());
         assert!(LabDipRequestService::validate_can_delete(status::SUBMITTED).is_err());
         assert!(LabDipRequestService::validate_can_delete(status::APPROVED).is_err());

@@ -13,11 +13,10 @@
 //! 拆分自原 `ar_reconciliation_service.rs` 的 `// 增强功能` 段。
 //! 结构体定义与构造函数 `ArReconciliationService::new` 位于 `super`（`ar/mod.rs`）。
 
-// 重新导出公共 DTO 与 Service 结构体，保持 `crate::services::ar::vfy::*` 路径稳定
-pub use super::{
-    AgingBucket, AgingReport, ArReconciliationService, AutoMatchRequest, AutoMatchResult,
-    CustomerAgingSummary, GenerateReconciliationRequest,
-};
+// 重新导出 Service 结构体与测试中使用的 DTO，保持 `crate::services::ar::vfy::*` 路径稳定
+// 其余 DTO（AgingBucket/AgingReport/AutoMatchResult/CustomerAgingSummary/GenerateReconciliationRequest）
+// 已由 ar/mod.rs 定义并通过 services/mod.rs re-export，无需在此重复 re-export
+pub use super::{ArReconciliationService, AutoMatchRequest};
 
 #[cfg(test)]
 mod tests {
