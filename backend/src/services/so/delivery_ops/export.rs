@@ -7,7 +7,6 @@
 
 use crate::utils::error::AppError;
 
-use super::super::SalesOrderDetail;
 use super::super::order::SalesService;
 
 impl SalesService {

@@ -12,6 +12,5 @@ pub mod cancel;
 pub mod export;
 pub mod inventory;
 pub mod ship;
-pub mod types;
-
-pub use types::{ShipOrderContext, ShipPostCommitContext, ShipmentItemsResult};
+// types 为 delivery_ops 内部辅助 struct（pub(super)），不 re-export 到 so 层
+mod types;
