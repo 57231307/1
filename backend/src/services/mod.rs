@@ -92,6 +92,8 @@ pub mod ap_verification_service;
 // 批次 348 v12 复审 P2-1：ar_collection_service 模块已删除（死代码，功能被 ar_service 完全覆盖）
 pub mod ar_invoice_service;
 pub mod ar_service;
+// 批次 488 D10-1 拆分：ar_service.rs facade 的业务实现子模块（collection/verification/report/types/json_helpers）
+pub mod ar_ops;
 // 总账管理模块
 pub mod account_subject_service;
 pub mod accounting_period_service;
