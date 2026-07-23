@@ -61,6 +61,8 @@ pub mod energy_ops;
 pub mod chemical_service;
 // v14 批次 430：委托加工物资贯通（委外订单 + 发料明细 + 收回入库 + 会计凭证）
 pub mod outsourcing_service;
+// 批次 489 D10-2b 拆分：委外加工 ops 子模块（order/order_item/receipt/voucher/types）
+pub mod outsourcing_ops;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;
 pub mod inventory_stock_service;
@@ -233,6 +235,8 @@ pub mod color_price_seasonal_service;
 pub mod color_price_tier_service;
 // v14 批次 431：多业务模式支持服务（业务模式配置 + 流程步骤 + 规则 + 单据关联）
 pub mod business_mode_service;
+// 批次 489 D10-2b 拆分：多业务模式 ops 子模块（config/flow_step/rule/order_link/types）
+pub mod business_mode_ops;
 // v14 批次 432：缸号全生命周期状态机服务（生命周期日志 + 状态规则 + 回修记录 + 操作记录 + 纯函数校验）
 pub mod dye_batch_state_machine_service;
 // V15 P0-F15：大货批色审批服务（8 状态机：pending→sampled→sent_to_customer→approved/rejected/rework→downgraded/scrapped）
