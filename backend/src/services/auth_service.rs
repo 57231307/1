@@ -1,4 +1,4 @@
-//! 认证服务模块
+//! 认证服务模块（facade）
 //!
 //! 提供用户认证、JWT令牌管理和密码安全处理功能。
 //!
@@ -13,25 +13,29 @@
 //! - JWT 令牌有效期2小时，刷新令牌7天
 //! - 支持令牌黑名单机制
 //! - 支持密钥轮换（平滑过渡）
+//!
+//! # 模块拆分说明
+//! 本文件为 facade，仅保留：
+//! - `AppClaims` / `AuthService` struct 定义与 `new` 构造函数
+//! - `AuthError` enum 及其与 `AppError` 的 `From` 实现
+//! - 测试模块
+//! 业务方法（`impl AuthService` 的登录/验证/哈希等）迁移至 `auth_service_ops::auth`，
+//! JTI 黑名单与用户级 Token 吊销的 free functions 迁移至 `auth_service_ops::jti`，
+//! 下方通过 `pub use` 重新导出，保持外部调用路径不变。
 
-
-use crate::models::user;
-use crate::services::user_service::UserService;
 use crate::utils::error::AppError;
-use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
-    Argon2,
-};
-use chrono::{DateTime, Duration, Utc};
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use redis::aio::ConnectionManager;
-use redis::AsyncCommands;
+use chrono::{DateTime, Utc};
+use jsonwebtoken::EncodingKey;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::LazyLock;
-use tokio::sync::{OnceCell, RwLock};
+
+// JTI 黑名单与用户级 Token 吊销的 free functions 在 auth_service_ops::jti 中实现，
+// 此处重新导出以保持外部调用路径（如 crate::services::auth_service::revoke_jti）不变。
+pub use crate::services::auth_service_ops::jti::{
+    cleanup_expired_jti, cleanup_revoked_users, is_jti_revoked, is_user_token_revoked,
+    revoke_jti, revoke_user_jtis, start_revoked_user_cleanup_task, unrevoke_user,
+};
 
 /// JWT 令牌声明
 ///
@@ -60,10 +64,13 @@ pub struct AppClaims {
 /// 认证服务
 ///
 /// 处理用户认证、令牌生成和验证
+///
+/// 字段声明为 `pub(crate)` 以便 `auth_service_ops::auth` 子模块的 `impl AuthService`
+/// 块直接访问（业务方法已迁移至该子模块）。
 #[derive(Clone)]
 pub struct AuthService {
-    db: Arc<DatabaseConnection>,
-    encoding_key: EncodingKey,
+    pub(crate) db: Arc<DatabaseConnection>,
+    pub(crate) encoding_key: EncodingKey,
 }
 
 impl AuthService {
@@ -77,242 +84,6 @@ impl AuthService {
             db,
             encoding_key: EncodingKey::from_secret(secret.as_bytes()),
         }
-    }
-
-    /// 用户登录认证
-    ///
-    /// 验证用户名和密码，成功后返回 JWT 令牌和用户信息
-    ///
-    /// # 参数
-    /// - `username`: 用户名
-    /// - `password`: 明文密码
-    ///
-    /// # 返回
-    /// - `Ok((token, user))`: 认证成功，返回令牌和用户信息
-    /// - `Err(AuthError)`: 认证失败
-    ///
-    /// # 错误
-    /// - `InvalidPassword`: 密码错误
-    /// - `UserInactive`: 用户未激活
-    /// - `UserNotFound`: 用户不存在
-    pub async fn authenticate(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> Result<(String, user::Model), AuthError> {
-        let user = UserService::new(self.db.clone())
-            .find_by_username(username)
-            .await?;
-
-        // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
-        let is_valid =
-            Self::verify_password_async(password.to_string(), user.password_hash.clone()).await?;
-        if !is_valid {
-            return Err(AuthError::InvalidPassword("密码错误".to_string()));
-        }
-
-        if !user.is_active {
-            return Err(AuthError::UserInactive);
-        }
-
-        let token = self
-            .generate_token(user.id, &user.username, user.role_id)
-            .map_err(|e| AuthError::TokenGenerationError(e.to_string()))?;
-
-        Ok((token, user))
-    }
-
-    /// 生成 JWT 访问令牌
-    ///
-    /// 创建包含用户信息的 JWT 令牌，有效期2小时
-    ///
-    /// # 参数
-    /// - `user_id`: 用户 ID
-    /// - `username`: 用户名
-    /// - `role_id`: 角色 ID（可选）
-    ///
-    /// # 返回
-    /// - `Ok(token)`: 生成的 JWT 令牌
-    /// - `Err(AuthError::TokenGenerationError)`: 生成失败
-    pub fn generate_token(
-        &self,
-        user_id: i32,
-        username: &str,
-        role_id: Option<i32>,
-    ) -> Result<String, AuthError> {
-        let now = Utc::now();
-        // Token expires in 2 hours (reduced from 24 hours for security)
-        let exp = now + Duration::hours(2);
-        // Refresh token expires in 7 days
-        let refresh_exp = now + Duration::days(7);
-
-        let claims = AppClaims {
-            sub: user_id,
-            username: username.to_string(),
-            role_id,
-            exp,
-            iat: now,
-            refresh_exp,
-            session_id: uuid::Uuid::new_v4().to_string(),
-        };
-
-        encode(&Header::new(Algorithm::HS256), &claims, &self.encoding_key)
-            .map_err(|e| AuthError::TokenGenerationError(e.to_string()))
-    }
-
-    /// 生成 JWT 形式的刷新令牌（P1 7-1 修复）
-    ///
-    /// 修复背景：原 login 生成 `uuid::Uuid::new_v4().to_string()` 纯 UUID 作为 refresh_token，
-    /// 但 refresh_token 接口用 `validate_token_static`（JWT 验证）校验，纯 UUID 必然验证失败，
-    /// 导致 access_token 30 分钟过期后用户永远无法刷新。
-    ///
-    /// 修复方案：refresh_token 改用 JWT 形式，exp = refresh_exp = 7 天，
-    /// session_id 与 access_token 共享，便于 refresh 时统一吊销旧会话。
-    ///
-    /// # 参数
-    /// - `user_id`: 用户 ID
-    /// - `username`: 用户名
-    /// - `role_id`: 角色 ID（可选）
-    /// - `session_id`: 会话 ID（与 access_token 共享，便于统一吊销）
-    ///
-    /// # 返回
-    /// - `Ok(token)`: 生成的 JWT 刷新令牌（exp=7d, refresh_exp=7d）
-    /// - `Err(AuthError::TokenGenerationError)`: 生成失败
-    pub fn generate_refresh_token(
-        &self,
-        user_id: i32,
-        username: &str,
-        role_id: Option<i32>,
-        session_id: &str,
-    ) -> Result<String, AuthError> {
-        let now = Utc::now();
-        // refresh_token 的 exp = refresh_exp = 2 天后
-        // P2 7-9 修复：原 7 天有效期缩短至 2 天，降低 refresh_token 被盗用后的有效窗口
-        // 使 validate_token_static（验证 exp）能通过，同时 refresh_exp 检查也通过
-        let refresh_exp = now + Duration::days(2);
-
-        let claims = AppClaims {
-            sub: user_id,
-            username: username.to_string(),
-            role_id,
-            exp: refresh_exp,
-            iat: now,
-            refresh_exp,
-            session_id: session_id.to_string(),
-        };
-
-        encode(&Header::new(Algorithm::HS256), &claims, &self.encoding_key)
-            .map_err(|e| AuthError::TokenGenerationError(e.to_string()))
-    }
-
-    /// 静态方法：验证 JWT 令牌
-    ///
-    /// 不依赖 AuthService 实例，使用提供的密钥验证令牌
-    /// 用于密钥轮换场景（先尝试当前密钥，失败后再尝试旧密钥）
-    ///
-    /// # 参数
-    /// - `token`: JWT 令牌字符串
-    /// - `secret`: JWT 密钥
-    ///
-    /// # 返回
-    /// - `Ok(claims)`: 验证成功，返回令牌声明
-    /// - `Err(AuthError::InvalidToken)`: 令牌无效或已过期
-    pub fn validate_token_static(token: &str, secret: &str) -> Result<AppClaims, AuthError> {
-        let decoding_key = DecodingKey::from_secret(secret.as_bytes());
-        let mut validation = Validation::new(Algorithm::HS256);
-        validation.validate_exp = true;
-        // P2 7-10 修复：leeway 从 60 秒降至 5 秒，避免 Token 过期后仍有 60 秒有效窗口
-        validation.leeway = 5;
-
-        let token_data = decode::<AppClaims>(token, &decoding_key, &validation)
-            .map_err(|e| AuthError::InvalidToken(e.to_string()))?;
-
-        Ok(token_data.claims)
-    }
-
-    /// 验证密码
-    ///
-    /// 使用 Argon2id 验证明文密码与哈希值是否匹配
-    ///
-    /// # 参数
-    /// - `password`: 明文密码
-    /// - `hash`: 密码哈希值
-    ///
-    /// # 返回
-    /// - `Ok(true)`: 密码正确
-    /// - `Ok(false)`: 密码错误
-    /// - `Err(AuthError::HashingError)`: 哈希解析失败
-    pub fn verify_password(password: &str, hash: &str) -> Result<bool, AuthError> {
-        // 验证哈希长度，防止异常长的哈希导致性能问题或安全风险
-        if hash.len() > 512 {
-            return Err(AuthError::InvalidPassword("密码哈希长度异常".to_string()));
-        }
-
-        let parsed_hash =
-            PasswordHash::new(hash).map_err(|e| AuthError::HashingError(e.to_string()))?;
-
-        let argon2 = Argon2::default();
-        match argon2.verify_password(password.as_bytes(), &parsed_hash) {
-            Ok(_) => Ok(true),
-            Err(argon2::password_hash::Error::Password) => Ok(false),
-            Err(e) => Err(AuthError::HashingError(e.to_string())),
-        }
-    }
-
-    /// 异步验证密码（v14 P0-1 修复：用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker）
-    ///
-    /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。
-    /// 生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
-    pub async fn verify_password_async(
-        password: String,
-        hash: String,
-    ) -> Result<bool, AuthError> {
-        tokio::task::spawn_blocking(move || Self::verify_password(&password, &hash))
-            .await
-            .map_err(|e| AuthError::HashingError(format!("spawn_blocking join 失败: {}", e)))?
-    }
-
-    /// 哈希密码
-    ///
-    /// 使用 Argon2id 算法对明文密码进行哈希处理
-    /// 配置参数：64MB内存，3次迭代，4并发度
-    ///
-    /// # 参数
-    /// - `password`: 明文密码
-    ///
-    /// # 返回
-    /// - `Ok(hash)`: 密码哈希值
-    /// - `Err(AuthError::HashingError)`: 哈希失败
-    ///
-    /// # 示例
-    /// ```
-    /// use bingxi_backend::AuthService;
-    /// let hash = AuthService::hash_password("my_password").unwrap();
-    /// ```
-    pub fn hash_password(password: &str) -> Result<String, AuthError> {
-        let salt = SaltString::generate(&mut OsRng);
-        // 使用更安全的Argon2参数配置: 64MB内存，3次迭代，4并发度
-        let argon2 = Argon2::new(
-            argon2::Algorithm::Argon2id,
-            argon2::Version::V0x13,
-            argon2::Params::new(65536, 3, 4, None)
-                .map_err(|e| AuthError::HashingError(e.to_string()))?,
-        );
-
-        argon2
-            .hash_password(password.as_bytes(), &salt)
-            .map(|hash| hash.to_string())
-            .map_err(|e| AuthError::HashingError(e.to_string()))
-    }
-
-    /// 异步哈希密码（v14 P0-1 修复：用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker）
-    ///
-    /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。
-    /// 生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
-    pub async fn hash_password_async(password: String) -> Result<String, AuthError> {
-        tokio::task::spawn_blocking(move || Self::hash_password(&password))
-            .await
-            .map_err(|e| AuthError::HashingError(format!("spawn_blocking join 失败: {}", e)))?
     }
 }
 
@@ -384,363 +155,12 @@ impl From<AppError> for AuthError {
     }
 }
 
-// =====================================================================
-// JTI 黑名单（已吊销的 JWT ID）
-// =====================================================================
-//
-// 用于实现 Refresh Token 轮换场景下的旧 Token 立即失效：
-// - 登出时调用 `revoke_jti` 吊销当前 Token 的 JTI（session_id）
-// - Refresh Token 旋转时调用 `revoke_jti` 吊销旧 Token 的 JTI
-// - 每次受保护请求在 middleware 中调用 `is_jti_revoked` 检查
-//
-// 低危 #1 修复：JTI 黑名单从进程内 HashMap 迁移到 Redis（SETEX + TTL）。
-// 进程内存储在多实例部署时不共享，撤销后的旧 JWT 在其他实例最多可继续使用
-// 2 小时（JWT 过期时间）。Redis 后端保证所有实例共享同一黑名单视图。
-// Redis 不可用时自动回退到内存（graceful degradation）。
-
-/// JTI 黑名单 Redis key 前缀
-const JTI_KEY_PREFIX: &str = "jwt:jti:revoked:";
-
-/// JWT JTI 黑名单（进程内降级回退表：jti -> 过期时间戳）
-///
-/// 仅在 Redis 不可用时使用，避免阻塞业务。生产环境应配置 Redis。
-static JTI_BLACKLIST: LazyLock<RwLock<HashMap<String, i64>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
-
-/// 分布式 JTI 黑名单 Redis 客户端（懒初始化）
-///
-/// 通过环境变量 `JTI_REDIS_URL` 或回退 `REDIS_URL` 启用。
-static REDIS_JTI_BLACKLIST: OnceCell<Option<Arc<tokio::sync::Mutex<ConnectionManager>>>> =
-    OnceCell::const_new();
-
-/// 初始化 Redis JTI 黑名单客户端
-async fn init_redis_jti_blacklist() -> Option<Arc<tokio::sync::Mutex<ConnectionManager>>> {
-    let url = std::env::var("JTI_REDIS_URL")
-        .or_else(|_| std::env::var("REDIS_URL"))
-        .ok()
-        .filter(|s| !s.is_empty());
-
-    let url = match url {
-        Some(u) => u,
-        None => {
-            tracing::debug!(
-                "JTI_REDIS_URL/REDIS_URL 未配置，JTI 黑名单使用进程内存储（多实例部署不安全）"
-            );
-            return None;
-        }
-    };
-
-    match redis::Client::open(url.as_str()) {
-        Ok(client) => match ConnectionManager::new(client).await {
-            Ok(conn) => {
-                tracing::info!("JTI 黑名单已启用 Redis 分布式后端 (URL 已配置)");
-                Some(Arc::new(tokio::sync::Mutex::new(conn)))
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "JTI 黑名单 Redis 连接失败 ({:?})，回退到进程内存储",
-                    e
-                );
-                None
-            }
-        },
-        Err(e) => {
-            tracing::warn!("JTI 黑名单 Redis URL 解析失败 ({:?})，回退到进程内存储", e);
-            None
-        }
-    }
-}
-
-/// 获取或初始化 Redis JTI 黑名单客户端
-async fn get_redis_jti_blacklist() -> Option<Arc<tokio::sync::Mutex<ConnectionManager>>> {
-    REDIS_JTI_BLACKLIST
-        .get_or_init(init_redis_jti_blacklist)
-        .await
-        .clone()
-}
-
-/// 吊销指定 JTI
-///
-/// 将给定 JTI 加入黑名单（优先写 Redis；Redis 不可用时回退到进程内 HashMap）。
-/// 后续请求将拒绝持有该 JTI 的 Token。
-///
-/// # 参数
-/// - `jti`: 待吊销的 Token 唯一标识（当前实现取自 `AppClaims::session_id`）
-/// - `expires_at`: Token 的过期时间戳（Unix 秒）
-pub async fn revoke_jti(jti: &str, expires_at: i64) {
-    // 主路径：写入 Redis（SETEX 自动设置 TTL，过期自动清理，零维护成本）
-    if let Some(conn_arc) = get_redis_jti_blacklist().await {
-        let now = chrono::Utc::now().timestamp();
-        let ttl_secs = (expires_at - now).max(1) as u64;
-        let key = format!("{}{}", JTI_KEY_PREFIX, jti);
-
-        let write_result: Result<(), redis::RedisError> = async {
-            let mut conn = conn_arc.lock().await;
-            let _: () = conn.set_ex(&key, expires_at.to_string(), ttl_secs).await?;
-            Ok(())
-        }
-        .await;
-
-        if let Err(e) = write_result {
-            tracing::warn!(
-                "JTI 写入 Redis 失败 ({:?})，回退到进程内存储；jti={}",
-                e,
-                jti
-            );
-            // 降级：写入内存
-            let mut blacklist = JTI_BLACKLIST.write().await;
-            blacklist.insert(jti.to_string(), expires_at);
-        } else {
-            tracing::info!("JTI 已吊销（Redis）：{}，TTL {} 秒", jti, ttl_secs);
-        }
-    } else {
-        // 未配置 Redis：直接写内存
-        let mut blacklist = JTI_BLACKLIST.write().await;
-        blacklist.insert(jti.to_string(), expires_at);
-        tracing::info!("JTI 已吊销（内存）：{}，过期时间：{}", jti, expires_at);
-    }
-}
-
-/// 检查 JTI 是否在黑名单
-///
-/// # 参数
-/// - `jti`: 待检查的 Token 唯一标识
-///
-/// # 返回
-/// - `true`: 该 JTI 已被吊销
-/// - `false`: 该 JTI 仍然有效
-pub async fn is_jti_revoked(jti: &str) -> bool {
-    // 主路径：查 Redis
-    if let Some(conn_arc) = get_redis_jti_blacklist().await {
-        let key = format!("{}{}", JTI_KEY_PREFIX, jti);
-        let check_result: Result<bool, redis::RedisError> = async {
-            let mut conn = conn_arc.lock().await;
-            let exists: bool = conn.exists(&key).await?;
-            Ok(exists)
-        }
-        .await;
-
-        match check_result {
-            Ok(exists) => return exists,
-            Err(e) => {
-                tracing::warn!(
-                    "JTI 查 Redis 失败 ({:?})，回退到进程内检查；jti={}",
-                    e,
-                    jti
-                );
-                // 降级：查内存
-            }
-        }
-    }
-
-    // 降级：查内存
-    let blacklist = JTI_BLACKLIST.read().await;
-    blacklist.contains_key(jti)
-}
-
-/// 清理过期 JTI（建议定期调用，如每小时）
-///
-/// 当使用 Redis 后端时，TTL 自动清理过期条目，此函数为 noop。
-/// 当回退到进程内存储时，主动清理已超过过期时间的记录，避免内存泄漏。
-///
-/// # 参数
-/// - `_max_age_secs`: 允许的最大存活时间（秒），当前实现忽略该参数
-pub async fn cleanup_expired_jti(_max_age_secs: i64) {
-    // Redis 后端下，SETEX TTL 自动清理，无需手动操作
-    if get_redis_jti_blacklist().await.is_some() {
-        tracing::debug!("JTI 黑名单使用 Redis 后端，过期条目由 TTL 自动清理");
-        return;
-    }
-
-    // 进程内存储降级路径：手动清理过期记录
-    let mut blacklist = JTI_BLACKLIST.write().await;
-    let now = chrono::Utc::now().timestamp();
-    let before = blacklist.len();
-    blacklist.retain(|_, expires_at| *expires_at > now);
-    let removed = before - blacklist.len();
-    tracing::info!(
-        "清理 JTI 黑名单（内存）：移除 {} 条过期记录，剩余 {} 条",
-        removed,
-        blacklist.len()
-    );
-}
-
-// =====================================================================
-// 用户级 Token 吊销表（修复安全漏洞 #9：删除/封禁用户后即时撤销其所有活跃 JWT）
-// =====================================================================
-//
-// 设计动机：现有 JTI 黑名单按 session_id（UUID）维度存储，
-// 但应用层在删除/封禁用户时无法枚举该用户历史上颁发的全部 session_id。
-// 为此新增 user_id -> revoked_at 的全局表，middleware 在校验完 Claims 后
-// 再检查 `claims.iat < user_revoke_ts` 以决定是否放行。
-//
-// 语义：
-// - `revoke_user_jtis(user_id, reason)`：将 user_id 标记为已吊销，记录当前时间戳。
-//   后续所有 iat < 该时间戳的 Token 一律拒绝；iat >= 该时间戳的 Token 仍然有效。
-// - `is_user_token_revoked(user_id, token_iat)`：供 middleware 调用的快速判定。
-// - 该表为进程内内存表，进程重启后失效。生产环境如需持久化，
-//   应迁移到 Redis/DB（按 user_id 维度持久化 revoked_at），此实现仅做 MVP。
-
-/// 用户级 Token 吊销表（user_id -> 吊销时间戳，Unix 秒）
-static REVOKED_USERS: LazyLock<RwLock<HashMap<i32, i64>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
-
-/// 吊销指定用户的所有活跃 JWT
-///
-/// 将 user_id 加入内存吊销表，记录当前时间戳为吊销点。
-/// 后续 middleware 收到该用户 Token 时，若 `iat < revoked_at` 则拒绝。
-///
-/// # 参数
-/// - `user_id`: 被吊销用户的 ID
-/// - `reason`: 吊销原因（如 `"USER_DELETED"`、`"USER_DEACTIVATED"`），仅用于日志
-///
-/// # 返回
-/// - `Ok(())`: 成功加入吊销表
-/// - `Err(AuthError::InternalError)`: 当前实现下不会失败，保留 Result 供后续扩展
-pub async fn revoke_user_jtis(
-    user_id: i32,
-    reason: &str,
-) -> Result<(), crate::utils::error::AppError> {
-    let now = chrono::Utc::now().timestamp();
-    let mut table = REVOKED_USERS.write().await;
-    table.insert(user_id, now);
-    tracing::warn!(
-        target: "security_audit",
-        event = "USER_TOKENS_REVOKED",
-        user_id = user_id,
-        reason = reason,
-        revoked_at = now,
-        "[SECURITY] 用户级 Token 吊销：user_id={} reason={} revoked_at={}",
-        user_id,
-        reason,
-        now
-    );
-    Ok(())
-}
-
-/// 检查某用户 Token 是否已被吊销
-///
-/// 判定规则：
-/// - 若 user_id 不在吊销表中，返回 `false`（未吊销）
-/// - 若 token_iat >= revoked_at，返回 `false`（Token 在吊销后签发，仍有效）
-/// - 若 token_iat < revoked_at，返回 `true`（Token 在吊销前签发，必须拒绝）
-///
-/// # 参数
-/// - `user_id`: Token 所属用户 ID
-/// - `token_iat`: Token 签发时间戳（Unix 秒）
-pub async fn is_user_token_revoked(user_id: i32, token_iat: i64) -> bool {
-    let table = REVOKED_USERS.read().await;
-    if let Some(&revoked_at) = table.get(&user_id) {
-        token_iat < revoked_at
-    } else {
-        false
-    }
-}
-
-/// 清理过期的用户吊销记录（建议定期调用）
-///
-/// v11 批次 145 P1-7 修复：原实现为占位（仅打印日志），现实现真实 TTL 清理。
-///
-/// 清理策略：
-/// - 吊销记录超过 `REVOKED_USER_TTL_SECS`（默认 7 天）后自动清理
-/// - 理由：JWT 最长有效期 2 小时，7 天后所有旧 Token 已过期，吊销记录无意义
-/// - 清理后该用户的旧 Token 已自然过期，无需再保留吊销标记
-///
-/// 返回被清理的记录数。
-pub async fn cleanup_revoked_users() -> usize {
-    let now = chrono::Utc::now().timestamp();
-    let ttl = REVOKED_USER_TTL_SECS;
-    let cutoff = now - ttl;
-
-    let mut table = REVOKED_USERS.write().await;
-    let before = table.len();
-
-    // 保留 revoked_at >= cutoff 的记录（未过期的），移除已过期的
-    table.retain(|_, revoked_at| *revoked_at >= cutoff);
-
-    let removed = before - table.len();
-    if removed > 0 {
-        tracing::info!(
-            "已清理 {} 条过期用户吊销记录（TTL={}秒，剩余{}条）",
-            removed,
-            ttl,
-            table.len()
-        );
-    } else {
-        tracing::debug!(
-            "用户吊销记录清理完成：无过期记录（当前{}条）",
-            table.len()
-        );
-    }
-    removed
-}
-
-/// 吊销记录 TTL（秒），默认 7 天
-///
-/// v11 批次 145 P1-7：吊销记录超过此时间后自动清理。
-/// JWT 最长有效期 2 小时，7 天后所有旧 Token 已过期，吊销记录无意义。
-const REVOKED_USER_TTL_SECS: i64 = 7 * 24 * 60 * 60;
-
-/// 启动吊销记录定期清理后台任务
-///
-/// v11 批次 145 P1-7：接入 app_state 初始化流程，每 24 小时清理一次过期吊销记录。
-/// 此任务为 best-effort，单次清理 panic 不会退出循环。
-pub fn start_revoked_user_cleanup_task() -> tokio::task::JoinHandle<()> {
-    use futures::FutureExt;
-    use std::panic::AssertUnwindSafe;
-    use tokio::time::{interval, Duration};
-
-    tokio::spawn(async move {
-        // 每 24 小时执行一次清理
-        let mut ticker = interval(Duration::from_secs(24 * 60 * 60));
-        // 跳过首次立即触发（启动时无需清理）
-        ticker.tick().await;
-        loop {
-            ticker.tick().await;
-            // 单次清理 panic 隔离，确保循环不退出
-            let result = AssertUnwindSafe(async {
-                cleanup_revoked_users().await;
-            })
-            .catch_unwind()
-            .await;
-            if let Err(panic_payload) = result {
-                let panic_msg = panic_payload
-                    .downcast_ref::<String>()
-                    .map(|s| s.as_str())
-                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                    .unwrap_or("<非字符串 panic payload>");
-                tracing::error!(
-                    panic = %panic_msg,
-                    "⚠ 用户吊销记录清理 spawn 任务内 panic 已被隔离，清理循环继续运行（不退出）"
-                );
-            }
-        }
-    })
-}
-
-/// 显式注销用户吊销标记（用于用户重新激活场景）
-///
-/// v11 批次 145 P1-7 修复：接入 user_service.update_user 业务，
-/// 当用户状态从"禁用"恢复为"active"时调用此函数清除吊销标记，
-/// 允许用户重新登录获取新 Token。
-///
-/// # 参数
-/// - `user_id`: 需注销的用户 ID
-pub async fn unrevoke_user(user_id: i32) {
-    let mut table = REVOKED_USERS.write().await;
-    if table.remove(&user_id).is_some() {
-        tracing::info!(
-            target: "security_audit",
-            event = "USER_UNREVOKED",
-            user_id = user_id,
-            "用户吊销标记已清除（用户重新激活）"
-        );
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::auth_service_ops::jti::{REVOKED_USER_TTL_SECS, REVOKED_USERS};
+    use chrono::Duration;
+    use jsonwebtoken::{encode, Header};
 
     // P9-1: 测试夹具 helper，封装 AuthService 的常见操作
     fn hash_pwd(p: &str) -> String {

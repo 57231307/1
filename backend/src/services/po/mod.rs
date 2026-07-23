@@ -18,6 +18,7 @@ use validator::Validate;
 
 pub mod contract;
 pub mod order;
+pub mod order_ops;
 pub mod price;
 pub mod receipt;
 
