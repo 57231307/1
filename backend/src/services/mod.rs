@@ -155,6 +155,8 @@ pub mod tracking_service;
 // MRP生产计划模块
 pub mod bom_service;
 pub mod mrp_engine_service;
+// 批次 490 D10-3b 拆分：mrp_engine_service 业务实现子模块
+pub mod mrp_engine_ops;
 pub mod production_order_service;
 // 批次 488 D10-2 拆分：production_order_service 业务实现子模块
 pub mod production_order_ops;
