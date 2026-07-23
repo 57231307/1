@@ -55,6 +55,8 @@ pub mod fabric_inspection_service;
 pub mod wage_service;
 // v14 批次 428：能耗管理贯通
 pub mod energy_service;
+// 批次 488 D10-2a 拆分：energy_service.rs facade 的业务实现子模块（meter/consumption/allocation_rule/allocation_record）
+pub mod energy_ops;
 // v14 批次 429：染化料主数据完善（染化料主数据 + 分类 + 批次 + 领用单）
 pub mod chemical_service;
 // v14 批次 430：委托加工物资贯通（委外订单 + 发料明细 + 收回入库 + 会计凭证）
@@ -98,6 +100,8 @@ pub mod ar_ops;
 pub mod account_subject_service;
 pub mod accounting_period_service;
 pub mod voucher_service;
+// 批次 488 D10-2a 拆分：voucher_service.rs facade 的业务实现子模块（crud/workflow/balance/assist）
+pub mod voucher_ops;
 // 成本管理模块
 pub mod audit_log_service;
 pub mod bpm_service;

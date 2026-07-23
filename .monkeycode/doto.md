@@ -20,7 +20,7 @@
 
 ### 1.2 状态：🔄 规则 13 连续执行中
 
-- **当前批次**：Batch 488 进行中（13/17 完成）—— D 系列已完成 13 项（详见 [doto-su.md §V15 Batch 488](file:///workspace/.monkeycode/doto-su.md)）+ D08 全部完成（第一/第二梯队 28 函数 + 第三梯队 53 函数 + 第四梯队 84 函数 + D09 收尾 2 个100+行函数 = 167 函数，PR #669-#682）+ D09 全部完成（D08 子集，精确扫描 100+行函数仅2个已拆分）；下一顺位 D10 大文件拆分；剩余 4 项大型任务 2026-07-19 精确审计完成（详见 §4 各项条目）
+- **当前批次**：Batch 488 进行中（13/17 完成）—— D 系列已完成 13 项（详见 [doto-su.md §V15 Batch 488](file:///workspace/.monkeycode/doto-su.md)）+ D08 全部完成（第一/第二梯队 28 函数 + 第三梯队 53 函数 + 第四梯队 84 函数 + D09 收尾 2 个100+行函数 = 167 函数，PR #669-#682）+ D09 全部完成（D08 子集，精确扫描 100+行函数仅2个已拆分）+ D10 第 1 批完成（ar_service/production_order_service/so/delivery 3 个 >1800 行文件，PR #683/#684）+ D10 第 2 批 1/4 代码完成待推送 CI（voucher_service.rs 2058→882 facade + voucher_ops 5 子模块 39 方法，分支 d10-batch2a-voucher-energy）；剩余 4 项大型任务 2026-07-19 精确审计完成（详见 §4 各项条目）
 - **下一批次**：Batch 488 继续 —— 按依赖关系推荐顺序：① D08 超长函数（第 1 顺位，无前置 + 解锁 D09/D10，预估 10-12 子批次）→ ② D10 大文件拆分（第 2 顺位，D08 完成后立即推进，预估 5-6 子批次）→ ③ D14 api 命名（第 3 顺位，与 D05/D13 解耦，预估 10-12 子批次）→ ④ D13 缩写命名（第 4 顺位，D14 完成后推进，预估 12-15 子批次）→ ⑤ D05 useI18n（第 5 顺位，D13/D14 完成后最后推进，预估 30-36 子批次）；累计预估 67-81 子批次
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
@@ -120,10 +120,10 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **工作量**：L
 - **批次**：488（D 系列 17 项一次性打包；预估 5-6 子批次，每批 5-6 文件）
 - **执行优先级**：第 2 顺位（D08 完成后立即推进）
-- **当前进度**：D10-1 ✅ 完成（ar_service.rs 2489→259 行 facade + 5 子模块 2256 行，PR #683 main 34b8cae）；D10-2 ✅ 完成（production_order_service.rs 2141→689 行 facade + production_order_ops/{mod,types,crud,completion,approval} 5 子模块 1628 行，41 方法按职责分散到多 impl 块，PR #684 main 0385401）；D10-3 ✅ 完成（so/delivery.rs 2095→822 行 facade + delivery_ops/{mod,types,ship,inventory,cancel,export} 6 子模块 1403 行，30 方法按职责分散到多 impl 块，PR #684 main 0385401）；第 1 批 3 个 >1800 行文件全部完成
+- **当前进度**：D10-1 ✅ 完成（ar_service.rs 2489→259 行 facade + 5 子模块 2256 行，PR #683 main 34b8cae）；D10-2 ✅ 完成（production_order_service.rs 2141→689 行 facade + production_order_ops/{mod,types,crud,completion,approval} 5 子模块 1628 行，41 方法按职责分散到多 impl 块，PR #684 main 0385401）；D10-3 ✅ 完成（so/delivery.rs 2095→822 行 facade + delivery_ops/{mod,types,ship,inventory,cancel,export} 6 子模块 1403 行，30 方法按职责分散到多 impl 块，PR #684 main 0385401）；D10-2a ✅ 代码完成待推送 CI（voucher_service.rs 2058→882 行 facade + voucher_ops/{mod,crud,workflow,balance,assist} 5 子模块，39 方法按职责分散到多 impl 块，分支 d10-batch2a-voucher-energy，禁止本地编译验证待 CI 验证）；第 1 批 3 个 >1800 行文件全部完成，第 2 批 1/4 完成
 - **批次规划**：
   - 第 1 批：✅ ar_service.rs (2489→259 facade + ar_ops/{types 75, json_helpers 98, collection 676, verification 1062, report 422, mod 23}) / ✅ production_order_service.rs (2141→689 facade + production_order_ops/{mod 17, types 87, crud 568, completion 667, approval 288}) / ✅ so/delivery.rs (2095→822 facade + delivery_ops/{mod 16, types 35, ship 588, inventory 357, cancel 270, export 136}) 3 个 >1800 行文件全部完成
-  - 第 2 批：voucher_service.rs (1841) + energy_service.rs (1800) + outsourcing_service.rs (1782) + business_mode_service.rs (1718) 4 个 >1700 行文件
+  - 第 2 批：✅ voucher_service.rs (2058→882 facade + voucher_ops/{mod, crud 468, workflow, balance, assist}，39 方法 5+12+11+11) / ⏳ energy_service.rs (1800) / ⏳ outsourcing_service.rs (1782) / ⏳ business_mode_service.rs (1718) 4 个 >1700 行文件
   - 第 3 批：chemical_service.rs (1676) + bi_analysis_service.rs (1662) + models/status.rs (1577) + mrp_engine_service.rs (1556) 4 个 >1500 行文件
   - 第 4 批：dye_batch_state_machine_service.rs (1512) + wage_service.rs (1507) + ar/vfy.rs (1320) + ap_invoice_service.rs (1306) 4 个 >1300 行文件
   - 第 5 批：init_service.rs (1287) + flow_card_service.rs (1271) + ap_reconciliation_service.rs (1243) + search/elastic.rs (1230) 4 个 >1200 行文件
