@@ -215,15 +215,15 @@ mod tests {
 
     // ===== validate_can_update 可更新校验 =====
 
-    /// 测试_validate_can_update_仅DRAFT可更新
+    /// test validate_can_update: only DRAFT allows update
     #[test]
-    fn 测试_validate_can_update_仅DRAFT可更新() {
+    fn test_validate_can_update_only_draft() {
         assert!(ProductionRecipeService::validate_can_update(status::DRAFT).is_ok());
     }
 
-    /// 测试_validate_can_update_非DRAFT不可更新
+    /// test validate_can_update: non-DRAFT states reject update
     #[test]
-    fn 测试_validate_can_update_非DRAFT不可更新() {
+    fn test_validate_can_update_non_draft_rejected() {
         assert!(ProductionRecipeService::validate_can_update(status::APPROVED).is_err());
         assert!(ProductionRecipeService::validate_can_update(status::CLOSED).is_err());
         assert!(ProductionRecipeService::validate_can_update(status::CANCELLED).is_err());
@@ -231,15 +231,15 @@ mod tests {
 
     // ===== validate_can_delete 可删除校验 =====
 
-    /// 测试_validate_can_delete_仅DRAFT可删除
+    /// test validate_can_delete: only DRAFT allows delete
     #[test]
-    fn 测试_validate_can_delete_仅DRAFT可删除() {
+    fn test_validate_can_delete_only_draft() {
         assert!(ProductionRecipeService::validate_can_delete(status::DRAFT).is_ok());
     }
 
-    /// 测试_validate_can_delete_非DRAFT不可删除
+    /// test validate_can_delete: non-DRAFT states reject delete
     #[test]
-    fn 测试_validate_can_delete_非DRAFT不可删除() {
+    fn test_validate_can_delete_non_draft_rejected() {
         assert!(ProductionRecipeService::validate_can_delete(status::APPROVED).is_err());
         assert!(ProductionRecipeService::validate_can_delete(status::CLOSED).is_err());
         assert!(ProductionRecipeService::validate_can_delete(status::CANCELLED).is_err());
