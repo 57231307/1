@@ -104,6 +104,8 @@ pub mod purchase_inspection_service;
 pub mod purchase_receipt_dto;
 pub mod purchase_receipt_private;
 pub mod purchase_receipt_service;
+// 批次 D10 拆分：purchase_receipt_service.rs facade 的业务实现子模块（auth/crud/state/items/query）
+pub mod purchase_receipt_ops;
 pub mod purchase_return_service;
 // 应付管理模块
 pub mod ap_invoice_service;
@@ -132,6 +134,8 @@ pub mod voucher_ops;
 pub mod audit_log_service;
 pub mod bpm_service;
 pub mod bpm_service_dto;
+// 批次 D10 拆分：bpm_service.rs facade 的业务实现子模块（instance/task/monitor）
+pub mod bpm_ops;
 // 批次 95 P3-15：bpm_service_stub.rs 重命名为 bpm_process_definition_service.rs（消除 stub 误导）
 pub mod bpm_process_definition_service;
 pub mod budget_management_service;
