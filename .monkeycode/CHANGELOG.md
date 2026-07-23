@@ -14,6 +14,7 @@
 | D10-1 | #683 main 34b8cae | D10 第 1 批 1/3：ar_service.rs (2489行) 拆为 facade (259行) + ar_ops/{types 75, json_helpers 98, collection 676, verification 1062, report 422, mod 23}，49 方法按职责分散到多 impl 块，外部 17 处调用路径不变 |
 | D10-2 | #684 main 0385401 | D10 第 1 批 2/3：production_order_service.rs (2141行) 拆为 facade (689行) + production_order_ops/{mod 17, types 87, crud 568, completion 667, approval 288}，41 方法按职责分散到多 impl 块，3 处外部调用路径不变 |
 | D10-3 | #684 main 0385401 | D10 第 1 批 3/3：so/delivery.rs (2095行) 拆为 facade (822行) + delivery_ops/{mod 16, types 35, ship 588, inventory 357, cancel 270, export 136}，30 方法按职责分散到多 impl 块，DTO+validate+测试保留在 facade，外部调用路径不变 |
+| D10-2a | 待推送 CI（分支 d10-batch2a-voucher-energy） | D10 第 2 批 1/4：voucher_service.rs (2058行) 拆为 facade (882行，含 747 行测试模块) + voucher_ops/{mod, crud 468, workflow, balance, assist}，39 方法按职责分散到多 impl 块（5 workflow + 12 balance + 11 assist + 11 crud），DTOs + VoucherTypeDefinition + VoucherDetail + 测试保留在 facade，db 字段改 pub(crate)，update_account_balances/write_assist_accounting_records_txn 改 pub(crate)，BalanceUpdateContext/AssistRecordContext 改 pub(super)，外部 34 处调用路径不变 |
 | 487 | main 3919255 + d7e3b73 + a456a53 | V15 P0-T02 7 项集成测试 73 测试 + P0-T07 性能基准 11 bench + P0-T05 E2E 配置修复（28 文件 +1836 -29） |
 | 486 | main 01faa60 | V15 P0-T01 核心 service 单测补全（quotation + purchase_receipt 共 38 测试） |
 | 485 | main af0f16b + 5e4e78f + 7cc82cc | V15 P0-T03 clippy baseline 恢复 + P0-T08 覆盖率工具 + 编译错误修复（4 文件，CI 7 轮） |
