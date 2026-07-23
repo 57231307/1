@@ -1,4 +1,4 @@
-//! 缸号全生命周期状态机 Service
+//! 缸号全生命周期状态机 Service（facade）
 //!
 //! v14 批次 432：缸号全生命周期状态机
 //! 依据：面料行业真实业务调研文档 §12.7 缸号状态机 + §3.2 缸号全生命周期追踪
@@ -9,28 +9,17 @@
 //! 缸号操作记录 CRUD + 按类型查询 + 按缸号查询。
 //!
 //! 14 种状态：pending_schedule 待排缸 / scheduled 已排缸 / preparing 备布中 / dyeing 进缸染色 / washing 皂洗 / fixing 固色 / dehydrating 脱水 / drying 烘干 / inspecting 验布 / stored 入库 / shipped 发货（终态）/ cancelled 取消（终态）/ terminated 终止（终态）/ rework 回修中（可回到 dyeing）。
+//!
+//! 批次 490 D10-4a 拆分：本文件作为 facade，保留 4 个 Service struct + new 构造函数
+//! + 10 个 DTOs + 11 个纯验证函数 + 单元测试。4 个 Service 的业务方法 impl 块
+//! 迁移至 `dye_batch_state_machine_ops` 子模块（lifecycle_log / state_rule / rework / operation），
+//! 通过跨模块 `impl XxxService` 追加方法，保持外部引用路径
+//! `crate::services::dye_batch_state_machine_service::*` 不变。
 
 use sea_orm::DatabaseConnection;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
-};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::models::dye_batch_lifecycle_log::{
-    self, ActiveModel as LifecycleLogActiveModel, Entity as LifecycleLogEntity,
-    Model as LifecycleLogModel,
-};
-use crate::models::dye_batch_operation::{
-    self, ActiveModel as OperationActiveModel, Entity as OperationEntity, Model as OperationModel,
-};
-use crate::models::dye_batch_rework::{
-    self, ActiveModel as ReworkActiveModel, Entity as ReworkEntity, Model as ReworkModel,
-};
-use crate::models::dye_batch_state_rule::{
-    self, ActiveModel as StateRuleActiveModel, Entity as StateRuleEntity, Model as StateRuleModel,
-};
 use crate::models::status::dye_batch_lifecycle_status;
 use crate::models::status::dye_batch_operation_type;
 use crate::models::status::dye_batch_rework_status;
@@ -427,139 +416,17 @@ pub struct LifecycleLogQuery {
 }
 
 /// 缸号生命周期日志 Service
+///
+/// 业务方法（record_transition / get_by_id / list_by_batch / list_by_batch_no
+/// / get_latest_status / list）定义在 dye_batch_state_machine_ops::lifecycle_log。
 pub struct DyeBatchLifecycleLogService {
-    db: Arc<DatabaseConnection>,
+    /// 数据库连接（pub(crate) 供 dye_batch_state_machine_ops 子模块访问）
+    pub(crate) db: Arc<DatabaseConnection>,
 }
 
 impl DyeBatchLifecycleLogService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 记录状态流转（含校验）
-    pub async fn record_transition(
-        &self,
-        req: CreateTransitionRequest,
-    ) -> Result<LifecycleLogModel, AppError> {
-        // 校验 to_status 与 transition_code 合法
-        validate_lifecycle_status(&req.to_status)?;
-        validate_transition_code(&req.transition_code)?;
-        if let Some(fs) = &req.from_status {
-            validate_lifecycle_status(fs)?;
-        }
-        // 校验状态流转合法性
-        validate_transition_with_rule(
-            req.from_status.as_deref(),
-            &req.to_status,
-            &req.transition_code,
-        )?;
-
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let active = LifecycleLogActiveModel {
-            id: Default::default(),
-            batch_id: Set(req.batch_id),
-            batch_no: Set(req.batch_no),
-            from_status: Set(req.from_status),
-            to_status: Set(req.to_status),
-            transition_code: Set(req.transition_code),
-            transition_name: Set(req.transition_name),
-            operator_id: Set(req.operator_id),
-            operator_name: Set(req.operator_name),
-            equipment_id: Set(req.equipment_id),
-            equipment_name: Set(req.equipment_name),
-            work_shift: Set(req.work_shift),
-            captured_params: Set(req.captured_params),
-            remarks: Set(req.remarks),
-            transition_at: Set(now),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("缸号生命周期日志创建失败: {}", e)))?;
-        Ok(result)
-    }
-
-    /// 按 ID 查询
-    pub async fn get_by_id(&self, id: i32) -> Result<LifecycleLogModel, AppError> {
-        LifecycleLogEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("缸号生命周期日志 {} 不存在", id)))
-    }
-
-    /// 按缸号 ID 查询生命周期日志（按 transition_at 升序）
-    pub async fn list_by_batch(&self, batch_id: i32) -> Result<Vec<LifecycleLogModel>, AppError> {
-        let items = LifecycleLogEntity::find()
-            .filter(dye_batch_lifecycle_log::Column::BatchId.eq(batch_id))
-            .order_by_asc(dye_batch_lifecycle_log::Column::TransitionAt)
-            .all(&*self.db)
-            .await?;
-        Ok(items)
-    }
-
-    /// 按缸号查询生命周期日志
-    pub async fn list_by_batch_no(
-        &self,
-        batch_no: &str,
-    ) -> Result<Vec<LifecycleLogModel>, AppError> {
-        let items = LifecycleLogEntity::find()
-            .filter(dye_batch_lifecycle_log::Column::BatchNo.eq(batch_no))
-            .order_by_asc(dye_batch_lifecycle_log::Column::TransitionAt)
-            .all(&*self.db)
-            .await?;
-        Ok(items)
-    }
-
-    /// 获取缸号最新状态（按 transition_at 倒序取第一条）
-    pub async fn get_latest_status(
-        &self,
-        batch_id: i32,
-    ) -> Result<Option<String>, AppError> {
-        let model = LifecycleLogEntity::find()
-            .filter(dye_batch_lifecycle_log::Column::BatchId.eq(batch_id))
-            .order_by_desc(dye_batch_lifecycle_log::Column::TransitionAt)
-            .one(&*self.db)
-            .await?;
-        Ok(model.map(|m| m.to_status))
-    }
-
-    /// 分页查询
-    pub async fn list(
-        &self,
-        query: LifecycleLogQuery,
-    ) -> Result<(Vec<LifecycleLogModel>, u64), AppError> {
-        let mut q = LifecycleLogEntity::find();
-        if let Some(v) = query.batch_id {
-            q = q.filter(dye_batch_lifecycle_log::Column::BatchId.eq(v));
-        }
-        if let Some(v) = query.batch_no {
-            q = q.filter(dye_batch_lifecycle_log::Column::BatchNo.contains(&v));
-        }
-        if let Some(v) = query.transition_code {
-            q = q.filter(dye_batch_lifecycle_log::Column::TransitionCode.eq(v));
-        }
-        if let Some(kw) = query.keyword {
-            q = q.filter(
-                Condition::any()
-                    .add(dye_batch_lifecycle_log::Column::BatchNo.contains(&kw))
-                    .add(dye_batch_lifecycle_log::Column::OperatorName.contains(&kw))
-                    .add(dye_batch_lifecycle_log::Column::EquipmentName.contains(&kw)),
-            );
-        }
-
-        let page = query.page.unwrap_or(1).max(1);
-        let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
-
-        let total = q.clone().count(&*self.db).await?;
-        let items = q
-            .order_by_desc(dye_batch_lifecycle_log::Column::Id)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page - 1)
-            .await?;
-        Ok((items, total))
     }
 }
 
@@ -608,184 +475,17 @@ pub struct StateRuleQuery {
 }
 
 /// 缸号状态流转规则 Service
+///
+/// 业务方法（create / update / delete / get_by_id / check_transition
+/// / list_allowed_transitions / list）定义在 dye_batch_state_machine_ops::state_rule。
 pub struct DyeBatchStateRuleService {
-    db: Arc<DatabaseConnection>,
+    /// 数据库连接（pub(crate) 供 dye_batch_state_machine_ops 子模块访问）
+    pub(crate) db: Arc<DatabaseConnection>,
 }
 
 impl DyeBatchStateRuleService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 创建状态流转规则
-    pub async fn create(&self, req: CreateStateRuleRequest) -> Result<StateRuleModel, AppError> {
-        validate_lifecycle_status(&req.from_status)?;
-        validate_lifecycle_status(&req.to_status)?;
-        validate_transition_code(&req.transition_code)?;
-
-        // 校验唯一性
-        if let Some(_existing) = StateRuleEntity::find()
-            .filter(dye_batch_state_rule::Column::FromStatus.eq(&req.from_status))
-            .filter(dye_batch_state_rule::Column::ToStatus.eq(&req.to_status))
-            .filter(dye_batch_state_rule::Column::TransitionCode.eq(&req.transition_code))
-            .one(&*self.db)
-            .await?
-        {
-            return Err(AppError::business(format!(
-                "状态流转规则 {} → {}（{}）已存在",
-                req.from_status, req.to_status, req.transition_code
-            )));
-        }
-
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let active = StateRuleActiveModel {
-            id: Default::default(),
-            from_status: Set(req.from_status),
-            to_status: Set(req.to_status),
-            transition_code: Set(req.transition_code),
-            transition_name: Set(req.transition_name),
-            is_allowed: Set(req.is_allowed.unwrap_or(true)),
-            require_operator: Set(req.require_operator.unwrap_or(true)),
-            require_equipment: Set(req.require_equipment.unwrap_or(false)),
-            require_remarks: Set(req.require_remarks.unwrap_or(false)),
-            validation_logic: Set(req.validation_logic),
-            description: Set(req.description),
-            is_active: Set(req.is_active.unwrap_or(true)),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("缸号状态流转规则创建失败: {}", e)))?;
-        Ok(result)
-    }
-
-    /// 更新状态流转规则
-    pub async fn update(
-        &self,
-        id: i32,
-        req: UpdateStateRuleRequest,
-    ) -> Result<StateRuleModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        let mut active: StateRuleActiveModel = model.into();
-
-        if let Some(v) = req.transition_name {
-            active.transition_name = Set(v);
-        }
-        if let Some(v) = req.is_allowed {
-            active.is_allowed = Set(v);
-        }
-        if let Some(v) = req.require_operator {
-            active.require_operator = Set(v);
-        }
-        if let Some(v) = req.require_equipment {
-            active.require_equipment = Set(v);
-        }
-        if let Some(v) = req.require_remarks {
-            active.require_remarks = Set(v);
-        }
-        if let Some(v) = req.validation_logic {
-            active.validation_logic = Set(Some(v));
-        }
-        if let Some(v) = req.description {
-            active.description = Set(Some(v));
-        }
-        if let Some(v) = req.is_active {
-            active.is_active = Set(v);
-        }
-
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 删除状态流转规则（物理删除）
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = self.get_by_id(id).await?;
-        let _ = model;
-        StateRuleEntity::delete_by_id(id)
-            .exec(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("缸号状态流转规则删除失败: {}", e)))?;
-        Ok(())
-    }
-
-    /// 按 ID 查询
-    pub async fn get_by_id(&self, id: i32) -> Result<StateRuleModel, AppError> {
-        StateRuleEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("缸号状态流转规则 {} 不存在", id)))
-    }
-
-    /// 查 DB 校验状态流转合法性
-    pub async fn check_transition(
-        &self,
-        from_status: Option<&str>,
-        to_status: &str,
-        transition_code: &str,
-    ) -> Result<bool, AppError> {
-        let mut q = StateRuleEntity::find()
-            .filter(dye_batch_state_rule::Column::ToStatus.eq(to_status))
-            .filter(dye_batch_state_rule::Column::TransitionCode.eq(transition_code))
-            .filter(dye_batch_state_rule::Column::IsAllowed.eq(true))
-            .filter(dye_batch_state_rule::Column::IsActive.eq(true));
-        if let Some(fs) = from_status {
-            q = q.filter(dye_batch_state_rule::Column::FromStatus.eq(fs));
-        }
-        let count = q.count(&*self.db).await?;
-        Ok(count > 0)
-    }
-
-    /// 查询允许的流转列表
-    pub async fn list_allowed_transitions(
-        &self,
-        from_status: Option<&str>,
-    ) -> Result<Vec<StateRuleModel>, AppError> {
-        let mut q = StateRuleEntity::find()
-            .filter(dye_batch_state_rule::Column::IsAllowed.eq(true))
-            .filter(dye_batch_state_rule::Column::IsActive.eq(true));
-        if let Some(fs) = from_status {
-            q = q.filter(dye_batch_state_rule::Column::FromStatus.eq(fs));
-        }
-        let items = q
-            .order_by_asc(dye_batch_state_rule::Column::Id)
-            .all(&*self.db)
-            .await?;
-        Ok(items)
-    }
-
-    /// 分页查询
-    pub async fn list(
-        &self,
-        query: StateRuleQuery,
-    ) -> Result<(Vec<StateRuleModel>, u64), AppError> {
-        let mut q = StateRuleEntity::find();
-        if let Some(v) = query.from_status {
-            q = q.filter(dye_batch_state_rule::Column::FromStatus.eq(v));
-        }
-        if let Some(v) = query.to_status {
-            q = q.filter(dye_batch_state_rule::Column::ToStatus.eq(v));
-        }
-        if let Some(v) = query.transition_code {
-            q = q.filter(dye_batch_state_rule::Column::TransitionCode.eq(v));
-        }
-        if let Some(v) = query.is_active {
-            q = q.filter(dye_batch_state_rule::Column::IsActive.eq(v));
-        }
-
-        let page = query.page.unwrap_or(1).max(1);
-        let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
-
-        let total = q.clone().count(&*self.db).await?;
-        let items = q
-            .order_by_desc(dye_batch_state_rule::Column::Id)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page - 1)
-            .await?;
-        Ok((items, total))
     }
 }
 
@@ -829,219 +529,17 @@ pub struct ReworkQuery {
 }
 
 /// 缸号回修记录 Service
+///
+/// 业务方法（create / update / delete / get_by_id / approve / start_rework
+/// / complete_rework / cancel_rework / list）定义在 dye_batch_state_machine_ops::rework。
 pub struct DyeBatchReworkService {
-    db: Arc<DatabaseConnection>,
+    /// 数据库连接（pub(crate) 供 dye_batch_state_machine_ops 子模块访问）
+    pub(crate) db: Arc<DatabaseConnection>,
 }
 
 impl DyeBatchReworkService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 创建回修记录
-    pub async fn create(&self, req: CreateReworkRequest) -> Result<ReworkModel, AppError> {
-        validate_rework_type(&req.rework_type)?;
-        validate_lifecycle_status(&req.original_status)?;
-        // 校验回修资格（只有 inspecting/stored 状态可回修）
-        check_rework_eligibility(&req.original_status)?;
-
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let active = ReworkActiveModel {
-            id: Default::default(),
-            original_batch_id: Set(req.original_batch_id),
-            original_batch_no: Set(req.original_batch_no),
-            rework_batch_id: Set(req.rework_batch_id),
-            rework_batch_no: Set(req.rework_batch_no),
-            rework_type: Set(req.rework_type),
-            rework_reason: Set(req.rework_reason),
-            original_status: Set(req.original_status),
-            approved_by: Set(None),
-            approved_at: Set(None),
-            status: Set(dye_batch_rework_status::DRAFT.to_string()),
-            started_at: Set(None),
-            completed_at: Set(None),
-            remarks: Set(req.remarks),
-            is_deleted: Set(false),
-            // V15 Batch 479 P0-F21：返工走生产订单流程（创建时未关联生产订单，后续回填）
-            production_order_id: Set(None),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("缸号回修记录创建失败: {}", e)))?;
-        Ok(result)
-    }
-
-    /// 更新回修记录（仅 draft 状态可编辑）
-    pub async fn update(&self, id: i32, req: UpdateReworkRequest) -> Result<ReworkModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != dye_batch_rework_status::DRAFT {
-            return Err(AppError::business(format!(
-                "只有草稿状态的回修单可编辑，当前状态: {}",
-                model.status
-            )));
-        }
-        let mut active: ReworkActiveModel = model.into();
-
-        if let Some(v) = req.rework_type {
-            validate_rework_type(&v)?;
-            active.rework_type = Set(v);
-        }
-        if let Some(v) = req.rework_reason {
-            active.rework_reason = Set(v);
-        }
-        if let Some(v) = req.rework_batch_id {
-            active.rework_batch_id = Set(Some(v));
-        }
-        if let Some(v) = req.rework_batch_no {
-            active.rework_batch_no = Set(Some(v));
-        }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
-        }
-
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 软删除回修记录
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status == dye_batch_rework_status::IN_PROGRESS
-            || model.status == dye_batch_rework_status::COMPLETED
-        {
-            return Err(AppError::business(format!(
-                "回修中/已完成的回修单不可删除，当前状态: {}",
-                model.status
-            )));
-        }
-        let mut active: ReworkActiveModel = model.into();
-        active.is_deleted = Set(true);
-        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        active.update(&*self.db).await?;
-        Ok(())
-    }
-
-    /// 按 ID 查询
-    pub async fn get_by_id(&self, id: i32) -> Result<ReworkModel, AppError> {
-        ReworkEntity::find_by_id(id)
-            .filter(dye_batch_rework::Column::IsDeleted.eq(false))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("缸号回修记录 {} 不存在", id)))
-    }
-
-    /// 审批回修单（draft → approved）
-    pub async fn approve(&self, id: i32, approved_by: i32) -> Result<ReworkModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != dye_batch_rework_status::DRAFT {
-            return Err(AppError::business(format!(
-                "只有草稿状态的回修单可审批，当前状态: {}",
-                model.status
-            )));
-        }
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let mut active: ReworkActiveModel = model.into();
-        active.status = Set(dye_batch_rework_status::APPROVED.to_string());
-        active.approved_by = Set(Some(approved_by));
-        active.approved_at = Set(Some(now));
-        active.updated_at = Set(now);
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 开始回修（approved → in_progress）
-    pub async fn start_rework(&self, id: i32) -> Result<ReworkModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != dye_batch_rework_status::APPROVED {
-            return Err(AppError::business(format!(
-                "只有已审批的回修单可开始回修，当前状态: {}",
-                model.status
-            )));
-        }
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let mut active: ReworkActiveModel = model.into();
-        active.status = Set(dye_batch_rework_status::IN_PROGRESS.to_string());
-        active.started_at = Set(Some(now));
-        active.updated_at = Set(now);
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 完成回修（in_progress → completed）
-    pub async fn complete_rework(&self, id: i32) -> Result<ReworkModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status != dye_batch_rework_status::IN_PROGRESS {
-            return Err(AppError::business(format!(
-                "只有回修中的回修单可完成回修，当前状态: {}",
-                model.status
-            )));
-        }
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let mut active: ReworkActiveModel = model.into();
-        active.status = Set(dye_batch_rework_status::COMPLETED.to_string());
-        active.completed_at = Set(Some(now));
-        active.updated_at = Set(now);
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 取消回修单（非 completed → cancelled）
-    pub async fn cancel_rework(&self, id: i32) -> Result<ReworkModel, AppError> {
-        let model = self.get_by_id(id).await?;
-        if model.status == dye_batch_rework_status::COMPLETED {
-            return Err(AppError::business("已完成的回修单不可取消"));
-        }
-        if model.status == dye_batch_rework_status::CANCELLED {
-            return Err(AppError::business("回修单已是取消状态"));
-        }
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let mut active: ReworkActiveModel = model.into();
-        active.status = Set(dye_batch_rework_status::CANCELLED.to_string());
-        active.updated_at = Set(now);
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 分页查询
-    pub async fn list(&self, query: ReworkQuery) -> Result<(Vec<ReworkModel>, u64), AppError> {
-        let mut q = ReworkEntity::find()
-            .filter(dye_batch_rework::Column::IsDeleted.eq(false));
-        if let Some(v) = query.original_batch_id {
-            q = q.filter(dye_batch_rework::Column::OriginalBatchId.eq(v));
-        }
-        if let Some(v) = query.rework_batch_id {
-            q = q.filter(dye_batch_rework::Column::ReworkBatchId.eq(v));
-        }
-        if let Some(v) = query.rework_type {
-            q = q.filter(dye_batch_rework::Column::ReworkType.eq(v));
-        }
-        if let Some(v) = query.status {
-            q = q.filter(dye_batch_rework::Column::Status.eq(v));
-        }
-        if let Some(kw) = query.keyword {
-            q = q.filter(
-                Condition::any()
-                    .add(dye_batch_rework::Column::OriginalBatchNo.contains(&kw))
-                    .add(dye_batch_rework::Column::ReworkBatchNo.contains(&kw))
-                    .add(dye_batch_rework::Column::ReworkReason.contains(&kw)),
-            );
-        }
-
-        let page = query.page.unwrap_or(1).max(1);
-        let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
-
-        let total = q.clone().count(&*self.db).await?;
-        let items = q
-            .order_by_desc(dye_batch_rework::Column::Id)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page - 1)
-            .await?;
-        Ok((items, total))
     }
 }
 
@@ -1075,107 +573,17 @@ pub struct OperationQuery {
 }
 
 /// 缸号操作记录 Service
+///
+/// 业务方法（create / get_by_id / list_by_type / list_by_batch / list）
+/// 定义在 dye_batch_state_machine_ops::operation。
 pub struct DyeBatchOperationService {
-    db: Arc<DatabaseConnection>,
+    /// 数据库连接（pub(crate) 供 dye_batch_state_machine_ops 子模块访问）
+    pub(crate) db: Arc<DatabaseConnection>,
 }
 
 impl DyeBatchOperationService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 创建操作记录
-    pub async fn create(&self, req: CreateOperationRequest) -> Result<OperationModel, AppError> {
-        validate_operation_type(&req.operation_type)?;
-
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let active = OperationActiveModel {
-            id: Default::default(),
-            operation_type: Set(req.operation_type),
-            operation_name: Set(req.operation_name),
-            target_batch_id: Set(req.target_batch_id),
-            target_batch_no: Set(req.target_batch_no),
-            source_batch_ids: Set(req.source_batch_ids),
-            source_batch_nos: Set(req.source_batch_nos),
-            operation_data: Set(req.operation_data),
-            operator_id: Set(req.operator_id),
-            operator_name: Set(req.operator_name),
-            operation_at: Set(now),
-            remarks: Set(req.remarks),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("缸号操作记录创建失败: {}", e)))?;
-        Ok(result)
-    }
-
-    /// 按 ID 查询
-    pub async fn get_by_id(&self, id: i32) -> Result<OperationModel, AppError> {
-        OperationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("缸号操作记录 {} 不存在", id)))
-    }
-
-    /// 按操作类型查询
-    pub async fn list_by_type(
-        &self,
-        operation_type: &str,
-    ) -> Result<Vec<OperationModel>, AppError> {
-        validate_operation_type(operation_type)?;
-        let items = OperationEntity::find()
-            .filter(dye_batch_operation::Column::OperationType.eq(operation_type))
-            .order_by_desc(dye_batch_operation::Column::OperationAt)
-            .all(&*self.db)
-            .await?;
-        Ok(items)
-    }
-
-    /// 按目标缸号查询
-    pub async fn list_by_batch(&self, target_batch_id: i32) -> Result<Vec<OperationModel>, AppError> {
-        let items = OperationEntity::find()
-            .filter(dye_batch_operation::Column::TargetBatchId.eq(target_batch_id))
-            .order_by_desc(dye_batch_operation::Column::OperationAt)
-            .all(&*self.db)
-            .await?;
-        Ok(items)
-    }
-
-    /// 分页查询
-    pub async fn list(
-        &self,
-        query: OperationQuery,
-    ) -> Result<(Vec<OperationModel>, u64), AppError> {
-        let mut q = OperationEntity::find();
-        if let Some(v) = query.operation_type {
-            q = q.filter(dye_batch_operation::Column::OperationType.eq(v));
-        }
-        if let Some(v) = query.target_batch_id {
-            q = q.filter(dye_batch_operation::Column::TargetBatchId.eq(v));
-        }
-        if let Some(kw) = query.keyword {
-            q = q.filter(
-                Condition::any()
-                    .add(dye_batch_operation::Column::TargetBatchNo.contains(&kw))
-                    .add(dye_batch_operation::Column::OperationName.contains(&kw))
-                    .add(dye_batch_operation::Column::OperatorName.contains(&kw)),
-            );
-        }
-
-        let page = query.page.unwrap_or(1).max(1);
-        let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
-
-        let total = q.clone().count(&*self.db).await?;
-        let items = q
-            .order_by_desc(dye_batch_operation::Column::Id)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page - 1)
-            .await?;
-        Ok((items, total))
     }
 }
 

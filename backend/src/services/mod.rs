@@ -55,6 +55,8 @@ pub mod flow_card_service;
 pub mod fabric_inspection_service;
 // v14 批次 427：产量工资核算贯通
 pub mod wage_service;
+// 批次 490 D10-4a 拆分：wage_service.rs facade 的业务实现子模块（rate/record/calculation）
+pub mod wage_ops;
 // v14 批次 428：能耗管理贯通
 pub mod energy_service;
 // 批次 488 D10-2a 拆分：energy_service.rs facade 的业务实现子模块（meter/consumption/allocation_rule/allocation_record）
@@ -245,6 +247,8 @@ pub mod business_mode_service;
 pub mod business_mode_ops;
 // v14 批次 432：缸号全生命周期状态机服务（生命周期日志 + 状态规则 + 回修记录 + 操作记录 + 纯函数校验）
 pub mod dye_batch_state_machine_service;
+// 批次 490 D10-4a 拆分：dye_batch_state_machine_service.rs facade 的业务实现子模块（lifecycle_log/state_rule/rework/operation）
+pub mod dye_batch_state_machine_ops;
 // V15 P0-F15：大货批色审批服务（8 状态机：pending→sampled→sent_to_customer→approved/rejected/rework→downgraded/scrapped）
 pub mod bulk_color_approval_service;
 // V15 P0-F20 Batch 480：8D 质量管理流程服务（11 状态机：not_started→d0_plan→d1_team→...→d8_recognize→closed）
