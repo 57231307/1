@@ -3,6 +3,8 @@
 //! Elasticsearch 集成入口
 
 pub mod elastic;
+// elastic_ops 子模块：elastic.rs facade 的业务方法 impl 块按职责分散至此（实现细节，不对外暴露）
+mod elastic_ops;
 
 // 批次 104 P0-1 修复：仅 re-export 外部实际使用的项
 // DocType / SalesOrderItemDoc / SearchError / SearchHit / SearchResult
