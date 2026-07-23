@@ -120,9 +120,9 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **工作量**：L
 - **批次**：488（D 系列 17 项一次性打包；预估 5-6 子批次，每批 5-6 文件）
 - **执行优先级**：第 2 顺位（D08 完成后立即推进）
-- **当前进度**：D10-1 ✅ 完成（ar_service.rs 2489→259 行 facade + 5 子模块 2256 行，PR #683 main 34b8cae）；D10-3 ✅ 完成（so/delivery.rs 2095→822 行 facade + delivery_ops/{mod,types,ship,inventory,cancel,export} 6 子模块，30 方法按职责分散到多 impl 块，待 push CI 验证）；D10-2 待推进
+- **当前进度**：D10-1 ✅ 完成（ar_service.rs 2489→259 行 facade + 5 子模块 2256 行，PR #683 main 34b8cae）；D10-2 ✅ 完成（production_order_service.rs 2141→689 行 facade + production_order_ops/{mod,types,crud,completion,approval} 5 子模块 1628 行，41 方法按职责分散到多 impl 块，PR #684 main 0385401）；D10-3 ✅ 完成（so/delivery.rs 2095→822 行 facade + delivery_ops/{mod,types,ship,inventory,cancel,export} 6 子模块 1403 行，30 方法按职责分散到多 impl 块，PR #684 main 0385401）；第 1 批 3 个 >1800 行文件全部完成
 - **批次规划**：
-  - 第 1 批：✅ ar_service.rs (2489→259 facade + ar_ops/{types 75, json_helpers 98, collection 676, verification 1062, report 422, mod 23}) / ⏳ production_order_service.rs (1998) / ✅ so/delivery.rs (2095→822 facade + delivery_ops/{mod 17, types 35, ship 676, inventory 336, cancel 270, export 136}) 3 个 >1800 行文件（2/3 完成）
+  - 第 1 批：✅ ar_service.rs (2489→259 facade + ar_ops/{types 75, json_helpers 98, collection 676, verification 1062, report 422, mod 23}) / ✅ production_order_service.rs (2141→689 facade + production_order_ops/{mod 17, types 87, crud 568, completion 667, approval 288}) / ✅ so/delivery.rs (2095→822 facade + delivery_ops/{mod 16, types 35, ship 588, inventory 357, cancel 270, export 136}) 3 个 >1800 行文件全部完成
   - 第 2 批：voucher_service.rs (1841) + energy_service.rs (1800) + outsourcing_service.rs (1782) + business_mode_service.rs (1718) 4 个 >1700 行文件
   - 第 3 批：chemical_service.rs (1676) + bi_analysis_service.rs (1662) + models/status.rs (1577) + mrp_engine_service.rs (1556) 4 个 >1500 行文件
   - 第 4 批：dye_batch_state_machine_service.rs (1512) + wage_service.rs (1507) + ar/vfy.rs (1320) + ap_invoice_service.rs (1306) 4 个 >1300 行文件
