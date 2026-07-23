@@ -6,6 +6,79 @@
 
 ---
 
+## 〇、内容归类总览（模块 G 共 17 项 P0 任务）
+
+> 本节为快速索引，按 4 个维度归类；详细条目见 §三，依赖关系见 §二。
+
+### 0.1 按状态归类（13 ✅ / 1 ⏳ / 3 ❌）
+
+| 状态 | 数量 | 任务编号 |
+|------|------|----------|
+| ✅ 已完成 | 13 | D01, D02, D03, D04, D06, D07, D08, D09, D11, D12, D15, D16, D17 |
+| ⏳ 进行中 | 1 | D10（1000 行文件拆分，第 3 批 4/4 完成，待推进第 4 批） |
+| ❌ 未开始 | 3 | D05（useI18n）、D13（前端缩写命名）、D14（api 命名统一） |
+
+### 0.6 核实结果汇总（2026-07-23 核实）
+
+> 本次对 4 项未完成任务（D10/D05/D13/D14）进行代码级核实，发现 doto.md 的 2026-07-19 审计数据存在偏差，详见下表。各任务条目已补充"核实"行记录差异。
+
+| 任务 | doto 记录 | 实际核实 | 偏差 | 影响 |
+|------|-----------|----------|------|------|
+| **D10** | 第 3 批 2/4 完成 | 第 3 批 4/4 完成 | doto 滞后 | 进度更乐观，models/status.rs + mrp_engine_service.rs 已拆分 |
+| **D10** | 第 4/5 批 8 文件行数基准 | 6 文件行数逆生长 | 基准失效 | wage +114 / ap_invoice +99 / ap_recon +103 / init +60 / ar/vfy +48 / flow_card +14 |
+| **D10** | 第 6 批 11 个文件 | 实际 15 个文件 | doto 少 4 | 含 ar_ops/verification.rs（D10-1 拆分副产物，1062 行） |
+| **D10** | 隐含未完成 21 个 | 实际 >1000 行 23 个 | doto 少 2 | 净差 +2（第 3 批 -2 + 第 6 批 +4） |
+| **D05** | AssetListTab.vue 864 行 | 实际 609 行 | doto 高估 255 行 | 单文件最大值记录失效，Top 20 排名可能已变 |
+| **D05** | 其他数据全部一致 | ✅ 一致 | 无 | 接入率 3.1%（11/355）、未接入 344、zh-CN.ts 467 行 15 模块均准确 |
+| **D13** | 123 个缩写文件 | 实际 111 个（25 类前缀）/ 121 个（27 类前缀） | doto 多 12/2 | 严格 25 类前缀口径 111 个；含 Ar + advanced(Rcp/Qlt/Rpt/Ai) 口径 121 个 |
+| **D13** | 25 类缩写前缀 | 实际 27 类 | doto 少 2 类 | 补 Ar + Rcp/Qlt/Rpt/Ai |
+| **D13** | 第 7 批 purchase (6) | 实际 purchase (3) | doto 多 3 | 其余 4 个为描述性短名非缩写 |
+| **D14** | 风格 A 21 个 | 实际 25 个 | doto 少 4 | 工作量被低估 |
+| **D14** | listXxx 47 文件 84 处 | 实际 59 文件 104 处 | doto 少 12 文件 20 处 | 最大偏差源工作量低估约 23% |
+| **D14** | removeXxx 2 文件 2 处 | 实际 1 文件 1 处 | doto 多 1 | 仅 role.ts |
+| **D14** | queryXxx 2 文件 2 处 | 实际 1 文件 1 处 | doto 多 1 | 仅 assist-accounting.ts |
+| **D14** | addXxx 5 文件 6 处 / fetchXxx 1 文件 1 处 | ✅ 一致 | 无 | — |
+
+### 0.2 按任务类型归类
+
+| 任务类型 | 数量 | 任务编号 | 说明 |
+|----------|------|----------|------|
+| 代码质量类 | 4 | D08, D09, D10, D12 | 函数拆分 / 文件拆分 / 圈复杂度（后端代码结构优化链路 D08→D09→D10） |
+| 前端重构类 | 5 | D05, D06, D07, D13, D14 | i18n / a11y（aria+alt）/ 命名规范（缩写+api） |
+| 部署运维类 | 8 | D01, D02, D03, D04, D11, D15, D16, D17 | Docker / install / 缓存 / 测试 DB / 零停机 / 调度 / OA（其中 6 项为审计误判） |
+
+### 0.3 按工作量归类
+
+| 工作量 | 数量 | 任务编号 |
+|--------|------|----------|
+| S（小） | 3 | D01, D02, D07 |
+| M（中） | 5 | D11, D12, D15, D16, D17 |
+| L（大） | 4 | D03, D04, D09, D10 |
+| XL（超大） | 5 | D05, D06, D08, D13, D14 |
+
+### 0.4 按执行顺位归类（关键路径：D08→D09→D10 代码质量链路；D14→D13→D05 前端重构链路）
+
+| 顺位 | 任务 | 状态 | 说明 |
+|------|------|------|------|
+| 第 1 顺位 | D08 超长函数 | ✅ 已完成 | 无前置依赖，解锁 D09/D10 |
+| 第 2 顺位 | D10 1000 行文件 | ⏳ 进行中 | D08 完成后立即推进 |
+| 第 3 顺位 | D14 api 命名统一 | ❌ 未开始 | 与 D05/D13 解耦 |
+| 第 4 顺位 | D13 前端缩写命名 | ❌ 未开始 | D14 完成后推进 |
+| 第 5 顺位 | D05 useI18n | ❌ 未开始 | D13/D14 完成后最后推进 |
+
+### 0.5 文档章节归类
+
+| 章节 | 内容类型 | 用途 |
+|------|----------|------|
+| §一 当前状态与总体进度 | 状态跟踪 | 批次进度 / 决策记录 |
+| §二 模块 G 依赖关系图 | 依赖关系 | 关键路径可视化 |
+| §三 未完成任务清单 | 任务详情 | 6 项大型任务逐项展开 |
+| §四 P1/P2/P3 任务规划 | 未来规划 | P0 完成后的后续工作 |
+| §五 规则节点提醒 | 规则约束 | 执行过程中需遵守的规则 |
+| §六 历史归档索引 | 归档索引 | 已完成项的归档链接 |
+
+---
+
 ## 一、当前状态与总体进度
 
 ### 1.1 进度总览
@@ -71,6 +144,7 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 
 - **来源**：batch-07 P0-07-5
 - **证据**：2026-07-19 精确审计：实际 355 个 .vue 文件，已接入 11 个（接入率 3.1%），未接入 344 个；locales/zh-CN.ts 467 行 15 模块 332 键，预估需扩容至 5000+ 键；Top 20 硬编码密集文件累计 10746 行中文，单文件最大 fixed-assets/tabs/AssetListTab.vue 864 行
+- **核实（2026-07-23）**：✅ 数据高度准确。355 文件 / 11 已接入 / 344 未接入 / 3.1% 接入率 / zh-CN.ts 467 行 15 模块均与 doto 一致；en-US.ts 467 行与 zh-CN.ts 对齐（双语同步良好）。❌ 唯一差异：AssetListTab.vue 实际 609 行（doto 记录 864 行，高估 255 行），单文件最大值记录失效，Top 20 排名可能已变化，推进前需重新扫描
 - **修复方案**：355 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts 同步；按业务模块横向切片，每批 10-12 文件，预估需 30-36 批次
 - **关联文件**：[frontend/src/views/](file:///workspace/frontend/src/views/) + [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts) + [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)
 - **依赖**：建议在 D13/D14 完成后推进（避免同时修改 .vue 文件造成冲突）
@@ -120,38 +194,41 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **工作量**：L
 - **批次**：488（D 系列 17 项一次性打包；预估 5-6 子批次，每批 5-6 文件）
 - **执行优先级**：第 2 顺位（D08 完成后立即推进）
-- **当前进度**：D10-1 ✅ 完成（ar_service.rs 2489→259 行 facade + 5 子模块 2256 行，PR #683 main 34b8cae）；D10-2 ✅ 完成（production_order_service.rs 2141→689 行 facade + production_order_ops/{mod,types,crud,completion,approval} 5 子模块 1628 行，41 方法按职责分散到多 impl 块，PR #684 main 0385401）；D10-3 ✅ 完成（so/delivery.rs 2095→822 行 facade + delivery_ops/{mod,types,ship,inventory,cancel,export} 6 子模块 1403 行，30 方法按职责分散到多 impl 块，PR #684 main 0385401）；D10-2a ✅ 完成（voucher_service.rs 2058→882 行 facade + voucher_ops/{mod,crud,workflow,balance,assist} 5 子模块，39 方法 5+12+11+11，PR #685 main f836552）；D10-2b ✅ 完成（outsourcing_service.rs 1879→436 行 facade + outsourcing_ops/{mod,types,order,order_item,receipt,voucher} 6 子模块 + business_mode_service.rs 1739→741 行 facade + business_mode_ops/{mod,types,config,flow_step,rule,order_link} 6 子模块，PR #686 main 882cecc）；D10-3a ✅ 完成（chemical_service.rs 1730→349 行 facade + chemical_ops/{mod,types,master,category,lot,requisition} 6 子模块 43 方法 + bi_analysis_service.rs 1711→317 行 facade + bi_analysis_ops/{mod,types,sales,profit,drilldown,olap} 6 子模块 20+ 方法，PR #687 main d301de9）；D10-3b ✅ 完成（models/status.rs 1577→status/mod.rs + {common,master_data,production,purchase,sales,inventory,mrp,payment} 8 分组文件，PR #688 main 69de94f；mrp_engine_service.rs 1593→605 行 facade + mrp_engine_ops/{mod,types,stock,bom,calculation,query,order} 7 子模块 22 方法，StockInfo 提升为 pub(crate)，facade 仅 pub use 8 个原 pub struct，PR #691 main 9818351，CI 修复 3 轮：5 unused imports + 6 sea_orm trait 缺失 + 集成测试 common 模块名称遮蔽）；第 1 批 3 个 >1800 行文件全部完成，第 2 批 4/4 完成，第 3 批 4/4 完成；D10-4a 代码完成待推送 CI（dye_batch_state_machine_service.rs 1512→920 行 facade + dye_batch_state_machine_ops/{mod 17, lifecycle_log 152, state_rule 195, rework 232, operation 117} 4 子模块，4 Service 27 方法按职责分散到多 impl 块，db 字段改 pub(crate)，外部调用路径不变；wage_service.rs 1621→774 行 facade + wage_ops/{mod 14, rate 351, record 242, calculation 357} 3 子模块，3 Service 29 方法按职责分散到多 impl 块，db 字段改 pub(crate)，2 日期纯函数改 pub(crate) 供 calculation 复用，外部 wage_handler.rs 调用路径不变，遵循规则 13 禁止本地编译待 CI 验证，第 4 批 2/4 完成）
+- **当前进度**：D10-1 ✅ 完成（ar_service.rs 2489→259 行 facade + 5 子模块 2256 行，PR #683 main 34b8cae）；D10-2 ✅ 完成（production_order_service.rs 2141→689 行 facade + production_order_ops/{mod,types,crud,completion,approval} 5 子模块 1628 行，41 方法按职责分散到多 impl 块，PR #684 main 0385401）；D10-3 ✅ 完成（so/delivery.rs 2095→822 行 facade + delivery_ops/{mod,types,ship,inventory,cancel,export} 6 子模块 1403 行，30 方法按职责分散到多 impl 块，PR #684 main 0385401）；D10-2a ✅ 完成（voucher_service.rs 2058→882 行 facade + voucher_ops/{mod,crud,workflow,balance,assist} 5 子模块，39 方法 5+12+11+11，PR #685 main f836552）；D10-2b ✅ 完成（outsourcing_service.rs 1879→436 行 facade + outsourcing_ops/{mod,types,order,order_item,receipt,voucher} 6 子模块 + business_mode_service.rs 1739→741 行 facade + business_mode_ops/{mod,types,config,flow_step,rule,order_link} 6 子模块，PR #686 main 882cecc）；D10-3a ✅ 完成（chemical_service.rs 1730→349 行 facade + chemical_ops/{mod,types,master,category,lot,requisition} 6 子模块 43 方法 + bi_analysis_service.rs 1711→317 行 facade + bi_analysis_ops/{mod,types,sales,profit,drilldown,olap} 6 子模块 20+ 方法，PR #687 main d301de9）；D10-3b ✅ 完成（models/status.rs 1577→status/mod.rs + {common,master_data,production,purchase,sales,inventory,mrp,payment} 8 分组文件，PR #688 main 69de94f；mrp_engine_service.rs 1593→605 行 facade + mrp_engine_ops/{mod,types,stock,bom,calculation,query,order} 7 子模块 22 方法，StockInfo 提升为 pub(crate)，facade 仅 pub use 8 个原 pub struct，PR #691 main 9818351，CI 修复 3 轮：5 unused imports + 6 sea_orm trait 缺失 + 集成测试 common 模块名称遮蔽）；第 1 批 3 个 >1800 行文件全部完成，第 2 批 4/4 完成，第 3 批 4/4 完成；D10-4a ✅ 完成（dye_batch_state_machine_service.rs 1512→920 行 facade + dye_batch_state_machine_ops/{mod 17, lifecycle_log 152, state_rule 195, rework 232, operation 117} 4 子模块，4 Service 27 方法按职责分散到多 impl 块，db 字段改 pub(crate)，外部调用路径不变；wage_service.rs 1621→774 行 facade + wage_ops/{mod 14, rate 351, record 242, calculation 357} 3 子模块，3 Service 29 方法按职责分散到多 impl 块，db 字段改 pub(crate)，2 日期纯函数改 pub(crate) 供 calculation 复用，外部 wage_handler.rs 调用路径不变，PR #692 main 待合并）
+- **核实（2026-07-23）**：✅ 第 3 批 4/4 完成（doto 滞后记录为 2/4，实际 models/status.rs 已拆分为 status/ 目录 9 子文件、mrp_engine_service.rs 已降至 605 行）；❌ 第 4/5 批 6 个文件行数逆生长（D08 拆分引入 helper 导致）：wage_service.rs 1507→1621(+114)→D10-4a 已降至 774、ap_invoice_service.rs 1306→1405(+99)、ap_reconciliation_service.rs 1243→1346(+103)、init_service.rs 1287→1347(+60)、ar/vfy.rs 1320→1368(+48)、flow_card_service.rs 1271→1285(+14)；❌ 第 6 批实际 15 个文件（doto 记录 11 个），含 D10-1 拆分副产物 ar_ops/verification.rs 1062 行需再次拆分；当前真实 >1000 行文件共 23 个（doto 隐含 21 个，净差 +2）
 - **批次规划**：
   - 第 1 批：✅ ar_service.rs (2489→259 facade + ar_ops/{types 75, json_helpers 98, collection 676, verification 1062, report 422, mod 23}) / ✅ production_order_service.rs (2141→689 facade + production_order_ops/{mod 17, types 87, crud 568, completion 667, approval 288}) / ✅ so/delivery.rs (2095→822 facade + delivery_ops/{mod 16, types 35, ship 588, inventory 357, cancel 270, export 136}) 3 个 >1800 行文件全部完成
   - 第 2 批：✅ voucher_service.rs (2058→882 facade + voucher_ops/{mod, crud 468, workflow, balance, assist}，39 方法 5+12+11+11) / ✅ energy_service.rs (1826→324 facade + energy_ops/{meter,consumption,allocation_rule,allocation_record}) / ✅ outsourcing_service.rs (1879→436 facade + outsourcing_ops/{mod,types,order 724,order_item,receipt,voucher}，4 Service 39 方法) / ✅ business_mode_service.rs (1739→741 facade + business_mode_ops/{mod,types,config,flow_step,rule,order_link}，4 Service 28 方法) 4 个 >1700 行文件全部完成
-  - 第 3 批：✅ chemical_service.rs (1676→349 facade + chemical_ops 6 子模块) + ✅ bi_analysis_service.rs (1662→317 facade + bi_analysis_ops 6 子模块) + ✅ models/status.rs (1577→status/mod.rs + 8 分组文件) + ✅ mrp_engine_service.rs (1593→605 facade + mrp_engine_ops 7 子模块 22 方法) 4 个 >1500 行文件全部完成（PR #687/#688/#691）
-  - 第 4 批：✅ dye_batch_state_machine_service.rs (1512→920 facade + dye_batch_state_machine_ops/{mod 17, lifecycle_log 152, state_rule 195, rework 232, operation 117}，4 Service 27 方法) + ✅ wage_service.rs (1621→774 facade + wage_ops/{mod 14, rate 351, record 242, calculation 357}，3 Service 29 方法，D10-4a 待推送 CI) + ar/vfy.rs (1320) + ap_invoice_service.rs (1306) 4 个 >1300 行文件，2/4 完成
-  - 第 5 批：init_service.rs (1287) + flow_card_service.rs (1271) + ap_reconciliation_service.rs (1243) + search/elastic.rs (1230) 4 个 >1200 行文件
-  - 第 6 批：剩余 11 个 1000-1200 行文件
+  - 第 3 批：✅ chemical_service.rs (1676→349) + ✅ bi_analysis_service.rs (1662→317) + ✅ models/status.rs (1577→status/mod.rs + 8 分组文件) + ✅ mrp_engine_service.rs (1593→605 facade + mrp_engine_ops 7 子模块 22 方法) 4 个 >1500 行文件全部完成（PR #687/#688/#691）
+  - 第 4 批：✅ dye_batch_state_machine_service.rs (1512→920 facade + dye_batch_state_machine_ops 4 子模块 27 方法) + ✅ wage_service.rs (1621→774 facade + wage_ops 3 子模块 29 方法，PR #692) + ar/vfy.rs (1320→**1368**核实逆生长) + ap_invoice_service.rs (1306→**1405**核实逆生长) 4 个 >1300 行文件，2/4 完成
+  - 第 5 批：init_service.rs (1287→**1347**核实逆生长) + flow_card_service.rs (1271→**1285**核实逆生长) + ap_reconciliation_service.rs (1243→**1346**核实逆生长) + search/elastic.rs (1230) 4 个 >1200 行文件
+  - 第 6 批：剩余 15 个 1000-1200 行文件（doto 原记录 11 个，核实实际 15 个，含 D10-1 副产物 ar_ops/verification.rs 1062 行）：event_bus.rs (1243) / po/order.rs (1234) / auth_service.rs (1201) / inventory_finance_bridge_service.rs (1192) / lab_dip_service.rs (1188) / production_recipe_service.rs (1181) / product_service.rs (1075) / system_update_service.rs (1074) / purchase_receipt_service.rs (1074) / ar/recon.rs (1070) / ar_ops/verification.rs (1062 ⚠️ D10-1 副产物) / bpm_service.rs (1060) / bom_service.rs (1046) / import_export_service.rs (1018) / main.rs (1005)
 
-### 3.5 P0-D13 前端 123 个组件缩写命名（类二，XL，未开始）
+### 3.5 P0-D13 前端缩写命名组件（类二，XL，未开始）
 
 - **来源**：batch-02 P0-02-05
 - **证据**：2026-07-19 精确扫描：实际 123 个缩写命名 .vue 文件（views/ 122 + components/ 1）；25 类缩写前缀（Sc/Su/Lgs/Vchr/Pp/Di/Tfa/Sec/Cp/Sch/Prd/Bpm/Pc/Pi/Sa/Db/Purch/Prc/PrRtn/Ms/Sp/Olv/Ep/Bom/AI）；32 个父级 .vue 文件需更新 import（99 处 import 语句）；0 路由风险（router/index.ts 不直接 import 缩写文件）；0 e2e 风险
+- **核实（2026-07-23）**：❌ 数量偏差。严格按 25 类前缀搜索实际 111 个（views/ 110 + components/ 1，doto 多记 12 个）；若补入 doto 批次规划提及但未列入 25 类前缀清单的 advanced(Rcp/Qlt/Rpt/Ai 4 个) + arReconciliation(Ar 6 个)，则实际 121 个（doto 多记 2 个）。❌ 前缀分类不完整：实际 27 类（doto 记 25 类，缺 Ar + Rcp/Qlt/Rpt/Ai）。❌ 第 7 批 purchase 实际仅 3 个缩写文件（doto 记 6 个，多记 3 个，其余 StatCards/CreateDlg/ViewDlg/ReceiveDlg 为描述性短名非缩写）。⚠️ doto 内部不一致：主记录 123 vs 批次规划 7 批总和 124
 - **修复方案**：重命名为描述性全名（如 ScFilter→SalesContractFilter、SuVerDetail→SystemUpdateVersionDetail、LgsTbl→LogisticsTable、VchrForm→VoucherForm、BomForm→BillOfMaterialsForm）；同步重命名 composables 和父级 import；保留白名单：API（ApiEndpointTab 已描述性）/ i18n / a11y / V2Table（30+ 文件引用影响大）
 - **关联文件**：[frontend/src/views/](file:///workspace/frontend/src/views/) 25 个模块的 components/ 子目录 + [frontend/src/components/ai/AIPredictionChart.vue](file:///workspace/frontend/src/components/ai/AIPredictionChart.vue)
 - **依赖**：建议在 D14 完成后推进（避免同时修改 import 路径造成冲突）
 - **工作量**：XL
 - **批次**：488（D 系列 17 项一次性打包；预估 12-15 子批次，每批 8-10 文件）
 - **执行优先级**：第 4 顺位（D14 完成后推进）
-- **批次规划**：按模块分组（每模块独立批次）
+- **批次规划**：按模块分组（每模块独立批次）⚠️ 以下数量为 doto 原记录，核实后需调整（见核实行）
   - sales-contract (3) + system-update (3) + sales-price (5) + purchase-price (5) 第 1 批 16 文件
   - logistics (6) + finance/tabs (4) + voucher/tabs (4) + data-import (4) 第 2 批 18 文件
   - security/two-factor (5) + security/components (4) + capacity (4) + advanced (4) 第 3 批 17 文件
   - api-gateway (1) + sales (3) + scheduling (10) + arReconciliation (6) 第 4 批 20 文件
   - purchase-return (5) + material-shortage (3) + production (4) + bpm/definitions (5) 第 5 批 17 文件
   - bpm/approval (6) + purchase-contract (4) + purchase-inspection (5) + sales-analysis (5) 第 6 批 20 文件
-  - bom (1) + dashboard (4) + purchase (6) + purchaseReceipt (4) + components/ai (1) 第 7 批 16 文件
+  - bom (1) + dashboard (4) + purchase (6→**核实 3**) + purchaseReceipt (4) + components/ai (1) 第 7 批 16→**核实 13** 文件
 
 ### 3.6 P0-D14 前端 api 命名不统一（类二，XL，未开始）
 
 - **来源**：batch-02 P0-02-06
 - **证据**：2026-07-19 精确扫描：96 个 api/*.ts 文件；风格 A（object 形式 `export const xxxApi = {}`）21 个 + 风格 B（function 形式）68 个 + 混合风格 4 个 + 纯 re-export 3 个；最大偏差源 listXxx 47 文件 84 处需改名为 getXxxList；次要偏差 addXxx 5 文件 6 处 / removeXxx 2 文件 2 处 / fetchXxx 1 文件 1 处 / queryXxx 2 文件 2 处
+- **核实（2026-07-23）**：✅ 文件总数 96 一致；✅ addXxx 5 文件 6 处一致；✅ fetchXxx 1 文件 1 处一致；✅ request.ts 存在应保留。❌ 风格 A 实际 25 个（doto 记 21，少 4，工作量被低估）；❌ listXxx 实际 59 文件 104 处（doto 记 47 文件 84 处，少 12 文件 20 处，最大偏差源工作量低估约 23%）；❌ removeXxx 实际 1 文件 1 处（doto 记 2 文件 2 处，多 1，仅 role.ts）；❌ queryXxx 实际 1 文件 1 处（doto 记 2 文件 2 处，多 1，仅 assist-accounting.ts）。⚠️ 风格 A 25 + 风格 B 68 + 混合 4 + re-export 3 = 100 ≠ 96，风格 B/混合/re-export 分类口径需复核
 - **修复方案**：统一为风格 B（function 形式）+ 命名规范 `getXxxList / createXxx / updateXxx / deleteXxx / getXxxById`；保留 request.ts 不改名；4 个混合文件先去重再统一；3 个 re-export 文件同步更新导出列表；预估影响 2000+ 处调用点
 - **关联文件**：[frontend/src/api/](file:///workspace/frontend/src/api/) 96 个 .ts 文件
 - **依赖**：无前置依赖（独立任务）
