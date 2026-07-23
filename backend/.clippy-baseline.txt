@@ -133,11 +133,17 @@ error[E0507]: cannot move out of `request.status` as enum variant `Some` which i
 help: consider borrowing here
 note: associated function defined here
 warning: deref which would be done by auto-deref
+warning: doc list item overindented
 warning: doc list item without indentation
 warning: the following explicit lifetimes could be elided: 'a
 warning: this function has too many arguments (8/7)
 warning: this function has too many arguments (9/7)
+warning: unused import: `AutoReconciliationResult`
+warning: unused import: `WorkshopEnergySummary`
+warning: unused import: `cleanup_revoked_users`
 warning: unused import: `sea_orm::DatabaseConnection`
+warning: unused imports: `ArReconciliationService` and `AutoMatchRequest`
+warning: unused imports: `MrpExplodeQuery` and `RequirementCalcParams`
 warning: unused variable: `txn`
 
 warning: associated function `from_config` is never used
@@ -147,7 +153,7 @@ warning: associated function `new` is never used
 warning: associated function `parse_status` is never used
 warning: associated functions `from_claims` and `empty` are never used
 warning: associated functions `integer`, `decimal`, `date`, and `boolean` are never used
-warning: associated items `calculate_next_run` and `parse_cron_field` are never used
+warning: associated items `calculate_next_run`, `parse_cron_expression`, `date_matches_cron`, `find_next_time_in_day`, and `parse_cron_field` are never used
 warning: associated items `derive_paid_status` and `mark_as_paid` are never used
 warning: associated items `from_role` and `as_str` are never used
 warning: constant `ACTIVE` is never used
@@ -263,6 +269,7 @@ warning: multiple fields are never read
 warning: struct `AdvanceNodeRequest` is never constructed
 warning: struct `ApiDoc` is never constructed
 warning: struct `ConvertToOrderDto` is never constructed
+warning: struct `CronFields` is never constructed
 warning: struct `CustomerColorPriceInfo` is never constructed
 warning: struct `EventRetryService` is never constructed
 warning: struct `FlowStepListByModeQuery` is never constructed
