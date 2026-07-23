@@ -12,7 +12,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use tracing::warn;
 
 impl InitService {
-    async fn create_default_departments(&self) -> Result<i32, InitError> {
+    pub(crate) async fn create_default_departments(&self) -> Result<i32, InitError> {
         // 先检查总经办是否已存在
         let existing_dept = department::Entity::find()
             .filter(department::Column::Code.eq("D001"))
@@ -80,7 +80,7 @@ impl InitService {
         Ok(dept.id)
     }
 
-    async fn create_admin_user(
+    pub(crate) async fn create_admin_user(
         &self,
         username: &str,
         password_hash: &str,

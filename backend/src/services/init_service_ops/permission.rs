@@ -11,7 +11,7 @@ use tracing::warn;
 
 impl InitService {
     /// 创建全部角色的 role_permission 权限矩阵（V15 P0-S03/S04/S20，覆盖 60+ 资源 × 11 操作码）
-    async fn create_default_role_permissions(&self) -> Result<(), InitError> {
+    pub(crate) async fn create_default_role_permissions(&self) -> Result<(), InitError> {
         // 检查 role_permission 表是否已有记录，避免重复插入
         let existing_count = role_permission::Entity::find()
             .count(self.db.as_ref())
@@ -336,7 +336,7 @@ impl InitService {
     }
 
     /// 初始化默认角色互斥规则（SoD 职责分离，幂等）
-    async fn create_default_role_conflicts(&self) -> Result<(), InitError> {
+    pub(crate) async fn create_default_role_conflicts(&self) -> Result<(), InitError> {
         // 幂等检查：表已有记录则跳过
         let existing_count = role_conflict::Entity::find()
             .count(self.db.as_ref())

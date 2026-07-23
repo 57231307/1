@@ -1,6 +1,6 @@
 //! SearchSyncer 业务同步方法实现（new 构造器留在 facade）
 use crate::search::elastic::{
-    indices, CustomerDoc, ProductDoc, SalesOrderDoc, SearchClient, SearchError, SearchSyncer,
+    indices, CustomerDoc, ProductDoc, SalesOrderDoc, SearchError, SearchSyncer,
 };
 
 impl SearchSyncer {

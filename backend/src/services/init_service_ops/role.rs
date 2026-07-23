@@ -12,7 +12,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use tracing::warn;
 
 impl InitService {
-    async fn create_default_roles(&self) -> Result<role::Model, InitError> {
+    pub(crate) async fn create_default_roles(&self) -> Result<role::Model, InitError> {
         // 批次 24 v6 P0-1 修复：使用 ADMIN_ROLE_CODE 常量替代硬编码 "admin"，
         // 与 admin_checker.rs 保持单一真相源，避免角色编码变更时多处不同步。
         if let Some(admin_role) = self.find_existing_admin_role().await? {
