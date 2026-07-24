@@ -62,7 +62,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listTradingReturns,
+  getTradingReturnList,
   getTradingReturn,
   createTradingReturn,
   approveTradingReturn,
@@ -102,7 +102,7 @@ const getReturnStatusLabel = (status: string) => {
 const fetchSalesReturns = async () => {
   salesReturnLoading.value = true
   try {
-    const res = await listTradingReturns({ type: 'sales' })
+    const res = await getTradingReturnList({ type: 'sales' })
     const d = res.data as
       | { list?: TradingReturn[]; items?: TradingReturn[] }
       | TradingReturn[]

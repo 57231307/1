@@ -212,7 +212,7 @@ export interface ListResponse {
  * 列出报价单（分页）
  * @param params 查询参数
  */
-export function listQuotations(
+export function getQuotationList(
   params: QuotationListQuery = {}
 ): Promise<ApiResponse<QuotationResponseDto[]>> {
   // P2 1-11 修复：去掉 as any，使用显式泛型传递类型契约
@@ -313,14 +313,14 @@ export function setQuotationTerms(
 /**
  * 列出即将过期的报价单
  */
-export function listExpiringQuotations(): Promise<ApiResponse<QuotationResponseDto[]>> {
+export function getExpiringQuotationList(): Promise<ApiResponse<QuotationResponseDto[]>> {
   return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations/expiring')
 }
 
 /**
  * 列出已过期的报价单
  */
-export function listExpiredQuotations(): Promise<ApiResponse<QuotationResponseDto[]>> {
+export function getExpiredQuotationList(): Promise<ApiResponse<QuotationResponseDto[]>> {
   return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations/expired')
 }
 

@@ -11,7 +11,7 @@ import { ElMessage } from 'element-plus'
 import { salesReturnApi } from '@/api/sales-return'
 import type { SalesReturn } from '@/api/sales-return'
 import { salesApi } from '@/api/sales'
-import { listCustomers } from '@/api/customer'
+import { getCustomerList } from '@/api/customer'
 import { productApi } from '@/api/product'
 import logger from '@/utils/logger'
 
@@ -131,7 +131,7 @@ export function useSr() {
   // 加载客户下拉
   const loadCustomers = async () => {
     try {
-      const res = await listCustomers()
+      const res = await getCustomerList()
       customerList.value = (res.data?.list || []) as unknown as CustomerOption[]
     } catch (error: unknown) {
       logger.error('加载客户列表失败', error instanceof Error ? error.message : String(error))

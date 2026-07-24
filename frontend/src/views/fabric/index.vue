@@ -56,7 +56,7 @@
 import { ref, provide } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { stockInGreigeFabric, stockOutGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
-import { listSuppliers, type Supplier } from '@/api/supplier'
+import { getSupplierList, type Supplier } from '@/api/supplier'
 import type { DyeBatch } from '@/api/dye-batch'
 import type { DyeRecipe as ApiDyeRecipe } from '@/api/dye-recipe'
 import { logger } from '@/utils/logger'
@@ -93,7 +93,7 @@ const fetchGreigeFabrics = async () => {
 
 const fetchSuppliers = async () => {
   try {
-    const res = await listSuppliers()
+    const res = await getSupplierList()
     suppliers.value = (res.data?.list as Supplier[] | undefined) || []
   } catch (error) {
     const err = error as Error

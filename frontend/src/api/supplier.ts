@@ -38,7 +38,7 @@ export interface Supplier {
   updated_at?: string
 }
 
-export function listSuppliers(
+export function getSupplierList(
   params?: SupplierQueryParams
 ): Promise<ApiResponse<{ list: Supplier[]; total: number }>> {
   return request.get('/purchase/suppliers', { params })

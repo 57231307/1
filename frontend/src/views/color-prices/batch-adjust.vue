@@ -118,7 +118,7 @@ import { ref, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  listColorPrices,
+  getColorPriceList,
   batchAdjustColorPrices,
   calculateColorPrice,
   formatPrice,
@@ -151,7 +151,7 @@ const form = reactive({
 const loadPrices = async () => {
   loading.value = true
   try {
-    const res = await listColorPrices(filterForm)
+    const res = await getColorPriceList(filterForm)
     prices.value = res.items
     // 处理 query 参数 ids
     const ids = (route.query.ids as string)?.split(',').map(Number).filter(Boolean) || []

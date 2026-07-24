@@ -49,12 +49,10 @@ export interface CustomerCreditQueryParams {
   customer_id?: number
 }
 
-export const listCustomerCredits = (
+export const getCustomerCreditList = (
   params?: CustomerCreditQueryParams
 ): Promise<ApiResponse<{ list: CustomerCredit[]; total: number }>> =>
   request.get('/crm/customer-credits', { params })
-
-export const listCredits = listCustomerCredits
 
 export const getCustomerCredit = (id: number): Promise<ApiResponse<CustomerCredit>> =>
   request.get(`/crm/customer-credits/${id}`)

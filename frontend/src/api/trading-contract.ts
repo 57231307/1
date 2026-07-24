@@ -18,7 +18,7 @@ export interface ListTradingContractParams {
   type: 'purchase' | 'sales'
 }
 
-export const listTradingContracts = (params: ListTradingContractParams) => {
+export const getTradingContractList = (params: ListTradingContractParams) => {
   if (params.type === 'purchase') {
     return request.get<ApiResponse<TradingContract[]>>('/trading/purchase-contracts')
   }

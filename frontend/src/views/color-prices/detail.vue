@@ -132,7 +132,7 @@ import { Plus } from '@element-plus/icons-vue'
 import {
   getColorPrice,
   getColorPriceHistory,
-  listTiers,
+  getTierList,
   createTier,
   deleteTier,
   formatPrice,
@@ -163,7 +163,7 @@ const loadData = async () => {
     price.value = await getColorPrice(priceId)
     const h = await getColorPriceHistory(priceId)
     history.value = h.items
-    const t = await listTiers(priceId)
+    const t = await getTierList(priceId)
     tiers.value = t.items
   } catch (e: unknown) {
     // v11 批次 174 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫

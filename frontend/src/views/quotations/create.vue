@@ -173,7 +173,7 @@ import {
   type CurrencyCode,
   type CustomerLevel,
 } from '@/api/quotation'
-import { listCustomers } from '@/api/customer'
+import { getCustomerList } from '@/api/customer'
 import { useUserStore } from '@/store/user'
 import QuotationItemEditor from './components/QuotationItemEditor.vue'
 import TermEditor from './components/TermEditor.vue'
@@ -267,7 +267,7 @@ const totalAmount = computed(() => subtotal.value + taxAmount.value)
 /** 加载客户下拉 */
 async function loadCustomers() {
   try {
-    const res = await listCustomers({ page: 1, page_size: 1000 })
+    const res = await getCustomerList({ page: 1, page_size: 1000 })
     // v11 批次 163 P2-1 修复：res.data as any 改为运行时安全访问
     const data = (res.data || {}) as { list?: unknown[]; items?: unknown[] }
     const list = data.list || data.items || []

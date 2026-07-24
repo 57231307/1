@@ -27,7 +27,7 @@ import {
   type ArReconciliationEntity,
   type ReconciliationDetail,
 } from '@/api/ar-reconciliation'
-import { listCustomersForSelect } from '@/api/customer'
+import { getCustomerSelectList } from '@/api/customer'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
 
@@ -97,9 +97,9 @@ const syncQueryParams = () => {
 
 const loadCustomers = async () => {
   try {
-    // v11 批次 146 P1-4 修复：改用 customer.ts 统一封装的 listCustomersForSelect，
+    // v11 批次 146 P1-4 修复：改用 customer.ts 统一封装的 getCustomerSelectList，
     // 避免绕过 API 层直接调用 request.get，并正确处理 PaginatedResponse → {label, value}[] 映射
-    customerOptions.value = await listCustomersForSelect()
+    customerOptions.value = await getCustomerSelectList()
   } catch (error) {
     logger.warn('加载客户失败')
   }
