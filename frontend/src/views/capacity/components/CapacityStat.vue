@@ -12,7 +12,7 @@
             <el-icon><OfficeBuilding /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">工作中心总数</div>
+            <div class="stat-label">{{ $t('capacityModule.stat.totalWorkCenters') }}</div>
             <div class="stat-value">{{ summary.total_work_centers || 0 }}</div>
           </div>
         </div>
@@ -25,7 +25,7 @@
             <el-icon><CircleCheck /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">正常运行</div>
+            <div class="stat-label">{{ $t('capacityModule.stat.normal') }}</div>
             <div class="stat-value">{{ summary.normal_count || 0 }}</div>
           </div>
         </div>
@@ -38,7 +38,7 @@
             <el-icon><Loading /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">繁忙状态</div>
+            <div class="stat-label">{{ $t('capacityModule.stat.busy') }}</div>
             <div class="stat-value">{{ summary.busy_count || 0 }}</div>
           </div>
         </div>
@@ -51,7 +51,7 @@
             <el-icon><Warning /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">超负荷</div>
+            <div class="stat-label">{{ $t('capacityModule.stat.overload') }}</div>
             <div class="stat-value">{{ summary.overload_count || 0 }}</div>
           </div>
         </div>

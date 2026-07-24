@@ -5,127 +5,128 @@
 -->
 <template>
   <div class="color-price-detail" v-loading="loading">
-    <el-page-header @back="$router.back()" content="色号价格详情" />
+    <el-page-header @back="$router.back()" :content="$t('colorPrices.detail.back')" />
 
     <el-row :gutter="20" style="margin-top: 20px">
       <el-col :span="12">
-        <el-card header="基本信息">
+        <el-card :header="$t('colorPrices.detail.basicInfo')">
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="ID">{{ price?.id }}</el-descriptions-item>
-            <el-descriptions-item label="产品 ID">{{ price?.product_id }}</el-descriptions-item>
-            <el-descriptions-item label="色号 ID">{{ price?.color_id }}</el-descriptions-item>
-            <el-descriptions-item label="币种">{{ price?.currency }}</el-descriptions-item>
-            <el-descriptions-item label="基础价">
+            <el-descriptions-item :label="$t('colorPrices.detail.info.id')">{{ price?.id }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('colorPrices.detail.info.productId')">{{ price?.product_id }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('colorPrices.detail.info.colorId')">{{ price?.color_id }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('colorPrices.detail.info.currency')">{{ price?.currency }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('colorPrices.detail.info.basePrice')">
               <span v-if="price">{{ formatPrice(price.base_price, price.currency) }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="客户等级">
+            <el-descriptions-item :label="$t('colorPrices.detail.info.customerLevel')">
               <el-tag v-if="price?.customer_level" :type="getLevelColor(price.customer_level)">
                 {{ getLevelLabel(price.customer_level) }}
               </el-tag>
               <span v-else>-</span>
             </el-descriptions-item>
-            <el-descriptions-item label="季节">
+            <el-descriptions-item :label="$t('colorPrices.detail.info.season')">
               <el-tag v-if="price?.season" :type="getSeasonColor(price.season)">
                 {{ getSeasonLabel(price.season) }}
               </el-tag>
               <span v-else>-</span>
             </el-descriptions-item>
-            <el-descriptions-item label="优先级">{{ price?.priority }}</el-descriptions-item>
-            <el-descriptions-item label="生效日期">
-              {{ price?.effective_from }} ~ {{ price?.effective_to || '长期' }}
+            <el-descriptions-item :label="$t('colorPrices.detail.info.priority')">{{ price?.priority }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('colorPrices.detail.info.effectiveDate')">
+              {{ price?.effective_from }} ~ {{ price?.effective_to || $t('colorPrices.detail.info.longTerm') }}
             </el-descriptions-item>
-            <el-descriptions-item label="状态">
+            <el-descriptions-item :label="$t('colorPrices.detail.info.status')">
               <el-tag :type="price?.is_active ? 'success' : 'info'">
-                {{ price?.is_active ? '启用' : '禁用' }}
+                {{ price?.is_active ? $t('colorPrices.common.enable') : $t('colorPrices.common.disable') }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="审批状态" :span="2">
+            <el-descriptions-item :label="$t('colorPrices.detail.info.approvalStatus')" :span="2">
               <el-tag :type="getApprovalColor(price?.approval_status || '')">
                 {{ getApprovalLabel(price?.approval_status || '') }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="备注" :span="2">{{ price?.notes || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('colorPrices.detail.info.notes')" :span="2">{{ price?.notes || '-' }}</el-descriptions-item>
           </el-descriptions>
         </el-card>
       </el-col>
 
       <el-col :span="12">
-        <el-card header="价格历史">
+        <el-card :header="$t('colorPrices.detail.priceHistory')">
           <PriceHistoryChart
             v-if="price"
             :history-data="history"
             :currency="price.currency"
             :height="300"
           />
-          <el-empty v-else description="暂无数据" />
+          <el-empty v-else :description="$t('colorPrices.detail.noData')" />
         </el-card>
       </el-col>
     </el-row>
 
-    <el-card header="阶梯价" style="margin-top: 20px">
+    <el-card :header="$t('colorPrices.detail.tier.title')" style="margin-top: 20px">
       <template #header>
         <div class="card-header">
-          <span>阶梯价</span>
-          <el-button type="primary" :icon="Plus" @click="handleAddTier">添加阶梯</el-button>
+          <span>{{ $t('colorPrices.detail.tier.title') }}</span>
+          <el-button type="primary" :icon="Plus" @click="handleAddTier">{{ $t('colorPrices.detail.tier.addTier') }}</el-button>
         </div>
       </template>
-      <el-table :data="tiers" border aria-label="色卡价格阶梯列表">
-        <el-table-column prop="sequence" label="顺序" width="80" />
-        <el-table-column prop="min_quantity" label="起订量" width="120" />
-        <el-table-column prop="max_quantity" label="上限" width="120">
-          <template #default="{ row }">{{ row.max_quantity || '无限' }}</template>
+      <el-table :data="tiers" border :aria-label="$t('colorPrices.detail.tier.tableAriaLabel')">
+        <el-table-column prop="sequence" :label="$t('colorPrices.detail.tier.sequence')" width="80" />
+        <el-table-column prop="min_quantity" :label="$t('colorPrices.detail.tier.minQuantity')" width="120" />
+        <el-table-column prop="max_quantity" :label="$t('colorPrices.detail.tier.maxQuantity')" width="120">
+          <template #default="{ row }">{{ row.max_quantity || $t('colorPrices.detail.tier.unlimited') }}</template>
         </el-table-column>
-        <el-table-column prop="tier_price" label="阶梯价" width="120" />
-        <el-table-column label="客户等级" width="120">
+        <el-table-column prop="tier_price" :label="$t('colorPrices.detail.tier.tierPrice')" width="120" />
+        <el-table-column :label="$t('colorPrices.detail.tier.customerLevel')" width="120">
           <template #default="{ row }">
             <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level)">
               {{ getLevelLabel(row.customer_level) }}
             </el-tag>
-            <span v-else>通用</span>
+            <span v-else>{{ $t('colorPrices.detail.tier.general') }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column :label="$t('colorPrices.detail.tier.operation')" width="120" fixed="right">
           <template #default="{ row }">
-            <el-button link type="danger" @click="handleDeleteTier(row)">删除</el-button>
+            <el-button link type="danger" @click="handleDeleteTier(row)">{{ $t('colorPrices.common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
     <!-- 批次 157c P1-1 修复：添加阶梯价对话框 -->
-    <el-dialog v-model="tierDialogVisible" title="添加阶梯价" width="480px" aria-label="添加阶梯价对话框">
-      <el-form ref="tierFormRef" :model="tierForm" :rules="tierRules" label-width="100px" aria-label="阶梯价表单">
-        <el-form-item label="起订量" prop="min_quantity">
+    <el-dialog v-model="tierDialogVisible" :title="$t('colorPrices.detail.tierDialog.title')" width="480px" :aria-label="$t('colorPrices.detail.tierDialog.ariaLabel')">
+      <el-form ref="tierFormRef" :model="tierForm" :rules="tierRules" label-width="100px" :aria-label="$t('colorPrices.detail.tierDialog.formAriaLabel')">
+        <el-form-item :label="$t('colorPrices.detail.tierDialog.minQuantity')" prop="min_quantity">
           <el-input-number v-model="tierForm.min_quantity" :min="1" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="上限">
-          <el-input-number v-model="tierForm.max_quantity" :min="0" style="width: 100%" placeholder="0 表示无限" />
+        <el-form-item :label="$t('colorPrices.detail.tierDialog.maxQuantity')">
+          <el-input-number v-model="tierForm.max_quantity" :min="0" style="width: 100%" :placeholder="$t('colorPrices.detail.tierDialog.maxQuantityPlaceholder')" />
         </el-form-item>
-        <el-form-item label="阶梯价" prop="tier_price">
+        <el-form-item :label="$t('colorPrices.detail.tierDialog.tierPrice')" prop="tier_price">
           <el-input-number v-model="tierForm.tier_price" :min="0" :precision="4" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="客户等级">
-          <el-select v-model="tierForm.customer_level" placeholder="通用（留空）" clearable style="width: 100%">
+        <el-form-item :label="$t('colorPrices.detail.tierDialog.customerLevel')">
+          <el-select v-model="tierForm.customer_level" :placeholder="$t('colorPrices.detail.tierDialog.customerLevelPlaceholder')" clearable style="width: 100%">
             <el-option label="VIP" value="VIP" />
             <el-option label="A" value="A" />
             <el-option label="B" value="B" />
             <el-option label="C" value="C" />
           </el-select>
         </el-form-item>
-        <el-form-item label="顺序">
+        <el-form-item :label="$t('colorPrices.detail.tierDialog.sequence')">
           <el-input-number v-model="tierForm.sequence" :min="1" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="tierDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="tierSubmitting" @click="onSubmitTier">确定</el-button>
+        <el-button @click="tierDialogVisible = false">{{ $t('colorPrices.common.cancel') }}</el-button>
+        <el-button type="primary" :loading="tierSubmitting" @click="onSubmitTier">{{ $t('colorPrices.common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -136,11 +137,8 @@ import {
   createTier,
   deleteTier,
   formatPrice,
-  getLevelLabel,
   getLevelColor,
-  getSeasonLabel,
   getSeasonColor,
-  getApprovalLabel,
   getApprovalColor,
   type ColorPriceDetail,
   type PriceHistoryItem,
@@ -148,6 +146,13 @@ import {
   type CreatePriceTierDto,
 } from '@/api/color-price'
 import PriceHistoryChart from '@/components/PriceHistoryChart.vue'
+
+const { t } = useI18n({ useScope: 'global' })
+
+// 状态码 → 本地化标签（响应式：随语言切换自动更新）
+const getLevelLabel = (level: string | null | undefined) => t(`colorPrices.customerLevel.${level || 'default'}`)
+const getSeasonLabel = (season: string | null | undefined) => t(`colorPrices.season.${season || 'default'}`)
+const getApprovalLabel = (status: string) => t(`colorPrices.approvalStatus.${status}`)
 
 const route = useRoute()
 const loading = ref(false)
@@ -163,11 +168,11 @@ const loadData = async () => {
     price.value = await getColorPrice(priceId)
     const h = await getColorPriceHistory(priceId)
     history.value = h.items
-    const t = await getTierList(priceId)
-    tiers.value = t.items
+    const tierRes = await getTierList(priceId)
+    tiers.value = tierRes.items
   } catch (e: unknown) {
     // v11 批次 174 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error('加载失败：' + (e instanceof Error ? e.message : String(e)))
+    ElMessage.error(t('colorPrices.message.loadFailed', { msg: e instanceof Error ? e.message : String(e) }))
   } finally {
     loading.value = false
   }
@@ -190,10 +195,11 @@ const tierForm = reactive<{
   customer_level: null,
   sequence: 1,
 })
-const tierRules: FormRules = {
-  min_quantity: [{ required: true, message: '请输入起订量', trigger: 'blur' }],
-  tier_price: [{ required: true, message: '请输入阶梯价', trigger: 'blur' }],
-}
+// 表单校验规则（响应式：随语言切换自动更新提示文案）
+const tierRules = computed<FormRules>(() => ({
+  min_quantity: [{ required: true, message: t('colorPrices.validation.minQuantityRequired'), trigger: 'blur' }],
+  tier_price: [{ required: true, message: t('colorPrices.validation.tierPriceRequired'), trigger: 'blur' }],
+}))
 
 const handleAddTier = () => {
   tierForm.min_quantity = 1
@@ -219,12 +225,12 @@ const onSubmitTier = async () => {
         sequence: tierForm.sequence,
       }
       await createTier(payload)
-      ElMessage.success('阶梯价添加成功')
+      ElMessage.success(t('colorPrices.message.tierAddSuccess'))
       tierDialogVisible.value = false
       loadData()
     } catch (e: unknown) {
       // v11 批次 174 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error('添加失败：' + (e instanceof Error ? e.message : String(e)))
+      ElMessage.error(t('colorPrices.message.tierAddFailed', { msg: e instanceof Error ? e.message : String(e) }))
     } finally {
       tierSubmitting.value = false
     }
@@ -233,14 +239,14 @@ const onSubmitTier = async () => {
 
 const handleDeleteTier = async (row: PriceTier) => {
   try {
-    await ElMessageBox.confirm(`确定删除阶梯 #${row.id}？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('colorPrices.message.deleteTierConfirm', { id: row.id }), t('colorPrices.common.confirm'), { type: 'warning' })
     await deleteTier(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('colorPrices.message.deleteSuccess'))
     loadData()
   } catch (e: unknown) {
     // v11 批次 174 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
     if (e === 'cancel') return
-    ElMessage.error('删除失败：' + (e instanceof Error ? e.message : String(e)))
+    ElMessage.error(t('colorPrices.message.deleteFailed', { msg: e instanceof Error ? e.message : String(e) }))
   }
 }
 

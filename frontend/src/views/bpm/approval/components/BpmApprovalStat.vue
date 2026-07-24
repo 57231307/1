@@ -12,7 +12,7 @@
             <el-icon><Clock /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">待办任务</div>
+            <div class="stat-label">{{ $t('bpm.approval.stat.pending') }}</div>
             <div class="stat-value">{{ stats.pending }}</div>
           </div>
         </div>
@@ -25,7 +25,7 @@
             <el-icon><CircleCheck /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">已办任务</div>
+            <div class="stat-label">{{ $t('bpm.approval.stat.completed') }}</div>
             <div class="stat-value">{{ stats.completed }}</div>
           </div>
         </div>
@@ -38,7 +38,7 @@
             <el-icon><Warning /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">紧急任务</div>
+            <div class="stat-label">{{ $t('bpm.approval.stat.urgent') }}</div>
             <div class="stat-value">{{ stats.urgent }}</div>
           </div>
         </div>
@@ -51,7 +51,7 @@
             <el-icon><Timer /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">平均处理时长</div>
+            <div class="stat-label">{{ $t('bpm.approval.stat.avgTime') }}</div>
             <div class="stat-value">{{ stats.avgTime }}h</div>
           </div>
         </div>

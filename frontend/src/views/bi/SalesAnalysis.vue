@@ -12,6 +12,7 @@
  * 7. 多维筛选 + 钻取
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import {
@@ -25,6 +26,8 @@ import {
 } from '@/api/bi'
 import type { KpiSummary, TimeSeriesPoint, CustomerRank, ProductRank, RegionStat, ProfitAnalysis } from '@/api/bi'
 import logger from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const kpi = ref<KpiSummary | null>(null)
 const trend = ref<TimeSeriesPoint[]>([])
@@ -46,7 +49,7 @@ let regionChart: echarts.ECharts | null = null
 
 async function loadAll() {
   try {
-    const [k, t, c, p, r, prof] = await Promise.all([
+    const [k, tr, c, p, r, prof] = await Promise.all([
       getKpiSummary(),
       getSalesTrend(30),
       getSalesByCustomer(10),
@@ -55,7 +58,7 @@ async function loadAll() {
       getProfitAnalysis(),
     ])
     kpi.value = k.data
-    trend.value = t.data
+    trend.value = tr.data
     customers.value = c.data
     products.value = p.data
     regions.value = r.data
@@ -67,8 +70,8 @@ async function loadAll() {
 
     renderCharts()
   } catch (e) {
-    ElMessage.error('加载 BI 数据失败')
-    logger.error('加载 BI 数据失败', e)
+    ElMessage.error(t('biSalesAnalysis.message.loadFailed'))
+    logger.error(t('biSalesAnalysis.message.loadFailed'), e)
   }
 }
 
@@ -77,13 +80,13 @@ function renderCharts() {
   if (trendChartRef.value) {
     trendChart = echarts.init(trendChartRef.value)
     trendChart.setOption({
-      title: { text: '销售趋势（最近 30 天）', left: 'center' },
+      title: { text: t('biSalesAnalysis.chart.salesTrendTitle'), left: 'center' },
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: trend.value.map((p) => p.period) },
       yAxis: { type: 'value' },
       series: [
-        { name: '销售额', data: trend.value.map((p) => p.total_amount), type: 'line', smooth: true, itemStyle: { color: '#409EFF' } },
-        { name: '利润', data: trend.value.map((p) => p.profit_amount), type: 'line', smooth: true, itemStyle: { color: '#67C23A' } },
+        { name: t('biSalesAnalysis.chart.salesAmount'), data: trend.value.map((p) => p.total_amount), type: 'line', smooth: true, itemStyle: { color: '#409EFF' } },
+        { name: t('biSalesAnalysis.chart.profit'), data: trend.value.map((p) => p.profit_amount), type: 'line', smooth: true, itemStyle: { color: '#67C23A' } },
       ],
     })
   }
@@ -92,7 +95,7 @@ function renderCharts() {
   if (customerChartRef.value) {
     customerChart = echarts.init(customerChartRef.value)
     customerChart.setOption({
-      title: { text: '客户销售排行（Top 10）', left: 'center' },
+      title: { text: t('biSalesAnalysis.chart.customerRankTitle'), left: 'center' },
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'value' },
       yAxis: { type: 'category', data: customers.value.map((c) => c.customer_name).reverse() },
@@ -106,11 +109,11 @@ function renderCharts() {
   if (productChartRef.value) {
     productChart = echarts.init(productChartRef.value)
     productChart.setOption({
-      title: { text: '产品销售分布', left: 'center' },
+      title: { text: t('biSalesAnalysis.chart.productDistTitle'), left: 'center' },
       tooltip: { trigger: 'item' },
       series: [
         {
-          name: '销售额',
+          name: t('biSalesAnalysis.chart.salesAmount'),
           type: 'pie',
           radius: '50%',
           data: products.value.map((p) => ({ name: p.product_name, value: p.total_amount })),
@@ -123,7 +126,7 @@ function renderCharts() {
   if (regionChartRef.value) {
     regionChart = echarts.init(regionChartRef.value)
     regionChart.setOption({
-      title: { text: '区域销售分布', left: 'center' },
+      title: { text: t('biSalesAnalysis.chart.regionDistTitle'), left: 'center' },
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: regions.value.map((r) => r.region) },
       yAxis: { type: 'value' },
@@ -160,30 +163,34 @@ function resizeCharts() {
 
 <template>
   <div class="bi-sales-analysis">
-    <h2>BI 销售多维分析（P3-4 关键路径 demo）</h2>
+    <h2>{{ $t('biSalesAnalysis.title') }}</h2>
 
     <!-- 1. KPI 概览 -->
     <div class="kpi-row">
       <el-card class="kpi-card">
-        <div class="kpi-label">总销售额</div>
+        <div class="kpi-label">{{ $t('biSalesAnalysis.kpi.totalSales') }}</div>
         <div class="kpi-value">{{ formatCurrency(kpi?.total_sales) }}</div>
-        <div class="kpi-trend up">同比 +{{ kpi?.yoy_growth?.toFixed(1) }}%</div>
+        <div class="kpi-trend up">
+          {{ $t('biSalesAnalysis.kpi.yoyGrowth', { value: kpi?.yoy_growth?.toFixed(1) ?? '0' }) }}
+        </div>
       </el-card>
       <el-card class="kpi-card">
-        <div class="kpi-label">订单数</div>
+        <div class="kpi-label">{{ $t('biSalesAnalysis.kpi.orderCount') }}</div>
         <div class="kpi-value">{{ kpi?.order_count ?? '—' }}</div>
-        <div class="kpi-trend up">环比 +{{ kpi?.mom_growth?.toFixed(1) }}%</div>
+        <div class="kpi-trend up">
+          {{ $t('biSalesAnalysis.kpi.momGrowth', { value: kpi?.mom_growth?.toFixed(1) ?? '0' }) }}
+        </div>
       </el-card>
       <el-card class="kpi-card">
-        <div class="kpi-label">客户数</div>
+        <div class="kpi-label">{{ $t('biSalesAnalysis.kpi.customerCount') }}</div>
         <div class="kpi-value">{{ kpi?.customer_count ?? '—' }}</div>
       </el-card>
       <el-card class="kpi-card">
-        <div class="kpi-label">客单价</div>
+        <div class="kpi-label">{{ $t('biSalesAnalysis.kpi.avgOrderValue') }}</div>
         <div class="kpi-value">{{ formatCurrency(kpi?.avg_order_value) }}</div>
       </el-card>
       <el-card class="kpi-card">
-        <div class="kpi-label">毛利率</div>
+        <div class="kpi-label">{{ $t('biSalesAnalysis.kpi.grossMargin') }}</div>
         <div class="kpi-value">{{ profit?.gross_margin?.toFixed(1) ?? '—' }}%</div>
       </el-card>
     </div>
@@ -214,15 +221,15 @@ function resizeCharts() {
 
     <!-- 5. 月度钻取 -->
     <el-card class="chart-card">
-      <h3>2026 年月度销售（钻取：年 → 月）</h3>
-      <el-table :data="monthlyData" stripe aria-label="月度销售数据表">
-        <el-table-column prop="period" label="月份" width="120" />
-        <el-table-column prop="total_amount" label="销售额">
+      <h3>{{ $t('biSalesAnalysis.monthly.title', { year: 2026 }) }}</h3>
+      <el-table :data="monthlyData" stripe :aria-label="$t('biSalesAnalysis.monthly.tableAriaLabel')">
+        <el-table-column prop="period" :label="$t('biSalesAnalysis.monthly.period')" width="120" />
+        <el-table-column prop="total_amount" :label="$t('biSalesAnalysis.monthly.totalAmount')">
           <template #default="{ row }">{{ formatCurrency(row.total_amount) }}</template>
         </el-table-column>
-        <el-table-column prop="order_count" label="订单数" width="120" />
-        <el-table-column prop="quantity" label="数量" width="120" />
-        <el-table-column prop="profit_amount" label="利润">
+        <el-table-column prop="order_count" :label="$t('biSalesAnalysis.monthly.orderCount')" width="120" />
+        <el-table-column prop="quantity" :label="$t('biSalesAnalysis.monthly.quantity')" width="120" />
+        <el-table-column prop="profit_amount" :label="$t('biSalesAnalysis.monthly.profitAmount')">
           <template #default="{ row }">{{ formatCurrency(row.profit_amount) }}</template>
         </el-table-column>
       </el-table>

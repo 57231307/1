@@ -1,7 +1,6 @@
 /* 中文（简体）翻译 - 秉羲 ERP */
 /* 命名空间：{module}.{section}.{key} */
 export default {
-  /* ============ 通用 ============ */
   common: {
     confirm: '确认',
     cancel: '取消',
@@ -12,6 +11,7 @@ export default {
     search: '搜索',
     reset: '重置',
     export: '导出',
+    print: '打印',
     import: '导入',
     refresh: '刷新',
     loading: '加载中...',
@@ -43,9 +43,15 @@ export default {
     page: '页',
     total: '共',
     items: '条',
+    message: {
+      confirmTitle: '提示',
+      operationSuccess: '操作成功',
+      operationFailed: '操作失败',
+      updateSuccess: '更新成功',
+      createSuccess: '新增成功',
+      deleteSuccess: '删除成功'
+    }
   },
-
-  /* ============ 登录 ============ */
   login: {
     title: '秉羲 ERP',
     subtitle: '秉羲 ERP 系统',
@@ -60,7 +66,6 @@ export default {
     failed: '用户名或密码错误',
     locked: '账户已锁定，请 30 分钟后再试',
     networkError: '网络异常，请稍后重试',
-    /* 批次 23 v5 P0-1：Login.vue 接入 i18n 时新增的 key（含动态占位符） */
     formLabel: '登录表单',
     usernameRequired: '请输入用户名',
     passwordRequired: '请输入密码',
@@ -69,14 +74,11 @@ export default {
     remainingTime: '剩余等待时间：{minutes} 分 {seconds} 秒',
     unlocked: '账号已解除锁定，请重新登录',
     failedFallback: '登录失败',
-    /* 批次 389 FE-P2-3：密码过期引导文案国际化 */
     passwordExpiredMessage: '您的密码已超过 90 天未修改，为保障账户安全，请立即修改密码。',
     passwordExpiredTitle: '密码过期提醒',
     passwordExpiredConfirm: '立即修改',
-    passwordExpiredLater: '稍后提醒',
+    passwordExpiredLater: '稍后提醒'
   },
-
-  /* ============ Dashboard ============ */
   dashboard: {
     title: '工作台',
     welcome: '欢迎回来',
@@ -88,30 +90,26 @@ export default {
     topProducts: '热销商品 TOP 10',
     recentActivity: '最近动态',
     quickActions: '快捷入口',
-    /* 批次 389 FE-P2-3：Dashboard 页面文案国际化 */
     headerTitle: '仪表盘',
     dateRange: {
       to: '至',
       startPlaceholder: '开始日期',
-      endPlaceholder: '结束日期',
-    },
+      endPlaceholder: '结束日期'
+    }
   },
-
-  /* ============ 布局（批次 389 FE-P2-3：MainLayout 菜单/面包屑/用户菜单国际化） ============ */
   layout: {
     brand: '秉羲 ERP',
     menuAriaLabel: '主导航菜单',
     breadcrumb: {
-      home: '首页',
+      home: '首页'
     },
     user: {
       defaultName: '用户',
       profile: '个人信息',
-      logout: '退出登录',
+      logout: '退出登录'
     },
     menu: {
       dashboard: '仪表盘',
-      /* 面料管理 */
       fabric: '面料管理',
       fabricList: '面料列表',
       greigeFabrics: '坯布管理',
@@ -120,7 +118,6 @@ export default {
       colorCardsIssue: '色卡发放',
       colorPricesList: '色号价格',
       colorPricesBatchAdjust: '批量调价',
-      /* 库存管理 */
       inventory: '库存管理',
       inventoryList: '库存列表',
       warehouse: '仓库管理',
@@ -129,7 +126,6 @@ export default {
       inventoryTransfer: '库存调拨',
       inventoryAdjustment: '库存调整',
       logistics: '物流管理',
-      /* 销售管理 */
       sales: '销售管理',
       salesOrder: '销售订单',
       salesReturns: '销售退货',
@@ -140,7 +136,6 @@ export default {
       salesPrice: '销售价格',
       salesAnalysis: '销售分析',
       quotations: '报价单管理',
-      /* 采购管理 */
       purchase: '采购管理',
       purchaseOrder: '采购订单',
       purchaseReceipt: '采购入库',
@@ -151,14 +146,12 @@ export default {
       purchasePrice: '采购价格',
       purchaseInspection: '采购检验',
       purchaseReturn: '采购退货',
-      /* 客户关系 */
       crm: '客户关系',
       crmManagement: 'CRM 管理',
       crmPool: '公海客户池',
       crmAssignment: '客户分配',
       crmLeads: '线索管理',
       crmOpportunities: '商机管理',
-      /* 生产管理 */
       production: '生产管理',
       productionPlan: '生产计划',
       bom: 'BOM 管理',
@@ -172,7 +165,6 @@ export default {
       customOrders: '定制订单',
       dyeRecipe: '染色配方',
       dyeBatch: '染色批次',
-      /* 财务管理 */
       finance: '财务管理',
       financeOverview: '财务总览',
       ap: '应付管理',
@@ -192,7 +184,6 @@ export default {
       trading: '交易管理',
       arReconciliationEnhanced: '增强版应收对账',
       biSalesAnalysis: 'BI 销售分析',
-      /* 工作流 */
       workflow: '工作流',
       bpm: '审批管理',
       bpmDefinitions: '流程定义',
@@ -201,7 +192,6 @@ export default {
       businessTrace: '业务追溯',
       barcodeScanner: '扫码功能',
       qualityStandards: '质量标准',
-      /* 系统管理 */
       system: '系统管理',
       systemSettings: '系统设置',
       departments: '部门管理',
@@ -220,15 +210,12 @@ export default {
       security: '安全管理',
       email: '邮件管理',
       failover: '主备监控',
-      /* AI 智能 */
       ai: 'AI 智能',
       aiExtend: 'AI 分析深化',
       aiProcessOptimization: 'AI 工艺优化',
-      aiQualityPrediction: 'AI 质量预测',
-    },
+      aiQualityPrediction: 'AI 质量预测'
+    }
   },
-
-  /* ============ 销售管理 ============ */
   sales: {
     title: '销售管理',
     order: {
@@ -250,8 +237,8 @@ export default {
         confirmed: '已确认',
         shipped: '已发货',
         completed: '已完成',
-        cancelled: '已取消',
-      },
+        cancelled: '已取消'
+      }
     },
     customer: {
       title: '客户管理',
@@ -261,20 +248,18 @@ export default {
       contact: '联系人',
       phone: '联系电话',
       creditLimit: '信用额度',
-      level: '客户等级',
+      level: '客户等级'
     },
     quotation: {
       title: '销售报价',
       list: '报价列表',
-      create: '新建报价',
+      create: '新建报价'
     },
     return: {
       title: '销售退货',
-      list: '退货列表',
-    },
+      list: '退货列表'
+    }
   },
-
-  /* ============ 库存管理 ============ */
   inventory: {
     title: '库存管理',
     stock: {
@@ -288,27 +273,25 @@ export default {
       lockedQty: '锁定数量',
       unit: '单位',
       value: '库存价值',
-      alert: '库存预警',
+      alert: '库存预警'
     },
     inbound: {
       title: '入库单',
-      list: '入库列表',
+      list: '入库列表'
     },
     outbound: {
       title: '出库单',
-      list: '出库列表',
+      list: '出库列表'
     },
     transfer: {
       title: '调拨单',
-      list: '调拨列表',
+      list: '调拨列表'
     },
     count: {
       title: '库存盘点',
-      list: '盘点列表',
-    },
+      list: '盘点列表'
+    }
   },
-
-  /* ============ 系统设置 ============ */
   settings: {
     title: '系统设置',
     user: {
@@ -320,78 +303,74 @@ export default {
       phone: '手机号',
       role: '角色',
       lastLogin: '最后登录',
-      // 批次 32 v7 P0-2：用户管理 ElMessage 国际化 key
       updateSuccess: '更新成功',
       createSuccess: '创建成功',
-      deleteSuccess: '删除成功',
+      deleteSuccess: '删除成功'
     },
     role: {
       title: '角色管理',
-      list: '角色列表',
+      list: '角色列表'
     },
     permission: {
-      title: '权限管理',
+      title: '权限管理'
     },
     system: {
       title: '系统配置',
       basic: '基础设置',
       security: '安全设置',
-      notification: '通知设置',
-    },
+      notification: '通知设置'
+    }
   },
-
-  /* ============ 采购管理 ============ */
   purchase: {
     title: '采购管理',
     order: {
       title: '采购订单',
-      list: '采购订单列表',
+      list: '采购订单列表'
     },
     supplier: {
       title: '供应商管理',
-      list: '供应商列表',
+      list: '供应商列表'
     },
     receipt: {
       title: '采购收货',
-      list: '收货列表',
-    },
+      list: '收货列表'
+    }
   },
-
-  /* ============ 财务管理 ============ */
   finance: {
     title: '财务管理',
     ar: {
       title: '应收账款',
-      list: '应收列表',
+      list: '应收列表'
     },
     ap: {
       title: '应付账款',
-      list: '应付列表',
+      list: '应付列表'
     },
     payment: {
-      title: '收付款',
+      title: '收付款'
     },
     report: {
-      title: '财务报表',
-    },
+      title: '财务报表'
+    }
   },
-
-  /* ============ 错误信息 ============ */
   error: {
-    400: '请求参数错误',
-    401: '未授权，请重新登录',
-    403: '权限不足',
-    404: '资源不存在',
-    429: '请求过于频繁，请稍后重试',
-    500: '服务器内部错误',
-    502: '网关错误',
-    503: '服务暂不可用',
+    '400': '请求参数错误',
+    '401': '未授权，请重新登录',
+    '403': '权限不足',
+    '404': '资源不存在',
+    '429': '请求过于频繁，请稍后重试',
+    '500': '服务器内部错误',
+    '502': '网关错误',
+    '503': '服务暂不可用',
     networkError: '网络连接失败',
     timeout: '请求超时',
     unknown: '未知错误',
+    page: {
+      forbiddenMessage: '您没有权限访问此页面',
+      notFoundDesc: '页面不存在',
+      backHome: '返回首页'
+    }
   },
-
-  /* ============ 通用消息 ============ */
   message: {
     saveSuccess: '保存成功',
     saveFailed: '保存失败',
@@ -414,58 +393,396 @@ export default {
     exportFailed: '导出失败',
     networkError: '网络异常',
     permissionDenied: '权限不足',
-    sessionExpired: '会话已过期，请重新登录',
+    sessionExpired: '会话已过期，请重新登录'
   },
-
-  /* ============ AI 扩展 ============ */
   aiExtend: {
     qualityPrediction: {
       loadListFailed: '加载列表失败',
       productIdRequired: '请填写产品 ID',
       confirmDelete: '确定删除产品 {name} 的质量预测记录？',
       global: '全局',
+      listTitle: 'AI 质量预测',
+      newPredict: '新建预测',
+      colProductId: '产品 ID',
+      colInspectionType: '检验类型',
+      colRiskLevel: '风险等级',
+      colAckStatus: '确认状态',
+      query: '查询',
+      reset: '重置',
+      colTotalInspections: '检验总数',
+      colAvgRate: '平均合格率',
+      colTrend: '趋势',
+      colConfidence: '置信度',
+      colAck: '确认',
+      acknowledged: '已确认',
+      ackPending: '待确认',
+      ackAll: '全部',
+      colTime: '时间',
+      colAction: '操作',
+      detail: '详情',
+      ack: '确认',
+      delete: '删除',
+      predictSuccess: '预测完成（风险：{risk}，分数：{score}，趋势：{trend}）',
+      ackSuccess: '确认成功',
+      ackFailed: '确认失败',
+      deleted: '删除成功',
+      createDialogTitle: '触发 AI 质量预测',
+      typeAll: '全部',
+      typeIncoming: '进货检验',
+      typeInprocess: '过程检验',
+      typeFinal: '成品检验',
+      typeOutgoing: '出货检验',
+      timeWindow: '时间窗口',
+      timeWindowHint: '天（范围 7-365）',
+      alertText: '基于历史检验记录预测未来质量风险。',
+      cancel: '取消',
+      generate: '开始预测',
+      detailTitle: '预测详情',
+      detailTimeWindow: '时间窗口',
+      detailUnitDays: '天',
+      trendChart: '趋势图',
+      topIssues: '主要问题归因',
+      colIssue: '问题',
+      colCount: '次数',
+      colPercentage: '占比',
+      recommendations: '建议措施'
     },
     process: {
       invalidId: '无效的工艺优化 ID',
       loadDetailFailed: '加载详情失败',
       confirmDelete: '确定删除此工艺优化记录？',
       createFailed: '创建失败',
+      detailTitle: '工艺优化详情',
+      back: '返回',
+      deleteRecord: '删除记录',
+      recommendParams: '推荐参数',
+      colColorNo: '色号',
+      colColorName: '颜色名称',
+      colFabricType: '面料类型',
+      colDyeType: '染料类型',
+      recTemperature: '推荐温度',
+      recTime: '推荐时间',
+      unitMinutes: '分钟',
+      recPh: '推荐 pH 值',
+      recLiquorRatio: '推荐浴比',
+      recSource: '推荐来源',
+      confidence: '置信度',
+      appAndFeedback: '采纳与反馈',
+      applyStatus: '采纳状态',
+      applied: '已采纳',
+      notApplied: '未采纳',
+      applyTime: '采纳时间',
+      feedbackScore: '反馈评分',
+      feedbackRemark: '反馈备注',
+      similarCases: '相似案例数',
+      requestId: '请求 ID',
+      createdAt: '创建时间',
+      similarHistory: '相似历史案例',
+      colCaseId: '案例 ID',
+      colSimilarity: '相似度',
+      colTemperature: '温度',
+      colTime: '时间',
+      colPh: 'pH',
+      colLiquorRatio: '浴比',
+      deleted: '删除成功',
+      listTitle: '工艺优化',
+      newRecommend: '新建推荐',
+      colorNoRequired: '请填写色号',
+      fabricTypeRequired: '请填写面料类型',
+      recommendSuccess: '推荐成功（来源：{source}，置信度：{confidence}）',
+      confirmDeleteRow: '确定删除色号 {name} 的工艺优化记录？',
+      sourceAll: '全部来源',
+      sourceKnn: 'KNN 算法',
+      sourceFallback: '兜底算法',
+      appliedAll: '全部状态',
+      colSource: '来源',
+      colApplyStatus: '采纳状态',
+      query: '查询',
+      reset: '重置',
+      colorNoPlaceholder: '请输入色号',
+      fabricPlaceholder: '请输入面料类型',
+      colSimilar: '相似',
+      colConfidence: '置信度',
+      colRecParams: '推荐参数',
+      colApplied: '采纳',
+      colFeedback: '反馈',
+      colCreatedAt: '创建时间',
+      colAction: '操作',
+      detail: '详情',
+      delete: '删除',
+      createDialogTitle: '新建工艺优化',
+      colorNamePlaceholder: '请输入颜色名称',
+      fabricTypePlaceholder: '请输入面料类型',
+      dyeTypePlaceholder: '请选择染料类型',
+      dyeReactive: '活性染料',
+      dyeDisperse: '分散染料',
+      dyeAcid: '酸性染料',
+      dyeVat: '还原染料',
+      dyeDirect: '直接染料',
+      knnKValue: 'K 值',
+      knnHint: '推荐 3-10',
+      knnAlert: 'K 值越大，推荐越稳定但可能越保守；K 值越小，推荐越激进。',
+      cancel: '取消',
+      generate: '生成推荐'
     },
+    overview: {
+      title: 'AI 分析深化',
+      serviceStatus: '服务状态：{status}（v{version}）',
+      serviceOk: '正常',
+      serviceError: '异常',
+      refresh: '刷新',
+      kpiProcessHistory: '工艺优化历史',
+      kpiKnnRecommended: 'KNN 推荐 {n} 条',
+      kpiApplyRate: '采纳率',
+      kpiApplied: '已采纳 {n} 条',
+      kpiQualityHistory: '质量预测历史',
+      kpiHighRisk: '高风险 {n} 条',
+      kpiUnack: '待确认',
+      kpiUnackHint: '待确认预警',
+      actionProcess: '工艺优化',
+      actionProcessDesc: '基于历史数据推荐染色工艺参数',
+      actionQuality: '质量预测',
+      actionQualityDesc: '预测产品质量风险与趋势',
+      actionHistory: '历史记录',
+      actionHistoryDesc: '查看工艺优化与质量预测历史',
+      latestProcess: '最新工艺优化',
+      colColorNo: '色号',
+      colFabricType: '面料',
+      colSource: '来源',
+      colConfidence: '置信度',
+      colApplied: '采纳',
+      applied: '已采纳',
+      notApplied: '未采纳',
+      colTime: '时间',
+      latestQuality: '最新质量预测',
+      colProductId: '产品 ID',
+      colRisk: '风险',
+      colRiskScore: '风险分',
+      colTrend: '趋势',
+      colAck: '确认',
+      acknowledged: '已确认',
+      unacknowledged: '未确认'
+    }
   },
-
-  /* ============ 预算管理 ============ */
   budget: {
     validation: {
       budgetNoRequired: '请输入预算编号',
       nameRequired: '请输入预算名称',
       periodRequired: '请输入期间',
-      totalAmountRequired: '请输入预算总额',
+      totalAmountRequired: '请输入预算总额'
     },
     confirmAudit: '确定审核预算 "{name}" 吗？',
     auditSuccess: '审核成功',
+    title: '预算管理',
+    createBudget: '新建预算',
+    export: '导出',
+    filter: {
+      ariaLabel: '预算筛选表单',
+      budgetNo: '预算编号',
+      budgetNoPlaceholder: '预算编号',
+      name: '预算名称',
+      namePlaceholder: '预算名称',
+      status: '状态',
+      statusPlaceholder: '选择状态',
+      query: '查询',
+      reset: '重置'
+    },
+    status: {
+      draft: '草稿',
+      pending: '待审核',
+      approved: '已审核',
+      rejected: '已驳回'
+    },
+    table: {
+      ariaLabel: '预算列表',
+      budgetNo: '预算编号',
+      name: '预算名称',
+      period: '期间',
+      department: '部门',
+      totalAmount: '预算总额',
+      status: '状态',
+      remark: '备注',
+      operation: '操作',
+      edit: '编辑',
+      approve: '审核',
+      delete: '删除',
+      paginationAriaLabel: '预算列表分页'
+    },
+    dialog: {
+      editTitle: '编辑预算',
+      createTitle: '新建预算',
+      ariaLabel: '预算编辑对话框',
+      formAriaLabel: '预算信息表单',
+      budgetNo: '预算编号',
+      name: '预算名称',
+      period: '期间',
+      periodPlaceholder: '如 2026-06',
+      totalAmount: '预算总额',
+      departmentId: '部门 ID',
+      remark: '备注',
+      cancel: '取消',
+      confirm: '确定'
+    },
+    message: {
+      loadFailed: '加载预算列表失败',
+      operationFailed: '操作失败',
+      auditFailed: '审核失败',
+      deleteConfirm: '确定删除预算 "{name}" 吗？',
+      deleteFailed: '删除失败',
+      listExported: '预算列表已导出'
+    }
   },
-
-  /* ============ 库存调拨 ============ */
+  businessTrace: {
+    tab: {
+      fiveDimension: '五维追溯',
+      forward: '正向追溯',
+      backward: '反向追溯'
+    },
+    fiveDimensionCardTitle: '五维追溯查询',
+    placeholder: {
+      fiveDimensionId: '请输入五维追溯 ID',
+      supplierId: '请输入供应商 ID',
+      batchNo: '请输入批号',
+      customerId: '请输入客户 ID'
+    },
+    button: {
+      trace: '追溯',
+      createSnapshot: '创建快照',
+      forwardTrace: '正向追溯',
+      backwardTrace: '反向追溯'
+    },
+    card: {
+      traceChainDetail: '追溯链详情',
+      traceFlow: '追溯流程',
+      supplierToCustomer: '供应商到客户（正向）',
+      customerToSupplier: '客户到供应商（反向）'
+    },
+    field: {
+      traceChainId: '追溯链 ID',
+      fiveDimensionId: '五维追溯 ID',
+      productId: '产品 ID',
+      batchNo: '批号',
+      colorNo: '色号',
+      grade: '等级',
+      totalStages: '总阶段数',
+      startTime: '开始时间',
+      endTime: '结束时间',
+      supplierId: '供应商 ID',
+      customerId: '客户 ID'
+    },
+    stageDetailTitle: '阶段明细',
+    stageTableAriaLabel: '追溯阶段明细表',
+    table: {
+      stageId: '阶段 ID',
+      stageName: '阶段名称',
+      billType: '单据类型',
+      billNo: '单据号',
+      warehouse: '仓库',
+      supplier: '供应商',
+      customer: '客户',
+      quantityMeters: '数量（米）',
+      quantityKg: '数量（千克）',
+      time: '时间',
+      forwardResultAriaLabel: '正向追溯结果表',
+      traceChainId: '追溯链 ID',
+      currentStage: '当前阶段',
+      currentBillNo: '当前单据号',
+      createdAt: '创建时间',
+      backwardResultAriaLabel: '反向追溯结果表'
+    },
+    empty: {
+      fiveDimensionTitle: '请输入五维追溯 ID',
+      fiveDimensionSubTitle: '输入五维追溯 ID 后开始查询追溯链',
+      queryTitle: '暂无追溯结果',
+      forwardSubTitle: '输入供应商和批号后开始正向追溯',
+      backwardSubTitle: '输入客户和批号后开始反向追溯'
+    },
+    form: {
+      forwardAriaLabel: '正向追溯表单',
+      backwardAriaLabel: '反向追溯表单'
+    },
+    message: {
+      fiveDimensionIdRequired: '请输入五维追溯 ID',
+      traceFailed: '追溯查询失败',
+      supplierAndBatchRequired: '请输入供应商和批号',
+      forwardTraceFailed: '正向追溯失败',
+      customerAndBatchRequired: '请输入客户和批号',
+      backwardTraceFailed: '反向追溯失败',
+      queryTraceFirst: '请先查询追溯链',
+      snapshotCreated: '快照创建成功',
+      createSnapshotFailed: '快照创建失败'
+    }
+  },
+  capacityModule: {
+    title: '产能分析',
+    dateRange: {
+      to: '至',
+      startPlaceholder: '开始日期',
+      endPlaceholder: '结束日期'
+    },
+    workCenterPlaceholder: '选择工作中心',
+    allWorkCenters: '全部工作中心',
+    stat: {
+      totalWorkCenters: '工作中心总数',
+      normal: '正常',
+      busy: '繁忙',
+      overload: '超负荷'
+    },
+    trend: {
+      title: '产能负荷趋势',
+      last7Days: '近 7 天',
+      last30Days: '近 30 天',
+      plannedHours: '计划工时',
+      actualHours: '实际工时',
+      capacityHours: '产能工时',
+      hoursUnit: '工时'
+    },
+    table: {
+      title: '工作中心列表',
+      refresh: '刷新',
+      ariaLabel: '工作中心列表',
+      code: '编码',
+      name: '名称',
+      capacityHours: '产能工时',
+      usedHours: '已用工时',
+      loadRate: '负荷率',
+      status: '状态',
+      bottleneck: '瓶颈',
+      paginationAriaLabel: '工作中心列表分页'
+    },
+    bottleneck: {
+      title: '瓶颈识别',
+      count: '共 {count} 个',
+      empty: '暂无瓶颈工作中心',
+      tag: '瓶颈',
+      loadRate: '负荷率',
+      usedHours: '已用 / 产能工时'
+    },
+    workCenterStatus: {
+      normal: '正常',
+      busy: '繁忙',
+      overload: '超负荷'
+    },
+    common: {
+      yes: '是'
+    }
+  },
   inventoryTransfer: {
     approvePassed: '审批通过',
     confirmReject: '确定要驳回此调拨单吗？',
-    rejected: '已驳回',
+    rejected: '已驳回'
   },
-
-  /* ============ 成本管理 ============ */
   cost: {
     validation: {
       collectionDateRequired: '请选择归集日期',
       directMaterialRequired: '请输入直接材料',
       directLaborRequired: '请输入直接人工',
-      manufacturingOverheadRequired: '请输入制造费用',
+      manufacturingOverheadRequired: '请输入制造费用'
     },
     confirmDelete: '确定删除归集单 "{name}" 吗？',
     confirmAction: '确定{action}该成本归集吗？',
-    actionConfirmTitle: '{action}确认',
+    actionConfirmTitle: '{action}确认'
   },
-
-  /* ============ 固定资产（D05 Batch 1：AssetListTab.vue 接入 i18n） ============ */
   fixedAssets: {
     title: '固定资产',
     create: '新建资产',
@@ -482,19 +799,19 @@ export default {
       status: '状态',
       statusPlaceholder: '选择状态',
       query: '查询',
-      reset: '重置',
+      reset: '重置'
     },
     category: {
       building: '房屋建筑',
       equipment: '机器设备',
       vehicle: '运输工具',
       electronic: '电子设备',
-      furniture: '办公家具',
+      furniture: '办公家具'
     },
     status: {
       inUse: '在用',
       idle: '闲置',
-      disposed: '已处置',
+      disposed: '已处置'
     },
     table: {
       ariaLabel: '固定资产列表',
@@ -512,7 +829,7 @@ export default {
       depreciate: '折旧',
       dispose: '处置',
       delete: '删除',
-      paginationAriaLabel: '固定资产列表分页',
+      paginationAriaLabel: '固定资产列表分页'
     },
     dialog: {
       editTitle: '编辑资产',
@@ -532,13 +849,13 @@ export default {
       location: '位置',
       custodian: '保管人',
       cancel: '取消',
-      confirm: '确定',
+      confirm: '确定'
     },
     depreciationMethod: {
       straightLine: '直线法',
       workload: '工作量法',
       doubleDeclining: '双倍余额递减',
-      sumOfYears: '年数总和法',
+      sumOfYears: '年数总和法'
     },
     disposal: {
       title: '资产处置',
@@ -557,7 +874,7 @@ export default {
       confirm: '确认处置',
       typeSale: '出售',
       typeScrap: '报废',
-      typeTransfer: '转移',
+      typeTransfer: '转移'
     },
     message: {
       loadListFailed: '获取资产列表失败',
@@ -583,7 +900,7 @@ export default {
       batchDepreciateFailed: '批量计提折旧失败',
       invalidPeriod: '请输入有效的期间（YYYY-MM）',
       noInUseAsset: '没有处于在用状态的资产可计提折旧',
-      userNotFound: '无法获取当前用户信息，请重新登录',
+      userNotFound: '无法获取当前用户信息，请重新登录'
     },
     validation: {
       disposalTypeRequired: '请选择处置方式',
@@ -596,11 +913,9 @@ export default {
       purchaseDateRequired: '请选择购置日期',
       purchaseAmountRequired: '请输入原值',
       usefulLifeRequired: '请输入使用年限',
-      depreciationMethodRequired: '请选择折旧方法',
-    },
+      depreciationMethodRequired: '请选择折旧方法'
+    }
   },
-
-  /* ============ 打印模板（D05 Batch 2：print-templates/index.vue 接入 i18n） ============ */
   printTemplates: {
     title: '打印模板管理',
     create: '新建模板',
@@ -614,7 +929,7 @@ export default {
       inventory: '库存',
       finance: '财务',
       production: '生产',
-      logistics: '物流',
+      logistics: '物流'
     },
     type: {
       placeholder: '类型',
@@ -623,20 +938,20 @@ export default {
       receipt: '收据',
       label: '标签',
       report: '报表',
-      custom: '自定义',
+      custom: '自定义'
     },
     status: {
       placeholder: '状态',
       active: '启用',
-      inactive: '停用',
+      inactive: '停用'
     },
     orientation: {
       portrait: '纵向',
-      landscape: '横向',
+      landscape: '横向'
     },
     yesNo: {
       yes: '是',
-      no: '否',
+      no: '否'
     },
     table: {
       ariaLabel: '打印模板列表',
@@ -653,7 +968,7 @@ export default {
       copy: '复制',
       edit: '编辑',
       setDefault: '设为默认',
-      delete: '删除',
+      delete: '删除'
     },
     dialog: {
       editTitle: '编辑模板',
@@ -680,14 +995,14 @@ export default {
       variables: '变量配置',
       variablesPlaceholder: 'JSON格式变量，例如：{"company_name": "公司名称", "date": "日期"}',
       cancel: '取消',
-      confirm: '确定',
+      confirm: '确定'
     },
     previewDialog: {
       title: '模板预览',
       ariaLabel: '模板预览对话框',
       noData: '暂无预览数据',
       close: '关闭',
-      print: '打印',
+      print: '打印'
     },
     message: {
       loadFailed: '获取数据失败',
@@ -706,7 +1021,7 @@ export default {
       setDefaultSuccess: '设置成功',
       setDefaultFailed: '设置失败',
       copySuccess: '复制成功',
-      copyFailed: '复制失败',
+      copyFailed: '复制失败'
     },
     validation: {
       templateCodeRequired: '请输入模板编号',
@@ -715,29 +1030,27 @@ export default {
       typeRequired: '请选择类型',
       paperSizeRequired: '请选择纸张大小',
       orientationRequired: '请选择方向',
-      contentRequired: '请输入模板内容',
-    },
+      contentRequired: '请输入模板内容'
+    }
   },
-
-  /* ============ 审批管理（D05 Batch 2：bpm/index.vue 接入 i18n） ============ */
   bpm: {
     title: '审批管理',
     breadcrumb: {
       home: '首页',
       bpm: '审批管理',
-      myApproval: '我的审批',
+      myApproval: '我的审批'
     },
     stats: {
       pendingTasks: '待审批',
       completedTasks: '已完成',
       urgentTasks: '紧急任务',
-      avgProcessingTime: '平均处理时长',
+      avgProcessingTime: '平均处理时长'
     },
     tab: {
       pending: '待审批任务',
       initiated: '我发起的',
       processed: '已处理记录',
-      monitor: '流程监控',
+      monitor: '流程监控'
     },
     pendingTable: {
       ariaLabel: '待审批任务列表',
@@ -751,7 +1064,7 @@ export default {
       approve: '审批',
       detail: '详情',
       transfer: '转交',
-      urge: '催办',
+      urge: '催办'
     },
     initiatedTable: {
       ariaLabel: '我发起的流程列表',
@@ -762,7 +1075,7 @@ export default {
       currentNode: '当前节点',
       operation: '操作',
       trace: '追溯',
-      cancel: '撤回',
+      cancel: '撤回'
     },
     processedTable: {
       ariaLabel: '已处理任务列表',
@@ -773,7 +1086,7 @@ export default {
       result: '审批结果',
       approved: '同意',
       rejected: '拒绝',
-      comment: '审批意见',
+      comment: '审批意见'
     },
     monitorTable: {
       ariaLabel: '流程实例监控列表',
@@ -785,18 +1098,18 @@ export default {
       status: '状态',
       operation: '操作',
       view: '查看',
-      processImage: '流程图',
+      processImage: '流程图'
     },
     priority: {
       high: '高',
       medium: '中',
-      low: '低',
+      low: '低'
     },
     processStatus: {
       running: '进行中',
       completed: '已完成',
       cancelled: '已取消',
-      suspended: '已挂起',
+      suspended: '已挂起'
     },
     detail: {
       instanceId: '实例 ID',
@@ -811,7 +1124,7 @@ export default {
       processImageTitle: '流程图：{instanceId}',
       traceTitle: '流程追溯：{instanceId}',
       currentActivity: '当前活动',
-      activityHistory: '活动历史',
+      activityHistory: '活动历史'
     },
     message: {
       fetchPendingFailed: '获取待处理任务失败',
@@ -846,11 +1159,297 @@ export default {
       cancelFailed: '撤回失败',
       fetchProcessDetailFailed: '获取流程详情失败',
       processImageNotFound: '未找到流程图信息',
-      fetchProcessImageFailed: '获取流程图失败',
+      fetchProcessImageFailed: '获取流程图失败'
     },
+    nodeType: {
+      start: '开始',
+      end: '结束',
+      approval: '审批',
+      condition: '条件',
+      notify: '通知'
+    },
+    approval: {
+      title: '审批中心',
+      breadcrumb: {
+        approval: '审批管理',
+        center: '审批中心'
+      },
+      tab: {
+        pending: '待审批',
+        completed: '已审批'
+      },
+      stat: {
+        pending: '待审批',
+        completed: '已完成',
+        urgent: '紧急任务',
+        avgTime: '平均处理时长'
+      },
+      approvalDialog: {
+        ariaLabel: '审批对话框',
+        approveTitle: '审批通过',
+        rejectTitle: '驳回',
+        formAriaLabel: '审批表单',
+        taskName: '任务名称',
+        comment: '审批意见',
+        commentPlaceholder: '请输入审批意见',
+        cancel: '取消',
+        confirm: '确定'
+      },
+      chainDialog: {
+        ariaLabel: '审批链对话框',
+        title: '审批链',
+        approver: '审批人',
+        comment: '意见',
+        durationText: '耗时 {minutes} 分钟',
+        empty: '暂无审批链记录'
+      },
+      transferDialog: {
+        ariaLabel: '转交任务对话框',
+        title: '转交任务',
+        formAriaLabel: '转交任务表单',
+        taskName: '任务名称',
+        targetUserId: '接收人ID',
+        comment: '转交意见',
+        commentPlaceholder: '请输入转交意见',
+        cancel: '取消',
+        confirm: '确定'
+      },
+      pendingTable: {
+        taskName: '任务名称',
+        processName: '流程名称',
+        applicant: '申请人',
+        businessKey: '业务单号',
+        applyTime: '申请时间',
+        dueDate: '截止时间',
+        priority: '优先级',
+        operation: '操作',
+        approve: '同意',
+        reject: '拒绝',
+        transfer: '转交',
+        viewChain: '审批链'
+      },
+      completedTable: {
+        taskName: '任务名称',
+        processName: '流程名称',
+        applicant: '申请人',
+        businessKey: '业务单号',
+        approvedAt: '审批时间',
+        result: '审批结果',
+        approved: '同意',
+        rejected: '拒绝',
+        comment: '审批意见',
+        operation: '操作',
+        viewChain: '审批链'
+      }
+    },
+    definitions: {
+      title: '流程定义',
+      create: '新建流程',
+      formRules: {
+        processKeyRequired: '请输入流程标识',
+        processNameRequired: '请输入流程名称',
+        categoryRequired: '请选择分类'
+      },
+      templateRules: {
+        templateNameRequired: '请输入模板名称',
+        categoryRequired: '请选择分类'
+      },
+      nodePrefix: '节点 {index}',
+      filter: {
+        ariaLabel: '流程定义筛选表单',
+        processName: '流程名称',
+        processNamePlaceholder: '请输入流程名称',
+        category: '流程分类',
+        categoryPlaceholder: '选择分类',
+        query: '查询',
+        reset: '重置'
+      },
+      form: {
+        editTitle: '编辑流程定义',
+        createTitle: '新建流程定义',
+        editAriaLabel: '编辑流程定义对话框',
+        createAriaLabel: '新建流程定义对话框',
+        ariaLabel: '流程定义表单',
+        processKey: '流程标识',
+        processKeyPlaceholder: '请输入流程标识（英文字母）',
+        processName: '流程名称',
+        processNamePlaceholder: '请输入流程名称',
+        category: '分类',
+        categoryPlaceholder: '请选择分类',
+        description: '描述',
+        descriptionPlaceholder: '请输入描述',
+        nodeConfig: '节点配置',
+        addNode: '添加节点',
+        nodeTableAriaLabel: '流程节点列表',
+        nodeType: '节点类型',
+        nodeName: '节点名称',
+        assigneeType: '审批人类型',
+        assigneeValue: '审批人/角色ID',
+        condition: '条件表达式',
+        conditionPlaceholder: '如：amount > 1000',
+        operation: '操作',
+        delete: '删除',
+        cancel: '取消',
+        confirm: '确定'
+      },
+      table: {
+        ariaLabel: '流程定义列表',
+        processKey: '流程标识',
+        processName: '流程名称',
+        category: '分类',
+        version: '当前版本',
+        status: '状态',
+        description: '描述',
+        createdAt: '创建时间',
+        operation: '操作',
+        edit: '编辑',
+        versions: '版本',
+        saveAsTemplate: '保存为模板',
+        delete: '删除',
+        paginationAriaLabel: '流程定义列表分页'
+      },
+      versionDialog: {
+        title: '版本管理 - {name}',
+        ariaLabel: '流程版本对话框',
+        createVersion: '创建新版本',
+        tableAriaLabel: '流程版本列表',
+        version: '版本号',
+        status: '状态',
+        changeLog: '变更说明',
+        createdAt: '创建时间',
+        createdBy: '创建人',
+        operation: '操作',
+        activate: '激活'
+      },
+      templateDialog: {
+        title: '保存为模板',
+        ariaLabel: '流程模板对话框',
+        formAriaLabel: '流程模板表单',
+        templateName: '模板名称',
+        templateNamePlaceholder: '请输入模板名称',
+        category: '分类',
+        categoryPlaceholder: '请选择分类',
+        description: '描述',
+        descriptionPlaceholder: '请输入模板描述',
+        cancel: '取消',
+        save: '保存'
+      },
+      status: {
+        draft: '草稿',
+        active: '已发布',
+        suspended: '已暂停',
+        deprecated: '已废弃'
+      },
+      versionStatus: {
+        draft: '草稿',
+        active: '激活',
+        deprecated: '废弃'
+      },
+      category: {
+        finance: '财务',
+        hr: '人事',
+        purchase: '采购',
+        sales: '销售',
+        production: '生产',
+        inventory: '库存',
+        other: '其他'
+      },
+      nodeType: {
+        start: '开始',
+        approval: '审批',
+        condition: '条件',
+        notify: '通知',
+        end: '结束'
+      },
+      assigneeType: {
+        user: '指定用户',
+        role: '指定角色',
+        department: '指定部门',
+        dynamic: '动态计算'
+      }
+    },
+    templates: {
+      title: '流程模板库',
+      breadcrumb: {
+        home: '首页',
+        approval: '审批管理',
+        templates: '模板库'
+      },
+      filter: {
+        ariaLabel: '流程模板筛选表单',
+        category: '模板分类',
+        categoryPlaceholder: '全部分类',
+        query: '查询',
+        reset: '重置'
+      },
+      category: {
+        sales: '销售模板',
+        purchase: '采购模板',
+        finance: '财务模板',
+        hr: '人事模板',
+        production: '生产模板',
+        common: '通用模板'
+      },
+      card: {
+        viewDetail: '查看详情',
+        createFromTemplate: '从模板创建',
+        deleteTemplate: '删除模板',
+        noDescription: '暂无描述',
+        usageCount: '使用 {count} 次',
+        useThisTemplate: '使用此模板'
+      },
+      empty: '暂无模板数据',
+      paginationAriaLabel: '流程模板分页',
+      detailDialog: {
+        title: '模板详情',
+        ariaLabel: '流程模板详情对话框',
+        descriptionsAriaLabel: '流程模板详情',
+        templateName: '模板名称',
+        templateCategory: '模板分类',
+        templateKey: '模板标识',
+        usageCount: '使用次数',
+        createdAt: '创建时间',
+        description: '描述',
+        nodePreview: '流程节点预览',
+        nodePreviewAriaLabel: '流程节点预览列表',
+        nodeType: '节点类型',
+        nodeName: '节点名称',
+        assigneeType: '审批人类型',
+        assigneeValue: '审批人值',
+        close: '关闭',
+        createFromTemplate: '从模板创建'
+      },
+      createDialog: {
+        title: '从模板创建流程',
+        ariaLabel: '从模板创建流程对话框',
+        formAriaLabel: '从模板创建流程表单',
+        templateName: '模板名称',
+        processName: '流程名称',
+        processNamePlaceholder: '默认使用模板名称',
+        cancel: '取消',
+        confirm: '确定'
+      },
+      nodeType: {
+        start: '开始',
+        end: '结束',
+        approval: '审批',
+        condition: '条件',
+        notify: '通知'
+      },
+      assigneeType: {
+        user: '指定用户',
+        role: '角色',
+        department: '部门',
+        dynamic: '动态'
+      },
+      message: {
+        createSuccess: '创建成功',
+        deleteSuccess: '删除成功',
+        deleteConfirm: '确定删除模板「{name}」吗？',
+        deleteConfirmTitle: '确认'
+      }
+    }
   },
-
-  /* ============ 报表模板（D05 Batch 3：report-templates/index.vue 接入 i18n） ============ */
   reportTemplates: {
     title: '报表中心',
     create: '新建模板',
@@ -863,16 +1462,16 @@ export default {
       inventory: '库存',
       finance: '财务',
       production: '生产',
-      custom: '自定义',
+      custom: '自定义'
     },
     status: {
       placeholder: '状态',
       active: '启用',
-      inactive: '停用',
+      inactive: '停用'
     },
     yesNo: {
       yes: '是',
-      no: '否',
+      no: '否'
     },
     table: {
       ariaLabel: '报表模板列表',
@@ -888,7 +1487,7 @@ export default {
       preview: '预览',
       generate: '生成',
       edit: '编辑',
-      delete: '删除',
+      delete: '删除'
     },
     dialog: {
       editTitle: '编辑模板',
@@ -910,13 +1509,13 @@ export default {
       parameters: '参数配置',
       parametersPlaceholder: 'JSON格式参数，例如：{"date_range": true, "department": true}',
       cancel: '取消',
-      confirm: '确定',
+      confirm: '确定'
     },
     previewDialog: {
       title: '报表预览',
       ariaLabel: '报表预览对话框',
       noData: '暂无预览数据',
-      close: '关闭',
+      close: '关闭'
     },
     message: {
       loadFailed: '获取数据失败',
@@ -929,24 +1528,22 @@ export default {
       deleteFailed: '删除失败',
       previewFailed: '预览失败',
       generateSuccess: '报表生成成功',
-      generateFailed: '生成失败',
+      generateFailed: '生成失败'
     },
     validation: {
       templateCodeRequired: '请输入模板编号',
       templateNameRequired: '请输入模板名称',
       categoryRequired: '请选择分类',
       formatRequired: '请选择格式',
-      contentRequired: '请输入模板内容',
-    },
+      contentRequired: '请输入模板内容'
+    }
   },
-
-  /* ============ 质量管理（D05 Batch 3：quality/index.vue 接入 i18n） ============ */
   quality: {
     tabAriaLabel: '质量管理标签页',
     tab: {
       standard: '质量标准',
       record: '检验记录',
-      defect: '缺陷管理',
+      defect: '缺陷管理'
     },
     standardDialog: {
       editTitle: '编辑标准',
@@ -968,7 +1565,7 @@ export default {
       attachments: '附件',
       attachmentsPlaceholder: 'JSON格式数组，例如：["附件1.pdf", "附件2.docx"]',
       cancel: '取消',
-      confirm: '确定',
+      confirm: '确定'
     },
     approveDialog: {
       title: '审批质量标准',
@@ -981,7 +1578,7 @@ export default {
       approvalCommentPlaceholder: '请输入审批意见',
       cancel: '取消',
       reject: '驳回',
-      pass: '通过',
+      pass: '通过'
     },
     versionHistory: {
       title: '版本历史',
@@ -993,7 +1590,7 @@ export default {
       createdAt: '创建时间',
       approvedBy: '审批人',
       approvedAt: '审批时间',
-      close: '关闭',
+      close: '关闭'
     },
     recordDialog: {
       editTitle: '编辑检验',
@@ -1015,19 +1612,19 @@ export default {
         incoming: '进货检验',
         process: '过程检验',
         finished: '成品检验',
-        outgoing: '出厂检验',
+        outgoing: '出厂检验'
       },
       resultOptions: {
         pass: '合格',
         fail: '不合格',
-        pending: '待检',
-      },
+        pending: '待检'
+      }
     },
     standardStatus: {
       draft: '草稿',
       approved: '已审批',
       published: '已发布',
-      rejected: '已驳回',
+      rejected: '已驳回'
     },
     message: {
       attachmentsFormatError: '附件格式错误，请检查JSON格式',
@@ -1040,7 +1637,7 @@ export default {
       rejectCancelButton: '取消',
       rejectPlaceholder: '驳回原因（选填）',
       rejectSuccess: '驳回成功',
-      fetchVersionHistoryFailed: '获取版本历史失败',
+      fetchVersionHistoryFailed: '获取版本历史失败'
     },
     validation: {
       standardCodeRequired: '请输入标准编号',
@@ -1048,11 +1645,9 @@ export default {
       typeRequired: '请选择类型',
       versionRequired: '请输入版本号',
       contentRequired: '请输入标准内容',
-      approvalCommentRequired: '请输入审批意见',
-    },
+      approvalCommentRequired: '请输入审批意见'
+    }
   },
-
-  /* ============ CRM 客户管理（D05 Batch 4：CustomerListTab.vue 接入 i18n） ============ */
   crmCustomer: {
     title: '客户管理',
     create: '新建客户',
@@ -1063,7 +1658,7 @@ export default {
     breadcrumb: {
       home: '首页',
       crm: 'CRM',
-      customerList: '客户列表',
+      customerList: '客户列表'
     },
     filter: {
       ariaLabel: '客户列表筛选表单',
@@ -1076,16 +1671,16 @@ export default {
       status: '状态',
       statusPlaceholder: '选择状态',
       query: '查询',
-      reset: '重置',
+      reset: '重置'
     },
     customerType: {
       normal: '普通客户',
       vip: 'VIP客户',
-      wholesale: '批发客户',
+      wholesale: '批发客户'
     },
     status: {
       active: '启用',
-      inactive: '禁用',
+      inactive: '禁用'
     },
     table: {
       ariaLabel: '客户列表',
@@ -1103,7 +1698,7 @@ export default {
       detail: '详情',
       edit: '编辑',
       delete: '删除',
-      paginationAriaLabel: '客户列表分页',
+      paginationAriaLabel: '客户列表分页'
     },
     dialog: {
       editTitle: '编辑客户',
@@ -1133,7 +1728,7 @@ export default {
       bankAccountPlaceholder: '请输入银行账号',
       status: '状态',
       cancel: '取消',
-      save: '保存',
+      save: '保存'
     },
     message: {
       loadFailed: '获取客户列表失败',
@@ -1144,24 +1739,22 @@ export default {
       updateSuccess: '更新成功',
       createSuccess: '创建成功',
       operationFailed: '操作失败',
-      printWindowFailed: '无法打开打印窗口',
+      printWindowFailed: '无法打开打印窗口'
     },
     validation: {
       customerCodeRequired: '请输入客户编码',
       customerNameRequired: '请输入客户名称',
       contactPersonRequired: '请输入联系人',
       phoneRequired: '请输入电话',
-      phonePattern: '请输入正确的手机号',
+      phonePattern: '请输入正确的手机号'
     },
     printDialog: {
       title: 'CRM客户列表',
       date: '打印日期',
       total: '共 {count} 条',
-      logMessage: '客户列表打印任务已生成',
-    },
+      logMessage: '客户列表打印任务已生成'
+    }
   },
-
-  /* ============ 审计日志（D05 Batch 4：system/audit-log/index.vue 接入 i18n） ============ */
   auditLog: {
     filter: {
       ariaLabel: '审计日志筛选表单',
@@ -1178,7 +1771,7 @@ export default {
       all: '全部',
       query: '查询',
       reset: '重置',
-      exportCsv: '导出 CSV',
+      exportCsv: '导出 CSV'
     },
     operationType: {
       create: '新建',
@@ -1188,13 +1781,13 @@ export default {
       logout: '登出',
       export: '导出',
       query: '查询',
-      other: '其它',
+      other: '其它'
     },
     severityLevel: {
       info: '信息',
       warn: '警告',
       error: '错误',
-      critical: '严重',
+      critical: '严重'
     },
     table: {
       emptyText: '暂无审计日志',
@@ -1208,7 +1801,7 @@ export default {
       requestTrace: '请求追踪',
       description: '描述',
       operation: '操作',
-      detail: '详情',
+      detail: '详情'
     },
     detail: {
       title: '审计日志详情',
@@ -1227,15 +1820,13 @@ export default {
       description: '操作描述',
       beforeSnapshot: '变更前快照（before_snapshot）',
       afterSnapshot: '变更后快照（after_snapshot）',
-      emptyValue: '（无）',
+      emptyValue: '（无）'
     },
     message: {
       loadFailed: '加载审计日志失败',
-      loadDetailFailed: '加载审计日志详情失败',
-    },
+      loadDetailFailed: '加载审计日志详情失败'
+    }
   },
-
-  /* ============ Quality Standards (D05 Batch 5) ============ */
   qualityStandards: {
     title: '质量标准管理',
     create: '新增标准',
@@ -1244,19 +1835,19 @@ export default {
       keywordPlaceholder: '请输入标准编号/名称',
       statusPlaceholder: '状态',
       typePlaceholder: '类型',
-      search: '搜索',
+      search: '搜索'
     },
     status: {
       draft: '草稿',
       approved: '已审批',
       published: '已发布',
-      archived: '已归档',
+      archived: '已归档'
     },
     type: {
       product: '产品标准',
       process: '工艺标准',
       safety: '安全标准',
-      environmental: '环保标准',
+      environmental: '环保标准'
     },
     table: {
       ariaLabel: '质量标准列表',
@@ -1274,7 +1865,7 @@ export default {
       publish: '发布',
       archive: '归档',
       delete: '删除',
-      paginationAriaLabel: '质量标准分页',
+      paginationAriaLabel: '质量标准分页'
     },
     dialog: {
       editTitle: '编辑质量标准',
@@ -1295,14 +1886,14 @@ export default {
       attachments: '附件',
       attachmentsPlaceholder: '请输入附件 JSON 数组',
       cancel: '取消',
-      confirm: '确定',
+      confirm: '确定'
     },
     validation: {
       standardCodeRequired: '请输入标准编号',
       standardNameRequired: '请输入标准名称',
       typeRequired: '请选择类型',
       versionRequired: '请输入版本号',
-      contentRequired: '请输入标准内容',
+      contentRequired: '请输入标准内容'
     },
     message: {
       loadFailed: '加载质量标准失败',
@@ -1324,17 +1915,15 @@ export default {
       archiveConfirm: '确定归档该质量标准吗？',
       archiveConfirmTitle: '归档确认',
       archiveSuccess: '归档成功',
-      archiveFailed: '归档失败',
-    },
+      archiveFailed: '归档失败'
+    }
   },
-
-  /* ============ CRM Leads (D05 Batch 5) ============ */
   crmLeads: {
     title: '线索管理',
     breadcrumb: {
       home: '首页',
       crm: 'CRM',
-      leads: '线索',
+      leads: '线索'
     },
     create: '新建线索',
     import: '导入',
@@ -1352,27 +1941,27 @@ export default {
       priority: '优先级',
       priorityPlaceholder: '请选择优先级',
       query: '查询',
-      reset: '重置',
+      reset: '重置'
     },
     leadSource: {
       website: '官网',
       phone: '电话',
       exhibition: '展会',
       referral: '转介绍',
-      other: '其他',
+      other: '其他'
     },
     leadStatus: {
       new: '新建',
       contacted: '已联系',
       qualified: '已合格',
       converted: '已转化',
-      lost: '已流失',
+      lost: '已流失'
     },
     priority: {
       low: '低',
       medium: '中',
       high: '高',
-      urgent: '紧急',
+      urgent: '紧急'
     },
     table: {
       ariaLabel: '线索列表',
@@ -1393,11 +1982,11 @@ export default {
       contact: '联系',
       convert: '转化',
       lost: '流失',
-      paginationAriaLabel: '线索分页',
+      paginationAriaLabel: '线索分页'
     },
     dialog: {
       createTitle: '新建线索',
-      editTitle: '编辑线索',
+      editTitle: '编辑线索'
     },
     detail: {
       title: '线索详情',
@@ -1413,7 +2002,7 @@ export default {
       nextFollowUp: '下次跟进：',
       requirementDesc: '需求描述：',
       remarks: '备注：',
-      close: '关闭',
+      close: '关闭'
     },
     message: {
       loadListFailed: '加载线索列表失败',
@@ -1436,10 +2025,1623 @@ export default {
       importFailed: '导入失败',
       exportSuccess: '导出成功',
       exportFailed: '导出失败',
-      selectionChanged: '选择变化',
+      selectionChanged: '选择变化'
     },
     exportFile: {
-      filename: '线索列表',
-    },
+      filename: '线索列表'
+    }
   },
+  colorCards: {
+    list: {
+      title: '色卡列表',
+      create: '新建色卡',
+      issueManagement: '发放管理'
+    },
+    filter: {
+      ariaLabel: '色卡筛选表单',
+      cardType: '色卡类型',
+      season: '季节',
+      status: '状态',
+      keyword: '关键词',
+      keywordPlaceholder: '卡号 / 卡名',
+      all: '全部',
+      query: '查询',
+      reset: '重置'
+    },
+    table: {
+      ariaLabel: '色卡列表',
+      cardNo: '卡号',
+      cardName: '卡名',
+      type: '类型',
+      brand: '品牌',
+      totalColors: '色号数',
+      status: '状态',
+      createdAt: '创建时间',
+      operation: '操作',
+      detail: '详情',
+      edit: '编辑',
+      archive: '归档',
+      paginationAriaLabel: '色卡列表分页'
+    },
+    cardType: {
+      PANTONE: 'PANTONE',
+      CNCS: 'CNCS',
+      CUSTOM: '自定义'
+    },
+    cardStatus: {
+      active: '在用',
+      archived: '已归档',
+      lost: '遗失'
+    },
+    season: {
+      '2024SS': '2024 春夏',
+      '2024AW': '2024 秋冬',
+      '2025SS': '2025 春夏',
+      '2025AW': '2025 秋冬',
+      '经典': '经典款'
+    },
+    create: {
+      title: '新建色卡',
+      formAriaLabel: '色卡创建表单',
+      cardNo: '卡号',
+      cardNoPlaceholder: '请输入卡号',
+      cardName: '卡名',
+      cardNamePlaceholder: '请输入卡名',
+      cardType: '色卡类型',
+      pleaseSelect: '请选择',
+      optional: '可选',
+      brand: '品牌',
+      brandPlaceholder: '请输入品牌',
+      description: '描述',
+      descriptionPlaceholder: '请输入描述',
+      submit: '立即创建',
+      cancel: '取消',
+      coverImageUrl: '封面图 URL',
+      coverImageUrlPlaceholder: '请输入封面图 URL',
+      successAlert: '创建成功，色卡 ID：{id}',
+      addItems: '添加色号',
+      continueCreate: '继续创建',
+      createSuccess: '创建成功'
+    },
+    validation: {
+      cardNoRequired: '请输入卡号',
+      cardNameRequired: '请输入卡名',
+      cardTypeRequired: '请选择色卡类型'
+    },
+    message: {
+      loadListFailed: '加载色卡列表失败',
+      createSuccess: '创建成功',
+      createFailed: '创建失败',
+      archiveConfirm: '确定归档色卡 "{name}" 吗？',
+      archiveConfirmTitle: '归档确认',
+      archiveSuccess: '归档成功',
+      archiveFailed: '归档失败'
+    },
+    detail: {
+      back: '色卡详情',
+      exportExcel: '导出 Excel',
+      addItem: '新增色号',
+      batchImport: '批量导入',
+      tab: {
+        info: '基本信息',
+        items: '色号列表（{count}）',
+        issue: '发放记录'
+      },
+      info: {
+        cardNo: '卡号',
+        cardName: '卡名',
+        cardType: '色卡类型',
+        brand: '品牌',
+        totalColors: '色号总数',
+        description: '描述'
+      },
+      addItemDialog: {
+        title: '新增色号',
+        ariaLabel: '新增色号对话框',
+        cancel: '取消',
+        add: '添加'
+      },
+      importDialog: {
+        title: '批量导入色号',
+        ariaLabel: '批量导入色号对话框',
+        alert: '每行一个色号，格式：色号编码,色号名称,HEX(可选)',
+        placeholder: 'C001,红色,#FF0000',
+        cancel: '取消',
+        import: '导入'
+      },
+      scanDialog: {
+        title: '扫码结果',
+        ariaLabel: '扫码结果对话框',
+        colorCode: '色号编码',
+        colorName: '色号名称',
+        colorCard: '所属色卡',
+        hex: 'HEX',
+        rgb: 'RGB',
+        cmyk: 'CMYK',
+        cieLab: 'CIE Lab',
+        recipe: '染料配方',
+        price: '价格'
+      },
+      message: {
+        codeAndNameRequired: '色号编码和名称必填',
+        addItemSuccess: '色号添加成功',
+        deleteItemConfirm: '确定删除色号 "{code}" 吗？',
+        deleteItemConfirmTitle: '删除确认',
+        deleteSuccess: '删除成功',
+        deleteFailed: '删除失败',
+        scanFailed: '扫码查询失败',
+        importEmpty: '导入内容为空',
+        importResult: '导入完成：成功 {success} 条，失败 {failed} 条'
+      }
+    },
+    issue: {
+      back: '色卡发放',
+      title: '色卡发放管理',
+      tabAriaLabel: '发放管理标签页',
+      tab: {
+        issue: '发放',
+        active: '发放中（{count}）',
+        history: '历史记录'
+      },
+      form: {
+        ariaLabel: '发放表单',
+        selectCard: '选择色卡',
+        selectCardPlaceholder: '请选择色卡',
+        customerId: '客户 ID',
+        customerIdPlaceholder: '请输入客户 ID',
+        issueQty: '发放数量',
+        dyeLotNo: '染缸批号',
+        dyeLotNoPlaceholder: '请输入染缸批号',
+        expectedReturn: '预计归还',
+        expectedReturnPlaceholder: '选择日期',
+        purpose: '用途',
+        purposePlaceholder: '请输入用途',
+        remark: '备注',
+        confirmIssue: '确认发放'
+      },
+      activeTable: {
+        ariaLabel: '发放中列表',
+        cardId: '色卡 ID',
+        customerId: '客户 ID',
+        issueQty: '发放数量',
+        issuedBy: '发放人',
+        issuedAt: '发放时间',
+        expectedReturn: '预计归还',
+        dyeLotNo: '染缸批号',
+        purpose: '用途',
+        operation: '操作',
+        return: '归还',
+        damaged: '损坏',
+        lost: '遗失',
+        cancel: '取消',
+        returnAriaLabel: '归还色卡',
+        damagedAriaLabel: '标记损坏',
+        lostAriaLabel: '标记遗失',
+        cancelAriaLabel: '取消发放'
+      },
+      historyTable: {
+        ariaLabel: '历史记录列表',
+        recordId: '记录 ID',
+        cardId: '色卡 ID',
+        customerId: '客户 ID',
+        issueQty: '发放数量',
+        status: '状态',
+        issuedAt: '发放时间',
+        actualReturn: '实际归还',
+        compensationAmount: '赔偿金额',
+        dyeLotNo: '染缸批号',
+        purpose: '用途'
+      },
+      issueStatus: {
+        issued: '发放中',
+        returned: '已归还',
+        lost: '遗失',
+        damaged: '损坏',
+        cancelled: '已取消'
+      },
+      returnDialog: {
+        title: '归还色卡',
+        ariaLabel: '归还对话框',
+        formAriaLabel: '归还表单',
+        actualReturn: '实际归还日期',
+        cancel: '取消',
+        confirm: '确认归还'
+      },
+      lostDialog: {
+        title: '遗失登记',
+        ariaLabel: '遗失对话框',
+        formAriaLabel: '遗失表单',
+        alert: '登记遗失将记录赔偿金额，请谨慎操作。',
+        compensationAmount: '赔偿金额',
+        lostReason: '遗失原因',
+        cancel: '取消',
+        confirm: '确认遗失'
+      },
+      damagedDialog: {
+        title: '损坏登记',
+        ariaLabel: '损坏对话框',
+        formAriaLabel: '损坏表单',
+        compensationAmount: '赔偿金额',
+        damagedReason: '损坏原因',
+        cancel: '取消',
+        confirm: '确认损坏'
+      },
+      cancelDialog: {
+        title: '取消发放',
+        ariaLabel: '取消发放对话框',
+        formAriaLabel: '取消发放表单',
+        alert: '取消后该发放记录将不再生效。',
+        cancelReason: '取消原因',
+        close: '关闭',
+        confirm: '确认取消'
+      },
+      message: {
+        selectCardRequired: '请选择色卡',
+        customerIdRequired: '请输入客户 ID',
+        issueSuccess: '发放成功',
+        returnSuccess: '归还成功',
+        compensationRequired: '请输入赔偿金额',
+        lostSuccess: '已标记为遗失',
+        damagedSuccess: '已标记为损坏',
+        cancelSuccess: '已取消发放'
+      }
+    }
+  },
+  colorPrices: {
+    common: {
+      all: '全部',
+      search: '查询',
+      reset: '重置',
+      enable: '启用',
+      disable: '禁用',
+      detail: '详情',
+      delete: '删除',
+      cancel: '取消',
+      confirm: '确认',
+      pleaseSelect: '请选择'
+    },
+    currency: {
+      CNY: 'CNY',
+      USD: 'USD',
+      EUR: 'EUR'
+    },
+    currencyLabel: {
+      CNY: '人民币 CNY',
+      USD: '美元 USD',
+      EUR: '欧元 EUR'
+    },
+    customerLevel: {
+      VIP: 'VIP 客户',
+      GOLD: '金牌客户',
+      SILVER: '银牌客户',
+      NORMAL: '普通客户',
+      default: '通用'
+    },
+    season: {
+      SS: '春夏 SS',
+      AW: '秋冬 AW',
+      HOLIDAY: '节日 HOLIDAY',
+      default: '通用'
+    },
+    approvalStatus: {
+      PENDING: '待审批',
+      APPROVED: '已通过',
+      REJECTED: '已拒绝'
+    },
+    list: {
+      title: '色号价格列表',
+      createPrice: '新建价格',
+      batchAdjust: '批量调价',
+      filter: {
+        ariaLabel: '色卡价格筛选表单',
+        productId: '产品 ID',
+        colorId: '色号 ID',
+        customerLevel: '客户等级',
+        season: '季节',
+        currency: '币种',
+        status: '状态',
+        approvalStatus: '审批状态'
+      },
+      table: {
+        ariaLabel: '色卡价格列表',
+        id: 'ID',
+        product: '产品',
+        color: '色号',
+        customerLevel: '客户等级',
+        season: '季节',
+        basePrice: '基础价',
+        currency: '币种',
+        approvalStatus: '审批状态',
+        effectiveFrom: '生效日期',
+        status: '状态',
+        operation: '操作',
+        adjust: '调价',
+        paginationAriaLabel: '色卡价格列表分页'
+      }
+    },
+    create: {
+      title: '新建色号价格',
+      formAriaLabel: '色卡价格创建表单',
+      productId: '产品 ID',
+      colorId: '色号 ID',
+      currency: '币种',
+      basePrice: '基础价',
+      effectiveFrom: '生效日期',
+      effectiveFromPlaceholder: '选择生效日期',
+      effectiveTo: '失效日期',
+      effectiveToPlaceholder: '可选：失效日期',
+      customerLevel: '客户等级',
+      customerLevelPlaceholder: '可选：客户等级',
+      season: '季节',
+      seasonPlaceholder: '可选：季节',
+      customerId: '客户 ID',
+      customerIdPlaceholder: '可选：客户专属价对应的客户 ID',
+      minQuantity: '起订量',
+      minQuantityPlaceholder: '可选：阶梯价起订量',
+      maxQuantity: '限订量',
+      maxQuantityPlaceholder: '可选：阶梯价上限',
+      priority: '优先级',
+      notes: '备注',
+      notesPlaceholder: '可选：备注',
+      submit: '立即创建'
+    },
+    validation: {
+      productIdRequired: '请输入产品 ID',
+      colorIdRequired: '请输入色号 ID',
+      currencyRequired: '请选择币种',
+      basePriceRequired: '请输入基础价',
+      effectiveFromRequired: '请选择生效日期',
+      minQuantityRequired: '请输入起订量',
+      tierPriceRequired: '请输入阶梯价'
+    },
+    detail: {
+      back: '色号价格详情',
+      basicInfo: '基本信息',
+      priceHistory: '价格历史',
+      noData: '暂无数据',
+      info: {
+        id: 'ID',
+        productId: '产品 ID',
+        colorId: '色号 ID',
+        currency: '币种',
+        basePrice: '基础价',
+        customerLevel: '客户等级',
+        season: '季节',
+        priority: '优先级',
+        effectiveDate: '生效日期',
+        longTerm: '长期',
+        status: '状态',
+        approvalStatus: '审批状态',
+        notes: '备注'
+      },
+      tier: {
+        title: '阶梯价',
+        addTier: '添加阶梯',
+        tableAriaLabel: '色卡价格阶梯列表',
+        sequence: '顺序',
+        minQuantity: '起订量',
+        maxQuantity: '上限',
+        unlimited: '无限',
+        tierPrice: '阶梯价',
+        customerLevel: '客户等级',
+        general: '通用',
+        operation: '操作'
+      },
+      tierDialog: {
+        title: '添加阶梯价',
+        ariaLabel: '添加阶梯价对话框',
+        formAriaLabel: '阶梯价表单',
+        minQuantity: '起订量',
+        maxQuantity: '上限',
+        maxQuantityPlaceholder: '0 表示无限',
+        tierPrice: '阶梯价',
+        customerLevel: '客户等级',
+        customerLevelPlaceholder: '通用（留空）',
+        sequence: '顺序'
+      }
+    },
+    batchAdjust: {
+      back: '批量调价',
+      selectColor: '选择色号',
+      adjustSetting: '调价设置',
+      filter: {
+        ariaLabel: '色卡价格批量调整筛选表单',
+        productId: '产品 ID',
+        customerLevel: '客户等级'
+      },
+      table: {
+        ariaLabel: '色卡价格批量调整列表',
+        id: 'ID',
+        product: '产品',
+        color: '色号',
+        customerLevel: '客户等级',
+        basePrice: '基础价',
+        currency: '币种'
+      },
+      form: {
+        ariaLabel: '色卡价格批量调整表单',
+        selectedCount: '已选色号',
+        countItems: '共 {count} 条',
+        mode: '调价模式',
+        modePercentage: '百分比',
+        modeFixed: '固定金额',
+        modeTier: '阶梯价',
+        adjustPercentage: '调价百分比',
+        adjustAmount: '调价金额',
+        unitYuanPerMeter: '元/米',
+        changeReason: '调价原因',
+        changeReasonPlaceholder: '请说明调价原因',
+        submit: '提交批量调价',
+        calculateDemo: '价格计算演示'
+      },
+      result: '调价结果：自动通过 {auto} 条，待审批 {pending} 条'
+    },
+    message: {
+      unknownError: '未知错误',
+      loadFailed: '加载失败：{msg}',
+      deleteConfirm: '确定删除色号价格 #{id}？',
+      deleteSuccess: '删除成功',
+      deleteFailed: '删除失败：{msg}',
+      createSuccess: '创建成功',
+      createFailed: '创建失败：{msg}',
+      tierAddSuccess: '阶梯价添加成功',
+      tierAddFailed: '添加失败：{msg}',
+      deleteTierConfirm: '确定删除阶梯 #{id}？',
+      selectColorFirst: '请先选择色号',
+      batchAdjustSuccess: '调价提交完成：自动通过 {auto}，待审批 {pending}',
+      batchAdjustFailed: '提交失败：{msg}',
+      priceCalc: '价格计算：基础价 {base} → 最终价 {final}（{rule}）',
+      calcFailed: '计算失败：{msg}'
+    }
+  },
+  setupPage: {
+    title: '秉羲 ERP',
+    subtitle: '系统初始化向导',
+    steps: {
+      environment: '环境检查',
+      database: '数据库配置',
+      admin: '创建管理员',
+      complete: '完成安装'
+    },
+    envCheck: {
+      pass: '通过',
+      fail: '失败',
+      checking: '检查中...',
+      recheck: '重新检查',
+      next: '下一步',
+      prev: '上一步'
+    },
+    envChecks: {
+      backendApi: '后端API服务',
+      disk: '磁盘空间',
+      memory: '系统内存'
+    },
+    db: {
+      title: '数据库配置',
+      host: '数据库主机',
+      port: '数据库端口',
+      name: '数据库名称',
+      username: '数据库用户',
+      password: '数据库密码',
+      initToken: '初始化令牌',
+      passwordPlaceholder: '请输入密码',
+      initTokenPlaceholder: '请输入服务器配置的 INIT_TOKEN',
+      testing: '测试中...',
+      testConnection: '测试连接'
+    },
+    admin: {
+      title: '创建管理员账号',
+      username: '管理员用户名',
+      password: '管理员密码',
+      confirmPassword: '确认密码',
+      confirmPasswordPlaceholder: '请再次输入密码',
+      email: '邮箱'
+    },
+    complete: {
+      title: '完成安装',
+      willExecute: '系统将执行以下操作：',
+      createSchema: '创建数据库表结构',
+      initData: '初始化系统数据',
+      createAdmin: '创建管理员账号',
+      createAdminWithName: '创建管理员账号: {name}',
+      installing: '安装中...',
+      installed: '安装完成',
+      startInstall: '开始安装',
+      successTitle: '安装成功！',
+      successDesc: '系统已成功安装，您现在可以登录使用。',
+      goToLogin: '进入登录页面'
+    },
+    aria: {
+      dbForm: '系统初始化管理员表单',
+      adminForm: '系统初始化公司信息表单'
+    },
+    validation: {
+      hostRequired: '请输入数据库主机',
+      portRequired: '请输入数据库端口',
+      nameRequired: '请输入数据库名称',
+      usernameRequired: '请输入数据库用户',
+      initTokenRequired: '请输入初始化令牌',
+      adminUsernameRequired: '请输入管理员用户名',
+      passwordRequired: '请输入密码',
+      passwordMinLength: '密码至少6位',
+      confirmPasswordRequired: '请确认密码',
+      passwordMismatch: '两次输入的密码不一致',
+      emailInvalid: '请输入正确的邮箱地址'
+    },
+    message: {
+      dbConnectSuccess: '数据库连接成功',
+      dbConnectFailed: '数据库连接失败',
+      installSuccess: '系统安装成功',
+      installFailed: '安装失败',
+      envCheckFailed: '环境检查失败'
+    }
+  },
+  accountSubject: {
+    title: '会计科目',
+    create: '新建科目',
+    export: '导出',
+    filter: {
+      ariaLabel: '会计科目筛选表单',
+      code: '科目编码',
+      codePlaceholder: '编码',
+      name: '科目名称',
+      namePlaceholder: '名称',
+      category: '科目类别',
+      categoryPlaceholder: '选择类别',
+      query: '查询',
+      reset: '重置'
+    },
+    table: {
+      ariaLabel: '会计科目列表',
+      code: '科目编码',
+      name: '科目名称',
+      category: '科目类别',
+      balanceType: '余额方向',
+      level: '级次',
+      status: '状态',
+      operation: '操作',
+      edit: '编辑',
+      delete: '删除'
+    },
+    category: {
+      asset: '资产',
+      liability: '负债',
+      equity: '权益',
+      cost: '成本',
+      profitLoss: '损益'
+    },
+    balanceType: {
+      debit: '借方',
+      credit: '贷方'
+    },
+    status: {
+      enabled: '启用',
+      disabled: '禁用'
+    },
+    dialog: {
+      editTitle: '编辑科目',
+      createTitle: '新建科目',
+      editAriaLabel: '编辑科目对话框',
+      createAriaLabel: '新建科目对话框',
+      ariaLabel: '会计科目表单',
+      parentSubject: '上级科目',
+      parentPlaceholder: '选择上级科目',
+      enable: '启用',
+      description: '描述',
+      cancel: '取消',
+      confirm: '确定'
+    },
+    validation: {
+      codeRequired: '请输入科目编码',
+      nameRequired: '请输入科目名称',
+      categoryRequired: '请选择科目类别',
+      balanceTypeRequired: '请选择余额方向'
+    },
+    message: {
+      fetchListFailed: '获取科目列表失败',
+      updateSuccess: '更新成功',
+      createSuccess: '创建成功',
+      operationFailed: '操作失败',
+      deleteConfirm: '确定删除科目 "{name}" 吗？',
+      deleteConfirmTitle: '删除确认',
+      deleteSuccess: '删除成功',
+      deleteFailed: '删除失败'
+    },
+    exportFile: {
+      filename: '会计科目表',
+      code: '科目编码',
+      name: '科目名称',
+      category: '科目类别',
+      balanceType: '余额方向',
+      level: '级次',
+      status: '状态'
+    },
+    exportedLog: '会计科目表已导出'
+  },
+  accountingPeriod: {
+    title: '会计期间',
+    create: '新建期间',
+    initYear: '初始化年度',
+    filter: {
+      ariaLabel: '会计期间筛选表单',
+      year: '年度',
+      status: '状态',
+      statusPlaceholder: '选择状态',
+      query: '查询',
+      reset: '重置'
+    },
+    status: {
+      pending: '未启用',
+      active: '启用中',
+      closed: '已关闭'
+    },
+    table: {
+      ariaLabel: '会计期间列表',
+      name: '期间名称',
+      year: '年度',
+      month: '月份',
+      startDate: '开始日期',
+      endDate: '结束日期',
+      status: '状态',
+      closedAt: '关闭时间',
+      operation: '操作',
+      edit: '编辑',
+      enable: '启用',
+      close: '关闭',
+      reopen: '重新打开',
+      delete: '删除'
+    },
+    dialog: {
+      editTitle: '编辑期间',
+      createTitle: '新建期间',
+      editAriaLabel: '编辑期间对话框',
+      createAriaLabel: '新建期间对话框',
+      ariaLabel: '会计期间表单',
+      year: '年度',
+      month: '月份',
+      name: '期间名称',
+      startDate: '开始日期',
+      endDate: '结束日期',
+      datePlaceholder: '选择日期',
+      cancel: '取消',
+      confirm: '确定'
+    },
+    validation: {
+      yearRequired: '请选择年度',
+      monthRequired: '请选择月份',
+      startDateRequired: '请选择开始日期',
+      endDateRequired: '请选择结束日期'
+    },
+    message: {
+      fetchListFailed: '获取会计期间失败',
+      updateSuccess: '更新成功',
+      createSuccess: '创建成功',
+      operationFailed: '操作失败',
+      activateConfirm: '确定启用期间 "{name}" 吗？',
+      activateConfirmTitle: '启用确认',
+      activatedSuccess: '已启用',
+      activateFailed: '启用失败',
+      closeConfirm: '确定关闭期间 "{name}" 吗？关闭后无法再录入凭证。',
+      closeConfirmTitle: '关闭确认',
+      closedSuccess: '已关闭',
+      closeFailed: '关闭失败',
+      reopenConfirm: '确定重新打开期间 "{name}" 吗？',
+      reopenConfirmTitle: '重新打开确认',
+      reopenedSuccess: '已重新打开',
+      deleteConfirm: '确定删除期间 "{name}" 吗？',
+      deleteConfirmTitle: '删除确认',
+      deleteSuccess: '删除成功',
+      deleteFailed: '删除失败',
+      initYearConfirm: '确定初始化 {year} 年的会计期间吗？',
+      initYearConfirmTitle: '初始化确认',
+      initSuccess: '初始化成功',
+      initFailed: '初始化失败'
+    }
+  },
+  assistAccounting: {
+    filter: {
+      accountingPeriod: '会计期间',
+      dimension: '核算维度',
+      all: '全部',
+      businessType: '业务类型',
+      warehouseId: '仓库ID',
+      query: '查询',
+      reset: '重置',
+      refresh: '刷新'
+    },
+    businessType: {
+      all: '全部',
+      purchaseReceipt: '采购入库',
+      salesDelivery: '销售出库',
+      inventoryAdjustment: '库存调整',
+      productionInput: '生产投入',
+      productionOutput: '生产产出'
+    },
+    tabs: {
+      records: '辅助核算记录',
+      summary: '辅助核算汇总'
+    },
+    recordsTable: {
+      ariaLabel: '辅助核算记录列表',
+      id: 'ID',
+      businessType: '业务类型',
+      businessNo: '业务单号',
+      batchNo: '批次号',
+      colorNo: '色号',
+      grade: '等级',
+      warehouseId: '仓库ID',
+      quantityMeters: '米数',
+      quantityKg: '公斤数',
+      debitAmount: '借方金额',
+      creditAmount: '贷方金额',
+      createdAt: '创建时间',
+      operation: '操作',
+      paginationAriaLabel: '辅助核算记录列表分页'
+    },
+    summaryTable: {
+      ariaLabel: '辅助核算汇总列表',
+      id: 'ID',
+      accountingPeriod: '会计期间',
+      dimensionCode: '维度编码',
+      dimensionValue: '维度值',
+      totalDebit: '借方合计',
+      totalCredit: '贷方合计',
+      totalQuantityMeters: '总米数',
+      totalQuantityKg: '总公斤数',
+      recordCount: '记录数'
+    },
+    detailDialog: {
+      title: '辅助核算记录详情',
+      ariaLabel: '辅助核算记录详情',
+      id: 'ID',
+      businessType: '业务类型',
+      businessNo: '业务单号',
+      businessId: '业务ID',
+      accountSubjectId: '会计科目ID',
+      fiveDimensionId: '五维ID',
+      productId: '产品ID',
+      batchNo: '批次号',
+      colorNo: '色号',
+      dyeLotNo: '染缸号',
+      grade: '等级',
+      warehouseId: '仓库ID',
+      quantityMeters: '米数',
+      quantityKg: '公斤数',
+      debitAmount: '借方金额',
+      creditAmount: '贷方金额',
+      workshopId: '车间ID',
+      customerId: '客户ID',
+      supplierId: '供应商ID',
+      remarks: '备注',
+      createdAt: '创建时间'
+    },
+    message: {
+      fetchRecordsFailed: '获取辅助核算记录失败',
+      loadDimensionFailed: '加载维度失败',
+      loadSummaryFailed: '加载汇总失败'
+    }
+  },
+  barcodeScanner: {
+    tabs: {
+      scan: '扫码查询',
+      ship: '扫码发货',
+      history: '扫码历史'
+    },
+    scan: {
+      cardTitle: '条码扫描',
+      placeholder: '扫描或输入条码',
+      button: '扫码查询',
+      pieceInfo: '布卷信息',
+      resultTitle: '扫码查询',
+      resultSubTitle: '扫描或输入条码查询布卷信息'
+    },
+    ship: {
+      cardTitle: '扫码出库',
+      formAriaLabel: '扫码发货表单',
+      orderId: '订单ID',
+      orderIdPlaceholder: '请输入订单ID',
+      barcode: '条码',
+      button: '扫码发货',
+      resultTitle: '扫码发货',
+      resultSubTitle: '输入订单ID后扫描条码完成出库'
+    },
+    history: {
+      refresh: '刷新',
+      tableAriaLabel: '扫码历史列表',
+      id: 'ID',
+      barcode: '条码',
+      pieceNo: '布卷号',
+      scanType: '扫码类型',
+      result: '结果',
+      time: '时间',
+      paginationAriaLabel: '扫码历史列表分页'
+    },
+    detail: {
+      barcode: '条码',
+      pieceNo: '布卷号',
+      productId: '产品ID',
+      productName: '产品名称',
+      batchNo: '批次号',
+      colorNo: '色号',
+      grade: '等级',
+      quantityMeters: '米数',
+      quantityKg: '公斤数',
+      warehouseId: '仓库ID',
+      warehouseName: '仓库名称',
+      status: '状态'
+    },
+    status: {
+      inStock: '在库',
+      shipped: '已发货',
+      scrapped: '已报废'
+    },
+    message: {
+      fetchHistoryFailed: '获取扫码历史失败',
+      barcodeRequired: '请输入条码',
+      orderIdRequired: '请输入订单ID',
+      scanSuccess: '扫码成功',
+      scanFailed: '扫码失败',
+      shipSuccess: '发货成功',
+      shipFailed: '发货失败'
+    }
+  },
+  biSalesAnalysis: {
+    title: 'BI 销售多维分析（P3-4 关键路径 demo）',
+    kpi: {
+      totalSales: '总销售额',
+      orderCount: '订单数',
+      customerCount: '客户数',
+      avgOrderValue: '客单价',
+      grossMargin: '毛利率',
+      yoyGrowth: '同比 +{value}%',
+      momGrowth: '环比 +{value}%'
+    },
+    chart: {
+      salesTrendTitle: '销售趋势（最近 30 天）',
+      customerRankTitle: '客户销售排行（Top 10）',
+      productDistTitle: '产品销售分布',
+      regionDistTitle: '区域销售分布',
+      salesAmount: '销售额',
+      profit: '利润'
+    },
+    monthly: {
+      title: '{year} 年月度销售（钻取：年 → 月）',
+      period: '月份',
+      totalAmount: '销售额',
+      orderCount: '订单数',
+      quantity: '数量',
+      profitAmount: '利润',
+      tableAriaLabel: '月度销售数据表'
+    },
+    message: {
+      loadFailed: '加载 BI 数据失败'
+    }
+  },
+  adminFailover: {
+    title: '主备隔离监控',
+    refresh: '刷新',
+    descriptionPrefix: '通过统一的 ',
+    descriptionSuffix: ' 接口，自动在主备之间切换，保障服务可用性。',
+    healthCheck: '健康检查',
+    switchHistory: '切换历史',
+    loadFailed: '加载数据失败：{msg}',
+    switchConfirm: '确定要手动切换 {name} 的主备吗？',
+    switchConfirmTitle: '切换确认',
+    confirmSwitch: '确认切换',
+    cancel: '取消',
+    switchSuccess: '切换成功',
+    switchFailed: '切换失败：{msg}',
+    emptyEvents: '暂无切换事件',
+    colTime: '时间',
+    colFunction: '功能',
+    colEventType: '事件类型',
+    colStateChange: '状态变化',
+    colReason: '原因',
+    colLatency: '延迟(ms)',
+    funcDatabase: '数据库',
+    funcCache: '缓存',
+    funcDatabaseConn: '数据库连接',
+    funcCacheService: '缓存服务',
+    eventSwitchToBackup: '切换到备用',
+    eventSwitchBack: '切回主用',
+    eventPrimaryRecovered: '主用恢复',
+    eventBothFailed: '主备均故障',
+    eventCircuitOpen: '熔断器打开',
+    eventCircuitClose: '熔断器关闭',
+    eventCircuitHalfOpen: '熔断器半开',
+    metricDatabase: '数据库健康',
+    metricCache: '缓存健康',
+    statePrimary: '主用',
+    stateBackup: '备用',
+    stateBothDown: '均故障',
+    stateError: '错误',
+    stateUnknown: '未知',
+    descPrimaryCall: '主用地址',
+    notConfigured: '未配置',
+    descBackup: '备用配置',
+    descCircuit: '熔断器状态',
+    failCount: '连续失败 {n} 次',
+    descCallStats: '调用统计',
+    statPrimary: '主用调用 {n}',
+    statBackup: '备用调用 {n}',
+    statSwitch: '切换次数 {n}',
+    descLastSuccess: '最后成功',
+    descLastSwitch: '最后切换',
+    manualSwitch: '手动切换',
+    circuitClosed: '关闭(正常)',
+    circuitOpen: '打开(熔断)',
+    circuitHalfOpen: '半开',
+    backupPostgres: 'PostgreSQL',
+    backupLru: 'LRU 内存缓存',
+    memoryCache: '内存缓存',
+    never: '从未'
+  },
+  advancedModule: {
+    tabAi: 'AI 智能分析',
+    tabReport: '报表引擎',
+    tabRecipe: '工艺优化',
+    tabQuality: '质量预测',
+    ai: {
+      title: 'AI 智能分析',
+      salesForecast: '销售预测',
+      forecastPeriod: '预测周期',
+      period3m: '3 个月',
+      period6m: '6 个月',
+      period12m: '12 个月',
+      startForecast: '开始预测',
+      clickToForecast: '点击开始预测',
+      forecastResult: '预测结果',
+      forecastSales: '预测销售额',
+      forecastOrders: '预测订单数',
+      confidence: '置信度',
+      forecastTrend: '趋势',
+      inventoryOpt: '库存优化建议',
+      generateSuggestion: '生成建议',
+      clickToGenerate: '点击生成优化建议',
+      colProduct: '产品',
+      colSuggestion: '建议',
+      colPriority: '优先级',
+      priorityHigh: '高',
+      priorityMedium: '中',
+      priorityLow: '低',
+      anomalyDetection: '异常检测',
+      dataType: '数据类型',
+      dataSales: '销售数据',
+      dataInventory: '库存数据',
+      dataQuality: '质量数据',
+      detectAnomaly: '检测异常',
+      clickToDetect: '点击开始检测',
+      colItem: '项目',
+      colType: '类型',
+      colDesc: '描述',
+      colSeverity: '严重程度',
+      recommendations: '智能推荐',
+      getRecommendations: '获取推荐',
+      clickToGetRec: '点击获取推荐'
+    },
+    quality: {
+      title: '质量预测',
+      conditions: '预测条件',
+      productId: '产品 ID',
+      productIdPlaceholder: '请输入产品 ID',
+      inspectionType: '检验类型',
+      inspectionTypePlaceholder: '请选择检验类型',
+      typeAll: '全部',
+      typeIncoming: '进货检验',
+      typeInprocess: '过程检验',
+      typeFinal: '成品检验',
+      typeOutgoing: '出货检验',
+      timeWindow: '时间窗口',
+      timeWindowHint: '天（范围 1-365）',
+      startPredict: '开始预测',
+      result: '预测结果',
+      empty: '暂无预测结果',
+      totalInspections: '检验总数',
+      avgQualificationRate: '平均合格率',
+      trend: '趋势',
+      riskLevel: '风险等级',
+      topIssues: '主要问题归因',
+      colIssueType: '问题类型',
+      colOccurrences: '发生次数',
+      colPercentage: '占比',
+      emptyNoRecords: '暂无问题记录',
+      recommendations: '建议措施',
+      periodBreakdown: '周期明细',
+      colPeriod: '周期',
+      colInspections: '检验数',
+      colAvgRate: '平均合格率',
+      emptyNoPeriod: '暂无周期数据',
+      dataSourceHistory: '数据来源：历史记录',
+      dataSourceFallback: '数据来源：兜底算法',
+      confidence: '置信度'
+    },
+    recipe: {
+      title: '染色工艺推荐',
+      conditions: '推荐条件',
+      colorNo: '色号',
+      colorNoPlaceholder: '请输入色号',
+      fabricType: '面料类型',
+      fabricPlaceholder: '请选择面料类型',
+      fabricCotton: '棉',
+      fabricPolyester: '涤纶',
+      fabricSilk: '丝绸',
+      fabricWool: '羊毛',
+      fabricSynthetic: '化纤',
+      dyeType: '染料类型',
+      dyeTypePlaceholder: '请输入染料类型',
+      colorName: '颜色名称',
+      colorNamePlaceholder: '请输入颜色名称',
+      kValue: 'K 值',
+      generate: '生成推荐',
+      result: '推荐结果',
+      empty: '暂无推荐结果',
+      recTemperature: '推荐温度',
+      recTime: '推荐时间',
+      unitMinutes: '分钟',
+      recPh: '推荐 pH 值',
+      recLiquorRatio: '推荐浴比',
+      confidence: '置信度',
+      similarCases: '相似案例数',
+      recSource: '推荐来源',
+      sourceKnn: 'KNN 算法',
+      sourceFallback: '兜底算法',
+      similarCandidates: '相似候选案例',
+      colRecipeNo: '配方编号',
+      colColorNo: '色号',
+      colFabricType: '面料',
+      colDyeType: '染料',
+      colTemperature: '温度',
+      colTime: '时间',
+      unitMinutesShort: '分',
+      colPh: 'pH',
+      colLiquorRatio: '浴比',
+      colSimilarity: '相似度',
+      emptyNoCandidates: '暂无候选案例'
+    },
+    report: {
+      title: '报表引擎',
+      colName: '报表名称',
+      colCode: '报表编码',
+      colCategory: '分类',
+      colDesc: '描述',
+      colCreatedAt: '创建时间',
+      colAction: '操作',
+      execute: '执行',
+      exportExcel: '导出 Excel',
+      exportPdf: '导出 PDF',
+      resultTitle: '报表结果',
+      empty: '暂无数据',
+      close: '关闭'
+    }
+  },
+  arReconciliationModule: {
+    customerCode: '客户编码',
+    customerName: '客户名称',
+    matchStatus: '匹配状态',
+    invoiceAmount: '发票金额',
+    paymentAmount: '回款金额',
+    differenceAmount: '差异金额',
+    matchedCount: '已匹配数',
+    unmatchedCount: '未匹配数',
+    dispute: '争议',
+    remark: '备注',
+    resultListTitle: '对账结果列表',
+    resultListAria: '对账结果列表',
+    resultPaginationAria: '对账结果列表分页',
+    customerNamePlaceholder: '客户名称',
+    matchStatusPlaceholder: '匹配状态',
+    startDatePlaceholder: '开始日期',
+    endDatePlaceholder: '结束日期',
+    query: '查询',
+    autoReconcile: '自动对账',
+    customerConfirmation: '客户确认',
+    disputeHandling: '争议处理',
+    detailTitle: '对账明细',
+    detailDialogAria: '对账明细对话框',
+    detailTableAria: '对账明细列表',
+    type: '类型',
+    typeInvoice: '发票',
+    typePayment: '回款',
+    typeAdjustment: '调整',
+    sourceNo: '单据号',
+    date: '日期',
+    amount: '金额',
+    matchedAmount: '已匹配金额',
+    unmatchedAmount: '未匹配金额',
+    confirmationRecords: '客户确认记录',
+    confirmationDialogAria: '客户确认记录对话框',
+    confirmationListAria: '客户确认记录列表',
+    confirmStatus: '确认状态',
+    confirmAmount: '确认金额',
+    confirmTime: '确认时间',
+    disputeType: '争议类型',
+    disputeAmount: '争议金额',
+    disputeDescription: '争议描述',
+    disputeDescriptionPlaceholder: '请输入争议描述',
+    submitDispute: '提交争议',
+    disputeRecords: '争议记录',
+    disputeRecordsAria: '争议记录列表',
+    disputeFormAria: '争议处理表单',
+    disputeDialogAria: '争议处理对话框',
+    resolve: '解决',
+    matchStatusMatched: '已匹配',
+    matchStatusPartial: '部分匹配',
+    matchStatusUnmatched: '未匹配',
+    matchOptionAll: '全部',
+    confirmStatusPending: '待确认',
+    confirmStatusConfirmed: '已确认',
+    confirmStatusDisputed: '已争议',
+    disputeTypeAmount: '金额争议',
+    disputeTypeQuality: '质量争议',
+    disputeTypeDelivery: '交付争议',
+    disputeTypeOther: '其他争议',
+    disputeStatusOpen: '待处理',
+    disputeStatusInvestigating: '调查中',
+    disputeStatusResolved: '已解决',
+    disputeStatusClosed: '已关闭',
+    loadResultsFailed: '加载对账结果失败',
+    selectDateRange: '请选择日期范围',
+    confirmAutoReconcile: '确定要启动自动对账吗？',
+    autoReconcileStarted: '自动对账已启动',
+    startReconcileFailed: '启动对账失败',
+    fetchDetailFailed: '获取明细失败',
+    confirmSendConfirmation: '确定要发送客户对账确认吗？',
+    confirmationSent: '确认函已发送',
+    sendConfirmationFailed: '发送确认函失败',
+    loadConfirmationsFailed: '加载确认记录失败',
+    confirmThisRecord: '确定要确认此记录吗？',
+    markAsDisputed: '确定要标记为争议吗？',
+    loadCustomersFailed: '加载客户失败',
+    loadDisputesFailed: '加载争议记录失败',
+    disputeDescriptionRequired: '请输入争议描述',
+    disputeSubmitted: '争议已提交',
+    submitDisputeFailed: '提交争议失败',
+    enterResolution: '请输入解决方案',
+    resolveDisputeTitle: '解决争议',
+    resolutionRequired: '请输入解决方案',
+    disputeResolved: '争议已解决',
+    resolveDisputeFailed: '解决争议失败',
+    loadAgingFailed: '加载账龄分析失败',
+    agingBarTitle: '账龄分布（柱状图）',
+    agingPieTitle: '账龄占比（饼图）',
+    amountWithUnit: '金额（元）',
+    yuan: '元',
+    agingBucket030: '0-30 天',
+    agingBucket3160: '31-60 天',
+    agingBucket6190: '61-90 天',
+    agingBucket90Plus: '90 天以上',
+    index: {
+      loadFailed: '加载失败',
+      loadListFailed: '加载对账列表失败',
+      editReconciliation: '编辑对账',
+      addReconciliation: '新增对账',
+      statusAll: '全部',
+      statusDraft: '草稿',
+      statusConfirmed: '已确认',
+      loadCustomersFailed: '加载客户失败',
+      fetchDetailFailed: '获取详情失败',
+      requiredFieldsMissing: '请填写必填字段',
+      cannotDeleteConfirmed: '已确认的对账不能删除',
+      deleteConfirm: '确定要删除这个对账吗？',
+      deleteCancelled: '取消删除',
+      confirmReconciliationConfirm: '确定要确认这个对账吗？',
+      confirmSuccess: '确认成功',
+      confirmCancelled: '取消操作',
+      customerNamePlaceholder: '客户名称',
+      statusPlaceholder: '状态',
+      startDatePlaceholder: '开始日期',
+      endDatePlaceholder: '结束日期',
+      query: '查询',
+      listAria: '对账列表',
+      customerCode: '客户编码',
+      customerName: '客户名称',
+      reconciliationStart: '对账起始',
+      reconciliationEnd: '对账截止',
+      invoiceAmount: '发票金额',
+      paymentAmount: '回款金额',
+      balance: '余额',
+      status: '状态',
+      createdBy: '创建人',
+      confirm: '确认',
+      paginationAria: '对账列表分页',
+      formAria: '对账表单',
+      customer: '客户',
+      selectCustomerPlaceholder: '请选择客户',
+      startDateLabel: '对账起始日期',
+      endDateLabel: '对账截止日期',
+      detailTitle: '对账详情',
+      adjustmentAmount: '调整金额',
+      confirmedAt: '确认时间',
+      detailItems: '对账明细',
+      detailItemsAria: '对账明细列表',
+      type: '类型',
+      sourceNo: '单据号',
+      date: '日期',
+      amount: '金额',
+      paidAmount: '已付金额'
+    }
+  },
+  bomModule: {
+    title: 'BOM 管理',
+    create: '新建 BOM',
+    defaultTag: '默认',
+    breadcrumb: {
+      home: '首页',
+      production: '生产管理',
+      bom: 'BOM 管理'
+    },
+    filter: {
+      ariaLabel: 'BOM 筛选表单',
+      productName: '产品名称',
+      productNamePlaceholder: '请输入产品名称',
+      status: '状态',
+      statusPlaceholder: '选择状态',
+      query: '查询',
+      reset: '重置'
+    },
+    status: {
+      draft: '草稿',
+      active: '启用',
+      archived: '归档'
+    },
+    table: {
+      ariaLabel: 'BOM 列表',
+      productCode: '产品编码',
+      productName: '产品名称',
+      version: '版本',
+      isDefault: '默认',
+      status: '状态',
+      remark: '备注',
+      updatedAt: '更新时间',
+      operation: '操作',
+      edit: '编辑',
+      copy: '复制',
+      setDefault: '设为默认',
+      delete: '删除',
+      paginationAriaLabel: 'BOM 列表分页'
+    },
+    dialog: {
+      createTitle: '新建 BOM',
+      editTitle: '编辑 BOM',
+      createAriaLabel: '新建 BOM 对话框',
+      editAriaLabel: '编辑 BOM 对话框'
+    },
+    form: {
+      ariaLabel: 'BOM 表单',
+      productName: '产品名称',
+      productNamePlaceholder: '请输入产品名称',
+      productNameRequired: '请输入产品名称',
+      version: '版本',
+      versionPlaceholder: '请输入版本号',
+      versionRequired: '请输入版本号',
+      isDefault: '是否默认',
+      yes: '是',
+      no: '否',
+      status: '状态',
+      statusPlaceholder: '选择状态',
+      statusRequired: '请选择状态',
+      remark: '备注',
+      remarkPlaceholder: '请输入备注',
+      itemsTitle: '物料明细',
+      addItem: '添加物料',
+      itemsAriaLabel: '物料明细列表',
+      itemsIncomplete: '请完善物料明细（物料名称和单位不能为空）',
+      materialName: '物料名称',
+      materialNamePlaceholder: '请输入物料名称',
+      quantity: '数量',
+      unit: '单位',
+      unitPlaceholder: '请输入单位',
+      lossRate: '损耗率(%)',
+      operation: '操作',
+      delete: '删除',
+      cancel: '取消',
+      save: '保存'
+    },
+    message: {
+      fetchFailed: '获取 BOM 列表失败',
+      copyConfirm: '确定复制 BOM「{name}」吗？',
+      copyConfirmTitle: '确认',
+      copySuccess: '复制成功',
+      copyFailed: '复制失败',
+      setDefaultConfirm: '确定将「{name}」设为默认 BOM 吗？',
+      setDefaultConfirmTitle: '确认',
+      setDefaultSuccess: '设置成功',
+      setDefaultFailed: '设置失败',
+      deleteConfirm: '确定删除 BOM「{name}」吗？',
+      deleteConfirmTitle: '删除确认',
+      deleteSuccess: '删除成功',
+      deleteFailed: '删除失败',
+      createSuccess: '创建成功',
+      updateSuccess: '更新成功',
+      operateFailed: '操作失败'
+    }
+  },
+  apModule: {
+    tabs: {
+      invoice: '应付发票',
+      payment: '付款管理',
+      verification: '核销管理',
+      reconciliation: '对账管理'
+    },
+    invoice: {
+      title: '应付发票',
+      create: '新建发票',
+      filterAria: '应付发票筛选表单',
+      supplier: '供应商',
+      supplierNamePlaceholder: '请输入供应商名称',
+      invoiceNo: '发票编号',
+      invoiceNoPlaceholder: '请输入发票编号',
+      statusPlaceholder: '选择状态',
+      statusPending: '待审核',
+      statusApproved: '已审核',
+      statusVerified: '已核销',
+      statusCancelled: '已取消',
+      listAria: '应付发票列表',
+      invoiceDate: '发票日期',
+      invoiceAmount: '发票金额',
+      taxAmount: '税额',
+      verifiedAmount: '已核销金额',
+      unverifiedAmount: '未核销金额',
+      dueDate: '到期日期',
+      approve: '审核',
+      createTitle: '新建应付发票',
+      createAria: '新建应付发票对话框',
+      formAria: '应付发票表单',
+      supplierPlaceholder: '请选择供应商',
+      invoiceNoInputPlaceholder: '请输入发票编号',
+      datePlaceholder: '选择日期',
+      remark: '备注',
+      fetchListFailed: '获取应付发票列表失败',
+      supplierRequired: '请选择供应商',
+      invoiceNoRequired: '请输入发票编号',
+      invoiceDateRequired: '请选择发票日期',
+      invoiceAmountRequired: '请输入发票金额',
+      notFoundDetail: '未找到发票详情',
+      detailNo: '发票编号：{value}',
+      detailSupplier: '供应商：{value}',
+      detailDate: '发票日期：{value}',
+      detailDueDate: '到期日期：{value}',
+      detailAmount: '发票金额：{value}',
+      detailTax: '税额：{value}',
+      detailVerified: '已核销金额：{value}',
+      detailUnverified: '未核销金额：{value}',
+      detailStatus: '状态：{value}',
+      detailRemark: '备注：{value}',
+      detailTitle: '发票详情',
+      fetchDetailFailed: '获取发票详情失败',
+      approveConfirm: '确定审核此发票吗？',
+      approveTitle: '审核确认',
+      approveSuccess: '审核成功',
+      cancelConfirm: '确定取消此发票吗？',
+      cancelTitle: '取消确认',
+      cancelSuccess: '取消成功',
+      noPrintData: '暂无可打印的数据',
+      colSeq: '序号',
+      printHeader: '应付发票列表',
+      exportedLog: '应付发票已导出'
+    },
+    payment: {
+      title: '付款管理',
+      create: '新建付款',
+      listAria: '付款列表',
+      paymentNo: '付款编号',
+      supplier: '供应商',
+      paymentDate: '付款日期',
+      paymentAmount: '付款金额',
+      paymentMethod: '付款方式',
+      statusConfirmed: '已确认',
+      statusPending: '待确认',
+      bankAccount: '银行账号',
+      confirm: '确认',
+      createTitle: '新建付款',
+      createAria: '新建付款对话框',
+      formAria: '付款表单',
+      supplierPlaceholder: '请选择供应商',
+      methodBankTransfer: '银行转账',
+      methodCash: '现金',
+      methodCheck: '支票',
+      methodBill: '票据',
+      remark: '备注',
+      fetchListFailed: '获取付款列表失败',
+      supplierRequired: '请选择供应商',
+      dateRequired: '请选择付款日期',
+      amountRequired: '请输入付款金额',
+      methodRequired: '请选择付款方式',
+      confirmConfirm: '确定确认此付款吗？',
+      confirmTitle: '确认付款',
+      confirmSuccess: '确认成功'
+    },
+    reconciliation: {
+      title: '对账管理',
+      generate: '生成对账',
+      listAria: '对账列表',
+      reconciliationNo: '对账编号',
+      supplier: '供应商',
+      reconciliationDate: '对账日期',
+      invoiceAmount: '发票金额',
+      paymentAmount: '付款金额',
+      difference: '差异',
+      confirm: '确认',
+      dispute: '异议',
+      generateTitle: '生成对账单',
+      generateAria: '生成对账单对话框',
+      generateFormAria: '生成对账表单',
+      supplierPlaceholder: '请选择供应商',
+      startDate: '开始日期',
+      endDate: '结束日期',
+      fetchListFailed: '获取对账列表失败',
+      pleaseFillComplete: '请填写完整信息',
+      generateSuccess: '生成成功',
+      generateFailed: '生成失败',
+      confirmConfirm: '确定确认此对账单吗？',
+      confirmTitle: '确认对账',
+      confirmSuccess: '确认成功',
+      disputePrompt: '请输入异议原因',
+      disputeTitle: '异议处理',
+      disputeSubmitted: '异议已提交'
+    },
+    verification: {
+      title: '核销管理',
+      create: '手动核销',
+      listAria: '核销列表',
+      verificationNo: '核销编号',
+      invoiceNo: '发票编号',
+      paymentNo: '付款编号',
+      verificationDate: '核销日期',
+      verificationAmount: '核销金额',
+      statusActive: '有效',
+      statusCancelled: '已撤销',
+      createTitle: '手动核销',
+      createAria: '手动核销对话框',
+      formAria: '核销表单',
+      invoicePlaceholder: '请选择发票',
+      invoiceOption: '发票 {no}（未核销：{amount}）',
+      paymentPlaceholder: '请选择付款',
+      paymentOption: '付款 {no}（金额：{amount}）',
+      fetchListFailed: '获取核销列表失败',
+      pleaseFillComplete: '请填写完整信息',
+      verifySuccess: '核销成功'
+    }
+  },
+  arModule: {
+    tabs: {
+      invoice: '应收发票',
+      reconciliation: '应收对账',
+      fund: '资金账户'
+    },
+    invoice: {
+      title: '应收发票',
+      create: '新建发票',
+      filterAria: '应收发票筛选表单',
+      customer: '客户',
+      customerNamePlaceholder: '请输入客户名称',
+      invoiceNo: '发票编号',
+      invoiceNoPlaceholder: '请输入发票编号',
+      statusPlaceholder: '选择状态',
+      statusPending: '待审核',
+      statusApproved: '已审核',
+      statusVerified: '已核销',
+      statusCancelled: '已取消',
+      listAria: '应收发票列表',
+      invoiceDate: '发票日期',
+      invoiceAmount: '发票金额',
+      taxAmount: '税额',
+      verifiedAmount: '已核销金额',
+      unverifiedAmount: '未核销金额',
+      dueDate: '到期日期',
+      approve: '审核',
+      createTitle: '新建应收发票',
+      createAria: '新建应收发票对话框',
+      formAria: '应收发票表单',
+      customerPlaceholder: '请选择客户',
+      invoiceNoInputPlaceholder: '请输入发票编号',
+      datePlaceholder: '选择日期',
+      remark: '备注',
+      remarkPlaceholder: '请输入备注',
+      fetchListFailed: '获取应收发票列表失败',
+      customerRequired: '请选择客户',
+      invoiceNoRequired: '请输入发票编号',
+      invoiceDateRequired: '请选择发票日期',
+      invoiceAmountRequired: '请输入发票金额',
+      notFoundDetail: '未找到发票详情',
+      detailNo: '发票编号：{value}',
+      detailCustomer: '客户：{value}',
+      detailDate: '发票日期：{value}',
+      detailDueDate: '到期日期：{value}',
+      detailAmount: '发票金额：{value}',
+      detailTax: '税额：{value}',
+      detailVerified: '已核销金额：{value}',
+      detailUnverified: '未核销金额：{value}',
+      detailStatus: '状态：{value}',
+      detailRemark: '备注：{value}',
+      detailTitle: '发票详情',
+      fetchDetailFailed: '获取发票详情失败',
+      approveConfirm: '确定审核此发票吗？',
+      approveTitle: '审核确认',
+      approveSuccess: '审核成功',
+      cancelConfirm: '确定取消此发票吗？',
+      cancelTitle: '取消确认',
+      cancelSuccess: '取消成功',
+      colSeq: '序号',
+      printHeader: '应收发票列表',
+      exportedLog: '应收发票已导出'
+    },
+    reconciliation: {
+      title: '应收对账',
+      create: '新建对账',
+      listAria: '应收对账列表',
+      reconciliationNo: '对账编号',
+      customer: '客户',
+      reconciliationDate: '对账日期',
+      invoiceAmount: '发票金额',
+      paymentAmount: '回款金额',
+      difference: '差异',
+      confirmedBy: '确认人',
+      confirmedAt: '确认时间',
+      confirm: '确认',
+      createTitle: '新建对账',
+      createAria: '新建对账对话框',
+      formAria: '对账表单',
+      customerPlaceholder: '请选择客户',
+      datePlaceholder: '选择日期',
+      fetchListFailed: '获取对账列表失败',
+      selectCustomer: '请选择客户',
+      confirmMessage: '确定确认此对账单吗？',
+      confirmTitle: '确认对账',
+      confirmSuccess: '确认成功'
+    },
+    fund: {
+      title: '资金账户',
+      create: '新建账户',
+      totalBalance: '账户总余额',
+      totalFrozen: '总冻结金额',
+      totalAvailable: '总可用金额',
+      accountCount: '账户数量',
+      listAria: '资金账户列表',
+      accountCode: '账户编码',
+      accountName: '账户名称',
+      accountType: '账户类型',
+      balance: '余额',
+      frozenBalance: '冻结余额',
+      availableBalance: '可用余额',
+      bankName: '开户银行',
+      bankAccount: '银行账号',
+      statusActive: '正常',
+      statusFrozen: '已冻结',
+      deposit: '存入',
+      withdraw: '支出',
+      freeze: '冻结',
+      createTitle: '新建资金账户',
+      createAria: '新建资金账户对话框',
+      formAria: '资金账户表单',
+      accountCodePlaceholder: '请输入账户编码',
+      accountNamePlaceholder: '请输入账户名称',
+      typePlaceholder: '请选择账户类型',
+      typeBank: '银行',
+      typeCash: '现金',
+      typeAlipay: '支付宝',
+      typeWechat: '微信',
+      bankNamePlaceholder: '请输入开户银行',
+      bankAccountPlaceholder: '请输入银行账号',
+      accountCodeRequired: '请输入账户编码',
+      accountNameRequired: '请输入账户名称',
+      accountTypeRequired: '请选择账户类型',
+      opAria: '资金操作对话框',
+      opFormAria: '资金操作表单',
+      amount: '金额',
+      reason: '原因',
+      reasonPlaceholder: '请输入原因',
+      remark: '备注',
+      remarkPlaceholder: '请输入备注',
+      depositTitle: '存入资金',
+      withdrawTitle: '支出资金',
+      freezeTitle: '冻结资金',
+      invalidAmount: '请输入有效金额',
+      reasonRequired: '请输入冻结原因',
+      depositSuccess: '存入成功',
+      withdrawSuccess: '支出成功',
+      freezeSuccess: '冻结成功',
+      fetchListFailed: '获取资金账户列表失败'
+    }
+  }
 };

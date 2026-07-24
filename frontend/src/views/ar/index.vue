@@ -16,13 +16,13 @@
 <template>
   <div class="ar-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => (activeTab = String(tab))">
-      <el-tab-pane label="应收发票" name="invoice">
+      <el-tab-pane :label="$t('arModule.tabs.invoice')" name="invoice">
         <InvoiceTab />
       </el-tab-pane>
-      <el-tab-pane label="应收对账" name="reconciliation">
+      <el-tab-pane :label="$t('arModule.tabs.reconciliation')" name="reconciliation">
         <ReconciliationTab />
       </el-tab-pane>
-      <el-tab-pane label="资金账户" name="fund">
+      <el-tab-pane :label="$t('arModule.tabs.fund')" name="fund">
         <FundTab />
       </el-tab-pane>
     </el-tabs>

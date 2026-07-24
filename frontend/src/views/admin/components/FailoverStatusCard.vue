@@ -22,25 +22,25 @@
     </template>
 
     <el-descriptions :column="1" border>
-      <el-descriptions-item label="主调用">
-        <span class="url">{{ maskedPrimaryUrl || '未配置' }}</span>
+      <el-descriptions-item :label="$t('adminFailover.descPrimaryCall')">
+        <span class="url">{{ maskedPrimaryUrl || $t('adminFailover.notConfigured') }}</span>
       </el-descriptions-item>
-      <el-descriptions-item label="备用">
+      <el-descriptions-item :label="$t('adminFailover.descBackup')">
         <span class="url">{{ backupTypeLabel }} {{ maskedBackupUrl }}</span>
       </el-descriptions-item>
-      <el-descriptions-item label="熔断器">
+      <el-descriptions-item :label="$t('adminFailover.descCircuit')">
         <el-tag :type="circuitTagType" size="small">{{ circuitLabel }}</el-tag>
-        <span class="metric">失败 {{ status.consecutive_failures }} 次</span>
+        <span class="metric">{{ $t('adminFailover.failCount', { n: status.consecutive_failures }) }}</span>
       </el-descriptions-item>
-      <el-descriptions-item label="调用统计">
-        <span class="metric">主: {{ status.total_primary_calls.toLocaleString() }}</span>
-        <span class="metric">备: {{ status.total_backup_calls.toLocaleString() }}</span>
-        <span class="metric">切换: {{ status.total_switches.toLocaleString() }}</span>
+      <el-descriptions-item :label="$t('adminFailover.descCallStats')">
+        <span class="metric">{{ $t('adminFailover.statPrimary', { n: status.total_primary_calls.toLocaleString() }) }}</span>
+        <span class="metric">{{ $t('adminFailover.statBackup', { n: status.total_backup_calls.toLocaleString() }) }}</span>
+        <span class="metric">{{ $t('adminFailover.statSwitch', { n: status.total_switches.toLocaleString() }) }}</span>
       </el-descriptions-item>
-      <el-descriptions-item label="最近成功">
+      <el-descriptions-item :label="$t('adminFailover.descLastSuccess')">
         <span class="time">{{ formatTime(status.last_success_at) }}</span>
       </el-descriptions-item>
-      <el-descriptions-item v-if="status.last_switch_at" label="最近切换">
+      <el-descriptions-item v-if="status.last_switch_at" :label="$t('adminFailover.descLastSwitch')">
         <span class="time">{{ formatTime(status.last_switch_at) }}</span>
       </el-descriptions-item>
     </el-descriptions>
@@ -53,7 +53,7 @@
         @click="$emit('switch', status.function_name)"
         :disabled="isBackup"
       >
-        手动切换至备用
+        {{ $t('adminFailover.manualSwitch') }}
       </el-button>
     </div>
   </el-card>
@@ -61,6 +61,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   CircleCheck,
   Warning,
@@ -72,15 +73,17 @@ import type { FailoverStatusDto } from '@/api/failover'
 const props = defineProps<{ status: FailoverStatusDto }>()
 defineEmits<{ (e: 'switch', functionName: string): void }>()
 
-const FUNCTION_LABELS: Record<string, string> = {
-  database: '数据库连接',
-  cache: '缓存服务',
+const { t } = useI18n({ useScope: 'global' })
+
+const FUNCTION_LABEL_KEYS: Record<string, string> = {
+  database: 'adminFailover.funcDatabaseConn',
+  cache: 'adminFailover.funcCacheService',
 }
 
-const STATE_LABELS: Record<string, string> = {
-  primary: '主调用运行中',
-  backup: '备用调用中',
-  both_down: '主备均不可用',
+const STATE_LABEL_KEYS: Record<string, string> = {
+  primary: 'adminFailover.statePrimary',
+  backup: 'adminFailover.stateBackup',
+  both_down: 'adminFailover.stateBothDown',
 }
 
 const STATE_TAG_TYPES: Record<string, 'success' | 'warning' | 'danger'> = {
@@ -89,10 +92,10 @@ const STATE_TAG_TYPES: Record<string, 'success' | 'warning' | 'danger'> = {
   both_down: 'danger',
 }
 
-const CIRCUIT_LABELS: Record<string, string> = {
-  closed: '关闭',
-  open: '打开',
-  half_open: '半开',
+const CIRCUIT_LABEL_KEYS: Record<string, string> = {
+  closed: 'adminFailover.circuitClosed',
+  open: 'adminFailover.circuitOpen',
+  half_open: 'adminFailover.circuitHalfOpen',
 }
 
 const CIRCUIT_TAG_TYPES: Record<string, 'success' | 'danger' | 'warning'> = {
@@ -101,10 +104,22 @@ const CIRCUIT_TAG_TYPES: Record<string, 'success' | 'danger' | 'warning'> = {
   half_open: 'warning',
 }
 
-const functionLabel = computed(() => FUNCTION_LABELS[props.status.function_name] || props.status.function_name)
-const stateLabel = computed(() => STATE_LABELS[props.status.current_state] || props.status.current_state)
+const functionLabel = computed(() =>
+  FUNCTION_LABEL_KEYS[props.status.function_name]
+    ? t(FUNCTION_LABEL_KEYS[props.status.function_name])
+    : props.status.function_name,
+)
+const stateLabel = computed(() =>
+  STATE_LABEL_KEYS[props.status.current_state]
+    ? t(STATE_LABEL_KEYS[props.status.current_state])
+    : props.status.current_state,
+)
 const stateTagType = computed(() => STATE_TAG_TYPES[props.status.current_state] || 'info')
-const circuitLabel = computed(() => CIRCUIT_LABELS[props.status.circuit_state] || props.status.circuit_state)
+const circuitLabel = computed(() =>
+  CIRCUIT_LABEL_KEYS[props.status.circuit_state]
+    ? t(CIRCUIT_LABEL_KEYS[props.status.circuit_state])
+    : props.status.circuit_state,
+)
 const circuitTagType = computed(() => CIRCUIT_TAG_TYPES[props.status.circuit_state] || 'info')
 
 const isPrimary = computed(() => props.status.current_state === 'primary')
@@ -123,9 +138,9 @@ const iconClass = computed(() => ({
 }))
 
 const backupTypeLabel = computed(() => {
-  if (props.status.function_name === 'database') return 'PostgreSQL 备库'
-  if (props.status.function_name === 'cache') return '进程内 LRU'
-  return props.status.backup_type || '未知'
+  if (props.status.function_name === 'database') return t('adminFailover.backupPostgres')
+  if (props.status.function_name === 'cache') return t('adminFailover.backupLru')
+  return props.status.backup_type || t('adminFailover.stateUnknown')
 })
 
 /** 脱敏主 URL */
@@ -138,13 +153,13 @@ const maskedPrimaryUrl = computed(() => {
 
 /** 脱敏备 URL */
 const maskedBackupUrl = computed(() => {
-  if (props.status.backup_type === 'lru') return '(内存缓存)'
+  if (props.status.backup_type === 'lru') return t('adminFailover.memoryCache')
   return ''
 })
 
 /** 格式化时间 */
 function formatTime(time?: string): string {
-  if (!time) return '从未'
+  if (!time) return t('adminFailover.never')
   try {
     return new Date(time).toLocaleString('zh-CN')
   } catch {

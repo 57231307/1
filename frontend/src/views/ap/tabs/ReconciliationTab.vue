@@ -6,42 +6,42 @@
 <template>
   <div class="reconciliation-tab">
     <div class="page-header">
-      <h2 class="page-title">对账管理</h2>
+      <h2 class="page-title">{{ $t('apModule.reconciliation.title') }}</h2>
       <el-button type="primary" @click="generateReconciliation()">
-        <el-icon><Plus /></el-icon> 生成对账单
+        <el-icon><Plus /></el-icon> {{ $t('apModule.reconciliation.generate') }}
       </el-button>
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe aria-label="对账单列表">
-        <el-table-column prop="reconciliation_no" label="对账单号" width="140" />
-        <el-table-column prop="supplier_name" label="供应商" width="150" />
-        <el-table-column prop="reconciliation_date" label="对账日期" width="120" />
-        <el-table-column label="发票金额" width="120" align="right">
+      <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe :aria-label="$t('apModule.reconciliation.listAria')">
+        <el-table-column prop="reconciliation_no" :label="$t('apModule.reconciliation.reconciliationNo')" width="140" />
+        <el-table-column prop="supplier_name" :label="$t('apModule.reconciliation.supplier')" width="150" />
+        <el-table-column prop="reconciliation_date" :label="$t('apModule.reconciliation.reconciliationDate')" width="120" />
+        <el-table-column :label="$t('apModule.reconciliation.invoiceAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.total_invoice_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="付款金额" width="120" align="right">
+        <el-table-column :label="$t('apModule.reconciliation.paymentAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.total_payment_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="差额" width="100" align="right">
+        <el-table-column :label="$t('apModule.reconciliation.difference')" width="100" align="right">
           <template #default="{ row }">
             <span :class="{ 'text-red': row.difference_amount !== 0 }">
               {{ formatMoney(row.difference_amount) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="$t('common.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getReconciliationStatusType(row.status)" size="small">
               {{ getReconciliationStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column :label="$t('common.operation')" width="150" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 'pending'"
@@ -49,7 +49,7 @@
               link
               size="small"
               @click="confirmReconciliation(row as unknown as APReconciliation)"
-              >确认</el-button
+              >{{ $t('apModule.reconciliation.confirm') }}</el-button
             >
             <el-button
               v-if="row.status === 'pending'"
@@ -57,25 +57,25 @@
               link
               size="small"
               @click="disputeReconciliation(row as unknown as APReconciliation)"
-              >异议</el-button
+              >{{ $t('apModule.reconciliation.dispute') }}</el-button
             >
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="reconciliationDialogVisible" title="生成对账单" width="500px" aria-label="生成对账单对话框">
-      <el-form :model="reconciliationForm" label-width="100px" aria-label="生成对账单表单">
-        <el-form-item label="供应商" required>
+    <el-dialog v-model="reconciliationDialogVisible" :title="$t('apModule.reconciliation.generateTitle')" width="500px" :aria-label="$t('apModule.reconciliation.generateAria')">
+      <el-form :model="reconciliationForm" label-width="100px" :aria-label="$t('apModule.reconciliation.generateFormAria')">
+        <el-form-item :label="$t('apModule.reconciliation.supplier')" required>
           <el-select
             v-model="reconciliationForm.supplier_id"
-            placeholder="选择供应商"
+            :placeholder="$t('apModule.reconciliation.supplierPlaceholder')"
             style="width: 100%"
           >
             <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="开始日期" required>
+        <el-form-item :label="$t('apModule.reconciliation.startDate')" required>
           <el-date-picker
             v-model="reconciliationForm.start_date"
             type="date"
@@ -83,7 +83,7 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="结束日期" required>
+        <el-form-item :label="$t('apModule.reconciliation.endDate')" required>
           <el-date-picker
             v-model="reconciliationForm.end_date"
             type="date"
@@ -93,8 +93,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="reconciliationDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitReconciliation">生成</el-button>
+        <el-button @click="reconciliationDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="submitReconciliation">{{ $t('apModule.reconciliation.generate') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -102,6 +102,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -112,6 +113,8 @@ import {
   type APReconciliation,
 } from '@/api/ap-reconciliation'
 import type { Supplier } from '@/api/supplier'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const reconciliations = ref<APReconciliation[]>([])
 const reconciliationLoading = ref(false)
@@ -131,12 +134,13 @@ const getReconciliationStatusType = (status: string) => {
 }
 
 const getReconciliationStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    pending: '待确认',
-    confirmed: '已确认',
-    disputed: '有异议',
+  const keyMap: Record<string, string> = {
+    pending: 'apModule.reconciliation.statusPending',
+    confirmed: 'apModule.reconciliation.statusConfirmed',
+    disputed: 'apModule.reconciliation.statusDisputed',
   }
-  return map[status] || status
+  const key = keyMap[status]
+  return key ? t(key) : status
 }
 
 const fetchReconciliations = async () => {
@@ -154,7 +158,7 @@ const fetchReconciliations = async () => {
     }
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '获取对账单列表失败')
+    ElMessage.error(err.message || t('apModule.reconciliation.fetchListFailed'))
   } finally {
     reconciliationLoading.value = false
   }
@@ -180,7 +184,7 @@ const submitReconciliation = async () => {
     !reconciliationForm.start_date ||
     !reconciliationForm.end_date
   ) {
-    ElMessage.warning('请填写完整信息')
+    ElMessage.warning(t('apModule.reconciliation.pleaseFillComplete'))
     return
   }
   try {
@@ -189,42 +193,42 @@ const submitReconciliation = async () => {
       start_date: reconciliationForm.start_date,
       end_date: reconciliationForm.end_date,
     })
-    ElMessage.success('对账单生成成功')
+    ElMessage.success(t('apModule.reconciliation.generateSuccess'))
     reconciliationDialogVisible.value = false
     fetchReconciliations()
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '生成失败')
+    ElMessage.error(err.message || t('apModule.reconciliation.generateFailed'))
   }
 }
 
 const confirmReconciliation = async (row: APReconciliation) => {
   try {
-    await ElMessageBox.confirm('确定确认该对账单吗？', '确认对账', { type: 'info' })
+    await ElMessageBox.confirm(t('apModule.reconciliation.confirmConfirm'), t('apModule.reconciliation.confirmTitle'), { type: 'info' })
     await confirmAPReconciliation(row.id)
-    ElMessage.success('确认成功')
+    ElMessage.success(t('apModule.reconciliation.confirmSuccess'))
     fetchReconciliations()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('common.failed'))
     }
   }
 }
 
 const disputeReconciliation = async (row: APReconciliation) => {
   try {
-    const { value } = await ElMessageBox.prompt('请输入异议原因', '异议说明', {
+    const { value } = await ElMessageBox.prompt(t('apModule.reconciliation.disputePrompt'), t('apModule.reconciliation.disputeTitle'), {
       inputPattern: /.+/,
-      inputErrorMessage: '请输入异议原因',
+      inputErrorMessage: t('apModule.reconciliation.disputePrompt'),
     })
     await disputeAPReconciliation(row.id, value)
-    ElMessage.success('已提交异议')
+    ElMessage.success(t('apModule.reconciliation.disputeSubmitted'))
     fetchReconciliations()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('common.failed'))
     }
   }
 }

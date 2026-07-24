@@ -1,60 +1,60 @@
 <template>
   <div class="bom-form">
-    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px" aria-label="BOM 表单">
+    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px" :aria-label="$t('bomModule.form.ariaLabel')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="产品名称" prop="product_name">
-            <el-input v-model="localFormData.product_name" placeholder="请输入产品名称" />
+          <el-form-item :label="$t('bomModule.form.productName')" prop="product_name">
+            <el-input v-model="localFormData.product_name" :placeholder="$t('bomModule.form.productNamePlaceholder')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="版本号" prop="version">
-            <el-input v-model="localFormData.version" placeholder="请输入版本号" />
+          <el-form-item :label="$t('bomModule.form.version')" prop="version">
+            <el-input v-model="localFormData.version" :placeholder="$t('bomModule.form.versionPlaceholder')" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="是否默认" prop="is_default">
-            <el-switch v-model="localFormData.is_default" active-text="是" inactive-text="否" />
+          <el-form-item :label="$t('bomModule.form.isDefault')" prop="is_default">
+            <el-switch v-model="localFormData.is_default" :active-text="$t('bomModule.form.yes')" :inactive-text="$t('bomModule.form.no')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="状态" prop="status">
-            <el-select v-model="localFormData.status" placeholder="请选择状态" style="width: 100%">
-              <el-option label="草稿" value="draft" />
-              <el-option label="启用" value="active" />
-              <el-option label="归档" value="archived" />
+          <el-form-item :label="$t('bomModule.form.status')" prop="status">
+            <el-select v-model="localFormData.status" :placeholder="$t('bomModule.form.statusPlaceholder')" style="width: 100%">
+              <el-option :label="$t('bomModule.status.draft')" value="draft" />
+              <el-option :label="$t('bomModule.status.active')" value="active" />
+              <el-option :label="$t('bomModule.status.archived')" value="archived" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="备注" prop="remark">
+      <el-form-item :label="$t('bomModule.form.remark')" prop="remark">
         <el-input
           v-model="localFormData.remark"
           type="textarea"
           :rows="2"
-          placeholder="请输入备注"
+          :placeholder="$t('bomModule.form.remarkPlaceholder')"
         />
       </el-form-item>
     </el-form>
 
     <div class="items-section">
       <div class="items-header">
-        <h3 class="items-title">BOM 明细</h3>
+        <h3 class="items-title">{{ $t('bomModule.form.itemsTitle') }}</h3>
         <el-button type="primary" size="small" @click="handleAddItem">
           <el-icon><Plus /></el-icon>
-          添加明细
+          {{ $t('bomModule.form.addItem') }}
         </el-button>
       </div>
 
-      <el-table :data="localFormData.items" border size="small" class="items-table" aria-label="BOM 明细列表">
-        <el-table-column label="物料名称" min-width="180">
+      <el-table :data="localFormData.items" border size="small" class="items-table" :aria-label="$t('bomModule.form.itemsAriaLabel')">
+        <el-table-column :label="$t('bomModule.form.materialName')" min-width="180">
           <template #default="{ row }">
-            <el-input v-model="row.material_name" placeholder="请输入物料名称" />
+            <el-input v-model="row.material_name" :placeholder="$t('bomModule.form.materialNamePlaceholder')" />
           </template>
         </el-table-column>
-        <el-table-column label="数量" width="120">
+        <el-table-column :label="$t('bomModule.form.quantity')" width="120">
           <template #default="{ row }">
             <el-input-number
               v-model="row.quantity"
@@ -65,12 +65,12 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="单位" width="100">
+        <el-table-column :label="$t('bomModule.form.unit')" width="100">
           <template #default="{ row }">
-            <el-input v-model="row.unit" placeholder="单位" />
+            <el-input v-model="row.unit" :placeholder="$t('bomModule.form.unitPlaceholder')" />
           </template>
         </el-table-column>
-        <el-table-column label="损耗率(%)" width="130">
+        <el-table-column :label="$t('bomModule.form.lossRate')" width="130">
           <template #default="{ row }">
             <el-input-number
               v-model="row.loss_rate"
@@ -82,10 +82,10 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="80" fixed="right">
+        <el-table-column :label="$t('bomModule.form.operation')" width="80" fixed="right">
           <template #default="{ $index }">
             <el-button type="danger" link size="small" @click="handleRemoveItem($index)">
-              删除
+              {{ $t('bomModule.form.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -93,18 +93,21 @@
     </div>
 
     <div class="form-footer">
-      <el-button @click="handleCancel">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      <el-button @click="handleCancel">{{ $t('bomModule.form.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('bomModule.form.save') }}</el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { Bom } from '@/api/bom'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   formData: {
@@ -159,9 +162,9 @@ watch(
 )
 
 const formRules: FormRules = {
-  product_name: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
-  version: [{ required: true, message: '请输入版本号', trigger: 'blur' }],
-  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
+  product_name: [{ required: true, message: t('bomModule.form.productNameRequired'), trigger: 'blur' }],
+  version: [{ required: true, message: t('bomModule.form.versionRequired'), trigger: 'blur' }],
+  status: [{ required: true, message: t('bomModule.form.statusRequired'), trigger: 'change' }],
 }
 
 const handleAddItem = () => {
@@ -185,7 +188,7 @@ const handleSubmit = async () => {
 
     const hasEmptyItems = localFormData.value.items.some(item => !item.material_name || !item.unit)
     if (hasEmptyItems) {
-      ElMessage.warning('请填写完整的物料明细')
+      ElMessage.warning(t('bomModule.form.itemsIncomplete'))
       return
     }
 

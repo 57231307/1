@@ -7,10 +7,10 @@
 <template>
   <div class="bpm-definitions">
     <div class="page-header">
-      <h2>流程定义</h2>
+      <h2>{{ $t('bpm.definitions.title') }}</h2>
       <el-button type="primary" @click="bpmDfProc.handleCreate">
         <el-icon><Plus /></el-icon>
-        新建流程
+        {{ $t('bpm.definitions.create') }}
       </el-button>
     </div>
 
@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useBpmDf } from './definitions/composables/useBpmDf'
@@ -75,6 +76,8 @@ import BpmDefinitionTable from './definitions/components/BpmDefinitionTable.vue'
 import BpmDefinitionForm from './definitions/components/BpmDefinitionForm.vue'
 import BpmDefinitionVersionDialog from './definitions/components/BpmDefinitionVersionDialog.vue'
 import BpmDefinitionTemplateDialog from './definitions/components/BpmDefinitionTemplateDialog.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const bpmDf = useBpmDf()
@@ -101,15 +104,15 @@ const bpmDfProc = useBpmDfProc({
 
 // 表单验证规则
 const formRules = reactive<FormRules>({
-  process_key: [{ required: true, message: '请输入流程标识', trigger: 'blur' }],
-  process_name: [{ required: true, message: '请输入流程名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
+  process_key: [{ required: true, message: t('bpm.definitions.formRules.processKeyRequired'), trigger: 'blur' }],
+  process_name: [{ required: true, message: t('bpm.definitions.formRules.processNameRequired'), trigger: 'blur' }],
+  category: [{ required: true, message: t('bpm.definitions.formRules.categoryRequired'), trigger: 'change' }],
 })
 
 // 模板表单验证规则
 const templateRules = reactive<FormRules>({
-  template_name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
+  template_name: [{ required: true, message: t('bpm.definitions.templateRules.templateNameRequired'), trigger: 'blur' }],
+  category: [{ required: true, message: t('bpm.definitions.templateRules.categoryRequired'), trigger: 'change' }],
 })
 
 /** 添加节点 */
@@ -117,7 +120,7 @@ const handleAddNode = () => {
   bpmDf.formData.nodes.push({
     id: `node_${Date.now()}`,
     type: 'approval',
-    name: `节点${bpmDf.formData.nodes.length + 1}`,
+    name: t('bpm.definitions.nodePrefix', { index: bpmDf.formData.nodes.length + 1 }),
     assignee_type: 'user',
     assignee_value: '',
   })

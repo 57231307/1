@@ -7,24 +7,24 @@
 <template>
   <div class="capacity-page">
     <div class="page-header">
-      <h2>产能分析</h2>
+      <h2>{{ $t('capacityModule.title') }}</h2>
       <div class="header-actions">
         <el-date-picker
           v-model="cp.dateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="$t('capacityModule.dateRange.to')"
+          :start-placeholder="$t('capacityModule.dateRange.startPlaceholder')"
+          :end-placeholder="$t('capacityModule.dateRange.endPlaceholder')"
           @change="cp.handleDateChange"
         />
         <el-select
           v-model="cp.selectedWorkCenter"
-          placeholder="选择工作中心"
+          :placeholder="$t('capacityModule.workCenterPlaceholder')"
           clearable
           style="width: 200px; margin-left: 12px"
           @change="cp.handleWorkCenterChange"
         >
-          <el-option label="全部" :value="undefined" />
+          <el-option :label="$t('capacityModule.allWorkCenters')" :value="undefined" />
           <el-option
             v-for="wc in cp.workCenters"
             :key="wc.id"

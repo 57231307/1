@@ -6,37 +6,37 @@
 <template>
   <div class="payment-tab">
     <div class="page-header">
-      <h2 class="page-title">付款管理</h2>
+      <h2 class="page-title">{{ $t('apModule.payment.title') }}</h2>
       <el-button type="primary" @click="openPaymentDialog()">
-        <el-icon><Plus /></el-icon> 新建付款
+        <el-icon><Plus /></el-icon> {{ $t('apModule.payment.create') }}
       </el-button>
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="paymentLoading" :data="payments" stripe aria-label="付款列表">
-        <el-table-column prop="payment_no" label="付款单号" width="140" />
-        <el-table-column prop="supplier_name" label="供应商" width="150" />
-        <el-table-column prop="payment_date" label="付款日期" width="120" />
-        <el-table-column label="付款金额" width="120" align="right">
+      <el-table v-loading="paymentLoading" :data="payments" stripe :aria-label="$t('apModule.payment.listAria')">
+        <el-table-column prop="payment_no" :label="$t('apModule.payment.paymentNo')" width="140" />
+        <el-table-column prop="supplier_name" :label="$t('apModule.payment.supplier')" width="150" />
+        <el-table-column prop="payment_date" :label="$t('apModule.payment.paymentDate')" width="120" />
+        <el-table-column :label="$t('apModule.payment.paymentAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.payment_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="payment_method" label="付款方式" width="100">
+        <el-table-column prop="payment_method" :label="$t('apModule.payment.paymentMethod')" width="100">
           <template #default="{ row }">
             {{ getPaymentMethodLabel(row.payment_method) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90" align="center">
+        <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'confirmed' ? 'success' : 'warning'" size="small">
-              {{ row.status === 'confirmed' ? '已确认' : '待确认' }}
+              {{ row.status === 'confirmed' ? $t('apModule.payment.statusConfirmed') : $t('apModule.payment.statusPending') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="bank_account" label="银行账户" width="150" />
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column prop="bank_account" :label="$t('apModule.payment.bankAccount')" width="150" />
+        <el-table-column prop="created_at" :label="$t('common.createTime')" width="160" />
+        <el-table-column :label="$t('common.operation')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.status !== 'confirmed'"
@@ -44,23 +44,23 @@
               link
               size="small"
               @click="confirmPayment(row as unknown as APPayment)"
-              >确认</el-button
+              >{{ $t('apModule.payment.confirm') }}</el-button
             >
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="paymentDialogVisible" title="新建付款" width="600px" aria-label="新建付款对话框">
-      <el-form ref="paymentFormRef" :model="paymentForm" :rules="paymentRules" label-width="100px" aria-label="付款表单">
-        <el-form-item label="供应商" prop="supplier_id">
-          <el-select v-model="paymentForm.supplier_id" placeholder="选择供应商" style="width: 100%">
+    <el-dialog v-model="paymentDialogVisible" :title="$t('apModule.payment.createTitle')" width="600px" :aria-label="$t('apModule.payment.createAria')">
+      <el-form ref="paymentFormRef" :model="paymentForm" :rules="paymentRules" label-width="100px" :aria-label="$t('apModule.payment.formAria')">
+        <el-form-item :label="$t('apModule.payment.supplier')" prop="supplier_id">
+          <el-select v-model="paymentForm.supplier_id" :placeholder="$t('apModule.payment.supplierPlaceholder')" style="width: 100%">
             <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="付款日期" prop="payment_date">
+            <el-form-item :label="$t('apModule.payment.paymentDate')" prop="payment_date">
               <el-date-picker
                 v-model="paymentForm.payment_date"
                 type="date"
@@ -70,7 +70,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="付款金额" prop="payment_amount">
+            <el-form-item :label="$t('apModule.payment.paymentAmount')" prop="payment_amount">
               <el-input-number
                 v-model="paymentForm.payment_amount"
                 :min="0"
@@ -80,25 +80,25 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="付款方式" prop="payment_method">
+        <el-form-item :label="$t('apModule.payment.paymentMethod')" prop="payment_method">
           <el-select v-model="paymentForm.payment_method" style="width: 100%">
-            <el-option label="银行转账" value="bank_transfer" />
-            <el-option label="现金" value="cash" />
-            <el-option label="支票" value="check" />
-            <el-option label="承兑汇票" value="bill" />
+            <el-option :label="$t('apModule.payment.methodBankTransfer')" value="bank_transfer" />
+            <el-option :label="$t('apModule.payment.methodCash')" value="cash" />
+            <el-option :label="$t('apModule.payment.methodCheck')" value="check" />
+            <el-option :label="$t('apModule.payment.methodBill')" value="bill" />
           </el-select>
         </el-form-item>
-        <el-form-item label="银行账户">
+        <el-form-item :label="$t('apModule.payment.bankAccount')">
           <el-input v-model="paymentForm.bank_account" />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('apModule.payment.remark')">
           <el-input v-model="paymentForm.remark" type="textarea" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="paymentDialogVisible = false">取消</el-button>
+        <el-button @click="paymentDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="paymentSubmitLoading" @click="submitPayment"
-          >确定</el-button
+          >{{ $t('common.confirm') }}</el-button
         >
       </template>
     </el-dialog>
@@ -107,6 +107,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -119,6 +120,8 @@ import {
 } from '@/api/ap-payment'
 import type { Supplier } from '@/api/supplier'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const payments = ref<APPayment[]>([])
 const paymentLoading = ref(false)
 const suppliers = ref<Supplier[]>([])
@@ -128,6 +131,14 @@ const formatMoney = (amount: number | undefined) => {
 }
 
 const getPaymentMethodLabel = (method: string) => {
+  const keyMap: Record<string, string> = {
+    bank_transfer: 'apModule.payment.methodBankTransfer',
+    cash: 'apModule.payment.methodCash',
+    check: 'apModule.payment.methodCheck',
+    bill: 'apModule.payment.methodBill',
+  }
+  const key = keyMap[method]
+  if (key) return t(key)
   return getAPPaymentMethodText(method) || method
 }
 
@@ -143,7 +154,7 @@ const fetchPayments = async () => {
     }
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '获取付款列表失败')
+    ElMessage.error(err.message || t('apModule.payment.fetchListFailed'))
   } finally {
     paymentLoading.value = false
   }
@@ -162,10 +173,10 @@ const paymentForm = reactive({
 })
 
 const paymentRules: FormRules = {
-  supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
-  payment_date: [{ required: true, message: '请选择付款日期', trigger: 'change' }],
-  payment_amount: [{ required: true, message: '请输入付款金额', trigger: 'blur' }],
-  payment_method: [{ required: true, message: '请选择付款方式', trigger: 'change' }],
+  supplier_id: [{ required: true, message: t('apModule.payment.supplierRequired'), trigger: 'change' }],
+  payment_date: [{ required: true, message: t('apModule.payment.dateRequired'), trigger: 'change' }],
+  payment_amount: [{ required: true, message: t('apModule.payment.amountRequired'), trigger: 'blur' }],
+  payment_method: [{ required: true, message: t('apModule.payment.methodRequired'), trigger: 'change' }],
 }
 
 const openPaymentDialog = () => {
@@ -185,12 +196,12 @@ const submitPayment = async () => {
   paymentSubmitLoading.value = true
   try {
     await createAPPayment(paymentForm)
-    ElMessage.success('创建成功')
+    ElMessage.success(t('common.success'))
     paymentDialogVisible.value = false
     fetchPayments()
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('common.failed'))
   } finally {
     paymentSubmitLoading.value = false
   }
@@ -198,14 +209,14 @@ const submitPayment = async () => {
 
 const confirmPayment = async (row: APPayment) => {
   try {
-    await ElMessageBox.confirm('确定确认该付款吗？', '确认付款', { type: 'info' })
+    await ElMessageBox.confirm(t('apModule.payment.confirmConfirm'), t('apModule.payment.confirmTitle'), { type: 'info' })
     await confirmAPPayment(row.id)
-    ElMessage.success('确认成功')
+    ElMessage.success(t('apModule.payment.confirmSuccess'))
     fetchPayments()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('common.failed'))
     }
   }
 }

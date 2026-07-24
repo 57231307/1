@@ -34,26 +34,26 @@ const closeReportResult = () => emit('update:report-result-visible', false)
 
 <template>
   <div class="page-header">
-    <h2 class="page-title">报表管理</h2>
+    <h2 class="page-title">{{ $t('advancedModule.report.title') }}</h2>
   </div>
 
   <el-card shadow="hover">
     <el-table v-loading="reportLoading" :data="reportTemplates" stripe aria-label="报表模板列表">
-      <el-table-column prop="template_name" label="报表名称" width="180" />
-      <el-table-column prop="template_code" label="报表编码" width="120" />
-      <el-table-column prop="category" label="分类" width="120" />
-      <el-table-column prop="description" label="描述" min-width="200" />
-      <el-table-column prop="created_at" label="创建时间" width="160" />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column prop="template_name" :label="$t('advancedModule.report.colName')" width="180" />
+      <el-table-column prop="template_code" :label="$t('advancedModule.report.colCode')" width="120" />
+      <el-table-column prop="category" :label="$t('advancedModule.report.colCategory')" width="120" />
+      <el-table-column prop="description" :label="$t('advancedModule.report.colDesc')" min-width="200" />
+      <el-table-column prop="created_at" :label="$t('advancedModule.report.colCreatedAt')" width="160" />
+      <el-table-column :label="$t('advancedModule.report.colAction')" width="200" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="executeReport(row as ReportTemplate)"
-            >执行</el-button
+            >{{ $t('advancedModule.report.execute') }}</el-button
           >
           <el-button type="success" link size="small" @click="exportReport(row, 'excel')"
-            >导出 Excel</el-button
+            >{{ $t('advancedModule.report.exportExcel') }}</el-button
           >
           <el-button type="warning" link size="small" @click="exportReport(row, 'pdf')"
-            >导出 PDF</el-button
+            >{{ $t('advancedModule.report.exportPdf') }}</el-button
           >
         </template>
       </el-table-column>
@@ -62,13 +62,13 @@ const closeReportResult = () => emit('update:report-result-visible', false)
 
   <el-dialog
     :model-value="reportResultVisible"
-    title="报表结果"
+    :title="$t('advancedModule.report.resultTitle')"
     width="80%"
     aria-label="报表结果对话框"
     @update:model-value="(v: boolean) => emit('update:report-result-visible', v)"
   >
     <div class="report-result">
-      <el-empty v-if="!reportData" description="暂无数据" />
+      <el-empty v-if="!reportData" :description="$t('advancedModule.report.empty')" />
       <el-table v-else :data="reportData" border stripe aria-label="报表结果数据表">
         <el-table-column
           v-for="col in reportColumns"
@@ -79,7 +79,7 @@ const closeReportResult = () => emit('update:report-result-visible', false)
       </el-table>
     </div>
     <template #footer>
-      <el-button @click="closeReportResult">关闭</el-button>
+      <el-button @click="closeReportResult">{{ $t('advancedModule.report.close') }}</el-button>
     </template>
   </el-dialog>
 </template>

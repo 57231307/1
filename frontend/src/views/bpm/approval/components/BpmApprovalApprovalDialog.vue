@@ -6,33 +6,33 @@
 -->
 <template>
   <el-dialog
-    aria-label="审批对话框"
+    :aria-label="$t('bpm.approval.approvalDialog.ariaLabel')"
     :model-value="visible"
-    :title="action === 'approve' ? '审批通过' : '审批拒绝'"
+    :title="action === 'approve' ? $t('bpm.approval.approvalDialog.approveTitle') : $t('bpm.approval.approvalDialog.rejectTitle')"
     width="500px"
     destroy-on-close
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localApproveForm" label-width="80px" aria-label="审批表单">
-      <el-form-item label="任务名称">
+    <el-form :model="localApproveForm" label-width="80px" :aria-label="$t('bpm.approval.approvalDialog.formAriaLabel')">
+      <el-form-item :label="$t('bpm.approval.approvalDialog.taskName')">
         <span>{{ currentTask?.task_name }}</span>
       </el-form-item>
-      <el-form-item label="审批意见">
+      <el-form-item :label="$t('bpm.approval.approvalDialog.comment')">
         <el-input
           v-model="localApproveForm.comment"
           type="textarea"
           :rows="4"
-          placeholder="请输入审批意见"
+          :placeholder="$t('bpm.approval.approvalDialog.commentPlaceholder')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
+      <el-button @click="emit('update:visible', false)">{{ $t('bpm.approval.approvalDialog.cancel') }}</el-button>
       <el-button
         :type="action === 'approve' ? 'success' : 'danger'"
         :loading="submitLoading"
         @click="emit('confirm')"
-        >确定</el-button
+        >{{ $t('bpm.approval.approvalDialog.confirm') }}</el-button
       >
     </template>
   </el-dialog>

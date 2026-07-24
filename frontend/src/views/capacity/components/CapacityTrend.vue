@@ -9,14 +9,14 @@
       <el-card shadow="hover">
         <template #header>
           <div class="card-header">
-            <span>产能负荷趋势</span>
+            <span>{{ $t('capacityModule.trend.title') }}</span>
             <el-radio-group
               :model-value="days"
               size="small"
               @update:model-value="updateDays"
             >
-              <el-radio-button :value="7">近7天</el-radio-button>
-              <el-radio-button :value="30">近30天</el-radio-button>
+              <el-radio-button :value="7">{{ $t('capacityModule.trend.last7Days') }}</el-radio-button>
+              <el-radio-button :value="30">{{ $t('capacityModule.trend.last30Days') }}</el-radio-button>
             </el-radio-group>
           </div>
         </template>
@@ -28,9 +28,12 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import type { CapacityTrend } from '@/api/capacity'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 趋势数据 + 天数（v-model 双向）
 const props = defineProps<{ data: CapacityTrend[]; days: number }>()
@@ -51,9 +54,12 @@ const renderChart = (data: CapacityTrend[]) => {
     resizeHandler = () => capacityChart?.resize()
     window.addEventListener('resize', resizeHandler)
   }
+  const plannedHoursLabel = t('capacityModule.trend.plannedHours')
+  const actualHoursLabel = t('capacityModule.trend.actualHours')
+  const capacityHoursLabel = t('capacityModule.trend.capacityHours')
   const option = {
     tooltip: { trigger: 'axis' },
-    legend: { data: ['计划工时', '实际工时', '产能工时'], bottom: 0 },
+    legend: { data: [plannedHoursLabel, actualHoursLabel, capacityHoursLabel], bottom: 0 },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
     xAxis: {
       type: 'category',
@@ -62,13 +68,13 @@ const renderChart = (data: CapacityTrend[]) => {
     },
     yAxis: {
       type: 'value',
-      name: '工时',
+      name: t('capacityModule.trend.hoursUnit'),
       axisLine: { lineStyle: { color: '#909399' } },
       splitLine: { lineStyle: { color: '#ebeef5' } },
     },
     series: [
       {
-        name: '计划工时',
+        name: plannedHoursLabel,
         type: 'line',
         data: data.map(d => d.planned_hours),
         smooth: true,
@@ -76,14 +82,14 @@ const renderChart = (data: CapacityTrend[]) => {
         areaStyle: { color: 'rgba(64, 158, 255, 0.1)' },
       },
       {
-        name: '实际工时',
+        name: actualHoursLabel,
         type: 'line',
         data: data.map(d => d.actual_hours),
         smooth: true,
         itemStyle: { color: '#67c23a' },
       },
       {
-        name: '产能工时',
+        name: capacityHoursLabel,
         type: 'line',
         data: data.map(d => d.capacity_hours),
         smooth: true,
@@ -104,6 +110,16 @@ watch(
     }
   },
   { immediate: true, deep: true }
+)
+
+// 监听语言切换 → 重新渲染 ECharts（图例/y 轴名称随语言更新）
+watch(
+  () => t('capacityModule.trend.title'),
+  () => {
+    if (props.data && props.data.length > 0) {
+      renderChart(props.data)
+    }
+  }
 )
 
 // 挂载后初始化 ECharts

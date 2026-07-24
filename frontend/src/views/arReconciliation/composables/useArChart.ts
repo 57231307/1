@@ -7,8 +7,11 @@
 import { ref, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
+import { i18n } from '@/i18n'
 import { getAgingAnalysis, type AgingAnalysisResult, type AgingBucket } from '@/api/ar-reconciliation-enhanced'
 import { AGING_COLORS } from './arRecFmts'
+
+const t = i18n.global.t.bind(i18n.global)
 
 /**
  * 账龄分析图表 composable
@@ -20,12 +23,12 @@ export function useArChart() {
   let barChart: echarts.ECharts | null = null
   let pieChart: echarts.ECharts | null = null
 
-  /** 默认账龄分桶（无数据时填充） */
+  /** 默认账龄分桶（无数据时填充，label 为 i18n key） */
   const DEFAULT_BUCKETS = [
-    { label: '0-30天', range: '0-30', amount: 0, percentage: 0, count: 0 },
-    { label: '31-60天', range: '31-60', amount: 0, percentage: 0, count: 0 },
-    { label: '61-90天', range: '61-90', amount: 0, percentage: 0, count: 0 },
-    { label: '90天以上', range: '90+', amount: 0, percentage: 0, count: 0 },
+    { label: 'arReconciliationModule.agingBucket030', range: '0-30', amount: 0, percentage: 0, count: 0 },
+    { label: 'arReconciliationModule.agingBucket3160', range: '31-60', amount: 0, percentage: 0, count: 0 },
+    { label: 'arReconciliationModule.agingBucket6190', range: '61-90', amount: 0, percentage: 0, count: 0 },
+    { label: 'arReconciliationModule.agingBucket90Plus', range: '90+', amount: 0, percentage: 0, count: 0 },
   ]
 
   const loadAgingAnalysis = async (endDate?: string) => {
@@ -39,7 +42,7 @@ export function useArChart() {
       await nextTick()
       renderCharts()
     } catch {
-      ElMessage.error('加载账龄分析失败')
+      ElMessage.error(t('arReconciliationModule.loadAgingFailed'))
     }
   }
 
@@ -56,10 +59,10 @@ export function useArChart() {
       agingData.value.length > 0 ? agingData.value[0].buckets : DEFAULT_BUCKETS
 
     const barOption = {
-      title: { text: '账龄分析柱状图', left: 'center' },
-      tooltip: { trigger: 'axis', formatter: '{b}: {c} 元' },
-      xAxis: { type: 'category', data: buckets.map((b: AgingBucket) => b.label) },
-      yAxis: { type: 'value', name: '金额（元）' },
+      title: { text: t('arReconciliationModule.agingBarTitle'), left: 'center' },
+      tooltip: { trigger: 'axis', formatter: (params: { name: string; value: number }) => `${params.name}: ${params.value} ${t('arReconciliationModule.yuan')}` },
+      xAxis: { type: 'category', data: buckets.map((b: AgingBucket) => b.label.startsWith('arReconciliationModule.') ? t(b.label) : b.label) },
+      yAxis: { type: 'value', name: t('arReconciliationModule.amountWithUnit') },
       series: [
         {
           type: 'bar',
@@ -77,8 +80,8 @@ export function useArChart() {
     }
 
     const pieOption = {
-      title: { text: '账龄分布占比', left: 'center' },
-      tooltip: { trigger: 'item', formatter: '{b}: {c}元 ({d}%)' },
+      title: { text: t('arReconciliationModule.agingPieTitle'), left: 'center' },
+      tooltip: { trigger: 'item', formatter: (params: { name: string; value: number; percent: number }) => `${params.name}: ${params.value}${t('arReconciliationModule.yuan')} (${params.percent}%)` },
       legend: { bottom: '0%' },
       series: [
         {
@@ -89,7 +92,7 @@ export function useArChart() {
           label: { show: true, formatter: '{b}: {d}%' },
           data: buckets.map((b: AgingBucket, i: number) => ({
             value: b.amount,
-            name: b.label,
+            name: b.label.startsWith('arReconciliationModule.') ? t(b.label) : b.label,
             itemStyle: { color: AGING_COLORS[i] },
           })),
         },

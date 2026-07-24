@@ -3,75 +3,75 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>色卡列表</span>
+          <span>{{ $t('colorCards.list.title') }}</span>
           <div>
             <el-button type="primary" :icon="Plus" @click="$router.push('/color-cards/create')">
-              新建色卡
+              {{ $t('colorCards.list.create') }}
             </el-button>
             <el-button :icon="Box" @click="$router.push('/color-cards/issues')">
-              发放管理
+              {{ $t('colorCards.list.issueManagement') }}
             </el-button>
           </div>
         </div>
       </template>
 
       <!-- 筛选 -->
-      <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="色卡列表筛选表单">
-        <el-form-item label="色卡类型">
-          <el-select v-model="filterForm.card_type" placeholder="全部" clearable style="width: 140px">
-            <el-option v-for="(label, value) in COLOR_CARD_TYPE_LABELS" :key="value" :label="label" :value="value" />
+      <el-form :inline="true" :model="filterForm" class="filter-form" :aria-label="$t('colorCards.filter.ariaLabel')">
+        <el-form-item :label="$t('colorCards.filter.cardType')">
+          <el-select v-model="filterForm.card_type" :placeholder="$t('colorCards.filter.all')" clearable style="width: 140px">
+            <el-option v-for="value in cardTypeKeys" :key="value" :label="getCardTypeLabel(value)" :value="value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="季节">
-          <el-select v-model="filterForm.season" placeholder="全部" clearable style="width: 140px">
-            <el-option v-for="(label, value) in SEASON_LABELS" :key="value" :label="label" :value="value" />
+        <el-form-item :label="$t('colorCards.filter.season')">
+          <el-select v-model="filterForm.season" :placeholder="$t('colorCards.filter.all')" clearable style="width: 140px">
+            <el-option v-for="value in seasonKeys" :key="value" :label="getSeasonLabel(value)" :value="value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="filterForm.status" placeholder="全部" clearable style="width: 120px">
-            <el-option v-for="(label, value) in COLOR_CARD_STATUS" :key="value" :label="label" :value="value" />
+        <el-form-item :label="$t('colorCards.filter.status')">
+          <el-select v-model="filterForm.status" :placeholder="$t('colorCards.filter.all')" clearable style="width: 120px">
+            <el-option v-for="value in statusKeys" :key="value" :label="getStatusLabel(value)" :value="value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="关键字">
-          <el-input v-model="filterForm.keyword" placeholder="名称" clearable style="width: 180px" />
+        <el-form-item :label="$t('colorCards.filter.keyword')">
+          <el-input v-model="filterForm.keyword" :placeholder="$t('colorCards.filter.keywordPlaceholder')" clearable style="width: 180px" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleSearch">{{ $t('colorCards.filter.query') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('colorCards.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
 
       <!-- 列表 -->
-      <el-table :data="tableData" v-loading="loading" border stripe aria-label="色卡列表">
-        <el-table-column prop="card_no" label="色卡编号" width="180" />
-        <el-table-column prop="card_name" label="色卡名称" min-width="200" />
-        <el-table-column label="类型" width="100">
+      <el-table :data="tableData" v-loading="loading" border stripe :aria-label="$t('colorCards.table.ariaLabel')">
+        <el-table-column prop="card_no" :label="$t('colorCards.table.cardNo')" width="180" />
+        <el-table-column prop="card_name" :label="$t('colorCards.table.cardName')" min-width="200" />
+        <el-table-column :label="$t('colorCards.table.type')" width="100">
           <template #default="{ row }">
-            {{ COLOR_CARD_TYPE_LABELS[row.card_type] || row.card_type }}
+            {{ getCardTypeLabel(row.card_type) || row.card_type }}
           </template>
         </el-table-column>
-        <el-table-column label="季节" width="100">
+        <el-table-column :label="$t('colorCards.filter.season')" width="100">
           <template #default="{ row }">
-            {{ row.season ? (SEASON_LABELS[row.season] || row.season) : '-' }}
+            {{ row.season ? (getSeasonLabel(row.season) || row.season) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="brand" label="品牌" width="100" />
-        <el-table-column prop="total_colors" label="色号数" width="80" align="center" />
-        <el-table-column label="状态" width="100">
+        <el-table-column prop="brand" :label="$t('colorCards.table.brand')" width="100" />
+        <el-table-column prop="total_colors" :label="$t('colorCards.table.totalColors')" width="80" align="center" />
+        <el-table-column :label="$t('colorCards.table.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="tagType(row.status)">
-              {{ COLOR_CARD_STATUS[row.status as keyof typeof COLOR_CARD_STATUS] || row.status }}
+              {{ getStatusLabel(row.status) || row.status }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
+        <el-table-column prop="created_at" :label="$t('colorCards.table.createdAt')" width="180">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column :label="$t('colorCards.table.operation')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleView(row)">详情</el-button>
-            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link type="danger" @click="handleArchive(row)" v-if="row.status === 'active'">归档</el-button>
+            <el-button link type="primary" @click="handleView(row)">{{ $t('colorCards.table.detail') }}</el-button>
+            <el-button link type="primary" @click="handleEdit(row)">{{ $t('colorCards.table.edit') }}</el-button>
+            <el-button link type="danger" @click="handleArchive(row)" v-if="row.status === 'active'">{{ $t('colorCards.table.archive') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -84,7 +84,7 @@
           :total="total"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="色卡列表分页"
+          :aria-label="$t('colorCards.table.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
         />
@@ -95,12 +95,13 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Box } from '@element-plus/icons-vue'
 import {
   archiveColorCard,
-  COLOR_CARD_TYPE_LABELS,
+  COLOR_CARD_TYPE,
   COLOR_CARD_STATUS,
   COLOR_CARD_STATUS_COLORS,
   SEASON_LABELS,
@@ -108,7 +109,19 @@ import {
 } from '@/api/color-card'
 import { useTableApi } from '@/composables/useTableApi'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const router = useRouter()
+
+// 枚举键（响应式：随语言切换自动更新标签）
+const cardTypeKeys = Object.keys(COLOR_CARD_TYPE)
+const statusKeys = Object.keys(COLOR_CARD_STATUS)
+const seasonKeys = Object.keys(SEASON_LABELS)
+
+// 状态码 → 本地化标签（响应式）
+const getCardTypeLabel = (key: string) => t(`colorCards.cardType.${key}`)
+const getSeasonLabel = (key: string) => t(`colorCards.season.${key}`)
+const getStatusLabel = (key: string) => t(`colorCards.cardStatus.${key}`)
 
 // 批次 274：接入 useTableApi，消除手写 tableData/total/loading/filterForm.page/page_size + loadData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -123,7 +136,7 @@ const {
 } = useTableApi<ColorCardListItem>({
   url: '/color-cards',
   listKey: 'items',
-  onError: () => ElMessage.error('加载色卡列表失败'),
+  onError: () => ElMessage.error(t('colorCards.message.loadListFailed')),
 })
 
 const filterForm = reactive({
@@ -178,15 +191,15 @@ const handleEdit = (row: ColorCardListItem) => {
 
 const handleArchive = async (row: ColorCardListItem) => {
   try {
-    await ElMessageBox.confirm(`确认归档色卡「${row.card_name}」？归档后不可再编辑。`, '提示', {
+    await ElMessageBox.confirm(t('colorCards.message.archiveConfirm', { name: row.card_name }), t('colorCards.message.archiveConfirmTitle'), {
       type: 'warning',
     })
     await archiveColorCard(row.id)
-    ElMessage.success('已归档')
+    ElMessage.success(t('colorCards.message.archiveSuccess'))
     loadData()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    if (e !== 'cancel') ElMessage.error('归档失败: ' + (e instanceof Error ? e.message : String(e)))
+    if (e !== 'cancel') ElMessage.error(t('colorCards.message.archiveFailed') + ': ' + (e instanceof Error ? e.message : String(e)))
   }
 }
 

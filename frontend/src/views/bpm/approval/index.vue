@@ -8,11 +8,11 @@
   <div class="bpm-approval-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">审批中心</h1>
+        <h1 class="page-title">{{ $t('bpm.approval.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>审批管理</el-breadcrumb-item>
-          <el-breadcrumb-item>审批中心</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ $t('bpm.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('bpm.approval.breadcrumb.approval') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('bpm.approval.breadcrumb.center') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
     </div>
@@ -20,7 +20,7 @@
     <BpmApprovalStat :stats="bpmAp.stats" />
 
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-      <el-tab-pane label="待办任务" name="pending">
+      <el-tab-pane :label="$t('bpm.approval.tab.pending')" name="pending">
         <BpmApprovalPendingTable
           :tasks="bpmAp.pendingTasks"
           :loading="bpmAp.pendingLoading"
@@ -34,7 +34,7 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="已办任务" name="completed">
+      <el-tab-pane :label="$t('bpm.approval.tab.completed')" name="completed">
         <BpmApprovalCompletedTable
           :tasks="bpmAp.completedTasks"
           :loading="bpmAp.completedLoading"

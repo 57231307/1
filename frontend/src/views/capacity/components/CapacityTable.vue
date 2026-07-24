@@ -7,33 +7,33 @@
   <el-card shadow="hover">
     <template #header>
       <div class="card-header">
-        <span>工作中心列表</span>
+        <span>{{ $t('capacityModule.table.title') }}</span>
         <el-button type="primary" link @click="emit('refresh')">
           <el-icon><Refresh /></el-icon>
-          刷新
+          {{ $t('capacityModule.table.refresh') }}
         </el-button>
       </div>
     </template>
-    <el-table v-loading="tableLoading" :data="data" stripe style="width: 100%" aria-label="工作中心列表">
-      <el-table-column prop="code" label="编号" width="120" />
-      <el-table-column prop="name" label="名称" width="150" />
-      <el-table-column prop="capacity_hours" label="产能工时" width="120" />
-      <el-table-column prop="used_hours" label="已用工时" width="120" />
-      <el-table-column prop="load_rate" label="负荷率" width="120">
+    <el-table v-loading="tableLoading" :data="data" stripe style="width: 100%" :aria-label="$t('capacityModule.table.ariaLabel')">
+      <el-table-column prop="code" :label="$t('capacityModule.table.code')" width="120" />
+      <el-table-column prop="name" :label="$t('capacityModule.table.name')" width="150" />
+      <el-table-column prop="capacity_hours" :label="$t('capacityModule.table.capacityHours')" width="120" />
+      <el-table-column prop="used_hours" :label="$t('capacityModule.table.usedHours')" width="120" />
+      <el-table-column prop="load_rate" :label="$t('capacityModule.table.loadRate')" width="120">
         <template #default="{ row }">
           <el-tag :type="getLoadRateType(row.load_rate)">{{
             (row.load_rate * 100).toFixed(1)
           }}%</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100">
+      <el-table-column prop="status" :label="$t('capacityModule.table.status')" width="100">
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="bottleneck" label="瓶颈" width="80">
+      <el-table-column prop="bottleneck" :label="$t('capacityModule.table.bottleneck')" width="80">
         <template #default="{ row }">
-          <el-tag v-if="row.bottleneck" type="danger" size="small">是</el-tag>
+          <el-tag v-if="row.bottleneck" type="danger" size="small">{{ $t('capacityModule.common.yes') }}</el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
@@ -45,7 +45,7 @@
       :page-sizes="[10, 20, 50]"
       layout="total, sizes, prev, pager, next"
       class="pagination"
-      aria-label="工作中心列表分页"
+      :aria-label="$t('capacityModule.table.paginationAriaLabel')"
       @update:current-page="(v: number) => emit('update:page', v)"
       @update:page-size="(v: number) => emit('update:size', v)"
     />
@@ -53,9 +53,17 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Refresh } from '@element-plus/icons-vue'
 import type { WorkCenter } from '@/api/capacity'
-import { getStatusType, getStatusLabel, getLoadRateType } from '../composables/cpFmts'
+import { getStatusType, getLoadRateType } from '../composables/cpFmts'
+
+const { t } = useI18n({ useScope: 'global' })
+
+// 状态码 → 本地化标签（响应式：随语言切换自动更新）
+const getStatusLabel = (status: string) => {
+  return t(`capacityModule.workCenterStatus.${status}`) || status
+}
 
 defineProps<{
   data: WorkCenter[]

@@ -6,6 +6,7 @@
  */
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { i18n } from '@/i18n'
 import {
   createDispute,
   getDisputes,
@@ -14,6 +15,8 @@ import {
   type DisputeRecord,
 } from '@/api/ar-reconciliation-enhanced'
 import { logger } from '@/utils/logger'
+
+const t = i18n.global.t.bind(i18n.global)
 
 /**
  * 争议管理 composable
@@ -45,7 +48,7 @@ export function useArDisp(loadData: () => Promise<void>) {
       disputes.value = res.data?.list || []
       disputesTotal.value = res.data?.total || 0
     } catch {
-      logger.warn('加载争议记录失败')
+      logger.warn(t('arReconciliationModule.loadDisputesFailed'))
     }
     disputeDialogVisible.value = true
   }
@@ -53,32 +56,32 @@ export function useArDisp(loadData: () => Promise<void>) {
   /** 提交争议 */
   const handleSubmitDispute = async () => {
     if (!disputeForm.value.description) {
-      ElMessage.warning('请填写争议描述')
+      ElMessage.warning(t('arReconciliationModule.disputeDescriptionRequired'))
       return
     }
     try {
       await createDispute(disputeForm.value)
-      ElMessage.success('争议已提交')
+      ElMessage.success(t('arReconciliationModule.disputeSubmitted'))
       disputeDialogVisible.value = false
       await loadData()
     } catch {
-      ElMessage.error('提交争议失败')
+      ElMessage.error(t('arReconciliationModule.submitDisputeFailed'))
     }
   }
 
   /** 解决争议 */
   const handleResolveDispute = async (row: DisputeRecord) => {
     try {
-      const { value } = await ElMessageBox.prompt('请输入解决方案', '解决争议', {
+      const { value } = await ElMessageBox.prompt(t('arReconciliationModule.enterResolution'), t('arReconciliationModule.resolveDisputeTitle'), {
         inputType: 'textarea',
-        inputValidator: v => (!v ? '解决方案不能为空' : true),
+        inputValidator: v => (!v ? t('arReconciliationModule.resolutionRequired') : true),
       })
       await resolveDispute(row.id, { resolution: value })
-      ElMessage.success('争议已解决')
+      ElMessage.success(t('arReconciliationModule.disputeResolved'))
       await openDisputeDialog({ id: row.reconciliation_id } as AutoReconciliationResult)
     } catch (error: unknown) {
       if (error !== 'cancel') {
-        ElMessage.error('解决争议失败')
+        ElMessage.error(t('arReconciliationModule.resolveDisputeFailed'))
       }
     }
   }

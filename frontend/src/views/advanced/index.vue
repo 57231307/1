@@ -1,7 +1,7 @@
 <template>
   <div class="advanced-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => loadTab(tab)">
-      <el-tab-pane label="AI 分析" name="ai">
+      <el-tab-pane :label="$t('advancedModule.tabAi')" name="ai">
         <AdvancedAiPanel
           :forecast-period="ai.forecastPeriod.value"
           :forecast-loading="ai.forecastLoading.value"
@@ -23,7 +23,7 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="报表引擎" name="report">
+      <el-tab-pane :label="$t('advancedModule.tabReport')" name="report">
         <AdvancedReportPanel
           :report-templates="rpt.reportTemplates.value"
           :report-loading="rpt.reportLoading.value"
@@ -36,7 +36,7 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="工艺优化" name="recipe">
+      <el-tab-pane :label="$t('advancedModule.tabRecipe')" name="recipe">
         <AdvancedRecipePanel
           :recipe-form="rcp.recipeForm.value"
           :recipe-loading="rcp.recipeLoading.value"
@@ -46,7 +46,7 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="质量预测" name="quality">
+      <el-tab-pane :label="$t('advancedModule.tabQuality')" name="quality">
         <AdvancedQualityPanel
           :quality-form="qlt.qualityForm.value"
           :quality-loading="qlt.qualityLoading.value"

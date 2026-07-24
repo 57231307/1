@@ -7,45 +7,45 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="保存为模板"
-    aria-label="流程模板对话框"
+    :title="$t('bpm.definitions.templateDialog.title')"
+    :aria-label="$t('bpm.definitions.templateDialog.ariaLabel')"
     width="500px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" aria-label="流程模板表单">
-      <el-form-item label="模板名称" prop="template_name">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" :aria-label="$t('bpm.definitions.templateDialog.formAriaLabel')">
+      <el-form-item :label="$t('bpm.definitions.templateDialog.templateName')" prop="template_name">
         <el-input
           v-model="localFormData.template_name"
-          placeholder="请输入模板名称"
+          :placeholder="$t('bpm.definitions.templateDialog.templateNamePlaceholder')"
         />
       </el-form-item>
-      <el-form-item label="分类" prop="category">
+      <el-form-item :label="$t('bpm.definitions.templateDialog.category')" prop="category">
         <el-select
           v-model="localFormData.category"
-          placeholder="请选择分类"
+          :placeholder="$t('bpm.definitions.templateDialog.categoryPlaceholder')"
           style="width: 100%"
         >
-          <el-option label="财务" value="finance" />
-          <el-option label="人事" value="hr" />
-          <el-option label="采购" value="purchase" />
-          <el-option label="销售" value="sales" />
-          <el-option label="生产" value="production" />
-          <el-option label="库存" value="inventory" />
-          <el-option label="其他" value="other" />
+          <el-option :label="$t('bpm.definitions.category.finance')" value="finance" />
+          <el-option :label="$t('bpm.definitions.category.hr')" value="hr" />
+          <el-option :label="$t('bpm.definitions.category.purchase')" value="purchase" />
+          <el-option :label="$t('bpm.definitions.category.sales')" value="sales" />
+          <el-option :label="$t('bpm.definitions.category.production')" value="production" />
+          <el-option :label="$t('bpm.definitions.category.inventory')" value="inventory" />
+          <el-option :label="$t('bpm.definitions.category.other')" value="other" />
         </el-select>
       </el-form-item>
-      <el-form-item label="描述">
+      <el-form-item :label="$t('bpm.definitions.templateDialog.description')">
         <el-input
           v-model="localFormData.description"
           type="textarea"
           :rows="3"
-          placeholder="请输入模板描述"
+          :placeholder="$t('bpm.definitions.templateDialog.descriptionPlaceholder')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="emit('submit')">保存</el-button>
+      <el-button @click="emit('update:visible', false)">{{ $t('bpm.definitions.templateDialog.cancel') }}</el-button>
+      <el-button type="primary" :loading="loading" @click="emit('submit')">{{ $t('bpm.definitions.templateDialog.save') }}</el-button>
     </template>
   </el-dialog>
 </template>

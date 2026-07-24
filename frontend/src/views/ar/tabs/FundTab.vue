@@ -6,10 +6,10 @@
 <template>
   <div class="fund-tab">
     <div class="page-header">
-      <h2 class="page-title">资金账户</h2>
+      <h2 class="page-title">{{ $t('arModule.fund.title') }}</h2>
       <el-button type="primary" @click="openFundDialog()">
         <el-icon><Plus /></el-icon>
-        新建账户
+        {{ $t('arModule.fund.create') }}
       </el-button>
     </div>
 
@@ -17,7 +17,7 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="summary-item">
-            <div class="summary-label">总余额</div>
+            <div class="summary-label">{{ $t('arModule.fund.totalBalance') }}</div>
             <div class="summary-value">{{ formatMoney(totalBalance) }}</div>
           </div>
         </el-card>
@@ -25,7 +25,7 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="summary-item">
-            <div class="summary-label">冻结金额</div>
+            <div class="summary-label">{{ $t('arModule.fund.totalFrozen') }}</div>
             <div class="summary-value text-orange">{{ formatMoney(totalFrozen) }}</div>
           </div>
         </el-card>
@@ -33,7 +33,7 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="summary-item">
-            <div class="summary-label">可用余额</div>
+            <div class="summary-label">{{ $t('arModule.fund.totalAvailable') }}</div>
             <div class="summary-value text-green">{{ formatMoney(totalAvailable) }}</div>
           </div>
         </el-card>
@@ -41,7 +41,7 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="summary-item">
-            <div class="summary-label">账户数量</div>
+            <div class="summary-label">{{ $t('arModule.fund.accountCount') }}</div>
             <div class="summary-value">{{ funds.length }}</div>
           </div>
         </el-card>
@@ -49,80 +49,80 @@
     </el-row>
 
     <el-card shadow="hover" class="mt-20">
-      <el-table v-loading="fundLoading" :data="funds" stripe aria-label="资金账户列表">
-        <el-table-column prop="account_code" label="账户编码" width="120" />
-        <el-table-column prop="account_name" label="账户名称" min-width="150" />
-        <el-table-column prop="account_type" label="账户类型" width="100">
+      <el-table v-loading="fundLoading" :data="funds" stripe :aria-label="$t('arModule.fund.listAria')">
+        <el-table-column prop="account_code" :label="$t('arModule.fund.accountCode')" width="120" />
+        <el-table-column prop="account_name" :label="$t('arModule.fund.accountName')" min-width="150" />
+        <el-table-column prop="account_type" :label="$t('arModule.fund.accountType')" width="100">
           <template #default="{ row }">
             {{ getAccountTypeLabel(row.account_type) }}
           </template>
         </el-table-column>
-        <el-table-column label="余额" width="140" align="right">
+        <el-table-column :label="$t('arModule.fund.balance')" width="140" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.balance) }}
           </template>
         </el-table-column>
-        <el-table-column label="冻结金额" width="120" align="right">
+        <el-table-column :label="$t('arModule.fund.frozenBalance')" width="120" align="right">
           <template #default="{ row }">
             <span class="text-orange">{{ formatMoney(row.frozen_balance) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="可用余额" width="140" align="right">
+        <el-table-column :label="$t('arModule.fund.availableBalance')" width="140" align="right">
           <template #default="{ row }">
             <span class="text-green">{{ formatMoney(row.available_balance) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="bank_name" label="开户银行" width="150" />
-        <el-table-column prop="bank_account" label="银行账号" width="180" />
-        <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table-column prop="bank_name" :label="$t('arModule.fund.bankName')" width="150" />
+        <el-table-column prop="bank_account" :label="$t('arModule.fund.bankAccount')" width="180" />
+        <el-table-column prop="status" :label="$t('common.status')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? '正常' : '冻结' }}
+              {{ row.status === 'active' ? $t('arModule.fund.statusActive') : $t('arModule.fund.statusFrozen') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column :label="$t('common.operation')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="depositFund(row)">存入</el-button>
-            <el-button type="primary" link size="small" @click="withdrawFund(row)">取出</el-button>
-            <el-button type="warning" link size="small" @click="freezeFund(row)">冻结</el-button>
+            <el-button type="primary" link size="small" @click="depositFund(row)">{{ $t('arModule.fund.deposit') }}</el-button>
+            <el-button type="primary" link size="small" @click="withdrawFund(row)">{{ $t('arModule.fund.withdraw') }}</el-button>
+            <el-button type="warning" link size="small" @click="freezeFund(row)">{{ $t('arModule.fund.freeze') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="fundDialogVisible" title="新建资金账户" width="500px" aria-label="新建资金账户对话框">
-      <el-form ref="fundFormRef" :model="fundForm" :rules="fundRules" label-width="80px" aria-label="新建资金账户表单">
-        <el-form-item label="账户编码" prop="account_code">
-          <el-input v-model="fundForm.account_code" placeholder="请输入账户编码" />
+    <el-dialog v-model="fundDialogVisible" :title="$t('arModule.fund.createTitle')" width="500px" :aria-label="$t('arModule.fund.createAria')">
+      <el-form ref="fundFormRef" :model="fundForm" :rules="fundRules" label-width="80px" :aria-label="$t('arModule.fund.formAria')">
+        <el-form-item :label="$t('arModule.fund.accountCode')" prop="account_code">
+          <el-input v-model="fundForm.account_code" :placeholder="$t('arModule.fund.accountCodePlaceholder')" />
         </el-form-item>
-        <el-form-item label="账户名称" prop="account_name">
-          <el-input v-model="fundForm.account_name" placeholder="请输入账户名称" />
+        <el-form-item :label="$t('arModule.fund.accountName')" prop="account_name">
+          <el-input v-model="fundForm.account_name" :placeholder="$t('arModule.fund.accountNamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="账户类型" prop="account_type">
-          <el-select v-model="fundForm.account_type" placeholder="选择类型" style="width: 100%">
-            <el-option label="银行账户" value="bank" />
-            <el-option label="现金账户" value="cash" />
-            <el-option label="支付宝" value="alipay" />
-            <el-option label="微信" value="wechat" />
+        <el-form-item :label="$t('arModule.fund.accountType')" prop="account_type">
+          <el-select v-model="fundForm.account_type" :placeholder="$t('arModule.fund.typePlaceholder')" style="width: 100%">
+            <el-option :label="$t('arModule.fund.typeBank')" value="bank" />
+            <el-option :label="$t('arModule.fund.typeCash')" value="cash" />
+            <el-option :label="$t('arModule.fund.typeAlipay')" value="alipay" />
+            <el-option :label="$t('arModule.fund.typeWechat')" value="wechat" />
           </el-select>
         </el-form-item>
-        <el-form-item label="开户银行">
-          <el-input v-model="fundForm.bank_name" placeholder="请输入开户银行" />
+        <el-form-item :label="$t('arModule.fund.bankName')">
+          <el-input v-model="fundForm.bank_name" :placeholder="$t('arModule.fund.bankNamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="银行账号">
-          <el-input v-model="fundForm.bank_account" placeholder="请输入银行账号" />
+        <el-form-item :label="$t('arModule.fund.bankAccount')">
+          <el-input v-model="fundForm.bank_account" :placeholder="$t('arModule.fund.bankAccountPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="fundDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="fundSubmitLoading" @click="submitFund">确定</el-button>
+        <el-button @click="fundDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="fundSubmitLoading" @click="submitFund">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="fundOperationDialogVisible" :title="fundOperationTitle" width="400px" aria-label="资金账户操作对话框">
-      <el-form label-width="80px" aria-label="资金账户操作表单">
-        <el-form-item label="金额">
+    <el-dialog v-model="fundOperationDialogVisible" :title="fundOperationTitle" width="400px" :aria-label="$t('arModule.fund.opAria')">
+      <el-form label-width="80px" :aria-label="$t('arModule.fund.opFormAria')">
+        <el-form-item :label="$t('arModule.fund.amount')">
           <el-input-number
             v-model="fundOperationAmount"
             :min="0"
@@ -130,17 +130,17 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item v-if="fundOperationType === 'freeze'" label="原因">
-          <el-input v-model="fundOperationReason" type="textarea" placeholder="请输入冻结原因" />
+        <el-form-item v-if="fundOperationType === 'freeze'" :label="$t('arModule.fund.reason')">
+          <el-input v-model="fundOperationReason" type="textarea" :placeholder="$t('arModule.fund.reasonPlaceholder')" />
         </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="fundOperationRemark" placeholder="请输入备注" />
+        <el-form-item :label="$t('arModule.fund.remark')">
+          <el-input v-model="fundOperationRemark" :placeholder="$t('arModule.fund.remarkPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="fundOperationDialogVisible = false">取消</el-button>
+        <el-button @click="fundOperationDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="fundOperationLoading" @click="submitFundOperation"
-          >确定</el-button
+          >{{ $t('common.confirm') }}</el-button
         >
       </template>
     </el-dialog>
@@ -149,6 +149,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -160,6 +161,8 @@ import {
   freezeFund as freezeFundApi,
   type FundAccount,
 } from '@/api/fund'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const funds = ref<FundAccount[]>([])
 const fundLoading = ref(false)
@@ -185,9 +188,9 @@ const fundForm = reactive({
 })
 
 const fundRules: FormRules = {
-  account_code: [{ required: true, message: '请输入账户编码', trigger: 'blur' }],
-  account_name: [{ required: true, message: '请输入账户名称', trigger: 'blur' }],
-  account_type: [{ required: true, message: '请选择账户类型', trigger: 'change' }],
+  account_code: [{ required: true, message: t('arModule.fund.accountCodeRequired'), trigger: 'blur' }],
+  account_name: [{ required: true, message: t('arModule.fund.accountNameRequired'), trigger: 'blur' }],
+  account_type: [{ required: true, message: t('arModule.fund.accountTypeRequired'), trigger: 'change' }],
 }
 
 const formatMoney = (amount: number) => {
@@ -195,13 +198,14 @@ const formatMoney = (amount: number) => {
 }
 
 const getAccountTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    bank: '银行账户',
-    cash: '现金账户',
-    alipay: '支付宝',
-    wechat: '微信',
+  const keyMap: Record<string, string> = {
+    bank: 'arModule.fund.typeBank',
+    cash: 'arModule.fund.typeCash',
+    alipay: 'arModule.fund.typeAlipay',
+    wechat: 'arModule.fund.typeWechat',
   }
-  return map[type] || type
+  const key = keyMap[type]
+  return key ? t(key) : type
 }
 
 const totalBalance = computed(() => funds.value.reduce((sum, f) => sum + (f.balance || 0), 0))
@@ -220,7 +224,7 @@ const fetchFunds = async () => {
     funds.value = Array.isArray(d) ? d : d?.list || d?.items || []
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '获取资金账户列表失败')
+    ElMessage.error(err.message || t('arModule.fund.fetchListFailed'))
   } finally {
     fundLoading.value = false
   }
@@ -243,12 +247,12 @@ const submitFund = async () => {
   fundSubmitLoading.value = true
   try {
     await createFundAccount(fundForm)
-    ElMessage.success('创建成功')
+    ElMessage.success(t('common.success'))
     fundDialogVisible.value = false
     fetchFunds()
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('common.failed'))
   } finally {
     fundSubmitLoading.value = false
   }
@@ -257,7 +261,7 @@ const submitFund = async () => {
 const depositFund = (row: FundAccount) => {
   currentFundAccount.value = row
   fundOperationType.value = 'deposit'
-  fundOperationTitle.value = '存入资金'
+  fundOperationTitle.value = t('arModule.fund.depositTitle')
   fundOperationAmount.value = 0
   fundOperationRemark.value = ''
   fundOperationDialogVisible.value = true
@@ -266,7 +270,7 @@ const depositFund = (row: FundAccount) => {
 const withdrawFund = (row: FundAccount) => {
   currentFundAccount.value = row
   fundOperationType.value = 'withdraw'
-  fundOperationTitle.value = '取出资金'
+  fundOperationTitle.value = t('arModule.fund.withdrawTitle')
   fundOperationAmount.value = 0
   fundOperationRemark.value = ''
   fundOperationDialogVisible.value = true
@@ -275,7 +279,7 @@ const withdrawFund = (row: FundAccount) => {
 const freezeFund = (row: FundAccount) => {
   currentFundAccount.value = row
   fundOperationType.value = 'freeze'
-  fundOperationTitle.value = '冻结资金'
+  fundOperationTitle.value = t('arModule.fund.freezeTitle')
   fundOperationAmount.value = 0
   fundOperationReason.value = ''
   fundOperationRemark.value = ''
@@ -284,7 +288,7 @@ const freezeFund = (row: FundAccount) => {
 
 const submitFundOperation = async () => {
   if (fundOperationAmount.value <= 0) {
-    ElMessage.warning('请输入有效金额')
+    ElMessage.warning(t('arModule.fund.invalidAmount'))
     return
   }
 
@@ -298,17 +302,17 @@ const submitFundOperation = async () => {
         fundOperationAmount.value,
         fundOperationRemark.value
       )
-      ElMessage.success('存入成功')
+      ElMessage.success(t('arModule.fund.depositSuccess'))
     } else if (fundOperationType.value === 'withdraw') {
       await withdrawFundApi(
         currentFundAccount.value.id,
         fundOperationAmount.value,
         fundOperationRemark.value
       )
-      ElMessage.success('取出成功')
+      ElMessage.success(t('arModule.fund.withdrawSuccess'))
     } else if (fundOperationType.value === 'freeze') {
       if (!fundOperationReason.value) {
-        ElMessage.warning('请输入冻结原因')
+        ElMessage.warning(t('arModule.fund.reasonRequired'))
         return
       }
       await freezeFundApi(
@@ -316,13 +320,13 @@ const submitFundOperation = async () => {
         fundOperationAmount.value,
         fundOperationReason.value
       )
-      ElMessage.success('冻结成功')
+      ElMessage.success(t('arModule.fund.freezeSuccess'))
     }
     fundOperationDialogVisible.value = false
     fetchFunds()
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('common.failed'))
   } finally {
     fundOperationLoading.value = false
   }

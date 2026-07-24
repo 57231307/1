@@ -94,7 +94,11 @@ async function submitCreate() {
   try {
     const resp = await createQualityPrediction({ ...form })
     ElMessage.success(
-      `预测完成：${RISK_LEVEL_LABELS[resp.response.risk_level]}（评分 ${resp.response.risk_score}，趋势 ${TREND_LABELS[resp.response.trend as keyof typeof TREND_LABELS] ?? resp.response.trend}）`,
+      t('aiExtend.qualityPrediction.predictSuccess', {
+        risk: RISK_LEVEL_LABELS[resp.response.risk_level],
+        score: resp.response.risk_score,
+        trend: TREND_LABELS[resp.response.trend as keyof typeof TREND_LABELS] ?? resp.response.trend,
+      }),
     )
     dialogVisible.value = false
     page.value = 1
@@ -110,10 +114,10 @@ async function submitCreate() {
 async function handleAck(row: AiQualityPrediction) {
   try {
     await acknowledgeQualityPrediction(row.id)
-    ElMessage.success('已确认')
+    ElMessage.success(t('aiExtend.qualityPrediction.ackSuccess'))
     await load()
   } catch (e) {
-    ElMessage.error('确认失败')
+    ElMessage.error(t('aiExtend.qualityPrediction.ackFailed'))
   }
 }
 
@@ -121,7 +125,7 @@ async function handleDelete(row: AiQualityPrediction) {
   await ElMessageBox.confirm(t('aiExtend.qualityPrediction.confirmDelete', { name: row.product_id ?? t('aiExtend.qualityPrediction.global') }), t('message.confirmTitle'), { type: 'warning' })
   try {
     await deleteQualityPrediction(row.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('aiExtend.qualityPrediction.deleted'))
     await load()
   } catch (e) {
     ElMessage.error(t('message.deleteFailed'))
@@ -143,11 +147,11 @@ function resetFilter() {
   load()
 }
 
-const ackOptions = [
-  { value: undefined, label: '全部' },
-  { value: false, label: '待确认' },
-  { value: true, label: '已确认' },
-]
+const ackOptions = computed(() => [
+  { value: undefined, label: t('aiExtend.qualityPrediction.ackAll') },
+  { value: false, label: t('aiExtend.qualityPrediction.ackPending') },
+  { value: true, label: t('aiExtend.qualityPrediction.acknowledged') },
+])
 
 const detailPeriods = computed(() => {
   if (!detailModel.value) return [] as { period: string; inspections: number; avg_qualification_rate: number }[]
@@ -174,35 +178,35 @@ const detailRecommendations = computed(() => {
 <template>
   <div class="qual-page">
     <div class="page-header">
-      <h2>质量预测历史</h2>
+      <h2>{{ $t('aiExtend.qualityPrediction.listTitle') }}</h2>
       <div class="header-right">
-        <el-button type="primary" @click="openCreate">+ 触发新预测</el-button>
+        <el-button type="primary" @click="openCreate">{{ $t('aiExtend.qualityPrediction.newPredict') }}</el-button>
       </div>
     </div>
 
     <el-card class="filter-card">
       <el-form :inline="true" :model="queryFilter" aria-label="AI 质量预测筛选表单">
-        <el-form-item label="产品 ID">
+        <el-form-item :label="$t('aiExtend.qualityPrediction.colProductId')">
           <el-input-number v-model="queryFilter.product_id" :min="1" controls-position="right" style="width: 140px" />
         </el-form-item>
-        <el-form-item label="检验类型">
+        <el-form-item :label="$t('aiExtend.qualityPrediction.colInspectionType')">
           <el-select v-model="queryFilter.inspection_type" clearable style="width: 140px">
             <el-option v-for="o in INSPECTION_TYPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="风险等级">
+        <el-form-item :label="$t('aiExtend.qualityPrediction.colRiskLevel')">
           <el-select v-model="queryFilter.risk_level" clearable style="width: 140px">
             <el-option v-for="o in RISK_LEVEL_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="确认状态">
+        <el-form-item :label="$t('aiExtend.qualityPrediction.colAckStatus')">
           <el-select v-model="queryFilter.is_acknowledged" clearable style="width: 140px">
             <el-option v-for="o in ackOptions" :key="String(o.value)" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="resetFilter">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{ $t('aiExtend.qualityPrediction.query') }}</el-button>
+          <el-button @click="resetFilter">{{ $t('aiExtend.qualityPrediction.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -210,17 +214,17 @@ const detailRecommendations = computed(() => {
     <el-card>
       <el-table v-loading="loading" :data="items" stripe border aria-label="AI 质量预测列表">
         <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="product_id" label="产品 ID" width="90">
-          <template #default="{ row }">{{ row.product_id ?? '全局' }}</template>
+        <el-table-column prop="product_id" :label="$t('aiExtend.qualityPrediction.colProductId')" width="90">
+          <template #default="{ row }">{{ row.product_id ?? $t('aiExtend.qualityPrediction.global') }}</template>
         </el-table-column>
-        <el-table-column prop="inspection_type" label="检验类型" width="100">
+        <el-table-column prop="inspection_type" :label="$t('aiExtend.qualityPrediction.colInspectionType')" width="100">
           <template #default="{ row }">{{ INSPECTION_TYPE_LABELS[row.inspection_type] ?? row.inspection_type }}</template>
         </el-table-column>
-        <el-table-column prop="total_inspections" label="检验总数" width="100" align="right" />
-        <el-table-column prop="avg_qualification_rate" label="平均合格率" width="120">
+        <el-table-column prop="total_inspections" :label="$t('aiExtend.qualityPrediction.colTotalInspections')" width="100" align="right" />
+        <el-table-column prop="avg_qualification_rate" :label="$t('aiExtend.qualityPrediction.colAvgRate')" width="120">
           <template #default="{ row }">{{ Number(row.avg_qualification_rate).toFixed(1) }}%</template>
         </el-table-column>
-        <el-table-column prop="risk_level" label="风险等级" width="100">
+        <el-table-column prop="risk_level" :label="$t('aiExtend.qualityPrediction.colRiskLevel')" width="100">
           <template #default="{ row }">
             <el-tag
               :style="{ background: RISK_LEVEL_COLORS[row.risk_level], color: '#fff', border: 'none' }"
@@ -230,27 +234,27 @@ const detailRecommendations = computed(() => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="trend" label="趋势" width="100">
+        <el-table-column prop="trend" :label="$t('aiExtend.qualityPrediction.colTrend')" width="100">
           <template #default="{ row }">{{ TREND_LABELS[row.trend] ?? row.trend }} ({{ Number(row.trend_rate).toFixed(1) }}pp)</template>
         </el-table-column>
-        <el-table-column prop="confidence" label="置信度" width="100">
+        <el-table-column prop="confidence" :label="$t('aiExtend.qualityPrediction.colConfidence')" width="100">
           <template #default="{ row }">{{ Number(row.confidence).toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column prop="is_acknowledged" label="确认" width="80">
+        <el-table-column prop="is_acknowledged" :label="$t('aiExtend.qualityPrediction.colAck')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.is_acknowledged ? 'success' : 'warning'" size="small">
-              {{ row.is_acknowledged ? '已确认' : '待确认' }}
+              {{ row.is_acknowledged ? $t('aiExtend.qualityPrediction.acknowledged') : $t('aiExtend.qualityPrediction.ackPending') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="时间" min-width="160">
+        <el-table-column prop="created_at" :label="$t('aiExtend.qualityPrediction.colTime')" min-width="160">
           <template #default="{ row }">{{ new Date(row.created_at).toLocaleString('zh-CN') }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column :label="$t('aiExtend.qualityPrediction.colAction')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="showDetail(row)">详情</el-button>
-            <el-button v-permission="'ai_quality_prediction:approve'" v-if="!row.is_acknowledged" type="success" size="small" @click="handleAck(row)">确认</el-button>
-            <el-button v-permission="'ai_quality_prediction:delete'" type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button size="small" @click="showDetail(row)">{{ $t('aiExtend.qualityPrediction.detail') }}</el-button>
+            <el-button v-permission="'ai_quality_prediction:approve'" v-if="!row.is_acknowledged" type="success" size="small" @click="handleAck(row)">{{ $t('aiExtend.qualityPrediction.ack') }}</el-button>
+            <el-button v-permission="'ai_quality_prediction:delete'" type="danger" size="small" @click="handleDelete(row)">{{ $t('aiExtend.qualityPrediction.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -266,69 +270,69 @@ const detailRecommendations = computed(() => {
     </el-card>
 
     <!-- 创建弹窗 -->
-    <el-dialog v-model="dialogVisible" title="触发 AI 质量预测" width="540px" aria-label="触发 AI 质量预测对话框">
+    <el-dialog v-model="dialogVisible" :title="$t('aiExtend.qualityPrediction.createDialogTitle')" width="540px" aria-label="触发 AI 质量预测对话框">
       <el-form :model="form" label-width="100px" aria-label="AI 质量预测表单">
-        <el-form-item label="产品 ID" required>
+        <el-form-item :label="$t('aiExtend.qualityPrediction.colProductId')" required>
           <el-input-number v-model="form.product_id" :min="1" controls-position="right" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="检验类型">
+        <el-form-item :label="$t('aiExtend.qualityPrediction.colInspectionType')">
           <el-select v-model="form.inspection_type" style="width: 100%">
-            <el-option label="全部" value="all" />
-            <el-option label="来料" value="incoming" />
-            <el-option label="过程" value="inprocess" />
-            <el-option label="成品" value="final" />
-            <el-option label="出货" value="outgoing" />
+            <el-option :label="$t('aiExtend.qualityPrediction.typeAll')" value="all" />
+            <el-option :label="$t('aiExtend.qualityPrediction.typeIncoming')" value="incoming" />
+            <el-option :label="$t('aiExtend.qualityPrediction.typeInprocess')" value="inprocess" />
+            <el-option :label="$t('aiExtend.qualityPrediction.typeFinal')" value="final" />
+            <el-option :label="$t('aiExtend.qualityPrediction.typeOutgoing')" value="outgoing" />
           </el-select>
         </el-form-item>
-        <el-form-item label="时间窗（天）">
+        <el-form-item :label="$t('aiExtend.qualityPrediction.timeWindow')">
           <el-input-number v-model="form.window_days" :min="7" :max="365" />
-          <span class="hint">建议 30-180 天</span>
+          <span class="hint">{{ $t('aiExtend.qualityPrediction.timeWindowHint') }}</span>
         </el-form-item>
         <el-alert
-          title="历史检验数据 ≥ 5 条时走趋势分析；不足时走保守默认（合格率 95% / 置信度 0.3）"
+          :title="$t('aiExtend.qualityPrediction.alertText')"
           type="info"
           :closable="false"
           show-icon
         />
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitCreate">生成预测</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('aiExtend.qualityPrediction.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitCreate">{{ $t('aiExtend.qualityPrediction.generate') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 详情抽屉 -->
-    <el-drawer v-model="detailVisible" title="质量预测详情" size="60%">
+    <el-drawer v-model="detailVisible" :title="$t('aiExtend.qualityPrediction.detailTitle')" size="60%">
       <template v-if="detailModel">
         <div class="detail-section">
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="产品 ID">{{ detailModel.product_id ?? '全局' }}</el-descriptions-item>
-            <el-descriptions-item label="检验类型">
+            <el-descriptions-item :label="$t('aiExtend.qualityPrediction.colProductId')">{{ detailModel.product_id ?? $t('aiExtend.qualityPrediction.global') }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('aiExtend.qualityPrediction.colInspectionType')">
               {{ INSPECTION_TYPE_LABELS[detailModel.inspection_type] ?? detailModel.inspection_type }}
             </el-descriptions-item>
-            <el-descriptions-item label="时间窗">{{ detailModel.window_days }} 天</el-descriptions-item>
-            <el-descriptions-item label="检验总数">{{ detailModel.total_inspections }}</el-descriptions-item>
-            <el-descriptions-item label="平均合格率">
+            <el-descriptions-item :label="$t('aiExtend.qualityPrediction.detailTimeWindow')">{{ detailModel.window_days }} {{ $t('aiExtend.qualityPrediction.detailUnitDays') }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('aiExtend.qualityPrediction.colTotalInspections')">{{ detailModel.total_inspections }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('aiExtend.qualityPrediction.colAvgRate')">
               {{ Number(detailModel.avg_qualification_rate).toFixed(1) }}%
             </el-descriptions-item>
-            <el-descriptions-item label="置信度">
+            <el-descriptions-item :label="$t('aiExtend.qualityPrediction.colConfidence')">
               <el-progress :percentage="Math.round(Number(detailModel.confidence) * 100)" :stroke-width="10" />
             </el-descriptions-item>
-            <el-descriptions-item label="风险等级">
+            <el-descriptions-item :label="$t('aiExtend.qualityPrediction.colRiskLevel')">
               <el-tag
                 :style="{ background: RISK_LEVEL_COLORS[detailModel.risk_level], color: '#fff', border: 'none' }"
               >
                 {{ RISK_LEVEL_LABELS[detailModel.risk_level] }} · {{ detailModel.risk_score }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="趋势">
+            <el-descriptions-item :label="$t('aiExtend.qualityPrediction.colTrend')">
               {{ TREND_LABELS[detailModel.trend] }} ({{ Number(detailModel.trend_rate).toFixed(1) }}pp)
             </el-descriptions-item>
           </el-descriptions>
         </div>
 
         <div class="detail-section">
-          <div class="detail-section-title">趋势图</div>
+          <div class="detail-section-title">{{ $t('aiExtend.qualityPrediction.trendChart') }}</div>
           <AiPredictionChart
             :period-breakdown="detailPeriods"
             :risk-score="detailModel.risk_score"
@@ -338,11 +342,11 @@ const detailRecommendations = computed(() => {
         </div>
 
         <div v-if="detailIssues.length" class="detail-section">
-          <div class="detail-section-title">主要问题归因</div>
+          <div class="detail-section-title">{{ $t('aiExtend.qualityPrediction.topIssues') }}</div>
           <el-table :data="detailIssues" size="small" border aria-label="主要问题归因列表">
-            <el-table-column prop="issue" label="问题类型" />
-            <el-table-column prop="count" label="次数" width="100" />
-            <el-table-column prop="percentage" label="占比" width="200">
+            <el-table-column prop="issue" :label="$t('aiExtend.qualityPrediction.colIssue')" />
+            <el-table-column prop="count" :label="$t('aiExtend.qualityPrediction.colCount')" width="100" />
+            <el-table-column prop="percentage" :label="$t('aiExtend.qualityPrediction.colPercentage')" width="200">
               <template #default="{ row }">
                 <el-progress :percentage="row.percentage" :stroke-width="8" />
               </template>
@@ -351,7 +355,7 @@ const detailRecommendations = computed(() => {
         </div>
 
         <div v-if="detailRecommendations.length" class="detail-section">
-          <div class="detail-section-title">建议措施</div>
+          <div class="detail-section-title">{{ $t('aiExtend.qualityPrediction.recommendations') }}</div>
           <el-alert
             v-for="(rec, idx) in detailRecommendations"
             :key="idx"

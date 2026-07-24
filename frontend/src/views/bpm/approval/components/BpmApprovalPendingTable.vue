@@ -22,12 +22,15 @@
 </template>
 
 <script setup lang="ts">
-import { h } from 'vue'
+import { computed, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElButton, ElTag } from 'element-plus'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
 import type { ApprovalTask } from '@/api/bpm-enhanced'
-import { isOverdue, getPriorityType, getPriorityText } from '../composables/bpmApFmts'
+import { isOverdue, getPriorityType } from '../composables/bpmApFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 审批待办任务表组件
@@ -54,16 +57,26 @@ const emit = defineEmits<{
   'update:page-size': [v: number]
 }>()
 
+// 优先级显示文本（响应式求值，随语言切换更新）
+const getPriorityTextFmt = (priority: string) => {
+  const map: Record<string, string> = {
+    high: t('bpm.priority.high'),
+    medium: t('bpm.priority.medium'),
+    low: t('bpm.priority.low'),
+  }
+  return map[priority] || priority
+}
+
 /** 列定义：任务名称固定左侧，操作列固定右侧 */
-const columns: ColumnDef<ApprovalTask>[] = [
-  { key: 'task_name', title: '任务名称', width: 180, fixed: 'left' },
-  { key: 'process_name', title: '流程名称', width: 150 },
-  { key: 'start_user_name', title: '申请人', width: 120 },
-  { key: 'business_key', title: '业务单号', width: 160 },
-  { key: 'created_at', title: '申请时间', width: 160 },
+const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
+  { key: 'task_name', title: t('bpm.approval.pendingTable.taskName'), width: 180, fixed: 'left' },
+  { key: 'process_name', title: t('bpm.approval.pendingTable.processName'), width: 150 },
+  { key: 'start_user_name', title: t('bpm.approval.pendingTable.applicant'), width: 120 },
+  { key: 'business_key', title: t('bpm.approval.pendingTable.businessKey'), width: 160 },
+  { key: 'created_at', title: t('bpm.approval.pendingTable.applyTime'), width: 160 },
   {
     key: 'due_date',
-    title: '截止时间',
+    title: t('bpm.approval.pendingTable.dueDate'),
     width: 160,
     // 截止时间：有值则按超期状态高亮，无值显示 "-"
     renderCell: (row: ApprovalTask) => {
@@ -75,7 +88,7 @@ const columns: ColumnDef<ApprovalTask>[] = [
   },
   {
     key: 'priority',
-    title: '优先级',
+    title: t('bpm.approval.pendingTable.priority'),
     width: 100,
     // 优先级：el-tag 渲染
     renderCell: (row: ApprovalTask) =>
@@ -85,12 +98,12 @@ const columns: ColumnDef<ApprovalTask>[] = [
           type: getPriorityType(row.priority) as 'success' | 'warning' | 'info' | 'primary' | 'danger',
           size: 'small',
         },
-        { default: () => getPriorityText(row.priority) }
+        { default: () => getPriorityTextFmt(row.priority) }
       ),
   },
   {
     key: '__actions__',
-    title: '操作',
+    title: t('bpm.approval.pendingTable.operation'),
     width: 220,
     fixed: 'right',
     // 操作列：同意 / 拒绝 / 转交 / 审批链
@@ -99,26 +112,26 @@ const columns: ColumnDef<ApprovalTask>[] = [
         h(
           ElButton,
           { type: 'primary', link: true, size: 'small', onClick: () => emit('approve', row) },
-          { default: () => '同意' }
+          { default: () => t('bpm.approval.pendingTable.approve') }
         ),
         h(
           ElButton,
           { type: 'danger', link: true, size: 'small', onClick: () => emit('reject', row) },
-          { default: () => '拒绝' }
+          { default: () => t('bpm.approval.pendingTable.reject') }
         ),
         h(
           ElButton,
           { type: 'warning', link: true, size: 'small', onClick: () => emit('transfer', row) },
-          { default: () => '转交' }
+          { default: () => t('bpm.approval.pendingTable.transfer') }
         ),
         h(
           ElButton,
           { type: 'info', link: true, size: 'small', onClick: () => emit('view-chain', row) },
-          { default: () => '审批链' }
+          { default: () => t('bpm.approval.pendingTable.viewChain') }
         ),
       ]),
   },
-]
+])
 </script>
 
 <style scoped>

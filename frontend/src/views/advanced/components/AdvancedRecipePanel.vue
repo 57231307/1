@@ -7,6 +7,7 @@
  * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { RecipeFormData, RecipeResult } from '../composables/useRcp'
 
 const props = defineProps<{
@@ -16,6 +17,8 @@ const props = defineProps<{
   recipeResult: RecipeResult | null
   runRecipeOptimization: () => Promise<void>
 }>()
+
+const { t } = useI18n({ useScope: 'global' })
 
 const emit = defineEmits<{
   // 整体回写表单
@@ -55,47 +58,51 @@ watch(
   },
   { deep: true },
 )
+
+function sourceLabel(source: string): string {
+  return source === 'knn' ? t('advancedModule.recipe.sourceKnn') : t('advancedModule.recipe.sourceFallback')
+}
 </script>
 
 <template>
   <div class="page-header">
-    <h2 class="page-title">染色工艺参数智能推荐</h2>
+    <h2 class="page-title">{{ $t('advancedModule.recipe.title') }}</h2>
   </div>
 
   <el-row :gutter="20">
     <el-col :span="8">
       <el-card shadow="hover" class="mb-20">
-        <template #header><div class="card-header">推荐条件</div></template>
+        <template #header><div class="card-header">{{ $t('advancedModule.recipe.conditions') }}</div></template>
         <el-form :model="localForm" label-width="100px" aria-label="染色工艺推荐条件表单">
-          <el-form-item label="色号" required>
-            <el-input v-model="localForm.color_no" placeholder="如 BL-301" />
+          <el-form-item :label="$t('advancedModule.recipe.colorNo')" required>
+            <el-input v-model="localForm.color_no" :placeholder="$t('advancedModule.recipe.colorNoPlaceholder')" />
           </el-form-item>
-          <el-form-item label="布类" required>
+          <el-form-item :label="$t('advancedModule.recipe.fabricType')" required>
             <el-select
               v-model="localForm.fabric_type"
-              placeholder="请选择布类"
+              :placeholder="$t('advancedModule.recipe.fabricPlaceholder')"
               style="width: 100%"
             >
-              <el-option label="棉" value="棉" />
-              <el-option label="涤纶" value="涤纶" />
-              <el-option label="丝绸" value="丝绸" />
-              <el-option label="羊毛" value="羊毛" />
-              <el-option label="化纤" value="化纤" />
+              <el-option :label="$t('advancedModule.recipe.fabricCotton')" value="棉" />
+              <el-option :label="$t('advancedModule.recipe.fabricPolyester')" value="涤纶" />
+              <el-option :label="$t('advancedModule.recipe.fabricSilk')" value="丝绸" />
+              <el-option :label="$t('advancedModule.recipe.fabricWool')" value="羊毛" />
+              <el-option :label="$t('advancedModule.recipe.fabricSynthetic')" value="化纤" />
             </el-select>
           </el-form-item>
-          <el-form-item label="染料类型">
+          <el-form-item :label="$t('advancedModule.recipe.dyeType')">
             <el-input
               v-model="localForm.dye_type"
-              placeholder="可选，如 活性染料"
+              :placeholder="$t('advancedModule.recipe.dyeTypePlaceholder')"
             />
           </el-form-item>
-          <el-form-item label="颜色名称">
+          <el-form-item :label="$t('advancedModule.recipe.colorName')">
             <el-input
               v-model="localForm.color_name"
-              placeholder="可选，如 宝蓝"
+              :placeholder="$t('advancedModule.recipe.colorNamePlaceholder')"
             />
           </el-form-item>
-          <el-form-item label="K 值">
+          <el-form-item :label="$t('advancedModule.recipe.kValue')">
             <el-input-number
               v-model="localForm.k"
               :min="0"
@@ -109,7 +116,7 @@ watch(
               type="primary"
               :loading="recipeLoading"
               @click="runRecipeOptimization"
-              >生成推荐</el-button
+              >{{ $t('advancedModule.recipe.generate') }}</el-button
             >
           </el-form-item>
         </el-form>
@@ -119,40 +126,38 @@ watch(
     <el-col :span="16">
       <el-card shadow="hover" class="mb-20">
         <template #header>
-          <div class="card-header">推荐结果</div>
+          <div class="card-header">{{ $t('advancedModule.recipe.result') }}</div>
         </template>
         <el-empty
           v-if="!recipeResult"
-          description="请填写色号与布类后生成推荐"
+          :description="$t('advancedModule.recipe.empty')"
         />
         <div v-else>
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="推荐温度">
+            <el-descriptions-item :label="$t('advancedModule.recipe.recTemperature')">
               {{ recipeResult.recommended_params.temperature }} °C
             </el-descriptions-item>
-            <el-descriptions-item label="推荐时间">
-              {{ recipeResult.recommended_params.time_minutes }} 分钟
+            <el-descriptions-item :label="$t('advancedModule.recipe.recTime')">
+              {{ recipeResult.recommended_params.time_minutes }} {{ $t('advancedModule.recipe.unitMinutes') }}
             </el-descriptions-item>
-            <el-descriptions-item label="推荐 pH">
+            <el-descriptions-item :label="$t('advancedModule.recipe.recPh')">
               {{ recipeResult.recommended_params.ph_value }}
             </el-descriptions-item>
-            <el-descriptions-item label="推荐浴比">
+            <el-descriptions-item :label="$t('advancedModule.recipe.recLiquorRatio')">
               1 : {{ recipeResult.recommended_params.liquor_ratio }}
             </el-descriptions-item>
-            <el-descriptions-item label="置信度">
+            <el-descriptions-item :label="$t('advancedModule.recipe.confidence')">
               {{ Math.round(recipeResult.confidence * 100) }}%
             </el-descriptions-item>
-            <el-descriptions-item label="相似案例数">
+            <el-descriptions-item :label="$t('advancedModule.recipe.similarCases')">
               {{ recipeResult.similar_cases }}
             </el-descriptions-item>
-            <el-descriptions-item label="推荐来源">
+            <el-descriptions-item :label="$t('advancedModule.recipe.recSource')">
               <el-tag
                 :type="recipeResult.source === 'knn' ? 'success' : 'info'"
                 size="small"
               >
-                {{
-                  recipeResult.source === 'knn' ? 'k-NN 匹配' : '退化兜底'
-                }}
+                {{ sourceLabel(recipeResult.source) }}
               </el-tag>
             </el-descriptions-item>
           </el-descriptions>
@@ -165,7 +170,7 @@ watch(
             show-icon
           />
 
-          <h4 class="mb-10" style="margin-top: 16px">相似候选案例</h4>
+          <h4 class="mb-10" style="margin-top: 16px">{{ $t('advancedModule.recipe.similarCandidates') }}</h4>
           <el-table
             v-if="recipeResult.candidates && recipeResult.candidates.length > 0"
             :data="recipeResult.candidates"
@@ -174,31 +179,31 @@ watch(
             border
             aria-label="相似候选案例列表"
           >
-            <el-table-column prop="recipe_no" label="配方编号" width="160" />
-            <el-table-column prop="color_no" label="色号" width="120" />
-            <el-table-column prop="fabric_type" label="布类" width="100" />
-            <el-table-column prop="dye_type" label="染料" width="120" />
-            <el-table-column label="温度" width="80">
+            <el-table-column prop="recipe_no" :label="$t('advancedModule.recipe.colRecipeNo')" width="160" />
+            <el-table-column prop="color_no" :label="$t('advancedModule.recipe.colColorNo')" width="120" />
+            <el-table-column prop="fabric_type" :label="$t('advancedModule.recipe.colFabricType')" width="100" />
+            <el-table-column prop="dye_type" :label="$t('advancedModule.recipe.colDyeType')" width="120" />
+            <el-table-column :label="$t('advancedModule.recipe.colTemperature')" width="80">
               <template #default="{ row }">
                 {{ row.temperature ?? '-' }} °C
               </template>
             </el-table-column>
-            <el-table-column label="时间" width="80">
+            <el-table-column :label="$t('advancedModule.recipe.colTime')" width="80">
               <template #default="{ row }">
-                {{ row.time_minutes ?? '-' }} 分
+                {{ row.time_minutes ?? '-' }} {{ $t('advancedModule.recipe.unitMinutesShort') }}
               </template>
             </el-table-column>
-            <el-table-column label="pH" width="80">
+            <el-table-column :label="$t('advancedModule.recipe.colPh')" width="80">
               <template #default="{ row }">
                 {{ row.ph_value ?? '-' }}
               </template>
             </el-table-column>
-            <el-table-column label="浴比" width="80">
+            <el-table-column :label="$t('advancedModule.recipe.colLiquorRatio')" width="80">
               <template #default="{ row }">
                 1:{{ row.liquor_ratio ?? '-' }}
               </template>
             </el-table-column>
-            <el-table-column label="相似度" width="100">
+            <el-table-column :label="$t('advancedModule.recipe.colSimilarity')" width="100">
               <template #default="{ row }">
                 {{ Math.round(row.similarity * 100) }}%
               </template>
@@ -206,7 +211,7 @@ watch(
           </el-table>
           <el-empty
             v-else
-            description="暂无候选案例"
+            :description="$t('advancedModule.recipe.emptyNoCandidates')"
             :image-size="60"
           />
         </div>

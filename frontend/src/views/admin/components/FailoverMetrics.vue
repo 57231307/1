@@ -8,13 +8,13 @@
     <el-row :gutter="20">
       <el-col :span="12">
         <div class="metric-card" :class="databaseClass">
-          <div class="metric-label">数据库</div>
+          <div class="metric-label">{{ $t('adminFailover.metricDatabase') }}</div>
           <div class="metric-value">{{ databaseLabel }}</div>
         </div>
       </el-col>
       <el-col :span="12">
         <div class="metric-card" :class="cacheClass">
-          <div class="metric-label">缓存</div>
+          <div class="metric-label">{{ $t('adminFailover.metricCache') }}</div>
           <div class="metric-value">{{ cacheLabel }}</div>
         </div>
       </el-col>
@@ -24,31 +24,30 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   health: { database: string; cache: string }
 }>()
+
+const { t } = useI18n({ useScope: 'global' })
+
+const STATE_LABEL_KEYS: Record<string, string> = {
+  primary: 'adminFailover.statePrimary',
+  backup: 'adminFailover.stateBackup',
+  both_down: 'adminFailover.stateBothDown',
+  error: 'adminFailover.stateError',
+}
+
+function stateLabel(state: string): string {
+  return STATE_LABEL_KEYS[state] ? t(STATE_LABEL_KEYS[state]) : t('adminFailover.stateUnknown')
+}
 
 const databaseLabel = computed(() => stateLabel(props.health.database))
 const cacheLabel = computed(() => stateLabel(props.health.cache))
 
 const databaseClass = computed(() => stateClass(props.health.database))
 const cacheClass = computed(() => stateClass(props.health.cache))
-
-function stateLabel(state: string): string {
-  switch (state) {
-    case 'primary':
-      return '主调用运行中'
-    case 'backup':
-      return '备用调用中'
-    case 'both_down':
-      return '主备均不可用'
-    case 'error':
-      return '查询错误'
-    default:
-      return '未知'
-  }
-}
 
 function stateClass(state: string): string {
   switch (state) {

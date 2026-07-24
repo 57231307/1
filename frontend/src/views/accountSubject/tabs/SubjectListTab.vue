@@ -6,36 +6,36 @@
 <template>
   <div class="subject-list-tab">
     <div class="page-header">
-      <h2 class="page-title">会计科目</h2>
+      <h2 class="page-title">{{ $t('accountSubject.title') }}</h2>
       <div>
         <el-button type="primary" @click="openDialog()">
-          <el-icon><Plus /></el-icon>新建科目
+          <el-icon><Plus /></el-icon>{{ $t('accountSubject.create') }}
         </el-button>
         <el-button @click="handleExport">
-          <el-icon><Download /></el-icon>导出
+          <el-icon><Download /></el-icon>{{ $t('accountSubject.export') }}
         </el-button>
       </div>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm" aria-label="会计科目筛选表单">
-        <el-form-item label="科目编码">
-          <el-input v-model="queryForm.code" placeholder="编码" clearable />
+      <el-form :inline="true" :model="queryForm" :aria-label="$t('accountSubject.filter.ariaLabel')">
+        <el-form-item :label="$t('accountSubject.filter.code')">
+          <el-input v-model="queryForm.code" :placeholder="$t('accountSubject.filter.codePlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="科目名称">
-          <el-input v-model="queryForm.name" placeholder="名称" clearable />
+        <el-form-item :label="$t('accountSubject.filter.name')">
+          <el-input v-model="queryForm.name" :placeholder="$t('accountSubject.filter.namePlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="科目类别">
-          <el-select v-model="queryForm.category" placeholder="选择类别" clearable>
-            <el-option label="资产" value="asset" />
-            <el-option label="负债" value="liability" />
-            <el-option label="权益" value="equity" />
-            <el-option label="成本" value="cost" />
-            <el-option label="损益" value="profit_loss" />
+        <el-form-item :label="$t('accountSubject.filter.category')">
+          <el-select v-model="queryForm.category" :placeholder="$t('accountSubject.filter.categoryPlaceholder')" clearable>
+            <el-option :label="$t('accountSubject.category.asset')" value="asset" />
+            <el-option :label="$t('accountSubject.category.liability')" value="liability" />
+            <el-option :label="$t('accountSubject.category.equity')" value="equity" />
+            <el-option :label="$t('accountSubject.category.cost')" value="cost" />
+            <el-option :label="$t('accountSubject.category.profitLoss')" value="profit_loss" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{ $t('accountSubject.filter.query') }}</el-button>
+          <el-button @click="handleReset">{{ $t('accountSubject.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -48,82 +48,82 @@
         row-key="id"
         default-expand-all
         :tree-props="{ children: 'children' }"
-        aria-label="会计科目列表"
+        :aria-label="$t('accountSubject.table.ariaLabel')"
       >
-        <el-table-column prop="code" label="科目编码" width="120" />
-        <el-table-column prop="name" label="科目名称" min-width="200" />
-        <el-table-column prop="category" label="科目类别" width="100">
+        <el-table-column prop="code" :label="$t('accountSubject.table.code')" width="120" />
+        <el-table-column prop="name" :label="$t('accountSubject.table.name')" min-width="200" />
+        <el-table-column prop="category" :label="$t('accountSubject.table.category')" width="100">
           <template #default="{ row }">
             <el-tag size="small">{{ getCategoryLabel(row.category) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="balance_type" label="余额方向" width="100">
+        <el-table-column prop="balance_type" :label="$t('accountSubject.table.balanceType')" width="100">
           <template #default="{ row }">
             <el-tag :type="row.balance_type === 'debit' ? 'success' : 'danger'" size="small">
-              {{ row.balance_type === 'debit' ? '借方' : '贷方' }}
+              {{ row.balance_type === 'debit' ? $t('accountSubject.balanceType.debit') : $t('accountSubject.balanceType.credit') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="level" label="级次" width="80" align="center" />
-        <el-table-column prop="is_enabled" label="状态" width="80" align="center">
+        <el-table-column prop="level" :label="$t('accountSubject.table.level')" width="80" align="center" />
+        <el-table-column prop="is_enabled" :label="$t('accountSubject.table.status')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.is_enabled ? 'success' : 'info'" size="small">
-              {{ row.is_enabled ? '启用' : '禁用' }}
+              {{ row.is_enabled ? $t('accountSubject.status.enabled') : $t('accountSubject.status.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column :label="$t('accountSubject.table.operation')" width="160" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="'account_subject:update'" type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
-            <el-button v-permission="'account_subject:delete'" type="danger" link size="small" @click="deleteSubject(row)">删除</el-button>
+            <el-button v-permission="'account_subject:update'" type="primary" link size="small" @click="openDialog(row)">{{ $t('accountSubject.table.edit') }}</el-button>
+            <el-button v-permission="'account_subject:delete'" type="danger" link size="small" @click="deleteSubject(row)">{{ $t('accountSubject.table.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑科目' : '新建科目'" width="500px" :aria-label="form.id ? '编辑科目对话框' : '新建科目对话框'">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="会计科目表单">
-        <el-form-item label="科目编码" prop="code">
+    <el-dialog v-model="dialogVisible" :title="form.id ? $t('accountSubject.dialog.editTitle') : $t('accountSubject.dialog.createTitle')" width="500px" :aria-label="form.id ? $t('accountSubject.dialog.editAriaLabel') : $t('accountSubject.dialog.createAriaLabel')">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('accountSubject.dialog.ariaLabel')">
+        <el-form-item :label="$t('accountSubject.filter.code')" prop="code">
           <el-input v-model="form.code" :disabled="!!form.id" />
         </el-form-item>
-        <el-form-item label="科目名称" prop="name">
+        <el-form-item :label="$t('accountSubject.filter.name')" prop="name">
           <el-input v-model="form.name" />
         </el-form-item>
-        <el-form-item label="科目类别" prop="category">
-          <el-select v-model="form.category" placeholder="选择类别" style="width: 100%">
-            <el-option label="资产" value="asset" />
-            <el-option label="负债" value="liability" />
-            <el-option label="权益" value="equity" />
-            <el-option label="成本" value="cost" />
-            <el-option label="损益" value="profit_loss" />
+        <el-form-item :label="$t('accountSubject.filter.category')" prop="category">
+          <el-select v-model="form.category" :placeholder="$t('accountSubject.filter.categoryPlaceholder')" style="width: 100%">
+            <el-option :label="$t('accountSubject.category.asset')" value="asset" />
+            <el-option :label="$t('accountSubject.category.liability')" value="liability" />
+            <el-option :label="$t('accountSubject.category.equity')" value="equity" />
+            <el-option :label="$t('accountSubject.category.cost')" value="cost" />
+            <el-option :label="$t('accountSubject.category.profitLoss')" value="profit_loss" />
           </el-select>
         </el-form-item>
-        <el-form-item label="余额方向" prop="balance_type">
+        <el-form-item :label="$t('accountSubject.table.balanceType')" prop="balance_type">
           <el-radio-group v-model="form.balance_type">
-            <el-radio value="debit">借方</el-radio>
-            <el-radio value="credit">贷方</el-radio>
+            <el-radio value="debit">{{ $t('accountSubject.balanceType.debit') }}</el-radio>
+            <el-radio value="credit">{{ $t('accountSubject.balanceType.credit') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="上级科目">
+        <el-form-item :label="$t('accountSubject.dialog.parentSubject')">
           <el-tree-select
             v-model="form.parent_id"
             :data="parentSubjectOptions"
             :props="{ label: 'name', value: 'id' }"
-            placeholder="选择上级科目"
+            :placeholder="$t('accountSubject.dialog.parentPlaceholder')"
             clearable
             check-strictly
           />
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item :label="$t('accountSubject.dialog.enable')">
           <el-switch v-model="form.is_enabled" />
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item :label="$t('accountSubject.dialog.description')">
           <el-input v-model="form.description" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('accountSubject.dialog.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('accountSubject.dialog.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -131,6 +131,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import {
@@ -142,6 +143,8 @@ import {
 } from '@/api/account-subject'
 import { logger } from '@/utils/logger'
 import { exportToExcel } from '@/utils/export'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -168,24 +171,36 @@ const form = reactive<Partial<AccountSubjectEntity>>({
   description: '',
 })
 
-const rules: FormRules = {
-  code: [{ required: true, message: '请输入科目编码', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入科目名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择科目类别', trigger: 'change' }],
-  balance_type: [{ required: true, message: '请选择余额方向', trigger: 'change' }],
-}
+const rules = computed<FormRules>(() => ({
+  code: [{ required: true, message: t('accountSubject.validation.codeRequired'), trigger: 'blur' }],
+  name: [{ required: true, message: t('accountSubject.validation.nameRequired'), trigger: 'blur' }],
+  category: [{ required: true, message: t('accountSubject.validation.categoryRequired'), trigger: 'change' }],
+  balance_type: [{ required: true, message: t('accountSubject.validation.balanceTypeRequired'), trigger: 'change' }],
+}))
 
 const parentSubjectOptions = computed(() => subjectList.value)
 
 const getCategoryLabel = (category: string) => {
   const map: Record<string, string> = {
-    asset: '资产',
-    liability: '负债',
-    equity: '权益',
-    cost: '成本',
-    profit_loss: '损益',
+    asset: t('accountSubject.category.asset'),
+    liability: t('accountSubject.category.liability'),
+    equity: t('accountSubject.category.equity'),
+    cost: t('accountSubject.category.cost'),
+    profit_loss: t('accountSubject.category.profitLoss'),
   }
   return map[category] || category
+}
+
+const getBalanceTypeLabel = (balanceType: string) => {
+  return balanceType === 'debit'
+    ? t('accountSubject.balanceType.debit')
+    : t('accountSubject.balanceType.credit')
+}
+
+const getStatusLabel = (isEnabled: boolean) => {
+  return isEnabled
+    ? t('accountSubject.status.enabled')
+    : t('accountSubject.status.disabled')
 }
 
 const fetchSubjects = async () => {
@@ -206,7 +221,7 @@ const fetchSubjects = async () => {
     }
   } catch (e) {
     const err = e as Error
-    ElMessage.error(err.message || '获取科目列表失败')
+    ElMessage.error(err.message || t('accountSubject.message.fetchListFailed'))
   } finally {
     loading.value = false
   }
@@ -250,16 +265,16 @@ const handleSubmit = async () => {
     try {
       if (form.id) {
         await updateAccountSubject(form.id, form)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('accountSubject.message.updateSuccess'))
       } else {
         await createAccountSubject(form)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('accountSubject.message.createSuccess'))
       }
       dialogVisible.value = false
       fetchSubjects()
     } catch (e) {
       const err = e as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('accountSubject.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -269,14 +284,18 @@ const handleSubmit = async () => {
 const deleteSubject = async (row: AccountSubjectEntity) => {
   if (!row.id) return
   try {
-    await ElMessageBox.confirm(`确定删除科目 "${row.name}" 吗？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('accountSubject.message.deleteConfirm', { name: row.name }),
+      t('accountSubject.message.deleteConfirmTitle'),
+      { type: 'warning' }
+    )
     await deleteAccountSubject(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('accountSubject.message.deleteSuccess'))
     fetchSubjects()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('accountSubject.message.deleteFailed'))
     }
   }
 }
@@ -296,35 +315,35 @@ const handleExport = () => {
   }
   const flat = flatten(subjectList.value as SubjectWithChildren[])
   exportToExcel({
-    filename: '会计科目表',
+    filename: t('accountSubject.exportFile.filename'),
     format: 'excel',
     data: flat.map((s): Record<string, unknown> => ({ ...s })),
     columns: [
-      { key: 'code', title: '科目编码' },
-      { key: 'name', title: '科目名称' },
+      { key: 'code', title: t('accountSubject.exportFile.code') },
+      { key: 'name', title: t('accountSubject.exportFile.name') },
       {
         key: 'category',
-        title: '科目类别',
+        title: t('accountSubject.exportFile.category'),
         formatter: (value: unknown) => getCategoryLabel(String(value)),
       },
       {
         key: 'balance_type',
-        title: '余额方向',
-        formatter: (value: unknown) => (value === 'debit' ? '借方' : '贷方'),
+        title: t('accountSubject.exportFile.balanceType'),
+        formatter: (value: unknown) => getBalanceTypeLabel(String(value)),
       },
       {
         key: 'level',
-        title: '级次',
+        title: t('accountSubject.exportFile.level'),
         formatter: (value: unknown) => `L${value}`,
       },
       {
         key: 'is_enabled',
-        title: '状态',
-        formatter: (value: unknown) => (value ? '启用' : '禁用'),
+        title: t('accountSubject.exportFile.status'),
+        formatter: (value: unknown) => getStatusLabel(Boolean(value)),
       },
     ],
   })
-  logger.info('会计科目表已导出')
+  logger.info(t('accountSubject.exportedLog'))
 }
 
 onMounted(() => {

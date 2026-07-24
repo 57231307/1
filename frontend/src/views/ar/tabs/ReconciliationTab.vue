@@ -6,45 +6,45 @@
 <template>
   <div class="reconciliation-tab">
     <div class="page-header">
-      <h2 class="page-title">应收对账</h2>
+      <h2 class="page-title">{{ $t('arModule.reconciliation.title') }}</h2>
       <el-button type="primary" @click="openReconciliationDialog()">
         <el-icon><Plus /></el-icon>
-        新建对账
+        {{ $t('arModule.reconciliation.create') }}
       </el-button>
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe aria-label="对账列表">
-        <el-table-column prop="reconciliation_no" label="对账单号" width="140" />
-        <el-table-column prop="customer_name" label="客户" width="150" />
-        <el-table-column prop="reconciliation_date" label="对账日期" width="120" />
-        <el-table-column label="发票金额" width="120" align="right">
+      <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe :aria-label="$t('arModule.reconciliation.listAria')">
+        <el-table-column prop="reconciliation_no" :label="$t('arModule.reconciliation.reconciliationNo')" width="140" />
+        <el-table-column prop="customer_name" :label="$t('arModule.reconciliation.customer')" width="150" />
+        <el-table-column prop="reconciliation_date" :label="$t('arModule.reconciliation.reconciliationDate')" width="120" />
+        <el-table-column :label="$t('arModule.reconciliation.invoiceAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.total_invoice_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="收款金额" width="120" align="right">
+        <el-table-column :label="$t('arModule.reconciliation.paymentAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.total_payment_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="差额" width="100" align="right">
+        <el-table-column :label="$t('arModule.reconciliation.difference')" width="100" align="right">
           <template #default="{ row }">
             <span :class="{ 'text-red': row.difference_amount !== 0 }">
               {{ formatMoney(row.difference_amount) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="$t('common.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getReconciliationStatusType(row.status)" size="small">
               {{ getReconciliationStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="confirmed_by" label="确认人" width="100" />
-        <el-table-column prop="confirmed_at" label="确认时间" width="160" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column prop="confirmed_by" :label="$t('arModule.reconciliation.confirmedBy')" width="100" />
+        <el-table-column prop="confirmed_at" :label="$t('arModule.reconciliation.confirmedAt')" width="160" />
+        <el-table-column :label="$t('common.operation')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 'pending'"
@@ -52,41 +52,41 @@
               link
               size="small"
               @click="confirmReconciliation(row)"
-              >确认</el-button
+              >{{ $t('arModule.reconciliation.confirm') }}</el-button
             >
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="reconciliationDialogVisible" title="新建对账" width="500px" aria-label="新建对账对话框">
-      <el-form ref="reconciliationFormRef" :model="reconciliationForm" label-width="80px" aria-label="对账表单">
-        <el-form-item label="客户">
+    <el-dialog v-model="reconciliationDialogVisible" :title="$t('arModule.reconciliation.createTitle')" width="500px" :aria-label="$t('arModule.reconciliation.createAria')">
+      <el-form ref="reconciliationFormRef" :model="reconciliationForm" label-width="80px" :aria-label="$t('arModule.reconciliation.formAria')">
+        <el-form-item :label="$t('arModule.reconciliation.customer')">
           <el-select
             v-model="reconciliationForm.customer_id"
-            placeholder="选择客户"
+            :placeholder="$t('arModule.reconciliation.customerPlaceholder')"
             style="width: 100%"
           >
             <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="对账日期">
+        <el-form-item :label="$t('arModule.reconciliation.reconciliationDate')">
           <el-date-picker
             v-model="reconciliationForm.reconciliation_date"
             type="date"
-            placeholder="选择日期"
+            :placeholder="$t('arModule.reconciliation.datePlaceholder')"
             value-format="YYYY-MM-DD"
             style="width: 100%"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="reconciliationDialogVisible = false">取消</el-button>
+        <el-button @click="reconciliationDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button
           type="primary"
           :loading="reconciliationSubmitLoading"
           @click="submitReconciliation"
-          >确定</el-button
+          >{{ $t('common.confirm') }}</el-button
         >
       </template>
     </el-dialog>
@@ -95,6 +95,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
@@ -105,6 +106,8 @@ import {
   type ARReconciliation,
 } from '@/api/ar'
 import type { Customer } from '@/api/customer'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const reconciliations = ref<ARReconciliation[]>([])
 const customers = ref<Customer[]>([])
@@ -123,12 +126,13 @@ const formatMoney = (amount: number) => {
 }
 
 const getReconciliationStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    pending: '待确认',
-    confirmed: '已确认',
-    disputed: '有异议',
+  const keyMap: Record<string, string> = {
+    pending: 'arModule.reconciliation.statusPending',
+    confirmed: 'arModule.reconciliation.statusConfirmed',
+    disputed: 'arModule.reconciliation.statusDisputed',
   }
-  return map[status] || status
+  const key = keyMap[status]
+  return key ? t(key) : status
 }
 
 const getReconciliationStatusType = (status: string) => {
@@ -150,7 +154,7 @@ const fetchReconciliations = async () => {
     reconciliations.value = Array.isArray(d) ? d : d?.items || d?.data || []
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '获取对账列表失败')
+    ElMessage.error(err.message || t('arModule.reconciliation.fetchListFailed'))
   } finally {
     reconciliationLoading.value = false
   }
@@ -164,19 +168,19 @@ const openReconciliationDialog = () => {
 
 const submitReconciliation = async () => {
   if (!reconciliationForm.customer_id) {
-    ElMessage.warning('请选择客户')
+    ElMessage.warning(t('arModule.reconciliation.selectCustomer'))
     return
   }
 
   reconciliationSubmitLoading.value = true
   try {
     await createARReconciliation(reconciliationForm)
-    ElMessage.success('创建成功')
+    ElMessage.success(t('common.message.createSuccess'))
     reconciliationDialogVisible.value = false
     fetchReconciliations()
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('common.failed'))
   } finally {
     reconciliationSubmitLoading.value = false
   }
@@ -184,14 +188,14 @@ const submitReconciliation = async () => {
 
 const confirmReconciliation = async (row: ARReconciliation) => {
   try {
-    await ElMessageBox.confirm('确定确认该对账单吗？', '确认对账', { type: 'info' })
+    await ElMessageBox.confirm(t('arModule.reconciliation.confirmMessage'), t('arModule.reconciliation.confirmTitle'), { type: 'info' })
     await updateARReconciliationStatus(row.id, 'confirmed')
-    ElMessage.success('确认成功')
+    ElMessage.success(t('arModule.reconciliation.confirmSuccess'))
     fetchReconciliations()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('common.failed'))
     }
   }
 }

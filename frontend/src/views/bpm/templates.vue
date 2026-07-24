@@ -2,36 +2,36 @@
   <div class="bpm-templates-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">流程模板库</h1>
+        <h1 class="page-title">{{ $t('bpm.templates.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>审批管理</el-breadcrumb-item>
-          <el-breadcrumb-item>模板库</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ $t('bpm.templates.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('bpm.templates.breadcrumb.approval') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('bpm.templates.breadcrumb.templates') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="流程模板筛选表单">
-        <el-form-item label="模板分类">
+      <el-form :inline="true" :model="filterForm" class="filter-form" :aria-label="$t('bpm.templates.filter.ariaLabel')">
+        <el-form-item :label="$t('bpm.templates.filter.category')">
           <el-select
             v-model="filterForm.category"
-            placeholder="全部分类"
+            :placeholder="$t('bpm.templates.filter.categoryPlaceholder')"
             clearable
             style="width: 160px"
             @change="handleSearch"
           >
-            <el-option label="销售模板" value="sales" />
-            <el-option label="采购模板" value="purchase" />
-            <el-option label="财务模板" value="finance" />
-            <el-option label="人事模板" value="hr" />
-            <el-option label="生产模板" value="production" />
-            <el-option label="通用模板" value="common" />
+            <el-option :label="$t('bpm.templates.category.sales')" value="sales" />
+            <el-option :label="$t('bpm.templates.category.purchase')" value="purchase" />
+            <el-option :label="$t('bpm.templates.category.finance')" value="finance" />
+            <el-option :label="$t('bpm.templates.category.hr')" value="hr" />
+            <el-option :label="$t('bpm.templates.category.production')" value="production" />
+            <el-option :label="$t('bpm.templates.category.common')" value="common" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleResetFilter">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{ $t('bpm.templates.filter.query') }}</el-button>
+          <el-button @click="handleResetFilter">{{ $t('bpm.templates.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -55,15 +55,15 @@
               <el-icon><MoreFilled /></el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item @click="handleViewDetail(template)">查看详情</el-dropdown-item>
+                  <el-dropdown-item @click="handleViewDetail(template)">{{ $t('bpm.templates.card.viewDetail') }}</el-dropdown-item>
                   <el-dropdown-item @click="handleCreateFromTemplate(template)"
-                    >从模板创建</el-dropdown-item
+                    >{{ $t('bpm.templates.card.createFromTemplate') }}</el-dropdown-item
                   >
                   <el-dropdown-item
                     divided
                     style="color: #f56c6c"
                     @click="handleDeleteTemplate(template)"
-                    >删除模板</el-dropdown-item
+                    >{{ $t('bpm.templates.card.deleteTemplate') }}</el-dropdown-item
                   >
                 </el-dropdown-menu>
               </template>
@@ -71,23 +71,23 @@
           </div>
           <div class="template-body">
             <h3 class="template-name">{{ template.template_name }}</h3>
-            <p class="template-desc">{{ template.description || '暂无描述' }}</p>
+            <p class="template-desc">{{ template.description || $t('bpm.templates.card.noDescription') }}</p>
             <div class="template-meta">
               <el-tag size="small">{{ getCategoryText(template.category) }}</el-tag>
-              <span class="usage-count">使用 {{ template.usage_count }} 次</span>
+              <span class="usage-count">{{ $t('bpm.templates.card.usageCount', { count: template.usage_count }) }}</span>
             </div>
           </div>
           <div class="template-footer">
             <span class="template-time">{{ template.created_at }}</span>
             <el-button type="primary" size="small" @click="handleCreateFromTemplate(template)"
-              >使用此模板</el-button
+              >{{ $t('bpm.templates.card.useThisTemplate') }}</el-button
             >
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-empty v-if="!loading && templates.length === 0" description="暂无模板数据" />
+    <el-empty v-if="!loading && templates.length === 0" :description="$t('bpm.templates.empty')" />
 
     <div v-if="total > 0" class="pagination-wrapper">
       <el-pagination
@@ -96,79 +96,79 @@
         :total="total"
         :page-sizes="[8, 16, 32]"
         layout="total, sizes, prev, pager, next"
-        aria-label="流程模板分页"
+        :aria-label="$t('bpm.templates.paginationAriaLabel')"
         @size-change="handleSizeChange"
         @current-change="handlePageChange"
       />
     </div>
 
-    <el-dialog v-model="detailDialogVisible" title="模板详情" width="700px" destroy-on-close aria-label="流程模板详情对话框">
+    <el-dialog v-model="detailDialogVisible" :title="$t('bpm.templates.detailDialog.title')" width="700px" destroy-on-close :aria-label="$t('bpm.templates.detailDialog.ariaLabel')">
       <div v-if="currentTemplate" class="template-detail">
-        <el-descriptions :column="2" border aria-label="流程模板详情">
-          <el-descriptions-item label="模板名称">{{
+        <el-descriptions :column="2" border :aria-label="$t('bpm.templates.detailDialog.descriptionsAriaLabel')">
+          <el-descriptions-item :label="$t('bpm.templates.detailDialog.templateName')">{{
             currentTemplate.template_name
           }}</el-descriptions-item>
-          <el-descriptions-item label="模板分类">{{
+          <el-descriptions-item :label="$t('bpm.templates.detailDialog.templateCategory')">{{
             getCategoryText(currentTemplate.category)
           }}</el-descriptions-item>
-          <el-descriptions-item label="模板标识">{{
+          <el-descriptions-item :label="$t('bpm.templates.detailDialog.templateKey')">{{
             currentTemplate.template_key
           }}</el-descriptions-item>
-          <el-descriptions-item label="使用次数">{{
+          <el-descriptions-item :label="$t('bpm.templates.detailDialog.usageCount')">{{
             currentTemplate.usage_count
           }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{
+          <el-descriptions-item :label="$t('bpm.templates.detailDialog.createdAt')">{{
             currentTemplate.created_at
           }}</el-descriptions-item>
-          <el-descriptions-item label="描述" :span="2">{{
+          <el-descriptions-item :label="$t('bpm.templates.detailDialog.description')" :span="2">{{
             currentTemplate.description || '-'
           }}</el-descriptions-item>
         </el-descriptions>
         <div v-if="currentTemplate.process_definition" class="process-preview">
-          <h4>流程节点预览</h4>
+          <h4>{{ $t('bpm.templates.detailDialog.nodePreview') }}</h4>
           <el-table
             :data="currentTemplate.process_definition.nodes || []"
             size="small"
             style="margin-top: 12px"
-            aria-label="流程节点预览列表"
+            :aria-label="$t('bpm.templates.detailDialog.nodePreviewAriaLabel')"
           >
-            <el-table-column prop="type" label="节点类型" width="120">
+            <el-table-column prop="type" :label="$t('bpm.templates.detailDialog.nodeType')" width="120">
               <template #default="{ row }">
                 <el-tag size="small">{{ getNodeTypeName(row.type) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="name" label="节点名称" min-width="150" />
-            <el-table-column prop="assignee_type" label="审批人类型" width="120">
+            <el-table-column prop="name" :label="$t('bpm.templates.detailDialog.nodeName')" min-width="150" />
+            <el-table-column prop="assignee_type" :label="$t('bpm.templates.detailDialog.assigneeType')" width="120">
               <template #default="{ row }">
                 <span v-if="row.assignee_type">{{ getAssigneeTypeText(row.assignee_type) }}</span>
                 <span v-else>-</span>
               </template>
             </el-table-column>
-            <el-table-column prop="assignee_value" label="审批人值" min-width="120" />
+            <el-table-column prop="assignee_value" :label="$t('bpm.templates.detailDialog.assigneeValue')" min-width="120" />
           </el-table>
         </div>
       </div>
       <template #footer>
-        <el-button @click="detailDialogVisible = false">关闭</el-button>
+        <el-button @click="detailDialogVisible = false">{{ $t('bpm.templates.detailDialog.close') }}</el-button>
         <el-button type="primary" @click="handleCreateFromTemplate(currentTemplate)"
-          >从模板创建</el-button
+          >{{ $t('bpm.templates.detailDialog.createFromTemplate') }}</el-button
         >
       </template>
     </el-dialog>
 
-    <el-dialog v-model="createDialogVisible" title="从模板创建流程" width="500px" destroy-on-close aria-label="从模板创建流程对话框">
-      <el-form :model="createForm" label-width="100px" aria-label="从模板创建流程表单">
-        <el-form-item label="模板名称">
+    <el-dialog v-model="createDialogVisible" :title="$t('bpm.templates.createDialog.title')" width="500px" destroy-on-close :aria-label="$t('bpm.templates.createDialog.ariaLabel')">
+      <el-form :model="createForm" label-width="100px" :aria-label="$t('bpm.templates.createDialog.formAriaLabel')">
+        <el-form-item :label="$t('bpm.templates.createDialog.templateName')">
           <span>{{ currentTemplate?.template_name }}</span>
         </el-form-item>
-        <el-form-item label="流程名称">
-          <el-input v-model="createForm.process_name" placeholder="默认使用模板名称" />
+        <el-form-item :label="$t('bpm.templates.createDialog.processName')">
+          <el-input v-model="createForm.process_name" :placeholder="$t('bpm.templates.createDialog.processNamePlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createDialogVisible = false">取消</el-button>
+        <el-button @click="createDialogVisible = false">{{ $t('bpm.templates.createDialog.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="confirmCreateFromTemplate"
-          >确定</el-button
+          >{{ $t('bpm.templates.createDialog.confirm') }}</el-button
         >
       </template>
     </el-dialog>
@@ -178,6 +178,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import type { Component } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   MoreFilled,
@@ -194,6 +195,8 @@ import type { ProcessTemplate } from '@/api/bpm-enhanced'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const submitLoading = ref(false)
 const currentTemplate = ref<ProcessTemplate | null>(null)
 
@@ -205,12 +208,12 @@ const createForm = reactive({ process_name: '' })
 
 const getCategoryText = (category: string) => {
   const map: Record<string, string> = {
-    sales: '销售',
-    purchase: '采购',
-    finance: '财务',
-    hr: '人事',
-    production: '生产',
-    common: '通用',
+    sales: t('bpm.templates.category.sales'),
+    purchase: t('bpm.templates.category.purchase'),
+    finance: t('bpm.templates.category.finance'),
+    hr: t('bpm.templates.category.hr'),
+    production: t('bpm.templates.category.production'),
+    common: t('bpm.templates.category.common'),
   }
   return map[category] || category
 }
@@ -229,21 +232,21 @@ const getCategoryIcon = (category: string): Component => {
 
 const getNodeTypeName = (type: string) => {
   const map: Record<string, string> = {
-    start: '开始',
-    end: '结束',
-    approval: '审批',
-    condition: '条件',
-    notify: '通知',
+    start: t('bpm.templates.nodeType.start'),
+    end: t('bpm.templates.nodeType.end'),
+    approval: t('bpm.templates.nodeType.approval'),
+    condition: t('bpm.templates.nodeType.condition'),
+    notify: t('bpm.templates.nodeType.notify'),
   }
   return map[type] || type
 }
 
 const getAssigneeTypeText = (type: string) => {
   const map: Record<string, string> = {
-    user: '指定用户',
-    role: '角色',
-    department: '部门',
-    dynamic: '动态',
+    user: t('bpm.templates.assigneeType.user'),
+    role: t('bpm.templates.assigneeType.role'),
+    department: t('bpm.templates.assigneeType.department'),
+    dynamic: t('bpm.templates.assigneeType.dynamic'),
   }
   return map[type] || type
 }
@@ -315,7 +318,7 @@ const confirmCreateFromTemplate = async () => {
         ? { process_name: createForm.process_name }
         : undefined
     await createBpmFromTemplate(currentTemplate.value.id, data)
-    ElMessage.success('创建成功')
+    ElMessage.success(t('bpm.templates.message.createSuccess'))
     createDialogVisible.value = false
   } catch (e) {
     logger.error(String(e))
@@ -326,11 +329,11 @@ const confirmCreateFromTemplate = async () => {
 
 const handleDeleteTemplate = async (row: ProcessTemplate) => {
   try {
-    await ElMessageBox.confirm(`确定删除模板「${row.template_name}」吗？`, '确认', {
+    await ElMessageBox.confirm(t('bpm.templates.message.deleteConfirm', { name: row.template_name }), t('bpm.templates.message.deleteConfirmTitle'), {
       type: 'warning',
     })
     await deleteBpmTemplate(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('bpm.templates.message.deleteSuccess'))
     fetchData()
   } catch (e) {
     if (e !== 'cancel') logger.error(String(e))

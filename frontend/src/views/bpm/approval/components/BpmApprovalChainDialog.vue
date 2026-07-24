@@ -5,9 +5,9 @@
 -->
 <template>
   <el-dialog
-    aria-label="审批链路对话框"
+    :aria-label="$t('bpm.approval.chainDialog.ariaLabel')"
     :model-value="visible"
-    title="审批链"
+    :title="$t('bpm.approval.chainDialog.title')"
     width="700px"
     destroy-on-close
     @update:model-value="(v: boolean) => emit('update:visible', v)"
@@ -20,11 +20,11 @@
             <div class="node-name">{{ node.node_name }}</div>
             <div class="node-type">{{ getNodeTypeNameFmt(node.node_type) }}</div>
             <div v-if="node.approver_name" class="node-approver">
-              审批人：{{ node.approver_name }}
+              {{ $t('bpm.approval.chainDialog.approver') }}：{{ node.approver_name }}
             </div>
             <div v-if="node.approved_at" class="node-time">{{ node.approved_at }}</div>
-            <div v-if="node.comment" class="node-comment">意见：{{ node.comment }}</div>
-            <div v-if="node.duration" class="node-duration">耗时：{{ node.duration }}分钟</div>
+            <div v-if="node.comment" class="node-comment">{{ $t('bpm.approval.chainDialog.comment') }}：{{ node.comment }}</div>
+            <div v-if="node.duration" class="node-duration">{{ $t('bpm.approval.chainDialog.durationText', { minutes: node.duration }) }}</div>
           </div>
         </div>
         <div v-if="index < chain.length - 1" class="chain-arrow">
@@ -32,14 +32,17 @@
         </div>
       </div>
     </div>
-    <el-empty v-else description="暂无审批链数据" />
+    <el-empty v-else :description="$t('bpm.approval.chainDialog.empty')" />
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { ArrowDown } from '@element-plus/icons-vue'
 import type { ApprovalChainNode } from '@/api/bpm-enhanced'
-import { getNodeStatusClass, getNodeTypeName } from '../composables/bpmApFmts'
+import { getNodeStatusClass } from '../composables/bpmApFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 审批链对话框组件
@@ -57,7 +60,18 @@ const emit = defineEmits<{
 
 // 透传格式化函数
 const getNodeStatusClassFmt = getNodeStatusClass
-const getNodeTypeNameFmt = getNodeTypeName
+
+// 节点类型名称（响应式求值，随语言切换更新）
+const getNodeTypeNameFmt = (type: string) => {
+  const map: Record<string, string> = {
+    start: t('bpm.nodeType.start'),
+    end: t('bpm.nodeType.end'),
+    approval: t('bpm.nodeType.approval'),
+    condition: t('bpm.nodeType.condition'),
+    notify: t('bpm.nodeType.notify'),
+  }
+  return map[type] || type
+}
 </script>
 
 <style scoped>
