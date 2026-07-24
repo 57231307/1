@@ -7,61 +7,62 @@
   - V2Table 列表展示
   - 详情抽屉（el-drawer）展示 before/after 差异 JSON
   - CSV 导出按钮
+  D05 Batch 4：接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts
 -->
 <template>
   <div class="audit-log-view">
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" aria-label="审计日志筛选表单" @submit.prevent="handleQuery">
-        <el-form-item label="时间范围">
+      <el-form :inline="true" :model="filterForm" :aria-label="$t('auditLog.filter.ariaLabel')" @submit.prevent="handleQuery">
+        <el-form-item :label="$t('auditLog.filter.dateRange')">
           <el-date-picker
             v-model="filterForm.dateRange"
             type="datetimerange"
-            range-separator="至"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
+            range-separator="—"
+            :start-placeholder="$t('auditLog.filter.startPlaceholder')"
+            :end-placeholder="$t('auditLog.filter.endPlaceholder')"
             value-format="YYYY-MM-DDTHH:mm:ss[Z]"
             style="width: 360px"
           />
         </el-form-item>
-        <el-form-item label="操作类型">
+        <el-form-item :label="$t('auditLog.filter.operationType')">
           <el-select
             v-model="filterForm.operation_type"
-            placeholder="全部"
+            :placeholder="$t('auditLog.filter.all')"
             clearable
             style="width: 160px"
           >
             <el-option
-              v-for="opt in OP_TYPE_OPTIONS"
+              v-for="opt in opTypeOptions"
               :key="opt.value"
               :label="opt.label"
               :value="opt.value"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="严重级别">
+        <el-form-item :label="$t('auditLog.filter.severity')">
           <el-select
             v-model="filterForm.severity"
-            placeholder="全部"
+            :placeholder="$t('auditLog.filter.all')"
             clearable
             style="width: 140px"
           >
             <el-option
-              v-for="opt in SEVERITY_OPTIONS"
+              v-for="opt in severityOptions"
               :key="opt.value"
               :label="opt.label"
               :value="opt.value"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="资源类型">
+        <el-form-item :label="$t('auditLog.filter.resourceType')">
           <el-input
             v-model="filterForm.resource_type"
-            placeholder="如 user / order"
+            :placeholder="$t('auditLog.filter.resourceTypePlaceholder')"
             clearable
             style="width: 160px"
           />
         </el-form-item>
-        <el-form-item label="请求 ID">
+        <el-form-item :label="$t('auditLog.filter.requestId')">
           <el-input
             v-model="filterForm.request_id"
             placeholder="trace_id"
@@ -69,10 +70,10 @@
             style="width: 200px"
           />
         </el-form-item>
-        <el-form-item label="关键字">
+        <el-form-item :label="$t('auditLog.filter.keyword')">
           <el-input
             v-model="filterForm.keyword"
-            placeholder="资源 ID / 名称 / 描述"
+            :placeholder="$t('auditLog.filter.keywordPlaceholder')"
             clearable
             style="width: 180px"
             @keyup.enter="handleQuery"
@@ -81,15 +82,15 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ $t('auditLog.filter.query') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ $t('auditLog.filter.reset') }}
           </el-button>
           <el-button type="success" @click="handleExport">
             <el-icon><Download /></el-icon>
-            导出 CSV
+            {{ $t('auditLog.filter.exportCsv') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -105,7 +106,7 @@
         :total="total"
         :height="600"
         row-key="id"
-        empty-text="暂无审计日志"
+        :empty-text="$t('auditLog.table.emptyText')"
         @page-change="handlePageChange"
         @size-change="handleSizeChange"
         @row-click="handleRowClick"
@@ -115,51 +116,51 @@
     <!-- 详情抽屉：展示 before/after 差异快照 -->
     <el-drawer
       v-model="detailVisible"
-      title="审计日志详情"
+      :title="$t('auditLog.detail.title')"
       size="60%"
       direction="rtl"
       :destroy-on-close="true"
     >
       <div v-if="currentDetail" class="detail-content">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="日志 ID">{{ currentDetail.id }}</el-descriptions-item>
-          <el-descriptions-item label="操作人">
+          <el-descriptions-item :label="$t('auditLog.detail.logId')">{{ currentDetail.id }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.operator')">
             {{ currentDetail.username ?? '-' }} (#{{ currentDetail.user_id ?? '-' }})
           </el-descriptions-item>
-          <el-descriptions-item label="操作时间">
+          <el-descriptions-item :label="$t('auditLog.detail.operationTime')">
             {{ formatDateTime(currentDetail.created_at) }}
           </el-descriptions-item>
-          <el-descriptions-item label="操作类型">
+          <el-descriptions-item :label="$t('auditLog.detail.operationType')">
             <el-tag :type="OP_TYPE_TAG[currentDetail.operation_type ?? ''] ?? 'info'" size="small">
-              {{ OP_TYPE_LABELS[currentDetail.operation_type ?? ''] ?? currentDetail.operation_type ?? '-' }}
+              {{ getOpTypeLabel(currentDetail.operation_type ?? '') }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="严重级别">
+          <el-descriptions-item :label="$t('auditLog.detail.severity')">
             <el-tag :type="SEVERITY_TAG[currentDetail.severity ?? ''] ?? 'info'" size="small">
-              {{ currentDetail.severity ?? '-' }}
+              {{ getSeverityLabel(currentDetail.severity ?? '') }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="资源类型">{{ currentDetail.resource_type ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="资源 ID">{{ currentDetail.resource_id ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="资源名称">{{ currentDetail.resource_name ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="请求方法">{{ currentDetail.request_method ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="请求路径" :span="2">
+          <el-descriptions-item :label="$t('auditLog.detail.resourceType')">{{ currentDetail.resource_type ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.resourceId')">{{ currentDetail.resource_id ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.resourceName')">{{ currentDetail.resource_name ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.requestMethod')">{{ currentDetail.request_method ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.requestPath')" :span="2">
             {{ currentDetail.request_path ?? '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="请求追踪">{{ currentDetail.request_id ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="客户端 IP">{{ currentDetail.ip_address ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.requestTrace')">{{ currentDetail.request_id ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('auditLog.detail.clientIp')">{{ currentDetail.ip_address ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="User-Agent" :span="2">
             <el-text line-clamp="2">{{ currentDetail.user_agent ?? '-' }}</el-text>
           </el-descriptions-item>
-          <el-descriptions-item label="操作描述" :span="2">
+          <el-descriptions-item :label="$t('auditLog.detail.description')" :span="2">
             {{ currentDetail.description ?? '-' }}
           </el-descriptions-item>
         </el-descriptions>
 
-        <h4 class="snapshot-title">变更前快照（before_snapshot）</h4>
+        <h4 class="snapshot-title">{{ $t('auditLog.detail.beforeSnapshot') }}</h4>
         <pre class="snapshot-block">{{ formatJson(currentDetail.before_snapshot) }}</pre>
 
-        <h4 class="snapshot-title">变更后快照（after_snapshot）</h4>
+        <h4 class="snapshot-title">{{ $t('auditLog.detail.afterSnapshot') }}</h4>
         <pre class="snapshot-block">{{ formatJson(currentDetail.after_snapshot) }}</pre>
       </div>
     </el-drawer>
@@ -171,7 +172,8 @@
  * 审计日志查看页（P13 批 1 P3-2）
  * - 后端路由：/api/v1/erp/audit-logs（list / detail / export）
  */
-import { ref, reactive, h } from 'vue'
+import { ref, reactive, computed, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElTag, ElButton } from 'element-plus'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import V2Table from '@/components/V2Table/index.vue'
@@ -189,22 +191,52 @@ import {
 // 后端会注入水印（操作员/导出时间/导出条数），前端只需下载 Blob
 import { exportFromBackend } from '@/utils/export'
 
-// 操作类型下拉选项（与后端 OperationType 枚举同步）
-const OP_TYPE_OPTIONS: { value: OperationType; label: string }[] = [
-  { value: 'CREATE', label: '新建' },
-  { value: 'UPDATE', label: '更新' },
-  { value: 'DELETE', label: '删除' },
-  { value: 'LOGIN', label: '登录' },
-  { value: 'LOGOUT', label: '登出' },
-  { value: 'EXPORT', label: '导出' },
-  { value: 'QUERY', label: '查询' },
-  { value: 'OTHER', label: '其它' },
-]
+const { t } = useI18n({ useScope: 'global' })
 
-// 操作类型中文标签
-const OP_TYPE_LABELS: Record<string, string> = Object.fromEntries(
-  OP_TYPE_OPTIONS.map((o) => [o.value, o.label]),
-)
+// D05 Batch 4：操作类型/严重级别下拉选项改为 computed，使 t() 在语言切换时响应式求值
+const opTypeOptions = computed<{ value: OperationType; label: string }[]>(() => [
+  { value: 'CREATE', label: t('auditLog.operationType.create') },
+  { value: 'UPDATE', label: t('auditLog.operationType.update') },
+  { value: 'DELETE', label: t('auditLog.operationType.delete') },
+  { value: 'LOGIN', label: t('auditLog.operationType.login') },
+  { value: 'LOGOUT', label: t('auditLog.operationType.logout') },
+  { value: 'EXPORT', label: t('auditLog.operationType.export') },
+  { value: 'QUERY', label: t('auditLog.operationType.query') },
+  { value: 'OTHER', label: t('auditLog.operationType.other') },
+])
+
+// D05 Batch 4：操作类型标签改为函数，使 t() 在每次渲染时响应式求值
+const getOpTypeLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    CREATE: t('auditLog.operationType.create'),
+    UPDATE: t('auditLog.operationType.update'),
+    DELETE: t('auditLog.operationType.delete'),
+    LOGIN: t('auditLog.operationType.login'),
+    LOGOUT: t('auditLog.operationType.logout'),
+    EXPORT: t('auditLog.operationType.export'),
+    QUERY: t('auditLog.operationType.query'),
+    OTHER: t('auditLog.operationType.other'),
+  }
+  return labels[type] || type
+}
+
+const severityOptions = computed<{ value: Severity; label: string }[]>(() => [
+  { value: 'INFO', label: t('auditLog.severityLevel.info') },
+  { value: 'WARN', label: t('auditLog.severityLevel.warn') },
+  { value: 'ERROR', label: t('auditLog.severityLevel.error') },
+  { value: 'CRITICAL', label: t('auditLog.severityLevel.critical') },
+])
+
+// D05 Batch 4：严重级别标签改为函数
+const getSeverityLabel = (severity: string) => {
+  const labels: Record<string, string> = {
+    INFO: t('auditLog.severityLevel.info'),
+    WARN: t('auditLog.severityLevel.warn'),
+    ERROR: t('auditLog.severityLevel.error'),
+    CRITICAL: t('auditLog.severityLevel.critical'),
+  }
+  return labels[severity] || severity
+}
 
 // 操作类型对应的 el-tag 颜色
 const OP_TYPE_TAG: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
@@ -217,14 +249,6 @@ const OP_TYPE_TAG: Record<string, 'primary' | 'success' | 'warning' | 'info' | '
   QUERY: 'info',
   OTHER: 'info',
 }
-
-// 严重级别下拉选项
-const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
-  { value: 'INFO', label: '信息' },
-  { value: 'WARN', label: '警告' },
-  { value: 'ERROR', label: '错误' },
-  { value: 'CRITICAL', label: '严重' },
-]
 
 // 严重级别对应的 el-tag 颜色
 const SEVERITY_TAG: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
@@ -257,7 +281,7 @@ const {
 } = useTableApi<AuditLogItem>({
   url: '/audit-logs',
   listKey: 'items',
-  onError: () => ElMessage.error('加载审计日志失败'),
+  onError: () => ElMessage.error(t('auditLog.message.loadFailed')),
 })
 
 // 详情抽屉
@@ -265,41 +289,41 @@ const detailVisible = ref(false)
 const detailLoading = ref(false)
 const currentDetail = ref<AuditLogDetail | null>(null)
 
-// 表格列定义
-const columns: ColumnDef<AuditLogItem>[] = [
+// D05 Batch 4：表格列定义改为 computed，使 title 在语言切换时响应式求值
+const columns = computed<ColumnDef<AuditLogItem>[]>(() => [
   { key: 'id', title: 'ID', width: 70 },
-  { key: 'created_at', title: '操作时间', width: 170, formatter: (row) => formatDateTime(row.created_at) },
+  { key: 'created_at', title: t('auditLog.table.operationTime'), width: 170, formatter: (row) => formatDateTime(row.created_at) },
   {
     key: 'operation_type',
-    title: '操作类型',
+    title: t('auditLog.table.operationType'),
     width: 100,
     renderCell: (row) =>
       h(
         ElTag,
         { type: OP_TYPE_TAG[row.operation_type ?? ''] ?? 'info', size: 'small' },
-        () => OP_TYPE_LABELS[row.operation_type ?? ''] ?? row.operation_type ?? '-',
+        () => getOpTypeLabel(row.operation_type ?? ''),
       ),
   },
   {
     key: 'severity',
-    title: '级别',
+    title: t('auditLog.table.severity'),
     width: 80,
     renderCell: (row) =>
       h(
         ElTag,
         { type: SEVERITY_TAG[row.severity ?? ''] ?? 'info', size: 'small' },
-        () => row.severity ?? '-',
+        () => getSeverityLabel(row.severity ?? ''),
       ),
   },
-  { key: 'username', title: '操作人', width: 110 },
-  { key: 'resource_type', title: '资源类型', width: 110 },
-  { key: 'resource_id', title: '资源 ID', width: 110 },
-  { key: 'ip_address', title: '客户端 IP', width: 130 },
-  { key: 'request_id', title: '请求追踪', width: 130 },
-  { key: 'description', title: '描述', minWidth: 200 },
+  { key: 'username', title: t('auditLog.table.operator'), width: 110 },
+  { key: 'resource_type', title: t('auditLog.table.resourceType'), width: 110 },
+  { key: 'resource_id', title: t('auditLog.table.resourceId'), width: 110 },
+  { key: 'ip_address', title: t('auditLog.table.clientIp'), width: 130 },
+  { key: 'request_id', title: t('auditLog.table.requestTrace'), width: 130 },
+  { key: 'description', title: t('auditLog.table.description'), minWidth: 200 },
   {
     key: 'actions',
-    title: '操作',
+    title: t('auditLog.table.operation'),
     width: 80,
     fixed: 'right',
     renderCell: (row) =>
@@ -314,10 +338,10 @@ const columns: ColumnDef<AuditLogItem>[] = [
             handleViewDetail(row)
           },
         },
-        () => '详情',
+        () => t('auditLog.table.detail'),
       ),
   },
-]
+])
 
 /**
  * 批次 267：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -399,7 +423,7 @@ const handleViewDetail = async (row: AuditLogItem) => {
   try {
     currentDetail.value = await getAuditLog(row.id)
   } catch (err) {
-    ElMessage.error('加载审计日志详情失败')
+    ElMessage.error(t('auditLog.message.loadDetailFailed'))
     detailVisible.value = false
   } finally {
     detailLoading.value = false
@@ -436,7 +460,7 @@ const handleExport = async () => {
  * 格式化 JSON 字段（无值时显示占位符）
  */
 const formatJson = (v: unknown): string => {
-  if (v === null || v === undefined || v === '') return '（无）'
+  if (v === null || v === undefined || v === '') return t('auditLog.detail.emptyValue')
   try {
     return JSON.stringify(v, null, 2)
   } catch {

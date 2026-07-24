@@ -2,92 +2,93 @@
   CustomerListTab.vue - CRM 客户列表 Tab
   来源：原 crm/index.vue 中 客户列表 tab 内容
   拆分日期：2026-06-15 B3-3
+  D05 Batch 4：接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts
 -->
 <template>
   <div class="customer-list-tab">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">客户管理</h1>
+        <h1 class="page-title">{{ $t('crmCustomer.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>CRM</el-breadcrumb-item>
-          <el-breadcrumb-item>客户列表</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ $t('crmCustomer.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('crmCustomer.breadcrumb.crm') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('crmCustomer.breadcrumb.customerList') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
-          新建客户
+          {{ $t('crmCustomer.create') }}
         </el-button>
         <el-button @click="handlePrint">
           <el-icon><Printer /></el-icon>
-          打印
+          {{ $t('crmCustomer.print') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ $t('crmCustomer.export') }}
         </el-button>
         <el-button @click="router.push('/crm/pool')">
           <el-icon><Coin /></el-icon>
-          公海池
+          {{ $t('crmCustomer.pool') }}
         </el-button>
         <el-button @click="router.push('/crm/assignment')">
           <el-icon><Share /></el-icon>
-          客户分配
+          {{ $t('crmCustomer.assignment') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="客户列表筛选表单">
-        <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="客户编码/名称/联系人" clearable @clear="handleQuery" @keyup.enter="handleQuery" />
+      <el-form :inline="true" :model="queryParams" class="filter-form" :aria-label="$t('crmCustomer.filter.ariaLabel')">
+        <el-form-item :label="$t('crmCustomer.filter.keyword')">
+          <el-input v-model="queryParams.keyword" :placeholder="$t('crmCustomer.filter.keywordPlaceholder')" clearable @clear="handleQuery" @keyup.enter="handleQuery" />
         </el-form-item>
-        <el-form-item label="客户类型">
-          <el-select v-model="queryParams.customer_type" placeholder="选择类型" clearable>
-            <el-option label="普通客户" value="normal" />
-            <el-option label="VIP客户" value="vip" />
-            <el-option label="批发客户" value="wholesale" />
+        <el-form-item :label="$t('crmCustomer.filter.customerType')">
+          <el-select v-model="queryParams.customer_type" :placeholder="$t('crmCustomer.filter.customerTypePlaceholder')" clearable>
+            <el-option :label="$t('crmCustomer.customerType.normal')" value="normal" />
+            <el-option :label="$t('crmCustomer.customerType.vip')" value="vip" />
+            <el-option :label="$t('crmCustomer.customerType.wholesale')" value="wholesale" />
           </el-select>
         </el-form-item>
-        <el-form-item label="标签">
-          <el-select v-model="queryParams.tag_id" placeholder="选择标签" clearable>
+        <el-form-item :label="$t('crmCustomer.filter.tag')">
+          <el-select v-model="queryParams.tag_id" :placeholder="$t('crmCustomer.filter.tagPlaceholder')" clearable>
             <el-option v-for="tag in tags" :key="tag.id" :label="tag.name" :value="tag.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable>
-            <el-option label="启用" value="active" />
-            <el-option label="禁用" value="inactive" />
+        <el-form-item :label="$t('crmCustomer.filter.status')">
+          <el-select v-model="queryParams.status" :placeholder="$t('crmCustomer.filter.statusPlaceholder')" clearable>
+            <el-option :label="$t('crmCustomer.status.active')" value="active" />
+            <el-option :label="$t('crmCustomer.status.inactive')" value="inactive" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleQuery">{{ $t('crmCustomer.filter.query') }}</el-button>
+          <el-button @click="handleReset">{{ $t('crmCustomer.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="customers" stripe aria-label="客户列表">
-        <el-table-column prop="customer_code" label="客户编码" width="120" fixed />
-        <el-table-column prop="customer_name" label="客户名称" min-width="180" fixed>
+      <el-table v-loading="loading" :data="customers" stripe :aria-label="$t('crmCustomer.table.ariaLabel')">
+        <el-table-column prop="customer_code" :label="$t('crmCustomer.table.customerCode')" width="120" fixed />
+        <el-table-column prop="customer_name" :label="$t('crmCustomer.table.customerName')" min-width="180" fixed>
           <template #default="{ row }">
             <el-button type="primary" link @click="viewDetail(row.id)">{{
               row.customer_name
             }}</el-button>
           </template>
         </el-table-column>
-        <el-table-column prop="contact_person" label="联系人" width="100" />
-        <el-table-column prop="phone" label="电话" width="130" />
-        <el-table-column prop="customer_type" label="类型" width="100">
+        <el-table-column prop="contact_person" :label="$t('crmCustomer.table.contactPerson')" width="100" />
+        <el-table-column prop="phone" :label="$t('crmCustomer.table.phone')" width="130" />
+        <el-table-column prop="customer_type" :label="$t('crmCustomer.table.type')" width="100">
           <template #default="{ row }">
             <el-tag :type="getCustomerTypeTag(row.customer_type)" size="small">
               {{ getCustomerTypeLabel(row.customer_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="tags" label="标签" min-width="150">
+        <el-table-column prop="tags" :label="$t('crmCustomer.table.tag')" min-width="150">
           <template #default="{ row }">
             <el-tag
               v-for="tag in row.tags"
@@ -101,26 +102,26 @@
             <span v-if="!row.tags.length" class="no-tags">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="owner_name" label="负责人" width="100" />
-        <el-table-column prop="total_amount" label="累计金额" width="120" align="right">
+        <el-table-column prop="owner_name" :label="$t('crmCustomer.table.owner')" width="100" />
+        <el-table-column prop="total_amount" :label="$t('crmCustomer.table.totalAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ row.total_amount ? formatCurrency(row.total_amount) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="last_follow_up" label="最近跟进" width="120" />
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="last_follow_up" :label="$t('crmCustomer.table.lastFollowUp')" width="120" />
+        <el-table-column prop="status" :label="$t('crmCustomer.table.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? '启用' : '禁用' }}
+              {{ row.status === 'active' ? $t('crmCustomer.status.active') : $t('crmCustomer.status.inactive') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column :label="$t('crmCustomer.table.operation')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="viewDetail(row.id)">详情</el-button>
+            <el-button type="primary" link size="small" @click="viewDetail(row.id)">{{ $t('crmCustomer.table.detail') }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
-            <el-button v-permission="'crm_customer:update'" type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-permission="'crm_customer:delete'" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button v-permission="'crm_customer:update'" type="primary" link size="small" @click="handleEdit(row)">{{ $t('crmCustomer.table.edit') }}</el-button>
+            <el-button v-permission="'crm_customer:delete'" type="danger" link size="small" @click="handleDelete(row)">{{ $t('crmCustomer.table.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -132,7 +133,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="客户列表分页"
+          :aria-label="$t('crmCustomer.table.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
@@ -145,65 +146,65 @@
       :title="dialogTitle"
       width="700px"
       :close-on-click-modal="false"
-      aria-label="客户编辑对话框"
+      :aria-label="$t('crmCustomer.dialog.ariaLabel')"
       @close="resetForm"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" aria-label="客户信息表单">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" :aria-label="$t('crmCustomer.dialog.formAriaLabel')">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="客户编码" prop="customer_code">
-              <el-input v-model="formData.customer_code" placeholder="请输入客户编码" />
+            <el-form-item :label="$t('crmCustomer.dialog.customerCode')" prop="customer_code">
+              <el-input v-model="formData.customer_code" :placeholder="$t('crmCustomer.dialog.customerCodePlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="客户名称" prop="customer_name">
-              <el-input v-model="formData.customer_name" placeholder="请输入客户名称" />
+            <el-form-item :label="$t('crmCustomer.dialog.customerName')" prop="customer_name">
+              <el-input v-model="formData.customer_name" :placeholder="$t('crmCustomer.dialog.customerNamePlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="联系人" prop="contact_person">
-              <el-input v-model="formData.contact_person" placeholder="请输入联系人" />
+            <el-form-item :label="$t('crmCustomer.dialog.contactPerson')" prop="contact_person">
+              <el-input v-model="formData.contact_person" :placeholder="$t('crmCustomer.dialog.contactPersonPlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="电话" prop="phone">
-              <el-input v-model="formData.phone" placeholder="请输入电话" />
+            <el-form-item :label="$t('crmCustomer.dialog.phone')" prop="phone">
+              <el-input v-model="formData.phone" :placeholder="$t('crmCustomer.dialog.phonePlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="邮箱" prop="email">
-              <el-input v-model="formData.email" placeholder="请输入邮箱" />
+            <el-form-item :label="$t('crmCustomer.dialog.email')" prop="email">
+              <el-input v-model="formData.email" :placeholder="$t('crmCustomer.dialog.emailPlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="客户类型" prop="customer_type">
+            <el-form-item :label="$t('crmCustomer.dialog.customerType')" prop="customer_type">
               <el-select
                 v-model="formData.customer_type"
-                placeholder="请选择类型"
+                :placeholder="$t('crmCustomer.dialog.customerTypePlaceholder')"
                 style="width: 100%"
               >
-                <el-option label="普通客户" value="normal" />
-                <el-option label="VIP客户" value="vip" />
-                <el-option label="批发客户" value="wholesale" />
+                <el-option :label="$t('crmCustomer.customerType.normal')" value="normal" />
+                <el-option :label="$t('crmCustomer.customerType.vip')" value="vip" />
+                <el-option :label="$t('crmCustomer.customerType.wholesale')" value="wholesale" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="地址" prop="address">
-          <el-input v-model="formData.address" placeholder="请输入地址" />
+        <el-form-item :label="$t('crmCustomer.dialog.address')" prop="address">
+          <el-input v-model="formData.address" :placeholder="$t('crmCustomer.dialog.addressPlaceholder')" />
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="税号" prop="tax_number">
-              <el-input v-model="formData.tax_number" placeholder="请输入税号" />
+            <el-form-item :label="$t('crmCustomer.dialog.taxNumber')" prop="tax_number">
+              <el-input v-model="formData.tax_number" :placeholder="$t('crmCustomer.dialog.taxNumberPlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="信用额度" prop="credit_limit">
+            <el-form-item :label="$t('crmCustomer.dialog.creditLimit')" prop="credit_limit">
               <el-input-number
                 v-model="formData.credit_limit"
                 :min="0"
@@ -215,26 +216,26 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="开户银行" prop="bank_name">
-              <el-input v-model="formData.bank_name" placeholder="请输入开户银行" />
+            <el-form-item :label="$t('crmCustomer.dialog.bankName')" prop="bank_name">
+              <el-input v-model="formData.bank_name" :placeholder="$t('crmCustomer.dialog.bankNamePlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="银行账号" prop="bank_account">
-              <el-input v-model="formData.bank_account" placeholder="请输入银行账号" />
+            <el-form-item :label="$t('crmCustomer.dialog.bankAccount')" prop="bank_account">
+              <el-input v-model="formData.bank_account" :placeholder="$t('crmCustomer.dialog.bankAccountPlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="$t('crmCustomer.dialog.status')" prop="status">
           <el-radio-group v-model="formData.status">
-            <el-radio value="active">启用</el-radio>
-            <el-radio value="inactive">禁用</el-radio>
+            <el-radio value="active">{{ $t('crmCustomer.status.active') }}</el-radio>
+            <el-radio value="inactive">{{ $t('crmCustomer.status.inactive') }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('crmCustomer.dialog.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('crmCustomer.dialog.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -242,6 +243,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -255,6 +257,8 @@ import { exportFromBackend } from '@/utils/export'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import { escapeHtml } from '@/utils/print'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const hasLoaded = createLazyLoader()
 
@@ -286,7 +290,7 @@ const {
 } = useTableApi<CustomerWithTags>({
   url: '/crm/customers/enhanced',
   onError: (err: unknown) =>
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取客户列表失败'),
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('crmCustomer.message.loadFailed')),
 })
 
 // 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -313,25 +317,26 @@ const formData = reactive({
   status: 'active',
 })
 
-const formRules: FormRules = {
-  customer_code: [{ required: true, message: '请输入客户编码', trigger: 'blur' }],
-  customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
-  contact_person: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
+const formRules = computed<FormRules>(() => ({
+  customer_code: [{ required: true, message: t('crmCustomer.validation.customerCodeRequired'), trigger: 'blur' }],
+  customer_name: [{ required: true, message: t('crmCustomer.validation.customerNameRequired'), trigger: 'blur' }],
+  contact_person: [{ required: true, message: t('crmCustomer.validation.contactPersonRequired'), trigger: 'blur' }],
   phone: [
-    { required: true, message: '请输入电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' },
+    { required: true, message: t('crmCustomer.validation.phoneRequired'), trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: t('crmCustomer.validation.phonePattern'), trigger: 'blur' },
   ],
-}
+}))
 
-const dialogTitle = computed(() => (isEdit.value ? '编辑客户' : '新建客户'))
+const dialogTitle = computed(() => (isEdit.value ? t('crmCustomer.dialog.editTitle') : t('crmCustomer.dialog.createTitle')))
 
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
+// D05 Batch 4：getCustomerTypeLabel 改为函数返回，使 t() 在每次渲染时响应式求值
 const getCustomerTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    normal: '普通客户',
-    vip: 'VIP客户',
-    wholesale: '批发客户',
+    normal: t('crmCustomer.customerType.normal'),
+    vip: t('crmCustomer.customerType.vip'),
+    wholesale: t('crmCustomer.customerType.wholesale'),
   }
   return labels[type] || type
 }
@@ -414,16 +419,16 @@ const handleEdit = (row: CustomerWithTags) => {
 
 const handleDelete = async (row: CustomerWithTags) => {
   try {
-    await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', {
+    await ElMessageBox.confirm(t('crmCustomer.message.deleteConfirm', { name: row.customer_name }), t('crmCustomer.message.deleteConfirmTitle'), {
       type: 'warning',
     })
     await deleteCustomer(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('crmCustomer.message.deleteSuccess'))
     fetchCustomerList()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('crmCustomer.message.deleteFailed'))
     }
   }
 }
@@ -438,16 +443,16 @@ const handleSubmit = async () => {
     try {
       if (isEdit.value) {
         await updateCustomer(formData.id as number, formData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('crmCustomer.message.updateSuccess'))
       } else {
         await createCustomer(formData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('crmCustomer.message.createSuccess'))
       }
       dialogVisible.value = false
       fetchCustomerList()
     } catch (error) {
       const err = error as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('crmCustomer.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -477,7 +482,7 @@ const handleExport = async () => {
 const handlePrint = () => {
   const printWindow = window.open('', '_blank')
   if (!printWindow) {
-    ElMessage.error('无法打开打印窗口')
+    ElMessage.error(t('crmCustomer.message.printWindowFailed'))
     return
   }
   const rows = customers.value
@@ -491,14 +496,14 @@ const handlePrint = () => {
       <td>${escapeHtml(getCustomerTypeLabel(item.customer_type))}</td>
       <td>${escapeHtml(item.owner_name || '-')}</td>
       <td style="text-align:right">${item.total_amount ? '¥' + item.total_amount.toLocaleString() : '-'}</td>
-      <td>${escapeHtml(item.status === 'active' ? '启用' : '禁用')}</td>
+      <td>${escapeHtml(item.status === 'active' ? t('crmCustomer.status.active') : t('crmCustomer.status.inactive'))}</td>
     </tr>
   `
     )
     .join('')
   const now = new Date().toISOString().split('T')[0]
   printWindow.document.write(`
-    <html><head><meta charset="utf-8"><title>CRM客户列表</title>
+    <html><head><meta charset="utf-8"><title>${t('crmCustomer.print.title')}</title>
     <style>
       @media print { @page { size: landscape; } }
       body { font-family: "Microsoft YaHei", sans-serif; font-size: 12px; }
@@ -508,17 +513,17 @@ const handlePrint = () => {
       th { background: #f5f5f5; }
       .meta { text-align: center; color: #666; font-size: 11px; }
     </style></head><body>
-    <h1>CRM客户列表</h1>
-    <div class="meta">打印日期: ${now} | 共 ${customers.value.length} 条</div>
+    <h1>${t('crmCustomer.print.title')}</h1>
+    <div class="meta">${t('crmCustomer.print.date')}: ${now} | ${t('crmCustomer.print.total', { count: customers.value.length })}</div>
     <table>
-      <thead><tr><th>客户编码</th><th>客户名称</th><th>联系人</th><th>电话</th><th>类型</th><th>负责人</th><th>累计金额</th><th>状态</th></tr></thead>
+      <thead><tr><th>${t('crmCustomer.table.customerCode')}</th><th>${t('crmCustomer.table.customerName')}</th><th>${t('crmCustomer.table.contactPerson')}</th><th>${t('crmCustomer.table.phone')}</th><th>${t('crmCustomer.table.type')}</th><th>${t('crmCustomer.table.owner')}</th><th>${t('crmCustomer.table.totalAmount')}</th><th>${t('crmCustomer.table.status')}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     </body></html>
   `)
   printWindow.document.close()
   printWindow.onload = () => printWindow.print()
-  logger.info('客户列表打印任务已生成')
+  logger.info(t('crmCustomer.print.logMessage'))
 }
 
 onMounted(() => {
