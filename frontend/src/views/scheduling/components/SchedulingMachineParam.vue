@@ -1,5 +1,5 @@
 <!--
-  SchMParam.vue - 排产参数侧栏
+  SchedulingMachineParam.vue - 排产主页参数侧栏
   任务编号: P14 批 2 I-3 第 2 批（拆分原 scheduling/index.vue）
 -->
 <template>

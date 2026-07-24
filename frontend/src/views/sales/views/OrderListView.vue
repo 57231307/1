@@ -14,16 +14,16 @@
       </el-button>
     </div>
 
-    <OlvStat :stats="olv.stats" />
+    <SalesOrderStat :stats="olv.stats" />
 
-    <OlvFilter
+    <SalesOrderFilter
       :filter-form="olv.filterForm"
       @query="olv.handleQuery"
       @reset="olv.handleReset"
       @update:filter-form="(v) => Object.assign(olv.filterForm, v)"
     />
 
-    <OlvTbl
+    <SalesOrderTable
       :columns="olv.columns"
       :data="olv.data"
       :loading="olv.loading"
@@ -66,9 +66,9 @@ import { Plus } from '@element-plus/icons-vue'
 import type { SalesOrder } from '@/api/sales'
 import { useOlv } from '../composables/useOlv'
 import { useOlvProc } from '../composables/useOlvProc'
-import OlvStat from '../components/OlvStat.vue'
-import OlvFilter from '../components/OlvFilter.vue'
-import OlvTbl from '../components/OlvTbl.vue'
+import SalesOrderStat from '../components/SalesOrderStat.vue'
+import SalesOrderFilter from '../components/SalesOrderFilter.vue'
+import SalesOrderTable from '../components/SalesOrderTable.vue'
 import OrderFormDialog from '../OrderFormDialog.vue'
 import OrderViewDialog from '../OrderViewDialog.vue'
 import DeliveryDialog from '../DeliveryDialog.vue'

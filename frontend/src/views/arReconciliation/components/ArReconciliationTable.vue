@@ -1,5 +1,5 @@
 <!--
-  ArTbl.vue - AR 对账结果列表
+  ArReconciliationTable.vue - AR 对账结果列表
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->

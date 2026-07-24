@@ -6,7 +6,7 @@
 -->
 <template>
   <div class="app-container">
-    <ArFilter
+    <ArReconciliationFilter
       :search-form="arrec.searchForm.value"
       :reconcile-loading="arrec.reconcileLoading.value"
       @search="onSearch"
@@ -17,9 +17,9 @@
       @update:search-form="(v) => Object.assign(arrec.searchForm.value, v)"
     />
 
-    <ArCharts :chart-ref="arChart.chartRef" :pie-chart-ref="arChart.pieChartRef" />
+    <ArReconciliationCharts :chart-ref="arChart.chartRef" :pie-chart-ref="arChart.pieChartRef" />
 
-    <ArTbl
+    <ArReconciliationTable
       :data="arrec.tableData.value"
       :loading="arrec.loading.value"
       :total="arrec.total.value"
@@ -31,19 +31,19 @@
       @page-size-change="arrec.handlePageSizeChange"
     />
 
-    <ArDetail
+    <ArReconciliationDetail
       v-model:visible="arrec.detailDialogVisible.value"
       :current-reconciliation="arrec.currentReconciliation.value"
       :detail-data="arrec.detailData.value"
     />
 
-    <ArConfirm
+    <ArReconciliationConfirm
       v-model:visible="arrec.confirmDialogVisible.value"
       :data="arrec.confirmData.value"
       @confirm-status="arrec.handleConfirmStatus"
     />
 
-    <ArDispute
+    <ArReconciliationDispute
       v-model:visible="ardisp.disputeDialogVisible.value"
       :form="ardisp.disputeForm.value"
       :disputes="ardisp.disputes.value"
@@ -63,12 +63,12 @@ import { type AutoReconciliationResult } from '@/api/ar-reconciliation-enhanced'
 import { getCustomerSelectList } from '@/api/customer'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
-import ArFilter from './components/ArFilter.vue'
-import ArCharts from './components/ArCharts.vue'
-import ArTbl from './components/ArTbl.vue'
-import ArDetail from './components/ArDetail.vue'
-import ArConfirm from './components/ArConfirm.vue'
-import ArDispute from './components/ArDispute.vue'
+import ArReconciliationFilter from './components/ArReconciliationFilter.vue'
+import ArReconciliationCharts from './components/ArReconciliationCharts.vue'
+import ArReconciliationTable from './components/ArReconciliationTable.vue'
+import ArReconciliationDetail from './components/ArReconciliationDetail.vue'
+import ArReconciliationConfirm from './components/ArReconciliationConfirm.vue'
+import ArReconciliationDispute from './components/ArReconciliationDispute.vue'
 
 const arrec = useArRec()
 const ardisp = useArDisp(arrec.loadData)

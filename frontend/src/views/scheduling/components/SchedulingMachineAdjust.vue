@@ -1,5 +1,5 @@
 <!--
-  SchMAdj.vue - 排产调整对话框（主页）
+  SchedulingMachineAdjust.vue - 排产主页调整对话框
   任务编号: P14 批 2 I-3 第 2 批（拆分原 scheduling/index.vue）
   P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
 -->

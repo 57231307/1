@@ -1,5 +1,5 @@
 <!--
-  OlvStat.vue - 销售订单列表 4 统计卡片
+  SalesOrderStat.vue - 销售订单列表 4 统计卡片
   拆分自 sales/views/OrderListView.vue（P14 批 2 I-3 第 3 批）
   行为完全保持一致（仅结构重构）
 -->

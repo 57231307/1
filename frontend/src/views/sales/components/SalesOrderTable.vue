@@ -1,5 +1,5 @@
 <!--
-  OlvTbl.vue - 销售订单列表 V2Table 包装（含操作列）
+  SalesOrderTable.vue - 销售订单列表 V2Table 包装（含操作列）
   拆分自 sales/views/OrderListView.vue（P14 批 2 I-3 第 3 批）
   行为完全保持一致（仅结构重构）
 -->

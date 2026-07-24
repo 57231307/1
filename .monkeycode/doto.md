@@ -10,13 +10,13 @@
 
 > 本节为快速索引，按 4 个维度归类；详细条目见 §三，依赖关系见 §二。
 
-### 0.1 按状态归类（15 ✅ / 0 ⏳ / 2 ❌）
+### 0.1 按状态归类（15 ✅ / 1 ⏳ / 1 ❌）
 
 | 状态 | 数量 | 任务编号 |
 |------|------|----------|
 | ✅ 已完成 | 15 | D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D14, D15, D16, D17 |
-| ⏳ 进行中 | 0 | — |
-| ❌ 未开始 | 2 | D05（useI18n）、D13（前端缩写命名） |
+| ⏳ 进行中 | 1 | D13（前端缩写命名，Batch 1-3 完成 PR #716/#717/#718，剩余 Batch 4-7） |
+| ❌ 未开始 | 1 | D05（useI18n） |
 
 ### 0.6 核实结果汇总（2026-07-23 核实）
 
@@ -63,7 +63,7 @@
 | 第 1 顺位 | D08 超长函数 | ✅ 已完成 | 无前置依赖，解锁 D09/D10 |
 | 第 2 顺位 | D10 1000 行文件 | ✅ 已完成 | D08 完成后立即推进，6 批 34 文件全部完成 |
 | 第 3 顺位 | D14 api 命名统一 | ✅ 已完成 | 与 D05/D13 解耦，D10 完成后推进 |
-| 第 4 顺位 | D13 前端缩写命名 | ⏳ 进行中 | D14 完成后推进 |
+| 第 4 顺位 | D13 前端缩写命名 | ⏳ 进行中 | D14 完成后推进；Batch 1-3 已完成（PR #716/#717/#718 main 404fc14） |
 | 第 5 顺位 | D05 useI18n | ❌ 未开始 | D13/D14 完成后最后推进 |
 
 ### 0.5 文档章节归类
@@ -91,10 +91,10 @@
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
 | **合计** | **732** | **104** | **628** | **14.2%** |
 
-### 1.2 状态：✅ Batch 488 已完成（D 系列 17/17）→ 推进 D13/D05
+### 1.2 状态：⏳ D13 进行中（Batch 1-3 完成）→ 推进 D13 Batch 4-7 → D05
 
-- **当前批次**：Batch 488 ✅ 已完成（17/17）—— D 系列已完成 17 项（D01-D04 + D06-D12 + D14-D17，详见 [doto-su.md §V15 Batch 488](file:///workspace/.monkeycode/doto-su.md)）+ D08 全部完成（167 函数，PR #669-#682）+ D09 全部完成（D08 子集）+ D10 全部 6 批完成（34 文件，PR #683-#703）+ D14 全部 5 批完成（Batch 1-5b，PR #705-#714）；剩余 2 项独立任务（D05/D13）待推进
-- **下一批次**：Batch 489 启动 —— D13 前端缩写命名统一（第 4 顺位，D14 完成后推进，预估 12-15 子批次，111 个缩写文件 25 类前缀）→ Batch 490 D05 useI18n（第 5 顺位，D13 完成后最后推进，预估 30-36 子批次，344 文件未接入）
+- **当前批次**：Batch 489 进行中 —— D13 前端缩写命名统一（第 4 顺位，Batch 1-3 已完成 PR #716/#717/#718 main 404fc14，51 文件已重命名；剩余 Batch 4-7 约 73 文件）
+- **下一批次**：Batch 490 D05 useI18n（第 5 顺位，D13 完成后最后推进，预估 30-36 子批次，344 文件未接入）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
 ### 1.3 关键决策记录
@@ -125,7 +125,7 @@ P0-D07 ✅ img alt (S)            ← 独立（审计误判）
 P0-D08 ✅ 超长函数 (XL)          ──→ P0-D09 ✅ 100 行函数 (L) ──→ P0-D10 ✅ 1000 行文件 (L)
 P0-D11 ✅ setup_test_db (M)     ← 独立（审计误判）
 P0-D12 ✅ 圈复杂度 (M)           ← 独立（6 重构 + 2 误判）
-P0-D13 ⏳ 前端缩写命名 (XL)     ← 独立（D14 已完成，可推进）
+P0-D13 ⏳ 前端缩写命名 (XL)     ← 独立（D14 已完成，Batch 1-3 完成 PR #716/#717/#718）
 P0-D14 ✅ api 命名统一 (XL)     ← 独立（5 批完成 PR #705-#714）
 P0-D15 ✅ 升级零停机 (M)         ← 独立（审计误判）
 P0-D16 ✅ 报表订阅调度 (M)       ← 独立（审计误判）
@@ -204,7 +204,7 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - 第 5 批：✅ init_service.rs (1347→293 facade + init_service_ops/{mod 11, setup 287, role 215, permission 387, dept_user 198}) + ✅ flow_card_service.rs (1285→386 facade + flow_card_ops/{mod 16, route 151, card_crud 227, card_state 190, step 247, feedback 162}) + ✅ ap_reconciliation_service.rs (1346→621 facade + ap_reconciliation_ops/{mod 17, types 99, crud 189, confirm 182, report 111, auto 235}) + ✅ search/elastic.rs (1230→756 facade含测试394行 + elastic_ops/{mod 4, client_ops 343, syncer_ops 41, types_ops 49}) 4 个 >1200 行文件全部完成（PR #696 main 6bc4dca，CI 修复 1 轮：5 方法可见性私有→pub(crate) + 1 unused import SearchClient）
   - 第 6 批：原 15 个 1000-1200 行文件（含 D10-1 副产物 ar_ops/verification.rs 1062 行）全部完成 15/15：✅ D10-6a (4/15) event_bus.rs (1243→240 facade + event_bus_ops/{mod,publish,subscribe,retry}) / po/order.rs (1234) / auth_service.rs (1201) / inventory_finance_bridge_service.rs (1192)，PR #698 main 9d26d7d；✅ D10-6b-1 (4/15) lab_dip_service.rs (1188→230 facade + lab_dip_ops/{mod,types,request,sample,resample}) / production_recipe_service.rs (1181) / product_service.rs (1075) / system_update_service.rs (1074)，PR #700 main 325dfed；✅ D10-6b-2 (4/15) ar_ops/verification.rs (1062→30) / purchase_receipt_service.rs (1074→481) / ar/recon.rs (1070→658) / bpm_service.rs (1060→148)，PR #702 main 3890add；✅ D10-6b-3 (3/15) bom_service.rs (1046→587 facade + bom_ops/{mod 20, crud 317, state 105, tree 145} 16 方法 3 impl 块) / import_export_service.rs (1018→546 facade + import_export_ops/{mod 16, import 218, export 226, task 105} 10 方法 3 impl 块) / main.rs (1005→171 入口 + bootstrap/{mod 12, infra_bootstrap 76, middleware_bootstrap 282, routes_bootstrap 182, service_bootstrap 453} 按启动流程职责拆分非 facade 模式)，db 字段 pub(crate)，所有子模块独立导入 sea_orm traits，无 #[allow] 警告抑制，PR #703 main 7120cf3（覆盖率 job 因 Broken pipe 基础设施问题失败已 admin 合并）
 
-### 3.5 P0-D13 前端缩写命名组件（类二，XL，未开始）
+### 3.5 P0-D13 前端缩写命名组件（类二，XL，进行中）
 
 - **来源**：batch-02 P0-02-05
 - **证据**：2026-07-19 精确扫描：实际 123 个缩写命名 .vue 文件（views/ 122 + components/ 1）；25 类缩写前缀（Sc/Su/Lgs/Vchr/Pp/Di/Tfa/Sec/Cp/Sch/Prd/Bpm/Pc/Pi/Sa/Db/Purch/Prc/PrRtn/Ms/Sp/Olv/Ep/Bom/AI）；32 个父级 .vue 文件需更新 import（99 处 import 语句）；0 路由风险（router/index.ts 不直接 import 缩写文件）；0 e2e 风险
@@ -213,16 +213,17 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **关联文件**：[frontend/src/views/](file:///workspace/frontend/src/views/) 25 个模块的 components/ 子目录 + [frontend/src/components/ai/AIPredictionChart.vue](file:///workspace/frontend/src/components/ai/AIPredictionChart.vue)
 - **依赖**：建议在 D14 完成后推进（避免同时修改 import 路径造成冲突）
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包；预估 12-15 子批次，每批 8-10 文件）
+- **批次**：489（D13 独立批次；预估 12-15 子批次，每批 8-10 文件）
 - **执行优先级**：第 4 顺位（D14 完成后推进）
+- **当前进度**：Batch 1-3 ✅ 已完成（51 文件重命名 + 19 caller 文件更新，PR #716/#717/#718 main 404fc14）；剩余 Batch 4-7 约 73 文件
 - **批次规划**：按模块分组（每模块独立批次）⚠️ 以下数量为 doto 原记录，核实后需调整（见核实行）
-  - sales-contract (3) + system-update (3) + sales-price (5) + purchase-price (5) 第 1 批 16 文件
-  - logistics (6) + finance/tabs (4) + voucher/tabs (4) + data-import (4) 第 2 批 18 文件
-  - security/two-factor (5) + security/components (4) + capacity (4) + advanced (4) 第 3 批 17 文件
-  - api-gateway (1) + sales (3) + scheduling (10) + arReconciliation (6) 第 4 批 20 文件
-  - purchase-return (5) + material-shortage (3) + production (4) + bpm/definitions (5) 第 5 批 17 文件
-  - bpm/approval (6) + purchase-contract (4) + purchase-inspection (5) + sales-analysis (5) 第 6 批 20 文件
-  - bom (1) + dashboard (4) + purchase (6→**核实 3**) + purchaseReceipt (4) + components/ai (1) 第 7 批 16→**核实 13** 文件
+  - Batch 1：✅ 已完成（#716 main 937b9a2）sales-contract (3) + system-update (3) + sales-price (5) + purchase-price (5) 共 16 文件 + 6 caller（ScFilter→SalesContractFilter / SuVerDetail→SystemUpdateVersionDetail / SpTbl→SalesPriceTable / PpTbl→PurchasePriceTable 等）
+  - Batch 2：✅ 已完成（#717 main c3e2f58）logistics (6) + finance/tabs (4) + voucher/tabs (4) + data-import (4) 共 18 文件 + 6 caller（LgsFilter→LogisticsFilter / VchrForm→VoucherForm / DiTplTable→DataImportTemplateTable 等，DiTplForm 接口重命名为 DataImportTemplateFormData）
+  - Batch 3：✅ 已完成（#718 main 404fc14）security/two-factor (5) + security/components (4) + capacity (4) + advanced (4) 共 17 文件 + 7 caller（TfaStep1→TwoFactorAuthStep1 / SecAlertTbl→SecurityAlertTable / CpBottleneck→CapacityBottleneck / AiPanel→AdvancedAiPanel 等，useTfaProc.ts 接口 TwoFactorAuthStep3Instance 同步更新）
+  - Batch 4：⏳ 待推进 api-gateway (1) + sales (3) + scheduling (10) + arReconciliation (6) 共 20 文件
+  - Batch 5：⏳ 待推进 purchase-return (5) + material-shortage (3) + production (4) + bpm/definitions (5) 共 17 文件
+  - Batch 6：⏳ 待推进 bpm/approval (6) + purchase-contract (4) + purchase-inspection (5) + sales-analysis (5) 共 20 文件
+  - Batch 7：⏳ 待推进 bom (1) + dashboard (4) + purchase (6→**核实 3**) + purchaseReceipt (4) + components/ai (1) 共 16→**核实 13** 文件
 
 ### 3.6 P0-D14 前端 api 命名不统一（类二，XL，✅ 已完成）
 

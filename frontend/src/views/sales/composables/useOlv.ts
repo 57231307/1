@@ -152,7 +152,7 @@ export function useOlv() {
    * 列定义：使用 renderCell 自定义渲染
    * - 订单金额：¥ + toLocaleString
    * - 状态 el-tag：5 种 type 映射
-   * 父组件在 OlvTbl 内部追加操作列（查看 / 审批 / 发货 / 取消）
+   * 父组件在 SalesOrderTable 内部追加操作列（查看 / 审批 / 发货 / 取消）
    */
   const columns: ColumnDef<SalesOrder>[] = [
     { key: 'order_no', title: '订单号', width: 140, fixed: 'left' },

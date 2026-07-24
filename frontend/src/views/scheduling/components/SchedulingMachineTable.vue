@@ -1,5 +1,5 @@
 <!--
-  SchMTbl.vue - 排产工单列表
+  SchedulingMachineTable.vue - 排产主页工单列表
   任务编号: P14 批 2 I-3 第 2 批（拆分原 scheduling/index.vue）
 -->
 <template>
