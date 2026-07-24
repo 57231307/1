@@ -19,7 +19,7 @@ export interface QualityStandard {
   updated_at: string
 }
 
-export function listQualityStandards(
+export function getQualityStandardList(
   params?: QueryParams
 ): Promise<ApiResponse<QualityStandard[]>> {
   return request.get('/quality-standards', { params })

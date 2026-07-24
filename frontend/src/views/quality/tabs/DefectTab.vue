@@ -68,8 +68,8 @@ const loading = ref(false)
 const fetchDefects = async () => {
   loading.value = true
   try {
-    const { listDefects } = await import('@/api/quality')
-    const res = await listDefects()
+    const { getDefectList } = await import('@/api/quality')
+    const res = await getDefectList()
     defects.value = (res.data as Defect[] | undefined) || []
   } catch (error) {
     const err = error as Error

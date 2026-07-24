@@ -47,7 +47,7 @@ export interface Defect {
   remark: string
 }
 
-export function listQualityStandards(
+export function getQualityStandardList(
   params?: QueryParams
 ): Promise<ApiResponse<QualityStandard[]>> {
   // 批次 157d-2 修复：后端 quality-standards 已从 /production 域提升到根级
@@ -96,7 +96,7 @@ export function getQualityStandardVersions(id: number): Promise<ApiResponse<Qual
 }
 
 // v11 批次 161 P2-5 修复：后端已返回 PaginatedResponse（含 items + total），改为 PageResult 类型
-export function listQualityRecords(
+export function getQualityRecordList(
   params?: QueryParams
 ): Promise<ApiResponse<PageResult<QualityRecord>>> {
   return request.get('/production/quality-inspection/records', { params })
@@ -120,7 +120,7 @@ export function updateQualityRecord(
   return request.put(`/production/quality-inspection/records/${id}`, data)
 }
 
-export function listDefects(params?: QueryParams): Promise<ApiResponse<Defect[]>> {
+export function getDefectList(params?: QueryParams): Promise<ApiResponse<Defect[]>> {
   return request.get('/production/quality-inspection/defects', { params })
 }
 
