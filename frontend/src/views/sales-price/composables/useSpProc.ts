@@ -9,7 +9,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   approveSalesPrice,
   getPriceHistory,
-  listPricingStrategies,
+  getPricingStrategyList,
   type SalesPrice,
   type PricingStrategy,
 } from '@/api/sales-price'
@@ -87,7 +87,7 @@ export function useSpProc(refresh: RefreshCallbacks) {
     strategyVisible.value = true
     strategyLoading.value = true
     try {
-      const res = await listPricingStrategies()
+      const res = await getPricingStrategyList()
       strategyList.value = res.data || []
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫

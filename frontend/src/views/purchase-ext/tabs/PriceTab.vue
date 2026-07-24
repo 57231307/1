@@ -164,7 +164,7 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listPurchasePrices,
+  getPurchasePriceList,
   getPurchasePrice,
   createPurchasePrice,
   updatePurchasePrice,
@@ -187,7 +187,7 @@ const formatMoney = (amount: number | undefined) => {
 const fetchPurchasePrices = async () => {
   priceLoading.value = true
   try {
-    const res = await listPurchasePrices(priceQuery)
+    const res = await getPurchasePriceList(priceQuery)
     purchasePrices.value = res.data?.list || []
   } catch (error) {
     const err = error as { message?: string }

@@ -44,7 +44,7 @@ export interface InventoryAdjustmentQueryParams {
   status?: string
 }
 
-export function listInventoryAdjustments(params?: InventoryAdjustmentQueryParams) {
+export function getInventoryAdjustmentList(params?: InventoryAdjustmentQueryParams) {
   return request.get('/inventory/adjustments', { params })
 }
 
@@ -76,7 +76,7 @@ export function getAdjustmentItems(id: number) {
   return request.get(`/inventory/adjustments/${id}`)
 }
 
-export function addAdjustmentItem(id: number, data: Partial<AdjustmentItem>) {
+export function createAdjustmentItem(id: number, data: Partial<AdjustmentItem>) {
   return request.post(`/inventory/adjustments/${id}`, data)
 }
 

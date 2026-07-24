@@ -44,7 +44,7 @@ export interface ContractItem {
   remark: string
 }
 
-export function listSalesContracts(
+export function getSalesContractList(
   params?: QueryParams
 ): Promise<ApiResponse<{ list: SalesContract[]; total: number }>> {
   return request.get('/sales/sales-contracts', { params })

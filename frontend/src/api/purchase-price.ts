@@ -22,7 +22,7 @@ export interface PurchasePrice {
   updated_at: string
 }
 
-export function listPurchasePrices(
+export function getPurchasePriceList(
   params?: QueryParams
 ): Promise<ApiResponse<{ list: PurchasePrice[]; total: number }>> {
   return request.get('/purchase/purchase-prices', { params })

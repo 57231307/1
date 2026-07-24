@@ -81,7 +81,7 @@ export interface InventoryBatchQueryParams {
   qualityStatus?: string
 }
 
-export function listBatches(params?: InventoryBatchQueryParams) {
+export function getBatchList(params?: InventoryBatchQueryParams) {
   return request.get('/inventory/batches', { params })
 }
 
