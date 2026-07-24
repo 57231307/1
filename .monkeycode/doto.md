@@ -238,7 +238,7 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **批次规划**：
   - Batch 1：✅ 已完成（#705 main e807550）财务 AP/AR 9 文件（ap.ts/ap-invoice.ts/ap-payment.ts/ar.ts/ar-reconciliation.ts/ar-reconciliation-enhanced.ts/ap-reconciliation.ts/ap-verification.ts/voucher.ts）
   - Batch 2：✅ 已完成（#706 main eb4fdb2）采购/销售/库存 9 API 定义文件 13 处重命名 + 5 caller 文件（purchase-contract/purchase-price/purchaseReceipt/sales-contract/sales-price/inventoryAdjustment/inventoryTransfer/inventoryBatch/inventoryCount）
-  - Batch 3：生产/质量/BOM/MRP 12 文件
+  - Batch 3：✅ 已完成（#708 main 8b407e8）生产/质量 3 API 定义文件 5 处重命名 + 4 caller 文件（quality-standards/quality/production）
   - Batch 4：CRM/客户/供应商/贸易 14 文件
   - Batch 5a/5b：系统/权限/基础/报表/其他 40 文件（拆 2 子批）
 
