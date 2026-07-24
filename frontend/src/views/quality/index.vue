@@ -1,168 +1,172 @@
+<!--
+  quality/index.vue - 质量管理
+  D05 Batch 3：接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts
+-->
 <template>
   <div class="quality-page">
-    <el-tabs v-model="activeTab" aria-label="质量管理标签页">
-      <el-tab-pane label="质量标准" name="standard">
+    <el-tabs v-model="activeTab" :aria-label="$t('quality.tabAriaLabel')">
+      <el-tab-pane :label="$t('quality.tab.standard')" name="standard">
         <StandardTab
           @open-history="viewVersionHistory"
           @open-approve="approveStandard"
         />
       </el-tab-pane>
 
-      <el-tab-pane label="检验记录" name="record">
+      <el-tab-pane :label="$t('quality.tab.record')" name="record">
         <RecordTab />
       </el-tab-pane>
 
-      <el-tab-pane label="缺陷管理" name="defect">
+      <el-tab-pane :label="$t('quality.tab.defect')" name="defect">
         <DefectTab />
       </el-tab-pane>
     </el-tabs>
 
     <el-dialog
       v-model="standardDialogVisible"
-      :title="standardForm.id ? '编辑标准' : '新建标准'"
+      :title="standardForm.id ? $t('quality.standardDialog.editTitle') : $t('quality.standardDialog.createTitle')"
       width="700px"
-      aria-label="质量标准编辑对话框"
+      :aria-label="$t('quality.standardDialog.ariaLabel')"
     >
       <el-form
         ref="standardFormRef"
         :model="standardForm"
         :rules="standardFormRules"
         label-width="100px"
-        aria-label="质量标准表单"
+        :aria-label="$t('quality.standardDialog.formAriaLabel')"
       >
-        <el-form-item label="标准编号" prop="standard_code">
+        <el-form-item :label="$t('quality.standardDialog.standardCode')" prop="standard_code">
           <el-input
             v-model="standardForm.standard_code"
             :disabled="!!standardForm.id"
-            placeholder="请输入标准编号"
+            :placeholder="$t('quality.standardDialog.standardCodePlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="标准名称" prop="standard_name">
-          <el-input v-model="standardForm.standard_name" placeholder="请输入标准名称" />
+        <el-form-item :label="$t('quality.standardDialog.standardName')" prop="standard_name">
+          <el-input v-model="standardForm.standard_name" :placeholder="$t('quality.standardDialog.standardNamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="类型" prop="type">
-          <el-select v-model="standardForm.type" placeholder="请选择类型" style="width: 100%">
-            <el-option label="产品标准" value="product" />
-            <el-option label="工艺标准" value="process" />
+        <el-form-item :label="$t('quality.standardDialog.type')" prop="type">
+          <el-select v-model="standardForm.type" :placeholder="$t('quality.standardDialog.typePlaceholder')" style="width: 100%">
+            <el-option :label="$t('quality.standardDialog.typeProduct')" value="product" />
+            <el-option :label="$t('quality.standardDialog.typeProcess')" value="process" />
           </el-select>
         </el-form-item>
-        <el-form-item label="版本" prop="version">
-          <el-input v-model="standardForm.version" placeholder="例如：1.0" />
+        <el-form-item :label="$t('quality.standardDialog.version')" prop="version">
+          <el-input v-model="standardForm.version" :placeholder="$t('quality.standardDialog.versionPlaceholder')" />
         </el-form-item>
-        <el-form-item label="标准内容" prop="content">
+        <el-form-item :label="$t('quality.standardDialog.content')" prop="content">
           <el-input
             v-model="standardForm.content"
             type="textarea"
             :rows="6"
-            placeholder="请输入标准内容"
+            :placeholder="$t('quality.standardDialog.contentPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="附件" prop="attachments">
+        <el-form-item :label="$t('quality.standardDialog.attachments')" prop="attachments">
           <el-input
             v-model="attachmentsText"
             type="textarea"
-            placeholder='JSON格式数组，例如：["附件1.pdf", "附件2.docx"]'
+            :placeholder="$t('quality.standardDialog.attachmentsPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="standardDialogVisible = false">取消</el-button>
+        <el-button @click="standardDialogVisible = false">{{ $t('quality.standardDialog.cancel') }}</el-button>
         <el-button type="primary" :loading="standardSubmitLoading" @click="submitStandard"
-          >确定</el-button
+          >{{ $t('quality.standardDialog.confirm') }}</el-button
         >
       </template>
     </el-dialog>
 
-    <el-dialog v-model="approveDialogVisible" title="审批质量标准" width="500px" aria-label="质量标准审批对话框">
+    <el-dialog v-model="approveDialogVisible" :title="$t('quality.approveDialog.title')" width="500px" :aria-label="$t('quality.approveDialog.ariaLabel')">
       <el-form
         ref="approveFormRef"
         :model="approveForm"
         :rules="approveFormRules"
         label-width="80px"
-        aria-label="质量标准审批表单"
+        :aria-label="$t('quality.approveDialog.formAriaLabel')"
       >
-        <el-form-item label="标准编号">
+        <el-form-item :label="$t('quality.approveDialog.standardCode')">
           <el-input :model-value="approveStandardItem?.standard_code" disabled />
         </el-form-item>
-        <el-form-item label="标准名称">
+        <el-form-item :label="$t('quality.approveDialog.standardName')">
           <el-input :model-value="approveStandardItem?.standard_name" disabled />
         </el-form-item>
-        <el-form-item label="当前版本">
+        <el-form-item :label="$t('quality.approveDialog.currentVersion')">
           <el-input :model-value="approveStandardItem?.version" disabled />
         </el-form-item>
-        <el-form-item label="审批意见" prop="approval_comment">
+        <el-form-item :label="$t('quality.approveDialog.approvalComment')" prop="approval_comment">
           <el-input
             v-model="approveForm.approval_comment"
             type="textarea"
             :rows="4"
-            placeholder="请输入审批意见"
+            :placeholder="$t('quality.approveDialog.approvalCommentPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="approveDialogVisible = false">取消</el-button>
+        <el-button @click="approveDialogVisible = false">{{ $t('quality.approveDialog.cancel') }}</el-button>
         <el-button type="warning" :loading="approveSubmitLoading" @click="rejectStandard"
-          >驳回</el-button
+          >{{ $t('quality.approveDialog.reject') }}</el-button
         >
         <el-button type="primary" :loading="approveSubmitLoading" @click="confirmApprove"
-          >通过</el-button
+          >{{ $t('quality.approveDialog.pass') }}</el-button
         >
       </template>
     </el-dialog>
 
-    <el-dialog v-model="versionHistoryVisible" title="版本历史" width="800px" aria-label="质量标准版本历史对话框">
-      <el-table v-loading="versionHistoryLoading" :data="versionHistoryList" stripe aria-label="质量标准版本历史列表">
-        <el-table-column prop="version" label="版本" width="100" />
-        <el-table-column prop="status" label="状态" width="100">
+    <el-dialog v-model="versionHistoryVisible" :title="$t('quality.versionHistory.title')" width="800px" :aria-label="$t('quality.versionHistory.ariaLabel')">
+      <el-table v-loading="versionHistoryLoading" :data="versionHistoryList" stripe :aria-label="$t('quality.versionHistory.tableAriaLabel')">
+        <el-table-column prop="version" :label="$t('quality.versionHistory.version')" width="100" />
+        <el-table-column prop="status" :label="$t('quality.versionHistory.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="getStandardStatusType(row.status)" size="small">
               {{ getStandardStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column prop="approved_by_name" label="审批人" width="100">
+        <el-table-column prop="created_by_name" :label="$t('quality.versionHistory.createdBy')" width="100" />
+        <el-table-column prop="created_at" :label="$t('quality.versionHistory.createdAt')" width="160" />
+        <el-table-column prop="approved_by_name" :label="$t('quality.versionHistory.approvedBy')" width="100">
           <template #default="{ row }">
             {{ row.approved_by_name || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="approved_at" label="审批时间" width="160">
+        <el-table-column prop="approved_at" :label="$t('quality.versionHistory.approvedAt')" width="160">
           <template #default="{ row }">
             {{ row.approved_at || '-' }}
           </template>
         </el-table-column>
       </el-table>
       <template #footer>
-        <el-button @click="versionHistoryVisible = false">关闭</el-button>
+        <el-button @click="versionHistoryVisible = false">{{ $t('quality.versionHistory.close') }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="recordDialogVisible"
-      :title="recordForm.id ? '编辑检验' : '新建检验'"
+      :title="recordForm.id ? $t('quality.recordDialog.editTitle') : $t('quality.recordDialog.createTitle')"
       width="700px"
-      aria-label="检验记录编辑对话框"
+      :aria-label="$t('quality.recordDialog.ariaLabel')"
     >
-      <el-form ref="recordFormRef" :model="recordForm" label-width="100px" aria-label="检验记录表单">
-        <el-form-item label="记录编号" prop="record_no">
+      <el-form ref="recordFormRef" :model="recordForm" label-width="100px" :aria-label="$t('quality.recordDialog.formAriaLabel')">
+        <el-form-item :label="$t('quality.recordDialog.recordNo')" prop="record_no">
           <el-input v-model="recordForm.record_no" :disabled="!!recordForm.id" />
         </el-form-item>
-        <el-form-item label="检验类型" prop="inspection_type">
+        <el-form-item :label="$t('quality.recordDialog.inspectionType')" prop="inspection_type">
           <el-select v-model="recordForm.inspection_type" style="width: 100%">
-            <el-option label="进货检验" value="incoming" />
-            <el-option label="过程检验" value="process" />
-            <el-option label="成品检验" value="finished" />
-            <el-option label="出厂检验" value="outgoing" />
+            <el-option :label="$t('quality.recordDialog.inspectionTypeOptions.incoming')" value="incoming" />
+            <el-option :label="$t('quality.recordDialog.inspectionTypeOptions.process')" value="process" />
+            <el-option :label="$t('quality.recordDialog.inspectionTypeOptions.finished')" value="finished" />
+            <el-option :label="$t('quality.recordDialog.inspectionTypeOptions.outgoing')" value="outgoing" />
           </el-select>
         </el-form-item>
-        <el-form-item label="产品" prop="product_name">
-          <el-input v-model="recordForm.product_name" placeholder="产品名称" />
+        <el-form-item :label="$t('quality.recordDialog.product')" prop="product_name">
+          <el-input v-model="recordForm.product_name" :placeholder="$t('quality.recordDialog.productPlaceholder')" />
         </el-form-item>
-        <el-form-item label="批次号" prop="batch_no">
+        <el-form-item :label="$t('quality.recordDialog.batchNo')" prop="batch_no">
           <el-input v-model="recordForm.batch_no" />
         </el-form-item>
-        <el-form-item label="检验日期" prop="inspection_date">
+        <el-form-item :label="$t('quality.recordDialog.inspectionDate')" prop="inspection_date">
           <el-date-picker
             v-model="recordForm.inspection_date"
             type="date"
@@ -170,24 +174,24 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="检验员" prop="inspector">
+        <el-form-item :label="$t('quality.recordDialog.inspector')" prop="inspector">
           <el-input v-model="recordForm.inspector" />
         </el-form-item>
-        <el-form-item label="检验结果" prop="result">
+        <el-form-item :label="$t('quality.recordDialog.result')" prop="result">
           <el-radio-group v-model="recordForm.result">
-            <el-radio label="pass">合格</el-radio>
-            <el-radio label="fail">不合格</el-radio>
-            <el-radio label="pending">待检</el-radio>
+            <el-radio label="pass">{{ $t('quality.recordDialog.resultOptions.pass') }}</el-radio>
+            <el-radio label="fail">{{ $t('quality.recordDialog.resultOptions.fail') }}</el-radio>
+            <el-radio label="pending">{{ $t('quality.recordDialog.resultOptions.pending') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
+        <el-form-item :label="$t('quality.recordDialog.remark')" prop="remark">
           <el-input v-model="recordForm.remark" type="textarea" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="recordDialogVisible = false">取消</el-button>
+        <el-button @click="recordDialogVisible = false">{{ $t('quality.recordDialog.cancel') }}</el-button>
         <el-button type="primary" :loading="recordSubmitLoading" @click="submitRecord"
-          >确定</el-button
+          >{{ $t('quality.recordDialog.confirm') }}</el-button
         >
       </template>
     </el-dialog>
@@ -196,6 +200,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, provide } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import StandardTab from './tabs/StandardTab.vue'
@@ -224,10 +229,11 @@ type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 // v11 批次 161 P2-5 修复：后端已支持分页（返回 PaginatedResponse 含 items+total），
 // RecordTab 通过 useTableApi 自动消费分页元数据，无需在此维护分页状态
 
-const activeTab = ref('standard')
+const { t } = useI18n({ useScope: 'global' })
 
 // 为 StandardTab/RecordTab 提供 actions（inject('qualityActions')）
 // 注意：provide 移到所有函数定义之后，避免 hoisting 问题（vue-tsc 报 used before declaration）
+const activeTab = ref('standard')
 const standards = ref<QualityStandard[]>([])
 const records = ref<QualityRecord[]>([])
 const defects = ref<Defect[]>([])
@@ -273,10 +279,10 @@ const fetchDefects = async () => {
 
 const getStandardStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    draft: '草稿',
-    approved: '已审批',
-    published: '已发布',
-    rejected: '已驳回',
+    draft: t('quality.standardStatus.draft'),
+    approved: t('quality.standardStatus.approved'),
+    published: t('quality.standardStatus.published'),
+    rejected: t('quality.standardStatus.rejected'),
   }
   return map[status] || status
 }
@@ -307,11 +313,11 @@ const standardForm = reactive({
   attachments: [] as string[],
 })
 const standardFormRules: FormRules = {
-  standard_code: [{ required: true, message: '请输入标准编号', trigger: 'blur' }],
-  standard_name: [{ required: true, message: '请输入标准名称', trigger: 'blur' }],
-  type: [{ required: true, message: '请选择类型', trigger: 'change' }],
-  version: [{ required: true, message: '请输入版本号', trigger: 'blur' }],
-  content: [{ required: true, message: '请输入标准内容', trigger: 'blur' }],
+  standard_code: [{ required: true, message: t('quality.validation.standardCodeRequired'), trigger: 'blur' }],
+  standard_name: [{ required: true, message: t('quality.validation.standardNameRequired'), trigger: 'blur' }],
+  type: [{ required: true, message: t('quality.validation.typeRequired'), trigger: 'change' }],
+  version: [{ required: true, message: t('quality.validation.versionRequired'), trigger: 'blur' }],
+  content: [{ required: true, message: t('quality.validation.contentRequired'), trigger: 'blur' }],
 }
 
 const openStandardDialog = (row?: QualityStandard) => {
@@ -345,7 +351,7 @@ const submitStandard = async () => {
         try {
           standardForm.attachments = JSON.parse(attachmentsText.value)
         } catch (e) {
-          ElMessage.error('附件格式错误，请检查JSON格式')
+          ElMessage.error(t('quality.message.attachmentsFormatError'))
           return
         }
       }
@@ -354,12 +360,12 @@ const submitStandard = async () => {
       } else {
         await createQualityStandard(standardForm as Partial<QualityStandard>)
       }
-      ElMessage.success('操作成功')
+      ElMessage.success(t('quality.message.operationSuccess'))
       standardDialogVisible.value = false
       fetchStandards()
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed'))
     } finally {
       standardSubmitLoading.value = false
     }
@@ -372,7 +378,7 @@ const approveSubmitLoading = ref(false)
 const approveStandardItem = ref<QualityStandard | null>(null)
 const approveForm = reactive({ approval_comment: '' })
 const approveFormRules: FormRules = {
-  approval_comment: [{ required: true, message: '请输入审批意见', trigger: 'blur' }],
+  approval_comment: [{ required: true, message: t('quality.validation.approvalCommentRequired'), trigger: 'blur' }],
 }
 
 const approveStandard = async (row: QualityStandard) => {
@@ -389,12 +395,12 @@ const confirmApprove = async () => {
     approveSubmitLoading.value = true
     try {
       await approveQualityStandard(approveStandardItem.value!.id)
-      ElMessage.success('审批成功')
+      ElMessage.success(t('quality.message.approveSuccess'))
       approveDialogVisible.value = false
       fetchStandards()
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed'))
     } finally {
       approveSubmitLoading.value = false
     }
@@ -404,23 +410,23 @@ const confirmApprove = async () => {
 const rejectStandard = async () => {
   if (!approveStandardItem.value!) return
   try {
-    const reason = await ElMessageBox.prompt('请输入驳回原因', '确认驳回', {
+    const reason = await ElMessageBox.prompt(t('quality.message.rejectPrompt'), t('quality.message.rejectTitle'), {
       type: 'warning',
-      confirmButtonText: '确定驳回',
-      cancelButtonText: '取消',
-      inputPlaceholder: '驳回原因（选填）',
+      confirmButtonText: t('quality.message.rejectConfirmButton'),
+      cancelButtonText: t('quality.message.rejectCancelButton'),
+      inputPlaceholder: t('quality.message.rejectPlaceholder'),
       inputType: 'textarea',
     })
     // 批次 157d-2 修复：接入 rejectQualityStandard API
     await rejectQualityStandard(approveStandardItem.value!.id, {
       reject_reason: reason.value || undefined,
     })
-    ElMessage.success('驳回成功')
+    ElMessage.success(t('quality.message.rejectSuccess'))
     approveDialogVisible.value = false
     fetchStandards()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    if (e !== 'cancel') ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
+    if (e !== 'cancel') ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed'))
   }
 }
 
@@ -438,7 +444,7 @@ const viewVersionHistory = async (row: QualityStandard) => {
     versionHistoryVisible.value = true
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取版本历史失败')
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.fetchVersionHistoryFailed'))
   } finally {
     versionHistoryLoading.value = false
   }
@@ -491,12 +497,12 @@ const submitRecord = async () => {
     } else {
       await createQualityRecord(recordForm as Partial<QualityRecord>)
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(t('quality.message.operationSuccess'))
     recordDialogVisible.value = false
     fetchRecords()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed'))
   } finally {
     recordSubmitLoading.value = false
   }
