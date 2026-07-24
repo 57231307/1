@@ -1,5 +1,5 @@
 <!--
-  ArCharts.vue - AR 对账账龄图表（柱状 + 饼图）
+  ArReconciliationCharts.vue - AR 对账账龄图表（柱状 + 饼图）
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->

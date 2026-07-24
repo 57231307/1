@@ -1,5 +1,5 @@
 <!--
-  ArConfirm.vue - AR 对账客户确认记录对话框
+  ArReconciliationConfirm.vue - AR 对账客户确认记录对话框
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->

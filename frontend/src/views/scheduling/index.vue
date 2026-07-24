@@ -6,7 +6,7 @@
 -->
 <template>
   <div class="scheduling-page">
-    <SchMTool
+    <SchedulingMachineTool
       :stats="schM.stats"
       :scheduling="schMProc.scheduling"
       @auto-schedule="schMProc.handleAutoSchedule"
@@ -15,7 +15,7 @@
 
     <el-row :gutter="20">
       <el-col :xs="24" :lg="16">
-        <SchMTbl
+        <SchedulingMachineTable
           :task-list="schM.taskList"
           :task-loading="schM.taskLoading"
           :total="schM.total"
@@ -31,13 +31,13 @@
       </el-col>
 
       <el-col :xs="24" :lg="8">
-        <SchMConf
+        <SchedulingMachineConflict
           :conflict-list="schM.conflictList"
           :conflict-loading="schM.conflictLoading"
           @detect="schM.fetchConflicts"
         />
 
-        <SchMParam
+        <SchedulingMachineParam
           :schedule-params="schM.scheduleParams"
           :date-range="schM.dateRange"
           :scheduling="schMProc.scheduling"
@@ -47,7 +47,7 @@
       </el-col>
     </el-row>
 
-    <SchMAdj
+    <SchedulingMachineAdjust
       v-model:visible="schM.adjustDialogVisible"
       :adjust-task="schM.adjustTask"
       :adjust-form="schM.adjustForm"
@@ -63,11 +63,11 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchM } from './composables/useSchM'
 import { useSchMProc } from './composables/useSchMProc'
-import SchMTool from './components/SchMTool.vue'
-import SchMTbl from './components/SchMTbl.vue'
-import SchMConf from './components/SchMConf.vue'
-import SchMParam from './components/SchMParam.vue'
-import SchMAdj from './components/SchMAdj.vue'
+import SchedulingMachineTool from './components/SchedulingMachineTool.vue'
+import SchedulingMachineTable from './components/SchedulingMachineTable.vue'
+import SchedulingMachineConflict from './components/SchedulingMachineConflict.vue'
+import SchedulingMachineParam from './components/SchedulingMachineParam.vue'
+import SchedulingMachineAdjust from './components/SchedulingMachineAdjust.vue'
 
 const router = useRouter()
 

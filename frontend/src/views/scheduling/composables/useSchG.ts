@@ -2,7 +2,7 @@
  * useSchG.ts - 排产甘特图核心 composable
  * 任务编号: P14 批 2 I-3 第 2 批（拆分原 scheduling/gantt.vue）
  * 提供甘特图数据加载、对话框状态管理、任务点击处理
- * ECharts 渲染由 SchGChart 子组件内部管理
+ * ECharts 渲染由 SchedulingGanttChart 子组件内部管理
  * 自动排程业务流程由 useSchGProc 提供
  * 行为完全保持一致（仅结构重构）
  */

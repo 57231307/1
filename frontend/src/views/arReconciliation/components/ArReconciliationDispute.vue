@@ -1,5 +1,5 @@
 <!--
-  ArDispute.vue - AR 对账争议处理对话框
+  ArReconciliationDispute.vue - AR 对账争议处理对话框
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）

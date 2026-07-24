@@ -6,7 +6,7 @@
 -->
 <template>
   <div class="scheduling-gantt">
-    <SchGTool
+    <SchedulingGanttTool
       :gantt-data="schG.ganttData"
       :date-range="schG.dateRange"
       :date-range-text="schG.dateRangeText"
@@ -17,13 +17,13 @@
       @date-change="onDateChange"
     />
 
-    <SchGChart
+    <SchedulingGanttChart
       :gantt-data="schG.ganttData"
       :loading="schG.loading"
       @task-click="schG.handleTaskClick"
     />
 
-    <SchGAuto
+    <SchedulingGanttAuto
       v-model:visible="schG.autoScheduleDialogVisible"
       :schedule-form="schG.scheduleForm"
       :scheduling="schGProc.scheduling"
@@ -31,7 +31,7 @@
       @confirm="schGProc.confirmAutoSchedule"
     />
 
-    <SchGAdj
+    <SchedulingGanttAdjust
       v-model:visible="schG.adjustDialogVisible"
       :adjust-task="schG.adjustTask"
       :adjust-form="schG.adjustForm"
@@ -41,7 +41,7 @@
       @confirm="schG.confirmAdjust"
     />
 
-    <SchGConf
+    <SchedulingGanttConflict
       v-model:visible="schG.conflictDialogVisible"
       :conflict-list="schG.conflictList"
     />
@@ -53,11 +53,11 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchG } from './composables/useSchG'
 import { useSchGProc } from './composables/useSchGProc'
-import SchGTool from './components/SchGTool.vue'
-import SchGChart from './components/SchGChart.vue'
-import SchGAuto from './components/SchGAuto.vue'
-import SchGAdj from './components/SchGAdj.vue'
-import SchGConf from './components/SchGConf.vue'
+import SchedulingGanttTool from './components/SchedulingGanttTool.vue'
+import SchedulingGanttChart from './components/SchedulingGanttChart.vue'
+import SchedulingGanttAuto from './components/SchedulingGanttAuto.vue'
+import SchedulingGanttAdjust from './components/SchedulingGanttAdjust.vue'
+import SchedulingGanttConflict from './components/SchedulingGanttConflict.vue'
 
 const router = useRouter()
 

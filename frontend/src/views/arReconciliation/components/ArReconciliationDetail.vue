@@ -1,5 +1,5 @@
 <!--
-  ArDetail.vue - AR 对账明细对话框
+  ArReconciliationDetail.vue - AR 对账明细对话框
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->

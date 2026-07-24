@@ -64,7 +64,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <EpForm
+    <ApiEndpointForm
       v-model:visible="ep.endpointDialogVisible"
       v-model:form-ref="ep.endpointFormRef"
       :form="ep.endpointForm"
@@ -103,7 +103,7 @@ import { ref } from 'vue'
 import { useApiEp } from './composables/useApiEp'
 import { useApiKey } from './composables/useApiKey'
 import { useApiLog } from './composables/useApiLog'
-import EpForm from './components/EpForm.vue'
+import ApiEndpointForm from './components/ApiEndpointForm.vue'
 import KeyForm from './components/KeyForm.vue'
 import LogDetail from './components/LogDetail.vue'
 import ApiEndpointTab, { type EndpointQuery } from './tabs/ApiEndpointTab.vue'

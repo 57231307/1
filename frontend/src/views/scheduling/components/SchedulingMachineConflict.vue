@@ -1,5 +1,5 @@
 <!--
-  SchMConf.vue - 排产冲突侧栏
+  SchedulingMachineConflict.vue - 排产主页冲突侧栏
   任务编号: P14 批 2 I-3 第 2 批（拆分原 scheduling/index.vue）
 -->
 <template>
