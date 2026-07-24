@@ -91,9 +91,9 @@
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
 | **合计** | **732** | **104** | **628** | **14.2%** |
 
-### 1.2 状态：✅ D13 全部完成（Batch 1-7）→ 推进 D05 useI18n
+### 1.2 状态：⏳ D05 进行中（Batch 1 待启动）→ 按模块横向切片推进
 
-- **当前批次**：Batch 490 待启动 —— D05 useI18n 接入（第 5 顺位，D13/D14 完成后最后推进，预估 30-36 子批次，344 文件未接入）
+- **当前批次**：Batch 490 进行中 —— D05 useI18n 接入（第 5 顺位，D13/D14 完成后最后推进，预估 30-36 子批次，344 文件未接入）
 - **上一批次**：Batch 489 ✅ 已完成 —— D13 前端缩写命名统一（Batch 1-7 全部完成 PR #716/#717/#718/#719/#720/#721/#722，121 文件已重命名 + 43 caller 文件更新）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
@@ -140,17 +140,24 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 
 > 模块 A-F 共 39 项 P0 任务已全部完成，详见 [archives/2026-07-22/doto-historical-tasks.md](file:///workspace/.monkeycode/docs/archives/2026-07-22/doto-historical-tasks.md)。
 
-### 3.1 P0-D05 useI18n 接入率仅 3.1%（类七，XL，未开始）
+### 3.1 P0-D05 useI18n 接入率仅 3.1%（类七，XL，进行中）
 
 - **来源**：batch-07 P0-07-5
 - **证据**：2026-07-19 精确审计：实际 355 个 .vue 文件，已接入 11 个（接入率 3.1%），未接入 344 个；locales/zh-CN.ts 467 行 15 模块 332 键，预估需扩容至 5000+ 键；Top 20 硬编码密集文件累计 10746 行中文，单文件最大 fixed-assets/tabs/AssetListTab.vue 864 行
 - **核实（2026-07-23）**：✅ 数据高度准确。355 文件 / 11 已接入 / 344 未接入 / 3.1% 接入率 / zh-CN.ts 467 行 15 模块均与 doto 一致；en-US.ts 467 行与 zh-CN.ts 对齐（双语同步良好）。❌ 唯一差异：AssetListTab.vue 实际 609 行（doto 记录 864 行，高估 255 行），单文件最大值记录失效，Top 20 排名可能已变化，推进前需重新扫描
+- **重新扫描（2026-07-24 D05 启动）**：✅ 355 文件 / 11 已接入 / 344 未接入（与 2026-07-23 核实一致）。Top 20 硬编码密集文件按**中文字符数**排名（非行数）：1. AssetListTab.vue 864 字符（609 行）2. print-templates/index.vue 785 字符（525 行）3. bpm/index.vue 716 字符（626 行）4. report-templates/index.vue 706 字符 5. quality/index.vue 691 字符 6. crm/tabs/CustomerListTab.vue 680 字符 7. system/audit-log/index.vue 669 字符 8. quality-standards/index.vue 648 字符 9. crm/leads/index.vue 641 字符 10. inventory/index.vue 626 字符 11. crm/opportunities/index.vue 619 字符 12. Setup.vue 605 字符（457 行）13. dye-recipe/index.vue 595 字符 14. Login.vue 566 字符（336 行，部分已接入）15. warehouse/index.vue 546 字符 16. supplier/SupplierDialog.vue 523 字符 17. crm/detail.vue 508 字符 18. email/index.vue 486 字符 19. dye-batch/index.vue 483 字符 20. color-cards/issues.vue 477 字符
 - **修复方案**：355 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts 同步；按业务模块横向切片，每批 10-12 文件，预估需 30-36 批次
 - **关联文件**：[frontend/src/views/](file:///workspace/frontend/src/views/) + [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts) + [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)
-- **依赖**：建议在 D13/D14 完成后推进（避免同时修改 .vue 文件造成冲突）
+- **依赖**：建议在 D13/D14 完成后推进（避免同时修改 .vue 文件造成冲突）✅ D13/D14 已完成
 - **工作量**：XL（5 项中最大）
-- **批次**：488（D 系列 17 项一次性打包；预估 30-36 子批次）
-- **执行优先级**：第 5 顺位（最后推进）
+- **批次**：490（D05 独立批次；预估 30-36 子批次，每批 10-12 文件）
+- **执行优先级**：第 5 顺位（最后推进，D13/D14 完成后启动）
+- **当前进度**：⏳ 进行中 —— Batch 1-2 已完成（AssetListTab.vue + print-templates/index.vue + bpm/index.vue），Batch 3 待启动
+- **i18n 接入模式**：模板用 `$t('key')`，script 用 `const { t } = useI18n({ useScope: 'global' })`；命名空间 `{module}.{section}.{key}`
+- **批次规划**：
+  - Batch 1：✅ 已完成 fixed-assets/tabs/AssetListTab.vue（864 字符，新增 130+ 翻译键 fixedAssets 命名空间，模板 $t 88 处 + script t 36 处 = 124 处）
+  - Batch 2：✅ 已完成 print-templates/index.vue + bpm/index.vue（785 + 716 = 1501 字符，新增 printTemplates + bpm 两个命名空间共 ~250 翻译键，print-templates 128 处 t() + bpm 120 处 t() = 248 处）
+  - Batch 3：⏳ 待启动 report-templates/index.vue + quality/index.vue（706 + 691 = 1397 字符）
 
 ### 3.2 P0-D08 91+ 超长函数（类七，XL，进行中）
 
