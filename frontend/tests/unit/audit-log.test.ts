@@ -9,6 +9,26 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { createI18n } from 'vue-i18n'
+
+// D05 Batch 4：audit-log/index.vue 接入 useI18n 后，测试需安装 i18n 插件
+// 测试不校验文本内容，使用最小 messages 即可（key 缺失时 $t 返回 key 本身）
+const i18n = createI18n({
+  legacy: false,
+  locale: 'zh-CN',
+  messages: {
+    'zh-CN': {
+      auditLog: {
+        filter: {},
+        table: {},
+        detail: {},
+        operationType: {},
+        severityLevel: {},
+        message: {},
+      },
+    },
+  },
+})
 
 // 模块级 refs：跨测试共享 mock 状态
 const mockRequestGet = vi.fn()
@@ -123,7 +143,9 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
 
   /** 挂载即触发首屏加载，参数包含 page/page_size */
   it('挂载时自动加载首屏数据并发送分页参数', async () => {
-    const wrapper = mount(AuditLogView)
+    const wrapper = mount(AuditLogView, {
+      global: { plugins: [i18n] },
+    })
     await flushPromises()
     expect(mockRequestGet).toHaveBeenCalledTimes(1)
     // request.get(url, { params }) 第二参数的 params 含 page/page_size
@@ -135,7 +157,9 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
 
   /** 点击查询按钮：将筛选条件传入 API 并回到第一页 */
   it('点击查询按钮会把筛选条件传入 API', async () => {
-    const wrapper = mount(AuditLogView)
+    const wrapper = mount(AuditLogView, {
+      global: { plugins: [i18n] },
+    })
     await flushPromises()
     mockRequestGet.mockClear()
 
@@ -163,7 +187,9 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
 
   /** 点击详情按钮：调用 getAuditLog 并打开抽屉 */
   it('点击详情按钮调用 getAuditLog 并展示抽屉内容', async () => {
-    const wrapper = mount(AuditLogView)
+    const wrapper = mount(AuditLogView, {
+      global: { plugins: [i18n] },
+    })
     await flushPromises()
 
     const vm = wrapper.vm as any
@@ -178,7 +204,9 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
 
   /** 点击导出按钮：调用 exportFromBackend 触发后端带水印 xlsx 下载（V15 P0-S13 修复） */
   it('点击导出按钮调用 exportFromBackend 并触发后端下载', async () => {
-    const wrapper = mount(AuditLogView)
+    const wrapper = mount(AuditLogView, {
+      global: { plugins: [i18n] },
+    })
     await flushPromises()
 
     const vm = wrapper.vm as any
@@ -197,7 +225,9 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
 
   /** 分页变化：将 page 传给 API */
   it('分页变化时把 page / page_size 传给 API', async () => {
-    const wrapper = mount(AuditLogView)
+    const wrapper = mount(AuditLogView, {
+      global: { plugins: [i18n] },
+    })
     await flushPromises()
     mockRequestGet.mockClear()
 
