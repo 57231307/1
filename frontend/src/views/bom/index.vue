@@ -121,8 +121,8 @@
       @close="resetForm"
       :aria-label="formData.id ? '编辑 BOM 对话框' : '新建 BOM 对话框'"
     >
-      <BomForm
-        ref="bomFormRef"
+      <BillOfMaterialsForm
+        ref="billOfMaterialsFormRef"
         :form-data="formData"
         :mode="dialogMode"
         @submit="handleSubmit"
@@ -144,12 +144,12 @@ import {
   updateBom,
   type Bom,
 } from '@/api/bom'
-import BomForm from './BomForm.vue'
+import BillOfMaterialsForm from './BillOfMaterialsForm.vue'
 import { useTableApi } from '@/composables/useTableApi'
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
-const bomFormRef = ref<InstanceType<typeof BomForm>>()
+const billOfMaterialsFormRef = ref<InstanceType<typeof BillOfMaterialsForm>>()
 
 const queryParams = reactive({
   product_name: '',

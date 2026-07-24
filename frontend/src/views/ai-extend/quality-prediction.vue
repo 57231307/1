@@ -16,7 +16,7 @@ import {
   type AiQualityPrediction,
   type QualityPredRequest,
 } from '@/api/ai-extend'
-import AIPredictionChart from '@/components/ai/AIPredictionChart.vue'
+import AiPredictionChart from '@/components/ai/AiPredictionChart.vue'
 // 批次 280：接入 useTableApi，消除手写 items/loading/total/page/pageSize/load 重复
 import { useTableApi } from '@/composables/useTableApi'
 
@@ -329,7 +329,7 @@ const detailRecommendations = computed(() => {
 
         <div class="detail-section">
           <div class="detail-section-title">趋势图</div>
-          <AIPredictionChart
+          <AiPredictionChart
             :period-breakdown="detailPeriods"
             :risk-score="detailModel.risk_score"
             :risk-level="detailModel.risk_level as 'low' | 'medium' | 'high'"

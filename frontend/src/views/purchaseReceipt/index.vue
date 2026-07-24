@@ -2,11 +2,11 @@
   purchaseReceipt/index.vue - 采购入库管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 4 批
   拆分：598 行 → ~150 行 + 4 子组件 + 2 composable + 1 工具
-  批次 285：PrcFilter/PrcTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
+  批次 285：PurchaseReceiptFilter/PurchaseReceiptTable 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="app-container">
-    <PrcFilter
+    <PurchaseReceiptFilter
       :query-params="prc.queryParams"
       :suppliers="prc.supplierOptions"
       :warehouses="prc.warehouseOptions"
@@ -16,7 +16,7 @@
       @add="prcProc.openAddDialog"
     />
 
-    <PrcTbl
+    <PurchaseReceiptTable
       v-model:page="prc.page"
       v-model:page-size="prc.pageSize"
       :data="prc.tableData"
@@ -28,7 +28,7 @@
       @delete="prcProc.handleDelete"
     />
 
-    <PrcForm
+    <PurchaseReceiptForm
       v-model:visible="prc.dialogVisible"
       :title="prc.dialogTitle"
       :form="prc.form"
@@ -43,7 +43,7 @@
       @update:form="(v) => (prc.form = v)"
     />
 
-    <PrcDetail
+    <PurchaseReceiptDetail
       v-model:visible="prc.viewDialogVisible"
       :data="prc.viewData"
       :items="prc.detailData"
@@ -57,10 +57,10 @@ import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { usePrc } from './composables/usePrc'
 import { usePrcProc } from './composables/usePrcProc'
 import { STATUS_OPTIONS } from './composables/prcFmts'
-import PrcFilter from './components/PrcFilter.vue'
-import PrcTbl from './components/PrcTbl.vue'
-import PrcForm from './components/PrcForm.vue'
-import PrcDetail from './components/PrcDetail.vue'
+import PurchaseReceiptFilter from './components/PurchaseReceiptFilter.vue'
+import PurchaseReceiptTable from './components/PurchaseReceiptTable.vue'
+import PurchaseReceiptForm from './components/PurchaseReceiptForm.vue'
+import PurchaseReceiptDetail from './components/PurchaseReceiptDetail.vue'
 
 // 业务状态
 const prc = usePrc()

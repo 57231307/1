@@ -1,5 +1,5 @@
 <!--
-  PrcForm.vue - 采购入库新增/编辑对话框
+  PurchaseReceiptForm.vue - 采购入库新增/编辑对话框
   拆分自 purchaseReceipt/index.vue（P14 批 2 I-3 第 4 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
@@ -137,7 +137,7 @@ interface OptItem {
 }
 
 // 表单类型
-interface PrcFormModel {
+interface PurchaseReceiptFormModel {
   id?: number
   receipt_no?: string
   receipt_date?: string
@@ -154,7 +154,7 @@ const props = defineProps<{
   // 对话框标题
   title: string
   // 表单数据（由父组件管理，子组件通过 emit('update:form') 回写）
-  form: PrcFormModel
+  form: PurchaseReceiptFormModel
   // 校验规则
   rules: FormRules
   // 供应商选项
@@ -172,7 +172,7 @@ const emit = defineEmits<{
   (e: 'calc-amount', item: ReceiptItem): void
   (e: 'submit'): void
   // 整体回写表单（父组件监听此事件并回写到自己的 form）
-  (e: 'update:form', form: PrcFormModel): void
+  (e: 'update:form', form: PurchaseReceiptFormModel): void
 }>()
 
 // 表单 ref
@@ -180,7 +180,7 @@ const formRef = ref<FormInstance>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 items 数组，需要深拷贝以保证本地修改与父组件解耦
-const localForm = ref<PrcFormModel>(deepClone(props.form))
+const localForm = ref<PurchaseReceiptFormModel>(deepClone(props.form))
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false

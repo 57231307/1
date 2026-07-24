@@ -1,5 +1,5 @@
 <!--
-  PurchFilter - 采购管理筛选表单
+  PurchaseFilter - 采购管理筛选表单
   任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 筛选表单）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
 -->

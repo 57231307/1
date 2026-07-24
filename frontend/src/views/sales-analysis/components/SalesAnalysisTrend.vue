@@ -55,7 +55,7 @@ let trendChart: ECharts | null = null
 let pieChart: ECharts | null = null
 let resizeHandler: (() => void) | null = null
 
-// 渲染销售趋势折线柱状图（参考 DbTrend.vue：销售额折线 + 订单数柱状双轴）
+// 渲染销售趋势折线柱状图（参考 DashboardTrend.vue：销售额折线 + 订单数柱状双轴）
 const renderTrendChart = (data: SalesTrendResult[]) => {
   if (!trendChartRef.value) return
   if (!trendChart) {
@@ -98,7 +98,7 @@ const renderTrendChart = (data: SalesTrendResult[]) => {
   })
 }
 
-// 渲染销售构成饼图（参考 DbPie.vue，数据源为产品排名按金额占比）
+// 渲染销售构成饼图（参考 DashboardPie.vue，数据源为产品排名按金额占比）
 const renderPieChart = (composition: ProductRanking[]) => {
   if (!pieChartRef.value) return
   if (!pieChart) {

@@ -1,5 +1,5 @@
 <!--
-  PrcFilter.vue - 采购入库过滤栏
+  PurchaseReceiptFilter.vue - 采购入库过滤栏
   拆分自 purchaseReceipt/index.vue（P14 批 2 I-3 第 4 批）
   批次 285：接入 useTableApi 模式（localQuery + handleSearch/handleReset）
 -->

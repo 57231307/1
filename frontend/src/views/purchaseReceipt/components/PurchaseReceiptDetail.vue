@@ -1,5 +1,5 @@
 <!--
-  PrcDetail.vue - 采购入库详情
+  PurchaseReceiptDetail.vue - 采购入库详情
   拆分自 purchaseReceipt/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->
