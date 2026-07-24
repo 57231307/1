@@ -82,8 +82,8 @@ const currentRecipeRow = ref<ApiDyeRecipe | null>(null)
 
 const fetchGreigeFabrics = async () => {
   try {
-    const { listGreigeFabrics } = await import('@/api/greige-fabric')
-    const res = await listGreigeFabrics()
+    const { getGreigeFabricList } = await import('@/api/greige-fabric')
+    const res = await getGreigeFabricList()
     greigeFabrics.value = (res.data as GreigeFabric[] | undefined) || []
   } catch (error) {
     const err = error as Error

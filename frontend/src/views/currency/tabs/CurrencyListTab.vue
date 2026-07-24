@@ -132,7 +132,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listCurrencies,
+  getCurrencyList,
   createCurrency,
   createExchangeRate,
   setBaseCurrency,
@@ -181,7 +181,7 @@ const rateRules: FormRules = {
 const fetchCurrencies = async () => {
   loading.value = true
   try {
-    const res = await listCurrencies()
+    const res = await getCurrencyList()
     const d = (res as { data?: unknown }).data as
       | Currency[]
       | { items?: Currency[]; data?: Currency[]; list?: Currency[] }

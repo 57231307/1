@@ -21,7 +21,7 @@ export interface PrintTemplate {
   updated_at: string
 }
 
-export function listPrintTemplates(params?: QueryParams): Promise<ApiResponse<PrintTemplate[]>> {
+export function getPrintTemplateList(params?: QueryParams): Promise<ApiResponse<PrintTemplate[]>> {
   return request.get('/print-templates', { params })
 }
 

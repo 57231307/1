@@ -49,7 +49,7 @@ export interface ApiKey {
   last_used_at: string
 }
 
-export function listApiEndpoints(params?: QueryParams): Promise<ApiResponse<ApiEndpoint[]>> {
+export function getApiEndpointList(params?: QueryParams): Promise<ApiResponse<ApiEndpoint[]>> {
   return request.get('/api-gateway/endpoints', { params })
 }
 
@@ -72,7 +72,7 @@ export function deleteApiEndpoint(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/api-gateway/endpoints/${id}`)
 }
 
-export function listApiLogs(params?: QueryParams): Promise<ApiResponse<ApiLog[]>> {
+export function getApiLogList(params?: QueryParams): Promise<ApiResponse<ApiLog[]>> {
   return request.get('/api-gateway/logs', { params })
 }
 
@@ -80,7 +80,7 @@ export function getApiLog(id: number): Promise<ApiResponse<ApiLog>> {
   return request.get(`/api-gateway/logs/${id}`)
 }
 
-export function listApiKeys(params?: QueryParams): Promise<ApiResponse<ApiKey[]>> {
+export function getApiKeyList(params?: QueryParams): Promise<ApiResponse<ApiKey[]>> {
   return request.get('/api-gateway/keys', { params })
 }
 

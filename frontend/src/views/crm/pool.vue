@@ -185,7 +185,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Back, Search, Refresh } from '@element-plus/icons-vue'
-import { listUsers, type User } from '@/api/user'
+import { getUserList, type User } from '@/api/user'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import { type PoolCustomer } from '@/api/crm-enhanced'
@@ -227,7 +227,7 @@ const currentCustomerName = ref('')
 
 const fetchUsers = async () => {
   try {
-    const res = await listUsers()
+    const res = await getUserList()
     users.value = res.data?.list || []
   } catch (error) {
     users.value = []

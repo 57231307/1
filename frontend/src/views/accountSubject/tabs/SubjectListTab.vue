@@ -134,7 +134,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import {
-  listAccountSubjects,
+  getAccountSubjectList,
   createAccountSubject,
   updateAccountSubject,
   deleteAccountSubject,
@@ -191,7 +191,7 @@ const getCategoryLabel = (category: string) => {
 const fetchSubjects = async () => {
   loading.value = true
   try {
-    const res = await listAccountSubjects(queryForm)
+    const res = await getAccountSubjectList(queryForm)
     const d = (res as { data?: unknown }).data as
       | AccountSubjectEntity[]
       | {

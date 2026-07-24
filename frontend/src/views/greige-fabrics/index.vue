@@ -125,7 +125,7 @@ import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listGreigeFabrics,
+  getGreigeFabricList,
   createGreigeFabric,
   updateGreigeFabric,
   deleteGreigeFabric,
@@ -190,7 +190,7 @@ const formRules: FormRules = {
 const loadGreigeFabrics = async () => {
   loading.value = true
   try {
-    const res = await listGreigeFabrics()
+    const res = await getGreigeFabricList()
     // v11 批次 181 P2-1 修复：API 返回 GreigeFabric[]，前端直接使用，无需类型转换
     greigeList.value = res.data || []
   } catch (error) {

@@ -40,7 +40,7 @@ export interface FundTransferRecord {
   created_at: string
 }
 
-export function listFundAccounts(
+export function getFundAccountList(
   params?: QueryParams
 ): Promise<ApiResponse<{ list: FundAccount[]; total: number }>> {
   return request.get('/fund-management/accounts', { params })
@@ -98,7 +98,7 @@ export function transferFund(data: {
   return request.post('/fund-management/transfer', data)
 }
 
-export function listFundTransfers(
+export function getFundTransferList(
   params?: QueryParams
 ): Promise<ApiResponse<FundTransferRecord[]>> {
   return request.get('/fund-management/transfers', { params })

@@ -242,7 +242,7 @@ import {
 import { useTableApi } from '@/composables/useTableApi'
 
 // 批次 277：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
-// listPrintTemplates 返回 ApiResponse<PrintTemplate[]>（{ data: T[], total: number }），
+// getPrintTemplateList 返回 ApiResponse<PrintTemplate[]>（{ data: T[], total: number }），
 // useTableApi detectList 会 fallback 到 obj.data 取裸数组，detectTotal 取外层 total
 const {
   data: list,

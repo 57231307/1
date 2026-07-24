@@ -62,8 +62,8 @@ const loading = ref(false)
 const fetchFabrics = async () => {
   loading.value = true
   try {
-    const { listGreigeFabrics } = await import('@/api/greige-fabric')
-    const res = await listGreigeFabrics()
+    const { getGreigeFabricList } = await import('@/api/greige-fabric')
+    const res = await getGreigeFabricList()
     fabrics.value = (res.data as GreigeFabric[] | undefined) || []
   } catch (error) {
     const err = error as Error

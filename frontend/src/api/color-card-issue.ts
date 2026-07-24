@@ -23,7 +23,7 @@ export function getIssue(recordId: number) {
 }
 
 // 发放记录列表
-export function listIssues(params: ListIssuesQuery) {
+export function getIssueList(params: ListIssuesQuery) {
   return request.get<{ data: PagedResponse<IssueRecordInfo> }>(
     '/color-cards/issues',
     { params },

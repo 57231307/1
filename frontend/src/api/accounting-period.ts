@@ -13,7 +13,7 @@ export interface AccountingPeriodEntity {
   updated_at?: string
 }
 
-export function listAccountingPeriods(params?: Record<string, unknown>) {
+export function getAccountingPeriodList(params?: Record<string, unknown>) {
   return request.get('/finance/accounting-periods', { params })
 }
 

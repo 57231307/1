@@ -141,7 +141,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { listUsers, type User } from '@/api/user'
+import { getUserList, type User } from '@/api/user'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import { crmEnhancedApi, type AssignableCustomer } from '@/api/crm-enhanced'
@@ -208,7 +208,7 @@ const fetchAssignableCustomers = async () => {
 
 const fetchUsers = async () => {
   try {
-    const res = await listUsers()
+    const res = await getUserList()
     users.value = res.data?.list || []
   } catch (error) {
     users.value = []

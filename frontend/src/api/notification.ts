@@ -37,7 +37,7 @@ export interface UpdateSettingRequest {
   enableSms: boolean
 }
 
-export function listNotifications(
+export function getNotificationList(
   params?: NotificationQueryParams
 ): Promise<ApiResponse<{ list: Notification[]; total: number }>> {
   return request.get('/notifications/', { params })
@@ -94,6 +94,6 @@ export interface WsTicketResponse {
  * 一次性短时票据（30 秒有效），再用票据建立 WebSocket 连接。
  * 票据一次性消费，即使泄露也无法复用。
  */
-export function fetchWsTicket(): Promise<WsTicketResponse> {
+export function getWsTicket(): Promise<WsTicketResponse> {
   return request.post<WsTicketResponse>('/ws/ticket')
 }

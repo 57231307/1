@@ -52,7 +52,7 @@ export interface DataPermissionQueryParams extends QueryParams {
   department_id?: number
 }
 
-export const listDataPermissions = (params?: DataPermissionQueryParams) =>
+export const getDataPermissionList = (params?: DataPermissionQueryParams) =>
   request.get<ApiResponse<DataPermission[]>>('/data-permissions/', { params })
 
 export const getDataPermission = (id: number) =>
@@ -70,7 +70,7 @@ export const deleteDataPermission = (id: number) =>
 export const setDataPermission = (data: SetDataPermissionRequest) =>
   request.post<ApiResponse<DataPermissionRole>>('/data-permissions/', data)
 
-export const listRoleDataPermissions = (roleId: number) =>
+export const getRoleDataPermissionList = (roleId: number) =>
   request.get<ApiResponse<DataPermissionRole[]>>(`/data-permissions/roles/${roleId}`)
 
 export const getDataPermissionByRole = (roleId: number, resourceType: string) =>
@@ -79,7 +79,7 @@ export const getDataPermissionByRole = (roleId: number, resourceType: string) =>
 export const deleteDataPermissionByRole = (roleId: number, resourceType: string) =>
   request.delete<ApiResponse<void>>(`/data-permissions/roles/${roleId}/${resourceType}`)
 
-export const listScopeTypes = () =>
+export const getScopeTypeList = () =>
   request.get<ApiResponse<ScopeType[]>>('/data-permissions/scope-types')
 
 /// 数据权限范围类型默认值（v11 P1-5：API 失败时的兜底常量，避免 view 层硬编码）

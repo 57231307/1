@@ -28,7 +28,7 @@ export interface AccountSubject {
   updated_at?: string
 }
 
-export function listAccountSubjects(params?: Record<string, unknown>) {
+export function getAccountSubjectList(params?: Record<string, unknown>) {
   return request.get('/subjects', { params })
 }
 

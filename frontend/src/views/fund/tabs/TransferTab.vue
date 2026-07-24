@@ -140,7 +140,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Money } from '@element-plus/icons-vue'
 import {
-  listFundAccounts,
+  getFundAccountList,
   getFundTransfer,
   transferFund,
   type FundAccount,
@@ -155,7 +155,7 @@ const accountList = ref<FundAccount[]>([])
 const transferFormRef = ref<FormInstance>()
 
 // 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
-// listFundTransfers 返回 ApiResponse<FundTransferRecord[]>（{ data: T[] }），useTableApi detectList 会 fallback 到 obj.data
+// getFundTransferList 返回 ApiResponse<FundTransferRecord[]>（{ data: T[] }），useTableApi detectList 会 fallback 到 obj.data
 const {
   data: transferList,
   loading: transferLoading,
@@ -219,7 +219,7 @@ const availableBalance = computed(() => {
 
 const fetchAccounts = async () => {
   try {
-    const res = await listFundAccounts()
+    const res = await getFundAccountList()
     const d = res.data as
       | { list?: FundAccount[]; items?: FundAccount[]; data?: FundAccount[] }
       | FundAccount[]

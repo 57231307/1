@@ -25,7 +25,7 @@ export interface DyeBatch {
   updated_at: string
 }
 
-export function listDyeBatches(params?: QueryParams): Promise<ApiResponse<DyeBatch[]>> {
+export function getDyeBatchList(params?: QueryParams): Promise<ApiResponse<DyeBatch[]>> {
   return request.get('/production/dye-batches', { params })
 }
 

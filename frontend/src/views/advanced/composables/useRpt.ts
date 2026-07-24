@@ -4,7 +4,7 @@
  */
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listReportTemplates, executeReport as executeReportApi } from '@/api/advanced'
+import { getReportTemplateList, executeReport as executeReportApi } from '@/api/advanced'
 
 // v11 批次 180 P2-1 修复：定义报表相关类型，替代 any
 export interface ReportTemplate {
@@ -43,7 +43,7 @@ export function useRpt() {
     reportLoading.value = true
     try {
       // v11 批次 180 P2-1 修复：res: any 改为具体类型
-      const res = (await listReportTemplates()) as { data?: ReportTemplate[] }
+      const res = (await getReportTemplateList()) as { data?: ReportTemplate[] }
       reportTemplates.value = res.data || []
     } finally {
       reportLoading.value = false

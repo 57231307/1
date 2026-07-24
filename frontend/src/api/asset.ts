@@ -44,7 +44,7 @@ export interface FixedAssetUpdateRequest {
   status?: string
 }
 
-export function listAssets(params?: QueryParams): Promise<ApiResponse<FixedAsset[]>> {
+export function getAssetList(params?: QueryParams): Promise<ApiResponse<FixedAsset[]>> {
   return request.get('/fixed-assets', { params })
 }
 
@@ -134,7 +134,7 @@ export interface BudgetCreateRequest {
   }[]
 }
 
-export function listBudgets(params?: QueryParams): Promise<ApiResponse<Budget[]>> {
+export function getBudgetList(params?: QueryParams): Promise<ApiResponse<Budget[]>> {
   return request.get('/budgets', { params })
 }
 
@@ -181,7 +181,7 @@ export function rejectBudgetPlan(id: number, approvalComment?: string): Promise<
   return request.post(`/budgets/plans/${id}/reject`, { approval_comment: approvalComment })
 }
 
-export function listBudgetItems(params?: QueryParams): Promise<ApiResponse<BudgetItem[]>> {
+export function getBudgetItemList(params?: QueryParams): Promise<ApiResponse<BudgetItem[]>> {
   return request.get('/budgets/items', { params })
 }
 

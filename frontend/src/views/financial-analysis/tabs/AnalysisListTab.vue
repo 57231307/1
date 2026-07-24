@@ -104,7 +104,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listReports,
+  getReportList,
   createReport,
   updateReport,
   deleteReport as deleteReportApi,
@@ -167,7 +167,7 @@ const getStatusType = (status?: string) => {
 const fetchReports = async () => {
   loading.value = true
   try {
-    const res = await listReports(queryForm)
+    const res = await getReportList(queryForm)
     const d = (res as { data?: unknown }).data as
       | {
           list?: FinancialReport[]

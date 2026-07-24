@@ -153,7 +153,7 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listFundAccounts,
+  getFundAccountList,
   createFundAccount,
   depositFund as depositFundApi,
   withdrawFund as withdrawFundApi,
@@ -213,7 +213,7 @@ const totalAvailable = computed(() =>
 const fetchFunds = async () => {
   fundLoading.value = true
   try {
-    const res = await listFundAccounts()
+    const res = await getFundAccountList()
     const d = res.data as
       | { list?: FundAccount[]; items?: FundAccount[]; data?: FundAccount[] }
       | FundAccount[]

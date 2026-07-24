@@ -181,8 +181,8 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import {
-  listColorCards,
-  listIssues,
+  getColorCardList,
+  getIssueList,
   issueColorCard,
   returnIssue,
   markIssueLost,
@@ -233,12 +233,12 @@ const damagedForm = reactive({ compensation_amount: 0, remark: '' })
 const cancelForm = reactive({ remark: '' })
 
 const loadCards = async () => {
-  const res = await listColorCards({ status: 'active', page_size: 200 })
+  const res = await getColorCardList({ status: 'active', page_size: 200 })
   availableCards.value = res.data?.items || []
 }
 
 const loadRecords = async () => {
-  const res = await listIssues({ page_size: 100 })
+  const res = await getIssueList({ page_size: 100 })
   issueRecords.value = res.data?.items || []
 }
 

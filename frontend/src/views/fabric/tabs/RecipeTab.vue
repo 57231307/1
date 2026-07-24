@@ -84,8 +84,8 @@ const getStatusLabel = (status: string) => {
 const fetchRecipes = async () => {
   loading.value = true
   try {
-    const { listDyeRecipes } = await import('@/api/dye-recipe')
-    const res = await listDyeRecipes()
+    const { getDyeRecipeList } = await import('@/api/dye-recipe')
+    const res = await getDyeRecipeList()
     recipes.value = (res.data as DyeRecipe[] | undefined) || []
   } catch (error) {
     const err = error as Error
