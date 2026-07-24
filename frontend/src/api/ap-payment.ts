@@ -1,7 +1,7 @@
 // ap-payment.ts - 应付付款 API 兼容层
 // 实际定义在 ap.ts 中
 export {
-  listAPPayments,
+  getAPPaymentList,
   getAPPayment,
   createAPPayment,
   updateAPPayment,

@@ -60,7 +60,7 @@ export interface ARReconciliation {
   created_at: string
 }
 
-export function listARInvoices(params?: QueryParams): Promise<ApiResponse<ARInvoice[]>> {
+export function getARInvoiceList(params?: QueryParams): Promise<ApiResponse<ARInvoice[]>> {
   return request.get('/ar/invoices', { params })
 }
 
@@ -91,7 +91,7 @@ export function cancelARInvoice(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ar/invoices/${id}/cancel`)
 }
 
-export function listARReconciliations(
+export function getARReconciliationList(
   params?: QueryParams
 ): Promise<ApiResponse<ARReconciliation[]>> {
   return request.get('/ar-reconciliations', { params })
@@ -114,7 +114,7 @@ export function updateARReconciliationStatus(
   return request.put(`/ar-reconciliations/${id}/status`, { status })
 }
 
-export function listARPayments(params?: QueryParams): Promise<ApiResponse<ARPayment[]>> {
+export function getARPaymentList(params?: QueryParams): Promise<ApiResponse<ARPayment[]>> {
   return request.get('/ar/payments', { params })
 }
 
@@ -137,7 +137,7 @@ export function confirmARPayment(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ar/payments/${id}/confirm`)
 }
 
-export function listARVerifications(params?: QueryParams): Promise<ApiResponse<ARVerification[]>> {
+export function getARVerificationList(params?: QueryParams): Promise<ApiResponse<ARVerification[]>> {
   return request.get('/ar/verifications', { params })
 }
 

@@ -34,7 +34,7 @@ export interface VoucherEntity {
   posted_at?: string
 }
 
-export function listVouchers(params?: QueryParams): Promise<ApiResponse<VoucherEntity[]>> {
+export function getVoucherList(params?: QueryParams): Promise<ApiResponse<VoucherEntity[]>> {
   return request.get('/vouchers', { params })
 }
 

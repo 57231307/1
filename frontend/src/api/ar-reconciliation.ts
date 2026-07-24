@@ -42,7 +42,7 @@ export interface ArReconciliationQueryParams {
   end_date?: string
 }
 
-export function listArReconciliations(params?: ArReconciliationQueryParams) {
+export function getArReconciliationList(params?: ArReconciliationQueryParams) {
   return request.get('/ar-reconciliations', { params })
 }
 
@@ -70,7 +70,7 @@ export function getReconciliationDetails(id: number) {
   return request.get(`/ar-reconciliations/${id}`)
 }
 
-export function addReconciliationDetail(id: number, data: Partial<ReconciliationDetail>) {
+export function createReconciliationDetail(id: number, data: Partial<ReconciliationDetail>) {
   return request.post(`/ar-reconciliations/${id}`, data)
 }
 

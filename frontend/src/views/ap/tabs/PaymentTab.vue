@@ -111,7 +111,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listAPPayments,
+  getAPPaymentList,
   createAPPayment,
   confirmAPPayment,
   getAPPaymentMethodText,
@@ -134,7 +134,7 @@ const getPaymentMethodLabel = (method: string) => {
 const fetchPayments = async () => {
   paymentLoading.value = true
   try {
-    const res = await listAPPayments()
+    const res = await getAPPaymentList()
     const d = res.data as { list?: APPayment[]; items?: APPayment[] } | APPayment[] | undefined
     if (d && typeof d === 'object' && !Array.isArray(d)) {
       payments.value = d.list || d.items || []

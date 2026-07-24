@@ -99,7 +99,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import {
-  listARReconciliations,
+  getARReconciliationList,
   createARReconciliation,
   updateARReconciliationStatus,
   type ARReconciliation,
@@ -143,7 +143,7 @@ const getReconciliationStatusType = (status: string) => {
 const fetchReconciliations = async () => {
   reconciliationLoading.value = true
   try {
-    const res = await listARReconciliations()
+    const res = await getARReconciliationList()
     const d = res.data as
       | { list?: ARReconciliation[]; items?: ARReconciliation[]; data?: ARReconciliation[] }
       | ARReconciliation[]
