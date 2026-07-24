@@ -1,15 +1,28 @@
-//! 导入导出 Service
+//! 导入导出 Service（facade）
 //!
-//! 提供 CSV/Excel 数据导入导出功能
+//! 本文件为 facade 入口，仅保留：
+//! - `ImportExportService` struct + `new` 构造函数
+//! - 公共常量（MAX_CSV_BYTES / MAX_EXCEL_ROWS / MAX_EXCEL_COLS / MAX_CELL_LEN / MAX_EXPORT_ROWS）
+//! - DTO struct（ImportResult / ImportError / ImportTemplate / ImportColumnDef / ExportQuery）
+//! - 纯函数（无 &self / 无 db 访问）：get_import_template / build_*_template / parse_csv /
+//!   generate_xlsx / validate_import_data / validate_import_data_size /
+//!   record_import_result / parse_date_filter / get_export_limit
+//! - 单元测试模块 `#[cfg(test)] mod tests`
+//!
+//! 业务实现已按职责拆分到 `import_export_ops/` 子模块（与 `import_export_service` 同为 `crate::services`
+//! 下兄弟模块）：
+//! - `import_export_ops::import`：批量数据导入（import_data + 产品行/客户行导入）
+//! - `import_export_ops::export`：数据导出（export_data + 产品/客户/库存导出）
+//! - `import_export_ops::task`：导入任务记录管理（create_import_task / update_import_task / list_import_tasks）
+//!
+//! 外部调用路径不变：`crate::services::import_export_service::ImportExportService` 等保持稳定。
+//! `db` 字段使用 `pub(crate)` 可见性，import_export_ops 子模块的 impl 块可直接访问 `self.db`。
 
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::models::status::import_task as import_status;
-use crate::models::status::master_data;
 use crate::utils::error::AppError;
-use crate::utils::sql_escape::safe_like_pattern;
 use crate::utils::xlsx_export::{build_xlsx, XlsxTable};
 
 // ============================================================================
@@ -42,6 +55,10 @@ pub const MAX_EXCEL_COLS: usize = 100;
 /// 单元格最大字符数：1024 字符
 /// 依据：产品名称/地址等长文本字段通常 < 1KB；超过则怀疑恶意注入或粘贴错误
 pub const MAX_CELL_LEN: usize = 1024;
+
+/// 单次导出最大行数（防止全表导出导致内存溢出）
+/// 业务上限：单次导出不应超过 1 万行；超过应分页分批导出
+pub const MAX_EXPORT_ROWS: u64 = 10_000;
 
 /// 导入结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,9 +95,20 @@ pub struct ImportColumnDef {
     pub example: Option<String>,
 }
 
+/// 导出查询参数
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExportQuery {
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+    pub status: Option<String>,
+    pub keyword: Option<String>,
+    pub limit: Option<u64>,
+}
+
 /// 导入导出 Service
 pub struct ImportExportService {
-    db: Arc<DatabaseConnection>,
+    /// `pub(crate)` 可见性：import_export_ops 兄弟模块的 impl 块需直接访问此字段。
+    pub(crate) db: Arc<DatabaseConnection>,
 }
 
 impl ImportExportService {
@@ -102,7 +130,7 @@ impl ImportExportService {
     }
 
     /// 构建产品导入模板
-    fn build_products_template() -> ImportTemplate {
+    pub(crate) fn build_products_template() -> ImportTemplate {
         ImportTemplate {
             import_type: "products".to_string(),
             name: "产品导入模板".to_string(),
@@ -148,7 +176,7 @@ impl ImportExportService {
     }
 
     /// 构建客户导入模板
-    fn build_customers_template() -> ImportTemplate {
+    pub(crate) fn build_customers_template() -> ImportTemplate {
         ImportTemplate {
             import_type: "customers".to_string(),
             name: "客户导入模板".to_string(),
@@ -187,7 +215,7 @@ impl ImportExportService {
     }
 
     /// 构建库存导入模板
-    fn build_inventory_template() -> ImportTemplate {
+    pub(crate) fn build_inventory_template() -> ImportTemplate {
         ImportTemplate {
             import_type: "inventory".to_string(),
             name: "库存导入模板".to_string(),
@@ -300,55 +328,11 @@ impl ImportExportService {
         errors
     }
 
-    /// 执行数据导入
-    ///
-    /// 批次 327 v10 复审 P3 修复：移除误报的 #[allow]
-    /// - too_many_arguments：仅 3 参数（import_type, data, user_id），远低于阈值 7
-    /// - needless_pass_by_value：参数均为引用或 Copy 类型，不会触发
-    /// - redundant_clone：签名层面无 clone 操作，不会触发
-    pub async fn import_data(
-        &self,
-        import_type: &str,
-        data: &[Vec<String>],
-        user_id: i32,
-    ) -> Result<ImportResult, AppError> {
-        Self::validate_import_data_size(data)?;
-
-        let mut imported = 0u64;
-        let mut failed = 0u64;
-        let mut errors = Vec::new();
-
-        // P2 1-7 修复：抽取重复的"结果收集"逻辑为 record_import_result 方法
-        match import_type {
-            "products" => {
-                for (idx, row) in data.iter().enumerate() {
-                    let result = self.import_product_row(row, user_id).await;
-                    Self::record_import_result(idx, result, &mut imported, &mut failed, &mut errors);
-                }
-            }
-            "customers" => {
-                for (idx, row) in data.iter().enumerate() {
-                    let result = self.import_customer_row(row, user_id).await;
-                    Self::record_import_result(idx, result, &mut imported, &mut failed, &mut errors);
-                }
-            }
-            _ => {
-                return Err(AppError::validation(format!(
-                    "不支持的导入类型: {}",
-                    import_type
-                )));
-            }
-        }
-
-        Ok(ImportResult {
-            imported,
-            failed,
-            errors,
-        })
-    }
-
     /// 校验导入数据尺寸（service 层 defense-in-depth）
-    fn validate_import_data_size(data: &[Vec<String>]) -> Result<(), AppError> {
+    ///
+    /// `pub(crate)` 可见性：import_export_ops::import 子模块在 import_data 入口处调用此方法，
+    /// 实现 service 层 defense-in-depth 第四层屏障（避免 handler 漏检 / 内部调用绕过）。
+    pub(crate) fn validate_import_data_size(data: &[Vec<String>]) -> Result<(), AppError> {
         if data.len() > MAX_EXCEL_ROWS {
             return Err(AppError::validation(format!(
                 "导入数据超过最大行数限制：当前 {} 行，上限 {} 行",
@@ -380,105 +364,12 @@ impl ImportExportService {
         Ok(())
     }
 
-    // ========================================================================
-    // 批次 127 v8 复审 P2 修复：导入任务记录管理
-    // ========================================================================
-    // 原 list_import_tasks 返回空列表 vec![]，import_csv/import_excel 不落库任务记录。
-    // 现新增 task 管理方法：create_import_task / update_import_task / list_import_tasks。
-    // handler 在导入前创建 task 记录（status=running），导入完成后更新统计 + 状态。
-
-    /// 创建导入任务记录（导入开始时调用）
+    /// 记录单行导入结果，消除 "products"/"customers" 分支中重复的 imported/failed/errors 收集代码
+    /// （P2 1-7 修复抽取）
     ///
-    /// 批次 127 v8 复审 P2 修复：在 import_csv/import_excel 执行实际导入前创建任务记录，
-    /// status 初始化为 "running"，total_rows 为待导入行数。
-    /// 返回任务 ID 供后续 update_import_task 使用。
-    pub async fn create_import_task(
-        &self,
-        import_type: &str,
-        total_rows: u64,
-        user_id: i32,
-    ) -> Result<i32, AppError> {
-        // 批次 357 v13 复审 baseline 清零：移除 unused import self（仅使用 ActiveModel）
-        use crate::models::import_task::ActiveModel;
-        use sea_orm::ActiveValue::Set;
-        use chrono::Utc;
-
-        let now = Utc::now();
-        let active_model = ActiveModel {
-            import_type: Set(import_type.to_string()),
-            status: Set(import_status::RUNNING.to_string()),
-            total_rows: Set(total_rows as i64),
-            imported_rows: Set(0),
-            failed_rows: Set(0),
-            user_id: Set(Some(user_id)),
-            created_at: Set(now.into()),
-            updated_at: Set(now.into()),
-            ..Default::default()
-        };
-
-        let model = active_model.insert(&*self.db).await?;
-        Ok(model.id)
-    }
-
-    /// 更新导入任务记录（导入完成时调用）
-    ///
-    /// 批次 127 v8 复审 P2 修复：根据 ImportResult 更新任务的 imported_rows / failed_rows / status。
-    /// 状态判定规则：
-    /// - failed == 0 && imported > 0 → "success"
-    /// - imported == 0 && failed > 0 → "failed"
-    /// - imported > 0 && failed > 0 → "partial"
-    /// - 其他（imported == 0 && failed == 0）→ "success"（空导入视为成功）
-    pub async fn update_import_task(
-        &self,
-        task_id: i32,
-        result: &ImportResult,
-    ) -> Result<(), AppError> {
-        // 批次 357 v13 复审 baseline 清零：移除 unused import self（仅使用 ActiveModel）
-        use crate::models::import_task::ActiveModel;
-        use sea_orm::ActiveValue::Set;
-        use chrono::Utc;
-
-        let status = if result.failed == 0 {
-            import_status::SUCCESS
-        } else if result.imported == 0 {
-            import_status::FAILED
-        } else {
-            import_status::PARTIAL
-        };
-
-        let active_model = ActiveModel {
-            id: Set(task_id),
-            status: Set(status.to_string()),
-            imported_rows: Set(result.imported as i64),
-            failed_rows: Set(result.failed as i64),
-            updated_at: Set(Utc::now().into()),
-            ..Default::default()
-        };
-
-        active_model.update(&*self.db).await?;
-        Ok(())
-    }
-
-    /// 获取导入任务列表（list_import_tasks handler 调用）
-    ///
-    /// 批次 127 v8 复审 P2 修复：替代原 list_import_tasks 返回的空列表 vec![]。
-    /// 按创建时间倒序返回最近 100 条任务记录。
-    pub async fn list_import_tasks(
-        &self,
-    ) -> Result<Vec<crate::models::import_task::Model>, AppError> {
-        use crate::models::import_task;
-        use sea_orm::{QueryOrder, QuerySelect};
-
-        let tasks = import_task::Entity::find()
-            .order_by(import_task::Column::CreatedAt, sea_orm::Order::Desc)
-            .limit(100)
-            .all(&*self.db)
-            .await?;
-        Ok(tasks)
-    }
-
-    /// P2 1-7 修复：记录单行导入结果，消除 "products"/"customers" 分支中重复的 imported/failed/errors 收集代码
-    fn record_import_result(
+    /// `pub(crate)` 可见性：import_export_ops::import 子模块在 import_data 循环中调用此方法，
+    /// 统一处理单行导入成功/失败的结果累积逻辑。
+    pub(crate) fn record_import_result(
         idx: usize,
         result: Result<(), AppError>,
         imported: &mut u64,
@@ -498,174 +389,11 @@ impl ImportExportService {
         }
     }
 
-    /// 导入产品行
-    async fn import_product_row(&self, row: &[String], _user_id: i32) -> Result<(), AppError> {
-        use crate::models::product::{ActiveModel as ProductActiveModel, Entity as ProductEntity};
-        use sea_orm::Set;
-
-        let code = row
-            .first()
-            .map(|s| s.trim().to_string())
-            .unwrap_or_default();
-        let name = row.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
-        let _category = row.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
-        let unit = row
-            .get(3)
-            .map(|s| s.trim().to_string())
-            .unwrap_or("个".to_string());
-        // 批次 403 修复：价格列非空时必须可解析为 f64，失败时返回验证错误而非静默写 0。
-        // 原 unwrap_or(0.0) 会让 "abc" 等非法价格静默变成 0，导致产品以错误成本价入库。
-        let price = match row.get(4) {
-            Some(s) if !s.trim().is_empty() => s.trim().parse::<f64>().map_err(|_| {
-                AppError::validation(format!("产品 {} 的价格列无法解析为数字: {}", code, s))
-            })?,
-            _ => 0.0,
-        };
-
-        if code.is_empty() || name.is_empty() {
-            return Err(AppError::validation("产品编码和名称不能为空".to_string()));
-        }
-
-        // 检查编码是否已存在
-        let existing = ProductEntity::find()
-            .filter(crate::models::product::Column::Code.eq(&code))
-            .one(&*self.db)
-            .await?;
-
-        if existing.is_some() {
-            return Err(AppError::business(format!("产品编码 {} 已存在", code)));
-        }
-
-        let now = chrono::Utc::now();
-        let active_model = ProductActiveModel {
-            id: Default::default(),
-            code: Set(code),
-            name: Set(name),
-            category_id: Set(None),
-            specification: Set(None),
-            unit: Set(unit),
-            standard_price: Set(Some(
-                rust_decimal::Decimal::from_f64_retain(price).unwrap_or_default(),
-            )),
-            cost_price: Set(None),
-            description: Set(None),
-            status: Set(master_data::ACTIVE.to_string()),
-            is_deleted: Set(false),
-            created_at: Set(now),
-            updated_at: Set(now),
-            product_type: Set("GENERAL".to_string()),
-            fabric_composition: Set(None),
-            yarn_count: Set(None),
-            density: Set(None),
-            width: Set(None),
-            gram_weight: Set(None),
-            structure: Set(None),
-            finish: Set(None),
-            min_order_quantity: Set(None),
-            lead_time: Set(None),
-            supplier_product_code: Set(None),
-            supplier_id: Set(None),
-            is_batch_managed: Set(None),
-            batch_level: Set(None),
-        };
-
-        active_model.insert(&*self.db).await?;
-
-        Ok(())
-    }
-
-    /// 导入客户行
-    async fn import_customer_row(&self, row: &[String], user_id: i32) -> Result<(), AppError> {
-        use crate::models::customer::{
-            ActiveModel as CustomerActiveModel, Entity as CustomerEntity,
-        };
-        use sea_orm::Set;
-
-        let code = row
-            .first()
-            .map(|s| s.trim().to_string())
-            .unwrap_or_default();
-        let name = row.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
-        let contact = row.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
-        let phone = row.get(3).map(|s| s.trim().to_string()).unwrap_or_default();
-
-        if code.is_empty() || name.is_empty() {
-            return Err(AppError::validation("客户编码和名称不能为空".to_string()));
-        }
-
-        // 检查编码是否已存在
-        let existing = CustomerEntity::find()
-            .filter(crate::models::customer::Column::CustomerCode.eq(&code))
-            .one(&*self.db)
-            .await?;
-
-        if existing.is_some() {
-            return Err(AppError::business(format!("客户编码 {} 已存在", code)));
-        }
-
-        let now = chrono::Utc::now();
-        let active_model = CustomerActiveModel {
-            id: Default::default(),
-            customer_code: Set(code),
-            customer_name: Set(name),
-            contact_person: Set(Some(contact)),
-            contact_phone: Set(Some(phone)),
-            contact_email: Set(None),
-            address: Set(None),
-            city: Set(None),
-            province: Set(None),
-            country: Set(None),
-            postal_code: Set(None),
-            credit_limit: Set(rust_decimal::Decimal::ZERO),
-            payment_terms: Set(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS),
-            tax_id: Set(None),
-            bank_name: Set(None),
-            bank_account: Set(None),
-            status: Set(master_data::ACTIVE.to_string()),
-            customer_type: Set("RETAIL".to_string()),
-            notes: Set(None),
-            created_by: Set(Some(user_id)),
-            created_at: Set(now),
-            updated_at: Set(now),
-            customer_industry: Set(None),
-            main_products: Set(None),
-            annual_purchase: Set(None),
-            quality_requirement: Set(None),
-            inspection_standard: Set(None),
-            // V15 P0-S08 修复：导入客户时业务负责人默认为操作人
-            owner_id: Set(user_id),
-            owner_assigned_at: Set(Some(now)),
-        };
-
-        active_model.insert(&*self.db).await?;
-
-        Ok(())
-    }
-
-    /// 导出数据
-    ///
-    /// 架构优化（2026-06-25）：
-    /// 1. 不再全表查询，根据 ExportQuery 条件过滤（status / date_from / date_to / keyword）
-    /// 2. 强制行数上限 MAX_EXPORT_ROWS，避免大表导出 OOM
-    /// 3. 过滤已删除数据（is_deleted=false）
-    pub async fn export_data(
-        &self,
-        export_type: &str,
-        query: &ExportQuery,
-    ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
-        match export_type {
-            "products" => self.export_products(query).await,
-            "customers" => self.export_customers(query).await,
-            "inventory" => self.export_inventory(query).await,
-            _ => Err(AppError::validation(format!(
-                "不支持的导出类型: {}",
-                export_type
-            ))),
-        }
-    }
-
     /// 解析日期字符串为 DateTime（兼容多种格式）
-    fn parse_date_filter(date_str: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    ///
+    /// `pub(crate)` 可见性：import_export_ops::export 子模块在 export_products/export_customers/
+    /// export_inventory 中调用此方法解析 date_from / date_to 过滤参数。
+    pub(crate) fn parse_date_filter(date_str: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         let formats = ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d"];
         for _fmt in &formats {
             if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(
@@ -682,215 +410,15 @@ impl ImportExportService {
     }
 
     /// 获取导出行数限制（不超过 MAX_EXPORT_ROWS）
-    fn get_export_limit(query: &ExportQuery) -> u64 {
+    ///
+    /// `pub(crate)` 可见性：import_export_ops::export 子模块在 export_products/export_customers/
+    /// export_inventory 中调用此方法计算最终 limit（取 query.limit 与 MAX_EXPORT_ROWS 的最小值）。
+    pub(crate) fn get_export_limit(query: &ExportQuery) -> u64 {
         query
             .limit
             .unwrap_or(MAX_EXPORT_ROWS)
             .min(MAX_EXPORT_ROWS)
     }
-
-    /// 导出产品数据
-    async fn export_products(
-        &self,
-        query: &ExportQuery,
-    ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
-        use crate::models::product::{Column as ProductCol, Entity as ProductEntity};
-        use sea_orm::QuerySelect;
-
-        let mut db_query = ProductEntity::find().filter(ProductCol::IsDeleted.eq(false));
-
-        if let Some(status) = &query.status {
-            db_query = db_query.filter(ProductCol::Status.eq(status.clone()));
-        }
-        if let Some(keyword) = &query.keyword {
-            // 批次 94 P2-2 修复：LIKE 模式注入，转义 % _ \ 特殊字符
-            let like = safe_like_pattern(keyword);
-            db_query = db_query.filter(
-                ProductCol::Name
-                    .like(like.clone())
-                    .or(ProductCol::Code.like(like)),
-            );
-        }
-        if let Some(date_from) = &query.date_from {
-            if let Some(dt) = Self::parse_date_filter(date_from) {
-                db_query = db_query.filter(ProductCol::CreatedAt.gte(dt));
-            }
-        }
-        if let Some(date_to) = &query.date_to {
-            if let Some(dt) = Self::parse_date_filter(date_to) {
-                db_query = db_query.filter(ProductCol::CreatedAt.lte(dt));
-            }
-        }
-
-        let limit = Self::get_export_limit(query);
-        let products = db_query.limit(limit).all(&*self.db).await?;
-
-        let headers = vec![
-            "ID".to_string(),
-            "产品编码".to_string(),
-            "产品名称".to_string(),
-            "单位".to_string(),
-            "标准单价".to_string(),
-            "状态".to_string(),
-            "创建时间".to_string(),
-        ];
-
-        let data: Vec<Vec<String>> = products
-            .into_iter()
-            .map(|p| {
-                vec![
-                    p.id.to_string(),
-                    p.code,
-                    p.name,
-                    p.unit,
-                    p.standard_price.map(|p| p.to_string()).unwrap_or_default(),
-                    p.status,
-                    p.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                ]
-            })
-            .collect();
-
-        Ok((headers, data))
-    }
-
-    /// 导出客户数据
-    async fn export_customers(
-        &self,
-        query: &ExportQuery,
-    ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
-        use crate::models::customer::{Column as CustomerCol, Entity as CustomerEntity};
-        use sea_orm::QuerySelect;
-
-        let mut db_query = CustomerEntity::find();
-
-        if let Some(status) = &query.status {
-            db_query = db_query.filter(CustomerCol::Status.eq(status.clone()));
-        }
-        if let Some(keyword) = &query.keyword {
-            // 批次 94 P2-2 修复：LIKE 模式注入，转义 % _ \ 特殊字符
-            let like = safe_like_pattern(keyword);
-            db_query = db_query.filter(
-                CustomerCol::CustomerName
-                    .like(like.clone())
-                    .or(CustomerCol::CustomerCode.like(like)),
-            );
-        }
-        if let Some(date_from) = &query.date_from {
-            if let Some(dt) = Self::parse_date_filter(date_from) {
-                db_query = db_query.filter(CustomerCol::CreatedAt.gte(dt));
-            }
-        }
-        if let Some(date_to) = &query.date_to {
-            if let Some(dt) = Self::parse_date_filter(date_to) {
-                db_query = db_query.filter(CustomerCol::CreatedAt.lte(dt));
-            }
-        }
-
-        let limit = Self::get_export_limit(query);
-        let customers = db_query.limit(limit).all(&*self.db).await?;
-
-        let headers = vec![
-            "ID".to_string(),
-            "客户编码".to_string(),
-            "客户名称".to_string(),
-            "联系人".to_string(),
-            "电话".to_string(),
-            "邮箱".to_string(),
-            "创建时间".to_string(),
-        ];
-
-        let data: Vec<Vec<String>> = customers
-            .into_iter()
-            .map(|c| {
-                vec![
-                    c.id.to_string(),
-                    c.customer_code,
-                    c.customer_name,
-                    c.contact_person.unwrap_or_default(),
-                    c.contact_phone.unwrap_or_default(),
-                    c.contact_email.unwrap_or_default(),
-                    c.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                ]
-            })
-            .collect();
-
-        Ok((headers, data))
-    }
-
-    /// 导出库存数据
-    async fn export_inventory(
-        &self,
-        query: &ExportQuery,
-    ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
-        use crate::models::inventory_stock::{Column as StockCol, Entity as StockEntity};
-        use sea_orm::QuerySelect;
-
-        let mut db_query = StockEntity::find();
-
-        if let Some(keyword) = &query.keyword {
-            // 批次 94 P2-2 修复：LIKE 模式注入，转义 % _ \ 特殊字符
-            let like = safe_like_pattern(keyword);
-            db_query = db_query.filter(
-                StockCol::BatchNo
-                    .like(like.clone())
-                    .or(StockCol::ColorNo.like(like)),
-            );
-        }
-        if let Some(date_from) = &query.date_from {
-            if let Some(dt) = Self::parse_date_filter(date_from) {
-                db_query = db_query.filter(StockCol::CreatedAt.gte(dt));
-            }
-        }
-        if let Some(date_to) = &query.date_to {
-            if let Some(dt) = Self::parse_date_filter(date_to) {
-                db_query = db_query.filter(StockCol::CreatedAt.lte(dt));
-            }
-        }
-
-        let limit = Self::get_export_limit(query);
-        let stocks = db_query.limit(limit).all(&*self.db).await?;
-
-        let headers = vec![
-            "ID".to_string(),
-            "产品ID".to_string(),
-            "仓库ID".to_string(),
-            "可用库存".to_string(),
-            "预留库存".to_string(),
-            "在途库存".to_string(),
-            "创建时间".to_string(),
-        ];
-
-        let data: Vec<Vec<String>> = stocks
-            .into_iter()
-            .map(|s| {
-                vec![
-                    s.id.to_string(),
-                    s.product_id.to_string(),
-                    s.warehouse_id.to_string(),
-                    s.quantity_available.to_string(),
-                    s.quantity_reserved.to_string(),
-                    s.quantity_incoming.to_string(),
-                    s.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                ]
-            })
-            .collect();
-
-        Ok((headers, data))
-    }
-}
-
-/// 单次导出最大行数（防止全表导出导致内存溢出）
-/// 业务上限：单次导出不应超过 1 万行；超过应分页分批导出
-pub const MAX_EXPORT_ROWS: u64 = 10_000;
-
-/// 导出查询参数
-#[derive(Debug, Clone, Deserialize)]
-pub struct ExportQuery {
-    pub date_from: Option<String>,
-    pub date_to: Option<String>,
-    pub status: Option<String>,
-    pub keyword: Option<String>,
-    pub limit: Option<u64>,
 }
 
 #[cfg(test)]

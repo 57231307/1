@@ -182,6 +182,8 @@ pub mod totp_service;
 pub mod tracking_service;
 // MRP生产计划模块
 pub mod bom_service;
+// 批次 D10 拆分：bom_service.rs facade 的业务实现子模块（crud/state/tree）
+pub mod bom_ops;
 pub mod mrp_engine_service;
 // 批次 490 D10-3b 拆分：mrp_engine_service 业务实现子模块
 pub mod mrp_engine_ops;
@@ -221,6 +223,8 @@ pub mod scheduling_query;
 pub mod field_permission_service;
 // 导入导出模块
 pub mod import_export_service;
+// 批次 D10 拆分：import_export_service.rs facade 的业务实现子模块（import/export/task）
+pub mod import_export_ops;
 // 报表模板模块
 pub mod report_template_service;
 // 邮件模板模块
