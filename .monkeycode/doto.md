@@ -152,13 +152,14 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **工作量**：XL（5 项中最大）
 - **批次**：490（D05 独立批次；预估 30-36 子批次，每批 10-12 文件）
 - **执行优先级**：第 5 顺位（最后推进，D13/D14 完成后启动）
-- **当前进度**：⏳ 进行中 —— Batch 1-3 已完成（AssetListTab.vue + print-templates/index.vue + bpm/index.vue + report-templates/index.vue + quality/index.vue），Batch 4 待启动
+- **当前进度**：⏳ 进行中 —— Batch 1-4 已完成（AssetListTab.vue + print-templates/index.vue + bpm/index.vue + report-templates/index.vue + quality/index.vue + CustomerListTab.vue + audit-log/index.vue），Batch 5 待启动
 - **i18n 接入模式**：模板用 `$t('key')`，script 用 `const { t } = useI18n({ useScope: 'global' })`；命名空间 `{module}.{section}.{key}`
 - **批次规划**：
   - Batch 1：✅ 已完成 fixed-assets/tabs/AssetListTab.vue（864 字符，新增 130+ 翻译键 fixedAssets 命名空间，模板 $t 88 处 + script t 36 处 = 124 处）
   - Batch 2：✅ 已完成 print-templates/index.vue + bpm/index.vue（785 + 716 = 1501 字符，新增 printTemplates + bpm 两个命名空间共 ~250 翻译键，print-templates 128 处 t() + bpm 120 处 t() = 248 处）
   - Batch 3：✅ 已完成 report-templates/index.vue + quality/index.vue（706 + 691 = 1397 字符，新增 reportTemplates + quality 两个命名空间共 ~200 翻译键，report-templates 61 处模板 $t + 21 处 script t = 82 处；quality 68 处模板 $t + 25 处 script t = 93 处；两文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox/ElMessageBox.prompt）迁移到 locales/zh-CN.ts + en-US.ts 双语同步，历史批次注释原样保留，无 #[allow] 警告抑制）
-  - Batch 4：⏳ 待启动 crm/tabs/CustomerListTab.vue + system/audit-log/index.vue（680 + 669 = 1349 字符）
+  - Batch 4：✅ 已完成 crm/tabs/CustomerListTab.vue + system/audit-log/index.vue（680 + 669 = 1349 字符，新增 crmCustomer + auditLog 两个命名空间共 162 翻译键，CustomerListTab 74 处模板 $t + 43 处 script t = 117 处 t() 调用，getCustomerTypeLabel 函数化响应式求值；audit-log 33 处模板 $t + 40 处 script t = 73 处 t() 调用，opTypeOptions/severityOptions/columns 改为 computed + getOpTypeLabel/getSeverityLabel 函数化响应式求值；2 文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）迁移到 locales/zh-CN.ts + en-US.ts 双语同步，历史批次注释原样保留，无 #[allow] 警告抑制）
+  - Batch 5：⏳ 待启动 下一批 Top 硬编码密集文件（推进前需重新扫描 Top 20 排名）
 
 ### 3.2 P0-D08 91+ 超长函数（类七，XL，进行中）
 
