@@ -2,83 +2,84 @@
   AssetListTab.vue - 固定资产 Tab
   来源：原 fixed-assets/index.vue 主体内容
   拆分日期：2026-06-15 B3-2
+  D05 Batch 1：接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts
 -->
 <template>
   <div class="asset-list-tab">
     <div class="page-header">
-      <h2 class="page-title">固定资产</h2>
+      <h2 class="page-title">{{ $t('fixedAssets.title') }}</h2>
       <div>
         <el-button type="primary" @click="openDialog()">
-          <el-icon><Plus /></el-icon>新建资产
+          <el-icon><Plus /></el-icon>{{ $t('fixedAssets.create') }}
         </el-button>
         <el-button @click="handleDepreciateAll">
-          <el-icon><Refresh /></el-icon>计提折旧
+          <el-icon><Refresh /></el-icon>{{ $t('fixedAssets.depreciate') }}
         </el-button>
         <el-button @click="handleExport">
-          <el-icon><Download /></el-icon>导出
+          <el-icon><Download /></el-icon>{{ $t('fixedAssets.export') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm" aria-label="固定资产筛选表单">
-        <el-form-item label="资产编码">
-          <el-input v-model="queryForm.asset_code" placeholder="编码" clearable />
+      <el-form :inline="true" :model="queryForm" :aria-label="$t('fixedAssets.filter.ariaLabel')">
+        <el-form-item :label="$t('fixedAssets.filter.assetCode')">
+          <el-input v-model="queryForm.asset_code" :placeholder="$t('fixedAssets.filter.assetCodePlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="资产名称">
-          <el-input v-model="queryForm.asset_name" placeholder="名称" clearable />
+        <el-form-item :label="$t('fixedAssets.filter.assetName')">
+          <el-input v-model="queryForm.asset_name" :placeholder="$t('fixedAssets.filter.assetNamePlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="类别">
-          <el-select v-model="queryForm.category" placeholder="选择类别" clearable>
-            <el-option label="房屋建筑" value="building" />
-            <el-option label="机器设备" value="equipment" />
-            <el-option label="运输工具" value="vehicle" />
-            <el-option label="电子设备" value="electronic" />
-            <el-option label="办公家具" value="furniture" />
+        <el-form-item :label="$t('fixedAssets.filter.category')">
+          <el-select v-model="queryForm.category" :placeholder="$t('fixedAssets.filter.categoryPlaceholder')" clearable>
+            <el-option :label="$t('fixedAssets.category.building')" value="building" />
+            <el-option :label="$t('fixedAssets.category.equipment')" value="equipment" />
+            <el-option :label="$t('fixedAssets.category.vehicle')" value="vehicle" />
+            <el-option :label="$t('fixedAssets.category.electronic')" value="electronic" />
+            <el-option :label="$t('fixedAssets.category.furniture')" value="furniture" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="选择状态" clearable>
-            <el-option label="在用" value="in_use" />
-            <el-option label="闲置" value="idle" />
-            <el-option label="已处置" value="disposed" />
+        <el-form-item :label="$t('fixedAssets.filter.status')">
+          <el-select v-model="queryForm.status" :placeholder="$t('fixedAssets.filter.statusPlaceholder')" clearable>
+            <el-option :label="$t('fixedAssets.status.inUse')" value="in_use" />
+            <el-option :label="$t('fixedAssets.status.idle')" value="idle" />
+            <el-option :label="$t('fixedAssets.status.disposed')" value="disposed" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{ $t('fixedAssets.filter.query') }}</el-button>
+          <el-button @click="handleReset">{{ $t('fixedAssets.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="assetList" stripe aria-label="固定资产列表">
-        <el-table-column prop="asset_code" label="资产编码" width="120" />
-        <el-table-column prop="asset_name" label="资产名称" min-width="150" />
-        <el-table-column prop="category" label="类别" width="100">
+      <el-table v-loading="loading" :data="assetList" stripe :aria-label="$t('fixedAssets.table.ariaLabel')">
+        <el-table-column prop="asset_code" :label="$t('fixedAssets.table.assetCode')" width="120" />
+        <el-table-column prop="asset_name" :label="$t('fixedAssets.table.assetName')" min-width="150" />
+        <el-table-column prop="category" :label="$t('fixedAssets.table.category')" width="100">
           <template #default="{ row }">{{ getCategoryLabel(row.category) }}</template>
         </el-table-column>
-        <el-table-column prop="department_name" label="使用部门" width="120" />
-        <el-table-column prop="purchase_date" label="购置日期" width="120" />
-        <el-table-column label="原值" width="120" align="right">
+        <el-table-column prop="department_name" :label="$t('fixedAssets.table.department')" width="120" />
+        <el-table-column prop="purchase_date" :label="$t('fixedAssets.table.purchaseDate')" width="120" />
+        <el-table-column :label="$t('fixedAssets.table.originalValue')" width="120" align="right">
           <template #default="{ row }">¥{{ row.purchase_amount.toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column label="累计折旧" width="120" align="right">
+        <el-table-column :label="$t('fixedAssets.table.accumulatedDepreciation')" width="120" align="right">
           <template #default="{ row }">¥{{ row.accumulated_depreciation.toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column label="净值" width="120" align="right">
+        <el-table-column :label="$t('fixedAssets.table.netValue')" width="120" align="right">
           <template #default="{ row }">¥{{ row.net_value.toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="$t('fixedAssets.table.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column :label="$t('fixedAssets.table.operation')" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
+            <el-button type="primary" link size="small" @click="openDialog(row)">{{ $t('fixedAssets.table.edit') }}</el-button>
             <el-button type="success" link size="small" @click="handleDepreciate(row)"
-              >折旧</el-button
+              >{{ $t('fixedAssets.table.depreciate') }}</el-button
             >
             <!-- v3 复审 P1-2：在用资产可处置，处置后状态置为 disposed -->
             <el-button
@@ -87,9 +88,9 @@
               link
               size="small"
               @click="handleDispose(row)"
-              >处置</el-button
+              >{{ $t('fixedAssets.table.dispose') }}</el-button
             >
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row)">{{ $t('fixedAssets.table.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -101,45 +102,45 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="固定资产列表分页"
+          :aria-label="$t('fixedAssets.table.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑资产' : '新建资产'" width="600px" aria-label="资产编辑对话框">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="资产信息表单">
+    <el-dialog v-model="dialogVisible" :title="form.id ? $t('fixedAssets.dialog.editTitle') : $t('fixedAssets.dialog.createTitle')" width="600px" :aria-label="$t('fixedAssets.dialog.ariaLabel')">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('fixedAssets.dialog.formAriaLabel')">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="资产编码" prop="asset_code">
+            <el-form-item :label="$t('fixedAssets.dialog.assetCode')" prop="asset_code">
               <el-input v-model="form.asset_code" :disabled="!!form.id" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="资产名称" prop="asset_name">
+            <el-form-item :label="$t('fixedAssets.dialog.assetName')" prop="asset_name">
               <el-input v-model="form.asset_name" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="类别" prop="category">
-              <el-select v-model="form.category" placeholder="选择类别" style="width: 100%">
-                <el-option label="房屋建筑" value="building" />
-                <el-option label="机器设备" value="equipment" />
-                <el-option label="运输工具" value="vehicle" />
-                <el-option label="电子设备" value="electronic" />
-                <el-option label="办公家具" value="furniture" />
+            <el-form-item :label="$t('fixedAssets.dialog.category')" prop="category">
+              <el-select v-model="form.category" :placeholder="$t('fixedAssets.dialog.categoryPlaceholder')" style="width: 100%">
+                <el-option :label="$t('fixedAssets.category.building')" value="building" />
+                <el-option :label="$t('fixedAssets.category.equipment')" value="equipment" />
+                <el-option :label="$t('fixedAssets.category.vehicle')" value="vehicle" />
+                <el-option :label="$t('fixedAssets.category.electronic')" value="electronic" />
+                <el-option :label="$t('fixedAssets.category.furniture')" value="furniture" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="购置日期" prop="purchase_date">
+            <el-form-item :label="$t('fixedAssets.dialog.purchaseDate')" prop="purchase_date">
               <el-date-picker
                 v-model="form.purchase_date"
                 type="date"
-                placeholder="选择日期"
+                :placeholder="$t('fixedAssets.dialog.purchaseDatePlaceholder')"
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
               />
@@ -148,7 +149,7 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="原值" prop="purchase_amount">
+            <el-form-item :label="$t('fixedAssets.dialog.originalValue')" prop="purchase_amount">
               <el-input-number
                 v-model="form.purchase_amount"
                 :min="0"
@@ -158,7 +159,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="残值" prop="salvage_value">
+            <el-form-item :label="$t('fixedAssets.dialog.salvageValue')" prop="salvage_value">
               <el-input-number
                 v-model="form.salvage_value"
                 :min="0"
@@ -170,57 +171,57 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="使用年限(月)" prop="useful_life_months">
+            <el-form-item :label="$t('fixedAssets.dialog.usefulLifeMonths')" prop="useful_life_months">
               <el-input-number v-model="form.useful_life_months" :min="1" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="折旧方法" prop="depreciation_method">
+            <el-form-item :label="$t('fixedAssets.dialog.depreciationMethod')" prop="depreciation_method">
               <el-select v-model="form.depreciation_method" style="width: 100%">
-                <el-option label="直线法" value="straight_line" />
-                <el-option label="工作量法" value="workload" />
-                <el-option label="双倍余额递减" value="double_declining" />
-                <el-option label="年数总和法" value="sum_of_years" />
+                <el-option :label="$t('fixedAssets.depreciationMethod.straightLine')" value="straight_line" />
+                <el-option :label="$t('fixedAssets.depreciationMethod.workload')" value="workload" />
+                <el-option :label="$t('fixedAssets.depreciationMethod.doubleDeclining')" value="double_declining" />
+                <el-option :label="$t('fixedAssets.depreciationMethod.sumOfYears')" value="sum_of_years" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="位置">
+            <el-form-item :label="$t('fixedAssets.dialog.location')">
               <el-input v-model="form.location" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="保管人">
+            <el-form-item :label="$t('fixedAssets.dialog.custodian')">
               <el-input v-model="form.custodian" />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('fixedAssets.dialog.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('fixedAssets.dialog.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- v3 复审 P1-2：资产处置对话框 -->
-    <el-dialog v-model="disposalDialogVisible" title="资产处置" width="520px" aria-label="资产处置对话框">
+    <el-dialog v-model="disposalDialogVisible" :title="$t('fixedAssets.disposal.title')" width="520px" :aria-label="$t('fixedAssets.disposal.ariaLabel')">
       <el-form
         ref="disposalFormRef"
         :model="disposalForm"
         :rules="disposalRules"
         label-width="100px"
-        aria-label="资产处置表单"
+        :aria-label="$t('fixedAssets.disposal.formAriaLabel')"
       >
-        <el-form-item label="处置方式" prop="disposal_type">
-          <el-select v-model="disposalForm.disposal_type" placeholder="选择处置方式" style="width: 100%">
-            <el-option label="出售" value="SALE" />
-            <el-option label="报废" value="SCRAP" />
-            <el-option label="转移" value="TRANSFER" />
+        <el-form-item :label="$t('fixedAssets.disposal.type')" prop="disposal_type">
+          <el-select v-model="disposalForm.disposal_type" :placeholder="$t('fixedAssets.disposal.typePlaceholder')" style="width: 100%">
+            <el-option :label="$t('fixedAssets.disposal.typeSale')" value="SALE" />
+            <el-option :label="$t('fixedAssets.disposal.typeScrap')" value="SCRAP" />
+            <el-option :label="$t('fixedAssets.disposal.typeTransfer')" value="TRANSFER" />
           </el-select>
         </el-form-item>
-        <el-form-item label="处置价值" prop="disposal_value">
+        <el-form-item :label="$t('fixedAssets.disposal.value')" prop="disposal_value">
           <el-input-number
             v-model="disposalForm.disposal_value"
             :min="0"
@@ -228,31 +229,31 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="处置日期" prop="disposal_date">
+        <el-form-item :label="$t('fixedAssets.disposal.date')" prop="disposal_date">
           <el-date-picker
             v-model="disposalForm.disposal_date"
             type="date"
-            placeholder="选择处置日期"
+            :placeholder="$t('fixedAssets.disposal.datePlaceholder')"
             value-format="YYYY-MM-DD"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="处置原因" prop="reason">
+        <el-form-item :label="$t('fixedAssets.disposal.reason')" prop="reason">
           <el-input
             v-model="disposalForm.reason"
             type="textarea"
             :rows="3"
-            placeholder="请输入处置原因"
+            :placeholder="$t('fixedAssets.disposal.reasonPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="买方信息">
-          <el-input v-model="disposalForm.buyer_info" placeholder="买方/接收方信息（可选）" />
+        <el-form-item :label="$t('fixedAssets.disposal.buyerInfo')">
+          <el-input v-model="disposalForm.buyer_info" :placeholder="$t('fixedAssets.disposal.buyerInfoPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="disposalDialogVisible = false">取消</el-button>
+        <el-button @click="disposalDialogVisible = false">{{ $t('fixedAssets.disposal.cancel') }}</el-button>
         <el-button type="warning" :loading="disposalSubmitting" @click="submitDisposal"
-          >确认处置</el-button
+          >{{ $t('fixedAssets.disposal.confirm') }}</el-button
         >
       </template>
     </el-dialog>
@@ -261,6 +262,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh, Download } from '@element-plus/icons-vue'
 import {
@@ -281,6 +283,8 @@ import { exportFromBackend } from '@/utils/export'
 // 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
 import { useTableApi } from '@/composables/useTableApi'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
@@ -299,10 +303,10 @@ const disposalForm = reactive<DisposalRequest>({
 })
 
 const disposalRules: FormRules = {
-  disposal_type: [{ required: true, message: '请选择处置方式', trigger: 'change' }],
-  disposal_value: [{ required: true, message: '请输入处置价值', trigger: 'blur' }],
-  disposal_date: [{ required: true, message: '请选择处置日期', trigger: 'change' }],
-  reason: [{ required: true, message: '请输入处置原因', trigger: 'blur' }],
+  disposal_type: [{ required: true, message: t('fixedAssets.validation.disposalTypeRequired'), trigger: 'change' }],
+  disposal_value: [{ required: true, message: t('fixedAssets.validation.disposalValueRequired'), trigger: 'blur' }],
+  disposal_date: [{ required: true, message: t('fixedAssets.validation.disposalDateRequired'), trigger: 'change' }],
+  reason: [{ required: true, message: t('fixedAssets.validation.disposalReasonRequired'), trigger: 'blur' }],
 }
 
 // 批次 278：筛选条件（仅保留业务字段，page/page_size 由 useTableApi 管理）
@@ -328,9 +332,9 @@ const {
   defaultPageSize: 20,
   onError: (err: unknown) => {
     if (err instanceof Error) {
-      ElMessage.error(err.message || '获取资产列表失败')
+      ElMessage.error(err.message || t('fixedAssets.message.loadListFailed'))
     } else {
-      ElMessage.error('获取资产列表失败')
+      ElMessage.error(t('fixedAssets.message.loadListFailed'))
     }
   },
 })
@@ -367,31 +371,31 @@ const form = reactive<FixedAssetCreateRequest & { id?: number }>({
 })
 
 const rules: FormRules = {
-  asset_code: [{ required: true, message: '请输入资产编码', trigger: 'blur' }],
-  asset_name: [{ required: true, message: '请输入资产名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择类别', trigger: 'change' }],
-  purchase_date: [{ required: true, message: '请选择购置日期', trigger: 'change' }],
-  purchase_amount: [{ required: true, message: '请输入原值', trigger: 'blur' }],
-  useful_life_months: [{ required: true, message: '请输入使用年限', trigger: 'blur' }],
-  depreciation_method: [{ required: true, message: '请选择折旧方法', trigger: 'change' }],
+  asset_code: [{ required: true, message: t('fixedAssets.validation.assetCodeRequired'), trigger: 'blur' }],
+  asset_name: [{ required: true, message: t('fixedAssets.validation.assetNameRequired'), trigger: 'blur' }],
+  category: [{ required: true, message: t('fixedAssets.validation.categoryRequired'), trigger: 'change' }],
+  purchase_date: [{ required: true, message: t('fixedAssets.validation.purchaseDateRequired'), trigger: 'change' }],
+  purchase_amount: [{ required: true, message: t('fixedAssets.validation.purchaseAmountRequired'), trigger: 'blur' }],
+  useful_life_months: [{ required: true, message: t('fixedAssets.validation.usefulLifeRequired'), trigger: 'blur' }],
+  depreciation_method: [{ required: true, message: t('fixedAssets.validation.depreciationMethodRequired'), trigger: 'change' }],
 }
 
 const getCategoryLabel = (category: string) => {
   const map: Record<string, string> = {
-    building: '房屋建筑',
-    equipment: '机器设备',
-    vehicle: '运输工具',
-    electronic: '电子设备',
-    furniture: '办公家具',
+    building: t('fixedAssets.category.building'),
+    equipment: t('fixedAssets.category.equipment'),
+    vehicle: t('fixedAssets.category.vehicle'),
+    electronic: t('fixedAssets.category.electronic'),
+    furniture: t('fixedAssets.category.furniture'),
   }
   return map[category] || category
 }
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    in_use: '在用',
-    idle: '闲置',
-    disposed: '已处置',
+    in_use: t('fixedAssets.status.inUse'),
+    idle: t('fixedAssets.status.idle'),
+    disposed: t('fixedAssets.status.disposed'),
   }
   return map[status] || status
 }
@@ -463,16 +467,16 @@ const handleSubmit = async () => {
           custodian: form.custodian,
         }
         await updateAsset(form.id, updateData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('fixedAssets.message.updateSuccess'))
       } else {
         await createAsset(form)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('fixedAssets.message.createSuccess'))
       }
       dialogVisible.value = false
       fetchAssets()
     } catch (e) {
       const err = e as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('fixedAssets.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -481,32 +485,46 @@ const handleSubmit = async () => {
 
 const handleDelete = async (row: FixedAsset) => {
   try {
-    await ElMessageBox.confirm(`确定删除资产 "${row.asset_name}" 吗？`, '删除确认', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('fixedAssets.message.deleteConfirm', { name: row.asset_name }),
+      t('fixedAssets.message.deleteConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
     await deleteAssetApi(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('fixedAssets.message.deleteSuccess'))
     fetchAssets()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('fixedAssets.message.deleteFailed'))
     }
   }
 }
 
 const handleDepreciate = async (row: FixedAsset) => {
   try {
-    await ElMessageBox.confirm('确定对该资产计提折旧吗？', '计提折旧', { type: 'info' })
+    await ElMessageBox.confirm(
+      t('fixedAssets.message.depreciateConfirm'),
+      t('fixedAssets.message.depreciateTitle'),
+      {
+        type: 'info',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
     // 批次 88 PH-2：补传当前期间（YYYY-MM 格式），后端按期间记录折旧明细
     const currentPeriod = new Date().toISOString().slice(0, 7)
     await depreciateAsset(row.id, currentPeriod)
-    ElMessage.success('折旧成功')
+    ElMessage.success(t('fixedAssets.message.depreciateSuccess'))
     fetchAssets()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '折旧失败')
+      ElMessage.error(err.message || t('fixedAssets.message.depreciateFailed'))
     }
   }
 }
@@ -532,12 +550,12 @@ const submitDisposal = async () => {
     disposalSubmitting.value = true
     try {
       await disposeAsset(assetId, { ...disposalForm })
-      ElMessage.success('处置成功')
+      ElMessage.success(t('fixedAssets.message.disposeSuccess'))
       disposalDialogVisible.value = false
       fetchAssets()
     } catch (e) {
       const err = e as Error
-      ElMessage.error(err.message || '处置失败')
+      ElMessage.error(err.message || t('fixedAssets.message.disposeFailed'))
     } finally {
       disposalSubmitting.value = false
     }
@@ -547,51 +565,55 @@ const submitDisposal = async () => {
 // 批次 157a P1-1 修复：接入 batchDepreciateAssets API 实现批量计提折旧
 const handleDepreciateAll = async () => {
   if (assetList.value.length === 0) {
-    ElMessage.warning('当前没有可计提折旧的资产')
+    ElMessage.warning(t('fixedAssets.message.noDepreciableAsset'))
     return
   }
   const currentPeriod = new Date().toISOString().slice(0, 7)
   try {
     const { value: inputPeriod } = await ElMessageBox.prompt(
-      '请输入计提折旧的会计期间（YYYY-MM 格式，如 2026-07）：',
-      '批量计提折旧',
+      t('fixedAssets.message.batchDepreciatePrompt'),
+      t('fixedAssets.message.batchDepreciateTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         inputValue: currentPeriod,
         inputPattern: /^\d{4}-\d{2}$/,
-        inputErrorMessage: '请输入有效的期间（YYYY-MM）',
+        inputErrorMessage: t('fixedAssets.message.invalidPeriod'),
       }
     )
     const userStore = useUserStore()
     const userId = userStore.userInfo?.id
     if (!userId) {
-      ElMessage.error('无法获取当前用户信息，请重新登录')
+      ElMessage.error(t('fixedAssets.message.userNotFound'))
       return
     }
     const assetIds = assetList.value
       .filter(a => a.status === 'in_use' || a.status === 'active')
       .map(a => a.id)
     if (assetIds.length === 0) {
-      ElMessage.warning('没有处于在用状态的资产可计提折旧')
+      ElMessage.warning(t('fixedAssets.message.noInUseAsset'))
       return
     }
     await ElMessageBox.confirm(
-      `将对 ${assetIds.length} 项资产在 ${inputPeriod} 期间计提折旧，是否继续？`,
-      '批量计提确认',
-      { type: 'warning' }
+      t('fixedAssets.message.batchDepreciateConfirm', { count: assetIds.length, period: inputPeriod }),
+      t('fixedAssets.message.batchDepreciateConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+      }
     )
     await batchDepreciateAssets({
       asset_ids: assetIds,
       calculation_date: inputPeriod,
       user_id: userId,
     })
-    ElMessage.success(`已对 ${assetIds.length} 项资产计提折旧`)
+    ElMessage.success(t('fixedAssets.message.batchDepreciateSuccess', { count: assetIds.length }))
     fetchAssets()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '批量计提折旧失败')
+      ElMessage.error(err.message || t('fixedAssets.message.batchDepreciateFailed'))
     }
   }
 }
