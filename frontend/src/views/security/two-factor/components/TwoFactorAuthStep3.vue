@@ -1,5 +1,5 @@
 <!--
-  TfaStep3.vue - 2FA Step 3 验证并启用面板（自包含表单 + 暴露 validate/setError 给父组件）
+  TwoFactorAuthStep3.vue - 2FA Step 3 验证并启用面板（自包含表单 + 暴露 validate/setError 给父组件）
   拆分自 security/TwoFactorSetup.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->

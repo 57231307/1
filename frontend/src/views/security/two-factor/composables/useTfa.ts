@@ -1,7 +1,7 @@
 // TwoFactorSetup 主业务 composable
 // 拆分自 security/TwoFactorSetup.vue（P14 批 2 I-3 第 6 批）
 // 业务领域：双因素认证（currentStep + qrCodeDataUrl + secretText + recoveryCodes + isEnabled/username）
-// 注：Step 3 的 verifyForm/verifyFormRef/verifyError 已下沉到 TfaStep3 子组件，
+// 注：Step 3 的 verifyForm/verifyFormRef/verifyError 已下沉到 TwoFactorAuthStep3 子组件，
 //     父组件通过 ref 调用其 validate() 方法
 // 行为完全保持一致（仅结构重构）
 import { computed, reactive, ref } from 'vue'

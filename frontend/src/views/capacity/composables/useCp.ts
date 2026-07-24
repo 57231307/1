@@ -42,7 +42,7 @@ export const useCp = () => {
   const bottlenecks = ref<WorkCenter[]>([])
   const bottleneckLoading = ref(false)
 
-  // 趋势数据（传给 CpTrend 用于渲染 ECharts）
+  // 趋势数据（传给 CapacityTrend 用于渲染 ECharts）
   const trendData = ref<CapacityTrend[]>([])
 
   // 获取概览

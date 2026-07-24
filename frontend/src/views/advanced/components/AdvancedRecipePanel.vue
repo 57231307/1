@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * RcpPanel - 工艺优化（染色配方）tab 视图组件
+ * AdvancedRecipePanel - 工艺优化（染色配方）tab 视图组件
  * 任务编号: P13 批 1 B3 I-1（拆分 advanced/index.vue 第 4 个 tab）
  * 染色工艺参数智能推荐（A2-1）
  * 数据与函数全部由父组件通过 props 传入

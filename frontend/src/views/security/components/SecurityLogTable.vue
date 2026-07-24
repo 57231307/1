@@ -1,5 +1,5 @@
 <!--
-  SecLogTbl.vue - 登录日志表（含过滤栏 + 分页）
+  SecurityLogTable.vue - 登录日志表（含过滤栏 + 分页）
   拆分自 security/index.vue（P14 批 2 I-3 第 6 批）
   P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
   批次 282：接入 useTableApi 模式（page/pageSize props + handleSearch 同步筛选条件）

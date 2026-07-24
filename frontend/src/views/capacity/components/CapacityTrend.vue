@@ -1,5 +1,5 @@
 <!--
-  CpTrend.vue - 产能负荷趋势 ECharts 图（含 ECharts 实例生命周期管理）
+  CapacityTrend.vue - 产能负荷趋势 ECharts 图（含 ECharts 实例生命周期管理）
   拆分自 capacity/index.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->

@@ -2,7 +2,7 @@
   security/index.vue - 登录安全（拆分重构版）
   任务编号: P14 批 2 I-3 第 6 批
   拆分：547 行 → ~100 行 + 4 子组件 + 2 composable + 1 工具
-  批次 282：SecLogTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
+  批次 282：SecurityLogTable 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="security-page">
@@ -23,9 +23,9 @@
       </div>
     </div>
 
-    <SecStat :stats="sec.stats" />
+    <SecurityStat :stats="sec.stats" />
 
-    <SecLogTbl
+    <SecurityLogTable
       v-model:page="sec.page"
       v-model:page-size="sec.pageSize"
       :data="sec.loginLogs"
@@ -36,13 +36,13 @@
       @update:query-params="(v) => Object.assign(sec.queryParams, v)"
     />
 
-    <SecLockTbl
+    <SecurityLockTable
       :data="sec.lockedAccounts"
       :loading="sec.lockLoading"
       @unlock="(row) => secProc.handleUnlock(row, sec)"
     />
 
-    <SecAlertTbl :data="sec.securityAlerts" :loading="sec.alertLoading" />
+    <SecurityAlertTable :data="sec.securityAlerts" :loading="sec.alertLoading" />
   </div>
 </template>
 
@@ -51,10 +51,10 @@ import { onMounted } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import { useSec } from './composables/useSec'
 import { useSecProc } from './composables/useSecProc'
-import SecStat from './components/SecStat.vue'
-import SecLogTbl from './components/SecLogTbl.vue'
-import SecLockTbl from './components/SecLockTbl.vue'
-import SecAlertTbl from './components/SecAlertTbl.vue'
+import SecurityStat from './components/SecurityStat.vue'
+import SecurityLogTable from './components/SecurityLogTable.vue'
+import SecurityLockTable from './components/SecurityLockTable.vue'
+import SecurityAlertTable from './components/SecurityAlertTable.vue'
 
 // 业务状态
 const sec = useSec()

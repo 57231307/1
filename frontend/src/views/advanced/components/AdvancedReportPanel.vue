@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * RptPanel - 报表引擎 tab 视图组件（纯展示）
+ * AdvancedReportPanel - 报表引擎 tab 视图组件（纯展示）
  * 任务编号: P13 批 1 B3 I-1（拆分 advanced/index.vue 第 2 个 tab）
  * 包含：报表模板列表、执行报表、导出报表、报表结果展示弹窗
  * 数据与函数全部由父组件通过 props 传入

@@ -1,5 +1,5 @@
 <!--
-  SecLockTbl.vue - 锁定账户管理表（含解锁操作）
+  SecurityLockTable.vue - 锁定账户管理表（含解锁操作）
   拆分自 security/index.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->
