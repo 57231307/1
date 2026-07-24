@@ -105,7 +105,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listAPReconciliations,
+  getAPReconciliationList,
   generateAPReconciliation,
   confirmAPReconciliation,
   disputeAPReconciliation,
@@ -142,7 +142,7 @@ const getReconciliationStatusLabel = (status: string) => {
 const fetchReconciliations = async () => {
   reconciliationLoading.value = true
   try {
-    const res = await listAPReconciliations()
+    const res = await getAPReconciliationList()
     const d = res.data as
       | { list?: APReconciliation[]; items?: APReconciliation[] }
       | APReconciliation[]

@@ -1,7 +1,7 @@
 // ap-invoice.ts - 应付发票 API 兼容层
 // 实际定义在 ap.ts 中
 export {
-  listAPInvoices,
+  getAPInvoiceList,
   getAPInvoice,
   createAPInvoice,
   updateAPInvoice,

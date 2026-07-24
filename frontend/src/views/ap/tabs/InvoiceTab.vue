@@ -200,7 +200,7 @@ import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listAPInvoices,
+  getAPInvoiceList,
   getAPInvoice,
   createAPInvoice,
   approveAPInvoice,
@@ -243,7 +243,7 @@ const getInvoiceStatusLabel = (status: string) => {
 const fetchInvoices = async () => {
   invoiceLoading.value = true
   try {
-    const res = await listAPInvoices(invoiceQuery)
+    const res = await getAPInvoiceList(invoiceQuery)
     const d = res.data as
       | { list?: APInvoice[]; items?: APInvoice[]; data?: APInvoice[] }
       | APInvoice[]
@@ -415,7 +415,7 @@ const handleExportInvoices = async () => {
 
 const fetchSuppliers = async () => {
   try {
-    const res = await listAPInvoices({} as never)
+    const res = await getAPInvoiceList({} as never)
     void res
   } catch (_e) {
     // suppliers 实际应通过 supplierApi 加载；此处保持空列表不影响主流程

@@ -75,7 +75,7 @@ export interface APReconciliation {
   created_at: string
 }
 
-export function listAPInvoices(
+export function getAPInvoiceList(
   params?: QueryParams
 ): Promise<ApiResponse<PaginatedResponse<APInvoice>>> {
   return request.get('/ap/invoices', { params })
@@ -133,7 +133,7 @@ export function getAPAgingAnalysis(params?: {
   return request.get('/ap/invoices/aging', { params })
 }
 
-export function listAPPayments(params?: QueryParams): Promise<ApiResponse<APPayment[]>> {
+export function getAPPaymentList(params?: QueryParams): Promise<ApiResponse<APPayment[]>> {
   return request.get('/ap/payments', { params })
 }
 
@@ -156,7 +156,7 @@ export function confirmAPPayment(id: number): Promise<ApiResponse<void>> {
   return request.post(`/ap/payments/${id}/confirm`)
 }
 
-export function listAPPaymentRequests(
+export function getAPPaymentRequestList(
   params?: QueryParams
 ): Promise<ApiResponse<APPaymentRequest[]>> {
   return request.get('/ap/payment-requests', { params })
@@ -195,7 +195,7 @@ export function rejectAPPaymentRequest(id: number, reason: string): Promise<ApiR
   return request.post(`/ap/payment-requests/${id}/reject`, { reason })
 }
 
-export function listAPVerifications(params?: QueryParams): Promise<ApiResponse<APVerification[]>> {
+export function getAPVerificationList(params?: QueryParams): Promise<ApiResponse<APVerification[]>> {
   return request.get('/ap/verifications', { params })
 }
 
@@ -230,7 +230,7 @@ export function getUnverifiedAPPayments(): Promise<ApiResponse<APPayment[]>> {
   return request.get('/ap/verifications/unverified/payments')
 }
 
-export function listAPReconciliations(
+export function getAPReconciliationList(
   params?: QueryParams
 ): Promise<ApiResponse<APReconciliation[]>> {
   return request.get('/ap/reconciliations', { params })

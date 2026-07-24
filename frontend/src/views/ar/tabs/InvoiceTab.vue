@@ -197,7 +197,7 @@ import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listARInvoices,
+  getARInvoiceList,
   getARInvoice,
   createARInvoice,
   approveARInvoice,
@@ -265,7 +265,7 @@ const getInvoiceStatusType = (status: string) => {
 const fetchInvoices = async () => {
   invoiceLoading.value = true
   try {
-    const res = await listARInvoices(invoiceQuery)
+    const res = await getARInvoiceList(invoiceQuery)
     const d = res.data as
       | { list?: ARInvoice[]; items?: ARInvoice[]; data?: ARInvoice[] }
       | ARInvoice[]

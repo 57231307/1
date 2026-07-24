@@ -29,7 +29,7 @@ export interface AccountSubjectUpdateRequest {
   status?: number
 }
 
-export function listSubjects(params?: QueryParams): Promise<ApiResponse<AccountSubject[]>> {
+export function getSubjectList(params?: QueryParams): Promise<ApiResponse<AccountSubject[]>> {
   return request.get('/subjects', { params })
 }
 
@@ -108,7 +108,7 @@ export interface VoucherUpdateRequest {
   }[]
 }
 
-export function listVouchers(params?: QueryParams): Promise<ApiResponse<Voucher[]>> {
+export function getVoucherList(params?: QueryParams): Promise<ApiResponse<Voucher[]>> {
   return request.get('/vouchers', { params })
 }
 

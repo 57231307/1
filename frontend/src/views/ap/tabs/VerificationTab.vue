@@ -88,7 +88,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listAPVerifications,
+  getAPVerificationList,
   manualVerifyAP,
   getUnverifiedAPInvoices,
   getUnverifiedAPPayments,
@@ -109,7 +109,7 @@ const formatMoney = (amount: number | undefined) => {
 const fetchVerifications = async () => {
   verificationLoading.value = true
   try {
-    const res = await listAPVerifications()
+    const res = await getAPVerificationList()
     const d = res.data as
       | { list?: APVerification[]; items?: APVerification[] }
       | APVerification[]
