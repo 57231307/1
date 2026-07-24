@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * PurchTop - 采购管理页顶部（标题 + 面包屑 + 操作按钮）
+ * PurchaseTop - 采购管理页顶部（标题 + 面包屑 + 操作按钮）
  * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 页头）
  */
 import { Plus, Printer, Download } from '@element-plus/icons-vue'

@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <PurchTop
+    <PurchaseTop
       :on-create="create.handleCreate"
       :on-print="act.handlePrint"
       :on-export="act.handleExport"
@@ -8,7 +8,7 @@
 
     <StatCards :stats="list.stats.value" :format-currency="list.formatCurrency" />
 
-    <PurchFilter
+    <PurchaseFilter
       :query-params="list.queryParams"
       :suppliers="list.suppliers.value"
       :on-query="list.handleQuery"
@@ -16,7 +16,7 @@
       @update:query-params="(v) => Object.assign(list.queryParams, v)"
     />
 
-    <PurchTbl
+    <PurchaseTable
       :orders="list.orders.value"
       :loading="list.loading.value"
       :total="list.total.value"
@@ -81,10 +81,10 @@ import { usePurchAct } from './composables/usePurchAct'
 import { usePurchRcv } from './composables/usePurchRcv'
 import { useCreate } from './composables/useCreate'
 import { type PurchaseOrder } from '@/api/purchase'
-import PurchTop from './components/PurchTop.vue'
+import PurchaseTop from './components/PurchaseTop.vue'
 import StatCards from './components/StatCards.vue'
-import PurchFilter from './components/PurchFilter.vue'
-import PurchTbl from './components/PurchTbl.vue'
+import PurchaseFilter from './components/PurchaseFilter.vue'
+import PurchaseTable from './components/PurchaseTable.vue'
 import CreateDlg from './components/CreateDlg.vue'
 import ReceiveDlg from './components/ReceiveDlg.vue'
 import ViewDlg from './components/ViewDlg.vue'

@@ -1,5 +1,5 @@
 <!--
-  PrcTbl.vue - 采购入库列表
+  PurchaseReceiptTable.vue - 采购入库列表
   拆分自 purchaseReceipt/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->

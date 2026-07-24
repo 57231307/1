@@ -1,5 +1,5 @@
 <!--
-  DbStat.vue - Dashboard 8 统计卡片（2 行 × 4 卡：面料/库存/订单/客户 + 今日/待处理/预警/销售）
+  DashboardStat.vue - Dashboard 8 统计卡片（2 行 × 4 卡：面料/库存/订单/客户 + 今日/待处理/预警/销售）
   拆分自 Dashboard.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->

@@ -1,5 +1,5 @@
 <!--
-  DbTrend.vue - Dashboard 销售趋势 ECharts 折线柱状图
+  DashboardTrend.vue - Dashboard 销售趋势 ECharts 折线柱状图
   拆分自 Dashboard.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->

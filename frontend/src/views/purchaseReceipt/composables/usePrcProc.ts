@@ -119,7 +119,7 @@ export function usePrcProc(cb: PrcCallbacks) {
   }
 
   /**
-   * 提交表单（仅 API 调用 + 明细校验，表单规则校验已由 PrcForm 内部完成）
+   * 提交表单（仅 API 调用 + 明细校验，表单规则校验已由 PurchaseReceiptForm 内部完成）
    */
   const handleSubmit = async () => {
     const validItems = (cb.form.items || []).filter(

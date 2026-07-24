@@ -19,24 +19,24 @@
       />
     </div>
 
-    <DbStat :stats="db.stats" />
+    <DashboardStat :stats="db.stats" />
 
     <el-row :gutter="20" class="charts-row">
       <el-col :xs="24" :lg="16">
-        <DbTrend
+        <DashboardTrend
           :data="db.trendData"
           :days="db.trendDays"
           @update:days="(v: number) => (db.trendDays = v)"
         />
       </el-col>
       <el-col :xs="24" :lg="8">
-        <DbPie :data="db.categoryDistribution" />
+        <DashboardPie :data="db.categoryDistribution" />
       </el-col>
     </el-row>
 
     <el-row :gutter="20" class="activities-row">
       <el-col :span="24">
-        <DbActTbl :data="db.stats.recentActivities || []" @refresh="db.refreshActivities" />
+        <DashboardActivityTable :data="db.stats.recentActivities || []" @refresh="db.refreshActivities" />
       </el-col>
     </el-row>
   </div>
@@ -45,10 +45,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useDb } from './dashboard/composables/useDb'
-import DbStat from './dashboard/components/DbStat.vue'
-import DbTrend from './dashboard/components/DbTrend.vue'
-import DbPie from './dashboard/components/DbPie.vue'
-import DbActTbl from './dashboard/components/DbActTbl.vue'
+import DashboardStat from './dashboard/components/DashboardStat.vue'
+import DashboardTrend from './dashboard/components/DashboardTrend.vue'
+import DashboardPie from './dashboard/components/DashboardPie.vue'
+import DashboardActivityTable from './dashboard/components/DashboardActivityTable.vue'
 
 // 业务状态
 const db = useDb()

@@ -2,6 +2,7 @@
 /**
  * AI 预测风险趋势图（P2-4）
  * 展示一段时间内质量风险评分变化与同期合格率
+ * 组件文件 D13 Batch 7 缩写命名统一：AIPredictionChart → AiPredictionChart
  */
 import { computed } from 'vue'
 
