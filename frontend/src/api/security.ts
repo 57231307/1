@@ -55,40 +55,50 @@ export interface SecurityQueryParams {
   date_range?: string[]
 }
 
-export const securityApi = {
-  // 后端路由 GET /api/v1/erp/stats
-  getStats: () => request.get<ApiResponse<SecurityStats>>('/stats'),
+// D14 Batch 5b：原 securityApi.getStats 转为风格 B 函数
+// 后端路由 GET /api/v1/erp/stats
+export const getSecurityStats = () =>
+  request.get<ApiResponse<SecurityStats>>('/stats')
 
-  // 后端路由 GET /api/v1/erp/login-logs
-  getLoginLogs: (params?: SecurityQueryParams) =>
-    request.get<ApiResponse<{ list: LoginLog[]; total: number }>>('/login-logs', {
-      params,
-    }),
+// D14 Batch 5b：原 securityApi.getLoginLogs 转为风格 B 函数
+// 后端路由 GET /api/v1/erp/login-logs
+export const getLoginLogList = (params?: SecurityQueryParams) =>
+  request.get<ApiResponse<{ list: LoginLog[]; total: number }>>('/login-logs', {
+    params,
+  })
 
-  // 后端路由 GET /api/v1/erp/locked-accounts
-  getLockedAccounts: () => request.get<ApiResponse<LockedAccount[]>>('/locked-accounts'),
+// D14 Batch 5b：原 securityApi.getLockedAccounts 转为风格 B 函数
+// 后端路由 GET /api/v1/erp/locked-accounts
+export const getLockedAccountList = () =>
+  request.get<ApiResponse<LockedAccount[]>>('/locked-accounts')
 
-  // 后端路由 POST /api/v1/erp/locked-accounts/:id/unlock
-  unlockAccount: (id: number) =>
-    request.post<ApiResponse<void>>(`/locked-accounts/${id}/unlock`),
+// D14 Batch 5b：原 securityApi.unlockAccount 转为风格 B 函数
+// 后端路由 POST /api/v1/erp/locked-accounts/:id/unlock
+export const unlockAccount = (id: number) =>
+  request.post<ApiResponse<void>>(`/locked-accounts/${id}/unlock`)
 
-  // 后端路由 GET /api/v1/erp/alerts
-  getSecurityAlerts: () => request.get<ApiResponse<SecurityAlert[]>>('/alerts'),
+// D14 Batch 5b：原 securityApi.getSecurityAlerts 转为风格 B 函数
+// 后端路由 GET /api/v1/erp/alerts
+export const getSecurityAlertList = () =>
+  request.get<ApiResponse<SecurityAlert[]>>('/alerts')
 
-  // 后端路由 POST /api/v1/erp/alerts/:id/resolve
-  resolveAlert: (id: number) => request.post<ApiResponse<void>>(`/alerts/${id}/resolve`),
+// D14 Batch 5b：原 securityApi.resolveAlert 转为风格 B 函数
+// 后端路由 POST /api/v1/erp/alerts/:id/resolve
+export const resolveSecurityAlert = (id: number) =>
+  request.post<ApiResponse<void>>(`/alerts/${id}/resolve`)
 
-  // 后端路由 GET /api/v1/erp/login-logs/export
-  exportLoginLogs: (params?: SecurityQueryParams) =>
-    request.get<Blob>('/login-logs/export', { params, responseType: 'blob' }),
+// D14 Batch 5b：原 securityApi.exportLoginLogs 转为风格 B 函数
+// 后端路由 GET /api/v1/erp/login-logs/export
+export const exportLoginLogs = (params?: SecurityQueryParams) =>
+  request.get<Blob>('/login-logs/export', { params, responseType: 'blob' })
 
-  /**
-   * 检查指定用户名的账号锁定状态
-   * 调 GET /api/v1/erp/lock-status?username=xxx
-   * 用于登录页：用户输入用户名失焦时预检查 / 登录失败后展示锁定信息
-   */
-  checkLockStatus: (username: string) =>
-    request.get<ApiResponse<LockStatus>>('/lock-status', {
-      params: { username },
-    }),
-}
+// D14 Batch 5b：原 securityApi.checkLockStatus 转为风格 B 函数
+/**
+ * 检查指定用户名的账号锁定状态
+ * 调 GET /api/v1/erp/lock-status?username=xxx
+ * 用于登录页：用户输入用户名失焦时预检查 / 登录失败后展示锁定信息
+ */
+export const checkLockStatus = (username: string) =>
+  request.get<ApiResponse<LockStatus>>('/lock-status', {
+    params: { username },
+  })

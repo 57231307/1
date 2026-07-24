@@ -4,7 +4,7 @@
 // 行为完全保持一致（仅结构重构）
 import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { dashboardApi } from '@/api/dashboard'
+import { getDashboardOverview, getDashboardSalesStats, getDashboardInventoryStats } from '@/api/dashboard'
 import type {
   DashboardOverview,
   SalesTrend,
@@ -28,7 +28,7 @@ export const useDb = () => {
   // 获取概览数据
   const fetchDashboardData = async () => {
     try {
-      const res = await dashboardApi.getOverview()
+      const res = await getDashboardOverview()
       // 安全检查：防止后端返回 data 为 null 时崩溃
       stats.value = res.data || {}
     } catch (error: unknown) {
@@ -42,8 +42,8 @@ export const useDb = () => {
   const fetchChartData = async () => {
     try {
       const [salesRes, inventoryRes] = await Promise.all([
-        dashboardApi.getSalesStats(),
-        dashboardApi.getInventoryStats(),
+        getDashboardSalesStats(),
+        getDashboardInventoryStats(),
       ])
       trendData.value = salesRes.data?.trends || []
       categoryDistribution.value = inventoryRes.data?.categoryDistribution || []
@@ -69,7 +69,7 @@ export const useDb = () => {
   // 趋势天数变化 → 重新拉取销售统计
   const handleTrendDaysChange = async () => {
     try {
-      const res = await dashboardApi.getSalesStats()
+      const res = await getDashboardSalesStats()
       trendData.value = res.data?.trends || []
     } catch (error) {
       logger.error('获取销售趋势失败:', error)

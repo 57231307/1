@@ -84,7 +84,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '@/store/user'
-import { securityApi } from '@/api/security'
+import { checkLockStatus } from '@/api/security'
 import { logger } from '@/utils/logger'
 
 const router = useRouter()
@@ -186,7 +186,7 @@ const startCountdown = () => {
 const handleUsernameBlur = async () => {
   if (!loginForm.username || loginForm.username.length < 3) return
   try {
-    const res = await securityApi.checkLockStatus(loginForm.username)
+    const res = await checkLockStatus(loginForm.username)
     if (res.data) {
       applyLockStatus(res.data)
     }
@@ -202,7 +202,7 @@ const handleUsernameBlur = async () => {
 const refreshLockStatus = async () => {
   if (!loginForm.username) return
   try {
-    const res = await securityApi.checkLockStatus(loginForm.username)
+    const res = await checkLockStatus(loginForm.username)
     if (res.data) {
       applyLockStatus(res.data)
     }

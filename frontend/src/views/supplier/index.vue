@@ -69,7 +69,7 @@ import SupplierDialog from './SupplierDialog.vue'
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
-import { supplierApi, type Supplier, type SupplierQueryParams } from '@/api/supplier'
+import { deleteSupplier, updateSupplier, createSupplier, type Supplier, type SupplierQueryParams } from '@/api/supplier'
 // V15 P0-S12 + P0-S15 修复（Batch 474）：供应商导出改用后端带水印 xlsx 接口
 import { exportFromBackend } from '@/utils/export'
 import { printData } from '@/utils/print'
@@ -202,7 +202,7 @@ const handleDelete = async (row: Supplier) => {
     await ElMessageBox.confirm(`确定删除供应商 "${row.supplier_name}" 吗？`, '删除确认', {
       type: 'warning',
     })
-    await supplierApi.delete(row.id)
+    await deleteSupplier(row.id)
     ElMessage.success('删除成功')
     fetchData()
   } catch (error: unknown) {
@@ -216,10 +216,10 @@ const handleSubmit = async () => {
   submitLoading.value = true
   try {
     if (isEdit.value) {
-      await supplierApi.update(formData.id!, formData)
+      await updateSupplier(formData.id!, formData)
       ElMessage.success('更新成功')
     } else {
-      await supplierApi.create(formData)
+      await createSupplier(formData)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false

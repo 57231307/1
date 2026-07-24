@@ -9,7 +9,10 @@
  */
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  purchaseInspectionApi,
+  getPurchaseInspectionById,
+  updatePurchaseInspection,
+  createPurchaseInspection,
+  completePurchaseInspection,
   type PurchaseInspection,
   type PurchaseInspectionItem,
 } from '@/api/purchase-inspection'
@@ -108,7 +111,7 @@ export function usePiProc(cb: PiCallbacks) {
   /** 查看详情 */
   const handleView = async (row: PurchaseInspection) => {
     try {
-      const res = await purchaseInspectionApi.getById(row.id!)
+      const res = await getPurchaseInspectionById(row.id!)
       cb.detailData = res.data
       cb.detailDialogVisible = true
     } catch (error) {
@@ -120,10 +123,10 @@ export function usePiProc(cb: PiCallbacks) {
   const handleSubmit = async () => {
     try {
       if (cb.isEdit && cb.formData.id) {
-        await purchaseInspectionApi.update(cb.formData.id, cb.formData as never)
+        await updatePurchaseInspection(cb.formData.id, cb.formData as never)
         ElMessage.success('更新成功')
       } else {
-        await purchaseInspectionApi.create(cb.formData as never)
+        await createPurchaseInspection(cb.formData as never)
         ElMessage.success('创建成功')
       }
       cb.dialogVisible = false
@@ -144,7 +147,7 @@ export function usePiProc(cb: PiCallbacks) {
   const handleComplete = async (row: PurchaseInspection) => {
     try {
       await ElMessageBox.confirm('确定要完成该检验单吗？', '提示', { type: 'warning' })
-      await purchaseInspectionApi.complete(row.id!)
+      await completePurchaseInspection(row.id!)
       ElMessage.success('操作成功')
       await cb.fetchData()
     } catch (error) {

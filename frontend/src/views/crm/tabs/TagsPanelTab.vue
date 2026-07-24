@@ -55,7 +55,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import crmEnhancedApi, { type CustomerTag } from '@/api/crm-enhanced'
+// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+import { getCrmTagList, addTagToCustomer, removeTagFromCustomer, type CustomerTag } from '@/api/crm-enhanced'
 import { logger } from '@/utils/logger'
 
 interface Props {
@@ -78,7 +79,7 @@ const form = reactive({
 
 const fetchTags = async () => {
   try {
-    const res = await crmEnhancedApi.getTags()
+    const res = await getCrmTagList()
     availableTags.value = res.data || []
   } catch (error) {
     const err = error as Error
@@ -102,7 +103,7 @@ const handleAdd = async () => {
   if (!selectedTag) return
 
   try {
-    await crmEnhancedApi.addTagToCustomer(props.customerId, selectedTag.id)
+    await addTagToCustomer(props.customerId, selectedTag.id)
     ElMessage.success('标签已添加')
     dialogVisible.value = false
     form.name = ''
@@ -115,7 +116,7 @@ const handleAdd = async () => {
 
 const handleRemove = async (tagId: number) => {
   try {
-    await crmEnhancedApi.removeTagFromCustomer(props.customerId, tagId)
+    await removeTagFromCustomer(props.customerId, tagId)
     ElMessage.success('标签已移除')
     emit('updated')
   } catch (error) {

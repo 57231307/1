@@ -5,7 +5,15 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesApi, type SalesOrder, type SalesDelivery } from '@/api/sales'
+import {
+  approveSalesOrder,
+  cancelSalesOrder,
+  updateSalesOrder,
+  createSalesOrder,
+  createSalesDelivery,
+  type SalesOrder,
+  type SalesDelivery,
+} from '@/api/sales'
 import type { OrderForm } from './useOlv'
 import { logger } from '@/utils/logger'
 
@@ -22,7 +30,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   const handleApprove = async (row: SalesOrder) => {
     try {
       await ElMessageBox.confirm('确定审批此订单吗？', '确认', { type: 'info' })
-      await salesApi.approveOrder(row.id)
+      await approveSalesOrder(row.id)
       ElMessage.success('审批成功')
       await refresh.refresh()
     } catch (error) {
@@ -37,7 +45,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   const handleCancel = async (row: SalesOrder) => {
     try {
       await ElMessageBox.confirm('确定取消此订单吗？', '确认', { type: 'warning' })
-      await salesApi.cancelOrder(row.id)
+      await cancelSalesOrder(row.id)
       ElMessage.success('取消成功')
       await refresh.refresh()
     } catch (error) {
@@ -52,10 +60,10 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   const handleFormSubmit = async (data: OrderForm) => {
     try {
       if (data.id) {
-        await salesApi.updateOrder(data.id, data as unknown as Partial<SalesOrder>)
+        await updateSalesOrder(data.id, data as unknown as Partial<SalesOrder>)
         ElMessage.success('更新成功')
       } else {
-        await salesApi.createOrder(data as unknown as Partial<SalesOrder>)
+        await createSalesOrder(data as unknown as Partial<SalesOrder>)
         ElMessage.success('创建成功')
       }
       await refresh.refresh()
@@ -70,7 +78,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   /** 提交发货（DeliveryDialog 调用） */
   const handleDeliverySubmit = async (form: Partial<SalesDelivery> & { order_id: number }) => {
     try {
-      await salesApi.createDelivery(form.order_id, form as Partial<SalesDelivery>)
+      await createSalesDelivery(form.order_id, form as Partial<SalesDelivery>)
       ElMessage.success('发货成功')
       await refresh.refresh()
       return true

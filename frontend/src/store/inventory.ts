@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
-  inventoryApi,
+  getStockList,
+  getStockAlertList,
+  createStockAdjustment,
   type InventoryStock,
   type StockAlert,
   type InventoryQueryParams,
@@ -17,7 +19,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const fetchStocks = async (params?: InventoryQueryParams) => {
     loading.value = true
     try {
-      const res = await inventoryApi.getStockList(params)
+      const res = await getStockList(params)
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
       if (res.data) {
         stocks.value = res.data.list
@@ -32,7 +34,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   const fetchAlerts = async () => {
     try {
-      const res = await inventoryApi.getStockAlerts()
+      const res = await getStockAlertList()
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
       if (res.data) alerts.value = res.data
     } catch (error) {
@@ -43,7 +45,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   // P2-11a 修复（批次 83 v1 复审）：收紧 createAdjustment 参数类型，对齐 StockAdjustmentData 契约
   const createAdjustment = async (data: import('@/api/inventory').StockAdjustmentData) => {
     try {
-      await inventoryApi.createStockAdjustment(data)
+      await createStockAdjustment(data)
       await fetchStocks()
       return true
     } catch (error) {

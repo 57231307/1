@@ -246,7 +246,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue'
-import crmEnhancedApi, { type CustomerTag, type CustomerWithTags } from '@/api/crm-enhanced'
+// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+import { getCrmTagList, deleteCustomer, updateCustomer, createCustomer, type CustomerTag, type CustomerWithTags } from '@/api/crm-enhanced'
 import { useTableApi } from '@/composables/useTableApi'
 // V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
 // 后端 GET /crm/customers/export 已就绪（Batch 474 注入水印 + 行级数据权限 + 异步审计日志）
@@ -346,7 +347,7 @@ const getCustomerTypeTag = (type: string) => {
 
 const fetchTags = async () => {
   try {
-    const res = await crmEnhancedApi.getTags()
+    const res = await getCrmTagList()
     tags.value = res.data || []
   } catch (error) {
     tags.value = []
@@ -416,7 +417,7 @@ const handleDelete = async (row: CustomerWithTags) => {
     await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', {
       type: 'warning',
     })
-    await crmEnhancedApi.deleteCustomer(row.id)
+    await deleteCustomer(row.id)
     ElMessage.success('删除成功')
     fetchCustomerList()
   } catch (error) {
@@ -436,10 +437,10 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       if (isEdit.value) {
-        await crmEnhancedApi.updateCustomer(formData.id as number, formData)
+        await updateCustomer(formData.id as number, formData)
         ElMessage.success('更新成功')
       } else {
-        await crmEnhancedApi.createCustomer(formData)
+        await createCustomer(formData)
         ElMessage.success('创建成功')
       }
       dialogVisible.value = false

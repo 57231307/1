@@ -5,7 +5,7 @@
 // 批次 288：workCenters 接入 useTableApi，移除手写分页逻辑
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { capacityApi } from '@/api/capacity'
+import { getCapacitySummary, getCapacityTrend, getCapacityBottlenecks } from '@/api/capacity'
 import type { CapacitySummary, WorkCenter, CapacityTrend } from '@/api/capacity'
 import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
@@ -48,7 +48,7 @@ export const useCp = () => {
   // 获取概览
   const fetchSummary = async () => {
     try {
-      const res = await capacityApi.getSummary()
+      const res = await getCapacitySummary()
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) summary.value = res.data
     } catch (error: unknown) {
@@ -60,7 +60,7 @@ export const useCp = () => {
   // 获取趋势数据
   const fetchTrendData = async () => {
     try {
-      const res = await capacityApi.getTrend({
+      const res = await getCapacityTrend({
         days: trendDays.value,
         work_center_id: selectedWorkCenter.value,
       })
@@ -75,7 +75,7 @@ export const useCp = () => {
   const fetchBottlenecks = async () => {
     bottleneckLoading.value = true
     try {
-      const res = await capacityApi.getBottlenecks()
+      const res = await getCapacityBottlenecks()
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) bottlenecks.value = res.data
     } catch (error: unknown) {

@@ -44,40 +44,56 @@ export interface PurchaseReturnQueryParams {
   endDate?: string
 }
 
-export const purchaseReturnApi = {
-  list: (params?: PurchaseReturnQueryParams) =>
-    request.get<ApiResponse<{ list: PurchaseReturn[]; total: number }>>('/purchase/returns', {
-      params,
-    }),
+// D14 Batch 5b：原 purchaseReturnApi.list 转为风格 B 函数
+export const getPurchaseReturnList = (params?: PurchaseReturnQueryParams) =>
+  request.get<ApiResponse<{ list: PurchaseReturn[]; total: number }>>('/purchase/returns', {
+    params,
+  })
 
-  create: (data: Partial<PurchaseReturn>) =>
-    request.post<ApiResponse<PurchaseReturn>>('/purchase/returns', data),
+// D14 Batch 5b：原 purchaseReturnApi.create 转为风格 B 函数
+export const createPurchaseReturn = (data: Partial<PurchaseReturn>) =>
+  request.post<ApiResponse<PurchaseReturn>>('/purchase/returns', data)
 
-  getById: (id: number) => request.get<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}`),
+// D14 Batch 5b：原 purchaseReturnApi.getById 转为风格 B 函数
+export const getPurchaseReturnById = (id: number) =>
+  request.get<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}`)
 
-  update: (id: number, data: Partial<PurchaseReturn>) =>
-    request.put<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}`, data),
+// D14 Batch 5b：原 purchaseReturnApi.update 转为风格 B 函数
+export const updatePurchaseReturn = (id: number, data: Partial<PurchaseReturn>) =>
+  request.put<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}`, data)
 
-  delete: (id: number) => request.delete<ApiResponse<void>>(`/purchase/returns/${id}`),
+// D14 Batch 5b：原 purchaseReturnApi.delete 转为风格 B 函数
+export const deletePurchaseReturn = (id: number) =>
+  request.delete<ApiResponse<void>>(`/purchase/returns/${id}`)
 
-  submit: (id: number) =>
-    request.post<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}/submit`),
+// D14 Batch 5b：原 purchaseReturnApi.submit 转为风格 B 函数
+export const submitPurchaseReturn = (id: number) =>
+  request.post<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}/submit`)
 
-  approve: (id: number) =>
-    request.post<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}/approve`),
+// D14 Batch 5b：原 purchaseReturnApi.approve 转为风格 B 函数
+export const approvePurchaseReturn = (id: number) =>
+  request.post<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}/approve`)
 
-  reject: (id: number, reason?: string) =>
-    request.post<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}/reject`, { reason }),
+// D14 Batch 5b：原 purchaseReturnApi.reject 转为风格 B 函数
+export const rejectPurchaseReturn = (id: number, reason?: string) =>
+  request.post<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}/reject`, { reason })
 
-  listItems: (id: number) =>
-    request.get<ApiResponse<{ items: PurchaseReturnItem[] }>>(`/purchase/returns/${id}/items`),
+// D14 Batch 5b：原 purchaseReturnApi.listItems 转为风格 B 函数
+export const getPurchaseReturnItemList = (id: number) =>
+  request.get<ApiResponse<{ items: PurchaseReturnItem[] }>>(`/purchase/returns/${id}/items`)
 
-  createItem: (id: number, data: Partial<PurchaseReturnItem>) =>
-    request.post<ApiResponse<PurchaseReturnItem>>(`/purchase/returns/${id}/items`, data),
+// D14 Batch 5b：原 purchaseReturnApi.createItem 转为风格 B 函数
+export const createPurchaseReturnItem = (id: number, data: Partial<PurchaseReturnItem>) =>
+  request.post<ApiResponse<PurchaseReturnItem>>(`/purchase/returns/${id}/items`, data)
 
-  updateItem: (id: number, itemId: number, data: Partial<PurchaseReturnItem>) =>
-    request.put<ApiResponse<PurchaseReturnItem>>(`/purchase/returns/${id}/items/${itemId}`, data),
+// D14 Batch 5b：原 purchaseReturnApi.updateItem 转为风格 B 函数
+export const updatePurchaseReturnItem = (
+  id: number,
+  itemId: number,
+  data: Partial<PurchaseReturnItem>
+) =>
+  request.put<ApiResponse<PurchaseReturnItem>>(`/purchase/returns/${id}/items/${itemId}`, data)
 
-  deleteItem: (id: number, itemId: number) =>
-    request.delete<ApiResponse<void>>(`/purchase/returns/${id}/items/${itemId}`),
-}
+// D14 Batch 5b：原 purchaseReturnApi.deleteItem 转为风格 B 函数
+export const deletePurchaseReturnItem = (id: number, itemId: number) =>
+  request.delete<ApiResponse<void>>(`/purchase/returns/${id}/items/${itemId}`)

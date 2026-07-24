@@ -6,7 +6,7 @@
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import printJS from 'print-js'
-import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
+import { getPurchaseOrderById, approvePurchaseOrder, type PurchaseOrder } from '@/api/purchase'
 // V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
 // 后端 GET /purchases/orders/export 已就绪（含行级数据权限 + 异步审计日志 + 水印）
 import { exportFromBackend } from '@/utils/export'
@@ -32,7 +32,7 @@ export function usePurchAct(
    */
   const handleView = async (row: PurchaseOrder) => {
     try {
-      const res = await purchaseApi.getOrderById(row.id)
+      const res = await getPurchaseOrderById(row.id)
       viewData.value = res.data || row
     } catch {
       viewData.value = row
@@ -48,7 +48,7 @@ export function usePurchAct(
       await ElMessageBox.confirm(`确定审批通过采购单 ${row.order_no} 吗？`, '审批确认', {
         type: 'success',
       })
-      await purchaseApi.approveOrder(row.id)
+      await approvePurchaseOrder(row.id)
       ElMessage.success(`采购单 ${row.order_no} 审批成功`)
       onRefresh()
     } catch (error: unknown) {

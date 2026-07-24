@@ -13,8 +13,8 @@ import {
   updateSalesPrice,
   type SalesPrice,
 } from '@/api/sales-price'
-import { customerApi, type Customer } from '@/api/customer'
-import { productApi, type Product } from '@/api/product'
+import { getCustomerList, type Customer } from '@/api/customer'
+import { getProductList, type Product } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
@@ -90,7 +90,7 @@ export function useSp() {
   /** 获取客户列表 */
   const getCustomers = async () => {
     try {
-      const res = await customerApi.list({ page: 1, page_size: 1000 })
+      const res = await getCustomerList({ page: 1, page_size: 1000 })
       customers.value = res.data?.list || []
     } catch (error) {
       logger.error('获取客户列表失败:', error)
@@ -100,7 +100,7 @@ export function useSp() {
   /** 获取产品列表 */
   const getProducts = async () => {
     try {
-      const res = await productApi.list({ page: 1, page_size: 1000 })
+      const res = await getProductList({ page: 1, page_size: 1000 })
       products.value = res.data?.list || []
     } catch (error) {
       logger.error('获取产品列表失败:', error)

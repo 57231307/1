@@ -42,8 +42,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { warehouseApi, type Warehouse } from '@/api/warehouse'
-import { productApi, type Product } from '@/api/product'
+import { getWarehouseList, type Warehouse } from '@/api/warehouse'
+import { getProductList, type Product } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import type { InventoryAdjustmentEntity } from '@/api/inventoryAdjustment'
@@ -79,7 +79,7 @@ const handleApproveSubmitted = () => {
 
 const fetchWarehouses = async () => {
   try {
-    const res = await warehouseApi.list({ page: 1, page_size: 1000 })
+    const res = await getWarehouseList({ page: 1, page_size: 1000 })
     warehouses.value = (res.data?.list as Warehouse[] | undefined) || []
   } catch (error) {
     logger.error('获取仓库列表失败', (error as Error).message)
@@ -88,7 +88,7 @@ const fetchWarehouses = async () => {
 
 const fetchProducts = async () => {
   try {
-    const res = await productApi.list({ page: 1, page_size: 1000 })
+    const res = await getProductList({ page: 1, page_size: 1000 })
     products.value = (res.data?.list as Product[] | undefined) || []
   } catch (error) {
     logger.error('获取产品列表失败', (error as Error).message)

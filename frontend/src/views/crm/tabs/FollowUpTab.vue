@@ -92,7 +92,8 @@ import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus, Clock } from '@element-plus/icons-vue'
-import crmEnhancedApi, { type FollowUpRecord } from '@/api/crm-enhanced'
+// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+import { getFollowUpList, createFollowUp, type FollowUpRecord } from '@/api/crm-enhanced'
 import { logger } from '@/utils/logger'
 
 // 接收父组件传入的客户 ID
@@ -146,7 +147,7 @@ const getFollowUpTypeLabel = (type: string) => {
 
 const fetchFollowUps = async () => {
   try {
-    const res = await crmEnhancedApi.getFollowUps(props.customerId, query)
+    const res = await getFollowUpList(props.customerId, query)
     followUps.value = res.data?.list || []
     total.value = res.data?.total || 0
   } catch (error) {
@@ -172,7 +173,7 @@ const handleSubmit = async () => {
 
   submitLoading.value = true
   try {
-    await crmEnhancedApi.createFollowUp(props.customerId, {
+    await createFollowUp(props.customerId, {
       type: form.type,
       content: form.content,
       next_follow_date: form.next_follow_date || undefined,

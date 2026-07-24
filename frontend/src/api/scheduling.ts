@@ -65,28 +65,32 @@ export interface ScheduleResult {
   conflicts: ConflictItem[]
 }
 
-export const schedulingApi = {
-  autoSchedule: (params: SchedulingParams) =>
-    request.post<ApiResponse<ScheduleResult>>('/scheduling/auto-schedule', params),
+// D14 Batch 5b：原 schedulingApi.autoSchedule 转为风格 B 函数
+export const autoSchedule = (params: SchedulingParams) =>
+  request.post<ApiResponse<ScheduleResult>>('/scheduling/auto-schedule', params)
 
-  getGanttData: (params?: { start_date?: string; end_date?: string; work_center_ids?: number[] }) =>
-    request.get<ApiResponse<GanttData>>('/scheduling/gantt', { params }),
+// D14 Batch 5b：原 schedulingApi.getGanttData 转为风格 B 函数
+export const getSchedulingGanttData = (
+  params?: { start_date?: string; end_date?: string; work_center_ids?: number[] }
+) => request.get<ApiResponse<GanttData>>('/scheduling/gantt', { params })
 
-  detectConflicts: (params?: { start_date?: string; end_date?: string }) =>
-    request.get<ApiResponse<ConflictItem[]>>('/scheduling/conflicts', { params }),
+// D14 Batch 5b：原 schedulingApi.detectConflicts 转为风格 B 函数
+export const detectSchedulingConflicts = (params?: { start_date?: string; end_date?: string }) =>
+  request.get<ApiResponse<ConflictItem[]>>('/scheduling/conflicts', { params })
 
-  adjustTask: (
-    taskId: number,
-    data: { start_time: string; end_time: string; work_center_id?: number }
-  ) => request.put<ApiResponse<ScheduleTask>>(`/scheduling/tasks/${taskId}/adjust`, data),
+// D14 Batch 5b：原 schedulingApi.adjustTask 转为风格 B 函数
+export const adjustSchedulingTask = (
+  taskId: number,
+  data: { start_time: string; end_time: string; work_center_id?: number }
+) => request.put<ApiResponse<ScheduleTask>>(`/scheduling/tasks/${taskId}/adjust`, data)
 
-  getScheduleTasks: (params?: {
-    page?: number
-    page_size?: number
-    status?: string
-    work_center_id?: number
-  }) =>
-    request.get<ApiResponse<{ list: ScheduleTask[]; total: number }>>('/scheduling/tasks', {
-      params,
-    }),
-}
+// D14 Batch 5b：原 schedulingApi.getScheduleTasks 转为风格 B 函数
+export const getScheduleTaskList = (params?: {
+  page?: number
+  page_size?: number
+  status?: string
+  work_center_id?: number
+}) =>
+  request.get<ApiResponse<{ list: ScheduleTask[]; total: number }>>('/scheduling/tasks', {
+    params,
+  })

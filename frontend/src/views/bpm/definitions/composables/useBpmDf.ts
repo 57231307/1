@@ -9,8 +9,9 @@
  */
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
+// D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
-  bpmEnhancedApi,
+  getBpmVersionList,
   type ProcessDefinition,
   type ProcessNode,
   type ProcessVersion,
@@ -82,7 +83,7 @@ export function useBpmDf() {
   const fetchVersions = async (definitionId: number) => {
     versionLoading.value = true
     try {
-      const res = await bpmEnhancedApi.listVersions(definitionId)
+      const res = await getBpmVersionList(definitionId)
       versions.value = (res.data || []) as ProcessVersion[]
     } catch (error) {
       const msg = error instanceof Error ? error.message : '获取版本列表失败'

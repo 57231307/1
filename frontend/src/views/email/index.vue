@@ -204,7 +204,15 @@
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { emailApi, type EmailTemplate, type EmailLog, type EmailStatistics } from '@/api/email'
+import {
+  getEmailStatistics,
+  updateEmailTemplate,
+  createEmailTemplate,
+  deleteEmailTemplate,
+  type EmailTemplate,
+  type EmailLog,
+  type EmailStatistics,
+} from '@/api/email'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 // 批次 280：接入 useTableApi，消除手写 templates/records 分页重复
@@ -213,7 +221,7 @@ import { useTableApi } from '@/composables/useTableApi'
 const activeTab = ref('templates')
 const hasLoaded = createLazyLoader()
 
-// 批次 280：模板表格 useTableApi（emailApi.getTemplates 返回 { data: { list, total } }）
+// 批次 280：模板表格 useTableApi（getEmailTemplateList 返回 { data: { list, total } }）
 const {
   data: templates,
   loading: templatesLoading,
@@ -246,7 +254,7 @@ const templateRules = {
   template_type: [{ required: true, message: '请选择模板类型', trigger: 'change' }],
 }
 
-// 批次 280：记录表格 useTableApi（emailApi.getRecords 返回 { data: { list, total } }）
+// 批次 280：记录表格 useTableApi（getEmailRecordList 返回 { data: { list, total } }）
 const {
   data: records,
   loading: recordsLoading,
@@ -298,7 +306,7 @@ initPage()
 
 const fetchStatistics = async () => {
   try {
-    const res = await emailApi.getStatistics()
+    const res = await getEmailStatistics()
     if (res.data) {
       statistics.value = res.data
     }
@@ -332,10 +340,10 @@ const handleSubmitTemplate = async () => {
     await templateFormRef.value?.validate()
     submitLoading.value = true
     if (isEditTemplate.value && templateForm.id) {
-      await emailApi.updateTemplate(templateForm.id, templateForm)
+      await updateEmailTemplate(templateForm.id, templateForm)
       ElMessage.success('更新成功')
     } else {
-      await emailApi.createTemplate(templateForm)
+      await createEmailTemplate(templateForm)
       ElMessage.success('创建成功')
     }
     templateDialogVisible.value = false
@@ -350,7 +358,7 @@ const handleSubmitTemplate = async () => {
 const handleDeleteTemplate = async (row: EmailTemplate) => {
   try {
     await ElMessageBox.confirm('确定要删除该模板吗？', '提示', { type: 'warning' })
-    await emailApi.deleteTemplate(row.id!)
+    await deleteEmailTemplate(row.id!)
     ElMessage.success('删除成功')
     fetchTemplates()
   } catch (error) {

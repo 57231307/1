@@ -136,12 +136,12 @@ const queryParams = reactive<StockQuery>({
 const fetchData = async () => {
   loading.value = true
   try {
-    const { inventoryApi } = await import('@/api/inventory')
-    const res = await inventoryApi.getStockList(queryParams)
+    const { getStockList, getInventoryReport } = await import('@/api/inventory')
+    const res = await getStockList(queryParams)
     stocks.value = res.data?.list || []
     total.value = res.data?.total || 0
 
-    const summaryRes = await inventoryApi.getInventoryReport({})
+    const summaryRes = await getInventoryReport({})
     const summary = summaryRes.data?.summary || {}
     stats.value = {
       totalQuantity: summary.total_quantity || 0,
@@ -161,8 +161,8 @@ const fetchData = async () => {
 
 const fetchAlerts = async () => {
   try {
-    const { inventoryApi } = await import('@/api/inventory')
-    const res = await inventoryApi.getStockAlerts()
+    const { getStockAlertList } = await import('@/api/inventory')
+    const res = await getStockAlertList()
     alerts.value = res.data || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
@@ -173,8 +173,8 @@ const fetchAlerts = async () => {
 
 const fetchTransfers = async () => {
   try {
-    const { inventoryApi } = await import('@/api/inventory')
-    const res = await inventoryApi.getTransfers(queryParams)
+    const { getInventoryTransferList } = await import('@/api/inventory')
+    const res = await getInventoryTransferList(queryParams)
     transfers.value = res.data?.list || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
@@ -185,8 +185,8 @@ const fetchTransfers = async () => {
 
 const fetchWarehouses = async () => {
   try {
-    const { warehouseApi } = await import('@/api/warehouse')
-    const res = await warehouseApi.list({ page: 1, page_size: 1000 })
+    const { getWarehouseList } = await import('@/api/warehouse')
+    const res = await getWarehouseList({ page: 1, page_size: 1000 })
     warehouses.value = res.data?.list || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
@@ -258,8 +258,8 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
     return
   }
   try {
-    const { inventoryApi } = await import('@/api/inventory')
-    await inventoryApi.createStockAdjustment({
+    const { createStockAdjustment } = await import('@/api/inventory')
+    await createStockAdjustment({
       warehouse_id: form.warehouse_id!,
       product_id: form.product_id!,
       adjustment_type: form.adjustment_type,
@@ -299,7 +299,7 @@ const onSubmitTransfer = async (form: typeof transferForm.value) => {
     return
   }
   try {
-    const { inventoryApi } = await import('@/api/inventory')
+    const { createInventoryTransfer } = await import('@/api/inventory')
     const transferData: TransferData = {
       from_warehouse_id: form.from_warehouse_id,
       to_warehouse_id: form.to_warehouse_id,
@@ -311,7 +311,7 @@ const onSubmitTransfer = async (form: typeof transferForm.value) => {
         })),
       remark: form.remark,
     }
-    await inventoryApi.createTransfer(transferData)
+    await createInventoryTransfer(transferData)
     ElMessage.success('调拨单创建成功')
     transferDialogVisible.value = false
     if (activeTab.value === 'transfer') {
@@ -344,8 +344,8 @@ const handleApproveTransfer = async (row: InventoryTransfer) => {
       '审批确认',
       { type: 'info' }
     )
-    const { inventoryApi } = await import('@/api/inventory')
-    await inventoryApi.approveTransfer(row.id)
+    const { approveInventoryTransfer } = await import('@/api/inventory')
+    await approveInventoryTransfer(row.id)
     ElMessage.success('审批成功')
     fetchTransfers()
   } catch (error) {
@@ -360,8 +360,8 @@ const handleApproveTransfer = async (row: InventoryTransfer) => {
 // 批次 157a P1-1 修复：接入 getStockById API 展示库存详情
 const handleView = async (row: InventoryStock) => {
   try {
-    const { inventoryApi } = await import('@/api/inventory')
-    const res = await inventoryApi.getStockById(row.id)
+    const { getStockById } = await import('@/api/inventory')
+    const res = await getStockById(row.id)
     const d = res.data
     if (!d) {
       ElMessage.warning('未找到库存详情')

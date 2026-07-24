@@ -85,45 +85,59 @@ export interface PurchaseReceiptQueryParams {
   receipt_date_to?: string
 }
 
-export const purchaseApi = {
-  getOrderList: (params?: PurchaseOrderQueryParams) =>
-    request.get<ApiResponse<{ list: PurchaseOrder[]; total: number }>>('/purchase/orders', {
-      params,
-    }),
+// D14 Batch 5b：原 purchaseApi.getOrderList 转为风格 B 函数
+export const getPurchaseOrderList = (params?: PurchaseOrderQueryParams) =>
+  request.get<ApiResponse<{ list: PurchaseOrder[]; total: number }>>('/purchase/orders', {
+    params,
+  })
 
-  getOrderById: (id: number) => request.get<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`),
+// D14 Batch 5b：原 purchaseApi.getOrderById 转为风格 B 函数
+export const getPurchaseOrderById = (id: number) =>
+  request.get<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`)
 
-  createOrder: (data: Partial<PurchaseOrder>) =>
-    request.post<ApiResponse<PurchaseOrder>>('/purchase/orders', data),
+// D14 Batch 5b：原 purchaseApi.createOrder 转为风格 B 函数
+export const createPurchaseOrder = (data: Partial<PurchaseOrder>) =>
+  request.post<ApiResponse<PurchaseOrder>>('/purchase/orders', data)
 
-  updateOrder: (id: number, data: Partial<PurchaseOrder>) =>
-    request.put<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`, data),
+// D14 Batch 5b：原 purchaseApi.updateOrder 转为风格 B 函数
+export const updatePurchaseOrder = (id: number, data: Partial<PurchaseOrder>) =>
+  request.put<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`, data)
 
-  deleteOrder: (id: number) => request.delete<ApiResponse<null>>(`/purchase/orders/${id}`),
+// D14 Batch 5b：原 purchaseApi.deleteOrder 转为风格 B 函数
+export const deletePurchaseOrder = (id: number) =>
+  request.delete<ApiResponse<null>>(`/purchase/orders/${id}`)
 
-  submitOrder: (id: number) => request.post<ApiResponse<null>>(`/purchase/orders/${id}/submit`),
+// D14 Batch 5b：原 purchaseApi.submitOrder 转为风格 B 函数
+export const submitPurchaseOrder = (id: number) =>
+  request.post<ApiResponse<null>>(`/purchase/orders/${id}/submit`)
 
-  approveOrder: (id: number) => request.post<ApiResponse<null>>(`/purchase/orders/${id}/approve`),
+// D14 Batch 5b：原 purchaseApi.approveOrder 转为风格 B 函数
+export const approvePurchaseOrder = (id: number) =>
+  request.post<ApiResponse<null>>(`/purchase/orders/${id}/approve`)
 
-  rejectOrder: (id: number, reason: string) =>
-    request.post<ApiResponse<null>>(`/purchase/orders/${id}/reject`, { reason }),
+// D14 Batch 5b：原 purchaseApi.rejectOrder 转为风格 B 函数
+export const rejectPurchaseOrder = (id: number, reason: string) =>
+  request.post<ApiResponse<null>>(`/purchase/orders/${id}/reject`, { reason })
 
-  getReceipts: (params?: PurchaseReceiptQueryParams) =>
-    request.get<ApiResponse<{ list: PurchaseReceipt[]; total: number }>>('/purchase/receipts', {
-      params,
-    }),
+// D14 Batch 5b：原 purchaseApi.getReceipts 转为风格 B 函数
+export const getPurchaseReceiptList = (params?: PurchaseReceiptQueryParams) =>
+  request.get<ApiResponse<{ list: PurchaseReceipt[]; total: number }>>('/purchase/receipts', {
+    params,
+  })
 
-  createReceipt: (data: Partial<PurchaseReceipt>) =>
-    request.post<ApiResponse<PurchaseReceipt>>('/purchase/receipts', data),
+// D14 Batch 5b：原 purchaseApi.createReceipt 转为风格 B 函数
+export const createPurchaseReceipt = (data: Partial<PurchaseReceipt>) =>
+  request.post<ApiResponse<PurchaseReceipt>>('/purchase/receipts', data)
 
-  receiveItems: (receiptId: number, data: Partial<PurchaseReceiptItem>[]) =>
-    request.post<ApiResponse<PurchaseReceipt>>(`/purchase/receipts/${receiptId}/receive`, data),
+// D14 Batch 5b：原 purchaseApi.receiveItems 转为风格 B 函数
+export const receivePurchaseItems = (receiptId: number, data: Partial<PurchaseReceiptItem>[]) =>
+  request.post<ApiResponse<PurchaseReceipt>>(`/purchase/receipts/${receiptId}/receive`, data)
 
-  /**
-   * 生成采购订单号（P1-1 补齐 generate-no 端点）
-   * 后端: GET /api/v1/erp/purchase/orders/generate-no
-   * 返回: { prefix: "PO", order_no: "PO20260617001" }
-   */
-  generateOrderNo: () =>
-    request.get<ApiResponse<{ prefix: string; order_no: string }>>('/purchase/orders/generate-no'),
-}
+/**
+ * 生成采购订单号（P1-1 补齐 generate-no 端点）
+ * 后端: GET /api/v1/erp/purchase/orders/generate-no
+ * 返回: { prefix: "PO", order_no: "PO20260617001" }
+ */
+// D14 Batch 5b：原 purchaseApi.generateOrderNo 转为风格 B 函数
+export const generatePurchaseOrderNo = () =>
+  request.get<ApiResponse<{ prefix: string; order_no: string }>>('/purchase/orders/generate-no')

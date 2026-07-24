@@ -69,30 +69,21 @@ export const deleteReport = (id: number) => request.delete(`/financial-analysis/
 export const executeFinancialReport = (id: number) =>
   request.post(`/financial-analysis/reports/${id}/execute`)
 
-export const financialAnalysisApi = {
-  listReports: (params?: ReportQueryParams) =>
-    request.get<ApiResponse<{ list: FinancialReport[]; total: number }>>(
-      '/financial-analysis/reports',
-      { params }
-    ),
+// D14 Batch 5b：原 financialAnalysisApi 对象转为风格 B 函数
+// listReports/createReport 与上方风格 B 函数重复，已移除
+export const getFinancialReport = (id: number) =>
+  request.get<ApiResponse<FinancialReport>>(`/financial-analysis/reports/${id}`)
 
-  createReport: (data: Partial<FinancialReport>) =>
-    request.post<ApiResponse<FinancialReport>>('/financial-analysis/reports', data),
+export const executeReportWithParams = (data: ReportExecutionRequest) =>
+  request.post<ApiResponse<FinancialReport>>(
+    `/financial-analysis/reports/${data.reportId}/execute`,
+    data
+  )
 
-  getReport: (id: number) =>
-    request.get<ApiResponse<FinancialReport>>(`/financial-analysis/reports/${id}`),
+export const createFinancialIndicator = (data: Partial<FinancialIndicator>) =>
+  request.post<ApiResponse<FinancialIndicator>>('/financial-analysis/indicators', data)
 
-  executeReport: (data: ReportExecutionRequest) =>
-    request.post<ApiResponse<FinancialReport>>(
-      `/financial-analysis/reports/${data.reportId}/execute`,
-      data
-    ),
-
-  createIndicator: (data: Partial<FinancialIndicator>) =>
-    request.post<ApiResponse<FinancialIndicator>>('/financial-analysis/indicators', data),
-
-  getTrends: (params?: TrendQueryParams) =>
-    request.get<ApiResponse<{ trends: FinancialTrend[] }>>('/financial-analysis/trends', {
-      params,
-    }),
-}
+export const getFinancialTrends = (params?: TrendQueryParams) =>
+  request.get<ApiResponse<{ trends: FinancialTrend[] }>>('/financial-analysis/trends', {
+    params,
+  })

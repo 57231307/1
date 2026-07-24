@@ -7,7 +7,7 @@
  */
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesReturnApi, type SalesReturn } from '@/api/sales-return'
+import { approveSalesReturn, type SalesReturn } from '@/api/sales-return'
 
 /**
  * 销售退货业务流程 composable
@@ -56,7 +56,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
       await ElMessageBox.confirm(`确定审核通过退货单 ${row.returnNo} 吗？`, '审核确认', {
         type: 'warning',
       })
-      await salesReturnApi.approve(row.id)
+      await approveSalesReturn(row.id)
       ElMessage.success('审核成功')
       await sr.loadReturns()
     } catch (error: unknown) {

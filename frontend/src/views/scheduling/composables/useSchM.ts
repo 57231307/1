@@ -9,7 +9,8 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  schedulingApi,
+  detectSchedulingConflicts,
+  adjustSchedulingTask,
   type ScheduleTask,
   type ConflictItem,
   type SchedulingParams,
@@ -107,7 +108,7 @@ export function useSchM() {
   const fetchConflicts = async () => {
     conflictLoading.value = true
     try {
-      const res = await schedulingApi.detectConflicts()
+      const res = await detectSchedulingConflicts()
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) conflictList.value = res.data
       stats.value.conflicts = conflictList.value.length
@@ -143,7 +144,7 @@ export function useSchM() {
     if (!adjustTask.value) return false
     adjusting.value = true
     try {
-      await schedulingApi.adjustTask(adjustTask.value.id, {
+      await adjustSchedulingTask(adjustTask.value.id, {
         start_time: adjustForm.value.start_time,
         end_time: adjustForm.value.end_time,
       })

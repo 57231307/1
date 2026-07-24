@@ -6,7 +6,13 @@
  */
 import { ref, reactive } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { bpmEnhancedApi, type ApprovalTask, type ApprovalChainNode } from '@/api/bpm-enhanced'
+// D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
+import {
+  executeBpmApproval,
+  getBpmEnhancedApprovalChain,
+  type ApprovalTask,
+  type ApprovalChainNode,
+} from '@/api/bpm-enhanced'
 import { logger } from '@/utils/logger'
 
 /**
@@ -62,7 +68,7 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
     if (!currentTask.value) return
     submitLoading.value = true
     try {
-      await bpmEnhancedApi.executeApproval({
+      await executeBpmApproval({
         task_id: currentTask.value.task_id,
         action: approveAction.value,
         comment: approveForm.comment,
@@ -92,7 +98,7 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
       if (!valid) return
       submitLoading.value = true
       try {
-        await bpmEnhancedApi.executeApproval({
+        await executeBpmApproval({
           task_id: currentTask.value!.task_id,
           action: 'transfer',
           target_user_id: transferForm.target_user_id,
@@ -114,7 +120,7 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
     currentTask.value = row
     chainDialogVisible.value = true
     try {
-      const res = await bpmEnhancedApi.getApprovalChain(row.process_instance_id)
+      const res = await getBpmEnhancedApprovalChain(row.process_instance_id)
       approvalChain.value = res.data
     } catch (e) {
       logger.error(String(e))

@@ -204,7 +204,7 @@ import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
-import { warehouseApi, type Warehouse } from '@/api/warehouse'
+import { deleteWarehouse, updateWarehouse, createWarehouse, type Warehouse } from '@/api/warehouse'
 // V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
 // 后端 GET /warehouses/export 已就绪（含异步审计日志 + 水印）
 // 注意：后端 WarehouseListQuery 使用 search 字段而非 keyword，前端需做映射
@@ -348,7 +348,7 @@ const handleDelete = async (row: Warehouse) => {
     await ElMessageBox.confirm(`确定删除仓库 "${row.warehouse_name}" 吗？`, '删除确认', {
       type: 'warning',
     })
-    await warehouseApi.delete(row.id)
+    await deleteWarehouse(row.id)
     ElMessage.success('删除成功')
     fetchData()
   } catch (error: unknown) {
@@ -368,10 +368,10 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       if (isEdit.value) {
-        await warehouseApi.update(formData.id!, formData)
+        await updateWarehouse(formData.id!, formData)
         ElMessage.success('更新成功')
       } else {
-        await warehouseApi.create(formData)
+        await createWarehouse(formData)
         ElMessage.success('创建成功')
       }
       dialogVisible.value = false

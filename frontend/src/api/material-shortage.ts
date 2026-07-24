@@ -27,20 +27,22 @@ export interface MaterialShortageSummary {
   last_check_time: string
 }
 
-export const materialShortageApi = {
-  getSummary: () => request.get<ApiResponse<MaterialShortageSummary>>('/material-shortage/summary'),
+// D14 Batch 5b：原 materialShortageApi.getSummary 转为风格 B 函数
+export const getMaterialShortageSummary = () =>
+  request.get<ApiResponse<MaterialShortageSummary>>('/material-shortage/summary')
 
-  listShortages: (params?: {
-    page?: number
-    page_size?: number
-    severity?: string
-    status?: string
-  }) =>
-    request.get<ApiResponse<PageResult<MaterialShortage>>>('/material-shortage/list', { params }),
+// D14 Batch 5b：原 materialShortageApi.listShortages 转为风格 B 函数
+export const getMaterialShortageList = (params?: {
+  page?: number
+  page_size?: number
+  severity?: string
+  status?: string
+}) => request.get<ApiResponse<PageResult<MaterialShortage>>>('/material-shortage/list', { params })
 
-  triggerCheck: () =>
-    request.post<ApiResponse<{ check_id: number; message: string }>>('/material-shortage/check'),
+// D14 Batch 5b：原 materialShortageApi.triggerCheck 转为风格 B 函数
+export const triggerMaterialShortageCheck = () =>
+  request.post<ApiResponse<{ check_id: number; message: string }>>('/material-shortage/check')
 
-  updateStatus: (id: number, status: string) =>
-    request.put<ApiResponse<void>>(`/material-shortage/${id}/status`, { status }),
-}
+// D14 Batch 5b：原 materialShortageApi.updateStatus 转为风格 B 函数
+export const updateMaterialShortageStatus = (id: number, status: string) =>
+  request.put<ApiResponse<void>>(`/material-shortage/${id}/status`, { status })

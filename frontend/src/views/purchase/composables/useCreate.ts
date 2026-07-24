@@ -4,7 +4,7 @@
  */
 import { ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { purchaseApi } from '@/api/purchase'
+import { createPurchaseOrder } from '@/api/purchase'
 import type { Product } from '@/api/product'
 
 /**
@@ -118,7 +118,7 @@ export function useCreate(
       return
     }
     try {
-      await purchaseApi.createOrder({
+      await createPurchaseOrder({
         ...createForm.value,
         items: validItems.map(item => ({
           id: 0,

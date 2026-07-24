@@ -144,7 +144,8 @@ import { Plus } from '@element-plus/icons-vue'
 import { getUserList, type User } from '@/api/user'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
-import { crmEnhancedApi, type AssignableCustomer } from '@/api/crm-enhanced'
+// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+import { getRecycleRuleList, getCustomerPoolList, type AssignableCustomer } from '@/api/crm-enhanced'
 import RuleDialogTab from './tabs/RuleDialogTab.vue'
 import ManualAssignDialogTab from './tabs/ManualAssignDialogTab.vue'
 
@@ -181,7 +182,7 @@ const fetchRules = async () => {
   ruleLoading.value = true
   try {
     // P1-5：调用真实 API 获取分配规则（后端使用 recycle-rules 接口承载规则）
-    const res = await crmEnhancedApi.getRecycleRules()
+    const res = await getRecycleRuleList()
     // crm API 不嵌套 .data（直接返回 data），保留 ?? 容错
     ruleList.value = (res.data ?? res) as unknown as RuleRow[]
   } catch (error) {
@@ -196,7 +197,7 @@ const fetchAssignableCustomers = async () => {
   assignLoading.value = true
   try {
     // P1-5：调用真实 API 获取可分配客户（公海池）
-    const res = await crmEnhancedApi.getPoolList({ page: 1, page_size: 50 })
+    const res = await getCustomerPoolList({ page: 1, page_size: 50 })
     assignableCustomers.value = (res.data?.list ?? res.data) as AssignableCustomer[]
   } catch (error) {
     const err = error as Error

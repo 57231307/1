@@ -87,59 +87,80 @@ export interface ApprovalChainNode {
   duration?: number
 }
 
-export const bpmEnhancedApi = {
-  listDefinitions: (params?: {
-    page?: number
-    page_size?: number
-    category?: string
-    keyword?: string
-  }) => request.get<ApiResponse<PageResult<ProcessDefinition>>>('/bpm/definitions', { params }),
+// D14 Batch 5b：原 bpmEnhancedApi.listDefinitions 转为风格 B 函数
+export const getBpmDefinitionList = (params?: {
+  page?: number
+  page_size?: number
+  category?: string
+  keyword?: string
+}) => request.get<ApiResponse<PageResult<ProcessDefinition>>>('/bpm/definitions', { params })
 
-  getDefinition: (id: number) =>
-    request.get<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`),
+// D14 Batch 5b：原 bpmEnhancedApi.getDefinition 转为风格 B 函数
+export const getBpmDefinitionById = (id: number) =>
+  request.get<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`)
 
-  createDefinition: (data: Partial<ProcessDefinition>) =>
-    request.post<ApiResponse<ProcessDefinition>>('/bpm/definitions', data),
+// D14 Batch 5b：原 bpmEnhancedApi.createDefinition 转为风格 B 函数
+export const createBpmDefinition = (data: Partial<ProcessDefinition>) =>
+  request.post<ApiResponse<ProcessDefinition>>('/bpm/definitions', data)
 
-  updateDefinition: (id: number, data: Partial<ProcessDefinition>) =>
-    request.put<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`, data),
+// D14 Batch 5b：原 bpmEnhancedApi.updateDefinition 转为风格 B 函数
+export const updateBpmDefinition = (id: number, data: Partial<ProcessDefinition>) =>
+  request.put<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`, data)
 
-  deleteDefinition: (id: number) => request.delete<ApiResponse<null>>(`/bpm/definitions/${id}`),
+// D14 Batch 5b：原 bpmEnhancedApi.deleteDefinition 转为风格 B 函数
+export const deleteBpmDefinition = (id: number) =>
+  request.delete<ApiResponse<null>>(`/bpm/definitions/${id}`)
 
-  createVersion: (definitionId: number, data?: { change_log?: string }) =>
-    request.post<ApiResponse<ProcessVersion>>(`/bpm/definitions/${definitionId}/versions`, data),
+// D14 Batch 5b：原 bpmEnhancedApi.createVersion 转为风格 B 函数
+export const createBpmVersion = (definitionId: number, data?: { change_log?: string }) =>
+  request.post<ApiResponse<ProcessVersion>>(`/bpm/definitions/${definitionId}/versions`, data)
 
-  listVersions: (definitionId: number) =>
-    request.get<ApiResponse<ProcessVersion[]>>(`/bpm/definitions/${definitionId}/versions`),
+// D14 Batch 5b：原 bpmEnhancedApi.listVersions 转为风格 B 函数
+export const getBpmVersionList = (definitionId: number) =>
+  request.get<ApiResponse<ProcessVersion[]>>(`/bpm/definitions/${definitionId}/versions`)
 
-  activateVersion: (versionId: number) =>
-    request.post<ApiResponse<null>>(`/bpm/versions/${versionId}/activate`),
+// D14 Batch 5b：原 bpmEnhancedApi.activateVersion 转为风格 B 函数
+export const activateBpmVersion = (versionId: number) =>
+  request.post<ApiResponse<null>>(`/bpm/versions/${versionId}/activate`)
 
-  saveAsTemplate: (
-    definitionId: number,
-    data: { template_name: string; category: string; description?: string }
-  ) =>
-    request.post<ApiResponse<ProcessTemplate>>(`/bpm/definitions/${definitionId}/template`, data),
+// D14 Batch 5b：原 bpmEnhancedApi.saveAsTemplate 转为风格 B 函数
+export const saveBpmAsTemplate = (
+  definitionId: number,
+  data: { template_name: string; category: string; description?: string }
+) =>
+  request.post<ApiResponse<ProcessTemplate>>(`/bpm/definitions/${definitionId}/template`, data)
 
-  listTemplates: (params?: { page?: number; page_size?: number; category?: string }) =>
-    request.get<ApiResponse<PageResult<ProcessTemplate>>>('/bpm/templates', { params }),
+// D14 Batch 5b：原 bpmEnhancedApi.listTemplates 转为风格 B 函数
+export const getBpmTemplateList = (params?: {
+  page?: number
+  page_size?: number
+  category?: string
+}) => request.get<ApiResponse<PageResult<ProcessTemplate>>>('/bpm/templates', { params })
 
-  getTemplate: (id: number) => request.get<ApiResponse<ProcessTemplate>>(`/bpm/templates/${id}`),
+// D14 Batch 5b：原 bpmEnhancedApi.getTemplate 转为风格 B 函数
+export const getBpmTemplateById = (id: number) =>
+  request.get<ApiResponse<ProcessTemplate>>(`/bpm/templates/${id}`)
 
-  createFromTemplate: (templateId: number, data?: { process_name?: string }) =>
-    request.post<ApiResponse<ProcessDefinition>>(`/bpm/templates/${templateId}/create`, data),
+// D14 Batch 5b：原 bpmEnhancedApi.createFromTemplate 转为风格 B 函数
+export const createBpmFromTemplate = (templateId: number, data?: { process_name?: string }) =>
+  request.post<ApiResponse<ProcessDefinition>>(`/bpm/templates/${templateId}/create`, data)
 
-  deleteTemplate: (id: number) => request.delete<ApiResponse<null>>(`/bpm/templates/${id}`),
+// D14 Batch 5b：原 bpmEnhancedApi.deleteTemplate 转为风格 B 函数
+export const deleteBpmTemplate = (id: number) =>
+  request.delete<ApiResponse<null>>(`/bpm/templates/${id}`)
 
-  getPendingTasks: (params?: { page?: number; page_size?: number }) =>
-    request.get<ApiResponse<PageResult<ApprovalTask>>>('/bpm/tasks/pending', { params }),
+// D14 Batch 5b：原 bpmEnhancedApi.getPendingTasks 转为风格 B 函数
+export const getBpmPendingTaskList = (params?: { page?: number; page_size?: number }) =>
+  request.get<ApiResponse<PageResult<ApprovalTask>>>('/bpm/tasks/pending', { params })
 
-  getCompletedTasks: (params?: { page?: number; page_size?: number }) =>
-    request.get<ApiResponse<PageResult<ApprovalTask>>>('/bpm/tasks/completed', { params }),
+// D14 Batch 5b：原 bpmEnhancedApi.getCompletedTasks 转为风格 B 函数
+export const getBpmCompletedTaskList = (params?: { page?: number; page_size?: number }) =>
+  request.get<ApiResponse<PageResult<ApprovalTask>>>('/bpm/tasks/completed', { params })
 
-  executeApproval: (data: ApprovalAction) =>
-    request.post<ApiResponse<null>>('/bpm/approval/execute', data),
+// D14 Batch 5b：原 bpmEnhancedApi.executeApproval 转为风格 B 函数
+export const executeBpmApproval = (data: ApprovalAction) =>
+  request.post<ApiResponse<null>>('/bpm/approval/execute', data)
 
-  getApprovalChain: (instanceId: string) =>
-    request.get<ApiResponse<ApprovalChainNode[]>>(`/bpm/instances/${instanceId}/chain`),
-}
+// D14 Batch 5b：原 bpmEnhancedApi.getApprovalChain 转为风格 B 函数
+export const getBpmEnhancedApprovalChain = (instanceId: string) =>
+  request.get<ApiResponse<ApprovalChainNode[]>>(`/bpm/instances/${instanceId}/chain`)

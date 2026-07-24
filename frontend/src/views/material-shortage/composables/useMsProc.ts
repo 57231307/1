@@ -7,7 +7,12 @@
  * 设计说明：通过 callbacks 接收 useMs 的状态引用（Reactive 包装层）
  */
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { materialShortageApi, type MaterialShortage, type MaterialShortageSummary } from '@/api/material-shortage'
+import {
+  triggerMaterialShortageCheck,
+  updateMaterialShortageStatus,
+  type MaterialShortage,
+  type MaterialShortageSummary,
+} from '@/api/material-shortage'
 import { logger } from '@/utils/logger'
 
 /**
@@ -43,7 +48,7 @@ export function useMsProc(cb: MsCallbacks) {
   const handleCheck = async () => {
     cb.checking = true
     try {
-      const res = await materialShortageApi.triggerCheck()
+      const res = await triggerMaterialShortageCheck()
       const data = (res.data || {}) as { message?: string }
       ElMessage.success(data.message || '检查完成')
       await Promise.all([cb.fetchSummary(), cb.fetchShortages()])
@@ -61,7 +66,7 @@ export function useMsProc(cb: MsCallbacks) {
    */
   const handleNotify = async (row: MaterialShortage) => {
     try {
-      await materialShortageApi.updateStatus(row.id, 'notified')
+      await updateMaterialShortageStatus(row.id, 'notified')
       ElMessage.success('已发送通知')
       await cb.fetchShortages()
     } catch (error) {
@@ -77,7 +82,7 @@ export function useMsProc(cb: MsCallbacks) {
   const handleResolve = async (row: MaterialShortage) => {
     try {
       await ElMessageBox.confirm('确认标记此缺料为已解决？', '提示', { type: 'warning' })
-      await materialShortageApi.updateStatus(row.id, 'resolved')
+      await updateMaterialShortageStatus(row.id, 'resolved')
       ElMessage.success('已标记为已解决')
       await Promise.all([cb.fetchSummary(), cb.fetchShortages()])
     } catch (error) {

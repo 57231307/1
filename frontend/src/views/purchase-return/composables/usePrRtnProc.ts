@@ -6,7 +6,13 @@
  */
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { purchaseReturnApi, type PurchaseReturn } from '@/api/purchase-return'
+import {
+  submitPurchaseReturn,
+  approvePurchaseReturn,
+  rejectPurchaseReturn,
+  deletePurchaseReturn,
+  type PurchaseReturn,
+} from '@/api/purchase-return'
 import { logger } from '@/utils/logger'
 
 /**
@@ -25,7 +31,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
   const handleSubmit = async (row: PurchaseReturn) => {
     try {
       await ElMessageBox.confirm('确定要提交该退货单吗？', '提示', { type: 'warning' })
-      await purchaseReturnApi.submit(row.id!)
+      await submitPurchaseReturn(row.id!)
       ElMessage.success('提交成功')
       await deps.fetchData()
     } catch (error) {
@@ -45,7 +51,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
   /** 审批通过 */
   const handleApproveConfirm = async () => {
     try {
-      await purchaseReturnApi.approve(approveForm.id)
+      await approvePurchaseReturn(approveForm.id)
       ElMessage.success('审批通过')
       approveDialogVisible.value = false
       await deps.fetchData()
@@ -57,7 +63,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
   /** 审批拒绝 */
   const handleReject = async () => {
     try {
-      await purchaseReturnApi.reject(approveForm.id, approveForm.remark)
+      await rejectPurchaseReturn(approveForm.id, approveForm.remark)
       ElMessage.success('已拒绝')
       approveDialogVisible.value = false
       await deps.fetchData()
@@ -70,7 +76,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
   const handleDelete = async (row: PurchaseReturn) => {
     try {
       await ElMessageBox.confirm('确定要删除该退货单吗？', '提示', { type: 'warning' })
-      await purchaseReturnApi.delete(row.id!)
+      await deletePurchaseReturn(row.id!)
       ElMessage.success('删除成功')
       await deps.fetchData()
     } catch (error) {

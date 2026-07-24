@@ -136,7 +136,14 @@
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { bomApi, type Bom } from '@/api/bom'
+import {
+  copyBom,
+  setDefaultBom,
+  deleteBom,
+  createBom,
+  updateBom,
+  type Bom,
+} from '@/api/bom'
 import BomForm from './BomForm.vue'
 import { useTableApi } from '@/composables/useTableApi'
 
@@ -272,7 +279,7 @@ const handleCopy = async (row: Bom) => {
       `确定复制 BOM "${row.product_name} - ${row.version}" 吗？`,
       '复制确认'
     )
-    await bomApi.copy(row.id)
+    await copyBom(row.id)
     ElMessage.success('复制成功')
     fetchData()
   } catch (error: unknown) {
@@ -289,7 +296,7 @@ const handleSetDefault = async (row: Bom) => {
       `确定将 BOM "${row.product_name} - ${row.version}" 设为默认吗？`,
       '设为默认确认'
     )
-    await bomApi.setDefault(row.id)
+    await setDefaultBom(row.id)
     ElMessage.success('设置成功')
     fetchData()
   } catch (error: unknown) {
@@ -307,7 +314,7 @@ const handleDelete = async (row: Bom) => {
       '删除确认',
       { type: 'warning' }
     )
-    await bomApi.delete(row.id)
+    await deleteBom(row.id)
     ElMessage.success('删除成功')
     fetchData()
   } catch (error: unknown) {
@@ -322,10 +329,10 @@ const handleDelete = async (row: Bom) => {
 const handleSubmit = async (data: Partial<Bom>) => {
   try {
     if (dialogMode.value === 'create') {
-      await bomApi.create(data)
+      await createBom(data)
       ElMessage.success('创建成功')
     } else {
-      await bomApi.update(formData.id!, data)
+      await updateBom(formData.id!, data)
       ElMessage.success('更新成功')
     }
     dialogVisible.value = false

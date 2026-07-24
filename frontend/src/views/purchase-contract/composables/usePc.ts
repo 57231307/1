@@ -13,7 +13,7 @@ import {
   updatePurchaseContract,
   type PurchaseContract,
 } from '@/api/purchase-contract'
-import { supplierApi, type Supplier } from '@/api/supplier'
+import { getSupplierList, type Supplier } from '@/api/supplier'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
@@ -85,7 +85,7 @@ export function usePc() {
   /** 获取供应商列表 */
   const getSuppliers = async () => {
     try {
-      const res = await supplierApi.list()
+      const res = await getSupplierList()
       suppliers.value = res.data?.list || []
     } catch (error) {
       logger.error('获取供应商列表失败:', error)

@@ -99,45 +99,61 @@ export interface SalesStatisticsData {
   trends: { date: string; amount: number; orders: number }[]
 }
 
-export const salesApi = {
-  getOrderList: (params?: SalesOrderQueryParams) =>
-    request.get<ApiResponse<{ list: SalesOrder[]; total: number }>>('/sales/orders', {
-      params,
-    }),
+// D14 Batch 5b：原 salesApi.getOrderList 转为风格 B 函数
+export const getSalesOrderList = (params?: SalesOrderQueryParams) =>
+  request.get<ApiResponse<{ list: SalesOrder[]; total: number }>>('/sales/orders', {
+    params,
+  })
 
-  getOrderById: (id: number) => request.get<ApiResponse<SalesOrder>>(`/sales/orders/${id}`),
+// D14 Batch 5b：原 salesApi.getOrderById 转为风格 B 函数
+export const getSalesOrderById = (id: number) =>
+  request.get<ApiResponse<SalesOrder>>(`/sales/orders/${id}`)
 
-  createOrder: (data: Partial<SalesOrder>) =>
-    request.post<ApiResponse<SalesOrder>>('/sales/orders', data),
+// D14 Batch 5b：原 salesApi.createOrder 转为风格 B 函数
+export const createSalesOrder = (data: Partial<SalesOrder>) =>
+  request.post<ApiResponse<SalesOrder>>('/sales/orders', data)
 
-  updateOrder: (id: number, data: Partial<SalesOrder>) =>
-    request.put<ApiResponse<SalesOrder>>(`/sales/orders/${id}`, data),
+// D14 Batch 5b：原 salesApi.updateOrder 转为风格 B 函数
+export const updateSalesOrder = (id: number, data: Partial<SalesOrder>) =>
+  request.put<ApiResponse<SalesOrder>>(`/sales/orders/${id}`, data)
 
-  deleteOrder: (id: number) => request.delete<ApiResponse<null>>(`/sales/orders/${id}`),
+// D14 Batch 5b：原 salesApi.deleteOrder 转为风格 B 函数
+export const deleteSalesOrder = (id: number) =>
+  request.delete<ApiResponse<null>>(`/sales/orders/${id}`)
 
-  submitOrder: (id: number) => request.post<ApiResponse<null>>(`/sales/orders/${id}/submit`),
+// D14 Batch 5b：原 salesApi.submitOrder 转为风格 B 函数
+export const submitSalesOrder = (id: number) =>
+  request.post<ApiResponse<null>>(`/sales/orders/${id}/submit`)
 
-  approveOrder: (id: number) => request.post<ApiResponse<null>>(`/sales/orders/${id}/approve`),
+// D14 Batch 5b：原 salesApi.approveOrder 转为风格 B 函数
+export const approveSalesOrder = (id: number) =>
+  request.post<ApiResponse<null>>(`/sales/orders/${id}/approve`)
 
-  rejectOrder: (id: number, reason: string) =>
-    request.post<ApiResponse<null>>(`/sales/orders/${id}/reject`, { reason }),
+// D14 Batch 5b：原 salesApi.rejectOrder 转为风格 B 函数
+export const rejectSalesOrder = (id: number, reason: string) =>
+  request.post<ApiResponse<null>>(`/sales/orders/${id}/reject`, { reason })
 
-  cancelOrder: (id: number) => request.post<ApiResponse<null>>(`/sales/orders/${id}/cancel`),
+// D14 Batch 5b：原 salesApi.cancelOrder 转为风格 B 函数
+export const cancelSalesOrder = (id: number) =>
+  request.post<ApiResponse<null>>(`/sales/orders/${id}/cancel`)
 
-  createDelivery: (orderId: number, data: Partial<SalesDelivery>) =>
-    request.post<ApiResponse<SalesDelivery>>(`/sales/orders/${orderId}/deliveries`, data),
+// D14 Batch 5b：原 salesApi.createDelivery 转为风格 B 函数
+export const createSalesDelivery = (orderId: number, data: Partial<SalesDelivery>) =>
+  request.post<ApiResponse<SalesDelivery>>(`/sales/orders/${orderId}/deliveries`, data)
 
-  getDeliveries: (orderId: number) =>
-    request.get<ApiResponse<SalesDelivery[]>>(`/sales/orders/${orderId}/deliveries`),
+// D14 Batch 5b：原 salesApi.getDeliveries 转为风格 B 函数
+export const getSalesDeliveryList = (orderId: number) =>
+  request.get<ApiResponse<SalesDelivery[]>>(`/sales/orders/${orderId}/deliveries`)
 
-  getOrderStatistics: (params: SalesStatisticsParams) =>
-    request.get<ApiResponse<SalesStatisticsData>>('/sales/orders/statistics', { params }),
+// D14 Batch 5b：原 salesApi.getOrderStatistics 转为风格 B 函数
+export const getSalesOrderStatistics = (params: SalesStatisticsParams) =>
+  request.get<ApiResponse<SalesStatisticsData>>('/sales/orders/statistics', { params })
 
-  /**
-   * 生成销售订单号（P1-1 补齐 generate-no 端点）
-   * 后端: GET /api/v1/erp/sales/orders/generate-no
-   * 返回: { prefix: "SO", order_no: "SO20260617001" }
-   */
-  generateOrderNo: () =>
-    request.get<ApiResponse<{ prefix: string; order_no: string }>>('/sales/orders/generate-no'),
-}
+/**
+ * 生成销售订单号（P1-1 补齐 generate-no 端点）
+ * 后端: GET /api/v1/erp/sales/orders/generate-no
+ * 返回: { prefix: "SO", order_no: "SO20260617001" }
+ */
+// D14 Batch 5b：原 salesApi.generateOrderNo 转为风格 B 函数
+export const generateSalesOrderNo = () =>
+  request.get<ApiResponse<{ prefix: string; order_no: string }>>('/sales/orders/generate-no')

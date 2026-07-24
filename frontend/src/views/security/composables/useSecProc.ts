@@ -3,7 +3,7 @@
 // 业务领域：登录安全（解锁账户 + 导出日志 + 查询）
 // 批次 282：移除 handleSizeChange/handleCurrentChange（useTableApi watch 自动处理分页）
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { securityApi, type LockedAccount, type SecurityQueryParams } from '@/api/security'
+import { unlockAccount, exportLoginLogs, type LockedAccount, type SecurityQueryParams } from '@/api/security'
 import { logger } from '@/utils/logger'
 
 // v11 批次 181 P2-1 修复：定义 SecContext 接口替代 any
@@ -28,7 +28,7 @@ export const useSecProc = () => {
   const handleUnlock = async (row: LockedAccount, sec: SecContext) => {
     try {
       await ElMessageBox.confirm(`确认解锁账户 ${row.username}？`, '提示', { type: 'warning' })
-      await securityApi.unlockAccount(row.id)
+      await unlockAccount(row.id)
       ElMessage.success('解锁成功')
       sec.getLockedAccounts()
       sec.getStats()
@@ -40,7 +40,7 @@ export const useSecProc = () => {
   // 导出日志
   const handleExport = async (sec: SecContext) => {
     try {
-      const res = await securityApi.exportLoginLogs(sec.queryParams as SecurityQueryParams)
+      const res = await exportLoginLogs(sec.queryParams as SecurityQueryParams)
       const url = window.URL.createObjectURL(new Blob([res]))
       const link = document.createElement('a')
       link.href = url

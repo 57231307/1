@@ -9,7 +9,9 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  purchaseReturnApi,
+  getPurchaseReturnById,
+  updatePurchaseReturn,
+  createPurchaseReturn,
   type PurchaseReturn,
   type PurchaseReturnItem,
 } from '@/api/purchase-return'
@@ -201,7 +203,7 @@ export function usePrRtn() {
   /** 获取详情 */
   const fetchDetail = async (id: number) => {
     try {
-      const res = await purchaseReturnApi.getById(id)
+      const res = await getPurchaseReturnById(id)
       detailData.value = res.data
     } catch (error) {
       logger.error('获取详情失败:', error)
@@ -256,10 +258,10 @@ export function usePrRtn() {
         items: formData.items as PurchaseReturnItem[],
       }
       if (isEdit && formData.id) {
-        await purchaseReturnApi.update(formData.id, submitData)
+        await updatePurchaseReturn(formData.id, submitData)
         ElMessage.success('更新成功')
       } else {
-        await purchaseReturnApi.create(submitData)
+        await createPurchaseReturn(submitData)
         ElMessage.success('创建成功')
       }
       fetchData()

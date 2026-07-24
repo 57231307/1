@@ -188,7 +188,8 @@ import {
   TrendCharts,
   Connection,
 } from '@element-plus/icons-vue'
-import { bpmEnhancedApi } from '@/api/bpm-enhanced'
+// D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
+import { createBpmFromTemplate, deleteBpmTemplate } from '@/api/bpm-enhanced'
 import type { ProcessTemplate } from '@/api/bpm-enhanced'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
@@ -313,7 +314,7 @@ const confirmCreateFromTemplate = async () => {
       createForm.process_name !== currentTemplate.value.template_name
         ? { process_name: createForm.process_name }
         : undefined
-    await bpmEnhancedApi.createFromTemplate(currentTemplate.value.id, data)
+    await createBpmFromTemplate(currentTemplate.value.id, data)
     ElMessage.success('创建成功')
     createDialogVisible.value = false
   } catch (e) {
@@ -328,7 +329,7 @@ const handleDeleteTemplate = async (row: ProcessTemplate) => {
     await ElMessageBox.confirm(`确定删除模板「${row.template_name}」吗？`, '确认', {
       type: 'warning',
     })
-    await bpmEnhancedApi.deleteTemplate(row.id)
+    await deleteBpmTemplate(row.id)
     ElMessage.success('删除成功')
     fetchData()
   } catch (e) {

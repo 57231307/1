@@ -12,7 +12,7 @@ import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import {
-  materialShortageApi,
+  getMaterialShortageSummary,
   type MaterialShortageSummary,
   type MaterialShortage,
 } from '@/api/material-shortage'
@@ -63,7 +63,7 @@ export function useMs() {
    */
   const fetchSummary = async () => {
     try {
-      const res = await materialShortageApi.getSummary()
+      const res = await getMaterialShortageSummary()
       summary.value = (res.data || {}) as MaterialShortageSummary
     } catch (error) {
       const msg = error instanceof Error ? error.message : '获取缺料汇总失败'

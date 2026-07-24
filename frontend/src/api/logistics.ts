@@ -33,26 +33,24 @@ export interface LogisticsQueryParams {
   end_date?: string
 }
 
-export const logisticsApi = {
-  // 运单列表
-  list: (params?: LogisticsQueryParams) =>
-    request.get<ApiResponse<{ list: LogisticsWaybill[]; total: number }>>('/inventory/logistics', {
-      params,
-    }),
+// D14 Batch 5b：原 logisticsApi.list 转为风格 B 函数（运单列表）
+export const getLogisticsList = (params?: LogisticsQueryParams) =>
+  request.get<ApiResponse<{ list: LogisticsWaybill[]; total: number }>>('/inventory/logistics', {
+    params,
+  })
 
-  // 创建运单
-  create: (data: Partial<LogisticsWaybill>) =>
-    request.post<ApiResponse<LogisticsWaybill>>('/inventory/logistics', data),
+// D14 Batch 5b：原 logisticsApi.create 转为风格 B 函数（创建运单）
+export const createLogistics = (data: Partial<LogisticsWaybill>) =>
+  request.post<ApiResponse<LogisticsWaybill>>('/inventory/logistics', data)
 
-  // 获取运单详情
-  getById: (id: number) =>
-    request.get<ApiResponse<LogisticsWaybill>>(`/inventory/logistics/${id}`),
+// D14 Batch 5b：原 logisticsApi.getById 转为风格 B 函数（获取运单详情）
+export const getLogisticsById = (id: number) =>
+  request.get<ApiResponse<LogisticsWaybill>>(`/inventory/logistics/${id}`)
 
-  // 更新运单状态
-  update: (id: number, data: Partial<LogisticsWaybill>) =>
-    request.put<ApiResponse<LogisticsWaybill>>(`/inventory/logistics/${id}`, data),
+// D14 Batch 5b：原 logisticsApi.update 转为风格 B 函数（更新运单状态）
+export const updateLogistics = (id: number, data: Partial<LogisticsWaybill>) =>
+  request.put<ApiResponse<LogisticsWaybill>>(`/inventory/logistics/${id}`, data)
 
-  // 删除运单
-  delete: (id: number) =>
-    request.delete<ApiResponse<void>>(`/inventory/logistics/${id}`),
-}
+// D14 Batch 5b：原 logisticsApi.delete 转为风格 B 函数（删除运单）
+export const deleteLogistics = (id: number) =>
+  request.delete<ApiResponse<void>>(`/inventory/logistics/${id}`)

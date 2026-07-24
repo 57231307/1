@@ -233,7 +233,7 @@ import {
   exportDyeBatches,
 } from '@/api/dye-batch'
 import type { DyeBatch } from '@/api/dye-batch'
-import { productApi } from '@/api/product'
+import { getProductList } from '@/api/product'
 import type { Product } from '@/api/product'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
@@ -305,7 +305,7 @@ const syncQueryParams = () => {
 // 获取产品列表
 const getProducts = async () => {
   try {
-    const res = await productApi.list({ page: 1, page_size: 1000 })
+    const res = await getProductList({ page: 1, page_size: 1000 })
     products.value = res.data?.list || []
   } catch (error) {
     logger.error('获取产品列表失败:', error)

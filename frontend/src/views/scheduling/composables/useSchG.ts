@@ -8,7 +8,7 @@
  */
 import { ref, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { schedulingApi, type GanttData, type ScheduleTask, type SchedulingParams, type ConflictItem } from '@/api/scheduling'
+import { getSchedulingGanttData, adjustSchedulingTask, type GanttData, type ScheduleTask, type SchedulingParams, type ConflictItem } from '@/api/scheduling'
 
 /**
  * 排产甘特图 composable
@@ -73,7 +73,7 @@ export function useSchG() {
         params.start_date = dateRange.value[0].toISOString().split('T')[0]
         params.end_date = dateRange.value[1].toISOString().split('T')[0]
       }
-      const res = await schedulingApi.getGanttData(params)
+      const res = await getSchedulingGanttData(params)
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) ganttData.value = res.data
     } catch (error: unknown) {
@@ -107,7 +107,7 @@ export function useSchG() {
   const confirmAdjust = async () => {
     adjusting.value = true
     try {
-      await schedulingApi.adjustTask(adjustTask.value.id, {
+      await adjustSchedulingTask(adjustTask.value.id, {
         start_time: adjustForm.value.start_time,
         end_time: adjustForm.value.end_time,
         work_center_id: adjustForm.value.work_center_id,
