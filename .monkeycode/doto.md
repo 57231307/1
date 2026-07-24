@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-24（D05 Batch 8 完成 i18n 缺失键补全：7 文件 154 个 $t()/t() 引用未定义键补全到 locales，budget 命名空间扩展 49 键 + 新增 businessTrace 61 键 + 新增 capacityModule 36 键 + advancedModule.quality.confidence 1 键，zh-CN.ts/en-US.ts 双语同步 2863→3011 键，audit 验证 0 真实缺失键；D05 Batch 7 完成 color-cards + color-prices 8 文件 i18n 接入，新增 colorCards/colorPrices 命名空间 365 翻译键到 locales；D05 Batch 6 完成 group4.json 翻译键汇总 bomModule + bpm 命名空间 406 键；D05 Batch 5 已合并 PR #729；核实 i18n 接入现状：28 文件含 useI18n，18 完整接入 + 10 部分接入；发现 UserTab.vue 命名空间 BUG；D05 状态由 ❌ 未开始更正为 ⏳ 进行中）
+> 最近整理：2026-07-24（D05 useI18n 全量接入完成：特殊豁免多代理并行接入 77 文件 + 3327 翻译键，merge-i18n.js 深度合并 + audit-i18n.js 自审补 421 缺失键，修复 TS6133 未使用变量，PR #732 admin squash 合并 main ed1f611；模块 G 17 项 P0 任务全部完成，P0 阻塞级任务 104/104 100% 完成；详细归档见 [doto-su.md §V15 Batch 490](file:///workspace/.monkeycode/doto-su.md)）
 
 ---
 
