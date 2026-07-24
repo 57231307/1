@@ -1,20 +1,20 @@
 <!--
-  PpDetail.vue - 采购价格查看详情对话框
-  拆分自 purchase-price/index.vue（P14 批 2 I-3 第 3 批）
+  SalesPriceView.vue - 销售价格查看详情对话框
+  拆分自 sales-price/index.vue（P14 批 2 I-3 第 3 批）
   行为完全保持一致（仅结构重构）
 -->
 <template>
   <el-dialog
     :model-value="visible"
     title="价格详情"
-    width="700px"
-    aria-label="采购价格详情对话框"
+    width="600px"
+    aria-label="价格详情对话框"
     @update:model-value="onVisibleChange"
   >
     <el-descriptions :column="2" border>
       <el-descriptions-item label="产品名称">{{ viewData.product_name }}</el-descriptions-item>
-      <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
-      <el-descriptions-item label="采购价格">{{
+      <el-descriptions-item label="客户">{{ viewData.customer_name || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="销售价格">{{
         formatCurrency(viewData.price || 0)
       }}</el-descriptions-item>
       <el-descriptions-item label="币种">{{ viewData.currency }}</el-descriptions-item>
@@ -25,15 +25,20 @@
       <el-descriptions-item label="价格类型">{{
         getPriceTypeLabel(viewData.price_type || '')
       }}</el-descriptions-item>
+      <el-descriptions-item label="价格等级">{{
+        viewData.price_level || '-'
+      }}</el-descriptions-item>
+      <el-descriptions-item label="生效日期">{{
+        viewData.effective_date || '-'
+      }}</el-descriptions-item>
+      <el-descriptions-item label="到期日期">{{
+        viewData.expiry_date || '-'
+      }}</el-descriptions-item>
       <el-descriptions-item label="状态">
         <el-tag :type="getStatusType(viewData.status || '')">{{
           getStatusLabel(viewData.status || '')
         }}</el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="生效日期">{{ viewData.effective_date }}</el-descriptions-item>
-      <el-descriptions-item label="到期日期">{{
-        viewData.expiry_date || '-'
-      }}</el-descriptions-item>
       <el-descriptions-item label="备注" :span="2">{{
         viewData.remarks || '-'
       }}</el-descriptions-item>
@@ -47,31 +52,32 @@ import {
   getPriceTypeLabel,
   getStatusType,
   getStatusLabel,
-} from '../composables/ppFmts'
+} from '../composables/spFmts'
 
 // 查看详情数据类型
-interface PpViewData {
+interface SpViewData {
   product_name?: string
-  supplier_name?: string
+  customer_name?: string
   price?: number
   currency?: string
   unit?: string
   min_order_qty?: number
   price_type?: string
-  status?: string
+  price_level?: string
   effective_date?: string
   expiry_date?: string
+  status?: string
   remarks?: string
 }
 
 /**
- * 采购价格查看详情对话框组件
+ * 销售价格查看详情对话框组件
  */
 defineProps<{
   // 对话框可见性
   visible: boolean
   // 详情数据
-  viewData: PpViewData
+  viewData: SpViewData
 }>()
 
 const emit = defineEmits<{

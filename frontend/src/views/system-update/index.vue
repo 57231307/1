@@ -20,7 +20,7 @@
       </div>
     </div>
 
-    <SuInfoCards
+    <SystemUpdateInfoCards
       :current-version="upd.currentVersion"
       :latest-version="upd.latestVersion"
       :has-update="upd.hasUpdate"
@@ -75,12 +75,12 @@
       </el-tab-pane>
     </el-tabs>
 
-    <SuVerDetail
+    <SystemUpdateVersionDetail
       v-model:visible="versionDetailVisible"
       :current-version-detail="upd.currentVersionDetail"
     />
 
-    <SuBkpForm
+    <SystemUpdateBackupForm
       v-model:visible="backupDialogVisible"
       :form="upd.backupForm"
       :submit-loading="upd.backupSubmitLoading"
@@ -99,9 +99,9 @@ import * as sysUpdFmts from './composables/sysUpdFmts'
 import SystemUpdateVersionTab from './tabs/SystemUpdateVersionTab.vue'
 import SystemUpdateTaskTab from './tabs/SystemUpdateTaskTab.vue'
 import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue'
-import SuInfoCards from './components/SuInfoCards.vue'
-import SuVerDetail from './components/SuVerDetail.vue'
-import SuBkpForm from './components/SuBkpForm.vue'
+import SystemUpdateInfoCards from './components/SystemUpdateInfoCards.vue'
+import SystemUpdateVersionDetail from './components/SystemUpdateVersionDetail.vue'
+import SystemUpdateBackupForm from './components/SystemUpdateBackupForm.vue'
 
 const activeTab = ref('versions')
 

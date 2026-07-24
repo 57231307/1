@@ -2,7 +2,7 @@
   purchase-price/index.vue - 采购价格管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 3 批
   拆分：622 行 → ~150 行 + 5 子组件 + 2 composable + 1 工具
-  批次 285：PpFilter/PpTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
+  批次 285：PurchasePriceFilter/PurchasePriceTable 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="purchase-price-page">
@@ -27,7 +27,7 @@
       </div>
     </div>
 
-    <PpFilter
+    <PurchasePriceFilter
       :query-params="pp.queryParams"
       :suppliers="pp.suppliers"
       :products="pp.products"
@@ -35,7 +35,7 @@
       @update:query-params="(v) => Object.assign(pp.queryParams, v)"
     />
 
-    <PpTbl
+    <PurchasePriceTable
       v-model:page="pp.page"
       v-model:page-size="pp.pageSize"
       :price-list="pp.priceList"
@@ -47,7 +47,7 @@
       @history="ppProc.handleHistory"
     />
 
-    <PpForm
+    <PurchasePriceForm
       v-model:visible="dialogVisible"
       :title="pp.dialogTitle"
       :form-data="pp.formData"
@@ -57,9 +57,9 @@
       @update:form-data="(v) => Object.assign(pp.formData, v)"
     />
 
-    <PpHistory v-model:visible="ppProc.historyVisible" :history-list="ppProc.historyList" />
+    <PurchasePriceHistory v-model:visible="ppProc.historyVisible" :history-list="ppProc.historyList" />
 
-    <PpDetail v-model:visible="ppProc.viewDialogVisible" :view-data="ppProc.viewData" />
+    <PurchasePriceDetail v-model:visible="ppProc.viewDialogVisible" :view-data="ppProc.viewData" />
   </div>
 </template>
 
@@ -69,11 +69,11 @@ import { Plus, Download } from '@element-plus/icons-vue'
 import type { PurchasePrice } from '@/api/purchase-price'
 import { usePp } from './composables/usePp'
 import { usePpProc } from './composables/usePpProc'
-import PpFilter from './components/PpFilter.vue'
-import PpTbl from './components/PpTbl.vue'
-import PpForm from './components/PpForm.vue'
-import PpHistory from './components/PpHistory.vue'
-import PpDetail from './components/PpDetail.vue'
+import PurchasePriceFilter from './components/PurchasePriceFilter.vue'
+import PurchasePriceTable from './components/PurchasePriceTable.vue'
+import PurchasePriceForm from './components/PurchasePriceForm.vue'
+import PurchasePriceHistory from './components/PurchasePriceHistory.vue'
+import PurchasePriceDetail from './components/PurchasePriceDetail.vue'
 
 const pp = usePp()
 const ppProc = usePpProc({

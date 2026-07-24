@@ -193,7 +193,7 @@
       @submitted="getList"
     />
 
-    <!-- 商机详情对话框（批次 95 P3-19 修复：参考 SpView.vue 的 el-descriptions 模式） -->
+    <!-- 商机详情对话框（批次 95 P3-19 修复：参考 SalesPriceView.vue 的 el-descriptions 模式） -->
     <el-dialog v-model="viewDialogVisible" title="商机详情" width="640px" aria-label="商机详情">
       <el-descriptions v-if="viewData" :column="2" border>
         <el-descriptions-item label="商机编号">{{

@@ -2,7 +2,7 @@
   sales-contract/index.vue - 销售合同管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 1 批
   拆分：717 行 → ~150 行 + 4 子组件 + 2 composable + 1 工具
-  批次 284：ScFilter/ScTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
+  批次 284：SalesContractFilter/SalesContractTable 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="sales-contract-page">
@@ -24,7 +24,7 @@
       </div>
     </div>
 
-    <ScFilter
+    <SalesContractFilter
       :query-params="sc.queryParams"
       :customers="sc.customers"
       :date-range="sc.dateRange"
@@ -33,7 +33,7 @@
       @date-change="onDateChange"
     />
 
-    <ScTbl
+    <SalesContractTable
       v-model:page="sc.page"
       v-model:page-size="sc.pageSize"
       :contract-list="sc.contractList"
@@ -47,7 +47,7 @@
       @delete="scProc.handleDelete"
     />
 
-    <ScForm
+    <SalesContractForm
       v-model:visible="dialogVisible"
       :title="sc.dialogTitle"
       :form-data="sc.formData"
@@ -64,9 +64,9 @@ import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import type { SalesContract } from '@/api/sales-contract'
 import { useSc } from './composables/useSc'
 import { useScProc } from './composables/useScProc'
-import ScFilter from './components/ScFilter.vue'
-import ScTbl from './components/ScTbl.vue'
-import ScForm from './components/ScForm.vue'
+import SalesContractFilter from './components/SalesContractFilter.vue'
+import SalesContractTable from './components/SalesContractTable.vue'
+import SalesContractForm from './components/SalesContractForm.vue'
 
 const sc = useSc()
 const scProc = useScProc({

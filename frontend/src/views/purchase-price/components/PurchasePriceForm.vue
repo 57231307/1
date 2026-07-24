@@ -1,6 +1,6 @@
 <!--
-  SpForm.vue - 销售价格新建/编辑对话框
-  拆分自 sales-price/index.vue（P14 批 2 I-3 第 3 批）
+  PurchasePriceForm.vue - 采购价格新建/编辑对话框
+  拆分自 purchase-price/index.vue（P14 批 2 I-3 第 3 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
@@ -13,11 +13,15 @@
     :aria-label="title"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localFormData" :rules="formRules" label-width="100px" aria-label="销售价格表单">
+    <el-form :model="localFormData" label-width="100px" aria-label="采购价格表单">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="产品" prop="product_id">
-            <el-select v-model="localFormData.product_id" placeholder="请选择产品" filterable>
+            <el-select
+              v-model="localFormData.product_id"
+              placeholder="请选择产品"
+              filterable
+            >
               <el-option
                 v-for="p in products"
                 :key="p.id"
@@ -28,13 +32,17 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="客户" prop="customer_id">
-            <el-select v-model="localFormData.customer_id" placeholder="请选择客户" filterable clearable>
+          <el-form-item label="供应商" prop="supplier_id">
+            <el-select
+              v-model="localFormData.supplier_id"
+              placeholder="请选择供应商"
+              filterable
+            >
               <el-option
-                v-for="c in customers"
-                :key="c.id"
-                :label="c.customer_name"
-                :value="c.id"
+                v-for="s in suppliers"
+                :key="s.id"
+                :label="s.supplier_name"
+                :value="s.id"
               />
             </el-select>
           </el-form-item>
@@ -42,7 +50,7 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="销售价格" prop="price">
+          <el-form-item label="采购价格" prop="price">
             <el-input-number
               v-model="localFormData.price"
               :precision="6"
@@ -53,7 +61,10 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="币种" prop="currency">
-            <el-select v-model="localFormData.currency" placeholder="请选择币种">
+            <el-select
+              v-model="localFormData.currency"
+              placeholder="请选择币种"
+            >
               <el-option label="人民币" value="CNY" />
               <el-option label="美元" value="USD" />
               <el-option label="欧元" value="EUR" />
@@ -93,18 +104,6 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="价格等级" prop="price_level">
-            <el-select v-model="localFormData.price_level" placeholder="请选择价格等级">
-              <el-option label="A级" value="A" />
-              <el-option label="B级" value="B" />
-              <el-option label="C级" value="C" />
-              <el-option label="D级" value="D" />
-            </el-select>
-          </el-form-item>
-        </el-col>
-      </el-row>
-      <el-row :gutter="20">
-        <el-col :span="12">
           <el-form-item label="生效日期" prop="effective_date">
             <el-date-picker
               v-model="localFormData.effective_date"
@@ -114,6 +113,8 @@
             />
           </el-form-item>
         </el-col>
+      </el-row>
+      <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="到期日期" prop="expiry_date">
             <el-date-picker
@@ -143,37 +144,26 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-import type { Customer } from '@/api/customer'
+import type { Supplier } from '@/api/supplier'
 import type { Product } from '@/api/product'
 
-// 表单数据类型（所有字段可选，兼容 Partial<SalesPrice>）
-interface SpFormData {
+// 表单数据类型（所有字段可选，兼容 Partial<PurchasePrice>）
+interface PpFormData {
   id?: number | undefined
   product_id?: number | undefined
-  customer_id?: number | undefined
+  supplier_id?: number | undefined
   price?: number
   currency?: string
   unit?: string
   min_order_qty?: number
   price_type?: string
-  price_level?: string
   effective_date?: string
   expiry_date?: string
   remarks?: string
 }
 
-// 表单校验规则
-interface FormRules {
-  product_id: Array<{ required: boolean; message: string; trigger: string }>
-  price: Array<{ required: boolean; message: string; trigger: string }>
-  currency: Array<{ required: boolean; message: string; trigger: string }>
-  unit: Array<{ required: boolean; message: string; trigger: string }>
-  effective_date: Array<{ required: boolean; message: string; trigger: string }>
-  price_type: Array<{ required: boolean; message: string; trigger: string }>
-}
-
 /**
- * 销售价格新建/编辑对话框组件
+ * 采购价格新建/编辑对话框组件
  */
 const props = defineProps<{
   // 对话框可见性
@@ -181,11 +171,9 @@ const props = defineProps<{
   // 标题
   title: string
   // 表单数据（由父组件管理，子组件通过 emit('update:formData') 回写）
-  formData: SpFormData
-  // 表单校验规则
-  formRules: FormRules
-  // 客户列表
-  customers: Customer[]
+  formData: PpFormData
+  // 供应商列表
+  suppliers: Supplier[]
   // 产品列表
   products: Product[]
 }>()
@@ -194,11 +182,11 @@ const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void
   (e: 'submit'): void
   // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
-  (e: 'update:formData', formData: SpFormData): void
+  (e: 'update:formData', formData: PpFormData): void
 }>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localFormData = ref<SpFormData>({ ...props.formData })
+const localFormData = ref<PpFormData>({ ...props.formData })
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false

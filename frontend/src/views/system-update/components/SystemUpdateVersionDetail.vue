@@ -1,5 +1,5 @@
 <!--
-  SuVerDetail.vue - 系统版本详情对话框
+  SystemUpdateVersionDetail.vue - 系统版本详情对话框
   拆分自 system-update/index.vue（P14 批 2 I-3 第 1 批）
   行为完全保持一致（仅结构重构）
 -->
