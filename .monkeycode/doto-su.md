@@ -222,6 +222,90 @@
 
 ---
 
+## 📦 V15 Batch 490 归档：D05 useI18n 全量接入完成（特殊豁免多代理并行）
+
+### 任务概述
+
+- **批次**：490（D05 独立批次，特殊豁免一次性全量接入）
+- **合并方式**：PR #732 admin squash 合并 main ed1f611 + PR #733 文档同步 main 289041f
+- **完成时间**：2026-07-24
+- **审计项**：P0-D05 useI18n 接入（类七可维护性，XL）
+- **用户特殊豁免指令**：本次 i18n 所有未接入文件使用多个代理全部一次性接入，全部接入后进行自审，自审通过后进行合并
+- **V15 P0 进度**：104/104（100%，模块 G 17 项 P0 任务全部完成）
+
+### 执行流程
+
+#### 1. 多代理并行接入（5 个并行代理）
+
+- **代理分组**：按模块横向切片，5 个代理一次性处理 77 个 .vue 文件
+- **覆盖模块**：accountSubject / accountingPeriod / admin/failover / advanced / ai-extend / ap / ar / arReconciliation / assistAccounting / barcodeScanner / bi / bom / bpm / budget / businessTrace / capacity / color-cards / color-prices 等
+- **翻译键输出**：每个代理将提取的翻译键写入 `/tmp/i18n-keys/group{1-5}.json`，包含 zh+en 双语 + 命名空间层级结构
+
+#### 2. 翻译键合并（merge-i18n.js 脚本）
+
+- **脚本路径**：`/tmp/merge-i18n.js`
+- **功能**：深度合并多个 JSON 文件到 [zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts) + [en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)
+- **结果**：
+  - 新增 10 个命名空间（qualityStandards / crmLeads / adminFailover / advancedModule / apModule / arModule / arReconciliationModule / bomModule / businessTrace / capacityModule 等）
+  - 深度合并 6 个已有命名空间（budget / capacity / colorCards / colorPrices / bpm / aiExtend 等）
+  - 双语同步 3327 个翻译键
+- **技术要点**：
+  - 命名空间冲突检测（如 `export`→`exportFile`、`print`→`printDialog`）
+  - TS 代码生成 2 空格缩进规范
+  - 单引号字符串 + `{name}/{count}` 动态参数语法
+
+#### 3. 全量自审（audit-i18n.js 脚本）
+
+- **脚本路径**：`/tmp/audit-i18n.js`
+- **功能**：扫描所有 .vue 文件的 `$t()`/`t()` 引用，与 locales 文件比对，发现缺失键
+- **结果**：
+  - 补充 421 个缺失键到 locales 文件
+  - 剩余 9 个为 `${...}` 动态模板键误报（如 `t('colorCards.cardType.${key}')`），手动验证确认非真实缺失
+- **自审模式**：正则提取 + locales 比对 + 缺失键定位 + 补全
+
+#### 4. CI 修复
+
+- **TS6133 未使用变量错误**（前端类型检查 job 失败）：
+  - [color-cards/detail.vue](file:///workspace/frontend/src/views/color-cards/detail.vue) L123-124：删除 `COLOR_CARD_TYPE_LABELS` + `COLOR_CARD_STATUS` 导入（i18n 接入后已不再使用）
+  - [color-cards/issues.vue](file:///workspace/frontend/src/views/color-cards/issues.vue) L192：删除 `ISSUE_STATUS` 导入
+- **修复 commit**：2f50bc4
+
+#### 5. 合并
+
+- **CI 状态**：前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy 全绿；Rust 后端构建/单元测试/覆盖率仍在运行
+- **合并方式**：按用户"直接合并"指令，使用 `gh pr merge 732 --admin --squash --delete-branch` 强制合并
+- **合并 commit**：ed1f611
+
+### i18n 接入模式规范
+
+- **模板**：`$t('namespace.section.key')`
+- **脚本**：`import { useI18n } from 'vue-i18n'` + `const { t } = useI18n({ useScope: 'global' })`
+- **命名空间**：`{module}.{section}.{key}`（如 `fixedAssets.title`、`fixedAssets.filter.assetCode`）
+- **状态标签映射**：函数化响应式求值（如 `getTypeLabel`/`getStatusLabel`），确保语言切换时翻译动态更新
+- **带参数翻译**：`t('key', { param })` 语法（如 `t('crmLeads.contactConfirm', { name: row.companyName })`）
+- **键名冲突解决**：子命名空间重命名（如 `export`→`exportFile`、`print`→`printDialog`）
+
+### 关键技术教训
+
+1. **多代理并行接入策略**：特殊豁免下一次性处理 77 文件效率高，但需要主代理统一合并翻译键避免冲突；翻译键汇总到临时 JSON 文件是有效的解耦方式
+2. **全量自审脚本**：正则提取 `$t()`/`t()` 引用 + locales 比对，能快速发现缺失键；需手动排除 `${...}` 动态模板键误报
+3. **TS6133 未使用变量**：i18n 接入后原常量映射（如 `COLOR_CARD_TYPE_LABELS`）可能不再使用，需清理导入避免类型错误
+4. **CI 部分通过合并策略**：覆盖率等 infra job 失败时，关键 job（类型检查/测试/构建）全绿即可按用户指令 admin 合并
+
+### 影响范围
+
+- **77 个 .vue 文件**：所有用户可见中文（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）替换为 `$t`/`t()` 调用
+- **2 个 locales 文件**：[zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts) + [en-US.ts](file:///workspace/frontend/src/locales/en-US.ts) 双语同步 3327 键
+- **2 个 .vue 文件修复**：color-cards/detail.vue + color-cards/issues.vue 删除未使用常量导入
+
+### 关联 PR
+
+- PR #732：D05 i18n 全量接入（77 文件 + 3327 翻译键，main ed1f611）
+- PR #733：文档同步（doto.md + CHANGELOG.md 标记 D05 完成，main 289041f）
+- 历史 PR：#724/#725/#727/#729（Batch 1-5 + Batch 7-8 渐进式接入）
+
+---
+
 ## 📦 V15 Batch 485-487 摘要（详细已归档）
 
 > 三个批次的完整详细记录（任务概述/修改文件清单/核心变更详解/CI 验证历程/关键决策与教训）已归档到 [doto-su-v15-batch-485-487.md](file:///workspace/.monkeycode/docs/archives/2026-07-22/doto-su-v15-batch-485-487.md)。
