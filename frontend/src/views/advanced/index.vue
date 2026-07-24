@@ -2,7 +2,7 @@
   <div class="advanced-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => loadTab(tab)">
       <el-tab-pane label="AI 分析" name="ai">
-        <AiPanel
+        <AdvancedAiPanel
           :forecast-period="ai.forecastPeriod.value"
           :forecast-loading="ai.forecastLoading.value"
           :forecast-result="ai.forecastResult.value"
@@ -24,7 +24,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="报表引擎" name="report">
-        <RptPanel
+        <AdvancedReportPanel
           :report-templates="rpt.reportTemplates.value"
           :report-loading="rpt.reportLoading.value"
           :report-result-visible="rpt.reportResultVisible.value"
@@ -37,7 +37,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="工艺优化" name="recipe">
-        <RcpPanel
+        <AdvancedRecipePanel
           :recipe-form="rcp.recipeForm.value"
           :recipe-loading="rcp.recipeLoading.value"
           :recipe-result="rcp.recipeResult.value"
@@ -47,7 +47,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="质量预测" name="quality">
-        <QltPanel
+        <AdvancedQualityPanel
           :quality-form="qlt.qualityForm.value"
           :quality-loading="qlt.qualityLoading.value"
           :quality-result="qlt.qualityResult.value"
@@ -66,10 +66,10 @@ import { useAi } from './composables/useAi'
 import { useRpt } from './composables/useRpt'
 import { useRcp } from './composables/useRcp'
 import { useQlt } from './composables/useQlt'
-import AiPanel from './components/AiPanel.vue'
-import RptPanel from './components/RptPanel.vue'
-import RcpPanel from './components/RcpPanel.vue'
-import QltPanel from './components/QltPanel.vue'
+import AdvancedAiPanel from './components/AdvancedAiPanel.vue'
+import AdvancedReportPanel from './components/AdvancedReportPanel.vue'
+import AdvancedRecipePanel from './components/AdvancedRecipePanel.vue'
+import AdvancedQualityPanel from './components/AdvancedQualityPanel.vue'
 
 const activeTab = ref('ai')
 const hasLoaded = createLazyLoader()

@@ -1,5 +1,5 @@
 <!--
-  TfaStep2.vue - 2FA Step 2 扫描二维码面板
+  TwoFactorAuthStep2.vue - 2FA Step 2 扫描二维码面板
   拆分自 security/TwoFactorSetup.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->

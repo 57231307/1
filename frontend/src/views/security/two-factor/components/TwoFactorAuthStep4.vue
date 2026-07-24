@@ -1,5 +1,5 @@
 <!--
-  TfaStep4.vue - 2FA Step 4 完成面板（含 10 个恢复码 + 复制全部）
+  TwoFactorAuthStep4.vue - 2FA Step 4 完成面板（含 10 个恢复码 + 复制全部）
   拆分自 security/TwoFactorSetup.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->

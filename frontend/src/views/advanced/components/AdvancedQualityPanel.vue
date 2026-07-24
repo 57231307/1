@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * QltPanel - 质量预测 tab 视图组件
+ * AdvancedQualityPanel - 质量预测 tab 视图组件
  * 任务编号: P13 批 1 B3 I-1（拆分 advanced/index.vue 第 5 个 tab）
  * 质量预测（A2-2）：基于历史检验记录
  * 数据与函数全部由父组件通过 props 传入

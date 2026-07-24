@@ -1,7 +1,7 @@
 // TwoFactorSetup 业务流程 composable
 // 拆分自 security/TwoFactorSetup.vue（P14 批 2 I-3 第 6 批）
 // 业务领域：双因素认证（启动设置 / 上下步 / 复制密钥 / 验证并启用 / 生成恢复码 / 复制恢复码 / 完成）
-// 注：Step 3 验证流程中通过 TfaStep3 的 ref 调其 validate() 获取 token
+// 注：Step 3 验证流程中通过 TwoFactorAuthStep3 的 ref 调其 validate() 获取 token
 // 行为完全保持一致（仅结构重构）
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -9,8 +9,8 @@ import { setupTotp, enableTotp, generateRecoveryCodes } from '@/api/auth'
 import { useUserStore } from '@/store/user'
 import { logger } from '@/utils/logger'
 
-/** TfaStep3 子组件暴露的接口（defineExpose 提供的 validate/setError 方法） */
-export interface TfaStep3Instance {
+/** TwoFactorAuthStep3 子组件暴露的接口（defineExpose 提供的 validate/setError 方法） */
+export interface TwoFactorAuthStep3Instance {
   validate: () => Promise<{ valid: boolean; token: string }>
   setError: (msg: string) => void
   clearError: () => void
@@ -77,8 +77,8 @@ export const useTfaProc = () => {
   }
 
   // 验证并启用：调 POST /auth/totp/enable
-  // 通过 tfaStep3Ref 调 TfaStep3 的 validate 方法获取 token
-  const handleVerifyAndEnable = async (tfa: TfaState, tfaStep3Ref?: TfaStep3Instance | null) => {
+  // 通过 tfaStep3Ref 调 TwoFactorAuthStep3 的 validate 方法获取 token
+  const handleVerifyAndEnable = async (tfa: TfaState, tfaStep3Ref?: TwoFactorAuthStep3Instance | null) => {
     if (!tfaStep3Ref) {
       ElMessage.error('表单组件未就绪')
       return
@@ -108,7 +108,7 @@ export const useTfaProc = () => {
         }
         tfa.currentStep = 3
       } else {
-        // 将错误传给 TfaStep3（接口已扩展 setError，直接调用）
+        // 将错误传给 TwoFactorAuthStep3（接口已扩展 setError，直接调用）
         if (tfaStep3Ref && typeof tfaStep3Ref.setError === 'function') {
           tfaStep3Ref.setError(res.message || '验证失败，请重试')
         } else {

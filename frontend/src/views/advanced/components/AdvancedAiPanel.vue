@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * AiPanel - AI 智能分析 tab 视图组件（纯展示）
+ * AdvancedAiPanel - AI 智能分析 tab 视图组件（纯展示）
  * 任务编号: P13 批 1 B3 I-1（拆分 advanced/index.vue 第 1 个 tab）
  * 包含：销售预测、库存优化建议、异常检测、智能推荐
  * 数据与函数全部由父组件通过 props 传入

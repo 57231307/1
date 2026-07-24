@@ -1,5 +1,5 @@
 <!--
-  TfaStep1.vue - 2FA Step 1 启动设置（状态/账户名/启用按钮）
+  TwoFactorAuthStep1.vue - 2FA Step 1 启动设置（状态/账户名/启用按钮）
   拆分自 security/TwoFactorSetup.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->

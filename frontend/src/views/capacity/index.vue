@@ -35,13 +35,13 @@
       </div>
     </div>
 
-    <CpStat :summary="cp.summary" />
+    <CapacityStat :summary="cp.summary" />
 
-    <CpTrend :data="cp.trendData" :days="cp.trendDays" @update:days="cp.handleTrendDaysChange" />
+    <CapacityTrend :data="cp.trendData" :days="cp.trendDays" @update:days="cp.handleTrendDaysChange" />
 
     <el-row :gutter="20" class="table-row">
       <el-col :xs="24" :lg="16">
-        <CpTbl
+        <CapacityTable
           :data="cp.workCenters"
           :table-loading="cp.tableLoading"
           :total="cp.total"
@@ -53,7 +53,7 @@
         />
       </el-col>
       <el-col :xs="24" :lg="8">
-        <CpBottleneck :data="cp.bottlenecks" :loading="cp.bottleneckLoading" />
+        <CapacityBottleneck :data="cp.bottlenecks" :loading="cp.bottleneckLoading" />
       </el-col>
     </el-row>
   </div>
@@ -62,10 +62,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useCp } from './composables/useCp'
-import CpStat from './components/CpStat.vue'
-import CpTrend from './components/CpTrend.vue'
-import CpTbl from './components/CpTbl.vue'
-import CpBottleneck from './components/CpBottleneck.vue'
+import CapacityStat from './components/CapacityStat.vue'
+import CapacityTrend from './components/CapacityTrend.vue'
+import CapacityTable from './components/CapacityTable.vue'
+import CapacityBottleneck from './components/CapacityBottleneck.vue'
 
 // 业务状态
 const cp = useCp()
