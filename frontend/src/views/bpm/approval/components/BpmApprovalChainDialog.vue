@@ -1,5 +1,5 @@
 <!--
-  BpmApChainDlg.vue - BPM 审批链对话框
+  BpmApprovalChainDialog.vue - BPM 审批链对话框
   拆分自 bpm/approval.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->

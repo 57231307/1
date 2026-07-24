@@ -46,7 +46,7 @@ export const useSa = () => {
   // 销售目标
   const salesTargets = ref<SalesTarget[]>([])
 
-  // 销售趋势数据（批次 95 P3-20 修复：供 SaTrend 折线图渲染）
+  // 销售趋势数据（批次 95 P3-20 修复：供 SalesAnalysisTrend 折线图渲染）
   const trendData = ref<SalesTrendResult[]>([])
 
   // 获取统计数据

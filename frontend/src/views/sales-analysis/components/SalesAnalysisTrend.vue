@@ -1,5 +1,5 @@
 <!--
-  SaTrend.vue - 销售趋势折线图 + 销售构成饼图
+  SalesAnalysisTrend.vue - 销售趋势折线图 + 销售构成饼图
   拆分自 sales-analysis/index.vue（P14 批 2 I-3 第 6 批）
   批次 95 P3-20 修复：接入 ECharts（原为占位面板未渲染图表）
 -->

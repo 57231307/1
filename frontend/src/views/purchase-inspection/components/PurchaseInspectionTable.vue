@@ -1,5 +1,5 @@
 <!--
-  PiTbl.vue - 采购验货列表
+  PurchaseInspectionTable.vue - 采购验货列表
   拆分自 purchase-inspection/index.vue（P14 批 2 I-3 第 5 批）
   批次 286：page/pageSize props + v-model 绑定分页
   行为完全保持一致（仅结构重构）

@@ -1,5 +1,5 @@
 <!--
-  PiStat.vue - 采购验货统计卡片（4 张）
+  PurchaseInspectionStat.vue - 采购验货统计卡片（4 张）
   拆分自 purchase-inspection/index.vue（P14 批 2 I-3 第 5 批）
   行为完全保持一致（仅结构重构）
 -->
@@ -44,7 +44,7 @@
 /**
  * 统计字段类型
  */
-interface PiStats {
+interface PurchaseInspectionStats {
   total: number
   pending: number
   passed: number
@@ -56,7 +56,7 @@ interface PiStats {
  */
 defineProps<{
   // 统计数据
-  stats: PiStats
+  stats: PurchaseInspectionStats
 }>()
 </script>
 

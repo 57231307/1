@@ -1,5 +1,5 @@
 <!--
-  PcDetail.vue - 采购合同查看详情对话框
+  PurchaseContractDetail.vue - 采购合同查看详情对话框
   拆分自 purchase-contract/index.vue（P14 批 2 I-3 第 3 批）
   行为完全保持一致（仅结构重构）
 -->

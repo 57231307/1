@@ -1,5 +1,5 @@
 <!--
-  BpmApStat.vue - BPM 审批统计卡片（4 张）
+  BpmApprovalStat.vue - BPM 审批统计卡片（4 张）
   拆分自 bpm/approval.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->
@@ -64,7 +64,7 @@
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
 
 // 统计字段类型
-interface BpmApStats {
+interface BpmApprovalStats {
   pending: number
   completed: number
   urgent: number
@@ -76,7 +76,7 @@ interface BpmApStats {
  */
 defineProps<{
   // 统计数据
-  stats: BpmApStats
+  stats: BpmApprovalStats
 }>()
 </script>
 

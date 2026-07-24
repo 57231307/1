@@ -2,7 +2,7 @@
   purchase-contract/index.vue - 采购合同管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 3 批
   拆分：644 行 → ~150 行 + 4 子组件 + 2 composable + 1 工具
-  批次 284：PcFilter/PcTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
+  批次 284：PurchaseContractFilter/PurchaseContractTable 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="purchase-contract-page">
@@ -27,14 +27,14 @@
       </div>
     </div>
 
-    <PcFilter
+    <PurchaseContractFilter
       :query-params="pc.queryParams"
       :suppliers="pc.suppliers"
       @fetch="pc.handleQuery"
       @update:query-params="(v) => Object.assign(pc.queryParams, v)"
     />
 
-    <PcTbl
+    <PurchaseContractTable
       v-model:page="pc.page"
       v-model:page-size="pc.pageSize"
       :contract-list="pc.contractList"
@@ -48,7 +48,7 @@
       @delete="pcProc.handleDelete"
     />
 
-    <PcForm
+    <PurchaseContractForm
       v-model:visible="dialogVisible"
       :title="pc.dialogTitle"
       :form-data="pc.formData"
@@ -57,7 +57,7 @@
       @update:form-data="(v) => Object.assign(pc.formData, v)"
     />
 
-    <PcDetail v-model:visible="detailDialogVisible" :view-data="viewData" />
+    <PurchaseContractDetail v-model:visible="detailDialogVisible" :view-data="viewData" />
   </div>
 </template>
 
@@ -67,10 +67,10 @@ import { Plus, Download } from '@element-plus/icons-vue'
 import type { PurchaseContract } from '@/api/purchase-contract'
 import { usePc } from './composables/usePc'
 import { usePcProc } from './composables/usePcProc'
-import PcFilter from './components/PcFilter.vue'
-import PcTbl from './components/PcTbl.vue'
-import PcForm from './components/PcForm.vue'
-import PcDetail from './components/PcDetail.vue'
+import PurchaseContractFilter from './components/PurchaseContractFilter.vue'
+import PurchaseContractTable from './components/PurchaseContractTable.vue'
+import PurchaseContractForm from './components/PurchaseContractForm.vue'
+import PurchaseContractDetail from './components/PurchaseContractDetail.vue'
 
 const pc = usePc()
 const pcProc = usePcProc({

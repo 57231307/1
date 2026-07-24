@@ -1,5 +1,5 @@
 <!--
-  PcFilter.vue - 采购合同过滤栏
+  PurchaseContractFilter.vue - 采购合同过滤栏
   拆分自 purchase-contract/index.vue（P14 批 2 I-3 第 3 批）
   批次 284：接入 useTableApi 模式（localQuery + handleSearch/handleReset）
 -->

@@ -17,11 +17,11 @@
       </div>
     </div>
 
-    <BpmApStat :stats="bpmAp.stats" />
+    <BpmApprovalStat :stats="bpmAp.stats" />
 
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <el-tab-pane label="待办任务" name="pending">
-        <BpmApPendingTbl
+        <BpmApprovalPendingTable
           :tasks="bpmAp.pendingTasks"
           :loading="bpmAp.pendingLoading"
           :total="bpmAp.pendingTotal"
@@ -35,7 +35,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="已办任务" name="completed">
-        <BpmApCompletedTbl
+        <BpmApprovalCompletedTable
           :tasks="bpmAp.completedTasks"
           :loading="bpmAp.completedLoading"
           :total="bpmAp.completedTotal"
@@ -46,7 +46,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <BpmApAprDlg
+    <BpmApprovalApprovalDialog
       v-model:visible="bpmApProc.approveDialogVisible"
       :current-task="bpmApProc.currentTask"
       :action="bpmApProc.approveAction"
@@ -56,7 +56,7 @@
       @update:approve-form="(v) => Object.assign(bpmApProc.approveForm, v)"
     />
 
-    <BpmApTranDlg
+    <BpmApprovalTransferDialog
       v-model:visible="bpmApProc.transferDialogVisible"
       :current-task="bpmApProc.currentTask"
       :submit-loading="bpmApProc.submitLoading"
@@ -66,7 +66,7 @@
       @update:form="(v) => Object.assign(bpmApProc.transferForm, v)"
     />
 
-    <BpmApChainDlg
+    <BpmApprovalChainDialog
       v-model:visible="bpmApProc.chainDialogVisible"
       :chain="bpmApProc.approvalChain"
     />
@@ -77,12 +77,12 @@
 import { ref } from 'vue'
 import { useBpmAp } from './composables/useBpmAp'
 import { useBpmApProc } from './composables/useBpmApProc'
-import BpmApStat from './components/BpmApStat.vue'
-import BpmApPendingTbl from './components/BpmApPendingTbl.vue'
-import BpmApCompletedTbl from './components/BpmApCompletedTbl.vue'
-import BpmApAprDlg from './components/BpmApAprDlg.vue'
-import BpmApTranDlg from './components/BpmApTranDlg.vue'
-import BpmApChainDlg from './components/BpmApChainDlg.vue'
+import BpmApprovalStat from './components/BpmApprovalStat.vue'
+import BpmApprovalPendingTable from './components/BpmApprovalPendingTable.vue'
+import BpmApprovalCompletedTable from './components/BpmApprovalCompletedTable.vue'
+import BpmApprovalApprovalDialog from './components/BpmApprovalApprovalDialog.vue'
+import BpmApprovalTransferDialog from './components/BpmApprovalTransferDialog.vue'
+import BpmApprovalChainDialog from './components/BpmApprovalChainDialog.vue'
 
 // 当前激活的 Tab
 const activeTab = ref('pending')

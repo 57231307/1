@@ -23,9 +23,9 @@
       </div>
     </div>
 
-    <SaStat :stats="sa.stats" />
+    <SalesAnalysisStat :stats="sa.stats" />
 
-    <SaTrend
+    <SalesAnalysisTrend
       :period="sa.trendPeriod"
       :data="sa.trendData"
       :composition="sa.productRanking"
@@ -34,14 +34,14 @@
 
     <el-row :gutter="20" class="ranking-row">
       <el-col :xs="24" :lg="12">
-        <SaProdRank
+        <SalesAnalysisProductRank
           :data="sa.productRanking"
           :type="sa.productRankType"
           @update:type="(v: string) => saProc.handleProductRankTypeChange(v, sa)"
         />
       </el-col>
       <el-col :xs="24" :lg="12">
-        <SaCustRank
+        <SalesAnalysisCustomerRank
           :data="sa.customerRanking"
           :type="sa.customerRankType"
           @update:type="(v: string) => saProc.handleCustomerRankTypeChange(v, sa)"
@@ -49,7 +49,7 @@
       </el-col>
     </el-row>
 
-    <SaTarget :data="sa.salesTargets" @edit-target="saProc.handleEditTarget" />
+    <SalesAnalysisTarget :data="sa.salesTargets" @edit-target="saProc.handleEditTarget" />
   </div>
 </template>
 
@@ -58,11 +58,11 @@ import { onMounted } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import { useSa } from './composables/useSa'
 import { useSaProc } from './composables/useSaProc'
-import SaStat from './components/SaStat.vue'
-import SaTrend from './components/SaTrend.vue'
-import SaProdRank from './components/SaProdRank.vue'
-import SaCustRank from './components/SaCustRank.vue'
-import SaTarget from './components/SaTarget.vue'
+import SalesAnalysisStat from './components/SalesAnalysisStat.vue'
+import SalesAnalysisTrend from './components/SalesAnalysisTrend.vue'
+import SalesAnalysisProductRank from './components/SalesAnalysisProductRank.vue'
+import SalesAnalysisCustomerRank from './components/SalesAnalysisCustomerRank.vue'
+import SalesAnalysisTarget from './components/SalesAnalysisTarget.vue'
 
 // 业务状态
 const sa = useSa()

@@ -1,5 +1,5 @@
 <!--
-  PcTbl.vue - 采购合同列表表格
+  PurchaseContractTable.vue - 采购合同列表表格
   拆分自 purchase-contract/index.vue（P14 批 2 I-3 第 3 批）
   批次 284：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
 -->

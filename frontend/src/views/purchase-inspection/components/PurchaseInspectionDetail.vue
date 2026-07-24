@@ -1,5 +1,5 @@
 <!--
-  PiDetail.vue - 采购验货详情对话框
+  PurchaseInspectionDetail.vue - 采购验货详情对话框
   拆分自 purchase-inspection/index.vue（P14 批 2 I-3 第 5 批）
   行为完全保持一致（仅结构重构）
 -->
