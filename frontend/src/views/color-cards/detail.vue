@@ -120,8 +120,6 @@ import {
   batchImportItems,
   scanColorCode,
   exportColorCardUrl,
-  COLOR_CARD_TYPE_LABELS,
-  COLOR_CARD_STATUS,
   COLOR_CARD_STATUS_COLORS,
   type ColorCardDetail,
   type ColorItemInfo,

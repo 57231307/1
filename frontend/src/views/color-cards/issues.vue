@@ -189,7 +189,6 @@ import {
   markIssueLost,
   markIssueDamaged,
   cancelIssue,
-  ISSUE_STATUS,
   ISSUE_STATUS_COLORS,
   type IssueRecordInfo,
   type ColorCardListItem,
