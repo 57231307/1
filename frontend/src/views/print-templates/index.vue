@@ -1,11 +1,15 @@
+<!--
+  print-templates/index.vue - 打印模板管理
+  D05 Batch 2：接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts
+-->
 <template>
   <div class="print-templates-page">
     <div class="page-header">
-      <h2 class="page-title">打印模板管理</h2>
+      <h2 class="page-title">{{ $t('printTemplates.title') }}</h2>
       <div class="header-actions">
         <el-button type="primary" @click="openDialog()">
           <el-icon><Plus /></el-icon>
-          新建模板
+          {{ $t('printTemplates.create') }}
         </el-button>
       </div>
     </div>
@@ -14,85 +18,85 @@
       <div class="filter-container">
         <el-input
           v-model="listQuery.keyword"
-          placeholder="搜索模板编号/名称"
+          :placeholder="$t('printTemplates.searchPlaceholder')"
           style="width: 200px"
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"
         />
-        <el-select v-model="listQuery.module" placeholder="模块" clearable style="width: 120px">
-          <el-option label="销售" value="sales" />
-          <el-option label="采购" value="purchase" />
-          <el-option label="库存" value="inventory" />
-          <el-option label="财务" value="finance" />
-          <el-option label="生产" value="production" />
-          <el-option label="物流" value="logistics" />
+        <el-select v-model="listQuery.module" :placeholder="$t('printTemplates.module.placeholder')" clearable style="width: 120px">
+          <el-option :label="$t('printTemplates.module.sales')" value="sales" />
+          <el-option :label="$t('printTemplates.module.purchase')" value="purchase" />
+          <el-option :label="$t('printTemplates.module.inventory')" value="inventory" />
+          <el-option :label="$t('printTemplates.module.finance')" value="finance" />
+          <el-option :label="$t('printTemplates.module.production')" value="production" />
+          <el-option :label="$t('printTemplates.module.logistics')" value="logistics" />
         </el-select>
-        <el-select v-model="listQuery.type" placeholder="类型" clearable style="width: 120px">
-          <el-option label="订单" value="order" />
-          <el-option label="发票" value="invoice" />
-          <el-option label="收据" value="receipt" />
-          <el-option label="标签" value="label" />
-          <el-option label="报表" value="report" />
-          <el-option label="自定义" value="custom" />
+        <el-select v-model="listQuery.type" :placeholder="$t('printTemplates.type.placeholder')" clearable style="width: 120px">
+          <el-option :label="$t('printTemplates.type.order')" value="order" />
+          <el-option :label="$t('printTemplates.type.invoice')" value="invoice" />
+          <el-option :label="$t('printTemplates.type.receipt')" value="receipt" />
+          <el-option :label="$t('printTemplates.type.label')" value="label" />
+          <el-option :label="$t('printTemplates.type.report')" value="report" />
+          <el-option :label="$t('printTemplates.type.custom')" value="custom" />
         </el-select>
-        <el-select v-model="listQuery.status" placeholder="状态" clearable style="width: 120px">
-          <el-option label="启用" value="active" />
-          <el-option label="停用" value="inactive" />
+        <el-select v-model="listQuery.status" :placeholder="$t('printTemplates.status.placeholder')" clearable style="width: 120px">
+          <el-option :label="$t('printTemplates.status.active')" value="active" />
+          <el-option :label="$t('printTemplates.status.inactive')" value="inactive" />
         </el-select>
         <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
-          搜索
+          {{ $t('printTemplates.search') }}
         </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" stripe aria-label="打印模板列表">
-        <el-table-column prop="template_code" label="模板编号" width="140" />
-        <el-table-column prop="template_name" label="模板名称" min-width="180" />
-        <el-table-column prop="module" label="模块" width="80">
+      <el-table v-loading="loading" :data="list" stripe :aria-label="$t('printTemplates.table.ariaLabel')">
+        <el-table-column prop="template_code" :label="$t('printTemplates.table.templateCode')" width="140" />
+        <el-table-column prop="template_name" :label="$t('printTemplates.table.templateName')" min-width="180" />
+        <el-table-column prop="module" :label="$t('printTemplates.table.module')" width="80">
           <template #default="{ row }">
-            {{ moduleMap[row.module] }}
+            {{ getModuleLabel(row.module) }}
           </template>
         </el-table-column>
-        <el-table-column prop="type" label="类型" width="80">
+        <el-table-column prop="type" :label="$t('printTemplates.table.type')" width="80">
           <template #default="{ row }">
-            {{ typeMap[row.type] }}
+            {{ getTypeLabel(row.type) }}
           </template>
         </el-table-column>
-        <el-table-column prop="paper_size" label="纸张" width="80" />
-        <el-table-column prop="orientation" label="方向" width="80">
+        <el-table-column prop="paper_size" :label="$t('printTemplates.table.paperSize')" width="80" />
+        <el-table-column prop="orientation" :label="$t('printTemplates.table.orientation')" width="80">
           <template #default="{ row }">
-            {{ row.orientation === 'portrait' ? '纵向' : '横向' }}
+            {{ row.orientation === 'portrait' ? $t('printTemplates.orientation.portrait') : $t('printTemplates.orientation.landscape') }}
           </template>
         </el-table-column>
-        <el-table-column prop="is_default" label="默认" width="80" align="center">
+        <el-table-column prop="is_default" :label="$t('printTemplates.table.isDefault')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.is_default ? 'success' : 'info'" size="small">
-              {{ row.is_default ? '是' : '否' }}
+              {{ row.is_default ? $t('printTemplates.yesNo.yes') : $t('printTemplates.yesNo.no') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table-column prop="status" :label="$t('printTemplates.table.status')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? '启用' : '停用' }}
+              {{ row.status === 'active' ? $t('printTemplates.status.active') : $t('printTemplates.status.inactive') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column :label="$t('printTemplates.table.operation')" width="300" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handlePreview(row)">预览</el-button>
-            <el-button type="primary" link size="small" @click="handleCopy(row)">复制</el-button>
-            <el-button v-permission="'print_template:update'" type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
+            <el-button type="primary" link size="small" @click="handlePreview(row)">{{ $t('printTemplates.table.preview') }}</el-button>
+            <el-button type="primary" link size="small" @click="handleCopy(row)">{{ $t('printTemplates.table.copy') }}</el-button>
+            <el-button v-permission="'print_template:update'" type="primary" link size="small" @click="openDialog(row)">{{ $t('printTemplates.table.edit') }}</el-button>
             <el-button
               v-if="!row.is_default"
               type="success"
               link
               size="small"
               @click="handleSetDefault(row)"
-              >设为默认</el-button
+              >{{ $t('printTemplates.table.setDefault') }}</el-button
             >
-            <el-button v-permission="'print_template:delete'" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button v-permission="'print_template:delete'" type="danger" link size="small" @click="handleDelete(row)">{{ $t('printTemplates.table.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -104,119 +108,119 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="打印模板列表分页"
+          :aria-label="$t('printTemplates.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑模板' : '新建模板'" width="900px" aria-label="打印模板编辑对话框">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="打印模板表单">
+    <el-dialog v-model="dialogVisible" :title="form.id ? $t('printTemplates.dialog.editTitle') : $t('printTemplates.dialog.createTitle')" width="900px" :aria-label="$t('printTemplates.dialog.ariaLabel')">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('printTemplates.dialog.formAriaLabel')">
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="模板编号" prop="template_code">
+            <el-form-item :label="$t('printTemplates.dialog.templateCode')" prop="template_code">
               <el-input
                 v-model="form.template_code"
                 :disabled="!!form.id"
-                placeholder="请输入模板编号"
+                :placeholder="$t('printTemplates.dialog.templateCodePlaceholder')"
               />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="模板名称" prop="template_name">
-              <el-input v-model="form.template_name" placeholder="请输入模板名称" />
+            <el-form-item :label="$t('printTemplates.dialog.templateName')" prop="template_name">
+              <el-input v-model="form.template_name" :placeholder="$t('printTemplates.dialog.templateNamePlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="模块" prop="module">
-              <el-select v-model="form.module" placeholder="请选择模块" style="width: 100%">
-                <el-option label="销售" value="sales" />
-                <el-option label="采购" value="purchase" />
-                <el-option label="库存" value="inventory" />
-                <el-option label="财务" value="finance" />
-                <el-option label="生产" value="production" />
-                <el-option label="物流" value="logistics" />
+            <el-form-item :label="$t('printTemplates.dialog.module')" prop="module">
+              <el-select v-model="form.module" :placeholder="$t('printTemplates.dialog.modulePlaceholder')" style="width: 100%">
+                <el-option :label="$t('printTemplates.module.sales')" value="sales" />
+                <el-option :label="$t('printTemplates.module.purchase')" value="purchase" />
+                <el-option :label="$t('printTemplates.module.inventory')" value="inventory" />
+                <el-option :label="$t('printTemplates.module.finance')" value="finance" />
+                <el-option :label="$t('printTemplates.module.production')" value="production" />
+                <el-option :label="$t('printTemplates.module.logistics')" value="logistics" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="类型" prop="type">
-              <el-select v-model="form.type" placeholder="请选择类型" style="width: 100%">
-                <el-option label="订单" value="order" />
-                <el-option label="发票" value="invoice" />
-                <el-option label="收据" value="receipt" />
-                <el-option label="标签" value="label" />
-                <el-option label="报表" value="report" />
-                <el-option label="自定义" value="custom" />
+            <el-form-item :label="$t('printTemplates.dialog.type')" prop="type">
+              <el-select v-model="form.type" :placeholder="$t('printTemplates.dialog.typePlaceholder')" style="width: 100%">
+                <el-option :label="$t('printTemplates.type.order')" value="order" />
+                <el-option :label="$t('printTemplates.type.invoice')" value="invoice" />
+                <el-option :label="$t('printTemplates.type.receipt')" value="receipt" />
+                <el-option :label="$t('printTemplates.type.label')" value="label" />
+                <el-option :label="$t('printTemplates.type.report')" value="report" />
+                <el-option :label="$t('printTemplates.type.custom')" value="custom" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="纸张大小" prop="paper_size">
-              <el-select v-model="form.paper_size" placeholder="请选择纸张" style="width: 100%">
+            <el-form-item :label="$t('printTemplates.dialog.paperSize')" prop="paper_size">
+              <el-select v-model="form.paper_size" :placeholder="$t('printTemplates.dialog.paperSizePlaceholder')" style="width: 100%">
                 <el-option label="A4" value="A4" />
                 <el-option label="A5" value="A5" />
                 <el-option label="B5" value="B5" />
                 <el-option label="Letter" value="Letter" />
-                <el-option label="自定义" value="Custom" />
+                <el-option :label="$t('printTemplates.type.custom')" value="Custom" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="方向" prop="orientation">
+            <el-form-item :label="$t('printTemplates.dialog.orientation')" prop="orientation">
               <el-radio-group v-model="form.orientation">
-                <el-radio label="portrait">纵向</el-radio>
-                <el-radio label="landscape">横向</el-radio>
+                <el-radio label="portrait">{{ $t('printTemplates.orientation.portrait') }}</el-radio>
+                <el-radio label="landscape">{{ $t('printTemplates.orientation.landscape') }}</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="描述" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="2" placeholder="请输入描述" />
+        <el-form-item :label="$t('printTemplates.dialog.description')" prop="description">
+          <el-input v-model="form.description" type="textarea" :rows="2" :placeholder="$t('printTemplates.dialog.descriptionPlaceholder')" />
         </el-form-item>
-        <el-form-item label="模板内容" prop="content">
+        <el-form-item :label="$t('printTemplates.dialog.content')" prop="content">
           <el-input
             v-model="form.content"
             type="textarea"
             :rows="10"
-            placeholder="请输入HTML模板内容"
+            :placeholder="$t('printTemplates.dialog.contentPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="CSS样式" prop="css_styles">
+        <el-form-item :label="$t('printTemplates.dialog.cssStyles')" prop="css_styles">
           <el-input
             v-model="form.css_styles"
             type="textarea"
             :rows="4"
-            placeholder="请输入CSS样式"
+            :placeholder="$t('printTemplates.dialog.cssStylesPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="变量配置" prop="variables">
+        <el-form-item :label="$t('printTemplates.dialog.variables')" prop="variables">
           <el-input
             v-model="variablesText"
             type="textarea"
             :rows="4"
-            placeholder='JSON格式变量，例如：{"company_name": "公司名称", "date": "日期"}'
+            :placeholder="$t('printTemplates.dialog.variablesPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('printTemplates.dialog.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('printTemplates.dialog.confirm') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="previewVisible" title="模板预览" width="900px" aria-label="模板预览对话框">
+    <el-dialog v-model="previewVisible" :title="$t('printTemplates.previewDialog.title')" width="900px" :aria-label="$t('printTemplates.previewDialog.ariaLabel')">
       <div v-loading="previewLoading" class="preview-container">
         <!-- Wave B-2 修复（B3-2）：使用 DOMPurify 净化后端返回的 HTML，防止 XSS 注入 -->
         <div v-if="previewData" v-html="sanitizedPreview"></div>
-        <div v-else class="no-preview">暂无预览数据</div>
+        <div v-else class="no-preview">{{ $t('printTemplates.previewDialog.noData') }}</div>
       </div>
       <template #footer>
-        <el-button @click="previewVisible = false">关闭</el-button>
-        <el-button type="primary" @click="handlePrint">打印</el-button>
+        <el-button @click="previewVisible = false">{{ $t('printTemplates.previewDialog.close') }}</el-button>
+        <el-button type="primary" @click="handlePrint">{{ $t('printTemplates.previewDialog.print') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -224,6 +228,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 // Wave B-2 修复（B3-2）：引入 DOMPurify 用于净化后端返回的 HTML 模板，防止 XSS
@@ -241,6 +246,8 @@ import {
 // 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
 import { useTableApi } from '@/composables/useTableApi'
 
+const { t } = useI18n({ useScope: 'global' })
+
 // 批次 277：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
 // getPrintTemplateList 返回 ApiResponse<PrintTemplate[]>（{ data: T[], total: number }），
 // useTableApi detectList 会 fallback 到 obj.data 取裸数组，detectTotal 取外层 total
@@ -256,7 +263,7 @@ const {
   url: '/print-templates',
   onError: (err: unknown) =>
     // 批次 98 P2-D 修复（v5 复审）：unknown + 类型守卫
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取数据失败'),
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('printTemplates.message.loadFailed')),
 })
 
 // 批次 277：listQuery 仅保留筛选字段用于表单 v-model 绑定，分页字段由 useTableApi 管理
@@ -267,22 +274,29 @@ const listQuery = reactive({
   status: '',
 })
 
-const moduleMap: Record<string, string> = {
-  sales: '销售',
-  purchase: '采购',
-  inventory: '库存',
-  finance: '财务',
-  production: '生产',
-  logistics: '物流',
+// D05 Batch 2：moduleMap/typeMap 改为函数返回，使 t() 在每次渲染时响应式求值（参照 AssetListTab.vue 的 getCategoryLabel）
+const getModuleLabel = (module: string) => {
+  const map: Record<string, string> = {
+    sales: t('printTemplates.module.sales'),
+    purchase: t('printTemplates.module.purchase'),
+    inventory: t('printTemplates.module.inventory'),
+    finance: t('printTemplates.module.finance'),
+    production: t('printTemplates.module.production'),
+    logistics: t('printTemplates.module.logistics'),
+  }
+  return map[module] || module
 }
 
-const typeMap: Record<string, string> = {
-  order: '订单',
-  invoice: '发票',
-  receipt: '收据',
-  label: '标签',
-  report: '报表',
-  custom: '自定义',
+const getTypeLabel = (type: string) => {
+  const map: Record<string, string> = {
+    order: t('printTemplates.type.order'),
+    invoice: t('printTemplates.type.invoice'),
+    receipt: t('printTemplates.type.receipt'),
+    label: t('printTemplates.type.label'),
+    report: t('printTemplates.type.report'),
+    custom: t('printTemplates.type.custom'),
+  }
+  return map[type] || type
 }
 
 const dialogVisible = ref(false)
@@ -306,13 +320,13 @@ const form = reactive<Partial<PrintTemplate>>({
 })
 
 const rules: FormRules = {
-  template_code: [{ required: true, message: '请输入模板编号', trigger: 'blur' }],
-  template_name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
-  module: [{ required: true, message: '请选择模块', trigger: 'change' }],
-  type: [{ required: true, message: '请选择类型', trigger: 'change' }],
-  paper_size: [{ required: true, message: '请选择纸张大小', trigger: 'change' }],
-  orientation: [{ required: true, message: '请选择方向', trigger: 'change' }],
-  content: [{ required: true, message: '请输入模板内容', trigger: 'blur' }],
+  template_code: [{ required: true, message: t('printTemplates.validation.templateCodeRequired'), trigger: 'blur' }],
+  template_name: [{ required: true, message: t('printTemplates.validation.templateNameRequired'), trigger: 'blur' }],
+  module: [{ required: true, message: t('printTemplates.validation.moduleRequired'), trigger: 'change' }],
+  type: [{ required: true, message: t('printTemplates.validation.typeRequired'), trigger: 'change' }],
+  paper_size: [{ required: true, message: t('printTemplates.validation.paperSizeRequired'), trigger: 'change' }],
+  orientation: [{ required: true, message: t('printTemplates.validation.orientationRequired'), trigger: 'change' }],
+  content: [{ required: true, message: t('printTemplates.validation.contentRequired'), trigger: 'blur' }],
 }
 
 const openDialog = (row?: PrintTemplate) => {
@@ -351,7 +365,7 @@ const handleSubmit = async () => {
         try {
           form.variables = JSON.parse(variablesText.value)
         } catch (e) {
-          ElMessage.error('变量配置格式错误，请检查JSON格式')
+          ElMessage.error(t('printTemplates.message.variablesFormatError'))
           return
         }
       }
@@ -360,12 +374,12 @@ const handleSubmit = async () => {
       } else {
         await createPrintTemplate(form)
       }
-      ElMessage.success('操作成功')
+      ElMessage.success(t('printTemplates.message.operationSuccess'))
       dialogVisible.value = false
       fetchData()
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('printTemplates.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -374,13 +388,21 @@ const handleSubmit = async () => {
 
 const handleDelete = async (row: PrintTemplate) => {
   try {
-    await ElMessageBox.confirm('确定要删除此模板吗？', '确认删除', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('printTemplates.message.deleteConfirm'),
+      t('printTemplates.message.deleteConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
     await deletePrintTemplate(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('printTemplates.message.deleteSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('printTemplates.message.deleteFailed'))
   }
 }
 
@@ -412,7 +434,7 @@ const handlePreview = async (row: PrintTemplate) => {
     previewData.value = res.data?.html || ''
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '预览失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('printTemplates.message.previewFailed'))
     previewData.value = ''
   } finally {
     previewLoading.value = false
@@ -423,33 +445,41 @@ const handlePrint = async () => {
   if (!currentPreviewTemplate.value) return
   try {
     await printTemplate(currentPreviewTemplate.value.id, {})
-    ElMessage.success('打印任务已发送')
+    ElMessage.success(t('printTemplates.message.printSent'))
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '打印失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('printTemplates.message.printFailed'))
   }
 }
 
 const handleSetDefault = async (row: PrintTemplate) => {
   try {
-    await ElMessageBox.confirm('确定要将此模板设为默认吗？', '确认设置', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('printTemplates.message.setDefaultConfirm'),
+      t('printTemplates.message.setDefaultConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+      }
+    )
     await setDefaultPrintTemplate(row.id)
-    ElMessage.success('设置成功')
+    ElMessage.success(t('printTemplates.message.setDefaultSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '设置失败')
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('printTemplates.message.setDefaultFailed'))
   }
 }
 
 const handleCopy = async (row: PrintTemplate) => {
   try {
     await copyPrintTemplate(row.id)
-    ElMessage.success('复制成功')
+    ElMessage.success(t('printTemplates.message.copySuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '复制失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('printTemplates.message.copyFailed'))
   }
 }
 
