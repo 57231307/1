@@ -1153,7 +1153,7 @@ export default {
       phoneRequired: '请输入电话',
       phonePattern: '请输入正确的手机号',
     },
-    print: {
+    printDialog: {
       title: 'CRM客户列表',
       date: '打印日期',
       total: '共 {count} 条',

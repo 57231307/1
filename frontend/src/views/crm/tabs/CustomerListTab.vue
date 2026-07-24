@@ -503,7 +503,7 @@ const handlePrint = () => {
     .join('')
   const now = new Date().toISOString().split('T')[0]
   printWindow.document.write(`
-    <html><head><meta charset="utf-8"><title>${t('crmCustomer.print.title')}</title>
+    <html><head><meta charset="utf-8"><title>${t('crmCustomer.printDialog.title')}</title>
     <style>
       @media print { @page { size: landscape; } }
       body { font-family: "Microsoft YaHei", sans-serif; font-size: 12px; }
@@ -513,8 +513,8 @@ const handlePrint = () => {
       th { background: #f5f5f5; }
       .meta { text-align: center; color: #666; font-size: 11px; }
     </style></head><body>
-    <h1>${t('crmCustomer.print.title')}</h1>
-    <div class="meta">${t('crmCustomer.print.date')}: ${now} | ${t('crmCustomer.print.total', { count: customers.value.length })}</div>
+    <h1>${t('crmCustomer.printDialog.title')}</h1>
+    <div class="meta">${t('crmCustomer.printDialog.date')}: ${now} | ${t('crmCustomer.printDialog.total', { count: customers.value.length })}</div>
     <table>
       <thead><tr><th>${t('crmCustomer.table.customerCode')}</th><th>${t('crmCustomer.table.customerName')}</th><th>${t('crmCustomer.table.contactPerson')}</th><th>${t('crmCustomer.table.phone')}</th><th>${t('crmCustomer.table.type')}</th><th>${t('crmCustomer.table.owner')}</th><th>${t('crmCustomer.table.totalAmount')}</th><th>${t('crmCustomer.table.status')}</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -523,7 +523,7 @@ const handlePrint = () => {
   `)
   printWindow.document.close()
   printWindow.onload = () => printWindow.print()
-  logger.info(t('crmCustomer.print.logMessage'))
+  logger.info(t('crmCustomer.printDialog.logMessage'))
 }
 
 onMounted(() => {

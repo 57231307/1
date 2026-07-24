@@ -1153,7 +1153,7 @@ export default {
       phoneRequired: 'Please enter phone',
       phonePattern: 'Please enter a valid phone number',
     },
-    print: {
+    printDialog: {
       title: 'CRM Customer List',
       date: 'Print Date',
       total: '{count} records total',
