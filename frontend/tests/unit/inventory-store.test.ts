@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock the inventory API before imports
+// D14 Batch 5b：原 inventoryApi 对象已转风格 B 函数
 vi.mock('@/api/inventory', () => ({
-  inventoryApi: {
-    getStockList: vi.fn(),
-    getStockAlerts: vi.fn(),
-    createStockAdjustment: vi.fn(),
-  },
+  getStockList: vi.fn(),
+  getStockAlertList: vi.fn(),
+  createStockAdjustment: vi.fn(),
 }))
 
 // Use real Pinia for store tests
@@ -17,7 +15,7 @@ vi.mock('pinia', async (importOriginal) => {
 
 import { setActivePinia, createPinia } from 'pinia'
 import { useInventoryStore } from '@/store/inventory'
-import { inventoryApi } from '@/api/inventory'
+import { getStockList, getStockAlertList, createStockAdjustment } from '@/api/inventory'
 // P2-18 修复（批次 86 v2 复审）：清理 6 处 as any，改为显式类型断言
 import type { ApiResponse } from '@/types/api'
 import type { InventoryStock, StockAlert } from '@/api/inventory'
@@ -46,14 +44,14 @@ describe('Inventory Store 测试', () => {
       { id: 1, product_name: '面料A', quantity: 100 },
       { id: 2, product_name: '面料B', quantity: 200 },
     ]
-    vi.mocked(inventoryApi.getStockList).mockResolvedValue({
+    vi.mocked(getStockList).mockResolvedValue({
       data: { list: mockStocks, total: 2 },
     } as unknown as StockListResponse)
 
     const store = useInventoryStore()
     await store.fetchStocks()
 
-    expect(inventoryApi.getStockList).toHaveBeenCalled()
+    expect(getStockList).toHaveBeenCalled()
     expect(store.stocks).toEqual(mockStocks)
     expect(store.total).toBe(2)
     expect(store.loading).toBe(false)
@@ -61,7 +59,7 @@ describe('Inventory Store 测试', () => {
 
   it('fetchStocks 应该处理错误', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.mocked(inventoryApi.getStockList).mockRejectedValue(new Error('Network error'))
+    vi.mocked(getStockList).mockRejectedValue(new Error('Network error'))
 
     const store = useInventoryStore()
     await store.fetchStocks()
@@ -78,7 +76,7 @@ describe('Inventory Store 测试', () => {
     const promise = new Promise<StockListResponse>((resolve) => {
       resolvePromise = resolve
     })
-    vi.mocked(inventoryApi.getStockList).mockReturnValue(promise)
+    vi.mocked(getStockList).mockReturnValue(promise)
 
     const store = useInventoryStore()
     const fetchPromise = store.fetchStocks()
@@ -93,20 +91,20 @@ describe('Inventory Store 测试', () => {
 
   it('fetchAlerts 应该获取库存告警', async () => {
     const mockAlerts = [{ id: 1, product_name: '面料A', alert_type: 'low_stock' }]
-    vi.mocked(inventoryApi.getStockAlerts).mockResolvedValue({
+    vi.mocked(getStockAlertList).mockResolvedValue({
       data: mockAlerts,
     } as unknown as StockAlertsResponse)
 
     const store = useInventoryStore()
     await store.fetchAlerts()
 
-    expect(inventoryApi.getStockAlerts).toHaveBeenCalled()
+    expect(getStockAlertList).toHaveBeenCalled()
     expect(store.alerts).toEqual(mockAlerts)
   })
 
   it('fetchAlerts 应该处理错误', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.mocked(inventoryApi.getStockAlerts).mockRejectedValue(new Error('Failed'))
+    vi.mocked(getStockAlertList).mockRejectedValue(new Error('Failed'))
 
     const store = useInventoryStore()
     await store.fetchAlerts()
@@ -117,10 +115,10 @@ describe('Inventory Store 测试', () => {
   })
 
   it('createAdjustment 应该创建调整并刷新列表', async () => {
-    vi.mocked(inventoryApi.createStockAdjustment).mockResolvedValue(
+    vi.mocked(createStockAdjustment).mockResolvedValue(
       {} as unknown as AdjustmentResponse
     )
-    vi.mocked(inventoryApi.getStockList).mockResolvedValue({
+    vi.mocked(getStockList).mockResolvedValue({
       data: { list: [{ id: 1 }], total: 1 },
     } as unknown as StockListResponse)
 
@@ -135,14 +133,14 @@ describe('Inventory Store 测试', () => {
     }
     const result = await store.createAdjustment(adjustmentData)
 
-    expect(inventoryApi.createStockAdjustment).toHaveBeenCalledWith(adjustmentData)
-    expect(inventoryApi.getStockList).toHaveBeenCalled()
+    expect(createStockAdjustment).toHaveBeenCalledWith(adjustmentData)
+    expect(getStockList).toHaveBeenCalled()
     expect(result).toBe(true)
   })
 
   it('createAdjustment 应该在失败时返回 false', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.mocked(inventoryApi.createStockAdjustment).mockRejectedValue(new Error('Failed'))
+    vi.mocked(createStockAdjustment).mockRejectedValue(new Error('Failed'))
 
     const store = useInventoryStore()
     // P2-11a 修复（批次 83 v1 复审）：夹具对齐 StockAdjustmentData 契约

@@ -4,7 +4,7 @@ import { createI18n } from 'vue-i18n'
 import ElementPlus from 'element-plus'
 
 // 批次 29 v7 P0-7 修复：原测试用 LoginMock 自定义组件，未测试真实 Login.vue。
-// 改为 mount 真实 Login.vue，并 mock 依赖（userStore / securityApi / router），
+// 改为 mount 真实 Login.vue，并 mock 依赖（userStore / checkLockStatus / router），
 // 验证真实组件的渲染、表单校验、登录流程、错误处理。
 //
 // 批次 29 v7 P0-7 修复补丁 1：vi.mock 工厂函数会被 hoist 到文件顶部，
@@ -25,7 +25,7 @@ const {
 } = vi.hoisted(() => ({
   // userStore.login：默认 resolve，可通过 mockRejectedValueOnce 修改行为
   mockLogin: vi.fn().mockResolvedValue(undefined),
-  // securityApi.checkLockStatus：默认返回未锁定
+  // checkLockStatus：默认返回未锁定
   mockCheckLockStatus: vi.fn().mockResolvedValue({
     data: {
       is_locked: false,
@@ -52,10 +52,9 @@ vi.mock('@/store/user', () => ({
   }),
 }))
 
+// D14 Batch 5b：原 securityApi 对象已转风格 B 函数
 vi.mock('@/api/security', () => ({
-  securityApi: {
-    checkLockStatus: mockCheckLockStatus,
-  },
+  checkLockStatus: mockCheckLockStatus,
 }))
 
 // 重新 mock vue-router，覆盖 tests/setup.ts 的全局 mock
@@ -243,7 +242,7 @@ describe('Login.vue 真实组件测试', () => {
     expect(pushSpy).toHaveBeenCalledWith('/')
   })
 
-  it('用户名输入框失焦时应调用 securityApi.checkLockStatus 预检查锁定状态', async () => {
+  it('用户名输入框失焦时应调用 checkLockStatus 预检查锁定状态', async () => {
     const { wrapper } = mountLogin()
     await flushPromises()
     const inputs = wrapper.findAll('input')
