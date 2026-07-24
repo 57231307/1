@@ -2,20 +2,20 @@
   <div class="setup-container">
     <div class="setup-card">
       <div class="setup-header">
-        <h1>秉羲 ERP</h1>
-        <p class="subtitle">系统初始化向导</p>
+        <h1>{{ $t('setupPage.title') }}</h1>
+        <p class="subtitle">{{ $t('setupPage.subtitle') }}</p>
       </div>
 
       <el-steps :active="currentStep" finish-status="success" class="setup-steps">
-        <el-step title="环境检查" />
-        <el-step title="数据库配置" />
-        <el-step title="创建管理员" />
-        <el-step title="完成安装" />
+        <el-step :title="$t('setupPage.steps.environment')" />
+        <el-step :title="$t('setupPage.steps.database')" />
+        <el-step :title="$t('setupPage.steps.admin')" />
+        <el-step :title="$t('setupPage.steps.complete')" />
       </el-steps>
 
       <!-- 步骤 1: 环境检查 -->
       <div v-if="currentStep === 0" class="step-content">
-        <h3>环境检查</h3>
+        <h3>{{ $t('setupPage.steps.environment') }}</h3>
         <div class="check-list">
           <div v-for="item in envChecks" :key="item.name" class="check-item">
             <el-icon :class="item.status ? 'success' : 'error'">
@@ -23,111 +23,111 @@
               <CircleCloseFilled v-else />
             </el-icon>
             <span>{{ item.name }}</span>
-            <span class="check-status">{{ item.status ? '通过' : '失败' }}</span>
+            <span class="check-status">{{ item.status ? $t('setupPage.envCheck.pass') : $t('setupPage.envCheck.fail') }}</span>
           </div>
         </div>
         <div class="step-actions">
           <el-button type="primary" :loading="checking" @click="checkEnvironment">
-            {{ checking ? '检查中...' : '重新检查' }}
+            {{ checking ? $t('setupPage.envCheck.checking') : $t('setupPage.envCheck.recheck') }}
           </el-button>
           <el-button type="primary" :disabled="!allChecksPassed" @click="nextStep">
-            下一步
+            {{ $t('setupPage.envCheck.next') }}
           </el-button>
         </div>
       </div>
 
       <!-- 步骤 2: 数据库配置 -->
       <div v-if="currentStep === 1" class="step-content">
-        <h3>数据库配置</h3>
+        <h3>{{ $t('setupPage.db.title') }}</h3>
         <el-form
           ref="dbFormRef"
           :model="dbConfig"
           :rules="dbRules"
           label-width="120px"
           class="config-form"
-          aria-label="系统初始化管理员表单"
+          :aria-label="$t('setupPage.aria.dbForm')"
         >
-          <el-form-item label="数据库主机" prop="host">
+          <el-form-item :label="$t('setupPage.db.host')" prop="host">
             <el-input v-model="dbConfig.host" placeholder="localhost" />
           </el-form-item>
-          <el-form-item label="数据库端口" prop="port">
+          <el-form-item :label="$t('setupPage.db.port')" prop="port">
             <el-input v-model="dbConfig.port" placeholder="5432" />
           </el-form-item>
-          <el-form-item label="数据库名称" prop="name">
+          <el-form-item :label="$t('setupPage.db.name')" prop="name">
             <el-input v-model="dbConfig.name" placeholder="bingxi" />
           </el-form-item>
-          <el-form-item label="数据库用户" prop="username">
+          <el-form-item :label="$t('setupPage.db.username')" prop="username">
             <el-input v-model="dbConfig.username" placeholder="bingxi" />
           </el-form-item>
-          <el-form-item label="数据库密码" prop="password">
-            <el-input v-model="dbConfig.password" type="password" placeholder="请输入密码" />
+          <el-form-item :label="$t('setupPage.db.password')" prop="password">
+            <el-input v-model="dbConfig.password" type="password" :placeholder="$t('setupPage.db.passwordPlaceholder')" />
           </el-form-item>
-          <el-form-item label="初始化令牌" prop="init_token">
+          <el-form-item :label="$t('setupPage.db.initToken')" prop="init_token">
             <el-input
               v-model="dbConfig.init_token"
               type="password"
-              placeholder="请输入服务器配置的 INIT_TOKEN"
+              :placeholder="$t('setupPage.db.initTokenPlaceholder')"
             />
           </el-form-item>
         </el-form>
         <div class="step-actions">
-          <el-button @click="prevStep">上一步</el-button>
+          <el-button @click="prevStep">{{ $t('setupPage.envCheck.prev') }}</el-button>
           <el-button type="primary" :loading="testing" @click="testConnection">
-            {{ testing ? '测试中...' : '测试连接' }}
+            {{ testing ? $t('setupPage.db.testing') : $t('setupPage.db.testConnection') }}
           </el-button>
-          <el-button type="primary" :disabled="!dbConnected" @click="nextStep"> 下一步 </el-button>
+          <el-button type="primary" :disabled="!dbConnected" @click="nextStep">{{ $t('setupPage.envCheck.next') }}</el-button>
         </div>
       </div>
 
       <!-- 步骤 3: 创建管理员 -->
       <div v-if="currentStep === 2" class="step-content">
-        <h3>创建管理员账号</h3>
+        <h3>{{ $t('setupPage.admin.title') }}</h3>
         <el-form
           ref="adminFormRef"
           :model="adminConfig"
           :rules="adminRules"
           label-width="120px"
           class="config-form"
-          aria-label="系统初始化公司信息表单"
+          :aria-label="$t('setupPage.aria.adminForm')"
         >
-          <el-form-item label="管理员用户名" prop="username">
+          <el-form-item :label="$t('setupPage.admin.username')" prop="username">
             <el-input v-model="adminConfig.username" placeholder="admin" />
           </el-form-item>
-          <el-form-item label="管理员密码" prop="password">
-            <el-input v-model="adminConfig.password" type="password" placeholder="请输入密码" />
+          <el-form-item :label="$t('setupPage.admin.password')" prop="password">
+            <el-input v-model="adminConfig.password" type="password" :placeholder="$t('setupPage.db.passwordPlaceholder')" />
           </el-form-item>
-          <el-form-item label="确认密码" prop="confirmPassword">
+          <el-form-item :label="$t('setupPage.admin.confirmPassword')" prop="confirmPassword">
             <el-input
               v-model="adminConfig.confirmPassword"
               type="password"
-              placeholder="请再次输入密码"
+              :placeholder="$t('setupPage.admin.confirmPasswordPlaceholder')"
             />
           </el-form-item>
-          <el-form-item label="邮箱" prop="email">
+          <el-form-item :label="$t('setupPage.admin.email')" prop="email">
             <el-input v-model="adminConfig.email" placeholder="admin@example.com" />
           </el-form-item>
         </el-form>
         <div class="step-actions">
-          <el-button @click="prevStep">上一步</el-button>
-          <el-button type="primary" :disabled="!isAdminValid" @click="nextStep"> 下一步 </el-button>
+          <el-button @click="prevStep">{{ $t('setupPage.envCheck.prev') }}</el-button>
+          <el-button type="primary" :disabled="!isAdminValid" @click="nextStep">{{ $t('setupPage.envCheck.next') }}</el-button>
         </div>
       </div>
 
       <!-- 步骤 4: 完成安装 -->
       <div v-if="currentStep === 3" class="step-content">
-        <h3>完成安装</h3>
+        <h3>{{ $t('setupPage.complete.title') }}</h3>
         <div class="install-summary">
-          <p>系统将执行以下操作：</p>
+          <p>{{ $t('setupPage.complete.willExecute') }}</p>
           <ul>
-            <li>创建数据库表结构</li>
-            <li>初始化系统数据</li>
-            <li>创建管理员账号: {{ adminConfig.username }}</li>
+            <li>{{ $t('setupPage.complete.createSchema') }}</li>
+            <li>{{ $t('setupPage.complete.initData') }}</li>
+            <li>{{ $t('setupPage.complete.createAdminWithName', { name: adminConfig.username }) }}</li>
           </ul>
         </div>
         <div class="step-actions">
-          <el-button @click="prevStep">上一步</el-button>
+          <el-button @click="prevStep">{{ $t('setupPage.envCheck.prev') }}</el-button>
           <el-button type="primary" :loading="installing" :disabled="installed" @click="install">
-            {{ installing ? '安装中...' : installed ? '安装完成' : '开始安装' }}
+            {{ installing ? $t('setupPage.complete.installing') : installed ? $t('setupPage.complete.installed') : $t('setupPage.complete.startInstall') }}
           </el-button>
         </div>
       </div>
@@ -137,10 +137,10 @@
         <div class="success-icon">
           <el-icon><CircleCheckFilled /></el-icon>
         </div>
-        <h3>安装成功！</h3>
-        <p>系统已成功安装，您现在可以登录使用。</p>
+        <h3>{{ $t('setupPage.complete.successTitle') }}</h3>
+        <p>{{ $t('setupPage.complete.successDesc') }}</p>
         <div class="step-actions">
-          <el-button type="primary" @click="goToLogin"> 进入登录页面 </el-button>
+          <el-button type="primary" @click="goToLogin">{{ $t('setupPage.complete.goToLogin') }}</el-button>
         </div>
       </div>
     </div>
@@ -150,12 +150,14 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { FormItemRule } from 'element-plus'
 import { logger } from '@/utils/logger'
 
 const router = useRouter()
+const { t } = useI18n({ useScope: 'global' })
 
 const currentStep = ref(0)
 const checking = ref(false)
@@ -166,9 +168,9 @@ const dbConnected = ref(false)
 
 // 环境检查
 const envChecks = ref([
-  { name: '后端API服务', status: false, detail: '检查后端API是否正常响应' },
-  { name: '磁盘空间', status: false, detail: '检查是否有足够的磁盘空间（至少1GB）' },
-  { name: '系统内存', status: false, detail: '检查系统内存是否充足（至少512MB）' },
+  { name: t('setupPage.envChecks.backendApi'), status: false, detail: '检查后端API是否正常响应' },
+  { name: t('setupPage.envChecks.disk'), status: false, detail: '检查是否有足够的磁盘空间（至少1GB）' },
+  { name: t('setupPage.envChecks.memory'), status: false, detail: '检查系统内存是否充足（至少512MB）' },
 ])
 
 const allChecksPassed = computed(() => envChecks.value.every(item => item.status))
@@ -187,11 +189,11 @@ const dbConfig = ref({
   init_token: '',
 })
 const dbRules = {
-  host: [{ required: true, message: '请输入数据库主机', trigger: 'blur' }],
-  port: [{ required: true, message: '请输入数据库端口', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入数据库名称', trigger: 'blur' }],
-  username: [{ required: true, message: '请输入数据库用户', trigger: 'blur' }],
-  init_token: [{ required: true, message: '请输入初始化令牌', trigger: 'blur' }],
+  host: [{ required: true, message: t('setupPage.validation.hostRequired'), trigger: 'blur' }],
+  port: [{ required: true, message: t('setupPage.validation.portRequired'), trigger: 'blur' }],
+  name: [{ required: true, message: t('setupPage.validation.nameRequired'), trigger: 'blur' }],
+  username: [{ required: true, message: t('setupPage.validation.usernameRequired'), trigger: 'blur' }],
+  init_token: [{ required: true, message: t('setupPage.validation.initTokenRequired'), trigger: 'blur' }],
 }
 
 // 管理员配置
@@ -203,17 +205,17 @@ const adminConfig = ref({
   email: 'admin@example.com',
 })
 const adminRules = {
-  username: [{ required: true, message: '请输入管理员用户名', trigger: 'blur' }],
+  username: [{ required: true, message: t('setupPage.validation.adminUsernameRequired'), trigger: 'blur' }],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码至少6位', trigger: 'blur' },
+    { required: true, message: t('setupPage.validation.passwordRequired'), trigger: 'blur' },
+    { min: 6, message: t('setupPage.validation.passwordMinLength'), trigger: 'blur' },
   ],
   confirmPassword: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
+    { required: true, message: t('setupPage.validation.confirmPasswordRequired'), trigger: 'blur' },
     {
       validator: ((_rule: unknown, value: string, callback: (error?: Error) => void) => {
         if (value !== adminConfig.value.password) {
-          callback(new Error('两次输入的密码不一致'))
+          callback(new Error(t('setupPage.validation.passwordMismatch')))
         } else {
           callback()
         }
@@ -221,7 +223,7 @@ const adminRules = {
       trigger: 'blur',
     },
   ],
-  email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }],
+  email: [{ type: 'email', message: t('setupPage.validation.emailInvalid'), trigger: 'blur' }],
 }
 
 const isAdminValid = computed(() => {
@@ -256,7 +258,7 @@ async function checkEnvironment() {
       envChecks.value[2].status = true
     }
   } catch (error) {
-    logger.error('环境检查失败:', error)
+    logger.error(t('setupPage.message.envCheckFailed'), error)
   } finally {
     checking.value = false
   }
@@ -274,14 +276,14 @@ async function testConnection() {
     const data = await res.json()
     if (data.code === 200 && data.data?.success) {
       dbConnected.value = true
-      ElMessage.success('数据库连接成功')
+      ElMessage.success(t('setupPage.message.dbConnectSuccess'))
     } else {
       dbConnected.value = false
-      ElMessage.error(data.data?.message || data.message || '数据库连接失败')
+      ElMessage.error(data.data?.message || data.message || t('setupPage.message.dbConnectFailed'))
     }
   } catch (error) {
     dbConnected.value = false
-    ElMessage.error('数据库连接失败')
+    ElMessage.error(t('setupPage.message.dbConnectFailed'))
   } finally {
     testing.value = false
   }
@@ -310,13 +312,13 @@ async function install() {
     const data = await res.json()
     if (data.success) {
       installed.value = true
-      ElMessage.success('系统安装成功')
+      ElMessage.success(t('setupPage.message.installSuccess'))
       currentStep.value = 4
     } else {
-      ElMessage.error(data.message || '安装失败')
+      ElMessage.error(data.message || t('setupPage.message.installFailed'))
     }
   } catch (error) {
-    ElMessage.error('安装失败')
+    ElMessage.error(t('setupPage.message.installFailed'))
   } finally {
     installing.value = false
   }

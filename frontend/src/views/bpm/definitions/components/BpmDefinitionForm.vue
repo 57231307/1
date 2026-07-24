@@ -8,83 +8,83 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="isEdit ? '编辑流程定义' : '新建流程定义'"
-    :aria-label="isEdit ? '编辑流程定义对话框' : '新建流程定义对话框'"
+    :title="isEdit ? $t('bpm.definitions.form.editTitle') : $t('bpm.definitions.form.createTitle')"
+    :aria-label="isEdit ? $t('bpm.definitions.form.editAriaLabel') : $t('bpm.definitions.form.createAriaLabel')"
     width="900px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" aria-label="流程定义表单">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" :aria-label="$t('bpm.definitions.form.ariaLabel')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="流程标识" prop="process_key">
+          <el-form-item :label="$t('bpm.definitions.form.processKey')" prop="process_key">
             <el-input
               v-model="localFormData.process_key"
               :disabled="isEdit"
-              placeholder="请输入流程标识（英文字母）"
+              :placeholder="$t('bpm.definitions.form.processKeyPlaceholder')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="流程名称" prop="process_name">
+          <el-form-item :label="$t('bpm.definitions.form.processName')" prop="process_name">
             <el-input
               v-model="localFormData.process_name"
-              placeholder="请输入流程名称"
+              :placeholder="$t('bpm.definitions.form.processNamePlaceholder')"
             />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="分类" prop="category">
+          <el-form-item :label="$t('bpm.definitions.form.category')" prop="category">
             <el-select
               v-model="localFormData.category"
-              placeholder="请选择分类"
+              :placeholder="$t('bpm.definitions.form.categoryPlaceholder')"
               style="width: 100%"
             >
-              <el-option label="财务" value="finance" />
-              <el-option label="人事" value="hr" />
-              <el-option label="采购" value="purchase" />
-              <el-option label="销售" value="sales" />
-              <el-option label="生产" value="production" />
-              <el-option label="库存" value="inventory" />
-              <el-option label="其他" value="other" />
+              <el-option :label="$t('bpm.definitions.category.finance')" value="finance" />
+              <el-option :label="$t('bpm.definitions.category.hr')" value="hr" />
+              <el-option :label="$t('bpm.definitions.category.purchase')" value="purchase" />
+              <el-option :label="$t('bpm.definitions.category.sales')" value="sales" />
+              <el-option :label="$t('bpm.definitions.category.production')" value="production" />
+              <el-option :label="$t('bpm.definitions.category.inventory')" value="inventory" />
+              <el-option :label="$t('bpm.definitions.category.other')" value="other" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="描述">
+      <el-form-item :label="$t('bpm.definitions.form.description')">
         <el-input
           v-model="localFormData.description"
           type="textarea"
           :rows="3"
-          placeholder="请输入描述"
+          :placeholder="$t('bpm.definitions.form.descriptionPlaceholder')"
         />
       </el-form-item>
 
       <!-- 节点配置 -->
-      <el-divider content-position="left">节点配置</el-divider>
+      <el-divider content-position="left">{{ $t('bpm.definitions.form.nodeConfig') }}</el-divider>
       <div class="node-actions">
         <el-button type="primary" size="small" @click="handleAddNode">
           <el-icon><Plus /></el-icon>
-          添加节点
+          {{ $t('bpm.definitions.form.addNode') }}
         </el-button>
       </div>
-      <el-table :data="localFormData.nodes" border aria-label="流程节点列表">
-        <el-table-column label="节点类型" width="120">
+      <el-table :data="localFormData.nodes" border :aria-label="$t('bpm.definitions.form.nodeTableAriaLabel')">
+        <el-table-column :label="$t('bpm.definitions.form.nodeType')" width="120">
           <template #default="{ row }">
             <el-select
               v-model="row.type"
               size="small"
             >
-              <el-option label="开始" value="start" />
-              <el-option label="审批" value="approval" />
-              <el-option label="条件" value="condition" />
-              <el-option label="通知" value="notify" />
-              <el-option label="结束" value="end" />
+              <el-option :label="$t('bpm.definitions.nodeType.start')" value="start" />
+              <el-option :label="$t('bpm.definitions.nodeType.approval')" value="approval" />
+              <el-option :label="$t('bpm.definitions.nodeType.condition')" value="condition" />
+              <el-option :label="$t('bpm.definitions.nodeType.notify')" value="notify" />
+              <el-option :label="$t('bpm.definitions.nodeType.end')" value="end" />
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column label="节点名称" min-width="140">
+        <el-table-column :label="$t('bpm.definitions.form.nodeName')" min-width="140">
           <template #default="{ row }">
             <el-input
               v-model="row.name"
@@ -92,21 +92,21 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="审批人类型" width="140">
+        <el-table-column :label="$t('bpm.definitions.form.assigneeType')" width="140">
           <template #default="{ row }">
             <el-select
               v-model="row.assignee_type"
               size="small"
               clearable
             >
-              <el-option label="指定用户" value="user" />
-              <el-option label="指定角色" value="role" />
-              <el-option label="指定部门" value="department" />
-              <el-option label="动态计算" value="dynamic" />
+              <el-option :label="$t('bpm.definitions.assigneeType.user')" value="user" />
+              <el-option :label="$t('bpm.definitions.assigneeType.role')" value="role" />
+              <el-option :label="$t('bpm.definitions.assigneeType.department')" value="department" />
+              <el-option :label="$t('bpm.definitions.assigneeType.dynamic')" value="dynamic" />
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column label="审批人/角色ID" width="140">
+        <el-table-column :label="$t('bpm.definitions.form.assigneeValue')" width="140">
           <template #default="{ row }">
             <el-input
               :model-value="String(row.assignee_value ?? '')"
@@ -115,27 +115,27 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="条件表达式" min-width="160">
+        <el-table-column :label="$t('bpm.definitions.form.condition')" min-width="160">
           <template #default="{ row }">
             <el-input
               v-model="row.condition"
               size="small"
-              placeholder="如：amount > 1000"
+              :placeholder="$t('bpm.definitions.form.conditionPlaceholder')"
             />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="80" align="center" fixed="right">
+        <el-table-column :label="$t('bpm.definitions.form.operation')" width="80" align="center" fixed="right">
           <template #default="{ $index }">
             <el-button type="danger" link size="small" @click="handleRemoveNode($index)"
-              >删除</el-button
+              >{{ $t('bpm.definitions.form.delete') }}</el-button
             >
           </template>
         </el-table-column>
       </el-table>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ $t('bpm.definitions.form.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('bpm.definitions.form.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>

@@ -22,11 +22,14 @@
 </template>
 
 <script setup lang="ts">
-import { h } from 'vue'
+import { computed, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElButton, ElTag } from 'element-plus'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
 import type { ApprovalTask } from '@/api/bpm-enhanced'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 审批已办任务表组件
@@ -51,36 +54,36 @@ const emit = defineEmits<{
 }>()
 
 /** 列定义：任务名称 / 流程名称 / 申请人 / 业务单号 / 审批时间 / 审批结果 / 审批意见 / 操作 */
-const columns: ColumnDef<ApprovalTask>[] = [
-  { key: 'task_name', title: '任务名称', minWidth: 180 },
-  { key: 'process_name', title: '流程名称', width: 150 },
-  { key: 'start_user_name', title: '申请人', width: 120 },
-  { key: 'business_key', title: '业务单号', width: 160 },
-  { key: 'approved_at', title: '审批时间', width: 160 },
+const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
+  { key: 'task_name', title: t('bpm.approval.completedTable.taskName'), minWidth: 180 },
+  { key: 'process_name', title: t('bpm.approval.completedTable.processName'), width: 150 },
+  { key: 'start_user_name', title: t('bpm.approval.completedTable.applicant'), width: 120 },
+  { key: 'business_key', title: t('bpm.approval.completedTable.businessKey'), width: 160 },
+  { key: 'approved_at', title: t('bpm.approval.completedTable.approvedAt'), width: 160 },
   {
     key: 'result',
-    title: '审批结果',
+    title: t('bpm.approval.completedTable.result'),
     width: 100,
     renderCell: (row: ApprovalTask) =>
       h(
         ElTag,
         { type: row.result === 'approved' ? 'success' : 'danger', size: 'small' },
-        { default: () => (row.result === 'approved' ? '同意' : '拒绝') }
+        { default: () => (row.result === 'approved' ? t('bpm.approval.completedTable.approved') : t('bpm.approval.completedTable.rejected')) }
       ),
   },
-  { key: 'comment', title: '审批意见', minWidth: 200 },
+  { key: 'comment', title: t('bpm.approval.completedTable.comment'), minWidth: 200 },
   {
     key: '__actions__',
-    title: '操作',
+    title: t('bpm.approval.completedTable.operation'),
     width: 120,
     renderCell: (row: ApprovalTask) =>
       h(
         ElButton,
         { type: 'info', link: true, size: 'small', onClick: () => emit('view-chain', row) },
-        { default: () => '审批链' }
+        { default: () => t('bpm.approval.completedTable.viewChain') }
       ),
   },
-]
+])
 </script>
 
 <style scoped>

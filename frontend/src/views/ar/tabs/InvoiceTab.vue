@@ -6,91 +6,91 @@
 <template>
   <div class="invoice-tab">
     <div class="page-header">
-      <h2 class="page-title">应收发票</h2>
+      <h2 class="page-title">{{ $t('arModule.invoice.title') }}</h2>
       <div class="header-actions">
         <el-button type="primary" @click="openInvoiceDialog()">
           <el-icon><Plus /></el-icon>
-          新建发票
+          {{ $t('arModule.invoice.create') }}
         </el-button>
         <el-button @click="handlePrintInvoices">
           <el-icon><Printer /></el-icon>
-          打印
+          {{ $t('common.print') }}
         </el-button>
         <el-button @click="handleExportInvoices">
           <el-icon><Download /></el-icon>
-          导出
+          {{ $t('common.export') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="invoiceQuery" aria-label="应收发票筛选表单">
-        <el-form-item label="客户">
-          <el-input v-model="invoiceQuery.customer_name" placeholder="客户名称" clearable />
+      <el-form :inline="true" :model="invoiceQuery" :aria-label="$t('arModule.invoice.filterAria')">
+        <el-form-item :label="$t('arModule.invoice.customer')">
+          <el-input v-model="invoiceQuery.customer_name" :placeholder="$t('arModule.invoice.customerNamePlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="发票号">
-          <el-input v-model="invoiceQuery.invoice_no" placeholder="发票号" clearable />
+        <el-form-item :label="$t('arModule.invoice.invoiceNo')">
+          <el-input v-model="invoiceQuery.invoice_no" :placeholder="$t('arModule.invoice.invoiceNoPlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="invoiceQuery.status" placeholder="选择状态" clearable>
-            <el-option label="待审核" value="pending" />
-            <el-option label="已审核" value="approved" />
-            <el-option label="已核销" value="verified" />
-            <el-option label="已取消" value="cancelled" />
+        <el-form-item :label="$t('common.status')">
+          <el-select v-model="invoiceQuery.status" :placeholder="$t('arModule.invoice.statusPlaceholder')" clearable>
+            <el-option :label="$t('arModule.invoice.statusPending')" value="pending" />
+            <el-option :label="$t('arModule.invoice.statusApproved')" value="approved" />
+            <el-option :label="$t('arModule.invoice.statusVerified')" value="verified" />
+            <el-option :label="$t('arModule.invoice.statusCancelled')" value="cancelled" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchInvoices">查询</el-button>
-          <el-button @click="resetInvoiceQuery">重置</el-button>
+          <el-button type="primary" @click="fetchInvoices">{{ $t('common.search') }}</el-button>
+          <el-button @click="resetInvoiceQuery">{{ $t('common.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="invoiceLoading" :data="invoices" stripe aria-label="应收发票列表">
-        <el-table-column prop="invoice_no" label="发票号" width="140" />
-        <el-table-column prop="customer_name" label="客户" width="150" />
-        <el-table-column prop="invoice_date" label="发票日期" width="120" />
-        <el-table-column label="发票金额" width="120" align="right">
+      <el-table v-loading="invoiceLoading" :data="invoices" stripe :aria-label="$t('arModule.invoice.listAria')">
+        <el-table-column prop="invoice_no" :label="$t('arModule.invoice.invoiceNo')" width="140" />
+        <el-table-column prop="customer_name" :label="$t('arModule.invoice.customer')" width="150" />
+        <el-table-column prop="invoice_date" :label="$t('arModule.invoice.invoiceDate')" width="120" />
+        <el-table-column :label="$t('arModule.invoice.invoiceAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.invoice_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="税额" width="100" align="right">
+        <el-table-column :label="$t('arModule.invoice.taxAmount')" width="100" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.tax_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="已核销金额" width="110" align="right">
+        <el-table-column :label="$t('arModule.invoice.verifiedAmount')" width="110" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.verified_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="未核销金额" width="110" align="right">
+        <el-table-column :label="$t('arModule.invoice.unverifiedAmount')" width="110" align="right">
           <template #default="{ row }">
             <span :class="{ 'text-red': row.unverified_amount > 0 }">
               {{ formatMoney(row.unverified_amount) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90" align="center">
+        <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="getInvoiceStatusType(row.status)" size="small">
               {{ getInvoiceStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="due_date" label="到期日" width="120" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="due_date" :label="$t('arModule.invoice.dueDate')" width="120" />
+        <el-table-column :label="$t('common.operation')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="viewInvoice(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="viewInvoice(row)">{{ $t('common.detail') }}</el-button>
             <el-button
               v-if="row.status === 'pending'"
               type="success"
               link
               size="small"
               @click="approveInvoice(row)"
-              >审核</el-button
+              >{{ $t('arModule.invoice.approve') }}</el-button
             >
             <el-button
               v-if="row.status === 'pending'"
@@ -98,21 +98,21 @@
               link
               size="small"
               @click="cancelInvoice(row)"
-              >取消</el-button
+              >{{ $t('common.cancel') }}</el-button
             >
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="invoiceDialogVisible" title="新建应收发票" width="600px" aria-label="新建应收发票对话框">
-      <el-form ref="invoiceFormRef" :model="invoiceForm" :rules="invoiceRules" label-width="80px" aria-label="应收发票表单">
+    <el-dialog v-model="invoiceDialogVisible" :title="$t('arModule.invoice.createTitle')" width="600px" :aria-label="$t('arModule.invoice.createAria')">
+      <el-form ref="invoiceFormRef" :model="invoiceForm" :rules="invoiceRules" label-width="80px" :aria-label="$t('arModule.invoice.formAria')">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="客户" prop="customer_id">
+            <el-form-item :label="$t('arModule.invoice.customer')" prop="customer_id">
               <el-select
                 v-model="invoiceForm.customer_id"
-                placeholder="选择客户"
+                :placeholder="$t('arModule.invoice.customerPlaceholder')"
                 style="width: 100%"
               >
                 <el-option
@@ -125,29 +125,29 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="发票号" prop="invoice_no">
-              <el-input v-model="invoiceForm.invoice_no" placeholder="请输入发票号" />
+            <el-form-item :label="$t('arModule.invoice.invoiceNo')" prop="invoice_no">
+              <el-input v-model="invoiceForm.invoice_no" :placeholder="$t('arModule.invoice.invoiceNoInputPlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="发票日期" prop="invoice_date">
+            <el-form-item :label="$t('arModule.invoice.invoiceDate')" prop="invoice_date">
               <el-date-picker
                 v-model="invoiceForm.invoice_date"
                 type="date"
-                placeholder="选择日期"
+                :placeholder="$t('arModule.invoice.datePlaceholder')"
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="到期日">
+            <el-form-item :label="$t('arModule.invoice.dueDate')">
               <el-date-picker
                 v-model="invoiceForm.due_date"
                 type="date"
-                placeholder="选择日期"
+                :placeholder="$t('arModule.invoice.datePlaceholder')"
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
               />
@@ -156,7 +156,7 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="发票金额" prop="invoice_amount">
+            <el-form-item :label="$t('arModule.invoice.invoiceAmount')" prop="invoice_amount">
               <el-input-number
                 v-model="invoiceForm.invoice_amount"
                 :min="0"
@@ -166,7 +166,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="税额">
+            <el-form-item :label="$t('arModule.invoice.taxAmount')">
               <el-input-number
                 v-model="invoiceForm.tax_amount"
                 :min="0"
@@ -176,14 +176,14 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="备注">
-          <el-input v-model="invoiceForm.remark" type="textarea" placeholder="请输入备注" />
+        <el-form-item :label="$t('arModule.invoice.remark')">
+          <el-input v-model="invoiceForm.remark" type="textarea" :placeholder="$t('arModule.invoice.remarkPlaceholder')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="invoiceDialogVisible = false">取消</el-button>
+        <el-button @click="invoiceDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="invoiceSubmitLoading" @click="submitInvoice"
-          >确定</el-button
+          >{{ $t('common.confirm') }}</el-button
         >
       </template>
     </el-dialog>
@@ -192,6 +192,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
@@ -207,6 +208,8 @@ import {
 import type { Customer } from '@/api/customer'
 import { logger } from '@/utils/logger'
 import { exportFromBackend } from '@/utils/export'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const invoices = ref<ARInvoice[]>([])
 const customers = ref<Customer[]>([])
@@ -232,10 +235,10 @@ const invoiceForm = reactive({
 })
 
 const invoiceRules: FormRules = {
-  customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  invoice_no: [{ required: true, message: '请输入发票号', trigger: 'blur' }],
-  invoice_date: [{ required: true, message: '请选择发票日期', trigger: 'change' }],
-  invoice_amount: [{ required: true, message: '请输入发票金额', trigger: 'blur' }],
+  customer_id: [{ required: true, message: t('arModule.invoice.customerRequired'), trigger: 'change' }],
+  invoice_no: [{ required: true, message: t('arModule.invoice.invoiceNoRequired'), trigger: 'blur' }],
+  invoice_date: [{ required: true, message: t('arModule.invoice.invoiceDateRequired'), trigger: 'change' }],
+  invoice_amount: [{ required: true, message: t('arModule.invoice.invoiceAmountRequired'), trigger: 'blur' }],
 }
 
 const formatMoney = (amount: number) => {
@@ -243,13 +246,14 @@ const formatMoney = (amount: number) => {
 }
 
 const getInvoiceStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    pending: '待审核',
-    approved: '已审核',
-    verified: '已核销',
-    cancelled: '已取消',
+  const keyMap: Record<string, string> = {
+    pending: 'arModule.invoice.statusPending',
+    approved: 'arModule.invoice.statusApproved',
+    verified: 'arModule.invoice.statusVerified',
+    cancelled: 'arModule.invoice.statusCancelled',
   }
-  return map[status] || status
+  const key = keyMap[status]
+  return key ? t(key) : status
 }
 
 const getInvoiceStatusType = (status: string) => {
@@ -272,7 +276,7 @@ const fetchInvoices = async () => {
     invoices.value = Array.isArray(d) ? d : d?.items || d?.data || []
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '获取发票列表失败')
+    ElMessage.error(err.message || t('arModule.invoice.fetchListFailed'))
   } finally {
     invoiceLoading.value = false
   }
@@ -304,12 +308,12 @@ const submitInvoice = async () => {
   invoiceSubmitLoading.value = true
   try {
     await createARInvoice(invoiceForm)
-    ElMessage.success('创建成功')
+    ElMessage.success(t('common.success'))
     invoiceDialogVisible.value = false
     fetchInvoices()
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('common.failed'))
   } finally {
     invoiceSubmitLoading.value = false
   }
@@ -321,73 +325,73 @@ const viewInvoice = async (row: ARInvoice) => {
     const res = await getARInvoice(row.id)
     const d = res.data
     if (!d) {
-      ElMessage.warning('未找到发票详情')
+      ElMessage.warning(t('arModule.invoice.notFoundDetail'))
       return
     }
     const lines = [
-      `发票编号：${d.invoice_no}`,
-      `客户名称：${d.customer_name}`,
-      `发票日期：${d.invoice_date}`,
-      `到期日期：${d.due_date || '-'}`,
-      `发票金额：¥${formatMoney(d.invoice_amount)}`,
-      `税额：¥${formatMoney(d.tax_amount)}`,
-      `已核销金额：¥${formatMoney(d.verified_amount)}`,
-      `未核销金额：¥${formatMoney(d.unverified_amount)}`,
-      `当前状态：${getInvoiceStatusLabel(d.status)}`,
-      `备注：${d.remark || '-'}`,
+      t('arModule.invoice.detailNo', { value: d.invoice_no }),
+      t('arModule.invoice.detailCustomer', { value: d.customer_name }),
+      t('arModule.invoice.detailDate', { value: d.invoice_date }),
+      t('arModule.invoice.detailDueDate', { value: d.due_date || '-' }),
+      t('arModule.invoice.detailAmount', { value: formatMoney(d.invoice_amount) }),
+      t('arModule.invoice.detailTax', { value: formatMoney(d.tax_amount) }),
+      t('arModule.invoice.detailVerified', { value: formatMoney(d.verified_amount) }),
+      t('arModule.invoice.detailUnverified', { value: formatMoney(d.unverified_amount) }),
+      t('arModule.invoice.detailStatus', { value: getInvoiceStatusLabel(d.status) }),
+      t('arModule.invoice.detailRemark', { value: d.remark || '-' }),
     ]
-    await ElMessageBox.alert(lines.join('\n'), '应收发票详情', {
-      confirmButtonText: '关闭',
+    await ElMessageBox.alert(lines.join('\n'), t('arModule.invoice.detailTitle'), {
+      confirmButtonText: t('common.close'),
     })
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '获取发票详情失败')
+    ElMessage.error(err.message || t('arModule.invoice.fetchDetailFailed'))
   }
 }
 
 const approveInvoice = async (row: ARInvoice) => {
   try {
-    await ElMessageBox.confirm('确定审核该发票吗？', '审核确认', { type: 'info' })
+    await ElMessageBox.confirm(t('arModule.invoice.approveConfirm'), t('arModule.invoice.approveTitle'), { type: 'info' })
     await approveARInvoice(row.id)
-    ElMessage.success('审核成功')
+    ElMessage.success(t('arModule.invoice.approveSuccess'))
     fetchInvoices()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('common.failed'))
     }
   }
 }
 
 const cancelInvoice = async (row: ARInvoice) => {
   try {
-    await ElMessageBox.confirm('确定取消该发票吗？', '取消确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('arModule.invoice.cancelConfirm'), t('arModule.invoice.cancelTitle'), { type: 'warning' })
     await cancelARInvoice(row.id)
-    ElMessage.success('取消成功')
+    ElMessage.success(t('arModule.invoice.cancelSuccess'))
     fetchInvoices()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('common.failed'))
     }
   }
 }
 
 const handlePrintInvoices = () => {
   const printData = invoices.value.map((item, index) => ({
-    序号: index + 1,
-    发票号: item.invoice_no,
-    客户: item.customer_name,
-    发票金额: `¥${item.invoice_amount}`,
-    税额: `¥${item.tax_amount}`,
-    状态: getInvoiceStatusLabel(item.status),
-    发票日期: item.invoice_date,
+    [t('arModule.invoice.colSeq')]: index + 1,
+    [t('arModule.invoice.invoiceNo')]: item.invoice_no,
+    [t('arModule.invoice.customer')]: item.customer_name,
+    [t('arModule.invoice.invoiceAmount')]: `¥${item.invoice_amount}`,
+    [t('arModule.invoice.taxAmount')]: `¥${item.tax_amount}`,
+    [t('common.status')]: getInvoiceStatusLabel(item.status),
+    [t('arModule.invoice.invoiceDate')]: item.invoice_date,
   }))
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],
     type: 'json',
-    header: '应收发票列表',
+    header: t('arModule.invoice.printHeader'),
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
     gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
@@ -400,7 +404,7 @@ const handleExportInvoices = async () => {
     status: invoiceQuery.status || undefined,
   }
   await exportFromBackend('/ar/invoices/export', params, 'ar_invoices_export')
-  logger.info('应收发票列表已导出')
+  logger.info(t('arModule.invoice.exportedLog'))
 }
 
 onMounted(() => {

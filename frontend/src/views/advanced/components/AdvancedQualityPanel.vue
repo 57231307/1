@@ -59,38 +59,38 @@ watch(
 
 <template>
   <div class="page-header">
-    <h2 class="page-title">质量预测（基于历史检验记录）</h2>
+    <h2 class="page-title">{{ $t('advancedModule.quality.title') }}</h2>
   </div>
 
   <el-row :gutter="20">
     <el-col :span="8">
       <el-card shadow="hover" class="mb-20">
-        <template #header><div class="card-header">预测条件</div></template>
+        <template #header><div class="card-header">{{ $t('advancedModule.quality.conditions') }}</div></template>
         <el-form :model="localForm" label-width="100px" aria-label="质量预测条件表单">
-          <el-form-item label="产品 ID">
+          <el-form-item :label="$t('advancedModule.quality.productId')">
             <el-input-number
               v-model="localForm.product_id"
               :min="0"
               :step="1"
-              placeholder="可选，不填则全产品"
+              :placeholder="$t('advancedModule.quality.productIdPlaceholder')"
               style="width: 100%"
             />
           </el-form-item>
-          <el-form-item label="检验类型">
+          <el-form-item :label="$t('advancedModule.quality.inspectionType')">
             <el-select
               v-model="localForm.inspection_type"
-              placeholder="可选，默认为全部"
+              :placeholder="$t('advancedModule.quality.inspectionTypePlaceholder')"
               clearable
               style="width: 100%"
             >
-              <el-option label="全部" value="" />
-              <el-option label="进货检验" value="进货检验" />
-              <el-option label="过程检验" value="过程检验" />
-              <el-option label="成品检验" value="成品检验" />
-              <el-option label="出货检验" value="出货检验" />
+              <el-option :label="$t('advancedModule.quality.typeAll')" value="" />
+              <el-option :label="$t('advancedModule.quality.typeIncoming')" value="进货检验" />
+              <el-option :label="$t('advancedModule.quality.typeInprocess')" value="过程检验" />
+              <el-option :label="$t('advancedModule.quality.typeFinal')" value="成品检验" />
+              <el-option :label="$t('advancedModule.quality.typeOutgoing')" value="出货检验" />
             </el-select>
           </el-form-item>
-          <el-form-item label="时间窗口">
+          <el-form-item :label="$t('advancedModule.quality.timeWindow')">
             <el-input-number
               v-model="localForm.window_days"
               :min="1"
@@ -98,14 +98,14 @@ watch(
               :step="1"
               style="width: 100%"
             />
-            <span class="form-hint">默认 90 天，范围 1-365</span>
+            <span class="form-hint">{{ $t('advancedModule.quality.timeWindowHint') }}</span>
           </el-form-item>
           <el-form-item>
             <el-button
               type="primary"
               :loading="qualityLoading"
               @click="runQualityPrediction"
-              >开始预测</el-button
+              >{{ $t('advancedModule.quality.startPredict') }}</el-button
             >
           </el-form-item>
         </el-form>
@@ -115,21 +115,21 @@ watch(
     <el-col :span="16">
       <el-card shadow="hover" class="mb-20">
         <template #header>
-          <div class="card-header">预测结果</div>
+          <div class="card-header">{{ $t('advancedModule.quality.result') }}</div>
         </template>
         <el-empty
           v-if="!qualityResult"
-          description="请填写条件后开始预测"
+          :description="$t('advancedModule.quality.empty')"
         />
         <div v-else>
           <!-- 关键指标卡片 -->
           <el-row :gutter="12" class="mb-12">
             <el-col :span="6">
-              <el-statistic title="总检验次数" :value="qualityResult.total_inspections" />
+              <el-statistic :title="$t('advancedModule.quality.totalInspections')" :value="qualityResult.total_inspections" />
             </el-col>
             <el-col :span="6">
               <el-statistic
-                title="平均合格率"
+                :title="$t('advancedModule.quality.avgQualificationRate')"
                 :value="qualityResult.avg_qualification_rate"
                 :precision="2"
                 suffix="%"
@@ -143,7 +143,7 @@ watch(
               />
             </el-col>
             <el-col :span="6">
-              <div class="metric-label">趋势</div>
+              <div class="metric-label">{{ $t('advancedModule.quality.trend') }}</div>
               <el-tag
                 :type="qualityResult.trend === '上升' ? 'success' : qualityResult.trend === '下降' ? 'danger' : qualityResult.trend === '平稳' ? 'info' : 'warning'"
                 size="large"
@@ -155,19 +155,19 @@ watch(
               </el-tag>
             </el-col>
             <el-col :span="6">
-              <div class="metric-label">风险等级</div>
+              <div class="metric-label">{{ $t('advancedModule.quality.riskLevel') }}</div>
               <el-tag
                 :type="qualityResult.risk_level === '高' ? 'danger' : qualityResult.risk_level === '中' ? 'warning' : 'success'"
                 size="large"
               >
                 {{ qualityResult.risk_level }}（{{ qualityResult.risk_score }}）
               </el-tag>
-              <div class="metric-sub">置信度 {{ Math.round(qualityResult.confidence * 100) }}%</div>
+              <div class="metric-sub">{{ $t('advancedModule.quality.confidence') }} {{ Math.round(qualityResult.confidence * 100) }}%</div>
             </el-col>
           </el-row>
 
           <!-- 主要问题归因 -->
-          <h4 class="mb-10" style="margin-top: 8px">主要问题归因（Top 3）</h4>
+          <h4 class="mb-10" style="margin-top: 8px">{{ $t('advancedModule.quality.topIssues') }}</h4>
           <el-table
             v-if="qualityResult.top_issues && qualityResult.top_issues.length > 0"
             :data="qualityResult.top_issues"
@@ -176,9 +176,9 @@ watch(
             border
             aria-label="主要问题归因列表"
           >
-            <el-table-column prop="issue_type" label="问题类型" min-width="160" />
-            <el-table-column prop="occurrences" label="出现次数" width="120" align="right" />
-            <el-table-column label="占比" width="200">
+            <el-table-column prop="issue_type" :label="$t('advancedModule.quality.colIssueType')" min-width="160" />
+            <el-table-column prop="occurrences" :label="$t('advancedModule.quality.colOccurrences')" width="120" align="right" />
+            <el-table-column :label="$t('advancedModule.quality.colPercentage')" width="200">
               <template #default="{ row }">
                 <el-progress
                   :percentage="row.percentage"
@@ -190,12 +190,12 @@ watch(
           </el-table>
           <el-empty
             v-else
-            description="暂无不合格记录"
+            :description="$t('advancedModule.quality.emptyNoRecords')"
             :image-size="60"
           />
 
           <!-- 建议措施 -->
-          <h4 class="mb-10" style="margin-top: 16px">建议措施</h4>
+          <h4 class="mb-10" style="margin-top: 16px">{{ $t('advancedModule.quality.recommendations') }}</h4>
           <ul class="rec-list">
             <li v-for="(r, i) in qualityResult.recommendations" :key="i">
               <el-alert :title="r" type="info" :closable="false" show-icon />
@@ -203,7 +203,7 @@ watch(
           </ul>
 
           <!-- 周期明细 -->
-          <h4 class="mb-10" style="margin-top: 16px">周期明细（按月）</h4>
+          <h4 class="mb-10" style="margin-top: 16px">{{ $t('advancedModule.quality.periodBreakdown') }}</h4>
           <el-table
             v-if="qualityResult.period_breakdown && qualityResult.period_breakdown.length > 0"
             :data="qualityResult.period_breakdown"
@@ -212,9 +212,9 @@ watch(
             border
             aria-label="质量周期明细列表"
           >
-            <el-table-column prop="period" label="周期" width="120" />
-            <el-table-column prop="inspections" label="检验次数" width="120" align="right" />
-            <el-table-column label="平均合格率" min-width="200">
+            <el-table-column prop="period" :label="$t('advancedModule.quality.colPeriod')" width="120" />
+            <el-table-column prop="inspections" :label="$t('advancedModule.quality.colInspections')" width="120" align="right" />
+            <el-table-column :label="$t('advancedModule.quality.colAvgRate')" min-width="200">
               <template #default="{ row }">
                 {{ row.avg_qualification_rate.toFixed(2) }}%
               </template>
@@ -222,13 +222,13 @@ watch(
           </el-table>
           <el-empty
             v-else
-            description="暂无周期数据"
+            :description="$t('advancedModule.quality.emptyNoPeriod')"
             :image-size="60"
           />
 
           <el-alert
             class="mt-12"
-            :title="`数据来源：${qualityResult.source === 'history' ? '历史真实数据' : '保守默认值（历史不足 5 条）'}`"
+            :title="qualityResult.source === 'history' ? $t('advancedModule.quality.dataSourceHistory') : $t('advancedModule.quality.dataSourceFallback')"
             :type="qualityResult.source === 'history' ? 'success' : 'warning'"
             :closable="false"
             show-icon

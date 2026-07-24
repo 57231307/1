@@ -6,58 +6,58 @@
 <template>
   <div class="budget-list-tab">
     <div class="page-header">
-      <h2 class="page-title">预算管理</h2>
+      <h2 class="page-title">{{ $t('budget.title') }}</h2>
       <div>
         <el-button type="primary" @click="openDialog()">
-          <el-icon><Plus /></el-icon>新建预算
+          <el-icon><Plus /></el-icon>{{ $t('budget.createBudget') }}
         </el-button>
         <el-button @click="handleExport">
-          <el-icon><Download /></el-icon>导出
+          <el-icon><Download /></el-icon>{{ $t('budget.export') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm" aria-label="预算筛选表单">
-        <el-form-item label="预算编号">
-          <el-input v-model="queryForm.budget_no" placeholder="编号" clearable />
+      <el-form :inline="true" :model="queryForm" :aria-label="$t('budget.filter.ariaLabel')">
+        <el-form-item :label="$t('budget.filter.budgetNo')">
+          <el-input v-model="queryForm.budget_no" :placeholder="$t('budget.filter.budgetNoPlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="预算名称">
-          <el-input v-model="queryForm.name" placeholder="名称" clearable />
+        <el-form-item :label="$t('budget.filter.name')">
+          <el-input v-model="queryForm.name" :placeholder="$t('budget.filter.namePlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="选择状态" clearable>
-            <el-option label="草稿" value="draft" />
-            <el-option label="待审核" value="pending" />
-            <el-option label="已批准" value="approved" />
-            <el-option label="已拒绝" value="rejected" />
+        <el-form-item :label="$t('budget.filter.status')">
+          <el-select v-model="queryForm.status" :placeholder="$t('budget.filter.statusPlaceholder')" clearable>
+            <el-option :label="$t('budget.status.draft')" value="draft" />
+            <el-option :label="$t('budget.status.pending')" value="pending" />
+            <el-option :label="$t('budget.status.approved')" value="approved" />
+            <el-option :label="$t('budget.status.rejected')" value="rejected" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{ $t('budget.filter.query') }}</el-button>
+          <el-button @click="handleReset">{{ $t('budget.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="budgetList" stripe aria-label="预算列表">
-        <el-table-column prop="budget_no" label="预算编号" width="140" />
-        <el-table-column prop="name" label="预算名称" min-width="180" />
-        <el-table-column prop="period" label="期间" width="120" />
-        <el-table-column prop="department_name" label="部门" width="120" />
-        <el-table-column label="预算总额" width="140" align="right">
+      <el-table v-loading="loading" :data="budgetList" stripe :aria-label="$t('budget.table.ariaLabel')">
+        <el-table-column prop="budget_no" :label="$t('budget.table.budgetNo')" width="140" />
+        <el-table-column prop="name" :label="$t('budget.table.name')" min-width="180" />
+        <el-table-column prop="period" :label="$t('budget.table.period')" width="120" />
+        <el-table-column prop="department_name" :label="$t('budget.table.department')" width="120" />
+        <el-table-column :label="$t('budget.table.totalAmount')" width="140" align="right">
           <template #default="{ row }">¥{{ row.total_amount.toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="$t('budget.table.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="remark" :label="$t('budget.table.remark')" min-width="150" show-overflow-tooltip />
+        <el-table-column :label="$t('budget.table.operation')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="'budget:update'" type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
+            <el-button v-permission="'budget:update'" type="primary" link size="small" @click="openDialog(row)">{{ $t('budget.table.edit') }}</el-button>
             <el-button
               v-permission="'budget:approve'"
               v-if="row.status === 'pending'"
@@ -65,9 +65,9 @@
               link
               size="small"
               @click="approveBudget(row)"
-              >审核</el-button
+              >{{ $t('budget.table.approve') }}</el-button
             >
-            <el-button v-permission="'budget:delete'" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button v-permission="'budget:delete'" type="danger" link size="small" @click="handleDelete(row)">{{ $t('budget.table.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -79,25 +79,25 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="预算列表分页"
+          :aria-label="$t('budget.table.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑预算' : '新建预算'" width="500px" aria-label="预算编辑对话框">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="预算表单">
-        <el-form-item label="预算编号" prop="budget_no">
+    <el-dialog v-model="dialogVisible" :title="form.id ? $t('budget.dialog.editTitle') : $t('budget.dialog.createTitle')" width="500px" :aria-label="$t('budget.dialog.ariaLabel')">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('budget.dialog.formAriaLabel')">
+        <el-form-item :label="$t('budget.dialog.budgetNo')" prop="budget_no">
           <el-input v-model="form.budget_no" :disabled="!!form.id" />
         </el-form-item>
-        <el-form-item label="预算名称" prop="name">
+        <el-form-item :label="$t('budget.dialog.name')" prop="name">
           <el-input v-model="form.name" />
         </el-form-item>
-        <el-form-item label="期间" prop="period">
-          <el-input v-model="form.period" placeholder="如 2024-01" />
+        <el-form-item :label="$t('budget.dialog.period')" prop="period">
+          <el-input v-model="form.period" :placeholder="$t('budget.dialog.periodPlaceholder')" />
         </el-form-item>
-        <el-form-item label="预算总额" prop="total_amount">
+        <el-form-item :label="$t('budget.dialog.totalAmount')" prop="total_amount">
           <el-input-number
             v-model="form.total_amount"
             :min="0"
@@ -105,16 +105,16 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="部门ID">
+        <el-form-item :label="$t('budget.dialog.departmentId')">
           <el-input-number v-model="form.department_id" :min="0" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="$t('budget.dialog.remark')">
           <el-input v-model="form.remark" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('budget.dialog.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('budget.dialog.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -166,9 +166,9 @@ const {
   defaultPageSize: 20,
   onError: (err: unknown) => {
     if (err instanceof Error) {
-      ElMessage.error(err.message || '获取预算列表失败')
+      ElMessage.error(err.message || t('budget.message.loadFailed'))
     } else {
-      ElMessage.error('获取预算列表失败')
+      ElMessage.error(t('budget.message.loadFailed'))
     }
   },
 })
@@ -208,13 +208,7 @@ const rules: FormRules = {
 }
 
 const getStatusLabel = (status: Budget['status']) => {
-  const map: Record<Budget['status'], string> = {
-    draft: '草稿',
-    pending: '待审核',
-    approved: '已批准',
-    rejected: '已拒绝',
-  }
-  return map[status] || status
+  return t(`budget.status.${status}`) || status
 }
 
 const getStatusType = (status: Budget['status']) => {
@@ -275,7 +269,7 @@ const handleSubmit = async () => {
       fetchBudgets()
     } catch (e) {
       const err = e as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('budget.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -291,21 +285,21 @@ const approveBudget = async (row: Budget) => {
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '审核失败')
+      ElMessage.error(err.message || t('budget.message.auditFailed'))
     }
   }
 }
 
 const handleDelete = async (row: Budget) => {
   try {
-    await ElMessageBox.confirm(`确定删除预算 "${row.name}" 吗？`, t('message.deleteConfirmTitle'), { type: 'warning' })
+    await ElMessageBox.confirm(t('budget.message.deleteConfirm', { name: row.name }), t('message.deleteConfirmTitle'), { type: 'warning' })
     await deleteBudgetApi(row.id)
     ElMessage.success(t('message.deleteSuccess'))
     fetchBudgets()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('budget.message.deleteFailed'))
     }
   }
 }
@@ -317,6 +311,6 @@ const handleExport = async () => {
     status: queryParams.value.status as string | undefined,
   }
   await exportFromBackend('/budgets/export', params, 'budget_items_export')
-  logger.info('预算列表已导出')
+  logger.info(t('budget.message.listExported'))
 }
 </script>

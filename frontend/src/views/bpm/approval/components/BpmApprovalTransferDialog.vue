@@ -6,9 +6,9 @@
 -->
 <template>
   <el-dialog
-    aria-label="流程转交对话框"
+    :aria-label="$t('bpm.approval.transferDialog.ariaLabel')"
     :model-value="visible"
-    title="转交任务"
+    :title="$t('bpm.approval.transferDialog.title')"
     width="500px"
     destroy-on-close
     @update:model-value="(v: boolean) => emit('update:visible', v)"
@@ -18,30 +18,30 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
-      aria-label="流程转交表单"
+      :aria-label="$t('bpm.approval.transferDialog.formAriaLabel')"
     >
-      <el-form-item label="任务名称">
+      <el-form-item :label="$t('bpm.approval.transferDialog.taskName')">
         <span>{{ currentTask?.task_name }}</span>
       </el-form-item>
-      <el-form-item label="接收人 ID" prop="target_user_id">
+      <el-form-item :label="$t('bpm.approval.transferDialog.targetUserId')" prop="target_user_id">
         <el-input-number
           v-model="localForm.target_user_id"
           :min="1"
           style="width: 100%"
         />
       </el-form-item>
-      <el-form-item label="转交原因">
+      <el-form-item :label="$t('bpm.approval.transferDialog.comment')">
         <el-input
           v-model="localForm.comment"
           type="textarea"
           :rows="3"
-          placeholder="请输入转交原因"
+          :placeholder="$t('bpm.approval.transferDialog.commentPlaceholder')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="onConfirm">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ $t('bpm.approval.transferDialog.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="onConfirm">{{ $t('bpm.approval.transferDialog.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>

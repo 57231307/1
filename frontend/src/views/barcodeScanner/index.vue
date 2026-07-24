@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   ElTable,
   ElTableColumn,
@@ -31,6 +32,8 @@ import type { ApiResponse } from '@/types/api'
 import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const activeTab = ref('scan')
 const barcodeInput = ref('')
 const orderId = ref(0)
@@ -61,24 +64,24 @@ const {
   url: '/scanner/history',
   defaultPageSize: 20,
   onError: (err: unknown) => {
-    logger.error('获取扫码历史失败', err)
-    ElMessage.error('获取扫码历史失败')
+    logger.error(t('barcodeScanner.message.fetchHistoryFailed'), err)
+    ElMessage.error(t('barcodeScanner.message.fetchHistoryFailed'))
   },
 })
 
-const statusOptions = [
-  { label: '在库', value: 'IN_STOCK' },
-  { label: '已发货', value: 'SHIPPED' },
-  { label: '已报废', value: 'SCRAPPED' },
-]
+const statusOptions = computed(() => [
+  { label: t('barcodeScanner.status.inStock'), value: 'IN_STOCK' },
+  { label: t('barcodeScanner.status.shipped'), value: 'SHIPPED' },
+  { label: t('barcodeScanner.status.scrapped'), value: 'SCRAPPED' },
+])
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  return statusOptions.value.find(s => s.value === value)?.label || value
 }
 
 const handleScan = async () => {
   if (!barcodeInput.value.trim()) {
-    ElMessage.warning('请输入条码')
+    ElMessage.warning(t('barcodeScanner.message.barcodeRequired'))
     return
   }
   scanLoading.value = true
@@ -89,11 +92,11 @@ const handleScan = async () => {
     const data = (res as ApiResponse<ScanData> | undefined)?.data
     scanResult.value = data ?? null
     scanSuccess.value = true
-    scanMessage.value = '扫码成功'
+    scanMessage.value = t('barcodeScanner.message.scanSuccess')
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     scanSuccess.value = false
-    scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || '扫码失败'
+    scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || t('barcodeScanner.message.scanFailed')
     scanResult.value = null
   } finally {
     scanLoading.value = false
@@ -102,11 +105,11 @@ const handleScan = async () => {
 
 const handleScanToShip = async () => {
   if (!barcodeInput.value.trim()) {
-    ElMessage.warning('请输入条码')
+    ElMessage.warning(t('barcodeScanner.message.barcodeRequired'))
     return
   }
   if (!orderId.value) {
-    ElMessage.warning('请输入订单ID')
+    ElMessage.warning(t('barcodeScanner.message.orderIdRequired'))
     return
   }
   scanLoading.value = true
@@ -119,13 +122,13 @@ const handleScanToShip = async () => {
     })
     const data = (res as ApiResponse<{ message?: string }> | undefined)?.data
     scanSuccess.value = true
-    scanMessage.value = data?.message || '发货成功'
+    scanMessage.value = data?.message || t('barcodeScanner.message.shipSuccess')
     scanResult.value = null
     barcodeInput.value = ''
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     scanSuccess.value = false
-    scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || '发货失败'
+    scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || t('barcodeScanner.message.shipFailed')
   } finally {
     scanLoading.value = false
   }
@@ -137,20 +140,20 @@ const handleScanToShip = async () => {
 <template>
   <div class="app-container">
     <ElTabs v-model="activeTab">
-      <ElTabPane label="扫码查询" name="scan">
-        <ElCard title="条码扫描" class="scan-card">
+      <ElTabPane :label="$t('barcodeScanner.tabs.scan')" name="scan">
+        <ElCard :title="$t('barcodeScanner.scan.cardTitle')" class="scan-card">
           <div class="scan-area">
             <div class="scan-input-area">
               <ElInput
                 v-model="barcodeInput"
-                placeholder="扫描或输入条码"
+                :placeholder="$t('barcodeScanner.scan.placeholder')"
                 class="barcode-input"
                 @keyup.enter="handleScan"
               />
             </div>
             <div class="scan-actions">
               <ElButton type="primary" :loading="scanLoading" class="scan-btn" @click="handleScan">
-                <Search /> 扫码查询
+                <Search /> {{ $t('barcodeScanner.scan.button') }}
               </ElButton>
             </div>
           </div>
@@ -165,24 +168,24 @@ const handleScanToShip = async () => {
 
           <div v-if="scanResult" class="scan-detail">
             <ElDivider />
-            <h4>布卷信息</h4>
+            <h4>{{ $t('barcodeScanner.scan.pieceInfo') }}</h4>
             <ElDescriptions :column="3" border>
-              <ElDescriptionsItem label="条码">{{ scanResult.barcode }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="布卷号">{{ scanResult.piece_no }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="产品ID">{{ scanResult.product_id }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="产品名称">{{
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.barcode')">{{ scanResult.barcode }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.pieceNo')">{{ scanResult.piece_no }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.productId')">{{ scanResult.product_id }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.productName')">{{
                 scanResult.product_name
               }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="批次号">{{ scanResult.batch_no }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="色号">{{ scanResult.color_no }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="等级">{{ scanResult.grade }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="米数">{{ scanResult.quantity_meters }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="公斤数">{{ scanResult.quantity_kg }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="仓库ID">{{ scanResult.warehouse_id }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="仓库名称">{{
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.batchNo')">{{ scanResult.batch_no }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.colorNo')">{{ scanResult.color_no }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.grade')">{{ scanResult.grade }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.quantityMeters')">{{ scanResult.quantity_meters }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.quantityKg')">{{ scanResult.quantity_kg }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.warehouseId')">{{ scanResult.warehouse_id }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.warehouseName')">{{
                 scanResult.warehouse_name
               }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="状态">{{
+              <ElDescriptionsItem :label="$t('barcodeScanner.detail.status')">{{
                 getStatusLabel(scanResult.status)
               }}</ElDescriptionsItem>
             </ElDescriptions>
@@ -191,30 +194,30 @@ const handleScanToShip = async () => {
           <ElResult
             v-if="!scanMessage && !scanResult"
             icon="info"
-            title="扫码查询"
-            sub-title="扫描或输入条码查询布卷信息"
+            :title="$t('barcodeScanner.scan.resultTitle')"
+            :sub-title="$t('barcodeScanner.scan.resultSubTitle')"
           />
         </ElCard>
       </ElTabPane>
 
-      <ElTabPane label="扫码发货" name="ship">
-        <ElCard title="扫码出库" class="scan-card">
-          <ElForm :model="shipForm" label-width="100px" aria-label="扫码发货表单">
+      <ElTabPane :label="$t('barcodeScanner.tabs.ship')" name="ship">
+        <ElCard :title="$t('barcodeScanner.ship.cardTitle')" class="scan-card">
+          <ElForm :model="shipForm" label-width="100px" :aria-label="$t('barcodeScanner.ship.formAriaLabel')">
             <ElRow :gutter="20">
               <ElCol :span="8">
-                <ElFormItem label="订单ID">
+                <ElFormItem :label="$t('barcodeScanner.ship.orderId')">
                   <ElInputNumber
                     v-model="shipForm.orderId"
-                    placeholder="请输入订单ID"
+                    :placeholder="$t('barcodeScanner.ship.orderIdPlaceholder')"
                     class="w-full"
                   />
                 </ElFormItem>
               </ElCol>
               <ElCol :span="12">
-                <ElFormItem label="条码">
+                <ElFormItem :label="$t('barcodeScanner.ship.barcode')">
                   <ElInput
                     v-model="shipForm.barcode"
-                    placeholder="扫描或输入条码"
+                    :placeholder="$t('barcodeScanner.scan.placeholder')"
                     class="w-full"
                     @keyup.enter="handleScanToShip"
                   />
@@ -228,7 +231,7 @@ const handleScanToShip = async () => {
                   style="margin-top: 24px"
                   @click="handleScanToShip"
                 >
-                  <Box /> 扫码发货
+                  <Box /> {{ $t('barcodeScanner.ship.button') }}
                 </ElButton>
               </ElCol>
             </ElRow>
@@ -245,15 +248,15 @@ const handleScanToShip = async () => {
           <ElResult
             v-if="!scanMessage"
             icon="success"
-            title="扫码发货"
-            sub-title="输入订单ID后扫描条码完成出库"
+            :title="$t('barcodeScanner.ship.resultTitle')"
+            :sub-title="$t('barcodeScanner.ship.resultSubTitle')"
           />
         </ElCard>
       </ElTabPane>
 
-      <ElTabPane label="扫码历史" name="history">
+      <ElTabPane :label="$t('barcodeScanner.tabs.history')" name="history">
         <div class="filter-actions" style="margin-bottom: 20px">
-          <ElButton @click="loadHistory"> <Refresh /> 刷新 </ElButton>
+          <ElButton @click="loadHistory"> <Refresh /> {{ $t('barcodeScanner.history.refresh') }} </ElButton>
         </div>
 
         <ElTable
@@ -263,14 +266,14 @@ const handleScanToShip = async () => {
           fit
           highlight-current-row
           style="width: 100%"
-          aria-label="扫码历史列表"
+          :aria-label="$t('barcodeScanner.history.tableAriaLabel')"
         >
-          <ElTableColumn prop="id" label="ID" width="80" />
-          <ElTableColumn prop="barcode" label="条码" width="180" />
-          <ElTableColumn prop="piece_no" label="布卷号" width="150" />
-          <ElTableColumn prop="scan_type" label="扫码类型" width="120" />
-          <ElTableColumn prop="result" label="结果" width="150" />
-          <ElTableColumn prop="created_at" label="时间" width="180" />
+          <ElTableColumn prop="id" :label="$t('barcodeScanner.history.id')" width="80" />
+          <ElTableColumn prop="barcode" :label="$t('barcodeScanner.history.barcode')" width="180" />
+          <ElTableColumn prop="piece_no" :label="$t('barcodeScanner.history.pieceNo')" width="150" />
+          <ElTableColumn prop="scan_type" :label="$t('barcodeScanner.history.scanType')" width="120" />
+          <ElTableColumn prop="result" :label="$t('barcodeScanner.history.result')" width="150" />
+          <ElTableColumn prop="created_at" :label="$t('barcodeScanner.history.time')" width="180" />
         </ElTable>
 
         <!-- 批次 390：分页由 useTableApi watch 自动加载，v-model 双向绑定 page/pageSize -->
@@ -281,7 +284,7 @@ const handleScanToShip = async () => {
             :page-sizes="[10, 20, 50, 100]"
             :total="total"
             layout="total, sizes, prev, pager, next, jumper"
-            aria-label="扫码历史列表分页"
+            :aria-label="$t('barcodeScanner.history.paginationAriaLabel')"
           />
         </div>
       </ElTabPane>

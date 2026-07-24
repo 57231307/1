@@ -6,65 +6,65 @@
 <template>
   <div class="verification-tab">
     <div class="page-header">
-      <h2 class="page-title">核销管理</h2>
+      <h2 class="page-title">{{ $t('apModule.verification.title') }}</h2>
       <el-button type="primary" @click="openVerificationDialog()">
-        <el-icon><Plus /></el-icon> 新建核销
+        <el-icon><Plus /></el-icon> {{ $t('apModule.verification.create') }}
       </el-button>
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="verificationLoading" :data="verifications" stripe aria-label="核销列表">
-        <el-table-column prop="verification_no" label="核销单号" width="140" />
-        <el-table-column prop="invoice_no" label="发票号" width="140" />
-        <el-table-column prop="payment_no" label="付款单号" width="140" />
-        <el-table-column prop="verification_date" label="核销日期" width="120" />
-        <el-table-column label="核销金额" width="120" align="right">
+      <el-table v-loading="verificationLoading" :data="verifications" stripe :aria-label="$t('apModule.verification.listAria')">
+        <el-table-column prop="verification_no" :label="$t('apModule.verification.verificationNo')" width="140" />
+        <el-table-column prop="invoice_no" :label="$t('apModule.verification.invoiceNo')" width="140" />
+        <el-table-column prop="payment_no" :label="$t('apModule.verification.paymentNo')" width="140" />
+        <el-table-column prop="verification_date" :label="$t('apModule.verification.verificationDate')" width="120" />
+        <el-table-column :label="$t('apModule.verification.verificationAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.verification_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90" align="center">
+        <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? '有效' : '已取消' }}
+              {{ row.status === 'active' ? $t('apModule.verification.statusActive') : $t('apModule.verification.statusCancelled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" />
+        <el-table-column prop="created_at" :label="$t('common.createTime')" width="160" />
       </el-table>
     </el-card>
 
-    <el-dialog v-model="verificationDialogVisible" title="新建核销" width="600px" aria-label="新建核销对话框">
-      <el-form :model="verificationForm" label-width="100px" aria-label="核销表单">
-        <el-form-item label="发票号">
+    <el-dialog v-model="verificationDialogVisible" :title="$t('apModule.verification.createTitle')" width="600px" :aria-label="$t('apModule.verification.createAria')">
+      <el-form :model="verificationForm" label-width="100px" :aria-label="$t('apModule.verification.formAria')">
+        <el-form-item :label="$t('apModule.verification.invoiceNo')">
           <el-select
             v-model="verificationForm.invoice_id"
-            placeholder="选择发票"
+            :placeholder="$t('apModule.verification.invoicePlaceholder')"
             style="width: 100%"
           >
             <el-option
               v-for="inv in unverifiedInvoices"
               :key="inv.id"
-              :label="`${inv.invoice_no} (未核销: ${formatMoney(inv.unverified_amount)})`"
+              :label="$t('apModule.verification.invoiceOption', { no: inv.invoice_no, amount: formatMoney(inv.unverified_amount) })"
               :value="inv.id"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="付款单号">
+        <el-form-item :label="$t('apModule.verification.paymentNo')">
           <el-select
             v-model="verificationForm.payment_id"
-            placeholder="选择付款单"
+            :placeholder="$t('apModule.verification.paymentPlaceholder')"
             style="width: 100%"
           >
             <el-option
               v-for="pay in unverifiedPayments"
               :key="pay.id"
-              :label="`${pay.payment_no} (金额: ${formatMoney(pay.payment_amount)})`"
+              :label="$t('apModule.verification.paymentOption', { no: pay.payment_no, amount: formatMoney(pay.payment_amount) })"
               :value="pay.id"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="核销金额">
+        <el-form-item :label="$t('apModule.verification.verificationAmount')">
           <el-input-number
             v-model="verificationForm.amount"
             :min="0"
@@ -74,9 +74,9 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="verificationDialogVisible = false">取消</el-button>
+        <el-button @click="verificationDialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="verificationSubmitLoading" @click="submitVerification"
-          >确定</el-button
+          >{{ $t('common.confirm') }}</el-button
         >
       </template>
     </el-dialog>
@@ -85,6 +85,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -96,6 +97,8 @@ import {
 } from '@/api/ap-verification'
 import type { APInvoice } from '@/api/ap-invoice'
 import type { APPayment } from '@/api/ap-payment'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const verifications = ref<APVerification[]>([])
 const verificationLoading = ref(false)
@@ -121,7 +124,7 @@ const fetchVerifications = async () => {
     }
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '获取核销列表失败')
+    ElMessage.error(err.message || t('apModule.verification.fetchListFailed'))
   } finally {
     verificationLoading.value = false
   }
@@ -174,7 +177,7 @@ const submitVerification = async () => {
     !verificationForm.payment_id ||
     verificationForm.amount <= 0
   ) {
-    ElMessage.warning('请完整填写核销信息')
+    ElMessage.warning(t('apModule.verification.pleaseFillComplete'))
     return
   }
   verificationSubmitLoading.value = true
@@ -184,12 +187,12 @@ const submitVerification = async () => {
       payment_id: verificationForm.payment_id,
       amount: verificationForm.amount,
     })
-    ElMessage.success('核销成功')
+    ElMessage.success(t('apModule.verification.verifySuccess'))
     verificationDialogVisible.value = false
     fetchVerifications()
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('common.failed'))
   } finally {
     verificationSubmitLoading.value = false
   }

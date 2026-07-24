@@ -6,6 +6,7 @@
  * 数据与函数全部由父组件通过 props 传入
  */
 // v11 批次 171 P2-1 修复：从 useAi 导入接口类型，替代 any
+import { useI18n } from 'vue-i18n'
 import type {
   ForecastResult,
   InventoryResult,
@@ -33,6 +34,14 @@ interface Props {
 
 defineProps<Props>()
 
+const { t } = useI18n({ useScope: 'global' })
+
+function priorityLabel(priority: string): string {
+  if (priority === 'high') return t('advancedModule.ai.priorityHigh')
+  if (priority === 'medium') return t('advancedModule.ai.priorityMedium')
+  return t('advancedModule.ai.priorityLow')
+}
+
 const emit = defineEmits<{
   (e: 'update:forecastPeriod', value: string): void
   (e: 'update:anomalyType', value: string): void
@@ -41,46 +50,46 @@ const emit = defineEmits<{
 
 <template>
   <div class="page-header">
-    <h2 class="page-title">AI 智能分析</h2>
+    <h2 class="page-title">{{ $t('advancedModule.ai.title') }}</h2>
   </div>
 
   <el-row :gutter="20">
     <el-col :span="12">
       <el-card shadow="hover" class="mb-20">
-        <template #header><div class="card-header">销售预测</div></template>
+        <template #header><div class="card-header">{{ $t('advancedModule.ai.salesForecast') }}</div></template>
         <el-form label-width="100px" aria-label="销售预测表单">
-          <el-form-item label="预测周期">
+          <el-form-item :label="$t('advancedModule.ai.forecastPeriod')">
             <el-select
               :model-value="forecastPeriod"
               style="width: 100%"
               @update:model-value="(v: string) => emit('update:forecastPeriod', v)"
             >
-              <el-option label="未来 3 个月" value="3m" />
-              <el-option label="未来 6 个月" value="6m" />
-              <el-option label="未来 12 个月" value="12m" />
+              <el-option :label="$t('advancedModule.ai.period3m')" value="3m" />
+              <el-option :label="$t('advancedModule.ai.period6m')" value="6m" />
+              <el-option :label="$t('advancedModule.ai.period12m')" value="12m" />
             </el-select>
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="forecastLoading" @click="runSalesForecast"
-              >开始预测</el-button
+              >{{ $t('advancedModule.ai.startForecast') }}</el-button
             >
           </el-form-item>
         </el-form>
-        <el-empty v-if="!forecastResult" description="点击开始预测" />
+        <el-empty v-if="!forecastResult" :description="$t('advancedModule.ai.clickToForecast')" />
         <div v-else>
-          <h4>预测结果</h4>
+          <h4>{{ $t('advancedModule.ai.forecastResult') }}</h4>
           <el-divider />
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="预测销售额">{{
+            <el-descriptions-item :label="$t('advancedModule.ai.forecastSales')">{{
               formatMoney(forecastResult.sales_amount)
             }}</el-descriptions-item>
-            <el-descriptions-item label="预测订单数">{{
+            <el-descriptions-item :label="$t('advancedModule.ai.forecastOrders')">{{
               forecastResult.order_count
             }}</el-descriptions-item>
-            <el-descriptions-item label="置信度"
+            <el-descriptions-item :label="$t('advancedModule.ai.confidence')"
               >{{ forecastResult.confidence }}%</el-descriptions-item
             >
-            <el-descriptions-item label="预测趋势">{{
+            <el-descriptions-item :label="$t('advancedModule.ai.forecastTrend')">{{
               forecastResult.trend
             }}</el-descriptions-item>
           </el-descriptions>
@@ -88,21 +97,21 @@ const emit = defineEmits<{
       </el-card>
 
       <el-card shadow="hover">
-        <template #header><div class="card-header">库存优化建议</div></template>
+        <template #header><div class="card-header">{{ $t('advancedModule.ai.inventoryOpt') }}</div></template>
         <el-button
           type="primary"
           :loading="inventoryLoading"
           @click="runInventoryOptimization"
-          >生成建议</el-button
+          >{{ $t('advancedModule.ai.generateSuggestion') }}</el-button
         >
         <el-divider />
-        <el-empty v-if="!inventoryResult" description="点击生成优化建议" />
+        <el-empty v-if="!inventoryResult" :description="$t('advancedModule.ai.clickToGenerate')" />
         <div v-else>
           <el-alert type="success" :title="inventoryResult.summary" show-icon class="mb-10" />
           <el-table :data="inventoryResult.items" stripe aria-label="库存优化建议列表">
-            <el-table-column prop="product_name" label="产品" width="150" />
-            <el-table-column prop="suggestion" label="建议" min-width="200" />
-            <el-table-column prop="priority" label="优先级" width="100">
+            <el-table-column prop="product_name" :label="$t('advancedModule.ai.colProduct')" width="150" />
+            <el-table-column prop="suggestion" :label="$t('advancedModule.ai.colSuggestion')" min-width="200" />
+            <el-table-column prop="priority" :label="$t('advancedModule.ai.colPriority')" width="100">
               <template #default="{ row }">
                 <el-tag
                   :type="
@@ -114,9 +123,7 @@ const emit = defineEmits<{
                   "
                   size="small"
                 >
-                  {{
-                    row.priority === 'high' ? '高' : row.priority === 'medium' ? '中' : '低'
-                  }}
+                  {{ priorityLabel(row.priority) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -127,30 +134,30 @@ const emit = defineEmits<{
 
     <el-col :span="12">
       <el-card shadow="hover" class="mb-20">
-        <template #header><div class="card-header">异常检测</div></template>
+        <template #header><div class="card-header">{{ $t('advancedModule.ai.anomalyDetection') }}</div></template>
         <el-form label-width="100px" aria-label="异常检测表单">
-          <el-form-item label="数据类型">
+          <el-form-item :label="$t('advancedModule.ai.dataType')">
             <el-select
               :model-value="anomalyType"
               style="width: 100%"
               @update:model-value="(v: string) => emit('update:anomalyType', v)"
             >
-              <el-option label="销售数据" value="sales" />
-              <el-option label="库存数据" value="inventory" />
-              <el-option label="质量数据" value="quality" />
+              <el-option :label="$t('advancedModule.ai.dataSales')" value="sales" />
+              <el-option :label="$t('advancedModule.ai.dataInventory')" value="inventory" />
+              <el-option :label="$t('advancedModule.ai.dataQuality')" value="quality" />
             </el-select>
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="anomalyLoading" @click="runAnomalyDetection"
-              >检测异常</el-button
+              >{{ $t('advancedModule.ai.detectAnomaly') }}</el-button
             >
           </el-form-item>
         </el-form>
-        <el-empty v-if="!anomalyResult" description="点击开始检测" />
+        <el-empty v-if="!anomalyResult" :description="$t('advancedModule.ai.clickToDetect')" />
         <div v-else>
           <el-table :data="anomalyResult" stripe aria-label="异常检测结果列表">
-            <el-table-column prop="item" label="检测项" width="150" />
-            <el-table-column prop="type" label="类型" width="100">
+            <el-table-column prop="item" :label="$t('advancedModule.ai.colItem')" width="150" />
+            <el-table-column prop="type" :label="$t('advancedModule.ai.colType')" width="100">
               <template #default="{ row }">
                 <el-tag
                   :type="row.severity === 'critical' ? 'danger' : 'warning'"
@@ -159,19 +166,19 @@ const emit = defineEmits<{
                 >
               </template>
             </el-table-column>
-            <el-table-column prop="description" label="描述" min-width="200" />
-            <el-table-column prop="severity" label="严重程度" width="100" />
+            <el-table-column prop="description" :label="$t('advancedModule.ai.colDesc')" min-width="200" />
+            <el-table-column prop="severity" :label="$t('advancedModule.ai.colSeverity')" width="100" />
           </el-table>
         </div>
       </el-card>
 
       <el-card shadow="hover">
-        <template #header><div class="card-header">智能推荐</div></template>
+        <template #header><div class="card-header">{{ $t('advancedModule.ai.recommendations') }}</div></template>
         <el-button type="primary" :loading="recommendLoading" @click="getRecommendations"
-          >获取推荐</el-button
+          >{{ $t('advancedModule.ai.getRecommendations') }}</el-button
         >
         <el-divider />
-        <el-empty v-if="!recommendationResult" description="点击获取推荐" />
+        <el-empty v-if="!recommendationResult" :description="$t('advancedModule.ai.clickToGetRec')" />
         <div v-else>
           <el-timeline>
             <el-timeline-item

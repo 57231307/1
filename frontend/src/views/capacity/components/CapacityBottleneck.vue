@@ -7,23 +7,23 @@
   <el-card shadow="hover">
     <template #header>
       <div class="card-header">
-        <span>瓶颈识别</span>
-        <el-tag type="danger">{{ data.length }} 个瓶颈</el-tag>
+        <span>{{ $t('capacityModule.bottleneck.title') }}</span>
+        <el-tag type="danger">{{ $t('capacityModule.bottleneck.count', { count: data.length }) }}</el-tag>
       </div>
     </template>
     <div v-loading="loading" class="bottleneck-list">
       <div v-if="data.length === 0" class="empty-state">
         <el-icon><CircleCheck /></el-icon>
-        <p>暂无瓶颈工作中心</p>
+        <p>{{ $t('capacityModule.bottleneck.empty') }}</p>
       </div>
       <div v-for="item in data" :key="item.id" class="bottleneck-item">
         <div class="bottleneck-header">
           <span class="bottleneck-name">{{ item.name }}</span>
-          <el-tag type="danger" size="small">瓶颈</el-tag>
+          <el-tag type="danger" size="small">{{ $t('capacityModule.bottleneck.tag') }}</el-tag>
         </div>
         <div class="bottleneck-info">
-          <span>负荷率: <strong>{{ (item.load_rate * 100).toFixed(1) }}%</strong></span>
-          <span>已用工时: {{ item.used_hours }} / {{ item.capacity_hours }}</span>
+          <span>{{ $t('capacityModule.bottleneck.loadRate') }}: <strong>{{ (item.load_rate * 100).toFixed(1) }}%</strong></span>
+          <span>{{ $t('capacityModule.bottleneck.usedHours') }}: {{ item.used_hours }} / {{ item.capacity_hours }}</span>
         </div>
       </div>
     </div>

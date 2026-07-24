@@ -8,72 +8,72 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>色号价格列表</span>
+          <span>{{ $t('colorPrices.list.title') }}</span>
           <div>
             <el-button type="primary" :icon="Plus" @click="$router.push('/color-prices/create')">
-              新建价格
+              {{ $t('colorPrices.list.createPrice') }}
             </el-button>
             <el-button type="success" :icon="Edit" @click="$router.push('/color-prices/batch-adjust')">
-              批量调价
+              {{ $t('colorPrices.list.batchAdjust') }}
             </el-button>
           </div>
         </div>
       </template>
 
-      <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="色卡价格筛选表单">
-        <el-form-item label="产品 ID">
-          <el-input v-model.number="filterForm.product_id" placeholder="产品 ID" clearable style="width: 140px" />
+      <el-form :inline="true" :model="filterForm" class="filter-form" :aria-label="$t('colorPrices.list.filter.ariaLabel')">
+        <el-form-item :label="$t('colorPrices.list.filter.productId')">
+          <el-input v-model.number="filterForm.product_id" :placeholder="$t('colorPrices.list.filter.productId')" clearable style="width: 140px" />
         </el-form-item>
-        <el-form-item label="色号 ID">
-          <el-input v-model.number="filterForm.color_id" placeholder="色号 ID" clearable style="width: 140px" />
+        <el-form-item :label="$t('colorPrices.list.filter.colorId')">
+          <el-input v-model.number="filterForm.color_id" :placeholder="$t('colorPrices.list.filter.colorId')" clearable style="width: 140px" />
         </el-form-item>
-        <el-form-item label="客户等级">
-          <el-select v-model="filterForm.customer_level" placeholder="全部" clearable style="width: 120px">
-            <el-option label="VIP" value="VIP" />
-            <el-option label="NORMAL" value="NORMAL" />
-            <el-option label="GOLD" value="GOLD" />
-            <el-option label="SILVER" value="SILVER" />
+        <el-form-item :label="$t('colorPrices.list.filter.customerLevel')">
+          <el-select v-model="filterForm.customer_level" :placeholder="$t('colorPrices.common.all')" clearable style="width: 120px">
+            <el-option :label="$t('colorPrices.customerLevel.VIP')" value="VIP" />
+            <el-option :label="$t('colorPrices.customerLevel.NORMAL')" value="NORMAL" />
+            <el-option :label="$t('colorPrices.customerLevel.GOLD')" value="GOLD" />
+            <el-option :label="$t('colorPrices.customerLevel.SILVER')" value="SILVER" />
           </el-select>
         </el-form-item>
-        <el-form-item label="季节">
-          <el-select v-model="filterForm.season" placeholder="全部" clearable style="width: 120px">
-            <el-option label="春夏 SS" value="SS" />
-            <el-option label="秋冬 AW" value="AW" />
-            <el-option label="节日 HOLIDAY" value="HOLIDAY" />
+        <el-form-item :label="$t('colorPrices.list.filter.season')">
+          <el-select v-model="filterForm.season" :placeholder="$t('colorPrices.common.all')" clearable style="width: 120px">
+            <el-option :label="$t('colorPrices.season.SS')" value="SS" />
+            <el-option :label="$t('colorPrices.season.AW')" value="AW" />
+            <el-option :label="$t('colorPrices.season.HOLIDAY')" value="HOLIDAY" />
           </el-select>
         </el-form-item>
-        <el-form-item label="币种">
-          <el-select v-model="filterForm.currency" placeholder="全部" clearable style="width: 100px">
-            <el-option label="CNY" value="CNY" />
-            <el-option label="USD" value="USD" />
-            <el-option label="EUR" value="EUR" />
+        <el-form-item :label="$t('colorPrices.list.filter.currency')">
+          <el-select v-model="filterForm.currency" :placeholder="$t('colorPrices.common.all')" clearable style="width: 100px">
+            <el-option :label="$t('colorPrices.currency.CNY')" value="CNY" />
+            <el-option :label="$t('colorPrices.currency.USD')" value="USD" />
+            <el-option :label="$t('colorPrices.currency.EUR')" value="EUR" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="filterForm.is_active" placeholder="全部" clearable style="width: 100px">
-            <el-option label="启用" :value="true" />
-            <el-option label="禁用" :value="false" />
+        <el-form-item :label="$t('colorPrices.list.filter.status')">
+          <el-select v-model="filterForm.is_active" :placeholder="$t('colorPrices.common.all')" clearable style="width: 100px">
+            <el-option :label="$t('colorPrices.common.enable')" :value="true" />
+            <el-option :label="$t('colorPrices.common.disable')" :value="false" />
           </el-select>
         </el-form-item>
-        <el-form-item label="审批状态">
-          <el-select v-model="filterForm.approval_status" placeholder="全部" clearable style="width: 120px">
-            <el-option label="待审批" value="PENDING" />
-            <el-option label="已通过" value="APPROVED" />
-            <el-option label="已拒绝" value="REJECTED" />
+        <el-form-item :label="$t('colorPrices.list.filter.approvalStatus')">
+          <el-select v-model="filterForm.approval_status" :placeholder="$t('colorPrices.common.all')" clearable style="width: 120px">
+            <el-option :label="$t('colorPrices.approvalStatus.PENDING')" value="PENDING" />
+            <el-option :label="$t('colorPrices.approvalStatus.APPROVED')" value="APPROVED" />
+            <el-option :label="$t('colorPrices.approvalStatus.REJECTED')" value="REJECTED" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
-          <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleSearch">{{ $t('colorPrices.common.search') }}</el-button>
+          <el-button :icon="Refresh" @click="handleReset">{{ $t('colorPrices.common.reset') }}</el-button>
         </el-form-item>
       </el-form>
 
-      <el-table :data="tableData" v-loading="loading" border stripe aria-label="色卡价格列表" @selection-change="handleSelectionChange">
+      <el-table :data="tableData" v-loading="loading" border stripe :aria-label="$t('colorPrices.list.table.ariaLabel')" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="product_id" label="产品" width="100" />
-        <el-table-column prop="color_id" label="色号" width="100" />
-        <el-table-column label="客户等级" width="100">
+        <el-table-column prop="id" :label="$t('colorPrices.list.table.id')" width="80" />
+        <el-table-column prop="product_id" :label="$t('colorPrices.list.table.product')" width="100" />
+        <el-table-column prop="color_id" :label="$t('colorPrices.list.table.color')" width="100" />
+        <el-table-column :label="$t('colorPrices.list.table.customerLevel')" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level)">
               {{ getLevelLabel(row.customer_level) }}
@@ -81,7 +81,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="季节" width="100">
+        <el-table-column :label="$t('colorPrices.list.table.season')" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.season" :type="getSeasonColor(row.season)">
               {{ getSeasonLabel(row.season) }}
@@ -89,30 +89,30 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="基础价" width="140">
+        <el-table-column :label="$t('colorPrices.list.table.basePrice')" width="140">
           <template #default="{ row }">{{ formatPrice(row.base_price, row.currency) }}</template>
         </el-table-column>
-        <el-table-column label="币种" width="80" prop="currency" />
-        <el-table-column label="审批状态" width="100">
+        <el-table-column :label="$t('colorPrices.list.table.currency')" width="80" prop="currency" />
+        <el-table-column :label="$t('colorPrices.list.table.approvalStatus')" width="100">
           <template #default="{ row }">
             <el-tag :type="getApprovalColor(row.approval_status)">
               {{ getApprovalLabel(row.approval_status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="生效日期" width="120" prop="effective_from" />
-        <el-table-column label="状态" width="80">
+        <el-table-column :label="$t('colorPrices.list.table.effectiveFrom')" width="120" prop="effective_from" />
+        <el-table-column :label="$t('colorPrices.list.table.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'info'">
-              {{ row.is_active ? '启用' : '禁用' }}
+              {{ row.is_active ? $t('colorPrices.common.enable') : $t('colorPrices.common.disable') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column :label="$t('colorPrices.list.table.operation')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleView(row)">详情</el-button>
-            <el-button link type="warning" @click="handleAdjust(row)">调价</el-button>
-            <el-button link type="danger" @click="handleDelete(row)" v-if="row.is_active">删除</el-button>
+            <el-button link type="primary" @click="handleView(row)">{{ $t('colorPrices.common.detail') }}</el-button>
+            <el-button link type="warning" @click="handleAdjust(row)">{{ $t('colorPrices.list.table.adjust') }}</el-button>
+            <el-button link type="danger" @click="handleDelete(row)" v-if="row.is_active">{{ $t('colorPrices.common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -124,7 +124,7 @@
           :total="total"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="色卡价格列表分页"
+          :aria-label="$t('colorPrices.list.table.paginationAriaLabel')"
         />
       </div>
     </el-card>
@@ -133,22 +133,27 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Edit } from '@element-plus/icons-vue'
 import {
   deleteColorPrice,
   formatPrice,
-  getLevelLabel,
   getLevelColor,
-  getSeasonLabel,
   getSeasonColor,
-  getApprovalLabel,
   getApprovalColor,
   type ColorPriceListItem,
 } from '@/api/color-price'
 // 批次 280：接入 useTableApi，消除手写 tableData/loading/total/loadData 重复
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
+
+// 状态码 → 本地化标签（响应式：随语言切换自动更新）
+const getLevelLabel = (level: string | null | undefined) => t(`colorPrices.customerLevel.${level || 'default'}`)
+const getSeasonLabel = (season: string | null | undefined) => t(`colorPrices.season.${season || 'default'}`)
+const getApprovalLabel = (status: string) => t(`colorPrices.approvalStatus.${status}`)
 
 const router = useRouter()
 const selectedRows = ref<ColorPriceListItem[]>([])
@@ -179,7 +184,7 @@ const {
   onError: (err: unknown) => {
     // v11 批次 180 P2-1 修复：unknown + 类型守卫
     const errMsg = err instanceof Error ? err.message : String(err)
-    ElMessage.error('加载失败：' + (errMsg || '未知错误'))
+    ElMessage.error(t('colorPrices.message.loadFailed', { msg: errMsg || t('colorPrices.message.unknownError') }))
   },
 })
 
@@ -221,15 +226,15 @@ const handleAdjust = (row: ColorPriceListItem) => {
 
 const handleDelete = async (row: ColorPriceListItem) => {
   try {
-    await ElMessageBox.confirm(`确定删除色号价格 #${row.id}？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('colorPrices.message.deleteConfirm', { id: row.id }), t('colorPrices.common.confirm'), { type: 'warning' })
     await deleteColorPrice(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('colorPrices.message.deleteSuccess'))
     loadData()
   } catch (e: unknown) {
     if (e === 'cancel') return
     // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
     const errMsg = e instanceof Error ? e.message : String(e)
-    ElMessage.error('删除失败：' + (errMsg || '未知错误'))
+    ElMessage.error(t('colorPrices.message.deleteFailed', { msg: errMsg || t('colorPrices.message.unknownError') }))
   }
 }
 

@@ -10,7 +10,7 @@
       <el-col :span="6">
         <el-input
           v-model="localSearchForm.customer_name"
-          placeholder="客户名称"
+          :placeholder="$t('arReconciliationModule.customerNamePlaceholder')"
           clearable
           @keyup.enter="emit('search')"
         />
@@ -18,13 +18,13 @@
       <el-col :span="5">
         <el-select
           v-model="localSearchForm.match_status"
-          placeholder="匹配状态"
+          :placeholder="$t('arReconciliationModule.matchStatusPlaceholder')"
           clearable
         >
           <el-option
             v-for="s in MATCH_OPTIONS"
             :key="s.value"
-            :label="s.label"
+            :label="$t(s.label)"
             :value="s.value"
           />
         </el-select>
@@ -33,7 +33,7 @@
         <el-date-picker
           v-model="localSearchForm.start_date"
           type="date"
-          placeholder="开始日期"
+          :placeholder="$t('arReconciliationModule.startDatePlaceholder')"
           class="w-100"
         />
       </el-col>
@@ -41,24 +41,24 @@
         <el-date-picker
           v-model="localSearchForm.end_date"
           type="date"
-          placeholder="结束日期"
+          :placeholder="$t('arReconciliationModule.endDatePlaceholder')"
           class="w-100"
         />
       </el-col>
       <el-col :span="3">
-        <el-button type="primary" @click="emit('search')">查询</el-button>
-        <el-button @click="emit('reset')">重置</el-button>
+        <el-button type="primary" @click="emit('search')">{{ $t('arReconciliationModule.query') }}</el-button>
+        <el-button @click="emit('reset')">{{ $t('common.reset') }}</el-button>
       </el-col>
     </el-row>
     <div class="filter-actions">
       <el-button type="success" :loading="reconcileLoading" @click="emit('auto-reconcile')">
-        <el-icon><Refresh /></el-icon> 自动对账
+        <el-icon><Refresh /></el-icon> {{ $t('arReconciliationModule.autoReconcile') }}
       </el-button>
       <el-button type="warning" @click="emit('view-confirmations')">
-        <el-icon><Promotion /></el-icon> 客户确认
+        <el-icon><Promotion /></el-icon> {{ $t('arReconciliationModule.customerConfirmation') }}
       </el-button>
       <el-button type="danger" @click="emit('open-dispute')">
-        <el-icon><CircleClose /></el-icon> 争议处理
+        <el-icon><CircleClose /></el-icon> {{ $t('arReconciliationModule.disputeHandling') }}
       </el-button>
     </div>
   </div>
@@ -66,8 +66,12 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Refresh, Promotion, CircleClose } from '@element-plus/icons-vue'
 import { MATCH_OPTIONS } from '../composables/arRecFmts'
+
+const { t } = useI18n({ useScope: 'global' })
+void t
 
 // 搜索表单类型
 interface ArSearchForm {

@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-24（D05 Batch 5 已合并 PR #729；核实 i18n 接入现状：20 文件含 useI18n，10 完整接入 + 10 部分接入；发现 UserTab.vue 命名空间 BUG；D05 状态由 ❌ 未开始更正为 ⏳ 进行中）
+> 最近整理：2026-07-24（D05 Batch 8 完成 i18n 缺失键补全：7 文件 154 个 $t()/t() 引用未定义键补全到 locales，budget 命名空间扩展 49 键 + 新增 businessTrace 61 键 + 新增 capacityModule 36 键 + advancedModule.quality.confidence 1 键，zh-CN.ts/en-US.ts 双语同步 2863→3011 键，audit 验证 0 真实缺失键；D05 Batch 7 完成 color-cards + color-prices 8 文件 i18n 接入，新增 colorCards/colorPrices 命名空间 365 翻译键到 locales；D05 Batch 6 完成 group4.json 翻译键汇总 bomModule + bpm 命名空间 406 键；D05 Batch 5 已合并 PR #729；核实 i18n 接入现状：28 文件含 useI18n，18 完整接入 + 10 部分接入；发现 UserTab.vue 命名空间 BUG；D05 状态由 ❌ 未开始更正为 ⏳ 进行中）
 
 ---
 
@@ -65,7 +65,7 @@
 | 第 2 顺位 | D10 1000 行文件 | ✅ 已完成 | D08 完成后立即推进，6 批 34 文件全部完成 |
 | 第 3 顺位 | D14 api 命名统一 | ✅ 已完成 | 与 D05/D13 解耦，D10 完成后推进 |
 | 第 4 顺位 | D13 前端缩写命名 | ✅ 已完成 | D14 完成后推进；Batch 1-7 全部完成（PR #716/#717/#718/#719/#720/#721/#722） |
-| 第 5 顺位 | D05 useI18n | ⏳ 进行中 | D13/D14 完成后推进；Batch 1-5 已完成（PR #724/#725/#727/#729），Batch 6 待启动 |
+| 第 5 顺位 | D05 useI18n | ⏳ 进行中 | D13/D14 完成后推进；Batch 1-5 + Batch 7-8 已完成 18 文件 + 缺失键补全 148 键（PR #724/#725/#727/#729），Batch 6 待启动 |
 
 ### 0.5 文档章节归类
 
@@ -92,9 +92,9 @@
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
 | **合计** | **732** | **104** | **628** | **14.2%** |
 
-### 1.2 状态：⏳ D05 进行中（Batch 1-5 已完成，Batch 6 待启动）→ 按模块横向切片推进
+### 1.2 状态：⏳ D05 进行中（Batch 1-5 + Batch 7-8 已完成 18 文件 + 缺失键补全，Batch 6 待启动）→ 按模块横向切片推进
 
-- **当前批次**：Batch 490 进行中 —— D05 useI18n 接入（第 5 顺位，D13/D14 完成后最后推进，预估 30-36 子批次；Batch 1-5 已完成 10 文件完整接入，Batch 6 待启动）
+- **当前批次**：Batch 490 进行中 —— D05 useI18n 接入（第 5 顺位，D13/D14 完成后最后推进，预估 30-36 子批次；Batch 1-5 + Batch 7 已完成 18 文件完整接入 + Batch 8 缺失键补全 148 键，Batch 6 待启动）
 - **上一批次**：Batch 489 ✅ 已完成 —— D13 前端缩写命名统一（Batch 1-7 全部完成 PR #716/#717/#718/#719/#720/#721/#722，121 文件已重命名 + 43 caller 文件更新）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
@@ -120,7 +120,7 @@
 P0-D01 ✅ Docker 文件 (S)        ← 独立（审计误判）
 P0-D02 ✅ install.sh (S)         ← 独立（审计误判）
 P0-D03 ✅ 5 service 缓存 (L)    ──→ P0-D04 ✅ moka→Redis (L)
-P0-D05 ⏳ useI18n (XL)          ← 独立（D13/D14 已完成；Batch 1-5 已完成 PR #724/#725/#727/#729，Batch 6 待启动）
+P0-D05 ⏳ useI18n (XL)          ← 独立（D13/D14 已完成；Batch 1-5 + Batch 7-8 已完成 18 文件 + 缺失键补全 148 键 PR #724/#725/#727/#729，Batch 6 待启动）
 P0-D06 ✅ aria-label (XL)        ← 独立（55 子批次 ~225 文件）
 P0-D07 ✅ img alt (S)            ← 独立（审计误判）
 P0-D08 ✅ 超长函数 (XL)          ──→ P0-D09 ✅ 100 行函数 (L) ──→ P0-D10 ✅ 1000 行文件 (L)
@@ -144,11 +144,11 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 ### 3.1 P0-D05 useI18n 接入（类七，XL，⏳ 进行中）
 
 - **来源**：batch-07 P0-07-5
-- **证据（2026-07-24 复核）**：355 个 .vue 文件；20 个文件含 useI18n（10 完整接入 + 10 部分接入），335 个未接入；完整接入率 2.8%，含部分接入率 5.6%；locales/zh-CN.ts ~1500 行 ~25 模块命名空间，en-US.ts 双语同步
+- **证据（2026-07-24 复核）**：355 个 .vue 文件；28 个文件含 useI18n（18 完整接入 + 10 部分接入），327 个未接入；完整接入率 5.1%，含部分接入率 7.9%；locales/zh-CN.ts 1912 行 ~27 模块命名空间，en-US.ts 双语同步
 - **接入率口径细分**：
-  - **完整接入（10 个）**：所有用户可见中文（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）已替换为 `$t`/`t()`，locales 命名空间完整 —— D05 Batch 1-5 完成的 10 文件
+  - **完整接入（18 个）**：所有用户可见中文（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）已替换为 `$t`/`t()`，locales 命名空间完整 —— D05 Batch 1-5 完成的 10 文件 + D05 Batch 7 完成的 color-cards 4 文件 + color-prices 4 文件
   - **部分接入（10 个）**：已 `import { useI18n }` + `const { t } = useI18n(...)`，但仅替换了部分 ElMessage/ElMessageBox 提示，模板文案/表格列 label/表单 label/状态标签映射等仍硬编码；locales 命名空间不完整 —— Login.vue + ai-extend(4) + budget + cost + inventoryTransfer(3) + system/tabs/UserTab.vue
-  - **未接入（335 个）**：完全未引入 useI18n
+  - **未接入（327 个）**：完全未引入 useI18n
 - **UserTab.vue 命名空间 BUG（2026-07-24 发现）**：locales 定义 `settings.user.*`，代码调用 `system.user.*`（L277/287/303），命名空间前缀不匹配导致 t() 回退显示键名，需修复
 - **Top 20 硬编码密集文件（2026-07-24 重新扫描，按中文字符数排名）**：1. AssetListTab.vue 864 字符（609 行）2. print-templates/index.vue 785 字符（525 行）3. bpm/index.vue 716 字符（626 行）4. report-templates/index.vue 706 字符 5. quality/index.vue 691 字符 6. crm/tabs/CustomerListTab.vue 680 字符 7. system/audit-log/index.vue 669 字符 8. quality-standards/index.vue 648 字符 9. crm/leads/index.vue 641 字符 10. inventory/index.vue 626 字符 11. crm/opportunities/index.vue 619 字符 12. Setup.vue 605 字符（457 行）13. dye-recipe/index.vue 595 字符 14. Login.vue 566 字符（336 行，部分已接入）15. warehouse/index.vue 546 字符 16. supplier/SupplierDialog.vue 523 字符 17. crm/detail.vue 508 字符 18. email/index.vue 486 字符 19. dye-batch/index.vue 483 字符 20. color-cards/issues.vue 477 字符
 - **修复方案**：355 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts 同步；按业务模块横向切片，每批 10-12 文件，预估需 30-36 批次；10 个部分接入文件需补全模板接入
@@ -157,7 +157,7 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **工作量**：XL（5 项中最大）
 - **批次**：490（D05 独立批次；预估 30-36 子批次，每批 10-12 文件）
 - **执行优先级**：第 5 顺位（最后推进，D13/D14 完成后启动）
-- **当前进度**：⏳ 进行中 —— Batch 1-5 已完成（10 文件完整接入，详见 [doto-su.md §D05](file:///workspace/.monkeycode/doto-su.md)），Batch 6 待启动
+- **当前进度**：⏳ 进行中 —— Batch 1-5 + Batch 7-8 已完成（18 文件完整接入 + Batch 8 缺失键补全 148 键，详见 [doto-su.md §D05](file:///workspace/.monkeycode/doto-su.md)），Batch 6 待启动
 - **i18n 接入模式**：模板用 `$t('key')`，script 用 `const { t } = useI18n({ useScope: 'global' })`；命名空间 `{module}.{section}.{key}`；状态标签映射函数化响应式求值（如 `getTypeLabel`/`getStatusLabel`）；带参数翻译用 `t('key', { param })`；键名冲突用子命名空间重命名（如 `export`→`exportFile`、`print`→`printDialog`）
 - **批次规划**：
   - Batch 1-5：✅ 已完成 10 文件完整接入（PR #724/#725/#727/#729，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) + [CHANGELOG.md D05-1~D05-5](file:///workspace/.monkeycode/CHANGELOG.md)）
@@ -166,6 +166,15 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
     - Batch 3：report-templates/index.vue + quality/index.vue（reportTemplates + quality）
     - Batch 4：crm/tabs/CustomerListTab.vue + system/audit-log/index.vue（crmCustomer + auditLog）
     - Batch 5：quality-standards/index.vue + crm/leads/index.vue（qualityStandards + crmLeads）
+  - Batch 7：✅ 已完成 8 文件完整接入（colorCards + colorPrices 命名空间 365 翻译键，locales zh-CN.ts/en-US.ts 1445→1912 行，389 处 $t/t() 调用 0 缺失键，详见 [CHANGELOG.md D05-7](file:///workspace/.monkeycode/CHANGELOG.md)）
+    - color-cards/list.vue + create.vue + detail.vue + issues.vue（colorCards 命名空间 200 翻译键）
+    - color-prices/list.vue + create.vue + detail.vue + batch-adjust.vue（colorPrices 命名空间 165 翻译键）
+  - Batch 8：✅ 已完成 i18n 缺失键补全（7 文件 + 3 命名空间扩展，locales 2863→3011 键 +148，详见 [CHANGELOG.md D05-8](file:///workspace/.monkeycode/CHANGELOG.md)）
+    - budget/tabs/BudgetListTab.vue（budget 命名空间扩展 49 键：title/createBudget/export/filter/status/table/dialog/message）
+    - businessTrace/index.vue（新增 businessTrace 命名空间 61 键：tab/placeholder/button/card/field/table/empty/form/message）
+    - capacity/index.vue + capacity/components/{CapacityTable,CapacityTrend,CapacityBottleneck,CapacityStat}.vue（新增 capacityModule 命名空间 36 键：title/dateRange/stat/trend/table/bottleneck/workCenterStatus/common）
+    - advanced/components/AdvancedQualityPanel.vue（advancedModule.quality.confidence 1 键）
+    - audit 脚本验证 0 真实缺失键（9 个 ${...} 动态模板字面量为 regex 误报已排除）
   - Batch 6：⏳ 待启动 —— inventory/index.vue (626 字符) + crm/opportunities/index.vue (619 字符)
   - 待修复：UserTab.vue 命名空间 BUG（system.user → settings.user）+ 9 个部分接入文件补全
 

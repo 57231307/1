@@ -6,37 +6,37 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="对账明细"
+    :title="$t('arReconciliationModule.detailTitle')"
     width="900px"
-    aria-label="对账明细对话框"
+    :aria-label="$t('arReconciliationModule.detailDialogAria')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <div v-if="currentReconciliation" class="detail-header">
       <el-descriptions :column="4" border>
-        <el-descriptions-item label="客户编码">{{
+        <el-descriptions-item :label="$t('arReconciliationModule.customerCode')">{{
           currentReconciliation.customer_code
         }}</el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{
+        <el-descriptions-item :label="$t('arReconciliationModule.customerName')">{{
           currentReconciliation.customer_name
         }}</el-descriptions-item>
-        <el-descriptions-item label="发票金额">{{
+        <el-descriptions-item :label="$t('arReconciliationModule.invoiceAmount')">{{
           currentReconciliation.invoice_amount.toFixed(2)
         }}</el-descriptions-item>
-        <el-descriptions-item label="回款金额">{{
+        <el-descriptions-item :label="$t('arReconciliationModule.paymentAmount')">{{
           currentReconciliation.payment_amount.toFixed(2)
         }}</el-descriptions-item>
-        <el-descriptions-item label="差异金额">{{
+        <el-descriptions-item :label="$t('arReconciliationModule.differenceAmount')">{{
           currentReconciliation.difference.toFixed(2)
         }}</el-descriptions-item>
-        <el-descriptions-item label="匹配状态">
+        <el-descriptions-item :label="$t('arReconciliationModule.matchStatus')">
           <el-tag :type="getMatchType(currentReconciliation.match_status)" size="small">
-            {{ getMatchLabel(currentReconciliation.match_status) }}
+            {{ $t(getMatchLabel(currentReconciliation.match_status)) }}
           </el-tag>
         </el-descriptions-item>
       </el-descriptions>
     </div>
-    <el-table :data="detailData" border style="width: 100%; margin-top: 16px" aria-label="对账明细数据表">
-      <el-table-column prop="type" label="类型" width="100">
+    <el-table :data="detailData" border style="width: 100%; margin-top: 16px" :aria-label="$t('arReconciliationModule.detailTableAria')">
+      <el-table-column prop="type" :label="$t('arReconciliationModule.type')" width="100">
         <template #default="scope">
           <el-tag
             size="small"
@@ -50,43 +50,47 @@
           >
             {{
               scope.row.type === 'invoice'
-                ? '发票'
+                ? $t('arReconciliationModule.typeInvoice')
                 : scope.row.type === 'payment'
-                  ? '回款'
-                  : '调整'
+                  ? $t('arReconciliationModule.typePayment')
+                  : $t('arReconciliationModule.typeAdjustment')
             }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="source_no" label="单据号" width="150" />
-      <el-table-column prop="source_date" label="日期" width="120" />
-      <el-table-column prop="amount" label="金额" width="120" align="right">
+      <el-table-column prop="source_no" :label="$t('arReconciliationModule.sourceNo')" width="150" />
+      <el-table-column prop="source_date" :label="$t('arReconciliationModule.date')" width="120" />
+      <el-table-column prop="amount" :label="$t('arReconciliationModule.amount')" width="120" align="right">
         <template #default="scope">{{ scope.row.amount.toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column prop="matched_amount" label="已匹配金额" width="120" align="right">
+      <el-table-column prop="matched_amount" :label="$t('arReconciliationModule.matchedAmount')" width="120" align="right">
         <template #default="scope">{{ scope.row.matched_amount.toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column prop="unmatched_amount" label="未匹配金额" width="120" align="right">
+      <el-table-column prop="unmatched_amount" :label="$t('arReconciliationModule.unmatchedAmount')" width="120" align="right">
         <template #default="scope">{{ scope.row.unmatched_amount.toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column label="状态" width="100">
+      <el-table-column :label="$t('common.status')" width="100">
         <template #default="scope">
           <el-tag size="small" :type="getMatchType(scope.row.status)">
-            {{ getMatchLabel(scope.row.status) }}
+            {{ $t(getMatchLabel(scope.row.status)) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="remark" label="备注" />
+      <el-table-column prop="remark" :label="$t('arReconciliationModule.remark')" />
     </el-table>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type {
   AutoReconciliationResult,
   ReconciliationDetailItem,
 } from '@/api/ar-reconciliation-enhanced'
 import { getMatchLabel, getMatchType } from '../composables/arRecFmts'
+
+const { t } = useI18n({ useScope: 'global' })
+void t
 
 /**
  * 对账明细对话框组件

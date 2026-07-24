@@ -7,6 +7,7 @@
  */
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { i18n } from '@/i18n'
 import {
   autoReconcile,
   getAutoReconciliationResults,
@@ -18,6 +19,8 @@ import {
   type ReconciliationDetailItem,
   type CustomerConfirmation,
 } from '@/api/ar-reconciliation-enhanced'
+
+const t = i18n.global.t.bind(i18n.global)
 
 /**
  * AR 对账核心 composable
@@ -61,7 +64,7 @@ export function useArRec() {
       tableData.value = res.data?.list || []
       total.value = res.data?.total || 0
     } catch {
-      ElMessage.error('加载对账结果失败')
+      ElMessage.error(t('arReconciliationModule.loadResultsFailed'))
     } finally {
       loading.value = false
     }
@@ -70,22 +73,22 @@ export function useArRec() {
   /** 启动自动对账 */
   const handleAutoReconcile = async () => {
     if (!searchForm.value.start_date || !searchForm.value.end_date) {
-      ElMessage.warning('请选择对账日期范围')
+      ElMessage.warning(t('arReconciliationModule.selectDateRange'))
       return
     }
     try {
-      await ElMessageBox.confirm('确认启动自动对账？', '提示', { type: 'info' })
+      await ElMessageBox.confirm(t('arReconciliationModule.confirmAutoReconcile'), t('common.message.confirmTitle'), { type: 'info' })
       reconcileLoading.value = true
       await autoReconcile({
         start_date: searchForm.value.start_date,
         end_date: searchForm.value.end_date,
       })
-      ElMessage.success('自动对账任务已启动')
+      ElMessage.success(t('arReconciliationModule.autoReconcileStarted'))
       await loadData()
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        ElMessage.error('启动对账失败')
+        ElMessage.error(t('arReconciliationModule.startReconcileFailed'))
       }
     } finally {
       reconcileLoading.value = false
@@ -100,20 +103,20 @@ export function useArRec() {
       currentReconciliation.value = row
       detailDialogVisible.value = true
     } catch {
-      ElMessage.error('获取对账明细失败')
+      ElMessage.error(t('arReconciliationModule.fetchDetailFailed'))
     }
   }
 
   /** 发送客户对账确认 */
   const handleSendConfirmation = async (row: AutoReconciliationResult) => {
     try {
-      await ElMessageBox.confirm('确认向客户发送对账确认请求？', '提示', { type: 'info' })
+      await ElMessageBox.confirm(t('arReconciliationModule.confirmSendConfirmation'), t('common.message.confirmTitle'), { type: 'info' })
       await sendCustomerConfirmation(row.id)
-      ElMessage.success('确认请求已发送')
+      ElMessage.success(t('arReconciliationModule.confirmationSent'))
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        ElMessage.error('发送确认请求失败')
+        ElMessage.error(t('arReconciliationModule.sendConfirmationFailed'))
       }
     }
   }
@@ -129,7 +132,7 @@ export function useArRec() {
       confirmTotal.value = res.data?.total || 0
       confirmDialogVisible.value = true
     } catch {
-      ElMessage.error('加载确认记录失败')
+      ElMessage.error(t('arReconciliationModule.loadConfirmationsFailed'))
     }
   }
 
@@ -138,16 +141,18 @@ export function useArRec() {
     row: CustomerConfirmation,
     status: 'confirmed' | 'disputed'
   ) => {
-    const msg = status === 'confirmed' ? '确认此对账记录？' : '标记为争议？'
+    const msg = status === 'confirmed'
+      ? t('arReconciliationModule.confirmThisRecord')
+      : t('arReconciliationModule.markAsDisputed')
     try {
-      await ElMessageBox.confirm(msg, '提示', { type: 'warning' })
+      await ElMessageBox.confirm(msg, t('common.message.confirmTitle'), { type: 'warning' })
       await updateConfirmationStatus(row.id, { status })
-      ElMessage.success('操作成功')
+      ElMessage.success(t('common.message.operationSuccess'))
       await handleViewConfirmations()
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        ElMessage.error('操作失败')
+        ElMessage.error(t('common.failed'))
       }
     }
   }

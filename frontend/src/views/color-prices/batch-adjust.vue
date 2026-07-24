@@ -5,25 +5,25 @@
 -->
 <template>
   <div class="batch-adjust">
-    <el-page-header @back="$router.back()" content="批量调价" />
+    <el-page-header @back="$router.back()" :content="$t('colorPrices.batchAdjust.back')" />
 
     <el-row :gutter="20" style="margin-top: 20px">
       <el-col :span="14">
-        <el-card header="选择色号">
-          <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="色卡价格批量调整筛选表单">
-            <el-form-item label="产品 ID">
-              <el-input v-model.number="filterForm.product_id" placeholder="产品 ID" clearable style="width: 140px" />
+        <el-card :header="$t('colorPrices.batchAdjust.selectColor')">
+          <el-form :inline="true" :model="filterForm" class="filter-form" :aria-label="$t('colorPrices.batchAdjust.filter.ariaLabel')">
+            <el-form-item :label="$t('colorPrices.batchAdjust.filter.productId')">
+              <el-input v-model.number="filterForm.product_id" :placeholder="$t('colorPrices.batchAdjust.filter.productId')" clearable style="width: 140px" />
             </el-form-item>
-            <el-form-item label="客户等级">
-              <el-select v-model="filterForm.customer_level" placeholder="全部" clearable style="width: 120px">
-                <el-option label="VIP" value="VIP" />
-                <el-option label="NORMAL" value="NORMAL" />
-                <el-option label="GOLD" value="GOLD" />
-                <el-option label="SILVER" value="SILVER" />
+            <el-form-item :label="$t('colorPrices.batchAdjust.filter.customerLevel')">
+              <el-select v-model="filterForm.customer_level" :placeholder="$t('colorPrices.common.all')" clearable style="width: 120px">
+                <el-option :label="$t('colorPrices.customerLevel.VIP')" value="VIP" />
+                <el-option :label="$t('colorPrices.customerLevel.NORMAL')" value="NORMAL" />
+                <el-option :label="$t('colorPrices.customerLevel.GOLD')" value="GOLD" />
+                <el-option :label="$t('colorPrices.customerLevel.SILVER')" value="SILVER" />
               </el-select>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="loadPrices">查询</el-button>
+              <el-button type="primary" @click="loadPrices">{{ $t('colorPrices.common.search') }}</el-button>
             </el-form-item>
           </el-form>
           <el-table
@@ -33,13 +33,13 @@
             stripe
             @selection-change="handleSelectionChange"
             max-height="500"
-            aria-label="色卡价格批量调整列表"
+            :aria-label="$t('colorPrices.batchAdjust.table.ariaLabel')"
           >
             <el-table-column type="selection" width="55" />
-            <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="product_id" label="产品" width="100" />
-            <el-table-column prop="color_id" label="色号" width="100" />
-            <el-table-column label="客户等级" width="100">
+            <el-table-column prop="id" :label="$t('colorPrices.batchAdjust.table.id')" width="80" />
+            <el-table-column prop="product_id" :label="$t('colorPrices.batchAdjust.table.product')" width="100" />
+            <el-table-column prop="color_id" :label="$t('colorPrices.batchAdjust.table.color')" width="100" />
+            <el-table-column :label="$t('colorPrices.batchAdjust.table.customerLevel')" width="100">
               <template #default="{ row }">
                 <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level)">
                   {{ getLevelLabel(row.customer_level) }}
@@ -47,28 +47,28 @@
                 <span v-else>-</span>
               </template>
             </el-table-column>
-            <el-table-column label="基础价" width="140">
+            <el-table-column :label="$t('colorPrices.batchAdjust.table.basePrice')" width="140">
               <template #default="{ row }">{{ formatPrice(row.base_price, row.currency) }}</template>
             </el-table-column>
-            <el-table-column label="币种" width="80" prop="currency" />
+            <el-table-column :label="$t('colorPrices.batchAdjust.table.currency')" width="80" prop="currency" />
           </el-table>
         </el-card>
       </el-col>
 
       <el-col :span="10">
-        <el-card header="调价设置">
-          <el-form :model="form" label-width="120px" aria-label="色卡价格批量调整表单">
-            <el-form-item label="已选色号">
-              <el-tag type="info">共 {{ selectedRows.length }} 条</el-tag>
+        <el-card :header="$t('colorPrices.batchAdjust.adjustSetting')">
+          <el-form :model="form" label-width="120px" :aria-label="$t('colorPrices.batchAdjust.form.ariaLabel')">
+            <el-form-item :label="$t('colorPrices.batchAdjust.form.selectedCount')">
+              <el-tag type="info">{{ $t('colorPrices.batchAdjust.form.countItems', { count: selectedRows.length }) }}</el-tag>
             </el-form-item>
-            <el-form-item label="调价模式">
+            <el-form-item :label="$t('colorPrices.batchAdjust.form.mode')">
               <el-radio-group v-model="form.mode">
-                <el-radio-button value="percentage">百分比</el-radio-button>
-                <el-radio-button value="fixed">固定金额</el-radio-button>
-                <el-radio-button value="tier">阶梯价</el-radio-button>
+                <el-radio-button value="percentage">{{ $t('colorPrices.batchAdjust.form.modePercentage') }}</el-radio-button>
+                <el-radio-button value="fixed">{{ $t('colorPrices.batchAdjust.form.modeFixed') }}</el-radio-button>
+                <el-radio-button value="tier">{{ $t('colorPrices.batchAdjust.form.modeTier') }}</el-radio-button>
               </el-radio-group>
             </el-form-item>
-            <el-form-item v-if="form.mode === 'percentage'" label="调价百分比">
+            <el-form-item v-if="form.mode === 'percentage'" :label="$t('colorPrices.batchAdjust.form.adjustPercentage')">
               <el-input-number
                 v-model="form.percentage"
                 :min="-100"
@@ -79,23 +79,23 @@
               />
               <span style="margin-left: 8px">%</span>
             </el-form-item>
-            <el-form-item v-if="form.mode === 'fixed'" label="调价金额">
+            <el-form-item v-if="form.mode === 'fixed'" :label="$t('colorPrices.batchAdjust.form.adjustAmount')">
               <el-input-number v-model="form.fixedAmount" :precision="2" style="width: 200px" />
-              <span style="margin-left: 8px">元/米</span>
+              <span style="margin-left: 8px">{{ $t('colorPrices.batchAdjust.form.unitYuanPerMeter') }}</span>
             </el-form-item>
-            <el-form-item label="调价原因">
+            <el-form-item :label="$t('colorPrices.batchAdjust.form.changeReason')">
               <el-input
                 v-model="form.changeReason"
                 type="textarea"
                 :rows="3"
-                placeholder="请说明调价原因"
+                :placeholder="$t('colorPrices.batchAdjust.form.changeReasonPlaceholder')"
               />
             </el-form-item>
             <el-form-item>
               <el-button type="primary" @click="handleSubmit" :loading="submitting" :disabled="selectedRows.length === 0">
-                提交批量调价
+                {{ $t('colorPrices.batchAdjust.form.submit') }}
               </el-button>
-              <el-button @click="handleCalculate">价格计算演示</el-button>
+              <el-button @click="handleCalculate">{{ $t('colorPrices.batchAdjust.form.calculateDemo') }}</el-button>
             </el-form-item>
           </el-form>
 
@@ -103,7 +103,7 @@
 
           <el-alert
             v-if="result"
-            :title="`调价结果：自动通过 ${result.auto_approved.length} 条，待审批 ${result.pending_approval.length} 条`"
+            :title="$t('colorPrices.batchAdjust.result', { auto: result.auto_approved.length, pending: result.pending_approval.length })"
             type="success"
             :closable="false"
           />
@@ -115,6 +115,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -122,11 +123,15 @@ import {
   batchAdjustColorPrices,
   calculateColorPrice,
   formatPrice,
-  getLevelLabel,
   getLevelColor,
   type ColorPriceListItem,
   type ListColorPricesQuery,
 } from '@/api/color-price'
+
+const { t } = useI18n({ useScope: 'global' })
+
+// 状态码 → 本地化标签（响应式：随语言切换自动更新）
+const getLevelLabel = (level: string | null | undefined) => t(`colorPrices.customerLevel.${level || 'default'}`)
 
 const route = useRoute()
 const loading = ref(false)
@@ -159,7 +164,7 @@ const loadPrices = async () => {
       selectedRows.value = res.items.filter((p) => ids.includes(p.id))
     }
   } catch (e: unknown) {
-    ElMessage.error('加载失败：' + (e instanceof Error ? e.message : '未知错误'))
+    ElMessage.error(t('colorPrices.message.loadFailed', { msg: e instanceof Error ? e.message : t('colorPrices.message.unknownError') }))
   } finally {
     loading.value = false
   }
@@ -171,7 +176,7 @@ const handleSelectionChange = (rows: ColorPriceListItem[]) => {
 
 const handleSubmit = async () => {
   if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先选择色号')
+    ElMessage.warning(t('colorPrices.message.selectColorFirst'))
     return
   }
   submitting.value = true
@@ -186,9 +191,9 @@ const handleSubmit = async () => {
       change_reason: form.changeReason,
     })
     result.value = r
-    ElMessage.success(`调价提交完成：自动通过 ${r.auto_approved.length}，待审批 ${r.pending_approval.length}`)
+    ElMessage.success(t('colorPrices.message.batchAdjustSuccess', { auto: r.auto_approved.length, pending: r.pending_approval.length }))
   } catch (e: unknown) {
-    ElMessage.error('提交失败：' + (e instanceof Error ? e.message : '未知错误'))
+    ElMessage.error(t('colorPrices.message.batchAdjustFailed', { msg: e instanceof Error ? e.message : t('colorPrices.message.unknownError') }))
   } finally {
     submitting.value = false
   }
@@ -196,7 +201,7 @@ const handleSubmit = async () => {
 
 const handleCalculate = async () => {
   if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先选择色号')
+    ElMessage.warning(t('colorPrices.message.selectColorFirst'))
     return
   }
   const sample = selectedRows.value[0]
@@ -210,10 +215,14 @@ const handleCalculate = async () => {
       currency: sample.currency,
     })
     ElMessage.success(
-      `价格计算：基础价 ${r.base_price} → 最终价 ${formatPrice(r.final_price, r.currency)}（${r.applied_rule}）`,
+      t('colorPrices.message.priceCalc', {
+        base: r.base_price,
+        final: formatPrice(r.final_price, r.currency),
+        rule: r.applied_rule,
+      }),
     )
   } catch (e: unknown) {
-    ElMessage.error('计算失败：' + (e instanceof Error ? e.message : '未知错误'))
+    ElMessage.error(t('colorPrices.message.calcFailed', { msg: e instanceof Error ? e.message : t('colorPrices.message.unknownError') }))
   }
 }
 

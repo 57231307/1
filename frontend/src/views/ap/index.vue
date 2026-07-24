@@ -17,16 +17,16 @@
 <template>
   <div class="ap-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => (activeTab = String(tab))">
-      <el-tab-pane label="应付发票" name="invoice">
+      <el-tab-pane :label="$t('apModule.tabs.invoice')" name="invoice">
         <InvoiceTab />
       </el-tab-pane>
-      <el-tab-pane label="付款管理" name="payment">
+      <el-tab-pane :label="$t('apModule.tabs.payment')" name="payment">
         <PaymentTab />
       </el-tab-pane>
-      <el-tab-pane label="核销管理" name="verification">
+      <el-tab-pane :label="$t('apModule.tabs.verification')" name="verification">
         <VerificationTab />
       </el-tab-pane>
-      <el-tab-pane label="对账管理" name="reconciliation">
+      <el-tab-pane :label="$t('apModule.tabs.reconciliation')" name="reconciliation">
         <ReconciliationTab />
       </el-tab-pane>
     </el-tabs>

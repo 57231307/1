@@ -2,61 +2,61 @@
   <div class="bom-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">BOM 管理</h1>
+        <h1 class="page-title">{{ $t('bomModule.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>生产管理</el-breadcrumb-item>
-          <el-breadcrumb-item>BOM 管理</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ $t('bomModule.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('bomModule.breadcrumb.production') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('bomModule.breadcrumb.bom') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
-          新建 BOM
+          {{ $t('bomModule.create') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="BOM 筛选表单">
-        <el-form-item label="产品名称">
-          <el-input v-model="queryParams.product_name" placeholder="请输入产品名称" clearable />
+      <el-form :inline="true" :model="queryParams" class="filter-form" :aria-label="$t('bomModule.filter.ariaLabel')">
+        <el-form-item :label="$t('bomModule.filter.productName')">
+          <el-input v-model="queryParams.product_name" :placeholder="$t('bomModule.filter.productNamePlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable>
-            <el-option label="草稿" value="draft" />
-            <el-option label="启用" value="active" />
-            <el-option label="归档" value="archived" />
+        <el-form-item :label="$t('bomModule.filter.status')">
+          <el-select v-model="queryParams.status" :placeholder="$t('bomModule.filter.statusPlaceholder')" clearable>
+            <el-option :label="$t('bomModule.status.draft')" value="draft" />
+            <el-option :label="$t('bomModule.status.active')" value="active" />
+            <el-option :label="$t('bomModule.status.archived')" value="archived" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleQuery">{{ $t('bomModule.filter.query') }}</el-button>
+          <el-button @click="handleReset">{{ $t('bomModule.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="boms" stripe aria-label="BOM 列表">
-        <el-table-column prop="product_code" label="产品编码" width="140" fixed />
-        <el-table-column prop="product_name" label="产品名称" min-width="180" fixed />
-        <el-table-column prop="version" label="版本号" width="100" />
-        <el-table-column prop="is_default" label="默认" width="80">
+      <el-table v-loading="loading" :data="boms" stripe :aria-label="$t('bomModule.table.ariaLabel')">
+        <el-table-column prop="product_code" :label="$t('bomModule.table.productCode')" width="140" fixed />
+        <el-table-column prop="product_name" :label="$t('bomModule.table.productName')" min-width="180" fixed />
+        <el-table-column prop="version" :label="$t('bomModule.table.version')" width="100" />
+        <el-table-column prop="is_default" :label="$t('bomModule.table.isDefault')" width="80">
           <template #default="{ row }">
-            <el-tag v-if="row.is_default" type="success" size="small">默认</el-tag>
+            <el-tag v-if="row.is_default" type="success" size="small">{{ $t('bomModule.defaultTag') }}</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="$t('bomModule.table.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="updated_at" label="更新时间" width="180" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column prop="remark" :label="$t('bomModule.table.remark')" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="updated_at" :label="$t('bomModule.table.updatedAt')" width="180" />
+        <el-table-column :label="$t('bomModule.table.operation')" width="280" fixed="right">
           <template #default="{ row }">
             <!-- P3 维度 10 修复（批次 87）：编辑/复制/设默认/删除按钮补齐 v-permission -->
             <!-- v11 批次 169 P2-1 修复：row as any 改为 row as Bom -->
@@ -66,7 +66,7 @@
               link
               size="small"
               @click="handleEdit(row as Bom)"
-              >编辑</el-button
+              >{{ $t('bomModule.table.edit') }}</el-button
             >
             <el-button
               v-permission="'bom:create'"
@@ -74,7 +74,7 @@
               link
               size="small"
               @click="handleCopy(row as Bom)"
-              >复制</el-button
+              >{{ $t('bomModule.table.copy') }}</el-button
             >
             <el-button
               v-if="!row.is_default"
@@ -84,7 +84,7 @@
               size="small"
               @click="handleSetDefault(row as Bom)"
             >
-              设为默认
+              {{ $t('bomModule.table.setDefault') }}
             </el-button>
             <el-button
               v-permission="'bom:delete'"
@@ -92,7 +92,7 @@
               link
               size="small"
               @click="handleDelete(row as Bom)"
-              >删除</el-button
+              >{{ $t('bomModule.table.delete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -107,7 +107,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
-          aria-label="BOM 列表分页"
+          :aria-label="$t('bomModule.table.paginationAriaLabel')"
         />
       </div>
     </el-card>
@@ -119,7 +119,7 @@
       width="900px"
       :close-on-click-modal="false"
       @close="resetForm"
-      :aria-label="formData.id ? '编辑 BOM 对话框' : '新建 BOM 对话框'"
+      :aria-label="formData.id ? $t('bomModule.dialog.editAriaLabel') : $t('bomModule.dialog.createAriaLabel')"
     >
       <BillOfMaterialsForm
         ref="billOfMaterialsFormRef"
@@ -134,6 +134,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -146,6 +147,8 @@ import {
 } from '@/api/bom'
 import BillOfMaterialsForm from './BillOfMaterialsForm.vue'
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
@@ -169,7 +172,7 @@ const {
 } = useTableApi<Bom>({
   url: '/boms',
   onError: (err: unknown) =>
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取 BOM 列表失败'),
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('bomModule.message.fetchFailed')),
 })
 
 // 批次 275：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -219,7 +222,7 @@ const formData = reactive({
 })
 
 const dialogTitle = computed(() => {
-  return dialogMode.value === 'create' ? '新建 BOM' : '编辑 BOM'
+  return dialogMode.value === 'create' ? t('bomModule.dialog.createTitle') : t('bomModule.dialog.editTitle')
 })
 
 const getStatusType = (status: string) => {
@@ -233,9 +236,9 @@ const getStatusType = (status: string) => {
 
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
-    draft: '草稿',
-    active: '启用',
-    archived: '归档',
+    draft: t('bomModule.status.draft'),
+    active: t('bomModule.status.active'),
+    archived: t('bomModule.status.archived'),
   }
   return labels[status] || status
 }
@@ -276,16 +279,16 @@ const handleEdit = (row: Bom) => {
 const handleCopy = async (row: Bom) => {
   try {
     await ElMessageBox.confirm(
-      `确定复制 BOM "${row.product_name} - ${row.version}" 吗？`,
-      '复制确认'
+      t('bomModule.message.copyConfirm', { name: `${row.product_name} - ${row.version}` }),
+      t('bomModule.message.copyConfirmTitle')
     )
     await copyBom(row.id)
-    ElMessage.success('复制成功')
+    ElMessage.success(t('bomModule.message.copySuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '复制失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('bomModule.message.copyFailed'))
     }
   }
 }
@@ -293,16 +296,16 @@ const handleCopy = async (row: Bom) => {
 const handleSetDefault = async (row: Bom) => {
   try {
     await ElMessageBox.confirm(
-      `确定将 BOM "${row.product_name} - ${row.version}" 设为默认吗？`,
-      '设为默认确认'
+      t('bomModule.message.setDefaultConfirm', { name: `${row.product_name} - ${row.version}` }),
+      t('bomModule.message.setDefaultConfirmTitle')
     )
     await setDefaultBom(row.id)
-    ElMessage.success('设置成功')
+    ElMessage.success(t('bomModule.message.setDefaultSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '设置失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('bomModule.message.setDefaultFailed'))
     }
   }
 }
@@ -310,17 +313,17 @@ const handleSetDefault = async (row: Bom) => {
 const handleDelete = async (row: Bom) => {
   try {
     await ElMessageBox.confirm(
-      `确定删除 BOM "${row.product_name} - ${row.version}" 吗？`,
-      '删除确认',
+      t('bomModule.message.deleteConfirm', { name: `${row.product_name} - ${row.version}` }),
+      t('bomModule.message.deleteConfirmTitle'),
       { type: 'warning' }
     )
     await deleteBom(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('bomModule.message.deleteSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('bomModule.message.deleteFailed'))
     }
   }
 }
@@ -330,16 +333,16 @@ const handleSubmit = async (data: Partial<Bom>) => {
   try {
     if (dialogMode.value === 'create') {
       await createBom(data)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('bomModule.message.createSuccess'))
     } else {
       await updateBom(formData.id!, data)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('bomModule.message.updateSuccess'))
     }
     dialogVisible.value = false
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('bomModule.message.operateFailed'))
   }
 }
 

@@ -56,6 +56,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useArRec } from './composables/useArRec'
 import { useArDisp } from './composables/useArDisp'
 import { useArChart } from './composables/useArChart'
@@ -69,6 +70,8 @@ import ArReconciliationTable from './components/ArReconciliationTable.vue'
 import ArReconciliationDetail from './components/ArReconciliationDetail.vue'
 import ArReconciliationConfirm from './components/ArReconciliationConfirm.vue'
 import ArReconciliationDispute from './components/ArReconciliationDispute.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const arrec = useArRec()
 const ardisp = useArDisp(arrec.loadData)
@@ -97,7 +100,7 @@ const loadCustomers = async () => {
     // 避免绕过 API 层直接调用 request.get，并正确处理 PaginatedResponse → {label, value}[] 映射
     customerOptions.value = await getCustomerSelectList()
   } catch {
-    logger.warn('加载客户失败')
+    logger.warn(t('arReconciliationModule.loadCustomersFailed'))
   }
 }
 

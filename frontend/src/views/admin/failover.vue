@@ -11,13 +11,12 @@
     <el-card class="page-header">
       <template #header>
         <div class="header-row">
-          <span class="title">主备隔离监控（P0-2）</span>
-          <el-button :icon="Refresh" @click="loadData" :loading="loading">刷新</el-button>
+          <span class="title">{{ $t('adminFailover.title') }}</span>
+          <el-button :icon="Refresh" @click="loadData" :loading="loading">{{ $t('adminFailover.refresh') }}</el-button>
         </div>
       </template>
       <p class="description">
-        监控秉羲 ERP 核心功能（数据库 / 缓存）的主备状态，自动切换与回切由
-        <code>FailoverCall</code> trait + 熔断器保障。
+        {{ $t('adminFailover.descriptionPrefix') }}<code>FailoverCall</code>{{ $t('adminFailover.descriptionSuffix') }}
       </p>
     </el-card>
 
@@ -34,7 +33,7 @@
     <!-- 健康检查 -->
     <el-card class="health-card">
       <template #header>
-        <span class="title">健康检查</span>
+        <span class="title">{{ $t('adminFailover.healthCheck') }}</span>
       </template>
       <FailoverMetrics :health="health" />
     </el-card>
@@ -42,7 +41,7 @@
     <!-- 切换历史 -->
     <el-card class="event-card">
       <template #header>
-        <span class="title">切换历史（最近 20 条）</span>
+        <span class="title">{{ $t('adminFailover.switchHistory') }}</span>
       </template>
       <FailoverEventList :events="events" />
     </el-card>
@@ -51,6 +50,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import {
@@ -63,6 +63,8 @@ import {
 import FailoverStatusCard from './components/FailoverStatusCard.vue'
 import FailoverEventList from './components/FailoverEventList.vue'
 import FailoverMetrics from './components/FailoverMetrics.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const loading = ref(false)
 const statuses = ref<FailoverStatusDto[]>([])
@@ -84,7 +86,7 @@ async function loadData() {
     health.value = healthRes.data || { database: 'unknown', cache: 'unknown' }
   } catch (err: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (err: any) 改为 unknown + 类型守卫
-    ElMessage.error(`加载失败: ${err instanceof Error ? err.message : String(err)}`)
+    ElMessage.error(t('adminFailover.loadFailed', { msg: err instanceof Error ? err.message : String(err) }))
   } finally {
     loading.value = false
   }
@@ -94,21 +96,21 @@ async function loadData() {
 async function handleSwitch(functionName: string) {
   try {
     await ElMessageBox.confirm(
-      `确认要手动触发 ${functionName} 切换至备用？`,
-      '切换确认',
+      t('adminFailover.switchConfirm', { name: functionName }),
+      t('adminFailover.switchConfirmTitle'),
       {
-        confirmButtonText: '确认切换',
-        cancelButtonText: '取消',
+        confirmButtonText: t('adminFailover.confirmSwitch'),
+        cancelButtonText: t('adminFailover.cancel'),
         type: 'warning',
       }
     )
     const res = await triggerSwitch(functionName)
-    ElMessage.success(res.data || '切换成功')
+    ElMessage.success(res.data || t('adminFailover.switchSuccess'))
     await loadData()
   } catch (err: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (err: any) 改为 unknown + 类型守卫
     if (err !== 'cancel') {
-      ElMessage.error(`切换失败: ${err instanceof Error ? err.message : String(err)}`)
+      ElMessage.error(t('adminFailover.switchFailed', { msg: err instanceof Error ? err.message : String(err) }))
     }
   }
 }

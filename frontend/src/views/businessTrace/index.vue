@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   ElTable,
   ElTableColumn,
@@ -27,6 +28,8 @@ import {
   type FullTraceChainResponse,
   type TraceChainResponse,
 } from '@/api/business-trace'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const traceMode = ref<'five_dimension' | 'forward' | 'backward'>('five_dimension')
 const fiveDimensionId = ref('')
@@ -57,7 +60,7 @@ const stageStatusMap: Record<string, string> = {
 
 const handleFiveDimensionTrace = async () => {
   if (!fiveDimensionId.value.trim()) {
-    ElMessage.warning('请输入五维ID')
+    ElMessage.warning(t('businessTrace.message.fiveDimensionIdRequired'))
     return
   }
   loading.value = true
@@ -68,7 +71,7 @@ const handleFiveDimensionTrace = async () => {
     if (res.data) traceResult.value = res.data
     snapshotMessage.value = ''
   } catch (error) {
-    ElMessage.error('追溯失败')
+    ElMessage.error(t('businessTrace.message.traceFailed'))
   } finally {
     loading.value = false
   }
@@ -76,7 +79,7 @@ const handleFiveDimensionTrace = async () => {
 
 const handleForwardTrace = async () => {
   if (!forwardForm.value.supplier_id || !forwardForm.value.batch_no) {
-    ElMessage.warning('请填写供应商ID和批次号')
+    ElMessage.warning(t('businessTrace.message.supplierAndBatchRequired'))
     return
   }
   loading.value = true
@@ -88,7 +91,7 @@ const handleForwardTrace = async () => {
     })) as { data?: { traces?: TraceChainResponse[] } }
     forwardResult.value = res.data?.traces || []
   } catch (error) {
-    ElMessage.error('正向追溯失败')
+    ElMessage.error(t('businessTrace.message.forwardTraceFailed'))
   } finally {
     loading.value = false
   }
@@ -96,7 +99,7 @@ const handleForwardTrace = async () => {
 
 const handleBackwardTrace = async () => {
   if (!backwardForm.value.customer_id || !backwardForm.value.batch_no) {
-    ElMessage.warning('请填写客户ID和批次号')
+    ElMessage.warning(t('businessTrace.message.customerAndBatchRequired'))
     return
   }
   loading.value = true
@@ -108,7 +111,7 @@ const handleBackwardTrace = async () => {
     })) as { data?: { traces?: TraceChainResponse[] } }
     backwardResult.value = res.data?.traces || []
   } catch (error) {
-    ElMessage.error('反向追溯失败')
+    ElMessage.error(t('businessTrace.message.backwardTraceFailed'))
   } finally {
     loading.value = false
   }
@@ -116,7 +119,7 @@ const handleBackwardTrace = async () => {
 
 const handleCreateSnapshot = async () => {
   if (!traceResult.value) {
-    ElMessage.warning('请先查询追溯链')
+    ElMessage.warning(t('businessTrace.message.queryTraceFirst'))
     return
   }
   loading.value = true
@@ -125,9 +128,9 @@ const handleCreateSnapshot = async () => {
     const res = (await createTraceSnapshot(traceResult.value.trace_chain_id)) as { data?: string }
     // 安全检查：防止后端返回 data 为 null 时崩溃
     if (res.data) snapshotMessage.value = res.data
-    ElMessage.success('快照创建成功')
+    ElMessage.success(t('businessTrace.message.snapshotCreated'))
   } catch (error) {
-    ElMessage.error('创建快照失败')
+    ElMessage.error(t('businessTrace.message.createSnapshotFailed'))
   } finally {
     loading.value = false
   }
@@ -137,13 +140,13 @@ const handleCreateSnapshot = async () => {
 <template>
   <div class="app-container">
     <ElTabs v-model="traceMode" type="card">
-      <ElTabPane label="五维追溯" name="five_dimension">
-        <ElCard title="五维ID追溯" class="trace-card">
+      <ElTabPane :label="$t('businessTrace.tab.fiveDimension')" name="five_dimension">
+        <ElCard :title="$t('businessTrace.fiveDimensionCardTitle')" class="trace-card">
           <ElRow :gutter="20">
             <ElCol :span="16">
               <ElInput
                 v-model="fiveDimensionId"
-                placeholder="输入五维ID进行追溯（如：P1|B20240101|C001|D20240101001|G 一等品）"
+                :placeholder="$t('businessTrace.placeholder.fiveDimensionId')"
                 class="filter-item"
                 @keyup.enter="handleFiveDimensionTrace"
               />
@@ -155,7 +158,7 @@ const handleCreateSnapshot = async () => {
                 class="w-full"
                 @click="handleFiveDimensionTrace"
               >
-                <Search /> 追溯
+                <Search /> {{ $t('businessTrace.button.trace') }}
               </ElButton>
             </ElCol>
             <ElCol :span="4">
@@ -166,7 +169,7 @@ const handleCreateSnapshot = async () => {
                 class="w-full"
                 @click="handleCreateSnapshot"
               >
-                <Camera /> 创建快照
+                <Camera /> {{ $t('businessTrace.button.createSnapshot') }}
               </ElButton>
             </ElCol>
           </ElRow>
@@ -177,29 +180,29 @@ const handleCreateSnapshot = async () => {
         </ElCard>
 
         <div v-if="traceResult" class="trace-result">
-          <ElCard title="追溯链详情" class="detail-card">
+          <ElCard :title="$t('businessTrace.card.traceChainDetail')" class="detail-card">
             <ElDescriptions :column="3" border>
-              <ElDescriptionsItem label="追溯链ID">{{
+              <ElDescriptionsItem :label="$t('businessTrace.field.traceChainId')">{{
                 traceResult.trace_chain_id
               }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="五维ID">{{
+              <ElDescriptionsItem :label="$t('businessTrace.field.fiveDimensionId')">{{
                 traceResult.five_dimension_id
               }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="产品ID">{{ traceResult.product_id }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="批次号">{{ traceResult.batch_no }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="色号">{{ traceResult.color_no }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="等级">{{ traceResult.grade }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="环节总数">{{
+              <ElDescriptionsItem :label="$t('businessTrace.field.productId')">{{ traceResult.product_id }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('businessTrace.field.batchNo')">{{ traceResult.batch_no }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('businessTrace.field.colorNo')">{{ traceResult.color_no }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('businessTrace.field.grade')">{{ traceResult.grade }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('businessTrace.field.totalStages')">{{
                 traceResult.total_stages
               }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="开始时间">{{ traceResult.start_time }}</ElDescriptionsItem>
-              <ElDescriptionsItem label="结束时间">{{
+              <ElDescriptionsItem :label="$t('businessTrace.field.startTime')">{{ traceResult.start_time }}</ElDescriptionsItem>
+              <ElDescriptionsItem :label="$t('businessTrace.field.endTime')">{{
                 traceResult.end_time || '-'
               }}</ElDescriptionsItem>
             </ElDescriptions>
           </ElCard>
 
-          <ElCard title="追溯流程" class="flow-card">
+          <ElCard :title="$t('businessTrace.card.traceFlow')" class="flow-card">
             <ElSteps :space="80" align-center>
               <ElStep
                 v-for="(stage, index) in traceResult.stages"
@@ -218,18 +221,18 @@ const handleCreateSnapshot = async () => {
 
             <ElDivider />
 
-            <h4>环节明细</h4>
-            <ElTable :data="traceResult.stages" border style="width: 100%" aria-label="追溯环节明细列表">
-              <ElTableColumn prop="stage_id" label="环节ID" width="100" />
-              <ElTableColumn prop="stage_name" label="环节名称" width="120" />
-              <ElTableColumn prop="bill_type" label="单据类型" width="120" />
-              <ElTableColumn prop="bill_no" label="单据编号" width="150" />
-              <ElTableColumn prop="warehouse_name" label="仓库" width="120" />
-              <ElTableColumn prop="supplier_name" label="供应商" width="120" />
-              <ElTableColumn prop="customer_name" label="客户" width="120" />
-              <ElTableColumn prop="quantity_meters" label="米数" width="100" align="right" />
-              <ElTableColumn prop="quantity_kg" label="公斤数" width="100" align="right" />
-              <ElTableColumn prop="created_at" label="时间" width="150" />
+            <h4>{{ $t('businessTrace.stageDetailTitle') }}</h4>
+            <ElTable :data="traceResult.stages" border style="width: 100%" :aria-label="$t('businessTrace.stageTableAriaLabel')">
+              <ElTableColumn prop="stage_id" :label="$t('businessTrace.table.stageId')" width="100" />
+              <ElTableColumn prop="stage_name" :label="$t('businessTrace.table.stageName')" width="120" />
+              <ElTableColumn prop="bill_type" :label="$t('businessTrace.table.billType')" width="120" />
+              <ElTableColumn prop="bill_no" :label="$t('businessTrace.table.billNo')" width="150" />
+              <ElTableColumn prop="warehouse_name" :label="$t('businessTrace.table.warehouse')" width="120" />
+              <ElTableColumn prop="supplier_name" :label="$t('businessTrace.table.supplier')" width="120" />
+              <ElTableColumn prop="customer_name" :label="$t('businessTrace.table.customer')" width="120" />
+              <ElTableColumn prop="quantity_meters" :label="$t('businessTrace.table.quantityMeters')" width="100" align="right" />
+              <ElTableColumn prop="quantity_kg" :label="$t('businessTrace.table.quantityKg')" width="100" align="right" />
+              <ElTableColumn prop="created_at" :label="$t('businessTrace.table.time')" width="150" />
             </ElTable>
           </ElCard>
         </div>
@@ -237,23 +240,23 @@ const handleCreateSnapshot = async () => {
         <ElResult
           v-else
           icon="primary"
-          title="请输入五维ID进行追溯"
-          sub-title="输入五维ID后点击追溯按钮，查看完整的业务追溯链"
+          :title="$t('businessTrace.empty.fiveDimensionTitle')"
+          :sub-title="$t('businessTrace.empty.fiveDimensionSubTitle')"
         />
       </ElTabPane>
 
-      <ElTabPane label="正向追溯" name="forward">
-        <ElCard title="从供应商追溯到客户" class="trace-card">
-          <ElForm :model="forwardForm" label-width="100px" aria-label="正向追溯表单">
+      <ElTabPane :label="$t('businessTrace.tab.forward')" name="forward">
+        <ElCard :title="$t('businessTrace.card.supplierToCustomer')" class="trace-card">
+          <ElForm :model="forwardForm" label-width="100px" :aria-label="$t('businessTrace.form.forwardAriaLabel')">
             <ElRow :gutter="20">
               <ElCol :span="10">
-                <ElFormItem label="供应商ID">
-                  <ElInputNumber v-model="forwardForm.supplier_id" placeholder="请输入供应商ID" />
+                <ElFormItem :label="$t('businessTrace.field.supplierId')">
+                  <ElInputNumber v-model="forwardForm.supplier_id" :placeholder="$t('businessTrace.placeholder.supplierId')" />
                 </ElFormItem>
               </ElCol>
               <ElCol :span="10">
-                <ElFormItem label="批次号">
-                  <ElInput v-model="forwardForm.batch_no" placeholder="请输入批次号" />
+                <ElFormItem :label="$t('businessTrace.field.batchNo')">
+                  <ElInput v-model="forwardForm.batch_no" :placeholder="$t('businessTrace.placeholder.batchNo')" />
                 </ElFormItem>
               </ElCol>
               <ElCol :span="4">
@@ -264,7 +267,7 @@ const handleCreateSnapshot = async () => {
                   style="margin-top: 24px"
                   @click="handleForwardTrace"
                 >
-                  <ArrowRightBold /> 正向追溯
+                  <ArrowRightBold /> {{ $t('businessTrace.button.forwardTrace') }}
                 </ElButton>
               </ElCol>
             </ElRow>
@@ -278,39 +281,39 @@ const handleCreateSnapshot = async () => {
           fit
           highlight-current-row
           style="width: 100%"
-          aria-label="正向追溯结果列表"
+          :aria-label="$t('businessTrace.table.forwardResultAriaLabel')"
         >
           <ElTableColumn prop="id" label="ID" width="80" />
-          <ElTableColumn prop="trace_chain_id" label="追溯链ID" width="150" />
-          <ElTableColumn prop="five_dimension_id" label="五维ID" />
-          <ElTableColumn prop="batch_no" label="批次号" width="120" />
-          <ElTableColumn prop="color_no" label="色号" width="100" />
-          <ElTableColumn prop="grade" label="等级" width="100" />
-          <ElTableColumn prop="current_stage" label="当前环节" width="120" />
-          <ElTableColumn prop="current_bill_no" label="当前单据" width="150" />
-          <ElTableColumn prop="created_at" label="创建时间" width="150" />
+          <ElTableColumn prop="trace_chain_id" :label="$t('businessTrace.table.traceChainId')" width="150" />
+          <ElTableColumn prop="five_dimension_id" :label="$t('businessTrace.field.fiveDimensionId')" />
+          <ElTableColumn prop="batch_no" :label="$t('businessTrace.field.batchNo')" width="120" />
+          <ElTableColumn prop="color_no" :label="$t('businessTrace.field.colorNo')" width="100" />
+          <ElTableColumn prop="grade" :label="$t('businessTrace.field.grade')" width="100" />
+          <ElTableColumn prop="current_stage" :label="$t('businessTrace.table.currentStage')" width="120" />
+          <ElTableColumn prop="current_bill_no" :label="$t('businessTrace.table.currentBillNo')" width="150" />
+          <ElTableColumn prop="created_at" :label="$t('businessTrace.table.createdAt')" width="150" />
         </ElTable>
 
         <ElResult
           v-else
           icon="primary"
-          title="请输入查询条件"
-          sub-title="输入供应商ID和批次号，正向追溯物料流向"
+          :title="$t('businessTrace.empty.queryTitle')"
+          :sub-title="$t('businessTrace.empty.forwardSubTitle')"
         />
       </ElTabPane>
 
-      <ElTabPane label="反向追溯" name="backward">
-        <ElCard title="从客户追溯到供应商" class="trace-card">
-          <ElForm :model="backwardForm" label-width="100px" aria-label="反向追溯表单">
+      <ElTabPane :label="$t('businessTrace.tab.backward')" name="backward">
+        <ElCard :title="$t('businessTrace.card.customerToSupplier')" class="trace-card">
+          <ElForm :model="backwardForm" label-width="100px" :aria-label="$t('businessTrace.form.backwardAriaLabel')">
             <ElRow :gutter="20">
               <ElCol :span="10">
-                <ElFormItem label="客户ID">
-                  <ElInputNumber v-model="backwardForm.customer_id" placeholder="请输入客户ID" />
+                <ElFormItem :label="$t('businessTrace.field.customerId')">
+                  <ElInputNumber v-model="backwardForm.customer_id" :placeholder="$t('businessTrace.placeholder.customerId')" />
                 </ElFormItem>
               </ElCol>
               <ElCol :span="10">
-                <ElFormItem label="批次号">
-                  <ElInput v-model="backwardForm.batch_no" placeholder="请输入批次号" />
+                <ElFormItem :label="$t('businessTrace.field.batchNo')">
+                  <ElInput v-model="backwardForm.batch_no" :placeholder="$t('businessTrace.placeholder.batchNo')" />
                 </ElFormItem>
               </ElCol>
               <ElCol :span="4">
@@ -321,7 +324,7 @@ const handleCreateSnapshot = async () => {
                   style="margin-top: 24px"
                   @click="handleBackwardTrace"
                 >
-                  <ArrowLeftBold /> 反向追溯
+                  <ArrowLeftBold /> {{ $t('businessTrace.button.backwardTrace') }}
                 </ElButton>
               </ElCol>
             </ElRow>
@@ -335,24 +338,24 @@ const handleCreateSnapshot = async () => {
           fit
           highlight-current-row
           style="width: 100%"
-          aria-label="反向追溯结果列表"
+          :aria-label="$t('businessTrace.table.backwardResultAriaLabel')"
         >
           <ElTableColumn prop="id" label="ID" width="80" />
-          <ElTableColumn prop="trace_chain_id" label="追溯链ID" width="150" />
-          <ElTableColumn prop="five_dimension_id" label="五维ID" />
-          <ElTableColumn prop="batch_no" label="批次号" width="120" />
-          <ElTableColumn prop="color_no" label="色号" width="100" />
-          <ElTableColumn prop="grade" label="等级" width="100" />
-          <ElTableColumn prop="current_stage" label="当前环节" width="120" />
-          <ElTableColumn prop="current_bill_no" label="当前单据" width="150" />
-          <ElTableColumn prop="created_at" label="创建时间" width="150" />
+          <ElTableColumn prop="trace_chain_id" :label="$t('businessTrace.table.traceChainId')" width="150" />
+          <ElTableColumn prop="five_dimension_id" :label="$t('businessTrace.field.fiveDimensionId')" />
+          <ElTableColumn prop="batch_no" :label="$t('businessTrace.field.batchNo')" width="120" />
+          <ElTableColumn prop="color_no" :label="$t('businessTrace.field.colorNo')" width="100" />
+          <ElTableColumn prop="grade" :label="$t('businessTrace.field.grade')" width="100" />
+          <ElTableColumn prop="current_stage" :label="$t('businessTrace.table.currentStage')" width="120" />
+          <ElTableColumn prop="current_bill_no" :label="$t('businessTrace.table.currentBillNo')" width="150" />
+          <ElTableColumn prop="created_at" :label="$t('businessTrace.table.createdAt')" width="150" />
         </ElTable>
 
         <ElResult
           v-else
           icon="primary"
-          title="请输入查询条件"
-          sub-title="输入客户ID和批次号，反向追溯物料来源"
+          :title="$t('businessTrace.empty.queryTitle')"
+          :sub-title="$t('businessTrace.empty.backwardSubTitle')"
         />
       </ElTabPane>
     </ElTabs>

@@ -49,44 +49,44 @@ const applyRateColor = computed(() => {
 <template>
   <div class="ai-overview">
     <div class="page-header">
-      <h2>AI 分析深化看板</h2>
+      <h2>{{ $t('aiExtend.overview.title') }}</h2>
       <div class="header-right">
         <el-tag v-if="health" :type="health.status === 'ok' ? 'success' : 'danger'" size="small">
-          服务 {{ health.status === 'ok' ? '正常' : '异常' }} · {{ health.version }}
+          {{ $t('aiExtend.overview.serviceStatus', { status: health.status === 'ok' ? $t('aiExtend.overview.serviceOk') : $t('aiExtend.overview.serviceError'), version: health.version }) }}
         </el-tag>
-        <el-button @click="load" :loading="loading" type="primary" plain>刷新</el-button>
+        <el-button @click="load" :loading="loading" type="primary" plain>{{ $t('aiExtend.overview.refresh') }}</el-button>
       </div>
     </div>
 
     <el-row v-if="summary" :gutter="16" class="kpi-row">
       <el-col :span="6">
         <el-card shadow="hover" class="kpi-card">
-          <div class="kpi-label">工艺优化历史</div>
+          <div class="kpi-label">{{ $t('aiExtend.overview.kpiProcessHistory') }}</div>
           <div class="kpi-value">{{ summary.process_optimization.total }}</div>
-          <div class="kpi-extra">k-NN 推荐 {{ summary.process_optimization.knn_recommended }} 条</div>
+          <div class="kpi-extra">{{ $t('aiExtend.overview.kpiKnnRecommended', { n: summary.process_optimization.knn_recommended }) }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="kpi-card">
-          <div class="kpi-label">应用率</div>
+          <div class="kpi-label">{{ $t('aiExtend.overview.kpiApplyRate') }}</div>
           <div class="kpi-value" :style="{ color: applyRateColor }">{{ applyRateText }}</div>
-          <div class="kpi-extra">已应用 {{ summary.process_optimization.applied }} 条</div>
+          <div class="kpi-extra">{{ $t('aiExtend.overview.kpiApplied', { n: summary.process_optimization.applied }) }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="kpi-card">
-          <div class="kpi-label">质量预测历史</div>
+          <div class="kpi-label">{{ $t('aiExtend.overview.kpiQualityHistory') }}</div>
           <div class="kpi-value">{{ summary.quality_prediction.total }}</div>
-          <div class="kpi-extra">高风险 {{ summary.quality_prediction.high_risk }} 条</div>
+          <div class="kpi-extra">{{ $t('aiExtend.overview.kpiHighRisk', { n: summary.quality_prediction.high_risk }) }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="kpi-card">
-          <div class="kpi-label">待确认预警</div>
+          <div class="kpi-label">{{ $t('aiExtend.overview.kpiUnack') }}</div>
           <div class="kpi-value" :style="{ color: summary.quality_prediction.unacknowledged > 0 ? '#f56c6c' : '#67c23a' }">
             {{ summary.quality_prediction.unacknowledged }}
           </div>
-          <div class="kpi-extra">建议 24h 内确认</div>
+          <div class="kpi-extra">{{ $t('aiExtend.overview.kpiUnackHint') }}</div>
         </el-card>
       </el-col>
     </el-row>
@@ -98,8 +98,8 @@ const applyRateColor = computed(() => {
             <el-icon :size="32"><MagicStick /></el-icon>
           </div>
           <div class="action-body">
-            <div class="action-title">工艺优化</div>
-            <div class="action-desc">基于 k-NN 算法自动推荐染色温度 / 时间 / pH / 浴比</div>
+            <div class="action-title">{{ $t('aiExtend.overview.actionProcess') }}</div>
+            <div class="action-desc">{{ $t('aiExtend.overview.actionProcessDesc') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -109,8 +109,8 @@ const applyRateColor = computed(() => {
             <el-icon :size="32"><DataAnalysis /></el-icon>
           </div>
           <div class="action-body">
-            <div class="action-title">质量预测</div>
-            <div class="action-desc">基于历史趋势自动预测风险等级与建议措施</div>
+            <div class="action-title">{{ $t('aiExtend.overview.actionQuality') }}</div>
+            <div class="action-desc">{{ $t('aiExtend.overview.actionQualityDesc') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -120,8 +120,8 @@ const applyRateColor = computed(() => {
             <el-icon :size="32"><Document /></el-icon>
           </div>
           <div class="action-body">
-            <div class="action-title">历史记录</div>
-            <div class="action-desc">查看全部工艺优化与质量预测历史，支持应用反馈</div>
+            <div class="action-title">{{ $t('aiExtend.overview.actionHistory') }}</div>
+            <div class="action-desc">{{ $t('aiExtend.overview.actionHistoryDesc') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -131,36 +131,36 @@ const applyRateColor = computed(() => {
       <el-col :span="12">
         <el-card shadow="hover">
           <template #header>
-            <div class="card-header">最新工艺优化</div>
+            <div class="card-header">{{ $t('aiExtend.overview.latestProcess') }}</div>
           </template>
           <el-table :data="summary.latest_process_optimizations" size="small" max-height="300" aria-label="最新工艺优化列表">
-            <el-table-column prop="color_no" label="色号" width="100" />
-            <el-table-column prop="fabric_type" label="布类" width="100" />
-            <el-table-column prop="source" label="来源" width="100">
+            <el-table-column prop="color_no" :label="$t('aiExtend.overview.colColorNo')" width="100" />
+            <el-table-column prop="fabric_type" :label="$t('aiExtend.overview.colFabricType')" width="100" />
+            <el-table-column prop="source" :label="$t('aiExtend.overview.colSource')" width="100">
               <template #default="{ row }">{{ SOURCE_LABELS[row.source] || row.source }}</template>
             </el-table-column>
-            <el-table-column prop="confidence" label="置信度" width="100">
+            <el-table-column prop="confidence" :label="$t('aiExtend.overview.colConfidence')" width="100">
               <template #default="{ row }">{{ Number(row.confidence).toFixed(2) }}</template>
             </el-table-column>
-            <el-table-column prop="is_applied" label="应用" width="70">
+            <el-table-column prop="is_applied" :label="$t('aiExtend.overview.colApplied')" width="70">
               <template #default="{ row }">
                 <el-tag :type="row.is_applied ? 'success' : 'info'" size="small">
-                  {{ row.is_applied ? '已应用' : '未应用' }}
+                  {{ row.is_applied ? $t('aiExtend.overview.applied') : $t('aiExtend.overview.notApplied') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="created_at" label="时间" min-width="160" />
+            <el-table-column prop="created_at" :label="$t('aiExtend.overview.colTime')" min-width="160" />
           </el-table>
         </el-card>
       </el-col>
       <el-col :span="12">
         <el-card shadow="hover">
           <template #header>
-            <div class="card-header">最新质量预测</div>
+            <div class="card-header">{{ $t('aiExtend.overview.latestQuality') }}</div>
           </template>
           <el-table :data="summary.latest_quality_predictions" size="small" max-height="300" aria-label="最新质量预测列表">
-            <el-table-column prop="product_id" label="产品 ID" width="80" />
-            <el-table-column prop="risk_level" label="风险" width="90">
+            <el-table-column prop="product_id" :label="$t('aiExtend.overview.colProductId')" width="80" />
+            <el-table-column prop="risk_level" :label="$t('aiExtend.overview.colRisk')" width="90">
               <template #default="{ row }">
                 <el-tag
                   :style="{ background: RISK_LEVEL_COLORS[row.risk_level], color: '#fff', border: 'none' }"
@@ -170,18 +170,18 @@ const applyRateColor = computed(() => {
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="risk_score" label="评分" width="70" />
-            <el-table-column prop="trend" label="趋势" width="80">
+            <el-table-column prop="risk_score" :label="$t('aiExtend.overview.colRiskScore')" width="70" />
+            <el-table-column prop="trend" :label="$t('aiExtend.overview.colTrend')" width="80">
               <template #default="{ row }">{{ TREND_LABELS[row.trend] || row.trend }}</template>
             </el-table-column>
-            <el-table-column prop="is_acknowledged" label="确认" width="80">
+            <el-table-column prop="is_acknowledged" :label="$t('aiExtend.overview.colAck')" width="80">
               <template #default="{ row }">
                 <el-tag :type="row.is_acknowledged ? 'success' : 'warning'" size="small">
-                  {{ row.is_acknowledged ? '已确认' : '待确认' }}
+                  {{ row.is_acknowledged ? $t('aiExtend.overview.acknowledged') : $t('aiExtend.overview.unacknowledged') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="created_at" label="时间" min-width="160" />
+            <el-table-column prop="created_at" :label="$t('aiExtend.overview.colTime')" min-width="160" />
           </el-table>
         </el-card>
       </el-col>

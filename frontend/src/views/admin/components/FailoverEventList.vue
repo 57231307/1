@@ -10,38 +10,38 @@
     :data="events"
     stripe
     border
-    empty-text="暂无切换事件"
+    :empty-text="$t('adminFailover.emptyEvents')"
     aria-label="故障切换事件列表"
   >
-    <el-table-column prop="created_at" label="时间" width="180">
+    <el-table-column prop="created_at" :label="$t('adminFailover.colTime')" width="180">
       <template #default="{ row }">
         {{ formatTime(row.created_at) }}
       </template>
     </el-table-column>
-    <el-table-column prop="function_name" label="功能" width="120">
+    <el-table-column prop="function_name" :label="$t('adminFailover.colFunction')" width="120">
       <template #default="{ row }">
         <el-tag size="small">{{ functionLabel(row.function_name) }}</el-tag>
       </template>
     </el-table-column>
-    <el-table-column prop="event_type" label="事件类型" width="160">
+    <el-table-column prop="event_type" :label="$t('adminFailover.colEventType')" width="160">
       <template #default="{ row }">
         <el-tag :type="eventTagType(row.event_type)" size="small">
           {{ eventLabel(row.event_type) }}
         </el-tag>
       </template>
     </el-table-column>
-    <el-table-column label="状态变更" width="180">
+    <el-table-column :label="$t('adminFailover.colStateChange')" width="180">
       <template #default="{ row }">
         <span v-if="row.from_state">{{ row.from_state }} → {{ row.to_state }}</span>
         <span v-else>-</span>
       </template>
     </el-table-column>
-    <el-table-column prop="reason" label="原因" min-width="200">
+    <el-table-column prop="reason" :label="$t('adminFailover.colReason')" min-width="200">
       <template #default="{ row }">
         <span class="reason">{{ row.reason || '-' }}</span>
       </template>
     </el-table-column>
-    <el-table-column prop="latency_ms" label="延迟(ms)" width="100" align="right">
+    <el-table-column prop="latency_ms" :label="$t('adminFailover.colLatency')" width="100" align="right">
       <template #default="{ row }">
         <span v-if="row.latency_ms !== null && row.latency_ms !== undefined">
           {{ row.latency_ms }}
@@ -53,23 +53,26 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { FailoverEventDto } from '@/api/failover'
 
 defineProps<{ events: FailoverEventDto[]; loading?: boolean }>()
 
-const FUNCTION_LABELS: Record<string, string> = {
-  database: '数据库',
-  cache: '缓存',
+const { t } = useI18n({ useScope: 'global' })
+
+const FUNCTION_LABEL_KEYS: Record<string, string> = {
+  database: 'adminFailover.funcDatabase',
+  cache: 'adminFailover.funcCache',
 }
 
-const EVENT_LABELS: Record<string, string> = {
-  switch_to_backup: '切换至备用',
-  switch_back: '回切至主',
-  primary_recovered: '主恢复',
-  both_failed: '主备均失败',
-  circuit_open: '熔断器打开',
-  circuit_close: '熔断器关闭',
-  circuit_half_open: '熔断器半开',
+const EVENT_LABEL_KEYS: Record<string, string> = {
+  switch_to_backup: 'adminFailover.eventSwitchToBackup',
+  switch_back: 'adminFailover.eventSwitchBack',
+  primary_recovered: 'adminFailover.eventPrimaryRecovered',
+  both_failed: 'adminFailover.eventBothFailed',
+  circuit_open: 'adminFailover.eventCircuitOpen',
+  circuit_close: 'adminFailover.eventCircuitClose',
+  circuit_half_open: 'adminFailover.eventCircuitHalfOpen',
 }
 
 const EVENT_TAG_TYPES: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
@@ -83,11 +86,11 @@ const EVENT_TAG_TYPES: Record<string, 'success' | 'warning' | 'danger' | 'info'>
 }
 
 function functionLabel(name: string): string {
-  return FUNCTION_LABELS[name] || name
+  return FUNCTION_LABEL_KEYS[name] ? t(FUNCTION_LABEL_KEYS[name]) : name
 }
 
 function eventLabel(type: string): string {
-  return EVENT_LABELS[type] || type
+  return EVENT_LABEL_KEYS[type] ? t(EVENT_LABEL_KEYS[type]) : type
 }
 
 function eventTagType(type: string): 'success' | 'warning' | 'danger' | 'info' {
