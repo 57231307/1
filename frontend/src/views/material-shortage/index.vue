@@ -10,11 +10,11 @@
       <h2 class="page-title">物料缺料管理</h2>
     </div>
 
-    <MsStat :summary="ms.summary" />
+    <MaterialShortageStat :summary="ms.summary" />
 
-    <MsSevCard :summary="ms.summary" />
+    <MaterialShortageSeverityCard :summary="ms.summary" />
 
-    <MsTbl
+    <MaterialShortageTable
       :data="ms.shortageList"
       :loading="ms.tableLoading"
       :total="ms.total"
@@ -40,9 +40,9 @@
 import { onMounted } from 'vue'
 import { useMs } from './composables/useMs'
 import { useMsProc } from './composables/useMsProc'
-import MsStat from './components/MsStat.vue'
-import MsSevCard from './components/MsSevCard.vue'
-import MsTbl from './components/MsTbl.vue'
+import MaterialShortageStat from './components/MaterialShortageStat.vue'
+import MaterialShortageSeverityCard from './components/MaterialShortageSeverityCard.vue'
+import MaterialShortageTable from './components/MaterialShortageTable.vue'
 
 // 业务状态
 const ms = useMs()

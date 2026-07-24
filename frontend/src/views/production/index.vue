@@ -13,7 +13,7 @@
       </div>
     </el-card>
 
-    <PrdFilter
+    <ProductionFilter
       :form="prd.queryForm"
       @update:form="(v) => Object.assign(prd.queryForm, v)"
       @search="prd.applyQuery"
@@ -38,7 +38,7 @@
         </div>
       </template>
 
-      <PrdTbl
+      <ProductionTable
         :data="prd.data"
         :loading="prd.loading"
         :page="prd.page"
@@ -53,7 +53,7 @@
       />
     </el-card>
 
-    <PrdForm
+    <ProductionForm
       v-model:visible="dialogVisible"
       :form="prd.orderForm"
       :loading="prd.submitLoading"
@@ -62,7 +62,7 @@
       @submit="onSubmitForm"
     />
 
-    <PrdDetail v-model:visible="detailVisible" :order="currentOrder" />
+    <ProductionDetail v-model:visible="detailVisible" :order="currentOrder" />
   </div>
 </template>
 
@@ -77,10 +77,10 @@ import {
 } from '@/api/production'
 import { usePrd } from './composables/usePrd'
 import { usePrdProc } from './composables/usePrdProc'
-import PrdFilter from './components/PrdFilter.vue'
-import PrdTbl from './components/PrdTbl.vue'
-import PrdForm from './components/PrdForm.vue'
-import PrdDetail from './components/PrdDetail.vue'
+import ProductionFilter from './components/ProductionFilter.vue'
+import ProductionTable from './components/ProductionTable.vue'
+import ProductionForm from './components/ProductionForm.vue'
+import ProductionDetail from './components/ProductionDetail.vue'
 
 // 业务状态
 const prd = usePrd()

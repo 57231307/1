@@ -1,5 +1,5 @@
 <!--
-  BpmDfTbl.vue - BPM 流程定义列表
+  BpmDefinitionTable.vue - BPM 流程定义列表
   拆分自 bpm/definitions.vue（P14 批 2 I-3 第 5 批）
   批次 282：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
 -->

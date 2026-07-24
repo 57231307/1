@@ -1,5 +1,5 @@
 <!--
-  PrdDetail.vue - 生产管理订单详情
+  ProductionDetail.vue - 生产管理订单详情
   拆分自 production/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->

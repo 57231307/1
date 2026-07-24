@@ -1,5 +1,5 @@
 <!--
-  MsStat.vue - 物料短缺 4 张统计卡片
+  MaterialShortageStat.vue - 物料短缺 4 张统计卡片
   拆分自 material-shortage/index.vue（P14 批 2 I-3 第 5 批）
   行为完全保持一致（仅结构重构）
 -->

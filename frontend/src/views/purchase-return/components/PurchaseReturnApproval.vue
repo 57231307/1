@@ -1,5 +1,5 @@
 <!--
-  PrRtnApr.vue - 采购退货审批对话框
+  PurchaseReturnApproval.vue - 采购退货审批对话框
   任务编号: P14 批 2 I-3 第 2 批（拆分原 purchase-return/index.vue）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
 -->

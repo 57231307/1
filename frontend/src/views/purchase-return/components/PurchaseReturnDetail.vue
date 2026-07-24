@@ -1,5 +1,5 @@
 <!--
-  PrRtnDetail.vue - 采购退货详情对话框
+  PurchaseReturnDetail.vue - 采购退货详情对话框
   任务编号: P14 批 2 I-3 第 2 批（拆分原 purchase-return/index.vue）
 -->
 <template>

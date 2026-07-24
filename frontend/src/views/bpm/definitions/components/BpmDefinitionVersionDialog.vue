@@ -1,5 +1,5 @@
 <!--
-  BpmDfVerDlg.vue - BPM 流程定义版本管理对话框
+  BpmDefinitionVersionDialog.vue - BPM 流程定义版本管理对话框
   拆分自 bpm/definitions.vue（P14 批 2 I-3 第 5 批）
   行为完全保持一致（仅结构重构）
 -->

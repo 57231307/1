@@ -33,7 +33,7 @@ export function usePrRtn() {
     amount: 0,
   })
 
-  // 日期范围（独立 ref，便于 PrRtnFilter 双向绑定；fetch 前注入 queryParams.startDate/endDate）
+  // 日期范围（独立 ref，便于 PurchaseReturnFilter 双向绑定；fetch 前注入 queryParams.startDate/endDate）
   const dateRange = ref<[Date, Date] | null>(null)
 
   // 列表数据接入 useTableApi

@@ -1,5 +1,5 @@
 <!--
-  PrRtnFilter.vue - 采购退货过滤栏
+  PurchaseReturnFilter.vue - 采购退货过滤栏
   任务编号: P14 批 2 I-3 第 2 批（拆分原 purchase-return/index.vue）
   批次 286：接入 useTableApi 模式（localQuery + handleSearch/handleReset）
 -->

@@ -50,7 +50,7 @@
       </el-col>
     </el-row>
 
-    <PrRtnFilter
+    <PurchaseReturnFilter
       :query-params="prRtn.queryParams"
       :suppliers="prRtn.suppliers"
       :date-range="prRtn.dateRange"
@@ -59,7 +59,7 @@
       @update:query-params="(v) => Object.assign(prRtn.queryParams, v)"
     />
 
-    <PrRtnTbl
+    <PurchaseReturnTable
       v-model:page="prRtn.page"
       v-model:page-size="prRtn.pageSize"
       :table-data="prRtn.tableData"
@@ -72,7 +72,7 @@
       @delete="prRtnProc.handleDelete"
     />
 
-    <PrRtnForm
+    <PurchaseReturnForm
       v-model:visible="dialogVisible"
       :is-edit="isEdit"
       :form-data="prRtn.formData"
@@ -87,12 +87,12 @@
       @update:form-data="(v) => Object.assign(prRtn.formData, v)"
     />
 
-    <PrRtnDetail
+    <PurchaseReturnDetail
       v-model:visible="detailDialogVisible"
       :detail-data="prRtn.detailData"
     />
 
-    <PrRtnApr
+    <PurchaseReturnApproval
       v-model:visible="prRtnProc.approveDialogVisible"
       :approve-form="prRtnProc.approveForm"
       @approve-confirm="prRtnProc.handleApproveConfirm"
@@ -108,11 +108,11 @@ import { Plus } from '@element-plus/icons-vue'
 import type { PurchaseReturn } from '@/api/purchase-return'
 import { usePrRtn } from './composables/usePrRtn'
 import { usePrRtnProc } from './composables/usePrRtnProc'
-import PrRtnFilter from './components/PrRtnFilter.vue'
-import PrRtnTbl from './components/PrRtnTbl.vue'
-import PrRtnForm from './components/PrRtnForm.vue'
-import PrRtnDetail from './components/PrRtnDetail.vue'
-import PrRtnApr from './components/PrRtnApr.vue'
+import PurchaseReturnFilter from './components/PurchaseReturnFilter.vue'
+import PurchaseReturnTable from './components/PurchaseReturnTable.vue'
+import PurchaseReturnForm from './components/PurchaseReturnForm.vue'
+import PurchaseReturnDetail from './components/PurchaseReturnDetail.vue'
+import PurchaseReturnApproval from './components/PurchaseReturnApproval.vue'
 
 const prRtn = usePrRtn()
 const prRtnProc = usePrRtnProc({
