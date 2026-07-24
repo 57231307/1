@@ -1,5 +1,5 @@
 <!--
-  LgsTbl.vue - 物流管理运单表
+  LogisticsTable.vue - 物流管理运单表
   拆分自 logistics/index.vue（P14 批 2 I-3 第 4 批）
   批次 287：page/pageSize props + v-model 绑定分页
   迁移至 V2Table 虚拟滚动表格（行为完全保持一致，仅结构重构）

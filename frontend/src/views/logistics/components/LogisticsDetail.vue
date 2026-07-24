@@ -1,5 +1,5 @@
 <!--
-  LgsDetail.vue - 物流管理运单详情
+  LogisticsDetail.vue - 物流管理运单详情
   拆分自 logistics/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->

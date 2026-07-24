@@ -1,5 +1,5 @@
 <!--
-  LgsForm.vue - 物流管理新建/编辑运单对话框
+  LogisticsForm.vue - 物流管理新建/编辑运单对话框
   拆分自 logistics/index.vue（P14 批 2 I-3 第 4 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
@@ -86,7 +86,7 @@ interface OrderOption {
 }
 
 // 订单表单字段类型
-interface LgsForm {
+interface LogisticsForm {
   id?: number | undefined
   order_id?: number | undefined
   logistics_company?: string
@@ -111,7 +111,7 @@ const props = defineProps<{
   // 关联订单
   orders: OrderOption[]
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  form: LgsForm
+  form: LogisticsForm
   // 校验规则
   rules: FormRules
 }>()
@@ -120,14 +120,14 @@ const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void
   (e: 'submit'): void
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
-  (e: 'update:form', form: LgsForm): void
+  (e: 'update:form', form: LogisticsForm): void
 }>()
 
 // 表单 ref
 const formRef = ref<FormInstance>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<LgsForm>({ ...props.form })
+const localForm = ref<LogisticsForm>({ ...props.form })
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false

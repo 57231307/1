@@ -14,9 +14,9 @@
       </el-button>
     </div>
 
-    <LgsStat :stats="lgs.stats" />
+    <LogisticsStat :stats="lgs.stats" />
 
-    <LgsFilter
+    <LogisticsFilter
       :query-params="lgs.queryParams"
       :date-range="lgs.dateRange"
       @fetch="lgs.handleQuery"
@@ -24,7 +24,7 @@
       @update:query-params="(v) => Object.assign(lgs.queryParams, v)"
     />
 
-    <LgsTbl
+    <LogisticsTable
       v-model:page="lgs.page"
       v-model:page-size="lgs.pageSize"
       :data="lgs.tableData"
@@ -37,7 +37,7 @@
       @delete="lgsProc.handleDelete"
     />
 
-    <LgsForm
+    <LogisticsForm
       v-model:visible="lgs.dialogVisible"
       :is-edit="lgs.isEdit"
       :loading="lgs.submitLoading"
@@ -48,12 +48,12 @@
       @update:form="(v) => Object.assign(lgs.formData, v)"
     />
 
-    <LgsDetail
+    <LogisticsDetail
       v-model:visible="lgs.detailDialogVisible"
       :detail="lgs.detailData"
     />
 
-    <LgsStatDlg
+    <LogisticsStatDialog
       v-model:visible="lgs.statusDialogVisible"
       :form="lgs.statusForm"
       :statuses="lgsProc.availableStatuses"
@@ -69,12 +69,12 @@ import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { Plus } from '@element-plus/icons-vue'
 import { useLgs } from './composables/useLgs'
 import { useLgsProc } from './composables/useLgsProc'
-import LgsStat from './components/LgsStat.vue'
-import LgsFilter from './components/LgsFilter.vue'
-import LgsTbl from './components/LgsTbl.vue'
-import LgsForm from './components/LgsForm.vue'
-import LgsDetail from './components/LgsDetail.vue'
-import LgsStatDlg from './components/LgsStatDlg.vue'
+import LogisticsStat from './components/LogisticsStat.vue'
+import LogisticsFilter from './components/LogisticsFilter.vue'
+import LogisticsTable from './components/LogisticsTable.vue'
+import LogisticsForm from './components/LogisticsForm.vue'
+import LogisticsDetail from './components/LogisticsDetail.vue'
+import LogisticsStatDialog from './components/LogisticsStatDialog.vue'
 
 // 业务状态（reactive 包装，父组件可直接访问字段）
 const lgs = useLgs()

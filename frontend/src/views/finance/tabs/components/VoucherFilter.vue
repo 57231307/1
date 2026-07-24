@@ -1,5 +1,5 @@
 <!--
-  VchrFilter.vue - 凭证过滤表单
+  VoucherFilter.vue - 凭证过滤表单
   拆分自 VoucherTab.vue（P14 批 1 B3 I-2）
   批次 289：改造为 localQuery + handleSearch 模式，接入 useTableApi queryParams
   行为完全保持一致（仅结构重构）

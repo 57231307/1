@@ -19,7 +19,7 @@
 
     <el-tabs v-model="di.activeTab">
       <el-tab-pane label="导入模板" name="templates">
-        <DiTplTbl
+        <DataImportTemplateTable
           :data="di.templates"
           :loading="di.templateLoading"
           :total="di.templateTotal"
@@ -36,7 +36,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="导入任务" name="tasks">
-        <DiTaskTbl
+        <DataImportTaskTable
           :data="di.tasks"
           :loading="di.taskLoading"
           :total="di.taskTotal"
@@ -52,18 +52,18 @@
       </el-tab-pane>
     </el-tabs>
 
-    <DiTplForm
+    <DataImportTemplateForm
       v-model:visible="diProc.templateDialogVisible"
       :params="diProc.templateForm"
       :rules="diProc.templateRules"
       :submit-loading="diProc.templateSubmitLoading"
       :columns-text="diProc.columnsText"
-      @update:form="(v: DiTplFormData) => Object.assign(diProc.templateForm, v)"
+      @update:form="(v: DataImportTemplateFormData) => Object.assign(diProc.templateForm, v)"
       @update:columns-text="(v: string) => (diProc.columnsText = v)"
       @submit="diProc.handleTemplateSubmit"
     />
 
-    <DiTplUpload
+    <DataImportTemplateUpload
       v-model:visible="diProc.uploadDialogVisible"
       :loading="diProc.uploadLoading"
       @submit="diProc.handleUpload"
@@ -76,11 +76,11 @@
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
 import { useDi } from './composables/useDi'
-import { useDiProc, type DiTplForm as DiTplFormData } from './composables/useDiProc'
-import DiTplTbl from './components/DiTplTbl.vue'
-import DiTaskTbl from './components/DiTaskTbl.vue'
-import DiTplForm from './components/DiTplForm.vue'
-import DiTplUpload from './components/DiTplUpload.vue'
+import { useDiProc, type DataImportTemplateFormData } from './composables/useDiProc'
+import DataImportTemplateTable from './components/DataImportTemplateTable.vue'
+import DataImportTaskTable from './components/DataImportTaskTable.vue'
+import DataImportTemplateForm from './components/DataImportTemplateForm.vue'
+import DataImportTemplateUpload from './components/DataImportTemplateUpload.vue'
 
 // 业务状态
 const di = useDi()

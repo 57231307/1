@@ -8,7 +8,7 @@
  *
  * 设计说明：返回 reactive({...})，父组件可直接访问字段；
  * 子组件通过 :model-value/@update:model-value 模式传入；不会修改 prop
- * （日期范围由 LgsFilter 发出事件，父组件更新自身 dateRange）
+ * （日期范围由 LogisticsFilter 发出事件，父组件更新自身 dateRange）
  */
 import { ref, reactive, watch } from 'vue'
 import { type LogisticsWaybill } from '@/api/logistics'
@@ -45,7 +45,7 @@ export function useLgs() {
     delivered: 0,
   })
 
-  // 日期范围（独立 ref，便于 LgsFilter 双向绑定；fetch 前注入 queryParams.start_date/end_date）
+  // 日期范围（独立 ref，便于 LogisticsFilter 双向绑定；fetch 前注入 queryParams.start_date/end_date）
   const dateRange = ref<[Date, Date] | null>(null)
 
   // 列表数据接入 useTableApi

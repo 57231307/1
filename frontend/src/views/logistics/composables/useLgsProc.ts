@@ -115,7 +115,7 @@ export function useLgsProc(cb: LgsCallbacks) {
   }
 
   /**
-   * 提交表单（仅 API 调用，校验已由 LgsForm 内部完成）
+   * 提交表单（仅 API 调用，校验已由 LogisticsForm 内部完成）
    */
   const handleSubmit = async () => {
     cb.submitLoading = true

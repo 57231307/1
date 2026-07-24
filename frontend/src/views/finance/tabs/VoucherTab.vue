@@ -25,13 +25,13 @@
       </div>
     </div>
 
-    <VchrFilter
+    <VoucherFilter
       :query-params="vchr.queryParams"
       @fetch="vchr.handleSearch"
       @update:query-params="(v) => Object.assign(vchr.queryParams, v)"
     />
 
-    <VchrTbl
+    <VoucherTable
       :vouchers="vchr.vouchers"
       :voucher-loading="vchr.voucherLoading"
       :voucher-total="vchr.voucherTotal"
@@ -46,7 +46,7 @@
       @post="vchrProc.postVoucher"
     />
 
-    <VchrForm
+    <VoucherForm
       v-model:visible="voucherDialogVisible"
       :voucher-form-ref="voucherFormRefObj"
       :voucher-form="vchr.voucherForm"
@@ -63,7 +63,7 @@
       @update:voucher-form="(v) => Object.assign(vchr.voucherForm, v)"
     />
 
-    <VchrDetail
+    <VoucherDetail
       v-model:visible="voucherViewVisible"
       :current-voucher="vchr.currentVoucher"
       :format-money="vchr.formatMoney"
@@ -79,10 +79,10 @@ import type { FormInstance } from 'element-plus'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import { useVchr } from './composables/useVchr'
 import { useVchrProc } from './composables/useVchrProc'
-import VchrFilter from './components/VchrFilter.vue'
-import VchrTbl from './components/VchrTbl.vue'
-import VchrForm from './components/VchrForm.vue'
-import VchrDetail from './components/VchrDetail.vue'
+import VoucherFilter from './components/VoucherFilter.vue'
+import VoucherTable from './components/VoucherTable.vue'
+import VoucherForm from './components/VoucherForm.vue'
+import VoucherDetail from './components/VoucherDetail.vue'
 import type { Voucher } from '@/api/finance'
 // Batch 468 P0-S28：引入权限码常量，与后端 vouchers 资源对齐
 import { PERMISSIONS } from '@/constants/permissions'
@@ -90,7 +90,7 @@ import { PERMISSIONS } from '@/constants/permissions'
 const vchr = useVchr()
 // 使用 toRef 包装 reactive 属性为 ref，保持 useVchrProc 内部能读取最新 vouchers
 const vchrProc = useVchrProc(toRef(vchr, 'vouchers'), vchr.fetchVouchers)
-// VchrForm 需要 ref-like 的 voucherFormRef（{ value: FormInstance | undefined }），
+// VoucherForm 需要 ref-like 的 voucherFormRef（{ value: FormInstance | undefined }），
 // reactive 会自动解包 ref，top-level ref 在模板中也会被解包，
 // 因此用 getter/setter 对象代理访问，避免被 vue-tsc 自动解包
 const voucherFormRefObj: { value: FormInstance | undefined } = {

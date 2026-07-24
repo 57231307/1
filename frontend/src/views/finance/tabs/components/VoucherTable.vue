@@ -1,5 +1,5 @@
 <!--
-  VchrTbl.vue - 凭证列表表格
+  VoucherTable.vue - 凭证列表表格
   拆分自 VoucherTab.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->

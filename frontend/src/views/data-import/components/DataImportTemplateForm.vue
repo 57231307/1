@@ -1,5 +1,5 @@
 <!--
-  DiTplForm.vue - 数据导入模板新建/编辑对话框
+  DataImportTemplateForm.vue - 数据导入模板新建/编辑对话框
   拆分自 data-import/index.vue（P14 批 2 I-3 第 5 批）
   P9-3 批次 F Pattern A 重构：本地 reactive 镜像 + watch 同步 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
@@ -105,10 +105,10 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import type { DiTplForm } from '../composables/useDiProc'
+import type { DataImportTemplateFormData } from '../composables/useDiProc'
 
 // 表单默认值
-const DEFAULT_FORM: DiTplForm = {
+const DEFAULT_FORM: DataImportTemplateFormData = {
   id: undefined,
   template_code: '',
   template_name: '',
@@ -127,7 +127,7 @@ const props = defineProps<{
   // 可见性
   visible: boolean
   // 表单数据（由父组件管理，子组件通过 emit('update:form') 整体回写）
-  form?: DiTplForm
+  form?: DataImportTemplateFormData
   // 验证规则
   rules: FormRules
   // 提交加载
@@ -139,7 +139,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:visible': [v: boolean]
   // 整体回写表单数据（父组件监听后 Object.assign 到自己的 form）
-  'update:form': [form: DiTplForm]
+  'update:form': [form: DataImportTemplateFormData]
   'update:columns-text': [v: string]
   submit: []
 }>()
@@ -148,7 +148,7 @@ const emit = defineEmits<{
 const formRef = ref<FormInstance>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = reactive<DiTplForm>({
+const localForm = reactive<DataImportTemplateFormData>({
   ...(props.form ?? DEFAULT_FORM),
 })
 

@@ -1,5 +1,5 @@
 <!--
-  DiTplTbl.vue - 数据导入模板列表 + 过滤栏
+  DataImportTemplateTable.vue - 数据导入模板列表 + 过滤栏
   拆分自 data-import/index.vue（P14 批 2 I-3 第 5 批）
   批次 289：改造为 localQuery + handleSearch 模式，接入 useTableApi queryParams
   行为完全保持一致（仅结构重构）
