@@ -1,15 +1,19 @@
+<!--
+  quality-standards/index.vue - 质量标准管理
+  D05 Batch 5：接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts
+-->
 <template>
   <div class="quality-standards-page">
     <div class="page-header">
-      <h2 class="page-title">质量标准管理</h2>
+      <h2 class="page-title">{{ $t('qualityStandards.title') }}</h2>
       <div class="header-actions">
         <el-button type="primary" @click="openDialog()">
           <el-icon><Plus /></el-icon>
-          新建标准
+          {{ $t('qualityStandards.create') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ $t('qualityStandards.export') }}
         </el-button>
       </div>
     </div>
@@ -18,63 +22,63 @@
       <div class="filter-container">
         <el-input
           v-model="listQuery.keyword"
-          placeholder="搜索标准编号/名称"
+          :placeholder="$t('qualityStandards.filter.keywordPlaceholder')"
           style="width: 200px"
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"
         />
-        <el-select v-model="listQuery.status" placeholder="状态" clearable style="width: 120px">
-          <el-option label="草稿" value="draft" />
-          <el-option label="已审批" value="approved" />
-          <el-option label="已发布" value="published" />
-          <el-option label="已归档" value="archived" />
+        <el-select v-model="listQuery.status" :placeholder="$t('qualityStandards.filter.statusPlaceholder')" clearable style="width: 120px">
+          <el-option :label="$t('qualityStandards.status.draft')" value="draft" />
+          <el-option :label="$t('qualityStandards.status.approved')" value="approved" />
+          <el-option :label="$t('qualityStandards.status.published')" value="published" />
+          <el-option :label="$t('qualityStandards.status.archived')" value="archived" />
         </el-select>
-        <el-select v-model="listQuery.type" placeholder="类型" clearable style="width: 120px">
-          <el-option label="产品标准" value="product" />
-          <el-option label="工艺标准" value="process" />
-          <el-option label="安全标准" value="safety" />
-          <el-option label="环保标准" value="environmental" />
+        <el-select v-model="listQuery.type" :placeholder="$t('qualityStandards.filter.typePlaceholder')" clearable style="width: 120px">
+          <el-option :label="$t('qualityStandards.type.product')" value="product" />
+          <el-option :label="$t('qualityStandards.type.process')" value="process" />
+          <el-option :label="$t('qualityStandards.type.safety')" value="safety" />
+          <el-option :label="$t('qualityStandards.type.environmental')" value="environmental" />
         </el-select>
         <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
-          搜索
+          {{ $t('qualityStandards.filter.search') }}
         </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" stripe aria-label="质量标准列表">
-        <el-table-column prop="standard_code" label="标准编号" width="140" />
-        <el-table-column prop="standard_name" label="标准名称" min-width="180" />
-        <el-table-column prop="type" label="类型" width="100">
+      <el-table v-loading="loading" :data="list" stripe :aria-label="$t('qualityStandards.table.ariaLabel')">
+        <el-table-column prop="standard_code" :label="$t('qualityStandards.table.standardCode')" width="140" />
+        <el-table-column prop="standard_name" :label="$t('qualityStandards.table.standardName')" min-width="180" />
+        <el-table-column prop="type" :label="$t('qualityStandards.table.type')" width="100">
           <template #default="{ row }">
-            {{ typeMap[row.type] }}
+            {{ getTypeLabel(row.type) }}
           </template>
         </el-table-column>
-        <el-table-column prop="version" label="版本" width="80" />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="version" :label="$t('qualityStandards.table.version')" width="80" />
+        <el-table-column prop="status" :label="$t('qualityStandards.table.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTypeMap[row.status]" size="small">
-              {{ statusMap[row.status] }}
+              {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column prop="approved_by_name" label="审批人" width="100">
+        <el-table-column prop="created_by_name" :label="$t('qualityStandards.table.createdBy')" width="100" />
+        <el-table-column prop="approved_by_name" :label="$t('qualityStandards.table.approvedBy')" width="100">
           <template #default="{ row }">
             {{ row.approved_by_name || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column prop="created_at" :label="$t('qualityStandards.table.createdAt')" width="160" />
+        <el-table-column :label="$t('qualityStandards.table.operation')" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
+            <el-button type="primary" link size="small" @click="openDialog(row)">{{ $t('qualityStandards.table.edit') }}</el-button>
             <el-button
               v-if="row.status === 'draft'"
               type="success"
               link
               size="small"
               @click="handleApprove(row)"
-              >审批</el-button
+              >{{ $t('qualityStandards.table.approve') }}</el-button
             >
             <el-button
               v-if="row.status === 'approved'"
@@ -82,7 +86,7 @@
               link
               size="small"
               @click="handlePublish(row)"
-              >发布</el-button
+              >{{ $t('qualityStandards.table.publish') }}</el-button
             >
             <el-button
               v-if="row.status === 'published'"
@@ -90,7 +94,7 @@
               link
               size="small"
               @click="handleArchive(row)"
-              >归档</el-button
+              >{{ $t('qualityStandards.table.archive') }}</el-button
             >
             <el-button
               v-if="row.status === 'draft'"
@@ -98,7 +102,7 @@
               link
               size="small"
               @click="handleDelete(row)"
-              >删除</el-button
+              >{{ $t('qualityStandards.table.delete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -111,55 +115,55 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          :aria-label="$t('qualityStandards.table.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
-          aria-label="质量标准列表分页"
         />
       </div>
     </el-card>
 
     <el-dialog
       v-model="dialogVisible"
-      :title="form.id ? '编辑标准' : '新建标准'"
+      :title="form.id ? $t('qualityStandards.dialog.editTitle') : $t('qualityStandards.dialog.createTitle')"
       width="700px"
-      :aria-label="form.id ? '编辑标准对话框' : '新建标准对话框'"
+      :aria-label="form.id ? $t('qualityStandards.dialog.editAriaLabel') : $t('qualityStandards.dialog.createAriaLabel')"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="质量标准表单">
-        <el-form-item label="标准编号" prop="standard_code">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('qualityStandards.dialog.formAriaLabel')">
+        <el-form-item :label="$t('qualityStandards.dialog.standardCode')" prop="standard_code">
           <el-input
             v-model="form.standard_code"
             :disabled="!!form.id"
-            placeholder="请输入标准编号"
+            :placeholder="$t('qualityStandards.dialog.standardCodePlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="标准名称" prop="standard_name">
-          <el-input v-model="form.standard_name" placeholder="请输入标准名称" />
+        <el-form-item :label="$t('qualityStandards.dialog.standardName')" prop="standard_name">
+          <el-input v-model="form.standard_name" :placeholder="$t('qualityStandards.dialog.standardNamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="类型" prop="type">
-          <el-select v-model="form.type" placeholder="请选择类型" style="width: 100%">
-            <el-option label="产品标准" value="product" />
-            <el-option label="工艺标准" value="process" />
-            <el-option label="安全标准" value="safety" />
-            <el-option label="环保标准" value="environmental" />
+        <el-form-item :label="$t('qualityStandards.dialog.type')" prop="type">
+          <el-select v-model="form.type" :placeholder="$t('qualityStandards.dialog.typePlaceholder')" style="width: 100%">
+            <el-option :label="$t('qualityStandards.type.product')" value="product" />
+            <el-option :label="$t('qualityStandards.type.process')" value="process" />
+            <el-option :label="$t('qualityStandards.type.safety')" value="safety" />
+            <el-option :label="$t('qualityStandards.type.environmental')" value="environmental" />
           </el-select>
         </el-form-item>
-        <el-form-item label="版本" prop="version">
-          <el-input v-model="form.version" placeholder="例如：1.0" />
+        <el-form-item :label="$t('qualityStandards.dialog.version')" prop="version">
+          <el-input v-model="form.version" :placeholder="$t('qualityStandards.dialog.versionPlaceholder')" />
         </el-form-item>
-        <el-form-item label="标准内容" prop="content">
-          <el-input v-model="form.content" type="textarea" :rows="6" placeholder="请输入标准内容" />
+        <el-form-item :label="$t('qualityStandards.dialog.content')" prop="content">
+          <el-input v-model="form.content" type="textarea" :rows="6" :placeholder="$t('qualityStandards.dialog.contentPlaceholder')" />
         </el-form-item>
-        <el-form-item label="附件" prop="attachments">
+        <el-form-item :label="$t('qualityStandards.dialog.attachments')" prop="attachments">
           <el-input
             v-model="attachmentsText"
             type="textarea"
-            placeholder='JSON格式数组，例如：["附件1.pdf", "附件2.docx"]'
+            :placeholder="$t('qualityStandards.dialog.attachmentsPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('qualityStandards.dialog.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('qualityStandards.dialog.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -167,6 +171,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download, Search } from '@element-plus/icons-vue'
 import {
@@ -182,6 +187,8 @@ import {
 // 后端 GET /quality-standards/export 已就绪（含异步审计日志 + 水印）
 import { exportFromBackend } from '@/utils/export'
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 批次 277：listQuery 仅保留筛选字段，page/page_size 交给 useTableApi 管理
 const listQuery = reactive({
@@ -206,7 +213,7 @@ const {
   url: '/quality-standards',
   onError: (err: unknown) =>
     // 批次 98 P2-D 修复（v5 复审）：unknown 类型守卫
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取数据失败'),
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('qualityStandards.message.loadFailed')),
 })
 
 // 批次 277：同步 listQuery 筛选条件到 useTableApi.queryParams
@@ -233,18 +240,25 @@ const handleSizeChange = (s: number) => {
   page.value = 1
 }
 
-const typeMap: Record<string, string> = {
-  product: '产品标准',
-  process: '工艺标准',
-  safety: '安全标准',
-  environmental: '环保标准',
+// D05 Batch 5：typeMap/statusMap 改为函数，使 t() 在每次渲染时响应式求值
+const getTypeLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    product: t('qualityStandards.type.product'),
+    process: t('qualityStandards.type.process'),
+    safety: t('qualityStandards.type.safety'),
+    environmental: t('qualityStandards.type.environmental'),
+  }
+  return labels[type] || type
 }
 
-const statusMap: Record<string, string> = {
-  draft: '草稿',
-  approved: '已审批',
-  published: '已发布',
-  archived: '已归档',
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    draft: t('qualityStandards.status.draft'),
+    approved: t('qualityStandards.status.approved'),
+    published: t('qualityStandards.status.published'),
+    archived: t('qualityStandards.status.archived'),
+  }
+  return labels[status] || status
 }
 
 const statusTypeMap: Record<string, string> = {
@@ -269,11 +283,11 @@ const form = reactive<Partial<QualityStandard>>({
 })
 
 const rules: FormRules = {
-  standard_code: [{ required: true, message: '请输入标准编号', trigger: 'blur' }],
-  standard_name: [{ required: true, message: '请输入标准名称', trigger: 'blur' }],
-  type: [{ required: true, message: '请选择类型', trigger: 'change' }],
-  version: [{ required: true, message: '请输入版本号', trigger: 'blur' }],
-  content: [{ required: true, message: '请输入标准内容', trigger: 'blur' }],
+  standard_code: [{ required: true, message: t('qualityStandards.validation.standardCodeRequired'), trigger: 'blur' }],
+  standard_name: [{ required: true, message: t('qualityStandards.validation.standardNameRequired'), trigger: 'blur' }],
+  type: [{ required: true, message: t('qualityStandards.validation.typeRequired'), trigger: 'change' }],
+  version: [{ required: true, message: t('qualityStandards.validation.versionRequired'), trigger: 'blur' }],
+  content: [{ required: true, message: t('qualityStandards.validation.contentRequired'), trigger: 'blur' }],
 }
 
 const openDialog = (row?: QualityStandard) => {
@@ -306,7 +320,7 @@ const handleSubmit = async () => {
         try {
           form.attachments = JSON.parse(attachmentsText.value)
         } catch (e) {
-          ElMessage.error('附件格式错误，请检查JSON格式')
+          ElMessage.error(t('qualityStandards.message.attachmentsFormatError'))
           return
         }
       }
@@ -315,12 +329,12 @@ const handleSubmit = async () => {
       } else {
         await createQualityStandard(form)
       }
-      ElMessage.success('操作成功')
+      ElMessage.success(t('qualityStandards.message.operationSuccess'))
       dialogVisible.value = false
       fetchData()
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -329,51 +343,51 @@ const handleSubmit = async () => {
 
 const handleDelete = async (row: QualityStandard) => {
   try {
-    await ElMessageBox.confirm('确定要删除此标准吗？', '确认删除', { type: 'warning' })
+    await ElMessageBox.confirm(t('qualityStandards.message.deleteConfirm'), t('qualityStandards.message.deleteConfirmTitle'), { type: 'warning' })
     await deleteQualityStandard(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('qualityStandards.message.deleteSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.deleteFailed'))
   }
 }
 
 const handleApprove = async (row: QualityStandard) => {
   try {
-    await ElMessageBox.confirm('确定要审批通过此标准吗？', '确认审批', { type: 'warning' })
+    await ElMessageBox.confirm(t('qualityStandards.message.approveConfirm'), t('qualityStandards.message.approveConfirmTitle'), { type: 'warning' })
     await approveQualityStandard(row.id)
-    ElMessage.success('审批成功')
+    ElMessage.success(t('qualityStandards.message.approveSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '审批失败')
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.approveFailed'))
   }
 }
 
 const handlePublish = async (row: QualityStandard) => {
   try {
-    await ElMessageBox.confirm('确定要发布此标准吗？发布后将无法编辑。', '确认发布', {
+    await ElMessageBox.confirm(t('qualityStandards.message.publishConfirm'), t('qualityStandards.message.publishConfirmTitle'), {
       type: 'warning',
     })
     await publishQualityStandard(row.id)
-    ElMessage.success('发布成功')
+    ElMessage.success(t('qualityStandards.message.publishSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '发布失败')
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.publishFailed'))
   }
 }
 
 const handleArchive = async (row: QualityStandard) => {
   try {
-    await ElMessageBox.confirm('确定要归档此标准吗？', '确认归档', { type: 'warning' })
+    await ElMessageBox.confirm(t('qualityStandards.message.archiveConfirm'), t('qualityStandards.message.archiveConfirmTitle'), { type: 'warning' })
     await archiveQualityStandard(row.id)
-    ElMessage.success('归档成功')
+    ElMessage.success(t('qualityStandards.message.archiveSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '归档失败')
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.archiveFailed'))
   }
 }
 
