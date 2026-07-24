@@ -240,7 +240,8 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - Batch 2：✅ 已完成（#706 main eb4fdb2）采购/销售/库存 9 API 定义文件 13 处重命名 + 5 caller 文件（purchase-contract/purchase-price/purchaseReceipt/sales-contract/sales-price/inventoryAdjustment/inventoryTransfer/inventoryBatch/inventoryCount）
   - Batch 3：✅ 已完成（#708 main 8b407e8）生产/质量 3 API 定义文件 5 处重命名 + 4 caller 文件（quality-standards/quality/production）
   - Batch 4：✅ 已完成（#710 main 3629977）CRM/客户/供应商/贸易 23 文件 41 处（12 API 定义文件 29 处重命名 + 11 caller 文件）
-  - Batch 5a/5b：系统/权限/基础/报表/其他 40 文件（拆 2 子批，进行中）
+  - Batch 5a：✅ 已完成（#712 main 5d1c33b）系统/权限/基础/报表/其他风格 B 58 文件 117 处（28 API 定义文件 48 处重命名 + 28 caller 文件，CI 修复 1 轮 data-permission.ts URL 插值）
+  - Batch 5b：风格 A object→风格 B 转换（23 文件，待执行）
 
 ---
 
