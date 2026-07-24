@@ -104,7 +104,7 @@ import { logger } from '@/utils/logger'
 import { escapeHtml } from '@/utils/print'
 // V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
 // 后端 GET /quality-standards/export 已就绪（含异步审计日志 + 水印）
-// 本 Tab 复用主质量标准页面的后端端点（listQualityStandards 调用同一 /quality-standards 路由）
+// 本 Tab 复用主质量标准页面的后端端点（getQualityStandardList 调用同一 /quality-standards 路由）
 import { exportFromBackend } from '@/utils/export'
 
 const emit = defineEmits<{
@@ -142,8 +142,8 @@ const getStatusType = (status: string) => {
 const fetchStandards = async () => {
   loading.value = true
   try {
-    const { listQualityStandards } = await import('@/api/quality')
-    const res = await listQualityStandards()
+    const { getQualityStandardList } = await import('@/api/quality')
+    const res = await getQualityStandardList()
     standards.value = (res.data as QualityStandard[] | undefined) || []
   } catch (error) {
     const err = error as Error

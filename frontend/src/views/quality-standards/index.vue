@@ -192,7 +192,7 @@ const listQuery = reactive({
 
 // 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
-// listQualityStandards 返回 ApiResponse<QualityStandard[]>（{ data: T[], total: number }），
+// getQualityStandardList 返回 ApiResponse<QualityStandard[]>（{ data: T[], total: number }），
 // useTableApi detectList 支持 data 字段、detectTotal 支持 res 外层 total，已兼容
 const {
   data: list,

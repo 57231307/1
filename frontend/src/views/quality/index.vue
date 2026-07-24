@@ -202,16 +202,16 @@ import StandardTab from './tabs/StandardTab.vue'
 import RecordTab from './tabs/RecordTab.vue'
 import DefectTab from './tabs/DefectTab.vue'
 import {
-  listQualityStandards,
+  getQualityStandardList,
   createQualityStandard,
   updateQualityStandard,
   approveQualityStandard,
   rejectQualityStandard,
-  listQualityRecords,
+  getQualityRecordList,
   createQualityRecord,
   // 批次 94 P2-12 修复：补全 updateQualityRecord 用于实现更新功能
   updateQualityRecord,
-  listDefects,
+  getDefectList,
   getQualityStandardVersions,
   type QualityStandard,
   type QualityRecord,
@@ -239,7 +239,7 @@ const fetchStandards = async () => {
   standardLoading.value = true
   try {
     // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
-    const res = await listQualityStandards()
+    const res = await getQualityStandardList()
     // 安全检查：防止后端返回 data 为 null 时崩溃
     standards.value = res.data || []
   } finally {
@@ -251,7 +251,7 @@ const fetchRecords = async () => {
   recordLoading.value = true
   try {
     // v11 批次 161 P2-5 修复：后端返回 PaginatedResponse（items + total）
-    const res = await listQualityRecords({ page: 1, page_size: 10 })
+    const res = await getQualityRecordList({ page: 1, page_size: 10 })
     const data = res.data
     records.value = data?.items || []
   } finally {
@@ -263,7 +263,7 @@ const fetchDefects = async () => {
   defectLoading.value = true
   try {
     // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
-    const res = await listDefects()
+    const res = await getDefectList()
     // 安全检查：防止后端返回 data 为 null 时崩溃
     defects.value = res.data || []
   } finally {
