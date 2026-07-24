@@ -22,8 +22,7 @@
 
 use crate::models::{purchase_receipt, purchase_receipt_item, status};
 use crate::services::purchase_receipt_dto::{
-    CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
-    UpdateReceiptItemRequest,
+    CreatePurchaseReceiptRequest, CreateReceiptItemRequest,
 };
 use rust_decimal::Decimal;
 use sea_orm::{DatabaseConnection, Set};
@@ -154,6 +153,9 @@ impl PurchaseReceiptService {
 mod tests {
     use super::*;
     use crate::services::test_common::setup_test_db;
+    use crate::services::purchase_receipt_dto::{
+        UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
+    };
     use crate::decs;
     use crate::ymd;
     use sea_orm::DatabaseConnection;

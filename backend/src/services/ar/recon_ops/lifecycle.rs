@@ -17,7 +17,7 @@ use crate::models::ar_reconciliation::{
 use crate::models::status::ar as ar_status;
 use crate::utils::error::AppError;
 
-use super::super::{ArReconciliationService, ReconciliationModel};
+use super::super::ArReconciliationService;
 
 impl ArReconciliationService {
     /// 删除对账单
