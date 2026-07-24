@@ -51,7 +51,7 @@ export function useSc() {
     },
   })
 
-  // 日期范围（ScFilter 通过 date-change emit 回传，保留特殊处理）
+  // 日期范围（SalesContractFilter 通过 date-change emit 回传，保留特殊处理）
   const dateRange = ref<[Date, Date] | null>(null)
 
   // 客户列表

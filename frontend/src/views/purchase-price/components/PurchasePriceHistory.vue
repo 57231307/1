@@ -1,6 +1,6 @@
 <!--
-  SpHistory.vue - 销售价格历史记录对话框
-  拆分自 sales-price/index.vue（P14 批 2 I-3 第 3 批）
+  PurchasePriceHistory.vue - 采购价格历史记录对话框
+  拆分自 purchase-price/index.vue（P14 批 2 I-3 第 3 批）
   行为完全保持一致（仅结构重构）
 -->
 <template>
@@ -8,11 +8,11 @@
     :model-value="visible"
     title="价格历史"
     width="800px"
-    aria-label="价格历史对话框"
+    aria-label="采购价格历史对话框"
     @update:model-value="onVisibleChange"
   >
-    <el-table :data="historyList" border stripe aria-label="销售价格历史记录">
-      <el-table-column prop="price" label="销售价格" width="120" align="right">
+    <el-table :data="historyList" border stripe aria-label="采购价格历史记录列表">
+      <el-table-column prop="price" label="采购价格" width="120" align="right">
         <template #default="{ row }">
           {{ formatCurrency(row.price) }}
         </template>
@@ -30,17 +30,17 @@
 </template>
 
 <script setup lang="ts">
-import type { SalesPrice } from '@/api/sales-price'
-import { formatCurrency, getStatusType, getStatusLabel } from '../composables/spFmts'
+import type { PurchasePrice } from '@/api/purchase-price'
+import { formatCurrency, getStatusType, getStatusLabel } from '../composables/ppFmts'
 
 /**
- * 销售价格历史记录对话框组件
+ * 采购价格历史记录对话框组件
  */
 defineProps<{
   // 对话框可见性
   visible: boolean
   // 历史记录列表
-  historyList: SalesPrice[]
+  historyList: PurchasePrice[]
 }>()
 
 const emit = defineEmits<{

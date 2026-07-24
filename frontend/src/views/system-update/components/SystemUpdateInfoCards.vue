@@ -1,5 +1,5 @@
 <!--
-  SuInfoCards.vue - 系统更新顶部信息卡
+  SystemUpdateInfoCards.vue - 系统更新顶部信息卡
   拆分自 system-update/index.vue（P14 批 2 I-3 第 1 批）
   行为完全保持一致（仅结构重构）
 -->

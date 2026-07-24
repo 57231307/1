@@ -1,5 +1,5 @@
 <!--
-  PpFilter.vue - 采购价格过滤栏
+  PurchasePriceFilter.vue - 采购价格过滤栏
   拆分自 purchase-price/index.vue（P14 批 2 I-3 第 3 批）
   批次 285：接入 useTableApi 模式（localQuery + handleSearch/handleReset）
 -->

@@ -1,5 +1,5 @@
 <!--
-  ScForm.vue - 销售合同新建/编辑对话框
+  SalesContractForm.vue - 销售合同新建/编辑对话框
   拆分自 sales-contract/index.vue（P14 批 2 I-3 第 1 批）
   行为完全保持一致（仅结构重构）
   P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环

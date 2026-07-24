@@ -1,5 +1,5 @@
 <!--
-  ScTbl.vue - 销售合同列表表格
+  SalesContractTable.vue - 销售合同列表表格
   拆分自 sales-contract/index.vue（P14 批 2 I-3 第 1 批）
   批次 284：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
   本次迁移：el-table + el-pagination → V2Table 虚拟滚动表格
