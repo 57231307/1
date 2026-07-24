@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-22（按规则 10 深度整理归档：模块 A-F 已完成项归档到 [archives/2026-07-22/doto-historical-tasks.md](file:///workspace/.monkeycode/docs/archives/2026-07-22/doto-historical-tasks.md)；§三批次规划表 + §七历史任务阶段归档；仅保留模块 G 未完成项 + P1/P2/P3 规划 + 规则节点提醒）
+> 最近整理：2026-07-24（D05 Batch 5 已合并 PR #729；核实 i18n 接入现状：20 文件含 useI18n，10 完整接入 + 10 部分接入；发现 UserTab.vue 命名空间 BUG；D05 状态由 ❌ 未开始更正为 ⏳ 进行中）
 
 ---
 
@@ -10,17 +10,17 @@
 
 > 本节为快速索引，按 4 个维度归类；详细条目见 §三，依赖关系见 §二。
 
-### 0.1 按状态归类（16 ✅ / 0 ⏳ / 1 ❌）
+### 0.1 按状态归类（16 ✅ / 1 ⏳ / 0 ❌）
 
 | 状态 | 数量 | 任务编号 |
 |------|------|----------|
 | ✅ 已完成 | 16 | D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17 |
-| ⏳ 进行中 | 0 | — |
-| ❌ 未开始 | 1 | D05（useI18n） |
+| ⏳ 进行中 | 1 | D05（useI18n，Batch 1-5 已完成，Batch 6 待启动） |
+| ❌ 未开始 | 0 | — |
 
-### 0.6 核实结果汇总（2026-07-23 核实）
+### 0.6 核实结果汇总（2026-07-24 复核）
 
-> 本次对 4 项未完成任务（D10/D05/D13/D14）进行代码级核实，发现 doto.md 的 2026-07-19 审计数据存在偏差，详见下表。各任务条目已补充"核实"行记录差异。
+> 2026-07-23 对 D10/D05/D13/D14 进行代码级核实发现 doto.md 的 2026-07-19 审计数据存在偏差；2026-07-24 复核 D05 i18n 接入现状进一步发现 9 个"部分接入"文件未记录。
 
 | 任务 | doto 记录 | 实际核实 | 偏差 | 影响 |
 |------|-----------|----------|------|------|
@@ -28,8 +28,9 @@
 | **D10** | 第 4/5 批 8 文件行数基准 | 6 文件行数逆生长 | 基准失效 | wage +114 / ap_invoice +99 / ap_recon +103 / init +60 / ar/vfy +48 / flow_card +14 |
 | **D10** | 第 6 批 11 个文件 | 实际 15 个文件 | doto 少 4 | 含 ar_ops/verification.rs（D10-1 拆分副产物，1062 行） |
 | **D10** | 隐含未完成 21 个 | 实际 >1000 行 23 个 | doto 少 2 | 净差 +2（第 3 批 -2 + 第 6 批 +4） |
-| **D05** | AssetListTab.vue 864 行 | 实际 609 行 | doto 高估 255 行 | 单文件最大值记录失效，Top 20 排名可能已变 |
-| **D05** | 其他数据全部一致 | ✅ 一致 | 无 | 接入率 3.1%（11/355）、未接入 344、zh-CN.ts 467 行 15 模块均准确 |
+| **D05** | AssetListTab.vue 864 行 | 实际 609 行（864 为中文字符数非行数） | doto 单位混淆 | 单文件最大值记录口径修正为"中文字符数" |
+| **D05** | 11 已接入 / 344 未接入 / 3.1% | 实际 20 文件含 useI18n：10 完整 + 10 部分接入 / 335 未接入 | doto 漏记 9 个部分接入文件 | 接入率口径需细分（完整 2.8% / 含部分 5.6%）；9 个部分接入文件需补全 |
+| **D05** | UserTab.vue 已接入 | 实际存在命名空间 BUG：locales 定义 `settings.user.*`，代码调用 `system.user.*` | 命名空间不匹配 | t() 调用回退显示键名，需修复（L277/287/303） |
 | **D13** | 123 个缩写文件 | 实际 111 个（25 类前缀）/ 121 个（27 类前缀） | doto 多 12/2 | 严格 25 类前缀口径 111 个；含 Ar + advanced(Rcp/Qlt/Rpt/Ai) 口径 121 个 |
 | **D13** | 25 类缩写前缀 | 实际 27 类 | doto 少 2 类 | 补 Ar + Rcp/Qlt/Rpt/Ai |
 | **D13** | 第 7 批 purchase (6) | 实际 purchase (3) | doto 多 3 | 其余 4 个为描述性短名非缩写 |
@@ -64,7 +65,7 @@
 | 第 2 顺位 | D10 1000 行文件 | ✅ 已完成 | D08 完成后立即推进，6 批 34 文件全部完成 |
 | 第 3 顺位 | D14 api 命名统一 | ✅ 已完成 | 与 D05/D13 解耦，D10 完成后推进 |
 | 第 4 顺位 | D13 前端缩写命名 | ✅ 已完成 | D14 完成后推进；Batch 1-7 全部完成（PR #716/#717/#718/#719/#720/#721/#722） |
-| 第 5 顺位 | D05 useI18n | ❌ 未开始 | D13/D14 完成后最后推进 |
+| 第 5 顺位 | D05 useI18n | ⏳ 进行中 | D13/D14 完成后推进；Batch 1-5 已完成（PR #724/#725/#727/#729），Batch 6 待启动 |
 
 ### 0.5 文档章节归类
 
@@ -91,9 +92,9 @@
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
 | **合计** | **732** | **104** | **628** | **14.2%** |
 
-### 1.2 状态：⏳ D05 进行中（Batch 1-3 已完成，Batch 4 待启动）→ 按模块横向切片推进
+### 1.2 状态：⏳ D05 进行中（Batch 1-5 已完成，Batch 6 待启动）→ 按模块横向切片推进
 
-- **当前批次**：Batch 490 进行中 —— D05 useI18n 接入（第 5 顺位，D13/D14 完成后最后推进，预估 30-36 子批次，344 文件未接入）
+- **当前批次**：Batch 490 进行中 —— D05 useI18n 接入（第 5 顺位，D13/D14 完成后最后推进，预估 30-36 子批次；Batch 1-5 已完成 10 文件完整接入，Batch 6 待启动）
 - **上一批次**：Batch 489 ✅ 已完成 —— D13 前端缩写命名统一（Batch 1-7 全部完成 PR #716/#717/#718/#719/#720/#721/#722，121 文件已重命名 + 43 caller 文件更新）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证
 
@@ -119,7 +120,7 @@
 P0-D01 ✅ Docker 文件 (S)        ← 独立（审计误判）
 P0-D02 ✅ install.sh (S)         ← 独立（审计误判）
 P0-D03 ✅ 5 service 缓存 (L)    ──→ P0-D04 ✅ moka→Redis (L)
-P0-D05 ⏳ useI18n (XL)          ← 独立（建议 D13/D14 后推进）
+P0-D05 ⏳ useI18n (XL)          ← 独立（D13/D14 已完成；Batch 1-5 已完成 PR #724/#725/#727/#729，Batch 6 待启动）
 P0-D06 ✅ aria-label (XL)        ← 独立（55 子批次 ~225 文件）
 P0-D07 ✅ img alt (S)            ← 独立（审计误判）
 P0-D08 ✅ 超长函数 (XL)          ──→ P0-D09 ✅ 100 行函数 (L) ──→ P0-D10 ✅ 1000 行文件 (L)
@@ -140,27 +141,33 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 
 > 模块 A-F 共 39 项 P0 任务已全部完成，详见 [archives/2026-07-22/doto-historical-tasks.md](file:///workspace/.monkeycode/docs/archives/2026-07-22/doto-historical-tasks.md)。
 
-### 3.1 P0-D05 useI18n 接入率仅 3.1%（类七，XL，进行中）
+### 3.1 P0-D05 useI18n 接入（类七，XL，⏳ 进行中）
 
 - **来源**：batch-07 P0-07-5
-- **证据**：2026-07-19 精确审计：实际 355 个 .vue 文件，已接入 11 个（接入率 3.1%），未接入 344 个；locales/zh-CN.ts 467 行 15 模块 332 键，预估需扩容至 5000+ 键；Top 20 硬编码密集文件累计 10746 行中文，单文件最大 fixed-assets/tabs/AssetListTab.vue 864 行
-- **核实（2026-07-23）**：✅ 数据高度准确。355 文件 / 11 已接入 / 344 未接入 / 3.1% 接入率 / zh-CN.ts 467 行 15 模块均与 doto 一致；en-US.ts 467 行与 zh-CN.ts 对齐（双语同步良好）。❌ 唯一差异：AssetListTab.vue 实际 609 行（doto 记录 864 行，高估 255 行），单文件最大值记录失效，Top 20 排名可能已变化，推进前需重新扫描
-- **重新扫描（2026-07-24 D05 启动）**：✅ 355 文件 / 11 已接入 / 344 未接入（与 2026-07-23 核实一致）。Top 20 硬编码密集文件按**中文字符数**排名（非行数）：1. AssetListTab.vue 864 字符（609 行）2. print-templates/index.vue 785 字符（525 行）3. bpm/index.vue 716 字符（626 行）4. report-templates/index.vue 706 字符 5. quality/index.vue 691 字符 6. crm/tabs/CustomerListTab.vue 680 字符 7. system/audit-log/index.vue 669 字符 8. quality-standards/index.vue 648 字符 9. crm/leads/index.vue 641 字符 10. inventory/index.vue 626 字符 11. crm/opportunities/index.vue 619 字符 12. Setup.vue 605 字符（457 行）13. dye-recipe/index.vue 595 字符 14. Login.vue 566 字符（336 行，部分已接入）15. warehouse/index.vue 546 字符 16. supplier/SupplierDialog.vue 523 字符 17. crm/detail.vue 508 字符 18. email/index.vue 486 字符 19. dye-batch/index.vue 483 字符 20. color-cards/issues.vue 477 字符
-- **修复方案**：355 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts 同步；按业务模块横向切片，每批 10-12 文件，预估需 30-36 批次
+- **证据（2026-07-24 复核）**：355 个 .vue 文件；20 个文件含 useI18n（10 完整接入 + 10 部分接入），335 个未接入；完整接入率 2.8%，含部分接入率 5.6%；locales/zh-CN.ts ~1500 行 ~25 模块命名空间，en-US.ts 双语同步
+- **接入率口径细分**：
+  - **完整接入（10 个）**：所有用户可见中文（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）已替换为 `$t`/`t()`，locales 命名空间完整 —— D05 Batch 1-5 完成的 10 文件
+  - **部分接入（10 个）**：已 `import { useI18n }` + `const { t } = useI18n(...)`，但仅替换了部分 ElMessage/ElMessageBox 提示，模板文案/表格列 label/表单 label/状态标签映射等仍硬编码；locales 命名空间不完整 —— Login.vue + ai-extend(4) + budget + cost + inventoryTransfer(3) + system/tabs/UserTab.vue
+  - **未接入（335 个）**：完全未引入 useI18n
+- **UserTab.vue 命名空间 BUG（2026-07-24 发现）**：locales 定义 `settings.user.*`，代码调用 `system.user.*`（L277/287/303），命名空间前缀不匹配导致 t() 回退显示键名，需修复
+- **Top 20 硬编码密集文件（2026-07-24 重新扫描，按中文字符数排名）**：1. AssetListTab.vue 864 字符（609 行）2. print-templates/index.vue 785 字符（525 行）3. bpm/index.vue 716 字符（626 行）4. report-templates/index.vue 706 字符 5. quality/index.vue 691 字符 6. crm/tabs/CustomerListTab.vue 680 字符 7. system/audit-log/index.vue 669 字符 8. quality-standards/index.vue 648 字符 9. crm/leads/index.vue 641 字符 10. inventory/index.vue 626 字符 11. crm/opportunities/index.vue 619 字符 12. Setup.vue 605 字符（457 行）13. dye-recipe/index.vue 595 字符 14. Login.vue 566 字符（336 行，部分已接入）15. warehouse/index.vue 546 字符 16. supplier/SupplierDialog.vue 523 字符 17. crm/detail.vue 508 字符 18. email/index.vue 486 字符 19. dye-batch/index.vue 483 字符 20. color-cards/issues.vue 477 字符
+- **修复方案**：355 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts 同步；按业务模块横向切片，每批 10-12 文件，预估需 30-36 批次；10 个部分接入文件需补全模板接入
 - **关联文件**：[frontend/src/views/](file:///workspace/frontend/src/views/) + [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts) + [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)
 - **依赖**：建议在 D13/D14 完成后推进（避免同时修改 .vue 文件造成冲突）✅ D13/D14 已完成
 - **工作量**：XL（5 项中最大）
 - **批次**：490（D05 独立批次；预估 30-36 子批次，每批 10-12 文件）
 - **执行优先级**：第 5 顺位（最后推进，D13/D14 完成后启动）
-- **当前进度**：⏳ 进行中 —— Batch 1-5 已完成（AssetListTab.vue + print-templates/index.vue + bpm/index.vue + report-templates/index.vue + quality/index.vue + CustomerListTab.vue + audit-log/index.vue + quality-standards/index.vue + crm/leads/index.vue），Batch 6 待启动
-- **i18n 接入模式**：模板用 `$t('key')`，script 用 `const { t } = useI18n({ useScope: 'global' })`；命名空间 `{module}.{section}.{key}`
+- **当前进度**：⏳ 进行中 —— Batch 1-5 已完成（10 文件完整接入，详见 [doto-su.md §D05](file:///workspace/.monkeycode/doto-su.md)），Batch 6 待启动
+- **i18n 接入模式**：模板用 `$t('key')`，script 用 `const { t } = useI18n({ useScope: 'global' })`；命名空间 `{module}.{section}.{key}`；状态标签映射函数化响应式求值（如 `getTypeLabel`/`getStatusLabel`）；带参数翻译用 `t('key', { param })`；键名冲突用子命名空间重命名（如 `export`→`exportFile`、`print`→`printDialog`）
 - **批次规划**：
-  - Batch 1：✅ 已完成 fixed-assets/tabs/AssetListTab.vue（864 字符，新增 130+ 翻译键 fixedAssets 命名空间，模板 $t 88 处 + script t 36 处 = 124 处）
-  - Batch 2：✅ 已完成 print-templates/index.vue + bpm/index.vue（785 + 716 = 1501 字符，新增 printTemplates + bpm 两个命名空间共 ~250 翻译键，print-templates 128 处 t() + bpm 120 处 t() = 248 处）
-  - Batch 3：✅ 已完成 report-templates/index.vue + quality/index.vue（706 + 691 = 1397 字符，新增 reportTemplates + quality 两个命名空间共 ~200 翻译键，report-templates 61 处模板 $t + 21 处 script t = 82 处；quality 68 处模板 $t + 25 处 script t = 93 处；两文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox/ElMessageBox.prompt）迁移到 locales/zh-CN.ts + en-US.ts 双语同步，历史批次注释原样保留，无 #[allow] 警告抑制）
-  - Batch 4：✅ 已完成 crm/tabs/CustomerListTab.vue + system/audit-log/index.vue（680 + 669 = 1349 字符，新增 crmCustomer + auditLog 两个命名空间共 162 翻译键，CustomerListTab 74 处模板 $t + 43 处 script t = 117 处 t() 调用，getCustomerTypeLabel 函数化响应式求值；audit-log 33 处模板 $t + 40 处 script t = 73 处 t() 调用，opTypeOptions/severityOptions/columns 改为 computed + getOpTypeLabel/getSeverityLabel 函数化响应式求值；2 文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）迁移到 locales/zh-CN.ts + en-US.ts 双语同步，历史批次注释原样保留，无 #[allow] 警告抑制）
-  - Batch 5：✅ 已完成 quality-standards/index.vue + crm/leads/index.vue（648 + 641 = 1289 字符，新增 qualityStandards + crmLeads 两个命名空间共 ~165 翻译键，quality-standards 41 处模板 $t + 20 处 script t = 61 处 t() 调用，getTypeLabel/getStatusLabel 函数化响应式求值；crm/leads 56 处模板 $t + 36 处 script t = 92 处 t() 调用，含 4 处带参数翻译（contactConfirm/convertConfirm/lostConfirm/importSuccess 等使用 {name}/{count}/{row}/{message}/{total}/{success}/{failed}/{detail} 占位符），getSourceLabel/getStatusLabel/getPriorityLabel 函数化响应式求值，export 命名空间用 exportFile 避免与 export 按钮标签键名冲突；2 文件均接入 useI18n({ useScope: 'global' })，所有用户可见文本（标题/按钮/placeholder/label/aria-label/ElMessage/ElMessageBox）迁移到 locales/zh-CN.ts + en-US.ts 双语同步，历史批次注释原样保留，无 #[allow] 警告抑制）
-  - Batch 6：⏳ 待启动 下一批 Top 硬编码密集文件 inventory/index.vue (626 字符) + crm/opportunities/index.vue (619 字符)
+  - Batch 1-5：✅ 已完成 10 文件完整接入（PR #724/#725/#727/#729，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) + [CHANGELOG.md D05-1~D05-5](file:///workspace/.monkeycode/CHANGELOG.md)）
+    - Batch 1：fixed-assets/tabs/AssetListTab.vue（fixedAssets 命名空间）
+    - Batch 2：print-templates/index.vue + bpm/index.vue（printTemplates + bpm）
+    - Batch 3：report-templates/index.vue + quality/index.vue（reportTemplates + quality）
+    - Batch 4：crm/tabs/CustomerListTab.vue + system/audit-log/index.vue（crmCustomer + auditLog）
+    - Batch 5：quality-standards/index.vue + crm/leads/index.vue（qualityStandards + crmLeads）
+  - Batch 6：⏳ 待启动 —— inventory/index.vue (626 字符) + crm/opportunities/index.vue (619 字符)
+  - 待修复：UserTab.vue 命名空间 BUG（system.user → settings.user）+ 9 个部分接入文件补全
 
 ### 3.2 P0-D08 91+ 超长函数（类七，XL，进行中）
 

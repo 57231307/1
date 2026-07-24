@@ -274,7 +274,7 @@ const submitUser = async () => {
         department_id: userForm.department_id,
         status: userForm.status,
       })
-      ElMessage.success(t('system.user.updateSuccess'))
+      ElMessage.success(t('settings.user.updateSuccess'))
     } else {
       await createUser({
         username: userForm.username,
@@ -284,7 +284,7 @@ const submitUser = async () => {
         email: userForm.email,
         department_id: userForm.department_id,
       })
-      ElMessage.success(t('system.user.createSuccess'))
+      ElMessage.success(t('settings.user.createSuccess'))
     }
     userDialogVisible.value = false
     fetchUsers()
@@ -300,7 +300,7 @@ const deleteUser = async (row: User) => {
   try {
     await ElMessageBox.confirm(`确定删除用户 "${row.username}"?`, '删除确认', { type: 'warning' })
     await deleteUserApi(row.id)
-    ElMessage.success(t('system.user.deleteSuccess'))
+    ElMessage.success(t('settings.user.deleteSuccess'))
     fetchUsers()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
