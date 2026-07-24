@@ -71,7 +71,7 @@ export const setDataPermission = (data: SetDataPermissionRequest) =>
   request.post<ApiResponse<DataPermissionRole>>('/data-permissions/', data)
 
 export const getRoleDataPermissionList = (roleId: number) =>
-  request.get<ApiResponse<DataPermissionRole[]>>('/data-permissions/roles/${roleId}')
+  request.get<ApiResponse<DataPermissionRole[]>>(`/data-permissions/roles/${roleId}`)
 
 export const getDataPermissionByRole = (roleId: number, resourceType: string) =>
   request.get<ApiResponse<DataPermissionRole>>(`/data-permissions/roles/${roleId}/${resourceType}`)
