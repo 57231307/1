@@ -4,7 +4,9 @@
 //! - `types`：内部聚合辅助 struct + 外部使用的 `CreateArPaymentParams`
 //! - `json_helpers`：4 个 Model → JSON 序列化自由函数
 //! - `collection`：收款管理（17 方法，原 ar_service.rs L112-751）
-//! - `verification`：核销管理（23 方法，原 ar_service.rs L753-1778）
+//! - `verification`：核销管理门面（23 方法，原 ar_service.rs L753-1778）
+//! - `verification_ops`：核销管理业务实现子模块（D10 拆分自 `verification`，
+//!   按 query / auto / manual 三个子领域细分）
 //! - `report`：报表管理（9 方法，原 ar_service.rs L1780-2177）
 //!
 //! 模块层级关系：
@@ -19,5 +21,7 @@ pub mod json_helpers;
 pub mod report;
 pub mod types;
 pub mod verification;
+// D10 拆分：verification 门面拆出的业务实现子模块（query / auto / manual）
+pub mod verification_ops;
 
 pub use types::CreateArPaymentParams;
