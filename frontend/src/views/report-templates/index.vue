@@ -1,11 +1,15 @@
+<!--
+  report-templates/index.vue - 报表中心
+  D05 Batch 3：接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts
+-->
 <template>
   <div class="report-templates-page">
     <div class="page-header">
-      <h2 class="page-title">报表中心</h2>
+      <h2 class="page-title">{{ $t('reportTemplates.title') }}</h2>
       <div class="header-actions">
         <el-button type="primary" @click="openDialog()">
           <el-icon><Plus /></el-icon>
-          新建模板
+          {{ $t('reportTemplates.create') }}
         </el-button>
       </div>
     </div>
@@ -14,72 +18,72 @@
       <div class="filter-container">
         <el-input
           v-model="queryParams.keyword"
-          placeholder="搜索模板编号/名称"
+          :placeholder="$t('reportTemplates.searchPlaceholder')"
           style="width: 200px"
           clearable
           @clear="handleSearch"
           @keyup.enter="handleSearch"
         />
-        <el-select v-model="queryParams.category" placeholder="分类" clearable style="width: 120px">
-          <el-option label="销售" value="sales" />
-          <el-option label="库存" value="inventory" />
-          <el-option label="财务" value="finance" />
-          <el-option label="生产" value="production" />
-          <el-option label="自定义" value="custom" />
+        <el-select v-model="queryParams.category" :placeholder="$t('reportTemplates.category.placeholder')" clearable style="width: 120px">
+          <el-option :label="$t('reportTemplates.category.sales')" value="sales" />
+          <el-option :label="$t('reportTemplates.category.inventory')" value="inventory" />
+          <el-option :label="$t('reportTemplates.category.finance')" value="finance" />
+          <el-option :label="$t('reportTemplates.category.production')" value="production" />
+          <el-option :label="$t('reportTemplates.category.custom')" value="custom" />
         </el-select>
-        <el-select v-model="queryParams.status" placeholder="状态" clearable style="width: 120px">
-          <el-option label="启用" value="active" />
-          <el-option label="停用" value="inactive" />
+        <el-select v-model="queryParams.status" :placeholder="$t('reportTemplates.status.placeholder')" clearable style="width: 120px">
+          <el-option :label="$t('reportTemplates.status.active')" value="active" />
+          <el-option :label="$t('reportTemplates.status.inactive')" value="inactive" />
         </el-select>
         <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
-          搜索
+          {{ $t('reportTemplates.search') }}
         </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" stripe aria-label="报表模板列表">
-        <el-table-column prop="template_code" label="模板编号" width="140" />
-        <el-table-column prop="template_name" label="模板名称" min-width="180" />
-        <el-table-column prop="category" label="分类" width="100">
+      <el-table v-loading="loading" :data="list" stripe :aria-label="$t('reportTemplates.table.ariaLabel')">
+        <el-table-column prop="template_code" :label="$t('reportTemplates.table.templateCode')" width="140" />
+        <el-table-column prop="template_name" :label="$t('reportTemplates.table.templateName')" min-width="180" />
+        <el-table-column prop="category" :label="$t('reportTemplates.table.category')" width="100">
           <template #default="{ row }">
-            {{ categoryMap[row.category] }}
+            {{ getCategoryLabel(row.category) }}
           </template>
         </el-table-column>
-        <el-table-column prop="format" label="格式" width="80">
+        <el-table-column prop="format" :label="$t('reportTemplates.table.format')" width="80">
           <template #default="{ row }">
             {{ row.format.toUpperCase() }}
           </template>
         </el-table-column>
-        <el-table-column prop="is_system" label="系统模板" width="100" align="center">
+        <el-table-column prop="is_system" :label="$t('reportTemplates.table.isSystem')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.is_system ? 'success' : 'info'" size="small">
-              {{ row.is_system ? '是' : '否' }}
+              {{ row.is_system ? $t('reportTemplates.yesNo.yes') : $t('reportTemplates.yesNo.no') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="$t('reportTemplates.table.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? '启用' : '停用' }}
+              {{ row.status === 'active' ? $t('reportTemplates.status.active') : $t('reportTemplates.status.inactive') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column prop="created_by_name" :label="$t('reportTemplates.table.createdBy')" width="100" />
+        <el-table-column prop="created_at" :label="$t('reportTemplates.table.createdAt')" width="160" />
+        <el-table-column :label="$t('reportTemplates.table.operation')" width="250" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handlePreview(row)">预览</el-button>
+            <el-button type="primary" link size="small" @click="handlePreview(row)">{{ $t('reportTemplates.table.preview') }}</el-button>
             <el-button type="primary" link size="small" @click="handleGenerate(row)"
-              >生成</el-button
+              >{{ $t('reportTemplates.table.generate') }}</el-button
             >
-            <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
+            <el-button type="primary" link size="small" @click="openDialog(row)">{{ $t('reportTemplates.table.edit') }}</el-button>
             <el-button
               v-if="!row.is_system"
               type="danger"
               link
               size="small"
               @click="handleDelete(row)"
-              >删除</el-button
+              >{{ $t('reportTemplates.table.delete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -92,46 +96,46 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="报表模板列表分页"
+          :aria-label="$t('reportTemplates.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑模板' : '新建模板'" width="800px" aria-label="报表模板编辑对话框">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="报表模板表单">
+    <el-dialog v-model="dialogVisible" :title="form.id ? $t('reportTemplates.dialog.editTitle') : $t('reportTemplates.dialog.createTitle')" width="800px" :aria-label="$t('reportTemplates.dialog.ariaLabel')">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('reportTemplates.dialog.formAriaLabel')">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="模板编号" prop="template_code">
+            <el-form-item :label="$t('reportTemplates.dialog.templateCode')" prop="template_code">
               <el-input
                 v-model="form.template_code"
                 :disabled="!!form.id"
-                placeholder="请输入模板编号"
+                :placeholder="$t('reportTemplates.dialog.templateCodePlaceholder')"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="模板名称" prop="template_name">
-              <el-input v-model="form.template_name" placeholder="请输入模板名称" />
+            <el-form-item :label="$t('reportTemplates.dialog.templateName')" prop="template_name">
+              <el-input v-model="form.template_name" :placeholder="$t('reportTemplates.dialog.templateNamePlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="分类" prop="category">
-              <el-select v-model="form.category" placeholder="请选择分类" style="width: 100%">
-                <el-option label="销售" value="sales" />
-                <el-option label="库存" value="inventory" />
-                <el-option label="财务" value="finance" />
-                <el-option label="生产" value="production" />
-                <el-option label="自定义" value="custom" />
+            <el-form-item :label="$t('reportTemplates.dialog.category')" prop="category">
+              <el-select v-model="form.category" :placeholder="$t('reportTemplates.dialog.categoryPlaceholder')" style="width: 100%">
+                <el-option :label="$t('reportTemplates.category.sales')" value="sales" />
+                <el-option :label="$t('reportTemplates.category.inventory')" value="inventory" />
+                <el-option :label="$t('reportTemplates.category.finance')" value="finance" />
+                <el-option :label="$t('reportTemplates.category.production')" value="production" />
+                <el-option :label="$t('reportTemplates.category.custom')" value="custom" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="格式" prop="format">
-              <el-select v-model="form.format" placeholder="请选择格式" style="width: 100%">
+            <el-form-item :label="$t('reportTemplates.dialog.format')" prop="format">
+              <el-select v-model="form.format" :placeholder="$t('reportTemplates.dialog.formatPlaceholder')" style="width: 100%">
                 <el-option label="PDF" value="pdf" />
                 <el-option label="Excel" value="excel" />
                 <el-option label="Word" value="word" />
@@ -140,40 +144,40 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="描述" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
+        <el-form-item :label="$t('reportTemplates.dialog.description')" prop="description">
+          <el-input v-model="form.description" type="textarea" :rows="3" :placeholder="$t('reportTemplates.dialog.descriptionPlaceholder')" />
         </el-form-item>
-        <el-form-item label="模板内容" prop="content">
+        <el-form-item :label="$t('reportTemplates.dialog.content')" prop="content">
           <el-input
             v-model="form.content"
             type="textarea"
             :rows="10"
-            placeholder="请输入模板内容（支持HTML）"
+            :placeholder="$t('reportTemplates.dialog.contentPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="参数配置" prop="parameters">
+        <el-form-item :label="$t('reportTemplates.dialog.parameters')" prop="parameters">
           <el-input
             v-model="parametersText"
             type="textarea"
             :rows="4"
-            placeholder='JSON格式参数，例如：{"date_range": true, "department": true}'
+            :placeholder="$t('reportTemplates.dialog.parametersPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('reportTemplates.dialog.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('reportTemplates.dialog.confirm') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="previewVisible" title="报表预览" width="900px" aria-label="报表预览对话框">
+    <el-dialog v-model="previewVisible" :title="$t('reportTemplates.previewDialog.title')" width="900px" :aria-label="$t('reportTemplates.previewDialog.ariaLabel')">
       <div v-loading="previewLoading" class="preview-container">
         <!-- Wave B-2 修复（B3-1）：使用 DOMPurify 净化后端返回的 HTML，防止 XSS 注入 -->
         <div v-if="previewData" v-html="sanitizedPreview"></div>
-        <div v-else class="no-preview">暂无预览数据</div>
+        <div v-else class="no-preview">{{ $t('reportTemplates.previewDialog.noData') }}</div>
       </div>
       <template #footer>
-        <el-button @click="previewVisible = false">关闭</el-button>
+        <el-button @click="previewVisible = false">{{ $t('reportTemplates.previewDialog.close') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -181,6 +185,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 // Wave B-2 修复（B3-1）：引入 DOMPurify 用于净化后端返回的 HTML 模板，防止 XSS
@@ -198,6 +203,8 @@ import {
 } from '@/api/report-templates'
 // 批次 277：接入 useTableApi composable，统一表格分页/加载/查询逻辑
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const queryParams = reactive({
   keyword: '',
@@ -219,7 +226,7 @@ const {
   url: '/report-templates',
   onError: (err: unknown) =>
     // 批次 98 P2-D 修复（v5 复审）：类型守卫提取错误信息
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取数据失败'),
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('reportTemplates.message.loadFailed')),
 })
 
 // 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -229,12 +236,16 @@ const syncQueryParams = () => {
   setQueryParam('status', queryParams.status || undefined)
 }
 
-const categoryMap: Record<string, string> = {
-  sales: '销售',
-  inventory: '库存',
-  finance: '财务',
-  production: '生产',
-  custom: '自定义',
+// D05 Batch 3：categoryMap 改为函数返回，使 t() 在每次渲染时响应式求值（参照 print-templates/index.vue 的 getModuleLabel）
+const getCategoryLabel = (category: string) => {
+  const map: Record<string, string> = {
+    sales: t('reportTemplates.category.sales'),
+    inventory: t('reportTemplates.category.inventory'),
+    finance: t('reportTemplates.category.finance'),
+    production: t('reportTemplates.category.production'),
+    custom: t('reportTemplates.category.custom'),
+  }
+  return map[category] || category
 }
 
 const dialogVisible = ref(false)
@@ -255,11 +266,11 @@ const form = reactive<Partial<ReportTemplate>>({
 })
 
 const rules: FormRules = {
-  template_code: [{ required: true, message: '请输入模板编号', trigger: 'blur' }],
-  template_name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
-  format: [{ required: true, message: '请选择格式', trigger: 'change' }],
-  content: [{ required: true, message: '请输入模板内容', trigger: 'blur' }],
+  template_code: [{ required: true, message: t('reportTemplates.validation.templateCodeRequired'), trigger: 'blur' }],
+  template_name: [{ required: true, message: t('reportTemplates.validation.templateNameRequired'), trigger: 'blur' }],
+  category: [{ required: true, message: t('reportTemplates.validation.categoryRequired'), trigger: 'change' }],
+  format: [{ required: true, message: t('reportTemplates.validation.formatRequired'), trigger: 'change' }],
+  content: [{ required: true, message: t('reportTemplates.validation.contentRequired'), trigger: 'blur' }],
 }
 
 const openDialog = (row?: ReportTemplate) => {
@@ -295,7 +306,7 @@ const handleSubmit = async () => {
         try {
           form.parameters = JSON.parse(parametersText.value)
         } catch (e) {
-          ElMessage.error('参数格式错误，请检查JSON格式')
+          ElMessage.error(t('reportTemplates.message.parametersFormatError'))
           return
         }
       }
@@ -304,12 +315,12 @@ const handleSubmit = async () => {
       } else {
         await createReportTemplate(form)
       }
-      ElMessage.success('操作成功')
+      ElMessage.success(t('reportTemplates.message.operationSuccess'))
       dialogVisible.value = false
       fetchData()
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('reportTemplates.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -318,13 +329,17 @@ const handleSubmit = async () => {
 
 const handleDelete = async (row: ReportTemplate) => {
   try {
-    await ElMessageBox.confirm('确定要删除此模板吗？', '确认删除', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('reportTemplates.message.deleteConfirm'),
+      t('reportTemplates.message.deleteConfirmTitle'),
+      { type: 'warning' }
+    )
     await deleteReportTemplate(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('reportTemplates.message.deleteSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('reportTemplates.message.deleteFailed'))
   }
 }
 
@@ -365,7 +380,7 @@ const handlePreview = async (row: ReportTemplate) => {
     }
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '预览失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('reportTemplates.message.previewFailed'))
     previewData.value = ''
   } finally {
     previewLoading.value = false
@@ -379,10 +394,10 @@ const handleGenerate = async (row: ReportTemplate) => {
     link.href = URL.createObjectURL(blob)
     link.download = `${row.template_name}_${new Date().toISOString().split('T')[0]}.${row.format}`
     link.click()
-    ElMessage.success('报表生成成功')
+    ElMessage.success(t('reportTemplates.message.generateSuccess'))
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '生成失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('reportTemplates.message.generateFailed'))
   }
 }
 
