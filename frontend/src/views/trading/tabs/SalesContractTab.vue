@@ -70,7 +70,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listTradingContracts,
+  getTradingContractList,
   getTradingContract,
   createTradingContract,
   approveTradingContract,
@@ -113,7 +113,7 @@ const getContractStatusLabel = (status: string) => {
 const fetchSalesContracts = async () => {
   salesContractLoading.value = true
   try {
-    const res = await listTradingContracts({ type: 'sales' })
+    const res = await getTradingContractList({ type: 'sales' })
     const d = res.data as
       | { list?: TradingContract[]; items?: TradingContract[] }
       | TradingContract[]

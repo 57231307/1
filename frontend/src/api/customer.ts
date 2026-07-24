@@ -38,7 +38,7 @@ export interface CustomerQueryParams {
   status?: string
 }
 
-export function listCustomers(
+export function getCustomerList(
   params?: CustomerQueryParams
 ): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
   return request.get('/crm/customers', { params })
@@ -50,11 +50,11 @@ export function listCustomers(
  * 背景：arReconciliation/enhanced.vue 和 index.vue 此前直接调用 `request.get('/customers/select')`，
  * 绕过 API 层且响应结构处理错误（期望 `{label, value}[]`，后端返回 PaginatedResponse<Customer>）。
  *
- * 修复：统一封装为 `listCustomersForSelect`，内部调用 `/customers/select` 并映射为 `{label, value}[]` 格式。
+ * 修复：统一封装为 `getCustomerSelectList`，内部调用 `/customers/select` 并映射为 `{label, value}[]` 格式。
  *
  * @returns 客户下拉选项数组（label=客户名称, value=客户ID）
  */
-export async function listCustomersForSelect(): Promise<{ label: string; value: number }[]> {
+export async function getCustomerSelectList(): Promise<{ label: string; value: number }[]> {
   const res = await request.get<ApiResponse<{ list: Customer[]; total: number } | Customer[]>>('/customers/select')
   const data = res?.data
   const list: Customer[] = (Array.isArray(data) ? data : data?.list) ?? []

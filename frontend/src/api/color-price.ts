@@ -247,7 +247,7 @@ export interface PagedResponse<T> {
 const BASE_URL = '/color-prices'
 
 // 1. 列表
-export function listColorPrices(params: ListColorPricesQuery) {
+export function getColorPriceList(params: ListColorPricesQuery) {
   return request.get<PagedResponse<ColorPriceListItem>>(BASE_URL, { params })
 }
 
@@ -306,7 +306,7 @@ export function calculateColorPrice(params: {
 }
 
 // 10. 阶梯价列表
-export function listTiers(priceId: number) {
+export function getTierList(priceId: number) {
   return request.get<{ items: PriceTier[]; total: number }>(`${BASE_URL}/tiers/${priceId}`)
 }
 
@@ -321,7 +321,7 @@ export function deleteTier(tierId: number) {
 }
 
 // 13. 客户专属价列表
-export function listCustomerSpecialPrices() {
+export function getCustomerSpecialPriceList() {
   return request.get<{ items: CustomerColorPrice[]; total: number }>(`${BASE_URL}/customer-special`)
 }
 
@@ -331,7 +331,7 @@ export function createCustomerSpecialPrice(data: CreateCustomerColorPriceDto) {
 }
 
 // 15. 季节规则列表
-export function listSeasonalRules(params: {
+export function getSeasonalRuleList(params: {
   page?: number
   page_size?: number
   season?: string

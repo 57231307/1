@@ -67,7 +67,7 @@ export interface Opportunity {
   updated_at: string
 }
 
-export function listLeads(params?: QueryParams): Promise<ApiResponse<Lead[]>> {
+export function getLeadList(params?: QueryParams): Promise<ApiResponse<Lead[]>> {
   return request.get('/crm/leads', { params })
 }
 
@@ -100,7 +100,7 @@ export function convertLead(
   return request.post(`/crm/leads/${id}/convert`)
 }
 
-export function listOpportunities(params?: QueryParams): Promise<ApiResponse<Opportunity[]>> {
+export function getOpportunityList(params?: QueryParams): Promise<ApiResponse<Opportunity[]>> {
   return request.get('/crm/opportunities', { params })
 }
 

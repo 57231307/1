@@ -23,7 +23,7 @@ export interface TradingPurchaseContract {
   status: string
 }
 
-export const listTradingPurchaseContracts = () =>
+export const getTradingPurchaseContractList = () =>
   request.get<ApiResponse<TradingPurchaseContract[]>>('/trading/purchase-contracts')
 
 export const createTradingPurchaseContract = (data: PurchaseContractCreateRequest) =>
@@ -54,7 +54,7 @@ export interface TradingPurchasePrice {
   status: string
 }
 
-export const listTradingPurchasePrices = () =>
+export const getTradingPurchasePriceList = () =>
   request.get<ApiResponse<TradingPurchasePrice[]>>('/trading/purchase-prices')
 
 export const createTradingPurchasePrice = (data: PurchasePriceCreateRequest) =>
@@ -79,7 +79,7 @@ export interface TradingSalesContract {
   status: string
 }
 
-export const listTradingSalesContracts = () =>
+export const getTradingSalesContractList = () =>
   request.get<ApiResponse<TradingSalesContract[]>>('/trading/sales-contracts')
 
 export const createTradingSalesContract = (data: SalesContractCreateRequest) =>
@@ -106,7 +106,7 @@ export interface TradingSalesPrice {
   status: string
 }
 
-export const listTradingSalesPrices = () =>
+export const getTradingSalesPriceList = () =>
   request.get<ApiResponse<TradingSalesPrice[]>>('/trading/sales-prices')
 
 export const createTradingSalesPrice = (data: SalesPriceCreateRequest) =>
@@ -133,7 +133,7 @@ export interface TradingSalesReturn {
   status: string
 }
 
-export const listTradingSalesReturns = () =>
+export const getTradingSalesReturnList = () =>
   request.get<ApiResponse<TradingSalesReturn[]>>('/trading/sales-returns')
 
 export const createTradingSalesReturn = (data: SalesReturnCreateRequest) =>

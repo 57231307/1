@@ -91,7 +91,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listTradingPrices,
+  getTradingPriceList,
   getTradingPrice,
   createTradingPrice,
   updateTradingPrice,
@@ -108,7 +108,7 @@ const formatMoney = (amount: number | undefined) => {
 const fetchSalesPrices = async () => {
   salesPriceLoading.value = true
   try {
-    const res = await listTradingPrices({ type: 'sales' })
+    const res = await getTradingPriceList({ type: 'sales' })
     const d = res.data as
       | { list?: TradingPrice[]; items?: TradingPrice[] }
       | TradingPrice[]

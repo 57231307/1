@@ -20,7 +20,7 @@ export interface ListTradingPriceParams {
   type: 'purchase' | 'sales'
 }
 
-export const listTradingPrices = (params: ListTradingPriceParams) => {
+export const getTradingPriceList = (params: ListTradingPriceParams) => {
   if (params.type === 'purchase') {
     return request.get<ApiResponse<TradingPrice[]>>('/trading/purchase-prices')
   }

@@ -18,7 +18,7 @@ export interface ListTradingReturnParams {
   type: 'purchase' | 'sales'
 }
 
-export const listTradingReturns = (params: ListTradingReturnParams) => {
+export const getTradingReturnList = (params: ListTradingReturnParams) => {
   if (params.type === 'sales') {
     return request.get<ApiResponse<TradingReturn[]>>('/trading/sales-returns')
   }

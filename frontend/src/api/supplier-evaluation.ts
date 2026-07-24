@@ -62,7 +62,7 @@ export interface CreateEvaluationRequest {
   remark?: string
 }
 
-export function listIndicators(
+export function getEvaluationIndicatorList(
   params?: SupplierEvaluationQueryParams
 ): Promise<ApiResponse<{ list: EvaluationIndicator[]; total: number }>> {
   return request.get('/purchase/supplier-evaluations/indicators', { params })
@@ -74,7 +74,7 @@ export function createIndicator(
   return request.post('/purchase/supplier-evaluations/indicators', data)
 }
 
-export function listEvaluationRecords(
+export function getEvaluationRecordList(
   params?: SupplierEvaluationQueryParams
 ): Promise<ApiResponse<{ list: EvaluationRecord[]; total: number }>> {
   return request.get('/purchase/supplier-evaluations/records', { params })
@@ -100,7 +100,7 @@ export function getSupplierRankings(params?: {
   return request.get('/purchase/supplier-evaluations/rankings', { params })
 }
 
-export function listEvaluations(
+export function getEvaluationList(
   params?: SupplierEvaluationQueryParams
 ): Promise<ApiResponse<{ list: EvaluationRecord[]; total: number }>> {
   return request.get('/purchase/supplier-evaluations', { params })

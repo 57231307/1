@@ -302,7 +302,7 @@ export interface OrderTimeline {
 }
 
 // 列表查询
-export function listCustomOrders(params: {
+export function getCustomOrderList(params: {
   page?: number
   page_size?: number
   status?: string
@@ -348,7 +348,7 @@ export function advanceCustomOrder(
 }
 
 // 添加工艺节点
-export function addProcessNode(orderId: number, data: ProcessNodeCreateDto) {
+export function createProcessNode(orderId: number, data: ProcessNodeCreateDto) {
   return request.post(`/custom-orders/${orderId}/nodes`, data)
 }
 
@@ -363,7 +363,7 @@ export function advanceProcessNode(orderId: number, nodeId: number, data: Proces
 }
 
 // 添加节点日志
-export function addNodeLog(orderId: number, nodeId: number, data: NodeLogCreateDto) {
+export function createNodeLog(orderId: number, nodeId: number, data: NodeLogCreateDto) {
   return request.post(`/custom-orders/${orderId}/nodes/${nodeId}/logs`, data)
 }
 
@@ -378,7 +378,7 @@ export function reportQualityIssue(orderId: number, data: QualityIssueCreateDto)
 }
 
 // 列出异常
-export function listQualityIssues(orderId: number, params?: QualityIssueQueryParams) {
+export function getQualityIssueList(orderId: number, params?: QualityIssueQueryParams) {
   return request.get(`/custom-orders/${orderId}/issues`, { params })
 }
 
@@ -393,7 +393,7 @@ export function createAfterSales(orderId: number, data: AfterSalesCreateDto) {
 }
 
 // 列出售后
-export function listAfterSales(orderId: number, params?: AfterSalesQueryParams) {
+export function getAfterSalesList(orderId: number, params?: AfterSalesQueryParams) {
   return request.get(`/custom-orders/${orderId}/after-sales`, { params })
 }
 
