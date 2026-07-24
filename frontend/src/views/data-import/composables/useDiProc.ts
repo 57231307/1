@@ -26,7 +26,7 @@ import { logger } from '@/utils/logger'
 /**
  * 模板表单字段类型（所有字段可选，兼容 Partial<ImportTemplate>）
  */
-export interface DiTplForm {
+export interface DataImportTemplateFormData {
   id?: number
   template_code?: string
   template_name?: string
@@ -61,7 +61,7 @@ export function useDiProc(cb: DiCallbacks) {
   const templateFormRef = ref<FormInstance>()
   const templateSubmitLoading = ref(false)
   const columnsText = ref('')
-  const templateForm = reactive<DiTplForm>({
+  const templateForm = reactive<DataImportTemplateFormData>({
     id: undefined,
     template_code: '',
     template_name: '',

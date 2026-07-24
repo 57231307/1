@@ -1,5 +1,5 @@
 <!--
-  VchrLstDetail.vue - 凭证详情对话框
+  VoucherListDetail.vue - 凭证详情对话框
   拆分自 voucher/tabs/VoucherListTab.vue（P14 批 2 I-3 第 1 批）
   行为完全保持一致（仅结构重构）
 -->

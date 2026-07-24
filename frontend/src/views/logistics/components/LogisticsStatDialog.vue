@@ -1,5 +1,5 @@
 <!--
-  LgsStatDlg.vue - 物流管理更新状态对话框
+  LogisticsStatDialog.vue - 物流管理更新状态对话框
   拆分自 logistics/index.vue（P14 批 2 I-3 第 4 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）

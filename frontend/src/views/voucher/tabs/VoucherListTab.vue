@@ -11,7 +11,7 @@
       <h2 class="page-title">凭证管理</h2>
     </div>
 
-    <VchrLstFilter
+    <VoucherListFilter
       :query-params="vchr.queryParams"
       @fetch="vchr.handleSearch"
       @add="onAdd"
@@ -20,7 +20,7 @@
       @update:query-params="(v) => Object.assign(vchr.queryParams, v)"
     />
 
-    <VchrLstTbl
+    <VoucherListTable
       :table-data="vchr.tableData"
       :loading="vchr.loading"
       :total="vchr.total"
@@ -34,7 +34,7 @@
       @delete="vchrProc.handleDelete"
     />
 
-    <VchrLstForm
+    <VoucherListForm
       v-model:visible="dialogVisible"
       :title="vchr.dialogTitle"
       :form="vchr.form"
@@ -46,7 +46,7 @@
       @update:form="(v) => Object.assign(vchr.form, v)"
     />
 
-    <VchrLstDetail
+    <VoucherListDetail
       v-model:visible="viewDialogVisible"
       :view-data="vchr.viewData"
     />
@@ -58,10 +58,10 @@ import { ref, onMounted, toRef } from 'vue'
 import type { VoucherEntity } from '@/api/voucher'
 import { useVchrLst } from './composables/useVchrLst'
 import { useVchrLstProc } from './composables/useVchrLstProc'
-import VchrLstFilter from './components/VchrLstFilter.vue'
-import VchrLstTbl from './components/VchrLstTbl.vue'
-import VchrLstForm from './components/VchrLstForm.vue'
-import VchrLstDetail from './components/VchrLstDetail.vue'
+import VoucherListFilter from './components/VoucherListFilter.vue'
+import VoucherListTable from './components/VoucherListTable.vue'
+import VoucherListForm from './components/VoucherListForm.vue'
+import VoucherListDetail from './components/VoucherListDetail.vue'
 
 const vchr = useVchrLst()
 // 使用 toRef 包装 reactive 属性为 ref，保持 useVchrLstProc 内 getList() 能读取最新 tableData
