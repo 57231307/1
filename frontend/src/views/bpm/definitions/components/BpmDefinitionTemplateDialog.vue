@@ -1,5 +1,5 @@
 <!--
-  BpmDfTplDlg.vue - BPM 流程定义保存为模板对话框
+  BpmDefinitionTemplateDialog.vue - BPM 流程定义保存为模板对话框
   拆分自 bpm/definitions.vue（P14 批 2 I-3 第 5 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）

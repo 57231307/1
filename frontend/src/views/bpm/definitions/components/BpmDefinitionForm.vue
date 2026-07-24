@@ -1,5 +1,5 @@
 <!--
-  BpmDfForm.vue - BPM 流程定义新建/编辑对话框（含节点配置子表）
+  BpmDefinitionForm.vue - BPM 流程定义新建/编辑对话框（含节点配置子表）
   拆分自 bpm/definitions.vue（P14 批 2 I-3 第 5 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   注意：formData 含 nodes 数组，需要深拷贝以保证本地修改与父组件解耦
@@ -148,7 +148,7 @@ import { Plus } from '@element-plus/icons-vue'
 import type { ProcessNode } from '@/api/bpm-enhanced'
 
 // 表单数据类型
-interface BpmDfFormData {
+interface BpmDefinitionFormData {
   id?: number
   process_key: string
   process_name: string
@@ -166,7 +166,7 @@ const props = defineProps<{
   // 是否编辑
   isEdit: boolean
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  formData: BpmDfFormData
+  formData: BpmDefinitionFormData
   // 验证规则
   rules: FormRules
   // 提交加载
@@ -180,7 +180,7 @@ const emit = defineEmits<{
   // 删除节点
   'remove-node': [index: number]
   // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
-  'update:formData': [v: BpmDfFormData]
+  'update:formData': [v: BpmDefinitionFormData]
   // 提交（父组件处理 API）
   submit: []
 }>()
@@ -190,7 +190,7 @@ const formRef = ref<FormInstance>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：formData 含 nodes 数组，需要深拷贝以保证本地修改与父组件解耦
-const localFormData = ref<BpmDfFormData>(deepClone(props.formData))
+const localFormData = ref<BpmDefinitionFormData>(deepClone(props.formData))
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false

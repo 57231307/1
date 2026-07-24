@@ -1,5 +1,5 @@
 <!--
-  PrdFilter.vue - 生产管理过滤栏
+  ProductionFilter.vue - 生产管理过滤栏
   拆分自 production/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
   P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环

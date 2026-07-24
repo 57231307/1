@@ -2,7 +2,7 @@
   bpm/definitions.vue - BPM 流程定义管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 5 批
   拆分：579 行 → ~130 行 + 5 子组件 + 2 composable + 1 工具
-  批次 282：BpmDfFilter/BpmDfTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
+  批次 282：BpmDefinitionFilter/BpmDefinitionTable 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="bpm-definitions">
@@ -14,13 +14,13 @@
       </el-button>
     </div>
 
-    <BpmDfFilter
+    <BpmDefinitionFilter
       :query-params="bpmDf.queryParams"
       @fetch="bpmDfProc.handleSearch"
       @update:query-params="(v) => Object.assign(bpmDf.queryParams, v)"
     />
 
-    <BpmDfTbl
+    <BpmDefinitionTable
       v-model:page="bpmDf.page"
       v-model:page-size="bpmDf.pageSize"
       :data="bpmDf.definitions"
@@ -32,7 +32,7 @@
       @delete="bpmDfProc.handleDelete"
     />
 
-    <BpmDfForm
+    <BpmDefinitionForm
       v-model:visible="bpmDf.dialogVisible"
       :is-edit="bpmDf.isEdit"
       :form-data="bpmDf.formData"
@@ -44,7 +44,7 @@
       @update:form-data="(v) => Object.assign(bpmDf.formData, v)"
     />
 
-    <BpmDfVerDlg
+    <BpmDefinitionVersionDialog
       v-model:visible="bpmDf.versionDialogVisible"
       :definition="bpmDf.currentDefinition"
       :data="bpmDf.versions"
@@ -53,7 +53,7 @@
       @activate="bpmDfProc.handleActivateVersion"
     />
 
-    <BpmDfTplDlg
+    <BpmDefinitionTemplateDialog
       v-model:visible="bpmDf.templateDialogVisible"
       :loading="bpmDf.templateLoading"
       :form-data="bpmDf.templateForm"
@@ -70,11 +70,11 @@ import { type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useBpmDf } from './definitions/composables/useBpmDf'
 import { useBpmDfProc } from './definitions/composables/useBpmDfProc'
-import BpmDfFilter from './definitions/components/BpmDfFilter.vue'
-import BpmDfTbl from './definitions/components/BpmDfTbl.vue'
-import BpmDfForm from './definitions/components/BpmDfForm.vue'
-import BpmDfVerDlg from './definitions/components/BpmDfVerDlg.vue'
-import BpmDfTplDlg from './definitions/components/BpmDfTplDlg.vue'
+import BpmDefinitionFilter from './definitions/components/BpmDefinitionFilter.vue'
+import BpmDefinitionTable from './definitions/components/BpmDefinitionTable.vue'
+import BpmDefinitionForm from './definitions/components/BpmDefinitionForm.vue'
+import BpmDefinitionVersionDialog from './definitions/components/BpmDefinitionVersionDialog.vue'
+import BpmDefinitionTemplateDialog from './definitions/components/BpmDefinitionTemplateDialog.vue'
 
 // 业务状态
 const bpmDf = useBpmDf()
