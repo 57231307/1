@@ -1,5 +1,5 @@
 <!--
-  BpmApPendingTbl.vue - BPM 审批待办任务表
+  BpmApprovalPendingTable.vue - BPM 审批待办任务表
   拆分自 bpm/approval.vue（P14 批 2 I-3 第 4 批）
   批次 283：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
   迁移：el-table + el-pagination → V2Table 虚拟滚动表格（内置分页）

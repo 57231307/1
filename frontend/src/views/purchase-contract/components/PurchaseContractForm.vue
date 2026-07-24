@@ -1,5 +1,5 @@
 <!--
-  PcForm.vue - 采购合同新建/编辑对话框
+  PurchaseContractForm.vue - 采购合同新建/编辑对话框
   拆分自 purchase-contract/index.vue（P14 批 2 I-3 第 3 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
@@ -182,7 +182,7 @@ import { ref, watch, nextTick } from 'vue'
 import type { Supplier } from '@/api/supplier'
 
 // 表单数据类型（所有字段可选，兼容 Partial<PurchaseContract>）
-interface PcFormData {
+interface PurchaseContractFormData {
   id?: number | undefined
   contract_no?: string
   contract_name?: string
@@ -205,7 +205,7 @@ const props = defineProps<{
   // 标题
   title: string
   // 表单数据（由父组件管理，子组件通过 emit('update:formData') 回写）
-  formData: PcFormData
+  formData: PurchaseContractFormData
   // 供应商列表
   suppliers: Supplier[]
 }>()
@@ -214,11 +214,11 @@ const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void
   (e: 'submit'): void
   // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
-  (e: 'update:formData', formData: PcFormData): void
+  (e: 'update:formData', formData: PurchaseContractFormData): void
 }>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localFormData = ref<PcFormData>({ ...props.formData })
+const localFormData = ref<PurchaseContractFormData>({ ...props.formData })
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false

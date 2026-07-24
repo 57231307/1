@@ -1,101 +1,88 @@
 <!--
-  BpmApTranDlg.vue - BPM 转交任务对话框
+  BpmApprovalApprovalDialog.vue - BPM 审批对话框（同意/拒绝）
   拆分自 bpm/approval.vue（P14 批 2 I-3 第 4 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
 <template>
   <el-dialog
-    aria-label="流程转交对话框"
+    aria-label="审批对话框"
     :model-value="visible"
-    title="转交任务"
+    :title="action === 'approve' ? '审批通过' : '审批拒绝'"
     width="500px"
     destroy-on-close
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form
-      ref="formRef"
-      :model="localForm"
-      :rules="rules"
-      label-width="100px"
-      aria-label="流程转交表单"
-    >
+    <el-form :model="localApproveForm" label-width="80px" aria-label="审批表单">
       <el-form-item label="任务名称">
         <span>{{ currentTask?.task_name }}</span>
       </el-form-item>
-      <el-form-item label="接收人 ID" prop="target_user_id">
-        <el-input-number
-          v-model="localForm.target_user_id"
-          :min="1"
-          style="width: 100%"
-        />
-      </el-form-item>
-      <el-form-item label="转交原因">
+      <el-form-item label="审批意见">
         <el-input
-          v-model="localForm.comment"
+          v-model="localApproveForm.comment"
           type="textarea"
-          :rows="3"
-          placeholder="请输入转交原因"
+          :rows="4"
+          placeholder="请输入审批意见"
         />
       </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="onConfirm">确定</el-button>
+      <el-button
+        :type="action === 'approve' ? 'success' : 'danger'"
+        :loading="submitLoading"
+        @click="emit('confirm')"
+        >确定</el-button
+      >
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
 import type { ApprovalTask } from '@/api/bpm-enhanced'
 
 // 表单字段类型
-interface TranForm {
-  target_user_id: number
+interface AprForm {
   comment: string
 }
 
 /**
- * 转交任务对话框组件
+ * 审批对话框组件（同意/拒绝共用）
  */
 const props = defineProps<{
   // 对话框可见性
   visible: boolean
   // 当前任务
   currentTask: ApprovalTask | null
+  // 审批动作
+  action: 'approve' | 'reject'
   // 提交 loading
   submitLoading: boolean
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  form: TranForm
-  // 校验规则
-  rules: FormRules
+  approveForm: AprForm
 }>()
 
 const emit = defineEmits<{
   'update:visible': [v: boolean]
-  // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
-  'update:form': [v: TranForm]
+  // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 approveForm）
+  'update:approveForm': [v: AprForm]
   confirm: []
 }>()
 
-// 内部表单 ref
-const formRef = ref<FormInstance>()
-
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<TranForm>({ ...props.form })
+const localApproveForm = ref<AprForm>({ ...props.approveForm })
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false
 
 // 外部 prop 变化时同步到 local（如父组件打开对话框时填充数据）
 watch(
-  () => props.form,
+  () => props.approveForm,
   (newForm) => {
     if (syncing) return
     syncing = true
-    localForm.value = { ...newForm }
+    localApproveForm.value = { ...newForm }
     nextTick(() => {
       syncing = false
     })
@@ -105,24 +92,15 @@ watch(
 
 // 本地变化时通知父组件（用户输入）
 watch(
-  localForm,
+  localApproveForm,
   (newForm) => {
     if (syncing) return
     syncing = true
-    emit('update:form', { ...newForm })
+    emit('update:approveForm', { ...newForm })
     nextTick(() => {
       syncing = false
     })
   },
   { deep: true },
 )
-
-/** 点击确定：先校验再发 confirm */
-const onConfirm = async () => {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-    emit('confirm')
-  })
-}
 </script>

@@ -30,7 +30,7 @@ export function usePi() {
     failed: 0,
   })
 
-  // 日期范围（独立 ref，便于 PiFilter 双向绑定；fetch 前注入 queryParams.inspection_date_from/to）
+  // 日期范围（独立 ref，便于 PurchaseInspectionFilter 双向绑定；fetch 前注入 queryParams.inspection_date_from/to）
   const dateRange = ref<[Date, Date] | null>(null)
 
   // 列表数据接入 useTableApi

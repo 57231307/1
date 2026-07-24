@@ -1,5 +1,5 @@
 <!--
-  SaTarget.vue - 销售目标表（含完成率/差异/状态标签）
+  SalesAnalysisTarget.vue - 销售目标表（含完成率/差异/状态标签）
   拆分自 sales-analysis/index.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->

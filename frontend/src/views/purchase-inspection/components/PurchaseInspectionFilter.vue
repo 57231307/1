@@ -1,5 +1,5 @@
 <!--
-  PiFilter.vue - 采购验货过滤栏
+  PurchaseInspectionFilter.vue - 采购验货过滤栏
   拆分自 purchase-inspection/index.vue（P14 批 2 I-3 第 5 批）
   批次 286：接入 useTableApi 模式（localQuery + handleSearch/handleReset）
   行为完全保持一致（仅结构重构）

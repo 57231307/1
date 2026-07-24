@@ -1,5 +1,5 @@
 <!--
-  SaProdRank.vue - 产品销售排名表（按金额/数量切换）
+  SalesAnalysisProductRank.vue - 产品销售排名表（按金额/数量切换）
   拆分自 sales-analysis/index.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
 -->

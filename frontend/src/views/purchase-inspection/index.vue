@@ -14,9 +14,9 @@
       </el-button>
     </div>
 
-    <PiStat :stats="pi.stats" />
+    <PurchaseInspectionStat :stats="pi.stats" />
 
-    <PiFilter
+    <PurchaseInspectionFilter
       :query-params="pi.queryParams"
       :date-range="pi.dateRange"
       :suppliers="pi.suppliers"
@@ -25,7 +25,7 @@
       @update:query-params="(v) => Object.assign(pi.queryParams, v)"
     />
 
-    <PiTbl
+    <PurchaseInspectionTable
       v-model:page="pi.page"
       v-model:page-size="pi.pageSize"
       :data="pi.tableData"
@@ -36,7 +36,7 @@
       @complete="piProc.handleComplete"
     />
 
-    <PiForm
+    <PurchaseInspectionForm
       v-model:visible="pi.dialogVisible"
       :is-edit="pi.isEdit"
       :form-data="pi.formData"
@@ -48,7 +48,7 @@
       @update:form-data="(v) => Object.assign(pi.formData, v)"
     />
 
-    <PiDetail
+    <PurchaseInspectionDetail
       v-model:visible="pi.detailDialogVisible"
       :data="pi.detailData"
     />
@@ -61,11 +61,11 @@ import { loadIfNot } from '@/utils/lazy-loader'
 import { Plus } from '@element-plus/icons-vue'
 import { usePi } from './composables/usePi'
 import { usePiProc } from './composables/usePiProc'
-import PiStat from './components/PiStat.vue'
-import PiFilter from './components/PiFilter.vue'
-import PiTbl from './components/PiTbl.vue'
-import PiForm from './components/PiForm.vue'
-import PiDetail from './components/PiDetail.vue'
+import PurchaseInspectionStat from './components/PurchaseInspectionStat.vue'
+import PurchaseInspectionFilter from './components/PurchaseInspectionFilter.vue'
+import PurchaseInspectionTable from './components/PurchaseInspectionTable.vue'
+import PurchaseInspectionForm from './components/PurchaseInspectionForm.vue'
+import PurchaseInspectionDetail from './components/PurchaseInspectionDetail.vue'
 
 // 业务状态
 const pi = usePi()

@@ -1,5 +1,5 @@
 <!--
-  PiForm.vue - 采购验货新建/编辑表单对话框
+  PurchaseInspectionForm.vue - 采购验货新建/编辑表单对话框
   拆分自 purchase-inspection/index.vue（P14 批 2 I-3 第 5 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
@@ -113,7 +113,7 @@ import { type FormInstance, type FormRules } from 'element-plus'
 import type { PurchaseInspectionItem } from '@/api/purchase-inspection'
 
 // 表单数据类型（所有字段可选，兼容父组件 reactive）
-interface PiFormData {
+interface PurchaseInspectionFormData {
   id?: number
   receipt_id?: number
   inspection_date: string
@@ -127,7 +127,7 @@ const props = defineProps<{
   // 是否编辑
   isEdit: boolean
   // 表单数据（由父组件管理，子组件通过 emit('update:formData') 回写）
-  formData: PiFormData
+  formData: PurchaseInspectionFormData
   // 验证规则
   rules: FormRules
   // 提交加载
@@ -143,7 +143,7 @@ const emit = defineEmits<{
   // 提交（父组件处理 API）
   (e: 'submit'): void
   // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
-  (e: 'update:formData', formData: PiFormData): void
+  (e: 'update:formData', formData: PurchaseInspectionFormData): void
 }>()
 
 // 表单 ref
@@ -151,7 +151,7 @@ const formRef = ref<FormInstance>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 items 数组，需要深拷贝以保证本地修改与父组件解耦
-const localFormData = ref<PiFormData>(deepClone(props.formData))
+const localFormData = ref<PurchaseInspectionFormData>(deepClone(props.formData))
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false
