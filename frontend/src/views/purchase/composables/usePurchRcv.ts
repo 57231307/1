@@ -4,7 +4,7 @@
  */
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { purchaseApi, type PurchaseOrder, type PurchaseOrderItem } from '@/api/purchase'
+import { createPurchaseReceipt, type PurchaseOrder, type PurchaseOrderItem } from '@/api/purchase'
 
 /**
  * 收货明细行数据结构
@@ -73,7 +73,7 @@ export function usePurchRcv(onSuccess: () => void) {
       return
     }
     try {
-      await purchaseApi.createReceipt({
+      await createPurchaseReceipt({
         order_id: receiveForm.value.order_id,
         receipt_date: receiveForm.value.receive_date,
         warehouse_id: receiveForm.value.warehouse_id,

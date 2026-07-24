@@ -106,7 +106,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deactivateCredit, type CustomerCredit } from '@/api/customer-credit'
-import { customerApi, type Customer } from '@/api/customer'
+import { getCustomerList, type Customer } from '@/api/customer'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
@@ -144,7 +144,7 @@ const currentCustomerId = ref<number | null>(null)
 
 const fetchCustomers = async () => {
   try {
-    const res = await customerApi.list({ page: 1, page_size: 100 })
+    const res = await getCustomerList({ page: 1, page_size: 100 })
     customerOptions.value = res.data?.list || []
   } catch (error) {
     customerOptions.value = []

@@ -28,14 +28,21 @@ export interface CapacitySummary {
   avg_load_rate: number
 }
 
-export const capacityApi = {
-  getSummary: () => request.get<ApiResponse<CapacitySummary>>('/capacity/summary'),
+// D14 Batch 5b：原 capacityApi.getSummary 转为风格 B 函数
+export const getCapacitySummary = () =>
+  request.get<ApiResponse<CapacitySummary>>('/capacity/summary')
 
-  getTrend: (params?: { days?: number; work_center_id?: number }) =>
-    request.get<ApiResponse<CapacityTrend[]>>('/capacity/trend', { params }),
+// D14 Batch 5b：原 capacityApi.getTrend 转为风格 B 函数
+export const getCapacityTrend = (params?: { days?: number; work_center_id?: number }) =>
+  request.get<ApiResponse<CapacityTrend[]>>('/capacity/trend', { params })
 
-  listWorkCenters: (params?: { page?: number; page_size?: number; status?: string }) =>
-    request.get<ApiResponse<PageResult<WorkCenter>>>('/capacity/work-centers', { params }),
+// D14 Batch 5b：原 capacityApi.listWorkCenters 转为风格 B 函数
+export const getWorkCenterList = (params?: {
+  page?: number
+  page_size?: number
+  status?: string
+}) => request.get<ApiResponse<PageResult<WorkCenter>>>('/capacity/work-centers', { params })
 
-  getBottlenecks: () => request.get<ApiResponse<WorkCenter[]>>('/capacity/bottlenecks'),
-}
+// D14 Batch 5b：原 capacityApi.getBottlenecks 转为风格 B 函数
+export const getCapacityBottlenecks = () =>
+  request.get<ApiResponse<WorkCenter[]>>('/capacity/bottlenecks')

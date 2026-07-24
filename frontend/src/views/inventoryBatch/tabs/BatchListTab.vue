@@ -148,7 +148,7 @@ import {
   type InventoryBatch,
   type TransferBatchRequest,
 } from '@/api/inventoryBatch'
-import { warehouseApi, type Warehouse } from '@/api/warehouse'
+import { getWarehouseList, type Warehouse } from '@/api/warehouse'
 import { useTableApi } from '@/composables/useTableApi'
 
 const emit = defineEmits<{ openForm: [row: InventoryBatch | null] }>()
@@ -233,7 +233,7 @@ const transferRules: FormRules = {
 
 const fetchWarehouseOptions = async () => {
   try {
-    const res = (await warehouseApi.list({ page: 1, page_size: 1000 })) as unknown as {
+    const res = (await getWarehouseList({ page: 1, page_size: 1000 })) as unknown as {
       data?: { list?: Warehouse[] }
     }
     warehouseOptions.value = res.data?.list || []

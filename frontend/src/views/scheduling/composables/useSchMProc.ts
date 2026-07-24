@@ -6,7 +6,7 @@
  */
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { schedulingApi, type ConflictItem, type SchedulingParams } from '@/api/scheduling'
+import { autoSchedule, type ConflictItem, type SchedulingParams } from '@/api/scheduling'
 
 // v11 批次 181 P2-1 修复：定义 deps 类型替代 any
 // 注：useSchM 返回 reactive 对象，字段会被自动解包
@@ -54,7 +54,7 @@ export function useSchMProc(deps: SchMDeps) {
     scheduling.value = true
     try {
       prepareScheduleParams()
-      const res = await schedulingApi.autoSchedule(deps.scheduleParams)
+      const res = await autoSchedule(deps.scheduleParams)
       const result = res.data
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (!result) return

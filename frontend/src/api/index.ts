@@ -29,17 +29,23 @@ export * from './user'
 export * from './role'
 export * from './department'
 export * from './crm'
-export * from './crm-enhanced'
+// D14 Batch 5b：crm-enhanced 与 customer 存在同名导出（createCustomer/deleteCustomer/getCustomerList/updateCustomer），
+// 且无 caller 从 '@/api' 聚合入口导入（均直接从 '@/api/crm-enhanced' 导入），故不在此 re-export
+// export * from './crm-enhanced'
 export * from './data-permission'
 export * from './fund'
 export * from './currency'
 export * from './cost'
 export * from './bom'
 export * from './scheduling'
-export * from './purchaseReceipt'
+// D14 Batch 5b：purchaseReceipt 与 purchase 存在同名导出（createPurchaseReceipt/getPurchaseReceiptList），
+// 且无 caller 从 '@/api' 聚合入口导入，故不在此 re-export
+// export * from './purchaseReceipt'
 export * from './inventoryCount'
 export * from './inventoryAdjustment'
-export * from './inventoryTransfer'
+// D14 Batch 5b：inventoryTransfer 与 inventory 存在同名导出（approveInventoryTransfer/createInventoryTransfer/getInventoryTransferList），
+// 且无 caller 从 '@/api' 聚合入口导入，故不在此 re-export
+// export * from './inventoryTransfer'
 export * from './inventoryBatch'
 export * from './accounting-period'
 export * from './dye-recipe'
@@ -76,7 +82,9 @@ export * from './barcode-scanner'
 export * from './ar-reconciliation-enhanced'
 export * from './report-enhanced'
 export * from './material-shortage'
-export * from './bpm-enhanced'
+// D14 Batch 5b：bpm-enhanced 与 bpm 存在同名导出（getBpmPendingTaskList），
+// 且无 caller 从 '@/api' 聚合入口导入，故不在此 re-export
+// export * from './bpm-enhanced'
 export * from './omniAudit'
 export {
   forecastSales,

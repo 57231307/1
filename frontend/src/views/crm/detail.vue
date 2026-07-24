@@ -258,7 +258,8 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Back, Plus } from '@element-plus/icons-vue'
-import crmEnhancedApi, { type Contact, type Customer360 } from '@/api/crm-enhanced'
+// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+import { getCustomer360, getCustomerContactList, deleteCustomerContact, createCustomerContact, updateCustomerContact, type Contact, type Customer360 } from '@/api/crm-enhanced'
 import { logger } from '@/utils/logger'
 import FollowUpTab from './tabs/FollowUpTab.vue'
 import TagsPanelTab from './tabs/TagsPanelTab.vue'
@@ -313,7 +314,7 @@ const getTypeTag = (type: string) => {
 const fetchCustomer360 = async () => {
   loading.value = true
   try {
-    const res = await crmEnhancedApi.getCustomer360(customerId)
+    const res = await getCustomer360(customerId)
     customer.value = res.data
   } catch (error) {
     const err = error as Error
@@ -327,7 +328,7 @@ const fetchCustomer360 = async () => {
 const fetchContacts = async () => {
   contactsLoading.value = true
   try {
-    const res = await crmEnhancedApi.listContacts(customerId)
+    const res = await getCustomerContactList(customerId)
     contacts.value = res.data || []
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
@@ -369,7 +370,7 @@ const handleDeleteContact = async (row: Contact) => {
     await ElMessageBox.confirm(`确定删除联系人 "${row.name}"？`, '确认删除', {
       type: 'warning',
     })
-    await crmEnhancedApi.deleteContact(customerId, row.id)
+    await deleteCustomerContact(customerId, row.id)
     ElMessage.success('删除成功')
     fetchContacts()
   } catch (error) {
@@ -413,10 +414,10 @@ const submitContactForm = async () => {
       remarks: contactForm.value.remarks || undefined,
     }
     if (editingContactId.value === null) {
-      await crmEnhancedApi.createContact(customerId, payload)
+      await createCustomerContact(customerId, payload)
       ElMessage.success('联系人创建成功')
     } else {
-      await crmEnhancedApi.updateContact(customerId, editingContactId.value, payload)
+      await updateCustomerContact(customerId, editingContactId.value, payload)
       ElMessage.success('联系人更新成功')
     }
     contactDialogVisible.value = false

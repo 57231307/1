@@ -205,7 +205,18 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
-import { bpmApi } from '@/api/bpm'
+// D14 Batch 5b：原 bpmApi 对象已转风格 B 函数
+import {
+  getBpmTaskList,
+  getBpmInstanceListForMonitor,
+  approveBpmTask,
+  getBpmInstanceById,
+  transferBpmTask,
+  urgeBpmTask,
+  getBpmApprovalChain,
+  getBpmProcessVisualization,
+  cancelBpmInstance,
+} from '@/api/bpm'
 import type { BPMTask, BPMInstance } from '@/api/bpm'
 import { logger } from '@/utils/logger'
 
@@ -275,7 +286,7 @@ const handleTabChange = (tabName: string) => {
 
 const fetchPendingTasks = async () => {
   try {
-    const res = await bpmApi.queryTasks({ status: 'pending' })
+    const res = await getBpmTaskList({ status: 'pending' })
     pendingTasks.value = res.data?.list || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
@@ -286,7 +297,7 @@ const fetchPendingTasks = async () => {
 
 const fetchInitiatedProcesses = async () => {
   try {
-    const res = await bpmApi.listInstancesForMonitor()
+    const res = await getBpmInstanceListForMonitor()
     initiatedProcesses.value = res.data?.list || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
@@ -297,7 +308,7 @@ const fetchInitiatedProcesses = async () => {
 
 const fetchProcessedTasks = async () => {
   try {
-    const res = await bpmApi.queryTasks({ status: 'completed' })
+    const res = await getBpmTaskList({ status: 'completed' })
     processedTasks.value = res.data?.list || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
@@ -308,7 +319,7 @@ const fetchProcessedTasks = async () => {
 
 const fetchProcessInstances = async () => {
   try {
-    const res = await bpmApi.listInstancesForMonitor()
+    const res = await getBpmInstanceListForMonitor()
     processInstances.value = res.data?.list || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
@@ -320,7 +331,7 @@ const fetchProcessInstances = async () => {
 const handleApprove = async (row: BPMTask) => {
   try {
     await ElMessageBox.confirm('确定审批通过此任务吗？', '确认', { type: 'info' })
-    await bpmApi.approveTask({ task_id: row.task_id, comment: '同意' })
+    await approveBpmTask({ task_id: row.task_id, comment: '同意' })
     ElMessage.success('审批成功')
     fetchPendingTasks()
   } catch (e) {
@@ -336,7 +347,7 @@ const handleDetail = async (row: BPMTask) => {
       ElMessage.warning('未找到流程实例 ID')
       return
     }
-    const res = await bpmApi.getInstanceDetail(String(instanceId))
+    const res = await getBpmInstanceById(String(instanceId))
     const d = res.data
     if (!d) {
       ElMessage.warning('未找到流程详情')
@@ -368,7 +379,7 @@ const handleTransfer = async (row: BPMTask) => {
       inputPattern: /^\d+$/,
       inputErrorMessage: '请输入有效的用户 ID',
     })
-    await bpmApi.transferTask(row.task_id, parseInt(targetUserId), '工作转交')
+    await transferBpmTask(row.task_id, parseInt(targetUserId), '工作转交')
     ElMessage.success('任务转交成功')
     fetchPendingTasks()
   } catch (e) {
@@ -379,7 +390,7 @@ const handleTransfer = async (row: BPMTask) => {
 const handleUrge = async (row: BPMTask) => {
   try {
     await ElMessageBox.confirm('确定催办此任务吗？', '确认', { type: 'warning' })
-    await bpmApi.urgeTask(row.task_id)
+    await urgeBpmTask(row.task_id)
     ElMessage.success('催办成功')
   } catch (e) {
     if (e !== 'cancel') logger.error(String(e))
@@ -395,7 +406,7 @@ const handleTrace = async (row: BPMTask | BPMInstance) => {
       ElMessage.warning('未找到流程实例 ID')
       return
     }
-    const res = await bpmApi.getApprovalChain(String(instanceId))
+    const res = await getBpmApprovalChain(String(instanceId))
     const chain = res.data || []
     if (chain.length === 0) {
       await ElMessageBox.alert('暂无审批链记录', '流程追溯', { confirmButtonText: '关闭' })
@@ -432,7 +443,7 @@ const handleCancel = async (row: BPMInstance) => {
     const reason =
       typeof confirmRes === 'string' && confirmRes.trim() ? confirmRes.trim() : undefined
     // 后端 cancel_instance 接收 i32 主键 id（非字符串 instance_no）
-    await bpmApi.cancelInstance(row.id, reason)
+    await cancelBpmInstance(row.id, reason)
     ElMessage.success('撤回成功')
     // 撤回按钮仅在 "我发起的" tab 内出现，刷新该列表即可
     fetchInitiatedProcesses()
@@ -446,7 +457,7 @@ const handleCancel = async (row: BPMInstance) => {
 // 批次 157a P1-1 修复：接入 getInstanceDetail API 展示流程实例详情
 const handleViewProcess = async (row: BPMInstance) => {
   try {
-    const res = await bpmApi.getInstanceDetail(String(row.instance_id))
+    const res = await getBpmInstanceById(String(row.instance_id))
     const d = res.data
     if (!d) {
       ElMessage.warning('未找到流程详情')
@@ -473,7 +484,7 @@ const handleViewProcess = async (row: BPMInstance) => {
 // 批次 157a P1-1 修复：接入 getProcessVisualization API 展示流程图信息
 const handleProcessImage = async (row: BPMInstance) => {
   try {
-    const res = await bpmApi.getProcessVisualization(String(row.instance_id))
+    const res = await getBpmProcessVisualization(String(row.instance_id))
     const d = res.data
     if (!d) {
       ElMessage.warning('未找到流程图信息')

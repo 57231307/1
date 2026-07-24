@@ -241,7 +241,15 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - Batch 3：✅ 已完成（#708 main 8b407e8）生产/质量 3 API 定义文件 5 处重命名 + 4 caller 文件（quality-standards/quality/production）
   - Batch 4：✅ 已完成（#710 main 3629977）CRM/客户/供应商/贸易 23 文件 41 处（12 API 定义文件 29 处重命名 + 11 caller 文件）
   - Batch 5a：✅ 已完成（#712 main 5d1c33b）系统/权限/基础/报表/其他风格 B 58 文件 117 处（28 API 定义文件 48 处重命名 + 28 caller 文件，CI 修复 1 轮 data-permission.ts URL 插值）
-  - Batch 5b：风格 A object→风格 B 转换（23 文件，待执行）
+  - Batch 5b：风格 A object→风格 B 转换（Pass 1 API 定义 + Pass 2 caller 更新）
+    - Pass 1：✅ 已完成（25 个风格 A API 定义文件全部转为风格 B 独立函数：bom.ts 10 函数 + bpm-enhanced.ts 16 函数 + bpm.ts 13 函数 + crm-enhanced.ts 21 函数 + customer.ts 7 函数 + five-dimension.ts 1 函数 + financial-analysis.ts 4 函数 + fabric.ts 等；移除原 `xxxApi = {}` 对象导出，保留类型定义）
+    - Pass 2：✅ 已完成（70 个 caller 文件 import+调用更新，分支 refactor/d14-batch5b-api-naming，待 commit）
+      - A 组 11 文件：bom/index.vue + fabric store/views + product 等
+      - B 组 12 文件：dashboard/sales/inventory store + Login.vue 等
+      - C 组 12 文件：crm/customer/customerCredit/supplier/supplierEvaluation 等
+      - D1 组 18 文件：sales/purchase/logistics/scheduling/security/capacity/material-shortage composables
+      - D2 组 17 文件 50 处：BPM 5 文件 26 处（bpm/index.vue 13 + templates.vue 2 + useBpmApProc.ts 3 + useBpmDf.ts 1 + useBpmDfProc.ts 7）+ CRM 11 文件 23 处（assignment.vue 2 + OpportunityFollowTab.vue 1 + ReleaseDialogTab.vue 1 + FollowUpTab.vue 2 + ManualAssignDialogTab.vue 1 + ClaimDialogTab.vue 1 + RfmTab.vue 2 + CustomerListTab.vue 4 + TagsPanelTab.vue 3 + TransferDialogTab.vue 1 + detail.vue 5）+ 其他 1 文件 1 处（sales-contract/useSc.ts customerApi.list→getCustomerList）
+      - grep 验证：`xxxApi.method()` 调用 0 残留，`import { xxxApi }` 仅剩 useTableApi（composable 合规）
 
 ---
 

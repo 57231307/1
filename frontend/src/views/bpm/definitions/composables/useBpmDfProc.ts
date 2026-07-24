@@ -7,8 +7,14 @@
  * 设计说明：通过 callbacks 接收 useBpmDf 的状态引用（Reactive 包装层）
  */
 import { ElMessage, ElMessageBox } from 'element-plus'
+// D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
-  bpmEnhancedApi,
+  deleteBpmDefinition,
+  updateBpmDefinition,
+  createBpmDefinition,
+  createBpmVersion,
+  activateBpmVersion,
+  saveBpmAsTemplate,
   type ProcessDefinition,
   type ProcessNode,
   type ProcessVersion,
@@ -141,7 +147,7 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
         '确认删除',
         { type: 'warning' }
       )
-      await bpmEnhancedApi.deleteDefinition(row.id)
+      await deleteBpmDefinition(row.id)
       ElMessage.success('删除成功')
       await cb.fetchDefinitions()
     } catch (error) {
@@ -158,13 +164,13 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     cb.submitLoading = true
     try {
       if (cb.isEdit && cb.formData.id) {
-        await bpmEnhancedApi.updateDefinition(
+        await updateBpmDefinition(
           cb.formData.id,
           cb.formData as unknown as Partial<ProcessDefinition>
         )
         ElMessage.success('更新成功')
       } else {
-        await bpmEnhancedApi.createDefinition(cb.formData as unknown as Partial<ProcessDefinition>)
+        await createBpmDefinition(cb.formData as unknown as Partial<ProcessDefinition>)
         ElMessage.success('创建成功')
       }
       cb.dialogVisible = false
@@ -190,7 +196,7 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     if (!cb.currentDefinition) return
     try {
       await ElMessageBox.confirm('确定要创建新版本吗？', '提示', { type: 'info' })
-      await bpmEnhancedApi.createVersion(cb.currentDefinition.id, { change_log: '新建版本' })
+      await createBpmVersion(cb.currentDefinition.id, { change_log: '新建版本' })
       ElMessage.success('新版本已创建')
       await cb.fetchVersions(cb.currentDefinition.id)
       await cb.fetchDefinitions()
@@ -206,7 +212,7 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
   /** 激活版本 */
   const handleActivateVersion = async (version: ProcessVersion) => {
     try {
-      await bpmEnhancedApi.activateVersion(version.id)
+      await activateBpmVersion(version.id)
       ElMessage.success('版本已激活')
       if (cb.currentDefinition) {
         await cb.fetchVersions(cb.currentDefinition.id)
@@ -235,7 +241,7 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     if (!cb.currentDefinition) return
     cb.templateLoading = true
     try {
-      await bpmEnhancedApi.saveAsTemplate(
+      await saveBpmAsTemplate(
         cb.currentDefinition.id,
         cb.templateForm as {
           template_name: string

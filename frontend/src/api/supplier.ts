@@ -38,6 +38,7 @@ export interface Supplier {
   updated_at?: string
 }
 
+// D14 Batch 5b：原 supplierApi.list 与本函数 URL 同为 /purchase/suppliers，判定为重复，移除对象方法，保留本函数
 export function getSupplierList(
   params?: SupplierQueryParams
 ): Promise<ApiResponse<{ list: Supplier[]; total: number }>> {
@@ -76,31 +77,33 @@ export interface SupplierEvaluationResult {
   created_at: string
 }
 
-export const supplierApi = {
-  list: (params?: SupplierQueryParams) =>
-    request.get<ApiResponse<{ list: Supplier[]; total: number }>>('/purchase/suppliers', {
-      params,
-    }),
+// D14 Batch 5b：原 supplierApi.getById 转为风格 B 函数
+export const getSupplierById = (id: number) =>
+  request.get<ApiResponse<Supplier>>(`/purchase/suppliers/${id}`)
 
-  getById: (id: number) => request.get<ApiResponse<Supplier>>(`/purchase/suppliers/${id}`),
+// D14 Batch 5b：原 supplierApi.create 转为风格 B 函数
+export const createSupplier = (data: Partial<Supplier>) =>
+  request.post<ApiResponse<Supplier>>('/purchase/suppliers', data)
 
-  create: (data: Partial<Supplier>) =>
-    request.post<ApiResponse<Supplier>>('/purchase/suppliers', data),
+// D14 Batch 5b：原 supplierApi.update 转为风格 B 函数
+export const updateSupplier = (id: number, data: Partial<Supplier>) =>
+  request.put<ApiResponse<Supplier>>(`/purchase/suppliers/${id}`, data)
 
-  update: (id: number, data: Partial<Supplier>) =>
-    request.put<ApiResponse<Supplier>>(`/purchase/suppliers/${id}`, data),
+// D14 Batch 5b：原 supplierApi.delete 转为风格 B 函数
+export const deleteSupplier = (id: number) =>
+  request.delete<ApiResponse<null>>(`/purchase/suppliers/${id}`)
 
-  delete: (id: number) => request.delete<ApiResponse<null>>(`/purchase/suppliers/${id}`),
+// D14 Batch 5b：原 supplierApi.evaluate 转为风格 B 函数
+export const evaluateSupplier = (id: number, data: SupplierEvaluationData) =>
+  request.post<ApiResponse<SupplierEvaluationResult>>(`/purchase/suppliers/${id}/evaluate`, data)
 
-  evaluate: (id: number, data: SupplierEvaluationData) =>
-    request.post<ApiResponse<SupplierEvaluationResult>>(`/purchase/suppliers/${id}/evaluate`, data),
+// D14 Batch 5b：原 supplierApi.getEvaluationHistory 转为风格 B 函数
+export const getSupplierEvaluationHistory = (id: number) =>
+  request.get<ApiResponse<SupplierEvaluationResult[]>>(`/purchase/suppliers/${id}/evaluations`)
 
-  getEvaluationHistory: (id: number) =>
-    request.get<ApiResponse<SupplierEvaluationResult[]>>(`/purchase/suppliers/${id}/evaluations`),
-
-  // V15 P0-S12 + P0-S15 新增（Batch 474）：带水印的 xlsx 导出
-  // 后端 GET /purchase/suppliers/export 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-  // 水印已由后端注入（操作员/IP/时间戳），前端只需下载 Blob
-  export: (params?: SupplierQueryParams) =>
-    request.get<Blob>('/purchase/suppliers/export', { params, responseType: 'blob' }),
-}
+// D14 Batch 5b：原 supplierApi.export 转为风格 B 函数
+// V15 P0-S12 + P0-S15 新增（Batch 474）：带水印的 xlsx 导出
+// 后端 GET /purchase/suppliers/export 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// 水印已由后端注入（操作员/IP/时间戳），前端只需下载 Blob
+export const exportSuppliers = (params?: SupplierQueryParams) =>
+  request.get<Blob>('/purchase/suppliers/export', { params, responseType: 'blob' })

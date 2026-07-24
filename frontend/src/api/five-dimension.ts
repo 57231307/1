@@ -99,25 +99,6 @@ export const parseFiveDimensionId = (id: number | string) =>
 export const searchFiveDimension = (params?: SearchQueryParams) =>
   request.get('/crm/five-dimension/search', { params })
 
-export const fiveDimensionApi = {
-  getStats: (dimensionId: number, params?: FiveDimensionQuery) =>
-    request.get<ApiResponse<FiveDimensionStats>>(`/crm/five-dimension/stats/${dimensionId}`, {
-      params,
-    }),
-
-  listStats: (params?: FiveDimensionQuery) =>
-    request.get<ApiResponse<{ stats: FiveDimensionStats[] }>>('/crm/five-dimension/stats', {
-      params,
-    }),
-
-  search: (query: string, params?: FiveDimensionQuery) =>
-    request.get<ApiResponse<{ results: FiveDimensionSearchResult[] }>>(
-      '/crm/five-dimension/search',
-      {
-        params: { ...params, q: query },
-      }
-    ),
-
-  getByDimensionId: (dimensionId: number) =>
-    request.get<ApiResponse<FiveDimensionStats>>(`/crm/five-dimension/${dimensionId}`),
-}
+// D14 Batch 5b：原 fiveDimensionApi.getByDimensionId 转为风格 B 函数（其余方法与已有风格 B 函数重复，已移除）
+export const getFiveDimensionById = (dimensionId: number) =>
+  request.get<ApiResponse<FiveDimensionStats>>(`/crm/five-dimension/${dimensionId}`)

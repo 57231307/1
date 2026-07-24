@@ -4,13 +4,13 @@
  */
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
+import { getPurchaseOrderList, type PurchaseOrder } from '@/api/purchase'
 import type { Supplier } from '@/api/supplier'
 import type { Product } from '@/api/product'
 import type { Warehouse } from '@/api/warehouse'
-import { supplierApi } from '@/api/supplier'
-import { productApi } from '@/api/product'
-import { warehouseApi } from '@/api/warehouse'
+import { getSupplierList } from '@/api/supplier'
+import { getProductList } from '@/api/product'
+import { getWarehouseList } from '@/api/warehouse'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 
@@ -110,7 +110,7 @@ export function usePurchList() {
   const fetchData = async () => {
     loading.value = true
     try {
-      const res = await purchaseApi.getOrderList(queryParams)
+      const res = await getPurchaseOrderList(queryParams)
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) orders.value = res.data.list || []
       total.value = res.data?.total || 0
@@ -133,7 +133,7 @@ export function usePurchList() {
    */
   const fetchSuppliers = async () => {
     try {
-      const res = await supplierApi.list({ page_size: 1000 })
+      const res = await getSupplierList({ page_size: 1000 })
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) suppliers.value = res.data.list || []
       stats.value.supplierCount = suppliers.value.length
@@ -147,7 +147,7 @@ export function usePurchList() {
    */
   const fetchProducts = async () => {
     try {
-      const res = await productApi.list({ page_size: 1000 })
+      const res = await getProductList({ page_size: 1000 })
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) products.value = res.data.list || []
     } catch (error) {
@@ -160,7 +160,7 @@ export function usePurchList() {
    */
   const fetchWarehouses = async () => {
     try {
-      const res = await warehouseApi.list({ page_size: 1000 })
+      const res = await getWarehouseList({ page_size: 1000 })
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) warehouses.value = res.data.list || []
     } catch (error) {

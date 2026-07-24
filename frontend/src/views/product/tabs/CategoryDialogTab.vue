@@ -47,7 +47,12 @@
 import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { productApi, type ProductCategory } from '@/api/product'
+import {
+  getProductCategoryList,
+  createProductCategory,
+  deleteProductCategory,
+  type ProductCategory,
+} from '@/api/product'
 import { logger } from '@/utils/logger'
 
 interface Props {
@@ -69,7 +74,7 @@ const loading = ref(false)
 const fetchCategories = async () => {
   loading.value = true
   try {
-    const res = await productApi.getCategories()
+    const res = await getProductCategoryList()
     categories.value = (res.data as ProductCategory[] | undefined) || []
   } catch (error) {
     const err = error as Error
@@ -85,7 +90,7 @@ const handleAdd = async () => {
     return
   }
   try {
-    await productApi.createCategory({ name: newCategoryName.value.trim() })
+    await createProductCategory({ name: newCategoryName.value.trim() })
     ElMessage.success('添加成功')
     newCategoryName.value = ''
     fetchCategories()
@@ -101,7 +106,7 @@ const handleDelete = async (row: ProductCategory) => {
     await ElMessageBox.confirm(`确定删除分类 "${row.name}" 吗？`, '删除确认', {
       type: 'warning',
     })
-    await productApi.deleteCategory(row.id)
+    await deleteProductCategory(row.id)
     ElMessage.success('删除成功')
     fetchCategories()
     emit('changed')

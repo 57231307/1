@@ -119,7 +119,7 @@
 // - 含税单价 = 单价 × 1.13
 import { ref, onMounted, watch } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { productApi } from '@/api/product'
+import { getProductColorList, getProductList } from '@/api/product'
 import type { ProductColor } from '@/api/product'
 import type { CreateQuotationItemDto } from '@/api/quotation'
 
@@ -173,7 +173,7 @@ async function handleProductChange(row: QuotationItemRow, productId: number | un
   row._colors = []
   if (!productId) return
   try {
-    const res = await productApi.getColors(productId)
+    const res = await getProductColorList(productId)
     const data: ProductColor[] = res.data || []
     // 直接修改 row（因为是父组件 v-model 持有的对象引用）
     row._colors = data
@@ -215,7 +215,7 @@ function formatAmount(value?: number): string {
 
 onMounted(async () => {
   try {
-    const res = await productApi.list({ page: 1, page_size: 1000, is_active: true })
+    const res = await getProductList({ page: 1, page_size: 1000, is_active: true })
     const data = res.data
     if (data && typeof data === 'object' && 'list' in data) {
       products.value = data.list || []

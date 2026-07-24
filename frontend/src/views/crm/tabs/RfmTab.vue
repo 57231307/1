@@ -63,7 +63,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import crmEnhancedApi, { type CustomerWithTags } from '@/api/crm-enhanced'
+// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+import { getCustomerList, getCustomerRfmDistribution, type CustomerWithTags } from '@/api/crm-enhanced'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const hasLoaded = createLazyLoader()
@@ -89,7 +90,7 @@ const getRfmLevelTag = (level: string) => {
 const fetchRfmCustomers = async () => {
   rfmLoading.value = true
   try {
-    const res = await crmEnhancedApi.getCustomerList({ page: 1, page_size: 100 })
+    const res = await getCustomerList({ page: 1, page_size: 100 })
     rfmCustomers.value = res.data?.list || []
     fetchRfmDistribution()
   } catch (error) {
@@ -101,7 +102,7 @@ const fetchRfmCustomers = async () => {
 
 const fetchRfmDistribution = async () => {
   try {
-    const res = await crmEnhancedApi.getRfmDistribution()
+    const res = await getCustomerRfmDistribution()
     rfmDistribution.value = res.data || {}
   } catch (error) {
     rfmDistribution.value = {}

@@ -9,7 +9,14 @@
  */
 import { reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { logisticsApi, type LogisticsWaybill, type WaybillStatus } from '@/api/logistics'
+import {
+  getLogisticsById,
+  updateLogistics,
+  createLogistics,
+  deleteLogistics,
+  type LogisticsWaybill,
+  type WaybillStatus,
+} from '@/api/logistics'
 import { logger } from '@/utils/logger'
 
 /**
@@ -99,7 +106,7 @@ export function useLgsProc(cb: LgsCallbacks) {
   /** 查看详情 */
   const handleView = async (row: LogisticsWaybill) => {
     try {
-      const res = await logisticsApi.getById(row.id!)
+      const res = await getLogisticsById(row.id!)
       cb.detailData = res.data
       cb.detailDialogVisible = true
     } catch (error) {
@@ -114,10 +121,10 @@ export function useLgsProc(cb: LgsCallbacks) {
     cb.submitLoading = true
     try {
       if (cb.isEdit && cb.formData.id) {
-        await logisticsApi.update(cb.formData.id, cb.formData)
+        await updateLogistics(cb.formData.id, cb.formData)
         ElMessage.success('更新成功')
       } else {
-        await logisticsApi.create(cb.formData)
+        await createLogistics(cb.formData)
         ElMessage.success('创建成功')
       }
       cb.dialogVisible = false
@@ -133,7 +140,7 @@ export function useLgsProc(cb: LgsCallbacks) {
   const handleShip = async (row: LogisticsWaybill) => {
     try {
       await ElMessageBox.confirm('确定要发货吗？', '提示', { type: 'warning' })
-      await logisticsApi.update(row.id!, { status: 'shipped' })
+      await updateLogistics(row.id!, { status: 'shipped' })
       ElMessage.success('发货成功')
       await cb.fetchData()
     } catch (error) {
@@ -154,7 +161,7 @@ export function useLgsProc(cb: LgsCallbacks) {
   /** 提交状态更新 */
   const handleStatusSubmit = async () => {
     try {
-      await logisticsApi.update(cb.statusForm.id, { status: cb.statusForm.newStatus as WaybillStatus })
+      await updateLogistics(cb.statusForm.id, { status: cb.statusForm.newStatus as WaybillStatus })
       ElMessage.success('状态更新成功')
       cb.statusDialogVisible = false
       await cb.fetchData()
@@ -167,7 +174,7 @@ export function useLgsProc(cb: LgsCallbacks) {
   const handleDelete = async (row: LogisticsWaybill) => {
     try {
       await ElMessageBox.confirm('确定要删除该运单吗？', '提示', { type: 'warning' })
-      await logisticsApi.delete(row.id!)
+      await deleteLogistics(row.id!)
       ElMessage.success('删除成功')
       await cb.fetchData()
     } catch (error) {

@@ -35,7 +35,8 @@ import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { User } from '@/api/user'
 import { logger } from '@/utils/logger'
-import { crmEnhancedApi } from '@/api/crm-enhanced'
+// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+import { assignCustomer } from '@/api/crm-enhanced'
 
 interface Props {
   modelValue: boolean
@@ -79,7 +80,7 @@ const handleSubmit = async () => {
   try {
     submitLoading.value = true
     // P1-5：实际调用分配 API
-    await crmEnhancedApi.assignCustomer({
+    await assignCustomer({
       customer_ids: [props.customerId],
       assign_to: form.ownerId,
       reason: form.reason,

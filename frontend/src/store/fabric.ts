@@ -1,6 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { fabricApi, type Fabric, type FabricCategory, type FabricQueryParams } from '@/api/fabric'
+import {
+  getFabricList,
+  getFabricCategoryList,
+  getFabricById as getFabricByIdApi,
+  createFabric as createFabricApi,
+  updateFabric as updateFabricApi,
+  deleteFabric as deleteFabricApi,
+  type Fabric,
+  type FabricCategory,
+  type FabricQueryParams,
+} from '@/api/fabric'
 import type { ApiResponse } from '@/types/api'
 import { logger } from '@/utils/logger'
 
@@ -14,7 +24,7 @@ export const useFabricStore = defineStore('fabric', () => {
   const fetchFabrics = async (params?: FabricQueryParams) => {
     loading.value = true
     try {
-      const res = await fabricApi.list(params)
+      const res = await getFabricList(params)
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
       if (res.data) {
         fabrics.value = res.data.list
@@ -29,7 +39,7 @@ export const useFabricStore = defineStore('fabric', () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await fabricApi.getCategories()
+      const res = await getFabricCategoryList()
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
       if (res.data) categories.value = res.data
     } catch (error) {
@@ -39,7 +49,7 @@ export const useFabricStore = defineStore('fabric', () => {
 
   const getFabricById = async (id: number) => {
     try {
-      const res = await fabricApi.getById(id)
+      const res = await getFabricByIdApi(id)
       // 仅在后端返回有效数据时更新并返回，data 为 null 时返回 null
       if (res.data) {
         currentFabric.value = res.data
@@ -54,7 +64,7 @@ export const useFabricStore = defineStore('fabric', () => {
 
   const createFabric = async (data: Partial<Fabric>): Promise<ApiResponse<Fabric> | null> => {
     try {
-      const res = await fabricApi.create(data)
+      const res = await createFabricApi(data)
       await fetchFabrics()
       return res
     } catch (error) {
@@ -68,7 +78,7 @@ export const useFabricStore = defineStore('fabric', () => {
     data: Partial<Fabric>
   ): Promise<ApiResponse<Fabric> | null> => {
     try {
-      const res = await fabricApi.update(id, data)
+      const res = await updateFabricApi(id, data)
       await fetchFabrics()
       return res
     } catch (error) {
@@ -79,7 +89,7 @@ export const useFabricStore = defineStore('fabric', () => {
 
   const deleteFabric = async (id: number): Promise<boolean> => {
     try {
-      await fabricApi.delete(id)
+      await deleteFabricApi(id)
       await fetchFabrics()
       return true
     } catch (error) {

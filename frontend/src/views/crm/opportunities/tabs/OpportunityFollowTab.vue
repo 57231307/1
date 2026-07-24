@@ -34,7 +34,8 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { logger } from '@/utils/logger'
-import { crmEnhancedApi } from '@/api/crm-enhanced'
+// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+import { createFollowUp } from '@/api/crm-enhanced'
 
 interface Props {
   modelValue: boolean
@@ -77,7 +78,7 @@ const handleSubmit = async () => {
   try {
     submitLoading.value = true
     // P1-5：实际调用跟进记录保存 API
-    await crmEnhancedApi.createFollowUp(props.opportunityId, {
+    await createFollowUp(props.opportunityId, {
       type: 'opportunity',
       content: formData.content,
       next_follow_date: formData.next_follow_up_date,

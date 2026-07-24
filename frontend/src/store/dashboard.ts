@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
-  dashboardApi,
+  getDashboardOverview,
+  getDashboardSalesStats,
+  getDashboardInventoryStats,
   type DashboardOverview,
   type SalesStatistics,
   type InventoryStatistics,
@@ -28,7 +30,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const fetchStats = async () => {
     loading.value = true
     try {
-      const res = await dashboardApi.getOverview()
+      const res = await getDashboardOverview()
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
       if (res.data) stats.value = res.data
     } catch (error) {
@@ -40,7 +42,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
 
   const fetchSalesStats = async () => {
     try {
-      const res = await dashboardApi.getSalesStats()
+      const res = await getDashboardSalesStats()
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
       if (res.data) salesStatistics.value = res.data
     } catch (error) {
@@ -50,7 +52,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
 
   const fetchInventoryStats = async () => {
     try {
-      const res = await dashboardApi.getInventoryStats()
+      const res = await getDashboardInventoryStats()
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
       if (res.data) inventoryStatistics.value = res.data
     } catch (error) {

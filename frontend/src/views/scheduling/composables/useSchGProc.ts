@@ -6,7 +6,7 @@
  */
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { schedulingApi, type SchedulingParams, type ConflictItem } from '@/api/scheduling'
+import { autoSchedule, type SchedulingParams, type ConflictItem } from '@/api/scheduling'
 
 // v11 批次 181 P2-1 修复：定义 deps 类型替代 any
 // 注：useSchG 返回 reactive 对象，字段会被自动解包
@@ -33,7 +33,7 @@ export function useSchGProc(deps: SchGDeps) {
   const confirmAutoSchedule = async () => {
     scheduling.value = true
     try {
-      const res = await schedulingApi.autoSchedule(deps.scheduleForm)
+      const res = await autoSchedule(deps.scheduleForm)
       const result = res.data
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (!result) return

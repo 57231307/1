@@ -174,112 +174,144 @@ export interface AssignmentQueryParams extends QueryParams {
   date_range?: string[]
 }
 
-export const crmEnhancedApi = {
-  // 客户列表（含标签、联系人）
-  getCustomerList: (params?: QueryParams) =>
-    request.get<ApiResponse<PageResult<CustomerWithTags>>>('/crm/customers/enhanced', { params }),
+// 客户列表（含标签、联系人）
+// D14 Batch 5b：原 crmEnhancedApi.getCustomerList 转为风格 B 函数
+export const getCustomerList = (params?: QueryParams) =>
+  request.get<ApiResponse<PageResult<CustomerWithTags>>>('/crm/customers/enhanced', { params })
 
-  // 客户详情
-  getCustomerDetail: (id: number) =>
-    request.get<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`),
+// 客户详情
+// D14 Batch 5b：原 crmEnhancedApi.getCustomerDetail 转为风格 B 函数
+export const getCustomerDetail = (id: number) =>
+  request.get<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`)
 
-  // 创建客户
-  createCustomer: (data: Partial<CustomerWithTags>) =>
-    request.post<ApiResponse<CustomerWithTags>>('/crm/customers/enhanced', data),
+// 创建客户
+// D14 Batch 5b：原 crmEnhancedApi.createCustomer 转为风格 B 函数
+export const createCustomer = (data: Partial<CustomerWithTags>) =>
+  request.post<ApiResponse<CustomerWithTags>>('/crm/customers/enhanced', data)
 
-  // 更新客户
-  updateCustomer: (id: number, data: Partial<CustomerWithTags>) =>
-    request.put<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`, data),
+// 更新客户
+// D14 Batch 5b：原 crmEnhancedApi.updateCustomer 转为风格 B 函数
+export const updateCustomer = (id: number, data: Partial<CustomerWithTags>) =>
+  request.put<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`, data)
 
-  // 删除客户
-  deleteCustomer: (id: number) =>
-    request.delete<ApiResponse<void>>(`/crm/customers/enhanced/${id}`),
+// 删除客户
+// D14 Batch 5b：原 crmEnhancedApi.deleteCustomer 转为风格 B 函数
+export const deleteCustomer = (id: number) =>
+  request.delete<ApiResponse<void>>(`/crm/customers/enhanced/${id}`)
 
-  // 客户 360 视图
-  getCustomer360: (id: number) => request.get<ApiResponse<Customer360>>(`/crm/customers/${id}/360`),
+// 客户 360 视图
+// D14 Batch 5b：原 crmEnhancedApi.getCustomer360 转为风格 B 函数
+export const getCustomer360 = (id: number) =>
+  request.get<ApiResponse<Customer360>>(`/crm/customers/${id}/360`)
 
-  // 标签管理
-  getTags: () => request.get<ApiResponse<CustomerTag[]>>('/crm/tags'),
+// 标签管理
+// D14 Batch 5b：原 crmEnhancedApi.getTags 转为风格 B 函数
+export const getCrmTagList = () => request.get<ApiResponse<CustomerTag[]>>('/crm/tags')
 
-  createTag: (data: { name: string; color: string; category: string }) =>
-    request.post<ApiResponse<CustomerTag>>('/crm/tags', data),
+// D14 Batch 5b：原 crmEnhancedApi.createTag 转为风格 B 函数
+export const createCrmTag = (data: { name: string; color: string; category: string }) =>
+  request.post<ApiResponse<CustomerTag>>('/crm/tags', data)
 
-  deleteTag: (id: number) => request.delete<ApiResponse<void>>(`/crm/tags/${id}`),
+// D14 Batch 5b：原 crmEnhancedApi.deleteTag 转为风格 B 函数
+export const deleteCrmTag = (id: number) =>
+  request.delete<ApiResponse<void>>(`/crm/tags/${id}`)
 
-  addTagToCustomer: (customerId: number, tagId: number) =>
-    request.post<ApiResponse<void>>(`/crm/customers/${customerId}/tags/${tagId}`),
+// D14 Batch 5b：原 crmEnhancedApi.addTagToCustomer 转为风格 B 函数
+export const addTagToCustomer = (customerId: number, tagId: number) =>
+  request.post<ApiResponse<void>>(`/crm/customers/${customerId}/tags/${tagId}`)
 
-  removeTagFromCustomer: (customerId: number, tagId: number) =>
-    request.delete<ApiResponse<void>>(`/crm/customers/${customerId}/tags/${tagId}`),
+// D14 Batch 5b：原 crmEnhancedApi.removeTagFromCustomer 转为风格 B 函数
+export const removeTagFromCustomer = (customerId: number, tagId: number) =>
+  request.delete<ApiResponse<void>>(`/crm/customers/${customerId}/tags/${tagId}`)
 
-  // 公海池
-  getPoolList: (params?: PoolQueryParams) =>
-    request.get<ApiResponse<PageResult<PoolCustomer>>>('/crm/pool', { params }),
+// 公海池
+// D14 Batch 5b：原 crmEnhancedApi.getPoolList 转为风格 B 函数
+export const getCustomerPoolList = (params?: PoolQueryParams) =>
+  request.get<ApiResponse<PageResult<PoolCustomer>>>('/crm/pool', { params })
 
-  claimFromPool: (customerId: number) =>
-    request.post<ApiResponse<void>>(`/crm/pool/${customerId}/claim`),
+// D14 Batch 5b：原 crmEnhancedApi.claimFromPool 转为风格 B 函数
+export const claimCustomerFromPool = (customerId: number) =>
+  request.post<ApiResponse<void>>(`/crm/pool/${customerId}/claim`)
 
-  batchClaimFromPool: (customerIds: number[]) =>
-    request.post<ApiResponse<void>>('/crm/pool/batch-claim', { customer_ids: customerIds }),
+// D14 Batch 5b：原 crmEnhancedApi.batchClaimFromPool 转为风格 B 函数
+export const batchClaimCustomersFromPool = (customerIds: number[]) =>
+  request.post<ApiResponse<void>>('/crm/pool/batch-claim', { customer_ids: customerIds })
 
-  // 回收规则
-  getRecycleRules: () => request.get<ApiResponse<RecycleRule[]>>('/crm/recycle-rules'),
+// 回收规则
+// D14 Batch 5b：原 crmEnhancedApi.getRecycleRules 转为风格 B 函数
+export const getRecycleRuleList = () =>
+  request.get<ApiResponse<RecycleRule[]>>('/crm/recycle-rules')
 
-  createRecycleRule: (data: Partial<RecycleRule>) =>
-    request.post<ApiResponse<RecycleRule>>('/crm/recycle-rules', data),
+// D14 Batch 5b：原 crmEnhancedApi.createRecycleRule 转为风格 B 函数
+export const createRecycleRule = (data: Partial<RecycleRule>) =>
+  request.post<ApiResponse<RecycleRule>>('/crm/recycle-rules', data)
 
-  updateRecycleRule: (id: number, data: Partial<RecycleRule>) =>
-    request.put<ApiResponse<RecycleRule>>(`/crm/recycle-rules/${id}`, data),
+// D14 Batch 5b：原 crmEnhancedApi.updateRecycleRule 转为风格 B 函数
+export const updateRecycleRule = (id: number, data: Partial<RecycleRule>) =>
+  request.put<ApiResponse<RecycleRule>>(`/crm/recycle-rules/${id}`, data)
 
-  deleteRecycleRule: (id: number) => request.delete<ApiResponse<void>>(`/crm/recycle-rules/${id}`),
+// D14 Batch 5b：原 crmEnhancedApi.deleteRecycleRule 转为风格 B 函数
+export const deleteRecycleRule = (id: number) =>
+  request.delete<ApiResponse<void>>(`/crm/recycle-rules/${id}`)
 
-  // 客户分配
-  assignCustomer: (data: { customer_ids: number[]; assign_to: number; reason?: string }) =>
-    request.post<ApiResponse<void>>('/crm/assignments', data),
+// 客户分配
+// D14 Batch 5b：原 crmEnhancedApi.assignCustomer 转为风格 B 函数
+export const assignCustomer = (data: { customer_ids: number[]; assign_to: number; reason?: string }) =>
+  request.post<ApiResponse<void>>('/crm/assignments', data)
 
-  batchAssign: (data: { assignments: { customer_id: number; assign_to: number }[] }) =>
-    request.post<ApiResponse<void>>('/crm/assignments/batch', data),
+// D14 Batch 5b：原 crmEnhancedApi.batchAssign 转为风格 B 函数
+export const batchAssignCustomers = (
+  data: { assignments: { customer_id: number; assign_to: number }[] }
+) => request.post<ApiResponse<void>>('/crm/assignments/batch', data)
 
-  getAssignmentHistory: (params?: AssignmentQueryParams) =>
-    request.get<ApiResponse<PageResult<AssignmentRecord>>>('/crm/assignments/history', { params }),
+// D14 Batch 5b：原 crmEnhancedApi.getAssignmentHistory 转为风格 B 函数
+export const getCustomerAssignmentHistory = (params?: AssignmentQueryParams) =>
+  request.get<ApiResponse<PageResult<AssignmentRecord>>>('/crm/assignments/history', { params })
 
-  getSalesUsers: () => request.get<ApiResponse<SalesUser[]>>('/crm/sales-users'),
+// D14 Batch 5b：原 crmEnhancedApi.getSalesUsers 转为风格 B 函数
+export const getSalesUserList = () => request.get<ApiResponse<SalesUser[]>>('/crm/sales-users')
 
-  // 跟进记录
-  getFollowUps: (customerId: number, params?: QueryParams) =>
-    request.get<ApiResponse<PageResult<FollowUpRecord>>>(
-      `/crm/customers/${customerId}/follow-ups`,
-      { params }
-    ),
+// 跟进记录
+// D14 Batch 5b：原 crmEnhancedApi.getFollowUps 转为风格 B 函数
+export const getFollowUpList = (customerId: number, params?: QueryParams) =>
+  request.get<ApiResponse<PageResult<FollowUpRecord>>>(
+    `/crm/customers/${customerId}/follow-ups`,
+    { params }
+  )
 
-  createFollowUp: (
-    customerId: number,
-    data: { type: string; content: string; next_follow_date?: string }
-  ) => request.post<ApiResponse<FollowUpRecord>>(`/crm/customers/${customerId}/follow-ups`, data),
+// D14 Batch 5b：原 crmEnhancedApi.createFollowUp 转为风格 B 函数
+export const createFollowUp = (
+  customerId: number,
+  data: { type: string; content: string; next_follow_date?: string }
+) => request.post<ApiResponse<FollowUpRecord>>(`/crm/customers/${customerId}/follow-ups`, data)
 
-  // RFM 模型
-  getRfmScore: (customerId: number) =>
-    request.get<ApiResponse<RfmScore>>(`/crm/customers/${customerId}/rfm`),
+// RFM 模型
+// D14 Batch 5b：原 crmEnhancedApi.getRfmScore 转为风格 B 函数
+export const getCustomerRfmScore = (customerId: number) =>
+  request.get<ApiResponse<RfmScore>>(`/crm/customers/${customerId}/rfm`)
 
-  getRfmDistribution: () =>
-    request.get<ApiResponse<Record<string, number>>>('/crm/rfm/distribution'),
+// D14 Batch 5b：原 crmEnhancedApi.getRfmDistribution 转为风格 B 函数
+export const getCustomerRfmDistribution = () =>
+  request.get<ApiResponse<Record<string, number>>>('/crm/rfm/distribution')
 
-  // 释放客户到公海池（P1-5 补齐，与后端 /pool/recycle 对应）
-  recycleToPool: (data: { customer_ids: number[]; reason?: string }) =>
-    request.post<ApiResponse<void>>('/crm/pool/recycle', data),
+// 释放客户到公海池（P1-5 补齐，与后端 /pool/recycle 对应）
+// D14 Batch 5b：原 crmEnhancedApi.recycleToPool 转为风格 B 函数
+export const recycleCustomerToPool = (data: { customer_ids: number[]; reason?: string }) =>
+  request.post<ApiResponse<void>>('/crm/pool/recycle', data)
 
-  // 联系人 CRUD（批次 90b P2-12：替代 detail.vue "新增联系人功能待实现" 占位符）
-  listContacts: (customerId: number) =>
-    request.get<ApiResponse<Contact[]>>(`/crm/customers/${customerId}/contacts`),
+// 联系人 CRUD（批次 90b P2-12：替代 detail.vue "新增联系人功能待实现" 占位符）
+// D14 Batch 5b：原 crmEnhancedApi.listContacts 转为风格 B 函数
+export const getCustomerContactList = (customerId: number) =>
+  request.get<ApiResponse<Contact[]>>(`/crm/customers/${customerId}/contacts`)
 
-  createContact: (customerId: number, data: ContactInput) =>
-    request.post<ApiResponse<Contact>>(`/crm/customers/${customerId}/contacts`, data),
+// D14 Batch 5b：原 crmEnhancedApi.createContact 转为风格 B 函数
+export const createCustomerContact = (customerId: number, data: ContactInput) =>
+  request.post<ApiResponse<Contact>>(`/crm/customers/${customerId}/contacts`, data)
 
-  updateContact: (customerId: number, contactId: number, data: ContactUpdate) =>
-    request.put<ApiResponse<Contact>>(`/crm/customers/${customerId}/contacts/${contactId}`, data),
+// D14 Batch 5b：原 crmEnhancedApi.updateContact 转为风格 B 函数
+export const updateCustomerContact = (customerId: number, contactId: number, data: ContactUpdate) =>
+  request.put<ApiResponse<Contact>>(`/crm/customers/${customerId}/contacts/${contactId}`, data)
 
-  deleteContact: (customerId: number, contactId: number) =>
-    request.delete<ApiResponse<void>>(`/crm/customers/${customerId}/contacts/${contactId}`),
-}
-
-export default crmEnhancedApi
+// D14 Batch 5b：原 crmEnhancedApi.deleteContact 转为风格 B 函数
+export const deleteCustomerContact = (customerId: number, contactId: number) =>
+  request.delete<ApiResponse<void>>(`/crm/customers/${customerId}/contacts/${contactId}`)

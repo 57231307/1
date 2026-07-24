@@ -148,63 +148,78 @@ export interface InventoryReportDetail {
   batch_no?: string
 }
 
-export const inventoryApi = {
-  getStockList: (params?: InventoryQueryParams) =>
-    request.get<ApiResponse<{ list: InventoryStock[]; total: number }>>('/inventory/stock', {
-      params,
-    }),
+// D14 Batch 5b：原 inventoryApi.getStockList 转为风格 B 函数
+export const getStockList = (params?: InventoryQueryParams) =>
+  request.get<ApiResponse<{ list: InventoryStock[]; total: number }>>('/inventory/stock', {
+    params,
+  })
 
-  getStockById: (id: number) => request.get<ApiResponse<InventoryStock>>(`/inventory/stock/${id}`),
+// D14 Batch 5b：原 inventoryApi.getStockById 转为风格 B 函数
+export const getStockById = (id: number) =>
+  request.get<ApiResponse<InventoryStock>>(`/inventory/stock/${id}`)
 
-  // 批次 94 P2-12 修复：补全库存记录更新接口（原缺失，导致 StockTab 编辑占位）
-  updateStock: (id: number, data: Partial<InventoryStock>) =>
-    request.put<ApiResponse<InventoryStock>>(`/inventory/stock/${id}`, data),
+// 批次 94 P2-12 修复：补全库存记录更新接口（原缺失，导致 StockTab 编辑占位）
+// D14 Batch 5b：原 inventoryApi.updateStock 转为风格 B 函数
+export const updateStock = (id: number, data: Partial<InventoryStock>) =>
+  request.put<ApiResponse<InventoryStock>>(`/inventory/stock/${id}`, data)
 
-  // 批次 94 P2-12 修复：补全库存记录删除接口（原缺失，导致 StockTab 删除/批量删除占位）
-  deleteStock: (id: number) =>
-    request.delete<ApiResponse<void>>(`/inventory/stock/${id}`),
+// 批次 94 P2-12 修复：补全库存记录删除接口（原缺失，导致 StockTab 删除/批量删除占位）
+// D14 Batch 5b：原 inventoryApi.deleteStock 转为风格 B 函数
+export const deleteStock = (id: number) =>
+  request.delete<ApiResponse<void>>(`/inventory/stock/${id}`)
 
-  getStockByProduct: (productId: number) =>
-    request.get<ApiResponse<InventoryStock[]>>(`/inventory/stock/product/${productId}`),
+// D14 Batch 5b：原 inventoryApi.getStockByProduct 转为风格 B 函数
+export const getStockByProduct = (productId: number) =>
+  request.get<ApiResponse<InventoryStock[]>>(`/inventory/stock/product/${productId}`)
 
-  createStockAdjustment: (data: StockAdjustmentData) =>
-    request.post<ApiResponse<{ id: number; adjustment_no: string }>>(
-      '/inventory/adjustments',
-      data
-    ),
+// D14 Batch 5b：原 inventoryApi.createStockAdjustment 转为风格 B 函数
+export const createStockAdjustment = (data: StockAdjustmentData) =>
+  request.post<ApiResponse<{ id: number; adjustment_no: string }>>(
+    '/inventory/adjustments',
+    data
+  )
 
-  getReservations: (params?: InventoryQueryParams) =>
-    request.get<ApiResponse<{ list: InventoryReservation[]; total: number }>>(
-      '/inventory/reservations',
-      { params }
-    ),
+// D14 Batch 5b：原 inventoryApi.getReservations 转为风格 B 函数
+export const getReservationList = (params?: InventoryQueryParams) =>
+  request.get<ApiResponse<{ list: InventoryReservation[]; total: number }>>(
+    '/inventory/reservations',
+    { params }
+  )
 
-  createReservation: (data: ReservationData) =>
-    request.post<ApiResponse<InventoryReservation>>('/inventory/reservations', data),
+// D14 Batch 5b：原 inventoryApi.createReservation 转为风格 B 函数
+export const createReservation = (data: ReservationData) =>
+  request.post<ApiResponse<InventoryReservation>>('/inventory/reservations', data)
 
-  cancelReservation: (id: number) =>
-    request.delete<ApiResponse<null>>(`/inventory/reservations/${id}`),
+// D14 Batch 5b：原 inventoryApi.cancelReservation 转为风格 B 函数
+export const cancelReservation = (id: number) =>
+  request.delete<ApiResponse<null>>(`/inventory/reservations/${id}`)
 
-  getTransfers: (params?: InventoryQueryParams) =>
-    request.get<ApiResponse<{ list: InventoryTransfer[]; total: number }>>('/inventory/transfers', {
-      params,
-    }),
+// D14 Batch 5b：原 inventoryApi.getTransfers 转为风格 B 函数
+export const getInventoryTransferList = (params?: InventoryQueryParams) =>
+  request.get<ApiResponse<{ list: InventoryTransfer[]; total: number }>>('/inventory/transfers', {
+    params,
+  })
 
-  createTransfer: (data: TransferData) =>
-    request.post<ApiResponse<InventoryTransfer>>('/inventory/transfers', data),
+// D14 Batch 5b：原 inventoryApi.createTransfer 转为风格 B 函数
+export const createInventoryTransfer = (data: TransferData) =>
+  request.post<ApiResponse<InventoryTransfer>>('/inventory/transfers', data)
 
-  approveTransfer: (id: number) =>
-    request.post<ApiResponse<null>>(`/inventory/transfers/${id}/approve`),
+// D14 Batch 5b：原 inventoryApi.approveTransfer 转为风格 B 函数
+export const approveInventoryTransfer = (id: number) =>
+  request.post<ApiResponse<null>>(`/inventory/transfers/${id}/approve`)
 
-  executeTransfer: (id: number) =>
-    request.post<ApiResponse<null>>(`/inventory/transfers/${id}/ship`),
+// D14 Batch 5b：原 inventoryApi.executeTransfer 转为风格 B 函数
+export const executeInventoryTransfer = (id: number) =>
+  request.post<ApiResponse<null>>(`/inventory/transfers/${id}/ship`)
 
-  getStockAlerts: () => request.get<ApiResponse<StockAlert[]>>('/inventory/stock/alerts'),
+// D14 Batch 5b：原 inventoryApi.getStockAlerts 转为风格 B 函数
+export const getStockAlertList = () =>
+  request.get<ApiResponse<StockAlert[]>>('/inventory/stock/alerts')
 
-  getInventoryReport: (params: InventoryReportParams) =>
-    request.get<
-      ApiResponse<{ summary: InventoryReportSummary; details: InventoryReportDetail[] }>
-    >('/inventory/stock/summary', {
-      params,
-    }),
-}
+// D14 Batch 5b：原 inventoryApi.getInventoryReport 转为风格 B 函数
+export const getInventoryReport = (params: InventoryReportParams) =>
+  request.get<
+    ApiResponse<{ summary: InventoryReportSummary; details: InventoryReportDetail[] }>
+  >('/inventory/stock/summary', {
+    params,
+  })

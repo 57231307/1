@@ -38,6 +38,7 @@ export interface CustomerQueryParams {
   status?: string
 }
 
+// D14 Batch 5b：原 customerApi.list 与本函数 URL 同为 /crm/customers，判定为重复，移除对象方法，保留本函数
 export function getCustomerList(
   params?: CustomerQueryParams
 ): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
@@ -61,27 +62,31 @@ export async function getCustomerSelectList(): Promise<{ label: string; value: n
   return list.map(c => ({ label: c.customer_name, value: c.id }))
 }
 
-export const customerApi = {
-  list: (params?: CustomerQueryParams) =>
-    request.get<ApiResponse<{ list: Customer[]; total: number }>>('/crm/customers', { params }),
+// D14 Batch 5b：原 customerApi.getById 转为风格 B 函数
+export const getCustomerById = (id: number) =>
+  request.get<ApiResponse<Customer>>(`/crm/customers/${id}`)
 
-  getById: (id: number) => request.get<ApiResponse<Customer>>(`/crm/customers/${id}`),
+// D14 Batch 5b：原 customerApi.create 转为风格 B 函数
+export const createCustomer = (data: Partial<Customer>) =>
+  request.post<ApiResponse<Customer>>('/crm/customers', data)
 
-  create: (data: Partial<Customer>) => request.post<ApiResponse<Customer>>('/crm/customers', data),
+// D14 Batch 5b：原 customerApi.update 转为风格 B 函数
+export const updateCustomer = (id: number, data: Partial<Customer>) =>
+  request.put<ApiResponse<Customer>>(`/crm/customers/${id}`, data)
 
-  update: (id: number, data: Partial<Customer>) =>
-    request.put<ApiResponse<Customer>>(`/crm/customers/${id}`, data),
+// D14 Batch 5b：原 customerApi.delete 转为风格 B 函数
+export const deleteCustomer = (id: number) =>
+  request.delete<ApiResponse<null>>(`/crm/customers/${id}`)
 
-  delete: (id: number) => request.delete<ApiResponse<null>>(`/crm/customers/${id}`),
+// D14 Batch 5b：原 customerApi.getCreditInfo 转为风格 B 函数
+export const getCustomerCreditInfo = (id: number) =>
+  request.get<ApiResponse<{ credit_limit: number; current_balance: number; available: number }>>(
+    `/crm/customers/${id}/credit`
+  )
 
-  getCreditInfo: (id: number) =>
-    request.get<ApiResponse<{ credit_limit: number; current_balance: number; available: number }>>(
-      `/crm/customers/${id}/credit`
-    ),
-
-  // V15 P0-S12 + P0-S15 新增（Batch 474）：带水印的 xlsx 导出
-  // 后端 GET /crm/customers/export 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-  // 水印已由后端注入（操作员/IP/时间戳），前端只需下载 Blob
-  export: (params?: CustomerQueryParams) =>
-    request.get<Blob>('/crm/customers/export', { params, responseType: 'blob' }),
-}
+// D14 Batch 5b：原 customerApi.export 转为风格 B 函数
+// V15 P0-S12 + P0-S15 新增（Batch 474）：带水印的 xlsx 导出
+// 后端 GET /crm/customers/export 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// 水印已由后端注入（操作员/IP/时间戳），前端只需下载 Blob
+export const exportCustomers = (params?: CustomerQueryParams) =>
+  request.get<Blob>('/crm/customers/export', { params, responseType: 'blob' })

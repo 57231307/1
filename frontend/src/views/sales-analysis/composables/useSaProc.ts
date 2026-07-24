@@ -3,7 +3,7 @@
 // 业务领域：销售分析（编辑目标 + 导出报表 + 排名类型切换）
 // 行为完全保持一致（仅结构重构）
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesAnalysisApi } from '@/api/sales-analysis'
+import { getSalesTargetList, updateSalesTarget, exportSalesAnalysisReport } from '@/api/sales-analysis'
 import { logger } from '@/utils/logger'
 import { useSa } from './useSa'
 
@@ -12,7 +12,7 @@ export const useSaProc = () => {
   // 编辑目标（批次 95 P3-18 修复：拉取目标列表 + prompt 输入新金额 + 调用 updateSalesTarget）
   const handleEditTarget = async () => {
     try {
-      const res = await salesAnalysisApi.getSalesTargets()
+      const res = await getSalesTargetList()
       const targets = res.data || []
       if (!targets.length) {
         ElMessage.warning('暂无销售目标可编辑')
@@ -29,7 +29,7 @@ export const useSaProc = () => {
             (!isNaN(Number(v)) && Number(v) >= 0) || '请输入有效的非负数字',
         }
       )
-      await salesAnalysisApi.updateSalesTarget(target.period, {
+      await updateSalesTarget(target.period, {
         target_amount: Number(value),
       })
       ElMessage.success('更新成功')
@@ -44,7 +44,7 @@ export const useSaProc = () => {
   // 导出报表
   const handleExport = async () => {
     try {
-      const res = await salesAnalysisApi.exportReport()
+      const res = await exportSalesAnalysisReport()
       const url = window.URL.createObjectURL(new Blob([res]))
       const link = document.createElement('a')
       link.href = url

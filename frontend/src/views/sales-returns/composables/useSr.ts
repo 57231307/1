@@ -8,11 +8,10 @@
 import { ref, reactive } from 'vue'
 import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { salesReturnApi } from '@/api/sales-return'
-import type { SalesReturn } from '@/api/sales-return'
-import { salesApi } from '@/api/sales'
+import { getSalesReturnList, createSalesReturn, updateSalesReturn, type SalesReturn } from '@/api/sales-return'
+import { getSalesOrderList } from '@/api/sales'
 import { getCustomerList } from '@/api/customer'
-import { productApi } from '@/api/product'
+import { getProductList } from '@/api/product'
 import logger from '@/utils/logger'
 
 // v11 批次 163 P2-1 修复：定义具体类型替代 any
@@ -108,7 +107,7 @@ export function useSr() {
   const loadReturns = async () => {
     loading.value = true
     try {
-      const res = await salesReturnApi.list()
+      const res = await getSalesReturnList()
       returnList.value = res.data?.list || []
     } catch (error: unknown) {
       // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
@@ -121,7 +120,7 @@ export function useSr() {
   // 加载销售订单下拉
   const loadSalesOrders = async () => {
     try {
-      const res = await salesApi.getOrderList({ status: 'completed' })
+      const res = await getSalesOrderList({ status: 'completed' })
       salesOrderList.value = (res.data?.list || []) as unknown as SalesOrderOption[]
     } catch (error: unknown) {
       logger.error('加载销售订单失败', error instanceof Error ? error.message : String(error))
@@ -141,7 +140,7 @@ export function useSr() {
   // 加载产品下拉
   const loadProducts = async () => {
     try {
-      const res = await productApi.list()
+      const res = await getProductList()
       productList.value = (res.data?.list || []) as unknown as ProductOption[]
     } catch (error: unknown) {
       logger.error('加载产品列表失败', error instanceof Error ? error.message : String(error))
@@ -260,10 +259,10 @@ export function useSr() {
 
     try {
       if (dialogMode === 'create') {
-        await salesReturnApi.create(submitData)
+        await createSalesReturn(submitData)
         ElMessage.success('创建成功')
       } else {
-        await salesReturnApi.update(formData.id as number, submitData)
+        await updateSalesReturn(formData.id as number, submitData)
         ElMessage.success('更新成功')
       }
       return true

@@ -215,7 +215,14 @@ import { reactive, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { salesReturnApi, type SalesReturn, type SalesReturnItem } from '@/api/sales-return'
+import {
+  getSalesReturnList,
+  getSalesReturnById,
+  updateSalesReturn,
+  createSalesReturn,
+  type SalesReturn,
+  type SalesReturnItem,
+} from '@/api/sales-return'
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-returns 资源对齐
 import { PERMISSIONS } from '@/constants/permissions'
 
@@ -257,7 +264,7 @@ const getReturnStatusType = (status?: string) => {
 const fetchSalesReturns = async () => {
   returnLoading.value = true
   try {
-    const res = await salesReturnApi.list(returnQuery)
+    const res = await getSalesReturnList(returnQuery)
     const d = res.data as
       | { list?: SalesReturn[]; items?: SalesReturn[]; data?: SalesReturn[] }
       | SalesReturn[]
@@ -308,7 +315,7 @@ const returnRules: FormRules = {
 
 const openReturnDialog = async (row?: SalesReturn) => {
   if (row) {
-    const res = await salesReturnApi.getById(row.id!)
+    const res = await getSalesReturnById(row.id!)
     // 安全检查：防止后端返回 data 为 null 时崩溃
     if (res.data) Object.assign(returnForm, res.data)
   } else {
@@ -344,10 +351,10 @@ const submitReturn = async () => {
   returnSubmitLoading.value = true
   try {
     if (returnForm.id) {
-      await salesReturnApi.update(returnForm.id, returnForm)
+      await updateSalesReturn(returnForm.id, returnForm)
       ElMessage.success('更新成功')
     } else {
-      await salesReturnApi.create(returnForm)
+      await createSalesReturn(returnForm)
       ElMessage.success('创建成功')
     }
     returnDialogVisible.value = false
@@ -382,7 +389,7 @@ const currentReturn = ref<SalesReturn | null>(null)
 
 const viewReturn = async (row: SalesReturn) => {
   try {
-    const res = await salesReturnApi.getById(row.id!)
+    const res = await getSalesReturnById(row.id!)
     currentReturn.value = res.data || row
     returnViewVisible.value = true
   } catch (_e) {

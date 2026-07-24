@@ -44,48 +44,59 @@ export interface PurchaseInspectionQueryParams {
   inspection_date_to?: string
 }
 
-export const purchaseInspectionApi = {
-  // 检验单列表
-  list: (params?: PurchaseInspectionQueryParams) =>
-    request.get<ApiResponse<{ list: PurchaseInspection[]; total: number }>>(
-      '/purchase/inspections',
-      { params }
-    ),
+// D14 Batch 5b：原 purchaseInspectionApi.list 转为风格 B 函数
+// 检验单列表
+export const getPurchaseInspectionList = (params?: PurchaseInspectionQueryParams) =>
+  request.get<ApiResponse<{ list: PurchaseInspection[]; total: number }>>(
+    '/purchase/inspections',
+    { params }
+  )
 
-  // 创建检验单
-  create: (data: Partial<PurchaseInspection>) =>
-    request.post<ApiResponse<PurchaseInspection>>('/purchase/inspections', data),
+// D14 Batch 5b：原 purchaseInspectionApi.create 转为风格 B 函数
+// 创建检验单
+export const createPurchaseInspection = (data: Partial<PurchaseInspection>) =>
+  request.post<ApiResponse<PurchaseInspection>>('/purchase/inspections', data)
 
-  // 获取检验单详情
-  getById: (id: number) =>
-    request.get<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}`),
+// D14 Batch 5b：原 purchaseInspectionApi.getById 转为风格 B 函数
+// 获取检验单详情
+export const getPurchaseInspectionById = (id: number) =>
+  request.get<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}`)
 
-  // 更新检验单
-  update: (id: number, data: Partial<PurchaseInspection>) =>
-    request.put<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}`, data),
+// D14 Batch 5b：原 purchaseInspectionApi.update 转为风格 B 函数
+// 更新检验单
+export const updatePurchaseInspection = (id: number, data: Partial<PurchaseInspection>) =>
+  request.put<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}`, data)
 
-  // 完成检验
-  complete: (id: number) =>
-    request.post<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}/complete`),
+// D14 Batch 5b：原 purchaseInspectionApi.complete 转为风格 B 函数
+// 完成检验
+export const completePurchaseInspection = (id: number) =>
+  request.post<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}/complete`)
 
-  // 获取检验明细
-  getItems: (id: number) =>
-    request.get<ApiResponse<{ items: PurchaseInspectionItem[] }>>(
-      `/purchase/inspections/${id}/items`
-    ),
+// D14 Batch 5b：原 purchaseInspectionApi.getItems 转为风格 B 函数
+// 获取检验明细
+export const getPurchaseInspectionItemList = (id: number) =>
+  request.get<ApiResponse<{ items: PurchaseInspectionItem[] }>>(
+    `/purchase/inspections/${id}/items`
+  )
 
-  // 创建检验明细
-  createItem: (id: number, data: Partial<PurchaseInspectionItem>) =>
-    request.post<ApiResponse<PurchaseInspectionItem>>(`/purchase/inspections/${id}/items`, data),
+// D14 Batch 5b：原 purchaseInspectionApi.createItem 转为风格 B 函数
+// 创建检验明细
+export const createPurchaseInspectionItem = (id: number, data: Partial<PurchaseInspectionItem>) =>
+  request.post<ApiResponse<PurchaseInspectionItem>>(`/purchase/inspections/${id}/items`, data)
 
-  // 更新检验明细
-  updateItem: (id: number, itemId: number, data: Partial<PurchaseInspectionItem>) =>
-    request.put<ApiResponse<PurchaseInspectionItem>>(
-      `/purchase/inspections/${id}/items/${itemId}`,
-      data
-    ),
+// D14 Batch 5b：原 purchaseInspectionApi.updateItem 转为风格 B 函数
+// 更新检验明细
+export const updatePurchaseInspectionItem = (
+  id: number,
+  itemId: number,
+  data: Partial<PurchaseInspectionItem>
+) =>
+  request.put<ApiResponse<PurchaseInspectionItem>>(
+    `/purchase/inspections/${id}/items/${itemId}`,
+    data
+  )
 
-  // 删除检验明细
-  deleteItem: (id: number, itemId: number) =>
-    request.delete<ApiResponse<void>>(`/purchase/inspections/${id}/items/${itemId}`),
-}
+// D14 Batch 5b：原 purchaseInspectionApi.deleteItem 转为风格 B 函数
+// 删除检验明细
+export const deletePurchaseInspectionItem = (id: number, itemId: number) =>
+  request.delete<ApiResponse<void>>(`/purchase/inspections/${id}/items/${itemId}`)

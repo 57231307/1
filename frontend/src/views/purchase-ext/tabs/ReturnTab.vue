@@ -223,7 +223,10 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  purchaseReturnApi,
+  getPurchaseReturnList,
+  getPurchaseReturnById,
+  updatePurchaseReturn,
+  createPurchaseReturn,
   type PurchaseReturn,
   type PurchaseReturnItem,
 } from '@/api/purchase-return'
@@ -266,7 +269,7 @@ const getReturnStatusType = (status?: string) => {
 const fetchPurchaseReturns = async () => {
   returnLoading.value = true
   try {
-    const res = await purchaseReturnApi.list(returnQuery)
+    const res = await getPurchaseReturnList(returnQuery)
     purchaseReturns.value = res.data?.list || []
   } catch (error) {
     const err = error as { message?: string }
@@ -309,7 +312,7 @@ const returnRules: FormRules = {
 
 const openReturnDialog = async (row?: PurchaseReturn) => {
   if (row) {
-    const res = await purchaseReturnApi.getById(row.id!)
+    const res = await getPurchaseReturnById(row.id!)
     // 安全检查：防止后端返回 data 为 null 时崩溃
     if (res.data) Object.assign(returnForm, res.data)
   } else {
@@ -350,10 +353,10 @@ const submitReturn = async () => {
   returnSubmitLoading.value = true
   try {
     if (returnForm.id) {
-      await purchaseReturnApi.update(returnForm.id, returnForm)
+      await updatePurchaseReturn(returnForm.id, returnForm)
       ElMessage.success('更新成功')
     } else {
-      await purchaseReturnApi.create(returnForm)
+      await createPurchaseReturn(returnForm)
       ElMessage.success('创建成功')
     }
     returnDialogVisible.value = false
@@ -370,7 +373,7 @@ const returnViewVisible = ref(false)
 const currentReturn = ref<PurchaseReturn | null>(null)
 
 const viewReturn = async (row: PurchaseReturn) => {
-  const res = await purchaseReturnApi.getById(row.id!)
+  const res = await getPurchaseReturnById(row.id!)
   // 安全检查：防止后端返回 data 为 null 时崩溃
   if (res.data) currentReturn.value = res.data
   returnViewVisible.value = true

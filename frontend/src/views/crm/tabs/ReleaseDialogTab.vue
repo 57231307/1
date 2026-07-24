@@ -24,7 +24,8 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { logger } from '@/utils/logger'
-import { crmEnhancedApi } from '@/api/crm-enhanced'
+// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+import { recycleCustomerToPool } from '@/api/crm-enhanced'
 
 interface Props {
   modelValue: boolean
@@ -61,7 +62,7 @@ const handleSubmit = async () => {
   try {
     submitLoading.value = true
     // P1-5：实际调用释放 API（recycle 释放客户到公海池）
-    await crmEnhancedApi.recycleToPool({
+    await recycleCustomerToPool({
       customer_ids: [props.customerId],
       reason: form.reason,
     })

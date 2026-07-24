@@ -12,7 +12,8 @@ import {
   updateSalesContract,
   type SalesContract,
 } from '@/api/sales-contract'
-import { customerApi, type Customer } from '@/api/customer'
+// D14 Batch 5b：原 customerApi 对象已转风格 B 函数
+import { getCustomerList, type Customer } from '@/api/customer'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
@@ -96,7 +97,7 @@ export function useSc() {
   /** 获取客户列表 */
   const getCustomers = async () => {
     try {
-      const res = await customerApi.list()
+      const res = await getCustomerList()
       customers.value = res.data?.list || []
     } catch (error) {
       logger.error('获取客户列表失败:', error)

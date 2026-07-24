@@ -166,7 +166,12 @@
 import { ref, reactive, watch, onMounted, defineEmits, defineExpose } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Goods, CircleCheck, Collection, Money } from '@element-plus/icons-vue'
-import { productApi, type Product, type ProductCategory } from '@/api/product'
+import {
+  getProductCategoryList,
+  deleteProduct,
+  type Product,
+  type ProductCategory,
+} from '@/api/product'
 import { useTableApi } from '@/composables/useTableApi'
 
 const emit = defineEmits<{
@@ -243,7 +248,7 @@ watch(products, () => {
 
 const fetchCategories = async () => {
   try {
-    const res = await productApi.getCategories()
+    const res = await getProductCategoryList()
     categories.value = (res.data as ProductCategory[] | undefined) || []
     categoryTree.value = buildTree(categories.value)
     stats.totalCategories = categories.value.length
@@ -287,7 +292,7 @@ const handleDelete = async (row: Product) => {
     await ElMessageBox.confirm(`确定删除产品 "${row.product_name}" 吗？`, '删除确认', {
       type: 'warning',
     })
-    await productApi.delete(row.id)
+    await deleteProduct(row.id)
     ElMessage.success('删除成功')
     fetchData()
   } catch (error) {

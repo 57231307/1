@@ -50,7 +50,7 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Upload } from '@element-plus/icons-vue'
-import { productApi } from '@/api/product'
+import { getProductImportTemplate, importProducts } from '@/api/product'
 import { logger } from '@/utils/logger'
 
 interface Props {
@@ -77,7 +77,7 @@ const handleFileChange = (file: { raw?: File }) => {
 
 const handleDownloadTemplate = async () => {
   try {
-    await productApi.getImportTemplate()
+    await getProductImportTemplate()
     ElMessage.success('模板下载成功')
   } catch (error) {
     const err = error as Error
@@ -92,7 +92,7 @@ const handleSubmit = async () => {
   }
   importLoading.value = true
   try {
-    const res = await productApi.importProducts(importFile.value)
+    const res = await importProducts(importFile.value)
     const data = res.data as { success?: number; failed?: number } | undefined
     ElMessage.success(`导入成功: ${data?.success || 0} 条，失败: ${data?.failed || 0} 条`)
     importFile.value = null

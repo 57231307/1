@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { warehouseApi, type Warehouse } from '@/api/warehouse'
+import { getWarehouseList, type Warehouse } from '@/api/warehouse'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import type { InventoryCountEntity } from '@/api/inventoryCount'
@@ -71,7 +71,7 @@ const handleSubmitted = () => {
 
 const fetchWarehouses = async () => {
   try {
-    const res = await warehouseApi.list({ page: 1, page_size: 1000 })
+    const res = await getWarehouseList({ page: 1, page_size: 1000 })
     warehouses.value = (res.data?.list as Warehouse[] | undefined) || []
   } catch (error) {
     logger.error('获取仓库列表失败', (error as Error).message)

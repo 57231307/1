@@ -3,12 +3,16 @@
 // 业务领域：销售分析（stats + 4 个排行榜 + 趋势周期 + 排名类型 + 销售目标）
 // 行为完全保持一致（仅结构重构）
 import { reactive, ref, watch } from 'vue'
-import { salesAnalysisApi } from '@/api/sales-analysis'
-import type {
-  ProductRanking,
-  CustomerRanking,
-  SalesTarget,
-  SalesTrendResult,
+import {
+  getSalesAnalysisStats,
+  getProductRanking as fetchProductRanking,
+  getCustomerRanking as fetchCustomerRanking,
+  getSalesTargetList as fetchSalesTargetList,
+  getSalesTrendData as fetchSalesTrendData,
+  type ProductRanking,
+  type CustomerRanking,
+  type SalesTarget,
+  type SalesTrendResult,
 } from '@/api/sales-analysis'
 import { logger } from '@/utils/logger'
 
@@ -48,7 +52,7 @@ export const useSa = () => {
   // 获取统计数据
   const getStats = async () => {
     try {
-      const res = await salesAnalysisApi.getStats()
+      const res = await getSalesAnalysisStats()
       if (res.data) {
         Object.assign(stats, res.data)
       }
@@ -60,7 +64,7 @@ export const useSa = () => {
   // 获取产品排名
   const getProductRanking = async () => {
     try {
-      const res = await salesAnalysisApi.getProductRanking({ type: productRankType.value })
+      const res = await fetchProductRanking({ type: productRankType.value })
       productRanking.value = res.data || []
     } catch (error) {
       logger.error('获取产品排名失败:', error)
@@ -70,7 +74,7 @@ export const useSa = () => {
   // 获取客户排名
   const getCustomerRanking = async () => {
     try {
-      const res = await salesAnalysisApi.getCustomerRanking({ type: customerRankType.value })
+      const res = await fetchCustomerRanking({ type: customerRankType.value })
       customerRanking.value = res.data || []
     } catch (error) {
       logger.error('获取客户排名失败:', error)
@@ -80,7 +84,7 @@ export const useSa = () => {
   // 获取销售目标
   const getSalesTargets = async () => {
     try {
-      const res = await salesAnalysisApi.getSalesTargets()
+      const res = await fetchSalesTargetList()
       salesTargets.value = res.data || []
     } catch (error) {
       logger.error('获取销售目标失败:', error)
@@ -90,7 +94,7 @@ export const useSa = () => {
   // 获取销售趋势数据（批次 95 P3-20 修复：按当前趋势周期拉取）
   const getTrendData = async () => {
     try {
-      const res = await salesAnalysisApi.getTrendData({ period: trendPeriod.value })
+      const res = await fetchSalesTrendData({ period: trendPeriod.value })
       trendData.value = res.data || []
     } catch (error) {
       logger.error('获取销售趋势数据失败:', error)

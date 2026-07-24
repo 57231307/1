@@ -1,6 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { salesApi, type SalesOrder, type SalesOrderQueryParams } from '@/api/sales'
+import {
+  getSalesOrderList,
+  getSalesOrderById,
+  createSalesOrder,
+  updateSalesOrder,
+  submitSalesOrder,
+  approveSalesOrder,
+  type SalesOrder,
+  type SalesOrderQueryParams,
+} from '@/api/sales'
 import { logger } from '@/utils/logger'
 
 export const useSalesStore = defineStore('sales', () => {
@@ -12,7 +21,7 @@ export const useSalesStore = defineStore('sales', () => {
   const fetchOrders = async (params?: SalesOrderQueryParams) => {
     loading.value = true
     try {
-      const res = await salesApi.getOrderList(params)
+      const res = await getSalesOrderList(params)
       // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
       if (res.data) {
         orders.value = res.data.list
@@ -27,7 +36,7 @@ export const useSalesStore = defineStore('sales', () => {
 
   const getOrderById = async (id: number) => {
     try {
-      const res = await salesApi.getOrderById(id)
+      const res = await getSalesOrderById(id)
       // 仅在后端返回有效数据时更新并返回，data 为 null 时返回 null
       if (res.data) {
         currentOrder.value = res.data
@@ -42,7 +51,7 @@ export const useSalesStore = defineStore('sales', () => {
 
   const createOrder = async (data: Partial<SalesOrder>) => {
     try {
-      const res = await salesApi.createOrder(data)
+      const res = await createSalesOrder(data)
       await fetchOrders()
       return res
     } catch (error) {
@@ -53,7 +62,7 @@ export const useSalesStore = defineStore('sales', () => {
 
   const updateOrder = async (id: number, data: Partial<SalesOrder>) => {
     try {
-      const res = await salesApi.updateOrder(id, data)
+      const res = await updateSalesOrder(id, data)
       await fetchOrders()
       return res
     } catch (error) {
@@ -64,7 +73,7 @@ export const useSalesStore = defineStore('sales', () => {
 
   const submitOrder = async (id: number) => {
     try {
-      await salesApi.submitOrder(id)
+      await submitSalesOrder(id)
       await fetchOrders()
       return true
     } catch (error) {
@@ -75,7 +84,7 @@ export const useSalesStore = defineStore('sales', () => {
 
   const approveOrder = async (id: number) => {
     try {
-      await salesApi.approveOrder(id)
+      await approveSalesOrder(id)
       await fetchOrders()
       return true
     } catch (error) {

@@ -65,15 +65,18 @@ export interface LowStockAlert {
   alertLevel: 'warning' | 'danger'
 }
 
-export const dashboardApi = {
-  getOverview: (params?: DashboardQuery) =>
-    request.get<ApiResponse<DashboardOverview>>('/dashboard/overview', { params }),
+// D14 Batch 5b：原 dashboardApi.getOverview 转为风格 B 函数
+export const getDashboardOverview = (params?: DashboardQuery) =>
+  request.get<ApiResponse<DashboardOverview>>('/dashboard/overview', { params })
 
-  getSalesStats: (params?: DashboardQuery) =>
-    request.get<ApiResponse<SalesStatistics>>('/dashboard/sales-stats', { params }),
+// D14 Batch 5b：原 dashboardApi.getSalesStats 转为风格 B 函数
+export const getDashboardSalesStats = (params?: DashboardQuery) =>
+  request.get<ApiResponse<SalesStatistics>>('/dashboard/sales-stats', { params })
 
-  getInventoryStats: (params?: DashboardQuery) =>
-    request.get<ApiResponse<InventoryStatistics>>('/dashboard/inventory-stats', { params }),
+// D14 Batch 5b：原 dashboardApi.getInventoryStats 转为风格 B 函数
+export const getDashboardInventoryStats = (params?: DashboardQuery) =>
+  request.get<ApiResponse<InventoryStatistics>>('/dashboard/inventory-stats', { params })
 
-  getLowStockAlerts: () => request.get<ApiResponse<LowStockAlert[]>>('/dashboard/low-stock-alerts'),
-}
+// D14 Batch 5b：原 dashboardApi.getLowStockAlerts 转为风格 B 函数
+export const getDashboardLowStockAlerts = () =>
+  request.get<ApiResponse<LowStockAlert[]>>('/dashboard/low-stock-alerts')

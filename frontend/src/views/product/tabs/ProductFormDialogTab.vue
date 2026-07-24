@@ -104,7 +104,7 @@ import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { Product, ProductCategory } from '@/api/product'
-import { productApi } from '@/api/product'
+import { createProduct, updateProduct } from '@/api/product'
 import { logger } from '@/utils/logger'
 
 interface Props {
@@ -193,10 +193,10 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       if (props.mode === 'create') {
-        await productApi.create(formData)
+        await createProduct(formData)
         ElMessage.success('创建成功')
       } else {
-        await productApi.update(formData.id as number, formData)
+        await updateProduct(formData.id as number, formData)
         ElMessage.success('更新成功')
       }
       emit('update:modelValue', false)

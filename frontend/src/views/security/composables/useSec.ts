@@ -3,7 +3,7 @@
 // 业务领域：登录安全（stats + loginLogs + lockedAccounts + securityAlerts + 过滤/分页）
 // 批次 282：loginLogs 接入 useTableApi，lockedAccounts/securityAlerts 保持原样（无分页）
 import { reactive, ref } from 'vue'
-import { securityApi } from '@/api/security'
+import { getSecurityStats, getLockedAccountList, getSecurityAlertList } from '@/api/security'
 import type { LoginLog, LockedAccount, SecurityAlert } from '@/api/security'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
@@ -44,7 +44,7 @@ export const useSec = () => {
   // 获取统计数据
   const getStats = async () => {
     try {
-      const res = await securityApi.getStats()
+      const res = await getSecurityStats()
       if (res.data) {
         Object.assign(stats, res.data)
       }
@@ -57,7 +57,7 @@ export const useSec = () => {
   const getLockedAccounts = async () => {
     lockLoading.value = true
     try {
-      const res = await securityApi.getLockedAccounts()
+      const res = await getLockedAccountList()
       lockedAccounts.value = res.data || []
     } catch (error) {
       logger.error('获取锁定账户失败:', error)
@@ -70,7 +70,7 @@ export const useSec = () => {
   const getSecurityAlerts = async () => {
     alertLoading.value = true
     try {
-      const res = await securityApi.getSecurityAlerts()
+      const res = await getSecurityAlertList()
       securityAlerts.value = res.data || []
     } catch (error) {
       logger.error('获取安全告警失败:', error)

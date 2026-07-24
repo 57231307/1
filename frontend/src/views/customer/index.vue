@@ -138,7 +138,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
-import { customerApi, type Customer } from '@/api/customer'
+import { deleteCustomer, type Customer } from '@/api/customer'
 // V15 P0-S12 + P0-S15 修复（Batch 474）：客户导出改用后端带水印 xlsx 接口
 // 保留 exportData 仅用于兼容场景（本视图已切换为 exportFromBackend）
 import { exportFromBackend } from '@/utils/export'
@@ -249,7 +249,7 @@ const handleDelete = async (row: Customer) => {
     await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', {
       type: 'warning',
     })
-    await customerApi.delete(row.id)
+    await deleteCustomer(row.id)
     ElMessage.success('删除成功')
     fetchData()
   } catch (error) {

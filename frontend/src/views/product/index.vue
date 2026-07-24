@@ -41,7 +41,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { productApi, type Product, type ProductCategory } from '@/api/product'
+import { getProductCategoryList, type Product, type ProductCategory } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import ProductListTab from './tabs/ProductListTab.vue'
@@ -98,7 +98,7 @@ const buildTree = (items: ProductCategory[]): ProductCategory[] => {
 
 const fetchCategories = async () => {
   try {
-    const res = await productApi.getCategories()
+    const res = await getProductCategoryList()
     categories.value = (res.data as ProductCategory[] | undefined) || []
     void buildTree(categories.value)
   } catch (error) {

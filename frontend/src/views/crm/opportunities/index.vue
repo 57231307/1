@@ -252,7 +252,7 @@ import {
   type Opportunity,
 } from '@/api/crm'
 import { getUserList, type User } from '@/api/user'
-import { customerApi, type Customer } from '@/api/customer'
+import { getCustomerList, type Customer } from '@/api/customer'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
@@ -317,7 +317,7 @@ const fetchUsers = async () => {
 
 const fetchCustomers = async () => {
   try {
-    const res = await customerApi.list()
+    const res = await getCustomerList()
     customers.value = res.data?.list || []
   } catch (error) {
     customers.value = []
