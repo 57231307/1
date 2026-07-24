@@ -41,7 +41,7 @@ export interface InventoryCountQueryParams {
   count_date?: string
 }
 
-export const listInventoryCounts = (params?: InventoryCountQueryParams) =>
+export const getInventoryCountList = (params?: InventoryCountQueryParams) =>
   request.get('/inventory/counts', { params })
 
 export const getInventoryCount = (id: number) => request.get(`/inventory/counts/${id}`)

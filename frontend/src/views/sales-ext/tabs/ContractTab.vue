@@ -274,7 +274,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listSalesContracts,
+  getSalesContractList,
   getSalesContract,
   createSalesContract,
   updateSalesContract,
@@ -317,7 +317,7 @@ const getContractStatusType = (status?: string) => {
 const fetchSalesContracts = async () => {
   contractLoading.value = true
   try {
-    const res = await listSalesContracts()
+    const res = await getSalesContractList()
     salesContracts.value = res.data?.list || []
   } catch (error) {
     const err = error as { message?: string }

@@ -45,7 +45,7 @@ export interface InventoryTransferQueryParams {
   status?: string
 }
 
-export function listInventoryTransfers(params?: InventoryTransferQueryParams) {
+export function getInventoryTransferList(params?: InventoryTransferQueryParams) {
   return request.get('/inventory/transfers', { params })
 }
 
@@ -73,7 +73,7 @@ export function getTransferItems(id: number) {
   return request.get(`/inventory/transfers/${id}`)
 }
 
-export function addTransferItem(id: number, data: Partial<TransferItem>) {
+export function createTransferItem(id: number, data: Partial<TransferItem>) {
   return request.post(`/inventory/transfers/${id}`, data)
 }
 

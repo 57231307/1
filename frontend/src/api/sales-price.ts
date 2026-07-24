@@ -42,7 +42,7 @@ export interface PricingStrategyRule {
   price?: number
 }
 
-export function listSalesPrices(
+export function getSalesPriceList(
   params?: QueryParams
 ): Promise<ApiResponse<{ list: SalesPrice[]; total: number }>> {
   return request.get('/sales/sales-prices', { params })
@@ -75,6 +75,6 @@ export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPri
   return request.get(`/sales/sales-prices/history/${productId}`)
 }
 
-export function listPricingStrategies(): Promise<ApiResponse<PricingStrategy[]>> {
+export function getPricingStrategyList(): Promise<ApiResponse<PricingStrategy[]>> {
   return request.get('/sales/sales-prices/strategies')
 }

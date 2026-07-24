@@ -42,7 +42,7 @@ export interface ReceiptItem {
 import type { PurchaseReceiptQueryParams } from './purchase'
 export type { PurchaseReceiptQueryParams }
 
-export function listPurchaseReceipts(params?: PurchaseReceiptQueryParams) {
+export function getPurchaseReceiptList(params?: PurchaseReceiptQueryParams) {
   return request.get<ApiResponse<{ list: PurchaseReceiptEntity[]; total: number }>>(
     '/purchase/receipts',
     { params }
@@ -84,7 +84,7 @@ export function getReceiptItems(id: number) {
   return request.get<ApiResponse<ReceiptItemsResponse>>(`/purchase/receipts/${id}/items`)
 }
 
-export function addReceiptItem(id: number, data: Partial<ReceiptItem>) {
+export function createReceiptItem(id: number, data: Partial<ReceiptItem>) {
   return request.post<ApiResponse<ReceiptItem>>(`/purchase/receipts/${id}/items`, data)
 }
 
