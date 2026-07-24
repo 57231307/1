@@ -8,8 +8,8 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { listIssues } from '@/api/color-card-issue'
-import { listColorCards } from '@/api/color-card'
+import { getIssueList } from '@/api/color-card-issue'
+import { getColorCardList } from '@/api/color-card'
 import type { IssueRecordInfo, ListIssuesQuery } from '@/types/colorCardIssue'
 import { logger } from '@/utils/logger'
 
@@ -27,7 +27,7 @@ export const useColorCardIssueStore = defineStore('colorCardIssue', () => {
   const fetchRecords = async (query: ListIssuesQuery = {}): Promise<void> => {
     loading.value = true
     try {
-      const res = await listIssues({ page_size: 100, ...query })
+      const res = await getIssueList({ page_size: 100, ...query })
       if (res.data) {
         records.value = res.data.items
         total.value = res.data.total
@@ -69,7 +69,7 @@ export const useColorCardStockStore = defineStore('colorCardStock', () => {
   const fetchStocks = async (): Promise<void> => {
     loading.value = true
     try {
-      const res = await listColorCards({ status: 'active', page_size: 200 })
+      const res = await getColorCardList({ status: 'active', page_size: 200 })
       stocks.value = (res.data?.items || []).map((c) => ({
         id: c.id,
         card_no: c.card_no,

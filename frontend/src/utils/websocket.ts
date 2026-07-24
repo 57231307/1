@@ -82,8 +82,8 @@ const MAX_RECONNECT_ATTEMPTS = 10;
  *
  * 用法：
  * ```typescript
- * import { fetchWsTicket } from '@/api/notification';
- * const ws = new WebSocketClient('/api/v1/erp/ws/notifications', fetchWsTicket);
+ * import { getWsTicket } from '@/api/notification';
+ * const ws = new WebSocketClient('/api/v1/erp/ws/notifications', getWsTicket);
  * ws.connect();
  * ws.addEventListener('notification', (event) => {
  *   console.log('收到通知:', event.detail.data);

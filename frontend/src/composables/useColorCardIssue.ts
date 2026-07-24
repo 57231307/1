@@ -8,7 +8,7 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  listIssues,
+  getIssueList,
   issueColorCard,
   returnIssue,
   markIssueLost,
@@ -49,7 +49,7 @@ export function useColorCardIssue() {
   const loadRecords = async (query: ListIssuesQuery = {}): Promise<void> => {
     loading.value = true
     try {
-      const res = await listIssues({ page_size: 100, ...query })
+      const res = await getIssueList({ page_size: 100, ...query })
       records.value = res.data?.items || []
       total.value = res.data?.total || 0
     } finally {

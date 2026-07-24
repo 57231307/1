@@ -63,13 +63,11 @@ export interface AssistSummaryQueryParams {
   accounting_period?: string
 }
 
-export const listAssistDimensions = (params?: AssistDimensionQueryParams) =>
+export const getAssistDimensionList = (params?: AssistDimensionQueryParams) =>
   request.get('/assist-accounting/dimensions', { params })
 
-export const listAssistRecords = (params?: AssistRecordQueryParams) =>
+export const getAssistRecordList = (params?: AssistRecordQueryParams) =>
   request.get('/assist-accounting/records', { params })
-
-export const queryAssistRecords = listAssistRecords
 
 export const getAssistRecordsByFiveDimension = (fiveDimensionId: number) =>
   request.get(`/assist-accounting/records/five-dimension/${fiveDimensionId}`)

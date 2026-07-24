@@ -32,7 +32,7 @@ export interface RecipeItem {
   remark: string
 }
 
-export function listDyeRecipes(params?: QueryParams): Promise<ApiResponse<DyeRecipe[]>> {
+export function getDyeRecipeList(params?: QueryParams): Promise<ApiResponse<DyeRecipe[]>> {
   return request.get('/production/dye-recipes', { params })
 }
 

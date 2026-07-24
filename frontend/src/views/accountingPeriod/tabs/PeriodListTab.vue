@@ -132,7 +132,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import {
-  listAccountingPeriods,
+  getAccountingPeriodList,
   createAccountingPeriod,
   updateAccountingPeriod,
   deleteAccountingPeriod,
@@ -191,7 +191,7 @@ const getStatusType = (status: string) => {
 const fetchPeriods = async () => {
   loading.value = true
   try {
-    const res = await listAccountingPeriods(queryForm)
+    const res = await getAccountingPeriodList(queryForm)
     const d = (res as { data?: unknown }).data as
       | AccountingPeriodEntity[]
       | {

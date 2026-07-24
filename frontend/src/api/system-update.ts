@@ -56,7 +56,7 @@ export function checkForUpdates(): Promise<ApiResponse<SystemVersion>> {
   return request.get('/system-update/check')
 }
 
-export function listSystemVersions(params?: QueryParams): Promise<ApiResponse<SystemVersion[]>> {
+export function getSystemVersionList(params?: QueryParams): Promise<ApiResponse<SystemVersion[]>> {
   return request.get('/system-update/versions', { params })
 }
 
@@ -72,7 +72,7 @@ export function installUpdate(versionId: number): Promise<ApiResponse<UpdateTask
   return request.post(`/system-update/versions/${versionId}/install`)
 }
 
-export function listUpdateTasks(params?: QueryParams): Promise<ApiResponse<UpdateTask[]>> {
+export function getUpdateTaskList(params?: QueryParams): Promise<ApiResponse<UpdateTask[]>> {
   return request.get('/system-update/tasks', { params })
 }
 
@@ -93,7 +93,7 @@ export function rollbackUpdate(version: string): Promise<ApiResponse<void>> {
   return request.post('/system-update/rollback', { version })
 }
 
-export function listSystemBackups(params?: QueryParams): Promise<ApiResponse<SystemBackup[]>> {
+export function getSystemBackupList(params?: QueryParams): Promise<ApiResponse<SystemBackup[]>> {
   return request.get('/system-update/backups', { params })
 }
 

@@ -38,7 +38,7 @@ export interface AssignPermissionRequest {
   permission_ids: number[]
 }
 
-export function listRoles(params?: QueryParams): Promise<ApiResponse<Role[]>> {
+export function getRoleList(params?: QueryParams): Promise<ApiResponse<Role[]>> {
   return request.get('/roles', { params })
 }
 
@@ -69,13 +69,13 @@ export function assignPermission(
   return request.post(`/roles/${id}/permissions`, data)
 }
 
-export function removePermission(
+export function deletePermission(
   _roleId: number,
   permissionId: number
 ): Promise<ApiResponse<void>> {
   return request.delete(`/roles/permissions/${permissionId}`)
 }
 
-export function listPermissions(): Promise<ApiResponse<Permission[]>> {
+export function getPermissionList(): Promise<ApiResponse<Permission[]>> {
   return request.get('/permissions')
 }

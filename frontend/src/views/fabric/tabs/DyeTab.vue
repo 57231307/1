@@ -81,8 +81,8 @@ const getStatusLabel = (status: string) => {
 const fetchBatches = async () => {
   loading.value = true
   try {
-    const { listDyeBatches } = await import('@/api/dye-batch')
-    const res = await listDyeBatches()
+    const { getDyeBatchList } = await import('@/api/dye-batch')
+    const res = await getDyeBatchList()
     batches.value = (res.data as DyeBatch[] | undefined) || []
   } catch (error) {
     const err = error as Error

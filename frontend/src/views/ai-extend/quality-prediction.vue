@@ -31,7 +31,7 @@ const queryFilter = reactive({
 })
 
 // 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
-// listQualityPredictions 返回 PageResult<T>（{ items, total }），useTableApi detectList 会取 obj.items
+// getQualityPredictionList 返回 PageResult<T>（{ items, total }），useTableApi detectList 会取 obj.items
 const {
   data: items,
   loading,

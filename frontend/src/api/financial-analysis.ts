@@ -59,7 +59,7 @@ export interface TrendQueryParams {
   endDate?: string
 }
 
-export const listReports = (params?: ReportQueryParams) =>
+export const getReportList = (params?: ReportQueryParams) =>
   request.get('/financial-analysis/reports', { params })
 export const createReport = (data: Partial<FinancialReport>) =>
   request.post('/financial-analysis/reports', data)

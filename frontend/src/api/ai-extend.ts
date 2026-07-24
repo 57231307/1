@@ -164,7 +164,7 @@ export function createProcessOptimization(request_body: ProcessOptRequest) {
 }
 
 /** 工艺优化列表 */
-export function listProcessOptimizations(params: {
+export function getProcessOptimizationList(params: {
   page?: number
   page_size?: number
   color_no?: string
@@ -194,7 +194,7 @@ export function deleteProcessOptimization(id: number) {
 }
 
 /** 按色号 + 布类查询历史 */
-export function listProcessOptimizationsByColor(params: {
+export function getProcessOptimizationListByColor(params: {
   color_no: string
   fabric_type: string
   limit?: number
@@ -226,7 +226,7 @@ export function createQualityPrediction(request_body: QualityPredRequest) {
 }
 
 /** 质量预测列表 */
-export function listQualityPredictions(params: {
+export function getQualityPredictionList(params: {
   page?: number
   page_size?: number
   product_id?: number
@@ -253,7 +253,7 @@ export function deleteQualityPrediction(id: number) {
 }
 
 /** 按产品查询历史 */
-export function listQualityPredictionsByProduct(params: { product_id: number; limit?: number }) {
+export function getQualityPredictionListByProduct(params: { product_id: number; limit?: number }) {
   return request.get<{ items: AiQualityPrediction[] }>('/ai/quality-predictions/by-product', {
     params,
   })

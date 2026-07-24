@@ -90,7 +90,7 @@ export interface SearchQueryParams {
   search_type?: string
 }
 
-export const listFiveDimensionStats = (params?: StatsQueryParams) =>
+export const getFiveDimensionStatsList = (params?: StatsQueryParams) =>
   request.get('/crm/five-dimension/stats', { params })
 export const getStatsByFiveDimensionId = (id: number) =>
   request.get(`/crm/five-dimension/stats/${id}`)

@@ -37,7 +37,7 @@ export interface QualityPredParams {
 export const predictQuality = (data: QualityPredParams) =>
   request.post('/advanced/ai/quality-prediction', data)
 
-export const listReportTemplates = () => request.get('/advanced/reports/templates')
+export const getReportTemplateList = () => request.get('/advanced/reports/templates')
 
 export const executeReport = (template_code: string) =>
   request.post('/advanced/reports/execute', { template_code })

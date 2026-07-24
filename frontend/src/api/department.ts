@@ -30,7 +30,7 @@ export interface DepartmentUpdateRequest {
   status?: number
 }
 
-export function listDepartments(params?: QueryParams): Promise<ApiResponse<Department[]>> {
+export function getDepartmentList(params?: QueryParams): Promise<ApiResponse<Department[]>> {
   return request.get('/departments', { params })
 }
 

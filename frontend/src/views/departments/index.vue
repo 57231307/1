@@ -82,7 +82,7 @@ import { ref, onMounted, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listDepartments,
+  getDepartmentList,
   createDepartment,
   updateDepartment,
   deleteDepartment,
@@ -129,7 +129,7 @@ const formRules: FormRules = {
 const loadDepartments = async () => {
   loading.value = true
   try {
-    const [listRes, treeRes] = await Promise.all([listDepartments(), getDepartmentTree()])
+    const [listRes, treeRes] = await Promise.all([getDepartmentList(), getDepartmentTree()])
     departmentList.value = listRes.data || []
     deptTreeData.value = treeRes.data || []
   } catch (error: unknown) {

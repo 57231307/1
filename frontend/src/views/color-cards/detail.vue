@@ -113,7 +113,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Plus, Box, Download } from '@element-plus/icons-vue'
 import {
   getColorCard,
-  listIssues,
+  getIssueList,
   createColorItem,
   deleteColorItem,
   batchImportItems,
@@ -184,7 +184,7 @@ const loadData = async () => {
     card.value = cardRes.data
     items.value = cardRes.data.items || []
 
-    const recordsRes = (await listIssues({ color_card_id: cardId.value, page_size: 50 })) as {
+    const recordsRes = (await getIssueList({ color_card_id: cardId.value, page_size: 50 })) as {
       data?: { items?: IssueRecordInfo[] }
     }
     issueRecords.value = recordsRes.data?.items || []

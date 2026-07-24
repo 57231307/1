@@ -20,7 +20,7 @@ export interface GreigeFabric {
   updated_at: string
 }
 
-export function listGreigeFabrics(params?: QueryParams): Promise<ApiResponse<GreigeFabric[]>> {
+export function getGreigeFabricList(params?: QueryParams): Promise<ApiResponse<GreigeFabric[]>> {
   return request.get('/production/greige-fabrics', { params })
 }
 

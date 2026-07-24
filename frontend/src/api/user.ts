@@ -40,7 +40,7 @@ export interface ChangePasswordRequest {
   new_password: string
 }
 
-export function listUsers(params?: QueryParams): Promise<ApiResponse<PageResult<User>>> {
+export function getUserList(params?: QueryParams): Promise<ApiResponse<PageResult<User>>> {
   return request.get('/users', { params })
 }
 

@@ -251,7 +251,7 @@ import {
   exportOpportunities,
   type Opportunity,
 } from '@/api/crm'
-import { listUsers, type User } from '@/api/user'
+import { getUserList, type User } from '@/api/user'
 import { customerApi, type Customer } from '@/api/customer'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
@@ -308,7 +308,7 @@ const viewData = ref<OpportunityRow | null>(null)
 
 const fetchUsers = async () => {
   try {
-    const res = await listUsers()
+    const res = await getUserList()
     users.value = res.data?.list || []
   } catch (error) {
     users.value = []

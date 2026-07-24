@@ -141,10 +141,10 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import {
-  listRoleDataPermissions,
+  getRoleDataPermissionList,
   setDataPermission,
   deleteDataPermissionByRole,
-  listScopeTypes,
+  getScopeTypeList,
   DEFAULT_SCOPE_TYPES,
   type DataPermissionRole,
   type ScopeType,
@@ -152,7 +152,7 @@ import {
   type AllowedFields,
   type HiddenFields,
 } from '@/api/data-permission'
-import { listRoles } from '@/api/role'
+import { getRoleList } from '@/api/role'
 
 const roleList = ref<Array<{ id: number; name: string }>>([])
 const selectedRoleId = ref('1')
@@ -162,7 +162,7 @@ const scopeTypeList = ref<ScopeType[]>([])
 // v11 P1-5 修复：动态加载角色列表，避免硬编码
 const fetchRoles = async () => {
   try {
-    const res = await listRoles()
+    const res = await getRoleList()
     if (res.data && Array.isArray(res.data)) {
       roleList.value = res.data.map(r => ({ id: r.id, name: r.name }))
       if (roleList.value.length > 0) {
@@ -201,7 +201,7 @@ const currentRoleName = computed(() => {
 
 const fetchPermissions = async () => {
   try {
-    const res = await listRoleDataPermissions(parseInt(selectedRoleId.value))
+    const res = await getRoleDataPermissionList(parseInt(selectedRoleId.value))
     if (res.data) {
       // 安全检查：防止后端返回 data 为 null 时崩溃
       permissionList.value = res.data || []
@@ -213,7 +213,7 @@ const fetchPermissions = async () => {
 
 const fetchScopeTypes = async () => {
   try {
-    const res = await listScopeTypes()
+    const res = await getScopeTypeList()
     if (res.data && Array.isArray(res.data) && res.data.length > 0) {
       scopeTypeList.value = res.data
     } else {

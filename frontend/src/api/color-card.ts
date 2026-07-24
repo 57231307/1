@@ -138,7 +138,7 @@ export interface PagedResponse<T> {
 
 // ============== 色卡 CRUD ==============
 
-export function listColorCards(params: {
+export function getColorCardList(params: {
   page?: number
   page_size?: number
   card_type?: string
@@ -184,7 +184,7 @@ export function archiveColorCard(id: number, reason?: string) {
 
 // ============== 色号 CRUD ==============
 
-export function listColorItems(cardId: number, params?: { page?: number; page_size?: number }) {
+export function getColorItemList(cardId: number, params?: { page?: number; page_size?: number }) {
   return request.get<{ data: PagedResponse<ColorItemInfo> }>(
     `/color-cards/${cardId}/items`,
     { params },
@@ -280,7 +280,7 @@ export function getIssue(recordId: number) {
 }
 
 // 发放记录列表（与后端 ListIssuesQuery 对齐）
-export function listIssues(params: {
+export function getIssueList(params: {
   color_card_id?: number
   customer_id?: number
   status?: string

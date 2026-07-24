@@ -39,7 +39,7 @@ export function createCurrency(data: CreateCurrencyRequest) {
   return request.post('/currencies', data)
 }
 
-export function listCurrencies() {
+export function getCurrencyList() {
   return request.get('/currencies')
 }
 

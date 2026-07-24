@@ -45,7 +45,7 @@ export interface ImportTask {
   completed_at: string
 }
 
-export function listImportTemplates(params?: QueryParams): Promise<ApiResponse<ImportTemplate[]>> {
+export function getImportTemplateList(params?: QueryParams): Promise<ApiResponse<ImportTemplate[]>> {
   return request.get('/data-import/templates', { params })
 }
 
@@ -70,7 +70,7 @@ export function deleteImportTemplate(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/data-import/templates/${id}`)
 }
 
-export function listImportTasks(params?: QueryParams): Promise<ApiResponse<ImportTask[]>> {
+export function getImportTaskList(params?: QueryParams): Promise<ApiResponse<ImportTask[]>> {
   return request.get('/data-import/tasks', { params })
 }
 

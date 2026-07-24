@@ -229,7 +229,7 @@ import {
   getLead,
   type Lead,
 } from '@/api/crm'
-import { listUsers, type User } from '@/api/user'
+import { getUserList, type User } from '@/api/user'
 import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
 import LeadFormTab from './tabs/LeadFormTab.vue'
@@ -279,7 +279,7 @@ const currentRow = ref<LeadRow | null>(null)
 
 const fetchUsers = async () => {
   try {
-    const res = await listUsers()
+    const res = await getUserList()
     users.value = res.data?.list || []
   } catch (error) {
     users.value = []

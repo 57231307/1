@@ -40,7 +40,7 @@ export const auditCollection = (id: number, approved: boolean, comment?: string)
   request.post(`/production/cost-collections/${id}/audit`, { approved, comment })
 
 // 成本归集列表查询（重命名自 listCollections）
-export const listCostCollections = (params?: CostCollectionQueryParams) =>
+export const getCostCollectionList = (params?: CostCollectionQueryParams) =>
   request.get('/production/cost-collections', { params })
 
 // 创建成本归集（重命名自 createCollection）

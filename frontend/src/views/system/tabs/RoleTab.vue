@@ -99,13 +99,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listRoles,
+  getRoleList,
   createRole,
   updateRole,
   deleteRole as deleteRoleApi,
   getRolePermissions,
   assignPermission,
-  listPermissions,
+  getPermissionList,
   type Role,
   type Permission,
 } from '@/api/role'
@@ -116,7 +116,7 @@ const roleLoading = ref(false)
 const fetchRoles = async () => {
   roleLoading.value = true
   try {
-    const res = await listRoles()
+    const res = await getRoleList()
     // v11 批次 165 P2-1 修复：res.data as any 改为运行时安全访问
     const d = res.data as { items?: Role[]; data?: Role[] } | Role[] | undefined
     roles.value = (Array.isArray(d) ? d : d?.items || d?.data || []) as Role[]
@@ -230,7 +230,7 @@ const openPermissionDialog = (row: Role) => {
 const fetchRolePermissions = async (roleId: number) => {
   permissionLoading.value = true
   try {
-    const treeRes = await listPermissions()
+    const treeRes = await getPermissionList()
     permissionTree.value = buildPermissionTree(treeRes.data || [])
     const roleRes = await getRolePermissions(roleId)
     checkedPermissions.value = (roleRes.data || []).map((p: Permission) => p.id)

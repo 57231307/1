@@ -20,7 +20,7 @@ import {
 } from 'element-plus'
 import { View, Refresh } from '@element-plus/icons-vue'
 import {
-  listAssistDimensions,
+  getAssistDimensionList,
   getAssistSummary,
   type AssistDimensionResponse,
   type AssistRecordResponse,
@@ -96,7 +96,7 @@ const getBusinessTypeLabel = (value: string) => {
 const loadDimensions = async () => {
   try {
     // v11 批次 175 P2-1 修复：res: any 和 res.data as any 改为具体类型
-    const res = (await listAssistDimensions()) as {
+    const res = (await getAssistDimensionList()) as {
       data?: AssistDimensionResponse[] | { data?: AssistDimensionResponse[]; items?: AssistDimensionResponse[] }
     }
     const d = res.data

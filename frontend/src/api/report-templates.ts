@@ -18,7 +18,7 @@ export interface ReportTemplate {
   updated_at: string
 }
 
-export function listReportTemplates(params?: QueryParams): Promise<ApiResponse<ReportTemplate[]>> {
+export function getReportTemplateList(params?: QueryParams): Promise<ApiResponse<ReportTemplate[]>> {
   return request.get('/report-templates', { params })
 }
 
