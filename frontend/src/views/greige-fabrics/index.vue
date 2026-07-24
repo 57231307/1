@@ -131,7 +131,7 @@ import {
   deleteGreigeFabric,
   type GreigeFabric,
 } from '@/api/greige-fabric'
-import { listSuppliers, type Supplier } from '@/api/supplier'
+import { getSupplierList, type Supplier } from '@/api/supplier'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const loading = ref(false)
@@ -203,8 +203,8 @@ const loadGreigeFabrics = async () => {
 const loadSuppliers = async () => {
   try {
     // v11 批次 181 P2-1 修复：使用 supplier API 替代 warehouse API
-    // listSuppliers 返回 { list: Supplier[]; total: number }，提取 list 字段
-    const res = await listSuppliers()
+    // getSupplierList 返回 { list: Supplier[]; total: number }，提取 list 字段
+    const res = await getSupplierList()
     const d = res.data
     if (d && typeof d === 'object' && 'list' in d) {
       supplierList.value = d.list || []

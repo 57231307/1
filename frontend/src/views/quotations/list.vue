@@ -142,7 +142,7 @@ import {
   type QuotationResponseDto,
   type QuotationStatus,
 } from '@/api/quotation'
-import { listCustomers } from '@/api/customer'
+import { getCustomerList } from '@/api/customer'
 
 /** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
 type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
@@ -185,8 +185,8 @@ function syncQueryParams() {
 /** 加载客户下拉 */
 async function loadCustomers() {
   try {
-    const res = await listCustomers({ page: 1, page_size: 1000 })
-    // listCustomers 返回 ApiResponse<{ list: Customer[]; total: number }>，
+    const res = await getCustomerList({ page: 1, page_size: 1000 })
+    // getCustomerList 返回 ApiResponse<{ list: Customer[]; total: number }>，
     // res.data.list 即客户数组，无需 as any
     customers.value = res.data?.list || []
   } catch {

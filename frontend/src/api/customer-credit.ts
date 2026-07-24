@@ -54,8 +54,6 @@ export const getCustomerCreditList = (
 ): Promise<ApiResponse<{ list: CustomerCredit[]; total: number }>> =>
   request.get('/crm/customer-credits', { params })
 
-export const listCredits = getCustomerCreditList
-
 export const getCustomerCredit = (id: number): Promise<ApiResponse<CustomerCredit>> =>
   request.get(`/crm/customer-credits/${id}`)
 
