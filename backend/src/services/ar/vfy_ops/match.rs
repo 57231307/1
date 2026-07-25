@@ -28,9 +28,9 @@ impl ArReconciliationService {
         let txn = (*self.db).begin().await?;
         let customers = Self::load_match_customers(&txn, req.customer_id).await?;
         let customer_ids: Vec<i32> = customers.iter().map(|c| c.id).collect();
-        let invoices_by_customer =
-            Self::group_invoices_by_customer(&txn, &customer_ids, req.end_date).await?;
-        let collections_by_customer = Self::group_collections_by_customer(
+        let mut invoices_by_customer =
+            Self::group_invoices_by_customer_for_match(&txn, &customer_ids, req.end_date).await?;
+        let mut collections_by_customer = Self::group_collections_by_customer(
             &txn,
             &customer_ids,
             req.start_date,
@@ -112,7 +112,10 @@ impl ArReconciliationService {
     }
 
     /// 批量预加载发票并按 customer_id 分组（InvoiceDate <= end_date 且非 CANCELLED）
-    async fn group_invoices_by_customer(
+    ///
+    /// 注：aging.rs 中已存在同名 `group_invoices_by_customer`（不同签名，针对账龄分桶），
+    /// 同一 impl 块不允许重复定义同名方法，故此函数加 `_for_match` 后缀以区分。
+    async fn group_invoices_by_customer_for_match(
         txn: &sea_orm::DatabaseTransaction,
         customer_ids: &[i32],
         end_date: chrono::NaiveDate,

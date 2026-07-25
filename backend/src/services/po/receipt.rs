@@ -31,7 +31,10 @@ impl PurchaseOrderService {
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
         // 幂等校验：已 COMPLETED 的入库单直接返回当前订单
-        if let Some(order) = Self::check_receipt_idempotency(&txn, receipt_id, order_id).await? {
+        if let Some(order) = self
+            .check_receipt_idempotency(&txn, receipt_id, order_id)
+            .await?
+        {
             txn.commit().await?;
             return Ok(order);
         }

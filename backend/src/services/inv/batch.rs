@@ -32,8 +32,9 @@ struct NewStockFabricFields<'a> {
     grade: &'a str,
     gram_weight: Option<rust_decimal::Decimal>,
     width: Option<rust_decimal::Decimal>,
-    production_date: Option<chrono::NaiveDate>,
-    expiry_date: Option<chrono::NaiveDate>,
+    // 与 inventory_stock::Model 字段类型保持一致（DateTime<Utc>），避免类型转换
+    production_date: Option<chrono::DateTime<chrono::Utc>>,
+    expiry_date: Option<chrono::DateTime<chrono::Utc>>,
     source_kg_per_meter: rust_decimal::Decimal,
 }
 
@@ -454,7 +455,9 @@ impl InventoryTransferService {
         });
         let inserted = transaction.insert(txn).await?;
         pending_events.push(Self::build_inventory_transaction_created_event(&inserted));
-        Self::update_item_received_quantity(txn, item, item.quantity).await?;
+        // 先提取 received_quantity 再 move item，避免 use of moved value
+        let received_quantity = item.quantity;
+        Self::update_item_received_quantity(txn, item, received_quantity).await?;
         Ok(())
     }
 
@@ -500,8 +503,9 @@ impl InventoryTransferService {
             .exec(txn)
             .await?;
         if update_result.rows_affected == 0 {
-            tracing::error!("Transaction rolled back: 产品 {} 并发冲突", product_id);
-            txn.rollback().await?;
+            // 不在此处显式 rollback：txn 为共享引用，无法 take ownership。
+            // 错误向上传播至 receive_transfer 主函数返回时，DatabaseTransaction drop 会自动回滚未提交事务。
+            tracing::error!("Transaction will rollback on drop: 产品 {} 并发冲突", product_id);
             return Err(AppError::business(format!(
                 "产品 {} 库存记录已被其他用户修改，请重试",
                 product_id
