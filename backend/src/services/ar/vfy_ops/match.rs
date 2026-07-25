@@ -314,13 +314,13 @@ impl ArReconciliationService {
     }
 
     /// 执行策略1精确匹配或跳过，返回 (匹配数, 未匹配发票, 未匹配收款)
-    fn run_exact_strategy(
-        invoices: &[ar_invoice::Model],
-        collections: &[ar_collection::Model],
+    fn run_exact_strategy<'a>(
+        invoices: &'a [ar_invoice::Model],
+        collections: &'a [ar_collection::Model],
         run_exact: bool,
         rec_model_id: i32,
         all_items_to_insert: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
-    ) -> (usize, Vec<&ar_invoice::Model>, Vec<&ar_collection::Model>) {
+    ) -> (usize, Vec<&'a ar_invoice::Model>, Vec<&'a ar_collection::Model>) {
         let mut unmatched_collections: Vec<&ar_collection::Model> = collections.iter().collect();
         if run_exact {
             let (matched, unmatched_inv) = Self::run_exact_match_strategy(
@@ -337,12 +337,12 @@ impl ArReconciliationService {
     }
 
     /// 策略1：精确金额匹配，返回 (匹配数, 未匹配发票引用列表)
-    fn run_exact_match_strategy(
-        invoices: &[ar_invoice::Model],
-        unmatched_collections: &mut Vec<&ar_collection::Model>,
+    fn run_exact_match_strategy<'a>(
+        invoices: &'a [ar_invoice::Model],
+        unmatched_collections: &mut Vec<&'a ar_collection::Model>,
         all_items_to_insert: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
         rec_model_id: i32,
-    ) -> (usize, Vec<&ar_invoice::Model>) {
+    ) -> (usize, Vec<&'a ar_invoice::Model>) {
         let mut matched_count = 0usize;
         let mut unmatched_invoices: Vec<&ar_invoice::Model> = Vec::new();
 
