@@ -275,6 +275,8 @@ impl FinanceReportService {
     }
 
     /// 利润表
+    ///
+    /// 主函数仅做协调：分别取收入成本与期间费用，再计算利润指标并聚合为报表。
     pub async fn get_income_statement(
         &self,
         start_date: chrono::NaiveDate,
@@ -286,71 +288,12 @@ impl FinanceReportService {
         // 修复：从已过账凭证分录按科目编码前缀聚合，参考中国企业会计准则科目编码：
         // 60xx = 收入类，64xx = 成本类，6601 = 销售费用，6602 = 管理费用，6603 = 财务费用。
 
-        let total_revenue = self
-            .sum_voucher_amount_by_subject_prefix(
-                "60",
-                true,
-                start_date,
-                end_date,
-            )
+        let (total_revenue, cost_of_goods_sold, gross_profit) = self
+            .fetch_income_revenue_and_cogs(start_date, end_date)
             .await?;
-
-        let cost_of_goods_sold = self
-            .sum_voucher_amount_by_subject_prefix(
-                "64",
-                false,
-                start_date,
-                end_date,
-            )
+        let (operating_expenses, total_operating_expenses) = self
+            .fetch_income_operating_expenses(start_date, end_date)
             .await?;
-
-        let gross_profit = total_revenue - cost_of_goods_sold;
-
-        let sales_expense = self
-            .sum_voucher_amount_by_subject_prefix(
-                "6601",
-                false,
-                start_date,
-                end_date,
-            )
-            .await?;
-
-        let management_expense = self
-            .sum_voucher_amount_by_subject_prefix(
-                "6602",
-                false,
-                start_date,
-                end_date,
-            )
-            .await?;
-
-        let financial_expense = self
-            .sum_voucher_amount_by_subject_prefix(
-                "6603",
-                false,
-                start_date,
-                end_date,
-            )
-            .await?;
-
-        let operating_expenses = vec![
-            ReportItem {
-                name: "管理费用".to_string(),
-                amount: management_expense,
-                description: None,
-            },
-            ReportItem {
-                name: "销售费用".to_string(),
-                amount: sales_expense,
-                description: None,
-            },
-            ReportItem {
-                name: "财务费用".to_string(),
-                amount: financial_expense,
-                description: None,
-            },
-        ];
-        let total_operating_expenses: Decimal = operating_expenses.iter().map(|i| i.amount).sum();
 
         let operating_income = gross_profit - total_operating_expenses;
         let other_income = Decimal::ZERO;
@@ -375,6 +318,58 @@ impl FinanceReportService {
             period_start: start_date.format("%Y-%m-%d").to_string(),
             period_end: end_date.format("%Y-%m-%d").to_string(),
         })
+    }
+
+    /// 利润表收入与成本（60xx 收入贷方 / 64xx 成本借方，返回毛利）
+    async fn fetch_income_revenue_and_cogs(
+        &self,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<(Decimal, Decimal, Decimal), AppError> {
+        let total_revenue = self
+            .sum_voucher_amount_by_subject_prefix("60", true, start_date, end_date)
+            .await?;
+        let cost_of_goods_sold = self
+            .sum_voucher_amount_by_subject_prefix("64", false, start_date, end_date)
+            .await?;
+        let gross_profit = total_revenue - cost_of_goods_sold;
+        Ok((total_revenue, cost_of_goods_sold, gross_profit))
+    }
+
+    /// 利润表期间费用（6601 销售 / 6602 管理 / 6603 财务，返回费用明细与合计）
+    async fn fetch_income_operating_expenses(
+        &self,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<(Vec<ReportItem>, Decimal), AppError> {
+        let sales_expense = self
+            .sum_voucher_amount_by_subject_prefix("6601", false, start_date, end_date)
+            .await?;
+        let management_expense = self
+            .sum_voucher_amount_by_subject_prefix("6602", false, start_date, end_date)
+            .await?;
+        let financial_expense = self
+            .sum_voucher_amount_by_subject_prefix("6603", false, start_date, end_date)
+            .await?;
+        let operating_expenses = vec![
+            ReportItem {
+                name: "管理费用".to_string(),
+                amount: management_expense,
+                description: None,
+            },
+            ReportItem {
+                name: "销售费用".to_string(),
+                amount: sales_expense,
+                description: None,
+            },
+            ReportItem {
+                name: "财务费用".to_string(),
+                amount: financial_expense,
+                description: None,
+            },
+        ];
+        let total_operating_expenses: Decimal = operating_expenses.iter().map(|i| i.amount).sum();
+        Ok((operating_expenses, total_operating_expenses))
     }
 
     /// F-P1-2 修复（批次 362 v13 复审）：按科目编码前缀聚合已过账凭证金额
@@ -456,6 +451,8 @@ impl FinanceReportService {
     }
 
     /// 现金流量表
+    ///
+    /// 主函数仅做协调：分别计算经营/投资/筹资活动现金流与期初期末现金，再聚合为报表。
     pub async fn get_cash_flow_statement(
         &self,
         start_date: chrono::NaiveDate,
@@ -465,7 +462,43 @@ impl FinanceReportService {
         // 原实现：投资活动/筹资活动/期初现金均硬编码 Decimal::ZERO，违反禁止硬编码规则且报表失真。
         // 修复：按中国企业会计准则科目编码从已过账凭证分录取期间发生额与期初余额。
 
-        // 经营活动现金流（保留从 finance_payment 取数，支付单/收款单即经营性现金流转）
+        let (operating_activities, net_cash_from_operations) = self
+            .compute_operating_cash_flows(start_date, end_date)
+            .await?;
+        let (investing_activities, net_cash_from_investing) = self
+            .compute_investing_cash_flows(start_date, end_date)
+            .await?;
+        let (financing_activities, net_cash_from_financing) = self
+            .compute_financing_cash_flows(start_date, end_date)
+            .await?;
+
+        let net_change_in_cash =
+            net_cash_from_operations + net_cash_from_investing + net_cash_from_financing;
+        let (beginning_cash, ending_cash) = self
+            .compute_cash_position(start_date, net_change_in_cash)
+            .await?;
+
+        Ok(CashFlowStatement {
+            operating_activities,
+            net_cash_from_operations,
+            investing_activities,
+            net_cash_from_investing,
+            financing_activities,
+            net_cash_from_financing,
+            net_change_in_cash,
+            beginning_cash,
+            ending_cash,
+            period_start: start_date.format("%Y-%m-%d").to_string(),
+            period_end: end_date.format("%Y-%m-%d").to_string(),
+        })
+    }
+
+    /// 经营活动现金流（从 finance_payment 取数：支付单/收款单即经营性现金流转）
+    async fn compute_operating_cash_flows(
+        &self,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<(Vec<ReportItem>, Decimal), AppError> {
         let cash_receipts = finance_payment::Entity::find()
             .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
             .filter(finance_payment::Column::PaymentDate.gte(start_date))
@@ -491,8 +524,27 @@ impl FinanceReportService {
             .unwrap_or(Decimal::ZERO);
 
         let net_cash_from_operations = cash_receipts - cash_payments;
+        let operating_activities = vec![
+            ReportItem {
+                name: "销售商品收到的现金".to_string(),
+                amount: cash_receipts,
+                description: None,
+            },
+            ReportItem {
+                name: "购买商品支付的现金".to_string(),
+                amount: cash_payments,
+                description: None,
+            },
+        ];
+        Ok((operating_activities, net_cash_from_operations))
+    }
 
-        // 投资活动现金流（1601 固定资产：贷方=处置收回，借方=购建支付）
+    /// 投资活动现金流（1601 固定资产：贷方=处置收回，借方=购建支付）
+    async fn compute_investing_cash_flows(
+        &self,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<(Vec<ReportItem>, Decimal), AppError> {
         let investing_inflow = self
             .sum_voucher_amount_by_subject_prefix("1601", true, start_date, end_date)
             .await?;
@@ -512,8 +564,15 @@ impl FinanceReportService {
                 description: None,
             },
         ];
+        Ok((investing_activities, net_cash_from_investing))
+    }
 
-        // 筹资活动现金流（25xx 借款：贷方=借入，借方=偿还）
+    /// 筹资活动现金流（25xx 借款：贷方=借入，借方=偿还）
+    async fn compute_financing_cash_flows(
+        &self,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<(Vec<ReportItem>, Decimal), AppError> {
         let financing_inflow = self
             .sum_voucher_amount_by_subject_prefix("25", true, start_date, end_date)
             .await?;
@@ -533,10 +592,15 @@ impl FinanceReportService {
                 description: None,
             },
         ];
+        Ok((financing_activities, net_cash_from_financing))
+    }
 
-        let net_change_in_cash =
-            net_cash_from_operations + net_cash_from_investing + net_cash_from_financing;
-        // 期初现金 = 截至期初前一日的 1001 库存现金 + 1002 银行存款 余额
+    /// 期初期末现金（期初=截至期初前一日 1001 库存现金 + 1002 银行存款 余额）
+    async fn compute_cash_position(
+        &self,
+        start_date: chrono::NaiveDate,
+        net_change_in_cash: Decimal,
+    ) -> Result<(Decimal, Decimal), AppError> {
         let day_before_start = start_date.pred_opt().unwrap_or(start_date);
         let beginning_cash_on_hand = self
             .get_subject_balance_by_prefix("1001", true, day_before_start)
@@ -546,31 +610,7 @@ impl FinanceReportService {
             .await?;
         let beginning_cash = beginning_cash_on_hand + beginning_cash_in_bank;
         let ending_cash = beginning_cash + net_change_in_cash;
-
-        Ok(CashFlowStatement {
-            operating_activities: vec![
-                ReportItem {
-                    name: "销售商品收到的现金".to_string(),
-                    amount: cash_receipts,
-                    description: None,
-                },
-                ReportItem {
-                    name: "购买商品支付的现金".to_string(),
-                    amount: cash_payments,
-                    description: None,
-                },
-            ],
-            net_cash_from_operations,
-            investing_activities,
-            net_cash_from_investing,
-            financing_activities,
-            net_cash_from_financing,
-            net_change_in_cash,
-            beginning_cash,
-            ending_cash,
-            period_start: start_date.format("%Y-%m-%d").to_string(),
-            period_end: end_date.format("%Y-%m-%d").to_string(),
-        })
+        Ok((beginning_cash, ending_cash))
     }
 
     /// 试算平衡表

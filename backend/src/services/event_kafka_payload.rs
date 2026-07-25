@@ -148,137 +148,368 @@ pub mod payload_serde {
 
     impl From<&BusinessEvent> for EventPayload {
         fn from(event: &BusinessEvent) -> Self {
+            use BusinessEvent::*;
             match event {
-                BusinessEvent::PurchaseReceiptCompleted {
-                    receipt_id,
-                    order_id,
-                    supplier_id,
-                } => Self::PurchaseReceiptCompleted {
-                    receipt_id: *receipt_id,
-                    order_id: *order_id,
-                    supplier_id: *supplier_id,
-                },
-                BusinessEvent::SalesOrderShipped {
-                    order_id,
-                    customer_id,
-                    items,
-                } => Self::SalesOrderShipped {
-                    order_id: *order_id,
-                    customer_id: *customer_id,
-                    items: items.clone(),
-                },
-                BusinessEvent::SalesOrderSubmitted {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderSubmitted {
-                    order_id: *order_id,
-                    customer_id: *customer_id,
-                    user_id: *user_id,
-                },
-                BusinessEvent::SalesOrderApproved {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderApproved {
-                    order_id: *order_id,
-                    customer_id: *customer_id,
-                    user_id: *user_id,
-                },
-                BusinessEvent::SalesOrderCompleted {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderCompleted {
-                    order_id: *order_id,
-                    customer_id: *customer_id,
-                    user_id: *user_id,
-                },
-                BusinessEvent::SalesOrderCancelled {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderCancelled {
-                    order_id: *order_id,
-                    customer_id: *customer_id,
-                    user_id: *user_id,
-                },
-                BusinessEvent::SalesOrderRejected {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderRejected {
-                    order_id: *order_id,
-                    customer_id: *customer_id,
-                    user_id: *user_id,
-                },
-                BusinessEvent::PaymentCompleted {
-                    payment_id,
-                    invoice_id,
-                    amount,
-                    user_id,
-                } => Self::PaymentCompleted {
-                    payment_id: *payment_id,
-                    invoice_id: *invoice_id,
-                    amount: *amount,
-                    user_id: *user_id,
-                },
-                BusinessEvent::CollectionCompleted {
-                    collection_id,
-                    invoice_id,
-                    amount,
-                    user_id,
-                } => Self::CollectionCompleted {
-                    collection_id: *collection_id,
-                    invoice_id: *invoice_id,
-                    amount: *amount,
-                    user_id: *user_id,
-                },
-                BusinessEvent::PurchaseOrderApproved {
-                    order_id,
-                    supplier_id,
-                } => Self::PurchaseOrderApproved {
-                    order_id: *order_id,
-                    supplier_id: *supplier_id,
-                },
-                BusinessEvent::InventoryCountCompleted {
-                    count_id,
-                    variance_count,
-                } => Self::InventoryCountCompleted {
-                    count_id: *count_id,
-                    variance_count: *variance_count,
-                },
-                BusinessEvent::BpmProcessFinished {
-                    business_type,
-                    business_id,
-                    approved,
-                    approver_id,
-                } => Self::BpmProcessFinished {
-                    business_type: business_type.clone(),
-                    business_id: *business_id,
-                    approved: *approved,
-                    approver_id: *approver_id,
-                },
-                BusinessEvent::LowStockAlert {
-                    product_id,
-                    warehouse_id,
-                    current_quantity,
-                    reorder_point,
-                    reorder_quantity,
-                } => Self::LowStockAlert {
+                SalesOrderShipped { .. }
+                | SalesOrderSubmitted { .. }
+                | SalesOrderApproved { .. }
+                | SalesOrderCompleted { .. }
+                | SalesOrderCancelled { .. }
+                | SalesOrderRejected { .. } => from_sales_events(event),
+                PurchaseReceiptCompleted { .. } | PurchaseOrderApproved { .. } => {
+                    from_purchase_events(event)
+                }
+                PaymentCompleted { .. } | CollectionCompleted { .. } => from_finance_events(event),
+                InventoryCountCompleted { .. } | LowStockAlert { .. } => {
+                    from_inventory_alert_events(event)
+                }
+                InventoryTransactionCreated { .. } => from_inventory_transaction_event(event),
+                BpmProcessFinished { .. } | FinancialIndicatorUpdate { .. } => {
+                    from_process_events(event)
+                }
+                MaterialShortageAlert { .. }
+                | CustomerUpdated { .. }
+                | SupplierUpdated { .. }
+                | DyeBatchCompleted { .. }
+                | QualityInspectionCompleted { .. } => from_other_events(event),
+            }
+        }
+    }
+
+    /// 销售类事件（6 个 variant）转换为 EventPayload
+    fn from_sales_events(event: &BusinessEvent) -> EventPayload {
+        match event {
+            BusinessEvent::SalesOrderShipped { order_id, customer_id, items } => {
+                EventPayload::SalesOrderShipped { order_id: *order_id, customer_id: *customer_id, items: items.clone() }
+            }
+            BusinessEvent::SalesOrderSubmitted { order_id, customer_id, user_id } => {
+                EventPayload::SalesOrderSubmitted { order_id: *order_id, customer_id: *customer_id, user_id: *user_id }
+            }
+            BusinessEvent::SalesOrderApproved { order_id, customer_id, user_id } => {
+                EventPayload::SalesOrderApproved { order_id: *order_id, customer_id: *customer_id, user_id: *user_id }
+            }
+            BusinessEvent::SalesOrderCompleted { order_id, customer_id, user_id } => {
+                EventPayload::SalesOrderCompleted { order_id: *order_id, customer_id: *customer_id, user_id: *user_id }
+            }
+            BusinessEvent::SalesOrderCancelled { order_id, customer_id, user_id } => {
+                EventPayload::SalesOrderCancelled { order_id: *order_id, customer_id: *customer_id, user_id: *user_id }
+            }
+            BusinessEvent::SalesOrderRejected { order_id, customer_id, user_id } => {
+                EventPayload::SalesOrderRejected { order_id: *order_id, customer_id: *customer_id, user_id: *user_id }
+            }
+            _ => unreachable!("from_sales_events 仅处理销售类事件"),
+        }
+    }
+
+    /// 采购类事件（2 个 variant）转换为 EventPayload
+    fn from_purchase_events(event: &BusinessEvent) -> EventPayload {
+        match event {
+            BusinessEvent::PurchaseReceiptCompleted { receipt_id, order_id, supplier_id } => {
+                EventPayload::PurchaseReceiptCompleted { receipt_id: *receipt_id, order_id: *order_id, supplier_id: *supplier_id }
+            }
+            BusinessEvent::PurchaseOrderApproved { order_id, supplier_id } => {
+                EventPayload::PurchaseOrderApproved { order_id: *order_id, supplier_id: *supplier_id }
+            }
+            _ => unreachable!("from_purchase_events 仅处理采购类事件"),
+        }
+    }
+
+    /// 财务类事件（2 个 variant）转换为 EventPayload
+    fn from_finance_events(event: &BusinessEvent) -> EventPayload {
+        match event {
+            BusinessEvent::PaymentCompleted { payment_id, invoice_id, amount, user_id } => {
+                EventPayload::PaymentCompleted { payment_id: *payment_id, invoice_id: *invoice_id, amount: *amount, user_id: *user_id }
+            }
+            BusinessEvent::CollectionCompleted { collection_id, invoice_id, amount, user_id } => {
+                EventPayload::CollectionCompleted { collection_id: *collection_id, invoice_id: *invoice_id, amount: *amount, user_id: *user_id }
+            }
+            _ => unreachable!("from_finance_events 仅处理财务类事件"),
+        }
+    }
+
+    /// 库存计数/低库存告警类事件（2 个 variant）转换为 EventPayload
+    fn from_inventory_alert_events(event: &BusinessEvent) -> EventPayload {
+        match event {
+            BusinessEvent::InventoryCountCompleted { count_id, variance_count } => {
+                EventPayload::InventoryCountCompleted { count_id: *count_id, variance_count: *variance_count }
+            }
+            BusinessEvent::LowStockAlert { product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity } => {
+                EventPayload::LowStockAlert {
                     product_id: *product_id,
                     warehouse_id: *warehouse_id,
                     current_quantity: *current_quantity,
                     reorder_point: *reorder_point,
                     reorder_quantity: *reorder_quantity,
-                },
-                BusinessEvent::FinancialIndicatorUpdate {
-                    period,
-                    trigger_source,
-                } => Self::FinancialIndicatorUpdate {
-                    period: period.clone(),
-                    trigger_source: trigger_source.clone(),
-                },
+                }
+            }
+            _ => unreachable!("from_inventory_alert_events 仅处理库存计数/低库存告警类事件"),
+        }
+    }
+
+    /// 库存交易事件（InventoryTransactionCreated）转换为 EventPayload
+    fn from_inventory_transaction_event(event: &BusinessEvent) -> EventPayload {
+        if let BusinessEvent::InventoryTransactionCreated {
+            transaction_id,
+            transaction_type,
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = event
+        {
+            EventPayload::InventoryTransactionCreated {
+                transaction_id: *transaction_id,
+                transaction_type: transaction_type.clone(),
+                product_id: *product_id,
+                warehouse_id: *warehouse_id,
+                quantity_meters: *quantity_meters,
+                quantity_kg: *quantity_kg,
+                source_bill_type: source_bill_type.clone(),
+                source_bill_no: source_bill_no.clone(),
+                source_bill_id: *source_bill_id,
+                batch_no: batch_no.clone(),
+                color_no: color_no.clone(),
+                created_by: *created_by,
+            }
+        } else {
+            unreachable!("from_inventory_transaction_event 仅处理 InventoryTransactionCreated")
+        }
+    }
+
+    /// 流程类事件（BpmProcessFinished/FinancialIndicatorUpdate）转换为 EventPayload
+    fn from_process_events(event: &BusinessEvent) -> EventPayload {
+        match event {
+            BusinessEvent::BpmProcessFinished { business_type, business_id, approved, approver_id } => {
+                EventPayload::BpmProcessFinished {
+                    business_type: business_type.clone(),
+                    business_id: *business_id,
+                    approved: *approved,
+                    approver_id: *approver_id,
+                }
+            }
+            BusinessEvent::FinancialIndicatorUpdate { period, trigger_source } => {
+                EventPayload::FinancialIndicatorUpdate { period: period.clone(), trigger_source: trigger_source.clone() }
+            }
+            _ => unreachable!("from_process_events 仅处理流程类事件"),
+        }
+    }
+
+    /// 主数据/缺料/染色质量类事件（5 个 variant）转换为 EventPayload
+    fn from_other_events(event: &BusinessEvent) -> EventPayload {
+        match event {
+            BusinessEvent::MaterialShortageAlert {
+                material_id,
+                material_name,
+                material_code,
+                required_quantity,
+                available_quantity,
+                shortage_quantity,
+                shortage_level,
+                affected_orders_count,
+            } => {
+                EventPayload::MaterialShortageAlert {
+                    material_id: *material_id,
+                    material_name: material_name.clone(),
+                    material_code: material_code.clone(),
+                    required_quantity: *required_quantity,
+                    available_quantity: *available_quantity,
+                    shortage_quantity: *shortage_quantity,
+                    shortage_level: shortage_level.clone(),
+                    affected_orders_count: *affected_orders_count,
+                }
+            }
+            BusinessEvent::CustomerUpdated { customer_id, customer_name, user_id } => {
+                EventPayload::CustomerUpdated { customer_id: *customer_id, customer_name: customer_name.clone(), user_id: *user_id }
+            }
+            BusinessEvent::SupplierUpdated { supplier_id, supplier_name, user_id } => {
+                EventPayload::SupplierUpdated { supplier_id: *supplier_id, supplier_name: supplier_name.clone(), user_id: *user_id }
+            }
+            BusinessEvent::DyeBatchCompleted { batch_id, batch_no, color_no, greige_fabric_id, planned_quantity, completed_by } => {
+                EventPayload::DyeBatchCompleted {
+                    batch_id: *batch_id,
+                    batch_no: batch_no.clone(),
+                    color_no: color_no.clone(),
+                    greige_fabric_id: *greige_fabric_id,
+                    planned_quantity: *planned_quantity,
+                    completed_by: *completed_by,
+                }
+            }
+            BusinessEvent::QualityInspectionCompleted { inspection_id, batch_id, product_id, result, inspector_id } => {
+                EventPayload::QualityInspectionCompleted {
+                    inspection_id: *inspection_id,
+                    batch_id: *batch_id,
+                    product_id: *product_id,
+                    result: result.clone(),
+                    inspector_id: *inspector_id,
+                }
+            }
+            _ => unreachable!("from_other_events 仅处理主数据/缺料/染色质量类事件"),
+        }
+    }
+
+    impl TryFrom<EventPayload> for BusinessEvent {
+        type Error = String;
+        fn try_from(p: EventPayload) -> Result<Self, Self::Error> {
+            use EventPayload::*;
+            Ok(match p {
+                SalesOrderShipped { .. }
+                | SalesOrderSubmitted { .. }
+                | SalesOrderApproved { .. }
+                | SalesOrderCompleted { .. }
+                | SalesOrderCancelled { .. }
+                | SalesOrderRejected { .. } => to_sales_events(p)?,
+                PurchaseReceiptCompleted { .. } | PurchaseOrderApproved { .. } => {
+                    to_purchase_events(p)?
+                }
+                PaymentCompleted { .. } | CollectionCompleted { .. } => to_finance_events(p)?,
+                InventoryCountCompleted { .. } | LowStockAlert { .. } => {
+                    to_inventory_alert_events(p)?
+                }
+                InventoryTransactionCreated { .. } => to_inventory_transaction_event(p)?,
+                BpmProcessFinished { .. } | FinancialIndicatorUpdate { .. } => {
+                    to_process_events(p)?
+                }
+                MaterialShortageAlert { .. }
+                | CustomerUpdated { .. }
+                | SupplierUpdated { .. }
+                | DyeBatchCompleted { .. }
+                | QualityInspectionCompleted { .. } => to_other_events(p)?,
+            })
+        }
+    }
+
+    /// 销售类 EventPayload 反向转换为 BusinessEvent
+    fn to_sales_events(p: EventPayload) -> Result<BusinessEvent, String> {
+        Ok(match p {
+            EventPayload::SalesOrderShipped { order_id, customer_id, items } => {
+                BusinessEvent::SalesOrderShipped { order_id, customer_id, items }
+            }
+            EventPayload::SalesOrderSubmitted { order_id, customer_id, user_id } => {
+                BusinessEvent::SalesOrderSubmitted { order_id, customer_id, user_id }
+            }
+            EventPayload::SalesOrderApproved { order_id, customer_id, user_id } => {
+                BusinessEvent::SalesOrderApproved { order_id, customer_id, user_id }
+            }
+            EventPayload::SalesOrderCompleted { order_id, customer_id, user_id } => {
+                BusinessEvent::SalesOrderCompleted { order_id, customer_id, user_id }
+            }
+            EventPayload::SalesOrderCancelled { order_id, customer_id, user_id } => {
+                BusinessEvent::SalesOrderCancelled { order_id, customer_id, user_id }
+            }
+            EventPayload::SalesOrderRejected { order_id, customer_id, user_id } => {
+                BusinessEvent::SalesOrderRejected { order_id, customer_id, user_id }
+            }
+            _ => return Err("to_sales_events 仅处理销售类 EventPayload".to_string()),
+        })
+    }
+
+    /// 采购类 EventPayload 反向转换为 BusinessEvent
+    fn to_purchase_events(p: EventPayload) -> Result<BusinessEvent, String> {
+        Ok(match p {
+            EventPayload::PurchaseReceiptCompleted { receipt_id, order_id, supplier_id } => {
+                BusinessEvent::PurchaseReceiptCompleted { receipt_id, order_id, supplier_id }
+            }
+            EventPayload::PurchaseOrderApproved { order_id, supplier_id } => {
+                BusinessEvent::PurchaseOrderApproved { order_id, supplier_id }
+            }
+            _ => return Err("to_purchase_events 仅处理采购类 EventPayload".to_string()),
+        })
+    }
+
+    /// 财务类 EventPayload 反向转换为 BusinessEvent
+    fn to_finance_events(p: EventPayload) -> Result<BusinessEvent, String> {
+        Ok(match p {
+            EventPayload::PaymentCompleted { payment_id, invoice_id, amount, user_id } => {
+                BusinessEvent::PaymentCompleted { payment_id, invoice_id, amount, user_id }
+            }
+            EventPayload::CollectionCompleted { collection_id, invoice_id, amount, user_id } => {
+                BusinessEvent::CollectionCompleted { collection_id, invoice_id, amount, user_id }
+            }
+            _ => return Err("to_finance_events 仅处理财务类 EventPayload".to_string()),
+        })
+    }
+
+    /// 库存计数/低库存告警类 EventPayload 反向转换为 BusinessEvent
+    fn to_inventory_alert_events(p: EventPayload) -> Result<BusinessEvent, String> {
+        Ok(match p {
+            EventPayload::InventoryCountCompleted { count_id, variance_count } => {
+                BusinessEvent::InventoryCountCompleted { count_id, variance_count }
+            }
+            EventPayload::LowStockAlert { product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity } => {
+                BusinessEvent::LowStockAlert { product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity }
+            }
+            _ => return Err("to_inventory_alert_events 仅处理库存计数/低库存告警类 EventPayload".to_string()),
+        })
+    }
+
+    /// 库存交易 EventPayload 反向转换为 BusinessEvent
+    fn to_inventory_transaction_event(p: EventPayload) -> Result<BusinessEvent, String> {
+        if let EventPayload::InventoryTransactionCreated {
+            transaction_id,
+            transaction_type,
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = p
+        {
+            Ok(BusinessEvent::InventoryTransactionCreated {
+                transaction_id,
+                transaction_type,
+                product_id,
+                warehouse_id,
+                quantity_meters,
+                quantity_kg,
+                source_bill_type,
+                source_bill_no,
+                source_bill_id,
+                batch_no,
+                color_no,
+                created_by,
+            })
+        } else {
+            Err("to_inventory_transaction_event 仅处理 InventoryTransactionCreated".to_string())
+        }
+    }
+
+    /// 流程类 EventPayload 反向转换为 BusinessEvent
+    fn to_process_events(p: EventPayload) -> Result<BusinessEvent, String> {
+        Ok(match p {
+            EventPayload::BpmProcessFinished { business_type, business_id, approved, approver_id } => {
+                BusinessEvent::BpmProcessFinished { business_type, business_id, approved, approver_id }
+            }
+            EventPayload::FinancialIndicatorUpdate { period, trigger_source } => {
+                BusinessEvent::FinancialIndicatorUpdate { period, trigger_source }
+            }
+            _ => return Err("to_process_events 仅处理流程类 EventPayload".to_string()),
+        })
+    }
+
+    /// 主数据/缺料/染色质量类 EventPayload 反向转换为 BusinessEvent
+    fn to_other_events(p: EventPayload) -> Result<BusinessEvent, String> {
+        Ok(match p {
+            EventPayload::MaterialShortageAlert {
+                material_id,
+                material_name,
+                material_code,
+                required_quantity,
+                available_quantity,
+                shortage_quantity,
+                shortage_level,
+                affected_orders_count,
+            } => {
                 BusinessEvent::MaterialShortageAlert {
                     material_id,
                     material_name,
@@ -288,323 +519,22 @@ pub mod payload_serde {
                     shortage_quantity,
                     shortage_level,
                     affected_orders_count,
-                } => Self::MaterialShortageAlert {
-                    material_id: *material_id,
-                    material_name: material_name.clone(),
-                    material_code: material_code.clone(),
-                    required_quantity: *required_quantity,
-                    available_quantity: *available_quantity,
-                    shortage_quantity: *shortage_quantity,
-                    shortage_level: shortage_level.clone(),
-                    affected_orders_count: *affected_orders_count,
-                },
-                BusinessEvent::InventoryTransactionCreated {
-                    transaction_id,
-                    transaction_type,
-                    product_id,
-                    warehouse_id,
-                    quantity_meters,
-                    quantity_kg,
-                    source_bill_type,
-                    source_bill_no,
-                    source_bill_id,
-                    batch_no,
-                    color_no,
-                    created_by,
-                } => Self::InventoryTransactionCreated {
-                    transaction_id: *transaction_id,
-                    transaction_type: transaction_type.clone(),
-                    product_id: *product_id,
-                    warehouse_id: *warehouse_id,
-                    quantity_meters: *quantity_meters,
-                    quantity_kg: *quantity_kg,
-                    source_bill_type: source_bill_type.clone(),
-                    source_bill_no: source_bill_no.clone(),
-                    source_bill_id: *source_bill_id,
-                    batch_no: batch_no.clone(),
-                    color_no: color_no.clone(),
-                    created_by: *created_by,
-                },
-                BusinessEvent::CustomerUpdated {
-                    customer_id,
-                    customer_name,
-                    user_id,
-                } => Self::CustomerUpdated {
-                    customer_id: *customer_id,
-                    customer_name: customer_name.clone(),
-                    user_id: *user_id,
-                },
-                BusinessEvent::SupplierUpdated {
-                    supplier_id,
-                    supplier_name,
-                    user_id,
-                } => Self::SupplierUpdated {
-                    supplier_id: *supplier_id,
-                    supplier_name: supplier_name.clone(),
-                    user_id: *user_id,
-                },
-                // v14 批次 420 修复 T-P1-3：染色完成/质检完成事件转换
-                BusinessEvent::DyeBatchCompleted {
-                    batch_id,
-                    batch_no,
-                    color_no,
-                    greige_fabric_id,
-                    planned_quantity,
-                    completed_by,
-                } => Self::DyeBatchCompleted {
-                    batch_id: *batch_id,
-                    batch_no: batch_no.clone(),
-                    color_no: color_no.clone(),
-                    greige_fabric_id: *greige_fabric_id,
-                    planned_quantity: *planned_quantity,
-                    completed_by: *completed_by,
-                },
-                BusinessEvent::QualityInspectionCompleted {
-                    inspection_id,
-                    batch_id,
-                    product_id,
-                    result,
-                    inspector_id,
-                } => Self::QualityInspectionCompleted {
-                    inspection_id: *inspection_id,
-                    batch_id: *batch_id,
-                    product_id: *product_id,
-                    result: result.clone(),
-                    inspector_id: *inspector_id,
-                },
+                }
             }
-        }
-    }
-
-    impl TryFrom<EventPayload> for BusinessEvent {
-        type Error = String;
-        fn try_from(p: EventPayload) -> Result<Self, Self::Error> {
-            Ok(match p {
-                EventPayload::PurchaseReceiptCompleted {
-                    receipt_id,
-                    order_id,
-                    supplier_id,
-                } => Self::PurchaseReceiptCompleted {
-                    receipt_id,
-                    order_id,
-                    supplier_id,
-                },
-                EventPayload::SalesOrderShipped {
-                    order_id,
-                    customer_id,
-                    items,
-                } => Self::SalesOrderShipped {
-                    order_id,
-                    customer_id,
-                    items,
-                },
-                EventPayload::SalesOrderSubmitted {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderSubmitted {
-                    order_id,
-                    customer_id,
-                    user_id,
-                },
-                EventPayload::SalesOrderApproved {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderApproved {
-                    order_id,
-                    customer_id,
-                    user_id,
-                },
-                EventPayload::SalesOrderCompleted {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderCompleted {
-                    order_id,
-                    customer_id,
-                    user_id,
-                },
-                EventPayload::SalesOrderCancelled {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderCancelled {
-                    order_id,
-                    customer_id,
-                    user_id,
-                },
-                EventPayload::SalesOrderRejected {
-                    order_id,
-                    customer_id,
-                    user_id,
-                } => Self::SalesOrderRejected {
-                    order_id,
-                    customer_id,
-                    user_id,
-                },
-                EventPayload::PaymentCompleted {
-                    payment_id,
-                    invoice_id,
-                    amount,
-                    user_id,
-                } => Self::PaymentCompleted {
-                    payment_id,
-                    invoice_id,
-                    amount,
-                    user_id,
-                },
-                EventPayload::CollectionCompleted {
-                    collection_id,
-                    invoice_id,
-                    amount,
-                    user_id,
-                } => Self::CollectionCompleted {
-                    collection_id,
-                    invoice_id,
-                    amount,
-                    user_id,
-                },
-                EventPayload::PurchaseOrderApproved {
-                    order_id,
-                    supplier_id,
-                } => Self::PurchaseOrderApproved {
-                    order_id,
-                    supplier_id,
-                },
-                EventPayload::InventoryCountCompleted {
-                    count_id,
-                    variance_count,
-                } => Self::InventoryCountCompleted {
-                    count_id,
-                    variance_count,
-                },
-                EventPayload::BpmProcessFinished {
-                    business_type,
-                    business_id,
-                    approved,
-                    approver_id,
-                } => Self::BpmProcessFinished {
-                    business_type,
-                    business_id,
-                    approved,
-                    approver_id,
-                },
-                EventPayload::LowStockAlert {
-                    product_id,
-                    warehouse_id,
-                    current_quantity,
-                    reorder_point,
-                    reorder_quantity,
-                } => Self::LowStockAlert {
-                    product_id,
-                    warehouse_id,
-                    current_quantity,
-                    reorder_point,
-                    reorder_quantity,
-                },
-                EventPayload::FinancialIndicatorUpdate {
-                    period,
-                    trigger_source,
-                } => Self::FinancialIndicatorUpdate {
-                    period,
-                    trigger_source,
-                },
-                EventPayload::MaterialShortageAlert {
-                    material_id,
-                    material_name,
-                    material_code,
-                    required_quantity,
-                    available_quantity,
-                    shortage_quantity,
-                    shortage_level,
-                    affected_orders_count,
-                } => Self::MaterialShortageAlert {
-                    material_id,
-                    material_name,
-                    material_code,
-                    required_quantity,
-                    available_quantity,
-                    shortage_quantity,
-                    shortage_level,
-                    affected_orders_count,
-                },
-                EventPayload::InventoryTransactionCreated {
-                    transaction_id,
-                    transaction_type,
-                    product_id,
-                    warehouse_id,
-                    quantity_meters,
-                    quantity_kg,
-                    source_bill_type,
-                    source_bill_no,
-                    source_bill_id,
-                    batch_no,
-                    color_no,
-                    created_by,
-                } => Self::InventoryTransactionCreated {
-                    transaction_id,
-                    transaction_type,
-                    product_id,
-                    warehouse_id,
-                    quantity_meters,
-                    quantity_kg,
-                    source_bill_type,
-                    source_bill_no,
-                    source_bill_id,
-                    batch_no,
-                    color_no,
-                    created_by,
-                },
-                EventPayload::CustomerUpdated {
-                    customer_id,
-                    customer_name,
-                    user_id,
-                } => Self::CustomerUpdated {
-                    customer_id,
-                    customer_name,
-                    user_id,
-                },
-                EventPayload::SupplierUpdated {
-                    supplier_id,
-                    supplier_name,
-                    user_id,
-                } => Self::SupplierUpdated {
-                    supplier_id,
-                    supplier_name,
-                    user_id,
-                },
-                // v14 批次 420 修复 T-P1-3：染色完成/质检完成事件反向转换
-                EventPayload::DyeBatchCompleted {
-                    batch_id,
-                    batch_no,
-                    color_no,
-                    greige_fabric_id,
-                    planned_quantity,
-                    completed_by,
-                } => Self::DyeBatchCompleted {
-                    batch_id,
-                    batch_no,
-                    color_no,
-                    greige_fabric_id,
-                    planned_quantity,
-                    completed_by,
-                },
-                EventPayload::QualityInspectionCompleted {
-                    inspection_id,
-                    batch_id,
-                    product_id,
-                    result,
-                    inspector_id,
-                } => Self::QualityInspectionCompleted {
-                    inspection_id,
-                    batch_id,
-                    product_id,
-                    result,
-                    inspector_id,
-                },
-            })
-        }
+            EventPayload::CustomerUpdated { customer_id, customer_name, user_id } => {
+                BusinessEvent::CustomerUpdated { customer_id, customer_name, user_id }
+            }
+            EventPayload::SupplierUpdated { supplier_id, supplier_name, user_id } => {
+                BusinessEvent::SupplierUpdated { supplier_id, supplier_name, user_id }
+            }
+            EventPayload::DyeBatchCompleted { batch_id, batch_no, color_no, greige_fabric_id, planned_quantity, completed_by } => {
+                BusinessEvent::DyeBatchCompleted { batch_id, batch_no, color_no, greige_fabric_id, planned_quantity, completed_by }
+            }
+            EventPayload::QualityInspectionCompleted { inspection_id, batch_id, product_id, result, inspector_id } => {
+                BusinessEvent::QualityInspectionCompleted { inspection_id, batch_id, product_id, result, inspector_id }
+            }
+            _ => return Err("to_other_events 仅处理主数据/缺料/染色质量类 EventPayload".to_string()),
+        })
     }
 }
 

@@ -76,7 +76,7 @@ interface ApiResponse<T> {
 /**
  * 分页查询审计日志
  */
-export async function listAuditLogs(params: AuditLogListParams = {}): Promise<AuditLogListResponse> {
+export async function getAuditLogList(params: AuditLogListParams = {}): Promise<AuditLogListResponse> {
   const res = await request.get<ApiResponse<AuditLogListResponse>>('/audit-logs', { params })
   return res.data
 }

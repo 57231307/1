@@ -56,7 +56,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
-import { getCrmTagList, addTagToCustomer, removeTagFromCustomer, type CustomerTag } from '@/api/crm-enhanced'
+import { getCrmTagList, createTagForCustomer, deleteTagFromCustomer, type CustomerTag } from '@/api/crm-enhanced'
 import { logger } from '@/utils/logger'
 
 interface Props {
@@ -103,7 +103,7 @@ const handleAdd = async () => {
   if (!selectedTag) return
 
   try {
-    await addTagToCustomer(props.customerId, selectedTag.id)
+    await createTagForCustomer(props.customerId, selectedTag.id)
     ElMessage.success('标签已添加')
     dialogVisible.value = false
     form.name = ''
@@ -116,7 +116,7 @@ const handleAdd = async () => {
 
 const handleRemove = async (tagId: number) => {
   try {
-    await removeTagFromCustomer(props.customerId, tagId)
+    await deleteTagFromCustomer(props.customerId, tagId)
     ElMessage.success('标签已移除')
     emit('updated')
   } catch (error) {
