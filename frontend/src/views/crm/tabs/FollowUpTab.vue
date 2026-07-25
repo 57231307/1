@@ -1,16 +1,15 @@
 <!--
   FollowUpTab.vue - 客户跟进记录 Tab
   来源：原 crm/detail.vue 中 跟进记录 section
-  拆分日期：2026-06-15 B3-3
 -->
 <template>
   <el-card shadow="hover" class="section-card mt-20">
     <template #header>
       <div class="card-header">
-        <span>跟进记录</span>
+        <span>{{ t('crmFollowUp.title') }}</span>
         <el-button type="primary" size="small" @click="handleAddFollowUp">
           <el-icon><Plus /></el-icon>
-          新增跟进
+          {{ t('crmFollowUp.addFollowUp') }}
         </el-button>
       </div>
     </template>
@@ -26,12 +25,12 @@
         <el-card>
           <div class="follow-up-header">
             <span class="follow-up-type">{{ getFollowUpTypeLabel(record.type) }}</span>
-            <span class="follow-up-operator">跟进人：{{ record.operator_name }}</span>
+            <span class="follow-up-operator">{{ t('crmFollowUp.operatorLabel', { name: record.operator_name }) }}</span>
           </div>
           <p class="follow-up-content">{{ record.content }}</p>
           <div v-if="record.next_follow_date" class="follow-up-next">
             <el-icon><Clock /></el-icon>
-            下次跟进：{{ record.next_follow_date }}
+            {{ t('crmFollowUp.nextFollowUpLabel', { date: record.next_follow_date }) }}
           </div>
         </el-card>
       </el-timeline-item>
@@ -39,7 +38,7 @@
 
     <div class="pagination-wrapper">
       <el-pagination
-        aria-label="客户跟进记录分页"
+        :aria-label="t('crmFollowUp.paginationAriaLabel')"
         v-model:current-page="query.page"
         v-model:page-size="query.page_size"
         :page-sizes="[10, 20, 50]"
@@ -51,37 +50,37 @@
     </div>
 
     <el-dialog
-      aria-label="新增跟进记录对话框"
+      :aria-label="t('crmFollowUp.dialog.ariaLabel')"
       v-model="dialogVisible"
-      title="新增跟进记录"
+      :title="t('crmFollowUp.dialog.title')"
       width="500px"
       :close-on-click-modal="false"
     >
-      <el-form ref="formRef" :model="form" label-width="100px" aria-label="跟进记录表单">
-        <el-form-item label="跟进方式" prop="type">
-          <el-select v-model="form.type" placeholder="请选择跟进方式" style="width: 100%">
-            <el-option label="电话" value="phone" />
-            <el-option label="面谈" value="meeting" />
-            <el-option label="邮件" value="email" />
-            <el-option label="微信" value="wechat" />
-            <el-option label="拜访" value="visit" />
+      <el-form ref="formRef" :model="form" label-width="100px" :aria-label="t('crmFollowUp.dialog.formAriaLabel')">
+        <el-form-item :label="t('crmFollowUp.form.type')" prop="type">
+          <el-select v-model="form.type" :placeholder="t('crmFollowUp.form.typePlaceholder')" style="width: 100%">
+            <el-option :label="t('crmFollowUp.followUpType.phone')" value="phone" />
+            <el-option :label="t('crmFollowUp.followUpType.meeting')" value="meeting" />
+            <el-option :label="t('crmFollowUp.followUpType.email')" value="email" />
+            <el-option :label="t('crmFollowUp.followUpType.wechat')" value="wechat" />
+            <el-option :label="t('crmFollowUp.followUpType.visit')" value="visit" />
           </el-select>
         </el-form-item>
-        <el-form-item label="跟进内容" prop="content">
-          <el-input v-model="form.content" type="textarea" :rows="4" placeholder="请输入跟进内容" />
+        <el-form-item :label="t('crmFollowUp.form.content')" prop="content">
+          <el-input v-model="form.content" type="textarea" :rows="4" :placeholder="t('crmFollowUp.form.contentPlaceholder')" />
         </el-form-item>
-        <el-form-item label="下次跟进">
+        <el-form-item :label="t('crmFollowUp.form.nextFollowUp')">
           <el-date-picker
             v-model="form.next_follow_date"
             type="date"
-            placeholder="选择日期"
+            :placeholder="t('crmFollowUp.form.datePlaceholder')"
             style="width: 100%"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ t('crmFollowUp.form.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('crmFollowUp.form.save') }}</el-button>
       </template>
     </el-dialog>
   </el-card>
@@ -89,12 +88,15 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus, Clock } from '@element-plus/icons-vue'
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import { getFollowUpList, createFollowUp, type FollowUpRecord } from '@/api/crm-enhanced'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 接收父组件传入的客户 ID
 interface Props {
@@ -136,11 +138,11 @@ const getFollowUpType = (type: string) => {
 
 const getFollowUpTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    phone: '电话',
-    meeting: '面谈',
-    email: '邮件',
-    wechat: '微信',
-    visit: '拜访',
+    phone: t('crmFollowUp.followUpType.phone'),
+    meeting: t('crmFollowUp.followUpType.meeting'),
+    email: t('crmFollowUp.followUpType.email'),
+    wechat: t('crmFollowUp.followUpType.wechat'),
+    visit: t('crmFollowUp.followUpType.visit'),
   }
   return labels[type] || type
 }
@@ -152,7 +154,7 @@ const fetchFollowUps = async () => {
     total.value = res.data?.total || 0
   } catch (error) {
     const err = error as Error
-    logger.warn('获取跟进记录失败', err.message)
+    logger.warn(t('crmFollowUp.message.loadFailed'), err.message)
     followUps.value = []
     total.value = 0
   }
@@ -167,7 +169,7 @@ const handleAddFollowUp = () => {
 
 const handleSubmit = async () => {
   if (!form.content.trim()) {
-    ElMessage.warning('请输入跟进内容')
+    ElMessage.warning(t('crmFollowUp.message.contentRequired'))
     return
   }
 
@@ -178,13 +180,13 @@ const handleSubmit = async () => {
       content: form.content,
       next_follow_date: form.next_follow_date || undefined,
     })
-    ElMessage.success('跟进记录已保存')
+    ElMessage.success(t('crmFollowUp.message.saveSuccess'))
     dialogVisible.value = false
     fetchFollowUps()
     emit('updated')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '保存失败')
+    ElMessage.error(err.message || t('crmFollowUp.message.saveFailed'))
   } finally {
     submitLoading.value = false
   }

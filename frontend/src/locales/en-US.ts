@@ -2428,7 +2428,54 @@ export default {
       selectionChanged: 'Selection changed'
     },
     exportFile: {
-      filename: 'leads'
+      filename: 'Leads List'
+    },
+    leadForm: {
+      ariaLabel: 'Lead form',
+      leadSource: 'Lead Source',
+      leadSourcePlaceholder: 'Please select lead source',
+      priority: 'Priority',
+      priorityPlaceholder: 'Please select priority',
+      companyName: 'Company Name',
+      companyNamePlaceholder: 'Please enter company name',
+      contactName: 'Contact Person',
+      contactNamePlaceholder: 'Please enter contact name',
+      mobilePhone: 'Mobile',
+      mobilePhonePlaceholder: 'Please enter mobile',
+      email: 'Email',
+      emailPlaceholder: 'Please enter email',
+      contactTitle: 'Title',
+      contactTitlePlaceholder: 'Please enter title',
+      owner: 'Owner',
+      ownerPlaceholder: 'Please select owner',
+      requirementDesc: 'Requirement Description',
+      requirementDescPlaceholder: 'Please enter requirement description',
+      remarks: 'Remarks',
+      remarksPlaceholder: 'Please enter remarks',
+      cancel: 'Cancel',
+      confirm: 'Confirm',
+      leadSourceOption: {
+        website: 'Website',
+        phone: 'Phone',
+        exhibition: 'Exhibition',
+        referral: 'Referral',
+        other: 'Other'
+      },
+      priorityOption: {
+        low: 'Low',
+        medium: 'Medium',
+        high: 'High',
+        urgent: 'Urgent'
+      },
+      validation: {
+        leadSourceRequired: 'Please select lead source',
+        contactNameRequired: 'Please enter contact name',
+        ownerRequired: 'Please select owner'
+      },
+      message: {
+        saveSuccess: 'Saved successfully',
+        validationFailed: 'Form validation failed'
+      }
     }
   },
   colorCards: {
@@ -4042,6 +4089,589 @@ export default {
       withdrawSuccess: 'Withdrawal successful',
       freezeSuccess: 'Freeze successful',
       fetchListFailed: 'Failed to fetch fund account list'
+    }
+  },
+  crmModule: {
+    tabs: {
+      customerList: 'Customer List',
+      rfm: 'Customer Grading (RFM)'
+    }
+  },
+  crmDetail: {
+    title: 'Customer 360 View',
+    back: 'Back',
+    breadcrumb: {
+      home: 'Home',
+      crm: 'CRM',
+      customerDetail: 'Customer Detail'
+    },
+    basicInfo: 'Basic Information',
+    billingInfo: 'Billing Information',
+    contacts: 'Contact List',
+    addContact: 'Add Contact',
+    rfmScore: 'RFM Score',
+    shippingAddress: 'Shipping Address',
+    statusActive: 'Active',
+    statusInactive: 'Inactive',
+    field: {
+      customerCode: 'Customer Code',
+      customerName: 'Customer Name',
+      contactPerson: 'Contact Person',
+      phone: 'Phone',
+      email: 'Email',
+      address: 'Address',
+      customerType: 'Customer Type',
+      owner: 'Owner',
+      creditLimit: 'Credit Limit',
+      totalOrders: 'Total Orders',
+      totalAmount: 'Total Amount',
+      lastOrder: 'Last Order',
+      taxNumber: 'Tax Number',
+      bankName: 'Bank Name',
+      bankAccount: 'Bank Account',
+      contactName: 'Name',
+      contactTitle: 'Title',
+      isPrimary: 'Primary Contact',
+      primaryBadge: 'P',
+      operation: 'Operation',
+      rfmRecency: 'R (Recency)',
+      rfmFrequency: 'F (Frequency)',
+      rfmMonetary: 'M (Monetary)',
+      defaultAddress: 'Default'
+    },
+    customerType: {
+      normal: 'Normal Customer',
+      vip: 'VIP Customer',
+      wholesale: 'Wholesale Customer'
+    },
+    rfmEmpty: 'No RFM data',
+    addressEmpty: 'No shipping address',
+    contactTableAria: 'Customer contact list',
+    contactDialogTitle: {
+      create: 'Add Contact',
+      edit: 'Edit Contact'
+    },
+    contactDialogAria: 'Contact form',
+    contactForm: {
+      name: 'Name',
+      namePlaceholder: 'Please enter contact name',
+      title: 'Title',
+      titlePlaceholder: 'Please enter title',
+      phone: 'Phone',
+      phonePlaceholder: 'Please enter contact phone',
+      email: 'Email',
+      emailPlaceholder: 'Please enter email',
+      isPrimary: 'Primary Contact',
+      remarks: 'Remarks',
+      remarksPlaceholder: 'Remarks (optional)',
+      cancel: 'Cancel',
+      confirm: 'Confirm'
+    },
+    validation: {
+      nameRequired: 'Please enter contact name',
+      phoneRequired: 'Please enter contact phone',
+      emailPattern: 'Invalid email format'
+    },
+    message: {
+      loadFailed: 'Failed to load customer detail',
+      contactLoadFailed: 'Failed to load contact list',
+      missingCustomerId: 'Missing customer ID parameter',
+      deleteConfirm: 'Are you sure to delete contact "{name}"?',
+      deleteTitle: 'Delete Confirmation',
+      deleteSuccess: 'Deleted successfully',
+      deleteFailed: 'Failed to delete',
+      createSuccess: 'Contact created successfully',
+      updateSuccess: 'Contact updated successfully',
+      operationFailed: 'Operation failed',
+      pageLoaded: 'Customer detail page loaded'
+    }
+  },
+  crmPool: {
+    title: 'Customer Pool',
+    back: 'Back to Customer List',
+    batchClaim: 'Batch Claim',
+    breadcrumb: {
+      home: 'Home',
+      crm: 'CRM',
+      pool: 'Pool'
+    },
+    filter: {
+      ariaLabel: 'Pool customer filter form',
+      keyword: 'Keyword',
+      keywordPlaceholder: 'Customer name / contact / phone',
+      customerType: 'Customer Type',
+      customerTypePlaceholder: 'Select type',
+      daysInPool: 'Days in Pool',
+      daysInPoolPlaceholder: 'Select days',
+      daysWithinWeek: 'Within 1 week',
+      daysWithinMonth: 'Within 1 month',
+      daysWithinQuarter: 'Within 3 months',
+      daysOverQuarter: 'Over 3 months',
+      query: 'Query',
+      reset: 'Reset'
+    },
+    customerType: {
+      normal: 'Normal Customer',
+      vip: 'VIP Customer',
+      wholesale: 'Wholesale Customer'
+    },
+    table: {
+      ariaLabel: 'Pool customer list',
+      paginationAriaLabel: 'Pool customer list pagination',
+      index: 'Index',
+      customerName: 'Customer Name',
+      contactPerson: 'Contact Person',
+      phone: 'Phone',
+      type: 'Type',
+      releasedAt: 'Released At',
+      releasedBy: 'Released By',
+      daysInPool: 'Days in Pool',
+      daysUnit: 'days',
+      releaseReason: 'Release Reason',
+      operation: 'Operation',
+      claim: 'Claim',
+      transfer: 'Assign',
+      release: 'Release Again'
+    },
+    message: {
+      loadFailed: 'Failed to load pool list',
+      selectToClaim: 'Please select customers to claim'
+    }
+  },
+  crmAssignment: {
+    title: 'Customer Assignment Rules',
+    createRule: 'New Rule',
+    breadcrumb: {
+      home: 'Home',
+      crm: 'CRM',
+      assignment: 'Assignment Rules'
+    },
+    tabs: {
+      rules: 'Assignment Rules',
+      manual: 'Manual Assignment'
+    },
+    ruleTable: {
+      ariaLabel: 'Assignment rule list',
+      index: 'Index',
+      name: 'Rule Name',
+      strategy: 'Strategy',
+      assignees: 'Assignees',
+      priority: 'Priority',
+      status: 'Status',
+      updatedAt: 'Updated At',
+      operation: 'Operation',
+      edit: 'Edit',
+      delete: 'Delete',
+      enabled: 'Enabled',
+      disabled: 'Disabled'
+    },
+    strategy: {
+      average: 'Average',
+      region: 'By Region',
+      industry: 'By Industry',
+      scale: 'By Customer Scale'
+    },
+    manualFilter: {
+      ariaLabel: 'Assignable customer filter form',
+      keyword: 'Keyword',
+      keywordPlaceholder: 'Customer name / contact',
+      query: 'Query'
+    },
+    manualTable: {
+      ariaLabel: 'Assignable customer list',
+      index: 'Index',
+      customerName: 'Customer Name',
+      contactPerson: 'Contact Person',
+      phone: 'Phone',
+      currentOwner: 'Current Owner',
+      operation: 'Operation',
+      assign: 'Assign'
+    },
+    ruleDialogTitle: {
+      create: 'New Rule',
+      edit: 'Edit Rule'
+    },
+    message: {
+      loadRulesFailed: 'Failed to load assignment rules',
+      loadAssignableFailed: 'Failed to load assignable customers',
+      deleteConfirm: 'Are you sure to delete rule "{name}"?',
+      deleteTitle: 'Delete Confirmation',
+      deleteSuccess: 'Deleted successfully',
+      deleteFailed: 'Failed to delete'
+    }
+  },
+  crmTagsPanel: {
+    title: 'Tag Management',
+    addTag: 'Add Tag',
+    empty: 'No tags',
+    dialog: {
+      title: 'Add Tag',
+      ariaLabel: 'Add tag dialog',
+      formAriaLabel: 'Add tag form',
+      nameLabel: 'Tag Name',
+      namePlaceholder: 'Select existing tag',
+      cancel: 'Cancel',
+      confirm: 'Confirm'
+    },
+    message: {
+      loadFailed: 'Failed to load tag list',
+      selectRequired: 'Please select a tag',
+      addSuccess: 'Tag added',
+      addFailed: 'Failed to add tag',
+      removeSuccess: 'Tag removed',
+      removeFailed: 'Failed to remove tag'
+    }
+  },
+  crmTransferDialog: {
+    title: 'Assign Customer',
+    ariaLabel: 'Assign customer dialog',
+    description: 'Assign customer {name} to:',
+    formAriaLabel: 'Assign customer form',
+    owner: 'Owner',
+    ownerPlaceholder: 'Please select owner',
+    reason: 'Reason',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    message: {
+      ownerRequired: 'Please select owner',
+      success: 'Assigned successfully',
+      failed: 'Failed to assign'
+    }
+  },
+  crmReleaseDialog: {
+    title: 'Release to Pool',
+    ariaLabel: 'Release to pool dialog',
+    description: 'Release customer {name} to pool?',
+    formAriaLabel: 'Release to pool form',
+    reason: 'Reason',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    message: {
+      success: 'Released successfully',
+      failed: 'Failed to release'
+    }
+  },
+  crmClaimDialog: {
+    title: 'Claim Customer',
+    ariaLabel: 'Claim customer dialog',
+    description: 'Confirm claiming customer {name} to my pool?',
+    formAriaLabel: 'Claim customer form',
+    remark: 'Remark',
+    cancel: 'Cancel',
+    confirm: 'Confirm Claim',
+    message: {
+      success: 'Claimed successfully',
+      failed: 'Failed to claim'
+    }
+  },
+  crmRfm: {
+    title: 'Customer Grading (RFM)',
+    table: {
+      ariaLabel: 'RFM customer analysis list',
+      customerCode: 'Customer Code',
+      customerName: 'Customer Name',
+      owner: 'Owner',
+      level: 'Level',
+      label: 'Grade',
+      recency: 'R',
+      frequency: 'F',
+      monetary: 'M',
+      totalAmount: 'Total Amount',
+      totalOrders: 'Orders',
+      operation: 'Operation',
+      detail: 'Detail'
+    },
+    countUnit: 'customers'
+  },
+  crmFollowUp: {
+    title: 'Follow-up Records',
+    addFollowUp: 'Add Follow-up',
+    operatorLabel: 'Operator: {name}',
+    nextFollowUpLabel: 'Next follow-up: {date}',
+    paginationAriaLabel: 'Customer follow-up pagination',
+    dialog: {
+      title: 'Add Follow-up Record',
+      ariaLabel: 'Add follow-up record dialog',
+      formAriaLabel: 'Follow-up form'
+    },
+    form: {
+      type: 'Follow-up Type',
+      typePlaceholder: 'Please select follow-up type',
+      content: 'Content',
+      contentPlaceholder: 'Please enter follow-up content',
+      nextFollowUp: 'Next Follow-up',
+      datePlaceholder: 'Select date',
+      cancel: 'Cancel',
+      save: 'Save'
+    },
+    followUpType: {
+      phone: 'Phone',
+      meeting: 'Meeting',
+      email: 'Email',
+      wechat: 'WeChat',
+      visit: 'Visit'
+    },
+    message: {
+      loadFailed: 'Failed to load follow-up records',
+      contentRequired: 'Please enter follow-up content',
+      saveSuccess: 'Follow-up saved',
+      saveFailed: 'Failed to save'
+    }
+  },
+  crmManualAssignDialog: {
+    title: 'Manual Assign Customer',
+    ariaLabel: 'Manual assign customer dialog',
+    description: 'Select a new owner for customer {name}:',
+    formAriaLabel: 'Manual assign customer form',
+    newOwner: 'New Owner',
+    newOwnerPlaceholder: 'Please select owner',
+    reason: 'Reason',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    message: {
+      ownerRequired: 'Please select new owner',
+      success: 'Assigned successfully',
+      failed: 'Failed to assign'
+    }
+  },
+  crmRuleDialog: {
+    ariaLabel: 'Pool rule form',
+    form: {
+      name: 'Rule Name',
+      namePlaceholder: 'Please enter rule name',
+      strategy: 'Strategy',
+      strategyPlaceholder: 'Please select strategy',
+      assignees: 'Assignees',
+      assigneesPlaceholder: 'Please select owners',
+      priority: 'Priority',
+      enabled: 'Enabled',
+      enabledYes: 'Yes',
+      enabledNo: 'No',
+      remark: 'Remark',
+      cancel: 'Cancel',
+      save: 'Save'
+    },
+    strategy: {
+      average: 'Average',
+      region: 'By Region',
+      industry: 'By Industry',
+      scale: 'By Customer Scale'
+    },
+    validation: {
+      nameRequired: 'Please enter rule name',
+      strategyRequired: 'Please select strategy',
+      assigneesRequired: 'Please select assignees'
+    },
+    message: {
+      saveSuccess: 'Saved successfully',
+      validationFailed: 'Form validation failed'
+    }
+  },
+  crmOpportunities: {
+    title: 'Opportunity Management',
+    create: 'New Opportunity',
+    export: 'Export',
+    breadcrumb: {
+      home: 'Home',
+      crm: 'CRM',
+      opportunities: 'Opportunities'
+    },
+    filter: {
+      ariaLabel: 'Opportunity filter form',
+      keyword: 'Keyword',
+      keywordPlaceholder: 'Opportunity no / name / customer',
+      stage: 'Stage',
+      stagePlaceholder: 'Select stage',
+      owner: 'Owner',
+      ownerPlaceholder: 'Select owner',
+      priority: 'Priority',
+      priorityPlaceholder: 'Select priority',
+      query: 'Query',
+      reset: 'Reset'
+    },
+    stage: {
+      initial: 'Initial Contact',
+      requirement: 'Requirements Confirmed',
+      proposal: 'Proposal & Quote',
+      negotiation: 'Negotiation',
+      won: 'Won',
+      lost: 'Lost'
+    },
+    priority: {
+      low: 'Low',
+      medium: 'Medium',
+      high: 'High',
+      urgent: 'Urgent'
+    },
+    table: {
+      ariaLabel: 'Opportunity list',
+      paginationAriaLabel: 'Opportunity list pagination',
+      index: 'Index',
+      opportunityNo: 'Opportunity No',
+      opportunityName: 'Opportunity Name',
+      customer: 'Customer',
+      estimatedAmount: 'Estimated Amount',
+      winProbability: 'Win Probability',
+      stage: 'Stage',
+      expectedCloseDate: 'Expected Close',
+      owner: 'Owner',
+      lastFollowUp: 'Last Follow-up',
+      operation: 'Operation',
+      view: 'View',
+      edit: 'Edit',
+      follow: 'Follow-up',
+      win: 'Won',
+      lost: 'Lost'
+    },
+    viewDialog: {
+      title: 'Opportunity Detail',
+      ariaLabel: 'Opportunity detail',
+      opportunityNo: 'Opportunity No',
+      opportunityName: 'Opportunity Name',
+      customer: 'Customer',
+      owner: 'Owner',
+      estimatedAmount: 'Estimated Amount',
+      winProbability: 'Win Probability',
+      stage: 'Stage',
+      priority: 'Priority',
+      expectedCloseDate: 'Expected Close',
+      lastFollowUp: 'Last Follow-up',
+      createdBy: 'Created By',
+      createdAt: 'Created At',
+      description: 'Description'
+    },
+    dialog: {
+      createTitle: 'New Opportunity',
+      editTitle: 'Edit Opportunity'
+    },
+    message: {
+      loadFailed: 'Failed to load opportunity list',
+      winConfirm: 'Confirm marking opportunity "{name}" as won?',
+      lostConfirm: 'Confirm marking opportunity "{name}" as lost?',
+      tip: 'Tip',
+      winSuccess: 'Marked as won',
+      winFailed: 'Failed to mark as won',
+      lostSuccess: 'Marked as lost',
+      lostFailed: 'Failed to mark as lost',
+      exportSuccess: 'Exported successfully',
+      exportFailed: 'Failed to export',
+      exportFilename: 'CRM Opportunities'
+    }
+  },
+  crmOpportunityFollow: {
+    title: 'Follow-up Records',
+    ariaLabel: 'Follow-up records dialog',
+    formAriaLabel: 'Opportunity follow-up form',
+    content: 'Content',
+    contentPlaceholder: 'Please enter follow-up content',
+    nextFollowUp: 'Next Follow-up',
+    nextFollowUpPlaceholder: 'Please select next follow-up date',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    message: {
+      success: 'Follow-up saved',
+      failed: 'Failed to save follow-up'
+    }
+  },
+  crmOpportunityForm: {
+    ariaLabel: 'Opportunity form',
+    opportunityName: 'Opportunity Name',
+    opportunityNamePlaceholder: 'Please enter opportunity name',
+    customer: 'Customer',
+    customerPlaceholder: 'Please select customer',
+    opportunityType: 'Opportunity Type',
+    opportunityTypePlaceholder: 'Please select opportunity type',
+    opportunityStage: 'Stage',
+    opportunityStagePlaceholder: 'Please select stage',
+    estimatedAmount: 'Estimated Amount',
+    winProbability: 'Win Probability',
+    expectedCloseDate: 'Expected Close',
+    expectedCloseDatePlaceholder: 'Please select expected close date',
+    owner: 'Owner',
+    ownerPlaceholder: 'Please select owner',
+    productDesc: 'Product Description',
+    productDescPlaceholder: 'Please enter product description',
+    remarks: 'Remarks',
+    remarksPlaceholder: 'Please enter remarks',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    opportunityTypeOption: {
+      new: 'New Customer',
+      upsell: 'Upsell',
+      renewal: 'Renewal'
+    },
+    stageOption: {
+      initial: 'Initial Contact',
+      requirement: 'Requirements Confirmed',
+      proposal: 'Proposal & Quote',
+      negotiation: 'Negotiation'
+    },
+    validation: {
+      opportunityNameRequired: 'Please enter opportunity name',
+      customerRequired: 'Please select customer',
+      stageRequired: 'Please select stage',
+      ownerRequired: 'Please select owner'
+    },
+    message: {
+      saveSuccess: 'Saved successfully',
+      validationFailed: 'Form validation failed'
+    }
+  },
+  userProfile: {
+    title: 'User Profile',
+    profile: {
+      title: 'Personal Information',
+      save: 'Save Changes',
+      avatarTip: 'Click to upload avatar',
+      avatarAlt: '{name}\'s avatar',
+      avatarAltDefault: 'User avatar',
+      username: 'Username',
+      realName: 'Name',
+      realNamePlaceholder: 'Please enter name',
+      email: 'Email',
+      emailPlaceholder: 'Please enter email',
+      phone: 'Phone',
+      phonePlaceholder: 'Please enter phone',
+      department: 'Department',
+      role: 'Role',
+      formAriaLabel: 'User profile form'
+    },
+    security: {
+      title: 'Security Settings',
+      twofa: '2FA Setup',
+      changePassword: 'Change Password'
+    },
+    password: {
+      title: 'Change Password',
+      button: 'Change Password',
+      formAriaLabel: 'Change password form',
+      oldPassword: 'Old Password',
+      oldPasswordPlaceholder: 'Please enter old password',
+      newPassword: 'New Password',
+      newPasswordPlaceholder: 'Please enter new password',
+      confirmPassword: 'Confirm Password',
+      confirmPasswordPlaceholder: 'Please enter new password again'
+    },
+    validation: {
+      realNameRequired: 'Please enter name',
+      emailPattern: 'Please enter a valid email address',
+      phonePattern: 'Please enter a valid phone number',
+      oldPasswordRequired: 'Please enter old password',
+      newPasswordRequired: 'Please enter new password',
+      newPasswordMinLength: 'Password must be at least 6 characters',
+      confirmPasswordRequired: 'Please enter new password again',
+      passwordMismatch: 'The two passwords do not match'
+    },
+    message: {
+      loadProfileFailed: 'Failed to load user profile',
+      avatarTypeInvalid: 'Only image files can be uploaded!',
+      avatarSizeExceeded: 'Avatar size cannot exceed 2MB!',
+      avatarUploadSuccess: 'Avatar uploaded successfully',
+      avatarUploadFailed: 'Failed to upload avatar',
+      profileSaveSuccess: 'Profile saved successfully',
+      profileSaveFailed: 'Failed to save',
+      passwordChangeSuccess: 'Password changed successfully',
+      passwordChangeFailed: 'Failed to change password'
     }
   }
 };

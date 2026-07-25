@@ -1,66 +1,61 @@
 <!--
   crm/opportunities/index.vue - 商机管理主入口
-  ----------------------------------------------------------------
-  拆分说明（2026-06-15 B3-3）：
-  原 602 行"上帝组件"已拆分为：
-  - tabs/OpportunityFormTab.vue - 新建/编辑商机对话框
-  - tabs/OpportunityFollowTab.vue - 跟进记录对话框
-
+  拆分：tabs/OpportunityFormTab.vue - 新建/编辑商机对话框 / tabs/OpportunityFollowTab.vue - 跟进记录对话框
   本主入口承担：页面布局 + 列表数据 + 公共样式。
 -->
 <template>
   <div class="crm-opportunities-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">商机管理</h1>
+        <h1 class="page-title">{{ t('crmOpportunities.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>CRM</el-breadcrumb-item>
-          <el-breadcrumb-item>商机管理</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ t('crmOpportunities.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('crmOpportunities.breadcrumb.crm') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('crmOpportunities.breadcrumb.opportunities') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>
-          新建商机
+          {{ t('crmOpportunities.create') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('crmOpportunities.export') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="商机筛选表单">
-        <el-form-item label="关键词">
+      <el-form :inline="true" :model="queryParams" class="filter-form" :aria-label="t('crmOpportunities.filter.ariaLabel')">
+        <el-form-item :label="t('crmOpportunities.filter.keyword')">
           <el-input
             v-model="queryParams.keyword"
-            placeholder="商机编号/商机名称/客户名称"
+            :placeholder="t('crmOpportunities.filter.keywordPlaceholder')"
             clearable
             @clear="handleQuery"
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="商机阶段">
+        <el-form-item :label="t('crmOpportunities.filter.stage')">
           <el-select
             v-model="queryParams.opportunity_stage"
-            placeholder="选择阶段"
+            :placeholder="t('crmOpportunities.filter.stagePlaceholder')"
             clearable
             @change="handleQuery"
           >
-            <el-option label="初步接触" value="INITIAL" />
-            <el-option label="需求确认" value="REQUIREMENT" />
-            <el-option label="方案报价" value="PROPOSAL" />
-            <el-option label="谈判" value="NEGOTIATION" />
-            <el-option label="成交" value="WON" />
-            <el-option label="流失" value="LOST" />
+            <el-option :label="t('crmOpportunities.stage.initial')" value="INITIAL" />
+            <el-option :label="t('crmOpportunities.stage.requirement')" value="REQUIREMENT" />
+            <el-option :label="t('crmOpportunities.stage.proposal')" value="PROPOSAL" />
+            <el-option :label="t('crmOpportunities.stage.negotiation')" value="NEGOTIATION" />
+            <el-option :label="t('crmOpportunities.stage.won')" value="WON" />
+            <el-option :label="t('crmOpportunities.stage.lost')" value="LOST" />
           </el-select>
         </el-form-item>
-        <el-form-item label="负责人">
+        <el-form-item :label="t('crmOpportunities.filter.owner')">
           <el-select
             v-model="queryParams.owner_id"
-            placeholder="选择负责人"
+            :placeholder="t('crmOpportunities.filter.ownerPlaceholder')"
             clearable
             filterable
             @change="handleQuery"
@@ -68,64 +63,64 @@
             <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="优先级">
+        <el-form-item :label="t('crmOpportunities.filter.priority')">
           <el-select
             v-model="queryParams.priority"
-            placeholder="选择优先级"
+            :placeholder="t('crmOpportunities.filter.priorityPlaceholder')"
             clearable
             @change="handleQuery"
           >
-            <el-option label="低" value="LOW" />
-            <el-option label="中" value="MEDIUM" />
-            <el-option label="高" value="HIGH" />
-            <el-option label="紧急" value="URGENT" />
+            <el-option :label="t('crmOpportunities.priority.low')" value="LOW" />
+            <el-option :label="t('crmOpportunities.priority.medium')" value="MEDIUM" />
+            <el-option :label="t('crmOpportunities.priority.high')" value="HIGH" />
+            <el-option :label="t('crmOpportunities.priority.urgent')" value="URGENT" />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ t('crmOpportunities.filter.query') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ t('crmOpportunities.filter.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="opportunityList" border stripe aria-label="商机列表">
-        <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="opportunity_no" label="商机编号" width="120" show-overflow-tooltip />
+      <el-table v-loading="loading" :data="opportunityList" border stripe :aria-label="t('crmOpportunities.table.ariaLabel')">
+        <el-table-column type="index" :label="t('crmOpportunities.table.index')" width="60" align="center" />
+        <el-table-column prop="opportunity_no" :label="t('crmOpportunities.table.opportunityNo')" width="120" show-overflow-tooltip />
         <el-table-column
           prop="opportunity_name"
-          label="商机名称"
+          :label="t('crmOpportunities.table.opportunityName')"
           min-width="150"
           show-overflow-tooltip
         />
-        <el-table-column prop="customer_name" label="客户" width="150" show-overflow-tooltip />
-        <el-table-column prop="estimated_amount" label="预估金额" width="120" align="right">
+        <el-table-column prop="customer_name" :label="t('crmOpportunities.table.customer')" width="150" show-overflow-tooltip />
+        <el-table-column prop="estimated_amount" :label="t('crmOpportunities.table.estimatedAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatCurrency(row.estimated_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="win_probability" label="成交概率" width="100" align="center">
+        <el-table-column prop="win_probability" :label="t('crmOpportunities.table.winProbability')" width="100" align="center">
           <template #default="{ row }"> {{ row.win_probability }}% </template>
         </el-table-column>
-        <el-table-column prop="opportunity_stage" label="商机阶段" width="120" align="center">
+        <el-table-column prop="opportunity_stage" :label="t('crmOpportunities.table.stage')" width="120" align="center">
           <template #default="{ row }">
             <el-tag :type="getStageType(row.opportunity_stage)">{{
               getStageLabel(row.opportunity_stage)
             }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="expected_close_date" label="预计成交" width="120" align="center" />
-        <el-table-column prop="owner_name" label="负责人" width="100" show-overflow-tooltip />
-        <el-table-column prop="last_follow_up_date" label="最近跟进" width="120" align="center" />
-        <el-table-column label="操作" width="250" align="center" fixed="right">
+        <el-table-column prop="expected_close_date" :label="t('crmOpportunities.table.expectedCloseDate')" width="120" align="center" />
+        <el-table-column prop="owner_name" :label="t('crmOpportunities.table.owner')" width="100" show-overflow-tooltip />
+        <el-table-column prop="last_follow_up_date" :label="t('crmOpportunities.table.lastFollowUp')" width="120" align="center" />
+        <el-table-column :label="t('crmOpportunities.table.operation')" width="250" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row)">{{ t('crmOpportunities.table.view') }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
@@ -134,7 +129,7 @@
               link
               size="small"
               @click="openEditDialog(row)"
-              >编辑</el-button
+              >{{ t('crmOpportunities.table.edit') }}</el-button
             >
             <el-button
               v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
@@ -142,7 +137,7 @@
               link
               size="small"
               @click="openFollowDialog(row)"
-              >跟进</el-button
+              >{{ t('crmOpportunities.table.follow') }}</el-button
             >
             <el-button
               v-if="row.opportunity_stage === 'NEGOTIATION'"
@@ -150,7 +145,7 @@
               link
               size="small"
               @click="handleWin(row)"
-              >成交</el-button
+              >{{ t('crmOpportunities.table.win') }}</el-button
             >
             <el-button
               v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
@@ -158,7 +153,7 @@
               link
               size="small"
               @click="handleLost(row)"
-              >流失</el-button
+              >{{ t('crmOpportunities.table.lost') }}</el-button
             >
           </template>
         </el-table-column>
@@ -171,7 +166,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="商机列表分页"
+          :aria-label="t('crmOpportunities.table.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
         />
@@ -194,47 +189,47 @@
     />
 
     <!-- 商机详情对话框（批次 95 P3-19 修复：参考 SalesPriceView.vue 的 el-descriptions 模式） -->
-    <el-dialog v-model="viewDialogVisible" title="商机详情" width="640px" aria-label="商机详情">
+    <el-dialog v-model="viewDialogVisible" :title="t('crmOpportunities.viewDialog.title')" width="640px" :aria-label="t('crmOpportunities.viewDialog.ariaLabel')">
       <el-descriptions v-if="viewData" :column="2" border>
-        <el-descriptions-item label="商机编号">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.opportunityNo')">{{
           viewData.opportunity_no
         }}</el-descriptions-item>
-        <el-descriptions-item label="商机名称">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.opportunityName')">{{
           viewData.opportunity_name || viewData.name || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="客户">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.customer')">{{
           viewData.customer_name || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="负责人">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.owner')">{{
           viewData.owner_name || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="预估金额">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.estimatedAmount')">{{
           formatCurrency(viewData.estimated_amount)
         }}</el-descriptions-item>
-        <el-descriptions-item label="成交概率"
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.winProbability')"
           >{{ viewData.win_probability ?? viewData.probability ?? 0 }}%</el-descriptions-item
         >
-        <el-descriptions-item label="商机阶段">
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.stage')">
           <el-tag :type="getStageType(viewData.opportunity_stage || '')">{{
             getStageLabel(viewData.opportunity_stage || '')
           }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="优先级">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.priority')">{{
           viewData.priority || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="预计成交">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.expectedCloseDate')">{{
           viewData.expected_close_date || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="最近跟进">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.lastFollowUp')">{{
           viewData.last_follow_up_date || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="创建人">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.createdBy')">{{
           viewData.created_by_name || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.createdAt')">{{
           viewData.created_at || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="描述" :span="2">{{
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.description')" :span="2">{{
           viewData.description || '-'
         }}</el-descriptions-item>
       </el-descriptions>
@@ -244,6 +239,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
 import {
@@ -258,6 +254,8 @@ import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
 import OpportunityFormTab from './tabs/OpportunityFormTab.vue'
 import OpportunityFollowTab from './tabs/OpportunityFollowTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const hasLoaded = createLazyLoader()
 
@@ -290,14 +288,14 @@ const {
   setQueryParam,
 } = useTableApi<OpportunityRow>({
   url: '/crm/opportunities',
-  onError: (e: unknown) => logger.warn('加载商机列表失败', String(e)),
+  onError: (e: unknown) => logger.warn(t('crmOpportunities.message.loadFailed'), String(e)),
 })
 
 const users = ref<User[]>([])
 const customers = ref<Customer[]>([])
 
 const formDialogVisible = ref(false)
-const formDialogTitle = ref('新建商机')
+const formDialogTitle = ref('')
 const currentRow = ref<OpportunityRow | null>(null)
 const followDialogVisible = ref(false)
 const currentFollowId = ref<number | null>(null)
@@ -343,13 +341,13 @@ const handleReset = () => {
 
 const openCreateDialog = () => {
   currentRow.value = null
-  formDialogTitle.value = '新建商机'
+  formDialogTitle.value = t('crmOpportunities.dialog.createTitle')
   formDialogVisible.value = true
 }
 
 const openEditDialog = (row: OpportunityRow) => {
   currentRow.value = row
-  formDialogTitle.value = '编辑商机'
+  formDialogTitle.value = t('crmOpportunities.dialog.editTitle')
   formDialogVisible.value = true
 }
 
@@ -371,36 +369,36 @@ const handleView = (row: OpportunityRow) => {
 
 const handleWin = async (row: OpportunityRow) => {
   try {
-    await ElMessageBox.confirm(`确认标记商机 "${row.opportunity_name}" 为成交？`, '提示', {
+    await ElMessageBox.confirm(t('crmOpportunities.message.winConfirm', { name: row.opportunity_name }), t('crmOpportunities.message.tip'), {
       type: 'warning',
     })
     // v11 批次 141 修复：原占位假成功，现接入真实状态变更 API
     // 后端 UpdateOpportunityRequest 字段名为 opportunity_stage，阶段值大写
     await updateOpportunity(row.id, { opportunity_stage: 'CLOSED_WON' })
-    ElMessage.success('已标记为成交')
+    ElMessage.success(t('crmOpportunities.message.winSuccess'))
     getList()
   } catch (error) {
     if (error !== 'cancel') {
-      logger.warn('标记成交失败', (error as Error).message)
-      ElMessage.error('标记成交失败')
+      logger.warn(t('crmOpportunities.message.winFailed'), (error as Error).message)
+      ElMessage.error(t('crmOpportunities.message.winFailed'))
     }
   }
 }
 
 const handleLost = async (row: OpportunityRow) => {
   try {
-    await ElMessageBox.confirm(`确认标记商机 "${row.opportunity_name}" 为流失？`, '提示', {
+    await ElMessageBox.confirm(t('crmOpportunities.message.lostConfirm', { name: row.opportunity_name }), t('crmOpportunities.message.tip'), {
       type: 'warning',
     })
     // v11 批次 141 修复：原占位假成功，现接入真实状态变更 API
     // 后端 UpdateOpportunityRequest 字段名为 opportunity_stage，阶段值大写
     await updateOpportunity(row.id, { opportunity_stage: 'CLOSED_LOST' })
-    ElMessage.success('已标记为流失')
+    ElMessage.success(t('crmOpportunities.message.lostSuccess'))
     getList()
   } catch (error) {
     if (error !== 'cancel') {
-      logger.warn('标记流失失败', (error as Error).message)
-      ElMessage.error('标记流失失败')
+      logger.warn(t('crmOpportunities.message.lostFailed'), (error as Error).message)
+      ElMessage.error(t('crmOpportunities.message.lostFailed'))
     }
   }
 }
@@ -412,15 +410,15 @@ const handleExport = async () => {
     const url = window.URL.createObjectURL(new Blob([blob]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `CRM商机_${new Date().toISOString().split('T')[0]}.xlsx`)
+    link.setAttribute('download', `${t('crmOpportunities.message.exportFilename')}_${new Date().toISOString().split('T')[0]}.xlsx`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
+    ElMessage.success(t('crmOpportunities.message.exportSuccess'))
   } catch (error) {
-    logger.error('导出失败:', error)
-    ElMessage.error('导出失败')
+    logger.error(t('crmOpportunities.message.exportFailed'), error)
+    ElMessage.error(t('crmOpportunities.message.exportFailed'))
   }
 }
 
@@ -451,12 +449,12 @@ const getStageType = (stage: string) => {
 
 const getStageLabel = (stage: string) => {
   const labelMap: Record<string, string> = {
-    INITIAL: '初步接触',
-    REQUIREMENT: '需求确认',
-    PROPOSAL: '方案报价',
-    NEGOTIATION: '谈判',
-    WON: '成交',
-    LOST: '流失',
+    INITIAL: t('crmOpportunities.stage.initial'),
+    REQUIREMENT: t('crmOpportunities.stage.requirement'),
+    PROPOSAL: t('crmOpportunities.stage.proposal'),
+    NEGOTIATION: t('crmOpportunities.stage.negotiation'),
+    WON: t('crmOpportunities.stage.won'),
+    LOST: t('crmOpportunities.stage.lost'),
   }
   return labelMap[stage] || stage
 }

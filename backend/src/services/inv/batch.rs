@@ -419,10 +419,9 @@ impl InventoryTransferService {
         let stock_model = stock_map.get(&item.product_id).ok_or_else(|| {
             AppError::business(format!("产品 {} 库存记录缺失", item.product_id))
         })?;
-        let stock_id = stock_model.id;
-        let quantity_meters = stock_model.quantity_meters;
-        let quantity_kg = stock_model.quantity_kg;
-        let expected_version = stock_model.version;
+        let (quantity_meters, quantity_kg, expected_version) = (
+            stock_model.quantity_meters, stock_model.quantity_kg, stock_model.version,
+        );
         let batch_no = stock_model.batch_no.clone();
         let color_no = stock_model.color_no.clone();
         let dye_lot_no = stock_model.dye_lot_no.clone();
@@ -434,41 +433,27 @@ impl InventoryTransferService {
             .map(Self::compute_source_kg_per_meter)
             .unwrap_or(rust_decimal::Decimal::ZERO);
         // 批次 97 P1-12 修复（v5 复审）：kg 计算补 round_dp(4) 防止精度漂移
-        let new_quantity_kg =
-            (quantity_kg + (item.quantity * source_kg_per_meter)).round_dp(4);
+        let new_quantity_kg = (quantity_kg + (item.quantity * source_kg_per_meter)).round_dp(4);
 
         Self::update_existing_stock_with_optimistic_lock(
-            txn,
-            stock_id,
-            expected_version,
-            item.quantity,
-            new_quantity_meters,
-            new_quantity_kg,
-            item.product_id,
+            txn, stock_model.id, expected_version, item.quantity,
+            new_quantity_meters, new_quantity_kg, item.product_id,
         )
         .await?;
 
         let transaction = Self::build_transfer_in_transaction(TransferInTxnFields {
             product_id: item.product_id,
             warehouse_id: transfer.to_warehouse_id,
-            batch_no: &batch_no,
-            color_no: &color_no,
-            dye_lot_no: dye_lot_no.as_deref(),
-            grade: &grade,
-            quantity_meters: item.quantity,
-            quantity_kg: rust_decimal::Decimal::ZERO,
-            quantity_before_meters: Some(quantity_meters),
-            quantity_before_kg: Some(quantity_kg),
-            quantity_after_meters: Some(new_quantity_meters),
-            quantity_after_kg: Some(new_quantity_kg),
+            batch_no: &batch_no, color_no: &color_no,
+            dye_lot_no: dye_lot_no.as_deref(), grade: &grade,
+            quantity_meters: item.quantity, quantity_kg: rust_decimal::Decimal::ZERO,
+            quantity_before_meters: Some(quantity_meters), quantity_before_kg: Some(quantity_kg),
+            quantity_after_meters: Some(new_quantity_meters), quantity_after_kg: Some(new_quantity_kg),
             notes: &format!("调拨入库 - 调拨单号: {}", transfer.transfer_no),
-            created_by: transfer.created_by,
-            transfer_id,
-            transfer_no: &transfer.transfer_no,
+            created_by: transfer.created_by, transfer_id, transfer_no: &transfer.transfer_no,
         });
         let inserted = transaction.insert(txn).await?;
         pending_events.push(Self::build_inventory_transaction_created_event(&inserted));
-
         Self::update_item_received_quantity(txn, item, item.quantity).await?;
         Ok(())
     }
@@ -535,54 +520,31 @@ impl InventoryTransferService {
         transfer_id: i32,
     ) -> Result<(), AppError> {
         // v15 批次 42 修复：复用循环外批量查询的 source_stock_map，避免循环内逐个查询（N+1）
-        let source_stock = source_stock_map.get(&item.product_id).cloned();
-
-        let batch_no = source_stock
-            .as_ref()
-            .map(|s| s.batch_no.clone())
-            .unwrap_or_default();
-        let color_no = source_stock
-            .as_ref()
-            .map(|s| s.color_no.clone())
-            .unwrap_or_default();
-        let dye_lot_no = source_stock.as_ref().and_then(|s| s.dye_lot_no.clone());
-        let grade = source_stock
-            .as_ref()
-            .map(|s| s.grade.clone())
-            .unwrap_or_else(|| "一等品".to_string());
-        let gram_weight = source_stock.as_ref().and_then(|s| s.gram_weight);
-        let width = source_stock.as_ref().and_then(|s| s.width);
-        let production_date = source_stock.as_ref().and_then(|s| s.production_date);
-        let expiry_date = source_stock.as_ref().and_then(|s| s.expiry_date);
-        let source_kg_per_meter = source_stock
-            .as_ref()
-            .map(Self::compute_source_kg_per_meter)
-            .unwrap_or(rust_decimal::Decimal::ZERO);
+        let s = source_stock_map.get(&item.product_id);
+        let batch_no = s.map(|s| s.batch_no.clone()).unwrap_or_default();
+        let color_no = s.map(|s| s.color_no.clone()).unwrap_or_default();
+        let dye_lot_no = s.and_then(|s| s.dye_lot_no.clone());
+        let grade = s.map(|s| s.grade.clone()).unwrap_or_else(|| "一等品".to_string());
+        let gram_weight = s.and_then(|s| s.gram_weight);
+        let width = s.and_then(|s| s.width);
+        let production_date = s.and_then(|s| s.production_date);
+        let expiry_date = s.and_then(|s| s.expiry_date);
+        let source_kg_per_meter = s.map(Self::compute_source_kg_per_meter).unwrap_or(rust_decimal::Decimal::ZERO);
 
         let new_stock = Self::build_new_stock_active_model(
-            transfer.to_warehouse_id,
-            &item,
+            transfer.to_warehouse_id, &item,
             NewStockFabricFields {
-                batch_no: &batch_no,
-                color_no: &color_no,
-                dye_lot_no: dye_lot_no.as_deref(),
-                grade: &grade,
-                gram_weight,
-                width,
-                production_date,
-                expiry_date,
-                source_kg_per_meter,
+                batch_no: &batch_no, color_no: &color_no,
+                dye_lot_no: dye_lot_no.as_deref(), grade: &grade,
+                gram_weight, width, production_date, expiry_date, source_kg_per_meter,
             },
         );
         new_stock.insert(txn).await?;
 
         let transaction = Self::build_transfer_in_transaction(TransferInTxnFields {
-            product_id: item.product_id,
-            warehouse_id: transfer.to_warehouse_id,
-            batch_no: &batch_no,
-            color_no: &color_no,
-            dye_lot_no: dye_lot_no.as_deref(),
-            grade: &grade,
+            product_id: item.product_id, warehouse_id: transfer.to_warehouse_id,
+            batch_no: &batch_no, color_no: &color_no,
+            dye_lot_no: dye_lot_no.as_deref(), grade: &grade,
             quantity_meters: item.quantity,
             quantity_kg: (item.quantity * source_kg_per_meter).round_dp(4),
             quantity_before_meters: Some(rust_decimal::Decimal::ZERO),
@@ -590,9 +552,7 @@ impl InventoryTransferService {
             quantity_after_meters: Some(item.quantity),
             quantity_after_kg: Some((item.quantity * source_kg_per_meter).round_dp(4)),
             notes: &format!("调拨入库（新建库存） - 调拨单号: {}", transfer.transfer_no),
-            created_by: transfer.created_by,
-            transfer_id,
-            transfer_no: &transfer.transfer_no,
+            created_by: transfer.created_by, transfer_id, transfer_no: &transfer.transfer_no,
         });
         let inserted = transaction.insert(txn).await?;
         pending_events.push(Self::build_inventory_transaction_created_event(&inserted));

@@ -1,13 +1,12 @@
 <!--
   RfmTab.vue - CRM 客户分级 (RFM) Tab
   来源：原 crm/index.vue 中 客户分级 (RFM) tab 内容
-  拆分日期：2026-06-15 B3-3
 -->
 <template>
   <div class="rfm-tab">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">客户分级 (RFM)</h1>
+        <h1 class="page-title">{{ t('crmRfm.title') }}</h1>
       </div>
     </div>
 
@@ -17,42 +16,42 @@
           <el-card shadow="hover" class="rfm-card">
             <div class="rfm-card-content">
               <span class="rfm-card-level">{{ level }}</span>
-              <span class="rfm-card-count">{{ count }} 人</span>
+              <span class="rfm-card-count">{{ count }} {{ t('crmRfm.countUnit') }}</span>
             </div>
           </el-card>
         </el-col>
       </el-row>
 
-      <el-table v-loading="rfmLoading" :data="rfmCustomers" stripe aria-label="RFM 客户分析列表">
-        <el-table-column prop="customer_code" label="客户编码" width="120" />
-        <el-table-column prop="customer_name" label="客户名称" min-width="180">
+      <el-table v-loading="rfmLoading" :data="rfmCustomers" stripe :aria-label="t('crmRfm.table.ariaLabel')">
+        <el-table-column prop="customer_code" :label="t('crmRfm.table.customerCode')" width="120" />
+        <el-table-column prop="customer_name" :label="t('crmRfm.table.customerName')" min-width="180">
           <template #default="{ row }">
             <el-button type="primary" link @click="viewDetail(row.id)">{{
               row.customer_name
             }}</el-button>
           </template>
         </el-table-column>
-        <el-table-column prop="owner_name" label="负责人" width="100" />
-        <el-table-column prop="rfm_score.level" label="等级" width="80" align="center">
+        <el-table-column prop="owner_name" :label="t('crmRfm.table.owner')" width="100" />
+        <el-table-column prop="rfm_score.level" :label="t('crmRfm.table.level')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="getRfmLevelTag(row.rfm_score?.level)" size="small">
               {{ row.rfm_score?.level || '-' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="rfm_score.label" label="分级" width="100" />
-        <el-table-column prop="rfm_score.recency" label="R" width="80" align="center" />
-        <el-table-column prop="rfm_score.frequency" label="F" width="80" align="center" />
-        <el-table-column prop="rfm_score.monetary" label="M" width="80" align="center" />
-        <el-table-column prop="total_amount" label="累计金额" width="120" align="right">
+        <el-table-column prop="rfm_score.label" :label="t('crmRfm.table.label')" width="100" />
+        <el-table-column prop="rfm_score.recency" :label="t('crmRfm.table.recency')" width="80" align="center" />
+        <el-table-column prop="rfm_score.frequency" :label="t('crmRfm.table.frequency')" width="80" align="center" />
+        <el-table-column prop="rfm_score.monetary" :label="t('crmRfm.table.monetary')" width="80" align="center" />
+        <el-table-column prop="total_amount" :label="t('crmRfm.table.totalAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ row.total_amount ? formatCurrency(row.total_amount) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="total_orders" label="订单数" width="80" align="center" />
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column prop="total_orders" :label="t('crmRfm.table.totalOrders')" width="80" align="center" />
+        <el-table-column :label="t('crmRfm.table.operation')" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="viewDetail(row.id)">详情</el-button>
+            <el-button type="primary" link size="small" @click="viewDetail(row.id)">{{ t('crmRfm.table.detail') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -63,9 +62,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import { getCustomerList, getCustomerRfmDistribution, type CustomerWithTags } from '@/api/crm-enhanced'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const hasLoaded = createLazyLoader()
 

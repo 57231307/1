@@ -93,10 +93,7 @@ pub async fn bootstrap_full_mode(
     let retention_days = resolve_audit_retention_days();
     let audit_cleanup = create_audit_cleanup_service(&db, retention_days);
 
-    start_slow_query_collector(&db, settings);
-    start_admin_cache_cleanup_task();
-    start_jti_cleanup_task();
-    start_crm_recycle_task(&db);
+    start_background_tasks(&db, settings);
 
     let backup_db = connect_backup_database().await;
     let failover_executor = create_failover_executor(&db, backup_db);
@@ -325,6 +322,14 @@ fn start_crm_recycle_task(db: &Arc<DatabaseConnection>) {
         tasks.push(recycle_handle);
     }
     info!("CRM 公海回收规则自动执行任务已启动（间隔 6 小时）");
+}
+
+/// 统一启动后台周期任务（慢查询/admin 缓存/JTI/CRM 回收）
+fn start_background_tasks(db: &Arc<DatabaseConnection>, settings: &AppSettings) {
+    start_slow_query_collector(db, settings);
+    start_admin_cache_cleanup_task();
+    start_jti_cleanup_task();
+    start_crm_recycle_task(db);
 }
 
 /// 连接备库（DATABASE_BACKUP_URL 未配置或失败时返回 None，降级仅主库模式）。

@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-25（P0 任务三次核实：6 并行代理代码级扫描，修正二次核实多处偏差 —— D09 实际 11 个 >100 行函数非 100 个、D13 残留 18 个缩写文件非 0 个、D03/D04 product_service.rs 已通过 facade 模式接入；模块 G 12/17 项 P0 任务完成，P0 阻塞级任务 99/104 95.2% 完成；5 项重新打开：D05/D08/D09/D13/D14）
+> 最近整理：2026-07-25（P0 任务三次核实：6 并行代理代码级扫描，修正二次核实多处偏差 —— D09 实际 11 个 >100 行函数非 100 个、D13 残留 18 个缩写文件非 0 个、D03/D04 product_service.rs 已通过 facade 模式接入；模块 G 12/17 项 P0 任务完成，P0 阻塞级任务 99/104 95.2% 完成；5 项重新打开：D05/D08/D09/D13/D14；2026-07-25 D08 第一梯队 6 个 >200 行函数拆分验证完成：login 464→34 / bootstrap_full_mode 380→48 / receive_transfer 345→42 / auto_match 291→46 / omni_audit_middleware 288→48 / receive_order 278→49，全部 ≤50 行 + 括号平衡 OK）
 
 ---
 
@@ -511,9 +511,9 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - Batch 1 (D08-1)：services/ 主目录及子目录 42 文件（§0.8.2）
   - Batch 2 (D08-2)：handlers/ + routes/ + middleware/ + utils/ + 其他 41 文件，含 D09 收尾（§0.8.3）
 - **执行优先级**：第 1 顺位（无前置依赖 + 解锁 D09/D10）
-- **当前进度**：⏳ 重新打开 —— 第一至第四梯队 167 函数已拆分（PR #669-#682 main ba8e97f）；但三次核实发现仍残留 83 文件含 96 个 >80 行函数（含已拆分函数的回归 + 二次扫描遗漏的 handlers/middleware/routes/bootstrap/cli 目录），需继续拆分；详细 CI 修复教训见 [doto-su.md §V15 Batch 488](file:///workspace/.monkeycode/doto-su.md) + §0.8 批次规划
+- **当前进度**：⏳ 重新打开 —— 第一至第四梯队 167 函数已拆分（PR #669-#682 main ba8e97f）；但三次核实发现仍残留 83 文件含 96 个 >80 行函数（含已拆分函数的回归 + 二次扫描遗漏的 handlers/middleware/routes/bootstrap/cli 目录），需继续拆分；2026-07-25 对第一梯队 6 个 >200 行函数重新拆分验证完成（login 464→34 / bootstrap_full_mode 380→48 / receive_transfer 345→42 / auto_match 291→46 / omni_audit_middleware 288→48 / receive_order 278→49，Python 括号深度追踪确认全部 ≤50 行 + 括号平衡 OK，无 #[allow]，公共 API 签名不变）；详细 CI 修复教训见 [doto-su.md §V15 Batch 488](file:///workspace/.monkeycode/doto-su.md) + §0.8 批次规划
 - **梯队规划**：
-  - 第一梯队（>200 行 6 函数，2 批）：✅ 全部完成
+  - 第一梯队（>200 行 6 函数，2 批）：✅ 全部完成（2026-07-25 重新拆分验证：6 函数主函数均 ≤50 行，helper 均 ≤50 行，括号平衡 OK）
   - 第二梯队（150-200 行 22 函数，4 批）：✅ 全部完成
   - 第三梯队（100-150 行 53 函数，8 子批次）：✅ 全部完成（PR #669/#670 + main 772c0312 + b869a0cd + 97fd77ee + 47ad2bfa + 4e1cb058）
   - 第四梯队（80-100 行，预估 20 批）：✅ 全部完成（子批次 1-12 共 84 函数 + 精确扫描确认 0 候选剩余，PR #672-#681 main 0c5c4d4；子批次9 修复 E0507 借用错误，子批次10 修复 E0106 生命周期标注 + E0308 DateTime 类型 + 3 个 BUG，子批次11 修复步骤4自审发现的 validate_import_data 命名冲突，子批次12 修复步骤4自审发现的 build_approval_active 命名冲突 + 新增 StockFabricFields/ItemAmounts 结构体封装多参数 helper）

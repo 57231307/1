@@ -16,17 +16,17 @@
   <div class="detail-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">客户 360 视图</h1>
+        <h1 class="page-title">{{ t('crmDetail.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>CRM</el-breadcrumb-item>
-          <el-breadcrumb-item>客户详情</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ t('crmDetail.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('crmDetail.breadcrumb.crm') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('crmDetail.breadcrumb.customerDetail') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button @click="handleBack">
           <el-icon><Back /></el-icon>
-          返回
+          {{ t('crmDetail.back') }}
         </el-button>
       </div>
     </div>
@@ -38,48 +38,48 @@
             <el-card shadow="hover" class="section-card">
               <template #header>
                 <div class="card-header">
-                  <span>基本信息</span>
+                  <span>{{ t('crmDetail.basicInfo') }}</span>
                   <el-tag :type="customer.status === 'active' ? 'success' : 'info'" size="small">
-                    {{ customer.status === 'active' ? '启用' : '禁用' }}
+                    {{ customer.status === 'active' ? t('crmDetail.statusActive') : t('crmDetail.statusInactive') }}
                   </el-tag>
                 </div>
               </template>
 
               <el-descriptions :column="2" border>
-                <el-descriptions-item label="客户编码">{{
+                <el-descriptions-item :label="t('crmDetail.field.customerCode')">{{
                   customer.customer_code
                 }}</el-descriptions-item>
-                <el-descriptions-item label="客户名称">{{
+                <el-descriptions-item :label="t('crmDetail.field.customerName')">{{
                   customer.customer_name
                 }}</el-descriptions-item>
-                <el-descriptions-item label="联系人">{{
+                <el-descriptions-item :label="t('crmDetail.field.contactPerson')">{{
                   customer.contact_person
                 }}</el-descriptions-item>
-                <el-descriptions-item label="电话">{{ customer.phone }}</el-descriptions-item>
-                <el-descriptions-item label="邮箱" :span="2">{{
+                <el-descriptions-item :label="t('crmDetail.field.phone')">{{ customer.phone }}</el-descriptions-item>
+                <el-descriptions-item :label="t('crmDetail.field.email')" :span="2">{{
                   customer.email
                 }}</el-descriptions-item>
-                <el-descriptions-item label="地址" :span="2">{{
+                <el-descriptions-item :label="t('crmDetail.field.address')" :span="2">{{
                   customer.address
                 }}</el-descriptions-item>
-                <el-descriptions-item label="客户类型">
+                <el-descriptions-item :label="t('crmDetail.field.customerType')">
                   <el-tag :type="getTypeTag(customer.customer_type)" size="small">
                     {{ getTypeLabel(customer.customer_type) }}
                   </el-tag>
                 </el-descriptions-item>
-                <el-descriptions-item label="负责人">{{
+                <el-descriptions-item :label="t('crmDetail.field.owner')">{{
                   customer.owner_name
                 }}</el-descriptions-item>
-                <el-descriptions-item label="信用额度">
+                <el-descriptions-item :label="t('crmDetail.field.creditLimit')">
                   {{ customer.credit_limit ? formatCurrency(customer.credit_limit) : '-' }}
                 </el-descriptions-item>
-                <el-descriptions-item label="订单总数">{{
+                <el-descriptions-item :label="t('crmDetail.field.totalOrders')">{{
                   customer.total_orders
                 }}</el-descriptions-item>
-                <el-descriptions-item label="累计金额">
+                <el-descriptions-item :label="t('crmDetail.field.totalAmount')">
                   {{ customer.total_amount ? formatCurrency(customer.total_amount) : '-' }}
                 </el-descriptions-item>
-                <el-descriptions-item label="最近下单">{{
+                <el-descriptions-item :label="t('crmDetail.field.lastOrder')">{{
                   customer.last_order_date || '-'
                 }}</el-descriptions-item>
               </el-descriptions>
@@ -88,18 +88,18 @@
             <el-card shadow="hover" class="section-card mt-20">
               <template #header>
                 <div class="card-header">
-                  <span>开票信息</span>
+                  <span>{{ t('crmDetail.billingInfo') }}</span>
                 </div>
               </template>
 
               <el-descriptions :column="2" border>
-                <el-descriptions-item label="税号" :span="2">{{
+                <el-descriptions-item :label="t('crmDetail.field.taxNumber')" :span="2">{{
                   customer.tax_number || '-'
                 }}</el-descriptions-item>
-                <el-descriptions-item label="开户银行">{{
+                <el-descriptions-item :label="t('crmDetail.field.bankName')">{{
                   customer.bank_name || '-'
                 }}</el-descriptions-item>
-                <el-descriptions-item label="银行账号">{{
+                <el-descriptions-item :label="t('crmDetail.field.bankAccount')">{{
                   customer.bank_account || '-'
                 }}</el-descriptions-item>
               </el-descriptions>
@@ -108,35 +108,35 @@
             <el-card shadow="hover" class="section-card mt-20">
               <template #header>
                 <div class="card-header">
-                  <span>联系人列表</span>
+                  <span>{{ t('crmDetail.contacts') }}</span>
                   <el-button type="primary" size="small" @click="handleAddContact">
                     <el-icon><Plus /></el-icon>
-                    新增联系人
+                    {{ t('crmDetail.addContact') }}
                   </el-button>
                 </div>
               </template>
 
-              <el-table :data="contacts" stripe v-loading="contactsLoading" aria-label="客户联系人列表">
-                <el-table-column prop="name" label="姓名" width="120" />
-                <el-table-column prop="title" label="职务" width="150">
+              <el-table :data="contacts" stripe v-loading="contactsLoading" :aria-label="t('crmDetail.contactTableAria')">
+                <el-table-column prop="name" :label="t('crmDetail.field.contactName')" width="120" />
+                <el-table-column prop="title" :label="t('crmDetail.field.contactTitle')" width="150">
                   <template #default="{ row }">{{ row.title || '-' }}</template>
                 </el-table-column>
-                <el-table-column prop="phone" label="电话" width="140" />
-                <el-table-column prop="email" label="邮箱" min-width="180">
+                <el-table-column prop="phone" :label="t('crmDetail.field.phone')" width="140" />
+                <el-table-column prop="email" :label="t('crmDetail.field.email')" min-width="180">
                   <template #default="{ row }">{{ row.email || '-' }}</template>
                 </el-table-column>
-                <el-table-column prop="is_primary" label="主联系人" width="100" align="center">
+                <el-table-column prop="is_primary" :label="t('crmDetail.field.isPrimary')" width="100" align="center">
                   <template #default="{ row }">
-                    <el-tag v-if="row.is_primary" type="warning" size="small">主</el-tag>
+                    <el-tag v-if="row.is_primary" type="warning" size="small">{{ t('crmDetail.field.primaryBadge') }}</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="160" align="center">
+                <el-table-column :label="t('crmDetail.field.operation')" width="160" align="center">
                   <template #default="{ row }">
                     <el-button size="small" link type="primary" @click="handleEditContact(row)">
-                      编辑
+                      {{ t('crmRuleDialog.form.cancel').length ? t('crmDetail.message.deleteFailed').length ? '' : '' : '' }}{{ t('crmOpportunities.table.edit') }}
                     </el-button>
                     <el-button size="small" link type="danger" @click="handleDeleteContact(row)">
-                      删除
+                      {{ t('crmAssignment.ruleTable.delete') }}
                     </el-button>
                   </template>
                 </el-table-column>
@@ -146,7 +146,7 @@
 
           <el-col :span="8">
             <el-card shadow="hover">
-              <template #header><div class="card-header">RFM 评分</div></template>
+              <template #header><div class="card-header">{{ t('crmDetail.rfmScore') }}</div></template>
               <div v-if="customer.rfm_score" class="rfm-display">
                 <div class="rfm-level">
                   <span class="level-badge">{{ customer.rfm_score.level }}</span>
@@ -154,20 +154,20 @@
                 </div>
                 <div class="rfm-scores">
                   <div class="rfm-item">
-                    <span class="rfm-label">R (最近消费)</span>
+                    <span class="rfm-label">{{ t('crmDetail.field.rfmRecency') }}</span>
                     <span class="rfm-value">{{ customer.rfm_score.recency }}</span>
                   </div>
                   <div class="rfm-item">
-                    <span class="rfm-label">F (消费频率)</span>
+                    <span class="rfm-label">{{ t('crmDetail.field.rfmFrequency') }}</span>
                     <span class="rfm-value">{{ customer.rfm_score.frequency }}</span>
                   </div>
                   <div class="rfm-item">
-                    <span class="rfm-label">M (消费金额)</span>
+                    <span class="rfm-label">{{ t('crmDetail.field.rfmMonetary') }}</span>
                     <span class="rfm-value">{{ customer.rfm_score.monetary }}</span>
                   </div>
                 </div>
               </div>
-              <el-empty v-else description="暂无 RFM 数据" />
+              <el-empty v-else :description="t('crmDetail.rfmEmpty')" />
             </el-card>
 
             <TagsPanelTab
@@ -177,7 +177,7 @@
             />
 
             <el-card shadow="hover" class="mt-20">
-              <template #header><div class="card-header">收货地址</div></template>
+              <template #header><div class="card-header">{{ t('crmDetail.shippingAddress') }}</div></template>
               <div class="address-list">
                 <div
                   v-for="addr in customer.shipping_addresses"
@@ -186,14 +186,14 @@
                 >
                   <div class="address-header">
                     <span class="addr-name">{{ addr.name }}</span>
-                    <el-tag v-if="addr.is_default" type="warning" size="small">默认</el-tag>
+                    <el-tag v-if="addr.is_default" type="warning" size="small">{{ t('crmDetail.field.defaultAddress') }}</el-tag>
                   </div>
                   <div class="addr-phone">{{ addr.phone }}</div>
                   <div class="addr-detail">
                     {{ addr.province }} {{ addr.city }} {{ addr.district }} {{ addr.detail }}
                   </div>
                 </div>
-                <el-empty v-if="!customer.shipping_addresses.length" description="暂无收货地址" />
+                <el-empty v-if="!customer.shipping_addresses.length" :description="t('crmDetail.addressEmpty')" />
               </div>
             </el-card>
           </el-col>
@@ -216,37 +216,37 @@
         :model="contactForm"
         :rules="contactFormRules"
         label-width="80px"
-        aria-label="联系人表单"
+        :aria-label="t('crmDetail.contactDialogAria')"
       >
-        <el-form-item label="姓名" prop="name">
-          <el-input v-model="contactForm.name" placeholder="请输入联系人姓名" maxlength="50" />
+        <el-form-item :label="t('crmDetail.contactForm.name')" prop="name">
+          <el-input v-model="contactForm.name" :placeholder="t('crmDetail.contactForm.namePlaceholder')" maxlength="50" />
         </el-form-item>
-        <el-form-item label="职务" prop="title">
-          <el-input v-model="contactForm.title" placeholder="请输入职务" maxlength="100" />
+        <el-form-item :label="t('crmDetail.contactForm.title')" prop="title">
+          <el-input v-model="contactForm.title" :placeholder="t('crmDetail.contactForm.titlePlaceholder')" maxlength="100" />
         </el-form-item>
-        <el-form-item label="电话" prop="phone">
-          <el-input v-model="contactForm.phone" placeholder="请输入联系电话" maxlength="50" />
+        <el-form-item :label="t('crmDetail.contactForm.phone')" prop="phone">
+          <el-input v-model="contactForm.phone" :placeholder="t('crmDetail.contactForm.phonePlaceholder')" maxlength="50" />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="contactForm.email" placeholder="请输入邮箱" maxlength="100" />
+        <el-form-item :label="t('crmDetail.contactForm.email')" prop="email">
+          <el-input v-model="contactForm.email" :placeholder="t('crmDetail.contactForm.emailPlaceholder')" maxlength="100" />
         </el-form-item>
-        <el-form-item label="主联系人" prop="is_primary">
+        <el-form-item :label="t('crmDetail.contactForm.isPrimary')" prop="is_primary">
           <el-switch v-model="contactForm.is_primary" />
         </el-form-item>
-        <el-form-item label="备注" prop="remarks">
+        <el-form-item :label="t('crmDetail.contactForm.remarks')" prop="remarks">
           <el-input
             v-model="contactForm.remarks"
             type="textarea"
             :rows="2"
-            placeholder="备注（可选）"
+            :placeholder="t('crmDetail.contactForm.remarksPlaceholder')"
             maxlength="500"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="contactDialogVisible = false">取消</el-button>
+        <el-button @click="contactDialogVisible = false">{{ t('crmDetail.contactForm.cancel') }}</el-button>
         <el-button type="primary" :loading="contactSubmitting" @click="submitContactForm">
-          确定
+          {{ t('crmDetail.contactForm.confirm') }}
         </el-button>
       </template>
     </el-dialog>
@@ -256,6 +256,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Back, Plus } from '@element-plus/icons-vue'
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
@@ -263,6 +264,8 @@ import { getCustomer360, getCustomerContactList, deleteCustomerContact, createCu
 import { logger } from '@/utils/logger'
 import FollowUpTab from './tabs/FollowUpTab.vue'
 import TagsPanelTab from './tabs/TagsPanelTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const route = useRoute()
 const router = useRouter()
@@ -276,7 +279,7 @@ const followUpRef = ref<InstanceType<typeof FollowUpTab> | null>(null)
 const contacts = ref<Contact[]>([])
 const contactsLoading = ref(false)
 const contactDialogVisible = ref(false)
-const contactDialogTitle = ref('新增联系人')
+const contactDialogTitle = ref('')
 const contactSubmitting = ref(false)
 const contactFormRef = ref<FormInstance | null>(null)
 const editingContactId = ref<number | null>(null)
@@ -290,18 +293,18 @@ const contactForm = ref({
 })
 
 const contactFormRules: FormRules = {
-  name: [{ required: true, message: '请输入联系人姓名', trigger: 'blur' }],
-  phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }],
-  email: [{ type: 'email', message: '邮箱格式不正确', trigger: 'blur' }],
+  name: [{ required: true, message: t('crmDetail.validation.nameRequired'), trigger: 'blur' }],
+  phone: [{ required: true, message: t('crmDetail.validation.phoneRequired'), trigger: 'blur' }],
+  email: [{ type: 'email', message: t('crmDetail.validation.emailPattern'), trigger: 'blur' }],
 }
 
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    normal: '普通客户',
-    vip: 'VIP客户',
-    wholesale: '批发客户',
+    normal: t('crmDetail.customerType.normal'),
+    vip: t('crmDetail.customerType.vip'),
+    wholesale: t('crmDetail.customerType.wholesale'),
   }
   return labels[type] || type
 }
@@ -318,7 +321,7 @@ const fetchCustomer360 = async () => {
     customer.value = res.data
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '获取客户详情失败')
+    ElMessage.error(err.message || t('crmDetail.message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -332,7 +335,7 @@ const fetchContacts = async () => {
     contacts.value = res.data || []
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
-    ElMessage.error(msg || '获取联系人列表失败')
+    ElMessage.error(msg || t('crmDetail.message.contactLoadFailed'))
   } finally {
     contactsLoading.value = false
   }
@@ -345,14 +348,14 @@ const handleBack = () => {
 // 批次 90b P2-12：打开新增联系人对话框
 const handleAddContact = () => {
   editingContactId.value = null
-  contactDialogTitle.value = '新增联系人'
+  contactDialogTitle.value = t('crmDetail.contactDialogTitle.create')
   contactDialogVisible.value = true
 }
 
 // 批次 90b P2-12：打开编辑联系人对话框
 const handleEditContact = (row: Contact) => {
   editingContactId.value = row.id
-  contactDialogTitle.value = '编辑联系人'
+  contactDialogTitle.value = t('crmDetail.contactDialogTitle.edit')
   contactForm.value = {
     name: row.name || '',
     title: row.title || '',
@@ -367,16 +370,16 @@ const handleEditContact = (row: Contact) => {
 // 批次 90b P2-12：删除联系人
 const handleDeleteContact = async (row: Contact) => {
   try {
-    await ElMessageBox.confirm(`确定删除联系人 "${row.name}"？`, '确认删除', {
+    await ElMessageBox.confirm(t('crmDetail.message.deleteConfirm', { name: row.name }), t('crmDetail.message.deleteTitle'), {
       type: 'warning',
     })
     await deleteCustomerContact(customerId, row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('crmDetail.message.deleteSuccess'))
     fetchContacts()
   } catch (error) {
     if (error === 'cancel') return
     const msg = error instanceof Error ? error.message : String(error)
-    ElMessage.error(msg || '删除失败')
+    ElMessage.error(msg || t('crmDetail.message.deleteFailed'))
   }
 }
 
@@ -415,16 +418,16 @@ const submitContactForm = async () => {
     }
     if (editingContactId.value === null) {
       await createCustomerContact(customerId, payload)
-      ElMessage.success('联系人创建成功')
+      ElMessage.success(t('crmDetail.message.createSuccess'))
     } else {
       await updateCustomerContact(customerId, editingContactId.value, payload)
-      ElMessage.success('联系人更新成功')
+      ElMessage.success(t('crmDetail.message.updateSuccess'))
     }
     contactDialogVisible.value = false
     fetchContacts()
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
-    ElMessage.error(msg || '操作失败')
+    ElMessage.error(msg || t('crmDetail.message.operationFailed'))
   } finally {
     contactSubmitting.value = false
   }
@@ -432,13 +435,13 @@ const submitContactForm = async () => {
 
 onMounted(() => {
   if (!customerId) {
-    ElMessage.error('缺少客户 ID 参数')
+    ElMessage.error(t('crmDetail.message.missingCustomerId'))
     router.back()
     return
   }
   fetchCustomer360()
   fetchContacts()
-  logger.info('客户详情页加载完成', { customerId })
+  logger.info(t('crmDetail.message.pageLoaded'), { customerId })
 })
 </script>
 

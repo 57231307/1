@@ -1,16 +1,15 @@
 <!--
   TagsPanelTab.vue - 客户标签管理 Tab
   来源：原 crm/detail.vue 中 标签管理 section
-  拆分日期：2026-06-15 B3-3
 -->
 <template>
   <el-card shadow="hover" class="mt-20">
     <template #header>
       <div class="card-header">
-        <span>标签管理</span>
+        <span>{{ t('crmTagsPanel.title') }}</span>
         <el-button type="primary" size="small" @click="openDialog">
           <el-icon><Plus /></el-icon>
-          添加标签
+          {{ t('crmTagsPanel.addTag') }}
         </el-button>
       </div>
     </template>
@@ -26,13 +25,13 @@
       >
         {{ tag.name }}
       </el-tag>
-      <span v-if="!tags.length" class="no-tags">暂无标签</span>
+      <span v-if="!tags.length" class="no-tags">{{ t('crmTagsPanel.empty') }}</span>
     </div>
 
-    <el-dialog v-model="dialogVisible" title="添加标签" width="400px" aria-label="添加标签对话框">
-      <el-form ref="formRef" :model="form" label-width="80px" aria-label="添加标签表单">
-        <el-form-item label="标签名称" prop="name">
-          <el-select v-model="form.name" placeholder="选择已有标签" style="width: 100%">
+    <el-dialog v-model="dialogVisible" :title="t('crmTagsPanel.dialog.title')" width="400px" :aria-label="t('crmTagsPanel.dialog.ariaLabel')">
+      <el-form ref="formRef" :model="form" label-width="80px" :aria-label="t('crmTagsPanel.dialog.formAriaLabel')">
+        <el-form-item :label="t('crmTagsPanel.dialog.nameLabel')" prop="name">
+          <el-select v-model="form.name" :placeholder="t('crmTagsPanel.dialog.namePlaceholder')" style="width: 100%">
             <el-option
               v-for="tag in availableTags"
               :key="tag.id"
@@ -43,8 +42,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleAdd">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('crmTagsPanel.dialog.cancel') }}</el-button>
+        <el-button type="primary" @click="handleAdd">{{ t('crmTagsPanel.dialog.confirm') }}</el-button>
       </template>
     </el-dialog>
   </el-card>
@@ -52,12 +51,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import { getCrmTagList, createTagForCustomer, deleteTagFromCustomer, type CustomerTag } from '@/api/crm-enhanced'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   customerId: number
@@ -83,7 +85,7 @@ const fetchTags = async () => {
     availableTags.value = res.data || []
   } catch (error) {
     const err = error as Error
-    logger.warn('获取标签列表失败', err.message)
+    logger.warn(t('crmTagsPanel.message.loadFailed'), err.message)
     availableTags.value = []
   }
 }
@@ -95,33 +97,33 @@ const openDialog = () => {
 
 const handleAdd = async () => {
   if (!form.name) {
-    ElMessage.warning('请选择标签')
+    ElMessage.warning(t('crmTagsPanel.message.selectRequired'))
     return
   }
 
-  const selectedTag = availableTags.value.find(t => t.name === form.name)
+  const selectedTag = availableTags.value.find(tag => tag.name === form.name)
   if (!selectedTag) return
 
   try {
     await createTagForCustomer(props.customerId, selectedTag.id)
-    ElMessage.success('标签已添加')
+    ElMessage.success(t('crmTagsPanel.message.addSuccess'))
     dialogVisible.value = false
     form.name = ''
     emit('updated')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '添加标签失败')
+    ElMessage.error(err.message || t('crmTagsPanel.message.addFailed'))
   }
 }
 
 const handleRemove = async (tagId: number) => {
   try {
     await deleteTagFromCustomer(props.customerId, tagId)
-    ElMessage.success('标签已移除')
+    ElMessage.success(t('crmTagsPanel.message.removeSuccess'))
     emit('updated')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '移除标签失败')
+    ElMessage.error(err.message || t('crmTagsPanel.message.removeFailed'))
   }
 }
 

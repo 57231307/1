@@ -2429,6 +2429,53 @@ export default {
     },
     exportFile: {
       filename: '线索列表'
+    },
+    leadForm: {
+      ariaLabel: '线索表单',
+      leadSource: '线索来源',
+      leadSourcePlaceholder: '请选择线索来源',
+      priority: '优先级',
+      priorityPlaceholder: '请选择优先级',
+      companyName: '公司名称',
+      companyNamePlaceholder: '请输入公司名称',
+      contactName: '联系人',
+      contactNamePlaceholder: '请输入联系人姓名',
+      mobilePhone: '手机号',
+      mobilePhonePlaceholder: '请输入手机号',
+      email: '邮箱',
+      emailPlaceholder: '请输入邮箱',
+      contactTitle: '职位',
+      contactTitlePlaceholder: '请输入职位',
+      owner: '负责人',
+      ownerPlaceholder: '请选择负责人',
+      requirementDesc: '需求描述',
+      requirementDescPlaceholder: '请输入需求描述',
+      remarks: '备注',
+      remarksPlaceholder: '请输入备注',
+      cancel: '取消',
+      confirm: '确定',
+      leadSourceOption: {
+        website: '网站',
+        phone: '电话',
+        exhibition: '展会',
+        referral: '推荐',
+        other: '其他'
+      },
+      priorityOption: {
+        low: '低',
+        medium: '中',
+        high: '高',
+        urgent: '紧急'
+      },
+      validation: {
+        leadSourceRequired: '请选择线索来源',
+        contactNameRequired: '请输入联系人姓名',
+        ownerRequired: '请选择负责人'
+      },
+      message: {
+        saveSuccess: '保存成功',
+        validationFailed: '表单验证失败'
+      }
     }
   },
   colorCards: {
@@ -4042,6 +4089,589 @@ export default {
       withdrawSuccess: '支出成功',
       freezeSuccess: '冻结成功',
       fetchListFailed: '获取资金账户列表失败'
+    }
+  },
+  crmModule: {
+    tabs: {
+      customerList: '客户列表',
+      rfm: '客户分级 (RFM)'
+    }
+  },
+  crmDetail: {
+    title: '客户 360 视图',
+    back: '返回',
+    breadcrumb: {
+      home: '首页',
+      crm: 'CRM',
+      customerDetail: '客户详情'
+    },
+    basicInfo: '基本信息',
+    billingInfo: '开票信息',
+    contacts: '联系人列表',
+    addContact: '新增联系人',
+    rfmScore: 'RFM 评分',
+    shippingAddress: '收货地址',
+    statusActive: '启用',
+    statusInactive: '禁用',
+    field: {
+      customerCode: '客户编码',
+      customerName: '客户名称',
+      contactPerson: '联系人',
+      phone: '电话',
+      email: '邮箱',
+      address: '地址',
+      customerType: '客户类型',
+      owner: '负责人',
+      creditLimit: '信用额度',
+      totalOrders: '订单总数',
+      totalAmount: '累计金额',
+      lastOrder: '最近下单',
+      taxNumber: '税号',
+      bankName: '开户银行',
+      bankAccount: '银行账号',
+      contactName: '姓名',
+      contactTitle: '职务',
+      isPrimary: '主联系人',
+      primaryBadge: '主',
+      operation: '操作',
+      rfmRecency: 'R (最近消费)',
+      rfmFrequency: 'F (消费频率)',
+      rfmMonetary: 'M (消费金额)',
+      defaultAddress: '默认'
+    },
+    customerType: {
+      normal: '普通客户',
+      vip: 'VIP客户',
+      wholesale: '批发客户'
+    },
+    rfmEmpty: '暂无 RFM 数据',
+    addressEmpty: '暂无收货地址',
+    contactTableAria: '客户联系人列表',
+    contactDialogTitle: {
+      create: '新增联系人',
+      edit: '编辑联系人'
+    },
+    contactDialogAria: '联系人表单',
+    contactForm: {
+      name: '姓名',
+      namePlaceholder: '请输入联系人姓名',
+      title: '职务',
+      titlePlaceholder: '请输入职务',
+      phone: '电话',
+      phonePlaceholder: '请输入联系电话',
+      email: '邮箱',
+      emailPlaceholder: '请输入邮箱',
+      isPrimary: '主联系人',
+      remarks: '备注',
+      remarksPlaceholder: '备注（可选）',
+      cancel: '取消',
+      confirm: '确定'
+    },
+    validation: {
+      nameRequired: '请输入联系人姓名',
+      phoneRequired: '请输入联系电话',
+      emailPattern: '邮箱格式不正确'
+    },
+    message: {
+      loadFailed: '获取客户详情失败',
+      contactLoadFailed: '获取联系人列表失败',
+      missingCustomerId: '缺少客户 ID 参数',
+      deleteConfirm: '确定删除联系人 "{name}"？',
+      deleteTitle: '确认删除',
+      deleteSuccess: '删除成功',
+      deleteFailed: '删除失败',
+      createSuccess: '联系人创建成功',
+      updateSuccess: '联系人更新成功',
+      operationFailed: '操作失败',
+      pageLoaded: '客户详情页加载完成'
+    }
+  },
+  crmPool: {
+    title: '客户公海池',
+    back: '返回客户列表',
+    batchClaim: '批量领取',
+    breadcrumb: {
+      home: '首页',
+      crm: 'CRM',
+      pool: '公海池'
+    },
+    filter: {
+      ariaLabel: '公海客户筛选表单',
+      keyword: '关键词',
+      keywordPlaceholder: '客户名称/联系人/电话',
+      customerType: '客户类型',
+      customerTypePlaceholder: '选择类型',
+      daysInPool: '在池天数',
+      daysInPoolPlaceholder: '选择天数',
+      daysWithinWeek: '1周内',
+      daysWithinMonth: '1月内',
+      daysWithinQuarter: '3月内',
+      daysOverQuarter: '3月以上',
+      query: '查询',
+      reset: '重置'
+    },
+    customerType: {
+      normal: '普通客户',
+      vip: 'VIP客户',
+      wholesale: '批发客户'
+    },
+    table: {
+      ariaLabel: '公海客户列表',
+      paginationAriaLabel: '公海客户列表分页',
+      index: '序号',
+      customerName: '客户名称',
+      contactPerson: '联系人',
+      phone: '电话',
+      type: '类型',
+      releasedAt: '入池时间',
+      releasedBy: '释放人',
+      daysInPool: '在池天数',
+      daysUnit: '天',
+      releaseReason: '释放原因',
+      operation: '操作',
+      claim: '领取',
+      transfer: '分配',
+      release: '重新释放'
+    },
+    message: {
+      loadFailed: '加载公海池列表失败',
+      selectToClaim: '请勾选需要领取的客户'
+    }
+  },
+  crmAssignment: {
+    title: '客户分配规则',
+    createRule: '新建规则',
+    breadcrumb: {
+      home: '首页',
+      crm: 'CRM',
+      assignment: '分配规则'
+    },
+    tabs: {
+      rules: '分配规则',
+      manual: '手动分配'
+    },
+    ruleTable: {
+      ariaLabel: '分配规则列表',
+      index: '序号',
+      name: '规则名称',
+      strategy: '分配策略',
+      assignees: '分配对象',
+      priority: '优先级',
+      status: '状态',
+      updatedAt: '更新时间',
+      operation: '操作',
+      edit: '编辑',
+      delete: '删除',
+      enabled: '启用',
+      disabled: '禁用'
+    },
+    strategy: {
+      average: '平均分配',
+      region: '按地域分配',
+      industry: '按行业分配',
+      scale: '按客户规模'
+    },
+    manualFilter: {
+      ariaLabel: '待分配客户筛选表单',
+      keyword: '关键词',
+      keywordPlaceholder: '客户名称/联系人',
+      query: '查询'
+    },
+    manualTable: {
+      ariaLabel: '待分配客户列表',
+      index: '序号',
+      customerName: '客户名称',
+      contactPerson: '联系人',
+      phone: '电话',
+      currentOwner: '当前负责人',
+      operation: '操作',
+      assign: '分配'
+    },
+    ruleDialogTitle: {
+      create: '新建规则',
+      edit: '编辑规则'
+    },
+    message: {
+      loadRulesFailed: '获取分配规则失败',
+      loadAssignableFailed: '获取可分配客户失败',
+      deleteConfirm: '确定删除规则 "{name}" 吗？',
+      deleteTitle: '删除确认',
+      deleteSuccess: '删除成功',
+      deleteFailed: '删除失败'
+    }
+  },
+  crmTagsPanel: {
+    title: '标签管理',
+    addTag: '添加标签',
+    empty: '暂无标签',
+    dialog: {
+      title: '添加标签',
+      ariaLabel: '添加标签对话框',
+      formAriaLabel: '添加标签表单',
+      nameLabel: '标签名称',
+      namePlaceholder: '选择已有标签',
+      cancel: '取消',
+      confirm: '确定'
+    },
+    message: {
+      loadFailed: '获取标签列表失败',
+      selectRequired: '请选择标签',
+      addSuccess: '标签已添加',
+      addFailed: '添加标签失败',
+      removeSuccess: '标签已移除',
+      removeFailed: '移除标签失败'
+    }
+  },
+  crmTransferDialog: {
+    title: '分配客户',
+    ariaLabel: '分配客户对话框',
+    description: '将客户 {name} 分配给：',
+    formAriaLabel: '分配客户表单',
+    owner: '负责人',
+    ownerPlaceholder: '请选择负责人',
+    reason: '分配原因',
+    cancel: '取消',
+    confirm: '确认',
+    message: {
+      ownerRequired: '请选择负责人',
+      success: '分配成功',
+      failed: '分配失败'
+    }
+  },
+  crmReleaseDialog: {
+    title: '释放到公海',
+    ariaLabel: '释放到公海对话框',
+    description: '将客户 {name} 释放到公海池？',
+    formAriaLabel: '释放到公海表单',
+    reason: '释放原因',
+    cancel: '取消',
+    confirm: '确认',
+    message: {
+      success: '释放成功',
+      failed: '释放失败'
+    }
+  },
+  crmClaimDialog: {
+    title: '领取客户',
+    ariaLabel: '领取客户对话框',
+    description: '确认将客户 {name} 领取到我的客户池？',
+    formAriaLabel: '领取客户表单',
+    remark: '备注',
+    cancel: '取消',
+    confirm: '确认领取',
+    message: {
+      success: '领取成功',
+      failed: '领取失败'
+    }
+  },
+  crmRfm: {
+    title: '客户分级 (RFM)',
+    table: {
+      ariaLabel: 'RFM 客户分析列表',
+      customerCode: '客户编码',
+      customerName: '客户名称',
+      owner: '负责人',
+      level: '等级',
+      label: '分级',
+      recency: 'R',
+      frequency: 'F',
+      monetary: 'M',
+      totalAmount: '累计金额',
+      totalOrders: '订单数',
+      operation: '操作',
+      detail: '详情'
+    },
+    countUnit: '人'
+  },
+  crmFollowUp: {
+    title: '跟进记录',
+    addFollowUp: '新增跟进',
+    operatorLabel: '跟进人：{name}',
+    nextFollowUpLabel: '下次跟进：{date}',
+    paginationAriaLabel: '客户跟进记录分页',
+    dialog: {
+      title: '新增跟进记录',
+      ariaLabel: '新增跟进记录对话框',
+      formAriaLabel: '跟进记录表单'
+    },
+    form: {
+      type: '跟进方式',
+      typePlaceholder: '请选择跟进方式',
+      content: '跟进内容',
+      contentPlaceholder: '请输入跟进内容',
+      nextFollowUp: '下次跟进',
+      datePlaceholder: '选择日期',
+      cancel: '取消',
+      save: '保存'
+    },
+    followUpType: {
+      phone: '电话',
+      meeting: '面谈',
+      email: '邮件',
+      wechat: '微信',
+      visit: '拜访'
+    },
+    message: {
+      loadFailed: '获取跟进记录失败',
+      contentRequired: '请输入跟进内容',
+      saveSuccess: '跟进记录已保存',
+      saveFailed: '保存失败'
+    }
+  },
+  crmManualAssignDialog: {
+    title: '手动分配客户',
+    ariaLabel: '手动分配客户对话框',
+    description: '为客户 {name} 选择新负责人：',
+    formAriaLabel: '手动分配客户表单',
+    newOwner: '新负责人',
+    newOwnerPlaceholder: '请选择负责人',
+    reason: '分配原因',
+    cancel: '取消',
+    confirm: '确认',
+    message: {
+      ownerRequired: '请选择新负责人',
+      success: '分配成功',
+      failed: '分配失败'
+    }
+  },
+  crmRuleDialog: {
+    ariaLabel: '公海规则表单',
+    form: {
+      name: '规则名称',
+      namePlaceholder: '请输入规则名称',
+      strategy: '分配策略',
+      strategyPlaceholder: '请选择分配策略',
+      assignees: '分配对象',
+      assigneesPlaceholder: '请选择负责人们',
+      priority: '优先级',
+      enabled: '是否启用',
+      enabledYes: '启用',
+      enabledNo: '禁用',
+      remark: '备注',
+      cancel: '取消',
+      save: '保存'
+    },
+    strategy: {
+      average: '平均分配',
+      region: '按地域分配',
+      industry: '按行业分配',
+      scale: '按客户规模'
+    },
+    validation: {
+      nameRequired: '请输入规则名称',
+      strategyRequired: '请选择分配策略',
+      assigneesRequired: '请选择分配对象'
+    },
+    message: {
+      saveSuccess: '保存成功',
+      validationFailed: '表单验证失败'
+    }
+  },
+  crmOpportunities: {
+    title: '商机管理',
+    create: '新建商机',
+    export: '导出',
+    breadcrumb: {
+      home: '首页',
+      crm: 'CRM',
+      opportunities: '商机管理'
+    },
+    filter: {
+      ariaLabel: '商机筛选表单',
+      keyword: '关键词',
+      keywordPlaceholder: '商机编号/商机名称/客户名称',
+      stage: '商机阶段',
+      stagePlaceholder: '选择阶段',
+      owner: '负责人',
+      ownerPlaceholder: '选择负责人',
+      priority: '优先级',
+      priorityPlaceholder: '选择优先级',
+      query: '查询',
+      reset: '重置'
+    },
+    stage: {
+      initial: '初步接触',
+      requirement: '需求确认',
+      proposal: '方案报价',
+      negotiation: '谈判',
+      won: '成交',
+      lost: '流失'
+    },
+    priority: {
+      low: '低',
+      medium: '中',
+      high: '高',
+      urgent: '紧急'
+    },
+    table: {
+      ariaLabel: '商机列表',
+      paginationAriaLabel: '商机列表分页',
+      index: '序号',
+      opportunityNo: '商机编号',
+      opportunityName: '商机名称',
+      customer: '客户',
+      estimatedAmount: '预估金额',
+      winProbability: '成交概率',
+      stage: '商机阶段',
+      expectedCloseDate: '预计成交',
+      owner: '负责人',
+      lastFollowUp: '最近跟进',
+      operation: '操作',
+      view: '查看',
+      edit: '编辑',
+      follow: '跟进',
+      win: '成交',
+      lost: '流失'
+    },
+    viewDialog: {
+      title: '商机详情',
+      ariaLabel: '商机详情',
+      opportunityNo: '商机编号',
+      opportunityName: '商机名称',
+      customer: '客户',
+      owner: '负责人',
+      estimatedAmount: '预估金额',
+      winProbability: '成交概率',
+      stage: '商机阶段',
+      priority: '优先级',
+      expectedCloseDate: '预计成交',
+      lastFollowUp: '最近跟进',
+      createdBy: '创建人',
+      createdAt: '创建时间',
+      description: '描述'
+    },
+    dialog: {
+      createTitle: '新建商机',
+      editTitle: '编辑商机'
+    },
+    message: {
+      loadFailed: '加载商机列表失败',
+      winConfirm: '确认标记商机 "{name}" 为成交？',
+      lostConfirm: '确认标记商机 "{name}" 为流失？',
+      tip: '提示',
+      winSuccess: '已标记为成交',
+      winFailed: '标记成交失败',
+      lostSuccess: '已标记为流失',
+      lostFailed: '标记流失失败',
+      exportSuccess: '导出成功',
+      exportFailed: '导出失败',
+      exportFilename: 'CRM商机'
+    }
+  },
+  crmOpportunityFollow: {
+    title: '跟进记录',
+    ariaLabel: '跟进记录对话框',
+    formAriaLabel: '商机跟进表单',
+    content: '跟进内容',
+    contentPlaceholder: '请输入跟进内容',
+    nextFollowUp: '下次跟进',
+    nextFollowUpPlaceholder: '请选择下次跟进日期',
+    cancel: '取消',
+    confirm: '确定',
+    message: {
+      success: '跟进成功',
+      failed: '跟进失败'
+    }
+  },
+  crmOpportunityForm: {
+    ariaLabel: '商机表单',
+    opportunityName: '商机名称',
+    opportunityNamePlaceholder: '请输入商机名称',
+    customer: '客户',
+    customerPlaceholder: '请选择客户',
+    opportunityType: '商机类型',
+    opportunityTypePlaceholder: '请选择商机类型',
+    opportunityStage: '商机阶段',
+    opportunityStagePlaceholder: '请选择商机阶段',
+    estimatedAmount: '预估金额',
+    winProbability: '成交概率',
+    expectedCloseDate: '预计成交',
+    expectedCloseDatePlaceholder: '请选择预计成交日期',
+    owner: '负责人',
+    ownerPlaceholder: '请选择负责人',
+    productDesc: '产品描述',
+    productDescPlaceholder: '请输入产品描述',
+    remarks: '备注',
+    remarksPlaceholder: '请输入备注',
+    cancel: '取消',
+    confirm: '确定',
+    opportunityTypeOption: {
+      new: '新客户',
+      upsell: '增购',
+      renewal: '续约'
+    },
+    stageOption: {
+      initial: '初步接触',
+      requirement: '需求确认',
+      proposal: '方案报价',
+      negotiation: '谈判'
+    },
+    validation: {
+      opportunityNameRequired: '请输入商机名称',
+      customerRequired: '请选择客户',
+      stageRequired: '请选择商机阶段',
+      ownerRequired: '请选择负责人'
+    },
+    message: {
+      saveSuccess: '保存成功',
+      validationFailed: '表单验证失败'
+    }
+  },
+  userProfile: {
+    title: '个人中心',
+    profile: {
+      title: '个人信息',
+      save: '保存修改',
+      avatarTip: '点击上传头像',
+      avatarAlt: '{name}的头像',
+      avatarAltDefault: '用户头像',
+      username: '用户名',
+      realName: '姓名',
+      realNamePlaceholder: '请输入姓名',
+      email: '邮箱',
+      emailPlaceholder: '请输入邮箱',
+      phone: '手机号',
+      phonePlaceholder: '请输入手机号',
+      department: '部门',
+      role: '角色',
+      formAriaLabel: '用户资料表单'
+    },
+    security: {
+      title: '安全设置',
+      twofa: '2FA 设置',
+      changePassword: '修改密码'
+    },
+    password: {
+      title: '修改密码',
+      button: '修改密码',
+      formAriaLabel: '修改密码表单',
+      oldPassword: '原密码',
+      oldPasswordPlaceholder: '请输入原密码',
+      newPassword: '新密码',
+      newPasswordPlaceholder: '请输入新密码',
+      confirmPassword: '确认密码',
+      confirmPasswordPlaceholder: '请再次输入新密码'
+    },
+    validation: {
+      realNameRequired: '请输入姓名',
+      emailPattern: '请输入正确的邮箱地址',
+      phonePattern: '请输入正确的手机号',
+      oldPasswordRequired: '请输入原密码',
+      newPasswordRequired: '请输入新密码',
+      newPasswordMinLength: '密码长度不能少于6位',
+      confirmPasswordRequired: '请再次输入新密码',
+      passwordMismatch: '两次输入的密码不一致'
+    },
+    message: {
+      loadProfileFailed: '加载个人信息失败',
+      avatarTypeInvalid: '只能上传图片文件!',
+      avatarSizeExceeded: '头像图片大小不能超过 2MB!',
+      avatarUploadSuccess: '头像上传成功',
+      avatarUploadFailed: '头像上传失败',
+      profileSaveSuccess: '个人信息保存成功',
+      profileSaveFailed: '保存失败',
+      passwordChangeSuccess: '密码修改成功',
+      passwordChangeFailed: '密码修改失败'
     }
   }
 };

@@ -5,94 +5,97 @@
 -->
 <template>
   <el-dialog v-model="visible" :title="title" width="800px" :close-on-click-modal="false" :aria-label="title">
-    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" aria-label="线索表单">
+    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" :aria-label="t('crmLeads.leadForm.ariaLabel')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="线索来源" prop="lead_source">
-            <el-select v-model="formData.lead_source" placeholder="请选择线索来源">
-              <el-option label="网站" value="WEBSITE" />
-              <el-option label="电话" value="PHONE" />
-              <el-option label="展会" value="EXHIBITION" />
-              <el-option label="推荐" value="REFERRAL" />
-              <el-option label="其他" value="OTHER" />
+          <el-form-item :label="t('crmLeads.leadForm.leadSource')" prop="lead_source">
+            <el-select v-model="formData.lead_source" :placeholder="t('crmLeads.leadForm.leadSourcePlaceholder')">
+              <el-option :label="t('crmLeads.leadForm.leadSourceOption.website')" value="WEBSITE" />
+              <el-option :label="t('crmLeads.leadForm.leadSourceOption.phone')" value="PHONE" />
+              <el-option :label="t('crmLeads.leadForm.leadSourceOption.exhibition')" value="EXHIBITION" />
+              <el-option :label="t('crmLeads.leadForm.leadSourceOption.referral')" value="REFERRAL" />
+              <el-option :label="t('crmLeads.leadForm.leadSourceOption.other')" value="OTHER" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="优先级" prop="priority">
-            <el-select v-model="formData.priority" placeholder="请选择优先级">
-              <el-option label="低" value="LOW" />
-              <el-option label="中" value="MEDIUM" />
-              <el-option label="高" value="HIGH" />
-              <el-option label="紧急" value="URGENT" />
+          <el-form-item :label="t('crmLeads.leadForm.priority')" prop="priority">
+            <el-select v-model="formData.priority" :placeholder="t('crmLeads.leadForm.priorityPlaceholder')">
+              <el-option :label="t('crmLeads.leadForm.priorityOption.low')" value="LOW" />
+              <el-option :label="t('crmLeads.leadForm.priorityOption.medium')" value="MEDIUM" />
+              <el-option :label="t('crmLeads.leadForm.priorityOption.high')" value="HIGH" />
+              <el-option :label="t('crmLeads.leadForm.priorityOption.urgent')" value="URGENT" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="公司名称" prop="company_name">
-            <el-input v-model="formData.company_name" placeholder="请输入公司名称" />
+          <el-form-item :label="t('crmLeads.leadForm.companyName')" prop="company_name">
+            <el-input v-model="formData.company_name" :placeholder="t('crmLeads.leadForm.companyNamePlaceholder')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="联系人" prop="contact_name">
-            <el-input v-model="formData.contact_name" placeholder="请输入联系人姓名" />
-          </el-form-item>
-        </el-col>
-      </el-row>
-      <el-row :gutter="20">
-        <el-col :span="12">
-          <el-form-item label="手机号" prop="mobile_phone">
-            <el-input v-model="formData.mobile_phone" placeholder="请输入手机号" />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="邮箱" prop="email">
-            <el-input v-model="formData.email" placeholder="请输入邮箱" />
+          <el-form-item :label="t('crmLeads.leadForm.contactName')" prop="contact_name">
+            <el-input v-model="formData.contact_name" :placeholder="t('crmLeads.leadForm.contactNamePlaceholder')" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="职位" prop="contact_title">
-            <el-input v-model="formData.contact_title" placeholder="请输入职位" />
+          <el-form-item :label="t('crmLeads.leadForm.mobilePhone')" prop="mobile_phone">
+            <el-input v-model="formData.mobile_phone" :placeholder="t('crmLeads.leadForm.mobilePhonePlaceholder')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="负责人" prop="owner_id">
-            <el-select v-model="formData.owner_id" placeholder="请选择负责人" filterable>
+          <el-form-item :label="t('crmLeads.leadForm.email')" prop="email">
+            <el-input v-model="formData.email" :placeholder="t('crmLeads.leadForm.emailPlaceholder')" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item :label="t('crmLeads.leadForm.contactTitle')" prop="contact_title">
+            <el-input v-model="formData.contact_title" :placeholder="t('crmLeads.leadForm.contactTitlePlaceholder')" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('crmLeads.leadForm.owner')" prop="owner_id">
+            <el-select v-model="formData.owner_id" :placeholder="t('crmLeads.leadForm.ownerPlaceholder')" filterable>
               <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="需求描述" prop="requirement_desc">
+      <el-form-item :label="t('crmLeads.leadForm.requirementDesc')" prop="requirement_desc">
         <el-input
           v-model="formData.requirement_desc"
           type="textarea"
           :rows="3"
-          placeholder="请输入需求描述"
+          :placeholder="t('crmLeads.leadForm.requirementDescPlaceholder')"
         />
       </el-form-item>
-      <el-form-item label="备注" prop="remarks">
-        <el-input v-model="formData.remarks" type="textarea" :rows="2" placeholder="请输入备注" />
+      <el-form-item :label="t('crmLeads.leadForm.remarks')" prop="remarks">
+        <el-input v-model="formData.remarks" type="textarea" :rows="2" :placeholder="t('crmLeads.leadForm.remarksPlaceholder')" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+      <el-button @click="visible = false">{{ t('crmLeads.leadForm.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('crmLeads.leadForm.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { Lead } from '@/api/crm'
 import type { User } from '@/api/user'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -128,9 +131,9 @@ const formData = reactive({
 })
 
 const formRules: FormRules = {
-  lead_source: [{ required: true, message: '请选择线索来源', trigger: 'change' }],
-  contact_name: [{ required: true, message: '请输入联系人姓名', trigger: 'blur' }],
-  owner_id: [{ required: true, message: '请选择负责人', trigger: 'change' }],
+  lead_source: [{ required: true, message: t('crmLeads.leadForm.validation.leadSourceRequired'), trigger: 'change' }],
+  contact_name: [{ required: true, message: t('crmLeads.leadForm.validation.contactNameRequired'), trigger: 'blur' }],
+  owner_id: [{ required: true, message: t('crmLeads.leadForm.validation.ownerRequired'), trigger: 'change' }],
 }
 
 watch(
@@ -169,12 +172,12 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate()
     submitLoading.value = true
-    ElMessage.success('保存成功')
+    ElMessage.success(t('crmLeads.leadForm.message.saveSuccess'))
     visible.value = false
     emit('submitted')
   } catch (error) {
     const err = error as Error
-    logger.warn('表单验证失败', err.message)
+    logger.warn(t('crmLeads.leadForm.message.validationFailed'), err.message)
   } finally {
     submitLoading.value = false
   }
