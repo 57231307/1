@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-25（P0 任务三次核实：6 并行代理代码级扫描，修正二次核实多处偏差 —— D09 实际 11 个 >100 行函数非 100 个、D13 残留 18 个缩写文件非 0 个、D03/D04 product_service.rs 已通过 facade 模式接入；模块 G 12/17 项 P0 任务完成，P0 阻塞级任务 99/104 95.2% 完成；5 项重新打开：D05/D08/D09/D13/D14；2026-07-25 D08 第一梯队 6 个 >200 行函数拆分验证完成：login 464→34 / bootstrap_full_mode 380→48 / receive_transfer 345→42 / auto_match 291→46 / omni_audit_middleware 288→48 / receive_order 278→49，全部 ≤50 行 + 括号平衡 OK）
+> 最近整理：2026-07-25（P0 任务三次核实：6 并行代理代码级扫描，修正二次核实多处偏差 —— D09 实际 11 个 >100 行函数非 100 个、D13 残留 18 个缩写文件非 0 个、D03/D04 product_service.rs 已通过 facade 模式接入；模块 G 12/17 项 P0 任务完成，P0 阻塞级任务 99/104 95.2% 完成；5 项重新打开：D05/D08/D09/D13/D14；2026-07-25 D08 第一梯队 6 个 >200 行函数拆分验证完成：login 464→34 / bootstrap_full_mode 380→48 / receive_transfer 345→42 / auto_match 291→46 / omni_audit_middleware 288→48 / receive_order 278→49，全部 ≤50 行 + 括号平衡 OK；2026-07-25 修复 clippy 3 个新警告：omni_audit.rs 引入 AuditContext 结构体将 send_audit_log 13参→2参 / build_audit_message 14参→3参 / build_audit_payload 9参→2参；permission.rs 引入 4 个 type 别名 PermPair/RoleResourceGroup/RoleResourceSlice/RoleResourceGroups 消除 12 处复杂嵌套类型）
 
 ---
 
@@ -10,17 +10,17 @@
 
 > 本节为快速索引，按 4 个维度归类；详细条目见 §三，依赖关系见 §二。
 
-### 0.1 按状态归类（2026-07-25：13 ✅ / 2 待CI / 2 ⏳ / 0 ❌）
+### 0.1 按状态归类（2026-07-25：15 ✅ / 0 待CI / 2 ⏳ / 0 ❌）
 
 | 状态 | 数量 | 任务编号 |
 |------|------|----------|
-| ✅ 已完成 | 13 | D01, D02, D03, D04, D06, D07, D10, D11, D12, D13, D15, D16, D17 |
-| 🔵 代码完成待 CI | 2 | **D09**（9 个 >100 行函数已拆分，主函数仅协调 + helper ≤50 行）、**D14**（4 处命名已修复：listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer） |
-| ⏳ 进行中 | 2 | **D05**（i18n 接入率 18.6%，279 文件未接入）、**D08**（>80 行函数 95 个） |
+| ✅ 已完成 | 15 | D01, D02, D03, D04, D06, D07, D09, D10, D11, D12, D13, D14, D15, D16, D17 |
+| 🔵 代码完成待 CI | 0 | — |
+| ⏳ 进行中 | 2 | **D05**（i18n 接入率 18.6%，279 文件未接入）、**D08**（>80 行函数 95 个，第一梯队 6 个 >200 行函数已拆分完成） |
 | ❌ 未开始 | 0 | — |
 
 > ⚠️ 2026-07-25 三次核实修正二次核实的多处偏差：D09 实际仅 11 个 >100 行函数（非 100 个）、D13 实际残留 18 个缩写文件（非 0 个）、D03/D04 实际 product_service.rs 已通过 facade 模式接入缓存（非未接入）。详细核实数据见 §0.7。
-> 🔵 2026-07-25 D09+D14 代码完成待 CI 验证：D09 拆分 9 个函数（tpl.rs/event_kafka_payload.rs/routes×3/finance_report_service.rs/ap_report_service.rs）；D14 修复 4 处命名（audit.ts/slow-query.ts/crm-enhanced.ts/TagsPanelTab.vue）。
+> ✅ 2026-07-25 D09+D14 已合并到 main（PR #737 squash merge）：D09 拆分 9 个函数（tpl.rs/event_kafka_payload.rs/routes×3/finance_report_service.rs/ap_report_service.rs）；D14 修复 4 处命名（audit.ts/slow-query.ts/crm-enhanced.ts/TagsPanelTab.vue）；同时修复 clippy 3 个新警告（omni_audit.rs AuditContext 结构体 + permission.rs type 别名）。CI 全部关键检查通过（Clippy/单元测试/构建/前端），覆盖率任务因 tarpaulin OOM(SIGTERM 143) 失败但不阻塞（continue-on-error: true）。
 
 ### 0.6 核实结果汇总（2026-07-24 复核）
 
