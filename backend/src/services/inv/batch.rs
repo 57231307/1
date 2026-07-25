@@ -24,6 +24,9 @@ use super::{
     InventoryTransferService,
 };
 
+/// 仓库 → 产品库存映射（避免在函数签名中重复书写长类型）
+type StockMap = std::collections::HashMap<i32, inventory_stock::Model>;
+
 impl InventoryTransferService {
     /// 发出库存调拨
     pub async fn ship_transfer(
@@ -134,7 +137,7 @@ impl InventoryTransferService {
         txn: &sea_orm::DatabaseTransaction,
         warehouse_id: i32,
         items: &[inventory_transfer_item::Model],
-    ) -> Result<std::collections::HashMap<i32, inventory_stock::Model>, AppError> {
+    ) -> Result<StockMap, AppError> {
         let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
         let stocks = InventoryStockEntity::find()
             .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
@@ -149,20 +152,14 @@ impl InventoryTransferService {
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
         items: &[inventory_transfer_item::Model],
-    ) -> Result<
-        (
-            std::collections::HashMap<i32, inventory_stock::Model>,
-            std::collections::HashMap<i32, inventory_stock::Model>,
-        ),
-        AppError,
-    > {
+    ) -> Result<(StockMap, StockMap), AppError> {
         let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
         let target_stocks = InventoryStockEntity::find()
             .filter(inventory_stock::Column::WarehouseId.eq(transfer.to_warehouse_id))
             .filter(inventory_stock::Column::ProductId.is_in(product_ids.clone()))
             .all(txn)
             .await?;
-        let target_map: std::collections::HashMap<i32, inventory_stock::Model> =
+        let target_map: StockMap =
             target_stocks.into_iter().map(|s| (s.product_id, s)).collect();
         let source_stocks = if product_ids.is_empty() {
             Vec::new()
@@ -182,7 +179,7 @@ impl InventoryTransferService {
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
         item: inventory_transfer_item::Model,
-        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        stock_map: &StockMap,
         pending_events: &mut Vec<crate::services::event_bus::BusinessEvent>,
     ) -> Result<(), AppError> {
         let stock = stock_map.get(&item.product_id).cloned().ok_or_else(|| {
@@ -300,7 +297,7 @@ impl InventoryTransferService {
             created_by: sea_orm::ActiveValue::Set(transfer.created_by),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
         };
-        Ok(transaction.insert(txn).await?)
+        transaction.insert(txn).await.map_err(Into::into)
     }
 
     /// 处理单个明细行的接收：增加库存或新建库存、写流水、收集事件、更新明细
@@ -308,8 +305,8 @@ impl InventoryTransferService {
         txn: &sea_orm::DatabaseTransaction,
         transfer: &inventory_transfer::Model,
         item: inventory_transfer_item::Model,
-        target_map: &std::collections::HashMap<i32, inventory_stock::Model>,
-        source_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        target_map: &StockMap,
+        source_map: &StockMap,
         pending_events: &mut Vec<crate::services::event_bus::BusinessEvent>,
     ) -> Result<(), AppError> {
         let source_stock = source_map.get(&item.product_id).cloned();
@@ -434,7 +431,7 @@ impl InventoryTransferService {
             created_by: sea_orm::ActiveValue::Set(transfer.created_by),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
         };
-        Ok(transaction.insert(txn).await?)
+        transaction.insert(txn).await.map_err(Into::into)
     }
 
     /// 在目标仓库新建库存记录，返回 quantity_kg
@@ -535,27 +532,18 @@ impl InventoryTransferService {
             created_by: sea_orm::ActiveValue::Set(transfer.created_by),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
         };
-        Ok(transaction.insert(txn).await?)
+        transaction.insert(txn).await.map_err(Into::into)
     }
 
-    /// 从源仓库库存提取目标仓库所需的面料行业字段
+    /// 从源仓库库存提取流水所需的面料行业字段（仅流水使用，库存创建在 create_target_stock_record 内独立处理）
     fn extract_target_stock_fields(
         source_stock: Option<&inventory_stock::Model>,
     ) -> TargetStockFields {
-        let source_kg_per_meter = source_stock
-            .filter(|s| s.quantity_meters > rust_decimal::Decimal::ZERO)
-            .map(|s| s.quantity_kg / s.quantity_meters)
-            .unwrap_or(rust_decimal::Decimal::ZERO);
         TargetStockFields {
             batch_no: source_stock.map(|s| s.batch_no.clone()).unwrap_or_default(),
             color_no: source_stock.map(|s| s.color_no.clone()).unwrap_or_default(),
             dye_lot_no: source_stock.and_then(|s| s.dye_lot_no.clone()),
             grade: source_stock.map(|s| s.grade.clone()).unwrap_or_else(|| "一等品".to_string()),
-            gram_weight: source_stock.and_then(|s| s.gram_weight),
-            width: source_stock.and_then(|s| s.width),
-            production_date: source_stock.and_then(|s| s.production_date),
-            expiry_date: source_stock.and_then(|s| s.expiry_date),
-            source_kg_per_meter,
         }
     }
 
@@ -577,18 +565,6 @@ impl InventoryTransferService {
             color_no: inserted.color_no.clone(),
             created_by: inserted.created_by,
         }
-    }
-
-    /// 校验乐观锁更新是否成功（rows_affected > 0）
-    fn check_optimistic_lock(rows_affected: u64, product_id: i32) -> Result<(), AppError> {
-        if rows_affected == 0 {
-            tracing::error!("产品 {} 并发冲突", product_id);
-            return Err(AppError::business(format!(
-                "产品 {} 库存记录已被其他用户修改，请重试",
-                product_id
-            )));
-        }
-        Ok(())
     }
 
     /// 更新明细项已发出数量（带审计）
@@ -866,15 +842,10 @@ impl InventoryTransferService {
     }
 }
 
-/// 目标仓库新建库存/流水所需的面料行业字段（从源仓库库存复制）
+/// 流水所需的面料行业字段（从源仓库库存复制，仅含流水实际使用的字段）
 struct TargetStockFields {
     batch_no: String,
     color_no: String,
     dye_lot_no: Option<String>,
     grade: String,
-    gram_weight: Option<rust_decimal::Decimal>,
-    width: Option<rust_decimal::Decimal>,
-    production_date: Option<chrono::DateTime<chrono::Utc>>,
-    expiry_date: Option<chrono::DateTime<chrono::Utc>>,
-    source_kg_per_meter: rust_decimal::Decimal,
 }
