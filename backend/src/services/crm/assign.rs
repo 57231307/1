@@ -85,6 +85,13 @@ pub struct TransferLeadResult {
     pub transferred_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// 认领事务执行结果（在事务 helper 与主函数间传递更新后的线索与原归属信息）
+struct ClaimApplyResult {
+    updated_lead: crm_lead::Model,
+    from_user_id: i32,
+    from_user_name: String,
+}
+
 /// CRM 分配服务
 pub struct CrmAssignService {
     db: Arc<DatabaseConnection>,
@@ -472,63 +479,111 @@ impl CrmAssignService {
         operator_id: i32,
         operator_name: &str,
     ) -> Result<TransferLeadResult, AppError> {
-        // 校验认领人存在且活跃
-        let claimer = user::Entity::find_by_id(req.user_id)
+        // 1. 校验认领人存在且活跃
+        let claimer = self.validate_claimer(req.user_id).await?;
+
+        // 2. 获取待认领线索（指定 ID 或 FIFO 自动选取）
+        let lead = self.fetch_claimable_lead(req.lead_id).await?;
+
+        // 3. 校验线索状态与归属
+        Self::validate_lead_for_claim(&lead, req.user_id)?;
+
+        let now = chrono::Utc::now();
+
+        // 4. 事务：更新线索归属人 + 写入认领历史
+        let txn = (*self.db).begin().await?;
+        let applied = self
+            .apply_claim_in_txn(&txn, lead, &claimer, operator_id, operator_name, now)
+            .await?;
+        txn.commit().await?;
+
+        info!(
+            "用户 {} 通过抢单模式认领线索 {}，归属人从 {} 变更为 {}",
+            operator_id, applied.updated_lead.id, applied.from_user_id, claimer.id
+        );
+
+        Ok(TransferLeadResult {
+            lead_id: applied.updated_lead.id,
+            lead_no: applied.updated_lead.lead_no,
+            from_user_id: applied.from_user_id,
+            from_user_name: applied.from_user_name,
+            to_user_id: claimer.id,
+            to_user_name: claimer.username,
+            transferred_at: now,
+        })
+    }
+
+    /// 校验认领人存在且处于活跃状态
+    async fn validate_claimer(&self, user_id: i32) -> Result<user::Model, AppError> {
+        let claimer = user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::validation(format!("认领人用户 {} 不存在", req.user_id))
-            })?;
-
+            .ok_or_else(|| AppError::validation(format!("认领人用户 {} 不存在", user_id)))?;
         if !claimer.is_active {
             return Err(AppError::validation(format!(
                 "认领人用户 {} 已停用，无法认领线索",
-                req.user_id
+                user_id
             )));
         }
+        Ok(claimer)
+    }
 
-        // 获取待认领线索
-        let lead: crm_lead::Model = if let Some(lead_id) = req.lead_id {
-            // 指定线索 ID 认领
-            crm_lead::Entity::find_by_id(lead_id)
+    /// 获取待认领线索：指定 ID 优先，否则 FIFO 选取最早入库的未分配线索
+    async fn fetch_claimable_lead(
+        &self,
+        lead_id: Option<i32>,
+    ) -> Result<crm_lead::Model, AppError> {
+        if let Some(lead_id) = lead_id {
+            return crm_lead::Entity::find_by_id(lead_id)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?
-        } else {
-            // 自动选取最早入库的未分配线索（FIFO）
-            crm_lead::Entity::find()
-                .filter(crm_lead::Column::LeadStatus.eq(lead_status::NEW))
-                .order_by(crm_lead::Column::Id, sea_orm::Order::Asc)
-                .limit(1)
-                .all(&*self.db)
-                .await?
-                .into_iter()
-                .next()
-                .ok_or_else(|| {
-                    AppError::not_found("无可认领线索：当前没有 lead_status='new' 的未分配线索")
-                })?
-        };
+                .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)));
+        }
+        // 自动选取最早入库的未分配线索（FIFO）
+        crm_lead::Entity::find()
+            .filter(crm_lead::Column::LeadStatus.eq(lead_status::NEW))
+            .order_by(crm_lead::Column::Id, sea_orm::Order::Asc)
+            .limit(1)
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                AppError::not_found("无可认领线索：当前没有 lead_status='new' 的未分配线索")
+            })
+    }
 
-        // 校验线索状态
+    /// 校验线索处于 'new' 状态且未被当前用户持有
+    fn validate_lead_for_claim(
+        lead: &crm_lead::Model,
+        claimer_user_id: i32,
+    ) -> Result<(), AppError> {
         if lead.lead_status.as_deref() != Some(lead_status::NEW) {
             return Err(AppError::validation(format!(
                 "线索 {} 当前状态为 {:?}，非 'new' 状态无法认领",
                 lead.id, lead.lead_status
             )));
         }
-
-        if lead.owner_id == req.user_id {
+        if lead.owner_id == claimer_user_id {
             return Err(AppError::validation(
                 "认领失败：线索当前归属人已是当前用户",
             ));
         }
+        Ok(())
+    }
 
+    /// 在事务内更新线索归属人并写入认领历史，返回更新后的线索与原归属信息
+    async fn apply_claim_in_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        lead: crm_lead::Model,
+        claimer: &user::Model,
+        operator_id: i32,
+        operator_name: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<ClaimApplyResult, AppError> {
         let from_user_id = lead.owner_id;
         let from_user_name = lead.owner_name.clone();
-        let now = chrono::Utc::now();
-
-        // 事务：更新线索归属人 + 写入认领历史
-        let txn = (*self.db).begin().await?;
 
         let mut active: crm_lead::ActiveModel = lead.into();
         active.owner_id = Set(claimer.id);
@@ -536,11 +591,11 @@ impl CrmAssignService {
         active.lead_status = Set(Some("assigned".to_string()));
         active.updated_at = Set(Some(now));
         active.updated_by = Set(Some(operator_id));
-        let updated = active.update(&txn).await?;
+        let updated = active.update(txn).await?;
 
         self.history_service
             .create_with_txn(
-                &txn,
+                txn,
                 operator_id,
                 operator_name,
                 CreateAssignmentHistoryRequest {
@@ -558,21 +613,10 @@ impl CrmAssignService {
             )
             .await?;
 
-        txn.commit().await?;
-
-        info!(
-            "用户 {} 通过抢单模式认领线索 {}，归属人从 {} 变更为 {}",
-            operator_id, updated.id, from_user_id, claimer.id
-        );
-
-        Ok(TransferLeadResult {
-            lead_id: updated.id,
-            lead_no: updated.lead_no,
+        Ok(ClaimApplyResult {
+            updated_lead: updated,
             from_user_id,
             from_user_name,
-            to_user_id: claimer.id,
-            to_user_name: claimer.username,
-            transferred_at: now,
         })
     }
 }

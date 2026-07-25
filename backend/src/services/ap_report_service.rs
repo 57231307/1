@@ -224,100 +224,15 @@ impl ApReportService {
         report_date: NaiveDate,
         supplier_id: Option<i32>,
     ) -> Result<ApDailyReport, AppError> {
-        use sea_orm::ConnectionTrait;
-
-        // 1. 当日新增应付单聚合查询
-        let mut new_params: Vec<sea_orm::Value> = vec![report_date.into()];
-        let new_supplier_filter = supplier_id
-            .map(|sid| {
-                new_params.push(sid.into());
-                format!(" AND supplier_id = ${}", new_params.len())
-            })
-            .unwrap_or_default();
-        let new_sql = format!(
-            r#"
-            SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS amt
-            FROM ap_invoice
-            WHERE invoice_date = $1{sf}
-            "#,
-            sf = new_supplier_filter
-        );
-        let new_row: Option<sea_orm::QueryResult> = self
-            .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
-                sea_orm::DatabaseBackend::Postgres,
-                new_sql,
-                new_params,
-            ))
-            .await
-            .map_err(|e| AppError::internal(format!("应付日报新增聚合查询失败: {}", e)))?;
-        let new_row = new_row
-            .ok_or_else(|| AppError::internal("应付日报新增聚合查询无结果".to_string()))?;
-        let new_invoice_count: i64 = new_row.try_get_by_index::<i64>(0).unwrap_or(0);
-        let new_invoice_amount: Decimal =
-            new_row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
-
-        // 2. 当日到期应付单聚合查询
-        let mut due_params: Vec<sea_orm::Value> = vec![report_date.into(), Decimal::new(0, 2).into()];
-        let due_supplier_filter = supplier_id
-            .map(|sid| {
-                due_params.push(sid.into());
-                format!(" AND supplier_id = ${}", due_params.len())
-            })
-            .unwrap_or_default();
-        let due_sql = format!(
-            r#"
-            SELECT COUNT(*) AS cnt, COALESCE(SUM(unpaid_amount), 0) AS amt
-            FROM ap_invoice
-            WHERE due_date = $1 AND unpaid_amount > $2{sf}
-            "#,
-            sf = due_supplier_filter
-        );
-        let due_row: Option<sea_orm::QueryResult> = self
-            .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
-                sea_orm::DatabaseBackend::Postgres,
-                due_sql,
-                due_params,
-            ))
-            .await
-            .map_err(|e| AppError::internal(format!("应付日报到期聚合查询失败: {}", e)))?;
-        let due_row = due_row
-            .ok_or_else(|| AppError::internal("应付日报到期聚合查询无结果".to_string()))?;
-        let due_invoice_count: i64 = due_row.try_get_by_index::<i64>(0).unwrap_or(0);
-        let due_invoice_amount: Decimal =
-            due_row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
-
-        // 3. 当日付款聚合查询
-        let mut pay_params: Vec<sea_orm::Value> = vec![report_date.into(), "CONFIRMED".into()];
-        let pay_supplier_filter = supplier_id
-            .map(|sid| {
-                pay_params.push(sid.into());
-                format!(" AND supplier_id = ${}", pay_params.len())
-            })
-            .unwrap_or_default();
-        let pay_sql = format!(
-            r#"
-            SELECT COUNT(*) AS cnt, COALESCE(SUM(payment_amount), 0) AS amt
-            FROM ap_payment
-            WHERE payment_date = $1 AND payment_status = $2{sf}
-            "#,
-            sf = pay_supplier_filter
-        );
-        let pay_row: Option<sea_orm::QueryResult> = self
-            .db
-            .query_one(sea_orm::Statement::from_sql_and_values(
-                sea_orm::DatabaseBackend::Postgres,
-                pay_sql,
-                pay_params,
-            ))
-            .await
-            .map_err(|e| AppError::internal(format!("应付日报付款聚合查询失败: {}", e)))?;
-        let pay_row = pay_row
-            .ok_or_else(|| AppError::internal("应付日报付款聚合查询无结果".to_string()))?;
-        let payment_count: i64 = pay_row.try_get_by_index::<i64>(0).unwrap_or(0);
-        let payment_amount: Decimal =
-            pay_row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
+        let (new_invoice_count, new_invoice_amount) = self
+            .query_new_invoice_aggregate(report_date, supplier_id)
+            .await?;
+        let (due_invoice_count, due_invoice_amount) = self
+            .query_due_invoice_aggregate(report_date, supplier_id)
+            .await?;
+        let (payment_count, payment_amount) = self
+            .query_payment_aggregate(report_date, supplier_id)
+            .await?;
 
         Ok(ApDailyReport {
             report_date,
@@ -329,6 +244,102 @@ impl ApReportService {
             payment_count,
             payment_amount,
         })
+    }
+
+    /// 执行聚合查询并返回 (count, amount)，复用三段相似的 SQL 聚合逻辑
+    async fn query_aggregate(
+        &self,
+        params: Vec<sea_orm::Value>,
+        sql: String,
+        error_ctx: &str,
+    ) -> Result<(i64, Decimal), AppError> {
+        use sea_orm::ConnectionTrait;
+        let row: Option<sea_orm::QueryResult> = self
+            .db
+            .query_one(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("{}: {}", error_ctx, e)))?;
+        let row = row.ok_or_else(|| AppError::internal(format!("{} 无结果", error_ctx)))?;
+        let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
+        let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
+        Ok((count, amount))
+    }
+
+    /// 拼接 supplier_id 过滤片段并追加参数到 params
+    fn append_supplier_filter(
+        params: &mut Vec<sea_orm::Value>,
+        supplier_id: Option<i32>,
+    ) -> String {
+        supplier_id
+            .map(|sid| {
+                params.push(sid.into());
+                format!(" AND supplier_id = ${}", params.len())
+            })
+            .unwrap_or_default()
+    }
+
+    /// 当日新增应付单聚合查询
+    async fn query_new_invoice_aggregate(
+        &self,
+        report_date: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> Result<(i64, Decimal), AppError> {
+        let mut params: Vec<sea_orm::Value> = vec![report_date.into()];
+        let supplier_filter = Self::append_supplier_filter(&mut params, supplier_id);
+        let sql = format!(
+            r#"
+            SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS amt
+            FROM ap_invoice
+            WHERE invoice_date = $1{sf}
+            "#,
+            sf = supplier_filter
+        );
+        self.query_aggregate(params, sql, "应付日报新增聚合查询失败")
+            .await
+    }
+
+    /// 当日到期应付单聚合查询
+    async fn query_due_invoice_aggregate(
+        &self,
+        report_date: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> Result<(i64, Decimal), AppError> {
+        let mut params: Vec<sea_orm::Value> = vec![report_date.into(), Decimal::new(0, 2).into()];
+        let supplier_filter = Self::append_supplier_filter(&mut params, supplier_id);
+        let sql = format!(
+            r#"
+            SELECT COUNT(*) AS cnt, COALESCE(SUM(unpaid_amount), 0) AS amt
+            FROM ap_invoice
+            WHERE due_date = $1 AND unpaid_amount > $2{sf}
+            "#,
+            sf = supplier_filter
+        );
+        self.query_aggregate(params, sql, "应付日报到期聚合查询失败")
+            .await
+    }
+
+    /// 当日付款聚合查询
+    async fn query_payment_aggregate(
+        &self,
+        report_date: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> Result<(i64, Decimal), AppError> {
+        let mut params: Vec<sea_orm::Value> = vec![report_date.into(), "CONFIRMED".into()];
+        let supplier_filter = Self::append_supplier_filter(&mut params, supplier_id);
+        let sql = format!(
+            r#"
+            SELECT COUNT(*) AS cnt, COALESCE(SUM(payment_amount), 0) AS amt
+            FROM ap_payment
+            WHERE payment_date = $1 AND payment_status = $2{sf}
+            "#,
+            sf = supplier_filter
+        );
+        self.query_aggregate(params, sql, "应付日报付款聚合查询失败")
+            .await
     }
 
     /// 获取应付月报

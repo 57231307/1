@@ -137,40 +137,12 @@ impl WebhookService {
         payload: &str,
     ) -> Result<WebhookDeliveryResult, AppError> {
         let webhook = self.verify_ownership(user_id, webhook_id).await?;
-
-        if !webhook.is_active {
-            // 批次 109 P1-2：webhook 已禁用属于客户端配置错误，应返回 4xx 而非 200+success=false
-            return Err(AppError::business("Webhook 已禁用"));
-        }
-
-        // 检查事件是否匹配
-        let events: Vec<&str> = webhook.events.split(',').collect();
-        if !events.contains(&event) && !events.contains(&"*") {
-            // 批次 109 P1-2：事件不匹配属于客户端配置错误，应返回 4xx 而非 200+success=false
-            return Err(AppError::business(format!(
-                "事件不匹配：webhook 订阅事件为 [{}]，触发事件为 {}",
-                webhook.events, event
-            )));
-        }
+        Self::validate_webhook_event(&webhook, event)?;
 
         // 更新状态为发送中，并持久化 payload + event（批次 251 修复：支持 retry 重投原始数据）
-        let mut active_model: WebhookActiveModel = webhook.clone().into();
-        active_model.last_triggered_at = Set(Some(Utc::now()));
-        active_model.last_status = Set(Some("SENDING".to_string()));
-        active_model.last_payload = Set(Some(payload.to_string()));
-        active_model.last_event = Set(Some(event.to_string()));
-        active_model.updated_at = Set(Utc::now());
-        active_model.update(self.db.as_ref()).await?;
+        self.mark_webhook_sending(&webhook, event, payload).await?;
 
-        // 构建请求体
-        let webhook_payload = WebhookPayload {
-            event: event.to_string(),
-            timestamp: Utc::now().to_rfc3339(),
-            data: serde_json::from_str(payload)
-                .unwrap_or_else(|_| serde_json::json!({"raw": payload})),
-        };
-
-        let body = serde_json::to_string(&webhook_payload).unwrap_or_else(|_| payload.to_string());
+        let body = Self::build_webhook_request_body(event, payload);
 
         // 低危 #2 修复（SSRF 防护 + DNS Rebinding 防御）：发送前再次校验 URL
         // 防御 create 时解析为公网、trigger 时重新解析为内网的攻击
@@ -189,10 +161,66 @@ impl WebhookService {
             .await;
 
         // 更新最终状态（批次 251 修复：retry_count 对 HTTP 业务失败也计数，成功时重置为 0）
+        let final_model = Self::build_final_webhook_model(webhook, &result);
+        final_model.update(self.db.as_ref()).await?;
+
+        result
+    }
+
+    /// 校验 webhook 处于启用状态且订阅了触发事件
+    fn validate_webhook_event(webhook: &webhook::Model, event: &str) -> Result<(), AppError> {
+        if !webhook.is_active {
+            // 批次 109 P1-2：webhook 已禁用属于客户端配置错误，应返回 4xx 而非 200+success=false
+            return Err(AppError::business("Webhook 已禁用"));
+        }
+        let events: Vec<&str> = webhook.events.split(',').collect();
+        if !events.contains(&event) && !events.contains(&"*") {
+            // 批次 109 P1-2：事件不匹配属于客户端配置错误，应返回 4xx 而非 200+success=false
+            return Err(AppError::business(format!(
+                "事件不匹配：webhook 订阅事件为 [{}]，触发事件为 {}",
+                webhook.events, event
+            )));
+        }
+        Ok(())
+    }
+
+    /// 持久化发送中状态：last_triggered_at + SENDING + payload + event
+    async fn mark_webhook_sending(
+        &self,
+        webhook: &webhook::Model,
+        event: &str,
+        payload: &str,
+    ) -> Result<(), AppError> {
+        let mut active_model: WebhookActiveModel = webhook.clone().into();
+        active_model.last_triggered_at = Set(Some(Utc::now()));
+        active_model.last_status = Set(Some("SENDING".to_string()));
+        active_model.last_payload = Set(Some(payload.to_string()));
+        active_model.last_event = Set(Some(event.to_string()));
+        active_model.updated_at = Set(Utc::now());
+        active_model.update(self.db.as_ref()).await?;
+        Ok(())
+    }
+
+    /// 构建发送给 webhook 的 JSON 请求体
+    fn build_webhook_request_body(event: &str, payload: &str) -> String {
+        let webhook_payload = WebhookPayload {
+            event: event.to_string(),
+            timestamp: Utc::now().to_rfc3339(),
+            data: serde_json::from_str(payload)
+                .unwrap_or_else(|_| serde_json::json!({"raw": payload})),
+        };
+        serde_json::to_string(&webhook_payload).unwrap_or_else(|_| payload.to_string())
+    }
+
+    /// 依据发送结果构建最终状态 ActiveModel（含 retry_count 递增/重置与永久失败标记）
+    fn build_final_webhook_model(
+        webhook: webhook::Model,
+        result: &Result<WebhookDeliveryResult, AppError>,
+    ) -> WebhookActiveModel {
         let current_retry_count = webhook.retry_count;
         let mut final_model: WebhookActiveModel = webhook.into();
         final_model.updated_at = Set(Utc::now());
-        match &result {
+        match result {
             Ok(delivery) => {
                 if delivery.success {
                     // 发送成功：重置 retry_count 为 0
@@ -228,9 +256,7 @@ impl WebhookService {
                 }
             }
         }
-        final_model.update(self.db.as_ref()).await?;
-
-        result
+        final_model
     }
 
     /// 发送HTTP请求

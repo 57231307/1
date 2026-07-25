@@ -159,7 +159,7 @@ impl CollectionTaskService {
         req: AutoGenerateTasksRequest,
         assigned_by: i32,
     ) -> Result<Vec<collection_task::Model>, CollectionTaskError> {
-        let min_overdue_days = req.min_overdue_days.unwrap_or(1).max(1);
+        let min_overdue_days = req.min_overdue_days.unwrap_or(1).max(1) as i64;
         let as_of_date = req.as_of_date.unwrap_or_else(|| Utc::now().date_naive());
 
         let txn = (*self.db).begin().await?;
@@ -173,12 +173,29 @@ impl CollectionTaskService {
             .await?;
 
         // 按客户聚合（最大逾期天数代表催收紧迫度）
+        let customer_aggr = Self::aggregate_overdue_invoices(invoices, min_overdue_days, as_of_date);
+
+        let now = Utc::now();
+        let created = self
+            .generate_collection_tasks_for_customers(&txn, customer_aggr, now, assigned_by)
+            .await?;
+
+        txn.commit().await?;
+        Ok(created)
+    }
+
+    /// 按客户聚合逾期发票，返回按 customer_id 升序排序的聚合结果
+    fn aggregate_overdue_invoices(
+        invoices: Vec<ar_invoice::Model>,
+        min_overdue_days: i64,
+        as_of_date: chrono::NaiveDate,
+    ) -> Vec<CustomerOverdueAggr> {
         let mut customer_aggr: std::collections::HashMap<i64, CustomerOverdueAggr> =
             std::collections::HashMap::new();
 
         for inv in invoices {
             let overdue_days = (as_of_date - inv.due_date).num_days();
-            if overdue_days < min_overdue_days as i64 {
+            if overdue_days < min_overdue_days {
                 continue;
             }
             let customer_id = inv.customer_id as i64;
@@ -197,64 +214,88 @@ impl CollectionTaskService {
             }
         }
 
-        let now = Utc::now();
-        let today = now.date_naive();
-        let due_date = today + Duration::days(7);
-        let mut created: Vec<collection_task::Model> = Vec::new();
-
         // 按客户 ID 升序生成任务号，保证可预测
         let mut sorted: Vec<CustomerOverdueAggr> = customer_aggr.into_values().collect();
         sorted.sort_by_key(|a| a.customer_id);
+        sorted
+    }
 
+    /// 为每个聚合客户生成催收任务（含幂等检查与任务号生成）
+    async fn generate_collection_tasks_for_customers(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        customer_aggr: Vec<CustomerOverdueAggr>,
+        now: chrono::DateTime<chrono::Utc>,
+        assigned_by: i32,
+    ) -> Result<Vec<collection_task::Model>, CollectionTaskError> {
+        let today = now.date_naive();
+        let due_date = today + Duration::days(7);
+        let mut created: Vec<collection_task::Model> = Vec::new();
         // 单次扫描日期内序号从 1 开始递增（CT-YYYYMMDD-NNN）
         let mut seq: u32 = 0;
-        for aggr in sorted {
+        for aggr in customer_aggr {
             // 幂等检查：该客户已有 pending/in_progress 任务则跳过
-            let existing = Entity::find()
-                .filter(collection_task::Column::CustomerId.eq(aggr.customer_id))
-                .filter(
-                    collection_task::Column::Status
-                        .is_in([TaskStatus::Pending.as_str(), TaskStatus::InProgress.as_str()]),
-                )
-                .one(&txn)
-                .await?;
-            if existing.is_some() {
+            if Self::task_exists_for_customer(txn, aggr.customer_id).await? {
                 continue;
             }
-
             seq += 1;
             let task_no = format!("CT-{}-{:03}", today.format("%Y%m%d"), seq);
-            let task_type = TaskType::from_overdue_days(aggr.max_overdue_days);
-            let priority = TaskPriority::from_overdue_days(aggr.max_overdue_days);
-
-            let active = ActiveModel {
-                id: Default::default(),
-                task_no: Set(task_no),
-                customer_id: Set(aggr.customer_id),
-                ar_invoice_id: Set(aggr.ar_invoice_id),
-                overdue_amount: Set(aggr.total_overdue),
-                overdue_days: Set(aggr.max_overdue_days as i32),
-                task_type: Set(task_type.as_str().to_string()),
-                priority: Set(priority.as_str().to_string()),
-                due_date: Set(due_date),
-                assigned_to: Set(assigned_by),
-                assigned_at: Set(now),
-                assigned_by: Set(Some(assigned_by)),
-                status: Set(TaskStatus::Pending.as_str().to_string()),
-                contact_result: Set(None),
-                contact_at: Set(None),
-                next_action_date: Set(None),
-                next_action_type: Set(None),
-                remark: Set(None),
-                created_at: Set(now),
-                updated_at: Set(now),
-            };
-            let model = active.insert(&txn).await?;
+            let active = Self::build_collection_task_active(&aggr, task_no, due_date, assigned_by, now);
+            let model = active.insert(txn).await?;
             created.push(model);
         }
-
-        txn.commit().await?;
         Ok(created)
+    }
+
+    /// 幂等检查：该客户是否已有 pending/in_progress 任务
+    async fn task_exists_for_customer(
+        txn: &sea_orm::DatabaseTransaction,
+        customer_id: i64,
+    ) -> Result<bool, CollectionTaskError> {
+        let existing = Entity::find()
+            .filter(collection_task::Column::CustomerId.eq(customer_id))
+            .filter(
+                collection_task::Column::Status
+                    .is_in([TaskStatus::Pending.as_str(), TaskStatus::InProgress.as_str()]),
+            )
+            .one(txn)
+            .await?;
+        Ok(existing.is_some())
+    }
+
+    /// 由聚合结果构建催收任务 ActiveModel
+    fn build_collection_task_active(
+        aggr: &CustomerOverdueAggr,
+        task_no: String,
+        due_date: chrono::NaiveDate,
+        assigned_by: i32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> ActiveModel {
+        let task_type = TaskType::from_overdue_days(aggr.max_overdue_days);
+        let priority = TaskPriority::from_overdue_days(aggr.max_overdue_days);
+
+        ActiveModel {
+            id: Default::default(),
+            task_no: Set(task_no),
+            customer_id: Set(aggr.customer_id),
+            ar_invoice_id: Set(aggr.ar_invoice_id),
+            overdue_amount: Set(aggr.total_overdue),
+            overdue_days: Set(aggr.max_overdue_days as i32),
+            task_type: Set(task_type.as_str().to_string()),
+            priority: Set(priority.as_str().to_string()),
+            due_date: Set(due_date),
+            assigned_to: Set(assigned_by),
+            assigned_at: Set(now),
+            assigned_by: Set(Some(assigned_by)),
+            status: Set(TaskStatus::Pending.as_str().to_string()),
+            contact_result: Set(None),
+            contact_at: Set(None),
+            next_action_date: Set(None),
+            next_action_type: Set(None),
+            remark: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
     }
 
     /// 手动创建催收任务

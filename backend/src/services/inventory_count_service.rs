@@ -443,9 +443,46 @@ impl InventoryCountService {
             return Err(AppError::business("只有待审批状态的盘点单可以审批通过".to_string()));
         }
 
+        let (items, stock_map) = Self::load_count_items_and_stocks(&txn, count_id).await?;
+        Self::apply_stock_adjustments(&txn, &items, &stock_map).await?;
+
+        // 盘点单状态：approved → completed（审批后立即完成，简化流程）
+        let active = Self::build_completed_count_active(count_model, approver_id);
+        let updated = AuditLogService::update_with_audit::<
+            inventory_count::Entity,
+            inventory_count::ActiveModel,
+            _,
+        >(&txn, "inventory_count", active, Some(approver_id))
+        .await?;
+        txn.commit().await?;
+
+        // 批次 359 v13 复审 B-P1-2 修复：commit 成功后发布 InventoryCountCompleted 事件
+        // 原实现仅更新盘点单状态并同步库存，未通知下游订阅方（差异报告生成等），
+        // 导致盘点完成 → 差异报告归档的业务闭环断裂。
+        // 事件在 commit 后发布，避免事务回滚时已发布事件造成的幻事件。
+        // variance_count 取自盘点单 variance_items 字段（有差异的明细项数量）。
+        EVENT_BUS.publish(BusinessEvent::InventoryCountCompleted {
+            count_id: updated.id,
+            variance_count: updated.variance_items,
+        });
+
+        Ok(updated)
+    }
+
+    /// 加载盘点单明细及其涉及的库存记录，构建 stock_id -> Model 映射
+    async fn load_count_items_and_stocks(
+        txn: &sea_orm::DatabaseTransaction,
+        count_id: i32,
+    ) -> Result<
+        (
+            Vec<inventory_count_item::Model>,
+            std::collections::HashMap<i32, inventory_stock::Model>,
+        ),
+        AppError,
+    > {
         let items = inventory_count_item::Entity::find()
             .filter(inventory_count_item::Column::CountId.eq(count_id))
-            .all(&txn)
+            .all(txn)
             .await?;
 
         // 批量加载涉及的库存记录
@@ -455,14 +492,21 @@ impl InventoryCountService {
         } else {
             inventory_stock::Entity::find()
                 .filter(inventory_stock::Column::Id.is_in(stock_ids))
-                .all(&txn)
+                .all(txn)
                 .await?
         };
         let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
             stocks.into_iter().map(|s| (s.id, s)).collect();
+        Ok((items, stock_map))
+    }
 
-        // 对有差异的明细更新库存数量（使用乐观锁 version）
-        for item in &items {
+    /// 对有差异的明细更新库存数量（使用乐观锁 version）
+    async fn apply_stock_adjustments(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[inventory_count_item::Model],
+        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+    ) -> Result<(), AppError> {
+        for item in items {
             if item.quantity_difference == Decimal::ZERO {
                 continue;
             }
@@ -493,7 +537,7 @@ impl InventoryCountService {
                 )
                 .filter(inventory_stock::Column::Id.eq(item.stock_id))
                 .filter(inventory_stock::Column::Version.eq(expected_version))
-                .exec(&txn)
+                .exec(txn)
                 .await?;
             if result.rows_affected == 0 {
                 return Err(AppError::business(format!(
@@ -502,33 +546,21 @@ impl InventoryCountService {
                 )));
             }
         }
+        Ok(())
+    }
 
-        // 盘点单状态：approved → completed（审批后立即完成，简化流程）
+    /// 由盘点单构建 completed 状态 ActiveModel（审批后立即完成）
+    fn build_completed_count_active(
+        count_model: inventory_count::Model,
+        approver_id: i32,
+    ) -> inventory_count::ActiveModel {
         let mut active: inventory_count::ActiveModel = count_model.into();
         active.status = Set(count_status::COMPLETED.to_string());
         active.approved_by = Set(Some(approver_id));
         active.approved_at = Set(Some(Utc::now()));
         active.completed_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
-        let updated = AuditLogService::update_with_audit::<
-            inventory_count::Entity,
-            inventory_count::ActiveModel,
-            _,
-        >(&txn, "inventory_count", active, Some(approver_id))
-        .await?;
-        txn.commit().await?;
-
-        // 批次 359 v13 复审 B-P1-2 修复：commit 成功后发布 InventoryCountCompleted 事件
-        // 原实现仅更新盘点单状态并同步库存，未通知下游订阅方（差异报告生成等），
-        // 导致盘点完成 → 差异报告归档的业务闭环断裂。
-        // 事件在 commit 后发布，避免事务回滚时已发布事件造成的幻事件。
-        // variance_count 取自盘点单 variance_items 字段（有差异的明细项数量）。
-        EVENT_BUS.publish(BusinessEvent::InventoryCountCompleted {
-            count_id: updated.id,
-            variance_count: updated.variance_items,
-        });
-
-        Ok(updated)
+        active
     }
 
     /// 驳回审批，盘点单退回 pending 状态

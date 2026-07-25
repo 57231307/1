@@ -287,115 +287,140 @@ impl RolePermissionService {
         request: AssignPermissionRequest,
         user_id: i32,
     ) -> Result<RolePermissionDetail, AppError> {
-        // 检查角色是否存在
-        let role = RoleEntity::find_by_id(request.role_id)
+        // 校验角色存在且非系统角色
+        self.validate_assignable_role(request.role_id).await?;
+
+        // 查询现有权限记录（决定走更新还是新建分支）
+        let existing = self.find_existing_role_permission(&request).await?;
+
+        if let Some(perm) = existing {
+            // 更新现有权限路径
+            self.update_existing_permission(perm, &request, user_id)
+                .await
+        } else {
+            // 创建新权限路径
+            self.create_new_permission(&request, user_id).await
+        }
+    }
+
+    /// 校验角色存在且非系统角色（系统角色禁止改权限）
+    async fn validate_assignable_role(&self, role_id: i32) -> Result<(), AppError> {
+        let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", request.role_id)))?;
-
-        // 系统角色不允许修改权限
+            .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
         if role.is_system {
             return Err(AppError::business("系统角色不允许修改权限".to_string()));
         }
+        Ok(())
+    }
 
-        // 检查权限是否已存在
+    /// 按 role/resource_type/action/resource_id 查询现有权限记录
+    async fn find_existing_role_permission(
+        &self,
+        request: &AssignPermissionRequest,
+    ) -> Result<Option<role_permission::Model>, AppError> {
         let mut query = RolePermissionEntity::find()
             .filter(role_permission::Column::RoleId.eq(request.role_id))
             .filter(role_permission::Column::ResourceType.eq(&request.resource_type))
             .filter(role_permission::Column::Action.eq(&request.action));
-
         if let Some(resource_id) = request.resource_id {
             query = query.filter(role_permission::Column::ResourceId.eq(resource_id));
         } else {
             query = query.filter(role_permission::Column::ResourceId.is_null());
         }
-
         let existing = query.one(&*self.db).await?;
+        Ok(existing)
+    }
 
-        if let Some(perm) = existing {
-            // V15 P0-S06：保存旧 allowed 值用于审计日志
-            let old_allowed = perm.allowed;
-            // 更新现有权限
-            let mut perm_update: role_permission::ActiveModel = perm.into();
-            perm_update.allowed = sea_orm::ActiveValue::Set(request.allowed);
-            perm_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            let perm_entity =
-                crate::services::audit_log_service::AuditLogService::update_with_audit(
-                    &*self.db,
-                    "auto_audit",
-                    perm_update,
-                    // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-                    Some(user_id),
-                )
-                .await?;
-
-            // V15 P0-S07：权限变更后失效该角色的权限缓存
-            invalidate_permission_cache(request.role_id);
-
-            // V15 P0-S06：写入权限变更审计日志（best-effort，失败不阻塞主流程）
-            self.write_permission_audit(
-                "role_permission_assign",
-                user_id,
-                request.role_id,
-                &request.resource_type,
-                &request.action,
-                Some(old_allowed.to_string()),
-                Some(request.allowed.to_string()),
+    /// 更新现有权限并写入审计日志（V15 P0-S06/S07）
+    async fn update_existing_permission(
+        &self,
+        perm: role_permission::Model,
+        request: &AssignPermissionRequest,
+        user_id: i32,
+    ) -> Result<RolePermissionDetail, AppError> {
+        // 保存旧 allowed 值用于审计日志
+        let old_allowed = perm.allowed;
+        let mut perm_update: role_permission::ActiveModel = perm.into();
+        perm_update.allowed = sea_orm::ActiveValue::Set(request.allowed);
+        perm_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        let perm_entity =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &*self.db,
+                "auto_audit",
+                perm_update,
+                // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+                Some(user_id),
             )
-            .await;
+            .await?;
 
-            Ok(RolePermissionDetail {
-                id: perm_entity.id,
-                role_id: perm_entity.role_id,
-                resource_type: perm_entity.resource_type,
-                resource_id: perm_entity.resource_id,
-                action: perm_entity.action,
-                allowed: perm_entity.allowed,
-                created_at: perm_entity.created_at,
-                updated_at: perm_entity.updated_at,
-            })
-        } else {
-            // 创建新权限
-            let permission = role_permission::ActiveModel {
-                id: Default::default(),
-                role_id: sea_orm::ActiveValue::Set(request.role_id),
-                resource_type: sea_orm::ActiveValue::Set(request.resource_type),
-                resource_id: sea_orm::ActiveValue::Set(request.resource_id),
-                action: sea_orm::ActiveValue::Set(request.action),
-                allowed: sea_orm::ActiveValue::Set(request.allowed),
-                created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-            };
+        // 权限变更后失效该角色的权限缓存
+        invalidate_permission_cache(request.role_id);
 
-            let perm_entity = permission.insert(&*self.db).await?;
+        // 写入权限变更审计日志（best-effort，失败不阻塞主流程）
+        self.write_permission_audit(
+            "role_permission_assign",
+            user_id,
+            request.role_id,
+            &request.resource_type,
+            &request.action,
+            Some(old_allowed.to_string()),
+            Some(request.allowed.to_string()),
+        )
+        .await;
 
-            // V15 P0-S07：权限变更后失效该角色的权限缓存
-            invalidate_permission_cache(perm_entity.role_id);
+        Ok(Self::build_permission_detail(&perm_entity))
+    }
 
-            // V15 P0-S06：写入权限变更审计日志（新建权限，old_value=None）
-            // 注意：request.resource_type/action 已在 ActiveModel 构造时 move，
-            // 这里使用 perm_entity 的字段值（实际插入数据库的值）
-            self.write_permission_audit(
-                "role_permission_assign",
-                user_id,
-                perm_entity.role_id,
-                &perm_entity.resource_type,
-                &perm_entity.action,
-                None,
-                Some(perm_entity.allowed.to_string()),
-            )
-            .await;
+    /// 创建新权限并写入审计日志（V15 P0-S06/S07）
+    async fn create_new_permission(
+        &self,
+        request: &AssignPermissionRequest,
+        user_id: i32,
+    ) -> Result<RolePermissionDetail, AppError> {
+        let permission = role_permission::ActiveModel {
+            id: Default::default(),
+            role_id: sea_orm::ActiveValue::Set(request.role_id),
+            resource_type: sea_orm::ActiveValue::Set(request.resource_type.clone()),
+            resource_id: sea_orm::ActiveValue::Set(request.resource_id),
+            action: sea_orm::ActiveValue::Set(request.action.clone()),
+            allowed: sea_orm::ActiveValue::Set(request.allowed),
+            created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+        };
+        let perm_entity = permission.insert(&*self.db).await?;
 
-            Ok(RolePermissionDetail {
-                id: perm_entity.id,
-                role_id: perm_entity.role_id,
-                resource_type: perm_entity.resource_type,
-                resource_id: perm_entity.resource_id,
-                action: perm_entity.action,
-                allowed: perm_entity.allowed,
-                created_at: perm_entity.created_at,
-                updated_at: perm_entity.updated_at,
-            })
+        // 权限变更后失效该角色的权限缓存
+        invalidate_permission_cache(perm_entity.role_id);
+
+        // 写入权限变更审计日志（新建权限，old_value=None）
+        // 使用 perm_entity 的字段值（实际插入数据库的值）
+        self.write_permission_audit(
+            "role_permission_assign",
+            user_id,
+            perm_entity.role_id,
+            &perm_entity.resource_type,
+            &perm_entity.action,
+            None,
+            Some(perm_entity.allowed.to_string()),
+        )
+        .await;
+
+        Ok(Self::build_permission_detail(&perm_entity))
+    }
+
+    /// 由实体构建权限详情响应（String 字段 clone 避免 move）
+    fn build_permission_detail(entity: &role_permission::Model) -> RolePermissionDetail {
+        RolePermissionDetail {
+            id: entity.id,
+            role_id: entity.role_id,
+            resource_type: entity.resource_type.clone(),
+            resource_id: entity.resource_id,
+            action: entity.action.clone(),
+            allowed: entity.allowed,
+            created_at: entity.created_at,
+            updated_at: entity.updated_at,
         }
     }
 

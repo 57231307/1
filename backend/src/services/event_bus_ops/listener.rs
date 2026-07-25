@@ -25,282 +25,168 @@ use std::sync::Arc;
 pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Arc<dyn SearchClient>) {
     // 启动库存财务桥接服务监听器
     crate::services::inventory_finance_bridge_service::InventoryFinanceBridgeService::start_listener(db.clone());
-
-    // v14 批次 422 T-P1-7：启动染色成本桥接监听器
-    // 监听 DyeBatchCompleted 事件，自动创建成本归集草稿记录
+    // v14 批次 422 T-P1-7：启动染色成本桥接监听器（监听 DyeBatchCompleted 创建成本归集草稿）
     crate::services::dye_batch_cost_bridge_service::DyeBatchCostBridgeService::start_listener(db.clone());
-
     let mut receiver = EVENT_BUS.subscribe();
-
-    // 批次 125 v8 复审 P1 修复：search_client 移入 tokio::spawn 闭包，
-    // 供闭包内 SalesService::new(db, search_client) 实例化使用。
-    // L-28 修复（批次 373 v13 复审）：保存 spawn 句柄供 shutdown_event_bus() abort
+    // L-28 修复（批次 373）：保存 spawn 句柄供 shutdown_event_bus() abort
     let listener_handle = tokio::spawn(async move {
         while let Ok(event) = receiver.recv().await {
-            // 批次 7（2026-06-28）：单次事件处理 panic 隔离
-            // 主事件监听器是业务事件分发中枢，调用 8+ 个业务 service 方法
-            // （po_service.receive_order、ap_service.mark_as_paid、sales_service.approve_order 等），
-            // 任一 service 内部 panic 会导致整个事件分发永久停止，影响采购收货确认、
-            // AP/AR 发票状态更新、BPM 审批回写、低库存预警、缺料采购建议、财务指标计算。
+            // 批次 7：单次事件处理 panic 隔离，避免单个 service panic 导致整个事件分发永久停止
             let result = AssertUnwindSafe(async {
-            match event {
-                BusinessEvent::PurchaseReceiptCompleted { receipt_id, order_id, .. } => {
-                    handle_purchase_receipt_completed(db.clone(), receipt_id, order_id).await;
-                }
-                BusinessEvent::SalesOrderShipped { order_id, customer_id, .. } => {
-                    tracing::info!(
-                        "Event received: SalesOrderShipped for order {}, customer {}",
-                        order_id,
-                        customer_id
-                    );
-                    // P1 5-2 修复（批次 62）：销售发货事件触发财务指标刷新
-                    // 原监听器仅打日志无业务逻辑，销售发货→AR 生成后财务指标（应收/收入）未更新，
-                    // 导致财务看板数据滞后。发布 FinancialIndicatorUpdate 事件触发财务指标计算服务刷新。
-                    let period = chrono::Utc::now().format("%Y-%m").to_string();
-                    EVENT_BUS.publish(BusinessEvent::FinancialIndicatorUpdate {
-                        period,
-                        trigger_source: format!("sales_shipped:{}", order_id),
-                    });
-                }
-                BusinessEvent::PaymentCompleted { invoice_id, user_id: _, .. } => {
-                    tracing::info!(
-                        "Event received: PaymentCompleted for invoice {}",
-                        invoice_id
-                    );
-                    // B-P2-1 修复（批次 385 v13 复审）：移除冗余的 mark_as_paid 调用
-                    // 原实现：ap_payment_service::create_payment 已在事务内更新 ap_invoice 状态
-                    // （PAYMENT_PAID/PAYMENT_PARTIAL_PAID），commit 后发布事件，
-                    // 监听器又调用 mark_as_paid 重复更新状态，且状态门不包含 PAID 会导致报错。
-                    // 修复：仅记录日志，状态变更由 create_payment 事务内完成。
-                    // mark_as_paid 方法保留，供未来 handler 直接调用（手动标记已付款）。
-                    tracing::info!(
-                        "付款已完成，ap_invoice {} 状态已在 create_payment 事务内更新，无需重复调用 mark_as_paid",
-                        invoice_id
-                    );
-                }
-                BusinessEvent::PurchaseOrderApproved { order_id, .. } => {
-                    tracing::info!(
-                        "Event received: PurchaseOrderApproved for order {}",
-                        order_id
-                    );
-                }
-                BusinessEvent::CollectionCompleted {
-                    invoice_id: Some(inv_id),
-                    user_id: _,
-                    ..
-                } => {
-                    tracing::info!("Event received: CollectionCompleted for invoice {}", inv_id);
-                    // B-P2-1 修复（批次 385 v13 复审）：移除冗余的 mark_as_paid 调用
-                    // 原实现：ar_service::create_payment 已在事务内更新 ar_invoice 状态
-                    // （PAYMENT_PAID/PAYMENT_PARTIAL_PAID），commit 后发布事件，
-                    // 监听器又调用 mark_as_paid 重复更新状态，且状态门不包含 PAID 会导致报错。
-                    // 修复：仅记录日志，状态变更由 create_payment 事务内完成。
-                    // mark_as_paid 方法保留，供未来 handler 直接调用（手动标记已收款）。
-                    tracing::info!(
-                        "收款已完成，ar_invoice {} 状态已在 create_payment 事务内更新，无需重复调用 mark_as_paid",
-                        inv_id
-                    );
-                }
-                BusinessEvent::InventoryCountCompleted {
-                    count_id,
-                    variance_count,
-                } => {
-                    tracing::info!(
-                        "处理库存盘点完成事件，盘点单ID: {}, 差异数: {}",
-                        count_id,
-                        variance_count
-                    );
-                    tracing::info!(
-                        ">> [报告服务] 盘点单 {} 的差异报告(差异: {}) 已生成并存档",
-                        count_id,
-                        variance_count
-                    );
-                }
-                BusinessEvent::BpmProcessFinished {
-                    business_type,
-                    business_id,
-                    approved,
-                    approver_id,
-                } => {
-                    handle_bpm_process_finished(
-                        db.clone(),
-                        search_client.clone(),
-                        business_type,
-                        business_id,
-                        approved,
-                        approver_id,
-                    )
-                    .await;
-                }
-                BusinessEvent::LowStockAlert {
-                    product_id,
-                    warehouse_id,
-                    current_quantity,
-                    reorder_point,
-                    reorder_quantity,
-                } => {
-                    handle_low_stock_alert(
-                        db.clone(),
-                        product_id,
-                        warehouse_id,
-                        current_quantity,
-                        reorder_point,
-                        reorder_quantity,
-                    )
-                    .await;
-                }
-                BusinessEvent::FinancialIndicatorUpdate {
-                    period,
-                    trigger_source,
-                } => {
-                    handle_financial_indicator_update(db.clone(), period, trigger_source).await;
-                }
-                BusinessEvent::MaterialShortageAlert {
-                    material_id,
-                    material_name,
-                    material_code,
-                    required_quantity,
-                    available_quantity,
-                    shortage_quantity,
-                    shortage_level,
-                    affected_orders_count,
-                } => {
-                    handle_material_shortage_alert(
-                        db.clone(),
-                        material_id,
-                        material_name,
-                        material_code,
-                        required_quantity,
-                        available_quantity,
-                        shortage_quantity,
-                        shortage_level,
-                        affected_orders_count,
-                    )
-                    .await;
-                }
-                // B-P1-3 修复（批次 384 v13 复审）：客户主数据变更事件
-                // 异步刷新关联单据的 customer_name 冗余字段
-                BusinessEvent::CustomerUpdated {
-                    customer_id,
-                    customer_name,
-                    user_id: _,
-                } => {
-                    let db_clone = db.clone();
-                    let cid = customer_id;
-                    let cname = customer_name;
-                    tokio::spawn(async move {
-                        if let Err(e) =
-                            refresh_customer_name_redundancy(&db_clone, cid, &cname).await
-                        {
-                            tracing::warn!(
-                                "刷新客户 {} 关联单据冗余字段失败：{}",
-                                cid,
-                                e
-                            );
-                        }
-                    });
-                }
-                // B-P1-3 修复（批次 384 v13 复审）：供应商主数据变更事件
-                // 异步刷新关联单据的 supplier_name 冗余字段
-                BusinessEvent::SupplierUpdated {
-                    supplier_id,
-                    supplier_name,
-                    user_id: _,
-                } => {
-                    let db_clone = db.clone();
-                    let sid = supplier_id;
-                    let sname = supplier_name;
-                    tokio::spawn(async move {
-                        if let Err(e) =
-                            refresh_supplier_name_redundancy(&db_clone, sid, &sname).await
-                        {
-                            tracing::warn!(
-                                "刷新供应商 {} 关联单据冗余字段失败：{}",
-                                sid,
-                                e
-                            );
-                        }
-                    });
-                }
-                // v14 批次 420 修复 G-P1-3：显式处理 InventoryTransactionCreated 事件
-                // 原实现 `_ => {}` 静默吞掉该事件，违背事件贯通原则。
-                // 凭证生成主链路已由独立的 inventory_finance_bridge_service 监听器负责，
-                // 主监听器侧仅打 debug 日志（避免与桥接监听器重复生成凭证）。
-                BusinessEvent::InventoryTransactionCreated {
-                    transaction_id,
-                    transaction_type,
-                    product_id,
-                    warehouse_id,
-                    ..
-                } => {
-                    tracing::debug!(
-                        transaction_id,
-                        transaction_type = %transaction_type,
-                        product_id,
-                        warehouse_id,
-                        "主监听器收到 InventoryTransactionCreated（凭证生成由库存财务桥接监听器独立处理）"
-                    );
-                }
-                // v14 批次 420 修复 T-P1-3：染色完成事件分支
-                // 当前仅打日志记录事件到达，后续可在该分支触发质检单生成等下游业务。
-                BusinessEvent::DyeBatchCompleted {
-                    batch_id,
-                    batch_no,
-                    color_no,
-                    ..
-                } => {
-                    tracing::info!(
-                        batch_id,
-                        batch_no = %batch_no,
-                        color_no = ?color_no,
-                        "收到染色完成事件（DyeBatchCompleted），可触发质检单生成/成本结转"
-                    );
-                }
-                // v14 批次 420 修复 T-P1-3：质检完成事件分支
-                BusinessEvent::QualityInspectionCompleted {
-                    inspection_id,
-                    batch_id,
-                    product_id,
-                    result,
-                    ..
-                } => {
-                    tracing::info!(
-                        inspection_id,
-                        batch_id = ?batch_id,
-                        product_id,
-                        result = %result,
-                        "收到质检完成事件（QualityInspectionCompleted），可触发库存入库/成本结转"
-                    );
-                }
-                // 批次 342 v11 复审 P3 修复：移除过时的 #[allow(unreachable_patterns)]，
-                // v14 批次 420 修复 G-P1-3：将 `_ => {}` 改为打 warn 日志，
-                // 防止未来新增事件变体被静默吞掉。
-                _ => {
-                    tracing::warn!("主监听器收到未处理的事件变体: {:?}", event);
-                }
-            }
-            });  // 批次 7：AssertUnwindSafe(async { ... }) 闭合
+                dispatch_event(db.clone(), search_client.clone(), event).await;
+            });
             let result = result.catch_unwind().await;
-
-            // 批次 7：panic 隔离后的结果处理
-            if let Err(panic_payload) = result {
-                let panic_msg = panic_payload
-                    .downcast_ref::<String>()
-                    .map(|s| s.as_str())
-                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                    .unwrap_or("<非字符串 panic payload>");
-                tracing::error!(
-                    panic = %panic_msg,
-                    "⚠ 事件总线主监听器 spawn 任务内 panic 已被隔离，事件分发继续运行（不退出循环）"
-                );
-            }
+            handle_panic_result(result);
         }
     });
-
-    // L-28 修复（批次 373 v13 复审）：保存主监听器句柄到全局 static
     if let Ok(mut guard) = MAIN_LISTENER_HANDLE.lock() {
         *guard = Some(listener_handle);
     }
+}
+
+/// 事件分发中枢：按 BusinessEvent 变体调用对应 handler
+async fn dispatch_event(
+    db: Arc<DatabaseConnection>,
+    search_client: Arc<dyn SearchClient>,
+    event: BusinessEvent,
+) {
+    match event {
+        BusinessEvent::PurchaseReceiptCompleted { receipt_id, order_id, .. } =>
+            handle_purchase_receipt_completed(db, receipt_id, order_id).await,
+        BusinessEvent::SalesOrderShipped { order_id, customer_id, .. } =>
+            handle_sales_order_shipped(order_id, customer_id),
+        BusinessEvent::PaymentCompleted { invoice_id, .. } =>
+            handle_payment_completed(invoice_id),
+        BusinessEvent::PurchaseOrderApproved { order_id, .. } =>
+            tracing::info!("Event received: PurchaseOrderApproved for order {}", order_id),
+        BusinessEvent::CollectionCompleted { invoice_id: Some(inv_id), .. } =>
+            handle_collection_completed(inv_id),
+        BusinessEvent::InventoryCountCompleted { count_id, variance_count } =>
+            handle_inventory_count_completed(count_id, variance_count),
+        BusinessEvent::BpmProcessFinished { business_type, business_id, approved, approver_id } =>
+            handle_bpm_process_finished(db, search_client, business_type, business_id, approved, approver_id).await,
+        BusinessEvent::LowStockAlert { product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity } =>
+            handle_low_stock_alert(db, product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity).await,
+        BusinessEvent::FinancialIndicatorUpdate { period, trigger_source } =>
+            handle_financial_indicator_update(db, period, trigger_source).await,
+        BusinessEvent::MaterialShortageAlert {
+            material_id, material_name, material_code, required_quantity,
+            available_quantity, shortage_quantity, shortage_level, affected_orders_count,
+        } => handle_material_shortage_alert(
+            db, material_id, material_name, material_code, required_quantity,
+            available_quantity, shortage_quantity, shortage_level, affected_orders_count,
+        ).await,
+        // B-P1-3 修复（批次 384）：客户主数据变更，异步刷新关联单据冗余字段
+        BusinessEvent::CustomerUpdated { customer_id, customer_name, .. } =>
+            spawn_customer_name_refresh(db, customer_id, customer_name),
+        // B-P1-3 修复（批次 384）：供应商主数据变更，异步刷新关联单据冗余字段
+        BusinessEvent::SupplierUpdated { supplier_id, supplier_name, .. } =>
+            spawn_supplier_name_refresh(db, supplier_id, supplier_name),
+        // v14 批次 420 G-P1-3：显式处理，凭证生成由库存财务桥接监听器独立处理
+        BusinessEvent::InventoryTransactionCreated { transaction_id, transaction_type, product_id, warehouse_id, .. } =>
+            tracing::debug!(
+                transaction_id, transaction_type = %transaction_type, product_id, warehouse_id,
+                "主监听器收到 InventoryTransactionCreated（凭证生成由库存财务桥接监听器独立处理）"
+            ),
+        // v14 批次 420 T-P1-3：染色完成事件分支
+        BusinessEvent::DyeBatchCompleted { batch_id, batch_no, color_no, .. } =>
+            tracing::info!(
+                batch_id, batch_no = %batch_no, color_no = ?color_no,
+                "收到染色完成事件（DyeBatchCompleted），可触发质检单生成/成本结转"
+            ),
+        // v14 批次 420 T-P1-3：质检完成事件分支
+        BusinessEvent::QualityInspectionCompleted { inspection_id, batch_id, product_id, result, .. } =>
+            tracing::info!(
+                inspection_id, batch_id = ?batch_id, product_id, result = %result,
+                "收到质检完成事件（QualityInspectionCompleted），可触发库存入库/成本结转"
+            ),
+        // v14 批次 420 G-P1-3：未识别变体打 warn 日志，防止静默吞掉
+        _ => tracing::warn!("主监听器收到未处理的事件变体: {:?}", event),
+    }
+}
+
+/// 批次 7：panic 隔离后的结果处理，记录 panic 信息但不退出循环
+fn handle_panic_result(result: Result<(), Box<dyn std::any::Any + Send>>) {
+    if let Err(panic_payload) = result {
+        let panic_msg = panic_payload
+            .downcast_ref::<String>()
+            .map(|s| s.as_str())
+            .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+            .unwrap_or("<非字符串 panic payload>");
+        tracing::error!(
+            panic = %panic_msg,
+            "⚠ 事件总线主监听器 spawn 任务内 panic 已被隔离，事件分发继续运行（不退出循环）"
+        );
+    }
+}
+
+/// 处理销售发货事件：发布 FinancialIndicatorUpdate 触发财务指标刷新
+///
+/// P1 5-2 修复（批次 62）：原监听器仅打日志无业务逻辑，销售发货→AR 生成后
+/// 财务指标（应收/收入）未更新导致财务看板数据滞后。
+fn handle_sales_order_shipped(order_id: i32, customer_id: i32) {
+    tracing::info!(
+        "Event received: SalesOrderShipped for order {}, customer {}",
+        order_id, customer_id
+    );
+    let period = chrono::Utc::now().format("%Y-%m").to_string();
+    EVENT_BUS.publish(BusinessEvent::FinancialIndicatorUpdate {
+        period,
+        trigger_source: format!("sales_shipped:{}", order_id),
+    });
+}
+
+/// 处理付款完成事件：仅记录日志（状态变更由 create_payment 事务内完成）
+///
+/// B-P2-1 修复（批次 385）：移除冗余的 mark_as_paid 调用，
+/// ap_payment_service::create_payment 已在事务内更新 ap_invoice 状态。
+fn handle_payment_completed(invoice_id: i32) {
+    tracing::info!("Event received: PaymentCompleted for invoice {}", invoice_id);
+    tracing::info!(
+        "付款已完成，ap_invoice {} 状态已在 create_payment 事务内更新，无需重复调用 mark_as_paid",
+        invoice_id
+    );
+}
+
+/// 处理收款完成事件：仅记录日志（状态变更由 create_payment 事务内完成）
+///
+/// B-P2-1 修复（批次 385）：移除冗余的 mark_as_paid 调用，
+/// ar_service::create_payment 已在事务内更新 ar_invoice 状态。
+fn handle_collection_completed(inv_id: i32) {
+    tracing::info!("Event received: CollectionCompleted for invoice {}", inv_id);
+    tracing::info!(
+        "收款已完成，ar_invoice {} 状态已在 create_payment 事务内更新，无需重复调用 mark_as_paid",
+        inv_id
+    );
+}
+
+/// 处理库存盘点完成事件：记录日志（差异报告已由报告服务生成存档）
+fn handle_inventory_count_completed(count_id: i32, variance_count: i32) {
+    tracing::info!(
+        "处理库存盘点完成事件，盘点单ID: {}, 差异数: {}", count_id, variance_count
+    );
+    tracing::info!(
+        ">> [报告服务] 盘点单 {} 的差异报告(差异: {}) 已生成并存档",
+        count_id, variance_count
+    );
+}
+
+/// 异步刷新客户关联单据的 customer_name 冗余字段（B-P1-3 修复，批次 384）
+fn spawn_customer_name_refresh(db: Arc<DatabaseConnection>, customer_id: i32, customer_name: String) {
+    tokio::spawn(async move {
+        if let Err(e) = refresh_customer_name_redundancy(&db, customer_id, &customer_name).await {
+            tracing::warn!("刷新客户 {} 关联单据冗余字段失败：{}", customer_id, e);
+        }
+    });
+}
+
+/// 异步刷新供应商关联单据的 supplier_name 冗余字段（B-P1-3 修复，批次 384）
+fn spawn_supplier_name_refresh(db: Arc<DatabaseConnection>, supplier_id: i32, supplier_name: String) {
+    tokio::spawn(async move {
+        if let Err(e) = refresh_supplier_name_redundancy(&db, supplier_id, &supplier_name).await {
+            tracing::warn!("刷新供应商 {} 关联单据冗余字段失败：{}", supplier_id, e);
+        }
+    });
 }
 
 // ============================================================================
@@ -450,12 +336,24 @@ async fn handle_low_stock_alert(
         "处理低库存预警事件: 产品ID={}, 仓库ID={}, 当前库存={}, 补货点={}, 建议补货量={}",
         product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity
     );
-    // B-P1-8 修复（批次 366 v13 复审）：幂等键含日期，同产品同仓库同一天仅处理一次低库存预警
+    if !check_low_stock_idempotency(db.clone(), product_id, warehouse_id).await {
+        return;
+    }
+    create_low_stock_purchase_suggestion(
+        db.clone(), product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity,
+    ).await;
+    send_low_stock_notifications(
+        db, product_id, warehouse_id, current_quantity, reorder_point,
+    ).await;
+}
+
+/// 低库存预警幂等校验：同产品同仓库同一天仅处理一次（B-P1-8 修复，批次 366）
+async fn check_low_stock_idempotency(db: Arc<DatabaseConnection>, product_id: i32, warehouse_id: i32) -> bool {
     let idempotency_service =
-        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+        crate::services::event_idempotency_service::EventIdempotencyService::new(db);
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let event_key = format!("low_stock:{}:{}:{}", product_id, warehouse_id, today);
-    let should_process = match idempotency_service
+    match idempotency_service
         .try_mark_processed("event_bus_main", &event_key, "LowStockAlert")
         .await
     {
@@ -467,12 +365,19 @@ async fn handle_low_stock_alert(
             );
             false
         }
-    };
-    if !should_process {
-        return;
     }
-    // 创建采购建议
-    let po_service = crate::services::po::order::PurchaseOrderService::new(db.clone());
+}
+
+/// 创建低库存采购建议
+async fn create_low_stock_purchase_suggestion(
+    db: Arc<DatabaseConnection>,
+    product_id: i32,
+    warehouse_id: i32,
+    current_quantity: rust_decimal::Decimal,
+    reorder_point: rust_decimal::Decimal,
+    reorder_quantity: rust_decimal::Decimal,
+) {
+    let po_service = crate::services::po::order::PurchaseOrderService::new(db);
     match po_service
         .create_purchase_suggestion(product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity)
         .await
@@ -480,48 +385,21 @@ async fn handle_low_stock_alert(
         Ok(order) => tracing::info!("成功创建采购建议: 订单ID={}, 订单号={}", order.id, order.order_no),
         Err(e) => tracing::error!("创建采购建议失败: {}", e),
     }
+}
 
-    // 发送低库存预警通知给仓库管理员和采购人员
+/// 发送低库存预警通知给 admin/manager 角色用户
+async fn send_low_stock_notifications(
+    db: Arc<DatabaseConnection>,
+    product_id: i32,
+    warehouse_id: i32,
+    current_quantity: rust_decimal::Decimal,
+    reorder_point: rust_decimal::Decimal,
+) {
+    let product_name = load_product_name(db.as_ref(), product_id).await;
+    let notify_user_ids = load_admin_manager_user_ids(db.as_ref()).await;
+    let notify_count = notify_user_ids.len();
     let notification_service =
         crate::services::event_notification_service::EventNotificationService::new(db.clone());
-    let product_name = crate::models::product::Entity::find_by_id(product_id)
-        .one(db.as_ref())
-        .await
-        .ok()
-        .flatten()
-        .map(|p| p.name)
-        .unwrap_or_else(|| format!("产品{}", product_id));
-
-    // P2 5-19 修复：按角色过滤通知用户，仅通知 admin 和 manager 角色
-    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
-    let target_role_ids: Vec<i32> = crate::models::role::Entity::find()
-        .filter(
-            crate::models::role::Column::Code
-                .eq(ADMIN_ROLE_CODE)
-                .or(crate::models::role::Column::Code.eq(MANAGER_ROLE_CODE)),
-        )
-        .all(db.as_ref())
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .map(|r| r.id)
-        .collect();
-
-    let notify_user_ids = if target_role_ids.is_empty() {
-        Vec::new()
-    } else {
-        crate::models::user::Entity::find()
-            .filter(crate::models::user::Column::IsActive.eq(true))
-            .filter(crate::models::user::Column::RoleId.is_in(target_role_ids))
-            .all(db.as_ref())
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(|u| u.id)
-            .collect::<Vec<i32>>()
-    };
-
-    let notify_count = notify_user_ids.len();
     // v17 批次 47 修复：改用批量通知方法，循环外一次获取所有用户设置（避免 N+1）
     if let Err(e) = notification_service
         .notify_inventory_alert_batch(
@@ -534,14 +412,53 @@ async fn handle_low_stock_alert(
         .await
     {
         tracing::error!(
-            "发送低库存预警批量通知失败: 通知人数={}, 错误={}",
-            notify_count, e
+            "发送低库存预警批量通知失败: 通知人数={}, 错误={}", notify_count, e
         );
     }
     tracing::info!(
         "低库存预警通知已发送: 产品={}, 仓库ID={}, 通知人数={}",
         product_name, warehouse_id, notify_count
     );
+}
+
+/// 加载产品名称，查询失败时回退为"产品{id}"
+async fn load_product_name(db: &DatabaseConnection, product_id: i32) -> String {
+    crate::models::product::Entity::find_by_id(product_id)
+        .one(db)
+        .await
+        .ok()
+        .flatten()
+        .map(|p| p.name)
+        .unwrap_or_else(|| format!("产品{}", product_id))
+}
+
+/// 加载 admin 和 manager 角色的活跃用户 ID 列表（P2 5-19 修复）
+async fn load_admin_manager_user_ids(db: &DatabaseConnection) -> Vec<i32> {
+    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
+    let target_role_ids: Vec<i32> = crate::models::role::Entity::find()
+        .filter(
+            crate::models::role::Column::Code
+                .eq(ADMIN_ROLE_CODE)
+                .or(crate::models::role::Column::Code.eq(MANAGER_ROLE_CODE)),
+        )
+        .all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| r.id)
+        .collect();
+    if target_role_ids.is_empty() {
+        return Vec::new();
+    }
+    crate::models::user::Entity::find()
+        .filter(crate::models::user::Column::IsActive.eq(true))
+        .filter(crate::models::user::Column::RoleId.is_in(target_role_ids))
+        .all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|u| u.id)
+        .collect()
 }
 
 /// 处理缺料预警事件：幂等校验后创建缺料采购建议

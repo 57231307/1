@@ -56,52 +56,109 @@ impl SchedulingService {
     ) -> Result<AutoScheduleResult, AppError> {
         let work_centers = self.load_active_work_centers(&req.work_center_ids).await?;
         let pending_orders = self.load_pending_orders().await?;
-
         if pending_orders.is_empty() {
-            return Ok(AutoScheduleResult {
-                scheduled_count: 0,
-                conflicts: Vec::new(),
-                gantt_data: GanttData {
-                    items: Vec::new(),
-                    work_centers: work_centers
-                        .iter()
-                        .map(|wc| WorkCenterInfo {
-                            id: wc.id,
-                            code: Some(wc.code.clone()),
-                            name: wc.name.clone(),
-                            status: Some(wc.status.clone()),
-                        })
-                        .collect(),
-                    date_range: Some(DateRange {
-                        start: Utc::now().date_naive(),
-                        end: Utc::now().date_naive(),
-                    }),
-                    schedule_details: None,
-                },
-                total_orders: Some(0),
-                scheduled_orders: Some(Vec::new()),
-                unscheduled_orders: Some(Vec::new()),
-                schedule_details: Some(Vec::new()),
-                id: None,
-                batch_no: None,
-            });
+            return Ok(Self::build_empty_result(&work_centers));
         }
-
-        let mut sorted_orders = pending_orders.clone();
-        let strategy = req.algo.as_str();
-        match strategy {
-            "priority" => sorted_orders.sort_by_key(|o| o.priority),
-            "fifo" => sorted_orders.sort_by_key(|o| o.created_at),
-            "earliest_due" => {
-                sorted_orders.sort_by_key(|o| o.planned_end_date.unwrap_or(NaiveDate::MAX));
+        let sorted_orders = Self::sort_orders_by_strategy(pending_orders.clone(), &req.algo);
+        let wc_capacity = Self::build_wc_capacity_map(&work_centers);
+        let mut wc_schedule = Self::init_wc_schedule(&wc_capacity);
+        let mut wc_available = Self::build_wc_available_capacity(&work_centers);
+        let mut scheduled_details: Vec<ScheduleDetail> = Vec::new();
+        let mut conflicts: Vec<ScheduleConflict> = Vec::new();
+        let mut scheduled_count = 0;
+        let start_date = req.start_date;
+        for order in &sorted_orders {
+            let wc_id = Self::resolve_work_center_id(order, &work_centers);
+            if wc_id == 0 || !wc_capacity.contains_key(&wc_id) {
+                conflicts.push(Self::build_no_work_center_conflict(order));
+                continue;
             }
-            _ => sorted_orders.sort_by_key(|o| o.priority),
+            let cap = &wc_capacity[&wc_id];
+            if order.planned_quantity.is_zero() {
+                continue;
+            }
+            let available = wc_available.get(&wc_id).copied().unwrap_or(Decimal::ZERO);
+            if order.planned_quantity > available {
+                conflicts.push(Self::build_capacity_conflict(
+                    order, wc_id, &cap.name, order.planned_quantity, available,
+                ));
+                continue;
+            }
+            wc_available.insert(wc_id, available - order.planned_quantity);
+            let days_needed = Self::compute_days_needed(order.planned_quantity, cap.daily_capacity);
+            let schedule = wc_schedule.entry(wc_id).or_default();
+            let assigned_start = self.find_earliest_slot(schedule, start_date, days_needed);
+            let assigned_end = assigned_start + Duration::days(days_needed - 1);
+            if Self::has_schedule_overlap(schedule, assigned_start, assigned_end) {
+                conflicts.push(Self::build_overlap_conflict(order, wc_id, &cap.name));
+            }
+            schedule.push((assigned_start, assigned_end, order.id, order.order_no.clone()));
+            scheduled_details.push(Self::build_schedule_detail(
+                order, wc_id, &cap.name, assigned_start, assigned_end,
+            ));
+            scheduled_count += 1;
         }
+        let gantt_data = self.build_gantt_data(&scheduled_details, &work_centers);
+        Ok(Self::build_schedule_result(
+            scheduled_count, pending_orders.len(), scheduled_details, conflicts, gantt_data,
+        ))
+    }
 
-        let mut wc_capacity: HashMap<i32, WorkCenterCapacity> = HashMap::new();
-        for wc in &work_centers {
+    /// 构建空排程结果（无待排程工单时返回）
+    fn build_empty_result(work_centers: &[WorkCenterModel]) -> AutoScheduleResult {
+        AutoScheduleResult {
+            scheduled_count: 0,
+            conflicts: Vec::new(),
+            gantt_data: GanttData {
+                items: Vec::new(),
+                work_centers: work_centers
+                    .iter()
+                    .map(|wc| WorkCenterInfo {
+                        id: wc.id,
+                        code: Some(wc.code.clone()),
+                        name: wc.name.clone(),
+                        status: Some(wc.status.clone()),
+                    })
+                    .collect(),
+                date_range: Some(DateRange {
+                    start: Utc::now().date_naive(),
+                    end: Utc::now().date_naive(),
+                }),
+                schedule_details: None,
+            },
+            total_orders: Some(0),
+            scheduled_orders: Some(Vec::new()),
+            unscheduled_orders: Some(Vec::new()),
+            schedule_details: Some(Vec::new()),
+            id: None,
+            batch_no: None,
+        }
+    }
+
+    /// 按策略排序待排程工单
+    fn sort_orders_by_strategy(
+        mut orders: Vec<ProductionOrderModel>,
+        algo: &str,
+    ) -> Vec<ProductionOrderModel> {
+        match algo {
+            "priority" => orders.sort_by_key(|o| o.priority),
+            "fifo" => orders.sort_by_key(|o| o.created_at),
+            "earliest_due" => {
+                orders.sort_by_key(|o| o.planned_end_date.unwrap_or(NaiveDate::MAX));
+            }
+            _ => orders.sort_by_key(|o| o.priority),
+        }
+        orders
+    }
+
+    /// 构建工作中心产能映射
+    fn build_wc_capacity_map(
+        work_centers: &[WorkCenterModel],
+    ) -> HashMap<i32, WorkCenterCapacity> {
+        let mut map = HashMap::new();
+        for wc in work_centers {
             let daily_cap = wc.daily_capacity.unwrap_or(Decimal::new(100, 0));
-            wc_capacity.insert(
+            map.insert(
                 wc.id,
                 WorkCenterCapacity {
                     id: wc.id,
@@ -115,146 +172,151 @@ impl SchedulingService {
                 },
             );
         }
+        map
+    }
 
-        let mut wc_schedule: HashMap<i32, Vec<(NaiveDate, NaiveDate, i32, String)>> =
-            HashMap::new();
-        for wc_id in wc_capacity.keys() {
-            wc_schedule.insert(*wc_id, Vec::new());
-        }
+    /// 初始化工作中心排程表
+    fn init_wc_schedule(
+        wc_capacity: &HashMap<i32, WorkCenterCapacity>,
+    ) -> HashMap<i32, Vec<(NaiveDate, NaiveDate, i32, String)>> {
+        wc_capacity.keys().map(|&wc_id| (wc_id, Vec::new())).collect()
+    }
 
-        let start_date = req.start_date;
-        let mut scheduled_details: Vec<ScheduleDetail> = Vec::new();
-        let mut conflicts: Vec<ScheduleConflict> = Vec::new();
-        let mut scheduled_count = 0;
-
-        // 获取每个工作中心的可用产能信息
-        let mut wc_available_capacity: HashMap<i32, Decimal> = HashMap::new();
-        for wc in &work_centers {
+    /// 构建工作中心可用产能映射（假设排程周期 30 天）
+    fn build_wc_available_capacity(
+        work_centers: &[WorkCenterModel],
+    ) -> HashMap<i32, Decimal> {
+        let mut map = HashMap::new();
+        for wc in work_centers {
             let daily_cap = wc.daily_capacity.unwrap_or(Decimal::new(100, 0));
             // 假设排程周期为30天，计算总可用产能
-            let total_capacity = daily_cap * Decimal::from(30);
-            wc_available_capacity.insert(wc.id, total_capacity);
+            map.insert(wc.id, daily_cap * Decimal::from(30));
         }
+        map
+    }
 
-        for order in &sorted_orders {
-            let quantity = order.planned_quantity;
-            let wc_id = order.work_center_id.unwrap_or_else(|| {
-                if let Some(first_wc) = work_centers.first() {
-                    first_wc.id
-                } else {
-                    0
-                }
-            });
+    /// 解析工单的工作中心 ID（未指定时取首个工作中心）
+    fn resolve_work_center_id(
+        order: &ProductionOrderModel,
+        work_centers: &[WorkCenterModel],
+    ) -> i32 {
+        order.work_center_id.unwrap_or_else(|| {
+            work_centers.first().map(|wc| wc.id).unwrap_or(0)
+        })
+    }
 
-            if wc_id == 0 || !wc_capacity.contains_key(&wc_id) {
-                conflicts.push(ScheduleConflict {
-                    conflict_type: "NO_WORK_CENTER".to_string(),
-                    order_id: order.id,
-                    order_no: Some(order.order_no.clone()),
-                    conflicting_order_id: None,
-                    conflicting_order_no: None,
-                    work_center_id: 0,
-                    work_center_name: None,
-                    description: format!("工单 {} 未指定有效工作中心", order.order_no),
-                    severity: Some("HIGH".to_string()),
-                });
-                continue;
-            }
-
-            let cap = &wc_capacity[&wc_id];
-            if quantity.is_zero() {
-                continue;
-            }
-
-            // 检查工作中心可用产能是否充足
-            let available = wc_available_capacity
-                .get(&wc_id)
-                .copied()
-                .unwrap_or(Decimal::ZERO);
-            if quantity > available {
-                conflicts.push(ScheduleConflict {
-                    conflict_type: "CAPACITY_INSUFFICIENT".to_string(),
-                    order_id: order.id,
-                    order_no: Some(order.order_no.clone()),
-                    conflicting_order_id: None,
-                    conflicting_order_no: None,
-                    work_center_id: wc_id,
-                    work_center_name: Some(cap.name.clone()),
-                    description: format!(
-                        "工单 {} 需要产能 {}，工作中心 {} 可用产能不足（剩余 {}）",
-                        order.order_no, quantity, cap.name, available
-                    ),
-                    severity: Some("HIGH".to_string()),
-                });
-                continue;
-            }
-
-            // 更新工作中心已用产能
-            wc_available_capacity.insert(wc_id, available - quantity);
-
-            let days_needed = if cap.daily_capacity.is_zero() {
-                1
-            } else {
-                let d = quantity / cap.daily_capacity;
-                let rounded = d.round();
-                let val = rounded.to_string().parse::<i64>().unwrap_or(1);
-                val.max(1)
-            };
-            let days_needed = days_needed.max(1);
-
-            let schedule = wc_schedule.entry(wc_id).or_default();
-            let assigned_start = self.find_earliest_slot(schedule, start_date, days_needed);
-            let assigned_end = assigned_start + Duration::days(days_needed - 1);
-
-            let has_overlap = schedule
-                .iter()
-                .any(|(s, e, _, _)| !(assigned_end < *s || assigned_start > *e));
-
-            if has_overlap {
-                conflicts.push(ScheduleConflict {
-                    conflict_type: "TIME_OVERLAP".to_string(),
-                    order_id: order.id,
-                    order_no: Some(order.order_no.clone()),
-                    conflicting_order_id: None,
-                    conflicting_order_no: None,
-                    work_center_id: wc_id,
-                    work_center_name: Some(cap.name.clone()),
-                    description: format!(
-                        "工单 {} 在工作中心 {} 存在时间重叠",
-                        order.order_no, wc_id
-                    ),
-                    severity: Some("MEDIUM".to_string()),
-                });
-            }
-
-            schedule.push((
-                assigned_start,
-                assigned_end,
-                order.id,
-                order.order_no.clone(),
-            ));
-
-            let wc_name = cap.name.clone();
-            scheduled_details.push(ScheduleDetail {
-                order_id: order.id,
-                order_no: Some(order.order_no.clone()),
-                work_center_id: wc_id,
-                work_center_name: Some(wc_name),
-                planned_start: assigned_start,
-                planned_end: assigned_end,
-                start_date: Some(assigned_start),
-                end_date: Some(assigned_end),
-                status: Some("SCHEDULED".to_string()),
-            });
-
-            scheduled_count += 1;
+    /// 构建"无有效工作中心"冲突
+    fn build_no_work_center_conflict(order: &ProductionOrderModel) -> ScheduleConflict {
+        ScheduleConflict {
+            conflict_type: "NO_WORK_CENTER".to_string(),
+            order_id: order.id,
+            order_no: Some(order.order_no.clone()),
+            conflicting_order_id: None,
+            conflicting_order_no: None,
+            work_center_id: 0,
+            work_center_name: None,
+            description: format!("工单 {} 未指定有效工作中心", order.order_no),
+            severity: Some("HIGH".to_string()),
         }
+    }
 
-        let gantt_data = self.build_gantt_data(&scheduled_details, &work_centers);
+    /// 构建"产能不足"冲突
+    fn build_capacity_conflict(
+        order: &ProductionOrderModel,
+        wc_id: i32,
+        wc_name: &str,
+        quantity: Decimal,
+        available: Decimal,
+    ) -> ScheduleConflict {
+        ScheduleConflict {
+            conflict_type: "CAPACITY_INSUFFICIENT".to_string(),
+            order_id: order.id,
+            order_no: Some(order.order_no.clone()),
+            conflicting_order_id: None,
+            conflicting_order_no: None,
+            work_center_id: wc_id,
+            work_center_name: Some(wc_name.to_string()),
+            description: format!(
+                "工单 {} 需要产能 {}，工作中心 {} 可用产能不足（剩余 {}）",
+                order.order_no, quantity, wc_name, available
+            ),
+            severity: Some("HIGH".to_string()),
+        }
+    }
 
-        Ok(AutoScheduleResult {
+    /// 计算工单所需天数（至少 1 天）
+    fn compute_days_needed(quantity: Decimal, daily_capacity: Decimal) -> i64 {
+        if daily_capacity.is_zero() {
+            return 1;
+        }
+        let d = quantity / daily_capacity;
+        let rounded = d.round();
+        let val = rounded.to_string().parse::<i64>().unwrap_or(1);
+        val.max(1)
+    }
+
+    /// 检查排程是否存在时间重叠
+    fn has_schedule_overlap(
+        schedule: &[(NaiveDate, NaiveDate, i32, String)],
+        assigned_start: NaiveDate,
+        assigned_end: NaiveDate,
+    ) -> bool {
+        schedule
+            .iter()
+            .any(|(s, e, _, _)| !(assigned_end < *s || assigned_start > *e))
+    }
+
+    /// 构建"时间重叠"冲突
+    fn build_overlap_conflict(
+        order: &ProductionOrderModel,
+        wc_id: i32,
+        wc_name: &str,
+    ) -> ScheduleConflict {
+        ScheduleConflict {
+            conflict_type: "TIME_OVERLAP".to_string(),
+            order_id: order.id,
+            order_no: Some(order.order_no.clone()),
+            conflicting_order_id: None,
+            conflicting_order_no: None,
+            work_center_id: wc_id,
+            work_center_name: Some(wc_name.to_string()),
+            description: format!("工单 {} 在工作中心 {} 存在时间重叠", order.order_no, wc_id),
+            severity: Some("MEDIUM".to_string()),
+        }
+    }
+
+    /// 构建排程明细
+    fn build_schedule_detail(
+        order: &ProductionOrderModel,
+        wc_id: i32,
+        wc_name: &str,
+        assigned_start: NaiveDate,
+        assigned_end: NaiveDate,
+    ) -> ScheduleDetail {
+        ScheduleDetail {
+            order_id: order.id,
+            order_no: Some(order.order_no.clone()),
+            work_center_id: wc_id,
+            work_center_name: Some(wc_name.to_string()),
+            planned_start: assigned_start,
+            planned_end: assigned_end,
+            start_date: Some(assigned_start),
+            end_date: Some(assigned_end),
+            status: Some("SCHEDULED".to_string()),
+        }
+    }
+
+    /// 构建最终排程结果
+    fn build_schedule_result(
+        scheduled_count: i32,
+        total_orders: usize,
+        scheduled_details: Vec<ScheduleDetail>,
+        conflicts: Vec<ScheduleConflict>,
+        gantt_data: GanttData,
+    ) -> AutoScheduleResult {
+        AutoScheduleResult {
             scheduled_count,
-            total_orders: Some(pending_orders.len() as i32),
+            total_orders: Some(total_orders as i32),
             scheduled_orders: Some(scheduled_details.clone()),
             unscheduled_orders: Some(vec![]),
             schedule_details: Some(scheduled_details),
@@ -262,7 +324,7 @@ impl SchedulingService {
             gantt_data,
             id: None,
             batch_no: None,
-        })
+        }
     }
 
     /// 检测排程冲突

@@ -72,36 +72,64 @@ impl QuotationService {
     ) -> Result<sales_quotation::Model, ServiceError> {
         // 1. 生成 quotation_no（QT + YYYYMMDD + 4 位序号）
         let quotation_no = self.generate_quotation_no().await?;
-
         // 2. 计算金额
         let (subtotal, tax_amount, total_amount) = self.calculate_totals(&dto)?;
-
         // 3. 业务校验
         self.validate_create(&dto)?;
-
         // 4. 开始事务
         let txn = self.db.begin().await?;
-
         // 5. 插入主表
         let now = Utc::now();
-        let active = QuotationActive {
+        let active = Self::build_quotation_active(
+            quotation_no,
+            &dto,
+            user_id,
+            (subtotal, tax_amount, total_amount),
+            now,
+        );
+        let result = active.insert(&txn).await?;
+        // 6. 插入明细：批量 INSERT
+        let item_models = Self::build_item_active_models(&dto.items, result.id);
+        Self::insert_items(&txn, item_models).await?;
+        // 7. 插入贸易条款：批量 INSERT
+        if let Some(terms) = dto.terms {
+            let term_models = Self::build_term_active_models(terms, result.id);
+            Self::insert_terms(&txn, term_models).await?;
+        }
+        // 8. 提交事务
+        txn.commit().await?;
+        Ok(result)
+    }
+
+    // ===== create_draft 私有 helpers =====
+
+    /// 构建报价单主表 ActiveModel
+    fn build_quotation_active(
+        quotation_no: String,
+        dto: &CreateQuotationDto,
+        user_id: i64,
+        totals: (Decimal, Decimal, Decimal),
+        now: chrono::DateTime<Utc>,
+    ) -> QuotationActive {
+        let (subtotal, tax_amount, total_amount) = totals;
+        QuotationActive {
             id: Default::default(),
             quotation_no: Set(quotation_no),
             customer_id: Set(dto.customer_id),
             sales_user_id: Set(dto.sales_user_id),
             quotation_date: Set(dto.quotation_date),
             valid_until: Set(dto.valid_until),
-            currency: Set(dto.currency),
+            currency: Set(dto.currency.clone()),
             exchange_rate: Set(dto.exchange_rate),
-            base_currency: Set(dto.base_currency),
-            price_terms: Set(dto.price_terms),
-            incoterms_version: Set(dto.incoterms_version),
-            incoterm_location: Set(dto.incoterm_location),
+            base_currency: Set(dto.base_currency.clone()),
+            price_terms: Set(dto.price_terms.clone()),
+            incoterms_version: Set(dto.incoterms_version.clone()),
+            incoterm_location: Set(dto.incoterm_location.clone()),
             tax_inclusive: Set(dto.tax_inclusive),
             tax_rate: Set(dto.tax_rate),
             moq: Set(dto.moq),
             lead_time_days: Set(dto.lead_time_days),
-            customer_level: Set(dto.customer_level),
+            customer_level: Set(dto.customer_level.clone()),
             subtotal: Set(subtotal),
             tax_amount: Set(tax_amount),
             total_amount: Set(total_amount),
@@ -112,19 +140,23 @@ impl QuotationService {
             rejection_reason: Set(None),
             converted_sales_order_id: Set(None),
             converted_at: Set(None),
-            notes: Set(dto.notes),
+            notes: Set(dto.notes.clone()),
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
-        };
-        let result = active.insert(&txn).await?;
+        }
+    }
 
-        // 6. 插入明细：改用 insert_many 批量 INSERT（原为循环内逐条 insert 导致 N 条=N 次 INSERT）
-        let mut item_active_models: Vec<ItemActive> = Vec::with_capacity(dto.items.len());
-        for (idx, item_dto) in dto.items.iter().enumerate() {
-            item_active_models.push(ItemActive {
+    /// 构建报价单明细 ActiveModel 列表
+    fn build_item_active_models(
+        items: &[CreateQuotationItemDto],
+        quotation_id: i32,
+    ) -> Vec<ItemActive> {
+        let mut models: Vec<ItemActive> = Vec::with_capacity(items.len());
+        for (idx, item_dto) in items.iter().enumerate() {
+            models.push(ItemActive {
                 id: Default::default(),
-                quotation_id: Set(result.id),
+                quotation_id: Set(quotation_id),
                 product_id: Set(item_dto.product_id),
                 color_id: Set(item_dto.color_id),
                 color_code: Set(None),
@@ -152,36 +184,47 @@ impl QuotationService {
                 sequence: Set(idx as i32),
             });
         }
-        if !item_active_models.is_empty() {
-            ItemEntity::insert_many(item_active_models)
-                .exec(&txn)
-                .await?;
+        models
+    }
+
+    /// 批量插入报价单明细
+    async fn insert_items(
+        txn: &sea_orm::DatabaseTransaction,
+        models: Vec<ItemActive>,
+    ) -> Result<(), ServiceError> {
+        if !models.is_empty() {
+            ItemEntity::insert_many(models).exec(txn).await?;
         }
+        Ok(())
+    }
 
-        // 7. 插入贸易条款：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
-        if let Some(terms) = dto.terms {
-            if !terms.is_empty() {
-                let term_active_models: Vec<TermActive> = terms
-                    .into_iter()
-                    .map(|term| TermActive {
-                        id: Default::default(),
-                        quotation_id: Set(result.id),
-                        term_type: Set(term.term_type),
-                        term_key: Set(term.term_key),
-                        term_value: Set(term.term_value),
-                        sequence: Set(term.sequence),
-                    })
-                    .collect();
-                TermEntity::insert_many(term_active_models)
-                    .exec(&txn)
-                    .await?;
-            }
+    /// 构建报价单贸易条款 ActiveModel 列表
+    fn build_term_active_models(
+        terms: Vec<CreateQuotationTermDto>,
+        quotation_id: i32,
+    ) -> Vec<TermActive> {
+        terms
+            .into_iter()
+            .map(|term| TermActive {
+                id: Default::default(),
+                quotation_id: Set(quotation_id),
+                term_type: Set(term.term_type),
+                term_key: Set(term.term_key),
+                term_value: Set(term.term_value),
+                sequence: Set(term.sequence),
+            })
+            .collect()
+    }
+
+    /// 批量插入报价单贸易条款
+    async fn insert_terms(
+        txn: &sea_orm::DatabaseTransaction,
+        models: Vec<TermActive>,
+    ) -> Result<(), ServiceError> {
+        if !models.is_empty() {
+            TermEntity::insert_many(models).exec(txn).await?;
         }
-
-        // 8. 提交事务
-        txn.commit().await?;
-
-        Ok(result)
+        Ok(())
     }
 
     /// 列表查询（分页 + 过滤）

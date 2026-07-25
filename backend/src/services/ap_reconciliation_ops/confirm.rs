@@ -44,30 +44,64 @@ impl ApReconciliationService {
             )));
         }
 
-        // 3. 确认对账单
+        // 3. 确认对账单（带审计）
+        let reconciliation = Self::apply_confirmed_status(&txn, reconciliation, user_id).await?;
+        txn.commit().await?;
+
+        // 4. 生成对账确认凭证（失败仅 warn 不阻断主流程）
+        self.try_create_confirmation_voucher(&reconciliation, user_id)
+            .await;
+
+        Ok(reconciliation)
+    }
+
+    /// 写入 CONFIRMED 状态并附审计日志
+    async fn apply_confirmed_status(
+        txn: &sea_orm::DatabaseTransaction,
+        reconciliation: ap_reconciliation::Model,
+        user_id: i32,
+    ) -> Result<ap_reconciliation::Model, AppError> {
         let now = Utc::now();
         let mut reconciliation_active: ap_reconciliation::ActiveModel = reconciliation.into();
         reconciliation_active.reconciliation_status = Set(reconciliation_status::CONFIRMED.to_string());
         reconciliation_active.confirmed_by = Set(Some(user_id));
         reconciliation_active.confirmed_at = Set(Some(now));
 
-        let reconciliation =
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                reconciliation_active,
-                Some(user_id),
-            )
-            .await?;
+        Ok(crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            reconciliation_active,
+            Some(user_id),
+        )
+        .await?)
+    }
 
-        txn.commit().await?;
+    /// 生成对账确认凭证（失败仅 warn 不阻断主流程）
+    ///
+    /// F-P2-4 修复（批次 387 v13 复审）：commit 成功后生成转账凭证
+    ///（借贷均为应付账款，金额=期末余额），作为对账确认的审计凭证，不改变账面净余额。
+    async fn try_create_confirmation_voucher(
+        &self,
+        reconciliation: &ap_reconciliation::Model,
+        user_id: i32,
+    ) {
+        let voucher_req = Self::build_confirmation_voucher_request(reconciliation);
+        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+            tracing::warn!(
+                "对账单 {} 确认成功，但生成对账确认凭证失败：{}",
+                reconciliation.reconciliation_no,
+                e
+            );
+        }
+    }
 
-        // F-P2-4 修复（批次 387 v13 复审）：对账单确认后生成对账确认凭证
-        // 原实现 confirm_reconciliation 仅更新对账单状态，不生成凭证，
-        // 导致对账确认结果无法在凭证体系中追溯。
-        // 修复：commit 成功后生成转账凭证（借贷均为应付账款，金额=期末余额），
-        // 作为对账确认的审计凭证，不改变账面净余额。失败时仅 warn 不阻断主流程。
-        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+    /// 构建对账确认凭证请求
+    fn build_confirmation_voucher_request(
+        reconciliation: &ap_reconciliation::Model,
+    ) -> crate::services::voucher_service::CreateVoucherRequest {
+        let summary = format!("对账确认-{}", reconciliation.reconciliation_no);
+        crate::services::voucher_service::CreateVoucherRequest {
             voucher_type: "转".to_string(),
             voucher_date: reconciliation.end_date,
             source_type: Some("AP_RECONCILIATION".to_string()),
@@ -77,60 +111,41 @@ impl ApReconciliationService {
             batch_no: None,
             color_no: None,
             items: vec![
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(1),
-                    subject_code: Some("2202".to_string()),
-                    subject_name: Some("应付账款".to_string()),
-                    debit: reconciliation.closing_balance,
-                    credit: Decimal::ZERO,
-                    summary: Some(format!("对账确认-{}", reconciliation.reconciliation_no)),
-                    assist_customer_id: None,
-                    assist_supplier_id: Some(reconciliation.supplier_id),
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(2),
-                    subject_code: Some("2202".to_string()),
-                    subject_name: Some("应付账款".to_string()),
-                    debit: Decimal::ZERO,
-                    credit: reconciliation.closing_balance,
-                    summary: Some(format!("对账确认-{}", reconciliation.reconciliation_no)),
-                    assist_customer_id: None,
-                    assist_supplier_id: Some(reconciliation.supplier_id),
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
+                Self::build_voucher_item(1, reconciliation.closing_balance, Decimal::ZERO, &summary, reconciliation.supplier_id),
+                Self::build_voucher_item(2, Decimal::ZERO, reconciliation.closing_balance, &summary, reconciliation.supplier_id),
             ],
-        };
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
-        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
-            tracing::warn!(
-                "对账单 {} 确认成功，但生成对账确认凭证失败：{}",
-                reconciliation.reconciliation_no,
-                e
-            );
         }
+    }
 
-        Ok(reconciliation)
+    /// 构建对账确认凭证分录
+    fn build_voucher_item(
+        line_no: i32,
+        debit: Decimal,
+        credit: Decimal,
+        summary: &str,
+        supplier_id: i32,
+    ) -> crate::services::voucher_service::VoucherItemRequest {
+        crate::services::voucher_service::VoucherItemRequest {
+            line_no: Some(line_no),
+            subject_code: Some("2202".to_string()),
+            subject_name: Some("应付账款".to_string()),
+            debit,
+            credit,
+            summary: Some(summary.to_string()),
+            assist_customer_id: None,
+            assist_supplier_id: Some(supplier_id),
+            assist_department_id: None,
+            assist_employee_id: None,
+            assist_project_id: None,
+            assist_batch_id: None,
+            assist_color_no_id: None,
+            assist_dye_lot_id: None,
+            assist_grade: None,
+            assist_workshop_id: None,
+            quantity_meters: None,
+            quantity_kg: None,
+            unit_price: None,
+        }
     }
 
     /// 提出争议

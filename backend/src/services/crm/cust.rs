@@ -25,7 +25,26 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
+
+// 订单聚合行：(customer_id, order_count, last_order_at, total_amount)
+type OrderAggRow = (
+    i32,
+    i64,
+    Option<chrono::DateTime<chrono::Utc>>,
+    Option<rust_decimal::Decimal>,
+);
+// 客户订单统计：(order_count, last_order_at, total_amount_f64)
+type CustomerOrderStats = (i64, Option<chrono::DateTime<chrono::Utc>>, f64);
+
+/// RFM 评分分桶聚合结果
+struct RfmBuckets {
+    vip: u64,
+    important: u64,
+    normal: u64,
+    low_value: u64,
+}
 
 /// CRM 服务
 pub struct CrmService {
@@ -302,115 +321,130 @@ impl CrmService {
     /// - 在内存中按 compute_rfm_score 相同规则计算每个客户的 RFM 评分
     /// - 按评分分桶聚合：VIP(>=4.5) / 重要(>=3.5) / 一般(>=2.5) / 低价值(<2.5)
     pub async fn get_rfm_distribution(&self) -> Result<serde_json::Value, AppError> {
-        use rust_decimal::prelude::ToPrimitive;
-        use sea_orm::sea_query::Expr;
-        use std::collections::HashMap;
-
-        // 订单聚合行：(customer_id, order_count, last_order_at, total_amount)
-        // 提取 type 别名避免 clippy type_complexity 警告
-        type OrderAggRow = (
-            i32,
-            i64,
-            Option<chrono::DateTime<chrono::Utc>>,
-            Option<rust_decimal::Decimal>,
-        );
-        // 客户订单统计：(order_count, last_order_at, total_amount_f64)
-        type CustomerOrderStats = (i64, Option<chrono::DateTime<chrono::Utc>>, f64);
-
         // 1. 查询所有客户 ID（含无订单客户，评分 = 1.0）
         let customers: Vec<customer::Model> = CustomerEntity::find().all(&*self.db).await?;
         let customer_ids: Vec<i32> = customers.iter().map(|c| c.id).collect();
 
-        // 2. 查询所有客户的订单聚合（按 customer_id 分组：订单数 + 最近订单时间 + 总金额）
-        let order_aggs: Vec<OrderAggRow> = SalesOrderEntity::find()
+        // 2. 查询所有客户的订单聚合
+        let order_aggs = Self::query_order_aggregations(&*self.db).await?;
+
+        // 3. 构建 customer_id -> CustomerOrderStats 映射
+        let order_map = Self::build_order_map(order_aggs);
+
+        // 4. 计算每个客户的 RFM 评分并分桶
+        let buckets = Self::compute_rfm_buckets(&customer_ids, &order_map);
+
+        // 5. 返回分布 JSON
+        Ok(serde_json::json!({
+            "VIP": buckets.vip,
+            "重要": buckets.important,
+            "一般": buckets.normal,
+            "低价值": buckets.low_value,
+            "total_customers": customer_ids.len() as u64,
+        }))
+    }
+
+    /// 查询所有客户的订单聚合（按 customer_id 分组：订单数 + 最近订单时间 + 总金额）
+    async fn query_order_aggregations(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<OrderAggRow>, AppError> {
+        use sea_orm::sea_query::Expr;
+        let rows: Vec<OrderAggRow> = SalesOrderEntity::find()
             .select_only()
             .column(SalesOrderColumn::CustomerId)
             .column_as(Expr::col(SalesOrderColumn::Id).count(), "order_count")
-            .column_as(
-                Expr::col(SalesOrderColumn::CreatedAt).max(),
-                "last_order_at",
-            )
+            .column_as(Expr::col(SalesOrderColumn::CreatedAt).max(), "last_order_at")
             .column_as(
                 Expr::col(SalesOrderColumn::TotalAmount).sum(),
                 "total_amount",
             )
             .group_by(SalesOrderColumn::CustomerId)
             .into_tuple()
-            .all(&*self.db)
+            .all(db)
             .await?;
+        Ok(rows)
+    }
 
-        // 3. 构建 customer_id -> CustomerOrderStats 映射
-        let order_map: HashMap<i32, CustomerOrderStats> = order_aggs
+    /// 构建 customer_id -> CustomerOrderStats 映射
+    fn build_order_map(order_aggs: Vec<OrderAggRow>) -> HashMap<i32, CustomerOrderStats> {
+        use rust_decimal::prelude::ToPrimitive;
+        order_aggs
             .into_iter()
             .map(|(cid, count, last_order, total)| {
                 let total_f64 = total.and_then(|d| d.to_f64()).unwrap_or(0.0);
                 (cid, (count, last_order, total_f64))
             })
-            .collect();
+            .collect()
+    }
 
-        // 4. 计算每个客户的 RFM 评分并分桶（评分规则与 compute_rfm_score 完全一致）
-        let mut vip_count = 0u64;
-        let mut important_count = 0u64;
-        let mut normal_count = 0u64;
-        let mut low_value_count = 0u64;
+    /// 计算单个客户的 RFM 综合评分（评分规则与 compute_rfm_score 一致）
+    fn score_rfm(
+        order_count: i64,
+        last_order_at: Option<chrono::DateTime<chrono::Utc>>,
+        total_amount: f64,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> f64 {
+        // R: Recency - 最近一次订单距今天数
+        let r_score = last_order_at
+            .map(|dt| {
+                let days_since = (now - dt).num_days();
+                match days_since {
+                    0..=30 => 5.0,
+                    31..=60 => 4.0,
+                    61..=90 => 3.0,
+                    91..=180 => 2.0,
+                    _ => 1.0,
+                }
+            })
+            .unwrap_or(1.0);
 
+        // F: Frequency - 历史订单数
+        let f_score = match order_count {
+            0 => 1.0,
+            1..=2 => 2.0,
+            3..=5 => 3.0,
+            6..=10 => 4.0,
+            _ => 5.0,
+        };
+
+        // M: Monetary - 总消费金额
+        let m_score = match total_amount {
+            t if t >= 1_000_000.0 => 5.0,
+            t if t >= 500_000.0 => 4.0,
+            t if t >= 100_000.0 => 3.0,
+            t if t >= 10_000.0 => 2.0,
+            _ => 1.0,
+        };
+
+        (r_score + f_score + m_score) / 3.0
+    }
+
+    /// 按评分分桶聚合所有客户（VIP >= 4.5 / 重要 >= 3.5 / 一般 >= 2.5 / 低价值 < 2.5）
+    fn compute_rfm_buckets(
+        customer_ids: &[i32],
+        order_map: &HashMap<i32, CustomerOrderStats>,
+    ) -> RfmBuckets {
         let now = chrono::Utc::now();
-        for cid in &customer_ids {
+        let mut buckets = RfmBuckets {
+            vip: 0,
+            important: 0,
+            normal: 0,
+            low_value: 0,
+        };
+        for cid in customer_ids {
             let (order_count, last_order_at, total_amount) =
                 order_map.get(cid).copied().unwrap_or((0, None, 0.0));
-
-            // R: Recency - 最近一次订单距今天数
-            let r_score = last_order_at
-                .map(|dt| {
-                    let days_since = (now - dt).num_days();
-                    match days_since {
-                        0..=30 => 5.0,
-                        31..=60 => 4.0,
-                        61..=90 => 3.0,
-                        91..=180 => 2.0,
-                        _ => 1.0,
-                    }
-                })
-                .unwrap_or(1.0);
-
-            // F: Frequency - 历史订单数
-            let f_score = match order_count {
-                0 => 1.0,
-                1..=2 => 2.0,
-                3..=5 => 3.0,
-                6..=10 => 4.0,
-                _ => 5.0,
-            };
-
-            // M: Monetary - 总消费金额
-            let m_score = match total_amount {
-                t if t >= 1_000_000.0 => 5.0,
-                t if t >= 500_000.0 => 4.0,
-                t if t >= 100_000.0 => 3.0,
-                t if t >= 10_000.0 => 2.0,
-                _ => 1.0,
-            };
-
-            let score = (r_score + f_score + m_score) / 3.0;
-
-            // 分桶（VIP >= 4.5 / 重要 >= 3.5 / 一般 >= 2.5 / 低价值 < 2.5）
+            let score = Self::score_rfm(order_count, last_order_at, total_amount, now);
             if score >= 4.5 {
-                vip_count += 1;
+                buckets.vip += 1;
             } else if score >= 3.5 {
-                important_count += 1;
+                buckets.important += 1;
             } else if score >= 2.5 {
-                normal_count += 1;
+                buckets.normal += 1;
             } else {
-                low_value_count += 1;
+                buckets.low_value += 1;
             }
         }
-
-        Ok(serde_json::json!({
-            "VIP": vip_count,
-            "重要": important_count,
-            "一般": normal_count,
-            "低价值": low_value_count,
-            "total_customers": customer_ids.len() as u64,
-        }))
+        buckets
     }
 }

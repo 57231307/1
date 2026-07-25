@@ -6,46 +6,127 @@
 
 use crate::models::{role, role_conflict, role_permission};
 use crate::services::init_service::{InitError, InitService};
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use tracing::warn;
+
+/// 管理层（gm/deputy_gm）共享的只读资源列表
+///
+/// 两者权限完全一致，提取为常量避免重复。
+const EXECUTIVE_RESOURCES: &[(&str, &str)] = &[
+    ("users", "read"), ("roles", "read"), ("departments", "read"),
+    ("products", "read"), ("orders", "read"), ("customers", "read"),
+    ("suppliers", "read"), ("inventory", "read"), ("purchase-orders", "read"),
+    ("production-orders", "read"), ("dye-batches", "read"), ("dye-recipes", "read"),
+    ("quality-inspections", "read"), ("fabric-inspections", "read"),
+    ("vouchers", "read"), ("ar", "read"), ("ap", "read"), ("gl", "read"),
+    ("budgets", "read"), ("cost-collections", "read"),
+    ("crm-leads", "read"), ("crm-opportunities", "read"),
+    ("logistics", "read"), ("employees", "read"), ("wages", "read"),
+    ("reports", "read"), ("bi-analysis", "read"), ("dashboard", "read"),
+    // V15 P0-S26：AI 域只读权限（管理层可查看所有 AI 分析结果）
+    ("ai-forecast", "read"), ("ai-inventory-opt", "read"), ("ai-anomaly", "read"),
+    ("ai-recommendation", "read"), ("ai-recipe-opt", "read"), ("ai-quality-pred", "read"),
+    ("ai-process-opt", "read"), ("ai-summary", "read"),
+];
 
 impl InitService {
     /// 创建全部角色的 role_permission 权限矩阵（V15 P0-S03/S04/S20，覆盖 60+ 资源 × 11 操作码）
     pub(crate) async fn create_default_role_permissions(&self) -> Result<(), InitError> {
-        // 检查 role_permission 表是否已有记录，避免重复插入
-        let existing_count = role_permission::Entity::find()
-            .count(self.db.as_ref())
-            .await
-            .unwrap_or(0);
-        if existing_count > 0 {
+        if Self::existing_permissions_count(self.db.as_ref()).await? > 0 {
             return Ok(());
         }
-
         let now = chrono::Utc::now();
+        let role_groups: &[&[(&str, &[(&str, &str)])]] = &[
+            Self::management_role_permissions(),
+            Self::executive_role_permissions(),
+            Self::sales_role_permissions(),
+            Self::purchase_role_permissions(),
+            Self::inventory_role_permissions(),
+            Self::production_role_permissions_part1(),
+            Self::production_role_permissions_part2(),
+            Self::quality_role_permissions(),
+            Self::finance_role_permissions(),
+            Self::crm_role_permissions(),
+            Self::logistics_role_permissions(),
+            Self::hr_role_permissions(),
+            Self::safety_role_permissions(),
+            Self::it_role_permissions(),
+            Self::admin_role_permissions(),
+        ];
+        let perms = Self::collect_permission_models(self.db.as_ref(), role_groups, now).await?;
+        Self::insert_role_permissions(self.db.as_ref(), perms).await;
+        Ok(())
+    }
 
-        // 辅助函数：为指定角色 code 生成权限记录
-        let make_perms = |role_id: i32, resources: &[(&str, &str)]| -> Vec<role_permission::ActiveModel> {
-            resources
-                .iter()
-                .map(|(resource, action)| role_permission::ActiveModel {
-                    id: Default::default(),
-                    role_id: Set(role_id),
-                    resource_type: Set(resource.to_string()),
-                    resource_id: Set(None),
-                    action: Set(action.to_string()),
-                    allowed: Set(true),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                })
-                .collect()
-        };
+    /// 检查 role_permission 表已有记录数（幂等判断）
+    async fn existing_permissions_count(db: &DatabaseConnection) -> Result<u64, InitError> {
+        role_permission::Entity::find()
+            .count(db)
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("查询 role_permission 失败: {}", e)))
+    }
 
+    /// 为指定角色生成权限 ActiveModel 列表
+    fn make_permission_models(
+        role_id: i32,
+        resources: &[(&str, &str)],
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Vec<role_permission::ActiveModel> {
+        resources
+            .iter()
+            .map(|(resource, action)| role_permission::ActiveModel {
+                id: Default::default(),
+                role_id: Set(role_id),
+                resource_type: Set(resource.to_string()),
+                resource_id: Set(None),
+                action: Set(action.to_string()),
+                allowed: Set(true),
+                created_at: Set(now),
+                updated_at: Set(now),
+            })
+            .collect()
+    }
+
+    /// 逐个角色查询 id 并生成权限记录
+    async fn collect_permission_models(
+        db: &DatabaseConnection,
+        role_groups: &[&[(&str, &[(&str, &str)])]],
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<role_permission::ActiveModel>, InitError> {
         let mut perms: Vec<role_permission::ActiveModel> = Vec::new();
+        for group in role_groups {
+            for (role_code, resources) in *group {
+                let role_model = role::Entity::find()
+                    .filter(role::Column::Code.eq(*role_code))
+                    .one(db)
+                    .await
+                    .map_err(|e| {
+                        InitError::DatabaseError(format!("查询 {} 角色失败: {}", role_code, e))
+                    })?;
+                if let Some(r) = role_model {
+                    perms.extend(Self::make_permission_models(r.id, resources, now));
+                }
+            }
+        }
+        Ok(perms)
+    }
 
-        // V15 P0-S20 修复：扩展权限矩阵至 60+ 类资源
-        // 定义所有需要配置权限的角色及其资源-操作列表
-        let role_permissions: &[(&str, &[(&str, &str)])] = &[
-            // manager：部门经理，跨业务域读取 + 本域全部操作
+    /// 批量插入角色权限（失败仅警告，可能部分已存在）
+    async fn insert_role_permissions(
+        db: &DatabaseConnection,
+        perms: Vec<role_permission::ActiveModel>,
+    ) {
+        if perms.is_empty() {
+            return;
+        }
+        if let Err(e) = role_permission::Entity::insert_many(perms).exec(db).await {
+            warn!("批量创建角色权限失败: {}, 可能部分已存在", e);
+        }
+    }
+
+    /// manager + operator 权限（部门经理跨域读取 + 操作员全业务域只读）
+    fn management_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("manager", &[
                 ("users", "read"), ("roles", "read"), ("departments", "read"),
                 ("products", "*"), ("orders", "*"), ("customers", "*"), ("suppliers", "*"),
@@ -55,47 +136,26 @@ impl InitService {
                 ("vouchers", "read"), ("ar", "read"), ("ap", "read"), ("gl", "read"),
                 ("reports", "read"), ("dashboard", "read"),
             ]),
-            // operator：操作员，全业务域只读
             ("operator", &[
                 ("products", "read"), ("orders", "read"), ("customers", "read"),
                 ("suppliers", "read"), ("inventory", "read"), ("purchase-orders", "read"),
                 ("production-orders", "read"), ("dye-batches", "read"),
                 ("quality-inspections", "read"), ("reports", "read"),
             ]),
-            // 管理层：全资源 read 权限
-            ("gm", &[
-                ("users", "read"), ("roles", "read"), ("departments", "read"),
-                ("products", "read"), ("orders", "read"), ("customers", "read"),
-                ("suppliers", "read"), ("inventory", "read"), ("purchase-orders", "read"),
-                ("production-orders", "read"), ("dye-batches", "read"), ("dye-recipes", "read"),
-                ("quality-inspections", "read"), ("fabric-inspections", "read"),
-                ("vouchers", "read"), ("ar", "read"), ("ap", "read"), ("gl", "read"),
-                ("budgets", "read"), ("cost-collections", "read"),
-                ("crm-leads", "read"), ("crm-opportunities", "read"),
-                ("logistics", "read"), ("employees", "read"), ("wages", "read"),
-                ("reports", "read"), ("bi-analysis", "read"), ("dashboard", "read"),
-                // V15 P0-S26：AI 域只读权限（管理层可查看所有 AI 分析结果）
-                ("ai-forecast", "read"), ("ai-inventory-opt", "read"), ("ai-anomaly", "read"),
-                ("ai-recommendation", "read"), ("ai-recipe-opt", "read"), ("ai-quality-pred", "read"),
-                ("ai-process-opt", "read"), ("ai-summary", "read"),
-            ]),
-            ("deputy_gm", &[
-                ("users", "read"), ("roles", "read"), ("departments", "read"),
-                ("products", "read"), ("orders", "read"), ("customers", "read"),
-                ("suppliers", "read"), ("inventory", "read"), ("purchase-orders", "read"),
-                ("production-orders", "read"), ("dye-batches", "read"), ("dye-recipes", "read"),
-                ("quality-inspections", "read"), ("fabric-inspections", "read"),
-                ("vouchers", "read"), ("ar", "read"), ("ap", "read"), ("gl", "read"),
-                ("budgets", "read"), ("cost-collections", "read"),
-                ("crm-leads", "read"), ("crm-opportunities", "read"),
-                ("logistics", "read"), ("employees", "read"), ("wages", "read"),
-                ("reports", "read"), ("bi-analysis", "read"), ("dashboard", "read"),
-                // V15 P0-S26：AI 域只读权限
-                ("ai-forecast", "read"), ("ai-inventory-opt", "read"), ("ai-anomaly", "read"),
-                ("ai-recommendation", "read"), ("ai-recipe-opt", "read"), ("ai-quality-pred", "read"),
-                ("ai-process-opt", "read"), ("ai-summary", "read"),
-            ]),
-            // 销售域
+        ]
+    }
+
+    /// gm + deputy_gm 权限（管理层全资源只读，共享 EXECUTIVE_RESOURCES）
+    fn executive_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
+            ("gm", EXECUTIVE_RESOURCES),
+            ("deputy_gm", EXECUTIVE_RESOURCES),
+        ]
+    }
+
+    /// 销售域权限（sales_manager + sales_rep）
+    fn sales_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("sales_manager", &[
                 ("orders", "*"), ("fabric-orders", "*"), ("sales-contracts", "*"),
                 ("sales-prices", "*"), ("sales-returns", "*"), ("quotations", "*"),
@@ -111,7 +171,12 @@ impl InitService {
                 ("sales-returns", "read"), ("sales-returns", "create"),
                 ("color-cards", "read"), ("sales-prices", "read"),
             ]),
-            // 采购域
+        ]
+    }
+
+    /// 采购域权限（purchase_manager + purchase_clerk + sourcing_specialist）
+    fn purchase_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("purchase_manager", &[
                 ("purchase-orders", "*"), ("purchase-receipts", "*"), ("purchase-returns", "*"),
                 ("purchase-contracts", "*"), ("purchase-prices", "*"),
@@ -128,7 +193,12 @@ impl InitService {
                 ("supplier-evaluations", "read"), ("supplier-evaluations", "create"),
                 ("purchase-prices", "*"), ("purchase-contracts", "read"),
             ]),
-            // 库存仓储域
+        ]
+    }
+
+    /// 库存仓储域权限（inventory_manager + warehouse_keeper）
+    fn inventory_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("inventory_manager", &[
                 ("inventory", "*"), ("stock", "*"), ("piece-split", "*"),
                 ("transfers", "*"), ("adjustments", "*"), ("reservations", "*"),
@@ -142,7 +212,12 @@ impl InitService {
                 ("counts", "read"), ("counts", "create"),
                 ("products", "read"), ("warehouses", "read"),
             ]),
-            // 生产域（面料行业深化）
+        ]
+    }
+
+    /// 生产域权限第 1 组（production_manager + dyeing_master + finishing_master + lab_technician）
+    fn production_role_permissions_part1() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("production_manager", &[
                 ("production-orders", "*"), ("dye-batches", "*"), ("dye-recipes", "*"),
                 ("dye-batch-lifecycle-logs", "*"), ("dye-batch-state-rules", "read"),
@@ -171,6 +246,12 @@ impl InitService {
                 ("dye-batches", "read"), ("color-cards", "*"), ("color-prices", "read"),
                 ("chemicals", "read"), ("chemical-lots", "read"),
             ]),
+        ]
+    }
+
+    /// 生产域权限第 2 组（dye_recipe_master + greige_manager + chemical_manager + maintenance_supervisor）
+    fn production_role_permissions_part2() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             // V15 P0-S18 新增：染色配方主管，含审批权限
             ("dye_recipe_master", &[
                 ("dye-recipes", "*"),
@@ -198,7 +279,12 @@ impl InitService {
                 ("production-orders", "read"), ("energy-meters", "read"),
                 ("energy-consumptions", "read"),
             ]),
-            // 质量域
+        ]
+    }
+
+    /// 质量域权限（qc_manager + quality_inspector + fabric_inspector）
+    fn quality_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("qc_manager", &[
                 ("quality-inspections", "*"), ("quality-issues", "*"), ("quality-standards", "*"),
                 ("fabric-inspections", "*"), ("fabric-defects", "*"),
@@ -213,7 +299,12 @@ impl InitService {
                 ("fabric-inspections", "*"), ("fabric-defects", "*"),
                 ("dye-batches", "read"), ("products", "read"), ("quality-standards", "read"),
             ]),
-            // 财务域
+        ]
+    }
+
+    /// 财务域权限（finance_manager + accountant + cashier + cost_accountant）
+    fn finance_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("finance_manager", &[
                 ("vouchers", "*"), ("subjects", "*"), ("fixed-assets", "*"),
                 ("budgets", "*"), ("cost-collections", "*"),
@@ -245,7 +336,12 @@ impl InitService {
                 ("wages", "read"), ("energy-allocations", "read"),
                 ("gl", "read"),
             ]),
-            // CRM 域
+        ]
+    }
+
+    /// CRM 域权限（crm_manager + crm_rep）
+    fn crm_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("crm_manager", &[
                 ("crm-leads", "*"), ("crm-opportunities", "*"), ("crm-customers", "*"),
                 ("customers", "*"), ("customer-credits", "*"), ("five-dimension", "*"),
@@ -257,7 +353,12 @@ impl InitService {
                 ("crm-customers", "read"), ("crm-customers", "create"),
                 ("customers", "read"), ("customers", "create"),
             ]),
-            // 物流域
+        ]
+    }
+
+    /// 物流域权限（logistics_coordinator + customs_specialist）
+    fn logistics_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("logistics_coordinator", &[
                 ("logistics", "*"), ("ship-orders", "*"),
                 ("orders", "read"), ("inventory", "read"),
@@ -268,7 +369,12 @@ impl InitService {
                 ("incoterms", "read"), ("incoterms", "create"),
                 ("orders", "read"), ("ship-orders", "read"),
             ]),
-            // 人力资源域
+        ]
+    }
+
+    /// 人力资源域权限（hr_manager + hr_specialist）
+    fn hr_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("hr_manager", &[
                 ("employees", "*"), ("departments", "*"),
                 ("wages", "*"), ("wage-rates", "*"), ("wage-records", "*"),
@@ -280,14 +386,25 @@ impl InitService {
                 ("wages", "read"), ("wages", "create"), ("wage-records", "read"), ("wage-records", "create"),
                 ("users", "read"),
             ]),
-            // 安全环保域
-            ("safety_officer", &[
+        ]
+    }
+
+    /// 安全环保域权限（safety_officer）
+    fn safety_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[(
+            "safety_officer",
+            &[
                 ("safety-records", "*"), ("environmental-records", "*"),
                 ("equipment", "read"), ("maintenance-records", "read"),
                 ("chemicals", "read"), ("chemical-lots", "read"),
                 ("reports", "read"), ("audit-logs", "read"),
-            ]),
-            // IT/数据域
+            ],
+        )]
+    }
+
+    /// IT/数据域权限（system_admin + data_analyst）
+    fn it_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[
             ("system_admin", &[
                 ("users", "*"), ("roles", "*"), ("departments", "*"),
                 ("permissions", "*"), ("field-permissions", "*"),
@@ -301,38 +418,20 @@ impl InitService {
                 ("orders", "read"), ("customers", "read"), ("inventory", "read"),
                 ("vouchers", "read"), ("ar", "read"), ("ap", "read"),
             ]),
-            // 行政
-            ("admin_assistant", &[
+        ]
+    }
+
+    /// 行政域权限（admin_assistant）
+    fn admin_role_permissions() -> &'static [(&'static str, &'static [(&'static str, &'static str)])] {
+        &[(
+            "admin_assistant",
+            &[
                 ("users", "read"), ("users", "create"), ("users", "update"),
                 ("departments", "read"),
                 ("oa-announcements", "*"),
                 ("notifications", "read"), ("notifications", "create"),
-            ]),
-        ];
-
-        // 逐个角色查询 id 并生成权限记录
-        for (role_code, resources) in role_permissions {
-            let role_model = role::Entity::find()
-                .filter(role::Column::Code.eq(*role_code))
-                .one(self.db.as_ref())
-                .await
-                .map_err(|e| InitError::DatabaseError(format!("查询 {} 角色失败: {}", role_code, e)))?;
-
-            if let Some(r) = role_model {
-                perms.extend(make_perms(r.id, resources));
-            }
-        }
-
-        if !perms.is_empty() {
-            if let Err(e) = role_permission::Entity::insert_many(perms)
-                .exec(self.db.as_ref())
-                .await
-            {
-                warn!("批量创建角色权限失败: {}, 可能部分已存在", e);
-            }
-        }
-
-        Ok(())
+            ],
+        )]
     }
 
     /// 初始化默认角色互斥规则（SoD 职责分离，幂等）

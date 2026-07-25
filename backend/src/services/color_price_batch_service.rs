@@ -40,6 +40,13 @@ pub struct ColorPriceBatchService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 批量调价准备阶段产物：历史记录 + 自动通过/待审批的价格更新 ActiveModel
+struct BatchAdjustPrepared {
+    history_models: Vec<HistoryActive>,
+    auto_update_models: Vec<(ColorPriceActive, i64)>,
+    pending_update_models: Vec<(ColorPriceActive, i64)>,
+}
+
 // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 handlers/color_price_handler.rs:211,232 真实调用）
 impl ColorPriceBatchService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -58,28 +65,40 @@ impl ColorPriceBatchService {
         dto: BatchAdjustPriceDto,
         operated_by: i64,
     ) -> Result<BatchAdjustResult, BatchError> {
-        let mut auto_approved: Vec<i64> = Vec::new();
-        let mut pending_approval: Vec<i64> = Vec::new();
         let total = dto.items.len();
+        let mut price_map = self.load_existing_prices(&dto).await?;
+        let prepared = Self::prepare_adjustment_models(&dto, &mut price_map, operated_by)?;
+        let (auto_approved, pending_approval) = self.persist_adjustment_models(prepared).await?;
+        Ok(BatchAdjustResult {
+            auto_approved,
+            pending_approval,
+            total,
+        })
+    }
 
-        // 批次 31 v7 P1-2 修复：原循环内逐条 find_by_id + insert + update（3N 次数据库操作），
-        // 改为：
-        // 1. 批量查询所有 price_id（1 次查询）
-        // 2. 循环内只做计算和构建 ActiveModel（无数据库操作）
-        // 3. 批量 insert_many 历史记录（1 次写入）
-        // 4. 逐条 update（因每个 price 更新内容不同，但已减少 N 次查询 + N 次插入）
+    /// 批量查询所有 price_id 对应的色号价格，构建 price_id -> Model 映射
+    async fn load_existing_prices(
+        &self,
+        dto: &BatchAdjustPriceDto,
+    ) -> Result<std::collections::HashMap<i64, product_color_price::Model>, BatchError> {
+        // 批次 31 v7 P1-2 修复：批量查询替代循环内逐条 find_by_id
         let price_ids: Vec<i64> = dto.items.iter().map(|i| i.price_id).collect();
         let existing_prices = ColorPriceEntity::find()
-            .filter(product_color_price::Column::Id.is_in(price_ids.clone()))
+            .filter(product_color_price::Column::Id.is_in(price_ids))
             .all(&*self.db)
             .await?;
-        // 构建 price_id -> Model 的映射
-        let mut price_map: std::collections::HashMap<i64, product_color_price::Model> =
-            existing_prices.into_iter().map(|p| (p.id, p)).collect();
+        Ok(existing_prices.into_iter().map(|p| (p.id, p)).collect())
+    }
 
-        let mut history_models: Vec<HistoryActive> = Vec::with_capacity(total);
-        let mut auto_update_models: Vec<(product_color_price::ActiveModel, i64)> = Vec::new();
-        let mut pending_update_models: Vec<(product_color_price::ActiveModel, i64)> = Vec::new();
+    /// 循环构建历史记录与价格更新 ActiveModel（不触碰数据库）
+    fn prepare_adjustment_models(
+        dto: &BatchAdjustPriceDto,
+        price_map: &mut std::collections::HashMap<i64, product_color_price::Model>,
+        operated_by: i64,
+    ) -> Result<BatchAdjustPrepared, BatchError> {
+        let mut history_models: Vec<HistoryActive> = Vec::with_capacity(dto.items.len());
+        let mut auto_update_models: Vec<(ColorPriceActive, i64)> = Vec::new();
+        let mut pending_update_models: Vec<(ColorPriceActive, i64)> = Vec::new();
 
         for item in dto.items.iter() {
             // 1. 从映射中查找色号价格（O(1)，无数据库查询）
@@ -88,7 +107,11 @@ impl ColorPriceBatchService {
                 .ok_or(BatchError::PriceNotFound(item.price_id))?;
 
             // 2. 计算新价
-            let new_price = calculate_new_price(existing.base_price, &item.adjustment_type, item.adjustment_value)?;
+            let new_price = calculate_new_price(
+                existing.base_price,
+                &item.adjustment_type,
+                item.adjustment_value,
+            )?;
             let change_percent = if existing.base_price.is_zero() {
                 Decimal::ZERO
             } else {
@@ -96,7 +119,8 @@ impl ColorPriceBatchService {
             };
 
             // 3. 判断是否需审批
-            let need_approval = change_percent.abs() > Decimal::new(APPROVAL_THRESHOLD as i64 * 10000, 4);
+            let need_approval =
+                change_percent.abs() > Decimal::new(APPROVAL_THRESHOLD as i64 * 10000, 4);
 
             // 4. 构建历史记录 ActiveModel（暂不插入）
             let history = HistoryActive {
@@ -133,29 +157,38 @@ impl ColorPriceBatchService {
                 auto_update_models.push((active, item.price_id));
             }
         }
+        Ok(BatchAdjustPrepared {
+            history_models,
+            auto_update_models,
+            pending_update_models,
+        })
+    }
+
+    /// 批量插入历史记录并逐条更新价格（返回 auto_approved / pending_approval 的 price_id）
+    async fn persist_adjustment_models(
+        &self,
+        prepared: BatchAdjustPrepared,
+    ) -> Result<(Vec<i64>, Vec<i64>), BatchError> {
+        let mut auto_approved: Vec<i64> = Vec::new();
+        let mut pending_approval: Vec<i64> = Vec::new();
 
         // 5. 批量插入历史记录（1 次 INSERT，替代原 N 次 insert）
-        if !history_models.is_empty() {
-            color_price_history::Entity::insert_many(history_models)
+        if !prepared.history_models.is_empty() {
+            color_price_history::Entity::insert_many(prepared.history_models)
                 .exec(&*self.db)
                 .await?;
         }
 
         // 6. 逐条更新（每个 price 更新内容不同，但已消除 N 次查询 + N 次插入）
-        for (active, price_id) in auto_update_models {
+        for (active, price_id) in prepared.auto_update_models {
             active.update(&*self.db).await?;
             auto_approved.push(price_id);
         }
-        for (active, price_id) in pending_update_models {
+        for (active, price_id) in prepared.pending_update_models {
             active.update(&*self.db).await?;
             pending_approval.push(price_id);
         }
-
-        Ok(BatchAdjustResult {
-            auto_approved,
-            pending_approval,
-            total,
-        })
+        Ok((auto_approved, pending_approval))
     }
 
     /// 审批

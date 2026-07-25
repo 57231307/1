@@ -56,24 +56,53 @@ impl SupplierService {
         user_id: i32,
     ) -> Result<supplier::Model, AppError> {
         // 检查供应商名称是否重复
+        self.check_supplier_name_duplicate(&req.supplier_name).await?;
+
+        let txn = (*self.db).begin().await?;
+
+        // 1. 生成供应商编码 + 构建供应商 ActiveModel（同时取出 contacts/qualifications 供后续插入）
+        let supplier_code = self.generate_supplier_code().await?;
+        let ctx = Self::build_supplier_create_context(req, supplier_code, user_id);
+        let supplier = ctx.active.insert(&txn).await?;
+
+        // 2. 创建联系人
+        if let Some(contacts) = ctx.contacts {
+            Self::insert_supplier_contacts(&txn, supplier.id, contacts).await?;
+        }
+
+        // 3. 创建资质
+        if let Some(qualifications) = ctx.qualifications {
+            Self::insert_supplier_qualifications(&txn, supplier.id, qualifications).await?;
+        }
+
+        txn.commit().await?;
+        Ok(supplier)
+    }
+
+    /// 校验供应商名称不重复
+    async fn check_supplier_name_duplicate(&self, name: &str) -> Result<(), AppError> {
         let existing = supplier::Entity::find()
-            .filter(supplier::Column::SupplierName.eq(&req.supplier_name))
+            .filter(supplier::Column::SupplierName.eq(name))
             .one(&*self.db)
             .await?;
         if existing.is_some() {
             return Err(AppError::validation(format!(
                 "供应商名称 '{}' 已存在",
-                req.supplier_name
+                name
             )));
         }
+        Ok(())
+    }
 
-        let txn = (*self.db).begin().await?;
-
-        // 1. 生成供应商编码
-        let supplier_code = self.generate_supplier_code().await?;
-
-        // 2. 创建供应商
-        let supplier = supplier::ActiveModel {
+    /// 由请求构建供应商 ActiveModel，同时分离出联系人/资质列表供后续插入
+    fn build_supplier_create_context(
+        req: CreateSupplierRequest,
+        supplier_code: String,
+        user_id: i32,
+    ) -> SupplierCreateContext {
+        let contacts = req.contacts;
+        let qualifications = req.qualifications;
+        let active = supplier::ActiveModel {
             supplier_code: Set(supplier_code),
             supplier_name: Set(req.supplier_name),
             supplier_short_name: Set(req.supplier_short_name.unwrap_or_default()),
@@ -105,55 +134,65 @@ impl SupplierService {
             annual_revenue: Set(req.annual_revenue),
             created_by: Set(Some(user_id)),
             ..Default::default()
+        };
+        SupplierCreateContext {
+            active,
+            contacts,
+            qualifications,
         }
-        .insert(&txn)
-        .await?;
+    }
 
-        // 3. 创建联系人
-        if let Some(contacts) = req.contacts {
-            for contact_req in contacts {
-                supplier_contact::ActiveModel {
-                    supplier_id: Set(supplier.id),
-                    contact_name: Set(contact_req.contact_name),
-                    department: Set(contact_req.department),
-                    position: Set(contact_req.position),
-                    mobile_phone: Set(contact_req.mobile_phone),
-                    tel_phone: Set(contact_req.tel_phone),
-                    email: Set(contact_req.email),
-                    wechat: Set(contact_req.wechat),
-                    qq: Set(contact_req.qq),
-                    is_primary: Set(contact_req.is_primary),
-                    remarks: Set(contact_req.remarks),
-                    ..Default::default()
-                }
-                .insert(&txn)
-                .await?;
+    /// 批量插入供应商联系人
+    async fn insert_supplier_contacts(
+        txn: &sea_orm::DatabaseTransaction,
+        supplier_id: i32,
+        contacts: Vec<CreateContactRequest>,
+    ) -> Result<(), AppError> {
+        for contact_req in contacts {
+            supplier_contact::ActiveModel {
+                supplier_id: Set(supplier_id),
+                contact_name: Set(contact_req.contact_name),
+                department: Set(contact_req.department),
+                position: Set(contact_req.position),
+                mobile_phone: Set(contact_req.mobile_phone),
+                tel_phone: Set(contact_req.tel_phone),
+                email: Set(contact_req.email),
+                wechat: Set(contact_req.wechat),
+                qq: Set(contact_req.qq),
+                is_primary: Set(contact_req.is_primary),
+                remarks: Set(contact_req.remarks),
+                ..Default::default()
             }
+            .insert(txn)
+            .await?;
         }
+        Ok(())
+    }
 
-        // 4. 创建资质
-        if let Some(qualifications) = req.qualifications {
-            for qual_req in qualifications {
-                supplier_qualification::ActiveModel {
-                    supplier_id: Set(supplier.id),
-                    qualification_name: Set(qual_req.qualification_name),
-                    qualification_type: Set(qual_req.qualification_type),
-                    qualification_no: Set(qual_req.qualification_no),
-                    issuing_authority: Set(qual_req.issuing_authority),
-                    issue_date: Set(qual_req.issue_date),
-                    valid_until: Set(qual_req.valid_until),
-                    attachment_path: Set(qual_req.attachment_path),
-                    need_annual_check: Set(qual_req.need_annual_check),
-                    annual_check_record: Set(qual_req.annual_check_record),
-                    ..Default::default()
-                }
-                .insert(&txn)
-                .await?;
+    /// 批量插入供应商资质
+    async fn insert_supplier_qualifications(
+        txn: &sea_orm::DatabaseTransaction,
+        supplier_id: i32,
+        qualifications: Vec<CreateQualificationRequest>,
+    ) -> Result<(), AppError> {
+        for qual_req in qualifications {
+            supplier_qualification::ActiveModel {
+                supplier_id: Set(supplier_id),
+                qualification_name: Set(qual_req.qualification_name),
+                qualification_type: Set(qual_req.qualification_type),
+                qualification_no: Set(qual_req.qualification_no),
+                issuing_authority: Set(qual_req.issuing_authority),
+                issue_date: Set(qual_req.issue_date),
+                valid_until: Set(qual_req.valid_until),
+                attachment_path: Set(qual_req.attachment_path),
+                need_annual_check: Set(qual_req.need_annual_check),
+                annual_check_record: Set(qual_req.annual_check_record),
+                ..Default::default()
             }
+            .insert(txn)
+            .await?;
         }
-
-        txn.commit().await?;
-        Ok(supplier)
+        Ok(())
     }
 
     /// 查询供应商列表（分页、筛选、排序）
@@ -820,6 +859,13 @@ pub struct CreateSupplierRequest {
     pub contacts: Option<Vec<CreateContactRequest>>,
     #[validate]
     pub qualifications: Option<Vec<CreateQualificationRequest>>,
+}
+
+/// 创建供应商过程中的中间上下文：ActiveModel + 待插入的联系人/资质
+struct SupplierCreateContext {
+    active: supplier::ActiveModel,
+    contacts: Option<Vec<CreateContactRequest>>,
+    qualifications: Option<Vec<CreateQualificationRequest>>,
 }
 
 /// 更新供应商请求

@@ -59,14 +59,42 @@ impl PurchaseOrderService {
             }
         }
 
-        // 2. 查询订单（加 lock_exclusive 串行化并发收货）
-        let order = purchase_order::Entity::find_by_id(order_id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
+        let order = Self::lock_order_for_receive(&txn, order_id).await?;
+        Self::validate_receive_status(&order)?;
+        let order_items = Self::load_receive_order_items(&txn, order_id).await?;
+        let product_map = Self::load_receive_product_map(&txn, &order_items).await?;
+        let stock_map =
+            Self::load_receive_stock_map(&txn, order.warehouse_id, &order_items).await?;
+        for item in &order_items {
+            if let Some(ev) =
+                Self::process_receive_item(&txn, &order, item, &product_map, &stock_map).await?
+            {
+                pending_events.push(ev);
+            }
+        }
+        let new_status = Self::determine_new_status(&txn, order_id).await?;
+        let updated_order =
+            Self::update_order_status_to_received(&txn, order, new_status).await?;
+        Self::mark_receipt_completed(&txn, receipt_id).await?;
+        txn.commit().await?;
+        Self::publish_receive_events(pending_events);
+        Ok(updated_order)
+    }
 
-        // 3. 检查状态 - 只有已审批的订单才能收货
+    /// 加锁查询订单（串行化并发收货）
+    async fn lock_order_for_receive(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+    ) -> Result<purchase_order::Model, AppError> {
+        purchase_order::Entity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))
+    }
+
+    /// 校验订单状态——只有已审批或部分收货的订单才能收货
+    fn validate_receive_status(order: &purchase_order::Model) -> Result<(), AppError> {
         if order.order_status != status::purchase_order::APPROVED
             && order.order_status != status::purchase_order::PARTIAL_RECEIVED
         {
@@ -75,232 +103,285 @@ impl PurchaseOrderService {
                 order.order_status
             )));
         }
+        Ok(())
+    }
 
-        // 4. 查询订单明细
-        let order_items = purchase_order_item::Entity::find()
+    /// 加载订单明细
+    async fn load_receive_order_items(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+    ) -> Result<Vec<purchase_order_item::Model>, AppError> {
+        Ok(purchase_order_item::Entity::find()
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
-            .all(&txn)
-            .await?;
+            .all(txn)
+            .await?)
+    }
 
-        // 5. 创建库存服务实例（使用事务版本的静态方法）
-        // 批量查询订单明细涉及的产品，避免循环内 N+1 查询
+    /// 批量加载明细涉及的产品，避免循环内 N+1 查询
+    async fn load_receive_product_map(
+        txn: &sea_orm::DatabaseTransaction,
+        order_items: &[purchase_order_item::Model],
+    ) -> Result<std::collections::HashMap<i32, product::Model>, AppError> {
         let product_ids: Vec<i32> = order_items.iter().map(|item| item.product_id).collect();
         let products = if product_ids.is_empty() {
             Vec::new()
         } else {
             product::Entity::find()
                 .filter(product::Column::Id.is_in(product_ids))
-                .all(&txn)
+                .all(txn)
                 .await?
         };
-        let product_map: std::collections::HashMap<i32, product::Model> =
-            products.into_iter().map(|p| (p.id, p)).collect();
+        Ok(products.into_iter().map(|p| (p.id, p)).collect())
+    }
 
-        // v14 批次 41 修复：批量查询所有订单明细对应的库存记录（同一 warehouse_id），
-        // 避免循环内逐个调用 find_by_product_and_warehouse_txn（N+1 查询）
+    /// 批量加载明细对应的库存记录（同一 warehouse_id），避免循环内 N+1 查询
+    async fn load_receive_stock_map(
+        txn: &sea_orm::DatabaseTransaction,
+        warehouse_id: i32,
+        order_items: &[purchase_order_item::Model],
+    ) -> Result<std::collections::HashMap<i32, inventory_stock::Model>, AppError> {
         let stock_product_ids: Vec<i32> =
             order_items.iter().map(|item| item.product_id).collect();
         let existing_stocks = if stock_product_ids.is_empty() {
             Vec::new()
         } else {
             inventory_stock::Entity::find()
-                .filter(inventory_stock::Column::WarehouseId.eq(order.warehouse_id))
+                .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
                 .filter(inventory_stock::Column::ProductId.is_in(stock_product_ids))
-                .all(&txn)
+                .all(txn)
                 .await?
         };
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            existing_stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        Ok(existing_stocks.into_iter().map(|s| (s.product_id, s)).collect())
+    }
 
-        // 6. 遍历订单明细，执行库存入库
-        for item in &order_items {
-            // 从批量查询结果中获取产品信息
-            let product = product_map
-                .get(&item.product_id)
-                .ok_or_else(|| {
-                    AppError::not_found(format!("产品 ID {} 不存在", item.product_id))
-                })?;
+    /// 处理单个明细入库：更新/创建库存 + 记录流水 + 累加已收数量，返回流水事件
+    async fn process_receive_item(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &purchase_order::Model,
+        item: &purchase_order_item::Model,
+        product_map: &std::collections::HashMap<i32, product::Model>,
+        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+    ) -> Result<Option<BusinessEvent>, AppError> {
+        let product = product_map
+            .get(&item.product_id)
+            .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", item.product_id)))?;
+        let receive_qty_meters = item.quantity - item.received_quantity;
+        let receive_qty_alt = item.quantity_alt - item.received_quantity_alt;
+        if receive_qty_meters <= Decimal::ZERO {
+            return Ok(None);
+        }
+        let existing_stock = stock_map.get(&item.product_id).cloned();
+        let (before_meters, before_kg) = Self::upsert_stock_for_receive(
+            txn, order, item, product, existing_stock, receive_qty_meters, receive_qty_alt,
+        )
+        .await?;
+        let event = Self::record_receive_transaction(
+            txn, order, item, receive_qty_meters, receive_qty_alt, before_meters, before_kg,
+        )
+        .await?;
+        Self::update_received_quantity(txn, item, receive_qty_meters, receive_qty_alt).await?;
+        Ok(event)
+    }
 
-            // 计算入库数量
-            let receive_quantity_meters = item.quantity - item.received_quantity;
-            let receive_quantity_alt = item.quantity_alt - item.received_quantity_alt;
-
-            // 只处理有入库数量的明细
-            if receive_quantity_meters > Decimal::ZERO {
-                // 从批量查询结果中获取现有库存记录
-                let existing_stock = stock_map.get(&item.product_id).cloned();
-
-                let before_quantity_meters;
-                let before_quantity_kg;
-
-                match existing_stock {
-                    Some(stock) => {
-                        before_quantity_meters = stock.quantity_meters;
-                        before_quantity_kg = stock.quantity_kg;
-
-                        // 更新现有库存（使用事务版本）
-                        let new_quantity_meters = stock.quantity_meters + receive_quantity_meters;
-                        let new_quantity_kg = stock.quantity_kg + receive_quantity_alt;
-
-                        crate::services::inventory_stock_service::InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
-                            &txn,
-                            stock.id,
-                            new_quantity_meters,
-                            new_quantity_kg,
-                            stock.version,
-                        )
-                        .await
-                        .map_err(|e| {
-                            tracing::error!("更新库存失败: 库存ID={}, 错误: {}", stock.id, e);
-                            AppError::internal(format!("更新库存失败: {}", e))
-                        })?;
-                    }
-                    None => {
-                        before_quantity_meters = Decimal::ZERO;
-                        before_quantity_kg = Decimal::ZERO;
-
-                        // 创建新库存记录（使用事务版本）
-                        // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
-                        crate::services::inventory_stock_service::InventoryStockService::create_stock_fabric_txn(
-                            &txn,
-                            CreateStockFabricArgs {
-                                warehouse_id: order.warehouse_id,
-                                product_id: item.product_id,
-                                // v14 批次 418 修复 D-P0-4：从采购订单明细获取真实缸号/色号/批号，
-                                // 替代原 "DEFAULT" 硬编码占位符，保证颜色追溯链路完整
-                                batch_no: item.batch_no.clone().unwrap_or_default(),
-                                color_no: item.color_code.clone().unwrap_or_default(),
-                                dye_lot_no: item.lot_no.clone(),
-                                grade: "A".to_string(),
-                                quantity_meters: receive_quantity_meters,
-                                quantity_kg: receive_quantity_alt,
-                                gram_weight: product.gram_weight,
-                                width: product.width,
-                                location_id: None,
-                                shelf_no: None,
-                                layer_no: None,
-                            },
-                        )
-                        .await
-                        .map_err(|e| {
-                            tracing::error!("创建库存记录失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
-                            AppError::internal(format!("创建库存记录失败: {}", e))
-                        })?;
-                    }
-                };
-
-                // 记录库存流水（使用事务版本，正确的前后数量）
-                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
-                // 改为返回 (Model, Option<BusinessEvent>)，由调用方在 commit 后统一 publish
-                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
-                let (_, txn_event) = crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
-                    &txn,
-                    RecordTransactionArgs {
-                        transaction_type: "PURCHASE_RECEIPT".to_string(),
-                        product_id: item.product_id,
-                        warehouse_id: order.warehouse_id,
-                        // v14 批次 418 修复 D-P0-4：从采购订单明细获取真实缸号/色号/批号
-                        batch_no: item.batch_no.clone().unwrap_or_default(),
-                        color_no: item.color_code.clone().unwrap_or_default(),
-                        dye_lot_no: item.lot_no.clone(),
-                        grade: "A".to_string(),
-                        quantity_meters: receive_quantity_meters,
-                        quantity_kg: receive_quantity_alt,
-                        source_bill_type: Some("purchase_order".to_string()),
-                        source_bill_no: Some(order.order_no.clone()),
-                        source_bill_id: Some(order.id),
-                        quantity_before_meters: Some(before_quantity_meters),
-                        quantity_before_kg: Some(before_quantity_kg),
-                        quantity_after_meters: Some(before_quantity_meters + receive_quantity_meters),
-                        quantity_after_kg: Some(before_quantity_kg + receive_quantity_alt),
-                        notes: Some(format!("采购入库 - 订单 {}", order.order_no)),
-                        created_by: None,
-                    },
+    /// 更新现有库存或创建新库存记录，返回入库前数量
+    async fn upsert_stock_for_receive(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &purchase_order::Model,
+        item: &purchase_order_item::Model,
+        product: &product::Model,
+        existing_stock: Option<inventory_stock::Model>,
+        receive_qty_meters: Decimal,
+        receive_qty_alt: Decimal,
+    ) -> Result<(Decimal, Decimal), AppError> {
+        match existing_stock {
+            Some(stock) => {
+                let new_meters = stock.quantity_meters + receive_qty_meters;
+                let new_kg = stock.quantity_kg + receive_qty_alt;
+                crate::services::inventory_stock_service::InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+                    txn, stock.id, new_meters, new_kg, stock.version,
                 )
                 .await
                 .map_err(|e| {
-                    tracing::error!("记录库存流水失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
-                    AppError::internal(format!("记录库存流水失败: {}", e))
+                    tracing::error!("更新库存失败: 库存ID={}, 错误: {}", stock.id, e);
+                    AppError::internal(format!("更新库存失败: {}", e))
                 })?;
-                if let Some(ev) = txn_event {
-                    pending_events.push(ev);
-                }
-
-                // 更新订单明细已入库数量（累加而非覆盖）
-                let mut item_active: purchase_order_item::ActiveModel = item.clone().into();
-                item_active.received_quantity =
-                    Set(item.received_quantity + receive_quantity_meters);
-                item_active.received_quantity_alt =
-                    Set(item.received_quantity_alt + receive_quantity_alt);
-                item_active.updated_at = Set(Utc::now());
-                purchase_order_item::Entity::update(item_active)
-                    .exec(&txn)
-                    .await?;
+                Ok((stock.quantity_meters, stock.quantity_kg))
+            }
+            None => {
+                Self::create_stock_for_receive(
+                    txn, order, item, product, receive_qty_meters, receive_qty_alt,
+                )
+                .await?;
+                Ok((Decimal::ZERO, Decimal::ZERO))
             }
         }
+    }
 
-        // 7. 判断订单状态（全部收货还是部分收货）
+    /// 无现有库存时创建新库存记录（v14 批次 418：从明细获取真实缸号/色号/批号）
+    async fn create_stock_for_receive(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &purchase_order::Model,
+        item: &purchase_order_item::Model,
+        product: &product::Model,
+        receive_qty_meters: Decimal,
+        receive_qty_alt: Decimal,
+    ) -> Result<(), AppError> {
+        crate::services::inventory_stock_service::InventoryStockService::create_stock_fabric_txn(
+            txn,
+            CreateStockFabricArgs {
+                warehouse_id: order.warehouse_id,
+                product_id: item.product_id,
+                batch_no: item.batch_no.clone().unwrap_or_default(),
+                color_no: item.color_code.clone().unwrap_or_default(),
+                dye_lot_no: item.lot_no.clone(),
+                grade: "A".to_string(),
+                quantity_meters: receive_qty_meters,
+                quantity_kg: receive_qty_alt,
+                gram_weight: product.gram_weight,
+                width: product.width,
+                location_id: None,
+                shelf_no: None,
+                layer_no: None,
+            },
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                "创建库存记录失败: 产品ID={}, 仓库ID={}, 错误: {}",
+                item.product_id, order.warehouse_id, e
+            );
+            AppError::internal(format!("创建库存记录失败: {}", e))
+        })
+    }
+
+    /// 记录库存流水（事务版本，返回事件由调用方 commit 后统一 publish）
+    async fn record_receive_transaction(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &purchase_order::Model,
+        item: &purchase_order_item::Model,
+        receive_qty_meters: Decimal,
+        receive_qty_alt: Decimal,
+        before_meters: Decimal,
+        before_kg: Decimal,
+    ) -> Result<Option<BusinessEvent>, AppError> {
+        let (_, txn_event) = crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
+            txn,
+            RecordTransactionArgs {
+                transaction_type: "PURCHASE_RECEIPT".to_string(),
+                product_id: item.product_id,
+                warehouse_id: order.warehouse_id,
+                batch_no: item.batch_no.clone().unwrap_or_default(),
+                color_no: item.color_code.clone().unwrap_or_default(),
+                dye_lot_no: item.lot_no.clone(),
+                grade: "A".to_string(),
+                quantity_meters: receive_qty_meters,
+                quantity_kg: receive_qty_alt,
+                source_bill_type: Some("purchase_order".to_string()),
+                source_bill_no: Some(order.order_no.clone()),
+                source_bill_id: Some(order.id),
+                quantity_before_meters: Some(before_meters),
+                quantity_before_kg: Some(before_kg),
+                quantity_after_meters: Some(before_meters + receive_qty_meters),
+                quantity_after_kg: Some(before_kg + receive_qty_alt),
+                notes: Some(format!("采购入库 - 订单 {}", order.order_no)),
+                created_by: None,
+            },
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                "记录库存流水失败: 产品ID={}, 仓库ID={}, 错误: {}",
+                item.product_id, order.warehouse_id, e
+            );
+            AppError::internal(format!("记录库存流水失败: {}", e))
+        })?;
+        Ok(txn_event)
+    }
+
+    /// 累加更新订单明细已入库数量
+    async fn update_received_quantity(
+        txn: &sea_orm::DatabaseTransaction,
+        item: &purchase_order_item::Model,
+        receive_qty_meters: Decimal,
+        receive_qty_alt: Decimal,
+    ) -> Result<(), AppError> {
+        let mut item_active: purchase_order_item::ActiveModel = item.clone().into();
+        item_active.received_quantity = Set(item.received_quantity + receive_qty_meters);
+        item_active.received_quantity_alt = Set(item.received_quantity_alt + receive_qty_alt);
+        item_active.updated_at = Set(Utc::now());
+        purchase_order_item::Entity::update(item_active)
+            .exec(txn)
+            .await?;
+        Ok(())
+    }
+
+    /// 判断订单新状态（全部收货 COMPLETED / 部分收货 PARTIAL_RECEIVED）
+    async fn determine_new_status(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+    ) -> Result<String, AppError> {
         let all_items = purchase_order_item::Entity::find()
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
-            .all(&txn)
+            .all(txn)
             .await?;
-
-        let mut is_fully_received = true;
-        for item in &all_items {
-            if item.received_quantity < item.quantity {
-                is_fully_received = false;
-                break;
-            }
-        }
-
-        let new_status = if is_fully_received {
+        let is_fully_received = all_items.iter().all(|i| i.received_quantity >= i.quantity);
+        Ok(if is_fully_received {
             status::purchase_order::COMPLETED.to_string()
         } else {
             status::purchase_order::PARTIAL_RECEIVED.to_string()
-        };
+        })
+    }
 
-        // 7. 更新订单状态
+    /// 更新订单状态并记录审计日志
+    /// 批次 94 P2-10：receive_order 由 PurchaseReceiptCompleted 事件触发，
+    /// 该事件未携带 user_id，事件驱动场景下无用户上下文，暂保留 Some(0)。
+    async fn update_order_status_to_received(
+        txn: &sea_orm::DatabaseTransaction,
+        order: purchase_order::Model,
+        new_status: String,
+    ) -> Result<purchase_order::Model, AppError> {
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.order_status = Set(new_status);
         order_active.actual_delivery_date = Set(Some(now.date_naive()));
         order_active.updated_at = Set(now);
-
-        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
             "auto_audit",
             order_active,
-            // 批次 94 P2-10：receive_order 由 PurchaseReceiptCompleted 事件触发，
-            // 该事件未携带 user_id（参见 event_bus::BusinessEvent::PurchaseReceiptCompleted），
-            // 事件驱动场景下无用户上下文，暂保留 Some(0)。
             Some(0),
         )
-        .await?;
+        .await
+    }
 
-        // P0 3-6 修复：入库成功后标记入库单为 COMPLETED，作为幂等键防止重复入库
-        if let Some(rid) = receipt_id {
-            use crate::models::purchase_receipt;
-            // 使用结构体初始化器语法（避免 clippy::field_reassign_with_default）
-            let receipt_active = purchase_receipt::ActiveModel {
-                id: Set(rid),
-                receipt_status: Set(status::purchase_receipt::COMPLETED.to_string()),
-                updated_at: Set(now),
-                ..Default::default()
-            };
-            purchase_receipt::Entity::update(receipt_active)
-                .exec(&txn)
-                .await?;
-        }
+    /// P0 3-6 修复：入库成功后标记入库单为 COMPLETED，作为幂等键防止重复入库
+    async fn mark_receipt_completed(
+        txn: &sea_orm::DatabaseTransaction,
+        receipt_id: Option<i32>,
+    ) -> Result<(), AppError> {
+        let Some(rid) = receipt_id else {
+            return Ok(());
+        };
+        use crate::models::purchase_receipt;
+        let now = chrono::Utc::now();
+        // 使用结构体初始化器语法（避免 clippy::field_reassign_with_default）
+        let receipt_active = purchase_receipt::ActiveModel {
+            id: Set(rid),
+            receipt_status: Set(status::purchase_receipt::COMPLETED.to_string()),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+        purchase_receipt::Entity::update(receipt_active)
+            .exec(txn)
+            .await?;
+        Ok(())
+    }
 
-        // 8. 提交事务
-        txn.commit().await?;
-
-        // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
+    /// commit 成功后统一发布库存流水事件
+    fn publish_receive_events(pending_events: Vec<BusinessEvent>) {
         for ev in pending_events {
             EVENT_BUS.publish(ev);
         }
-
-        Ok(order)
     }
 
     // ===================================================================

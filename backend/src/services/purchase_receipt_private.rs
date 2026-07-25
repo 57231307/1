@@ -27,33 +27,59 @@ impl PurchaseReceiptService {
             .await?;
 
         // v11 批次 38 修复：批量查询本入库单关联的所有订单明细，避免循环内逐个 find_by_id（N+1 查询）
-        let order_item_ids: Vec<i32> = items
-            .iter()
-            .filter_map(|i| i.order_item_id)
-            .collect();
-        let mut order_item_map: std::collections::HashMap<i32, crate::models::purchase_order_item::Model> =
-            if order_item_ids.is_empty() {
-                std::collections::HashMap::new()
-            } else {
-                crate::models::purchase_order_item::Entity::find()
-                    .filter(crate::models::purchase_order_item::Column::Id.is_in(order_item_ids))
-                    .all(txn)
-                    .await?
-                    .into_iter()
-                    .map(|oi| (oi.id, oi))
-                    .collect()
-            };
+        let order_item_map = Self::load_order_item_map(txn, &items).await?;
 
         // 2. 更新每个订单明细的已入库数量
+        Self::update_order_items_received_qty(txn, items, order_item_map, user_id).await?;
+
+        // 3. 更新采购订单状态（重新查询最新订单明细，因为上方 update 已修改 received_quantity）
+        let all_order_items = crate::models::purchase_order_item::Entity::find()
+            .filter(crate::models::purchase_order_item::Column::OrderId.eq(order_id))
+            .all(txn)
+            .await?;
+
+        let new_status =
+            match Self::compute_order_receipt_status(&all_order_items) {
+                Some(status) => status,
+                None => return Ok(()), // 没有入库数量，保持原状态
+            };
+
+        Self::update_order_receipt_status(txn, order_id, new_status, user_id).await
+    }
+
+    /// 批量查询入库单关联的订单明细，构建 order_item_id -> Model 映射
+    async fn load_order_item_map(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[purchase_receipt_item::Model],
+    ) -> Result<std::collections::HashMap<i32, crate::models::purchase_order_item::Model>, AppError>
+    {
+        let order_item_ids: Vec<i32> = items.iter().filter_map(|i| i.order_item_id).collect();
+        if order_item_ids.is_empty() {
+            Ok(std::collections::HashMap::new())
+        } else {
+            Ok(crate::models::purchase_order_item::Entity::find()
+                .filter(crate::models::purchase_order_item::Column::Id.is_in(order_item_ids))
+                .all(txn)
+                .await?
+                .into_iter()
+                .map(|oi| (oi.id, oi))
+                .collect())
+        }
+    }
+
+    /// 累加每个订单明细的已入库数量并 update_with_audit
+    async fn update_order_items_received_qty(
+        txn: &sea_orm::DatabaseTransaction,
+        items: Vec<purchase_receipt_item::Model>,
+        order_item_map: &mut std::collections::HashMap<i32, crate::models::purchase_order_item::Model>,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         for item in items {
             if let Some(order_item_id) = item.order_item_id {
                 let order_item = order_item_map
                     .remove(&order_item_id)
-                    .ok_or_else(|| {
-                        AppError::not_found(format!("订单明细 {}", order_item_id))
-                    })?;
+                    .ok_or_else(|| AppError::not_found(format!("订单明细 {}", order_item_id)))?;
 
-                // 累加已入库数量
                 let new_received = order_item.received_quantity + item.quantity;
                 let new_received_alt =
                     order_item.received_quantity_alt + item.quantity_alt.unwrap_or_default();
@@ -75,17 +101,16 @@ impl PurchaseReceiptService {
                 .await?;
             }
         }
+        Ok(())
+    }
 
-        // 3. 更新采购订单状态（重新查询最新订单明细，因为上方 update 已修改 received_quantity）
-        let all_order_items = crate::models::purchase_order_item::Entity::find()
-            .filter(crate::models::purchase_order_item::Column::OrderId.eq(order_id))
-            .all(txn)
-            .await?;
-
+    /// 根据订单明细已入库数量计算订单状态：全部到齐/部分到货/无入库（保持原状态）
+    fn compute_order_receipt_status(
+        all_items: &[crate::models::purchase_order_item::Model],
+    ) -> Option<&'static str> {
         let mut is_fully_received = true;
         let mut has_received = false;
-
-        for oi in &all_order_items {
+        for oi in all_items {
             if oi.received_quantity > Decimal::ZERO {
                 has_received = true;
             }
@@ -93,17 +118,22 @@ impl PurchaseReceiptService {
                 is_fully_received = false;
             }
         }
-
-        // 根据入库情况设置状态
-        let new_status = if is_fully_received {
-            "COMPLETED"
+        if is_fully_received {
+            Some("COMPLETED")
         } else if has_received {
-            "PARTIAL_RECEIVED"
+            Some("PARTIAL_RECEIVED")
         } else {
-            // 没有入库数量，保持原状态
-            return Ok(());
-        };
+            None
+        }
+    }
 
+    /// 更新采购订单状态并落审计日志
+    async fn update_order_receipt_status(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+        new_status: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         let order = crate::models::purchase_order::Entity::find_by_id(order_id)
             .one(txn)
             .await?
@@ -120,7 +150,6 @@ impl PurchaseReceiptService {
             Some(user_id),
         )
         .await?;
-
         Ok(())
     }
 

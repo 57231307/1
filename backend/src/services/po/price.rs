@@ -225,35 +225,66 @@ impl PurchaseOrderService {
         reorder_point: Decimal,
         reorder_quantity: Decimal,
     ) -> Result<purchase_order::Model, AppError> {
-        // 开启事务
         let txn = (*self.db).begin().await?;
+        let (product, warehouse, supplier) =
+            Self::load_suggestion_entities(&txn, product_id, warehouse_id).await?;
+        let order_no = self.generate_order_no_with_txn(&txn).await?;
+        let order = Self::build_suggestion_order(
+            order_no,
+            supplier.id,
+            warehouse_id,
+            current_quantity,
+            reorder_point,
+            reorder_quantity,
+        )
+        .insert(&txn)
+        .await?;
+        Self::create_suggestion_order_item(&txn, order.id, &product, reorder_quantity).await?;
+        txn.commit().await?;
+        tracing::info!(
+            "创建库存预警采购建议: 订单号={}, 产品={}, 仓库={}, 建议采购量={}",
+            order.order_no,
+            product.name,
+            warehouse.name,
+            reorder_quantity
+        );
+        Ok(order)
+    }
 
-        // 1. 获取产品信息
+    /// 加载采购建议所需实体：产品、仓库、默认活跃供应商
+    async fn load_suggestion_entities(
+        txn: &sea_orm::DatabaseTransaction,
+        product_id: i32,
+        warehouse_id: i32,
+    ) -> Result<(product::Model, warehouse::Model, supplier::Model), AppError> {
         let product = product::Entity::find_by_id(product_id)
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", product_id)))?;
-
-        // 2. 获取仓库信息
         let warehouse = warehouse::Entity::find_by_id(warehouse_id)
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("仓库 ID {} 不存在", warehouse_id)))?;
-
-        // 3. 查找默认供应商（这里简化处理，实际可能需要更复杂的供应商选择逻辑）
         let supplier = supplier::Entity::find()
             .filter(supplier::Column::Status.eq(master_data::ACTIVE))
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("没有可用的活跃供应商"))?;
+        Ok((product, warehouse, supplier))
+    }
 
-        // 4. 生成采购订单号（使用事务连接）
-        let order_no = self.generate_order_no_with_txn(&txn).await?;
-
-        // 5. 创建采购订单
-        let order = purchase_order::ActiveModel {
+    /// 构建库存预警采购订单 ActiveModel
+    fn build_suggestion_order(
+        order_no: String,
+        supplier_id: i32,
+        warehouse_id: i32,
+        current_quantity: Decimal,
+        reorder_point: Decimal,
+        reorder_quantity: Decimal,
+    ) -> purchase_order::ActiveModel {
+        purchase_order::ActiveModel {
             order_no: Set(order_no),
-            supplier_id: Set(supplier.id),
+            supplier_id: Set(supplier_id),
             order_date: Set(Utc::now().date_naive()),
             expected_delivery_date: Set(Some(
                 (Utc::now() + chrono::Duration::days(7)).date_naive(),
@@ -271,21 +302,23 @@ impl PurchaseOrderService {
             created_by: Set(1), // 系统用户
             ..Default::default()
         }
-        .insert(&txn)
-        .await?;
+    }
 
-        // 6. 创建订单明细
-        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
-        let quantity = reorder_quantity;
+    /// 创建库存预警采购订单明细（金额补 round_dp(2) 精度归一化）
+    async fn create_suggestion_order_item(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+        product: &product::Model,
+        quantity: Decimal,
+    ) -> Result<(), AppError> {
         let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
         let amount = (quantity * unit_price).round_dp(2);
         let tax_rate = Decimal::new(13, 2); // 13% 增值税
         let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
-
         purchase_order_item::ActiveModel {
             id: Default::default(),
-            order_id: Set(order.id),
-            product_id: Set(product_id),
+            order_id: Set(order_id),
+            product_id: Set(product.id),
             quantity: Set(quantity),
             quantity_alt: Set(Decimal::ZERO),
             unit_price: Set(unit_price),
@@ -303,20 +336,8 @@ impl PurchaseOrderService {
             updated_at: Set(Utc::now()),
             ..Default::default()
         }
-        .insert(&txn)
+        .insert(txn)
         .await?;
-
-        // 7. 提交事务
-        txn.commit().await?;
-
-        tracing::info!(
-            "创建库存预警采购建议: 订单号={}, 产品={}, 仓库={}, 建议采购量={}",
-            order.order_no,
-            product.name,
-            warehouse.name,
-            quantity
-        );
-
-        Ok(order)
+        Ok(())
     }
 }

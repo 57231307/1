@@ -109,27 +109,58 @@ impl ArReconciliationService {
             ));
         }
 
+        let result = Self::apply_closed_status(&txn, model, user_id).await?;
+        txn.commit().await?;
+
+        // F-P2-4 修复（批次 387 v13 复审）：commit 成功后生成对账确认凭证
+        // 失败时仅 warn 不阻断主流程。
+        self.try_create_close_voucher(&result, user_id).await;
+
+        Ok(result)
+    }
+
+    /// 写入 CLOSED 状态并附审计日志
+    async fn apply_closed_status(
+        txn: &sea_orm::DatabaseTransaction,
+        model: ReconciliationModel,
+        user_id: i32,
+    ) -> Result<ReconciliationModel, AppError> {
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some(ar_status::RECONCILIATION_CLOSED.to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        // 批次 92 P3-9：user_id 从 handler AuthContext 注入
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+        Ok(crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
             "auto_audit",
             active_model,
             Some(user_id),
         )
-        .await?;
+        .await?)
+    }
 
-        txn.commit().await?;
+    /// 生成 AR 对账单关闭后的对账确认凭证（失败仅 warn 不阻断主流程）
+    async fn try_create_close_voucher(
+        &self,
+        result: &ReconciliationModel,
+        user_id: i32,
+    ) {
+        let voucher_req = Self::build_close_voucher_request(result);
+        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+            tracing::warn!(
+                "AR 对账单 {} 关闭成功，但生成对账确认凭证失败：{}",
+                result.reconciliation_no,
+                e
+            );
+        }
+    }
 
-        // F-P2-4 修复（批次 387 v13 复审）：AR 对账单关闭后生成对账确认凭证
-        // 原实现 close 仅更新对账单状态，不生成凭证，
-        // 导致对账确认结果无法在凭证体系中追溯。
-        // 修复：commit 成功后生成转账凭证（借贷均为应收账款，金额=期末余额），
-        // 作为对账确认的审计凭证，不改变账面净余额。失败时仅 warn 不阻断主流程。
-        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+    /// 构建 AR 对账单关闭凭证请求
+    fn build_close_voucher_request(
+        result: &ReconciliationModel,
+    ) -> crate::services::voucher_service::CreateVoucherRequest {
+        let summary = format!("对账确认-{}", result.reconciliation_no);
+        crate::services::voucher_service::CreateVoucherRequest {
             voucher_type: "转".to_string(),
             voucher_date: result.period_end,
             source_type: Some("AR_RECONCILIATION".to_string()),
@@ -139,60 +170,41 @@ impl ArReconciliationService {
             batch_no: None,
             color_no: None,
             items: vec![
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(1),
-                    subject_code: Some("1131".to_string()),
-                    subject_name: Some("应收账款".to_string()),
-                    debit: result.closing_balance,
-                    credit: rust_decimal::Decimal::ZERO,
-                    summary: Some(format!("对账确认-{}", result.reconciliation_no)),
-                    assist_customer_id: Some(result.customer_id),
-                    assist_supplier_id: None,
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(2),
-                    subject_code: Some("1131".to_string()),
-                    subject_name: Some("应收账款".to_string()),
-                    debit: rust_decimal::Decimal::ZERO,
-                    credit: result.closing_balance,
-                    summary: Some(format!("对账确认-{}", result.reconciliation_no)),
-                    assist_customer_id: Some(result.customer_id),
-                    assist_supplier_id: None,
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
+                Self::build_close_voucher_item(1, result.closing_balance, rust_decimal::Decimal::ZERO, &summary, result.customer_id),
+                Self::build_close_voucher_item(2, rust_decimal::Decimal::ZERO, result.closing_balance, &summary, result.customer_id),
             ],
-        };
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
-        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
-            tracing::warn!(
-                "AR 对账单 {} 关闭成功，但生成对账确认凭证失败：{}",
-                result.reconciliation_no,
-                e
-            );
         }
+    }
 
-        Ok(result)
+    /// 构建 AR 对账单关闭凭证分录
+    fn build_close_voucher_item(
+        line_no: i32,
+        debit: rust_decimal::Decimal,
+        credit: rust_decimal::Decimal,
+        summary: &str,
+        customer_id: i32,
+    ) -> crate::services::voucher_service::VoucherItemRequest {
+        crate::services::voucher_service::VoucherItemRequest {
+            line_no: Some(line_no),
+            subject_code: Some("1131".to_string()),
+            subject_name: Some("应收账款".to_string()),
+            debit,
+            credit,
+            summary: Some(summary.to_string()),
+            assist_customer_id: Some(customer_id),
+            assist_supplier_id: None,
+            assist_department_id: None,
+            assist_employee_id: None,
+            assist_project_id: None,
+            assist_batch_id: None,
+            assist_color_no_id: None,
+            assist_dye_lot_id: None,
+            assist_grade: None,
+            assist_workshop_id: None,
+            quantity_meters: None,
+            quantity_kg: None,
+            unit_price: None,
+        }
     }
 
     /// 更新对账单状态（通用）

@@ -97,6 +97,19 @@ pub struct WorkshopEnergySummary {
     pub total_cost: Decimal,
 }
 
+/// 能耗记录创建过程中间的计算结果（用于在 helper 间传递）
+struct ConsumptionDraft {
+    record_no: String,
+    now: chrono::DateTime<chrono::FixedOffset>,
+    previous_reading: Decimal,
+    current_reading: Decimal,
+    consumption: Decimal,
+    unit_price: Decimal,
+    total_cost: Decimal,
+    recording_method: String,
+    unit: String,
+}
+
 /// 能耗记录 Service
 pub struct EnergyConsumptionService {
     db: Arc<DatabaseConnection>,
@@ -117,44 +130,68 @@ impl EnergyConsumptionService {
 
     /// 创建能耗记录
     pub async fn create(&self, req: CreateConsumptionRequest) -> Result<ConsumptionModel, AppError> {
-        // 校验能源类型
+        // 1. 校验能源类型与时段
         validate_meter_type(&req.meter_type)?;
+        Self::validate_period(&req)?;
 
-        // 校验时段
+        // 2. 校验计量设备与工序路线存在（若提供）
+        if let Some(meter_id) = req.meter_id {
+            self.ensure_meter_exists(meter_id).await?;
+        }
+        if let Some(route_id) = req.process_route_id {
+            self.ensure_route_exists(route_id).await?;
+        }
+
+        // 3. 计算消耗量、成本与默认值
+        let draft = Self::build_consumption_draft(&req)?;
+
+        // 4. 插入能耗记录
+        let active = Self::build_consumption_active(&req, &draft);
+        let result = active
+            .insert(&*self.db)
+            .await
+            .map_err(|e| AppError::database(format!("能耗记录创建失败: {}", e)))?;
+
+        // 5. 同步计量设备读数（若关联）
+        if let Some(meter_id) = req.meter_id {
+            self.sync_meter_readings(meter_id, draft.previous_reading, draft.current_reading, draft.now)
+                .await?;
+        }
+
+        Ok(result)
+    }
+
+    /// 校验时段：结束时间必须晚于开始时间
+    fn validate_period(req: &CreateConsumptionRequest) -> Result<(), AppError> {
         if req.period_end <= req.period_start {
             return Err(AppError::business("结束时间必须晚于开始时间"));
         }
+        Ok(())
+    }
 
-        // 校验计量设备存在（若提供）
-        if let Some(meter_id) = req.meter_id {
-            let _meter = MeterEntity::find_by_id(meter_id)
-                .filter(energy_meter::Column::IsDeleted.eq(false))
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| {
-                    AppError::business(format!("计量设备 {} 不存在", meter_id))
-                })?;
-        }
+    /// 校验计量设备存在且未删除
+    async fn ensure_meter_exists(&self, meter_id: i32) -> Result<(), AppError> {
+        let _meter = MeterEntity::find_by_id(meter_id)
+            .filter(energy_meter::Column::IsDeleted.eq(false))
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::business(format!("计量设备 {} 不存在", meter_id)))?;
+        Ok(())
+    }
 
-        // 校验工序路线存在（若提供）
-        if let Some(route_id) = req.process_route_id {
-            let _route = RouteEntity::find_by_id(route_id)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| {
-                    AppError::business(format!("工序路线 {} 不存在", route_id))
-                })?;
-        }
+    /// 校验工序路线存在
+    async fn ensure_route_exists(&self, route_id: i32) -> Result<(), AppError> {
+        let _route = RouteEntity::find_by_id(route_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::business(format!("工序路线 {} 不存在", route_id)))?;
+        Ok(())
+    }
 
-        // 计算消耗量和总成本
-        let previous_reading = req.previous_reading.unwrap_or(Decimal::ZERO);
-        let current_reading = req.current_reading.unwrap_or(Decimal::ZERO);
-        let consumption = compute_consumption(previous_reading, current_reading);
-        let unit_price = req.unit_price.unwrap_or(Decimal::ZERO);
-        let total_cost = compute_total_cost(consumption, unit_price);
-
-        let recording_method = req
-            .recording_method
+    /// 解析并校验录入方式，缺失时回退为 manual
+    fn resolve_recording_method(method: &Option<String>) -> Result<String, AppError> {
+        let recording_method = method
+            .clone()
             .unwrap_or_else(|| energy_recording_method::MANUAL.to_string());
         if recording_method != energy_recording_method::MANUAL
             && recording_method != energy_recording_method::IOT
@@ -165,63 +202,92 @@ impl EnergyConsumptionService {
                 recording_method
             )));
         }
+        Ok(recording_method)
+    }
 
+    /// 计算消耗量、成本及默认值，组装为 ConsumptionDraft
+    fn build_consumption_draft(
+        req: &CreateConsumptionRequest,
+    ) -> Result<ConsumptionDraft, AppError> {
+        let previous_reading = req.previous_reading.unwrap_or(Decimal::ZERO);
+        let current_reading = req.current_reading.unwrap_or(Decimal::ZERO);
+        let consumption = compute_consumption(previous_reading, current_reading);
+        let unit_price = req.unit_price.unwrap_or(Decimal::ZERO);
+        let total_cost = compute_total_cost(consumption, unit_price);
+        let recording_method = Self::resolve_recording_method(&req.recording_method)?;
         let record_no = Self::generate_record_no();
         let now = crate::utils::date_utils::utc_now_fixed();
-        let unit = req.unit.unwrap_or_else(|| "度".to_string());
+        let unit = req.unit.clone().unwrap_or_else(|| "度".to_string());
+        Ok(ConsumptionDraft {
+            record_no,
+            now,
+            previous_reading,
+            current_reading,
+            consumption,
+            unit_price,
+            total_cost,
+            recording_method,
+            unit,
+        })
+    }
 
-        let active = ConsumptionActiveModel {
+    /// 根据请求与计算草稿构建待插入的能耗记录 ActiveModel
+    fn build_consumption_active(
+        req: &CreateConsumptionRequest,
+        draft: &ConsumptionDraft,
+    ) -> ConsumptionActiveModel {
+        ConsumptionActiveModel {
             id: Default::default(),
-            record_no: Set(record_no),
+            record_no: Set(draft.record_no.clone()),
             meter_id: Set(req.meter_id),
-            meter_type: Set(req.meter_type),
-            workshop: Set(req.workshop),
-            unit: Set(unit),
-            previous_reading: Set(previous_reading),
-            current_reading: Set(current_reading),
-            consumption: Set(consumption),
-            unit_price: Set(unit_price),
-            total_cost: Set(total_cost),
+            meter_type: Set(req.meter_type.clone()),
+            workshop: Set(req.workshop.clone()),
+            unit: Set(draft.unit.clone()),
+            previous_reading: Set(draft.previous_reading),
+            current_reading: Set(draft.current_reading),
+            consumption: Set(draft.consumption),
+            unit_price: Set(draft.unit_price),
+            total_cost: Set(draft.total_cost),
             period_start: Set(req.period_start),
             period_end: Set(req.period_end),
-            recording_method: Set(recording_method),
-            dye_lot_no: Set(req.dye_lot_no),
+            recording_method: Set(draft.recording_method.clone()),
+            dye_lot_no: Set(req.dye_lot_no.clone()),
             process_route_id: Set(req.process_route_id),
-            route_code: Set(req.route_code),
+            route_code: Set(req.route_code.clone()),
             equipment_id: Set(req.equipment_id),
-            equipment_name: Set(req.equipment_name),
+            equipment_name: Set(req.equipment_name.clone()),
             operator_id: Set(req.operator_id),
-            recorded_at: Set(now),
+            recorded_at: Set(draft.now),
             status: Set(energy_record_status::DRAFT.to_string()),
-            remarks: Set(req.remarks),
+            remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
             created_by: Set(req.created_by),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("能耗记录创建失败: {}", e)))?;
-
-        // 若关联计量设备，同步更新设备的当前读数和上次读数
-        if let Some(meter_id) = req.meter_id {
-            if let Some(meter) = MeterEntity::find_by_id(meter_id)
-                .filter(energy_meter::Column::IsDeleted.eq(false))
-                .one(&*self.db)
-                .await?
-            {
-                let mut meter_active: MeterActiveModel = meter.into();
-                meter_active.previous_reading = Set(previous_reading);
-                meter_active.current_reading = Set(current_reading);
-                meter_active.last_reading_at = Set(Some(now));
-                meter_active.updated_at = Set(now);
-                meter_active.update(&*self.db).await?;
-            }
+            created_at: Set(draft.now),
+            updated_at: Set(draft.now),
         }
+    }
 
-        Ok(result)
+    /// 同步更新计量设备的当前读数、上次读数与读数时间
+    async fn sync_meter_readings(
+        &self,
+        meter_id: i32,
+        previous_reading: Decimal,
+        current_reading: Decimal,
+        now: chrono::DateTime<chrono::FixedOffset>,
+    ) -> Result<(), AppError> {
+        if let Some(meter) = MeterEntity::find_by_id(meter_id)
+            .filter(energy_meter::Column::IsDeleted.eq(false))
+            .one(&*self.db)
+            .await?
+        {
+            let mut meter_active: MeterActiveModel = meter.into();
+            meter_active.previous_reading = Set(previous_reading);
+            meter_active.current_reading = Set(current_reading);
+            meter_active.last_reading_at = Set(Some(now));
+            meter_active.updated_at = Set(now);
+            meter_active.update(&*self.db).await?;
+        }
+        Ok(())
     }
 
     /// 更新能耗记录（仅 draft 状态可更新）

@@ -169,53 +169,74 @@ impl ProductionOrderService {
         &self,
         req: CreateProductionOrderRequest,
     ) -> Result<ProductionOrderModel, AppError> {
-        // 验证产品是否存在
         self.validate_product_exists(req.product_id).await?;
+        self.check_default_bom_exists(req.product_id).await?;
+        self.validate_create_references(req.sales_order_id, req.work_center_id)
+            .await?;
+        let planned_end_date = req.planned_end_date;
+        let order_no = self.resolve_order_no(&req.order_no).await?;
+        let active_model = Self::build_create_active_model(order_no, req);
+        let model = self.insert_production_order(active_model).await?;
+        self.trigger_mrp_after_create(&model, planned_end_date).await;
+        Ok(model)
+    }
 
-        // 验证BOM是否存在（生产订单需要BOM进行物料计算）
+    /// 检查默认 BOM 是否存在（缺失时 warn 不阻塞）
+    async fn check_default_bom_exists(&self, product_id: i32) -> Result<(), AppError> {
         let has_bom = BomEntity::find()
-            .filter(BomColumn::ProductId.eq(req.product_id))
+            .filter(BomColumn::ProductId.eq(product_id))
             .filter(BomColumn::IsDefault.eq(true))
             .filter(BomColumn::Status.eq(crate::models::status::common::STATUS_ACTIVE))
             .one(&*self.db)
             .await?
             .is_some();
-
         if !has_bom {
             tracing::warn!(
                 "产品ID {} 没有默认BOM，生产完成时将无法自动扣减原材料",
-                req.product_id
+                product_id
             );
         }
+        Ok(())
+    }
 
-        // 验证销售订单是否存在（如果提供）
-        if let Some(sales_order_id) = req.sales_order_id {
+    /// 校验销售订单和工作中心（若提供）
+    async fn validate_create_references(
+        &self,
+        sales_order_id: Option<i32>,
+        work_center_id: Option<i32>,
+    ) -> Result<(), AppError> {
+        if let Some(sales_order_id) = sales_order_id {
             self.validate_sales_order_exists(sales_order_id).await?;
         }
-
-        // 验证工作中心是否存在（如果提供）
-        if let Some(work_center_id) = req.work_center_id {
+        if let Some(work_center_id) = work_center_id {
             self.validate_work_center_exists(work_center_id).await?;
         }
+        Ok(())
+    }
 
-        // 生成或验证订单号
-        let order_no = match req.order_no {
+    /// 生成或校验订单号（未提供时自动生成唯一号）
+    async fn resolve_order_no(&self, order_no: &Option<String>) -> Result<String, AppError> {
+        match order_no {
             Some(no) => {
-                // 检查提供的订单号是否已存在
                 let existing = ProductionOrderEntity::find()
-                    .filter(crate::models::production_order::Column::OrderNo.eq(&no))
+                    .filter(crate::models::production_order::Column::OrderNo.eq(no))
                     .one(&*self.db)
                     .await?;
-
                 if existing.is_some() {
                     return Err(AppError::validation(format!("订单号 {} 已存在", no)));
                 }
-                no
+                Ok(no.clone())
             }
-            None => self.generate_unique_order_no().await?,
-        };
+            None => self.generate_unique_order_no().await,
+        }
+    }
 
-        let active_model = ActiveModel {
+    /// 构建生产订单 ActiveModel（DRAFT 状态）
+    fn build_create_active_model(
+        order_no: String,
+        req: CreateProductionOrderRequest,
+    ) -> ActiveModel {
+        ActiveModel {
             order_no: Set(order_no),
             sales_order_id: Set(req.sales_order_id),
             product_id: Set(req.product_id),
@@ -231,26 +252,32 @@ impl ProductionOrderService {
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
-        };
+        }
+    }
 
-        let model = active_model.insert(&*self.db).await.map_err(|e| {
-            // 处理唯一约束冲突
+    /// 插入生产订单（处理唯一约束冲突）
+    async fn insert_production_order(
+        &self,
+        active_model: ActiveModel,
+    ) -> Result<ProductionOrderModel, AppError> {
+        active_model.insert(&*self.db).await.map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("unique constraint") || err_str.contains("duplicate") {
                 AppError::validation("订单号已存在，请稍后重试")
             } else {
                 AppError::database(e.to_string())
             }
-        })?;
+        })
+    }
 
-        // B-P2-4 修复（批次 386 v13 复审）：生产订单创建后触发 MRP 物料需求计算
-        // 原实现 create 仅插入订单记录，不调用 MrpEngineService，
-        // 导致生产订单→MRP 物料需求链路断开，原材料采购计划无法基于生产订单自动生成。
-        // 修复：insert 成功后调用 MRP 计算（source_type=PRODUCTION_ORDER），
-        // 失败时 tracing::warn 不阻塞主流程（订单已创建，MRP 可后续重算）。
+    /// 生产订单创建后触发 MRP 物料需求计算（失败 warn 不阻塞）
+    async fn trigger_mrp_after_create(
+        &self,
+        model: &ProductionOrderModel,
+        planned_end_date: Option<chrono::NaiveDate>,
+    ) {
         let mrp_service = crate::services::mrp_engine_service::MrpEngineService::new(self.db.clone());
-        let required_date = req
-            .planned_end_date
+        let required_date = planned_end_date
             .unwrap_or_else(|| chrono::Utc::now().date_naive() + chrono::Duration::days(7));
         if let Err(e) = mrp_service
             .run_mrp_calculation(crate::services::mrp_engine_service::MrpCalculationQuery {
@@ -271,8 +298,6 @@ impl ProductionOrderService {
                 "批次 386 B-P2-4: 生产订单创建后 MRP 计算失败，请人工检查物料需求"
             );
         }
-
-        Ok(model)
     }
 
     /// V15 Batch 479 P0-F21：创建返工生产订单

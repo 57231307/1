@@ -234,90 +234,15 @@ impl ProductService {
         &self,
         args: UpdateProductArgs,
     ) -> Result<product::Model, AppError> {
-        let UpdateProductArgs {
-            id,
-            name,
-            specification,
-            unit,
-            standard_price,
-            cost_price,
-            description,
-            status,
-            product_type,
-            fabric_composition,
-            yarn_count,
-            density,
-            width,
-            gram_weight,
-            structure,
-            finish,
-            min_order_quantity,
-            lead_time,
-            user_id,
-        } = args;
+        let id = args.id;
+        let user_id = args.user_id;
         let mut product: product::ActiveModel = ProductEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", id)))?
             .into();
-
-        if let Some(n) = name {
-            product.name = Set(n);
-        }
-        if let Some(spec) = specification {
-            product.specification = Set(Some(spec));
-        }
-        if let Some(u) = unit {
-            product.unit = Set(u);
-        }
-        if let Some(sp) = standard_price {
-            product.standard_price =
-                Set(Some(Decimal::from_f64_retain(sp).unwrap_or(Decimal::ZERO)));
-        }
-        if let Some(cp) = cost_price {
-            product.cost_price = Set(Some(Decimal::from_f64_retain(cp).unwrap_or(Decimal::ZERO)));
-        }
-        if let Some(d) = description {
-            product.description = Set(Some(d));
-        }
-        if let Some(s) = status {
-            product.status = Set(s);
-        }
-        // 面料行业字段
-        if let Some(pt) = product_type {
-            product.product_type = Set(pt);
-        }
-        if let Some(fc) = fabric_composition {
-            product.fabric_composition = Set(Some(fc));
-        }
-        if let Some(yc) = yarn_count {
-            product.yarn_count = Set(Some(yc));
-        }
-        if let Some(den) = density {
-            product.density = Set(Some(den));
-        }
-        if let Some(w) = width {
-            product.width = Set(Some(Decimal::from_f64_retain(w).unwrap_or(Decimal::ZERO)));
-        }
-        if let Some(gw) = gram_weight {
-            product.gram_weight = Set(Some(Decimal::from_f64_retain(gw).unwrap_or(Decimal::ZERO)));
-        }
-        if let Some(st) = structure {
-            product.structure = Set(Some(st));
-        }
-        if let Some(fi) = finish {
-            product.finish = Set(Some(fi));
-        }
-        if let Some(moq) = min_order_quantity {
-            product.min_order_quantity =
-                Set(Some(Decimal::from_f64_retain(moq).unwrap_or(Decimal::ZERO)));
-        }
-        if let Some(lt) = lead_time {
-            product.lead_time = Set(Some(lt));
-        }
-
+        Self::apply_product_field_updates(&mut product, args);
         product.updated_at = Set(Utc::now());
-
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
@@ -326,13 +251,53 @@ impl ProductService {
             Some(user_id),
         )
         .await?;
-
         // P0-D03：失效产品缓存（产品信息已更新）
         redis_cache_del(&cache_key("product", id)).await;
-
         // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
         self.sync_product_to_es(&result, "update").await;
-
         Ok(result)
+    }
+
+    /// 应用产品字段更新到 ActiveModel（面料行业字段 + 基础字段）
+    fn apply_product_field_updates(
+        product: &mut product::ActiveModel,
+        args: UpdateProductArgs,
+    ) {
+        let UpdateProductArgs {
+            name, specification, unit, standard_price, cost_price, description, status,
+            product_type, fabric_composition, yarn_count, density, width, gram_weight,
+            structure, finish, min_order_quantity, lead_time,
+            .. // id / user_id 已在调用方提取
+        } = args;
+        // 基础字段
+        if let Some(n) = name { product.name = Set(n); }
+        if let Some(spec) = specification { product.specification = Set(Some(spec)); }
+        if let Some(u) = unit { product.unit = Set(u); }
+        if let Some(sp) = standard_price {
+            product.standard_price = Set(Some(Decimal::from_f64_retain(sp).unwrap_or(Decimal::ZERO)));
+        }
+        if let Some(cp) = cost_price {
+            product.cost_price = Set(Some(Decimal::from_f64_retain(cp).unwrap_or(Decimal::ZERO)));
+        }
+        if let Some(d) = description { product.description = Set(Some(d)); }
+        if let Some(s) = status { product.status = Set(s); }
+        // 面料行业字段
+        if let Some(pt) = product_type { product.product_type = Set(pt); }
+        if let Some(fc) = fabric_composition { product.fabric_composition = Set(Some(fc)); }
+        if let Some(yc) = yarn_count { product.yarn_count = Set(Some(yc)); }
+        if let Some(den) = density { product.density = Set(Some(den)); }
+        if let Some(w) = width {
+            product.width = Set(Some(Decimal::from_f64_retain(w).unwrap_or(Decimal::ZERO)));
+        }
+        if let Some(gw) = gram_weight {
+            product.gram_weight = Set(Some(Decimal::from_f64_retain(gw).unwrap_or(Decimal::ZERO)));
+        }
+        if let Some(st) = structure { product.structure = Set(Some(st)); }
+        if let Some(fi) = finish { product.finish = Set(Some(fi)); }
+        if let Some(moq) = min_order_quantity {
+            product.min_order_quantity =
+                Set(Some(Decimal::from_f64_retain(moq).unwrap_or(Decimal::ZERO)));
+        }
+        if let Some(lt) = lead_time { product.lead_time = Set(Some(lt)); }
     }
 }

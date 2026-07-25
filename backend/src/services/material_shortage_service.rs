@@ -17,14 +17,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
-use crate::models::bom_item::{Column as BomItemColumn, Entity as BomItemEntity};
+use crate::models::bom::{self, Column as BomColumn, Entity as BomEntity};
+use crate::models::bom_item::{self, Column as BomItemColumn, Entity as BomItemEntity};
 use crate::models::inventory_stock::{Column as StockColumn, Entity as InventoryStockEntity};
 use crate::models::material_shortage as alert_model;
 use crate::models::material_shortage::threshold_config as threshold_model;
 use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
 use crate::models::production_order::{
-    Column as ProductionOrderColumn, Entity as ProductionOrderEntity,
+    self, Column as ProductionOrderColumn, Entity as ProductionOrderEntity,
 };
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
@@ -122,6 +122,40 @@ pub struct ShortageCheckRequest {
     pub threshold: Option<ShortageThresholdConfig>,
 }
 
+// 批次 326 v10 复审 P2 修复：提取类型别名消除 type_complexity 警告
+type MaterialReq = (Decimal, Option<String>, Vec<(i32, Decimal)>);
+
+/// 缺料统计计数（内部传递用）
+struct ShortageCounts {
+    critical: i64,
+    severe: i64,
+    warning: i64,
+    affected_order_ids: std::collections::HashSet<i32>,
+}
+
+impl ShortageCounts {
+    fn new() -> Self {
+        Self {
+            critical: 0,
+            severe: 0,
+            warning: 0,
+            affected_order_ids: std::collections::HashSet::new(),
+        }
+    }
+
+    fn update(&mut self, level: &ShortageLevel, affected: &[AffectedOrder]) {
+        match level {
+            ShortageLevel::Critical => self.critical += 1,
+            ShortageLevel::Severe => self.severe += 1,
+            ShortageLevel::Warning => self.warning += 1,
+            _ => {}
+        }
+        for ao in affected {
+            self.affected_order_ids.insert(ao.order_id);
+        }
+    }
+}
+
 /// 缺料预警 Service
 pub struct MaterialShortageService {
     db: Arc<DatabaseConnection>,
@@ -139,44 +173,101 @@ impl MaterialShortageService {
     ) -> Result<ShortageSummary, AppError> {
         let _threshold = request.threshold.unwrap_or_default();
 
-        // 1. 获取活跃的生产订单
-        let mut order_query = ProductionOrderEntity::find()
-            .filter(ProductionOrderColumn::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]));
+        // 1. 查询活跃生产订单
+        let orders = self.query_active_orders(&request).await?;
+        if orders.is_empty() {
+            return Ok(Self::empty_summary());
+        }
 
+        // 2. 按产品聚合需求
+        let (product_demands, product_orders) = Self::aggregate_product_demands(&orders);
+
+        // 3. 查询默认 BOM 及物料
+        let product_ids: Vec<i32> = product_demands.keys().cloned().collect();
+        let boms = self.query_default_boms(&product_ids).await?;
+        let bom_ids: Vec<i32> = boms.iter().map(|b| b.id).collect();
+        let product_to_bom: HashMap<i32, i32> =
+            boms.iter().map(|b| (b.product_id, b.id)).collect();
+        let bom_items = self.query_bom_items(&bom_ids).await?;
+
+        // 4. 计算物料总需求
+        let material_requirements =
+            Self::compute_material_requirements(&bom_items, &product_to_bom, &product_demands);
+
+        // 5. 查询库存和名称
+        let material_ids: Vec<i32> = material_requirements.keys().cloned().collect();
+        let stock_map = self.get_material_stock_map(&material_ids).await?;
+        let material_names = self.get_product_names(&material_ids).await?;
+
+        // 6. 汇总受影响订单
+        let material_affected_orders = Self::aggregate_material_affected_orders(
+            &bom_items,
+            &product_to_bom,
+            &product_orders,
+        );
+
+        // 7. 生成缺料清单并排序
+        let (mut items, counts) = Self::build_shortage_items(
+            &material_requirements,
+            &stock_map,
+            &material_names,
+            &material_affected_orders,
+        );
+        Self::sort_items_by_level(&mut items);
+
+        // 8. 持久化 alert（失败降级 warn，不阻断检测）
+        if let Err(e) = self.persist_alerts(&items).await {
+            tracing::warn!(
+                error = %e,
+                "persist_alerts 持久化缺料预警失败（不阻断检测，降级为 warn）"
+            );
+        }
+
+        Ok(Self::build_summary(items, &material_requirements, counts))
+    }
+
+    /// 查询活跃生产订单（含产品/日期过滤）
+    async fn query_active_orders(
+        &self,
+        request: &ShortageCheckRequest,
+    ) -> Result<Vec<production_order::Model>, AppError> {
+        let mut query = ProductionOrderEntity::find()
+            .filter(ProductionOrderColumn::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]));
         if let Some(ref product_ids) = request.product_ids {
-            order_query =
-                order_query.filter(ProductionOrderColumn::ProductId.is_in(product_ids.clone()));
+            query = query.filter(ProductionOrderColumn::ProductId.is_in(product_ids.clone()));
         }
         if let Some(from) = request.date_from {
-            order_query = order_query.filter(ProductionOrderColumn::PlannedEndDate.gte(from));
+            query = query.filter(ProductionOrderColumn::PlannedEndDate.gte(from));
         }
         if let Some(to) = request.date_to {
-            order_query = order_query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
+            query = query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
         }
+        Ok(query.all(&*self.db).await?)
+    }
 
-        let orders = order_query.all(&*self.db).await?;
-
-        if orders.is_empty() {
-            return Ok(ShortageSummary {
-                total_materials_checked: 0,
-                shortage_count: 0,
-                critical_count: 0,
-                severe_count: 0,
-                warning_count: 0,
-                affected_orders_count: 0,
-                items: vec![],
-            });
+    /// 构建空汇总（无活跃订单时返回）
+    fn empty_summary() -> ShortageSummary {
+        ShortageSummary {
+            total_materials_checked: 0,
+            shortage_count: 0,
+            critical_count: 0,
+            severe_count: 0,
+            warning_count: 0,
+            affected_orders_count: 0,
+            items: vec![],
         }
+    }
 
-        // 2. 按产品聚合需求数量
+    /// 按产品聚合需求量和受影响订单
+    fn aggregate_product_demands(
+        orders: &[production_order::Model],
+    ) -> (HashMap<i32, Decimal>, HashMap<i32, Vec<AffectedOrder>>) {
         let mut product_demands: HashMap<i32, Decimal> = HashMap::new();
         let mut product_orders: HashMap<i32, Vec<AffectedOrder>> = HashMap::new();
-
-        for order in &orders {
+        for order in orders {
             *product_demands
                 .entry(order.product_id)
                 .or_insert(Decimal::ZERO) += order.planned_quantity;
-
             product_orders
                 .entry(order.product_id)
                 .or_default()
@@ -187,183 +278,182 @@ impl MaterialShortageService {
                     planned_end_date: order.planned_end_date,
                 });
         }
+        (product_demands, product_orders)
+    }
 
-        // 3. 查询这些产品的默认 BOM 及其物料
-        let product_ids: Vec<i32> = product_demands.keys().cloned().collect();
-
-        let boms = BomEntity::find()
-            .filter(BomColumn::ProductId.is_in(product_ids.clone()))
+    /// 查询产品默认 BOM
+    async fn query_default_boms(&self, product_ids: &[i32]) -> Result<Vec<bom::Model>, AppError> {
+        if product_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        Ok(BomEntity::find()
+            .filter(BomColumn::ProductId.is_in(product_ids.to_vec()))
             .filter(BomColumn::IsDefault.eq(true))
             .filter(BomColumn::Status.eq("ACTIVE"))
             .all(&*self.db)
-            .await?;
+            .await?)
+    }
 
-        // 4. 计算每种物料的总需求
-        let bom_ids: Vec<i32> = boms.iter().map(|b| b.id).collect();
-        let product_to_bom: HashMap<i32, i32> = boms.iter().map(|b| (b.product_id, b.id)).collect();
+    /// 查询 BOM 明细
+    async fn query_bom_items(&self, bom_ids: &[i32]) -> Result<Vec<bom_item::Model>, AppError> {
+        if bom_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        Ok(BomItemEntity::find()
+            .filter(BomItemColumn::BomId.is_in(bom_ids.to_vec()))
+            .all(&*self.db)
+            .await?)
+    }
 
-        let bom_items = if bom_ids.is_empty() {
-            vec![]
-        } else {
-            BomItemEntity::find()
-                .filter(BomItemColumn::BomId.is_in(bom_ids))
-                .all(&*self.db)
-                .await?
-        };
-
-        // material_id -> (total_required, unit, [(product_id, qty_per_unit)])
-        // 批次 326 v10 复审 P2 修复：提取类型别名消除 type_complexity 警告
-        type MaterialReq = (Decimal, Option<String>, Vec<(i32, Decimal)>);
+    /// 计算每种物料的总需求
+    fn compute_material_requirements(
+        bom_items: &[bom_item::Model],
+        product_to_bom: &HashMap<i32, i32>,
+        product_demands: &HashMap<i32, Decimal>,
+    ) -> HashMap<i32, MaterialReq> {
         let mut material_requirements: HashMap<i32, MaterialReq> = HashMap::new();
-
-        for item in &bom_items {
-            // 找到使用此 BOM 的产品
-            for (product_id, bom_id) in &product_to_bom {
-                if *bom_id == item.bom_id {
-                    if let Some(&demand) = product_demands.get(product_id) {
-                        let scrap_rate = item.scrap_rate.unwrap_or(Decimal::ZERO);
-                        // 批次 97 P1-9 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移
-                        let qty_per_unit = (item.quantity * (Decimal::ONE + scrap_rate)).round_dp(4);
-                        let total_for_product = (qty_per_unit * demand).round_dp(4);
-
-                        let entry = material_requirements.entry(item.material_id).or_insert((
-                            Decimal::ZERO,
-                            item.unit.clone(),
-                            vec![],
-                        ));
-                        entry.0 += total_for_product;
-                        entry.2.push((*product_id, qty_per_unit));
-                    }
+        for item in bom_items {
+            for (product_id, bom_id) in product_to_bom {
+                if *bom_id != item.bom_id {
+                    continue;
+                }
+                if let Some(&demand) = product_demands.get(product_id) {
+                    let scrap_rate = item.scrap_rate.unwrap_or(Decimal::ZERO);
+                    // 批次 97 P1-9 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移
+                    let qty_per_unit = (item.quantity * (Decimal::ONE + scrap_rate)).round_dp(4);
+                    let total_for_product = (qty_per_unit * demand).round_dp(4);
+                    let entry = material_requirements
+                        .entry(item.material_id)
+                        .or_insert((Decimal::ZERO, item.unit.clone(), vec![]));
+                    entry.0 += total_for_product;
+                    entry.2.push((*product_id, qty_per_unit));
                 }
             }
         }
+        material_requirements
+    }
 
-        // 5. 查询物料库存
-        let material_ids: Vec<i32> = material_requirements.keys().cloned().collect();
-        let stock_map = self.get_material_stock_map(&material_ids).await?;
-
-        // 6. 查询物料名称
-        let material_names = self.get_product_names(&material_ids).await?;
-
-        // 7. 汇总受影响的订单（按物料）
+    /// 汇总每个物料受影响的订单
+    fn aggregate_material_affected_orders(
+        bom_items: &[bom_item::Model],
+        product_to_bom: &HashMap<i32, i32>,
+        product_orders: &HashMap<i32, Vec<AffectedOrder>>,
+    ) -> HashMap<i32, Vec<AffectedOrder>> {
         let mut material_affected_orders: HashMap<i32, Vec<AffectedOrder>> = HashMap::new();
-        for item in &bom_items {
-            for (product_id, bom_id) in &product_to_bom {
-                if *bom_id == item.bom_id {
-                    if let Some(orders) = product_orders.get(product_id) {
-                        material_affected_orders
-                            .entry(item.material_id)
-                            .or_default()
-                            .extend(orders.clone());
-                    }
+        for item in bom_items {
+            for (product_id, bom_id) in product_to_bom {
+                if *bom_id != item.bom_id {
+                    continue;
+                }
+                if let Some(orders) = product_orders.get(product_id) {
+                    material_affected_orders
+                        .entry(item.material_id)
+                        .or_default()
+                        .extend(orders.clone());
                 }
             }
         }
+        material_affected_orders
+    }
 
-        // 8. 生成缺料清单
+    /// 计算缺口率
+    fn compute_deficit_rate(required: Decimal, shortage: Decimal) -> Decimal {
+        if required > Decimal::ZERO {
+            ((shortage / required) * Decimal::from(100))
+                .round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero)
+        } else {
+            Decimal::ZERO
+        }
+    }
+
+    /// 发布缺料预警事件
+    fn publish_shortage_event(item: &MaterialShortageItem) {
+        EVENT_BUS.publish(BusinessEvent::MaterialShortageAlert {
+            material_id: item.material_id,
+            material_name: item.material_name.clone(),
+            material_code: item.material_code.clone(),
+            required_quantity: item.required_quantity,
+            available_quantity: item.available_quantity,
+            shortage_quantity: item.shortage_quantity,
+            shortage_level: format!("{:?}", item.level),
+            affected_orders_count: item.affected_orders.len() as i32,
+        });
+    }
+
+    /// 生成缺料清单
+    fn build_shortage_items(
+        material_requirements: &HashMap<i32, MaterialReq>,
+        stock_map: &HashMap<i32, Decimal>,
+        material_names: &HashMap<i32, (String, String)>,
+        material_affected_orders: &HashMap<i32, Vec<AffectedOrder>>,
+    ) -> (Vec<MaterialShortageItem>, ShortageCounts) {
         let mut items = Vec::new();
-        let mut critical_count = 0i64;
-        let mut severe_count = 0i64;
-        let mut warning_count = 0i64;
-        let mut affected_order_ids: std::collections::HashSet<i32> =
-            std::collections::HashSet::new();
-
-        for (material_id, (required, unit, _)) in &material_requirements {
+        let mut counts = ShortageCounts::new();
+        for (material_id, (required, unit, _)) in material_requirements {
             let available = stock_map.get(material_id).copied().unwrap_or(Decimal::ZERO);
             let shortage = if required > &available {
                 *required - available
             } else {
                 Decimal::ZERO
             };
-
-            let deficit_rate = if *required > Decimal::ZERO {
-                ((shortage / *required) * Decimal::from(100))
-                    .round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero)
-            } else {
-                Decimal::ZERO
-            };
-
+            let deficit_rate = Self::compute_deficit_rate(*required, shortage);
             let level = ShortageLevel::from_deficit_rate(deficit_rate);
-
-            if level != ShortageLevel::Normal {
-                match level {
-                    ShortageLevel::Critical => critical_count += 1,
-                    ShortageLevel::Severe => severe_count += 1,
-                    ShortageLevel::Warning => warning_count += 1,
-                    _ => {}
-                }
-
-                let affected = material_affected_orders
-                    .get(material_id)
-                    .cloned()
-                    .unwrap_or_default();
-
-                for ao in &affected {
-                    affected_order_ids.insert(ao.order_id);
-                }
-
-                let (material_name, material_code) = material_names
-                    .get(material_id)
-                    .cloned()
-                    .unwrap_or_else(|| (format!("物料#{}", material_id), String::new()));
-
-                // 触发缺料预警事件
-                let affected_orders_count = affected.len() as i32;
-                EVENT_BUS.publish(BusinessEvent::MaterialShortageAlert {
-                    material_id: *material_id,
-                    material_name: material_name.clone(),
-                    material_code: material_code.clone(),
-                    required_quantity: *required,
-                    available_quantity: available,
-                    shortage_quantity: shortage,
-                    shortage_level: format!("{:?}", level),
-                    affected_orders_count,
-                });
-
-                items.push(MaterialShortageItem {
-                    material_id: *material_id,
-                    material_name,
-                    material_code,
-                    required_quantity: *required,
-                    available_quantity: available,
-                    shortage_quantity: shortage,
-                    deficit_rate,
-                    level,
-                    affected_orders: affected,
-                    unit: unit.clone(),
-                });
+            if level == ShortageLevel::Normal {
+                continue;
             }
-        }
-
-        // 按严重程度排序
-        items.sort_by(|a, b| {
-            let order = |l: &ShortageLevel| match l {
-                ShortageLevel::Critical => 0,
-                ShortageLevel::Severe => 1,
-                ShortageLevel::Warning => 2,
-                ShortageLevel::Normal => 3,
+            let affected = material_affected_orders
+                .get(material_id)
+                .cloned()
+                .unwrap_or_default();
+            let (material_name, material_code) = material_names
+                .get(material_id)
+                .cloned()
+                .unwrap_or_else(|| (format!("物料#{}", material_id), String::new()));
+            let item = MaterialShortageItem {
+                material_id: *material_id,
+                material_name,
+                material_code,
+                required_quantity: *required,
+                available_quantity: available,
+                shortage_quantity: shortage,
+                deficit_rate,
+                level: level.clone(),
+                affected_orders: affected.clone(),
+                unit: unit.clone(),
             };
-            order(&a.level).cmp(&order(&b.level))
-        });
-
-        // V15 P0-B15：持久化 alert 快照（幂等：同物料未解决的 alert 更新快照，否则插入新记录）
-        // 持久化失败不阻断检测（降级为 warn 日志），与事件发布策略一致
-        if let Err(e) = self.persist_alerts(&items).await {
-            tracing::warn!(
-                error = %e,
-                "persist_alerts 持久化缺料预警失败（不阻断检测，降级为 warn）"
-            );
+            Self::publish_shortage_event(&item);
+            counts.update(&level, &affected);
+            items.push(item);
         }
+        (items, counts)
+    }
 
-        Ok(ShortageSummary {
+    /// 按严重程度排序缺料清单
+    fn sort_items_by_level(items: &mut [MaterialShortageItem]) {
+        let order = |l: &ShortageLevel| match l {
+            ShortageLevel::Critical => 0,
+            ShortageLevel::Severe => 1,
+            ShortageLevel::Warning => 2,
+            ShortageLevel::Normal => 3,
+        };
+        items.sort_by(|a, b| order(&a.level).cmp(&order(&b.level)));
+    }
+
+    /// 构建缺料汇总
+    fn build_summary(
+        items: Vec<MaterialShortageItem>,
+        material_requirements: &HashMap<i32, MaterialReq>,
+        counts: ShortageCounts,
+    ) -> ShortageSummary {
+        ShortageSummary {
             total_materials_checked: material_requirements.len() as i64,
-            shortage_count: (critical_count + severe_count + warning_count),
-            critical_count,
-            severe_count,
-            warning_count,
-            affected_orders_count: affected_order_ids.len() as i64,
+            shortage_count: counts.critical + counts.severe + counts.warning,
+            critical_count: counts.critical,
+            severe_count: counts.severe,
+            warning_count: counts.warning,
+            affected_orders_count: counts.affected_order_ids.len() as i64,
             items,
-        })
+        }
     }
 
     /// V15 P0-B15：持久化缺料预警快照
