@@ -135,6 +135,203 @@
 3. **D03/D04 二次核实误判 facade 模式**：二次核实记录"product_service.rs 未接入缓存"实际已通过 product_ops/crud.rs 接入。**根因**：D10 拆分时将 product_service.rs 拆分为 facade + product_ops/ 子模块，二次核实只扫描了 facade 文件未跟踪到子模块。
 4. **核实启示**：扫描脚本必须使用括号深度追踪算法，不能用简单 awk；facade 模式的缓存接入需跟踪到 impl 实际所在文件；缩写前缀检查必须覆盖全部 27 类不能遗漏。
 
+### 0.8 P0 未完成任务批次规划（2026-07-25，每批 35-65 文件，禁止少于 35 除非最后一批）
+
+> 用户指令：进行 P0 未完成任务规划，每批次修改 35-65 个文件，禁止少于 35 个文件，除非任务最后一批次。
+> 基于 2026-07-25 精确扫描数据制定：D05 未接入 308 文件 + D08 超长函数 83 文件 + D13 残留缩写 18 文件 + D14 残留命名 4 处约 10 文件 + D09 随 D08 完成（D08 子集）。
+> 📌 **任务清单已同步**：§3.1 D05 / §3.2 D08 / §3.3 D09 / §3.5 D13 / §3.6 D14 的批次信息与当前进度均已引用本节对应子章节。
+
+#### 0.8.1 批次总览（10 批次，约 415 文件次）
+
+| 批次 | 任务 | 文件数 | 类型 | 优先级 | 依赖 |
+|------|------|--------|------|--------|------|
+| **Batch 1** | D08 后端超长函数第 1 批 | 42 | .rs | 🔴 高 | 无 |
+| **Batch 2** | D08 后端超长函数第 2 批（含 D09 收尾） | 41 | .rs | 🔴 高 | Batch 1 |
+| **Batch 3** | D05 useI18n 第 1 批 - CRM/客户/供应商/销售/报价 | 42 | .vue | 🔴 高 | 无 |
+| **Batch 4** | D05 useI18n 第 2 批 - 调度/安全/系统 | 36 | .vue | 🔴 高 | Batch 3 |
+| **Batch 5** | D05 useI18n 第 3 批 - 采购全链路 | 40 | .vue | 🔴 高 | Batch 4 |
+| **Batch 6** | D05 useI18n 第 4 批 - 业务核心模块 | 49 | .vue | 🔴 高 | Batch 5 |
+| **Batch 7** | D05 useI18n 第 5 批 - 销售/财务/凭证 | 43 | .vue | 🔴 高 | Batch 6 |
+| **Batch 8** | D05 useI18n 第 6 批 - 生产/库存/质量 | 37 | .vue | 🔴 高 | Batch 7 |
+| **Batch 9** | D05 useI18n 第 7 批 - 通用组件/其他 | 57 | .vue | 🔴 高 | Batch 8 |
+| **Batch 10** | D13+D14 前端命名收尾（最后一批豁免） | 28 | .vue/.ts | 🔴 高 | Batch 9 |
+
+> ⚠️ Batch 10 为最后一批，文件数 28 < 35，按用户指令"除非任务最后一批次"豁免。
+> ⚠️ D13 重命名文件分散在 D05 Batch 4/6/9 中，D05 接入完成后再做 D13 重命名，需同步更新父级 import 路径。
+
+#### 0.8.2 Batch 1：D08 后端超长函数第 1 批（42 文件）
+
+**任务**：拆分 services/ 主目录及子目录中的 >80 行函数（services/ 目录共 44 文件，本批处理 42 文件）
+
+**文件清单**（按目录分组，42 文件）：
+- services/ 主目录（20 文件）：ap_payment_service.rs / financial_analysis_service.rs / material_shortage_service.rs / event_kafka_payload.rs / scheduling_auto.rs / dye_batch_state_machine_service.rs / quotation_service.rs / role_permission_service.rs / finance_report_service.rs / dashboard_service.rs / customer_service.rs / event_kafka.rs / ap_report_service.rs / purchase_receipt_private.rs / supplier_service.rs / color_price_batch_service.rs / webhook_service.rs / collection_task_service.rs / supplier_evaluation_service.rs / inventory_count_service.rs
+- services/ai/（2 文件）：rec.rs / recipe_opt.rs
+- services/ap_reconciliation_ops/（1 文件）：confirm.rs
+- services/ar/recon_ops/（1 文件）：lifecycle.rs
+- services/ar/vfy_ops/（1 文件）：match.rs
+- services/ar_ops/（1 文件）：collection.rs
+- services/ar_ops/verification_ops/（1 文件）：manual.rs
+- services/chemical_ops/（1 文件）：master.rs
+- services/crm/（3 文件）：lead.rs / cust.rs / assign.rs
+- services/energy_ops/（1 文件）：consumption.rs
+- services/event_bus_ops/（1 文件）：listener.rs
+- services/init_service_ops/（1 文件）：permission.rs
+- services/inv/（2 文件）：batch.rs / inventory_move.rs
+- services/outsourcing_ops/（1 文件）：order.rs
+- services/po/（2 文件）：receipt.rs / price.rs
+- services/product_ops/（1 文件）：crud.rs
+- services/production_order_ops/（1 文件）：crud.rs
+- services/report/（1 文件）：tpl.rs（最长 701 行 get_predefined_templates）
+
+**优先拆分 Top 10 最长函数**：get_predefined_templates 701 行 / receive_transfer 345 行 / confirm 332 行 / create_default_role_permissions 323 行 / auto_match 291 行 / start_event_listener 280 行 / receive_order 278 行 / calculate_indicators 241 行 / detect_shortages 232 行 / from 227 行
+
+#### 0.8.3 Batch 2：D08 后端超长函数第 2 批（41 文件，含 D09 收尾）
+
+**任务**：拆分 handlers/ + routes/ + middleware/ + utils/ + 其他目录中的 >80 行函数（D09 的 11 个 >100 行函数随本批完成）
+
+**文件清单**（按目录分组，41 文件）：
+- services/report/（1 文件）：exp.rs
+- services/so/delivery_ops/（1 文件）：inventory.rs
+- services/voucher_ops/（1 文件）：crud.rs
+- services/wage_ops/（1 文件）：rate.rs
+- handlers/（13 文件）：auth_handler.rs / auth_handler_misc.rs / omni_audit_handler.rs / user_handler.rs / inventory_stock_handler.rs / init_handler.rs / inventory_batch_handler.rs / system_update_handler.rs / custom_order_handler.rs / role_handler.rs / report_engine_handler.rs / dye_batch_handler.rs / import_export_handler.rs
+- handlers/advanced/（1 文件）：forecast.rs
+- routes/（8 文件）：static.rs / inventory.rs / purchase.rs / finance.rs / catalog.rs / system.rs / sales.rs / crm.rs
+- middleware/（4 文件）：omni_audit.rs / auth.rs / csrf.rs / permission.rs
+- utils/（5 文件）：error.rs / log_config.rs / price_calculator.rs / xlsx_export.rs / path_utils.rs
+- bootstrap/（2 文件）：service_bootstrap.rs / middleware_bootstrap.rs
+- cli/util/（1 文件）：upgrade.rs
+- config/（1 文件）：settings.rs
+- search/elastic_ops/（1 文件）：client_ops.rs
+- main.rs（1 文件）
+
+**D09 收尾**：本批包含 D09 全部 11 个 >100 行函数所在文件（tpl.rs 在 Batch 1，event_kafka_payload.rs 在 Batch 1，event_kafka.rs 在 Batch 1，routes/inventory.rs + purchase.rs + finance.rs 在本批，dye_batch_state_machine_service.rs 在 Batch 1，finance_report_service.rs 在 Batch 1，ap_report_service.rs 在 Batch 1）—— 可豁免 2 个（builtin_transition_rules 纯数据表 + test_payload_all_variants_round_trip 测试函数），实际需拆分 9 个
+
+#### 0.8.4 Batch 3：D05 useI18n 接入第 1 批 - CRM/客户/供应商/销售/报价（42 文件）
+
+**任务**：CRM 全模块 + 客户/供应商/客户信用 + 销售/报价 全模块 i18n 接入
+
+**文件清单**（按目录分组，42 文件）：
+- views/crm/（16 文件）：leads/tabs/LeadFormTab.vue / opportunities/tabs/OpportunityFollowTab.vue / opportunities/tabs/OpportunityFormTab.vue / opportunities/index.vue / tabs/ClaimDialogTab.vue / tabs/FollowUpTab.vue / tabs/ManualAssignDialogTab.vue / tabs/ReleaseDialogTab.vue / tabs/RfmTab.vue / tabs/RuleDialogTab.vue / tabs/TagsPanelTab.vue / tabs/TransferDialogTab.vue / assignment.vue / detail.vue / index.vue / pool.vue
+- views/customer/（2 文件）：tabs/CustomerFormTab.vue / index.vue
+- views/customerCredit/（4 文件）：tabs/AdjustDialogTab.vue / tabs/AmountDialogTab.vue / tabs/RatingDialogTab.vue / index.vue
+- views/supplier/（3 文件）：SupplierDialog.vue / SupplierList.vue / index.vue
+- views/supplierEvaluation/（1 文件）：index.vue
+- views/sales/（8 文件）：components/SalesOrderFilter.vue / components/SalesOrderStat.vue / components/SalesOrderTable.vue / views/OrderListView.vue / DeliveryDialog.vue / OrderFormDialog.vue / OrderViewDialog.vue / index.vue
+- views/quotations/（8 文件）：components/ApprovalProgress.vue / components/QuotationItemEditor.vue / components/TermEditor.vue / approval.vue / create.vue / detail.vue / edit.vue / list.vue
+
+#### 0.8.5 Batch 4：D05 useI18n 接入第 2 批 - 调度/安全/系统（36 文件）
+
+**任务**：调度/安全/系统管理三大模块全量 i18n 接入
+
+**文件清单**（按目录分组，36 文件）：
+- views/scheduling/（12 文件）：components/SchedulingGanttAdjust.vue / SchedulingGanttAuto.vue / SchedulingGanttChart.vue / SchedulingGanttConflict.vue / SchedulingGanttTool.vue / SchedulingMachineAdjust.vue / SchedulingMachineConflict.vue / SchedulingMachineParam.vue / SchedulingMachineTable.vue / SchedulingMachineTool.vue / gantt.vue / index.vue
+- views/security/（12 文件）：components/SecurityAlertTable.vue / SecurityLockTable.vue / SecurityLogTable.vue / SecurityStat.vue / two-factor/components/TwoFactorAuthStep1.vue / TwoFactorAuthStep2.vue / TwoFactorAuthStep3.vue / TwoFactorAuthStep4.vue / TwoFactorAuthStepBar.vue / ChangePassword.vue / TwoFactorSetup.vue / index.vue
+- views/system/（12 文件）：slow-query/index.vue / tabs/AuditTab.vue / CompanyTab.vue / DataPermissionTab.vue / DepartmentTab.vue / FieldPermissionTab.vue / NotificationTab.vue / PermissionTab.vue / RoleTab.vue / SystemUpdateTab.vue / WebhookTab.vue / index.vue
+
+#### 0.8.6 Batch 5：D05 useI18n 接入第 3 批 - 采购全链路（40 文件）
+
+**任务**：采购全链路 7 个子模块 i18n 接入
+
+**文件清单**（按目录分组，40 文件）：
+- views/purchase/（8 文件）：components/CreateDlg.vue / PurchaseFilter.vue / PurchaseTable.vue / PurchaseTop.vue / ReceiveDlg.vue / StatCards.vue / ViewDlg.vue / index.vue
+- views/purchase-contract/（5 文件）：components/PurchaseContractDetail.vue / PurchaseContractFilter.vue / PurchaseContractForm.vue / PurchaseContractTable.vue / index.vue
+- views/purchase-ext/（4 文件）：tabs/ContractTab.vue / PriceTab.vue / ReturnTab.vue / index.vue
+- views/purchase-inspection/（6 文件）：components/PurchaseInspectionDetail.vue / PurchaseInspectionFilter.vue / PurchaseInspectionForm.vue / PurchaseInspectionStat.vue / PurchaseInspectionTable.vue / index.vue
+- views/purchase-price/（6 文件）：components/PurchasePriceDetail.vue / PurchasePriceFilter.vue / PurchasePriceForm.vue / PurchasePriceHistory.vue / PurchasePriceTable.vue / index.vue
+- views/purchase-return/（6 文件）：components/PurchaseReturnApproval.vue / PurchaseReturnDetail.vue / PurchaseReturnFilter.vue / PurchaseReturnForm.vue / PurchaseReturnTable.vue / index.vue
+- views/purchaseReceipt/（5 文件）：components/PurchaseReceiptDetail.vue / PurchaseReceiptFilter.vue / PurchaseReceiptForm.vue / PurchaseReceiptTable.vue / index.vue
+
+#### 0.8.7 Batch 6：D05 useI18n 接入第 4 批 - 业务核心模块（49 文件）
+
+**任务**：API网关/BPM/面料/财务/库存/物流/系统更新 7 大业务核心模块 i18n 接入
+
+**文件清单**（按目录分组，49 文件）：
+- views/api-gateway/（7 文件）：components/ApiEndpointForm.vue / KeyForm.vue / LogDetail.vue / tabs/ApiEndpointTab.vue / ApiKeyTab.vue / ApiLogTab.vue / index.vue
+- views/bpm/（7 文件）：approval/components/BpmApprovalApprovalDialog.vue / BpmApprovalStat.vue / BpmApprovalTransferDialog.vue / approval/index.vue / definitions/components/BpmDefinitionFilter.vue / BpmDefinitionForm.vue / BpmDefinitionTemplateDialog.vue
+- views/fabric/（7 文件）：tabs/DyeFormDialogTab.vue / DyeTab.vue / GreigeFormDialogTab.vue / GreigeTab.vue / RecipeFormDialogTab.vue / RecipeTab.vue / index.vue
+- views/finance/（7 文件）：tabs/components/VoucherDetail.vue / VoucherFilter.vue / VoucherForm.vue / VoucherTable.vue / tabs/SubjectTab.vue / VoucherTab.vue / index.vue
+- views/inventory/（7 文件）：components/AdjustmentDialog.vue / StatCards.vue / TransferDialog.vue / tabs/InventoryAlertTab.vue / InventoryStockTab.vue / InventoryTransferTab.vue / index.vue
+- views/logistics/（7 文件）：components/LogisticsDetail.vue / LogisticsFilter.vue / LogisticsForm.vue / LogisticsStat.vue / LogisticsStatDialog.vue / LogisticsTable.vue / index.vue
+- views/system-update/（7 文件）：components/SystemUpdateBackupForm.vue / SystemUpdateInfoCards.vue / SystemUpdateVersionDetail.vue / tabs/SystemUpdateBackupTab.vue / SystemUpdateTaskTab.vue / SystemUpdateVersionTab.vue / index.vue
+
+#### 0.8.8 Batch 7：D05 useI18n 接入第 5 批 - 销售/财务/凭证（43 文件）
+
+**任务**：销售分析/销售合同/销售扩展/销售价格/销售退货/贸易/凭证/资金/财务报表/财务分析 i18n 接入
+
+**文件清单**（按目录分组，43 文件）：
+- views/sales-analysis/（6 文件）：components/SalesAnalysisCustomerRank.vue / SalesAnalysisProductRank.vue / SalesAnalysisStat.vue / SalesAnalysisTarget.vue / SalesAnalysisTrend.vue / index.vue
+- views/sales-contract/（4 文件）：components/SalesContractFilter.vue / SalesContractForm.vue / SalesContractTable.vue / index.vue
+- views/sales-ext/（4 文件）：tabs/ContractTab.vue / PriceTab.vue / ReturnTab.vue / index.vue
+- views/sales-price/（6 文件）：components/SalesPriceFilter.vue / SalesPriceForm.vue / SalesPriceHistory.vue / SalesPriceTable.vue / SalesPriceView.vue / index.vue
+- views/sales-returns/（4 文件）：components/ReturnDetailDialog.vue / ReturnEditDialog.vue / ReturnsTable.vue / index.vue
+- views/trading/（6 文件）：tabs/PurchaseContractTab.vue / PurchasePriceTab.vue / SalesContractTab.vue / SalesPriceTab.vue / SalesReturnTab.vue / index.vue
+- views/voucher/（6 文件）：tabs/components/VoucherListDetail.vue / VoucherListFilter.vue / VoucherListForm.vue / VoucherListTable.vue / tabs/VoucherListTab.vue / index.vue
+- views/fund/（3 文件）：tabs/AccountTab.vue / TransferTab.vue / index.vue
+- views/financeReport/（2 文件）：tabs/ReportListTab.vue / index.vue
+- views/financial-analysis/（2 文件）：tabs/AnalysisListTab.vue / index.vue
+
+#### 0.8.9 Batch 8：D05 useI18n 接入第 6 批 - 生产/库存/质量（37 文件）
+
+**任务**：生产/产品/数据导入/缺料/库存调整/库存批次/库存盘点/库存调拨/MRP/质量 i18n 接入
+
+**文件清单**（按目录分组，37 文件）：
+- views/production/（5 文件）：components/ProductionDetail.vue / ProductionFilter.vue / ProductionForm.vue / ProductionTable.vue / index.vue
+- views/product/（5 文件）：tabs/CategoryDialogTab.vue / ImportDialogTab.vue / ProductFormDialogTab.vue / ProductListTab.vue / index.vue
+- views/data-import/（5 文件）：components/DataImportTaskTable.vue / DataImportTemplateForm.vue / DataImportTemplateTable.vue / DataImportTemplateUpload.vue / index.vue
+- views/material-shortage/（4 文件）：components/MaterialShortageSeverityCard.vue / MaterialShortageStat.vue / MaterialShortageTable.vue / index.vue
+- views/inventoryAdjustment/（4 文件）：tabs/AdjustmentFormDialogTab.vue / AdjustmentListTab.vue / ApproveDialogTab.vue / index.vue
+- views/inventoryBatch/（3 文件）：tabs/BatchFormDialogTab.vue / BatchListTab.vue / index.vue
+- views/inventoryCount/（4 文件）：tabs/CountDetailDialogTab.vue / CountFormDialogTab.vue / CountListTab.vue / index.vue
+- views/inventoryTransfer/（1 文件）：index.vue
+- views/mrp/（2 文件）：history.vue / index.vue
+- views/quality/（4 文件）：tabs/ApproveDialogTab.vue / DefectTab.vue / RecordTab.vue / StandardTab.vue
+
+#### 0.8.10 Batch 9：D05 useI18n 接入第 7 批 - 通用组件/其他（57 文件）
+
+**任务**：通用组件 19 个 + 组件演示 + 自定义订单 + 高级 + 产能 + 货币 + 根目录 + 19 个 1 文件目录 i18n 接入
+
+**文件清单**（按目录分组，57 文件）：
+- components/（19 文件）：AdvancedFilter.vue / AfterSalesPanel.vue / BatchActions.vue / Charts/BarChart.vue / Charts/BaseChart.vue / Charts/LineChart.vue / Charts/PieChart.vue / ColorCardGrid.vue / ColorCardIssueDetail.vue / ColorCardIssueForm.vue / ColorItemEditor.vue / IssueRecordTimeline.vue / Layout/MainLayout.vue / PasswordStrengthMeter.vue / PriceHistoryChart.vue / ProcessFlow.vue / QualityCheck.vue / V2Table/index.vue / ai/AiPredictionChart.vue
+- views/components-demo/（4 文件）：AdvancedFilterDemo.vue / BatchActionsDemo.vue / ChartsDemo.vue / index.vue
+- views/custom-orders/（4 文件）：create.vue / detail.vue / list.vue / tracking.vue
+- views/advanced/（3 文件）：components/AdvancedQualityPanel.vue / AdvancedReportPanel.vue / index.vue
+- views/capacity/（3 文件）：components/CapacityBottleneck.vue / CapacityStat.vue / index.vue
+- views/currency/（2 文件）：tabs/CurrencyListTab.vue / index.vue
+- views/ 根目录（3 文件）：403.vue / 404.vue / Dashboard.vue
+- 19 个 1 文件目录（19 文件）：accountSubject/index.vue / accountingPeriod/index.vue / ap/index.vue / ar/index.vue / arReconciliation/components/ArReconciliationCharts.vue / budget/index.vue / cost/index.vue / dataPermission/index.vue / departments/index.vue / dye-batch/index.vue / dye-recipe/index.vue / email/index.vue / fiveDimension/index.vue / fixed-assets/index.vue / greige-fabrics/index.vue / notification/index.vue / omniAudit/index.vue / user-profile/index.vue / warehouse/index.vue
+
+#### 0.8.11 Batch 10：D13+D14 前端命名收尾（28 文件，最后一批豁免）
+
+**任务**：D13 重命名 18 个缩写文件 + D14 修复 4 处不规范 API 命名 + 同步更新所有 caller
+
+**D13 文件清单**（18 文件重命名）：
+- Ar 前缀（6 个）—— arReconciliation/components/：ArReconciliationCharts.vue → AccountReceivableReconciliationCharts.vue / ArReconciliationConfirm.vue → AccountReceivableReconciliationConfirm.vue / ArReconciliationDetail.vue → AccountReceivableReconciliationDetail.vue / ArReconciliationDispute.vue → AccountReceivableReconciliationDispute.vue / ArReconciliationFilter.vue → AccountReceivableReconciliationFilter.vue / ArReconciliationTable.vue → AccountReceivableReconciliationTable.vue
+- Bpm 前缀（11 个）—— bpm/{approval,definitions}/components/：BpmApprovalApprovalDialog.vue → BusinessProcessApprovalApprovalDialog.vue / BpmApprovalChainDialog.vue → BusinessProcessApprovalChainDialog.vue / BpmApprovalCompletedTable.vue → BusinessProcessApprovalCompletedTable.vue / BpmApprovalPendingTable.vue → BusinessProcessApprovalPendingTable.vue / BpmApprovalStat.vue → BusinessProcessApprovalStat.vue / BpmApprovalTransferDialog.vue → BusinessProcessApprovalTransferDialog.vue / BpmDefinitionFilter.vue → BusinessProcessDefinitionFilter.vue / BpmDefinitionForm.vue → BusinessProcessDefinitionForm.vue / BpmDefinitionTable.vue → BusinessProcessDefinitionTable.vue / BpmDefinitionTemplateDialog.vue → BusinessProcessDefinitionTemplateDialog.vue / BpmDefinitionVersionDialog.vue → BusinessProcessDefinitionVersionDialog.vue
+- Ai 前缀（1 个）—— components/ai/：AiPredictionChart.vue → ArtificialIntelligencePredictionChart.vue
+
+**D14 文件清单**（4 处 API 重命名 + 约 6 caller 文件 = 10 文件）：
+- audit.ts:79 listAuditLogs → getAuditLogList
+- slow-query.ts:69 listSlowQueries → getSlowQueryList
+- crm-enhanced.ts:220 addTagToCustomer → createTagForCustomer
+- crm-enhanced.ts:224 removeTagFromCustomer → deleteTagFromCustomer
+- caller 文件（需 grep 确认）：system/tabs/AuditTab.vue + system/slow-query/index.vue + crm/tabs/TagsPanelTab.vue + crm/detail.vue 等
+
+> ⚠️ D13 重命名后需同步更新父级 import：arReconciliation/enhanced.vue / arReconciliation/index.vue / bpm/approval/index.vue / bpm/definitions.vue / ai-extend/quality-prediction.vue 等
+
+#### 0.8.12 执行策略与规则约束
+
+1. **执行顺序**：Batch 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10（严格顺序，避免冲突）
+2. **规则 13 联动**：每批 CI 全绿后自动进入下一批；禁止本地编译验证；步骤 4 推送前自审
+3. **规则 14**：禁止 `#[allow(...)]` 警告抑制，所有警告视为错误必须修复
+4. **规则 20**：注释必须与功能实现一致，禁止随意编写
+5. **D05 接入模式**：模板用 `$t('key')`，script 用 `const { t } = useI18n({ useScope: 'global' })`；命名空间 `{module}.{section}.{key}`；状态标签映射函数化响应式求值；带参数翻译用 `t('key', { param })`；键名冲突用子命名空间重命名
+6. **D08 拆分模式**：每个 helper ≤50 行 + 辅助 struct 传递上下文 + 事务边界保留 txn.commit() 仍在主函数 + 公共 API 签名不变 + helper 通过 &txn 引用参与事务
+7. **D13 重命名模式**：git mv 重命名文件 + 更新父级 import 路径 + 更新本地 interface 引用
+8. **D14 重命名模式**：API 定义文件函数重命名 + grep 所有 caller 更新调用点
+9. **批次间冲突避免**：D05（.vue）与 D13（.vue 重命名）按顺序执行，D13 在 D05 完成后执行，重命名时同步更新已接入 i18n 的文件 import 路径
+10. **并行代理策略**：D05 每批可启动 3-5 个并行代理，按目录分组并行接入，翻译键汇总到临时 JSON 文件，主代理统一合并到 locales
+
 ### 0.2 按任务类型归类
 
 | 任务类型 | 数量 | 任务编号 | 说明 |
@@ -189,11 +386,12 @@
 
 > ⚠️ 2026-07-25 三次核实后，模块 G 5 项 P0 任务重新打开（D05/D08/D09/D13/D14），P0 完成数 104→99。
 
-### 1.2 状态：⏳ 模块 G 5 项 P0 任务重新打开（三次核实修正）
+### 1.2 状态：⏳ 模块 G 5 项 P0 任务批次规划已制定（10 批次，35-65 文件/批）
 
-- **当前批次**：Batch 491 ⏳ 进行中 —— P0 任务三次核实与修正（6 并行代理代码级扫描，修正二次核实多处偏差：D09 实际 11 个 >100 行函数非 100 个、D13 残留 18 个缩写文件非 0 个、D03/D04 product_service.rs 已通过 facade 接入）
-- **上一批次**：Batch 490 ✅ 已完成 —— D05 useI18n 全量接入（77 文件 + 3327 翻译键，PR #732 合并；但三次核实发现实际接入率仅 18.6%，279 文件未接入）
-- **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证；**扫描脚本必须使用括号深度追踪算法**（三次核实教训）
+- **当前批次**：Batch 492 ⏳ 进行中 —— P0 未完成任务批次规划（10 批次 415 文件次，每批 35-65 文件，详见 §0.8）
+- **上一批次**：Batch 491 ✅ 已完成 —— P0 任务三次核实与修正（6 并行代理代码级扫描，修正二次核实多处偏差；D05 未接入 308 文件 + D08 超长函数 83 文件 + D13 残留 18 文件 + D14 残留 4 处）
+- **下一批次**：Batch 493 待启动 —— Batch 1: D08 后端超长函数第 1 批（42 个 .rs 文件，services/ 主目录及子目录）
+- **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证；**扫描脚本必须使用括号深度追踪算法**（三次核实教训）；**每批次 35-65 文件，禁止少于 35 除非最后一批**（用户指令）
 
 ### 1.3 关键决策记录
 
@@ -253,13 +451,20 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - user-profile/index.vue（324 行）：标题/按钮/placeholder/校验 message/ElMessage 全场景硬编码（最严重样本）
 - **UserTab.vue 命名空间 BUG（2026-07-24 发现）**：locales 定义 `settings.user.*`，代码调用 `system.user.*`（L277/287/303），命名空间前缀不匹配导致 t() 回退显示键名，需修复
 - **Top 20 硬编码密集文件（2026-07-24 扫描，按中文字符数排名）**：1. AssetListTab.vue 864 字符（609 行）2. print-templates/index.vue 785 字符（525 行）3. bpm/index.vue 716 字符（626 行）4. report-templates/index.vue 706 字符 5. quality/index.vue 691 字符 6. crm/tabs/CustomerListTab.vue 680 字符 7. system/audit-log/index.vue 669 字符 8. quality-standards/index.vue 648 字符 9. crm/leads/index.vue 641 字符 10. inventory/index.vue 626 字符 11. crm/opportunities/index.vue 619 字符 12. Setup.vue 605 字符（457 行）13. dye-recipe/index.vue 595 字符 14. Login.vue 566 字符（336 行，部分已接入）15. warehouse/index.vue 546 字符 16. supplier/SupplierDialog.vue 523 字符 17. crm/detail.vue 508 字符 18. email/index.vue 486 字符 19. dye-batch/index.vue 483 字符 20. color-cards/issues.vue 477 字符
-- **修复方案**：355 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts 同步；按业务模块横向切片，每批 10-12 文件，预估需 23-28 批次（279/12≈23）；10 个部分接入文件需补全模板接入
+- **修复方案**：355 个 .vue 视图组件全部接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts 同步；按业务模块横向切片，**每批 35-65 文件（用户指令禁止少于 35 除非最后一批）**，分 7 子批次完成 308 个未接入文件（含 279 完全未接入 + 10 部分接入补全 + 19 个 1 文件目录 + 通用组件），详见 §0.8.4-§0.8.10
 - **关联文件**：[frontend/src/views/](file:///workspace/frontend/src/views/) + [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts) + [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)
-- **依赖**：建议在 D13/D14 完成后推进（避免同时修改 .vue 文件造成冲突）⏳ D13/D14 三次核实后重新打开
+- **依赖**：建议在 D13/D14 完成后推进（避免同时修改 .vue 文件造成冲突）⏳ D13/D14 三次核实后重新打开；**实际批次规划已合并 D13+D14 为最后一批（Batch 10）以避免冲突**（详见 §0.8.11）
 - **工作量**：XL（5 项中最大）
-- **批次**：490（D05 独立批次；预估 23-28 子批次，每批 10-12 文件）
+- **批次**：495-501（D05 独立批次；7 子批次，每批 35-65 文件，详见 §0.8.4-§0.8.10）
+  - Batch 3 (D05-1)：CRM/客户/供应商/销售/报价 42 文件（§0.8.4）
+  - Batch 4 (D05-2)：调度/安全/系统 36 文件（§0.8.5）
+  - Batch 5 (D05-3)：采购全链路 40 文件（§0.8.6）
+  - Batch 6 (D05-4)：业务核心模块 49 文件（§0.8.7）
+  - Batch 7 (D05-5)：销售/财务/凭证 43 文件（§0.8.8）
+  - Batch 8 (D05-6)：生产/库存/质量 37 文件（§0.8.9）
+  - Batch 9 (D05-7)：通用组件/其他 57 文件（§0.8.10）
 - **执行优先级**：第 5 顺位（最后推进，D13/D14 完成后启动）
-- **当前进度**：⏳ 重新打开 —— Batch 1-8 已完成 77 文件接入 + 3327 翻译键（PR #732 合并）；但三次核实发现实际接入率仅 18.6%（66/355），279 文件未接入，需继续接入剩余文件；详见 [doto-su.md §D05](file:///workspace/.monkeycode/doto-su.md) + [CHANGELOG.md D05-9](file:///workspace/.monkeycode/CHANGELOG.md)
+- **当前进度**：⏳ 重新打开 —— Batch 1-8（旧批次规划）已合并 77 文件接入 + 3327 翻译键（PR #732 合并）；但三次核实发现实际接入率仅 18.6%（66/355），279 文件未接入，需按 §0.8.4-§0.8.10 新批次规划（7 子批次 495-501，每批 35-65 文件）继续接入剩余 308 文件；详见 [doto-su.md §D05](file:///workspace/.monkeycode/doto-su.md) + [CHANGELOG.md D05-9](file:///workspace/.monkeycode/CHANGELOG.md)
 - **i18n 接入模式**：模板用 `$t('key')`，script 用 `const { t } = useI18n({ useScope: 'global' })`；命名空间 `{module}.{section}.{key}`；状态标签映射函数化响应式求值（如 `getTypeLabel`/`getStatusLabel`）；带参数翻译用 `t('key', { param })`；键名冲突用子命名空间重命名（如 `export`→`exportFile`、`print`→`printDialog`）
 - **批次规划**：
   - Batch 1-5：✅ 已完成 10 文件完整接入（PR #724/#725/#727/#729，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) + [CHANGELOG.md D05-1~D05-5](file:///workspace/.monkeycode/CHANGELOG.md)）
@@ -277,8 +482,16 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
     - capacity/index.vue + capacity/components/{CapacityTable,CapacityTrend,CapacityBottleneck,CapacityStat}.vue（新增 capacityModule 命名空间 36 键：title/dateRange/stat/trend/table/bottleneck/workCenterStatus/common）
     - advanced/components/AdvancedQualityPanel.vue（advancedModule.quality.confidence 1 键）
     - audit 脚本验证 0 真实缺失键（9 个 ${...} 动态模板字面量为 regex 误报已排除）
-  - Batch 6：⏳ 待启动 —— inventory/index.vue (626 字符) + crm/opportunities/index.vue (619 字符)
-  - 待修复：UserTab.vue 命名空间 BUG（system.user → settings.user）+ 9 个部分接入文件补全
+  - **新批次规划（§0.8.4-§0.8.10，495-501，每批 35-65 文件）**：
+    - Batch 3 (D05-1)：CRM/客户/供应商/销售/报价 42 文件
+    - Batch 4 (D05-2)：调度/安全/系统 36 文件
+    - Batch 5 (D05-3)：采购全链路 40 文件
+    - Batch 6 (D05-4)：业务核心模块 49 文件
+    - Batch 7 (D05-5)：销售/财务/凭证 43 文件
+    - Batch 8 (D05-6)：生产/库存/质量 37 文件
+    - Batch 9 (D05-7)：通用组件/其他 57 文件
+  - ⚠️ 旧 Batch 6（inventory/index.vue + crm/opportunities/index.vue）已合并到新 Batch 6 (D05-4) 业务核心模块 49 文件中
+  - 待修复：UserTab.vue 命名空间 BUG（system.user → settings.user）+ 10 个部分接入文件补全（合并到新批次规划相关模块中）
 
 ### 3.2 P0-D08 91+ 超长函数（类七，XL，⏳ 重新打开）
 
@@ -287,13 +500,15 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **二次核实偏差修正**：二次核实记录 136 个 >80 行函数（多报 41 个），根因是简单 awk 脚本在函数内部 `}` 处过早截断导致同一函数被拆分重复计数；三次核实改用 Python 括号深度追踪算法修正
 - **已重构确认**：event_bus.rs:412 start_event_listener D12-2 已重构（实际 279 行，CC 33→10 达标，列入观察名单不强拆）
 - **豁免函数**：dye_batch_state_machine_service.rs:154 builtin_transition_rules 155 行纯数据表（27 条状态机三元组定义）豁免拆分
-- **修复方案**：拆分超长函数为单一职责小函数（每个 ≤50 行），主函数仅做协调；优先处理 18 个 >200 行函数
-- **关联文件**：[backend/src/services/report/tpl.rs](file:///workspace/backend/src/services/report/tpl.rs) / [handlers/auth_handler.rs](file:///workspace/backend/src/handlers/auth_handler.rs) / [bootstrap/service_bootstrap.rs](file:///workspace/backend/src/bootstrap/service_bootstrap.rs) / [services/inv/batch.rs](file:///workspace/backend/src/services/inv/batch.rs) / 等 35+ 文件
+- **修复方案**：拆分超长函数为单一职责小函数（每个 ≤50 行），主函数仅做协调；优先处理 18 个 >200 行函数；分 2 批次执行，每批 41-42 文件（35-65 文件/批限制），详见 §0.8.2-§0.8.3
+- **关联文件**：[backend/src/services/report/tpl.rs](file:///workspace/backend/src/services/report/tpl.rs) / [handlers/auth_handler.rs](file:///workspace/backend/src/handlers/auth_handler.rs) / [bootstrap/service_bootstrap.rs](file:///workspace/backend/src/bootstrap/service_bootstrap.rs) / [services/inv/batch.rs](file:///workspace/backend/src/services/inv/batch.rs) / 等 83 文件
 - **依赖**：无前置依赖
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包；预估 10-12 子批次）
+- **批次**：493-494（D08 独立批次；2 子批次，每批 41-42 文件，详见 §0.8.2-§0.8.3）
+  - Batch 1 (D08-1)：services/ 主目录及子目录 42 文件（§0.8.2）
+  - Batch 2 (D08-2)：handlers/ + routes/ + middleware/ + utils/ + 其他 41 文件，含 D09 收尾（§0.8.3）
 - **执行优先级**：第 1 顺位（无前置依赖 + 解锁 D09/D10）
-- **当前进度**：⏳ 重新打开 —— 第一至第四梯队 167 函数已拆分（PR #669-#682 main ba8e97f）；但三次核实发现仍残留 95 个 >80 行函数（含已拆分函数的回归 + 二次扫描遗漏的 handlers/middleware/routes/bootstrap/cli 目录），需继续拆分；详细 CI 修复教训见 [doto-su.md §V15 Batch 488](file:///workspace/.monkeycode/doto-su.md)
+- **当前进度**：⏳ 重新打开 —— 第一至第四梯队 167 函数已拆分（PR #669-#682 main ba8e97f）；但三次核实发现仍残留 83 文件含 96 个 >80 行函数（含已拆分函数的回归 + 二次扫描遗漏的 handlers/middleware/routes/bootstrap/cli 目录），需继续拆分；详细 CI 修复教训见 [doto-su.md §V15 Batch 488](file:///workspace/.monkeycode/doto-su.md) + §0.8 批次规划
 - **梯队规划**：
   - 第一梯队（>200 行 6 函数，2 批）：✅ 全部完成
   - 第二梯队（150-200 行 22 函数，4 批）：✅ 全部完成
@@ -309,12 +524,12 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **二次核实严重偏差修正**：二次核实记录 100 个 >100 行函数（多报 89 个），根因是简单 awk 脚本在函数内部 `}` 处过早截断导致同一函数被拆分重复计数；三次核实改用 Python 括号深度追踪算法修正
 - **可豁免 2 个**：builtin_transition_rules（纯数据表 155 行）+ test_payload_all_variants_round_trip（测试函数 112 行）
 - **实际需拆分 9 个**：get_predefined_templates（最严重 701 行）+ 2 个 From/TryFrom（event_kafka_payload.rs）+ 3 个路由聚合（inventory/purchases/ap）+ 3 个 report 函数（get_cash_flow_statement 116 行 / get_daily_report 111 行 / get_income_statement 101 行）
-- **修复方案**：D08 完成后 D09 自动完成（D09 是 D08 子集，D08 阈值 >80 行涵盖 D09 阈值 >100 行）
-- **关联文件**：同 P0-D08
+- **修复方案**：D08 完成后 D09 自动完成（D09 是 D08 子集，D08 阈值 >80 行涵盖 D09 阈值 >100 行）；D09 收尾随 D08 Batch 2 完成（§0.8.3）
+- **关联文件**：同 P0-D08（11 个 >100 行函数所在文件已包含在 D08 Batch 1+2 文件清单中）
 - **依赖**：P0-D08 ⏳
 - **工作量**：L（实际接近完成，仅需拆分 9 个函数）
-- **批次**：488（D08 子集，不独立成批）
-- **当前进度**：⏳ 重新打开 —— 之前已拆分 2 个 100+ 行函数（get_import_template + export_orders_to_csv，PR #682 main ba8e97f）；三次核实发现仍残留 11 个 >100 行函数（含可豁免 2 个），实际需拆分 9 个
+- **批次**：494（D08 子集，随 D08 Batch 2 完成收尾，详见 §0.8.3）
+- **当前进度**：⏳ 重新打开 —— 之前已拆分 2 个 100+ 行函数（get_import_template + export_orders_to_csv，PR #682 main ba8e97f）；三次核实发现仍残留 11 个 >100 行函数（含可豁免 2 个），实际需拆分 9 个，随 D08 Batch 2 完成
 
 ### 3.4 P0-D10 30 个后端文件超过 1000 行（类二，L，进行中）
 
@@ -346,13 +561,13 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - **Bpm 前缀（11 个）—— bpm/{approval,definitions}/components/**：BpmApprovalApprovalDialog.vue / BpmApprovalChainDialog.vue / BpmApprovalCompletedTable.vue / BpmApprovalPendingTable.vue / BpmApprovalStat.vue / BpmApprovalTransferDialog.vue / BpmDefinitionFilter.vue / BpmDefinitionForm.vue / BpmDefinitionTable.vue / BpmDefinitionTemplateDialog.vue / BpmDefinitionVersionDialog.vue
   - **Ai 前缀（1 个）**：components/ai/AiPredictionChart.vue
 - **历史核实（2026-07-23）**：❌ 数量偏差。严格按 25 类前缀搜索实际 111 个（views/ 110 + components/ 1，doto 多记 12 个）；若补入 advanced(Rcp/Qlt/Rpt/Ai 4 个) + arReconciliation(Ar 6 个)，则实际 121 个。❌ 前缀分类不完整：实际 27 类（doto 记 25 类，缺 Ar + Rcp/Qlt/Rpt/Ai）
-- **修复方案**：重命名剩余 18 个文件为描述性全名（如 ArReconciliationCharts→AccountReceivableReconciliationCharts、BpmApprovalApprovalDialog→BusinessProcessApprovalApprovalDialog、AiPredictionChart→ArtificialIntelligencePredictionChart）；同步更新父级 import
+- **修复方案**：重命名剩余 18 个文件为描述性全名（如 ArReconciliationCharts→AccountReceivableReconciliationCharts、BpmApprovalApprovalDialog→BusinessProcessApprovalApprovalDialog、AiPredictionChart→ArtificialIntelligencePredictionChart）；同步更新父级 import；合并到 D05 最后一批（Batch 10）执行避免与 D05 .vue 修改冲突
 - **关联文件**：[frontend/src/views/arReconciliation/components/](file:///workspace/frontend/src/views/arReconciliation/components/) + [frontend/src/views/bpm/approval/components/](file:///workspace/frontend/src/views/bpm/approval/components/) + [frontend/src/views/bpm/definitions/components/](file:///workspace/frontend/src/views/bpm/definitions/components/) + [frontend/src/components/ai/AiPredictionChart.vue](file:///workspace/frontend/src/components/ai/AiPredictionChart.vue)
-- **依赖**：建议在 D14 完成后推进（避免同时修改 import 路径造成冲突）⏳ D14 三次核实后重新打开
+- **依赖**：建议在 D14 完成后推进（避免同时修改 import 路径造成冲突）⏳ D14 三次核实后重新打开；**实际批次规划已合并 D13+D14 为最后一批（Batch 10）以避免与 D05 .vue 修改冲突**（详见 §0.8.11）
 - **工作量**：XL
-- **批次**：489（D13 独立批次；预估 12-15 子批次，每批 8-10 文件）
+- **批次**：502（D13+D14 合并最后一批，文件数 28 < 35 按用户指令"除非任务最后一批次"豁免，详见 §0.8.11）
 - **执行优先级**：第 4 顺位（D14 完成后推进）
-- **当前进度**：⏳ 重新打开 —— Batch 1-7 已完成 121 文件重命名 + 43 caller 文件更新（PR #716/#717/#718/#719/#720/#721/#722）；但三次核实发现仍残留 18 个缩写文件（Ar/Bpm/Ai 前缀未处理），需新增 Batch 8 完成
+- **当前进度**：⏳ 重新打开 —— Batch 1-7 已完成 121 文件重命名 + 43 caller 文件更新（PR #716/#717/#718/#719/#720/#721/#722）；但三次核实发现仍残留 18 个缩写文件（Ar/Bpm/Ai 前缀未处理），合并到 §0.8.11 Batch 10 完成
 - **批次规划**：按模块分组（每模块独立批次）⚠️ 以下数量为 doto 原记录，核实后需调整（见核实行）
   - Batch 1：✅ 已完成（#716 main 937b9a2）sales-contract (3) + system-update (3) + sales-price (5) + purchase-price (5) 共 16 文件 + 6 caller（ScFilter→SalesContractFilter / SuVerDetail→SystemUpdateVersionDetail / SpTbl→SalesPriceTable / PpTbl→PurchasePriceTable 等）
   - Batch 2：✅ 已完成（#717 main c3e2f58）logistics (6) + finance/tabs (4) + voucher/tabs (4) + data-import (4) 共 18 文件 + 6 caller（LgsFilter→LogisticsFilter / VchrForm→VoucherForm / DiTplTable→DataImportTemplateTable 等，DiTplForm 接口重命名为 DataImportTemplateFormData）
@@ -367,13 +582,13 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **来源**：batch-02 P0-02-06
 - **证据（2026-07-25 三次核实）**：使用 Grep 检查 `export (async )?(function|const) (list|add|remove|query|fetch)[A-Z]` 五种不规范模式，残留 4 处不规范命名（与二次核实完全一致）：listAuditLogs（audit.ts:79）+ listSlowQueries（slow-query.ts:69）+ addTagToCustomer（crm-enhanced.ts:220）+ removeTagFromCustomer（crm-enhanced.ts:224）
 - **历史核实（2026-07-23）**：✅ 文件总数 96 一致；✅ addXxx 5 文件 6 处一致；✅ fetchXxx 1 文件 1 处一致；✅ request.ts 存在应保留。❌ 风格 A 实际 25 个（doto 记 21，少 4，工作量被低估）；❌ listXxx 实际 59 文件 104 处（doto 记 47 文件 84 处，少 12 文件 20 处，最大偏差源工作量低估约 23%）
-- **修复方案**：统一为风格 B（function 形式）+ 命名规范 `getXxxList / createXxx / updateXxx / deleteXxx / getXxxById`；保留 request.ts 不改名；4 个混合文件先去重再统一；3 个 re-export 文件同步更新导出列表；预估影响 2000+ 处调用点
+- **修复方案**：统一为风格 B（function 形式）+ 命名规范 `getXxxList / createXxx / updateXxx / deleteXxx / getXxxById`；保留 request.ts 不改名；4 个混合文件先去重再统一；3 个 re-export 文件同步更新导出列表；预估影响 2000+ 处调用点；剩余 4 处不规范命名合并到 D05 最后一批（Batch 10）执行
 - **关联文件**：[frontend/src/api/](file:///workspace/frontend/src/api/) 96 个 .ts 文件
-- **依赖**：无前置依赖（独立任务）
+- **依赖**：无前置依赖（独立任务）；**实际批次规划已合并 D13+D14 为最后一批（Batch 10）以避免与 D05 .vue 修改冲突**（详见 §0.8.11）
 - **工作量**：XL
-- **批次**：488（D 系列 17 项一次性打包；预估 10-12 子批次，每批 8-10 文件）
+- **批次**：502（D13+D14 合并最后一批，文件数 28 < 35 按用户指令"除非任务最后一批次"豁免，详见 §0.8.11）
 - **执行优先级**：第 3 顺位（与 D05/D13 解耦）
-- **当前进度**：⏳ 重新打开 —— Batch 1-5 全部完成（风格 A 25 文件转风格 B + 2000+ 处调用点更新，PR #705-#714）；但三次核实发现仍残留 4 处不规范命名（listAuditLogs/listSlowQueries/addTagToCustomer/removeTagFromCustomer），需新增 Batch 6 补齐
+- **当前进度**：⏳ 重新打开 —— Batch 1-5 全部完成（风格 A 25 文件转风格 B + 2000+ 处调用点更新，PR #705-#714）；但三次核实发现仍残留 4 处不规范命名（listAuditLogs/listSlowQueries/addTagToCustomer/removeTagFromCustomer），合并到 §0.8.11 Batch 10 补齐
 - **批次规划**：
   - Batch 1：✅ 已完成（#705 main e807550）财务 AP/AR 9 文件（ap.ts/ap-invoice.ts/ap-payment.ts/ar.ts/ar-reconciliation.ts/ar-reconciliation-enhanced.ts/ap-reconciliation.ts/ap-verification.ts/voucher.ts）
   - Batch 2：✅ 已完成（#706 main eb4fdb2）采购/销售/库存 9 API 定义文件 13 处重命名 + 5 caller 文件（purchase-contract/purchase-price/purchaseReceipt/sales-contract/sales-price/inventoryAdjustment/inventoryTransfer/inventoryBatch/inventoryCount）
