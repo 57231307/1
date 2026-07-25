@@ -351,7 +351,7 @@ impl AiAnalysisService {
             tx_select =
                 tx_select.filter(crate::models::inventory_transaction::Column::ProductId.eq(pid));
         }
-        Ok(tx_select.all(db).await?)
+        tx_select.all(db).await.map_err(AppError::from)
     }
 
     /// 查询当前库存记录（可选按产品过滤）
@@ -364,7 +364,7 @@ impl AiAnalysisService {
             stock_select =
                 stock_select.filter(crate::models::inventory_stock::Column::ProductId.eq(pid));
         }
-        Ok(stock_select.all(db).await?)
+        stock_select.all(db).await.map_err(AppError::from)
     }
 
     /// 按产品聚合出库量（销售出库 + 一般出库）
