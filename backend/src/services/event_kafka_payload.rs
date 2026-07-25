@@ -389,29 +389,29 @@ pub mod payload_serde {
     // ===== TryFrom<EventPayload> helpers：按业务域分组，每组返回 Result =====
 
     /// 采购事件反向转换
-    fn to_purchase_events(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_purchase_events(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             EventPayload::PurchaseReceiptCompleted { receipt_id, order_id, supplier_id } =>
                 BusinessEvent::PurchaseReceiptCompleted { receipt_id, order_id, supplier_id },
             EventPayload::PurchaseOrderApproved { order_id, supplier_id } =>
                 BusinessEvent::PurchaseOrderApproved { order_id, supplier_id },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
     /// 销售发货与下单事件反向转换
-    fn to_sales_order_shipped_and_submitted(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_sales_order_shipped_and_submitted(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             EventPayload::SalesOrderShipped { order_id, customer_id, items } =>
                 BusinessEvent::SalesOrderShipped { order_id, customer_id, items },
             EventPayload::SalesOrderSubmitted { order_id, customer_id, user_id } =>
                 BusinessEvent::SalesOrderSubmitted { order_id, customer_id, user_id },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
     /// 销售订单状态变更事件反向转换
-    fn to_sales_order_state_events(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_sales_order_state_events(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             EventPayload::SalesOrderApproved { order_id, customer_id, user_id } =>
                 BusinessEvent::SalesOrderApproved { order_id, customer_id, user_id },
@@ -421,23 +421,23 @@ pub mod payload_serde {
                 BusinessEvent::SalesOrderCancelled { order_id, customer_id, user_id },
             EventPayload::SalesOrderRejected { order_id, customer_id, user_id } =>
                 BusinessEvent::SalesOrderRejected { order_id, customer_id, user_id },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
     /// 收付款事件反向转换
-    fn to_payment_events(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_payment_events(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             EventPayload::PaymentCompleted { payment_id, invoice_id, amount, user_id } =>
                 BusinessEvent::PaymentCompleted { payment_id, invoice_id, amount, user_id },
             EventPayload::CollectionCompleted { collection_id, invoice_id, amount, user_id } =>
                 BusinessEvent::CollectionCompleted { collection_id, invoice_id, amount, user_id },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
     /// 盘点与低库存事件反向转换
-    fn to_inventory_events(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_inventory_events(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             EventPayload::InventoryCountCompleted { count_id, variance_count } =>
                 BusinessEvent::InventoryCountCompleted { count_id, variance_count },
@@ -447,12 +447,12 @@ pub mod payload_serde {
             } => BusinessEvent::LowStockAlert {
                 product_id, warehouse_id, current_quantity, reorder_point, reorder_quantity,
             },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
     /// 库存事务事件反向转换
-    fn to_inventory_transaction(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_inventory_transaction(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             EventPayload::InventoryTransactionCreated {
                 transaction_id, transaction_type, product_id, warehouse_id,
@@ -463,12 +463,12 @@ pub mod payload_serde {
                 quantity_meters, quantity_kg, source_bill_type, source_bill_no,
                 source_bill_id, batch_no, color_no, created_by,
             },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
     /// BPM 与财务指标事件反向转换
-    fn to_process_events(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_process_events(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             EventPayload::BpmProcessFinished {
                 business_type, business_id, approved, approver_id,
@@ -477,23 +477,23 @@ pub mod payload_serde {
             },
             EventPayload::FinancialIndicatorUpdate { period, trigger_source } =>
                 BusinessEvent::FinancialIndicatorUpdate { period, trigger_source },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
     /// 客户/供应商主数据事件反向转换
-    fn to_master_data_events(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_master_data_events(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             EventPayload::CustomerUpdated { customer_id, customer_name, user_id } =>
                 BusinessEvent::CustomerUpdated { customer_id, customer_name, user_id },
             EventPayload::SupplierUpdated { supplier_id, supplier_name, user_id } =>
                 BusinessEvent::SupplierUpdated { supplier_id, supplier_name, user_id },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
     /// 缺料预警事件反向转换
-    fn to_material_shortage(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_material_shortage(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             EventPayload::MaterialShortageAlert {
                 material_id, material_name, material_code, required_quantity,
@@ -502,12 +502,12 @@ pub mod payload_serde {
                 material_id, material_name, material_code, required_quantity,
                 available_quantity, shortage_quantity, shortage_level, affected_orders_count,
             },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
     /// 染色完成与质检完成事件反向转换
-    fn to_dye_and_inspection_events(p: EventPayload) -> Result<BusinessEvent, EventPayload> {
+    fn to_dye_and_inspection_events(p: EventPayload) -> Result<BusinessEvent, Box<EventPayload>> {
         Ok(match p {
             // v14 批次 420 修复 T-P1-3：染色完成/质检完成事件反向转换
             EventPayload::DyeBatchCompleted {
@@ -520,7 +520,7 @@ pub mod payload_serde {
             } => BusinessEvent::QualityInspectionCompleted {
                 inspection_id, batch_id, product_id, result, inspector_id,
             },
-            p => return Err(p),
+            p => return Err(Box::new(p)),
         })
     }
 
@@ -529,15 +529,15 @@ pub mod payload_serde {
 
         fn try_from(p: EventPayload) -> Result<Self, Self::Error> {
             to_purchase_events(p)
-                .or_else(to_sales_order_shipped_and_submitted)
-                .or_else(to_sales_order_state_events)
-                .or_else(to_payment_events)
-                .or_else(to_inventory_events)
-                .or_else(to_inventory_transaction)
-                .or_else(to_process_events)
-                .or_else(to_master_data_events)
-                .or_else(to_material_shortage)
-                .or_else(to_dye_and_inspection_events)
+                .or_else(|p| to_sales_order_shipped_and_submitted(*p))
+                .or_else(|p| to_sales_order_state_events(*p))
+                .or_else(|p| to_payment_events(*p))
+                .or_else(|p| to_inventory_events(*p))
+                .or_else(|p| to_inventory_transaction(*p))
+                .or_else(|p| to_process_events(*p))
+                .or_else(|p| to_master_data_events(*p))
+                .or_else(|p| to_material_shortage(*p))
+                .or_else(|p| to_dye_and_inspection_events(*p))
                 .map_err(|_| "unhandled EventPayload variant".to_string())
         }
     }

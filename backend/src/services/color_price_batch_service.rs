@@ -35,6 +35,9 @@ pub enum BatchError {
 /// 调价审批阈值（涨跌幅 > 10% 需经理审批）
 pub const APPROVAL_THRESHOLD: f64 = 0.10;
 
+// D08-1：类型别名消除 type_complexity 警告
+type ColorPriceMap = std::collections::HashMap<i64, product_color_price::Model>;
+
 /// 批量调价服务
 pub struct ColorPriceBatchService {
     db: Arc<DatabaseConnection>,
@@ -80,7 +83,7 @@ impl ColorPriceBatchService {
     async fn load_existing_prices(
         &self,
         dto: &BatchAdjustPriceDto,
-    ) -> Result<std::collections::HashMap<i64, product_color_price::Model>, BatchError> {
+    ) -> Result<ColorPriceMap, BatchError> {
         // 批次 31 v7 P1-2 修复：批量查询替代循环内逐条 find_by_id
         let price_ids: Vec<i64> = dto.items.iter().map(|i| i.price_id).collect();
         let existing_prices = ColorPriceEntity::find()
@@ -93,7 +96,7 @@ impl ColorPriceBatchService {
     /// 循环构建历史记录与价格更新 ActiveModel（不触碰数据库）
     fn prepare_adjustment_models(
         dto: &BatchAdjustPriceDto,
-        price_map: &mut std::collections::HashMap<i64, product_color_price::Model>,
+        price_map: &mut ColorPriceMap,
         operated_by: i64,
     ) -> Result<BatchAdjustPrepared, BatchError> {
         let mut history_models: Vec<HistoryActive> = Vec::with_capacity(dto.items.len());

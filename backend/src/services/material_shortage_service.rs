@@ -240,7 +240,7 @@ impl MaterialShortageService {
         if let Some(to) = request.date_to {
             query = query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
         }
-        Ok(query.all(&*self.db).await?)
+        query.all(&*self.db).await.map_err(AppError::from)
     }
 
     /// 构建空汇总（无活跃订单时返回）
