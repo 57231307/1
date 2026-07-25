@@ -22,6 +22,9 @@ use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::HashMap;
 
+// D08-1：类型别名消除 type_complexity 警告（工作中心排程表）
+type WcSchedule = HashMap<i32, Vec<(NaiveDate, NaiveDate, i32, String)>>;
+
 /// P9-2 标记：自动排程子模块路径
 pub const P92_AUTO_MODULE: &str = "scheduling_auto";
 
@@ -178,7 +181,7 @@ impl SchedulingService {
     /// 初始化工作中心排程表
     fn init_wc_schedule(
         wc_capacity: &HashMap<i32, WorkCenterCapacity>,
-    ) -> HashMap<i32, Vec<(NaiveDate, NaiveDate, i32, String)>> {
+    ) -> WcSchedule {
         wc_capacity.keys().map(|&wc_id| (wc_id, Vec::new())).collect()
     }
 

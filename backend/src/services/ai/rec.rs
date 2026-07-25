@@ -650,10 +650,11 @@ impl AiAnalysisService {
         &self,
         since: chrono::DateTime<chrono::Utc>,
     ) -> Result<Vec<crate::models::sales_order_item::Model>, AppError> {
-        Ok(SalesOrderItemEntity::find()
+        SalesOrderItemEntity::find()
             .filter(crate::models::sales_order_item::Column::CreatedAt.gte(since))
             .all(&*self.db)
-            .await?)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 查询两个时间区间之间的销售明细
@@ -662,11 +663,12 @@ impl AiAnalysisService {
         earlier_start: chrono::DateTime<chrono::Utc>,
         recent_start: chrono::DateTime<chrono::Utc>,
     ) -> Result<Vec<crate::models::sales_order_item::Model>, AppError> {
-        Ok(SalesOrderItemEntity::find()
+        SalesOrderItemEntity::find()
             .filter(crate::models::sales_order_item::Column::CreatedAt.gte(earlier_start))
             .filter(crate::models::sales_order_item::Column::CreatedAt.lt(recent_start))
             .all(&*self.db)
-            .await?)
+            .await
+            .map_err(AppError::from)
     }
 
     /// 按产品聚合销量
