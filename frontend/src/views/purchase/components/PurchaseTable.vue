@@ -5,44 +5,44 @@
 -->
 <template>
   <el-card shadow="hover" class="table-card">
-    <el-table v-loading="loading" :data="orders" stripe aria-label="采购订单列表">
-      <el-table-column prop="order_no" label="订单号" width="160" fixed>
+    <el-table v-loading="loading" :data="orders" stripe :aria-label="t('purchase.table.listAria')">
+      <el-table-column prop="order_no" :label="t('purchase.table.colOrderNo')" width="160" fixed>
         <template #default="{ row }">
           <el-link type="primary" @click="onView(row as PurchaseOrder)">{{ row.order_no }}</el-link>
         </template>
       </el-table-column>
-      <el-table-column prop="supplier_name" label="供应商" width="180" fixed />
-      <el-table-column prop="order_date" label="订单日期" width="120" />
-      <el-table-column prop="required_date" label="要求交货日期" width="120" />
-      <el-table-column prop="total_amount" label="订单金额" width="120" align="right">
+      <el-table-column prop="supplier_name" :label="t('purchase.table.colSupplier')" width="180" fixed />
+      <el-table-column prop="order_date" :label="t('purchase.table.colOrderDate')" width="120" />
+      <el-table-column prop="required_date" :label="t('purchase.table.colRequiredDate')" width="120" />
+      <el-table-column prop="total_amount" :label="t('purchase.table.colTotalAmount')" width="120" align="right">
         <template #default="{ row }">
           <span class="amount">¥{{ row.total_amount.toLocaleString() }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="received_amount" label="已收货金额" width="120" align="right">
+      <el-table-column prop="received_amount" :label="t('purchase.table.colReceivedAmount')" width="120" align="right">
         <template #default="{ row }">
           <span>¥{{ (row.received_amount || 0).toLocaleString() }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="payment_status" label="付款状态" width="100">
+      <el-table-column prop="payment_status" :label="t('purchase.table.colPaymentStatus')" width="100">
         <template #default="{ row }">
           <el-tag :type="getPaymentStatusType(row.payment_status)" size="small">
             {{ getPaymentStatusText(row.payment_status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="订单状态" width="100">
+      <el-table-column prop="status" :label="t('purchase.table.colStatus')" width="100">
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.status)" size="small">
             {{ getStatusText(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="creator_name" label="创建人" width="100" />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column prop="creator_name" :label="t('purchase.table.colCreator')" width="100" />
+      <el-table-column :label="t('purchase.table.colOperation')" width="200" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="onView(row as PurchaseOrder)"
-            >详情</el-button
+            >{{ t('purchase.table.detail') }}</el-button
           >
           <el-button
             v-if="row.status === 'approved'"
@@ -51,7 +51,7 @@
             link
             size="small"
             @click="onReceive(row as PurchaseOrder)"
-            >收货</el-button
+            >{{ t('purchase.table.receive') }}</el-button
           >
           <el-button
             v-if="row.status === 'pending'"
@@ -60,7 +60,7 @@
             link
             size="small"
             @click="onApprove(row as PurchaseOrder)"
-            >审批</el-button
+            >{{ t('purchase.table.approve') }}</el-button
           >
         </template>
       </el-table-column>
@@ -73,7 +73,7 @@
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        aria-label="采购订单列表分页"
+        :aria-label="t('purchase.table.paginationAria')"
         @size-change="onQuery"
         @current-change="onQuery"
       />
@@ -83,9 +83,13 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { PurchaseOrder } from '@/api/purchase'
 // Batch 468 P0-S28：引入权限码常量，与后端 purchase-orders 资源对齐
 import { PERMISSIONS } from '@/constants/permissions'
+
+// 接入 i18n，替换硬编码中文文案
+const { t } = useI18n({ useScope: 'global' })
 
 interface QueryParams {
   page: number

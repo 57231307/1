@@ -3,7 +3,11 @@
  * StatCards - 采购管理统计卡片（4 个指标）
  * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 统计卡片）
  */
+import { useI18n } from 'vue-i18n'
 import { Document, Money, Clock, OfficeBuilding } from '@element-plus/icons-vue'
+
+// 接入 i18n，替换硬编码中文文案
+const { t } = useI18n({ useScope: 'global' })
 
 interface Stats {
   monthOrders: number
@@ -29,7 +33,7 @@ defineProps<Props>()
             <el-icon><Document /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">本月采购</div>
+            <div class="stat-label">{{ t('purchase.statCards.monthOrders') }}</div>
             <div class="stat-value">{{ stats.monthOrders }}</div>
           </div>
         </div>
@@ -42,7 +46,7 @@ defineProps<Props>()
             <el-icon><Money /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">采购金额</div>
+            <div class="stat-label">{{ t('purchase.statCards.monthAmount') }}</div>
             <div class="stat-value">{{ formatCurrency(stats.monthAmount) }}</div>
           </div>
         </div>
@@ -55,7 +59,7 @@ defineProps<Props>()
             <el-icon><Clock /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">待收货</div>
+            <div class="stat-label">{{ t('purchase.statCards.pendingReceipt') }}</div>
             <div class="stat-value">{{ stats.pendingReceipt }}</div>
           </div>
         </div>
@@ -68,7 +72,7 @@ defineProps<Props>()
             <el-icon><OfficeBuilding /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">合作供应商</div>
+            <div class="stat-label">{{ t('purchase.statCards.supplierCount') }}</div>
             <div class="stat-value">{{ stats.supplierCount }}</div>
           </div>
         </div>

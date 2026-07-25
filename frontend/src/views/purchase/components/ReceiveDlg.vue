@@ -6,40 +6,40 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="采购收货"
+    :title="t('purchase.receiveDlg.title')"
     width="800px"
-    aria-label="采购收货对话框"
+    :aria-label="t('purchase.receiveDlg.ariaLabel')"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
-    <el-form :model="localForm" label-width="100px" aria-label="采购收货表单">
+    <el-form :model="localForm" label-width="100px" :aria-label="t('purchase.receiveDlg.formAria')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="采购单号">
+          <el-form-item :label="t('purchase.receiveDlg.orderNo')">
             <el-input v-model="localForm.order_no" readonly />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="供应商">
+          <el-form-item :label="t('purchase.receiveDlg.supplier')">
             <el-input v-model="localForm.supplier_name" readonly />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="收货日期" required>
+          <el-form-item :label="t('purchase.receiveDlg.receiveDate')" required>
             <el-date-picker
               v-model="localForm.receive_date"
               type="date"
-              placeholder="选择日期"
+              :placeholder="t('purchase.receiveDlg.datePlaceholder')"
               style="width: 100%"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="仓库" required>
+          <el-form-item :label="t('purchase.receiveDlg.warehouse')" required>
             <el-select
               v-model="localForm.warehouse_id"
-              placeholder="选择仓库"
+              :placeholder="t('purchase.receiveDlg.warehousePlaceholder')"
               style="width: 100%"
             >
               <el-option
@@ -52,12 +52,12 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="收货明细">
-        <el-table :data="localForm.items" border style="width: 100%" aria-label="采购收货明细列表">
-          <el-table-column prop="product_name" label="产品" width="150" />
-          <el-table-column prop="ordered_quantity" label="订购数量" width="100" />
-          <el-table-column prop="received_quantity" label="已收货" width="100" />
-          <el-table-column label="本次收货" width="120">
+      <el-form-item :label="t('purchase.receiveDlg.detail')">
+        <el-table :data="localForm.items" border style="width: 100%" :aria-label="t('purchase.receiveDlg.detailListAria')">
+          <el-table-column prop="product_name" :label="t('purchase.receiveDlg.colProduct')" width="150" />
+          <el-table-column prop="ordered_quantity" :label="t('purchase.receiveDlg.colOrderedQty')" width="100" />
+          <el-table-column prop="received_quantity" :label="t('purchase.receiveDlg.colReceivedQty')" width="100" />
+          <el-table-column :label="t('purchase.receiveDlg.colThisReceive')" width="120">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.receive_quantity"
@@ -67,10 +67,10 @@
               />
             </template>
           </el-table-column>
-          <el-table-column prop="unit_price" label="单价" width="100" />
-          <el-table-column label="备注" min-width="150">
+          <el-table-column prop="unit_price" :label="t('purchase.receiveDlg.colUnitPrice')" width="100" />
+          <el-table-column :label="t('purchase.receiveDlg.colRemark')" min-width="150">
             <template #default="{ row }">
-              <el-input v-model="row.remarks" size="small" placeholder="备注" />
+              <el-input v-model="row.remarks" size="small" :placeholder="t('purchase.receiveDlg.remarkPlaceholder')" />
             </template>
           </el-table-column>
         </el-table>
@@ -78,8 +78,8 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="onCancel">取消</el-button>
-        <el-button type="primary" @click="onSubmit">确定收货</el-button>
+        <el-button @click="onCancel">{{ t('purchase.receiveDlg.cancel') }}</el-button>
+        <el-button type="primary" @click="onSubmit">{{ t('purchase.receiveDlg.confirm') }}</el-button>
       </span>
     </template>
   </el-dialog>
@@ -88,8 +88,11 @@
 <script setup lang="ts">
 import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Warehouse } from '@/api/warehouse'
 import type { ReceiveFormData } from '../composables/usePurchRcv'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   // 对话框可见性

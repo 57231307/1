@@ -12,7 +12,7 @@
             <el-icon><Box /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">库存总量</div>
+            <div class="stat-label">{{ t('inventory.statCards.totalQuantity') }}</div>
             <div class="stat-value">{{ formatNumber(stats.totalQuantity) }}</div>
           </div>
         </div>
@@ -25,7 +25,7 @@
             <el-icon><Warning /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">库存预警</div>
+            <div class="stat-label">{{ t('inventory.statCards.alert') }}</div>
             <div class="stat-value">{{ stats.alertCount }}</div>
           </div>
         </div>
@@ -38,7 +38,7 @@
             <el-icon><OfficeBuilding /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">仓库数量</div>
+            <div class="stat-label">{{ t('inventory.statCards.warehouseCount') }}</div>
             <div class="stat-value">{{ stats.warehouseCount }}</div>
           </div>
         </div>
@@ -51,7 +51,7 @@
             <el-icon><WarningFilled /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">低于最小库存</div>
+            <div class="stat-label">{{ t('inventory.statCards.lowStock') }}</div>
             <div class="stat-value">{{ stats.lowStockCount }}</div>
           </div>
         </div>
@@ -61,8 +61,12 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Box, Warning, OfficeBuilding, WarningFilled } from '@element-plus/icons-vue'
 import { formatNumber } from '../composables/invFmts'
+
+// 接入 i18n，替换硬编码中文文案
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   stats: {

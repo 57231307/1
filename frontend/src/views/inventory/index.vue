@@ -9,29 +9,29 @@
   <div class="inventory-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">库存管理</h1>
+        <h1 class="page-title">{{ t('inventory.page.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>仓储管理</el-breadcrumb-item>
-          <el-breadcrumb-item>库存台账</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ t('inventory.page.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('inventory.page.warehouseManage') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('inventory.page.stockLedger') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button v-permission="PERMISSIONS.INVENTORY_UPDATE" type="primary" @click="handleAdjustment">
           <el-icon><Edit /></el-icon>
-          库存调整
+          {{ t('inventory.page.adjustment') }}
         </el-button>
         <el-button v-permission="PERMISSIONS.INVENTORY_TRANSFER" @click="handleTransfer">
           <el-icon><RefreshRight /></el-icon>
-          库存调拨
+          {{ t('inventory.page.transfer') }}
         </el-button>
         <el-button @click="handlePrint">
           <el-icon><Printer /></el-icon>
-          打印
+          {{ t('inventory.page.print') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('inventory.page.export') }}
         </el-button>
       </div>
     </div>
@@ -39,7 +39,7 @@
     <StatCards :stats="stats" />
 
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-      <el-tab-pane label="库存台账" name="stock">
+      <el-tab-pane :label="t('inventory.page.tabStock')" name="stock">
         <InventoryStockTab
           :stocks="stocks"
           :total="total"
@@ -53,11 +53,11 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="库存预警" name="alert">
+      <el-tab-pane :label="t('inventory.page.tabAlert')" name="alert">
         <InventoryAlertTab :alerts="alerts" @purchase="handlePurchase" />
       </el-tab-pane>
 
-      <el-tab-pane label="库存调拨" name="transfer">
+      <el-tab-pane :label="t('inventory.page.tabTransfer')" name="transfer">
         <InventoryTransferTab
           :transfers="transfers"
           @new-transfer="handleNewTransfer"
@@ -86,11 +86,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, RefreshRight, Download, Printer } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import { useRouter } from 'vue-router'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+
+// 接入 i18n，替换硬编码中文文案
+const { t } = useI18n({ useScope: 'global' })
 // V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
 // 后端 GET /inventory/stock/export 已就绪（含字段级数据权限 + 异步审计日志 + 水印）
 import { exportFromBackend } from '@/utils/export'
@@ -151,7 +155,7 @@ const fetchData = async () => {
     }
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取库存列表失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchStockFailed'))
     stocks.value = []
     total.value = 0
   } finally {
@@ -166,7 +170,7 @@ const fetchAlerts = async () => {
     alerts.value = res.data || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取库存预警失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchAlertFailed'))
     alerts.value = []
   }
 }
@@ -178,7 +182,7 @@ const fetchTransfers = async () => {
     transfers.value = res.data?.list || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取调拨记录失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchTransferFailed'))
     transfers.value = []
   }
 }
@@ -190,7 +194,7 @@ const fetchWarehouses = async () => {
     warehouses.value = res.data?.list || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取仓库列表失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchWarehouseFailed'))
     warehouses.value = []
   }
 }
@@ -250,11 +254,11 @@ const handleAdjustment = () => {
 // v11 批次 164 P2-1 修复：form: any 改为具体类型
 const onSubmitAdjustment = async (form: AdjustmentForm) => {
   if (!form.adjustment_quantity || form.adjustment_quantity <= 0) {
-    ElMessage.warning('请输入有效的调整数量')
+    ElMessage.warning(t('inventory.message.adjustmentQtyInvalid'))
     return
   }
   if (!form.reason) {
-    ElMessage.warning('请输入调整原因')
+    ElMessage.warning(t('inventory.message.reasonRequired'))
     return
   }
   try {
@@ -266,12 +270,12 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
       adjustment_quantity: form.adjustment_quantity,
       reason: form.reason,
     })
-    ElMessage.success('库存调整成功')
+    ElMessage.success(t('inventory.message.adjustmentSuccess'))
     adjustmentDialogVisible.value = false
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '库存调整失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.adjustmentFailed'))
   }
 }
 
@@ -295,7 +299,7 @@ const handleRemoveTransferItem = (index: number) => {
 }
 const onSubmitTransfer = async (form: typeof transferForm.value) => {
   if (!form.from_warehouse_id || !form.to_warehouse_id) {
-    ElMessage.warning('请选择调出/调入仓库')
+    ElMessage.warning(t('inventory.message.warehouseRequired'))
     return
   }
   try {
@@ -312,13 +316,13 @@ const onSubmitTransfer = async (form: typeof transferForm.value) => {
       remark: form.remark,
     }
     await createInventoryTransfer(transferData)
-    ElMessage.success('调拨单创建成功')
+    ElMessage.success(t('inventory.message.transferCreated'))
     transferDialogVisible.value = false
     if (activeTab.value === 'transfer') {
       fetchTransfers()
     }
   } catch (error: unknown) {
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '创建调拨单失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.transferCreateFailed'))
   }
 }
 
@@ -326,33 +330,33 @@ const handleNewTransfer = () => handleTransfer()
 // 批次 157a P1-1 修复：调拨单详情无独立 API，直接展示列表行数据
 const handleViewTransfer = (row: InventoryTransfer) => {
   const lines = [
-    `调拨单号：${row.transfer_no}`,
-    `转出仓库：${row.from_warehouse_name || '-'}`,
-    `调入仓库：${row.to_warehouse_name || '-'}`,
-    `总数量：${row.total_quantity}`,
-    `状态：${row.status}`,
-    `创建人：${row.creator_name || '-'}`,
-    `创建时间：${row.created_at}`,
+    t('inventory.transferDetail.transferNo', { value: row.transfer_no }),
+    t('inventory.transferDetail.fromWarehouse', { value: row.from_warehouse_name || '-' }),
+    t('inventory.transferDetail.toWarehouse', { value: row.to_warehouse_name || '-' }),
+    t('inventory.transferDetail.totalQty', { value: row.total_quantity }),
+    t('inventory.transferDetail.status', { value: row.status }),
+    t('inventory.transferDetail.creator', { value: row.creator_name || '-' }),
+    t('inventory.transferDetail.createdAt', { value: row.created_at }),
   ]
-  ElMessageBox.alert(lines.join('\n'), '调拨单详情', { confirmButtonText: '关闭' })
+  ElMessageBox.alert(lines.join('\n'), t('inventory.transferDetail.title'), { confirmButtonText: t('inventory.transferDetail.close') })
 }
 // 批次 157a P1-1 修复：接入 approveTransfer API 完成调拨审批
 const handleApproveTransfer = async (row: InventoryTransfer) => {
   try {
     await ElMessageBox.confirm(
-      `确定审批通过调拨单 ${row.transfer_no} 吗？`,
-      '审批确认',
+      t('inventory.message.approveConfirm', { no: row.transfer_no }),
+      t('inventory.message.approveTitle'),
       { type: 'info' }
     )
     const { approveInventoryTransfer } = await import('@/api/inventory')
     await approveInventoryTransfer(row.id)
-    ElMessage.success('审批成功')
+    ElMessage.success(t('inventory.message.approveSuccess'))
     fetchTransfers()
   } catch (error) {
     if (error !== 'cancel') {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
-        (error instanceof Error ? error.message : String(error)) || '审批失败'
+        (error instanceof Error ? error.message : String(error)) || t('inventory.message.approveFailed')
       )
     }
   }
@@ -364,26 +368,26 @@ const handleView = async (row: InventoryStock) => {
     const res = await getStockById(row.id)
     const d = res.data
     if (!d) {
-      ElMessage.warning('未找到库存详情')
+      ElMessage.warning(t('inventory.message.stockDetailNotFound'))
       return
     }
     const lines = [
-      `产品编码：${d.product_code}`,
-      `产品名称：${d.product_name}`,
-      `仓库：${d.warehouse_name}`,
-      `批次号：${d.batch_no || '-'}`,
-      `颜色：${d.color_name || '-'}`,
-      `当前数量：${d.quantity} ${d.unit || ''}`,
-      `状态：${d.status}`,
-      `库位：${d.location || '-'}`,
+      t('inventory.stockDetail.productCode', { value: d.product_code }),
+      t('inventory.stockDetail.productName', { value: d.product_name }),
+      t('inventory.stockDetail.warehouse', { value: d.warehouse_name }),
+      t('inventory.stockDetail.batchNo', { value: d.batch_no || '-' }),
+      t('inventory.stockDetail.color', { value: d.color_name || '-' }),
+      t('inventory.stockDetail.currentQty', { value: d.quantity, unit: d.unit || '' }),
+      t('inventory.stockDetail.status', { value: d.status }),
+      t('inventory.stockDetail.location', { value: d.location || '-' }),
     ]
-    await ElMessageBox.alert(lines.join('\n'), '库存详情', {
-      confirmButtonText: '关闭',
+    await ElMessageBox.alert(lines.join('\n'), t('inventory.stockDetail.title'), {
+      confirmButtonText: t('inventory.stockDetail.close'),
     })
   } catch (error) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
-      (error instanceof Error ? error.message : String(error)) || '获取库存详情失败'
+      (error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchStockDetailFailed')
     )
   }
 }
@@ -396,7 +400,7 @@ const handlePrint = () => {
     printable: stocks.value,
     properties: ['product_code', 'product_name', 'warehouse_name', 'quantity'],
     type: 'json',
-    header: '库存台账',
+    header: t('inventory.printHeader'),
   })
 }
 // 批次 157b P1-1 修复：导出改为 .xls 格式（规则 3：禁止 CSV 作为最终交付格式）
@@ -405,7 +409,7 @@ const handlePrint = () => {
 // 保证导出数据与列表筛选一致；后端注入水印 + 字段级数据权限 + 异步审计日志
 const handleExport = async () => {
   if (stocks.value.length === 0) {
-    ElMessage.warning('没有可导出的数据')
+    ElMessage.warning(t('inventory.message.noExportData'))
     return
   }
   const params: Record<string, unknown> = {
@@ -413,7 +417,7 @@ const handleExport = async () => {
     product_id: undefined,
   }
   await exportFromBackend('/inventory/stock/export', params, 'inventory_stock_export')
-  ElMessage.success('导出成功')
+  ElMessage.success(t('inventory.message.exportSuccess'))
 }
 
 const initPage = () => {

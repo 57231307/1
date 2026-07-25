@@ -186,10 +186,34 @@ impl ApPaymentService {
     pub async fn confirm(&self, id: i32, user_id: i32) -> Result<ap_payment::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
+        let payment = Self::lock_and_validate_payment_for_confirm(&txn, id).await?;
+        let payment = Self::mark_payment_confirmed(&txn, payment, user_id).await?;
+        let fully_paid_invoices =
+            Self::update_invoices_paid_amount(&txn, &payment, user_id).await?;
+
+        txn.commit().await?;
+
+        // F-P0-5 修复（批次 381 v13 复审）：确认付款后生成付款凭证（非阻断）
+        self.generate_payment_voucher(&payment, user_id).await;
+        // P0 5-1 修复：commit 成功后补发 PaymentCompleted 事件，触发 event_bus 监听器自动标记 PAID
+        Self::publish_payment_completed_events(payment.id, fully_paid_invoices, user_id);
+        // 6. 预算核销（非阻断）
+        self.write_off_payment_budget(&payment, user_id).await;
+        // 触发财务指标更新事件
+        Self::publish_financial_indicator_update(&payment.payment_no);
+
+        Ok(payment)
+    }
+
+    /// 锁定付款单并校验状态为 REGISTERED 且已填写交易流水号（串行化并发 confirm）。
+    async fn lock_and_validate_payment_for_confirm(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i32,
+    ) -> Result<ap_payment::Model, AppError> {
         // 1. 查询付款单（加 lock_exclusive 串行化并发 confirm）
         let payment = ap_payment::Entity::find_by_id(id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", id)))?;
 
@@ -212,114 +236,155 @@ impl ApPaymentService {
             ));
         }
 
+        Ok(payment)
+    }
+
+    /// 将付款单状态更新为 CONFIRMED（带审计，记录真实操作人）。
+    async fn mark_payment_confirmed(
+        txn: &sea_orm::DatabaseTransaction,
+        payment: ap_payment::Model,
+        user_id: i32,
+    ) -> Result<ap_payment::Model, AppError> {
         // 4. 确认付款
         let now = chrono::Utc::now();
         let mut payment_active: ap_payment::ActiveModel = payment.into();
-        payment_active.payment_status = Set(crate::models::status::payment::PAYMENT_CONFIRMED.to_string());
+        payment_active.payment_status =
+            Set(crate::models::status::payment::PAYMENT_CONFIRMED.to_string());
         payment_active.confirmed_by = Set(Some(user_id));
         payment_active.confirmed_at = Set(Some(now));
         payment_active.updated_at = Set(now);
 
-        let payment = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
             "auto_audit",
             payment_active,
             // P1 1-1 修复：Some(0) 改 Some(user_id)，审计日志记录真实操作人
             Some(user_id),
         )
-        .await?;
+        .await
+    }
 
-        // P0 5-1 修复：收集本次付款完全结清的应付单（invoice_id, 分摊已付金额），
-        // 在 commit 成功后补发 PaymentCompleted 事件，触发 event_bus 监听器自动标记 PAID
+    /// 按申请明细分摊付款金额到关联应付单，返回本次完全结清的 (invoice_id, paid_amount) 列表。
+    async fn update_invoices_paid_amount(
+        txn: &sea_orm::DatabaseTransaction,
+        payment: &ap_payment::Model,
+        user_id: i32,
+    ) -> Result<Vec<(i32, Decimal)>, AppError> {
+        // P0 5-1 修复：收集本次付款完全结清的应付单，commit 后补发 PaymentCompleted 事件
         let mut fully_paid_invoices: Vec<(i32, Decimal)> = Vec::new();
 
         // 5. 更新关联的应付单已付金额
         if let Some(request_id) = payment.request_id {
-            // 查询付款申请明细
             let items = ap_payment_request_item::Entity::find()
                 .filter(ap_payment_request_item::Column::RequestId.eq(request_id))
-                .all(&txn)
+                .all(txn)
                 .await?;
 
-            // 计算每个应付单应分摊的付款金额（按申请金额比例）
             let total_apply_amount: Decimal = items.iter().map(|item| item.apply_amount).sum();
 
-            // P1 3-12/5-6 修复（批次 63）：分摊总额为 0 时提前报错
-            // 原实现 total_apply_amount==0 时 unwrap_or_default 返回 0，paid_amount=0 但状态改 PARTIAL_PAID，
-            // 导致应付单状态与金额不一致（无付款却标记部分付款）。
+            // P1 3-12/5-6 修复（批次 63）：分摊总额为 0 时提前报错（防止状态与金额不一致）
             if total_apply_amount <= Decimal::ZERO && !items.is_empty() {
                 return Err(AppError::business(
                     "付款申请明细分摊总额必须大于 0，请检查申请明细的 apply_amount",
                 ));
             }
 
-            // v16 批次 44 修复：循环外批量查询并锁定所有关联的应付单，避免循环内逐个 lock_exclusive（N+1）
-            let invoice_ids: Vec<i32> = items.iter().map(|item| item.invoice_id).collect();
-            let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
-                if total_apply_amount <= Decimal::ZERO || invoice_ids.is_empty() {
-                    std::collections::HashMap::new()
-                } else {
-                    use sea_orm::QuerySelect;
-                    ap_invoice::Entity::find()
-                        .filter(ap_invoice::Column::Id.is_in(invoice_ids))
-                        .lock_exclusive()
-                        .all(&txn)
-                        .await?
-                        .into_iter()
-                        .map(|inv| (inv.id, inv))
-                        .collect()
-                };
+            let mut invoice_map =
+                Self::load_and_lock_invoices(txn, &items, total_apply_amount).await?;
 
             for item in items {
                 if total_apply_amount > Decimal::ZERO {
-                    let ratio = item
-                        .apply_amount
-                        .checked_div(total_apply_amount)
-                        .unwrap_or_default();
-                    let paid_amount = payment
-                        .payment_amount
-                        .checked_mul(ratio)
-                        .unwrap_or_default();
-
-                    // v16 批次 44 修复：从批量查询结果获取应付单（O(1) 查找）
-                    if let Some(mut inv) = invoice_map.remove(&item.invoice_id) {
-                        inv.paid_amount = inv
-                            .paid_amount
-                            .checked_add(paid_amount)
-                            .unwrap_or(inv.paid_amount);
-                        inv.unpaid_amount = inv
-                            .amount
-                            .checked_sub(inv.paid_amount)
-                            .unwrap_or(inv.amount);
-
-                        // 更新应付状态
-                        let became_fully_paid = inv.unpaid_amount <= Decimal::ZERO;
-                        inv.invoice_status = if became_fully_paid {
-                            crate::models::status::payment::PAYMENT_PAID.to_string()
-                        } else {
-                            crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
-                        };
-
-                        let invoice_active: ap_invoice::ActiveModel = inv.into();
-                        crate::services::audit_log_service::AuditLogService::update_with_audit(
-                            &txn,
-                            "auto_audit",
-                            invoice_active,
-                            // P1 1-1 修复：Some(0) 改 Some(user_id)，审计日志记录真实操作人
-                            Some(user_id),
-                        )
-                        .await?;
-
-                        // P0 5-1 修复：记录已完全结清的应付单，commit 后补发 PaymentCompleted 事件
-                        if became_fully_paid {
-                            fully_paid_invoices.push((item.invoice_id, paid_amount));
-                        }
-                    }
+                    Self::apply_invoice_payment(
+                        txn,
+                        &item,
+                        &mut invoice_map,
+                        payment,
+                        total_apply_amount,
+                        user_id,
+                        &mut fully_paid_invoices,
+                    )
+                    .await?;
                 }
             }
         }
 
-        txn.commit().await?;
+        Ok(fully_paid_invoices)
+    }
+
+    /// 循环外批量查询并锁定所有关联的应付单（避免循环内逐个 lock_exclusive 的 N+1）。
+    async fn load_and_lock_invoices(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[ap_payment_request_item::Model],
+        total_apply_amount: Decimal,
+    ) -> Result<std::collections::HashMap<i32, ap_invoice::Model>, AppError> {
+        // v16 批次 44 修复：循环外批量查询并锁定所有关联的应付单
+        let invoice_ids: Vec<i32> = items.iter().map(|item| item.invoice_id).collect();
+        Ok(if total_apply_amount <= Decimal::ZERO || invoice_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            ap_invoice::Entity::find()
+                .filter(ap_invoice::Column::Id.is_in(invoice_ids))
+                .lock_exclusive()
+                .all(txn)
+                .await?
+                .into_iter()
+                .map(|inv| (inv.id, inv))
+                .collect()
+        })
+    }
+
+    /// 按比例分摊付款金额到单个应付单并更新状态（带审计），完全结清时收集到 fully_paid。
+    async fn apply_invoice_payment(
+        txn: &sea_orm::DatabaseTransaction,
+        item: &ap_payment_request_item::Model,
+        invoice_map: &mut std::collections::HashMap<i32, ap_invoice::Model>,
+        payment: &ap_payment::Model,
+        total_apply_amount: Decimal,
+        user_id: i32,
+        fully_paid_invoices: &mut Vec<(i32, Decimal)>,
+    ) -> Result<(), AppError> {
+        let ratio = item
+            .apply_amount
+            .checked_div(total_apply_amount)
+            .unwrap_or_default();
+        let paid_amount = payment
+            .payment_amount
+            .checked_mul(ratio)
+            .unwrap_or_default();
+
+        // v16 批次 44 修复：从批量查询结果获取应付单（O(1) 查找）
+        if let Some(mut inv) = invoice_map.remove(&item.invoice_id) {
+            inv.paid_amount = inv
+                .paid_amount
+                .checked_add(paid_amount)
+                .unwrap_or(inv.paid_amount);
+            inv.unpaid_amount = inv.amount.checked_sub(inv.paid_amount).unwrap_or(inv.amount);
+
+            // 更新应付状态
+            let became_fully_paid = inv.unpaid_amount <= Decimal::ZERO;
+            inv.invoice_status = if became_fully_paid {
+                crate::models::status::payment::PAYMENT_PAID.to_string()
+            } else {
+                crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
+            };
+
+            let invoice_active: ap_invoice::ActiveModel = inv.into();
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                txn,
+                "auto_audit",
+                invoice_active,
+                // P1 1-1 修复：Some(0) 改 Some(user_id)，审计日志记录真实操作人
+                Some(user_id),
+            )
+            .await?;
+
+            // P0 5-1 修复：记录已完全结清的应付单，commit 后补发 PaymentCompleted 事件
+            if became_fully_paid {
+                fully_paid_invoices.push((item.invoice_id, paid_amount));
+            }
+        }
+        Ok(())
+    }
 
         // F-P0-5 修复（批次 381 v13 复审）：确认付款后生成付款凭证
         // 借：应付账款（挂供应商辅助核算）/ 贷：银行存款/库存现金

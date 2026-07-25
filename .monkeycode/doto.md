@@ -494,6 +494,7 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
     - Batch 9 (D05-7)：通用组件/其他 57 文件
   - ⚠️ 旧 Batch 6（inventory/index.vue + crm/opportunities/index.vue）已合并到新 Batch 6 (D05-4) 业务核心模块 49 文件中
   - 待修复：UserTab.vue 命名空间 BUG（system.user → settings.user）+ 10 个部分接入文件补全（合并到新批次规划相关模块中）
+  - **D05-10 子批次（2026-07-25，p0-d09-d14-batch 分支）**：✅ 已完成 inventory + purchase 模块 15 文件 i18n 接入收尾 —— inventory 模块 8 文件（index.vue + tabs/{InventoryStockTab,InventoryAlertTab,InventoryTransferTab}.vue + components/{StatCards,AdjustmentDialog,TransferDialog}.vue）+ purchase 模块 7 文件（index.vue + components/{PurchaseTop,StatCards,PurchaseFilter,PurchaseTable,CreateDlg,ViewDlg,ReceiveDlg}.vue）；本批次重点完成 purchase/components/{CreateDlg,ViewDlg,ReceiveDlg}.vue 三个对话框 i18n 接入（CreateDlg 22 处 + ViewDlg 22 处 + ReceiveDlg 19 处硬编码中文替换为 t('purchase.{createDlg|viewDlg|receiveDlg}.*') 调用），所有翻译键已在之前批次定义在 locales/zh-CN.ts + en-US.ts 双语同步；6 个 Grep 模式校验确认 15 个 .vue 文件无残留硬编码中文（注释除外）；详见 [CHANGELOG.md D05-10](file:///workspace/.monkeycode/CHANGELOG.md)
 
 ### 3.2 P0-D08 91+ 超长函数（类七，XL，⏳ 重新打开）
 
