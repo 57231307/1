@@ -218,8 +218,7 @@ impl InventoryTransferService {
             .one(txn)
             .await?;
         if existing.is_some() {
-            tracing::error!("Transaction rolled back: 调拨单号 {} 已存在", transfer_no);
-            txn.rollback().await?;
+            tracing::error!("Conflict detected: 调拨单号 {} 已存在", transfer_no);
             return Err(AppError::business("调拨单号已存在，请重试".to_string()));
         }
         Ok(())

@@ -27,10 +27,10 @@ impl PurchaseReceiptService {
             .await?;
 
         // v11 批次 38 修复：批量查询本入库单关联的所有订单明细，避免循环内逐个 find_by_id（N+1 查询）
-        let order_item_map = Self::load_order_item_map(txn, &items).await?;
+        let mut order_item_map = Self::load_order_item_map(txn, &items).await?;
 
         // 2. 更新每个订单明细的已入库数量
-        Self::update_order_items_received_qty(txn, items, order_item_map, user_id).await?;
+        Self::update_order_items_received_qty(txn, items, &mut order_item_map, user_id).await?;
 
         // 3. 更新采购订单状态（重新查询最新订单明细，因为上方 update 已修改 received_quantity）
         let all_order_items = crate::models::purchase_order_item::Entity::find()

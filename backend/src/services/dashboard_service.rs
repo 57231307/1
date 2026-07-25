@@ -208,7 +208,8 @@ impl DashboardService {
 
     /// 从缓存读取概览数据（反序列化失败返回 None）
     fn try_get_overview_from_cache(&self, cache_key: &str) -> Option<DashboardOverview> {
-        let cached = self.cache.get_dashboard_cache().get(cache_key)?;
+        let cache_key_string = cache_key.to_string();
+        let cached = self.cache.get_dashboard_cache().get(&cache_key_string)?;
         serde_json::from_value(cached).ok()
     }
 
@@ -355,7 +356,8 @@ impl DashboardService {
 
     /// 从缓存读取销售统计（反序列化失败返回 None）
     fn try_get_sales_from_cache(&self, cache_key: &str) -> Option<SalesStatistics> {
-        let cached = self.cache.get_dashboard_cache().get(cache_key)?;
+        let cache_key_string = cache_key.to_string();
+        let cached = self.cache.get_dashboard_cache().get(&cache_key_string)?;
         serde_json::from_value(cached).ok()
     }
 

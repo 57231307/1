@@ -150,7 +150,7 @@ impl QuotationService {
     /// 构建报价单明细 ActiveModel 列表
     fn build_item_active_models(
         items: &[CreateQuotationItemDto],
-        quotation_id: i32,
+        quotation_id: i64,
     ) -> Vec<ItemActive> {
         let mut models: Vec<ItemActive> = Vec::with_capacity(items.len());
         for (idx, item_dto) in items.iter().enumerate() {
@@ -201,7 +201,7 @@ impl QuotationService {
     /// 构建报价单贸易条款 ActiveModel 列表
     fn build_term_active_models(
         terms: Vec<CreateQuotationTermDto>,
-        quotation_id: i32,
+        quotation_id: i64,
     ) -> Vec<TermActive> {
         terms
             .into_iter()

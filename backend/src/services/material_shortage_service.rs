@@ -171,8 +171,6 @@ impl MaterialShortageService {
         &self,
         request: ShortageCheckRequest,
     ) -> Result<ShortageSummary, AppError> {
-        let _threshold = request.threshold.unwrap_or_default();
-
         // 1. 查询活跃生产订单
         let orders = self.query_active_orders(&request).await?;
         if orders.is_empty() {

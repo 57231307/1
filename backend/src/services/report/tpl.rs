@@ -40,7 +40,7 @@ impl ReportEngineService {
         aggregation: Option<&str>,
         sortable: bool,
         filterable: bool,
-        width: Option<i32>,
+        width: Option<u32>,
         alignment: Option<&str>,
     ) -> super::ReportColumn {
         super::ReportColumn {

@@ -75,7 +75,7 @@ impl ArReconciliationService {
             req.end_date,
         )
         .await?;
-        let invoices_by_customer = Self::group_invoices_by_customer(&all_invoices);
+        let invoices_by_customer = Self::group_invoice_refs_by_customer(&all_invoices);
         let collections_by_customer = Self::group_collections_by_customer(&all_collections);
 
         // 2. 逐客户匹配，收集明细 ActiveModel 待批量插入
@@ -162,8 +162,8 @@ impl ArReconciliationService {
             .await?)
     }
 
-    /// 按客户 ID 分组发票引用
-    fn group_invoices_by_customer<'a>(
+    /// 按客户 ID 分组发票引用（仅 id -> refs，不带客户名；与 aging.rs 同名不同签名故改名）
+    fn group_invoice_refs_by_customer<'a>(
         invoices: &'a [ar_invoice::Model],
     ) -> std::collections::HashMap<i32, Vec<&'a ar_invoice::Model>> {
         let mut map: std::collections::HashMap<i32, Vec<&'a ar_invoice::Model>> =

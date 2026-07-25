@@ -402,7 +402,7 @@ impl ArService {
         let mut inv_map = Self::lock_invoices_for_verification(&txn, &items).await?;
 
         let now = Utc::now();
-        Self::rollback_invoices_after_cancel(&txn, &items, &mut inv_map, user_id, now).await?;
+        Self::rollback_invoices_after_cancel(&txn, &items, &mut inv_map, user_id).await?;
 
         let updated =
             Self::apply_cancelled_status_to_verification(&txn, reconciliation, user_id, now)
@@ -479,7 +479,6 @@ impl ArService {
         items: &[ar_reconciliation_item::Model],
         inv_map: &mut std::collections::HashMap<i32, ar_invoice::Model>,
         user_id: i32,
-        now: chrono::DateTime<chrono::Utc>,
     ) -> Result<(), AppError> {
         for item in items {
             let inv_id = item.document_id.ok_or_else(|| {

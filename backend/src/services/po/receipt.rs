@@ -226,7 +226,7 @@ impl PurchaseOrderService {
         receive_qty_meters: Decimal,
         receive_qty_alt: Decimal,
     ) -> Result<(), AppError> {
-        crate::services::inventory_stock_service::InventoryStockService::create_stock_fabric_txn(
+        let _stock_model = crate::services::inventory_stock_service::InventoryStockService::create_stock_fabric_txn(
             txn,
             CreateStockFabricArgs {
                 warehouse_id: order.warehouse_id,
@@ -251,7 +251,8 @@ impl PurchaseOrderService {
                 item.product_id, order.warehouse_id, e
             );
             AppError::internal(format!("创建库存记录失败: {}", e))
-        })
+        })?;
+        Ok(())
     }
 
     /// 记录库存流水（事务版本，返回事件由调用方 commit 后统一 publish）
