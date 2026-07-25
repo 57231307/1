@@ -6,42 +6,42 @@
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localFilterForm" aria-label="销售订单筛选表单">
-      <el-form-item label="订单号">
+    <el-form :inline="true" :model="localFilterForm" :aria-label="t('sales.filter.formAriaLabel')">
+      <el-form-item :label="t('sales.filter.orderNo')">
         <el-input
           v-model="localFilterForm.order_no"
-          placeholder="订单号"
+          :placeholder="t('sales.filter.orderNoPlaceholder')"
           clearable
         />
       </el-form-item>
-      <el-form-item label="客户">
+      <el-form-item :label="t('sales.filter.customer')">
         <el-input
           v-model="localFilterForm.customer_name"
-          placeholder="客户名称"
+          :placeholder="t('sales.filter.customerPlaceholder')"
           clearable
         />
       </el-form-item>
-      <el-form-item label="状态">
-        <el-select v-model="localFilterForm.status" placeholder="选择状态" clearable>
-          <el-option label="待审批" value="pending" />
-          <el-option label="已审批" value="approved" />
-          <el-option label="已发货" value="shipped" />
-          <el-option label="已完成" value="completed" />
-          <el-option label="已取消" value="cancelled" />
+      <el-form-item :label="t('sales.filter.status')">
+        <el-select v-model="localFilterForm.status" :placeholder="t('sales.filter.statusPlaceholder')" clearable>
+          <el-option :label="t('sales.statusLabels.pending')" value="pending" />
+          <el-option :label="t('sales.statusLabels.approved')" value="approved" />
+          <el-option :label="t('sales.statusLabels.shipped')" value="shipped" />
+          <el-option :label="t('sales.statusLabels.completed')" value="completed" />
+          <el-option :label="t('sales.statusLabels.cancelled')" value="cancelled" />
         </el-select>
       </el-form-item>
-      <el-form-item label="日期">
+      <el-form-item :label="t('sales.filter.date')">
         <el-date-picker
           v-model="localFilterForm.dateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('sales.filter.dateRangeSeparator')"
+          :start-placeholder="t('sales.filter.startDate')"
+          :end-placeholder="t('sales.filter.endDate')"
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="emit('query')">查询</el-button>
-        <el-button @click="emit('reset')">重置</el-button>
+        <el-button type="primary" @click="emit('query')">{{ t('sales.filter.query') }}</el-button>
+        <el-button @click="emit('reset')">{{ t('sales.filter.reset') }}</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -49,6 +49,9 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 销售订单过滤表单类型
 interface OlvFilterForm {

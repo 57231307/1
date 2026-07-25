@@ -12,14 +12,14 @@
     :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localData" :rules="formRules" label-width="100px" aria-label="销售订单表单">
-      <el-divider content-position="left">基本信息</el-divider>
+    <el-form ref="formRef" :model="localData" :rules="formRules" label-width="100px" :aria-label="t('sales.orderForm.formAriaLabel')">
+      <el-divider content-position="left">{{ t('sales.orderForm.basicInfo') }}</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="客户" prop="customer_id">
+          <el-form-item :label="t('sales.orderForm.customer')" prop="customer_id">
             <el-select
               v-model="localData.customer_id"
-              placeholder="选择客户"
+              :placeholder="t('sales.orderForm.customerPlaceholder')"
               style="width: 100%"
               @change="handleCustomerChange"
             >
@@ -33,11 +33,11 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="订单日期" prop="order_date">
+          <el-form-item :label="t('sales.orderForm.orderDate')" prop="order_date">
             <el-date-picker
               v-model="localData.order_date"
               type="date"
-              placeholder="选择日期"
+              :placeholder="t('sales.orderForm.datePlaceholder')"
               style="width: 100%"
             />
           </el-form-item>
@@ -45,41 +45,41 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="要求交货日期" prop="required_date">
+          <el-form-item :label="t('sales.orderForm.requiredDate')" prop="required_date">
             <el-date-picker
               v-model="localData.required_date"
               type="date"
-              placeholder="选择日期"
+              :placeholder="t('sales.orderForm.datePlaceholder')"
               style="width: 100%"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="联系人" prop="contact_person">
-            <el-input v-model="localData.contact_person" placeholder="联系人姓名" />
+          <el-form-item :label="t('sales.orderForm.contactPerson')" prop="contact_person">
+            <el-input v-model="localData.contact_person" :placeholder="t('sales.orderForm.contactPersonPlaceholder')" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="联系电话" prop="contact_phone">
-        <el-input v-model="localData.contact_phone" placeholder="联系电话" style="width: 50%" />
+      <el-form-item :label="t('sales.orderForm.contactPhone')" prop="contact_phone">
+        <el-input v-model="localData.contact_phone" :placeholder="t('sales.orderForm.contactPhonePlaceholder')" style="width: 50%" />
       </el-form-item>
-      <el-form-item label="收货地址" prop="delivery_address">
+      <el-form-item :label="t('sales.orderForm.deliveryAddress')" prop="delivery_address">
         <el-input
           v-model="localData.delivery_address"
           type="textarea"
           :rows="2"
-          placeholder="详细收货地址"
+          :placeholder="t('sales.orderForm.deliveryAddressPlaceholder')"
         />
       </el-form-item>
 
-      <el-divider content-position="left">订单明细</el-divider>
+      <el-divider content-position="left">{{ t('sales.orderForm.orderItems') }}</el-divider>
       <div class="order-items">
-        <el-table :data="localData.items" border style="width: 100%" aria-label="销售订单明细编辑表">
-          <el-table-column label="产品" width="200">
+        <el-table :data="localData.items" border style="width: 100%" :aria-label="t('sales.orderForm.itemsTableAriaLabel')">
+          <el-table-column :label="t('sales.orderForm.product')" width="200">
             <template #default="{ row, $index }">
               <el-select
                 v-model="row.product_id"
-                placeholder="选择产品"
+                :placeholder="t('sales.orderForm.productPlaceholder')"
                 @change="(v: number) => handleProductSelect($index, v)"
               >
                 <el-option
@@ -91,7 +91,7 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column prop="quantity" label="数量" width="120">
+          <el-table-column prop="quantity" :label="t('sales.orderForm.quantity')" width="120">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.quantity"
@@ -101,8 +101,8 @@
               />
             </template>
           </el-table-column>
-          <el-table-column prop="unit" label="单位" width="80" />
-          <el-table-column prop="unit_price" label="单价" width="120">
+          <el-table-column prop="unit" :label="t('sales.orderForm.unit')" width="80" />
+          <el-table-column prop="unit_price" :label="t('sales.orderForm.unitPrice')" width="120">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.unit_price"
@@ -113,41 +113,41 @@
               />
             </template>
           </el-table-column>
-          <el-table-column prop="subtotal" label="小计" width="120">
+          <el-table-column prop="subtotal" :label="t('sales.orderForm.subtotal')" width="120">
             <template #default="{ row }">
               <span class="amount">¥{{ (row.subtotal || 0).toLocaleString() }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80">
+          <el-table-column :label="t('sales.orderForm.operation')" width="80">
             <template #default="{ $index }">
               <el-button type="danger" link size="small" @click="removeItem($index)"
-                >删除</el-button
+                >{{ t('sales.orderForm.delete') }}</el-button
               >
             </template>
           </el-table-column>
         </el-table>
         <el-button type="primary" plain size="small" style="margin-top: 10px" @click="addItem">
-          <el-icon><Plus /></el-icon> 添加明细
+          <el-icon><Plus /></el-icon> {{ t('sales.orderForm.addItem') }}
         </el-button>
       </div>
 
-      <el-divider content-position="left">其他信息</el-divider>
-      <el-form-item label="备注">
-        <el-input v-model="localData.remark" type="textarea" :rows="3" placeholder="订单备注信息" />
+      <el-divider content-position="left">{{ t('sales.orderForm.otherInfo') }}</el-divider>
+      <el-form-item :label="t('sales.orderForm.remark')">
+        <el-input v-model="localData.remark" type="textarea" :rows="3" :placeholder="t('sales.orderForm.remarkPlaceholder')" />
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="8">
-          <el-form-item label="订单总额">
+          <el-form-item :label="t('sales.orderForm.orderTotal')">
             <div class="total-amount">¥{{ calculateTotal().toLocaleString() }}</div>
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="税额">
+          <el-form-item :label="t('sales.orderForm.taxAmount')">
             <div class="total-amount">¥{{ (calculateTotal() * 0.13).toLocaleString() }}</div>
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="价税合计">
+          <el-form-item :label="t('sales.orderForm.totalWithTax')">
             <div class="total-amount highlight">
               ¥{{ (calculateTotal() * 1.13).toLocaleString() }}
             </div>
@@ -156,20 +156,23 @@
       </el-row>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('sales.orderForm.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitting" @click="handleSubmit">{{ t('sales.orderForm.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { deepClone } from '@/utils'
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { Customer } from '@/api/customer'
 import type { Product } from '@/api/product'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface OrderItemForm {
   id: number
@@ -236,17 +239,17 @@ watch(
   { deep: true, immediate: true }
 )
 
-const formRules: FormRules = {
-  customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }],
-  required_date: [{ required: true, message: '请选择要求交货日期', trigger: 'change' }],
-  contact_person: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
+const formRules = computed<FormRules>(() => ({
+  customer_id: [{ required: true, message: t('sales.orderForm.customerRequired'), trigger: 'change' }],
+  order_date: [{ required: true, message: t('sales.orderForm.orderDateRequired'), trigger: 'change' }],
+  required_date: [{ required: true, message: t('sales.orderForm.requiredDateRequired'), trigger: 'change' }],
+  contact_person: [{ required: true, message: t('sales.orderForm.contactPersonRequired'), trigger: 'blur' }],
   contact_phone: [
-    { required: true, message: '请输入联系电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' },
+    { required: true, message: t('sales.orderForm.contactPhoneRequired'), trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: t('sales.orderForm.contactPhoneInvalid'), trigger: 'blur' },
   ],
-  delivery_address: [{ required: true, message: '请输入收货地址', trigger: 'blur' }],
-}
+  delivery_address: [{ required: true, message: t('sales.orderForm.deliveryAddressRequired'), trigger: 'blur' }],
+}))
 
 const handleCustomerChange = (customerId: number) => {
   const customer = props.customers.find(c => c.id === customerId)
@@ -280,7 +283,7 @@ const addItem = () => {
     product_name: '',
     product_code: '',
     quantity: 1,
-    unit: '米',
+    unit: t('sales.orderForm.defaultUnit'),
     unit_price: 0,
     subtotal: 0,
   })
@@ -290,7 +293,7 @@ const removeItem = (index: number) => {
   if (localData.items.length > 1) {
     localData.items.splice(index, 1)
   } else {
-    ElMessage.warning('至少保留一条明细')
+    ElMessage.warning(t('sales.orderForm.atLeastOneItem'))
   }
 }
 
@@ -302,7 +305,7 @@ const handleSubmit = async () => {
       item => item.product_id && item.quantity > 0 && item.unit_price > 0
     )
     if (validItems.length === 0) {
-      ElMessage.warning('请至少添加一条有效的订单明细')
+      ElMessage.warning(t('sales.orderForm.addValidItem'))
       return
     }
     localData.total_amount = calculateTotal()
@@ -310,7 +313,7 @@ const handleSubmit = async () => {
   } catch (error) {
     const err = error as { message?: string }
     if (err.message) {
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('sales.orderForm.operationFailed'))
     }
   }
 }

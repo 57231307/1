@@ -21,10 +21,13 @@
 
 <script setup lang="ts">
 import { computed, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElButton } from 'element-plus'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
 import type { SalesOrder } from '@/api/sales'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 销售订单列表 V2Table 包装组件
@@ -60,7 +63,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
   ...props.columns,
   {
     key: '__actions__',
-    title: '操作',
+    title: t('sales.table.operation'),
     width: 280,
     fixed: 'right',
     renderCell: (row: SalesOrder) => {
@@ -68,7 +71,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
         h(
           ElButton,
           { size: 'small', link: true, onClick: () => emit('view', row) },
-          { default: () => '查看' }
+          { default: () => t('sales.table.view') }
         ),
       ]
       if (row.status === 'pending') {
@@ -81,7 +84,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               type: 'primary',
               onClick: () => emit('approve', row),
             },
-            { default: () => '审批' }
+            { default: () => t('sales.table.approve') }
           )
         )
       }
@@ -95,7 +98,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               type: 'success',
               onClick: () => emit('delivery', row),
             },
-            { default: () => '发货' }
+            { default: () => t('sales.table.deliver') }
           )
         )
       }
@@ -109,7 +112,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               type: 'danger',
               onClick: () => emit('cancel', row),
             },
-            { default: () => '取消' }
+            { default: () => t('sales.table.cancel') }
           )
         )
       }
