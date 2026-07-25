@@ -21,12 +21,29 @@ use crate::handlers::{
 };
 
 /// 库存主路由（nest 到 /api/v1/erp/inventory）
+///
+/// 主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
 pub fn inventory() -> Router<AppState> {
     Router::new()
-        .route(
-            "/piece-split",
-            post(crate::handlers::piece_split_handler::split_fabric_piece),
-        )
+        .merge(piece_split_routes())
+        .merge(stock_routes())
+        .merge(transfer_routes())
+        .merge(adjustment_routes())
+        .merge(reservation_routes())
+        .merge(count_routes())
+}
+
+/// 拆匹路由（path 前缀 /piece-split）
+fn piece_split_routes() -> Router<AppState> {
+    Router::new().route(
+        "/piece-split",
+        post(crate::handlers::piece_split_handler::split_fabric_piece),
+    )
+}
+
+/// 库存基础与查询路由（path 前缀 /stock*）
+fn stock_routes() -> Router<AppState> {
+    Router::new()
         .route("/stock", get(inventory_stock_handler::list_stock))
         .route("/stock", post(inventory_stock_handler::create_stock))
         // V15 P0-S12 修复（Batch 475c）：库存导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
@@ -62,6 +79,11 @@ pub fn inventory() -> Router<AppState> {
             "/stock/alerts",
             get(inventory_stock_handler_query::get_stock_alerts),
         )
+}
+
+/// 库存调拨路由（path 前缀 /transfers）
+fn transfer_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/transfers",
             get(inventory_transfer_handler::list_transfers),
@@ -105,6 +127,11 @@ pub fn inventory() -> Router<AppState> {
             "/transfers/:id/print",
             get(print_handler::inventory_transfer_print_html),
         )
+}
+
+/// 库存调整路由（path 前缀 /adjustments）
+fn adjustment_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/adjustments",
             get(inventory_adjustment_handler::list_adjustments),
@@ -141,6 +168,11 @@ pub fn inventory() -> Router<AppState> {
             put(inventory_adjustment_handler::update_item)
                 .delete(inventory_adjustment_handler::delete_item),
         )
+}
+
+/// 库存预留路由（path 前缀 /reservations）
+fn reservation_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/reservations",
             get(inventory_reservation_handler::list_reservations)
@@ -158,7 +190,11 @@ pub fn inventory() -> Router<AppState> {
             "/reservations/:id/release",
             post(inventory_reservation_handler::release_reservation),
         )
-        // v11 批次 143 P1-1：库存盘点路由
+}
+
+/// 库存盘点路由（path 前缀 /counts，v11 批次 143 P1-1 真实实现）
+fn count_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/counts",
             get(inventory_count_handler::list_counts)

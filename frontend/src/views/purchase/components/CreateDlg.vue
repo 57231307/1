@@ -6,9 +6,9 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="新建采购单"
+    :title="t('purchase.createDlg.title')"
     width="800px"
-    aria-label="新建采购单对话框"
+    :aria-label="t('purchase.createDlg.ariaLabel')"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
     <el-form
@@ -16,14 +16,14 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
-      aria-label="采购单表单"
+      :aria-label="t('purchase.createDlg.formAria')"
     >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="供应商" required>
+          <el-form-item :label="t('purchase.createDlg.supplier')" required>
             <el-select
               v-model="localForm.supplier_id"
-              placeholder="选择供应商"
+              :placeholder="t('purchase.createDlg.supplierPlaceholder')"
               style="width: 100%"
             >
               <el-option
@@ -36,11 +36,11 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="订单日期" required>
+          <el-form-item :label="t('purchase.createDlg.orderDate')" required>
             <el-date-picker
               v-model="localForm.order_date"
               type="date"
-              placeholder="选择日期"
+              :placeholder="t('purchase.createDlg.datePlaceholder')"
               style="width: 100%"
             />
           </el-form-item>
@@ -48,34 +48,34 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="要求交货日期">
+          <el-form-item :label="t('purchase.createDlg.requiredDate')">
             <el-date-picker
               v-model="localForm.required_date"
               type="date"
-              placeholder="选择日期"
+              :placeholder="t('purchase.createDlg.datePlaceholder')"
               style="width: 100%"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="备注">
-            <el-input v-model="localForm.remark" placeholder="请输入备注" />
+          <el-form-item :label="t('purchase.createDlg.remark')">
+            <el-input v-model="localForm.remark" :placeholder="t('purchase.createDlg.remarkPlaceholder')" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="采购明细">
+      <el-form-item :label="t('purchase.createDlg.detail')">
         <div class="items-table">
           <div class="items-header">
-            <span class="col-product">产品</span>
-            <span class="col-qty">数量</span>
-            <span class="col-price">单价</span>
-            <span class="col-amount">金额</span>
-            <span class="col-action">操作</span>
+            <span class="col-product">{{ t('purchase.createDlg.colProduct') }}</span>
+            <span class="col-qty">{{ t('purchase.createDlg.colQuantity') }}</span>
+            <span class="col-price">{{ t('purchase.createDlg.colUnitPrice') }}</span>
+            <span class="col-amount">{{ t('purchase.createDlg.colAmount') }}</span>
+            <span class="col-action">{{ t('purchase.createDlg.colOperation') }}</span>
           </div>
           <div v-for="(item, index) in localForm.items" :key="index" class="items-row">
             <el-select
               v-model="item.product_id"
-              placeholder="选择产品"
+              :placeholder="t('purchase.createDlg.productPlaceholder')"
               class="col-product"
               @change="onProductSelect(index)"
             >
@@ -105,20 +105,20 @@
               size="small"
               type="danger"
               @click="onRemoveItem(index)"
-              >删除</el-button
+              >{{ t('purchase.createDlg.delete') }}</el-button
             >
           </div>
-          <el-button type="text" @click="onAddItem">+ 添加明细</el-button>
+          <el-button type="text" @click="onAddItem">{{ t('purchase.createDlg.addItem') }}</el-button>
         </div>
       </el-form-item>
-      <el-form-item label="合计金额">
+      <el-form-item :label="t('purchase.createDlg.totalAmount')">
         <span class="total-amount">¥{{ calculateTotal().toLocaleString() }}</span>
       </el-form-item>
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="onCancel">取消</el-button>
-        <el-button type="primary" @click="onSubmit">确定</el-button>
+        <el-button @click="onCancel">{{ t('purchase.createDlg.cancel') }}</el-button>
+        <el-button type="primary" @click="onSubmit">{{ t('purchase.createDlg.confirm') }}</el-button>
       </span>
     </template>
   </el-dialog>
@@ -127,10 +127,14 @@
 <script setup lang="ts">
 import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormRules, FormInstance } from 'element-plus'
 import type { Supplier } from '@/api/supplier'
 import type { Product } from '@/api/product'
 import type { CreateFormData, CreateItem } from '../composables/useCreate'
+
+// 接入 i18n，替换硬编码中文文案
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   // 对话框可见性

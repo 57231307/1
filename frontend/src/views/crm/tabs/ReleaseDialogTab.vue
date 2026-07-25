@@ -1,31 +1,33 @@
 <!--
   ReleaseDialogTab.vue - 客户公海池 - 释放对话框
   来源：原 crm/pool.vue 中 释放对话框
-  拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" title="释放到公海" width="500px" aria-label="释放到公海对话框">
+  <el-dialog v-model="visible" :title="t('crmReleaseDialog.title')" width="500px" :aria-label="t('crmReleaseDialog.ariaLabel')">
     <p>
-      将客户 <strong>{{ customerName }}</strong> 释放到公海池？
+      {{ t('crmReleaseDialog.description', { name: customerName }) }}
     </p>
-    <el-form :model="form" label-width="80px" aria-label="释放到公海表单">
-      <el-form-item label="释放原因">
+    <el-form :model="form" label-width="80px" :aria-label="t('crmReleaseDialog.formAriaLabel')">
+      <el-form-item :label="t('crmReleaseDialog.reason')">
         <el-input v-model="form.reason" type="textarea" :rows="3" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确认</el-button>
+      <el-button @click="visible = false">{{ t('crmReleaseDialog.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('crmReleaseDialog.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { logger } from '@/utils/logger'
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import { recycleCustomerToPool } from '@/api/crm-enhanced'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -66,13 +68,13 @@ const handleSubmit = async () => {
       customer_ids: [props.customerId],
       reason: form.reason,
     })
-    ElMessage.success('释放成功')
+    ElMessage.success(t('crmReleaseDialog.message.success'))
     visible.value = false
     emit('submitted')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '释放失败')
-    logger.warn('释放失败', err.message)
+    ElMessage.error(err.message || t('crmReleaseDialog.message.failed'))
+    logger.warn(t('crmReleaseDialog.message.failed'), err.message)
   } finally {
     submitLoading.value = false
   }

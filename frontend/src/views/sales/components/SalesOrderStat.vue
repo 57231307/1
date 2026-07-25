@@ -8,7 +8,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stats-item">
-          <div class="stats-label">订单总数</div>
+          <div class="stats-label">{{ t('sales.stat.totalCount') }}</div>
           <div class="stats-value">{{ stats.totalCount }}</div>
         </div>
       </el-card>
@@ -16,7 +16,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stats-item">
-          <div class="stats-label">待审批</div>
+          <div class="stats-label">{{ t('sales.stat.pending') }}</div>
           <div class="stats-value warning">{{ stats.pendingCount }}</div>
         </div>
       </el-card>
@@ -24,7 +24,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stats-item">
-          <div class="stats-label">已审批</div>
+          <div class="stats-label">{{ t('sales.stat.approved') }}</div>
           <div class="stats-value success">{{ stats.approvedCount }}</div>
         </div>
       </el-card>
@@ -32,7 +32,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stats-item">
-          <div class="stats-label">订单总额</div>
+          <div class="stats-label">{{ t('sales.stat.totalAmount') }}</div>
           <div class="stats-value highlight">¥{{ stats.totalAmount.toLocaleString() }}</div>
         </div>
       </el-card>
@@ -41,6 +41,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
+
 // 销售订单统计类型
 interface OlvStats {
   totalCount: number

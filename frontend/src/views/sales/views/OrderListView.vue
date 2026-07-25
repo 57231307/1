@@ -8,9 +8,9 @@
 <template>
   <div class="sales-page">
     <div class="page-header">
-      <h2 class="page-title">销售订单管理</h2>
+      <h2 class="page-title">{{ t('sales.indexPage.title') }}</h2>
       <el-button v-permission="PERMISSIONS.SALES_ORDER_CREATE" type="primary" @click="onCreate">
-        <el-icon><Plus /></el-icon> 新建订单
+        <el-icon><Plus /></el-icon> {{ t('sales.indexPage.newOrder') }}
       </el-button>
     </div>
 
@@ -62,6 +62,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus } from '@element-plus/icons-vue'
 import type { SalesOrder } from '@/api/sales'
 import { useOlv } from '../composables/useOlv'
@@ -74,6 +75,8 @@ import OrderViewDialog from '../OrderViewDialog.vue'
 import DeliveryDialog from '../DeliveryDialog.vue'
 // Batch 468 P0-S28：引入权限码常量，与后端 sales-orders 资源对齐
 import { PERMISSIONS } from '@/constants/permissions'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const olv = useOlv()
 const olvProc = useOlvProc({

@@ -231,6 +231,75 @@ pub async fn login(
     headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
 ) -> Result<axum::response::Response, AppError> {
+    validate_login_payload(&payload)?;
+    let client_ip = extract_client_ip(&audit_ctx, &headers);
+    let user_agent = extract_user_agent(&headers);
+    let (recent_ip_failures, recent_user_failures) =
+        check_account_lockout(&state, &payload.username, &client_ip).await?;
+
+    let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
+    match auth_service
+        .authenticate(&payload.username, &payload.password)
+        .await
+    {
+        Ok((token, user)) => {
+            verify_totp_challenge(&state, &user, &payload, &client_ip, &user_agent, &payload.username).await?;
+            record_login_success(&state, &user, &payload.username, &client_ip, &user_agent, &audit_ctx).await;
+            handle_login_success(&state, &payload, &audit_ctx, jar, token, user, &client_ip, &user_agent, &auth_service).await
+        }
+        Err(e) => {
+            let app_err = AppError::unauthorized(e.to_string());
+            handle_login_failure(
+                &state, &payload, &client_ip, &user_agent, &app_err,
+                audit_ctx, recent_user_failures, recent_ip_failures,
+            )
+            .await;
+            Err(app_err)
+        }
+    }
+}
+
+/// 处理登录失败：记录登录尝试 + 增强安全日志 + 异步审计事件，返回统一 AppError。
+async fn handle_login_failure(
+    state: &AppState,
+    payload: &LoginRequest,
+    client_ip: &str,
+    user_agent: &str,
+    error: &AppError,
+    audit_ctx: Option<Extension<AuditContext>>,
+    recent_user_failures: u64,
+    recent_ip_failures: u64,
+) {
+    record_login_attempt(
+        state,
+        &payload.username,
+        0,
+        client_ip,
+        user_agent,
+        "FAILED",
+        Some(&error.to_string()),
+    )
+    .await;
+
+    let security_log = build_failure_security_log(
+        &payload.username,
+        client_ip,
+        user_agent,
+        error,
+        recent_user_failures,
+        recent_ip_failures,
+    );
+    enhanced_logger::EnhancedLogger::log_login_security(&security_log);
+
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(
+        build_failure_audit_event(&payload.username, error),
+        audit_ctx.map(|e| e.0),
+    );
+}
+
+/// 校验登录请求参数，失败时返回聚合后的字段错误消息。
+fn validate_login_payload(payload: &LoginRequest) -> Result<(), AppError> {
     if let Err(errors) = payload.validate() {
         let error_msgs: Vec<String> = errors
             .field_errors()
@@ -243,23 +312,25 @@ pub async fn login(
                 format!("{}: {}", field, msgs.join(", "))
             })
             .collect();
-
         return Err(AppError::bad_request(format!(
             "输入验证失败: {}",
             error_msgs.join("; ")
         )));
     }
+    Ok(())
+}
 
-    // P2-12c 修复（批次 83 v1 复审）：IP 提取统一优先级（X-Real-IP → X-Forwarded-For）
-    // 原实现优先 X-Forwarded-For（可被客户端伪造），且不 split/trim，与 audit_context 不一致
-    // 优先复用 audit_context 中间件已提取的 IP（已统一优先级），回退到 headers-only 提取
-    let client_ip = audit_ctx
+/// 提取客户端 IP：优先复用 AuditContext 中间件已提取的 IP，回退到 headers-only 降级路径。
+fn extract_client_ip(
+    audit_ctx: &Option<Extension<AuditContext>>,
+    headers: &HeaderMap,
+) -> String {
+    audit_ctx
         .as_ref()
         .map(|e| e.0.ip_address.clone())
         .filter(|s| !s.is_empty() && s != "unknown")
         .unwrap_or_else(|| {
             // P3 维度 12 修复（批次 87）：headers-only 降级路径
-            // 此处仅有 HeaderMap 引用（无 Request<Body>），无法直接调用 audit_context::extract_client_ip
             // 优先级与 audit_context::extract_client_ip 一致：X-Real-IP → X-Forwarded-For → "unknown"
             headers
                 .get("x-real-ip")
@@ -274,32 +345,39 @@ pub async fn login(
                         .filter(|s| !s.is_empty())
                 })
                 .unwrap_or_else(|| "unknown".to_string())
-        });
-    let user_agent = headers
+        })
+}
+
+/// 从请求头提取 User-Agent，缺失时返回 "unknown"。
+fn extract_user_agent(headers: &HeaderMap) -> String {
+    headers
         .get(axum::http::header::USER_AGENT)
         .and_then(|h| h.to_str().ok())
         .unwrap_or("unknown")
-        .to_string();
+        .to_string()
+}
 
-    // Check account lockout before authentication (per username+IP to prevent DoS)
-    let since = Utc::now() - ChronoDuration::minutes(LOCKOUT_DURATION_MINUTES);
+/// 检查账号锁定：Per-IP 与 Per-username 双重阈值，DB 错误不可静默返回 0。
+async fn check_account_lockout(
+    state: &AppState,
+    username: &str,
+    client_ip: &str,
+) -> Result<(u64, u64), AppError> {
     use crate::models::log_login;
     use sea_orm::PaginatorTrait;
 
-    // Per-IP lockout: prevents an attacker from locking out a legitimate user
-    // 批次 407 修复：DB 错误时不可静默返回 0，否则攻击者可通过引发 DB 异常绕过登录锁定
+    let since = Utc::now() - ChronoDuration::minutes(LOCKOUT_DURATION_MINUTES);
     let recent_ip_failures = log_login::Entity::find()
-        .filter(log_login::Column::Username.eq(payload.username.as_str()))
+        .filter(log_login::Column::Username.eq(username))
         .filter(log_login::Column::Status.eq("FAILED"))
         .filter(log_login::Column::LoginTime.gte(since))
-        .filter(log_login::Column::IpAddress.eq(client_ip.as_str()))
+        .filter(log_login::Column::IpAddress.eq(client_ip))
         .count(state.db.as_ref())
         .await
         .map_err(|e| AppError::internal(format!("查询 IP 登录失败次数失败: {}", e)))?;
 
-    // Per-username global lockout with higher threshold (10 attempts from any IP)
     let recent_user_failures = log_login::Entity::find()
-        .filter(log_login::Column::Username.eq(payload.username.as_str()))
+        .filter(log_login::Column::Username.eq(username))
         .filter(log_login::Column::Status.eq("FAILED"))
         .filter(log_login::Column::LoginTime.gte(since))
         .count(state.db.as_ref())
@@ -310,383 +388,435 @@ pub async fn login(
         tracing::warn!(
             "Account locked due to too many failed attempts from IP: {} for user {}",
             client_ip,
-            payload.username
+            username
         );
         return Err(AppError::too_many_requests(
             "登录失败次数过多，请30分钟后再试",
         ));
     }
-
     if recent_user_failures >= (MAX_FAILED_ATTEMPTS * 2) as u64 {
         tracing::warn!(
             "Account globally locked due to too many failed attempts: {}",
-            payload.username
+            username
         );
         return Err(AppError::too_many_requests("账号已被锁定，请30分钟后再试"));
     }
+    Ok((recent_ip_failures, recent_user_failures))
+}
 
-    let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
-
-    match auth_service
-        .authenticate(&payload.username, &payload.password)
+/// TOTP 二次验证：优先 totp_token，其次 recovery_code，两者皆无则拒绝。
+async fn verify_totp_challenge(
+    state: &AppState,
+    user: &crate::models::user::Model,
+    payload: &LoginRequest,
+    client_ip: &str,
+    user_agent: &str,
+    username: &str,
+) -> Result<(), AppError> {
+    if !user.is_totp_enabled {
+        return Ok(());
+    }
+    let totp_service = TotpService::new(state.db.clone());
+    if let Some(ref totp_token) = payload.totp_token {
+        verify_totp_token_path(
+            state, user, username, client_ip, user_agent, totp_token, &totp_service,
+        )
         .await
-    {
-        Ok((token, user)) => {
-            // 验证 TOTP 逻辑 (如已开启)
-            if user.is_totp_enabled {
-                let totp_service = TotpService::new(state.db.clone());
+    } else if let Some(ref recovery_code) = payload.recovery_code {
+        verify_recovery_code_path(
+            state, user, username, client_ip, user_agent, recovery_code, &totp_service,
+        )
+        .await
+    } else {
+        record_login_attempt(
+            state,
+            username,
+            user.id,
+            client_ip,
+            user_agent,
+            "FAILED",
+            Some("TOTP token and recovery code both missing"),
+        )
+        .await;
+        Err(AppError::unauthorized("需要提供两步验证码或恢复码"))
+    }
+}
 
-                // v11 批次 141：优先验证 totp_token，缺失时尝试 recovery_code
-                if let Some(ref totp_token) = payload.totp_token {
-                    // 路径 A：TOTP 令牌验证
-                    match totp_service.verify_login_totp(user.id, totp_token).await {
-                        Ok(true) => {} // 验证通过
-                        _ => {
-                            record_login_attempt(
-                                &state,
-                                &payload.username,
-                                user.id,
-                                &client_ip,
-                                &user_agent,
-                                "FAILED",
-                                Some("TOTP verification failed"),
-                            )
-                            .await;
-                            return Err(AppError::unauthorized("两步验证码错误"));
-                        }
-                    }
-                } else if let Some(ref recovery_code) = payload.recovery_code {
-                    // 路径 B：恢复码验证（v11 批次 141 新增）
-                    match totp_service
-                        .verify_recovery_code(user.id, recovery_code)
-                        .await
-                    {
-                        Ok(true) => {
-                            tracing::info!(
-                                user_id = user.id,
-                                username = %user.username,
-                                "用户通过恢复码登录（恢复码已消耗）"
-                            );
-                        }
-                        _ => {
-                            record_login_attempt(
-                                &state,
-                                &payload.username,
-                                user.id,
-                                &client_ip,
-                                &user_agent,
-                                "FAILED",
-                                Some("Recovery code verification failed"),
-                            )
-                            .await;
-                            return Err(AppError::unauthorized("恢复码无效或已使用"));
-                        }
-                    }
-                } else {
-                    // 两种验证方式都未提供
-                    record_login_attempt(
-                        &state,
-                        &payload.username,
-                        user.id,
-                        &client_ip,
-                        &user_agent,
-                        "FAILED",
-                        Some("TOTP token and recovery code both missing"),
-                    )
-                    .await;
-                    return Err(AppError::unauthorized("需要提供两步验证码或恢复码"));
-                }
-            }
-
-            // Record successful login
+/// TOTP 令牌验证路径：失败记录登录尝试并返回"两步验证码错误"。
+async fn verify_totp_token_path(
+    state: &AppState,
+    user: &crate::models::user::Model,
+    username: &str,
+    client_ip: &str,
+    user_agent: &str,
+    totp_token: &str,
+    totp_service: &TotpService,
+) -> Result<(), AppError> {
+    match totp_service.verify_login_totp(user.id, totp_token).await {
+        Ok(true) => Ok(()),
+        _ => {
             record_login_attempt(
-                &state,
-                &payload.username,
+                state,
+                username,
                 user.id,
-                &client_ip,
-                &user_agent,
-                "SUCCESS",
-                None,
-            )
-            .await;
-
-            // 记录增强登录安全日志
-            let security_log = LoginSecurityLog {
-                event: "LOGIN_SUCCESS".to_string(),
-                attempt: LoginAttempt {
-                    username: payload.username.clone(),
-                    ip_address: client_ip.clone(),
-                    user_agent: user_agent.clone(),
-                    timestamp: Utc::now().to_rfc3339(),
-                    method: "password".to_string(),
-                    login_type: "web".to_string(),
-                },
-                failure_info: None,
-                security_info: SecurityInfo {
-                    risk_level: "LOW".to_string(),
-                    risk_factors: Vec::new(),
-                    blocked: false,
-                    block_reason: None,
-                    require_captcha: false,
-                    notify_user: false,
-                },
-                geo_info: None,
-                device_info: DeviceInfo {
-                    os: None,
-                    browser: None,
-                    device_type: "unknown".to_string(),
-                    is_mobile: false,
-                },
-            };
-            enhanced_logger::EnhancedLogger::log_login_security(&security_log);
-
-            // 异步记录审计日志：登录成功（P13 批 1 P3-2）
-            let login_event = AuditEvent {
-                user_id: Some(user.id),
-                username: Some(payload.username.clone()),
-                operation_type: OperationType::Login,
-                severity: Severity::Info,
-                resource_type: Some("auth".to_string()),
-                resource_id: Some(user.id.to_string()),
-                resource_name: Some(user.username.clone()),
-                description: Some("用户登录成功".to_string()),
-                request_method: Some("POST".to_string()),
-                request_path: Some("/api/v1/erp/auth/login".to_string()),
-                before_snapshot: None,
-                after_snapshot: None,
-            };
-            let svc = Arc::new(AuditLogService::new(state.db.clone()));
-            svc.record_async(login_event, audit_ctx.clone().map(|e| e.0));
-
-            // Update last login timestamp
-            // 批次 114 P1-6：登录后更新最后登录时间失败改为 warn 日志（原 `let _ =` 静默吞错）
-            let user_svc = crate::services::user_service::UserService::new(state.db.clone());
-            if let Err(e) = user_svc.update_last_login(user.id).await {
-                tracing::warn!(error = %e, user_id = user.id, "更新最后登录时间失败（不影响登录主流程）");
-            }
-
-            // 批次 24 v6 P0-2 修复：使用统一的 build_with_permissions 构建 UserInfo，
-            // 确保登录响应与 /auth/me 响应字段一致（均含 role_name 和 permissions）。
-            // 安全漏洞 #14 修复：权限列表转换为 `Vec<String>` 资源标识符
-            // 格式 `"{resource}:{action}"`，避免暴露内部 `resource_id` 主键
-            let user_info = UserInfo::build_with_permissions(state.db.as_ref(), &user).await;
-            let permissions = user_info.permissions.clone();
-
-            // 生成 CSRF Token，使用 JWT claims 中的 session_id 作为会话标识
-            let claims =
-                AuthService::validate_token_static(&token, &state.jwt_secret).map_err(|e| {
-                    tracing::error!("Failed to decode JWT token: {}", e);
-                    AppError::unauthorized("无效的认证令牌")
-                })?;
-            let session_id = claims.session_id;
-
-            // 提取客户端 IP（Wave 3 安全漏洞 #7：IP 绑定到 CSRF Token）
-            // 优先从 AuditContext 取（已处理 X-Real-IP / X-Forwarded-For 多级降级），
-            // 缺失时回退到 local 提取（双保险，与 audit_log 一致）。
-            let csrf_ip = audit_ctx
-                .as_ref()
-                .map(|e| e.0.ip_address.clone())
-                .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| client_ip.clone());
-
-            // 强制轮换：登录前清除该 user_id 关联的旧 CSRF Token（Wave 3 #7）
-            let rotated = state.cache.clear_old_csrf_token_for_user(user.id);
-            if rotated {
-                tracing::info!(
-                    user_id = user.id,
-                    username = %payload.username,
-                    "已清除该用户的旧 CSRF Token（强制轮换）"
-                );
-            }
-
-            // 生成随机 CSRF Token 并存储到缓存中（Wave 3 #7）：
-            // - 缓存值 = (session_id, ip_address) 元组，IP 用于消费时校验
-            // - 反向索引 user_id → csrf_token 支持强制轮换
-            // - TTL = CSRF_TOKEN_DEFAULT_TTL_SECS (1800s = 30min)，与 access_token Cookie 对齐
-            let csrf_token = uuid::Uuid::new_v4().to_string();
-            state.cache.set_csrf_token(
-                csrf_token.clone(),
-                session_id.clone(),
-                csrf_ip,
-                user.id,
-                None, // 使用默认 TTL (1800s)
-            );
-
-            // 生成 refresh_token：JWT 形式（P1 7-1 修复）
-            // 修复背景：原用 uuid::Uuid::new_v4().to_string() 纯 UUID，但 refresh_token 接口
-            // 用 validate_token_static（JWT 验证）校验，纯 UUID 必然验证失败，
-            // 导致 access_token 30 分钟过期后用户永远无法刷新。
-            // 修复方案：refresh_token 改用 JWT 形式，session_id 与 access_token 共享，
-            // 便于 refresh 时统一吊销旧会话；exp = refresh_exp = 7 天。
-            // 复用函数开头已创建的 auth_service（authenticate 调用所用）
-            let refresh_token = auth_service
-                .generate_refresh_token(user.id, &user.username, user.role_id, &session_id)
-                .map_err(|e| AppError::internal(format!("生成刷新令牌失败：{}", e)))?;
-
-            // 安全漏洞 #10 + #13 修复：LoginResponse 不再返回 token / refresh_token
-            // - access_token 已在 httpOnly Cookie 写入
-            // - refresh_token 已在 httpOnly Cookie 写入
-            // 仅保留 csrf_token（前端 form header 需要）+ user + permissions
-            // 批次 198 P0-2：检查密码是否过期（password_changed_at 为 None 时不强制过期，兼容存量用户）
-            let policy_svc =
-                crate::services::auth::password_policy_service::PasswordPolicyService::new();
-            let password_expired = user
-                .password_changed_at
-                .map(|t| policy_svc.is_expired(t))
-                .unwrap_or(false);
-            if password_expired {
-                tracing::info!(
-                    user_id = user.id,
-                    username = %payload.username,
-                    "[SECURITY] 用户密码已过期（超过 {} 天未修改），前端将引导改密",
-                    policy_svc.max_age_days.unwrap_or(0)
-                );
-            }
-            let response = LoginResponse {
-                csrf_token: csrf_token.clone(),
-                user: user_info,
-                permissions,
-                password_expired,
-            };
-
-            // 创建 HttpOnly Cookie
-            // 开发环境下关闭 secure 标志，允许 HTTP 传输；生产环境必须开启 HTTPS
-            // 漏洞 #12 修复：统一从 `crate::utils::config::is_production()` 读取 APP_ENV
-            let is_production = crate::utils::config::is_production();
-
-            // access_token: httpOnly（防 XSS 窃取），SameSite=Strict 防止跨站请求携带
-            let access_cookie = Cookie::build(("access_token", token.clone()))
-                .path("/")
-                .http_only(true)
-                .secure(is_production)
-                .same_site(SameSite::Strict)
-                .max_age(CookieDuration::minutes(30))
-                .build();
-
-            // refresh_token: httpOnly，2 天有效期（用于续签 access_token）
-            // P2 7-9 修复：原 7 天有效期无 IP 绑定，被窃取后可任意 IP 使用 7 天。
-            // 缩短至 2 天降低被盗用窗口；IP 绑定 + user_agent 绑定作为后续技术债
-            // （需 AppClaims 增加字段 + refresh handler 验证，涉及 token 结构变更）。
-            let refresh_cookie = Cookie::build(("refresh_token", refresh_token))
-                .path("/")
-                .http_only(true)
-                .secure(is_production)
-                .same_site(SameSite::Strict)
-                .max_age(CookieDuration::days(2))
-                .build();
-
-            // csrf_token: 必须可被前端 JS 读取以注入 X-CSRF-Token 头，
-            // 故 http_only=false；CSRF 防护依赖"攻击者无法读取跨域 Cookie"的同源策略
-            let csrf_cookie = Cookie::build(("csrf_token", response.csrf_token.clone()))
-                .path("/")
-                .http_only(false)
-                .secure(is_production)
-                .same_site(SameSite::Strict)
-                .max_age(CookieDuration::days(7))
-                .build();
-
-            // 兼容旧版客户端：保留 jwt Cookie（httpOnly）。新代码优先读取 access_token。
-            // L-2 修复：legacy_jwt 也使用 SameSite::Strict，防止 CSRF 攻击
-            let legacy_jwt_cookie = Cookie::build(("jwt", token.clone()))
-                .path("/")
-                .http_only(true)
-                .secure(is_production)
-                .same_site(SameSite::Strict)
-                .max_age(CookieDuration::minutes(30))
-                .build();
-
-            let jar = jar
-                .add(access_cookie)
-                .add(refresh_cookie)
-                .add(csrf_cookie)
-                .add(legacy_jwt_cookie);
-
-            Ok((jar, Json(ApiResponse::success(response))).into_response())
-        }
-        Err(e) => {
-            // Record failed login attempt
-            record_login_attempt(
-                &state,
-                &payload.username,
-                0,
-                &client_ip,
-                &user_agent,
+                client_ip,
+                user_agent,
                 "FAILED",
-                Some(&e.to_string()),
+                Some("TOTP verification failed"),
             )
             .await;
-
-            // 记录增强登录安全日志
-            let security_log = LoginSecurityLog {
-                event: "LOGIN_FAILURE".to_string(),
-                attempt: LoginAttempt {
-                    username: payload.username.clone(),
-                    ip_address: client_ip.clone(),
-                    user_agent: user_agent.clone(),
-                    timestamp: Utc::now().to_rfc3339(),
-                    method: "password".to_string(),
-                    login_type: "web".to_string(),
-                },
-                failure_info: Some(FailureInfo {
-                    reason: e.to_string(),
-                    attempts_today: recent_user_failures as i32 + 1,
-                    attempts_total: 0,
-                    last_success: None,
-                    last_failure: Some(Utc::now().to_rfc3339()),
-                }),
-                security_info: SecurityInfo {
-                    risk_level: if recent_user_failures >= 3 {
-                        "HIGH".to_string()
-                    } else {
-                        "MEDIUM".to_string()
-                    },
-                    risk_factors: {
-                        let mut factors = Vec::new();
-                        if recent_user_failures >= 3 {
-                            factors.push("多次失败".to_string());
-                        }
-                        factors
-                    },
-                    blocked: recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64,
-                    block_reason: if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 {
-                        Some("登录失败次数过多".to_string())
-                    } else {
-                        None
-                    },
-                    require_captcha: recent_user_failures >= 2,
-                    notify_user: false,
-                },
-                geo_info: None,
-                device_info: DeviceInfo {
-                    os: None,
-                    browser: None,
-                    device_type: "unknown".to_string(),
-                    is_mobile: false,
-                },
-            };
-            enhanced_logger::EnhancedLogger::log_login_security(&security_log);
-
-            // 异步记录审计日志：登录失败（P13 批 1 P3-2）
-            let failure_event = AuditEvent {
-                user_id: None,
-                username: Some(payload.username.clone()),
-                operation_type: OperationType::Login,
-                severity: Severity::Warn,
-                resource_type: Some("auth".to_string()),
-                resource_id: None,
-                resource_name: None,
-                description: Some(format!("用户登录失败：{}", e)),
-                request_method: Some("POST".to_string()),
-                request_path: Some("/api/v1/erp/auth/login".to_string()),
-                before_snapshot: None,
-                after_snapshot: None,
-            };
-            let svc = Arc::new(AuditLogService::new(state.db.clone()));
-            svc.record_async(failure_event, audit_ctx.map(|e| e.0));
-
-            Err(AppError::unauthorized(e.to_string()))
+            Err(AppError::unauthorized("两步验证码错误"))
         }
     }
+}
+
+/// 恢复码验证路径：成功时记录 info 日志，失败记录登录尝试并返回"恢复码无效或已使用"。
+async fn verify_recovery_code_path(
+    state: &AppState,
+    user: &crate::models::user::Model,
+    username: &str,
+    client_ip: &str,
+    user_agent: &str,
+    recovery_code: &str,
+    totp_service: &TotpService,
+) -> Result<(), AppError> {
+    match totp_service
+        .verify_recovery_code(user.id, recovery_code)
+        .await
+    {
+        Ok(true) => {
+            tracing::info!(
+                user_id = user.id,
+                username = %user.username,
+                "用户通过恢复码登录（恢复码已消耗）"
+            );
+            Ok(())
+        }
+        _ => {
+            record_login_attempt(
+                state,
+                username,
+                user.id,
+                client_ip,
+                user_agent,
+                "FAILED",
+                Some("Recovery code verification failed"),
+            )
+            .await;
+            Err(AppError::unauthorized("恢复码无效或已使用"))
+        }
+    }
+}
+
+/// 记录登录成功：登录尝试 + 增强安全日志 + 异步审计 + 更新最后登录时间。
+async fn record_login_success(
+    state: &AppState,
+    user: &crate::models::user::Model,
+    username: &str,
+    client_ip: &str,
+    user_agent: &str,
+    audit_ctx: &Option<Extension<AuditContext>>,
+) {
+    record_login_attempt(state, username, user.id, client_ip, user_agent, "SUCCESS", None).await;
+
+    let security_log = build_success_security_log(username, client_ip, user_agent);
+    enhanced_logger::EnhancedLogger::log_login_security(&security_log);
+
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(
+        build_success_audit_event(user, username),
+        audit_ctx.clone().map(|e| e.0),
+    );
+
+    // 批次 114 P1-6：登录后更新最后登录时间失败改为 warn 日志（原 `let _ =` 静默吞错）
+    let user_svc = crate::services::user_service::UserService::new(state.db.clone());
+    if let Err(e) = user_svc.update_last_login(user.id).await {
+        tracing::warn!(error = %e, user_id = user.id, "更新最后登录时间失败（不影响登录主流程）");
+    }
+}
+
+/// 构建登录成功增强安全日志（risk_level=LOW）。
+fn build_success_security_log(
+    username: &str,
+    client_ip: &str,
+    user_agent: &str,
+) -> LoginSecurityLog {
+    LoginSecurityLog {
+        event: "LOGIN_SUCCESS".to_string(),
+        attempt: build_login_attempt(username, client_ip, user_agent),
+        failure_info: None,
+        security_info: SecurityInfo {
+            risk_level: "LOW".to_string(),
+            risk_factors: Vec::new(),
+            blocked: false,
+            block_reason: None,
+            require_captcha: false,
+            notify_user: false,
+        },
+        geo_info: None,
+        device_info: build_unknown_device_info(),
+    }
+}
+
+/// 构建登录失败增强安全日志（risk_level 按 recent_user_failures 分级 HIGH/MEDIUM）。
+fn build_failure_security_log(
+    username: &str,
+    client_ip: &str,
+    user_agent: &str,
+    error: &AppError,
+    recent_user_failures: u64,
+    recent_ip_failures: u64,
+) -> LoginSecurityLog {
+    LoginSecurityLog {
+        event: "LOGIN_FAILURE".to_string(),
+        attempt: build_login_attempt(username, client_ip, user_agent),
+        failure_info: Some(FailureInfo {
+            reason: error.to_string(),
+            attempts_today: recent_user_failures as i32 + 1,
+            attempts_total: 0,
+            last_success: None,
+            last_failure: Some(Utc::now().to_rfc3339()),
+        }),
+        security_info: build_failure_security_info(recent_user_failures, recent_ip_failures),
+        geo_info: None,
+        device_info: build_unknown_device_info(),
+    }
+}
+
+/// 构建登录尝试基础信息（用户名/IP/UA/时间戳/方法/类型）。
+fn build_login_attempt(username: &str, client_ip: &str, user_agent: &str) -> LoginAttempt {
+    LoginAttempt {
+        username: username.to_string(),
+        ip_address: client_ip.to_string(),
+        user_agent: user_agent.to_string(),
+        timestamp: Utc::now().to_rfc3339(),
+        method: "password".to_string(),
+        login_type: "web".to_string(),
+    }
+}
+
+/// 构建未知设备信息（os/browser 为 None，device_type 为 "unknown"）。
+fn build_unknown_device_info() -> DeviceInfo {
+    DeviceInfo {
+        os: None,
+        browser: None,
+        device_type: "unknown".to_string(),
+        is_mobile: false,
+    }
+}
+
+/// 构建登录失败 SecurityInfo（含 risk_level / risk_factors / blocked / require_captcha 判定）。
+fn build_failure_security_info(
+    recent_user_failures: u64,
+    recent_ip_failures: u64,
+) -> SecurityInfo {
+    let risk_level = if recent_user_failures >= 3 {
+        "HIGH"
+    } else {
+        "MEDIUM"
+    };
+    let mut risk_factors = Vec::new();
+    if recent_user_failures >= 3 {
+        risk_factors.push("多次失败".to_string());
+    }
+    let blocked = recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64;
+    SecurityInfo {
+        risk_level: risk_level.to_string(),
+        risk_factors,
+        blocked,
+        block_reason: if blocked {
+            Some("登录失败次数过多".to_string())
+        } else {
+            None
+        },
+        require_captcha: recent_user_failures >= 2,
+        notify_user: false,
+    }
+}
+
+/// 构建登录成功审计事件（OperationType::Login / Severity::Info）。
+fn build_success_audit_event(
+    user: &crate::models::user::Model,
+    username: &str,
+) -> AuditEvent {
+    AuditEvent {
+        user_id: Some(user.id),
+        username: Some(username.to_string()),
+        operation_type: OperationType::Login,
+        severity: Severity::Info,
+        resource_type: Some("auth".to_string()),
+        resource_id: Some(user.id.to_string()),
+        resource_name: Some(user.username.clone()),
+        description: Some("用户登录成功".to_string()),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/auth/login".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    }
+}
+
+/// 构建登录失败审计事件（OperationType::Login / Severity::Warn）。
+fn build_failure_audit_event(username: &str, error: &AppError) -> AuditEvent {
+    AuditEvent {
+        user_id: None,
+        username: Some(username.to_string()),
+        operation_type: OperationType::Login,
+        severity: Severity::Warn,
+        resource_type: Some("auth".to_string()),
+        resource_id: None,
+        resource_name: None,
+        description: Some(format!("用户登录失败：{}", error)),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/auth/login".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    }
+}
+
+/// 生成 CSRF Token + 解析 session_id，并执行登录前强制轮换旧 Token。
+fn prepare_csrf_state(
+    state: &AppState,
+    token: &str,
+    audit_ctx: &Option<Extension<AuditContext>>,
+    client_ip: &str,
+    user: &crate::models::user::Model,
+    username: &str,
+) -> Result<(String, String), AppError> {
+    let claims = AuthService::validate_token_static(token, &state.jwt_secret).map_err(|e| {
+        tracing::error!("Failed to decode JWT token: {}", e);
+        AppError::unauthorized("无效的认证令牌")
+    })?;
+    let session_id = claims.session_id;
+
+    // Wave 3 安全漏洞 #7：IP 绑定到 CSRF Token，优先 AuditContext，回退 local client_ip
+    let csrf_ip = audit_ctx
+        .as_ref()
+        .map(|e| e.0.ip_address.clone())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| client_ip.to_string());
+
+    // 强制轮换：登录前清除该 user_id 关联的旧 CSRF Token（Wave 3 #7）
+    let rotated = state.cache.clear_old_csrf_token_for_user(user.id);
+    if rotated {
+        tracing::info!(
+            user_id = user.id,
+            username = %username,
+            "已清除该用户的旧 CSRF Token（强制轮换）"
+        );
+    }
+
+    // 生成随机 CSRF Token 并存储到缓存中（Wave 3 #7）：
+    // - 缓存值 = (session_id, ip_address) 元组，IP 用于消费时校验
+    // - 反向索引 user_id → csrf_token 支持强制轮换
+    // - TTL = CSRF_TOKEN_DEFAULT_TTL_SECS (1800s = 30min)，与 access_token Cookie 对齐
+    let csrf_token = uuid::Uuid::new_v4().to_string();
+    state.cache.set_csrf_token(
+        csrf_token.clone(),
+        session_id.clone(),
+        csrf_ip,
+        user.id,
+        None, // 使用默认 TTL (1800s)
+    );
+    Ok((csrf_token, session_id))
+}
+
+/// 构建 4 个登录 Cookie：access_token / refresh_token / csrf_token / legacy jwt。
+fn build_login_cookies(
+    jar: axum_extra::extract::PrivateCookieJar,
+    token: String,
+    refresh_token: String,
+    csrf_token: String,
+) -> axum_extra::extract::PrivateCookieJar {
+    let is_production = crate::utils::config::is_production();
+    // access_token: httpOnly 防 XSS 窃取，SameSite=Strict 防跨站请求携带
+    let access_cookie = build_session_cookie(
+        "access_token", token.clone(), is_production, true, CookieDuration::minutes(30),
+    );
+    // refresh_token: httpOnly，2 天有效期（P2 7-9：原 7 天窗口过长缩短至 2 天）
+    let refresh_cookie = build_session_cookie(
+        "refresh_token", refresh_token, is_production, true, CookieDuration::days(2),
+    );
+    // csrf_token: http_only=false 以便前端 JS 读取注入 X-CSRF-Token 头
+    let csrf_cookie = build_session_cookie(
+        "csrf_token", csrf_token, is_production, false, CookieDuration::days(7),
+    );
+    // legacy jwt Cookie（httpOnly）：兼容旧客户端，新代码读 access_token
+    let legacy_jwt_cookie = build_session_cookie(
+        "jwt", token, is_production, true, CookieDuration::minutes(30),
+    );
+    jar.add(access_cookie)
+        .add(refresh_cookie)
+        .add(csrf_cookie)
+        .add(legacy_jwt_cookie)
+}
+
+/// 构建单个登录会话 Cookie：统一 path/secure/same_site，仅 http_only 与 max_age 差异。
+fn build_session_cookie(
+    name: &str,
+    value: String,
+    is_production: bool,
+    http_only: bool,
+    max_age: CookieDuration,
+) -> Cookie<'static> {
+    Cookie::build((name.to_string(), value))
+        .path("/")
+        .http_only(http_only)
+        .secure(is_production)
+        .same_site(SameSite::Strict)
+        .max_age(max_age)
+        .build()
+}
+
+/// 处理登录成功：TOTP 已通过 → 构建 UserInfo + CSRF + refresh_token + Cookie + 响应。
+async fn handle_login_success(
+    state: &AppState,
+    payload: &LoginRequest,
+    audit_ctx: &Option<Extension<AuditContext>>,
+    jar: axum_extra::extract::PrivateCookieJar,
+    token: String,
+    user: crate::models::user::Model,
+    client_ip: &str,
+    _user_agent: &str,
+    auth_service: &AuthService,
+) -> Result<axum::response::Response, AppError> {
+    // 批次 24 v6 P0-2 修复：使用统一的 build_with_permissions 构建 UserInfo
+    // 安全漏洞 #14 修复：权限列表转换为 `Vec<String>` 资源标识符 `"{resource}:{action}"`
+    let user_info = UserInfo::build_with_permissions(state.db.as_ref(), &user).await;
+    let permissions = user_info.permissions.clone();
+
+    let (csrf_token, session_id) =
+        prepare_csrf_state(state, &token, audit_ctx, client_ip, &user, &payload.username)?;
+
+    // 生成 refresh_token：JWT 形式（P1 7-1 修复），session_id 与 access_token 共享
+    let refresh_token = auth_service
+        .generate_refresh_token(user.id, &user.username, user.role_id, &session_id)
+        .map_err(|e| AppError::internal(format!("生成刷新令牌失败：{}", e)))?;
+
+    // 批次 198 P0-2：检查密码是否过期（password_changed_at 为 None 时不强制过期，兼容存量用户）
+    let policy_svc =
+        crate::services::auth::password_policy_service::PasswordPolicyService::new();
+    let password_expired = user
+        .password_changed_at
+        .map(|t| policy_svc.is_expired(t))
+        .unwrap_or(false);
+    if password_expired {
+        tracing::info!(
+            user_id = user.id,
+            username = %payload.username,
+            "[SECURITY] 用户密码已过期（超过 {} 天未修改），前端将引导改密",
+            policy_svc.max_age_days.unwrap_or(0)
+        );
+    }
+
+    let response = LoginResponse {
+        csrf_token: csrf_token.clone(),
+        user: user_info,
+        permissions,
+        password_expired,
+    };
+
+    let jar = build_login_cookies(jar, token, refresh_token, response.csrf_token.clone());
+    Ok((jar, Json(ApiResponse::success(response))).into_response())
 }
 
 // =================================================================

@@ -5,47 +5,47 @@
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localQueryParams" class="filter-form" aria-label="采购订单筛选表单">
-      <el-form-item label="关键词">
+    <el-form :inline="true" :model="localQueryParams" class="filter-form" :aria-label="t('purchase.filter.ariaLabel')">
+      <el-form-item :label="t('purchase.filter.keyword')">
         <el-input
           v-model="localQueryParams.keyword"
-          placeholder="订单号/供应商名"
+          :placeholder="t('purchase.filter.keywordPlaceholder')"
           clearable
           @clear="onQuery"
         />
       </el-form-item>
-      <el-form-item label="供应商">
+      <el-form-item :label="t('purchase.filter.supplier')">
         <el-select
           v-model="localQueryParams.supplier_id"
-          placeholder="选择供应商"
+          :placeholder="t('purchase.filter.supplierPlaceholder')"
           clearable
           @change="onQuery"
         >
           <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="订单状态">
+      <el-form-item :label="t('purchase.filter.status')">
         <el-select
           v-model="localQueryParams.status"
-          placeholder="选择状态"
+          :placeholder="t('purchase.filter.statusPlaceholder')"
           clearable
           @change="onQuery"
         >
-          <el-option label="待审批" value="pending" />
-          <el-option label="已审批" value="approved" />
-          <el-option label="部分收货" value="partial" />
-          <el-option label="已完成" value="completed" />
-          <el-option label="已取消" value="cancelled" />
+          <el-option :label="t('purchase.filter.statusPending')" value="pending" />
+          <el-option :label="t('purchase.filter.statusApproved')" value="approved" />
+          <el-option :label="t('purchase.filter.statusPartial')" value="partial" />
+          <el-option :label="t('purchase.filter.statusCompleted')" value="completed" />
+          <el-option :label="t('purchase.filter.statusCancelled')" value="cancelled" />
         </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="onQuery">
           <el-icon><Search /></el-icon>
-          查询
+          {{ t('purchase.filter.query') }}
         </el-button>
         <el-button @click="onReset">
           <el-icon><Refresh /></el-icon>
-          重置
+          {{ t('purchase.filter.reset') }}
         </el-button>
       </el-form-item>
     </el-form>
@@ -54,8 +54,12 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import type { Supplier } from '@/api/supplier'
+
+// 接入 i18n，替换硬编码中文文案
+const { t } = useI18n({ useScope: 'global' })
 
 interface QueryParams {
   page: number

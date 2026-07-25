@@ -186,10 +186,34 @@ impl ApPaymentService {
     pub async fn confirm(&self, id: i32, user_id: i32) -> Result<ap_payment::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
+        let payment = Self::lock_and_validate_payment_for_confirm(&txn, id).await?;
+        let payment = Self::mark_payment_confirmed(&txn, payment, user_id).await?;
+        let fully_paid_invoices =
+            Self::update_invoices_paid_amount(&txn, &payment, user_id).await?;
+
+        txn.commit().await?;
+
+        // F-P0-5 修复（批次 381 v13 复审）：确认付款后生成付款凭证（非阻断）
+        self.generate_payment_voucher(&payment, user_id).await;
+        // P0 5-1 修复：commit 成功后补发 PaymentCompleted 事件，触发 event_bus 监听器自动标记 PAID
+        Self::publish_payment_completed_events(payment.id, fully_paid_invoices, user_id);
+        // 6. 预算核销（非阻断）
+        self.write_off_payment_budget(&payment, user_id).await;
+        // 触发财务指标更新事件
+        Self::publish_financial_indicator_update(&payment.payment_no);
+
+        Ok(payment)
+    }
+
+    /// 锁定付款单并校验状态为 REGISTERED 且已填写交易流水号（串行化并发 confirm）。
+    async fn lock_and_validate_payment_for_confirm(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i32,
+    ) -> Result<ap_payment::Model, AppError> {
         // 1. 查询付款单（加 lock_exclusive 串行化并发 confirm）
         let payment = ap_payment::Entity::find_by_id(id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", id)))?;
 
@@ -212,308 +236,362 @@ impl ApPaymentService {
             ));
         }
 
+        Ok(payment)
+    }
+
+    /// 将付款单状态更新为 CONFIRMED（带审计，记录真实操作人）。
+    async fn mark_payment_confirmed(
+        txn: &sea_orm::DatabaseTransaction,
+        payment: ap_payment::Model,
+        user_id: i32,
+    ) -> Result<ap_payment::Model, AppError> {
         // 4. 确认付款
         let now = chrono::Utc::now();
         let mut payment_active: ap_payment::ActiveModel = payment.into();
-        payment_active.payment_status = Set(crate::models::status::payment::PAYMENT_CONFIRMED.to_string());
+        payment_active.payment_status =
+            Set(crate::models::status::payment::PAYMENT_CONFIRMED.to_string());
         payment_active.confirmed_by = Set(Some(user_id));
         payment_active.confirmed_at = Set(Some(now));
         payment_active.updated_at = Set(now);
 
-        let payment = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
             "auto_audit",
             payment_active,
             // P1 1-1 修复：Some(0) 改 Some(user_id)，审计日志记录真实操作人
             Some(user_id),
         )
-        .await?;
+        .await
+    }
 
-        // P0 5-1 修复：收集本次付款完全结清的应付单（invoice_id, 分摊已付金额），
-        // 在 commit 成功后补发 PaymentCompleted 事件，触发 event_bus 监听器自动标记 PAID
+    /// 按申请明细分摊付款金额到关联应付单，返回本次完全结清的 (invoice_id, paid_amount) 列表。
+    async fn update_invoices_paid_amount(
+        txn: &sea_orm::DatabaseTransaction,
+        payment: &ap_payment::Model,
+        user_id: i32,
+    ) -> Result<Vec<(i32, Decimal)>, AppError> {
+        // P0 5-1 修复：收集本次付款完全结清的应付单，commit 后补发 PaymentCompleted 事件
         let mut fully_paid_invoices: Vec<(i32, Decimal)> = Vec::new();
 
         // 5. 更新关联的应付单已付金额
         if let Some(request_id) = payment.request_id {
-            // 查询付款申请明细
             let items = ap_payment_request_item::Entity::find()
                 .filter(ap_payment_request_item::Column::RequestId.eq(request_id))
-                .all(&txn)
+                .all(txn)
                 .await?;
 
-            // 计算每个应付单应分摊的付款金额（按申请金额比例）
             let total_apply_amount: Decimal = items.iter().map(|item| item.apply_amount).sum();
 
-            // P1 3-12/5-6 修复（批次 63）：分摊总额为 0 时提前报错
-            // 原实现 total_apply_amount==0 时 unwrap_or_default 返回 0，paid_amount=0 但状态改 PARTIAL_PAID，
-            // 导致应付单状态与金额不一致（无付款却标记部分付款）。
+            // P1 3-12/5-6 修复（批次 63）：分摊总额为 0 时提前报错（防止状态与金额不一致）
             if total_apply_amount <= Decimal::ZERO && !items.is_empty() {
                 return Err(AppError::business(
                     "付款申请明细分摊总额必须大于 0，请检查申请明细的 apply_amount",
                 ));
             }
 
-            // v16 批次 44 修复：循环外批量查询并锁定所有关联的应付单，避免循环内逐个 lock_exclusive（N+1）
-            let invoice_ids: Vec<i32> = items.iter().map(|item| item.invoice_id).collect();
-            let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
-                if total_apply_amount <= Decimal::ZERO || invoice_ids.is_empty() {
-                    std::collections::HashMap::new()
-                } else {
-                    use sea_orm::QuerySelect;
-                    ap_invoice::Entity::find()
-                        .filter(ap_invoice::Column::Id.is_in(invoice_ids))
-                        .lock_exclusive()
-                        .all(&txn)
-                        .await?
-                        .into_iter()
-                        .map(|inv| (inv.id, inv))
-                        .collect()
-                };
+            let mut invoice_map =
+                Self::load_and_lock_invoices(txn, &items, total_apply_amount).await?;
 
             for item in items {
                 if total_apply_amount > Decimal::ZERO {
-                    let ratio = item
-                        .apply_amount
-                        .checked_div(total_apply_amount)
-                        .unwrap_or_default();
-                    let paid_amount = payment
-                        .payment_amount
-                        .checked_mul(ratio)
-                        .unwrap_or_default();
-
-                    // v16 批次 44 修复：从批量查询结果获取应付单（O(1) 查找）
-                    if let Some(mut inv) = invoice_map.remove(&item.invoice_id) {
-                        inv.paid_amount = inv
-                            .paid_amount
-                            .checked_add(paid_amount)
-                            .unwrap_or(inv.paid_amount);
-                        inv.unpaid_amount = inv
-                            .amount
-                            .checked_sub(inv.paid_amount)
-                            .unwrap_or(inv.amount);
-
-                        // 更新应付状态
-                        let became_fully_paid = inv.unpaid_amount <= Decimal::ZERO;
-                        inv.invoice_status = if became_fully_paid {
-                            crate::models::status::payment::PAYMENT_PAID.to_string()
-                        } else {
-                            crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
-                        };
-
-                        let invoice_active: ap_invoice::ActiveModel = inv.into();
-                        crate::services::audit_log_service::AuditLogService::update_with_audit(
-                            &txn,
-                            "auto_audit",
-                            invoice_active,
-                            // P1 1-1 修复：Some(0) 改 Some(user_id)，审计日志记录真实操作人
-                            Some(user_id),
-                        )
-                        .await?;
-
-                        // P0 5-1 修复：记录已完全结清的应付单，commit 后补发 PaymentCompleted 事件
-                        if became_fully_paid {
-                            fully_paid_invoices.push((item.invoice_id, paid_amount));
-                        }
-                    }
+                    Self::apply_invoice_payment(
+                        txn,
+                        &item,
+                        &mut invoice_map,
+                        payment,
+                        total_apply_amount,
+                        user_id,
+                        &mut fully_paid_invoices,
+                    )
+                    .await?;
                 }
             }
         }
 
-        txn.commit().await?;
+        Ok(fully_paid_invoices)
+    }
 
-        // F-P0-5 修复（批次 381 v13 复审）：确认付款后生成付款凭证
-        // 借：应付账款（挂供应商辅助核算）/ 贷：银行存款/库存现金
-        // 失败时仅 warn 不阻断主流程（与采购入库容错模式一致）
+    /// 循环外批量查询并锁定所有关联的应付单（避免循环内逐个 lock_exclusive 的 N+1）。
+    async fn load_and_lock_invoices(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[ap_payment_request_item::Model],
+        total_apply_amount: Decimal,
+    ) -> Result<std::collections::HashMap<i32, ap_invoice::Model>, AppError> {
+        // v16 批次 44 修复：循环外批量查询并锁定所有关联的应付单
+        let invoice_ids: Vec<i32> = items.iter().map(|item| item.invoice_id).collect();
+        Ok(if total_apply_amount <= Decimal::ZERO || invoice_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            ap_invoice::Entity::find()
+                .filter(ap_invoice::Column::Id.is_in(invoice_ids))
+                .lock_exclusive()
+                .all(txn)
+                .await?
+                .into_iter()
+                .map(|inv| (inv.id, inv))
+                .collect()
+        })
+    }
+
+    /// 按比例分摊付款金额到单个应付单并更新状态（带审计），完全结清时收集到 fully_paid。
+    async fn apply_invoice_payment(
+        txn: &sea_orm::DatabaseTransaction,
+        item: &ap_payment_request_item::Model,
+        invoice_map: &mut std::collections::HashMap<i32, ap_invoice::Model>,
+        payment: &ap_payment::Model,
+        total_apply_amount: Decimal,
+        user_id: i32,
+        fully_paid_invoices: &mut Vec<(i32, Decimal)>,
+    ) -> Result<(), AppError> {
+        let ratio = item
+            .apply_amount
+            .checked_div(total_apply_amount)
+            .unwrap_or_default();
+        let paid_amount = payment
+            .payment_amount
+            .checked_mul(ratio)
+            .unwrap_or_default();
+
+        // v16 批次 44 修复：从批量查询结果获取应付单（O(1) 查找）
+        if let Some(mut inv) = invoice_map.remove(&item.invoice_id) {
+            inv.paid_amount = inv
+                .paid_amount
+                .checked_add(paid_amount)
+                .unwrap_or(inv.paid_amount);
+            inv.unpaid_amount = inv.amount.checked_sub(inv.paid_amount).unwrap_or(inv.amount);
+
+            // 更新应付状态
+            let became_fully_paid = inv.unpaid_amount <= Decimal::ZERO;
+            inv.invoice_status = if became_fully_paid {
+                crate::models::status::payment::PAYMENT_PAID.to_string()
+            } else {
+                crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
+            };
+
+            let invoice_active: ap_invoice::ActiveModel = inv.into();
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                txn,
+                "auto_audit",
+                invoice_active,
+                // P1 1-1 修复：Some(0) 改 Some(user_id)，审计日志记录真实操作人
+                Some(user_id),
+            )
+            .await?;
+
+            // P0 5-1 修复：记录已完全结清的应付单，commit 后补发 PaymentCompleted 事件
+            if became_fully_paid {
+                fully_paid_invoices.push((item.invoice_id, paid_amount));
+            }
+        }
+        Ok(())
+    }
+
+    /// 确认付款后生成付款凭证（非阻断，失败仅 warn）。
+    async fn generate_payment_voucher(&self, payment: &ap_payment::Model, user_id: i32) {
+        let voucher_req = Self::build_payment_voucher_request(payment);
+        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+            tracing::warn!("付款单 {} 确认成功，但生成付款凭证失败：{}", payment.payment_no, e);
+        }
+    }
+
+    /// 构建付款凭证请求（借：应付账款 / 贷：银行存款或库存现金）。
+    fn build_payment_voucher_request(
+        payment: &ap_payment::Model,
+    ) -> crate::services::voucher_service::CreateVoucherRequest {
         let payment_amount = payment.payment_amount;
         let (credit_code, credit_name) = match payment.payment_method.as_str() {
             "CASH" => ("1001", "库存现金"),
             _ => ("1002", "银行存款"),
         };
-        let payment_no_clone = payment.payment_no.clone();
-        let payment_date = payment.payment_date;
-        let payment_id_val = payment.id;
-        let supplier_id = payment.supplier_id;
-        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+        let payment_no = payment.payment_no.clone();
+        crate::services::voucher_service::CreateVoucherRequest {
             voucher_type: "付".to_string(),
-            voucher_date: payment_date,
+            voucher_date: payment.payment_date,
             source_type: Some("AP_PAYMENT".to_string()),
             source_module: Some("ap".to_string()),
-            source_bill_id: Some(payment_id_val),
-            source_bill_no: Some(payment_no_clone.clone()),
+            source_bill_id: Some(payment.id),
+            source_bill_no: Some(payment_no.clone()),
             batch_no: None,
             color_no: None,
             items: vec![
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(1),
-                    subject_code: Some("2202".to_string()),
-                    subject_name: Some("应付账款".to_string()),
-                    debit: payment_amount,
-                    credit: Decimal::ZERO,
-                    summary: Some(format!("付款确认-{}", payment_no_clone)),
-                    assist_customer_id: None,
-                    assist_supplier_id: Some(supplier_id),
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(2),
-                    subject_code: Some(credit_code.to_string()),
-                    subject_name: Some(credit_name.to_string()),
-                    debit: Decimal::ZERO,
-                    credit: payment_amount,
-                    summary: Some(format!("付款确认-{}", payment_no_clone)),
-                    assist_customer_id: None,
-                    assist_supplier_id: None,
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
+                Self::build_voucher_debit_item(payment_amount, &payment_no, payment.supplier_id),
+                Self::build_voucher_credit_item(payment_amount, &payment_no, credit_code, credit_name),
             ],
-        };
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
-        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
-            tracing::warn!(
-                "付款单 {} 确认成功，但生成付款凭证失败：{}",
-                payment_no_clone,
-                e
-            );
         }
+    }
 
-        // P0 5-1 修复：commit 成功后补发 PaymentCompleted 事件，
-        // 触发 event_bus 监听器（event_bus.rs）自动将关联 AP 发票标记为 PAID
-        // 批次 97 P1-2 修复：透传付款操作人 user_id，供 mark_as_paid 审计日志使用
+    /// 构建借方凭证分录（应付账款，挂供应商辅助核算）。
+    fn build_voucher_debit_item(
+        payment_amount: Decimal,
+        payment_no: &str,
+        supplier_id: i32,
+    ) -> crate::services::voucher_service::VoucherItemRequest {
+        crate::services::voucher_service::VoucherItemRequest {
+            line_no: Some(1),
+            subject_code: Some("2202".to_string()),
+            subject_name: Some("应付账款".to_string()),
+            debit: payment_amount,
+            credit: Decimal::ZERO,
+            summary: Some(format!("付款确认-{}", payment_no)),
+            assist_customer_id: None,
+            assist_supplier_id: Some(supplier_id),
+            assist_department_id: None,
+            assist_employee_id: None,
+            assist_project_id: None,
+            assist_batch_id: None,
+            assist_color_no_id: None,
+            assist_dye_lot_id: None,
+            assist_grade: None,
+            assist_workshop_id: None,
+            quantity_meters: None,
+            quantity_kg: None,
+            unit_price: None,
+        }
+    }
+
+    /// 构建贷方凭证分录（银行存款或库存现金）。
+    fn build_voucher_credit_item(
+        payment_amount: Decimal,
+        payment_no: &str,
+        credit_code: &str,
+        credit_name: &str,
+    ) -> crate::services::voucher_service::VoucherItemRequest {
+        crate::services::voucher_service::VoucherItemRequest {
+            line_no: Some(2),
+            subject_code: Some(credit_code.to_string()),
+            subject_name: Some(credit_name.to_string()),
+            debit: Decimal::ZERO,
+            credit: payment_amount,
+            summary: Some(format!("付款确认-{}", payment_no)),
+            assist_customer_id: None,
+            assist_supplier_id: None,
+            assist_department_id: None,
+            assist_employee_id: None,
+            assist_project_id: None,
+            assist_batch_id: None,
+            assist_color_no_id: None,
+            assist_dye_lot_id: None,
+            assist_grade: None,
+            assist_workshop_id: None,
+            quantity_meters: None,
+            quantity_kg: None,
+            unit_price: None,
+        }
+    }
+
+    /// 补发 PaymentCompleted 事件触发 event_bus 自动标记 PAID。
+    fn publish_payment_completed_events(
+        payment_id: i32,
+        fully_paid_invoices: Vec<(i32, Decimal)>,
+        user_id: i32,
+    ) {
         for (invoice_id, paid_amount) in fully_paid_invoices {
             crate::services::event_bus::EVENT_BUS.publish(
                 crate::services::event_bus::BusinessEvent::PaymentCompleted {
-                    payment_id: payment.id,
+                    payment_id,
                     invoice_id,
                     amount: paid_amount,
                     user_id,
                 },
             );
         }
+    }
 
-        // 6. 预算核销（非阻断）
-        // 通过付款申请找到关联的应付单，再通过应付单的来源找到采购入库单的部门信息
-        // P2 5-22 修复：移除原 _request 死查询（结果未使用），串行查询链由 4 次降为 3 次
-        if let Some(request_id) = payment.request_id {
-            // 查询付款申请明细，获取关联的应付单（原实现先查 request 主表但结果 _request 未使用，已移除）
-            if let Ok(items) = ap_payment_request_item::Entity::find()
-                .filter(ap_payment_request_item::Column::RequestId.eq(request_id))
-                .all(&*self.db)
+    /// 预算核销（非阻断，失败仅 warn）。
+    async fn write_off_payment_budget(&self, payment: &ap_payment::Model, user_id: i32) {
+        let department_id = self.resolve_budget_department_id(payment).await;
+        self.execute_budget_write_off(payment, department_id, user_id).await;
+    }
+
+    /// 解析付款关联的预算部门 ID（付款申请→应付单→采购入库单→部门）。
+    async fn resolve_budget_department_id(&self, payment: &ap_payment::Model) -> i32 {
+        let request_id = match payment.request_id {
+            Some(rid) => rid,
+            None => return 1,
+        };
+        let items = match ap_payment_request_item::Entity::find()
+            .filter(ap_payment_request_item::Column::RequestId.eq(request_id))
+            .all(&*self.db)
+            .await
+        {
+            Ok(items) => items,
+            Err(_) => return 1,
+        };
+        let first_item = match items.first() {
+            Some(item) => item,
+            None => return 1,
+        };
+        let invoice = match ap_invoice::Entity::find_by_id(first_item.invoice_id)
+            .one(&*self.db)
+            .await
+        {
+            Ok(Some(inv)) => inv,
+            _ => return 1,
+        };
+        if invoice.source_type.as_deref() != Some("PURCHASE_RECEIPT") {
+            return 1;
+        }
+        let receipt_id = match invoice.source_id {
+            Some(rid) => rid,
+            None => return 1,
+        };
+        match crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
+            .one(&*self.db)
+            .await
+        {
+            Ok(Some(receipt)) => receipt.department_id.unwrap_or(1),
+            _ => 1,
+        }
+    }
+
+    /// 执行预算核销并记录结果日志。
+    async fn execute_budget_write_off(
+        &self,
+        payment: &ap_payment::Model,
+        department_id: i32,
+        user_id: i32,
+    ) {
+        let budget_service = crate::services::budget_management_service::BudgetManagementService::new(self.db.clone());
+        match budget_service.get_available_plan_by_department(department_id).await {
+            Ok(Some(plan)) => match budget_service
+                .write_off_budget(
+                    department_id,
+                    plan.id,
+                    payment.payment_amount,
+                    "ap_payment".to_string(),
+                    payment.id,
+                    user_id,
+                )
                 .await
             {
-                // 获取第一个应付单的部门信息
-                if let Some(first_item) = items.first() {
-                    if let Ok(Some(invoice)) =
-                        ap_invoice::Entity::find_by_id(first_item.invoice_id)
-                            .one(&*self.db)
-                            .await
-                    {
-                        // 从应付单的 source_type 和 source_id 找到采购入库单的部门
-                        let department_id =
-                            if invoice.source_type.as_deref() == Some("PURCHASE_RECEIPT") {
-                                if let Some(receipt_id) = invoice.source_id {
-                                    if let Ok(Some(receipt)) =
-                                        crate::models::purchase_receipt::Entity::find_by_id(
-                                            receipt_id,
-                                        )
-                                        .one(&*self.db)
-                                        .await
-                                    {
-                                        receipt.department_id.unwrap_or(1)
-                                    } else {
-                                        1
-                                    }
-                                } else {
-                                    1
-                                }
-                            } else {
-                                1
-                            };
-
-                        // 查找预算方案
-                        let budget_service = crate::services::budget_management_service::BudgetManagementService::new(self.db.clone());
-                        match budget_service
-                            .get_available_plan_by_department(department_id)
-                            .await
-                        {
-                            Ok(Some(plan)) => {
-                                // 核销预算
-                                match budget_service
-                                    .write_off_budget(
-                                        department_id,
-                                        plan.id,
-                                        payment.payment_amount,
-                                        "ap_payment".to_string(),
-                                        payment.id,
-                                        user_id,
-                                    )
-                                    .await
-                                {
-                                    Ok(_) => {
-                                        tracing::info!(
-                                            "付款单 {} 预算核销成功，部门ID={}, 方案ID={}, 金额={}",
-                                            payment.payment_no, department_id, plan.id, payment.payment_amount
-                                        );
-                                    }
-                                    Err(e) => {
-                                        tracing::warn!(
-                                            "付款单 {} 预算核销失败：{}",
-                                            payment.payment_no,
-                                            e
-                                        );
-                                    }
-                                }
-                            }
-                            Ok(None) => {
-                                tracing::warn!(
-                                    "付款单 {} 未找到部门 {} 的预算方案，跳过预算核销",
-                                    payment.payment_no,
-                                    department_id
-                                );
-                            }
-                            Err(e) => {
-                                tracing::warn!(
-                                    "付款单 {} 查询预算方案失败：{}，跳过预算核销",
-                                    payment.payment_no,
-                                    e
-                                );
-                            }
-                        }
-                    }
-                }
-            }
+                Ok(_) => tracing::info!(
+                    "付款单 {} 预算核销成功，部门ID={}, 方案ID={}, 金额={}",
+                    payment.payment_no, department_id, plan.id, payment.payment_amount
+                ),
+                Err(e) => tracing::warn!("付款单 {} 预算核销失败：{}", payment.payment_no, e),
+            },
+            Ok(None) => tracing::warn!(
+                "付款单 {} 未找到部门 {} 的预算方案，跳过预算核销",
+                payment.payment_no, department_id
+            ),
+            Err(e) => tracing::warn!(
+                "付款单 {} 查询预算方案失败：{}，跳过预算核销",
+                payment.payment_no, e
+            ),
         }
+    }
 
-        // 触发财务指标更新事件
+    /// 触发财务指标更新事件。
+    fn publish_financial_indicator_update(payment_no: &str) {
         let now_date = chrono::Utc::now().date_naive();
         let period = format!("{:04}-{:02}", now_date.year(), now_date.month());
         crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::FinancialIndicatorUpdate {
                 period,
-                trigger_source: format!("payment_completed:{}", payment.payment_no),
+                trigger_source: format!("payment_completed:{}", payment_no),
             },
         );
-
-        Ok(payment)
     }
 
     /// 获取付款单详情

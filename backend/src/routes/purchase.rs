@@ -19,7 +19,18 @@ use crate::handlers::{
 };
 
 /// 采购订单路由（nest 到 /api/v1/erp/purchases）
+///
+/// 主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
 pub fn purchases() -> Router<AppState> {
+    Router::new()
+        .merge(purchase_order_routes())
+        .merge(purchase_receipt_routes())
+        .merge(purchase_inspection_routes())
+        .merge(purchase_return_routes())
+}
+
+/// 采购订单路由（path 前缀 /orders）
+fn purchase_order_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/orders/delivery-date",
@@ -69,6 +80,11 @@ pub fn purchases() -> Router<AppState> {
             "/orders/:id/print",
             get(print_handler::purchase_order_print_html),
         )
+}
+
+/// 采购收货路由（path 前缀 /receipts）
+fn purchase_receipt_routes() -> Router<AppState> {
+    Router::new()
         .route("/receipts", get(purchase_receipt_handler::list_receipts))
         .route(
             "/receipts/generate-no",
@@ -104,6 +120,11 @@ pub fn purchases() -> Router<AppState> {
             put(purchase_receipt_handler::update_receipt_item)
                 .delete(purchase_receipt_handler::delete_receipt_item),
         )
+}
+
+/// 采购检验路由（path 前缀 /inspections）
+fn purchase_inspection_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/inspections",
             get(purchase_inspection_handler::list_inspections),
@@ -134,6 +155,11 @@ pub fn purchases() -> Router<AppState> {
             put(purchase_inspection_handler::update_inspection_item)
                 .delete(purchase_inspection_handler::delete_inspection_item),
         )
+}
+
+/// 采购退货路由（path 前缀 /returns）
+fn purchase_return_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/returns",
             get(purchase_return_handler::list_purchase_returns),

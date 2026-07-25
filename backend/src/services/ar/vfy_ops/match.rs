@@ -1,9 +1,4 @@
-//! 应收对账 - 核销自动匹配（ar/vfy_ops/match）
-//!
-//! 批次 490 D10-4b 拆分自原 `ar/vfy.rs` 的 `auto_match` 方法及其明细创建辅助函数。
-//! 职责：按客户批量匹配发票和收款，支持三种策略（精确金额 / 日期顺序 / 客户汇总）。
-//! 本模块扩展 `ArReconciliationService` 的 `auto_match` 公开方法与
-//! `make_invoice_recon_item` / `make_collection_recon_item` 私有辅助。
+//! 应收对账 - 核销自动匹配：按客户批量匹配发票和收款（精确/日期顺序/汇总三策略）
 
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -23,21 +18,71 @@ use super::super::{
 };
 
 impl ArReconciliationService {
-    /// 自动对账 - 按客户批量匹配发票和收款
-    ///
-    /// 匹配策略：
-    /// 1. 精确匹配：金额完全相等的发票和收款
-    /// 2. 日期匹配：同一客户在对账期间内的发票和收款按时间顺序配对
-    /// 3. 客户汇总：按客户汇总应收和实收，生成对账单
+    /// 自动对账：按客户批量匹配发票和收款（精确/日期顺序/汇总三策略）
     pub async fn auto_match(
         &self,
         req: AutoMatchRequest,
         user_id: i32,
     ) -> Result<Vec<AutoMatchResult>, AppError> {
-        // 批次 158 v11 真实接入：match_strategy 字段控制匹配策略选择
-        // - "exact"       : 仅执行策略 1（精确金额匹配）
-        // - "date_order"  : 执行策略 1 + 策略 2（精确 + 日期顺序）
-        // - "all" / None  : 执行全策略（默认行为，与历史调用方兼容）
+        let (run_exact, run_date_order) = Self::parse_match_strategy(&req)?;
+        let txn = (*self.db).begin().await?;
+        let customers = Self::load_match_customers(&txn, req.customer_id).await?;
+        let customer_ids: Vec<i32> = customers.iter().map(|c| c.id).collect();
+        let mut invoices_by_customer =
+            Self::group_invoices_by_customer_for_match(&txn, &customer_ids, req.end_date).await?;
+        let mut collections_by_customer = Self::group_collections_by_customer(
+            &txn,
+            &customer_ids,
+            req.start_date,
+            req.end_date,
+        )
+        .await?;
+
+        let mut results = Vec::new();
+        // v13 P1-3：N+1 重构，收集所有明细 ActiveModel，循环结束后批量 INSERT
+        let mut all_items_to_insert: Vec<crate::models::ar_reconciliation_item::ActiveModel> =
+            Vec::new();
+
+        for cust in customers {
+            let cust_invoices = invoices_by_customer.remove(&cust.id).unwrap_or_default();
+            let cust_collections = collections_by_customer.remove(&cust.id).unwrap_or_default();
+            let result = Self::process_customer_match(
+                &txn,
+                &req,
+                user_id,
+                run_exact,
+                run_date_order,
+                cust,
+                cust_invoices,
+                cust_collections,
+                &mut all_items_to_insert,
+            )
+            .await?;
+            results.push(result);
+        }
+
+        Self::batch_insert_recon_items(&txn, all_items_to_insert).await?;
+        txn.commit().await?;
+        Ok(results)
+    }
+
+    /// 批量插入对账明细（空集合跳过，避免无效 SQL）
+    async fn batch_insert_recon_items(
+        txn: &sea_orm::DatabaseTransaction,
+        items: Vec<crate::models::ar_reconciliation_item::ActiveModel>,
+    ) -> Result<(), AppError> {
+        if items.is_empty() {
+            return Ok(());
+        }
+        crate::models::ar_reconciliation_item::Entity::insert_many(items)
+            .exec(txn)
+            .await?;
+        Ok(())
+    }
+
+    /// 解析并校验匹配策略，返回 (run_exact, run_date_order) 开关
+    fn parse_match_strategy(req: &AutoMatchRequest) -> Result<(bool, bool), AppError> {
+        // match_strategy 控制：exact=仅策略1 / date_order=策略1+2 / all=全策略（默认）
         let strategy = req.match_strategy.as_deref().unwrap_or("all").to_lowercase();
         if !matches!(strategy.as_str(), "exact" | "date_order" | "all") {
             return Err(AppError::validation(format!(
@@ -47,290 +92,356 @@ impl ArReconciliationService {
         }
         let run_exact = matches!(strategy.as_str(), "exact" | "date_order" | "all");
         let run_date_order = matches!(strategy.as_str(), "date_order" | "all");
+        Ok((run_exact, run_date_order))
+    }
 
-        let txn = (*self.db).begin().await?;
-
-        let customers = if let Some(cid) = req.customer_id {
-            vec![customer::Entity::find_by_id(cid)
-                .one(&txn)
+    /// 加载参与匹配的客户列表（指定 ID 或全量 LIMIT 兜底）
+    async fn load_match_customers(
+        txn: &sea_orm::DatabaseTransaction,
+        customer_id: Option<i32>,
+    ) -> Result<Vec<customer::Model>, AppError> {
+        if let Some(cid) = customer_id {
+            Ok(vec![customer::Entity::find_by_id(cid)
+                .one(txn)
                 .await?
-                .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", cid)))?]
+                .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", cid)))?])
         } else {
-            // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
-            customer::Entity::find().limit(10_000).all(&txn).await?
-        };
+            // P3 维度 6 修复（批次 87）：LIMIT 兜底防止全表加载
+            Ok(customer::Entity::find().limit(10_000).all(txn).await?)
+        }
+    }
 
-        // v11 批次 38 修复：批量预加载所有客户的发票和收款，避免循环内按客户逐个查询（N+1，3N 次查询）
-        // 发票：取 InvoiceDate <= end_date 且非 CANCELLED 的全部发票，循环内按 [start,end] / <start 分桶
-        // 收款：取 [start,end] 内 CONFIRMED 的全部收款
-        let customer_ids: Vec<i32> = customers.iter().map(|c| c.id).collect();
+    /// 批量预加载发票并按 customer_id 分组（InvoiceDate <= end_date 且非 CANCELLED）
+    ///
+    /// 注：aging.rs 中已存在同名 `group_invoices_by_customer`（不同签名，针对账龄分桶），
+    /// 同一 impl 块不允许重复定义同名方法，故此函数加 `_for_match` 后缀以区分。
+    async fn group_invoices_by_customer_for_match(
+        txn: &sea_orm::DatabaseTransaction,
+        customer_ids: &[i32],
+        end_date: chrono::NaiveDate,
+    ) -> Result<std::collections::HashMap<i32, Vec<ar_invoice::Model>>, AppError> {
         let all_invoices = if customer_ids.is_empty() {
             Vec::new()
         } else {
             ar_invoice::Entity::find()
-                .filter(ar_invoice::Column::CustomerId.is_in(customer_ids.clone()))
+                .filter(ar_invoice::Column::CustomerId.is_in(customer_ids.to_vec()))
                 .filter(ar_invoice::Column::Status.ne("CANCELLED"))
-                .filter(ar_invoice::Column::InvoiceDate.lte(req.end_date))
-                .all(&txn)
+                .filter(ar_invoice::Column::InvoiceDate.lte(end_date))
+                .all(txn)
                 .await?
         };
-        // 按 customer_id 分组（Vec 保留原顺序，后续再按 invoice_date 过滤）
-        let invoices_by_customer: std::collections::HashMap<i32, Vec<&ar_invoice::Model>> = {
-            let mut map: std::collections::HashMap<i32, Vec<&ar_invoice::Model>> =
-                std::collections::HashMap::new();
-            for inv in &all_invoices {
-                map.entry(inv.customer_id).or_default().push(inv);
-            }
-            map
-        };
+        let mut map: std::collections::HashMap<i32, Vec<ar_invoice::Model>> =
+            std::collections::HashMap::new();
+        for inv in all_invoices {
+            map.entry(inv.customer_id).or_default().push(inv);
+        }
+        Ok(map)
+    }
 
+    /// 批量预加载收款并按 customer_id 分组（[start,end] 内 CONFIRMED）
+    async fn group_collections_by_customer(
+        txn: &sea_orm::DatabaseTransaction,
+        customer_ids: &[i32],
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<std::collections::HashMap<i32, Vec<ar_collection::Model>>, AppError> {
         let all_collections = if customer_ids.is_empty() {
             Vec::new()
         } else {
             ar_collection::Entity::find()
-                .filter(ar_collection::Column::CustomerId.is_in(customer_ids))
+                .filter(ar_collection::Column::CustomerId.is_in(customer_ids.to_vec()))
                 .filter(ar_collection::Column::Status.eq(ar_status::COLLECTION_CONFIRMED))
-                .filter(ar_collection::Column::CollectionDate.gte(req.start_date))
-                .filter(ar_collection::Column::CollectionDate.lte(req.end_date))
-                .all(&txn)
+                .filter(ar_collection::Column::CollectionDate.gte(start_date))
+                .filter(ar_collection::Column::CollectionDate.lte(end_date))
+                .all(txn)
                 .await?
         };
-        let collections_by_customer: std::collections::HashMap<i32, Vec<&ar_collection::Model>> = {
-            let mut map: std::collections::HashMap<i32, Vec<&ar_collection::Model>> =
-                std::collections::HashMap::new();
-            for c in &all_collections {
-                map.entry(c.customer_id).or_default().push(c);
-            }
-            map
-        };
-
-        let mut results = Vec::new();
-        // v13 P1-3：N+1 重构，收集所有明细 ActiveModel，循环结束后批量 INSERT
-        let mut all_items_to_insert: Vec<crate::models::ar_reconciliation_item::ActiveModel> =
-            Vec::new();
-
-        for cust in customers {
-            // 从批量预加载结果中取本客户的发票，按 InvoiceDate 分桶：
-            // - 期内存量 invoices：InvoiceDate >= start_date（<= end_date 已在批量查询过滤）
-            // - 期初余额 opening_balance：InvoiceDate < start_date 的 unpaid_amount 求和
-            let (invoices, opening_balance): (Vec<ar_invoice::Model>, Decimal) = {
-                let cust_invoices = invoices_by_customer.get(&cust.id).cloned().unwrap_or_default();
-                let mut period_invoices = Vec::new();
-                let mut opening = Decimal::ZERO;
-                for inv in cust_invoices {
-                    if inv.invoice_date >= req.start_date {
-                        period_invoices.push(inv.clone());
-                    } else {
-                        opening += inv.unpaid_amount;
-                    }
-                }
-                (period_invoices, opening)
-            };
-
-            let collections: Vec<ar_collection::Model> = collections_by_customer
-                .get(&cust.id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .cloned()
-                .collect();
-
-            let total_invoices: Decimal = invoices.iter().map(|inv| inv.invoice_amount).sum();
-            let total_collections: Decimal = collections.iter().map(|c| c.collection_amount).sum();
-
-            // 批次 27 v7 P1 修复：事务边界泄漏，单号生成移入 txn，避免断号/重复
-            let reconciliation_no = generate_reconciliation_no(&txn).await?;
-            let closing_balance = opening_balance + total_invoices - total_collections;
-
-            let reconciliation = ActiveModel {
-                id: Default::default(),
-                reconciliation_no: Set(reconciliation_no.clone()),
-                reconciliation_date: Set(Utc::now().date_naive()),
-                period_start: Set(req.start_date),
-                period_end: Set(req.end_date),
-                customer_id: Set(cust.id),
-                customer_name: Set(Some(cust.customer_name.clone())),
-                opening_balance: Set(opening_balance),
-                total_invoices: Set(total_invoices),
-                total_collections: Set(total_collections),
-                closing_balance: Set(closing_balance),
-                reconciliation_status: Set(Some(ar_status::RECONCILIATION_DRAFT.to_string())),
-                confirmed_by_customer: Set(None),
-                dispute_reason: Set(None),
-                confirmed_by: Set(None),
-                confirmed_at: Set(None),
-                created_by: Set(Some(user_id)),
-                created_at: Set(Utc::now()),
-                updated_at: Set(Utc::now()),
-                // 批次 109 P1-1：auto_match 无 notes 入参，设为 None
-                notes: Set(None),
-            };
-
-            let rec_model = reconciliation.insert(&txn).await?;
-
-            let mut matched_count = 0usize;
-            let mut unmatched_invoices: Vec<&ar_invoice::Model> = Vec::new();
-            let mut unmatched_collections: Vec<&ar_collection::Model> =
-                collections.iter().collect();
-
-            // 策略1: 精确金额匹配（受 match_strategy 控制）
-            if run_exact {
-                for inv in &invoices {
-                    let exact_match = unmatched_collections
-                        .iter()
-                        .position(|c| c.collection_amount == inv.invoice_amount);
-
-                    if let Some(idx) = exact_match {
-                        let coll = unmatched_collections.remove(idx);
-
-                        // 创建发票明细（收集不立即 INSERT）
-                        all_items_to_insert.push(Self::make_invoice_recon_item(
-                            rec_model.id,
-                            inv,
-                            Some(inv.invoice_amount),
-                            "MATCHED",
-                            Some(coll.id),
-                        ));
-
-                        // 创建收款明细（收集不立即 INSERT）
-                        all_items_to_insert.push(Self::make_collection_recon_item(
-                            rec_model.id,
-                            coll,
-                            Some(coll.collection_amount),
-                            "MATCHED",
-                            Some(inv.id),
-                        ));
-
-                        matched_count += 1;
-                    } else {
-                        unmatched_invoices.push(inv);
-                    }
-                }
-            } else {
-                // 跳过精确匹配：所有发票与收款进入未匹配列表
-                unmatched_invoices = invoices.iter().collect();
-            }
-
-            // 策略2: 日期顺序匹配（受 match_strategy 控制；仅对未精确匹配的剩余项执行）
-            if run_date_order {
-                let mut remaining_collections = unmatched_collections.clone();
-                for inv in unmatched_invoices {
-                    let date_match = remaining_collections.iter().position(|c| {
-                        let date_diff = (c.collection_date - inv.invoice_date).num_days().abs();
-                        date_diff <= 30
-                    });
-
-                    if let Some(idx) = date_match {
-                        let coll = remaining_collections.remove(idx);
-                        let matched = std::cmp::min(inv.invoice_amount, coll.collection_amount);
-                        let inv_status = if matched == inv.invoice_amount {
-                            "MATCHED"
-                        } else {
-                            "PARTIAL"
-                        };
-                        let coll_status = if matched == coll.collection_amount {
-                            "MATCHED"
-                        } else {
-                            "PARTIAL"
-                        };
-
-                        all_items_to_insert.push(Self::make_invoice_recon_item(
-                            rec_model.id,
-                            inv,
-                            Some(matched),
-                            inv_status,
-                            Some(coll.id),
-                        ));
-
-                        all_items_to_insert.push(Self::make_collection_recon_item(
-                            rec_model.id,
-                            coll,
-                            Some(matched),
-                            coll_status,
-                            Some(inv.id),
-                        ));
-
-                        matched_count += 1;
-                    } else {
-                        // 未匹配发票（收集不立即 INSERT）
-                        all_items_to_insert.push(Self::make_invoice_recon_item(
-                            rec_model.id,
-                            inv,
-                            None,
-                            ar_status::MATCH_UNMATCHED,
-                            None,
-                        ));
-                    }
-                }
-
-                // 剩余未匹配收款（收集不立即 INSERT）
-                for coll in remaining_collections {
-                    all_items_to_insert.push(Self::make_collection_recon_item(
-                        rec_model.id,
-                        coll,
-                        None,
-                        ar_status::MATCH_UNMATCHED,
-                        None,
-                    ));
-                }
-            } else {
-                // 跳过日期顺序匹配：所有未精确匹配的发票与收款直接收集为 UNMATCHED
-                for inv in unmatched_invoices {
-                    all_items_to_insert.push(Self::make_invoice_recon_item(
-                        rec_model.id,
-                        inv,
-                        None,
-                        ar_status::MATCH_UNMATCHED,
-                        None,
-                    ));
-                }
-                for coll in &unmatched_collections {
-                    all_items_to_insert.push(Self::make_collection_recon_item(
-                        rec_model.id,
-                        *coll,
-                        None,
-                        ar_status::MATCH_UNMATCHED,
-                        None,
-                    ));
-                }
-            }
-
-            let unmatched_count = invoices.len() + collections.len() - matched_count * 2;
-
-            results.push(AutoMatchResult {
-                reconciliation_id: rec_model.id,
-                reconciliation_no,
-                customer_id: cust.id,
-                customer_name: cust.customer_name.clone(),
-                total_invoices,
-                total_collections,
-                matched_count,
-                unmatched_count,
-                status: ar_status::RECONCILIATION_DRAFT.to_string(),
-            });
+        let mut map: std::collections::HashMap<i32, Vec<ar_collection::Model>> =
+            std::collections::HashMap::new();
+        for c in all_collections {
+            map.entry(c.customer_id).or_default().push(c);
         }
-
-        // 批量 INSERT 所有对账明细，替代逐条 INSERT（v13 P1-3：N+1 重构）
-        if !all_items_to_insert.is_empty() {
-            crate::models::ar_reconciliation_item::Entity::insert_many(all_items_to_insert)
-                .exec(&txn)
-                .await?;
-        }
-
-        txn.commit().await?;
-        Ok(results)
+        Ok(map)
     }
 
-    // ===== auto_match 明细创建辅助函数（D12 圈复杂度优化） =====
-    // 抽取自 auto_match 内 8 处重复的 ActiveModel 构造代码，消除冗余并降低圈复杂度
-    // 调用方负责传入正确的 matched_amount / match_status / matched_item_id
+    /// 单客户对账匹配主流程：建对账单 → 精确匹配 → 日期顺序匹配 → 汇总结果
+    async fn process_customer_match(
+        txn: &sea_orm::DatabaseTransaction,
+        req: &AutoMatchRequest,
+        user_id: i32,
+        run_exact: bool,
+        run_date_order: bool,
+        cust: customer::Model,
+        cust_invoices: Vec<ar_invoice::Model>,
+        cust_collections: Vec<ar_collection::Model>,
+        all_items: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
+    ) -> Result<AutoMatchResult, AppError> {
+        let (invoices, opening_balance) =
+            Self::bucket_period_and_opening(cust_invoices, req.start_date);
+        let total_invoices: Decimal = invoices.iter().map(|inv| inv.invoice_amount).sum();
+        let total_collections: Decimal = cust_collections.iter().map(|c| c.collection_amount).sum();
+        // 批次 27 v7 P1：单号生成在 txn 内，避免断号/重复
+        let reconciliation_no = generate_reconciliation_no(txn).await?;
+        let closing_balance = opening_balance + total_invoices - total_collections;
+        let reconciliation = Self::build_match_reconciliation_model(
+            req, user_id, &cust, opening_balance, total_invoices, total_collections,
+            closing_balance, reconciliation_no.clone(),
+        );
+        let rec_model = reconciliation.insert(txn).await?;
+        let matched_count = Self::execute_match_strategies(
+            &invoices, &cust_collections, rec_model.id, run_exact, run_date_order, all_items,
+        );
+        Ok(Self::build_auto_match_result(
+            rec_model.id,
+            reconciliation_no,
+            &cust,
+            total_invoices,
+            total_collections,
+            matched_count,
+            invoices.len(),
+            cust_collections.len(),
+        ))
+    }
 
-    /// 创建发票对账明细 ActiveModel（未插入）
-    ///
-    /// 统一 auto_match 三种场景的发票明细创建：
-    /// - 精确匹配命中：matched_amount=Some(inv.invoice_amount), status=MATCHED
-    /// - 日期顺序匹配命中：matched_amount=Some(matched), status=MATCHED/PARTIAL
-    /// - 未匹配：matched_amount=None, status=UNMATCHED
+    /// 构建 auto_match 单客户结果（未匹配数 = 发票+收款 - 命中*2）
+    fn build_auto_match_result(
+        reconciliation_id: i32,
+        reconciliation_no: String,
+        cust: &customer::Model,
+        total_invoices: Decimal,
+        total_collections: Decimal,
+        matched_count: usize,
+        invoice_count: usize,
+        collection_count: usize,
+    ) -> AutoMatchResult {
+        let unmatched_count = invoice_count + collection_count - matched_count * 2;
+        AutoMatchResult {
+            reconciliation_id,
+            reconciliation_no,
+            customer_id: cust.id,
+            customer_name: cust.customer_name.clone(),
+            total_invoices,
+            total_collections,
+            matched_count,
+            unmatched_count,
+            status: ar_status::RECONCILIATION_DRAFT.to_string(),
+        }
+    }
+
+    /// 执行匹配策略（精确 → 日期顺序）并收集未匹配项，返回匹配命中数
+    fn execute_match_strategies(
+        invoices: &[ar_invoice::Model],
+        cust_collections: &[ar_collection::Model],
+        rec_id: i32,
+        run_exact: bool,
+        run_date_order: bool,
+        all_items: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
+    ) -> usize {
+        let mut matched_count = 0usize;
+        let mut unmatched_collections: Vec<&ar_collection::Model> =
+            cust_collections.iter().collect();
+        let unmatched_invoices: Vec<&ar_invoice::Model> = if run_exact {
+            let (matched, unmatched) = Self::run_exact_match_pass(
+                invoices, &mut unmatched_collections, rec_id, all_items,
+            );
+            matched_count += matched;
+            unmatched
+        } else {
+            invoices.iter().collect()
+        };
+
+        if run_date_order {
+            let mut remaining = unmatched_collections.clone();
+            matched_count += Self::run_date_order_match_pass(
+                &unmatched_invoices, &mut remaining, rec_id, all_items,
+            );
+            Self::push_unmatched_collections(rec_id, remaining, all_items);
+        } else {
+            Self::push_all_unmatched(rec_id, unmatched_invoices, &unmatched_collections, all_items);
+        }
+        matched_count
+    }
+
+    /// 日期顺序匹配后剩余收款标记为 UNMATCHED
+    fn push_unmatched_collections(
+        rec_id: i32,
+        collections: Vec<&ar_collection::Model>,
+        all_items: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
+    ) {
+        for coll in collections {
+            all_items.push(Self::make_collection_recon_item(
+                rec_id, coll, None, ar_status::MATCH_UNMATCHED, None,
+            ));
+        }
+    }
+
+    /// 全部未匹配项（发票+收款）统一标记为 UNMATCHED
+    fn push_all_unmatched(
+        rec_id: i32,
+        unmatched_invoices: Vec<&ar_invoice::Model>,
+        unmatched_collections: &[&ar_collection::Model],
+        all_items: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
+    ) {
+        for inv in unmatched_invoices {
+            all_items.push(Self::make_invoice_recon_item(
+                rec_id, inv, None, ar_status::MATCH_UNMATCHED, None,
+            ));
+        }
+        for coll in unmatched_collections {
+            all_items.push(Self::make_collection_recon_item(
+                rec_id, *coll, None, ar_status::MATCH_UNMATCHED, None,
+            ));
+        }
+    }
+
+    /// 按起始日期分桶：期内发票进 period_invoices，期初未付金额求和为 opening
+    fn bucket_period_and_opening(
+        cust_invoices: Vec<ar_invoice::Model>,
+        start_date: chrono::NaiveDate,
+    ) -> (Vec<ar_invoice::Model>, Decimal) {
+        let mut period_invoices = Vec::new();
+        let mut opening = Decimal::ZERO;
+        for inv in cust_invoices {
+            if inv.invoice_date >= start_date {
+                period_invoices.push(inv);
+            } else {
+                opening += inv.unpaid_amount;
+            }
+        }
+        (period_invoices, opening)
+    }
+
+    /// 构建 auto_match 对账单 ActiveModel（notes 为 None，区别于 reconciliation.rs 同名方法）
+    fn build_match_reconciliation_model(
+        req: &AutoMatchRequest,
+        user_id: i32,
+        cust: &customer::Model,
+        opening_balance: Decimal,
+        total_invoices: Decimal,
+        total_collections: Decimal,
+        closing_balance: Decimal,
+        reconciliation_no: String,
+    ) -> ActiveModel {
+        ActiveModel {
+            id: Default::default(),
+            reconciliation_no: Set(reconciliation_no),
+            reconciliation_date: Set(Utc::now().date_naive()),
+            period_start: Set(req.start_date),
+            period_end: Set(req.end_date),
+            customer_id: Set(cust.id),
+            customer_name: Set(Some(cust.customer_name.clone())),
+            opening_balance: Set(opening_balance),
+            total_invoices: Set(total_invoices),
+            total_collections: Set(total_collections),
+            closing_balance: Set(closing_balance),
+            reconciliation_status: Set(Some(ar_status::RECONCILIATION_DRAFT.to_string())),
+            confirmed_by_customer: Set(None),
+            dispute_reason: Set(None),
+            confirmed_by: Set(None),
+            confirmed_at: Set(None),
+            created_by: Set(Some(user_id)),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            // 批次 109 P1-1：auto_match 无 notes 入参，设为 None
+            notes: Set(None),
+        }
+    }
+
+    /// 策略1 精确金额匹配：金额相等的发票与收款配对，返回 (命中数, 未匹配发票引用)
+    fn run_exact_match_pass<'a>(
+        invoices: &'a [ar_invoice::Model],
+        unmatched_collections: &mut Vec<&ar_collection::Model>,
+        rec_id: i32,
+        all_items: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
+    ) -> (usize, Vec<&'a ar_invoice::Model>) {
+        let mut matched_count = 0;
+        let mut unmatched_invoices = Vec::new();
+        for inv in invoices {
+            let exact_match = unmatched_collections
+                .iter()
+                .position(|c| c.collection_amount == inv.invoice_amount);
+
+            if let Some(idx) = exact_match {
+                let coll = unmatched_collections.remove(idx);
+                all_items.push(Self::make_invoice_recon_item(
+                    rec_id,
+                    inv,
+                    Some(inv.invoice_amount),
+                    "MATCHED",
+                    Some(coll.id),
+                ));
+                all_items.push(Self::make_collection_recon_item(
+                    rec_id,
+                    coll,
+                    Some(coll.collection_amount),
+                    "MATCHED",
+                    Some(inv.id),
+                ));
+                matched_count += 1;
+            } else {
+                unmatched_invoices.push(inv);
+            }
+        }
+        (matched_count, unmatched_invoices)
+    }
+
+    /// 策略2 日期顺序匹配：30 天内日期最近的发票与收款配对，返回命中数
+    fn run_date_order_match_pass(
+        unmatched_invoices: &[&ar_invoice::Model],
+        remaining_collections: &mut Vec<&ar_collection::Model>,
+        rec_id: i32,
+        all_items: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
+    ) -> usize {
+        let mut matched_count = 0;
+        for inv in unmatched_invoices {
+            let date_match = remaining_collections.iter().position(|c| {
+                let date_diff = (c.collection_date - inv.invoice_date).num_days().abs();
+                date_diff <= 30
+            });
+
+            if let Some(idx) = date_match {
+                let coll = remaining_collections.remove(idx);
+                let matched = std::cmp::min(inv.invoice_amount, coll.collection_amount);
+                Self::push_date_order_matched_items(rec_id, inv, coll, matched, all_items);
+                matched_count += 1;
+            } else {
+                all_items.push(Self::make_invoice_recon_item(
+                    rec_id, inv, None, ar_status::MATCH_UNMATCHED, None,
+                ));
+            }
+        }
+        matched_count
+    }
+
+    /// 日期顺序匹配命中后，构建发票+收款两条对账明细并推入 all_items
+    fn push_date_order_matched_items(
+        rec_id: i32,
+        inv: &ar_invoice::Model,
+        coll: &ar_collection::Model,
+        matched: Decimal,
+        all_items: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
+    ) {
+        let inv_status = if matched == inv.invoice_amount {
+            "MATCHED"
+        } else {
+            "PARTIAL"
+        };
+        let coll_status = if matched == coll.collection_amount {
+            "MATCHED"
+        } else {
+            "PARTIAL"
+        };
+        all_items.push(Self::make_invoice_recon_item(
+            rec_id, inv, Some(matched), inv_status, Some(coll.id),
+        ));
+        all_items.push(Self::make_collection_recon_item(
+            rec_id, coll, Some(matched), coll_status, Some(inv.id),
+        ));
+    }
+
+    // ===== auto_match 明细创建辅助（D12 圈复杂度优化，抽取重复构造） =====
+
+    /// 创建发票对账明细 ActiveModel（未插入），统一三种匹配场景的构造
     fn make_invoice_recon_item(
         reconciliation_id: i32,
         inv: &ar_invoice::Model,
@@ -356,12 +467,7 @@ impl ArReconciliationService {
         }
     }
 
-    /// 创建收款对账明细 ActiveModel（未插入）
-    ///
-    /// 统一 auto_match 三种场景的收款明细创建：
-    /// - 精确匹配命中：matched_amount=Some(coll.collection_amount), status=MATCHED
-    /// - 日期顺序匹配命中：matched_amount=Some(matched), status=MATCHED/PARTIAL
-    /// - 未匹配：matched_amount=None, status=UNMATCHED
+    /// 创建收款对账明细 ActiveModel（未插入），统一三种匹配场景的构造
     fn make_collection_recon_item(
         reconciliation_id: i32,
         coll: &ar_collection::Model,

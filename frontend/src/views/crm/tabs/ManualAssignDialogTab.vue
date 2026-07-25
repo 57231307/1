@@ -1,16 +1,15 @@
 <!--
   ManualAssignDialogTab.vue - 客户分配规则 - 手动分配对话框
   来源：原 crm/assignment.vue 中 手动分配对话框
-  拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" title="手动分配客户" width="500px" aria-label="手动分配客户对话框">
+  <el-dialog v-model="visible" :title="t('crmManualAssignDialog.title')" width="500px" :aria-label="t('crmManualAssignDialog.ariaLabel')">
     <p>
-      为客户 <strong>{{ customerName }}</strong> 选择新负责人：
+      {{ t('crmManualAssignDialog.description', { name: customerName }) }}
     </p>
-    <el-form :model="form" label-width="80px" aria-label="手动分配客户表单">
-      <el-form-item label="新负责人">
-        <el-select v-model="form.newOwnerId" placeholder="请选择负责人" filterable>
+    <el-form :model="form" label-width="80px" :aria-label="t('crmManualAssignDialog.formAriaLabel')">
+      <el-form-item :label="t('crmManualAssignDialog.newOwner')">
+        <el-select v-model="form.newOwnerId" :placeholder="t('crmManualAssignDialog.newOwnerPlaceholder')" filterable>
           <el-option
             v-for="user in users"
             :key="user.id"
@@ -19,24 +18,27 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="分配原因">
+      <el-form-item :label="t('crmManualAssignDialog.reason')">
         <el-input v-model="form.reason" type="textarea" :rows="3" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确认</el-button>
+      <el-button @click="visible = false">{{ t('crmManualAssignDialog.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('crmManualAssignDialog.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { User } from '@/api/user'
 import { logger } from '@/utils/logger'
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import { assignCustomer } from '@/api/crm-enhanced'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -77,7 +79,7 @@ watch(visible, val => {
 
 const handleSubmit = async () => {
   if (!props.customerId || !form.newOwnerId) {
-    ElMessage.warning('请选择新负责人')
+    ElMessage.warning(t('crmManualAssignDialog.message.ownerRequired'))
     return
   }
   try {
@@ -88,13 +90,13 @@ const handleSubmit = async () => {
       assign_to: form.newOwnerId,
       reason: form.reason,
     })
-    ElMessage.success('分配成功')
+    ElMessage.success(t('crmManualAssignDialog.message.success'))
     visible.value = false
     emit('submitted')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '分配失败')
-    logger.warn('手动分配失败', err.message)
+    ElMessage.error(err.message || t('crmManualAssignDialog.message.failed'))
+    logger.warn(t('crmManualAssignDialog.message.failed'), err.message)
   } finally {
     submitLoading.value = false
   }

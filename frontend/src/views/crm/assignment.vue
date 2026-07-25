@@ -1,65 +1,60 @@
 <!--
   crm/assignment.vue - 客户分配规则主入口
-  ----------------------------------------------------------------
-  拆分说明（2026-06-15 B3-3）：
-  原 400+ 行"上帝组件"已拆分为：
-  - tabs/RuleDialogTab.vue - 新建/编辑规则对话框
-  - tabs/ManualAssignDialogTab.vue - 手动分配对话框
-
+  拆分：tabs/RuleDialogTab.vue / tabs/ManualAssignDialogTab.vue
   本主入口承担：列表 + 工具栏 + 公共样式。
 -->
 <template>
   <div class="assignment-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">客户分配规则</h1>
+        <h1 class="page-title">{{ t('crmAssignment.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>CRM</el-breadcrumb-item>
-          <el-breadcrumb-item>分配规则</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ t('crmAssignment.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('crmAssignment.breadcrumb.crm') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('crmAssignment.breadcrumb.assignment') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="openCreateRuleDialog">
           <el-icon><Plus /></el-icon>
-          新建规则
+          {{ t('crmAssignment.createRule') }}
         </el-button>
       </div>
     </div>
 
     <el-tabs v-model="activeTab" class="assignment-tabs">
-      <el-tab-pane label="分配规则" name="rules">
+      <el-tab-pane :label="t('crmAssignment.tabs.rules')" name="rules">
         <el-card shadow="hover">
-          <el-table v-loading="ruleLoading" :data="ruleList" border stripe aria-label="分配规则列表">
-            <el-table-column type="index" label="序号" width="60" align="center" />
-            <el-table-column prop="name" label="规则名称" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="strategy" label="分配策略" width="120" align="center">
+          <el-table v-loading="ruleLoading" :data="ruleList" border stripe :aria-label="t('crmAssignment.ruleTable.ariaLabel')">
+            <el-table-column type="index" :label="t('crmAssignment.ruleTable.index')" width="60" align="center" />
+            <el-table-column prop="name" :label="t('crmAssignment.ruleTable.name')" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="strategy" :label="t('crmAssignment.ruleTable.strategy')" width="120" align="center">
               <template #default="{ row }">
                 <el-tag>{{ getStrategyLabel(row.strategy) }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column
               prop="user_names"
-              label="分配对象"
+              :label="t('crmAssignment.ruleTable.assignees')"
               min-width="200"
               show-overflow-tooltip
             />
-            <el-table-column prop="priority" label="优先级" width="100" align="center" />
-            <el-table-column prop="enabled" label="状态" width="100" align="center">
+            <el-table-column prop="priority" :label="t('crmAssignment.ruleTable.priority')" width="100" align="center" />
+            <el-table-column prop="enabled" :label="t('crmAssignment.ruleTable.status')" width="100" align="center">
               <template #default="{ row }">
-                <el-tag v-if="row.enabled" type="success">启用</el-tag>
-                <el-tag v-else type="info">禁用</el-tag>
+                <el-tag v-if="row.enabled" type="success">{{ t('crmAssignment.ruleTable.enabled') }}</el-tag>
+                <el-tag v-else type="info">{{ t('crmAssignment.ruleTable.disabled') }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="updated_at" label="更新时间" width="160" align="center" />
-            <el-table-column label="操作" width="200" align="center" fixed="right">
+            <el-table-column prop="updated_at" :label="t('crmAssignment.ruleTable.updatedAt')" width="160" align="center" />
+            <el-table-column :label="t('crmAssignment.ruleTable.operation')" width="200" align="center" fixed="right">
               <template #default="{ row }">
                 <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
                 <el-button v-permission="'crm_assignment:update'" type="primary" link size="small" @click="openEditRuleDialog(row)"
-                  >编辑</el-button
+                  >{{ t('crmAssignment.ruleTable.edit') }}</el-button
                 >
                 <el-button v-permission="'crm_assignment:delete'" type="danger" link size="small" @click="handleDeleteRule(row)"
-                  >删除</el-button
+                  >{{ t('crmAssignment.ruleTable.delete') }}</el-button
                 >
               </template>
             </el-table-column>
@@ -67,50 +62,50 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane label="手动分配" name="manual">
+      <el-tab-pane :label="t('crmAssignment.tabs.manual')" name="manual">
         <el-card shadow="hover">
           <div class="toolbar">
-            <el-form :inline="true" :model="assignQuery" class="filter-form" aria-label="待分配客户筛选表单">
-              <el-form-item label="关键词">
+            <el-form :inline="true" :model="assignQuery" class="filter-form" :aria-label="t('crmAssignment.manualFilter.ariaLabel')">
+              <el-form-item :label="t('crmAssignment.manualFilter.keyword')">
                 <el-input
                   v-model="assignQuery.keyword"
-                  placeholder="客户名称/联系人"
+                  :placeholder="t('crmAssignment.manualFilter.keywordPlaceholder')"
                   clearable
                   @clear="fetchAssignableCustomers"
                   @keyup.enter="fetchAssignableCustomers"
                 />
               </el-form-item>
               <el-form-item>
-                <el-button type="primary" @click="fetchAssignableCustomers">查询</el-button>
+                <el-button type="primary" @click="fetchAssignableCustomers">{{ t('crmAssignment.manualFilter.query') }}</el-button>
               </el-form-item>
             </el-form>
           </div>
 
-          <el-table v-loading="assignLoading" :data="assignableCustomers" border stripe aria-label="待分配客户列表">
-            <el-table-column type="index" label="序号" width="60" align="center" />
+          <el-table v-loading="assignLoading" :data="assignableCustomers" border stripe :aria-label="t('crmAssignment.manualTable.ariaLabel')">
+            <el-table-column type="index" :label="t('crmAssignment.manualTable.index')" width="60" align="center" />
             <el-table-column
               prop="customer_name"
-              label="客户名称"
+              :label="t('crmAssignment.manualTable.customerName')"
               min-width="150"
               show-overflow-tooltip
             />
             <el-table-column
               prop="contact_person"
-              label="联系人"
+              :label="t('crmAssignment.manualTable.contactPerson')"
               width="100"
               show-overflow-tooltip
             />
-            <el-table-column prop="phone" label="电话" width="120" show-overflow-tooltip />
+            <el-table-column prop="phone" :label="t('crmAssignment.manualTable.phone')" width="120" show-overflow-tooltip />
             <el-table-column
               prop="owner_name"
-              label="当前负责人"
+              :label="t('crmAssignment.manualTable.currentOwner')"
               width="100"
               show-overflow-tooltip
             />
-            <el-table-column label="操作" width="120" align="center" fixed="right">
+            <el-table-column :label="t('crmAssignment.manualTable.operation')" width="120" align="center" fixed="right">
               <template #default="{ row }">
                 <el-button type="primary" link size="small" @click="openAssignDialog(row)"
-                  >分配</el-button
+                  >{{ t('crmAssignment.manualTable.assign') }}</el-button
                 >
               </template>
             </el-table-column>
@@ -139,6 +134,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getUserList, type User } from '@/api/user'
@@ -148,6 +144,8 @@ import { logger } from '@/utils/logger'
 import { getRecycleRuleList, getCustomerPoolList, type AssignableCustomer } from '@/api/crm-enhanced'
 import RuleDialogTab from './tabs/RuleDialogTab.vue'
 import ManualAssignDialogTab from './tabs/ManualAssignDialogTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const hasLoaded = createLazyLoader()
 
@@ -172,7 +170,7 @@ interface RuleRow {
 }
 
 const ruleDialogVisible = ref(false)
-const ruleDialogTitle = ref('新建规则')
+const ruleDialogTitle = ref('')
 const currentRuleRow = ref<RuleRow | null>(null)
 const assignDialogVisible = ref(false)
 const currentCustomerId = ref<number | null>(null)
@@ -187,7 +185,7 @@ const fetchRules = async () => {
     ruleList.value = (res.data ?? res) as unknown as RuleRow[]
   } catch (error) {
     const err = error as Error
-    logger.warn('获取分配规则失败', err.message)
+    logger.warn(t('crmAssignment.message.loadRulesFailed'), err.message)
   } finally {
     ruleLoading.value = false
   }
@@ -201,7 +199,7 @@ const fetchAssignableCustomers = async () => {
     assignableCustomers.value = (res.data?.list ?? res.data) as AssignableCustomer[]
   } catch (error) {
     const err = error as Error
-    logger.warn('获取可分配客户失败', err.message)
+    logger.warn(t('crmAssignment.message.loadAssignableFailed'), err.message)
   } finally {
     assignLoading.value = false
   }
@@ -218,13 +216,13 @@ const fetchUsers = async () => {
 
 const openCreateRuleDialog = () => {
   currentRuleRow.value = null
-  ruleDialogTitle.value = '新建规则'
+  ruleDialogTitle.value = t('crmAssignment.ruleDialogTitle.create')
   ruleDialogVisible.value = true
 }
 
 const openEditRuleDialog = (row: RuleRow) => {
   currentRuleRow.value = row
-  ruleDialogTitle.value = '编辑规则'
+  ruleDialogTitle.value = t('crmAssignment.ruleDialogTitle.edit')
   ruleDialogVisible.value = true
 }
 
@@ -236,25 +234,25 @@ const openAssignDialog = (row: { id: number; customer_name: string }) => {
 
 const handleDeleteRule = async (row: { id: number; name: string }) => {
   try {
-    await ElMessageBox.confirm(`确定删除规则 "${row.name}" 吗？`, '删除确认', {
+    await ElMessageBox.confirm(t('crmAssignment.message.deleteConfirm', { name: row.name }), t('crmAssignment.message.deleteTitle'), {
       type: 'warning',
     })
-    ElMessage.success('删除成功')
+    ElMessage.success(t('crmAssignment.message.deleteSuccess'))
     fetchRules()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('crmAssignment.message.deleteFailed'))
     }
   }
 }
 
 const getStrategyLabel = (strategy: string) => {
   const labelMap: Record<string, string> = {
-    average: '平均分配',
-    region: '按地域分配',
-    industry: '按行业分配',
-    scale: '按客户规模',
+    average: t('crmAssignment.strategy.average'),
+    region: t('crmAssignment.strategy.region'),
+    industry: t('crmAssignment.strategy.industry'),
+    scale: t('crmAssignment.strategy.scale'),
   }
   return labelMap[strategy] || strategy
 }

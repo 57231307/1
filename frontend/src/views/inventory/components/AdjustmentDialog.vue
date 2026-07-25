@@ -9,54 +9,58 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="库存调整"
+    :title="t('inventory.adjustmentDialog.title')"
     width="500px"
     :close-on-click-modal="false"
-    aria-label="库存调整对话框"
+    :aria-label="t('inventory.adjustmentDialog.ariaLabel')"
     @update:model-value="onClose"
   >
-    <el-form :model="localForm" label-width="100px" aria-label="库存调整表单">
-      <el-form-item v-if="localForm.product_name" label="产品">
+    <el-form :model="localForm" label-width="100px" :aria-label="t('inventory.adjustmentDialog.formAria')">
+      <el-form-item v-if="localForm.product_name" :label="t('inventory.adjustmentDialog.product')">
         <el-input :value="localForm.product_name" disabled />
       </el-form-item>
-      <el-form-item v-if="localForm.warehouse_name" label="仓库">
+      <el-form-item v-if="localForm.warehouse_name" :label="t('inventory.adjustmentDialog.warehouse')">
         <el-input :value="localForm.warehouse_name" disabled />
       </el-form-item>
-      <el-form-item v-if="localForm.current_quantity" label="当前库存">
+      <el-form-item v-if="localForm.current_quantity" :label="t('inventory.adjustmentDialog.currentQty')">
         <el-input :value="localForm.current_quantity" disabled />
       </el-form-item>
-      <el-form-item label="调整类型">
+      <el-form-item :label="t('inventory.adjustmentDialog.adjustType')">
         <el-radio-group v-model="localForm.adjustment_type">
-          <el-radio value="increase">增加</el-radio>
-          <el-radio value="decrease">减少</el-radio>
+          <el-radio value="increase">{{ t('inventory.adjustmentDialog.typeIncrease') }}</el-radio>
+          <el-radio value="decrease">{{ t('inventory.adjustmentDialog.typeDecrease') }}</el-radio>
         </el-radio-group>
       </el-form-item>
-      <el-form-item label="调整数量">
+      <el-form-item :label="t('inventory.adjustmentDialog.adjustQty')">
         <el-input-number
           v-model="localForm.adjustment_quantity"
           :min="1"
           style="width: 100%"
         />
       </el-form-item>
-      <el-form-item label="调整原因">
+      <el-form-item :label="t('inventory.adjustmentDialog.reason')">
         <el-input
           v-model="localForm.reason"
           type="textarea"
           :rows="3"
-          placeholder="请输入调整原因"
+          :placeholder="t('inventory.adjustmentDialog.reasonPlaceholder')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="onClose(false)">取消</el-button>
-      <el-button type="primary" @click="onSubmit">确定</el-button>
+      <el-button @click="onClose(false)">{{ t('inventory.adjustmentDialog.cancel') }}</el-button>
+      <el-button type="primary" @click="onSubmit">{{ t('inventory.adjustmentDialog.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { deepClone } from '@/utils'
 import { reactive, watch } from 'vue'
+
+// 接入 i18n，替换硬编码中文文案
+const { t } = useI18n({ useScope: 'global' })
 
 // 库存调整表单数据结构（字段与 inventory 父组件 initialForm 保持一致）
 export interface AdjustmentForm {

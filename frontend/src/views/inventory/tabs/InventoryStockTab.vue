@@ -6,19 +6,19 @@
 <template>
   <div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="localQuery" class="filter-form" aria-label="库存台账筛选表单">
-        <el-form-item label="关键词">
+      <el-form :inline="true" :model="localQuery" class="filter-form" :aria-label="t('inventory.stockTab.filterAria')">
+        <el-form-item :label="t('inventory.stockTab.keyword')">
           <el-input
             v-model="localQuery.keyword"
-            placeholder="产品编码/名称"
+            :placeholder="t('inventory.stockTab.keywordPlaceholder')"
             clearable
             @clear="emit('query')"
           />
         </el-form-item>
-        <el-form-item label="仓库">
+        <el-form-item :label="t('inventory.stockTab.warehouse')">
           <el-select
             v-model="localQuery.warehouse_id"
-            placeholder="选择仓库"
+            :placeholder="t('inventory.stockTab.warehousePlaceholder')"
             clearable
             @change="emit('query')"
           >
@@ -30,26 +30,26 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="t('inventory.stockTab.status')">
           <el-select
             v-model="localQuery.status"
-            placeholder="选择状态"
+            :placeholder="t('inventory.stockTab.statusPlaceholder')"
             clearable
             @change="emit('query')"
           >
-            <el-option label="正常" value="normal" />
-            <el-option label="预警" value="warning" />
-            <el-option label="冻结" value="frozen" />
+            <el-option :label="t('inventory.stockTab.statusNormal')" value="normal" />
+            <el-option :label="t('inventory.stockTab.statusWarning')" value="warning" />
+            <el-option :label="t('inventory.stockTab.statusFrozen')" value="frozen" />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="emit('query')">
             <el-icon><Search /></el-icon>
-            查询
+            {{ t('inventory.stockTab.query') }}
           </el-button>
           <el-button @click="emit('reset')">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ t('inventory.stockTab.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -74,12 +74,16 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import V2Table from '@/components/V2Table/index.vue'
 import { useTableColumns } from '@/composables/useTableColumns'
 // v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
 import type { InventoryStock } from '@/api/inventory'
 import type { Warehouse } from '@/api/warehouse'
+
+// 接入 i18n，替换硬编码中文文案
+const { t } = useI18n({ useScope: 'global' })
 
 export interface StockQuery {
   page: number
@@ -114,36 +118,37 @@ watch(
   { deep: true }
 )
 
+// 状态标签映射函数化响应式求值
 const getStatusText = (status: string) => {
   const textMap: Record<string, string> = {
-    normal: '正常',
-    warning: '预警',
-    frozen: '冻结',
+    normal: t('inventory.stockTab.statusNormal'),
+    warning: t('inventory.stockTab.statusWarning'),
+    frozen: t('inventory.stockTab.statusFrozen'),
   }
   return textMap[status] || status
 }
 
 const { columns: stockColumns } = useTableColumns<InventoryStock>([
-  { key: 'product_code', title: '产品编码', width: 140, sortable: true },
-  { key: 'product_name', title: '产品名称', width: 200 },
-  { key: 'warehouse_name', title: '仓库', width: 120 },
-  { key: 'batch_no', title: '批次号', width: 120 },
-  { key: 'color_code', title: '颜色编码', width: 100 },
+  { key: 'product_code', title: t('inventory.stockTab.colProductCode'), width: 140, sortable: true },
+  { key: 'product_name', title: t('inventory.stockTab.colProductName'), width: 200 },
+  { key: 'warehouse_name', title: t('inventory.stockTab.colWarehouse'), width: 120 },
+  { key: 'batch_no', title: t('inventory.stockTab.colBatchNo'), width: 120 },
+  { key: 'color_code', title: t('inventory.stockTab.colColorCode'), width: 100 },
   {
     key: 'quantity',
-    title: '库存数量',
+    title: t('inventory.stockTab.colQuantity'),
     width: 120,
     align: 'right',
     formatter: (row: InventoryStock) => (row.quantity != null ? row.quantity.toLocaleString() : '-'),
   },
   {
     key: 'status',
-    title: '状态',
+    title: t('inventory.stockTab.colStatus'),
     width: 100,
     align: 'center',
     formatter: (row: InventoryStock) => getStatusText(row.status),
   },
-  { key: 'location', title: '库位', width: 100 },
+  { key: 'location', title: t('inventory.stockTab.colLocation'), width: 100 },
 ])
 
 const handlePageChange = (newPage: number) => {

@@ -66,7 +66,7 @@ interface ApiResponse<T> {
 /**
  * 分页查询慢查询日志
  */
-export async function listSlowQueries(
+export async function getSlowQueryList(
   params: SlowQueryListParams = {},
 ): Promise<SlowQueryListResponse> {
   const res = await request.get<ApiResponse<SlowQueryListResponse>>('/slow-queries', { params })

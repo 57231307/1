@@ -378,7 +378,20 @@ pub fn fund_management() -> Router<AppState> {
 }
 
 /// AP 应付账款路由（path 前缀 /ap）
+///
+/// 主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
 pub fn ap() -> Router<AppState> {
+    Router::new()
+        .merge(ap_invoice_routes())
+        .merge(ap_payment_routes())
+        .merge(ap_payment_request_routes())
+        .merge(ap_verification_routes())
+        .merge(ap_reconciliation_routes())
+        .merge(ap_report_routes())
+}
+
+/// AP 应付发票路由（path 前缀 /ap/invoices）
+fn ap_invoice_routes() -> Router<AppState> {
     Router::new()
         .route("/ap/invoices", get(ap_invoice_handler::list_ap_invoices))
         .route("/ap/invoices", post(ap_invoice_handler::create_ap_invoice))
@@ -420,6 +433,11 @@ pub fn ap() -> Router<AppState> {
             "/ap/invoices/statistics",
             get(ap_invoice_handler::get_statistics),
         )
+}
+
+/// AP 付款路由（path 前缀 /ap/payments）
+fn ap_payment_routes() -> Router<AppState> {
+    Router::new()
         .route("/ap/payments", get(ap_payment_handler::list_payments))
         .route("/ap/payments", post(ap_payment_handler::create_payment))
         .route("/ap/payments/:id", get(ap_payment_handler::get_payment))
@@ -428,6 +446,11 @@ pub fn ap() -> Router<AppState> {
             "/ap/payments/:id/confirm",
             post(ap_payment_handler::confirm_payment),
         )
+}
+
+/// AP 付款申请路由（path 前缀 /ap/payment-requests）
+fn ap_payment_request_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/ap/payment-requests",
             get(ap_payment_request_handler::list_requests),
@@ -460,6 +483,11 @@ pub fn ap() -> Router<AppState> {
             "/ap/payment-requests/:id/reject",
             post(ap_payment_request_handler::reject_request),
         )
+}
+
+/// AP 核销路由（path 前缀 /ap/verifications）
+fn ap_verification_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/ap/verifications",
             get(ap_verification_handler::list_verifications),
@@ -488,6 +516,11 @@ pub fn ap() -> Router<AppState> {
             "/ap/verifications/unverified/payments",
             get(ap_verification_handler::get_unverified_payments),
         )
+}
+
+/// AP 对账路由（path 前缀 /ap/reconciliations 与 /ap/invoices/:id/relations）
+fn ap_reconciliation_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/ap/reconciliations",
             get(ap_reconciliation_handler::list_reconciliations),
@@ -520,6 +553,11 @@ pub fn ap() -> Router<AppState> {
             "/ap/invoices/:id/relations",
             get(ap_reconciliation_handler::get_invoice_relations),
         )
+}
+
+/// AP 报表路由（path 前缀 /ap/reports）
+fn ap_report_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/ap/reports/statistics",
             get(ap_report_handler::get_statistics_report),

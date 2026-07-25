@@ -1,81 +1,75 @@
 <!--
   crm/pool.vue - 客户公海池主入口
-  ----------------------------------------------------------------
-  拆分说明（2026-06-15 B3-3）：
-  原 485 行"上帝组件"已拆分为：
-  - tabs/ClaimDialogTab.vue - 领取对话框
-  - tabs/TransferDialogTab.vue - 分配对话框
-  - tabs/ReleaseDialogTab.vue - 释放对话框
-
+  拆分：tabs/ClaimDialogTab.vue / tabs/TransferDialogTab.vue / tabs/ReleaseDialogTab.vue
   本主入口承担：列表 + 工具栏 + 公共样式。
 -->
 <template>
   <div class="pool-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">客户公海池</h1>
+        <h1 class="page-title">{{ t('crmPool.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>CRM</el-breadcrumb-item>
-          <el-breadcrumb-item>公海池</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ t('crmPool.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('crmPool.breadcrumb.crm') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('crmPool.breadcrumb.pool') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="handleClaimSelected">
           <el-icon><Plus /></el-icon>
-          批量领取
+          {{ t('crmPool.batchClaim') }}
         </el-button>
         <el-button @click="router.push('/crm')">
           <el-icon><Back /></el-icon>
-          返回客户列表
+          {{ t('crmPool.back') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="公海客户筛选表单">
-        <el-form-item label="关键词">
+      <el-form :inline="true" :model="queryParams" class="filter-form" :aria-label="t('crmPool.filter.ariaLabel')">
+        <el-form-item :label="t('crmPool.filter.keyword')">
           <el-input
             v-model="queryParams.keyword"
-            placeholder="客户名称/联系人/电话"
+            :placeholder="t('crmPool.filter.keywordPlaceholder')"
             clearable
             @clear="handleQuery"
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="客户类型">
+        <el-form-item :label="t('crmPool.filter.customerType')">
           <el-select
             v-model="queryParams.customer_type"
-            placeholder="选择类型"
+            :placeholder="t('crmPool.filter.customerTypePlaceholder')"
             clearable
             @change="handleQuery"
           >
-            <el-option label="普通客户" value="normal" />
-            <el-option label="VIP客户" value="vip" />
-            <el-option label="批发客户" value="wholesale" />
+            <el-option :label="t('crmPool.customerType.normal')" value="normal" />
+            <el-option :label="t('crmPool.customerType.vip')" value="vip" />
+            <el-option :label="t('crmPool.customerType.wholesale')" value="wholesale" />
           </el-select>
         </el-form-item>
-        <el-form-item label="在池天数">
+        <el-form-item :label="t('crmPool.filter.daysInPool')">
           <el-select
             v-model="queryParams.daysInPool"
-            placeholder="选择天数"
+            :placeholder="t('crmPool.filter.daysInPoolPlaceholder')"
             clearable
             @change="handleQuery"
           >
-            <el-option label="1周内" value="7" />
-            <el-option label="1月内" value="30" />
-            <el-option label="3月内" value="90" />
-            <el-option label="3月以上" value="91" />
+            <el-option :label="t('crmPool.filter.daysWithinWeek')" value="7" />
+            <el-option :label="t('crmPool.filter.daysWithinMonth')" value="30" />
+            <el-option :label="t('crmPool.filter.daysWithinQuarter')" value="90" />
+            <el-option :label="t('crmPool.filter.daysOverQuarter')" value="91" />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ t('crmPool.filter.query') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ t('crmPool.filter.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -87,48 +81,48 @@
         :data="poolList"
         border
         stripe
-        aria-label="公海客户列表"
+        :aria-label="t('crmPool.table.ariaLabel')"
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column type="index" :label="t('crmPool.table.index')" width="60" align="center" />
         <el-table-column
           prop="customer_name"
-          label="客户名称"
+          :label="t('crmPool.table.customerName')"
           min-width="150"
           show-overflow-tooltip
         />
-        <el-table-column prop="contact_person" label="联系人" width="100" show-overflow-tooltip />
-        <el-table-column prop="phone" label="电话" width="120" show-overflow-tooltip />
-        <el-table-column prop="customer_type" label="类型" width="100" align="center">
+        <el-table-column prop="contact_person" :label="t('crmPool.table.contactPerson')" width="100" show-overflow-tooltip />
+        <el-table-column prop="phone" :label="t('crmPool.table.phone')" width="120" show-overflow-tooltip />
+        <el-table-column prop="customer_type" :label="t('crmPool.table.type')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getCustomerTypeTag(row.customer_type)" size="small">
               {{ getCustomerTypeLabel(row.customer_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="released_at" label="入池时间" width="160" align="center" />
-        <el-table-column prop="released_by_name" label="释放人" width="100" show-overflow-tooltip />
-        <el-table-column prop="days_in_pool" label="在池天数" width="100" align="center">
+        <el-table-column prop="released_at" :label="t('crmPool.table.releasedAt')" width="160" align="center" />
+        <el-table-column prop="released_by_name" :label="t('crmPool.table.releasedBy')" width="100" show-overflow-tooltip />
+        <el-table-column prop="days_in_pool" :label="t('crmPool.table.daysInPool')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getDaysTag(row.days_in_pool)" size="small">
-              {{ row.days_in_pool }} 天
+              {{ row.days_in_pool }} {{ t('crmPool.table.daysUnit') }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column
           prop="release_reason"
-          label="释放原因"
+          :label="t('crmPool.table.releaseReason')"
           min-width="150"
           show-overflow-tooltip
         />
-        <el-table-column label="操作" width="240" align="center" fixed="right">
+        <el-table-column :label="t('crmPool.table.operation')" width="240" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openClaimDialog(row)"
-              >领取</el-button
+              >{{ t('crmPool.table.claim') }}</el-button
             >
             <el-button type="primary" link size="small" @click="openTransferDialog(row)"
-              >分配</el-button
+              >{{ t('crmPool.table.transfer') }}</el-button
             >
             <el-button
               v-if="row.previous_owner_id"
@@ -136,7 +130,7 @@
               link
               size="small"
               @click="openReleaseDialog(row)"
-              >重新释放</el-button
+              >{{ t('crmPool.table.release') }}</el-button
             >
           </template>
         </el-table-column>
@@ -149,7 +143,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="公海客户列表分页"
+          :aria-label="t('crmPool.table.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
         />
@@ -183,6 +177,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Plus, Back, Search, Refresh } from '@element-plus/icons-vue'
 import { getUserList, type User } from '@/api/user'
@@ -193,6 +188,8 @@ import { useTableApi } from '@/composables/useTableApi'
 import ClaimDialogTab from './tabs/ClaimDialogTab.vue'
 import TransferDialogTab from './tabs/TransferDialogTab.vue'
 import ReleaseDialogTab from './tabs/ReleaseDialogTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const hasLoaded = createLazyLoader()
 
@@ -214,7 +211,7 @@ const {
   setQueryParam,
 } = useTableApi<PoolCustomer>({
   url: '/crm/pool',
-  onError: (e: unknown) => logger.warn('加载公海池列表失败', String(e)),
+  onError: (e: unknown) => logger.warn(t('crmPool.message.loadFailed'), String(e)),
 })
 
 const users = ref<User[]>([])
@@ -267,7 +264,7 @@ const openReleaseDialog = (row: { id: number; customer_name: string }) => {
 }
 
 const handleClaimSelected = () => {
-  ElMessage.info('请勾选需要领取的客户')
+  ElMessage.info(t('crmPool.message.selectToClaim'))
 }
 
 const handleSelectionChange = () => {
@@ -285,9 +282,9 @@ const handleCurrentChange = (val: number) => {
 
 const getCustomerTypeLabel = (type: string) => {
   const labelMap: Record<string, string> = {
-    normal: '普通客户',
-    vip: 'VIP客户',
-    wholesale: '批发客户',
+    normal: t('crmPool.customerType.normal'),
+    vip: t('crmPool.customerType.vip'),
+    wholesale: t('crmPool.customerType.wholesale'),
   }
   return labelMap[type] || type
 }

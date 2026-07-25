@@ -1,7 +1,7 @@
 <template>
   <div class="user-profile-page">
     <div class="header">
-      <h2>个人中心</h2>
+      <h2>{{ t('userProfile.title') }}</h2>
     </div>
 
     <div class="content">
@@ -10,9 +10,9 @@
         <el-card class="profile-card">
           <template #header>
             <div class="card-header">
-              <span>个人信息</span>
+              <span>{{ t('userProfile.profile.title') }}</span>
               <el-button type="primary" :loading="profileLoading" @click="handleSaveProfile">
-                保存修改
+                {{ t('userProfile.profile.save') }}
               </el-button>
             </div>
           </template>
@@ -31,11 +31,11 @@
                   v-if="profileForm.avatar"
                   :src="profileForm.avatar"
                   class="avatar"
-                  :alt="profileForm.real_name ? `${profileForm.real_name}的头像` : '用户头像'"
+                  :alt="profileForm.real_name ? t('userProfile.profile.avatarAlt', { name: profileForm.real_name }) : t('userProfile.profile.avatarAltDefault')"
                 />
                 <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
               </el-upload>
-              <div class="avatar-tip">点击上传头像</div>
+              <div class="avatar-tip">{{ t('userProfile.profile.avatarTip') }}</div>
             </div>
 
             <!-- 个人信息表单 -->
@@ -45,24 +45,24 @@
               :rules="profileRules"
               label-width="100px"
               class="profile-form"
-              aria-label="用户资料表单"
+              :aria-label="t('userProfile.profile.formAriaLabel')"
             >
-              <el-form-item label="用户名">
+              <el-form-item :label="t('userProfile.profile.username')">
                 <el-input v-model="profileForm.username" disabled />
               </el-form-item>
-              <el-form-item label="姓名" prop="real_name">
-                <el-input v-model="profileForm.real_name" placeholder="请输入姓名" />
+              <el-form-item :label="t('userProfile.profile.realName')" prop="real_name">
+                <el-input v-model="profileForm.real_name" :placeholder="t('userProfile.profile.realNamePlaceholder')" />
               </el-form-item>
-              <el-form-item label="邮箱" prop="email">
-                <el-input v-model="profileForm.email" placeholder="请输入邮箱" />
+              <el-form-item :label="t('userProfile.profile.email')" prop="email">
+                <el-input v-model="profileForm.email" :placeholder="t('userProfile.profile.emailPlaceholder')" />
               </el-form-item>
-              <el-form-item label="手机号" prop="phone">
-                <el-input v-model="profileForm.phone" placeholder="请输入手机号" />
+              <el-form-item :label="t('userProfile.profile.phone')" prop="phone">
+                <el-input v-model="profileForm.phone" :placeholder="t('userProfile.profile.phonePlaceholder')" />
               </el-form-item>
-              <el-form-item label="部门">
+              <el-form-item :label="t('userProfile.profile.department')">
                 <el-input v-model="profileForm.department_name" disabled />
               </el-form-item>
-              <el-form-item label="角色">
+              <el-form-item :label="t('userProfile.profile.role')">
                 <el-input :value="profileForm.role_names?.join(', ')" disabled />
               </el-form-item>
             </el-form>
@@ -73,7 +73,7 @@
         <el-card class="security-card">
           <template #header>
             <div class="card-header">
-              <span>安全设置</span>
+              <span>{{ t('userProfile.security.title') }}</span>
             </div>
           </template>
           <div class="security-actions">
@@ -83,7 +83,7 @@
               class="security-action-btn"
               @click="goTo2fa"
             >
-              2FA 设置
+              {{ t('userProfile.security.twofa') }}
             </el-button>
             <el-button
               type="primary"
@@ -91,7 +91,7 @@
               class="security-action-btn"
               @click="goToChangePwd"
             >
-              修改密码
+              {{ t('userProfile.security.changePassword') }}
             </el-button>
           </div>
         </el-card>
@@ -101,9 +101,9 @@
       <el-card class="password-card">
         <template #header>
           <div class="card-header">
-            <span>修改密码</span>
+            <span>{{ t('userProfile.password.title') }}</span>
             <el-button type="primary" :loading="passwordLoading" @click="handleChangePassword">
-              修改密码
+              {{ t('userProfile.password.button') }}
             </el-button>
           </div>
         </template>
@@ -114,29 +114,29 @@
           :rules="passwordRules"
           label-width="100px"
           class="password-form"
-          aria-label="修改密码表单"
+          :aria-label="t('userProfile.password.formAriaLabel')"
         >
-          <el-form-item label="原密码" prop="old_password">
+          <el-form-item :label="t('userProfile.password.oldPassword')" prop="old_password">
             <el-input
               v-model="passwordForm.old_password"
               type="password"
-              placeholder="请输入原密码"
+              :placeholder="t('userProfile.password.oldPasswordPlaceholder')"
               show-password
             />
           </el-form-item>
-          <el-form-item label="新密码" prop="new_password">
+          <el-form-item :label="t('userProfile.password.newPassword')" prop="new_password">
             <el-input
               v-model="passwordForm.new_password"
               type="password"
-              placeholder="请输入新密码"
+              :placeholder="t('userProfile.password.newPasswordPlaceholder')"
               show-password
             />
           </el-form-item>
-          <el-form-item label="确认密码" prop="confirm_password">
+          <el-form-item :label="t('userProfile.password.confirmPassword')" prop="confirm_password">
             <el-input
               v-model="passwordForm.confirm_password"
               type="password"
-              placeholder="请再次输入新密码"
+              :placeholder="t('userProfile.password.confirmPasswordPlaceholder')"
               show-password
             />
           </el-form-item>
@@ -148,6 +148,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules, FormItemRule, UploadFile } from 'element-plus'
@@ -162,6 +163,7 @@ import {
   type ChangePasswordRequest,
 } from '@/api/user-profile'
 
+const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()
 
 /** 跳转到 2FA 设置页 */
@@ -202,23 +204,23 @@ const passwordForm = reactive<ChangePasswordRequest>({
 })
 
 const profileRules: FormRules = {
-  real_name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: ['blur', 'change'] }],
-  phone: [{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }],
+  real_name: [{ required: true, message: t('userProfile.validation.realNameRequired'), trigger: 'blur' }],
+  email: [{ type: 'email', message: t('userProfile.validation.emailPattern'), trigger: ['blur', 'change'] }],
+  phone: [{ pattern: /^1[3-9]\d{9}$/, message: t('userProfile.validation.phonePattern'), trigger: 'blur' }],
 }
 
 const passwordRules: FormRules = {
-  old_password: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  old_password: [{ required: true, message: t('userProfile.validation.oldPasswordRequired'), trigger: 'blur' }],
   new_password: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' },
+    { required: true, message: t('userProfile.validation.newPasswordRequired'), trigger: 'blur' },
+    { min: 6, message: t('userProfile.validation.newPasswordMinLength'), trigger: 'blur' },
   ],
   confirm_password: [
-    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    { required: true, message: t('userProfile.validation.confirmPasswordRequired'), trigger: 'blur' },
     {
       validator: ((_rule: unknown, value: string, callback: (error?: Error) => void) => {
         if (value !== passwordForm.new_password) {
-          callback(new Error('两次输入的密码不一致'))
+          callback(new Error(t('userProfile.validation.passwordMismatch')))
         } else {
           callback()
         }
@@ -236,7 +238,7 @@ const loadUserProfile = async () => {
     }
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '加载个人信息失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('userProfile.message.loadProfileFailed'))
   }
 }
 
@@ -245,11 +247,11 @@ const beforeAvatarUpload = (file: File) => {
   const isLt2M = file.size / 1024 / 1024 < 2
 
   if (!isImage) {
-    ElMessage.error('只能上传图片文件!')
+    ElMessage.error(t('userProfile.message.avatarTypeInvalid'))
     return false
   }
   if (!isLt2M) {
-    ElMessage.error('头像图片大小不能超过 2MB!')
+    ElMessage.error(t('userProfile.message.avatarSizeExceeded'))
     return false
   }
   return true
@@ -262,11 +264,11 @@ const handleAvatarChange = async (uploadFile: UploadFile) => {
     const res = await uploadAvatar(uploadFile.raw)
     if (res.data?.avatar_url) {
       profileForm.avatar = res.data.avatar_url
-      ElMessage.success('头像上传成功')
+      ElMessage.success(t('userProfile.message.avatarUploadSuccess'))
     }
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '头像上传失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('userProfile.message.avatarUploadFailed'))
   }
 }
 
@@ -286,10 +288,10 @@ const handleSaveProfile = async () => {
         role_ids: profileForm.role_ids,
       }
       await updateUserProfile(updateData)
-      ElMessage.success('个人信息保存成功')
+      ElMessage.success(t('userProfile.message.profileSaveSuccess'))
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '保存失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('userProfile.message.profileSaveFailed'))
     } finally {
       profileLoading.value = false
     }
@@ -305,12 +307,12 @@ const handleChangePassword = async () => {
     passwordLoading.value = true
     try {
       await changePassword(passwordForm)
-      ElMessage.success('密码修改成功')
+      ElMessage.success(t('userProfile.message.passwordChangeSuccess'))
       // 清空表单
       passwordFormRef.value?.resetFields()
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '密码修改失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('userProfile.message.passwordChangeFailed'))
     } finally {
       passwordLoading.value = false
     }

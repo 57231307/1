@@ -216,12 +216,12 @@ export const createCrmTag = (data: { name: string; color: string; category: stri
 export const deleteCrmTag = (id: number) =>
   request.delete<ApiResponse<void>>(`/crm/tags/${id}`)
 
-// D14 Batch 5b：原 crmEnhancedApi.addTagToCustomer 转为风格 B 函数
-export const addTagToCustomer = (customerId: number, tagId: number) =>
+// D14 Batch 5b：原 crmEnhancedApi.createTagForCustomer 转为风格 B 函数
+export const createTagForCustomer = (customerId: number, tagId: number) =>
   request.post<ApiResponse<void>>(`/crm/customers/${customerId}/tags/${tagId}`)
 
-// D14 Batch 5b：原 crmEnhancedApi.removeTagFromCustomer 转为风格 B 函数
-export const removeTagFromCustomer = (customerId: number, tagId: number) =>
+// D14 Batch 5b：原 crmEnhancedApi.deleteTagFromCustomer 转为风格 B 函数
+export const deleteTagFromCustomer = (customerId: number, tagId: number) =>
   request.delete<ApiResponse<void>>(`/crm/customers/${customerId}/tags/${tagId}`)
 
 // 公海池
