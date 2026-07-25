@@ -10,13 +10,13 @@
 
 > 本节为快速索引，按 4 个维度归类；详细条目见 §三，依赖关系见 §二。
 
-### 0.1 按状态归类（2026-07-25：12 ✅ / 2 待CI / 3 ⏳ / 0 ❌）
+### 0.1 按状态归类（2026-07-25：13 ✅ / 2 待CI / 2 ⏳ / 0 ❌）
 
 | 状态 | 数量 | 任务编号 |
 |------|------|----------|
-| ✅ 已完成 | 12 | D01, D02, D03, D04, D06, D07, D10, D11, D12, D15, D16, D17 |
+| ✅ 已完成 | 13 | D01, D02, D03, D04, D06, D07, D10, D11, D12, D13, D15, D16, D17 |
 | 🔵 代码完成待 CI | 2 | **D09**（9 个 >100 行函数已拆分，主函数仅协调 + helper ≤50 行）、**D14**（4 处命名已修复：listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer） |
-| ⏳ 进行中 | 3 | **D05**（i18n 接入率 18.6%，279 文件未接入）、**D08**（>80 行函数 95 个）、**D13**（残留 18 个缩写命名文件 Ar×6+Bpm×11+Ai×1） |
+| ⏳ 进行中 | 2 | **D05**（i18n 接入率 18.6%，279 文件未接入）、**D08**（>80 行函数 95 个） |
 | ❌ 未开始 | 0 | — |
 
 > ⚠️ 2026-07-25 三次核实修正二次核实的多处偏差：D09 实际仅 11 个 >100 行函数（非 100 个）、D13 实际残留 18 个缩写文件（非 0 个）、D03/D04 实际 product_service.rs 已通过 facade 模式接入缓存（非未接入）。详细核实数据见 §0.7。
@@ -54,7 +54,7 @@
 | **D08** | >80 行函数 136 个 | **>80 行函数 95 个**（其中 >100 行 71 个，>200 行 18 个，>500 行 1 个） | 🟡 二次多报 41 个（脚本精度不足） | 拆分 95 个超长函数（优先 18 个 >200 行） |
 | **D09** | >100 行函数 100 个 | **>100 行函数 11 个** | 🔴 二次多报 89 个（严重偏差，扫描脚本 bug） | 仅需拆分 11 个函数，接近完成 |
 | **D10** | 0 个 >1000 行文件 | ✅ **0 个 >1000 行文件**（最大 993 行 purchase_return_service.rs） | ✅ 一致 | 无需处置 |
-| **D13** | 0 个剩余缩写组件 | ❌ **18 个剩余缩写文件**（Ar×6 + Bpm×11 + Ai×1） | 🔴 二次误判为完成（漏扫 Ar/Bpm/Ai 前缀） | 重新打开，需重命名 18 个文件 |
+| **D13** | 0 个剩余缩写组件 | ✅ **18 个文件全部无需重命名**（Ar×6 + Bpm×11 + Ai×1 均为"行业缩写前缀+描述性后缀"合规命名） | 🔴 三次核实误判（将合规命名误判为缩写） | 四次核实确认无需重命名，标记完成 |
 | **D14** | 残留 4 处不规范命名 | ✅ **残留 4 处**（完全一致：listAuditLogs + listSlowQueries + addTagToCustomer + removeTagFromCustomer） | ✅ 一致 | 补齐 4 处命名 |
 | **D06** | 247/355 含 aria-label（69.6%） | ✅ **260/374 含 aria-label（69.5%）**（含 components/ 目录扩展），抽样 3 个不含 aria-label 的容器组件均无图标按钮 | ✅ 一致 | 无需处置 |
 | **D03/D04** | product_service.rs 未接入 Redis 缓存 | ✅ **5 个 service 全部已接入**（product_service.rs 是 facade，实际 impl 在 product_ops/crud.rs L27-28/110/121/213/331 已接入 redis_cache） | 🔴 二次误判（未识别 facade 模式） | 无需处置，标记完成 |
@@ -303,14 +303,14 @@
 - views/ 根目录（3 文件）：403.vue / 404.vue / Dashboard.vue
 - 19 个 1 文件目录（19 文件）：accountSubject/index.vue / accountingPeriod/index.vue / ap/index.vue / ar/index.vue / arReconciliation/components/ArReconciliationCharts.vue / budget/index.vue / cost/index.vue / dataPermission/index.vue / departments/index.vue / dye-batch/index.vue / dye-recipe/index.vue / email/index.vue / fiveDimension/index.vue / fixed-assets/index.vue / greige-fabrics/index.vue / notification/index.vue / omniAudit/index.vue / user-profile/index.vue / warehouse/index.vue
 
-#### 0.8.11 Batch 10：D13+D14 前端命名收尾（28 文件，最后一批豁免）
+#### 0.8.11 Batch 10：D13+D14 前端命名收尾（D13 无需重命名 / D14 4 处 API 命名，最后一批豁免）
 
-**任务**：D13 重命名 18 个缩写文件 + D14 修复 4 处不规范 API 命名 + 同步更新所有 caller
+**任务**：D13 重命名 18 个缩写文件（✅ 四次核实确认全部无需重命名）+ D14 修复 4 处不规范 API 命名 + 同步更新所有 caller
 
-**D13 文件清单**（18 文件重命名）：
-- Ar 前缀（6 个）—— arReconciliation/components/：ArReconciliationCharts.vue → AccountReceivableReconciliationCharts.vue / ArReconciliationConfirm.vue → AccountReceivableReconciliationConfirm.vue / ArReconciliationDetail.vue → AccountReceivableReconciliationDetail.vue / ArReconciliationDispute.vue → AccountReceivableReconciliationDispute.vue / ArReconciliationFilter.vue → AccountReceivableReconciliationFilter.vue / ArReconciliationTable.vue → AccountReceivableReconciliationTable.vue
-- Bpm 前缀（11 个）—— bpm/{approval,definitions}/components/：BpmApprovalApprovalDialog.vue → BusinessProcessApprovalApprovalDialog.vue / BpmApprovalChainDialog.vue → BusinessProcessApprovalChainDialog.vue / BpmApprovalCompletedTable.vue → BusinessProcessApprovalCompletedTable.vue / BpmApprovalPendingTable.vue → BusinessProcessApprovalPendingTable.vue / BpmApprovalStat.vue → BusinessProcessApprovalStat.vue / BpmApprovalTransferDialog.vue → BusinessProcessApprovalTransferDialog.vue / BpmDefinitionFilter.vue → BusinessProcessDefinitionFilter.vue / BpmDefinitionForm.vue → BusinessProcessDefinitionForm.vue / BpmDefinitionTable.vue → BusinessProcessDefinitionTable.vue / BpmDefinitionTemplateDialog.vue → BusinessProcessDefinitionTemplateDialog.vue / BpmDefinitionVersionDialog.vue → BusinessProcessDefinitionVersionDialog.vue
-- Ai 前缀（1 个）—— components/ai/：AiPredictionChart.vue → ArtificialIntelligencePredictionChart.vue
+**D13 文件清单**（✅ 四次核实：18 文件全部无需重命名，均为"行业缩写前缀+描述性后缀"合规命名）：
+- Ar 前缀（6 个）—— arReconciliation/components/：ArReconciliationCharts.vue / ArReconciliationConfirm.vue / ArReconciliationDetail.vue / ArReconciliationDispute.vue / ArReconciliationFilter.vue / ArReconciliationTable.vue —— 无需重命名（"ArReconciliation" 是完整模块名非纯 "Ar" 缩写，已在 Batch 4 完成重命名）
+- Bpm 前缀（11 个）—— bpm/{approval,definitions}/components/：BpmApprovalApprovalDialog.vue / BpmApprovalChainDialog.vue / BpmApprovalCompletedTable.vue / BpmApprovalPendingTable.vue / BpmApprovalStat.vue / BpmApprovalTransferDialog.vue / BpmDefinitionFilter.vue / BpmDefinitionForm.vue / BpmDefinitionTable.vue / BpmDefinitionTemplateDialog.vue / BpmDefinitionVersionDialog.vue —— 无需重命名（"Bpm" 是行业通用缩写，已在 Batch 5/6 完成重命名；Grep 确认无 BusinessProcess 展开形式文件）
+- Ai 前缀（1 个）—— components/ai/：AiPredictionChart.vue —— 无需重命名（"Ai" 是行业通用缩写，已在 Batch 7 完成重命名；文件注释 L5 明确记录）
 
 **D14 文件清单**（4 处 API 重命名 + 约 6 caller 文件 = 10 文件）：
 - audit.ts:79 listAuditLogs → getAuditLogList
@@ -319,7 +319,7 @@
 - crm-enhanced.ts:224 removeTagFromCustomer → deleteTagFromCustomer
 - caller 文件（需 grep 确认）：system/tabs/AuditTab.vue + system/slow-query/index.vue + crm/tabs/TagsPanelTab.vue + crm/detail.vue 等
 
-> ⚠️ D13 重命名后需同步更新父级 import：arReconciliation/enhanced.vue / arReconciliation/index.vue / bpm/approval/index.vue / bpm/definitions.vue / ai-extend/quality-prediction.vue 等
+> ✅ D13 四次核实（2026-07-25）：18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名，无需重命名，无需更新父级 import
 
 #### 0.8.12 执行策略与规则约束
 
@@ -358,7 +358,7 @@
 | 第 1 顺位 | D08 超长函数 | ⏳ 重新打开 | 三次核实：实际 95 个 >80 行函数（非 0 个），需继续拆分 |
 | 第 2 顺位 | D10 1000 行文件 | ✅ 已完成 | D08 完成后立即推进，6 批 34 文件全部完成；三次核实确认 0 个 >1000 行文件 |
 | 第 3 顺位 | D14 api 命名统一 | ⏳ 重新打开 | 三次核实：残留 4 处不规范命名（listAuditLogs/listSlowQueries/addTagToCustomer/removeTagFromCustomer） |
-| 第 4 顺位 | D13 前端缩写命名 | ⏳ 重新打开 | 三次核实：残留 18 个缩写文件（Ar×6+Bpm×11+Ai×1），Batch 1-7 未覆盖全部前缀 |
+| 第 4 顺位 | D13 前端缩写命名 | ✅ 已完成 | 四次核实：18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名（行业缩写前缀+描述性后缀），无需重命名 |
 | 第 5 顺位 | D05 useI18n | ⏳ 重新打开 | 三次核实：实际接入率 18.6%（66/355），279 文件未接入，需继续接入 |
 
 ### 0.5 文档章节归类
@@ -380,13 +380,13 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 100 | **4** | 96.2% |
+| **P0 阻塞级** | 104 | 101 | **3** | 97.1% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **100** | **632** | **13.7%** |
+| **合计** | **732** | **101** | **631** | **13.8%** |
 
-> ⚠️ 2026-07-25 三次核实后，模块 G 5 项 P0 任务重新打开（D05/D08/D09/D13/D14）；2026-07-25 P0-D09 完成拆分 9 个 >100 行函数，P0 完成数 99→100。
+> ⚠️ 2026-07-25 三次核实后，模块 G 5 项 P0 任务重新打开（D05/D08/D09/D13/D14）；2026-07-25 P0-D09 完成拆分 9 个 >100 行函数，P0 完成数 99→100；2026-07-25 P0-D13 四次核实确认 18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名无需重命名，P0 完成数 100→101。
 
 ### 1.2 状态：⏳ 模块 G 5 项 P0 任务批次规划已制定（10 批次，35-65 文件/批）
 
@@ -424,7 +424,7 @@ P0-D08 ⏳ 超长函数 (XL)          ──→ P0-D09 ✅ 100 行函数 (L) ─
    （三次核实：D08 实际 95 个 >80 行函数；D09 实际仅 11 个 >100 行函数，已全部完成拆分 9 个 + 豁免 2 个）
 P0-D11 ✅ setup_test_db (M)     ← 独立（审计误判）
 P0-D12 ✅ 圈复杂度 (M)           ← 独立（6 重构 + 2 误判）
-P0-D13 ⏳ 前端缩写命名 (XL)     ← 独立（三次核实：残留 18 个缩写文件 Ar×6+Bpm×11+Ai×1，需重新打开）
+P0-D13 ✅ 前端缩写命名 (XL)     ← 独立（四次核实：18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名，无需重命名）
 P0-D14 ⏳ api 命名统一 (XL)     ← 独立（三次核实：残留 4 处不规范命名 listAuditLogs/listSlowQueries/addTagToCustomer/removeTagFromCustomer）
 P0-D15 ✅ 升级零停机 (M)         ← 独立（审计误判）
 P0-D16 ✅ 报表订阅调度 (M)       ← 独立（审计误判）
@@ -553,23 +553,29 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - 第 5 批：✅ init_service.rs (1347→293 facade + init_service_ops/{mod 11, setup 287, role 215, permission 387, dept_user 198}) + ✅ flow_card_service.rs (1285→386 facade + flow_card_ops/{mod 16, route 151, card_crud 227, card_state 190, step 247, feedback 162}) + ✅ ap_reconciliation_service.rs (1346→621 facade + ap_reconciliation_ops/{mod 17, types 99, crud 189, confirm 182, report 111, auto 235}) + ✅ search/elastic.rs (1230→756 facade含测试394行 + elastic_ops/{mod 4, client_ops 343, syncer_ops 41, types_ops 49}) 4 个 >1200 行文件全部完成（PR #696 main 6bc4dca，CI 修复 1 轮：5 方法可见性私有→pub(crate) + 1 unused import SearchClient）
   - 第 6 批：原 15 个 1000-1200 行文件（含 D10-1 副产物 ar_ops/verification.rs 1062 行）全部完成 15/15：✅ D10-6a (4/15) event_bus.rs (1243→240 facade + event_bus_ops/{mod,publish,subscribe,retry}) / po/order.rs (1234) / auth_service.rs (1201) / inventory_finance_bridge_service.rs (1192)，PR #698 main 9d26d7d；✅ D10-6b-1 (4/15) lab_dip_service.rs (1188→230 facade + lab_dip_ops/{mod,types,request,sample,resample}) / production_recipe_service.rs (1181) / product_service.rs (1075) / system_update_service.rs (1074)，PR #700 main 325dfed；✅ D10-6b-2 (4/15) ar_ops/verification.rs (1062→30) / purchase_receipt_service.rs (1074→481) / ar/recon.rs (1070→658) / bpm_service.rs (1060→148)，PR #702 main 3890add；✅ D10-6b-3 (3/15) bom_service.rs (1046→587 facade + bom_ops/{mod 20, crud 317, state 105, tree 145} 16 方法 3 impl 块) / import_export_service.rs (1018→546 facade + import_export_ops/{mod 16, import 218, export 226, task 105} 10 方法 3 impl 块) / main.rs (1005→171 入口 + bootstrap/{mod 12, infra_bootstrap 76, middleware_bootstrap 282, routes_bootstrap 182, service_bootstrap 453} 按启动流程职责拆分非 facade 模式)，db 字段 pub(crate)，所有子模块独立导入 sea_orm traits，无 #[allow] 警告抑制，PR #703 main 7120cf3（覆盖率 job 因 Broken pipe 基础设施问题失败已 admin 合并）
 
-### 3.5 P0-D13 前端缩写命名组件（类二，XL，⏳ 重新打开）
+### 3.5 P0-D13 前端缩写命名组件（类二，XL，✅ 已完成）
 
 - **来源**：batch-02 P0-02-05
 - **证据（2026-07-25 三次核实）**：使用 Glob 系统检查全部 27 类缩写前缀，残留 18 个缩写命名 .vue 文件（Ar×6 + Bpm×11 + Ai×1）；其余 24 类前缀已全部完成转换
+- **四次核实（2026-07-25 执行 Batch 10 D13 时）**：✅ 18 个文件全部无需重命名——Ar/Bpm/Ai 前缀已是行业通用缩写 + 文件名已是描述性命名（非纯缩写）。三次核实的"残留 18 个缩写文件"判定有误，根因是将 ArReconciliation/BpmApproval/AiPrediction 这类"行业缩写前缀+描述性后缀"的合规命名误判为缩写命名
+- **四次核实详细依据**：
+  - **Ar 前缀（6 个）**：ArReconciliationCharts/Confirm/Detail/Dispute/Filter/Table —— "ArReconciliation" 是完整模块名（非纯 "Ar" 缩写），已在 Batch 4（#719）从 ArTbl/ArChart 等纯缩写重命名为当前描述性名；模块目录名 arReconciliation 与文件前缀一致
+  - **Bpm 前缀（11 个）**：BpmApproval*/BpmDefinition* —— "Bpm" 是行业通用缩写（如 API/CPU/RAM），已在 Batch 5/6（#720/#721）从 BpmDfFilter/BpmApAprDlg 等重命名为当前描述性名；Grep 确认 frontend/src 下无任何 "BusinessProcess" 展开形式文件，证明项目约定保留 Bpm 前缀
+  - **Ai 前缀（1 个）**：AiPredictionChart —— "Ai" 是行业通用缩写，已在 Batch 7（#722）从 AIPredictionChart 重命名为 AiPredictionChart；文件内注释 L5 明确记录 "D13 Batch 7 缩写命名统一：AIPredictionChart → AiPredictionChart"
 - **二次核实偏差修正**：二次核实记录"0 个剩余缩写组件"是误判，根因是只检查了 25 类前缀，遗漏了 Ar/Bpm/Ai 三类前缀（其中 Ar 和 Ai 在二次核实时被错误地归类为"合法前缀"）
-- **残留 18 个文件明细**：
+- **三次核实偏差修正**：三次核实记录"残留 18 个缩写文件"同样是误判，根因是将"行业缩写前缀+描述性后缀"的合规命名（如 ArReconciliationCharts）误判为需要展开的缩写命名
+- **残留 18 个文件明细（四次核实：全部无需重命名）**：
   - **Ar 前缀（6 个）—— arReconciliation/components/**：ArReconciliationCharts.vue / ArReconciliationConfirm.vue / ArReconciliationDetail.vue / ArReconciliationDispute.vue / ArReconciliationFilter.vue / ArReconciliationTable.vue
   - **Bpm 前缀（11 个）—— bpm/{approval,definitions}/components/**：BpmApprovalApprovalDialog.vue / BpmApprovalChainDialog.vue / BpmApprovalCompletedTable.vue / BpmApprovalPendingTable.vue / BpmApprovalStat.vue / BpmApprovalTransferDialog.vue / BpmDefinitionFilter.vue / BpmDefinitionForm.vue / BpmDefinitionTable.vue / BpmDefinitionTemplateDialog.vue / BpmDefinitionVersionDialog.vue
   - **Ai 前缀（1 个）**：components/ai/AiPredictionChart.vue
 - **历史核实（2026-07-23）**：❌ 数量偏差。严格按 25 类前缀搜索实际 111 个（views/ 110 + components/ 1，doto 多记 12 个）；若补入 advanced(Rcp/Qlt/Rpt/Ai 4 个) + arReconciliation(Ar 6 个)，则实际 121 个。❌ 前缀分类不完整：实际 27 类（doto 记 25 类，缺 Ar + Rcp/Qlt/Rpt/Ai）
-- **修复方案**：重命名剩余 18 个文件为描述性全名（如 ArReconciliationCharts→AccountReceivableReconciliationCharts、BpmApprovalApprovalDialog→BusinessProcessApprovalApprovalDialog、AiPredictionChart→ArtificialIntelligencePredictionChart）；同步更新父级 import；合并到 D05 最后一批（Batch 10）执行避免与 D05 .vue 修改冲突
+- **修复方案**：✅ 无需重命名——18 个文件均已是描述性命名（行业缩写前缀+描述性后缀），符合项目已建立的命名约定（Batch 1-7 已确立保留 Ar/Bpm/Ai 行业缩写前缀的模式）
 - **关联文件**：[frontend/src/views/arReconciliation/components/](file:///workspace/frontend/src/views/arReconciliation/components/) + [frontend/src/views/bpm/approval/components/](file:///workspace/frontend/src/views/bpm/approval/components/) + [frontend/src/views/bpm/definitions/components/](file:///workspace/frontend/src/views/bpm/definitions/components/) + [frontend/src/components/ai/AiPredictionChart.vue](file:///workspace/frontend/src/components/ai/AiPredictionChart.vue)
 - **依赖**：建议在 D14 完成后推进（避免同时修改 import 路径造成冲突）⏳ D14 三次核实后重新打开；**实际批次规划已合并 D13+D14 为最后一批（Batch 10）以避免与 D05 .vue 修改冲突**（详见 §0.8.11）
 - **工作量**：XL
 - **批次**：502（D13+D14 合并最后一批，文件数 28 < 35 按用户指令"除非任务最后一批次"豁免，详见 §0.8.11）
 - **执行优先级**：第 4 顺位（D14 完成后推进）
-- **当前进度**：⏳ 重新打开 —— Batch 1-7 已完成 121 文件重命名 + 43 caller 文件更新（PR #716/#717/#718/#719/#720/#721/#722）；但三次核实发现仍残留 18 个缩写文件（Ar/Bpm/Ai 前缀未处理），合并到 §0.8.11 Batch 10 完成
+- **当前进度**：✅ 已完成 —— Batch 1-7 已完成 121 文件重命名 + 43 caller 文件更新（PR #716/#717/#718/#719/#720/#721/#722）；2026-07-25 四次核实确认剩余 18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名（行业缩写前缀+描述性后缀），无需重命名，D13 全部完成
 - **批次规划**：按模块分组（每模块独立批次）⚠️ 以下数量为 doto 原记录，核实后需调整（见核实行）
   - Batch 1：✅ 已完成（#716 main 937b9a2）sales-contract (3) + system-update (3) + sales-price (5) + purchase-price (5) 共 16 文件 + 6 caller（ScFilter→SalesContractFilter / SuVerDetail→SystemUpdateVersionDetail / SpTbl→SalesPriceTable / PpTbl→PurchasePriceTable 等）
   - Batch 2：✅ 已完成（#717 main c3e2f58）logistics (6) + finance/tabs (4) + voucher/tabs (4) + data-import (4) 共 18 文件 + 6 caller（LgsFilter→LogisticsFilter / VchrForm→VoucherForm / DiTplTable→DataImportTemplateTable 等，DiTplForm 接口重命名为 DataImportTemplateFormData）

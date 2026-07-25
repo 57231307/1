@@ -155,23 +155,23 @@ pub mod payload_serde {
                 | SalesOrderApproved { .. }
                 | SalesOrderCompleted { .. }
                 | SalesOrderCancelled { .. }
-                | SalesOrderRejected { .. } => from_sales_events(event),
+                | SalesOrderRejected { .. } => Self::from_sales_events(event),
                 PurchaseReceiptCompleted { .. } | PurchaseOrderApproved { .. } => {
-                    from_purchase_events(event)
+                    Self::from_purchase_events(event)
                 }
-                PaymentCompleted { .. } | CollectionCompleted { .. } => from_finance_events(event),
+                PaymentCompleted { .. } | CollectionCompleted { .. } => Self::from_finance_events(event),
                 InventoryCountCompleted { .. } | LowStockAlert { .. } => {
-                    from_inventory_alert_events(event)
+                    Self::from_inventory_alert_events(event)
                 }
-                InventoryTransactionCreated { .. } => from_inventory_transaction_event(event),
+                InventoryTransactionCreated { .. } => Self::from_inventory_transaction_event(event),
                 BpmProcessFinished { .. } | FinancialIndicatorUpdate { .. } => {
-                    from_process_events(event)
+                    Self::from_process_events(event)
                 }
                 MaterialShortageAlert { .. }
                 | CustomerUpdated { .. }
                 | SupplierUpdated { .. }
                 | DyeBatchCompleted { .. }
-                | QualityInspectionCompleted { .. } => from_other_events(event),
+                | QualityInspectionCompleted { .. } => Self::from_other_events(event),
             }
         }
     }
@@ -363,23 +363,23 @@ pub mod payload_serde {
                 | SalesOrderApproved { .. }
                 | SalesOrderCompleted { .. }
                 | SalesOrderCancelled { .. }
-                | SalesOrderRejected { .. } => to_sales_events(p)?,
+                | SalesOrderRejected { .. } => Self::to_sales_events(p)?,
                 PurchaseReceiptCompleted { .. } | PurchaseOrderApproved { .. } => {
-                    to_purchase_events(p)?
+                    Self::to_purchase_events(p)?
                 }
-                PaymentCompleted { .. } | CollectionCompleted { .. } => to_finance_events(p)?,
+                PaymentCompleted { .. } | CollectionCompleted { .. } => Self::to_finance_events(p)?,
                 InventoryCountCompleted { .. } | LowStockAlert { .. } => {
-                    to_inventory_alert_events(p)?
+                    Self::to_inventory_alert_events(p)?
                 }
-                InventoryTransactionCreated { .. } => to_inventory_transaction_event(p)?,
+                InventoryTransactionCreated { .. } => Self::to_inventory_transaction_event(p)?,
                 BpmProcessFinished { .. } | FinancialIndicatorUpdate { .. } => {
-                    to_process_events(p)?
+                    Self::to_process_events(p)?
                 }
                 MaterialShortageAlert { .. }
                 | CustomerUpdated { .. }
                 | SupplierUpdated { .. }
                 | DyeBatchCompleted { .. }
-                | QualityInspectionCompleted { .. } => to_other_events(p)?,
+                | QualityInspectionCompleted { .. } => Self::to_other_events(p)?,
             })
         }
     }

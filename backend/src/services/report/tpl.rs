@@ -19,39 +19,39 @@ impl ReportEngineService {
     /// 获取预定义报表模板（主函数仅做协调，按业务类别聚合）
     pub fn get_predefined_templates(&self) -> Vec<ReportTemplate> {
         let mut templates = Vec::with_capacity(9);
-        templates.extend(sales_report_templates());
-        templates.extend(inventory_report_templates());
-        templates.extend(purchase_report_templates());
-        templates.extend(finance_report_templates());
+        templates.extend(Self::sales_report_templates());
+        templates.extend(Self::inventory_report_templates());
+        templates.extend(Self::purchase_report_templates());
+        templates.extend(Self::finance_report_templates());
         templates
     }
 
     /// 销售类报表模板（4 个：汇总/明细/畅销产品/客户分析）
     fn sales_report_templates() -> Vec<ReportTemplate> {
         vec![
-            sales_summary_template(),
-            sales_detail_template(),
-            top_products_template(),
-            customer_analysis_template(),
+            Self::sales_summary_template(),
+            Self::sales_detail_template(),
+            Self::top_products_template(),
+            Self::customer_analysis_template(),
         ]
     }
 
     /// 库存类报表模板（2 个：库存状态/库存周转率）
     fn inventory_report_templates() -> Vec<ReportTemplate> {
         vec![
-            inventory_status_template(),
-            inventory_turnover_template(),
+            Self::inventory_status_template(),
+            Self::inventory_turnover_template(),
         ]
     }
 
     /// 采购类报表模板（1 个：采购汇总）
     fn purchase_report_templates() -> Vec<ReportTemplate> {
-        vec![purchase_summary_template()]
+        vec![Self::purchase_summary_template()]
     }
 
     /// 财务类报表模板（2 个：应收账龄/利润分析）
     fn finance_report_templates() -> Vec<ReportTemplate> {
-        vec![ar_aging_template(), profit_analysis_template()]
+        vec![Self::ar_aging_template(), Self::profit_analysis_template()]
     }
 
     /// 销售汇总报表模板
