@@ -28,6 +28,25 @@ struct RequestMeta {
     x_real_ip: Option<String>,
 }
 
+/// 审计上下文：跨 send_audit_log/build_audit_message/build_audit_payload 共享的请求/响应审计数据。
+///
+/// 引入此结构体避免辅助函数参数列表过长（13/14 参 → 2/3 参），符合 clippy 的
+/// `too many arguments` lint 阈值（默认 7）。
+struct AuditContext<'a> {
+    trace_id: &'a str,
+    meta: &'a RequestMeta,
+    user_id: Option<i32>,
+    username: &'a str,
+    ip_address: &'a Option<String>,
+    request_body: &'a Option<String>,
+    response_body: &'a str,
+    response_content_type: &'a Option<String>,
+    status_code: StatusCode,
+    status_str: &'a str,
+    duration_ms: i32,
+    duration_secs: f64,
+}
+
 /// 全局审计中间件：记录所有 API 请求的方法/路径/用户/IP/请求体/响应体/耗时
 pub async fn omni_audit_middleware(
     State(state): State<AppState>,
@@ -58,21 +77,21 @@ pub async fn omni_audit_middleware(
     log_request_complete(&trace_id, &meta, status_code, duration_secs, &response_body);
 
     if !should_skip_audit_path(&meta.uri) {
-        send_audit_log(
-            &state,
-            &trace_id,
-            &meta,
+        let audit_ctx = AuditContext {
+            trace_id: &trace_id,
+            meta: &meta,
             user_id,
-            &username,
-            &ip_address,
-            &request_body,
-            &response_body,
-            &response_content_type,
+            username: &username,
+            ip_address: &ip_address,
+            request_body: &request_body,
+            response_body: &response_body,
+            response_content_type: &response_content_type,
             status_code,
-            &status_str,
+            status_str: &status_str,
             duration_ms,
             duration_secs,
-        );
+        };
+        send_audit_log(&state, &audit_ctx);
     }
 
     Ok(response)
@@ -306,127 +325,74 @@ fn truncate_text(text: &str, limit: usize) -> String {
 }
 
 /// 发送审计日志：推断模块/检查敏感操作/构建消息/写入审计队列
-fn send_audit_log(
-    state: &AppState,
-    trace_id: &str,
-    meta: &RequestMeta,
-    user_id: Option<i32>,
-    username: &str,
-    ip_address: &Option<String>,
-    request_body: &Option<String>,
-    response_body: &str,
-    response_content_type: &Option<String>,
-    status_code: StatusCode,
-    status_str: &str,
-    duration_ms: i32,
-    duration_secs: f64,
-) {
-    let module = infer_module_from_path(&meta.uri);
+fn send_audit_log(state: &AppState, ctx: &AuditContext<'_>) {
+    let module = infer_module_from_path(&ctx.meta.uri);
 
     let _sensitive_action = SensitiveActionAlert::check_and_alert(
-        &meta.method,
+        &ctx.meta.method,
         &module,
-        user_id.unwrap_or(0),
-        username,
-        ip_address.as_deref(),
+        ctx.user_id.unwrap_or(0),
+        ctx.username,
+        ctx.ip_address.as_deref(),
     );
 
-    let resource_id = extract_resource_id(&meta.uri);
-    let message = build_audit_message(
-        trace_id,
-        meta,
-        user_id,
-        username,
-        ip_address,
-        request_body,
-        response_body,
-        response_content_type,
-        status_code,
-        status_str,
-        duration_ms,
-        duration_secs,
-        &module,
-        &resource_id,
-    );
+    let resource_id = extract_resource_id(&ctx.meta.uri);
+    let message = build_audit_message(ctx, &module, &resource_id);
     state.omni_audit.log(message);
 }
 
 /// 构建审计日志消息体（含 payload JSON 和错误信息）
 fn build_audit_message(
-    trace_id: &str,
-    meta: &RequestMeta,
-    user_id: Option<i32>,
-    username: &str,
-    ip_address: &Option<String>,
-    request_body: &Option<String>,
-    response_body: &str,
-    response_content_type: &Option<String>,
-    status_code: StatusCode,
-    status_str: &str,
-    duration_ms: i32,
-    duration_secs: f64,
+    ctx: &AuditContext<'_>,
     module: &str,
     resource_id: &Option<String>,
 ) -> OmniAuditMessage {
-    let truncated_response = truncate_text(response_body, 2000);
-    let error_msg = if !status_code.is_success() { Some(truncated_response.clone()) } else { None };
-    let payload = build_audit_payload(
-        status_code, meta, request_body, &truncated_response,
-        response_content_type, duration_ms, duration_secs, ip_address, response_body,
-    );
+    let truncated_response = truncate_text(ctx.response_body, 2000);
+    let error_msg = if !ctx.status_code.is_success() { Some(truncated_response.clone()) } else { None };
+    let payload = build_audit_payload(ctx, &truncated_response);
     OmniAuditMessage {
-        trace_id: trace_id.to_string(),
-        user_id,
-        username: Some(username.to_string()),
+        trace_id: ctx.trace_id.to_string(),
+        user_id: ctx.user_id,
+        username: Some(ctx.username.to_string()),
         event_type: "API_CALL".to_string(),
-        event_name: format!("{} {}", meta.method, meta.uri),
-        resource: meta.uri.clone(),
-        action: meta.method.clone(),
+        event_name: format!("{} {}", ctx.meta.method, ctx.meta.uri),
+        resource: ctx.meta.uri.clone(),
+        action: ctx.meta.method.clone(),
         resource_type: Some(module.to_string()),
         resource_id: resource_id.clone(),
         resource_name: None,
-        description: Some(format!("{} {} - {}", meta.method, meta.uri, status_code.as_u16())),
+        description: Some(format!("{} {} - {}", ctx.meta.method, ctx.meta.uri, ctx.status_code.as_u16())),
         payload: Some(payload),
-        ip_address: ip_address.clone(),
-        user_agent: meta.user_agent.clone(),
-        request_method: Some(meta.method.clone()),
-        request_path: Some(meta.uri.clone()),
-        request_body: request_body.clone(),
-        duration_ms,
-        status: status_str.to_string(),
+        ip_address: ctx.ip_address.clone(),
+        user_agent: ctx.meta.user_agent.clone(),
+        request_method: Some(ctx.meta.method.clone()),
+        request_path: Some(ctx.meta.uri.clone()),
+        request_body: ctx.request_body.clone(),
+        duration_ms: ctx.duration_ms,
+        status: ctx.status_str.to_string(),
         error_msg,
         old_value: None,
         new_value: None,
-        condition: if meta.query_string.is_empty() { None } else { Some(meta.query_string.clone()) },
+        condition: if ctx.meta.query_string.is_empty() { None } else { Some(ctx.meta.query_string.clone()) },
     }
 }
 
 /// 构建审计 payload JSON（含状态码/请求体/响应体/耗时/IP 等）
-fn build_audit_payload(
-    status_code: StatusCode,
-    meta: &RequestMeta,
-    request_body: &Option<String>,
-    truncated_response: &str,
-    response_content_type: &Option<String>,
-    duration_ms: i32,
-    duration_secs: f64,
-    ip_address: &Option<String>,
-    response_body: &str,
-) -> serde_json::Value {
+fn build_audit_payload(ctx: &AuditContext<'_>, truncated_response: &str) -> serde_json::Value {
     serde_json::json!({
-        "status_code": status_code.as_u16(),
-        "query_string": meta.query_string,
-        "request_body": request_body,
+        "status_code": ctx.status_code.as_u16(),
+        "query_string": ctx.meta.query_string,
+        "request_body": ctx.request_body,
         "response_body": truncated_response,
-        "response_content_type": response_content_type,
-        "duration_ms": duration_ms,
-        "duration_secs": duration_secs,
-        "ip_address": ip_address,
-        "user_agent": meta.user_agent,
-        "referer": meta.referer,
-        "content_type": meta.content_type,
-        "accept": meta.accept,
-        "response_size_bytes": response_body.len(),
+        "response_content_type": ctx.response_content_type,
+        "duration_ms": ctx.duration_ms,
+        "duration_secs": ctx.duration_secs,
+        "ip_address": ctx.ip_address,
+        "user_agent": ctx.meta.user_agent,
+        "referer": ctx.meta.referer,
+        "content_type": ctx.meta.content_type,
+        "accept": ctx.meta.accept,
+        "response_size_bytes": ctx.response_body.len(),
     })
 }
 

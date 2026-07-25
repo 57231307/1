@@ -9,6 +9,20 @@ use crate::services::init_service::{InitError, InitService};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use tracing::warn;
 
+// ===== 类型别名（避免 clippy `type_complexity` 警告：嵌套引用切片类型过深）=====
+
+/// 资源-操作对（如 ("users", "read")）
+type PermPair = (&'static str, &'static str);
+
+/// 角色权限定义组：角色代码 + 该角色的资源操作列表
+type RoleResourceGroup = (&'static str, &'static [PermPair]);
+
+/// 单个域的角色权限定义切片（多个角色权限组）
+type RoleResourceSlice = &'static [RoleResourceGroup];
+
+/// 全部域的角色权限定义分组列表
+type RoleResourceGroups = Vec<RoleResourceSlice>;
+
 impl InitService {
     /// 创建全部角色的 role_permission 权限矩阵（V15 P0-S03/S04/S20，覆盖 60+ 资源 × 11 操作码）。
     pub(crate) async fn create_default_role_permissions(&self) -> Result<(), InitError> {
@@ -35,9 +49,7 @@ impl InitService {
     }
 
     /// 汇总全部域的角色权限定义分组（管理/高管/销售/采购/库存/生产/质量/财务/CRM物流HR/其他）。
-    fn all_role_permission_definition_groups()
-        -> Vec<&'static [(&'static str, &'static [(&'static str, &'static str)])]>
-    {
+    fn all_role_permission_definition_groups() -> RoleResourceGroups {
         vec![
             Self::management_role_resources(),
             Self::executive_role_resources(),
@@ -113,7 +125,7 @@ impl InitService {
 
     /// 管理域角色权限定义（manager 部门经理跨域读取+本域全部操作 / operator 全业务域只读）。
     fn management_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         &[
             // manager：部门经理，跨业务域读取 + 本域全部操作
@@ -138,7 +150,7 @@ impl InitService {
 
     /// 高管域角色权限定义（gm 总经理 / deputy_gm 副总经理，全资源 read + AI 域只读）。
     fn executive_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         // V15 P0-S26：AI 域只读权限（管理层可查看所有 AI 分析结果）
         &[
@@ -177,7 +189,7 @@ impl InitService {
 
     /// 销售域角色权限定义（sales_manager 销售经理全部操作 / sales_rep 销售代表读+增+改）。
     fn sales_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         &[
             ("sales_manager", &[
@@ -200,7 +212,7 @@ impl InitService {
 
     /// 采购域角色权限定义（purchase_manager 采购经理 / purchase_clerk 采购员 / sourcing_specialist 寻源专员）。
     fn purchase_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         &[
             ("purchase_manager", &[
@@ -224,7 +236,7 @@ impl InitService {
 
     /// 库存仓储域角色权限定义（inventory_manager 库存经理 / warehouse_keeper 仓管员）。
     fn inventory_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         &[
             ("inventory_manager", &[
@@ -245,7 +257,7 @@ impl InitService {
 
     /// 生产核心域角色权限定义（production_manager / dyeing_master / finishing_master / lab_technician）。
     fn production_core_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         &[
             ("production_manager", &[
@@ -281,7 +293,7 @@ impl InitService {
 
     /// 生产扩展域角色权限定义（dye_recipe_master / greige_manager / chemical_manager / maintenance_supervisor）。
     fn production_extended_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         // V15 P0-S18 新增：染色配方主管，含审批权限
         &[
@@ -316,7 +328,7 @@ impl InitService {
 
     /// 质量域角色权限定义（qc_manager 质量经理 / quality_inspector 质检员 / fabric_inspector 面料检验员）。
     fn quality_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         &[
             ("qc_manager", &[
@@ -338,7 +350,7 @@ impl InitService {
 
     /// 财务域角色权限定义（finance_manager / accountant / cashier / cost_accountant）。
     fn finance_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         &[
             ("finance_manager", &[
@@ -377,7 +389,7 @@ impl InitService {
 
     /// CRM/物流/人力资源域角色权限定义（crm_manager / crm_rep / logistics_coordinator / customs_specialist / hr_manager / hr_specialist）。
     fn crm_logistics_hr_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         &[
             ("crm_manager", &[
@@ -417,7 +429,7 @@ impl InitService {
 
     /// 其他域角色权限定义（safety_officer 安全员 / system_admin 系统管理员 / data_analyst 数据分析师 / admin_assistant 行政助理）。
     fn misc_role_resources()
-        -> &'static [(&'static str, &'static [(&'static str, &'static str)])]
+        -> RoleResourceSlice
     {
         &[
             ("safety_officer", &[
