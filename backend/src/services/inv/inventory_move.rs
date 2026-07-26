@@ -11,7 +11,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 
 use crate::models::dto::PageRequest;
