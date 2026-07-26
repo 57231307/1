@@ -6,45 +6,48 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="检验单详情"
+    :title="t('purchaseInspection.detail.title')"
     width="800px"
-    aria-label="检验单详情对话框"
+    :aria-label="t('purchaseInspection.detail.ariaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item label="检验单号">{{ data.inspection_no }}</el-descriptions-item>
-      <el-descriptions-item label="入库单号">{{ data.receipt_no }}</el-descriptions-item>
-      <el-descriptions-item label="供应商">{{ data.supplier_name }}</el-descriptions-item>
-      <el-descriptions-item label="检验日期">{{ data.inspection_date }}</el-descriptions-item>
-      <el-descriptions-item label="检验员">{{ data.inspector_name }}</el-descriptions-item>
-      <el-descriptions-item label="状态">
+      <el-descriptions-item :label="t('purchaseInspection.detail.label.inspectionNo')">{{ data.inspection_no }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseInspection.detail.label.receiptNo')">{{ data.receipt_no }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseInspection.detail.label.supplier')">{{ data.supplier_name }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseInspection.detail.label.inspectionDate')">{{ data.inspection_date }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseInspection.detail.label.inspector')">{{ data.inspector_name }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseInspection.detail.label.status')">
         <el-tag :type="getStatusType(data.status)">
           {{ getStatusText(data.status) }}
         </el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="检验结果">
+      <el-descriptions-item :label="t('purchaseInspection.detail.label.result')">
         <el-tag v-if="data.result" :type="getResultType(data.result)">
           {{ getResultText(data.result) }}
         </el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="备注">{{ data.remark || '-' }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseInspection.detail.label.remark')">{{ data.remark || '-' }}</el-descriptions-item>
     </el-descriptions>
 
-    <el-divider content-position="left">检验明细</el-divider>
-    <el-table :data="data.items || []" border aria-label="检验明细表">
-      <el-table-column prop="product_name" label="产品名称" min-width="150" />
-      <el-table-column prop="expected_quantity" label="预期数量" width="100" />
-      <el-table-column prop="inspected_quantity" label="检验数量" width="100" />
-      <el-table-column prop="passed_quantity" label="合格数量" width="100" />
-      <el-table-column prop="failed_quantity" label="不合格数量" width="100" />
-      <el-table-column prop="defect_reason" label="缺陷原因" min-width="150" />
+    <el-divider content-position="left">{{ t('purchaseInspection.detail.divider.items') }}</el-divider>
+    <el-table :data="data.items || []" border :aria-label="t('purchaseInspection.detail.ariaLabelItemsTable')">
+      <el-table-column prop="product_name" :label="t('purchaseInspection.detail.column.productName')" min-width="150" />
+      <el-table-column prop="expected_quantity" :label="t('purchaseInspection.detail.column.expectedQuantity')" width="100" />
+      <el-table-column prop="inspected_quantity" :label="t('purchaseInspection.detail.column.inspectedQuantity')" width="100" />
+      <el-table-column prop="passed_quantity" :label="t('purchaseInspection.detail.column.passedQuantity')" width="100" />
+      <el-table-column prop="failed_quantity" :label="t('purchaseInspection.detail.column.failedQuantity')" width="100" />
+      <el-table-column prop="defect_reason" :label="t('purchaseInspection.detail.column.defectReason')" min-width="150" />
     </el-table>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { getStatusType, getStatusText, getResultType, getResultText } from '../composables/piFmts'
 import type { PurchaseInspection } from '@/api/purchase-inspection'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 详情对话框

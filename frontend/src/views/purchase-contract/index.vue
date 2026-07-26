@@ -8,21 +8,21 @@
   <div class="purchase-contract-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">采购合同管理</h1>
+        <h1 class="page-title">{{ t('purchaseContract.index.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>采购管理</el-breadcrumb-item>
-          <el-breadcrumb-item>采购合同</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ t('purchaseContract.index.breadcrumbHome') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('purchaseContract.index.breadcrumbPurchase') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('purchaseContract.index.breadcrumbContract') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="onCreate">
           <el-icon><Plus /></el-icon>
-          新建合同
+          {{ t('purchaseContract.index.create') }}
         </el-button>
         <el-button @click="pcProc.handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('purchaseContract.index.export') }}
         </el-button>
       </div>
     </div>
@@ -63,6 +63,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, Download } from '@element-plus/icons-vue'
 import type { PurchaseContract } from '@/api/purchase-contract'
 import { usePc } from './composables/usePc'
@@ -71,6 +72,8 @@ import PurchaseContractFilter from './components/PurchaseContractFilter.vue'
 import PurchaseContractTable from './components/PurchaseContractTable.vue'
 import PurchaseContractForm from './components/PurchaseContractForm.vue'
 import PurchaseContractDetail from './components/PurchaseContractDetail.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const pc = usePc()
 const pcProc = usePcProc({

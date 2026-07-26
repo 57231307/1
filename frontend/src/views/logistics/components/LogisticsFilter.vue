@@ -6,56 +6,56 @@
 -->
 <template>
   <el-card class="filter-card">
-    <el-form :inline="true" :model="localQuery" aria-label="物流运单筛选表单">
-      <el-form-item label="运单号">
+    <el-form :inline="true" :model="localQuery" :aria-label="t('logistics.filter.aria.form')">
+      <el-form-item :label="t('logistics.filter.label.waybillNo')">
         <el-input
           v-model="localQuery.keyword"
-          placeholder="请输入运单号"
+          :placeholder="t('logistics.filter.placeholder.waybillNo')"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="物流公司">
+      <el-form-item :label="t('logistics.filter.label.logisticsCompany')">
         <el-select
           v-model="localQuery.logistics_company"
-          placeholder="选择物流公司"
+          :placeholder="t('logistics.filter.placeholder.logisticsCompany')"
           clearable
           @change="handleSearch"
         >
-          <el-option label="顺丰速运" value="顺丰速运" />
-          <el-option label="中通快递" value="中通快递" />
-          <el-option label="圆通速递" value="圆通速递" />
-          <el-option label="韵达快递" value="韵达快递" />
-          <el-option label="京东物流" value="京东物流" />
+          <el-option :label="t('logistics.common.company.sf')" value="顺丰速运" />
+          <el-option :label="t('logistics.common.company.zto')" value="中通快递" />
+          <el-option :label="t('logistics.common.company.yto')" value="圆通速递" />
+          <el-option :label="t('logistics.common.company.yunda')" value="韵达快递" />
+          <el-option :label="t('logistics.common.company.jd')" value="京东物流" />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态">
+      <el-form-item :label="t('logistics.filter.label.status')">
         <el-select
           v-model="localQuery.status"
-          placeholder="选择状态"
+          :placeholder="t('logistics.filter.placeholder.status')"
           clearable
           @change="handleSearch"
         >
-          <el-option label="待发货" value="pending" />
-          <el-option label="已发货" value="shipped" />
-          <el-option label="运输中" value="in_transit" />
-          <el-option label="已签收" value="delivered" />
-          <el-option label="已取消" value="cancelled" />
+          <el-option :label="t('logistics.common.status.pending')" value="pending" />
+          <el-option :label="t('logistics.common.status.shipped')" value="shipped" />
+          <el-option :label="t('logistics.common.status.inTransit')" value="in_transit" />
+          <el-option :label="t('logistics.common.status.delivered')" value="delivered" />
+          <el-option :label="t('logistics.common.status.cancelled')" value="cancelled" />
         </el-select>
       </el-form-item>
-      <el-form-item label="日期范围">
+      <el-form-item :label="t('logistics.filter.label.dateRange')">
         <el-date-picker
           v-model="localDateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('logistics.filter.separator.to')"
+          :start-placeholder="t('logistics.filter.placeholder.dateStart')"
+          :end-placeholder="t('logistics.filter.placeholder.dateEnd')"
           @update:model-value="onDateChange"
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleSearch">{{ t('logistics.filter.button.search') }}</el-button>
+        <el-button @click="handleReset">{{ t('logistics.filter.button.reset') }}</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -63,6 +63,9 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）

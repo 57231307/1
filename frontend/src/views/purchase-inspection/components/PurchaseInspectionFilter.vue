@@ -6,19 +6,19 @@
 -->
 <template>
   <el-card class="filter-card">
-    <el-form :inline="true" :model="localQuery" aria-label="采购验货筛选表单">
-      <el-form-item label="检验单号">
+    <el-form :inline="true" :model="localQuery" :aria-label="t('purchaseInspection.filter.ariaLabel')">
+      <el-form-item :label="t('purchaseInspection.filter.label.inspectionNo')">
         <el-input
           v-model="localQuery.keyword"
-          placeholder="请输入检验单号"
+          :placeholder="t('purchaseInspection.filter.placeholder.inspectionNo')"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="供应商">
+      <el-form-item :label="t('purchaseInspection.filter.label.supplier')">
         <el-select
           v-model="localQuery.supplier_id"
-          placeholder="选择供应商"
+          :placeholder="t('purchaseInspection.filter.placeholder.supplier')"
           clearable
           filterable
           @change="handleSearch"
@@ -31,44 +31,44 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态">
+      <el-form-item :label="t('purchaseInspection.filter.label.status')">
         <el-select
           v-model="localQuery.status"
-          placeholder="选择状态"
+          :placeholder="t('purchaseInspection.filter.placeholder.status')"
           clearable
           @change="handleSearch"
         >
-          <el-option label="草稿" value="draft" />
-          <el-option label="待检验" value="pending" />
-          <el-option label="已完成" value="completed" />
-          <el-option label="已拒绝" value="rejected" />
+          <el-option :label="t('purchaseInspection.filter.status.draft')" value="draft" />
+          <el-option :label="t('purchaseInspection.filter.status.pending')" value="pending" />
+          <el-option :label="t('purchaseInspection.filter.status.completed')" value="completed" />
+          <el-option :label="t('purchaseInspection.filter.status.rejected')" value="rejected" />
         </el-select>
       </el-form-item>
-      <el-form-item label="检验结果">
+      <el-form-item :label="t('purchaseInspection.filter.label.result')">
         <el-select
           v-model="localQuery.result"
-          placeholder="选择结果"
+          :placeholder="t('purchaseInspection.filter.placeholder.result')"
           clearable
           @change="handleSearch"
         >
-          <el-option label="合格" value="pass" />
-          <el-option label="不合格" value="fail" />
-          <el-option label="部分合格" value="partial" />
+          <el-option :label="t('purchaseInspection.filter.result.pass')" value="pass" />
+          <el-option :label="t('purchaseInspection.filter.result.fail')" value="fail" />
+          <el-option :label="t('purchaseInspection.filter.result.partial')" value="partial" />
         </el-select>
       </el-form-item>
-      <el-form-item label="检验日期">
+      <el-form-item :label="t('purchaseInspection.filter.label.inspectionDate')">
         <el-date-picker
           v-model="localDateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('purchaseInspection.filter.rangeSeparator')"
+          :start-placeholder="t('purchaseInspection.filter.placeholder.startDate')"
+          :end-placeholder="t('purchaseInspection.filter.placeholder.endDate')"
           @update:model-value="onDateChange"
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleSearch">{{ t('purchaseInspection.filter.button.search') }}</el-button>
+        <el-button @click="handleReset">{{ t('purchaseInspection.filter.button.reset') }}</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -76,6 +76,9 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）

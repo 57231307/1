@@ -5,57 +5,57 @@
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localQuery" class="filter-form" aria-label="采购合同筛选表单">
-      <el-form-item label="关键词">
+    <el-form :inline="true" :model="localQuery" class="filter-form" :aria-label="t('purchaseContract.filter.ariaLabel')">
+      <el-form-item :label="t('purchaseContract.filter.keyword')">
         <el-input
           v-model="localQuery.keyword"
-          placeholder="合同编号/合同名称"
+          :placeholder="t('purchaseContract.filter.keywordPlaceholder')"
           clearable
           @clear="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="供应商">
+      <el-form-item :label="t('purchaseContract.filter.supplier')">
         <el-select
           v-model="localQuery.supplier_id"
-          placeholder="选择供应商"
+          :placeholder="t('purchaseContract.filter.supplierPlaceholder')"
           clearable
           @change="handleSearch"
         >
           <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="合同状态">
+      <el-form-item :label="t('purchaseContract.filter.status')">
         <el-select
           v-model="localQuery.status"
-          placeholder="选择状态"
+          :placeholder="t('purchaseContract.filter.statusPlaceholder')"
           clearable
           @change="handleSearch"
         >
-          <el-option label="草稿" value="draft" />
-          <el-option label="待审批" value="pending" />
-          <el-option label="已生效" value="active" />
-          <el-option label="已完成" value="completed" />
-          <el-option label="已取消" value="cancelled" />
+          <el-option :label="t('purchaseContract.filter.statusDraft')" value="draft" />
+          <el-option :label="t('purchaseContract.filter.statusPending')" value="pending" />
+          <el-option :label="t('purchaseContract.filter.statusActive')" value="active" />
+          <el-option :label="t('purchaseContract.filter.statusCompleted')" value="completed" />
+          <el-option :label="t('purchaseContract.filter.statusCancelled')" value="cancelled" />
         </el-select>
       </el-form-item>
-      <el-form-item label="签订日期">
+      <el-form-item :label="t('purchaseContract.filter.dateRange')">
         <el-date-picker
           v-model="localQuery.date_range"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('purchaseContract.filter.dateRangeSeparator')"
+          :start-placeholder="t('purchaseContract.filter.dateStartPlaceholder')"
+          :end-placeholder="t('purchaseContract.filter.dateEndPlaceholder')"
           @change="handleSearch"
         />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
-          查询
+          {{ t('purchaseContract.filter.query') }}
         </el-button>
         <el-button @click="handleReset">
           <el-icon><Refresh /></el-icon>
-          重置
+          {{ t('purchaseContract.filter.reset') }}
         </el-button>
       </el-form-item>
     </el-form>
@@ -64,8 +64,11 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import type { Supplier } from '@/api/supplier'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 采购合同过滤栏组件（批次 284：localQuery + handleSearch/handleReset 模式）

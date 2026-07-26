@@ -6,31 +6,34 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="审批退货单"
+    :title="t('purchaseReturn.approval.title')"
     width="500px"
-    aria-label="审批退货单对话框"
+    :aria-label="t('purchaseReturn.approval.aria.dialog')"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localApproveForm" label-width="80px" aria-label="退货单审批表单">
-      <el-form-item label="审批意见">
+    <el-form :model="localApproveForm" label-width="80px" :aria-label="t('purchaseReturn.approval.aria.form')">
+      <el-form-item :label="t('purchaseReturn.approval.label.opinion')">
         <el-input
           v-model="localApproveForm.remark"
           type="textarea"
           :rows="3"
-          placeholder="请输入审批意见"
+          :placeholder="t('purchaseReturn.approval.placeholder.opinion')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="onCancel">取消</el-button>
-      <el-button type="danger" @click="emit('reject')">拒绝</el-button>
-      <el-button type="success" @click="emit('approve-confirm')">通过</el-button>
+      <el-button @click="onCancel">{{ t('purchaseReturn.approval.button.cancel') }}</el-button>
+      <el-button type="danger" @click="emit('reject')">{{ t('purchaseReturn.approval.button.reject') }}</el-button>
+      <el-button type="success" @click="emit('approve-confirm')">{{ t('purchaseReturn.approval.button.approve') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 审批表单类型
 interface ApproveForm {

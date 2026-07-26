@@ -6,40 +6,40 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="合同详情"
+    :title="t('purchaseContract.detail.title')"
     width="800px"
-    aria-label="采购合同详情对话框"
+    :aria-label="t('purchaseContract.detail.ariaLabel')"
     @update:model-value="onVisibleChange"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item label="合同编号">{{ viewData.contract_no }}</el-descriptions-item>
-      <el-descriptions-item label="合同名称">{{ viewData.contract_name }}</el-descriptions-item>
-      <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
-      <el-descriptions-item label="合同类型">{{ viewData.contract_type }}</el-descriptions-item>
-      <el-descriptions-item label="合同金额">{{
+      <el-descriptions-item :label="t('purchaseContract.detail.contractNo')">{{ viewData.contract_no }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.contractName')">{{ viewData.contract_name }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.supplier')">{{ viewData.supplier_name }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.contractType')">{{ viewData.contract_type }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.totalAmount')">{{
         formatCurrency(viewData.total_amount || 0)
       }}</el-descriptions-item>
-      <el-descriptions-item label="签订日期">{{ viewData.signed_date }}</el-descriptions-item>
-      <el-descriptions-item label="生效日期">{{ viewData.effective_date }}</el-descriptions-item>
-      <el-descriptions-item label="到期日期">{{ viewData.expiry_date }}</el-descriptions-item>
-      <el-descriptions-item label="付款条件">{{
+      <el-descriptions-item :label="t('purchaseContract.detail.signedDate')">{{ viewData.signed_date }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.effectiveDate')">{{ viewData.effective_date }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.expiryDate')">{{ viewData.expiry_date }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.paymentTerms')">{{
         viewData.payment_terms || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="付款方式">{{
+      <el-descriptions-item :label="t('purchaseContract.detail.paymentMethod')">{{
         viewData.payment_method || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="交货日期">{{
+      <el-descriptions-item :label="t('purchaseContract.detail.deliveryDate')">{{
         viewData.delivery_date || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="交货地点">{{
+      <el-descriptions-item :label="t('purchaseContract.detail.deliveryLocation')">{{
         viewData.delivery_location || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="状态">
+      <el-descriptions-item :label="t('purchaseContract.detail.status')">
         <el-tag :type="getStatusType(viewData.status || '')">{{
-          getStatusLabel(viewData.status || '')
+          t(`purchaseContract.status.${viewData.status || ''}`)
         }}</el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="备注" :span="2">{{
+      <el-descriptions-item :label="t('purchaseContract.detail.remarks')" :span="2">{{
         viewData.remarks || '-'
       }}</el-descriptions-item>
     </el-descriptions>
@@ -47,7 +47,10 @@
 </template>
 
 <script setup lang="ts">
-import { formatCurrency, getStatusType, getStatusLabel } from '../composables/pcFmts'
+import { useI18n } from 'vue-i18n'
+import { formatCurrency, getStatusType } from '../composables/pcFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 详情数据类型
 interface PcViewData {

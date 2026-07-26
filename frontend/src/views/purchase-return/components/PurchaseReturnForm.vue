@@ -6,18 +6,18 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="isEdit ? '编辑退货单' : '新建退货单'"
+    :title="isEdit ? t('purchaseReturn.form.title.edit') : t('purchaseReturn.form.title.create')"
     width="900px"
-    :aria-label="isEdit ? '编辑退货单对话框' : '新建退货单对话框'"
+    :aria-label="isEdit ? t('purchaseReturn.form.aria.edit') : t('purchaseReturn.form.aria.create')"
     @update:model-value="onVisibleChange"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px" aria-label="退货单表单">
+    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="100px" :aria-label="t('purchaseReturn.form.aria.form')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="采购订单" prop="purchaseOrderId">
+          <el-form-item :label="t('purchaseReturn.form.label.purchaseOrder')" prop="purchaseOrderId">
             <el-select
               v-model="localFormData.purchaseOrderId"
-              placeholder="选择采购订单"
+              :placeholder="t('purchaseReturn.form.placeholder.purchaseOrder')"
               filterable
               @change="onOrderChange"
             >
@@ -31,45 +31,45 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="退货日期" prop="returnDate">
+          <el-form-item :label="t('purchaseReturn.form.label.returnDate')" prop="returnDate">
             <el-date-picker
               v-model="localFormData.returnDate"
               type="date"
-              placeholder="选择退货日期"
+              :placeholder="t('purchaseReturn.form.placeholder.returnDate')"
               value-format="YYYY-MM-DD"
             />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="退货原因" prop="reason">
+      <el-form-item :label="t('purchaseReturn.form.label.reason')" prop="reason">
         <el-input
           v-model="localFormData.reason"
           type="textarea"
           :rows="3"
-          placeholder="请输入退货原因"
+          :placeholder="t('purchaseReturn.form.placeholder.reason')"
         />
       </el-form-item>
-      <el-form-item label="备注">
+      <el-form-item :label="t('purchaseReturn.form.label.remarks')">
         <el-input
           v-model="localFormData.remarks"
           type="textarea"
           :rows="2"
-          placeholder="请输入备注"
+          :placeholder="t('purchaseReturn.form.placeholder.remarks')"
         />
       </el-form-item>
 
       <!-- 退货明细 -->
-      <el-divider content-position="left">退货明细</el-divider>
+      <el-divider content-position="left">{{ t('purchaseReturn.form.itemsTitle') }}</el-divider>
       <el-button type="primary" size="small" class="mb-10" @click="onAddItem">
-        添加明细
+        {{ t('purchaseReturn.form.button.addItem') }}
       </el-button>
-      <el-table :data="localFormData.items" border aria-label="退货明细编辑表">
-        <el-table-column prop="productName" label="产品名称" min-width="150">
+      <el-table :data="localFormData.items" border :aria-label="t('purchaseReturn.form.aria.itemsTable')">
+        <el-table-column prop="productName" :label="t('purchaseReturn.form.column.productName')" min-width="150">
           <template #default="{ row }">
             <el-select
               v-model="row.productId"
               filterable
-              placeholder="选择产品"
+              :placeholder="t('purchaseReturn.form.placeholder.product')"
               @change="(v: number) => onProductChange(row, v)"
             >
               <el-option
@@ -81,36 +81,36 @@
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column prop="quantity" label="退货数量" width="120">
+        <el-table-column prop="quantity" :label="t('purchaseReturn.form.column.quantity')" width="120">
           <template #default="{ row }">
             <el-input-number v-model="row.quantity" :min="1" size="small" />
           </template>
         </el-table-column>
-        <el-table-column prop="unitPrice" label="单价" width="120">
+        <el-table-column prop="unitPrice" :label="t('purchaseReturn.form.column.unitPrice')" width="120">
           <template #default="{ row }">
             <el-input-number v-model="row.unitPrice" :min="0" :precision="2" size="small" />
           </template>
         </el-table-column>
-        <el-table-column prop="amount" label="金额" width="120">
+        <el-table-column prop="amount" :label="t('purchaseReturn.form.column.amount')" width="120">
           <template #default="{ row }">
             <span>¥{{ (row.quantity * row.unitPrice).toFixed(2) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="reason" label="退货原因" min-width="150">
+        <el-table-column prop="reason" :label="t('purchaseReturn.form.column.reason')" min-width="150">
           <template #default="{ row }">
             <el-input v-model="row.reason" size="small" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="80">
+        <el-table-column :label="t('purchaseReturn.form.column.action')" width="80">
           <template #default="{ $index }">
-            <el-button size="small" type="danger" @click="onRemoveItem($index)">删除</el-button>
+            <el-button size="small" type="danger" @click="onRemoveItem($index)">{{ t('purchaseReturn.form.button.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-form>
     <template #footer>
-      <el-button @click="onCancel">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="onSubmit">确定</el-button>
+      <el-button @click="onCancel">{{ t('purchaseReturn.form.button.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitting" @click="onSubmit">{{ t('purchaseReturn.form.button.submit') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -118,8 +118,11 @@
 <script setup lang="ts">
 import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance } from 'element-plus'
 import type { PurchaseReturnItem } from '@/api/purchase-return'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 采购订单数据结构
 interface PurchaseOrder {

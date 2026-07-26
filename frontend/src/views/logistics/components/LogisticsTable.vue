@@ -22,12 +22,15 @@
 </template>
 
 <script setup lang="ts">
-import { h } from 'vue'
+import { h, computed } from 'vue'
 import { ElButton, ElTag } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
 import type { LogisticsWaybill } from '@/api/logistics'
-import { getStatusType, getStatusText, formatFreight } from '../composables/lgsFmts'
+import { getStatusType, formatFreight } from '../composables/lgsFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 物流运单列表组件（批次 287：page/pageSize props + v-model 绑定分页）
@@ -56,39 +59,46 @@ const emit = defineEmits<{
   'update:page-size': [v: number]
 }>()
 
-/** 列定义：保持与原 el-table 列完全一致 */
-const columns: ColumnDef<LogisticsWaybill>[] = [
-  { key: 'waybill_no', title: '运单号', width: 140 },
-  { key: 'order_no', title: '关联订单', width: 140 },
-  { key: 'logistics_company', title: '物流公司', width: 120 },
-  { key: 'tracking_number', title: '快递单号', width: 150 },
-  { key: 'driver_name', title: '司机姓名', width: 100 },
-  { key: 'driver_phone', title: '司机电话', width: 120 },
+/** 状态文本：优先 i18n，未知状态回退到原始 status 字符串 */
+const statusText = (status: string): string => {
+  const key = `logistics.common.status.${status}`
+  const translated = t(key)
+  return translated === key ? status : translated
+}
+
+/** 列定义：保持与原 el-table 列完全一致；computed 确保 locale 切换时表头响应式更新 */
+const columns = computed<ColumnDef<LogisticsWaybill>[]>(() => [
+  { key: 'waybill_no', title: t('logistics.table.column.waybillNo'), width: 140 },
+  { key: 'order_no', title: t('logistics.table.column.relatedOrder'), width: 140 },
+  { key: 'logistics_company', title: t('logistics.table.column.logisticsCompany'), width: 120 },
+  { key: 'tracking_number', title: t('logistics.table.column.trackingNumber'), width: 150 },
+  { key: 'driver_name', title: t('logistics.table.column.driverName'), width: 100 },
+  { key: 'driver_phone', title: t('logistics.table.column.driverPhone'), width: 120 },
   {
     // 运费列：格式化为 ¥ 前缀字符串
     key: 'freight_fee',
-    title: '运费',
+    title: t('logistics.table.column.freight'),
     width: 100,
     formatter: (row) => formatFreight(row.freight_fee),
   },
-  { key: 'expected_arrival', title: '预计到达', width: 120 },
+  { key: 'expected_arrival', title: t('logistics.table.column.expectedArrival'), width: 120 },
   {
     // 状态列：渲染 el-tag，颜色与文本由状态映射决定
     key: 'status',
-    title: '状态',
+    title: t('logistics.table.column.status'),
     width: 100,
     align: 'center',
     renderCell: (row) =>
       h(
         ElTag,
         { type: getStatusType(row.status) },
-        { default: () => getStatusText(row.status) }
+        { default: () => statusText(row.status) }
       ),
   },
   {
     // 操作列：根据 row.status 条件渲染按钮（查看 / 编辑 / 发货 / 更新状态 / 删除）
     key: '__actions__',
-    title: '操作',
+    title: t('logistics.table.column.action'),
     width: 250,
     fixed: 'right',
     renderCell: (row) => {
@@ -96,7 +106,7 @@ const columns: ColumnDef<LogisticsWaybill>[] = [
         h(
           ElButton,
           { size: 'small', onClick: () => emit('view', row) },
-          { default: () => '查看' }
+          { default: () => t('logistics.table.action.view') }
         ),
       ]
       // 待发货状态：显示编辑 / 发货 / 删除
@@ -105,17 +115,17 @@ const columns: ColumnDef<LogisticsWaybill>[] = [
           h(
             ElButton,
             { size: 'small', type: 'primary', onClick: () => emit('edit', row) },
-            { default: () => '编辑' }
+            { default: () => t('logistics.table.action.edit') }
           ),
           h(
             ElButton,
             { size: 'small', type: 'success', onClick: () => emit('ship', row) },
-            { default: () => '发货' }
+            { default: () => t('logistics.table.action.ship') }
           ),
           h(
             ElButton,
             { size: 'small', type: 'danger', onClick: () => emit('delete', row) },
-            { default: () => '删除' }
+            { default: () => t('logistics.table.action.delete') }
           )
         )
       }
@@ -125,14 +135,14 @@ const columns: ColumnDef<LogisticsWaybill>[] = [
           h(
             ElButton,
             { size: 'small', type: 'warning', onClick: () => emit('update-status', row) },
-            { default: () => '更新状态' }
+            { default: () => t('logistics.table.action.updateStatus') }
           )
         )
       }
       return h('div', { class: 'action-cell' }, buttons)
     },
   },
-]
+])
 </script>
 
 <style scoped>

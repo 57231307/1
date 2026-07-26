@@ -8,7 +8,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stat-item">
-          <div class="stat-label">总运单数</div>
+          <div class="stat-label">{{ t('logistics.stat.label.total') }}</div>
           <div class="stat-value">{{ stats.total || 0 }}</div>
         </div>
       </el-card>
@@ -16,7 +16,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stat-item">
-          <div class="stat-label">待发货</div>
+          <div class="stat-label">{{ t('logistics.stat.label.pending') }}</div>
           <div class="stat-value text-warning">{{ stats.pending || 0 }}</div>
         </div>
       </el-card>
@@ -24,7 +24,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stat-item">
-          <div class="stat-label">运输中</div>
+          <div class="stat-label">{{ t('logistics.stat.label.inTransit') }}</div>
           <div class="stat-value text-primary">{{ stats.inTransit || 0 }}</div>
         </div>
       </el-card>
@@ -32,7 +32,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stat-item">
-          <div class="stat-label">已签收</div>
+          <div class="stat-label">{{ t('logistics.stat.label.delivered') }}</div>
           <div class="stat-value text-success">{{ stats.delivered || 0 }}</div>
         </div>
       </el-card>
@@ -41,6 +41,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
+
 // 统计字段类型
 interface LgsStats {
   total: number

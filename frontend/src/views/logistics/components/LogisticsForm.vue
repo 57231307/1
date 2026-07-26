@@ -7,14 +7,14 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="isEdit ? '编辑运单' : '新建运单'"
+    :title="isEdit ? t('logistics.form.title.edit') : t('logistics.form.title.create')"
     width="600px"
-    :aria-label="isEdit ? '编辑运单对话框' : '新建运单对话框'"
+    :aria-label="isEdit ? t('logistics.form.aria.editDialog') : t('logistics.form.aria.createDialog')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px" aria-label="运单表单">
-      <el-form-item label="关联订单" prop="order_id">
-        <el-select v-model="localForm.order_id" placeholder="选择关联订单" filterable>
+    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px" :aria-label="t('logistics.form.aria.form')">
+      <el-form-item :label="t('logistics.form.label.relatedOrder')" prop="order_id">
+        <el-select v-model="localForm.order_id" :placeholder="t('logistics.form.placeholder.relatedOrder')" filterable>
           <el-option
             v-for="order in orders"
             :key="order.id"
@@ -23,61 +23,64 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="物流公司" prop="logistics_company">
-        <el-select v-model="localForm.logistics_company" placeholder="选择物流公司">
-          <el-option label="顺丰速运" value="顺丰速运" />
-          <el-option label="中通快递" value="中通快递" />
-          <el-option label="圆通速递" value="圆通速递" />
-          <el-option label="韵达快递" value="韵达快递" />
-          <el-option label="京东物流" value="京东物流" />
+      <el-form-item :label="t('logistics.form.label.logisticsCompany')" prop="logistics_company">
+        <el-select v-model="localForm.logistics_company" :placeholder="t('logistics.form.placeholder.logisticsCompany')">
+          <el-option :label="t('logistics.common.company.sf')" value="顺丰速运" />
+          <el-option :label="t('logistics.common.company.zto')" value="中通快递" />
+          <el-option :label="t('logistics.common.company.yto')" value="圆通速递" />
+          <el-option :label="t('logistics.common.company.yunda')" value="韵达快递" />
+          <el-option :label="t('logistics.common.company.jd')" value="京东物流" />
         </el-select>
       </el-form-item>
-      <el-form-item label="快递单号" prop="tracking_number">
-        <el-input v-model="localForm.tracking_number" placeholder="请输入快递单号" />
+      <el-form-item :label="t('logistics.form.label.trackingNumber')" prop="tracking_number">
+        <el-input v-model="localForm.tracking_number" :placeholder="t('logistics.form.placeholder.trackingNumber')" />
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="司机姓名">
-            <el-input v-model="localForm.driver_name" placeholder="请输入司机姓名" />
+          <el-form-item :label="t('logistics.form.label.driverName')">
+            <el-input v-model="localForm.driver_name" :placeholder="t('logistics.form.placeholder.driverName')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="司机电话">
-            <el-input v-model="localForm.driver_phone" placeholder="请输入司机电话" />
+          <el-form-item :label="t('logistics.form.label.driverPhone')">
+            <el-input v-model="localForm.driver_phone" :placeholder="t('logistics.form.placeholder.driverPhone')" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="运费">
+          <el-form-item :label="t('logistics.form.label.freight')">
             <el-input-number v-model="localForm.freight_fee" :min="0" :precision="2" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="预计到达">
+          <el-form-item :label="t('logistics.form.label.expectedArrival')">
             <el-date-picker
               v-model="localForm.expected_arrival"
               type="date"
-              placeholder="选择预计到达日期"
+              :placeholder="t('logistics.form.placeholder.expectedArrival')"
               value-format="YYYY-MM-DD"
             />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="备注">
-        <el-input v-model="localForm.notes" type="textarea" :rows="3" placeholder="请输入备注" />
+      <el-form-item :label="t('logistics.form.label.notes')">
+        <el-input v-model="localForm.notes" type="textarea" :rows="3" :placeholder="t('logistics.form.placeholder.notes')" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="onSubmit">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('logistics.form.button.cancel') }}</el-button>
+      <el-button type="primary" :loading="loading" @click="onSubmit">{{ t('logistics.form.button.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 订单选项类型
 interface OrderOption {

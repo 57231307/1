@@ -9,7 +9,7 @@
       <el-col :span="6">
         <el-input
           v-model="localQuery.receipt_no"
-          placeholder="入库单号"
+          :placeholder="t('purchaseReceipt.filter.placeholder.receiptNo')"
           class="filter-item"
           @keyup.enter="handleSearch"
         />
@@ -17,11 +17,11 @@
       <el-col :span="6">
         <el-select
           v-model="localQuery.supplier_id"
-          placeholder="选择供应商"
+          :placeholder="t('purchaseReceipt.filter.placeholder.supplier')"
           class="filter-item"
           @change="handleSearch"
         >
-          <el-option label="全部" value="" />
+          <el-option :label="t('purchaseReceipt.filter.label.all')" value="" />
           <el-option
             v-for="s in suppliers"
             :key="s.value"
@@ -33,11 +33,11 @@
       <el-col :span="6">
         <el-select
           v-model="localQuery.warehouse_id"
-          placeholder="选择仓库"
+          :placeholder="t('purchaseReceipt.filter.placeholder.warehouse')"
           class="filter-item"
           @change="handleSearch"
         >
-          <el-option label="全部" value="" />
+          <el-option :label="t('purchaseReceipt.filter.label.all')" value="" />
           <el-option
             v-for="w in warehouses"
             :key="w.value"
@@ -49,7 +49,7 @@
       <el-col :span="6">
         <el-select
           v-model="localQuery.status"
-          placeholder="状态"
+          :placeholder="t('purchaseReceipt.filter.placeholder.status')"
           class="filter-item"
           @change="handleSearch"
         >
@@ -63,11 +63,11 @@
       </el-col>
     </el-row>
     <div class="filter-actions">
-      <el-button type="primary" @click="handleSearch">查询</el-button>
-      <el-button @click="handleReset">重置</el-button>
+      <el-button type="primary" @click="handleSearch">{{ t('purchaseReceipt.filter.button.search') }}</el-button>
+      <el-button @click="handleReset">{{ t('purchaseReceipt.filter.button.reset') }}</el-button>
       <el-button type="success" @click="emit('add')">
         <el-icon><Plus /></el-icon>
-        新增入库单
+        {{ t('purchaseReceipt.filter.button.add') }}
       </el-button>
     </div>
   </div>
@@ -75,7 +75,10 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus } from '@element-plus/icons-vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 选项类型
 interface OptItem {

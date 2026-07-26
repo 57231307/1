@@ -8,21 +8,21 @@
   <div class="purchase-price-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">采购价格管理</h1>
+        <h1 class="page-title">{{ t('purchasePrice.index.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>采购管理</el-breadcrumb-item>
-          <el-breadcrumb-item>采购价格</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ t('purchasePrice.index.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('purchasePrice.index.breadcrumb.purchase') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('purchasePrice.index.breadcrumb.price') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="onCreate">
           <el-icon><Plus /></el-icon>
-          新建价格
+          {{ t('purchasePrice.index.button.create') }}
         </el-button>
         <el-button @click="ppProc.handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('purchasePrice.index.button.export') }}
         </el-button>
       </div>
     </div>
@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, Download } from '@element-plus/icons-vue'
 import type { PurchasePrice } from '@/api/purchase-price'
 import { usePp } from './composables/usePp'
@@ -74,6 +75,8 @@ import PurchasePriceTable from './components/PurchasePriceTable.vue'
 import PurchasePriceForm from './components/PurchasePriceForm.vue'
 import PurchasePriceHistory from './components/PurchasePriceHistory.vue'
 import PurchasePriceDetail from './components/PurchasePriceDetail.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const pp = usePp()
 const ppProc = usePpProc({
