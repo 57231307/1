@@ -8,7 +8,7 @@
   <el-dialog
     :aria-label="$t('bpm.approval.approvalDialog.ariaLabel')"
     :model-value="visible"
-    :title="action === 'approve' ? $t('bpm.approval.approvalDialog.approveTitle') : $t('bpm.approval.approvalDialog.rejectTitle')"
+    :title="dialogTitle"
     width="500px"
     destroy-on-close
     @update:model-value="(v: boolean) => emit('update:visible', v)"
@@ -39,8 +39,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ApprovalTask } from '@/api/bpm-enhanced'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单字段类型
 interface AprForm {
@@ -72,6 +75,13 @@ const emit = defineEmits<{
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 const localApproveForm = ref<AprForm>({ ...props.approveForm })
+
+// 对话框标题：根据 action 选择同意/拒绝标题（响应式求值，随语言切换更新）
+const dialogTitle = computed(() =>
+  props.action === 'approve'
+    ? t('bpm.approval.approvalDialog.approveTitle')
+    : t('bpm.approval.approvalDialog.rejectTitle'),
+)
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false

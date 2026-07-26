@@ -7,9 +7,9 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="form?.id ? '编辑密钥' : '新建密钥'"
+    :title="form?.id ? t('apiGateway.keyForm.editTitle') : t('apiGateway.keyForm.createTitle')"
     width="600px"
-    :aria-label="form?.id ? '编辑密钥对话框' : '新建密钥对话框'"
+    :aria-label="form?.id ? t('apiGateway.keyForm.editAriaLabel') : t('apiGateway.keyForm.createAriaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -17,34 +17,34 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
-      aria-label="API 密钥表单"
+      :aria-label="t('apiGateway.keyForm.formAriaLabel')"
     >
-      <el-form-item label="密钥名称" prop="key_name">
+      <el-form-item :label="t('apiGateway.keyForm.keyName')" prop="key_name">
         <el-input
           :model-value="localForm.key_name ?? ''"
-          placeholder="请输入密钥名称"
+          :placeholder="t('apiGateway.keyForm.keyNamePlaceholder')"
           @update:model-value="(v: string) => (localForm.key_name = v ?? '')"
         />
       </el-form-item>
-      <el-form-item label="描述" prop="description">
+      <el-form-item :label="t('apiGateway.keyForm.description')" prop="description">
         <el-input
           :model-value="localForm.description ?? ''"
           type="textarea"
           :rows="3"
-          placeholder="请输入描述"
+          :placeholder="t('apiGateway.keyForm.descriptionPlaceholder')"
           @update:model-value="(v: string) => (localForm.description = v ?? '')"
         />
       </el-form-item>
-      <el-form-item label="权限" prop="permissions">
+      <el-form-item :label="t('apiGateway.keyForm.permissions')" prop="permissions">
         <el-input
           :model-value="permissionsText"
-          placeholder="多个权限用逗号分隔"
+          :placeholder="t('apiGateway.keyForm.permissionsPlaceholder')"
           @update:model-value="(v: string) => emit('update:permissionsText', v ?? '')"
         />
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="限流(/秒)" prop="rate_limit">
+          <el-form-item :label="t('apiGateway.keyForm.rateLimit')" prop="rate_limit">
             <el-input-number
               :model-value="localForm.rate_limit"
               :min="0"
@@ -54,11 +54,11 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="过期时间" prop="expires_at">
+          <el-form-item :label="t('apiGateway.keyForm.expiresAt')" prop="expires_at">
             <el-date-picker
               :model-value="localForm.expires_at"
               type="datetime"
-              placeholder="选择过期时间"
+              :placeholder="t('apiGateway.keyForm.expiresAtPlaceholder')"
               style="width: 100%"
               @update:model-value="(v: string) => (localForm.expires_at = v ?? '')"
             />
@@ -67,16 +67,19 @@
       </el-row>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('apiGateway.keyForm.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">{{ t('apiGateway.keyForm.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ApiKey } from '@/api/api-gateway'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * API 密钥新建/编辑对话框

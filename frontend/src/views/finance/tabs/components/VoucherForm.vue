@@ -7,9 +7,9 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="新建凭证"
+    :title="t('finance.voucherForm.dialogTitle')"
     width="800px"
-    aria-label="新建凭证对话框"
+    :aria-label="t('finance.voucherForm.ariaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -17,54 +17,54 @@
       :model="localVoucherForm"
       :rules="voucherRules"
       label-width="80px"
-      aria-label="凭证表单"
+      :aria-label="t('finance.voucherForm.formAriaLabel')"
     >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="凭证日期" prop="voucher_date">
+          <el-form-item :label="t('finance.voucherForm.labelVoucherDate')" prop="voucher_date">
             <el-date-picker
               v-model="localVoucherForm.voucher_date"
               type="date"
-              placeholder="选择日期"
+              :placeholder="t('finance.voucherForm.placeholderVoucherDate')"
               value-format="YYYY-MM-DD"
               style="width: 100%"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="凭证类型" prop="voucher_type">
+          <el-form-item :label="t('finance.voucherForm.labelVoucherType')" prop="voucher_type">
             <el-select
               v-model="localVoucherForm.voucher_type"
-              placeholder="选择类型"
+              :placeholder="t('finance.voucherForm.placeholderVoucherType')"
               style="width: 100%"
             >
-              <el-option label="记" value="JZ" />
-              <el-option label="收" value="SK" />
-              <el-option label="付" value="FK" />
-              <el-option label="转" value="ZZ" />
+              <el-option :label="t('finance.voucherForm.optionJZ')" value="JZ" />
+              <el-option :label="t('finance.voucherForm.optionSK')" value="SK" />
+              <el-option :label="t('finance.voucherForm.optionFK')" value="FK" />
+              <el-option :label="t('finance.voucherForm.optionZZ')" value="ZZ" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
-      <el-divider>分录明细</el-divider>
-      <el-table :data="localVoucherForm.entries" stripe aria-label="凭证分录编辑表">
-        <el-table-column label="摘要" min-width="150">
+      <el-divider>{{ t('finance.voucherForm.dividerEntries') }}</el-divider>
+      <el-table :data="localVoucherForm.entries" stripe :aria-label="t('finance.voucherForm.entriesAriaLabel')">
+        <el-table-column :label="t('finance.voucherForm.columnSummary')" min-width="150">
           <template #default="{ row }">
-            <el-input v-model="row.summary" placeholder="摘要" />
+            <el-input v-model="row.summary" :placeholder="t('finance.voucherForm.placeholderSummary')" />
           </template>
         </el-table-column>
-        <el-table-column label="科目" min-width="200">
+        <el-table-column :label="t('finance.voucherForm.columnSubject')" min-width="200">
           <template #default="{ row }">
             <el-tree-select
               v-model="row.subject_id"
               :data="leafSubjects"
               :props="{ label: 'name', value: 'id' }"
-              placeholder="选择科目"
+              :placeholder="t('finance.voucherForm.placeholderSubject')"
               check-strictly
             />
           </template>
         </el-table-column>
-        <el-table-column label="借方金额" width="130">
+        <el-table-column :label="t('finance.voucherForm.columnDebitAmount')" width="130">
           <template #default="{ row }">
             <el-input-number
               v-model="row.debit"
@@ -75,7 +75,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="贷方金额" width="130">
+        <el-table-column :label="t('finance.voucherForm.columnCreditAmount')" width="130">
           <template #default="{ row }">
             <el-input-number
               v-model="row.credit"
@@ -86,30 +86,30 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="80">
+        <el-table-column :label="t('finance.voucherForm.columnAction')" width="80">
           <template #default="{ $index }">
             <el-button type="danger" link size="small" @click="emit('remove-entry', $index)"
-              >删除</el-button
+              >{{ t('finance.voucherForm.buttonDelete') }}</el-button
             >
           </template>
         </el-table-column>
       </el-table>
       <div class="entry-footer">
-        <el-button type="primary" link @click="emit('add-entry')">添加分录</el-button>
+        <el-button type="primary" link @click="emit('add-entry')">{{ t('finance.voucherForm.buttonAddEntry') }}</el-button>
         <div class="entry-summary">
-          <span>借方合计: {{ formatMoney(totalDebit) }}</span>
-          <span>贷方合计: {{ formatMoney(totalCredit) }}</span>
-          <span :class="{ 'text-red': !isBalanced }">{{ isBalanced ? '已平衡' : '未平衡' }}</span>
+          <span>{{ t('finance.voucherForm.labelDebitTotal') }}: {{ formatMoney(totalDebit) }}</span>
+          <span>{{ t('finance.voucherForm.labelCreditTotal') }}: {{ formatMoney(totalCredit) }}</span>
+          <span :class="{ 'text-red': !isBalanced }">{{ isBalanced ? t('finance.voucherForm.textBalanced') : t('finance.voucherForm.textNotBalanced') }}</span>
         </div>
       </div>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('finance.voucherForm.buttonCancel') }}</el-button>
       <el-button
         type="primary"
         :loading="voucherSubmitLoading"
         @click="emit('submit-form')"
-        >确定</el-button
+        >{{ t('finance.voucherForm.buttonConfirm') }}</el-button
       >
     </template>
   </el-dialog>
@@ -118,8 +118,11 @@
 <script setup lang="ts">
 import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { AccountSubject } from '@/api/finance'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface VoucherEntry {
   subject_id: number | undefined

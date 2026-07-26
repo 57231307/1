@@ -19,13 +19,13 @@
 <template>
   <div class="fabric-page">
     <el-tabs v-model="activeTab">
-      <el-tab-pane label="染色批次" name="dye">
+      <el-tab-pane :label="t('fabric.index.tabDye')" name="dye">
         <DyeTab @open-dialog="openDyeDialog" />
       </el-tab-pane>
-      <el-tab-pane label="坯布管理" name="greige">
+      <el-tab-pane :label="t('fabric.index.tabGreige')" name="greige">
         <GreigeTab @open-dialog="openGreigeDialog" @open-stock="handleStock" />
       </el-tab-pane>
-      <el-tab-pane label="染色配方" name="recipe">
+      <el-tab-pane :label="t('fabric.index.tabRecipe')" name="recipe">
         <RecipeTab @open-dialog="openRecipeDialog" />
       </el-tab-pane>
     </el-tabs>
@@ -54,6 +54,7 @@
 
 <script setup lang="ts">
 import { ref, provide } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { stockInGreigeFabric, stockOutGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
 import { getSupplierList, type Supplier } from '@/api/supplier'
@@ -66,6 +67,8 @@ import RecipeTab from './tabs/RecipeTab.vue'
 import DyeFormDialogTab from './tabs/DyeFormDialogTab.vue'
 import GreigeFormDialogTab from './tabs/GreigeFormDialogTab.vue'
 import RecipeFormDialogTab from './tabs/RecipeFormDialogTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const activeTab = ref('dye')
 
@@ -119,15 +122,15 @@ const openRecipeDialog = (row: ApiDyeRecipe | null) => {
 }
 
 const handleStock = async (type: 'in' | 'out', row: GreigeFabric) => {
-  const title = type === 'in' ? '坯布入库' : '坯布出库'
+  const title = type === 'in' ? t('fabric.index.stockInTitle') : t('fabric.index.stockOutTitle')
   try {
     const { value } = await ElMessageBox.prompt(
-      `请输入${type === 'in' ? '入库' : '出库'}数量`,
+      type === 'in' ? t('fabric.index.promptStockIn') : t('fabric.index.promptStockOut'),
       title
     )
     const qty = parseFloat(value)
     if (isNaN(qty) || qty <= 0) {
-      ElMessage.error('数量必须为正数')
+      ElMessage.error(t('fabric.index.messageQuantityMustBePositive'))
       return
     }
     if (type === 'in') {
@@ -135,11 +138,11 @@ const handleStock = async (type: 'in' | 'out', row: GreigeFabric) => {
     } else {
       await stockOutGreigeFabric(row.id, { quantity: qty })
     }
-    ElMessage.success(type === 'in' ? '入库成功' : '出库成功')
+    ElMessage.success(type === 'in' ? t('fabric.index.messageStockInSuccess') : t('fabric.index.messageStockOutSuccess'))
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('fabric.common.failed'))
     }
   }
 }

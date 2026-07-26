@@ -8,11 +8,11 @@
 <template>
   <div class="api-gateway-page">
     <div class="page-header">
-      <h2 class="page-title">API 网关</h2>
+      <h2 class="page-title">{{ t('apiGateway.index.title') }}</h2>
     </div>
 
     <el-tabs v-model="activeTab">
-      <el-tab-pane label="接口管理" name="endpoints">
+      <el-tab-pane :label="t('apiGateway.index.tabEndpoints')" name="endpoints">
         <ApiEndpointTab
           v-model:page="ep.page"
           v-model:page-size="ep.pageSize"
@@ -31,7 +31,7 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="API 密钥" name="keys">
+      <el-tab-pane :label="t('apiGateway.index.tabKeys')" name="keys">
         <ApiKeyTab
           v-model:page="key.page"
           v-model:page-size="key.pageSize"
@@ -48,7 +48,7 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="调用日志" name="logs">
+      <el-tab-pane :label="t('apiGateway.index.tabLogs')" name="logs">
         <ApiLogTab
           v-model:page="log.page"
           v-model:page-size="log.pageSize"
@@ -100,6 +100,7 @@
 // 批次 281：3 个 composable 已接入 useTableApi，自动管理分页和数据加载，无需 onMounted 调用 fetch。
 
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useApiEp } from './composables/useApiEp'
 import { useApiKey } from './composables/useApiKey'
 import { useApiLog } from './composables/useApiLog'
@@ -109,6 +110,8 @@ import LogDetail from './components/LogDetail.vue'
 import ApiEndpointTab, { type EndpointQuery } from './tabs/ApiEndpointTab.vue'
 import ApiKeyTab, { type ApiKeyQuery } from './tabs/ApiKeyTab.vue'
 import ApiLogTab, { type LogQuery } from './tabs/ApiLogTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const activeTab = ref('endpoints')
 

@@ -8,33 +8,33 @@
     <el-col :span="8">
       <el-card shadow="hover">
         <template #header>
-          <span>当前版本</span>
+          <span>{{ t('systemUpdate.infoCards.headerCurrentVersion') }}</span>
         </template>
         <div class="info-content">
           <div class="version">{{ currentVersion?.version || '-' }}</div>
-          <div class="date">构建日期: {{ currentVersion?.build_date || '-' }}</div>
+          <div class="date">{{ t('systemUpdate.infoCards.labelBuildDate') }}: {{ currentVersion?.build_date || '-' }}</div>
         </div>
       </el-card>
     </el-col>
     <el-col :span="8">
       <el-card shadow="hover">
         <template #header>
-          <span>最新版本</span>
+          <span>{{ t('systemUpdate.infoCards.headerLatestVersion') }}</span>
         </template>
         <div class="info-content">
           <div class="version">{{ latestVersion?.version || '-' }}</div>
-          <div class="date">发布日期: {{ latestVersion?.release_date || '-' }}</div>
+          <div class="date">{{ t('systemUpdate.infoCards.labelReleaseDate') }}: {{ latestVersion?.release_date || '-' }}</div>
         </div>
       </el-card>
     </el-col>
     <el-col :span="8">
       <el-card shadow="hover">
         <template #header>
-          <span>更新状态</span>
+          <span>{{ t('systemUpdate.infoCards.headerUpdateStatus') }}</span>
         </template>
         <div class="info-content">
           <el-tag :type="hasUpdate ? 'warning' : 'success'" size="large">
-            {{ hasUpdate ? '有可用更新' : '已是最新版本' }}
+            {{ hasUpdate ? t('systemUpdate.infoCards.statusHasUpdate') : t('systemUpdate.infoCards.statusUpToDate') }}
           </el-tag>
         </div>
       </el-card>
@@ -43,7 +43,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { SystemVersion } from '@/api/system-update'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 系统更新顶部信息卡组件

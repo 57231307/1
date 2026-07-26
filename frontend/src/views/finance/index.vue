@@ -15,10 +15,10 @@
 <template>
   <div class="finance-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => (activeTab = String(tab))">
-      <el-tab-pane label="科目管理" name="subject">
+      <el-tab-pane :label="t('finance.index.tabSubject')" name="subject">
         <SubjectTab />
       </el-tab-pane>
-      <el-tab-pane label="凭证管理" name="voucher">
+      <el-tab-pane :label="t('finance.index.tabVoucher')" name="voucher">
         <VoucherTab />
       </el-tab-pane>
     </el-tabs>
@@ -27,8 +27,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import SubjectTab from './tabs/SubjectTab.vue'
 import VoucherTab from './tabs/VoucherTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 当前激活的 Tab；数据懒加载由各子组件 onMounted 内部处理
 const activeTab = ref('subject')

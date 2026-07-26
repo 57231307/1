@@ -6,60 +6,63 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="版本详情"
+    :title="t('systemUpdate.versionDetail.dialogTitle')"
     width="700px"
-    aria-label="系统版本详情对话框"
+    :aria-label="t('systemUpdate.versionDetail.dialogAriaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item label="版本号">{{ currentVersionDetail?.version }}</el-descriptions-item>
-      <el-descriptions-item label="发布日期">{{
+      <el-descriptions-item :label="t('systemUpdate.versionDetail.labelVersion')">{{ currentVersionDetail?.version }}</el-descriptions-item>
+      <el-descriptions-item :label="t('systemUpdate.versionDetail.labelReleaseDate')">{{
         currentVersionDetail?.release_date
       }}</el-descriptions-item>
-      <el-descriptions-item label="文件大小" :span="2">{{
+      <el-descriptions-item :label="t('systemUpdate.versionDetail.labelFileSize')" :span="2">{{
         formatFileSize(currentVersionDetail?.file_size || 0)
       }}</el-descriptions-item>
     </el-descriptions>
     <div class="detail-section">
-      <h4>更新说明</h4>
-      <p>{{ currentVersionDetail?.release_notes || '暂无说明' }}</p>
+      <h4>{{ t('systemUpdate.versionDetail.sectionReleaseNotes') }}</h4>
+      <p>{{ currentVersionDetail?.release_notes || t('systemUpdate.versionDetail.emptyReleaseNotes') }}</p>
     </div>
     <div class="detail-section">
-      <h4>新功能</h4>
+      <h4>{{ t('systemUpdate.versionDetail.sectionFeatures') }}</h4>
       <ul>
         <li v-for="(feature, index) in currentVersionDetail?.features || []" :key="index">
           {{ feature }}
         </li>
-        <li v-if="!currentVersionDetail?.features?.length">暂无</li>
+        <li v-if="!currentVersionDetail?.features?.length">{{ t('systemUpdate.versionDetail.emptyList') }}</li>
       </ul>
     </div>
     <div class="detail-section">
-      <h4>问题修复</h4>
+      <h4>{{ t('systemUpdate.versionDetail.sectionBugFixes') }}</h4>
       <ul>
         <li v-for="(fix, index) in currentVersionDetail?.bug_fixes || []" :key="index">
           {{ fix }}
         </li>
-        <li v-if="!currentVersionDetail?.bug_fixes?.length">暂无</li>
+        <li v-if="!currentVersionDetail?.bug_fixes?.length">{{ t('systemUpdate.versionDetail.emptyList') }}</li>
       </ul>
     </div>
     <div class="detail-section">
-      <h4>重大变更</h4>
+      <h4>{{ t('systemUpdate.versionDetail.sectionBreakingChanges') }}</h4>
       <ul>
         <li v-for="(change, index) in currentVersionDetail?.breaking_changes || []" :key="index">
           {{ change }}
         </li>
-        <li v-if="!currentVersionDetail?.breaking_changes?.length">暂无</li>
+        <li v-if="!currentVersionDetail?.breaking_changes?.length">{{ t('systemUpdate.versionDetail.emptyList') }}</li>
       </ul>
     </div>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">关闭</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('systemUpdate.versionDetail.buttonClose') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { SystemVersion } from '@/api/system-update'
 import { formatFileSize } from '../composables/sysUpdFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 系统版本详情对话框组件

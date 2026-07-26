@@ -5,39 +5,39 @@
 -->
 <template>
   <el-card shadow="hover">
-    <el-table v-loading="voucherLoading" :data="vouchers" stripe aria-label="凭证列表">
-      <el-table-column prop="voucher_no" label="凭证号" width="120" />
-      <el-table-column prop="voucher_date" label="凭证日期" width="120" />
-      <el-table-column prop="voucher_type" label="凭证类型" width="100" />
-      <el-table-column label="借方金额" width="120" align="right">
+    <el-table v-loading="voucherLoading" :data="vouchers" stripe :aria-label="t('finance.voucherTable.ariaLabel')">
+      <el-table-column prop="voucher_no" :label="t('finance.voucherTable.columnVoucherNo')" width="120" />
+      <el-table-column prop="voucher_date" :label="t('finance.voucherTable.columnVoucherDate')" width="120" />
+      <el-table-column prop="voucher_type" :label="t('finance.voucherTable.columnVoucherType')" width="100" />
+      <el-table-column :label="t('finance.voucherTable.columnDebitAmount')" width="120" align="right">
         <template #default="{ row }">
           {{ formatMoney(row.total_debit) }}
         </template>
       </el-table-column>
-      <el-table-column label="贷方金额" width="120" align="right">
+      <el-table-column :label="t('finance.voucherTable.columnCreditAmount')" width="120" align="right">
         <template #default="{ row }">
           {{ formatMoney(row.total_credit) }}
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column prop="status" :label="t('finance.voucherTable.columnStatus')" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="getVoucherStatusType(row.status)" size="small">
             {{ getVoucherStatusLabel(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_by_name" label="制单人" width="100" />
-      <el-table-column prop="created_at" label="创建时间" width="160" />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column prop="created_by_name" :label="t('finance.voucherTable.columnCreatedBy')" width="100" />
+      <el-table-column prop="created_at" :label="t('finance.voucherTable.columnCreatedAt')" width="160" />
+      <el-table-column :label="t('finance.voucherTable.columnAction')" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('view', row)">查看</el-button>
+          <el-button type="primary" link size="small" @click="emit('view', row)">{{ t('finance.voucherTable.buttonView') }}</el-button>
           <el-button
             v-if="row.status === 'draft'"
             type="primary"
             link
             size="small"
             @click="emit('submit', row)"
-            >提交</el-button
+            >{{ t('finance.voucherTable.buttonSubmit') }}</el-button
           >
           <el-button
             v-if="row.status === 'submitted'"
@@ -45,7 +45,7 @@
             link
             size="small"
             @click="emit('review', row)"
-            >审核</el-button
+            >{{ t('finance.voucherTable.buttonReview') }}</el-button
           >
           <el-button
             v-if="row.status === 'reviewed'"
@@ -53,7 +53,7 @@
             link
             size="small"
             @click="emit('post', row)"
-            >过账</el-button
+            >{{ t('finance.voucherTable.buttonPost') }}</el-button
           >
         </template>
       </el-table-column>
@@ -65,7 +65,7 @@
         :page-sizes="[10, 20, 50, 100]"
         :total="voucherTotal"
         layout="total, sizes, prev, pager, next, jumper"
-        aria-label="凭证列表分页"
+        :aria-label="t('finance.voucherTable.paginationAriaLabel')"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
       />
@@ -74,7 +74,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { Voucher } from '@/api/finance'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 凭证列表表格组件

@@ -7,15 +7,15 @@
 <template>
   <div class="system-update-page">
     <div class="page-header">
-      <h2 class="page-title">系统更新</h2>
+      <h2 class="page-title">{{ t('systemUpdate.index.title') }}</h2>
       <div class="header-actions">
         <el-button type="primary" @click="upd.handleCheckUpdate">
           <el-icon><Refresh /></el-icon>
-          检查更新
+          {{ t('systemUpdate.index.buttonCheckUpdate') }}
         </el-button>
         <el-button @click="onOpenBackupDialog">
           <el-icon><FolderAdd /></el-icon>
-          创建备份
+          {{ t('systemUpdate.index.buttonCreateBackup') }}
         </el-button>
       </div>
     </div>
@@ -27,7 +27,7 @@
     />
 
     <el-tabs v-model="activeTab">
-      <el-tab-pane label="版本列表" name="versions">
+      <el-tab-pane :label="t('systemUpdate.index.tabVersions')" name="versions">
         <SystemUpdateVersionTab
           v-model:page="upd.versionPage"
           v-model:page-size="upd.versionPageSize"
@@ -35,7 +35,6 @@
           :loading="upd.versionLoading"
           :total="upd.versionTotal"
           :version-status-type-map="versionStatusTypeMap"
-          :version-status-map="versionStatusMap"
           :format-file-size="formatFileSize"
           @download="proc.handleDownload"
           @install="proc.handleInstall"
@@ -43,7 +42,7 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="更新任务" name="tasks">
+      <el-tab-pane :label="t('systemUpdate.index.tabTasks')" name="tasks">
         <SystemUpdateTaskTab
           v-model:page="upd.taskPage"
           v-model:page-size="upd.taskPageSize"
@@ -51,22 +50,19 @@
           :loading="upd.taskLoading"
           :total="upd.taskTotal"
           :task-status-type-map="taskStatusTypeMap"
-          :task-status-map="taskStatusMap"
           @rollback="proc.handleRollback"
           @cancel="proc.handleCancelTask"
         />
       </el-tab-pane>
 
-      <el-tab-pane label="系统备份" name="backups">
+      <el-tab-pane :label="t('systemUpdate.index.tabBackups')" name="backups">
         <SystemUpdateBackupTab
           v-model:page="upd.backupPage"
           v-model:page-size="upd.backupPageSize"
           :backups="upd.backups"
           :loading="upd.backupLoading"
           :total="upd.backupTotal"
-          :backup-type-map="backupTypeMap"
           :backup-status-type-map="backupStatusTypeMap"
-          :backup-status-map="backupStatusMap"
           :format-file-size="formatFileSize"
           @download="proc.handleDownloadBackup"
           @restore="proc.handleRestore"
@@ -92,6 +88,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Refresh, FolderAdd } from '@element-plus/icons-vue'
 import { useSysUpd } from './composables/useSysUpd'
 import { useSysUpdProc } from './composables/useSysUpdProc'
@@ -102,6 +99,8 @@ import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue'
 import SystemUpdateInfoCards from './components/SystemUpdateInfoCards.vue'
 import SystemUpdateVersionDetail from './components/SystemUpdateVersionDetail.vue'
 import SystemUpdateBackupForm from './components/SystemUpdateBackupForm.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const activeTab = ref('versions')
 
@@ -115,26 +114,13 @@ const proc = useSysUpdProc({
   fetchBackups: upd.fetchBackups,
 })
 
-// 状态映射 + 文件大小格式化（来自 sysUpdFmts 工具）
-const {
-  VERSION_STATUS_LABEL,
-  VERSION_STATUS_TYPE,
-  TASK_STATUS_LABEL,
-  TASK_STATUS_TYPE,
-  BACKUP_TYPE_LABEL,
-  BACKUP_STATUS_LABEL,
-  BACKUP_STATUS_TYPE,
-  formatFileSize,
-} = sysUpdFmts
+// 状态类型映射（el-tag type，非文本，不需 i18n）+ 文件大小格式化（来自 sysUpdFmts 工具）
+const { VERSION_STATUS_TYPE, TASK_STATUS_TYPE, BACKUP_STATUS_TYPE, formatFileSize } = sysUpdFmts
 
-// 模板里用 statusTypeMap/statusMap 短名（与子组件 props 名称对齐）
+// 模板里用 statusTypeMap 短名（与子组件 props 名称对齐）
 const versionStatusTypeMap = VERSION_STATUS_TYPE
-const versionStatusMap = VERSION_STATUS_LABEL
 const taskStatusTypeMap = TASK_STATUS_TYPE
-const taskStatusMap = TASK_STATUS_LABEL
-const backupTypeMap = BACKUP_TYPE_LABEL
 const backupStatusTypeMap = BACKUP_STATUS_TYPE
-const backupStatusMap = BACKUP_STATUS_LABEL
 
 // 对话框可见性本地 ref
 const versionDetailVisible = ref(false)

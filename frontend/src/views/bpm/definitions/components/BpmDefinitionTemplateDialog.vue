@@ -7,45 +7,45 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="$t('bpm.definitions.templateDialog.title')"
-    :aria-label="$t('bpm.definitions.templateDialog.ariaLabel')"
+    :title="t('bpm.definitions.templateDialog.title')"
+    :aria-label="t('bpm.definitions.templateDialog.ariaLabel')"
     width="500px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" :aria-label="$t('bpm.definitions.templateDialog.formAriaLabel')">
-      <el-form-item :label="$t('bpm.definitions.templateDialog.templateName')" prop="template_name">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" :aria-label="t('bpm.definitions.templateDialog.formAriaLabel')">
+      <el-form-item :label="t('bpm.definitions.templateDialog.templateName')" prop="template_name">
         <el-input
           v-model="localFormData.template_name"
-          :placeholder="$t('bpm.definitions.templateDialog.templateNamePlaceholder')"
+          :placeholder="t('bpm.definitions.templateDialog.templateNamePlaceholder')"
         />
       </el-form-item>
-      <el-form-item :label="$t('bpm.definitions.templateDialog.category')" prop="category">
+      <el-form-item :label="t('bpm.definitions.templateDialog.category')" prop="category">
         <el-select
           v-model="localFormData.category"
-          :placeholder="$t('bpm.definitions.templateDialog.categoryPlaceholder')"
+          :placeholder="t('bpm.definitions.templateDialog.categoryPlaceholder')"
           style="width: 100%"
         >
-          <el-option :label="$t('bpm.definitions.category.finance')" value="finance" />
-          <el-option :label="$t('bpm.definitions.category.hr')" value="hr" />
-          <el-option :label="$t('bpm.definitions.category.purchase')" value="purchase" />
-          <el-option :label="$t('bpm.definitions.category.sales')" value="sales" />
-          <el-option :label="$t('bpm.definitions.category.production')" value="production" />
-          <el-option :label="$t('bpm.definitions.category.inventory')" value="inventory" />
-          <el-option :label="$t('bpm.definitions.category.other')" value="other" />
+          <el-option :label="t('bpm.definitions.category.finance')" value="finance" />
+          <el-option :label="t('bpm.definitions.category.hr')" value="hr" />
+          <el-option :label="t('bpm.definitions.category.purchase')" value="purchase" />
+          <el-option :label="t('bpm.definitions.category.sales')" value="sales" />
+          <el-option :label="t('bpm.definitions.category.production')" value="production" />
+          <el-option :label="t('bpm.definitions.category.inventory')" value="inventory" />
+          <el-option :label="t('bpm.definitions.category.other')" value="other" />
         </el-select>
       </el-form-item>
-      <el-form-item :label="$t('bpm.definitions.templateDialog.description')">
+      <el-form-item :label="t('bpm.definitions.templateDialog.description')">
         <el-input
           v-model="localFormData.description"
           type="textarea"
           :rows="3"
-          :placeholder="$t('bpm.definitions.templateDialog.descriptionPlaceholder')"
+          :placeholder="t('bpm.definitions.templateDialog.descriptionPlaceholder')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ $t('bpm.definitions.templateDialog.cancel') }}</el-button>
-      <el-button type="primary" :loading="loading" @click="emit('submit')">{{ $t('bpm.definitions.templateDialog.save') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('bpm.definitions.templateDialog.cancel') }}</el-button>
+      <el-button type="primary" :loading="loading" @click="emit('submit')">{{ t('bpm.definitions.templateDialog.save') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -53,6 +53,9 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { type FormInstance, type FormRules } from 'element-plus'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单数据类型
 interface TplForm {

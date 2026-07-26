@@ -48,8 +48,11 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ApprovalTask } from '@/api/bpm-enhanced'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单字段类型
 interface TranForm {

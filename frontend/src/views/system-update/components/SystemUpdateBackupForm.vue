@@ -7,39 +7,39 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="创建备份"
+    :title="t('systemUpdate.backupForm.dialogTitle')"
     width="500px"
-    aria-label="创建系统备份对话框"
+    :aria-label="t('systemUpdate.backupForm.dialogAriaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localForm" label-width="100px" aria-label="创建系统备份表单">
-      <el-form-item label="备份类型" prop="backup_type">
+    <el-form :model="localForm" label-width="100px" :aria-label="t('systemUpdate.backupForm.formAriaLabel')">
+      <el-form-item :label="t('systemUpdate.backupForm.labelBackupType')" prop="backup_type">
         <el-select
           v-model="localForm.backup_type"
           style="width: 100%"
         >
-          <el-option label="完整备份" value="full" />
-          <el-option label="增量备份" value="incremental" />
-          <el-option label="数据库备份" value="database" />
-          <el-option label="文件备份" value="files" />
+          <el-option :label="t('systemUpdate.backupForm.optionFull')" value="full" />
+          <el-option :label="t('systemUpdate.backupForm.optionIncremental')" value="incremental" />
+          <el-option :label="t('systemUpdate.backupForm.optionDatabase')" value="database" />
+          <el-option :label="t('systemUpdate.backupForm.optionFiles')" value="files" />
         </el-select>
       </el-form-item>
-      <el-form-item label="描述" prop="description">
+      <el-form-item :label="t('systemUpdate.backupForm.labelDescription')" prop="description">
         <el-input
           v-model="localForm.description"
           type="textarea"
           :rows="3"
-          placeholder="请输入备份描述"
+          :placeholder="t('systemUpdate.backupForm.placeholderDescription')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('systemUpdate.backupForm.buttonCancel') }}</el-button>
       <el-button
         type="primary"
         :loading="submitLoading"
         @click="emit('submit')"
-        >开始备份</el-button
+        >{{ t('systemUpdate.backupForm.buttonStartBackup') }}</el-button
       >
     </template>
   </el-dialog>
@@ -47,6 +47,9 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface BackupForm {
   backup_type: 'full' | 'incremental' | 'database' | 'files'

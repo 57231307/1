@@ -8,30 +8,30 @@
     <div class="filter-container">
       <el-input
         v-model="localQuery.keyword"
-        placeholder="搜索密钥名称"
+        :placeholder="t('apiGateway.keyTab.searchPlaceholder')"
         style="width: 200px"
         clearable
         @clear="handleSearch"
         @keyup.enter="handleSearch"
       />
-      <el-select v-model="localQuery.status" placeholder="状态" clearable style="width: 120px">
-        <el-option label="启用" value="active" />
-        <el-option label="停用" value="inactive" />
+      <el-select v-model="localQuery.status" :placeholder="t('apiGateway.keyTab.statusPlaceholder')" clearable style="width: 120px">
+        <el-option :label="t('apiGateway.keyTab.statusActive')" value="active" />
+        <el-option :label="t('apiGateway.keyTab.statusInactive')" value="inactive" />
       </el-select>
       <el-button type="primary" @click="handleSearch">
         <el-icon><Search /></el-icon>
-        搜索
+        {{ t('apiGateway.keyTab.search') }}
       </el-button>
       <el-button type="primary" @click="emit('new-key')">
         <el-icon><Plus /></el-icon>
-        创建密钥
+        {{ t('apiGateway.keyTab.create') }}
       </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="apiKeys" stripe aria-label="API 密钥列表">
-      <el-table-column prop="key_name" label="密钥名称" width="200" />
-      <el-table-column prop="app_id" label="应用 ID" width="200" />
-      <el-table-column label="密钥" min-width="200">
+    <el-table v-loading="loading" :data="apiKeys" stripe :aria-label="t('apiGateway.keyTab.tableAriaLabel')">
+      <el-table-column prop="key_name" :label="t('apiGateway.keyTab.columnKeyName')" width="200" />
+      <el-table-column prop="app_id" :label="t('apiGateway.keyTab.columnAppId')" width="200" />
+      <el-table-column :label="t('apiGateway.keyTab.columnKey')" min-width="200">
         <template #default="{ row }">
           <span class="key-text">{{ maskKey(row.api_key) }}</span>
           <el-button
@@ -40,26 +40,26 @@
             size="small"
             @click="emit('view-key', row)"
             style="margin-left: 8px"
-            >查看</el-button
+            >{{ t('apiGateway.keyTab.view') }}</el-button
           >
         </template>
       </el-table-column>
-      <el-table-column prop="expires_at" label="过期时间" width="160" />
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column prop="expires_at" :label="t('apiGateway.keyTab.columnExpiresAt')" width="160" />
+      <el-table-column prop="status" :label="t('apiGateway.keyTab.columnStatus')" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-            {{ row.status === 'active' ? '启用' : '停用' }}
+            {{ getStatusLabel(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="last_used_at" label="最后使用" width="160" />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column prop="last_used_at" :label="t('apiGateway.keyTab.columnLastUsed')" width="160" />
+      <el-table-column :label="t('apiGateway.keyTab.columnOperation')" width="200" fixed="right">
         <template #default="{ row }">
           <el-button v-permission="'api_key:update'" type="warning" link size="small" @click="emit('toggle-key', row)">
-            {{ row.status === 'active' ? '停用' : '启用' }}
+            {{ row.status === 'active' ? t('apiGateway.keyTab.disable') : t('apiGateway.keyTab.enable') }}
           </el-button>
           <el-button v-permission="'api_key:delete'" type="danger" link size="small" @click="emit('delete-key', row)"
-            >删除</el-button
+            >{{ t('apiGateway.keyTab.delete') }}</el-button
           >
         </template>
       </el-table-column>
@@ -72,7 +72,7 @@
         :page-sizes="[10, 20, 50]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        aria-label="API 密钥列表分页"
+        :aria-label="t('apiGateway.keyTab.paginationAriaLabel')"
         @current-change="(v: number) => emit('update:page', v)"
         @size-change="(v: number) => emit('update:page-size', v)"
       />
@@ -82,8 +82,11 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Search, Plus } from '@element-plus/icons-vue'
 import type { ApiKey } from '@/api/api-gateway'
+
+const { t } = useI18n({ useScope: 'global' })
 
 export interface ApiKeyQuery {
   keyword: string
@@ -133,6 +136,15 @@ const maskKey = (key: string) => {
   if (!key) return ''
   if (key.length <= 8) return '*'.repeat(key.length)
   return key.substring(0, 4) + '*'.repeat(key.length - 8) + key.substring(key.length - 4)
+}
+
+// 状态标签映射：返回 t() 调用，确保语言切换响应
+const getStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    active: t('apiGateway.keyTab.statusActive'),
+    inactive: t('apiGateway.keyTab.statusInactive'),
+  }
+  return map[status] || status
 }
 </script>
 

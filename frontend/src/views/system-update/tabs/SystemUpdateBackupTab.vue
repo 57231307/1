@@ -6,29 +6,29 @@
 -->
 <template>
   <el-card shadow="hover">
-    <el-table v-loading="loading" :data="backups" stripe aria-label="系统备份列表">
-      <el-table-column prop="backup_code" label="备份编号" width="140" />
-      <el-table-column prop="backup_type" label="备份类型" width="100">
+    <el-table v-loading="loading" :data="backups" stripe :aria-label="t('systemUpdate.backupTab.tableAriaLabel')">
+      <el-table-column prop="backup_code" :label="t('systemUpdate.backupTab.columnBackupCode')" width="140" />
+      <el-table-column prop="backup_type" :label="t('systemUpdate.backupTab.columnBackupType')" width="100">
         <template #default="{ row }">
-          {{ backupTypeMap[row.backup_type] }}
+          {{ getBackupTypeLabel(row.backup_type) }}
         </template>
       </el-table-column>
-      <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip />
-      <el-table-column prop="file_size" label="文件大小" width="100">
+      <el-table-column prop="description" :label="t('systemUpdate.backupTab.columnDescription')" min-width="150" show-overflow-tooltip />
+      <el-table-column prop="file_size" :label="t('systemUpdate.backupTab.columnFileSize')" width="100">
         <template #default="{ row }">
           {{ formatFileSize(row.file_size) }}
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column prop="status" :label="t('systemUpdate.backupTab.columnStatus')" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="backupStatusTypeMap[row.status]" size="small">
-            {{ backupStatusMap[row.status] }}
+            {{ getBackupStatusLabel(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_by_name" label="创建人" width="100" />
-      <el-table-column prop="created_at" label="创建时间" width="160" />
-      <el-table-column label="操作" width="250" fixed="right">
+      <el-table-column prop="created_by_name" :label="t('systemUpdate.backupTab.columnCreatedBy')" width="100" />
+      <el-table-column prop="created_at" :label="t('systemUpdate.backupTab.columnCreatedAt')" width="160" />
+      <el-table-column :label="t('systemUpdate.backupTab.columnActions')" width="250" fixed="right">
         <template #default="{ row }">
           <el-button
             v-if="row.status === 'completed'"
@@ -36,7 +36,7 @@
             link
             size="small"
             @click="emit('download', row)"
-            >下载</el-button
+            >{{ t('systemUpdate.backupTab.buttonDownload') }}</el-button
           >
           <el-button
             v-if="row.status === 'completed'"
@@ -44,9 +44,9 @@
             link
             size="small"
             @click="emit('restore', row)"
-            >恢复</el-button
+            >{{ t('systemUpdate.backupTab.buttonRestore') }}</el-button
           >
-          <el-button type="danger" link size="small" @click="emit('delete', row)">删除</el-button>
+          <el-button type="danger" link size="small" @click="emit('delete', row)">{{ t('systemUpdate.backupTab.buttonDelete') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -60,14 +60,17 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
-        aria-label="系统备份列表分页"
+        :aria-label="t('systemUpdate.backupTab.paginationAriaLabel')"
       />
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { SystemBackup } from '@/api/system-update'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   backups: SystemBackup[]
@@ -75,9 +78,7 @@ defineProps<{
   total: number
   page: number
   pageSize: number
-  backupTypeMap: Record<string, string>
   backupStatusTypeMap: Record<string, string>
-  backupStatusMap: Record<string, string>
   formatFileSize: (size: number) => string
 }>()
 
@@ -88,6 +89,36 @@ const emit = defineEmits<{
   'update:page': [v: number]
   'update:page-size': [v: number]
 }>()
+
+/** 备份类型 → i18n 标签（语言切换响应） */
+const getBackupTypeLabel = (type: string): string => {
+  switch (type) {
+    case 'full':
+      return t('systemUpdate.common.backupTypeFull')
+    case 'incremental':
+      return t('systemUpdate.common.backupTypeIncremental')
+    case 'database':
+      return t('systemUpdate.common.backupTypeDatabase')
+    case 'files':
+      return t('systemUpdate.common.backupTypeFiles')
+    default:
+      return type
+  }
+}
+
+/** 备份状态 → i18n 标签（语言切换响应） */
+const getBackupStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'creating':
+      return t('systemUpdate.common.backupStatusCreating')
+    case 'completed':
+      return t('systemUpdate.common.backupStatusCompleted')
+    case 'failed':
+      return t('systemUpdate.common.backupStatusFailed')
+    default:
+      return status
+  }
+}
 </script>
 
 <style scoped>

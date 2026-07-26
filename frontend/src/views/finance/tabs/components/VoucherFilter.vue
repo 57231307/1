@@ -6,35 +6,35 @@
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localQuery" aria-label="凭证筛选表单">
-      <el-form-item label="凭证号">
+    <el-form :inline="true" :model="localQuery" :aria-label="t('finance.voucherFilter.ariaLabel')">
+      <el-form-item :label="t('finance.voucherFilter.labelVoucherNo')">
         <el-input
           v-model="localQuery.voucher_no"
-          placeholder="凭证号"
+          :placeholder="t('finance.voucherFilter.placeholderVoucherNo')"
           clearable
         />
       </el-form-item>
-      <el-form-item label="日期范围">
+      <el-form-item :label="t('finance.voucherFilter.labelDateRange')">
         <el-date-picker
           v-model="localQuery.date_range"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('finance.voucherFilter.rangeSeparator')"
+          :start-placeholder="t('finance.voucherFilter.placeholderStartDate')"
+          :end-placeholder="t('finance.voucherFilter.placeholderEndDate')"
           value-format="YYYY-MM-DD"
         />
       </el-form-item>
-      <el-form-item label="状态">
-        <el-select v-model="localQuery.status" placeholder="选择状态" clearable>
-          <el-option label="草稿" value="draft" />
-          <el-option label="已提交" value="submitted" />
-          <el-option label="已审核" value="reviewed" />
-          <el-option label="已过账" value="posted" />
+      <el-form-item :label="t('finance.voucherFilter.labelStatus')">
+        <el-select v-model="localQuery.status" :placeholder="t('finance.voucherFilter.placeholderStatus')" clearable>
+          <el-option :label="t('finance.voucherFilter.optionDraft')" value="draft" />
+          <el-option :label="t('finance.voucherFilter.optionSubmitted')" value="submitted" />
+          <el-option :label="t('finance.voucherFilter.optionReviewed')" value="reviewed" />
+          <el-option :label="t('finance.voucherFilter.optionPosted')" value="posted" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleSearch">{{ t('finance.voucherFilter.buttonSearch') }}</el-button>
+        <el-button @click="handleReset">{{ t('finance.voucherFilter.buttonReset') }}</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -42,6 +42,9 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 凭证过滤表单组件

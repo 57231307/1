@@ -6,25 +6,25 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="formData.id ? '编辑批次' : '新建批次'"
+    :title="formData.id ? t('fabric.dyeFormDialog.titleEdit') : t('fabric.dyeFormDialog.titleCreate')"
     width="700px"
-    :aria-label="formData.id ? '编辑批次' : '新建批次'"
+    :aria-label="formData.id ? t('fabric.dyeFormDialog.titleEdit') : t('fabric.dyeFormDialog.titleCreate')"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" aria-label="染色配方表单">
+    <el-form ref="formRef" :model="formData" label-width="100px" :aria-label="t('fabric.dyeFormDialog.formAriaLabel')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="批次号" prop="batch_no">
+          <el-form-item :label="t('fabric.dyeFormDialog.labelBatchNo')" prop="batch_no">
             <el-input v-model="formData.batch_no" :disabled="!!formData.id" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="颜色" prop="color_name">
+          <el-form-item :label="t('fabric.dyeFormDialog.labelColor')" prop="color_name">
             <el-input v-model="formData.color_name" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="坯布" prop="greige_fabric_id">
+      <el-form-item :label="t('fabric.dyeFormDialog.labelGreige')" prop="greige_fabric_id">
         <el-select v-model="formData.greige_fabric_id" style="width: 100%">
           <el-option
             v-for="item in greigeFabrics"
@@ -36,17 +36,17 @@
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="计划数量" prop="planned_quantity">
+          <el-form-item :label="t('fabric.dyeFormDialog.labelPlannedQuantity')" prop="planned_quantity">
             <el-input-number v-model="formData.planned_quantity" :min="0" style="width: 100%" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="实际数量" prop="actual_quantity">
+          <el-form-item :label="t('fabric.dyeFormDialog.labelActualQuantity')" prop="actual_quantity">
             <el-input-number v-model="formData.actual_quantity" :min="0" style="width: 100%" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="开始日期" prop="start_date">
+      <el-form-item :label="t('fabric.dyeFormDialog.labelStartDate')" prop="start_date">
         <el-date-picker
           v-model="formData.start_date"
           type="date"
@@ -56,19 +56,22 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{ t('fabric.common.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('fabric.common.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { createDyeBatch, updateDyeBatch, type DyeBatch } from '@/api/dye-batch'
 import type { GreigeFabric } from '@/api/greige-fabric'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -130,12 +133,12 @@ const handleSubmit = async () => {
     } else {
       await createDyeBatch(formData as Partial<DyeBatch>)
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(t('fabric.common.success'))
     emit('update:modelValue', false)
     emit('submitted')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('fabric.common.failed'))
     logger.error('染色批次保存失败', err.message)
   } finally {
     submitLoading.value = false

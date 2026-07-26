@@ -5,54 +5,15 @@
 -->
 <template>
   <el-row :gutter="20" class="stats-row">
-    <el-col :xs="24" :sm="12" :lg="6">
-      <el-card shadow="hover" class="stat-card pending">
+    <el-col v-for="card in statCards" :key="card.key" :xs="24" :sm="12" :lg="6">
+      <el-card shadow="hover" class="stat-card">
         <div class="stat-content">
-          <div class="stat-icon pending-icon">
-            <el-icon><Clock /></el-icon>
+          <div class="stat-icon" :class="card.cls">
+            <el-icon><component :is="card.icon" /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">{{ $t('bpm.approval.stat.pending') }}</div>
-            <div class="stat-value">{{ stats.pending }}</div>
-          </div>
-        </div>
-      </el-card>
-    </el-col>
-    <el-col :xs="24" :sm="12" :lg="6">
-      <el-card shadow="hover" class="stat-card completed">
-        <div class="stat-content">
-          <div class="stat-icon completed-icon">
-            <el-icon><CircleCheck /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">{{ $t('bpm.approval.stat.completed') }}</div>
-            <div class="stat-value">{{ stats.completed }}</div>
-          </div>
-        </div>
-      </el-card>
-    </el-col>
-    <el-col :xs="24" :sm="12" :lg="6">
-      <el-card shadow="hover" class="stat-card urgent">
-        <div class="stat-content">
-          <div class="stat-icon urgent-icon">
-            <el-icon><Warning /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">{{ $t('bpm.approval.stat.urgent') }}</div>
-            <div class="stat-value">{{ stats.urgent }}</div>
-          </div>
-        </div>
-      </el-card>
-    </el-col>
-    <el-col :xs="24" :sm="12" :lg="6">
-      <el-card shadow="hover" class="stat-card avg">
-        <div class="stat-content">
-          <div class="stat-icon avg-icon">
-            <el-icon><Timer /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-label">{{ $t('bpm.approval.stat.avgTime') }}</div>
-            <div class="stat-value">{{ stats.avgTime }}h</div>
+            <div class="stat-label">{{ card.label }}</div>
+            <div class="stat-value">{{ card.value }}{{ card.key === 'avgTime' ? 'h' : '' }}</div>
           </div>
         </div>
       </el-card>
@@ -61,7 +22,11 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 统计字段类型
 interface BpmApprovalStats {
@@ -74,10 +39,18 @@ interface BpmApprovalStats {
 /**
  * 审批中心统计卡片组件
  */
-defineProps<{
+const props = defineProps<{
   // 统计数据
   stats: BpmApprovalStats
 }>()
+
+// 统计卡片配置（响应式求值，随语言切换更新）
+const statCards = computed(() => [
+  { key: 'pending', label: t('bpm.approval.stat.pending'), value: props.stats.pending, icon: Clock, cls: 'pending-icon' },
+  { key: 'completed', label: t('bpm.approval.stat.completed'), value: props.stats.completed, icon: CircleCheck, cls: 'completed-icon' },
+  { key: 'urgent', label: t('bpm.approval.stat.urgent'), value: props.stats.urgent, icon: Warning, cls: 'urgent-icon' },
+  { key: 'avgTime', label: t('bpm.approval.stat.avgTime'), value: props.stats.avgTime, icon: Timer, cls: 'avg-icon' },
+])
 </script>
 
 <style scoped>
