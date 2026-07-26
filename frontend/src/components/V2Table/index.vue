@@ -21,7 +21,7 @@
           :height="autoHeight"
           :row-key="rowKey"
           :loading="loading"
-          :empty-text="emptyText"
+          :empty-text="resolvedEmptyText"
           :estimated-row-height="estimatedRowHeight"
           :header-height="48"
           :row-event-handlers="rowEventHandlers"
@@ -79,10 +79,13 @@ const props = withDefaults(
     pageSizes: () => [10, 20, 50, 100],
     height: 600,
     rowKey: 'id',
-    emptyText: () => t('components.v2Table.empty'),
+    emptyText: '',
     estimatedRowHeight: 48,
   }
 )
+
+/// 空文本默认值需在 setup 内求值（withDefaults 会被 hoist，不能引用 t）
+const resolvedEmptyText = computed(() => props.emptyText || t('components.v2Table.empty'))
 
 const emit = defineEmits<{
   'page-change': [page: number]
@@ -104,13 +107,18 @@ const v2Columns = computed<Column<T>[]>(() =>
         width: col.width ?? 150,
         minWidth: col.minWidth,
         /// fixed 字段：element-plus 官方 FixedDir 是 enum（非字符串字面量），需映射
-        fixed: col.fixed === 'left' ? TableV2FixedDir.LEFT : col.fixed === 'right' ? TableV2FixedDir.RIGHT : undefined,
+        fixed:
+          col.fixed === 'left'
+            ? TableV2FixedDir.LEFT
+            : col.fixed === 'right'
+              ? TableV2FixedDir.RIGHT
+              : undefined,
         sortable: col.sortable,
         align: col.align ?? 'left',
       }
       /// 有自定义渲染或格式化时，提供 cellRenderer；否则由 el-table-v2 用 dataKey 自动渲染
       if (col.renderCell || col.formatter) {
-        column.cellRenderer = (params) => {
+        column.cellRenderer = params => {
           /// 官方 RowCommonParams.rowData 为 any，收窄为 T（element-plus 类型系统设计）
           const row: T = params.rowData
           if (col.renderCell) {

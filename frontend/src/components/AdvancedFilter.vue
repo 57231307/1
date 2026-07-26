@@ -59,14 +59,18 @@
             @change="handleFieldChange(condition)"
           >
             <el-option
-              v-for="field in fields"
+              v-for="field in effectiveFields"
               :key="field.key"
               :label="field.label"
               :value="field.key"
             />
           </el-select>
 
-          <el-select v-model="condition.operator" :placeholder="t('common.filter.operatorPlaceholder')" style="width: 120px">
+          <el-select
+            v-model="condition.operator"
+            :placeholder="t('common.filter.operatorPlaceholder')"
+            style="width: 120px"
+          >
             <el-option
               v-for="op in getAvailableOperators(condition.field)"
               :key="op.value"
@@ -113,15 +117,26 @@
 
     <div class="filter-footer">
       <el-space>
-        <el-button type="primary" :disabled="!isValid" @click="handleApply"> {{ t('common.filter.apply') }} </el-button>
+        <el-button type="primary" :disabled="!isValid" @click="handleApply">
+          {{ t('common.filter.apply') }}
+        </el-button>
         <el-button @click="handleReset">{{ t('common.filter.reset') }}</el-button>
       </el-space>
     </div>
 
-    <el-dialog v-model="showSaveDialog" :title="t('common.filter.saveDialogTitle')" :aria-label="t('common.filter.saveDialogAriaLabel')" width="400px">
-      <el-form @submit.prevent="saveScheme" :aria-label="t('common.filter.saveFormAriaLabel')">
+    <el-dialog
+      v-model="showSaveDialog"
+      :title="t('common.filter.saveDialogTitle')"
+      :aria-label="t('common.filter.saveDialogAriaLabel')"
+      width="400px"
+    >
+      <el-form :aria-label="t('common.filter.saveFormAriaLabel')" @submit.prevent="saveScheme">
         <el-form-item :label="t('common.filter.schemeName')">
-          <el-input v-model="newSchemeName" :placeholder="t('common.filter.schemeNamePlaceholder')" autofocus />
+          <el-input
+            v-model="newSchemeName"
+            :placeholder="t('common.filter.schemeNamePlaceholder')"
+            autofocus
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -181,7 +196,15 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  fields: () => [
+  fields: () => [],
+  operators: () => [],
+  savedSchemes: () => [],
+})
+
+/// 默认字段需在 setup 内求值（withDefaults 会被 hoist，不能引用 t）
+const effectiveFields = computed<FilterField[]>(() => {
+  if (props.fields.length) return props.fields
+  return [
     { key: 'name', label: t('common.filter.defaultField.name'), type: 'text' },
     {
       key: 'status',
@@ -194,9 +217,7 @@ const props = withDefaults(defineProps<Props>(), {
     },
     { key: 'date', label: t('common.filter.defaultField.date'), type: 'date' },
     { key: 'amount', label: t('common.filter.defaultField.amount'), type: 'number' },
-  ],
-  operators: () => [],
-  savedSchemes: () => [],
+  ]
 })
 
 const emit = defineEmits<{
@@ -209,20 +230,36 @@ const emit = defineEmits<{
 }>()
 
 const defaultOperators = computed<FilterOperator[]>(() => [
-  { label: t('common.filter.operator.eq'), value: 'eq', applicableTypes: ['text', 'number', 'date', 'select', 'boolean'] },
+  {
+    label: t('common.filter.operator.eq'),
+    value: 'eq',
+    applicableTypes: ['text', 'number', 'date', 'select', 'boolean'],
+  },
   {
     label: t('common.filter.operator.neq'),
     value: 'neq',
     applicableTypes: ['text', 'number', 'date', 'select', 'boolean'],
   },
   { label: t('common.filter.operator.contains'), value: 'contains', applicableTypes: ['text'] },
-  { label: t('common.filter.operator.notContains'), value: 'notContains', applicableTypes: ['text'] },
+  {
+    label: t('common.filter.operator.notContains'),
+    value: 'notContains',
+    applicableTypes: ['text'],
+  },
   { label: t('common.filter.operator.gt'), value: 'gt', applicableTypes: ['number', 'date'] },
   { label: t('common.filter.operator.gte'), value: 'gte', applicableTypes: ['number', 'date'] },
   { label: t('common.filter.operator.lt'), value: 'lt', applicableTypes: ['number', 'date'] },
   { label: t('common.filter.operator.lte'), value: 'lte', applicableTypes: ['number', 'date'] },
-  { label: t('common.filter.operator.isNull'), value: 'null', applicableTypes: ['text', 'number', 'date'] },
-  { label: t('common.filter.operator.notNull'), value: 'notNull', applicableTypes: ['text', 'number', 'date'] },
+  {
+    label: t('common.filter.operator.isNull'),
+    value: 'null',
+    applicableTypes: ['text', 'number', 'date'],
+  },
+  {
+    label: t('common.filter.operator.notNull'),
+    value: 'notNull',
+    applicableTypes: ['text', 'number', 'date'],
+  },
 ])
 
 const conditions = ref<FilterGroup[]>([
@@ -241,7 +278,7 @@ const isValid = computed(() => {
 
 const getAvailableOperators = (fieldKey: string): FilterOperator[] => {
   if (props.operators.length > 0) return props.operators
-  const field = props.fields.find(f => f.key === fieldKey)
+  const field = effectiveFields.value.find(f => f.key === fieldKey)
   if (!field) return defaultOperators.value
   return defaultOperators.value.filter(
     op => !op.applicableTypes || op.applicableTypes.includes(field.type || 'text')
@@ -272,7 +309,7 @@ const getValueInput = (condition: FilterCondition) => {
   if (['null', 'notNull'].includes(condition.operator)) {
     return 'span'
   }
-  const field = props.fields.find(f => f.key === condition.field)
+  const field = effectiveFields.value.find(f => f.key === condition.field)
   if (!field) return 'el-input'
 
   switch (field.type) {

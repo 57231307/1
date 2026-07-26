@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { createI18n } from 'vue-i18n'
 import ElementPlus from 'element-plus'
+
+// i18n 由 tests/setup.ts 全局注入（config.global.plugins）
 
 // 批次 29 v7 P0-7 修复：原测试用 LoginMock 自定义组件，未测试真实 Login.vue。
 // 改为 mount 真实 Login.vue，并 mock 依赖（userStore / checkLockStatus / router），
@@ -99,35 +100,10 @@ vi.mock('element-plus', async () => {
 
 import Login from '@/views/Login.vue'
 
-// 创建测试用 i18n 实例
-const i18n = createI18n({
-  legacy: false,
-  locale: 'zh-CN',
-  messages: {
-    'zh-CN': {
-      login: {
-        subtitle: '面料管理系统',
-        username: '用户名',
-        password: '密码',
-        submit: '登录',
-        formLabel: '登录表单',
-        usernameRequired: '请输入用户名',
-        passwordRequired: '请输入密码',
-        success: '登录成功',
-        lockedAlert: '账号已锁定，请 {minutes} 分钟后重试',
-        failedAttempts: '失败次数：{count}',
-        remainingTime: '剩余时间：{minutes} 分 {seconds} 秒',
-        unlocked: '账号已解锁，可以登录',
-        failedFallback: '登录失败',
-      },
-    },
-  },
-})
-
 function mountLogin() {
   const wrapper = mount(Login, {
     global: {
-      plugins: [i18n, ElementPlus],
+      plugins: [ElementPlus],
     },
   })
   return { wrapper }
@@ -147,7 +123,7 @@ describe('Login.vue 真实组件测试', () => {
     const { wrapper } = mountLogin()
     await flushPromises()
     // 标题
-    expect(wrapper.find('.login-title').text()).toBe('面料管理系统')
+    expect(wrapper.find('.login-title').text()).toBe('秉羲 ERP 系统')
     // 用户名输入框存在（el-input 渲染为 input）
     const inputs = wrapper.findAll('input')
     expect(inputs.length).toBeGreaterThanOrEqual(2)

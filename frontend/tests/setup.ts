@@ -1,4 +1,8 @@
 import { vi } from 'vitest'
+import { config } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import zhCN from '@/locales/zh-CN'
+import enUS from '@/locales/en-US'
 
 // Mock Element Plus（基于 importActual 保留全部真实导出，覆盖 ElTableV2/ElAutoResizer 为可挂载的测试桩）
 // 备注：cherry-pick trae V2Table 测试需要 ElAutoResizer/ElTableV2 的测试桩；其余组件（ElMessage/ElPagination 等）保留真实导出
@@ -116,3 +120,15 @@ Object.defineProperty(window, 'ResizeObserver', {
   configurable: true,
   value: MockResizeObserver,
 })
+
+// 全局注入 i18n 插件（项目所有 .vue 组件均使用 useI18n，测试环境需模拟生产环境）
+const i18n = createI18n({
+  legacy: false,
+  locale: 'zh-CN',
+  fallbackLocale: 'en-US',
+  messages: {
+    'zh-CN': zhCN,
+    'en-US': enUS,
+  },
+})
+config.global.plugins = [i18n]
