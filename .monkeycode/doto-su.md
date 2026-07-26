@@ -15,7 +15,7 @@
 - **完成度**：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌
 - **已完成 16 项**：D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17
 - **进行中 1 项**：
-  - **D05**（i18n 接入率 23.4%，262 文件未接入，10 批次规划见 doto.md §0.8；Batch 3 已完成待推送 CI，Batch 4-9 待启动）
+  - **D05**（i18n 接入率 23.4%，262 文件未接入，10 批次规划见 doto.md §0.8；Batch 3 已合并 main PR #741，下一批次 Batch 4 调度/安全/系统 36 文件）
 
 ### 关键技术决策（最近）
 
@@ -23,13 +23,16 @@
 - **类型别名消除 type_complexity**（[permission.rs](file:///workspace/backend/src/services/init_service_ops/permission.rs)）：PermPair / RoleResourceGroup / RoleResourceSlice / RoleResourceGroups 四层别名
 - **facade 模式**（product_service.rs 等）：service 拆分为 facade + ops/ 子模块，缓存接入跟踪到 impl 实际所在文件
 - **Python 括号深度追踪脚本**：替代简单 awk 脚本，正确处理字符串/字符/注释/原始字符串，避免误判嵌套 `}` 为函数结尾
+- **merge-i18n 深度合并算法**（[scripts/merge-i18n-batch3.cjs](file:///workspace/scripts/merge-i18n-batch3.cjs)）：递归遍历对象，遇到 `{zh-CN, en-US}` 叶子节点直接覆盖，遇到对象递归合并；**坑**：合并时新命名空间前一个属性末尾需补逗号，否则触发 TS1005（已修复并记录）
 
 ### 最近重要 PR
 
 | PR | 状态 | 内容 |
 |-----|------|------|
+| #741 | ✅ 已合并 main ac16a5c | D05 Batch 3 useI18n 接入（17 文件 + 558 翻译键 + 5 新命名空间；CI 全绿，修复 locales 文件 customer 节缺少逗号 TS1005） |
+| #740 | ✅ 已合并 main 88af0f1 | D08 Batch 1 拆分 39 个 >80 行函数（33 文件），主函数 ≤50 行 + helper ≤50 行 |
+| #739 | ✅ 已合并 main 6ca04a2 | docs(p0): 更新 D09+D14 完成状态 + IR 规则合规修复（实时阅读 docs + MEMORY.md §五规则冲突裁决） |
 | #737 | ✅ 已合并 main 9768bbe | D09 拆分 9 个 >100 行函数 + D14 修复 4 处 api 命名 + clippy 3 警告修复 |
-| #739 | 🔄 CI 进行中 | docs(p0): 更新 D09+D14 完成状态 + IR 规则合规修复（实时阅读 docs + MEMORY.md §五规则冲突裁决） |
 
 ### 项目架构关键信息（来自 [docs/ARCHITECTURE.md](file:///workspace/.monkeycode/docs/ARCHITECTURE.md)）
 
@@ -355,13 +358,14 @@
 
 ---
 
-## 📦 V15 Batch 493 归档（D05 Batch 3 useI18n 接入，待推送 CI）
+## 📦 V15 Batch 493 归档（D05 Batch 3 useI18n 接入，已合并 main PR #741）
 
 ### 任务概述
 
 - **批次**：V15 Batch 493 / D05 Batch 3
 - **任务**：CRM/客户/供应商/销售/报价 5 模块 i18n 接入（原计划 42 文件，实际未接入 17 文件）
-- **分支**：fix/p0-d05-batch3
+- **分支**：fix/p0-d05-batch3（已删除）
+- **PR**：#741（squash 合并到 main ac16a5c）
 - **执行时间**：2026-07-26
 - **D05 接入率**：18.6% → 23.4%（66 → 83 / 355 文件），剩余 262 文件未接入
 
@@ -435,9 +439,25 @@ locales + 脚本：
 
 ### CI 验证
 
-- 状态：⏳ 待推送 CI 验证
-- 沙箱本地：cargo check 因 OOM 不可用，前端 vue-tsc/eslint 因 node_modules 为空不可用
-- 依赖 CI 验证：前端格式 + ESLint + 类型检查 + 测试 + 构建 + Rust 格式 + Clippy
+- **状态**：✅ CI 全绿（PR #741 已 squash 合并到 main ac16a5c，分支已删除）
+- **CI run**：30189969994（首次 30189884684 因 locales 语法错误失败，修复后重跑全绿）
+- **首次失败原因**：merge-i18n-batch3.cjs 在 user-profile 命名空间后插入 customer 命名空间时未补逗号，导致 zh-CN.ts/en-US.ts 第 4676 行 `}` 后缺少 `,`，触发 TS1005: ',' expected，前端类型检查 + 前端构建双失败
+- **修复 commit**：8f7c39b `fix(p0): D05 Batch 3 修复 locales 文件 customer 节缺少逗号 (TS1005)`
+- **修复后 CI 结果**（run 30189969994）：
+  - ✅ 📋 环境信息 (16s)
+  - ✅ 📦 依赖图记录 (33s)
+  - ✅ 🔧 Rust 格式检查 (14s)
+  - ✅ 🔧 前端格式检查 (34s)
+  - ✅ 🔍 Rust Clippy (4m52s)
+  - ✅ 🔍 前端 ESLint (1m21s)
+  - ✅ 🧪 前端测试 (24s)
+  - ✅ 🧪 Rust 单元测试 (10m59s)
+  - ✅ 🏗️ 前端构建 (49s)
+  - ✅ 🔬 前端类型检查 (52s)
+  - ✅ 🏗️ Rust 后端构建 (15m11s)
+  - ❌ 📊 Rust 覆盖率 (11m23s) — 非阻塞，与 PR #737 同样情况
+  - ❌ 🛡️ 依赖审计 (3m33s) — 非阻塞，crossbeam-epoch RUSTSEC-2026-0204 已知漏洞等上游更新
+- **沙箱本地**：cargo check 因 OOM 不可用，前端 vue-tsc/eslint 因 node_modules 为空不可用，依赖 CI 验证
 
 ### 关键技术要点
 

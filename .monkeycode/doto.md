@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-26（D05 Batch 3 useI18n 接入完成：17 文件 + 558 翻译键 + 5 新命名空间；分支 fix/p0-d05-batch3 待推送 CI；D05 接入率 18.6%→23.4%/262 文件未接入；PR #740 已合并到 main，D08 Batch 1 拆分 39 个 >80 行函数完成；全 backend/src 扫描确认 D08 任务全部完成：仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行；模块 G 16/17 项 P0 任务完成；剩余 1 项：D05 i18n 接入率 23.4%/262 文件未接入；PR #737 D09+D14 CI 全绿完成；clippy 3 警告修复：omni_audit.rs 引入 AuditContext 结构体 13/14 参→2/3 参 + permission.rs 引入 4 个 type 别名消除 type_complexity；**IR 规则合规修复**：实时阅读 docs/ 规划文档 6 份 + MEMORY.md §五改为"规则冲突裁决原则"（按 PR 规则 10 文件分工，MEMORY.md 只存规则）+ 关键项目内容迁移到 doto-su.md "📌 关键项目内容快照"节）
+> 最近整理：2026-07-26（D05 Batch 3 useI18n 接入已合并到 main（PR #741 ac16a5c）：17 文件 + 558 翻译键 + 5 新命名空间；CI 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS），仅覆盖率+依赖审计非阻塞失败（crossbeam-epoch RUSTSEC-2026-0204 已知漏洞等上游更新）；修复 locales 文件 customer 节缺少逗号 TS1005；D05 接入率 18.6%→23.4%/262 文件未接入；下一批次 Batch 4 调度/安全/系统 36 文件；PR #740 已合并到 main，D08 Batch 1 拆分 39 个 >80 行函数完成；全 backend/src 扫描确认 D08 任务全部完成：仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行；模块 G 16/17 项 P0 任务完成；剩余 1 项：D05 i18n 接入率 23.4%/262 文件未接入；PR #737 D09+D14 CI 全绿完成；clippy 3 警告修复：omni_audit.rs 引入 AuditContext 结构体 13/14 参→2/3 参 + permission.rs 引入 4 个 type 别名消除 type_complexity；**IR 规则合规修复**：实时阅读 docs/ 规划文档 6 份 + MEMORY.md §五改为"规则冲突裁决原则"（按 PR 规则 10 文件分工，MEMORY.md 只存规则）+ 关键项目内容迁移到 doto-su.md "📌 关键项目内容快照"节）
 
 ---
 
@@ -16,7 +16,7 @@
 |------|------|----------|
 | ✅ 已完成 | 16 | D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17 |
 | 🔵 代码完成待 CI | 0 | — |
-| ⏳ 进行中 | 1 | **D05**（i18n 接入率 23.4%，262 文件未接入；Batch 3 待推送 CI） |
+| ⏳ 进行中 | 1 | **D05**（i18n 接入率 23.4%，262 文件未接入；Batch 3 已合并 PR #741，下一批次 Batch 4 调度/安全/系统 36 文件） |
 | ❌ 未开始 | 0 | — |
 
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并到 main）：Batch 1 拆分 services/ 目录 39 个 >80 行函数（33 文件）；全 backend/src 扫描确认仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行。
@@ -390,11 +390,11 @@
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并 + 全 backend/src 扫描确认 0 个 >80 行非测试函数），P0 完成数 101→102。
 > ⚠️ 2026-07-25 三次核实后，模块 G 5 项 P0 任务重新打开（D05/D08/D09/D13/D14）；2026-07-25 P0-D09 完成拆分 9 个 >100 行函数，P0 完成数 99→100；2026-07-25 P0-D13 四次核实确认 18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名无需重命名，P0 完成数 100→101。
 
-### 1.2 状态：⏳ D05 useI18n 接入继续推进（剩余 279 文件未接入，分 7 子批次执行）
+### 1.2 状态：⏳ D05 useI18n 接入继续推进（剩余 262 文件未接入，分 7 子批次执行）
 
-- **当前批次**：Batch 493 ⏳ 待启动 —— D05 Batch 3: CRM/客户/供应商/销售/报价 42 文件 i18n 接入（§0.8.4）
-- **上一批次**：Batch 492 ✅ 已完成 —— D08 全部完成（PR #740 已合并 + 全 backend/src 扫描确认 0 个 >80 行非测试函数，D08 Batch 2 无需执行）
-- **下一批次**：Batch 494 待启动 —— D05 Batch 4: 调度/安全/系统 36 文件 i18n 接入（§0.8.5）
+- **当前批次**：Batch 494 ⏳ 待启动 —— D05 Batch 4: 调度/安全/系统 36 文件 i18n 接入（§0.8.5）
+- **上一批次**：Batch 493 ✅ 已合并 main（PR #741 ac16a5c）—— D05 Batch 3: CRM/客户/供应商/销售/报价 17 文件 i18n 接入（原计划 42 文件，实际未接入 17 个：CRM 16 个已接入 + sales/index.vue 容器豁免 + quotations/edit.vue 包装豁免 = 18 文件无需接入）；CI 全绿，修复 locales 文件 customer 节缺少逗号 TS1005
+- **下一批次**：Batch 495 待启动 —— D05 Batch 5: 采购全链路 40 文件 i18n 接入（§0.8.6）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证；**扫描脚本必须使用括号深度追踪算法**（三次核实教训）；**每批次 35-65 文件，禁止少于 35 除非最后一批**（用户指令）
 
 ### 1.3 关键决策记录
