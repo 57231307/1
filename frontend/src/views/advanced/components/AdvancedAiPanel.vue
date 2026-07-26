@@ -59,7 +59,7 @@ const emit = defineEmits<{
         <template #header
           ><div class="card-header">{{ $t('advancedModule.ai.salesForecast') }}</div></template
         >
-        <el-form label-width="100px" aria-label="销售预测表单">
+        <el-form label-width="100px" :aria-label="t('advancedModule.ai.ariaSalesForecastForm')">
           <el-form-item :label="$t('advancedModule.ai.forecastPeriod')">
             <el-select
               :model-value="forecastPeriod"
@@ -109,7 +109,7 @@ const emit = defineEmits<{
         <el-empty v-if="!inventoryResult" :description="$t('advancedModule.ai.clickToGenerate')" />
         <div v-else>
           <el-alert type="success" :title="inventoryResult.summary" show-icon class="mb-10" />
-          <el-table :data="inventoryResult.items" stripe aria-label="库存优化建议列表">
+          <el-table :data="inventoryResult.items" stripe :aria-label="t('advancedModule.ai.ariaInventoryOptList')">
             <el-table-column
               prop="product_name"
               :label="$t('advancedModule.ai.colProduct')"
@@ -150,7 +150,7 @@ const emit = defineEmits<{
         <template #header
           ><div class="card-header">{{ $t('advancedModule.ai.anomalyDetection') }}</div></template
         >
-        <el-form label-width="100px" aria-label="异常检测表单">
+        <el-form label-width="100px" :aria-label="t('advancedModule.ai.ariaAnomalyForm')">
           <el-form-item :label="$t('advancedModule.ai.dataType')">
             <el-select
               :model-value="anomalyType"
@@ -170,7 +170,7 @@ const emit = defineEmits<{
         </el-form>
         <el-empty v-if="!anomalyResult" :description="$t('advancedModule.ai.clickToDetect')" />
         <div v-else>
-          <el-table :data="anomalyResult" stripe aria-label="异常检测结果列表">
+          <el-table :data="anomalyResult" stripe :aria-label="t('advancedModule.ai.ariaAnomalyResultList')">
             <el-table-column prop="item" :label="$t('advancedModule.ai.colItem')" width="150" />
             <el-table-column prop="type" :label="$t('advancedModule.ai.colType')" width="100">
               <template #default="{ row }">

@@ -93,10 +93,10 @@ watch(
               style="width: 100%"
             >
               <el-option :label="t('advancedModule.quality.typeAll')" value="" />
-              <el-option :label="t('advancedModule.quality.typeIncoming')" value="进货检验" />
-              <el-option :label="t('advancedModule.quality.typeInprocess')" value="过程检验" />
-              <el-option :label="t('advancedModule.quality.typeFinal')" value="成品检验" />
-              <el-option :label="t('advancedModule.quality.typeOutgoing')" value="出货检验" />
+              <el-option :label="t('advancedModule.quality.typeIncoming')" :value="t('advancedModule.quality.typeIncoming')" />
+              <el-option :label="t('advancedModule.quality.typeInprocess')" :value="t('advancedModule.quality.typeInprocess')" />
+              <el-option :label="t('advancedModule.quality.typeFinal')" :value="t('advancedModule.quality.typeFinal')" />
+              <el-option :label="t('advancedModule.quality.typeOutgoing')" :value="t('advancedModule.quality.typeOutgoing')" />
             </el-select>
           </el-form-item>
           <el-form-item :label="t('advancedModule.quality.timeWindow')">
@@ -158,11 +158,11 @@ watch(
               <div class="metric-label">{{ t('advancedModule.quality.trend') }}</div>
               <el-tag
                 :type="
-                  qualityResult.trend === '上升'
+                  qualityResult.trend === t('advancedModule.quality.trendUp')
                     ? 'success'
-                    : qualityResult.trend === '下降'
+                    : qualityResult.trend === t('advancedModule.quality.trendDown')
                       ? 'danger'
-                      : qualityResult.trend === '平稳'
+                      : qualityResult.trend === t('advancedModule.quality.trendStable')
                         ? 'info'
                         : 'warning'
                 "
@@ -170,7 +170,7 @@ watch(
               >
                 {{ qualityResult.trend }}
                 <span
-                  v-if="qualityResult.trend_rate !== 0 && qualityResult.trend !== '无数据'"
+                  v-if="qualityResult.trend_rate !== 0 && qualityResult.trend !== t('advancedModule.quality.trendNoData')"
                   style="margin-left: 4px"
                 >
                   ({{ qualityResult.trend_rate > 0 ? '+' : '' }}{{ qualityResult.trend_rate }}pp)
@@ -181,9 +181,9 @@ watch(
               <div class="metric-label">{{ t('advancedModule.quality.riskLevel') }}</div>
               <el-tag
                 :type="
-                  qualityResult.risk_level === '高'
+                  qualityResult.risk_level === t('advancedModule.quality.riskHigh')
                     ? 'danger'
-                    : qualityResult.risk_level === '中'
+                    : qualityResult.risk_level === t('advancedModule.quality.riskMedium')
                       ? 'warning'
                       : 'success'
                 "

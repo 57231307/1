@@ -5,6 +5,7 @@
     :height="height"
     :loading="loading"
     :auto-resize="autoResize"
+    :aria-label="t('components.charts.barChart.pageAriaLabel')"
     @ready="emit('ready', $event)"
     @click="emit('click', $event)"
   />
@@ -12,8 +13,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { EChartsOption, ECharts } from 'echarts'
 import BaseChart from './BaseChart.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface BarData {
   name: string

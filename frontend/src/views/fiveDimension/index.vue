@@ -67,10 +67,10 @@ const searchResults = ref<FiveDimensionItem[]>([])
 const searchFormRef = reactive({ keyword: '' })
 
 const gradeOptions = [
-  { label: t('fiveDimension.index.gradeFirst'), value: '一等品' },
-  { label: t('fiveDimension.index.gradeSecond'), value: '二等品' },
-  { label: t('fiveDimension.index.gradeThird'), value: '三等品' },
-  { label: t('fiveDimension.index.gradeDefective'), value: '次品' },
+  { label: t('fiveDimension.index.gradeFirst'), value: t('fiveDimension.index.gradeFirst') },
+  { label: t('fiveDimension.index.gradeSecond'), value: t('fiveDimension.index.gradeSecond') },
+  { label: t('fiveDimension.index.gradeThird'), value: t('fiveDimension.index.gradeThird') },
+  { label: t('fiveDimension.index.gradeDefective'), value: t('fiveDimension.index.gradeDefective') },
 ]
 
 const searchTypeOptions = [

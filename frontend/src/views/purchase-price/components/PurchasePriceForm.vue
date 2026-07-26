@@ -77,9 +77,9 @@
           <el-form-item :label="t('purchasePrice.form.label.unit')" prop="unit">
             <el-select v-model="localFormData.unit" :placeholder="t('purchasePrice.form.placeholder.unit')">
               <!-- unit 字段值（米/公斤/件）作为 DB 存储值保留中文，仅 label 走 i18n -->
-              <el-option label="米" value="meter" />
-              <el-option label="公斤" value="kg" />
-              <el-option label="件" value="piece" />
+              <el-option :label="t('purchasePrice.form.unit.meter')" value="meter" />
+              <el-option :label="t('purchasePrice.form.unit.kg')" value="kg" />
+              <el-option :label="t('purchasePrice.form.unit.piece')" value="piece" />
             </el-select>
           </el-form-item>
         </el-col>

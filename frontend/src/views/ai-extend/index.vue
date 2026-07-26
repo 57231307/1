@@ -133,7 +133,7 @@ const applyRateColor = computed(() => {
           <template #header>
             <div class="card-header">{{ $t('aiExtend.overview.latestProcess') }}</div>
           </template>
-          <el-table :data="summary.latest_process_optimizations" size="small" max-height="300" aria-label="最新工艺优化列表">
+          <el-table :data="summary.latest_process_optimizations" size="small" max-height="300" :aria-label="t('aiExtend.overview.ariaLatestProcess')">
             <el-table-column prop="color_no" :label="$t('aiExtend.overview.colColorNo')" width="100" />
             <el-table-column prop="fabric_type" :label="$t('aiExtend.overview.colFabricType')" width="100" />
             <el-table-column prop="source" :label="$t('aiExtend.overview.colSource')" width="100">
@@ -158,7 +158,7 @@ const applyRateColor = computed(() => {
           <template #header>
             <div class="card-header">{{ $t('aiExtend.overview.latestQuality') }}</div>
           </template>
-          <el-table :data="summary.latest_quality_predictions" size="small" max-height="300" aria-label="最新质量预测列表">
+          <el-table :data="summary.latest_quality_predictions" size="small" max-height="300" :aria-label="t('aiExtend.overview.ariaLatestQuality')">
             <el-table-column prop="product_id" :label="$t('aiExtend.overview.colProductId')" width="80" />
             <el-table-column prop="risk_level" :label="$t('aiExtend.overview.colRisk')" width="90">
               <template #default="{ row }">

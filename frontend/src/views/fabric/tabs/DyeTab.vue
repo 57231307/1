@@ -89,7 +89,7 @@ const fetchBatches = async () => {
     batches.value = (res.data as DyeBatch[] | undefined) || []
   } catch (error) {
     const err = error as Error
-    logger.error('获取染色批次失败', err.message)
+    logger.error(t('fabric.dyeTab.fetchFailed'), err.message)
   } finally {
     loading.value = false
   }

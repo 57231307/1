@@ -13,7 +13,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { EChartsOption, ECharts } from 'echarts'
+import { useI18n } from 'vue-i18n'
 import BaseChart from './BaseChart.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface PieData {
   name: string
@@ -64,7 +67,7 @@ const chartOption = computed<EChartsOption>(() => {
     },
     series: [
       {
-        name: props.title || '数据',
+        name: props.title || t('components.charts.pieChart.defaultSeriesName'),
         type: 'pie',
         radius,
         center: ['50%', '50%'],

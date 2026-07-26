@@ -5,7 +5,7 @@
 -->
 <template>
   <div class="process-flow">
-    <el-empty v-if="!nodes || nodes.length === 0" description="暂无工艺节点" />
+    <el-empty v-if="!nodes || nodes.length === 0" :description="t('common.processFlow.emptyText')" />
     <el-steps v-else :active="activeIndex" align-center finish-status="success">
       <el-step
         v-for="node in nodes"
@@ -23,15 +23,15 @@
           <div class="node-header">
             <span>{{ node.node_name }}</span>
             <el-tag :type="NODE_STATUS_COLORS[node.status] || 'info'" size="small">
-              {{ NODE_STATUS[node.status] || node.status }}
+              {{ getNodeStatusLabel(node.status) }}
             </el-tag>
           </div>
         </template>
         <div class="node-info">
-          <div>计划开始：{{ node.planned_start_date || '未设置' }}</div>
-          <div>实际开始：{{ node.actual_start_date || '未开始' }}</div>
-          <div>实际结束：{{ node.actual_end_date || '进行中' }}</div>
-          <div>操作人：{{ node.operator_id || '未分配' }}</div>
+          <div>{{ t('common.processFlow.plannedStart') }}{{ node.planned_start_date || t('common.processFlow.notSet') }}</div>
+          <div>{{ t('common.processFlow.actualStart') }}{{ node.actual_start_date || t('common.processFlow.notStarted') }}</div>
+          <div>{{ t('common.processFlow.actualEnd') }}{{ node.actual_end_date || t('common.processFlow.inProgress') }}</div>
+          <div>{{ t('common.processFlow.operator') }}{{ node.operator_id || t('common.processFlow.unassigned') }}</div>
         </div>
         <div class="node-buttons">
           <el-button
@@ -40,14 +40,14 @@
             type="primary"
             @click="handleAction(node, 'start')"
           >
-            开始
+            {{ t('common.processFlow.action.start') }}
           </el-button>
           <el-button
             v-if="node.status === 'in_progress'"
             size="small"
             @click="handleAction(node, 'pause')"
           >
-            暂停
+            {{ t('common.processFlow.action.pause') }}
           </el-button>
           <el-button
             v-if="node.status === 'in_progress'"
@@ -55,7 +55,7 @@
             type="success"
             @click="handleAction(node, 'complete')"
           >
-            完成
+            {{ t('common.processFlow.action.complete') }}
           </el-button>
           <el-button
             v-if="node.status !== 'blocked' && node.status !== 'completed'"
@@ -63,7 +63,7 @@
             type="danger"
             @click="handleAction(node, 'block')"
           >
-            阻塞
+            {{ t('common.processFlow.action.block') }}
           </el-button>
         </div>
       </el-card>
@@ -74,14 +74,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import {
   advanceProcessNode,
-  NODE_STATUS,
   NODE_STATUS_COLORS,
 } from '@/api/custom-order'
 // FE-P2-2 修复（批次 388 v13 复审）：复用 API 导出的 CustomOrderProcessNode 类型，
 // 删除本地弱化的 ProcessNode 接口（status 含 | string 弱化、日期字段过宽联合、[key: string]: unknown 索引签名）
 import type { CustomOrderProcessNode } from '@/api/custom-order'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 工艺流程节点类型
@@ -114,19 +116,26 @@ function getStatus(s: string): 'process' | 'finish' | 'error' | 'wait' {
   return 'wait'
 }
 
+/** 节点状态标签映射（响应式 t() 求值，替代导入的 NODE_STATUS 中文常量） */
+function getNodeStatusLabel(s: string): string {
+  const known = ['pending', 'in_progress', 'completed', 'blocked']
+  if (!known.includes(s)) return s
+  return t(`common.processFlow.status.${s}`)
+}
+
 function getDescription(node: ProcessNode) {
-  if (node.actual_end_date) return `完成于 ${new Date(node.actual_end_date).toLocaleDateString()}`
-  if (node.actual_start_date) return `开始于 ${new Date(node.actual_start_date).toLocaleDateString()}`
-  if (node.planned_start_date) return `计划 ${new Date(node.planned_start_date).toLocaleDateString()}`
-  return '待开始'
+  if (node.actual_end_date) return t('common.processFlow.descriptionCompleted', { date: new Date(node.actual_end_date).toLocaleDateString() })
+  if (node.actual_start_date) return t('common.processFlow.descriptionStarted', { date: new Date(node.actual_start_date).toLocaleDateString() })
+  if (node.planned_start_date) return t('common.processFlow.descriptionPlanned', { date: new Date(node.planned_start_date).toLocaleDateString() })
+  return t('common.processFlow.descriptionPending')
 }
 
 async function handleAction(node: ProcessNode, action: string) {
   try {
     if (action === 'block') {
-      const { value: reason } = await ElMessageBox.prompt('请输入阻塞原因', '阻塞节点', {
+      const { value: reason } = await ElMessageBox.prompt(t('common.processFlow.blockReasonPrompt'), t('common.processFlow.blockNodeTitle'), {
         inputPattern: /\S+/,
-        inputErrorMessage: '原因不能为空',
+        inputErrorMessage: t('common.processFlow.blockReasonRequired'),
       })
       await advanceProcessNode(props.orderId || 0, node.id, {
         action,
@@ -139,13 +148,13 @@ async function handleAction(node: ProcessNode, action: string) {
         operator_id: 1,
       })
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(t('common.processFlow.operationSuccess'))
     emit('refresh')
   } catch (e: unknown) {
     // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
     if (e !== 'cancel') {
       const errMsg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(errMsg || '操作失败')
+      ElMessage.error(errMsg || t('common.processFlow.operationFailed'))
     }
   }
 }

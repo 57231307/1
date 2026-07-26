@@ -143,7 +143,7 @@ onMounted(load)
         <template #header>
           <div class="card-header">{{ $t('aiExtend.process.similarHistory') }}</div>
         </template>
-        <el-table :data="candidates" size="small" border aria-label="工艺优化候选案例列表">
+        <el-table :data="candidates" size="small" border :aria-label="t('aiExtend.process.ariaSimilarHistory')">
           <el-table-column prop="case_id" :label="$t('aiExtend.process.colCaseId')" width="100" />
           <el-table-column prop="color_no" :label="$t('aiExtend.process.colColorNo')" width="120" />
           <el-table-column prop="fabric_type" :label="$t('aiExtend.process.colFabricType')" width="100" />

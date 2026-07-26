@@ -11,7 +11,7 @@
     stripe
     border
     :empty-text="$t('adminFailover.emptyEvents')"
-    aria-label="故障切换事件列表"
+    :aria-label="$t('adminFailover.eventListAriaLabel')"
   >
     <el-table-column prop="created_at" :label="$t('adminFailover.colTime')" width="180">
       <template #default="{ row }">

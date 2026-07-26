@@ -239,7 +239,7 @@ const {
     status: '',
   },
   onError: (err: unknown) => {
-    logger.error('获取库存调整单失败', err)
+    logger.error(t('inventoryAdjustment.listTab.fetchAdjustmentFailed'), err)
     ElMessage.error(t('inventoryAdjustment.listTab.messageFetchFailed'))
   },
 })

@@ -149,7 +149,7 @@ const appliedOptions = computed(() => [
     </div>
 
     <el-card class="filter-card">
-      <el-form :inline="true" :model="filter" aria-label="工艺优化筛选表单">
+      <el-form :inline="true" :model="filter" :aria-label="$t('aiExtend.process.filterAriaLabel')">
         <el-form-item :label="$t('aiExtend.process.colColorNo')">
           <el-input v-model="filter.color_no" :placeholder="$t('aiExtend.process.colorNoPlaceholder')" clearable style="width: 160px" />
         </el-form-item>
@@ -174,7 +174,7 @@ const appliedOptions = computed(() => [
     </el-card>
 
     <el-card>
-      <el-table v-loading="loading" :data="items" stripe border aria-label="工艺优化列表">
+      <el-table v-loading="loading" :data="items" stripe border :aria-label="$t('aiExtend.process.tableAriaLabel')">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="color_no" :label="$t('aiExtend.process.colColorNo')" width="100" />
         <el-table-column prop="color_name" :label="$t('aiExtend.process.colColorName')" width="120" show-overflow-tooltip />
@@ -225,13 +225,13 @@ const appliedOptions = computed(() => [
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         style="margin-top: 16px; justify-content: flex-end"
-        aria-label="工艺优化列表分页"
+        :aria-label="$t('aiExtend.process.paginationAriaLabel')"
       />
     </el-card>
 
     <!-- 创建弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="$t('aiExtend.process.createDialogTitle')" width="540px" aria-label="工艺优化创建对话框">
-      <el-form :model="form" label-width="100px" aria-label="工艺优化表单">
+    <el-dialog v-model="dialogVisible" :title="$t('aiExtend.process.createDialogTitle')" width="540px" :aria-label="$t('aiExtend.process.createDialogAriaLabel')">
+      <el-form :model="form" label-width="100px" :aria-label="$t('aiExtend.process.formAriaLabel')">
         <el-form-item :label="$t('aiExtend.process.colColorNo')" required>
           <el-input v-model="form.color_no" :placeholder="$t('aiExtend.process.colorNoPlaceholder')" maxlength="64" />
         </el-form-item>
@@ -243,11 +243,11 @@ const appliedOptions = computed(() => [
         </el-form-item>
         <el-form-item :label="$t('aiExtend.process.colDyeType')">
           <el-select v-model="form.dye_type" :placeholder="$t('aiExtend.process.dyeTypePlaceholder')" clearable style="width: 100%">
-            <el-option :label="$t('aiExtend.process.dyeReactive')" value="活性染料" />
-            <el-option :label="$t('aiExtend.process.dyeDisperse')" value="分散染料" />
-            <el-option :label="$t('aiExtend.process.dyeAcid')" value="酸性染料" />
-            <el-option :label="$t('aiExtend.process.dyeVat')" value="还原染料" />
-            <el-option :label="$t('aiExtend.process.dyeDirect')" value="直接染料" />
+            <el-option :label="$t('aiExtend.process.dyeReactive')" :value="t('aiExtend.process.dyeReactive')" />
+            <el-option :label="$t('aiExtend.process.dyeDisperse')" :value="t('aiExtend.process.dyeDisperse')" />
+            <el-option :label="$t('aiExtend.process.dyeAcid')" :value="t('aiExtend.process.dyeAcid')" />
+            <el-option :label="$t('aiExtend.process.dyeVat')" :value="t('aiExtend.process.dyeVat')" />
+            <el-option :label="$t('aiExtend.process.dyeDirect')" :value="t('aiExtend.process.dyeDirect')" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('aiExtend.process.knnKValue')">

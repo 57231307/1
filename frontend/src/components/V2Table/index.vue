@@ -26,7 +26,7 @@
           :header-height="48"
           :row-event-handlers="rowEventHandlers"
           role="table"
-          aria-label="虚拟滚动数据表格"
+          :aria-label="t('components.v2Table.ariaLabel')"
           fixed
         />
       </template>
@@ -38,7 +38,7 @@
         :total="total"
         :page-sizes="pageSizes"
         layout="total, sizes, prev, pager, next, jumper"
-        aria-label="虚拟表格分页"
+        :aria-label="t('components.v2Table.paginationAriaLabel')"
         @current-change="handlePageChange"
         @size-change="handleSizeChange"
       />
@@ -54,7 +54,10 @@
 import { computed, h } from 'vue'
 import { ElAutoResizer, ElTableV2, ElPagination, TableV2FixedDir } from 'element-plus'
 import type { Column, RowEventHandlerParams } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import type { ColumnDef, SortOrder } from './types'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = withDefaults(
   defineProps<{
@@ -76,7 +79,7 @@ const props = withDefaults(
     pageSizes: () => [10, 20, 50, 100],
     height: 600,
     rowKey: 'id',
-    emptyText: '暂无数据',
+    emptyText: () => t('components.v2Table.empty'),
     estimatedRowHeight: 48,
   }
 )

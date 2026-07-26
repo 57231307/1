@@ -138,7 +138,7 @@ const formData = reactive({
   productName: '',
   colorNo: '',
   dyeLotNo: '',
-  grade: '一等品',
+  grade: t('inventoryBatch.batchFormDialog.optionGradeFirst'),
   quantityMeters: 0,
   quantityKg: 0,
   gramWeight: 0,
@@ -211,7 +211,7 @@ const handleSubmit = async () => {
       emit('submitted')
     } catch (error) {
       ElMessage.error((error as Error).message || t('inventoryBatch.batchFormDialog.messageFailed'))
-      logger.error('批次保存失败', (error as Error).message)
+      logger.error(t('inventoryBatch.batchFormDialog.messageSaveFailed'), (error as Error).message)
     } finally {
       submitLoading.value = false
     }

@@ -129,7 +129,7 @@ const handleSubmit = async () => {
   } catch (error) {
     const err = error as Error
     ElMessage.error(err.message || t('fabric.common.failed'))
-    logger.error('坯布保存失败', err.message)
+    logger.error(t('fabric.greigeFormDialog.saveFailed'), err.message)
   } finally {
     submitLoading.value = false
   }

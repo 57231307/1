@@ -70,7 +70,7 @@ const fetchFabrics = async () => {
     fabrics.value = (res.data as GreigeFabric[] | undefined) || []
   } catch (error) {
     const err = error as Error
-    logger.error('获取坯布列表失败', err.message)
+    logger.error(t('fabric.greigeTab.fetchFailed'), err.message)
   } finally {
     loading.value = false
   }

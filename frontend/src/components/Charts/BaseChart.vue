@@ -6,6 +6,9 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import * as echarts from 'echarts'
 import type { EChartsOption } from 'echarts'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   option?: EChartsOption
@@ -38,12 +41,12 @@ const defaultOption = computed<EChartsOption>(() => ({
 /// 图表 aria-label：从 option.title 提取文本，无 title 时降级为"数据图表"
 const chartAriaLabel = computed<string>(() => {
   const title = props.option?.title
-  if (!title) return '数据图表'
+  if (!title) return t('components.charts.baseChart.defaultAriaLabel')
   if (typeof title === 'string') return title
   if (typeof title === 'object' && 'text' in title && typeof title.text === 'string') {
     return title.text
   }
-  return '数据图表'
+  return t('components.charts.baseChart.defaultAriaLabel')
 })
 
 const initChart = () => {
@@ -51,7 +54,7 @@ const initChart = () => {
   chartInstance = echarts.init(chartRef.value)
   chartInstance.setOption(defaultOption.value)
   chartInstance.showLoading({
-    text: '加载中...',
+    text: t('components.charts.baseChart.loading'),
     color: '#409EFF',
     textColor: '#000',
     maskColor: 'rgba(255, 255, 255, 0.8)',

@@ -72,7 +72,7 @@
           <el-date-picker
             v-model="queryParams.date_range"
             type="daterange"
-            range-separator="至"
+            :range-separator="t('common.dateRange.to')"
             :start-placeholder="t('dyeBatch.index.placeholderStartDate')"
             :end-placeholder="t('dyeBatch.index.placeholderEndDate')"
             @change="handleQuery"

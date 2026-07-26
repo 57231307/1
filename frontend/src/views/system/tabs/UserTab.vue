@@ -7,65 +7,65 @@
 <template>
   <div class="user-tab">
     <div class="page-header">
-      <h2 class="page-title">用户管理</h2>
+      <h2 class="page-title">{{ t('system.user.title') }}</h2>
       <el-button type="primary" @click="openUserDialog()">
-        <el-icon><Plus /></el-icon> 新建用户
+        <el-icon><Plus /></el-icon> {{ t('system.user.button.create') }}
       </el-button>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="userQuery" aria-label="用户筛选表单">
-        <el-form-item label="关键词">
+      <el-form :inline="true" :model="userQuery" :aria-label="t('system.user.filter.ariaLabel')">
+        <el-form-item :label="t('system.user.filter.keyword')">
           <el-input
             v-model="userQuery.keyword"
-            placeholder="用户名/姓名/手机号"
+            :placeholder="t('system.user.filter.keywordPlaceholder')"
             clearable
             @keyup.enter="fetchUsers"
           />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="userQuery.status" placeholder="选择状态" clearable>
-            <el-option label="启用" :value="1" />
-            <el-option label="禁用" :value="0" />
+        <el-form-item :label="t('system.user.filter.status')">
+          <el-select v-model="userQuery.status" :placeholder="t('system.user.filter.statusPlaceholder')" clearable>
+            <el-option :label="t('system.user.status.active')" :value="1" />
+            <el-option :label="t('system.user.status.inactive')" :value="0" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="resetUserQuery">重置</el-button>
+          <el-button type="primary" @click="handleQuery">{{ t('system.user.button.query') }}</el-button>
+          <el-button @click="resetUserQuery">{{ t('system.user.button.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="users" stripe aria-label="用户列表">
-        <el-table-column prop="username" label="用户名" width="120" />
-        <el-table-column prop="real_name" label="姓名" width="100" />
-        <el-table-column prop="phone" label="手机号" width="130" />
-        <el-table-column prop="email" label="邮箱" min-width="180" />
-        <el-table-column prop="department_name" label="部门" width="120" />
-        <el-table-column label="角色" width="150">
+      <el-table v-loading="loading" :data="users" stripe :aria-label="t('system.user.table.ariaLabel')">
+        <el-table-column prop="username" :label="t('system.user.table.username')" width="120" />
+        <el-table-column prop="real_name" :label="t('system.user.table.realName')" width="100" />
+        <el-table-column prop="phone" :label="t('system.user.table.phone')" width="130" />
+        <el-table-column prop="email" :label="t('system.user.table.email')" min-width="180" />
+        <el-table-column prop="department_name" :label="t('system.user.table.department')" width="120" />
+        <el-table-column :label="t('system.user.table.role')" width="150">
           <template #default="{ row }">
             <template v-if="row.role_names?.length">
               <el-tag v-for="r in row.role_names" :key="r" size="small" class="mr-1">{{
                 r
               }}</el-tag>
             </template>
-            <span v-else class="text-gray">未分配</span>
+            <span v-else class="text-gray">{{ t('system.user.role.unassigned') }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table-column prop="status" :label="t('system.user.table.status')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
-              {{ row.status === 1 ? '启用' : '禁用' }}
+              {{ row.status === 1 ? t('system.user.status.active') : t('system.user.status.inactive') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column prop="created_at" :label="t('system.user.table.createdAt')" width="160" />
+        <el-table-column :label="t('system.user.table.operation')" width="150" fixed="right">
           <template #default="{ row }">
             <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
             <!-- v11 批次 166 P2-1 修复：row as any 改为 row as User -->
-            <el-button v-permission="PERMISSIONS.USER_UPDATE" size="small" link @click="openUserDialog(row as User)">编辑</el-button>
+            <el-button v-permission="PERMISSIONS.USER_UPDATE" size="small" link @click="openUserDialog(row as User)">{{ t('system.user.button.edit') }}</el-button>
             <el-button v-permission="PERMISSIONS.USER_DELETE" size="small" link type="danger" @click="deleteUser(row as User)"
-              >删除</el-button
+              >{{ t('system.user.button.delete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -78,40 +78,42 @@
         style="margin-top: 16px; justify-content: flex-end"
         @current-change="handlePageChange"
         @size-change="handleSizeChange"
-        aria-label="用户列表分页"
+        :aria-label="t('system.user.table.paginationAriaLabel')"
       />
     </el-card>
 
     <!-- 用户编辑对话框 -->
     <el-dialog
       v-model="userDialogVisible"
-      :title="userForm.id ? '编辑用户' : '新建用户'"
+      :title="userForm.id ? t('system.user.dialog.editTitle') : t('system.user.dialog.createTitle')"
       width="600px"
-      aria-label="用户编辑对话框"
+      :aria-label="t('system.user.dialog.ariaLabel')"
     >
-      <el-form ref="userFormRef" :model="userForm" :rules="userRules" label-width="100px" aria-label="用户信息表单">
-        <el-form-item label="用户名" prop="username">
+      <el-form ref="userFormRef" :model="userForm" :rules="userRules" label-width="100px" :aria-label="t('system.user.dialog.formAriaLabel')">
+        <el-form-item :label="t('system.user.dialog.username')" prop="username">
           <el-input v-model="userForm.username" :disabled="!!userForm.id" />
         </el-form-item>
-        <el-form-item v-if="!userForm.id" label="密码" prop="password">
+        <el-form-item v-if="!userForm.id" :label="t('system.user.dialog.password')" prop="password">
           <el-input v-model="userForm.password" type="password" show-password />
         </el-form-item>
-        <el-form-item label="姓名" prop="real_name">
+        <el-form-item :label="t('system.user.dialog.realName')" prop="real_name">
           <el-input v-model="userForm.real_name" />
         </el-form-item>
-        <el-form-item label="手机号" prop="phone">
+        <el-form-item :label="t('system.user.dialog.phone')" prop="phone">
           <el-input v-model="userForm.phone" />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
+        <el-form-item :label="t('system.user.dialog.email')" prop="email">
           <el-input v-model="userForm.email" />
         </el-form-item>
-        <el-form-item v-if="userForm.id" label="状态">
+        <el-form-item v-if="userForm.id" :label="t('system.user.dialog.status')">
           <el-switch v-model="userForm.status" :active-value="1" :inactive-value="0" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="userDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="userSubmitLoading" @click="submitUser">确定</el-button>
+        <el-button @click="userDialogVisible = false">{{ t('system.user.button.cancel') }}</el-button>
+        <el-button type="primary" :loading="userSubmitLoading" @click="submitUser">{{
+          t('system.user.button.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -155,7 +157,9 @@ const {
   url: '/users',
   defaultPageSize: 10,
   onError: (err: unknown) =>
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取用户列表失败'),
+    ElMessage.error(
+      (err instanceof Error ? err.message : String(err)) || t('system.user.message.loadListFailed')
+    ),
 })
 
 // 批次 276：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -206,10 +210,14 @@ const userForm = reactive({
 
 // v11 批次 166 P2-1 修复：validator 参数类型化（FormItemRule validator 签名）
 const validateEmail = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
-  v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? cb(new Error('邮箱格式错误')) : cb()
+  v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+    ? cb(new Error(t('system.user.validation.emailFormat')))
+    : cb()
 }
 const validatePhone = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
-  v && !/^1[3-9]\d{9}$/.test(v) ? cb(new Error('手机号格式错误')) : cb()
+  v && !/^1[3-9]\d{9}$/.test(v)
+    ? cb(new Error(t('system.user.validation.phoneFormat')))
+    : cb()
 }
 const validatePassword = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
   if (userForm.id && !v) {
@@ -217,19 +225,19 @@ const validatePassword = (_rule: unknown, v: string, cb: (error?: Error) => void
     return
   }
   v && v.length < 8
-    ? cb(new Error('密码至少8位'))
+    ? cb(new Error(t('system.user.validation.passwordMinLength')))
     : v && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(v)
-      ? cb(new Error('需含大小写字母和数字'))
+      ? cb(new Error(t('system.user.validation.passwordComplexity')))
       : cb()
 }
 
 const userRules: FormRules = {
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 20, message: '3-20位', trigger: 'blur' },
+    { required: true, message: t('system.user.validation.usernameRequired'), trigger: 'blur' },
+    { min: 3, max: 20, message: t('system.user.validation.usernameLength'), trigger: 'blur' },
   ],
   password: [{ required: true, validator: validatePassword, trigger: 'blur' }],
-  real_name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  real_name: [{ required: true, message: t('system.user.validation.realNameRequired'), trigger: 'blur' }],
   email: [{ validator: validateEmail, trigger: 'blur' }],
   phone: [{ validator: validatePhone, trigger: 'blur' }],
 }
@@ -290,7 +298,9 @@ const submitUser = async () => {
     fetchUsers()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('system.user.message.operationFailed')
+    )
   } finally {
     userSubmitLoading.value = false
   }
@@ -298,13 +308,20 @@ const submitUser = async () => {
 
 const deleteUser = async (row: User) => {
   try {
-    await ElMessageBox.confirm(`确定删除用户 "${row.username}"?`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('system.user.message.deleteConfirm', { name: row.username }),
+      t('system.user.message.deleteConfirmTitle'),
+      { type: 'warning' }
+    )
     await deleteUserApi(row.id)
     ElMessage.success(t('settings.user.deleteSuccess'))
     fetchUsers()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    if (e !== 'cancel') ElMessage.error((e instanceof Error ? e.message : String(e)) || '删除失败')
+    if (e !== 'cancel')
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || t('system.user.message.deleteFailed')
+      )
   }
 }
 </script>

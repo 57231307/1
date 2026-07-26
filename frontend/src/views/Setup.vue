@@ -168,9 +168,9 @@ const dbConnected = ref(false)
 
 // 环境检查
 const envChecks = ref([
-  { name: t('setupPage.envChecks.backendApi'), status: false, detail: '检查后端API是否正常响应' },
-  { name: t('setupPage.envChecks.disk'), status: false, detail: '检查是否有足够的磁盘空间（至少1GB）' },
-  { name: t('setupPage.envChecks.memory'), status: false, detail: '检查系统内存是否充足（至少512MB）' },
+  { name: t('setupPage.envChecks.backendApi'), status: false, detail: t('setupPage.envChecks.detail.backendApi') },
+  { name: t('setupPage.envChecks.disk'), status: false, detail: t('setupPage.envChecks.detail.disk') },
+  { name: t('setupPage.envChecks.memory'), status: false, detail: t('setupPage.envChecks.detail.memory') },
 ])
 
 const allChecksPassed = computed(() => envChecks.value.every(item => item.status))

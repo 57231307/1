@@ -96,7 +96,7 @@ const fetchRecipes = async () => {
     recipes.value = (res.data as DyeRecipe[] | undefined) || []
   } catch (error) {
     const err = error as Error
-    logger.error('获取配方列表失败', err.message)
+    logger.error(t('fabric.recipeTab.fetchFailed'), err.message)
   } finally {
     loading.value = false
   }

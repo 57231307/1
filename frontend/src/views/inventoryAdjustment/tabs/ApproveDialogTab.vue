@@ -110,7 +110,7 @@ const handlePass = async () => {
     ElMessage.error(
       (error as Error).message || t('inventoryAdjustment.approveDialogTab.messageFailed')
     )
-    logger.error('审批失败', (error as Error).message)
+    logger.error(t('inventoryAdjustment.approveDialogTab.approveFailed'), (error as Error).message)
   } finally {
     submitLoading.value = false
   }

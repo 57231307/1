@@ -6,69 +6,92 @@
 <template>
   <div class="cost-collection-tab">
     <div class="page-header">
-      <h2 class="page-title">成本归集</h2>
+      <h2 class="page-title">{{ t('cost.collectionList.title') }}</h2>
       <div>
         <el-button type="primary" @click="openDialog()">
-          <el-icon><Plus /></el-icon>新建归集
+          <el-icon><Plus /></el-icon>{{ t('cost.collectionList.button.create') }}
         </el-button>
         <el-button @click="handleExport">
-          <el-icon><Download /></el-icon>导出
+          <el-icon><Download /></el-icon>{{ t('cost.collectionList.button.exportBtn') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm" aria-label="成本归集筛选表单">
-        <el-form-item label="归集单号">
-          <el-input v-model="queryForm.collection_no" placeholder="单号" clearable />
+      <el-form
+        :inline="true"
+        :model="queryForm"
+        :aria-label="t('cost.collectionList.filter.ariaLabel')"
+      >
+        <el-form-item :label="t('cost.collectionList.filter.collectionNo')">
+          <el-input
+            v-model="queryForm.collection_no"
+            :placeholder="t('cost.collectionList.filter.collectionNoPlaceholder')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="批号">
-          <el-input v-model="queryForm.batch_no" placeholder="批号" clearable />
+        <el-form-item :label="t('cost.collectionList.filter.batchNo')">
+          <el-input
+            v-model="queryForm.batch_no"
+            :placeholder="t('cost.collectionList.filter.batchNoPlaceholder')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="选择状态" clearable>
-            <el-option label="草稿" value="draft" />
-            <el-option label="待审" value="pending" />
-            <el-option label="已审" value="approved" />
-            <el-option label="驳回" value="rejected" />
+        <el-form-item :label="t('cost.collectionList.filter.status')">
+          <el-select
+            v-model="queryForm.status"
+            :placeholder="t('cost.collectionList.filter.statusPlaceholder')"
+            clearable
+          >
+            <el-option :label="t('cost.collectionList.status.draft')" value="draft" />
+            <el-option :label="t('cost.collectionList.status.pending')" value="pending" />
+            <el-option :label="t('cost.collectionList.status.approved')" value="approved" />
+            <el-option :label="t('cost.collectionList.status.rejected')" value="rejected" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{
+            t('cost.collectionList.button.query')
+          }}</el-button>
+          <el-button @click="handleReset">{{ t('cost.collectionList.button.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="collectionList" stripe aria-label="成本归集列表">
-        <el-table-column prop="collection_no" label="归集单号" width="140" />
-        <el-table-column prop="collection_date" label="归集日期" width="120" />
-        <el-table-column prop="batch_no" label="批号" width="120" />
-        <el-table-column prop="color_no" label="色号" width="100" />
-        <el-table-column label="直接材料" width="120" align="right">
+      <el-table
+        v-loading="loading"
+        :data="collectionList"
+        stripe
+        :aria-label="t('cost.collectionList.table.ariaLabel')"
+      >
+        <el-table-column prop="collection_no" :label="t('cost.collectionList.table.collectionNo')" width="140" />
+        <el-table-column prop="collection_date" :label="t('cost.collectionList.table.collectionDate')" width="120" />
+        <el-table-column prop="batch_no" :label="t('cost.collectionList.table.batchNo')" width="120" />
+        <el-table-column prop="color_no" :label="t('cost.collectionList.table.colorNo')" width="100" />
+        <el-table-column :label="t('cost.collectionList.table.directMaterial')" width="120" align="right">
           <template #default="{ row }">¥{{ (row.direct_material || 0).toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column label="直接人工" width="120" align="right">
+        <el-table-column :label="t('cost.collectionList.table.directLabor')" width="120" align="right">
           <template #default="{ row }">¥{{ (row.direct_labor || 0).toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column label="制造费用" width="120" align="right">
+        <el-table-column :label="t('cost.collectionList.table.manufacturingOverhead')" width="120" align="right">
           <template #default="{ row }"
             >¥{{ (row.manufacturing_overhead || 0).toFixed(2) }}</template
           >
         </el-table-column>
-        <el-table-column label="总成本" width="120" align="right">
+        <el-table-column :label="t('cost.collectionList.table.totalCost')" width="120" align="right">
           <template #default="{ row }">
             <span class="text-bold">¥{{ (row.total_cost || 0).toFixed(2) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="t('cost.collectionList.table.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="remark" :label="t('cost.collectionList.table.remark')" min-width="150" show-overflow-tooltip />
+        <el-table-column :label="t('cost.collectionList.table.operation')" width="180" fixed="right">
           <template #default="{ row }">
             <el-button
               v-permission="'cost_collection:update'"
@@ -76,7 +99,7 @@
               link
               size="small"
               @click="openDialog(row)"
-              >编辑</el-button
+              >{{ t('cost.collectionList.button.edit') }}</el-button
             >
             <el-button
               v-if="row.status === 'draft' || row.status === 'pending'"
@@ -85,7 +108,7 @@
               link
               size="small"
               @click="auditCollection(row, true)"
-              >审核</el-button
+              >{{ t('cost.collectionList.button.audit') }}</el-button
             >
             <el-button
               v-if="row.status === 'pending'"
@@ -94,7 +117,7 @@
               link
               size="small"
               @click="auditCollection(row, false)"
-              >驳回</el-button
+              >{{ t('cost.collectionList.button.reject') }}</el-button
             >
             <el-button
               v-permission="'cost_collection:delete'"
@@ -102,7 +125,7 @@
               link
               size="small"
               @click="handleDelete(row)"
-              >删除</el-button
+              >{{ t('cost.collectionList.button.delete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -115,7 +138,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="成本归集列表分页"
+          :aria-label="t('cost.collectionList.table.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
@@ -124,50 +147,50 @@
 
     <el-dialog
       v-model="dialogVisible"
-      :title="form.id ? '编辑成本归集' : '新建成本归集'"
+      :title="form.id ? t('cost.collectionList.dialog.editTitle') : t('cost.collectionList.dialog.createTitle')"
       width="600px"
-      aria-label="成本归集编辑对话框"
+      :aria-label="t('cost.collectionList.dialog.ariaLabel')"
     >
       <el-form
         ref="formRef"
         :model="form"
         :rules="rules"
         label-width="100px"
-        aria-label="成本归集表单"
+        :aria-label="t('cost.collectionList.dialog.formAriaLabel')"
       >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="归集日期" prop="collection_date">
+            <el-form-item :label="t('cost.collectionList.dialog.collectionDate')" prop="collection_date">
               <el-date-picker
                 v-model="form.collection_date"
                 type="date"
-                placeholder="选择日期"
+                :placeholder="t('cost.collectionList.dialog.collectionDatePlaceholder')"
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="批号">
-              <el-input v-model="form.batch_no" placeholder="如 B001" />
+            <el-form-item :label="t('cost.collectionList.dialog.batchNo')">
+              <el-input v-model="form.batch_no" :placeholder="t('cost.collectionList.dialog.batchNoPlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="色号">
-              <el-input v-model="form.color_no" placeholder="如 C001" />
+            <el-form-item :label="t('cost.collectionList.dialog.colorNo')">
+              <el-input v-model="form.color_no" :placeholder="t('cost.collectionList.dialog.colorNoPlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="期间">
-              <el-input v-model="form.period" placeholder="如 2024-01" />
+            <el-form-item :label="t('cost.collectionList.dialog.period')">
+              <el-input v-model="form.period" :placeholder="t('cost.collectionList.dialog.periodPlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="直接材料" prop="direct_material">
+            <el-form-item :label="t('cost.collectionList.dialog.directMaterial')" prop="direct_material">
               <el-input-number
                 v-model="form.direct_material"
                 :min="0"
@@ -177,7 +200,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="直接人工" prop="direct_labor">
+            <el-form-item :label="t('cost.collectionList.dialog.directLabor')" prop="direct_labor">
               <el-input-number
                 v-model="form.direct_labor"
                 :min="0"
@@ -189,7 +212,7 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="制造费用" prop="manufacturing_overhead">
+            <el-form-item :label="t('cost.collectionList.dialog.manufacturingOverhead')" prop="manufacturing_overhead">
               <el-input-number
                 v-model="form.manufacturing_overhead"
                 :min="0"
@@ -199,18 +222,20 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="总成本">
+            <el-form-item :label="t('cost.collectionList.dialog.totalCost')">
               <span class="text-bold">¥{{ totalCost.toFixed(2) }}</span>
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="备注">
+        <el-form-item :label="t('cost.collectionList.dialog.remark')">
           <el-input v-model="form.remark" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('cost.collectionList.button.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          t('cost.collectionList.button.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -262,11 +287,9 @@ const {
   url: '/production/cost-collections',
   defaultPageSize: 20,
   onError: (err: unknown) => {
-    if (err instanceof Error) {
-      ElMessage.error(err.message || '获取成本归集列表失败')
-    } else {
-      ElMessage.error('获取成本归集列表失败')
-    }
+    const msg =
+      err instanceof Error ? err.message || t('cost.collectionList.message.loadListFailed') : t('cost.collectionList.message.loadListFailed')
+    ElMessage.error(msg)
   },
 })
 
@@ -321,15 +344,7 @@ const totalCost = computed(() => {
   return (form.direct_material || 0) + (form.direct_labor || 0) + (form.manufacturing_overhead || 0)
 })
 
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    [COST_STATUS.DRAFT]: '草稿',
-    [COST_STATUS.PENDING]: '待审',
-    [COST_STATUS.APPROVED]: '已审',
-    [COST_STATUS.REJECTED]: '驳回',
-  }
-  return map[status] || status
-}
+const getStatusLabel = (status: string) => t(`cost.collectionList.status.${status}`)
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
@@ -394,7 +409,7 @@ const handleSubmit = async () => {
       fetchCollections()
     } catch (e) {
       const err = e as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('cost.collectionList.message.operationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -417,7 +432,7 @@ const handleDelete = async (row: CostCollection) => {
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('cost.collectionList.message.deleteFailed'))
     }
   }
 }
@@ -425,19 +440,21 @@ const handleDelete = async (row: CostCollection) => {
 const auditCollection = async (row: CostCollection, approved: boolean) => {
   if (!row.id) return
   try {
-    const text = approved ? '通过' : '驳回'
+    const text = approved
+      ? t('cost.collectionList.message.auditPassed')
+      : t('cost.collectionList.message.auditRejected')
     await ElMessageBox.confirm(
       t('cost.confirmAction', { action: text }),
       t('cost.actionConfirmTitle', { action: text }),
       { type: 'info' }
     )
     await auditCollectionApi(row.id, approved)
-    ElMessage.success(`${text}成功`)
+    ElMessage.success(t('cost.collectionList.message.auditSuccess', { action: text }))
     fetchCollections()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('cost.collectionList.message.operationFailed'))
     }
   }
 }
@@ -449,6 +466,6 @@ const handleExport = async () => {
     color_no: queryParams.value.color_no as string | undefined,
   }
   await exportFromBackend('/production/cost-collections/export', params, 'cost_collections_export')
-  logger.info('成本归集列表已导出')
+  logger.info(t('cost.collectionList.message.exportSuccess'))
 }
 </script>
