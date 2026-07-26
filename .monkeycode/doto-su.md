@@ -15,7 +15,7 @@
 - **完成度**：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌
 - **已完成 16 项**：D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17
 - **进行中 1 项**：
-  - **D05**（i18n 接入率 66.7%，118 文件未接入；Batch 7 已合并 main PR #749 46bdf18 43 文件 + 1063 翻译键；下一批次 Batch 8 规划中）
+  - **D05**（i18n 接入率 94.9%，337/355 文件已接入；Batch 8 已合并 main PR #751 ce2b080 72 文件 + ~1864 翻译键；剩余 18 文件为容器组件豁免 + 404/403 错误页，D05 接近完成）
 
 ### 关键技术决策（最近）
 
@@ -34,6 +34,7 @@
 
 | PR | 状态 | 内容 |
 |-----|------|------|
+| #751 | ✅ 已合并 main ce2b080 | D05 Batch 8 useI18n 接入（72 文件 + ~1864 翻译键 + 7 新命名空间 + 20 扩展命名空间；CI 全绿：前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS，仅覆盖率非阻塞失败；15 容器组件豁免；D05 接入率 66.7%→94.9%） |
 | #749 | ✅ 已合并 main 46bdf18 | D05 Batch 7 useI18n 接入（43 文件 + 1063 翻译键 + 10 新命名空间 salesAnalysis/financialAnalysis/salesContract/salesExt/salesPrice/salesReturns/trading/fund/voucher/financeReport；CI 全绿：前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS，仅覆盖率非阻塞失败） |
 | #747 | ✅ 已合并 main 85facab | D05 Batch 6 useI18n 接入（38 文件 + 580 翻译键 + 5 新命名空间 apiGateway/fabric/finance/systemUpdate + bpm.definitions 子命名空间扩展；CI 全绿，修复 BpmApprovalTransferDialog.vue $t()→t() 转换 + locales 重复命名空间） |
 | #746 | ✅ 已合并 main bb49a57 | docs(p0): D05 Batch 5 已合并 main PR #745 状态归档 |

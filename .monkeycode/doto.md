@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-26（D05 Batch 7 useI18n 接入完成：5 并行代理接入销售/财务/凭证 10 模块 43 个 .vue 文件 = sales-analysis 6 + financial-analysis 1 + sales-contract 5 + sales-ext 4 + sales-price 6 + sales-returns 4 + trading 6 + fund 3 + voucher 5 + financeReport 1 + 1063 翻译键（salesAnalysis 51 + financialAnalysis 61 + salesContract 76 + salesExt 206 + salesPrice 130 + salesReturns 76 + trading 214 + fund 129 + voucher 76 + financeReport 44）；通过 merge-i18n-batch7.cjs 从 group*.json 的 keys.zh-CN/en-US 字段深度合并翻译键到 locales/zh-CN.ts + en-US.ts 双语同步；audit-i18n-batch7.cjs 验证 1159 个 t()/$t() 调用引用 1057 个不同键无缺失；vue-tsc 类型检查 0 错误 + ESLint 0 错误（prettier --fix 自动修复 392 个格式问题）+ vitest 76/76 测试通过；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制；上一批次 D05 Batch 6 已合并 main PR #747 85facab；D05 接入率 54.6%→66.7%（194→237/355 文件），剩余 118 文件未接入；模块 G 16/17 项 P0 任务完成；剩余 1 项 D05 i18n 接入率 66.7%/118 文件未接入）
+> 最近整理：2026-07-26（D05 Batch 8 useI18n 接入完成：5 并行代理接入剩余全量 72 个 .vue 文件 + 15 容器组件豁免；新增 7 新命名空间 + 扩展 20 已有命名空间 + ~1864 翻译键；通过 merge-i18n-batch8-cde.cjs 合并 C/D/E 翻译键 + merge-dup-ns-batch8.cjs 深度合并重复命名空间翻译键 + dedup-all-namespaces.py 删除重复块；修复 advancedModule.quality/report TS1117；vue-tsc 0 错误 + vitest 76/76 通过；D05 接入率 66.7%→94.9%（237→337/355），剩余 18 文件豁免；模块 G 16/17 项 P0 完成）
 
 ---
 
@@ -16,7 +16,7 @@
 |------|------|----------|
 | ✅ 已完成 | 16 | D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17 |
 | 🔵 代码完成待 CI | 0 | — |
-| ⏳ 进行中 | 1 | **D05**（i18n 接入率 66.7%，118 文件未接入；Batch 7 已合并 main PR #749 46bdf18，下一批次 Batch 8 规划中） |
+| ⏳ 进行中 | 1 | **D05**（i18n 接入率 94.9%，337/355 文件已接入；Batch 8 已合并 main PR #751 ce2b080；剩余 18 文件为容器组件豁免 + 404/403 错误页，D05 接近完成） |
 | ❌ 未开始 | 0 | — |
 
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并到 main）：Batch 1 拆分 services/ 目录 39 个 >80 行函数（33 文件）；全 backend/src 扫描确认仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行。
