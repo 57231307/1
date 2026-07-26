@@ -6,7 +6,7 @@
 <template>
   <el-card shadow="hover">
     <template #header>
-      <span>库存分布</span>
+      <span>{{ t('dashboard.pie.title') }}</span>
     </template>
     <div ref="chartRef" class="chart-container"></div>
   </el-card>
@@ -14,9 +14,12 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import type { ChartData } from '@/api/dashboard'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 饼图数据
 const props = defineProps<{ data: ChartData[] }>()
@@ -34,7 +37,7 @@ const renderChart = (distribution: ChartData[]) => {
     resizeHandler = () => pieChart?.resize()
     window.addEventListener('resize', resizeHandler)
   }
-  const data = distribution?.length ? distribution : [{ label: '暂无数据', value: 0 }]
+  const data = distribution?.length ? distribution : [{ label: t('dashboard.pie.empty'), value: 0 }]
   pieChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     legend: { orient: 'vertical', left: 'left' },

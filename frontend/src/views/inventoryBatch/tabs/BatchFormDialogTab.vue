@@ -6,35 +6,64 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="formData.id ? '编辑批次' : '新建批次'"
+    :title="
+      formData.id
+        ? t('inventoryBatch.batchFormDialog.titleEdit')
+        : t('inventoryBatch.batchFormDialog.titleCreate')
+    "
     width="600px"
-    :aria-label="formData.id ? '编辑批次' : '新建批次'"
+    :aria-label="
+      formData.id
+        ? t('inventoryBatch.batchFormDialog.ariaLabelEdit')
+        : t('inventoryBatch.batchFormDialog.ariaLabelCreate')
+    "
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" aria-label="库存批次表单">
-      <el-form-item label="批次号" prop="batchNo">
+    <el-form
+      ref="formRef"
+      :model="formData"
+      :rules="formRules"
+      label-width="100px"
+      :aria-label="t('inventoryBatch.batchFormDialog.ariaLabelForm')"
+    >
+      <el-form-item :label="t('inventoryBatch.batchFormDialog.labelBatchNo')" prop="batchNo">
         <el-input v-model="formData.batchNo" :disabled="!!formData.id" />
       </el-form-item>
-      <el-form-item label="产品名称" prop="productName">
+      <el-form-item
+        :label="t('inventoryBatch.batchFormDialog.labelProductName')"
+        prop="productName"
+      >
         <el-input v-model="formData.productName" />
       </el-form-item>
-      <el-form-item label="色号" prop="colorNo">
+      <el-form-item :label="t('inventoryBatch.batchFormDialog.labelColorNo')" prop="colorNo">
         <el-input v-model="formData.colorNo" />
       </el-form-item>
-      <el-form-item label="缸号" prop="dyeLotNo">
+      <el-form-item :label="t('inventoryBatch.batchFormDialog.labelDyeLotNo')" prop="dyeLotNo">
         <el-input v-model="formData.dyeLotNo" />
       </el-form-item>
-      <el-form-item label="等级" prop="grade">
+      <el-form-item :label="t('inventoryBatch.batchFormDialog.labelGrade')" prop="grade">
         <el-select v-model="formData.grade" style="width: 100%">
-          <el-option label="一等品" value="一等品" />
-          <el-option label="二等品" value="二等品" />
-          <el-option label="三等品" value="三等品" />
+          <el-option
+            :label="t('inventoryBatch.batchFormDialog.optionGradeFirst')"
+            :value="t('inventoryBatch.batchFormDialog.optionGradeFirst')"
+          />
+          <el-option
+            :label="t('inventoryBatch.batchFormDialog.optionGradeSecond')"
+            :value="t('inventoryBatch.batchFormDialog.optionGradeSecond')"
+          />
+          <el-option
+            :label="t('inventoryBatch.batchFormDialog.optionGradeThird')"
+            :value="t('inventoryBatch.batchFormDialog.optionGradeThird')"
+          />
         </el-select>
       </el-form-item>
-      <el-form-item label="数量(米)" prop="quantityMeters">
+      <el-form-item
+        :label="t('inventoryBatch.batchFormDialog.labelQuantityMeters')"
+        prop="quantityMeters"
+      >
         <el-input-number v-model="formData.quantityMeters" :min="0" style="width: 100%" />
       </el-form-item>
-      <el-form-item label="数量(kg)" prop="quantityKg">
+      <el-form-item :label="t('inventoryBatch.batchFormDialog.labelQuantityKg')" prop="quantityKg">
         <el-input-number
           v-model="formData.quantityKg"
           :min="0"
@@ -42,13 +71,16 @@
           style="width: 100%"
         />
       </el-form-item>
-      <el-form-item label="克重" prop="gramWeight">
+      <el-form-item :label="t('inventoryBatch.batchFormDialog.labelGramWeight')" prop="gramWeight">
         <el-input-number v-model="formData.gramWeight" :min="0" style="width: 100%" />
       </el-form-item>
-      <el-form-item label="幅宽" prop="width">
+      <el-form-item :label="t('inventoryBatch.batchFormDialog.labelWidth')" prop="width">
         <el-input-number v-model="formData.width" :min="0" style="width: 100%" />
       </el-form-item>
-      <el-form-item label="生产日期" prop="productionDate">
+      <el-form-item
+        :label="t('inventoryBatch.batchFormDialog.labelProductionDate')"
+        prop="productionDate"
+      >
         <el-date-picker
           v-model="formData.productionDate"
           type="date"
@@ -58,14 +90,19 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{
+        t('inventoryBatch.batchFormDialog.buttonCancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+        t('inventoryBatch.batchFormDialog.buttonSave')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
@@ -75,8 +112,9 @@ import {
   type UpdateBatchRequest,
   type InventoryBatch,
 } from '@/api/inventoryBatch'
-// CreateBatchRequest / UpdateBatchRequest 用于 submit 时的强类型断言
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -110,10 +148,23 @@ const formData = reactive({
   productionDate: '',
 })
 
-const formRules: FormRules = {
-  batchNo: [{ required: true, message: '请输入批次号', trigger: 'blur' }],
-  productName: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
-}
+/** 校验规则：computed 确保语言切换后规则消息响应式更新 */
+const formRules = computed<FormRules>(() => ({
+  batchNo: [
+    {
+      required: true,
+      message: t('inventoryBatch.batchFormDialog.ruleBatchNoRequired'),
+      trigger: 'blur',
+    },
+  ],
+  productName: [
+    {
+      required: true,
+      message: t('inventoryBatch.batchFormDialog.ruleProductNameRequired'),
+      trigger: 'blur',
+    },
+  ],
+}))
 
 const resetForm = () => {
   formData.id = 0
@@ -121,7 +172,7 @@ const resetForm = () => {
   formData.productName = ''
   formData.colorNo = ''
   formData.dyeLotNo = ''
-  formData.grade = '一等品'
+  formData.grade = t('inventoryBatch.batchFormDialog.optionGradeFirst')
   formData.quantityMeters = 0
   formData.quantityKg = 0
   formData.gramWeight = 0
@@ -155,11 +206,11 @@ const handleSubmit = async () => {
       } else {
         await createBatch(formData as unknown as CreateBatchRequest)
       }
-      ElMessage.success('操作成功')
+      ElMessage.success(t('inventoryBatch.batchFormDialog.messageSuccess'))
       emit('update:modelValue', false)
       emit('submitted')
     } catch (error) {
-      ElMessage.error((error as Error).message || '操作失败')
+      ElMessage.error((error as Error).message || t('inventoryBatch.batchFormDialog.messageFailed'))
       logger.error('批次保存失败', (error as Error).message)
     } finally {
       submitLoading.value = false

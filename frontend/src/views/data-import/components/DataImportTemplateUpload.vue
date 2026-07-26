@@ -6,9 +6,9 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="导入数据"
+    :title="t('dataImport.upload.dialogTitle')"
     width="500px"
-    aria-label="导入数据对话框"
+    :aria-label="t('dataImport.upload.dialogAriaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-upload
@@ -20,15 +20,19 @@
       accept=".xlsx,.csv,.json"
     >
       <template #trigger>
-        <el-button type="primary">选择文件</el-button>
+        <el-button type="primary">{{ t('dataImport.upload.selectFile') }}</el-button>
       </template>
       <template #tip>
-        <div class="el-upload__tip">只能上传 .xlsx/.csv/.json 文件，且不超过 10MB</div>
+        <div class="el-upload__tip">{{ t('dataImport.upload.tip') }}</div>
       </template>
     </el-upload>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="emit('submit')">开始导入</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('dataImport.upload.cancel')
+      }}</el-button>
+      <el-button type="primary" :loading="loading" @click="emit('submit')">{{
+        t('dataImport.upload.startImport')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -36,6 +40,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 文件上传对话框
@@ -64,7 +71,7 @@ defineExpose({ uploadRef })
 
 /** 文件超出限制 */
 const handleExceed = () => {
-  ElMessage.warning('只能上传一个文件')
+  ElMessage.warning(t('dataImport.upload.exceedLimit'))
   emit('exceed')
 }
 

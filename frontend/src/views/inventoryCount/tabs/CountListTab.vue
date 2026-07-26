@@ -13,7 +13,7 @@
               <el-icon><Document /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">盘点单数</div>
+              <div class="stat-label">{{ t('inventoryCount.listTab.statLabelTotal') }}</div>
               <div class="stat-value">{{ stats.total }}</div>
             </div>
           </div>
@@ -26,7 +26,7 @@
               <el-icon><Clock /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">进行中</div>
+              <div class="stat-label">{{ t('inventoryCount.listTab.statLabelInProgress') }}</div>
               <div class="stat-value">{{ stats.inProgress }}</div>
             </div>
           </div>
@@ -39,7 +39,7 @@
               <el-icon><CircleCheck /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">已完成</div>
+              <div class="stat-label">{{ t('inventoryCount.listTab.statLabelCompleted') }}</div>
               <div class="stat-value">{{ stats.completed }}</div>
             </div>
           </div>
@@ -52,7 +52,7 @@
               <el-icon><DataAnalysis /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">差异数量</div>
+              <div class="stat-label">{{ t('inventoryCount.listTab.statLabelDifference') }}</div>
               <div class="stat-value">{{ stats.difference }}</div>
             </div>
           </div>
@@ -61,56 +61,110 @@
     </el-row>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" class="filter-form" aria-label="盘点筛选表单">
-        <el-form-item label="盘点单号">
-          <el-input v-model="filterForm.count_no" placeholder="输入单号" clearable />
+      <el-form
+        :inline="true"
+        :model="filterForm"
+        class="filter-form"
+        :aria-label="t('inventoryCount.listTab.ariaLabelFilter')"
+      >
+        <el-form-item :label="t('inventoryCount.listTab.labelCountNo')">
+          <el-input
+            v-model="filterForm.count_no"
+            :placeholder="t('inventoryCount.listTab.placeholderCountNo')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="filterForm.status" placeholder="选择状态" clearable>
-            <el-option label="进行中" value="in_progress" />
-            <el-option label="已完成" value="completed" />
+        <el-form-item :label="t('inventoryCount.listTab.labelStatus')">
+          <el-select
+            v-model="filterForm.status"
+            :placeholder="t('inventoryCount.listTab.placeholderStatus')"
+            clearable
+          >
+            <el-option :label="t('inventoryCount.listTab.statusInProgress')" value="in_progress" />
+            <el-option :label="t('inventoryCount.listTab.statusCompleted')" value="completed" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleQuery">{{
+            t('inventoryCount.listTab.buttonSearch')
+          }}</el-button>
+          <el-button @click="handleReset">{{ t('inventoryCount.listTab.buttonReset') }}</el-button>
           <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
-          <el-button v-permission="'inventory:create'" type="primary" @click="emit('openForm', 'create', null)">
-            <el-icon><Plus /></el-icon>新建
+          <el-button
+            v-permission="'inventory:create'"
+            type="primary"
+            @click="emit('openForm', 'create', null)"
+          >
+            <el-icon><Plus /></el-icon>{{ t('inventoryCount.listTab.buttonCreate') }}
           </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="counts" stripe aria-label="盘点列表">
-        <el-table-column prop="count_no" label="盘点单号" width="160" fixed />
-        <el-table-column prop="count_date" label="盘点日期" width="120" />
-        <el-table-column prop="warehouse_name" label="仓库" width="120" />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table
+        v-loading="loading"
+        :data="counts"
+        stripe
+        :aria-label="t('inventoryCount.listTab.ariaLabelTable')"
+      >
+        <el-table-column
+          prop="count_no"
+          :label="t('inventoryCount.listTab.colCountNo')"
+          width="160"
+          fixed
+        />
+        <el-table-column
+          prop="count_date"
+          :label="t('inventoryCount.listTab.colCountDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="warehouse_name"
+          :label="t('inventoryCount.listTab.colWarehouse')"
+          width="120"
+        />
+        <el-table-column
+          prop="status"
+          :label="t('inventoryCount.listTab.colStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column prop="completed_at" label="完成时间" width="160">
+        <el-table-column
+          prop="created_by_name"
+          :label="t('inventoryCount.listTab.colCreatedBy')"
+          width="100"
+        />
+        <el-table-column
+          prop="created_at"
+          :label="t('inventoryCount.listTab.colCreatedAt')"
+          width="160"
+        />
+        <el-table-column
+          prop="completed_at"
+          :label="t('inventoryCount.listTab.colCompletedAt')"
+          width="160"
+        >
           <template #default="{ row }">{{ row.completed_at || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column :label="t('inventoryCount.listTab.colAction')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="emit('openDetail', row)"
-              >详情</el-button
-            >
+            <el-button type="primary" link size="small" @click="emit('openDetail', row)">{{
+              t('inventoryCount.listTab.buttonDetail')
+            }}</el-button>
             <el-button
               v-if="row.status === 'in_progress'"
               type="primary"
               link
               size="small"
               @click="emit('openForm', 'edit', row)"
-              >编辑</el-button
+              >{{ t('inventoryCount.listTab.buttonEdit') }}</el-button
             >
             <el-button
               v-if="row.status === 'in_progress'"
@@ -118,7 +172,7 @@
               link
               size="small"
               @click="handleComplete(row)"
-              >完成</el-button
+              >{{ t('inventoryCount.listTab.buttonComplete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -131,7 +185,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="盘点列表分页"
+          :aria-label="t('inventoryCount.listTab.ariaLabelPagination')"
         />
       </div>
     </el-card>
@@ -140,14 +194,14 @@
 
 <script setup lang="ts">
 import { reactive, watch, defineEmits } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue'
-import {
-  completeInventoryCount,
-  type InventoryCountEntity,
-} from '@/api/inventoryCount'
+import { completeInventoryCount, type InventoryCountEntity } from '@/api/inventoryCount'
 // 批次 280：接入 useTableApi，消除手写 counts/loading/total/fetchCounts 重复
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const emit = defineEmits<{
   openForm: [mode: 'create' | 'edit' | 'view', row: InventoryCountEntity | null]
@@ -179,7 +233,10 @@ const {
 } = useTableApi<InventoryCountEntity>({
   url: '/inventory/counts',
   onError: (err: unknown) =>
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取盘点单失败'),
+    ElMessage.error(
+      (err instanceof Error ? err.message : String(err)) ||
+        t('inventoryCount.listTab.messageFetchFailure')
+    ),
 })
 
 // 批次 280：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -196,12 +253,11 @@ watch(counts, () => {
   stats.difference = 0 // 实际差异数需在 details 弹窗中累加
 })
 
+/** 状态标签函数化：优先 i18n，未知状态回退到原始 status 字符串 */
 const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    in_progress: '进行中',
-    completed: '已完成',
-  }
-  return map[status] || status
+  const key = `inventoryCount.listTab.statusLabel.${status}`
+  const translated = t(key)
+  return translated === key ? status : translated
 }
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
@@ -224,15 +280,17 @@ const handleReset = () => {
 
 const handleComplete = async (row: InventoryCountEntity) => {
   try {
-    await ElMessageBox.confirm('确定完成此盘点单吗？完成后将无法编辑。', '确认', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('inventoryCount.listTab.messageCompleteConfirm'),
+      t('inventoryCount.listTab.titleCompleteConfirm'),
+      { type: 'warning' }
+    )
     await completeInventoryCount(row.id as number)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('inventoryCount.listTab.messageSuccess'))
     fetchCounts()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error((error as Error).message || '操作失败')
+      ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'))
     }
   }
 }

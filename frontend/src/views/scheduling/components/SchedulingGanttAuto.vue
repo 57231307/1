@@ -11,7 +11,11 @@
     :aria-label="t('scheduling.ganttAuto.ariaLabel.dialog')"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localForm" label-width="120px" :aria-label="t('scheduling.ganttAuto.ariaLabel.form')">
+    <el-form
+      :model="localForm"
+      label-width="120px"
+      :aria-label="t('scheduling.ganttAuto.ariaLabel.form')"
+    >
       <el-form-item :label="t('scheduling.ganttAuto.form.startDate')">
         <el-date-picker
           v-model="localForm.start_date"
@@ -39,13 +43,18 @@
         <el-select v-model="localForm.optimization_target" style="width: 100%">
           <el-option :label="t('scheduling.ganttAuto.option.targetMinIdle')" value="min_idle" />
           <el-option :label="t('scheduling.ganttAuto.option.targetMinDelay')" value="min_delay" />
-          <el-option :label="t('scheduling.ganttAuto.option.targetBalanceLoad')" value="balance_load" />
+          <el-option
+            :label="t('scheduling.ganttAuto.option.targetBalanceLoad')"
+            value="balance_load"
+          />
         </el-select>
       </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="onCancel">{{ t('scheduling.ganttAuto.button.cancel') }}</el-button>
-      <el-button type="primary" :loading="scheduling" @click="emit('confirm')">{{ t('scheduling.ganttAuto.button.startSchedule') }}</el-button>
+      <el-button type="primary" :loading="scheduling" @click="emit('confirm')">{{
+        t('scheduling.ganttAuto.button.startSchedule')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -85,7 +94,7 @@ let syncing = false
 // 外部 prop 变化时同步到 local
 watch(
   () => props.scheduleForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     localForm.value = { ...newForm }
@@ -93,13 +102,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 本地变化时通知父组件
 watch(
   localForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     emit('update:form', { ...newForm })
@@ -107,7 +116,7 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 /** 关闭对话框 */

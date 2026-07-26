@@ -7,37 +7,36 @@
 <template>
   <div class="capacity-page">
     <div class="page-header">
-      <h2>{{ $t('capacityModule.title') }}</h2>
+      <h2>{{ t('capacityModule.title') }}</h2>
       <div class="header-actions">
         <el-date-picker
           v-model="cp.dateRange"
           type="daterange"
-          :range-separator="$t('capacityModule.dateRange.to')"
-          :start-placeholder="$t('capacityModule.dateRange.startPlaceholder')"
-          :end-placeholder="$t('capacityModule.dateRange.endPlaceholder')"
+          :range-separator="t('capacityModule.dateRange.to')"
+          :start-placeholder="t('capacityModule.dateRange.startPlaceholder')"
+          :end-placeholder="t('capacityModule.dateRange.endPlaceholder')"
           @change="cp.handleDateChange"
         />
         <el-select
           v-model="cp.selectedWorkCenter"
-          :placeholder="$t('capacityModule.workCenterPlaceholder')"
+          :placeholder="t('capacityModule.workCenterPlaceholder')"
           clearable
           style="width: 200px; margin-left: 12px"
           @change="cp.handleWorkCenterChange"
         >
-          <el-option :label="$t('capacityModule.allWorkCenters')" :value="undefined" />
-          <el-option
-            v-for="wc in cp.workCenters"
-            :key="wc.id"
-            :label="wc.name"
-            :value="wc.id"
-          />
+          <el-option :label="t('capacityModule.allWorkCenters')" :value="undefined" />
+          <el-option v-for="wc in cp.workCenters" :key="wc.id" :label="wc.name" :value="wc.id" />
         </el-select>
       </div>
     </div>
 
     <CapacityStat :summary="cp.summary" />
 
-    <CapacityTrend :data="cp.trendData" :days="cp.trendDays" @update:days="cp.handleTrendDaysChange" />
+    <CapacityTrend
+      :data="cp.trendData"
+      :days="cp.trendDays"
+      @update:days="cp.handleTrendDaysChange"
+    />
 
     <el-row :gutter="20" class="table-row">
       <el-col :xs="24" :lg="16">
@@ -61,11 +60,14 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useCp } from './composables/useCp'
 import CapacityStat from './components/CapacityStat.vue'
 import CapacityTrend from './components/CapacityTrend.vue'
 import CapacityTable from './components/CapacityTable.vue'
 import CapacityBottleneck from './components/CapacityBottleneck.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const cp = useCp()

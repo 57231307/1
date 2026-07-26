@@ -3,38 +3,56 @@
   - 筛选（客户/状态/关键词）
   - V2Table 表格 + 分页
   - 行操作：查看 / 跟踪 / 推进 / 取消
+  D05 Batch 8 Group B：接入 useI18n
 -->
 <template>
   <div class="custom-order-list">
     <el-card>
       <template #header>
         <div class="card-header">
-          <span class="title">定制订单管理</span>
+          <span class="title">{{ t('customOrders.list.title') }}</span>
           <el-button type="primary" @click="$router.push('/custom-orders/new')">
             <el-icon><Plus /></el-icon>
-            新建定制订单
+            {{ t('customOrders.list.createButton') }}
           </el-button>
         </div>
       </template>
 
       <!-- 筛选区 -->
-      <el-form :inline="true" :model="filters" class="filter-form" aria-label="定制订单筛选表单">
-        <el-form-item label="状态">
-          <el-select v-model="filters.status" clearable placeholder="全部状态" style="width: 180px">
+      <el-form
+        :inline="true"
+        :model="filters"
+        class="filter-form"
+        :aria-label="t('customOrders.list.filterAriaLabel')"
+      >
+        <el-form-item :label="t('customOrders.list.labelStatus')">
+          <el-select
+            v-model="filters.status"
+            clearable
+            :placeholder="t('customOrders.list.placeholderStatus')"
+            style="width: 180px"
+          >
             <el-option
-              v-for="(label, value) in STATUS_LABELS"
+              v-for="value in statusOptions"
               :key="value"
-              :label="label"
+              :label="getStatusLabel(value)"
               :value="value"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="关键词">
-          <el-input v-model="filters.keyword" placeholder="订单号" clearable style="width: 200px" />
+        <el-form-item :label="t('customOrders.list.labelKeyword')">
+          <el-input
+            v-model="filters.keyword"
+            :placeholder="t('customOrders.list.placeholderKeyword')"
+            clearable
+            style="width: 200px"
+          />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{
+            t('customOrders.list.buttonSearch')
+          }}</el-button>
+          <el-button @click="handleReset">{{ t('customOrders.list.buttonReset') }}</el-button>
         </el-form-item>
       </el-form>
 
@@ -45,30 +63,35 @@
         stripe
         border
         style="width: 100%"
-        empty-text="暂无定制订单"
-        aria-label="定制订单列表"
+        :empty-text="t('customOrders.list.emptyText')"
+        :aria-label="t('customOrders.list.tableAriaLabel')"
       >
-        <el-table-column prop="order_no" label="订单号" width="180" />
-        <el-table-column prop="spec" label="规格" min-width="150" show-overflow-tooltip />
-        <el-table-column label="数量" width="100" align="right">
-          <template #default="{ row }">
-            {{ row.quantity }} {{ row.unit }}
-          </template>
+        <el-table-column prop="order_no" :label="t('customOrders.list.colOrderNo')" width="180" />
+        <el-table-column
+          prop="spec"
+          :label="t('customOrders.list.colSpec')"
+          min-width="150"
+          show-overflow-tooltip
+        />
+        <el-table-column :label="t('customOrders.list.colQuantity')" width="100" align="right">
+          <template #default="{ row }"> {{ row.quantity }} {{ row.unit }} </template>
         </el-table-column>
-        <el-table-column label="金额" width="140" align="right">
+        <el-table-column :label="t('customOrders.list.colAmount')" width="140" align="right">
           <template #default="{ row }">
-            <span v-if="row.total_amount">{{ row.currency }} {{ formatAmount(row.total_amount) }}</span>
+            <span v-if="row.total_amount"
+              >{{ row.currency }} {{ formatAmount(row.total_amount) }}</span
+            >
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="120" align="center">
+        <el-table-column :label="t('customOrders.list.colStatus')" width="120" align="center">
           <template #default="{ row }">
             <el-tag :type="STATUS_COLORS[row.status] || 'info'">
-              {{ STATUS_LABELS[row.status] || row.status }}
+              {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="期望交付" width="120">
+        <el-table-column :label="t('customOrders.list.colExpectedDelivery')" width="120">
           <template #default="{ row }">
             {{ row.expected_delivery_date || '-' }}
           </template>
@@ -76,7 +99,7 @@
         <!-- v3 复审 P2-4：新增备注列，使用 show-overflow-tooltip 处理长文本 -->
         <el-table-column
           prop="notes"
-          label="备注"
+          :label="t('customOrders.list.colNotes')"
           min-width="160"
           show-overflow-tooltip
         >
@@ -84,11 +107,19 @@
             {{ row.notes || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="170" />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column
+          prop="created_at"
+          :label="t('customOrders.list.colCreatedAt')"
+          width="170"
+        />
+        <el-table-column :label="t('customOrders.list.colActions')" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="goDetail(row.id)">详情</el-button>
-            <el-button size="small" link type="primary" @click="goTracking(row.id)">跟踪</el-button>
+            <el-button size="small" link @click="goDetail(row.id)">{{
+              t('customOrders.list.buttonDetail')
+            }}</el-button>
+            <el-button size="small" link type="primary" @click="goTracking(row.id)">{{
+              t('customOrders.list.buttonTracking')
+            }}</el-button>
             <el-button
               v-if="row.status !== 'completed' && row.status !== 'cancelled'"
               size="small"
@@ -96,7 +127,7 @@
               type="success"
               @click="handleAdvance(row)"
             >
-              推进
+              {{ t('customOrders.list.buttonAdvance') }}
             </el-button>
             <el-button
               v-if="row.status === 'draft'"
@@ -105,7 +136,7 @@
               type="danger"
               @click="handleCancel(row)"
             >
-              取消
+              {{ t('customOrders.list.buttonCancel') }}
             </el-button>
           </template>
         </el-table-column>
@@ -118,18 +149,19 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
+        style="margin-top: 16px; text-align: right"
+        :aria-label="t('customOrders.list.paginationAriaLabel')"
         @current-change="handleCurrentChange"
         @size-change="handleSizeChange"
-        style="margin-top: 16px; text-align: right"
-        aria-label="定制订单列表分页"
       />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -145,6 +177,7 @@ import logger from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
 
 const router = useRouter()
+const { t } = useI18n({ useScope: 'global' })
 // 批次 94 P2-12 修复：获取用户 store 以读取当前登录用户 ID
 const userStore = useUserStore()
 const filters = ref({ status: '', keyword: '' })
@@ -163,10 +196,28 @@ const {
   url: '/custom-orders',
   listKey: 'items',
   onError: () => {
-    logger.error('加载定制订单失败')
-    ElMessage.error('加载定制订单失败')
+    logger.error(t('customOrders.list.messageLoadFailed'))
+    ElMessage.error(t('customOrders.list.messageLoadFailed'))
   },
 })
+
+// 状态选项（从 STATUS_LABELS 提取键）
+const statusOptions = computed(() => Object.keys(STATUS_LABELS))
+
+// 状态标签映射函数（i18n）
+const getStatusLabel = (status: string): string => {
+  const map: Record<string, string> = {
+    draft: t('customOrders.status.draft'),
+    yarn_purchasing: t('customOrders.status.yarnPurchasing'),
+    dyeing: t('customOrders.status.dyeing'),
+    finishing: t('customOrders.status.finishing'),
+    delivery: t('customOrders.status.delivery'),
+    after_sales: t('customOrders.status.afterSales'),
+    completed: t('customOrders.status.completed'),
+    cancelled: t('customOrders.status.cancelled'),
+  }
+  return map[status] || status
+}
 
 function formatAmount(val: number | string | null | undefined) {
   if (val === null || val === undefined) return '0.00'
@@ -213,41 +264,50 @@ function goTracking(id: number) {
 
 async function handleAdvance(row: CustomOrderListItem) {
   try {
-    await ElMessageBox.confirm(`确定推进订单 ${row.order_no} 到下一阶段？`, '确认推进', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('customOrders.list.messageAdvanceConfirm', { orderNo: row.order_no }),
+      t('customOrders.list.messageAdvanceTitle'),
+      { type: 'warning' }
+    )
     // 批次 94 P2-12 修复：原硬编码 operator_id: 1，改为从 userStore 获取真实当前用户 ID
     const operatorId = userStore.userInfo?.id
     if (!operatorId) {
-      ElMessage.error('无法获取当前用户信息，请重新登录后重试')
+      ElMessage.error(t('customOrders.list.messageNoUserInfo'))
       return
     }
-    await advanceCustomOrder(row.id, { operator_id: operatorId, notes: '状态推进' })
-    ElMessage.success('推进成功')
+    await advanceCustomOrder(row.id, {
+      operator_id: operatorId,
+      notes: t('customOrders.list.messageAdvanceNotes'),
+    })
+    ElMessage.success(t('customOrders.list.messageAdvanceSuccess'))
     loadData()
   } catch (e: unknown) {
     if (e !== 'cancel') {
       const msg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(msg || '推进失败')
+      ElMessage.error(msg || t('customOrders.list.messageAdvanceFailed'))
     }
   }
 }
 
 async function handleCancel(row: CustomOrderListItem) {
   try {
-    const { value: reason } = await ElMessageBox.prompt('请输入取消原因', '取消定制订单', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPattern: /\S+/,
-      inputErrorMessage: '原因不能为空',
-    })
+    const { value: reason } = await ElMessageBox.prompt(
+      t('customOrders.list.messageCancelPrompt'),
+      t('customOrders.list.messageCancelTitle'),
+      {
+        confirmButtonText: t('customOrders.list.buttonConfirm'),
+        cancelButtonText: t('customOrders.list.buttonCancel'),
+        inputPattern: /\S+/,
+        inputErrorMessage: t('customOrders.list.messageReasonRequired'),
+      }
+    )
     await cancelCustomOrder(row.id, reason)
-    ElMessage.success('取消成功')
+    ElMessage.success(t('customOrders.list.messageCancelSuccess'))
     loadData()
   } catch (e: unknown) {
     if (e !== 'cancel') {
       const msg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(msg || '取消失败')
+      ElMessage.error(msg || t('customOrders.list.messageCancelFailed'))
     }
   }
 }

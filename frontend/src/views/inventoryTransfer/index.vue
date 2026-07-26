@@ -13,11 +13,17 @@
 <template>
   <div class="transfer-page">
     <div class="page-header">
-      <h1 class="page-title">库存调拨</h1>
+      <h1 class="page-title">{{ t('inventoryTransfer.index.title') }}</h1>
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-        <el-breadcrumb-item>仓储管理</el-breadcrumb-item>
-        <el-breadcrumb-item>库存调拨</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/' }">{{
+          t('inventoryTransfer.index.breadcrumb.home')
+        }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{
+          t('inventoryTransfer.index.breadcrumb.warehouse')
+        }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{
+          t('inventoryTransfer.index.breadcrumb.current')
+        }}</el-breadcrumb-item>
       </el-breadcrumb>
     </div>
 
@@ -42,6 +48,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getWarehouseList, type Warehouse } from '@/api/warehouse'
 import { getProductList, type Product } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
@@ -50,6 +57,8 @@ import type { InventoryTransferEntity } from '@/api/inventoryTransfer'
 import TransferListTab from './tabs/TransferListTab.vue'
 import TransferFormDialogTab from './tabs/TransferFormDialogTab.vue'
 import ApproveTransferDialogTab from './tabs/ApproveTransferDialogTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const formDialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit' | 'view'>('create')
@@ -82,7 +91,7 @@ const fetchWarehouses = async () => {
     const res = await getWarehouseList({ page: 1, page_size: 1000 })
     warehouses.value = (res.data?.list as Warehouse[] | undefined) || []
   } catch (error) {
-    logger.error('获取仓库列表失败', (error as Error).message)
+    logger.error(t('inventoryTransfer.index.fetchWarehousesFailed'), (error as Error).message)
   }
 }
 
@@ -91,7 +100,7 @@ const fetchProducts = async () => {
     const res = await getProductList({ page: 1, page_size: 1000 })
     products.value = (res.data?.list as Product[] | undefined) || []
   } catch (error) {
-    logger.error('获取产品列表失败', (error as Error).message)
+    logger.error(t('inventoryTransfer.index.fetchProductsFailed'), (error as Error).message)
   }
 }
 

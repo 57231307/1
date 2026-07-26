@@ -8,11 +8,26 @@
       <div class="card-header">
         <span>{{ t('scheduling.ganttChart.title') }}</span>
         <div class="legend">
-          <span class="legend-item"><span class="legend-dot pending"></span>{{ t('scheduling.ganttChart.legend.pending') }}</span>
-          <span class="legend-item"><span class="legend-dot scheduled"></span>{{ t('scheduling.ganttChart.legend.scheduled') }}</span>
-          <span class="legend-item"><span class="legend-dot running"></span>{{ t('scheduling.ganttChart.legend.running') }}</span>
-          <span class="legend-item"><span class="legend-dot completed"></span>{{ t('scheduling.ganttChart.legend.completed') }}</span>
-          <span class="legend-item"><span class="legend-dot conflict"></span>{{ t('scheduling.ganttChart.legend.conflict') }}</span>
+          <span class="legend-item"
+            ><span class="legend-dot pending"></span
+            >{{ t('scheduling.ganttChart.legend.pending') }}</span
+          >
+          <span class="legend-item"
+            ><span class="legend-dot scheduled"></span
+            >{{ t('scheduling.ganttChart.legend.scheduled') }}</span
+          >
+          <span class="legend-item"
+            ><span class="legend-dot running"></span
+            >{{ t('scheduling.ganttChart.legend.running') }}</span
+          >
+          <span class="legend-item"
+            ><span class="legend-dot completed"></span
+            >{{ t('scheduling.ganttChart.legend.completed') }}</span
+          >
+          <span class="legend-item"
+            ><span class="legend-dot conflict"></span
+            >{{ t('scheduling.ganttChart.legend.conflict') }}</span
+          >
         </div>
       </div>
     </template>
@@ -216,7 +231,7 @@ const handleResize = () => chart?.resize()
 /** 监听数据变化重新渲染 */
 watch(
   () => props.ganttData,
-  (newData) => {
+  newData => {
     if (newData) {
       nextTick(() => renderChart(newData))
     }

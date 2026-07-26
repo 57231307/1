@@ -7,7 +7,10 @@
  * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { QualityFormData, QualityResult } from '../composables/useQlt'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   // 质量预测表单（由父组件管理，子组件通过 emit('update:qualityForm') 回写）
@@ -31,7 +34,7 @@ let syncing = false
 // 外部 prop 变化时同步到 local
 watch(
   () => props.qualityForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     localForm.value = { ...newForm }
@@ -39,13 +42,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 本地变化时通知父组件
 watch(
   localForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     emit('update:qualityForm', { ...newForm })
@@ -53,44 +56,50 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 </script>
 
 <template>
   <div class="page-header">
-    <h2 class="page-title">{{ $t('advancedModule.quality.title') }}</h2>
+    <h2 class="page-title">{{ t('advancedModule.quality.title') }}</h2>
   </div>
 
   <el-row :gutter="20">
     <el-col :span="8">
       <el-card shadow="hover" class="mb-20">
-        <template #header><div class="card-header">{{ $t('advancedModule.quality.conditions') }}</div></template>
-        <el-form :model="localForm" label-width="100px" aria-label="质量预测条件表单">
-          <el-form-item :label="$t('advancedModule.quality.productId')">
+        <template #header
+          ><div class="card-header">{{ t('advancedModule.quality.conditions') }}</div></template
+        >
+        <el-form
+          :model="localForm"
+          label-width="100px"
+          :aria-label="t('advancedModule.quality.ariaConditions')"
+        >
+          <el-form-item :label="t('advancedModule.quality.productId')">
             <el-input-number
               v-model="localForm.product_id"
               :min="0"
               :step="1"
-              :placeholder="$t('advancedModule.quality.productIdPlaceholder')"
+              :placeholder="t('advancedModule.quality.productIdPlaceholder')"
               style="width: 100%"
             />
           </el-form-item>
-          <el-form-item :label="$t('advancedModule.quality.inspectionType')">
+          <el-form-item :label="t('advancedModule.quality.inspectionType')">
             <el-select
               v-model="localForm.inspection_type"
-              :placeholder="$t('advancedModule.quality.inspectionTypePlaceholder')"
+              :placeholder="t('advancedModule.quality.inspectionTypePlaceholder')"
               clearable
               style="width: 100%"
             >
-              <el-option :label="$t('advancedModule.quality.typeAll')" value="" />
-              <el-option :label="$t('advancedModule.quality.typeIncoming')" value="进货检验" />
-              <el-option :label="$t('advancedModule.quality.typeInprocess')" value="过程检验" />
-              <el-option :label="$t('advancedModule.quality.typeFinal')" value="成品检验" />
-              <el-option :label="$t('advancedModule.quality.typeOutgoing')" value="出货检验" />
+              <el-option :label="t('advancedModule.quality.typeAll')" value="" />
+              <el-option :label="t('advancedModule.quality.typeIncoming')" value="进货检验" />
+              <el-option :label="t('advancedModule.quality.typeInprocess')" value="过程检验" />
+              <el-option :label="t('advancedModule.quality.typeFinal')" value="成品检验" />
+              <el-option :label="t('advancedModule.quality.typeOutgoing')" value="出货检验" />
             </el-select>
           </el-form-item>
-          <el-form-item :label="$t('advancedModule.quality.timeWindow')">
+          <el-form-item :label="t('advancedModule.quality.timeWindow')">
             <el-input-number
               v-model="localForm.window_days"
               :min="1"
@@ -98,15 +107,12 @@ watch(
               :step="1"
               style="width: 100%"
             />
-            <span class="form-hint">{{ $t('advancedModule.quality.timeWindowHint') }}</span>
+            <span class="form-hint">{{ t('advancedModule.quality.timeWindowHint') }}</span>
           </el-form-item>
           <el-form-item>
-            <el-button
-              type="primary"
-              :loading="qualityLoading"
-              @click="runQualityPrediction"
-              >{{ $t('advancedModule.quality.startPredict') }}</el-button
-            >
+            <el-button type="primary" :loading="qualityLoading" @click="runQualityPrediction">{{
+              t('advancedModule.quality.startPredict')
+            }}</el-button>
           </el-form-item>
         </el-form>
       </el-card>
@@ -115,21 +121,21 @@ watch(
     <el-col :span="16">
       <el-card shadow="hover" class="mb-20">
         <template #header>
-          <div class="card-header">{{ $t('advancedModule.quality.result') }}</div>
+          <div class="card-header">{{ t('advancedModule.quality.result') }}</div>
         </template>
-        <el-empty
-          v-if="!qualityResult"
-          :description="$t('advancedModule.quality.empty')"
-        />
+        <el-empty v-if="!qualityResult" :description="t('advancedModule.quality.empty')" />
         <div v-else>
           <!-- 关键指标卡片 -->
           <el-row :gutter="12" class="mb-12">
             <el-col :span="6">
-              <el-statistic :title="$t('advancedModule.quality.totalInspections')" :value="qualityResult.total_inspections" />
+              <el-statistic
+                :title="t('advancedModule.quality.totalInspections')"
+                :value="qualityResult.total_inspections"
+              />
             </el-col>
             <el-col :span="6">
               <el-statistic
-                :title="$t('advancedModule.quality.avgQualificationRate')"
+                :title="t('advancedModule.quality.avgQualificationRate')"
                 :value="qualityResult.avg_qualification_rate"
                 :precision="2"
                 suffix="%"
@@ -138,64 +144,97 @@ watch(
                 :percentage="qualityResult.avg_qualification_rate"
                 :stroke-width="6"
                 :show-text="false"
-                :status="qualityResult.avg_qualification_rate >= 95 ? 'success' : qualityResult.avg_qualification_rate >= 85 ? 'warning' : 'exception'"
+                :status="
+                  qualityResult.avg_qualification_rate >= 95
+                    ? 'success'
+                    : qualityResult.avg_qualification_rate >= 85
+                      ? 'warning'
+                      : 'exception'
+                "
                 style="margin-top: 4px"
               />
             </el-col>
             <el-col :span="6">
-              <div class="metric-label">{{ $t('advancedModule.quality.trend') }}</div>
+              <div class="metric-label">{{ t('advancedModule.quality.trend') }}</div>
               <el-tag
-                :type="qualityResult.trend === '上升' ? 'success' : qualityResult.trend === '下降' ? 'danger' : qualityResult.trend === '平稳' ? 'info' : 'warning'"
+                :type="
+                  qualityResult.trend === '上升'
+                    ? 'success'
+                    : qualityResult.trend === '下降'
+                      ? 'danger'
+                      : qualityResult.trend === '平稳'
+                        ? 'info'
+                        : 'warning'
+                "
                 size="large"
               >
                 {{ qualityResult.trend }}
-                <span v-if="qualityResult.trend_rate !== 0 && qualityResult.trend !== '无数据'" style="margin-left: 4px">
+                <span
+                  v-if="qualityResult.trend_rate !== 0 && qualityResult.trend !== '无数据'"
+                  style="margin-left: 4px"
+                >
                   ({{ qualityResult.trend_rate > 0 ? '+' : '' }}{{ qualityResult.trend_rate }}pp)
                 </span>
               </el-tag>
             </el-col>
             <el-col :span="6">
-              <div class="metric-label">{{ $t('advancedModule.quality.riskLevel') }}</div>
+              <div class="metric-label">{{ t('advancedModule.quality.riskLevel') }}</div>
               <el-tag
-                :type="qualityResult.risk_level === '高' ? 'danger' : qualityResult.risk_level === '中' ? 'warning' : 'success'"
+                :type="
+                  qualityResult.risk_level === '高'
+                    ? 'danger'
+                    : qualityResult.risk_level === '中'
+                      ? 'warning'
+                      : 'success'
+                "
                 size="large"
               >
                 {{ qualityResult.risk_level }}（{{ qualityResult.risk_score }}）
               </el-tag>
-              <div class="metric-sub">{{ $t('advancedModule.quality.confidence') }} {{ Math.round(qualityResult.confidence * 100) }}%</div>
+              <div class="metric-sub">
+                {{ t('advancedModule.quality.confidence') }}
+                {{ Math.round(qualityResult.confidence * 100) }}%
+              </div>
             </el-col>
           </el-row>
 
           <!-- 主要问题归因 -->
-          <h4 class="mb-10" style="margin-top: 8px">{{ $t('advancedModule.quality.topIssues') }}</h4>
+          <h4 class="mb-10" style="margin-top: 8px">{{ t('advancedModule.quality.topIssues') }}</h4>
           <el-table
             v-if="qualityResult.top_issues && qualityResult.top_issues.length > 0"
             :data="qualityResult.top_issues"
             stripe
             size="small"
             border
-            aria-label="主要问题归因列表"
+            :aria-label="t('advancedModule.quality.ariaTopIssues')"
           >
-            <el-table-column prop="issue_type" :label="$t('advancedModule.quality.colIssueType')" min-width="160" />
-            <el-table-column prop="occurrences" :label="$t('advancedModule.quality.colOccurrences')" width="120" align="right" />
-            <el-table-column :label="$t('advancedModule.quality.colPercentage')" width="200">
+            <el-table-column
+              prop="issue_type"
+              :label="t('advancedModule.quality.colIssueType')"
+              min-width="160"
+            />
+            <el-table-column
+              prop="occurrences"
+              :label="t('advancedModule.quality.colOccurrences')"
+              width="120"
+              align="right"
+            />
+            <el-table-column :label="t('advancedModule.quality.colPercentage')" width="200">
               <template #default="{ row }">
-                <el-progress
-                  :percentage="row.percentage"
-                  :stroke-width="8"
-                  :show-text="true"
-                />
+                <el-progress :percentage="row.percentage" :stroke-width="8" :show-text="true" />
               </template>
             </el-table-column>
           </el-table>
           <el-empty
             v-else
-            :description="$t('advancedModule.quality.emptyNoRecords')"
+            :description="t('advancedModule.quality.emptyNoRecords')"
             :image-size="60"
           />
 
           <!-- 建议措施 -->
-          <h4 class="mb-10" style="margin-top: 16px">{{ $t('advancedModule.quality.recommendations') }}</h4>
+          <h4 class="mb-10" style="margin-top: 16px">
+            {{ t('advancedModule.quality.recommendations') }}
+          </h4>
           <ul class="rec-list">
             <li v-for="(r, i) in qualityResult.recommendations" :key="i">
               <el-alert :title="r" type="info" :closable="false" show-icon />
@@ -203,32 +242,45 @@ watch(
           </ul>
 
           <!-- 周期明细 -->
-          <h4 class="mb-10" style="margin-top: 16px">{{ $t('advancedModule.quality.periodBreakdown') }}</h4>
+          <h4 class="mb-10" style="margin-top: 16px">
+            {{ t('advancedModule.quality.periodBreakdown') }}
+          </h4>
           <el-table
             v-if="qualityResult.period_breakdown && qualityResult.period_breakdown.length > 0"
             :data="qualityResult.period_breakdown"
             stripe
             size="small"
             border
-            aria-label="质量周期明细列表"
+            :aria-label="t('advancedModule.quality.ariaPeriodBreakdown')"
           >
-            <el-table-column prop="period" :label="$t('advancedModule.quality.colPeriod')" width="120" />
-            <el-table-column prop="inspections" :label="$t('advancedModule.quality.colInspections')" width="120" align="right" />
-            <el-table-column :label="$t('advancedModule.quality.colAvgRate')" min-width="200">
-              <template #default="{ row }">
-                {{ row.avg_qualification_rate.toFixed(2) }}%
-              </template>
+            <el-table-column
+              prop="period"
+              :label="t('advancedModule.quality.colPeriod')"
+              width="120"
+            />
+            <el-table-column
+              prop="inspections"
+              :label="t('advancedModule.quality.colInspections')"
+              width="120"
+              align="right"
+            />
+            <el-table-column :label="t('advancedModule.quality.colAvgRate')" min-width="200">
+              <template #default="{ row }"> {{ row.avg_qualification_rate.toFixed(2) }}% </template>
             </el-table-column>
           </el-table>
           <el-empty
             v-else
-            :description="$t('advancedModule.quality.emptyNoPeriod')"
+            :description="t('advancedModule.quality.emptyNoPeriod')"
             :image-size="60"
           />
 
           <el-alert
             class="mt-12"
-            :title="qualityResult.source === 'history' ? $t('advancedModule.quality.dataSourceHistory') : $t('advancedModule.quality.dataSourceFallback')"
+            :title="
+              qualityResult.source === 'history'
+                ? t('advancedModule.quality.dataSourceHistory')
+                : t('advancedModule.quality.dataSourceFallback')
+            "
             :type="qualityResult.source === 'history' ? 'success' : 'warning'"
             :closable="false"
             show-icon

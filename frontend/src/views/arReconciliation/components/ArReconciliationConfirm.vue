@@ -11,8 +11,17 @@
     :aria-label="$t('arReconciliationModule.confirmationDialogAria')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-table :data="data" border style="width: 100%" :aria-label="$t('arReconciliationModule.confirmationListAria')">
-      <el-table-column prop="customer_name" :label="$t('arReconciliationModule.customerName')" width="160" />
+    <el-table
+      :data="data"
+      border
+      style="width: 100%"
+      :aria-label="$t('arReconciliationModule.confirmationListAria')"
+    >
+      <el-table-column
+        prop="customer_name"
+        :label="$t('arReconciliationModule.customerName')"
+        width="160"
+      />
       <el-table-column :label="$t('arReconciliationModule.confirmStatus')" width="100">
         <template #default="scope">
           <el-tag size="small" :type="getConfirmType(scope.row.confirm_status)">
@@ -20,13 +29,27 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="confirm_amount" :label="$t('arReconciliationModule.confirmAmount')" width="120" align="right">
+      <el-table-column
+        prop="confirm_amount"
+        :label="$t('arReconciliationModule.confirmAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.confirm_amount.toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column prop="disputed_amount" :label="$t('arReconciliationModule.disputeAmount')" width="120" align="right">
+      <el-table-column
+        prop="disputed_amount"
+        :label="$t('arReconciliationModule.disputeAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.disputed_amount.toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column prop="confirmed_at" :label="$t('arReconciliationModule.confirmTime')" width="160" />
+      <el-table-column
+        prop="confirmed_at"
+        :label="$t('arReconciliationModule.confirmTime')"
+        width="160"
+      />
       <el-table-column prop="remark" :label="$t('arReconciliationModule.remark')" />
       <el-table-column :label="$t('common.operation')" width="180" align="center">
         <template #default="scope">

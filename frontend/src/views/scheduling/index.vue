@@ -16,15 +16,15 @@
     <el-row :gutter="20">
       <el-col :xs="24" :lg="16">
         <SchedulingMachineTable
+          v-model:current-page="schM.currentPage"
+          v-model:page-size="schM.pageSize"
           :task-list="schM.taskList"
           :task-loading="schM.taskLoading"
           :total="schM.total"
-          v-model:current-page="schM.currentPage"
-          v-model:page-size="schM.pageSize"
           :filter-status="schM.filterStatus"
-          @update:filter-status="(v) => (schM.filterStatus = v)"
-          @adjust="(row) => schM.handleAdjust(row)"
-          @conflict-detail="(row) => schM.showConflictDetail(row)"
+          @update:filter-status="v => (schM.filterStatus = v)"
+          @adjust="row => schM.handleAdjust(row)"
+          @conflict-detail="row => schM.showConflictDetail(row)"
           @refresh="schM.fetchTasks"
           @filter-change="schM.handleFilterChange"
         />
@@ -52,7 +52,7 @@
       :adjust-task="schM.adjustTask"
       :adjust-form="schM.adjustForm"
       :adjusting="schM.adjusting"
-      @update:form="(v) => (schM.adjustForm = v)"
+      @update:form="v => (schM.adjustForm = v)"
       @confirm="onConfirmAdjust"
     />
   </div>
@@ -76,7 +76,9 @@ const schMProc = useSchMProc({
   fetchTasks: schM.fetchTasks,
   dateRange: schM.dateRange,
   scheduleParams: schM.scheduleParams,
-  setConflictList: (v) => { schM.conflictList = v },
+  setConflictList: v => {
+    schM.conflictList = v
+  },
   stats: schM.stats,
 })
 

@@ -2,47 +2,54 @@
   <div class="dye-batch-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">缸号管理</h1>
+        <h1 class="page-title">{{ t('dyeBatch.index.pageTitle') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>面料行业</el-breadcrumb-item>
-          <el-breadcrumb-item>缸号管理</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('dyeBatch.index.breadcrumbHome')
+          }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('dyeBatch.index.breadcrumbFabric') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('dyeBatch.index.breadcrumbDyeBatch') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
-          新建缸号
+          {{ t('dyeBatch.index.buttonCreate') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('dyeBatch.index.buttonExport') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="缸号筛选表单">
-        <el-form-item label="关键词">
+      <el-form
+        :inline="true"
+        :model="queryParams"
+        class="filter-form"
+        :aria-label="t('dyeBatch.index.ariaFilterForm')"
+      >
+        <el-form-item :label="t('dyeBatch.index.filterKeyword')">
           <el-input
             v-model="queryParams.keyword"
-            placeholder="缸号/批次号"
+            :placeholder="t('dyeBatch.index.placeholderKeyword')"
             clearable
             @clear="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="色号">
+        <el-form-item :label="t('dyeBatch.index.filterColorNo')">
           <el-input
             v-model="queryParams.color_no"
-            placeholder="请输入色号"
+            :placeholder="t('dyeBatch.index.placeholderColorNo')"
             clearable
             @clear="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="产品">
+        <el-form-item :label="t('dyeBatch.index.filterProduct')">
           <el-select
             v-model="queryParams.product_id"
-            placeholder="选择产品"
+            :placeholder="t('dyeBatch.index.placeholderProduct')"
             clearable
             filterable
             @change="handleQuery"
@@ -50,67 +57,123 @@
             <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="t('dyeBatch.index.filterStatus')">
           <el-select
             v-model="queryParams.status"
-            placeholder="选择状态"
+            :placeholder="t('dyeBatch.index.placeholderStatus')"
             clearable
             @change="handleQuery"
           >
-            <el-option label="进行中" value="ACTIVE" />
-            <el-option label="已完成" value="COMPLETED" />
+            <el-option :label="t('dyeBatch.index.optionActive')" value="ACTIVE" />
+            <el-option :label="t('dyeBatch.index.optionCompleted')" value="COMPLETED" />
           </el-select>
         </el-form-item>
-        <el-form-item label="染色日期">
+        <el-form-item :label="t('dyeBatch.index.filterDyeDate')">
           <el-date-picker
             v-model="queryParams.date_range"
             type="daterange"
             range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :start-placeholder="t('dyeBatch.index.placeholderStartDate')"
+            :end-placeholder="t('dyeBatch.index.placeholderEndDate')"
             @change="handleQuery"
           />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ t('dyeBatch.index.buttonQuery') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ t('dyeBatch.index.buttonReset') }}
           </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="dyeBatchList" border stripe aria-label="缸号列表">
-        <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="batch_no" label="缸号" width="120" show-overflow-tooltip />
-        <el-table-column prop="product_name" label="产品" width="150" show-overflow-tooltip />
-        <el-table-column prop="color_no" label="色号" width="100" show-overflow-tooltip />
-        <el-table-column prop="color_code" label="颜色代码" width="100" show-overflow-tooltip />
-        <el-table-column prop="dye_date" label="染色日期" width="120" align="center" />
-        <el-table-column prop="quantity" label="染色数量" width="100" align="right" />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table
+        v-loading="loading"
+        :data="dyeBatchList"
+        border
+        stripe
+        :aria-label="t('dyeBatch.index.ariaTable')"
+      >
+        <el-table-column
+          type="index"
+          :label="t('dyeBatch.index.colIndex')"
+          width="60"
+          align="center"
+        />
+        <el-table-column
+          prop="batch_no"
+          :label="t('dyeBatch.index.colBatchNo')"
+          width="120"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="product_name"
+          :label="t('dyeBatch.index.colProduct')"
+          width="150"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="color_no"
+          :label="t('dyeBatch.index.colColorNo')"
+          width="100"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="color_code"
+          :label="t('dyeBatch.index.colColorCode')"
+          width="100"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="dye_date"
+          :label="t('dyeBatch.index.colDyeDate')"
+          width="120"
+          align="center"
+        />
+        <el-table-column
+          prop="quantity"
+          :label="t('dyeBatch.index.colQuantity')"
+          width="100"
+          align="right"
+        />
+        <el-table-column
+          prop="status"
+          :label="t('dyeBatch.index.colStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column label="操作" width="200" align="center" fixed="right">
+        <el-table-column
+          prop="remarks"
+          :label="t('dyeBatch.index.colRemarks')"
+          min-width="150"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          :label="t('dyeBatch.index.colOperation')"
+          width="200"
+          align="center"
+          fixed="right"
+        >
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as DyeBatch)"
-              >查看</el-button
-            >
+            <el-button type="primary" link size="small" @click="handleView(row as DyeBatch)">{{
+              t('dyeBatch.index.buttonView')
+            }}</el-button>
             <el-button
               v-if="row.status === 'ACTIVE'"
               type="primary"
               link
               size="small"
               @click="handleEdit(row as DyeBatch)"
-              >编辑</el-button
+              >{{ t('dyeBatch.index.buttonEdit') }}</el-button
             >
             <el-button
               v-if="row.status === 'ACTIVE'"
@@ -118,7 +181,7 @@
               link
               size="small"
               @click="handleComplete(row as DyeBatch)"
-              >完成</el-button
+              >{{ t('dyeBatch.index.buttonComplete') }}</el-button
             >
             <el-button
               v-if="row.status === 'ACTIVE'"
@@ -126,7 +189,7 @@
               link
               size="small"
               @click="handleDelete(row as DyeBatch)"
-              >删除</el-button
+              >{{ t('dyeBatch.index.buttonDelete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -139,9 +202,9 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          :aria-label="t('dyeBatch.index.ariaPagination')"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
-          aria-label="缸号列表分页"
         />
       </div>
     </el-card>
@@ -152,18 +215,32 @@
       :title="dialogTitle"
       width="700px"
       :close-on-click-modal="false"
-      aria-label="缸号编辑对话框"
+      :aria-label="t('dyeBatch.index.ariaEditDialog')"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" :disabled="isView" label-width="100px" aria-label="缸号表单">
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        :disabled="isView"
+        label-width="100px"
+        :aria-label="t('dyeBatch.index.ariaForm')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="缸号" prop="batch_no">
-              <el-input v-model="formData.batch_no" placeholder="请输入缸号" />
+            <el-form-item :label="t('dyeBatch.index.colBatchNo')" prop="batch_no">
+              <el-input
+                v-model="formData.batch_no"
+                :placeholder="t('dyeBatch.index.placeholderBatchNo')"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="产品" prop="product_id">
-              <el-select v-model="formData.product_id" placeholder="请选择产品" filterable>
+            <el-form-item :label="t('dyeBatch.index.colProduct')" prop="product_id">
+              <el-select
+                v-model="formData.product_id"
+                :placeholder="t('dyeBatch.index.placeholderSelectProduct')"
+                filterable
+              >
                 <el-option
                   v-for="p in products"
                   :key="p.id"
@@ -176,29 +253,35 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="色号" prop="color_no">
-              <el-input v-model="formData.color_no" placeholder="请输入色号" />
+            <el-form-item :label="t('dyeBatch.index.colColorNo')" prop="color_no">
+              <el-input
+                v-model="formData.color_no"
+                :placeholder="t('dyeBatch.index.placeholderColorNo')"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="颜色代码" prop="color_code">
-              <el-input v-model="formData.color_code" placeholder="请输入颜色代码" />
+            <el-form-item :label="t('dyeBatch.index.colColorCode')" prop="color_code">
+              <el-input
+                v-model="formData.color_code"
+                :placeholder="t('dyeBatch.index.placeholderColorCode')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="染色日期" prop="dye_date">
+            <el-form-item :label="t('dyeBatch.index.colDyeDate')" prop="dye_date">
               <el-date-picker
                 v-model="formData.dye_date"
                 type="date"
-                placeholder="请选择染色日期"
+                :placeholder="t('dyeBatch.index.placeholderSelectDyeDate')"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="染色数量" prop="quantity">
+            <el-form-item :label="t('dyeBatch.index.colQuantity')" prop="quantity">
               <el-input-number
                 v-model="formData.quantity"
                 :precision="2"
@@ -208,13 +291,22 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="备注" prop="remarks">
-          <el-input v-model="formData.remarks" type="textarea" :rows="3" placeholder="请输入备注" />
+        <el-form-item :label="t('dyeBatch.index.colRemarks')" prop="remarks">
+          <el-input
+            v-model="formData.remarks"
+            type="textarea"
+            :rows="3"
+            :placeholder="t('dyeBatch.index.placeholderRemarks')"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ isView ? '关闭' : '取消' }}</el-button>
-        <el-button v-if="!isView" type="primary" @click="handleSubmitForm">确定</el-button>
+        <el-button @click="dialogVisible = false">{{
+          isView ? t('dyeBatch.index.buttonClose') : t('dyeBatch.index.buttonCancel')
+        }}</el-button>
+        <el-button v-if="!isView" type="primary" @click="handleSubmitForm">{{
+          t('dyeBatch.index.buttonConfirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -222,6 +314,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
@@ -237,6 +330,8 @@ import { getProductList } from '@/api/product'
 import type { Product } from '@/api/product'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 查询参数（筛选条件，分页由 useTableApi 管理）
 const queryParams = reactive({
@@ -259,7 +354,7 @@ const {
   setQueryParam,
 } = useTableApi<DyeBatch>({
   url: '/production/dye-batches',
-  onError: (e: unknown) => logger.error('获取缸号列表失败:', String(e)),
+  onError: (e: unknown) => logger.error(t('dyeBatch.index.messageFetchFailed'), String(e)),
 })
 
 // 产品列表
@@ -285,11 +380,17 @@ const formData = reactive({
 
 // 表单验证规则
 const formRules = {
-  batch_no: [{ required: true, message: '请输入缸号', trigger: 'blur' }],
-  product_id: [{ required: true, message: '请选择产品', trigger: 'change' }],
-  color_no: [{ required: true, message: '请输入色号', trigger: 'blur' }],
-  dye_date: [{ required: true, message: '请选择染色日期', trigger: 'change' }],
-  quantity: [{ required: true, message: '请输入染色数量', trigger: 'blur' }],
+  batch_no: [{ required: true, message: t('dyeBatch.index.ruleBatchNoRequired'), trigger: 'blur' }],
+  product_id: [
+    { required: true, message: t('dyeBatch.index.ruleProductRequired'), trigger: 'change' },
+  ],
+  color_no: [{ required: true, message: t('dyeBatch.index.ruleColorNoRequired'), trigger: 'blur' }],
+  dye_date: [
+    { required: true, message: t('dyeBatch.index.ruleDyeDateRequired'), trigger: 'change' },
+  ],
+  quantity: [
+    { required: true, message: t('dyeBatch.index.ruleQuantityRequired'), trigger: 'blur' },
+  ],
 }
 
 // 批次 271：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -308,7 +409,7 @@ const getProducts = async () => {
     const res = await getProductList({ page: 1, page_size: 1000 })
     products.value = res.data?.list || []
   } catch (error) {
-    logger.error('获取产品列表失败:', error)
+    logger.error(t('dyeBatch.index.messageFetchProductsFailed'), error)
   }
 }
 
@@ -333,7 +434,7 @@ const handleReset = () => {
 
 // 新建
 const handleCreate = () => {
-  dialogTitle.value = '新建缸号'
+  dialogTitle.value = t('dyeBatch.index.titleCreate')
   isView.value = false
   Object.assign(formData, {
     id: undefined,
@@ -350,7 +451,7 @@ const handleCreate = () => {
 
 // 查看（v14 P0-3 修复：实现只读查看功能，原 handler 为空导致业务失效）
 const handleView = (row: DyeBatch) => {
-  dialogTitle.value = '查看缸号'
+  dialogTitle.value = t('dyeBatch.index.titleView')
   isView.value = true
   Object.assign(formData, row)
   dialogVisible.value = true
@@ -358,7 +459,7 @@ const handleView = (row: DyeBatch) => {
 
 // 编辑
 const handleEdit = (row: DyeBatch) => {
-  dialogTitle.value = '编辑缸号'
+  dialogTitle.value = t('dyeBatch.index.titleEdit')
   isView.value = false
   Object.assign(formData, row)
   dialogVisible.value = true
@@ -367,24 +468,32 @@ const handleEdit = (row: DyeBatch) => {
 // 完成
 const handleComplete = async (row: DyeBatch) => {
   try {
-    await ElMessageBox.confirm('确认完成该缸号？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('dyeBatch.index.messageConfirmComplete'),
+      t('dyeBatch.index.titlePrompt'),
+      { type: 'warning' }
+    )
     await completeDyeBatch(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('dyeBatch.index.messageOperationSuccess'))
     refresh()
   } catch (error) {
-    logger.error('操作失败:', error)
+    logger.error(t('dyeBatch.index.messageOperationFailed'), error)
   }
 }
 
 // 删除
 const handleDelete = async (row: DyeBatch) => {
   try {
-    await ElMessageBox.confirm('确认删除该缸号？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('dyeBatch.index.messageConfirmDelete'),
+      t('dyeBatch.index.titlePrompt'),
+      { type: 'warning' }
+    )
     await deleteDyeBatch(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('dyeBatch.index.messageDeleteSuccess'))
     refresh()
   } catch (error) {
-    logger.error('删除失败:', error)
+    logger.error(t('dyeBatch.index.messageDeleteFailed'), error)
   }
 }
 
@@ -395,14 +504,14 @@ const handleExport = async () => {
     const url = window.URL.createObjectURL(new Blob([res]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', '缸号管理.xlsx')
+    link.setAttribute('download', t('dyeBatch.index.exportFileName'))
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
+    ElMessage.success(t('dyeBatch.index.messageExportSuccess'))
   } catch (error) {
-    logger.error('导出失败:', error)
+    logger.error(t('dyeBatch.index.messageExportFailed'), error)
   }
 }
 
@@ -415,11 +524,11 @@ const handleSubmitForm = async () => {
     } else {
       await createDyeBatch(formData)
     }
-    ElMessage.success('保存成功')
+    ElMessage.success(t('dyeBatch.index.messageSaveSuccess'))
     dialogVisible.value = false
     refresh()
   } catch (error) {
-    logger.error('表单验证失败:', error)
+    logger.error(t('dyeBatch.index.messageFormValidateFailed'), error)
   }
 }
 
@@ -442,11 +551,11 @@ const getStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
-// 获取状态标签
+// 获取状态标签（响应式求值）
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    ACTIVE: '进行中',
-    COMPLETED: '已完成',
+    ACTIVE: t('dyeBatch.index.optionActive'),
+    COMPLETED: t('dyeBatch.index.optionCompleted'),
   }
   return map[status] || status
 }

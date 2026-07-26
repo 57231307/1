@@ -20,13 +20,25 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryForm" :aria-label="$t('budget.filter.ariaLabel')">
         <el-form-item :label="$t('budget.filter.budgetNo')">
-          <el-input v-model="queryForm.budget_no" :placeholder="$t('budget.filter.budgetNoPlaceholder')" clearable />
+          <el-input
+            v-model="queryForm.budget_no"
+            :placeholder="$t('budget.filter.budgetNoPlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="$t('budget.filter.name')">
-          <el-input v-model="queryForm.name" :placeholder="$t('budget.filter.namePlaceholder')" clearable />
+          <el-input
+            v-model="queryForm.name"
+            :placeholder="$t('budget.filter.namePlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="$t('budget.filter.status')">
-          <el-select v-model="queryForm.status" :placeholder="$t('budget.filter.statusPlaceholder')" clearable>
+          <el-select
+            v-model="queryForm.status"
+            :placeholder="$t('budget.filter.statusPlaceholder')"
+            clearable
+          >
             <el-option :label="$t('budget.status.draft')" value="draft" />
             <el-option :label="$t('budget.status.pending')" value="pending" />
             <el-option :label="$t('budget.status.approved')" value="approved" />
@@ -34,18 +46,29 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">{{ $t('budget.filter.query') }}</el-button>
+          <el-button type="primary" @click="handleSearch">{{
+            $t('budget.filter.query')
+          }}</el-button>
           <el-button @click="handleReset">{{ $t('budget.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="budgetList" stripe :aria-label="$t('budget.table.ariaLabel')">
+      <el-table
+        v-loading="loading"
+        :data="budgetList"
+        stripe
+        :aria-label="$t('budget.table.ariaLabel')"
+      >
         <el-table-column prop="budget_no" :label="$t('budget.table.budgetNo')" width="140" />
         <el-table-column prop="name" :label="$t('budget.table.name')" min-width="180" />
         <el-table-column prop="period" :label="$t('budget.table.period')" width="120" />
-        <el-table-column prop="department_name" :label="$t('budget.table.department')" width="120" />
+        <el-table-column
+          prop="department_name"
+          :label="$t('budget.table.department')"
+          width="120"
+        />
         <el-table-column :label="$t('budget.table.totalAmount')" width="140" align="right">
           <template #default="{ row }">¥{{ row.total_amount.toFixed(2) }}</template>
         </el-table-column>
@@ -54,20 +77,39 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" :label="$t('budget.table.remark')" min-width="150" show-overflow-tooltip />
+        <el-table-column
+          prop="remark"
+          :label="$t('budget.table.remark')"
+          min-width="150"
+          show-overflow-tooltip
+        />
         <el-table-column :label="$t('budget.table.operation')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="'budget:update'" type="primary" link size="small" @click="openDialog(row)">{{ $t('budget.table.edit') }}</el-button>
             <el-button
-              v-permission="'budget:approve'"
+              v-permission="'budget:update'"
+              type="primary"
+              link
+              size="small"
+              @click="openDialog(row)"
+              >{{ $t('budget.table.edit') }}</el-button
+            >
+            <el-button
               v-if="row.status === 'pending'"
+              v-permission="'budget:approve'"
               type="success"
               link
               size="small"
               @click="approveBudget(row)"
               >{{ $t('budget.table.approve') }}</el-button
             >
-            <el-button v-permission="'budget:delete'" type="danger" link size="small" @click="handleDelete(row)">{{ $t('budget.table.delete') }}</el-button>
+            <el-button
+              v-permission="'budget:delete'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >{{ $t('budget.table.delete') }}</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -86,8 +128,19 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? $t('budget.dialog.editTitle') : $t('budget.dialog.createTitle')" width="500px" :aria-label="$t('budget.dialog.ariaLabel')">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('budget.dialog.formAriaLabel')">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="form.id ? $t('budget.dialog.editTitle') : $t('budget.dialog.createTitle')"
+      width="500px"
+      :aria-label="$t('budget.dialog.ariaLabel')"
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        :aria-label="$t('budget.dialog.formAriaLabel')"
+      >
         <el-form-item :label="$t('budget.dialog.budgetNo')" prop="budget_no">
           <el-input v-model="form.budget_no" :disabled="!!form.id" />
         </el-form-item>
@@ -114,7 +167,9 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ $t('budget.dialog.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('budget.dialog.confirm') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          $t('budget.dialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -201,10 +256,14 @@ const form = reactive<Partial<Budget>>({
 })
 
 const rules: FormRules = {
-  budget_no: [{ required: true, message: t('budget.validation.budgetNoRequired'), trigger: 'blur' }],
+  budget_no: [
+    { required: true, message: t('budget.validation.budgetNoRequired'), trigger: 'blur' },
+  ],
   name: [{ required: true, message: t('budget.validation.nameRequired'), trigger: 'blur' }],
   period: [{ required: true, message: t('budget.validation.periodRequired'), trigger: 'blur' }],
-  total_amount: [{ required: true, message: t('budget.validation.totalAmountRequired'), trigger: 'blur' }],
+  total_amount: [
+    { required: true, message: t('budget.validation.totalAmountRequired'), trigger: 'blur' },
+  ],
 }
 
 const getStatusLabel = (status: Budget['status']) => {
@@ -278,7 +337,11 @@ const handleSubmit = async () => {
 
 const approveBudget = async (row: Budget) => {
   try {
-    await ElMessageBox.confirm(t('budget.confirmAudit', { name: row.name }), t('message.auditConfirmTitle'), { type: 'info' })
+    await ElMessageBox.confirm(
+      t('budget.confirmAudit', { name: row.name }),
+      t('message.auditConfirmTitle'),
+      { type: 'info' }
+    )
     await approveBudgetApi(row.id)
     ElMessage.success(t('budget.auditSuccess'))
     fetchBudgets()
@@ -292,7 +355,11 @@ const approveBudget = async (row: Budget) => {
 
 const handleDelete = async (row: Budget) => {
   try {
-    await ElMessageBox.confirm(t('budget.message.deleteConfirm', { name: row.name }), t('message.deleteConfirmTitle'), { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('budget.message.deleteConfirm', { name: row.name }),
+      t('message.deleteConfirmTitle'),
+      { type: 'warning' }
+    )
     await deleteBudgetApi(row.id)
     ElMessage.success(t('message.deleteSuccess'))
     fetchBudgets()

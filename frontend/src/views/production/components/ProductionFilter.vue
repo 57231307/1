@@ -6,32 +6,39 @@
 -->
 <template>
   <el-card shadow="never" class="filter-card">
-    <el-form :inline="true" :model="localForm" @submit.prevent aria-label="生产订单筛选表单">
-      <el-form-item label="订单编号">
+    <el-form
+      :inline="true"
+      :model="localForm"
+      :aria-label="t('production.filter.ariaLabel')"
+      @submit.prevent
+    >
+      <el-form-item :label="t('production.filter.labelOrderNo')">
         <el-input
           v-model="localForm.order_no"
-          placeholder="请输入订单编号"
+          :placeholder="t('production.filter.placeholderOrderNo')"
           clearable
           style="width: 200px"
         />
       </el-form-item>
-      <el-form-item label="状态">
+      <el-form-item :label="t('production.filter.labelStatus')">
         <el-select
           v-model="localForm.status"
-          placeholder="请选择状态"
+          :placeholder="t('production.filter.placeholderStatus')"
           clearable
           style="width: 150px"
         >
-          <el-option label="草稿" value="draft" />
-          <el-option label="已计划" value="planned" />
-          <el-option label="进行中" value="in_progress" />
-          <el-option label="已完成" value="completed" />
-          <el-option label="已取消" value="cancelled" />
+          <el-option :label="t('production.filter.statusDraft')" value="draft" />
+          <el-option :label="t('production.filter.statusPlanned')" value="planned" />
+          <el-option :label="t('production.filter.statusInProgress')" value="in_progress" />
+          <el-option :label="t('production.filter.statusCompleted')" value="completed" />
+          <el-option :label="t('production.filter.statusCancelled')" value="cancelled" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="emit('search')">查询</el-button>
-        <el-button @click="emit('reset')">重置</el-button>
+        <el-button type="primary" @click="emit('search')">{{
+          t('production.filter.buttonSearch')
+        }}</el-button>
+        <el-button @click="emit('reset')">{{ t('production.filter.buttonReset') }}</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -39,6 +46,9 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 过滤表单字段类型
 interface FilterForm {
@@ -47,14 +57,12 @@ interface FilterForm {
 }
 
 const props = defineProps<{
-  // 过滤表单数据（由父组件管理，子组件通过 emit('update:form') 回写）
   form: FilterForm
 }>()
 
 const emit = defineEmits<{
   search: []
   reset: []
-  // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
   'update:form': [form: FilterForm]
 }>()
 
@@ -64,10 +72,10 @@ const localForm = ref<FilterForm>({ ...props.form })
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false
 
-// 外部 prop 变化时同步到 local（如父组件重置）
+// 外部 prop 变化时同步到 local
 watch(
   () => props.form,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     localForm.value = { ...newForm }
@@ -75,13 +83,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
-// 本地变化时通知父组件（用户输入）
+// 本地变化时通知父组件
 watch(
   localForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     emit('update:form', { ...newForm })
@@ -89,7 +97,7 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 </script>
 

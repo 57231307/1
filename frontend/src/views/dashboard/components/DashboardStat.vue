@@ -12,7 +12,7 @@
             <el-icon><Folder /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">面料总数</div>
+            <div class="stat-label">{{ t('dashboard.stat.fabricTotal') }}</div>
             <div class="stat-value">{{ stats.fabricCount || 0 }}</div>
           </div>
         </div>
@@ -25,7 +25,7 @@
             <el-icon><Box /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">库存总量</div>
+            <div class="stat-label">{{ t('dashboard.stat.inventoryTotal') }}</div>
             <div class="stat-value">{{ formatNumber(stats.inventoryTotal) }}</div>
           </div>
         </div>
@@ -38,7 +38,7 @@
             <el-icon><Document /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">本月订单</div>
+            <div class="stat-label">{{ t('dashboard.stat.monthOrders') }}</div>
             <div class="stat-value">{{ stats.monthOrders || 0 }}</div>
           </div>
         </div>
@@ -51,7 +51,7 @@
             <el-icon><User /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">客户总数</div>
+            <div class="stat-label">{{ t('dashboard.stat.customerTotal') }}</div>
             <div class="stat-value">{{ stats.customerCount || 0 }}</div>
           </div>
         </div>
@@ -67,7 +67,7 @@
             <el-icon><Calendar /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">今日订单</div>
+            <div class="stat-label">{{ t('dashboard.stat.todayOrders') }}</div>
             <div class="stat-value">{{ stats.todayOrders || 0 }}</div>
           </div>
         </div>
@@ -80,7 +80,7 @@
             <el-icon><Clock /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">待处理订单</div>
+            <div class="stat-label">{{ t('dashboard.stat.pendingOrders') }}</div>
             <div class="stat-value">{{ stats.pendingOrders || 0 }}</div>
           </div>
         </div>
@@ -93,7 +93,7 @@
             <el-icon><Warning /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">库存预警</div>
+            <div class="stat-label">{{ t('dashboard.stat.lowStockAlert') }}</div>
             <div class="stat-value">{{ stats.lowStockProducts || 0 }}</div>
           </div>
         </div>
@@ -106,7 +106,7 @@
             <el-icon><TrendCharts /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">本月销售额</div>
+            <div class="stat-label">{{ t('dashboard.stat.monthSales') }}</div>
             <div class="stat-value">{{ formatCurrency(stats.monthSales) }}</div>
           </div>
         </div>
@@ -116,9 +116,21 @@
 </template>
 
 <script setup lang="ts">
-import { Folder, Box, Document, User, Calendar, Clock, Warning, TrendCharts } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+import {
+  Folder,
+  Box,
+  Document,
+  User,
+  Calendar,
+  Clock,
+  Warning,
+  TrendCharts,
+} from '@element-plus/icons-vue'
 import type { DashboardOverview } from '@/api/dashboard'
 import { formatNumber, formatCurrency } from '../composables/dbFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{ stats: DashboardOverview }>()
 </script>

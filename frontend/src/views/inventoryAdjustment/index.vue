@@ -13,11 +13,17 @@
 <template>
   <div class="adjustment-page">
     <div class="page-header">
-      <h1 class="page-title">库存调整</h1>
+      <h1 class="page-title">{{ t('inventoryAdjustment.index.pageTitle') }}</h1>
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-        <el-breadcrumb-item>仓储管理</el-breadcrumb-item>
-        <el-breadcrumb-item>库存调整</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/' }">{{
+          t('inventoryAdjustment.index.breadcrumbHome')
+        }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{
+          t('inventoryAdjustment.index.breadcrumbWarehouse')
+        }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{
+          t('inventoryAdjustment.index.breadcrumbCurrent')
+        }}</el-breadcrumb-item>
       </el-breadcrumb>
     </div>
 
@@ -42,6 +48,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getWarehouseList, type Warehouse } from '@/api/warehouse'
 import { getProductList, type Product } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
@@ -50,6 +57,8 @@ import type { InventoryAdjustmentEntity } from '@/api/inventoryAdjustment'
 import AdjustmentListTab from './tabs/AdjustmentListTab.vue'
 import AdjustmentFormDialogTab from './tabs/AdjustmentFormDialogTab.vue'
 import ApproveDialogTab from './tabs/ApproveDialogTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const formDialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit' | 'view'>('create')

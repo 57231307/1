@@ -6,10 +6,20 @@
 <template>
   <div class="approval-progress">
     <el-steps :active="activeStep" align-center finish-status="success">
-      <el-step :title="t('quotations.approvalProgress.stepDraft')" :description="t('quotations.approvalProgress.draftDesc')" />
-      <el-step :title="t('quotations.approvalProgress.stepSubmit')" :description="pendingDescription" />
       <el-step
-        :title="approved ? t('quotations.approvalProgress.stepApproved') : t('quotations.approvalProgress.stepRejected')"
+        :title="t('quotations.approvalProgress.stepDraft')"
+        :description="t('quotations.approvalProgress.draftDesc')"
+      />
+      <el-step
+        :title="t('quotations.approvalProgress.stepSubmit')"
+        :description="pendingDescription"
+      />
+      <el-step
+        :title="
+          approved
+            ? t('quotations.approvalProgress.stepApproved')
+            : t('quotations.approvalProgress.stepRejected')
+        "
         :description="finalDescription"
         :status="finalStatus"
       />
@@ -19,7 +29,12 @@
         :description="convertedDescription"
         status="success"
       />
-      <el-step v-if="cancelled" :title="t('quotations.approvalProgress.stepCancelled')" :description="t('quotations.approvalProgress.cancelledDesc')" status="error" />
+      <el-step
+        v-if="cancelled"
+        :title="t('quotations.approvalProgress.stepCancelled')"
+        :description="t('quotations.approvalProgress.cancelledDesc')"
+        status="error"
+      />
     </el-steps>
   </div>
 </template>
@@ -87,7 +102,8 @@ const finalStatus = computed(() => {
 /** 提交审批描述 */
 const pendingDescription = computed(() => {
   if (props.status === 'pending_approval') return t('quotations.approvalProgress.pendingApproving')
-  if (['approved', 'converted'].includes(props.status as string)) return t('quotations.approvalProgress.pendingApproved')
+  if (['approved', 'converted'].includes(props.status as string))
+    return t('quotations.approvalProgress.pendingApproved')
   if (props.status === 'rejected') return t('quotations.approvalProgress.pendingRejected')
   return t('quotations.approvalProgress.pendingPending')
 })
@@ -100,7 +116,9 @@ const finalDescription = computed(() => {
       : t('quotations.approvalProgress.approvalPassed')
   }
   if (props.status === 'rejected') {
-    return props.rejectionReason ? `${t('quotations.approvalProgress.reasonPrefix')}${props.rejectionReason}` : t('quotations.approvalProgress.stepRejected')
+    return props.rejectionReason
+      ? `${t('quotations.approvalProgress.reasonPrefix')}${props.rejectionReason}`
+      : t('quotations.approvalProgress.stepRejected')
   }
   if (props.status === 'expired') return t('quotations.approvalProgress.expiredLabel')
   if (props.status === 'cancelled') return t('quotations.approvalProgress.cancelledLabel')
@@ -110,7 +128,9 @@ const finalDescription = computed(() => {
 /** 第四步描述 */
 const convertedDescription = computed(() => {
   if (!converted.value) return ''
-  const id = props.convertedOrderId ? `${t('quotations.approvalProgress.orderIdPrefix')}${props.convertedOrderId}${t('quotations.approvalProgress.orderIdSuffix')}` : ''
+  const id = props.convertedOrderId
+    ? `${t('quotations.approvalProgress.orderIdPrefix')}${props.convertedOrderId}${t('quotations.approvalProgress.orderIdSuffix')}`
+    : ''
   return props.convertedAt ? `${id} ${props.convertedAt}` : id
 })
 </script>

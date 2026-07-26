@@ -34,7 +34,7 @@ let syncing = false
 // 外部 prop 变化时同步到 local
 watch(
   () => props.recipeForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     localForm.value = { ...newForm }
@@ -42,13 +42,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 本地变化时通知父组件
 watch(
   localForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     emit('update:recipeForm', { ...newForm })
@@ -56,11 +56,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 function sourceLabel(source: string): string {
-  return source === 'knn' ? t('advancedModule.recipe.sourceKnn') : t('advancedModule.recipe.sourceFallback')
+  return source === 'knn'
+    ? t('advancedModule.recipe.sourceKnn')
+    : t('advancedModule.recipe.sourceFallback')
 }
 </script>
 
@@ -72,10 +74,15 @@ function sourceLabel(source: string): string {
   <el-row :gutter="20">
     <el-col :span="8">
       <el-card shadow="hover" class="mb-20">
-        <template #header><div class="card-header">{{ $t('advancedModule.recipe.conditions') }}</div></template>
+        <template #header
+          ><div class="card-header">{{ $t('advancedModule.recipe.conditions') }}</div></template
+        >
         <el-form :model="localForm" label-width="100px" aria-label="染色工艺推荐条件表单">
           <el-form-item :label="$t('advancedModule.recipe.colorNo')" required>
-            <el-input v-model="localForm.color_no" :placeholder="$t('advancedModule.recipe.colorNoPlaceholder')" />
+            <el-input
+              v-model="localForm.color_no"
+              :placeholder="$t('advancedModule.recipe.colorNoPlaceholder')"
+            />
           </el-form-item>
           <el-form-item :label="$t('advancedModule.recipe.fabricType')" required>
             <el-select
@@ -112,12 +119,9 @@ function sourceLabel(source: string): string {
             />
           </el-form-item>
           <el-form-item>
-            <el-button
-              type="primary"
-              :loading="recipeLoading"
-              @click="runRecipeOptimization"
-              >{{ $t('advancedModule.recipe.generate') }}</el-button
-            >
+            <el-button type="primary" :loading="recipeLoading" @click="runRecipeOptimization">{{
+              $t('advancedModule.recipe.generate')
+            }}</el-button>
           </el-form-item>
         </el-form>
       </el-card>
@@ -128,17 +132,15 @@ function sourceLabel(source: string): string {
         <template #header>
           <div class="card-header">{{ $t('advancedModule.recipe.result') }}</div>
         </template>
-        <el-empty
-          v-if="!recipeResult"
-          :description="$t('advancedModule.recipe.empty')"
-        />
+        <el-empty v-if="!recipeResult" :description="$t('advancedModule.recipe.empty')" />
         <div v-else>
           <el-descriptions :column="2" border>
             <el-descriptions-item :label="$t('advancedModule.recipe.recTemperature')">
               {{ recipeResult.recommended_params.temperature }} °C
             </el-descriptions-item>
             <el-descriptions-item :label="$t('advancedModule.recipe.recTime')">
-              {{ recipeResult.recommended_params.time_minutes }} {{ $t('advancedModule.recipe.unitMinutes') }}
+              {{ recipeResult.recommended_params.time_minutes }}
+              {{ $t('advancedModule.recipe.unitMinutes') }}
             </el-descriptions-item>
             <el-descriptions-item :label="$t('advancedModule.recipe.recPh')">
               {{ recipeResult.recommended_params.ph_value }}
@@ -153,10 +155,7 @@ function sourceLabel(source: string): string {
               {{ recipeResult.similar_cases }}
             </el-descriptions-item>
             <el-descriptions-item :label="$t('advancedModule.recipe.recSource')">
-              <el-tag
-                :type="recipeResult.source === 'knn' ? 'success' : 'info'"
-                size="small"
-              >
+              <el-tag :type="recipeResult.source === 'knn' ? 'success' : 'info'" size="small">
                 {{ sourceLabel(recipeResult.source) }}
               </el-tag>
             </el-descriptions-item>
@@ -170,7 +169,9 @@ function sourceLabel(source: string): string {
             show-icon
           />
 
-          <h4 class="mb-10" style="margin-top: 16px">{{ $t('advancedModule.recipe.similarCandidates') }}</h4>
+          <h4 class="mb-10" style="margin-top: 16px">
+            {{ $t('advancedModule.recipe.similarCandidates') }}
+          </h4>
           <el-table
             v-if="recipeResult.candidates && recipeResult.candidates.length > 0"
             :data="recipeResult.candidates"
@@ -179,14 +180,28 @@ function sourceLabel(source: string): string {
             border
             aria-label="相似候选案例列表"
           >
-            <el-table-column prop="recipe_no" :label="$t('advancedModule.recipe.colRecipeNo')" width="160" />
-            <el-table-column prop="color_no" :label="$t('advancedModule.recipe.colColorNo')" width="120" />
-            <el-table-column prop="fabric_type" :label="$t('advancedModule.recipe.colFabricType')" width="100" />
-            <el-table-column prop="dye_type" :label="$t('advancedModule.recipe.colDyeType')" width="120" />
+            <el-table-column
+              prop="recipe_no"
+              :label="$t('advancedModule.recipe.colRecipeNo')"
+              width="160"
+            />
+            <el-table-column
+              prop="color_no"
+              :label="$t('advancedModule.recipe.colColorNo')"
+              width="120"
+            />
+            <el-table-column
+              prop="fabric_type"
+              :label="$t('advancedModule.recipe.colFabricType')"
+              width="100"
+            />
+            <el-table-column
+              prop="dye_type"
+              :label="$t('advancedModule.recipe.colDyeType')"
+              width="120"
+            />
             <el-table-column :label="$t('advancedModule.recipe.colTemperature')" width="80">
-              <template #default="{ row }">
-                {{ row.temperature ?? '-' }} °C
-              </template>
+              <template #default="{ row }"> {{ row.temperature ?? '-' }} °C </template>
             </el-table-column>
             <el-table-column :label="$t('advancedModule.recipe.colTime')" width="80">
               <template #default="{ row }">
@@ -199,14 +214,10 @@ function sourceLabel(source: string): string {
               </template>
             </el-table-column>
             <el-table-column :label="$t('advancedModule.recipe.colLiquorRatio')" width="80">
-              <template #default="{ row }">
-                1:{{ row.liquor_ratio ?? '-' }}
-              </template>
+              <template #default="{ row }"> 1:{{ row.liquor_ratio ?? '-' }} </template>
             </el-table-column>
             <el-table-column :label="$t('advancedModule.recipe.colSimilarity')" width="100">
-              <template #default="{ row }">
-                {{ Math.round(row.similarity * 100) }}%
-              </template>
+              <template #default="{ row }"> {{ Math.round(row.similarity * 100) }}% </template>
             </el-table-column>
           </el-table>
           <el-empty

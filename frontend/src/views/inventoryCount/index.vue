@@ -13,11 +13,13 @@
 <template>
   <div class="count-page">
     <div class="page-header">
-      <h1 class="page-title">库存盘点</h1>
+      <h1 class="page-title">{{ t('inventoryCount.index.pageTitle') }}</h1>
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-        <el-breadcrumb-item>仓储管理</el-breadcrumb-item>
-        <el-breadcrumb-item>库存盘点</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/' }">{{
+          t('inventoryCount.index.breadcrumbHome')
+        }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{ t('inventoryCount.index.breadcrumbWarehouse') }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{ t('inventoryCount.index.breadcrumbCurrent') }}</el-breadcrumb-item>
       </el-breadcrumb>
     </div>
 
@@ -37,6 +39,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getWarehouseList, type Warehouse } from '@/api/warehouse'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
@@ -44,6 +47,8 @@ import type { InventoryCountEntity } from '@/api/inventoryCount'
 import CountListTab from './tabs/CountListTab.vue'
 import CountFormDialogTab from './tabs/CountFormDialogTab.vue'
 import CountDetailDialogTab from './tabs/CountDetailDialogTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const formDialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit' | 'view'>('create')
@@ -74,7 +79,7 @@ const fetchWarehouses = async () => {
     const res = await getWarehouseList({ page: 1, page_size: 1000 })
     warehouses.value = (res.data?.list as Warehouse[] | undefined) || []
   } catch (error) {
-    logger.error('获取仓库列表失败', (error as Error).message)
+    logger.error(t('inventoryCount.index.messageFetchWarehouseFailure'), (error as Error).message)
   }
 }
 

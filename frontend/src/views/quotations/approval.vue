@@ -9,7 +9,9 @@
     <el-card v-if="quotation">
       <template #header>
         <div class="card-header">
-          <span class="title">{{ t('quotations.approval.title') }} - {{ quotation.quotation_no }}</span>
+          <span class="title"
+            >{{ t('quotations.approval.title') }} - {{ quotation.quotation_no }}</span
+          >
           <el-button @click="$router.back()">{{ t('quotations.approval.back') }}</el-button>
         </div>
       </template>
@@ -30,9 +32,12 @@
         <el-descriptions-item :label="t('quotations.approval.labelAmount')">
           {{ quotation.currency }} {{ formatAmount(quotation.total_amount) }}
         </el-descriptions-item>
-        <el-descriptions-item :label="t('quotations.approval.labelPriceTerms')">{{ quotation.price_terms }}</el-descriptions-item>
+        <el-descriptions-item :label="t('quotations.approval.labelPriceTerms')">{{
+          quotation.price_terms
+        }}</el-descriptions-item>
         <el-descriptions-item :label="t('quotations.approval.labelCurrency')">
-          {{ quotation.currency }} ({{ t('quotations.approval.exchangeRateLabel') }} {{ quotation.exchange_rate }})
+          {{ quotation.currency }} ({{ t('quotations.approval.exchangeRateLabel') }}
+          {{ quotation.exchange_rate }})
         </el-descriptions-item>
         <el-descriptions-item :label="t('quotations.approval.labelQuotationDate')" :span="2">
           {{ quotation.quotation_date }}
@@ -46,7 +51,11 @@
             ({{ quotation.approved_at }})
           </span>
         </el-descriptions-item>
-        <el-descriptions-item v-if="quotation.rejection_reason" :label="t('quotations.approval.labelRejectionReason')" :span="2">
+        <el-descriptions-item
+          v-if="quotation.rejection_reason"
+          :label="t('quotations.approval.labelRejectionReason')"
+          :span="2"
+        >
           <span class="rejection-reason">{{ quotation.rejection_reason }}</span>
         </el-descriptions-item>
         <el-descriptions-item
@@ -115,7 +124,9 @@ async function loadData() {
     quotation.value = res.data as QuotationResponseDto
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.approval.loadFailed'))
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('quotations.approval.loadFailed')
+    )
     quotation.value = null
   } finally {
     loading.value = false
@@ -143,7 +154,11 @@ async function handleSubmit() {
 async function handleApprove() {
   if (!quotation.value) return
   try {
-    await ElMessageBox.confirm(t('quotations.approval.approveConfirmText'), t('quotations.approval.approveConfirmTitle'), { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('quotations.approval.approveConfirmText'),
+      t('quotations.approval.approveConfirmTitle'),
+      { type: 'warning' }
+    )
   } catch {
     return
   }
@@ -161,9 +176,14 @@ async function handleReject() {
   if (!quotation.value) return
   let reason = ''
   try {
-    const { value } = await ElMessageBox.prompt(t('quotations.approval.rejectPromptText'), t('quotations.approval.rejectTitle'), {
-      inputValidator: (v: string) => (v && v.trim() ? true : t('quotations.approval.rejectReasonRequired')),
-    })
+    const { value } = await ElMessageBox.prompt(
+      t('quotations.approval.rejectPromptText'),
+      t('quotations.approval.rejectTitle'),
+      {
+        inputValidator: (v: string) =>
+          v && v.trim() ? true : t('quotations.approval.rejectReasonRequired'),
+      }
+    )
     reason = value
   } catch {
     return
@@ -181,7 +201,11 @@ async function handleReject() {
 async function handleConvert() {
   if (!quotation.value) return
   try {
-    await ElMessageBox.confirm(t('quotations.approval.convertConfirmText'), t('quotations.approval.convertTitle'), { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('quotations.approval.convertConfirmText'),
+      t('quotations.approval.convertTitle'),
+      { type: 'warning' }
+    )
   } catch {
     return
   }

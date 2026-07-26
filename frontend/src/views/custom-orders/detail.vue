@@ -2,40 +2,41 @@
   定制订单详情页
   - Tab 切换：基本信息 / 工艺节点 / 质量异常 / 售后
   - 操作：编辑（草稿）/ 取消（草稿）/ 推进状态
+  D05 Batch 8 Group B：接入 useI18n
 -->
 <template>
-  <div class="custom-order-detail" v-loading="loading">
+  <div v-loading="loading" class="custom-order-detail">
     <el-card v-if="order">
       <template #header>
         <div class="card-header">
           <div>
-            <span class="title">定制订单 {{ order.order_no }}</span>
+            <span class="title">{{
+              t('customOrders.detail.title', { orderNo: order.order_no })
+            }}</span>
             <el-tag :type="STATUS_COLORS[order.status] || 'info'" style="margin-left: 12px">
-              {{ STATUS_LABELS[order.status] || order.status }}
+              {{ getStatusLabel(order.status) }}
             </el-tag>
           </div>
           <div>
-            <el-button @click="$router.push('/custom-orders')">返回</el-button>
+            <el-button @click="$router.push('/custom-orders')">{{
+              t('customOrders.detail.buttonBack')
+            }}</el-button>
             <el-button
               v-if="order.status === 'draft'"
               type="primary"
               @click="$router.push(`/custom-orders/${order.id}/edit`)"
             >
-              编辑
+              {{ t('customOrders.detail.buttonEdit') }}
             </el-button>
             <el-button
               v-if="order.status !== 'completed' && order.status !== 'cancelled'"
               type="success"
               @click="handleAdvance"
             >
-              推进状态
+              {{ t('customOrders.detail.buttonAdvance') }}
             </el-button>
-            <el-button
-              v-if="order.status === 'draft'"
-              type="danger"
-              @click="handleCancel"
-            >
-              取消
+            <el-button v-if="order.status === 'draft'" type="danger" @click="handleCancel">
+              {{ t('customOrders.detail.buttonCancel') }}
             </el-button>
           </div>
         </div>
@@ -43,43 +44,98 @@
 
       <el-tabs v-model="activeTab">
         <!-- 基本信息 -->
-        <el-tab-pane label="基本信息" name="info">
+        <el-tab-pane :label="t('customOrders.detail.tabInfo')" name="info">
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="订单号">{{ order.order_no }}</el-descriptions-item>
-            <el-descriptions-item label="客户 ID">{{ order.customer_id }}</el-descriptions-item>
-            <el-descriptions-item label="产品 ID">{{ order.product_id }}</el-descriptions-item>
-            <el-descriptions-item label="色号 ID">{{ order.color_id || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="规格" :span="2">{{ order.spec }}</el-descriptions-item>
-            <el-descriptions-item label="数量">{{ order.quantity }} {{ order.unit }}</el-descriptions-item>
-            <el-descriptions-item label="金额">
+            <el-descriptions-item :label="t('customOrders.detail.labelOrderNo')">{{
+              order.order_no
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelCustomerId')">{{
+              order.customer_id
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelProductId')">{{
+              order.product_id
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelColorId')">{{
+              order.color_id || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelSpec')" :span="2">{{
+              order.spec
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelQuantity')"
+              >{{ order.quantity }} {{ order.unit }}</el-descriptions-item
+            >
+            <el-descriptions-item :label="t('customOrders.detail.labelAmount')">
               {{ order.currency }} {{ order.total_amount || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="纱线规格">{{ order.yarn_spec || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="染色方法">{{ order.dye_method || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="后整理">{{ order.finishing_method || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="期望交付">{{ order.expected_delivery_date || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="实际交付">{{ order.actual_delivery_date || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="关联销售订单">{{ order.sales_order_id || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="创建时间">{{ order.created_at }}</el-descriptions-item>
-            <el-descriptions-item label="更新时间" :span="2">{{ order.updated_at }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelYarnSpec')">{{
+              order.yarn_spec || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelDyeMethod')">{{
+              order.dye_method || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelFinishingMethod')">{{
+              order.finishing_method || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelExpectedDelivery')">{{
+              order.expected_delivery_date || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelActualDelivery')">{{
+              order.actual_delivery_date || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelSalesOrder')">{{
+              order.sales_order_id || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelCreatedAt')">{{
+              order.created_at
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelUpdatedAt')" :span="2">{{
+              order.updated_at
+            }}</el-descriptions-item>
             <!-- v3 复审 P1-5：展示订单备注 -->
-            <el-descriptions-item label="备注" :span="2">{{ order.notes || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="t('customOrders.detail.labelNotes')" :span="2">{{
+              order.notes || '-'
+            }}</el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>
 
         <!-- 工艺节点 -->
-        <el-tab-pane :label="`工艺节点（${(order.process_nodes || []).length}）`" name="nodes">
+        <el-tab-pane
+          :label="
+            t('customOrders.detail.tabProcessNodes', { count: (order.process_nodes || []).length })
+          "
+          name="nodes"
+        >
           <ProcessFlow :nodes="order.process_nodes || []" />
         </el-tab-pane>
 
         <!-- 质量异常 -->
-        <el-tab-pane :label="`质量异常（${(order.quality_issues || []).length}）`" name="issues">
-          <QualityCheck :order-id="order.id" :issues="order.quality_issues || []" @refresh="loadData" />
+        <el-tab-pane
+          :label="
+            t('customOrders.detail.tabQualityIssues', {
+              count: (order.quality_issues || []).length,
+            })
+          "
+          name="issues"
+        >
+          <QualityCheck
+            :order-id="order.id"
+            :issues="order.quality_issues || []"
+            @refresh="loadData"
+          />
         </el-tab-pane>
 
         <!-- 售后 -->
-        <el-tab-pane :label="`售后（${(order.after_sales || []).length}）`" name="aftersales">
-          <AfterSalesPanel :order-id="order.id" :after-sales="order.after_sales || []" @refresh="loadData" />
+        <el-tab-pane
+          :label="
+            t('customOrders.detail.tabAfterSales', { count: (order.after_sales || []).length })
+          "
+          name="aftersales"
+        >
+          <AfterSalesPanel
+            :order-id="order.id"
+            :after-sales="order.after_sales || []"
+            @refresh="loadData"
+          />
         </el-tab-pane>
       </el-tabs>
     </el-card>
@@ -89,12 +145,12 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getCustomOrder,
   advanceCustomOrder,
   cancelCustomOrder,
-  CUSTOM_ORDER_STATUS as STATUS_LABELS,
   CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
 } from '@/api/custom-order'
 import type { CustomOrderDetail } from '@/api/custom-order'
@@ -107,9 +163,25 @@ import AfterSalesPanel from '@/components/AfterSalesPanel.vue'
 // 不再需要本地扩展类型，直接使用 CustomOrderDetail
 
 const route = useRoute()
+const { t } = useI18n({ useScope: 'global' })
 const loading = ref(false)
 const order = ref<CustomOrderDetail | null>(null)
 const activeTab = ref('info')
+
+// 状态标签映射函数（i18n）
+const getStatusLabel = (status: string): string => {
+  const map: Record<string, string> = {
+    draft: t('customOrders.status.draft'),
+    yarn_purchasing: t('customOrders.status.yarnPurchasing'),
+    dyeing: t('customOrders.status.dyeing'),
+    finishing: t('customOrders.status.finishing'),
+    delivery: t('customOrders.status.delivery'),
+    after_sales: t('customOrders.status.afterSales'),
+    completed: t('customOrders.status.completed'),
+    cancelled: t('customOrders.status.cancelled'),
+  }
+  return map[status] || status
+}
 
 async function loadData() {
   const id = Number(route.params.id)
@@ -119,8 +191,8 @@ async function loadData() {
     const res = await getCustomOrder(id)
     order.value = (res.data || res) as unknown as CustomOrderDetail
   } catch (e) {
-    logger.error('加载订单失败', e)
-    ElMessage.error('加载订单失败')
+    logger.error(t('customOrders.detail.messageLoadFailed'), e)
+    ElMessage.error(t('customOrders.detail.messageLoadFailed'))
   } finally {
     loading.value = false
   }
@@ -129,14 +201,21 @@ async function loadData() {
 async function handleAdvance() {
   if (!order.value) return
   try {
-    await ElMessageBox.confirm('确定推进到下一阶段？', '确认推进', { type: 'warning' })
-    await advanceCustomOrder(order.value.id, { operator_id: 1, notes: '状态推进' })
-    ElMessage.success('推进成功')
+    await ElMessageBox.confirm(
+      t('customOrders.detail.messageAdvanceConfirm'),
+      t('customOrders.detail.messageAdvanceTitle'),
+      { type: 'warning' }
+    )
+    await advanceCustomOrder(order.value.id, {
+      operator_id: 1,
+      notes: t('customOrders.detail.messageAdvanceNotes'),
+    })
+    ElMessage.success(t('customOrders.detail.messageAdvanceSuccess'))
     loadData()
   } catch (e: unknown) {
     if (e !== 'cancel') {
       const msg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(msg || '推进失败')
+      ElMessage.error(msg || t('customOrders.detail.messageAdvanceFailed'))
     }
   }
 }
@@ -144,17 +223,21 @@ async function handleAdvance() {
 async function handleCancel() {
   if (!order.value) return
   try {
-    const { value: reason } = await ElMessageBox.prompt('请输入取消原因', '取消订单', {
-      inputPattern: /\S+/,
-      inputErrorMessage: '原因不能为空',
-    })
+    const { value: reason } = await ElMessageBox.prompt(
+      t('customOrders.detail.messageCancelPrompt'),
+      t('customOrders.detail.messageCancelTitle'),
+      {
+        inputPattern: /\S+/,
+        inputErrorMessage: t('customOrders.detail.messageReasonRequired'),
+      }
+    )
     await cancelCustomOrder(order.value.id, reason)
-    ElMessage.success('取消成功')
+    ElMessage.success(t('customOrders.detail.messageCancelSuccess'))
     loadData()
   } catch (e: unknown) {
     if (e !== 'cancel') {
       const msg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(msg || '取消失败')
+      ElMessage.error(msg || t('customOrders.detail.messageCancelFailed'))
     }
   }
 }

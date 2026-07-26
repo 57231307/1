@@ -8,7 +8,7 @@
     <el-col v-for="level in SEVERITY_LEVELS" :key="level.value" :xs="24" :sm="12" :lg="6">
       <el-card shadow="hover" :class="['severity-card', level.class]">
         <div class="severity-content">
-          <div class="severity-label">{{ level.label }}</div>
+          <div class="severity-label">{{ getSeverityLabel(level.value) }}</div>
           <div class="severity-value">{{ getCount(level.value) }}</div>
         </div>
         <el-progress
@@ -23,8 +23,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { SEVERITY_LEVELS } from '../composables/msFmts'
 import type { MaterialShortageSummary } from '@/api/material-shortage'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 严重程度进度卡片
@@ -33,6 +36,19 @@ const props = defineProps<{
   // 汇总数据
   summary: MaterialShortageSummary
 }>()
+
+/**
+ * 严重程度标签映射（基于 i18n）
+ */
+const getSeverityLabel = (severity: string) => {
+  const map: Record<string, string> = {
+    critical: t('materialShortage.severity.critical'),
+    high: t('materialShortage.severity.high'),
+    medium: t('materialShortage.severity.medium'),
+    low: t('materialShortage.severity.low'),
+  }
+  return map[severity] || severity
+}
 
 /**
  * 获取某严重程度的数量

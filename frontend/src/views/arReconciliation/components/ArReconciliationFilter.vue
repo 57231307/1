@@ -46,7 +46,9 @@
         />
       </el-col>
       <el-col :span="3">
-        <el-button type="primary" @click="emit('search')">{{ $t('arReconciliationModule.query') }}</el-button>
+        <el-button type="primary" @click="emit('search')">{{
+          $t('arReconciliationModule.query')
+        }}</el-button>
         <el-button @click="emit('reset')">{{ $t('common.reset') }}</el-button>
       </el-col>
     </el-row>
@@ -107,7 +109,7 @@ let syncing = false
 // 外部 prop 变化时同步到 local（如父组件重置）
 watch(
   () => props.searchForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     localSearchForm.value = { ...newForm }
@@ -115,13 +117,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localSearchForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     emit('update:searchForm', { ...newForm })
@@ -129,7 +131,7 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 </script>
 

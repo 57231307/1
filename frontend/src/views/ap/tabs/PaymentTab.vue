@@ -13,16 +13,33 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="paymentLoading" :data="payments" stripe :aria-label="$t('apModule.payment.listAria')">
+      <el-table
+        v-loading="paymentLoading"
+        :data="payments"
+        stripe
+        :aria-label="$t('apModule.payment.listAria')"
+      >
         <el-table-column prop="payment_no" :label="$t('apModule.payment.paymentNo')" width="140" />
-        <el-table-column prop="supplier_name" :label="$t('apModule.payment.supplier')" width="150" />
-        <el-table-column prop="payment_date" :label="$t('apModule.payment.paymentDate')" width="120" />
+        <el-table-column
+          prop="supplier_name"
+          :label="$t('apModule.payment.supplier')"
+          width="150"
+        />
+        <el-table-column
+          prop="payment_date"
+          :label="$t('apModule.payment.paymentDate')"
+          width="120"
+        />
         <el-table-column :label="$t('apModule.payment.paymentAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.payment_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="payment_method" :label="$t('apModule.payment.paymentMethod')" width="100">
+        <el-table-column
+          prop="payment_method"
+          :label="$t('apModule.payment.paymentMethod')"
+          width="100"
+        >
           <template #default="{ row }">
             {{ getPaymentMethodLabel(row.payment_method) }}
           </template>
@@ -30,11 +47,19 @@
         <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'confirmed' ? 'success' : 'warning'" size="small">
-              {{ row.status === 'confirmed' ? $t('apModule.payment.statusConfirmed') : $t('apModule.payment.statusPending') }}
+              {{
+                row.status === 'confirmed'
+                  ? $t('apModule.payment.statusConfirmed')
+                  : $t('apModule.payment.statusPending')
+              }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="bank_account" :label="$t('apModule.payment.bankAccount')" width="150" />
+        <el-table-column
+          prop="bank_account"
+          :label="$t('apModule.payment.bankAccount')"
+          width="150"
+        />
         <el-table-column prop="created_at" :label="$t('common.createTime')" width="160" />
         <el-table-column :label="$t('common.operation')" width="120" fixed="right">
           <template #default="{ row }">
@@ -51,10 +76,25 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="paymentDialogVisible" :title="$t('apModule.payment.createTitle')" width="600px" :aria-label="$t('apModule.payment.createAria')">
-      <el-form ref="paymentFormRef" :model="paymentForm" :rules="paymentRules" label-width="100px" :aria-label="$t('apModule.payment.formAria')">
+    <el-dialog
+      v-model="paymentDialogVisible"
+      :title="$t('apModule.payment.createTitle')"
+      width="600px"
+      :aria-label="$t('apModule.payment.createAria')"
+    >
+      <el-form
+        ref="paymentFormRef"
+        :model="paymentForm"
+        :rules="paymentRules"
+        label-width="100px"
+        :aria-label="$t('apModule.payment.formAria')"
+      >
         <el-form-item :label="$t('apModule.payment.supplier')" prop="supplier_id">
-          <el-select v-model="paymentForm.supplier_id" :placeholder="$t('apModule.payment.supplierPlaceholder')" style="width: 100%">
+          <el-select
+            v-model="paymentForm.supplier_id"
+            :placeholder="$t('apModule.payment.supplierPlaceholder')"
+            style="width: 100%"
+          >
             <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
           </el-select>
         </el-form-item>
@@ -97,9 +137,9 @@
       </el-form>
       <template #footer>
         <el-button @click="paymentDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="paymentSubmitLoading" @click="submitPayment"
-          >{{ $t('common.confirm') }}</el-button
-        >
+        <el-button type="primary" :loading="paymentSubmitLoading" @click="submitPayment">{{
+          $t('common.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -173,10 +213,18 @@ const paymentForm = reactive({
 })
 
 const paymentRules: FormRules = {
-  supplier_id: [{ required: true, message: t('apModule.payment.supplierRequired'), trigger: 'change' }],
-  payment_date: [{ required: true, message: t('apModule.payment.dateRequired'), trigger: 'change' }],
-  payment_amount: [{ required: true, message: t('apModule.payment.amountRequired'), trigger: 'blur' }],
-  payment_method: [{ required: true, message: t('apModule.payment.methodRequired'), trigger: 'change' }],
+  supplier_id: [
+    { required: true, message: t('apModule.payment.supplierRequired'), trigger: 'change' },
+  ],
+  payment_date: [
+    { required: true, message: t('apModule.payment.dateRequired'), trigger: 'change' },
+  ],
+  payment_amount: [
+    { required: true, message: t('apModule.payment.amountRequired'), trigger: 'blur' },
+  ],
+  payment_method: [
+    { required: true, message: t('apModule.payment.methodRequired'), trigger: 'change' },
+  ],
 }
 
 const openPaymentDialog = () => {
@@ -209,7 +257,11 @@ const submitPayment = async () => {
 
 const confirmPayment = async (row: APPayment) => {
   try {
-    await ElMessageBox.confirm(t('apModule.payment.confirmConfirm'), t('apModule.payment.confirmTitle'), { type: 'info' })
+    await ElMessageBox.confirm(
+      t('apModule.payment.confirmConfirm'),
+      t('apModule.payment.confirmTitle'),
+      { type: 'info' }
+    )
     await confirmAPPayment(row.id)
     ElMessage.success(t('apModule.payment.confirmSuccess'))
     fetchPayments()

@@ -64,11 +64,11 @@ export function usePrdProc(cb: PrdCallbacks) {
   /** 删除订单 */
   const handleDelete = async (row: ProductionOrder) => {
     try {
-      await ElMessageBox.confirm(
-        `确认删除订单 ${row.order_no} 吗？此操作不可恢复。`,
-        '删除确认',
-        { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
-      )
+      await ElMessageBox.confirm(`确认删除订单 ${row.order_no} 吗？此操作不可恢复。`, '删除确认', {
+        type: 'warning',
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+      })
       await deleteProductionOrder(row.id)
       ElMessage.success('删除成功')
       await cb.refresh()
@@ -97,11 +97,7 @@ export function usePrdProc(cb: PrdCallbacks) {
       status: filters.status || undefined,
       product_id: filters.product_id,
     }
-    await exportFromBackend(
-      '/production-orders/orders/export',
-      params,
-      'production_orders_export'
-    )
+    await exportFromBackend('/production-orders/orders/export', params, 'production_orders_export')
   }
 
   /** 打印 */

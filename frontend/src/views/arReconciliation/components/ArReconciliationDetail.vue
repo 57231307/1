@@ -35,7 +35,12 @@
         </el-descriptions-item>
       </el-descriptions>
     </div>
-    <el-table :data="detailData" border style="width: 100%; margin-top: 16px" :aria-label="$t('arReconciliationModule.detailTableAria')">
+    <el-table
+      :data="detailData"
+      border
+      style="width: 100%; margin-top: 16px"
+      :aria-label="$t('arReconciliationModule.detailTableAria')"
+    >
       <el-table-column prop="type" :label="$t('arReconciliationModule.type')" width="100">
         <template #default="scope">
           <el-tag
@@ -58,15 +63,34 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="source_no" :label="$t('arReconciliationModule.sourceNo')" width="150" />
+      <el-table-column
+        prop="source_no"
+        :label="$t('arReconciliationModule.sourceNo')"
+        width="150"
+      />
       <el-table-column prop="source_date" :label="$t('arReconciliationModule.date')" width="120" />
-      <el-table-column prop="amount" :label="$t('arReconciliationModule.amount')" width="120" align="right">
+      <el-table-column
+        prop="amount"
+        :label="$t('arReconciliationModule.amount')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.amount.toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column prop="matched_amount" :label="$t('arReconciliationModule.matchedAmount')" width="120" align="right">
+      <el-table-column
+        prop="matched_amount"
+        :label="$t('arReconciliationModule.matchedAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.matched_amount.toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column prop="unmatched_amount" :label="$t('arReconciliationModule.unmatchedAmount')" width="120" align="right">
+      <el-table-column
+        prop="unmatched_amount"
+        :label="$t('arReconciliationModule.unmatchedAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.unmatched_amount.toFixed(2) }}</template>
       </el-table-column>
       <el-table-column :label="$t('common.status')" width="100">

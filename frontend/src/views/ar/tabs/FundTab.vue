@@ -49,9 +49,18 @@
     </el-row>
 
     <el-card shadow="hover" class="mt-20">
-      <el-table v-loading="fundLoading" :data="funds" stripe :aria-label="$t('arModule.fund.listAria')">
+      <el-table
+        v-loading="fundLoading"
+        :data="funds"
+        stripe
+        :aria-label="$t('arModule.fund.listAria')"
+      >
         <el-table-column prop="account_code" :label="$t('arModule.fund.accountCode')" width="120" />
-        <el-table-column prop="account_name" :label="$t('arModule.fund.accountName')" min-width="150" />
+        <el-table-column
+          prop="account_name"
+          :label="$t('arModule.fund.accountName')"
+          min-width="150"
+        />
         <el-table-column prop="account_type" :label="$t('arModule.fund.accountType')" width="100">
           <template #default="{ row }">
             {{ getAccountTypeLabel(row.account_type) }}
@@ -77,30 +86,61 @@
         <el-table-column prop="status" :label="$t('common.status')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? $t('arModule.fund.statusActive') : $t('arModule.fund.statusFrozen') }}
+              {{
+                row.status === 'active'
+                  ? $t('arModule.fund.statusActive')
+                  : $t('arModule.fund.statusFrozen')
+              }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="$t('common.operation')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="depositFund(row)">{{ $t('arModule.fund.deposit') }}</el-button>
-            <el-button type="primary" link size="small" @click="withdrawFund(row)">{{ $t('arModule.fund.withdraw') }}</el-button>
-            <el-button type="warning" link size="small" @click="freezeFund(row)">{{ $t('arModule.fund.freeze') }}</el-button>
+            <el-button type="primary" link size="small" @click="depositFund(row)">{{
+              $t('arModule.fund.deposit')
+            }}</el-button>
+            <el-button type="primary" link size="small" @click="withdrawFund(row)">{{
+              $t('arModule.fund.withdraw')
+            }}</el-button>
+            <el-button type="warning" link size="small" @click="freezeFund(row)">{{
+              $t('arModule.fund.freeze')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="fundDialogVisible" :title="$t('arModule.fund.createTitle')" width="500px" :aria-label="$t('arModule.fund.createAria')">
-      <el-form ref="fundFormRef" :model="fundForm" :rules="fundRules" label-width="80px" :aria-label="$t('arModule.fund.formAria')">
+    <el-dialog
+      v-model="fundDialogVisible"
+      :title="$t('arModule.fund.createTitle')"
+      width="500px"
+      :aria-label="$t('arModule.fund.createAria')"
+    >
+      <el-form
+        ref="fundFormRef"
+        :model="fundForm"
+        :rules="fundRules"
+        label-width="80px"
+        :aria-label="$t('arModule.fund.formAria')"
+      >
         <el-form-item :label="$t('arModule.fund.accountCode')" prop="account_code">
-          <el-input v-model="fundForm.account_code" :placeholder="$t('arModule.fund.accountCodePlaceholder')" />
+          <el-input
+            v-model="fundForm.account_code"
+            :placeholder="$t('arModule.fund.accountCodePlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('arModule.fund.accountName')" prop="account_name">
-          <el-input v-model="fundForm.account_name" :placeholder="$t('arModule.fund.accountNamePlaceholder')" />
+          <el-input
+            v-model="fundForm.account_name"
+            :placeholder="$t('arModule.fund.accountNamePlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('arModule.fund.accountType')" prop="account_type">
-          <el-select v-model="fundForm.account_type" :placeholder="$t('arModule.fund.typePlaceholder')" style="width: 100%">
+          <el-select
+            v-model="fundForm.account_type"
+            :placeholder="$t('arModule.fund.typePlaceholder')"
+            style="width: 100%"
+          >
             <el-option :label="$t('arModule.fund.typeBank')" value="bank" />
             <el-option :label="$t('arModule.fund.typeCash')" value="cash" />
             <el-option :label="$t('arModule.fund.typeAlipay')" value="alipay" />
@@ -108,19 +148,32 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('arModule.fund.bankName')">
-          <el-input v-model="fundForm.bank_name" :placeholder="$t('arModule.fund.bankNamePlaceholder')" />
+          <el-input
+            v-model="fundForm.bank_name"
+            :placeholder="$t('arModule.fund.bankNamePlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('arModule.fund.bankAccount')">
-          <el-input v-model="fundForm.bank_account" :placeholder="$t('arModule.fund.bankAccountPlaceholder')" />
+          <el-input
+            v-model="fundForm.bank_account"
+            :placeholder="$t('arModule.fund.bankAccountPlaceholder')"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="fundDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="fundSubmitLoading" @click="submitFund">{{ $t('common.confirm') }}</el-button>
+        <el-button type="primary" :loading="fundSubmitLoading" @click="submitFund">{{
+          $t('common.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="fundOperationDialogVisible" :title="fundOperationTitle" width="400px" :aria-label="$t('arModule.fund.opAria')">
+    <el-dialog
+      v-model="fundOperationDialogVisible"
+      :title="fundOperationTitle"
+      width="400px"
+      :aria-label="$t('arModule.fund.opAria')"
+    >
       <el-form label-width="80px" :aria-label="$t('arModule.fund.opFormAria')">
         <el-form-item :label="$t('arModule.fund.amount')">
           <el-input-number
@@ -131,17 +184,24 @@
           />
         </el-form-item>
         <el-form-item v-if="fundOperationType === 'freeze'" :label="$t('arModule.fund.reason')">
-          <el-input v-model="fundOperationReason" type="textarea" :placeholder="$t('arModule.fund.reasonPlaceholder')" />
+          <el-input
+            v-model="fundOperationReason"
+            type="textarea"
+            :placeholder="$t('arModule.fund.reasonPlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('arModule.fund.remark')">
-          <el-input v-model="fundOperationRemark" :placeholder="$t('arModule.fund.remarkPlaceholder')" />
+          <el-input
+            v-model="fundOperationRemark"
+            :placeholder="$t('arModule.fund.remarkPlaceholder')"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="fundOperationDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="fundOperationLoading" @click="submitFundOperation"
-          >{{ $t('common.confirm') }}</el-button
-        >
+        <el-button type="primary" :loading="fundOperationLoading" @click="submitFundOperation">{{
+          $t('common.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -188,9 +248,15 @@ const fundForm = reactive({
 })
 
 const fundRules: FormRules = {
-  account_code: [{ required: true, message: t('arModule.fund.accountCodeRequired'), trigger: 'blur' }],
-  account_name: [{ required: true, message: t('arModule.fund.accountNameRequired'), trigger: 'blur' }],
-  account_type: [{ required: true, message: t('arModule.fund.accountTypeRequired'), trigger: 'change' }],
+  account_code: [
+    { required: true, message: t('arModule.fund.accountCodeRequired'), trigger: 'blur' },
+  ],
+  account_name: [
+    { required: true, message: t('arModule.fund.accountNameRequired'), trigger: 'blur' },
+  ],
+  account_type: [
+    { required: true, message: t('arModule.fund.accountTypeRequired'), trigger: 'change' },
+  ],
 }
 
 const formatMoney = (amount: number) => {

@@ -13,21 +13,50 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe :aria-label="$t('apModule.reconciliation.listAria')">
-        <el-table-column prop="reconciliation_no" :label="$t('apModule.reconciliation.reconciliationNo')" width="140" />
-        <el-table-column prop="supplier_name" :label="$t('apModule.reconciliation.supplier')" width="150" />
-        <el-table-column prop="reconciliation_date" :label="$t('apModule.reconciliation.reconciliationDate')" width="120" />
-        <el-table-column :label="$t('apModule.reconciliation.invoiceAmount')" width="120" align="right">
+      <el-table
+        v-loading="reconciliationLoading"
+        :data="reconciliations"
+        stripe
+        :aria-label="$t('apModule.reconciliation.listAria')"
+      >
+        <el-table-column
+          prop="reconciliation_no"
+          :label="$t('apModule.reconciliation.reconciliationNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="supplier_name"
+          :label="$t('apModule.reconciliation.supplier')"
+          width="150"
+        />
+        <el-table-column
+          prop="reconciliation_date"
+          :label="$t('apModule.reconciliation.reconciliationDate')"
+          width="120"
+        />
+        <el-table-column
+          :label="$t('apModule.reconciliation.invoiceAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.total_invoice_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('apModule.reconciliation.paymentAmount')" width="120" align="right">
+        <el-table-column
+          :label="$t('apModule.reconciliation.paymentAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.total_payment_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('apModule.reconciliation.difference')" width="100" align="right">
+        <el-table-column
+          :label="$t('apModule.reconciliation.difference')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             <span :class="{ 'text-red': row.difference_amount !== 0 }">
               {{ formatMoney(row.difference_amount) }}
@@ -64,8 +93,17 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="reconciliationDialogVisible" :title="$t('apModule.reconciliation.generateTitle')" width="500px" :aria-label="$t('apModule.reconciliation.generateAria')">
-      <el-form :model="reconciliationForm" label-width="100px" :aria-label="$t('apModule.reconciliation.generateFormAria')">
+    <el-dialog
+      v-model="reconciliationDialogVisible"
+      :title="$t('apModule.reconciliation.generateTitle')"
+      width="500px"
+      :aria-label="$t('apModule.reconciliation.generateAria')"
+    >
+      <el-form
+        :model="reconciliationForm"
+        label-width="100px"
+        :aria-label="$t('apModule.reconciliation.generateFormAria')"
+      >
         <el-form-item :label="$t('apModule.reconciliation.supplier')" required>
           <el-select
             v-model="reconciliationForm.supplier_id"
@@ -93,8 +131,12 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="reconciliationDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="submitReconciliation">{{ $t('apModule.reconciliation.generate') }}</el-button>
+        <el-button @click="reconciliationDialogVisible = false">{{
+          $t('common.cancel')
+        }}</el-button>
+        <el-button type="primary" @click="submitReconciliation">{{
+          $t('apModule.reconciliation.generate')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -204,7 +246,11 @@ const submitReconciliation = async () => {
 
 const confirmReconciliation = async (row: APReconciliation) => {
   try {
-    await ElMessageBox.confirm(t('apModule.reconciliation.confirmConfirm'), t('apModule.reconciliation.confirmTitle'), { type: 'info' })
+    await ElMessageBox.confirm(
+      t('apModule.reconciliation.confirmConfirm'),
+      t('apModule.reconciliation.confirmTitle'),
+      { type: 'info' }
+    )
     await confirmAPReconciliation(row.id)
     ElMessage.success(t('apModule.reconciliation.confirmSuccess'))
     fetchReconciliations()
@@ -218,10 +264,14 @@ const confirmReconciliation = async (row: APReconciliation) => {
 
 const disputeReconciliation = async (row: APReconciliation) => {
   try {
-    const { value } = await ElMessageBox.prompt(t('apModule.reconciliation.disputePrompt'), t('apModule.reconciliation.disputeTitle'), {
-      inputPattern: /.+/,
-      inputErrorMessage: t('apModule.reconciliation.disputePrompt'),
-    })
+    const { value } = await ElMessageBox.prompt(
+      t('apModule.reconciliation.disputePrompt'),
+      t('apModule.reconciliation.disputeTitle'),
+      {
+        inputPattern: /.+/,
+        inputErrorMessage: t('apModule.reconciliation.disputePrompt'),
+      }
+    )
     await disputeAPReconciliation(row.id, value)
     ElMessage.success(t('apModule.reconciliation.disputeSubmitted'))
     fetchReconciliations()

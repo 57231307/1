@@ -8,13 +8,13 @@
 <template>
   <div class="dashboard">
     <div class="dashboard-header">
-      <h1 class="dashboard-title">{{ $t('dashboard.headerTitle') }}</h1>
+      <h1 class="dashboard-title">{{ t('dashboard.headerTitle') }}</h1>
       <el-date-picker
         v-model="db.dateRange"
         type="daterange"
-        :range-separator="$t('dashboard.dateRange.to')"
-        :start-placeholder="$t('dashboard.dateRange.startPlaceholder')"
-        :end-placeholder="$t('dashboard.dateRange.endPlaceholder')"
+        :range-separator="t('dashboard.dateRange.to')"
+        :start-placeholder="t('dashboard.dateRange.startPlaceholder')"
+        :end-placeholder="t('dashboard.dateRange.endPlaceholder')"
         @change="db.handleDateChange"
       />
     </div>
@@ -36,7 +36,10 @@
 
     <el-row :gutter="20" class="activities-row">
       <el-col :span="24">
-        <DashboardActivityTable :data="db.stats.recentActivities || []" @refresh="db.refreshActivities" />
+        <DashboardActivityTable
+          :data="db.stats.recentActivities || []"
+          @refresh="db.refreshActivities"
+        />
       </el-col>
     </el-row>
   </div>
@@ -44,11 +47,14 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useDb } from './dashboard/composables/useDb'
 import DashboardStat from './dashboard/components/DashboardStat.vue'
 import DashboardTrend from './dashboard/components/DashboardTrend.vue'
 import DashboardPie from './dashboard/components/DashboardPie.vue'
 import DashboardActivityTable from './dashboard/components/DashboardActivityTable.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const db = useDb()

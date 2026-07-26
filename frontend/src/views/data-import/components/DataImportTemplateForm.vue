@@ -7,9 +7,17 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="localForm.id ? '编辑模板' : '新建模板'"
+    :title="
+      localForm.id
+        ? t('dataImport.templateForm.editTitle')
+        : t('dataImport.templateForm.createTitle')
+    "
     width="800px"
-    :aria-label="localForm.id ? '编辑模板对话框' : '新建模板对话框'"
+    :aria-label="
+      localForm.id
+        ? t('dataImport.templateForm.editAriaLabel')
+        : t('dataImport.templateForm.createAriaLabel')
+    "
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -17,55 +25,75 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
-      aria-label="数据导入模板表单"
+      :aria-label="t('dataImport.templateForm.formAriaLabel')"
     >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="模板编号" prop="template_code">
+          <el-form-item :label="t('dataImport.templateForm.templateCode')" prop="template_code">
             <el-input
               :model-value="(localForm.template_code as string) || ''"
               :disabled="!!localForm.id"
-              placeholder="请输入模板编号"
-              @update:model-value="(v: string) => { localForm.template_code = v; syncFormToParent() }"
+              :placeholder="t('dataImport.templateForm.templateCodePlaceholder')"
+              @update:model-value="
+                (v: string) => {
+                  localForm.template_code = v
+                  syncFormToParent()
+                }
+              "
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="模板名称" prop="template_name">
+          <el-form-item :label="t('dataImport.templateForm.templateName')" prop="template_name">
             <el-input
               :model-value="(localForm.template_name as string) || ''"
-              placeholder="请输入模板名称"
-              @update:model-value="(v: string) => { localForm.template_name = v; syncFormToParent() }"
+              :placeholder="t('dataImport.templateForm.templateNamePlaceholder')"
+              @update:model-value="
+                (v: string) => {
+                  localForm.template_name = v
+                  syncFormToParent()
+                }
+              "
             />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="模块" prop="module">
+          <el-form-item :label="t('dataImport.templateForm.module')" prop="module">
             <el-select
               :model-value="(localForm.module as string) || ''"
-              placeholder="请选择模块"
+              :placeholder="t('dataImport.templateForm.modulePlaceholder')"
               style="width: 100%"
-              @update:model-value="(v: string) => { localForm.module = v; syncFormToParent() }"
+              @update:model-value="
+                (v: string) => {
+                  localForm.module = v
+                  syncFormToParent()
+                }
+              "
             >
-              <el-option label="客户" value="customer" />
-              <el-option label="供应商" value="supplier" />
-              <el-option label="产品" value="product" />
-              <el-option label="库存" value="inventory" />
-              <el-option label="销售" value="sales" />
-              <el-option label="采购" value="purchase" />
-              <el-option label="财务" value="finance" />
+              <el-option :label="t('dataImport.templateForm.moduleCustomer')" value="customer" />
+              <el-option :label="t('dataImport.templateForm.moduleSupplier')" value="supplier" />
+              <el-option :label="t('dataImport.templateForm.moduleProduct')" value="product" />
+              <el-option :label="t('dataImport.templateForm.moduleInventory')" value="inventory" />
+              <el-option :label="t('dataImport.templateForm.moduleSales')" value="sales" />
+              <el-option :label="t('dataImport.templateForm.modulePurchase')" value="purchase" />
+              <el-option :label="t('dataImport.templateForm.moduleFinance')" value="finance" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="文件格式" prop="file_format">
+          <el-form-item :label="t('dataImport.templateForm.fileFormat')" prop="file_format">
             <el-select
               :model-value="(localForm.file_format as string) || ''"
-              placeholder="请选择格式"
+              :placeholder="t('dataImport.templateForm.fileFormatPlaceholder')"
               style="width: 100%"
-              @update:model-value="(v: string) => { localForm.file_format = v; syncFormToParent() }"
+              @update:model-value="
+                (v: string) => {
+                  localForm.file_format = v
+                  syncFormToParent()
+                }
+              "
             >
               <el-option label="Excel" value="xlsx" />
               <el-option label="CSV" value="csv" />
@@ -74,38 +102,53 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="描述" prop="description">
+      <el-form-item :label="t('dataImport.templateForm.description')" prop="description">
         <el-input
           :model-value="(localForm.description as string) || ''"
           type="textarea"
           :rows="3"
-          placeholder="请输入描述"
-          @update:model-value="(v: string) => { localForm.description = v; syncFormToParent() }"
+          :placeholder="t('dataImport.templateForm.descriptionPlaceholder')"
+          @update:model-value="
+            (v: string) => {
+              localForm.description = v
+              syncFormToParent()
+            }
+          "
         />
       </el-form-item>
-      <el-form-item label="列配置" prop="columns">
+      <el-form-item :label="t('dataImport.templateForm.columnsConfig')" prop="columns">
         <el-input
           :model-value="localColumnsText"
           type="textarea"
           :rows="6"
-          placeholder='JSON格式列配置，例如：[{"key":"name","label":"名称","type":"string","required":true}]'
-          @update:model-value="(v: string) => { localColumnsText = v; emit('update:columns-text', v) }"
+          :placeholder="t('dataImport.templateForm.columnsPlaceholder')"
+          @update:model-value="
+            (v: string) => {
+              localColumnsText = v
+              emit('update:columns-text', v)
+            }
+          "
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="emit('submit')"
-        >确定</el-button
-      >
+      <el-button @click="emit('update:visible', false)">{{
+        t('dataImport.templateForm.cancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">{{
+        t('dataImport.templateForm.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { DataImportTemplateFormData } from '../composables/useDiProc'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单默认值
 const DEFAULT_FORM: DataImportTemplateFormData = {
@@ -160,7 +203,7 @@ watch(
   newForm => {
     if (newForm) Object.assign(localForm, newForm)
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 父组件 columnsText 变化时同步到本地
@@ -168,7 +211,7 @@ watch(
   () => props.columnsText,
   newText => {
     if (newText !== undefined) localColumnsText.value = newText
-  },
+  }
 )
 
 /** 同步表单到父组件（深拷贝避免外部引用被意外修改） */

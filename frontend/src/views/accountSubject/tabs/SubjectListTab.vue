@@ -17,15 +17,31 @@
       </div>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm" :aria-label="$t('accountSubject.filter.ariaLabel')">
+      <el-form
+        :inline="true"
+        :model="queryForm"
+        :aria-label="$t('accountSubject.filter.ariaLabel')"
+      >
         <el-form-item :label="$t('accountSubject.filter.code')">
-          <el-input v-model="queryForm.code" :placeholder="$t('accountSubject.filter.codePlaceholder')" clearable />
+          <el-input
+            v-model="queryForm.code"
+            :placeholder="$t('accountSubject.filter.codePlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="$t('accountSubject.filter.name')">
-          <el-input v-model="queryForm.name" :placeholder="$t('accountSubject.filter.namePlaceholder')" clearable />
+          <el-input
+            v-model="queryForm.name"
+            :placeholder="$t('accountSubject.filter.namePlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="$t('accountSubject.filter.category')">
-          <el-select v-model="queryForm.category" :placeholder="$t('accountSubject.filter.categoryPlaceholder')" clearable>
+          <el-select
+            v-model="queryForm.category"
+            :placeholder="$t('accountSubject.filter.categoryPlaceholder')"
+            clearable
+          >
             <el-option :label="$t('accountSubject.category.asset')" value="asset" />
             <el-option :label="$t('accountSubject.category.liability')" value="liability" />
             <el-option :label="$t('accountSubject.category.equity')" value="equity" />
@@ -34,7 +50,9 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">{{ $t('accountSubject.filter.query') }}</el-button>
+          <el-button type="primary" @click="handleSearch">{{
+            $t('accountSubject.filter.query')
+          }}</el-button>
           <el-button @click="handleReset">{{ $t('accountSubject.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
@@ -57,32 +75,85 @@
             <el-tag size="small">{{ getCategoryLabel(row.category) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="balance_type" :label="$t('accountSubject.table.balanceType')" width="100">
+        <el-table-column
+          prop="balance_type"
+          :label="$t('accountSubject.table.balanceType')"
+          width="100"
+        >
           <template #default="{ row }">
             <el-tag :type="row.balance_type === 'debit' ? 'success' : 'danger'" size="small">
-              {{ row.balance_type === 'debit' ? $t('accountSubject.balanceType.debit') : $t('accountSubject.balanceType.credit') }}
+              {{
+                row.balance_type === 'debit'
+                  ? $t('accountSubject.balanceType.debit')
+                  : $t('accountSubject.balanceType.credit')
+              }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="level" :label="$t('accountSubject.table.level')" width="80" align="center" />
-        <el-table-column prop="is_enabled" :label="$t('accountSubject.table.status')" width="80" align="center">
+        <el-table-column
+          prop="level"
+          :label="$t('accountSubject.table.level')"
+          width="80"
+          align="center"
+        />
+        <el-table-column
+          prop="is_enabled"
+          :label="$t('accountSubject.table.status')"
+          width="80"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="row.is_enabled ? 'success' : 'info'" size="small">
-              {{ row.is_enabled ? $t('accountSubject.status.enabled') : $t('accountSubject.status.disabled') }}
+              {{
+                row.is_enabled
+                  ? $t('accountSubject.status.enabled')
+                  : $t('accountSubject.status.disabled')
+              }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="$t('accountSubject.table.operation')" width="160" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="'account_subject:update'" type="primary" link size="small" @click="openDialog(row)">{{ $t('accountSubject.table.edit') }}</el-button>
-            <el-button v-permission="'account_subject:delete'" type="danger" link size="small" @click="deleteSubject(row)">{{ $t('accountSubject.table.delete') }}</el-button>
+            <el-button
+              v-permission="'account_subject:update'"
+              type="primary"
+              link
+              size="small"
+              @click="openDialog(row)"
+              >{{ $t('accountSubject.table.edit') }}</el-button
+            >
+            <el-button
+              v-permission="'account_subject:delete'"
+              type="danger"
+              link
+              size="small"
+              @click="deleteSubject(row)"
+              >{{ $t('accountSubject.table.delete') }}</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? $t('accountSubject.dialog.editTitle') : $t('accountSubject.dialog.createTitle')" width="500px" :aria-label="form.id ? $t('accountSubject.dialog.editAriaLabel') : $t('accountSubject.dialog.createAriaLabel')">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('accountSubject.dialog.ariaLabel')">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="
+        form.id ? $t('accountSubject.dialog.editTitle') : $t('accountSubject.dialog.createTitle')
+      "
+      width="500px"
+      :aria-label="
+        form.id
+          ? $t('accountSubject.dialog.editAriaLabel')
+          : $t('accountSubject.dialog.createAriaLabel')
+      "
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        :aria-label="$t('accountSubject.dialog.ariaLabel')"
+      >
         <el-form-item :label="$t('accountSubject.filter.code')" prop="code">
           <el-input v-model="form.code" :disabled="!!form.id" />
         </el-form-item>
@@ -90,7 +161,11 @@
           <el-input v-model="form.name" />
         </el-form-item>
         <el-form-item :label="$t('accountSubject.filter.category')" prop="category">
-          <el-select v-model="form.category" :placeholder="$t('accountSubject.filter.categoryPlaceholder')" style="width: 100%">
+          <el-select
+            v-model="form.category"
+            :placeholder="$t('accountSubject.filter.categoryPlaceholder')"
+            style="width: 100%"
+          >
             <el-option :label="$t('accountSubject.category.asset')" value="asset" />
             <el-option :label="$t('accountSubject.category.liability')" value="liability" />
             <el-option :label="$t('accountSubject.category.equity')" value="equity" />
@@ -122,8 +197,12 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ $t('accountSubject.dialog.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('accountSubject.dialog.confirm') }}</el-button>
+        <el-button @click="dialogVisible = false">{{
+          $t('accountSubject.dialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          $t('accountSubject.dialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -174,8 +253,16 @@ const form = reactive<Partial<AccountSubjectEntity>>({
 const rules = computed<FormRules>(() => ({
   code: [{ required: true, message: t('accountSubject.validation.codeRequired'), trigger: 'blur' }],
   name: [{ required: true, message: t('accountSubject.validation.nameRequired'), trigger: 'blur' }],
-  category: [{ required: true, message: t('accountSubject.validation.categoryRequired'), trigger: 'change' }],
-  balance_type: [{ required: true, message: t('accountSubject.validation.balanceTypeRequired'), trigger: 'change' }],
+  category: [
+    { required: true, message: t('accountSubject.validation.categoryRequired'), trigger: 'change' },
+  ],
+  balance_type: [
+    {
+      required: true,
+      message: t('accountSubject.validation.balanceTypeRequired'),
+      trigger: 'change',
+    },
+  ],
 }))
 
 const parentSubjectOptions = computed(() => subjectList.value)
@@ -198,9 +285,7 @@ const getBalanceTypeLabel = (balanceType: string) => {
 }
 
 const getStatusLabel = (isEnabled: boolean) => {
-  return isEnabled
-    ? t('accountSubject.status.enabled')
-    : t('accountSubject.status.disabled')
+  return isEnabled ? t('accountSubject.status.enabled') : t('accountSubject.status.disabled')
 }
 
 const fetchSubjects = async () => {

@@ -73,7 +73,7 @@ export function useRcp() {
       if (recipeForm.value.color_name && recipeForm.value.color_name.trim()) {
         payload.color_name = recipeForm.value.color_name.trim()
       }
-      const res = await optimizeRecipe(payload) as ApiResponse<RecipeResult>
+      const res = (await optimizeRecipe(payload)) as ApiResponse<RecipeResult>
       // 安全检查：防止后端返回 data 为 null 时崩溃
       if (res.data) recipeResult.value = res.data
       ElMessage.success('推荐生成完成')

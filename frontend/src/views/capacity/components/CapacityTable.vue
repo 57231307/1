@@ -14,16 +14,30 @@
         </el-button>
       </div>
     </template>
-    <el-table v-loading="tableLoading" :data="data" stripe style="width: 100%" :aria-label="$t('capacityModule.table.ariaLabel')">
+    <el-table
+      v-loading="tableLoading"
+      :data="data"
+      stripe
+      style="width: 100%"
+      :aria-label="$t('capacityModule.table.ariaLabel')"
+    >
       <el-table-column prop="code" :label="$t('capacityModule.table.code')" width="120" />
       <el-table-column prop="name" :label="$t('capacityModule.table.name')" width="150" />
-      <el-table-column prop="capacity_hours" :label="$t('capacityModule.table.capacityHours')" width="120" />
-      <el-table-column prop="used_hours" :label="$t('capacityModule.table.usedHours')" width="120" />
+      <el-table-column
+        prop="capacity_hours"
+        :label="$t('capacityModule.table.capacityHours')"
+        width="120"
+      />
+      <el-table-column
+        prop="used_hours"
+        :label="$t('capacityModule.table.usedHours')"
+        width="120"
+      />
       <el-table-column prop="load_rate" :label="$t('capacityModule.table.loadRate')" width="120">
         <template #default="{ row }">
-          <el-tag :type="getLoadRateType(row.load_rate)">{{
-            (row.load_rate * 100).toFixed(1)
-          }}%</el-tag>
+          <el-tag :type="getLoadRateType(row.load_rate)"
+            >{{ (row.load_rate * 100).toFixed(1) }}%</el-tag
+          >
         </template>
       </el-table-column>
       <el-table-column prop="status" :label="$t('capacityModule.table.status')" width="100">
@@ -33,7 +47,9 @@
       </el-table-column>
       <el-table-column prop="bottleneck" :label="$t('capacityModule.table.bottleneck')" width="80">
         <template #default="{ row }">
-          <el-tag v-if="row.bottleneck" type="danger" size="small">{{ $t('capacityModule.common.yes') }}</el-tag>
+          <el-tag v-if="row.bottleneck" type="danger" size="small">{{
+            $t('capacityModule.common.yes')
+          }}</el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>

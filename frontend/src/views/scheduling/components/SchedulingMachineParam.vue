@@ -9,7 +9,12 @@
         <span>{{ t('scheduling.machineParam.title') }}</span>
       </div>
     </template>
-    <el-form :model="scheduleParams" label-width="90px" size="small" :aria-label="t('scheduling.machineParam.ariaLabel.form')">
+    <el-form
+      :model="scheduleParams"
+      label-width="90px"
+      size="small"
+      :aria-label="t('scheduling.machineParam.ariaLabel.form')"
+    >
       <el-form-item :label="t('scheduling.machineParam.form.scheduleRange')">
         <el-date-picker
           :model-value="dateRange"
@@ -24,15 +29,27 @@
       <el-form-item :label="t('scheduling.machineParam.form.priorityMode')">
         <el-select v-model="scheduleParams.priority_mode" style="width: 100%">
           <el-option :label="t('scheduling.machineParam.option.priorityFifo')" value="fifo" />
-          <el-option :label="t('scheduling.machineParam.option.priorityPriority')" value="priority" />
-          <el-option :label="t('scheduling.machineParam.option.priorityDueDate')" value="due_date" />
+          <el-option
+            :label="t('scheduling.machineParam.option.priorityPriority')"
+            value="priority"
+          />
+          <el-option
+            :label="t('scheduling.machineParam.option.priorityDueDate')"
+            value="due_date"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('scheduling.machineParam.form.optimizationTarget')">
         <el-select v-model="scheduleParams.optimization_target" style="width: 100%">
           <el-option :label="t('scheduling.machineParam.option.targetMinIdle')" value="min_idle" />
-          <el-option :label="t('scheduling.machineParam.option.targetMinDelay')" value="min_delay" />
-          <el-option :label="t('scheduling.machineParam.option.targetBalanceLoad')" value="balance_load" />
+          <el-option
+            :label="t('scheduling.machineParam.option.targetMinDelay')"
+            value="min_delay"
+          />
+          <el-option
+            :label="t('scheduling.machineParam.option.targetBalanceLoad')"
+            value="balance_load"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>

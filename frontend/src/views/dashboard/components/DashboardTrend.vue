@@ -7,14 +7,10 @@
   <el-card shadow="hover">
     <template #header>
       <div class="card-header">
-        <span>销售趋势</span>
-        <el-radio-group
-          :model-value="days"
-          size="small"
-          @update:model-value="updateDays"
-        >
-          <el-radio-button :value="7">近7天</el-radio-button>
-          <el-radio-button :value="30">近30天</el-radio-button>
+        <span>{{ t('dashboard.trend.title') }}</span>
+        <el-radio-group :model-value="days" size="small" @update:model-value="updateDays">
+          <el-radio-button :value="7">{{ t('dashboard.trend.last7Days') }}</el-radio-button>
+          <el-radio-button :value="30">{{ t('dashboard.trend.last30Days') }}</el-radio-button>
         </el-radio-group>
       </div>
     </template>
@@ -24,9 +20,12 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import type { SalesTrend } from '@/api/dashboard'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 趋势数据 + 天数（v-model 双向）
 const props = defineProps<{ data: SalesTrend[]; days: number }>()
@@ -50,18 +49,20 @@ const renderChart = (trends: SalesTrend[]) => {
   const dates = trends?.map(t => t.date) || []
   const amounts = trends?.map(t => t.amount) || []
   const counts = trends?.map(t => t.count) || []
+  const salesLabel = t('dashboard.trend.salesAmount')
+  const orderLabel = t('dashboard.trend.orderCount')
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['销售额', '订单数'] },
+    legend: { data: [salesLabel, orderLabel] },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'category', boundaryGap: false, data: dates },
     yAxis: [
-      { type: 'value', name: '销售额(元)' },
-      { type: 'value', name: '订单数', splitLine: { show: false } },
+      { type: 'value', name: t('dashboard.trend.salesAmountWithUnit') },
+      { type: 'value', name: orderLabel, splitLine: { show: false } },
     ],
     series: [
       {
-        name: '销售额',
+        name: salesLabel,
         type: 'line',
         smooth: true,
         data: amounts,
@@ -69,7 +70,7 @@ const renderChart = (trends: SalesTrend[]) => {
         itemStyle: { color: '#667eea' },
       },
       {
-        name: '订单数',
+        name: orderLabel,
         type: 'bar',
         yAxisIndex: 1,
         data: counts,

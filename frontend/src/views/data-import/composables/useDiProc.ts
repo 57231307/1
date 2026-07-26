@@ -130,7 +130,10 @@ export function useDiProc(cb: DiCallbacks) {
           }
         }
         if (templateForm.id) {
-          await updateImportTemplate(templateForm.id, templateForm as unknown as Partial<ImportTemplate>)
+          await updateImportTemplate(
+            templateForm.id,
+            templateForm as unknown as Partial<ImportTemplate>
+          )
         } else {
           await createImportTemplate(templateForm as unknown as Partial<ImportTemplate>)
         }

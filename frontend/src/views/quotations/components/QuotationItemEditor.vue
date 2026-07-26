@@ -12,7 +12,13 @@
       {{ t('quotations.itemEditor.addProduct') }}
     </el-button>
 
-    <el-table :data="modelValue" border style="margin-top: 10px" :empty-text="t('quotations.itemEditor.emptyText')" :aria-label="t('quotations.itemEditor.tableAriaLabel')">
+    <el-table
+      :data="modelValue"
+      border
+      style="margin-top: 10px"
+      :empty-text="t('quotations.itemEditor.emptyText')"
+      :aria-label="t('quotations.itemEditor.tableAriaLabel')"
+    >
       <el-table-column type="index" label="#" width="50" align="center" />
 
       <el-table-column :label="t('quotations.itemEditor.colProduct')" min-width="180">
@@ -55,7 +61,10 @@
 
       <el-table-column :label="t('quotations.itemEditor.colSpec')" min-width="140">
         <template #default="{ row }">
-          <el-input v-model="row.specification" :placeholder="t('quotations.itemEditor.specPlaceholder')" />
+          <el-input
+            v-model="row.specification"
+            :placeholder="t('quotations.itemEditor.specPlaceholder')"
+          />
         </template>
       </el-table-column>
 
@@ -103,9 +112,16 @@
         <template #default="{ row }"> {{ currency }} {{ formatAmount(row.amount) }} </template>
       </el-table-column>
 
-      <el-table-column :label="t('quotations.itemEditor.colAction')" width="80" fixed="right" align="center">
+      <el-table-column
+        :label="t('quotations.itemEditor.colAction')"
+        width="80"
+        fixed="right"
+        align="center"
+      >
         <template #default="{ $index }">
-          <el-button link type="danger" @click="handleRemove($index)">{{ t('quotations.itemEditor.delete') }}</el-button>
+          <el-button link type="danger" @click="handleRemove($index)">{{
+            t('quotations.itemEditor.delete')
+          }}</el-button>
         </template>
       </el-table-column>
     </el-table>

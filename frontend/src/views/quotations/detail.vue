@@ -20,13 +20,21 @@
             <el-button v-if="canEdit" @click="$router.push(`/quotations/${quotation.id}/edit`)">
               {{ t('quotations.detail.edit') }}
             </el-button>
-            <el-button v-if="canSubmit" type="primary" @click="handleSubmit"> {{ t('quotations.detail.submitApproval') }} </el-button>
-            <el-button v-if="canApprove" type="success" @click="handleApprove"> {{ t('quotations.detail.approve') }} </el-button>
-            <el-button v-if="canApprove" type="danger" @click="handleReject"> {{ t('quotations.detail.reject') }} </el-button>
+            <el-button v-if="canSubmit" type="primary" @click="handleSubmit">
+              {{ t('quotations.detail.submitApproval') }}
+            </el-button>
+            <el-button v-if="canApprove" type="success" @click="handleApprove">
+              {{ t('quotations.detail.approve') }}
+            </el-button>
+            <el-button v-if="canApprove" type="danger" @click="handleReject">
+              {{ t('quotations.detail.reject') }}
+            </el-button>
             <el-button v-if="canConvert" type="success" @click="handleConvert">
               {{ t('quotations.detail.convertOrder') }}
             </el-button>
-            <el-button v-if="canCancel" type="danger" plain @click="handleCancel"> {{ t('quotations.detail.cancel') }} </el-button>
+            <el-button v-if="canCancel" type="danger" plain @click="handleCancel">
+              {{ t('quotations.detail.cancel') }}
+            </el-button>
           </div>
         </div>
       </template>
@@ -36,14 +44,24 @@
         <el-descriptions-item :label="t('quotations.detail.labelCustomer')">
           {{ quotation.customer_name || quotation.customer_id }}
         </el-descriptions-item>
-        <el-descriptions-item :label="t('quotations.detail.labelQuotationDate')">{{ quotation.quotation_date }}</el-descriptions-item>
-        <el-descriptions-item :label="t('quotations.detail.labelValidUntil')">{{ quotation.valid_until }}</el-descriptions-item>
-        <el-descriptions-item :label="t('quotations.detail.labelPriceTerms')">{{ quotation.price_terms }}</el-descriptions-item>
+        <el-descriptions-item :label="t('quotations.detail.labelQuotationDate')">{{
+          quotation.quotation_date
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('quotations.detail.labelValidUntil')">{{
+          quotation.valid_until
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('quotations.detail.labelPriceTerms')">{{
+          quotation.price_terms
+        }}</el-descriptions-item>
         <el-descriptions-item :label="t('quotations.detail.labelCurrency')">
-          {{ quotation.currency }} ({{ t('quotations.detail.exchangeRateLabel') }} {{ quotation.exchange_rate }})
+          {{ quotation.currency }} ({{ t('quotations.detail.exchangeRateLabel') }}
+          {{ quotation.exchange_rate }})
         </el-descriptions-item>
         <el-descriptions-item :label="t('quotations.detail.labelTaxInclusive')">
-          {{ quotation.tax_inclusive ? t('quotations.detail.yes') : t('quotations.detail.no') }} ({{ t('quotations.detail.taxRateLabel') }} {{ quotation.tax_rate }}%)
+          {{ quotation.tax_inclusive ? t('quotations.detail.yes') : t('quotations.detail.no') }} ({{
+            t('quotations.detail.taxRateLabel')
+          }}
+          {{ quotation.tax_rate }}%)
         </el-descriptions-item>
         <el-descriptions-item :label="t('quotations.detail.labelCustomerLevel')">
           {{ quotation.customer_level || '-' }}
@@ -59,12 +77,16 @@
             {{ statusLabel(quotation.status) }}
           </el-tag>
           <span v-if="quotation.approved_at" class="approved-info">
-            {{ t('quotations.detail.approvalTimeLabel') }}{{ quotation.approved_at }} {{ t('quotations.detail.approverLabel') }}{{
-              quotation.approved_by_name || quotation.approved_by
-            }}
+            {{ t('quotations.detail.approvalTimeLabel') }}{{ quotation.approved_at }}
+            {{ t('quotations.detail.approverLabel')
+            }}{{ quotation.approved_by_name || quotation.approved_by }}
           </span>
         </el-descriptions-item>
-        <el-descriptions-item v-if="quotation.rejection_reason" :label="t('quotations.detail.labelRejectionReason')" :span="3">
+        <el-descriptions-item
+          v-if="quotation.rejection_reason"
+          :label="t('quotations.detail.labelRejectionReason')"
+          :span="3"
+        >
           <span class="rejection-reason">{{ quotation.rejection_reason }}</span>
         </el-descriptions-item>
         <el-descriptions-item
@@ -72,18 +94,28 @@
           :label="t('quotations.detail.labelConvertedOrder')"
           :span="3"
         >
-          {{ t('quotations.detail.salesOrderIdPrefix') }}{{ quotation.converted_sales_order_id }}{{ t('quotations.detail.convertedTimeLabel') }}{{
-            quotation.converted_at
-          }}
+          {{ t('quotations.detail.salesOrderIdPrefix') }}{{ quotation.converted_sales_order_id
+          }}{{ t('quotations.detail.convertedTimeLabel') }}{{ quotation.converted_at }}
         </el-descriptions-item>
-        <el-descriptions-item v-if="quotation.notes" :label="t('quotations.detail.labelRemark')" :span="3">
+        <el-descriptions-item
+          v-if="quotation.notes"
+          :label="t('quotations.detail.labelRemark')"
+          :span="3"
+        >
           {{ quotation.notes }}
         </el-descriptions-item>
       </el-descriptions>
 
       <!-- 报价明细 -->
-      <h3 class="section-title">{{ t('quotations.detail.itemsTitle', { count: quotation.items?.length || 0 }) }}</h3>
-      <el-table :data="quotation.items" border :empty-text="t('quotations.detail.emptyItems')" :aria-label="t('quotations.detail.itemsTableAriaLabel')">
+      <h3 class="section-title">
+        {{ t('quotations.detail.itemsTitle', { count: quotation.items?.length || 0 }) }}
+      </h3>
+      <el-table
+        :data="quotation.items"
+        border
+        :empty-text="t('quotations.detail.emptyItems')"
+        :aria-label="t('quotations.detail.itemsTableAriaLabel')"
+      >
         <el-table-column type="index" label="#" width="50" align="center" />
         <el-table-column :label="t('quotations.detail.colProduct')" min-width="180">
           <template #default="{ row }">
@@ -97,11 +129,20 @@
           <template #default="{ row }">{{ row.specification || '-' }}</template>
         </el-table-column>
         <el-table-column prop="unit" :label="t('quotations.detail.colUnit')" width="80" />
-        <el-table-column prop="quantity" :label="t('quotations.detail.colQuantity')" width="100" align="right" />
+        <el-table-column
+          prop="quantity"
+          :label="t('quotations.detail.colQuantity')"
+          width="100"
+          align="right"
+        />
         <el-table-column :label="t('quotations.detail.colUnitPrice')" width="120" align="right">
           <template #default="{ row }">{{ formatAmount(row.unit_price) }}</template>
         </el-table-column>
-        <el-table-column :label="t('quotations.detail.colUnitPriceWithTax')" width="120" align="right">
+        <el-table-column
+          :label="t('quotations.detail.colUnitPriceWithTax')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">{{ formatAmount(row.unit_price_with_tax) }}</template>
         </el-table-column>
         <el-table-column :label="t('quotations.detail.colAmount')" width="140" align="right">
@@ -127,10 +168,17 @@
 
       <!-- 金额合计 -->
       <div class="totals">
-        <span>{{ t('quotations.detail.subtotal') }}{{ quotation.currency }} {{ formatAmount(quotation.subtotal) }}</span>
-        <span>{{ t('quotations.detail.taxAmount') }}{{ quotation.currency }} {{ formatAmount(quotation.tax_amount) }}</span>
+        <span
+          >{{ t('quotations.detail.subtotal') }}{{ quotation.currency }}
+          {{ formatAmount(quotation.subtotal) }}</span
+        >
+        <span
+          >{{ t('quotations.detail.taxAmount') }}{{ quotation.currency }}
+          {{ formatAmount(quotation.tax_amount) }}</span
+        >
         <span class="grand-total">
-          {{ t('quotations.detail.total') }}{{ quotation.currency }} {{ formatAmount(quotation.total_amount) }}
+          {{ t('quotations.detail.total') }}{{ quotation.currency }}
+          {{ formatAmount(quotation.total_amount) }}
         </span>
       </div>
 
@@ -190,7 +238,9 @@ async function loadData() {
     quotation.value = res.data as QuotationResponseDto
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.detail.loadFailed'))
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('quotations.detail.loadFailed')
+    )
     quotation.value = null
   } finally {
     loading.value = false
@@ -257,7 +307,11 @@ async function handleSubmit() {
 async function handleApprove() {
   if (!quotation.value) return
   try {
-    await ElMessageBox.confirm(t('quotations.detail.approveConfirmText'), t('quotations.detail.approveConfirmTitle'), { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('quotations.detail.approveConfirmText'),
+      t('quotations.detail.approveConfirmTitle'),
+      { type: 'warning' }
+    )
   } catch {
     return
   }
@@ -271,10 +325,15 @@ async function handleReject() {
   if (!quotation.value) return
   let reason = ''
   try {
-    const { value } = await ElMessageBox.prompt(t('quotations.detail.rejectPromptText'), t('quotations.detail.rejectTitle'), {
-      inputValidator: (v: string) => (v && v.trim() ? true : t('quotations.detail.rejectReasonRequired')),
-      inputErrorMessage: t('quotations.detail.rejectReasonRequired'),
-    })
+    const { value } = await ElMessageBox.prompt(
+      t('quotations.detail.rejectPromptText'),
+      t('quotations.detail.rejectTitle'),
+      {
+        inputValidator: (v: string) =>
+          v && v.trim() ? true : t('quotations.detail.rejectReasonRequired'),
+        inputErrorMessage: t('quotations.detail.rejectReasonRequired'),
+      }
+    )
     reason = value
   } catch {
     return

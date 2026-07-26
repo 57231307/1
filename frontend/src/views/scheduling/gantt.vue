@@ -27,7 +27,11 @@
       v-model:visible="schG.autoScheduleDialogVisible"
       :schedule-form="schG.scheduleForm"
       :scheduling="schGProc.scheduling"
-      @update:form="(v) => { schG.scheduleForm = v }"
+      @update:form="
+        v => {
+          schG.scheduleForm = v
+        }
+      "
       @confirm="schGProc.confirmAutoSchedule"
     />
 
@@ -37,7 +41,7 @@
       :adjust-form="schG.adjustForm"
       :adjusting="schG.adjusting"
       :work-centers="schG.ganttData.work_centers"
-      @update:form="(v) => (schG.adjustForm = v)"
+      @update:form="v => (schG.adjustForm = v)"
       @confirm="schG.confirmAdjust"
     />
 
@@ -65,9 +69,15 @@ const schG = useSchG()
 const schGProc = useSchGProc({
   fetchGanttData: schG.fetchGanttData,
   scheduleForm: schG.scheduleForm,
-  setAutoScheduleDialogVisible: (v) => { schG.autoScheduleDialogVisible = v },
-  setConflictList: (v) => { schG.conflictList = v },
-  setConflictDialogVisible: (v) => { schG.conflictDialogVisible = v },
+  setAutoScheduleDialogVisible: v => {
+    schG.autoScheduleDialogVisible = v
+  },
+  setConflictList: v => {
+    schG.conflictList = v
+  },
+  setConflictDialogVisible: v => {
+    schG.conflictDialogVisible = v
+  },
 })
 
 /** 返回排程管理 */

@@ -1,31 +1,53 @@
 <template>
   <div class="departments-page">
     <div class="header">
-      <h2>部门管理</h2>
-      <el-button type="primary" @click="handleCreate">新建部门</el-button>
+      <h2>{{ t('departments.index.pageTitle') }}</h2>
+      <el-button type="primary" @click="handleCreate">{{
+        t('departments.index.buttonCreate')
+      }}</el-button>
     </div>
 
-    <el-table v-loading="loading" :data="departmentList" border aria-label="部门列表">
-      <el-table-column prop="name" label="部门名称" />
-      <el-table-column prop="code" label="部门编码" />
-      <el-table-column label="上级部门">
+    <el-table
+      v-loading="loading"
+      :data="departmentList"
+      border
+      :aria-label="t('departments.index.ariaTable')"
+    >
+      <el-table-column prop="name" :label="t('departments.index.colName')" />
+      <el-table-column prop="code" :label="t('departments.index.colCode')" />
+      <el-table-column :label="t('departments.index.colParent')">
         <template #default="{ row }">
           {{ getParentName(row.parent_id) }}
         </template>
       </el-table-column>
-      <el-table-column prop="manager_name" label="负责人" />
-      <el-table-column prop="sort_order" label="排序" width="80" />
-      <el-table-column prop="status" label="状态">
+      <el-table-column prop="manager_name" :label="t('departments.index.colManager')" />
+      <el-table-column prop="sort_order" :label="t('departments.index.colSortOrder')" width="80" />
+      <el-table-column prop="status" :label="t('departments.index.colStatus')">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'danger'">
-            {{ row.status === 1 ? '启用' : '禁用' }}
+            {{
+              row.status === 1
+                ? t('departments.index.optionEnabled')
+                : t('departments.index.optionDisabled')
+            }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200">
+      <el-table-column :label="t('departments.index.colOperation')" width="200">
         <template #default="{ row }">
-          <el-button v-permission="'department:update'" size="small" @click="handleEdit(row as Department)">编辑</el-button>
-          <el-button v-permission="'department:delete'" size="small" type="danger" @click="handleDelete(row as Department)">删除</el-button>
+          <el-button
+            v-permission="'department:update'"
+            size="small"
+            @click="handleEdit(row as Department)"
+            >{{ t('departments.index.buttonEdit') }}</el-button
+          >
+          <el-button
+            v-permission="'department:delete'"
+            size="small"
+            type="danger"
+            @click="handleDelete(row as Department)"
+            >{{ t('departments.index.buttonDelete') }}</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
@@ -33,45 +55,69 @@
     <!-- 新建/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogMode === 'create' ? '新建部门' : '编辑部门'"
+      :title="
+        dialogMode === 'create'
+          ? t('departments.index.titleCreate')
+          : t('departments.index.titleEdit')
+      "
       width="600px"
+      :aria-label="
+        dialogMode === 'create'
+          ? t('departments.index.ariaCreateDialog')
+          : t('departments.index.ariaEditDialog')
+      "
       @close="handleDialogClose"
-      :aria-label="dialogMode === 'create' ? '新建部门对话框' : '编辑部门对话框'"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" aria-label="部门表单">
-        <el-form-item label="部门名称" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入部门名称" />
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="100px"
+        :aria-label="t('departments.index.ariaForm')"
+      >
+        <el-form-item :label="t('departments.index.colName')" prop="name">
+          <el-input v-model="formData.name" :placeholder="t('departments.index.placeholderName')" />
         </el-form-item>
-        <el-form-item label="部门编码" prop="code">
-          <el-input v-model="formData.code" placeholder="请输入部门编码" />
+        <el-form-item :label="t('departments.index.colCode')" prop="code">
+          <el-input v-model="formData.code" :placeholder="t('departments.index.placeholderCode')" />
         </el-form-item>
-        <el-form-item label="上级部门" prop="parent_id">
+        <el-form-item :label="t('departments.index.colParent')" prop="parent_id">
           <el-tree-select
             v-model="formData.parent_id"
             :data="deptTreeData"
             :props="{ label: 'name', value: 'id' }"
-            placeholder="请选择上级部门"
+            :placeholder="t('departments.index.placeholderParent')"
             clearable
             check-strictly
           />
         </el-form-item>
-        <el-form-item label="负责人" prop="manager_name">
-          <el-input v-model="formData.manager_name" placeholder="请输入负责人" />
+        <el-form-item :label="t('departments.index.colManager')" prop="manager_name">
+          <el-input
+            v-model="formData.manager_name"
+            :placeholder="t('departments.index.placeholderManager')"
+          />
         </el-form-item>
-        <el-form-item label="排序" prop="sort_order">
+        <el-form-item :label="t('departments.index.colSortOrder')" prop="sort_order">
           <el-input-number v-model="formData.sort_order" :min="0" />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-select v-model="formData.status" placeholder="请选择状态">
-            <el-option label="启用" :value="1" />
-            <el-option label="禁用" :value="0" />
+        <el-form-item :label="t('departments.index.colStatus')" prop="status">
+          <el-select
+            v-model="formData.status"
+            :placeholder="t('departments.index.placeholderStatus')"
+          >
+            <el-option :label="t('departments.index.optionEnabled')" :value="1" />
+            <el-option :label="t('departments.index.optionDisabled')" :value="0" />
           </el-select>
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit"> 确定 </el-button>
+        <el-button @click="dialogVisible = false">{{
+          t('departments.index.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
+          {{ t('departments.index.buttonConfirm') }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -79,6 +125,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
@@ -89,6 +136,8 @@ import {
   getDepartmentTree,
   type Department,
 } from '@/api/department'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -121,9 +170,11 @@ const formData = reactive<DeptFormData>({
 })
 
 const formRules: FormRules = {
-  name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入部门编码', trigger: 'blur' }],
-  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
+  name: [{ required: true, message: t('departments.index.ruleNameRequired'), trigger: 'blur' }],
+  code: [{ required: true, message: t('departments.index.ruleCodeRequired'), trigger: 'blur' }],
+  status: [
+    { required: true, message: t('departments.index.ruleStatusRequired'), trigger: 'change' },
+  ],
 }
 
 const loadDepartments = async () => {
@@ -134,16 +185,19 @@ const loadDepartments = async () => {
     deptTreeData.value = treeRes.data || []
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '加载部门列表失败')
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('departments.index.messageLoadListFailed')
+    )
   } finally {
     loading.value = false
   }
 }
 
 const getParentName = (parentId: number | null): string => {
-  if (!parentId) return '-'
+  if (!parentId) return t('departments.index.placeholderNoParent')
   const dept = departmentList.value.find((d: Department) => d.id === parentId)
-  return dept?.name || '-'
+  return dept?.name || t('departments.index.placeholderNoParent')
 }
 
 const handleCreate = () => {
@@ -178,14 +232,21 @@ const handleDelete = async (row: Department) => {
   if (!row.id) return
 
   try {
-    await ElMessageBox.confirm(`确定删除部门 "${row.name}"?`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('departments.index.messageConfirmDelete', { name: row.name }),
+      t('departments.index.titleDeleteConfirm'),
+      { type: 'warning' }
+    )
     await deleteDepartment(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('departments.index.messageDeleteSuccess'))
     await loadDepartments()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('departments.index.messageDeleteFailed')
+      )
     }
   }
 }
@@ -200,15 +261,19 @@ const handleSubmit = async () => {
     try {
       if (dialogMode.value === 'create') {
         await createDepartment(formData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('departments.index.messageCreateSuccess'))
       } else {
         await updateDepartment(formData.id!, formData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('departments.index.messageUpdateSuccess'))
       }
       dialogVisible.value = false
       await loadDepartments()
     } catch (error) {
-      ElMessage.error(dialogMode.value === 'create' ? '创建失败' : '更新失败')
+      ElMessage.error(
+        dialogMode.value === 'create'
+          ? t('departments.index.messageCreateFailed')
+          : t('departments.index.messageUpdateFailed')
+      )
     } finally {
       submitLoading.value = false
     }

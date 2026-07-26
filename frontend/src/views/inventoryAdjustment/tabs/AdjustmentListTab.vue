@@ -13,7 +13,7 @@
               <el-icon><Document /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">调整单数</div>
+              <div class="stat-label">{{ t('inventoryAdjustment.listTab.statLabelTotal') }}</div>
               <div class="stat-value">{{ stats.total }}</div>
             </div>
           </div>
@@ -26,7 +26,7 @@
               <el-icon><Clock /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">待审批</div>
+              <div class="stat-label">{{ t('inventoryAdjustment.listTab.statLabelPending') }}</div>
               <div class="stat-value">{{ stats.pending }}</div>
             </div>
           </div>
@@ -39,7 +39,7 @@
               <el-icon><CircleCheck /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">已审批</div>
+              <div class="stat-label">{{ t('inventoryAdjustment.listTab.statLabelApproved') }}</div>
               <div class="stat-value">{{ stats.approved }}</div>
             </div>
           </div>
@@ -52,7 +52,9 @@
               <el-icon><Money /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">总调整金额</div>
+              <div class="stat-label">
+                {{ t('inventoryAdjustment.listTab.statLabelTotalAmount') }}
+              </div>
               <div class="stat-value">{{ formatCurrency(stats.totalAmount) }}</div>
             </div>
           </div>
@@ -61,58 +63,123 @@
     </el-row>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="库存调整筛选表单">
-        <el-form-item label="调整单号">
-          <el-input v-model="queryParams.adjust_no" placeholder="输入单号" clearable />
+      <el-form
+        :inline="true"
+        :model="queryParams"
+        class="filter-form"
+        :aria-label="t('inventoryAdjustment.listTab.ariaLabelFilter')"
+      >
+        <el-form-item :label="t('inventoryAdjustment.listTab.labelAdjustNo')">
+          <el-input
+            v-model="queryParams.adjust_no"
+            :placeholder="t('inventoryAdjustment.listTab.placeholderAdjustNo')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable>
-            <el-option label="待审批" value="pending" />
-            <el-option label="已审批" value="approved" />
-            <el-option label="已拒绝" value="rejected" />
+        <el-form-item :label="t('inventoryAdjustment.listTab.labelStatus')">
+          <el-select
+            v-model="queryParams.status"
+            :placeholder="t('inventoryAdjustment.listTab.placeholderStatus')"
+            clearable
+          >
+            <el-option :label="t('inventoryAdjustment.listTab.statusPending')" value="pending" />
+            <el-option :label="t('inventoryAdjustment.listTab.statusApproved')" value="approved" />
+            <el-option :label="t('inventoryAdjustment.listTab.statusRejected')" value="rejected" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
-          <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
-          <el-button v-permission="'inventory:create'" type="primary" @click="emit('openForm', 'create', null)">
-            <el-icon><Plus /></el-icon>新建
+          <el-button type="primary" @click="handleQuery">{{
+            t('inventoryAdjustment.listTab.buttonSearch')
+          }}</el-button>
+          <el-button @click="handleReset">{{
+            t('inventoryAdjustment.listTab.buttonReset')
+          }}</el-button>
+          <el-button
+            v-permission="'inventory:create'"
+            type="primary"
+            @click="emit('openForm', 'create', null)"
+          >
+            <el-icon><Plus /></el-icon>{{ t('inventoryAdjustment.listTab.buttonCreate') }}
           </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="adjustments" stripe aria-label="库存调整列表">
-        <el-table-column prop="adjust_no" label="调整单号" width="160" fixed />
-        <el-table-column prop="adjust_date" label="调整日期" width="120" />
-        <el-table-column prop="warehouse_name" label="仓库" width="120" />
-        <el-table-column prop="reason" label="调整原因" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="total_amount" label="金额" width="120" align="right">
+      <el-table
+        v-loading="loading"
+        :data="adjustments"
+        stripe
+        :aria-label="t('inventoryAdjustment.listTab.ariaLabelTable')"
+      >
+        <el-table-column
+          prop="adjust_no"
+          :label="t('inventoryAdjustment.listTab.colAdjustNo')"
+          width="160"
+          fixed
+        />
+        <el-table-column
+          prop="adjust_date"
+          :label="t('inventoryAdjustment.listTab.colAdjustDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="warehouse_name"
+          :label="t('inventoryAdjustment.listTab.colWarehouse')"
+          width="120"
+        />
+        <el-table-column
+          prop="reason"
+          :label="t('inventoryAdjustment.listTab.colReason')"
+          min-width="200"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="total_amount"
+          :label="t('inventoryAdjustment.listTab.colAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">{{ formatCurrency(row.total_amount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="t('inventoryAdjustment.listTab.colStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column
+          prop="created_by_name"
+          :label="t('inventoryAdjustment.listTab.colCreatedBy')"
+          width="100"
+        />
+        <el-table-column
+          prop="created_at"
+          :label="t('inventoryAdjustment.listTab.colCreatedAt')"
+          width="160"
+        />
+        <el-table-column
+          :label="t('inventoryAdjustment.listTab.colAction')"
+          width="200"
+          fixed="right"
+        >
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="emit('openForm', 'view', row)"
-              >详情</el-button
-            >
+            <el-button type="primary" link size="small" @click="emit('openForm', 'view', row)">{{
+              t('inventoryAdjustment.listTab.buttonDetail')
+            }}</el-button>
             <el-button
               v-if="row.status === 'pending'"
               type="primary"
               link
               size="small"
               @click="emit('openForm', 'edit', row)"
-              >编辑</el-button
+              >{{ t('inventoryAdjustment.listTab.buttonEdit') }}</el-button
             >
             <el-button
               v-if="row.status === 'pending'"
@@ -120,13 +187,12 @@
               link
               size="small"
               @click="emit('openApprove', row)"
-              >审批</el-button
+              >{{ t('inventoryAdjustment.listTab.buttonApprove') }}</el-button
             >
           </template>
         </el-table-column>
       </el-table>
 
-      <!-- 批次 391：分页由 useTableApi watch 自动加载，v-model 双向绑定 page/pageSize -->
       <div class="pagination-wrapper">
         <el-pagination
           v-model:current-page="page"
@@ -134,7 +200,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="库存调整列表分页"
+          :aria-label="t('inventoryAdjustment.listTab.ariaLabelPagination')"
         />
       </div>
     </el-card>
@@ -143,20 +209,20 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue'
 import { type InventoryAdjustmentEntity } from '@/api/inventoryAdjustment'
 import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const emit = defineEmits<{
   openForm: [mode: 'create' | 'edit' | 'view', row: InventoryAdjustmentEntity | null]
   openApprove: [row: InventoryAdjustmentEntity]
 }>()
 
-// 批次 391：接入 useTableApi，统一分页规范（1-based），由 setup 自动加载 + watch page/pageSize 触发。
-// 后端返回 { data: { list: [], total: 0 } }，listKey 默认 'list' 命中自动探测。
-// 原手写 queryParams/adjustments/loading/total/fetchAdjustments 模板代码消除。
 const {
   data: adjustments,
   total,
@@ -174,12 +240,10 @@ const {
   },
   onError: (err: unknown) => {
     logger.error('获取库存调整单失败', err)
-    ElMessage.error('获取库存调整单失败')
+    ElMessage.error(t('inventoryAdjustment.listTab.messageFetchFailed'))
   },
 })
 
-// stats 保留原语义：total 为后端总记录数，pending/approved/totalAmount 基于当前页数据计算。
-// watch data 变化自动更新 stats，无需在每次 refresh 后手动赋值。
 const stats = reactive({
   total: 0,
   pending: 0,
@@ -198,14 +262,17 @@ watch(
   { immediate: true }
 )
 
+/** 状态标签 i18n 映射 */
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    pending: '待审批',
-    approved: '已审批',
-    rejected: '已拒绝',
+    pending: t('inventoryAdjustment.listTab.statusPending'),
+    approved: t('inventoryAdjustment.listTab.statusApproved'),
+    rejected: t('inventoryAdjustment.listTab.statusRejected'),
   }
   return map[status] || status
 }
+
+/** 状态 el-tag 类型映射 */
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     pending: 'warning',
@@ -214,10 +281,9 @@ const getStatusType = (status: string) => {
   }
   return map[status] || 'info'
 }
+
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
-// handleQuery 同步搜索表单到 useTableApi queryParams 后重置到第 1 页并加载。
-// useTableApi watch 只监听 page/pageSize，不监听 queryParams，所以修改后需手动调 refresh。
 const handleQuery = () => {
   page.value = 1
   fetchAdjustments()
@@ -230,7 +296,6 @@ const handleReset = () => {
   handleQuery()
 }
 
-// 保留父组件调用接口：expose refresh 代替原 fetchAdjustments
 defineExpose({ fetchAdjustments })
 </script>
 

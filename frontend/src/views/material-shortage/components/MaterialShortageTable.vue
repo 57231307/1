@@ -8,68 +8,124 @@
     <div class="filter-bar">
       <el-select
         :model-value="filterSeverity"
-        placeholder="缺料严重程度"
+        :placeholder="t('materialShortage.table.severityPlaceholder')"
         clearable
         style="width: 160px"
         @update:model-value="(v: string) => emit('update:filter-severity', v)"
       >
-        <el-option label="严重" value="critical" />
-        <el-option label="高" value="high" />
-        <el-option label="中" value="medium" />
-        <el-option label="低" value="low" />
+        <el-option :label="t('materialShortage.table.severityCritical')" value="critical" />
+        <el-option :label="t('materialShortage.table.severityHigh')" value="high" />
+        <el-option :label="t('materialShortage.table.severityMedium')" value="medium" />
+        <el-option :label="t('materialShortage.table.severityLow')" value="low" />
       </el-select>
       <el-select
         :model-value="filterStatus"
-        placeholder="状态"
+        :placeholder="t('materialShortage.table.statusPlaceholder')"
         clearable
         style="width: 140px"
         @update:model-value="(v: string) => emit('update:filter-status', v)"
       >
-        <el-option label="待处理" value="pending" />
-        <el-option label="已通知" value="notified" />
-        <el-option label="已解决" value="resolved" />
+        <el-option :label="t('materialShortage.table.statusPending')" value="pending" />
+        <el-option :label="t('materialShortage.table.statusNotified')" value="notified" />
+        <el-option :label="t('materialShortage.table.statusResolved')" value="resolved" />
       </el-select>
       <el-button type="primary" @click="emit('filter-change')">
         <el-icon><Search /></el-icon>
-        查询
+        {{ t('materialShortage.table.search') }}
       </el-button>
       <el-button type="success" :loading="checking" @click="emit('check')">
         <el-icon><Refresh /></el-icon>
-        触发检查
+        {{ t('materialShortage.table.triggerCheck') }}
       </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="data" stripe aria-label="物料短缺列表">
-      <el-table-column prop="material_code" label="物料编号" min-width="140" />
-      <el-table-column prop="material_name" label="物料名称" min-width="160" />
-      <el-table-column prop="shortage_quantity" label="缺料数量" width="100" align="right" />
-      <el-table-column prop="required_quantity" label="需求数量" width="100" align="right" />
-      <el-table-column prop="available_quantity" label="可用库存" width="100" align="right" />
-      <el-table-column prop="severity" label="严重程度" width="100" align="center">
+    <el-table
+      v-loading="loading"
+      :data="data"
+      stripe
+      :aria-label="t('materialShortage.table.ariaLabel')"
+    >
+      <el-table-column
+        prop="material_code"
+        :label="t('materialShortage.table.materialCode')"
+        min-width="140"
+      />
+      <el-table-column
+        prop="material_name"
+        :label="t('materialShortage.table.materialName')"
+        min-width="160"
+      />
+      <el-table-column
+        prop="shortage_quantity"
+        :label="t('materialShortage.table.shortageQuantity')"
+        width="100"
+        align="right"
+      />
+      <el-table-column
+        prop="required_quantity"
+        :label="t('materialShortage.table.requiredQuantity')"
+        width="100"
+        align="right"
+      />
+      <el-table-column
+        prop="available_quantity"
+        :label="t('materialShortage.table.availableQuantity')"
+        width="100"
+        align="right"
+      />
+      <el-table-column
+        prop="severity"
+        :label="t('materialShortage.table.severity')"
+        width="100"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag :type="getSeverityColor(row.severity)">
             {{ getSeverityLabel(row.severity) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column
+        prop="status"
+        :label="t('materialShortage.table.status')"
+        width="100"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag :type="getStatusColor(row.status)">
             {{ getStatusLabel(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="source_type" label="来源类型" width="100" align="center">
+      <el-table-column
+        prop="source_type"
+        :label="t('materialShortage.table.sourceType')"
+        width="100"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag :type="getSourceTypeColor(row.source_type)">
             {{ getSourceTypeLabel(row.source_type) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="source_no" label="来源单号" min-width="140" />
-      <el-table-column prop="expected_arrival_date" label="预计到货" min-width="120" />
-      <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column
+        prop="source_no"
+        :label="t('materialShortage.table.sourceNo')"
+        min-width="140"
+      />
+      <el-table-column
+        prop="expected_arrival_date"
+        :label="t('materialShortage.table.expectedArrival')"
+        min-width="120"
+      />
+      <el-table-column
+        prop="remark"
+        :label="t('materialShortage.table.remark')"
+        min-width="150"
+        show-overflow-tooltip
+      />
+      <el-table-column :label="t('materialShortage.table.operation')" width="180" fixed="right">
         <template #default="{ row }">
           <el-button
             v-if="row.status === 'pending'"
@@ -78,7 +134,7 @@
             size="small"
             @click="emit('notify', row)"
           >
-            发送通知
+            {{ t('materialShortage.table.sendNotify') }}
           </el-button>
           <el-button
             v-if="row.status !== 'resolved'"
@@ -87,7 +143,7 @@
             size="small"
             @click="emit('resolve', row)"
           >
-            标记解决
+            {{ t('materialShortage.table.markResolve') }}
           </el-button>
         </template>
       </el-table-column>
@@ -100,25 +156,21 @@
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
+        :aria-label="t('materialShortage.table.paginationAriaLabel')"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:size', v)"
-        aria-label="物料短缺列表分页"
       />
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Search, Refresh } from '@element-plus/icons-vue'
-import {
-  getSeverityColor,
-  getSeverityLabel,
-  getStatusColor,
-  getStatusLabel,
-  getSourceTypeColor,
-  getSourceTypeLabel,
-} from '../composables/msFmts'
+import { getSeverityColor, getStatusColor, getSourceTypeColor } from '../composables/msFmts'
 import type { MaterialShortage } from '@/api/material-shortage'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 列表组件（含过滤栏 + 操作）
@@ -156,6 +208,43 @@ const emit = defineEmits<{
   'update:filter-severity': [v: string]
   'update:filter-status': [v: string]
 }>()
+
+/**
+ * 严重程度标签映射（基于 i18n）
+ */
+const getSeverityLabel = (severity: string) => {
+  const map: Record<string, string> = {
+    critical: t('materialShortage.table.severityCritical'),
+    high: t('materialShortage.table.severityHigh'),
+    medium: t('materialShortage.table.severityMedium'),
+    low: t('materialShortage.table.severityLow'),
+  }
+  return map[severity] || severity
+}
+
+/**
+ * 状态标签映射（基于 i18n）
+ */
+const getStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    pending: t('materialShortage.table.statusPending'),
+    notified: t('materialShortage.table.statusNotified'),
+    resolved: t('materialShortage.table.statusResolved'),
+  }
+  return map[status] || status
+}
+
+/**
+ * 来源类型标签映射（基于 i18n）
+ */
+const getSourceTypeLabel = (type: string) => {
+  const map: Record<string, string> = {
+    production: t('materialShortage.table.sourceProduction'),
+    sales: t('materialShortage.table.sourceSales'),
+    purchase: t('materialShortage.table.sourcePurchase'),
+  }
+  return map[type] || type
+}
 </script>
 
 <style scoped>

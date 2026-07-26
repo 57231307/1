@@ -100,7 +100,11 @@ const handlePass = async () => {
 const handleReject = async () => {
   if (!props.currentRow) return
   try {
-    await ElMessageBox.confirm(t('inventoryTransfer.confirmReject'), t('message.rejectConfirmTitle'), { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('inventoryTransfer.confirmReject'),
+      t('message.rejectConfirmTitle'),
+      { type: 'warning' }
+    )
     submitLoading.value = true
     // reject 接口未在 api/inventoryTransfer 中实现，复用 approve 接口
     await approveInventoryTransfer(props.currentRow.id as number)

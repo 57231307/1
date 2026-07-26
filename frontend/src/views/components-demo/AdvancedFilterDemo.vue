@@ -1,7 +1,7 @@
 <template>
   <div class="advanced-filter-demo">
     <el-card>
-      <template #header>高级筛选组件示例</template>
+      <template #header>{{ t('componentsDemo.advancedFilter.title') }}</template>
 
       <AdvancedFilter
         :fields="filterFields"
@@ -14,7 +14,7 @@
       />
 
       <el-card v-if="filterResult" class="result-card">
-        <template #header>筛选结果</template>
+        <template #header>{{ t('componentsDemo.advancedFilter.resultTitle') }}</template>
         <pre>{{ JSON.stringify(filterResult, null, 2) }}</pre>
       </el-card>
     </el-card>
@@ -23,30 +23,49 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AdvancedFilter, { type FilterGroup, type SavedScheme } from '@/components/AdvancedFilter.vue'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const filterFields = [
-  { key: 'name', label: '订单名称', type: 'text' as const },
+  {
+    key: 'name',
+    label: t('componentsDemo.advancedFilter.fields.orderName'),
+    type: 'text' as const,
+  },
   {
     key: 'status',
-    label: '订单状态',
+    label: t('componentsDemo.advancedFilter.fields.orderStatus'),
     type: 'select' as const,
     options: [
-      { label: '待处理', value: 'pending' },
-      { label: '处理中', value: 'processing' },
-      { label: '已完成', value: 'completed' },
-      { label: '已取消', value: 'cancelled' },
+      { label: t('componentsDemo.advancedFilter.statusPending'), value: 'pending' },
+      { label: t('componentsDemo.advancedFilter.statusProcessing'), value: 'processing' },
+      { label: t('componentsDemo.advancedFilter.statusCompleted'), value: 'completed' },
+      { label: t('componentsDemo.advancedFilter.statusCancelled'), value: 'cancelled' },
     ],
   },
-  { key: 'amount', label: '订单金额', type: 'number' as const },
-  { key: 'date', label: '创建日期', type: 'date' as const },
-  { key: 'customer', label: '客户名称', type: 'text' as const },
+  {
+    key: 'amount',
+    label: t('componentsDemo.advancedFilter.fields.orderAmount'),
+    type: 'number' as const,
+  },
+  {
+    key: 'date',
+    label: t('componentsDemo.advancedFilter.fields.createDate'),
+    type: 'date' as const,
+  },
+  {
+    key: 'customer',
+    label: t('componentsDemo.advancedFilter.fields.customer'),
+    type: 'text' as const,
+  },
 ]
 
 const savedSchemes = ref<SavedScheme[]>([
   {
     id: '1',
-    name: '待处理订单',
+    name: t('componentsDemo.advancedFilter.schemePendingOrders'),
     groups: [
       {
         logic: 'AND',
@@ -57,7 +76,7 @@ const savedSchemes = ref<SavedScheme[]>([
   },
   {
     id: '2',
-    name: '高额订单',
+    name: t('componentsDemo.advancedFilter.schemeHighAmountOrders'),
     groups: [
       {
         logic: 'AND',
@@ -90,11 +109,7 @@ const handleSchemeLoaded = (_scheme: SavedScheme) => {
 ///
 /// 父组件可在此处实现自动重新查询或更新筛选预览。
 /// 当前演示：更新筛选结果以反映新的逻辑关系。
-const handleLogicChange = (
-  _groupIndex: number,
-  _logic: 'AND' | 'OR',
-  filters: FilterGroup[]
-) => {
+const handleLogicChange = (_groupIndex: number, _logic: 'AND' | 'OR', filters: FilterGroup[]) => {
   // 自动应用筛选以反映新的逻辑关系（演示逻辑切换的实时效果）
   filterResult.value = filters
 }

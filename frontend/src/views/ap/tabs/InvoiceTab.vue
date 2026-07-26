@@ -23,13 +23,25 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="invoiceQuery" :aria-label="$t('apModule.invoice.filterAria')">
         <el-form-item :label="$t('apModule.invoice.supplier')">
-          <el-input v-model="invoiceQuery.supplier_name" :placeholder="$t('apModule.invoice.supplierNamePlaceholder')" clearable />
+          <el-input
+            v-model="invoiceQuery.supplier_name"
+            :placeholder="$t('apModule.invoice.supplierNamePlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="$t('apModule.invoice.invoiceNo')">
-          <el-input v-model="invoiceQuery.invoice_no" :placeholder="$t('apModule.invoice.invoiceNoPlaceholder')" clearable />
+          <el-input
+            v-model="invoiceQuery.invoice_no"
+            :placeholder="$t('apModule.invoice.invoiceNoPlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="$t('common.status')">
-          <el-select v-model="invoiceQuery.status" :placeholder="$t('apModule.invoice.statusPlaceholder')" clearable>
+          <el-select
+            v-model="invoiceQuery.status"
+            :placeholder="$t('apModule.invoice.statusPlaceholder')"
+            clearable
+          >
             <el-option :label="$t('apModule.invoice.statusPending')" value="pending" />
             <el-option :label="$t('apModule.invoice.statusApproved')" value="approved" />
             <el-option :label="$t('apModule.invoice.statusVerified')" value="verified" />
@@ -44,10 +56,23 @@
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="invoiceLoading" :data="invoices" stripe :aria-label="$t('apModule.invoice.listAria')">
+      <el-table
+        v-loading="invoiceLoading"
+        :data="invoices"
+        stripe
+        :aria-label="$t('apModule.invoice.listAria')"
+      >
         <el-table-column prop="invoice_no" :label="$t('apModule.invoice.invoiceNo')" width="140" />
-        <el-table-column prop="supplier_name" :label="$t('apModule.invoice.supplier')" width="150" />
-        <el-table-column prop="invoice_date" :label="$t('apModule.invoice.invoiceDate')" width="120" />
+        <el-table-column
+          prop="supplier_name"
+          :label="$t('apModule.invoice.supplier')"
+          width="150"
+        />
+        <el-table-column
+          prop="invoice_date"
+          :label="$t('apModule.invoice.invoiceDate')"
+          width="120"
+        />
         <el-table-column :label="$t('apModule.invoice.invoiceAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.invoice_amount) }}
@@ -80,13 +105,9 @@
         <el-table-column prop="due_date" :label="$t('apModule.invoice.dueDate')" width="120" />
         <el-table-column :label="$t('common.operation')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button
-              type="primary"
-              link
-              size="small"
-              @click="viewInvoice(row as APInvoice)"
-              >{{ $t('common.detail') }}</el-button
-            >
+            <el-button type="primary" link size="small" @click="viewInvoice(row as APInvoice)">{{
+              $t('common.detail')
+            }}</el-button>
             <el-button
               v-if="row.status === 'pending'"
               type="success"
@@ -108,8 +129,19 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="invoiceDialogVisible" :title="$t('apModule.invoice.createTitle')" width="600px" :aria-label="$t('apModule.invoice.createAria')">
-      <el-form ref="invoiceFormRef" :model="invoiceForm" :rules="invoiceRules" label-width="80px" :aria-label="$t('apModule.invoice.formAria')">
+    <el-dialog
+      v-model="invoiceDialogVisible"
+      :title="$t('apModule.invoice.createTitle')"
+      width="600px"
+      :aria-label="$t('apModule.invoice.createAria')"
+    >
+      <el-form
+        ref="invoiceFormRef"
+        :model="invoiceForm"
+        :rules="invoiceRules"
+        label-width="80px"
+        :aria-label="$t('apModule.invoice.formAria')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('apModule.invoice.supplier')" prop="supplier_id">
@@ -129,7 +161,10 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="$t('apModule.invoice.invoiceNo')" prop="invoice_no">
-              <el-input v-model="invoiceForm.invoice_no" :placeholder="$t('apModule.invoice.invoiceNoInputPlaceholder')" />
+              <el-input
+                v-model="invoiceForm.invoice_no"
+                :placeholder="$t('apModule.invoice.invoiceNoInputPlaceholder')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -185,9 +220,9 @@
       </el-form>
       <template #footer>
         <el-button @click="invoiceDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="invoiceSubmitLoading" @click="submitInvoice"
-          >{{ $t('common.confirm') }}</el-button
-        >
+        <el-button type="primary" :loading="invoiceSubmitLoading" @click="submitInvoice">{{
+          $t('common.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -293,10 +328,18 @@ const invoiceForm = reactive({
 })
 
 const invoiceRules: FormRules = {
-  supplier_id: [{ required: true, message: t('apModule.invoice.supplierRequired'), trigger: 'change' }],
-  invoice_no: [{ required: true, message: t('apModule.invoice.invoiceNoRequired'), trigger: 'blur' }],
-  invoice_date: [{ required: true, message: t('apModule.invoice.invoiceDateRequired'), trigger: 'change' }],
-  invoice_amount: [{ required: true, message: t('apModule.invoice.invoiceAmountRequired'), trigger: 'blur' }],
+  supplier_id: [
+    { required: true, message: t('apModule.invoice.supplierRequired'), trigger: 'change' },
+  ],
+  invoice_no: [
+    { required: true, message: t('apModule.invoice.invoiceNoRequired'), trigger: 'blur' },
+  ],
+  invoice_date: [
+    { required: true, message: t('apModule.invoice.invoiceDateRequired'), trigger: 'change' },
+  ],
+  invoice_amount: [
+    { required: true, message: t('apModule.invoice.invoiceAmountRequired'), trigger: 'blur' },
+  ],
 }
 
 const openInvoiceDialog = () => {
@@ -361,7 +404,11 @@ const viewInvoice = async (row: APInvoice) => {
 
 const approveInvoice = async (row: APInvoice) => {
   try {
-    await ElMessageBox.confirm(t('apModule.invoice.approveConfirm'), t('apModule.invoice.approveTitle'), { type: 'info' })
+    await ElMessageBox.confirm(
+      t('apModule.invoice.approveConfirm'),
+      t('apModule.invoice.approveTitle'),
+      { type: 'info' }
+    )
     await approveAPInvoice(row.id)
     ElMessage.success(t('apModule.invoice.approveSuccess'))
     fetchInvoices()
@@ -375,7 +422,11 @@ const approveInvoice = async (row: APInvoice) => {
 
 const cancelInvoice = async (row: APInvoice) => {
   try {
-    await ElMessageBox.confirm(t('apModule.invoice.cancelConfirm'), t('apModule.invoice.cancelTitle'), { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('apModule.invoice.cancelConfirm'),
+      t('apModule.invoice.cancelTitle'),
+      { type: 'warning' }
+    )
     await cancelAPInvoice(row.id)
     ElMessage.success(t('apModule.invoice.cancelSuccess'))
     fetchInvoices()

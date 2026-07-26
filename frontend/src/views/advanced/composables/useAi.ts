@@ -81,7 +81,9 @@ export function useAi() {
     forecastLoading.value = true
     try {
       // v11 批次 171 P2-1 修复：res: any 改为 ApiResponse<ForecastResult>
-      const res = (await forecastSales({ period: forecastPeriod.value })) as ApiResponse<ForecastResult>
+      const res = (await forecastSales({
+        period: forecastPeriod.value,
+      })) as ApiResponse<ForecastResult>
       forecastResult.value = res.data
       ElMessage.success('预测完成')
     } catch (e: unknown) {
@@ -114,7 +116,9 @@ export function useAi() {
   const runAnomalyDetection = async () => {
     anomalyLoading.value = true
     try {
-      const res = (await detectAnomalies({ data_type: anomalyType.value })) as ApiResponse<AnomalyItem[]>
+      const res = (await detectAnomalies({ data_type: anomalyType.value })) as ApiResponse<
+        AnomalyItem[]
+      >
       anomalyResult.value = res.data
       ElMessage.success('检测完成')
     } catch (e: unknown) {

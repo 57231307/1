@@ -2,8 +2,8 @@
   <div class="mrp-container">
     <el-card class="header-card">
       <div class="header-content">
-        <h2>MRP 物料需求计算</h2>
-        <p>根据产品需求自动计算物料需求清单</p>
+        <h2>{{ t('mrp.calc.title') }}</h2>
+        <p>{{ t('mrp.calc.subtitle') }}</p>
       </div>
     </el-card>
 
@@ -11,21 +11,27 @@
     <el-card class="form-card">
       <template #header>
         <div class="card-header">
-          <span>计算参数</span>
+          <span>{{ t('mrp.calc.paramsTitle') }}</span>
         </div>
       </template>
 
-      <el-form ref="calcFormRef" :model="calcForm" :rules="calcRules" label-width="120px" aria-label="MRP 计算表单">
+      <el-form
+        ref="calcFormRef"
+        :model="calcForm"
+        :rules="calcRules"
+        label-width="120px"
+        :aria-label="t('mrp.calc.formAriaLabel')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="产品选择" prop="product_ids">
+            <el-form-item :label="t('mrp.calc.productSelect')" prop="product_ids">
               <el-select
                 v-model="calcForm.product_ids"
                 multiple
                 filterable
                 remote
                 reserve-keyword
-                placeholder="请输入产品名称搜索"
+                :placeholder="t('mrp.calc.productPlaceholder')"
                 :remote-method="searchProducts"
                 :loading="productLoading"
                 style="width: 100%"
@@ -40,7 +46,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="需求数量" prop="demand_quantity">
+            <el-form-item :label="t('mrp.calc.demandQuantity')" prop="demand_quantity">
               <el-input-number
                 v-model="calcForm.demand_quantity"
                 :min="1"
@@ -52,30 +58,32 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="需求日期" prop="demand_date">
+            <el-form-item :label="t('mrp.calc.demandDate')" prop="demand_date">
               <el-date-picker
                 v-model="calcForm.demand_date"
                 type="date"
-                placeholder="请选择需求日期"
+                :placeholder="t('mrp.calc.demandDatePlaceholder')"
                 style="width: 100%"
                 value-format="YYYY-MM-DD"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="计算选项">
-              <el-checkbox v-model="calcForm.consider_safety_stock">考虑安全库存</el-checkbox>
-              <el-checkbox v-model="calcForm.consider_in_transit" style="margin-left: 16px"
-                >考虑在途量</el-checkbox
-              >
+            <el-form-item :label="t('mrp.calc.calcOptions')">
+              <el-checkbox v-model="calcForm.consider_safety_stock">{{
+                t('mrp.calc.considerSafetyStock')
+              }}</el-checkbox>
+              <el-checkbox v-model="calcForm.consider_in_transit" style="margin-left: 16px">{{
+                t('mrp.calc.considerInTransit')
+              }}</el-checkbox>
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item>
           <el-button type="primary" :loading="calcLoading" @click="handleCalculate">
-            <el-icon><Cpu /></el-icon>触发计算
+            <el-icon><Cpu /></el-icon>{{ t('mrp.calc.triggerCalc') }}
           </el-button>
-          <el-button @click="resetCalcForm">重置</el-button>
+          <el-button @click="resetCalcForm">{{ t('mrp.calc.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -84,21 +92,21 @@
     <el-card v-if="resultVisible" class="result-card">
       <template #header>
         <div class="card-header">
-          <span>物料需求清单</span>
+          <span>{{ t('mrp.calc.materialList') }}</span>
           <div>
             <el-button
               type="success"
               :disabled="selectedMaterials.length === 0"
               @click="handleConvert('purchase')"
             >
-              <el-icon><ShoppingCart /></el-icon>转为采购订单
+              <el-icon><ShoppingCart /></el-icon>{{ t('mrp.calc.convertToPurchase') }}
             </el-button>
             <el-button
               type="primary"
               :disabled="selectedMaterials.length === 0"
               @click="handleConvert('production')"
             >
-              <el-icon><Document /></el-icon>转为生产订单
+              <el-icon><Document /></el-icon>{{ t('mrp.calc.convertToProduction') }}
             </el-button>
           </div>
         </div>
@@ -109,19 +117,48 @@
         :data="materialList"
         stripe
         border
+        :aria-label="t('mrp.calc.resultAriaLabel')"
         @selection-change="handleSelectionChange"
-        aria-label="MRP 计算结果列表"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="material_code" label="物料编码" width="140" />
-        <el-table-column prop="material_name" label="物料名称" min-width="160" />
-        <el-table-column prop="specification" label="规格" min-width="120" />
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="required_quantity" label="需求数量" width="120" align="right" />
-        <el-table-column prop="available_stock" label="可用库存" width="120" align="right" />
-        <el-table-column prop="in_transit_quantity" label="在途量" width="100" align="right" />
-        <el-table-column prop="safety_stock" label="安全库存" width="100" align="right" />
-        <el-table-column prop="net_requirement" label="净需求" width="120" align="right">
+        <el-table-column prop="material_code" :label="t('mrp.calc.materialCode')" width="140" />
+        <el-table-column prop="material_name" :label="t('mrp.calc.materialName')" min-width="160" />
+        <el-table-column
+          prop="specification"
+          :label="t('mrp.calc.specification')"
+          min-width="120"
+        />
+        <el-table-column prop="unit" :label="t('mrp.calc.unit')" width="80" />
+        <el-table-column
+          prop="required_quantity"
+          :label="t('mrp.calc.demandQuantity')"
+          width="120"
+          align="right"
+        />
+        <el-table-column
+          prop="available_stock"
+          :label="t('mrp.calc.availableStock')"
+          width="120"
+          align="right"
+        />
+        <el-table-column
+          prop="in_transit_quantity"
+          :label="t('mrp.calc.inTransitQuantity')"
+          width="100"
+          align="right"
+        />
+        <el-table-column
+          prop="safety_stock"
+          :label="t('mrp.calc.safetyStock')"
+          width="100"
+          align="right"
+        />
+        <el-table-column
+          prop="net_requirement"
+          :label="t('mrp.calc.netRequirement')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             <span :class="{ 'highlight-quantity': row.net_requirement > 0 }">{{
               row.net_requirement
@@ -130,11 +167,11 @@
         </el-table-column>
         <el-table-column
           prop="suggested_order_quantity"
-          label="建议订单量"
+          :label="t('mrp.calc.suggestedOrderQuantity')"
           width="130"
           align="right"
         />
-        <el-table-column prop="suggested_date" label="建议日期" width="130" />
+        <el-table-column prop="suggested_date" :label="t('mrp.calc.suggestedDate')" width="130" />
       </el-table>
     </el-card>
   </div>
@@ -143,6 +180,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { Cpu, ShoppingCart, Document } from '@element-plus/icons-vue'
 import {
   calculateMrp,
@@ -151,6 +189,8 @@ import {
   type MrpProduct,
   type MrpMaterialRequirement,
 } from '../../api/mrp'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const calcFormRef = ref<FormInstance>()
 const calcLoading = ref(false)
@@ -172,10 +212,12 @@ const calcForm = reactive({
 
 const calcRules: FormRules = {
   product_ids: [
-    { required: true, message: '请选择产品', trigger: 'change', type: 'array' as const },
+    { required: true, message: t('mrp.calc.productRequired'), trigger: 'change', type: 'array' },
   ],
-  demand_quantity: [{ required: true, message: '请输入需求数量', trigger: 'blur' }],
-  demand_date: [{ required: true, message: '请选择需求日期', trigger: 'change' }],
+  demand_quantity: [
+    { required: true, message: t('mrp.calc.demandQuantityRequired'), trigger: 'blur' },
+  ],
+  demand_date: [{ required: true, message: t('mrp.calc.demandDateRequired'), trigger: 'change' }],
 }
 
 const searchProducts = async (query: string) => {
@@ -186,7 +228,9 @@ const searchProducts = async (query: string) => {
       productOptions.value = res.data || []
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取产品列表失败')
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || t('mrp.calc.fetchProductsError')
+      )
     } finally {
       productLoading.value = false
     }
@@ -206,10 +250,10 @@ const handleCalculate = async () => {
       currentCalculationId.value = res.data.calculation_id
       resultVisible.value = true
       selectedMaterials.value = []
-      ElMessage.success('MRP 计算完成')
+      ElMessage.success(t('mrp.calc.calcSuccess'))
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || 'MRP 计算失败')
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('mrp.calc.calcFailed'))
     } finally {
       calcLoading.value = false
     }
@@ -231,18 +275,28 @@ const handleSelectionChange = (selection: MrpMaterialRequirement[]) => {
   selectedMaterials.value = selection
 }
 
+/**
+ * 转换订单类型标签
+ */
+const getOrderTypeLabel = (orderType: 'purchase' | 'production') => {
+  return orderType === 'purchase' ? t('mrp.calc.purchaseOrder') : t('mrp.calc.productionOrder')
+}
+
 const handleConvert = async (orderType: 'purchase' | 'production') => {
   if (selectedMaterials.value.length === 0) {
-    ElMessage.warning('请选择要转换的物料')
+    ElMessage.warning(t('mrp.calc.selectMaterialFirst'))
     return
   }
 
-  const typeLabel = orderType === 'purchase' ? '采购订单' : '生产订单'
+  const typeLabel = getOrderTypeLabel(orderType)
 
   try {
     await ElMessageBox.confirm(
-      `确认将选中的 ${selectedMaterials.value.length} 项物料转为${typeLabel}吗？`,
-      '确认',
+      t('mrp.calc.convertConfirmMessage', {
+        count: selectedMaterials.value.length,
+        type: typeLabel,
+      }),
+      t('mrp.calc.confirmTitle'),
       {
         type: 'warning',
       }
@@ -255,11 +309,13 @@ const handleConvert = async (orderType: 'purchase' | 'production') => {
       order_type: orderType,
     })
 
-    ElMessage.success(`成功创建 ${res.data.order_ids.length} 个${typeLabel}`)
+    ElMessage.success(
+      t('mrp.calc.convertSuccess', { count: res.data.order_ids.length, type: typeLabel })
+    )
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '转换失败')
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('mrp.calc.convertFailed'))
     }
   }
 }

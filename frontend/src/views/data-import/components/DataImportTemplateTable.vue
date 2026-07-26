@@ -9,62 +9,96 @@
     <div class="filter-container">
       <el-input
         v-model="localQuery.keyword"
-        placeholder="搜索模板编号/名称"
+        :placeholder="t('dataImport.templateTable.keywordPlaceholder')"
         style="width: 200px"
         clearable
         @keyup.enter="handleSearch"
       />
       <el-select
         v-model="localQuery.module"
-        placeholder="模块"
+        :placeholder="t('dataImport.templateTable.modulePlaceholder')"
         clearable
         style="width: 120px"
       >
-        <el-option label="客户" value="customer" />
-        <el-option label="供应商" value="supplier" />
-        <el-option label="产品" value="product" />
-        <el-option label="库存" value="inventory" />
-        <el-option label="销售" value="sales" />
-        <el-option label="采购" value="purchase" />
-        <el-option label="财务" value="finance" />
+        <el-option :label="t('dataImport.templateTable.moduleCustomer')" value="customer" />
+        <el-option :label="t('dataImport.templateTable.moduleSupplier')" value="supplier" />
+        <el-option :label="t('dataImport.templateTable.moduleProduct')" value="product" />
+        <el-option :label="t('dataImport.templateTable.moduleInventory')" value="inventory" />
+        <el-option :label="t('dataImport.templateTable.moduleSales')" value="sales" />
+        <el-option :label="t('dataImport.templateTable.modulePurchase')" value="purchase" />
+        <el-option :label="t('dataImport.templateTable.moduleFinance')" value="finance" />
       </el-select>
       <el-button type="primary" @click="handleSearch">
         <el-icon><Search /></el-icon>
-        搜索
+        {{ t('dataImport.templateTable.search') }}
       </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="data" stripe aria-label="数据导入模板列表">
-      <el-table-column prop="template_code" label="模板编号" width="140" />
-      <el-table-column prop="template_name" label="模板名称" min-width="180" />
-      <el-table-column prop="module" label="模块" width="100">
+    <el-table
+      v-loading="loading"
+      :data="data"
+      stripe
+      :aria-label="t('dataImport.templateTable.ariaLabel')"
+    >
+      <el-table-column
+        prop="template_code"
+        :label="t('dataImport.templateTable.templateCode')"
+        width="140"
+      />
+      <el-table-column
+        prop="template_name"
+        :label="t('dataImport.templateTable.templateName')"
+        min-width="180"
+      />
+      <el-table-column prop="module" :label="t('dataImport.templateTable.module')" width="100">
         <template #default="{ row }">
-          {{ MODULE_MAP[row.module] }}
+          {{ getModuleLabel(row.module) }}
         </template>
       </el-table-column>
-      <el-table-column prop="file_format" label="文件格式" width="100">
+      <el-table-column
+        prop="file_format"
+        :label="t('dataImport.templateTable.fileFormat')"
+        width="100"
+      >
         <template #default="{ row }">
           {{ row.file_format.toUpperCase() }}
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column
+        prop="status"
+        :label="t('dataImport.templateTable.status')"
+        width="100"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-            {{ row.status === 'active' ? '启用' : '停用' }}
+            {{
+              row.status === 'active'
+                ? t('dataImport.templateTable.active')
+                : t('dataImport.templateTable.inactive')
+            }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="160" />
-      <el-table-column label="操作" width="250" fixed="right">
+      <el-table-column
+        prop="created_at"
+        :label="t('dataImport.templateTable.createdAt')"
+        width="160"
+      />
+      <el-table-column :label="t('dataImport.templateTable.operation')" width="250" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('download', row)"
-            >下载模板</el-button
-          >
-          <el-button type="primary" link size="small" @click="emit('upload', row)"
-            >导入数据</el-button
-          >
-          <el-button type="primary" link size="small" @click="emit('edit', row)">编辑</el-button>
-          <el-button type="danger" link size="small" @click="emit('delete', row)">删除</el-button>
+          <el-button type="primary" link size="small" @click="emit('download', row)">{{
+            t('dataImport.templateTable.download')
+          }}</el-button>
+          <el-button type="primary" link size="small" @click="emit('upload', row)">{{
+            t('dataImport.templateTable.importData')
+          }}</el-button>
+          <el-button type="primary" link size="small" @click="emit('edit', row)">{{
+            t('dataImport.templateTable.edit')
+          }}</el-button>
+          <el-button type="danger" link size="small" @click="emit('delete', row)">{{
+            t('dataImport.templateTable.delete')
+          }}</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -76,9 +110,9 @@
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
+        :aria-label="t('dataImport.templateTable.paginationAriaLabel')"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
-        aria-label="数据导入模板分页"
       />
     </div>
   </el-card>
@@ -86,9 +120,11 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Search } from '@element-plus/icons-vue'
 import type { ImportTemplate } from '@/api/data-import'
-import { MODULE_MAP } from '../composables/diFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 模板列表组件（含过滤栏）
@@ -134,6 +170,22 @@ const localQuery = reactive({
 const handleSearch = () => {
   emit('update:queryParams', { ...localQuery })
   emit('fetch')
+}
+
+/**
+ * 模块标签映射（基于 i18n）
+ */
+const getModuleLabel = (module: string) => {
+  const map: Record<string, string> = {
+    customer: t('dataImport.templateTable.moduleCustomer'),
+    supplier: t('dataImport.templateTable.moduleSupplier'),
+    product: t('dataImport.templateTable.moduleProduct'),
+    inventory: t('dataImport.templateTable.moduleInventory'),
+    sales: t('dataImport.templateTable.moduleSales'),
+    purchase: t('dataImport.templateTable.modulePurchase'),
+    finance: t('dataImport.templateTable.moduleFinance'),
+  }
+  return map[module] || module
 }
 </script>
 

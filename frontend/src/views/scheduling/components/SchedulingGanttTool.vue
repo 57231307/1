@@ -90,7 +90,15 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Calendar, Cpu, List, OfficeBuilding, Refresh, Warning } from '@element-plus/icons-vue'
+import {
+  ArrowLeft,
+  Calendar,
+  Cpu,
+  List,
+  OfficeBuilding,
+  Refresh,
+  Warning,
+} from '@element-plus/icons-vue'
 
 const { t } = useI18n({ useScope: 'global' })
 
