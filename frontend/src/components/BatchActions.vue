@@ -2,7 +2,7 @@
   <div v-if="selectedRows.length > 0" class="batch-actions">
     <div class="batch-actions-bar">
       <span class="selected-info">
-        已选择 <strong>{{ selectedRows.length }}</strong> 项
+        {{ t('common.batchActions.selectedPrefix') }}<strong>{{ selectedRows.length }}</strong>{{ t('common.batchActions.selectedSuffix') }}
       </span>
       <el-space wrap>
         <el-button
@@ -15,14 +15,14 @@
           <el-icon v-if="action.icon"><component :is="action.icon" /></el-icon>
           {{ action.label }}
         </el-button>
-        <el-button type="info" @click="handleClear">取消选择</el-button>
+        <el-button type="info" @click="handleClear">{{ t('common.batchActions.clearSelection') }}</el-button>
       </el-space>
     </div>
 
     <el-dialog
       v-model="confirmDialogVisible"
-      :title="currentAction?.confirmTitle || '确认操作'"
-      :aria-label="currentAction?.confirmTitle || '确认操作对话框'"
+      :title="currentAction?.confirmTitle || t('common.batchActions.confirmTitleFallback')"
+      :aria-label="currentAction?.confirmTitle || t('common.batchActions.confirmDialogAriaLabel')"
       width="500px"
       :close-on-click-modal="false"
     >
@@ -30,7 +30,7 @@
         <p>
           {{
             currentAction?.confirmMessage ||
-            `确定要对选中的 ${selectedRows.length} 项执行此操作吗？`
+            t('common.batchActions.confirmMessageFallback', { count: selectedRows.length })
           }}
         </p>
         <el-alert
@@ -43,15 +43,15 @@
         />
       </div>
       <template #footer>
-        <el-button @click="confirmDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="executing" @click="executeAction"> 确认执行 </el-button>
+        <el-button @click="confirmDialogVisible = false">{{ t('common.batchActions.cancel') }}</el-button>
+        <el-button type="primary" :loading="executing" @click="executeAction"> {{ t('common.batchActions.confirmExecute') }} </el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="progressDialogVisible"
-      title="执行进度"
-      aria-label="批量操作执行进度对话框"
+      :title="t('common.batchActions.progressTitle')"
+      :aria-label="t('common.batchActions.progressDialogAriaLabel')"
       width="500px"
       :close-on-click-modal="false"
       :show-close="false"
@@ -66,7 +66,7 @@
           type="primary"
           @click="progressDialogVisible = false"
         >
-          关闭
+          {{ t('common.batchActions.close') }}
         </el-button>
       </template>
     </el-dialog>
@@ -74,15 +74,15 @@
 </template>
 
 <script setup lang="ts" generic="T">
-import { ref, computed } from 'vue'
+import { ref, computed, type Component } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Delete, Check, Edit } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { logger } from '@/utils/logger'
 
 // v11 批次 182 P2-1 修复：通用组件保持泛化，icon 类型用 ComponentType，rows 用 unknown
 // FE-P2-2 修复（批次 388 v13 复审）：改造为泛型组件 generic="T"，
 // selectedRows/handler/emit 全部使用 T[] 替代 unknown[]
-import type { Component } from 'vue'
 
 export interface BatchActionItem<T = unknown> {
   key: string
@@ -103,6 +103,8 @@ interface Props {
   showProgress?: boolean
 }
 
+const { t } = useI18n({ useScope: 'global' })
+
 const props = withDefaults(defineProps<Props>(), {
   actions: () => [],
   showProgress: true,
@@ -114,40 +116,40 @@ const emit = defineEmits<{
   complete: [key: string, success: boolean]
 }>()
 
-const defaultActions: BatchActionItem<T>[] = [
+const defaultActions = computed<BatchActionItem<T>[]>(() => [
   {
     key: 'batchDelete',
-    label: '批量删除',
+    label: t('common.batchActions.action.batchDelete'),
     type: 'danger',
     icon: Delete,
     confirm: true,
-    confirmTitle: '确认删除',
-    confirmMessage: '删除后无法恢复，确定要删除这些数据吗？',
-    warningMessage: '此操作不可撤销！',
+    confirmTitle: t('common.batchActions.confirmTitle.batchDelete'),
+    confirmMessage: t('common.batchActions.confirmMessage.batchDelete'),
+    warningMessage: t('common.batchActions.warningMessage.batchDelete'),
     handler: async () => {},
   },
   {
     key: 'batchApprove',
-    label: '批量审批',
+    label: t('common.batchActions.action.batchApprove'),
     type: 'success',
     icon: Check,
     confirm: true,
-    confirmTitle: '确认审批',
-    confirmMessage: '确定要批量审批通过选中的数据吗？',
+    confirmTitle: t('common.batchActions.confirmTitle.batchApprove'),
+    confirmMessage: t('common.batchActions.confirmMessage.batchApprove'),
     handler: async () => {},
   },
   {
     key: 'batchEdit',
-    label: '批量修改',
+    label: t('common.batchActions.action.batchEdit'),
     type: 'primary',
     icon: Edit,
     handler: async () => {},
   },
-]
+])
 
 const computedActions = computed(() => {
   if (props.actions.length > 0) return props.actions
-  return defaultActions
+  return defaultActions.value
 })
 
 const confirmDialogVisible = ref(false)
@@ -178,7 +180,7 @@ const executeAction = async () => {
     progressDialogVisible.value = true
     progressPercent.value = 0
     progressStatus.value = ''
-    progressText.value = '正在执行...'
+    progressText.value = t('common.batchActions.executing')
   }
 
   try {
@@ -191,11 +193,11 @@ const executeAction = async () => {
         try {
           await currentAction.value.handler?.([item])
         } catch (e) {
-          logger.error(`处理项失败:`, String(e))
+          logger.error(`${t('common.batchActions.processItemFailed')}:`, String(e))
         }
         completed++
         progressPercent.value = Math.round((completed / total) * 100)
-        progressText.value = `已完成 ${completed}/${total}`
+        progressText.value = t('common.batchActions.completed', { completed, total })
       }
     } else {
       await currentAction.value.handler?.(props.selectedRows)
@@ -203,17 +205,17 @@ const executeAction = async () => {
     }
 
     progressStatus.value = 'success'
-    progressText.value = '执行完成'
+    progressText.value = t('common.batchActions.executeComplete')
     emit('complete', currentAction.value.key, true)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('common.batchActions.operationSuccess'))
     handleClear()
   } catch (error: unknown) {
     // v11 批次 182 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
     const errMsg = error instanceof Error ? error.message : String(error)
     progressStatus.value = 'exception'
-    progressText.value = `执行失败: ${errMsg || '未知错误'}`
+    progressText.value = t('common.batchActions.executeFailed', { error: errMsg || t('common.batchActions.unknownError') })
     emit('complete', currentAction.value.key, false)
-    ElMessage.error('操作失败')
+    ElMessage.error(t('common.batchActions.operationFailed'))
   } finally {
     executing.value = false
   }

@@ -767,6 +767,6 @@ const handleExport = async () => {
     asset_category: queryParams.value.asset_category as string | undefined,
   }
   await exportFromBackend('/fixed-assets/export', params, 'fixed_assets_export')
-  logger.info('固定资产列表已导出')
+  logger.info(t('fixedAssets.message.exportSuccess'))
 }
 </script>

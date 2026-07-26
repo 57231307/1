@@ -1,31 +1,31 @@
 <template>
   <div class="color-item-editor">
-    <el-form label-width="100px" aria-label="色号编辑表单">
-      <el-form-item label="色号编码" required>
-        <el-input v-model="localValue.color_code" placeholder="例如: 18-1664 TPX" />
+    <el-form label-width="100px" :aria-label="t('components.colorItemEditor.formAriaLabel')">
+      <el-form-item :label="t('components.colorItemEditor.colorCode')" required>
+        <el-input v-model="localValue.color_code" :placeholder="t('components.colorItemEditor.colorCodePlaceholder')" />
       </el-form-item>
-      <el-form-item label="色号名称" required>
-        <el-input v-model="localValue.color_name" placeholder="例如: 番茄红" />
+      <el-form-item :label="t('components.colorItemEditor.colorName')" required>
+        <el-input v-model="localValue.color_name" :placeholder="t('components.colorItemEditor.colorNamePlaceholder')" />
       </el-form-item>
-      <el-form-item label="颜色选择">
+      <el-form-item :label="t('components.colorItemEditor.colorPicker')">
         <el-color-picker v-model="hexValue" @change="syncRgbFromHex" />
         <span style="margin-left: 12px">{{ hexValue }}</span>
       </el-form-item>
-      <el-form-item label="RGB">
+      <el-form-item :label="t('components.colorItemEditor.rgb')">
         <el-input-number v-model="localValue.rgb_r" :min="0" :max="255" @change="syncHexFromRgb" />
         <el-input-number v-model="localValue.rgb_g" :min="0" :max="255" @change="syncHexFromRgb" style="margin-left: 8px" />
         <el-input-number v-model="localValue.rgb_b" :min="0" :max="255" @change="syncHexFromRgb" style="margin-left: 8px" />
       </el-form-item>
-      <el-form-item label="HEX 值" required>
+      <el-form-item :label="t('components.colorItemEditor.hexValue')" required>
         <el-input v-model="hexValue" @change="syncRgbFromHex" placeholder="#RRGGBB" />
       </el-form-item>
-      <el-form-item label="PANTONE 编码">
-        <el-input v-model="localValue.pantone_code" placeholder="可选" />
+      <el-form-item :label="t('components.colorItemEditor.pantoneCode')">
+        <el-input v-model="localValue.pantone_code" :placeholder="t('components.colorItemEditor.optionalPlaceholder')" />
       </el-form-item>
-      <el-form-item label="CNCS 编码">
-        <el-input v-model="localValue.cncs_code" placeholder="可选" />
+      <el-form-item :label="t('components.colorItemEditor.cncsCode')">
+        <el-input v-model="localValue.cncs_code" :placeholder="t('components.colorItemEditor.optionalPlaceholder')" />
       </el-form-item>
-      <el-form-item label="排序">
+      <el-form-item :label="t('components.colorItemEditor.sequence')">
         <el-input-number v-model="localValue.sequence" :min="0" />
       </el-form-item>
     </el-form>
@@ -34,7 +34,10 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ColorItemInfo } from '@/api/color-card'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{ modelValue: Partial<ColorItemInfo> }>()
 const emit = defineEmits<{ (e: 'update:modelValue', v: Partial<ColorItemInfo>): void }>()

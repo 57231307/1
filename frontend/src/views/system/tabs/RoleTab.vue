@@ -239,7 +239,7 @@ const fetchRolePermissions = async (roleId: number) => {
     checkedPermissions.value = (roleRes.data || []).map((p: Permission) => p.id)
   } catch (e) {
     const { logger } = await import('@/utils/logger')
-    logger.error('获取权限失败:', e)
+    logger.error(`${t('system.role.message.fetchPermissionFailed')}:`, e)
   } finally {
     permissionLoading.value = false
   }

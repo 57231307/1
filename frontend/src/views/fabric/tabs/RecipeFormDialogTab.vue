@@ -127,7 +127,7 @@ const handleSubmit = async () => {
   } catch (error) {
     const err = error as Error
     ElMessage.error(err.message || t('fabric.common.failed'))
-    logger.error('配方保存失败', err.message)
+    logger.error(t('fabric.recipeFormDialog.saveFailed'), err.message)
   } finally {
     submitLoading.value = false
   }

@@ -71,10 +71,10 @@
       <el-table-column :label="t('quotations.itemEditor.colUnit')" min-width="90">
         <template #default="{ row }">
           <el-select v-model="row.unit" style="width: 100%">
-            <el-option :label="t('quotations.itemEditor.unitMeter')" value="米" />
-            <el-option :label="t('quotations.itemEditor.unitRoll')" value="卷" />
+            <el-option :label="t('quotations.itemEditor.unitMeter')" :value="t('quotations.itemEditor.unitMeter')" />
+            <el-option :label="t('quotations.itemEditor.unitRoll')" :value="t('quotations.itemEditor.unitRoll')" />
             <el-option :label="t('quotations.itemEditor.unitKg')" value="kg" />
-            <el-option :label="t('quotations.itemEditor.unitPiece')" value="件" />
+            <el-option :label="t('quotations.itemEditor.unitPiece')" :value="t('quotations.itemEditor.unitPiece')" />
           </el-select>
         </template>
       </el-table-column>
@@ -164,7 +164,7 @@ function createBlankItem(): QuotationItemRow {
   return {
     product_id: undefined,
     color_id: undefined,
-    unit: '米',
+    unit: t('quotations.itemEditor.unitMeter'),
     quantity: 0,
     unit_price: 0,
     unit_price_with_tax: 0,

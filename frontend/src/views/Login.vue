@@ -192,7 +192,7 @@ const handleUsernameBlur = async () => {
     }
   } catch (error) {
     // 检查失败不影响主流程
-    logger.warn('预检查账号锁定状态失败:', error)
+    logger.warn(`${t('login.precheckLockStatusFailed')}:`, error)
   }
 }
 
@@ -207,7 +207,7 @@ const refreshLockStatus = async () => {
       applyLockStatus(res.data)
     }
   } catch (error) {
-    logger.warn('刷新账号锁定状态失败:', error)
+    logger.warn(`${t('login.refreshLockStatusFailed')}:`, error)
   }
 }
 

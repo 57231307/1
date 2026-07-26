@@ -77,7 +77,7 @@ function sourceLabel(source: string): string {
         <template #header
           ><div class="card-header">{{ $t('advancedModule.recipe.conditions') }}</div></template
         >
-        <el-form :model="localForm" label-width="100px" aria-label="染色工艺推荐条件表单">
+        <el-form :model="localForm" label-width="100px" :aria-label="t('advancedModule.recipe.ariaConditions')">
           <el-form-item :label="$t('advancedModule.recipe.colorNo')" required>
             <el-input
               v-model="localForm.color_no"
@@ -90,11 +90,11 @@ function sourceLabel(source: string): string {
               :placeholder="$t('advancedModule.recipe.fabricPlaceholder')"
               style="width: 100%"
             >
-              <el-option :label="$t('advancedModule.recipe.fabricCotton')" value="棉" />
-              <el-option :label="$t('advancedModule.recipe.fabricPolyester')" value="涤纶" />
-              <el-option :label="$t('advancedModule.recipe.fabricSilk')" value="丝绸" />
-              <el-option :label="$t('advancedModule.recipe.fabricWool')" value="羊毛" />
-              <el-option :label="$t('advancedModule.recipe.fabricSynthetic')" value="化纤" />
+              <el-option :label="$t('advancedModule.recipe.fabricCotton')" :value="t('advancedModule.recipe.fabricCotton')" />
+              <el-option :label="$t('advancedModule.recipe.fabricPolyester')" :value="t('advancedModule.recipe.fabricPolyester')" />
+              <el-option :label="$t('advancedModule.recipe.fabricSilk')" :value="t('advancedModule.recipe.fabricSilk')" />
+              <el-option :label="$t('advancedModule.recipe.fabricWool')" :value="t('advancedModule.recipe.fabricWool')" />
+              <el-option :label="$t('advancedModule.recipe.fabricSynthetic')" :value="t('advancedModule.recipe.fabricSynthetic')" />
             </el-select>
           </el-form-item>
           <el-form-item :label="$t('advancedModule.recipe.dyeType')">
@@ -178,7 +178,7 @@ function sourceLabel(source: string): string {
             stripe
             size="small"
             border
-            aria-label="相似候选案例列表"
+            :aria-label="t('advancedModule.recipe.ariaCandidates')"
           >
             <el-table-column
               prop="recipe_no"

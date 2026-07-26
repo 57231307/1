@@ -90,7 +90,7 @@ const fetchGreigeFabrics = async () => {
     greigeFabrics.value = (res.data as GreigeFabric[] | undefined) || []
   } catch (error) {
     const err = error as Error
-    logger.error('获取坯布列表失败', err.message)
+    logger.error(t('fabric.index.fetchGreigeFabricsFailed'), err.message)
   }
 }
 
@@ -100,7 +100,7 @@ const fetchSuppliers = async () => {
     suppliers.value = (res.data?.list as Supplier[] | undefined) || []
   } catch (error) {
     const err = error as Error
-    logger.error('获取供应商失败', err.message)
+    logger.error(t('fabric.index.fetchSuppliersFailed'), err.message)
   }
 }
 

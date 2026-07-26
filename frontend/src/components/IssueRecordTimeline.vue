@@ -1,7 +1,7 @@
 <template>
   <div class="issue-record-timeline">
-    <el-empty v-if="records.length === 0" description="暂无发放记录" />
-    <el-timeline v-else aria-label="色卡发放记录时间线">
+    <el-empty v-if="records.length === 0" :description="t('components.issueRecordTimeline.empty')" />
+    <el-timeline v-else :aria-label="t('components.issueRecordTimeline.ariaLabel')">
       <el-timeline-item
         v-for="record in records"
         :key="record.id"
@@ -12,44 +12,44 @@
         <el-card shadow="hover">
           <div class="record-header">
             <div>
-              <strong>色卡 #{{ record.color_card_id }}</strong>
+              <strong>{{ t('components.issueRecordTimeline.colorCard', { id: record.color_card_id }) }}</strong>
               <el-tag size="small" :type="tagType(record.status)" style="margin-left: 8px">
                 {{ ISSUE_STATUS[record.status as keyof typeof ISSUE_STATUS] || record.status }}
               </el-tag>
             </div>
-            <div class="record-id">记录 ID: {{ record.id }}</div>
+            <div class="record-id">{{ t('components.issueRecordTimeline.recordId', { id: record.id }) }}</div>
           </div>
           <div class="record-body">
             <div class="row">
-              <span class="label">客户 ID:</span>
+              <span class="label">{{ t('components.issueRecordTimeline.customerId') }}</span>
               <span>{{ record.customer_id }}</span>
-              <span class="label" style="margin-left: 24px">发放数量:</span>
+              <span class="label" style="margin-left: 24px">{{ t('components.issueRecordTimeline.issueQty') }}</span>
               <span>{{ record.issue_qty }}</span>
-              <span class="label" style="margin-left: 24px">经办人:</span>
+              <span class="label" style="margin-left: 24px">{{ t('components.issueRecordTimeline.operator') }}</span>
               <span>{{ record.issued_by }}</span>
             </div>
             <div v-if="record.dye_lot_no" class="row">
-              <span class="label">染色批号:</span>
+              <span class="label">{{ t('components.issueRecordTimeline.dyeLotNo') }}</span>
               <span>{{ record.dye_lot_no }}</span>
             </div>
             <div v-if="record.expected_return_date" class="row">
-              <span class="label">预计归还:</span>
+              <span class="label">{{ t('components.issueRecordTimeline.expectedReturn') }}</span>
               <span>{{ formatDate(record.expected_return_date) }}</span>
             </div>
             <div v-if="record.actual_return_date" class="row">
-              <span class="label">实际归还:</span>
+              <span class="label">{{ t('components.issueRecordTimeline.actualReturn') }}</span>
               <span>{{ formatDate(record.actual_return_date) }}</span>
             </div>
             <div v-if="record.purpose" class="row">
-              <span class="label">用途:</span>
+              <span class="label">{{ t('components.issueRecordTimeline.purpose') }}</span>
               <span>{{ record.purpose }}</span>
             </div>
             <div v-if="record.compensation_amount" class="row">
-              <span class="label">赔付金额:</span>
+              <span class="label">{{ t('components.issueRecordTimeline.compensationAmount') }}</span>
               <span style="color: #f56c6c; font-weight: bold">¥{{ record.compensation_amount }}</span>
             </div>
             <div v-if="record.remark" class="row notes">
-              <span class="label">备注:</span>
+              <span class="label">{{ t('components.issueRecordTimeline.remark') }}</span>
               <span>{{ record.remark }}</span>
             </div>
           </div>
@@ -61,6 +61,9 @@
 
 <script setup lang="ts">
 import { ISSUE_STATUS, ISSUE_STATUS_COLORS, type IssueRecordInfo } from '@/api/color-card'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{ records: IssueRecordInfo[] }>()
 

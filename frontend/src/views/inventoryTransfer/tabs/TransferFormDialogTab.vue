@@ -6,10 +6,10 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="formData.id ? '编辑调拨单' : '新建调拨单'"
+    :title="formData.id ? $t('inventoryTransfer.transferForm.editTitle') : $t('inventoryTransfer.transferForm.createTitle')"
     width="800px"
     :aria-label="
-      mode === 'view' ? '调拨详情对话框' : formData.id ? '编辑调拨单对话框' : '新建调拨单对话框'
+      mode === 'view' ? $t('inventoryTransfer.transferForm.viewDialogTitle') : formData.id ? $t('inventoryTransfer.transferForm.editDialogTitle') : $t('inventoryTransfer.transferForm.createDialogTitle')
     "
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
@@ -18,11 +18,11 @@
       :model="formData"
       label-width="100px"
       :disabled="mode === 'view'"
-      aria-label="库存调拨表单"
+      :aria-label="$t('inventoryTransfer.transferForm.formAriaLabel')"
     >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="调出仓库" prop="from_warehouse_id">
+          <el-form-item :label="$t('inventoryTransfer.transferForm.fromWarehouse')" prop="from_warehouse_id">
             <el-select v-model="formData.from_warehouse_id" style="width: 100%">
               <el-option
                 v-for="wh in warehouses"
@@ -34,7 +34,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="调入仓库" prop="to_warehouse_id">
+          <el-form-item :label="$t('inventoryTransfer.transferForm.toWarehouse')" prop="to_warehouse_id">
             <el-select v-model="formData.to_warehouse_id" style="width: 100%">
               <el-option
                 v-for="wh in warehouses"
@@ -46,7 +46,7 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="调拨日期" prop="transfer_date">
+      <el-form-item :label="$t('inventoryTransfer.transferForm.transferDate')" prop="transfer_date">
         <el-date-picker
           v-model="formData.transfer_date"
           type="date"
@@ -54,13 +54,13 @@
           style="width: 100%"
         />
       </el-form-item>
-      <el-divider content-position="left">调拨明细</el-divider>
+      <el-divider content-position="left">{{ $t('inventoryTransfer.transferForm.detailDivider') }}</el-divider>
       <div
         v-for="(item, index) in formData.items"
         :key="index"
         style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center"
       >
-        <el-select v-model="item.product_id" placeholder="产品" style="flex: 2" filterable>
+        <el-select v-model="item.product_id" :placeholder="$t('inventoryTransfer.transferForm.productPlaceholder')" style="flex: 2" filterable>
           <el-option
             v-for="p in products"
             :key="p.id"
@@ -68,15 +68,15 @@
             :value="p.id"
           />
         </el-select>
-        <el-input-number v-model="item.quantity" :min="1" placeholder="数量" style="flex: 1" />
+        <el-input-number v-model="item.quantity" :min="1" :placeholder="$t('inventoryTransfer.transferForm.quantityPlaceholder')" style="flex: 1" />
         <el-input-number
           v-model="item.cost_price"
           :min="0"
           :precision="2"
-          placeholder="单价"
+          :placeholder="$t('inventoryTransfer.transferForm.pricePlaceholder')"
           style="flex: 1"
         />
-        <el-input v-model="item.remark" placeholder="备注" style="flex: 1.5" />
+        <el-input v-model="item.remark" :placeholder="$t('inventoryTransfer.transferForm.remarkPlaceholder')" style="flex: 1.5" />
         <el-button
           type="danger"
           :icon="Delete"
@@ -86,12 +86,12 @@
         />
       </div>
       <el-button type="primary" link @click="addItem">
-        <el-icon><Plus /></el-icon>添加明细
+        <el-icon><Plus /></el-icon>{{ $t('inventoryTransfer.transferForm.addItem') }}
       </el-button>
     </el-form>
     <template v-if="mode !== 'view'" #footer>
-      <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{ $t('inventoryTransfer.transferForm.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('inventoryTransfer.transferForm.save') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -206,8 +206,8 @@ const handleSubmit = async () => {
     emit('update:modelValue', false)
     emit('submitted')
   } catch (error) {
-    ElMessage.error((error as Error).message || '操作失败')
-    logger.error('调拨单保存失败', (error as Error).message)
+    ElMessage.error((error as Error).message || t('message.operationFailed'))
+    logger.error(t('inventoryTransfer.transferForm.saveFailed'), (error as Error).message)
   } finally {
     submitLoading.value = false
   }

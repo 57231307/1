@@ -211,7 +211,7 @@ const generateNo = async () => {
     const res = await generateInventoryAdjustmentNo()
     formData.adjust_no = res.data?.adjustment_no || ''
   } catch (error) {
-    logger.error('生成调整单号失败', (error as Error).message)
+    logger.error(t('inventoryAdjustment.formDialogTab.messageGenerateNoFailed'), (error as Error).message)
   }
 }
 
@@ -257,7 +257,7 @@ const handleSubmit = async () => {
     ElMessage.error(
       (error as Error).message || t('inventoryAdjustment.formDialogTab.messageFailed')
     )
-    logger.error('调整单保存失败', (error as Error).message)
+    logger.error(t('inventoryAdjustment.formDialogTab.messageSaveFailed'), (error as Error).message)
   } finally {
     submitLoading.value = false
   }

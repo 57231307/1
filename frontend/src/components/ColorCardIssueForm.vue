@@ -4,44 +4,44 @@
     拆分自 views/color-cards/issues.vue 的「发放色卡」Tab
     供 issues.vue / 其他页面复用，emit('success', record) 通知父组件刷新
   -->
-  <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" aria-label="色卡发放表单" style="max-width: 600px">
-    <el-form-item label="选择色卡" prop="color_card_id">
-      <el-select v-model="form.color_card_id" filterable placeholder="搜索色卡编号或名称" style="width: 100%">
+  <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" :aria-label="t('components.colorCardIssueForm.formAriaLabel')" style="max-width: 600px">
+    <el-form-item :label="t('components.colorCardIssueForm.selectCard')" prop="color_card_id">
+      <el-select v-model="form.color_card_id" filterable :placeholder="t('components.colorCardIssueForm.searchCardPlaceholder')" style="width: 100%">
         <el-option
           v-for="card in availableCards"
           :key="card.id"
-          :label="`${card.card_no} - ${card.card_name}（库存 ${card.stock_quantity - card.issued_quantity}/${card.stock_quantity}）`"
+          :label="`${card.card_no} - ${card.card_name} ${t('components.colorCardIssueForm.stockLabel', { available: card.stock_quantity - card.issued_quantity, total: card.stock_quantity })}`"
           :value="card.id"
           :disabled="card.stock_quantity - card.issued_quantity <= 0"
         />
       </el-select>
     </el-form-item>
-    <el-form-item label="客户 ID" prop="customer_id">
-      <el-input-number v-model="form.customer_id" :min="1" style="width: 100%" placeholder="请输入客户 ID" />
+    <el-form-item :label="t('components.colorCardIssueForm.customerId')" prop="customer_id">
+      <el-input-number v-model="form.customer_id" :min="1" style="width: 100%" :placeholder="t('components.colorCardIssueForm.customerIdPlaceholder')" />
     </el-form-item>
-    <el-form-item label="发放数量" prop="issue_qty">
+    <el-form-item :label="t('components.colorCardIssueForm.issueQty')" prop="issue_qty">
       <el-input-number v-model="form.issue_qty" :min="1" :step="1" style="width: 100%" />
     </el-form-item>
-    <el-form-item label="染色批号">
-      <el-input v-model="form.dye_lot_no" placeholder="可选：染色批号（lot 概念，防色差混批）" />
+    <el-form-item :label="t('components.colorCardIssueForm.dyeLotNo')">
+      <el-input v-model="form.dye_lot_no" :placeholder="t('components.colorCardIssueForm.dyeLotNoPlaceholder')" />
     </el-form-item>
-    <el-form-item label="预计归还">
+    <el-form-item :label="t('components.colorCardIssueForm.expectedReturn')">
       <el-date-picker
         v-model="form.expected_return_date"
         type="date"
-        placeholder="可选：预计归还日期（不超过 30 天）"
+        :placeholder="t('components.colorCardIssueForm.expectedReturnPlaceholder')"
         style="width: 100%"
         value-format="YYYY-MM-DD"
       />
     </el-form-item>
-    <el-form-item label="用途">
-      <el-input v-model="form.purpose" placeholder="例如：客户选色 / 展会展示" />
+    <el-form-item :label="t('components.colorCardIssueForm.purpose')">
+      <el-input v-model="form.purpose" :placeholder="t('components.colorCardIssueForm.purposePlaceholder')" />
     </el-form-item>
-    <el-form-item label="备注">
+    <el-form-item :label="t('components.colorCardIssueForm.remark')">
       <el-input v-model="form.remark" type="textarea" :rows="2" />
     </el-form-item>
     <el-form-item>
-      <el-button type="primary" :loading="loading" @click="handleSubmit">确认发放</el-button>
+      <el-button type="primary" :loading="loading" @click="handleSubmit">{{ t('components.colorCardIssueForm.submit') }}</el-button>
     </el-form-item>
   </el-form>
 </template>
@@ -51,10 +51,13 @@
 // 创建时间：2026-07-18（Batch 477 P0-F12）
 
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance } from 'element-plus'
 import { useColorCardIssue } from '@/composables/useColorCardIssue'
 import type { ColorCardListItem } from '@/api/color-card'
 import type { CreateIssueDto, IssueRecordInfo } from '@/types/colorCardIssue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   availableCards: ColorCardListItem[]
@@ -79,9 +82,9 @@ const form = reactive({
 })
 
 const rules = {
-  color_card_id: [{ required: true, message: '请选择色卡', trigger: 'change' }],
-  customer_id: [{ required: true, message: '请输入客户 ID', trigger: 'blur' }],
-  issue_qty: [{ required: true, message: '发放数量必须 > 0', trigger: 'blur' }],
+  color_card_id: [{ required: true, message: t('components.colorCardIssueForm.validation.selectCard'), trigger: 'change' }],
+  customer_id: [{ required: true, message: t('components.colorCardIssueForm.validation.customerId'), trigger: 'blur' }],
+  issue_qty: [{ required: true, message: t('components.colorCardIssueForm.validation.issueQty'), trigger: 'blur' }],
 }
 
 const handleSubmit = async () => {

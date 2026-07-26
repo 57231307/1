@@ -13,7 +13,7 @@
               <el-icon><Document /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">调拨单数</div>
+              <div class="stat-label">{{ t('inventoryTransfer.transferList.stat.total') }}</div>
               <div class="stat-value">{{ stats.total }}</div>
             </div>
           </div>
@@ -26,7 +26,7 @@
               <el-icon><Clock /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">待审批</div>
+              <div class="stat-label">{{ t('inventoryTransfer.transferList.stat.pending') }}</div>
               <div class="stat-value">{{ stats.pending }}</div>
             </div>
           </div>
@@ -39,7 +39,7 @@
               <el-icon><CircleCheck /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">已审批</div>
+              <div class="stat-label">{{ t('inventoryTransfer.transferList.stat.approved') }}</div>
               <div class="stat-value">{{ stats.approved }}</div>
             </div>
           </div>
@@ -52,7 +52,7 @@
               <el-icon><Money /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">总调拨金额</div>
+              <div class="stat-label">{{ t('inventoryTransfer.transferList.stat.totalAmount') }}</div>
               <div class="stat-value">{{ formatCurrency(stats.totalAmount) }}</div>
             </div>
           </div>
@@ -65,56 +65,71 @@
         :inline="true"
         :model="queryParams"
         class="filter-form"
-        aria-label="库存调拨筛选表单"
+        :aria-label="t('inventoryTransfer.transferList.filter.ariaLabel')"
       >
-        <el-form-item label="调拨单号">
-          <el-input v-model="queryParams.transfer_no" placeholder="输入单号" clearable />
+        <el-form-item :label="t('inventoryTransfer.transferList.filter.transferNo')">
+          <el-input
+            v-model="queryParams.transfer_no"
+            :placeholder="t('inventoryTransfer.transferList.filter.transferNoPlaceholder')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable>
-            <el-option label="待审批" value="pending" />
-            <el-option label="已审批" value="approved" />
-            <el-option label="已执行" value="executed" />
-            <el-option label="已取消" value="cancelled" />
+        <el-form-item :label="t('inventoryTransfer.transferList.filter.status')">
+          <el-select
+            v-model="queryParams.status"
+            :placeholder="t('inventoryTransfer.transferList.filter.statusPlaceholder')"
+            clearable
+          >
+            <el-option :label="t('inventoryTransfer.transferList.status.pending')" value="pending" />
+            <el-option :label="t('inventoryTransfer.transferList.status.approved')" value="approved" />
+            <el-option :label="t('inventoryTransfer.transferList.status.executed')" value="executed" />
+            <el-option :label="t('inventoryTransfer.transferList.status.cancelled')" value="cancelled" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleQuery">{{
+            t('inventoryTransfer.transferList.button.query')
+          }}</el-button>
+          <el-button @click="handleReset">{{ t('inventoryTransfer.transferList.button.reset') }}</el-button>
           <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
           <el-button
             v-permission="'inventory:create'"
             type="primary"
             @click="emit('openForm', 'create', null)"
           >
-            <el-icon><Plus /></el-icon>新建
+            <el-icon><Plus /></el-icon>{{ t('inventoryTransfer.transferList.button.create') }}
           </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="transfers" stripe aria-label="库存调拨列表">
-        <el-table-column prop="transfer_no" label="调拨单号" width="160" fixed />
-        <el-table-column prop="transfer_date" label="调拨日期" width="120" />
-        <el-table-column prop="from_warehouse_name" label="调出仓库" width="120" />
-        <el-table-column prop="to_warehouse_name" label="调入仓库" width="120" />
-        <el-table-column prop="total_amount" label="金额" width="120" align="right">
+      <el-table
+        v-loading="loading"
+        :data="transfers"
+        stripe
+        :aria-label="t('inventoryTransfer.transferList.table.ariaLabel')"
+      >
+        <el-table-column prop="transfer_no" :label="t('inventoryTransfer.transferList.table.transferNo')" width="160" fixed />
+        <el-table-column prop="transfer_date" :label="t('inventoryTransfer.transferList.table.transferDate')" width="120" />
+        <el-table-column prop="from_warehouse_name" :label="t('inventoryTransfer.transferList.table.fromWarehouse')" width="120" />
+        <el-table-column prop="to_warehouse_name" :label="t('inventoryTransfer.transferList.table.toWarehouse')" width="120" />
+        <el-table-column prop="total_amount" :label="t('inventoryTransfer.transferList.table.amount')" width="120" align="right">
           <template #default="{ row }">{{ formatCurrency(row.total_amount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="t('inventoryTransfer.transferList.table.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column prop="created_by_name" :label="t('inventoryTransfer.transferList.table.createdBy')" width="100" />
+        <el-table-column prop="created_at" :label="t('inventoryTransfer.transferList.table.createdAt')" width="160" />
+        <el-table-column :label="t('inventoryTransfer.transferList.table.operation')" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="emit('openForm', 'view', row)"
-              >详情</el-button
+              >{{ t('inventoryTransfer.transferList.button.detail') }}</el-button
             >
             <el-button
               v-if="row.status === 'pending'"
@@ -122,7 +137,7 @@
               link
               size="small"
               @click="emit('openForm', 'edit', row)"
-              >编辑</el-button
+              >{{ t('inventoryTransfer.transferList.button.edit') }}</el-button
             >
             <el-button
               v-if="row.status === 'pending'"
@@ -130,7 +145,7 @@
               link
               size="small"
               @click="emit('openApprove', row)"
-              >审批</el-button
+              >{{ t('inventoryTransfer.transferList.button.approve') }}</el-button
             >
           </template>
         </el-table-column>
@@ -144,7 +159,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="库存调拨列表分页"
+          :aria-label="t('inventoryTransfer.transferList.table.paginationAriaLabel')"
         />
       </div>
     </el-card>
@@ -187,7 +202,7 @@ const {
     status: '',
   },
   onError: (err: unknown) => {
-    logger.error('获取库存调拨单失败', err)
+    logger.error(t('inventoryTransfer.transferList.message.loadListFailed'), err)
     ElMessage.error(t('message.loadFailed'))
   },
 })
@@ -212,15 +227,7 @@ watch(
   { immediate: true }
 )
 
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    pending: '待审批',
-    approved: '已审批',
-    executed: '已执行',
-    cancelled: '已取消',
-  }
-  return map[status] || status
-}
+const getStatusLabel = (status: string) => t(`inventoryTransfer.transferList.status.${status}`)
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     pending: 'warning',

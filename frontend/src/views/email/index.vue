@@ -109,7 +109,7 @@
               <el-date-picker
                 v-model="recordDateRange"
                 type="daterange"
-                range-separator="至"
+                :range-separator="t('common.dateRange.to')"
                 :start-placeholder="t('email.index.placeholderStartDate')"
                 :end-placeholder="t('email.index.placeholderEndDate')"
               />

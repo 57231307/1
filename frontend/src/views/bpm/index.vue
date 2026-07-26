@@ -462,7 +462,7 @@ const handleCancel = async (row: BPMInstance) => {
     if (e === 'cancel' || e === 'close') return
     const err = e as Error
     ElMessage.error(err.message || t('bpm.message.cancelFailed'))
-    logger.error('撤回流程失败', err.message)
+    logger.error(t('bpm.message.withdrawFailed'), err.message)
   }
 }
 // 批次 157a P1-1 修复：接入 getInstanceDetail API 展示流程实例详情

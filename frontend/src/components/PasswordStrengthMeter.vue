@@ -6,20 +6,20 @@
   - 复用：修改密码页面、注册/重置密码页面
 -->
 <template>
-  <div v-if="password.length > 0" class="pwd-strength" role="status" aria-live="polite" aria-label="密码强度指示器">
+  <div v-if="password.length > 0" class="pwd-strength" role="status" aria-live="polite" :aria-label="t('common.passwordStrength.ariaLabel')">
     <div class="pwd-strength-bar">
       <el-progress
         :percentage="strengthPct"
         :color="color"
         :stroke-width="8"
         :show-text="false"
-        aria-label="密码强度进度条"
+        :aria-label="t('common.passwordStrength.barAriaLabel')"
       />
     </div>
-    <div class="pwd-strength-label" :style="{ color }" :aria-label="`密码强度：${strengthText}`">
-      强度：{{ strengthText }}
+    <div class="pwd-strength-label" :style="{ color }" :aria-label="t('common.passwordStrength.strengthAriaLabel', { level: strengthText })">
+      {{ t('common.passwordStrength.strengthLabel') }}{{ strengthText }}
     </div>
-    <ul v-if="feedback.length > 0" class="pwd-strength-feedback" aria-label="密码强度改进建议">
+    <ul v-if="feedback.length > 0" class="pwd-strength-feedback" :aria-label="t('common.passwordStrength.feedbackAriaLabel')">
       <li v-for="(tip, idx) in feedback" :key="idx">{{ tip }}</li>
     </ul>
   </div>
@@ -27,6 +27,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   /** 双向绑定的密码字符串 */
@@ -80,19 +83,19 @@ const color = computed<string>(() => {
   }
 })
 
-/** 强度等级文字标签 */
+/** 强度等级文字标签（响应式 t() 求值） */
 const strengthText = computed<string>(() => {
   switch (strengthScore.value) {
     case 0:
-      return '极弱'
+      return t('common.passwordStrength.level.veryWeak')
     case 1:
-      return '弱'
+      return t('common.passwordStrength.level.weak')
     case 2:
-      return '中'
+      return t('common.passwordStrength.level.medium')
     case 3:
-      return '强'
+      return t('common.passwordStrength.level.strong')
     case 4:
-      return '极强'
+      return t('common.passwordStrength.level.veryStrong')
     default:
       return ''
   }
@@ -103,19 +106,19 @@ const strengthPct = computed<number>(() => {
   return Math.min(strengthScore.value * 25, 100)
 })
 
-/** 改进建议：列出未满足的维度 */
+/** 改进建议：列出未满足的维度（响应式 t() 求值） */
 const feedback = computed<string[]>(() => {
   const pwd = props.password || ''
   const tips: string[] = []
   if (pwd.length < 8) {
-    tips.push('建议密码长度至少 8 个字符（推荐 12 位以上）')
+    tips.push(t('common.passwordStrength.feedback.minLength'))
   } else if (pwd.length < 12) {
-    tips.push('建议密码长度提升到 12 位以上以获得更高强度')
+    tips.push(t('common.passwordStrength.feedback.recommendLength'))
   }
-  if (!/[A-Z]/.test(pwd)) tips.push('加入大写字母')
-  if (!/[a-z]/.test(pwd)) tips.push('加入小写字母')
-  if (!/[0-9]/.test(pwd)) tips.push('加入数字')
-  if (!/[^A-Za-z0-9]/.test(pwd)) tips.push('加入特殊字符（如 !@#$%）')
+  if (!/[A-Z]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addUppercase'))
+  if (!/[a-z]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addLowercase'))
+  if (!/[0-9]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addDigit'))
+  if (!/[^A-Za-z0-9]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addSpecial'))
   return tips
 })
 

@@ -25,11 +25,11 @@
       </el-form-item>
       <el-form-item :label="t('logistics.form.label.logisticsCompany')" prop="logistics_company">
         <el-select v-model="localForm.logistics_company" :placeholder="t('logistics.form.placeholder.logisticsCompany')">
-          <el-option :label="t('logistics.common.company.sf')" value="顺丰速运" />
-          <el-option :label="t('logistics.common.company.zto')" value="中通快递" />
-          <el-option :label="t('logistics.common.company.yto')" value="圆通速递" />
-          <el-option :label="t('logistics.common.company.yunda')" value="韵达快递" />
-          <el-option :label="t('logistics.common.company.jd')" value="京东物流" />
+          <el-option :label="t('logistics.common.company.sf')" :value="t('logistics.common.company.sf')" />
+          <el-option :label="t('logistics.common.company.zto')" :value="t('logistics.common.company.zto')" />
+          <el-option :label="t('logistics.common.company.yto')" :value="t('logistics.common.company.yto')" />
+          <el-option :label="t('logistics.common.company.yunda')" :value="t('logistics.common.company.yunda')" />
+          <el-option :label="t('logistics.common.company.jd')" :value="t('logistics.common.company.jd')" />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('logistics.form.label.trackingNumber')" prop="tracking_number">

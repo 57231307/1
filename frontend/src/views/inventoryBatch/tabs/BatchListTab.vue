@@ -39,15 +39,15 @@
             >
               <el-option
                 :label="t('inventoryBatch.batchListTab.optionGradeFirst')"
-                value="一等品"
+                :value="t('inventoryBatch.batchListTab.optionGradeFirst')"
               />
               <el-option
                 :label="t('inventoryBatch.batchListTab.optionGradeSecond')"
-                value="二等品"
+                :value="t('inventoryBatch.batchListTab.optionGradeSecond')"
               />
               <el-option
                 :label="t('inventoryBatch.batchListTab.optionGradeThird')"
-                value="三等品"
+                :value="t('inventoryBatch.batchListTab.optionGradeThird')"
               />
             </el-select>
           </el-form-item>
@@ -100,8 +100,8 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag v-if="row.grade === '一等品'" type="success">{{ row.grade }}</el-tag>
-            <el-tag v-else-if="row.grade === '二等品'" type="warning">{{ row.grade }}</el-tag>
+            <el-tag v-if="row.grade === t('inventoryBatch.batchListTab.optionGradeFirst')" type="success">{{ row.grade }}</el-tag>
+            <el-tag v-else-if="row.grade === t('inventoryBatch.batchListTab.optionGradeSecond')" type="warning">{{ row.grade }}</el-tag>
             <el-tag v-else type="danger">{{ row.grade }}</el-tag>
           </template>
         </el-table-column>
@@ -135,7 +135,7 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag v-if="row.stockStatus === '正常'" type="success">{{ row.stockStatus }}</el-tag>
+            <el-tag v-if="row.stockStatus === t('inventoryBatch.batchListTab.statusNormal')" type="success">{{ row.stockStatus }}</el-tag>
             <el-tag v-else type="warning">{{ row.stockStatus }}</el-tag>
           </template>
         </el-table-column>
@@ -145,7 +145,7 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag v-if="row.qualityStatus === '合格'" type="success">{{
+            <el-tag v-if="row.qualityStatus === t('inventoryBatch.batchListTab.statusQualified')" type="success">{{
               row.qualityStatus
             }}</el-tag>
             <el-tag v-else type="danger">{{ row.qualityStatus }}</el-tag>

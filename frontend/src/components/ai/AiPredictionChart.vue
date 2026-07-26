@@ -5,6 +5,7 @@
  * 组件文件 D13 Batch 7 缩写命名统一：AIPredictionChart → AiPredictionChart
  */
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 interface PeriodItem {
   period: string
@@ -21,12 +22,14 @@ interface Props {
 
 const props = defineProps<Props>()
 
+const { t } = useI18n({ useScope: 'global' })
+
 const trendLabel = computed(() => {
   return {
-    up: '合格率上升',
-    flat: '合格率平稳',
-    down: '合格率下降',
-    nodata: '无历史数据',
+    up: t('components.aiPredictionChart.trendUp'),
+    flat: t('components.aiPredictionChart.trendFlat'),
+    down: t('components.aiPredictionChart.trendDown'),
+    nodata: t('components.aiPredictionChart.trendNodata'),
   }[props.trend]
 })
 
@@ -65,24 +68,24 @@ const trough = computed(() => {
     <div class="chart-header">
       <div class="left">
         <el-tag :type="riskLevel === 'high' ? 'danger' : riskLevel === 'medium' ? 'warning' : 'success'">
-          风险评分 {{ riskScore }} / 100
+          {{ t('components.aiPredictionChart.riskScore', { score: riskScore }) }}
         </el-tag>
         <span class="trend-label">{{ trendLabel }}</span>
       </div>
       <div class="right">
         <div class="stat">
-          <div class="stat-label">最高合格率</div>
+          <div class="stat-label">{{ t('components.aiPredictionChart.peakRate') }}</div>
           <div class="stat-value" :style="{ color: riskColor }">{{ peak.toFixed(1) }}%</div>
         </div>
         <div class="stat">
-          <div class="stat-label">最低合格率</div>
+          <div class="stat-label">{{ t('components.aiPredictionChart.troughRate') }}</div>
           <div class="stat-value" :style="{ color: riskColor }">{{ trough.toFixed(1) }}%</div>
         </div>
       </div>
     </div>
 
     <div v-if="periodBreakdown.length === 0" class="empty">
-      <el-empty description="无历史检验数据，建议先录入至少 5 条检验记录" :image-size="80" />
+      <el-empty :description="t('components.aiPredictionChart.empty')" :image-size="80" />
     </div>
 
     <div v-else class="chart-body">

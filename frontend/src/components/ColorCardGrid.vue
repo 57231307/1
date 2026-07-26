@@ -1,7 +1,7 @@
 <template>
   <div class="color-card-grid">
     <div v-if="items.length === 0" class="empty">
-      <el-empty description="暂无色号" />
+      <el-empty :description="t('components.colorCardGrid.emptyDescription')" />
     </div>
     <div v-else class="grid">
       <div
@@ -22,8 +22,8 @@
           </div>
         </div>
         <div class="actions" @click.stop>
-          <el-button link type="primary" size="small" aria-label="扫码查看色卡详情" @click.stop="$emit('scan', item)">扫码</el-button>
-          <el-button link type="danger" size="small" aria-label="删除色卡" @click.stop="$emit('delete', item)">删除</el-button>
+          <el-button link type="primary" size="small" :aria-label="t('components.colorCardGrid.scanDetailAriaLabel')" @click.stop="$emit('scan', item)">{{ t('components.colorCardGrid.scan') }}</el-button>
+          <el-button link type="danger" size="small" :aria-label="t('components.colorCardGrid.deleteAriaLabel')" @click.stop="$emit('delete', item)">{{ t('components.colorCardGrid.delete') }}</el-button>
         </div>
       </div>
     </div>
@@ -31,7 +31,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { ColorItemInfo } from '@/api/color-card'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{ items: ColorItemInfo[] }>()
 defineEmits<{

@@ -91,7 +91,7 @@ const fetchWarehouses = async () => {
     const res = await getWarehouseList({ page: 1, page_size: 1000 })
     warehouses.value = (res.data?.list as Warehouse[] | undefined) || []
   } catch (error) {
-    logger.error('获取仓库列表失败', (error as Error).message)
+    logger.error(t('inventoryAdjustment.index.messageFetchWarehouseFailed'), (error as Error).message)
   }
 }
 
@@ -100,7 +100,7 @@ const fetchProducts = async () => {
     const res = await getProductList({ page: 1, page_size: 1000 })
     products.value = (res.data?.list as Product[] | undefined) || []
   } catch (error) {
-    logger.error('获取产品列表失败', (error as Error).message)
+    logger.error(t('inventoryAdjustment.index.messageFetchProductFailed'), (error as Error).message)
   }
 }
 

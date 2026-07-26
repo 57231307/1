@@ -22,11 +22,11 @@
           clearable
           @change="handleSearch"
         >
-          <el-option :label="t('logistics.common.company.sf')" value="顺丰速运" />
-          <el-option :label="t('logistics.common.company.zto')" value="中通快递" />
-          <el-option :label="t('logistics.common.company.yto')" value="圆通速递" />
-          <el-option :label="t('logistics.common.company.yunda')" value="韵达快递" />
-          <el-option :label="t('logistics.common.company.jd')" value="京东物流" />
+          <el-option :label="t('logistics.common.company.sf')" :value="t('logistics.common.company.sf')" />
+          <el-option :label="t('logistics.common.company.zto')" :value="t('logistics.common.company.zto')" />
+          <el-option :label="t('logistics.common.company.yto')" :value="t('logistics.common.company.yto')" />
+          <el-option :label="t('logistics.common.company.yunda')" :value="t('logistics.common.company.yunda')" />
+          <el-option :label="t('logistics.common.company.jd')" :value="t('logistics.common.company.jd')" />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('logistics.filter.label.status')">
