@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-26（D05 Batch 3 useI18n 接入已合并到 main（PR #741 ac16a5c）：17 文件 + 558 翻译键 + 5 新命名空间；CI 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS），仅覆盖率+依赖审计非阻塞失败（crossbeam-epoch RUSTSEC-2026-0204 已知漏洞等上游更新）；修复 locales 文件 customer 节缺少逗号 TS1005；D05 接入率 18.6%→23.4%/262 文件未接入；下一批次 Batch 4 调度/安全/系统 36 文件；PR #740 已合并到 main，D08 Batch 1 拆分 39 个 >80 行函数完成；全 backend/src 扫描确认 D08 任务全部完成：仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行；模块 G 16/17 项 P0 任务完成；剩余 1 项：D05 i18n 接入率 23.4%/262 文件未接入；PR #737 D09+D14 CI 全绿完成；clippy 3 警告修复：omni_audit.rs 引入 AuditContext 结构体 13/14 参→2/3 参 + permission.rs 引入 4 个 type 别名消除 type_complexity；**IR 规则合规修复**：实时阅读 docs/ 规划文档 6 份 + MEMORY.md §五改为"规则冲突裁决原则"（按 PR 规则 10 文件分工，MEMORY.md 只存规则）+ 关键项目内容迁移到 doto-su.md "📌 关键项目内容快照"节）
+> 最近整理：2026-07-26（D05 Batch 4 useI18n 接入已推送 PR #743 待 CI：34 文件 + 501 翻译键（scheduling 134 + security 134 + system 233）+ audit-i18n 验证 600 处 t() 调用无缺失；修复 slow-query.test.ts 未安装 i18n 插件导致前端测试失败（参考 audit-log.test.ts 模式：createI18n + global.plugins）；D05 接入率 23.4%→32.7%/239 文件未接入；下一批次 Batch 5 采购全链路 40 文件；D05 Batch 3 已合并 main PR #741 ac16a5c：17 文件 + 558 翻译键；PR #740 已合并 main，D08 Batch 1 拆分 39 个 >80 行函数完成；模块 G 16/17 项 P0 任务完成；剩余 1 项：D05 i18n 接入率 32.7%/239 文件未接入）
 
 ---
 
@@ -10,13 +10,13 @@
 
 > 本节为快速索引，按 4 个维度归类；详细条目见 §三，依赖关系见 §二。
 
-### 0.1 按状态归类（2026-07-26：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌）
+### 0.1 按状态归类（2026-07-26：16 ✅ / 1 待CI / 1 ⏳ / 0 ❌）
 
 | 状态 | 数量 | 任务编号 |
 |------|------|----------|
 | ✅ 已完成 | 16 | D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17 |
-| 🔵 代码完成待 CI | 0 | — |
-| ⏳ 进行中 | 1 | **D05**（i18n 接入率 23.4%，262 文件未接入；Batch 3 已合并 PR #741，下一批次 Batch 4 调度/安全/系统 36 文件） |
+| 🔵 代码完成待 CI | 1 | **D05 Batch 4**（PR #743：34 文件 + 501 翻译键；修复 slow-query.test.ts i18n 插件） |
+| ⏳ 进行中 | 1 | **D05**（i18n 接入率 32.7%，239 文件未接入；Batch 4 待 CI 合并，下一批次 Batch 5 采购全链路 40 文件） |
 | ❌ 未开始 | 0 | — |
 
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并到 main）：Batch 1 拆分 services/ 目录 39 个 >80 行函数（33 文件）；全 backend/src 扫描确认仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行。
