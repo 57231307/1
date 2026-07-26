@@ -10,6 +10,33 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { createI18n } from 'vue-i18n'
+
+// D05 Batch 4：slow-query/index.vue 接入 useI18n 后，测试需安装 i18n 插件
+// 测试不校验文本内容，使用最小 messages 即可（key 缺失时 $t 返回 key 本身）
+const i18n = createI18n({
+  legacy: false,
+  locale: 'zh-CN',
+  messages: {
+    'zh-CN': {
+      system: {
+        slowQuery: {
+          title: {},
+          button: {},
+          label: {},
+          placeholder: {},
+          column: {},
+          message: {},
+          empty: {},
+          text: {},
+          aria: {},
+          common: {},
+          timeRange: {},
+        },
+      },
+    },
+  },
+})
 
 // 模块级 mock：跨测试共享
 const mockRequestGet = vi.fn()
@@ -119,7 +146,9 @@ describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
 
   /** 挂载即触发首屏加载（useTableApi 自动加载 list + onMounted 加载 stats） */
   it('挂载时自动加载首屏数据并发送分页参数', async () => {
-    const wrapper = mount(SlowQueryView)
+    const wrapper = mount(SlowQueryView, {
+      global: { plugins: [i18n] },
+    })
     await flushPromises()
     // useTableApi 自动调用 request.get
     expect(mockRequestGet).toHaveBeenCalledTimes(1)
@@ -132,7 +161,9 @@ describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
 
   /** 点击查询按钮：将筛选条件传入 API 并回到第一页 */
   it('点击查询按钮会把筛选条件传入 API', async () => {
-    const wrapper = mount(SlowQueryView)
+    const wrapper = mount(SlowQueryView, {
+      global: { plugins: [i18n] },
+    })
     await flushPromises()
     mockRequestGet.mockClear()
 
@@ -156,7 +187,9 @@ describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
 
   /** 点击手动刷新按钮：调用 refreshSlowQueries 并重新加载 */
   it('点击手动刷新按钮触发 refreshSlowQueries 并重新加载', async () => {
-    const wrapper = mount(SlowQueryView)
+    const wrapper = mount(SlowQueryView, {
+      global: { plugins: [i18n] },
+    })
     await flushPromises()
     // 清掉首屏调用计数，便于精确断言后续调用
     mockRequestGet.mockClear()
