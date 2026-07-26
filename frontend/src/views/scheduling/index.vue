@@ -5,7 +5,7 @@
   行为完全保持一致（仅结构重构）
 -->
 <template>
-  <div class="scheduling-page">
+  <div class="scheduling-page" :aria-label="t('scheduling.index.pageAriaLabel')">
     <SchedulingMachineTool
       :stats="schM.stats"
       :scheduling="schMProc.scheduling"
@@ -61,6 +61,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useSchM } from './composables/useSchM'
 import { useSchMProc } from './composables/useSchMProc'
 import SchedulingMachineTool from './components/SchedulingMachineTool.vue'
@@ -69,6 +70,7 @@ import SchedulingMachineConflict from './components/SchedulingMachineConflict.vu
 import SchedulingMachineParam from './components/SchedulingMachineParam.vue'
 import SchedulingMachineAdjust from './components/SchedulingMachineAdjust.vue'
 
+const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()
 
 const schM = useSchM()

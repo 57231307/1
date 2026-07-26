@@ -12,13 +12,16 @@
   本主入口仅承担：容器与公共样式 + 凭证编辑弹窗（跨页共用）。
 -->
 <template>
-  <div class="voucher-page">
+  <div class="voucher-page" :aria-label="t('voucher.index.pageAriaLabel')">
     <VoucherListTab />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import VoucherListTab from './tabs/VoucherListTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <style scoped>

@@ -12,13 +12,16 @@
   本主入口仅承担：容器与公共样式。
 -->
 <template>
-  <div class="currency-page">
+  <div class="currency-page" :aria-label="t('currency.index.pageAriaLabel')">
     <CurrencyListTab />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import CurrencyListTab from './tabs/CurrencyListTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <style scoped>

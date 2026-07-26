@@ -421,6 +421,9 @@ export default {
       deliver: '发货',
       cancel: '取消',
     },
+    index: {
+      pageAriaLabel: '销售管理',
+    },
   },
   inventory: {
     title: '库存管理',
@@ -766,6 +769,12 @@ export default {
       cancel: '取消',
       confirm: '确定收货',
     },
+    index: {
+      pageAriaLabel: '采购管理',
+      createDlgAriaLabel: '新建采购单对话框',
+      receiveDlgAriaLabel: '收货对话框',
+      viewDlgAriaLabel: '查看对话框',
+    },
   },
   finance: {
     title: '财务管理',
@@ -964,6 +973,19 @@ export default {
       notFoundDesc: '页面不存在',
       backHome: '返回首页',
     },
+    notFound: {
+      code: '404',
+      desc: '页面不存在',
+      backHome: '返回首页',
+      pageAriaLabel: '页面未找到',
+    },
+    forbidden: {
+      code: '403',
+      title: '403',
+      message: '您没有权限访问此页面',
+      backHome: '返回首页',
+      pageAriaLabel: '访问被拒绝',
+    },
   },
   message: {
     saveSuccess: '保存成功',
@@ -1159,6 +1181,9 @@ export default {
     },
   },
   budget: {
+    index: {
+      pageAriaLabel: '预算管理页面',
+    },
     validation: {
       budgetNoRequired: '请输入预算编号',
       nameRequired: '请输入预算名称',
@@ -1377,6 +1402,9 @@ export default {
     },
   },
   cost: {
+    index: {
+      pageAriaLabel: '成本管理页面',
+    },
     validation: {
       collectionDateRequired: '请选择归集日期',
       directMaterialRequired: '请输入直接材料',
@@ -1388,6 +1416,9 @@ export default {
     actionConfirmTitle: '{action}确认',
   },
   fixedAssets: {
+    index: {
+      pageAriaLabel: '固定资产管理页面',
+    },
     title: '固定资产',
     create: '新建资产',
     depreciate: '计提折旧',
@@ -3622,6 +3653,9 @@ export default {
     },
   },
   accountSubject: {
+    index: {
+      pageAriaLabel: '会计科目管理页面',
+    },
     title: '会计科目',
     create: '新建科目',
     export: '导出',
@@ -3704,6 +3738,9 @@ export default {
     exportedLog: '会计科目表已导出',
   },
   accountingPeriod: {
+    index: {
+      pageAriaLabel: '会计期间管理页面',
+    },
     title: '会计期间',
     create: '新建期间',
     initYear: '初始化年度',
@@ -4166,6 +4203,10 @@ export default {
     },
   },
   arReconciliationModule: {
+    charts: {
+      barChartAriaLabel: '账龄分布柱状图',
+      pieChartAriaLabel: '账龄占比饼图',
+    },
     customerCode: '客户编码',
     customerName: '客户名称',
     matchStatus: '匹配状态',
@@ -6021,6 +6062,9 @@ export default {
       convertConfirmText: '确认将报价单 {no} 转为销售订单？转订单后报价单状态将变为"已转订单"。',
       convertSuccess: '转订单成功，销售订单 ID：{id}',
     },
+    edit: {
+      pageAriaLabel: '编辑报价单页面',
+    },
   },
   scheduling: {
     ganttAdjust: {
@@ -6250,6 +6294,12 @@ export default {
         running: '生产中工单',
         conflicts: '冲突数量',
       },
+    },
+    index: {
+      pageAriaLabel: '排产管理',
+    },
+    gantt: {
+      pageAriaLabel: '排产甘特图',
     },
   },
   security: {
@@ -7709,6 +7759,9 @@ export default {
         approve: '审核',
       },
     },
+    index: {
+      pageAriaLabel: '采购入库管理',
+    },
   },
   logistics: {
     page: {
@@ -8283,7 +8336,9 @@ export default {
     },
   },
   financialAnalysis: {
-    index: {},
+    index: {
+      pageAriaLabel: '财务分析管理页面',
+    },
     analysisListTab: {
       pageTitle: '财务分析',
       ariaLabelFilterForm: '财务分析筛选表单',
@@ -9332,8 +9387,14 @@ export default {
       typeGeneral: '通用',
       typeCustomized: '自定义',
     },
+    index: {
+      pageAriaLabel: '凭证管理',
+    },
   },
   financeReport: {
+    index: {
+      pageAriaLabel: '财务报表管理页面',
+    },
     reportListTab: {
       pageTitle: '财务报表',
       buttonExport: '导出',
@@ -10633,6 +10694,9 @@ export default {
       setBaseTitle: '设置基础币种',
       setBaseSuccess: '设置基础币种成功',
       setBaseFailed: '设置基础币种失败',
+    },
+    index: {
+      pageAriaLabel: '币种管理',
     },
   },
   componentsDemo: {

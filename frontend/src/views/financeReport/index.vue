@@ -12,13 +12,16 @@
   本主入口仅承担：容器与公共样式。
 -->
 <template>
-  <div class="finance-report-page">
+  <div class="finance-report-page" :aria-label="t('financeReport.index.pageAriaLabel')">
     <ReportListTab />
   </div>
 </template>
 
 <script setup lang="ts">
-import ReportListTab from './tabs/ReportListTab.vue'
+import { useI18n } from 'vue-i18n';
+import ReportListTab from './tabs/ReportListTab.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <style scoped>

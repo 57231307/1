@@ -5,7 +5,7 @@
   行为完全保持一致（仅结构重构）
 -->
 <template>
-  <div class="scheduling-gantt">
+  <div class="scheduling-gantt" :aria-label="t('scheduling.gantt.pageAriaLabel')">
     <SchedulingGanttTool
       :gantt-data="schG.ganttData"
       :date-range="schG.dateRange"
@@ -55,6 +55,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useSchG } from './composables/useSchG'
 import { useSchGProc } from './composables/useSchGProc'
 import SchedulingGanttTool from './components/SchedulingGanttTool.vue'
@@ -63,6 +64,7 @@ import SchedulingGanttAuto from './components/SchedulingGanttAuto.vue'
 import SchedulingGanttAdjust from './components/SchedulingGanttAdjust.vue'
 import SchedulingGanttConflict from './components/SchedulingGanttConflict.vue'
 
+const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()
 
 const schG = useSchG()

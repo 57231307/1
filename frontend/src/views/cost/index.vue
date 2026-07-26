@@ -12,13 +12,16 @@
   本主入口仅承担：容器与公共样式。
 -->
 <template>
-  <div class="cost-page">
+  <div class="cost-page" :aria-label="t('cost.index.pageAriaLabel')">
     <CostCollectionTab />
   </div>
 </template>
 
 <script setup lang="ts">
-import CostCollectionTab from './tabs/CostCollectionTab.vue'
+import { useI18n } from 'vue-i18n';
+import CostCollectionTab from './tabs/CostCollectionTab.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <style scoped>

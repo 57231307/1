@@ -4,11 +4,16 @@
   - 本页是 create.vue 的包装
 -->
 <template>
-  <QuotationCreate />
+  <div :aria-label="t('quotations.edit.pageAriaLabel')">
+    <QuotationCreate />
+  </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 // 编辑报价单 - 复用 create.vue
 // create.vue 在 onMounted 时检测到 route.params.id 会自动进入编辑模式
-import QuotationCreate from './create.vue'
+import QuotationCreate from './create.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 </script>

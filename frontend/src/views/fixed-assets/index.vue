@@ -12,13 +12,16 @@
   本主入口仅承担：容器与公共样式。
 -->
 <template>
-  <div class="fixed-assets-page">
+  <div class="fixed-assets-page" :aria-label="t('fixedAssets.index.pageAriaLabel')">
     <AssetListTab />
   </div>
 </template>
 
 <script setup lang="ts">
-import AssetListTab from './tabs/AssetListTab.vue'
+import { useI18n } from 'vue-i18n';
+import AssetListTab from './tabs/AssetListTab.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <style scoped>

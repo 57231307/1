@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container">
+  <div class="app-container" :aria-label="t('purchase.index.pageAriaLabel')">
     <PurchaseTop
       :on-create="create.handleCreate"
       :on-print="act.handlePrint"
@@ -35,6 +35,7 @@
     <!-- 新建采购单对话框 -->
     <CreateDlg
       :model-value="create.createDialogVisible.value"
+      :aria-label="t('purchase.index.createDlgAriaLabel')"
       :form="create.createForm.value"
       :rules="create.createFormRules"
       :suppliers="list.suppliers.value"
@@ -54,6 +55,7 @@
     <!-- 收货对话框 -->
     <ReceiveDlg
       :model-value="rcv.receiveDialogVisible.value"
+      :aria-label="t('purchase.index.receiveDlgAriaLabel')"
       :form="rcv.receiveForm.value"
       :warehouses="list.warehouses.value"
       :on-submit="rcv.submitReceive"
@@ -65,6 +67,7 @@
     <!-- 查看对话框 -->
     <ViewDlg
       :model-value="act.viewDialogVisible.value"
+      :aria-label="t('purchase.index.viewDlgAriaLabel')"
       :data="act.viewData.value"
       :get-status-type="list.getStatusType"
       :get-status-text="list.getStatusText"
@@ -76,6 +79,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { usePurchList } from './composables/usePurchList'
 import { usePurchAct } from './composables/usePurchAct'
 import { usePurchRcv } from './composables/usePurchRcv'
@@ -88,6 +92,8 @@ import PurchaseTable from './components/PurchaseTable.vue'
 import CreateDlg from './components/CreateDlg.vue'
 import ReceiveDlg from './components/ReceiveDlg.vue'
 import ViewDlg from './components/ViewDlg.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 列表与查询（含统计与工具函数）
 const list = usePurchList()

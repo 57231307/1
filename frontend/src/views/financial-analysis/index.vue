@@ -12,13 +12,16 @@
   本主入口仅承担：容器与公共样式。
 -->
 <template>
-  <div class="financial-analysis-page">
+  <div class="financial-analysis-page" :aria-label="t('financialAnalysis.index.pageAriaLabel')">
     <AnalysisListTab />
   </div>
 </template>
 
 <script setup lang="ts">
-import AnalysisListTab from './tabs/AnalysisListTab.vue'
+import { useI18n } from 'vue-i18n';
+import AnalysisListTab from './tabs/AnalysisListTab.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <style scoped>

@@ -422,6 +422,9 @@ export default {
       deliver: 'Deliver',
       cancel: 'Cancel',
     },
+    index: {
+      pageAriaLabel: 'Sales Management',
+    },
   },
   inventory: {
     title: 'Inventory',
@@ -767,6 +770,12 @@ export default {
       cancel: 'Cancel',
       confirm: 'Confirm Receipt',
     },
+    index: {
+      pageAriaLabel: 'Purchase Management',
+      createDlgAriaLabel: 'Create Purchase Order Dialog',
+      receiveDlgAriaLabel: 'Receive Dialog',
+      viewDlgAriaLabel: 'View Dialog',
+    },
   },
   finance: {
     title: 'Finance',
@@ -965,6 +974,19 @@ export default {
       notFoundDesc: 'Page not found',
       backHome: 'Back to Home',
     },
+    notFound: {
+      code: '404',
+      desc: 'Page not found',
+      backHome: 'Back to Home',
+      pageAriaLabel: 'Page Not Found',
+    },
+    forbidden: {
+      code: '403',
+      title: '403',
+      message: "You don't have permission to access this page",
+      backHome: 'Back to Home',
+      pageAriaLabel: 'Access Forbidden',
+    },
   },
   message: {
     saveSuccess: 'Saved successfully',
@@ -1160,6 +1182,9 @@ export default {
     },
   },
   budget: {
+    index: {
+      pageAriaLabel: 'Budget Management Page',
+    },
     validation: {
       budgetNoRequired: 'Please enter budget number',
       nameRequired: 'Please enter budget name',
@@ -1378,6 +1403,9 @@ export default {
     },
   },
   cost: {
+    index: {
+      pageAriaLabel: 'Cost Management Page',
+    },
     validation: {
       collectionDateRequired: 'Please select collection date',
       directMaterialRequired: 'Please enter direct material',
@@ -1389,6 +1417,9 @@ export default {
     actionConfirmTitle: '{action} Confirmation',
   },
   fixedAssets: {
+    index: {
+      pageAriaLabel: 'Fixed Assets Management Page',
+    },
     title: 'Fixed Assets',
     create: 'New Asset',
     depreciate: 'Calculate Depreciation',
@@ -3627,6 +3658,9 @@ export default {
     },
   },
   accountSubject: {
+    index: {
+      pageAriaLabel: 'Account Subject Management Page',
+    },
     title: 'Account Subject',
     create: 'Create Subject',
     export: 'Export',
@@ -3709,6 +3743,9 @@ export default {
     exportedLog: 'Account subject table exported',
   },
   accountingPeriod: {
+    index: {
+      pageAriaLabel: 'Accounting Period Management Page',
+    },
     title: 'Accounting Period',
     create: 'Create Period',
     initYear: 'Initialize Year',
@@ -4173,6 +4210,10 @@ export default {
     },
   },
   arReconciliationModule: {
+    charts: {
+      barChartAriaLabel: 'Aging Distribution Bar Chart',
+      pieChartAriaLabel: 'Aging Proportion Pie Chart',
+    },
     customerCode: 'Customer Code',
     customerName: 'Customer Name',
     matchStatus: 'Match Status',
@@ -6030,6 +6071,9 @@ export default {
         'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
       convertSuccess: 'Converted successfully, Sales Order ID: {id}',
     },
+    edit: {
+      pageAriaLabel: 'Edit Quotation Page',
+    },
   },
   scheduling: {
     ganttAdjust: {
@@ -6259,6 +6303,12 @@ export default {
         running: 'Running Orders',
         conflicts: 'Conflict Count',
       },
+    },
+    index: {
+      pageAriaLabel: 'Production Scheduling',
+    },
+    gantt: {
+      pageAriaLabel: 'Scheduling Gantt Chart',
     },
   },
   security: {
@@ -7718,6 +7768,9 @@ export default {
         approve: 'Audit',
       },
     },
+    index: {
+      pageAriaLabel: 'Purchase Receipt Management',
+    },
   },
   logistics: {
     page: {
@@ -8292,7 +8345,9 @@ export default {
     },
   },
   financialAnalysis: {
-    index: {},
+    index: {
+      pageAriaLabel: 'Financial Analysis Management Page',
+    },
     analysisListTab: {
       pageTitle: 'Financial Analysis',
       ariaLabelFilterForm: 'Financial Analysis Filter Form',
@@ -9341,8 +9396,14 @@ export default {
       typeGeneral: 'General',
       typeCustomized: 'Customized',
     },
+    index: {
+      pageAriaLabel: 'Voucher Management',
+    },
   },
   financeReport: {
+    index: {
+      pageAriaLabel: 'Financial Report Management Page',
+    },
     reportListTab: {
       pageTitle: 'Financial Report',
       buttonExport: 'Export',
@@ -10645,6 +10706,9 @@ export default {
       setBaseTitle: 'Set Base Currency',
       setBaseSuccess: 'Base currency set successfully',
       setBaseFailed: 'Failed to set base currency',
+    },
+    index: {
+      pageAriaLabel: 'Currency Management',
     },
   },
   componentsDemo: {

@@ -11,13 +11,16 @@
   业务逻辑已全部迁入子组件，通过 props/emit 通信。
 -->
 <template>
-  <div class="sales-page">
+  <div class="sales-page" :aria-label="t('sales.index.pageAriaLabel')">
     <OrderListView />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import OrderListView from './views/OrderListView.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <style scoped>
