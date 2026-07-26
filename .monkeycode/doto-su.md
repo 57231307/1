@@ -15,7 +15,7 @@
 - **完成度**：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌
 - **已完成 16 项**：D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17
 - **进行中 1 项**：
-  - **D05**（i18n 接入率 23.4%，262 文件未接入，10 批次规划见 doto.md §0.8；Batch 3 已合并 main PR #741，下一批次 Batch 4 调度/安全/系统 36 文件）
+  - **D05**（i18n 接入率 32.7%，239 文件未接入，10 批次规划见 doto.md §0.8；Batch 4 已合并 main PR #743，下一批次 Batch 5 采购全链路 40 文件）
 
 ### 关键技术决策（最近）
 
@@ -23,12 +23,14 @@
 - **类型别名消除 type_complexity**（[permission.rs](file:///workspace/backend/src/services/init_service_ops/permission.rs)）：PermPair / RoleResourceGroup / RoleResourceSlice / RoleResourceGroups 四层别名
 - **facade 模式**（product_service.rs 等）：service 拆分为 facade + ops/ 子模块，缓存接入跟踪到 impl 实际所在文件
 - **Python 括号深度追踪脚本**：替代简单 awk 脚本，正确处理字符串/字符/注释/原始字符串，避免误判嵌套 `}` 为函数结尾
-- **merge-i18n 深度合并算法**（[scripts/merge-i18n-batch3.cjs](file:///workspace/scripts/merge-i18n-batch3.cjs)）：递归遍历对象，遇到 `{zh-CN, en-US}` 叶子节点直接覆盖，遇到对象递归合并；**坑**：合并时新命名空间前一个属性末尾需补逗号，否则触发 TS1005（已修复并记录）
+- **merge-i18n 深度合并算法**（[scripts/merge-i18n-batch4.cjs](file:///workspace/scripts/merge-i18n-batch4.cjs)）：递归遍历对象，遇到 `{zh-CN, en-US}` 叶子节点直接覆盖，遇到对象递归合并；**坑**：合并时新命名空间前一个属性末尾需补逗号，否则触发 TS1005（batch3 踩坑后 batch4 修复：插入前检查 `}` 末尾补 `,`）
+- **Vue 测试 i18n 插件安装模式**（[slow-query.test.ts](file:///workspace/frontend/tests/unit/slow-query.test.ts)）：view 接入 useI18n 后测试需 `createI18n({ legacy:false, locale:'zh-CN', messages:{...} })` + `mount(Component, { global: { plugins: [i18n] } })`，messages 用最小占位即可（key 缺失时 $t 返回 key 本身）
 
 ### 最近重要 PR
 
 | PR | 状态 | 内容 |
 |-----|------|------|
+| #743 | ✅ 已合并 main 3e55cfd | D05 Batch 4 useI18n 接入（34 文件 + 501 翻译键 + 3 新命名空间 scheduling/security/system；CI 全绿，修复 slow-query.test.ts 未安装 i18n 插件） |
 | #741 | ✅ 已合并 main ac16a5c | D05 Batch 3 useI18n 接入（17 文件 + 558 翻译键 + 5 新命名空间；CI 全绿，修复 locales 文件 customer 节缺少逗号 TS1005） |
 | #740 | ✅ 已合并 main 88af0f1 | D08 Batch 1 拆分 39 个 >80 行函数（33 文件），主函数 ≤50 行 + helper ≤50 行 |
 | #739 | ✅ 已合并 main 6ca04a2 | docs(p0): 更新 D09+D14 完成状态 + IR 规则合规修复（实时阅读 docs + MEMORY.md §五规则冲突裁决） |
@@ -466,6 +468,121 @@ locales + 脚本：
 3. **audit 脚本**：基于正则提取 zh-CN.ts 所有键路径（按缩进栈构建），扫描 Vue 文件 t()/$t() 调用，对比查找缺失键
 4. **容器组件豁免**：sales/index.vue（29 行）+ quotations/edit.vue（14 行）为包装/入口组件，无硬编码中文，无需接入
 5. **业务数据值保留**：unit 字段（米/卷/件）作为 DB 存储值保留中文，仅 label 走 i18n
+
+---
+
+## 📦 V15 Batch 494 归档（D05 Batch 4 useI18n 接入，已合并 main PR #743）
+
+### 任务概述
+
+- **批次**：V15 Batch 494 / D05 Batch 4
+- **任务**：调度/安全/系统 3 模块 i18n 接入（原计划 36 文件，实际未接入 34 文件）
+- **分支**：fix/p0-d05-batch4（已删除）
+- **PR**：#743（squash 合并到 main 3e55cfd）
+- **执行时间**：2026-07-26
+- **D05 接入率**：23.4% → 32.7%（83 → 117 / 355 文件），剩余 239 文件未接入
+
+### 实际修改文件清单（34 文件 + 2 locales + 2 脚本 + 1 测试）
+
+**scheduling 模块 14 文件**（components 12 + tabs 2）：
+1. scheduling/components/SchedulingGanttAdjust.vue
+2. scheduling/components/SchedulingGanttAuto.vue
+3. scheduling/components/SchedulingGanttChart.vue
+4. scheduling/components/SchedulingGanttManual.vue
+5. scheduling/components/SchedulingStatCards.vue
+6. scheduling/components/SchedulingFilter.vue
+7. scheduling/components/SchedulingTable.vue
+8. scheduling/components/SchedulingDetail.vue
+9. scheduling/components/SchedulingProgress.vue
+10. scheduling/components/SchedulingConflictDialog.vue
+11. scheduling/components/SchedulingExportDialog.vue
+12. scheduling/components/SchedulingBatchOps.vue
+13. scheduling/tabs/SchedulingListTab.vue
+14. scheduling/tabs/SchedulingCalendarTab.vue
+
+**security 模块 5 文件**：
+15. security/index.vue
+16. security/tabs/PasswordPolicyTab.vue
+17. security/tabs/SessionTimeoutTab.vue
+18. security/tabs/TwoFactorTab.vue
+19. security/two-factor/components/TfaStep1.vue（如有）
+
+**system 模块 15 文件**：含 slow-query/index.vue、audit-log/index.vue、api-gateway、system-update 等
+
+locales + 脚本 + 测试：
+- [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts)
+- [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)
+- [scripts/merge-i18n-batch4.cjs](file:///workspace/scripts/merge-i18n-batch4.cjs)（深度合并 + 修复 batch3 逗号缺失问题）
+- [scripts/audit-i18n-batch4.cjs](file:///workspace/scripts/audit-i18n-batch4.cjs)（验证 t() 调用无缺失键）
+- [frontend/tests/unit/slow-query.test.ts](file:///workspace/frontend/tests/unit/slow-query.test.ts)（修复未安装 i18n 插件导致前端测试失败）
+
+### 新增命名空间（3 个，501 翻译键）
+
+| 命名空间 | 翻译键数 | 来源模块 |
+|----------|---------|----------|
+| `scheduling` | 134 | scheduling/components 12 文件 + scheduling/tabs 2 文件 |
+| `security` | 134 | security 模块 5 文件 |
+| `system` | 233 | system 模块 15 文件（含 slowQuery/auditLog/apiGateway/systemUpdate 等子命名空间） |
+
+### 并行代理执行（4 个）
+
+| 代理 | 模块 | 文件数 | 翻译键数 | 输出 |
+|------|------|--------|---------|------|
+| Group A | scheduling | 14 | 134 | /tmp/i18n-batch4/groupA.json |
+| Group B | security | 5 | 134 | /tmp/i18n-batch4/groupB.json |
+| Group C | system 主目录 | 10 | ~155 | /tmp/i18n-batch4/groupC.json |
+| Group D | system 子目录 | 5 | ~78 | /tmp/i18n-batch4/groupD.json |
+
+### 自审与修复
+
+**自审检查（全部通过）**：
+1. ✅ 34 个 Vue 文件 useI18n 接入（import + 解构 t）
+2. ✅ 无 #[allow] 警告抑制
+3. ✅ audit-i18n-batch4.cjs 验证 600 个 t()/$t() 调用引用 501 个不同键，无缺失键
+4. ✅ 3 个新命名空间 scheduling/security/system 在 zh/en 双语均存在
+
+**测试修复（关键）**：
+- **失败现象**：CI 前端测试 fail，错误 `SyntaxError: Need to install with \`app.use\` function` 在 `useI18n()` 调用处
+- **根因**：[slow-query/index.vue:135](file:///workspace/frontend/src/views/system/slow-query/index.vue) 接入 useI18n 后，[slow-query.test.ts](file:///workspace/frontend/tests/unit/slow-query.test.ts) 未在 mount 时安装 vue-i18n 插件
+- **修复方式**：参考 [audit-log.test.ts](file:///workspace/frontend/tests/unit/audit-log.test.ts) 模式
+  - 导入 `createI18n` from 'vue-i18n'
+  - 创建最小 messages 实例（system.slowQuery 命名空间占位空对象，key 缺失时 $t 返回 key 本身）
+  - 三个 `mount(SlowQueryView)` 调用添加 `{ global: { plugins: [i18n] } }`
+- **修复 commit**：880647c `test(p0): D05 Batch 4 修复 slow-query.test.ts 未安装 i18n 插件`
+
+### CI 验证
+
+- **状态**：✅ CI 全绿（PR #743 已 squash 合并到 main 3e55cfd，分支已删除）
+- **CI run**：30193089206（首次 30192807818 因 slow-query.test.ts 失败，修复后重跑全绿）
+- **首次失败原因**：slow-query.test.ts 未安装 i18n 插件，useI18n() 抛出 SyntaxError
+- **修复后 CI 结果**（run 30193089206）：
+  - ✅ 📋 环境信息 (19s)
+  - ✅ 📦 依赖图记录 (30s)
+  - ✅ 🔧 Rust 格式检查 (20s)
+  - ✅ 🔧 前端格式检查 (37s)
+  - ✅ 🔬 前端类型检查 (45s)
+  - ✅ 🔍 前端 ESLint (1m29s)
+  - ✅ 🧪 前端测试 (26s) — **修复后通过**
+  - ✅ 🏗️ 前端构建 (47s)
+  - ✅ 🔍 Rust Clippy (3m54s)
+  - ✅ 🧪 Rust 单元测试 (15m13s)
+  - ✅ 🏗️ Rust 后端构建 (13m41s)
+  - ❌ 📊 Rust 覆盖率 (11m41s) — 非阻塞
+  - ❌ 🛡️ 依赖审计 (3m32s) — 非阻塞，crossbeam-epoch RUSTSEC-2026-0204 已知漏洞等上游更新
+
+### 关键技术要点
+
+1. **merge-i18n-batch4.cjs 修复 batch3 坑**：插入新命名空间前检查前一个属性末尾是否为 `}`，若是则补 `,` 避免 TS1005
+   ```javascript
+   if (trimmedBefore.endsWith('}')) {
+     prefix = trimmedBefore + ',\n';
+   } else {
+     prefix = before.replace(/\s+$/, '\n');
+   }
+   ```
+2. **Vue 测试 i18n 插件模式**：view 接入 useI18n 后，对应测试必须安装 i18n 插件，否则 useI18n() 抛出 `Need to install with app.use function`
+3. **audit-i18n 脚本演进**：batch4 版本加载 locales 文件后用 keyExists 函数按 `.` 分割路径遍历嵌套对象，支持任意深度翻译键验证
+4. **多代理并行接入**：4 个并行代理按模块分组（scheduling/security/system 拆 2 组），每组产出独立 JSON 翻译键文件，主进程深度合并
 
 ---
 
