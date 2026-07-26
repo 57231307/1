@@ -5,6 +5,43 @@
 
 ---
 
+## 📌 关键项目内容快照（2026-07-26，按 PR 规则 10 从 MEMORY.md 迁入）
+
+> 本节为项目当前状态快照（任务进度/技术决策/PR/架构信息），按 PR 规则 10 文件分工存放在此，不放在 MEMORY.md。下次整理时归档到对应批次节。
+
+### 项目阶段与 P0 任务进度
+
+- **当前阶段**：V15 修复阶段（模块 G 共 17 项 P0 任务）
+- **完成度**：15 ✅ / 0 待CI / 2 ⏳ / 0 ❌
+- **已完成 15 项**：D01, D02, D03, D04, D06, D07, D09, D10, D11, D12, D13, D14, D15, D16, D17
+- **进行中 2 项**：
+  - **D05**（i18n 接入率 27.7%，271 文件未接入，10 批次规划见 doto.md §0.8）
+  - **D08**（>80 行函数 95 个，已拆分 6 个 >200 行函数，2 批次规划见 doto.md §0.8.2-§0.8.3）
+
+### 关键技术决策（最近）
+
+- **AuditContext 结构体**（[omni_audit.rs](file:///workspace/backend/src/middleware/omni_audit.rs)）：跨 send_audit_log/build_audit_message/build_audit_payload 三函数复用，封装 12 个共享参数，函数参数从 13/14/9 减至 2/3/2
+- **类型别名消除 type_complexity**（[permission.rs](file:///workspace/backend/src/services/init_service_ops/permission.rs)）：PermPair / RoleResourceGroup / RoleResourceSlice / RoleResourceGroups 四层别名
+- **facade 模式**（product_service.rs 等）：service 拆分为 facade + ops/ 子模块，缓存接入跟踪到 impl 实际所在文件
+- **Python 括号深度追踪脚本**：替代简单 awk 脚本，正确处理字符串/字符/注释/原始字符串，避免误判嵌套 `}` 为函数结尾
+
+### 最近重要 PR
+
+| PR | 状态 | 内容 |
+|-----|------|------|
+| #737 | ✅ 已合并 main 9768bbe | D09 拆分 9 个 >100 行函数 + D14 修复 4 处 api 命名 + clippy 3 警告修复 |
+| #739 | 🔄 CI 进行中 | docs(p0): 更新 D09+D14 完成状态 + IR 规则合规修复（实时阅读 docs + MEMORY.md §五规则冲突裁决） |
+
+### 项目架构关键信息（来自 [docs/ARCHITECTURE.md](file:///workspace/.monkeycode/docs/ARCHITECTURE.md)）
+
+- **技术栈**：Rust 1.75+ / Axum 0.7 / SeaORM 1.0 / Vue 3.4+ / Element Plus / Pinia / Vite
+- **代码规模**：后端 447 个 .rs 文件（10.8 万行）/ 前端 188 个 .ts+vue 文件（5.7 万行）/ 752 个路由
+- **服务层拆分**：原 7 个超大 service 已拆为 22 个子域文件（po/so/crm/inv/ar/ai/report）
+- **中间件顺序**（main.rs，axum 0.7 从外到内）：trace_context → metrics → TraceLayer → Cors → request_validator → permission → auth → security headers × 7 → timeout → handler
+- **CI/CD Only**：禁止本地构建，所有验证走 GitHub Actions
+
+---
+
 ## 📦 V15 Batch 488 归档（部分完成：D01/D02/D03/D04/D06/D07/D11/D12/D15/D16/D17 + D08-1 第一二梯队）
 
 ### 任务概述

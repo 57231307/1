@@ -101,3 +101,14 @@
 | 核心经验（沙箱网络/Clippy Baseline/is_production/SeaORM Trait 等） | [MEMORY-SU §五](file:///workspace/.monkeycode/MEMORY-SU.md#五核心经验关键排错与开发经验) |
 | 规则自我迭代日志（个人习惯/项目习惯/迭代摘要） | [MEMORY-SU §六](file:///workspace/.monkeycode/MEMORY-SU.md#六规则自我迭代日志) |
 | 归档索引（历史整理前内容/审计报告/迭代历史） | [MEMORY-SU §七](file:///workspace/.monkeycode/MEMORY-SU.md#七归档索引) |
+
+---
+
+## 五、规则冲突裁决原则（IR 规则 9 落地）
+
+> 本节为规则适用优先级索引（非任务内容），按 IR 规则 9 落地。任务进度/技术决策/PR 列表/架构信息等任务详情按 PR 规则 10 归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) / [doto.md](file:///workspace/.monkeycode/doto.md) / [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，不存放在 MEMORY.md。
+
+- **优先级**：IR（个人规则）> PR（项目规则）> PH（项目习惯）> IH（个人习惯）
+- **IR 规则"关键内容需存储在 MEMORY.md"** 的适用范围：仅限**规则相关关键内容**（如规则冲突裁决、规则优先级、规则迭代决策），**不含**任务进度/批次摘要/技术决策/PR 列表/架构信息等任务详情
+- **PR 规则 10 文件分工强制**：MEMORY.md 只存规则索引；任务详情归档到 doto-su.md；未完成任务到 doto.md；一句话总结到 CHANGELOG.md
+- **docs/ 规划文档实时阅读**（IR 规则）：作为开发依据，不复制内容到 MEMORY.md，仅在 doto-su.md 引用结论
