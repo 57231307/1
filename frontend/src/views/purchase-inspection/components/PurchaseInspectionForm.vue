@@ -7,18 +7,18 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="isEdit ? '编辑检验单' : '新建检验单'"
+    :title="isEdit ? t('purchaseInspection.form.title.edit') : t('purchaseInspection.form.title.create')"
     width="800px"
-    :aria-label="isEdit ? '编辑检验单对话框' : '新建检验单对话框'"
+    :aria-label="isEdit ? t('purchaseInspection.form.ariaLabel.edit') : t('purchaseInspection.form.ariaLabel.create')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" aria-label="采购验货检验单表单">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" :aria-label="t('purchaseInspection.form.ariaLabel.form')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="入库单号" prop="receipt_id">
+          <el-form-item :label="t('purchaseInspection.form.label.receiptNo')" prop="receipt_id">
             <el-select
               :model-value="localFormData.receipt_id"
-              placeholder="选择入库单"
+              :placeholder="t('purchaseInspection.form.placeholder.receiptNo')"
               filterable
               @update:model-value="(v: number) => emit('receipt-change', v)"
             >
@@ -32,33 +32,33 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="检验日期" prop="inspection_date">
+          <el-form-item :label="t('purchaseInspection.form.label.inspectionDate')" prop="inspection_date">
             <el-date-picker
               :model-value="localFormData.inspection_date"
               type="date"
-              placeholder="选择检验日期"
+              :placeholder="t('purchaseInspection.form.placeholder.inspectionDate')"
               value-format="YYYY-MM-DD"
               @update:model-value="(v: string) => (localFormData.inspection_date = v)"
             />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="备注">
+      <el-form-item :label="t('purchaseInspection.form.label.remark')">
         <el-input
           :model-value="localFormData.remark"
           type="textarea"
           :rows="3"
-          placeholder="请输入备注"
+          :placeholder="t('purchaseInspection.form.placeholder.remark')"
           @update:model-value="(v: string) => (localFormData.remark = v)"
         />
       </el-form-item>
 
       <!-- 检验明细 -->
-      <el-divider content-position="left">检验明细</el-divider>
-      <el-table :data="localFormData.items" border aria-label="检验明细编辑表">
-        <el-table-column prop="product_name" label="产品名称" min-width="150" />
-        <el-table-column prop="expected_quantity" label="预期数量" width="100" />
-        <el-table-column prop="inspected_quantity" label="检验数量" width="120">
+      <el-divider content-position="left">{{ t('purchaseInspection.form.divider.items') }}</el-divider>
+      <el-table :data="localFormData.items" border :aria-label="t('purchaseInspection.form.ariaLabel.itemsTable')">
+        <el-table-column prop="product_name" :label="t('purchaseInspection.form.column.productName')" min-width="150" />
+        <el-table-column prop="expected_quantity" :label="t('purchaseInspection.form.column.expectedQuantity')" width="100" />
+        <el-table-column prop="inspected_quantity" :label="t('purchaseInspection.form.column.inspectedQuantity')" width="120">
           <template #default="{ row }">
             <el-input-number
               :model-value="row.inspected_quantity"
@@ -68,7 +68,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="passed_quantity" label="合格数量" width="120">
+        <el-table-column prop="passed_quantity" :label="t('purchaseInspection.form.column.passedQuantity')" width="120">
           <template #default="{ row }">
             <el-input-number
               :model-value="row.passed_quantity"
@@ -78,7 +78,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="failed_quantity" label="不合格数量" width="120">
+        <el-table-column prop="failed_quantity" :label="t('purchaseInspection.form.column.failedQuantity')" width="120">
           <template #default="{ row }">
             <el-input-number
               :model-value="row.failed_quantity"
@@ -88,7 +88,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="defect_reason" label="缺陷原因" min-width="150">
+        <el-table-column prop="defect_reason" :label="t('purchaseInspection.form.column.defectReason')" min-width="150">
           <template #default="{ row }">
             <el-input
               :model-value="row.defect_reason"
@@ -100,17 +100,20 @@
       </el-table>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('purchaseInspection.form.button.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('purchaseInspection.form.button.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
 import { type FormInstance, type FormRules } from 'element-plus'
 import type { PurchaseInspectionItem } from '@/api/purchase-inspection'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单数据类型（所有字段可选，兼容父组件 reactive）
 interface PurchaseInspectionFormData {

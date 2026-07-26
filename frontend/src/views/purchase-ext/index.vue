@@ -16,13 +16,13 @@
 <template>
   <div class="purchase-ext-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => (activeTab = String(tab))">
-      <el-tab-pane label="采购合同" name="contract">
+      <el-tab-pane :label="t('purchaseExt.tabs.contract')" name="contract">
         <ContractTab />
       </el-tab-pane>
-      <el-tab-pane label="采购价格" name="price">
+      <el-tab-pane :label="t('purchaseExt.tabs.price')" name="price">
         <PriceTab />
       </el-tab-pane>
-      <el-tab-pane label="采购退货" name="return">
+      <el-tab-pane :label="t('purchaseExt.tabs.return')" name="return">
         <ReturnTab />
       </el-tab-pane>
     </el-tabs>
@@ -31,9 +31,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ContractTab from './tabs/ContractTab.vue'
 import PriceTab from './tabs/PriceTab.vue'
 import ReturnTab from './tabs/ReturnTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 当前激活的 Tab；数据懒加载由各子组件 onMounted 内部处理
 const activeTab = ref('contract')

@@ -7,10 +7,10 @@
 <template>
   <div class="purchase-return">
     <div class="page-header">
-      <h2>采购退货</h2>
+      <h2>{{ t('purchaseReturn.title') }}</h2>
       <el-button type="primary" @click="onCreate">
         <el-icon><Plus /></el-icon>
-        新建退货单
+        {{ t('purchaseReturn.button.create') }}
       </el-button>
     </div>
 
@@ -19,7 +19,7 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="stat-item">
-            <div class="stat-label">总退货单数</div>
+            <div class="stat-label">{{ t('purchaseReturn.stats.total') }}</div>
             <div class="stat-value">{{ prRtn.stats.total || 0 }}</div>
           </div>
         </el-card>
@@ -27,7 +27,7 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="stat-item">
-            <div class="stat-label">待审批</div>
+            <div class="stat-label">{{ t('purchaseReturn.stats.pending') }}</div>
             <div class="stat-value text-warning">{{ prRtn.stats.pending || 0 }}</div>
           </div>
         </el-card>
@@ -35,7 +35,7 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="stat-item">
-            <div class="stat-label">已审批</div>
+            <div class="stat-label">{{ t('purchaseReturn.stats.approved') }}</div>
             <div class="stat-value text-success">{{ prRtn.stats.approved || 0 }}</div>
           </div>
         </el-card>
@@ -43,7 +43,7 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <div class="stat-item">
-            <div class="stat-label">退货金额</div>
+            <div class="stat-label">{{ t('purchaseReturn.stats.amount') }}</div>
             <div class="stat-value text-danger">¥{{ prRtn.stats.amount || 0 }}</div>
           </div>
         </el-card>
@@ -104,6 +104,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus } from '@element-plus/icons-vue'
 import type { PurchaseReturn } from '@/api/purchase-return'
 import { usePrRtn } from './composables/usePrRtn'
@@ -113,6 +114,8 @@ import PurchaseReturnTable from './components/PurchaseReturnTable.vue'
 import PurchaseReturnForm from './components/PurchaseReturnForm.vue'
 import PurchaseReturnDetail from './components/PurchaseReturnDetail.vue'
 import PurchaseReturnApproval from './components/PurchaseReturnApproval.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const prRtn = usePrRtn()
 const prRtnProc = usePrRtnProc({

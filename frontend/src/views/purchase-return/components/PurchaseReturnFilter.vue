@@ -5,19 +5,19 @@
 -->
 <template>
   <el-card class="filter-card">
-    <el-form :inline="true" :model="localQuery" aria-label="采购退货筛选表单">
-      <el-form-item label="退货单号">
+    <el-form :inline="true" :model="localQuery" :aria-label="t('purchaseReturn.filter.aria.form')">
+      <el-form-item :label="t('purchaseReturn.filter.label.returnNo')">
         <el-input
           v-model="localQuery.keyword"
-          placeholder="请输入退货单号"
+          :placeholder="t('purchaseReturn.filter.placeholder.returnNo')"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="供应商">
+      <el-form-item :label="t('purchaseReturn.filter.label.supplier')">
         <el-select
           v-model="localQuery.supplierId"
-          placeholder="选择供应商"
+          :placeholder="t('purchaseReturn.filter.placeholder.supplier')"
           clearable
           filterable
           @change="handleSearch"
@@ -30,33 +30,33 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态">
+      <el-form-item :label="t('purchaseReturn.filter.label.status')">
         <el-select
           v-model="localQuery.status"
-          placeholder="选择状态"
+          :placeholder="t('purchaseReturn.filter.placeholder.status')"
           clearable
           @change="handleSearch"
         >
-          <el-option label="草稿" value="draft" />
-          <el-option label="待审批" value="pending" />
-          <el-option label="已审批" value="approved" />
-          <el-option label="已拒绝" value="rejected" />
-          <el-option label="已完成" value="completed" />
+          <el-option :label="t('purchaseReturn.filter.status.draft')" value="draft" />
+          <el-option :label="t('purchaseReturn.filter.status.pending')" value="pending" />
+          <el-option :label="t('purchaseReturn.filter.status.approved')" value="approved" />
+          <el-option :label="t('purchaseReturn.filter.status.rejected')" value="rejected" />
+          <el-option :label="t('purchaseReturn.filter.status.completed')" value="completed" />
         </el-select>
       </el-form-item>
-      <el-form-item label="退货日期">
+      <el-form-item :label="t('purchaseReturn.filter.label.returnDate')">
         <el-date-picker
           v-model="localDateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
+          :range-separator="t('purchaseReturn.filter.rangeSeparator')"
+          :start-placeholder="t('purchaseReturn.filter.placeholder.startDate')"
+          :end-placeholder="t('purchaseReturn.filter.placeholder.endDate')"
           @update:model-value="onDateChange"
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleSearch">{{ t('purchaseReturn.filter.button.search') }}</el-button>
+        <el-button @click="handleReset">{{ t('purchaseReturn.filter.button.reset') }}</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -64,6 +64,9 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 供应商数据结构
 interface Supplier {

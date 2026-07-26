@@ -7,10 +7,10 @@
 <template>
   <div class="purchase-inspection">
     <div class="page-header">
-      <h2>采购检验</h2>
+      <h2>{{ t('purchaseInspection.index.title') }}</h2>
       <el-button type="primary" @click="piProc.handleCreate">
         <el-icon><Plus /></el-icon>
-        新建检验单
+        {{ t('purchaseInspection.index.button.create') }}
       </el-button>
     </div>
 
@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { loadIfNot } from '@/utils/lazy-loader'
 import { Plus } from '@element-plus/icons-vue'
 import { usePi } from './composables/usePi'
@@ -66,6 +67,8 @@ import PurchaseInspectionFilter from './components/PurchaseInspectionFilter.vue'
 import PurchaseInspectionTable from './components/PurchaseInspectionTable.vue'
 import PurchaseInspectionForm from './components/PurchaseInspectionForm.vue'
 import PurchaseInspectionDetail from './components/PurchaseInspectionDetail.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const pi = usePi()

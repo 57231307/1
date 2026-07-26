@@ -6,20 +6,20 @@
 -->
 <template>
   <el-card class="table-card">
-    <el-table v-loading="loading" :data="data" border stripe aria-label="采购验货列表">
-      <el-table-column prop="inspection_no" label="检验单号" min-width="140" />
-      <el-table-column prop="receipt_no" label="入库单号" min-width="140" />
-      <el-table-column prop="supplier_name" label="供应商" min-width="150" />
-      <el-table-column prop="inspection_date" label="检验日期" min-width="120" />
-      <el-table-column prop="inspector_name" label="检验员" min-width="100" />
-      <el-table-column prop="status" label="状态" width="100" align="center">
+    <el-table v-loading="loading" :data="data" border stripe :aria-label="t('purchaseInspection.table.ariaLabel')">
+      <el-table-column prop="inspection_no" :label="t('purchaseInspection.table.column.inspectionNo')" min-width="140" />
+      <el-table-column prop="receipt_no" :label="t('purchaseInspection.table.column.receiptNo')" min-width="140" />
+      <el-table-column prop="supplier_name" :label="t('purchaseInspection.table.column.supplier')" min-width="150" />
+      <el-table-column prop="inspection_date" :label="t('purchaseInspection.table.column.inspectionDate')" min-width="120" />
+      <el-table-column prop="inspector_name" :label="t('purchaseInspection.table.column.inspector')" min-width="100" />
+      <el-table-column prop="status" :label="t('purchaseInspection.table.column.status')" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.status)">
             {{ getStatusText(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="result" label="检验结果" width="100" align="center">
+      <el-table-column prop="result" :label="t('purchaseInspection.table.column.result')" width="100" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.result" :type="getResultType(row.result)">
             {{ getResultText(row.result) }}
@@ -27,17 +27,17 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column prop="remark" :label="t('purchaseInspection.table.column.remark')" min-width="150" show-overflow-tooltip />
+      <el-table-column :label="t('purchaseInspection.table.column.action')" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="emit('view', row as PurchaseInspection)">查看</el-button>
+          <el-button size="small" @click="emit('view', row as PurchaseInspection)">{{ t('purchaseInspection.table.button.view') }}</el-button>
           <el-button
             v-if="row.status === 'draft' || row.status === 'pending'"
             size="small"
             type="primary"
             @click="emit('edit', row as PurchaseInspection)"
           >
-            编辑
+            {{ t('purchaseInspection.table.button.edit') }}
           </el-button>
           <el-button
             v-if="row.status === 'pending'"
@@ -45,7 +45,7 @@
             type="success"
             @click="emit('complete', row as PurchaseInspection)"
           >
-            完成
+            {{ t('purchaseInspection.table.button.complete') }}
           </el-button>
         </template>
       </el-table-column>
@@ -59,14 +59,17 @@
       layout="total, sizes, prev, pager, next, jumper"
       @update:current-page="(v: number) => emit('update:page', v)"
       @update:page-size="(v: number) => emit('update:page-size', v)"
-      aria-label="采购验货列表分页"
+      :aria-label="t('purchaseInspection.table.ariaLabelPagination')"
     />
   </el-card>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { getStatusType, getStatusText, getResultType, getResultText } from '../composables/piFmts'
 import type { PurchaseInspection } from '@/api/purchase-inspection'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 列表组件（批次 286：page/pageSize props + v-model 绑定分页）

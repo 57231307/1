@@ -8,7 +8,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stat-item">
-          <div class="stat-label">总检验单数</div>
+          <div class="stat-label">{{ t('purchaseInspection.stat.label.total') }}</div>
           <div class="stat-value">{{ stats.total || 0 }}</div>
         </div>
       </el-card>
@@ -16,7 +16,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stat-item">
-          <div class="stat-label">待检验</div>
+          <div class="stat-label">{{ t('purchaseInspection.stat.label.pending') }}</div>
           <div class="stat-value text-warning">{{ stats.pending || 0 }}</div>
         </div>
       </el-card>
@@ -24,7 +24,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stat-item">
-          <div class="stat-label">检验合格</div>
+          <div class="stat-label">{{ t('purchaseInspection.stat.label.passed') }}</div>
           <div class="stat-value text-success">{{ stats.passed || 0 }}</div>
         </div>
       </el-card>
@@ -32,7 +32,7 @@
     <el-col :span="6">
       <el-card shadow="hover">
         <div class="stat-item">
-          <div class="stat-label">检验不合格</div>
+          <div class="stat-label">{{ t('purchaseInspection.stat.label.failed') }}</div>
           <div class="stat-value text-danger">{{ stats.failed || 0 }}</div>
         </div>
       </el-card>
@@ -41,6 +41,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
+
 /**
  * 统计字段类型
  */

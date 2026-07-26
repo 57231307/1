@@ -6,57 +6,57 @@
 <template>
   <div class="return-tab">
     <div class="page-header">
-      <h2 class="page-title">采购退货管理</h2>
+      <h2 class="page-title">{{ t('purchaseExt.returnTab.title') }}</h2>
       <el-button type="primary" @click="openReturnDialog()">
-        <el-icon><Plus /></el-icon> 新建退货
+        <el-icon><Plus /></el-icon> {{ t('purchaseExt.returnTab.create') }}
       </el-button>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="returnQuery" aria-label="采购退货筛选表单">
-        <el-form-item label="退货单号">
-          <el-input v-model="returnQuery.returnNo" placeholder="退货单号" clearable />
+      <el-form :inline="true" :model="returnQuery" :aria-label="t('purchaseExt.returnTab.filterAria')">
+        <el-form-item :label="t('purchaseExt.returnTab.returnNo')">
+          <el-input v-model="returnQuery.returnNo" :placeholder="t('purchaseExt.returnTab.returnNoPlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="供应商">
-          <el-input v-model="returnQuery.supplierName" placeholder="供应商名称" clearable />
+        <el-form-item :label="t('purchaseExt.returnTab.supplier')">
+          <el-input v-model="returnQuery.supplierName" :placeholder="t('purchaseExt.returnTab.supplierNamePlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="returnQuery.status" placeholder="选择状态" clearable>
-            <el-option label="草稿" value="draft" />
-            <el-option label="待审核" value="pending" />
-            <el-option label="已批准" value="approved" />
-            <el-option label="已拒绝" value="rejected" />
-            <el-option label="已完成" value="completed" />
+        <el-form-item :label="t('purchaseExt.returnTab.status')">
+          <el-select v-model="returnQuery.status" :placeholder="t('purchaseExt.returnTab.statusPlaceholder')" clearable>
+            <el-option :label="t('purchaseExt.returnTab.statusDraft')" value="draft" />
+            <el-option :label="t('purchaseExt.returnTab.statusPending')" value="pending" />
+            <el-option :label="t('purchaseExt.returnTab.statusApproved')" value="approved" />
+            <el-option :label="t('purchaseExt.returnTab.statusRejected')" value="rejected" />
+            <el-option :label="t('purchaseExt.returnTab.statusCompleted')" value="completed" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchPurchaseReturns">查询</el-button>
-          <el-button @click="resetReturnQuery">重置</el-button>
+          <el-button type="primary" @click="fetchPurchaseReturns">{{ t('purchaseExt.returnTab.query') }}</el-button>
+          <el-button @click="resetReturnQuery">{{ t('purchaseExt.returnTab.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
     <el-card shadow="hover">
-      <el-table v-loading="returnLoading" :data="purchaseReturns" stripe aria-label="采购退货列表">
-        <el-table-column prop="returnNo" label="退货单号" width="140" />
-        <el-table-column prop="supplierName" label="供应商" min-width="150" />
-        <el-table-column prop="purchaseOrderNo" label="订单号" width="140" />
-        <el-table-column prop="returnDate" label="退货日期" width="120" />
-        <el-table-column prop="totalAmount" label="总金额" width="120" align="right">
+      <el-table v-loading="returnLoading" :data="purchaseReturns" stripe :aria-label="t('purchaseExt.returnTab.listAria')">
+        <el-table-column prop="returnNo" :label="t('purchaseExt.returnTab.colReturnNo')" width="140" />
+        <el-table-column prop="supplierName" :label="t('purchaseExt.returnTab.colSupplier')" min-width="150" />
+        <el-table-column prop="purchaseOrderNo" :label="t('purchaseExt.returnTab.colOrderNo')" width="140" />
+        <el-table-column prop="returnDate" :label="t('purchaseExt.returnTab.colReturnDate')" width="120" />
+        <el-table-column prop="totalAmount" :label="t('purchaseExt.returnTab.colTotalAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="t('purchaseExt.returnTab.colStatus')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getReturnStatusType(row.status)" size="small">
               {{ getReturnStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdBy" label="创建人" width="100" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="createdBy" :label="t('purchaseExt.returnTab.colCreator')" width="100" />
+        <el-table-column :label="t('purchaseExt.returnTab.colOperation')" width="180" fixed="right">
           <template #default="{ row }">
             <el-button size="small" link @click="viewReturn(row as unknown as PurchaseReturn)"
-              >查看</el-button
+              >{{ t('purchaseExt.returnTab.view') }}</el-button
             >
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
@@ -65,7 +65,7 @@
               size="small"
               link
               @click="openReturnDialog(row as unknown as PurchaseReturn)"
-              >编辑</el-button
+              >{{ t('purchaseExt.returnTab.edit') }}</el-button
             >
           </template>
         </el-table-column>
@@ -75,31 +75,31 @@
     <!-- 退货编辑对话框 -->
     <el-dialog
       v-model="returnDialogVisible"
-      :title="returnForm.id ? '编辑采购退货' : '新建采购退货'"
+      :title="returnForm.id ? t('purchaseExt.returnTab.editTitle') : t('purchaseExt.returnTab.createTitle')"
       width="800px"
-      aria-label="采购退货编辑对话框"
+      :aria-label="t('purchaseExt.returnTab.dialogAria')"
     >
-      <el-form ref="returnFormRef" :model="returnForm" :rules="returnRules" label-width="100px" aria-label="采购退货表单">
+      <el-form ref="returnFormRef" :model="returnForm" :rules="returnRules" label-width="100px" :aria-label="t('purchaseExt.returnTab.formAria')">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="退货单号" prop="returnNo">
+            <el-form-item :label="t('purchaseExt.returnTab.returnNo')" prop="returnNo">
               <el-input v-model="returnForm.returnNo" :disabled="!!returnForm.id" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="供应商" prop="supplierName">
-              <el-input v-model="returnForm.supplierName" placeholder="供应商名称" />
+            <el-form-item :label="t('purchaseExt.returnTab.supplierName')" prop="supplierName">
+              <el-input v-model="returnForm.supplierName" :placeholder="t('purchaseExt.returnTab.supplierNamePlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="关联订单号" prop="purchaseOrderNo">
-              <el-input v-model="returnForm.purchaseOrderNo" placeholder="订单号" />
+            <el-form-item :label="t('purchaseExt.returnTab.orderNo')" prop="purchaseOrderNo">
+              <el-input v-model="returnForm.purchaseOrderNo" :placeholder="t('purchaseExt.returnTab.orderNoPlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="退货日期" prop="returnDate">
+            <el-form-item :label="t('purchaseExt.returnTab.returnDate')" prop="returnDate">
               <el-date-picker
                 v-model="returnForm.returnDate"
                 type="date"
@@ -109,109 +109,109 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="退货原因" prop="reason">
+        <el-form-item :label="t('purchaseExt.returnTab.reason')" prop="reason">
           <el-input v-model="returnForm.reason" type="textarea" />
         </el-form-item>
-        <el-divider>退货明细</el-divider>
-        <el-table :data="returnForm.items" border style="width: 100%" aria-label="采购退货明细编辑表">
-          <el-table-column prop="productName" label="产品名称" min-width="150">
+        <el-divider>{{ t('purchaseExt.returnTab.detailDivider') }}</el-divider>
+        <el-table :data="returnForm.items" border style="width: 100%" :aria-label="t('purchaseExt.returnTab.detailEditAria')">
+          <el-table-column prop="productName" :label="t('purchaseExt.returnTab.colProductName')" min-width="150">
             <template #default="{ row }">
-              <el-input v-model="row.productName" placeholder="产品名称" />
+              <el-input v-model="row.productName" :placeholder="t('purchaseExt.returnTab.productNamePlaceholder')" />
             </template>
           </el-table-column>
-          <el-table-column prop="productCode" label="产品编码" width="120">
+          <el-table-column prop="productCode" :label="t('purchaseExt.returnTab.colProductCode')" width="120">
             <template #default="{ row }">
-              <el-input v-model="row.productCode" placeholder="编码" />
+              <el-input v-model="row.productCode" :placeholder="t('purchaseExt.returnTab.productCodePlaceholder')" />
             </template>
           </el-table-column>
-          <el-table-column prop="quantity" label="数量" width="100">
+          <el-table-column prop="quantity" :label="t('purchaseExt.returnTab.colQuantity')" width="100">
             <template #default="{ row }">
               <el-input-number v-model="row.quantity" :min="0" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column prop="unit" label="单位" width="80">
+          <el-table-column prop="unit" :label="t('purchaseExt.returnTab.colUnit')" width="80">
             <template #default="{ row }">
-              <el-input v-model="row.unit" placeholder="单位" />
+              <el-input v-model="row.unit" :placeholder="t('purchaseExt.returnTab.unitPlaceholder')" />
             </template>
           </el-table-column>
-          <el-table-column prop="price" label="单价" width="100">
+          <el-table-column prop="price" :label="t('purchaseExt.returnTab.colPrice')" width="100">
             <template #default="{ row }">
               <el-input-number v-model="row.price" :min="0" :precision="2" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column prop="amount" label="金额" width="100">
+          <el-table-column prop="amount" :label="t('purchaseExt.returnTab.colAmount')" width="100">
             <template #default="{ row }">
               {{ formatMoney((row.quantity || 0) * (row.price || 0)) }}
             </template>
           </el-table-column>
-          <el-table-column prop="reason" label="退货原因" min-width="120">
+          <el-table-column prop="reason" :label="t('purchaseExt.returnTab.colReason')" min-width="120">
             <template #default="{ row }">
-              <el-input v-model="row.reason" placeholder="退货原因" />
+              <el-input v-model="row.reason" :placeholder="t('purchaseExt.returnTab.reasonPlaceholder')" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80">
+          <el-table-column :label="t('purchaseExt.returnTab.colOperation')" width="80">
             <template #default="{ $index }">
               <el-button size="small" link type="danger" @click="removeReturnItem($index)"
-                >删除</el-button
+                >{{ t('purchaseExt.returnTab.delete') }}</el-button
               >
             </template>
           </el-table-column>
         </el-table>
         <el-button type="primary" link style="margin-top: 8px" @click="addReturnItem"
-          >添加产品</el-button
+          >{{ t('purchaseExt.returnTab.addProduct') }}</el-button
         >
       </el-form>
       <template #footer>
-        <el-button @click="returnDialogVisible = false">取消</el-button>
+        <el-button @click="returnDialogVisible = false">{{ t('purchaseExt.returnTab.cancelBtn') }}</el-button>
         <el-button type="primary" :loading="returnSubmitLoading" @click="submitReturn"
-          >确定</el-button
+          >{{ t('purchaseExt.returnTab.confirmBtn') }}</el-button
         >
       </template>
     </el-dialog>
 
     <!-- 退货详情对话框 -->
-    <el-dialog v-model="returnViewVisible" title="采购退货详情" width="800px" aria-label="采购退货详情对话框">
-      <el-descriptions :column="2" border aria-label="采购退货详情">
-        <el-descriptions-item label="退货单号">{{ currentReturn?.returnNo }}</el-descriptions-item>
-        <el-descriptions-item label="供应商">{{
+    <el-dialog v-model="returnViewVisible" :title="t('purchaseExt.returnTab.viewTitle')" width="800px" :aria-label="t('purchaseExt.returnTab.viewDialogAria')">
+      <el-descriptions :column="2" border :aria-label="t('purchaseExt.returnTab.viewDetailAria')">
+        <el-descriptions-item :label="t('purchaseExt.returnTab.returnNo')">{{ currentReturn?.returnNo }}</el-descriptions-item>
+        <el-descriptions-item :label="t('purchaseExt.returnTab.colSupplier')">{{
           currentReturn?.supplierName
         }}</el-descriptions-item>
-        <el-descriptions-item label="关联订单">{{
+        <el-descriptions-item :label="t('purchaseExt.returnTab.relatedOrder')">{{
           currentReturn?.purchaseOrderNo
         }}</el-descriptions-item>
-        <el-descriptions-item label="退货日期">{{
+        <el-descriptions-item :label="t('purchaseExt.returnTab.returnDate')">{{
           currentReturn?.returnDate
         }}</el-descriptions-item>
-        <el-descriptions-item label="总金额">{{
+        <el-descriptions-item :label="t('purchaseExt.returnTab.colTotalAmount')">{{
           formatMoney(currentReturn?.totalAmount || 0)
         }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('purchaseExt.returnTab.colStatus')">
           <el-tag :type="getReturnStatusType(currentReturn?.status)">
             {{ getReturnStatusLabel(currentReturn?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ currentReturn?.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approved_by }}</el-descriptions-item>
+        <el-descriptions-item :label="t('purchaseExt.returnTab.colCreator')">{{ currentReturn?.createdBy }}</el-descriptions-item>
+        <el-descriptions-item :label="t('purchaseExt.returnTab.approver')">{{ currentReturn?.approved_by }}</el-descriptions-item>
       </el-descriptions>
-      <el-divider>退货原因</el-divider>
+      <el-divider>{{ t('purchaseExt.returnTab.reasonDivider') }}</el-divider>
       <p>{{ currentReturn?.reason }}</p>
-      <el-divider>退货明细</el-divider>
-      <el-table :data="currentReturn?.items || []" stripe aria-label="采购退货明细列表">
-        <el-table-column prop="productName" label="产品名称" min-width="150" />
-        <el-table-column prop="productCode" label="产品编码" width="120" />
-        <el-table-column prop="quantity" label="数量" width="100" align="right" />
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="price" label="单价" width="100" align="right">
+      <el-divider>{{ t('purchaseExt.returnTab.detailDivider') }}</el-divider>
+      <el-table :data="currentReturn?.items || []" stripe :aria-label="t('purchaseExt.returnTab.detailListAria')">
+        <el-table-column prop="productName" :label="t('purchaseExt.returnTab.colProductName')" min-width="150" />
+        <el-table-column prop="productCode" :label="t('purchaseExt.returnTab.colProductCode')" width="120" />
+        <el-table-column prop="quantity" :label="t('purchaseExt.returnTab.colQuantity')" width="100" align="right" />
+        <el-table-column prop="unit" :label="t('purchaseExt.returnTab.colUnit')" width="80" />
+        <el-table-column prop="price" :label="t('purchaseExt.returnTab.colPrice')" width="100" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.price) }}
           </template>
         </el-table-column>
-        <el-table-column prop="amount" label="金额" width="100" align="right">
+        <el-table-column prop="amount" :label="t('purchaseExt.returnTab.colAmount')" width="100" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="reason" label="退货原因" min-width="120" />
+        <el-table-column prop="reason" :label="t('purchaseExt.returnTab.colReason')" min-width="120" />
       </el-table>
     </el-dialog>
   </div>
@@ -219,6 +219,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -230,6 +231,8 @@ import {
   type PurchaseReturn,
   type PurchaseReturnItem,
 } from '@/api/purchase-return'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const purchaseReturns = ref<PurchaseReturn[]>([])
 const returnLoading = ref(false)
@@ -246,11 +249,11 @@ const formatMoney = (amount: number | undefined) => {
 
 const getReturnStatusLabel = (status?: string) => {
   const map: Record<string, string> = {
-    draft: '草稿',
-    pending: '待审核',
-    approved: '已批准',
-    rejected: '已拒绝',
-    completed: '已完成',
+    draft: t('purchaseExt.returnTab.statusDraft'),
+    pending: t('purchaseExt.returnTab.statusPending'),
+    approved: t('purchaseExt.returnTab.statusApproved'),
+    rejected: t('purchaseExt.returnTab.statusRejected'),
+    completed: t('purchaseExt.returnTab.statusCompleted'),
   }
   return map[status || ''] || status || ''
 }
@@ -273,7 +276,7 @@ const fetchPurchaseReturns = async () => {
     purchaseReturns.value = res.data?.list || []
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '获取采购退货失败')
+    ElMessage.error(err.message || t('purchaseExt.returnTab.fetchFailed'))
   } finally {
     returnLoading.value = false
   }
@@ -304,10 +307,10 @@ const returnForm = reactive({
 })
 
 const returnRules: FormRules = {
-  returnNo: [{ required: true, message: '请输入退货单号', trigger: 'blur' }],
-  supplierName: [{ required: true, message: '请输入供应商名称', trigger: 'blur' }],
-  returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }],
-  reason: [{ required: true, message: '请输入退货原因', trigger: 'blur' }],
+  returnNo: [{ required: true, message: t('purchaseExt.returnTab.ruleReturnNo'), trigger: 'blur' }],
+  supplierName: [{ required: true, message: t('purchaseExt.returnTab.ruleSupplierName'), trigger: 'blur' }],
+  returnDate: [{ required: true, message: t('purchaseExt.returnTab.ruleReturnDate'), trigger: 'change' }],
+  reason: [{ required: true, message: t('purchaseExt.returnTab.ruleReason'), trigger: 'blur' }],
 }
 
 const openReturnDialog = async (row?: PurchaseReturn) => {
@@ -354,16 +357,16 @@ const submitReturn = async () => {
   try {
     if (returnForm.id) {
       await updatePurchaseReturn(returnForm.id, returnForm)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('purchaseExt.returnTab.updateSuccess'))
     } else {
       await createPurchaseReturn(returnForm)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('purchaseExt.returnTab.createSuccess'))
     }
     returnDialogVisible.value = false
     fetchPurchaseReturns()
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('purchaseExt.returnTab.operationFailed'))
   } finally {
     returnSubmitLoading.value = false
   }

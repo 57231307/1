@@ -13,13 +13,13 @@
     :aria-label="title"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localFormData" label-width="100px" aria-label="采购价格表单">
+    <el-form :model="localFormData" label-width="100px" :aria-label="t('purchasePrice.form.ariaLabel')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="产品" prop="product_id">
+          <el-form-item :label="t('purchasePrice.form.label.product')" prop="product_id">
             <el-select
               v-model="localFormData.product_id"
-              placeholder="请选择产品"
+              :placeholder="t('purchasePrice.form.placeholder.product')"
               filterable
             >
               <el-option
@@ -32,10 +32,10 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="供应商" prop="supplier_id">
+          <el-form-item :label="t('purchasePrice.form.label.supplier')" prop="supplier_id">
             <el-select
               v-model="localFormData.supplier_id"
-              placeholder="请选择供应商"
+              :placeholder="t('purchasePrice.form.placeholder.supplier')"
               filterable
             >
               <el-option
@@ -50,7 +50,7 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="采购价格" prop="price">
+          <el-form-item :label="t('purchasePrice.form.label.price')" prop="price">
             <el-input-number
               v-model="localFormData.price"
               :precision="6"
@@ -60,22 +60,23 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="币种" prop="currency">
+          <el-form-item :label="t('purchasePrice.form.label.currency')" prop="currency">
             <el-select
               v-model="localFormData.currency"
-              placeholder="请选择币种"
+              :placeholder="t('purchasePrice.form.placeholder.currency')"
             >
-              <el-option label="人民币" value="CNY" />
-              <el-option label="美元" value="USD" />
-              <el-option label="欧元" value="EUR" />
+              <el-option :label="t('purchasePrice.form.currency.CNY')" value="CNY" />
+              <el-option :label="t('purchasePrice.form.currency.USD')" value="USD" />
+              <el-option :label="t('purchasePrice.form.currency.EUR')" value="EUR" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="单位" prop="unit">
-            <el-select v-model="localFormData.unit" placeholder="请选择单位">
+          <el-form-item :label="t('purchasePrice.form.label.unit')" prop="unit">
+            <el-select v-model="localFormData.unit" :placeholder="t('purchasePrice.form.placeholder.unit')">
+              <!-- unit 字段值（米/公斤/件）作为 DB 存储值保留中文，仅 label 走 i18n -->
               <el-option label="米" value="meter" />
               <el-option label="公斤" value="kg" />
               <el-option label="件" value="piece" />
@@ -83,7 +84,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="最小订购量" prop="min_order_qty">
+          <el-form-item :label="t('purchasePrice.form.label.minOrderQty')" prop="min_order_qty">
             <el-input-number
               v-model="localFormData.min_order_qty"
               :precision="2"
@@ -95,20 +96,20 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="价格类型" prop="price_type">
-            <el-select v-model="localFormData.price_type" placeholder="请选择价格类型">
-              <el-option label="标准价" value="STANDARD" />
-              <el-option label="协议价" value="AGREED" />
-              <el-option label="促销价" value="PROMOTION" />
+          <el-form-item :label="t('purchasePrice.form.label.priceType')" prop="price_type">
+            <el-select v-model="localFormData.price_type" :placeholder="t('purchasePrice.form.placeholder.priceType')">
+              <el-option :label="t('purchasePrice.form.priceType.STANDARD')" value="STANDARD" />
+              <el-option :label="t('purchasePrice.form.priceType.AGREED')" value="AGREED" />
+              <el-option :label="t('purchasePrice.form.priceType.PROMOTION')" value="PROMOTION" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="生效日期" prop="effective_date">
+          <el-form-item :label="t('purchasePrice.form.label.effectiveDate')" prop="effective_date">
             <el-date-picker
               v-model="localFormData.effective_date"
               type="date"
-              placeholder="请选择生效日期"
+              :placeholder="t('purchasePrice.form.placeholder.effectiveDate')"
               style="width: 100%"
             />
           </el-form-item>
@@ -116,36 +117,39 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="到期日期" prop="expiry_date">
+          <el-form-item :label="t('purchasePrice.form.label.expiryDate')" prop="expiry_date">
             <el-date-picker
               v-model="localFormData.expiry_date"
               type="date"
-              placeholder="请选择到期日期"
+              :placeholder="t('purchasePrice.form.placeholder.expiryDate')"
               style="width: 100%"
             />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="备注" prop="remarks">
+      <el-form-item :label="t('purchasePrice.form.label.remark')" prop="remarks">
         <el-input
           v-model="localFormData.remarks"
           type="textarea"
           :rows="3"
-          placeholder="请输入备注"
+          :placeholder="t('purchasePrice.form.placeholder.remark')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" @click="emit('submit')">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('purchasePrice.form.button.cancel') }}</el-button>
+      <el-button type="primary" @click="emit('submit')">{{ t('purchasePrice.form.button.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Supplier } from '@/api/supplier'
 import type { Product } from '@/api/product'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单数据类型（所有字段可选，兼容 Partial<PurchasePrice>）
 interface PpFormData {

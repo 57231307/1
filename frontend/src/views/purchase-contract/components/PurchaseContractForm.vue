@@ -13,22 +13,22 @@
     :aria-label="title"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localFormData" label-width="100px" aria-label="采购合同表单">
+    <el-form :model="localFormData" label-width="100px" :aria-label="t('purchaseContract.form.ariaLabel')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="合同编号" prop="contract_no">
+          <el-form-item :label="t('purchaseContract.form.contractNo')" prop="contract_no">
             <el-input
               :model-value="localFormData.contract_no"
-              placeholder="请输入合同编号"
+              :placeholder="t('purchaseContract.form.contractNoPlaceholder')"
               @update:model-value="(v: string) => (localFormData.contract_no = v)"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="合同名称" prop="contract_name">
+          <el-form-item :label="t('purchaseContract.form.contractName')" prop="contract_name">
             <el-input
               :model-value="localFormData.contract_name"
-              placeholder="请输入合同名称"
+              :placeholder="t('purchaseContract.form.contractNamePlaceholder')"
               @update:model-value="(v: string) => (localFormData.contract_name = v)"
             />
           </el-form-item>
@@ -36,10 +36,10 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="供应商" prop="supplier_id">
+          <el-form-item :label="t('purchaseContract.form.supplier')" prop="supplier_id">
             <el-select
               :model-value="localFormData.supplier_id"
-              placeholder="请选择供应商"
+              :placeholder="t('purchaseContract.form.supplierPlaceholder')"
               filterable
               @update:model-value="(v: number) => (localFormData.supplier_id = v)"
             >
@@ -53,22 +53,22 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="合同类型" prop="contract_type">
+          <el-form-item :label="t('purchaseContract.form.contractType')" prop="contract_type">
             <el-select
               :model-value="localFormData.contract_type"
-              placeholder="请选择合同类型"
+              :placeholder="t('purchaseContract.form.contractTypePlaceholder')"
               @update:model-value="(v: string) => (localFormData.contract_type = v)"
             >
-              <el-option label="采购合同" value="PURCHASE" />
-              <el-option label="框架合同" value="FRAMEWORK" />
-              <el-option label="补充协议" value="SUPPLEMENT" />
+              <el-option :label="t('purchaseContract.form.typePurchase')" value="PURCHASE" />
+              <el-option :label="t('purchaseContract.form.typeFramework')" value="FRAMEWORK" />
+              <el-option :label="t('purchaseContract.form.typeSupplement')" value="SUPPLEMENT" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="合同金额" prop="total_amount">
+          <el-form-item :label="t('purchaseContract.form.totalAmount')" prop="total_amount">
             <el-input-number
               :model-value="localFormData.total_amount"
               :precision="2"
@@ -79,11 +79,11 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="签订日期" prop="signed_date">
+          <el-form-item :label="t('purchaseContract.form.signedDate')" prop="signed_date">
             <el-date-picker
               :model-value="localFormData.signed_date"
               type="date"
-              placeholder="请选择签订日期"
+              :placeholder="t('purchaseContract.form.signedDatePlaceholder')"
               style="width: 100%"
               @update:model-value="(v: string) => (localFormData.signed_date = v ?? '')"
             />
@@ -92,22 +92,22 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="生效日期" prop="effective_date">
+          <el-form-item :label="t('purchaseContract.form.effectiveDate')" prop="effective_date">
             <el-date-picker
               :model-value="localFormData.effective_date"
               type="date"
-              placeholder="请选择生效日期"
+              :placeholder="t('purchaseContract.form.effectiveDatePlaceholder')"
               style="width: 100%"
               @update:model-value="(v: string) => (localFormData.effective_date = v ?? '')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="到期日期" prop="expiry_date">
+          <el-form-item :label="t('purchaseContract.form.expiryDate')" prop="expiry_date">
             <el-date-picker
               :model-value="localFormData.expiry_date"
               type="date"
-              placeholder="请选择到期日期"
+              :placeholder="t('purchaseContract.form.expiryDatePlaceholder')"
               style="width: 100%"
               @update:model-value="(v: string) => (localFormData.expiry_date = v ?? '')"
             />
@@ -116,70 +116,73 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="付款条件" prop="payment_terms">
+          <el-form-item :label="t('purchaseContract.form.paymentTerms')" prop="payment_terms">
             <el-input
               :model-value="localFormData.payment_terms"
-              placeholder="请输入付款条件"
+              :placeholder="t('purchaseContract.form.paymentTermsPlaceholder')"
               @update:model-value="(v: string) => (localFormData.payment_terms = v)"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="付款方式" prop="payment_method">
+          <el-form-item :label="t('purchaseContract.form.paymentMethod')" prop="payment_method">
             <el-select
               :model-value="localFormData.payment_method"
-              placeholder="请选择付款方式"
+              :placeholder="t('purchaseContract.form.paymentMethodPlaceholder')"
               @update:model-value="(v: string) => (localFormData.payment_method = v)"
             >
-              <el-option label="银行转账" value="BANK_TRANSFER" />
-              <el-option label="支票" value="CHECK" />
-              <el-option label="现金" value="CASH" />
+              <el-option :label="t('purchaseContract.form.methodBankTransfer')" value="BANK_TRANSFER" />
+              <el-option :label="t('purchaseContract.form.methodCheck')" value="CHECK" />
+              <el-option :label="t('purchaseContract.form.methodCash')" value="CASH" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="交货日期" prop="delivery_date">
+          <el-form-item :label="t('purchaseContract.form.deliveryDate')" prop="delivery_date">
             <el-date-picker
               :model-value="localFormData.delivery_date"
               type="date"
-              placeholder="请选择交货日期"
+              :placeholder="t('purchaseContract.form.deliveryDatePlaceholder')"
               style="width: 100%"
               @update:model-value="(v: string) => (localFormData.delivery_date = v ?? '')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="交货地点" prop="delivery_location">
+          <el-form-item :label="t('purchaseContract.form.deliveryLocation')" prop="delivery_location">
             <el-input
               :model-value="localFormData.delivery_location"
-              placeholder="请输入交货地点"
+              :placeholder="t('purchaseContract.form.deliveryLocationPlaceholder')"
               @update:model-value="(v: string) => (localFormData.delivery_location = v)"
             />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="备注" prop="remarks">
+      <el-form-item :label="t('purchaseContract.form.remarks')" prop="remarks">
         <el-input
           :model-value="localFormData.remarks"
           type="textarea"
           :rows="3"
-          placeholder="请输入备注"
+          :placeholder="t('purchaseContract.form.remarksPlaceholder')"
           @update:model-value="(v: string) => (localFormData.remarks = v)"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" @click="emit('submit')">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('purchaseContract.form.cancel') }}</el-button>
+      <el-button type="primary" @click="emit('submit')">{{ t('purchaseContract.form.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Supplier } from '@/api/supplier'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单数据类型（所有字段可选，兼容 Partial<PurchaseContract>）
 interface PurchaseContractFormData {

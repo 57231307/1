@@ -6,38 +6,41 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="运单详情"
+    :title="t('logistics.detail.title')"
     width="600px"
-    aria-label="运单详情对话框"
+    :aria-label="t('logistics.detail.aria.dialog')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item label="运单号">{{ detail.waybill_no }}</el-descriptions-item>
-      <el-descriptions-item label="关联订单">{{ detail.order_no }}</el-descriptions-item>
-      <el-descriptions-item label="物流公司">{{ detail.logistics_company }}</el-descriptions-item>
-      <el-descriptions-item label="快递单号">{{ detail.tracking_number }}</el-descriptions-item>
-      <el-descriptions-item label="司机姓名">{{ detail.driver_name || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="司机电话">{{ detail.driver_phone || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="运费">¥{{ detail.freight_fee || 0 }}</el-descriptions-item>
-      <el-descriptions-item label="状态">
+      <el-descriptions-item :label="t('logistics.detail.label.waybillNo')">{{ detail.waybill_no }}</el-descriptions-item>
+      <el-descriptions-item :label="t('logistics.detail.label.relatedOrder')">{{ detail.order_no }}</el-descriptions-item>
+      <el-descriptions-item :label="t('logistics.detail.label.logisticsCompany')">{{ detail.logistics_company }}</el-descriptions-item>
+      <el-descriptions-item :label="t('logistics.detail.label.trackingNumber')">{{ detail.tracking_number }}</el-descriptions-item>
+      <el-descriptions-item :label="t('logistics.detail.label.driverName')">{{ detail.driver_name || '-' }}</el-descriptions-item>
+      <el-descriptions-item :label="t('logistics.detail.label.driverPhone')">{{ detail.driver_phone || '-' }}</el-descriptions-item>
+      <el-descriptions-item :label="t('logistics.detail.label.freight')">¥{{ detail.freight_fee || 0 }}</el-descriptions-item>
+      <el-descriptions-item :label="t('logistics.detail.label.status')">
         <el-tag :type="getStatusTypeFmt(detail.status)">
-          {{ getStatusTextFmt(detail.status) }}
+          {{ statusTextFmt(detail.status) }}
         </el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="预计到达">{{
+      <el-descriptions-item :label="t('logistics.detail.label.expectedArrival')">{{
         detail.expected_arrival || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="实际到达">{{
+      <el-descriptions-item :label="t('logistics.detail.label.actualArrival')">{{
         detail.actual_arrival || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="备注" :span="2">{{ detail.notes || '-' }}</el-descriptions-item>
+      <el-descriptions-item :label="t('logistics.detail.label.notes')" :span="2">{{ detail.notes || '-' }}</el-descriptions-item>
     </el-descriptions>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { LogisticsWaybill } from '@/api/logistics'
-import { getStatusType, getStatusText } from '../composables/lgsFmts'
+import { getStatusType } from '../composables/lgsFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 物流运单详情组件
@@ -55,5 +58,11 @@ const emit = defineEmits<{
 
 // 透传格式化函数
 const getStatusTypeFmt = getStatusType
-const getStatusTextFmt = getStatusText
+
+/** 状态文本：优先 i18n，未知状态回退到原始 status 字符串 */
+const statusTextFmt = (status: string): string => {
+  const key = `logistics.common.status.${status}`
+  const translated = t(key)
+  return translated === key ? status : translated
+}
 </script>

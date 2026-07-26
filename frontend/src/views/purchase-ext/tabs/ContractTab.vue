@@ -6,35 +6,35 @@
 <template>
   <div class="contract-tab">
     <div class="page-header">
-      <h2 class="page-title">采购合同管理</h2>
+      <h2 class="page-title">{{ t('purchaseExt.contractTab.title') }}</h2>
       <el-button type="primary" @click="openContractDialog()">
-        <el-icon><Plus /></el-icon> 新建合同
+        <el-icon><Plus /></el-icon> {{ t('purchaseExt.contractTab.create') }}
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="contractLoading" :data="purchaseContracts" stripe aria-label="采购合同列表">
-        <el-table-column prop="contract_no" label="合同编号" width="140" />
-        <el-table-column prop="supplier_name" label="供应商" min-width="150" />
-        <el-table-column prop="contract_date" label="合同日期" width="120" />
-        <el-table-column prop="start_date" label="开始日期" width="120" />
-        <el-table-column prop="end_date" label="结束日期" width="120" />
-        <el-table-column prop="total_amount" label="总金额" width="120" align="right">
+      <el-table v-loading="contractLoading" :data="purchaseContracts" stripe :aria-label="t('purchaseExt.contractTab.listAria')">
+        <el-table-column prop="contract_no" :label="t('purchaseExt.contractTab.colContractNo')" width="140" />
+        <el-table-column prop="supplier_name" :label="t('purchaseExt.contractTab.colSupplier')" min-width="150" />
+        <el-table-column prop="contract_date" :label="t('purchaseExt.contractTab.colContractDate')" width="120" />
+        <el-table-column prop="start_date" :label="t('purchaseExt.contractTab.colStartDate')" width="120" />
+        <el-table-column prop="end_date" :label="t('purchaseExt.contractTab.colEndDate')" width="120" />
+        <el-table-column prop="total_amount" :label="t('purchaseExt.contractTab.colTotalAmount')" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.total_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" :label="t('purchaseExt.contractTab.colStatus')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getContractStatusType(row.status)" size="small">
               {{ getContractStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column prop="created_by_name" :label="t('purchaseExt.contractTab.colCreator')" width="100" />
+        <el-table-column :label="t('purchaseExt.contractTab.colOperation')" width="240" fixed="right">
           <template #default="{ row }">
             <el-button size="small" link @click="viewContract(row as unknown as PurchaseContract)"
-              >查看</el-button
+              >{{ t('purchaseExt.contractTab.view') }}</el-button
             >
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
@@ -43,7 +43,7 @@
               size="small"
               link
               @click="openContractDialog(row as unknown as PurchaseContract)"
-              >编辑</el-button
+              >{{ t('purchaseExt.contractTab.edit') }}</el-button
             >
             <el-button
               v-if="row.status === 'draft'"
@@ -51,7 +51,7 @@
               link
               type="success"
               @click="approveContract(row as unknown as PurchaseContract)"
-              >审批</el-button
+              >{{ t('purchaseExt.contractTab.approve') }}</el-button
             >
             <el-button
               v-if="row.status === 'pending'"
@@ -59,7 +59,7 @@
               link
               type="warning"
               @click="executeContract(row as unknown as PurchaseContract)"
-              >执行</el-button
+              >{{ t('purchaseExt.contractTab.execute') }}</el-button
             >
             <el-button
               v-if="['draft', 'pending'].includes(row.status)"
@@ -67,7 +67,7 @@
               link
               type="danger"
               @click="cancelContract(row as unknown as PurchaseContract)"
-              >取消</el-button
+              >{{ t('purchaseExt.contractTab.cancel') }}</el-button
             >
           </template>
         </el-table-column>
@@ -77,32 +77,32 @@
     <!-- 合同编辑对话框 -->
     <el-dialog
       v-model="contractDialogVisible"
-      :title="contractForm.id ? '编辑采购合同' : '新建采购合同'"
+      :title="contractForm.id ? t('purchaseExt.contractTab.editTitle') : t('purchaseExt.contractTab.createTitle')"
       width="800px"
-      aria-label="采购合同编辑对话框"
+      :aria-label="t('purchaseExt.contractTab.dialogAria')"
     >
       <el-form
         ref="contractFormRef"
         :model="contractForm"
         :rules="contractRules"
         label-width="100px"
-        aria-label="采购合同表单"
+        :aria-label="t('purchaseExt.contractTab.formAria')"
       >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="合同编号" prop="contract_no">
+            <el-form-item :label="t('purchaseExt.contractTab.contractNo')" prop="contract_no">
               <el-input v-model="contractForm.contract_no" :disabled="!!contractForm.id" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="供应商" prop="supplier_name">
-              <el-input v-model="contractForm.supplier_name" placeholder="请选择供应商" />
+            <el-form-item :label="t('purchaseExt.contractTab.supplier')" prop="supplier_name">
+              <el-input v-model="contractForm.supplier_name" :placeholder="t('purchaseExt.contractTab.supplierPlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="合同日期" prop="contract_date">
+            <el-form-item :label="t('purchaseExt.contractTab.contractDate')" prop="contract_date">
               <el-date-picker
                 v-model="contractForm.contract_date"
                 type="date"
@@ -112,7 +112,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="开始日期" prop="start_date">
+            <el-form-item :label="t('purchaseExt.contractTab.startDate')" prop="start_date">
               <el-date-picker
                 v-model="contractForm.start_date"
                 type="date"
@@ -122,7 +122,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="结束日期" prop="end_date">
+            <el-form-item :label="t('purchaseExt.contractTab.endDate')" prop="end_date">
               <el-date-picker
                 v-model="contractForm.end_date"
                 type="date"
@@ -134,8 +134,8 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="货币" prop="currency">
-              <el-select v-model="contractForm.currency" placeholder="选择货币" style="width: 100%">
+            <el-form-item :label="t('purchaseExt.contractTab.currency')" prop="currency">
+              <el-select v-model="contractForm.currency" :placeholder="t('purchaseExt.contractTab.currencyPlaceholder')" style="width: 100%">
                 <el-option label="CNY" value="CNY" />
                 <el-option label="USD" value="USD" />
                 <el-option label="EUR" value="EUR" />
@@ -143,7 +143,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="总金额" prop="total_amount">
+            <el-form-item :label="t('purchaseExt.contractTab.totalAmount')" prop="total_amount">
               <el-input-number
                 v-model="contractForm.total_amount"
                 :min="0"
@@ -153,116 +153,116 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-divider>合同明细</el-divider>
-        <el-table :data="contractForm.items" border style="width: 100%" aria-label="采购合同明细编辑表">
-          <el-table-column prop="product_name" label="产品名称" min-width="150">
+        <el-divider>{{ t('purchaseExt.contractTab.detailDivider') }}</el-divider>
+        <el-table :data="contractForm.items" border style="width: 100%" :aria-label="t('purchaseExt.contractTab.detailEditAria')">
+          <el-table-column prop="product_name" :label="t('purchaseExt.contractTab.colProductName')" min-width="150">
             <template #default="{ row }">
-              <el-input v-model="row.product_name" placeholder="产品名称" />
+              <el-input v-model="row.product_name" :placeholder="t('purchaseExt.contractTab.productNamePlaceholder')" />
             </template>
           </el-table-column>
-          <el-table-column prop="product_code" label="产品编码" width="120">
+          <el-table-column prop="product_code" :label="t('purchaseExt.contractTab.colProductCode')" width="120">
             <template #default="{ row }">
-              <el-input v-model="row.product_code" placeholder="编码" />
+              <el-input v-model="row.product_code" :placeholder="t('purchaseExt.contractTab.productCodePlaceholder')" />
             </template>
           </el-table-column>
-          <el-table-column prop="quantity" label="数量" width="100">
+          <el-table-column prop="quantity" :label="t('purchaseExt.contractTab.colQuantity')" width="100">
             <template #default="{ row }">
               <el-input-number v-model="row.quantity" :min="0" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column prop="unit" label="单位" width="80">
+          <el-table-column prop="unit" :label="t('purchaseExt.contractTab.colUnit')" width="80">
             <template #default="{ row }">
-              <el-input v-model="row.unit" placeholder="单位" />
+              <el-input v-model="row.unit" :placeholder="t('purchaseExt.contractTab.unitPlaceholder')" />
             </template>
           </el-table-column>
-          <el-table-column prop="price" label="单价" width="100">
+          <el-table-column prop="price" :label="t('purchaseExt.contractTab.colPrice')" width="100">
             <template #default="{ row }">
               <el-input-number v-model="row.price" :min="0" :precision="2" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column prop="amount" label="金额" width="100">
+          <el-table-column prop="amount" :label="t('purchaseExt.contractTab.colAmount')" width="100">
             <template #default="{ row }">
               {{ formatMoney((row.quantity || 0) * (row.price || 0)) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80">
+          <el-table-column :label="t('purchaseExt.contractTab.colOperation')" width="80">
             <template #default="{ $index }">
               <el-button size="small" link type="danger" @click="removeContractItem($index)"
-                >删除</el-button
+                >{{ t('purchaseExt.contractTab.delete') }}</el-button
               >
             </template>
           </el-table-column>
         </el-table>
         <el-button type="primary" link style="margin-top: 8px" @click="addContractItem"
-          >添加产品</el-button
+          >{{ t('purchaseExt.contractTab.addProduct') }}</el-button
         >
-        <el-form-item label="付款条款" prop="payment_terms">
+        <el-form-item :label="t('purchaseExt.contractTab.paymentTerms')" prop="payment_terms">
           <el-input v-model="contractForm.payment_terms" type="textarea" />
         </el-form-item>
-        <el-form-item label="交货条款" prop="delivery_terms">
+        <el-form-item :label="t('purchaseExt.contractTab.deliveryTerms')" prop="delivery_terms">
           <el-input v-model="contractForm.delivery_terms" type="textarea" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="contractDialogVisible = false">取消</el-button>
+        <el-button @click="contractDialogVisible = false">{{ t('purchaseExt.contractTab.cancelBtn') }}</el-button>
         <el-button type="primary" :loading="contractSubmitLoading" @click="submitContract"
-          >确定</el-button
+          >{{ t('purchaseExt.contractTab.confirmBtn') }}</el-button
         >
       </template>
     </el-dialog>
 
     <!-- 合同详情对话框 -->
-    <el-dialog v-model="contractViewVisible" title="采购合同详情" width="800px" aria-label="采购合同详情对话框">
+    <el-dialog v-model="contractViewVisible" :title="t('purchaseExt.contractTab.viewTitle')" width="800px" :aria-label="t('purchaseExt.contractTab.viewDialogAria')">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="合同编号">{{
+        <el-descriptions-item :label="t('purchaseExt.contractTab.contractNo')">{{
           currentContract?.contract_no
         }}</el-descriptions-item>
-        <el-descriptions-item label="供应商">{{
+        <el-descriptions-item :label="t('purchaseExt.contractTab.supplier')">{{
           currentContract?.supplier_name
         }}</el-descriptions-item>
-        <el-descriptions-item label="合同日期">{{
+        <el-descriptions-item :label="t('purchaseExt.contractTab.colContractDate')">{{
           currentContract?.contract_date
         }}</el-descriptions-item>
-        <el-descriptions-item label="有效日期"
+        <el-descriptions-item :label="t('purchaseExt.contractTab.viewEffectiveDate')"
           >{{ currentContract?.start_date }} ~ {{ currentContract?.end_date }}</el-descriptions-item
         >
-        <el-descriptions-item label="货币">{{ currentContract?.currency }}</el-descriptions-item>
-        <el-descriptions-item label="总金额">{{
+        <el-descriptions-item :label="t('purchaseExt.contractTab.currency')">{{ currentContract?.currency }}</el-descriptions-item>
+        <el-descriptions-item :label="t('purchaseExt.contractTab.colTotalAmount')">{{
           formatMoney(currentContract?.total_amount || 0)
         }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('purchaseExt.contractTab.colStatus')">
           <el-tag :type="getContractStatusType(currentContract?.status)">
             {{ getContractStatusLabel(currentContract?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{
+        <el-descriptions-item :label="t('purchaseExt.contractTab.colCreator')">{{
           currentContract?.created_by_name
         }}</el-descriptions-item>
       </el-descriptions>
-      <el-divider>合同明细</el-divider>
-      <el-table :data="currentContract?.items || []" stripe aria-label="采购合同明细列表">
-        <el-table-column prop="product_name" label="产品名称" min-width="150" />
-        <el-table-column prop="product_code" label="产品编码" width="120" />
-        <el-table-column prop="quantity" label="数量" width="100" align="right" />
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="price" label="单价" width="100" align="right">
+      <el-divider>{{ t('purchaseExt.contractTab.detailDivider') }}</el-divider>
+      <el-table :data="currentContract?.items || []" stripe :aria-label="t('purchaseExt.contractTab.viewDetailAria')">
+        <el-table-column prop="product_name" :label="t('purchaseExt.contractTab.colProductName')" min-width="150" />
+        <el-table-column prop="product_code" :label="t('purchaseExt.contractTab.colProductCode')" width="120" />
+        <el-table-column prop="quantity" :label="t('purchaseExt.contractTab.colQuantity')" width="100" align="right" />
+        <el-table-column prop="unit" :label="t('purchaseExt.contractTab.colUnit')" width="80" />
+        <el-table-column prop="price" :label="t('purchaseExt.contractTab.colPrice')" width="100" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.price) }}
           </template>
         </el-table-column>
-        <el-table-column prop="amount" label="金额" width="100" align="right">
+        <el-table-column prop="amount" :label="t('purchaseExt.contractTab.colAmount')" width="100" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="120" />
+        <el-table-column prop="remark" :label="t('purchaseExt.contractTab.colRemark')" min-width="120" />
       </el-table>
-      <el-divider>条款</el-divider>
+      <el-divider>{{ t('purchaseExt.contractTab.termsDivider') }}</el-divider>
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="付款条款">{{
+        <el-descriptions-item :label="t('purchaseExt.contractTab.paymentTerms')">{{
           currentContract?.payment_terms
         }}</el-descriptions-item>
-        <el-descriptions-item label="交货条款">{{
+        <el-descriptions-item :label="t('purchaseExt.contractTab.deliveryTerms')">{{
           currentContract?.delivery_terms
         }}</el-descriptions-item>
       </el-descriptions>
@@ -272,6 +272,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -287,6 +288,8 @@ import {
   type ContractItem as PurchaseContractItem,
 } from '@/api/purchase-contract'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const purchaseContracts = ref<PurchaseContract[]>([])
 const contractLoading = ref(false)
 
@@ -296,11 +299,11 @@ const formatMoney = (amount: number | undefined) => {
 
 const getContractStatusLabel = (status?: string) => {
   const map: Record<string, string> = {
-    draft: '草稿',
-    pending: '待审核',
-    active: '执行中',
-    completed: '已完成',
-    cancelled: '已取消',
+    draft: t('purchaseExt.contractTab.statusDraft'),
+    pending: t('purchaseExt.contractTab.statusPending'),
+    active: t('purchaseExt.contractTab.statusActive'),
+    completed: t('purchaseExt.contractTab.statusCompleted'),
+    cancelled: t('purchaseExt.contractTab.statusCancelled'),
   }
   return map[status || ''] || status || ''
 }
@@ -323,7 +326,7 @@ const fetchPurchaseContracts = async () => {
     purchaseContracts.value = res.data?.list || []
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '获取采购合同失败')
+    ElMessage.error(err.message || t('purchaseExt.contractTab.fetchFailed'))
   } finally {
     contractLoading.value = false
   }
@@ -349,10 +352,10 @@ const contractForm = reactive({
 })
 
 const contractRules: FormRules = {
-  contract_no: [{ required: true, message: '请输入合同编号', trigger: 'blur' }],
-  supplier_name: [{ required: true, message: '请输入供应商名称', trigger: 'blur' }],
-  contract_date: [{ required: true, message: '请选择合同日期', trigger: 'change' }],
-  total_amount: [{ required: true, message: '请输入总金额', trigger: 'blur' }],
+  contract_no: [{ required: true, message: t('purchaseExt.contractTab.ruleContractNo'), trigger: 'blur' }],
+  supplier_name: [{ required: true, message: t('purchaseExt.contractTab.ruleSupplierName'), trigger: 'blur' }],
+  contract_date: [{ required: true, message: t('purchaseExt.contractTab.ruleContractDate'), trigger: 'change' }],
+  total_amount: [{ required: true, message: t('purchaseExt.contractTab.ruleTotalAmount'), trigger: 'blur' }],
 }
 
 const openContractDialog = async (row?: PurchaseContract) => {
@@ -401,16 +404,16 @@ const submitContract = async () => {
   try {
     if (contractForm.id) {
       await updatePurchaseContract(contractForm.id, contractForm)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('purchaseExt.contractTab.updateSuccess'))
     } else {
       await createPurchaseContract(contractForm)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('purchaseExt.contractTab.createSuccess'))
     }
     contractDialogVisible.value = false
     fetchPurchaseContracts()
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('purchaseExt.contractTab.operationFailed'))
   } finally {
     contractSubmitLoading.value = false
   }
@@ -428,42 +431,42 @@ const viewContract = async (row: PurchaseContract) => {
 
 const approveContract = async (row: PurchaseContract) => {
   try {
-    await ElMessageBox.confirm('确定审批此合同吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(t('purchaseExt.contractTab.approveConfirm'), t('purchaseExt.contractTab.confirmTitle'), { type: 'info' })
     await approvePurchaseContract(row.id)
-    ElMessage.success('审批成功')
+    ElMessage.success(t('purchaseExt.contractTab.approveSuccess'))
     fetchPurchaseContracts()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('purchaseExt.contractTab.operationFailed'))
     }
   }
 }
 
 const executeContract = async (row: PurchaseContract) => {
   try {
-    await ElMessageBox.confirm('确定执行此合同吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(t('purchaseExt.contractTab.executeConfirm'), t('purchaseExt.contractTab.confirmTitle'), { type: 'info' })
     await executePurchaseContract(row.id)
-    ElMessage.success('执行成功')
+    ElMessage.success(t('purchaseExt.contractTab.executeSuccess'))
     fetchPurchaseContracts()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('purchaseExt.contractTab.operationFailed'))
     }
   }
 }
 
 const cancelContract = async (row: PurchaseContract) => {
   try {
-    await ElMessageBox.confirm('确定取消此合同吗？', '确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('purchaseExt.contractTab.cancelConfirm'), t('purchaseExt.contractTab.confirmTitle'), { type: 'warning' })
     await cancelPurchaseContract(row.id)
-    ElMessage.success('取消成功')
+    ElMessage.success(t('purchaseExt.contractTab.cancelSuccess'))
     fetchPurchaseContracts()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('purchaseExt.contractTab.operationFailed'))
     }
   }
 }

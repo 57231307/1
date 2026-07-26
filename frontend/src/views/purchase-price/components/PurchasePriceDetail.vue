@@ -6,35 +6,35 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="价格详情"
+    :title="t('purchasePrice.detail.title')"
     width="700px"
-    aria-label="采购价格详情对话框"
+    :aria-label="t('purchasePrice.detail.ariaLabel')"
     @update:model-value="onVisibleChange"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item label="产品名称">{{ viewData.product_name }}</el-descriptions-item>
-      <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
-      <el-descriptions-item label="采购价格">{{
+      <el-descriptions-item :label="t('purchasePrice.detail.label.productName')">{{ viewData.product_name }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.supplier')">{{ viewData.supplier_name }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.price')">{{
         formatCurrency(viewData.price || 0)
       }}</el-descriptions-item>
-      <el-descriptions-item label="币种">{{ viewData.currency }}</el-descriptions-item>
-      <el-descriptions-item label="单位">{{ viewData.unit }}</el-descriptions-item>
-      <el-descriptions-item label="最小订购量">{{
+      <el-descriptions-item :label="t('purchasePrice.detail.label.currency')">{{ viewData.currency }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.unit')">{{ viewData.unit }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.minOrderQty')">{{
         viewData.min_order_qty || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="价格类型">{{
+      <el-descriptions-item :label="t('purchasePrice.detail.label.priceType')">{{
         getPriceTypeLabel(viewData.price_type || '')
       }}</el-descriptions-item>
-      <el-descriptions-item label="状态">
+      <el-descriptions-item :label="t('purchasePrice.detail.label.status')">
         <el-tag :type="getStatusType(viewData.status || '')">{{
           getStatusLabel(viewData.status || '')
         }}</el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="生效日期">{{ viewData.effective_date }}</el-descriptions-item>
-      <el-descriptions-item label="到期日期">{{
+      <el-descriptions-item :label="t('purchasePrice.detail.label.effectiveDate')">{{ viewData.effective_date }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchasePrice.detail.label.expiryDate')">{{
         viewData.expiry_date || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="备注" :span="2">{{
+      <el-descriptions-item :label="t('purchasePrice.detail.label.remark')" :span="2">{{
         viewData.remarks || '-'
       }}</el-descriptions-item>
     </el-descriptions>
@@ -42,12 +42,15 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import {
   formatCurrency,
   getPriceTypeLabel,
   getStatusType,
   getStatusLabel,
 } from '../composables/ppFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 查看详情数据类型
 interface PpViewData {

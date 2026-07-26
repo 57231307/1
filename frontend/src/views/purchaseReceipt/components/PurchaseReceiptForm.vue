@@ -12,25 +12,25 @@
     :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px" aria-label="采购入库单表单">
+    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px" :aria-label="t('purchaseReceipt.form.aria.form')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="入库单号" prop="receipt_no">
+          <el-form-item :label="t('purchaseReceipt.form.label.receiptNo')" prop="receipt_no">
             <el-input v-model="localForm.receipt_no" readonly />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="入库日期" prop="receipt_date">
+          <el-form-item :label="t('purchaseReceipt.form.label.receiptDate')" prop="receipt_date">
             <el-date-picker v-model="localForm.receipt_date" type="date" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="供应商" prop="supplier_id">
+          <el-form-item :label="t('purchaseReceipt.form.label.supplier')" prop="supplier_id">
             <el-select
               :model-value="localForm.supplier_id"
-              placeholder="请选择供应商"
+              :placeholder="t('purchaseReceipt.form.placeholder.supplier')"
               @update:model-value="(v: number | undefined) => (localForm.supplier_id = v)"
             >
               <el-option
@@ -43,10 +43,10 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="仓库" prop="warehouse_id">
+          <el-form-item :label="t('purchaseReceipt.form.label.warehouse')" prop="warehouse_id">
             <el-select
               :model-value="localForm.warehouse_id"
-              placeholder="请选择仓库"
+              :placeholder="t('purchaseReceipt.form.placeholder.warehouse')"
               @update:model-value="(v: number | undefined) => (localForm.warehouse_id = v)"
             >
               <el-option
@@ -59,19 +59,19 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="入库明细">
+      <el-form-item :label="t('purchaseReceipt.form.label.items')">
         <div class="items-table">
           <div class="items-header">
-            <span class="col-product">产品</span>
-            <span class="col-qty">数量</span>
-            <span class="col-price">单价</span>
-            <span class="col-amount">金额</span>
-            <span class="col-action">操作</span>
+            <span class="col-product">{{ t('purchaseReceipt.form.itemsHeader.product') }}</span>
+            <span class="col-qty">{{ t('purchaseReceipt.form.itemsHeader.quantity') }}</span>
+            <span class="col-price">{{ t('purchaseReceipt.form.itemsHeader.price') }}</span>
+            <span class="col-amount">{{ t('purchaseReceipt.form.itemsHeader.amount') }}</span>
+            <span class="col-action">{{ t('purchaseReceipt.form.itemsHeader.action') }}</span>
           </div>
           <div v-for="(item, index) in (localForm.items || [])" :key="index" class="items-row">
             <el-select
               :model-value="item.product_id"
-              placeholder="选择产品"
+              :placeholder="t('purchaseReceipt.form.placeholder.product')"
               class="col-product"
               @update:model-value="(v: number) => (item.product_id = v)"
             >
@@ -110,16 +110,16 @@
               size="small"
               type="danger"
               @click="emit('remove-item', index)"
-              >删除</el-button
+              >{{ t('purchaseReceipt.form.button.delete') }}</el-button
             >
           </div>
-          <el-button type="text" @click="emit('add-item')">+ 添加明细</el-button>
+          <el-button type="text" @click="emit('add-item')">{{ t('purchaseReceipt.form.button.addItem') }}</el-button>
         </div>
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" @click="onSubmit">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('purchaseReceipt.form.button.cancel') }}</el-button>
+      <el-button type="primary" @click="onSubmit">{{ t('purchaseReceipt.form.button.submit') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -127,8 +127,11 @@
 <script setup lang="ts">
 import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ReceiptItem } from '@/api/purchaseReceipt'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 选项类型
 interface OptItem {

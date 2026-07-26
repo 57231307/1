@@ -5,33 +5,33 @@
 -->
 <template>
   <el-card shadow="hover" class="table-card">
-    <el-table v-loading="loading" :data="contractList" border stripe aria-label="采购合同列表">
-      <el-table-column type="index" label="序号" width="60" align="center" />
-      <el-table-column prop="contract_no" label="合同编号" width="150" show-overflow-tooltip />
+    <el-table v-loading="loading" :data="contractList" border stripe :aria-label="t('purchaseContract.table.listAria')">
+      <el-table-column type="index" :label="t('purchaseContract.table.colIndex')" width="60" align="center" />
+      <el-table-column prop="contract_no" :label="t('purchaseContract.table.colContractNo')" width="150" show-overflow-tooltip />
       <el-table-column
         prop="contract_name"
-        label="合同名称"
+        :label="t('purchaseContract.table.colContractName')"
         min-width="200"
         show-overflow-tooltip
       />
-      <el-table-column prop="supplier_name" label="供应商" width="150" show-overflow-tooltip />
-      <el-table-column prop="total_amount" label="合同金额" width="120" align="right">
+      <el-table-column prop="supplier_name" :label="t('purchaseContract.table.colSupplier')" width="150" show-overflow-tooltip />
+      <el-table-column prop="total_amount" :label="t('purchaseContract.table.colTotalAmount')" width="120" align="right">
         <template #default="{ row }">
           {{ formatCurrency(row.total_amount) }}
         </template>
       </el-table-column>
-      <el-table-column prop="signed_date" label="签订日期" width="120" align="center" />
-      <el-table-column prop="effective_date" label="生效日期" width="120" align="center" />
-      <el-table-column prop="expiry_date" label="到期日期" width="120" align="center" />
-      <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table-column prop="signed_date" :label="t('purchaseContract.table.colSignedDate')" width="120" align="center" />
+      <el-table-column prop="effective_date" :label="t('purchaseContract.table.colEffectiveDate')" width="120" align="center" />
+      <el-table-column prop="expiry_date" :label="t('purchaseContract.table.colExpiryDate')" width="120" align="center" />
+      <el-table-column prop="status" :label="t('purchaseContract.table.colStatus')" width="100" align="center">
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
+          <el-tag :type="getStatusType(row.status)">{{ t(`purchaseContract.status.${row.status}`) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="250" align="center" fixed="right">
+      <el-table-column :label="t('purchaseContract.table.colOperation')" width="250" align="center" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="emit('view', row as PurchaseContract)"
-            >查看</el-button
+            >{{ t('purchaseContract.table.view') }}</el-button
           >
           <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
           <el-button
@@ -41,7 +41,7 @@
             link
             size="small"
             @click="emit('edit', row as PurchaseContract)"
-            >编辑</el-button
+            >{{ t('purchaseContract.table.edit') }}</el-button
           >
           <el-button
             v-if="row.status === 'draft'"
@@ -49,7 +49,7 @@
             link
             size="small"
             @click="emit('submit', row as PurchaseContract)"
-            >提交</el-button
+            >{{ t('purchaseContract.table.submit') }}</el-button
           >
           <el-button
             v-if="row.status === 'pending'"
@@ -57,7 +57,7 @@
             link
             size="small"
             @click="emit('approve', row as PurchaseContract)"
-            >审批</el-button
+            >{{ t('purchaseContract.table.approve') }}</el-button
           >
           <el-button
             v-if="row.status === 'active'"
@@ -65,7 +65,7 @@
             link
             size="small"
             @click="emit('execute', row as PurchaseContract)"
-            >执行</el-button
+            >{{ t('purchaseContract.table.execute') }}</el-button
           >
           <el-button
             v-if="row.status === 'draft'"
@@ -74,7 +74,7 @@
             link
             size="small"
             @click="emit('delete', row as PurchaseContract)"
-            >删除</el-button
+            >{{ t('purchaseContract.table.delete') }}</el-button
           >
         </template>
       </el-table-column>
@@ -89,15 +89,18 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
-        aria-label="采购合同列表分页"
+        :aria-label="t('purchaseContract.table.paginationAria')"
       />
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { PurchaseContract } from '@/api/purchase-contract'
-import { formatCurrency, getStatusType, getStatusLabel } from '../composables/pcFmts'
+import { formatCurrency, getStatusType } from '../composables/pcFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 采购合同列表表格组件（批次 284：page/pageSize props + v-model 绑定分页）

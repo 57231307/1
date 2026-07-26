@@ -7,10 +7,10 @@
 <template>
   <div class="logistics">
     <div class="page-header">
-      <h2>物流管理</h2>
+      <h2>{{ t('logistics.page.title') }}</h2>
       <el-button type="primary" @click="lgsProc.handleCreate">
         <el-icon><Plus /></el-icon>
-        新建运单
+        {{ t('logistics.page.button.create') }}
       </el-button>
     </div>
 
@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { Plus } from '@element-plus/icons-vue'
 import { useLgs } from './composables/useLgs'
@@ -75,6 +76,8 @@ import LogisticsTable from './components/LogisticsTable.vue'
 import LogisticsForm from './components/LogisticsForm.vue'
 import LogisticsDetail from './components/LogisticsDetail.vue'
 import LogisticsStatDialog from './components/LogisticsStatDialog.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态（reactive 包装，父组件可直接访问字段）
 const lgs = useLgs()
