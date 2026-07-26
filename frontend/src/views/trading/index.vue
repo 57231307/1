@@ -18,19 +18,19 @@
 <template>
   <div class="trading-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => (activeTab = String(tab))">
-      <el-tab-pane label="采购合同" name="purchase-contract">
+      <el-tab-pane :label="t('trading.index.tabPurchaseContract')" name="purchase-contract">
         <PurchaseContractTab />
       </el-tab-pane>
-      <el-tab-pane label="采购价格" name="purchase-price">
+      <el-tab-pane :label="t('trading.index.tabPurchasePrice')" name="purchase-price">
         <PurchasePriceTab />
       </el-tab-pane>
-      <el-tab-pane label="销售合同" name="sales-contract">
+      <el-tab-pane :label="t('trading.index.tabSalesContract')" name="sales-contract">
         <SalesContractTab />
       </el-tab-pane>
-      <el-tab-pane label="销售价格" name="sales-price">
+      <el-tab-pane :label="t('trading.index.tabSalesPrice')" name="sales-price">
         <SalesPriceTab />
       </el-tab-pane>
-      <el-tab-pane label="销售退货" name="sales-return">
+      <el-tab-pane :label="t('trading.index.tabSalesReturn')" name="sales-return">
         <SalesReturnTab />
       </el-tab-pane>
     </el-tabs>
@@ -39,11 +39,14 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PurchaseContractTab from './tabs/PurchaseContractTab.vue'
 import PurchasePriceTab from './tabs/PurchasePriceTab.vue'
 import SalesContractTab from './tabs/SalesContractTab.vue'
 import SalesPriceTab from './tabs/SalesPriceTab.vue'
 import SalesReturnTab from './tabs/SalesReturnTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const activeTab = ref('purchase-contract')
 </script>

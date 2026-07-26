@@ -13,31 +13,35 @@
     :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localFormData" label-width="100px" aria-label="销售合同表单">
+    <el-form
+      :model="localFormData"
+      label-width="100px"
+      :aria-label="t('salesContract.form.ariaLabelForm')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="合同编号" prop="contract_no">
+          <el-form-item :label="t('salesContract.form.labelContractNo')" prop="contract_no">
             <el-input
               v-model="localFormData.contract_no"
-              placeholder="请输入合同编号"
+              :placeholder="t('salesContract.form.placeholderContractNo')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="合同名称" prop="contract_name">
+          <el-form-item :label="t('salesContract.form.labelContractName')" prop="contract_name">
             <el-input
               v-model="localFormData.contract_name"
-              placeholder="请输入合同名称"
+              :placeholder="t('salesContract.form.placeholderContractName')"
             />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="客户" prop="customer_id">
+          <el-form-item :label="t('salesContract.form.labelCustomer')" prop="customer_id">
             <el-select
               v-model="localFormData.customer_id"
-              placeholder="请选择客户"
+              :placeholder="t('salesContract.form.placeholderCustomer')"
               filterable
             >
               <el-option
@@ -50,21 +54,21 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="合同类型" prop="contract_type">
+          <el-form-item :label="t('salesContract.form.labelContractType')" prop="contract_type">
             <el-select
               v-model="localFormData.contract_type"
-              placeholder="请选择合同类型"
+              :placeholder="t('salesContract.form.placeholderContractType')"
             >
-              <el-option label="销售合同" value="SALES" />
-              <el-option label="框架合同" value="FRAMEWORK" />
-              <el-option label="补充协议" value="SUPPLEMENT" />
+              <el-option :label="t('salesContract.form.optionSales')" value="SALES" />
+              <el-option :label="t('salesContract.form.optionFramework')" value="FRAMEWORK" />
+              <el-option :label="t('salesContract.form.optionSupplement')" value="SUPPLEMENT" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="合同金额" prop="total_amount">
+          <el-form-item :label="t('salesContract.form.labelTotalAmount')" prop="total_amount">
             <el-input-number
               v-model="localFormData.total_amount"
               :precision="2"
@@ -74,11 +78,11 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="签订日期" prop="signed_date">
+          <el-form-item :label="t('salesContract.form.labelSignedDate')" prop="signed_date">
             <el-date-picker
               v-model="localFormData.signed_date"
               type="date"
-              placeholder="请选择签订日期"
+              :placeholder="t('salesContract.form.placeholderSignedDate')"
               style="width: 100%"
             />
           </el-form-item>
@@ -86,21 +90,21 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="生效日期" prop="effective_date">
+          <el-form-item :label="t('salesContract.form.labelEffectiveDate')" prop="effective_date">
             <el-date-picker
               v-model="localFormData.effective_date"
               type="date"
-              placeholder="请选择生效日期"
+              :placeholder="t('salesContract.form.placeholderEffectiveDate')"
               style="width: 100%"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="到期日期" prop="expiry_date">
+          <el-form-item :label="t('salesContract.form.labelExpiryDate')" prop="expiry_date">
             <el-date-picker
               v-model="localFormData.expiry_date"
               type="date"
-              placeholder="请选择到期日期"
+              :placeholder="t('salesContract.form.placeholderExpiryDate')"
               style="width: 100%"
             />
           </el-form-item>
@@ -108,65 +112,78 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="付款条件" prop="payment_terms">
+          <el-form-item :label="t('salesContract.form.labelPaymentTerms')" prop="payment_terms">
             <el-input
               v-model="localFormData.payment_terms"
-              placeholder="请输入付款条件"
+              :placeholder="t('salesContract.form.placeholderPaymentTerms')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="付款方式" prop="payment_method">
+          <el-form-item :label="t('salesContract.form.labelPaymentMethod')" prop="payment_method">
             <el-select
               v-model="localFormData.payment_method"
-              placeholder="请选择付款方式"
+              :placeholder="t('salesContract.form.placeholderPaymentMethod')"
             >
-              <el-option label="银行转账" value="BANK_TRANSFER" />
-              <el-option label="支票" value="CHECK" />
-              <el-option label="现金" value="CASH" />
+              <el-option
+                :label="t('salesContract.form.optionBankTransfer')"
+                value="BANK_TRANSFER"
+              />
+              <el-option :label="t('salesContract.form.optionCheck')" value="CHECK" />
+              <el-option :label="t('salesContract.form.optionCash')" value="CASH" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="交货日期" prop="delivery_date">
+          <el-form-item :label="t('salesContract.form.labelDeliveryDate')" prop="delivery_date">
             <el-date-picker
               v-model="localFormData.delivery_date"
               type="date"
-              placeholder="请选择交货日期"
+              :placeholder="t('salesContract.form.placeholderDeliveryDate')"
               style="width: 100%"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="交货地点" prop="delivery_location">
+          <el-form-item
+            :label="t('salesContract.form.labelDeliveryLocation')"
+            prop="delivery_location"
+          >
             <el-input
               v-model="localFormData.delivery_location"
-              placeholder="请输入交货地点"
+              :placeholder="t('salesContract.form.placeholderDeliveryLocation')"
             />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="备注" prop="remarks">
+      <el-form-item :label="t('salesContract.form.labelRemarks')" prop="remarks">
         <el-input
           v-model="localFormData.remarks"
           type="textarea"
           :rows="3"
-          placeholder="请输入备注"
+          :placeholder="t('salesContract.form.placeholderRemarks')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" @click="emit('submit')">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('salesContract.form.buttonCancel')
+      }}</el-button>
+      <el-button type="primary" @click="emit('submit')">{{
+        t('salesContract.form.buttonConfirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Customer } from '@/api/customer'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface ScFormData {
   id?: number
@@ -212,7 +229,7 @@ let syncing = false
 // 外部 prop 变化时同步到 local
 watch(
   () => props.formData,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     localFormData.value = { ...newForm }
@@ -220,13 +237,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 本地变化时通知父组件
 watch(
   localFormData,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     emit('update:formData', { ...newForm })
@@ -234,6 +251,6 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 </script>

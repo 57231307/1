@@ -7,8 +7,10 @@
 <template>
   <div class="sales-returns-page">
     <div class="header">
-      <h2>销售退货管理</h2>
-      <el-button type="primary" @click="onCreate">新建退货单</el-button>
+      <h2>{{ t('salesReturns.index.pageTitle') }}</h2>
+      <el-button type="primary" @click="onCreate">{{
+        t('salesReturns.index.buttonCreate')
+      }}</el-button>
     </div>
 
     <ReturnsTable
@@ -44,7 +46,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormRules } from 'element-plus'
 import type { SalesReturn } from '@/api/sales-return'
 import { useSr } from './composables/useSr'
@@ -53,6 +56,8 @@ import ReturnsTable from './components/ReturnsTable.vue'
 import ReturnDetailDialog from './components/ReturnDetailDialog.vue'
 import ReturnEditDialog from './components/ReturnEditDialog.vue'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const sr = useSr()
 const srProc = useSrProc(sr)
 
@@ -60,12 +65,20 @@ const editDialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const submitLoading = ref(false)
 
-const formRules: FormRules = {
-  salesOrderId: [{ required: true, message: '请选择销售订单', trigger: 'change' }],
-  customerId: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }],
-  reason: [{ required: true, message: '请选择退货原因', trigger: 'change' }],
-}
+const formRules = computed<FormRules>(() => ({
+  salesOrderId: [
+    { required: true, message: t('salesReturns.index.ruleSalesOrderRequired'), trigger: 'change' },
+  ],
+  customerId: [
+    { required: true, message: t('salesReturns.index.ruleCustomerRequired'), trigger: 'change' },
+  ],
+  returnDate: [
+    { required: true, message: t('salesReturns.index.ruleReturnDateRequired'), trigger: 'change' },
+  ],
+  reason: [
+    { required: true, message: t('salesReturns.index.ruleReasonRequired'), trigger: 'change' },
+  ],
+}))
 
 const onCreate = () => {
   dialogMode.value = 'create'

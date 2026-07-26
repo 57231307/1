@@ -12,7 +12,7 @@
             <el-icon><Document /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">本月订单数</div>
+            <div class="stat-label">{{ t('salesAnalysis.stat.labelMonthOrders') }}</div>
             <div class="stat-value">{{ stats.monthOrders }}</div>
             <div class="stat-trend" :class="stats.orderTrend > 0 ? 'up' : 'down'">
               {{ stats.orderTrend > 0 ? '+' : '' }}{{ stats.orderTrend }}%
@@ -28,7 +28,7 @@
             <el-icon><Money /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">本月销售额</div>
+            <div class="stat-label">{{ t('salesAnalysis.stat.labelMonthAmount') }}</div>
             <div class="stat-value">{{ formatCurrency(stats.monthAmount) }}</div>
             <div class="stat-trend" :class="stats.amountTrend > 0 ? 'up' : 'down'">
               {{ stats.amountTrend > 0 ? '+' : '' }}{{ stats.amountTrend }}%
@@ -44,7 +44,7 @@
             <el-icon><TrendCharts /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">毛利率</div>
+            <div class="stat-label">{{ t('salesAnalysis.stat.labelGrossProfitRate') }}</div>
             <div class="stat-value">{{ stats.grossProfitRate }}%</div>
             <div class="stat-trend" :class="stats.profitTrend > 0 ? 'up' : 'down'">
               {{ stats.profitTrend > 0 ? '+' : '' }}{{ stats.profitTrend }}%
@@ -60,7 +60,7 @@
             <el-icon><User /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">活跃客户数</div>
+            <div class="stat-label">{{ t('salesAnalysis.stat.labelActiveCustomers') }}</div>
             <div class="stat-value">{{ stats.activeCustomers }}</div>
             <div class="stat-trend" :class="stats.customerTrend > 0 ? 'up' : 'down'">
               {{ stats.customerTrend > 0 ? '+' : '' }}{{ stats.customerTrend }}%
@@ -73,8 +73,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Document, Money, TrendCharts, User } from '@element-plus/icons-vue'
 import { formatCurrency } from '../composables/saFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 销售分析统计数据（reactive 对象，父组件传入）
 defineProps<{

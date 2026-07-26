@@ -13,23 +13,32 @@
     :aria-label="title"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localFormData" :rules="formRules" label-width="100px" aria-label="销售价格表单">
+    <el-form
+      :model="localFormData"
+      :rules="formRules"
+      label-width="100px"
+      :aria-label="t('salesPrice.form.ariaLabel')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="产品" prop="product_id">
-            <el-select v-model="localFormData.product_id" placeholder="请选择产品" filterable>
-              <el-option
-                v-for="p in products"
-                :key="p.id"
-                :label="p.product_name"
-                :value="p.id"
-              />
+          <el-form-item :label="t('salesPrice.form.labelProduct')" prop="product_id">
+            <el-select
+              v-model="localFormData.product_id"
+              :placeholder="t('salesPrice.form.placeholderProduct')"
+              filterable
+            >
+              <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="客户" prop="customer_id">
-            <el-select v-model="localFormData.customer_id" placeholder="请选择客户" filterable clearable>
+          <el-form-item :label="t('salesPrice.form.labelCustomer')" prop="customer_id">
+            <el-select
+              v-model="localFormData.customer_id"
+              :placeholder="t('salesPrice.form.placeholderCustomer')"
+              filterable
+              clearable
+            >
               <el-option
                 v-for="c in customers"
                 :key="c.id"
@@ -42,7 +51,7 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="销售价格" prop="price">
+          <el-form-item :label="t('salesPrice.form.labelPrice')" prop="price">
             <el-input-number
               v-model="localFormData.price"
               :precision="6"
@@ -52,27 +61,33 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="币种" prop="currency">
-            <el-select v-model="localFormData.currency" placeholder="请选择币种">
-              <el-option label="人民币" value="CNY" />
-              <el-option label="美元" value="USD" />
-              <el-option label="欧元" value="EUR" />
+          <el-form-item :label="t('salesPrice.form.labelCurrency')" prop="currency">
+            <el-select
+              v-model="localFormData.currency"
+              :placeholder="t('salesPrice.form.placeholderCurrency')"
+            >
+              <el-option :label="t('salesPrice.form.optionCNY')" value="CNY" />
+              <el-option :label="t('salesPrice.form.optionUSD')" value="USD" />
+              <el-option :label="t('salesPrice.form.optionEUR')" value="EUR" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="单位" prop="unit">
-            <el-select v-model="localFormData.unit" placeholder="请选择单位">
-              <el-option label="米" value="meter" />
-              <el-option label="公斤" value="kg" />
-              <el-option label="件" value="piece" />
+          <el-form-item :label="t('salesPrice.form.labelUnit')" prop="unit">
+            <el-select
+              v-model="localFormData.unit"
+              :placeholder="t('salesPrice.form.placeholderUnit')"
+            >
+              <el-option :label="t('salesPrice.form.optionMeter')" value="meter" />
+              <el-option :label="t('salesPrice.form.optionKg')" value="kg" />
+              <el-option :label="t('salesPrice.form.optionPiece')" value="piece" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="最小订购量" prop="min_order_qty">
+          <el-form-item :label="t('salesPrice.form.labelMinOrderQty')" prop="min_order_qty">
             <el-input-number
               v-model="localFormData.min_order_qty"
               :precision="2"
@@ -84,67 +99,80 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="价格类型" prop="price_type">
-            <el-select v-model="localFormData.price_type" placeholder="请选择价格类型">
-              <el-option label="标准价" value="STANDARD" />
-              <el-option label="协议价" value="AGREED" />
-              <el-option label="促销价" value="PROMOTION" />
+          <el-form-item :label="t('salesPrice.form.labelPriceType')" prop="price_type">
+            <el-select
+              v-model="localFormData.price_type"
+              :placeholder="t('salesPrice.form.placeholderPriceType')"
+            >
+              <el-option :label="t('salesPrice.form.optionStandard')" value="STANDARD" />
+              <el-option :label="t('salesPrice.form.optionAgreed')" value="AGREED" />
+              <el-option :label="t('salesPrice.form.optionPromotion')" value="PROMOTION" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="价格等级" prop="price_level">
-            <el-select v-model="localFormData.price_level" placeholder="请选择价格等级">
-              <el-option label="A级" value="A" />
-              <el-option label="B级" value="B" />
-              <el-option label="C级" value="C" />
-              <el-option label="D级" value="D" />
+          <el-form-item :label="t('salesPrice.form.labelPriceLevel')" prop="price_level">
+            <el-select
+              v-model="localFormData.price_level"
+              :placeholder="t('salesPrice.form.placeholderPriceLevel')"
+            >
+              <el-option :label="t('salesPrice.form.optionLevelA')" value="A" />
+              <el-option :label="t('salesPrice.form.optionLevelB')" value="B" />
+              <el-option :label="t('salesPrice.form.optionLevelC')" value="C" />
+              <el-option :label="t('salesPrice.form.optionLevelD')" value="D" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="生效日期" prop="effective_date">
+          <el-form-item :label="t('salesPrice.form.labelEffectiveDate')" prop="effective_date">
             <el-date-picker
               v-model="localFormData.effective_date"
               type="date"
-              placeholder="请选择生效日期"
+              :placeholder="t('salesPrice.form.placeholderEffectiveDate')"
               style="width: 100%"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="到期日期" prop="expiry_date">
+          <el-form-item :label="t('salesPrice.form.labelExpiryDate')" prop="expiry_date">
             <el-date-picker
               v-model="localFormData.expiry_date"
               type="date"
-              placeholder="请选择到期日期"
+              :placeholder="t('salesPrice.form.placeholderExpiryDate')"
               style="width: 100%"
             />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="备注" prop="remarks">
+      <el-form-item :label="t('salesPrice.form.labelRemarks')" prop="remarks">
         <el-input
           v-model="localFormData.remarks"
           type="textarea"
           :rows="3"
-          placeholder="请输入备注"
+          :placeholder="t('salesPrice.form.placeholderRemarks')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" @click="emit('submit')">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('salesPrice.form.buttonCancel')
+      }}</el-button>
+      <el-button type="primary" @click="emit('submit')">{{
+        t('salesPrice.form.buttonConfirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Customer } from '@/api/customer'
 import type { Product } from '@/api/product'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单数据类型（所有字段可选，兼容 Partial<SalesPrice>）
 interface SpFormData {
@@ -206,7 +234,7 @@ let syncing = false
 // 外部 prop 变化时同步到 local（如父组件编辑/新建时填充数据）
 watch(
   () => props.formData,
-  (newData) => {
+  newData => {
     if (syncing) return
     syncing = true
     localFormData.value = { ...newData }
@@ -214,13 +242,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localFormData,
-  (newData) => {
+  newData => {
     if (syncing) return
     syncing = true
     emit('update:formData', { ...newData })
@@ -228,7 +256,7 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 /** 关闭对话框 */

@@ -9,12 +9,20 @@
       <el-card shadow="hover" class="chart-card">
         <template #header>
           <div class="card-header">
-            <span>销售趋势</span>
+            <span>{{ t('salesAnalysis.trend.cardTitleTrend') }}</span>
             <el-radio-group :model-value="period" size="small" @update:model-value="updatePeriod">
-              <el-radio-button label="week">本周</el-radio-button>
-              <el-radio-button label="month">本月</el-radio-button>
-              <el-radio-button label="quarter">本季度</el-radio-button>
-              <el-radio-button label="year">本年</el-radio-button>
+              <el-radio-button label="week">{{
+                t('salesAnalysis.trend.periodWeek')
+              }}</el-radio-button>
+              <el-radio-button label="month">{{
+                t('salesAnalysis.trend.periodMonth')
+              }}</el-radio-button>
+              <el-radio-button label="quarter">{{
+                t('salesAnalysis.trend.periodQuarter')
+              }}</el-radio-button>
+              <el-radio-button label="year">{{
+                t('salesAnalysis.trend.periodYear')
+              }}</el-radio-button>
             </el-radio-group>
           </div>
         </template>
@@ -24,7 +32,7 @@
     <el-col :xs="24" :lg="8">
       <el-card shadow="hover" class="chart-card">
         <template #header>
-          <span>销售构成</span>
+          <span>{{ t('salesAnalysis.trend.cardTitleComposition') }}</span>
         </template>
         <div ref="pieChartRef" class="chart-container"></div>
       </el-card>
@@ -34,9 +42,12 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import type { SalesTrendResult, ProductRanking } from '@/api/sales-analysis'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 趋势周期 + 趋势数据 + 构成数据（v-model 通过 model-value + update:period 实现）
 const props = defineProps<{
@@ -66,21 +77,23 @@ const renderTrendChart = (data: SalesTrendResult[]) => {
     }
     window.addEventListener('resize', resizeHandler)
   }
-  const periods = data?.map(t => t.period) || []
-  const amounts = data?.map(t => t.amount) || []
-  const counts = data?.map(t => t.order_count) || []
+  const periods = data?.map(item => item.period) || []
+  const amounts = data?.map(item => item.amount) || []
+  const counts = data?.map(item => item.order_count) || []
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['销售额', '订单数'] },
+    legend: {
+      data: [t('salesAnalysis.trend.seriesAmount'), t('salesAnalysis.trend.seriesOrderCount')],
+    },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'category', boundaryGap: false, data: periods },
     yAxis: [
-      { type: 'value', name: '销售额(元)' },
-      { type: 'value', name: '订单数', splitLine: { show: false } },
+      { type: 'value', name: t('salesAnalysis.trend.yAxisAmount') },
+      { type: 'value', name: t('salesAnalysis.trend.yAxisOrderCount'), splitLine: { show: false } },
     ],
     series: [
       {
-        name: '销售额',
+        name: t('salesAnalysis.trend.seriesAmount'),
         type: 'line',
         smooth: true,
         data: amounts,
@@ -88,7 +101,7 @@ const renderTrendChart = (data: SalesTrendResult[]) => {
         itemStyle: { color: '#667eea' },
       },
       {
-        name: '订单数',
+        name: t('salesAnalysis.trend.seriesOrderCount'),
         type: 'bar',
         yAxisIndex: 1,
         data: counts,
@@ -106,7 +119,7 @@ const renderPieChart = (composition: ProductRanking[]) => {
   }
   const data = composition?.length
     ? composition.map(c => ({ name: c.product_name, value: c.amount }))
-    : [{ name: '暂无数据', value: 0 }]
+    : [{ name: t('salesAnalysis.trend.noData'), value: 0 }]
   pieChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     legend: { orient: 'vertical', left: 'left' },

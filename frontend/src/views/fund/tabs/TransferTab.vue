@@ -8,36 +8,63 @@
     <el-card class="table-card">
       <template #header>
         <div class="card-header">
-          <span>转账记录</span>
+          <span>{{ t('fund.transferTab.sectionTitle') }}</span>
           <el-button type="success" @click="openTransferDialog()">
-            <el-icon><Money /></el-icon>发起转账
+            <el-icon><Money /></el-icon>{{ t('fund.transferTab.buttonNewTransfer') }}
           </el-button>
         </div>
       </template>
 
-      <el-table v-loading="transferLoading" :data="transferList" stripe border aria-label="资金转账列表">
-        <el-table-column prop="transfer_no" label="转账编号" width="180" />
-        <el-table-column prop="from_account_name" label="转出账户" min-width="140" />
-        <el-table-column prop="to_account_name" label="转入账户" min-width="140" />
-        <el-table-column prop="amount" label="转账金额" width="140">
+      <el-table
+        v-loading="transferLoading"
+        :data="transferList"
+        stripe
+        border
+        :aria-label="t('fund.transferTab.tableAriaLabel')"
+      >
+        <el-table-column
+          prop="transfer_no"
+          :label="t('fund.transferTab.columnTransferNo')"
+          width="180"
+        />
+        <el-table-column
+          prop="from_account_name"
+          :label="t('fund.transferTab.columnFromAccount')"
+          min-width="140"
+        />
+        <el-table-column
+          prop="to_account_name"
+          :label="t('fund.transferTab.columnToAccount')"
+          min-width="140"
+        />
+        <el-table-column prop="amount" :label="t('fund.transferTab.columnAmount')" width="140">
           <template #default="{ row }">
             <span class="balance-positive">¥{{ row.amount.toFixed(2) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="t('fund.transferTab.columnStatus')" width="100">
           <template #default="{ row }">
             <el-tag :type="getTransferStatusType(row.status)">
               {{ getTransferStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="转账时间" width="160" />
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column
+          prop="remark"
+          :label="t('fund.transferTab.columnRemark')"
+          min-width="150"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="created_at"
+          :label="t('fund.transferTab.columnCreatedAt')"
+          width="160"
+        />
+        <el-table-column :label="t('fund.transferTab.columnActions')" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="viewTransferDetail(row)"
-              >详情</el-button
-            >
+            <el-button type="primary" link size="small" @click="viewTransferDetail(row)">{{
+              t('fund.transferTab.buttonDetail')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -49,23 +76,28 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="transferTotal"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="资金转账列表分页"
+          :aria-label="t('fund.transferTab.paginationAriaLabel')"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="transferVisible" title="资金转账" width="600px" aria-label="资金转账对话框">
+    <el-dialog
+      v-model="transferVisible"
+      :title="t('fund.transferTab.dialogTitle')"
+      width="600px"
+      :aria-label="t('fund.transferTab.dialogAriaLabel')"
+    >
       <el-form
         ref="transferFormRef"
         :model="transferForm"
         :rules="transferRules"
         label-width="120px"
-        aria-label="资金转账表单"
+        :aria-label="t('fund.transferTab.formAriaLabel')"
       >
-        <el-form-item label="转出账户" prop="from_account_id">
+        <el-form-item :label="t('fund.transferTab.fieldFromAccount')" prop="from_account_id">
           <el-select
             v-model="transferForm.from_account_id"
-            placeholder="请选择转出账户"
+            :placeholder="t('fund.transferTab.placeholderFromAccount')"
             style="width: 100%"
             filterable
             @change="handleFromAccountChange"
@@ -73,37 +105,37 @@
             <el-option
               v-for="account in activeAccounts"
               :key="account.id"
-              :label="`${account.account_name} (可用: ¥${(account.available_balance || account.current_balance || account.balance || 0).toFixed(2)})`"
+              :label="formatFromAccountLabel(account)"
               :value="account.id"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="转入账户" prop="to_account_id">
+        <el-form-item :label="t('fund.transferTab.fieldToAccount')" prop="to_account_id">
           <el-select
             v-model="transferForm.to_account_id"
-            placeholder="请选择转入账户"
+            :placeholder="t('fund.transferTab.placeholderToAccount')"
             style="width: 100%"
             filterable
           >
             <el-option
               v-for="account in otherAccounts"
               :key="account.id"
-              :label="`${account.account_name} (当前: ¥${(account.current_balance || account.balance || 0).toFixed(2)})`"
+              :label="formatToAccountLabel(account)"
               :value="account.id"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="转账金额" prop="amount">
+        <el-form-item :label="t('fund.transferTab.fieldAmount')" prop="amount">
           <el-input-number
             v-model="transferForm.amount"
             :min="0.01"
             :max="availableBalance"
             :precision="2"
             style="width: 100%"
-            placeholder="请输入转账金额"
+            :placeholder="t('fund.transferTab.placeholderAmount')"
           />
           <div v-if="selectedFromAccount" class="balance-hint">
-            可用余额:
+            {{ t('fund.transferTab.availableBalance') }}:
             <span class="balance-available"
               >¥{{
                 (
@@ -116,20 +148,22 @@
             >
           </div>
         </el-form-item>
-        <el-form-item label="备注">
+        <el-form-item :label="t('fund.transferTab.fieldRemark')">
           <el-input
             v-model="transferForm.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入转账备注"
+            :placeholder="t('fund.transferTab.placeholderRemark')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="transferVisible = false">取消</el-button>
-        <el-button type="primary" :loading="transferSubmitLoading" @click="handleTransferSubmit"
-          >确认转账</el-button
-        >
+        <el-button @click="transferVisible = false">{{
+          t('fund.transferTab.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="transferSubmitLoading" @click="handleTransferSubmit">{{
+          t('fund.transferTab.buttonConfirmTransfer')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -137,6 +171,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Money } from '@element-plus/icons-vue'
 import {
@@ -148,6 +183,8 @@ import {
 } from '@/api/fund'
 // 批次 280：接入 useTableApi，消除手写 transferList/transferLoading/transferTotal/fetchTransfers 重复
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const transferSubmitLoading = ref(false)
 const transferVisible = ref(false)
@@ -166,7 +203,9 @@ const {
 } = useTableApi<FundTransferRecord>({
   url: '/fund-management/transfers',
   onError: (err: unknown) =>
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取转账记录失败'),
+    ElMessage.error(
+      (err instanceof Error ? err.message : String(err)) || t('fund.transferTab.messageFetchFailed')
+    ),
 })
 
 const transferForm = reactive({
@@ -177,16 +216,20 @@ const transferForm = reactive({
 })
 
 const transferRules: FormRules = {
-  from_account_id: [{ required: true, message: '请选择转出账户', trigger: 'change' }],
-  to_account_id: [{ required: true, message: '请选择转入账户', trigger: 'change' }],
+  from_account_id: [
+    { required: true, message: t('fund.transferTab.validateFromAccount'), trigger: 'change' },
+  ],
+  to_account_id: [
+    { required: true, message: t('fund.transferTab.validateToAccount'), trigger: 'change' },
+  ],
   amount: [
-    { required: true, message: '请输入转账金额', trigger: 'blur' },
+    { required: true, message: t('fund.transferTab.validateAmount'), trigger: 'blur' },
     {
       validator: (_rule, value, callback) => {
         if (value <= 0) {
-          callback(new Error('转账金额必须大于0'))
+          callback(new Error(t('fund.transferTab.validateAmountPositive')))
         } else if (value > availableBalance.value) {
-          callback(new Error('转账金额不能超过可用余额'))
+          callback(new Error(t('fund.transferTab.validateAmountExceed')))
         } else {
           callback()
         }
@@ -217,6 +260,23 @@ const availableBalance = computed(() => {
     : 999999999
 })
 
+/** 格式化转出账户下拉选项标签 */
+const formatFromAccountLabel = (account: FundAccount): string => {
+  const balance = (
+    account.available_balance ||
+    account.current_balance ||
+    account.balance ||
+    0
+  ).toFixed(2)
+  return `${account.account_name} (${t('fund.transferTab.available')}: ¥${balance})`
+}
+
+/** 格式化转入账户下拉选项标签 */
+const formatToAccountLabel = (account: FundAccount): string => {
+  const balance = (account.current_balance || account.balance || 0).toFixed(2)
+  return `${account.account_name} (${t('fund.transferTab.current')}: ¥${balance})`
+}
+
 const fetchAccounts = async () => {
   try {
     const res = await getFundAccountList()
@@ -226,7 +286,7 @@ const fetchAccounts = async () => {
     accountList.value = Array.isArray(d) ? d : d?.list || d?.items || []
   } catch (e) {
     const err = e as Error
-    ElMessage.error(err.message || '获取账户列表失败')
+    ElMessage.error(err.message || t('fund.transferTab.messageFetchAccountsFailed'))
   }
 }
 
@@ -256,16 +316,29 @@ const handleTransferSubmit = async () => {
         amount: transferForm.amount,
         remark: transferForm.remark,
       })
-      ElMessage.success('转账成功')
+      ElMessage.success(t('fund.transferTab.messageTransferSuccess'))
       transferVisible.value = false
       fetchTransfers()
     } catch (e) {
       const err = e as Error
-      ElMessage.error(err.message || '转账失败')
+      ElMessage.error(err.message || t('fund.transferTab.messageTransferFailed'))
     } finally {
       transferSubmitLoading.value = false
     }
   })
+}
+
+/** 构造转账详情多行文本（拆分以控制 viewTransferDetail 行数） */
+const buildTransferDetailLines = (d: FundTransferRecord): string[] => {
+  return [
+    t('fund.transferTab.detailTransferNo', { value: d.transfer_no }),
+    t('fund.transferTab.detailFromAccount', { value: d.from_account_name || '-' }),
+    t('fund.transferTab.detailToAccount', { value: d.to_account_name || '-' }),
+    t('fund.transferTab.detailAmount', { value: d.amount.toFixed(2) }),
+    t('fund.transferTab.detailCurrentStatus', { value: getTransferStatusLabel(d.status) }),
+    t('fund.transferTab.detailCreatedAt', { value: d.created_at }),
+    t('fund.transferTab.detailRemark', { value: d.remark || '-' }),
+  ]
 }
 
 // 批次 157a P1-1 修复：接入 getFundTransfer API 展示转账详情
@@ -274,24 +347,16 @@ const viewTransferDetail = async (row: FundTransferRecord) => {
     const res = await getFundTransfer(row.id)
     const d = res.data
     if (!d) {
-      ElMessage.warning('未找到转账详情')
+      ElMessage.warning(t('fund.transferTab.messageDetailNotFound'))
       return
     }
-    const lines = [
-      `转账编号：${d.transfer_no}`,
-      `转出账户：${d.from_account_name || '-'}`,
-      `转入账户：${d.to_account_name || '-'}`,
-      `转账金额：¥${d.amount.toFixed(2)}`,
-      `当前状态：${getTransferStatusLabel(d.status)}`,
-      `转账时间：${d.created_at}`,
-      `备注：${d.remark || '-'}`,
-    ]
-    await ElMessageBox.alert(lines.join('\n'), '转账详情', {
-      confirmButtonText: '关闭',
+    const lines = buildTransferDetailLines(d)
+    await ElMessageBox.alert(lines.join('\n'), t('fund.transferTab.detailTitle'), {
+      confirmButtonText: t('fund.transferTab.buttonClose'),
     })
   } catch (e) {
     const err = e as Error
-    ElMessage.error(err.message || '获取转账详情失败')
+    ElMessage.error(err.message || t('fund.transferTab.messageFetchDetailFailed'))
   }
 }
 
@@ -305,14 +370,20 @@ const getTransferStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
-const getTransferStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    success: '成功',
-    pending: '待处理',
-    failed: '失败',
-    processing: '处理中',
+/** 转账状态 → i18n 标签（语言切换响应） */
+const getTransferStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'success':
+      return t('fund.transferTab.statusSuccess')
+    case 'pending':
+      return t('fund.transferTab.statusPending')
+    case 'failed':
+      return t('fund.transferTab.statusFailed')
+    case 'processing':
+      return t('fund.transferTab.statusProcessing')
+    default:
+      return status
   }
-  return map[status] || status
 }
 
 onMounted(() => {

@@ -6,57 +6,122 @@
 <template>
   <div class="price-tab">
     <div class="page-header">
-      <h2 class="page-title">销售价格管理</h2>
+      <h2 class="page-title">{{ t('salesExt.priceTab.pageTitle') }}</h2>
       <el-button type="primary" @click="openPriceDialog()">
-        <el-icon><Plus /></el-icon> 新建价格
+        <el-icon><Plus /></el-icon> {{ t('salesExt.priceTab.buttonCreate') }}
       </el-button>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="priceQuery" aria-label="销售价格筛选表单">
-        <el-form-item label="产品">
-          <el-input v-model="priceQuery.productName" placeholder="产品名称" clearable />
+      <el-form
+        :inline="true"
+        :model="priceQuery"
+        :aria-label="t('salesExt.priceTab.ariaLabelFilter')"
+      >
+        <el-form-item :label="t('salesExt.priceTab.labelProduct')">
+          <el-input
+            v-model="priceQuery.productName"
+            :placeholder="t('salesExt.priceTab.placeholderProductName')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="客户">
-          <el-input v-model="priceQuery.customerName" placeholder="客户名称" clearable />
+        <el-form-item :label="t('salesExt.priceTab.labelCustomer')">
+          <el-input
+            v-model="priceQuery.customerName"
+            :placeholder="t('salesExt.priceTab.placeholderCustomerName')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="priceQuery.status" placeholder="选择状态" clearable>
-            <el-option label="启用" value="active" />
-            <el-option label="禁用" value="inactive" />
+        <el-form-item :label="t('salesExt.priceTab.labelStatus')">
+          <el-select
+            v-model="priceQuery.status"
+            :placeholder="t('salesExt.priceTab.placeholderStatus')"
+            clearable
+          >
+            <el-option :label="t('salesExt.priceTab.optionActive')" value="active" />
+            <el-option :label="t('salesExt.priceTab.optionInactive')" value="inactive" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchSalesPrices">查询</el-button>
-          <el-button @click="resetPriceQuery">重置</el-button>
+          <el-button type="primary" @click="fetchSalesPrices">{{
+            t('salesExt.priceTab.buttonSearch')
+          }}</el-button>
+          <el-button @click="resetPriceQuery">{{ t('salesExt.priceTab.buttonReset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
     <el-card shadow="hover">
-      <el-table v-loading="priceLoading" :data="salesPrices" stripe aria-label="销售价格列表">
-        <el-table-column prop="productName" label="产品名称" min-width="150" />
-        <el-table-column prop="productCode" label="产品编码" width="120" />
-        <el-table-column prop="customerName" label="客户" min-width="150" />
-        <el-table-column prop="price" label="价格" width="120" align="right">
+      <el-table
+        v-loading="priceLoading"
+        :data="salesPrices"
+        stripe
+        :aria-label="t('salesExt.priceTab.ariaLabelList')"
+      >
+        <el-table-column
+          prop="productName"
+          :label="t('salesExt.priceTab.columnProductName')"
+          min-width="150"
+        />
+        <el-table-column
+          prop="productCode"
+          :label="t('salesExt.priceTab.columnProductCode')"
+          width="120"
+        />
+        <el-table-column
+          prop="customerName"
+          :label="t('salesExt.priceTab.columnCustomer')"
+          min-width="150"
+        />
+        <el-table-column
+          prop="price"
+          :label="t('salesExt.priceTab.columnPrice')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.price) }}
           </template>
         </el-table-column>
-        <el-table-column prop="currency" label="货币" width="80" />
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="effectiveDate" label="生效日期" width="120" />
-        <el-table-column prop="expiryDate" label="失效日期" width="120" />
-        <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table-column
+          prop="currency"
+          :label="t('salesExt.priceTab.columnCurrency')"
+          width="80"
+        />
+        <el-table-column prop="unit" :label="t('salesExt.priceTab.columnUnit')" width="80" />
+        <el-table-column
+          prop="effectiveDate"
+          :label="t('salesExt.priceTab.columnEffectiveDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="expiryDate"
+          :label="t('salesExt.priceTab.columnExpiryDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="status"
+          :label="t('salesExt.priceTab.columnStatus')"
+          width="80"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? '启用' : '禁用' }}
+              {{
+                row.status === 'active'
+                  ? t('salesExt.priceTab.statusActive')
+                  : t('salesExt.priceTab.statusInactive')
+              }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column :label="t('salesExt.priceTab.columnAction')" width="180" fixed="right">
           <template #default="{ row }">
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
-            <el-button v-permission="PERMISSIONS.SALES_PRICE_UPDATE" size="small" link @click="openPriceDialog(row as unknown as SalesPrice)"
-              >编辑</el-button
+            <el-button
+              v-permission="PERMISSIONS.SALES_PRICE_UPDATE"
+              size="small"
+              link
+              @click="openPriceDialog(row as unknown as SalesPrice)"
+              >{{ t('salesExt.priceTab.buttonEdit') }}</el-button
             >
             <el-button
               v-if="row.status === 'draft'"
@@ -64,7 +129,7 @@
               link
               type="success"
               @click="approvePrice(row as unknown as SalesPrice)"
-              >审批</el-button
+              >{{ t('salesExt.priceTab.buttonApprove') }}</el-button
             >
           </template>
         </el-table-column>
@@ -74,29 +139,44 @@
     <!-- 扩展指令（批次 86）：补全价格编辑对话框，替换原占位符 -->
     <el-dialog
       v-model="priceDialogVisible"
-      :title="priceForm.id ? '编辑销售价格' : '新建销售价格'"
+      :title="priceForm.id ? t('salesExt.priceTab.titleEdit') : t('salesExt.priceTab.titleCreate')"
       width="600px"
-      aria-label="销售价格编辑对话框"
+      :aria-label="t('salesExt.priceTab.ariaLabelDialog')"
     >
-      <el-form ref="priceFormRef" :model="priceForm" :rules="priceRules" label-width="100px" aria-label="销售价格表单">
+      <el-form
+        ref="priceFormRef"
+        :model="priceForm"
+        :rules="priceRules"
+        label-width="100px"
+        :aria-label="t('salesExt.priceTab.ariaLabelForm')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="产品名称" prop="product_name">
-              <el-input v-model="priceForm.product_name" placeholder="产品名称" />
+            <el-form-item :label="t('salesExt.priceTab.labelProductName')" prop="product_name">
+              <el-input
+                v-model="priceForm.product_name"
+                :placeholder="t('salesExt.priceTab.placeholderProductName')"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="产品编码" prop="product_code">
-              <el-input v-model="priceForm.product_code" placeholder="产品编码" />
+            <el-form-item :label="t('salesExt.priceTab.labelProductCode')" prop="product_code">
+              <el-input
+                v-model="priceForm.product_code"
+                :placeholder="t('salesExt.priceTab.placeholderProductCode')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="客户" prop="customer_name">
-          <el-input v-model="priceForm.customer_name" placeholder="客户名称" />
+        <el-form-item :label="t('salesExt.priceTab.labelCustomerName')" prop="customer_name">
+          <el-input
+            v-model="priceForm.customer_name"
+            :placeholder="t('salesExt.priceTab.placeholderCustomerName')"
+          />
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="价格" prop="price">
+            <el-form-item :label="t('salesExt.priceTab.labelPrice')" prop="price">
               <el-input-number
                 v-model="priceForm.price"
                 :min="0"
@@ -106,8 +186,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="货币" prop="currency">
-              <el-select v-model="priceForm.currency" placeholder="货币" style="width: 100%">
+            <el-form-item :label="t('salesExt.priceTab.labelCurrency')" prop="currency">
+              <el-select
+                v-model="priceForm.currency"
+                :placeholder="t('salesExt.priceTab.placeholderCurrency')"
+                style="width: 100%"
+              >
                 <el-option label="CNY" value="CNY" />
                 <el-option label="USD" value="USD" />
                 <el-option label="EUR" value="EUR" />
@@ -115,14 +199,17 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="单位" prop="unit">
-              <el-input v-model="priceForm.unit" placeholder="单位" />
+            <el-form-item :label="t('salesExt.priceTab.labelUnit')" prop="unit">
+              <el-input
+                v-model="priceForm.unit"
+                :placeholder="t('salesExt.priceTab.placeholderUnit')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="生效日期" prop="effective_date">
+            <el-form-item :label="t('salesExt.priceTab.labelEffectiveDate')" prop="effective_date">
               <el-date-picker
                 v-model="priceForm.effective_date"
                 type="date"
@@ -132,7 +219,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="失效日期" prop="expiry_date">
+            <el-form-item :label="t('salesExt.priceTab.labelExpiryDate')" prop="expiry_date">
               <el-date-picker
                 v-model="priceForm.expiry_date"
                 type="date"
@@ -142,22 +229,28 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="状态">
-          <el-select v-model="priceForm.status" placeholder="状态" style="width: 100%">
-            <el-option label="待审批" value="pending" />
-            <el-option label="启用" value="active" />
-            <el-option label="禁用" value="inactive" />
+        <el-form-item :label="t('salesExt.priceTab.labelStatus')">
+          <el-select
+            v-model="priceForm.status"
+            :placeholder="t('salesExt.priceTab.placeholderStatusSelect')"
+            style="width: 100%"
+          >
+            <el-option :label="t('salesExt.priceTab.optionPending')" value="pending" />
+            <el-option :label="t('salesExt.priceTab.optionActive')" value="active" />
+            <el-option :label="t('salesExt.priceTab.optionInactive')" value="inactive" />
           </el-select>
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
+        <el-form-item :label="t('salesExt.priceTab.labelRemark')" prop="remark">
           <el-input v-model="priceForm.remark" type="textarea" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="priceDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="priceSubmitLoading" @click="submitPrice"
-          >确定</el-button
-        >
+        <el-button @click="priceDialogVisible = false">{{
+          t('salesExt.priceTab.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="priceSubmitLoading" @click="submitPrice">{{
+          t('salesExt.priceTab.buttonConfirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -165,6 +258,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -178,6 +272,8 @@ import {
 } from '@/api/sales-price'
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-prices 资源对齐
 import { PERMISSIONS } from '@/constants/permissions'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const salesPrices = ref<SalesPrice[]>([])
 const priceLoading = ref(false)
@@ -199,7 +295,7 @@ const fetchSalesPrices = async () => {
     salesPrices.value = res.data?.list || []
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '获取销售价格失败')
+    ElMessage.error(err.message || t('salesExt.priceTab.messageFetchFailed'))
   } finally {
     priceLoading.value = false
   }
@@ -233,10 +329,16 @@ const priceForm = reactive({
 })
 
 const priceRules: FormRules = {
-  product_name: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
-  customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
-  price: [{ required: true, message: '请输入价格', trigger: 'blur' }],
-  effective_date: [{ required: true, message: '请选择生效日期', trigger: 'change' }],
+  product_name: [
+    { required: true, message: t('salesExt.priceTab.ruleProductName'), trigger: 'blur' },
+  ],
+  customer_name: [
+    { required: true, message: t('salesExt.priceTab.ruleCustomerName'), trigger: 'blur' },
+  ],
+  price: [{ required: true, message: t('salesExt.priceTab.rulePrice'), trigger: 'blur' }],
+  effective_date: [
+    { required: true, message: t('salesExt.priceTab.ruleEffectiveDate'), trigger: 'change' },
+  ],
 }
 
 const openPriceDialog = async (row?: SalesPrice) => {
@@ -272,16 +374,16 @@ const submitPrice = async () => {
   try {
     if (priceForm.id) {
       await updateSalesPrice(priceForm.id, priceForm)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('salesExt.priceTab.messageUpdateSuccess'))
     } else {
       await createSalesPrice(priceForm)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('salesExt.priceTab.messageCreateSuccess'))
     }
     priceDialogVisible.value = false
     fetchSalesPrices()
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('salesExt.priceTab.messageOperationFailed'))
   } finally {
     priceSubmitLoading.value = false
   }
@@ -290,11 +392,11 @@ const submitPrice = async () => {
 const approvePrice = async (row: SalesPrice) => {
   try {
     await approveSalesPrice(row.id)
-    ElMessage.success('审批成功')
+    ElMessage.success(t('salesExt.priceTab.messageApproveSuccess'))
     fetchSalesPrices()
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('salesExt.priceTab.messageOperationFailed'))
   }
 }
 

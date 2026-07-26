@@ -8,11 +8,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { FormInstance } from 'element-plus'
-import {
-  createSalesPrice,
-  updateSalesPrice,
-  type SalesPrice,
-} from '@/api/sales-price'
+import { createSalesPrice, updateSalesPrice, type SalesPrice } from '@/api/sales-price'
 import { getCustomerList, type Customer } from '@/api/customer'
 import { getProductList, type Product } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'

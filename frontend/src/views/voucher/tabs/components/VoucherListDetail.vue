@@ -6,9 +6,9 @@
 <template>
   <ElDialog
     :model-value="visible"
-    title="凭证详情"
+    :title="t('voucher.voucherListDetail.dialogTitle')"
     width="800px"
-    aria-label="凭证详情对话框"
+    :aria-label="t('voucher.voucherListDetail.ariaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <div v-if="viewData" class="voucher-detail">
@@ -27,10 +27,10 @@
       <div v-if="viewData.description" class="voucher-desc">{{ viewData.description }}</div>
       <div class="entries-table">
         <div class="entries-header">
-          <span class="col-subject">会计科目</span>
-          <span class="col-debit">借方金额</span>
-          <span class="col-credit">贷方金额</span>
-          <span class="col-desc">摘要</span>
+          <span class="col-subject">{{ t('voucher.voucherListDetail.columnSubject') }}</span>
+          <span class="col-debit">{{ t('voucher.voucherListDetail.columnDebit') }}</span>
+          <span class="col-credit">{{ t('voucher.voucherListDetail.columnCredit') }}</span>
+          <span class="col-desc">{{ t('voucher.voucherListDetail.columnSummary') }}</span>
         </div>
         <div v-for="(entry, index) in viewData.entries" :key="index" class="entries-row">
           <span class="col-subject"
@@ -43,37 +43,44 @@
       </div>
       <div class="total-row">
         <div class="total-item">
-          <span class="label">借方合计:</span>
+          <span class="label">{{ t('voucher.voucherListDetail.labelDebitTotal') }}</span>
           <span class="value debit">{{ viewData.total_debit.toFixed(2) }}</span>
         </div>
         <div class="total-item">
-          <span class="label">贷方合计:</span>
+          <span class="label">{{ t('voucher.voucherListDetail.labelCreditTotal') }}</span>
           <span class="value credit">{{ viewData.total_credit.toFixed(2) }}</span>
         </div>
       </div>
       <ElDescriptions :column="3" border class="voucher-meta">
-        <ElDescriptionsItem label="制单人">{{
+        <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelCreatedBy')">{{
           viewData.created_by_name || '-'
         }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="审核人">{{
+        <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelApprovedBy')">{{
           viewData.approved_by_name || '-'
         }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="记账人">{{
+        <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelPostedBy')">{{
           viewData.posted_by_name || '-'
         }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="审核时间">{{
+        <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelApprovedAt')">{{
           viewData.approved_at || '-'
         }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="记账时间">{{ viewData.posted_at || '-' }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="创建时间">{{ viewData.created_at || '-' }}</ElDescriptionsItem>
+        <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelPostedAt')">{{
+          viewData.posted_at || '-'
+        }}</ElDescriptionsItem>
+        <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelCreatedAt')">{{
+          viewData.created_at || '-'
+        }}</ElDescriptionsItem>
       </ElDescriptions>
     </div>
   </ElDialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { VoucherEntity } from '@/api/voucher'
-import { getStatusLabel, getStatusClass, getTypeLabel } from '../composables/vchrLstFmts'
+import { getStatusClass } from '../composables/vchrLstFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 凭证详情对话框组件
@@ -90,6 +97,25 @@ const emit = defineEmits<{
   // 关闭对话框
   'update:visible': [v: boolean]
 }>()
+
+/** 状态 → 国际化标签（语言切换时响应式刷新） */
+const getStatusLabel = (value: string) => {
+  const map: Record<string, string> = {
+    draft: t('voucher.voucherListDetail.statusDraft'),
+    approved: t('voucher.voucherListDetail.statusApproved'),
+    posted: t('voucher.voucherListDetail.statusPosted'),
+  }
+  return map[value] || value
+}
+
+/** 凭证类型 → 国际化标签 */
+const getTypeLabel = (type: string) => {
+  const map: Record<string, string> = {
+    general: t('voucher.voucherListDetail.typeGeneral'),
+    customized: t('voucher.voucherListDetail.typeCustomized'),
+  }
+  return map[type] || type
+}
 
 void props
 </script>

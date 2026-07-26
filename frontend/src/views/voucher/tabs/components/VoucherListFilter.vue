@@ -10,7 +10,7 @@
       <ElCol :span="6">
         <ElInput
           v-model="localQuery.voucher_no"
-          placeholder="凭证号"
+          :placeholder="t('voucher.voucherListFilter.placeholderVoucherNo')"
           class="filter-item"
           @keyup.enter="handleSearch"
         />
@@ -19,7 +19,7 @@
         <ElDatePicker
           v-model="localQuery.voucher_date_start"
           type="date"
-          placeholder="开始日期"
+          :placeholder="t('voucher.voucherListFilter.placeholderStartDate')"
           class="filter-item"
         />
       </ElCol>
@@ -27,30 +27,47 @@
         <ElDatePicker
           v-model="localQuery.voucher_date_end"
           type="date"
-          placeholder="结束日期"
+          :placeholder="t('voucher.voucherListFilter.placeholderEndDate')"
           class="filter-item"
         />
       </ElCol>
       <ElCol :span="6">
-        <ElSelect v-model="localQuery.status" placeholder="状态" class="filter-item">
-          <ElOption v-for="s in STATUS_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
+        <ElSelect
+          v-model="localQuery.status"
+          :placeholder="t('voucher.voucherListFilter.placeholderStatus')"
+          class="filter-item"
+        >
+          <ElOption :label="t('voucher.voucherListFilter.optionAll')" value="" />
+          <ElOption :label="t('voucher.voucherListFilter.optionDraft')" value="draft" />
+          <ElOption :label="t('voucher.voucherListFilter.optionApproved')" value="approved" />
+          <ElOption :label="t('voucher.voucherListFilter.optionPosted')" value="posted" />
         </ElSelect>
       </ElCol>
     </ElRow>
     <div class="filter-actions">
-      <ElButton type="primary" @click="handleSearch">查询</ElButton>
-      <ElButton @click="handleReset">重置</ElButton>
-      <ElButton type="success" @click="emit('add')"> <Plus /> 新增凭证</ElButton>
-      <ElButton @click="emit('print')"> <Printer /> 打印</ElButton>
-      <ElButton @click="emit('export')"> <Download /> 导出</ElButton>
+      <ElButton type="primary" @click="handleSearch">{{
+        t('voucher.voucherListFilter.buttonSearch')
+      }}</ElButton>
+      <ElButton @click="handleReset">{{ t('voucher.voucherListFilter.buttonReset') }}</ElButton>
+      <ElButton type="success" @click="emit('add')">
+        <Plus /> {{ t('voucher.voucherListFilter.buttonAdd') }}</ElButton
+      >
+      <ElButton @click="emit('print')">
+        <Printer /> {{ t('voucher.voucherListFilter.buttonPrint') }}</ElButton
+      >
+      <ElButton @click="emit('export')">
+        <Download /> {{ t('voucher.voucherListFilter.buttonExport') }}</ElButton
+      >
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
-import { STATUS_OPTIONS } from '../composables/vchrLstFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 凭证列表过滤与操作栏组件

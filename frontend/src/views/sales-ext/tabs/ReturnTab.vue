@@ -6,58 +6,111 @@
 <template>
   <div class="return-tab">
     <div class="page-header">
-      <h2 class="page-title">销售退货管理</h2>
+      <h2 class="page-title">{{ t('salesExt.returnTab.pageTitle') }}</h2>
       <el-button type="primary" @click="openReturnDialog()">
-        <el-icon><Plus /></el-icon> 新建退货
+        <el-icon><Plus /></el-icon> {{ t('salesExt.returnTab.buttonCreate') }}
       </el-button>
     </div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="returnQuery" aria-label="销售退货筛选表单">
-        <el-form-item label="退货单号">
-          <el-input v-model="returnQuery.returnNo" placeholder="退货单号" clearable />
+      <el-form
+        :inline="true"
+        :model="returnQuery"
+        :aria-label="t('salesExt.returnTab.ariaLabelFilter')"
+      >
+        <el-form-item :label="t('salesExt.returnTab.labelReturnNo')">
+          <el-input
+            v-model="returnQuery.returnNo"
+            :placeholder="t('salesExt.returnTab.placeholderReturnNo')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="客户">
-          <el-input v-model="returnQuery.customerName" placeholder="客户名称" clearable />
+        <el-form-item :label="t('salesExt.returnTab.labelCustomer')">
+          <el-input
+            v-model="returnQuery.customerName"
+            :placeholder="t('salesExt.returnTab.placeholderCustomerName')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="returnQuery.status" placeholder="选择状态" clearable>
-            <el-option label="草稿" value="draft" />
-            <el-option label="待审核" value="pending" />
-            <el-option label="已批准" value="approved" />
-            <el-option label="已拒绝" value="rejected" />
-            <el-option label="已完成" value="completed" />
+        <el-form-item :label="t('salesExt.returnTab.labelStatus')">
+          <el-select
+            v-model="returnQuery.status"
+            :placeholder="t('salesExt.returnTab.placeholderStatus')"
+            clearable
+          >
+            <el-option :label="t('salesExt.returnTab.optionDraft')" value="draft" />
+            <el-option :label="t('salesExt.returnTab.optionPending')" value="pending" />
+            <el-option :label="t('salesExt.returnTab.optionApproved')" value="approved" />
+            <el-option :label="t('salesExt.returnTab.optionRejected')" value="rejected" />
+            <el-option :label="t('salesExt.returnTab.optionCompleted')" value="completed" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchSalesReturns">查询</el-button>
-          <el-button @click="resetReturnQuery">重置</el-button>
+          <el-button type="primary" @click="fetchSalesReturns">{{
+            t('salesExt.returnTab.buttonSearch')
+          }}</el-button>
+          <el-button @click="resetReturnQuery">{{ t('salesExt.returnTab.buttonReset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
     <el-card shadow="hover">
-      <el-table v-loading="returnLoading" :data="salesReturns" stripe aria-label="销售退货列表">
-        <el-table-column prop="returnNo" label="退货单号" width="140" />
-        <el-table-column prop="customerName" label="客户" min-width="150" />
-        <el-table-column prop="salesOrderNo" label="订单号" width="140" />
-        <el-table-column prop="returnDate" label="退货日期" width="120" />
-        <el-table-column prop="totalAmount" label="总金额" width="120" align="right">
+      <el-table
+        v-loading="returnLoading"
+        :data="salesReturns"
+        stripe
+        :aria-label="t('salesExt.returnTab.ariaLabelList')"
+      >
+        <el-table-column
+          prop="returnNo"
+          :label="t('salesExt.returnTab.columnReturnNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="customerName"
+          :label="t('salesExt.returnTab.columnCustomer')"
+          min-width="150"
+        />
+        <el-table-column
+          prop="salesOrderNo"
+          :label="t('salesExt.returnTab.columnSalesOrderNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="returnDate"
+          :label="t('salesExt.returnTab.columnReturnDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="totalAmount"
+          :label="t('salesExt.returnTab.columnTotalAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="t('salesExt.returnTab.columnStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getReturnStatusType(row.status)" size="small">
               {{ getReturnStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdBy" label="创建人" width="100" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column
+          prop="createdBy"
+          :label="t('salesExt.returnTab.columnCreatedBy')"
+          width="100"
+        />
+        <el-table-column :label="t('salesExt.returnTab.columnAction')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="viewReturn(row as unknown as SalesReturn)"
-              >查看</el-button
-            >
+            <el-button size="small" link @click="viewReturn(row as unknown as SalesReturn)">{{
+              t('salesExt.returnTab.buttonView')
+            }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.status === 'draft'"
@@ -65,7 +118,7 @@
               size="small"
               link
               @click="openReturnDialog(row as unknown as SalesReturn)"
-              >编辑</el-button
+              >{{ t('salesExt.returnTab.buttonEdit') }}</el-button
             >
           </template>
         </el-table-column>
@@ -75,31 +128,45 @@
     <!-- 扩展指令（批次 86）：补全退货编辑对话框，替换原占位符 -->
     <el-dialog
       v-model="returnDialogVisible"
-      :title="returnForm.id ? '编辑销售退货' : '新建销售退货'"
+      :title="
+        returnForm.id ? t('salesExt.returnTab.titleEdit') : t('salesExt.returnTab.titleCreate')
+      "
       width="800px"
-      aria-label="销售退货编辑对话框"
+      :aria-label="t('salesExt.returnTab.ariaLabelDialog')"
     >
-      <el-form ref="returnFormRef" :model="returnForm" :rules="returnRules" label-width="100px" aria-label="销售退货表单">
+      <el-form
+        ref="returnFormRef"
+        :model="returnForm"
+        :rules="returnRules"
+        label-width="100px"
+        :aria-label="t('salesExt.returnTab.ariaLabelForm')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="退货单号" prop="returnNo">
+            <el-form-item :label="t('salesExt.returnTab.labelReturnNo')" prop="returnNo">
               <el-input v-model="returnForm.returnNo" :disabled="!!returnForm.id" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="客户" prop="customerName">
-              <el-input v-model="returnForm.customerName" placeholder="客户名称" />
+            <el-form-item :label="t('salesExt.returnTab.labelCustomer')" prop="customerName">
+              <el-input
+                v-model="returnForm.customerName"
+                :placeholder="t('salesExt.returnTab.placeholderCustomerName')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="关联订单号" prop="salesOrderNo">
-              <el-input v-model="returnForm.salesOrderNo" placeholder="销售订单号" />
+            <el-form-item :label="t('salesExt.returnTab.labelRelatedOrder')" prop="salesOrderNo">
+              <el-input
+                v-model="returnForm.salesOrderNo"
+                :placeholder="t('salesExt.returnTab.placeholderSalesOrderNo')"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="退货日期" prop="returnDate">
+            <el-form-item :label="t('salesExt.returnTab.labelReturnDate')" prop="returnDate">
               <el-date-picker
                 v-model="returnForm.returnDate"
                 type="date"
@@ -109,102 +176,187 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="退货原因" prop="reason">
+        <el-form-item :label="t('salesExt.returnTab.labelReason')" prop="reason">
           <el-input v-model="returnForm.reason" type="textarea" />
         </el-form-item>
-        <el-divider>退货明细</el-divider>
-        <el-table :data="returnForm.items" border style="width: 100%" aria-label="销售退货明细编辑表">
-          <el-table-column prop="productName" label="产品名称" min-width="150">
+        <el-divider>{{ t('salesExt.returnTab.dividerItems') }}</el-divider>
+        <el-table
+          :data="returnForm.items"
+          border
+          style="width: 100%"
+          :aria-label="t('salesExt.returnTab.ariaLabelItemsEdit')"
+        >
+          <el-table-column
+            prop="productName"
+            :label="t('salesExt.returnTab.columnProductName')"
+            min-width="150"
+          >
             <template #default="{ row }">
-              <el-input v-model="row.productName" placeholder="产品名称" />
+              <el-input
+                v-model="row.productName"
+                :placeholder="t('salesExt.returnTab.placeholderProductName')"
+              />
             </template>
           </el-table-column>
-          <el-table-column prop="productCode" label="产品编码" width="120">
+          <el-table-column
+            prop="productCode"
+            :label="t('salesExt.returnTab.columnProductCode')"
+            width="120"
+          >
             <template #default="{ row }">
-              <el-input v-model="row.productCode" placeholder="编码" />
+              <el-input
+                v-model="row.productCode"
+                :placeholder="t('salesExt.returnTab.placeholderProductCode')"
+              />
             </template>
           </el-table-column>
-          <el-table-column prop="quantity" label="数量" width="100">
+          <el-table-column
+            prop="quantity"
+            :label="t('salesExt.returnTab.columnQuantity')"
+            width="100"
+          >
             <template #default="{ row }">
               <el-input-number v-model="row.quantity" :min="0" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column prop="unitPrice" label="单价" width="100">
+          <el-table-column
+            prop="unitPrice"
+            :label="t('salesExt.returnTab.columnUnitPrice')"
+            width="100"
+          >
             <template #default="{ row }">
-              <el-input-number v-model="row.unitPrice" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="row.unitPrice"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="100">
+          <el-table-column :label="t('salesExt.returnTab.columnAmount')" width="100">
             <template #default="{ row }">
               {{ formatMoney((row.quantity || 0) * (row.unitPrice || 0)) }}
             </template>
           </el-table-column>
-          <el-table-column prop="reason" label="退货原因" min-width="120">
+          <el-table-column
+            prop="reason"
+            :label="t('salesExt.returnTab.columnReason')"
+            min-width="120"
+          >
             <template #default="{ row }">
-              <el-input v-model="row.reason" placeholder="退货原因" />
+              <el-input
+                v-model="row.reason"
+                :placeholder="t('salesExt.returnTab.placeholderReason')"
+              />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80">
+          <el-table-column :label="t('salesExt.returnTab.columnAction')" width="80">
             <template #default="{ $index }">
-              <el-button size="small" link type="danger" @click="removeReturnItem($index)"
-                >删除</el-button
-              >
+              <el-button size="small" link type="danger" @click="removeReturnItem($index)">{{
+                t('salesExt.returnTab.buttonDelete')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
-        <el-button type="primary" link style="margin-top: 8px" @click="addReturnItem"
-          >添加产品</el-button
-        >
+        <el-button type="primary" link style="margin-top: 8px" @click="addReturnItem">{{
+          t('salesExt.returnTab.buttonAddProduct')
+        }}</el-button>
       </el-form>
       <template #footer>
-        <el-button @click="returnDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="returnSubmitLoading" @click="submitReturn"
-          >确定</el-button
-        >
+        <el-button @click="returnDialogVisible = false">{{
+          t('salesExt.returnTab.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="returnSubmitLoading" @click="submitReturn">{{
+          t('salesExt.returnTab.buttonConfirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 退货详情对话框 -->
-    <el-dialog v-model="returnViewVisible" title="销售退货详情" width="800px" aria-label="销售退货详情对话框">
-      <el-descriptions :column="2" border aria-label="销售退货详情">
-        <el-descriptions-item label="退货单号">{{ currentReturn?.returnNo }}</el-descriptions-item>
-        <el-descriptions-item label="客户">{{ currentReturn?.customerName }}</el-descriptions-item>
-        <el-descriptions-item label="关联订单">{{
+    <el-dialog
+      v-model="returnViewVisible"
+      :title="t('salesExt.returnTab.titleDetail')"
+      width="800px"
+      :aria-label="t('salesExt.returnTab.ariaLabelDetail')"
+    >
+      <el-descriptions :column="2" border :aria-label="t('salesExt.returnTab.titleDetail')">
+        <el-descriptions-item :label="t('salesExt.returnTab.labelReturnNo')">{{
+          currentReturn?.returnNo
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesExt.returnTab.labelCustomer')">{{
+          currentReturn?.customerName
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesExt.returnTab.labelRelatedOrder')">{{
           currentReturn?.salesOrderNo
         }}</el-descriptions-item>
-        <el-descriptions-item label="退货日期">{{
+        <el-descriptions-item :label="t('salesExt.returnTab.labelReturnDate')">{{
           currentReturn?.returnDate
         }}</el-descriptions-item>
-        <el-descriptions-item label="总金额">{{
+        <el-descriptions-item :label="t('salesExt.returnTab.labelTotalAmount')">{{
           formatMoney(currentReturn?.totalAmount || 0)
         }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('salesExt.returnTab.labelStatus')">
           <el-tag :type="getReturnStatusType(currentReturn?.status)">
             {{ getReturnStatusLabel(currentReturn?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ currentReturn?.createdBy }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ currentReturn?.approved_by }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesExt.returnTab.labelCreatedBy')">{{
+          currentReturn?.createdBy
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesExt.returnTab.labelApprovedBy')">{{
+          currentReturn?.approved_by
+        }}</el-descriptions-item>
       </el-descriptions>
-      <el-divider>退货原因</el-divider>
+      <el-divider>{{ t('salesExt.returnTab.dividerReason') }}</el-divider>
       <p>{{ currentReturn?.reason }}</p>
-      <el-divider>退货明细</el-divider>
-      <el-table :data="currentReturn?.items || []" stripe aria-label="销售退货明细列表">
-        <el-table-column prop="productName" label="产品名称" min-width="150" />
-        <el-table-column prop="productCode" label="产品编码" width="120" />
-        <el-table-column prop="quantity" label="数量" width="100" align="right" />
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="price" label="单价" width="100" align="right">
+      <el-divider>{{ t('salesExt.returnTab.dividerItems') }}</el-divider>
+      <el-table
+        :data="currentReturn?.items || []"
+        stripe
+        :aria-label="t('salesExt.returnTab.ariaLabelItemsList')"
+      >
+        <el-table-column
+          prop="productName"
+          :label="t('salesExt.returnTab.columnProductName')"
+          min-width="150"
+        />
+        <el-table-column
+          prop="productCode"
+          :label="t('salesExt.returnTab.columnProductCode')"
+          width="120"
+        />
+        <el-table-column
+          prop="quantity"
+          :label="t('salesExt.returnTab.columnQuantity')"
+          width="100"
+          align="right"
+        />
+        <el-table-column prop="unit" :label="t('salesExt.returnTab.columnUnit')" width="80" />
+        <el-table-column
+          prop="price"
+          :label="t('salesExt.returnTab.columnPrice')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.price) }}
           </template>
         </el-table-column>
-        <el-table-column prop="amount" label="金额" width="100" align="right">
+        <el-table-column
+          prop="amount"
+          :label="t('salesExt.returnTab.columnAmount')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="reason" label="退货原因" min-width="120" />
+        <el-table-column
+          prop="reason"
+          :label="t('salesExt.returnTab.columnReason')"
+          min-width="120"
+        />
       </el-table>
     </el-dialog>
   </div>
@@ -212,6 +364,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -225,6 +378,8 @@ import {
 } from '@/api/sales-return'
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-returns 资源对齐
 import { PERMISSIONS } from '@/constants/permissions'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const salesReturns = ref<SalesReturn[]>([])
 const returnLoading = ref(false)
@@ -241,11 +396,11 @@ const formatMoney = (amount: number | undefined) => {
 
 const getReturnStatusLabel = (status?: string) => {
   const map: Record<string, string> = {
-    draft: '草稿',
-    pending: '待审核',
-    approved: '已批准',
-    rejected: '已拒绝',
-    completed: '已完成',
+    draft: t('salesExt.returnTab.statusDraft'),
+    pending: t('salesExt.returnTab.statusPending'),
+    approved: t('salesExt.returnTab.statusApproved'),
+    rejected: t('salesExt.returnTab.statusRejected'),
+    completed: t('salesExt.returnTab.statusCompleted'),
   }
   return map[status || ''] || status || ''
 }
@@ -276,7 +431,7 @@ const fetchSalesReturns = async () => {
     }
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '获取销售退货失败')
+    ElMessage.error(err.message || t('salesExt.returnTab.messageFetchFailed'))
   } finally {
     returnLoading.value = false
   }
@@ -307,10 +462,14 @@ const returnForm = reactive({
 })
 
 const returnRules: FormRules = {
-  returnNo: [{ required: true, message: '请输入退货单号', trigger: 'blur' }],
-  customerName: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
-  returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }],
-  reason: [{ required: true, message: '请输入退货原因', trigger: 'blur' }],
+  returnNo: [{ required: true, message: t('salesExt.returnTab.ruleReturnNo'), trigger: 'blur' }],
+  customerName: [
+    { required: true, message: t('salesExt.returnTab.ruleCustomerName'), trigger: 'blur' },
+  ],
+  returnDate: [
+    { required: true, message: t('salesExt.returnTab.ruleReturnDate'), trigger: 'change' },
+  ],
+  reason: [{ required: true, message: t('salesExt.returnTab.ruleReason'), trigger: 'blur' }],
 }
 
 const openReturnDialog = async (row?: SalesReturn) => {
@@ -352,16 +511,16 @@ const submitReturn = async () => {
   try {
     if (returnForm.id) {
       await updateSalesReturn(returnForm.id, returnForm)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('salesExt.returnTab.messageUpdateSuccess'))
     } else {
       await createSalesReturn(returnForm)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('salesExt.returnTab.messageCreateSuccess'))
     }
     returnDialogVisible.value = false
     fetchSalesReturns()
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('salesExt.returnTab.messageOperationFailed'))
   } finally {
     returnSubmitLoading.value = false
   }

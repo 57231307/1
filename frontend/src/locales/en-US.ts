@@ -49,8 +49,8 @@ export default {
       operationFailed: 'Operation failed',
       updateSuccess: 'Update successful',
       createSuccess: 'Create successful',
-      deleteSuccess: 'Delete successful'
-    }
+      deleteSuccess: 'Delete successful',
+    },
   },
   login: {
     title: 'BingXi ERP',
@@ -74,16 +74,17 @@ export default {
     remainingTime: 'Remaining: {minutes}m {seconds}s',
     unlocked: 'Account unlocked, please log in again',
     failedFallback: 'Login failed',
-    passwordExpiredMessage: 'Your password has not been changed for over 90 days. For account security, please change it immediately.',
+    passwordExpiredMessage:
+      'Your password has not been changed for over 90 days. For account security, please change it immediately.',
     passwordExpiredTitle: 'Password Expiry Reminder',
     passwordExpiredConfirm: 'Change Now',
-    passwordExpiredLater: 'Remind Later'
+    passwordExpiredLater: 'Remind Later',
   },
   dashboard: {
     title: 'Dashboard',
     welcome: 'Welcome back',
-    todayOrders: 'Today\'s Orders',
-    todayRevenue: 'Today\'s Revenue',
+    todayOrders: "Today's Orders",
+    todayRevenue: "Today's Revenue",
     pendingTasks: 'Pending Tasks',
     lowStock: 'Low Stock Alert',
     salesTrend: 'Sales Trend',
@@ -94,19 +95,19 @@ export default {
     dateRange: {
       to: 'to',
       startPlaceholder: 'Start date',
-      endPlaceholder: 'End date'
-    }
+      endPlaceholder: 'End date',
+    },
   },
   layout: {
     brand: 'BingXi ERP',
     menuAriaLabel: 'Main navigation menu',
     breadcrumb: {
-      home: 'Home'
+      home: 'Home',
     },
     user: {
       defaultName: 'User',
       profile: 'Profile',
-      logout: 'Logout'
+      logout: 'Logout',
     },
     menu: {
       dashboard: 'Dashboard',
@@ -213,8 +214,8 @@ export default {
       ai: 'AI',
       aiExtend: 'AI Analysis',
       aiProcessOptimization: 'AI Process Optimization',
-      aiQualityPrediction: 'AI Quality Prediction'
-    }
+      aiQualityPrediction: 'AI Quality Prediction',
+    },
   },
   sales: {
     title: 'Sales',
@@ -237,8 +238,8 @@ export default {
         confirmed: 'Confirmed',
         shipped: 'Shipped',
         completed: 'Completed',
-        cancelled: 'Cancelled'
-      }
+        cancelled: 'Cancelled',
+      },
     },
     customer: {
       title: 'Customers',
@@ -248,27 +249,27 @@ export default {
       contact: 'Contact',
       phone: 'Phone',
       creditLimit: 'Credit Limit',
-      level: 'Level'
+      level: 'Level',
     },
     quotation: {
       title: 'Quotations',
       list: 'Quotation List',
-      create: 'New Quotation'
+      create: 'New Quotation',
     },
     return: {
       title: 'Sales Returns',
-      list: 'Return List'
+      list: 'Return List',
     },
     statusLabels: {
       pending: 'Pending Approval',
       approved: 'Approved',
       shipped: 'Shipped',
       completed: 'Completed',
-      cancelled: 'Cancelled'
+      cancelled: 'Cancelled',
     },
     indexPage: {
       title: 'Sales Order Management',
-      newOrder: 'New Order'
+      newOrder: 'New Order',
     },
     orderForm: {
       basicInfo: 'Basic Information',
@@ -313,7 +314,7 @@ export default {
       operationFailed: 'Operation failed',
       defaultUnit: 'meter',
       formAriaLabel: 'Sales Order Form',
-      itemsTableAriaLabel: 'Sales order items edit table'
+      itemsTableAriaLabel: 'Sales order items edit table',
     },
     orderView: {
       title: 'Order Detail',
@@ -335,7 +336,7 @@ export default {
       unitPrice: 'Unit Price',
       subtotal: 'Subtotal',
       dialogAriaLabel: 'Order Detail Dialog',
-      itemsTableAriaLabel: 'Order Items List'
+      itemsTableAriaLabel: 'Order Items List',
     },
     delivery: {
       title: 'Sales Delivery',
@@ -360,7 +361,7 @@ export default {
       atLeastOneDelivery: 'Please fill in at least one delivery quantity',
       dialogAriaLabel: 'Sales Delivery Dialog',
       formAriaLabel: 'Sales Delivery Form',
-      itemsTableAriaLabel: 'Sales Delivery Items Table'
+      itemsTableAriaLabel: 'Sales Delivery Items Table',
     },
     filter: {
       orderNo: 'Order No.',
@@ -375,21 +376,21 @@ export default {
       endDate: 'End date',
       query: 'Query',
       reset: 'Reset',
-      formAriaLabel: 'Sales Order Filter Form'
+      formAriaLabel: 'Sales Order Filter Form',
     },
     stat: {
       totalCount: 'Total Orders',
       pending: 'Pending Approval',
       approved: 'Approved',
-      totalAmount: 'Total Amount'
+      totalAmount: 'Total Amount',
     },
     table: {
       operation: 'Operation',
       view: 'View',
       approve: 'Approve',
       deliver: 'Deliver',
-      cancel: 'Cancel'
-    }
+      cancel: 'Cancel',
+    },
   },
   inventory: {
     title: 'Inventory',
@@ -404,23 +405,23 @@ export default {
       lockedQty: 'Locked Qty',
       unit: 'Unit',
       value: 'Stock Value',
-      alert: 'Stock Alert'
+      alert: 'Stock Alert',
     },
     inbound: {
       title: 'Inbound',
-      list: 'Inbound List'
+      list: 'Inbound List',
     },
     outbound: {
       title: 'Outbound',
-      list: 'Outbound List'
+      list: 'Outbound List',
     },
     transfer: {
       title: 'Transfers',
-      list: 'Transfer List'
+      list: 'Transfer List',
     },
     count: {
       title: 'Stock Taking',
-      list: 'Count List'
+      list: 'Count List',
     },
     page: {
       title: 'Inventory Management',
@@ -433,7 +434,7 @@ export default {
       export: 'Export',
       tabStock: 'Stock Ledger',
       tabAlert: 'Stock Alert',
-      tabTransfer: 'Stock Transfer'
+      tabTransfer: 'Stock Transfer',
     },
     message: {
       fetchStockFailed: 'Failed to load stock list',
@@ -454,7 +455,7 @@ export default {
       stockDetailNotFound: 'Stock detail not found',
       fetchStockDetailFailed: 'Failed to load stock detail',
       noExportData: 'No data to export',
-      exportSuccess: 'Exported successfully'
+      exportSuccess: 'Exported successfully',
     },
     transferTab: {
       newTransfer: 'New Transfer Order',
@@ -472,7 +473,7 @@ export default {
       statusPending: 'Pending',
       statusApproved: 'Approved',
       statusExecuted: 'Executed',
-      statusCancelled: 'Cancelled'
+      statusCancelled: 'Cancelled',
     },
     alertTab: {
       colProductCode: 'Product Code',
@@ -486,7 +487,7 @@ export default {
       purchase: 'Purchase',
       listAria: 'Stock alert list',
       urgent: 'Urgent',
-      warning: 'Warning'
+      warning: 'Warning',
     },
     stockTab: {
       filterAria: 'Stock ledger filter form',
@@ -508,7 +509,7 @@ export default {
       colColorCode: 'Color Code',
       colQuantity: 'Stock Qty',
       colStatus: 'Status',
-      colLocation: 'Location'
+      colLocation: 'Location',
     },
     transferDialog: {
       title: 'New Transfer Order',
@@ -524,13 +525,13 @@ export default {
       remark: 'Remark',
       remarkPlaceholder: 'Enter remark',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     statCards: {
       totalQuantity: 'Total Stock',
       alert: 'Stock Alerts',
       warehouseCount: 'Warehouse Count',
-      lowStock: 'Below Min Stock'
+      lowStock: 'Below Min Stock',
     },
     adjustmentDialog: {
       title: 'Stock Adjustment',
@@ -546,7 +547,7 @@ export default {
       reason: 'Adjustment Reason',
       reasonPlaceholder: 'Enter adjustment reason',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     transferDetail: {
       title: 'Transfer Order Detail',
@@ -557,7 +558,7 @@ export default {
       totalQty: 'Total Qty: {value}',
       status: 'Status: {value}',
       creator: 'Creator: {value}',
-      createdAt: 'Created At: {value}'
+      createdAt: 'Created At: {value}',
     },
     stockDetail: {
       title: 'Stock Detail',
@@ -569,9 +570,9 @@ export default {
       color: 'Color: {value}',
       currentQty: 'Current Qty: {value} {unit}',
       status: 'Status: {value}',
-      location: 'Location: {value}'
+      location: 'Location: {value}',
     },
-    printHeader: 'Stock Ledger'
+    printHeader: 'Stock Ledger',
   },
   settings: {
     title: 'Settings',
@@ -586,35 +587,35 @@ export default {
       lastLogin: 'Last Login',
       updateSuccess: 'Updated successfully',
       createSuccess: 'Created successfully',
-      deleteSuccess: 'Deleted successfully'
+      deleteSuccess: 'Deleted successfully',
     },
     role: {
       title: 'Role Management',
-      list: 'Role List'
+      list: 'Role List',
     },
     permission: {
-      title: 'Permissions'
+      title: 'Permissions',
     },
     system: {
       title: 'System Config',
       basic: 'Basic',
       security: 'Security',
-      notification: 'Notification'
-    }
+      notification: 'Notification',
+    },
   },
   purchase: {
     title: 'Purchase',
     order: {
       title: 'Purchase Orders',
-      list: 'Purchase Order List'
+      list: 'Purchase Order List',
     },
     supplier: {
       title: 'Suppliers',
-      list: 'Supplier List'
+      list: 'Supplier List',
     },
     receipt: {
       title: 'Purchase Receipts',
-      list: 'Receipt List'
+      list: 'Receipt List',
     },
     top: {
       title: 'Purchase Management',
@@ -623,13 +624,13 @@ export default {
       breadcrumbOrder: 'Purchase Orders',
       create: 'New Purchase Order',
       print: 'Print',
-      export: 'Export'
+      export: 'Export',
     },
     statCards: {
       monthOrders: 'Monthly Purchases',
       monthAmount: 'Purchase Amount',
       pendingReceipt: 'Pending Receipt',
-      supplierCount: 'Active Suppliers'
+      supplierCount: 'Active Suppliers',
     },
     filter: {
       ariaLabel: 'Purchase order filter form',
@@ -645,7 +646,7 @@ export default {
       statusCompleted: 'Completed',
       statusCancelled: 'Cancelled',
       query: 'Query',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     table: {
       listAria: 'Purchase order list',
@@ -662,7 +663,7 @@ export default {
       detail: 'Detail',
       receive: 'Receive',
       approve: 'Approve',
-      paginationAria: 'Purchase order list pagination'
+      paginationAria: 'Purchase order list pagination',
     },
     viewDlg: {
       title: 'Purchase Order Detail',
@@ -687,7 +688,7 @@ export default {
       colUnitPrice: 'Unit Price',
       colSubtotal: 'Amount',
       colReceived: 'Received',
-      colRemark: 'Remark'
+      colRemark: 'Remark',
     },
     createDlg: {
       title: 'New Purchase Order',
@@ -711,7 +712,7 @@ export default {
       addItem: '+ Add Item',
       totalAmount: 'Total Amount',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     receiveDlg: {
       title: 'Purchase Receipt',
@@ -733,24 +734,24 @@ export default {
       colRemark: 'Remark',
       remarkPlaceholder: 'Remark',
       cancel: 'Cancel',
-      confirm: 'Confirm Receipt'
-    }
+      confirm: 'Confirm Receipt',
+    },
   },
   finance: {
     title: 'Finance',
     ar: {
       title: 'Accounts Receivable',
-      list: 'AR List'
+      list: 'AR List',
     },
     ap: {
       title: 'Accounts Payable',
-      list: 'AP List'
+      list: 'AP List',
     },
     payment: {
-      title: 'Payments'
+      title: 'Payments',
     },
     report: {
-      title: 'Financial Reports'
+      title: 'Financial Reports',
     },
     index: {
       tabSubject: 'Subjects',
@@ -876,7 +877,7 @@ export default {
       placeholderCategory: 'Select Category',
       optionAsset: 'Asset',
       optionLiability: 'Liability',
-      optionEquity: 'Owner\'s Equity',
+      optionEquity: "Owner's Equity",
       optionCost: 'Cost',
       optionProfitLoss: 'Profit & Loss',
       labelDirection: 'Balance Direction',
@@ -929,10 +930,10 @@ export default {
     timeout: 'Request timeout',
     unknown: 'Unknown error',
     page: {
-      forbiddenMessage: 'You don\'t have permission to access this page',
+      forbiddenMessage: "You don't have permission to access this page",
       notFoundDesc: 'Page not found',
-      backHome: 'Back to Home'
-    }
+      backHome: 'Back to Home',
+    },
   },
   message: {
     saveSuccess: 'Saved successfully',
@@ -956,7 +957,7 @@ export default {
     exportFailed: 'Export failed',
     networkError: 'Network error',
     permissionDenied: 'Permission denied',
-    sessionExpired: 'Session expired, please login again'
+    sessionExpired: 'Session expired, please login again',
   },
   aiExtend: {
     qualityPrediction: {
@@ -1008,7 +1009,7 @@ export default {
       colIssue: 'Issue',
       colCount: 'Count',
       colPercentage: 'Percentage',
-      recommendations: 'Recommendations'
+      recommendations: 'Recommendations',
     },
     process: {
       invalidId: 'Invalid process optimization ID',
@@ -1086,7 +1087,7 @@ export default {
       knnHint: 'Recommended 3-10',
       knnAlert: 'Larger K means more stable but conservative; smaller K means more aggressive.',
       cancel: 'Cancel',
-      generate: 'Generate'
+      generate: 'Generate',
     },
     overview: {
       title: 'AI Analysis',
@@ -1124,15 +1125,15 @@ export default {
       colTrend: 'Trend',
       colAck: 'Ack',
       acknowledged: 'Acknowledged',
-      unacknowledged: 'Unacknowledged'
-    }
+      unacknowledged: 'Unacknowledged',
+    },
   },
   budget: {
     validation: {
       budgetNoRequired: 'Please enter budget number',
       nameRequired: 'Please enter budget name',
       periodRequired: 'Please enter period',
-      totalAmountRequired: 'Please enter total budget amount'
+      totalAmountRequired: 'Please enter total budget amount',
     },
     confirmAudit: 'Audit budget "{name}"?',
     auditSuccess: 'Audit successful',
@@ -1148,13 +1149,13 @@ export default {
       status: 'Status',
       statusPlaceholder: 'Select status',
       query: 'Query',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     status: {
       draft: 'Draft',
       pending: 'Pending',
       approved: 'Approved',
-      rejected: 'Rejected'
+      rejected: 'Rejected',
     },
     table: {
       ariaLabel: 'Budget list',
@@ -1169,7 +1170,7 @@ export default {
       edit: 'Edit',
       approve: 'Approve',
       delete: 'Delete',
-      paginationAriaLabel: 'Budget list pagination'
+      paginationAriaLabel: 'Budget list pagination',
     },
     dialog: {
       editTitle: 'Edit Budget',
@@ -1184,7 +1185,7 @@ export default {
       departmentId: 'Department ID',
       remark: 'Remark',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     message: {
       loadFailed: 'Failed to load budget list',
@@ -1192,33 +1193,33 @@ export default {
       auditFailed: 'Audit failed',
       deleteConfirm: 'Delete budget "{name}"?',
       deleteFailed: 'Delete failed',
-      listExported: 'Budget list exported'
-    }
+      listExported: 'Budget list exported',
+    },
   },
   businessTrace: {
     tab: {
       fiveDimension: 'Five-Dimension Trace',
       forward: 'Forward Trace',
-      backward: 'Backward Trace'
+      backward: 'Backward Trace',
     },
     fiveDimensionCardTitle: 'Five-Dimension Trace Query',
     placeholder: {
       fiveDimensionId: 'Enter five-dimension trace ID',
       supplierId: 'Enter supplier ID',
       batchNo: 'Enter batch No',
-      customerId: 'Enter customer ID'
+      customerId: 'Enter customer ID',
     },
     button: {
       trace: 'Trace',
       createSnapshot: 'Create Snapshot',
       forwardTrace: 'Forward Trace',
-      backwardTrace: 'Backward Trace'
+      backwardTrace: 'Backward Trace',
     },
     card: {
       traceChainDetail: 'Trace Chain Detail',
       traceFlow: 'Trace Flow',
       supplierToCustomer: 'Supplier to Customer (Forward)',
-      customerToSupplier: 'Customer to Supplier (Backward)'
+      customerToSupplier: 'Customer to Supplier (Backward)',
     },
     field: {
       traceChainId: 'Trace Chain ID',
@@ -1231,7 +1232,7 @@ export default {
       startTime: 'Start Time',
       endTime: 'End Time',
       supplierId: 'Supplier ID',
-      customerId: 'Customer ID'
+      customerId: 'Customer ID',
     },
     stageDetailTitle: 'Stage Detail',
     stageTableAriaLabel: 'Trace stage detail table',
@@ -1251,18 +1252,18 @@ export default {
       currentStage: 'Current Stage',
       currentBillNo: 'Current Bill No',
       createdAt: 'Created At',
-      backwardResultAriaLabel: 'Backward trace result table'
+      backwardResultAriaLabel: 'Backward trace result table',
     },
     empty: {
       fiveDimensionTitle: 'Enter five-dimension trace ID',
       fiveDimensionSubTitle: 'Enter a five-dimension trace ID to query the trace chain',
       queryTitle: 'No trace results',
       forwardSubTitle: 'Enter supplier and batch No to start forward trace',
-      backwardSubTitle: 'Enter customer and batch No to start backward trace'
+      backwardSubTitle: 'Enter customer and batch No to start backward trace',
     },
     form: {
       forwardAriaLabel: 'Forward trace form',
-      backwardAriaLabel: 'Backward trace form'
+      backwardAriaLabel: 'Backward trace form',
     },
     message: {
       fiveDimensionIdRequired: 'Please enter five-dimension trace ID',
@@ -1273,15 +1274,15 @@ export default {
       backwardTraceFailed: 'Backward trace failed',
       queryTraceFirst: 'Please query the trace chain first',
       snapshotCreated: 'Snapshot created successfully',
-      createSnapshotFailed: 'Failed to create snapshot'
-    }
+      createSnapshotFailed: 'Failed to create snapshot',
+    },
   },
   capacityModule: {
     title: 'Capacity Analysis',
     dateRange: {
       to: 'to',
       startPlaceholder: 'Start date',
-      endPlaceholder: 'End date'
+      endPlaceholder: 'End date',
     },
     workCenterPlaceholder: 'Select work center',
     allWorkCenters: 'All work centers',
@@ -1289,7 +1290,7 @@ export default {
       totalWorkCenters: 'Total Work Centers',
       normal: 'Normal',
       busy: 'Busy',
-      overload: 'Overload'
+      overload: 'Overload',
     },
     trend: {
       title: 'Capacity Load Trend',
@@ -1298,7 +1299,7 @@ export default {
       plannedHours: 'Planned Hours',
       actualHours: 'Actual Hours',
       capacityHours: 'Capacity Hours',
-      hoursUnit: 'hours'
+      hoursUnit: 'hours',
     },
     table: {
       title: 'Work Center List',
@@ -1311,7 +1312,7 @@ export default {
       loadRate: 'Load Rate',
       status: 'Status',
       bottleneck: 'Bottleneck',
-      paginationAriaLabel: 'Work center list pagination'
+      paginationAriaLabel: 'Work center list pagination',
     },
     bottleneck: {
       title: 'Bottleneck Identification',
@@ -1319,32 +1320,32 @@ export default {
       empty: 'No bottleneck work centers',
       tag: 'Bottleneck',
       loadRate: 'Load Rate',
-      usedHours: 'Used / Capacity Hours'
+      usedHours: 'Used / Capacity Hours',
     },
     workCenterStatus: {
       normal: 'Normal',
       busy: 'Busy',
-      overload: 'Overload'
+      overload: 'Overload',
     },
     common: {
-      yes: 'Yes'
-    }
+      yes: 'Yes',
+    },
   },
   inventoryTransfer: {
     approvePassed: 'Approval passed',
     confirmReject: 'Reject this transfer order?',
-    rejected: 'Rejected'
+    rejected: 'Rejected',
   },
   cost: {
     validation: {
       collectionDateRequired: 'Please select collection date',
       directMaterialRequired: 'Please enter direct material',
       directLaborRequired: 'Please enter direct labor',
-      manufacturingOverheadRequired: 'Please enter manufacturing overhead'
+      manufacturingOverheadRequired: 'Please enter manufacturing overhead',
     },
     confirmDelete: 'Delete collection order "{name}"?',
     confirmAction: '{action} this cost collection?',
-    actionConfirmTitle: '{action} Confirmation'
+    actionConfirmTitle: '{action} Confirmation',
   },
   fixedAssets: {
     title: 'Fixed Assets',
@@ -1362,19 +1363,19 @@ export default {
       status: 'Status',
       statusPlaceholder: 'Select status',
       query: 'Search',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     category: {
       building: 'Building',
       equipment: 'Equipment',
       vehicle: 'Vehicle',
       electronic: 'Electronic',
-      furniture: 'Furniture'
+      furniture: 'Furniture',
     },
     status: {
       inUse: 'In Use',
       idle: 'Idle',
-      disposed: 'Disposed'
+      disposed: 'Disposed',
     },
     table: {
       ariaLabel: 'Fixed assets list',
@@ -1392,7 +1393,7 @@ export default {
       depreciate: 'Depreciate',
       dispose: 'Dispose',
       delete: 'Delete',
-      paginationAriaLabel: 'Fixed assets list pagination'
+      paginationAriaLabel: 'Fixed assets list pagination',
     },
     dialog: {
       editTitle: 'Edit Asset',
@@ -1412,13 +1413,13 @@ export default {
       location: 'Location',
       custodian: 'Custodian',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     depreciationMethod: {
       straightLine: 'Straight Line',
       workload: 'Workload',
       doubleDeclining: 'Double Declining',
-      sumOfYears: 'Sum of Years'
+      sumOfYears: 'Sum of Years',
     },
     disposal: {
       title: 'Asset Disposal',
@@ -1437,7 +1438,7 @@ export default {
       confirm: 'Confirm Disposal',
       typeSale: 'Sale',
       typeScrap: 'Scrap',
-      typeTransfer: 'Transfer'
+      typeTransfer: 'Transfer',
     },
     message: {
       loadListFailed: 'Failed to load asset list',
@@ -1455,15 +1456,17 @@ export default {
       disposeSuccess: 'Disposed successfully',
       disposeFailed: 'Disposal failed',
       noDepreciableAsset: 'No assets available for depreciation',
-      batchDepreciatePrompt: 'Enter accounting period for depreciation (YYYY-MM format, e.g. 2026-07):',
+      batchDepreciatePrompt:
+        'Enter accounting period for depreciation (YYYY-MM format, e.g. 2026-07):',
       batchDepreciateTitle: 'Batch Depreciation',
-      batchDepreciateConfirm: 'Calculate depreciation for {count} assets in period {period}, continue?',
+      batchDepreciateConfirm:
+        'Calculate depreciation for {count} assets in period {period}, continue?',
       batchDepreciateConfirmTitle: 'Batch Depreciation Confirmation',
       batchDepreciateSuccess: 'Depreciation calculated for {count} assets',
       batchDepreciateFailed: 'Batch depreciation failed',
       invalidPeriod: 'Please enter a valid period (YYYY-MM)',
       noInUseAsset: 'No in-use assets available for depreciation',
-      userNotFound: 'Cannot get current user info, please login again'
+      userNotFound: 'Cannot get current user info, please login again',
     },
     validation: {
       disposalTypeRequired: 'Please select disposal type',
@@ -1476,8 +1479,8 @@ export default {
       purchaseDateRequired: 'Please select purchase date',
       purchaseAmountRequired: 'Please enter original value',
       usefulLifeRequired: 'Please enter useful life',
-      depreciationMethodRequired: 'Please select depreciation method'
-    }
+      depreciationMethodRequired: 'Please select depreciation method',
+    },
   },
   printTemplates: {
     title: 'Print Template Management',
@@ -1492,7 +1495,7 @@ export default {
       inventory: 'Inventory',
       finance: 'Finance',
       production: 'Production',
-      logistics: 'Logistics'
+      logistics: 'Logistics',
     },
     type: {
       placeholder: 'Type',
@@ -1501,20 +1504,20 @@ export default {
       receipt: 'Receipt',
       label: 'Label',
       report: 'Report',
-      custom: 'Custom'
+      custom: 'Custom',
     },
     status: {
       placeholder: 'Status',
       active: 'Active',
-      inactive: 'Inactive'
+      inactive: 'Inactive',
     },
     orientation: {
       portrait: 'Portrait',
-      landscape: 'Landscape'
+      landscape: 'Landscape',
     },
     yesNo: {
       yes: 'Yes',
-      no: 'No'
+      no: 'No',
     },
     table: {
       ariaLabel: 'Print templates list',
@@ -1531,7 +1534,7 @@ export default {
       copy: 'Copy',
       edit: 'Edit',
       setDefault: 'Set Default',
-      delete: 'Delete'
+      delete: 'Delete',
     },
     dialog: {
       editTitle: 'Edit Template',
@@ -1558,14 +1561,14 @@ export default {
       variables: 'Variable Config',
       variablesPlaceholder: 'JSON variables, e.g.: {"company_name": "Company", "date": "Date"}',
       cancel: 'Cancel',
-      confirm: 'OK'
+      confirm: 'OK',
     },
     previewDialog: {
       title: 'Template Preview',
       ariaLabel: 'Template preview dialog',
       noData: 'No preview data',
       close: 'Close',
-      print: 'Print'
+      print: 'Print',
     },
     message: {
       loadFailed: 'Failed to load data',
@@ -1584,7 +1587,7 @@ export default {
       setDefaultSuccess: 'Set successfully',
       setDefaultFailed: 'Set default failed',
       copySuccess: 'Copied successfully',
-      copyFailed: 'Copy failed'
+      copyFailed: 'Copy failed',
     },
     validation: {
       templateCodeRequired: 'Please enter template code',
@@ -1593,27 +1596,27 @@ export default {
       typeRequired: 'Please select type',
       paperSizeRequired: 'Please select paper size',
       orientationRequired: 'Please select orientation',
-      contentRequired: 'Please enter template content'
-    }
+      contentRequired: 'Please enter template content',
+    },
   },
   bpm: {
     title: 'Approval Management',
     breadcrumb: {
       home: 'Home',
       bpm: 'Approval Management',
-      myApproval: 'My Approval'
+      myApproval: 'My Approval',
     },
     stats: {
       pendingTasks: 'Pending',
       completedTasks: 'Completed',
       urgentTasks: 'Urgent',
-      avgProcessingTime: 'Avg Processing Time'
+      avgProcessingTime: 'Avg Processing Time',
     },
     tab: {
       pending: 'Pending Tasks',
       initiated: 'Initiated',
       processed: 'Processed',
-      monitor: 'Monitor'
+      monitor: 'Monitor',
     },
     pendingTable: {
       ariaLabel: 'Pending Approval Task List',
@@ -1627,7 +1630,7 @@ export default {
       approve: 'Approve',
       detail: 'Detail',
       transfer: 'Transfer',
-      urge: 'Urge'
+      urge: 'Urge',
     },
     initiatedTable: {
       ariaLabel: 'Initiated Process List',
@@ -1638,7 +1641,7 @@ export default {
       currentNode: 'Current Node',
       operation: 'Operation',
       trace: 'Trace',
-      cancel: 'Cancel'
+      cancel: 'Cancel',
     },
     processedTable: {
       ariaLabel: 'Processed Task List',
@@ -1649,7 +1652,7 @@ export default {
       result: 'Result',
       approved: 'Approved',
       rejected: 'Rejected',
-      comment: 'Comment'
+      comment: 'Comment',
     },
     monitorTable: {
       ariaLabel: 'Process Instance Monitor List',
@@ -1661,18 +1664,18 @@ export default {
       status: 'Status',
       operation: 'Operation',
       view: 'View',
-      processImage: 'Process Image'
+      processImage: 'Process Image',
     },
     priority: {
       high: 'High',
       medium: 'Medium',
-      low: 'Low'
+      low: 'Low',
     },
     processStatus: {
       running: 'Running',
       completed: 'Completed',
       cancelled: 'Cancelled',
-      suspended: 'Suspended'
+      suspended: 'Suspended',
     },
     detail: {
       instanceId: 'Instance ID',
@@ -1687,7 +1690,7 @@ export default {
       processImageTitle: 'Process Image: {instanceId}',
       traceTitle: 'Process Trace: {instanceId}',
       currentActivity: 'Current Activity',
-      activityHistory: 'Activity History'
+      activityHistory: 'Activity History',
     },
     message: {
       fetchPendingFailed: 'Failed to fetch pending tasks',
@@ -1701,7 +1704,7 @@ export default {
       instanceIdNotFound: 'Process instance ID not found',
       instanceDetailNotFound: 'Process detail not found',
       fetchDetailFailed: 'Failed to fetch detail',
-      transferPrompt: 'Please enter the recipient\'s user ID',
+      transferPrompt: "Please enter the recipient's user ID",
       transferTitle: 'Transfer Task',
       transferUserIdInvalid: 'Please enter a valid user ID',
       transferComment: 'Task transfer',
@@ -1713,7 +1716,8 @@ export default {
       approvalChainTitle: 'Process Trace',
       close: 'Close',
       fetchApprovalChainFailed: 'Failed to fetch approval chain',
-      cancelConfirm: 'Are you sure to cancel process {instanceId}? The process will be terminated and all pending tasks will be cancelled.',
+      cancelConfirm:
+        'Are you sure to cancel process {instanceId}? The process will be terminated and all pending tasks will be cancelled.',
       cancelConfirmTitle: 'Cancel Confirm',
       cancelConfirmButton: 'Confirm Cancel',
       cancelCancelButton: 'Cancel',
@@ -1722,30 +1726,30 @@ export default {
       cancelFailed: 'Cancel failed',
       fetchProcessDetailFailed: 'Failed to fetch process detail',
       processImageNotFound: 'Process image not found',
-      fetchProcessImageFailed: 'Failed to fetch process image'
+      fetchProcessImageFailed: 'Failed to fetch process image',
     },
     nodeType: {
       start: 'Start',
       end: 'End',
       approval: 'Approval',
       condition: 'Condition',
-      notify: 'Notify'
+      notify: 'Notify',
     },
     approval: {
       title: 'Approval Center',
       breadcrumb: {
         approval: 'Approval Management',
-        center: 'Approval Center'
+        center: 'Approval Center',
       },
       tab: {
         pending: 'Pending',
-        completed: 'Completed'
+        completed: 'Completed',
       },
       stat: {
         pending: 'Pending',
         completed: 'Completed',
         urgent: 'Urgent',
-        avgTime: 'Avg Processing Time'
+        avgTime: 'Avg Processing Time',
       },
       approvalDialog: {
         ariaLabel: 'Approval Dialog',
@@ -1756,7 +1760,7 @@ export default {
         comment: 'Comment',
         commentPlaceholder: 'Please enter comment',
         cancel: 'Cancel',
-        confirm: 'Confirm'
+        confirm: 'Confirm',
       },
       chainDialog: {
         ariaLabel: 'Approval Chain Dialog',
@@ -1764,7 +1768,7 @@ export default {
         approver: 'Approver',
         comment: 'Comment',
         durationText: 'Duration: {minutes} min',
-        empty: 'No approval chain records'
+        empty: 'No approval chain records',
       },
       transferDialog: {
         ariaLabel: 'Transfer Task Dialog',
@@ -1775,7 +1779,7 @@ export default {
         comment: 'Comment',
         commentPlaceholder: 'Please enter comment',
         cancel: 'Cancel',
-        confirm: 'Confirm'
+        confirm: 'Confirm',
       },
       pendingTable: {
         taskName: 'Task Name',
@@ -1789,7 +1793,7 @@ export default {
         approve: 'Approve',
         reject: 'Reject',
         transfer: 'Transfer',
-        viewChain: 'View Chain'
+        viewChain: 'View Chain',
       },
       completedTable: {
         taskName: 'Task Name',
@@ -1802,8 +1806,8 @@ export default {
         rejected: 'Rejected',
         comment: 'Comment',
         operation: 'Operation',
-        viewChain: 'View Chain'
-      }
+        viewChain: 'View Chain',
+      },
     },
     definitions: {
       title: 'Process Definitions',
@@ -1811,11 +1815,11 @@ export default {
       formRules: {
         processKeyRequired: 'Please enter process key',
         processNameRequired: 'Please enter process name',
-        categoryRequired: 'Please select category'
+        categoryRequired: 'Please select category',
       },
       templateRules: {
         templateNameRequired: 'Please enter template name',
-        categoryRequired: 'Please select category'
+        categoryRequired: 'Please select category',
       },
       nodePrefix: 'Node {index}',
       filter: {
@@ -1825,7 +1829,7 @@ export default {
         category: 'Process Category',
         categoryPlaceholder: 'Select Category',
         query: 'Query',
-        reset: 'Reset'
+        reset: 'Reset',
       },
       form: {
         editTitle: 'Edit Process Definition',
@@ -1853,7 +1857,7 @@ export default {
         operation: 'Operation',
         delete: 'Delete',
         cancel: 'Cancel',
-        confirm: 'Confirm'
+        confirm: 'Confirm',
       },
       table: {
         ariaLabel: 'Process Definition List',
@@ -1869,7 +1873,7 @@ export default {
         versions: 'Versions',
         saveAsTemplate: 'Save as Template',
         delete: 'Delete',
-        paginationAriaLabel: 'Process Definition List Pagination'
+        paginationAriaLabel: 'Process Definition List Pagination',
       },
       versionDialog: {
         title: 'Version Management - {name}',
@@ -1882,7 +1886,7 @@ export default {
         createdAt: 'Created At',
         createdBy: 'Created By',
         operation: 'Operation',
-        activate: 'Activate'
+        activate: 'Activate',
       },
       templateDialog: {
         title: 'Save as Template',
@@ -1895,18 +1899,18 @@ export default {
         description: 'Description',
         descriptionPlaceholder: 'Please enter template description',
         cancel: 'Cancel',
-        save: 'Save'
+        save: 'Save',
       },
       status: {
         draft: 'Draft',
         active: 'Published',
         suspended: 'Suspended',
-        deprecated: 'Deprecated'
+        deprecated: 'Deprecated',
       },
       versionStatus: {
         draft: 'Draft',
         active: 'Active',
-        deprecated: 'Deprecated'
+        deprecated: 'Deprecated',
       },
       category: {
         finance: 'Finance',
@@ -1915,35 +1919,35 @@ export default {
         sales: 'Sales',
         production: 'Production',
         inventory: 'Inventory',
-        other: 'Other'
+        other: 'Other',
       },
       nodeType: {
         start: 'Start',
         approval: 'Approval',
         condition: 'Condition',
         notify: 'Notify',
-        end: 'End'
+        end: 'End',
       },
       assigneeType: {
         user: 'Specific User',
         role: 'Specific Role',
         department: 'Specific Department',
-        dynamic: 'Dynamic'
-      }
+        dynamic: 'Dynamic',
+      },
     },
     templates: {
       title: 'Process Template Library',
       breadcrumb: {
         home: 'Home',
         approval: 'Approval Management',
-        templates: 'Template Library'
+        templates: 'Template Library',
       },
       filter: {
         ariaLabel: 'Process Template Filter Form',
         category: 'Template Category',
         categoryPlaceholder: 'All Categories',
         query: 'Query',
-        reset: 'Reset'
+        reset: 'Reset',
       },
       category: {
         sales: 'Sales Template',
@@ -1951,7 +1955,7 @@ export default {
         finance: 'Finance Template',
         hr: 'HR Template',
         production: 'Production Template',
-        common: 'Common Template'
+        common: 'Common Template',
       },
       card: {
         viewDetail: 'View Detail',
@@ -1959,7 +1963,7 @@ export default {
         deleteTemplate: 'Delete Template',
         noDescription: 'No description',
         usageCount: 'Used {count} times',
-        useThisTemplate: 'Use This Template'
+        useThisTemplate: 'Use This Template',
       },
       empty: 'No template data',
       paginationAriaLabel: 'Process Template Pagination',
@@ -1980,7 +1984,7 @@ export default {
         assigneeType: 'Assignee Type',
         assigneeValue: 'Assignee Value',
         close: 'Close',
-        createFromTemplate: 'Create from Template'
+        createFromTemplate: 'Create from Template',
       },
       createDialog: {
         title: 'Create Process from Template',
@@ -1990,28 +1994,28 @@ export default {
         processName: 'Process Name',
         processNamePlaceholder: 'Default to template name',
         cancel: 'Cancel',
-        confirm: 'Confirm'
+        confirm: 'Confirm',
       },
       nodeType: {
         start: 'Start',
         end: 'End',
         approval: 'Approval',
         condition: 'Condition',
-        notify: 'Notify'
+        notify: 'Notify',
       },
       assigneeType: {
         user: 'Specific User',
         role: 'Role',
         department: 'Department',
-        dynamic: 'Dynamic'
+        dynamic: 'Dynamic',
       },
       message: {
         createSuccess: 'Created successfully',
         deleteSuccess: 'Deleted successfully',
         deleteConfirm: 'Are you sure to delete template "{name}"?',
-        deleteConfirmTitle: 'Confirm'
-      }
-    }
+        deleteConfirmTitle: 'Confirm',
+      },
+    },
   },
   reportTemplates: {
     title: 'Report Center',
@@ -2025,16 +2029,16 @@ export default {
       inventory: 'Inventory',
       finance: 'Finance',
       production: 'Production',
-      custom: 'Custom'
+      custom: 'Custom',
     },
     status: {
       placeholder: 'Status',
       active: 'Active',
-      inactive: 'Inactive'
+      inactive: 'Inactive',
     },
     yesNo: {
       yes: 'Yes',
-      no: 'No'
+      no: 'No',
     },
     table: {
       ariaLabel: 'Report templates list',
@@ -2050,7 +2054,7 @@ export default {
       preview: 'Preview',
       generate: 'Generate',
       edit: 'Edit',
-      delete: 'Delete'
+      delete: 'Delete',
     },
     dialog: {
       editTitle: 'Edit Template',
@@ -2072,13 +2076,13 @@ export default {
       parameters: 'Parameters',
       parametersPlaceholder: 'JSON parameters, e.g.: {"date_range": true, "department": true}',
       cancel: 'Cancel',
-      confirm: 'OK'
+      confirm: 'OK',
     },
     previewDialog: {
       title: 'Report Preview',
       ariaLabel: 'Report preview dialog',
       noData: 'No preview data',
-      close: 'Close'
+      close: 'Close',
     },
     message: {
       loadFailed: 'Failed to load data',
@@ -2091,22 +2095,22 @@ export default {
       deleteFailed: 'Delete failed',
       previewFailed: 'Preview failed',
       generateSuccess: 'Report generated successfully',
-      generateFailed: 'Generation failed'
+      generateFailed: 'Generation failed',
     },
     validation: {
       templateCodeRequired: 'Please enter template code',
       templateNameRequired: 'Please enter template name',
       categoryRequired: 'Please select category',
       formatRequired: 'Please select format',
-      contentRequired: 'Please enter template content'
-    }
+      contentRequired: 'Please enter template content',
+    },
   },
   quality: {
     tabAriaLabel: 'Quality management tabs',
     tab: {
       standard: 'Quality Standards',
       record: 'Inspection Records',
-      defect: 'Defect Management'
+      defect: 'Defect Management',
     },
     standardDialog: {
       editTitle: 'Edit Standard',
@@ -2128,7 +2132,7 @@ export default {
       attachments: 'Attachments',
       attachmentsPlaceholder: 'JSON array, e.g.: ["file1.pdf", "file2.docx"]',
       cancel: 'Cancel',
-      confirm: 'OK'
+      confirm: 'OK',
     },
     approveDialog: {
       title: 'Approve Quality Standard',
@@ -2141,7 +2145,7 @@ export default {
       approvalCommentPlaceholder: 'Please enter approval comment',
       cancel: 'Cancel',
       reject: 'Reject',
-      pass: 'Pass'
+      pass: 'Pass',
     },
     versionHistory: {
       title: 'Version History',
@@ -2153,7 +2157,7 @@ export default {
       createdAt: 'Created At',
       approvedBy: 'Approved By',
       approvedAt: 'Approved At',
-      close: 'Close'
+      close: 'Close',
     },
     recordDialog: {
       editTitle: 'Edit Inspection',
@@ -2175,19 +2179,19 @@ export default {
         incoming: 'Incoming Inspection',
         process: 'Process Inspection',
         finished: 'Finished Product Inspection',
-        outgoing: 'Outgoing Inspection'
+        outgoing: 'Outgoing Inspection',
       },
       resultOptions: {
         pass: 'Pass',
         fail: 'Fail',
-        pending: 'Pending'
-      }
+        pending: 'Pending',
+      },
     },
     standardStatus: {
       draft: 'Draft',
       approved: 'Approved',
       published: 'Published',
-      rejected: 'Rejected'
+      rejected: 'Rejected',
     },
     message: {
       attachmentsFormatError: 'Invalid attachments format, please check JSON',
@@ -2200,7 +2204,7 @@ export default {
       rejectCancelButton: 'Cancel',
       rejectPlaceholder: 'Reject reason (optional)',
       rejectSuccess: 'Rejected successfully',
-      fetchVersionHistoryFailed: 'Failed to load version history'
+      fetchVersionHistoryFailed: 'Failed to load version history',
     },
     validation: {
       standardCodeRequired: 'Please enter standard code',
@@ -2208,8 +2212,8 @@ export default {
       typeRequired: 'Please select type',
       versionRequired: 'Please enter version',
       contentRequired: 'Please enter standard content',
-      approvalCommentRequired: 'Please enter approval comment'
-    }
+      approvalCommentRequired: 'Please enter approval comment',
+    },
   },
   crmCustomer: {
     title: 'Customer Management',
@@ -2221,7 +2225,7 @@ export default {
     breadcrumb: {
       home: 'Home',
       crm: 'CRM',
-      customerList: 'Customer List'
+      customerList: 'Customer List',
     },
     filter: {
       ariaLabel: 'Customer list filter form',
@@ -2234,16 +2238,16 @@ export default {
       status: 'Status',
       statusPlaceholder: 'Select status',
       query: 'Query',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     customerType: {
       normal: 'Normal Customer',
       vip: 'VIP Customer',
-      wholesale: 'Wholesale Customer'
+      wholesale: 'Wholesale Customer',
     },
     status: {
       active: 'Active',
-      inactive: 'Inactive'
+      inactive: 'Inactive',
     },
     table: {
       ariaLabel: 'Customer list',
@@ -2261,7 +2265,7 @@ export default {
       detail: 'Detail',
       edit: 'Edit',
       delete: 'Delete',
-      paginationAriaLabel: 'Customer list pagination'
+      paginationAriaLabel: 'Customer list pagination',
     },
     dialog: {
       editTitle: 'Edit Customer',
@@ -2291,7 +2295,7 @@ export default {
       bankAccountPlaceholder: 'Please enter bank account',
       status: 'Status',
       cancel: 'Cancel',
-      save: 'Save'
+      save: 'Save',
     },
     message: {
       loadFailed: 'Failed to load customer list',
@@ -2302,21 +2306,21 @@ export default {
       updateSuccess: 'Updated successfully',
       createSuccess: 'Created successfully',
       operationFailed: 'Operation failed',
-      printWindowFailed: 'Unable to open print window'
+      printWindowFailed: 'Unable to open print window',
     },
     validation: {
       customerCodeRequired: 'Please enter customer code',
       customerNameRequired: 'Please enter customer name',
       contactPersonRequired: 'Please enter contact person',
       phoneRequired: 'Please enter phone',
-      phonePattern: 'Please enter a valid phone number'
+      phonePattern: 'Please enter a valid phone number',
     },
     printDialog: {
       title: 'CRM Customer List',
       date: 'Print Date',
       total: '{count} records total',
-      logMessage: 'Customer list print job generated'
-    }
+      logMessage: 'Customer list print job generated',
+    },
   },
   auditLog: {
     filter: {
@@ -2334,7 +2338,7 @@ export default {
       all: 'All',
       query: 'Query',
       reset: 'Reset',
-      exportCsv: 'Export CSV'
+      exportCsv: 'Export CSV',
     },
     operationType: {
       create: 'Create',
@@ -2344,13 +2348,13 @@ export default {
       logout: 'Logout',
       export: 'Export',
       query: 'Query',
-      other: 'Other'
+      other: 'Other',
     },
     severityLevel: {
       info: 'Info',
       warn: 'Warning',
       error: 'Error',
-      critical: 'Critical'
+      critical: 'Critical',
     },
     table: {
       emptyText: 'No audit logs',
@@ -2364,7 +2368,7 @@ export default {
       requestTrace: 'Request Trace',
       description: 'Description',
       operation: 'Operation',
-      detail: 'Detail'
+      detail: 'Detail',
     },
     detail: {
       title: 'Audit Log Detail',
@@ -2383,12 +2387,12 @@ export default {
       description: 'Description',
       beforeSnapshot: 'Before Snapshot (before_snapshot)',
       afterSnapshot: 'After Snapshot (after_snapshot)',
-      emptyValue: '(empty)'
+      emptyValue: '(empty)',
     },
     message: {
       loadFailed: 'Failed to load audit logs',
-      loadDetailFailed: 'Failed to load audit log detail'
-    }
+      loadDetailFailed: 'Failed to load audit log detail',
+    },
   },
   qualityStandards: {
     title: 'Quality Standards Management',
@@ -2398,19 +2402,19 @@ export default {
       keywordPlaceholder: 'Enter standard code/name',
       statusPlaceholder: 'Status',
       typePlaceholder: 'Type',
-      search: 'Search'
+      search: 'Search',
     },
     status: {
       draft: 'Draft',
       approved: 'Approved',
       published: 'Published',
-      archived: 'Archived'
+      archived: 'Archived',
     },
     type: {
       product: 'Product Standard',
       process: 'Process Standard',
       safety: 'Safety Standard',
-      environmental: 'Environmental Standard'
+      environmental: 'Environmental Standard',
     },
     table: {
       ariaLabel: 'Quality standards list',
@@ -2428,7 +2432,7 @@ export default {
       publish: 'Publish',
       archive: 'Archive',
       delete: 'Delete',
-      paginationAriaLabel: 'Quality standards pagination'
+      paginationAriaLabel: 'Quality standards pagination',
     },
     dialog: {
       editTitle: 'Edit Quality Standard',
@@ -2449,14 +2453,14 @@ export default {
       attachments: 'Attachments',
       attachmentsPlaceholder: 'Please enter attachments as JSON array',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     validation: {
       standardCodeRequired: 'Please enter standard code',
       standardNameRequired: 'Please enter standard name',
       typeRequired: 'Please select type',
       versionRequired: 'Please enter version number',
-      contentRequired: 'Please enter standard content'
+      contentRequired: 'Please enter standard content',
     },
     message: {
       loadFailed: 'Failed to load quality standards',
@@ -2478,15 +2482,15 @@ export default {
       archiveConfirm: 'Are you sure to archive this quality standard?',
       archiveConfirmTitle: 'Archive Confirmation',
       archiveSuccess: 'Archived successfully',
-      archiveFailed: 'Failed to archive'
-    }
+      archiveFailed: 'Failed to archive',
+    },
   },
   crmLeads: {
     title: 'Leads Management',
     breadcrumb: {
       home: 'Home',
       crm: 'CRM',
-      leads: 'Leads'
+      leads: 'Leads',
     },
     create: 'New Lead',
     import: 'Import',
@@ -2504,27 +2508,27 @@ export default {
       priority: 'Priority',
       priorityPlaceholder: 'Please select priority',
       query: 'Query',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     leadSource: {
       website: 'Website',
       phone: 'Phone',
       exhibition: 'Exhibition',
       referral: 'Referral',
-      other: 'Other'
+      other: 'Other',
     },
     leadStatus: {
       new: 'New',
       contacted: 'Contacted',
       qualified: 'Qualified',
       converted: 'Converted',
-      lost: 'Lost'
+      lost: 'Lost',
     },
     priority: {
       low: 'Low',
       medium: 'Medium',
       high: 'High',
-      urgent: 'Urgent'
+      urgent: 'Urgent',
     },
     table: {
       ariaLabel: 'Leads list',
@@ -2545,11 +2549,11 @@ export default {
       contact: 'Contact',
       convert: 'Convert',
       lost: 'Lost',
-      paginationAriaLabel: 'Leads pagination'
+      paginationAriaLabel: 'Leads pagination',
     },
     dialog: {
       createTitle: 'New Lead',
-      editTitle: 'Edit Lead'
+      editTitle: 'Edit Lead',
     },
     detail: {
       title: 'Lead Detail',
@@ -2565,7 +2569,7 @@ export default {
       nextFollowUp: 'Next Follow-up: ',
       requirementDesc: 'Requirement: ',
       remarks: 'Remarks: ',
-      close: 'Close'
+      close: 'Close',
     },
     message: {
       loadListFailed: 'Failed to load leads list',
@@ -2588,10 +2592,10 @@ export default {
       importFailed: 'Import failed',
       exportSuccess: 'Exported successfully',
       exportFailed: 'Export failed',
-      selectionChanged: 'Selection changed'
+      selectionChanged: 'Selection changed',
     },
     exportFile: {
-      filename: 'Leads List'
+      filename: 'Leads List',
     },
     leadForm: {
       ariaLabel: 'Lead form',
@@ -2622,30 +2626,30 @@ export default {
         phone: 'Phone',
         exhibition: 'Exhibition',
         referral: 'Referral',
-        other: 'Other'
+        other: 'Other',
       },
       priorityOption: {
         low: 'Low',
         medium: 'Medium',
         high: 'High',
-        urgent: 'Urgent'
+        urgent: 'Urgent',
       },
       validation: {
         leadSourceRequired: 'Please select lead source',
         contactNameRequired: 'Please enter contact name',
-        ownerRequired: 'Please select owner'
+        ownerRequired: 'Please select owner',
       },
       message: {
         saveSuccess: 'Saved successfully',
-        validationFailed: 'Form validation failed'
-      }
-    }
+        validationFailed: 'Form validation failed',
+      },
+    },
   },
   colorCards: {
     list: {
       title: 'Color Card List',
       create: 'New Card',
-      issueManagement: 'Issue Management'
+      issueManagement: 'Issue Management',
     },
     filter: {
       ariaLabel: 'Color Card Filter Form',
@@ -2656,7 +2660,7 @@ export default {
       keywordPlaceholder: 'Card No / Name',
       all: 'All',
       query: 'Search',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     table: {
       ariaLabel: 'Color Card List',
@@ -2671,24 +2675,24 @@ export default {
       detail: 'Detail',
       edit: 'Edit',
       archive: 'Archive',
-      paginationAriaLabel: 'Color Card List Pagination'
+      paginationAriaLabel: 'Color Card List Pagination',
     },
     cardType: {
       PANTONE: 'PANTONE',
       CNCS: 'CNCS',
-      CUSTOM: 'Custom'
+      CUSTOM: 'Custom',
     },
     cardStatus: {
       active: 'Active',
       archived: 'Archived',
-      lost: 'Lost'
+      lost: 'Lost',
     },
     season: {
       '2024SS': '2024 Spring/Summer',
       '2024AW': '2024 Autumn/Winter',
       '2025SS': '2025 Spring/Summer',
       '2025AW': '2025 Autumn/Winter',
-      '经典': 'Classic'
+      经典: 'Classic',
     },
     create: {
       title: 'New Color Card',
@@ -2711,12 +2715,12 @@ export default {
       successAlert: 'Created successfully, Card ID: {id}',
       addItems: 'Add Colors',
       continueCreate: 'Continue Creating',
-      createSuccess: 'Created successfully'
+      createSuccess: 'Created successfully',
     },
     validation: {
       cardNoRequired: 'Please enter card number',
       cardNameRequired: 'Please enter card name',
-      cardTypeRequired: 'Please select card type'
+      cardTypeRequired: 'Please select card type',
     },
     message: {
       loadListFailed: 'Failed to load color card list',
@@ -2725,7 +2729,7 @@ export default {
       archiveConfirm: 'Archive color card "{name}"?',
       archiveConfirmTitle: 'Archive Confirmation',
       archiveSuccess: 'Archived successfully',
-      archiveFailed: 'Archive failed'
+      archiveFailed: 'Archive failed',
     },
     detail: {
       back: 'Color Card Detail',
@@ -2735,7 +2739,7 @@ export default {
       tab: {
         info: 'Basic Info',
         items: 'Colors ({count})',
-        issue: 'Issue Records'
+        issue: 'Issue Records',
       },
       info: {
         cardNo: 'Card No',
@@ -2743,13 +2747,13 @@ export default {
         cardType: 'Card Type',
         brand: 'Brand',
         totalColors: 'Total Colors',
-        description: 'Description'
+        description: 'Description',
       },
       addItemDialog: {
         title: 'Add Color Item',
         ariaLabel: 'Add Color Item Dialog',
         cancel: 'Cancel',
-        add: 'Add'
+        add: 'Add',
       },
       importDialog: {
         title: 'Batch Import Colors',
@@ -2757,7 +2761,7 @@ export default {
         alert: 'One color per line, format: code,name,HEX(optional)',
         placeholder: 'C001,Red,#FF0000',
         cancel: 'Cancel',
-        import: 'Import'
+        import: 'Import',
       },
       scanDialog: {
         title: 'Scan Result',
@@ -2770,7 +2774,7 @@ export default {
         cmyk: 'CMYK',
         cieLab: 'CIE Lab',
         recipe: 'Dye Recipe',
-        price: 'Price'
+        price: 'Price',
       },
       message: {
         codeAndNameRequired: 'Color code and name are required',
@@ -2781,8 +2785,8 @@ export default {
         deleteFailed: 'Delete failed',
         scanFailed: 'Scan query failed',
         importEmpty: 'Import content is empty',
-        importResult: 'Import done: {success} succeeded, {failed} failed'
-      }
+        importResult: 'Import done: {success} succeeded, {failed} failed',
+      },
     },
     issue: {
       back: 'Color Card Issue',
@@ -2791,7 +2795,7 @@ export default {
       tab: {
         issue: 'Issue',
         active: 'Active ({count})',
-        history: 'History'
+        history: 'History',
       },
       form: {
         ariaLabel: 'Issue Form',
@@ -2807,7 +2811,7 @@ export default {
         purpose: 'Purpose',
         purposePlaceholder: 'Enter purpose',
         remark: 'Remark',
-        confirmIssue: 'Confirm Issue'
+        confirmIssue: 'Confirm Issue',
       },
       activeTable: {
         ariaLabel: 'Active Issue Table',
@@ -2827,7 +2831,7 @@ export default {
         returnAriaLabel: 'Return color card',
         damagedAriaLabel: 'Mark damaged',
         lostAriaLabel: 'Mark lost',
-        cancelAriaLabel: 'Cancel issue'
+        cancelAriaLabel: 'Cancel issue',
       },
       historyTable: {
         ariaLabel: 'History Records Table',
@@ -2840,14 +2844,14 @@ export default {
         actualReturn: 'Actual Return',
         compensationAmount: 'Compensation',
         dyeLotNo: 'Dye Lot No',
-        purpose: 'Purpose'
+        purpose: 'Purpose',
       },
       issueStatus: {
         issued: 'Issued',
         returned: 'Returned',
         lost: 'Lost',
         damaged: 'Damaged',
-        cancelled: 'Cancelled'
+        cancelled: 'Cancelled',
       },
       returnDialog: {
         title: 'Return Color Card',
@@ -2855,7 +2859,7 @@ export default {
         formAriaLabel: 'Return Form',
         actualReturn: 'Actual Return Date',
         cancel: 'Cancel',
-        confirm: 'Confirm Return'
+        confirm: 'Confirm Return',
       },
       lostDialog: {
         title: 'Lost Registration',
@@ -2865,7 +2869,7 @@ export default {
         compensationAmount: 'Compensation Amount',
         lostReason: 'Lost Reason',
         cancel: 'Cancel',
-        confirm: 'Confirm Lost'
+        confirm: 'Confirm Lost',
       },
       damagedDialog: {
         title: 'Damaged Registration',
@@ -2874,7 +2878,7 @@ export default {
         compensationAmount: 'Compensation Amount',
         damagedReason: 'Damaged Reason',
         cancel: 'Cancel',
-        confirm: 'Confirm Damaged'
+        confirm: 'Confirm Damaged',
       },
       cancelDialog: {
         title: 'Cancel Issue',
@@ -2883,7 +2887,7 @@ export default {
         alert: 'The issue record will become invalid after cancellation.',
         cancelReason: 'Cancel Reason',
         close: 'Close',
-        confirm: 'Confirm Cancel'
+        confirm: 'Confirm Cancel',
       },
       message: {
         selectCardRequired: 'Please select a color card',
@@ -2893,9 +2897,9 @@ export default {
         compensationRequired: 'Please enter compensation amount',
         lostSuccess: 'Marked as lost',
         damagedSuccess: 'Marked as damaged',
-        cancelSuccess: 'Issue cancelled'
-      }
-    }
+        cancelSuccess: 'Issue cancelled',
+      },
+    },
   },
   colorPrices: {
     common: {
@@ -2908,35 +2912,35 @@ export default {
       delete: 'Delete',
       cancel: 'Cancel',
       confirm: 'Confirm',
-      pleaseSelect: 'Please select'
+      pleaseSelect: 'Please select',
     },
     currency: {
       CNY: 'CNY',
       USD: 'USD',
-      EUR: 'EUR'
+      EUR: 'EUR',
     },
     currencyLabel: {
       CNY: 'RMB CNY',
       USD: 'US Dollar USD',
-      EUR: 'Euro EUR'
+      EUR: 'Euro EUR',
     },
     customerLevel: {
       VIP: 'VIP Customer',
       GOLD: 'Gold Customer',
       SILVER: 'Silver Customer',
       NORMAL: 'Normal Customer',
-      default: 'General'
+      default: 'General',
     },
     season: {
       SS: 'Spring/Summer SS',
       AW: 'Autumn/Winter AW',
       HOLIDAY: 'Holiday HOLIDAY',
-      default: 'General'
+      default: 'General',
     },
     approvalStatus: {
       PENDING: 'Pending',
       APPROVED: 'Approved',
-      REJECTED: 'Rejected'
+      REJECTED: 'Rejected',
     },
     list: {
       title: 'Color Price List',
@@ -2950,7 +2954,7 @@ export default {
         season: 'Season',
         currency: 'Currency',
         status: 'Status',
-        approvalStatus: 'Approval Status'
+        approvalStatus: 'Approval Status',
       },
       table: {
         ariaLabel: 'Color Price List',
@@ -2966,8 +2970,8 @@ export default {
         status: 'Status',
         operation: 'Operation',
         adjust: 'Adjust',
-        paginationAriaLabel: 'Color Price List Pagination'
-      }
+        paginationAriaLabel: 'Color Price List Pagination',
+      },
     },
     create: {
       title: 'New Color Price',
@@ -2993,7 +2997,7 @@ export default {
       priority: 'Priority',
       notes: 'Notes',
       notesPlaceholder: 'Optional: notes',
-      submit: 'Create Now'
+      submit: 'Create Now',
     },
     validation: {
       productIdRequired: 'Please enter product ID',
@@ -3002,7 +3006,7 @@ export default {
       basePriceRequired: 'Please enter base price',
       effectiveFromRequired: 'Please select effective date',
       minQuantityRequired: 'Please enter min quantity',
-      tierPriceRequired: 'Please enter tier price'
+      tierPriceRequired: 'Please enter tier price',
     },
     detail: {
       back: 'Color Price Detail',
@@ -3022,7 +3026,7 @@ export default {
         longTerm: 'Long-term',
         status: 'Status',
         approvalStatus: 'Approval Status',
-        notes: 'Notes'
+        notes: 'Notes',
       },
       tier: {
         title: 'Tier Pricing',
@@ -3035,7 +3039,7 @@ export default {
         tierPrice: 'Tier Price',
         customerLevel: 'Customer Level',
         general: 'General',
-        operation: 'Operation'
+        operation: 'Operation',
       },
       tierDialog: {
         title: 'Add Tier Price',
@@ -3047,8 +3051,8 @@ export default {
         tierPrice: 'Tier Price',
         customerLevel: 'Customer Level',
         customerLevelPlaceholder: 'General (empty)',
-        sequence: 'Sequence'
-      }
+        sequence: 'Sequence',
+      },
     },
     batchAdjust: {
       back: 'Batch Adjust',
@@ -3057,7 +3061,7 @@ export default {
       filter: {
         ariaLabel: 'Batch Adjust Filter Form',
         productId: 'Product ID',
-        customerLevel: 'Customer Level'
+        customerLevel: 'Customer Level',
       },
       table: {
         ariaLabel: 'Batch Adjust Table',
@@ -3066,7 +3070,7 @@ export default {
         color: 'Color',
         customerLevel: 'Customer Level',
         basePrice: 'Base Price',
-        currency: 'Currency'
+        currency: 'Currency',
       },
       form: {
         ariaLabel: 'Batch Adjust Form',
@@ -3082,9 +3086,9 @@ export default {
         changeReason: 'Change Reason',
         changeReasonPlaceholder: 'Please explain the reason',
         submit: 'Submit Batch Adjust',
-        calculateDemo: 'Price Calculation Demo'
+        calculateDemo: 'Price Calculation Demo',
       },
-      result: 'Result: {auto} auto-approved, {pending} pending approval'
+      result: 'Result: {auto} auto-approved, {pending} pending approval',
     },
     message: {
       unknownError: 'Unknown error',
@@ -3101,8 +3105,8 @@ export default {
       batchAdjustSuccess: 'Batch adjust done: {auto} auto-approved, {pending} pending',
       batchAdjustFailed: 'Submit failed: {msg}',
       priceCalc: 'Price calc: base {base} -> final {final} ({rule})',
-      calcFailed: 'Calculation failed: {msg}'
-    }
+      calcFailed: 'Calculation failed: {msg}',
+    },
   },
   setupPage: {
     title: 'Bingxi ERP',
@@ -3111,7 +3115,7 @@ export default {
       environment: 'Environment Check',
       database: 'Database Configuration',
       admin: 'Create Administrator',
-      complete: 'Complete Installation'
+      complete: 'Complete Installation',
     },
     envCheck: {
       pass: 'Pass',
@@ -3119,12 +3123,12 @@ export default {
       checking: 'Checking...',
       recheck: 'Recheck',
       next: 'Next',
-      prev: 'Previous'
+      prev: 'Previous',
     },
     envChecks: {
       backendApi: 'Backend API Service',
       disk: 'Disk Space',
-      memory: 'System Memory'
+      memory: 'System Memory',
     },
     db: {
       title: 'Database Configuration',
@@ -3137,7 +3141,7 @@ export default {
       passwordPlaceholder: 'Please enter password',
       initTokenPlaceholder: 'Please enter INIT_TOKEN configured on the server',
       testing: 'Testing...',
-      testConnection: 'Test Connection'
+      testConnection: 'Test Connection',
     },
     admin: {
       title: 'Create Administrator Account',
@@ -3145,7 +3149,7 @@ export default {
       password: 'Admin Password',
       confirmPassword: 'Confirm Password',
       confirmPasswordPlaceholder: 'Please enter the password again',
-      email: 'Email'
+      email: 'Email',
     },
     complete: {
       title: 'Complete Installation',
@@ -3159,11 +3163,11 @@ export default {
       startInstall: 'Start Installation',
       successTitle: 'Installation Successful!',
       successDesc: 'The system has been successfully installed. You can now log in to use it.',
-      goToLogin: 'Go to Login Page'
+      goToLogin: 'Go to Login Page',
     },
     aria: {
       dbForm: 'System Initialization Admin Form',
-      adminForm: 'System Initialization Company Info Form'
+      adminForm: 'System Initialization Company Info Form',
     },
     validation: {
       hostRequired: 'Please enter database host',
@@ -3176,15 +3180,15 @@ export default {
       passwordMinLength: 'Password must be at least 6 characters',
       confirmPasswordRequired: 'Please confirm password',
       passwordMismatch: 'The passwords entered do not match',
-      emailInvalid: 'Please enter a valid email address'
+      emailInvalid: 'Please enter a valid email address',
     },
     message: {
       dbConnectSuccess: 'Database connection successful',
       dbConnectFailed: 'Database connection failed',
       installSuccess: 'System installation successful',
       installFailed: 'Installation failed',
-      envCheckFailed: 'Environment check failed'
-    }
+      envCheckFailed: 'Environment check failed',
+    },
   },
   accountSubject: {
     title: 'Account Subject',
@@ -3199,7 +3203,7 @@ export default {
       category: 'Subject Category',
       categoryPlaceholder: 'Select Category',
       query: 'Query',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     table: {
       ariaLabel: 'Account Subject List',
@@ -3211,22 +3215,22 @@ export default {
       status: 'Status',
       operation: 'Operation',
       edit: 'Edit',
-      delete: 'Delete'
+      delete: 'Delete',
     },
     category: {
       asset: 'Asset',
       liability: 'Liability',
       equity: 'Equity',
       cost: 'Cost',
-      profitLoss: 'Profit & Loss'
+      profitLoss: 'Profit & Loss',
     },
     balanceType: {
       debit: 'Debit',
-      credit: 'Credit'
+      credit: 'Credit',
     },
     status: {
       enabled: 'Enabled',
-      disabled: 'Disabled'
+      disabled: 'Disabled',
     },
     dialog: {
       editTitle: 'Edit Subject',
@@ -3239,13 +3243,13 @@ export default {
       enable: 'Enable',
       description: 'Description',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     validation: {
       codeRequired: 'Please enter subject code',
       nameRequired: 'Please enter subject name',
       categoryRequired: 'Please select subject category',
-      balanceTypeRequired: 'Please select balance direction'
+      balanceTypeRequired: 'Please select balance direction',
     },
     message: {
       fetchListFailed: 'Failed to fetch subject list',
@@ -3255,7 +3259,7 @@ export default {
       deleteConfirm: 'Are you sure to delete subject "{name}"?',
       deleteConfirmTitle: 'Delete Confirmation',
       deleteSuccess: 'Delete successful',
-      deleteFailed: 'Delete failed'
+      deleteFailed: 'Delete failed',
     },
     exportFile: {
       filename: 'Account Subject Table',
@@ -3264,9 +3268,9 @@ export default {
       category: 'Category',
       balanceType: 'Balance Direction',
       level: 'Level',
-      status: 'Status'
+      status: 'Status',
     },
-    exportedLog: 'Account subject table exported'
+    exportedLog: 'Account subject table exported',
   },
   accountingPeriod: {
     title: 'Accounting Period',
@@ -3278,12 +3282,12 @@ export default {
       status: 'Status',
       statusPlaceholder: 'Select Status',
       query: 'Query',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     status: {
       pending: 'Not Enabled',
       active: 'Active',
-      closed: 'Closed'
+      closed: 'Closed',
     },
     table: {
       ariaLabel: 'Accounting Period List',
@@ -3299,7 +3303,7 @@ export default {
       enable: 'Enable',
       close: 'Close',
       reopen: 'Reopen',
-      delete: 'Delete'
+      delete: 'Delete',
     },
     dialog: {
       editTitle: 'Edit Period',
@@ -3314,13 +3318,13 @@ export default {
       endDate: 'End Date',
       datePlaceholder: 'Select Date',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     validation: {
       yearRequired: 'Please select year',
       monthRequired: 'Please select month',
       startDateRequired: 'Please select start date',
-      endDateRequired: 'Please select end date'
+      endDateRequired: 'Please select end date',
     },
     message: {
       fetchListFailed: 'Failed to fetch accounting periods',
@@ -3331,7 +3335,8 @@ export default {
       activateConfirmTitle: 'Activation Confirmation',
       activatedSuccess: 'Activated',
       activateFailed: 'Activation failed',
-      closeConfirm: 'Are you sure to close period "{name}"? Vouchers cannot be entered after closing.',
+      closeConfirm:
+        'Are you sure to close period "{name}"? Vouchers cannot be entered after closing.',
       closeConfirmTitle: 'Close Confirmation',
       closedSuccess: 'Closed',
       closeFailed: 'Close failed',
@@ -3345,8 +3350,8 @@ export default {
       initYearConfirm: 'Are you sure to initialize accounting periods for {year}?',
       initYearConfirmTitle: 'Initialization Confirmation',
       initSuccess: 'Initialization successful',
-      initFailed: 'Initialization failed'
-    }
+      initFailed: 'Initialization failed',
+    },
   },
   assistAccounting: {
     filter: {
@@ -3357,7 +3362,7 @@ export default {
       warehouseId: 'Warehouse ID',
       query: 'Query',
       reset: 'Reset',
-      refresh: 'Refresh'
+      refresh: 'Refresh',
     },
     businessType: {
       all: 'All',
@@ -3365,11 +3370,11 @@ export default {
       salesDelivery: 'Sales Delivery',
       inventoryAdjustment: 'Inventory Adjustment',
       productionInput: 'Production Input',
-      productionOutput: 'Production Output'
+      productionOutput: 'Production Output',
     },
     tabs: {
       records: 'Assist Accounting Records',
-      summary: 'Assist Accounting Summary'
+      summary: 'Assist Accounting Summary',
     },
     recordsTable: {
       ariaLabel: 'Assist Accounting Records List',
@@ -3386,7 +3391,7 @@ export default {
       creditAmount: 'Credit Amount',
       createdAt: 'Created At',
       operation: 'Operation',
-      paginationAriaLabel: 'Assist Accounting Records List Pagination'
+      paginationAriaLabel: 'Assist Accounting Records List Pagination',
     },
     summaryTable: {
       ariaLabel: 'Assist Accounting Summary List',
@@ -3398,7 +3403,7 @@ export default {
       totalCredit: 'Total Credit',
       totalQuantityMeters: 'Total Meters',
       totalQuantityKg: 'Total Kilograms',
-      recordCount: 'Record Count'
+      recordCount: 'Record Count',
     },
     detailDialog: {
       title: 'Assist Accounting Record Detail',
@@ -3423,19 +3428,19 @@ export default {
       customerId: 'Customer ID',
       supplierId: 'Supplier ID',
       remarks: 'Remarks',
-      createdAt: 'Created At'
+      createdAt: 'Created At',
     },
     message: {
       fetchRecordsFailed: 'Failed to fetch assist accounting records',
       loadDimensionFailed: 'Failed to load dimensions',
-      loadSummaryFailed: 'Failed to load summary'
-    }
+      loadSummaryFailed: 'Failed to load summary',
+    },
   },
   barcodeScanner: {
     tabs: {
       scan: 'Scan Query',
       ship: 'Scan to Ship',
-      history: 'Scan History'
+      history: 'Scan History',
     },
     scan: {
       cardTitle: 'Barcode Scan',
@@ -3443,7 +3448,7 @@ export default {
       button: 'Scan Query',
       pieceInfo: 'Fabric Roll Info',
       resultTitle: 'Scan Query',
-      resultSubTitle: 'Scan or enter barcode to query fabric roll info'
+      resultSubTitle: 'Scan or enter barcode to query fabric roll info',
     },
     ship: {
       cardTitle: 'Scan Outbound',
@@ -3453,7 +3458,7 @@ export default {
       barcode: 'Barcode',
       button: 'Scan to Ship',
       resultTitle: 'Scan to Ship',
-      resultSubTitle: 'Enter order ID and scan barcode to complete outbound'
+      resultSubTitle: 'Enter order ID and scan barcode to complete outbound',
     },
     history: {
       refresh: 'Refresh',
@@ -3464,7 +3469,7 @@ export default {
       scanType: 'Scan Type',
       result: 'Result',
       time: 'Time',
-      paginationAriaLabel: 'Scan History List Pagination'
+      paginationAriaLabel: 'Scan History List Pagination',
     },
     detail: {
       barcode: 'Barcode',
@@ -3478,12 +3483,12 @@ export default {
       quantityKg: 'Kilograms',
       warehouseId: 'Warehouse ID',
       warehouseName: 'Warehouse Name',
-      status: 'Status'
+      status: 'Status',
     },
     status: {
       inStock: 'In Stock',
       shipped: 'Shipped',
-      scrapped: 'Scrapped'
+      scrapped: 'Scrapped',
     },
     message: {
       fetchHistoryFailed: 'Failed to fetch scan history',
@@ -3492,8 +3497,8 @@ export default {
       scanSuccess: 'Scan successful',
       scanFailed: 'Scan failed',
       shipSuccess: 'Shipment successful',
-      shipFailed: 'Shipment failed'
-    }
+      shipFailed: 'Shipment failed',
+    },
   },
   biSalesAnalysis: {
     title: 'BI Multi-dimensional Sales Analysis (P3-4 Key Path Demo)',
@@ -3504,7 +3509,7 @@ export default {
       avgOrderValue: 'Avg Order Value',
       grossMargin: 'Gross Margin',
       yoyGrowth: 'YoY +{value}%',
-      momGrowth: 'MoM +{value}%'
+      momGrowth: 'MoM +{value}%',
     },
     chart: {
       salesTrendTitle: 'Sales Trend (Last 30 Days)',
@@ -3512,7 +3517,7 @@ export default {
       productDistTitle: 'Product Sales Distribution',
       regionDistTitle: 'Regional Sales Distribution',
       salesAmount: 'Sales Amount',
-      profit: 'Profit'
+      profit: 'Profit',
     },
     monthly: {
       title: '{year} Monthly Sales (Drilldown: Year → Month)',
@@ -3521,17 +3526,18 @@ export default {
       orderCount: 'Order Count',
       quantity: 'Quantity',
       profitAmount: 'Profit',
-      tableAriaLabel: 'Monthly Sales Data Table'
+      tableAriaLabel: 'Monthly Sales Data Table',
     },
     message: {
-      loadFailed: 'Failed to load BI data'
-    }
+      loadFailed: 'Failed to load BI data',
+    },
   },
   adminFailover: {
     title: 'Failover Monitor',
     refresh: 'Refresh',
     descriptionPrefix: 'Through the unified ',
-    descriptionSuffix: ' interface, automatically switch between primary and backup to ensure service availability.',
+    descriptionSuffix:
+      ' interface, automatically switch between primary and backup to ensure service availability.',
     healthCheck: 'Health Check',
     switchHistory: 'Switch History',
     loadFailed: 'Failed to load data: {msg}',
@@ -3584,7 +3590,7 @@ export default {
     backupPostgres: 'PostgreSQL',
     backupLru: 'LRU Memory Cache',
     memoryCache: 'Memory Cache',
-    never: 'Never'
+    never: 'Never',
   },
   advancedModule: {
     tabAi: 'AI Analysis',
@@ -3627,7 +3633,7 @@ export default {
       colSeverity: 'Severity',
       recommendations: 'Recommendations',
       getRecommendations: 'Get Recommendations',
-      clickToGetRec: 'Click to get recommendations'
+      clickToGetRec: 'Click to get recommendations',
     },
     quality: {
       title: 'Quality Prediction',
@@ -3663,7 +3669,7 @@ export default {
       emptyNoPeriod: 'No period data',
       dataSourceHistory: 'Data source: History',
       dataSourceFallback: 'Data source: Fallback',
-      confidence: 'Confidence'
+      confidence: 'Confidence',
     },
     recipe: {
       title: 'Dyeing Recipe Recommendation',
@@ -3706,7 +3712,7 @@ export default {
       colPh: 'pH',
       colLiquorRatio: 'Liquor Ratio',
       colSimilarity: 'Similarity',
-      emptyNoCandidates: 'No candidates'
+      emptyNoCandidates: 'No candidates',
     },
     report: {
       title: 'Report Engine',
@@ -3721,8 +3727,8 @@ export default {
       exportPdf: 'Export PDF',
       resultTitle: 'Report Result',
       empty: 'No data',
-      close: 'Close'
-    }
+      close: 'Close',
+    },
   },
   arReconciliationModule: {
     customerCode: 'Customer Code',
@@ -3868,8 +3874,8 @@ export default {
       sourceNo: 'Source No',
       date: 'Date',
       amount: 'Amount',
-      paidAmount: 'Paid Amount'
-    }
+      paidAmount: 'Paid Amount',
+    },
   },
   bomModule: {
     title: 'BOM Management',
@@ -3878,7 +3884,7 @@ export default {
     breadcrumb: {
       home: 'Home',
       production: 'Production Management',
-      bom: 'BOM Management'
+      bom: 'BOM Management',
     },
     filter: {
       ariaLabel: 'BOM Filter Form',
@@ -3887,12 +3893,12 @@ export default {
       status: 'Status',
       statusPlaceholder: 'Select Status',
       query: 'Query',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     status: {
       draft: 'Draft',
       active: 'Active',
-      archived: 'Archived'
+      archived: 'Archived',
     },
     table: {
       ariaLabel: 'BOM List',
@@ -3908,13 +3914,13 @@ export default {
       copy: 'Copy',
       setDefault: 'Set Default',
       delete: 'Delete',
-      paginationAriaLabel: 'BOM List Pagination'
+      paginationAriaLabel: 'BOM List Pagination',
     },
     dialog: {
       createTitle: 'New BOM',
       editTitle: 'Edit BOM',
       createAriaLabel: 'New BOM Dialog',
-      editAriaLabel: 'Edit BOM Dialog'
+      editAriaLabel: 'Edit BOM Dialog',
     },
     form: {
       ariaLabel: 'BOM Form',
@@ -3945,7 +3951,7 @@ export default {
       operation: 'Operation',
       delete: 'Delete',
       cancel: 'Cancel',
-      save: 'Save'
+      save: 'Save',
     },
     message: {
       fetchFailed: 'Failed to fetch BOM list',
@@ -3963,15 +3969,15 @@ export default {
       deleteFailed: 'Delete failed',
       createSuccess: 'Created successfully',
       updateSuccess: 'Updated successfully',
-      operateFailed: 'Operation failed'
-    }
+      operateFailed: 'Operation failed',
+    },
   },
   apModule: {
     tabs: {
       invoice: 'AP Invoice',
       payment: 'Payment',
       verification: 'Verification',
-      reconciliation: 'Reconciliation'
+      reconciliation: 'Reconciliation',
     },
     invoice: {
       title: 'AP Invoice',
@@ -4028,7 +4034,7 @@ export default {
       noPrintData: 'No data to print',
       colSeq: 'No.',
       printHeader: 'AP Invoice List',
-      exportedLog: 'AP invoices exported'
+      exportedLog: 'AP invoices exported',
     },
     payment: {
       title: 'Payment Management',
@@ -4059,7 +4065,7 @@ export default {
       methodRequired: 'Please select payment method',
       confirmConfirm: 'Are you sure to confirm this payment?',
       confirmTitle: 'Confirm Payment',
-      confirmSuccess: 'Confirmed successfully'
+      confirmSuccess: 'Confirmed successfully',
     },
     reconciliation: {
       title: 'Reconciliation Management',
@@ -4088,7 +4094,7 @@ export default {
       confirmSuccess: 'Confirmed successfully',
       disputePrompt: 'Please enter the dispute reason',
       disputeTitle: 'Dispute Handling',
-      disputeSubmitted: 'Dispute submitted'
+      disputeSubmitted: 'Dispute submitted',
     },
     verification: {
       title: 'Verification Management',
@@ -4110,14 +4116,14 @@ export default {
       paymentOption: 'Payment {no} (Amount: {amount})',
       fetchListFailed: 'Failed to fetch verification list',
       pleaseFillComplete: 'Please fill in all required fields',
-      verifySuccess: 'Verification successful'
-    }
+      verifySuccess: 'Verification successful',
+    },
   },
   arModule: {
     tabs: {
       invoice: 'AR Invoice',
       reconciliation: 'AR Reconciliation',
-      fund: 'Fund Account'
+      fund: 'Fund Account',
     },
     invoice: {
       title: 'AR Invoice',
@@ -4174,7 +4180,7 @@ export default {
       cancelSuccess: 'Cancelled successfully',
       colSeq: 'No.',
       printHeader: 'AR Invoice List',
-      exportedLog: 'AR invoices exported'
+      exportedLog: 'AR invoices exported',
     },
     reconciliation: {
       title: 'AR Reconciliation',
@@ -4198,7 +4204,7 @@ export default {
       selectCustomer: 'Please select customer',
       confirmMessage: 'Are you sure to confirm this reconciliation?',
       confirmTitle: 'Confirm Reconciliation',
-      confirmSuccess: 'Confirmed successfully'
+      confirmSuccess: 'Confirmed successfully',
     },
     fund: {
       title: 'Fund Account',
@@ -4251,14 +4257,14 @@ export default {
       depositSuccess: 'Deposit successful',
       withdrawSuccess: 'Withdrawal successful',
       freezeSuccess: 'Freeze successful',
-      fetchListFailed: 'Failed to fetch fund account list'
-    }
+      fetchListFailed: 'Failed to fetch fund account list',
+    },
   },
   crmModule: {
     tabs: {
       customerList: 'Customer List',
-      rfm: 'Customer Grading (RFM)'
-    }
+      rfm: 'Customer Grading (RFM)',
+    },
   },
   crmDetail: {
     title: 'Customer 360 View',
@@ -4266,7 +4272,7 @@ export default {
     breadcrumb: {
       home: 'Home',
       crm: 'CRM',
-      customerDetail: 'Customer Detail'
+      customerDetail: 'Customer Detail',
     },
     basicInfo: 'Basic Information',
     billingInfo: 'Billing Information',
@@ -4300,19 +4306,19 @@ export default {
       rfmRecency: 'R (Recency)',
       rfmFrequency: 'F (Frequency)',
       rfmMonetary: 'M (Monetary)',
-      defaultAddress: 'Default'
+      defaultAddress: 'Default',
     },
     customerType: {
       normal: 'Normal Customer',
       vip: 'VIP Customer',
-      wholesale: 'Wholesale Customer'
+      wholesale: 'Wholesale Customer',
     },
     rfmEmpty: 'No RFM data',
     addressEmpty: 'No shipping address',
     contactTableAria: 'Customer contact list',
     contactDialogTitle: {
       create: 'Add Contact',
-      edit: 'Edit Contact'
+      edit: 'Edit Contact',
     },
     contactDialogAria: 'Contact form',
     contactForm: {
@@ -4328,12 +4334,12 @@ export default {
       remarks: 'Remarks',
       remarksPlaceholder: 'Remarks (optional)',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     validation: {
       nameRequired: 'Please enter contact name',
       phoneRequired: 'Please enter contact phone',
-      emailPattern: 'Invalid email format'
+      emailPattern: 'Invalid email format',
     },
     message: {
       loadFailed: 'Failed to load customer detail',
@@ -4346,8 +4352,8 @@ export default {
       createSuccess: 'Contact created successfully',
       updateSuccess: 'Contact updated successfully',
       operationFailed: 'Operation failed',
-      pageLoaded: 'Customer detail page loaded'
-    }
+      pageLoaded: 'Customer detail page loaded',
+    },
   },
   crmPool: {
     title: 'Customer Pool',
@@ -4356,7 +4362,7 @@ export default {
     breadcrumb: {
       home: 'Home',
       crm: 'CRM',
-      pool: 'Pool'
+      pool: 'Pool',
     },
     filter: {
       ariaLabel: 'Pool customer filter form',
@@ -4371,12 +4377,12 @@ export default {
       daysWithinQuarter: 'Within 3 months',
       daysOverQuarter: 'Over 3 months',
       query: 'Query',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     customerType: {
       normal: 'Normal Customer',
       vip: 'VIP Customer',
-      wholesale: 'Wholesale Customer'
+      wholesale: 'Wholesale Customer',
     },
     table: {
       ariaLabel: 'Pool customer list',
@@ -4394,12 +4400,12 @@ export default {
       operation: 'Operation',
       claim: 'Claim',
       transfer: 'Assign',
-      release: 'Release Again'
+      release: 'Release Again',
     },
     message: {
       loadFailed: 'Failed to load pool list',
-      selectToClaim: 'Please select customers to claim'
-    }
+      selectToClaim: 'Please select customers to claim',
+    },
   },
   crmAssignment: {
     title: 'Customer Assignment Rules',
@@ -4407,11 +4413,11 @@ export default {
     breadcrumb: {
       home: 'Home',
       crm: 'CRM',
-      assignment: 'Assignment Rules'
+      assignment: 'Assignment Rules',
     },
     tabs: {
       rules: 'Assignment Rules',
-      manual: 'Manual Assignment'
+      manual: 'Manual Assignment',
     },
     ruleTable: {
       ariaLabel: 'Assignment rule list',
@@ -4426,19 +4432,19 @@ export default {
       edit: 'Edit',
       delete: 'Delete',
       enabled: 'Enabled',
-      disabled: 'Disabled'
+      disabled: 'Disabled',
     },
     strategy: {
       average: 'Average',
       region: 'By Region',
       industry: 'By Industry',
-      scale: 'By Customer Scale'
+      scale: 'By Customer Scale',
     },
     manualFilter: {
       ariaLabel: 'Assignable customer filter form',
       keyword: 'Keyword',
       keywordPlaceholder: 'Customer name / contact',
-      query: 'Query'
+      query: 'Query',
     },
     manualTable: {
       ariaLabel: 'Assignable customer list',
@@ -4448,11 +4454,11 @@ export default {
       phone: 'Phone',
       currentOwner: 'Current Owner',
       operation: 'Operation',
-      assign: 'Assign'
+      assign: 'Assign',
     },
     ruleDialogTitle: {
       create: 'New Rule',
-      edit: 'Edit Rule'
+      edit: 'Edit Rule',
     },
     message: {
       loadRulesFailed: 'Failed to load assignment rules',
@@ -4460,8 +4466,8 @@ export default {
       deleteConfirm: 'Are you sure to delete rule "{name}"?',
       deleteTitle: 'Delete Confirmation',
       deleteSuccess: 'Deleted successfully',
-      deleteFailed: 'Failed to delete'
-    }
+      deleteFailed: 'Failed to delete',
+    },
   },
   crmTagsPanel: {
     title: 'Tag Management',
@@ -4474,7 +4480,7 @@ export default {
       nameLabel: 'Tag Name',
       namePlaceholder: 'Select existing tag',
       cancel: 'Cancel',
-      confirm: 'Confirm'
+      confirm: 'Confirm',
     },
     message: {
       loadFailed: 'Failed to load tag list',
@@ -4482,8 +4488,8 @@ export default {
       addSuccess: 'Tag added',
       addFailed: 'Failed to add tag',
       removeSuccess: 'Tag removed',
-      removeFailed: 'Failed to remove tag'
-    }
+      removeFailed: 'Failed to remove tag',
+    },
   },
   crmTransferDialog: {
     title: 'Assign Customer',
@@ -4498,8 +4504,8 @@ export default {
     message: {
       ownerRequired: 'Please select owner',
       success: 'Assigned successfully',
-      failed: 'Failed to assign'
-    }
+      failed: 'Failed to assign',
+    },
   },
   crmReleaseDialog: {
     title: 'Release to Pool',
@@ -4511,8 +4517,8 @@ export default {
     confirm: 'Confirm',
     message: {
       success: 'Released successfully',
-      failed: 'Failed to release'
-    }
+      failed: 'Failed to release',
+    },
   },
   crmClaimDialog: {
     title: 'Claim Customer',
@@ -4524,8 +4530,8 @@ export default {
     confirm: 'Confirm Claim',
     message: {
       success: 'Claimed successfully',
-      failed: 'Failed to claim'
-    }
+      failed: 'Failed to claim',
+    },
   },
   crmRfm: {
     title: 'Customer Grading (RFM)',
@@ -4542,9 +4548,9 @@ export default {
       totalAmount: 'Total Amount',
       totalOrders: 'Orders',
       operation: 'Operation',
-      detail: 'Detail'
+      detail: 'Detail',
     },
-    countUnit: 'customers'
+    countUnit: 'customers',
   },
   crmFollowUp: {
     title: 'Follow-up Records',
@@ -4555,7 +4561,7 @@ export default {
     dialog: {
       title: 'Add Follow-up Record',
       ariaLabel: 'Add follow-up record dialog',
-      formAriaLabel: 'Follow-up form'
+      formAriaLabel: 'Follow-up form',
     },
     form: {
       type: 'Follow-up Type',
@@ -4565,21 +4571,21 @@ export default {
       nextFollowUp: 'Next Follow-up',
       datePlaceholder: 'Select date',
       cancel: 'Cancel',
-      save: 'Save'
+      save: 'Save',
     },
     followUpType: {
       phone: 'Phone',
       meeting: 'Meeting',
       email: 'Email',
       wechat: 'WeChat',
-      visit: 'Visit'
+      visit: 'Visit',
     },
     message: {
       loadFailed: 'Failed to load follow-up records',
       contentRequired: 'Please enter follow-up content',
       saveSuccess: 'Follow-up saved',
-      saveFailed: 'Failed to save'
-    }
+      saveFailed: 'Failed to save',
+    },
   },
   crmManualAssignDialog: {
     title: 'Manual Assign Customer',
@@ -4594,8 +4600,8 @@ export default {
     message: {
       ownerRequired: 'Please select new owner',
       success: 'Assigned successfully',
-      failed: 'Failed to assign'
-    }
+      failed: 'Failed to assign',
+    },
   },
   crmRuleDialog: {
     ariaLabel: 'Pool rule form',
@@ -4612,23 +4618,23 @@ export default {
       enabledNo: 'No',
       remark: 'Remark',
       cancel: 'Cancel',
-      save: 'Save'
+      save: 'Save',
     },
     strategy: {
       average: 'Average',
       region: 'By Region',
       industry: 'By Industry',
-      scale: 'By Customer Scale'
+      scale: 'By Customer Scale',
     },
     validation: {
       nameRequired: 'Please enter rule name',
       strategyRequired: 'Please select strategy',
-      assigneesRequired: 'Please select assignees'
+      assigneesRequired: 'Please select assignees',
     },
     message: {
       saveSuccess: 'Saved successfully',
-      validationFailed: 'Form validation failed'
-    }
+      validationFailed: 'Form validation failed',
+    },
   },
   crmOpportunities: {
     title: 'Opportunity Management',
@@ -4637,7 +4643,7 @@ export default {
     breadcrumb: {
       home: 'Home',
       crm: 'CRM',
-      opportunities: 'Opportunities'
+      opportunities: 'Opportunities',
     },
     filter: {
       ariaLabel: 'Opportunity filter form',
@@ -4650,7 +4656,7 @@ export default {
       priority: 'Priority',
       priorityPlaceholder: 'Select priority',
       query: 'Query',
-      reset: 'Reset'
+      reset: 'Reset',
     },
     stage: {
       initial: 'Initial Contact',
@@ -4658,13 +4664,13 @@ export default {
       proposal: 'Proposal & Quote',
       negotiation: 'Negotiation',
       won: 'Won',
-      lost: 'Lost'
+      lost: 'Lost',
     },
     priority: {
       low: 'Low',
       medium: 'Medium',
       high: 'High',
-      urgent: 'Urgent'
+      urgent: 'Urgent',
     },
     table: {
       ariaLabel: 'Opportunity list',
@@ -4684,7 +4690,7 @@ export default {
       edit: 'Edit',
       follow: 'Follow-up',
       win: 'Won',
-      lost: 'Lost'
+      lost: 'Lost',
     },
     viewDialog: {
       title: 'Opportunity Detail',
@@ -4701,11 +4707,11 @@ export default {
       lastFollowUp: 'Last Follow-up',
       createdBy: 'Created By',
       createdAt: 'Created At',
-      description: 'Description'
+      description: 'Description',
     },
     dialog: {
       createTitle: 'New Opportunity',
-      editTitle: 'Edit Opportunity'
+      editTitle: 'Edit Opportunity',
     },
     message: {
       loadFailed: 'Failed to load opportunity list',
@@ -4718,8 +4724,8 @@ export default {
       lostFailed: 'Failed to mark as lost',
       exportSuccess: 'Exported successfully',
       exportFailed: 'Failed to export',
-      exportFilename: 'CRM Opportunities'
-    }
+      exportFilename: 'CRM Opportunities',
+    },
   },
   crmOpportunityFollow: {
     title: 'Follow-up Records',
@@ -4733,8 +4739,8 @@ export default {
     confirm: 'Confirm',
     message: {
       success: 'Follow-up saved',
-      failed: 'Failed to save follow-up'
-    }
+      failed: 'Failed to save follow-up',
+    },
   },
   crmOpportunityForm: {
     ariaLabel: 'Opportunity form',
@@ -4761,24 +4767,24 @@ export default {
     opportunityTypeOption: {
       new: 'New Customer',
       upsell: 'Upsell',
-      renewal: 'Renewal'
+      renewal: 'Renewal',
     },
     stageOption: {
       initial: 'Initial Contact',
       requirement: 'Requirements Confirmed',
       proposal: 'Proposal & Quote',
-      negotiation: 'Negotiation'
+      negotiation: 'Negotiation',
     },
     validation: {
       opportunityNameRequired: 'Please enter opportunity name',
       customerRequired: 'Please select customer',
       stageRequired: 'Please select stage',
-      ownerRequired: 'Please select owner'
+      ownerRequired: 'Please select owner',
     },
     message: {
       saveSuccess: 'Saved successfully',
-      validationFailed: 'Form validation failed'
-    }
+      validationFailed: 'Form validation failed',
+    },
   },
   userProfile: {
     title: 'User Profile',
@@ -4786,7 +4792,7 @@ export default {
       title: 'Personal Information',
       save: 'Save Changes',
       avatarTip: 'Click to upload avatar',
-      avatarAlt: '{name}\'s avatar',
+      avatarAlt: "{name}'s avatar",
       avatarAltDefault: 'User avatar',
       username: 'Username',
       realName: 'Name',
@@ -4797,12 +4803,12 @@ export default {
       phonePlaceholder: 'Please enter phone',
       department: 'Department',
       role: 'Role',
-      formAriaLabel: 'User profile form'
+      formAriaLabel: 'User profile form',
     },
     security: {
       title: 'Security Settings',
       twofa: '2FA Setup',
-      changePassword: 'Change Password'
+      changePassword: 'Change Password',
     },
     password: {
       title: 'Change Password',
@@ -4813,7 +4819,7 @@ export default {
       newPassword: 'New Password',
       newPasswordPlaceholder: 'Please enter new password',
       confirmPassword: 'Confirm Password',
-      confirmPasswordPlaceholder: 'Please enter new password again'
+      confirmPasswordPlaceholder: 'Please enter new password again',
     },
     validation: {
       realNameRequired: 'Please enter name',
@@ -4823,7 +4829,7 @@ export default {
       newPasswordRequired: 'Please enter new password',
       newPasswordMinLength: 'Password must be at least 6 characters',
       confirmPasswordRequired: 'Please enter new password again',
-      passwordMismatch: 'The two passwords do not match'
+      passwordMismatch: 'The two passwords do not match',
     },
     message: {
       loadProfileFailed: 'Failed to load user profile',
@@ -4834,8 +4840,8 @@ export default {
       profileSaveSuccess: 'Profile saved successfully',
       profileSaveFailed: 'Failed to save',
       passwordChangeSuccess: 'Password changed successfully',
-      passwordChangeFailed: 'Failed to change password'
-    }
+      passwordChangeFailed: 'Failed to change password',
+    },
   },
   customer: {
     form: {
@@ -5541,7 +5547,8 @@ export default {
       rejectReasonRequired: 'Rejection reason cannot be empty',
       rejectSuccess: 'Rejected',
       convertConfirmTitle: 'Convert Confirmation',
-      convertConfirmText: 'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
+      convertConfirmText:
+        'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
       convertSuccess: 'Converted successfully, Sales Order ID: {id}',
       cancelConfirmTitle: 'Cancel Confirmation',
       cancelConfirmText: 'Confirm to cancel quotation {no}? This cannot be undone.',
@@ -5577,10 +5584,12 @@ export default {
       cancelConfirmText: 'Confirm to cancel quotation {no}? This cannot be undone.',
       cancelSuccess: 'Cancelled',
       convertConfirmTitle: 'Convert Confirmation',
-      convertConfirmText: 'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
+      convertConfirmText:
+        'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
       convertSuccess: 'Converted successfully, Sales Order ID: {id}',
     },
-  },  scheduling: {
+  },
+  scheduling: {
     ganttAdjust: {
       title: 'Adjust Schedule Time',
       ariaLabel: {
@@ -5894,8 +5903,8 @@ export default {
     },
     stat: {
       label: {
-        todayLogins: 'Today\'s Login Count',
-        todayFailures: 'Today\'s Failure Count',
+        todayLogins: "Today's Login Count",
+        todayFailures: "Today's Failure Count",
         lockedAccounts: 'Locked Account Count',
         securityAlerts: 'Security Alerts',
       },
@@ -7775,5 +7784,1169 @@ export default {
       backupStatusFailed: 'Failed',
     },
   },
-
+  salesAnalysis: {
+    index: {
+      pageTitle: 'Sales Analysis',
+      breadcrumbHome: 'Home',
+      breadcrumbSales: 'Sales Management',
+      breadcrumbSalesAnalysis: 'Sales Analysis',
+      buttonExport: 'Export Report',
+    },
+    stat: {
+      labelMonthOrders: 'Monthly Orders',
+      labelMonthAmount: 'Monthly Sales Amount',
+      labelGrossProfitRate: 'Gross Profit Rate',
+      labelActiveCustomers: 'Active Customers',
+    },
+    customerRank: {
+      cardTitle: 'Customer Sales Rank',
+      optionByAmount: 'By Amount',
+      optionByOrders: 'By Orders',
+      ariaLabelList: 'Customer Sales Rank List',
+      columnRank: 'Rank',
+      columnCustomerName: 'Customer Name',
+      columnAmount: 'Sales Amount',
+      columnOrderCount: 'Order Count',
+      columnPercentage: 'Percentage',
+    },
+    productRank: {
+      cardTitle: 'Product Sales Rank',
+      optionByAmount: 'By Amount',
+      optionByQuantity: 'By Quantity',
+      ariaLabelList: 'Product Sales Rank List',
+      columnRank: 'Rank',
+      columnProductName: 'Product Name',
+      columnAmount: 'Sales Amount',
+      columnQuantity: 'Sales Quantity',
+      columnPercentage: 'Percentage',
+    },
+    target: {
+      cardTitle: 'Sales Target',
+      buttonEdit: 'Edit Target',
+      ariaLabelList: 'Sales Target List',
+      columnPeriod: 'Period',
+      columnTargetAmount: 'Target Amount',
+      columnActualAmount: 'Actual Amount',
+      columnCompletionRate: 'Completion Rate',
+      columnVariance: 'Variance',
+      columnStatus: 'Status',
+      statusCompleted: 'Completed',
+      statusInProgress: 'In Progress',
+      statusPartial: 'Partial',
+      statusNotStarted: 'Not Started',
+    },
+    trend: {
+      cardTitleTrend: 'Sales Trend',
+      cardTitleComposition: 'Sales Composition',
+      periodWeek: 'This Week',
+      periodMonth: 'This Month',
+      periodQuarter: 'This Quarter',
+      periodYear: 'This Year',
+      seriesAmount: 'Sales Amount',
+      seriesOrderCount: 'Order Count',
+      yAxisAmount: 'Sales Amount (CNY)',
+      yAxisOrderCount: 'Order Count',
+      noData: 'No Data',
+    },
+  },
+  financialAnalysis: {
+    index: {},
+    analysisListTab: {
+      pageTitle: 'Financial Analysis',
+      ariaLabelFilterForm: 'Financial Analysis Filter Form',
+      labelReportType: 'Report Type',
+      placeholderReportType: 'Select Report Type',
+      optionProfitability: 'Profitability',
+      optionSolvency: 'Solvency',
+      optionOperation: 'Operation',
+      optionDevelopment: 'Development',
+      labelPeriod: 'Accounting Period',
+      placeholderMonth: 'Select Month',
+      buttonAnalyze: 'Analyze',
+      cardTitle: 'Analysis Reports',
+      buttonCreate: 'Create Report',
+      ariaLabelList: 'Financial Analysis Report List',
+      columnReportName: 'Report Name',
+      columnType: 'Type',
+      columnPeriod: 'Accounting Period',
+      columnStatus: 'Status',
+      columnExecutedAt: 'Executed At',
+      columnActions: 'Actions',
+      buttonExecute: 'Execute',
+      buttonView: 'View',
+      buttonEdit: 'Edit',
+      buttonDelete: 'Delete',
+      dialogTitleEdit: 'Edit Report',
+      dialogTitleCreate: 'Create Report',
+      ariaLabelDialogEdit: 'Edit Report Dialog',
+      ariaLabelDialogCreate: 'Create Report Dialog',
+      ariaLabelForm: 'Financial Analysis Report Form',
+      labelReportName: 'Report Name',
+      placeholderReportName: 'Please enter report name',
+      labelFormReportType: 'Report Type',
+      placeholderSelectType: 'Select Type',
+      labelFormPeriod: 'Accounting Period',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+      validateReportNameRequired: 'Please enter report name',
+      validateReportTypeRequired: 'Please select report type',
+      statusDraft: 'Draft',
+      statusExecuted: 'Executed',
+      statusFailed: 'Execution Failed',
+      logFetchFailed: 'Failed to fetch financial analysis reports',
+      messageFetchFailed: 'Failed to fetch reports',
+      messageUpdateSuccess: 'Updated successfully',
+      messageCreateSuccess: 'Created successfully',
+      messageOperationFailed: 'Operation failed',
+      messageExecuteSuccess: 'Executed successfully',
+      messageExecuteFailed: 'Execution failed',
+      detailReportName: 'Report Name: {value}',
+      detailReportType: 'Report Type: {value}',
+      detailPeriod: 'Accounting Period: {value}',
+      detailStatus: 'Status: {value}',
+      detailExecutedAt: 'Executed At: {value}',
+      detailCreatedAt: 'Created At: {value}',
+      detailUpdatedAt: 'Updated At: {value}',
+      dialogTitleDetail: 'Report Details',
+      buttonClose: 'Close',
+      confirmDeleteMessage: 'Are you sure you want to delete report "{name}"?',
+      dialogTitleDeleteConfirm: 'Delete Confirmation',
+      messageDeleteSuccess: 'Deleted successfully',
+      messageDeleteFailed: 'Failed to delete',
+    },
+  },
+  salesContract: {
+    index: {
+      pageTitle: 'Sales Contract Management',
+      buttonCreate: 'Create Contract',
+      buttonPrint: 'Print',
+      buttonExport: 'Export',
+    },
+    filter: {
+      ariaLabel: 'Sales contract filter form',
+      labelKeyword: 'Keyword',
+      placeholderKeyword: 'Contract No / Contract Name',
+      labelCustomer: 'Customer',
+      placeholderCustomer: 'Please select a customer',
+      labelStatus: 'Status',
+      placeholderStatus: 'Please select a status',
+      optionDraft: 'Draft',
+      optionPending: 'Pending Approval',
+      optionActive: 'Active',
+      optionCompleted: 'Completed',
+      optionCancelled: 'Cancelled',
+      labelSignedDate: 'Signed Date',
+      rangeSeparator: 'To',
+      placeholderStartDate: 'Start Date',
+      placeholderEndDate: 'End Date',
+      buttonSearch: 'Search',
+      buttonReset: 'Reset',
+    },
+    form: {
+      ariaLabelForm: 'Sales contract form',
+      labelContractNo: 'Contract No',
+      placeholderContractNo: 'Please enter contract number',
+      labelContractName: 'Contract Name',
+      placeholderContractName: 'Please enter contract name',
+      labelCustomer: 'Customer',
+      placeholderCustomer: 'Please select a customer',
+      labelContractType: 'Contract Type',
+      placeholderContractType: 'Please select contract type',
+      optionSales: 'Sales Contract',
+      optionFramework: 'Framework Contract',
+      optionSupplement: 'Supplement Contract',
+      labelTotalAmount: 'Total Amount',
+      labelSignedDate: 'Signed Date',
+      placeholderSignedDate: 'Please select signed date',
+      labelEffectiveDate: 'Effective Date',
+      placeholderEffectiveDate: 'Please select effective date',
+      labelExpiryDate: 'Expiry Date',
+      placeholderExpiryDate: 'Please select expiry date',
+      labelPaymentTerms: 'Payment Terms',
+      placeholderPaymentTerms: 'Please enter payment terms',
+      labelPaymentMethod: 'Payment Method',
+      placeholderPaymentMethod: 'Please select payment method',
+      optionBankTransfer: 'Bank Transfer',
+      optionCheck: 'Check',
+      optionCash: 'Cash',
+      labelDeliveryDate: 'Delivery Date',
+      placeholderDeliveryDate: 'Please select delivery date',
+      labelDeliveryLocation: 'Delivery Location',
+      placeholderDeliveryLocation: 'Please enter delivery location',
+      labelRemarks: 'Remarks',
+      placeholderRemarks: 'Please enter remarks',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+    },
+    table: {
+      statusDraft: 'Draft',
+      statusPending: 'Pending Approval',
+      statusActive: 'Active',
+      statusCompleted: 'Completed',
+      statusCancelled: 'Cancelled',
+      buttonView: 'View',
+      buttonEdit: 'Edit',
+      buttonSubmit: 'Submit',
+      buttonDelete: 'Delete',
+      buttonApprove: 'Approve',
+      buttonExecute: 'Execute',
+      columnContractNo: 'Contract No',
+      columnContractName: 'Contract Name',
+      columnCustomer: 'Customer',
+      columnTotalAmount: 'Total Amount',
+      columnSignedDate: 'Signed Date',
+      columnEffectiveDate: 'Effective Date',
+      columnExpiryDate: 'Expiry Date',
+      columnStatus: 'Status',
+      columnAction: 'Action',
+    },
+  },
+  salesExt: {
+    index: {
+      tabContract: 'Sales Contract',
+      tabPrice: 'Sales Price',
+      tabReturn: 'Sales Return',
+    },
+    contractTab: {
+      pageTitle: 'Sales Contract',
+      buttonCreate: 'Create Contract',
+      ariaLabelList: 'Sales contract list',
+      columnContractNo: 'Contract No',
+      columnCustomer: 'Customer',
+      columnContractDate: 'Contract Date',
+      columnStartDate: 'Start Date',
+      columnEndDate: 'End Date',
+      columnTotalAmount: 'Total Amount',
+      columnStatus: 'Status',
+      columnCreatedBy: 'Created By',
+      columnAction: 'Action',
+      buttonView: 'View',
+      buttonEdit: 'Edit',
+      buttonApprove: 'Approve',
+      buttonExecute: 'Execute',
+      buttonCancel: 'Cancel',
+      titleEdit: 'Edit Contract',
+      titleCreate: 'Create Contract',
+      ariaLabelDialog: 'Contract edit dialog',
+      ariaLabelForm: 'Contract form',
+      labelContractNo: 'Contract No',
+      labelCustomer: 'Customer',
+      placeholderCustomer: 'Please enter customer name',
+      labelContractDate: 'Contract Date',
+      labelStartDate: 'Start Date',
+      labelEndDate: 'End Date',
+      labelCurrency: 'Currency',
+      placeholderCurrency: 'Please select currency',
+      labelTotalAmount: 'Total Amount',
+      dividerItems: 'Contract Items',
+      ariaLabelItemsEdit: 'Contract items edit table',
+      columnProductName: 'Product Name',
+      placeholderProductName: 'Please enter product name',
+      columnProductCode: 'Product Code',
+      placeholderProductCode: 'Please enter product code',
+      columnQuantity: 'Quantity',
+      columnUnit: 'Unit',
+      placeholderUnit: 'Please enter unit',
+      columnPrice: 'Price',
+      columnAmount: 'Amount',
+      buttonDelete: 'Delete',
+      buttonAddProduct: 'Add Product',
+      labelPaymentTerms: 'Payment Terms',
+      labelDeliveryTerms: 'Delivery Terms',
+      buttonConfirm: 'Confirm',
+      titleDetail: 'Contract Details',
+      ariaLabelDetail: 'Contract detail dialog',
+      labelValidDate: 'Valid Period',
+      labelStatus: 'Status',
+      labelCreatedBy: 'Created By',
+      ariaLabelItemsList: 'Contract items list',
+      columnRemark: 'Remark',
+      dividerTerms: 'Terms Information',
+      statusDraft: 'Draft',
+      statusPending: 'Pending Approval',
+      statusActive: 'Active',
+      statusCompleted: 'Completed',
+      statusCancelled: 'Cancelled',
+      messageFetchFailed: 'Failed to fetch contract list',
+      ruleContractNo: 'Please enter contract number',
+      ruleCustomerName: 'Please enter customer name',
+      ruleContractDate: 'Please select contract date',
+      ruleTotalAmount: 'Please enter total amount',
+      messageUpdateSuccess: 'Contract updated successfully',
+      messageCreateSuccess: 'Contract created successfully',
+      messageOperationFailed: 'Operation failed',
+      confirmApprove: 'Are you sure you want to approve this contract?',
+      confirmTitle: 'Confirmation',
+      messageApproveSuccess: 'Contract approved successfully',
+      confirmExecute: 'Are you sure you want to execute this contract?',
+      messageExecuteSuccess: 'Contract executed successfully',
+      confirmCancel: 'Are you sure you want to cancel this contract?',
+      messageCancelSuccess: 'Contract cancelled successfully',
+    },
+    priceTab: {
+      pageTitle: 'Sales Price',
+      buttonCreate: 'Create Price',
+      ariaLabelFilter: 'Sales price filter form',
+      labelProduct: 'Product',
+      placeholderProductName: 'Please enter product name',
+      labelCustomer: 'Customer',
+      placeholderCustomerName: 'Please enter customer name',
+      labelStatus: 'Status',
+      placeholderStatus: 'Please select a status',
+      optionActive: 'Active',
+      optionInactive: 'Inactive',
+      buttonSearch: 'Search',
+      buttonReset: 'Reset',
+      ariaLabelList: 'Sales price list',
+      columnProductName: 'Product Name',
+      columnProductCode: 'Product Code',
+      columnCustomer: 'Customer',
+      columnPrice: 'Price',
+      columnCurrency: 'Currency',
+      columnUnit: 'Unit',
+      columnEffectiveDate: 'Effective Date',
+      columnExpiryDate: 'Expiry Date',
+      columnStatus: 'Status',
+      statusActive: 'Active',
+      statusInactive: 'Inactive',
+      columnAction: 'Action',
+      buttonEdit: 'Edit',
+      buttonApprove: 'Approve',
+      titleEdit: 'Edit Price',
+      titleCreate: 'Create Price',
+      ariaLabelDialog: 'Price edit dialog',
+      ariaLabelForm: 'Price form',
+      labelProductName: 'Product Name',
+      labelProductCode: 'Product Code',
+      placeholderProductCode: 'Please enter product code',
+      labelCustomerName: 'Customer Name',
+      labelPrice: 'Price',
+      labelCurrency: 'Currency',
+      placeholderCurrency: 'Please select currency',
+      labelUnit: 'Unit',
+      placeholderUnit: 'Please enter unit',
+      labelEffectiveDate: 'Effective Date',
+      labelExpiryDate: 'Expiry Date',
+      placeholderStatusSelect: 'Please select a status',
+      optionPending: 'Pending Approval',
+      labelRemark: 'Remark',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+      ruleProductName: 'Please enter product name',
+      ruleCustomerName: 'Please enter customer name',
+      rulePrice: 'Please enter price',
+      ruleEffectiveDate: 'Please select effective date',
+      messageFetchFailed: 'Failed to fetch price list',
+      messageUpdateSuccess: 'Price updated successfully',
+      messageCreateSuccess: 'Price created successfully',
+      messageOperationFailed: 'Operation failed',
+      messageApproveSuccess: 'Price approved successfully',
+    },
+    returnTab: {
+      pageTitle: 'Sales Return',
+      buttonCreate: 'Create Return',
+      ariaLabelFilter: 'Sales return filter form',
+      labelReturnNo: 'Return No',
+      placeholderReturnNo: 'Please enter return number',
+      labelCustomer: 'Customer',
+      placeholderCustomerName: 'Please enter customer name',
+      labelStatus: 'Status',
+      placeholderStatus: 'Please select a status',
+      optionDraft: 'Draft',
+      optionPending: 'Pending Approval',
+      optionApproved: 'Approved',
+      optionRejected: 'Rejected',
+      optionCompleted: 'Completed',
+      buttonSearch: 'Search',
+      buttonReset: 'Reset',
+      ariaLabelList: 'Sales return list',
+      columnReturnNo: 'Return No',
+      columnCustomer: 'Customer',
+      columnSalesOrderNo: 'Sales Order No',
+      columnReturnDate: 'Return Date',
+      columnTotalAmount: 'Total Amount',
+      columnStatus: 'Status',
+      columnCreatedBy: 'Created By',
+      columnAction: 'Action',
+      buttonView: 'View',
+      buttonEdit: 'Edit',
+      titleEdit: 'Edit Return',
+      titleCreate: 'Create Return',
+      ariaLabelDialog: 'Return edit dialog',
+      ariaLabelForm: 'Return form',
+      labelRelatedOrder: 'Related Order',
+      placeholderSalesOrderNo: 'Please enter sales order number',
+      labelReturnDate: 'Return Date',
+      labelReason: 'Return Reason',
+      dividerItems: 'Return Items',
+      ariaLabelItemsEdit: 'Return items edit table',
+      columnProductName: 'Product Name',
+      placeholderProductName: 'Please enter product name',
+      columnProductCode: 'Product Code',
+      placeholderProductCode: 'Please enter product code',
+      columnQuantity: 'Quantity',
+      columnUnitPrice: 'Unit Price',
+      columnAmount: 'Amount',
+      columnReason: 'Reason',
+      placeholderReason: 'Please enter reason',
+      buttonDelete: 'Delete',
+      buttonAddProduct: 'Add Product',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+      titleDetail: 'Return Details',
+      ariaLabelDetail: 'Return detail dialog',
+      labelTotalAmount: 'Total Amount',
+      labelCreatedBy: 'Created By',
+      labelApprovedBy: 'Approved By',
+      dividerReason: 'Return Reason',
+      ariaLabelItemsList: 'Return items list',
+      columnUnit: 'Unit',
+      columnPrice: 'Price',
+      statusDraft: 'Draft',
+      statusPending: 'Pending Approval',
+      statusApproved: 'Approved',
+      statusRejected: 'Rejected',
+      statusCompleted: 'Completed',
+      messageFetchFailed: 'Failed to fetch return list',
+      ruleReturnNo: 'Please enter return number',
+      ruleCustomerName: 'Please enter customer name',
+      ruleReturnDate: 'Please select return date',
+      ruleReason: 'Please enter return reason',
+      messageUpdateSuccess: 'Return updated successfully',
+      messageCreateSuccess: 'Return created successfully',
+      messageOperationFailed: 'Operation failed',
+    },
+  },
+  salesPrice: {
+    index: {
+      pageTitle: 'Sales Price Management',
+      breadcrumbHome: 'Home',
+      breadcrumbSales: 'Sales Management',
+      breadcrumbSalesPrice: 'Sales Price',
+      buttonCreatePrice: 'New Price',
+      buttonPriceStrategy: 'Price Strategy',
+      buttonExport: 'Export',
+      strategyDialogTitle: 'Price Strategy',
+      strategyDialogAriaLabel: 'Price Strategy Dialog',
+      strategyTableAriaLabel: 'Price Strategy List',
+      strategyColumnName: 'Strategy Name',
+      strategyColumnDescription: 'Description',
+      strategyColumnType: 'Type',
+      strategyColumnStatus: 'Status',
+      strategyColumnRuleCount: 'Rule Count',
+      strategyTypeTiered: 'Tiered Pricing',
+      strategyTypeVolume: 'Volume Pricing',
+      strategyTypeContract: 'Contract Pricing',
+      strategyStatusActive: 'Active',
+      strategyStatusInactive: 'Disabled',
+    },
+    filter: {
+      ariaLabel: 'Sales Price Filter Form',
+      labelKeyword: 'Keyword',
+      placeholderKeyword: 'Product Name/Customer Name',
+      labelCustomer: 'Customer',
+      placeholderCustomer: 'Select Customer',
+      labelProduct: 'Product',
+      placeholderProduct: 'Select Product',
+      labelStatus: 'Price Status',
+      placeholderStatus: 'Select Status',
+      optionPending: 'Pending Approval',
+      optionActive: 'Active',
+      optionExpired: 'Expired',
+      optionInactive: 'Inactive',
+      buttonSearch: 'Search',
+      buttonReset: 'Reset',
+    },
+    form: {
+      ariaLabel: 'Sales Price Form',
+      labelProduct: 'Product',
+      placeholderProduct: 'Please Select Product',
+      labelCustomer: 'Customer',
+      placeholderCustomer: 'Please Select Customer',
+      labelPrice: 'Sales Price',
+      labelCurrency: 'Currency',
+      placeholderCurrency: 'Please Select Currency',
+      optionCNY: 'CNY',
+      optionUSD: 'USD',
+      optionEUR: 'EUR',
+      labelUnit: 'Unit',
+      placeholderUnit: 'Please Select Unit',
+      optionMeter: 'Meter',
+      optionKg: 'Kilogram',
+      optionPiece: 'Piece',
+      labelMinOrderQty: 'Min Order Qty',
+      labelPriceType: 'Price Type',
+      placeholderPriceType: 'Please Select Price Type',
+      optionStandard: 'Standard Price',
+      optionAgreed: 'Agreed Price',
+      optionPromotion: 'Promotion Price',
+      labelPriceLevel: 'Price Level',
+      placeholderPriceLevel: 'Please Select Price Level',
+      optionLevelA: 'Level A',
+      optionLevelB: 'Level B',
+      optionLevelC: 'Level C',
+      optionLevelD: 'Level D',
+      labelEffectiveDate: 'Effective Date',
+      placeholderEffectiveDate: 'Please Select Effective Date',
+      labelExpiryDate: 'Expiry Date',
+      placeholderExpiryDate: 'Please Select Expiry Date',
+      labelRemarks: 'Remarks',
+      placeholderRemarks: 'Please Enter Remarks',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+    },
+    history: {
+      dialogTitle: 'Price History',
+      dialogAriaLabel: 'Price History Dialog',
+      tableAriaLabel: 'Sales Price History',
+      columnPrice: 'Sales Price',
+      columnEffectiveDate: 'Effective Date',
+      columnExpiryDate: 'Expiry Date',
+      columnStatus: 'Status',
+      columnCreatedAt: 'Created At',
+      statusPending: 'Pending Approval',
+      statusActive: 'Active',
+      statusExpired: 'Expired',
+      statusInactive: 'Inactive',
+    },
+    table: {
+      ariaLabel: 'Sales Price List',
+      columnIndex: 'No.',
+      columnProductName: 'Product Name',
+      columnCustomer: 'Customer',
+      columnPrice: 'Sales Price',
+      columnCurrency: 'Currency',
+      columnUnit: 'Unit',
+      columnMinOrderQty: 'Min Order Qty',
+      columnPriceType: 'Price Type',
+      columnPriceLevel: 'Price Level',
+      columnEffectiveDate: 'Effective Date',
+      columnExpiryDate: 'Expiry Date',
+      columnStatus: 'Status',
+      columnAction: 'Action',
+      buttonView: 'View',
+      buttonEdit: 'Edit',
+      buttonApprove: 'Approve',
+      buttonHistory: 'History',
+      paginationAriaLabel: 'Sales Price List Pagination',
+      priceTypeStandard: 'Standard Price',
+      priceTypeAgreed: 'Agreed Price',
+      priceTypePromotion: 'Promotion Price',
+      statusPending: 'Pending Approval',
+      statusActive: 'Active',
+      statusExpired: 'Expired',
+      statusInactive: 'Inactive',
+    },
+    view: {
+      dialogTitle: 'Price Detail',
+      dialogAriaLabel: 'Price Detail Dialog',
+      labelProductName: 'Product Name',
+      labelCustomer: 'Customer',
+      labelPrice: 'Sales Price',
+      labelCurrency: 'Currency',
+      labelUnit: 'Unit',
+      labelMinOrderQty: 'Min Order Qty',
+      labelPriceType: 'Price Type',
+      labelPriceLevel: 'Price Level',
+      labelEffectiveDate: 'Effective Date',
+      labelExpiryDate: 'Expiry Date',
+      labelStatus: 'Status',
+      labelRemarks: 'Remarks',
+      priceTypeStandard: 'Standard Price',
+      priceTypeAgreed: 'Agreed Price',
+      priceTypePromotion: 'Promotion Price',
+      statusPending: 'Pending Approval',
+      statusActive: 'Active',
+      statusExpired: 'Expired',
+      statusInactive: 'Inactive',
+    },
+  },
+  salesReturns: {
+    index: {
+      pageTitle: 'Sales Returns Management',
+      buttonCreate: 'New Return',
+      ruleSalesOrderRequired: 'Please Select Sales Order',
+      ruleCustomerRequired: 'Please Select Customer',
+      ruleReturnDateRequired: 'Please Select Return Date',
+      ruleReasonRequired: 'Please Select Return Reason',
+    },
+    detailDialog: {
+      dialogTitle: 'Return Detail',
+      dialogAriaLabel: 'Return Detail Dialog',
+      labelReturnNo: 'Return No.',
+      labelSalesOrderNo: 'Sales Order No.',
+      labelCustomerName: 'Customer Name',
+      labelReturnDate: 'Return Date',
+      labelReturnAmount: 'Return Amount',
+      labelStatus: 'Status',
+      labelReason: 'Return Reason',
+      labelRemarks: 'Remarks',
+      titleReturnDetails: 'Return Details',
+      detailsTableAriaLabel: 'Return Details List',
+      columnProductName: 'Product Name',
+      columnProductCode: 'Product Code',
+      columnQuantity: 'Return Qty',
+      columnUnitPrice: 'Unit Price',
+      columnAmount: 'Amount',
+      columnReason: 'Return Reason',
+      statusPending: 'Pending Review',
+      statusApproved: 'Approved',
+      statusRejected: 'Rejected',
+      statusCompleted: 'Completed',
+    },
+    editDialog: {
+      titleCreate: 'New Return',
+      titleEdit: 'Edit Return',
+      formAriaLabel: 'Return Form',
+      labelSalesOrderNo: 'Sales Order No.',
+      placeholderSalesOrder: 'Please Select Sales Order',
+      labelCustomer: 'Customer',
+      placeholderCustomer: 'Please Select Customer',
+      labelReturnDate: 'Return Date',
+      placeholderReturnDate: 'Please Select Return Date',
+      labelReason: 'Return Reason',
+      placeholderReason: 'Please Select Return Reason',
+      optionQuality: 'Quality Issue',
+      optionQuantity: 'Quantity Mismatch',
+      optionSpecification: 'Specification Mismatch',
+      optionPackaging: 'Packaging Damage',
+      optionOther: 'Other',
+      labelRemarks: 'Remarks',
+      placeholderRemarks: 'Please Enter Remarks',
+      labelReturnDetails: 'Return Details',
+      buttonAddDetail: 'Add Detail',
+      detailsTableAriaLabel: 'Return Details Table',
+      columnProductName: 'Product Name',
+      placeholderProduct: 'Select Product',
+      columnQuantity: 'Quantity',
+      columnUnitPrice: 'Unit Price',
+      columnAmount: 'Amount',
+      columnReason: 'Return Reason',
+      placeholderReasonShort: 'Reason',
+      columnAction: 'Action',
+      buttonDelete: 'Delete',
+      labelTotalAmount: 'Total Return Amount',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+    },
+    table: {
+      ariaLabel: 'Sales Returns List',
+      columnReturnNo: 'Return No.',
+      columnSalesOrderNo: 'Sales Order No.',
+      columnCustomerName: 'Customer Name',
+      columnReturnDate: 'Return Date',
+      columnReturnAmount: 'Return Amount',
+      columnStatus: 'Status',
+      columnAction: 'Action',
+      buttonDetail: 'Detail',
+      buttonEdit: 'Edit',
+      buttonApprove: 'Approve',
+      statusPending: 'Pending Review',
+      statusApproved: 'Approved',
+      statusRejected: 'Rejected',
+      statusCompleted: 'Completed',
+    },
+  },
+  trading: {
+    index: {
+      tabPurchaseContract: 'Purchase Contract',
+      tabPurchasePrice: 'Purchase Price',
+      tabSalesContract: 'Sales Contract',
+      tabSalesPrice: 'Sales Price',
+      tabSalesReturn: 'Sales Return',
+    },
+    purchaseContractTab: {
+      title: 'Purchase Contract Management',
+      buttonCreate: 'New Contract',
+      tableAriaLabel: 'Purchase Contract List',
+      columnContractNo: 'Contract No.',
+      columnSupplier: 'Supplier',
+      columnContractDate: 'Contract Date',
+      columnTotalAmount: 'Total Amount',
+      columnStatus: 'Status',
+      columnActions: 'Actions',
+      buttonView: 'View',
+      buttonApprove: 'Approve',
+      buttonExecute: 'Execute',
+      buttonDelete: 'Delete',
+      statusDraft: 'Draft',
+      statusPending: 'Pending Approval',
+      statusApproved: 'Approved',
+      statusExecuted: 'Executed',
+      statusCompleted: 'Completed',
+      statusCancelled: 'Cancelled',
+      messageFetchFailed: 'Failed to fetch purchase contract list',
+      messageCreateDraftSuccess: 'Purchase contract draft created successfully',
+      messageCreateFailed: 'Failed to create purchase contract',
+      detailContractNo: 'Contract No.: {value}',
+      detailSupplier: 'Supplier: {value}',
+      detailContractDate: 'Contract Date: {value}',
+      detailContractAmount: 'Contract Amount: {value}',
+      detailCurrentStatus: 'Current Status: {value}',
+      messageDetailNotFound: 'Contract detail not found',
+      detailTitle: 'Purchase Contract Details',
+      buttonClose: 'Close',
+      messageFetchDetailFailed: 'Failed to fetch contract detail',
+      confirmApproveMessage: 'Are you sure you want to approve this purchase contract?',
+      confirmTitle: 'Confirm Action',
+      messageApproveSuccess: 'Approved successfully',
+      messageOperationFailed: 'Operation failed',
+      confirmExecuteMessage: 'Are you sure you want to execute this purchase contract?',
+      messageExecuteSuccess: 'Executed successfully',
+      confirmDeleteMessage: 'Are you sure you want to delete this purchase contract?',
+      messageDeleteSuccess: 'Deleted successfully',
+    },
+    purchasePriceTab: {
+      title: 'Purchase Price Management',
+      buttonCreate: 'New Price',
+      tableAriaLabel: 'Purchase Price List',
+      columnProduct: 'Product',
+      columnSupplier: 'Supplier',
+      columnPrice: 'Price',
+      columnCurrency: 'Currency',
+      columnUnit: 'Unit',
+      columnEffectiveDate: 'Effective Date',
+      columnExpiryDate: 'Expiry Date',
+      columnStatus: 'Status',
+      columnActions: 'Actions',
+      buttonEdit: 'Edit',
+      dialogAriaLabel: 'Purchase Price Edit Dialog',
+      formAriaLabel: 'Purchase Price Form',
+      fieldProductName: 'Product Name',
+      placeholderProductName: 'Please enter product name',
+      fieldSupplierName: 'Supplier Name',
+      placeholderSupplierName: 'Please enter supplier name',
+      fieldPrice: 'Price',
+      fieldCurrency: 'Currency',
+      currencyCny: 'CNY',
+      currencyUsd: 'USD',
+      currencyEur: 'EUR',
+      fieldUnit: 'Unit',
+      placeholderUnit: 'Please enter unit',
+      fieldEffectiveDate: 'Effective Date',
+      fieldExpiryDate: 'Expiry Date',
+      fieldStatus: 'Status',
+      statusActive: 'Active',
+      statusInactive: 'Inactive',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+      dialogTitleCreate: 'Create Purchase Price',
+      dialogTitleEdit: 'Edit Purchase Price',
+      defaultUnit: 'meter',
+      validateProductName: 'Please enter product name',
+      validatePrice: 'Please enter price',
+      validateCurrency: 'Please select currency',
+      validateUnit: 'Please enter unit',
+      validateEffectiveDate: 'Please select effective date',
+      validateStatus: 'Please select status',
+      messageFetchFailed: 'Failed to fetch purchase price list',
+      messageFetchDetailFailed: 'Failed to fetch price detail',
+      messageUpdateSuccess: 'Updated successfully',
+      messageCreateSuccess: 'Created successfully',
+      messageOperationFailed: 'Operation failed',
+    },
+    salesContractTab: {
+      title: 'Sales Contract Management',
+      buttonCreate: 'New Contract',
+      tableAriaLabel: 'Sales Contract List',
+      columnContractNo: 'Contract No.',
+      columnCustomer: 'Customer',
+      columnContractDate: 'Contract Date',
+      columnTotalAmount: 'Total Amount',
+      columnStatus: 'Status',
+      columnActions: 'Actions',
+      buttonView: 'View',
+      buttonApprove: 'Approve',
+      buttonExecute: 'Execute',
+      buttonDelete: 'Delete',
+      statusDraft: 'Draft',
+      statusPending: 'Pending Approval',
+      statusApproved: 'Approved',
+      statusExecuted: 'Executed',
+      statusCompleted: 'Completed',
+      statusCancelled: 'Cancelled',
+      messageFetchFailed: 'Failed to fetch sales contract list',
+      messageCreateDraftSuccess: 'Sales contract draft created successfully',
+      messageCreateFailed: 'Failed to create sales contract',
+      detailContractNo: 'Contract No.: {value}',
+      detailCustomer: 'Customer: {value}',
+      detailContractDate: 'Contract Date: {value}',
+      detailContractAmount: 'Contract Amount: {value}',
+      detailCurrentStatus: 'Current Status: {value}',
+      messageDetailNotFound: 'Contract detail not found',
+      detailTitle: 'Sales Contract Details',
+      buttonClose: 'Close',
+      messageFetchDetailFailed: 'Failed to fetch contract detail',
+      confirmApproveMessage: 'Are you sure you want to approve this sales contract?',
+      confirmTitle: 'Confirm Action',
+      messageApproveSuccess: 'Approved successfully',
+      messageOperationFailed: 'Operation failed',
+      confirmExecuteMessage: 'Are you sure you want to execute this sales contract?',
+      messageExecuteSuccess: 'Executed successfully',
+      confirmDeleteMessage: 'Are you sure you want to delete this sales contract?',
+      messageDeleteSuccess: 'Deleted successfully',
+    },
+    salesPriceTab: {
+      title: 'Sales Price Management',
+      buttonCreate: 'New Price',
+      tableAriaLabel: 'Sales Price List',
+      columnProduct: 'Product',
+      columnCustomer: 'Customer',
+      columnPrice: 'Price',
+      columnCurrency: 'Currency',
+      columnUnit: 'Unit',
+      columnEffectiveDate: 'Effective Date',
+      columnExpiryDate: 'Expiry Date',
+      columnStatus: 'Status',
+      columnActions: 'Actions',
+      buttonEdit: 'Edit',
+      dialogAriaLabel: 'Sales Price Edit Dialog',
+      formAriaLabel: 'Sales Price Form',
+      fieldProductName: 'Product Name',
+      placeholderProductName: 'Please enter product name',
+      fieldCustomerName: 'Customer Name',
+      placeholderCustomerName: 'Please enter customer name',
+      fieldPrice: 'Price',
+      fieldCurrency: 'Currency',
+      currencyCny: 'CNY',
+      currencyUsd: 'USD',
+      currencyEur: 'EUR',
+      fieldUnit: 'Unit',
+      placeholderUnit: 'Please enter unit',
+      fieldEffectiveDate: 'Effective Date',
+      fieldExpiryDate: 'Expiry Date',
+      fieldStatus: 'Status',
+      statusActive: 'Active',
+      statusInactive: 'Inactive',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+      dialogTitleCreate: 'Create Sales Price',
+      dialogTitleEdit: 'Edit Sales Price',
+      defaultUnit: 'meter',
+      validateProductName: 'Please enter product name',
+      validatePrice: 'Please enter price',
+      validateCurrency: 'Please select currency',
+      validateUnit: 'Please enter unit',
+      validateEffectiveDate: 'Please select effective date',
+      validateStatus: 'Please select status',
+      messageFetchFailed: 'Failed to fetch sales price list',
+      messageFetchDetailFailed: 'Failed to fetch price detail',
+      messageUpdateSuccess: 'Updated successfully',
+      messageCreateSuccess: 'Created successfully',
+      messageOperationFailed: 'Operation failed',
+    },
+    salesReturnTab: {
+      title: 'Sales Return Management',
+      buttonCreate: 'New Return',
+      tableAriaLabel: 'Sales Return List',
+      columnReturnNo: 'Return No.',
+      columnCustomer: 'Customer',
+      columnReturnDate: 'Return Date',
+      columnAmount: 'Return Amount',
+      columnStatus: 'Status',
+      columnActions: 'Actions',
+      buttonView: 'View',
+      buttonApprove: 'Approve',
+      buttonDelete: 'Delete',
+      statusDraft: 'Draft',
+      statusPending: 'Pending Approval',
+      statusApproved: 'Approved',
+      statusCompleted: 'Completed',
+      statusCancelled: 'Cancelled',
+      messageFetchFailed: 'Failed to fetch sales return list',
+      messageCreateDraftSuccess: 'Sales return draft created successfully',
+      messageCreateFailed: 'Failed to create sales return',
+      detailReturnNo: 'Return No.: {value}',
+      detailCustomer: 'Customer: {value}',
+      detailOrderNo: 'Order No.: {value}',
+      detailReturnDate: 'Return Date: {value}',
+      detailReturnAmount: 'Return Amount: {value}',
+      detailCurrentStatus: 'Current Status: {value}',
+      detailReason: 'Reason: {value}',
+      messageDetailNotFound: 'Return detail not found',
+      detailTitle: 'Sales Return Details',
+      buttonClose: 'Close',
+      messageFetchDetailFailed: 'Failed to fetch return detail',
+      confirmApproveMessage: 'Are you sure you want to approve this sales return?',
+      confirmTitle: 'Confirm Action',
+      messageApproveSuccess: 'Approved successfully',
+      messageOperationFailed: 'Operation failed',
+      confirmDeleteMessage: 'Are you sure you want to delete this sales return?',
+      messageDeleteSuccess: 'Deleted successfully',
+    },
+  },
+  fund: {
+    index: {
+      tabAccount: 'Account Management',
+      tabTransfer: 'Transfer Records',
+    },
+    accountTab: {
+      headerTitle: 'Fund Account Management',
+      headerSubtitle: 'Manage bank accounts, cash accounts and virtual accounts',
+      sectionAccountList: 'Account List',
+      buttonTransfer: 'Transfer',
+      buttonCreateAccount: 'New Account',
+      tableAriaLabel: 'Fund Account List',
+      columnAccountNo: 'Account No.',
+      columnAccountName: 'Account Name',
+      columnBankName: 'Bank Name',
+      columnCurrentBalance: 'Current Balance',
+      columnFrozenBalance: 'Frozen Balance',
+      columnStatus: 'Status',
+      columnActions: 'Actions',
+      buttonView: 'View',
+      buttonDeposit: 'Deposit',
+      buttonWithdraw: 'Withdraw',
+      buttonTransferAction: 'Transfer',
+      buttonDelete: 'Delete',
+      paginationAriaLabel: 'Account Pagination',
+      dialogTitleCreate: 'Create Account',
+      dialogTitleEdit: 'Edit Account',
+      dialogAriaLabel: 'Account Edit Dialog',
+      formAriaLabel: 'Account Form',
+      fieldAccountNo: 'Account No.',
+      placeholderAccountNo: 'Please enter account no.',
+      fieldAccountName: 'Account Name',
+      placeholderAccountName: 'Please enter account name',
+      fieldAccountType: 'Account Type',
+      placeholderAccountType: 'Please select account type',
+      accountTypeCash: 'Cash Account',
+      accountTypeBank: 'Bank Account',
+      accountTypeVirtual: 'Virtual Account',
+      fieldBankName: 'Bank Name',
+      placeholderBankName: 'Please enter bank name',
+      fieldBankAccount: 'Bank Account',
+      placeholderBankAccount: 'Please enter bank account',
+      fieldStatus: 'Status',
+      placeholderStatus: 'Please select status',
+      statusActive: 'Active',
+      statusInactive: 'Inactive',
+      fieldRemark: 'Remark',
+      placeholderRemark: 'Please enter remark',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+      detailDialogTitle: 'Account Details',
+      detailDialogAriaLabel: 'Account Details Dialog',
+      detailAriaLabel: 'Account Details Description',
+      fieldAvailableBalance: 'Available Balance',
+      fieldCreatedAt: 'Created At',
+      deposit: 'Deposit',
+      withdraw: 'Withdraw',
+      operationDialogAriaLabel: 'Deposit/Withdraw Operation Dialog',
+      operationFormAriaLabel: 'Deposit/Withdraw Form',
+      fieldOperationAccount: 'Operation Account',
+      fieldAmount: 'Amount',
+      messageFetchFailed: 'Failed to fetch account list',
+      validateAccountNo: 'Please enter account no.',
+      validateAccountName: 'Please enter account name',
+      validateAccountType: 'Please select account type',
+      validateStatus: 'Please select status',
+      validateAmount: 'Please enter amount',
+      statusActiveLabel: 'Active',
+      statusInactiveLabel: 'Inactive',
+      statusFrozenLabel: 'Frozen',
+      messageCreateSuccess: 'Account created successfully',
+      messageUpdateSuccess: 'Account updated successfully',
+      messageOperationFailed: 'Operation failed',
+      messageDepositSuccess: 'Deposit successful',
+      messageWithdrawSuccess: 'Withdrawal successful',
+      messageGotoTransfer: 'Please go to Transfer Records to make a transfer',
+      confirmDeleteMessage: 'Are you sure you want to delete account {value}?',
+      confirmDeleteTitle: 'Delete Confirmation',
+      messageDeleteSuccess: 'Deleted successfully',
+      messageDeleteFailed: 'Failed to delete',
+    },
+    transferTab: {
+      sectionTitle: 'Transfer Records',
+      buttonNewTransfer: 'New Transfer',
+      tableAriaLabel: 'Transfer Records List',
+      columnTransferNo: 'Transfer No.',
+      columnFromAccount: 'From Account',
+      columnToAccount: 'To Account',
+      columnAmount: 'Amount',
+      columnStatus: 'Status',
+      columnRemark: 'Remark',
+      columnCreatedAt: 'Created At',
+      columnActions: 'Actions',
+      buttonDetail: 'Detail',
+      paginationAriaLabel: 'Transfer Records Pagination',
+      dialogTitle: 'New Transfer',
+      dialogAriaLabel: 'Transfer Dialog',
+      formAriaLabel: 'Transfer Form',
+      fieldFromAccount: 'From Account',
+      placeholderFromAccount: 'Please select from account',
+      fieldToAccount: 'To Account',
+      placeholderToAccount: 'Please select to account',
+      fieldAmount: 'Amount',
+      placeholderAmount: 'Please enter amount',
+      availableBalance: 'Available Balance',
+      fieldRemark: 'Remark',
+      placeholderRemark: 'Please enter remark',
+      buttonCancel: 'Cancel',
+      buttonConfirmTransfer: 'Confirm Transfer',
+      available: 'Available',
+      current: 'Current',
+      messageFetchFailed: 'Failed to fetch transfer records',
+      messageFetchAccountsFailed: 'Failed to fetch account list',
+      validateFromAccount: 'Please select from account',
+      validateToAccount: 'Please select to account',
+      validateAmount: 'Please enter amount',
+      validateAmountPositive: 'Amount must be greater than 0',
+      validateAmountExceed: 'Amount cannot exceed available balance',
+      messageTransferSuccess: 'Transfer successful',
+      messageTransferFailed: 'Transfer failed',
+      detailTransferNo: 'Transfer No.: {value}',
+      detailFromAccount: 'From Account: {value}',
+      detailToAccount: 'To Account: {value}',
+      detailAmount: 'Amount: {value}',
+      detailCurrentStatus: 'Current Status: {value}',
+      detailCreatedAt: 'Created At: {value}',
+      detailRemark: 'Remark: {value}',
+      messageDetailNotFound: 'Transfer detail not found',
+      detailTitle: 'Transfer Details',
+      buttonClose: 'Close',
+      messageFetchDetailFailed: 'Failed to fetch transfer detail',
+      statusSuccess: 'Success',
+      statusPending: 'Pending',
+      statusFailed: 'Failed',
+      statusProcessing: 'Processing',
+    },
+  },
+  voucher: {
+    voucherListTab: {
+      pageTitle: 'Voucher Management',
+    },
+    voucherListDetail: {
+      dialogTitle: 'Voucher Detail',
+      ariaLabel: 'Voucher Detail Dialog',
+      columnSubject: 'Account Subject',
+      columnDebit: 'Debit Amount',
+      columnCredit: 'Credit Amount',
+      columnSummary: 'Summary',
+      labelDebitTotal: 'Debit Total:',
+      labelCreditTotal: 'Credit Total:',
+      labelCreatedBy: 'Prepared By',
+      labelApprovedBy: 'Approved By',
+      labelPostedBy: 'Posted By',
+      labelApprovedAt: 'Approved At',
+      labelPostedAt: 'Posted At',
+      labelCreatedAt: 'Created At',
+      statusDraft: 'Draft',
+      statusApproved: 'Approved',
+      statusPosted: 'Posted',
+      typeGeneral: 'General',
+      typeCustomized: 'Customized',
+    },
+    voucherListFilter: {
+      placeholderVoucherNo: 'Voucher No.',
+      placeholderStartDate: 'Start Date',
+      placeholderEndDate: 'End Date',
+      placeholderStatus: 'Status',
+      optionAll: 'All',
+      optionDraft: 'Draft',
+      optionApproved: 'Approved',
+      optionPosted: 'Posted',
+      buttonSearch: 'Search',
+      buttonReset: 'Reset',
+      buttonAdd: 'New Voucher',
+      buttonPrint: 'Print',
+      buttonExport: 'Export',
+    },
+    voucherListForm: {
+      formAriaLabel: 'Voucher Form',
+      labelVoucherNo: 'Voucher No.',
+      labelVoucherDate: 'Voucher Date',
+      labelVoucherType: 'Voucher Type',
+      placeholderVoucherType: 'Please select voucher type',
+      labelSummary: 'Summary',
+      placeholderSummary: 'Please enter summary',
+      labelEntries: 'Entry Details',
+      columnSubject: 'Account Subject',
+      columnDebit: 'Debit Amount',
+      columnCredit: 'Credit Amount',
+      columnSummary: 'Summary',
+      columnAction: 'Action',
+      placeholderSubject: 'Select subject',
+      placeholderSummaryEntry: 'Summary',
+      buttonDelete: 'Delete',
+      buttonAddEntry: '+ Add Entry',
+      labelDebitTotal: 'Debit Total:',
+      labelCreditTotal: 'Credit Total:',
+      textNotBalanced: 'Debit/Credit Not Balanced',
+      textBalanced: 'Debit/Credit Balanced',
+      buttonCancel: 'Cancel',
+      buttonConfirm: 'Confirm',
+    },
+    voucherListTable: {
+      ariaLabel: 'Voucher List',
+      paginationAriaLabel: 'Voucher List Pagination',
+      columnVoucherNo: 'Voucher No.',
+      columnVoucherDate: 'Voucher Date',
+      columnVoucherType: 'Voucher Type',
+      columnDebit: 'Debit Amount',
+      columnCredit: 'Credit Amount',
+      columnStatus: 'Status',
+      columnCreatedBy: 'Prepared By',
+      columnApprovedBy: 'Approved By',
+      columnPostedBy: 'Posted By',
+      columnAction: 'Action',
+      buttonApprove: 'Approve',
+      buttonPost: 'Post',
+      buttonUnpost: 'Unpost',
+      statusDraft: 'Draft',
+      statusApproved: 'Approved',
+      statusPosted: 'Posted',
+      typeGeneral: 'General',
+      typeCustomized: 'Customized',
+    },
+  },
+  financeReport: {
+    reportListTab: {
+      pageTitle: 'Financial Report',
+      buttonExport: 'Export',
+      filterAriaLabel: 'Financial Report Filter Form',
+      labelReportType: 'Report Type',
+      placeholderReportType: 'Select report type',
+      optionBalanceSheet: 'Balance Sheet',
+      optionIncomeStatement: 'Income Statement',
+      optionCashFlow: 'Cash Flow Statement',
+      optionTrialBalance: 'Trial Balance',
+      optionGeneralLedger: 'General Ledger',
+      optionSubsidiaryLedger: 'Subsidiary Ledger',
+      labelPeriod: 'Accounting Period',
+      placeholderPeriod: 'Select month',
+      labelSubjectCode: 'Subject Code',
+      placeholderSubjectCode: 'e.g. 1001',
+      buttonGenerate: 'Generate Report',
+      buttonReset: 'Reset',
+      buttonPrint: 'Print',
+      emptyDescription:
+        'Please select report type and accounting period, then click Generate Report',
+      labelPeriodPrefix: 'Period: ',
+      labelTotalPrefix: 'Total: ',
+      tableAriaLabel: 'Financial Report List',
+      labelReport: 'Report',
+      colCode: 'Code',
+      colName: 'Name',
+      colLevel: 'Level',
+      colDebitAmount: 'Debit Amount',
+      colCreditAmount: 'Credit Amount',
+      colBalance: 'Balance',
+      colAmount: 'Amount',
+      colInflow: 'Inflow',
+      colOutflow: 'Outflow',
+      colNetFlow: 'Net Flow',
+      colDate: 'Date',
+      colVoucherNo: 'Voucher No.',
+      colSummary: 'Summary',
+      colDirection: 'Direction',
+      directionDebit: 'Debit',
+      directionCredit: 'Credit',
+      messageSelectPeriod: 'Please select accounting period',
+      messageInputSubjectCode: 'Please enter subject code',
+      messageNoData: 'No report data for this period',
+      messageGenerateFailed: 'Failed to generate report',
+      messageGenerateFirst: 'Please generate report first',
+    },
+  },
 };

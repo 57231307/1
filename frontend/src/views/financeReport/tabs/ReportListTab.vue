@@ -6,45 +6,75 @@
 <template>
   <div class="report-list-tab">
     <div class="page-header">
-      <h2 class="page-title">财务报表</h2>
+      <h2 class="page-title">{{ t('financeReport.reportListTab.pageTitle') }}</h2>
       <div>
         <el-button @click="handleExport">
-          <el-icon><Download /></el-icon>导出
+          <el-icon><Download /></el-icon>{{ t('financeReport.reportListTab.buttonExport') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm" aria-label="财务报表筛选表单">
-        <el-form-item label="报表类型">
+      <el-form
+        :inline="true"
+        :model="queryForm"
+        :aria-label="t('financeReport.reportListTab.filterAriaLabel')"
+      >
+        <el-form-item :label="t('financeReport.reportListTab.labelReportType')">
           <el-select
             v-model="queryForm.report_type"
-            placeholder="选择报表类型"
+            :placeholder="t('financeReport.reportListTab.placeholderReportType')"
             style="width: 180px"
           >
-            <el-option label="资产负债表" value="balance_sheet" />
-            <el-option label="利润表" value="income_statement" />
-            <el-option label="现金流量表" value="cash_flow" />
-            <el-option label="科目余额表" value="trial_balance" />
-            <el-option label="总分类账" value="general_ledger" />
-            <el-option label="明细分类账" value="subsidiary_ledger" />
+            <el-option
+              :label="t('financeReport.reportListTab.optionBalanceSheet')"
+              value="balance_sheet"
+            />
+            <el-option
+              :label="t('financeReport.reportListTab.optionIncomeStatement')"
+              value="income_statement"
+            />
+            <el-option :label="t('financeReport.reportListTab.optionCashFlow')" value="cash_flow" />
+            <el-option
+              :label="t('financeReport.reportListTab.optionTrialBalance')"
+              value="trial_balance"
+            />
+            <el-option
+              :label="t('financeReport.reportListTab.optionGeneralLedger')"
+              value="general_ledger"
+            />
+            <el-option
+              :label="t('financeReport.reportListTab.optionSubsidiaryLedger')"
+              value="subsidiary_ledger"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="会计期间">
+        <el-form-item :label="t('financeReport.reportListTab.labelPeriod')">
           <el-date-picker
             v-model="queryForm.period"
             type="month"
-            placeholder="选择月份"
+            :placeholder="t('financeReport.reportListTab.placeholderPeriod')"
             value-format="YYYY-MM"
             style="width: 160px"
           />
         </el-form-item>
-        <el-form-item v-if="queryForm.report_type === 'general_ledger'" label="科目编码">
-          <el-input v-model="queryForm.subject_code" placeholder="如 1001" style="width: 140px" />
+        <el-form-item
+          v-if="queryForm.report_type === 'general_ledger'"
+          :label="t('financeReport.reportListTab.labelSubjectCode')"
+        >
+          <el-input
+            v-model="queryForm.subject_code"
+            :placeholder="t('financeReport.reportListTab.placeholderSubjectCode')"
+            style="width: 140px"
+          />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleGenerate">生成报表</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleGenerate">{{
+            t('financeReport.reportListTab.buttonGenerate')
+          }}</el-button>
+          <el-button @click="handleReset">{{
+            t('financeReport.reportListTab.buttonReset')
+          }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -55,22 +85,37 @@
           <span>{{ getReportTypeLabel(queryForm.report_type) }} - {{ queryForm.period }}</span>
           <div>
             <el-button type="success" link @click="handlePrint">
-              <el-icon><Printer /></el-icon>打印
+              <el-icon><Printer /></el-icon>{{ t('financeReport.reportListTab.buttonPrint') }}
             </el-button>
             <el-button type="primary" link @click="handleExport">
-              <el-icon><Download /></el-icon>导出
+              <el-icon><Download /></el-icon>{{ t('financeReport.reportListTab.buttonExport') }}
             </el-button>
           </div>
         </div>
       </template>
 
-      <el-empty v-if="!reportData" description="请选择报表类型与会计期间后点击生成报表" />
+      <el-empty
+        v-if="!reportData"
+        :description="t('financeReport.reportListTab.emptyDescription')"
+      />
       <div v-else class="report-content">
         <div class="report-summary">
-          <span>期间：{{ reportData.period_name || reportData.period }}</span>
-          <span v-if="reportData.total != null">合计：¥{{ reportData.total.toFixed(2) }}</span>
+          <span
+            >{{ t('financeReport.reportListTab.labelPeriodPrefix')
+            }}{{ reportData.period_name || reportData.period }}</span
+          >
+          <span v-if="reportData.total != null"
+            >{{ t('financeReport.reportListTab.labelTotalPrefix') }}¥{{
+              reportData.total.toFixed(2)
+            }}</span
+          >
         </div>
-        <el-table :data="reportData.items || []" stripe border aria-label="财务报表列表">
+        <el-table
+          :data="reportData.items || []"
+          stripe
+          border
+          :aria-label="t('financeReport.reportListTab.tableAriaLabel')"
+        >
           <el-table-column
             v-for="col in reportColumns"
             :key="col.key"
@@ -91,6 +136,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Download, Printer } from '@element-plus/icons-vue'
 import {
@@ -105,6 +151,8 @@ import {
 import { logger } from '@/utils/logger'
 import { exportToExcel } from '@/utils/export'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const loading = ref(false)
 const reportData = ref<ReportData | null>(null)
 
@@ -114,107 +162,78 @@ const queryForm = reactive({
   subject_code: '',
 })
 
+/** 报表类型 → 国际化标签（语言切换时响应式刷新） */
 const getReportTypeLabel = (type: string) => {
   const map: Record<string, string> = {
-    balance_sheet: '资产负债表',
-    income_statement: '利润表',
-    cash_flow: '现金流量表',
-    trial_balance: '科目余额表',
-    general_ledger: '总分类账',
-    subsidiary_ledger: '明细分类账',
+    balance_sheet: t('financeReport.reportListTab.optionBalanceSheet'),
+    income_statement: t('financeReport.reportListTab.optionIncomeStatement'),
+    cash_flow: t('financeReport.reportListTab.optionCashFlow'),
+    trial_balance: t('financeReport.reportListTab.optionTrialBalance'),
+    general_ledger: t('financeReport.reportListTab.optionGeneralLedger'),
+    subsidiary_ledger: t('financeReport.reportListTab.optionSubsidiaryLedger'),
   }
-  return map[type] || '报表'
+  return map[type] || t('financeReport.reportListTab.labelReport')
 }
 
-const reportColumns = computed(() => {
-  if (!reportData.value?.items?.length) {
-    return []
-  }
-  const item = reportData.value.items[0]
-  const cols: {
-    key: string
-    label: string
-    align?: 'left' | 'right' | 'center'
-    width?: number
-    formatter?: (val: unknown) => string
-  }[] = []
-  if ('code' in item) cols.push({ key: 'code', label: '编码', width: 100 })
-  if ('name' in item) cols.push({ key: 'name', label: '名称', width: 200 })
-  if ('level' in item) cols.push({ key: 'level', label: '级次', width: 80, align: 'center' })
-  if ('debit_amount' in item) {
-    cols.push({
-      key: 'debit_amount',
-      label: '借方金额',
-      align: 'right',
-      width: 140,
-      formatter: formatAmount,
-    })
-  }
-  if ('credit_amount' in item) {
-    cols.push({
-      key: 'credit_amount',
-      label: '贷方金额',
-      align: 'right',
-      width: 140,
-      formatter: formatAmount,
-    })
-  }
-  if ('balance' in item) {
-    cols.push({
-      key: 'balance',
-      label: '余额',
-      align: 'right',
-      width: 140,
-      formatter: formatAmount,
-    })
-  }
-  if ('amount' in item) {
-    cols.push({ key: 'amount', label: '金额', align: 'right', width: 140, formatter: formatAmount })
-  }
-  if ('inflow' in item) {
-    cols.push({ key: 'inflow', label: '流入', align: 'right', width: 140, formatter: formatAmount })
-  }
-  if ('outflow' in item) {
-    cols.push({
-      key: 'outflow',
-      label: '流出',
-      align: 'right',
-      width: 140,
-      formatter: formatAmount,
-    })
-  }
-  if ('net_flow' in item) {
-    cols.push({
-      key: 'net_flow',
-      label: '净流量',
-      align: 'right',
-      width: 140,
-      formatter: formatAmount,
-    })
-  }
-  if ('date' in item) cols.push({ key: 'date', label: '日期', width: 120 })
-  if ('voucher_no' in item) cols.push({ key: 'voucher_no', label: '凭证号', width: 120 })
-  if ('summary' in item) cols.push({ key: 'summary', label: '摘要', width: 200 })
-  if ('direction' in item) {
-    cols.push({
-      key: 'direction',
-      label: '方向',
-      width: 80,
-      align: 'center',
-      formatter: (v: unknown) => (v === 'debit' ? '借' : '贷'),
-    })
-  }
-  return cols
-})
+type ColAlign = 'left' | 'right' | 'center'
+interface ColDef {
+  key: string
+  label: string
+  width: number
+  align?: ColAlign
+  formatter?: (v: unknown) => string
+}
 
+/** 金额格式化（¥ 前缀 + 2 位小数） */
 const formatAmount = (val: unknown) => {
   const num = Number(val) || 0
   return `¥${num.toFixed(2)}`
 }
 
+/** 借贷方向格式化 */
+const formatDirection = (v: unknown) =>
+  v === 'debit'
+    ? t('financeReport.reportListTab.directionDebit')
+    : t('financeReport.reportListTab.directionCredit')
+
+/** 根据首行数据字段动态构建列定义（≤50 行） */
+const buildReportColumns = (item: Record<string, unknown>): ColDef[] => {
+  const cols: ColDef[] = []
+  const add = (
+    key: string,
+    label: string,
+    width: number,
+    align?: ColAlign,
+    formatter?: (v: unknown) => string
+  ) => {
+    if (key in item) cols.push({ key, label, width, align, formatter })
+  }
+  add('code', t('financeReport.reportListTab.colCode'), 100)
+  add('name', t('financeReport.reportListTab.colName'), 200)
+  add('level', t('financeReport.reportListTab.colLevel'), 80, 'center')
+  add('debit_amount', t('financeReport.reportListTab.colDebitAmount'), 140, 'right', formatAmount)
+  add('credit_amount', t('financeReport.reportListTab.colCreditAmount'), 140, 'right', formatAmount)
+  add('balance', t('financeReport.reportListTab.colBalance'), 140, 'right', formatAmount)
+  add('amount', t('financeReport.reportListTab.colAmount'), 140, 'right', formatAmount)
+  add('inflow', t('financeReport.reportListTab.colInflow'), 140, 'right', formatAmount)
+  add('outflow', t('financeReport.reportListTab.colOutflow'), 140, 'right', formatAmount)
+  add('net_flow', t('financeReport.reportListTab.colNetFlow'), 140, 'right', formatAmount)
+  add('date', t('financeReport.reportListTab.colDate'), 120)
+  add('voucher_no', t('financeReport.reportListTab.colVoucherNo'), 120)
+  add('summary', t('financeReport.reportListTab.colSummary'), 200)
+  add('direction', t('financeReport.reportListTab.colDirection'), 80, 'center', formatDirection)
+  return cols
+}
+
+const reportColumns = computed(() => {
+  const items = reportData.value?.items
+  if (!items?.length) return []
+  return buildReportColumns(items[0] as Record<string, unknown>)
+})
+
 const handleGenerate = async () => {
   if (!queryForm.period) {
-    ElMessage.warning('请选择会计期间')
+    ElMessage.warning(t('financeReport.reportListTab.messageSelectPeriod'))
     return
   }
   loading.value = true
@@ -236,7 +255,7 @@ const handleGenerate = async () => {
         break
       case 'general_ledger':
         if (!queryForm.subject_code) {
-          ElMessage.warning('请输入科目编码')
+          ElMessage.warning(t('financeReport.reportListTab.messageInputSubjectCode'))
           loading.value = false
           return
         }
@@ -250,12 +269,12 @@ const handleGenerate = async () => {
     }
     reportData.value = res?.data || null
     if (!reportData.value) {
-      ElMessage.info('该期间暂无报表数据')
+      ElMessage.info(t('financeReport.reportListTab.messageNoData'))
     }
   } catch (e) {
     const err = e as Error
-    logger.error('生成报表失败', err)
-    ElMessage.error(err.message || '生成报表失败')
+    logger.error(t('financeReport.reportListTab.messageGenerateFailed'), err)
+    ElMessage.error(err.message || t('financeReport.reportListTab.messageGenerateFailed'))
   } finally {
     loading.value = false
   }
@@ -274,7 +293,7 @@ const handlePrint = () => {
 
 const handleExport = () => {
   if (!reportData.value?.items?.length) {
-    ElMessage.warning('请先生成报表')
+    ElMessage.warning(t('financeReport.reportListTab.messageGenerateFirst'))
     return
   }
   const items = reportData.value.items

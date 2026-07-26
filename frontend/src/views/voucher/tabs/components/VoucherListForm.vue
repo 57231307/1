@@ -12,51 +12,61 @@
     :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <ElForm :model="localForm" label-width="100px" aria-label="凭证表单">
+    <ElForm
+      :model="localForm"
+      label-width="100px"
+      :aria-label="t('voucher.voucherListForm.formAriaLabel')"
+    >
       <ElRow :gutter="20">
         <ElCol :span="12">
-          <ElFormItem label="凭证号" prop="voucher_no">
+          <ElFormItem :label="t('voucher.voucherListForm.labelVoucherNo')" prop="voucher_no">
             <ElInput v-model="localForm.voucher_no" readonly />
           </ElFormItem>
         </ElCol>
         <ElCol :span="12">
-          <ElFormItem label="凭证日期" prop="voucher_date">
+          <ElFormItem :label="t('voucher.voucherListForm.labelVoucherDate')" prop="voucher_date">
             <ElDatePicker v-model="localForm.voucher_date" type="date" />
           </ElFormItem>
         </ElCol>
       </ElRow>
       <ElRow :gutter="20">
         <ElCol :span="12">
-          <ElFormItem label="凭证类型" prop="type">
-            <ElSelect v-model="localForm.type" placeholder="请选择凭证类型">
+          <ElFormItem :label="t('voucher.voucherListForm.labelVoucherType')" prop="type">
+            <ElSelect
+              v-model="localForm.type"
+              :placeholder="t('voucher.voucherListForm.placeholderVoucherType')"
+            >
               <ElOption
-                v-for="t in voucherTypes"
-                :key="t.value"
-                :label="t.label"
-                :value="t.value"
+                v-for="vt in voucherTypes"
+                :key="vt.value"
+                :label="vt.label"
+                :value="vt.value"
               />
             </ElSelect>
           </ElFormItem>
         </ElCol>
         <ElCol :span="12">
-          <ElFormItem label="摘要" prop="description">
-            <ElInput v-model="localForm.description" placeholder="请输入摘要" />
+          <ElFormItem :label="t('voucher.voucherListForm.labelSummary')" prop="description">
+            <ElInput
+              v-model="localForm.description"
+              :placeholder="t('voucher.voucherListForm.placeholderSummary')"
+            />
           </ElFormItem>
         </ElCol>
       </ElRow>
-      <ElFormItem label="分录明细">
+      <ElFormItem :label="t('voucher.voucherListForm.labelEntries')">
         <div class="entries-table">
           <div class="entries-header">
-            <span class="col-subject">会计科目</span>
-            <span class="col-debit">借方金额</span>
-            <span class="col-credit">贷方金额</span>
-            <span class="col-desc">摘要</span>
-            <span class="col-action">操作</span>
+            <span class="col-subject">{{ t('voucher.voucherListForm.columnSubject') }}</span>
+            <span class="col-debit">{{ t('voucher.voucherListForm.columnDebit') }}</span>
+            <span class="col-credit">{{ t('voucher.voucherListForm.columnCredit') }}</span>
+            <span class="col-desc">{{ t('voucher.voucherListForm.columnSummary') }}</span>
+            <span class="col-action">{{ t('voucher.voucherListForm.columnAction') }}</span>
           </div>
-          <div v-for="(entry, index) in (localForm.entries || [])" :key="index" class="entries-row">
+          <div v-for="(entry, index) in localForm.entries || []" :key="index" class="entries-row">
             <ElSelect
               v-model="entry.account_subject_id"
-              placeholder="选择科目"
+              :placeholder="t('voucher.voucherListForm.placeholderSubject')"
               class="col-subject"
             >
               <ElOption
@@ -66,50 +76,52 @@
                 :value="subject.value"
               />
             </ElSelect>
-            <ElInputNumber
-              v-model="entry.debit_amount"
-              :precision="2"
-              class="col-debit"
+            <ElInputNumber v-model="entry.debit_amount" :precision="2" class="col-debit" />
+            <ElInputNumber v-model="entry.credit_amount" :precision="2" class="col-credit" />
+            <ElInput
+              v-model="entry.description"
+              :placeholder="t('voucher.voucherListForm.placeholderSummaryEntry')"
+              class="col-desc"
             />
-            <ElInputNumber
-              v-model="entry.credit_amount"
-              :precision="2"
-              class="col-credit"
-            />
-            <ElInput v-model="entry.description" placeholder="摘要" class="col-desc" />
             <ElButton
               v-if="(localForm.entries || []).length > 1"
               size="small"
               type="danger"
               @click="emit('remove-entry', index)"
             >
-              删除
+              {{ t('voucher.voucherListForm.buttonDelete') }}
             </ElButton>
           </div>
-          <ElButton type="text" @click="emit('add-entry')">+ 添加分录</ElButton>
+          <ElButton type="text" @click="emit('add-entry')">{{
+            t('voucher.voucherListForm.buttonAddEntry')
+          }}</ElButton>
         </div>
       </ElFormItem>
       <ElRow :gutter="20" class="total-row">
         <ElCol :span="12" class="total-item">
-          <span class="label">借方合计:</span>
+          <span class="label">{{ t('voucher.voucherListForm.labelDebitTotal') }}</span>
           <span class="value debit">{{ formatAmount(localForm.total_debit) }}</span>
         </ElCol>
         <ElCol :span="12" class="total-item">
-          <span class="label">贷方合计:</span>
+          <span class="label">{{ t('voucher.voucherListForm.labelCreditTotal') }}</span>
           <span class="value credit">{{ formatAmount(localForm.total_credit) }}</span>
           <span
             v-if="Math.abs((localForm.total_debit ?? 0) - (localForm.total_credit ?? 0)) > 0.01"
             class="error"
           >
-            借贷不平
+            {{ t('voucher.voucherListForm.textNotBalanced') }}
           </span>
-          <span v-else class="success">借贷平衡</span>
+          <span v-else class="success">{{ t('voucher.voucherListForm.textBalanced') }}</span>
         </ElCol>
       </ElRow>
     </ElForm>
     <template #footer>
-      <ElButton @click="emit('update:visible', false)">取消</ElButton>
-      <ElButton type="primary" @click="emit('submit')">确定</ElButton>
+      <ElButton @click="emit('update:visible', false)">{{
+        t('voucher.voucherListForm.buttonCancel')
+      }}</ElButton>
+      <ElButton type="primary" @click="emit('submit')">{{
+        t('voucher.voucherListForm.buttonConfirm')
+      }}</ElButton>
     </template>
   </ElDialog>
 </template>
@@ -117,7 +129,10 @@
 <script setup lang="ts">
 import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { formatAmount } from '../composables/vchrLstFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface VoucherEntry {
   account_subject_id: number
@@ -185,7 +200,7 @@ let syncing = false
 // 外部 prop 变化时同步到 local（如父组件新建/编辑时填充数据）
 watch(
   () => props.form,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     localForm.value = deepClone(newForm)
@@ -193,13 +208,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     emit('update:form', deepClone(newForm))
@@ -207,7 +222,7 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 </script>
 

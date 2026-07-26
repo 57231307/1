@@ -8,9 +8,17 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="dialogMode === 'create' ? '新建退货单' : '编辑退货单'"
+    :title="
+      dialogMode === 'create'
+        ? t('salesReturns.editDialog.titleCreate')
+        : t('salesReturns.editDialog.titleEdit')
+    "
     width="900px"
-    :aria-label="dialogMode === 'create' ? '新建退货单' : '编辑退货单'"
+    :aria-label="
+      dialogMode === 'create'
+        ? t('salesReturns.editDialog.titleCreate')
+        : t('salesReturns.editDialog.titleEdit')
+    "
     @update:model-value="onClose"
     @close="onDialogClose"
   >
@@ -19,14 +27,14 @@
       :model="localFormData"
       :rules="formRules"
       label-width="120px"
-      aria-label="退货单表单"
+      :aria-label="t('salesReturns.editDialog.formAriaLabel')"
     >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="销售订单号" prop="salesOrderId">
+          <el-form-item :label="t('salesReturns.editDialog.labelSalesOrderNo')" prop="salesOrderId">
             <el-select
               v-model="localFormData.salesOrderId"
-              placeholder="请选择销售订单"
+              :placeholder="t('salesReturns.editDialog.placeholderSalesOrder')"
               style="width: 100%"
               filterable
               @change="onSalesOrderChange"
@@ -41,10 +49,10 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="客户" prop="customerId">
+          <el-form-item :label="t('salesReturns.editDialog.labelCustomer')" prop="customerId">
             <el-select
               v-model="localFormData.customerId"
-              placeholder="请选择客户"
+              :placeholder="t('salesReturns.editDialog.placeholderCustomer')"
               style="width: 100%"
               filterable
             >
@@ -61,11 +69,11 @@
 
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="退货日期" prop="returnDate">
+          <el-form-item :label="t('salesReturns.editDialog.labelReturnDate')" prop="returnDate">
             <el-date-picker
               v-model="localFormData.returnDate"
               type="date"
-              placeholder="请选择退货日期"
+              :placeholder="t('salesReturns.editDialog.placeholderReturnDate')"
               style="width: 100%"
               format="YYYY-MM-DD"
               value-format="YYYY-MM-DD"
@@ -73,13 +81,20 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="退货原因" prop="reason">
-            <el-select v-model="localFormData.reason" placeholder="请选择退货原因" style="width: 100%">
-              <el-option label="质量问题" value="quality" />
-              <el-option label="数量不符" value="quantity" />
-              <el-option label="规格不符" value="specification" />
-              <el-option label="包装破损" value="packaging" />
-              <el-option label="其他" value="other" />
+          <el-form-item :label="t('salesReturns.editDialog.labelReason')" prop="reason">
+            <el-select
+              v-model="localFormData.reason"
+              :placeholder="t('salesReturns.editDialog.placeholderReason')"
+              style="width: 100%"
+            >
+              <el-option :label="t('salesReturns.editDialog.optionQuality')" value="quality" />
+              <el-option :label="t('salesReturns.editDialog.optionQuantity')" value="quantity" />
+              <el-option
+                :label="t('salesReturns.editDialog.optionSpecification')"
+                value="specification"
+              />
+              <el-option :label="t('salesReturns.editDialog.optionPackaging')" value="packaging" />
+              <el-option :label="t('salesReturns.editDialog.optionOther')" value="other" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -87,12 +102,12 @@
 
       <el-row :gutter="20">
         <el-col :span="24">
-          <el-form-item label="备注" prop="remarks">
+          <el-form-item :label="t('salesReturns.editDialog.labelRemarks')" prop="remarks">
             <el-input
               v-model="localFormData.remarks"
               type="textarea"
               :rows="3"
-              placeholder="请输入备注"
+              :placeholder="t('salesReturns.editDialog.placeholderRemarks')"
             />
           </el-form-item>
         </el-col>
@@ -100,16 +115,21 @@
 
       <el-divider />
 
-      <el-form-item label="退货明细">
+      <el-form-item :label="t('salesReturns.editDialog.labelReturnDetails')">
         <el-button type="primary" size="small" style="margin-bottom: 10px" @click="onAddItem">
-          添加明细
+          {{ t('salesReturns.editDialog.buttonAddDetail') }}
         </el-button>
-        <el-table :data="localFormData.items" border style="width: 100%" aria-label="退货明细表格">
-          <el-table-column label="产品名称" width="200">
+        <el-table
+          :data="localFormData.items"
+          border
+          style="width: 100%"
+          :aria-label="t('salesReturns.editDialog.detailsTableAriaLabel')"
+        >
+          <el-table-column :label="t('salesReturns.editDialog.columnProductName')" width="200">
             <template #default="{ row }">
               <el-select
                 v-model="row.productId"
-                placeholder="选择产品"
+                :placeholder="t('salesReturns.editDialog.placeholderProduct')"
                 style="width: 100%"
                 filterable
               >
@@ -122,7 +142,7 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="数量" width="120">
+          <el-table-column :label="t('salesReturns.editDialog.columnQuantity')" width="120">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.quantity"
@@ -133,7 +153,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="单价" width="120">
+          <el-table-column :label="t('salesReturns.editDialog.columnUnitPrice')" width="120">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.unitPrice"
@@ -144,19 +164,25 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="120">
+          <el-table-column :label="t('salesReturns.editDialog.columnAmount')" width="120">
             <template #default="{ row }">
               {{ (row.quantity * row.unitPrice).toFixed(2) }}
             </template>
           </el-table-column>
-          <el-table-column label="退货原因" width="150">
+          <el-table-column :label="t('salesReturns.editDialog.columnReason')" width="150">
             <template #default="{ row }">
-              <el-input v-model="row.reason" placeholder="原因" size="small" />
+              <el-input
+                v-model="row.reason"
+                :placeholder="t('salesReturns.editDialog.placeholderReasonShort')"
+                size="small"
+              />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80">
+          <el-table-column :label="t('salesReturns.editDialog.columnAction')" width="80">
             <template #default="{ $index }">
-              <el-button type="danger" size="small" @click="onRemoveItem($index)">删除</el-button>
+              <el-button type="danger" size="small" @click="onRemoveItem($index)">{{
+                t('salesReturns.editDialog.buttonDelete')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -164,7 +190,7 @@
 
       <el-row :gutter="20">
         <el-col :span="12" :offset="12">
-          <el-form-item label="退货总金额">
+          <el-form-item :label="t('salesReturns.editDialog.labelTotalAmount')">
             <el-input-number
               v-model="localFormData.totalAmount"
               :precision="2"
@@ -177,8 +203,10 @@
     </el-form>
 
     <template #footer>
-      <el-button @click="onClose(false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="onSubmit">确定</el-button>
+      <el-button @click="onClose(false)">{{ t('salesReturns.editDialog.buttonCancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="onSubmit">{{
+        t('salesReturns.editDialog.buttonConfirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -186,6 +214,7 @@
 <script setup lang="ts">
 import { deepClone } from '@/utils'
 import { ref, watch, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 // v11 批次 174 P2-1 修复：从 useSr 导入具体类型替代 any
 import type {
@@ -194,6 +223,8 @@ import type {
   CustomerOption,
   ProductOption,
 } from '../composables/useSr'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   visible: boolean

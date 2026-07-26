@@ -5,63 +5,63 @@
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localQuery" class="filter-form" aria-label="销售价格筛选表单">
-      <el-form-item label="关键词">
+    <el-form
+      :inline="true"
+      :model="localQuery"
+      class="filter-form"
+      :aria-label="t('salesPrice.filter.ariaLabel')"
+    >
+      <el-form-item :label="t('salesPrice.filter.labelKeyword')">
         <el-input
           v-model="localQuery.keyword"
-          placeholder="产品名称/客户名称"
+          :placeholder="t('salesPrice.filter.placeholderKeyword')"
           clearable
           @clear="handleSearch"
         />
       </el-form-item>
-      <el-form-item label="客户">
+      <el-form-item :label="t('salesPrice.filter.labelCustomer')">
         <el-select
           v-model="localQuery.customer_id"
-          placeholder="选择客户"
+          :placeholder="t('salesPrice.filter.placeholderCustomer')"
           clearable
           filterable
           @change="handleSearch"
         >
-          <el-option
-            v-for="c in customers"
-            :key="c.id"
-            :label="c.customer_name"
-            :value="c.id"
-          />
+          <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="产品">
+      <el-form-item :label="t('salesPrice.filter.labelProduct')">
         <el-select
           v-model="localQuery.product_id"
-          placeholder="选择产品"
+          :placeholder="t('salesPrice.filter.placeholderProduct')"
           clearable
           filterable
           @change="handleSearch"
         >
-          <el-option
-            v-for="p in products"
-            :key="p.id"
-            :label="p.product_name"
-            :value="p.id"
-          />
+          <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="价格状态">
-        <el-select v-model="localQuery.status" placeholder="选择状态" clearable @change="handleSearch">
-          <el-option label="待审批" value="pending" />
-          <el-option label="已生效" value="active" />
-          <el-option label="已过期" value="expired" />
-          <el-option label="已停用" value="inactive" />
+      <el-form-item :label="t('salesPrice.filter.labelStatus')">
+        <el-select
+          v-model="localQuery.status"
+          :placeholder="t('salesPrice.filter.placeholderStatus')"
+          clearable
+          @change="handleSearch"
+        >
+          <el-option :label="t('salesPrice.filter.optionPending')" value="pending" />
+          <el-option :label="t('salesPrice.filter.optionActive')" value="active" />
+          <el-option :label="t('salesPrice.filter.optionExpired')" value="expired" />
+          <el-option :label="t('salesPrice.filter.optionInactive')" value="inactive" />
         </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
-          查询
+          {{ t('salesPrice.filter.buttonSearch') }}
         </el-button>
         <el-button @click="handleReset">
           <el-icon><Refresh /></el-icon>
-          重置
+          {{ t('salesPrice.filter.buttonReset') }}
         </el-button>
       </el-form-item>
     </el-form>
@@ -70,9 +70,12 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import type { Customer } from '@/api/customer'
 import type { Product } from '@/api/product'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 销售价格过滤栏组件（批次 284：localQuery + handleSearch/handleReset 模式）

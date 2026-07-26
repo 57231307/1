@@ -15,10 +15,10 @@
 <template>
   <div class="fund-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => (activeTab = String(tab))">
-      <el-tab-pane label="账户管理" name="account">
+      <el-tab-pane :label="t('fund.index.tabAccount')" name="account">
         <AccountTab />
       </el-tab-pane>
-      <el-tab-pane label="转账记录" name="transfer">
+      <el-tab-pane :label="t('fund.index.tabTransfer')" name="transfer">
         <TransferTab />
       </el-tab-pane>
     </el-tabs>
@@ -27,8 +27,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AccountTab from './tabs/AccountTab.vue'
 import TransferTab from './tabs/TransferTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const activeTab = ref('account')
 </script>

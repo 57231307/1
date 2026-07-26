@@ -6,30 +6,52 @@
 <template>
   <div class="analysis-list-tab">
     <div class="page-header">
-      <h2 class="page-title">财务分析</h2>
+      <h2 class="page-title">{{ t('financialAnalysis.analysisListTab.pageTitle') }}</h2>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm" aria-label="财务分析筛选表单">
-        <el-form-item label="报表类型">
-          <el-select v-model="queryForm.reportType" placeholder="选择报表类型" style="width: 180px">
-            <el-option label="盈利能力" value="profitability" />
-            <el-option label="偿债能力" value="solvency" />
-            <el-option label="运营能力" value="operation" />
-            <el-option label="发展能力" value="development" />
+      <el-form
+        :inline="true"
+        :model="queryForm"
+        :aria-label="t('financialAnalysis.analysisListTab.ariaLabelFilterForm')"
+      >
+        <el-form-item :label="t('financialAnalysis.analysisListTab.labelReportType')">
+          <el-select
+            v-model="queryForm.reportType"
+            :placeholder="t('financialAnalysis.analysisListTab.placeholderReportType')"
+            style="width: 180px"
+          >
+            <el-option
+              :label="t('financialAnalysis.analysisListTab.optionProfitability')"
+              value="profitability"
+            />
+            <el-option
+              :label="t('financialAnalysis.analysisListTab.optionSolvency')"
+              value="solvency"
+            />
+            <el-option
+              :label="t('financialAnalysis.analysisListTab.optionOperation')"
+              value="operation"
+            />
+            <el-option
+              :label="t('financialAnalysis.analysisListTab.optionDevelopment')"
+              value="development"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="会计期间">
+        <el-form-item :label="t('financialAnalysis.analysisListTab.labelPeriod')">
           <el-date-picker
             v-model="queryForm.period"
             type="month"
-            placeholder="选择月份"
+            :placeholder="t('financialAnalysis.analysisListTab.placeholderMonth')"
             value-format="YYYY-MM"
             style="width: 160px"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleAnalyze">开始分析</el-button>
+          <el-button type="primary" @click="handleAnalyze">{{
+            t('financialAnalysis.analysisListTab.buttonAnalyze')
+          }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -37,63 +59,158 @@
     <el-card shadow="hover">
       <template #header>
         <div class="card-header">
-          <span>分析报表</span>
+          <span>{{ t('financialAnalysis.analysisListTab.cardTitle') }}</span>
           <el-button type="primary" size="small" @click="openCreateDialog">
-            <el-icon><Plus /></el-icon>新建报表
+            <el-icon><Plus /></el-icon>{{ t('financialAnalysis.analysisListTab.buttonCreate') }}
           </el-button>
         </div>
       </template>
-      <el-table v-loading="loading" :data="reports" stripe aria-label="财务分析报表列表">
-        <el-table-column prop="reportName" label="报表名称" min-width="180" />
-        <el-table-column prop="reportType" label="类型" width="120">
+      <el-table
+        v-loading="loading"
+        :data="reports"
+        stripe
+        :aria-label="t('financialAnalysis.analysisListTab.ariaLabelList')"
+      >
+        <el-table-column
+          prop="reportName"
+          :label="t('financialAnalysis.analysisListTab.columnReportName')"
+          min-width="180"
+        />
+        <el-table-column
+          prop="reportType"
+          :label="t('financialAnalysis.analysisListTab.columnType')"
+          width="120"
+        >
           <template #default="{ row }">
             <el-tag size="small">{{ getReportTypeLabel(row.reportType) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="period" label="会计期间" width="120" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column
+          prop="period"
+          :label="t('financialAnalysis.analysisListTab.columnPeriod')"
+          width="120"
+        />
+        <el-table-column
+          prop="status"
+          :label="t('financialAnalysis.analysisListTab.columnStatus')"
+          width="100"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="executedAt" label="执行时间" width="180" />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column
+          prop="executedAt"
+          :label="t('financialAnalysis.analysisListTab.columnExecutedAt')"
+          width="180"
+        />
+        <el-table-column
+          :label="t('financialAnalysis.analysisListTab.columnActions')"
+          width="240"
+          fixed="right"
+        >
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="executeReport(row)">执行</el-button>
-            <el-button type="success" link size="small" @click="viewReport(row)">查看</el-button>
-            <el-button v-permission="'financial_report:update'" type="warning" link size="small" @click="editReport(row)">编辑</el-button>
-            <el-button v-permission="'financial_report:delete'" type="danger" link size="small" @click="deleteReport(row)">删除</el-button>
+            <el-button type="primary" link size="small" @click="executeReport(row)">{{
+              t('financialAnalysis.analysisListTab.buttonExecute')
+            }}</el-button>
+            <el-button type="success" link size="small" @click="viewReport(row)">{{
+              t('financialAnalysis.analysisListTab.buttonView')
+            }}</el-button>
+            <el-button
+              v-permission="'financial_report:update'"
+              type="warning"
+              link
+              size="small"
+              @click="editReport(row)"
+              >{{ t('financialAnalysis.analysisListTab.buttonEdit') }}</el-button
+            >
+            <el-button
+              v-permission="'financial_report:delete'"
+              type="danger"
+              link
+              size="small"
+              @click="deleteReport(row)"
+              >{{ t('financialAnalysis.analysisListTab.buttonDelete') }}</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑报表' : '新建报表'" width="500px" :aria-label="form.id ? '编辑报表对话框' : '新建报表对话框'">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="财务分析报表表单">
-        <el-form-item label="报表名称" prop="reportName">
-          <el-input v-model="form.reportName" placeholder="请输入报表名称" />
+    <el-dialog
+      v-model="dialogVisible"
+      :title="
+        form.id
+          ? t('financialAnalysis.analysisListTab.dialogTitleEdit')
+          : t('financialAnalysis.analysisListTab.dialogTitleCreate')
+      "
+      width="500px"
+      :aria-label="
+        form.id
+          ? t('financialAnalysis.analysisListTab.ariaLabelDialogEdit')
+          : t('financialAnalysis.analysisListTab.ariaLabelDialogCreate')
+      "
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        :aria-label="t('financialAnalysis.analysisListTab.ariaLabelForm')"
+      >
+        <el-form-item
+          :label="t('financialAnalysis.analysisListTab.labelReportName')"
+          prop="reportName"
+        >
+          <el-input
+            v-model="form.reportName"
+            :placeholder="t('financialAnalysis.analysisListTab.placeholderReportName')"
+          />
         </el-form-item>
-        <el-form-item label="报表类型" prop="reportType">
-          <el-select v-model="form.reportType" placeholder="选择类型" style="width: 100%">
-            <el-option label="盈利能力" value="profitability" />
-            <el-option label="偿债能力" value="solvency" />
-            <el-option label="运营能力" value="operation" />
-            <el-option label="发展能力" value="development" />
+        <el-form-item
+          :label="t('financialAnalysis.analysisListTab.labelFormReportType')"
+          prop="reportType"
+        >
+          <el-select
+            v-model="form.reportType"
+            :placeholder="t('financialAnalysis.analysisListTab.placeholderSelectType')"
+            style="width: 100%"
+          >
+            <el-option
+              :label="t('financialAnalysis.analysisListTab.optionProfitability')"
+              value="profitability"
+            />
+            <el-option
+              :label="t('financialAnalysis.analysisListTab.optionSolvency')"
+              value="solvency"
+            />
+            <el-option
+              :label="t('financialAnalysis.analysisListTab.optionOperation')"
+              value="operation"
+            />
+            <el-option
+              :label="t('financialAnalysis.analysisListTab.optionDevelopment')"
+              value="development"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="会计期间">
+        <el-form-item :label="t('financialAnalysis.analysisListTab.labelFormPeriod')">
           <el-date-picker
             v-model="form.period"
             type="month"
-            placeholder="选择月份"
+            :placeholder="t('financialAnalysis.analysisListTab.placeholderMonth')"
             value-format="YYYY-MM"
             style="width: 100%"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{
+          t('financialAnalysis.analysisListTab.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          t('financialAnalysis.analysisListTab.buttonConfirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -101,6 +218,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -112,6 +230,8 @@ import {
   type FinancialReport,
 } from '@/api/financial-analysis'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -132,27 +252,50 @@ const form = reactive<Partial<FinancialReport>>({
 })
 
 const rules: FormRules = {
-  reportName: [{ required: true, message: '请输入报表名称', trigger: 'blur' }],
-  reportType: [{ required: true, message: '请选择报表类型', trigger: 'change' }],
+  reportName: [
+    {
+      required: true,
+      message: t('financialAnalysis.analysisListTab.validateReportNameRequired'),
+      trigger: 'blur',
+    },
+  ],
+  reportType: [
+    {
+      required: true,
+      message: t('financialAnalysis.analysisListTab.validateReportTypeRequired'),
+      trigger: 'change',
+    },
+  ],
 }
 
+/** 报表类型 → i18n 标签（语言切换响应） */
 const getReportTypeLabel = (type?: string) => {
-  const map: Record<string, string> = {
-    profitability: '盈利能力',
-    solvency: '偿债能力',
-    operation: '运营能力',
-    development: '发展能力',
+  switch (type) {
+    case 'profitability':
+      return t('financialAnalysis.analysisListTab.optionProfitability')
+    case 'solvency':
+      return t('financialAnalysis.analysisListTab.optionSolvency')
+    case 'operation':
+      return t('financialAnalysis.analysisListTab.optionOperation')
+    case 'development':
+      return t('financialAnalysis.analysisListTab.optionDevelopment')
+    default:
+      return type || '-'
   }
-  return map[type || ''] || type || '-'
 }
 
+/** 报表状态 → i18n 标签（语言切换响应） */
 const getStatusLabel = (status?: string) => {
-  const map: Record<string, string> = {
-    draft: '草稿',
-    executed: '已执行',
-    failed: '执行失败',
+  switch (status) {
+    case 'draft':
+      return t('financialAnalysis.analysisListTab.statusDraft')
+    case 'executed':
+      return t('financialAnalysis.analysisListTab.statusExecuted')
+    case 'failed':
+      return t('financialAnalysis.analysisListTab.statusFailed')
+    default:
+      return status || '-'
   }
-  return map[status || ''] || status || '-'
 }
 
 const getStatusType = (status?: string) => {
@@ -183,8 +326,8 @@ const fetchReports = async () => {
     }
   } catch (e) {
     const err = e as Error
-    logger.error('获取财务分析报表失败', err)
-    ElMessage.error(err.message || '获取报表失败')
+    logger.error(t('financialAnalysis.analysisListTab.logFetchFailed'), err)
+    ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageFetchFailed'))
   } finally {
     loading.value = false
   }
@@ -215,16 +358,16 @@ const handleSubmit = async () => {
     try {
       if (form.id) {
         await updateReport(form.id, form)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('financialAnalysis.analysisListTab.messageUpdateSuccess'))
       } else {
         await createReport(form)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('financialAnalysis.analysisListTab.messageCreateSuccess'))
       }
       dialogVisible.value = false
       fetchReports()
     } catch (e) {
       const err = e as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageOperationFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -235,41 +378,51 @@ const executeReport = async (row: FinancialReport) => {
   if (row.id === undefined) return
   try {
     await executeFinancialReport(row.id)
-    ElMessage.success('执行成功')
+    ElMessage.success(t('financialAnalysis.analysisListTab.messageExecuteSuccess'))
     fetchReports()
   } catch (e) {
     const err = e as Error
-    ElMessage.error(err.message || '执行失败')
+    ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageExecuteFailed'))
   }
 }
 
 // 批次 157b P1-1 修复：展示报表详情（无独立 getReport API，使用行数据展示）
 const viewReport = async (row: FinancialReport) => {
   const lines = [
-    `报表名称：${row.reportName || '-'}`,
-    `报表类型：${getReportTypeLabel(row.reportType)}`,
-    `会计期间：${row.period || '-'}`,
-    `状态：${getStatusLabel(row.status)}`,
-    `执行时间：${row.executedAt || '-'}`,
-    `创建时间：${row.createdAt || '-'}`,
-    `更新时间：${row.updatedAt || '-'}`,
+    t('financialAnalysis.analysisListTab.detailReportName', { value: row.reportName || '-' }),
+    t('financialAnalysis.analysisListTab.detailReportType', {
+      value: getReportTypeLabel(row.reportType),
+    }),
+    t('financialAnalysis.analysisListTab.detailPeriod', { value: row.period || '-' }),
+    t('financialAnalysis.analysisListTab.detailStatus', { value: getStatusLabel(row.status) }),
+    t('financialAnalysis.analysisListTab.detailExecutedAt', { value: row.executedAt || '-' }),
+    t('financialAnalysis.analysisListTab.detailCreatedAt', { value: row.createdAt || '-' }),
+    t('financialAnalysis.analysisListTab.detailUpdatedAt', { value: row.updatedAt || '-' }),
   ]
-  await ElMessageBox.alert(lines.join('\n'), '报表详情', { confirmButtonText: '关闭' })
+  await ElMessageBox.alert(
+    lines.join('\n'),
+    t('financialAnalysis.analysisListTab.dialogTitleDetail'),
+    {
+      confirmButtonText: t('financialAnalysis.analysisListTab.buttonClose'),
+    }
+  )
 }
 
 const deleteReport = async (row: FinancialReport) => {
   if (row.id === undefined) return
   try {
-    await ElMessageBox.confirm(`确定删除报表 "${row.reportName}" 吗？`, '删除确认', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('financialAnalysis.analysisListTab.confirmDeleteMessage', { name: row.reportName }),
+      t('financialAnalysis.analysisListTab.dialogTitleDeleteConfirm'),
+      { type: 'warning' }
+    )
     await deleteReportApi(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('financialAnalysis.analysisListTab.messageDeleteSuccess'))
     fetchReports()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageDeleteFailed'))
     }
   }
 }

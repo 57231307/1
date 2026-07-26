@@ -8,17 +8,21 @@
   <div class="sales-analysis-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">销售分析</h1>
+        <h1 class="page-title">{{ t('salesAnalysis.index.pageTitle') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>销售管理</el-breadcrumb-item>
-          <el-breadcrumb-item>销售分析</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('salesAnalysis.index.breadcrumbHome')
+          }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('salesAnalysis.index.breadcrumbSales') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{
+            t('salesAnalysis.index.breadcrumbSalesAnalysis')
+          }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button @click="saProc.handleExport">
           <el-icon><Download /></el-icon>
-          导出报表
+          {{ t('salesAnalysis.index.buttonExport') }}
         </el-button>
       </div>
     </div>
@@ -55,6 +59,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Download } from '@element-plus/icons-vue'
 import { useSa } from './composables/useSa'
 import { useSaProc } from './composables/useSaProc'
@@ -63,6 +68,8 @@ import SalesAnalysisTrend from './components/SalesAnalysisTrend.vue'
 import SalesAnalysisProductRank from './components/SalesAnalysisProductRank.vue'
 import SalesAnalysisCustomerRank from './components/SalesAnalysisCustomerRank.vue'
 import SalesAnalysisTarget from './components/SalesAnalysisTarget.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const sa = useSa()

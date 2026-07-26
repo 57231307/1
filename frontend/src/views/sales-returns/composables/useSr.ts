@@ -8,7 +8,12 @@
 import { ref, reactive } from 'vue'
 import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { getSalesReturnList, createSalesReturn, updateSalesReturn, type SalesReturn } from '@/api/sales-return'
+import {
+  getSalesReturnList,
+  createSalesReturn,
+  updateSalesReturn,
+  type SalesReturn,
+} from '@/api/sales-return'
 import { getSalesOrderList } from '@/api/sales'
 import { getCustomerList } from '@/api/customer'
 import { getProductList } from '@/api/product'
@@ -111,7 +116,9 @@ export function useSr() {
       returnList.value = res.data?.list || []
     } catch (error: unknown) {
       // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '加载退货列表失败')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) || '加载退货列表失败'
+      )
     } finally {
       loading.value = false
     }
@@ -158,7 +165,18 @@ export function useSr() {
       returnDate: new Date().toISOString().split('T')[0],
       reason: '',
       remarks: '',
-      items: [{ id: null, productId: null, productName: '', productCode: '', quantity: 1, unitPrice: 0, amount: 0, reason: '' }],
+      items: [
+        {
+          id: null,
+          productId: null,
+          productName: '',
+          productCode: '',
+          quantity: 1,
+          unitPrice: 0,
+          amount: 0,
+          reason: '',
+        },
+      ],
       totalAmount: 0,
       status: 'PENDING',
     })
