@@ -293,46 +293,57 @@ pub(crate) fn should_use_knn(hit_count: usize) -> bool {
 // =====================================================
 
 impl AiAnalysisService {
-    /// 染色工艺参数智能推荐
-    ///
-    /// 优先使用 k-NN 历史匹配（取 TopK，按相似度加权平均）；
-    /// 命中 < 3 条或 k=0 时回退到典型参数表。
+    /// 染色工艺参数智能推荐（k-NN 优先，命中 < 3 或 k=0 回退典型参数表）
     pub async fn optimize_recipe(
         &self,
         request: RecipeOptRequest,
     ) -> Result<RecipeOptResponse, AppError> {
-        // k 默认 5；k=0 时强制走退化路径
         let k = request.k.unwrap_or(5);
-
-        // k=0 → 强制退化
         if k == 0 {
-            let typical = find_typical_params();
-            return Ok(RecipeOptResponse {
-                recommended_params: RecipeParams {
-                    temperature: typical.temperature,
-                    time_minutes: typical.time_minutes as i32,
-                    ph_value: typical.ph_value,
-                    liquor_ratio: typical.liquor_ratio,
-                },
-                similar_cases: 0,
-                confidence: 0.6,
-                source: "fallback".to_string(),
-                reason: "k=0，已强制走典型参数表".to_string(),
-                candidates: Vec::new(),
-            });
+            return Ok(Self::build_fallback_response(
+                0,
+                "k=0，已强制走典型参数表".to_string(),
+                Vec::new(),
+            ));
         }
 
-        // 查询最近 6 个月、未删除的染色配方作为候选集
+        let candidates = self.fetch_recipe_candidates().await?;
+        let scored = Self::score_and_sort_candidates(&request, &candidates);
+        let top: Vec<(f64, &DyeRecipeModel)> = scored.iter().take(k).copied().collect();
+        let resp_candidates = build_candidates(&scored, 10);
+
+        if should_use_knn(top.len()) {
+            Self::build_knn_response(&top, k, resp_candidates)
+        } else {
+            let reason = format!(
+                "命中相似案例 {} 条（< 3），已回退到典型参数表（温度{}°C ±10、时间{}min ±15、pH{} ±1、浴比1:{} ±2）",
+                top.len(),
+                TYPICAL_TEMPERATURE,
+                TYPICAL_TIME_MINUTES,
+                TYPICAL_PH,
+                TYPICAL_LIQUOR_RATIO
+            );
+            Ok(Self::build_fallback_response(top.len(), reason, resp_candidates))
+        }
+    }
+
+    /// 查询近 6 个月未删除的染色配方作为候选集
+    async fn fetch_recipe_candidates(&self) -> Result<Vec<DyeRecipeModel>, AppError> {
         let six_months_ago = chrono::Utc::now() - chrono::Duration::days(180);
         let six_months_ago_dt = six_months_ago.naive_utc();
-
-        let candidates = DyeRecipeEntity::find()
+        DyeRecipeEntity::find()
             .filter(crate::models::dye_recipe::Column::IsDeleted.eq(false))
             .filter(crate::models::dye_recipe::Column::UpdatedAt.gte(six_months_ago_dt))
             .all(&*self.db)
-            .await?;
+            .await
+            .map_err(AppError::from)
+    }
 
-        // 计算相似度并排序
+    /// 计算候选配方的相似度，过滤 0 分并按降序排序
+    fn score_and_sort_candidates<'a>(
+        request: &RecipeOptRequest,
+        candidates: &'a [DyeRecipeModel],
+    ) -> Vec<(f64, &'a DyeRecipeModel)> {
         let mut scored: Vec<(f64, &DyeRecipeModel)> = candidates
             .iter()
             .map(|c| {
@@ -349,56 +360,52 @@ impl AiAnalysisService {
             .filter(|(s, _)| *s > 0.0)
             .collect();
         scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        scored
+    }
 
-        // 取 TopK
-        let top: Vec<(f64, &DyeRecipeModel)> = scored.iter().take(k).copied().collect();
+    /// 构建 k-NN 路径响应（加权聚合参数 + 置信度）
+    fn build_knn_response(
+        top: &[(f64, &DyeRecipeModel)],
+        k: usize,
+        candidates: Vec<RecipeCandidate>,
+    ) -> Result<RecipeOptResponse, AppError> {
+        let agg = weighted_average_params(top)
+            .ok_or_else(|| AppError::internal("工艺推荐：k-NN 加权聚合失败"))?;
+        let confidence = compute_confidence(top, k);
+        Ok(RecipeOptResponse {
+            recommended_params: RecipeParams {
+                temperature: round1(agg.temperature),
+                time_minutes: agg.time_minutes.round() as i32,
+                ph_value: round1(agg.ph_value),
+                liquor_ratio: round1(agg.liquor_ratio),
+            },
+            similar_cases: top.len(),
+            confidence,
+            source: "knn".to_string(),
+            reason: format!("基于 {} 条相似历史配方（k={}）的加权平均推荐", top.len(), k),
+            candidates,
+        })
+    }
 
-        // 候选案例（取前 10 条），无论走哪条路径都返回，便于 UI 展示
-        let resp_candidates = build_candidates(&scored, 10);
-
-        if should_use_knn(top.len()) {
-            // 走 k-NN 路径
-            let agg = weighted_average_params(&top)
-                .ok_or_else(|| AppError::internal("工艺推荐：k-NN 加权聚合失败"))?;
-            let confidence = compute_confidence(&top, k);
-
-            Ok(RecipeOptResponse {
-                recommended_params: RecipeParams {
-                    temperature: round1(agg.temperature),
-                    time_minutes: agg.time_minutes.round() as i32,
-                    ph_value: round1(agg.ph_value),
-                    liquor_ratio: round1(agg.liquor_ratio),
-                },
-                similar_cases: top.len(),
-                confidence,
-                source: "knn".to_string(),
-                reason: format!("基于 {} 条相似历史配方（k={}）的加权平均推荐", top.len(), k),
-                candidates: resp_candidates,
-            })
-        } else {
-            // 退化：典型参数表（兜底）
-            let typical = find_typical_params();
-
-            Ok(RecipeOptResponse {
-                recommended_params: RecipeParams {
-                    temperature: typical.temperature,
-                    time_minutes: typical.time_minutes as i32,
-                    ph_value: typical.ph_value,
-                    liquor_ratio: typical.liquor_ratio,
-                },
-                similar_cases: top.len(),
-                confidence: 0.6,
-                source: "fallback".to_string(),
-                reason: format!(
-                    "命中相似案例 {} 条（< 3），已回退到典型参数表（温度{}°C ±10、时间{}min ±15、pH{} ±1、浴比1:{} ±2）",
-                    top.len(),
-                    TYPICAL_TEMPERATURE,
-                    TYPICAL_TIME_MINUTES,
-                    TYPICAL_PH,
-                    TYPICAL_LIQUOR_RATIO
-                ),
-                candidates: resp_candidates,
-            })
+    /// 构建退化路径响应（典型参数表，置信度 0.6）
+    fn build_fallback_response(
+        similar_cases: usize,
+        reason: String,
+        candidates: Vec<RecipeCandidate>,
+    ) -> RecipeOptResponse {
+        let typical = find_typical_params();
+        RecipeOptResponse {
+            recommended_params: RecipeParams {
+                temperature: typical.temperature,
+                time_minutes: typical.time_minutes as i32,
+                ph_value: typical.ph_value,
+                liquor_ratio: typical.liquor_ratio,
+            },
+            similar_cases,
+            confidence: 0.6,
+            source: "fallback".to_string(),
+            reason,
+            candidates,
         }
     }
 }

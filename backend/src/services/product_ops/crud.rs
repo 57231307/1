@@ -226,113 +226,115 @@ impl ProductService {
         Ok(())
     }
 
-    /// 更新产品（面料行业版）
-    ///
-    /// 批次 339 v10 复审 P3 修复：签名从 19 参数改为单一参数对象 `UpdateProductArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 更新产品（面料行业版，审计日志 + 失效缓存 + 同步 ES）
     pub async fn update_product(
         &self,
-        args: UpdateProductArgs,
+        mut args: UpdateProductArgs,
     ) -> Result<product::Model, AppError> {
-        let UpdateProductArgs {
-            id,
-            name,
-            specification,
-            unit,
-            standard_price,
-            cost_price,
-            description,
-            status,
-            product_type,
-            fabric_composition,
-            yarn_count,
-            density,
-            width,
-            gram_weight,
-            structure,
-            finish,
-            min_order_quantity,
-            lead_time,
-            user_id,
-        } = args;
-        let mut product: product::ActiveModel = ProductEntity::find_by_id(id)
+        let id = args.id;
+        let user_id = args.user_id;
+
+        let mut product = self.fetch_product_active(id).await?;
+        Self::apply_product_basic_fields(&mut product, &mut args);
+        Self::apply_product_fabric_fields(&mut product, &mut args);
+        product.updated_at = Set(Utc::now());
+
+        let result = self.save_product_with_audit(product, id, user_id).await?;
+        self.sync_product_to_es(&result, "update").await;
+        Ok(result)
+    }
+
+    /// 按 ID 获取产品并转为 ActiveModel（不存在返回 not_found）
+    async fn fetch_product_active(&self, id: i32) -> Result<product::ActiveModel, AppError> {
+        Ok(ProductEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", id)))?
-            .into();
+            .into())
+    }
 
-        if let Some(n) = name {
+    /// 应用产品基础字段更新（名称/规格/单位/价格/描述/状态）
+    fn apply_product_basic_fields(
+        product: &mut product::ActiveModel,
+        args: &mut UpdateProductArgs,
+    ) {
+        if let Some(n) = args.name.take() {
             product.name = Set(n);
         }
-        if let Some(spec) = specification {
+        if let Some(spec) = args.specification.take() {
             product.specification = Set(Some(spec));
         }
-        if let Some(u) = unit {
+        if let Some(u) = args.unit.take() {
             product.unit = Set(u);
         }
-        if let Some(sp) = standard_price {
+        if let Some(sp) = args.standard_price.take() {
             product.standard_price =
                 Set(Some(Decimal::from_f64_retain(sp).unwrap_or(Decimal::ZERO)));
         }
-        if let Some(cp) = cost_price {
+        if let Some(cp) = args.cost_price.take() {
             product.cost_price = Set(Some(Decimal::from_f64_retain(cp).unwrap_or(Decimal::ZERO)));
         }
-        if let Some(d) = description {
+        if let Some(d) = args.description.take() {
             product.description = Set(Some(d));
         }
-        if let Some(s) = status {
+        if let Some(s) = args.status.take() {
             product.status = Set(s);
         }
-        // 面料行业字段
-        if let Some(pt) = product_type {
+    }
+
+    /// 应用面料行业字段更新（类型/成分/纱支/密度/门幅/克重/组织/整理/MOQ/提前期）
+    fn apply_product_fabric_fields(
+        product: &mut product::ActiveModel,
+        args: &mut UpdateProductArgs,
+    ) {
+        if let Some(pt) = args.product_type.take() {
             product.product_type = Set(pt);
         }
-        if let Some(fc) = fabric_composition {
+        if let Some(fc) = args.fabric_composition.take() {
             product.fabric_composition = Set(Some(fc));
         }
-        if let Some(yc) = yarn_count {
+        if let Some(yc) = args.yarn_count.take() {
             product.yarn_count = Set(Some(yc));
         }
-        if let Some(den) = density {
+        if let Some(den) = args.density.take() {
             product.density = Set(Some(den));
         }
-        if let Some(w) = width {
+        if let Some(w) = args.width.take() {
             product.width = Set(Some(Decimal::from_f64_retain(w).unwrap_or(Decimal::ZERO)));
         }
-        if let Some(gw) = gram_weight {
+        if let Some(gw) = args.gram_weight.take() {
             product.gram_weight = Set(Some(Decimal::from_f64_retain(gw).unwrap_or(Decimal::ZERO)));
         }
-        if let Some(st) = structure {
+        if let Some(st) = args.structure.take() {
             product.structure = Set(Some(st));
         }
-        if let Some(fi) = finish {
+        if let Some(fi) = args.finish.take() {
             product.finish = Set(Some(fi));
         }
-        if let Some(moq) = min_order_quantity {
+        if let Some(moq) = args.min_order_quantity.take() {
             product.min_order_quantity =
                 Set(Some(Decimal::from_f64_retain(moq).unwrap_or(Decimal::ZERO)));
         }
-        if let Some(lt) = lead_time {
+        if let Some(lt) = args.lead_time.take() {
             product.lead_time = Set(Some(lt));
         }
+    }
 
-        product.updated_at = Set(Utc::now());
-
+    /// 审计更新产品并失效缓存（audit_log + redis_cache_del）
+    async fn save_product_with_audit(
+        &self,
+        product: product::ActiveModel,
+        id: i32,
+        user_id: i32,
+    ) -> Result<product::Model, AppError> {
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
             product,
-            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
             Some(user_id),
         )
         .await?;
-
-        // P0-D03：失效产品缓存（产品信息已更新）
         redis_cache_del(&cache_key("product", id)).await;
-
-        // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
-        self.sync_product_to_es(&result, "update").await;
-
         Ok(result)
     }
 }

@@ -45,6 +45,80 @@ pub struct FinancialAnalysisService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 余额分类汇总（流动/非流动资产、负债、存货、应收应付、收入成本）
+#[derive(Default)]
+struct BalanceSummary {
+    current_assets: Decimal,
+    current_liabilities: Decimal,
+    total_assets: Decimal,
+    total_liabilities: Decimal,
+    inventory: Decimal,
+    accounts_receivable: Decimal,
+    accounts_payable: Decimal,
+    sales_revenue: Decimal,
+    purchase_cost: Decimal,
+}
+
+type SubjectMap = std::collections::HashMap<i32, crate::models::account_subject::Model>;
+
+/// 按科目代码前缀汇总期末余额到 BalanceSummary
+fn aggregate_balance_summary(
+    balances: &[crate::models::account_balance::Model],
+    subject_map: &SubjectMap,
+) -> BalanceSummary {
+    let mut summary = BalanceSummary::default();
+    for balance in balances {
+        if let Some(subject) = subject_map.get(&balance.subject_id) {
+            let net_balance = balance.ending_balance_debit - balance.ending_balance_credit;
+            classify_balance_entry(&subject.code, net_balance, &mut summary);
+        }
+    }
+    summary
+}
+
+/// 按科目代码前缀将单条余额分类计入 summary
+fn classify_balance_entry(code: &str, net_balance: Decimal, summary: &mut BalanceSummary) {
+    if code.starts_with('1') {
+        summary.total_assets += net_balance.max(Decimal::ZERO);
+        if !code.starts_with("16")
+            && !code.starts_with("17")
+            && !code.starts_with("18")
+            && !code.starts_with("19")
+        {
+            summary.current_assets += net_balance.max(Decimal::ZERO);
+        }
+        if code.starts_with("1403")
+            || code.starts_with("1405")
+            || code.starts_with("1406")
+            || code.starts_with("1407")
+            || code.starts_with("1408")
+            || code.starts_with("1409")
+            || code.starts_with("1411")
+        {
+            summary.inventory += net_balance.max(Decimal::ZERO);
+        }
+        if code == "1122" {
+            summary.accounts_receivable += net_balance.max(Decimal::ZERO);
+        }
+    } else if code.starts_with('2') {
+        let liability_balance = (-net_balance).max(Decimal::ZERO);
+        summary.total_liabilities += liability_balance;
+        if !code.starts_with("25") && !code.starts_with("26") {
+            summary.current_liabilities += liability_balance;
+        }
+        if code == "2202" {
+            summary.accounts_payable += liability_balance;
+        }
+    } else if code.starts_with('6') {
+        if code.starts_with("6001") {
+            summary.sales_revenue += (-net_balance).max(Decimal::ZERO);
+        }
+        if code.starts_with("6401") {
+            summary.purchase_cost += net_balance.max(Decimal::ZERO);
+        }
+    }
+}
+
 impl FinancialAnalysisService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -199,254 +273,125 @@ impl FinancialAnalysisService {
         Ok(results)
     }
 
-    /// 计算财务指标（核心方法）
-    ///
-    /// 根据科目余额和应收应付数据，自动计算以下指标：
-    /// - 流动比率 = 流动资产 / 流动负债
-    /// - 速动比率 = (流动资产 - 存货) / 流动负债
-    /// - 资产负债率 = 总负债 / 总资产
-    /// - 应收账款周转率 = 销售收入 / 平均应收账款
-    /// - 应付账款周转率 = 采购成本 / 平均应付账款
+    /// 计算财务指标（流动/速动/资产负债/应收应付周转率）
     pub async fn calculate_indicators(
         &self,
         period: &str,
         user_id: i32,
     ) -> Result<Vec<financial_analysis_result::Model>, AppError> {
         info!("开始计算财务指标，期间: {}", period);
+        let (balances, subject_map) = self.fetch_period_balances(period).await?;
+        let mut summary = aggregate_balance_summary(&balances, &subject_map);
+        if summary.sales_revenue.is_zero() {
+            summary.sales_revenue = self.fallback_sales_revenue_from_ar().await?;
+        }
+        if summary.purchase_cost.is_zero() {
+            summary.purchase_cost = self.fallback_purchase_cost_from_ap().await?;
+        }
+        let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
+        let results = self
+            .compute_indicator_results(period, user_id, &summary, &indicator_defs)
+            .await?;
+        info!("财务指标计算完成，期间: {}，共计算 {} 个指标", period, results.len());
+        Ok(results)
+    }
 
-        use crate::models::account_balance;
-        use crate::models::account_subject;
-
-        // 获取该期间所有科目余额
+    /// 拉取期间科目余额与科目字典映射
+    async fn fetch_period_balances(
+        &self,
+        period: &str,
+    ) -> Result<(Vec<crate::models::account_balance::Model>, SubjectMap), AppError> {
+        use crate::models::{account_balance, account_subject};
         let balances = account_balance::Entity::find()
             .filter(account_balance::Column::Period.eq(period))
             .all(&*self.db)
             .await?;
-
-        // 获取所有科目信息
         // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
-        let subjects = account_subject::Entity::find()
-            .limit(10_000)
+        let subjects = account_subject::Entity::find().limit(10_000).all(&*self.db).await?;
+        let subject_map = subjects.into_iter().map(|s| (s.id, s)).collect();
+        Ok((balances, subject_map))
+    }
+
+    /// 应收发票汇总作为销售收入兜底
+    async fn fallback_sales_revenue_from_ar(&self) -> Result<Decimal, AppError> {
+        use crate::models::ar_invoice;
+        let ar_total: Option<Decimal> = ar_invoice::Entity::find()
+            .filter(ar_invoice::Column::Status.ne("CANCELLED"))
             .all(&*self.db)
-            .await?;
+            .await?
+            .iter()
+            .map(|inv| Some(inv.invoice_amount))
+            .reduce(|a, b| Some(a.unwrap_or_default() + b.unwrap_or_default()))
+            .unwrap_or(None);
+        Ok(ar_total.unwrap_or(Decimal::ZERO))
+    }
 
-        // 构建科目 ID -> 科目信息的映射
-        let subject_map: std::collections::HashMap<i32, &account_subject::Model> =
-            subjects.iter().map(|s| (s.id, s)).collect();
+    /// 应付发票汇总作为采购成本兜底
+    async fn fallback_purchase_cost_from_ap(&self) -> Result<Decimal, AppError> {
+        use crate::models::ap_invoice;
+        let ap_total: Option<Decimal> = ap_invoice::Entity::find()
+            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .all(&*self.db)
+            .await?
+            .iter()
+            .map(|inv| Some(inv.amount))
+            .reduce(|a, b| Some(a.unwrap_or_default() + b.unwrap_or_default()))
+            .unwrap_or(None);
+        Ok(ap_total.unwrap_or(Decimal::ZERO))
+    }
 
-        // 按科目代码前缀分类汇总期末余额
-        let mut current_assets = Decimal::ZERO; // 流动资产 (1xxx，排除长期资产)
-        let mut current_liabilities = Decimal::ZERO; // 流动负债 (2xxx)
-        let mut total_assets = Decimal::ZERO; // 总资产 (1xxx)
-        let mut total_liabilities = Decimal::ZERO; // 总负债 (2xxx)
-        let mut inventory = Decimal::ZERO; // 存货 (1403, 1405, 1406, 1407, 1408, 1409, 1411)
-        let mut accounts_receivable = Decimal::ZERO; // 应收账款 (1122)
-        let mut accounts_payable = Decimal::ZERO; // 应付账款 (2202)
-        let mut sales_revenue = Decimal::ZERO; // 销售收入 (6001 主营业务收入)
-        let mut purchase_cost = Decimal::ZERO; // 采购成本 (6001 对应的借方或 6401 主营业务成本)
-
-        for balance in &balances {
-            if let Some(subject) = subject_map.get(&balance.subject_id) {
-                let code = &subject.code;
-                // 计算净余额（借方减贷方）
-                let net_balance = balance.ending_balance_debit - balance.ending_balance_credit;
-
-                // 按科目代码前缀分类
-                if code.starts_with('1') {
-                    // 资产类
-                    total_assets += net_balance.max(Decimal::ZERO);
-
-                    // 流动资产（排除 16xx 固定资产、17xx 无形资产、18xx 长期待摊等）
-                    if !code.starts_with("16")
-                        && !code.starts_with("17")
-                        && !code.starts_with("18")
-                        && !code.starts_with("19")
-                    {
-                        current_assets += net_balance.max(Decimal::ZERO);
-                    }
-
-                    // 存货科目
-                    if code.starts_with("1403")
-                        || code.starts_with("1405")
-                        || code.starts_with("1406")
-                        || code.starts_with("1407")
-                        || code.starts_with("1408")
-                        || code.starts_with("1409")
-                        || code.starts_with("1411")
-                    {
-                        inventory += net_balance.max(Decimal::ZERO);
-                    }
-
-                    // 应收账款
-                    if code == "1122" {
-                        accounts_receivable += net_balance.max(Decimal::ZERO);
-                    }
-                } else if code.starts_with('2') {
-                    // 负债类（贷方余额为正）
-                    let liability_balance = (-net_balance).max(Decimal::ZERO);
-                    total_liabilities += liability_balance;
-
-                    // 流动负债（排除 25xx 长期借款等）
-                    if !code.starts_with("25") && !code.starts_with("26") {
-                        current_liabilities += liability_balance;
-                    }
-
-                    // 应付账款
-                    if code == "2202" {
-                        accounts_payable += liability_balance;
-                    }
-                } else if code.starts_with('6') {
-                    // 损益类
-                    if code.starts_with("6001") {
-                        // 主营业务收入（贷方余额为正）
-                        sales_revenue += (-net_balance).max(Decimal::ZERO);
-                    }
-                    if code.starts_with("6401") {
-                        // 主营业务成本（借方余额为正）
-                        purchase_cost += net_balance.max(Decimal::ZERO);
-                    }
-                }
-            }
-        }
-
-        // 如果科目余额中无销售收入/采购成本，尝试从应收/应付单据获取
-        if sales_revenue.is_zero() {
-            use crate::models::ar_invoice;
-            let ar_total: Option<Decimal> = ar_invoice::Entity::find()
-                .filter(ar_invoice::Column::Status.ne("CANCELLED"))
-                .all(&*self.db)
-                .await?
-                .iter()
-                .map(|inv| Some(inv.invoice_amount))
-                .reduce(|a, b| Some(a.unwrap_or_default() + b.unwrap_or_default()))
-                .unwrap_or(None);
-            sales_revenue = ar_total.unwrap_or(Decimal::ZERO);
-        }
-
-        if purchase_cost.is_zero() {
-            use crate::models::ap_invoice;
-            let ap_total: Option<Decimal> = ap_invoice::Entity::find()
-                .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
-                .all(&*self.db)
-                .await?
-                .iter()
-                .map(|inv| Some(inv.amount))
-                .reduce(|a, b| Some(a.unwrap_or_default() + b.unwrap_or_default()))
-                .unwrap_or(None);
-            purchase_cost = ap_total.unwrap_or(Decimal::ZERO);
-        }
-
-        // 定义精度处理闭包
-        let safe_div = |numerator: Decimal, denominator: Decimal| -> Option<Decimal> {
-            if denominator.is_zero() {
-                None
-            } else {
-                Some(
-                    (numerator / denominator)
-                        .round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero),
-                )
-            }
-        };
-
-        // 构建指标计算结果
+    /// 计算并保存 5 个财务指标结果
+    async fn compute_indicator_results(
+        &self,
+        period: &str,
+        user_id: i32,
+        summary: &BalanceSummary,
+        indicator_defs: &[financial_analysis::Model],
+    ) -> Result<Vec<financial_analysis_result::Model>, AppError> {
+        let ratios: [(&str, Option<Decimal>, Option<Decimal>); 5] = [
+            ("CURRENT_RATIO", Self::safe_div(summary.current_assets, summary.current_liabilities), Some(Decimal::from(2))),
+            ("QUICK_RATIO", Self::safe_div(summary.current_assets - summary.inventory, summary.current_liabilities), Some(Decimal::from(1))),
+            ("DEBT_ASSET_RATIO", Self::safe_div(summary.total_liabilities, summary.total_assets), Some(Decimal::new(60, 2))),
+            ("AR_TURNOVER_RATIO", Self::safe_div(summary.sales_revenue, summary.accounts_receivable), None),
+            ("AP_TURNOVER_RATIO", Self::safe_div(summary.purchase_cost, summary.accounts_payable), None),
+        ];
         let mut results = Vec::new();
-
-        // 获取或创建指标定义
-        let indicator_defs = self.ensure_indicator_definitions(user_id).await?;
-
-        // 1. 流动比率
-        if let Some(indicator) = indicator_defs
-            .iter()
-            .find(|i| i.indicator_code == "CURRENT_RATIO")
-        {
-            if let Some(value) = safe_div(current_assets, current_liabilities) {
-                let result = self
-                    .save_indicator_result(
-                        "auto",
-                        period,
-                        indicator.id,
-                        value,
-                        Some(Decimal::from(2)), // 目标值 2
-                        user_id,
-                    )
-                    .await?;
-                results.push(result);
-            }
+        for (code, value, threshold) in ratios {
+            self.try_save_indicator(indicator_defs, code, period, value, threshold, user_id, &mut results)
+                .await?;
         }
-
-        // 2. 速动比率
-        if let Some(indicator) = indicator_defs
-            .iter()
-            .find(|i| i.indicator_code == "QUICK_RATIO")
-        {
-            if let Some(value) = safe_div(current_assets - inventory, current_liabilities) {
-                let result = self
-                    .save_indicator_result(
-                        "auto",
-                        period,
-                        indicator.id,
-                        value,
-                        Some(Decimal::from(1)), // 目标值 1
-                        user_id,
-                    )
-                    .await?;
-                results.push(result);
-            }
-        }
-
-        // 3. 资产负债率
-        if let Some(indicator) = indicator_defs
-            .iter()
-            .find(|i| i.indicator_code == "DEBT_ASSET_RATIO")
-        {
-            if let Some(value) = safe_div(total_liabilities, total_assets) {
-                let result = self
-                    .save_indicator_result(
-                        "auto",
-                        period,
-                        indicator.id,
-                        value,
-                        // P3 维度 3 修复（批次 87）：消除 unwrap panic 风险，直接用 new 构造（scale=2 在合法范围）
-                        Some(Decimal::new(60, 2)), // 目标值 60%
-                        user_id,
-                    )
-                    .await?;
-                results.push(result);
-            }
-        }
-
-        // 4. 应收账款周转率
-        if let Some(indicator) = indicator_defs
-            .iter()
-            .find(|i| i.indicator_code == "AR_TURNOVER_RATIO")
-        {
-            if let Some(value) = safe_div(sales_revenue, accounts_receivable) {
-                let result = self
-                    .save_indicator_result("auto", period, indicator.id, value, None, user_id)
-                    .await?;
-                results.push(result);
-            }
-        }
-
-        // 5. 应付账款周转率
-        if let Some(indicator) = indicator_defs
-            .iter()
-            .find(|i| i.indicator_code == "AP_TURNOVER_RATIO")
-        {
-            if let Some(value) = safe_div(purchase_cost, accounts_payable) {
-                let result = self
-                    .save_indicator_result("auto", period, indicator.id, value, None, user_id)
-                    .await?;
-                results.push(result);
-            }
-        }
-
-        info!(
-            "财务指标计算完成，期间: {}，共计算 {} 个指标",
-            period,
-            results.len()
-        );
         Ok(results)
+    }
+
+    /// 安全除法（分母为 0 返回 None，否则四舍五入保留 4 位）
+    fn safe_div(numerator: Decimal, denominator: Decimal) -> Option<Decimal> {
+        if denominator.is_zero() {
+            None
+        } else {
+            Some((numerator / denominator).round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero))
+        }
+    }
+
+    /// 按指标代码查找定义并在 value 为 Some 时保存结果
+    async fn try_save_indicator(
+        &self,
+        indicator_defs: &[financial_analysis::Model],
+        code: &str,
+        period: &str,
+        value: Option<Decimal>,
+        target: Option<Decimal>,
+        user_id: i32,
+        results: &mut Vec<financial_analysis_result::Model>,
+    ) -> Result<(), AppError> {
+        if let Some(indicator) = indicator_defs.iter().find(|i| i.indicator_code == code) {
+            if let Some(value) = value {
+                let result = self
+                    .save_indicator_result("auto", period, indicator.id, value, target, user_id)
+                    .await?;
+                results.push(result);
+            }
+        }
+        Ok(())
     }
 
     /// 确保指标定义存在，不存在则自动创建

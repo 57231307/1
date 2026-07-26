@@ -89,31 +89,15 @@ impl ArReconciliationService {
         Ok(updated)
     }
 
-    /// 关闭对账单
+    /// 关闭对账单（confirmed/disputed → closed，lock_exclusive 串行化，关闭后生成对账确认凭证）
     pub async fn close(&self, id: i32, user_id: i32) -> Result<ReconciliationModel, AppError> {
-        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-        // 原实现状态变更无 txn 无 lock，状态门控（confirmed/disputed → closed）在并发场景下
-        // 会被竞态绕过：两并发 close 同时通过门控后基于过期状态写入。
         let txn = (*self.db).begin().await?;
-
-        let model = ReconciliationEntity::find_by_id(id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        let status = model.reconciliation_status.as_deref().unwrap_or(ar_status::RECONCILIATION_DRAFT);
-        if status != ar_status::RECONCILIATION_CONFIRMED && status != ar_status::RECONCILIATION_DISPUTED {
-            return Err(AppError::business(
-                "只有已确认或有争议的对账单可以关闭".to_string(),
-            ));
-        }
+        let model = Self::fetch_reconciliation_locked(&txn, id).await?;
+        Self::validate_close_status(&model)?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some(ar_status::RECONCILIATION_CLOSED.to_string()));
         active_model.updated_at = Set(Utc::now());
-
-        // 批次 92 P3-9：user_id 从 handler AuthContext 注入
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -121,15 +105,73 @@ impl ArReconciliationService {
             Some(user_id),
         )
         .await?;
-
         txn.commit().await?;
 
-        // F-P2-4 修复（批次 387 v13 复审）：AR 对账单关闭后生成对账确认凭证
-        // 原实现 close 仅更新对账单状态，不生成凭证，
-        // 导致对账确认结果无法在凭证体系中追溯。
-        // 修复：commit 成功后生成转账凭证（借贷均为应收账款，金额=期末余额），
-        // 作为对账确认的审计凭证，不改变账面净余额。失败时仅 warn 不阻断主流程。
-        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+        self.create_close_voucher(&result, user_id).await;
+        Ok(result)
+    }
+
+    /// 事务内 lock_exclusive 获取对账单（不存在返回 not_found）
+    async fn fetch_reconciliation_locked(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i32,
+    ) -> Result<ReconciliationModel, AppError> {
+        ReconciliationEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("对账单不存在"))
+    }
+
+    /// 校验对账单状态为 confirmed 或 disputed（仅此二者可关闭）
+    fn validate_close_status(model: &ReconciliationModel) -> Result<(), AppError> {
+        let status = model
+            .reconciliation_status
+            .as_deref()
+            .unwrap_or(ar_status::RECONCILIATION_DRAFT);
+        if status != ar_status::RECONCILIATION_CONFIRMED && status != ar_status::RECONCILIATION_DISPUTED {
+            return Err(AppError::business(
+                "只有已确认或有争议的对账单可以关闭".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// 构建对账确认凭证单行（应收账款借贷对称）
+    fn build_close_voucher_item(
+        result: &ReconciliationModel,
+        line_no: i32,
+        debit: rust_decimal::Decimal,
+        credit: rust_decimal::Decimal,
+    ) -> crate::services::voucher_service::VoucherItemRequest {
+        crate::services::voucher_service::VoucherItemRequest {
+            line_no: Some(line_no),
+            subject_code: Some("1131".to_string()),
+            subject_name: Some("应收账款".to_string()),
+            debit,
+            credit,
+            summary: Some(format!("对账确认-{}", result.reconciliation_no)),
+            assist_customer_id: Some(result.customer_id),
+            assist_supplier_id: None,
+            assist_department_id: None,
+            assist_employee_id: None,
+            assist_project_id: None,
+            assist_batch_id: None,
+            assist_color_no_id: None,
+            assist_dye_lot_id: None,
+            assist_grade: None,
+            assist_workshop_id: None,
+            quantity_meters: None,
+            quantity_kg: None,
+            unit_price: None,
+        }
+    }
+
+    /// 构建对账确认凭证请求（转账凭证，借贷均为应收账款，金额=期末余额）
+    fn build_close_voucher_request(
+        result: &ReconciliationModel,
+    ) -> crate::services::voucher_service::CreateVoucherRequest {
+        crate::services::voucher_service::CreateVoucherRequest {
             voucher_type: "转".to_string(),
             voucher_date: result.period_end,
             source_type: Some("AR_RECONCILIATION".to_string()),
@@ -139,50 +181,25 @@ impl ArReconciliationService {
             batch_no: None,
             color_no: None,
             items: vec![
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(1),
-                    subject_code: Some("1131".to_string()),
-                    subject_name: Some("应收账款".to_string()),
-                    debit: result.closing_balance,
-                    credit: rust_decimal::Decimal::ZERO,
-                    summary: Some(format!("对账确认-{}", result.reconciliation_no)),
-                    assist_customer_id: Some(result.customer_id),
-                    assist_supplier_id: None,
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(2),
-                    subject_code: Some("1131".to_string()),
-                    subject_name: Some("应收账款".to_string()),
-                    debit: rust_decimal::Decimal::ZERO,
-                    credit: result.closing_balance,
-                    summary: Some(format!("对账确认-{}", result.reconciliation_no)),
-                    assist_customer_id: Some(result.customer_id),
-                    assist_supplier_id: None,
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
+                Self::build_close_voucher_item(
+                    result,
+                    1,
+                    result.closing_balance,
+                    rust_decimal::Decimal::ZERO,
+                ),
+                Self::build_close_voucher_item(
+                    result,
+                    2,
+                    rust_decimal::Decimal::ZERO,
+                    result.closing_balance,
+                ),
             ],
-        };
+        }
+    }
+
+    /// 生成对账确认凭证（失败仅 warn 不阻断主流程）
+    async fn create_close_voucher(&self, result: &ReconciliationModel, user_id: i32) {
+        let voucher_req = Self::build_close_voucher_request(result);
         let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
         if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
             tracing::warn!(
@@ -191,8 +208,6 @@ impl ArReconciliationService {
                 e
             );
         }
-
-        Ok(result)
     }
 
     /// 更新对账单状态（通用）

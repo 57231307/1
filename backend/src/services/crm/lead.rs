@@ -489,39 +489,35 @@ impl CrmService {
         Ok(())
     }
 
-    /// 将线索转换为客户（同时创建一条对应的"初步接洽"商机）
-    pub async fn convert_lead_to_customer(
+    // ===== convert_lead_to_customer 私有 helpers（D08 拆分）=====
+
+    /// 校验线索存在且未转换
+    async fn validate_lead_for_conversion(
         &self,
         lead_id: i32,
-        req: crate::models::dto::crm_dto::ConvertLeadRequest,
-        user_id: i32,
-    ) -> Result<serde_json::Value, AppError> {
-        // 1. 查询线索
+    ) -> Result<crm_lead::Model, AppError> {
         let lead = self.get_lead(lead_id, None).await?;
-
         if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
             return Err(AppError::business("线索已转换为客户".to_string()));
         }
+        Ok(lead)
+    }
 
-        let txn = self.db.begin().await?;
-
-        // 2. 创建客户
+    /// 从线索构造客户 ActiveModel（纯函数，无 IO）
+    fn build_customer_active(
+        lead: &crm_lead::Model,
+        req: &crate::models::dto::crm_dto::ConvertLeadRequest,
+        customer_name: &str,
+        user_id: i32,
+    ) -> customer::ActiveModel {
         let customer_code = format!("C{}", chrono::Utc::now().timestamp());
-        let customer_name = lead
-            .company_name
-            .clone()
-            .unwrap_or_else(|| lead.contact_name.clone());
-        let contact_person = Some(lead.contact_name.clone());
-        let contact_phone = lead.mobile_phone.clone().or(lead.tel_phone.clone());
-        let customer_industry: Option<String> = None;
-        let customer_type = req.customer_type.unwrap_or_else(|| "POTENTIAL".to_string());
-
-        let new_customer = customer::ActiveModel {
+        let customer_type = req.customer_type.clone().unwrap_or_else(|| "POTENTIAL".to_string());
+        customer::ActiveModel {
             id: Default::default(),
-            customer_code: Set(customer_code.clone()),
-            customer_name: Set(customer_name.clone()),
-            contact_person: Set(contact_person),
-            contact_phone: Set(contact_phone),
+            customer_code: Set(customer_code),
+            customer_name: Set(customer_name.to_string()),
+            contact_person: Set(Some(lead.contact_name.clone())),
+            contact_phone: Set(lead.mobile_phone.clone().or(lead.tel_phone.clone())),
             contact_email: Set(lead.email.clone()),
             address: Set(lead.address.clone()),
             city: Set(None),
@@ -539,42 +535,53 @@ impl CrmService {
             created_by: Set(Some(user_id)),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
-            customer_industry: Set(customer_industry),
+            customer_industry: Set(None),
             main_products: Set(None),
             annual_purchase: Set(None),
             quality_requirement: Set(None),
             inspection_standard: Set(None),
-            // V15 P0-S08 修复：转化客户时业务负责人继承线索 owner_id
             owner_id: Set(lead.owner_id),
             owner_assigned_at: Set(Some(chrono::Utc::now())),
         }
-        .insert(&txn)
-        .await?;
+    }
 
-        // 3. 更新线索状态
+    /// 更新线索状态为已转换（含审计日志）
+    async fn mark_lead_converted(
+        txn: &sea_orm::DatabaseTransaction,
+        lead: &crm_lead::Model,
+        customer_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         let mut lead_active: crm_lead::ActiveModel = lead.clone().into();
         lead_active.lead_status = Set(Some(lead_status::CONVERTED.to_string()));
-        lead_active.converted_customer_id = Set(Some(new_customer.id));
+        lead_active.converted_customer_id = Set(Some(customer_id));
         lead_active.converted_at = Set(Some(chrono::Utc::now()));
         lead_active.updated_at = Set(Some(chrono::Utc::now()));
         crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             lead_active,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
             Some(user_id),
         )
         .await?;
+        Ok(())
+    }
 
-        // 4. 创建初步商机
+    /// 从线索构造初步接洽商机 ActiveModel（纯函数，无 IO）
+    fn build_opportunity_active(
+        lead: &crm_lead::Model,
+        customer_id: i32,
+        customer_name: &str,
+        user_id: i32,
+    ) -> crm_opportunity::ActiveModel {
         let opportunity_no = format!("OPP{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
         let opportunity_name = format!("{} - 初步接洽", customer_name);
-        let _opportunity = crm_opportunity::ActiveModel {
+        crm_opportunity::ActiveModel {
             id: Default::default(),
             opportunity_no: Set(opportunity_no),
             opportunity_name: Set(opportunity_name),
-            customer_id: Set(new_customer.id),
-            lead_id: Set(Some(lead_id)),
+            customer_id: Set(customer_id),
+            lead_id: Set(Some(lead.id)),
             opportunity_type: Set(Some("NEW".to_string())),
             opportunity_stage: Set(Some("QUALIFICATION".to_string())),
             win_probability: Set(Some(rust_decimal::Decimal::new(20, 0))),
@@ -585,7 +592,7 @@ impl CrmService {
             actual_close_date: Set(None),
             product_ids: Set(None),
             product_names: Set(None),
-            product_desc: Set(lead.product_interest),
+            product_desc: Set(lead.product_interest.clone()),
             owner_id: Set(lead.owner_id),
             owner_name: Set(lead.owner_name.clone()),
             opportunity_status: Set(Some("OPEN".to_string())),
@@ -594,12 +601,29 @@ impl CrmService {
             updated_at: Set(Some(chrono::Utc::now())),
             ..Default::default()
         }
-        .insert(&txn)
-        .await?;
+    }
 
-        // 5. 提交事务
+    /// 将线索转换为客户（同时创建一条对应的"初步接洽"商机）
+    pub async fn convert_lead_to_customer(
+        &self,
+        lead_id: i32,
+        req: crate::models::dto::crm_dto::ConvertLeadRequest,
+        user_id: i32,
+    ) -> Result<serde_json::Value, AppError> {
+        let lead = self.validate_lead_for_conversion(lead_id).await?;
+        let txn = self.db.begin().await?;
+        let customer_name = lead
+            .company_name
+            .clone()
+            .unwrap_or_else(|| lead.contact_name.clone());
+        let new_customer = Self::build_customer_active(&lead, &req, &customer_name, user_id)
+            .insert(&txn)
+            .await?;
+        Self::mark_lead_converted(&txn, &lead, new_customer.id, user_id).await?;
+        Self::build_opportunity_active(&lead, new_customer.id, &customer_name, user_id)
+            .insert(&txn)
+            .await?;
         txn.commit().await?;
-
         Ok(serde_json::json!({
             "customer_id": new_customer.id,
             "customer_code": new_customer.customer_code,

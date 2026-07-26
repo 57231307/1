@@ -10,8 +10,8 @@
 //! 注意：文件名 `inventory_move.rs`（非 `move.rs`），因为 `move` 是 Rust 关键字。
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 
 use crate::models::dto::PageRequest;
@@ -26,7 +26,7 @@ use crate::utils::PaginatedResponse;
 
 use super::{
     CreateInventoryTransferRequest, InventoryTransferDetail, InventoryTransferItemDetail,
-    InventoryTransferService, UpdateInventoryTransferRequest,
+    InventoryTransferItemRequest, InventoryTransferService, UpdateInventoryTransferRequest,
 };
 
 impl InventoryTransferService {
@@ -175,53 +175,44 @@ impl InventoryTransferService {
         })
     }
 
-    /// 创建库存调拨
-    pub async fn create_transfer(
-        &self,
-        request: CreateInventoryTransferRequest,
-        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-        user_id: i32,
-    ) -> Result<InventoryTransferDetail, AppError> {
-        // 开启事务
-        let txn = (*self.db).begin().await?;
-
-        // 生成调拨单号并检查唯一性
-        let transfer_no = self.generate_transfer_no().await?;
-
-        // 再次检查调拨单号是否已存在（防止并发冲突）
-        let existing_transfer = InventoryTransferEntity::find()
-            .filter(inventory_transfer::Column::TransferNo.eq(&transfer_no))
-            .one(&txn)
+    /// 校验调拨单号唯一性，冲突时回滚事务
+    async fn validate_transfer_no_uniqueness(
+        txn: &DatabaseTransaction,
+        transfer_no: &str,
+    ) -> Result<(), AppError> {
+        let existing = InventoryTransferEntity::find()
+            .filter(inventory_transfer::Column::TransferNo.eq(transfer_no))
+            .one(txn)
             .await?;
-
-        if existing_transfer.is_some() {
-            tracing::error!("Transaction rolled back: 调拨单号 {} 已存在", transfer_no);
-            txn.rollback().await?;
+        if existing.is_some() {
+            tracing::error!("调拨单号 {} 已存在，事务将自动回滚", transfer_no);
             return Err(AppError::business("调拨单号已存在，请重试".to_string()));
         }
+        Ok(())
+    }
 
-        // 调出/调入仓库缺失时拒绝创建调拨单，避免脏仓库 ID=0 记录
-        let from_warehouse_id = request
-            .from_warehouse_id
-            .ok_or_else(|| AppError::validation("调拨单缺少调出仓库ID"))?;
-        let to_warehouse_id = request
-            .to_warehouse_id
-            .ok_or_else(|| AppError::validation("调拨单缺少调入仓库ID"))?;
-
-        // 创建调拨主表
-        let transfer = inventory_transfer::ActiveModel {
+    /// 构建调拨主表 ActiveModel（状态默认 PENDING，数量初始为 0）
+    fn build_transfer_active_model(
+        transfer_no: String,
+        from_warehouse_id: i32,
+        to_warehouse_id: i32,
+        transfer_date: Option<chrono::DateTime<chrono::Utc>>,
+        status: Option<String>,
+        notes: Option<String>,
+    ) -> inventory_transfer::ActiveModel {
+        inventory_transfer::ActiveModel {
             id: Default::default(),
             transfer_no: sea_orm::ActiveValue::Set(transfer_no),
             from_warehouse_id: sea_orm::ActiveValue::Set(from_warehouse_id),
             to_warehouse_id: sea_orm::ActiveValue::Set(to_warehouse_id),
             transfer_date: sea_orm::ActiveValue::Set(
-                request.transfer_date.unwrap_or_else(chrono::Utc::now),
+                transfer_date.unwrap_or_else(chrono::Utc::now),
             ),
             status: sea_orm::ActiveValue::Set(
-                request.status.unwrap_or_else(|| transfer_status::PENDING.to_string()),
+                status.unwrap_or_else(|| transfer_status::PENDING.to_string()),
             ),
             total_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-            notes: sea_orm::ActiveValue::Set(request.notes),
+            notes: sea_orm::ActiveValue::Set(notes),
             created_by: sea_orm::ActiveValue::NotSet,
             approved_by: sea_orm::ActiveValue::NotSet,
             approved_at: sea_orm::ActiveValue::NotSet,
@@ -229,26 +220,22 @@ impl InventoryTransferService {
             received_at: sea_orm::ActiveValue::NotSet,
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-        };
+        }
+    }
 
-        let transfer_entity = transfer.insert(&txn).await?;
-
-        // 检查调出仓库库存是否充足（详见 stock.rs）
-        let items = request.items.unwrap_or_default();
-        self.check_from_warehouse_inventory(&from_warehouse_id, &items, &txn)
-            .await?;
-
-        // 创建调拨明细项并计算总数量
+    /// 批量创建调拨明细项并累计总数量
+    async fn create_transfer_items_and_compute_total(
+        txn: &DatabaseTransaction,
+        transfer_id: i32,
+        items: Vec<InventoryTransferItemRequest>,
+    ) -> Result<rust_decimal::Decimal, AppError> {
         let mut total_quantity = rust_decimal::Decimal::ZERO;
-
         for item_req in items {
             let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
             total_quantity += quantity;
-
-            // 物料 ID 缺失时拒绝创建调拨明细，避免脏 product_id=0 记录
             let item = inventory_transfer_item::ActiveModel {
                 id: Default::default(),
-                transfer_id: sea_orm::ActiveValue::Set(transfer_entity.id),
+                transfer_id: sea_orm::ActiveValue::Set(transfer_id),
                 product_id: sea_orm::ActiveValue::Set(
                     item_req
                         .product_id
@@ -266,29 +253,180 @@ impl InventoryTransferService {
                 dye_lot_no: sea_orm::ActiveValue::NotSet,
                 batch_no: sea_orm::ActiveValue::NotSet,
             };
-
-            item.insert(&txn).await?;
+            item.insert(txn).await?;
         }
+        Ok(total_quantity)
+    }
 
-        // 更新调拨单总数量
-        let transfer_id = transfer_entity.id;
+    /// 更新调拨单总数量并写入审计日志
+    async fn save_transfer_total_quantity(
+        txn: &DatabaseTransaction,
+        transfer_id: i32,
+        total_quantity: rust_decimal::Decimal,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let transfer_entity = InventoryTransferEntity::find_by_id(transfer_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::business("调拨单不存在"))?;
         let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
         transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             transfer_update,
-            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
             Some(user_id),
         )
         .await?;
+        Ok(())
+    }
 
-        // 提交事务
+    /// 创建库存调拨
+    pub async fn create_transfer(
+        &self,
+        request: CreateInventoryTransferRequest,
+        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+        user_id: i32,
+    ) -> Result<InventoryTransferDetail, AppError> {
+        let txn = (*self.db).begin().await?;
+        let transfer_no = self.generate_transfer_no().await?;
+        Self::validate_transfer_no_uniqueness(&txn, &transfer_no).await?;
+        let from_warehouse_id = request
+            .from_warehouse_id
+            .ok_or_else(|| AppError::validation("调拨单缺少调出仓库ID"))?;
+        let to_warehouse_id = request
+            .to_warehouse_id
+            .ok_or_else(|| AppError::validation("调拨单缺少调入仓库ID"))?;
+        let items = request.items.unwrap_or_default();
+        let transfer = Self::build_transfer_active_model(
+            transfer_no,
+            from_warehouse_id,
+            to_warehouse_id,
+            request.transfer_date,
+            request.status,
+            request.notes,
+        );
+        let transfer_entity = transfer.insert(&txn).await?;
+        let transfer_id = transfer_entity.id;
+        self.check_from_warehouse_inventory(&from_warehouse_id, &items, &txn)
+            .await?;
+        let total_quantity =
+            Self::create_transfer_items_and_compute_total(&txn, transfer_id, items).await?;
+        Self::save_transfer_total_quantity(&txn, transfer_id, total_quantity, user_id).await?;
         txn.commit().await?;
-
-        // 返回调拨详情
         self.get_transfer_detail(transfer_id, None).await
+    }
+
+    /// 加载调拨单并校验状态非已完成
+    async fn load_transfer_for_update(
+        &self,
+        transfer_id: i32,
+    ) -> Result<inventory_transfer::Model, AppError> {
+        let transfer = InventoryTransferEntity::find_by_id(transfer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
+        if transfer.status == transfer_status::COMPLETED {
+            return Err(AppError::business("调拨单已完成，不允许修改".to_string()));
+        }
+        Ok(transfer)
+    }
+
+    /// 应用主表字段更新（status/notes/updated_at）并写审计日志
+    async fn apply_transfer_main_update(
+        txn: &DatabaseTransaction,
+        transfer: inventory_transfer::Model,
+        status: Option<String>,
+        notes: Option<String>,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
+        if let Some(status) = status {
+            transfer_update.status = sea_orm::ActiveValue::Set(status);
+        }
+        if let Some(notes) = notes {
+            transfer_update.notes = sea_orm::ActiveValue::Set(Some(notes));
+        }
+        transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            transfer_update,
+            Some(user_id),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// 删除调拨单原有明细项
+    async fn clear_transfer_items(
+        txn: &DatabaseTransaction,
+        transfer_id: i32,
+    ) -> Result<(), AppError> {
+        InventoryTransferItemEntity::delete_many()
+            .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
+            .exec(txn)
+            .await?;
+        Ok(())
+    }
+
+    /// 重建调拨明细项并累计总数量
+    async fn rebuild_transfer_items_and_total(
+        txn: &DatabaseTransaction,
+        transfer_id: i32,
+        items: Vec<InventoryTransferItemRequest>,
+    ) -> Result<rust_decimal::Decimal, AppError> {
+        let mut total_quantity = rust_decimal::Decimal::ZERO;
+        for item_req in items {
+            let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
+            total_quantity += quantity;
+            let item = inventory_transfer_item::ActiveModel {
+                id: Default::default(),
+                transfer_id: sea_orm::ActiveValue::Set(transfer_id),
+                product_id: sea_orm::ActiveValue::Set(
+                    item_req
+                        .product_id
+                        .ok_or_else(|| AppError::validation("调拨明细缺少物料ID"))?,
+                ),
+                quantity: sea_orm::ActiveValue::Set(quantity),
+                shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                unit_cost: sea_orm::ActiveValue::NotSet,
+                notes: sea_orm::ActiveValue::Set(item_req.notes),
+                created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                color_no: sea_orm::ActiveValue::NotSet,
+                dye_lot_no: sea_orm::ActiveValue::NotSet,
+                batch_no: sea_orm::ActiveValue::NotSet,
+            };
+            item.insert(txn).await?;
+        }
+        Ok(total_quantity)
+    }
+
+    /// 更新调拨单总数量并写审计日志
+    async fn save_transfer_total_update(
+        txn: &DatabaseTransaction,
+        transfer_id: i32,
+        total_quantity: rust_decimal::Decimal,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let transfer_entity = InventoryTransferEntity::find_by_id(transfer_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::business("调拨单不存在"))?;
+        let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
+        transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
+        transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            transfer_update,
+            Some(user_id),
+        )
+        .await?;
+        Ok(())
     }
 
     /// 更新库存调拨
@@ -296,103 +434,25 @@ impl InventoryTransferService {
         &self,
         transfer_id: i32,
         request: UpdateInventoryTransferRequest,
-        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
         user_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
-        // 检查调拨单是否存在
-        let transfer = InventoryTransferEntity::find_by_id(transfer_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
-
-        // 检查状态，已完成的调拨单不允许修改
-        if transfer.status == transfer_status::COMPLETED {
-            return Err(AppError::business("调拨单已完成，不允许修改".to_string()));
-        }
-
-        // 开启事务
+        let transfer = self.load_transfer_for_update(transfer_id).await?;
         let txn = (*self.db).begin().await?;
-
-        // 更新调拨主表
-        let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
-        if let Some(status) = request.status {
-            transfer_update.status = sea_orm::ActiveValue::Set(status);
-        }
-        if let Some(notes) = request.notes {
-            transfer_update.notes = sea_orm::ActiveValue::Set(Some(notes));
-        }
-        transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        crate::services::audit_log_service::AuditLogService::update_with_audit(
+        Self::apply_transfer_main_update(
             &txn,
-            "auto_audit",
-            transfer_update,
-            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-            Some(user_id),
+            transfer,
+            request.status.clone(),
+            request.notes.clone(),
+            user_id,
         )
         .await?;
-
-        // 如果需要更新明细项
         if let Some(items) = request.items {
-            // 删除原有明细项
-            InventoryTransferItemEntity::delete_many()
-                .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
-                .exec(&txn)
-                .await?;
-
-            // 重新计算总数量并创建新明细项
-            let mut total_quantity = rust_decimal::Decimal::ZERO;
-
-            for item_req in items {
-                let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
-                total_quantity += quantity;
-
-                // 物料 ID 缺失时拒绝创建调拨明细，避免脏 product_id=0 记录
-                let item = inventory_transfer_item::ActiveModel {
-                    id: Default::default(),
-                    transfer_id: sea_orm::ActiveValue::Set(transfer_id),
-                    product_id: sea_orm::ActiveValue::Set(
-                        item_req
-                            .product_id
-                            .ok_or_else(|| AppError::validation("调拨明细缺少物料ID"))?,
-                    ),
-                    quantity: sea_orm::ActiveValue::Set(quantity),
-                    shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                    received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                    unit_cost: sea_orm::ActiveValue::NotSet,
-                    notes: sea_orm::ActiveValue::Set(item_req.notes),
-                    created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                    updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                    // v14 批次 417：面料行业追溯字段（T-P0-1），使用 NotSet 让 DB 默认值处理
-                    color_no: sea_orm::ActiveValue::NotSet,
-                    dye_lot_no: sea_orm::ActiveValue::NotSet,
-                    batch_no: sea_orm::ActiveValue::NotSet,
-                };
-
-                item.insert(&txn).await?;
-            }
-
-            // 更新调拨单总数量
-            let transfer_entity = InventoryTransferEntity::find_by_id(transfer_id)
-                .one(&txn)
-                .await?
-                .ok_or_else(|| AppError::business("调拨单不存在"))?;
-            let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
-            transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
-            transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &txn,
-                "auto_audit",
-                transfer_update,
-                // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-                Some(user_id),
-            )
-            .await?;
+            Self::clear_transfer_items(&txn, transfer_id).await?;
+            let total_quantity =
+                Self::rebuild_transfer_items_and_total(&txn, transfer_id, items).await?;
+            Self::save_transfer_total_update(&txn, transfer_id, total_quantity, user_id).await?;
         }
-
-        // 提交事务
         txn.commit().await?;
-
-        // 返回调拨详情
         self.get_transfer_detail(transfer_id, None).await
     }
 

@@ -382,23 +382,48 @@ impl ArService {
         Ok((new_status, updated_invoice))
     }
 
-    /// 取消核销
-    /// 状态门：COMPLETED → CANCELLED，恢复发票 received_amount/unpaid_amount/status
+    /// 取消核销(状态门 COMPLETED→CANCELLED,恢复发票金额与状态)
     pub async fn cancel_verification(
         &self,
         verification_id: i32,
         user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
         let txn = (*self.db).begin().await?;
+        let reconciliation = Self::lock_reconciliation_for_cancel(&txn, verification_id).await?;
+        Self::ensure_reconciliation_cancelable(&reconciliation, verification_id, user_id)?;
+        let items = Self::load_cancel_invoice_items(&txn, verification_id).await?;
+        let inv_ids: Vec<i32> = items.iter().filter_map(|i| i.document_id).collect();
+        let mut inv_map = Self::lock_invoices_for_cancel(&txn, inv_ids).await?;
+        let now = Utc::now();
+        Self::rollback_invoices(&txn, &items, &mut inv_map, user_id).await?;
+        let updated =
+            Self::mark_reconciliation_cancelled(&txn, reconciliation, now, user_id).await?;
+        txn.commit().await?;
+        info!("AR 核销取消成功：verification_id={}", verification_id);
+        Ok(reconciliation_to_json(updated))
+    }
 
-        let reconciliation = ar_reconciliation::Entity::find_by_id(verification_id)
+    /// 锁定核销单(行级锁)
+    async fn lock_reconciliation_for_cancel(
+        txn: &sea_orm::DatabaseTransaction,
+        verification_id: i32,
+    ) -> Result<ar_reconciliation::Model, AppError> {
+        ar_reconciliation::Entity::find_by_id(verification_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("核销单 {} 不存在", verification_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("核销单 {} 不存在", verification_id)))
+    }
 
-        if reconciliation.reconciliation_status.as_deref() != Some(crate::models::status::ar::RECONCILIATION_CLOSED) {
-            // 批次 389 P2-2：状态门拒绝记录 warn 日志，便于审计非法状态变更
+    /// 状态门:仅 closed 可取消(批次 389 P2-2 记审计)
+    fn ensure_reconciliation_cancelable(
+        reconciliation: &ar_reconciliation::Model,
+        verification_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        if reconciliation.reconciliation_status.as_deref()
+            != Some(crate::models::status::ar::RECONCILIATION_CLOSED)
+        {
             warn!(
                 target: "business_audit",
                 event = "AR_VERIFICATION_CANCEL_REJECTED",
@@ -412,79 +437,96 @@ impl ArService {
                 reconciliation.reconciliation_status
             )));
         }
+        Ok(())
+    }
 
-        // 查询所有 INVOICE 明细，按 invoice_id 汇总应回滚金额
-        let items = ar_reconciliation_item::Entity::find()
+    /// 加载核销单的 INVOICE 明细
+    async fn load_cancel_invoice_items(
+        txn: &sea_orm::DatabaseTransaction,
+        verification_id: i32,
+    ) -> Result<Vec<ar_reconciliation_item::Model>, AppError> {
+        ar_reconciliation_item::Entity::find()
             .filter(ar_reconciliation_item::Column::ReconciliationId.eq(verification_id))
             .filter(ar_reconciliation_item::Column::ItemType.eq("INVOICE"))
-            .all(&txn)
+            .all(txn)
+            .await
+            .map_err(AppError::from)
+    }
+
+    /// 批量锁定发票并构建 id→model 映射
+    async fn lock_invoices_for_cancel(
+        txn: &sea_orm::DatabaseTransaction,
+        inv_ids: Vec<i32>,
+    ) -> Result<std::collections::HashMap<i32, ar_invoice::Model>, AppError> {
+        if inv_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let invoices = ar_invoice::Entity::find()
+            .filter(ar_invoice::Column::Id.is_in(inv_ids))
+            .lock_exclusive()
+            .all(txn)
             .await?;
+        Ok(invoices.into_iter().map(|inv| (inv.id, inv)).collect())
+    }
 
-        // 批量查询并锁定所有相关发票
-        let inv_ids: Vec<i32> = items
-            .iter()
-            .filter_map(|i| i.document_id)
-            .collect();
-        let mut inv_map: std::collections::HashMap<i32, ar_invoice::Model> = if inv_ids.is_empty() {
-            std::collections::HashMap::new()
-        } else {
-            ar_invoice::Entity::find()
-                .filter(ar_invoice::Column::Id.is_in(inv_ids))
-                .lock_exclusive()
-                .all(&txn)
-                .await?
-                .into_iter()
-                .map(|inv| (inv.id, inv))
-                .collect()
-        };
-
-        let now = Utc::now();
-
-        for item in &items {
-            let inv_id = item.document_id.ok_or_else(|| {
-                AppError::business("核销明细缺少 document_id".to_string())
-            })?;
-            let invoice = inv_map.get_mut(&inv_id).ok_or_else(|| {
-                AppError::not_found(format!("应收单 {}", inv_id))
-            })?;
+    /// 回滚发票 received_amount/unpaid_amount/status 并写审计
+    async fn rollback_invoices(
+        txn: &sea_orm::DatabaseTransaction,
+        items: &[ar_reconciliation_item::Model],
+        inv_map: &mut std::collections::HashMap<i32, ar_invoice::Model>,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        for item in items {
+            let inv_id = item
+                .document_id
+                .ok_or_else(|| AppError::business("核销明细缺少 document_id".to_string()))?;
+            let invoice = inv_map
+                .get_mut(&inv_id)
+                .ok_or_else(|| AppError::not_found(format!("应收单 {}", inv_id)))?;
             invoice.received_amount -= item.amount;
             invoice.unpaid_amount =
                 (invoice.invoice_amount - invoice.received_amount).max(Decimal::ZERO);
-            // 状态恢复
-            if invoice.received_amount >= invoice.invoice_amount {
-                invoice.status = crate::models::status::payment::PAYMENT_PAID.to_string();
-            } else if invoice.received_amount > Decimal::ZERO {
-                invoice.status = crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string();
-            } else {
-                invoice.status = crate::models::status::common::STATUS_APPROVED.to_string();
-            }
+            invoice.status = Self::restored_invoice_status(invoice);
             let inv_active: ar_invoice::ActiveModel = invoice.clone().into();
             crate::services::audit_log_service::AuditLogService::update_with_audit::<
                 ar_invoice::Entity,
                 _,
                 _,
-            >(&txn, "ar_invoice", inv_active, Some(user_id))
+            >(txn, "ar_invoice", inv_active, Some(user_id))
             .await?;
         }
+        Ok(())
+    }
 
-        // 更新核销单状态
+    /// 根据回滚后金额恢复发票状态
+    fn restored_invoice_status(invoice: &ar_invoice::Model) -> String {
+        if invoice.received_amount >= invoice.invoice_amount {
+            crate::models::status::payment::PAYMENT_PAID.to_string()
+        } else if invoice.received_amount > Decimal::ZERO {
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
+        } else {
+            crate::models::status::common::STATUS_APPROVED.to_string()
+        }
+    }
+
+    /// 更新核销单状态为 CANCELLED 并写审计
+    async fn mark_reconciliation_cancelled(
+        txn: &sea_orm::DatabaseTransaction,
+        reconciliation: ar_reconciliation::Model,
+        now: chrono::DateTime<chrono::Utc>,
+        user_id: i32,
+    ) -> Result<ar_reconciliation::Model, AppError> {
         let mut rec_active: ar_reconciliation::ActiveModel = reconciliation.into();
-        rec_active.reconciliation_status = Set(Some(crate::models::status::ar::RECONCILIATION_CANCELLED.to_string()));
+        rec_active.reconciliation_status =
+            Set(Some(crate::models::status::ar::RECONCILIATION_CANCELLED.to_string()));
         rec_active.confirmed_by = Set(None);
         rec_active.confirmed_at = Set(None);
         rec_active.updated_at = Set(now);
-        let updated =
-            crate::services::audit_log_service::AuditLogService::update_with_audit::<
-                ar_reconciliation::Entity,
-                _,
-                _,
-            >(&txn, "ar_reconciliation", rec_active, Some(user_id))
-            .await?;
-
-        txn.commit().await?;
-
-        info!("AR 核销取消成功：verification_id={}", verification_id);
-
-        Ok(reconciliation_to_json(updated))
+        crate::services::audit_log_service::AuditLogService::update_with_audit::<
+            ar_reconciliation::Entity,
+            _,
+            _,
+        >(txn, "ar_reconciliation", rec_active, Some(user_id))
+        .await
     }
 }

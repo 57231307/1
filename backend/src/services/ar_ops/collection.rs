@@ -455,21 +455,33 @@ impl ArService {
         Ok(collection_to_json(updated))
     }
 
-    /// 确认收款
-    /// 状态门：pending → confirmed，lock_exclusive 串行化并发
+    /// 确认收款：状态门 pending → confirmed，lock_exclusive 串行化并发
     pub async fn confirm_payment(
         &self,
         payment_id: i32,
         user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
         let txn = (*self.db).begin().await?;
+        let collection = Self::lock_and_validate_for_confirm(&txn, payment_id, user_id).await?;
+        let updated = Self::confirm_collection_status(&txn, collection, user_id).await?;
+        txn.commit().await?;
+        self.generate_collection_voucher(&updated, user_id).await;
+        Ok(collection_to_json(updated))
+    }
 
+    // ===== confirm_payment 私有 helpers（D08-1 拆分）=====
+
+    /// 锁定并校验收款单状态（仅 pending 可确认）
+    async fn lock_and_validate_for_confirm(
+        txn: &sea_orm::DatabaseTransaction,
+        payment_id: i32,
+        user_id: i32,
+    ) -> Result<ar_collection::Model, AppError> {
         let collection = ar_collection::Entity::find_by_id(payment_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
-
         if collection.status != crate::models::status::ar::COLLECTION_PENDING {
             // 批次 389 P2-2：状态门拒绝记录 warn 日志，便于审计非法状态变更
             warn!(
@@ -485,32 +497,66 @@ impl ArService {
                 collection.status
             )));
         }
+        Ok(collection)
+    }
 
+    /// 应用确认状态并 update_with_audit
+    async fn confirm_collection_status(
+        txn: &sea_orm::DatabaseTransaction,
+        collection: ar_collection::Model,
+        user_id: i32,
+    ) -> Result<ar_collection::Model, AppError> {
         let mut active: ar_collection::ActiveModel = collection.into();
         active.status = Set(crate::models::status::ar::COLLECTION_CONFIRMED.to_string());
         active.confirmed_by = Set(Some(user_id));
         active.confirmed_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
-
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit::<
             ar_collection::Entity,
             _,
             _,
-        >(&txn, "ar_collection", active, Some(user_id))
+        >(txn, "ar_collection", active, Some(user_id))
         .await?;
+        Ok(updated)
+    }
 
-        txn.commit().await?;
-
-        // F-P0-4 修复（批次 381 v13 复审）：确认收款后生成收款凭证
-        // 借：银行存款/库存现金 / 贷：应收账款（挂客户辅助核算）
-        // 失败时仅 warn 不阻断主流程（与采购入库容错模式一致）
+    /// 生成收款凭证（best-effort，失败仅 warn 不阻塞主流程）
+    async fn generate_collection_voucher(
+        &self,
+        updated: &ar_collection::Model,
+        user_id: i32,
+    ) {
         let collection_amount = updated.collection_amount;
         let collection_method = updated.collection_method.as_deref().unwrap_or("BANK_TRANSFER");
         let (debit_code, debit_name) = match collection_method {
             "CASH" => ("1001", "库存现金"),
             _ => ("1002", "银行存款"),
         };
-        let voucher_req = crate::services::voucher_service::CreateVoucherRequest {
+        let voucher_req = Self::build_collection_voucher_request(
+            updated,
+            collection_amount,
+            debit_code,
+            debit_name,
+        );
+        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
+        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
+            tracing::warn!(
+                "收款单 {} 确认成功，但生成收款凭证失败：{}",
+                updated.collection_no,
+                e
+            );
+        }
+    }
+
+    /// 构造收款凭证请求（借：银行存款/库存现金，贷：应收账款）
+    fn build_collection_voucher_request(
+        updated: &ar_collection::Model,
+        collection_amount: Decimal,
+        debit_code: &str,
+        debit_name: &str,
+    ) -> crate::services::voucher_service::CreateVoucherRequest {
+        let summary = format!("收款确认-{}", updated.collection_no);
+        crate::services::voucher_service::CreateVoucherRequest {
             voucher_type: "收".to_string(),
             voucher_date: updated.collection_date,
             source_type: Some("AR_COLLECTION".to_string()),
@@ -520,60 +566,64 @@ impl ArService {
             batch_no: None,
             color_no: None,
             items: vec![
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(1),
-                    subject_code: Some(debit_code.to_string()),
-                    subject_name: Some(debit_name.to_string()),
-                    debit: collection_amount,
-                    credit: Decimal::ZERO,
-                    summary: Some(format!("收款确认-{}", updated.collection_no)),
-                    assist_customer_id: Some(updated.customer_id),
-                    assist_supplier_id: None,
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
-                crate::services::voucher_service::VoucherItemRequest {
-                    line_no: Some(2),
-                    subject_code: Some("1131".to_string()),
-                    subject_name: Some("应收账款".to_string()),
-                    debit: Decimal::ZERO,
-                    credit: collection_amount,
-                    summary: Some(format!("收款确认-{}", updated.collection_no)),
-                    assist_customer_id: Some(updated.customer_id),
-                    assist_supplier_id: None,
-                    assist_department_id: None,
-                    assist_employee_id: None,
-                    assist_project_id: None,
-                    assist_batch_id: None,
-                    assist_color_no_id: None,
-                    assist_dye_lot_id: None,
-                    assist_grade: None,
-                    assist_workshop_id: None,
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                },
+                Self::build_voucher_item(
+                    1,
+                    debit_code,
+                    debit_name,
+                    collection_amount,
+                    true,
+                    summary.clone(),
+                    updated.customer_id,
+                ),
+                Self::build_voucher_item(
+                    2,
+                    "1131",
+                    "应收账款",
+                    collection_amount,
+                    false,
+                    summary,
+                    updated.customer_id,
+                ),
             ],
-        };
-        let voucher_service = crate::services::voucher_service::VoucherService::new(self.db.clone());
-        if let Err(e) = voucher_service.create_and_post(voucher_req, user_id).await {
-            tracing::warn!(
-                "收款单 {} 确认成功，但生成收款凭证失败：{}",
-                updated.collection_no,
-                e
-            );
         }
+    }
 
-        Ok(collection_to_json(updated))
+    /// 构造凭证分录（借/贷方向由 is_debit 决定）
+    fn build_voucher_item(
+        line_no: i32,
+        subject_code: &str,
+        subject_name: &str,
+        amount: Decimal,
+        is_debit: bool,
+        summary: String,
+        customer_id: i32,
+    ) -> crate::services::voucher_service::VoucherItemRequest {
+        let (debit, credit) = if is_debit {
+            (amount, Decimal::ZERO)
+        } else {
+            (Decimal::ZERO, amount)
+        };
+        crate::services::voucher_service::VoucherItemRequest {
+            line_no: Some(line_no),
+            subject_code: Some(subject_code.to_string()),
+            subject_name: Some(subject_name.to_string()),
+            debit,
+            credit,
+            summary: Some(summary),
+            assist_customer_id: Some(customer_id),
+            assist_supplier_id: None,
+            assist_department_id: None,
+            assist_employee_id: None,
+            assist_project_id: None,
+            assist_batch_id: None,
+            assist_color_no_id: None,
+            assist_dye_lot_id: None,
+            assist_grade: None,
+            assist_workshop_id: None,
+            quantity_meters: None,
+            quantity_kg: None,
+            unit_price: None,
+        }
     }
 
     /// 取消收款单（批次 158 v11 真实接入 COLLECTION_CANCELLED 常量）

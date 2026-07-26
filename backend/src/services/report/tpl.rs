@@ -138,7 +138,8 @@ impl ReportEngineService {
 
     /// 销售明细报表模板
     fn sales_detail_template() -> ReportTemplate {
-        use super::{ReportColumn as Rc, ReportFilter as Rf};
+        let mut columns = Self::sales_detail_text_columns();
+        columns.extend(Self::sales_detail_amount_columns());
         ReportTemplate {
             id: "sales_detail".to_string(),
             name: "销售明细报表".to_string(),
@@ -146,92 +147,8 @@ impl ReportEngineService {
             category: "sales".to_string(),
             data_source: "sales".to_string(),
             report_type: "sales".to_string(),
-            columns: vec![
-                Rc {
-                    field_alias: None,
-                    key: "order_no".to_string(),
-                    label: "订单号".to_string(),
-                    data_type: "string".to_string(),
-                    format: None,
-                    aggregation: None,
-                    sortable: true,
-                    filterable: true,
-                    width: Some(150),
-                    alignment: Some("left".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "customer_name".to_string(),
-                    label: "客户".to_string(),
-                    data_type: "string".to_string(),
-                    format: None,
-                    aggregation: None,
-                    sortable: true,
-                    filterable: true,
-                    width: Some(150),
-                    alignment: Some("left".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "product_name".to_string(),
-                    label: "产品".to_string(),
-                    data_type: "string".to_string(),
-                    format: None,
-                    aggregation: None,
-                    sortable: true,
-                    filterable: true,
-                    width: Some(150),
-                    alignment: Some("left".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "quantity".to_string(),
-                    label: "数量".to_string(),
-                    data_type: "decimal".to_string(),
-                    format: Some("#,##0.00".to_string()),
-                    aggregation: None,
-                    sortable: true,
-                    filterable: false,
-                    width: Some(100),
-                    alignment: Some("right".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "amount".to_string(),
-                    label: "金额".to_string(),
-                    data_type: "decimal".to_string(),
-                    format: Some("#,##0.00".to_string()),
-                    aggregation: None,
-                    sortable: true,
-                    filterable: false,
-                    width: Some(120),
-                    alignment: Some("right".to_string()),
-                },
-            ],
-            filters: vec![
-                Rf {
-                    field_alias: None,
-                    operator: None,
-                    value: None,
-                    key: "date_range".to_string(),
-                    label: "订单日期".to_string(),
-                    filter_type: "date_range".to_string(),
-                    default_value: None,
-                    options: None,
-                    required: true,
-                },
-                Rf {
-                    field_alias: None,
-                    operator: None,
-                    value: None,
-                    key: "customer_id".to_string(),
-                    label: "客户".to_string(),
-                    filter_type: "select".to_string(),
-                    default_value: None,
-                    options: None,
-                    required: false,
-                },
-            ],
+            columns,
+            filters: Self::sales_detail_filters(),
             supported_formats: vec![
                 "excel".to_string(),
                 "pdf".to_string(),
@@ -242,9 +159,113 @@ impl ReportEngineService {
         }
     }
 
+    /// 销售明细文本列(订单号/客户/产品)
+    fn sales_detail_text_columns() -> Vec<super::ReportColumn> {
+        use super::ReportColumn as Rc;
+        vec![
+            Rc {
+                field_alias: None,
+                key: "order_no".to_string(),
+                label: "订单号".to_string(),
+                data_type: "string".to_string(),
+                format: None,
+                aggregation: None,
+                sortable: true,
+                filterable: true,
+                width: Some(150),
+                alignment: Some("left".to_string()),
+            },
+            Rc {
+                field_alias: None,
+                key: "customer_name".to_string(),
+                label: "客户".to_string(),
+                data_type: "string".to_string(),
+                format: None,
+                aggregation: None,
+                sortable: true,
+                filterable: true,
+                width: Some(150),
+                alignment: Some("left".to_string()),
+            },
+            Rc {
+                field_alias: None,
+                key: "product_name".to_string(),
+                label: "产品".to_string(),
+                data_type: "string".to_string(),
+                format: None,
+                aggregation: None,
+                sortable: true,
+                filterable: true,
+                width: Some(150),
+                alignment: Some("left".to_string()),
+            },
+        ]
+    }
+
+    /// 销售明细数值列(数量/金额)
+    fn sales_detail_amount_columns() -> Vec<super::ReportColumn> {
+        use super::ReportColumn as Rc;
+        vec![
+            Rc {
+                field_alias: None,
+                key: "quantity".to_string(),
+                label: "数量".to_string(),
+                data_type: "decimal".to_string(),
+                format: Some("#,##0.00".to_string()),
+                aggregation: None,
+                sortable: true,
+                filterable: false,
+                width: Some(100),
+                alignment: Some("right".to_string()),
+            },
+            Rc {
+                field_alias: None,
+                key: "amount".to_string(),
+                label: "金额".to_string(),
+                data_type: "decimal".to_string(),
+                format: Some("#,##0.00".to_string()),
+                aggregation: None,
+                sortable: true,
+                filterable: false,
+                width: Some(120),
+                alignment: Some("right".to_string()),
+            },
+        ]
+    }
+
+    /// 销售明细筛选条件(订单日期/客户)
+    fn sales_detail_filters() -> Vec<super::ReportFilter> {
+        use super::ReportFilter as Rf;
+        vec![
+            Rf {
+                field_alias: None,
+                operator: None,
+                value: None,
+                key: "date_range".to_string(),
+                label: "订单日期".to_string(),
+                filter_type: "date_range".to_string(),
+                default_value: None,
+                options: None,
+                required: true,
+            },
+            Rf {
+                field_alias: None,
+                operator: None,
+                value: None,
+                key: "customer_id".to_string(),
+                label: "客户".to_string(),
+                filter_type: "select".to_string(),
+                default_value: None,
+                options: None,
+                required: false,
+            },
+        ]
+    }
+
     /// 库存状态报表模板
     fn inventory_status_template() -> ReportTemplate {
-        use super::{ReportColumn as Rc, ReportFilter as Rf};
+        let mut columns = Self::inventory_status_text_columns();
+        columns.extend(Self::inventory_status_quantity_columns());
         ReportTemplate {
             id: "inventory_status".to_string(),
             name: "库存状态报表".to_string(),
@@ -252,82 +273,101 @@ impl ReportEngineService {
             category: "inventory".to_string(),
             data_source: "inventory".to_string(),
             report_type: "inventory".to_string(),
-            columns: vec![
-                Rc {
-                    field_alias: None,
-                    key: "warehouse_name".to_string(),
-                    label: "仓库".to_string(),
-                    data_type: "string".to_string(),
-                    format: None,
-                    aggregation: None,
-                    sortable: true,
-                    filterable: true,
-                    width: Some(150),
-                    alignment: Some("left".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "product_code".to_string(),
-                    label: "产品编码".to_string(),
-                    data_type: "string".to_string(),
-                    format: None,
-                    aggregation: None,
-                    sortable: true,
-                    filterable: true,
-                    width: Some(120),
-                    alignment: Some("left".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "product_name".to_string(),
-                    label: "产品名称".to_string(),
-                    data_type: "string".to_string(),
-                    format: None,
-                    aggregation: None,
-                    sortable: true,
-                    filterable: true,
-                    width: Some(150),
-                    alignment: Some("left".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "quantity_on_hand".to_string(),
-                    label: "在库数量".to_string(),
-                    data_type: "decimal".to_string(),
-                    format: Some("#,##0.00".to_string()),
-                    aggregation: None,
-                    sortable: true,
-                    filterable: false,
-                    width: Some(120),
-                    alignment: Some("right".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "quantity_available".to_string(),
-                    label: "可用数量".to_string(),
-                    data_type: "decimal".to_string(),
-                    format: Some("#,##0.00".to_string()),
-                    aggregation: None,
-                    sortable: true,
-                    filterable: false,
-                    width: Some(120),
-                    alignment: Some("right".to_string()),
-                },
-            ],
-            filters: vec![Rf {
-                field_alias: None,
-                operator: None,
-                value: None,
-                key: "warehouse_id".to_string(),
-                label: "仓库".to_string(),
-                filter_type: "select".to_string(),
-                default_value: None,
-                options: None,
-                required: false,
-            }],
+            columns,
+            filters: Self::inventory_status_filters(),
             supported_formats: vec!["excel".to_string(), "pdf".to_string()],
             parameters: vec![],
         }
+    }
+
+    /// 库存状态文本列(仓库/产品编码/产品名称)
+    fn inventory_status_text_columns() -> Vec<super::ReportColumn> {
+        use super::ReportColumn as Rc;
+        vec![
+            Rc {
+                field_alias: None,
+                key: "warehouse_name".to_string(),
+                label: "仓库".to_string(),
+                data_type: "string".to_string(),
+                format: None,
+                aggregation: None,
+                sortable: true,
+                filterable: true,
+                width: Some(150),
+                alignment: Some("left".to_string()),
+            },
+            Rc {
+                field_alias: None,
+                key: "product_code".to_string(),
+                label: "产品编码".to_string(),
+                data_type: "string".to_string(),
+                format: None,
+                aggregation: None,
+                sortable: true,
+                filterable: true,
+                width: Some(120),
+                alignment: Some("left".to_string()),
+            },
+            Rc {
+                field_alias: None,
+                key: "product_name".to_string(),
+                label: "产品名称".to_string(),
+                data_type: "string".to_string(),
+                format: None,
+                aggregation: None,
+                sortable: true,
+                filterable: true,
+                width: Some(150),
+                alignment: Some("left".to_string()),
+            },
+        ]
+    }
+
+    /// 库存状态数量列(在库/可用)
+    fn inventory_status_quantity_columns() -> Vec<super::ReportColumn> {
+        use super::ReportColumn as Rc;
+        vec![
+            Rc {
+                field_alias: None,
+                key: "quantity_on_hand".to_string(),
+                label: "在库数量".to_string(),
+                data_type: "decimal".to_string(),
+                format: Some("#,##0.00".to_string()),
+                aggregation: None,
+                sortable: true,
+                filterable: false,
+                width: Some(120),
+                alignment: Some("right".to_string()),
+            },
+            Rc {
+                field_alias: None,
+                key: "quantity_available".to_string(),
+                label: "可用数量".to_string(),
+                data_type: "decimal".to_string(),
+                format: Some("#,##0.00".to_string()),
+                aggregation: None,
+                sortable: true,
+                filterable: false,
+                width: Some(120),
+                alignment: Some("right".to_string()),
+            },
+        ]
+    }
+
+    /// 库存状态筛选条件(仓库)
+    fn inventory_status_filters() -> Vec<super::ReportFilter> {
+        use super::ReportFilter as Rf;
+        vec![Rf {
+            field_alias: None,
+            operator: None,
+            value: None,
+            key: "warehouse_id".to_string(),
+            label: "仓库".to_string(),
+            filter_type: "select".to_string(),
+            default_value: None,
+            options: None,
+            required: false,
+        }]
     }
 
     /// 采购汇总报表模板
@@ -632,7 +672,8 @@ impl ReportEngineService {
 
     /// 利润分析报表模板
     fn profit_analysis_template() -> ReportTemplate {
-        use super::{ReportColumn as Rc, ReportFilter as Rf};
+        let mut columns = Self::profit_analysis_group_columns();
+        columns.extend(Self::profit_analysis_metric_columns());
         ReportTemplate {
             id: "profit_analysis".to_string(),
             name: "利润分析报表".to_string(),
@@ -640,82 +681,101 @@ impl ReportEngineService {
             category: "finance".to_string(),
             data_source: "sales".to_string(),
             report_type: "sales".to_string(),
-            columns: vec![
-                Rc {
-                    field_alias: None,
-                    key: "product_name".to_string(),
-                    label: "产品".to_string(),
-                    data_type: "string".to_string(),
-                    format: None,
-                    aggregation: Some("group".to_string()),
-                    sortable: true,
-                    filterable: true,
-                    width: Some(150),
-                    alignment: Some("left".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "revenue".to_string(),
-                    label: "收入".to_string(),
-                    data_type: "decimal".to_string(),
-                    format: Some("#,##0.00".to_string()),
-                    aggregation: Some("sum".to_string()),
-                    sortable: true,
-                    filterable: false,
-                    width: Some(120),
-                    alignment: Some("right".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "cost".to_string(),
-                    label: "成本".to_string(),
-                    data_type: "decimal".to_string(),
-                    format: Some("#,##0.00".to_string()),
-                    aggregation: Some("sum".to_string()),
-                    sortable: true,
-                    filterable: false,
-                    width: Some(120),
-                    alignment: Some("right".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "profit".to_string(),
-                    label: "毛利".to_string(),
-                    data_type: "decimal".to_string(),
-                    format: Some("#,##0.00".to_string()),
-                    aggregation: Some("sum".to_string()),
-                    sortable: true,
-                    filterable: false,
-                    width: Some(120),
-                    alignment: Some("right".to_string()),
-                },
-                Rc {
-                    field_alias: None,
-                    key: "profit_margin".to_string(),
-                    label: "毛利率".to_string(),
-                    data_type: "decimal".to_string(),
-                    format: Some("0.00%".to_string()),
-                    aggregation: None,
-                    sortable: true,
-                    filterable: false,
-                    width: Some(100),
-                    alignment: Some("right".to_string()),
-                },
-            ],
-            filters: vec![Rf {
-                field_alias: None,
-                operator: None,
-                value: None,
-                key: "date_range".to_string(),
-                label: "统计期间".to_string(),
-                filter_type: "date_range".to_string(),
-                default_value: None,
-                options: None,
-                required: true,
-            }],
+            columns,
+            filters: Self::profit_analysis_filters(),
             supported_formats: vec!["excel".to_string(), "pdf".to_string()],
             parameters: vec![],
         }
+    }
+
+    /// 利润分析分组列(产品/收入/成本)
+    fn profit_analysis_group_columns() -> Vec<super::ReportColumn> {
+        use super::ReportColumn as Rc;
+        vec![
+            Rc {
+                field_alias: None,
+                key: "product_name".to_string(),
+                label: "产品".to_string(),
+                data_type: "string".to_string(),
+                format: None,
+                aggregation: Some("group".to_string()),
+                sortable: true,
+                filterable: true,
+                width: Some(150),
+                alignment: Some("left".to_string()),
+            },
+            Rc {
+                field_alias: None,
+                key: "revenue".to_string(),
+                label: "收入".to_string(),
+                data_type: "decimal".to_string(),
+                format: Some("#,##0.00".to_string()),
+                aggregation: Some("sum".to_string()),
+                sortable: true,
+                filterable: false,
+                width: Some(120),
+                alignment: Some("right".to_string()),
+            },
+            Rc {
+                field_alias: None,
+                key: "cost".to_string(),
+                label: "成本".to_string(),
+                data_type: "decimal".to_string(),
+                format: Some("#,##0.00".to_string()),
+                aggregation: Some("sum".to_string()),
+                sortable: true,
+                filterable: false,
+                width: Some(120),
+                alignment: Some("right".to_string()),
+            },
+        ]
+    }
+
+    /// 利润分析指标列(毛利/毛利率)
+    fn profit_analysis_metric_columns() -> Vec<super::ReportColumn> {
+        use super::ReportColumn as Rc;
+        vec![
+            Rc {
+                field_alias: None,
+                key: "profit".to_string(),
+                label: "毛利".to_string(),
+                data_type: "decimal".to_string(),
+                format: Some("#,##0.00".to_string()),
+                aggregation: Some("sum".to_string()),
+                sortable: true,
+                filterable: false,
+                width: Some(120),
+                alignment: Some("right".to_string()),
+            },
+            Rc {
+                field_alias: None,
+                key: "profit_margin".to_string(),
+                label: "毛利率".to_string(),
+                data_type: "decimal".to_string(),
+                format: Some("0.00%".to_string()),
+                aggregation: None,
+                sortable: true,
+                filterable: false,
+                width: Some(100),
+                alignment: Some("right".to_string()),
+            },
+        ]
+    }
+
+    /// 利润分析筛选条件(统计期间)
+    fn profit_analysis_filters() -> Vec<super::ReportFilter> {
+        use super::ReportFilter as Rf;
+        vec![Rf {
+            field_alias: None,
+            operator: None,
+            value: None,
+            key: "date_range".to_string(),
+            label: "统计期间".to_string(),
+            filter_type: "date_range".to_string(),
+            default_value: None,
+            options: None,
+            required: true,
+        }]
     }
 
     /// 库存周转率报表模板

@@ -311,93 +311,83 @@ impl SupplierEvaluationService {
         Ok((items, total))
     }
 
-    pub async fn get_supplier_rankings(
-        &self,
-        limit: i64,
-    ) -> Result<Vec<SupplierScoreResponse>, AppError> {
-        // BE-P 说明（2026-06-26）：
-        // 本方法涉及跨表权重查询 + 加权平均计算 + 等级评定，无法简单下推 SQL 聚合。
-        // 当前全量加载 + 内存分组计算 + 排序截断是合理的业务实现。
-        // 后续优化方向：将计算结果持久化到 supplier_score_summary 表，按 average_score 排序 + LIMIT 查询。
-        info!("查询供应商排名榜，限制：{} 条", limit);
-
-        let records = supplier_evaluation_record::Entity::find()
-            .all(&*self.db)
-            .await?;
-
-        if records.is_empty() {
-            return Ok(vec![]);
-        }
-
-        // 按供应商分组，收集加权得分和记录数
-        let mut supplier_records: std::collections::HashMap<
+    /// 按供应商分组评估记录
+    fn group_records_by_supplier(
+        records: &[supplier_evaluation_record::Model],
+    ) -> std::collections::HashMap<i32, Vec<&supplier_evaluation_record::Model>> {
+        let mut map: std::collections::HashMap<
             i32,
             Vec<&supplier_evaluation_record::Model>,
         > = std::collections::HashMap::new();
-
-        for record in &records {
-            supplier_records
-                .entry(record.supplier_id)
-                .or_default()
-                .push(record);
+        for record in records {
+            map.entry(record.supplier_id).or_default().push(record);
         }
+        map
+    }
 
-        // 批量查询所有指标的权重
-        let all_indicator_ids: std::collections::HashSet<i32> =
-            records.iter().map(|r| r.indicator_id).collect();
-        let indicator_weight_map: HashMap<i32, Decimal> = supplier_evaluation::Entity::find()
-            .filter(supplier_evaluation::Column::Id.is_in(all_indicator_ids.iter().cloned()))
+    /// 批量查询指标权重并构建 id→weight 映射
+    async fn load_indicator_weights(
+        &self,
+        records: &[supplier_evaluation_record::Model],
+    ) -> Result<HashMap<i32, Decimal>, AppError> {
+        let ids: std::collections::HashSet<i32> = records.iter().map(|r| r.indicator_id).collect();
+        Ok(supplier_evaluation::Entity::find()
+            .filter(supplier_evaluation::Column::Id.is_in(ids.iter().cloned()))
             .all(&*self.db)
             .await?
             .into_iter()
             .map(|ind| (ind.id, ind.weight))
-            .collect();
+            .collect())
+    }
 
+    /// 按平均分评定等级(解析失败按 0 分处理)
+    fn rating_label_from_score(average_score: Decimal) -> String {
+        let rating = match average_score.to_string().parse::<i32>() {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!("供应商评分解析失败: {} ({})", average_score, e);
+                0
+            }
+        };
+        match rating {
+            90..=100 => "A".to_string(),
+            80..=89 => "B".to_string(),
+            70..=79 => "C".to_string(),
+            _ => "D".to_string(),
+        }
+    }
+
+    /// 计算各供应商得分并构建排名响应
+    fn build_supplier_rankings(
+        supplier_records: &std::collections::HashMap<i32, Vec<&supplier_evaluation_record::Model>>,
+        indicator_weight_map: &HashMap<i32, Decimal>,
+    ) -> Vec<SupplierScoreResponse> {
         let mut rankings: Vec<SupplierScoreResponse> = Vec::new();
-        for (supplier_id, recs) in &supplier_records {
+        for (supplier_id, recs) in supplier_records {
             let total_weighted_score: Decimal = recs.iter().filter_map(|r| r.weighted_score).sum();
             let total_records = recs.len() as i64;
-
-            // 计算每个供应商的总权重（与 get_supplier_score 一致）
             let indicator_ids: std::collections::HashSet<i32> =
                 recs.iter().map(|r| r.indicator_id).collect();
             let total_weight: Decimal = indicator_ids
                 .iter()
                 .filter_map(|id| indicator_weight_map.get(id))
                 .sum();
-
             let average_score = if total_weight > Decimal::ZERO {
                 total_weighted_score / total_weight * Decimal::from(100)
             } else {
                 Decimal::ZERO
             };
-
-            // 计算等级（解析失败时记 warn 并按 0 分处理）
-            let rating = match average_score.to_string().parse::<i32>() {
-                Ok(r) => r,
-                Err(e) => {
-                    tracing::warn!("供应商评分解析失败: {} ({})", average_score, e);
-                    0
-                }
-            };
-            let rating_label = match rating {
-                90..=100 => "A".to_string(),
-                80..=89 => "B".to_string(),
-                70..=79 => "C".to_string(),
-                _ => "D".to_string(),
-            };
-
-            let latest_evaluation_date =
-                recs.iter()
-                    .filter_map(|r| r.evaluation_date)
-                    .max()
-                    .map(|d| {
-                        DateTime::<Utc>::from_naive_utc_and_offset(
-                            d.and_hms_opt(0, 0, 0).unwrap_or_default(),
-                            Utc,
-                        )
-                    });
-
+            let rating_label = Self::rating_label_from_score(average_score);
+            let latest_evaluation_date = recs
+                .iter()
+                .filter_map(|r| r.evaluation_date)
+                .max()
+                .map(|d| {
+                    DateTime::<Utc>::from_naive_utc_and_offset(
+                        d.and_hms_opt(0, 0, 0).unwrap_or_default(),
+                        Utc,
+                    )
+                });
             rankings.push(SupplierScoreResponse {
                 supplier_id: *supplier_id,
                 average_score,
@@ -406,10 +396,26 @@ impl SupplierEvaluationService {
                 latest_evaluation_date,
             });
         }
+        rankings
+    }
 
+    /// 查询供应商排名榜(BE-P:跨表权重计算无法下推SQL,内存分组合理)
+    pub async fn get_supplier_rankings(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<SupplierScoreResponse>, AppError> {
+        info!("查询供应商排名榜，限制：{} 条", limit);
+        let records = supplier_evaluation_record::Entity::find()
+            .all(&*self.db)
+            .await?;
+        if records.is_empty() {
+            return Ok(vec![]);
+        }
+        let supplier_records = Self::group_records_by_supplier(&records);
+        let indicator_weight_map = self.load_indicator_weights(&records).await?;
+        let mut rankings = Self::build_supplier_rankings(&supplier_records, &indicator_weight_map);
         rankings.sort_by_key(|b| std::cmp::Reverse(b.average_score));
         rankings.truncate(limit as usize);
-
         info!("查询到 {} 个供应商排名", rankings.len());
         Ok(rankings)
     }

@@ -429,6 +429,111 @@ impl CustomerService {
         ))
     }
 
+    /// 无权限过滤时委托给 list_customers 并转换为 JSON 分页响应
+    async fn delegate_list_customers_to_json(
+        &self,
+        page_req: &PageRequest,
+        status: &Option<String>,
+        customer_type: &Option<String>,
+        keyword: &Option<String>,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Option<PaginatedResponse<serde_json::Value>>, AppError> {
+        let paged = self
+            .list_customers(
+                page_req.clone(),
+                status.clone(),
+                customer_type.clone(),
+                keyword.clone(),
+                data_scope,
+            )
+            .await?;
+        let items: Vec<serde_json::Value> = paged
+            .items
+            .into_iter()
+            .map(|c| serde_json::to_value(c).map_err(|e| AppError::internal(format!("序列化失败: {}", e))))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Some(PaginatedResponse::new(
+            items,
+            paged.total,
+            paged.page,
+            paged.page_size,
+        )))
+    }
+
+    /// 应用客户列表筛选条件（数据权限/状态/类型/关键词）
+    fn apply_customer_list_filters(
+        mut query: sea_orm::Select<CustomerEntity>,
+        status: &Option<String>,
+        customer_type: &Option<String>,
+        keyword: &Option<String>,
+        data_scope: Option<&DataScopeContext>,
+    ) -> sea_orm::Select<CustomerEntity> {
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                customer::Column::CreatedBy,
+                customer::Column::CreatedBy,
+            );
+        }
+        if let Some(status) = status {
+            query = query.filter(customer::Column::Status.eq(status));
+        }
+        if let Some(customer_type) = customer_type {
+            query = query.filter(customer::Column::CustomerType.eq(customer_type));
+        }
+        if let Some(keyword) = keyword {
+            query = query.filter(
+                customer::Column::CustomerName
+                    .contains(keyword)
+                    .or(customer::Column::CustomerCode.contains(keyword)),
+            );
+        }
+        query
+    }
+
+    /// 按权限过滤器选择字段查询客户列表（JSON 行）
+    async fn fetch_customers_with_permission_filter(
+        &self,
+        query: sea_orm::Select<CustomerEntity>,
+        filter: &DataPermissionFilter,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<serde_json::Value>, AppError> {
+        let select_query = build_select_only_query(query, filter);
+        let rows = select_query
+            .order_by(customer::Column::CreatedAt, Order::Desc)
+            .offset(offset)
+            .limit(limit)
+            .into_json()
+            .all(&*self.db)
+            .await?;
+        Ok(rows)
+    }
+
+    /// 查询全字段客户列表并转为 JSON 行
+    async fn fetch_customers_all_fields_json(
+        &self,
+        query: sea_orm::Select<CustomerEntity>,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<serde_json::Value>, AppError> {
+        let rows = query
+            .order_by(customer::Column::CreatedAt, Order::Desc)
+            .offset(offset)
+            .limit(limit)
+            .all(&*self.db)
+            .await?;
+        let json_rows: Vec<serde_json::Value> = rows
+            .into_iter()
+            .map(|c| {
+                serde_json::to_value(c)
+                    .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(json_rows)
+    }
+
     /// 获取客户列表（带数据权限过滤）
     ///
     /// v11 批次 154c P2-A：当 permission_filter 为 None 时委托给 list_customers，真实接入该方法
@@ -441,94 +546,36 @@ impl CustomerService {
         permission_filter: Option<DataPermissionFilter>,
         data_scope: Option<&DataScopeContext>,
     ) -> Result<PaginatedResponse<serde_json::Value>, AppError> {
-        // v11 批次 154c P2-A：无权限过滤时委托给 list_customers，避免逻辑重复
         if permission_filter.is_none() {
-            let paged = self
-                .list_customers(page_req, status, customer_type, keyword, data_scope)
-                .await?;
-            // 转换 PaginatedResponse<customer::Model> → PaginatedResponse<serde_json::Value>
-            let items: Vec<serde_json::Value> = paged
-                .items
-                .into_iter()
-                .map(|c| serde_json::to_value(c).map_err(|e| AppError::internal(format!("序列化失败: {}", e))))
-                .collect::<Result<Vec<_>, _>>()?;
-            return Ok(PaginatedResponse::new(
-                items,
-                paged.total,
-                paged.page,
-                paged.page_size,
-            ));
+            if let Some(paged) = self
+                .delegate_list_customers_to_json(&page_req, &status, &customer_type, &keyword, data_scope)
+                .await?
+            {
+                return Ok(paged);
+            }
         }
-
-        let mut query = CustomerEntity::find();
-
-        // V15 P0-S01：行级数据权限过滤（customer 表无 department_id，Dept 退化为 Self）
-        if let Some(ctx) = data_scope {
-            query = apply_data_scope(
-                query,
-                ctx,
-                customer::Column::CreatedBy,
-                customer::Column::CreatedBy,
-            );
-        }
-
-        // 状态筛选
-        if let Some(status) = status {
-            query = query.filter(customer::Column::Status.eq(status));
-        }
-
-        // 客户类型筛选
-        if let Some(customer_type) = customer_type {
-            query = query.filter(customer::Column::CustomerType.eq(customer_type));
-        }
-
-        // 关键词搜索
-        if let Some(keyword) = keyword {
-            query = query.filter(
-                customer::Column::CustomerName
-                    .contains(&keyword)
-                    .or(customer::Column::CustomerCode.contains(&keyword)),
-            );
-        }
-
-        // 总数
+        let query = CustomerEntity::find();
+        let query = Self::apply_customer_list_filters(
+            query,
+            &status,
+            &customer_type,
+            &keyword,
+            data_scope,
+        );
         let total = query.clone().count(&*self.db).await?;
-
-        // 分页排序
         let offset = page_req.page.saturating_sub(1) * page_req.page_size;
-
-        // 根据数据权限过滤字段
         let customers = if let Some(filter) = permission_filter {
-            // 使用辅助函数构建只选择指定字段的查询
-            let select_query = build_select_only_query(query, &filter);
-
-            let rows = select_query
-                .order_by(customer::Column::CreatedAt, Order::Desc)
-                .offset(offset)
-                .limit(page_req.page_size)
-                .into_json()
-                .all(&*self.db)
-                .await?;
-
-            rows
+            self.fetch_customers_with_permission_filter(
+                query,
+                &filter,
+                offset,
+                page_req.page_size,
+            )
+            .await?
         } else {
-            // 没有过滤器，查询所有字段
-            let rows = query
-                .order_by(customer::Column::CreatedAt, Order::Desc)
-                .offset(offset)
-                .limit(page_req.page_size)
-                .all(&*self.db)
-                .await?;
-
-            // 转换为 JSON 值
-            rows.into_iter()
-                .map(|c| {
-                    serde_json::to_value(c)
-                        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
-                })
-                .collect::<Result<Vec<_>, _>>()?
+            self.fetch_customers_all_fields_json(query, offset, page_req.page_size)
+                .await?
         };
-
         Ok(PaginatedResponse::new(
             customers,
             total,
@@ -577,14 +624,12 @@ impl CustomerService {
     /// 并发更新会基于过期状态写入，且无审计追溯。改为事务内 lock_exclusive 串行化 +
     /// update_with_audit 落审计日志。
     ///
-    /// 批次 338 v10 复审 P3 修复：签名从 18 参数改为单一参数对象 `UpdateCustomerArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
-    pub async fn update_customer(
-        &self,
+    /// 应用客户字段更新（16 个可选字段，消费 args 构建 ActiveModel）
+    fn apply_customer_field_updates(
+        customer: customer::Model,
         args: UpdateCustomerArgs,
-    ) -> Result<customer::Model, AppError> {
+    ) -> customer::ActiveModel {
         let UpdateCustomerArgs {
-            customer_id,
             customer_name,
             contact_person,
             contact_phone,
@@ -601,71 +646,94 @@ impl CustomerService {
             customer_type,
             status,
             notes,
-            user_id,
+            ..
         } = args;
-        let txn = (*self.db).begin().await?;
+        let mut m: customer::ActiveModel = customer.into();
+        if let Some(v) = customer_name {
+            m.customer_name = sea_orm::ActiveValue::Set(v);
+        }
+        if let Some(v) = contact_person {
+            m.contact_person = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = contact_phone {
+            m.contact_phone = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = contact_email {
+            m.contact_email = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = address {
+            m.address = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = city {
+            m.city = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = province {
+            m.province = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = postal_code {
+            m.postal_code = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = credit_limit {
+            m.credit_limit = sea_orm::ActiveValue::Set(v);
+        }
+        if let Some(v) = payment_terms {
+            m.payment_terms = sea_orm::ActiveValue::Set(v);
+        }
+        if let Some(v) = tax_id {
+            m.tax_id = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = bank_name {
+            m.bank_name = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = bank_account {
+            m.bank_account = sea_orm::ActiveValue::Set(Some(v));
+        }
+        if let Some(v) = customer_type {
+            m.customer_type = sea_orm::ActiveValue::Set(v);
+        }
+        if let Some(v) = status {
+            m.status = sea_orm::ActiveValue::Set(v);
+        }
+        if let Some(v) = notes {
+            m.notes = sea_orm::ActiveValue::Set(Some(v));
+        }
+        m
+    }
 
-        // 加 lock_exclusive 串行化并发更新，防止 TOCTOU
+    /// 发布客户更新副作用（缓存失效/事件发布/ES 同步）
+    async fn publish_customer_updated_side_effects(
+        &self,
+        updated: &customer::Model,
+        customer_id: i32,
+        user_id: i32,
+    ) {
+        redis_cache_del(&cache_key("customer", customer_id)).await;
+        EVENT_BUS.publish(BusinessEvent::CustomerUpdated {
+            customer_id: updated.id,
+            customer_name: updated.customer_name.clone(),
+            user_id,
+        });
+        self.sync_customer_to_es(updated, "update").await;
+    }
+
+    /// 更新客户（事务 + lock_exclusive + 审计 + 缓存失效 + 事件 + ES 同步）
+    ///
+    /// 批次 338 v10 复审 P3 修复：签名从 18 参数改为单一参数对象 `UpdateCustomerArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
+    pub async fn update_customer(
+        &self,
+        args: UpdateCustomerArgs,
+    ) -> Result<customer::Model, AppError> {
+        let customer_id = args.customer_id;
+        let user_id = args.user_id;
+        let txn = (*self.db).begin().await?;
         let customer = CustomerEntity::find_by_id(customer_id)
             .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
-
-        let mut customer_update: customer::ActiveModel = customer.into();
-
-        if let Some(customer_name) = customer_name {
-            customer_update.customer_name = sea_orm::ActiveValue::Set(customer_name);
-        }
-        if let Some(contact_person) = contact_person {
-            customer_update.contact_person = sea_orm::ActiveValue::Set(Some(contact_person));
-        }
-        if let Some(contact_phone) = contact_phone {
-            customer_update.contact_phone = sea_orm::ActiveValue::Set(Some(contact_phone));
-        }
-        if let Some(contact_email) = contact_email {
-            customer_update.contact_email = sea_orm::ActiveValue::Set(Some(contact_email));
-        }
-        if let Some(address) = address {
-            customer_update.address = sea_orm::ActiveValue::Set(Some(address));
-        }
-        if let Some(city) = city {
-            customer_update.city = sea_orm::ActiveValue::Set(Some(city));
-        }
-        if let Some(province) = province {
-            customer_update.province = sea_orm::ActiveValue::Set(Some(province));
-        }
-        if let Some(postal_code) = postal_code {
-            customer_update.postal_code = sea_orm::ActiveValue::Set(Some(postal_code));
-        }
-        if let Some(credit_limit) = credit_limit {
-            customer_update.credit_limit = sea_orm::ActiveValue::Set(credit_limit);
-        }
-        if let Some(payment_terms) = payment_terms {
-            customer_update.payment_terms = sea_orm::ActiveValue::Set(payment_terms);
-        }
-        if let Some(tax_id) = tax_id {
-            customer_update.tax_id = sea_orm::ActiveValue::Set(Some(tax_id));
-        }
-        if let Some(bank_name) = bank_name {
-            customer_update.bank_name = sea_orm::ActiveValue::Set(Some(bank_name));
-        }
-        if let Some(bank_account) = bank_account {
-            customer_update.bank_account = sea_orm::ActiveValue::Set(Some(bank_account));
-        }
-        if let Some(customer_type) = customer_type {
-            customer_update.customer_type = sea_orm::ActiveValue::Set(customer_type);
-        }
-        if let Some(status) = status {
-            customer_update.status = sea_orm::ActiveValue::Set(status);
-        }
-        if let Some(notes) = notes {
-            customer_update.notes = sea_orm::ActiveValue::Set(Some(notes));
-        }
-
+        let mut customer_update = Self::apply_customer_field_updates(customer, args);
         customer_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
-
-        // 事务内 update_with_audit，原子写入客户变更 + 审计日志
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "customer",
@@ -673,23 +741,9 @@ impl CustomerService {
             Some(user_id),
         )
         .await?;
-
         txn.commit().await?;
-
-        // P0-D03：失效客户缓存（客户信息已更新）
-        redis_cache_del(&cache_key("customer", customer_id)).await;
-
-        // B-P1-3 修复（批次 384 v13 复审）：客户主数据变更后发布事件，触发关联单据冗余字段刷新
-        EVENT_BUS.publish(BusinessEvent::CustomerUpdated {
-            customer_id: updated.id,
-            customer_name: updated.customer_name.clone(),
-            user_id,
-        });
-
-        // 批次 124 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
-        // 注意：软删除场景下 ES 文档仍保留（status 字段同步），便于搜索历史客户
-        self.sync_customer_to_es(&updated, "update").await;
-
+        self.publish_customer_updated_side_effects(&updated, customer_id, user_id)
+            .await;
         Ok(updated)
     }
 
