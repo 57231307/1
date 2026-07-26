@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-26（PR #737 已合并到 main，D09+D14 CI 全绿完成；clippy 3 警告修复：omni_audit.rs 引入 AuditContext 结构体 13/14 参→2/3 参 + permission.rs 引入 4 个 type 别名消除 type_complexity；模块 G 15/17 项 P0 任务完成；剩余 2 项：D05 i18n 接入率 27.7%/D08 95 个 >80 行函数；2026-07-25 D08 第一梯队 6 个 >200 行函数拆分验证完成：login 464→34 / bootstrap_full_mode 380→48 / receive_transfer 345→42 / auto_match 291→46 / omni_audit_middleware 288→48 / receive_order 278→49，全部 ≤50 行 + 括号平衡 OK；**IR 规则合规修复**：实时阅读 docs/ 规划文档（INDEX/ARCHITECTURE/CODE_STYLE_GUIDE/DEVELOPER_GUIDE/SECURITY/PROJECT_HEALTH_REPORT）+ MEMORY.md 新增 §五关键项目内容章节存储 P0 进度/技术决策/PR/架构信息）
+> 最近整理：2026-07-26（PR #737 已合并到 main，D09+D14 CI 全绿完成；clippy 3 警告修复：omni_audit.rs 引入 AuditContext 结构体 13/14 参→2/3 参 + permission.rs 引入 4 个 type 别名消除 type_complexity；模块 G 15/17 项 P0 任务完成；剩余 2 项：D05 i18n 接入率 27.7%/D08 95 个 >80 行函数；2026-07-25 D08 第一梯队 6 个 >200 行函数拆分验证完成：login 464→34 / bootstrap_full_mode 380→48 / receive_transfer 345→42 / auto_match 291→46 / omni_audit_middleware 288→48 / receive_order 278→49，全部 ≤50 行 + 括号平衡 OK；**IR 规则合规修复**：实时阅读 docs/ 规划文档 6 份 + MEMORY.md §五改为"规则冲突裁决原则"（按 PR 规则 10 文件分工，MEMORY.md 只存规则）+ 关键项目内容迁移到 doto-su.md "📌 关键项目内容快照"节）
 
 ---
 
