@@ -15,7 +15,7 @@
 - **完成度**：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌
 - **已完成 16 项**：D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17
 - **进行中 1 项**：
-  - **D05**（i18n 接入率 54.6%，161 文件未接入，10 批次规划见 doto.md §0.8；Batch 6 已合并 main PR #747 38 文件 + 580 翻译键；下一批次 Batch 7 销售/财务/凭证 43 文件）
+  - **D05**（i18n 接入率 66.7%，118 文件未接入；Batch 7 已合并 main PR #749 46bdf18 43 文件 + 1063 翻译键；下一批次 Batch 8 规划中）
 
 ### 关键技术决策（最近）
 
@@ -34,6 +34,7 @@
 
 | PR | 状态 | 内容 |
 |-----|------|------|
+| #749 | ✅ 已合并 main 46bdf18 | D05 Batch 7 useI18n 接入（43 文件 + 1063 翻译键 + 10 新命名空间 salesAnalysis/financialAnalysis/salesContract/salesExt/salesPrice/salesReturns/trading/fund/voucher/financeReport；CI 全绿：前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS，仅覆盖率非阻塞失败） |
 | #747 | ✅ 已合并 main 85facab | D05 Batch 6 useI18n 接入（38 文件 + 580 翻译键 + 5 新命名空间 apiGateway/fabric/finance/systemUpdate + bpm.definitions 子命名空间扩展；CI 全绿，修复 BpmApprovalTransferDialog.vue $t()→t() 转换 + locales 重复命名空间） |
 | #746 | ✅ 已合并 main bb49a57 | docs(p0): D05 Batch 5 已合并 main PR #745 状态归档 |
 | #745 | ✅ 已合并 main 7f22f29 | D05 Batch 5 useI18n 接入（39 文件 + 688 翻译键 + 7 新命名空间 purchaseContract/purchaseExt/purchaseInspection/purchasePrice/purchaseReturn/purchaseReceipt/logistics；CI 全绿，修复 purchaseReceipt/index.vue 容器组件未使用 useI18n 导入） |
@@ -47,6 +48,111 @@
 - **服务层拆分**：原 7 个超大 service 已拆为 22 个子域文件（po/so/crm/inv/ar/ai/report）
 - **中间件顺序**（main.rs，axum 0.7 从外到内）：trace_context → metrics → TraceLayer → Cors → request_validator → permission → auth → security headers × 7 → timeout → handler
 - **CI/CD Only**：禁止本地构建，所有验证走 GitHub Actions
+
+---
+
+## 📦 V15 Batch 497 归档：D05 Batch 7 useI18n 接入（销售/财务/凭证 10 模块 43 .vue 文件）
+
+### 任务概述
+
+- **批次**：497（已完成）
+- **PR**：#749（已合并 main 46bdf18）
+- **CI 验证**：CI/CD Pipeline - 严格构建验证 + 全面日志（全绿，仅覆盖率非阻塞失败）
+- **审计项**：P0-D05 Batch 7，销售/财务/凭证 10 模块 43 个 .vue 文件 i18n 接入
+- **完成时间**：2026-07-26
+- **接入率提升**：D05 接入率 54.6%→66.7%（194→237/355 文件），剩余 118 文件未接入
+
+### 修改内容
+
+#### 1. 接入文件清单（43 .vue 文件，10 模块，5 并行代理）
+
+- **sales-analysis 模块**（6 文件，51 翻译键，Group A）：
+  - index.vue + components/{SalesAnalysisCustomerRank, SalesAnalysisProductRank, SalesAnalysisStat, SalesAnalysisTarget, SalesAnalysisTrend}.vue
+  - 命名空间：salesAnalysis.{index, customerRank, productRank, stat, target, trend}.*
+
+- **financial-analysis 模块**（1 文件，61 翻译键，Group A）：
+  - tabs/AnalysisListTab.vue
+  - 命名空间：financialAnalysis.analysisListTab.*
+
+- **sales-contract 模块**（5 文件，76 翻译键，Group B）：
+  - index.vue + components/{SalesContractFilter, SalesContractForm, SalesContractTable}.vue + composables/useSc.ts
+  - 命名空间：salesContract.{index, filter, form, table, composable}.*
+
+- **sales-ext 模块**（4 文件，206 翻译键，Group B）：
+  - index.vue + tabs/{ContractTab, PriceTab, ReturnTab}.vue
+  - 命名空间：salesExt.{index, contractTab, priceTab, returnTab}.*
+
+- **sales-price 模块**（6 文件，130 翻译键，Group C）：
+  - index.vue + components/{SalesPriceFilter, SalesPriceForm, SalesPriceHistory, SalesPriceTable, SalesPriceView}.vue
+  - 命名空间：salesPrice.{index, filter, form, history, table, view}.*
+
+- **sales-returns 模块**（4 文件，76 翻译键，Group C）：
+  - index.vue + components/{ReturnDetailDialog, ReturnEditDialog, ReturnsTable}.vue
+  - 命名空间：salesReturns.{index, detailDialog, editDialog, table}.*
+
+- **trading 模块**（6 文件，214 翻译键，Group D）：
+  - index.vue + tabs/{PurchaseContractTab, PurchasePriceTab, SalesContractTab, SalesPriceTab, SalesReturnTab}.vue
+  - 命名空间：trading.{index, purchaseContractTab, purchasePriceTab, salesContractTab, salesPriceTab, salesReturnTab}.*
+
+- **fund 模块**（3 文件，129 翻译键，Group D）：
+  - index.vue + tabs/{AccountTab, TransferTab}.vue
+  - 命名空间：fund.{index, accountTab, transferTab}.*
+
+- **voucher 模块**（5 文件，76 翻译键，Group E）：
+  - tabs/VoucherListTab.vue + tabs/components/{VoucherListDetail, VoucherListFilter, VoucherListForm, VoucherListTable}.vue
+  - 命名空间：voucher.{voucherListTab, voucherListDetail, voucherListFilter, voucherListForm, voucherListTable}.*
+
+- **financeReport 模块**（1 文件，44 翻译键，Group E）：
+  - tabs/ReportListTab.vue
+  - 命名空间：financeReport.reportListTab.*
+
+#### 2. 翻译键统计（1063 翻译键，10 新命名空间）
+
+| 模块 | 文件数 | 翻译键数 | 命名空间 | 代理组 |
+|------|--------|---------|----------|--------|
+| sales-analysis | 6 | 51 | salesAnalysis.* (新) | Group A |
+| financial-analysis | 1 | 61 | financialAnalysis.* (新) | Group A |
+| sales-contract | 5 | 76 | salesContract.* (新) | Group B |
+| sales-ext | 4 | 206 | salesExt.* (新) | Group B |
+| sales-price | 6 | 130 | salesPrice.* (新) | Group C |
+| sales-returns | 4 | 76 | salesReturns.* (新) | Group C |
+| trading | 6 | 214 | trading.* (新) | Group D |
+| fund | 3 | 129 | fund.* (新) | Group D |
+| voucher | 5 | 76 | voucher.* (新) | Group E |
+| financeReport | 1 | 44 | financeReport.* (新) | Group E |
+| **合计** | **43** | **1063** | 10 新命名空间 | 5 组 |
+
+#### 3. 工具脚本
+
+- **merge-i18n-batch7.cjs**（[scripts/merge-i18n-batch7.cjs](file:///workspace/scripts/merge-i18n-batch7.cjs)）：从 5 个并行代理生成的 group{A,B,C,D,E}.json 的 `keys.zh-CN` 和 `keys.en-US` 字段提取翻译键，深度合并到 locales/zh-CN.ts + en-US.ts 双语同步；复用 batch6 逗号修复逻辑（在 `}` 末尾补 `,` 避免 TS1005）
+- **audit-i18n-batch7.cjs**（[scripts/audit-i18n-batch7.cjs](file:///workspace/scripts/audit-i18n-batch7.cjs)）：扫描 43 个 .vue 文件中的 t()/$t() 调用，验证翻译键是否存在于 locales；验证 1159 个 t()/$t() 调用引用 1057 个不同键无缺失
+
+### 技术要点
+
+1. **useI18n 接入模式**：所有 43 文件均接入 `useI18n({ useScope: 'global' })`，模板中使用 `t('key')` 调用
+2. **翻译键命名规范**：`{module}.{section}.{key}` 三层结构，如 `salesContract.index.pageTitle` / `trading.purchaseContractTab.title`
+3. **状态标签映射函数化**：getStatusText/getStatusLabel 等改为函数返回 t() 调用，确保语言切换时实时响应
+4. **业务数据值保留**：金额/日期/编号作为业务数据值保留，仅 UI 显示文本走 i18n
+5. **函数长度控制**：主函数和 helper 函数均 ≤50 行
+6. **无 #[allow] 警告抑制**：所有文件均无 #[allow] 警告抑制
+7. **group JSON 结构演进**：本批次 group JSON 采用 `keys.zh-CN` 和 `keys.en-US` 字段分离的结构（替代 batch6 的 `{zh-CN, en-US}` 叶子节点），merge 脚本相应调整为分别合并 zh 和 en 对象
+8. **prettier 格式自动修复**：ESLint 检测到 392 个 prettier 格式问题（多行属性换行、箭头函数参数括号等），通过 `--fix` 自动修复
+
+### 验证结果
+
+- ✅ vue-tsc 类型检查 0 错误
+- ✅ ESLint 0 错误（prettier --fix 自动修复 392 个格式问题）
+- ✅ vitest 76/76 测试通过
+- ✅ audit-i18n-batch7.cjs 验证 0 缺失键（1159 调用 / 1057 不同键）
+- ✅ dedup-all-namespaces.py：无重复顶层命名空间
+- ✅ CI/CD Pipeline 全绿（前端格式/ESLint/类型检查/测试/构建 + Rust 格式/Clippy/单元测试/后端构建均 SUCCESS，仅覆盖率非阻塞失败）
+
+### 关联文件
+
+- 43 个 .vue 文件：所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制，主函数和 helper 函数均 ≤50 行
+- [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts) + [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)：双语同步新增 1063 翻译键
+- [/tmp/i18n-batch7/group{A,B,C,D,E}.json](file:///tmp/i18n-batch7/)：5 个并行代理生成的翻译键 JSON 输出
+- 2 个工具脚本：[merge-i18n-batch7.cjs](file:///workspace/scripts/merge-i18n-batch7.cjs) + [audit-i18n-batch7.cjs](file:///workspace/scripts/audit-i18n-batch7.cjs)
 
 ---
 

@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-26（D05 Batch 6 useI18n 接入完成：4 并行代理接入业务核心模块 38 个 .vue 文件 = api-gateway 7 + bpm/approval 5 + fabric 7 + finance 7 + system-update 7 + bpm/definitions 3 + 580 翻译键（apiGateway 112 + bpm.approval 65 + fabric 100 + finance 149 + systemUpdate 94 + bpm.definitions 60）；通过 merge-i18n-batch6.cjs 深度合并翻译键到 locales/zh-CN.ts + en-US.ts 双语同步；通过 dedup-all-namespaces.py 删除 2 个重复的 bpm 命名空间块 + merge-finance-into-namespace.cjs 合并 Group C finance 翻译键；audit-i18n-batch6.cjs 验证 699 个 t()/$t() 调用引用 605 个不同键无缺失；修复 BpmApprovalTransferDialog.vue $t()→t() 转换修复 't' is declared but never read 错误；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制；上一批次 D05 Batch 5 已合并 main PR #745 7f22f29；D05 接入率 43.8%→54.6%（156→194/355 文件），剩余 161 文件未接入；下一批次 Batch 7 销售/财务/凭证 43 文件；模块 G 16/17 项 P0 任务完成；剩余 1 项 D05 i18n 接入率 54.6%/161 文件未接入）
+> 最近整理：2026-07-26（D05 Batch 7 useI18n 接入完成：5 并行代理接入销售/财务/凭证 10 模块 43 个 .vue 文件 = sales-analysis 6 + financial-analysis 1 + sales-contract 5 + sales-ext 4 + sales-price 6 + sales-returns 4 + trading 6 + fund 3 + voucher 5 + financeReport 1 + 1063 翻译键（salesAnalysis 51 + financialAnalysis 61 + salesContract 76 + salesExt 206 + salesPrice 130 + salesReturns 76 + trading 214 + fund 129 + voucher 76 + financeReport 44）；通过 merge-i18n-batch7.cjs 从 group*.json 的 keys.zh-CN/en-US 字段深度合并翻译键到 locales/zh-CN.ts + en-US.ts 双语同步；audit-i18n-batch7.cjs 验证 1159 个 t()/$t() 调用引用 1057 个不同键无缺失；vue-tsc 类型检查 0 错误 + ESLint 0 错误（prettier --fix 自动修复 392 个格式问题）+ vitest 76/76 测试通过；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制；上一批次 D05 Batch 6 已合并 main PR #747 85facab；D05 接入率 54.6%→66.7%（194→237/355 文件），剩余 118 文件未接入；模块 G 16/17 项 P0 任务完成；剩余 1 项 D05 i18n 接入率 66.7%/118 文件未接入）
 
 ---
 
@@ -16,7 +16,7 @@
 |------|------|----------|
 | ✅ 已完成 | 16 | D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17 |
 | 🔵 代码完成待 CI | 0 | — |
-| ⏳ 进行中 | 1 | **D05**（i18n 接入率 54.6%，161 文件未接入；Batch 6 已合并 main PR #747，下一批次 Batch 7 销售/财务/凭证 43 文件） |
+| ⏳ 进行中 | 1 | **D05**（i18n 接入率 66.7%，118 文件未接入；Batch 7 已合并 main PR #749 46bdf18，下一批次 Batch 8 规划中） |
 | ❌ 未开始 | 0 | — |
 
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并到 main）：Batch 1 拆分 services/ 目录 39 个 >80 行函数（33 文件）；全 backend/src 扫描确认仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行。
