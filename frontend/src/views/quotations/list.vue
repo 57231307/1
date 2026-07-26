@@ -9,22 +9,22 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span class="title">报价单管理</span>
+          <span class="title">{{ t('quotations.list.title') }}</span>
           <el-button type="primary" @click="$router.push('/quotations/new')">
             <el-icon><Plus /></el-icon>
-            新建报价单
+            {{ t('quotations.list.createNew') }}
           </el-button>
         </div>
       </template>
 
       <!-- 筛选区 -->
-      <el-form :inline="true" :model="filters" class="filter-form" aria-label="报价单筛选表单">
-        <el-form-item label="客户">
+      <el-form :inline="true" :model="filters" class="filter-form" :aria-label="t('quotations.list.filterAriaLabel')">
+        <el-form-item :label="t('quotations.list.labelCustomer')">
           <el-select
             v-model="filters.customer_id"
             clearable
             filterable
-            placeholder="全部客户"
+            :placeholder="t('quotations.list.allCustomers')"
             style="width: 200px"
           >
             <el-option
@@ -35,8 +35,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="filters.status" clearable placeholder="全部状态" style="width: 160px">
+        <el-form-item :label="t('quotations.list.labelStatus')">
+          <el-select v-model="filters.status" clearable :placeholder="t('quotations.list.allStatus')" style="width: 160px">
             <el-option
               v-for="(label, value) in QUOTATION_STATUS_LABELS"
               :key="value"
@@ -46,8 +46,8 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch">{{ t('quotations.list.search') }}</el-button>
+          <el-button @click="handleReset">{{ t('quotations.list.reset') }}</el-button>
         </el-form-item>
       </el-form>
 
@@ -58,35 +58,35 @@
         stripe
         border
         style="width: 100%"
-        empty-text="暂无报价单"
-        aria-label="报价单列表"
+        :empty-text="t('quotations.list.emptyText')"
+        :aria-label="t('quotations.list.tableAriaLabel')"
       >
-        <el-table-column prop="quotation_no" label="报价单号" width="170" />
-        <el-table-column label="客户" min-width="160">
+        <el-table-column prop="quotation_no" :label="t('quotations.list.colQuotationNo')" width="170" />
+        <el-table-column :label="t('quotations.list.colCustomer')" min-width="160">
           <template #default="{ row }">
             {{ row.customer_name || row.customer_id }}
           </template>
         </el-table-column>
-        <el-table-column prop="quotation_date" label="报价日期" width="120" />
-        <el-table-column prop="valid_until" label="有效期" width="120" />
-        <el-table-column label="价格条款" width="80">
+        <el-table-column prop="quotation_date" :label="t('quotations.list.colQuotationDate')" width="120" />
+        <el-table-column prop="valid_until" :label="t('quotations.list.colValidUntil')" width="120" />
+        <el-table-column :label="t('quotations.list.colPriceTerms')" width="80">
           <template #default="{ row }">{{ row.price_terms }}</template>
         </el-table-column>
-        <el-table-column label="金额" width="160" align="right">
+        <el-table-column :label="t('quotations.list.colAmount')" width="160" align="right">
           <template #default="{ row }">
             {{ row.currency }} {{ formatAmount(row.total_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column :label="t('quotations.list.colStatus')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="tagType(row.status as QuotationStatus)">
               {{ QUOTATION_STATUS_LABELS[row.status as QuotationStatus] || row.status }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column :label="t('quotations.list.colAction')" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="goDetail(row)">查看</el-button>
+            <el-button link type="primary" @click="goDetail(row)">{{ t('quotations.list.view') }}</el-button>
             <el-button
               v-permission="'quotation:update'"
               v-if="row.status === 'draft' || row.status === 'rejected'"
@@ -94,7 +94,7 @@
               type="primary"
               @click="goEdit(row)"
             >
-              编辑
+              {{ t('quotations.list.edit') }}
             </el-button>
             <el-button
               v-if="row.status === 'approved'"
@@ -102,10 +102,10 @@
               type="success"
               @click="handleConvert(row)"
             >
-              转订单
+              {{ t('quotations.list.convertOrder') }}
             </el-button>
             <el-button v-permission="'quotation:cancel'" v-if="row.status === 'draft'" link type="danger" @click="handleCancel(row)">
-              取消
+              {{ t('quotations.list.cancel') }}
             </el-button>
           </template>
         </el-table-column>
@@ -117,7 +117,7 @@
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        aria-label="报价单列表分页"
+        :aria-label="t('quotations.list.paginationAriaLabel')"
         @current-change="onPageChange"
         @size-change="onSizeChange"
       />
@@ -131,6 +131,7 @@
 // - 行操作：查看/编辑/转订单/取消
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useTableApi } from '@/composables/useTableApi'
@@ -151,6 +152,8 @@ type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
 function tagType(s: QuotationStatus): TagType {
   return (QUOTATION_STATUS_TAG_TYPES[s] || '') as TagType
 }
+
+const { t } = useI18n({ useScope: 'global' })
 
 const router = useRouter()
 const customers = ref<Array<{ id: number; customer_name?: string; name?: string }>>([])
@@ -173,7 +176,7 @@ const {
 } = useTableApi<QuotationResponseDto>({
   url: '/quotations',
   onError: (e: unknown) =>
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '加载报价单列表失败'),
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.list.loadFailed')),
 })
 
 /** 同步筛选条件到 useTableApi.queryParams */
@@ -226,22 +229,22 @@ function goEdit(row: QuotationResponseDto) {
 
 async function handleCancel(row: QuotationResponseDto) {
   try {
-    await ElMessageBox.confirm(`确认取消报价单 ${row.quotation_no}？取消后无法恢复。`, '取消确认', {
+    await ElMessageBox.confirm(t('quotations.list.cancelConfirmText', { no: row.quotation_no }), t('quotations.list.cancelConfirmTitle'), {
       type: 'warning',
     })
   } catch {
     return
   }
   await cancelQuotation(row.id)
-  ElMessage.success('已取消')
+  ElMessage.success(t('quotations.list.cancelSuccess'))
   loadData()
 }
 
 async function handleConvert(row: QuotationResponseDto) {
   try {
     await ElMessageBox.confirm(
-      `确认将报价单 ${row.quotation_no} 转为销售订单？转订单后报价单状态将变为"已转订单"。`,
-      '转订单确认',
+      t('quotations.list.convertConfirmText', { no: row.quotation_no }),
+      t('quotations.list.convertConfirmTitle'),
       { type: 'warning' }
     )
   } catch {
@@ -249,7 +252,7 @@ async function handleConvert(row: QuotationResponseDto) {
   }
   const res = await convertQuotation(row.id)
   const order = res.data
-  ElMessage.success(`转订单成功，销售订单 ID：${order?.id}`)
+  ElMessage.success(t('quotations.list.convertSuccess', { id: order?.id }))
   if (order?.id) {
     router.push(`/sales/orders/${order.id}`)
   } else {

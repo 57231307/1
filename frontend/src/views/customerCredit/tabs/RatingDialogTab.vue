@@ -4,15 +4,15 @@
   拆分日期：2026-06-15 B3-3
 -->
 <template>
-  <el-dialog v-model="visible" title="设置信用评级" width="500px" aria-label="设置信用评级对话框">
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" aria-label="设置信用评级表单">
-      <el-form-item label="客户" prop="customer_id">
-        <el-select v-model="form.customer_id" placeholder="请选择客户" style="width: 100%">
+  <el-dialog v-model="visible" :title="t('customerCredit.rating.title')" width="500px" :aria-label="t('customerCredit.rating.ariaLabel')">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" :aria-label="t('customerCredit.rating.formAriaLabel')">
+      <el-form-item :label="t('customerCredit.rating.label.customer')" prop="customer_id">
+        <el-select v-model="form.customer_id" :placeholder="t('customerCredit.rating.placeholder.customer')" style="width: 100%">
           <el-option v-for="c in customers" :key="c.id" :label="c.customer_name" :value="c.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="信用等级" prop="creditLevel">
-        <el-select v-model="form.creditLevel" placeholder="请选择信用等级" style="width: 100%">
+      <el-form-item :label="t('customerCredit.rating.label.creditLevel')" prop="creditLevel">
+        <el-select v-model="form.creditLevel" :placeholder="t('customerCredit.rating.placeholder.creditLevel')" style="width: 100%">
           <el-option label="AAA" value="AAA" />
           <el-option label="AA" value="AA" />
           <el-option label="A" value="A" />
@@ -23,33 +23,36 @@
           <el-option label="D" value="D" />
         </el-select>
       </el-form-item>
-      <el-form-item label="信用分" prop="creditScore">
+      <el-form-item :label="t('customerCredit.rating.label.creditScore')" prop="creditScore">
         <el-input-number v-model="form.creditScore" :min="0" :max="100" style="width: 100%" />
       </el-form-item>
-      <el-form-item label="信用额度" prop="creditLimit">
+      <el-form-item :label="t('customerCredit.rating.label.creditLimit')" prop="creditLimit">
         <el-input-number v-model="form.creditLimit" :min="0" style="width: 100%" />
       </el-form-item>
-      <el-form-item label="账期(天)" prop="creditDays">
+      <el-form-item :label="t('customerCredit.rating.label.creditDays')" prop="creditDays">
         <el-input-number v-model="form.creditDays" :min="0" style="width: 100%" />
       </el-form-item>
-      <el-form-item label="备注" prop="remark">
+      <el-form-item :label="t('customerCredit.rating.label.remark')" prop="remark">
         <el-input v-model="form.remark" type="textarea" :rows="3" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      <el-button @click="visible = false">{{ t('customerCredit.rating.button.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('customerCredit.rating.button.save') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { setCreditRating } from '@/api/customer-credit'
 import type { Customer } from '@/api/customer'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -78,11 +81,11 @@ const form = reactive({
 })
 
 const rules: FormRules = {
-  customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  creditLevel: [{ required: true, message: '请选择信用等级', trigger: 'change' }],
-  creditScore: [{ required: true, message: '请输入信用分', trigger: 'blur' }],
-  creditLimit: [{ required: true, message: '请输入信用额度', trigger: 'blur' }],
-  creditDays: [{ required: true, message: '请输入账期', trigger: 'blur' }],
+  customer_id: [{ required: true, message: t('customerCredit.rating.validation.customerRequired'), trigger: 'change' }],
+  creditLevel: [{ required: true, message: t('customerCredit.rating.validation.creditLevelRequired'), trigger: 'change' }],
+  creditScore: [{ required: true, message: t('customerCredit.rating.validation.creditScoreRequired'), trigger: 'blur' }],
+  creditLimit: [{ required: true, message: t('customerCredit.rating.validation.creditLimitRequired'), trigger: 'blur' }],
+  creditDays: [{ required: true, message: t('customerCredit.rating.validation.creditDaysRequired'), trigger: 'blur' }],
 }
 
 watch(
@@ -119,13 +122,13 @@ const handleSubmit = async () => {
       credit_limit: form.creditLimit,
       reason: form.remark,
     })
-    ElMessage.success('设置成功')
+    ElMessage.success(t('customerCredit.rating.message.success'))
     visible.value = false
     emit('submitted')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '设置失败')
-    logger.warn('设置信用评级失败', err.message)
+    ElMessage.error(err.message || t('customerCredit.rating.message.failed'))
+    logger.warn(t('customerCredit.rating.log.failed'), err.message)
   } finally {
     submitLoading.value = false
   }

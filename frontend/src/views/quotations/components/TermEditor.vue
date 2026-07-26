@@ -14,21 +14,21 @@
         :name="type"
       >
         <div v-for="(term, idx) in getTerms(type as TermType)" :key="idx" class="term-row">
-          <el-form-item :label="`条款 ${idx + 1}`">
+          <el-form-item :label="t('quotations.termEditor.termLabel', { n: idx + 1 })">
             <el-input
               v-model="term.term_value"
               type="textarea"
               :rows="2"
-              :placeholder="`请输入${label}内容`"
+              :placeholder="t('quotations.termEditor.termPlaceholder', { label })"
             />
           </el-form-item>
           <el-button link type="danger" @click="handleRemove(type as TermType, idx)">
-            删除
+            {{ t('quotations.termEditor.delete') }}
           </el-button>
         </div>
         <el-button type="primary" plain @click="handleAdd(type as TermType)">
           <el-icon><Plus /></el-icon>
-          添加{{ label }}
+          {{ t('quotations.termEditor.add', { label }) }}
         </el-button>
       </el-tab-pane>
     </el-tabs>
@@ -38,8 +38,11 @@
 <script setup lang="ts">
 // 贸易条款编辑器脚本
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus } from '@element-plus/icons-vue'
 import { TERM_TYPE_LABELS, type CreateQuotationTermDto, type TermType } from '@/api/quotation'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   modelValue: CreateQuotationTermDto[]

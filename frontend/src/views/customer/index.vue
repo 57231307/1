@@ -11,84 +11,84 @@
   <div class="customer-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">客户管理</h1>
+        <h1 class="page-title">{{ $t('customer.index.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>基础数据</el-breadcrumb-item>
-          <el-breadcrumb-item>客户管理</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ $t('customer.index.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('customer.index.breadcrumb.basicData') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ $t('customer.index.breadcrumb.customer') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
         <el-button v-permission="PERMISSIONS.CUSTOMER_CREATE" type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>
-          新建客户
+          {{ $t('customer.index.button.create') }}
         </el-button>
         <el-button @click="handlePrint">
           <el-icon><Printer /></el-icon>
-          打印
+          {{ $t('customer.index.button.print') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ $t('customer.index.button.export') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="客户筛选表单">
-        <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="客户编码/名称/联系人" clearable />
+      <el-form :inline="true" :model="queryParams" class="filter-form" :aria-label="$t('customer.index.filter.ariaLabel')">
+        <el-form-item :label="$t('customer.index.filter.keyword')">
+          <el-input v-model="queryParams.keyword" :placeholder="$t('customer.index.filter.keywordPlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="客户类型">
-          <el-select v-model="queryParams.customer_type" placeholder="选择类型" clearable>
-            <el-option label="普通客户" value="normal" />
-            <el-option label="VIP客户" value="vip" />
-            <el-option label="批发客户" value="wholesale" />
+        <el-form-item :label="$t('customer.index.filter.customerType')">
+          <el-select v-model="queryParams.customer_type" :placeholder="$t('customer.index.filter.customerTypePlaceholder')" clearable>
+            <el-option :label="$t('customer.index.filterOption.typeNormal')" value="normal" />
+            <el-option :label="$t('customer.index.filterOption.typeVip')" value="vip" />
+            <el-option :label="$t('customer.index.filterOption.typeWholesale')" value="wholesale" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable>
-            <el-option label="启用" value="active" />
-            <el-option label="禁用" value="inactive" />
+        <el-form-item :label="$t('customer.index.filter.status')">
+          <el-select v-model="queryParams.status" :placeholder="$t('customer.index.filter.statusPlaceholder')" clearable>
+            <el-option :label="$t('customer.index.filterOption.statusActive')" value="active" />
+            <el-option :label="$t('customer.index.filterOption.statusInactive')" value="inactive" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleQuery">{{ $t('customer.index.button.query') }}</el-button>
+          <el-button @click="handleReset">{{ $t('customer.index.button.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="customers" stripe aria-label="客户列表">
-        <el-table-column prop="customer_code" label="客户编码" width="120" fixed />
-        <el-table-column prop="customer_name" label="客户名称" min-width="180" fixed />
-        <el-table-column prop="contact_person" label="联系人" width="100" />
-        <el-table-column prop="contact_phone" label="电话" width="130" />
-        <el-table-column prop="contact_email" label="邮箱" width="180" show-overflow-tooltip />
-        <el-table-column prop="customer_type" label="类型" width="100">
+      <el-table v-loading="loading" :data="customers" stripe :aria-label="$t('customer.index.table.ariaLabel')">
+        <el-table-column prop="customer_code" :label="$t('customer.index.table.column.customerCode')" width="120" fixed />
+        <el-table-column prop="customer_name" :label="$t('customer.index.table.column.customerName')" min-width="180" fixed />
+        <el-table-column prop="contact_person" :label="$t('customer.index.table.column.contactPerson')" width="100" />
+        <el-table-column prop="contact_phone" :label="$t('customer.index.table.column.phone')" width="130" />
+        <el-table-column prop="contact_email" :label="$t('customer.index.table.column.email')" width="180" show-overflow-tooltip />
+        <el-table-column prop="customer_type" :label="$t('customer.index.table.column.type')" width="100">
           <template #default="{ row }">
             <el-tag :type="getCustomerTypeTag(row.customer_type)" size="small">
               {{ getCustomerTypeLabel(row.customer_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="province" label="省份" width="100" />
-        <el-table-column prop="credit_limit" label="信用额度" width="120" align="right">
+        <el-table-column prop="province" :label="$t('customer.index.table.column.province')" width="100" />
+        <el-table-column prop="credit_limit" :label="$t('customer.index.table.column.creditLimit')" width="120" align="right">
           <template #default="{ row }">
             {{ row.credit_limit ? formatCurrency(row.credit_limit) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="payment_terms" label="账期(天)" width="90" align="center" />
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="payment_terms" :label="$t('customer.index.table.column.paymentTerms')" width="90" align="center" />
+        <el-table-column prop="status" :label="$t('customer.index.table.column.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? '启用' : '禁用' }}
+              {{ row.status === 'active' ? $t('customer.index.statusLabel.active') : $t('customer.index.statusLabel.inactive') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column :label="$t('customer.index.table.column.action')" width="180" fixed="right">
           <template #default="{ row }">
             <!-- P3 维度 10 修复（批次 87）：编辑/删除按钮补齐 v-permission -->
             <el-button
@@ -97,7 +97,7 @@
               link
               size="small"
               @click="openEditDialog(row)"
-              >编辑</el-button
+              >{{ $t('customer.index.button.edit') }}</el-button
             >
             <el-button
               v-permission="PERMISSIONS.CUSTOMER_DELETE"
@@ -105,7 +105,7 @@
               link
               size="small"
               @click="handleDelete(row)"
-              >删除</el-button
+              >{{ $t('customer.index.button.delete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -118,7 +118,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="客户列表分页"
+          :aria-label="$t('customer.index.table.paginationAria')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
@@ -136,6 +136,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { deleteCustomer, type Customer } from '@/api/customer'
@@ -149,8 +150,10 @@ import { useTableApi } from '@/composables/useTableApi'
 import { PERMISSIONS } from '@/constants/permissions'
 import CustomerFormTab from './tabs/CustomerFormTab.vue'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const formDialogVisible = ref(false)
-const formDialogTitle = ref('新建客户')
+const formDialogTitle = ref(t('customer.index.dialog.createTitle'))
 const currentRow = ref<Customer | null>(null)
 
 const queryParams = reactive({
@@ -172,7 +175,7 @@ const {
 } = useTableApi<Customer>({
   url: '/crm/customers',
   onError: (err: unknown) =>
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取客户列表失败'),
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('customer.index.message.fetchListFailed')),
 })
 
 // 批次 276：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -211,9 +214,9 @@ const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
 const getCustomerTypeLabel = (type: string) => {
   const labelMap: Record<string, string> = {
-    retail: '零售',
-    vip: 'VIP',
-    wholesale: '批发',
+    retail: t('customer.index.typeLabel.retail'),
+    vip: t('customer.index.typeLabel.vip'),
+    wholesale: t('customer.index.typeLabel.wholesale'),
   }
   return labelMap[type] || type
 }
@@ -229,13 +232,13 @@ const getCustomerTypeTag = (type: string) => {
 
 const openCreateDialog = () => {
   currentRow.value = null
-  formDialogTitle.value = '新建客户'
+  formDialogTitle.value = t('customer.index.dialog.createTitle')
   formDialogVisible.value = true
 }
 
 const openEditDialog = (row: Customer) => {
   currentRow.value = row
-  formDialogTitle.value = '编辑客户'
+  formDialogTitle.value = t('customer.index.dialog.editTitle')
   formDialogVisible.value = true
 }
 
@@ -246,16 +249,20 @@ const handleFormSubmitted = () => {
 
 const handleDelete = async (row: Customer) => {
   try {
-    await ElMessageBox.confirm(`确定删除客户 "${row.customer_name}" 吗？`, '删除确认', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('customer.index.dialog.deleteConfirmMessage', { name: row.customer_name }),
+      t('customer.index.dialog.deleteConfirmTitle'),
+      {
+        type: 'warning',
+      }
+    )
     await deleteCustomer(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('customer.index.message.deleteSuccess'))
     fetchData()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('customer.index.message.deleteFailed'))
     }
   }
 }
@@ -278,28 +285,28 @@ const handleExport = async () => {
 
 const handlePrint = () => {
   printData({
-    title: '客户列表',
+    title: t('customer.index.print.title'),
     columns: [
-      { key: 'customer_code', title: '客户编码', width: '100px' },
-      { key: 'customer_name', title: '客户名称' },
-      { key: 'contact_person', title: '联系人', width: '80px' },
-      { key: 'contact_phone', title: '电话', width: '120px' },
+      { key: 'customer_code', title: t('customer.index.table.column.customerCode'), width: '100px' },
+      { key: 'customer_name', title: t('customer.index.table.column.customerName') },
+      { key: 'contact_person', title: t('customer.index.table.column.contactPerson'), width: '80px' },
+      { key: 'contact_phone', title: t('customer.index.table.column.phone'), width: '120px' },
       {
         key: 'customer_type',
-        title: '类型',
+        title: t('customer.index.table.column.type'),
         width: '80px',
         formatter: v => getCustomerTypeLabel(String(v)),
       },
       {
         key: 'status',
-        title: '状态',
+        title: t('customer.index.table.column.status'),
         width: '60px',
-        formatter: v => (v === 'active' ? '启用' : '禁用'),
+        formatter: v => (v === 'active' ? t('customer.index.statusLabel.active') : t('customer.index.statusLabel.inactive')),
       },
     ],
     data: customers.value as unknown as Record<string, unknown>[],
   })
-  logger.info('客户列表打印任务已生成')
+  logger.info(t('customer.index.print.logGenerated'))
 }
 </script>
 

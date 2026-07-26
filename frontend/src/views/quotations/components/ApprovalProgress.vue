@@ -6,20 +6,20 @@
 <template>
   <div class="approval-progress">
     <el-steps :active="activeStep" align-center finish-status="success">
-      <el-step title="草稿" description="编辑中" />
-      <el-step title="提交审批" :description="pendingDescription" />
+      <el-step :title="t('quotations.approvalProgress.stepDraft')" :description="t('quotations.approvalProgress.draftDesc')" />
+      <el-step :title="t('quotations.approvalProgress.stepSubmit')" :description="pendingDescription" />
       <el-step
-        :title="approved ? '已批准' : '已拒绝'"
+        :title="approved ? t('quotations.approvalProgress.stepApproved') : t('quotations.approvalProgress.stepRejected')"
         :description="finalDescription"
         :status="finalStatus"
       />
       <el-step
         v-if="showConverted"
-        title="已转订单"
+        :title="t('quotations.approvalProgress.stepConverted')"
         :description="convertedDescription"
         status="success"
       />
-      <el-step v-if="cancelled" title="已取消" description="报价单已取消" status="error" />
+      <el-step v-if="cancelled" :title="t('quotations.approvalProgress.stepCancelled')" :description="t('quotations.approvalProgress.cancelledDesc')" status="error" />
     </el-steps>
   </div>
 </template>
@@ -29,7 +29,10 @@
 // - 根据 status 计算当前步骤
 // - 4 步：草稿 / 提交审批 / 批准或拒绝 / 已转订单（条件）
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { QuotationStatus } from '@/api/quotation'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   status: QuotationStatus | string
@@ -83,31 +86,31 @@ const finalStatus = computed(() => {
 
 /** 提交审批描述 */
 const pendingDescription = computed(() => {
-  if (props.status === 'pending_approval') return '审批中...'
-  if (['approved', 'converted'].includes(props.status as string)) return '已审批'
-  if (props.status === 'rejected') return '已驳回'
-  return '待提交'
+  if (props.status === 'pending_approval') return t('quotations.approvalProgress.pendingApproving')
+  if (['approved', 'converted'].includes(props.status as string)) return t('quotations.approvalProgress.pendingApproved')
+  if (props.status === 'rejected') return t('quotations.approvalProgress.pendingRejected')
+  return t('quotations.approvalProgress.pendingPending')
 })
 
 /** 第三步描述 */
 const finalDescription = computed(() => {
   if (approved.value) {
     return props.approvedAt
-      ? `审批人：${props.approvedByName || ''} ${props.approvedAt}`
-      : '审批通过'
+      ? `${t('quotations.approvalProgress.approverPrefix')}${props.approvedByName || ''} ${props.approvedAt}`
+      : t('quotations.approvalProgress.approvalPassed')
   }
   if (props.status === 'rejected') {
-    return props.rejectionReason ? `原因：${props.rejectionReason}` : '已拒绝'
+    return props.rejectionReason ? `${t('quotations.approvalProgress.reasonPrefix')}${props.rejectionReason}` : t('quotations.approvalProgress.stepRejected')
   }
-  if (props.status === 'expired') return '已过期'
-  if (props.status === 'cancelled') return '已取消'
+  if (props.status === 'expired') return t('quotations.approvalProgress.expiredLabel')
+  if (props.status === 'cancelled') return t('quotations.approvalProgress.cancelledLabel')
   return ''
 })
 
 /** 第四步描述 */
 const convertedDescription = computed(() => {
   if (!converted.value) return ''
-  const id = props.convertedOrderId ? `（订单 ID: ${props.convertedOrderId}）` : ''
+  const id = props.convertedOrderId ? `${t('quotations.approvalProgress.orderIdPrefix')}${props.convertedOrderId}${t('quotations.approvalProgress.orderIdSuffix')}` : ''
   return props.convertedAt ? `${id} ${props.convertedAt}` : id
 })
 </script>

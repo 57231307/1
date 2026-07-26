@@ -6,28 +6,31 @@
 <template>
   <el-dialog
     v-model="visible"
-    :title="operationType === 'occupy' ? '占用额度' : '释放额度'"
+    :title="operationType === 'occupy' ? t('customerCredit.amount.title.occupy') : t('customerCredit.amount.title.release')"
     width="500px"
-    aria-label="信用额度变更对话框"
+    :aria-label="t('customerCredit.amount.ariaLabel')"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" aria-label="信用额度变更表单">
-      <el-form-item label="金额" prop="amount">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" :aria-label="t('customerCredit.amount.formAriaLabel')">
+      <el-form-item :label="t('customerCredit.amount.label.amount')" prop="amount">
         <el-input-number v-model="form.amount" :min="0" style="width: 100%" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确认</el-button>
+      <el-button @click="visible = false">{{ t('customerCredit.amount.button.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('customerCredit.amount.button.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { occupyCredit, releaseCredit } from '@/api/customer-credit'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -52,7 +55,7 @@ const form = reactive({
 })
 
 const rules: FormRules = {
-  amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
+  amount: [{ required: true, message: t('customerCredit.amount.validation.amountRequired'), trigger: 'blur' }],
 }
 
 watch(
@@ -83,13 +86,13 @@ const handleSubmit = async () => {
     } else {
       await releaseCredit(props.customerId, 0)
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(t('customerCredit.amount.message.success'))
     visible.value = false
     emit('submitted')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '操作失败')
-    logger.warn('信用操作失败', err.message)
+    ElMessage.error(err.message || t('customerCredit.amount.message.failed'))
+    logger.warn(t('customerCredit.amount.log.failed'), err.message)
   } finally {
     submitLoading.value = false
   }

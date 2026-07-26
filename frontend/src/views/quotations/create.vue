@@ -10,19 +10,19 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span class="title">{{ isEdit ? '编辑报价单' : '新建报价单' }}</span>
-          <el-button @click="$router.back()">返回</el-button>
+          <span class="title">{{ isEdit ? t('quotations.create.titleEdit') : t('quotations.create.titleCreate') }}</span>
+          <el-button @click="$router.back()">{{ t('quotations.create.back') }}</el-button>
         </div>
       </template>
 
-      <el-form ref="formRef" v-loading="loading" :model="form" :rules="rules" label-width="120px" aria-label="报价单创建表单">
+      <el-form ref="formRef" v-loading="loading" :model="form" :rules="rules" label-width="120px" :aria-label="t('quotations.create.formAriaLabel')">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="客户" prop="customer_id">
+            <el-form-item :label="t('quotations.create.labelCustomer')" prop="customer_id">
               <el-select
                 v-model="form.customer_id"
                 filterable
-                placeholder="选择客户"
+                :placeholder="t('quotations.create.selectCustomer')"
                 style="width: 100%"
               >
                 <el-option
@@ -35,7 +35,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="报价日期" prop="quotation_date">
+            <el-form-item :label="t('quotations.create.labelQuotationDate')" prop="quotation_date">
               <el-date-picker
                 v-model="form.quotation_date"
                 type="date"
@@ -48,7 +48,7 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="有效期至" prop="valid_until">
+            <el-form-item :label="t('quotations.create.labelValidUntil')" prop="valid_until">
               <el-date-picker
                 v-model="form.valid_until"
                 type="date"
@@ -58,7 +58,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="价格条款" prop="price_terms">
+            <el-form-item :label="t('quotations.create.labelPriceTerms')" prop="price_terms">
               <el-select
                 v-model="form.price_terms"
                 placeholder="Incoterms 2020"
@@ -77,16 +77,16 @@
 
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="币种" prop="currency">
+            <el-form-item :label="t('quotations.create.labelCurrency')" prop="currency">
               <el-select v-model="form.currency" style="width: 100%">
-                <el-option label="CNY 人民币" value="CNY" />
-                <el-option label="USD 美元" value="USD" />
-                <el-option label="EUR 欧元" value="EUR" />
+                <el-option :label="t('quotations.create.currencyCny')" value="CNY" />
+                <el-option :label="t('quotations.create.currencyUsd')" value="USD" />
+                <el-option :label="t('quotations.create.currencyEur')" value="EUR" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="汇率" prop="exchange_rate">
+            <el-form-item :label="t('quotations.create.labelExchangeRate')" prop="exchange_rate">
               <el-input-number
                 v-model="form.exchange_rate"
                 :min="0"
@@ -96,7 +96,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="含税">
+            <el-form-item :label="t('quotations.create.labelTaxInclusive')">
               <el-switch v-model="form.tax_inclusive" />
             </el-form-item>
           </el-col>
@@ -104,10 +104,10 @@
 
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="客户等级">
+            <el-form-item :label="t('quotations.create.labelCustomerLevel')">
               <el-select v-model="form.customer_level" clearable style="width: 100%">
                 <el-option label="VIP" value="VIP" />
-                <el-option label="NORMAL 普通" value="NORMAL" />
+                <el-option :label="t('quotations.create.customerLevelNormal')" value="NORMAL" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -117,35 +117,35 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="交期(天)">
+            <el-form-item :label="t('quotations.create.labelLeadTime')">
               <el-input-number v-model="form.lead_time_days" :min="0" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <h3 class="section-title">报价明细</h3>
+        <h3 class="section-title">{{ t('quotations.create.sectionItems') }}</h3>
         <QuotationItemEditor v-model="form.items" :currency="form.currency" />
 
-        <h3 class="section-title">贸易条款</h3>
+        <h3 class="section-title">{{ t('quotations.create.sectionTerms') }}</h3>
         <TermEditor :model-value="form.terms || []" @update:model-value="onTermsChange" />
 
-        <el-form-item label="备注" style="margin-top: 16px">
-          <el-input v-model="form.notes" type="textarea" :rows="3" placeholder="备注（选填）" />
+        <el-form-item :label="t('quotations.create.labelRemark')" style="margin-top: 16px">
+          <el-input v-model="form.notes" type="textarea" :rows="3" :placeholder="t('quotations.create.remarkPlaceholder')" />
         </el-form-item>
 
         <!-- 金额合计 -->
         <div class="totals">
-          <span>小计：{{ form.currency }} {{ formatAmount(subtotal) }}</span>
-          <span>税额：{{ form.currency }} {{ formatAmount(taxAmount) }}</span>
-          <span class="grand-total">合计：{{ form.currency }} {{ formatAmount(totalAmount) }}</span>
+          <span>{{ t('quotations.create.subtotal') }}{{ form.currency }} {{ formatAmount(subtotal) }}</span>
+          <span>{{ t('quotations.create.taxAmount') }}{{ form.currency }} {{ formatAmount(taxAmount) }}</span>
+          <span class="grand-total">{{ t('quotations.create.total') }}{{ form.currency }} {{ formatAmount(totalAmount) }}</span>
         </div>
 
         <el-form-item>
-          <el-button :loading="submitting" @click="handleSaveDraft">保存草稿</el-button>
+          <el-button :loading="submitting" @click="handleSaveDraft">{{ t('quotations.create.saveDraft') }}</el-button>
           <el-button type="primary" :loading="submitting" @click="handleSubmit">
-            提交审批
+            {{ t('quotations.create.submitApproval') }}
           </el-button>
-          <el-button @click="$router.back()">取消</el-button>
+          <el-button @click="$router.back()">{{ t('quotations.create.cancel') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -159,6 +159,7 @@
 // - 提交保存草稿 / 提交审批
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import {
   createQuotation,
@@ -177,6 +178,8 @@ import { getCustomerList } from '@/api/customer'
 import { useUserStore } from '@/store/user'
 import QuotationItemEditor from './components/QuotationItemEditor.vue'
 import TermEditor from './components/TermEditor.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   quotationId?: number | string
@@ -226,23 +229,23 @@ const form = reactive<CreateQuotationDto>({
 
 /** 表单校验规则 */
 const rules: FormRules = {
-  customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  quotation_date: [{ required: true, message: '请选择报价日期', trigger: 'change' }],
-  valid_until: [{ required: true, message: '请选择有效期', trigger: 'change' }],
-  price_terms: [{ required: true, message: '请选择价格条款', trigger: 'change' }],
-  currency: [{ required: true, message: '请选择币种', trigger: 'change' }],
-  exchange_rate: [{ required: true, message: '请输入汇率', trigger: 'blur' }],
+  customer_id: [{ required: true, message: t('quotations.create.validateCustomer'), trigger: 'change' }],
+  quotation_date: [{ required: true, message: t('quotations.create.validateQuotationDate'), trigger: 'change' }],
+  valid_until: [{ required: true, message: t('quotations.create.validateValidUntil'), trigger: 'change' }],
+  price_terms: [{ required: true, message: t('quotations.create.validatePriceTerms'), trigger: 'change' }],
+  currency: [{ required: true, message: t('quotations.create.validateCurrency'), trigger: 'change' }],
+  exchange_rate: [{ required: true, message: t('quotations.create.validateExchangeRate'), trigger: 'blur' }],
   items: [
     {
       // v11 批次 163 P2-1 修复：validator 参数类型化（FormItemRule validator 签名）
       validator: (_rule: unknown, value: CreateQuotationItemDto[], cb: (error?: Error) => void) => {
         if (!value || value.length === 0) {
-          cb(new Error('请至少添加 1 个产品明细'))
+          cb(new Error(t('quotations.create.validateItemsRequired')))
           return
         }
         const invalid = value.find(i => !i.product_id || i.quantity <= 0 || i.unit_price < 0)
         if (invalid) {
-          cb(new Error('明细行必须选择产品且数量 > 0'))
+          cb(new Error(t('quotations.create.validateItemsInvalid')))
           return
         }
         cb()
@@ -309,7 +312,7 @@ async function loadExisting() {
     }
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '加载报价单失败')
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.create.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -328,7 +331,7 @@ async function handleSaveDraft() {
   try {
     await formRef.value.validate()
   } catch {
-    ElMessage.error('请检查表单填写是否正确')
+    ElMessage.error(t('quotations.create.validateForm'))
     return
   }
   ensureSalesUserId()
@@ -337,17 +340,17 @@ async function handleSaveDraft() {
     if (isEdit.value) {
       const id = Number(props.quotationId || route.params.id)
       const res = await updateQuotation(id, form)
-      ElMessage.success('草稿已更新')
+      ElMessage.success(t('quotations.create.draftUpdated'))
       // v11 批次 163 P2-1 修复：res.data as any 改为 QuotationResponseDto
       router.push(`/quotations/${res.data?.id ?? id}`)
     } else {
       const res = await createQuotation(form)
-      ElMessage.success('草稿保存成功')
+      ElMessage.success(t('quotations.create.draftSaved'))
       router.push(`/quotations/${res.data?.id ?? ''}`)
     }
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '保存失败')
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.create.saveFailed'))
   } finally {
     submitting.value = false
   }
@@ -359,7 +362,7 @@ async function handleSubmit() {
   try {
     await formRef.value.validate()
   } catch {
-    ElMessage.error('请检查表单填写是否正确')
+    ElMessage.error(t('quotations.create.validateForm'))
     return
   }
   ensureSalesUserId()
@@ -376,11 +379,11 @@ async function handleSubmit() {
       quotationId = res.data?.id ?? 0
     }
     await submitQuotation(quotationId)
-    ElMessage.success('已提交审批')
+    ElMessage.success(t('quotations.create.submitSuccess'))
     router.push(`/quotations/${quotationId}`)
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '提交失败')
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.create.submitFailed'))
   } finally {
     submitting.value = false
   }

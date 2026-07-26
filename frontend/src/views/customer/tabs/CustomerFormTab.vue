@@ -9,63 +9,63 @@
     :title="title"
     width="700px"
     :close-on-click-modal="false"
-    aria-label="客户编辑对话框"
+    :aria-label="t('customer.form.ariaLabel')"
     @close="handleClose"
   >
-    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px" aria-label="客户信息表单">
-      <el-divider content-position="left">基本信息</el-divider>
+    <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px" :aria-label="t('customer.form.formAriaLabel')">
+      <el-divider content-position="left">{{ t('customer.form.section.basic') }}</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="客户编码" prop="customer_code">
-            <el-input v-model="formData.customer_code" placeholder="请输入客户编码" />
+          <el-form-item :label="t('customer.form.label.customerCode')" prop="customer_code">
+            <el-input v-model="formData.customer_code" :placeholder="t('customer.form.placeholder.customerCode')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="客户名称" prop="customer_name">
-            <el-input v-model="formData.customer_name" placeholder="请输入客户名称" />
+          <el-form-item :label="t('customer.form.label.customerName')" prop="customer_name">
+            <el-input v-model="formData.customer_name" :placeholder="t('customer.form.placeholder.customerName')" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="联系人" prop="contact_person">
-            <el-input v-model="formData.contact_person" placeholder="请输入联系人" />
+          <el-form-item :label="t('customer.form.label.contactPerson')" prop="contact_person">
+            <el-input v-model="formData.contact_person" :placeholder="t('customer.form.placeholder.contactPerson')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="联系电话" prop="contact_phone">
-            <el-input v-model="formData.contact_phone" placeholder="请输入联系电话" />
+          <el-form-item :label="t('customer.form.label.contactPhone')" prop="contact_phone">
+            <el-input v-model="formData.contact_phone" :placeholder="t('customer.form.placeholder.contactPhone')" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="邮箱" prop="contact_email">
-            <el-input v-model="formData.contact_email" placeholder="请输入邮箱" />
+          <el-form-item :label="t('customer.form.label.email')" prop="contact_email">
+            <el-input v-model="formData.contact_email" :placeholder="t('customer.form.placeholder.email')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="客户类型" prop="customer_type">
+          <el-form-item :label="t('customer.form.label.customerType')" prop="customer_type">
             <el-select
               v-model="formData.customer_type"
-              placeholder="请选择类型"
+              :placeholder="t('customer.form.placeholder.customerType')"
               style="width: 100%"
             >
-              <el-option label="零售" value="retail" />
-              <el-option label="批发" value="wholesale" />
-              <el-option label="VIP" value="vip" />
+              <el-option :label="t('customer.form.option.typeRetail')" value="retail" />
+              <el-option :label="t('customer.form.option.typeWholesale')" value="wholesale" />
+              <el-option :label="t('customer.form.option.typeVip')" value="vip" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="行业" prop="customer_industry">
-            <el-input v-model="formData.customer_industry" placeholder="请输入行业" />
+          <el-form-item :label="t('customer.form.label.industry')" prop="customer_industry">
+            <el-input v-model="formData.customer_industry" :placeholder="t('customer.form.placeholder.industry')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="年采购额" prop="annual_purchase">
+          <el-form-item :label="t('customer.form.label.annualPurchase')" prop="annual_purchase">
             <el-input-number
               v-model="formData.annual_purchase"
               :min="0"
@@ -75,43 +75,43 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-divider content-position="left">地址信息</el-divider>
-      <el-form-item label="地址" prop="address">
-        <el-input v-model="formData.address" placeholder="请输入详细地址" />
+      <el-divider content-position="left">{{ t('customer.form.section.address') }}</el-divider>
+      <el-form-item :label="t('customer.form.label.address')" prop="address">
+        <el-input v-model="formData.address" :placeholder="t('customer.form.placeholder.address')" />
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="省份" prop="province">
-            <el-input v-model="formData.province" placeholder="请输入省份" />
+          <el-form-item :label="t('customer.form.label.province')" prop="province">
+            <el-input v-model="formData.province" :placeholder="t('customer.form.placeholder.province')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="城市" prop="city">
-            <el-input v-model="formData.city" placeholder="请输入城市" />
+          <el-form-item :label="t('customer.form.label.city')" prop="city">
+            <el-input v-model="formData.city" :placeholder="t('customer.form.placeholder.city')" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="邮编" prop="postal_code">
-            <el-input v-model="formData.postal_code" placeholder="请输入邮编" />
+          <el-form-item :label="t('customer.form.label.postalCode')" prop="postal_code">
+            <el-input v-model="formData.postal_code" :placeholder="t('customer.form.placeholder.postalCode')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="国家" prop="country">
-            <el-input v-model="formData.country" placeholder="请输入国家" />
+          <el-form-item :label="t('customer.form.label.country')" prop="country">
+            <el-input v-model="formData.country" :placeholder="t('customer.form.placeholder.country')" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-divider content-position="left">财务信息</el-divider>
+      <el-divider content-position="left">{{ t('customer.form.section.finance') }}</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="税号" prop="tax_id">
-            <el-input v-model="formData.tax_id" placeholder="请输入税号" />
+          <el-form-item :label="t('customer.form.label.taxId')" prop="tax_id">
+            <el-input v-model="formData.tax_id" :placeholder="t('customer.form.placeholder.taxId')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="信用额度" prop="credit_limit">
+          <el-form-item :label="t('customer.form.label.creditLimit')" prop="credit_limit">
             <el-input-number
               v-model="formData.credit_limit"
               :min="0"
@@ -123,64 +123,67 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="账期(天)" prop="payment_terms">
+          <el-form-item :label="t('customer.form.label.paymentTerms')" prop="payment_terms">
             <el-input-number v-model="formData.payment_terms" :min="0" style="width: 100%" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="状态" prop="status">
+          <el-form-item :label="t('customer.form.label.status')" prop="status">
             <el-radio-group v-model="formData.status">
-              <el-radio value="active">启用</el-radio>
-              <el-radio value="inactive">停用</el-radio>
+              <el-radio value="active">{{ t('customer.form.status.active') }}</el-radio>
+              <el-radio value="inactive">{{ t('customer.form.status.inactive') }}</el-radio>
             </el-radio-group>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="开户银行" prop="bank_name">
-            <el-input v-model="formData.bank_name" placeholder="请输入开户银行" />
+          <el-form-item :label="t('customer.form.label.bankName')" prop="bank_name">
+            <el-input v-model="formData.bank_name" :placeholder="t('customer.form.placeholder.bankName')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="银行账号" prop="bank_account">
-            <el-input v-model="formData.bank_account" placeholder="请输入银行账号" />
+          <el-form-item :label="t('customer.form.label.bankAccount')" prop="bank_account">
+            <el-input v-model="formData.bank_account" :placeholder="t('customer.form.placeholder.bankAccount')" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-divider content-position="left">业务信息</el-divider>
-      <el-form-item label="主营产品" prop="main_products">
-        <el-input v-model="formData.main_products" placeholder="请输入主营产品" />
+      <el-divider content-position="left">{{ t('customer.form.section.business') }}</el-divider>
+      <el-form-item :label="t('customer.form.label.mainProducts')" prop="main_products">
+        <el-input v-model="formData.main_products" :placeholder="t('customer.form.placeholder.mainProducts')" />
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="质量要求" prop="quality_requirement">
-            <el-input v-model="formData.quality_requirement" placeholder="请输入质量要求" />
+          <el-form-item :label="t('customer.form.label.qualityRequirement')" prop="quality_requirement">
+            <el-input v-model="formData.quality_requirement" :placeholder="t('customer.form.placeholder.qualityRequirement')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="验货标准" prop="inspection_standard">
-            <el-input v-model="formData.inspection_standard" placeholder="请输入验货标准" />
+          <el-form-item :label="t('customer.form.label.inspectionStandard')" prop="inspection_standard">
+            <el-input v-model="formData.inspection_standard" :placeholder="t('customer.form.placeholder.inspectionStandard')" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="备注" prop="notes">
-        <el-input v-model="formData.notes" type="textarea" :rows="3" placeholder="请输入备注" />
+      <el-form-item :label="t('customer.form.label.notes')" prop="notes">
+        <el-input v-model="formData.notes" type="textarea" :rows="3" :placeholder="t('customer.form.placeholder.notes')" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      <el-button @click="visible = false">{{ t('customer.form.button.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('customer.form.button.save') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { Customer } from '@/api/customer'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -228,12 +231,12 @@ const formData = reactive({
 })
 
 const formRules: FormRules = {
-  customer_code: [{ required: true, message: '请输入客户编码', trigger: 'blur' }],
-  customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
-  contact_person: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
+  customer_code: [{ required: true, message: t('customer.form.validation.customerCodeRequired'), trigger: 'blur' }],
+  customer_name: [{ required: true, message: t('customer.form.validation.customerNameRequired'), trigger: 'blur' }],
+  contact_person: [{ required: true, message: t('customer.form.validation.contactPersonRequired'), trigger: 'blur' }],
   contact_phone: [
-    { required: true, message: '请输入电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' },
+    { required: true, message: t('customer.form.validation.contactPhoneRequired'), trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: t('customer.form.validation.contactPhoneInvalid'), trigger: 'blur' },
   ],
 }
 
@@ -291,12 +294,12 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate()
     submitLoading.value = true
-    ElMessage.success('保存成功')
+    ElMessage.success(t('customer.form.message.saveSuccess'))
     visible.value = false
     emit('submitted')
   } catch (error) {
     const err = error as Error
-    logger.warn('表单验证失败', err.message)
+    logger.warn(t('customer.form.message.validationFailed'), err.message)
   } finally {
     submitLoading.value = false
   }

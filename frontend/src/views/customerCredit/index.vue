@@ -14,17 +14,17 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>客户信用管理</span>
+          <span>{{ t('customerCredit.index.title') }}</span>
         </div>
       </template>
 
       <div class="toolbar">
-        <el-button type="primary" @click="openRatingDialog">设置信用评级</el-button>
+        <el-button type="primary" @click="openRatingDialog">{{ t('customerCredit.index.button.setRating') }}</el-button>
       </div>
 
-      <el-table :data="creditList" border stripe aria-label="客户信用列表">
-        <el-table-column prop="customer_name" label="客户名称" />
-        <el-table-column prop="credit_rating" label="信用等级">
+      <el-table :data="creditList" border stripe :aria-label="t('customerCredit.index.table.ariaLabel')">
+        <el-table-column prop="customer_name" :label="t('customerCredit.index.table.column.customerName')" />
+        <el-table-column prop="credit_rating" :label="t('customerCredit.index.table.column.creditGrade')">
           <template #default="{ row }">
             <el-tag v-if="row.credit_rating === 'AAA'" type="success">AAA</el-tag>
             <el-tag v-else-if="row.credit_rating === 'AA'" type="success">AA</el-tag>
@@ -35,9 +35,9 @@
             <el-tag v-else type="danger">{{ row.credit_rating || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="credit_limit" label="信用额度" />
-        <el-table-column prop="used_credit" label="已用额度" />
-        <el-table-column prop="available_credit" label="可用额度">
+        <el-table-column prop="credit_limit" :label="t('customerCredit.index.table.column.creditLimit')" />
+        <el-table-column prop="used_credit" :label="t('customerCredit.index.table.column.usedCredit')" />
+        <el-table-column prop="available_credit" :label="t('customerCredit.index.table.column.availableCredit')">
           <template #default="{ row }">
             <span
               :style="{
@@ -48,23 +48,23 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态">
+        <el-table-column prop="status" :label="t('customerCredit.index.table.column.status')">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'active'" type="success">正常</el-tag>
-            <el-tag v-else type="danger">停用</el-tag>
+            <el-tag v-if="row.status === 'active'" type="success">{{ t('customerCredit.index.status.active') }}</el-tag>
+            <el-tag v-else type="danger">{{ t('customerCredit.index.status.inactive') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="300">
+        <el-table-column :label="t('customerCredit.index.table.column.action')" fixed="right" width="300">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openAdjustDialog(row)">调整额度</el-button>
-            <el-button link type="primary" @click="openOccupyDialog(row)">占用额度</el-button>
-            <el-button link type="primary" @click="openReleaseDialog(row)">释放额度</el-button>
+            <el-button link type="primary" @click="openAdjustDialog(row)">{{ t('customerCredit.index.button.adjust') }}</el-button>
+            <el-button link type="primary" @click="openOccupyDialog(row)">{{ t('customerCredit.index.button.occupy') }}</el-button>
+            <el-button link type="primary" @click="openReleaseDialog(row)">{{ t('customerCredit.index.button.release') }}</el-button>
             <el-button
               v-if="row.status === 'active'"
               link
               type="danger"
               @click="handleDeactivate(row)"
-              >停用</el-button
+              >{{ t('customerCredit.index.button.deactivate') }}</el-button
             >
           </template>
         </el-table-column>
@@ -76,7 +76,7 @@
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        aria-label="客户信用列表分页"
+        :aria-label="t('customerCredit.index.table.paginationAria')"
         @size-change="handleSizeChange"
       />
     </el-card>
@@ -104,6 +104,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deactivateCredit, type CustomerCredit } from '@/api/customer-credit'
 import { getCustomerList, type Customer } from '@/api/customer'
@@ -113,6 +114,8 @@ import { useTableApi } from '@/composables/useTableApi'
 import RatingDialogTab from './tabs/RatingDialogTab.vue'
 import AdjustDialogTab from './tabs/AdjustDialogTab.vue'
 import AmountDialogTab from './tabs/AmountDialogTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const hasLoaded = createLazyLoader()
 
@@ -129,8 +132,8 @@ const {
 } = useTableApi<CustomerCredit>({
   url: '/crm/customer-credits',
   onError: (e: unknown) => {
-    ElMessage.error('获取信用列表失败')
-    logger.warn('获取信用列表失败', String(e))
+    ElMessage.error(t('customerCredit.index.message.fetchListFailed'))
+    logger.warn(t('customerCredit.index.log.fetchListFailed'), String(e))
   },
 })
 
@@ -184,19 +187,23 @@ const handleDeactivate = async (row: CustomerCredit) => {
   if (!row.id) return
 
   try {
-    await ElMessageBox.confirm('确认停用该客户信用？', '提示', {
-      confirmButtonText: '确认',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('customerCredit.index.dialog.deactivateConfirmMessage'),
+      t('customerCredit.index.dialog.deactivateConfirmTitle'),
+      {
+        confirmButtonText: t('customerCredit.index.dialog.confirm'),
+        cancelButtonText: t('customerCredit.index.dialog.cancel'),
+        type: 'warning',
+      }
+    )
 
     await deactivateCredit(row.id)
-    ElMessage.success('停用成功')
+    ElMessage.success(t('customerCredit.index.message.deactivateSuccess'))
     fetchCredits()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as Error
-      ElMessage.error(err.message || '停用失败')
+      ElMessage.error(err.message || t('customerCredit.index.message.deactivateFailed'))
     }
   }
 }
