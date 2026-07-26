@@ -5,13 +5,17 @@
 -->
 <template>
   <el-steps :active="currentStep" finish-status="success" align-center>
-    <el-step title="启动设置" />
-    <el-step title="扫描二维码" />
-    <el-step title="验证并启用" />
-    <el-step title="完成" />
+    <el-step :title="t('security.twoFactor.stepBar.step1')" />
+    <el-step :title="t('security.twoFactor.stepBar.step2')" />
+    <el-step :title="t('security.twoFactor.stepBar.step3')" />
+    <el-step :title="t('security.twoFactor.stepBar.step4')" />
   </el-steps>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
+
 defineProps<{ currentStep: number }>()
 </script>

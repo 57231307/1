@@ -5417,5 +5417,874 @@ export default {
       convertConfirmText: 'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
       convertSuccess: 'Converted successfully, Sales Order ID: {id}',
     },
+  },  scheduling: {
+    ganttAdjust: {
+      title: 'Adjust Schedule Time',
+      ariaLabel: {
+        dialog: 'Adjust Schedule Time',
+        form: 'Schedule Adjust Form',
+      },
+      form: {
+        orderNo: 'Work Order No.',
+        workCenter: 'Work Center',
+        startTime: 'Start Time',
+        endTime: 'End Time',
+      },
+      placeholder: {
+        startTime: 'Select start time',
+        endTime: 'Select end time',
+      },
+      button: {
+        cancel: 'Cancel',
+        confirm: 'Confirm Adjust',
+      },
+    },
+    ganttAuto: {
+      title: 'Auto Schedule Parameters',
+      ariaLabel: {
+        dialog: 'Auto Schedule Parameters Dialog',
+        form: 'Auto Schedule Parameters Form',
+      },
+      form: {
+        startDate: 'Schedule Start Date',
+        endDate: 'Schedule End Date',
+        priorityMode: 'Priority Mode',
+        optimizationTarget: 'Optimization Target',
+      },
+      placeholder: {
+        date: 'Select date',
+      },
+      option: {
+        priorityFifo: 'First In First Out (FIFO)',
+        priorityPriority: 'Priority First',
+        priorityDueDate: 'Due Date First',
+        targetMinIdle: 'Minimize Idle Time',
+        targetMinDelay: 'Minimize Delay',
+        targetBalanceLoad: 'Balance Load',
+      },
+      button: {
+        cancel: 'Cancel',
+        startSchedule: 'Start Scheduling',
+      },
+    },
+    ganttChart: {
+      title: 'Schedule Gantt Chart',
+      legend: {
+        pending: 'Pending',
+        scheduled: 'Scheduled',
+        running: 'Running',
+        completed: 'Completed',
+        conflict: 'Conflict',
+      },
+      status: {
+        pending: 'Pending',
+        scheduled: 'Scheduled',
+        running: 'Running',
+        completed: 'Completed',
+        conflict: 'Conflict',
+      },
+      tooltip: {
+        product: 'Product',
+        quantity: 'Quantity',
+        status: 'Status',
+        start: 'Start',
+        end: 'End',
+        duration: 'Duration',
+        conflict: 'Conflict',
+        conflictDefault: 'Time conflict exists',
+      },
+    },
+    ganttConflict: {
+      title: 'Schedule Conflicts',
+      ariaLabel: {
+        dialog: 'Schedule Conflict List Dialog',
+        table: 'Schedule Conflict List',
+      },
+      column: {
+        workCenter: 'Work Center',
+        conflictOrders: 'Conflict Orders',
+        overlapTime: 'Overlap Time',
+        severity: 'Severity',
+        suggestion: 'Suggestion',
+      },
+      to: 'to',
+      severity: {
+        error: 'Critical',
+        warning: 'Warning',
+      },
+    },
+    ganttTool: {
+      title: 'Production Schedule Gantt Chart',
+      button: {
+        back: 'Back to Scheduling',
+        autoSchedule: 'Auto Schedule',
+        refresh: 'Refresh',
+      },
+      to: 'to',
+      placeholder: {
+        startDate: 'Start Date',
+        endDate: 'End Date',
+      },
+      stat: {
+        totalTasks: 'Total Tasks',
+        conflictCount: 'Conflicts',
+        workCenter: 'Work Center',
+        scheduleRange: 'Schedule Range',
+      },
+    },
+    machineAdjust: {
+      title: 'Adjust Schedule Time',
+      ariaLabel: {
+        dialog: 'Adjust Schedule Time Dialog',
+        form: 'Adjust Schedule Time Form',
+      },
+      form: {
+        orderNo: 'Work Order No.',
+        startTime: 'Start Time',
+        endTime: 'End Time',
+      },
+      placeholder: {
+        startTime: 'Select start time',
+        endTime: 'Select end time',
+      },
+      button: {
+        cancel: 'Cancel',
+        confirm: 'Confirm Adjust',
+      },
+    },
+    machineConflict: {
+      title: 'Conflict Detection',
+      conflictCount: '{count} conflicts',
+      button: {
+        detect: 'Detect Conflicts',
+      },
+      empty: 'No schedule conflicts',
+      severity: {
+        error: 'Critical',
+        warning: 'Warning',
+      },
+    },
+    machineParam: {
+      title: 'Schedule Parameters',
+      ariaLabel: {
+        form: 'Schedule Parameters Form',
+      },
+      form: {
+        scheduleRange: 'Schedule Range',
+        priorityMode: 'Priority Mode',
+        optimizationTarget: 'Optimization Target',
+      },
+      to: 'to',
+      placeholder: {
+        start: 'Start',
+        end: 'End',
+      },
+      option: {
+        priorityFifo: 'First In First Out',
+        priorityPriority: 'Priority First',
+        priorityDueDate: 'Due Date First',
+        targetMinIdle: 'Minimize Idle',
+        targetMinDelay: 'Minimize Delay',
+        targetBalanceLoad: 'Balance Load',
+      },
+      button: {
+        execute: 'Execute Schedule',
+      },
+    },
+    machineTable: {
+      title: 'Schedule Work Order List',
+      placeholder: {
+        filterStatus: 'Filter Status',
+      },
+      filterOption: {
+        all: 'All',
+        pending: 'Pending',
+        scheduled: 'Scheduled',
+        running: 'Running',
+        completed: 'Completed',
+        conflict: 'Conflict',
+      },
+      button: {
+        refresh: 'Refresh',
+        adjust: 'Adjust',
+        detail: 'Detail',
+      },
+      ariaLabel: {
+        table: 'Schedule List',
+        pagination: 'Schedule List Pagination',
+      },
+      column: {
+        orderNo: 'Work Order No.',
+        productName: 'Product Name',
+        workCenter: 'Work Center',
+        quantity: 'Quantity',
+        startTime: 'Start Time',
+        endTime: 'End Time',
+        duration: 'Duration (h)',
+        priority: 'Priority',
+        status: 'Status',
+        operation: 'Operation',
+      },
+      status: {
+        pending: 'Pending',
+        scheduled: 'Scheduled',
+        running: 'Running',
+        completed: 'Completed',
+        conflict: 'Conflict',
+      },
+    },
+    machineTool: {
+      title: 'Production Scheduling Management',
+      button: {
+        autoSchedule: 'Auto Schedule',
+        viewGantt: 'View Gantt Chart',
+      },
+      stat: {
+        pending: 'Pending Orders',
+        scheduled: 'Scheduled Orders',
+        running: 'Running Orders',
+        conflicts: 'Conflict Count',
+      },
+    },
   },
+  security: {
+    alertTable: {
+      title: 'Security Alerts',
+      ariaLabel: 'Security Alert Table',
+      column: {
+        index: 'Index',
+        alertType: 'Alert Type',
+        username: 'Username',
+        ipAddress: 'IP Address',
+        description: 'Alert Description',
+        createdAt: 'Alert Time',
+        status: 'Status',
+      },
+      alertType: {
+        BRUTE_FORCE: 'Brute Force',
+        SUSPICIOUS_IP: 'Suspicious IP',
+        MULTIPLE_FAILURES: 'Multiple Failures',
+        UNUSUAL_LOCATION: 'Unusual Location',
+      },
+      status: {
+        PENDING: 'Pending',
+        PROCESSING: 'Processing',
+        RESOLVED: 'Resolved',
+        IGNORED: 'Ignored',
+      },
+    },
+    lockTable: {
+      title: 'Locked Account Management',
+      ariaLabel: 'Locked Account Management Table',
+      column: {
+        index: 'Index',
+        username: 'Username',
+        lockReason: 'Lock Reason',
+        lockedAt: 'Locked At',
+        unlockAt: 'Unlock At',
+        action: 'Action',
+      },
+      button: {
+        unlock: 'Unlock',
+      },
+    },
+    logTable: {
+      title: 'Login Logs',
+      ariaLabel: {
+        filterForm: 'Login Log Filter Form',
+        table: 'Login Log Table',
+        pagination: 'Login Log Pagination',
+      },
+      column: {
+        index: 'Index',
+        username: 'Username',
+        loginType: 'Login Type',
+        ipAddress: 'IP Address',
+        userAgent: 'Browser',
+        status: 'Status',
+        failReason: 'Failure Reason',
+        loginTime: 'Login Time',
+      },
+      filter: {
+        username: 'Username',
+        status: 'Login Status',
+        dateRange: 'Login Time',
+      },
+      placeholder: {
+        username: 'Enter username',
+        status: 'Select status',
+        rangeSeparator: 'to',
+        startDate: 'Start Date',
+        endDate: 'End Date',
+      },
+      button: {
+        search: 'Search',
+      },
+      loginType: {
+        LOGIN: 'Login',
+        LOGOUT: 'Logout',
+      },
+      status: {
+        SUCCESS: 'Success',
+        FAILED: 'Failed',
+      },
+    },
+    stat: {
+      label: {
+        todayLogins: 'Today\'s Login Count',
+        todayFailures: 'Today\'s Failure Count',
+        lockedAccounts: 'Locked Account Count',
+        securityAlerts: 'Security Alerts',
+      },
+    },
+    changePassword: {
+      title: 'Change Password',
+      ariaLabel: 'Change Password Form',
+      successAlert: {
+        title: 'Password Changed Successfully',
+        description: 'Please use the new password for next login',
+      },
+      form: {
+        oldPassword: 'Current Password',
+        newPassword: 'New Password',
+        confirmPassword: 'Confirm New Password',
+      },
+      placeholder: {
+        oldPassword: 'Enter current password',
+        newPassword: 'Enter new password',
+        confirmPassword: 'Enter new password again',
+      },
+      button: {
+        submit: 'Change Password',
+        reset: 'Reset',
+      },
+      tips: {
+        title: 'Password Requirements:',
+        length: 'At least 8 characters (12+ recommended)',
+        uppercase: 'Must contain uppercase letters',
+        lowercase: 'Must contain lowercase letters',
+        digit: 'Must contain digits',
+        special: 'Must contain special characters (e.g. !@#$%)',
+        notSame: 'Cannot be the same as current password',
+      },
+      message: {
+        newPasswordRequired: 'Please enter new password',
+        lengthMin: 'Password must be at least 8 characters',
+        lengthMax: 'Password cannot exceed 128 characters',
+        uppercase: 'Password must contain uppercase letters',
+        lowercase: 'Password must contain lowercase letters',
+        digit: 'Password must contain digits',
+        special: 'Password must contain special characters',
+        sameAsOld: 'New password cannot be the same as current password',
+        confirmRequired: 'Please enter new password again',
+        confirmMismatch: 'Passwords do not match',
+        oldPasswordRequired: 'Please enter current password',
+        success: 'Password changed successfully. Please use the new password for next login.',
+      },
+    },
+    twoFactorSetup: {
+      title: 'Two-Factor Authentication',
+      breadcrumb: {
+        home: 'Home',
+        system: 'System Management',
+        current: 'Two-Factor Authentication',
+      },
+      button: {
+        prev: 'Previous',
+        next: 'Next',
+        verifyAndEnable: 'Verify and Enable',
+        finish: 'Finish',
+      },
+    },
+    index: {
+      title: 'Login Security',
+      breadcrumb: {
+        home: 'Home',
+        system: 'System Management',
+        current: 'Login Security',
+      },
+      button: {
+        exportLogs: 'Export Logs',
+      },
+    },
+    twoFactor: {
+      step1: {
+        title: 'Set Up Two-Factor Authentication',
+        desc: 'Two-Factor Authentication provides additional security for your account',
+        alert: {
+          enabled: {
+            title: 'Two-Factor Authentication Enabled',
+            desc: 'Your account has 2FA enabled. Re-setup requires disabling the current one first.',
+          },
+          disabled: {
+            title: 'Two-Factor Authentication Not Enabled',
+            desc: 'It is recommended to enable 2FA to improve account security.',
+          },
+        },
+        label: {
+          username: 'Account:',
+          status: 'Current Status:',
+        },
+        status: {
+          enabled: 'Enabled',
+          disabled: 'Not Enabled',
+        },
+        button: {
+          enabledText: 'Enabled',
+          setup: 'Start Setup',
+        },
+      },
+      step2: {
+        title: 'Scan QR Code',
+        desc: 'Use Google Authenticator, Microsoft Authenticator, or other compatible apps to scan the QR code below',
+        qrAlt: 'Two-Factor Authentication QR Code',
+        qrLoading: 'Generating QR Code...',
+        ariaLabel: {
+          form: 'Two-Factor Authentication Info Form',
+        },
+        label: {
+          username: 'Account',
+          issuer: 'Issuer',
+          secret: 'Manual Entry Key',
+        },
+        button: {
+          copy: 'Copy',
+        },
+      },
+      step3: {
+        title: 'Verify and Enable',
+        desc: 'Please enter the 6-digit dynamic code shown in your authenticator app to complete setup',
+        ariaLabel: {
+          form: 'Two-Factor Verification Code Form',
+        },
+        placeholder: {
+          token: 'Enter 6-digit dynamic code',
+        },
+        tip: {
+          tokenUpdate: 'Dynamic code updates every 30 seconds, please enter the latest one',
+        },
+      },
+      step4: {
+        title: 'Two-Factor Authentication Enabled',
+        subTitle: 'Your account is now protected by Two-Factor Authentication',
+        alert: {
+          recovery: {
+            title: 'Recovery Codes (Keep Safe)',
+            desc: 'When you cannot use the authenticator, you can use the following recovery codes to log in. Each code can only be used once.',
+          },
+        },
+        button: {
+          copyAll: 'Copy All Recovery Codes',
+        },
+      },
+      stepBar: {
+        step1: 'Start Setup',
+        step2: 'Scan QR Code',
+        step3: 'Verify and Enable',
+        step4: 'Finish',
+      },
+    },
+  },
+  system: {
+    index: {
+      tab: {
+        user: 'User Management',
+        role: 'Role Management',
+        department: 'Department Management',
+        permission: 'Permission Management',
+        dataPermission: 'Data Permission',
+        fieldPermission: 'Field Permission',
+        notification: 'Notification Settings',
+        audit: 'Audit Log',
+        webhook: 'Webhook Configuration',
+        update: 'System Update',
+        company: 'Company Info',
+      },
+    },
+    slowQuery: {
+      title: {
+        top10: 'Slow Query TOP 10 ({range})',
+      },
+      timeRange: {
+        default: 'Last 7 days',
+      },
+      button: {
+        refresh: 'Refresh',
+        query: 'Query',
+        reset: 'Reset',
+      },
+      text: {
+        calls: '{count} calls',
+      },
+      empty: {
+        top: 'No slow query data. Click "Refresh" to trigger collection.',
+        table: 'No slow query records',
+      },
+      aria: {
+        filterForm: 'Slow query filter form',
+      },
+      label: {
+        timeRange: 'Time Range',
+        minDuration: 'Min Execution Time',
+        keyword: 'Keyword',
+      },
+      placeholder: {
+        startDate: 'Start time',
+        endDate: 'End time',
+        ms: 'ms',
+        sqlSnippet: 'SQL snippet',
+      },
+      common: {
+        to: 'to',
+      },
+      column: {
+        id: 'ID',
+        capturedAt: 'Captured At',
+        avgDuration: 'Avg Duration',
+        calls: 'Calls',
+        rowsExamined: 'Rows Examined',
+        sqlText: 'SQL Text',
+        database: 'Database',
+      },
+      message: {
+        loadFailed: 'Failed to load slow queries',
+        refreshFailed: 'Refresh failed',
+      },
+    },
+    audit: {
+      title: 'Audit Log',
+      aria: {
+        filterForm: 'Audit log filter form',
+        list: 'Audit log list',
+        pagination: 'Audit log list pagination',
+      },
+      label: {
+        operator: 'Operator',
+        module: 'Module',
+        timeRange: 'Time Range',
+      },
+      placeholder: {
+        operator: 'Username',
+        module: 'Module name',
+        startDate: 'Start date',
+        endDate: 'End date',
+      },
+      common: {
+        to: 'to',
+      },
+      button: {
+        query: 'Query',
+      },
+      column: {
+        time: 'Time',
+        operator: 'Operator',
+        module: 'Module',
+        action: 'Action',
+        resource: 'Resource',
+        ip: 'IP',
+        detail: 'Detail',
+      },
+    },
+    company: {
+      title: 'Company Information Settings',
+      aria: {
+        form: 'Company information form',
+      },
+      divider: {
+        basic: 'Basic Info',
+        contact: 'Contact Info',
+        bank: 'Bank Info',
+      },
+      label: {
+        companyName: 'Company Name',
+        companyShortName: 'Short Name',
+        creditCode: 'Credit Code',
+        legalRep: 'Legal Representative',
+        phone: 'Phone',
+        email: 'Email',
+        address: 'Address',
+        bankName: 'Bank Name',
+        bankAccount: 'Bank Account',
+      },
+      button: {
+        save: 'Save',
+        reset: 'Reset',
+      },
+      message: {
+        saveSuccess: 'Saved successfully',
+        saveFailed: 'Save failed',
+        requiredName: 'Please enter company name',
+      },
+    },
+    dataPermission: {
+      title: 'Data Permission',
+      aria: {
+        list: 'Data permission list',
+      },
+      column: {
+        role: 'Role',
+        scopeType: 'Scope Type',
+        scopeValue: 'Scope Value',
+        createdAt: 'Created At',
+      },
+    },
+    department: {
+      title: 'Department Management',
+      button: {
+        create: 'New Department',
+        edit: 'Edit',
+        delete: 'Delete',
+      },
+      aria: {
+        list: 'Department list',
+      },
+      column: {
+        name: 'Department Name',
+        code: 'Department Code',
+        manager: 'Manager',
+        sort: 'Sort',
+        status: 'Status',
+        action: 'Action',
+      },
+      status: {
+        enabled: 'Enabled',
+        disabled: 'Disabled',
+      },
+      dialog: {
+        editTitle: 'Edit Department',
+        createTitle: 'New Department',
+        aria: 'Department edit dialog',
+      },
+      form: {
+        aria: 'Department info form',
+        label: {
+          name: 'Department Name',
+          code: 'Department Code',
+          parent: 'Parent Department',
+          sort: 'Sort',
+          status: 'Status',
+        },
+        button: {
+          cancel: 'Cancel',
+          confirm: 'Confirm',
+        },
+      },
+      message: {
+        fetchFailed: 'Failed to fetch departments',
+        requiredName: 'Please enter department name',
+        requiredCode: 'Please enter department code',
+        updateSuccess: 'Updated successfully',
+        createSuccess: 'Created successfully',
+        operationFailed: 'Operation failed',
+        deleteConfirm: 'Are you sure to delete department "{name}"?',
+        deleteTitle: 'Delete Confirmation',
+        deleteSuccess: 'Deleted successfully',
+        deleteFailed: 'Delete failed',
+      },
+    },
+    fieldPermission: {
+      title: 'Field Permission',
+      aria: {
+        list: 'Field permission list',
+      },
+      column: {
+        role: 'Role',
+        resource: 'Resource',
+        fieldName: 'Field Name',
+        visible: 'Visible',
+        editable: 'Editable',
+      },
+      common: {
+        yes: 'Yes',
+        no: 'No',
+      },
+    },
+    notification: {
+      title: 'Notification Settings',
+      aria: {
+        form: 'Notification settings form',
+      },
+      label: {
+        email: 'Email Notification',
+        internal: 'In-app Notification',
+        order: 'Order Notification',
+        approval: 'Approval Notification',
+        inventory: 'Inventory Notification',
+        system: 'System Notification',
+      },
+      divider: {
+        type: 'Notification Type',
+      },
+      option: {
+        emailOnly: 'Email Only',
+        internalOnly: 'In-app Only',
+        all: 'All',
+      },
+      button: {
+        save: 'Save Settings',
+      },
+      message: {
+        saveSuccess: 'Saved successfully',
+        saveFailed: 'Save failed',
+      },
+    },
+    permission: {
+      title: 'Permission Management',
+      aria: {
+        list: 'Permission list',
+      },
+      column: {
+        resourceType: 'Resource Type',
+        action: 'Action',
+        status: 'Status',
+        resourceId: 'Resource ID',
+      },
+      status: {
+        allowed: 'Allowed',
+        denied: 'Denied',
+      },
+    },
+    role: {
+      title: 'Role Management',
+      button: {
+        create: 'New Role',
+        edit: 'Edit',
+        permission: 'Permission',
+        delete: 'Delete',
+      },
+      aria: {
+        list: 'Role list',
+      },
+      column: {
+        name: 'Role Name',
+        code: 'Role Code',
+        description: 'Description',
+        status: 'Status',
+        createdAt: 'Created At',
+        action: 'Action',
+      },
+      status: {
+        enabled: 'Enabled',
+        disabled: 'Disabled',
+      },
+      dialog: {
+        editTitle: 'Edit Role',
+        createTitle: 'New Role',
+        aria: 'Role edit dialog',
+      },
+      form: {
+        aria: 'Role info form',
+        label: {
+          name: 'Role Name',
+          code: 'Role Code',
+          description: 'Description',
+          status: 'Status',
+        },
+        button: {
+          cancel: 'Cancel',
+          confirm: 'Confirm',
+        },
+      },
+      permissionDialog: {
+        title: 'Permission Config - {name}',
+        aria: 'Role permission config dialog',
+        button: {
+          cancel: 'Cancel',
+          save: 'Save',
+        },
+      },
+      message: {
+        fetchFailed: 'Failed to fetch roles',
+        requiredName: 'Please enter role name',
+        requiredCode: 'Please enter role code',
+        updateSuccess: 'Updated successfully',
+        createSuccess: 'Created successfully',
+        operationFailed: 'Operation failed',
+        deleteConfirm: 'Are you sure to delete role "{name}"?',
+        deleteTitle: 'Delete Confirmation',
+        deleteSuccess: 'Deleted successfully',
+        deleteFailed: 'Delete failed',
+        permissionSuccess: 'Permission config saved successfully',
+        permissionFailed: 'Config failed',
+      },
+    },
+    systemUpdate: {
+      title: 'System Update',
+      label: {
+        currentVersion: 'Current Version',
+        lastUpdate: 'Last Update',
+      },
+      button: {
+        check: 'Check Update',
+        apply: 'Apply Update',
+      },
+      message: {
+        upToDate: 'Already up to date',
+        checkFailed: 'Failed to check update',
+        updateSubmitted: 'Update submitted, service will restart',
+        updateFailed: 'Update failed',
+      },
+    },
+    webhook: {
+      title: 'Webhook Configuration',
+      button: {
+        create: 'New',
+        edit: 'Edit',
+        test: 'Test',
+        delete: 'Delete',
+      },
+      aria: {
+        list: 'Webhook list',
+      },
+      column: {
+        name: 'Name',
+        event: 'Event',
+        status: 'Status',
+        action: 'Action',
+      },
+      status: {
+        enabled: 'Enabled',
+        disabled: 'Disabled',
+      },
+      dialog: {
+        editTitle: 'Edit Webhook',
+        createTitle: 'New Webhook',
+        aria: 'Webhook edit dialog',
+      },
+      form: {
+        aria: 'Webhook info form',
+        label: {
+          name: 'Name',
+          eventType: 'Event Type',
+          secret: 'Secret',
+          status: 'Status',
+        },
+        placeholder: {
+          secret: 'Optional',
+        },
+        button: {
+          cancel: 'Cancel',
+          confirm: 'Confirm',
+        },
+      },
+      event: {
+        orderCreated: 'Order Created',
+        orderUpdated: 'Order Updated',
+        inventoryChanged: 'Inventory Changed',
+        approvalCompleted: 'Approval Completed',
+        all: 'All',
+      },
+      message: {
+        saveSuccess: 'Saved successfully',
+        saveFailed: 'Save failed',
+        deleteConfirm: 'Are you sure to delete?',
+        deleteTitle: 'Confirm',
+        deleteSuccess: 'Deleted successfully',
+        deleteFailed: 'Delete failed',
+        testSent: 'Test request sent',
+        testFailed: 'Test failed',
+      },
+    },
+  },
+
 };

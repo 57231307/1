@@ -5,42 +5,45 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="排程冲突"
+    :title="t('scheduling.ganttConflict.title')"
     width="700px"
-    aria-label="排程冲突列表对话框"
+    :aria-label="t('scheduling.ganttConflict.ariaLabel.dialog')"
     @update:model-value="onVisibleChange"
   >
-    <el-table :data="conflictList" stripe aria-label="排程冲突列表">
-      <el-table-column prop="work_center_name" label="工作中心" width="140" />
-      <el-table-column label="冲突工单" width="260">
+    <el-table :data="conflictList" stripe :aria-label="t('scheduling.ganttConflict.ariaLabel.table')">
+      <el-table-column prop="work_center_name" :label="t('scheduling.ganttConflict.column.workCenter')" width="140" />
+      <el-table-column :label="t('scheduling.ganttConflict.column.conflictOrders')" width="260">
         <template #default="{ row }">
           <span>{{ row.order_no_1 }}</span>
           <el-icon style="margin: 0 8px"><Switch /></el-icon>
           <span>{{ row.order_no_2 }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="重叠时间" width="220">
+      <el-table-column :label="t('scheduling.ganttConflict.column.overlapTime')" width="220">
         <template #default="{ row }">
           <div>{{ formatTime(row.overlap_start) }}</div>
-          <div>至</div>
+          <div>{{ t('scheduling.ganttConflict.to') }}</div>
           <div>{{ formatTime(row.overlap_end) }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="严重程度" width="100">
+      <el-table-column :label="t('scheduling.ganttConflict.column.severity')" width="100">
         <template #default="{ row }">
           <el-tag :type="row.severity === 'error' ? 'danger' : 'warning'" size="small">
-            {{ row.severity === 'error' ? '严重' : '警告' }}
+            {{ row.severity === 'error' ? t('scheduling.ganttConflict.severity.error') : t('scheduling.ganttConflict.severity.warning') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="suggestion" label="建议" />
+      <el-table-column prop="suggestion" :label="t('scheduling.ganttConflict.column.suggestion')" />
     </el-table>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Switch } from '@element-plus/icons-vue'
 import { formatTime } from '../composables/schGFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 冲突项类型
 interface ConflictItem {

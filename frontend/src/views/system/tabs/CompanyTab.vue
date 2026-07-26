@@ -6,7 +6,7 @@
 <template>
   <div class="company-tab">
     <div class="page-header">
-      <h2 class="page-title">公司信息设置</h2>
+      <h2 class="page-title">{{ t('system.company.title') }}</h2>
     </div>
     <el-card shadow="hover">
       <el-form
@@ -15,67 +15,65 @@
         :rules="companyRules"
         label-width="120px"
         style="max-width: 800px"
-        aria-label="公司信息表单"
+        :aria-label="t('system.company.aria.form')"
       >
-        <el-divider content-position="left">基本信息</el-divider>
+        <el-divider content-position="left">{{ t('system.company.divider.basic') }}</el-divider>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="公司名称" prop="company_name">
+            <el-form-item :label="t('system.company.label.companyName')" prop="company_name">
               <el-input v-model="companyForm.company_name" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="公司简称">
+            <el-form-item :label="t('system.company.label.companyShortName')">
               <el-input v-model="companyForm.company_short_name" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="信用代码">
+            <el-form-item :label="t('system.company.label.creditCode')">
               <el-input v-model="companyForm.credit_code" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="法定代表人">
+            <el-form-item :label="t('system.company.label.legalRep')">
               <el-input v-model="companyForm.legal_representative" />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-divider content-position="left">联系方式</el-divider>
+        <el-divider content-position="left">{{ t('system.company.divider.contact') }}</el-divider>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="联系电话">
+            <el-form-item :label="t('system.company.label.phone')">
               <el-input v-model="companyForm.phone" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="邮箱">
+            <el-form-item :label="t('system.company.label.email')">
               <el-input v-model="companyForm.email" />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="地址">
+        <el-form-item :label="t('system.company.label.address')">
           <el-input v-model="companyForm.address" />
         </el-form-item>
-        <el-divider content-position="left">银行信息</el-divider>
+        <el-divider content-position="left">{{ t('system.company.divider.bank') }}</el-divider>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="开户银行">
+            <el-form-item :label="t('system.company.label.bankName')">
               <el-input v-model="companyForm.bank_name" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="银行账号">
+            <el-form-item :label="t('system.company.label.bankAccount')">
               <el-input v-model="companyForm.bank_account" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item>
-          <el-button type="primary" :loading="companySubmitLoading" @click="saveCompanyInfo"
-            >保存</el-button
-          >
-          <el-button @click="resetCompanyForm">重置</el-button>
+          <el-button type="primary" :loading="companySubmitLoading" @click="saveCompanyInfo">{{ t('system.company.button.save') }}</el-button>
+          <el-button @click="resetCompanyForm">{{ t('system.company.button.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -84,8 +82,11 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface CompanyForm {
   company_name: string
@@ -130,7 +131,7 @@ const companyForm = reactive<CompanyForm>({
 })
 
 const companyRules: FormRules = {
-  company_name: [{ required: true, message: '请输入公司名称', trigger: 'blur' }],
+  company_name: [{ required: true, message: t('system.company.message.requiredName'), trigger: 'blur' }],
 }
 
 const fetchCompanyInfo = async () => {
@@ -167,10 +168,10 @@ const saveCompanyInfo = async () => {
       remarks: companyForm.remarks,
     }
     localStorage.setItem('company_info', JSON.stringify(nonSensitiveFields))
-    ElMessage.success('保存成功')
+    ElMessage.success(t('system.company.message.saveSuccess'))
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '保存失败')
+    ElMessage.error(err.message || t('system.company.message.saveFailed'))
   } finally {
     companySubmitLoading.value = false
   }

@@ -5,16 +5,16 @@
 -->
 <template>
   <div class="step-content">
-    <el-result icon="success" title="两步验证已启用" sub-title="您的账户现在受到两步验证保护">
+    <el-result icon="success" :title="t('security.twoFactor.step4.title')" :sub-title="t('security.twoFactor.step4.subTitle')">
       <template #icon>
         <el-icon class="success-icon"><CircleCheckFilled /></el-icon>
       </template>
     </el-result>
 
     <el-alert
-      title="恢复码（请妥善保管）"
+      :title="t('security.twoFactor.step4.alert.recovery.title')"
       type="warning"
-      description="当您无法使用身份验证器时，可使用以下恢复码登录。每个恢复码仅可使用一次。"
+      :description="t('security.twoFactor.step4.alert.recovery.desc')"
       show-icon
       :closable="false"
       class="recovery-alert"
@@ -30,7 +30,7 @@
       />
       <el-button class="copy-button" type="primary" @click="emit('copy-recovery')">
         <el-icon><CopyDocument /></el-icon>
-        复制全部恢复码
+        {{ t('security.twoFactor.step4.button.copyAll') }}
       </el-button>
     </div>
   </div>
@@ -38,7 +38,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CircleCheckFilled, CopyDocument } from '@element-plus/icons-vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{ recoveryCodes: string[] }>()
 const emit = defineEmits<{ 'copy-recovery': []; 'finish': [] }>()

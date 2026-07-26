@@ -5,23 +5,23 @@
 -->
 <template>
   <div class="step-content">
-    <h3 class="step-title">设置两步验证</h3>
-    <p class="step-desc">两步验证为您的账户提供额外的安全保障</p>
+    <h3 class="step-title">{{ t('security.twoFactor.step1.title') }}</h3>
+    <p class="step-desc">{{ t('security.twoFactor.step1.desc') }}</p>
 
     <el-alert
       v-if="isEnabled"
-      title="两步验证已启用"
+      :title="t('security.twoFactor.step1.alert.enabled.title')"
       type="success"
-      description="您的账户已启用两步验证，重新设置将需要先关闭现有设置。"
+      :description="t('security.twoFactor.step1.alert.enabled.desc')"
       show-icon
       :closable="false"
       class="status-alert"
     />
     <el-alert
       v-else
-      title="两步验证未启用"
+      :title="t('security.twoFactor.step1.alert.disabled.title')"
       type="warning"
-      description="建议您启用两步验证以提高账户安全性。"
+      :description="t('security.twoFactor.step1.alert.disabled.desc')"
       show-icon
       :closable="false"
       class="status-alert"
@@ -29,13 +29,13 @@
 
     <div class="info-block">
       <div class="info-row">
-        <span class="info-label">账户名：</span>
+        <span class="info-label">{{ t('security.twoFactor.step1.label.username') }}</span>
         <span class="info-value">{{ username }}</span>
       </div>
       <div class="info-row">
-        <span class="info-label">当前状态：</span>
-        <el-tag v-if="isEnabled" type="success">已启用</el-tag>
-        <el-tag v-else type="warning">未启用</el-tag>
+        <span class="info-label">{{ t('security.twoFactor.step1.label.status') }}</span>
+        <el-tag v-if="isEnabled" type="success">{{ t('security.twoFactor.step1.status.enabled') }}</el-tag>
+        <el-tag v-else type="warning">{{ t('security.twoFactor.step1.status.disabled') }}</el-tag>
       </div>
     </div>
 
@@ -48,14 +48,17 @@
         @click="emit('start-setup')"
       >
         <el-icon><Setting /></el-icon>
-        {{ isEnabled ? '已启用' : '启动设置' }}
+        {{ isEnabled ? t('security.twoFactor.step1.button.enabledText') : t('security.twoFactor.step1.button.setup') }}
       </el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Setting } from '@element-plus/icons-vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   isEnabled: boolean

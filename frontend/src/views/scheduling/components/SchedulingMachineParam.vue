@@ -6,33 +6,33 @@
   <el-card shadow="hover" class="param-card">
     <template #header>
       <div class="card-header">
-        <span>排程参数</span>
+        <span>{{ t('scheduling.machineParam.title') }}</span>
       </div>
     </template>
-    <el-form :model="scheduleParams" label-width="90px" size="small" aria-label="排班参数表单">
-      <el-form-item label="排程范围">
+    <el-form :model="scheduleParams" label-width="90px" size="small" :aria-label="t('scheduling.machineParam.ariaLabel.form')">
+      <el-form-item :label="t('scheduling.machineParam.form.scheduleRange')">
         <el-date-picker
           :model-value="dateRange"
           type="daterange"
-          range-separator="至"
-          start-placeholder="开始"
-          end-placeholder="结束"
+          :range-separator="t('scheduling.machineParam.to')"
+          :start-placeholder="t('scheduling.machineParam.placeholder.start')"
+          :end-placeholder="t('scheduling.machineParam.placeholder.end')"
           style="width: 100%"
           @update:model-value="onDateChange"
         />
       </el-form-item>
-      <el-form-item label="优先级模式">
+      <el-form-item :label="t('scheduling.machineParam.form.priorityMode')">
         <el-select v-model="scheduleParams.priority_mode" style="width: 100%">
-          <el-option label="先进先出" value="fifo" />
-          <el-option label="优先级优先" value="priority" />
-          <el-option label="交期优先" value="due_date" />
+          <el-option :label="t('scheduling.machineParam.option.priorityFifo')" value="fifo" />
+          <el-option :label="t('scheduling.machineParam.option.priorityPriority')" value="priority" />
+          <el-option :label="t('scheduling.machineParam.option.priorityDueDate')" value="due_date" />
         </el-select>
       </el-form-item>
-      <el-form-item label="优化目标">
+      <el-form-item :label="t('scheduling.machineParam.form.optimizationTarget')">
         <el-select v-model="scheduleParams.optimization_target" style="width: 100%">
-          <el-option label="最小化空闲" value="min_idle" />
-          <el-option label="最小化延迟" value="min_delay" />
-          <el-option label="均衡负载" value="balance_load" />
+          <el-option :label="t('scheduling.machineParam.option.targetMinIdle')" value="min_idle" />
+          <el-option :label="t('scheduling.machineParam.option.targetMinDelay')" value="min_delay" />
+          <el-option :label="t('scheduling.machineParam.option.targetBalanceLoad')" value="balance_load" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -43,7 +43,7 @@
           @click="emit('auto-schedule')"
         >
           <el-icon><Cpu /></el-icon>
-          执行排程
+          {{ t('scheduling.machineParam.button.execute') }}
         </el-button>
       </el-form-item>
     </el-form>
@@ -51,6 +51,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
+
 // 排程参数类型
 interface ScheduleParams {
   start_date: string

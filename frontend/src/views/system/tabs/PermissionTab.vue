@@ -6,20 +6,20 @@
 <template>
   <div class="permission-tab">
     <div class="page-header">
-      <h2 class="page-title">权限管理</h2>
+      <h2 class="page-title">{{ t('system.permission.title') }}</h2>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="permissionListLoading" :data="permissionList" stripe aria-label="权限列表">
-        <el-table-column prop="resource_type" label="资源类型" width="150" />
-        <el-table-column prop="action" label="操作" width="120" />
-        <el-table-column prop="allowed" label="状态" width="100" align="center">
+      <el-table v-loading="permissionListLoading" :data="permissionList" stripe :aria-label="t('system.permission.aria.list')">
+        <el-table-column prop="resource_type" :label="t('system.permission.column.resourceType')" width="150" />
+        <el-table-column prop="action" :label="t('system.permission.column.action')" width="120" />
+        <el-table-column prop="allowed" :label="t('system.permission.column.status')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.allowed ? 'success' : 'danger'" size="small">
-              {{ row.allowed ? '允许' : '禁止' }}
+              {{ row.allowed ? t('system.permission.status.allowed') : t('system.permission.status.denied') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="resource_id" label="资源ID" width="100" />
+        <el-table-column prop="resource_id" :label="t('system.permission.column.resourceId')" width="100" />
       </el-table>
     </el-card>
   </div>
@@ -27,7 +27,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { request } from '@/api/request'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface PermissionRow {
   resource_type: string

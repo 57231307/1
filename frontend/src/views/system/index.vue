@@ -31,37 +31,37 @@
       class="system-tabs"
       @tab-change="handleTabChange"
     >
-      <el-tab-pane label="用户管理" name="user">
+      <el-tab-pane :label="t('system.index.tab.user')" name="user">
         <UserTab />
       </el-tab-pane>
-      <el-tab-pane label="角色管理" name="role">
+      <el-tab-pane :label="t('system.index.tab.role')" name="role">
         <RoleTab />
       </el-tab-pane>
-      <el-tab-pane label="部门管理" name="department">
+      <el-tab-pane :label="t('system.index.tab.department')" name="department">
         <DepartmentTab />
       </el-tab-pane>
-      <el-tab-pane label="权限管理" name="permission">
+      <el-tab-pane :label="t('system.index.tab.permission')" name="permission">
         <PermissionTab />
       </el-tab-pane>
-      <el-tab-pane label="数据权限" name="dataPermission">
+      <el-tab-pane :label="t('system.index.tab.dataPermission')" name="dataPermission">
         <DataPermissionTab />
       </el-tab-pane>
-      <el-tab-pane label="字段权限" name="fieldPermission">
+      <el-tab-pane :label="t('system.index.tab.fieldPermission')" name="fieldPermission">
         <FieldPermissionTab />
       </el-tab-pane>
-      <el-tab-pane label="通知设置" name="notification">
+      <el-tab-pane :label="t('system.index.tab.notification')" name="notification">
         <NotificationTab />
       </el-tab-pane>
-      <el-tab-pane label="审计日志" name="audit">
+      <el-tab-pane :label="t('system.index.tab.audit')" name="audit">
         <AuditTab />
       </el-tab-pane>
-      <el-tab-pane label="Webhook 配置" name="webhook">
+      <el-tab-pane :label="t('system.index.tab.webhook')" name="webhook">
         <WebhookTab />
       </el-tab-pane>
-      <el-tab-pane label="系统更新" name="update">
+      <el-tab-pane :label="t('system.index.tab.update')" name="update">
         <SystemUpdateTab />
       </el-tab-pane>
-      <el-tab-pane label="公司信息" name="company">
+      <el-tab-pane :label="t('system.index.tab.company')" name="company">
         <CompanyTab />
       </el-tab-pane>
     </el-tabs>
@@ -70,6 +70,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import UserTab from './tabs/UserTab.vue'
 import RoleTab from './tabs/RoleTab.vue'
 import DepartmentTab from './tabs/DepartmentTab.vue'
@@ -81,6 +82,8 @@ import AuditTab from './tabs/AuditTab.vue'
 import WebhookTab from './tabs/WebhookTab.vue'
 import SystemUpdateTab from './tabs/SystemUpdateTab.vue'
 import CompanyTab from './tabs/CompanyTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 当前激活的 Tab（懒加载由各子组件 onMounted 内部处理）
 const activeTab = ref('user')

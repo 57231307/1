@@ -6,53 +6,56 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="自动排程参数"
+    :title="t('scheduling.ganttAuto.title')"
     width="500px"
-    aria-label="自动排程参数对话框"
+    :aria-label="t('scheduling.ganttAuto.ariaLabel.dialog')"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localForm" label-width="120px" aria-label="自动排程参数表单">
-      <el-form-item label="排程开始日期">
+    <el-form :model="localForm" label-width="120px" :aria-label="t('scheduling.ganttAuto.ariaLabel.form')">
+      <el-form-item :label="t('scheduling.ganttAuto.form.startDate')">
         <el-date-picker
           v-model="localForm.start_date"
           type="date"
-          placeholder="选择日期"
+          :placeholder="t('scheduling.ganttAuto.placeholder.date')"
           style="width: 100%"
         />
       </el-form-item>
-      <el-form-item label="排程结束日期">
+      <el-form-item :label="t('scheduling.ganttAuto.form.endDate')">
         <el-date-picker
           v-model="localForm.end_date"
           type="date"
-          placeholder="选择日期"
+          :placeholder="t('scheduling.ganttAuto.placeholder.date')"
           style="width: 100%"
         />
       </el-form-item>
-      <el-form-item label="优先级模式">
+      <el-form-item :label="t('scheduling.ganttAuto.form.priorityMode')">
         <el-select v-model="localForm.priority_mode" style="width: 100%">
-          <el-option label="先进先出 (FIFO)" value="fifo" />
-          <el-option label="优先级优先" value="priority" />
-          <el-option label="交期优先" value="due_date" />
+          <el-option :label="t('scheduling.ganttAuto.option.priorityFifo')" value="fifo" />
+          <el-option :label="t('scheduling.ganttAuto.option.priorityPriority')" value="priority" />
+          <el-option :label="t('scheduling.ganttAuto.option.priorityDueDate')" value="due_date" />
         </el-select>
       </el-form-item>
-      <el-form-item label="优化目标">
+      <el-form-item :label="t('scheduling.ganttAuto.form.optimizationTarget')">
         <el-select v-model="localForm.optimization_target" style="width: 100%">
-          <el-option label="最小化空闲时间" value="min_idle" />
-          <el-option label="最小化延迟" value="min_delay" />
-          <el-option label="均衡负载" value="balance_load" />
+          <el-option :label="t('scheduling.ganttAuto.option.targetMinIdle')" value="min_idle" />
+          <el-option :label="t('scheduling.ganttAuto.option.targetMinDelay')" value="min_delay" />
+          <el-option :label="t('scheduling.ganttAuto.option.targetBalanceLoad')" value="balance_load" />
         </el-select>
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="onCancel">取消</el-button>
-      <el-button type="primary" :loading="scheduling" @click="emit('confirm')">开始排程</el-button>
+      <el-button @click="onCancel">{{ t('scheduling.ganttAuto.button.cancel') }}</el-button>
+      <el-button type="primary" :loading="scheduling" @click="emit('confirm')">{{ t('scheduling.ganttAuto.button.startSchedule') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { SchedulingParams } from '@/api/scheduling'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   // 对话框可见性

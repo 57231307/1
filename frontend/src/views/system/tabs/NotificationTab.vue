@@ -6,49 +6,47 @@
 <template>
   <div class="notification-tab">
     <div class="page-header">
-      <h2 class="page-title">通知设置</h2>
+      <h2 class="page-title">{{ t('system.notification.title') }}</h2>
     </div>
     <el-card shadow="hover" style="max-width: 600px">
-      <el-form :model="notificationForm" label-width="140px" aria-label="通知设置表单">
-        <el-form-item label="邮件通知">
+      <el-form :model="notificationForm" label-width="140px" :aria-label="t('system.notification.aria.form')">
+        <el-form-item :label="t('system.notification.label.email')">
           <el-switch v-model="notificationForm.email_enabled" />
         </el-form-item>
-        <el-form-item label="站内通知">
+        <el-form-item :label="t('system.notification.label.internal')">
           <el-switch v-model="notificationForm.internal_enabled" />
         </el-form-item>
-        <el-divider content-position="left">通知类型</el-divider>
-        <el-form-item label="订单通知">
+        <el-divider content-position="left">{{ t('system.notification.divider.type') }}</el-divider>
+        <el-form-item :label="t('system.notification.label.order')">
           <el-select v-model="notificationForm.order_notification_type" style="width: 100%">
-            <el-option label="仅邮件" value="email" />
-            <el-option label="仅站内" value="internal" />
-            <el-option label="全部" value="both" />
+            <el-option :label="t('system.notification.option.emailOnly')" value="email" />
+            <el-option :label="t('system.notification.option.internalOnly')" value="internal" />
+            <el-option :label="t('system.notification.option.all')" value="both" />
           </el-select>
         </el-form-item>
-        <el-form-item label="审批通知">
+        <el-form-item :label="t('system.notification.label.approval')">
           <el-select v-model="notificationForm.approval_notification_type" style="width: 100%">
-            <el-option label="仅邮件" value="email" />
-            <el-option label="仅站内" value="internal" />
-            <el-option label="全部" value="both" />
+            <el-option :label="t('system.notification.option.emailOnly')" value="email" />
+            <el-option :label="t('system.notification.option.internalOnly')" value="internal" />
+            <el-option :label="t('system.notification.option.all')" value="both" />
           </el-select>
         </el-form-item>
-        <el-form-item label="库存通知">
+        <el-form-item :label="t('system.notification.label.inventory')">
           <el-select v-model="notificationForm.inventory_notification_type" style="width: 100%">
-            <el-option label="仅邮件" value="email" />
-            <el-option label="仅站内" value="internal" />
-            <el-option label="全部" value="both" />
+            <el-option :label="t('system.notification.option.emailOnly')" value="email" />
+            <el-option :label="t('system.notification.option.internalOnly')" value="internal" />
+            <el-option :label="t('system.notification.option.all')" value="both" />
           </el-select>
         </el-form-item>
-        <el-form-item label="系统通知">
+        <el-form-item :label="t('system.notification.label.system')">
           <el-select v-model="notificationForm.system_notification_type" style="width: 100%">
-            <el-option label="仅邮件" value="email" />
-            <el-option label="仅站内" value="internal" />
-            <el-option label="全部" value="both" />
+            <el-option :label="t('system.notification.option.emailOnly')" value="email" />
+            <el-option :label="t('system.notification.option.internalOnly')" value="internal" />
+            <el-option :label="t('system.notification.option.all')" value="both" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="notifSaving" @click="saveNotificationSetting">
-            保存设置
-          </el-button>
+          <el-button type="primary" :loading="notifSaving" @click="saveNotificationSetting">{{ t('system.notification.button.save') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -57,8 +55,11 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { request } from '@/api/request'
+
+const { t } = useI18n({ useScope: 'global' })
 
 type NotificationChannel = 'email' | 'internal' | 'both'
 
@@ -101,10 +102,10 @@ const saveNotificationSetting = async () => {
   notifSaving.value = true
   try {
     await request.put('/user/notification-setting', notificationForm)
-    ElMessage.success('保存成功')
+    ElMessage.success(t('system.notification.message.saveSuccess'))
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '保存失败')
+    ElMessage.error(err.message || t('system.notification.message.saveFailed'))
   } finally {
     notifSaving.value = false
   }

@@ -6,57 +6,57 @@
   <el-card shadow="hover">
     <template #header>
       <div class="card-header">
-        <span>排程工单列表</span>
+        <span>{{ t('scheduling.machineTable.title') }}</span>
         <div class="header-ops">
           <el-select
             :model-value="filterStatus"
-            placeholder="筛选状态"
+            :placeholder="t('scheduling.machineTable.placeholder.filterStatus')"
             clearable
             style="width: 140px; margin-right: 8px"
             @update:model-value="onFilterChange"
             @change="emit('filter-change')"
           >
-            <el-option label="全部" value="" />
-            <el-option label="待排程" value="pending" />
-            <el-option label="已排程" value="scheduled" />
-            <el-option label="生产中" value="running" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="冲突" value="conflict" />
+            <el-option :label="t('scheduling.machineTable.filterOption.all')" value="" />
+            <el-option :label="t('scheduling.machineTable.filterOption.pending')" value="pending" />
+            <el-option :label="t('scheduling.machineTable.filterOption.scheduled')" value="scheduled" />
+            <el-option :label="t('scheduling.machineTable.filterOption.running')" value="running" />
+            <el-option :label="t('scheduling.machineTable.filterOption.completed')" value="completed" />
+            <el-option :label="t('scheduling.machineTable.filterOption.conflict')" value="conflict" />
           </el-select>
           <el-button type="primary" link @click="emit('refresh')">
             <el-icon><Refresh /></el-icon>
-            刷新
+            {{ t('scheduling.machineTable.button.refresh') }}
           </el-button>
         </div>
       </div>
     </template>
-    <el-table v-loading="taskLoading" :data="taskList" stripe aria-label="排班列表">
-      <el-table-column prop="order_no" label="工单号" width="140" />
-      <el-table-column prop="product_name" label="产品名称" width="160" />
-      <el-table-column prop="work_center_name" label="工作中心" width="130" />
-      <el-table-column prop="quantity" label="数量" width="80" />
-      <el-table-column label="开始时间" width="170">
+    <el-table v-loading="taskLoading" :data="taskList" stripe :aria-label="t('scheduling.machineTable.ariaLabel.table')">
+      <el-table-column prop="order_no" :label="t('scheduling.machineTable.column.orderNo')" width="140" />
+      <el-table-column prop="product_name" :label="t('scheduling.machineTable.column.productName')" width="160" />
+      <el-table-column prop="work_center_name" :label="t('scheduling.machineTable.column.workCenter')" width="130" />
+      <el-table-column prop="quantity" :label="t('scheduling.machineTable.column.quantity')" width="80" />
+      <el-table-column :label="t('scheduling.machineTable.column.startTime')" width="170">
         <template #default="{ row }">{{ formatDateTime(row.start_time) }}</template>
       </el-table-column>
-      <el-table-column label="结束时间" width="170">
+      <el-table-column :label="t('scheduling.machineTable.column.endTime')" width="170">
         <template #default="{ row }">{{ formatDateTime(row.end_time) }}</template>
       </el-table-column>
-      <el-table-column prop="duration_hours" label="时长(h)" width="80" />
-      <el-table-column label="优先级" width="90">
+      <el-table-column prop="duration_hours" :label="t('scheduling.machineTable.column.duration')" width="80" />
+      <el-table-column :label="t('scheduling.machineTable.column.priority')" width="90">
         <template #default="{ row }">
           <el-tag :type="getPriorityType(row.priority)" size="small">P{{ row.priority }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="100">
+      <el-table-column :label="t('scheduling.machineTable.column.status')" width="100">
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.status)" effect="light">
             {{ getStatusLabel(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" fixed="right" width="160">
+      <el-table-column :label="t('scheduling.machineTable.column.operation')" fixed="right" width="160">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('adjust', row)">调整</el-button>
+          <el-button type="primary" link size="small" @click="emit('adjust', row)">{{ t('scheduling.machineTable.button.adjust') }}</el-button>
           <el-button
             v-if="row.has_conflict"
             type="danger"
@@ -64,7 +64,7 @@
             size="small"
             @click="emit('conflict-detail', row)"
           >
-            详情
+            {{ t('scheduling.machineTable.button.detail') }}
           </el-button>
         </template>
       </el-table-column>
@@ -76,7 +76,7 @@
       :page-sizes="[10, 20, 50]"
       layout="total, sizes, prev, pager, next"
       class="pagination"
-      aria-label="排班列表分页"
+      :aria-label="t('scheduling.machineTable.ariaLabel.pagination')"
       @update:current-page="(v: number) => emit('update:currentPage', v)"
       @update:page-size="(v: number) => emit('update:pageSize', v)"
     />
@@ -84,9 +84,15 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { ScheduleTask } from '@/api/scheduling'
 import { Refresh } from '@element-plus/icons-vue'
-import { formatDateTime, getStatusType, getStatusLabel, getPriorityType } from '../composables/schMFmts'
+import { formatDateTime, getStatusType, getPriorityType } from '../composables/schMFmts'
+
+const { t } = useI18n({ useScope: 'global' })
+
+/** 状态标签映射（响应式 i18n，覆盖 schMFmts 静态版本） */
+const getStatusLabel = (status: string): string => t(`scheduling.machineTable.status.${status}`)
 
 // 排产工单列表属性
 defineProps<{

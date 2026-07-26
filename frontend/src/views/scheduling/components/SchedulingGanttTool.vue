@@ -7,27 +7,27 @@
     <div class="header-left">
       <el-button link @click="emit('back')">
         <el-icon><ArrowLeft /></el-icon>
-        返回排程管理
+        {{ t('scheduling.ganttTool.button.back') }}
       </el-button>
-      <h2>生产排程甘特图</h2>
+      <h2>{{ t('scheduling.ganttTool.title') }}</h2>
     </div>
     <div class="header-actions">
       <el-date-picker
         :model-value="dateRange"
         type="daterange"
-        range-separator="至"
-        start-placeholder="开始日期"
-        end-placeholder="结束日期"
+        :range-separator="t('scheduling.ganttTool.to')"
+        :start-placeholder="t('scheduling.ganttTool.placeholder.startDate')"
+        :end-placeholder="t('scheduling.ganttTool.placeholder.endDate')"
         style="width: 240px"
         @update:model-value="onDateChange"
       />
       <el-button type="primary" :loading="scheduling" @click="emit('auto-schedule')">
         <el-icon><Cpu /></el-icon>
-        自动排程
+        {{ t('scheduling.ganttTool.button.autoSchedule') }}
       </el-button>
       <el-button @click="emit('refresh')">
         <el-icon><Refresh /></el-icon>
-        刷新
+        {{ t('scheduling.ganttTool.button.refresh') }}
       </el-button>
     </div>
   </div>
@@ -40,7 +40,7 @@
             <el-icon><List /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">总任务数</div>
+            <div class="stat-label">{{ t('scheduling.ganttTool.stat.totalTasks') }}</div>
             <div class="stat-value">{{ ganttData.total_tasks || 0 }}</div>
           </div>
         </div>
@@ -53,7 +53,7 @@
             <el-icon><Warning /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">冲突数</div>
+            <div class="stat-label">{{ t('scheduling.ganttTool.stat.conflictCount') }}</div>
             <div class="stat-value">{{ ganttData.conflict_count || 0 }}</div>
           </div>
         </div>
@@ -66,7 +66,7 @@
             <el-icon><OfficeBuilding /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">工作中心</div>
+            <div class="stat-label">{{ t('scheduling.ganttTool.stat.workCenter') }}</div>
             <div class="stat-value">{{ ganttData.work_centers?.length || 0 }}</div>
           </div>
         </div>
@@ -79,7 +79,7 @@
             <el-icon><Calendar /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">排程范围</div>
+            <div class="stat-label">{{ t('scheduling.ganttTool.stat.scheduleRange') }}</div>
             <div class="stat-value range-text">{{ dateRangeText }}</div>
           </div>
         </div>
@@ -89,7 +89,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Calendar, Cpu, List, OfficeBuilding, Refresh, Warning } from '@element-plus/icons-vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 排产甘特图数据类型（最少必要字段）
 interface GanttDataLite {

@@ -6,24 +6,24 @@
 <template>
   <div class="field-permission-tab">
     <div class="page-header">
-      <h2 class="page-title">字段权限</h2>
+      <h2 class="page-title">{{ t('system.fieldPermission.title') }}</h2>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="fieldPermLoading" :data="fieldPermissionList" stripe aria-label="字段权限列表">
-        <el-table-column prop="role_name" label="角色" width="120" />
-        <el-table-column prop="resource_type" label="资源" width="120" />
-        <el-table-column prop="field_name" label="字段名" width="150" />
-        <el-table-column prop="visible" label="可见" width="80" align="center">
+      <el-table v-loading="fieldPermLoading" :data="fieldPermissionList" stripe :aria-label="t('system.fieldPermission.aria.list')">
+        <el-table-column prop="role_name" :label="t('system.fieldPermission.column.role')" width="120" />
+        <el-table-column prop="resource_type" :label="t('system.fieldPermission.column.resource')" width="120" />
+        <el-table-column prop="field_name" :label="t('system.fieldPermission.column.fieldName')" width="150" />
+        <el-table-column prop="visible" :label="t('system.fieldPermission.column.visible')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.visible ? 'success' : 'danger'" size="small">
-              {{ row.visible ? '是' : '否' }}
+              {{ row.visible ? t('system.fieldPermission.common.yes') : t('system.fieldPermission.common.no') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="editable" label="可编辑" width="80" align="center">
+        <el-table-column prop="editable" :label="t('system.fieldPermission.column.editable')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.editable ? 'success' : 'info'" size="small">
-              {{ row.editable ? '是' : '否' }}
+              {{ row.editable ? t('system.fieldPermission.common.yes') : t('system.fieldPermission.common.no') }}
             </el-tag>
           </template>
         </el-table-column>
@@ -34,7 +34,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { request } from '@/api/request'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface FieldPermissionRow {
   role_name: string

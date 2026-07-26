@@ -6,13 +6,13 @@
   <el-card shadow="hover" class="gantt-card">
     <template #header>
       <div class="card-header">
-        <span>排程甘特图</span>
+        <span>{{ t('scheduling.ganttChart.title') }}</span>
         <div class="legend">
-          <span class="legend-item"><span class="legend-dot pending"></span>待排程</span>
-          <span class="legend-item"><span class="legend-dot scheduled"></span>已排程</span>
-          <span class="legend-item"><span class="legend-dot running"></span>生产中</span>
-          <span class="legend-item"><span class="legend-dot completed"></span>已完成</span>
-          <span class="legend-item"><span class="legend-dot conflict"></span>冲突</span>
+          <span class="legend-item"><span class="legend-dot pending"></span>{{ t('scheduling.ganttChart.legend.pending') }}</span>
+          <span class="legend-item"><span class="legend-dot scheduled"></span>{{ t('scheduling.ganttChart.legend.scheduled') }}</span>
+          <span class="legend-item"><span class="legend-dot running"></span>{{ t('scheduling.ganttChart.legend.running') }}</span>
+          <span class="legend-item"><span class="legend-dot completed"></span>{{ t('scheduling.ganttChart.legend.completed') }}</span>
+          <span class="legend-item"><span class="legend-dot conflict"></span>{{ t('scheduling.ganttChart.legend.conflict') }}</span>
         </div>
       </div>
     </template>
@@ -22,6 +22,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type {
   ECharts,
@@ -32,7 +33,12 @@ import type {
 // CallbackDataParams 不从 'echarts' 主包导出，需从官方类型定义文件导入
 import type { CallbackDataParams } from 'echarts/types/dist/shared'
 import type { GanttData, ScheduleTask } from '@/api/scheduling'
-import { statusColorMap, statusLabelMap, formatTime } from '../composables/schGFmts'
+import { statusColorMap, formatTime } from '../composables/schGFmts'
+
+const { t } = useI18n({ useScope: 'global' })
+
+/** 状态标签映射（响应式 i18n） */
+const getStatusLabel = (status: string): string => t(`scheduling.ganttChart.status.${status}`)
 
 /// 甘特图自定义 series 数据项（业务数据结构，附加 taskData 用于回调访问）
 interface GanttSeriesItem {
@@ -110,17 +116,20 @@ const renderChart = (data: GanttData) => {
     tooltip: {
       formatter: (params: CallbackDataParams) => {
         const item = params.data as GanttSeriesItem
-        const t = item.taskData
+        const tdata = item.taskData
+        const conflictText = tdata.has_conflict
+          ? `<div style="color: #f56c6c; margin-top: 4px">${t('scheduling.ganttChart.tooltip.conflict')}: ${tdata.conflict_details || t('scheduling.ganttChart.tooltip.conflictDefault')}</div>`
+          : ''
         return `
           <div style="padding: 8px">
-            <div style="font-weight: bold; margin-bottom: 4px">${t.order_no}</div>
-            <div>产品: ${t.product_name}</div>
-            <div>数量: ${t.quantity}</div>
-            <div>状态: ${statusLabelMap[t.status]}</div>
-            <div>开始: ${formatTime(t.start_time)}</div>
-            <div>结束: ${formatTime(t.end_time)}</div>
-            <div>时长: ${t.duration_hours}h</div>
-            ${t.has_conflict ? `<div style="color: #f56c6c; margin-top: 4px">冲突: ${t.conflict_details || '存在时间冲突'}</div>` : ''}
+            <div style="font-weight: bold; margin-bottom: 4px">${tdata.order_no}</div>
+            <div>${t('scheduling.ganttChart.tooltip.product')}: ${tdata.product_name}</div>
+            <div>${t('scheduling.ganttChart.tooltip.quantity')}: ${tdata.quantity}</div>
+            <div>${t('scheduling.ganttChart.tooltip.status')}: ${getStatusLabel(tdata.status)}</div>
+            <div>${t('scheduling.ganttChart.tooltip.start')}: ${formatTime(tdata.start_time)}</div>
+            <div>${t('scheduling.ganttChart.tooltip.end')}: ${formatTime(tdata.end_time)}</div>
+            <div>${t('scheduling.ganttChart.tooltip.duration')}: ${tdata.duration_hours}h</div>
+            ${conflictText}
           </div>
         `
       },

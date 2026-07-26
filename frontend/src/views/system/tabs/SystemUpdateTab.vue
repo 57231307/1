@@ -6,16 +6,16 @@
 <template>
   <div class="system-update-tab">
     <div class="page-header">
-      <h2 class="page-title">系统更新</h2>
+      <h2 class="page-title">{{ t('system.systemUpdate.title') }}</h2>
     </div>
     <el-card shadow="hover">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="当前版本">{{ systemVersion }}</el-descriptions-item>
-        <el-descriptions-item label="最后更新">{{ lastUpdate }}</el-descriptions-item>
+        <el-descriptions-item :label="t('system.systemUpdate.label.currentVersion')">{{ systemVersion }}</el-descriptions-item>
+        <el-descriptions-item :label="t('system.systemUpdate.label.lastUpdate')">{{ lastUpdate }}</el-descriptions-item>
       </el-descriptions>
       <div style="margin-top: 20px">
         <el-button type="primary" :loading="checkUpdateLoading" @click="checkUpdate">
-          检查更新
+          {{ t('system.systemUpdate.button.check') }}
         </el-button>
         <el-button
           v-if="hasUpdate"
@@ -23,7 +23,7 @@
           :loading="applyUpdateLoading"
           @click="applyUpdate"
         >
-          应用更新
+          {{ t('system.systemUpdate.button.apply') }}
         </el-button>
       </div>
       <el-alert
@@ -39,8 +39,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { request } from '@/api/request'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface VersionInfo {
   version: string
@@ -61,11 +64,11 @@ const checkUpdate = async () => {
   try {
     const res = await request.get<VersionInfo>('/system-update/check')
     const info = res
-    updateInfo.value = info?.message || '已是最新版本'
+    updateInfo.value = info?.message || t('system.systemUpdate.message.upToDate')
     hasUpdate.value = info?.has_update || false
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '检查更新失败')
+    ElMessage.error(err.message || t('system.systemUpdate.message.checkFailed'))
   } finally {
     checkUpdateLoading.value = false
   }
@@ -75,10 +78,10 @@ const applyUpdate = async () => {
   applyUpdateLoading.value = true
   try {
     await request.post('/system-update/update')
-    ElMessage.success('更新已提交，服务将重启')
+    ElMessage.success(t('system.systemUpdate.message.updateSubmitted'))
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '更新失败')
+    ElMessage.error(err.message || t('system.systemUpdate.message.updateFailed'))
   } finally {
     applyUpdateLoading.value = false
   }
