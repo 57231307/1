@@ -168,8 +168,8 @@ impl ChemicalMasterService {
         active.remarks = Set(req.remarks.clone());
         active.is_deleted = Set(false);
         active.created_by = Set(req.created_by);
-        active.created_at = Set(v.now.into());
-        active.updated_at = Set(v.now.into());
+        active.created_at = Set(v.now);
+        active.updated_at = Set(v.now);
     }
 
     /// 创建染化料主数据

@@ -528,6 +528,5 @@ impl ArService {
             _,
         >(txn, "ar_reconciliation", rec_active, Some(user_id))
         .await
-        .map_err(AppError::from)
     }
 }

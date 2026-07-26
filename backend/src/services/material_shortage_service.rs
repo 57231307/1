@@ -71,6 +71,16 @@ pub struct MaterialShortageItem {
     pub unit: Option<String>,
 }
 
+/// 缺料指标聚合（降低 build_shortage_item 参数数量，消除 too_many_arguments 警告）
+#[derive(Debug, Clone)]
+struct ShortageMetrics {
+    required: Decimal,
+    available: Decimal,
+    shortage: Decimal,
+    deficit_rate: Decimal,
+    level: ShortageLevel,
+}
+
 /// 受影响的生产订单
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AffectedOrder {
@@ -411,7 +421,18 @@ impl MaterialShortageService {
                 &affected,
             );
             items.push(Self::build_shortage_item(
-                *material_id, material_name, material_code, *required, available, shortage, deficit_rate, level, affected, unit.clone(),
+                *material_id,
+                material_name,
+                material_code,
+                ShortageMetrics {
+                    required: *required,
+                    available,
+                    shortage,
+                    deficit_rate,
+                    level,
+                },
+                affected,
+                unit.clone(),
             ));
         }
         items
@@ -422,11 +443,7 @@ impl MaterialShortageService {
         material_id: i32,
         material_name: String,
         material_code: String,
-        required: Decimal,
-        available: Decimal,
-        shortage: Decimal,
-        deficit_rate: Decimal,
-        level: ShortageLevel,
+        metrics: ShortageMetrics,
         affected: Vec<AffectedOrder>,
         unit: Option<String>,
     ) -> MaterialShortageItem {
@@ -434,11 +451,11 @@ impl MaterialShortageService {
             material_id,
             material_name,
             material_code,
-            required_quantity: required,
-            available_quantity: available,
-            shortage_quantity: shortage,
-            deficit_rate,
-            level,
+            required_quantity: metrics.required,
+            available_quantity: metrics.available,
+            shortage_quantity: metrics.shortage,
+            deficit_rate: metrics.deficit_rate,
+            level: metrics.level,
             affected_orders: affected,
             unit,
         }

@@ -107,7 +107,7 @@ impl SupplierService {
             registered_address: Set(req.registered_address.clone().unwrap_or_default()),
             business_address: Set(req.business_address.clone()),
             legal_representative: Set(req.legal_representative.clone().unwrap_or_default()),
-            registered_capital: Set(req.registered_capital.clone().unwrap_or_default()),
+            registered_capital: Set(req.registered_capital.unwrap_or_default()),
             establishment_date: Set(req
                 .establishment_date
                 .unwrap_or_else(|| chrono::Utc::now().date_naive())),
