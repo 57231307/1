@@ -4673,7 +4673,7 @@ export default {
       passwordChangeSuccess: 'Password changed successfully',
       passwordChangeFailed: 'Failed to change password'
     }
-  }
+  },
   customer: {
     form: {
       ariaLabel: 'Customer Edit Dialog',

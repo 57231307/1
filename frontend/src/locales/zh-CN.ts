@@ -4673,7 +4673,7 @@ export default {
       passwordChangeSuccess: '密码修改成功',
       passwordChangeFailed: '密码修改失败'
     }
-  }
+  },
   customer: {
     form: {
       ariaLabel: '客户编辑对话框',
