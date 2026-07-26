@@ -67,6 +67,31 @@ const getPriorityTextFmt = (priority: string) => {
   return map[priority] || priority
 }
 
+/** 操作列渲染：同意 / 拒绝 / 转交 / 审批链 */
+const renderActionCell = (row: ApprovalTask) =>
+  h('div', { class: 'action-cell' }, [
+    h(
+      ElButton,
+      { type: 'primary', link: true, size: 'small', onClick: () => emit('approve', row) },
+      { default: () => t('bpm.approval.pendingTable.approve') }
+    ),
+    h(
+      ElButton,
+      { type: 'danger', link: true, size: 'small', onClick: () => emit('reject', row) },
+      { default: () => t('bpm.approval.pendingTable.reject') }
+    ),
+    h(
+      ElButton,
+      { type: 'warning', link: true, size: 'small', onClick: () => emit('transfer', row) },
+      { default: () => t('bpm.approval.pendingTable.transfer') }
+    ),
+    h(
+      ElButton,
+      { type: 'info', link: true, size: 'small', onClick: () => emit('view-chain', row) },
+      { default: () => t('bpm.approval.pendingTable.viewChain') }
+    ),
+  ])
+
 /** 列定义：任务名称固定左侧，操作列固定右侧 */
 const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
   { key: 'task_name', title: t('bpm.approval.pendingTable.taskName'), width: 180, fixed: 'left' },
@@ -78,7 +103,6 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
     key: 'due_date',
     title: t('bpm.approval.pendingTable.dueDate'),
     width: 160,
-    // 截止时间：有值则按超期状态高亮，无值显示 "-"
     renderCell: (row: ApprovalTask) => {
       if (row.due_date) {
         return h('span', { class: { overdue: isOverdue(row.due_date) } }, row.due_date)
@@ -90,7 +114,6 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
     key: 'priority',
     title: t('bpm.approval.pendingTable.priority'),
     width: 100,
-    // 优先级：el-tag 渲染
     renderCell: (row: ApprovalTask) =>
       h(
         ElTag,
@@ -106,30 +129,7 @@ const columns = computed<ColumnDef<ApprovalTask>[]>(() => [
     title: t('bpm.approval.pendingTable.operation'),
     width: 220,
     fixed: 'right',
-    // 操作列：同意 / 拒绝 / 转交 / 审批链
-    renderCell: (row: ApprovalTask) =>
-      h('div', { class: 'action-cell' }, [
-        h(
-          ElButton,
-          { type: 'primary', link: true, size: 'small', onClick: () => emit('approve', row) },
-          { default: () => t('bpm.approval.pendingTable.approve') }
-        ),
-        h(
-          ElButton,
-          { type: 'danger', link: true, size: 'small', onClick: () => emit('reject', row) },
-          { default: () => t('bpm.approval.pendingTable.reject') }
-        ),
-        h(
-          ElButton,
-          { type: 'warning', link: true, size: 'small', onClick: () => emit('transfer', row) },
-          { default: () => t('bpm.approval.pendingTable.transfer') }
-        ),
-        h(
-          ElButton,
-          { type: 'info', link: true, size: 'small', onClick: () => emit('view-chain', row) },
-          { default: () => t('bpm.approval.pendingTable.viewChain') }
-        ),
-      ]),
+    renderCell: renderActionCell,
   },
 ])
 </script>

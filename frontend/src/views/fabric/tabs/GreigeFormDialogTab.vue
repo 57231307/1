@@ -6,59 +6,62 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="formData.id ? '编辑坯布' : '新建坯布'"
+    :title="formData.id ? t('fabric.greigeFormDialog.titleEdit') : t('fabric.greigeFormDialog.titleCreate')"
     width="600px"
-    :aria-label="formData.id ? '编辑坯布' : '新建坯布'"
+    :aria-label="formData.id ? t('fabric.greigeFormDialog.titleEdit') : t('fabric.greigeFormDialog.titleCreate')"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" aria-label="坯布信息表单">
+    <el-form ref="formRef" :model="formData" label-width="100px" :aria-label="t('fabric.greigeFormDialog.formAriaLabel')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="编号" prop="fabric_code">
+          <el-form-item :label="t('fabric.greigeFormDialog.labelCode')" prop="fabric_code">
             <el-input v-model="formData.fabric_code" :disabled="!!formData.id" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="名称" prop="fabric_name">
+          <el-form-item :label="t('fabric.greigeFormDialog.labelName')" prop="fabric_name">
             <el-input v-model="formData.fabric_name" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="供应商" prop="supplier_id">
+      <el-form-item :label="t('fabric.greigeFormDialog.labelSupplier')" prop="supplier_id">
         <el-select v-model="formData.supplier_id" style="width: 100%">
           <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
         </el-select>
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="幅宽" prop="width">
+          <el-form-item :label="t('fabric.greigeFormDialog.labelWidth')" prop="width">
             <el-input-number v-model="formData.width" :min="0" style="width: 100%" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="克重" prop="weight">
+          <el-form-item :label="t('fabric.greigeFormDialog.labelWeight')" prop="weight">
             <el-input-number v-model="formData.weight" :min="0" style="width: 100%" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="成分" prop="composition">
-        <el-input v-model="formData.composition" placeholder="例：纯棉" />
+      <el-form-item :label="t('fabric.greigeFormDialog.labelComposition')" prop="composition">
+        <el-input v-model="formData.composition" :placeholder="t('fabric.greigeFormDialog.placeholderComposition')" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{ t('fabric.common.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('fabric.common.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { createGreigeFabric, updateGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
 import type { Supplier } from '@/api/supplier'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -120,12 +123,12 @@ const handleSubmit = async () => {
     } else {
       await createGreigeFabric(formData as Partial<GreigeFabric>)
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(t('fabric.common.success'))
     emit('update:modelValue', false)
     emit('submitted')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('fabric.common.failed'))
     logger.error('坯布保存失败', err.message)
   } finally {
     submitLoading.value = false

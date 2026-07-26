@@ -6,18 +6,18 @@
 -->
 <template>
   <el-card shadow="hover">
-    <el-table v-loading="loading" :data="tasks" stripe aria-label="系统更新任务列表">
-      <el-table-column prop="task_code" label="任务编号" width="140" />
-      <el-table-column prop="from_version" label="原版本" width="100" />
-      <el-table-column prop="to_version" label="目标版本" width="100" />
-      <el-table-column prop="status" label="状态" width="120" align="center">
+    <el-table v-loading="loading" :data="tasks" stripe :aria-label="t('systemUpdate.taskTab.tableAriaLabel')">
+      <el-table-column prop="task_code" :label="t('systemUpdate.taskTab.columnTaskCode')" width="140" />
+      <el-table-column prop="from_version" :label="t('systemUpdate.taskTab.columnFromVersion')" width="100" />
+      <el-table-column prop="to_version" :label="t('systemUpdate.taskTab.columnToVersion')" width="100" />
+      <el-table-column prop="status" :label="t('systemUpdate.taskTab.columnStatus')" width="120" align="center">
         <template #default="{ row }">
           <el-tag :type="taskStatusTypeMap[row.status]" size="small">
-            {{ taskStatusMap[row.status] }}
+            {{ getTaskStatusLabel(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="progress" label="进度" width="150">
+      <el-table-column prop="progress" :label="t('systemUpdate.taskTab.columnProgress')" width="150">
         <template #default="{ row }">
           <el-progress
             :percentage="row.progress"
@@ -33,13 +33,13 @@
       </el-table-column>
       <el-table-column
         prop="error_message"
-        label="错误信息"
+        :label="t('systemUpdate.taskTab.columnErrorMessage')"
         min-width="150"
         show-overflow-tooltip
       />
-      <el-table-column prop="started_at" label="开始时间" width="160" />
-      <el-table-column prop="completed_at" label="完成时间" width="160" />
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column prop="started_at" :label="t('systemUpdate.taskTab.columnStartedAt')" width="160" />
+      <el-table-column prop="completed_at" :label="t('systemUpdate.taskTab.columnCompletedAt')" width="160" />
+      <el-table-column :label="t('systemUpdate.taskTab.columnActions')" width="150" fixed="right">
         <template #default="{ row }">
           <el-button
             v-if="row.status === 'completed'"
@@ -47,7 +47,7 @@
             link
             size="small"
             @click="emit('rollback', row)"
-            >回滚</el-button
+            >{{ t('systemUpdate.taskTab.buttonRollback') }}</el-button
           >
           <el-button
             v-if="
@@ -59,7 +59,7 @@
             link
             size="small"
             @click="emit('cancel', row)"
-            >取消</el-button
+            >{{ t('systemUpdate.taskTab.buttonCancel') }}</el-button
           >
         </template>
       </el-table-column>
@@ -74,14 +74,17 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
-        aria-label="系统更新任务列表分页"
+        :aria-label="t('systemUpdate.taskTab.paginationAriaLabel')"
       />
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { type UpdateTask } from '@/api/system-update'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   tasks: UpdateTask[]
@@ -90,7 +93,6 @@ defineProps<{
   page: number
   pageSize: number
   taskStatusTypeMap: Record<string, string>
-  taskStatusMap: Record<string, string>
 }>()
 
 const emit = defineEmits<{
@@ -99,6 +101,28 @@ const emit = defineEmits<{
   'update:page': [v: number]
   'update:page-size': [v: number]
 }>()
+
+/** 更新任务状态 → i18n 标签（语言切换响应） */
+const getTaskStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'pending':
+      return t('systemUpdate.common.taskStatusPending')
+    case 'downloading':
+      return t('systemUpdate.common.taskStatusDownloading')
+    case 'downloaded':
+      return t('systemUpdate.common.taskStatusDownloaded')
+    case 'installing':
+      return t('systemUpdate.common.taskStatusInstalling')
+    case 'completed':
+      return t('systemUpdate.common.taskStatusCompleted')
+    case 'failed':
+      return t('systemUpdate.common.taskStatusFailed')
+    case 'rolled_back':
+      return t('systemUpdate.common.taskStatusRolledBack')
+    default:
+      return status
+  }
+}
 </script>
 
 <style scoped>

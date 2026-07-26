@@ -6,56 +6,59 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="凭证详情"
+    :title="t('finance.voucherDetail.dialogTitle')"
     width="800px"
-    aria-label="凭证详情对话框"
+    :aria-label="t('finance.voucherDetail.ariaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-descriptions :column="3" border>
-      <el-descriptions-item label="凭证号">{{ currentVoucher?.voucher_no }}</el-descriptions-item>
-      <el-descriptions-item label="凭证日期">{{
+      <el-descriptions-item :label="t('finance.voucherDetail.labelVoucherNo')">{{ currentVoucher?.voucher_no }}</el-descriptions-item>
+      <el-descriptions-item :label="t('finance.voucherDetail.labelVoucherDate')">{{
         currentVoucher?.voucher_date
       }}</el-descriptions-item>
-      <el-descriptions-item label="凭证类型">{{
+      <el-descriptions-item :label="t('finance.voucherDetail.labelVoucherType')">{{
         currentVoucher?.voucher_type
       }}</el-descriptions-item>
-      <el-descriptions-item label="状态">
+      <el-descriptions-item :label="t('finance.voucherDetail.labelStatus')">
         <el-tag :type="getVoucherStatusType(currentVoucher?.status)">
           {{ getVoucherStatusLabel(currentVoucher?.status) }}
         </el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="制单人">{{
+      <el-descriptions-item :label="t('finance.voucherDetail.labelCreatedBy')">{{
         currentVoucher?.created_by_name
       }}</el-descriptions-item>
-      <el-descriptions-item label="创建时间">{{
+      <el-descriptions-item :label="t('finance.voucherDetail.labelCreatedAt')">{{
         currentVoucher?.created_at
       }}</el-descriptions-item>
     </el-descriptions>
-    <el-divider>分录明细</el-divider>
-    <el-table :data="currentVoucher?.entries" stripe aria-label="凭证分录列表">
-      <el-table-column prop="summary" label="摘要" min-width="150" />
-      <el-table-column prop="subject_code" label="科目编码" width="100" />
-      <el-table-column prop="subject_name" label="科目名称" min-width="150" />
-      <el-table-column label="借方" width="120" align="right">
+    <el-divider>{{ t('finance.voucherDetail.dividerEntries') }}</el-divider>
+    <el-table :data="currentVoucher?.entries" stripe :aria-label="t('finance.voucherDetail.entriesAriaLabel')">
+      <el-table-column prop="summary" :label="t('finance.voucherDetail.columnSummary')" min-width="150" />
+      <el-table-column prop="subject_code" :label="t('finance.voucherDetail.columnSubjectCode')" width="100" />
+      <el-table-column prop="subject_name" :label="t('finance.voucherDetail.columnSubjectName')" min-width="150" />
+      <el-table-column :label="t('finance.voucherDetail.columnDebit')" width="120" align="right">
         <template #default="{ row }">
           {{ row.debit ? formatMoney(row.debit) : '' }}
         </template>
       </el-table-column>
-      <el-table-column label="贷方" width="120" align="right">
+      <el-table-column :label="t('finance.voucherDetail.columnCredit')" width="120" align="right">
         <template #default="{ row }">
           {{ row.credit ? formatMoney(row.credit) : '' }}
         </template>
       </el-table-column>
     </el-table>
     <div class="entry-footer">
-      <span>借方合计: {{ formatMoney(currentVoucher?.total_debit || 0) }}</span>
-      <span>贷方合计: {{ formatMoney(currentVoucher?.total_credit || 0) }}</span>
+      <span>{{ t('finance.voucherDetail.labelDebitTotal') }}: {{ formatMoney(currentVoucher?.total_debit || 0) }}</span>
+      <span>{{ t('finance.voucherDetail.labelCreditTotal') }}: {{ formatMoney(currentVoucher?.total_credit || 0) }}</span>
     </div>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { Voucher } from '@/api/finance'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 凭证详情对话框组件

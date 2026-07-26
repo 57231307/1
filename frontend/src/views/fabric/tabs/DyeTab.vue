@@ -6,38 +6,38 @@
 <template>
   <div class="dye-tab">
     <div class="page-header">
-      <h2 class="page-title">染色批次管理</h2>
+      <h2 class="page-title">{{ t('fabric.dyeTab.title') }}</h2>
       <el-button type="primary" @click="openCreate">
         <el-icon><Plus /></el-icon>
-        新建批次
+        {{ t('fabric.dyeTab.buttonCreate') }}
       </el-button>
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="batches" stripe aria-label="染色批次列表">
-        <el-table-column prop="batch_no" label="批次号" width="140" />
-        <el-table-column prop="color_name" label="颜色" width="120" />
-        <el-table-column prop="greige_fabric_name" label="坯布" width="150" />
-        <el-table-column prop="planned_quantity" label="计划数量" width="100" align="right" />
-        <el-table-column prop="actual_quantity" label="实际数量" width="100" align="right" />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table v-loading="loading" :data="batches" stripe :aria-label="t('fabric.dyeTab.tableAriaLabel')">
+        <el-table-column prop="batch_no" :label="t('fabric.dyeTab.columnBatchNo')" width="140" />
+        <el-table-column prop="color_name" :label="t('fabric.dyeTab.columnColor')" width="120" />
+        <el-table-column prop="greige_fabric_name" :label="t('fabric.dyeTab.columnGreige')" width="150" />
+        <el-table-column prop="planned_quantity" :label="t('fabric.dyeTab.columnPlannedQuantity')" width="100" align="right" />
+        <el-table-column prop="actual_quantity" :label="t('fabric.dyeTab.columnActualQuantity')" width="100" align="right" />
+        <el-table-column prop="status" :label="t('fabric.dyeTab.columnStatus')" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="start_date" label="开始日期" width="120" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column prop="start_date" :label="t('fabric.dyeTab.columnStartDate')" width="120" />
+        <el-table-column :label="t('fabric.dyeTab.columnAction')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button type="primary" link size="small" @click="openEdit(row)">{{ t('fabric.dyeTab.buttonEdit') }}</el-button>
             <el-button
               v-if="row.status === 'in_progress'"
               type="success"
               link
               size="small"
               @click="handleComplete(row)"
-              >完成</el-button
+              >{{ t('fabric.dyeTab.buttonComplete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -48,10 +48,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, defineEmits } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { completeDyeBatch, type DyeBatch } from '@/api/dye-batch'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const emit = defineEmits<{ openDialog: [row: DyeBatch | null] }>()
 
@@ -70,10 +73,10 @@ const getStatusType = (status: string) => {
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    pending: '待处理',
-    in_progress: '进行中',
-    completed: '已完成',
-    cancelled: '已取消',
+    pending: t('fabric.dyeTab.statusPending'),
+    in_progress: t('fabric.dyeTab.statusInProgress'),
+    completed: t('fabric.dyeTab.statusCompleted'),
+    cancelled: t('fabric.dyeTab.statusCancelled'),
   }
   return map[status] || status
 }
@@ -97,14 +100,14 @@ const openEdit = (row: DyeBatch) => emit('openDialog', row)
 
 const handleComplete = async (row: DyeBatch) => {
   try {
-    await ElMessageBox.confirm('确定完成此批次吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(t('fabric.dyeTab.confirmCompleteContent'), t('fabric.common.confirmTitle'), { type: 'info' })
     await completeDyeBatch(row.id)
-    ElMessage.success('操作成功')
+    ElMessage.success(t('fabric.common.success'))
     fetchBatches()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('fabric.common.failed'))
     }
   }
 }

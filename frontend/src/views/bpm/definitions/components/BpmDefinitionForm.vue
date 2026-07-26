@@ -8,83 +8,83 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="isEdit ? $t('bpm.definitions.form.editTitle') : $t('bpm.definitions.form.createTitle')"
-    :aria-label="isEdit ? $t('bpm.definitions.form.editAriaLabel') : $t('bpm.definitions.form.createAriaLabel')"
+    :title="isEdit ? t('bpm.definitions.form.editTitle') : t('bpm.definitions.form.createTitle')"
+    :aria-label="isEdit ? t('bpm.definitions.form.editAriaLabel') : t('bpm.definitions.form.createAriaLabel')"
     width="900px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" :aria-label="$t('bpm.definitions.form.ariaLabel')">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" :aria-label="t('bpm.definitions.form.ariaLabel')">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="$t('bpm.definitions.form.processKey')" prop="process_key">
+          <el-form-item :label="t('bpm.definitions.form.processKey')" prop="process_key">
             <el-input
               v-model="localFormData.process_key"
               :disabled="isEdit"
-              :placeholder="$t('bpm.definitions.form.processKeyPlaceholder')"
+              :placeholder="t('bpm.definitions.form.processKeyPlaceholder')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="$t('bpm.definitions.form.processName')" prop="process_name">
+          <el-form-item :label="t('bpm.definitions.form.processName')" prop="process_name">
             <el-input
               v-model="localFormData.process_name"
-              :placeholder="$t('bpm.definitions.form.processNamePlaceholder')"
+              :placeholder="t('bpm.definitions.form.processNamePlaceholder')"
             />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="$t('bpm.definitions.form.category')" prop="category">
+          <el-form-item :label="t('bpm.definitions.form.category')" prop="category">
             <el-select
               v-model="localFormData.category"
-              :placeholder="$t('bpm.definitions.form.categoryPlaceholder')"
+              :placeholder="t('bpm.definitions.form.categoryPlaceholder')"
               style="width: 100%"
             >
-              <el-option :label="$t('bpm.definitions.category.finance')" value="finance" />
-              <el-option :label="$t('bpm.definitions.category.hr')" value="hr" />
-              <el-option :label="$t('bpm.definitions.category.purchase')" value="purchase" />
-              <el-option :label="$t('bpm.definitions.category.sales')" value="sales" />
-              <el-option :label="$t('bpm.definitions.category.production')" value="production" />
-              <el-option :label="$t('bpm.definitions.category.inventory')" value="inventory" />
-              <el-option :label="$t('bpm.definitions.category.other')" value="other" />
+              <el-option :label="t('bpm.definitions.category.finance')" value="finance" />
+              <el-option :label="t('bpm.definitions.category.hr')" value="hr" />
+              <el-option :label="t('bpm.definitions.category.purchase')" value="purchase" />
+              <el-option :label="t('bpm.definitions.category.sales')" value="sales" />
+              <el-option :label="t('bpm.definitions.category.production')" value="production" />
+              <el-option :label="t('bpm.definitions.category.inventory')" value="inventory" />
+              <el-option :label="t('bpm.definitions.category.other')" value="other" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item :label="$t('bpm.definitions.form.description')">
+      <el-form-item :label="t('bpm.definitions.form.description')">
         <el-input
           v-model="localFormData.description"
           type="textarea"
           :rows="3"
-          :placeholder="$t('bpm.definitions.form.descriptionPlaceholder')"
+          :placeholder="t('bpm.definitions.form.descriptionPlaceholder')"
         />
       </el-form-item>
 
       <!-- 节点配置 -->
-      <el-divider content-position="left">{{ $t('bpm.definitions.form.nodeConfig') }}</el-divider>
+      <el-divider content-position="left">{{ t('bpm.definitions.form.nodeConfig') }}</el-divider>
       <div class="node-actions">
         <el-button type="primary" size="small" @click="handleAddNode">
           <el-icon><Plus /></el-icon>
-          {{ $t('bpm.definitions.form.addNode') }}
+          {{ t('bpm.definitions.form.addNode') }}
         </el-button>
       </div>
-      <el-table :data="localFormData.nodes" border :aria-label="$t('bpm.definitions.form.nodeTableAriaLabel')">
-        <el-table-column :label="$t('bpm.definitions.form.nodeType')" width="120">
+      <el-table :data="localFormData.nodes" border :aria-label="t('bpm.definitions.form.nodeTableAriaLabel')">
+        <el-table-column :label="t('bpm.definitions.form.nodeType')" width="120">
           <template #default="{ row }">
             <el-select
               v-model="row.type"
               size="small"
             >
-              <el-option :label="$t('bpm.definitions.nodeType.start')" value="start" />
-              <el-option :label="$t('bpm.definitions.nodeType.approval')" value="approval" />
-              <el-option :label="$t('bpm.definitions.nodeType.condition')" value="condition" />
-              <el-option :label="$t('bpm.definitions.nodeType.notify')" value="notify" />
-              <el-option :label="$t('bpm.definitions.nodeType.end')" value="end" />
+              <el-option :label="t('bpm.definitions.nodeType.start')" value="start" />
+              <el-option :label="t('bpm.definitions.nodeType.approval')" value="approval" />
+              <el-option :label="t('bpm.definitions.nodeType.condition')" value="condition" />
+              <el-option :label="t('bpm.definitions.nodeType.notify')" value="notify" />
+              <el-option :label="t('bpm.definitions.nodeType.end')" value="end" />
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('bpm.definitions.form.nodeName')" min-width="140">
+        <el-table-column :label="t('bpm.definitions.form.nodeName')" min-width="140">
           <template #default="{ row }">
             <el-input
               v-model="row.name"
@@ -92,21 +92,21 @@
             />
           </template>
         </el-table-column>
-        <el-table-column :label="$t('bpm.definitions.form.assigneeType')" width="140">
+        <el-table-column :label="t('bpm.definitions.form.assigneeType')" width="140">
           <template #default="{ row }">
             <el-select
               v-model="row.assignee_type"
               size="small"
               clearable
             >
-              <el-option :label="$t('bpm.definitions.assigneeType.user')" value="user" />
-              <el-option :label="$t('bpm.definitions.assigneeType.role')" value="role" />
-              <el-option :label="$t('bpm.definitions.assigneeType.department')" value="department" />
-              <el-option :label="$t('bpm.definitions.assigneeType.dynamic')" value="dynamic" />
+              <el-option :label="t('bpm.definitions.assigneeType.user')" value="user" />
+              <el-option :label="t('bpm.definitions.assigneeType.role')" value="role" />
+              <el-option :label="t('bpm.definitions.assigneeType.department')" value="department" />
+              <el-option :label="t('bpm.definitions.assigneeType.dynamic')" value="dynamic" />
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('bpm.definitions.form.assigneeValue')" width="140">
+        <el-table-column :label="t('bpm.definitions.form.assigneeValue')" width="140">
           <template #default="{ row }">
             <el-input
               :model-value="String(row.assignee_value ?? '')"
@@ -115,27 +115,27 @@
             />
           </template>
         </el-table-column>
-        <el-table-column :label="$t('bpm.definitions.form.condition')" min-width="160">
+        <el-table-column :label="t('bpm.definitions.form.condition')" min-width="160">
           <template #default="{ row }">
             <el-input
               v-model="row.condition"
               size="small"
-              :placeholder="$t('bpm.definitions.form.conditionPlaceholder')"
+              :placeholder="t('bpm.definitions.form.conditionPlaceholder')"
             />
           </template>
         </el-table-column>
-        <el-table-column :label="$t('bpm.definitions.form.operation')" width="80" align="center" fixed="right">
+        <el-table-column :label="t('bpm.definitions.form.operation')" width="80" align="center" fixed="right">
           <template #default="{ $index }">
             <el-button type="danger" link size="small" @click="handleRemoveNode($index)"
-              >{{ $t('bpm.definitions.form.delete') }}</el-button
+              >{{ t('bpm.definitions.form.delete') }}</el-button
             >
           </template>
         </el-table-column>
       </el-table>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ $t('bpm.definitions.form.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('bpm.definitions.form.confirm') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('bpm.definitions.form.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('bpm.definitions.form.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -145,7 +145,10 @@ import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
 import { type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import type { ProcessNode } from '@/api/bpm-enhanced'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单数据类型
 interface BpmDefinitionFormData {

@@ -10,28 +10,28 @@
     <div class="filter-container">
       <el-input
         v-model="localQuery.keyword"
-        placeholder="搜索路径/客户端"
+        :placeholder="t('apiGateway.logTab.searchPlaceholder')"
         style="width: 200px"
         clearable
         @clear="handleSearch"
         @keyup.enter="handleSearch"
       />
-      <el-select v-model="localQuery.status" placeholder="状态码" clearable style="width: 120px">
-        <el-option label="2xx 成功" value="2xx" />
-        <el-option label="4xx 客户端" value="4xx" />
-        <el-option label="5xx 服务端" value="5xx" />
+      <el-select v-model="localQuery.status" :placeholder="t('apiGateway.logTab.statusPlaceholder')" clearable style="width: 120px">
+        <el-option :label="t('apiGateway.logTab.status2xx')" value="2xx" />
+        <el-option :label="t('apiGateway.logTab.status4xx')" value="4xx" />
+        <el-option :label="t('apiGateway.logTab.status5xx')" value="5xx" />
       </el-select>
       <el-date-picker
         v-model="localQuery.date_range"
         type="daterange"
-        range-separator="至"
-        start-placeholder="开始日期"
-        end-placeholder="结束日期"
+        :range-separator="t('apiGateway.logTab.dateRangeSeparator')"
+        :start-placeholder="t('apiGateway.logTab.startDatePlaceholder')"
+        :end-placeholder="t('apiGateway.logTab.endDatePlaceholder')"
         style="width: 260px"
       />
       <el-button type="primary" @click="handleSearch">
         <el-icon><Search /></el-icon>
-        搜索
+        {{ t('apiGateway.logTab.search') }}
       </el-button>
     </div>
 
@@ -52,11 +52,14 @@
 
 <script setup lang="ts">
 import { computed, h, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElTag, ElButton } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
 import type { ApiLog } from '@/api/api-gateway'
+
+const { t } = useI18n({ useScope: 'global' })
 
 export interface LogQuery {
   keyword: string
@@ -119,11 +122,11 @@ const getStatusType = (code: number) => {
  * - 操作列：详情按钮（fixed right）
  */
 const columns = computed<ColumnDef<ApiLog>[]>(() => [
-  { key: 'created_at', title: '时间', width: 160 },
-  { key: 'path', title: '接口路径', minWidth: 200 },
+  { key: 'created_at', title: t('apiGateway.logTab.columnTime'), width: 160 },
+  { key: 'path', title: t('apiGateway.logTab.columnPath'), minWidth: 200 },
   {
     key: 'method',
-    title: '方法',
+    title: t('apiGateway.logTab.columnMethod'),
     width: 80,
     renderCell: row =>
       h(
@@ -134,7 +137,7 @@ const columns = computed<ColumnDef<ApiLog>[]>(() => [
   },
   {
     key: 'status_code',
-    title: '状态码',
+    title: t('apiGateway.logTab.columnStatusCode'),
     width: 100,
     align: 'center',
     renderCell: row =>
@@ -144,19 +147,19 @@ const columns = computed<ColumnDef<ApiLog>[]>(() => [
         { default: () => row.status_code }
       ),
   },
-  { key: 'duration', title: '耗时(ms)', width: 100, align: 'right' },
-  { key: 'client_ip', title: '客户端 IP', width: 140 },
-  { key: 'api_key_name', title: '密钥', width: 150 },
+  { key: 'duration', title: t('apiGateway.logTab.columnDuration'), width: 100, align: 'right' },
+  { key: 'client_ip', title: t('apiGateway.logTab.columnClientIp'), width: 140 },
+  { key: 'api_key_name', title: t('apiGateway.logTab.columnApiKeyName'), width: 150 },
   {
     key: '__actions__',
-    title: '操作',
+    title: t('apiGateway.logTab.columnOperation'),
     width: 100,
     fixed: 'right',
     renderCell: row =>
       h(
         ElButton,
         { type: 'primary', link: true, size: 'small', onClick: () => emit('view-log', row) },
-        { default: () => '详情' }
+        { default: () => t('apiGateway.logTab.detail') }
       ),
   },
 ])

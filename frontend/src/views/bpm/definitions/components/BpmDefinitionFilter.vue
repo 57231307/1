@@ -6,32 +6,32 @@
 -->
 <template>
   <el-card class="filter-card">
-    <el-form :inline="true" :model="localQuery" :aria-label="$t('bpm.definitions.filter.ariaLabel')">
-      <el-form-item :label="$t('bpm.definitions.filter.processName')">
+    <el-form :inline="true" :model="localQuery" :aria-label="t('bpm.definitions.filter.ariaLabel')">
+      <el-form-item :label="t('bpm.definitions.filter.processName')">
         <el-input
           v-model="localQuery.keyword"
-          :placeholder="$t('bpm.definitions.filter.processNamePlaceholder')"
+          :placeholder="t('bpm.definitions.filter.processNamePlaceholder')"
           clearable
         />
       </el-form-item>
-      <el-form-item :label="$t('bpm.definitions.filter.category')">
+      <el-form-item :label="t('bpm.definitions.filter.category')">
         <el-select
           v-model="localQuery.category"
-          :placeholder="$t('bpm.definitions.filter.categoryPlaceholder')"
+          :placeholder="t('bpm.definitions.filter.categoryPlaceholder')"
           clearable
         >
-          <el-option :label="$t('bpm.definitions.category.finance')" value="finance" />
-          <el-option :label="$t('bpm.definitions.category.hr')" value="hr" />
-          <el-option :label="$t('bpm.definitions.category.purchase')" value="purchase" />
-          <el-option :label="$t('bpm.definitions.category.sales')" value="sales" />
-          <el-option :label="$t('bpm.definitions.category.production')" value="production" />
-          <el-option :label="$t('bpm.definitions.category.inventory')" value="inventory" />
-          <el-option :label="$t('bpm.definitions.category.other')" value="other" />
+          <el-option :label="t('bpm.definitions.category.finance')" value="finance" />
+          <el-option :label="t('bpm.definitions.category.hr')" value="hr" />
+          <el-option :label="t('bpm.definitions.category.purchase')" value="purchase" />
+          <el-option :label="t('bpm.definitions.category.sales')" value="sales" />
+          <el-option :label="t('bpm.definitions.category.production')" value="production" />
+          <el-option :label="t('bpm.definitions.category.inventory')" value="inventory" />
+          <el-option :label="t('bpm.definitions.category.other')" value="other" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleSearch">{{ $t('bpm.definitions.filter.query') }}</el-button>
-        <el-button @click="handleReset">{{ $t('bpm.definitions.filter.reset') }}</el-button>
+        <el-button type="primary" @click="handleSearch">{{ t('bpm.definitions.filter.query') }}</el-button>
+        <el-button @click="handleReset">{{ t('bpm.definitions.filter.reset') }}</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -39,6 +39,9 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 批次 282：queryParams 类型放宽为 Record<string, unknown>（兼容 useTableApi）
 const props = defineProps<{

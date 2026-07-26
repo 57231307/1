@@ -7,9 +7,9 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="form?.id ? '编辑接口' : '新建接口'"
+    :title="form?.id ? t('apiGateway.endpointForm.editTitle') : t('apiGateway.endpointForm.createTitle')"
     width="700px"
-    :aria-label="form?.id ? '编辑接口对话框' : '新建接口对话框'"
+    :aria-label="form?.id ? t('apiGateway.endpointForm.editAriaLabel') : t('apiGateway.endpointForm.createAriaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
@@ -17,20 +17,20 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
-      aria-label="接口表单"
+      :aria-label="t('apiGateway.endpointForm.formAriaLabel')"
     >
       <el-row :gutter="20">
         <el-col :span="16">
-          <el-form-item label="接口路径" prop="path">
+          <el-form-item :label="t('apiGateway.endpointForm.path')" prop="path">
             <el-input
               :model-value="localForm.path ?? ''"
-              placeholder="例如：/api/v1/users"
+              :placeholder="t('apiGateway.endpointForm.pathPlaceholder')"
               @update:model-value="(v: string) => (localForm.path = v ?? '')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="请求方法" prop="method">
+          <el-form-item :label="t('apiGateway.endpointForm.method')" prop="method">
             <el-select
               :model-value="localForm.method"
               style="width: 100%"
@@ -45,25 +45,25 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="描述" prop="description">
+      <el-form-item :label="t('apiGateway.endpointForm.description')" prop="description">
         <el-input
           :model-value="localForm.description ?? ''"
-          placeholder="请输入接口描述"
+          :placeholder="t('apiGateway.endpointForm.descriptionPlaceholder')"
           @update:model-value="(v: string) => (localForm.description = v ?? '')"
         />
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="8">
-          <el-form-item label="模块" prop="module">
+          <el-form-item :label="t('apiGateway.endpointForm.module')" prop="module">
             <el-input
               :model-value="localForm.module ?? ''"
-              placeholder="模块名称"
+              :placeholder="t('apiGateway.endpointForm.modulePlaceholder')"
               @update:model-value="(v: string) => (localForm.module = v ?? '')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="限流(/秒)" prop="rate_limit">
+          <el-form-item :label="t('apiGateway.endpointForm.rateLimit')" prop="rate_limit">
             <el-input-number
               :model-value="localForm.rate_limit"
               :min="0"
@@ -73,7 +73,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="超时(ms)" prop="timeout">
+          <el-form-item :label="t('apiGateway.endpointForm.timeout')" prop="timeout">
             <el-input-number
               :model-value="localForm.timeout"
               :min="0"
@@ -85,7 +85,7 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="8">
-          <el-form-item label="需要认证" prop="authentication">
+          <el-form-item :label="t('apiGateway.endpointForm.authentication')" prop="authentication">
             <el-switch
               :model-value="!!localForm.authentication"
               @update:model-value="(v: boolean) => (localForm.authentication = v)"
@@ -93,45 +93,48 @@
           </el-form-item>
         </el-col>
         <el-col :span="16">
-          <el-form-item label="权限" prop="authorization">
+          <el-form-item :label="t('apiGateway.endpointForm.authorization')" prop="authorization">
             <el-input
               :model-value="authorizationText"
-              placeholder="多个权限用逗号分隔"
+              :placeholder="t('apiGateway.endpointForm.authorizationPlaceholder')"
               @update:model-value="(v: string) => emit('update:authorizationText', v ?? '')"
             />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="请求Schema" prop="request_schema">
+      <el-form-item :label="t('apiGateway.endpointForm.requestSchema')" prop="request_schema">
         <el-input
           :model-value="requestSchemaText"
           type="textarea"
           :rows="4"
-          placeholder="JSON格式请求Schema"
+          :placeholder="t('apiGateway.endpointForm.requestSchemaPlaceholder')"
           @update:model-value="(v: string) => emit('update:requestSchemaText', v ?? '')"
         />
       </el-form-item>
-      <el-form-item label="响应Schema" prop="response_schema">
+      <el-form-item :label="t('apiGateway.endpointForm.responseSchema')" prop="response_schema">
         <el-input
           :model-value="responseSchemaText"
           type="textarea"
           :rows="4"
-          placeholder="JSON格式响应Schema"
+          :placeholder="t('apiGateway.endpointForm.responseSchemaPlaceholder')"
           @update:model-value="(v: string) => emit('update:responseSchemaText', v ?? '')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">确定</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('apiGateway.endpointForm.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="emit('submit')">{{ t('apiGateway.endpointForm.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ApiEndpoint } from '@/api/api-gateway'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 接口新建/编辑对话框组件

@@ -6,21 +6,21 @@
 <template>
   <div class="recipe-tab">
     <div class="page-header">
-      <h2 class="page-title">染色配方管理</h2>
+      <h2 class="page-title">{{ t('fabric.recipeTab.title') }}</h2>
       <el-button type="primary" @click="openCreate">
         <el-icon><Plus /></el-icon>
-        新建配方
+        {{ t('fabric.recipeTab.buttonCreate') }}
       </el-button>
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="recipes" stripe aria-label="染色配方列表">
-        <el-table-column prop="recipe_no" label="配方号" width="120" />
-        <el-table-column prop="recipe_name" label="名称" width="150" />
-        <el-table-column prop="color_name" label="颜色" width="120" />
-        <el-table-column prop="fabric_type" label="面料类型" width="120" />
-        <el-table-column prop="version" label="版本" width="80" />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+      <el-table v-loading="loading" :data="recipes" stripe :aria-label="t('fabric.recipeTab.tableAriaLabel')">
+        <el-table-column prop="recipe_no" :label="t('fabric.recipeTab.columnRecipeNo')" width="120" />
+        <el-table-column prop="recipe_name" :label="t('fabric.recipeTab.columnName')" width="150" />
+        <el-table-column prop="color_name" :label="t('fabric.recipeTab.columnColor')" width="120" />
+        <el-table-column prop="fabric_type" :label="t('fabric.recipeTab.columnFabricType')" width="120" />
+        <el-table-column prop="version" :label="t('fabric.recipeTab.columnVersion')" width="80" />
+        <el-table-column prop="status" :label="t('fabric.recipeTab.columnStatus')" width="100" align="center">
           <template #default="{ row }">
             <el-tag
               :type="
@@ -32,17 +32,17 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column prop="created_at" :label="t('fabric.recipeTab.columnCreatedAt')" width="160" />
+        <el-table-column :label="t('fabric.recipeTab.columnAction')" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row)">{{ t('fabric.recipeTab.buttonView') }}</el-button>
             <el-button
               v-if="row.status === 'draft'"
               type="success"
               link
               size="small"
               @click="handleApprove(row)"
-              >审批</el-button
+              >{{ t('fabric.recipeTab.buttonApprove') }}</el-button
             >
             <el-button
               v-if="row.status === 'approved'"
@@ -50,7 +50,7 @@
               link
               size="small"
               @click="handleNewVersion(row)"
-              >新版本</el-button
+              >{{ t('fabric.recipeTab.buttonNewVersion') }}</el-button
             >
           </template>
         </el-table-column>
@@ -61,6 +61,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, defineEmits } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -71,13 +72,19 @@ import {
 } from '@/api/dye-recipe'
 import { logger } from '@/utils/logger'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const emit = defineEmits<{ openDialog: [row: DyeRecipe | null] }>()
 
 const recipes = ref<DyeRecipe[]>([])
 const loading = ref(false)
 
 const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = { draft: '草稿', approved: '已审批', obsolete: '已作废' }
+  const map: Record<string, string> = {
+    draft: t('fabric.recipeTab.statusDraft'),
+    approved: t('fabric.recipeTab.statusApproved'),
+    obsolete: t('fabric.recipeTab.statusObsolete'),
+  }
   return map[status] || status
 }
 
@@ -103,34 +110,34 @@ const handleView = async (row: DyeRecipe) => {
     emit('openDialog', (res.data as DyeRecipe | undefined) || null)
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '获取配方详情失败')
+    ElMessage.error(err.message || t('fabric.recipeTab.messageGetDetailFailed'))
   }
 }
 
 const handleApprove = async (row: DyeRecipe) => {
   try {
-    await ElMessageBox.confirm('确定审批此配方吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(t('fabric.recipeTab.confirmApproveContent'), t('fabric.common.confirmTitle'), { type: 'info' })
     await approveDyeRecipe(row.id)
-    ElMessage.success('审批成功')
+    ElMessage.success(t('fabric.recipeTab.messageApproveSuccess'))
     fetchRecipes()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('fabric.common.failed'))
     }
   }
 }
 
 const handleNewVersion = async (row: DyeRecipe) => {
   try {
-    await ElMessageBox.confirm('确定创建新版本吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(t('fabric.recipeTab.confirmNewVersionContent'), t('fabric.common.confirmTitle'), { type: 'info' })
     await createNewVersionApi(row.id)
-    ElMessage.success('创建成功')
+    ElMessage.success(t('fabric.recipeTab.messageNewVersionSuccess'))
     fetchRecipes()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('fabric.common.failed'))
     }
   }
 }

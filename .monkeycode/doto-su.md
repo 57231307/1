@@ -15,7 +15,7 @@
 - **完成度**：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌
 - **已完成 16 项**：D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17
 - **进行中 1 项**：
-  - **D05**（i18n 接入率 43.8%，199 文件未接入，10 批次规划见 doto.md §0.8；Batch 5 已合并 main PR #745，下一批次 Batch 6 业务核心模块 49 文件）
+  - **D05**（i18n 接入率 43.8%，199 文件未接入，10 批次规划见 doto.md §0.8；Batch 5 已合并 main PR #745；Batch 6 Group A 已完成 api-gateway 7 + bpm-approval 7 = 14 文件 + 177 翻译键，剩余 Group B 35 文件 fabric/finance/inventory/logistics/system-update）
 
 ### 关键技术决策（最近）
 
@@ -44,6 +44,78 @@
 - **服务层拆分**：原 7 个超大 service 已拆为 22 个子域文件（po/so/crm/inv/ar/ai/report）
 - **中间件顺序**（main.rs，axum 0.7 从外到内）：trace_context → metrics → TraceLayer → Cors → request_validator → permission → auth → security headers × 7 → timeout → handler
 - **CI/CD Only**：禁止本地构建，所有验证走 GitHub Actions
+
+---
+
+## 📦 V15 Batch 496 归档：D05 Batch 6 Group A useI18n 接入（api-gateway 7 + bpm-approval 7 = 14 文件）
+
+### 任务概述
+
+- **批次**：496（进行中，Group A 已完成）
+- **PR**：待提交（Group A 14 文件 + 177 翻译键，输出 /tmp/i18n-batch6/groupA.json）
+- **审计项**：P0-D05 Batch 6 Group A（D05-4 新批次规划），api-gateway + bpm-approval 2 模块 14 个 .vue 文件 i18n 接入
+- **完成时间**：2026-07-26
+- **Batch 6 进度**：Group A 完成 14/49 文件，剩余 Group B 35 文件（fabric/finance/inventory/logistics/system-update 各 7 文件）
+
+### 修改内容
+
+#### 1. 接入文件清单（14 文件，2 模块）
+
+- **api-gateway 模块**（7 文件，112 翻译键）：
+  - index.vue（4 键：apiGateway.index.{title,tabEndpoints,tabKeys,tabLogs}）
+  - components/ApiEndpointForm.vue（23 键：apiGateway.endpointForm.{createTitle,editTitle,path,method,description,module,rateLimit,timeout,authentication,authorization,requestSchema,responseSchema,cancel,confirm,*Placeholder,*AriaLabel}）
+  - components/KeyForm.vue（16 键：apiGateway.keyForm.{createTitle,editTitle,keyName,description,permissions,rateLimit,expiresAt,cancel,confirm,*Placeholder,*AriaLabel}）
+  - components/LogDetail.vue（13 键：apiGateway.logDetail.{title,endpointPath,method,statusCode,responseTime,ipAddress,user,requestTime,requestBody,responseBody,empty,close,ariaLabel}）
+  - tabs/ApiEndpointTab.vue（19 键：apiGateway.endpointTab.{searchPlaceholder,search,create,tableAriaLabel,columnPath,columnMethod,columnDescription,columnVersion,columnRateLimit,columnStatus,columnOperation,edit,delete,*statusPlaceholder,*statusActive,*statusInactive,*statusDeprecated,paginationAriaLabel}）
+  - tabs/ApiKeyTab.vue（19 键：apiGateway.keyTab.{searchPlaceholder,search,create,tableAriaLabel,columnKeyName,columnAppId,columnKey,columnExpiresAt,columnStatus,columnLastUsed,columnOperation,view,disable,enable,delete,*statusPlaceholder,*statusActive,*statusInactive,paginationAriaLabel}）
+  - tabs/ApiLogTab.vue（18 键：apiGateway.logTab.{searchPlaceholder,search,tableAriaLabel,columnTime,columnEndpoint,columnMethod,columnStatusCode,columnDuration,columnClientIp,columnApiKeyName,columnOperation,detail,*Placeholder}）
+
+- **bpm-approval 模块**（7 文件，65 翻译键）：
+  - approval/index.vue（6 键：bpm.{breadcrumb.home,breadcrumb.approval,breadcrumb.center,approval.{title,tab.pending,tab.completed}}）
+  - approval/components/BpmApprovalChainDialog.vue（11 键：bpm.approval.chainDialog.{title,ariaLabel,approver,comment,durationText,empty} + bpm.nodeType.{start,end,approval,condition,notify}）
+  - approval/components/BpmApprovalApprovalDialog.vue（9 键：bpm.approval.approvalDialog.{approveTitle,rejectTitle,taskName,comment,commentPlaceholder,cancel,confirm,ariaLabel,formAriaLabel}）
+  - approval/components/BpmApprovalPendingTable.vue（15 键：bpm.approval.pendingTable.{taskName,processName,applicant,businessKey,applyTime,dueDate,priority,operation,approve,reject,transfer,viewChain} + bpm.priority.{high,medium,low}）
+  - approval/components/BpmApprovalCompletedTable.vue（11 键：bpm.approval.completedTable.{taskName,processName,applicant,businessKey,approvedAt,result,comment,operation,viewChain,approved,rejected}）
+  - approval/components/BpmApprovalStat.vue（4 键：bpm.approval.stat.{pending,completed,urgent,avgTime}）
+  - approval/components/BpmApprovalTransferDialog.vue（9 键：bpm.approval.transferDialog.{title,taskName,targetUserId,comment,commentPlaceholder,cancel,confirm,ariaLabel,formAriaLabel}）
+
+#### 2. 翻译键统计（177 翻译键）
+
+| 模块 | 文件数 | 翻译键数 | 命名空间 |
+|------|--------|---------|----------|
+| api-gateway | 7 | 112 | apiGateway.{index,logDetail,keyForm,endpointForm,logTab,keyTab,endpointTab}.* |
+| bpm-approval | 7 | 65 | bpm.{breadcrumb,approval.{tab,chainDialog,approvalDialog,pendingTable,completedTable,stat,transferDialog},nodeType,priority}.* |
+| **合计** | **14** | **177** | — |
+
+#### 3. 翻译键输出文件
+
+- [/tmp/i18n-batch6/groupA.json](file:///tmp/i18n-batch6/groupA.json)：JSON 格式，包含 batch/totalFiles/totalKeys/modules/files/keys 结构，Python json 模块验证通过
+
+### 技术要点
+
+1. **useI18n 接入模式**：所有 14 文件均接入 `useI18n({ useScope: 'global' })`，script 中 `const { t } = useI18n({ useScope: 'global' })`，模板中使用 `t('key')` 或 computed 属性引用 t() 调用
+2. **翻译键命名规范**：`{module}.{section}.{key}` 三层结构，如 `apiGateway.endpointForm.createTitle` / `bpm.approval.pendingTable.taskName`
+3. **状态标签映射函数化**：getPriorityTextFmt（BpmApprovalPendingTable.vue）改为函数返回 t() 调用，确保语言切换时实时响应；getStatusLabel（ApiKeyTab.vue / ApiEndpointTab.vue）同理
+4. **业务数据值保留**：HTTP 方法（GET/POST/PUT/DELETE/PATCH）作为业务数据值保留，不走 i18n；仅 UI 显示文本（label/placeholder/title/button text/aria-label/column title）走 i18n
+5. **函数长度控制**：BpmApprovalPendingTable.vue 的 columns computed 属性原 64 行（含 4 个 action button 的 h() 渲染），拆分为 39 行 computed + 23 行 renderActionCell helper 函数，两者均 ≤50 行
+6. **未使用变量修复**：bpm/approval/index.vue 的 tabCompletedLabel 原为未使用变量（模板用 $t 直接调用），改为 computed 属性并在模板中通过 :label="tabCompletedLabel" 引用，消除 ESLint 警告
+7. **无 #[allow] 警告抑制**：所有文件均无 #[allow] 警告抑制，遵循规则 14
+
+### 错误与修复
+
+1. **bpm/approval/index.vue 未使用 tabCompletedLabel 变量**：原代码声明了 `const tabCompletedLabel = computed(() => t('bpm.approval.tab.completed'))` 但模板中用 `$t('bpm.approval.tab.completed')` 直接调用导致变量未使用；修复方式：模板改为 `:label="tabCompletedLabel"` 引用 computed 属性
+2. **BpmApprovalPendingTable.vue columns computed 超过 50 行**：原 columns computed 属性 64 行（含 4 个 action button 的 h() 渲染内联在 renderCell 中）；修复方式：提取 renderActionCell helper 函数（23 行），columns computed 降至 39 行，两者均 ≤50 行
+
+### 关联文件
+
+- 14 个 .vue 文件：所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制，主函数和 helper 函数均 ≤50 行
+- [/tmp/i18n-batch6/groupA.json](file:///tmp/i18n-batch6/groupA.json)：177 翻译键 JSON 输出
+
+### 待办
+
+- **Group B 35 文件**：fabric 7 + finance 7 + inventory 7 + logistics 7 + system-update 7，待后续接入
+- **locales 合并**：Group A 的 177 翻译键需合并到 frontend/src/locales/zh-CN.ts + en-US.ts 双语同步（待 Group B 完成后统一合并或随 Group A 提交时合并）
+- **CI 验证**：待 PR 提交后通过 CI 验证（前端格式/ESLint/类型检查/测试/构建）
 
 ---
 

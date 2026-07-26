@@ -8,7 +8,7 @@
   <div class="bpm-approval-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">{{ $t('bpm.approval.title') }}</h1>
+        <h1 class="page-title">{{ pageTitle }}</h1>
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: '/' }">{{ $t('bpm.breadcrumb.home') }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ $t('bpm.approval.breadcrumb.approval') }}</el-breadcrumb-item>
@@ -20,7 +20,7 @@
     <BpmApprovalStat :stats="bpmAp.stats" />
 
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-      <el-tab-pane :label="$t('bpm.approval.tab.pending')" name="pending">
+      <el-tab-pane :label="tabPendingLabel" name="pending">
         <BpmApprovalPendingTable
           :tasks="bpmAp.pendingTasks"
           :loading="bpmAp.pendingLoading"
@@ -34,7 +34,7 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane :label="$t('bpm.approval.tab.completed')" name="completed">
+      <el-tab-pane :label="tabCompletedLabel" name="completed">
         <BpmApprovalCompletedTable
           :tasks="bpmAp.completedTasks"
           :loading="bpmAp.completedLoading"
@@ -74,7 +74,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useBpmAp } from './composables/useBpmAp'
 import { useBpmApProc } from './composables/useBpmApProc'
 import BpmApprovalStat from './components/BpmApprovalStat.vue'
@@ -84,6 +85,8 @@ import BpmApprovalApprovalDialog from './components/BpmApprovalApprovalDialog.vu
 import BpmApprovalTransferDialog from './components/BpmApprovalTransferDialog.vue'
 import BpmApprovalChainDialog from './components/BpmApprovalChainDialog.vue'
 
+const { t } = useI18n({ useScope: 'global' })
+
 // 当前激活的 Tab
 const activeTab = ref('pending')
 
@@ -92,6 +95,11 @@ const bpmAp = useBpmAp()
 const bpmApProc = useBpmApProc({
   fetchPendingTasks: bpmAp.fetchPendingTasks,
 })
+
+// 页面标题与 Tab 标签（响应式求值，随语言切换更新）
+const pageTitle = computed(() => t('bpm.approval.title'))
+const tabPendingLabel = computed(() => t('bpm.approval.tab.pending'))
+const tabCompletedLabel = computed(() => t('bpm.approval.tab.completed'))
 
 /** 切换 Tab 重新加载 */
 const handleTabChange = (tab: string | number) => {

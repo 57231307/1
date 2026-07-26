@@ -6,9 +6,9 @@
 -->
 <template>
   <el-dialog
-    :aria-label="$t('bpm.approval.transferDialog.ariaLabel')"
+    :aria-label="t('bpm.approval.transferDialog.ariaLabel')"
     :model-value="visible"
-    :title="$t('bpm.approval.transferDialog.title')"
+    :title="t('bpm.approval.transferDialog.title')"
     width="500px"
     destroy-on-close
     @update:model-value="(v: boolean) => emit('update:visible', v)"
@@ -18,38 +18,41 @@
       :model="localForm"
       :rules="rules"
       label-width="100px"
-      :aria-label="$t('bpm.approval.transferDialog.formAriaLabel')"
+      :aria-label="t('bpm.approval.transferDialog.formAriaLabel')"
     >
-      <el-form-item :label="$t('bpm.approval.transferDialog.taskName')">
+      <el-form-item :label="t('bpm.approval.transferDialog.taskName')">
         <span>{{ currentTask?.task_name }}</span>
       </el-form-item>
-      <el-form-item :label="$t('bpm.approval.transferDialog.targetUserId')" prop="target_user_id">
+      <el-form-item :label="t('bpm.approval.transferDialog.targetUserId')" prop="target_user_id">
         <el-input-number
           v-model="localForm.target_user_id"
           :min="1"
           style="width: 100%"
         />
       </el-form-item>
-      <el-form-item :label="$t('bpm.approval.transferDialog.comment')">
+      <el-form-item :label="t('bpm.approval.transferDialog.comment')">
         <el-input
           v-model="localForm.comment"
           type="textarea"
           :rows="3"
-          :placeholder="$t('bpm.approval.transferDialog.commentPlaceholder')"
+          :placeholder="t('bpm.approval.transferDialog.commentPlaceholder')"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ $t('bpm.approval.transferDialog.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="onConfirm">{{ $t('bpm.approval.transferDialog.confirm') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{ t('bpm.approval.transferDialog.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="onConfirm">{{ t('bpm.approval.transferDialog.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ApprovalTask } from '@/api/bpm-enhanced'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单字段类型
 interface TranForm {
