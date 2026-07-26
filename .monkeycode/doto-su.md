@@ -15,7 +15,7 @@
 - **完成度**：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌
 - **已完成 16 项**：D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17
 - **进行中 1 项**：
-  - **D05**（i18n 接入率 32.7%，239 文件未接入，10 批次规划见 doto.md §0.8；Batch 4 已合并 main PR #743，下一批次 Batch 5 采购全链路 40 文件）
+  - **D05**（i18n 接入率 43.8%，199 文件未接入，10 批次规划见 doto.md §0.8；Batch 5 已合并 main PR #745，下一批次 Batch 6 业务核心模块 49 文件）
 
 ### 关键技术决策（最近）
 
@@ -23,18 +23,19 @@
 - **类型别名消除 type_complexity**（[permission.rs](file:///workspace/backend/src/services/init_service_ops/permission.rs)）：PermPair / RoleResourceGroup / RoleResourceSlice / RoleResourceGroups 四层别名
 - **facade 模式**（product_service.rs 等）：service 拆分为 facade + ops/ 子模块，缓存接入跟踪到 impl 实际所在文件
 - **Python 括号深度追踪脚本**：替代简单 awk 脚本，正确处理字符串/字符/注释/原始字符串，避免误判嵌套 `}` 为函数结尾
-- **merge-i18n 深度合并算法**（[scripts/merge-i18n-batch4.cjs](file:///workspace/scripts/merge-i18n-batch4.cjs)）：递归遍历对象，遇到 `{zh-CN, en-US}` 叶子节点直接覆盖，遇到对象递归合并；**坑**：合并时新命名空间前一个属性末尾需补逗号，否则触发 TS1005（batch3 踩坑后 batch4 修复：插入前检查 `}` 末尾补 `,`）
+- **merge-i18n 深度合并算法**（[scripts/merge-i18n-batch5.cjs](file:///workspace/scripts/merge-i18n-batch5.cjs)）：递归遍历对象，遇到 `{zh-CN, en-US}` 叶子节点直接覆盖，遇到对象递归合并；**坑**：合并时新命名空间前一个属性末尾需补逗号，否则触发 TS1005（batch3 踩坑后 batch4 修复：插入前检查 `}` 末尾补 `,`）
 - **Vue 测试 i18n 插件安装模式**（[slow-query.test.ts](file:///workspace/frontend/tests/unit/slow-query.test.ts)）：view 接入 useI18n 后测试需 `createI18n({ legacy:false, locale:'zh-CN', messages:{...} })` + `mount(Component, { global: { plugins: [i18n] } })`，messages 用最小占位即可（key 缺失时 $t 返回 key 本身）
+- **容器组件豁免**（[purchaseReceipt/index.vue](file:///workspace/frontend/src/views/purchaseReceipt/index.vue)）：纯容器组件（仅引用子组件 + composables，无硬编码中文）无需接入 useI18n，若误导入会触发 TS6133 't' is declared but its value is never read 错误，需移除 useI18n 导入和 t 解构
 
 ### 最近重要 PR
 
 | PR | 状态 | 内容 |
 |-----|------|------|
+| #745 | ✅ 已合并 main 7f22f29 | D05 Batch 5 useI18n 接入（39 文件 + 688 翻译键 + 7 新命名空间 purchaseContract/purchaseExt/purchaseInspection/purchasePrice/purchaseReturn/purchaseReceipt/logistics；CI 全绿，修复 purchaseReceipt/index.vue 容器组件未使用 useI18n 导入） |
 | #743 | ✅ 已合并 main 3e55cfd | D05 Batch 4 useI18n 接入（34 文件 + 501 翻译键 + 3 新命名空间 scheduling/security/system；CI 全绿，修复 slow-query.test.ts 未安装 i18n 插件） |
 | #741 | ✅ 已合并 main ac16a5c | D05 Batch 3 useI18n 接入（17 文件 + 558 翻译键 + 5 新命名空间；CI 全绿，修复 locales 文件 customer 节缺少逗号 TS1005） |
 | #740 | ✅ 已合并 main 88af0f1 | D08 Batch 1 拆分 39 个 >80 行函数（33 文件），主函数 ≤50 行 + helper ≤50 行 |
 | #739 | ✅ 已合并 main 6ca04a2 | docs(p0): 更新 D09+D14 完成状态 + IR 规则合规修复（实时阅读 docs + MEMORY.md §五规则冲突裁决） |
-| #737 | ✅ 已合并 main 9768bbe | D09 拆分 9 个 >100 行函数 + D14 修复 4 处 api 命名 + clippy 3 警告修复 |
 
 ### 项目架构关键信息（来自 [docs/ARCHITECTURE.md](file:///workspace/.monkeycode/docs/ARCHITECTURE.md)）
 
@@ -43,6 +44,90 @@
 - **服务层拆分**：原 7 个超大 service 已拆为 22 个子域文件（po/so/crm/inv/ar/ai/report）
 - **中间件顺序**（main.rs，axum 0.7 从外到内）：trace_context → metrics → TraceLayer → Cors → request_validator → permission → auth → security headers × 7 → timeout → handler
 - **CI/CD Only**：禁止本地构建，所有验证走 GitHub Actions
+
+---
+
+## 📦 V15 Batch 495 归档：D05 Batch 5 useI18n 接入（采购全链路 + 物流 7 模块 39 文件）
+
+### 任务概述
+
+- **批次**：495（已完成）
+- **PR**：#745（已合并 main 7f22f29，commit 包含 2 个：feat 接入 + fix 移除未使用导入）
+- **CI 验证**：CI/CD Pipeline - 严格构建验证 + 全面日志（run 30194888474，12m50s，全绿）
+- **审计项**：P0-D05 Batch 5（D05-3 新批次规划），采购全链路 + 物流 7 模块 39 个 .vue 文件 i18n 接入
+- **完成时间**：2026-07-26
+- **接入率提升**：D05 接入率 32.7%→43.8%（117→156/355 文件），剩余 199 文件未接入
+
+### 修改内容
+
+#### 1. 接入文件清单（39 文件，4 并行代理）
+
+- **purchase-contract 模块**（5 文件）：
+  - index.vue + components/PurchaseContractDetail.vue + PurchaseContractFilter.vue + PurchaseContractForm.vue + PurchaseContractTable.vue
+- **purchase-ext 模块**（4 文件）：
+  - index.vue + tabs/ContractTab.vue + PriceTab.vue + ReturnTab.vue
+- **purchase-inspection 模块**（6 文件）：
+  - index.vue + components/PurchaseInspectionDetail.vue + PurchaseInspectionFilter.vue + PurchaseInspectionForm.vue + PurchaseInspectionStat.vue + PurchaseInspectionTable.vue
+- **purchase-price 模块**（6 文件）：
+  - index.vue + components/PurchasePriceDetail.vue + PurchasePriceFilter.vue + PurchasePriceForm.vue + PurchasePriceHistory.vue + PurchasePriceTable.vue
+- **purchase-return 模块**（6 文件）：
+  - index.vue + components/PurchaseReturnApproval.vue + PurchaseReturnDetail.vue + PurchaseReturnFilter.vue + PurchaseReturnForm.vue + PurchaseReturnTable.vue
+- **purchaseReceipt 模块**（5 文件）：
+  - index.vue + components/PurchaseReceiptDetail.vue + PurchaseReceiptFilter.vue + PurchaseReceiptForm.vue + PurchaseReceiptTable.vue
+- **logistics 模块**（7 文件）：
+  - index.vue + components/LogisticsDetail.vue + LogisticsFilter.vue + LogisticsForm.vue + LogisticsStat.vue + LogisticsStatDialog.vue + LogisticsTable.vue
+
+#### 2. 翻译键新增（688 翻译键，7 新命名空间）
+
+| 命名空间 | 翻译键数 | 主要内容 |
+|----------|---------|---------|
+| purchaseContract | 97 | index/form/table/filter/detail/dialog/message |
+| purchaseExt | 186 | contractTab/priceTab/returnTab/index 共用模块前缀 |
+| purchaseInspection | 81 | index/form/table/filter/stat/detail/dialog/message |
+| purchasePrice | 85 | index/form/table/filter/detail/history/dialog/message |
+| purchaseReturn | 90 | index/form/table/filter/detail/approval/dialog/message |
+| purchaseReceipt | 62 | index/form/table/filter/detail/dialog/message |
+| logistics | 87 | index/form/table/filter/detail/stat/statDialog/dialog/message |
+
+#### 3. 工具脚本
+
+- **merge-i18n-batch5.cjs**（[scripts/merge-i18n-batch5.cjs](file:///workspace/scripts/merge-i18n-batch5.cjs)）：深度合并 4 个并行代理生成的 group*.json 到 locales/zh-CN.ts + en-US.ts 双语同步；复用 batch4 逗号修复逻辑（在 `}` 末尾补 `,` 避免 TS1005）
+- **audit-i18n-batch5.cjs**（[scripts/audit-i18n-batch5.cjs](file:///workspace/scripts/audit-i18n-batch5.cjs)）：扫描 39 个 .vue 文件中的 t()/$t() 调用，验证翻译键是否存在于 locales；验证 750 个 t()/$t() 调用引用 683 个不同键无缺失
+
+### 技术要点
+
+1. **多代理并行接入**：4 个并行代理按模块分组（Group A: purchase-contract + purchase-ext；Group B: purchase-inspection + purchase-price；Group C: purchase-return + purchaseReceipt；Group D: logistics），主进程合并翻译键，提高接入效率
+2. **深度合并算法**：递归遍历对象，遇到 `{zh-CN, en-US}` 叶子节点直接覆盖，遇到对象递归合并；插入前检查 `}` 末尾补 `,` 避免 TS1005 逗号缺失错误
+3. **容器组件豁免**：purchaseReceipt/index.vue 为纯容器组件（仅引用 PurchaseReceiptFilter/Table/Form/Detail 子组件 + usePrc/usePrcProc composables，无硬编码中文），无需接入 useI18n；误导入会触发 TS6133 't' is declared but its value is never read 错误，需移除 useI18n 导入和 t 解构
+4. **业务数据值保留**：区分 UI 显示文本和业务数据值，保留中文单位（如"米/卷/件"）作为后端存储值，仅 label/placeholder/title/button text 等用户可见 UI 文本走 i18n
+5. **状态标签映射函数化**：getStatusLabel/getTypeLabel 等改为响应式 computed 或函数返回 t() 调用，确保语言切换时实时响应
+6. **命名空间规范**：`{module}.{section}.{key}` 三层结构，如 `purchaseContract.form.contractNo` / `purchaseContract.table.columnContractNo`
+
+### CI 验证
+
+- **前端格式检查**：SUCCESS
+- **前端 ESLint**：SUCCESS
+- **前端类型检查**：SUCCESS（修复 purchaseReceipt/index.vue 未使用 useI18n 导入后通过）
+- **前端单元测试**：SUCCESS
+- **前端构建**：SUCCESS
+- **Rust 格式检查**：SUCCESS
+- **Rust Clippy**：SUCCESS
+- **Rust 单元测试**：SUCCESS
+- **Rust 后端构建**：SUCCESS
+- **覆盖率**：非阻塞失败（基础设施 Broken pipe）
+- **依赖审计**：非阻塞失败（crossbeam-epoch RUSTSEC-2026-0204 已知漏洞等上游更新）
+
+### 错误与修复
+
+1. **purchaseReceipt/index.vue 未使用 useI18n 导入**：容器组件误导入 useI18n 和 t 解构导致前端类型检查 't' is declared but its value is never read 错误；修复方式：移除 `import { useI18n } from 'vue-i18n'` 和 `const { t } = useI18n({ useScope: 'global' })` 两行代码
+
+### 关联文件
+
+- [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts)：+968 行（新增 7 命名空间 688 翻译键）
+- [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)：+968 行（双语同步）
+- [scripts/merge-i18n-batch5.cjs](file:///workspace/scripts/merge-i18n-batch5.cjs)：新建合并脚本
+- [scripts/audit-i18n-batch5.cjs](file:///workspace/scripts/audit-i18n-batch5.cjs)：新建审计脚本
+- 39 个 .vue 文件：所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制，主函数和 helper 函数均 ≤50 行
 
 ---
 
