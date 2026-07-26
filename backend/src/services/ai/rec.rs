@@ -613,115 +613,115 @@ impl AiAnalysisService {
             .collect()
     }
 
+    /// 查询指定时间区间内的销售明细（start 含, end 不含）
+    async fn query_sales_items_between(
+        db: &sea_orm::DatabaseConnection,
+        start: chrono::DateTime<Utc>,
+        end: Option<chrono::DateTime<Utc>>,
+    ) -> Result<Vec<crate::models::sales_order_item::Model>, AppError> {
+        let mut query = SalesOrderItemEntity::find()
+            .filter(crate::models::sales_order_item::Column::CreatedAt.gte(start));
+        if let Some(end) = end {
+            query =
+                query.filter(crate::models::sales_order_item::Column::CreatedAt.lt(end));
+        }
+        Ok(query.all(db).await?)
+    }
+
+    /// 按产品聚合同期销售数量（product_id -> 总数量 f64）
+    fn aggregate_sales_by_product(
+        items: &[crate::models::sales_order_item::Model],
+    ) -> HashMap<i32, f64> {
+        let mut sales: HashMap<i32, f64> = HashMap::new();
+        for item in items {
+            *sales.entry(item.product_id).or_insert(0.0) +=
+                item.quantity_meters.to_f64().unwrap_or(0.0);
+        }
+        sales
+    }
+
+    /// 计算各产品销量增长率并按增长率降序排列（返回 (pid, recent, earlier, growth)）
+    fn compute_sorted_growth_items(
+        recent_sales: &HashMap<i32, f64>,
+        earlier_sales: &HashMap<i32, f64>,
+    ) -> Vec<(i32, f64, f64, f64)> {
+        let mut growth_items: Vec<(i32, f64, f64, f64)> = Vec::new();
+        for (pid, &recent) in recent_sales {
+            let earlier = earlier_sales.get(pid).copied().unwrap_or(0.0);
+            let growth = if earlier > 0.0 {
+                (recent - earlier) / earlier
+            } else if recent > 0.0 {
+                1.0
+            } else {
+                0.0
+            };
+            growth_items.push((*pid, recent, earlier, growth));
+        }
+        growth_items.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap_or(std::cmp::Ordering::Equal));
+        growth_items
+    }
+
+    /// 按增长率档位格式化趋势推荐理由
+    fn format_trend_reason(recent: f64, earlier: f64, growth: f64) -> String {
+        if earlier <= 0.0 && recent > 0.0 {
+            format!("新品热销: 最近30天销量={:.0}", recent)
+        } else if growth > 0.5 {
+            format!(
+                "销量快速增长: 最近30天={:.0}, 前30天={:.0}, 增长率={:.0}%",
+                recent,
+                earlier,
+                growth * 100.0
+            )
+        } else if growth > 0.0 {
+            format!(
+                "销量稳步增长: 最近30天={:.0}, 前30天={:.0}, 增长率={:.0}%",
+                recent,
+                earlier,
+                growth * 100.0
+            )
+        } else {
+            format!(
+                "销量下降: 最近30天={:.0}, 前30天={:.0}, 增长率={:.0}%",
+                recent,
+                earlier,
+                growth * 100.0
+            )
+        }
+    }
+
     /// 基于销售趋势的产品推荐
     async fn generate_trend_recommendations(
         &self,
         limit: usize,
     ) -> Result<Vec<SmartRecommendation>, AppError> {
         let now = Utc::now().date_naive();
-        let recent_start = now - Duration::days(30);
-        let earlier_start = now - Duration::days(60);
-
-        // 最近 30 天的销售
-        let recent_items = SalesOrderItemEntity::find()
-            .filter(
-                crate::models::sales_order_item::Column::CreatedAt.gte(
-                    recent_start
-                        .and_hms_opt(0, 0, 0)
-                        .unwrap_or_default()
-                        .and_utc(),
-                ),
-            )
-            .all(&*self.db)
-            .await?;
-
-        // 前 30 天的销售
-        let earlier_items = SalesOrderItemEntity::find()
-            .filter(
-                crate::models::sales_order_item::Column::CreatedAt.gte(
-                    earlier_start
-                        .and_hms_opt(0, 0, 0)
-                        .unwrap_or_default()
-                        .and_utc(),
-                ),
-            )
-            .filter(
-                crate::models::sales_order_item::Column::CreatedAt.lt(recent_start
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap_or_default()
-                    .and_utc()),
-            )
-            .all(&*self.db)
-            .await?;
-
-        // 按产品聚合
-        let mut recent_sales: HashMap<i32, f64> = HashMap::new();
-        for item in &recent_items {
-            *recent_sales.entry(item.product_id).or_insert(0.0) +=
-                item.quantity_meters.to_f64().unwrap_or(0.0);
-        }
-
-        let mut earlier_sales: HashMap<i32, f64> = HashMap::new();
-        for item in &earlier_items {
-            *earlier_sales.entry(item.product_id).or_insert(0.0) +=
-                item.quantity_meters.to_f64().unwrap_or(0.0);
-        }
-
-        // 计算增长率
-        let mut growth_items: Vec<(i32, f64, f64, f64)> = Vec::new();
-        for (pid, &recent) in &recent_sales {
-            let earlier = earlier_sales.get(pid).copied().unwrap_or(0.0);
-            let growth = if earlier > 0.0 {
-                (recent - earlier) / earlier
-            } else if recent > 0.0 {
-                1.0 // 新品
-            } else {
-                0.0
-            };
-            growth_items.push((*pid, recent, earlier, growth));
-        }
-
-        // 按增长率降序排列
-        growth_items.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap_or(std::cmp::Ordering::Equal));
-
+        let recent_start_dt = (now - Duration::days(30))
+            .and_hms_opt(0, 0, 0)
+            .unwrap_or_default()
+            .and_utc();
+        let earlier_start_dt = (now - Duration::days(60))
+            .and_hms_opt(0, 0, 0)
+            .unwrap_or_default()
+            .and_utc();
+        let recent_items =
+            Self::query_sales_items_between(&*self.db, recent_start_dt, None).await?;
+        let earlier_items =
+            Self::query_sales_items_between(&*self.db, earlier_start_dt, Some(recent_start_dt))
+                .await?;
+        let recent_sales = Self::aggregate_sales_by_product(&recent_items);
+        let earlier_sales = Self::aggregate_sales_by_product(&earlier_items);
+        let growth_items = Self::compute_sorted_growth_items(&recent_sales, &earlier_sales);
         let recommendations: Vec<SmartRecommendation> = growth_items
             .into_iter()
             .take(limit)
-            .map(|(pid, recent, earlier, growth)| {
-                let reason = if earlier <= 0.0 && recent > 0.0 {
-                    format!("新品热销: 最近30天销量={:.0}", recent)
-                } else if growth > 0.5 {
-                    format!(
-                        "销量快速增长: 最近30天={:.0}, 前30天={:.0}, 增长率={:.0}%",
-                        recent,
-                        earlier,
-                        growth * 100.0
-                    )
-                } else if growth > 0.0 {
-                    format!(
-                        "销量稳步增长: 最近30天={:.0}, 前30天={:.0}, 增长率={:.0}%",
-                        recent,
-                        earlier,
-                        growth * 100.0
-                    )
-                } else {
-                    format!(
-                        "销量下降: 最近30天={:.0}, 前30天={:.0}, 增长率={:.0}%",
-                        recent,
-                        earlier,
-                        growth * 100.0
-                    )
-                };
-                SmartRecommendation {
-                    recommendation_type: "TREND".to_string(),
-                    target_id: pid,
-                    target_type: "PRODUCT".to_string(),
-                    score: (growth * 100.0).round() / 100.0,
-                    reason,
-                }
+            .map(|(pid, recent, earlier, growth)| SmartRecommendation {
+                recommendation_type: "TREND".to_string(),
+                target_id: pid,
+                target_type: "PRODUCT".to_string(),
+                score: (growth * 100.0).round() / 100.0,
+                reason: Self::format_trend_reason(recent, earlier, growth),
             })
             .collect();
-
         Ok(recommendations)
     }
 

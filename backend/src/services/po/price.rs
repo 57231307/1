@@ -216,44 +216,40 @@ impl PurchaseOrderService {
         Ok(())
     }
 
-    /// 根据库存预警创建采购建议
-    pub async fn create_purchase_suggestion(
-        &self,
+    /// 获取补货所需的产品、仓库和默认活跃供应商
+    async fn fetch_replenishment_entities(
+        txn: &sea_orm::DatabaseTransaction,
         product_id: i32,
+        warehouse_id: i32,
+    ) -> Result<(product::Model, warehouse::Model, supplier::Model), AppError> {
+        let product = product::Entity::find_by_id(product_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", product_id)))?;
+        let warehouse = warehouse::Entity::find_by_id(warehouse_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("仓库 ID {} 不存在", warehouse_id)))?;
+        let supplier = supplier::Entity::find()
+            .filter(supplier::Column::Status.eq(master_data::ACTIVE))
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("没有可用的活跃供应商"))?;
+        Ok((product, warehouse, supplier))
+    }
+
+    /// 构建库存预警采购订单 ActiveModel
+    fn build_replenishment_order(
+        order_no: String,
+        supplier_id: i32,
         warehouse_id: i32,
         current_quantity: Decimal,
         reorder_point: Decimal,
         reorder_quantity: Decimal,
-    ) -> Result<purchase_order::Model, AppError> {
-        // 开启事务
-        let txn = (*self.db).begin().await?;
-
-        // 1. 获取产品信息
-        let product = product::Entity::find_by_id(product_id)
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", product_id)))?;
-
-        // 2. 获取仓库信息
-        let warehouse = warehouse::Entity::find_by_id(warehouse_id)
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("仓库 ID {} 不存在", warehouse_id)))?;
-
-        // 3. 查找默认供应商（这里简化处理，实际可能需要更复杂的供应商选择逻辑）
-        let supplier = supplier::Entity::find()
-            .filter(supplier::Column::Status.eq(master_data::ACTIVE))
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found("没有可用的活跃供应商"))?;
-
-        // 4. 生成采购订单号（使用事务连接）
-        let order_no = self.generate_order_no_with_txn(&txn).await?;
-
-        // 5. 创建采购订单
-        let order = purchase_order::ActiveModel {
+    ) -> purchase_order::ActiveModel {
+        purchase_order::ActiveModel {
             order_no: Set(order_no),
-            supplier_id: Set(supplier.id),
+            supplier_id: Set(supplier_id),
             order_date: Set(Utc::now().date_naive()),
             expected_delivery_date: Set(Some(
                 (Utc::now() + chrono::Duration::days(7)).date_naive(),
@@ -268,25 +264,27 @@ impl PurchaseOrderService {
                 "库存预警自动生成，当前库存: {}, 补货点: {}, 建议补货量: {}",
                 current_quantity, reorder_point, reorder_quantity
             ))),
-            created_by: Set(1), // 系统用户
+            created_by: Set(1),
             ..Default::default()
         }
-        .insert(&txn)
-        .await?;
+    }
 
-        // 6. 创建订单明细
-        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
-        let quantity = reorder_quantity;
+    /// 创建库存预警订单明细(金额补 round_dp(2) 精度归一化)
+    async fn create_replenishment_order_item(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+        product: &product::Model,
+        reorder_quantity: Decimal,
+    ) -> Result<(), AppError> {
         let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
-        let amount = (quantity * unit_price).round_dp(2);
-        let tax_rate = Decimal::new(13, 2); // 13% 增值税
+        let amount = (reorder_quantity * unit_price).round_dp(2);
+        let tax_rate = Decimal::new(13, 2);
         let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
-
         purchase_order_item::ActiveModel {
             id: Default::default(),
-            order_id: Set(order.id),
-            product_id: Set(product_id),
-            quantity: Set(quantity),
+            order_id: Set(order_id),
+            product_id: Set(product.id),
+            quantity: Set(reorder_quantity),
             quantity_alt: Set(Decimal::ZERO),
             unit_price: Set(unit_price),
             unit_price_foreign: Set(unit_price),
@@ -303,20 +301,40 @@ impl PurchaseOrderService {
             updated_at: Set(Utc::now()),
             ..Default::default()
         }
+        .insert(txn)
+        .await?;
+        Ok(())
+    }
+
+    /// 根据库存预警创建采购建议(事务内创建订单与明细,commit 后返回)
+    pub async fn create_purchase_suggestion(
+        &self,
+        product_id: i32,
+        warehouse_id: i32,
+        current_quantity: Decimal,
+        reorder_point: Decimal,
+        reorder_quantity: Decimal,
+    ) -> Result<purchase_order::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+        let (product, warehouse, supplier) =
+            Self::fetch_replenishment_entities(&txn, product_id, warehouse_id).await?;
+        let order_no = self.generate_order_no_with_txn(&txn).await?;
+        let order = Self::build_replenishment_order(
+            order_no,
+            supplier.id,
+            warehouse_id,
+            current_quantity,
+            reorder_point,
+            reorder_quantity,
+        )
         .insert(&txn)
         .await?;
-
-        // 7. 提交事务
+        Self::create_replenishment_order_item(&txn, order.id, &product, reorder_quantity).await?;
         txn.commit().await?;
-
         tracing::info!(
             "创建库存预警采购建议: 订单号={}, 产品={}, 仓库={}, 建议采购量={}",
-            order.order_no,
-            product.name,
-            warehouse.name,
-            quantity
+            order.order_no, product.name, warehouse.name, reorder_quantity
         );
-
         Ok(order)
     }
 }

@@ -133,6 +133,24 @@ pub struct LowStockAlert {
     pub shortage: String,
 }
 
+#[derive(Debug)]
+struct OverviewMetrics {
+    total_products: u64,
+    total_warehouses: u64,
+    total_orders: u64,
+    pending_orders: u64,
+    low_stock_count: u64,
+    monthly_sales: Decimal,
+    total_sales: Decimal,
+}
+
+#[derive(Debug)]
+struct SalesPeriodAggregation {
+    daily_sales: Vec<SalesDataPoint>,
+    weekly_sales: Vec<SalesDataPoint>,
+    monthly_sales: Vec<SalesDataPoint>,
+}
+
 /// 仪表板服务
 pub struct DashboardService {
     db: Arc<DatabaseConnection>,
@@ -144,41 +162,37 @@ impl DashboardService {
         Self { db, cache }
     }
 
-    /// 获取仪表板概览数据
-    pub async fn get_overview(
-        &self,
+    /// 按起止日期生成概览缓存键
+    fn build_overview_cache_key(
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
-    ) -> Result<DashboardOverview, AppError> {
-        // 生成缓存键
-        let cache_key = format!(
+    ) -> String {
+        format!(
             "dashboard:overview:{}-{}",
-            start_date
-                .map(|d| d.to_rfc3339())
-                .unwrap_or("all".to_string()),
-            end_date
-                .map(|d| d.to_rfc3339())
-                .unwrap_or("all".to_string())
-        );
+            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
+            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
+        )
+    }
 
-        // 尝试从缓存获取
-        if let Some(cached) = self.cache.get_dashboard_cache().get(&cache_key) {
-            if let Ok(overview) = serde_json::from_value(cached) {
-                return Ok(overview);
-            }
-        }
+    /// 尝试从缓存读取概览数据
+    fn try_read_overview_cache(&self, cache_key: &String) -> Option<DashboardOverview> {
+        let cached = self.cache.get_dashboard_cache().get(cache_key)?;
+        serde_json::from_value(cached).ok()
+    }
 
-        // 缓存未命中，从数据库并行获取
+    /// 计算当月起始日期
+    fn compute_start_of_month() -> chrono::NaiveDate {
         let now = Utc::now();
-        use chrono::Datelike;
-        // P3 维度 3 修复（批次 87）：消除嵌套 expect，常量日期必然合法
-        let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
-            .unwrap_or_else(|| {
-                chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap_or_default()
-            });
+        chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
+            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap_or_default())
+    }
 
+    /// 并行查询概览指标（产品/仓库/订单/待处理/低库存/月销售/总销售）
+    async fn fetch_overview_metrics(
+        &self,
+        start_of_month: chrono::NaiveDate,
+    ) -> Result<OverviewMetrics, AppError> {
         let db = self.db.as_ref();
-
         let total_products_fut = product::Entity::find().count(db);
         let total_warehouses_fut = warehouse::Entity::find().count(db);
         let total_orders_fut = sales_order::Entity::find().count(db);
@@ -203,7 +217,6 @@ impl DashboardService {
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
             .one(db);
-
         let (
             total_products,
             total_warehouses,
@@ -221,78 +234,90 @@ impl DashboardService {
             monthly_sales_fut,
             total_sales_fut,
         )?;
+        Ok(OverviewMetrics {
+            total_products,
+            total_warehouses,
+            total_orders,
+            pending_orders,
+            low_stock_count,
+            monthly_sales: monthly_sales_opt.flatten().unwrap_or(Decimal::ZERO),
+            total_sales: total_sales_opt.flatten().unwrap_or(Decimal::ZERO),
+        })
+    }
 
-        let monthly_sales_dec = monthly_sales_opt.flatten().unwrap_or(Decimal::ZERO);
-        let total_sales_dec = total_sales_opt.flatten().unwrap_or(Decimal::ZERO);
+    /// 从查询指标构建概览响应
+    fn build_overview_from_metrics(metrics: OverviewMetrics) -> DashboardOverview {
+        DashboardOverview {
+            total_products: metrics.total_products as i64,
+            total_warehouses: metrics.total_warehouses as i64,
+            total_orders: metrics.total_orders as i64,
+            total_sales: metrics.total_sales.to_string(),
+            low_stock_count: metrics.low_stock_count as i64,
+            pending_orders: metrics.pending_orders as i64,
+            monthly_sales: metrics.monthly_sales.to_string(),
+        }
+    }
 
-        let overview = DashboardOverview {
-            total_products: total_products as i64,
-            total_warehouses: total_warehouses as i64,
-            total_orders: total_orders as i64,
-            total_sales: total_sales_dec.to_string(),
-            low_stock_count: low_stock_count as i64,
-            pending_orders: pending_orders as i64,
-            monthly_sales: monthly_sales_dec.to_string(),
-        };
-
-        // 缓存结果，有效期5分钟
-        if let Ok(overview_json) = serde_json::to_value(overview.clone()) {
+    /// 写入概览缓存（有效期 5 分钟）
+    fn cache_overview_result(&self, cache_key: String, overview: &DashboardOverview) {
+        if let Ok(overview_json) = serde_json::to_value(overview) {
             self.cache.get_dashboard_cache().set(
                 cache_key,
                 overview_json,
                 Some(Duration::from_secs(300)),
             );
         }
-
-        Ok(overview)
     }
 
-    /// 获取销售统计数据
-    ///
-    /// 批次 134 v9 P1 修复：原 weekly_sales/monthly_sales/by_customer/by_product/by_salesperson
-    /// 5 个字段为 vec![] 占位，现真实聚合查询：
-    ///
-    /// - daily_sales: 按日分组（保留原有 SeaORM 查询）
-    /// - weekly_sales: 按日聚合后内存派生为 ISO 周（IYYY-IW）
-    /// - monthly_sales: 按日聚合后内存派生为年月（YYYY-MM）
-    /// - by_customer: raw SQL 关联 customers 表按 customer_id 分组
-    /// - by_product: raw SQL 关联 sales_order_items + products 表按 product_id 分组
-    /// - by_salesperson: raw SQL 关联 users 表按 created_by 分组
-    pub async fn get_sales_statistics(
+    /// 获取仪表板概览数据
+    pub async fn get_overview(
         &self,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
-    ) -> Result<SalesStatistics, AppError> {
-        // 生成缓存键
-        let cache_key = format!(
-            "dashboard:sales:{}-{}",
-            start_date
-                .map(|d| d.to_rfc3339())
-                .unwrap_or("all".to_string()),
-            end_date
-                .map(|d| d.to_rfc3339())
-                .unwrap_or("all".to_string())
-        );
-
-        // 尝试从缓存获取
-        if let Some(cached) = self.cache.get_dashboard_cache().get(&cache_key) {
-            if let Ok(statistics) = serde_json::from_value(cached) {
-                return Ok(statistics);
-            }
+    ) -> Result<DashboardOverview, AppError> {
+        let cache_key = Self::build_overview_cache_key(start_date, end_date);
+        if let Some(cached) = self.try_read_overview_cache(&cache_key) {
+            return Ok(cached);
         }
+        let start_of_month = Self::compute_start_of_month();
+        let metrics = self.fetch_overview_metrics(start_of_month).await?;
+        let overview = Self::build_overview_from_metrics(metrics);
+        self.cache_overview_result(cache_key, &overview);
+        Ok(overview)
+    }
 
+    /// 按起止日期生成销售统计缓存键
+    fn build_sales_cache_key(
+        start_date: Option<DateTime<Utc>>,
+        end_date: Option<DateTime<Utc>>,
+    ) -> String {
+        format!(
+            "dashboard:sales:{}-{}",
+            start_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string()),
+            end_date.map(|d| d.to_rfc3339()).unwrap_or("all".to_string())
+        )
+    }
+
+    /// 尝试从缓存读取销售统计
+    fn try_read_sales_cache(&self, cache_key: &String) -> Option<SalesStatistics> {
+        let cached = self.cache.get_dashboard_cache().get(cache_key)?;
+        serde_json::from_value(cached).ok()
+    }
+
+    /// 按日期范围查询每日销售金额聚合
+    async fn query_daily_sales_amounts(
+        &self,
+        start_date: Option<DateTime<Utc>>,
+        end_date: Option<DateTime<Utc>>,
+    ) -> Result<Vec<(chrono::NaiveDate, Option<Decimal>)>, AppError> {
         let mut query = sales_order::Entity::find();
-
-        // 应用日期范围过滤
         if let Some(start) = start_date {
             query = query.filter(sales_order::Column::OrderDate.gte(start.date_naive()));
         }
         if let Some(end) = end_date {
             query = query.filter(sales_order::Column::OrderDate.lte(end.date_naive()));
         }
-
-        // 1. daily_sales：按日分组聚合金额（保留原有 SeaORM 查询）
-        let daily_results = query
+        let results = query
             .clone()
             .select_only()
             .column(sales_order::Column::OrderDate)
@@ -302,31 +327,30 @@ impl DashboardService {
             .into_tuple::<(chrono::NaiveDate, Option<Decimal>)>()
             .all(self.db.as_ref())
             .await?;
+        Ok(results)
+    }
 
-        // 1.1 daily_sales 列表 + 同时累计 weekly/monthly 聚合
+    /// 将日聚合累计为日/周/月三维度数据点
+    fn aggregate_sales_by_periods(
+        daily_results: Vec<(chrono::NaiveDate, Option<Decimal>)>,
+    ) -> SalesPeriodAggregation {
         let mut daily_sales: Vec<SalesDataPoint> = Vec::with_capacity(daily_results.len());
         let mut weekly_map: std::collections::BTreeMap<String, Decimal> =
             std::collections::BTreeMap::new();
         let mut monthly_map: std::collections::BTreeMap<String, Decimal> =
             std::collections::BTreeMap::new();
-
         for (date, amt) in daily_results {
             let amount = amt.unwrap_or(Decimal::ZERO);
             daily_sales.push(SalesDataPoint {
                 date: date.to_string(),
                 amount: amount.to_string(),
             });
-
-            // 派生 ISO 周（IYYY-IW），使用 chrono IsoWeek
             let iso = date.iso_week();
             let week_key = format!("{}-{:02}", iso.year(), iso.week());
             *weekly_map.entry(week_key).or_insert_with(|| Decimal::ZERO) += amount;
-
-            // 派生年月（YYYY-MM）
             let month_key = format!("{}-{:02}", date.year(), date.month());
             *monthly_map.entry(month_key).or_insert_with(|| Decimal::ZERO) += amount;
         }
-
         let weekly_sales: Vec<SalesDataPoint> = weekly_map
             .into_iter()
             .map(|(period, amount)| SalesDataPoint {
@@ -334,7 +358,6 @@ impl DashboardService {
                 amount: amount.to_string(),
             })
             .collect();
-
         let monthly_sales: Vec<SalesDataPoint> = monthly_map
             .into_iter()
             .map(|(period, amount)| SalesDataPoint {
@@ -342,35 +365,54 @@ impl DashboardService {
                 amount: amount.to_string(),
             })
             .collect();
-
-        // 2. by_customer：按 customer_id 分组，关联 customers 表获取 customer_name
-        let by_customer = self.query_sales_by_dimension(start_date, end_date, "customer").await?;
-
-        // 3. by_product：按 product_id 分组，关联 sales_order_items + products 表
-        let by_product = self.query_sales_by_dimension(start_date, end_date, "product").await?;
-
-        // 4. by_salesperson：按 created_by 分组，关联 users 表获取 username
-        let by_salesperson =
-            self.query_sales_by_dimension(start_date, end_date, "salesperson").await?;
-
-        let statistics = SalesStatistics {
+        SalesPeriodAggregation {
             daily_sales,
             weekly_sales,
             monthly_sales,
-            by_customer,
-            by_product,
-            by_salesperson,
-        };
+        }
+    }
 
-        // 缓存结果，有效期5分钟
-        if let Ok(statistics_json) = serde_json::to_value(statistics.clone()) {
+    /// 写入销售统计缓存（有效期 5 分钟）
+    fn cache_sales_statistics(&self, cache_key: String, statistics: &SalesStatistics) {
+        if let Ok(statistics_json) = serde_json::to_value(statistics) {
             self.cache.get_dashboard_cache().set(
                 cache_key,
                 statistics_json,
                 Some(Duration::from_secs(300)),
             );
         }
+    }
 
+    /// 获取销售统计数据（日/周/月 + 客户/产品/销售员维度）
+    pub async fn get_sales_statistics(
+        &self,
+        start_date: Option<DateTime<Utc>>,
+        end_date: Option<DateTime<Utc>>,
+    ) -> Result<SalesStatistics, AppError> {
+        let cache_key = Self::build_sales_cache_key(start_date, end_date);
+        if let Some(cached) = self.try_read_sales_cache(&cache_key) {
+            return Ok(cached);
+        }
+        let daily_results = self.query_daily_sales_amounts(start_date, end_date).await?;
+        let periods = Self::aggregate_sales_by_periods(daily_results);
+        let by_customer = self
+            .query_sales_by_dimension(start_date, end_date, "customer")
+            .await?;
+        let by_product = self
+            .query_sales_by_dimension(start_date, end_date, "product")
+            .await?;
+        let by_salesperson = self
+            .query_sales_by_dimension(start_date, end_date, "salesperson")
+            .await?;
+        let statistics = SalesStatistics {
+            daily_sales: periods.daily_sales,
+            weekly_sales: periods.weekly_sales,
+            monthly_sales: periods.monthly_sales,
+            by_customer,
+            by_product,
+            by_salesperson,
+        };
+        self.cache_sales_statistics(cache_key, &statistics);
         Ok(statistics)
     }
 

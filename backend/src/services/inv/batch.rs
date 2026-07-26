@@ -64,212 +64,257 @@ impl InventoryTransferService {
         &self,
         transfer_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
-        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-        // 开启事务
         let txn = (*self.db).begin().await?;
-
-        // v14 批次 420 修复 T-P1-1：调拨流程事件收集
-        // 原实现直接 insert 流水后未发布 InventoryTransactionCreated 事件，
-        // 导致下游库存财务桥接服务无法感知调拨出/入库，库存账与财务账脱节。
-        // 修复：事务内收集事件，commit 成功后统一 publish（避免回滚造成幻事件）。
         let mut pending_events: Vec<crate::services::event_bus::BusinessEvent> = Vec::new();
+        let transfer = Self::lock_and_validate_transfer_for_ship(&txn, transfer_id).await?;
+        let items = Self::load_transfer_items(&txn, transfer_id).await?;
+        let stock_map = Self::load_ship_stock_map(&txn, &transfer, &items).await?;
+        for item in items {
+            Self::apply_ship_item_deduction(
+                &txn, &transfer, &stock_map, item, &mut pending_events, transfer_id,
+            )
+            .await?;
+        }
+        Self::update_transfer_to_shipped(&txn, transfer).await?;
+        txn.commit().await?;
+        Self::publish_ship_events(pending_events, transfer_id);
+        self.get_transfer_detail(transfer_id, None).await
+    }
 
-        // 检查调拨单是否存在（行锁，串行化并发状态变更）
+    /// 锁定调拨单并校验状态为 approved（串行化并发状态变更）。
+    async fn lock_and_validate_transfer_for_ship(
+        txn: &sea_orm::DatabaseTransaction,
+        transfer_id: i32,
+    ) -> Result<inventory_transfer::Model, AppError> {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
-
-        // 检查状态，只有已审核的调拨单可以发出
         if transfer.status != "approved" {
             return Err(AppError::business(
                 "只有已审核状态的调拨单可以发出".to_string(),
             ));
         }
+        Ok(transfer)
+    }
 
-        // 获取调拨明细项
-        let items = InventoryTransferItemEntity::find()
-            .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
-            .all(&txn)
-            .await?;
-
-        // 批量获取源仓库库存记录（优化N+1查询）
+    /// 批量加载源仓库库存记录（避免循环内 N+1 查询）。
+    async fn load_ship_stock_map(
+        txn: &sea_orm::DatabaseTransaction,
+        transfer: &inventory_transfer::Model,
+        items: &[inventory_transfer_item::Model],
+    ) -> Result<std::collections::HashMap<i32, inventory_stock::Model>, AppError> {
         let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
-        let stocks = InventoryStockEntity::find()
-            .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
-            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
-            .all(&txn)
-            .await?;
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            stocks.into_iter().map(|s| (s.product_id, s)).collect();
+        let stocks = if product_ids.is_empty() {
+            Vec::new()
+        } else {
+            InventoryStockEntity::find()
+                .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
+                .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+                .all(txn)
+                .await?
+        };
+        Ok(stocks.into_iter().map(|s| (s.product_id, s)).collect())
+    }
 
-        // 扣减源仓库库存
-        for item in items {
-            // 查找源仓库库存记录
-            let stock = stock_map.get(&item.product_id);
-
-            if let Some(stock_model) = stock {
-                // 检查库存是否充足
-                if stock_model.quantity_on_hand < item.quantity {
-                    tracing::error!("Transaction rolled back: 产品 {} 库存不足", item.product_id);
-                    txn.rollback().await?;
-                    return Err(AppError::business(format!(
-                        "产品 {} 库存不足",
-                        item.product_id
-                    )));
-                }
-
-                // 保存需要使用的值
-                let stock_id = stock_model.id;
-                let _quantity_on_hand = stock_model.quantity_on_hand;
-                let quantity_meters = stock_model.quantity_meters;
-                let quantity_kg = stock_model.quantity_kg;
-                let expected_version = stock_model.version;
-                let batch_no = stock_model.batch_no.clone();
-                let color_no = stock_model.color_no.clone();
-                let dye_lot_no = stock_model.dye_lot_no.clone();
-                let grade = stock_model.grade.clone();
-                let _stock_model = stock_model.clone();
-
-                // 扣减库存（带乐观锁）
-                let new_quantity_meters = quantity_meters - item.quantity;
-                // Calculate kg reduction proportionally
-                // 批次 97 P1-12 修复（v5 复审）：kg 计算补 round_dp(4) 防止精度漂移
-                let new_quantity_kg = if quantity_meters > rust_decimal::Decimal::ZERO {
-                    (quantity_kg - (quantity_kg * item.quantity / quantity_meters)).round_dp(4)
-                } else {
-                    quantity_kg
-                };
-
-                // 使用乐观锁条件更新：只有 version 匹配时才更新
-                let update_result = inventory_stock::Entity::update_many()
-                    .col_expr(
-                        inventory_stock::Column::QuantityOnHand,
-                        Expr::col(inventory_stock::Column::QuantityOnHand).binary(BinOper::Sub, Expr::val(item.quantity)),
-                    )
-                    .col_expr(
-                        inventory_stock::Column::QuantityAvailable,
-                        Expr::col(inventory_stock::Column::QuantityAvailable).binary(BinOper::Sub, Expr::val(item.quantity)),
-                    )
-                    .col_expr(
-                        inventory_stock::Column::QuantityMeters,
-                        Expr::val(new_quantity_meters).into(),
-                    )
-                    .col_expr(
-                        inventory_stock::Column::QuantityKg,
-                        Expr::val(new_quantity_kg).into(),
-                    )
-                    .col_expr(
-                        inventory_stock::Column::Version,
-                        Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)),
-                    )
-                    .col_expr(
-                        inventory_stock::Column::UpdatedAt,
-                        sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
-                    )
-                    .filter(inventory_stock::Column::Id.eq(stock_id))
-                    .filter(inventory_stock::Column::Version.eq(expected_version))
-                    .exec(&txn)
-                    .await?;
-
-                // 检查乐观锁是否成功
-                if update_result.rows_affected == 0 {
-                    tracing::error!("Transaction rolled back: 产品 {} 并发冲突", item.product_id);
-                    txn.rollback().await?;
-                    return Err(AppError::business(format!(
-                        "产品 {} 库存记录已被其他用户修改，请重试",
-                        item.product_id
-                    )));
-                }
-
-                // 记录 TRANSFER_OUT 库存流水
-                let transaction = inventory_transaction::ActiveModel {
-                    id: sea_orm::ActiveValue::Set(0),
-                    transaction_type: sea_orm::ActiveValue::Set("TRANSFER_OUT".to_string()),
-                    product_id: sea_orm::ActiveValue::Set(item.product_id),
-                    warehouse_id: sea_orm::ActiveValue::Set(transfer.from_warehouse_id),
-                    batch_no: sea_orm::ActiveValue::Set(batch_no.clone()),
-                    color_no: sea_orm::ActiveValue::Set(color_no.clone()),
-                    dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no.clone()),
-                    grade: sea_orm::ActiveValue::Set(grade),
-                    quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
-                    quantity_kg: sea_orm::ActiveValue::Set(quantity_kg - new_quantity_kg),
-                    source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
-                    source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
-                    source_bill_id: sea_orm::ActiveValue::Set(Some(transfer_id)),
-                    quantity_before_meters: sea_orm::ActiveValue::Set(Some(quantity_meters)),
-                    quantity_before_kg: sea_orm::ActiveValue::Set(Some(quantity_kg)),
-                    quantity_after_meters: sea_orm::ActiveValue::Set(Some(new_quantity_meters)),
-                    quantity_after_kg: sea_orm::ActiveValue::Set(Some(new_quantity_kg)),
-                    notes: sea_orm::ActiveValue::Set(Some(format!(
-                        "调拨出库 - 调拨单号: {}",
-                        transfer.transfer_no
-                    ))),
-                    created_by: sea_orm::ActiveValue::Set(transfer.created_by),
-                    created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                };
-                let inserted_transaction = transaction.insert(&txn).await?;
-
-                // v14 批次 420 修复 T-P1-1：事务内收集 InventoryTransactionCreated 事件
-                // 事务内仅收集不发布，避免 commit 失败导致幻事件
-                pending_events.push(crate::services::event_bus::BusinessEvent::InventoryTransactionCreated {
-                    transaction_id: inserted_transaction.id,
-                    transaction_type: inserted_transaction.transaction_type.clone(),
-                    product_id: inserted_transaction.product_id,
-                    warehouse_id: inserted_transaction.warehouse_id,
-                    quantity_meters: inserted_transaction.quantity_meters,
-                    quantity_kg: inserted_transaction.quantity_kg,
-                    source_bill_type: inserted_transaction.source_bill_type.clone(),
-                    source_bill_no: inserted_transaction.source_bill_no.clone(),
-                    source_bill_id: inserted_transaction.source_bill_id,
-                    batch_no: inserted_transaction.batch_no.clone(),
-                    color_no: inserted_transaction.color_no.clone(),
-                    created_by: inserted_transaction.created_by,
-                });
-
-                // 更新明细项已发出数量
-                let item_quantity = item.quantity;
-                let mut item_update: inventory_transfer_item::ActiveModel = item.into();
-                item_update.shipped_quantity = sea_orm::ActiveValue::Set(item_quantity);
-                item_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-                crate::services::audit_log_service::AuditLogService::update_with_audit(
-                    &txn,
-                    "auto_audit",
-                    item_update,
-                    Some(0),
-                )
-                .await?;
-            } else {
-                tracing::error!(
-                    "Transaction rolled back: 产品 {} 在源仓库无库存记录",
-                    item.product_id
-                );
-                txn.rollback().await?;
-                return Err(AppError::business(format!(
-                    "产品 {} 在源仓库无库存记录",
-                    item.product_id
-                )));
-            }
+    /// 处理单个调拨明细项的库存扣减：校验→扣减→流水→事件→更新明细。
+    async fn apply_ship_item_deduction(
+        txn: &sea_orm::DatabaseTransaction,
+        transfer: &inventory_transfer::Model,
+        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        item: inventory_transfer_item::Model,
+        pending_events: &mut Vec<crate::services::event_bus::BusinessEvent>,
+        transfer_id: i32,
+    ) -> Result<(), AppError> {
+        let stock_model = stock_map.get(&item.product_id).ok_or_else(|| {
+            tracing::error!(
+                "Transaction will rollback on drop: 产品 {} 在源仓库无库存记录",
+                item.product_id
+            );
+            AppError::business(format!("产品 {} 在源仓库无库存记录", item.product_id))
+        })?;
+        if stock_model.quantity_on_hand < item.quantity {
+            tracing::error!(
+                "Transaction will rollback on drop: 产品 {} 库存不足",
+                item.product_id
+            );
+            return Err(AppError::business(format!(
+                "产品 {} 库存不足",
+                item.product_id
+            )));
         }
+        let (new_quantity_meters, new_quantity_kg) =
+            Self::compute_ship_new_quantities(stock_model, item.quantity);
+        Self::update_stock_with_optimistic_lock_for_ship(
+            txn, stock_model.id, stock_model.version, item.quantity,
+            new_quantity_meters, new_quantity_kg, item.product_id,
+        )
+        .await?;
+        let inserted = Self::build_and_insert_transfer_out_transaction(
+            txn, transfer, &item, stock_model,
+            new_quantity_meters, new_quantity_kg, transfer_id,
+        )
+        .await?;
+        pending_events.push(Self::build_inventory_transaction_created_event(&inserted));
+        Self::update_item_shipped_quantity(txn, item).await?;
+        Ok(())
+    }
 
-        // 更新调拨单状态
+    /// 计算扣减后的新 quantity_meters 和 quantity_kg（按比例扣减 kg，round_dp(4) 防精度漂移）。
+    fn compute_ship_new_quantities(
+        stock_model: &inventory_stock::Model,
+        item_quantity: rust_decimal::Decimal,
+    ) -> (rust_decimal::Decimal, rust_decimal::Decimal) {
+        let new_quantity_meters = stock_model.quantity_meters - item_quantity;
+        let new_quantity_kg = if stock_model.quantity_meters > rust_decimal::Decimal::ZERO {
+            (stock_model.quantity_kg
+                - (stock_model.quantity_kg * item_quantity / stock_model.quantity_meters))
+                .round_dp(4)
+        } else {
+            stock_model.quantity_kg
+        };
+        (new_quantity_meters, new_quantity_kg)
+    }
+
+    /// 乐观锁扣减库存：只有 version 匹配时才扣减（rows_affected=0 报并发冲突）。
+    async fn update_stock_with_optimistic_lock_for_ship(
+        txn: &sea_orm::DatabaseTransaction,
+        stock_id: i32,
+        expected_version: i32,
+        item_quantity: rust_decimal::Decimal,
+        new_quantity_meters: rust_decimal::Decimal,
+        new_quantity_kg: rust_decimal::Decimal,
+        product_id: i32,
+    ) -> Result<(), AppError> {
+        let update_result = inventory_stock::Entity::update_many()
+            .col_expr(
+                inventory_stock::Column::QuantityOnHand,
+                Expr::col(inventory_stock::Column::QuantityOnHand)
+                    .binary(BinOper::Sub, Expr::val(item_quantity)),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityAvailable,
+                Expr::col(inventory_stock::Column::QuantityAvailable)
+                    .binary(BinOper::Sub, Expr::val(item_quantity)),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityMeters,
+                Expr::val(new_quantity_meters).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityKg,
+                Expr::val(new_quantity_kg).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::Version,
+                Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)),
+            )
+            .col_expr(
+                inventory_stock::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+            )
+            .filter(inventory_stock::Column::Id.eq(stock_id))
+            .filter(inventory_stock::Column::Version.eq(expected_version))
+            .exec(txn)
+            .await?;
+        Self::ensure_rows_affected(update_result.rows_affected, product_id)?;
+        Ok(())
+    }
+
+    /// 校验乐观锁更新影响行数（0 行=并发冲突）
+    fn ensure_rows_affected(rows: u64, product_id: i32) -> Result<(), AppError> {
+        if rows == 0 {
+            tracing::error!("Transaction will rollback on drop: 产品 {} 并发冲突", product_id);
+            return Err(AppError::business(format!(
+                "产品 {} 库存记录已被其他用户修改，请重试",
+                product_id
+            )));
+        }
+        Ok(())
+    }
+
+    /// 构造并插入 TRANSFER_OUT 库存流水（记录扣减前后的米/kg 与源单据信息）。
+    async fn build_and_insert_transfer_out_transaction(
+        txn: &sea_orm::DatabaseTransaction,
+        transfer: &inventory_transfer::Model,
+        item: &inventory_transfer_item::Model,
+        stock_model: &inventory_stock::Model,
+        new_quantity_meters: rust_decimal::Decimal,
+        new_quantity_kg: rust_decimal::Decimal,
+        transfer_id: i32,
+    ) -> Result<inventory_transaction::Model, AppError> {
+        let transaction = inventory_transaction::ActiveModel {
+            id: sea_orm::ActiveValue::Set(0),
+            transaction_type: sea_orm::ActiveValue::Set("TRANSFER_OUT".to_string()),
+            product_id: sea_orm::ActiveValue::Set(item.product_id),
+            warehouse_id: sea_orm::ActiveValue::Set(transfer.from_warehouse_id),
+            batch_no: sea_orm::ActiveValue::Set(stock_model.batch_no.clone()),
+            color_no: sea_orm::ActiveValue::Set(stock_model.color_no.clone()),
+            dye_lot_no: sea_orm::ActiveValue::Set(stock_model.dye_lot_no.clone()),
+            grade: sea_orm::ActiveValue::Set(stock_model.grade.clone()),
+            quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
+            quantity_kg: sea_orm::ActiveValue::Set(stock_model.quantity_kg - new_quantity_kg),
+            source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
+            source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
+            source_bill_id: sea_orm::ActiveValue::Set(Some(transfer_id)),
+            quantity_before_meters: sea_orm::ActiveValue::Set(Some(stock_model.quantity_meters)),
+            quantity_before_kg: sea_orm::ActiveValue::Set(Some(stock_model.quantity_kg)),
+            quantity_after_meters: sea_orm::ActiveValue::Set(Some(new_quantity_meters)),
+            quantity_after_kg: sea_orm::ActiveValue::Set(Some(new_quantity_kg)),
+            notes: sea_orm::ActiveValue::Set(Some(format!(
+                "调拨出库 - 调拨单号: {}",
+                transfer.transfer_no
+            ))),
+            created_by: sea_orm::ActiveValue::Set(transfer.created_by),
+            created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+        };
+        Ok(transaction.insert(txn).await?)
+    }
+
+    /// 更新调拨明细项的 shipped_quantity 为本次发出数量（带审计）。
+    async fn update_item_shipped_quantity(
+        txn: &sea_orm::DatabaseTransaction,
+        item: inventory_transfer_item::Model,
+    ) -> Result<(), AppError> {
+        let item_quantity = item.quantity;
+        let mut item_update: inventory_transfer_item::ActiveModel = item.into();
+        item_update.shipped_quantity = sea_orm::ActiveValue::Set(item_quantity);
+        item_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            item_update,
+            Some(0),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// 更新调拨单状态为 shipped 并设置 shipped_at（带审计）。
+    async fn update_transfer_to_shipped(
+        txn: &sea_orm::DatabaseTransaction,
+        transfer: inventory_transfer::Model,
+    ) -> Result<(), AppError> {
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
         transfer_update.status = sea_orm::ActiveValue::Set("shipped".to_string());
         transfer_update.shipped_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             transfer_update,
             Some(0),
         )
         .await?;
+        Ok(())
+    }
 
-        // 提交事务
-        txn.commit().await?;
-
-        // v14 批次 420 修复 T-P1-1：commit 成功后统一发布事件，避免回滚造成幻事件
+    /// commit 成功后统一发布 pending_events（避免回滚造成幻事件）。
+    fn publish_ship_events(
+        pending_events: Vec<crate::services::event_bus::BusinessEvent>,
+        transfer_id: i32,
+    ) {
         let events_count = pending_events.len();
         for event in pending_events {
             crate::services::event_bus::EVENT_BUS.publish(event);
@@ -281,9 +326,6 @@ impl InventoryTransferService {
                 "调拨出库完成，已发布 InventoryTransactionCreated 事件触发财务凭证生成"
             );
         }
-
-        // 返回调拨详情
-        self.get_transfer_detail(transfer_id, None).await
     }
 
     /// 接收库存调拨

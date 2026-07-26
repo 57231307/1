@@ -32,22 +32,30 @@ use crate::services::chemical_ops::types::{
 };
 use crate::services::chemical_service::{validate_chemical_type, ChemicalMasterService};
 
-impl ChemicalMasterService {
-    /// 创建染化料主数据
-    pub async fn create(&self, req: CreateChemicalMasterRequest) -> Result<MasterModel, AppError> {
-        // 校验染化料类型
-        validate_chemical_type(&req.chemical_type)?;
+/// 染化料创建过程中校验/预处理后的值
+struct ChemicalCreateValues {
+    standard_price: Decimal,
+    cost_price: Decimal,
+    safety_stock: Decimal,
+    reorder_point: Decimal,
+    reorder_quantity: Decimal,
+    unit: String,
+    msds_updated_at: Option<chrono::DateTime<chrono::FixedOffset>>,
+    now: chrono::DateTime<chrono::FixedOffset>,
+}
 
-        // 校验染料类型时 dye_category 必须提供
+impl ChemicalMasterService {
+    /// 校验染化料创建输入（类型/分类/价格/库存非负），返回处理后的数值
+    fn validate_chemical_create_input(
+        req: &CreateChemicalMasterRequest,
+    ) -> Result<ChemicalCreateValues, AppError> {
+        validate_chemical_type(&req.chemical_type)?;
         if req.chemical_type == chemical_type::DYE && req.dye_category.is_none() {
             return Err(AppError::business("染料类型必须提供 dye_category"));
         }
-        // 校验助剂类型时 auxiliary_category 必须提供
         if req.chemical_type == chemical_type::AUXILIARY && req.auxiliary_category.is_none() {
             return Err(AppError::business("助剂类型必须提供 auxiliary_category"));
         }
-
-        // 校验标准价、成本价非负
         let standard_price = req.standard_price.unwrap_or(Decimal::ZERO);
         if standard_price < Decimal::ZERO {
             return Err(AppError::business("标准价不能为负"));
@@ -56,8 +64,6 @@ impl ChemicalMasterService {
         if cost_price < Decimal::ZERO {
             return Err(AppError::business("成本价不能为负"));
         }
-
-        // 校验安全库存相关字段非负
         let safety_stock = req.safety_stock.unwrap_or(Decimal::ZERO);
         if safety_stock < Decimal::ZERO {
             return Err(AppError::business("安全库存不能为负"));
@@ -70,77 +76,108 @@ impl ChemicalMasterService {
         if reorder_quantity < Decimal::ZERO {
             return Err(AppError::business("再订货量不能为负"));
         }
+        let now = crate::utils::date_utils::utc_now_fixed();
+        let unit = req.unit.clone().unwrap_or_else(|| "kg".to_string());
+        let msds_updated_at = if req.msds_url.is_some() { Some(now) } else { None };
+        Ok(ChemicalCreateValues {
+            standard_price,
+            cost_price,
+            safety_stock,
+            reorder_point,
+            reorder_quantity,
+            unit,
+            msds_updated_at,
+            now,
+        })
+    }
 
-        // 校验编码唯一性
+    /// 校验染化料编码唯一性（未删除记录中）
+    async fn check_chemical_code_uniqueness(
+        db: &sea_orm::DatabaseConnection,
+        chemical_code: &str,
+    ) -> Result<(), AppError> {
         if let Some(_existing) = MasterEntity::find()
-            .filter(chemical_master::Column::ChemicalCode.eq(&req.chemical_code))
+            .filter(chemical_master::Column::ChemicalCode.eq(chemical_code))
             .filter(chemical_master::Column::IsDeleted.eq(false))
-            .one(&*self.db)
+            .one(db)
             .await?
         {
             return Err(AppError::business(format!(
                 "染化料编码 {} 已存在",
-                req.chemical_code
+                chemical_code
             )));
         }
+        Ok(())
+    }
 
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let unit = req.unit.unwrap_or_else(|| "kg".to_string());
-        // MSDS 更新时间：仅在提供 msds_url 时记录
-        let msds_updated_at_value = if req.msds_url.is_some() {
-            Some(now)
-        } else {
-            None
-        };
-
-        let active = MasterActiveModel {
-            id: Default::default(),
-            chemical_code: Set(req.chemical_code),
-            chemical_name: Set(req.chemical_name),
-            chemical_name_en: Set(req.chemical_name_en),
-            chemical_type: Set(req.chemical_type),
+    /// 初始化染化料 ActiveModel 核心字段（标识/属性/价格/GHS）
+    fn init_chemical_master_active(
+        req: &CreateChemicalMasterRequest,
+        v: &ChemicalCreateValues,
+    ) -> MasterActiveModel {
+        MasterActiveModel {
+            chemical_code: Set(req.chemical_code.clone()),
+            chemical_name: Set(req.chemical_name.clone()),
+            chemical_name_en: Set(req.chemical_name_en.clone()),
+            chemical_type: Set(req.chemical_type.clone()),
             category_id: Set(req.category_id),
-            dye_category: Set(req.dye_category),
-            color_index: Set(req.color_index),
-            auxiliary_category: Set(req.auxiliary_category),
-            cas_number: Set(req.cas_number),
-            molecular_formula: Set(req.molecular_formula),
+            dye_category: Set(req.dye_category.clone()),
+            color_index: Set(req.color_index.clone()),
+            auxiliary_category: Set(req.auxiliary_category.clone()),
+            cas_number: Set(req.cas_number.clone()),
+            molecular_formula: Set(req.molecular_formula.clone()),
             molecular_weight: Set(req.molecular_weight),
-            specification: Set(req.specification),
-            unit: Set(unit),
-            standard_price: Set(standard_price),
-            cost_price: Set(cost_price),
-            ghs_classification: Set(req.ghs_classification),
-            un_number: Set(req.un_number),
-            hazard_class: Set(req.hazard_class),
-            hazard_pictogram: Set(req.hazard_pictogram),
-            signal_word: Set(req.signal_word),
-            msds_url: Set(req.msds_url),
-            msds_version: Set(req.msds_version),
-            msds_updated_at: Set(msds_updated_at_value),
-            shelf_life_days: Set(req.shelf_life_days),
-            storage_condition: Set(req.storage_condition),
-            storage_temperature: Set(req.storage_temperature),
-            safety_stock: Set(safety_stock),
-            reorder_point: Set(reorder_point),
-            reorder_quantity: Set(reorder_quantity),
-            package_unit: Set(req.package_unit),
-            package_capacity: Set(req.package_capacity),
-            packages_per_pallet: Set(req.packages_per_pallet),
-            supplier_id: Set(req.supplier_id),
-            supplier_product_code: Set(req.supplier_product_code),
-            fastness_light: Set(req.fastness_light),
-            fastness_washing: Set(req.fastness_washing),
-            active_ingredient: Set(req.active_ingredient),
-            concentration: Set(req.concentration),
-            status: Set(chemical_status::ACTIVE.to_string()),
-            remarks: Set(req.remarks),
-            is_deleted: Set(false),
-            created_by: Set(req.created_by),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
+            specification: Set(req.specification.clone()),
+            unit: Set(v.unit.clone()),
+            standard_price: Set(v.standard_price),
+            cost_price: Set(v.cost_price),
+            ghs_classification: Set(req.ghs_classification.clone()),
+            un_number: Set(req.un_number.clone()),
+            hazard_class: Set(req.hazard_class.clone()),
+            hazard_pictogram: Set(req.hazard_pictogram.clone()),
+            signal_word: Set(req.signal_word.clone()),
+            ..Default::default()
+        }
+    }
 
+    /// 填充染化料 ActiveModel 扩展字段（MSDS/存储/库存/包装/供应商/状态/审计）
+    fn fill_chemical_master_extended(
+        active: &mut MasterActiveModel,
+        req: &CreateChemicalMasterRequest,
+        v: &ChemicalCreateValues,
+    ) {
+        active.msds_url = Set(req.msds_url.clone());
+        active.msds_version = Set(req.msds_version.clone());
+        active.msds_updated_at = Set(v.msds_updated_at);
+        active.shelf_life_days = Set(req.shelf_life_days);
+        active.storage_condition = Set(req.storage_condition.clone());
+        active.storage_temperature = Set(req.storage_temperature.clone());
+        active.safety_stock = Set(v.safety_stock);
+        active.reorder_point = Set(v.reorder_point);
+        active.reorder_quantity = Set(v.reorder_quantity);
+        active.package_unit = Set(req.package_unit.clone());
+        active.package_capacity = Set(req.package_capacity);
+        active.packages_per_pallet = Set(req.packages_per_pallet);
+        active.supplier_id = Set(req.supplier_id);
+        active.supplier_product_code = Set(req.supplier_product_code.clone());
+        active.fastness_light = Set(req.fastness_light.clone());
+        active.fastness_washing = Set(req.fastness_washing.clone());
+        active.active_ingredient = Set(req.active_ingredient.clone());
+        active.concentration = Set(req.concentration);
+        active.status = Set(chemical_status::ACTIVE.to_string());
+        active.remarks = Set(req.remarks.clone());
+        active.is_deleted = Set(false);
+        active.created_by = Set(req.created_by);
+        active.created_at = Set(v.now.into());
+        active.updated_at = Set(v.now.into());
+    }
+
+    /// 创建染化料主数据
+    pub async fn create(&self, req: CreateChemicalMasterRequest) -> Result<MasterModel, AppError> {
+        let values = Self::validate_chemical_create_input(&req)?;
+        Self::check_chemical_code_uniqueness(&*self.db, &req.chemical_code).await?;
+        let mut active = Self::init_chemical_master_active(&req, &values);
+        Self::fill_chemical_master_extended(&mut active, &req, &values);
         let result = active
             .insert(&*self.db)
             .await

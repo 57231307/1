@@ -54,32 +54,34 @@ pub(super) struct ReceiptCalculation {
 }
 
 impl OutsourcingOrderService {
-    /// 创建委外订单（draft 状态）
-    pub async fn create(&self, req: CreateOutsourcingOrderRequest) -> Result<OrderModel, AppError> {
+    /// 校验委外订单创建请求（类型/数量/加工厂/生产订单/缸号/订单号唯一性）
+    async fn validate_create_request(
+        &self,
+        req: &CreateOutsourcingOrderRequest,
+    ) -> Result<(), AppError> {
         validate_order_type(&req.order_type)?;
-
-        // 校验发出数量非负
         if req.issue_quantity < Decimal::ZERO {
             return Err(AppError::business("发出数量不能为负"));
         }
-        // 校验材料成本非负
         if req.material_cost < Decimal::ZERO {
             return Err(AppError::business("发出材料成本不能为负"));
         }
+        self.validate_create_references(req).await?;
+        self.validate_order_no_unique(&req.order_no).await
+    }
 
-        // 校验委外加工厂存在
+    /// 校验关联引用存在性（加工厂/生产订单/缸号）
+    async fn validate_create_references(
+        &self,
+        req: &CreateOutsourcingOrderRequest,
+    ) -> Result<(), AppError> {
         if crate::models::supplier::Entity::find_by_id(req.supplier_id)
             .one(&*self.db)
             .await?
             .is_none()
         {
-            return Err(AppError::business(format!(
-                "委外加工厂 {} 不存在",
-                req.supplier_id
-            )));
+            return Err(AppError::business(format!("委外加工厂 {} 不存在", req.supplier_id)));
         }
-
-        // 校验生产订单存在（若提供）
         if let Some(order_id) = req.production_order_id {
             if crate::models::production_order::Entity::find_by_id(order_id)
                 .one(&*self.db)
@@ -89,8 +91,6 @@ impl OutsourcingOrderService {
                 return Err(AppError::business(format!("生产订单 {} 不存在", order_id)));
             }
         }
-
-        // 校验缸号存在（若提供）
         if let Some(dye_batch_id) = req.dye_batch_id {
             if crate::models::dye_batch::Entity::find_by_id(dye_batch_id)
                 .one(&*self.db)
@@ -100,29 +100,33 @@ impl OutsourcingOrderService {
                 return Err(AppError::business(format!("缸号 {} 不存在", dye_batch_id)));
             }
         }
+        Ok(())
+    }
 
-        // 校验订单号唯一性
-        if let Some(_existing) = OrderEntity::find()
-            .filter(outsourcing_order::Column::OrderNo.eq(&req.order_no))
+    /// 校验委外订单号唯一性
+    async fn validate_order_no_unique(&self, order_no: &str) -> Result<(), AppError> {
+        if OrderEntity::find()
+            .filter(outsourcing_order::Column::OrderNo.eq(order_no))
             .filter(outsourcing_order::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
+            .is_some()
         {
-            return Err(AppError::business(format!(
-                "委外订单号 {} 已存在",
-                req.order_no
-            )));
+            return Err(AppError::business(format!("委外订单号 {} 已存在", order_no)));
         }
+        Ok(())
+    }
 
-        // 标准损耗率：未提供时按工序自动计算
+    /// 构建委外订单 ActiveModel（含标准损耗率与单位默认值计算）
+    fn build_order_active_model(
+        req: CreateOutsourcingOrderRequest,
+        now: chrono::DateTime<chrono::FixedOffset>,
+    ) -> OrderActiveModel {
         let standard_loss_rate = req
             .standard_loss_rate
             .unwrap_or_else(|| compute_standard_loss_rate(&req.order_type));
-
-        let now = crate::utils::date_utils::utc_now_fixed();
         let issue_unit = req.issue_unit.unwrap_or_else(|| "kg".to_string());
-
-        let active = OrderActiveModel {
+        OrderActiveModel {
             id: Default::default(),
             order_no: Set(req.order_no),
             order_type: Set(req.order_type),
@@ -157,8 +161,14 @@ impl OutsourcingOrderService {
             created_by: Set(req.created_by),
             created_at: Set(now),
             updated_at: Set(now),
-        };
+        }
+    }
 
+    /// 创建委外订单（draft 状态）
+    pub async fn create(&self, req: CreateOutsourcingOrderRequest) -> Result<OrderModel, AppError> {
+        self.validate_create_request(&req).await?;
+        let now = crate::utils::date_utils::utc_now_fixed();
+        let active = Self::build_order_active_model(req, now);
         let result = active
             .insert(&*self.db)
             .await

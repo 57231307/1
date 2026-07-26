@@ -127,8 +127,7 @@ impl WebhookService {
             .map_err(AppError::from)
     }
 
-    /// 触发 Webhook（实际发送HTTP请求）
-    /// M-4 修复（v9 复审）：新增 user_id 参数，触发前校验所有权
+    /// 触发 Webhook(发送HTTP请求,M-4 修复新增 user_id 所有权校验)
     pub async fn trigger_webhook(
         &self,
         user_id: i32,
@@ -137,100 +136,118 @@ impl WebhookService {
         payload: &str,
     ) -> Result<WebhookDeliveryResult, AppError> {
         let webhook = self.verify_ownership(user_id, webhook_id).await?;
+        Self::ensure_webhook_active(&webhook)?;
+        Self::ensure_event_matches(&webhook.events, event)?;
+        self.mark_webhook_sending(&webhook, payload, event).await?;
+        let body = Self::build_webhook_body(event, payload);
+        if let Err(e) = crate::utils::ssrf_guard::validate_url(&webhook.url) {
+            return Ok(Self::ssrf_blocked_result(&e.to_string()));
+        }
+        let result = self
+            .send_http_request(&webhook.url, &body, webhook.secret.as_deref())
+            .await;
+        self.persist_final_status(webhook, &result).await?;
+        result
+    }
 
+    /// 校验 webhook 启用状态(批次 109 P1-2:禁用返回 4xx)
+    fn ensure_webhook_active(webhook: &webhook::Model) -> Result<(), AppError> {
         if !webhook.is_active {
-            // 批次 109 P1-2：webhook 已禁用属于客户端配置错误，应返回 4xx 而非 200+success=false
             return Err(AppError::business("Webhook 已禁用"));
         }
+        Ok(())
+    }
 
-        // 检查事件是否匹配
-        let events: Vec<&str> = webhook.events.split(',').collect();
-        if !events.contains(&event) && !events.contains(&"*") {
-            // 批次 109 P1-2：事件不匹配属于客户端配置错误，应返回 4xx 而非 200+success=false
+    /// 校验触发事件匹配订阅(批次 109 P1-2:不匹配返回 4xx)
+    fn ensure_event_matches(events: &str, event: &str) -> Result<(), AppError> {
+        let list: Vec<&str> = events.split(',').collect();
+        if !list.contains(&event) && !list.contains(&"*") {
             return Err(AppError::business(format!(
                 "事件不匹配：webhook 订阅事件为 [{}]，触发事件为 {}",
-                webhook.events, event
+                events, event
             )));
         }
+        Ok(())
+    }
 
-        // 更新状态为发送中，并持久化 payload + event（批次 251 修复：支持 retry 重投原始数据）
-        let mut active_model: WebhookActiveModel = webhook.clone().into();
-        active_model.last_triggered_at = Set(Some(Utc::now()));
-        active_model.last_status = Set(Some("SENDING".to_string()));
-        active_model.last_payload = Set(Some(payload.to_string()));
-        active_model.last_event = Set(Some(event.to_string()));
-        active_model.updated_at = Set(Utc::now());
-        active_model.update(self.db.as_ref()).await?;
+    /// 标记发送中并持久化 payload+event(批次 251:支持 retry 重投)
+    async fn mark_webhook_sending(
+        &self,
+        webhook: &webhook::Model,
+        payload: &str,
+        event: &str,
+    ) -> Result<(), AppError> {
+        let mut active: WebhookActiveModel = webhook.clone().into();
+        active.last_triggered_at = Set(Some(Utc::now()));
+        active.last_status = Set(Some("SENDING".to_string()));
+        active.last_payload = Set(Some(payload.to_string()));
+        active.last_event = Set(Some(event.to_string()));
+        active.updated_at = Set(Utc::now());
+        active.update(self.db.as_ref()).await?;
+        Ok(())
+    }
 
-        // 构建请求体
+    /// 构建 webhook 请求体
+    fn build_webhook_body(event: &str, payload: &str) -> String {
         let webhook_payload = WebhookPayload {
             event: event.to_string(),
             timestamp: Utc::now().to_rfc3339(),
             data: serde_json::from_str(payload)
                 .unwrap_or_else(|_| serde_json::json!({"raw": payload})),
         };
+        serde_json::to_string(&webhook_payload).unwrap_or_else(|_| payload.to_string())
+    }
 
-        let body = serde_json::to_string(&webhook_payload).unwrap_or_else(|_| payload.to_string());
-
-        // 低危 #2 修复（SSRF 防护 + DNS Rebinding 防御）：发送前再次校验 URL
-        // 防御 create 时解析为公网、trigger 时重新解析为内网的攻击
-        if let Err(e) = crate::utils::ssrf_guard::validate_url(&webhook.url) {
-            return Ok(WebhookDeliveryResult {
-                success: false,
-                status_code: None,
-                response_body: None,
-                error: Some(format!("SSRF 防护拦截：{}", e)),
-            });
+    /// 构造 SSRF 拦截结果(低危 #2:防 DNS Rebinding)
+    fn ssrf_blocked_result(reason: &str) -> WebhookDeliveryResult {
+        WebhookDeliveryResult {
+            success: false,
+            status_code: None,
+            response_body: None,
+            error: Some(format!("SSRF 防护拦截：{}", reason)),
         }
+    }
 
-        // 发送HTTP请求
-        let result = self
-            .send_http_request(&webhook.url, &body, webhook.secret.as_deref())
-            .await;
-
-        // 更新最终状态（批次 251 修复：retry_count 对 HTTP 业务失败也计数，成功时重置为 0）
+    /// 持久化最终状态(批次 251:retry 计数,成功重置 0)
+    async fn persist_final_status(
+        &self,
+        webhook: webhook::Model,
+        result: &Result<WebhookDeliveryResult, AppError>,
+    ) -> Result<(), AppError> {
         let current_retry_count = webhook.retry_count;
         let mut final_model: WebhookActiveModel = webhook.into();
         final_model.updated_at = Set(Utc::now());
-        match &result {
+        match result {
             Ok(delivery) => {
                 if delivery.success {
-                    // 发送成功：重置 retry_count 为 0
                     final_model.last_status = Set(Some("SUCCESS".to_string()));
                     final_model.retry_count = Set(0);
                 } else {
-                    // HTTP 业务失败（4xx/5xx）：递增 retry_count
                     final_model.last_status = Set(Some("FAILED".to_string()));
-                    if current_retry_count >= MAX_RETRY_COUNT {
-                        error!(
-                            current_count = current_retry_count,
-                            max = MAX_RETRY_COUNT,
-                            "Webhook 已达最大重试次数上限，标记为永久失败"
-                        );
-                        final_model.last_status = Set(Some("FAILED_PERMANENT".to_string()));
-                    } else {
-                        final_model.retry_count = Set(current_retry_count + 1);
-                    }
+                    Self::apply_retry_increment(&mut final_model, current_retry_count);
                 }
             }
             Err(_) => {
-                // 网络层/SSRF/构造异常：递增 retry_count
                 final_model.last_status = Set(Some("ERROR".to_string()));
-                if current_retry_count >= MAX_RETRY_COUNT {
-                    error!(
-                        current_count = current_retry_count,
-                        max = MAX_RETRY_COUNT,
-                        "Webhook 已达最大重试次数上限，标记为永久失败"
-                    );
-                    final_model.last_status = Set(Some("FAILED_PERMANENT".to_string()));
-                } else {
-                    final_model.retry_count = Set(current_retry_count + 1);
-                }
+                Self::apply_retry_increment(&mut final_model, current_retry_count);
             }
         }
         final_model.update(self.db.as_ref()).await?;
+        Ok(())
+    }
 
-        result
+    /// 递增 retry_count,达上限标记永久失败
+    fn apply_retry_increment(model: &mut WebhookActiveModel, current: i32) {
+        if current >= MAX_RETRY_COUNT {
+            error!(
+                current_count = current,
+                max = MAX_RETRY_COUNT,
+                "Webhook 已达最大重试次数上限，标记为永久失败"
+            );
+            model.last_status = Set(Some("FAILED_PERMANENT".to_string()));
+        } else {
+            model.retry_count = Set(current + 1);
+        }
     }
 
     /// 发送HTTP请求
