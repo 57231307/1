@@ -6,40 +6,48 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="价格详情"
+    :title="t('salesPrice.view.dialogTitle')"
     width="600px"
-    aria-label="价格详情对话框"
+    :aria-label="t('salesPrice.view.dialogAriaLabel')"
     @update:model-value="onVisibleChange"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item label="产品名称">{{ viewData.product_name }}</el-descriptions-item>
-      <el-descriptions-item label="客户">{{ viewData.customer_name || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="销售价格">{{
+      <el-descriptions-item :label="t('salesPrice.view.labelProductName')">{{
+        viewData.product_name
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('salesPrice.view.labelCustomer')">{{
+        viewData.customer_name || '-'
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('salesPrice.view.labelPrice')">{{
         formatCurrency(viewData.price || 0)
       }}</el-descriptions-item>
-      <el-descriptions-item label="币种">{{ viewData.currency }}</el-descriptions-item>
-      <el-descriptions-item label="单位">{{ viewData.unit }}</el-descriptions-item>
-      <el-descriptions-item label="最小订购量">{{
+      <el-descriptions-item :label="t('salesPrice.view.labelCurrency')">{{
+        viewData.currency
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('salesPrice.view.labelUnit')">{{
+        viewData.unit
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('salesPrice.view.labelMinOrderQty')">{{
         viewData.min_order_qty || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="价格类型">{{
+      <el-descriptions-item :label="t('salesPrice.view.labelPriceType')">{{
         getPriceTypeLabel(viewData.price_type || '')
       }}</el-descriptions-item>
-      <el-descriptions-item label="价格等级">{{
+      <el-descriptions-item :label="t('salesPrice.view.labelPriceLevel')">{{
         viewData.price_level || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="生效日期">{{
+      <el-descriptions-item :label="t('salesPrice.view.labelEffectiveDate')">{{
         viewData.effective_date || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="到期日期">{{
+      <el-descriptions-item :label="t('salesPrice.view.labelExpiryDate')">{{
         viewData.expiry_date || '-'
       }}</el-descriptions-item>
-      <el-descriptions-item label="状态">
+      <el-descriptions-item :label="t('salesPrice.view.labelStatus')">
         <el-tag :type="getStatusType(viewData.status || '')">{{
           getStatusLabel(viewData.status || '')
         }}</el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="备注" :span="2">{{
+      <el-descriptions-item :label="t('salesPrice.view.labelRemarks')" :span="2">{{
         viewData.remarks || '-'
       }}</el-descriptions-item>
     </el-descriptions>
@@ -47,12 +55,10 @@
 </template>
 
 <script setup lang="ts">
-import {
-  formatCurrency,
-  getPriceTypeLabel,
-  getStatusType,
-  getStatusLabel,
-} from '../composables/spFmts'
+import { useI18n } from 'vue-i18n'
+import { formatCurrency, getStatusType } from '../composables/spFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 查看详情数据类型
 interface SpViewData {
@@ -83,6 +89,27 @@ defineProps<{
 const emit = defineEmits<{
   'update:visible': [v: boolean]
 }>()
+
+/** 获取价格类型标签（i18n 响应式） */
+const getPriceTypeLabel = (type: string) => {
+  const map: Record<string, string> = {
+    STANDARD: t('salesPrice.view.priceTypeStandard'),
+    AGREED: t('salesPrice.view.priceTypeAgreed'),
+    PROMOTION: t('salesPrice.view.priceTypePromotion'),
+  }
+  return map[type] || type
+}
+
+/** 获取销售价格状态标签（i18n 响应式） */
+const getStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    pending: t('salesPrice.view.statusPending'),
+    active: t('salesPrice.view.statusActive'),
+    expired: t('salesPrice.view.statusExpired'),
+    inactive: t('salesPrice.view.statusInactive'),
+  }
+  return map[status] || status
+}
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {

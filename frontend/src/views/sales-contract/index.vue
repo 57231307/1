@@ -7,19 +7,19 @@
 <template>
   <div class="sales-contract-page">
     <div class="page-header">
-      <h2 class="page-title">销售合同管理</h2>
+      <h2 class="page-title">{{ t('salesContract.index.pageTitle') }}</h2>
       <div class="header-actions">
         <el-button type="primary" @click="onCreate">
           <el-icon><Plus /></el-icon>
-          新建合同
+          {{ t('salesContract.index.buttonCreate') }}
         </el-button>
         <el-button @click="scProc.handlePrint(sc.contractList)">
           <el-icon><Printer /></el-icon>
-          打印
+          {{ t('salesContract.index.buttonPrint') }}
         </el-button>
         <el-button @click="scProc.handleExport()">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('salesContract.index.buttonExport') }}
         </el-button>
       </div>
     </div>
@@ -29,7 +29,7 @@
       :customers="sc.customers"
       :date-range="sc.dateRange"
       @fetch="sc.handleQuery"
-      @update:query-params="(v) => Object.assign(sc.queryParams, v)"
+      @update:query-params="v => Object.assign(sc.queryParams, v)"
       @date-change="onDateChange"
     />
 
@@ -52,7 +52,7 @@
       :title="sc.dialogTitle"
       :form-data="sc.formData"
       :customers="sc.customers"
-      @update:form-data="(v) => Object.assign(sc.formData, v)"
+      @update:form-data="v => Object.assign(sc.formData, v)"
       @submit="onSubmitForm"
     />
   </div>
@@ -60,6 +60,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import type { SalesContract } from '@/api/sales-contract'
 import { useSc } from './composables/useSc'
@@ -67,6 +68,8 @@ import { useScProc } from './composables/useScProc'
 import SalesContractFilter from './components/SalesContractFilter.vue'
 import SalesContractTable from './components/SalesContractTable.vue'
 import SalesContractForm from './components/SalesContractForm.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const sc = useSc()
 const scProc = useScProc({

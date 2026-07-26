@@ -180,9 +180,7 @@ export function useVchrLst() {
       form.description = ''
       form.total_debit = 0
       form.total_credit = 0
-      form.entries = [
-        { account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' },
-      ]
+      form.entries = [{ account_subject_id: 0, debit_amount: 0, credit_amount: 0, description: '' }]
     } catch (error) {
       logger.error('生成凭证号失败', error)
       ElMessage.error('生成凭证号失败')

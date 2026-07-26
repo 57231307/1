@@ -180,11 +180,7 @@ export function useScProc(refresh: RefreshCallbacks) {
       status: filters.status || undefined,
       customer_id: filters.customer_id,
     }
-    await exportFromBackend(
-      '/sales/sales-contracts/export',
-      params,
-      'sales_contracts_export'
-    )
+    await exportFromBackend('/sales/sales-contracts/export', params, 'sales_contracts_export')
   }
 
   return {

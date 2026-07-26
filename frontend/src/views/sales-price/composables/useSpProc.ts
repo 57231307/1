@@ -111,11 +111,7 @@ export function useSpProc(refresh: RefreshCallbacks) {
       product_id: filters.product_id,
       status: filters.status || undefined,
     }
-    await exportFromBackend(
-      '/sales/sales-prices/export',
-      params,
-      'sales_prices_export'
-    )
+    await exportFromBackend('/sales/sales-prices/export', params, 'sales_prices_export')
   }
 
   // 使用 reactive 包装，访问字段时自动解包 ref

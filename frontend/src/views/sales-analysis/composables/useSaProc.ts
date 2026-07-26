@@ -3,7 +3,11 @@
 // 业务领域：销售分析（编辑目标 + 导出报表 + 排名类型切换）
 // 行为完全保持一致（仅结构重构）
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getSalesTargetList, updateSalesTarget, exportSalesAnalysisReport } from '@/api/sales-analysis'
+import {
+  getSalesTargetList,
+  updateSalesTarget,
+  exportSalesAnalysisReport,
+} from '@/api/sales-analysis'
 import { logger } from '@/utils/logger'
 import { useSa } from './useSa'
 

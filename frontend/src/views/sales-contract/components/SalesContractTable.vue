@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import { h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElButton, ElTag } from 'element-plus'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
@@ -32,7 +33,9 @@ import type { SalesContract } from '@/api/sales-contract'
 // 行为与 v-permission 指令保持一致（无权限则不渲染该按钮）
 import { hasRoutePermission } from '@/router'
 import { useUserStore } from '@/store/user'
-import { formatCurrency, getStatusType, getStatusLabel } from '../composables/scFmts'
+import { formatCurrency, getStatusType } from '../composables/scFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 状态 el-tag 类型别名（与 element-plus 类型保持一致）
 type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
@@ -46,6 +49,22 @@ const can = (required: string): boolean => {
   const userStore = useUserStore()
   const permissions = userStore.userInfo?.permissions || []
   return hasRoutePermission(required, permissions)
+}
+
+/**
+ * 获取合同状态标签（i18n 响应式：语言切换后自动重算）
+ * @param status 合同状态码
+ * @returns 状态对应的本地化标签
+ */
+const getStatusLabel = (status: string): string => {
+  const map: Record<string, string> = {
+    draft: t('salesContract.table.statusDraft'),
+    pending: t('salesContract.table.statusPending'),
+    active: t('salesContract.table.statusActive'),
+    completed: t('salesContract.table.statusCompleted'),
+    cancelled: t('salesContract.table.statusCancelled'),
+  }
+  return map[status] || status
 }
 
 /**
@@ -77,104 +96,96 @@ const emit = defineEmits<{
 }>()
 
 /**
+ * 构建操作列按钮组（按 status 条件渲染不同按钮，编辑/删除受权限控制）
+ * @param row 当前行数据
+ * @returns 按钮 vnode 数组
+ */
+const mkBtn = (
+  type: 'primary' | 'success' | 'warning' | 'danger',
+  labelKey: string,
+  onClick: () => void
+) => h(ElButton, { type, link: true, size: 'small', onClick }, { default: () => t(labelKey) })
+
+const buildActionButtons = (row: SalesContract): ReturnType<typeof h>[] => {
+  const buttons: ReturnType<typeof h>[] = [
+    mkBtn('primary', 'salesContract.table.buttonView', () => emit('view', row)),
+  ]
+  // 草稿状态：编辑 / 提交 / 删除（编辑/删除受权限控制）
+  if (row.status === 'draft') {
+    if (can('sales_contract:update')) {
+      buttons.push(mkBtn('primary', 'salesContract.table.buttonEdit', () => emit('edit', row)))
+    }
+    buttons.push(
+      mkBtn('success', 'salesContract.table.buttonSubmit', () => emit('submit-approval', row))
+    )
+    if (can('sales_contract:delete')) {
+      buttons.push(mkBtn('danger', 'salesContract.table.buttonDelete', () => emit('delete', row)))
+    }
+  }
+  // 待审批状态：审批
+  if (row.status === 'pending') {
+    buttons.push(mkBtn('success', 'salesContract.table.buttonApprove', () => emit('approve', row)))
+  }
+  // 执行中状态：执行
+  if (row.status === 'active') {
+    buttons.push(mkBtn('warning', 'salesContract.table.buttonExecute', () => emit('execute', row)))
+  }
+  return buttons
+}
+
+/**
  * 列定义
  * - 合同金额：formatCurrency 格式化为人民币
  * - 状态：el-tag 渲染（类型由 getStatusType 映射）
  * - 操作列：按 status 条件渲染不同按钮组（编辑/删除受权限控制）
  */
 const columns: ColumnDef<SalesContract>[] = [
-  { key: 'contract_no', title: '合同编号', width: 150 },
-  { key: 'contract_name', title: '合同名称', minWidth: 200 },
-  { key: 'customer_name', title: '客户', width: 150 },
+  { key: 'contract_no', title: t('salesContract.table.columnContractNo'), width: 150 },
+  { key: 'contract_name', title: t('salesContract.table.columnContractName'), minWidth: 200 },
+  { key: 'customer_name', title: t('salesContract.table.columnCustomer'), width: 150 },
   {
     key: 'total_amount',
-    title: '合同金额',
+    title: t('salesContract.table.columnTotalAmount'),
     width: 120,
     align: 'right',
-    formatter: (row) => formatCurrency(row.total_amount),
+    formatter: row => formatCurrency(row.total_amount),
   },
-  { key: 'signed_date', title: '签订日期', width: 120, align: 'center' },
-  { key: 'effective_date', title: '生效日期', width: 120, align: 'center' },
-  { key: 'expiry_date', title: '到期日期', width: 120, align: 'center' },
+  {
+    key: 'signed_date',
+    title: t('salesContract.table.columnSignedDate'),
+    width: 120,
+    align: 'center',
+  },
+  {
+    key: 'effective_date',
+    title: t('salesContract.table.columnEffectiveDate'),
+    width: 120,
+    align: 'center',
+  },
+  {
+    key: 'expiry_date',
+    title: t('salesContract.table.columnExpiryDate'),
+    width: 120,
+    align: 'center',
+  },
   {
     key: 'status',
-    title: '状态',
+    title: t('salesContract.table.columnStatus'),
     width: 100,
     align: 'center',
-    renderCell: (row) => {
+    renderCell: row => {
       // scFmts 的 getStatusType 返回 string，需收窄为 ElTagType 以满足 el-tag 类型约束
       const tagType: ElTagType = (getStatusType(row.status) as ElTagType) || 'info'
-      return h(
-        ElTag,
-        { type: tagType },
-        { default: () => getStatusLabel(row.status) }
-      )
+      return h(ElTag, { type: tagType }, { default: () => getStatusLabel(row.status) })
     },
   },
   {
     key: '__actions__',
-    title: '操作',
+    title: t('salesContract.table.columnAction'),
     width: 250,
     fixed: 'right',
     align: 'center',
-    renderCell: (row) => {
-      const buttons: ReturnType<typeof h>[] = [
-        h(
-          ElButton,
-          { type: 'primary', link: true, size: 'small', onClick: () => emit('view', row) },
-          { default: () => '查看' }
-        ),
-      ]
-      // 草稿状态：编辑 / 提交 / 删除（编辑/删除受权限控制）
-      if (row.status === 'draft') {
-        if (can('sales_contract:update')) {
-          buttons.push(
-            h(
-              ElButton,
-              { type: 'primary', link: true, size: 'small', onClick: () => emit('edit', row) },
-              { default: () => '编辑' }
-            )
-          )
-        }
-        buttons.push(
-          h(
-            ElButton,
-            { type: 'success', link: true, size: 'small', onClick: () => emit('submit-approval', row) },
-            { default: () => '提交' }
-          )
-        )
-        if (can('sales_contract:delete')) {
-          buttons.push(
-            h(
-              ElButton,
-              { type: 'danger', link: true, size: 'small', onClick: () => emit('delete', row) },
-              { default: () => '删除' }
-            )
-          )
-        }
-      }
-      // 待审批状态：审批
-      if (row.status === 'pending') {
-        buttons.push(
-          h(
-            ElButton,
-            { type: 'success', link: true, size: 'small', onClick: () => emit('approve', row) },
-            { default: () => '审批' }
-          )
-        )
-      }
-      // 执行中状态：执行
-      if (row.status === 'active') {
-        buttons.push(
-          h(
-            ElButton,
-            { type: 'warning', link: true, size: 'small', onClick: () => emit('execute', row) },
-            { default: () => '执行' }
-          )
-        )
-      }
-      return h('div', { class: 'action-cell' }, buttons)
-    },
+    renderCell: row => h('div', { class: 'action-cell' }, buildActionButtons(row)),
   },
 ]
 </script>

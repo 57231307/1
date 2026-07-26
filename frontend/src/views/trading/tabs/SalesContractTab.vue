@@ -6,34 +6,65 @@
 <template>
   <div class="sales-contract-tab">
     <div class="page-header">
-      <h2 class="page-title">销售合同管理</h2>
+      <h2 class="page-title">{{ t('trading.salesContractTab.title') }}</h2>
       <el-button type="primary" @click="openSalesContractDialog()">
-        <el-icon><Plus /></el-icon> 新建合同
+        <el-icon><Plus /></el-icon> {{ t('trading.salesContractTab.buttonCreate') }}
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="salesContractLoading" :data="salesContracts" stripe aria-label="销售合同列表">
-        <el-table-column prop="contract_no" label="合同编号" width="140" />
-        <el-table-column prop="customer_name" label="客户" width="150" />
-        <el-table-column prop="contract_date" label="合同日期" width="120" />
-        <el-table-column prop="total_amount" label="总金额" width="120" align="right">
+      <el-table
+        v-loading="salesContractLoading"
+        :data="salesContracts"
+        stripe
+        :aria-label="t('trading.salesContractTab.tableAriaLabel')"
+      >
+        <el-table-column
+          prop="contract_no"
+          :label="t('trading.salesContractTab.columnContractNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="customer_name"
+          :label="t('trading.salesContractTab.columnCustomer')"
+          width="150"
+        />
+        <el-table-column
+          prop="contract_date"
+          :label="t('trading.salesContractTab.columnContractDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="total_amount"
+          :label="t('trading.salesContractTab.columnTotalAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">{{ formatMoney(row.total_amount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="t('trading.salesContractTab.columnStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getContractStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column
+          :label="t('trading.salesContractTab.columnActions')"
+          width="200"
+          fixed="right"
+        >
           <template #default="{ row }">
             <el-button
               type="primary"
               link
               size="small"
               @click="viewSalesContract(row as unknown as TradingContract)"
-              >查看</el-button
+              >{{ t('trading.salesContractTab.buttonView') }}</el-button
             >
             <el-button
               v-if="row.status === 'draft'"
@@ -41,7 +72,7 @@
               link
               size="small"
               @click="approveSalesContract(row as unknown as TradingContract)"
-              >审批</el-button
+              >{{ t('trading.salesContractTab.buttonApprove') }}</el-button
             >
             <el-button
               v-if="row.status === 'approved'"
@@ -49,14 +80,14 @@
               link
               size="small"
               @click="executeSalesContract(row as unknown as TradingContract)"
-              >执行</el-button
+              >{{ t('trading.salesContractTab.buttonExecute') }}</el-button
             >
             <el-button
               type="danger"
               link
               size="small"
               @click="deleteSalesContract(row as unknown as TradingContract)"
-              >删除</el-button
+              >{{ t('trading.salesContractTab.buttonDelete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -67,6 +98,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -78,6 +110,8 @@ import {
   deleteTradingContract,
   type TradingContract,
 } from '@/api/trading-contract'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const salesContracts = ref<TradingContract[]>([])
 const salesContractLoading = ref(false)
@@ -98,16 +132,24 @@ const getStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
-const getContractStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    draft: '草稿',
-    pending: '待审核',
-    approved: '已审核',
-    executed: '已执行',
-    completed: '已完成',
-    cancelled: '已取消',
+/** 销售合同状态 → i18n 标签（语言切换响应） */
+const getContractStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'draft':
+      return t('trading.salesContractTab.statusDraft')
+    case 'pending':
+      return t('trading.salesContractTab.statusPending')
+    case 'approved':
+      return t('trading.salesContractTab.statusApproved')
+    case 'executed':
+      return t('trading.salesContractTab.statusExecuted')
+    case 'completed':
+      return t('trading.salesContractTab.statusCompleted')
+    case 'cancelled':
+      return t('trading.salesContractTab.statusCancelled')
+    default:
+      return status
   }
-  return map[status] || status
 }
 
 const fetchSalesContracts = async () => {
@@ -125,7 +167,7 @@ const fetchSalesContracts = async () => {
     }
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '获取销售合同失败')
+    ElMessage.error(err.message || t('trading.salesContractTab.messageFetchFailed'))
   } finally {
     salesContractLoading.value = false
   }
@@ -134,12 +176,25 @@ const fetchSalesContracts = async () => {
 const openSalesContractDialog = async () => {
   try {
     await createTradingContract({ type: 'sales', status: 'draft' })
-    ElMessage.success('已创建草稿')
+    ElMessage.success(t('trading.salesContractTab.messageCreateDraftSuccess'))
     fetchSalesContracts()
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '创建失败')
+    ElMessage.error(err.message || t('trading.salesContractTab.messageCreateFailed'))
   }
+}
+
+/** 构造销售合同详情多行文本（拆分以控制 viewSalesContract 行数） */
+const buildContractDetailLines = (d: TradingContract): string[] => {
+  return [
+    t('trading.salesContractTab.detailContractNo', { value: d.contract_no }),
+    t('trading.salesContractTab.detailCustomer', { value: d.customer_name || '-' }),
+    t('trading.salesContractTab.detailContractDate', { value: d.contract_date }),
+    t('trading.salesContractTab.detailContractAmount', { value: formatMoney(d.total_amount) }),
+    t('trading.salesContractTab.detailCurrentStatus', {
+      value: getContractStatusLabel(d.status),
+    }),
+  ]
 }
 
 // 批次 157a P1-1 修复：接入 getTradingContract API 展示销售合同详情
@@ -148,63 +203,69 @@ const viewSalesContract = async (row: TradingContract) => {
     const res = await getTradingContract(row.id)
     const d = res.data
     if (!d) {
-      ElMessage.warning('未找到合同详情')
+      ElMessage.warning(t('trading.salesContractTab.messageDetailNotFound'))
       return
     }
-    const lines = [
-      `合同编号：${d.contract_no}`,
-      `客户：${d.customer_name || '-'}`,
-      `合同日期：${d.contract_date}`,
-      `合同金额：¥${formatMoney(d.total_amount)}`,
-      `当前状态：${getContractStatusLabel(d.status)}`,
-    ]
-    await ElMessageBox.alert(lines.join('\n'), '销售合同详情', {
-      confirmButtonText: '关闭',
+    const lines = buildContractDetailLines(d)
+    await ElMessageBox.alert(lines.join('\n'), t('trading.salesContractTab.detailTitle'), {
+      confirmButtonText: t('trading.salesContractTab.buttonClose'),
     })
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '获取合同详情失败')
+    ElMessage.error(err.message || t('trading.salesContractTab.messageFetchDetailFailed'))
   }
 }
 
 const approveSalesContract = async (row: TradingContract) => {
   try {
-    await ElMessageBox.confirm('确定审批该销售合同吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(
+      t('trading.salesContractTab.confirmApproveMessage'),
+      t('trading.salesContractTab.confirmTitle'),
+      { type: 'info' }
+    )
     await approveTradingContract(row.id)
-    ElMessage.success('审批成功')
+    ElMessage.success(t('trading.salesContractTab.messageApproveSuccess'))
     fetchSalesContracts()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('trading.salesContractTab.messageOperationFailed'))
     }
   }
 }
 
 const executeSalesContract = async (row: TradingContract) => {
   try {
-    await ElMessageBox.confirm('确定执行该销售合同吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(
+      t('trading.salesContractTab.confirmExecuteMessage'),
+      t('trading.salesContractTab.confirmTitle'),
+      { type: 'info' }
+    )
     await executeTradingContract(row.id)
-    ElMessage.success('执行成功')
+    ElMessage.success(t('trading.salesContractTab.messageExecuteSuccess'))
     fetchSalesContracts()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('trading.salesContractTab.messageOperationFailed'))
     }
   }
 }
 
 const deleteSalesContract = async (row: TradingContract) => {
   try {
-    await ElMessageBox.confirm('确定删除该销售合同吗？', '确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('trading.salesContractTab.confirmDeleteMessage'),
+      t('trading.salesContractTab.confirmTitle'),
+      { type: 'warning' }
+    )
     await deleteTradingContract(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('trading.salesContractTab.messageDeleteSuccess'))
     fetchSalesContracts()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('trading.salesContractTab.messageOperationFailed'))
     }
   }
 }

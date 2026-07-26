@@ -6,36 +6,75 @@
 <template>
   <div class="contract-tab">
     <div class="page-header">
-      <h2 class="page-title">销售合同管理</h2>
+      <h2 class="page-title">{{ t('salesExt.contractTab.pageTitle') }}</h2>
       <el-button type="primary" @click="openContractDialog()">
-        <el-icon><Plus /></el-icon> 新建合同
+        <el-icon><Plus /></el-icon> {{ t('salesExt.contractTab.buttonCreate') }}
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="contractLoading" :data="salesContracts" stripe aria-label="销售合同列表">
-        <el-table-column prop="contract_no" label="合同编号" width="140" />
-        <el-table-column prop="customer_name" label="客户" min-width="150" />
-        <el-table-column prop="contract_date" label="合同日期" width="120" />
-        <el-table-column prop="start_date" label="开始日期" width="120" />
-        <el-table-column prop="end_date" label="结束日期" width="120" />
-        <el-table-column prop="total_amount" label="总金额" width="120" align="right">
+      <el-table
+        v-loading="contractLoading"
+        :data="salesContracts"
+        stripe
+        :aria-label="t('salesExt.contractTab.ariaLabelList')"
+      >
+        <el-table-column
+          prop="contract_no"
+          :label="t('salesExt.contractTab.columnContractNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="customer_name"
+          :label="t('salesExt.contractTab.columnCustomer')"
+          min-width="150"
+        />
+        <el-table-column
+          prop="contract_date"
+          :label="t('salesExt.contractTab.columnContractDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="start_date"
+          :label="t('salesExt.contractTab.columnStartDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="end_date"
+          :label="t('salesExt.contractTab.columnEndDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="total_amount"
+          :label="t('salesExt.contractTab.columnTotalAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.total_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="t('salesExt.contractTab.columnStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getContractStatusType(row.status)" size="small">
               {{ getContractStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdBy" label="创建人" width="100" />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column
+          prop="createdBy"
+          :label="t('salesExt.contractTab.columnCreatedBy')"
+          width="100"
+        />
+        <el-table-column :label="t('salesExt.contractTab.columnAction')" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="viewContract(row as unknown as SalesContract)"
-              >查看</el-button
-            >
+            <el-button size="small" link @click="viewContract(row as unknown as SalesContract)">{{
+              t('salesExt.contractTab.buttonView')
+            }}</el-button>
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.status === 'draft'"
@@ -43,7 +82,7 @@
               size="small"
               link
               @click="openContractDialog(row as unknown as SalesContract)"
-              >编辑</el-button
+              >{{ t('salesExt.contractTab.buttonEdit') }}</el-button
             >
             <el-button
               v-if="row.status === 'draft'"
@@ -51,7 +90,7 @@
               link
               type="success"
               @click="approveContract(row as unknown as SalesContract)"
-              >审批</el-button
+              >{{ t('salesExt.contractTab.buttonApprove') }}</el-button
             >
             <el-button
               v-if="row.status === 'pending'"
@@ -59,7 +98,7 @@
               link
               type="warning"
               @click="executeContract(row as unknown as SalesContract)"
-              >执行</el-button
+              >{{ t('salesExt.contractTab.buttonExecute') }}</el-button
             >
             <el-button
               v-if="['draft', 'pending'].includes(row.status)"
@@ -67,7 +106,7 @@
               link
               type="danger"
               @click="cancelContract(row as unknown as SalesContract)"
-              >取消</el-button
+              >{{ t('salesExt.contractTab.buttonCancel') }}</el-button
             >
           </template>
         </el-table-column>
@@ -76,32 +115,39 @@
 
     <el-dialog
       v-model="contractDialogVisible"
-      :title="contractForm.id ? '编辑销售合同' : '新建销售合同'"
+      :title="
+        contractForm.id
+          ? t('salesExt.contractTab.titleEdit')
+          : t('salesExt.contractTab.titleCreate')
+      "
       width="800px"
-      aria-label="销售合同编辑对话框"
+      :aria-label="t('salesExt.contractTab.ariaLabelDialog')"
     >
       <el-form
         ref="contractFormRef"
         :model="contractForm"
         :rules="contractRules"
         label-width="100px"
-        aria-label="销售合同表单"
+        :aria-label="t('salesExt.contractTab.ariaLabelForm')"
       >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="合同编号" prop="contract_no">
+            <el-form-item :label="t('salesExt.contractTab.labelContractNo')" prop="contract_no">
               <el-input v-model="contractForm.contract_no" :disabled="!!contractForm.id" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="客户" prop="customer_name">
-              <el-input v-model="contractForm.customer_name" placeholder="请选择客户" />
+            <el-form-item :label="t('salesExt.contractTab.labelCustomer')" prop="customer_name">
+              <el-input
+                v-model="contractForm.customer_name"
+                :placeholder="t('salesExt.contractTab.placeholderCustomer')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="合同日期" prop="contract_date">
+            <el-form-item :label="t('salesExt.contractTab.labelContractDate')" prop="contract_date">
               <el-date-picker
                 v-model="contractForm.contract_date"
                 type="date"
@@ -111,7 +157,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="开始日期" prop="start_date">
+            <el-form-item :label="t('salesExt.contractTab.labelStartDate')" prop="start_date">
               <el-date-picker
                 v-model="contractForm.start_date"
                 type="date"
@@ -121,7 +167,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="结束日期" prop="end_date">
+            <el-form-item :label="t('salesExt.contractTab.labelEndDate')" prop="end_date">
               <el-date-picker
                 v-model="contractForm.end_date"
                 type="date"
@@ -133,8 +179,12 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="货币" prop="currency">
-              <el-select v-model="contractForm.currency" placeholder="选择货币" style="width: 100%">
+            <el-form-item :label="t('salesExt.contractTab.labelCurrency')" prop="currency">
+              <el-select
+                v-model="contractForm.currency"
+                :placeholder="t('salesExt.contractTab.placeholderCurrency')"
+                style="width: 100%"
+              >
                 <el-option label="CNY" value="CNY" />
                 <el-option label="USD" value="USD" />
                 <el-option label="EUR" value="EUR" />
@@ -142,7 +192,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="总金额" prop="total_amount">
+            <el-form-item :label="t('salesExt.contractTab.labelTotalAmount')" prop="total_amount">
               <el-input-number
                 v-model="contractForm.total_amount"
                 :min="0"
@@ -152,115 +202,185 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-divider>合同明细</el-divider>
-        <el-table :data="contractForm.items" border style="width: 100%" aria-label="销售合同明细编辑表">
-          <el-table-column prop="product_name" label="产品名称" min-width="150">
+        <el-divider>{{ t('salesExt.contractTab.dividerItems') }}</el-divider>
+        <el-table
+          :data="contractForm.items"
+          border
+          style="width: 100%"
+          :aria-label="t('salesExt.contractTab.ariaLabelItemsEdit')"
+        >
+          <el-table-column
+            prop="product_name"
+            :label="t('salesExt.contractTab.columnProductName')"
+            min-width="150"
+          >
             <template #default="{ row }">
-              <el-input v-model="row.product_name" placeholder="产品名称" />
+              <el-input
+                v-model="row.product_name"
+                :placeholder="t('salesExt.contractTab.placeholderProductName')"
+              />
             </template>
           </el-table-column>
-          <el-table-column prop="product_code" label="产品编码" width="120">
+          <el-table-column
+            prop="product_code"
+            :label="t('salesExt.contractTab.columnProductCode')"
+            width="120"
+          >
             <template #default="{ row }">
-              <el-input v-model="row.product_code" placeholder="编码" />
+              <el-input
+                v-model="row.product_code"
+                :placeholder="t('salesExt.contractTab.placeholderProductCode')"
+              />
             </template>
           </el-table-column>
-          <el-table-column prop="quantity" label="数量" width="100">
+          <el-table-column
+            prop="quantity"
+            :label="t('salesExt.contractTab.columnQuantity')"
+            width="100"
+          >
             <template #default="{ row }">
               <el-input-number v-model="row.quantity" :min="0" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column prop="unit" label="单位" width="80">
+          <el-table-column prop="unit" :label="t('salesExt.contractTab.columnUnit')" width="80">
             <template #default="{ row }">
-              <el-input v-model="row.unit" placeholder="单位" />
+              <el-input
+                v-model="row.unit"
+                :placeholder="t('salesExt.contractTab.placeholderUnit')"
+              />
             </template>
           </el-table-column>
-          <el-table-column prop="price" label="单价" width="100">
+          <el-table-column prop="price" :label="t('salesExt.contractTab.columnPrice')" width="100">
             <template #default="{ row }">
               <el-input-number v-model="row.price" :min="0" :precision="2" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column prop="amount" label="金额" width="100">
+          <el-table-column
+            prop="amount"
+            :label="t('salesExt.contractTab.columnAmount')"
+            width="100"
+          >
             <template #default="{ row }">
               {{ formatMoney((row.quantity || 0) * (row.price || 0)) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80">
+          <el-table-column :label="t('salesExt.contractTab.columnAction')" width="80">
             <template #default="{ $index }">
-              <el-button size="small" link type="danger" @click="removeContractItem($index)"
-                >删除</el-button
-              >
+              <el-button size="small" link type="danger" @click="removeContractItem($index)">{{
+                t('salesExt.contractTab.buttonDelete')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
-        <el-button type="primary" link style="margin-top: 8px" @click="addContractItem"
-          >添加产品</el-button
-        >
-        <el-form-item label="付款条款" prop="payment_terms">
+        <el-button type="primary" link style="margin-top: 8px" @click="addContractItem">{{
+          t('salesExt.contractTab.buttonAddProduct')
+        }}</el-button>
+        <el-form-item :label="t('salesExt.contractTab.labelPaymentTerms')" prop="payment_terms">
           <el-input v-model="contractForm.payment_terms" type="textarea" />
         </el-form-item>
-        <el-form-item label="交货条款" prop="delivery_terms">
+        <el-form-item :label="t('salesExt.contractTab.labelDeliveryTerms')" prop="delivery_terms">
           <el-input v-model="contractForm.delivery_terms" type="textarea" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="contractDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="contractSubmitLoading" @click="submitContract"
-          >确定</el-button
-        >
+        <el-button @click="contractDialogVisible = false">{{
+          t('salesExt.contractTab.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="contractSubmitLoading" @click="submitContract">{{
+          t('salesExt.contractTab.buttonConfirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="contractViewVisible" title="销售合同详情" width="800px" aria-label="销售合同详情对话框">
+    <el-dialog
+      v-model="contractViewVisible"
+      :title="t('salesExt.contractTab.titleDetail')"
+      width="800px"
+      :aria-label="t('salesExt.contractTab.ariaLabelDetail')"
+    >
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="合同编号">{{
+        <el-descriptions-item :label="t('salesExt.contractTab.labelContractNo')">{{
           currentContract?.contract_no
         }}</el-descriptions-item>
-        <el-descriptions-item label="客户">{{
+        <el-descriptions-item :label="t('salesExt.contractTab.labelCustomer')">{{
           currentContract?.customer_name
         }}</el-descriptions-item>
-        <el-descriptions-item label="合同日期">{{
+        <el-descriptions-item :label="t('salesExt.contractTab.labelContractDate')">{{
           currentContract?.contract_date
         }}</el-descriptions-item>
-        <el-descriptions-item label="有效日期"
+        <el-descriptions-item :label="t('salesExt.contractTab.labelValidDate')"
           >{{ currentContract?.start_date }} ~ {{ currentContract?.end_date }}</el-descriptions-item
         >
-        <el-descriptions-item label="货币">{{ currentContract?.currency }}</el-descriptions-item>
-        <el-descriptions-item label="总金额">{{
+        <el-descriptions-item :label="t('salesExt.contractTab.labelCurrency')">{{
+          currentContract?.currency
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesExt.contractTab.labelTotalAmount')">{{
           formatMoney(currentContract?.total_amount || 0)
         }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('salesExt.contractTab.labelStatus')">
           <el-tag :type="getContractStatusType(currentContract?.status)">
             {{ getContractStatusLabel(currentContract?.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{
+        <el-descriptions-item :label="t('salesExt.contractTab.labelCreatedBy')">{{
           currentContract?.created_by_name
         }}</el-descriptions-item>
       </el-descriptions>
-      <el-divider>合同明细</el-divider>
-      <el-table :data="currentContract?.items || []" stripe aria-label="销售合同明细列表">
-        <el-table-column prop="product_name" label="产品名称" min-width="150" />
-        <el-table-column prop="product_code" label="产品编码" width="120" />
-        <el-table-column prop="quantity" label="数量" width="100" align="right" />
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="price" label="单价" width="100" align="right">
+      <el-divider>{{ t('salesExt.contractTab.dividerItems') }}</el-divider>
+      <el-table
+        :data="currentContract?.items || []"
+        stripe
+        :aria-label="t('salesExt.contractTab.ariaLabelItemsList')"
+      >
+        <el-table-column
+          prop="product_name"
+          :label="t('salesExt.contractTab.columnProductName')"
+          min-width="150"
+        />
+        <el-table-column
+          prop="product_code"
+          :label="t('salesExt.contractTab.columnProductCode')"
+          width="120"
+        />
+        <el-table-column
+          prop="quantity"
+          :label="t('salesExt.contractTab.columnQuantity')"
+          width="100"
+          align="right"
+        />
+        <el-table-column prop="unit" :label="t('salesExt.contractTab.columnUnit')" width="80" />
+        <el-table-column
+          prop="price"
+          :label="t('salesExt.contractTab.columnPrice')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.price) }}
           </template>
         </el-table-column>
-        <el-table-column prop="amount" label="金额" width="100" align="right">
+        <el-table-column
+          prop="amount"
+          :label="t('salesExt.contractTab.columnAmount')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="120" />
+        <el-table-column
+          prop="remark"
+          :label="t('salesExt.contractTab.columnRemark')"
+          min-width="120"
+        />
       </el-table>
-      <el-divider>条款</el-divider>
+      <el-divider>{{ t('salesExt.contractTab.dividerTerms') }}</el-divider>
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="付款条款">{{
+        <el-descriptions-item :label="t('salesExt.contractTab.labelPaymentTerms')">{{
           currentContract?.payment_terms
         }}</el-descriptions-item>
-        <el-descriptions-item label="交货条款">{{
+        <el-descriptions-item :label="t('salesExt.contractTab.labelDeliveryTerms')">{{
           currentContract?.delivery_terms
         }}</el-descriptions-item>
       </el-descriptions>
@@ -270,6 +390,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -285,6 +406,8 @@ import {
   type ContractItem as SalesContractItem,
 } from '@/api/sales-contract'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const salesContracts = ref<SalesContract[]>([])
 const contractLoading = ref(false)
 
@@ -294,11 +417,11 @@ const formatMoney = (amount: number | undefined) => {
 
 const getContractStatusLabel = (status?: string) => {
   const map: Record<string, string> = {
-    draft: '草稿',
-    pending: '待审核',
-    active: '执行中',
-    completed: '已完成',
-    cancelled: '已取消',
+    draft: t('salesExt.contractTab.statusDraft'),
+    pending: t('salesExt.contractTab.statusPending'),
+    active: t('salesExt.contractTab.statusActive'),
+    completed: t('salesExt.contractTab.statusCompleted'),
+    cancelled: t('salesExt.contractTab.statusCancelled'),
   }
   return map[status || ''] || status || ''
 }
@@ -321,7 +444,7 @@ const fetchSalesContracts = async () => {
     salesContracts.value = res.data?.list || []
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '获取销售合同失败')
+    ElMessage.error(err.message || t('salesExt.contractTab.messageFetchFailed'))
   } finally {
     contractLoading.value = false
   }
@@ -347,10 +470,18 @@ const contractForm = reactive({
 })
 
 const contractRules: FormRules = {
-  contract_no: [{ required: true, message: '请输入合同编号', trigger: 'blur' }],
-  customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
-  contract_date: [{ required: true, message: '请选择合同日期', trigger: 'change' }],
-  total_amount: [{ required: true, message: '请输入总金额', trigger: 'blur' }],
+  contract_no: [
+    { required: true, message: t('salesExt.contractTab.ruleContractNo'), trigger: 'blur' },
+  ],
+  customer_name: [
+    { required: true, message: t('salesExt.contractTab.ruleCustomerName'), trigger: 'blur' },
+  ],
+  contract_date: [
+    { required: true, message: t('salesExt.contractTab.ruleContractDate'), trigger: 'change' },
+  ],
+  total_amount: [
+    { required: true, message: t('salesExt.contractTab.ruleTotalAmount'), trigger: 'blur' },
+  ],
 }
 
 const openContractDialog = async (row?: SalesContract) => {
@@ -398,16 +529,16 @@ const submitContract = async () => {
   try {
     if (contractForm.id) {
       await updateSalesContract(contractForm.id, contractForm)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('salesExt.contractTab.messageUpdateSuccess'))
     } else {
       await createSalesContract(contractForm)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('salesExt.contractTab.messageCreateSuccess'))
     }
     contractDialogVisible.value = false
     fetchSalesContracts()
   } catch (error) {
     const err = error as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'))
   } finally {
     contractSubmitLoading.value = false
   }
@@ -425,42 +556,54 @@ const viewContract = async (row: SalesContract) => {
 
 const approveContract = async (row: SalesContract) => {
   try {
-    await ElMessageBox.confirm('确定审批此合同吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(
+      t('salesExt.contractTab.confirmApprove'),
+      t('salesExt.contractTab.confirmTitle'),
+      { type: 'info' }
+    )
     await approveSalesContract(row.id)
-    ElMessage.success('审批成功')
+    ElMessage.success(t('salesExt.contractTab.messageApproveSuccess'))
     fetchSalesContracts()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'))
     }
   }
 }
 
 const executeContract = async (row: SalesContract) => {
   try {
-    await ElMessageBox.confirm('确定执行此合同吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(
+      t('salesExt.contractTab.confirmExecute'),
+      t('salesExt.contractTab.confirmTitle'),
+      { type: 'info' }
+    )
     await executeSalesContract(row.id)
-    ElMessage.success('执行成功')
+    ElMessage.success(t('salesExt.contractTab.messageExecuteSuccess'))
     fetchSalesContracts()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'))
     }
   }
 }
 
 const cancelContract = async (row: SalesContract) => {
   try {
-    await ElMessageBox.confirm('确定取消此合同吗？', '确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('salesExt.contractTab.confirmCancel'),
+      t('salesExt.contractTab.confirmTitle'),
+      { type: 'warning' }
+    )
     await cancelSalesContract(row.id)
-    ElMessage.success('取消成功')
+    ElMessage.success(t('salesExt.contractTab.messageCancelSuccess'))
     fetchSalesContracts()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('salesExt.contractTab.messageOperationFailed'))
     }
   }
 }

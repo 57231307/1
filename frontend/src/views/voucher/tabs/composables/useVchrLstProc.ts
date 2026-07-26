@@ -24,10 +24,7 @@ type ContractListLike = { value: VoucherEntity[] } | VoucherEntity[]
  * @param tableData 列表 ref 或 plain value
  * @param loadData 重新拉取列表方法
  */
-export function useVchrLstProc(
-  tableData: ContractListLike,
-  loadData: () => Promise<void>
-) {
+export function useVchrLstProc(tableData: ContractListLike, loadData: () => Promise<void>) {
   /** 取出底层数组（兼容 ref 和 plain value） */
   const getList = (): VoucherEntity[] => {
     return Array.isArray(tableData) ? tableData : tableData.value

@@ -8,25 +8,27 @@
   <div class="sales-price-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">销售价格管理</h1>
+        <h1 class="page-title">{{ t('salesPrice.index.pageTitle') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>销售管理</el-breadcrumb-item>
-          <el-breadcrumb-item>销售价格</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('salesPrice.index.breadcrumbHome')
+          }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('salesPrice.index.breadcrumbSales') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('salesPrice.index.breadcrumbSalesPrice') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="onCreate">
           <el-icon><Plus /></el-icon>
-          新建价格
+          {{ t('salesPrice.index.buttonCreatePrice') }}
         </el-button>
         <el-button @click="spProc.handleStrategy">
           <el-icon><Setting /></el-icon>
-          价格策略
+          {{ t('salesPrice.index.buttonPriceStrategy') }}
         </el-button>
         <el-button @click="onExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('salesPrice.index.buttonExport') }}
         </el-button>
       </div>
     </div>
@@ -36,7 +38,7 @@
       :customers="sp.customers"
       :products="sp.products"
       @fetch="sp.handleQuery"
-      @update:query-params="(v) => Object.assign(sp.queryParams, v)"
+      @update:query-params="v => Object.assign(sp.queryParams, v)"
     />
 
     <SalesPriceTable
@@ -59,7 +61,7 @@
       :customers="sp.customers"
       :products="sp.products"
       @submit="onSubmitForm"
-      @update:form-data="(v) => Object.assign(sp.formData, v)"
+      @update:form-data="v => Object.assign(sp.formData, v)"
     />
 
     <SalesPriceView v-model:visible="spProc.viewDialogVisible" :view-data="spProc.viewData" />
@@ -69,32 +71,56 @@
     <!-- 价格策略对话框（批次 95 P3-17 修复：展示阶梯/批量/合同策略列表） -->
     <el-dialog
       :model-value="spProc.strategyVisible"
-      title="价格策略"
+      :title="t('salesPrice.index.strategyDialogTitle')"
       width="800px"
-      aria-label="价格策略对话框"
+      :aria-label="t('salesPrice.index.strategyDialogAriaLabel')"
       @update:model-value="(v: boolean) => (spProc.strategyVisible = v)"
     >
-      <el-table v-loading="spProc.strategyLoading" :data="spProc.strategyList" border aria-label="价格策略列表">
-        <el-table-column prop="name" label="策略名称" min-width="120" show-overflow-tooltip />
+      <el-table
+        v-loading="spProc.strategyLoading"
+        :data="spProc.strategyList"
+        border
+        :aria-label="t('salesPrice.index.strategyTableAriaLabel')"
+      >
+        <el-table-column
+          prop="name"
+          :label="t('salesPrice.index.strategyColumnName')"
+          min-width="120"
+          show-overflow-tooltip
+        />
         <el-table-column
           prop="description"
-          label="描述"
+          :label="t('salesPrice.index.strategyColumnDescription')"
           min-width="180"
           show-overflow-tooltip
         />
-        <el-table-column prop="type" label="类型" width="100" align="center">
+        <el-table-column
+          prop="type"
+          :label="t('salesPrice.index.strategyColumnType')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
-            {{ row.type === 'tiered' ? '阶梯定价' : row.type === 'volume' ? '批量定价' : '合同定价' }}
+            {{ getStrategyTypeLabel(row.type) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table-column
+          prop="status"
+          :label="t('salesPrice.index.strategyColumnStatus')"
+          width="80"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'">
-              {{ row.status === 'active' ? '活跃' : '停用' }}
+              {{ getStrategyStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="规则数" width="80" align="center">
+        <el-table-column
+          :label="t('salesPrice.index.strategyColumnRuleCount')"
+          width="80"
+          align="center"
+        >
           <template #default="{ row }">{{ row.rules?.length || 0 }}</template>
         </el-table-column>
       </el-table>
@@ -104,6 +130,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, Setting, Download } from '@element-plus/icons-vue'
 import type { SalesPrice } from '@/api/sales-price'
 import { useSp } from './composables/useSp'
@@ -113,6 +140,8 @@ import SalesPriceTable from './components/SalesPriceTable.vue'
 import SalesPriceForm from './components/SalesPriceForm.vue'
 import SalesPriceView from './components/SalesPriceView.vue'
 import SalesPriceHistory from './components/SalesPriceHistory.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const sp = useSp()
 const spProc = useSpProc({
@@ -127,6 +156,25 @@ const spProc = useSpProc({
 
 // 对话框可见性本地 ref
 const dialogVisible = ref(false)
+
+/** 获取策略类型标签 */
+const getStrategyTypeLabel = (type: string) => {
+  const map: Record<string, string> = {
+    tiered: t('salesPrice.index.strategyTypeTiered'),
+    volume: t('salesPrice.index.strategyTypeVolume'),
+    contract: t('salesPrice.index.strategyTypeContract'),
+  }
+  return map[type] || type
+}
+
+/** 获取策略状态标签 */
+const getStrategyStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    active: t('salesPrice.index.strategyStatusActive'),
+    inactive: t('salesPrice.index.strategyStatusInactive'),
+  }
+  return map[status] || status
+}
 
 /** 新建价格 */
 const onCreate = () => {

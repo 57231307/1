@@ -8,7 +8,7 @@
 <template>
   <div class="voucher-list-tab">
     <div class="page-header">
-      <h2 class="page-title">凭证管理</h2>
+      <h2 class="page-title">{{ t('voucher.voucherListTab.pageTitle') }}</h2>
     </div>
 
     <VoucherListFilter
@@ -17,15 +17,15 @@
       @add="onAdd"
       @print="vchrProc.handlePrint"
       @export="vchrProc.handleExport"
-      @update:query-params="(v) => Object.assign(vchr.queryParams, v)"
+      @update:query-params="v => Object.assign(vchr.queryParams, v)"
     />
 
     <VoucherListTable
+      v-model:page="vchr.page"
+      v-model:page-size="vchr.pageSize"
       :table-data="vchr.tableData"
       :loading="vchr.loading"
       :total="vchr.total"
-      v-model:page="vchr.page"
-      v-model:page-size="vchr.pageSize"
       @view="onView"
       @edit="onEdit"
       @approve="vchrProc.handleApprove"
@@ -43,18 +43,16 @@
       @add-entry="vchr.addEntry"
       @remove-entry="vchr.removeEntry"
       @submit="onSubmitForm"
-      @update:form="(v) => Object.assign(vchr.form, v)"
+      @update:form="v => Object.assign(vchr.form, v)"
     />
 
-    <VoucherListDetail
-      v-model:visible="viewDialogVisible"
-      :view-data="vchr.viewData"
-    />
+    <VoucherListDetail v-model:visible="viewDialogVisible" :view-data="vchr.viewData" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, toRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { VoucherEntity } from '@/api/voucher'
 import { useVchrLst } from './composables/useVchrLst'
 import { useVchrLstProc } from './composables/useVchrLstProc'
@@ -62,6 +60,8 @@ import VoucherListFilter from './components/VoucherListFilter.vue'
 import VoucherListTable from './components/VoucherListTable.vue'
 import VoucherListForm from './components/VoucherListForm.vue'
 import VoucherListDetail from './components/VoucherListDetail.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const vchr = useVchrLst()
 // 使用 toRef 包装 reactive 属性为 ref，保持 useVchrLstProc 内 getList() 能读取最新 tableData

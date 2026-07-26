@@ -7,11 +7,7 @@
  */
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import {
-  createSalesContract,
-  updateSalesContract,
-  type SalesContract,
-} from '@/api/sales-contract'
+import { createSalesContract, updateSalesContract, type SalesContract } from '@/api/sales-contract'
 // D14 Batch 5b：原 customerApi 对象已转风格 B 函数
 import { getCustomerList, type Customer } from '@/api/customer'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'

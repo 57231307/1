@@ -6,34 +6,65 @@
 <template>
   <div class="sales-return-tab">
     <div class="page-header">
-      <h2 class="page-title">销售退货管理</h2>
+      <h2 class="page-title">{{ t('trading.salesReturnTab.title') }}</h2>
       <el-button type="primary" @click="openSalesReturnDialog()">
-        <el-icon><Plus /></el-icon> 新建退货
+        <el-icon><Plus /></el-icon> {{ t('trading.salesReturnTab.buttonCreate') }}
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="salesReturnLoading" :data="salesReturns" stripe aria-label="销售退货列表">
-        <el-table-column prop="return_no" label="退货单号" width="140" />
-        <el-table-column prop="customer_name" label="客户" width="150" />
-        <el-table-column prop="return_date" label="退货日期" width="120" />
-        <el-table-column prop="total_amount" label="金额" width="120" align="right">
+      <el-table
+        v-loading="salesReturnLoading"
+        :data="salesReturns"
+        stripe
+        :aria-label="t('trading.salesReturnTab.tableAriaLabel')"
+      >
+        <el-table-column
+          prop="return_no"
+          :label="t('trading.salesReturnTab.columnReturnNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="customer_name"
+          :label="t('trading.salesReturnTab.columnCustomer')"
+          width="150"
+        />
+        <el-table-column
+          prop="return_date"
+          :label="t('trading.salesReturnTab.columnReturnDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="total_amount"
+          :label="t('trading.salesReturnTab.columnAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">{{ formatMoney(row.total_amount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="t('trading.salesReturnTab.columnStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getReturnStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column
+          :label="t('trading.salesReturnTab.columnActions')"
+          width="180"
+          fixed="right"
+        >
           <template #default="{ row }">
             <el-button
               type="primary"
               link
               size="small"
               @click="viewSalesReturn(row as unknown as TradingReturn)"
-              >查看</el-button
+              >{{ t('trading.salesReturnTab.buttonView') }}</el-button
             >
             <el-button
               v-if="row.status === 'draft'"
@@ -41,14 +72,14 @@
               link
               size="small"
               @click="approveSalesReturn(row as unknown as TradingReturn)"
-              >审批</el-button
+              >{{ t('trading.salesReturnTab.buttonApprove') }}</el-button
             >
             <el-button
               type="danger"
               link
               size="small"
               @click="deleteSalesReturn(row as unknown as TradingReturn)"
-              >删除</el-button
+              >{{ t('trading.salesReturnTab.buttonDelete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -59,6 +90,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -69,6 +101,8 @@ import {
   deleteTradingReturn,
   type TradingReturn,
 } from '@/api/trading-return'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const salesReturns = ref<TradingReturn[]>([])
 const salesReturnLoading = ref(false)
@@ -88,15 +122,22 @@ const getStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
-const getReturnStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    draft: '草稿',
-    pending: '待审核',
-    approved: '已审核',
-    completed: '已完成',
-    cancelled: '已取消',
+/** 销售退货状态 → i18n 标签（语言切换响应） */
+const getReturnStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'draft':
+      return t('trading.salesReturnTab.statusDraft')
+    case 'pending':
+      return t('trading.salesReturnTab.statusPending')
+    case 'approved':
+      return t('trading.salesReturnTab.statusApproved')
+    case 'completed':
+      return t('trading.salesReturnTab.statusCompleted')
+    case 'cancelled':
+      return t('trading.salesReturnTab.statusCancelled')
+    default:
+      return status
   }
-  return map[status] || status
 }
 
 const fetchSalesReturns = async () => {
@@ -114,7 +155,7 @@ const fetchSalesReturns = async () => {
     }
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '获取销售退货失败')
+    ElMessage.error(err.message || t('trading.salesReturnTab.messageFetchFailed'))
   } finally {
     salesReturnLoading.value = false
   }
@@ -123,12 +164,27 @@ const fetchSalesReturns = async () => {
 const openSalesReturnDialog = async () => {
   try {
     await createTradingReturn({ type: 'sales', status: 'draft' })
-    ElMessage.success('已创建草稿')
+    ElMessage.success(t('trading.salesReturnTab.messageCreateDraftSuccess'))
     fetchSalesReturns()
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '创建失败')
+    ElMessage.error(err.message || t('trading.salesReturnTab.messageCreateFailed'))
   }
+}
+
+/** 构造销售退货详情多行文本（拆分以控制 viewSalesReturn 行数） */
+const buildReturnDetailLines = (d: TradingReturn): string[] => {
+  return [
+    t('trading.salesReturnTab.detailReturnNo', { value: d.return_no }),
+    t('trading.salesReturnTab.detailCustomer', { value: d.customer_name || '-' }),
+    t('trading.salesReturnTab.detailOrderNo', { value: d.order_no || '-' }),
+    t('trading.salesReturnTab.detailReturnDate', { value: d.return_date }),
+    t('trading.salesReturnTab.detailReturnAmount', { value: formatMoney(d.total_amount) }),
+    t('trading.salesReturnTab.detailCurrentStatus', {
+      value: getReturnStatusLabel(d.status),
+    }),
+    t('trading.salesReturnTab.detailReason', { value: d.reason || '-' }),
+  ]
 }
 
 // 批次 157a P1-1 修复：接入 getTradingReturn API 展示销售退货详情
@@ -137,51 +193,51 @@ const viewSalesReturn = async (row: TradingReturn) => {
     const res = await getTradingReturn(row.id)
     const d = res.data
     if (!d) {
-      ElMessage.warning('未找到退货详情')
+      ElMessage.warning(t('trading.salesReturnTab.messageDetailNotFound'))
       return
     }
-    const lines = [
-      `退货单号：${d.return_no}`,
-      `客户名称：${d.customer_name || '-'}`,
-      `关联订单：${d.order_no || '-'}`,
-      `退货日期：${d.return_date}`,
-      `退货金额：¥${formatMoney(d.total_amount)}`,
-      `当前状态：${getReturnStatusLabel(d.status)}`,
-      `退货原因：${d.reason || '-'}`,
-    ]
-    await ElMessageBox.alert(lines.join('\n'), '销售退货详情', {
-      confirmButtonText: '关闭',
+    const lines = buildReturnDetailLines(d)
+    await ElMessageBox.alert(lines.join('\n'), t('trading.salesReturnTab.detailTitle'), {
+      confirmButtonText: t('trading.salesReturnTab.buttonClose'),
     })
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '获取退货详情失败')
+    ElMessage.error(err.message || t('trading.salesReturnTab.messageFetchDetailFailed'))
   }
 }
 
 const approveSalesReturn = async (row: TradingReturn) => {
   try {
-    await ElMessageBox.confirm('确定审批该销售退货吗？', '确认', { type: 'info' })
+    await ElMessageBox.confirm(
+      t('trading.salesReturnTab.confirmApproveMessage'),
+      t('trading.salesReturnTab.confirmTitle'),
+      { type: 'info' }
+    )
     await approveTradingReturn(row.id)
-    ElMessage.success('审批成功')
+    ElMessage.success(t('trading.salesReturnTab.messageApproveSuccess'))
     fetchSalesReturns()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('trading.salesReturnTab.messageOperationFailed'))
     }
   }
 }
 
 const deleteSalesReturn = async (row: TradingReturn) => {
   try {
-    await ElMessageBox.confirm('确定删除该销售退货吗？', '确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('trading.salesReturnTab.confirmDeleteMessage'),
+      t('trading.salesReturnTab.confirmTitle'),
+      { type: 'warning' }
+    )
     await deleteTradingReturn(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('trading.salesReturnTab.messageDeleteSuccess'))
     fetchSalesReturns()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as { message?: string }
-      ElMessage.error(err.message || '操作失败')
+      ElMessage.error(err.message || t('trading.salesReturnTab.messageOperationFailed'))
     }
   }
 }

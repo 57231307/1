@@ -7,28 +7,53 @@
   <el-card shadow="hover">
     <template #header>
       <div class="card-header">
-        <span>客户销售排名</span>
+        <span>{{ t('salesAnalysis.customerRank.cardTitle') }}</span>
         <el-select
           :model-value="type"
           size="small"
           style="width: 100px"
           @update:model-value="updateType"
         >
-          <el-option label="按金额" value="amount" />
-          <el-option label="按订单数" value="orders" />
+          <el-option :label="t('salesAnalysis.customerRank.optionByAmount')" value="amount" />
+          <el-option :label="t('salesAnalysis.customerRank.optionByOrders')" value="orders" />
         </el-select>
       </div>
     </template>
-    <el-table :data="data" size="small" aria-label="客户销售排名列表">
-      <el-table-column type="index" label="排名" width="60" align="center" />
-      <el-table-column prop="customer_name" label="客户名称" min-width="150" show-overflow-tooltip />
-      <el-table-column prop="amount" label="销售额" width="120" align="right">
+    <el-table :data="data" size="small" :aria-label="t('salesAnalysis.customerRank.ariaLabelList')">
+      <el-table-column
+        type="index"
+        :label="t('salesAnalysis.customerRank.columnRank')"
+        width="60"
+        align="center"
+      />
+      <el-table-column
+        prop="customer_name"
+        :label="t('salesAnalysis.customerRank.columnCustomerName')"
+        min-width="150"
+        show-overflow-tooltip
+      />
+      <el-table-column
+        prop="amount"
+        :label="t('salesAnalysis.customerRank.columnAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="{ row }">
           {{ formatCurrency(row.amount) }}
         </template>
       </el-table-column>
-      <el-table-column prop="order_count" label="订单数" width="80" align="right" />
-      <el-table-column prop="percentage" label="占比" width="80" align="center">
+      <el-table-column
+        prop="order_count"
+        :label="t('salesAnalysis.customerRank.columnOrderCount')"
+        width="80"
+        align="right"
+      />
+      <el-table-column
+        prop="percentage"
+        :label="t('salesAnalysis.customerRank.columnPercentage')"
+        width="80"
+        align="center"
+      >
         <template #default="{ row }"> {{ row.percentage }}% </template>
       </el-table-column>
     </el-table>
@@ -36,8 +61,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { CustomerRanking } from '@/api/sales-analysis'
 import { formatCurrency } from '../composables/saFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 排名类型（v-model 通过 model-value + update:model-value 实现）
 const emit = defineEmits<{ 'update:type': [v: string] }>()

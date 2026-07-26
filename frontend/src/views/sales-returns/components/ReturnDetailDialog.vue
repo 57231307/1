@@ -6,38 +6,64 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="退货单详情"
+    :title="t('salesReturns.detailDialog.dialogTitle')"
     width="800px"
-    aria-label="退货单详情对话框"
+    :aria-label="t('salesReturns.detailDialog.dialogAriaLabel')"
     @update:model-value="onClose"
   >
     <template v-if="currentReturn">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="退货单号">{{ currentReturn.returnNo }}</el-descriptions-item>
-        <el-descriptions-item label="销售订单号">{{ currentReturn.salesOrderNo }}</el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{ currentReturn.customerName }}</el-descriptions-item>
-        <el-descriptions-item label="退货日期">{{ currentReturn.returnDate }}</el-descriptions-item>
-        <el-descriptions-item label="退货金额"
-          >{{ formatAmount(currentReturn.totalAmount ?? 0) }}</el-descriptions-item
-        >
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('salesReturns.detailDialog.labelReturnNo')">{{
+          currentReturn.returnNo
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesReturns.detailDialog.labelSalesOrderNo')">{{
+          currentReturn.salesOrderNo
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesReturns.detailDialog.labelCustomerName')">{{
+          currentReturn.customerName
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesReturns.detailDialog.labelReturnDate')">{{
+          currentReturn.returnDate
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesReturns.detailDialog.labelReturnAmount')">{{
+          formatAmount(currentReturn.totalAmount ?? 0)
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesReturns.detailDialog.labelStatus')">
           <el-tag :type="getStatusType(currentReturn.status ?? '')">
             {{ getStatusLabel(currentReturn.status ?? '') }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="退货原因" :span="2">{{ currentReturn.reason }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ currentReturn.remarks }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesReturns.detailDialog.labelReason')" :span="2">{{
+          currentReturn.reason
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('salesReturns.detailDialog.labelRemarks')" :span="2">{{
+          currentReturn.remarks
+        }}</el-descriptions-item>
       </el-descriptions>
 
       <div style="margin-top: 20px">
-        <h4>退货明细</h4>
-        <el-table :data="currentReturn.items || []" border size="small" aria-label="退货明细列表">
-          <el-table-column prop="productName" label="产品名称" />
-          <el-table-column prop="productCode" label="产品编码" />
-          <el-table-column prop="quantity" label="退货数量" />
-          <el-table-column prop="unitPrice" label="单价" />
-          <el-table-column prop="amount" label="金额" />
-          <el-table-column prop="reason" label="退货原因" />
+        <h4>{{ t('salesReturns.detailDialog.titleReturnDetails') }}</h4>
+        <el-table
+          :data="currentReturn.items || []"
+          border
+          size="small"
+          :aria-label="t('salesReturns.detailDialog.detailsTableAriaLabel')"
+        >
+          <el-table-column
+            prop="productName"
+            :label="t('salesReturns.detailDialog.columnProductName')"
+          />
+          <el-table-column
+            prop="productCode"
+            :label="t('salesReturns.detailDialog.columnProductCode')"
+          />
+          <el-table-column prop="quantity" :label="t('salesReturns.detailDialog.columnQuantity')" />
+          <el-table-column
+            prop="unitPrice"
+            :label="t('salesReturns.detailDialog.columnUnitPrice')"
+          />
+          <el-table-column prop="amount" :label="t('salesReturns.detailDialog.columnAmount')" />
+          <el-table-column prop="reason" :label="t('salesReturns.detailDialog.columnReason')" />
         </el-table>
       </div>
     </template>
@@ -45,8 +71,11 @@
 </template>
 
 <script setup lang="ts">
-import { getStatusType, getStatusLabel, formatAmount } from '../composables/srFmts'
+import { useI18n } from 'vue-i18n'
+import { getStatusType, formatAmount } from '../composables/srFmts'
 import type { SalesReturn } from '@/api/sales-return'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   visible: boolean
@@ -56,6 +85,17 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void
 }>()
+
+/** 获取退货状态标签（i18n 响应式） */
+const getStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    PENDING: t('salesReturns.detailDialog.statusPending'),
+    APPROVED: t('salesReturns.detailDialog.statusApproved'),
+    REJECTED: t('salesReturns.detailDialog.statusRejected'),
+    COMPLETED: t('salesReturns.detailDialog.statusCompleted'),
+  }
+  return map[status] || status
+}
 
 const onClose = (val: boolean) => {
   emit('update:visible', val)
