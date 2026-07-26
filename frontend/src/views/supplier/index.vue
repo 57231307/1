@@ -9,26 +9,26 @@
   <div class="supplier-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">供应商管理</h1>
+        <h1 class="page-title">{{ t('supplier.index.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>基础数据</el-breadcrumb-item>
-          <el-breadcrumb-item>供应商管理</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ t('supplier.index.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('supplier.index.breadcrumb.basicData') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('supplier.index.breadcrumb.supplier') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
         <el-button v-permission="PERMISSIONS.SUPPLIER_CREATE" type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
-          新建供应商
+          {{ t('supplier.index.button.create') }}
         </el-button>
         <el-button @click="handlePrint">
           <el-icon><Printer /></el-icon>
-          打印
+          {{ t('supplier.index.button.print') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('supplier.index.button.export') }}
         </el-button>
       </div>
     </div>
@@ -67,6 +67,7 @@
 import SupplierList from './SupplierList.vue'
 import SupplierDialog from './SupplierDialog.vue'
 import { ref, reactive, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { deleteSupplier, updateSupplier, createSupplier, type Supplier, type SupplierQueryParams } from '@/api/supplier'
@@ -76,6 +77,8 @@ import { printData } from '@/utils/print'
 import { useTableApi } from '@/composables/useTableApi'
 // Batch 468 P0-S28：引入权限码常量，与后端 suppliers 资源对齐
 import { PERMISSIONS } from '@/constants/permissions'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
@@ -103,7 +106,7 @@ const {
 } = useTableApi<Supplier>({
   url: '/purchase/suppliers',
   onError: (err: unknown) =>
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取供应商列表失败'),
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('supplier.index.message.fetchListFailed')),
 })
 
 // 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新（SupplierList 仍通过 props 接收 queryParams）
@@ -154,7 +157,7 @@ const formData = reactive({
   remarks: '',
 })
 
-const dialogTitle = computed(() => (isEdit.value ? '编辑供应商' : '新建供应商'))
+const dialogTitle = computed(() => (isEdit.value ? t('supplier.index.dialog.editTitle') : t('supplier.index.dialog.createTitle')))
 
 const handleReset = () => {
   queryParams.keyword = ''
@@ -199,15 +202,17 @@ const handleEdit = (row: Supplier) => {
 
 const handleDelete = async (row: Supplier) => {
   try {
-    await ElMessageBox.confirm(`确定删除供应商 "${row.supplier_name}" 吗？`, '删除确认', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('supplier.index.message.deleteConfirm', { name: row.supplier_name }),
+      t('supplier.index.message.deleteTitle'),
+      { type: 'warning' },
+    )
     await deleteSupplier(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('supplier.index.message.deleteSuccess'))
     fetchData()
   } catch (error: unknown) {
     if (error !== 'cancel') {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('supplier.index.message.deleteFailed'))
     }
   }
 }
@@ -217,15 +222,15 @@ const handleSubmit = async () => {
   try {
     if (isEdit.value) {
       await updateSupplier(formData.id!, formData)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('supplier.index.message.updateSuccess'))
     } else {
       await createSupplier(formData)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('supplier.index.message.createSuccess'))
     }
     dialogVisible.value = false
     fetchData()
   } catch (error: unknown) {
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('supplier.index.message.operationFailed'))
   } finally {
     submitLoading.value = false
   }
@@ -247,18 +252,18 @@ const handleExport = async () => {
 
 const handlePrint = () => {
   printData({
-    title: '供应商列表',
+    title: t('supplier.index.print.title'),
     columns: [
-      { key: 'supplier_code', title: '供应商编码', width: '100px' },
-      { key: 'supplier_name', title: '供应商名称' },
-      { key: 'contact_phone', title: '联系电话', width: '120px' },
-      { key: 'grade', title: '等级', width: '60px' },
-      { key: 'supplier_type', title: '类型', width: '80px' },
+      { key: 'supplier_code', title: t('supplier.index.print.column.supplierCode'), width: '100px' },
+      { key: 'supplier_name', title: t('supplier.index.print.column.supplierName') },
+      { key: 'contact_phone', title: t('supplier.index.print.column.contactPhone'), width: '120px' },
+      { key: 'grade', title: t('supplier.index.print.column.grade'), width: '60px' },
+      { key: 'supplier_type', title: t('supplier.index.print.column.type'), width: '80px' },
       {
         key: 'status',
-        title: '状态',
+        title: t('supplier.index.print.column.status'),
         width: '60px',
-        formatter: v => (v === 'active' ? '启用' : '禁用'),
+        formatter: v => (v === 'active' ? t('supplier.index.print.statusActive') : t('supplier.index.print.statusInactive')),
       },
     ],
     data: suppliers.value as unknown as Record<string, unknown>[],

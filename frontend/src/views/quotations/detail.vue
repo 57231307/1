@@ -12,105 +12,105 @@
       <template #header>
         <div class="card-header">
           <span class="title">
-            报价单详情 -
+            {{ t('quotations.detail.title') }} -
             <span class="quotation-no">{{ quotation.quotation_no }}</span>
           </span>
           <div class="actions">
-            <el-button @click="$router.back()">返回</el-button>
+            <el-button @click="$router.back()">{{ t('quotations.detail.back') }}</el-button>
             <el-button v-if="canEdit" @click="$router.push(`/quotations/${quotation.id}/edit`)">
-              编辑
+              {{ t('quotations.detail.edit') }}
             </el-button>
-            <el-button v-if="canSubmit" type="primary" @click="handleSubmit"> 提交审批 </el-button>
-            <el-button v-if="canApprove" type="success" @click="handleApprove"> 批准 </el-button>
-            <el-button v-if="canApprove" type="danger" @click="handleReject"> 拒绝 </el-button>
+            <el-button v-if="canSubmit" type="primary" @click="handleSubmit"> {{ t('quotations.detail.submitApproval') }} </el-button>
+            <el-button v-if="canApprove" type="success" @click="handleApprove"> {{ t('quotations.detail.approve') }} </el-button>
+            <el-button v-if="canApprove" type="danger" @click="handleReject"> {{ t('quotations.detail.reject') }} </el-button>
             <el-button v-if="canConvert" type="success" @click="handleConvert">
-              转销售订单
+              {{ t('quotations.detail.convertOrder') }}
             </el-button>
-            <el-button v-if="canCancel" type="danger" plain @click="handleCancel"> 取消 </el-button>
+            <el-button v-if="canCancel" type="danger" plain @click="handleCancel"> {{ t('quotations.detail.cancel') }} </el-button>
           </div>
         </div>
       </template>
 
       <!-- 基本信息 -->
       <el-descriptions :column="3" border>
-        <el-descriptions-item label="客户">
+        <el-descriptions-item :label="t('quotations.detail.labelCustomer')">
           {{ quotation.customer_name || quotation.customer_id }}
         </el-descriptions-item>
-        <el-descriptions-item label="报价日期">{{ quotation.quotation_date }}</el-descriptions-item>
-        <el-descriptions-item label="有效期至">{{ quotation.valid_until }}</el-descriptions-item>
-        <el-descriptions-item label="价格条款">{{ quotation.price_terms }}</el-descriptions-item>
-        <el-descriptions-item label="币种">
-          {{ quotation.currency }}（汇率 {{ quotation.exchange_rate }}）
+        <el-descriptions-item :label="t('quotations.detail.labelQuotationDate')">{{ quotation.quotation_date }}</el-descriptions-item>
+        <el-descriptions-item :label="t('quotations.detail.labelValidUntil')">{{ quotation.valid_until }}</el-descriptions-item>
+        <el-descriptions-item :label="t('quotations.detail.labelPriceTerms')">{{ quotation.price_terms }}</el-descriptions-item>
+        <el-descriptions-item :label="t('quotations.detail.labelCurrency')">
+          {{ quotation.currency }} ({{ t('quotations.detail.exchangeRateLabel') }} {{ quotation.exchange_rate }})
         </el-descriptions-item>
-        <el-descriptions-item label="含税">
-          {{ quotation.tax_inclusive ? '是' : '否' }}（税率 {{ quotation.tax_rate }}%）
+        <el-descriptions-item :label="t('quotations.detail.labelTaxInclusive')">
+          {{ quotation.tax_inclusive ? t('quotations.detail.yes') : t('quotations.detail.no') }} ({{ t('quotations.detail.taxRateLabel') }} {{ quotation.tax_rate }}%)
         </el-descriptions-item>
-        <el-descriptions-item label="客户等级">
+        <el-descriptions-item :label="t('quotations.detail.labelCustomerLevel')">
           {{ quotation.customer_level || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="MOQ">
+        <el-descriptions-item :label="t('quotations.detail.labelMoq')">
           {{ quotation.moq ?? '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="交期">
-          {{ quotation.lead_time_days ?? '-' }} 天
+        <el-descriptions-item :label="t('quotations.detail.labelLeadTime')">
+          {{ quotation.lead_time_days ?? '-' }} {{ t('quotations.detail.leadTimeUnit') }}
         </el-descriptions-item>
-        <el-descriptions-item label="状态" :span="3">
+        <el-descriptions-item :label="t('quotations.detail.labelStatus')" :span="3">
           <el-tag :type="tagType(quotation.status)">
             {{ statusLabel(quotation.status) }}
           </el-tag>
           <span v-if="quotation.approved_at" class="approved-info">
-            审批时间：{{ quotation.approved_at }} 审批人：{{
+            {{ t('quotations.detail.approvalTimeLabel') }}{{ quotation.approved_at }} {{ t('quotations.detail.approverLabel') }}{{
               quotation.approved_by_name || quotation.approved_by
             }}
           </span>
         </el-descriptions-item>
-        <el-descriptions-item v-if="quotation.rejection_reason" label="拒绝原因" :span="3">
+        <el-descriptions-item v-if="quotation.rejection_reason" :label="t('quotations.detail.labelRejectionReason')" :span="3">
           <span class="rejection-reason">{{ quotation.rejection_reason }}</span>
         </el-descriptions-item>
         <el-descriptions-item
           v-if="quotation.converted_sales_order_id"
-          label="已转销售订单"
+          :label="t('quotations.detail.labelConvertedOrder')"
           :span="3"
         >
-          销售订单 ID：{{ quotation.converted_sales_order_id }}，转换时间：{{
+          {{ t('quotations.detail.salesOrderIdPrefix') }}{{ quotation.converted_sales_order_id }}{{ t('quotations.detail.convertedTimeLabel') }}{{
             quotation.converted_at
           }}
         </el-descriptions-item>
-        <el-descriptions-item v-if="quotation.notes" label="备注" :span="3">
+        <el-descriptions-item v-if="quotation.notes" :label="t('quotations.detail.labelRemark')" :span="3">
           {{ quotation.notes }}
         </el-descriptions-item>
       </el-descriptions>
 
       <!-- 报价明细 -->
-      <h3 class="section-title">报价明细（{{ quotation.items?.length || 0 }} 项）</h3>
-      <el-table :data="quotation.items" border empty-text="无明细" aria-label="报价明细列表">
+      <h3 class="section-title">{{ t('quotations.detail.itemsTitle', { count: quotation.items?.length || 0 }) }}</h3>
+      <el-table :data="quotation.items" border :empty-text="t('quotations.detail.emptyItems')" :aria-label="t('quotations.detail.itemsTableAriaLabel')">
         <el-table-column type="index" label="#" width="50" align="center" />
-        <el-table-column label="产品" min-width="180">
+        <el-table-column :label="t('quotations.detail.colProduct')" min-width="180">
           <template #default="{ row }">
             {{ row.product_name || row.product_code || row.product_id }}
           </template>
         </el-table-column>
-        <el-table-column label="色号" width="100">
+        <el-table-column :label="t('quotations.detail.colColor')" width="100">
           <template #default="{ row }">{{ row.color_code || '-' }}</template>
         </el-table-column>
-        <el-table-column label="规格" min-width="140">
+        <el-table-column :label="t('quotations.detail.colSpec')" min-width="140">
           <template #default="{ row }">{{ row.specification || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="quantity" label="数量" width="100" align="right" />
-        <el-table-column label="单价" width="120" align="right">
+        <el-table-column prop="unit" :label="t('quotations.detail.colUnit')" width="80" />
+        <el-table-column prop="quantity" :label="t('quotations.detail.colQuantity')" width="100" align="right" />
+        <el-table-column :label="t('quotations.detail.colUnitPrice')" width="120" align="right">
           <template #default="{ row }">{{ formatAmount(row.unit_price) }}</template>
         </el-table-column>
-        <el-table-column label="含税单价" width="120" align="right">
+        <el-table-column :label="t('quotations.detail.colUnitPriceWithTax')" width="120" align="right">
           <template #default="{ row }">{{ formatAmount(row.unit_price_with_tax) }}</template>
         </el-table-column>
-        <el-table-column label="金额" width="140" align="right">
+        <el-table-column :label="t('quotations.detail.colAmount')" width="140" align="right">
           <template #default="{ row }">{{ formatAmount(row.amount) }}</template>
         </el-table-column>
       </el-table>
 
       <!-- 贸易条款 -->
-      <h3 class="section-title">贸易条款</h3>
+      <h3 class="section-title">{{ t('quotations.detail.sectionTerms') }}</h3>
       <el-tabs v-if="hasTerms">
         <el-tab-pane
           v-for="(group, type) in groupedTerms"
@@ -123,24 +123,24 @@
           </div>
         </el-tab-pane>
       </el-tabs>
-      <el-empty v-else description="暂无贸易条款" :image-size="60" />
+      <el-empty v-else :description="t('quotations.detail.emptyTerms')" :image-size="60" />
 
       <!-- 金额合计 -->
       <div class="totals">
-        <span>小计：{{ quotation.currency }} {{ formatAmount(quotation.subtotal) }}</span>
-        <span>税额：{{ quotation.currency }} {{ formatAmount(quotation.tax_amount) }}</span>
+        <span>{{ t('quotations.detail.subtotal') }}{{ quotation.currency }} {{ formatAmount(quotation.subtotal) }}</span>
+        <span>{{ t('quotations.detail.taxAmount') }}{{ quotation.currency }} {{ formatAmount(quotation.tax_amount) }}</span>
         <span class="grand-total">
-          合计：{{ quotation.currency }} {{ formatAmount(quotation.total_amount) }}
+          {{ t('quotations.detail.total') }}{{ quotation.currency }} {{ formatAmount(quotation.total_amount) }}
         </span>
       </div>
 
       <div class="meta">
-        <span>创建：{{ quotation.created_at }}</span>
-        <span>更新：{{ quotation.updated_at }}</span>
+        <span>{{ t('quotations.detail.createdAt') }}{{ quotation.created_at }}</span>
+        <span>{{ t('quotations.detail.updatedAt') }}{{ quotation.updated_at }}</span>
       </div>
     </el-card>
 
-    <el-empty v-else-if="!loading" description="报价单不存在" />
+    <el-empty v-else-if="!loading" :description="t('quotations.detail.notExist')" />
   </div>
 </template>
 
@@ -151,6 +151,7 @@
 // - 提交/批准/拒绝/转订单/取消
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getQuotation,
@@ -172,6 +173,8 @@ import {
 /** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
 type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
@@ -187,7 +190,7 @@ async function loadData() {
     quotation.value = res.data as QuotationResponseDto
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '加载报价单失败')
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.detail.loadFailed'))
     quotation.value = null
   } finally {
     loading.value = false
@@ -246,7 +249,7 @@ function formatAmount(value?: number): string {
 async function handleSubmit() {
   if (!quotation.value) return
   await submitQuotation(quotation.value.id)
-  ElMessage.success('已提交审批')
+  ElMessage.success(t('quotations.detail.submitSuccess'))
   loadData()
 }
 
@@ -254,12 +257,12 @@ async function handleSubmit() {
 async function handleApprove() {
   if (!quotation.value) return
   try {
-    await ElMessageBox.confirm('确认批准此报价单？', '批准确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('quotations.detail.approveConfirmText'), t('quotations.detail.approveConfirmTitle'), { type: 'warning' })
   } catch {
     return
   }
   await approveQuotation(quotation.value.id)
-  ElMessage.success('已批准')
+  ElMessage.success(t('quotations.detail.approveSuccess'))
   loadData()
 }
 
@@ -268,16 +271,16 @@ async function handleReject() {
   if (!quotation.value) return
   let reason = ''
   try {
-    const { value } = await ElMessageBox.prompt('请输入拒绝原因', '拒绝', {
-      inputValidator: (v: string) => (v && v.trim() ? true : '拒绝原因不能为空'),
-      inputErrorMessage: '拒绝原因不能为空',
+    const { value } = await ElMessageBox.prompt(t('quotations.detail.rejectPromptText'), t('quotations.detail.rejectTitle'), {
+      inputValidator: (v: string) => (v && v.trim() ? true : t('quotations.detail.rejectReasonRequired')),
+      inputErrorMessage: t('quotations.detail.rejectReasonRequired'),
     })
     reason = value
   } catch {
     return
   }
   await rejectQuotation(quotation.value.id, reason)
-  ElMessage.success('已拒绝')
+  ElMessage.success(t('quotations.detail.rejectSuccess'))
   loadData()
 }
 
@@ -286,8 +289,8 @@ async function handleConvert() {
   if (!quotation.value) return
   try {
     await ElMessageBox.confirm(
-      `确认将报价单 ${quotation.value.quotation_no} 转为销售订单？转订单后报价单状态将变为"已转订单"。`,
-      '转订单确认',
+      t('quotations.detail.convertConfirmText', { no: quotation.value.quotation_no }),
+      t('quotations.detail.convertConfirmTitle'),
       { type: 'warning' }
     )
   } catch {
@@ -295,7 +298,7 @@ async function handleConvert() {
   }
   const res = await convertQuotation(quotation.value.id)
   const order: ConvertResponse | undefined = res.data
-  ElMessage.success(`转订单成功，销售订单 ID：${order?.id}`)
+  ElMessage.success(t('quotations.detail.convertSuccess', { id: order?.id }))
   if (order?.id) {
     router.push(`/sales/orders/${order.id}`)
   } else {
@@ -308,15 +311,15 @@ async function handleCancel() {
   if (!quotation.value) return
   try {
     await ElMessageBox.confirm(
-      `确认取消报价单 ${quotation.value.quotation_no}？取消后无法恢复。`,
-      '取消确认',
+      t('quotations.detail.cancelConfirmText', { no: quotation.value.quotation_no }),
+      t('quotations.detail.cancelConfirmTitle'),
       { type: 'warning' }
     )
   } catch {
     return
   }
   await cancelQuotation(quotation.value.id)
-  ElMessage.success('已取消')
+  ElMessage.success(t('quotations.detail.cancelSuccess'))
   loadData()
 }
 

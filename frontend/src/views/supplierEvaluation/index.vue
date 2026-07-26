@@ -3,21 +3,21 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>供应商评估管理</span>
+          <span>{{ t('supplierEvaluation.index.title') }}</span>
         </div>
       </template>
 
-      <el-tabs v-model="activeTab" aria-label="供应商评估管理标签页">
-        <el-tab-pane label="评估记录" name="records">
+      <el-tabs v-model="activeTab" :aria-label="t('supplierEvaluation.index.tabsAriaLabel')">
+        <el-tab-pane :label="t('supplierEvaluation.index.tab.records')" name="records">
           <div class="toolbar">
-            <el-button type="primary" @click="handleCreateRecord">新建评估</el-button>
+            <el-button type="primary" @click="handleCreateRecord">{{ t('supplierEvaluation.index.button.create') }}</el-button>
           </div>
 
-          <el-table :data="recordList" border stripe aria-label="供应商评估记录列表">
-            <el-table-column prop="supplierName" label="供应商名称" />
-            <el-table-column prop="period" label="评估周期" />
-            <el-table-column prop="totalScore" label="总分" />
-            <el-table-column prop="rating" label="评级">
+          <el-table :data="recordList" border stripe :aria-label="t('supplierEvaluation.index.recordsTableAriaLabel')">
+            <el-table-column prop="supplierName" :label="t('supplierEvaluation.index.column.supplierName')" />
+            <el-table-column prop="period" :label="t('supplierEvaluation.index.column.period')" />
+            <el-table-column prop="totalScore" :label="t('supplierEvaluation.index.column.totalScore')" />
+            <el-table-column prop="rating" :label="t('supplierEvaluation.index.column.rating')">
               <template #default="{ row }">
                 <el-tag v-if="row.rating === 'A'" type="success">A</el-tag>
                 <el-tag v-else-if="row.rating === 'B'" type="warning">B</el-tag>
@@ -25,13 +25,13 @@
                 <el-tag v-else type="info">{{ row.rating }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" />
-            <el-table-column prop="evaluatorName" label="评估人" />
-            <el-table-column prop="createdAt" label="创建时间" />
-            <el-table-column label="操作" fixed="right" width="200">
+            <el-table-column prop="status" :label="t('supplierEvaluation.index.column.status')" />
+            <el-table-column prop="evaluatorName" :label="t('supplierEvaluation.index.column.evaluator')" />
+            <el-table-column prop="createdAt" :label="t('supplierEvaluation.index.column.createdAt')" />
+            <el-table-column :label="t('supplierEvaluation.index.column.operation')" fixed="right" width="200">
               <template #default="{ row }">
                 <el-button link type="primary" @click="handleViewRecord(row as EvaluationRecord)"
-                  >查看</el-button
+                  >{{ t('supplierEvaluation.index.button.view') }}</el-button
                 >
               </template>
             </el-table-column>
@@ -42,16 +42,16 @@
             v-model:page-size="recordPageSize"
             :total="recordTotal"
             layout="total, prev, pager, next, jumper"
-            aria-label="供应商评估记录分页"
+            :aria-label="t('supplierEvaluation.index.recordsPaginationAriaLabel')"
             @current-change="onRecordPageChange"
           />
         </el-tab-pane>
 
-        <el-tab-pane label="供应商排名" name="rankings">
-          <el-button type="primary" @click="fetchRankings">刷新排名</el-button>
+        <el-tab-pane :label="t('supplierEvaluation.index.tab.rankings')" name="rankings">
+          <el-button type="primary" @click="fetchRankings">{{ t('supplierEvaluation.index.button.refresh') }}</el-button>
 
-          <el-table :data="rankingList" border stripe aria-label="供应商排名列表">
-            <el-table-column prop="rank" label="排名" width="80">
+          <el-table :data="rankingList" border stripe :aria-label="t('supplierEvaluation.index.rankingsTableAriaLabel')">
+            <el-table-column prop="rank" :label="t('supplierEvaluation.index.column.rank')" width="80">
               <template #default="{ row }">
                 <span v-if="row.rank === 1" class="rank-first">🥇 {{ row.rank }}</span>
                 <span v-else-if="row.rank === 2" class="rank-second">🥈 {{ row.rank }}</span>
@@ -59,9 +59,9 @@
                 <span v-else>{{ row.rank }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="supplierName" label="供应商名称" />
-            <el-table-column prop="totalScore" label="总分" />
-            <el-table-column prop="rating" label="评级">
+            <el-table-column prop="supplierName" :label="t('supplierEvaluation.index.column.supplierName')" />
+            <el-table-column prop="totalScore" :label="t('supplierEvaluation.index.column.totalScore')" />
+            <el-table-column prop="rating" :label="t('supplierEvaluation.index.column.rating')">
               <template #default="{ row }">
                 <el-tag v-if="row.rating === 'A'" type="success">A</el-tag>
                 <el-tag v-else-if="row.rating === 'B'" type="warning">B</el-tag>
@@ -77,15 +77,15 @@
     <!-- 创建/编辑对话框 -->
     <el-dialog
       v-model="recordDialogVisible"
-      :title="isEdit ? '编辑评估' : '新建评估'"
+      :title="isEdit ? t('supplierEvaluation.index.dialog.editTitle') : t('supplierEvaluation.index.dialog.createTitle')"
       width="600px"
-      aria-label="供应商评估编辑对话框"
+      :aria-label="t('supplierEvaluation.index.dialog.ariaLabel')"
     >
-      <el-form ref="recordFormRef" :model="recordForm" :rules="recordRules" label-width="120px" aria-label="供应商评估表单">
-        <el-form-item label="供应商" prop="supplierId">
+      <el-form ref="recordFormRef" :model="recordForm" :rules="recordRules" label-width="120px" :aria-label="t('supplierEvaluation.index.dialog.formAriaLabel')">
+        <el-form-item :label="t('supplierEvaluation.index.dialog.label.supplier')" prop="supplierId">
           <el-select
             v-model="recordForm.supplierId"
-            placeholder="请选择供应商"
+            :placeholder="t('supplierEvaluation.index.dialog.placeholder.supplier')"
             style="width: 100%"
             filterable
           >
@@ -97,37 +97,37 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="评估周期" prop="period">
-          <el-input v-model="recordForm.period" placeholder="例如：2024-Q1" />
+        <el-form-item :label="t('supplierEvaluation.index.dialog.label.period')" prop="period">
+          <el-input v-model="recordForm.period" :placeholder="t('supplierEvaluation.index.dialog.placeholder.period')" />
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
+        <el-form-item :label="t('supplierEvaluation.index.dialog.label.remark')" prop="remark">
           <el-input v-model="recordForm.remark" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="recordDialogVisible = false">取消</el-button>
+        <el-button @click="recordDialogVisible = false">{{ t('supplierEvaluation.index.dialog.button.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSaveRecord"
-          >保存</el-button
+          >{{ t('supplierEvaluation.index.dialog.button.save') }}</el-button
         >
       </template>
     </el-dialog>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="评估详情" width="700px" aria-label="供应商评估详情对话框">
-      <el-descriptions v-if="currentRecord" :column="2" border aria-label="供应商评估详情">
-        <el-descriptions-item label="供应商">{{ currentRecord.supplierName }}</el-descriptions-item>
-        <el-descriptions-item label="评估周期">{{ currentRecord.period }}</el-descriptions-item>
-        <el-descriptions-item label="总分">{{ currentRecord.totalScore }}</el-descriptions-item>
-        <el-descriptions-item label="评级">{{ currentRecord.rating }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ currentRecord.status }}</el-descriptions-item>
-        <el-descriptions-item label="评估人">{{
+    <el-dialog v-model="detailDialogVisible" :title="t('supplierEvaluation.index.detail.title')" width="700px" :aria-label="t('supplierEvaluation.index.detail.dialogAriaLabel')">
+      <el-descriptions v-if="currentRecord" :column="2" border :aria-label="t('supplierEvaluation.index.detail.ariaLabel')">
+        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.supplier')">{{ currentRecord.supplierName }}</el-descriptions-item>
+        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.period')">{{ currentRecord.period }}</el-descriptions-item>
+        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.totalScore')">{{ currentRecord.totalScore }}</el-descriptions-item>
+        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.rating')">{{ currentRecord.rating }}</el-descriptions-item>
+        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.status')">{{ currentRecord.status }}</el-descriptions-item>
+        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.evaluator')">{{
           currentRecord.evaluatorName
         }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">{{
+        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.createdAt')" :span="2">{{
           currentRecord.createdAt
         }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{
+        <el-descriptions-item :label="t('supplierEvaluation.index.detail.label.remark')" :span="2">{{
           currentRecord.remark || '-'
         }}</el-descriptions-item>
       </el-descriptions>
@@ -136,7 +136,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage } from 'element-plus'
 import { useTableApi } from '@/composables/useTableApi'
@@ -149,6 +150,8 @@ import {
 } from '@/api/supplier-evaluation'
 import { getSupplierList, type Supplier } from '@/api/supplier'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const activeTab = ref('records')
 const rankingList = ref<SupplierScore[]>([])
@@ -166,7 +169,7 @@ const {
 } = useTableApi<EvaluationRecord>({
   url: '/purchase/supplier-evaluations/records',
   pageSizeKey: 'pageSize',
-  onError: () => ElMessage.error('获取评估记录失败'),
+  onError: () => ElMessage.error(t('supplierEvaluation.index.message.fetchRecordsFailed')),
 })
 
 const recordDialogVisible = ref(false)
@@ -182,17 +185,17 @@ const recordForm = reactive({
   remark: '',
 })
 
-const recordRules = {
-  supplierId: [{ required: true, message: '请选择供应商', trigger: 'change' }],
-  period: [{ required: true, message: '请输入评估周期', trigger: 'blur' }],
-}
+const recordRules = computed(() => ({
+  supplierId: [{ required: true, message: t('supplierEvaluation.index.validation.supplierRequired'), trigger: 'change' }],
+  period: [{ required: true, message: t('supplierEvaluation.index.validation.periodRequired'), trigger: 'blur' }],
+}))
 
 const fetchSuppliers = async () => {
   try {
     const res = await getSupplierList({ page: 1, page_size: 1000 })
     supplierList.value = res.data?.list || []
   } catch (e) {
-    logger.error('获取供应商列表失败', String(e))
+    logger.error(t('supplierEvaluation.index.message.fetchSuppliersFailed'), String(e))
   }
 }
 
@@ -207,7 +210,7 @@ const fetchRankings = async () => {
       }))
     }
   } catch (e) {
-    ElMessage.error('获取排名失败')
+    ElMessage.error(t('supplierEvaluation.index.message.fetchRankingsFailed'))
   }
 }
 
@@ -232,12 +235,12 @@ const handleSaveRecord = async () => {
     try {
       // v11 批次 176 P2-1 修复：recordForm as any 改为 as CreateEvaluationRequest
       await createEvaluationRecord(recordForm as CreateEvaluationRequest)
-      ElMessage.success('保存成功')
+      ElMessage.success(t('supplierEvaluation.index.message.saveSuccess'))
       recordDialogVisible.value = false
       fetchRecords()
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(errMsg || '保存失败')
+      ElMessage.error(errMsg || t('supplierEvaluation.index.message.saveFailed'))
     } finally {
       submitLoading.value = false
     }

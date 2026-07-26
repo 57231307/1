@@ -12,11 +12,10 @@
 ### 项目阶段与 P0 任务进度
 
 - **当前阶段**：V15 修复阶段（模块 G 共 17 项 P0 任务）
-- **完成度**：15 ✅ / 0 待CI / 2 ⏳ / 0 ❌
-- **已完成 15 项**：D01, D02, D03, D04, D06, D07, D09, D10, D11, D12, D13, D14, D15, D16, D17
-- **进行中 2 项**：
-  - **D05**（i18n 接入率 27.7%，271 文件未接入，10 批次规划见 doto.md §0.8）
-  - **D08**（>80 行函数 95 个，已拆分 6 个 >200 行函数，2 批次规划见 doto.md §0.8.2-§0.8.3）
+- **完成度**：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌
+- **已完成 16 项**：D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17
+- **进行中 1 项**：
+  - **D05**（i18n 接入率 23.4%，262 文件未接入，10 批次规划见 doto.md §0.8；Batch 3 已完成待推送 CI，Batch 4-9 待启动）
 
 ### 关键技术决策（最近）
 
@@ -353,6 +352,100 @@
 | **Batch 487** | P0-T02 + P0-T07 + P0-T05 | 7 项业务路径集成测试（73 测试）+ 4 service 性能基准（11 基准，criterion optional feature）+ E2E 配置修复（applyAuthMocks 移除 mockBusinessApi + webServer 数组化） | 28 文件 +1836 -29 | 3 轮（criterion 位置 + baseline 误删） | criterion 必须放 [dependencies] 非 [dev-dependencies]；#[ignore]+纯函数双模式；webServer 数组 + reuseExistingServer:true |
 | **Batch 486** | P0-T01 | quotation_service + purchase_receipt_service 单测补全（各 19 测试，共 38 测试） | 2 文件 +730 行 | 1 轮全绿 | sea-orm 表不存在时返回 Err 而非 Ok(None)/Ok([])；DB 测试断言 is_err()；decs!/ymd! 宏 + setup_test_db 模式 |
 | **Batch 485** | P0-T03 + P0-T08 | clippy baseline 机制恢复（仅新增警告阻塞，1781 预存警告渐进清理）+ cargo-tarpaulin 覆盖率 job（continue-on-error 不阻塞）+ rgb_to_hex 编译错误修复 + CI bash 算术 bug 修复（grep -c→awk） | 4 文件 +144 -40 | 7 轮 | baseline vs 零容忍策略（test 零容忍 + clippy baseline 渐进）；grep -c+\|\|echo 0 多行陷阱用 awk 替代；规则 20 注释与实现一致 |
+
+---
+
+## 📦 V15 Batch 493 归档（D05 Batch 3 useI18n 接入，待推送 CI）
+
+### 任务概述
+
+- **批次**：V15 Batch 493 / D05 Batch 3
+- **任务**：CRM/客户/供应商/销售/报价 5 模块 i18n 接入（原计划 42 文件，实际未接入 17 文件）
+- **分支**：fix/p0-d05-batch3
+- **执行时间**：2026-07-26
+- **D05 接入率**：18.6% → 23.4%（66 → 83 / 355 文件），剩余 262 文件未接入
+
+### 实际修改文件清单（17 文件 + 2 locales + 2 脚本）
+
+**CRM 16 文件 + sales/index.vue 容器豁免 + quotations/edit.vue 包装豁免 = 18 文件无需接入**
+
+未接入文件（17 个，全部本批次接入）：
+1. [customer/tabs/CustomerFormTab.vue](file:///workspace/frontend/src/views/customer/tabs/CustomerFormTab.vue)（304 行）
+2. [customer/index.vue](file:///workspace/frontend/src/views/customer/index.vue)（339 行）
+3. [customerCredit/tabs/AdjustDialogTab.vue](file:///workspace/frontend/src/views/customerCredit/tabs/AdjustDialogTab.vue)（102 行）
+4. [customerCredit/tabs/AmountDialogTab.vue](file:///workspace/frontend/src/views/customerCredit/tabs/AmountDialogTab.vue)（97 行）
+5. [customerCredit/tabs/RatingDialogTab.vue](file:///workspace/frontend/src/views/customerCredit/tabs/RatingDialogTab.vue)（133 行）
+6. [customerCredit/index.vue](file:///workspace/frontend/src/views/customerCredit/index.vue)（224 行）
+7. [supplier/SupplierDialog.vue](file:///workspace/frontend/src/views/supplier/SupplierDialog.vue)（323 行）
+8. [supplier/SupplierList.vue](file:///workspace/frontend/src/views/supplier/SupplierList.vue)（135 行）
+9. [supplier/index.vue](file:///workspace/frontend/src/views/supplier/index.vue)（302 行）
+10. [supplierEvaluation/index.vue](file:///workspace/frontend/src/views/supplierEvaluation/index.vue)（290 行）
+11. [quotations/components/ApprovalProgress.vue](file:///workspace/frontend/src/views/quotations/components/ApprovalProgress.vue)（119 行）
+12. [quotations/components/QuotationItemEditor.vue](file:///workspace/frontend/src/views/quotations/components/QuotationItemEditor.vue)（235 行）
+13. [quotations/components/TermEditor.vue](file:///workspace/frontend/src/views/quotations/components/TermEditor.vue)（105 行）
+14. [quotations/approval.vue](file:///workspace/frontend/src/views/quotations/approval.vue)（239 行）
+15. [quotations/create.vue](file:///workspace/frontend/src/views/quotations/create.vue)（443 行）
+16. [quotations/detail.vue](file:///workspace/frontend/src/views/quotations/detail.vue)（398 行）
+17. [quotations/list.vue](file:///workspace/frontend/src/views/quotations/list.vue)（291 行）
+
+locales + 脚本：
+- [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts)（4677 → 5421 行，+744 行）
+- [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)（4677 → 5421 行，+744 行）
+- [scripts/merge-i18n-batch3.cjs](file:///workspace/scripts/merge-i18n-batch3.cjs)（深度合并 group*.json 到 locales）
+- [scripts/audit-i18n-batch3.cjs](file:///workspace/scripts/audit-i18n-batch3.cjs)（验证 t() 调用无缺失键）
+
+### 新增命名空间（5 个，558 翻译键）
+
+| 命名空间 | 翻译键数 | 来源模块 |
+|----------|---------|----------|
+| `customer` | 112 | customer/tabs/CustomerFormTab.vue（form 62 键）+ customer/index.vue（index 50 键） |
+| `customerCredit` | 73 | customerCredit/tabs/AdjustDialogTab.vue（adjust 16 键）+ AmountDialogTab.vue（amount 11 键）+ RatingDialogTab.vue（rating 21 键）+ index.vue（index 25 键） |
+| `supplier` | 114 | supplier/SupplierDialog.vue（dialog 60 键）+ SupplierList.vue（list 28 键）+ index.vue（index 26 键） |
+| `supplierEvaluation` | 48 | supplierEvaluation/index.vue（index 48 键） |
+| `quotations` | 211 | 7 文件：approvalProgress 19 + itemEditor 20 + termEditor 4 + approval 30 + create 43 + detail 64 + list 31 |
+
+### 并行代理执行（4 个）
+
+| 代理 | 模块 | 文件数 | 翻译键数 | 输出 |
+|------|------|--------|---------|------|
+| Group A | 客户 | 2 | 112 | /tmp/i18n-batch3/groupA.json |
+| Group B | 客户信用 | 4 | 73 | /tmp/i18n-batch3/groupB.json |
+| Group C | 供应商+评估 | 4 | 162（supplier 114 + supplierEvaluation 48） | /tmp/i18n-batch3/groupC.json |
+| Group D | 报价 | 7 | 210 | /tmp/i18n-batch3/groupD.json |
+
+### 自审与修复
+
+**自审检查（全部通过）**：
+1. ✅ 17 个 Vue 文件 useI18n=2（import + 解构）
+2. ✅ 无 #[allow] 警告抑制（grep 验证 0 处）
+3. ✅ zh-CN.ts + en-US.ts 括号平衡 0（Python 正则去除字符串后统计）
+4. ✅ audit 验证 613 个 t()/$t() 调用引用 558 个不同键，无缺失键
+5. ✅ 5 个新命名空间在 zh/en 双语均存在（node 验证）
+
+**自审修复（5 处）**：
+1. quotations/approval.vue L35: 中文括号 `（）` → 英文括号 `()`（汇率显示）
+2. quotations/approval.vue L46: 中文括号 `（）` → 英文括号 `()`（审批时间）
+3. quotations/approval.vue L59: 中文括号 `（）` → 英文括号 `()`（转换时间）
+4. quotations/detail.vue L43: 中文括号 `（）` → 英文括号 `()`（汇率显示）
+5. quotations/detail.vue L46: 中文括号 `（）` → 英文括号 `()`（税率显示）
+6. quotations/detail.vue L51: 硬编码 `label="MOQ"` → `:label="t('quotations.detail.labelMoq')"` + 补 zh/en 翻译键（zh: '最小起订量' / en: 'Minimum Order Quantity'）
+
+**业务数据值豁免（保留中文）**：
+- quotations/components/QuotationItemEditor.vue L65/66/68: `value="米"/"卷"/"件"` 是 unit 字段发送给后端的数据值（DB schema 存储中文单位），非 UI 显示文本（label 已通过 t() 翻译）
+
+### CI 验证
+
+- 状态：⏳ 待推送 CI 验证
+- 沙箱本地：cargo check 因 OOM 不可用，前端 vue-tsc/eslint 因 node_modules 为空不可用
+- 依赖 CI 验证：前端格式 + ESLint + 类型检查 + 测试 + 构建 + Rust 格式 + Clippy
+
+### 关键技术要点
+
+1. **多代理并行接入**：4 个并行代理一次性处理 17 文件，每组代理产出独立 JSON 翻译键文件，主进程通过 merge-i18n-batch3.cjs 脚本深度合并到 locales 文件，避免命名空间冲突
+2. **深度合并算法**：递归遍历对象，遇到 `{zh-CN, en-US}` 叶子节点直接覆盖，遇到对象递归合并
+3. **audit 脚本**：基于正则提取 zh-CN.ts 所有键路径（按缩进栈构建），扫描 Vue 文件 t()/$t() 调用，对比查找缺失键
+4. **容器组件豁免**：sales/index.vue（29 行）+ quotations/edit.vue（14 行）为包装/入口组件，无硬编码中文，无需接入
+5. **业务数据值保留**：unit 字段（米/卷/件）作为 DB 存储值保留中文，仅 label 走 i18n
 
 ---
 

@@ -6,60 +6,60 @@
 <template>
   <div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="localQuery" class="filter-form" aria-label="供应商筛选表单">
-        <el-form-item label="关键词">
-          <el-input v-model="localQuery.keyword" placeholder="供应商编码/名称" clearable />
+      <el-form :inline="true" :model="localQuery" class="filter-form" :aria-label="t('supplier.list.filterAriaLabel')">
+        <el-form-item :label="t('supplier.list.filter.keyword')">
+          <el-input v-model="localQuery.keyword" :placeholder="t('supplier.list.filter.keywordPlaceholder')" clearable />
         </el-form-item>
-        <el-form-item label="等级">
-          <el-select v-model="localQuery.grade" placeholder="选择等级" clearable>
-            <el-option label="A级" value="A" />
-            <el-option label="B级" value="B" />
-            <el-option label="C级" value="C" />
-            <el-option label="D级" value="D" />
+        <el-form-item :label="t('supplier.list.filter.grade')">
+          <el-select v-model="localQuery.grade" :placeholder="t('supplier.list.filter.gradePlaceholder')" clearable>
+            <el-option :label="t('supplier.list.option.gradeA')" value="A" />
+            <el-option :label="t('supplier.list.option.gradeB')" value="B" />
+            <el-option :label="t('supplier.list.option.gradeC')" value="C" />
+            <el-option :label="t('supplier.list.option.gradeD')" value="D" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="localQuery.status" placeholder="选择状态" clearable>
-            <el-option label="启用" value="active" />
-            <el-option label="禁用" value="inactive" />
+        <el-form-item :label="t('supplier.list.filter.status')">
+          <el-select v-model="localQuery.status" :placeholder="t('supplier.list.filter.statusPlaceholder')" clearable>
+            <el-option :label="t('supplier.list.option.statusActive')" value="active" />
+            <el-option :label="t('supplier.list.option.statusInactive')" value="inactive" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleQuery">{{ t('supplier.list.button.search') }}</el-button>
+          <el-button @click="handleReset">{{ t('supplier.list.button.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="suppliers" stripe aria-label="供应商列表">
-        <el-table-column prop="supplier_code" label="供应商编码" width="120" fixed />
-        <el-table-column prop="supplier_name" label="供应商名称" min-width="180" fixed />
-        <el-table-column prop="supplier_short_name" label="简称" width="100" />
-        <el-table-column prop="contact_phone" label="联系电话" width="130" />
-        <el-table-column prop="email" label="邮箱" width="180" show-overflow-tooltip />
-        <el-table-column prop="grade" label="等级" width="80">
+      <el-table v-loading="loading" :data="suppliers" stripe :aria-label="t('supplier.list.tableAriaLabel')">
+        <el-table-column prop="supplier_code" :label="t('supplier.list.column.supplierCode')" width="120" fixed />
+        <el-table-column prop="supplier_name" :label="t('supplier.list.column.supplierName')" min-width="180" fixed />
+        <el-table-column prop="supplier_short_name" :label="t('supplier.list.column.shortName')" width="100" />
+        <el-table-column prop="contact_phone" :label="t('supplier.list.column.contactPhone')" width="130" />
+        <el-table-column prop="email" :label="t('supplier.list.column.email')" width="180" show-overflow-tooltip />
+        <el-table-column prop="grade" :label="t('supplier.list.column.grade')" width="80">
           <template #default="{ row }">
             <el-tag :type="getGradeTag(row.grade)" size="small">
               {{ row.grade || '-' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="supplier_type" label="类型" width="100" />
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="supplier_type" :label="t('supplier.list.column.type')" width="100" />
+        <el-table-column prop="status" :label="t('supplier.list.column.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? '启用' : '禁用' }}
+              {{ row.status === 'active' ? t('supplier.list.option.statusActive') : t('supplier.list.option.statusInactive') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column :label="t('supplier.list.column.operation')" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="$emit('edit', row)"
-              >编辑</el-button
+              >{{ t('supplier.list.button.edit') }}</el-button
             >
             <el-button type="danger" link size="small" @click="$emit('delete', row)"
-              >删除</el-button
+              >{{ t('supplier.list.button.delete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -74,7 +74,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleQuery"
           @current-change="handleQuery"
-          aria-label="供应商列表分页"
+          :aria-label="t('supplier.list.paginationAriaLabel')"
         />
       </div>
     </el-card>
@@ -83,8 +83,11 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 // v11 批次 176 P2-1 修复：引入 Supplier 和 SupplierQueryParams 替代 any
 import type { Supplier, SupplierQueryParams } from '@/api/supplier'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   suppliers: Supplier[]

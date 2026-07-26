@@ -16,99 +16,99 @@
     @update:model-value="onVisibleChange"
     @close="emit('close')"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="120px" aria-label="供应商表单">
-      <el-divider content-position="left">基本信息</el-divider>
+    <el-form ref="formRef" :model="localFormData" :rules="formRules" label-width="120px" :aria-label="t('supplier.dialog.formAriaLabel')">
+      <el-divider content-position="left">{{ t('supplier.dialog.section.basic') }}</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="供应商编码" prop="supplier_code">
-            <el-input v-model="localFormData.supplier_code" placeholder="请输入供应商编码" />
+          <el-form-item :label="t('supplier.dialog.label.supplierCode')" prop="supplier_code">
+            <el-input v-model="localFormData.supplier_code" :placeholder="t('supplier.dialog.placeholder.supplierCode')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="供应商名称" prop="supplier_name">
-            <el-input v-model="localFormData.supplier_name" placeholder="请输入供应商名称" />
+          <el-form-item :label="t('supplier.dialog.label.supplierName')" prop="supplier_name">
+            <el-input v-model="localFormData.supplier_name" :placeholder="t('supplier.dialog.placeholder.supplierName')" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="供应商简称" prop="supplier_short_name">
-            <el-input v-model="localFormData.supplier_short_name" placeholder="请输入简称" />
+          <el-form-item :label="t('supplier.dialog.label.shortName')" prop="supplier_short_name">
+            <el-input v-model="localFormData.supplier_short_name" :placeholder="t('supplier.dialog.placeholder.shortName')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="供应商类型" prop="supplier_type">
+          <el-form-item :label="t('supplier.dialog.label.supplierType')" prop="supplier_type">
             <el-select
               v-model="localFormData.supplier_type"
-              placeholder="请选择类型"
+              :placeholder="t('supplier.dialog.placeholder.supplierType')"
               style="width: 100%"
             >
-              <el-option label="生产商" value="manufacturer" />
-              <el-option label="经销商" value="distributor" />
-              <el-option label="服务商" value="service" />
+              <el-option :label="t('supplier.dialog.option.manufacturer')" value="manufacturer" />
+              <el-option :label="t('supplier.dialog.option.distributor')" value="distributor" />
+              <el-option :label="t('supplier.dialog.option.service')" value="service" />
             </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="信用代码" prop="credit_code">
-            <el-input v-model="localFormData.credit_code" placeholder="请输入统一社会信用代码" />
+          <el-form-item :label="t('supplier.dialog.label.creditCode')" prop="credit_code">
+            <el-input v-model="localFormData.credit_code" :placeholder="t('supplier.dialog.placeholder.creditCode')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="法人代表" prop="legal_representative">
-            <el-input v-model="localFormData.legal_representative" placeholder="请输入法人代表" />
+          <el-form-item :label="t('supplier.dialog.label.legalRepresentative')" prop="legal_representative">
+            <el-input v-model="localFormData.legal_representative" :placeholder="t('supplier.dialog.placeholder.legalRepresentative')" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-divider content-position="left">联系信息</el-divider>
+      <el-divider content-position="left">{{ t('supplier.dialog.section.contact') }}</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="联系电话" prop="contact_phone">
-            <el-input v-model="localFormData.contact_phone" placeholder="请输入联系电话" />
+          <el-form-item :label="t('supplier.dialog.label.contactPhone')" prop="contact_phone">
+            <el-input v-model="localFormData.contact_phone" :placeholder="t('supplier.dialog.placeholder.contactPhone')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="邮箱" prop="email">
-            <el-input v-model="localFormData.email" placeholder="请输入邮箱" />
+          <el-form-item :label="t('supplier.dialog.label.email')" prop="email">
+            <el-input v-model="localFormData.email" :placeholder="t('supplier.dialog.placeholder.email')" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="网址" prop="website">
-            <el-input v-model="localFormData.website" placeholder="请输入网址" />
+          <el-form-item :label="t('supplier.dialog.label.website')" prop="website">
+            <el-input v-model="localFormData.website" :placeholder="t('supplier.dialog.placeholder.website')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="传真" prop="fax">
-            <el-input v-model="localFormData.fax" placeholder="请输入传真" />
+          <el-form-item :label="t('supplier.dialog.label.fax')" prop="fax">
+            <el-input v-model="localFormData.fax" :placeholder="t('supplier.dialog.placeholder.fax')" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="注册地址" prop="registered_address">
-        <el-input v-model="localFormData.registered_address" placeholder="请输入注册地址" />
+      <el-form-item :label="t('supplier.dialog.label.registeredAddress')" prop="registered_address">
+        <el-input v-model="localFormData.registered_address" :placeholder="t('supplier.dialog.placeholder.registeredAddress')" />
       </el-form-item>
-      <el-form-item label="经营地址" prop="business_address">
-        <el-input v-model="localFormData.business_address" placeholder="请输入经营地址" />
+      <el-form-item :label="t('supplier.dialog.label.businessAddress')" prop="business_address">
+        <el-input v-model="localFormData.business_address" :placeholder="t('supplier.dialog.placeholder.businessAddress')" />
       </el-form-item>
-      <el-divider content-position="left">财务信息</el-divider>
+      <el-divider content-position="left">{{ t('supplier.dialog.section.financial') }}</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="纳税人类型" prop="taxpayer_type">
+          <el-form-item :label="t('supplier.dialog.label.taxpayerType')" prop="taxpayer_type">
             <el-select
               v-model="localFormData.taxpayer_type"
-              placeholder="请选择类型"
+              :placeholder="t('supplier.dialog.placeholder.taxpayerType')"
               style="width: 100%"
             >
-              <el-option label="一般纳税人" value="general" />
-              <el-option label="小规模纳税人" value="small" />
+              <el-option :label="t('supplier.dialog.option.generalTaxpayer')" value="general" />
+              <el-option :label="t('supplier.dialog.option.smallTaxpayer')" value="small" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="注册资本(万)" prop="registered_capital">
+          <el-form-item :label="t('supplier.dialog.label.registeredCapital')" prop="registered_capital">
             <el-input-number
               v-model="localFormData.registered_capital"
               :min="0"
@@ -120,54 +120,57 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="开户银行" prop="bank_name">
-            <el-input v-model="localFormData.bank_name" placeholder="请输入开户银行" />
+          <el-form-item :label="t('supplier.dialog.label.bankName')" prop="bank_name">
+            <el-input v-model="localFormData.bank_name" :placeholder="t('supplier.dialog.placeholder.bankName')" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="银行账号" prop="bank_account">
-            <el-input v-model="localFormData.bank_account" placeholder="请输入银行账号" />
+          <el-form-item :label="t('supplier.dialog.label.bankAccount')" prop="bank_account">
+            <el-input v-model="localFormData.bank_account" :placeholder="t('supplier.dialog.placeholder.bankAccount')" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-divider content-position="left">业务信息</el-divider>
+      <el-divider content-position="left">{{ t('supplier.dialog.section.business') }}</el-divider>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="等级" prop="grade">
-            <el-select v-model="localFormData.grade" placeholder="请选择等级" style="width: 100%">
-              <el-option label="A级" value="A" />
-              <el-option label="B级" value="B" />
-              <el-option label="C级" value="C" />
-              <el-option label="D级" value="D" />
+          <el-form-item :label="t('supplier.dialog.label.grade')" prop="grade">
+            <el-select v-model="localFormData.grade" :placeholder="t('supplier.dialog.placeholder.grade')" style="width: 100%">
+              <el-option :label="t('supplier.dialog.option.gradeA')" value="A" />
+              <el-option :label="t('supplier.dialog.option.gradeB')" value="B" />
+              <el-option :label="t('supplier.dialog.option.gradeC')" value="C" />
+              <el-option :label="t('supplier.dialog.option.gradeD')" value="D" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="状态" prop="status">
+          <el-form-item :label="t('supplier.dialog.label.status')" prop="status">
             <el-radio-group v-model="localFormData.status">
-              <el-radio value="active">启用</el-radio>
-              <el-radio value="inactive">停用</el-radio>
+              <el-radio value="active">{{ t('supplier.dialog.option.statusActive') }}</el-radio>
+              <el-radio value="inactive">{{ t('supplier.dialog.option.statusInactive') }}</el-radio>
             </el-radio-group>
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="主营业务" prop="main_business">
-        <el-input v-model="localFormData.main_business" placeholder="请输入主营业务" />
+      <el-form-item :label="t('supplier.dialog.label.mainBusiness')" prop="main_business">
+        <el-input v-model="localFormData.main_business" :placeholder="t('supplier.dialog.placeholder.mainBusiness')" />
       </el-form-item>
-      <el-form-item label="备注" prop="remarks">
-        <el-input v-model="localFormData.remarks" type="textarea" :rows="3" placeholder="请输入备注" />
+      <el-form-item :label="t('supplier.dialog.label.remarks')" prop="remarks">
+        <el-input v-model="localFormData.remarks" type="textarea" :rows="3" :placeholder="t('supplier.dialog.placeholder.remarks')" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="onCancel">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" :disabled="readonly" @click="onSubmit">保存</el-button>
+      <el-button @click="onCancel">{{ t('supplier.dialog.button.cancel') }}</el-button>
+      <el-button type="primary" :loading="submitLoading" :disabled="readonly" @click="onSubmit">{{ t('supplier.dialog.button.save') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 表单数据结构（与 supplier/index.vue 中 formData 完全一致）
 interface SupplierFormData {
@@ -250,14 +253,14 @@ const formRef = ref<FormInstance>()
 const readonly = computed(() => props.mode === 'view')
 
 // 表单校验规则
-const formRules: FormRules = {
-  supplier_code: [{ required: true, message: '请输入供应商编码', trigger: 'blur' }],
-  supplier_name: [{ required: true, message: '请输入供应商名称', trigger: 'blur' }],
+const formRules = computed<FormRules>(() => ({
+  supplier_code: [{ required: true, message: t('supplier.dialog.validation.supplierCodeRequired'), trigger: 'blur' }],
+  supplier_name: [{ required: true, message: t('supplier.dialog.validation.supplierNameRequired'), trigger: 'blur' }],
   contact_phone: [
-    { required: true, message: '请输入联系电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' },
+    { required: true, message: t('supplier.dialog.validation.contactPhoneRequired'), trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: t('supplier.dialog.validation.phoneFormat'), trigger: 'blur' },
   ],
-}
+}))
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 const localFormData = ref<SupplierFormData>({ ...props.formData })

@@ -9,8 +9,8 @@
     <el-card v-if="quotation">
       <template #header>
         <div class="card-header">
-          <span class="title">报价单审批 - {{ quotation.quotation_no }}</span>
-          <el-button @click="$router.back()">返回</el-button>
+          <span class="title">{{ t('quotations.approval.title') }} - {{ quotation.quotation_no }}</span>
+          <el-button @click="$router.back()">{{ t('quotations.approval.back') }}</el-button>
         </div>
       </template>
 
@@ -24,60 +24,60 @@
       />
 
       <el-descriptions :column="2" border style="margin-top: 24px">
-        <el-descriptions-item label="客户">
+        <el-descriptions-item :label="t('quotations.approval.labelCustomer')">
           {{ quotation.customer_name || quotation.customer_id }}
         </el-descriptions-item>
-        <el-descriptions-item label="金额">
+        <el-descriptions-item :label="t('quotations.approval.labelAmount')">
           {{ quotation.currency }} {{ formatAmount(quotation.total_amount) }}
         </el-descriptions-item>
-        <el-descriptions-item label="价格条款">{{ quotation.price_terms }}</el-descriptions-item>
-        <el-descriptions-item label="币种">
-          {{ quotation.currency }}（汇率 {{ quotation.exchange_rate }}）
+        <el-descriptions-item :label="t('quotations.approval.labelPriceTerms')">{{ quotation.price_terms }}</el-descriptions-item>
+        <el-descriptions-item :label="t('quotations.approval.labelCurrency')">
+          {{ quotation.currency }} ({{ t('quotations.approval.exchangeRateLabel') }} {{ quotation.exchange_rate }})
         </el-descriptions-item>
-        <el-descriptions-item label="报价日期" :span="2">
+        <el-descriptions-item :label="t('quotations.approval.labelQuotationDate')" :span="2">
           {{ quotation.quotation_date }}
         </el-descriptions-item>
-        <el-descriptions-item label="有效期至" :span="2">
+        <el-descriptions-item :label="t('quotations.approval.labelValidUntil')" :span="2">
           {{ quotation.valid_until }}
         </el-descriptions-item>
-        <el-descriptions-item label="审批人" :span="2">
+        <el-descriptions-item :label="t('quotations.approval.labelApprover')" :span="2">
           {{ quotation.approved_by_name || quotation.approved_by || '-' }}
           <span v-if="quotation.approved_at" class="meta-text">
-            （{{ quotation.approved_at }}）
+            ({{ quotation.approved_at }})
           </span>
         </el-descriptions-item>
-        <el-descriptions-item v-if="quotation.rejection_reason" label="拒绝原因" :span="2">
+        <el-descriptions-item v-if="quotation.rejection_reason" :label="t('quotations.approval.labelRejectionReason')" :span="2">
           <span class="rejection-reason">{{ quotation.rejection_reason }}</span>
         </el-descriptions-item>
         <el-descriptions-item
           v-if="quotation.converted_sales_order_id"
-          label="已转销售订单"
+          :label="t('quotations.approval.labelConvertedOrder')"
           :span="2"
         >
-          订单 ID：{{ quotation.converted_sales_order_id }}
+          {{ t('quotations.approval.orderIdPrefix') }}{{ quotation.converted_sales_order_id }}
           <span v-if="quotation.converted_at" class="meta-text">
-            （{{ quotation.converted_at }}）
+            ({{ quotation.converted_at }})
           </span>
         </el-descriptions-item>
       </el-descriptions>
 
       <div class="actions">
         <el-button v-if="canSubmit" type="primary" :loading="submitting" @click="handleSubmit">
-          提交审批
+          {{ t('quotations.approval.submitApproval') }}
         </el-button>
         <el-button v-if="canApprove" type="success" :loading="submitting" @click="handleApprove">
-          批准
+          {{ t('quotations.approval.approve') }}
         </el-button>
         <el-button v-if="canApprove" type="danger" :loading="submitting" @click="handleReject">
-          拒绝
+          {{ t('quotations.approval.reject') }}
         </el-button>
         <el-button v-if="canConvert" type="success" :loading="submitting" @click="handleConvert">
-          转销售订单
+          {{ t('quotations.approval.convertOrder') }}
         </el-button>
       </div>
     </el-card>
 
-    <el-empty v-else-if="!loading" description="报价单不存在" />
+    <el-empty v-else-if="!loading" :description="t('quotations.approval.notExist')" />
   </div>
 </template>
 
@@ -85,6 +85,7 @@
 // 报价单审批页脚本
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getQuotation,
@@ -95,6 +96,8 @@ import {
   type QuotationResponseDto,
 } from '@/api/quotation'
 import ApprovalProgress from './components/ApprovalProgress.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const route = useRoute()
 const router = useRouter()
@@ -112,7 +115,7 @@ async function loadData() {
     quotation.value = res.data as QuotationResponseDto
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '加载报价单失败')
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.approval.loadFailed'))
     quotation.value = null
   } finally {
     loading.value = false
@@ -130,7 +133,7 @@ async function handleSubmit() {
   submitting.value = true
   try {
     await submitQuotation(quotation.value.id)
-    ElMessage.success('已提交审批')
+    ElMessage.success(t('quotations.approval.submitSuccess'))
     loadData()
   } finally {
     submitting.value = false
@@ -140,14 +143,14 @@ async function handleSubmit() {
 async function handleApprove() {
   if (!quotation.value) return
   try {
-    await ElMessageBox.confirm('确认批准此报价单？', '批准确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('quotations.approval.approveConfirmText'), t('quotations.approval.approveConfirmTitle'), { type: 'warning' })
   } catch {
     return
   }
   submitting.value = true
   try {
     await approveQuotation(quotation.value.id)
-    ElMessage.success('已批准')
+    ElMessage.success(t('quotations.approval.approveSuccess'))
     loadData()
   } finally {
     submitting.value = false
@@ -158,8 +161,8 @@ async function handleReject() {
   if (!quotation.value) return
   let reason = ''
   try {
-    const { value } = await ElMessageBox.prompt('请输入拒绝原因', '拒绝', {
-      inputValidator: (v: string) => (v && v.trim() ? true : '拒绝原因不能为空'),
+    const { value } = await ElMessageBox.prompt(t('quotations.approval.rejectPromptText'), t('quotations.approval.rejectTitle'), {
+      inputValidator: (v: string) => (v && v.trim() ? true : t('quotations.approval.rejectReasonRequired')),
     })
     reason = value
   } catch {
@@ -168,7 +171,7 @@ async function handleReject() {
   submitting.value = true
   try {
     await rejectQuotation(quotation.value.id, reason)
-    ElMessage.success('已拒绝')
+    ElMessage.success(t('quotations.approval.rejectSuccess'))
     loadData()
   } finally {
     submitting.value = false
@@ -178,7 +181,7 @@ async function handleReject() {
 async function handleConvert() {
   if (!quotation.value) return
   try {
-    await ElMessageBox.confirm('确认转销售订单？', '转订单', { type: 'warning' })
+    await ElMessageBox.confirm(t('quotations.approval.convertConfirmText'), t('quotations.approval.convertTitle'), { type: 'warning' })
   } catch {
     return
   }
@@ -187,7 +190,7 @@ async function handleConvert() {
     const res = await convertQuotation(quotation.value.id)
     // convertQuotation 返回 ApiResponse<ConvertResponse>，res.data 即 ConvertResponse
     const order = res.data
-    ElMessage.success(`转订单成功，销售订单 ID：${order?.id}`)
+    ElMessage.success(t('quotations.approval.convertSuccess', { id: order?.id }))
     if (order?.id) {
       router.push(`/sales/orders/${order.id}`)
     } else {

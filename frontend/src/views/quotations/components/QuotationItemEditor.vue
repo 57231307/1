@@ -9,18 +9,18 @@
   <div class="item-editor">
     <el-button type="primary" plain @click="handleAdd">
       <el-icon><Plus /></el-icon>
-      添加产品
+      {{ t('quotations.itemEditor.addProduct') }}
     </el-button>
 
-    <el-table :data="modelValue" border style="margin-top: 10px" empty-text="暂无明细，请点击添加" aria-label="报价明细编辑表">
+    <el-table :data="modelValue" border style="margin-top: 10px" :empty-text="t('quotations.itemEditor.emptyText')" :aria-label="t('quotations.itemEditor.tableAriaLabel')">
       <el-table-column type="index" label="#" width="50" align="center" />
 
-      <el-table-column label="产品" min-width="180">
+      <el-table-column :label="t('quotations.itemEditor.colProduct')" min-width="180">
         <template #default="{ row }">
           <el-select
             v-model="row.product_id"
             filterable
-            placeholder="选择产品"
+            :placeholder="t('quotations.itemEditor.selectProduct')"
             style="width: 100%"
             @change="(v: number | undefined) => handleProductChange(row, v)"
           >
@@ -34,12 +34,12 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="色号" min-width="120">
+      <el-table-column :label="t('quotations.itemEditor.colColor')" min-width="120">
         <template #default="{ row }">
           <el-select
             v-model="row.color_id"
             clearable
-            placeholder="无色号"
+            :placeholder="t('quotations.itemEditor.noColor')"
             style="width: 100%"
             :disabled="!row.product_id"
           >
@@ -53,30 +53,30 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="规格" min-width="140">
+      <el-table-column :label="t('quotations.itemEditor.colSpec')" min-width="140">
         <template #default="{ row }">
-          <el-input v-model="row.specification" placeholder="规格（选填）" />
+          <el-input v-model="row.specification" :placeholder="t('quotations.itemEditor.specPlaceholder')" />
         </template>
       </el-table-column>
 
-      <el-table-column label="单位" min-width="90">
+      <el-table-column :label="t('quotations.itemEditor.colUnit')" min-width="90">
         <template #default="{ row }">
           <el-select v-model="row.unit" style="width: 100%">
-            <el-option label="米" value="米" />
-            <el-option label="卷" value="卷" />
-            <el-option label="kg" value="kg" />
-            <el-option label="件" value="件" />
+            <el-option :label="t('quotations.itemEditor.unitMeter')" value="米" />
+            <el-option :label="t('quotations.itemEditor.unitRoll')" value="卷" />
+            <el-option :label="t('quotations.itemEditor.unitKg')" value="kg" />
+            <el-option :label="t('quotations.itemEditor.unitPiece')" value="件" />
           </el-select>
         </template>
       </el-table-column>
 
-      <el-table-column label="数量" min-width="120">
+      <el-table-column :label="t('quotations.itemEditor.colQuantity')" min-width="120">
         <template #default="{ row }">
           <el-input-number v-model="row.quantity" :min="0" :precision="2" style="width: 100%" />
         </template>
       </el-table-column>
 
-      <el-table-column label="单价" min-width="130">
+      <el-table-column :label="t('quotations.itemEditor.colUnitPrice')" min-width="130">
         <template #default="{ row }">
           <el-input-number
             v-model="row.unit_price"
@@ -88,7 +88,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="含税单价" min-width="130">
+      <el-table-column :label="t('quotations.itemEditor.colUnitPriceWithTax')" min-width="130">
         <template #default="{ row }">
           <el-input-number
             v-model="row.unit_price_with_tax"
@@ -99,13 +99,13 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="金额" min-width="130" align="right">
+      <el-table-column :label="t('quotations.itemEditor.colAmount')" min-width="130" align="right">
         <template #default="{ row }"> {{ currency }} {{ formatAmount(row.amount) }} </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="80" fixed="right" align="center">
+      <el-table-column :label="t('quotations.itemEditor.colAction')" width="80" fixed="right" align="center">
         <template #default="{ $index }">
-          <el-button link type="danger" @click="handleRemove($index)">删除</el-button>
+          <el-button link type="danger" @click="handleRemove($index)">{{ t('quotations.itemEditor.delete') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -118,6 +118,7 @@
 // - 加载产品/色号
 // - 含税单价 = 单价 × 1.13
 import { ref, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus } from '@element-plus/icons-vue'
 import { getProductColorList, getProductList } from '@/api/product'
 import type { ProductColor } from '@/api/product'
@@ -129,6 +130,8 @@ interface QuotationItemRow extends Omit<CreateQuotationItemDto, 'product_id'> {
   _colors?: Array<{ id: number; color_code?: string; color_name?: string }>
   amount?: number
 }
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   modelValue: QuotationItemRow[]
