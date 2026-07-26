@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-26（D05 Batch 6 Group A useI18n 接入完成：api-gateway 7 + bpm-approval 7 = 14 文件 + 177 翻译键（apiGateway 112 + bpm.approval 65）；输出 /tmp/i18n-batch6/groupA.json；BpmApprovalPendingTable.vue 拆分 renderActionCell helper 函数（23 行）确保 columns computed ≤50 行；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制；Batch 6 剩余 Group B 35 文件（fabric/finance/inventory/logistics/system-update）；上一批次 D05 Batch 5 已合并 main PR #745 7f22f29：39 文件 + 688 翻译键；D05 接入率 43.8%（156/355 文件），剩余 199 文件未接入；模块 G 16/17 项 P0 任务完成；剩余 1 项：D05 i18n 接入率 43.8%/199 文件未接入）
+> 最近整理：2026-07-26（D05 Batch 6 useI18n 接入完成：4 并行代理接入业务核心模块 38 个 .vue 文件 = api-gateway 7 + bpm/approval 5 + fabric 7 + finance 7 + system-update 7 + bpm/definitions 3 + 580 翻译键（apiGateway 112 + bpm.approval 65 + fabric 100 + finance 149 + systemUpdate 94 + bpm.definitions 60）；通过 merge-i18n-batch6.cjs 深度合并翻译键到 locales/zh-CN.ts + en-US.ts 双语同步；通过 dedup-all-namespaces.py 删除 2 个重复的 bpm 命名空间块 + merge-finance-into-namespace.cjs 合并 Group C finance 翻译键；audit-i18n-batch6.cjs 验证 699 个 t()/$t() 调用引用 605 个不同键无缺失；修复 BpmApprovalTransferDialog.vue $t()→t() 转换修复 't' is declared but never read 错误；所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制；上一批次 D05 Batch 5 已合并 main PR #745 7f22f29；D05 接入率 43.8%→54.6%（156→194/355 文件），剩余 161 文件未接入；下一批次 Batch 7 销售/财务/凭证 43 文件；模块 G 16/17 项 P0 任务完成；剩余 1 项 D05 i18n 接入率 54.6%/161 文件未接入）
 
 ---
 
@@ -16,7 +16,7 @@
 |------|------|----------|
 | ✅ 已完成 | 16 | D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17 |
 | 🔵 代码完成待 CI | 0 | — |
-| ⏳ 进行中 | 1 | **D05**（i18n 接入率 43.8%，199 文件未接入；Batch 5 已合并 main PR #745，下一批次 Batch 6 业务核心模块 49 文件） |
+| ⏳ 进行中 | 1 | **D05**（i18n 接入率 54.6%，161 文件未接入；Batch 6 已合并 main PR #747，下一批次 Batch 7 销售/财务/凭证 43 文件） |
 | ❌ 未开始 | 0 | — |
 
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并到 main）：Batch 1 拆分 services/ 目录 39 个 >80 行函数（33 文件）；全 backend/src 扫描确认仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行。
@@ -390,11 +390,11 @@
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并 + 全 backend/src 扫描确认 0 个 >80 行非测试函数），P0 完成数 101→102。
 > ⚠️ 2026-07-25 三次核实后，模块 G 5 项 P0 任务重新打开（D05/D08/D09/D13/D14）；2026-07-25 P0-D09 完成拆分 9 个 >100 行函数，P0 完成数 99→100；2026-07-25 P0-D13 四次核实确认 18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名无需重命名，P0 完成数 100→101。
 
-### 1.2 状态：⏳ D05 useI18n 接入继续推进（剩余 199 文件未接入，分 4 子批次执行）
+### 1.2 状态：⏳ D05 useI18n 接入继续推进（剩余 161 文件未接入，分 3 子批次执行）
 
-- **当前批次**：Batch 496 ⏳ 进行中 —— D05 Batch 6: 业务核心模块 49 文件 i18n 接入（§0.8.7：API网关/BPM/面料/财务/库存/物流/系统更新 7 大模块）；**Group A 已完成**（api-gateway 7 + bpm-approval 7 = 14 文件 + 177 翻译键，输出 /tmp/i18n-batch6/groupA.json）；剩余 Group B 35 文件（fabric/finance/inventory/logistics/system-update 各 7 文件）
-- **上一批次**：Batch 495 ✅ 已合并 main（PR #745 7f22f29）—— D05 Batch 5: 采购全链路 + 物流 7 模块 39 文件 i18n 接入（原计划 40 文件，实际 39 个：purchase-contract 5 + purchase-ext 4 + purchase-inspection 6 + purchase-price 6 + purchase-return 6 + purchaseReceipt 5 + logistics 7）+ 688 翻译键；CI 全绿，修复 purchaseReceipt/index.vue 容器组件未使用 useI18n 导入
-- **下一批次**：Batch 497 待启动 —— D05 Batch 7: 销售/财务/凭证 43 文件 i18n 接入（§0.8.8）
+- **当前批次**：Batch 497 ⏳ 待启动 —— D05 Batch 7: 销售/财务/凭证 43 文件 i18n 接入（§0.8.8：销售分析/销售合同/销售扩展/销售价格/销售退货/贸易/凭证/资金/财务报表/财务分析 10 大模块）
+- **上一批次**：Batch 496 ✅ 已合并 main（PR #747 85facab）—— D05 Batch 6: 业务核心模块 38 文件 i18n 接入（原计划 49 文件，实际 38 个：api-gateway 7 + bpm/approval 5 + fabric 7 + finance 7 + system-update 7 + bpm/definitions 3；inventory 7 + logistics 7 已在 Batch 5 合并，bpm/definitions 4 + bpm/approval 2 容器豁免或重复）+ 580 翻译键（apiGateway 112 + bpm.approval 65 + fabric 100 + finance 149 + systemUpdate 94 + bpm.definitions 60）；CI 全绿，修复 BpmApprovalTransferDialog.vue $t()→t() 转换 + locales 重复命名空间
+- **下一批次**：Batch 498 待启动 —— D05 Batch 8: 生产/库存/质量 37 文件 i18n 接入（§0.8.9）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证；**扫描脚本必须使用括号深度追踪算法**（三次核实教训）；**每批次 35-65 文件，禁止少于 35 除非最后一批**（用户指令）
 
 ### 1.3 关键决策记录
@@ -473,8 +473,8 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - Batch 3 (D05-1) CRM/客户/供应商/销售/报价：✅ 已合并 main PR #741 ac16a5c（17 文件 + 558 翻译键）
   - Batch 4 (D05-2) 调度/安全/系统：✅ 已合并 main PR #743 3e55cfd（34 文件 + 501 翻译键）
   - Batch 5 (D05-3) 采购全链路 + 物流：✅ 已合并 main PR #745 7f22f29（39 文件 + 688 翻译键）
-  - 累计接入：156/355 文件（43.8%），剩余 199 文件未接入（4 子批次 Batch 6/7/8/9）
-  - Batch 6 (D05-4) 业务核心模块 49 文件 ⏳ 进行中 —— Group A 完成（api-gateway 7 + bpm-approval 7 = 14 文件 + 177 翻译键）；剩余 Group B 35 文件（fabric/finance/inventory/logistics/system-update 各 7 文件）
+  - Batch 6 (D05-4) 业务核心模块：✅ 已合并 main PR #747 85facab（38 文件 + 580 翻译键；api-gateway 7 + bpm/approval 5 + fabric 7 + finance 7 + system-update 7 + bpm/definitions 3；inventory 7 + logistics 7 已在 Batch 5 合并，bpm/definitions 4 + bpm/approval 2 容器豁免或重复）
+  - 累计接入：194/355 文件（54.6%），剩余 161 文件未接入（3 子批次 Batch 7/8/9）
   - Batch 7 (D05-5) 销售/财务/凭证 43 文件 ⏳ 待启动
   - Batch 8 (D05-6) 生产/库存/质量 37 文件 ⏳ 待启动
   - Batch 9 (D05-7) 通用组件/其他 57 文件 ⏳ 待启动

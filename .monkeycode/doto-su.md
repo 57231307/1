@@ -15,7 +15,7 @@
 - **完成度**：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌
 - **已完成 16 项**：D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17
 - **进行中 1 项**：
-  - **D05**（i18n 接入率 43.8%，199 文件未接入，10 批次规划见 doto.md §0.8；Batch 5 已合并 main PR #745；Batch 6 Group A 已完成 api-gateway 7 + bpm-approval 7 = 14 文件 + 177 翻译键，剩余 Group B 35 文件 fabric/finance/inventory/logistics/system-update）
+  - **D05**（i18n 接入率 54.6%，161 文件未接入，10 批次规划见 doto.md §0.8；Batch 6 已合并 main PR #747 38 文件 + 580 翻译键；下一批次 Batch 7 销售/财务/凭证 43 文件）
 
 ### 关键技术决策（最近）
 
@@ -26,16 +26,19 @@
 - **merge-i18n 深度合并算法**（[scripts/merge-i18n-batch5.cjs](file:///workspace/scripts/merge-i18n-batch5.cjs)）：递归遍历对象，遇到 `{zh-CN, en-US}` 叶子节点直接覆盖，遇到对象递归合并；**坑**：合并时新命名空间前一个属性末尾需补逗号，否则触发 TS1005（batch3 踩坑后 batch4 修复：插入前检查 `}` 末尾补 `,`）
 - **Vue 测试 i18n 插件安装模式**（[slow-query.test.ts](file:///workspace/frontend/tests/unit/slow-query.test.ts)）：view 接入 useI18n 后测试需 `createI18n({ legacy:false, locale:'zh-CN', messages:{...} })` + `mount(Component, { global: { plugins: [i18n] } })`，messages 用最小占位即可（key 缺失时 $t 返回 key 本身）
 - **容器组件豁免**（[purchaseReceipt/index.vue](file:///workspace/frontend/src/views/purchaseReceipt/index.vue)）：纯容器组件（仅引用子组件 + composables，无硬编码中文）无需接入 useI18n，若误导入会触发 TS6133 't' is declared but its value is never read 错误，需移除 useI18n 导入和 t 解构
+- **locales 顶层命名空间去重**（[scripts/dedup-all-namespaces.py](file:///workspace/scripts/dedup-all-namespaces.py)）：merge-i18n 脚本采用末尾追加策略，多次合并同一命名空间会产生重复顶层块导致 TS1117 重复属性错误；Python 脚本基于正则识别 `^  ([a-zA-Z_][a-zA-Z0-9_]*):\s*\{\s*$` 模式的顶层命名空间起始行，配合括号深度追踪定位结束行，保留第一个删除后续重复块
+- **finance 翻译键合并到已有命名空间**（[scripts/merge-finance-into-namespace.cjs](file:///workspace/scripts/merge-finance-into-namespace.cjs)）：Group C 代理生成的 finance 翻译键以独立顶层块追加，导致与第一个 finance 命名空间重复；脚本读取 Group C finance JSON，深度合并到 locales 文件中第一个 finance 命名空间内，避免重复
+- **$t() → t() 转换模式**（[BpmApprovalTransferDialog.vue](file:///workspace/frontend/src/views/bpm/approval/components/BpmApprovalTransferDialog.vue)）：script 已 `const { t } = useI18n(...)` 解构，但模板仍用 `$t()` 调用导致 't' is declared but never read 错误；修复方式：模板 `:aria-label="$t('key')"` → `:aria-label="t('key')"`，确保 t 变量被使用
 
 ### 最近重要 PR
 
 | PR | 状态 | 内容 |
 |-----|------|------|
+| #747 | ✅ 已合并 main 85facab | D05 Batch 6 useI18n 接入（38 文件 + 580 翻译键 + 5 新命名空间 apiGateway/fabric/finance/systemUpdate + bpm.definitions 子命名空间扩展；CI 全绿，修复 BpmApprovalTransferDialog.vue $t()→t() 转换 + locales 重复命名空间） |
+| #746 | ✅ 已合并 main bb49a57 | docs(p0): D05 Batch 5 已合并 main PR #745 状态归档 |
 | #745 | ✅ 已合并 main 7f22f29 | D05 Batch 5 useI18n 接入（39 文件 + 688 翻译键 + 7 新命名空间 purchaseContract/purchaseExt/purchaseInspection/purchasePrice/purchaseReturn/purchaseReceipt/logistics；CI 全绿，修复 purchaseReceipt/index.vue 容器组件未使用 useI18n 导入） |
 | #743 | ✅ 已合并 main 3e55cfd | D05 Batch 4 useI18n 接入（34 文件 + 501 翻译键 + 3 新命名空间 scheduling/security/system；CI 全绿，修复 slow-query.test.ts 未安装 i18n 插件） |
 | #741 | ✅ 已合并 main ac16a5c | D05 Batch 3 useI18n 接入（17 文件 + 558 翻译键 + 5 新命名空间；CI 全绿，修复 locales 文件 customer 节缺少逗号 TS1005） |
-| #740 | ✅ 已合并 main 88af0f1 | D08 Batch 1 拆分 39 个 >80 行函数（33 文件），主函数 ≤50 行 + helper ≤50 行 |
-| #739 | ✅ 已合并 main 6ca04a2 | docs(p0): 更新 D09+D14 完成状态 + IR 规则合规修复（实时阅读 docs + MEMORY.md §五规则冲突裁决） |
 
 ### 项目架构关键信息（来自 [docs/ARCHITECTURE.md](file:///workspace/.monkeycode/docs/ARCHITECTURE.md)）
 
@@ -47,75 +50,92 @@
 
 ---
 
-## 📦 V15 Batch 496 归档：D05 Batch 6 Group A useI18n 接入（api-gateway 7 + bpm-approval 7 = 14 文件）
+## 📦 V15 Batch 496 归档：D05 Batch 6 useI18n 接入（业务核心模块 6 模块 36 .vue 文件）
 
 ### 任务概述
 
-- **批次**：496（进行中，Group A 已完成）
-- **PR**：待提交（Group A 14 文件 + 177 翻译键，输出 /tmp/i18n-batch6/groupA.json）
-- **审计项**：P0-D05 Batch 6 Group A（D05-4 新批次规划），api-gateway + bpm-approval 2 模块 14 个 .vue 文件 i18n 接入
+- **批次**：496（已完成）
+- **PR**：#747（已合并 main 85facab，commit 包含 2 个：feat 接入 + fix locales 重复命名空间 + $t() 未转换）
+- **CI 验证**：CI/CD Pipeline - 严格构建验证 + 全面日志（全绿，仅覆盖率+依赖审计非阻塞失败）
+- **审计项**：P0-D05 Batch 6（D05-4 新批次规划），业务核心模块 6 模块 36 个 .vue 文件 i18n 接入（原计划 49 文件，实际未接入 36 个：inventory 7 + logistics 7 已在 Batch 5 合并；bpm/approval 2 + bpm/definitions 2 容器豁免或无硬编码）
 - **完成时间**：2026-07-26
-- **Batch 6 进度**：Group A 完成 14/49 文件，剩余 Group B 35 文件（fabric/finance/inventory/logistics/system-update 各 7 文件）
+- **接入率提升**：D05 接入率 43.8%→54.6%（156→194/355 文件），剩余 161 文件未接入
 
 ### 修改内容
 
-#### 1. 接入文件清单（14 文件，2 模块）
+#### 1. 接入文件清单（36 .vue 文件，6 模块，4 并行代理）
 
-- **api-gateway 模块**（7 文件，112 翻译键）：
-  - index.vue（4 键：apiGateway.index.{title,tabEndpoints,tabKeys,tabLogs}）
-  - components/ApiEndpointForm.vue（23 键：apiGateway.endpointForm.{createTitle,editTitle,path,method,description,module,rateLimit,timeout,authentication,authorization,requestSchema,responseSchema,cancel,confirm,*Placeholder,*AriaLabel}）
-  - components/KeyForm.vue（16 键：apiGateway.keyForm.{createTitle,editTitle,keyName,description,permissions,rateLimit,expiresAt,cancel,confirm,*Placeholder,*AriaLabel}）
-  - components/LogDetail.vue（13 键：apiGateway.logDetail.{title,endpointPath,method,statusCode,responseTime,ipAddress,user,requestTime,requestBody,responseBody,empty,close,ariaLabel}）
-  - tabs/ApiEndpointTab.vue（19 键：apiGateway.endpointTab.{searchPlaceholder,search,create,tableAriaLabel,columnPath,columnMethod,columnDescription,columnVersion,columnRateLimit,columnStatus,columnOperation,edit,delete,*statusPlaceholder,*statusActive,*statusInactive,*statusDeprecated,paginationAriaLabel}）
-  - tabs/ApiKeyTab.vue（19 键：apiGateway.keyTab.{searchPlaceholder,search,create,tableAriaLabel,columnKeyName,columnAppId,columnKey,columnExpiresAt,columnStatus,columnLastUsed,columnOperation,view,disable,enable,delete,*statusPlaceholder,*statusActive,*statusInactive,paginationAriaLabel}）
-  - tabs/ApiLogTab.vue（18 键：apiGateway.logTab.{searchPlaceholder,search,tableAriaLabel,columnTime,columnEndpoint,columnMethod,columnStatusCode,columnDuration,columnClientIp,columnApiKeyName,columnOperation,detail,*Placeholder}）
+- **api-gateway 模块**（7 文件，112 翻译键，Group A）：
+  - index.vue + components/{ApiEndpointForm, KeyForm, LogDetail}.vue + tabs/{ApiEndpointTab, ApiKeyTab, ApiLogTab}.vue
+  - 命名空间：apiGateway.{index, logDetail, keyForm, endpointForm, logTab, keyTab, endpointTab}.*
 
-- **bpm-approval 模块**（7 文件，65 翻译键）：
-  - approval/index.vue（6 键：bpm.{breadcrumb.home,breadcrumb.approval,breadcrumb.center,approval.{title,tab.pending,tab.completed}}）
-  - approval/components/BpmApprovalChainDialog.vue（11 键：bpm.approval.chainDialog.{title,ariaLabel,approver,comment,durationText,empty} + bpm.nodeType.{start,end,approval,condition,notify}）
-  - approval/components/BpmApprovalApprovalDialog.vue（9 键：bpm.approval.approvalDialog.{approveTitle,rejectTitle,taskName,comment,commentPlaceholder,cancel,confirm,ariaLabel,formAriaLabel}）
-  - approval/components/BpmApprovalPendingTable.vue（15 键：bpm.approval.pendingTable.{taskName,processName,applicant,businessKey,applyTime,dueDate,priority,operation,approve,reject,transfer,viewChain} + bpm.priority.{high,medium,low}）
-  - approval/components/BpmApprovalCompletedTable.vue（11 键：bpm.approval.completedTable.{taskName,processName,applicant,businessKey,approvedAt,result,comment,operation,viewChain,approved,rejected}）
-  - approval/components/BpmApprovalStat.vue（4 键：bpm.approval.stat.{pending,completed,urgent,avgTime}）
-  - approval/components/BpmApprovalTransferDialog.vue（9 键：bpm.approval.transferDialog.{title,taskName,targetUserId,comment,commentPlaceholder,cancel,confirm,ariaLabel,formAriaLabel}）
+- **bpm/approval 模块**（5 文件，65 翻译键，Group A）：
+  - approval/index.vue + components/{BpmApprovalApprovalDialog, BpmApprovalPendingTable, BpmApprovalStat, BpmApprovalTransferDialog}.vue
+  - 命名空间：bpm.{breadcrumb, approval.{tab, chainDialog, approvalDialog, pendingTable, completedTable, stat, transferDialog}, nodeType, priority}.*
+  - 豁免 2 文件：BpmApprovalChainDialog.vue + BpmApprovalCompletedTable.vue（无硬编码中文或已在历史批次接入）
 
-#### 2. 翻译键统计（177 翻译键）
+- **fabric 模块**（7 文件，100 翻译键，Group B）：
+  - index.vue + tabs/{DyeFormDialogTab, DyeTab, GreigeFormDialogTab, GreigeTab, RecipeFormDialogTab, RecipeTab}.vue
+  - 命名空间：fabric.{index, dyeTab, dyeFormDialog, greigeTab, greigeFormDialog, recipeTab, recipeFormDialog}.*
 
-| 模块 | 文件数 | 翻译键数 | 命名空间 |
-|------|--------|---------|----------|
-| api-gateway | 7 | 112 | apiGateway.{index,logDetail,keyForm,endpointForm,logTab,keyTab,endpointTab}.* |
-| bpm-approval | 7 | 65 | bpm.{breadcrumb,approval.{tab,chainDialog,approvalDialog,pendingTable,completedTable,stat,transferDialog},nodeType,priority}.* |
-| **合计** | **14** | **177** | — |
+- **finance 模块**（7 文件，149 翻译键，Group C）：
+  - index.vue + tabs/{SubjectTab, VoucherTab}.vue + tabs/components/{VoucherDetail, VoucherFilter, VoucherForm, VoucherTable}.vue
+  - 命名空间：finance.{index, subjectTab, voucherTab, voucherDetail, voucherFilter, voucherForm, voucherTable}.*
 
-#### 3. 翻译键输出文件
+- **system-update 模块**（7 文件，94 翻译键，Group D）：
+  - index.vue + components/{SystemUpdateBackupForm, SystemUpdateInfoCards, SystemUpdateVersionDetail}.vue + tabs/{SystemUpdateBackupTab, SystemUpdateTaskTab, SystemUpdateVersionTab}.vue
+  - 命名空间：systemUpdate.{index, backupForm, infoCards, versionDetail, backupTab, taskTab, versionTab}.*
 
-- [/tmp/i18n-batch6/groupA.json](file:///tmp/i18n-batch6/groupA.json)：JSON 格式，包含 batch/totalFiles/totalKeys/modules/files/keys 结构，Python json 模块验证通过
+- **bpm/definitions 模块**（3 文件，60 翻译键，Group E）：
+  - definitions/components/{BpmDefinitionFilter, BpmDefinitionForm, BpmDefinitionTemplateDialog}.vue
+  - 命名空间：bpm.definitions.{filter, form, templateDialog, table, versionDialog}.* 子命名空间扩展
+  - 豁免 2 文件：BpmDefinitionTable.vue + BpmDefinitionVersionDialog.vue（无硬编码中文或已在历史批次接入）
+  - 本组重点：补充 $t() → t() 重构，确保所有 script 已解构 t 的文件模板也用 t() 调用
+
+#### 2. 翻译键统计（580 翻译键，5 新命名空间 + 1 子命名空间扩展）
+
+| 模块 | 文件数 | 翻译键数 | 命名空间 | 代理组 |
+|------|--------|---------|----------|--------|
+| api-gateway | 7 | 112 | apiGateway.* (新) | Group A |
+| bpm/approval | 5 | 65 | bpm.approval.* + bpm.{breadcrumb,nodeType,priority}.* (扩展) | Group A |
+| fabric | 7 | 100 | fabric.* (新) | Group B |
+| finance | 7 | 149 | finance.* (新) | Group C |
+| system-update | 7 | 94 | systemUpdate.* (新) | Group D |
+| bpm/definitions | 3 | 60 | bpm.definitions.* (子命名空间扩展) | Group E |
+| **合计** | **36** | **580** | — | 5 组 |
+
+#### 3. 工具脚本
+
+- **merge-i18n-batch6.cjs**（[scripts/merge-i18n-batch6.cjs](file:///workspace/scripts/merge-i18n-batch6.cjs)）：深度合并 5 个并行代理生成的 group{A,B,C,D,E}.json 到 locales/zh-CN.ts + en-US.ts 双语同步；复用 batch5 逗号修复逻辑（在 `}` 末尾补 `,` 避免 TS1005）
+- **dedup-all-namespaces.py**（[scripts/dedup-all-namespaces.py](file:///workspace/scripts/dedup-all-namespaces.py)）：删除 locales 文件中所有重复的顶层命名空间块（保留第一个）；本批次删除 2 个重复的 bpm 命名空间块（merge 脚本末尾追加导致）
+- **merge-finance-into-namespace.cjs**（[scripts/merge-finance-into-namespace.cjs](file:///workspace/scripts/merge-finance-into-namespace.cjs)）：将 Group C finance 翻译键合并到 locales 文件中第一个 finance 命名空间内（避免重复顶层块）
+- **audit-i18n-batch6.cjs**（[scripts/audit-i18n-batch6.cjs](file:///workspace/scripts/audit-i18n-batch6.cjs)）：扫描 36 个 .vue 文件中的 t()/$t() 调用，验证翻译键是否存在于 locales；验证 699 个 t()/$t() 调用引用 605 个不同键无缺失
 
 ### 技术要点
 
-1. **useI18n 接入模式**：所有 14 文件均接入 `useI18n({ useScope: 'global' })`，script 中 `const { t } = useI18n({ useScope: 'global' })`，模板中使用 `t('key')` 或 computed 属性引用 t() 调用
-2. **翻译键命名规范**：`{module}.{section}.{key}` 三层结构，如 `apiGateway.endpointForm.createTitle` / `bpm.approval.pendingTable.taskName`
-3. **状态标签映射函数化**：getPriorityTextFmt（BpmApprovalPendingTable.vue）改为函数返回 t() 调用，确保语言切换时实时响应；getStatusLabel（ApiKeyTab.vue / ApiEndpointTab.vue）同理
+1. **useI18n 接入模式**：所有 36 文件均接入 `useI18n({ useScope: 'global' })`，script 中 `const { t } = useI18n({ useScope: 'global' })`，模板中使用 `t('key')` 或 computed 属性引用 t() 调用
+2. **翻译键命名规范**：`{module}.{section}.{key}` 三层结构，如 `apiGateway.endpointForm.createTitle` / `bpm.approval.pendingTable.taskName` / `fabric.dyeTab.title`
+3. **状态标签映射函数化**：getPriorityTextFmt（BpmApprovalPendingTable.vue）/ getStatusLabel（ApiKeyTab.vue / ApiEndpointTab.vue）等改为函数返回 t() 调用，确保语言切换时实时响应
 4. **业务数据值保留**：HTTP 方法（GET/POST/PUT/DELETE/PATCH）作为业务数据值保留，不走 i18n；仅 UI 显示文本（label/placeholder/title/button text/aria-label/column title）走 i18n
 5. **函数长度控制**：BpmApprovalPendingTable.vue 的 columns computed 属性原 64 行（含 4 个 action button 的 h() 渲染），拆分为 39 行 computed + 23 行 renderActionCell helper 函数，两者均 ≤50 行
 6. **未使用变量修复**：bpm/approval/index.vue 的 tabCompletedLabel 原为未使用变量（模板用 $t 直接调用），改为 computed 属性并在模板中通过 :label="tabCompletedLabel" 引用，消除 ESLint 警告
-7. **无 #[allow] 警告抑制**：所有文件均无 #[allow] 警告抑制，遵循规则 14
+7. **$t() → t() 转换模式**：BpmApprovalTransferDialog.vue script 已解构 t 但模板仍用 $t() 导致 't' is declared but never read 错误；修复方式：模板 `:aria-label="$t('key')"` → `:aria-label="t('key')"`，确保 t 变量被使用（Group E 重点补充此类重构）
+8. **无 #[allow] 警告抑制**：所有文件均无 #[allow] 警告抑制，遵循规则 14
 
 ### 错误与修复
 
 1. **bpm/approval/index.vue 未使用 tabCompletedLabel 变量**：原代码声明了 `const tabCompletedLabel = computed(() => t('bpm.approval.tab.completed'))` 但模板中用 `$t('bpm.approval.tab.completed')` 直接调用导致变量未使用；修复方式：模板改为 `:label="tabCompletedLabel"` 引用 computed 属性
 2. **BpmApprovalPendingTable.vue columns computed 超过 50 行**：原 columns computed 属性 64 行（含 4 个 action button 的 h() 渲染内联在 renderCell 中）；修复方式：提取 renderActionCell helper 函数（23 行），columns computed 降至 39 行，两者均 ≤50 行
+3. **locales 重复 bpm 命名空间**：merge-i18n-batch6.cjs 采用末尾追加策略，Group A 的 bpm 翻译键以独立顶层块追加，导致与历史 bpm 命名空间重复（TS1117 重复属性错误）；修复方式：dedup-all-namespaces.py 删除 2 个重复的 bpm 命名空间块，保留第一个
+4. **locales 重复 finance 命名空间**：Group C 的 finance 翻译键以独立顶层块追加，导致与第一个 finance 命名空间重复；修复方式：merge-finance-into-namespace.cjs 读取 Group C finance JSON，深度合并到 locales 文件中第一个 finance 命名空间内
+5. **BpmApprovalTransferDialog.vue $t() 未转换**：script 已 `const { t } = useI18n(...)` 解构，但模板仍用 `$t()` 调用导致 't' is declared but never read 错误；修复方式：模板 `:aria-label="$t('key')"` → `:aria-label="t('key')"`，确保 t 变量被使用
 
 ### 关联文件
 
-- 14 个 .vue 文件：所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制，主函数和 helper 函数均 ≤50 行
-- [/tmp/i18n-batch6/groupA.json](file:///tmp/i18n-batch6/groupA.json)：177 翻译键 JSON 输出
-
-### 待办
-
-- **Group B 35 文件**：fabric 7 + finance 7 + inventory 7 + logistics 7 + system-update 7，待后续接入
-- **locales 合并**：Group A 的 177 翻译键需合并到 frontend/src/locales/zh-CN.ts + en-US.ts 双语同步（待 Group B 完成后统一合并或随 Group A 提交时合并）
-- **CI 验证**：待 PR 提交后通过 CI 验证（前端格式/ESLint/类型检查/测试/构建）
+- 36 个 .vue 文件：所有文件接入 useI18n({ useScope: 'global' })，无 #[allow] 警告抑制，主函数和 helper 函数均 ≤50 行
+- [frontend/src/locales/zh-CN.ts](file:///workspace/frontend/src/locales/zh-CN.ts) + [frontend/src/locales/en-US.ts](file:///workspace/frontend/src/locales/en-US.ts)：双语同步新增 580 翻译键
+- [/tmp/i18n-batch6/group{A,B,C,D,E}.json](file:///tmp/i18n-batch6/)：5 个并行代理生成的翻译键 JSON 输出
+- 4 个工具脚本：[merge-i18n-batch6.cjs](file:///workspace/scripts/merge-i18n-batch6.cjs) + [dedup-all-namespaces.py](file:///workspace/scripts/dedup-all-namespaces.py) + [merge-finance-into-namespace.cjs](file:///workspace/scripts/merge-finance-into-namespace.cjs) + [audit-i18n-batch6.cjs](file:///workspace/scripts/audit-i18n-batch6.cjs)
 
 ---
 
