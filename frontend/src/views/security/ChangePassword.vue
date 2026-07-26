@@ -4,21 +4,22 @@
   - 复用 PasswordStrengthMeter 组件实时显示新密码强度
   - 调 POST /api/v1/erp/users/change-password
   - 校验：新密码不能与旧密码相同、确认密码需一致、必须满足后端策略（≥8 字符 + 大小写数字特殊字符）
+  批次 D05 B4：接入 useI18n
 -->
 <template>
   <div class="change-pwd-page">
     <el-card class="change-pwd-card" shadow="hover">
       <template #header>
         <div class="card-header">
-          <span>修改密码</span>
+          <span>{{ t('security.changePassword.title') }}</span>
         </div>
       </template>
 
       <el-alert
         v-if="successTip"
-        title="密码修改成功"
+        :title="t('security.changePassword.successAlert.title')"
         type="success"
-        description="下次登录请使用新密码"
+        :description="t('security.changePassword.successAlert.description')"
         :closable="false"
         show-icon
         class="success-tip"
@@ -30,23 +31,23 @@
         :rules="rules"
         label-width="100px"
         class="change-pwd-form"
-        aria-label="修改密码表单"
+        :aria-label="t('security.changePassword.ariaLabel')"
       >
-        <el-form-item label="当前密码" prop="old_password">
+        <el-form-item :label="t('security.changePassword.form.oldPassword')" prop="old_password">
           <el-input
             v-model="form.old_password"
             type="password"
-            placeholder="请输入当前密码"
+            :placeholder="t('security.changePassword.placeholder.oldPassword')"
             show-password
             autocomplete="current-password"
           />
         </el-form-item>
 
-        <el-form-item label="新密码" prop="new_password">
+        <el-form-item :label="t('security.changePassword.form.newPassword')" prop="new_password">
           <el-input
             v-model="form.new_password"
             type="password"
-            placeholder="请输入新密码"
+            :placeholder="t('security.changePassword.placeholder.newPassword')"
             show-password
             autocomplete="new-password"
           />
@@ -57,11 +58,11 @@
           />
         </el-form-item>
 
-        <el-form-item label="确认新密码" prop="confirm_password">
+        <el-form-item :label="t('security.changePassword.form.confirmPassword')" prop="confirm_password">
           <el-input
             v-model="form.confirm_password"
             type="password"
-            placeholder="请再次输入新密码"
+            :placeholder="t('security.changePassword.placeholder.confirmPassword')"
             show-password
             autocomplete="new-password"
           />
@@ -73,23 +74,23 @@
             :loading="submitting"
             @click="handleSubmit"
           >
-            修改密码
+            {{ t('security.changePassword.button.submit') }}
           </el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button @click="handleReset">{{ t('security.changePassword.button.reset') }}</el-button>
         </el-form-item>
       </el-form>
 
       <el-divider />
 
       <div class="pwd-tips">
-        <div class="tips-title">密码要求：</div>
+        <div class="tips-title">{{ t('security.changePassword.tips.title') }}</div>
         <ul>
-          <li>长度至少 8 个字符（推荐 12 位以上）</li>
-          <li>必须包含大写字母</li>
-          <li>必须包含小写字母</li>
-          <li>必须包含数字</li>
-          <li>必须包含特殊字符（如 !@#$%）</li>
-          <li>不能与当前密码相同</li>
+          <li>{{ t('security.changePassword.tips.length') }}</li>
+          <li>{{ t('security.changePassword.tips.uppercase') }}</li>
+          <li>{{ t('security.changePassword.tips.lowercase') }}</li>
+          <li>{{ t('security.changePassword.tips.digit') }}</li>
+          <li>{{ t('security.changePassword.tips.special') }}</li>
+          <li>{{ t('security.changePassword.tips.notSame') }}</li>
         </ul>
       </div>
     </el-card>
@@ -98,9 +99,12 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { changePassword } from '@/api/user'
 import PasswordStrengthMeter from '@/components/PasswordStrengthMeter.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface ChangePwdForm {
   old_password: string
@@ -121,35 +125,35 @@ const form = reactive<ChangePwdForm>({
 /** 密码策略校验（与后端 password_validator 默认策略对齐） */
 const validatePasswordPolicy = (_rule: unknown, value: string, callback: (err?: Error) => void) => {
   if (!value) {
-    callback(new Error('请输入新密码'))
+    callback(new Error(t('security.changePassword.message.newPasswordRequired')))
     return
   }
   if (value.length < 8) {
-    callback(new Error('密码长度不能少于 8 位'))
+    callback(new Error(t('security.changePassword.message.lengthMin')))
     return
   }
   if (value.length > 128) {
-    callback(new Error('密码长度不能超过 128 位'))
+    callback(new Error(t('security.changePassword.message.lengthMax')))
     return
   }
   if (!/[A-Z]/.test(value)) {
-    callback(new Error('密码必须包含大写字母'))
+    callback(new Error(t('security.changePassword.message.uppercase')))
     return
   }
   if (!/[a-z]/.test(value)) {
-    callback(new Error('密码必须包含小写字母'))
+    callback(new Error(t('security.changePassword.message.lowercase')))
     return
   }
   if (!/[0-9]/.test(value)) {
-    callback(new Error('密码必须包含数字'))
+    callback(new Error(t('security.changePassword.message.digit')))
     return
   }
   if (!/[^A-Za-z0-9]/.test(value)) {
-    callback(new Error('密码必须包含特殊字符'))
+    callback(new Error(t('security.changePassword.message.special')))
     return
   }
   if (value === form.old_password) {
-    callback(new Error('新密码不能与当前密码相同'))
+    callback(new Error(t('security.changePassword.message.sameAsOld')))
     return
   }
   callback()
@@ -158,18 +162,18 @@ const validatePasswordPolicy = (_rule: unknown, value: string, callback: (err?: 
 /** 确认密码校验 */
 const validateConfirm = (_rule: unknown, value: string, callback: (err?: Error) => void) => {
   if (!value) {
-    callback(new Error('请再次输入新密码'))
+    callback(new Error(t('security.changePassword.message.confirmRequired')))
     return
   }
   if (value !== form.new_password) {
-    callback(new Error('两次输入的密码不一致'))
+    callback(new Error(t('security.changePassword.message.confirmMismatch')))
     return
   }
   callback()
 }
 
 const rules: FormRules = {
-  old_password: [{ required: true, message: '请输入当前密码', trigger: 'blur' }],
+  old_password: [{ required: true, message: t('security.changePassword.message.oldPasswordRequired'), trigger: 'blur' }],
   new_password: [{ validator: validatePasswordPolicy, trigger: 'blur' }],
   confirm_password: [{ validator: validateConfirm, trigger: 'blur' }],
 }
@@ -186,7 +190,7 @@ const handleSubmit = async () => {
         old_password: form.old_password,
         new_password: form.new_password,
       })
-      ElMessage.success('密码修改成功，下次登录请使用新密码')
+      ElMessage.success(t('security.changePassword.message.success'))
       successTip.value = true
       // 清空表单（确认密码同步清空）
       formRef.value?.resetFields()

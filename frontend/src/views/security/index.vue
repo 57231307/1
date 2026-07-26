@@ -3,22 +3,23 @@
   任务编号: P14 批 2 I-3 第 6 批
   拆分：547 行 → ~100 行 + 4 子组件 + 2 composable + 1 工具
   批次 282：SecurityLogTable 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
+  批次 D05 B4：接入 useI18n
 -->
 <template>
   <div class="security-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">登录安全</h1>
+        <h1 class="page-title">{{ t('security.index.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>系统管理</el-breadcrumb-item>
-          <el-breadcrumb-item>登录安全</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{ t('security.index.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('security.index.breadcrumb.system') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('security.index.breadcrumb.current') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button @click="secProc.handleExport(sec)">
           <el-icon><Download /></el-icon>
-          导出日志
+          {{ t('security.index.button.exportLogs') }}
         </el-button>
       </div>
     </div>
@@ -48,6 +49,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Download } from '@element-plus/icons-vue'
 import { useSec } from './composables/useSec'
 import { useSecProc } from './composables/useSecProc'
@@ -55,6 +57,8 @@ import SecurityStat from './components/SecurityStat.vue'
 import SecurityLogTable from './components/SecurityLogTable.vue'
 import SecurityLockTable from './components/SecurityLockTable.vue'
 import SecurityAlertTable from './components/SecurityAlertTable.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const sec = useSec()

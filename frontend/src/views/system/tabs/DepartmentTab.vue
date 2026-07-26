@@ -6,31 +6,29 @@
 <template>
   <div class="department-tab">
     <div class="page-header">
-      <h2 class="page-title">部门管理</h2>
+      <h2 class="page-title">{{ t('system.department.title') }}</h2>
       <el-button type="primary" @click="openDeptDialog()">
-        <el-icon><Plus /></el-icon> 新建部门
+        <el-icon><Plus /></el-icon> {{ t('system.department.button.create') }}
       </el-button>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="deptLoading" :data="departments" stripe row-key="id" default-expand-all aria-label="部门列表">
-        <el-table-column prop="name" label="部门名称" min-width="200" />
-        <el-table-column prop="code" label="部门编码" width="120" />
-        <el-table-column prop="manager_name" label="负责人" width="100" />
-        <el-table-column prop="sort_order" label="排序" width="80" align="center" />
-        <el-table-column prop="status" label="状态" width="80" align="center">
+      <el-table v-loading="deptLoading" :data="departments" stripe row-key="id" default-expand-all :aria-label="t('system.department.aria.list')">
+        <el-table-column prop="name" :label="t('system.department.column.name')" min-width="200" />
+        <el-table-column prop="code" :label="t('system.department.column.code')" width="120" />
+        <el-table-column prop="manager_name" :label="t('system.department.column.manager')" width="100" />
+        <el-table-column prop="sort_order" :label="t('system.department.column.sort')" width="80" align="center" />
+        <el-table-column prop="status" :label="t('system.department.column.status')" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
-              {{ row.status === 1 ? '启用' : '禁用' }}
+              {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column :label="t('system.department.column.action')" width="150" fixed="right">
           <template #default="{ row }">
             <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
-            <el-button v-permission="'department:update'" size="small" link @click="openDeptDialog(row as Department)">编辑</el-button>
-            <el-button v-permission="'department:delete'" size="small" link type="danger" @click="deleteDept(row as Department)"
-              >删除</el-button
-            >
+            <el-button v-permission="'department:update'" size="small" link @click="openDeptDialog(row as Department)">{{ t('system.department.button.edit') }}</el-button>
+            <el-button v-permission="'department:delete'" size="small" link type="danger" @click="deleteDept(row as Department)">{{ t('system.department.button.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -38,18 +36,18 @@
 
     <el-dialog
       v-model="deptDialogVisible"
-      :title="deptForm.id ? '编辑部门' : '新建部门'"
+      :title="deptForm.id ? t('system.department.dialog.editTitle') : t('system.department.dialog.createTitle')"
       width="500px"
-      aria-label="部门编辑对话框"
+      :aria-label="t('system.department.dialog.aria')"
     >
-      <el-form ref="deptFormRef" :model="deptForm" :rules="deptRules" label-width="80px" aria-label="部门信息表单">
-        <el-form-item label="部门名称" prop="name">
+      <el-form ref="deptFormRef" :model="deptForm" :rules="deptRules" label-width="80px" :aria-label="t('system.department.form.aria')">
+        <el-form-item :label="t('system.department.form.label.name')" prop="name">
           <el-input v-model="deptForm.name" />
         </el-form-item>
-        <el-form-item label="部门编码" prop="code">
+        <el-form-item :label="t('system.department.form.label.code')" prop="code">
           <el-input v-model="deptForm.code" />
         </el-form-item>
-        <el-form-item label="上级部门">
+        <el-form-item :label="t('system.department.form.label.parent')">
           <el-tree-select
             v-model="deptForm.parent_id"
             :data="departments"
@@ -58,16 +56,16 @@
             check-strictly
           />
         </el-form-item>
-        <el-form-item label="排序">
+        <el-form-item :label="t('system.department.form.label.sort')">
           <el-input-number v-model="deptForm.sort_order" :min="0" />
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="t('system.department.form.label.status')">
           <el-switch v-model="deptForm.status" :active-value="1" :inactive-value="0" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="deptDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="deptSubmitLoading" @click="submitDept">确定</el-button>
+        <el-button @click="deptDialogVisible = false">{{ t('system.department.form.button.cancel') }}</el-button>
+        <el-button type="primary" :loading="deptSubmitLoading" @click="submitDept">{{ t('system.department.form.button.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -75,6 +73,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -85,6 +84,12 @@ import {
   getDepartmentTree,
   type Department,
 } from '@/api/department'
+
+const { t } = useI18n({ useScope: 'global' })
+
+// 状态标签映射（响应式）
+const getStatusLabel = (status: number): string =>
+  status === 1 ? t('system.department.status.enabled') : t('system.department.status.disabled')
 
 const departments = ref<Department[]>([])
 const deptLoading = ref(false)
@@ -101,7 +106,7 @@ const fetchDepartments = async () => {
       []
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '获取部门列表失败')
+    ElMessage.error(err.message || t('system.department.message.fetchFailed'))
   } finally {
     deptLoading.value = false
   }
@@ -122,8 +127,8 @@ const deptForm = reactive({
 })
 
 const deptRules: FormRules = {
-  name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入部门编码', trigger: 'blur' }],
+  name: [{ required: true, message: t('system.department.message.requiredName'), trigger: 'blur' }],
+  code: [{ required: true, message: t('system.department.message.requiredCode'), trigger: 'blur' }],
 }
 
 const openDeptDialog = (row?: Department) => {
@@ -161,7 +166,7 @@ const submitDept = async () => {
         sort_order: deptForm.sort_order,
         status: deptForm.status,
       })
-      ElMessage.success('更新成功')
+      ElMessage.success(t('system.department.message.updateSuccess'))
     } else {
       await createDepartment({
         name: deptForm.name,
@@ -169,13 +174,13 @@ const submitDept = async () => {
         parent_id: deptForm.parent_id,
         sort_order: deptForm.sort_order,
       })
-      ElMessage.success('创建成功')
+      ElMessage.success(t('system.department.message.createSuccess'))
     }
     deptDialogVisible.value = false
     fetchDepartments()
   } catch (e) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('system.department.message.operationFailed'))
   } finally {
     deptSubmitLoading.value = false
   }
@@ -183,14 +188,14 @@ const submitDept = async () => {
 
 const deleteDept = async (row: Department) => {
   try {
-    await ElMessageBox.confirm(`确定删除部门 "${row.name}"?`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(t('system.department.message.deleteConfirm', { name: row.name }), t('system.department.message.deleteTitle'), { type: 'warning' })
     await deleteDeptApi(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('system.department.message.deleteSuccess'))
     fetchDepartments()
   } catch (e) {
     if (e !== 'cancel') {
       const err = e as { message?: string }
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('system.department.message.deleteFailed'))
     }
   }
 }

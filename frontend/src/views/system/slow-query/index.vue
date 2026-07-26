@@ -14,10 +14,10 @@
     <el-card shadow="hover" class="top-card">
       <template #header>
         <div class="card-header">
-          <span class="card-title">慢查询 TOP 10（{{ stats?.time_range || '近 7 天' }}）</span>
+          <span class="card-title">{{ t('system.slowQuery.title.top10', { range: stats?.time_range || t('system.slowQuery.timeRange.default') }) }}</span>
           <el-button type="primary" size="small" :loading="refreshing" @click="handleRefresh">
             <el-icon><Refresh /></el-icon>
-            手动刷新
+            {{ t('system.slowQuery.button.refresh') }}
           </el-button>
         </div>
       </template>
@@ -40,43 +40,43 @@
               <el-tag :type="getDurationTag(item.max_exec_time_ms)" size="small">
                 {{ item.max_exec_time_ms.toFixed(1) }} ms
               </el-tag>
-              <span class="top-calls">调用 {{ item.total_calls }} 次</span>
+              <span class="top-calls">{{ t('system.slowQuery.text.calls', { count: item.total_calls }) }}</span>
             </div>
           </el-card>
         </el-col>
         <el-col v-if="!statsLoading && (!stats || stats.top10.length === 0)">
-          <el-empty description="暂无慢查询数据，请点击「手动刷新」触发采集" />
+          <el-empty :description="t('system.slowQuery.empty.top')" />
         </el-col>
       </el-row>
     </el-card>
 
     <!-- 筛选 + 表格 -->
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" aria-label="慢查询筛选表单" @submit.prevent="handleQuery">
-        <el-form-item label="时间范围">
+      <el-form :inline="true" :model="filterForm" :aria-label="t('system.slowQuery.aria.filterForm')" @submit.prevent="handleQuery">
+        <el-form-item :label="t('system.slowQuery.label.timeRange')">
           <el-date-picker
             v-model="filterForm.dateRange"
             type="datetimerange"
-            range-separator="至"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
+            :range-separator="t('system.slowQuery.common.to')"
+            :start-placeholder="t('system.slowQuery.placeholder.startDate')"
+            :end-placeholder="t('system.slowQuery.placeholder.endDate')"
             value-format="YYYY-MM-DDTHH:mm:ss[Z]"
             style="width: 360px"
           />
         </el-form-item>
-        <el-form-item label="最小执行时间">
+        <el-form-item :label="t('system.slowQuery.label.minDuration')">
           <el-input-number
             v-model="filterForm.min_duration"
             :min="0"
             :step="50"
-            placeholder="毫秒"
+            :placeholder="t('system.slowQuery.placeholder.ms')"
             style="width: 140px"
           />
         </el-form-item>
-        <el-form-item label="关键词">
+        <el-form-item :label="t('system.slowQuery.label.keyword')">
           <el-input
             v-model="filterForm.keyword"
-            placeholder="SQL 片段"
+            :placeholder="t('system.slowQuery.placeholder.sqlSnippet')"
             clearable
             style="width: 240px"
             @keyup.enter="handleQuery"
@@ -85,11 +85,11 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ t('system.slowQuery.button.query') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ t('system.slowQuery.button.reset') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -105,7 +105,7 @@
         :total="total"
         :height="500"
         row-key="id"
-        empty-text="暂无慢查询记录"
+        :empty-text="t('system.slowQuery.empty.table')"
         @page-change="handlePageChange"
         @size-change="handleSizeChange"
       />
@@ -118,7 +118,8 @@
  * 慢查询审计查看页（P13 批 1 B-慢查询审计）
  * - 后端路由：/api/v1/erp/slow-queries（list / stats / refresh）
  */
-import { ref, reactive, onMounted, h } from 'vue'
+import { ref, reactive, onMounted, h, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElTag } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import V2Table from '@/components/V2Table/index.vue'
@@ -130,6 +131,8 @@ import {
   type SlowQueryItem,
   type SlowQueryStatsResponse,
 } from '@/api/slow-query'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 慢查询统计响应
 const stats = ref<SlowQueryStatsResponse | null>(null)
@@ -156,16 +159,16 @@ const {
 } = useTableApi<SlowQueryItem>({
   url: '/slow-queries',
   listKey: 'items',
-  onError: () => ElMessage.error('加载慢查询失败'),
+  onError: () => ElMessage.error(t('system.slowQuery.message.loadFailed')),
 })
 
-// 表格列定义
-const columns: ColumnDef<SlowQueryItem>[] = [
-  { key: 'id', title: 'ID', width: 70 },
-  { key: 'captured_at', title: '采集时间', width: 170, formatter: (row) => formatDateTime(row.captured_at) },
+// 表格列定义（computed 以响应语言切换）
+const columns = computed<ColumnDef<SlowQueryItem>[]>(() => [
+  { key: 'id', title: t('system.slowQuery.column.id'), width: 70 },
+  { key: 'captured_at', title: t('system.slowQuery.column.capturedAt'), width: 170, formatter: (row) => formatDateTime(row.captured_at) },
   {
     key: 'execution_time_ms',
-    title: '平均耗时',
+    title: t('system.slowQuery.column.avgDuration'),
     width: 120,
     renderCell: (row) => {
       const ms = Number(row.execution_time_ms ?? 0)
@@ -176,16 +179,16 @@ const columns: ColumnDef<SlowQueryItem>[] = [
       )
     },
   },
-  { key: 'calls', title: '调用次数', width: 100 },
-  { key: 'rows_examined', title: '扫描行数', width: 110 },
+  { key: 'calls', title: t('system.slowQuery.column.calls'), width: 100 },
+  { key: 'rows_examined', title: t('system.slowQuery.column.rowsExamined'), width: 110 },
   {
     key: 'query_text',
-    title: 'SQL 文本',
+    title: t('system.slowQuery.column.sqlText'),
     minWidth: 360,
     formatter: (row) => truncate(String(row.query_text ?? ''), 100),
   },
-  { key: 'database_name', title: '数据库', width: 120 },
-]
+  { key: 'database_name', title: t('system.slowQuery.column.database'), width: 120 },
+])
 
 /**
  * 根据执行时间返回 el-tag 颜色（绿色 < 200ms / 黄色 < 500ms / 红色 >= 500ms）
@@ -250,7 +253,7 @@ const handleRefresh = async () => {
     // 刷新完成后重新加载列表（useTableApi.refresh）+ 统计
     await Promise.all([refresh(), loadStats()])
   } catch (err) {
-    ElMessage.error('手动刷新失败')
+    ElMessage.error(t('system.slowQuery.message.refreshFailed'))
   } finally {
     refreshing.value = false
   }

@@ -6,28 +6,28 @@
   <el-card shadow="hover" class="conflict-card">
     <template #header>
       <div class="card-header">
-        <span>冲突检测</span>
+        <span>{{ t('scheduling.machineConflict.title') }}</span>
         <el-tag :type="conflictList.length > 0 ? 'danger' : 'success'" size="small">
-          {{ conflictList.length }} 个冲突
+          {{ t('scheduling.machineConflict.conflictCount', { count: conflictList.length }) }}
         </el-tag>
       </div>
     </template>
     <div class="conflict-actions">
       <el-button type="warning" size="small" :loading="conflictLoading" @click="emit('detect')">
         <el-icon><Search /></el-icon>
-        检测冲突
+        {{ t('scheduling.machineConflict.button.detect') }}
       </el-button>
     </div>
     <div v-loading="conflictLoading" class="conflict-list">
       <div v-if="conflictList.length === 0" class="empty-state">
         <el-icon><CircleCheck /></el-icon>
-        <p>暂无排程冲突</p>
+        <p>{{ t('scheduling.machineConflict.empty') }}</p>
       </div>
       <div v-for="item in conflictList" :key="item.id" class="conflict-item">
         <div class="conflict-header">
           <span class="conflict-wc">{{ item.work_center_name }}</span>
           <el-tag :type="item.severity === 'error' ? 'danger' : 'warning'" size="small">
-            {{ item.severity === 'error' ? '严重' : '警告' }}
+            {{ item.severity === 'error' ? t('scheduling.machineConflict.severity.error') : t('scheduling.machineConflict.severity.warning') }}
           </el-tag>
         </div>
         <div class="conflict-orders">
@@ -49,7 +49,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { ConflictItem } from '@/api/scheduling'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 排产冲突侧栏属性
 defineProps<{

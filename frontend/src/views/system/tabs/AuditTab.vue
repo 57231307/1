@@ -7,38 +7,38 @@
 <template>
   <div class="audit-tab">
     <div class="page-header">
-      <h2 class="page-title">审计日志</h2>
+      <h2 class="page-title">{{ t('system.audit.title') }}</h2>
     </div>
     <el-card shadow="hover">
-      <el-form :inline="true" :model="filterForm" class="mb-4" aria-label="审计日志筛选表单">
-        <el-form-item label="操作人">
-          <el-input v-model="filterForm.operator" placeholder="用户名" clearable />
+      <el-form :inline="true" :model="filterForm" class="mb-4" :aria-label="t('system.audit.aria.filterForm')">
+        <el-form-item :label="t('system.audit.label.operator')">
+          <el-input v-model="filterForm.operator" :placeholder="t('system.audit.placeholder.operator')" clearable />
         </el-form-item>
-        <el-form-item label="模块">
-          <el-input v-model="filterForm.module" placeholder="模块名" clearable />
+        <el-form-item :label="t('system.audit.label.module')">
+          <el-input v-model="filterForm.module" :placeholder="t('system.audit.placeholder.module')" clearable />
         </el-form-item>
-        <el-form-item label="时间范围">
+        <el-form-item :label="t('system.audit.label.timeRange')">
           <el-date-picker
             v-model="filterForm.dateRange"
             type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
+            :range-separator="t('system.audit.common.to')"
+            :start-placeholder="t('system.audit.placeholder.startDate')"
+            :end-placeholder="t('system.audit.placeholder.endDate')"
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button type="primary" @click="handleSearch">{{ t('system.audit.button.query') }}</el-button>
         </el-form-item>
       </el-form>
-      <el-table v-loading="loading" :data="auditLogs" stripe aria-label="审计日志列表">
-        <el-table-column prop="created_at" label="时间" width="180" />
-        <el-table-column prop="operator_name" label="操作人" width="120" />
-        <el-table-column prop="module" label="模块" width="120" />
-        <el-table-column prop="action" label="操作" width="100" />
-        <el-table-column prop="resource_type" label="资源" width="120" />
-        <el-table-column prop="ip_address" label="IP" width="130" />
-        <el-table-column prop="detail" label="详情" min-width="200" show-overflow-tooltip />
+      <el-table v-loading="loading" :data="auditLogs" stripe :aria-label="t('system.audit.aria.list')">
+        <el-table-column prop="created_at" :label="t('system.audit.column.time')" width="180" />
+        <el-table-column prop="operator_name" :label="t('system.audit.column.operator')" width="120" />
+        <el-table-column prop="module" :label="t('system.audit.column.module')" width="120" />
+        <el-table-column prop="action" :label="t('system.audit.column.action')" width="100" />
+        <el-table-column prop="resource_type" :label="t('system.audit.column.resource')" width="120" />
+        <el-table-column prop="ip_address" :label="t('system.audit.column.ip')" width="130" />
+        <el-table-column prop="detail" :label="t('system.audit.column.detail')" min-width="200" show-overflow-tooltip />
       </el-table>
       <el-pagination
         v-model:current-page="page"
@@ -47,7 +47,7 @@
         :page-sizes="[20, 50, 100]"
         layout="total, sizes, prev, pager, next"
         class="mt-4"
-        aria-label="审计日志列表分页"
+        :aria-label="t('system.audit.aria.pagination')"
       />
     </el-card>
   </div>
@@ -55,7 +55,10 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface AuditLog {
   created_at: string

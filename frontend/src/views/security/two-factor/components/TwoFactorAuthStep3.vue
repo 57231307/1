@@ -5,8 +5,8 @@
 -->
 <template>
   <div class="step-content">
-    <h3 class="step-title">验证并启用</h3>
-    <p class="step-desc">请输入身份验证器应用显示的 6 位动态口令以完成启用</p>
+    <h3 class="step-title">{{ t('security.twoFactor.step3.title') }}</h3>
+    <p class="step-desc">{{ t('security.twoFactor.step3.desc') }}</p>
 
     <el-form
       ref="formRef"
@@ -14,13 +14,13 @@
       :rules="rules"
       label-width="0"
       class="verify-form"
-      aria-label="双因素验证码表单"
+      :aria-label="t('security.twoFactor.step3.ariaLabel.form')"
       @submit.prevent
     >
       <el-form-item prop="token">
         <el-input
           v-model="form.token"
-          placeholder="请输入 6 位动态口令"
+          :placeholder="t('security.twoFactor.step3.placeholder.token')"
           maxlength="6"
           size="large"
           class="token-input"
@@ -43,16 +43,19 @@
 
     <div class="tips">
       <el-icon><InfoFilled /></el-icon>
-      <span>动态口令每 30 秒更新一次，请输入最新口令</span>
+      <span>{{ t('security.twoFactor.step3.tip.tokenUpdate') }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Key, InfoFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { verifyRules } from '../composables/tfaFmts'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 自包含的表单状态（避免 prop mutation 问题）
 const formRef = ref<FormInstance>()

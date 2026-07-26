@@ -5417,5 +5417,874 @@ export default {
       convertConfirmText: '确认将报价单 {no} 转为销售订单？转订单后报价单状态将变为"已转订单"。',
       convertSuccess: '转订单成功，销售订单 ID：{id}',
     },
+  },  scheduling: {
+    ganttAdjust: {
+      title: '调整排程时间',
+      ariaLabel: {
+        dialog: '调整排程时间',
+        form: '排班调整表单',
+      },
+      form: {
+        orderNo: '工单号',
+        workCenter: '工作中心',
+        startTime: '开始时间',
+        endTime: '结束时间',
+      },
+      placeholder: {
+        startTime: '选择开始时间',
+        endTime: '选择结束时间',
+      },
+      button: {
+        cancel: '取消',
+        confirm: '确认调整',
+      },
+    },
+    ganttAuto: {
+      title: '自动排程参数',
+      ariaLabel: {
+        dialog: '自动排程参数对话框',
+        form: '自动排程参数表单',
+      },
+      form: {
+        startDate: '排程开始日期',
+        endDate: '排程结束日期',
+        priorityMode: '优先级模式',
+        optimizationTarget: '优化目标',
+      },
+      placeholder: {
+        date: '选择日期',
+      },
+      option: {
+        priorityFifo: '先进先出 (FIFO)',
+        priorityPriority: '优先级优先',
+        priorityDueDate: '交期优先',
+        targetMinIdle: '最小化空闲时间',
+        targetMinDelay: '最小化延迟',
+        targetBalanceLoad: '均衡负载',
+      },
+      button: {
+        cancel: '取消',
+        startSchedule: '开始排程',
+      },
+    },
+    ganttChart: {
+      title: '排程甘特图',
+      legend: {
+        pending: '待排程',
+        scheduled: '已排程',
+        running: '生产中',
+        completed: '已完成',
+        conflict: '冲突',
+      },
+      status: {
+        pending: '待排程',
+        scheduled: '已排程',
+        running: '生产中',
+        completed: '已完成',
+        conflict: '冲突',
+      },
+      tooltip: {
+        product: '产品',
+        quantity: '数量',
+        status: '状态',
+        start: '开始',
+        end: '结束',
+        duration: '时长',
+        conflict: '冲突',
+        conflictDefault: '存在时间冲突',
+      },
+    },
+    ganttConflict: {
+      title: '排程冲突',
+      ariaLabel: {
+        dialog: '排程冲突列表对话框',
+        table: '排程冲突列表',
+      },
+      column: {
+        workCenter: '工作中心',
+        conflictOrders: '冲突工单',
+        overlapTime: '重叠时间',
+        severity: '严重程度',
+        suggestion: '建议',
+      },
+      to: '至',
+      severity: {
+        error: '严重',
+        warning: '警告',
+      },
+    },
+    ganttTool: {
+      title: '生产排程甘特图',
+      button: {
+        back: '返回排程管理',
+        autoSchedule: '自动排程',
+        refresh: '刷新',
+      },
+      to: '至',
+      placeholder: {
+        startDate: '开始日期',
+        endDate: '结束日期',
+      },
+      stat: {
+        totalTasks: '总任务数',
+        conflictCount: '冲突数',
+        workCenter: '工作中心',
+        scheduleRange: '排程范围',
+      },
+    },
+    machineAdjust: {
+      title: '调整排程时间',
+      ariaLabel: {
+        dialog: '调整排程时间对话框',
+        form: '调整排程时间表单',
+      },
+      form: {
+        orderNo: '工单号',
+        startTime: '开始时间',
+        endTime: '结束时间',
+      },
+      placeholder: {
+        startTime: '选择开始时间',
+        endTime: '选择结束时间',
+      },
+      button: {
+        cancel: '取消',
+        confirm: '确认调整',
+      },
+    },
+    machineConflict: {
+      title: '冲突检测',
+      conflictCount: '{count} 个冲突',
+      button: {
+        detect: '检测冲突',
+      },
+      empty: '暂无排程冲突',
+      severity: {
+        error: '严重',
+        warning: '警告',
+      },
+    },
+    machineParam: {
+      title: '排程参数',
+      ariaLabel: {
+        form: '排班参数表单',
+      },
+      form: {
+        scheduleRange: '排程范围',
+        priorityMode: '优先级模式',
+        optimizationTarget: '优化目标',
+      },
+      to: '至',
+      placeholder: {
+        start: '开始',
+        end: '结束',
+      },
+      option: {
+        priorityFifo: '先进先出',
+        priorityPriority: '优先级优先',
+        priorityDueDate: '交期优先',
+        targetMinIdle: '最小化空闲',
+        targetMinDelay: '最小化延迟',
+        targetBalanceLoad: '均衡负载',
+      },
+      button: {
+        execute: '执行排程',
+      },
+    },
+    machineTable: {
+      title: '排程工单列表',
+      placeholder: {
+        filterStatus: '筛选状态',
+      },
+      filterOption: {
+        all: '全部',
+        pending: '待排程',
+        scheduled: '已排程',
+        running: '生产中',
+        completed: '已完成',
+        conflict: '冲突',
+      },
+      button: {
+        refresh: '刷新',
+        adjust: '调整',
+        detail: '详情',
+      },
+      ariaLabel: {
+        table: '排班列表',
+        pagination: '排班列表分页',
+      },
+      column: {
+        orderNo: '工单号',
+        productName: '产品名称',
+        workCenter: '工作中心',
+        quantity: '数量',
+        startTime: '开始时间',
+        endTime: '结束时间',
+        duration: '时长(h)',
+        priority: '优先级',
+        status: '状态',
+        operation: '操作',
+      },
+      status: {
+        pending: '待排程',
+        scheduled: '已排程',
+        running: '生产中',
+        completed: '已完成',
+        conflict: '冲突',
+      },
+    },
+    machineTool: {
+      title: '生产排程管理',
+      button: {
+        autoSchedule: '自动排程',
+        viewGantt: '查看甘特图',
+      },
+      stat: {
+        pending: '待排程工单',
+        scheduled: '已排程工单',
+        running: '生产中工单',
+        conflicts: '冲突数量',
+      },
+    },
   },
+  security: {
+    alertTable: {
+      title: '安全告警',
+      ariaLabel: '安全告警表',
+      column: {
+        index: '序号',
+        alertType: '告警类型',
+        username: '用户名',
+        ipAddress: 'IP地址',
+        description: '告警描述',
+        createdAt: '告警时间',
+        status: '状态',
+      },
+      alertType: {
+        BRUTE_FORCE: '暴力破解',
+        SUSPICIOUS_IP: '可疑IP',
+        MULTIPLE_FAILURES: '多次失败',
+        UNUSUAL_LOCATION: '异常地点',
+      },
+      status: {
+        PENDING: '待处理',
+        PROCESSING: '处理中',
+        RESOLVED: '已解决',
+        IGNORED: '已忽略',
+      },
+    },
+    lockTable: {
+      title: '锁定账户管理',
+      ariaLabel: '锁定账户管理表',
+      column: {
+        index: '序号',
+        username: '用户名',
+        lockReason: '锁定原因',
+        lockedAt: '锁定时间',
+        unlockAt: '解锁时间',
+        action: '操作',
+      },
+      button: {
+        unlock: '解锁',
+      },
+    },
+    logTable: {
+      title: '登录日志',
+      ariaLabel: {
+        filterForm: '登录日志筛选表单',
+        table: '登录日志表',
+        pagination: '登录日志分页',
+      },
+      column: {
+        index: '序号',
+        username: '用户名',
+        loginType: '登录类型',
+        ipAddress: 'IP地址',
+        userAgent: '浏览器',
+        status: '状态',
+        failReason: '失败原因',
+        loginTime: '登录时间',
+      },
+      filter: {
+        username: '用户名',
+        status: '登录状态',
+        dateRange: '登录时间',
+      },
+      placeholder: {
+        username: '请输入用户名',
+        status: '选择状态',
+        rangeSeparator: '至',
+        startDate: '开始日期',
+        endDate: '结束日期',
+      },
+      button: {
+        search: '查询',
+      },
+      loginType: {
+        LOGIN: '登录',
+        LOGOUT: '登出',
+      },
+      status: {
+        SUCCESS: '成功',
+        FAILED: '失败',
+      },
+    },
+    stat: {
+      label: {
+        todayLogins: '今日登录次数',
+        todayFailures: '今日失败次数',
+        lockedAccounts: '锁定账户数',
+        securityAlerts: '安全告警',
+      },
+    },
+    changePassword: {
+      title: '修改密码',
+      ariaLabel: '修改密码表单',
+      successAlert: {
+        title: '密码修改成功',
+        description: '下次登录请使用新密码',
+      },
+      form: {
+        oldPassword: '当前密码',
+        newPassword: '新密码',
+        confirmPassword: '确认新密码',
+      },
+      placeholder: {
+        oldPassword: '请输入当前密码',
+        newPassword: '请输入新密码',
+        confirmPassword: '请再次输入新密码',
+      },
+      button: {
+        submit: '修改密码',
+        reset: '重置',
+      },
+      tips: {
+        title: '密码要求：',
+        length: '长度至少 8 个字符(推荐 12 位以上)',
+        uppercase: '必须包含大写字母',
+        lowercase: '必须包含小写字母',
+        digit: '必须包含数字',
+        special: '必须包含特殊字符(如 !@#$%)',
+        notSame: '不能与当前密码相同',
+      },
+      message: {
+        newPasswordRequired: '请输入新密码',
+        lengthMin: '密码长度不能少于 8 位',
+        lengthMax: '密码长度不能超过 128 位',
+        uppercase: '密码必须包含大写字母',
+        lowercase: '密码必须包含小写字母',
+        digit: '密码必须包含数字',
+        special: '密码必须包含特殊字符',
+        sameAsOld: '新密码不能与当前密码相同',
+        confirmRequired: '请再次输入新密码',
+        confirmMismatch: '两次输入的密码不一致',
+        oldPasswordRequired: '请输入当前密码',
+        success: '密码修改成功，下次登录请使用新密码',
+      },
+    },
+    twoFactorSetup: {
+      title: '双因素认证',
+      breadcrumb: {
+        home: '首页',
+        system: '系统管理',
+        current: '双因素认证',
+      },
+      button: {
+        prev: '上一步',
+        next: '下一步',
+        verifyAndEnable: '验证并启用',
+        finish: '完成',
+      },
+    },
+    index: {
+      title: '登录安全',
+      breadcrumb: {
+        home: '首页',
+        system: '系统管理',
+        current: '登录安全',
+      },
+      button: {
+        exportLogs: '导出日志',
+      },
+    },
+    twoFactor: {
+      step1: {
+        title: '设置两步验证',
+        desc: '两步验证为您的账户提供额外的安全保障',
+        alert: {
+          enabled: {
+            title: '两步验证已启用',
+            desc: '您的账户已启用两步验证，重新设置将需要先关闭现有设置。',
+          },
+          disabled: {
+            title: '两步验证未启用',
+            desc: '建议您启用两步验证以提高账户安全性。',
+          },
+        },
+        label: {
+          username: '账户名：',
+          status: '当前状态：',
+        },
+        status: {
+          enabled: '已启用',
+          disabled: '未启用',
+        },
+        button: {
+          enabledText: '已启用',
+          setup: '启动设置',
+        },
+      },
+      step2: {
+        title: '扫描二维码',
+        desc: '使用 Google Authenticator、Microsoft Authenticator 或其他兼容的应用扫描以下二维码',
+        qrAlt: '二步验证二维码',
+        qrLoading: '正在生成二维码...',
+        ariaLabel: {
+          form: '双因素认证信息表单',
+        },
+        label: {
+          username: '账户名',
+          issuer: '发行方',
+          secret: '手动输入密钥',
+        },
+        button: {
+          copy: '复制',
+        },
+      },
+      step3: {
+        title: '验证并启用',
+        desc: '请输入身份验证器应用显示的 6 位动态口令以完成启用',
+        ariaLabel: {
+          form: '双因素验证码表单',
+        },
+        placeholder: {
+          token: '请输入 6 位动态口令',
+        },
+        tip: {
+          tokenUpdate: '动态口令每 30 秒更新一次，请输入最新口令',
+        },
+      },
+      step4: {
+        title: '两步验证已启用',
+        subTitle: '您的账户现在受到两步验证保护',
+        alert: {
+          recovery: {
+            title: '恢复码(请妥善保管)',
+            desc: '当您无法使用身份验证器时，可使用以下恢复码登录。每个恢复码仅可使用一次。',
+          },
+        },
+        button: {
+          copyAll: '复制全部恢复码',
+        },
+      },
+      stepBar: {
+        step1: '启动设置',
+        step2: '扫描二维码',
+        step3: '验证并启用',
+        step4: '完成',
+      },
+    },
+  },
+  system: {
+    index: {
+      tab: {
+        user: '用户管理',
+        role: '角色管理',
+        department: '部门管理',
+        permission: '权限管理',
+        dataPermission: '数据权限',
+        fieldPermission: '字段权限',
+        notification: '通知设置',
+        audit: '审计日志',
+        webhook: 'Webhook 配置',
+        update: '系统更新',
+        company: '公司信息',
+      },
+    },
+    slowQuery: {
+      title: {
+        top10: '慢查询 TOP 10 ({range})',
+      },
+      timeRange: {
+        default: '近 7 天',
+      },
+      button: {
+        refresh: '手动刷新',
+        query: '查询',
+        reset: '重置',
+      },
+      text: {
+        calls: '调用 {count} 次',
+      },
+      empty: {
+        top: '暂无慢查询数据，请点击「手动刷新」触发采集',
+        table: '暂无慢查询记录',
+      },
+      aria: {
+        filterForm: '慢查询筛选表单',
+      },
+      label: {
+        timeRange: '时间范围',
+        minDuration: '最小执行时间',
+        keyword: '关键词',
+      },
+      placeholder: {
+        startDate: '开始时间',
+        endDate: '结束时间',
+        ms: '毫秒',
+        sqlSnippet: 'SQL 片段',
+      },
+      common: {
+        to: '至',
+      },
+      column: {
+        id: 'ID',
+        capturedAt: '采集时间',
+        avgDuration: '平均耗时',
+        calls: '调用次数',
+        rowsExamined: '扫描行数',
+        sqlText: 'SQL 文本',
+        database: '数据库',
+      },
+      message: {
+        loadFailed: '加载慢查询失败',
+        refreshFailed: '手动刷新失败',
+      },
+    },
+    audit: {
+      title: '审计日志',
+      aria: {
+        filterForm: '审计日志筛选表单',
+        list: '审计日志列表',
+        pagination: '审计日志列表分页',
+      },
+      label: {
+        operator: '操作人',
+        module: '模块',
+        timeRange: '时间范围',
+      },
+      placeholder: {
+        operator: '用户名',
+        module: '模块名',
+        startDate: '开始日期',
+        endDate: '结束日期',
+      },
+      common: {
+        to: '至',
+      },
+      button: {
+        query: '查询',
+      },
+      column: {
+        time: '时间',
+        operator: '操作人',
+        module: '模块',
+        action: '操作',
+        resource: '资源',
+        ip: 'IP',
+        detail: '详情',
+      },
+    },
+    company: {
+      title: '公司信息设置',
+      aria: {
+        form: '公司信息表单',
+      },
+      divider: {
+        basic: '基本信息',
+        contact: '联系方式',
+        bank: '银行信息',
+      },
+      label: {
+        companyName: '公司名称',
+        companyShortName: '公司简称',
+        creditCode: '信用代码',
+        legalRep: '法定代表人',
+        phone: '联系电话',
+        email: '邮箱',
+        address: '地址',
+        bankName: '开户银行',
+        bankAccount: '银行账号',
+      },
+      button: {
+        save: '保存',
+        reset: '重置',
+      },
+      message: {
+        saveSuccess: '保存成功',
+        saveFailed: '保存失败',
+        requiredName: '请输入公司名称',
+      },
+    },
+    dataPermission: {
+      title: '数据权限',
+      aria: {
+        list: '数据权限列表',
+      },
+      column: {
+        role: '角色',
+        scopeType: '权限范围',
+        scopeValue: '范围值',
+        createdAt: '创建时间',
+      },
+    },
+    department: {
+      title: '部门管理',
+      button: {
+        create: '新建部门',
+        edit: '编辑',
+        delete: '删除',
+      },
+      aria: {
+        list: '部门列表',
+      },
+      column: {
+        name: '部门名称',
+        code: '部门编码',
+        manager: '负责人',
+        sort: '排序',
+        status: '状态',
+        action: '操作',
+      },
+      status: {
+        enabled: '启用',
+        disabled: '禁用',
+      },
+      dialog: {
+        editTitle: '编辑部门',
+        createTitle: '新建部门',
+        aria: '部门编辑对话框',
+      },
+      form: {
+        aria: '部门信息表单',
+        label: {
+          name: '部门名称',
+          code: '部门编码',
+          parent: '上级部门',
+          sort: '排序',
+          status: '状态',
+        },
+        button: {
+          cancel: '取消',
+          confirm: '确定',
+        },
+      },
+      message: {
+        fetchFailed: '获取部门列表失败',
+        requiredName: '请输入部门名称',
+        requiredCode: '请输入部门编码',
+        updateSuccess: '更新成功',
+        createSuccess: '创建成功',
+        operationFailed: '操作失败',
+        deleteConfirm: '确定删除部门 "{name}"?',
+        deleteTitle: '删除确认',
+        deleteSuccess: '删除成功',
+        deleteFailed: '删除失败',
+      },
+    },
+    fieldPermission: {
+      title: '字段权限',
+      aria: {
+        list: '字段权限列表',
+      },
+      column: {
+        role: '角色',
+        resource: '资源',
+        fieldName: '字段名',
+        visible: '可见',
+        editable: '可编辑',
+      },
+      common: {
+        yes: '是',
+        no: '否',
+      },
+    },
+    notification: {
+      title: '通知设置',
+      aria: {
+        form: '通知设置表单',
+      },
+      label: {
+        email: '邮件通知',
+        internal: '站内通知',
+        order: '订单通知',
+        approval: '审批通知',
+        inventory: '库存通知',
+        system: '系统通知',
+      },
+      divider: {
+        type: '通知类型',
+      },
+      option: {
+        emailOnly: '仅邮件',
+        internalOnly: '仅站内',
+        all: '全部',
+      },
+      button: {
+        save: '保存设置',
+      },
+      message: {
+        saveSuccess: '保存成功',
+        saveFailed: '保存失败',
+      },
+    },
+    permission: {
+      title: '权限管理',
+      aria: {
+        list: '权限列表',
+      },
+      column: {
+        resourceType: '资源类型',
+        action: '操作',
+        status: '状态',
+        resourceId: '资源ID',
+      },
+      status: {
+        allowed: '允许',
+        denied: '禁止',
+      },
+    },
+    role: {
+      title: '角色管理',
+      button: {
+        create: '新建角色',
+        edit: '编辑',
+        permission: '权限',
+        delete: '删除',
+      },
+      aria: {
+        list: '角色列表',
+      },
+      column: {
+        name: '角色名称',
+        code: '角色编码',
+        description: '描述',
+        status: '状态',
+        createdAt: '创建时间',
+        action: '操作',
+      },
+      status: {
+        enabled: '启用',
+        disabled: '禁用',
+      },
+      dialog: {
+        editTitle: '编辑角色',
+        createTitle: '新建角色',
+        aria: '角色编辑对话框',
+      },
+      form: {
+        aria: '角色信息表单',
+        label: {
+          name: '角色名称',
+          code: '角色编码',
+          description: '描述',
+          status: '状态',
+        },
+        button: {
+          cancel: '取消',
+          confirm: '确定',
+        },
+      },
+      permissionDialog: {
+        title: '权限配置 - {name}',
+        aria: '角色权限配置对话框',
+        button: {
+          cancel: '取消',
+          save: '保存',
+        },
+      },
+      message: {
+        fetchFailed: '获取角色列表失败',
+        requiredName: '请输入角色名称',
+        requiredCode: '请输入角色编码',
+        updateSuccess: '更新成功',
+        createSuccess: '创建成功',
+        operationFailed: '操作失败',
+        deleteConfirm: '确定删除角色 "{name}"?',
+        deleteTitle: '删除确认',
+        deleteSuccess: '删除成功',
+        deleteFailed: '删除失败',
+        permissionSuccess: '权限配置成功',
+        permissionFailed: '配置失败',
+      },
+    },
+    systemUpdate: {
+      title: '系统更新',
+      label: {
+        currentVersion: '当前版本',
+        lastUpdate: '最后更新',
+      },
+      button: {
+        check: '检查更新',
+        apply: '应用更新',
+      },
+      message: {
+        upToDate: '已是最新版本',
+        checkFailed: '检查更新失败',
+        updateSubmitted: '更新已提交，服务将重启',
+        updateFailed: '更新失败',
+      },
+    },
+    webhook: {
+      title: 'Webhook 配置',
+      button: {
+        create: '新建',
+        edit: '编辑',
+        test: '测试',
+        delete: '删除',
+      },
+      aria: {
+        list: 'Webhook 列表',
+      },
+      column: {
+        name: '名称',
+        event: '事件',
+        status: '状态',
+        action: '操作',
+      },
+      status: {
+        enabled: '启用',
+        disabled: '禁用',
+      },
+      dialog: {
+        editTitle: '编辑 Webhook',
+        createTitle: '新建 Webhook',
+        aria: 'Webhook 编辑对话框',
+      },
+      form: {
+        aria: 'Webhook 信息表单',
+        label: {
+          name: '名称',
+          eventType: '事件类型',
+          secret: '密钥',
+          status: '状态',
+        },
+        placeholder: {
+          secret: '可选',
+        },
+        button: {
+          cancel: '取消',
+          confirm: '确定',
+        },
+      },
+      event: {
+        orderCreated: '订单创建',
+        orderUpdated: '订单更新',
+        inventoryChanged: '库存变动',
+        approvalCompleted: '审批完成',
+        all: '全部',
+      },
+      message: {
+        saveSuccess: '保存成功',
+        saveFailed: '保存失败',
+        deleteConfirm: '确定删除?',
+        deleteTitle: '确认',
+        deleteSuccess: '删除成功',
+        deleteFailed: '删除失败',
+        testSent: '测试请求已发送',
+        testFailed: '测试失败',
+      },
+    },
+  },
+
 };

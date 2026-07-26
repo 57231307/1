@@ -4,15 +4,16 @@
   拆分：540 行 → ~110 行 + 5 子组件（步骤条 + 4 步） + 2 composable + 1 工具
   行为完全保持一致（仅结构重构）
   注：路由直接引用 views/security/TwoFactorSetup.vue，组件放在子目录 two-factor/
+  批次 D05 B4：接入 useI18n
 -->
 <template>
   <div class="two-factor-page">
     <div class="page-header">
-      <h1 class="page-title">双因素认证</h1>
+      <h1 class="page-title">{{ t('security.twoFactorSetup.title') }}</h1>
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-        <el-breadcrumb-item>系统管理</el-breadcrumb-item>
-        <el-breadcrumb-item>双因素认证</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/' }">{{ t('security.twoFactorSetup.breadcrumb.home') }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{ t('security.twoFactorSetup.breadcrumb.system') }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{ t('security.twoFactorSetup.breadcrumb.current') }}</el-breadcrumb-item>
       </el-breadcrumb>
     </div>
 
@@ -49,10 +50,10 @@
       <div v-if="tfa.currentStep > 0 && tfa.currentStep < 3" class="step-actions">
         <el-button @click="tfaProc.handlePrevStep(tfa)">
           <el-icon><ArrowLeft /></el-icon>
-          上一步
+          {{ t('security.twoFactorSetup.button.prev') }}
         </el-button>
         <el-button v-if="tfa.currentStep < 2" type="primary" @click="tfaProc.handleNextStep(tfa)">
-          下一步
+          {{ t('security.twoFactorSetup.button.next') }}
           <el-icon><ArrowRight /></el-icon>
         </el-button>
         <el-button
@@ -61,14 +62,14 @@
           :loading="tfa.enableLoading"
           @click="onVerify"
         >
-          验证并启用
+          {{ t('security.twoFactorSetup.button.verifyAndEnable') }}
           <el-icon><Check /></el-icon>
         </el-button>
       </div>
 
       <div v-if="tfa.currentStep === 3" class="step-actions">
         <el-button type="primary" @click="tfaProc.handleFinish">
-          完成
+          {{ t('security.twoFactorSetup.button.finish') }}
           <el-icon><Check /></el-icon>
         </el-button>
       </div>
@@ -78,6 +79,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ArrowLeft, ArrowRight, Check } from '@element-plus/icons-vue'
 import { useTfa } from './two-factor/composables/useTfa'
 import { useTfaProc, type TwoFactorAuthStep3Instance } from './two-factor/composables/useTfaProc'
@@ -86,6 +88,8 @@ import TwoFactorAuthStep1 from './two-factor/components/TwoFactorAuthStep1.vue'
 import TwoFactorAuthStep2 from './two-factor/components/TwoFactorAuthStep2.vue'
 import TwoFactorAuthStep3 from './two-factor/components/TwoFactorAuthStep3.vue'
 import TwoFactorAuthStep4 from './two-factor/components/TwoFactorAuthStep4.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const tfa = useTfa()

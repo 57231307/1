@@ -2,6 +2,7 @@
   SecurityStat.vue - 安全 4 统计卡片（今日登录/失败/锁定/告警）
   拆分自 security/index.vue（P14 批 2 I-3 第 6 批）
   行为完全保持一致（仅结构重构）
+  批次 D05 B4：接入 useI18n
 -->
 <template>
   <el-row :gutter="20" class="stats-row">
@@ -12,7 +13,7 @@
             <el-icon><User /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">今日登录次数</div>
+            <div class="stat-label">{{ t('security.stat.label.todayLogins') }}</div>
             <div class="stat-value">{{ stats.todayLogins }}</div>
           </div>
         </div>
@@ -25,7 +26,7 @@
             <el-icon><Warning /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">今日失败次数</div>
+            <div class="stat-label">{{ t('security.stat.label.todayFailures') }}</div>
             <div class="stat-value">{{ stats.todayFailures }}</div>
           </div>
         </div>
@@ -38,7 +39,7 @@
             <el-icon><Lock /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">锁定账户数</div>
+            <div class="stat-label">{{ t('security.stat.label.lockedAccounts') }}</div>
             <div class="stat-value">{{ stats.lockedAccounts }}</div>
           </div>
         </div>
@@ -51,7 +52,7 @@
             <el-icon><Bell /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">安全告警</div>
+            <div class="stat-label">{{ t('security.stat.label.securityAlerts') }}</div>
             <div class="stat-value">{{ stats.securityAlerts }}</div>
           </div>
         </div>
@@ -61,8 +62,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { User, Warning, Lock, Bell } from '@element-plus/icons-vue'
 import type { SecurityStats } from '@/api/security'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{ stats: SecurityStats }>()
 </script>

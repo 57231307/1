@@ -6,14 +6,14 @@
 <template>
   <div class="data-permission-tab">
     <div class="page-header">
-      <h2 class="page-title">数据权限</h2>
+      <h2 class="page-title">{{ t('system.dataPermission.title') }}</h2>
     </div>
     <el-card shadow="hover">
-      <el-table v-loading="dataPermLoading" :data="dataPermissionList" stripe aria-label="数据权限列表">
-        <el-table-column prop="role_name" label="角色" width="120" />
-        <el-table-column prop="scope_type" label="权限范围" width="120" />
-        <el-table-column prop="scope_value" label="范围值" min-width="200" />
-        <el-table-column prop="created_at" label="创建时间" width="160" />
+      <el-table v-loading="dataPermLoading" :data="dataPermissionList" stripe :aria-label="t('system.dataPermission.aria.list')">
+        <el-table-column prop="role_name" :label="t('system.dataPermission.column.role')" width="120" />
+        <el-table-column prop="scope_type" :label="t('system.dataPermission.column.scopeType')" width="120" />
+        <el-table-column prop="scope_value" :label="t('system.dataPermission.column.scopeValue')" min-width="200" />
+        <el-table-column prop="created_at" :label="t('system.dataPermission.column.createdAt')" width="160" />
       </el-table>
     </el-card>
   </div>
@@ -21,7 +21,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { request } from '@/api/request'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface DataPermissionRow {
   role_name: string

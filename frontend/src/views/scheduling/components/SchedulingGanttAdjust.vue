@@ -6,16 +6,16 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="调整排程时间"
+    :title="t('scheduling.ganttAdjust.title')"
     width="450px"
-    aria-label="调整排程时间"
+    :aria-label="t('scheduling.ganttAdjust.ariaLabel.dialog')"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localForm" label-width="100px" aria-label="排班调整表单">
-      <el-form-item label="工单号">
+    <el-form :model="localForm" label-width="100px" :aria-label="t('scheduling.ganttAdjust.ariaLabel.form')">
+      <el-form-item :label="t('scheduling.ganttAdjust.form.orderNo')">
         <span>{{ adjustTask.order_no }}</span>
       </el-form-item>
-      <el-form-item label="工作中心">
+      <el-form-item :label="t('scheduling.ganttAdjust.form.workCenter')">
         <el-select v-model="localForm.work_center_id" style="width: 100%">
           <el-option
             v-for="wc in workCenters"
@@ -25,32 +25,35 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="开始时间">
+      <el-form-item :label="t('scheduling.ganttAdjust.form.startTime')">
         <el-date-picker
           v-model="localForm.start_time"
           type="datetime"
-          placeholder="选择开始时间"
+          :placeholder="t('scheduling.ganttAdjust.placeholder.startTime')"
           style="width: 100%"
         />
       </el-form-item>
-      <el-form-item label="结束时间">
+      <el-form-item :label="t('scheduling.ganttAdjust.form.endTime')">
         <el-date-picker
           v-model="localForm.end_time"
           type="datetime"
-          placeholder="选择结束时间"
+          :placeholder="t('scheduling.ganttAdjust.placeholder.endTime')"
           style="width: 100%"
         />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="onCancel">取消</el-button>
-      <el-button type="primary" :loading="adjusting" @click="emit('confirm')">确认调整</el-button>
+      <el-button @click="onCancel">{{ t('scheduling.ganttAdjust.button.cancel') }}</el-button>
+      <el-button type="primary" :loading="adjusting" @click="emit('confirm')">{{ t('scheduling.ganttAdjust.button.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 工作中心类型
 interface WorkCenter {

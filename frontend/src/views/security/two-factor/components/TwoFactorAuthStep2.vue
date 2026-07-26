@@ -5,9 +5,9 @@
 -->
 <template>
   <div class="step-content">
-    <h3 class="step-title">扫描二维码</h3>
+    <h3 class="step-title">{{ t('security.twoFactor.step2.title') }}</h3>
     <p class="step-desc">
-      使用 Google Authenticator、Microsoft Authenticator 或其他兼容的应用扫描以下二维码
+      {{ t('security.twoFactor.step2.desc') }}
     </p>
 
     <div class="qr-container">
@@ -16,22 +16,22 @@
         :src="qrCodeDataUrl"
         fit="contain"
         class="qr-image"
-        alt="二步验证二维码"
+        :alt="t('security.twoFactor.step2.qrAlt')"
       />
       <div v-else class="qr-loading">
         <el-icon class="is-loading"><Loading /></el-icon>
-        <p>正在生成二维码...</p>
+        <p>{{ t('security.twoFactor.step2.qrLoading') }}</p>
       </div>
     </div>
 
-    <el-form label-position="top" class="info-form" aria-label="双因素认证信息表单">
-      <el-form-item label="账户名">
+    <el-form label-position="top" class="info-form" :aria-label="t('security.twoFactor.step2.ariaLabel.form')">
+      <el-form-item :label="t('security.twoFactor.step2.label.username')">
         <el-input :model-value="username" readonly />
       </el-form-item>
-      <el-form-item label="发行方">
+      <el-form-item :label="t('security.twoFactor.step2.label.issuer')">
         <el-input model-value="ERP System" readonly />
       </el-form-item>
-      <el-form-item label="手动输入密钥">
+      <el-form-item :label="t('security.twoFactor.step2.label.secret')">
         <el-input
           :model-value="secretText"
           readonly
@@ -40,7 +40,7 @@
           <template #append>
             <el-button @click="emit('copy-secret')">
               <el-icon><CopyDocument /></el-icon>
-              复制
+              {{ t('security.twoFactor.step2.button.copy') }}
             </el-button>
           </template>
         </el-input>
@@ -50,7 +50,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { CopyDocument, Loading } from '@element-plus/icons-vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   qrCodeDataUrl: string

@@ -4,15 +4,15 @@
 -->
 <template>
   <div class="page-header">
-    <h2>生产排程管理</h2>
+    <h2>{{ t('scheduling.machineTool.title') }}</h2>
     <div class="header-actions">
       <el-button type="primary" :loading="scheduling" @click="emit('auto-schedule')">
         <el-icon><Cpu /></el-icon>
-        自动排程
+        {{ t('scheduling.machineTool.button.autoSchedule') }}
       </el-button>
       <el-button @click="emit('goto-gantt')">
         <el-icon><TrendCharts /></el-icon>
-        查看甘特图
+        {{ t('scheduling.machineTool.button.viewGantt') }}
       </el-button>
     </div>
   </div>
@@ -25,7 +25,7 @@
             <el-icon><Clock /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">待排程工单</div>
+            <div class="stat-label">{{ t('scheduling.machineTool.stat.pending') }}</div>
             <div class="stat-value">{{ stats.pending || 0 }}</div>
           </div>
         </div>
@@ -38,7 +38,7 @@
             <el-icon><Calendar /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">已排程工单</div>
+            <div class="stat-label">{{ t('scheduling.machineTool.stat.scheduled') }}</div>
             <div class="stat-value">{{ stats.scheduled || 0 }}</div>
           </div>
         </div>
@@ -51,7 +51,7 @@
             <el-icon><Loading /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">生产中工单</div>
+            <div class="stat-label">{{ t('scheduling.machineTool.stat.running') }}</div>
             <div class="stat-value">{{ stats.running || 0 }}</div>
           </div>
         </div>
@@ -64,7 +64,7 @@
             <el-icon><Warning /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">冲突数量</div>
+            <div class="stat-label">{{ t('scheduling.machineTool.stat.conflicts') }}</div>
             <div class="stat-value">{{ stats.conflicts || 0 }}</div>
           </div>
         </div>
@@ -74,7 +74,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Calendar, Clock, Cpu, Loading, TrendCharts, Warning } from '@element-plus/icons-vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 统计数据类型
 interface Stats {
