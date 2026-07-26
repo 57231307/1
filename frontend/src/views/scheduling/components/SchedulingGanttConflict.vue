@@ -10,8 +10,16 @@
     :aria-label="t('scheduling.ganttConflict.ariaLabel.dialog')"
     @update:model-value="onVisibleChange"
   >
-    <el-table :data="conflictList" stripe :aria-label="t('scheduling.ganttConflict.ariaLabel.table')">
-      <el-table-column prop="work_center_name" :label="t('scheduling.ganttConflict.column.workCenter')" width="140" />
+    <el-table
+      :data="conflictList"
+      stripe
+      :aria-label="t('scheduling.ganttConflict.ariaLabel.table')"
+    >
+      <el-table-column
+        prop="work_center_name"
+        :label="t('scheduling.ganttConflict.column.workCenter')"
+        width="140"
+      />
       <el-table-column :label="t('scheduling.ganttConflict.column.conflictOrders')" width="260">
         <template #default="{ row }">
           <span>{{ row.order_no_1 }}</span>
@@ -29,7 +37,11 @@
       <el-table-column :label="t('scheduling.ganttConflict.column.severity')" width="100">
         <template #default="{ row }">
           <el-tag :type="row.severity === 'error' ? 'danger' : 'warning'" size="small">
-            {{ row.severity === 'error' ? t('scheduling.ganttConflict.severity.error') : t('scheduling.ganttConflict.severity.warning') }}
+            {{
+              row.severity === 'error'
+                ? t('scheduling.ganttConflict.severity.error')
+                : t('scheduling.ganttConflict.severity.warning')
+            }}
           </el-tag>
         </template>
       </el-table-column>

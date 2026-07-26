@@ -6,34 +6,49 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="盘点单详情"
+    :title="t('inventoryCount.detailDialogTab.titleDetail')"
     width="800px"
-    aria-label="盘点详情对话框"
+    :aria-label="t('inventoryCount.detailDialogTab.ariaLabelDetail')"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
     <el-descriptions v-if="currentRow" :column="2" border>
-      <el-descriptions-item label="盘点单号">{{ currentRow.count_no }}</el-descriptions-item>
-      <el-descriptions-item label="盘点日期">{{ currentRow.count_date }}</el-descriptions-item>
-      <el-descriptions-item label="仓库">{{ currentRow.warehouse_name }}</el-descriptions-item>
-      <el-descriptions-item label="状态">
+      <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelCountNo')">{{
+        currentRow.count_no
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelCountDate')">{{
+        currentRow.count_date
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelWarehouse')">{{
+        currentRow.warehouse_name
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelStatus')">
         <el-tag :type="currentRow.status === 'completed' ? 'success' : 'warning'" size="small">
-          {{ currentRow.status === 'completed' ? '已完成' : '进行中' }}
+          {{ getStatusLabel(currentRow.status) }}
         </el-tag>
       </el-descriptions-item>
-      <el-descriptions-item label="创建人">{{ currentRow.created_by_name }}</el-descriptions-item>
-      <el-descriptions-item label="创建时间">{{ currentRow.created_at }}</el-descriptions-item>
-      <el-descriptions-item label="完成时间" :span="2">
+      <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelCreatedBy')">{{
+        currentRow.created_by_name
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelCreatedAt')">{{
+        currentRow.created_at
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('inventoryCount.detailDialogTab.labelCompletedAt')" :span="2">
         {{ currentRow.completed_at || '-' }}
       </el-descriptions-item>
     </el-descriptions>
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">关闭</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{
+        t('inventoryCount.detailDialogTab.buttonClose')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { InventoryCountEntity } from '@/api/inventoryCount'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -46,4 +61,11 @@ interface Emits {
 
 defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+/** 状态标签函数化：优先 i18n，未知状态回退到原始 status 字符串 */
+const getStatusLabel = (status: string) => {
+  const key = `inventoryCount.detailDialogTab.statusLabel.${status}`
+  const translated = t(key)
+  return translated === key ? status : translated
+}
 </script>

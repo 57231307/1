@@ -7,7 +7,7 @@
 <template>
   <div class="material-shortage-page">
     <div class="page-header">
-      <h2 class="page-title">物料缺料管理</h2>
+      <h2 class="page-title">{{ t('materialShortage.page.title') }}</h2>
     </div>
 
     <MaterialShortageStat :summary="ms.summary" />
@@ -32,17 +32,19 @@
       @update:filter-severity="(v: string) => (ms.filterSeverity = v)"
       @update:filter-status="(v: string) => (ms.filterStatus = v)"
     />
-
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useMs } from './composables/useMs'
 import { useMsProc } from './composables/useMsProc'
 import MaterialShortageStat from './components/MaterialShortageStat.vue'
 import MaterialShortageSeverityCard from './components/MaterialShortageSeverityCard.vue'
 import MaterialShortageTable from './components/MaterialShortageTable.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const ms = useMs()

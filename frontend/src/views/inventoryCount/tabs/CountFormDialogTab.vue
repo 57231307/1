@@ -6,16 +6,32 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="formData.id ? '编辑盘点单' : '新建盘点单'"
+    :title="
+      formData.id
+        ? t('inventoryCount.formDialogTab.titleEdit')
+        : t('inventoryCount.formDialogTab.titleCreate')
+    "
     width="600px"
-    :aria-label="mode === 'view' ? '盘点详情对话框' : (formData.id ? '编辑盘点单对话框' : '新建盘点单对话框')"
+    :aria-label="
+      mode === 'view'
+        ? t('inventoryCount.formDialogTab.ariaLabelDetail')
+        : formData.id
+          ? t('inventoryCount.formDialogTab.ariaLabelEdit')
+          : t('inventoryCount.formDialogTab.ariaLabelCreate')
+    "
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" :disabled="mode === 'view'" aria-label="盘点单表单">
-      <el-form-item label="盘点单号" prop="count_no">
+    <el-form
+      ref="formRef"
+      :model="formData"
+      label-width="100px"
+      :disabled="mode === 'view'"
+      :aria-label="t('inventoryCount.formDialogTab.ariaLabelForm')"
+    >
+      <el-form-item :label="t('inventoryCount.formDialogTab.labelCountNo')" prop="count_no">
         <el-input v-model="formData.count_no" :disabled="!!formData.id" />
       </el-form-item>
-      <el-form-item label="盘点日期" prop="count_date">
+      <el-form-item :label="t('inventoryCount.formDialogTab.labelCountDate')" prop="count_date">
         <el-date-picker
           v-model="formData.count_date"
           type="date"
@@ -23,7 +39,7 @@
           style="width: 100%"
         />
       </el-form-item>
-      <el-form-item label="仓库" prop="warehouse_id">
+      <el-form-item :label="t('inventoryCount.formDialogTab.labelWarehouse')" prop="warehouse_id">
         <el-select v-model="formData.warehouse_id" style="width: 100%">
           <el-option
             v-for="wh in warehouses"
@@ -33,19 +49,29 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="备注" prop="remark">
-        <el-input v-model="formData.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+      <el-form-item :label="t('inventoryCount.formDialogTab.labelRemark')" prop="remark">
+        <el-input
+          v-model="formData.remark"
+          type="textarea"
+          :rows="3"
+          :placeholder="t('inventoryCount.formDialogTab.placeholderRemark')"
+        />
       </el-form-item>
     </el-form>
     <template v-if="mode !== 'view'" #footer>
-      <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{
+        t('inventoryCount.formDialogTab.buttonCancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+        t('inventoryCount.formDialogTab.buttonSave')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import {
@@ -56,6 +82,8 @@ import {
 } from '@/api/inventoryCount'
 import type { Warehouse } from '@/api/warehouse'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -98,7 +126,10 @@ const generateNo = async () => {
     const res = await generateInventoryCountNo()
     formData.count_no = res.data?.count_no || ''
   } catch (error) {
-    logger.error('生成盘点单号失败', (error as Error).message)
+    logger.error(
+      t('inventoryCount.formDialogTab.messageGenerateNoFailure'),
+      (error as Error).message
+    )
   }
 }
 
@@ -130,12 +161,12 @@ const handleSubmit = async () => {
     } else {
       await createInventoryCount(formData as Partial<InventoryCountEntity>)
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(t('inventoryCount.formDialogTab.messageSuccess'))
     emit('update:modelValue', false)
     emit('submitted')
   } catch (error) {
-    ElMessage.error((error as Error).message || '操作失败')
-    logger.error('盘点单保存失败', (error as Error).message)
+    ElMessage.error((error as Error).message || t('inventoryCount.formDialogTab.messageFailure'))
+    logger.error(t('inventoryCount.formDialogTab.messageSaveFailure'), (error as Error).message)
   } finally {
     submitLoading.value = false
   }

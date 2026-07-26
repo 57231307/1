@@ -9,23 +9,24 @@
                     handleExport (Batch 475d：改用后端 xlsx 导出) / handlePrint (新窗口) /
                     defineExpose({ fetchRecords }) / logger
   - 路径：/production/quality-inspection/records
+  D05 Batch 8 Group B：接入 useI18n
 -->
 <template>
   <div class="record-tab">
     <div class="page-header">
-      <h2 class="page-title">质量检验记录</h2>
+      <h2 class="page-title">{{ t('quality.recordTab.pageTitle') }}</h2>
       <div class="header-actions">
         <el-button type="primary" @click="openCreate">
           <el-icon><Plus /></el-icon>
-          新建检验
+          {{ t('quality.recordTab.createButton') }}
         </el-button>
         <el-button @click="handlePrint">
           <el-icon><Printer /></el-icon>
-          打印
+          {{ t('quality.recordTab.printButton') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('quality.recordTab.exportButton') }}
         </el-button>
       </div>
     </div>
@@ -57,6 +58,7 @@
  *           defineExpose({ fetchRecords }) / logger
  */
 import { h, onMounted, inject } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElTag, ElButton } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { useTableApi } from '@/composables/useTableApi'
@@ -69,17 +71,34 @@ import { escapeHtml } from '@/utils/print'
 // 后端 GET /production/quality-inspection/records/export 已就绪（含异步审计日志 + 水印）
 import { exportFromBackend } from '@/utils/export'
 
+const { t } = useI18n({ useScope: 'global' })
+
 // 父组件注入：openRecordDialog(row | null)
 const actions = inject<{
   openRecordDialog: (row: QualityRecord | null) => void
 }>('qualityActions')
 
 // 检验记录列表（由 useTableApi 接管分页/loading/重试）
-const { data, loading, page, pageSize, total, refresh } =
-  useTableApi<QualityRecord>('/production/quality-inspection/records')
+const { data, loading, page, pageSize, total, refresh } = useTableApi<QualityRecord>(
+  '/production/quality-inspection/records'
+)
 
-// 结果映射表（用于导出/打印）
-const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
+// 结果标签映射函数（用于表格 el-tag 与导出/打印）
+const getResultLabel = (result: string): string => {
+  const map: Record<string, string> = {
+    pass: t('quality.recordTab.resultPass'),
+    fail: t('quality.recordTab.resultFail'),
+    pending: t('quality.recordTab.resultPending'),
+  }
+  return map[result] || result
+}
+
+// 结果颜色映射
+const getResultType = (result: string): 'success' | 'danger' | 'warning' => {
+  if (result === 'pass') return 'success'
+  if (result === 'fail') return 'danger'
+  return 'warning'
+}
 
 /**
  * 列定义
@@ -87,33 +106,33 @@ const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', p
  * - 操作列：查看按钮（fixed right）
  */
 const columns: ColumnDef<QualityRecord>[] = [
-  { key: 'record_no', title: '记录编号', width: 140, fixed: 'left' },
-  { key: 'inspection_type', title: '检验类型', width: 120 },
-  { key: 'product_name', title: '产品', width: 150 },
-  { key: 'batch_no', title: '批次号', width: 140 },
-  { key: 'inspection_date', title: '检验日期', width: 120 },
-  { key: 'inspector', title: '检验员', width: 100 },
+  { key: 'record_no', title: t('quality.recordTab.colRecordNo'), width: 140, fixed: 'left' },
+  { key: 'inspection_type', title: t('quality.recordTab.colInspectionType'), width: 120 },
+  { key: 'product_name', title: t('quality.recordTab.colProduct'), width: 150 },
+  { key: 'batch_no', title: t('quality.recordTab.colBatchNo'), width: 140 },
+  { key: 'inspection_date', title: t('quality.recordTab.colInspectionDate'), width: 120 },
+  { key: 'inspector', title: t('quality.recordTab.colInspector'), width: 100 },
   {
     key: 'result',
-    title: '检验结果',
+    title: t('quality.recordTab.colResult'),
     width: 100,
     align: 'center',
     renderCell: (row: QualityRecord) => {
-      const type = row.result === 'pass' ? 'success' : row.result === 'fail' ? 'danger' : 'warning'
-      const text = row.result === 'pass' ? '合格' : row.result === 'fail' ? '不合格' : '待检'
+      const type = getResultType(row.result)
+      const text = getResultLabel(row.result)
       return h(ElTag, { type, size: 'small' }, () => text)
     },
   },
   {
     key: '__actions__',
-    title: '操作',
+    title: t('quality.recordTab.colActions'),
     width: 120,
     fixed: 'right',
     renderCell: (row: QualityRecord) =>
       h(
         ElButton,
         { type: 'primary', link: true, size: 'small', onClick: () => handleView(row) },
-        () => '查看'
+        () => t('quality.recordTab.buttonView')
       ),
   },
 ]
@@ -147,35 +166,43 @@ const handleExport = async () => {
     {},
     'quality_inspection_records_export'
   )
-  logger.info('检验记录已通过后端导出')
+  logger.info(t('quality.recordTab.messageExported'))
 }
 
-// 打印
-const handlePrint = () => {
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) {
-    ElMessage.error('无法打开打印窗口')
-    return
-  }
-  const rows = data.value
+// 构造打印表格行 HTML
+const buildPrintRows = (): string => {
+  return data.value
     .map(
       item => `
     <tr>
       <td>${escapeHtml(item.record_no)}</td><td>${escapeHtml(item.inspection_type)}</td>
       <td>${escapeHtml(item.product_name)}</td><td>${escapeHtml(item.batch_no)}</td>
       <td>${escapeHtml(item.inspection_date)}</td><td>${escapeHtml(item.inspector)}</td>
-      <td>${escapeHtml(resultMap[item.result] || item.result)}</td>
+      <td>${escapeHtml(getResultLabel(item.result) || item.result)}</td>
     </tr>
   `
     )
     .join('')
-  printWindow.document.write(`<html><head><meta charset="utf-8"><title>检验记录</title>
+}
+
+// 打印
+const handlePrint = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    ElMessage.error(t('quality.recordTab.messageCannotOpenPrintWindow'))
+    return
+  }
+  const rows = buildPrintRows()
+  const printDate = new Date().toISOString().split('T')[0]
+  const totalCount = data.value.length
+  printWindow.document
+    .write(`<html><head><meta charset="utf-8"><title>${t('quality.recordTab.print.title')}</title>
     <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
-    <h1>质量检验记录</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${data.value.length} 条</div>
-    <table><thead><tr><th>记录编号</th><th>检验类型</th><th>产品</th><th>批次号</th><th>检验日期</th><th>检验员</th><th>结果</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    <h1>${t('quality.recordTab.print.headerTitle')}</h1><div class="meta">${t('quality.recordTab.print.dateLabel')}: ${printDate} | ${t('quality.recordTab.print.totalLabel')} ${totalCount} ${t('quality.recordTab.print.totalUnit')}</div>
+    <table><thead><tr><th>${t('quality.recordTab.print.colRecordNo')}</th><th>${t('quality.recordTab.print.colInspectionType')}</th><th>${t('quality.recordTab.print.colProduct')}</th><th>${t('quality.recordTab.print.colBatchNo')}</th><th>${t('quality.recordTab.print.colInspectionDate')}</th><th>${t('quality.recordTab.print.colInspector')}</th><th>${t('quality.recordTab.print.colResult')}</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
   printWindow.document.close()
   printWindow.onload = () => printWindow.print()
-  logger.info('检验记录打印任务已生成')
+  logger.info(t('quality.recordTab.messagePrintGenerated'))
 }
 
 // 组件挂载时获取数据

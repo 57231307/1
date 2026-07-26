@@ -10,7 +10,5 @@ import { PRODUCTION_ORDER_STATUS } from '@/api/production'
  * 获取生产订单状态中文标签
  */
 export const getStatusLabel = (status: string): string => {
-  return (
-    PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || status
-  )
+  return PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || status
 }

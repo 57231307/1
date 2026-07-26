@@ -2,40 +2,46 @@
   CategoryDialogTab.vue - 产品分类管理对话框
   来源：原 product/index.vue 中 分类管理弹窗
   拆分日期：2026-06-15 B3-4
+  D05 Batch 8 Group B：接入 useI18n
 -->
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="产品分类管理"
+    :title="t('product.categoryDialogTab.title')"
     width="600px"
-    aria-label="产品分类对话框"
+    :aria-label="t('product.categoryDialogTab.ariaLabel')"
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
     <div class="category-dialog-content">
       <div class="category-add-form">
         <el-input
           v-model="newCategoryName"
-          placeholder="输入新分类名称"
+          :placeholder="t('product.categoryDialogTab.placeholderNewCategory')"
           style="width: 300px; margin-right: 10px"
         />
         <el-button type="primary" @click="handleAdd">
           <el-icon><Plus /></el-icon>
-          添加分类
+          {{ t('product.categoryDialogTab.buttonAddCategory') }}
         </el-button>
       </div>
       <el-table
         v-loading="loading"
         :data="categories"
         stripe
-        aria-label="产品分类列表"
+        :aria-label="t('product.categoryDialogTab.tableAriaLabel')"
         style="margin-top: 15px"
       >
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="分类名称" />
-        <el-table-column prop="description" label="描述" />
-        <el-table-column label="操作" width="120">
+        <el-table-column prop="id" :label="t('product.categoryDialogTab.colId')" width="80" />
+        <el-table-column prop="name" :label="t('product.categoryDialogTab.colName')" />
+        <el-table-column
+          prop="description"
+          :label="t('product.categoryDialogTab.colDescription')"
+        />
+        <el-table-column :label="t('product.categoryDialogTab.colActions')" width="120">
           <template #default="{ row }">
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row)">{{
+              t('product.categoryDialogTab.buttonDelete')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -45,6 +51,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -54,6 +61,8 @@ import {
   type ProductCategory,
 } from '@/api/product'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -78,7 +87,7 @@ const fetchCategories = async () => {
     categories.value = (res.data as ProductCategory[] | undefined) || []
   } catch (error) {
     const err = error as Error
-    logger.error('获取分类失败', err.message)
+    logger.error(t('product.categoryDialogTab.messageFetchFailed'), err.message)
   } finally {
     loading.value = false
   }
@@ -86,34 +95,36 @@ const fetchCategories = async () => {
 
 const handleAdd = async () => {
   if (!newCategoryName.value.trim()) {
-    ElMessage.warning('请输入分类名称')
+    ElMessage.warning(t('product.categoryDialogTab.messageCategoryNameRequired'))
     return
   }
   try {
     await createProductCategory({ name: newCategoryName.value.trim() })
-    ElMessage.success('添加成功')
+    ElMessage.success(t('product.categoryDialogTab.messageAddSuccess'))
     newCategoryName.value = ''
     fetchCategories()
     emit('changed')
   } catch (error) {
     const err = error as Error
-    ElMessage.error(err.message || '添加失败')
+    ElMessage.error(err.message || t('product.categoryDialogTab.messageAddFailed'))
   }
 }
 
 const handleDelete = async (row: ProductCategory) => {
   try {
-    await ElMessageBox.confirm(`确定删除分类 "${row.name}" 吗？`, '删除确认', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('product.categoryDialogTab.messageDeleteConfirm', { name: row.name }),
+      t('product.categoryDialogTab.messageDeleteTitle'),
+      { type: 'warning' }
+    )
     await deleteProductCategory(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('product.categoryDialogTab.messageDeleteSuccess'))
     fetchCategories()
     emit('changed')
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '删除失败')
+      ElMessage.error(err.message || t('product.categoryDialogTab.messageDeleteFailed'))
     }
   }
 }

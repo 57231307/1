@@ -4,12 +4,12 @@
 // 行为完全保持一致（仅结构重构）
 import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getDashboardOverview, getDashboardSalesStats, getDashboardInventoryStats } from '@/api/dashboard'
-import type {
-  DashboardOverview,
-  SalesTrend,
-  ChartData,
+import {
+  getDashboardOverview,
+  getDashboardSalesStats,
+  getDashboardInventoryStats,
 } from '@/api/dashboard'
+import type { DashboardOverview, SalesTrend, ChartData } from '@/api/dashboard'
 import { logger } from '@/utils/logger'
 
 /** Dashboard 主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
@@ -33,7 +33,9 @@ export const useDb = () => {
       stats.value = res.data || {}
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取仪表盘数据失败')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) || '获取仪表盘数据失败'
+      )
       stats.value = {}
     }
   }

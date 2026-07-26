@@ -12,13 +12,19 @@
     :aria-label="$t('arReconciliationModule.disputeDialogAria')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localForm" label-width="100px" :aria-label="$t('arReconciliationModule.disputeFormAria')">
+    <el-form
+      :model="localForm"
+      label-width="100px"
+      :aria-label="$t('arReconciliationModule.disputeFormAria')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="$t('arReconciliationModule.disputeType')">
             <el-select
               :model-value="localForm.dispute_type"
-              @update:model-value="(v: string) => (localForm.dispute_type = v as DisputeRecord['dispute_type'])"
+              @update:model-value="
+                (v: string) => (localForm.dispute_type = v as DisputeRecord['dispute_type'])
+              "
             >
               <el-option
                 v-for="o in DISPUTE_TYPE_OPTIONS"
@@ -51,18 +57,30 @@
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="emit('submit')">{{ $t('arReconciliationModule.submitDispute') }}</el-button>
+        <el-button type="primary" @click="emit('submit')">{{
+          $t('arReconciliationModule.submitDispute')
+        }}</el-button>
       </el-form-item>
     </el-form>
 
     <el-divider>{{ $t('arReconciliationModule.disputeRecords') }}</el-divider>
-    <el-table :data="disputes" border style="width: 100%" :aria-label="$t('arReconciliationModule.disputeRecordsAria')">
+    <el-table
+      :data="disputes"
+      border
+      style="width: 100%"
+      :aria-label="$t('arReconciliationModule.disputeRecordsAria')"
+    >
       <el-table-column :label="$t('arReconciliationModule.disputeType')" width="100">
         <template #default="scope">
           {{ getDisputeTypeLabel(scope.row.dispute_type) }}
         </template>
       </el-table-column>
-      <el-table-column prop="dispute_amount" :label="$t('arReconciliationModule.disputeAmount')" width="120" align="right">
+      <el-table-column
+        prop="dispute_amount"
+        :label="$t('arReconciliationModule.disputeAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.dispute_amount.toFixed(2) }}</template>
       </el-table-column>
       <el-table-column :label="$t('common.status')" width="100">
@@ -144,7 +162,7 @@ let syncing = false
 // 外部 prop 变化时同步到 local（如父组件重新打开对话框时填充数据）
 watch(
   () => props.form,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     localForm.value = { ...newForm }
@@ -152,13 +170,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     emit('update:form', { ...newForm })
@@ -166,6 +184,6 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 </script>

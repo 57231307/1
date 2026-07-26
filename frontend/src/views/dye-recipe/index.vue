@@ -2,101 +2,154 @@
   <div class="dye-recipe-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">染色配方管理</h1>
+        <h1 class="page-title">{{ t('dyeRecipe.index.pageTitle') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>面料行业</el-breadcrumb-item>
-          <el-breadcrumb-item>染色配方</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('dyeRecipe.index.breadcrumbHome')
+          }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('dyeRecipe.index.breadcrumbFabric') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('dyeRecipe.index.breadcrumbDyeRecipe') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
-          新建配方
+          {{ t('dyeRecipe.index.buttonCreate') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('dyeRecipe.index.buttonExport') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="染色配方筛选表单">
-        <el-form-item label="关键词">
+      <el-form
+        :inline="true"
+        :model="queryParams"
+        class="filter-form"
+        :aria-label="t('dyeRecipe.index.ariaFilterForm')"
+      >
+        <el-form-item :label="t('dyeRecipe.index.filterKeyword')">
           <el-input
             v-model="queryParams.keyword"
-            placeholder="配方名称/配方编号"
+            :placeholder="t('dyeRecipe.index.placeholderKeyword')"
             clearable
             @clear="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="色号">
+        <el-form-item :label="t('dyeRecipe.index.filterColorNo')">
           <el-input
             v-model="queryParams.color_no"
-            placeholder="请输入色号"
+            :placeholder="t('dyeRecipe.index.placeholderColorNo')"
             clearable
             @clear="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="t('dyeRecipe.index.filterStatus')">
           <el-select
             v-model="queryParams.status"
-            placeholder="选择状态"
+            :placeholder="t('dyeRecipe.index.placeholderStatus')"
             clearable
             @change="handleQuery"
           >
-            <el-option label="草稿" value="DRAFT" />
-            <el-option label="待审批" value="PENDING" />
-            <el-option label="已审批" value="APPROVED" />
-            <el-option label="已停用" value="INACTIVE" />
+            <el-option :label="t('dyeRecipe.index.optionDraft')" value="DRAFT" />
+            <el-option :label="t('dyeRecipe.index.optionPending')" value="PENDING" />
+            <el-option :label="t('dyeRecipe.index.optionApproved')" value="APPROVED" />
+            <el-option :label="t('dyeRecipe.index.optionInactive')" value="INACTIVE" />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">
             <el-icon><Search /></el-icon>
-            查询
+            {{ t('dyeRecipe.index.buttonQuery') }}
           </el-button>
           <el-button @click="handleReset">
             <el-icon><Refresh /></el-icon>
-            重置
+            {{ t('dyeRecipe.index.buttonReset') }}
           </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="recipeList" border stripe aria-label="染色配方列表">
-        <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="recipe_no" label="配方编号" width="120" show-overflow-tooltip />
+      <el-table
+        v-loading="loading"
+        :data="recipeList"
+        border
+        stripe
+        :aria-label="t('dyeRecipe.index.ariaTable')"
+      >
+        <el-table-column
+          type="index"
+          :label="t('dyeRecipe.index.colIndex')"
+          width="60"
+          align="center"
+        />
+        <el-table-column
+          prop="recipe_no"
+          :label="t('dyeRecipe.index.colRecipeNo')"
+          width="120"
+          show-overflow-tooltip
+        />
         <el-table-column
           prop="recipe_name"
-          label="配方名称"
+          :label="t('dyeRecipe.index.colRecipeName')"
           min-width="150"
           show-overflow-tooltip
         />
-        <el-table-column prop="color_no" label="色号" width="100" show-overflow-tooltip />
-        <el-table-column prop="color_name" label="颜色名称" width="120" show-overflow-tooltip />
-        <el-table-column prop="version" label="版本" width="80" align="center" />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column
+          prop="color_no"
+          :label="t('dyeRecipe.index.colColorNo')"
+          width="100"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="color_name"
+          :label="t('dyeRecipe.index.colColorName')"
+          width="120"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="version"
+          :label="t('dyeRecipe.index.colVersion')"
+          width="80"
+          align="center"
+        />
+        <el-table-column
+          prop="status"
+          :label="t('dyeRecipe.index.colStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" align="center" />
-        <el-table-column label="操作" width="250" align="center" fixed="right">
+        <el-table-column
+          prop="created_at"
+          :label="t('dyeRecipe.index.colCreatedAt')"
+          width="180"
+          align="center"
+        />
+        <el-table-column
+          :label="t('dyeRecipe.index.colOperation')"
+          width="250"
+          align="center"
+          fixed="right"
+        >
           <template #default="{ row }">
             <!-- v11 批次 168 P2-1 修复：row as any 改为 row as DyeRecipe -->
-            <el-button type="primary" link size="small" @click="handleView(row as DyeRecipe)"
-              >查看</el-button
-            >
+            <el-button type="primary" link size="small" @click="handleView(row as DyeRecipe)">{{
+              t('dyeRecipe.index.buttonView')
+            }}</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               type="primary"
               link
               size="small"
               @click="handleEdit(row as DyeRecipe)"
-              >编辑</el-button
+              >{{ t('dyeRecipe.index.buttonEdit') }}</el-button
             >
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -104,7 +157,7 @@
               link
               size="small"
               @click="handleSubmit(row as DyeRecipe)"
-              >提交</el-button
+              >{{ t('dyeRecipe.index.buttonSubmit') }}</el-button
             >
             <el-button
               v-if="row.status === 'PENDING'"
@@ -112,11 +165,11 @@
               link
               size="small"
               @click="handleApprove(row as DyeRecipe)"
-              >审批</el-button
+              >{{ t('dyeRecipe.index.buttonApprove') }}</el-button
             >
-            <el-button type="info" link size="small" @click="handleVersion(row as DyeRecipe)"
-              >版本</el-button
-            >
+            <el-button type="info" link size="small" @click="handleVersion(row as DyeRecipe)">{{
+              t('dyeRecipe.index.buttonVersion')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -128,7 +181,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="染色配方列表分页"
+          :aria-label="t('dyeRecipe.index.ariaPagination')"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
         />
@@ -141,71 +194,128 @@
       :title="dialogTitle"
       width="800px"
       :close-on-click-modal="false"
-      aria-label="染色配方编辑对话框"
+      :aria-label="t('dyeRecipe.index.ariaEditDialog')"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" :disabled="isView" label-width="100px" aria-label="染色配方表单">
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        :disabled="isView"
+        label-width="100px"
+        :aria-label="t('dyeRecipe.index.ariaForm')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="配方编号" prop="recipe_no">
-              <el-input v-model="formData.recipe_no" placeholder="请输入配方编号" />
+            <el-form-item :label="t('dyeRecipe.index.colRecipeNo')" prop="recipe_no">
+              <el-input
+                v-model="formData.recipe_no"
+                :placeholder="t('dyeRecipe.index.placeholderRecipeNo')"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="配方名称" prop="recipe_name">
-              <el-input v-model="formData.recipe_name" placeholder="请输入配方名称" />
+            <el-form-item :label="t('dyeRecipe.index.colRecipeName')" prop="recipe_name">
+              <el-input
+                v-model="formData.recipe_name"
+                :placeholder="t('dyeRecipe.index.placeholderRecipeName')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="色号" prop="color_no">
-              <el-input v-model="formData.color_no" placeholder="请输入色号" />
+            <el-form-item :label="t('dyeRecipe.index.colColorNo')" prop="color_no">
+              <el-input
+                v-model="formData.color_no"
+                :placeholder="t('dyeRecipe.index.placeholderColorNo')"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="颜色名称" prop="color_name">
-              <el-input v-model="formData.color_name" placeholder="请输入颜色名称" />
+            <el-form-item :label="t('dyeRecipe.index.colColorName')" prop="color_name">
+              <el-input
+                v-model="formData.color_name"
+                :placeholder="t('dyeRecipe.index.placeholderColorName')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="配方内容" prop="content">
+        <el-form-item :label="t('dyeRecipe.index.labelContent')" prop="content">
           <el-input
             v-model="formData.content"
             type="textarea"
             :rows="10"
-            placeholder="请输入配方内容"
+            :placeholder="t('dyeRecipe.index.placeholderContent')"
           />
         </el-form-item>
-        <el-form-item label="备注" prop="remarks">
-          <el-input v-model="formData.remarks" type="textarea" :rows="3" placeholder="请输入备注" />
+        <el-form-item :label="t('dyeRecipe.index.labelRemarks')" prop="remarks">
+          <el-input
+            v-model="formData.remarks"
+            type="textarea"
+            :rows="3"
+            :placeholder="t('dyeRecipe.index.placeholderRemarks')"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ isView ? '关闭' : '取消' }}</el-button>
-        <el-button v-if="!isView" type="primary" @click="handleSubmitForm">确定</el-button>
+        <el-button @click="dialogVisible = false">{{
+          isView ? t('dyeRecipe.index.buttonClose') : t('dyeRecipe.index.buttonCancel')
+        }}</el-button>
+        <el-button v-if="!isView" type="primary" @click="handleSubmitForm">{{
+          t('dyeRecipe.index.buttonConfirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 版本历史对话框 -->
-    <el-dialog v-model="versionVisible" title="版本历史" width="800px" aria-label="版本历史对话框">
-      <el-table :data="versionList" border stripe aria-label="染色配方版本历史列表">
-        <el-table-column prop="version" label="版本" width="80" align="center" />
+    <el-dialog
+      v-model="versionVisible"
+      :title="t('dyeRecipe.index.titleVersionHistory')"
+      width="800px"
+      :aria-label="t('dyeRecipe.index.ariaVersionHistory')"
+    >
+      <el-table
+        :data="versionList"
+        border
+        stripe
+        :aria-label="t('dyeRecipe.index.ariaVersionList')"
+      >
+        <el-table-column
+          prop="version"
+          :label="t('dyeRecipe.index.colVersion')"
+          width="80"
+          align="center"
+        />
         <el-table-column
           prop="recipe_name"
-          label="配方名称"
+          :label="t('dyeRecipe.index.colRecipeName')"
           min-width="150"
           show-overflow-tooltip
         />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="t('dyeRecipe.index.colStatus')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" align="center" />
-        <el-table-column label="操作" width="100" align="center">
+        <el-table-column
+          prop="created_at"
+          :label="t('dyeRecipe.index.colCreatedAt')"
+          width="180"
+          align="center"
+        />
+        <el-table-column :label="t('dyeRecipe.index.colOperation')" width="100" align="center">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleViewVersion(row as DyeRecipe)"
-              >查看</el-button
+            <el-button
+              type="primary"
+              link
+              size="small"
+              @click="handleViewVersion(row as DyeRecipe)"
+              >{{ t('dyeRecipe.index.buttonView') }}</el-button
             >
           </template>
         </el-table-column>
@@ -216,6 +326,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
 import {
@@ -229,6 +340,8 @@ import {
 import type { DyeRecipe } from '@/api/dye-recipe'
 import { logger } from '@/utils/logger'
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 查询参数（筛选条件，分页由 useTableApi 管理）
 const queryParams = reactive({
@@ -249,7 +362,7 @@ const {
   setQueryParam,
 } = useTableApi<DyeRecipe>({
   url: '/production/dye-recipes',
-  onError: (e: unknown) => logger.error('获取染色配方列表失败:', String(e)),
+  onError: (e: unknown) => logger.error(t('dyeRecipe.index.messageFetchFailed'), String(e)),
 })
 
 // 对话框
@@ -275,11 +388,19 @@ const formData = reactive({
 
 // 表单验证规则
 const formRules = {
-  recipe_no: [{ required: true, message: '请输入配方编号', trigger: 'blur' }],
-  recipe_name: [{ required: true, message: '请输入配方名称', trigger: 'blur' }],
-  color_no: [{ required: true, message: '请输入色号', trigger: 'blur' }],
-  color_name: [{ required: true, message: '请输入颜色名称', trigger: 'blur' }],
-  content: [{ required: true, message: '请输入配方内容', trigger: 'blur' }],
+  recipe_no: [
+    { required: true, message: t('dyeRecipe.index.ruleRecipeNoRequired'), trigger: 'blur' },
+  ],
+  recipe_name: [
+    { required: true, message: t('dyeRecipe.index.ruleRecipeNameRequired'), trigger: 'blur' },
+  ],
+  color_no: [
+    { required: true, message: t('dyeRecipe.index.ruleColorNoRequired'), trigger: 'blur' },
+  ],
+  color_name: [
+    { required: true, message: t('dyeRecipe.index.ruleColorNameRequired'), trigger: 'blur' },
+  ],
+  content: [{ required: true, message: t('dyeRecipe.index.ruleContentRequired'), trigger: 'blur' }],
 }
 
 // 批次 271：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -309,7 +430,7 @@ const handleReset = () => {
 
 // 新建
 const handleCreate = () => {
-  dialogTitle.value = '新建染色配方'
+  dialogTitle.value = t('dyeRecipe.index.titleCreate')
   isView.value = false
   Object.assign(formData, {
     id: undefined,
@@ -325,7 +446,7 @@ const handleCreate = () => {
 
 // 查看（v14 P0-3 修复：实现只读查看功能，原 handler 为空导致业务失效）
 const handleView = (row: DyeRecipe) => {
-  dialogTitle.value = '查看染色配方'
+  dialogTitle.value = t('dyeRecipe.index.titleView')
   isView.value = true
   Object.assign(formData, row)
   dialogVisible.value = true
@@ -333,7 +454,7 @@ const handleView = (row: DyeRecipe) => {
 
 // 编辑
 const handleEdit = (row: DyeRecipe) => {
-  dialogTitle.value = '编辑染色配方'
+  dialogTitle.value = t('dyeRecipe.index.titleEdit')
   isView.value = false
   Object.assign(formData, row)
   dialogVisible.value = true
@@ -342,24 +463,32 @@ const handleEdit = (row: DyeRecipe) => {
 // 提交审批
 const handleSubmit = async (row: DyeRecipe) => {
   try {
-    await ElMessageBox.confirm('确认提交该配方审批？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('dyeRecipe.index.messageConfirmSubmit'),
+      t('dyeRecipe.index.titlePrompt'),
+      { type: 'warning' }
+    )
     await submitDyeRecipe(row.id)
-    ElMessage.success('提交成功')
+    ElMessage.success(t('dyeRecipe.index.messageSubmitSuccess'))
     refresh()
   } catch (error) {
-    logger.error('提交失败:', error)
+    logger.error(t('dyeRecipe.index.messageSubmitFailed'), error)
   }
 }
 
 // 审批
 const handleApprove = async (row: DyeRecipe) => {
   try {
-    await ElMessageBox.confirm('确认审批通过该配方？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('dyeRecipe.index.messageConfirmApprove'),
+      t('dyeRecipe.index.titlePrompt'),
+      { type: 'warning' }
+    )
     await approveDyeRecipe(row.id)
-    ElMessage.success('审批成功')
+    ElMessage.success(t('dyeRecipe.index.messageApproveSuccess'))
     refresh()
   } catch (error) {
-    logger.error('审批失败:', error)
+    logger.error(t('dyeRecipe.index.messageApproveFailed'), error)
   }
 }
 
@@ -370,14 +499,14 @@ const handleVersion = async (row: DyeRecipe) => {
     versionList.value = res.data || []
     versionVisible.value = true
   } catch (error) {
-    logger.error('获取版本历史失败:', error)
+    logger.error(t('dyeRecipe.index.messageVersionFailed'), error)
   }
 }
 
 // 查看版本（v14 中风险修复：实现版本详情查看逻辑，原 handler 为空导致功能失效）
 const handleViewVersion = (row: DyeRecipe) => {
   versionVisible.value = false
-  dialogTitle.value = `查看版本详情 - v${row.version}`
+  dialogTitle.value = t('dyeRecipe.index.titleViewVersion', { version: row.version })
   isView.value = true
   Object.assign(formData, row)
   dialogVisible.value = true
@@ -390,14 +519,14 @@ const handleExport = async () => {
     const url = window.URL.createObjectURL(new Blob([res]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', '染色配方.xlsx')
+    link.setAttribute('download', t('dyeRecipe.index.exportFileName'))
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
+    ElMessage.success(t('dyeRecipe.index.messageExportSuccess'))
   } catch (error) {
-    logger.error('导出失败:', error)
+    logger.error(t('dyeRecipe.index.messageExportFailed'), error)
   }
 }
 
@@ -410,11 +539,11 @@ const handleSubmitForm = async () => {
     } else {
       await createDyeRecipe(formData)
     }
-    ElMessage.success('保存成功')
+    ElMessage.success(t('dyeRecipe.index.messageSaveSuccess'))
     dialogVisible.value = false
     refresh()
   } catch (error) {
-    logger.error('表单验证失败:', error)
+    logger.error(t('dyeRecipe.index.messageFormValidateFailed'), error)
   }
 }
 
@@ -439,13 +568,13 @@ const getStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
-// 获取状态标签
+// 获取状态标签（响应式求值）
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    DRAFT: '草稿',
-    PENDING: '待审批',
-    APPROVED: '已审批',
-    INACTIVE: '已停用',
+    DRAFT: t('dyeRecipe.index.optionDraft'),
+    PENDING: t('dyeRecipe.index.optionPending'),
+    APPROVED: t('dyeRecipe.index.optionApproved'),
+    INACTIVE: t('dyeRecipe.index.optionInactive'),
   }
   return map[status] || status
 }

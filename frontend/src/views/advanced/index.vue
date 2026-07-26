@@ -1,7 +1,7 @@
 <template>
   <div class="advanced-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => loadTab(tab)">
-      <el-tab-pane :label="$t('advancedModule.tabAi')" name="ai">
+      <el-tab-pane :label="t('advancedModule.tabAi')" name="ai">
         <AdvancedAiPanel
           :forecast-period="ai.forecastPeriod.value"
           :forecast-loading="ai.forecastLoading.value"
@@ -23,7 +23,7 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane :label="$t('advancedModule.tabReport')" name="report">
+      <el-tab-pane :label="t('advancedModule.tabReport')" name="report">
         <AdvancedReportPanel
           :report-templates="rpt.reportTemplates.value"
           :report-loading="rpt.reportLoading.value"
@@ -36,23 +36,31 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane :label="$t('advancedModule.tabRecipe')" name="recipe">
+      <el-tab-pane :label="t('advancedModule.tabRecipe')" name="recipe">
         <AdvancedRecipePanel
           :recipe-form="rcp.recipeForm.value"
           :recipe-loading="rcp.recipeLoading.value"
           :recipe-result="rcp.recipeResult.value"
           :run-recipe-optimization="rcp.runRecipeOptimization"
-          @update:recipe-form="(v) => { rcp.recipeForm.value = v }"
+          @update:recipe-form="
+            v => {
+              rcp.recipeForm.value = v
+            }
+          "
         />
       </el-tab-pane>
 
-      <el-tab-pane :label="$t('advancedModule.tabQuality')" name="quality">
+      <el-tab-pane :label="t('advancedModule.tabQuality')" name="quality">
         <AdvancedQualityPanel
           :quality-form="qlt.qualityForm.value"
           :quality-loading="qlt.qualityLoading.value"
           :quality-result="qlt.qualityResult.value"
           :run-quality-prediction="qlt.runQualityPrediction"
-          @update:quality-form="(v) => { qlt.qualityForm.value = v }"
+          @update:quality-form="
+            v => {
+              qlt.qualityForm.value = v
+            }
+          "
         />
       </el-tab-pane>
     </el-tabs>
@@ -61,6 +69,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { useAi } from './composables/useAi'
 import { useRpt } from './composables/useRpt'
@@ -70,6 +79,8 @@ import AdvancedAiPanel from './components/AdvancedAiPanel.vue'
 import AdvancedReportPanel from './components/AdvancedReportPanel.vue'
 import AdvancedRecipePanel from './components/AdvancedRecipePanel.vue'
 import AdvancedQualityPanel from './components/AdvancedQualityPanel.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const activeTab = ref('ai')
 const hasLoaded = createLazyLoader()

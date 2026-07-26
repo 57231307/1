@@ -6,66 +6,75 @@
 <template>
   <el-dialog
     :model-value="visible"
-    title="订单详情"
+    :title="t('production.detail.title')"
     width="800px"
     destroy-on-close
-    aria-label="生产订单详情对话框"
+    :aria-label="t('production.detail.ariaLabel')"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <div v-if="order" class="detail-content">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="订单编号">{{ order.order_no }}</el-descriptions-item>
-        <el-descriptions-item label="产品ID">{{ order.product_id }}</el-descriptions-item>
-        <el-descriptions-item label="产品名称">{{
+        <el-descriptions-item :label="t('production.detail.labelOrderNo')">{{
+          order.order_no
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('production.detail.labelProductId')">{{
+          order.product_id
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('production.detail.labelProductName')">{{
           order.product_name || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="工作中心">{{
+        <el-descriptions-item :label="t('production.detail.labelWorkCenter')">{{
           order.work_center_id || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="计划数量">{{ order.planned_quantity }}</el-descriptions-item>
-        <el-descriptions-item label="实际数量">{{
+        <el-descriptions-item :label="t('production.detail.labelPlannedQuantity')">{{
+          order.planned_quantity
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('production.detail.labelActualQuantity')">{{
           order.actual_quantity || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="计划开始">{{
+        <el-descriptions-item :label="t('production.detail.labelScheduledStart')">{{
           order.scheduled_start_date?.substring(0, 10) || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="计划结束">{{
+        <el-descriptions-item :label="t('production.detail.labelScheduledEnd')">{{
           order.scheduled_end_date?.substring(0, 10) || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="实际开始">{{
+        <el-descriptions-item :label="t('production.detail.labelActualStart')">{{
           order.actual_start_date?.substring(0, 10) || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="实际结束">{{
+        <el-descriptions-item :label="t('production.detail.labelActualEnd')">{{
           order.actual_end_date?.substring(0, 10) || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag :type="statusTagType">{{ getStatusLabelFmt(order.status) }}</el-tag>
+        <el-descriptions-item :label="t('production.detail.labelStatus')">
+          <el-tag :type="statusTagType">{{ statusLabel(order.status) }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="优先级">{{ order.priority }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">
+        <el-descriptions-item :label="t('production.detail.labelPriority')">{{
+          order.priority
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="t('production.detail.labelCreateTime')" :span="2">
           {{ order.created_at || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ order.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('production.detail.labelRemark')" :span="2">{{
+          order.remark || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
     </div>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">关闭</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('production.detail.buttonClose')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ProductionOrder } from '@/api/production'
-import { getStatusLabel } from '../composables/prdFmts'
+import { useI18n } from 'vue-i18n'
+import { PRODUCTION_ORDER_STATUS, type ProductionOrder } from '@/api/production'
 
-/**
- * 生产管理订单详情组件
- */
+const { t } = useI18n({ useScope: 'global' })
+
 const props = defineProps<{
-  // 对话框可见性
   visible: boolean
-  // 订单数据
   order: ProductionOrder | null
 }>()
 
@@ -73,23 +82,25 @@ const emit = defineEmits<{
   'update:visible': [v: boolean]
 }>()
 
-// 透传格式化函数
-const getStatusLabelFmt = getStatusLabel
+/** 状态标签：优先 i18n，回退到 PRODUCTION_ORDER_STATUS 字典 */
+const statusLabel = (status: string): string => {
+  const key = `production.detail.status${status.charAt(0).toUpperCase() + status.slice(1)}`
+  const translated = t(key)
+  return translated === key
+    ? PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || status
+    : translated
+}
 
-// el-tag 组件支持的 type 联合类型（element-plus 规范）
+// el-tag 组件支持的 type 联合类型
 type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
 
-// 合法 TagType 集合，用于过滤运行时字符串
+// 合法 TagType 集合
 const VALID_TAG_TYPES: ReadonlySet<TagType> = new Set(['', 'success', 'warning', 'info', 'danger'])
 
-/**
- * 将任意字符串安全转换为 el-tag 合法 TagType
- * 非法值（如 'primary'）统一回退为 ''（默认主题色，等价于 primary）
- */
-const toTagType = (s: string): TagType =>
-  VALID_TAG_TYPES.has(s as TagType) ? (s as TagType) : ''
+/** 将任意字符串安全转换为 el-tag 合法 TagType */
+const toTagType = (s: string): TagType => (VALID_TAG_TYPES.has(s as TagType) ? (s as TagType) : '')
 
-// 状态字符串到 el-tag type 的原始映射（值可能含 'primary'，需经 toTagType 过滤）
+// 状态字符串到 el-tag type 的原始映射
 const statusTagTypeMap: Record<string, string> = {
   draft: 'info',
   planned: 'primary',

@@ -20,8 +20,16 @@
       style="width: 100%"
       :aria-label="$t('arReconciliationModule.resultListAria')"
     >
-      <el-table-column prop="customer_code" :label="$t('arReconciliationModule.customerCode')" width="120" />
-      <el-table-column prop="customer_name" :label="$t('arReconciliationModule.customerName')" width="160" />
+      <el-table-column
+        prop="customer_code"
+        :label="$t('arReconciliationModule.customerCode')"
+        width="120"
+      />
+      <el-table-column
+        prop="customer_name"
+        :label="$t('arReconciliationModule.customerName')"
+        width="160"
+      />
       <el-table-column :label="$t('arReconciliationModule.matchStatus')" width="100">
         <template #default="scope">
           <el-tag :type="getMatchType(scope.row.match_status)" size="small">
@@ -29,25 +37,53 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="invoice_amount" :label="$t('arReconciliationModule.invoiceAmount')" width="130" align="right">
+      <el-table-column
+        prop="invoice_amount"
+        :label="$t('arReconciliationModule.invoiceAmount')"
+        width="130"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.invoice_amount.toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column prop="payment_amount" :label="$t('arReconciliationModule.paymentAmount')" width="130" align="right">
+      <el-table-column
+        prop="payment_amount"
+        :label="$t('arReconciliationModule.paymentAmount')"
+        width="130"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.payment_amount.toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column prop="difference" :label="$t('arReconciliationModule.differenceAmount')" width="130" align="right">
+      <el-table-column
+        prop="difference"
+        :label="$t('arReconciliationModule.differenceAmount')"
+        width="130"
+        align="right"
+      >
         <template #default="scope">
           <span :style="{ color: scope.row.difference !== 0 ? '#f56c6c' : '#67c23a' }">
             {{ scope.row.difference.toFixed(2) }}
           </span>
         </template>
       </el-table-column>
-      <el-table-column prop="matched_count" :label="$t('arReconciliationModule.matchedCount')" width="80" align="center" />
-      <el-table-column prop="unmatched_count" :label="$t('arReconciliationModule.unmatchedCount')" width="80" align="center" />
+      <el-table-column
+        prop="matched_count"
+        :label="$t('arReconciliationModule.matchedCount')"
+        width="80"
+        align="center"
+      />
+      <el-table-column
+        prop="unmatched_count"
+        :label="$t('arReconciliationModule.unmatchedCount')"
+        width="80"
+        align="center"
+      />
       <el-table-column prop="created_at" :label="$t('common.createTime')" width="160" />
       <el-table-column :label="$t('common.operation')" width="240" align="center">
         <template #default="scope">
-          <el-button size="small" @click="emit('view-detail', scope.row as AutoReconciliationResult)">
+          <el-button
+            size="small"
+            @click="emit('view-detail', scope.row as AutoReconciliationResult)"
+          >
             <el-icon><View /></el-icon> {{ $t('common.detail') }}
           </el-button>
           <el-button
@@ -57,7 +93,11 @@
           >
             <el-icon><Promotion /></el-icon> {{ $t('common.confirm') }}
           </el-button>
-          <el-button size="small" type="danger" @click="emit('open-dispute', scope.row as AutoReconciliationResult)">
+          <el-button
+            size="small"
+            type="danger"
+            @click="emit('open-dispute', scope.row as AutoReconciliationResult)"
+          >
             <el-icon><CircleClose /></el-icon> {{ $t('arReconciliationModule.dispute') }}
           </el-button>
         </template>

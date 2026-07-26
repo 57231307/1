@@ -44,7 +44,10 @@ export function useArDisp(loadData: () => Promise<void>) {
     }
     disputes.value = []
     try {
-      const res: Awaited<ReturnType<typeof getDisputes>> = await getDisputes({ page: 1, page_size: 10 })
+      const res: Awaited<ReturnType<typeof getDisputes>> = await getDisputes({
+        page: 1,
+        page_size: 10,
+      })
       disputes.value = res.data?.list || []
       disputesTotal.value = res.data?.total || 0
     } catch {
@@ -72,10 +75,14 @@ export function useArDisp(loadData: () => Promise<void>) {
   /** 解决争议 */
   const handleResolveDispute = async (row: DisputeRecord) => {
     try {
-      const { value } = await ElMessageBox.prompt(t('arReconciliationModule.enterResolution'), t('arReconciliationModule.resolveDisputeTitle'), {
-        inputType: 'textarea',
-        inputValidator: v => (!v ? t('arReconciliationModule.resolutionRequired') : true),
-      })
+      const { value } = await ElMessageBox.prompt(
+        t('arReconciliationModule.enterResolution'),
+        t('arReconciliationModule.resolveDisputeTitle'),
+        {
+          inputType: 'textarea',
+          inputValidator: v => (!v ? t('arReconciliationModule.resolutionRequired') : true),
+        }
+      )
       await resolveDispute(row.id, { resolution: value })
       ElMessage.success(t('arReconciliationModule.disputeResolved'))
       await openDisputeDialog({ id: row.reconciliation_id } as AutoReconciliationResult)

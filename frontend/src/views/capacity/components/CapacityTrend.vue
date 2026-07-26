@@ -10,13 +10,13 @@
         <template #header>
           <div class="card-header">
             <span>{{ $t('capacityModule.trend.title') }}</span>
-            <el-radio-group
-              :model-value="days"
-              size="small"
-              @update:model-value="updateDays"
-            >
-              <el-radio-button :value="7">{{ $t('capacityModule.trend.last7Days') }}</el-radio-button>
-              <el-radio-button :value="30">{{ $t('capacityModule.trend.last30Days') }}</el-radio-button>
+            <el-radio-group :model-value="days" size="small" @update:model-value="updateDays">
+              <el-radio-button :value="7">{{
+                $t('capacityModule.trend.last7Days')
+              }}</el-radio-button>
+              <el-radio-button :value="30">{{
+                $t('capacityModule.trend.last30Days')
+              }}</el-radio-button>
             </el-radio-group>
           </div>
         </template>

@@ -6,77 +6,132 @@
 <template>
   <div class="currency-list-tab">
     <div class="page-header">
-      <h2 class="page-title">币种管理</h2>
+      <h2 class="page-title">{{ t('currency.page.title') }}</h2>
       <div>
         <el-button type="primary" @click="openDialog()">
-          <el-icon><Plus /></el-icon>新建币种
+          <el-icon><Plus /></el-icon>{{ t('currency.page.newCurrency') }}
         </el-button>
         <el-button @click="openRateDialog()">
-          <el-icon><Plus /></el-icon>新增汇率
+          <el-icon><Plus /></el-icon>{{ t('currency.page.newRate') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="currencyList" stripe aria-label="币种列表">
-        <el-table-column prop="code" label="编码" width="80" />
-        <el-table-column prop="name" label="名称" width="120" />
-        <el-table-column prop="symbol" label="符号" width="60" align="center" />
-        <el-table-column prop="precision" label="精度" width="80" align="center" />
-        <el-table-column prop="isBase" label="基准币种" width="100" align="center">
+      <el-table
+        v-loading="loading"
+        :data="currencyList"
+        stripe
+        :aria-label="t('currency.table.ariaLabel')"
+      >
+        <el-table-column prop="code" :label="t('currency.table.code')" width="80" />
+        <el-table-column prop="name" :label="t('currency.table.name')" width="120" />
+        <el-table-column
+          prop="symbol"
+          :label="t('currency.table.symbol')"
+          width="60"
+          align="center"
+        />
+        <el-table-column
+          prop="precision"
+          :label="t('currency.table.precision')"
+          width="80"
+          align="center"
+        />
+        <el-table-column
+          prop="isBase"
+          :label="t('currency.table.isBase')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
-            <el-tag v-if="row.isBase" type="success" size="small">基准</el-tag>
+            <el-tag v-if="row.isBase" type="success" size="small">{{
+              t('currency.table.baseTag')
+            }}</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="isActive" label="状态" width="80" align="center">
+        <el-table-column
+          prop="isActive"
+          :label="t('currency.table.status')"
+          width="80"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
-              {{ row.isActive ? '启用' : '禁用' }}
+              {{ getStatusLabel(row.isActive) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column :label="t('currency.table.operation')" width="160" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openRateDialog(row.code)"
-              >汇率</el-button
-            >
-            <el-button v-if="!row.isBase" type="warning" link size="small" @click="setBase(row)"
-              >设为基准</el-button
-            >
+            <el-button type="primary" link size="small" @click="openRateDialog(row.code)">{{
+              t('currency.table.rate')
+            }}</el-button>
+            <el-button v-if="!row.isBase" type="warning" link size="small" @click="setBase(row)">{{
+              t('currency.table.setBase')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" title="新建币种" width="500px" aria-label="新建币种对话框">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="新建币种表单">
-        <el-form-item label="币种编码" prop="code">
-          <el-input v-model="form.code" placeholder="如 USD" />
+    <el-dialog
+      v-model="dialogVisible"
+      :title="t('currency.dialog.createTitle')"
+      width="500px"
+      :aria-label="t('currency.dialog.createAriaLabel')"
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        :aria-label="t('currency.dialog.formAriaLabel')"
+      >
+        <el-form-item :label="t('currency.dialog.code')" prop="code">
+          <el-input v-model="form.code" :placeholder="t('currency.dialog.codePlaceholder')" />
         </el-form-item>
-        <el-form-item label="币种名称" prop="name">
-          <el-input v-model="form.name" placeholder="如 美元" />
+        <el-form-item :label="t('currency.dialog.name')" prop="name">
+          <el-input v-model="form.name" :placeholder="t('currency.dialog.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="币种符号">
-          <el-input v-model="form.symbol" placeholder="如 $" />
+        <el-form-item :label="t('currency.dialog.symbol')">
+          <el-input v-model="form.symbol" :placeholder="t('currency.dialog.symbolPlaceholder')" />
         </el-form-item>
-        <el-form-item label="精度">
+        <el-form-item :label="t('currency.dialog.precision')">
           <el-input-number v-model="form.precision" :min="0" :max="6" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="基准币种">
+        <el-form-item :label="t('currency.dialog.isBase')">
           <el-switch v-model="form.isBase" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('currency.dialog.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          t('currency.dialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="rateDialogVisible" title="新增汇率" width="500px" aria-label="新增汇率对话框">
-      <el-form ref="rateFormRef" :model="rateForm" :rules="rateRules" label-width="100px" aria-label="新增汇率表单">
-        <el-form-item label="源币种" prop="fromCurrency">
-          <el-select v-model="rateForm.fromCurrency" placeholder="选择源币种" style="width: 100%">
+    <el-dialog
+      v-model="rateDialogVisible"
+      :title="t('currency.rateDialog.createTitle')"
+      width="500px"
+      :aria-label="t('currency.rateDialog.createAriaLabel')"
+    >
+      <el-form
+        ref="rateFormRef"
+        :model="rateForm"
+        :rules="rateRules"
+        label-width="100px"
+        :aria-label="t('currency.rateDialog.formAriaLabel')"
+      >
+        <el-form-item :label="t('currency.rateDialog.fromCurrency')" prop="fromCurrency">
+          <el-select
+            v-model="rateForm.fromCurrency"
+            :placeholder="t('currency.rateDialog.fromCurrencyPlaceholder')"
+            style="width: 100%"
+          >
             <el-option
               v-for="c in currencyList"
               :key="c.code"
@@ -85,8 +140,12 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="目标币种" prop="toCurrency">
-          <el-select v-model="rateForm.toCurrency" placeholder="选择目标币种" style="width: 100%">
+        <el-form-item :label="t('currency.rateDialog.toCurrency')" prop="toCurrency">
+          <el-select
+            v-model="rateForm.toCurrency"
+            :placeholder="t('currency.rateDialog.toCurrencyPlaceholder')"
+            style="width: 100%"
+          >
             <el-option
               v-for="c in currencyList"
               :key="c.code"
@@ -95,7 +154,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="汇率" prop="rate">
+        <el-form-item :label="t('currency.rateDialog.rate')" prop="rate">
           <el-input-number
             v-model="rateForm.rate"
             :min="0"
@@ -104,24 +163,29 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="生效日期" prop="effectiveDate">
+        <el-form-item :label="t('currency.rateDialog.effectiveDate')" prop="effectiveDate">
           <el-date-picker
             v-model="rateForm.effectiveDate"
             type="date"
-            placeholder="选择日期"
+            :placeholder="t('currency.rateDialog.effectiveDatePlaceholder')"
             value-format="YYYY-MM-DD"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="来源">
-          <el-input v-model="rateForm.source" placeholder="如 央行" />
+        <el-form-item :label="t('currency.rateDialog.source')">
+          <el-input
+            v-model="rateForm.source"
+            :placeholder="t('currency.rateDialog.sourcePlaceholder')"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="rateDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="rateSubmitLoading" @click="handleRateSubmit"
-          >确定</el-button
-        >
+        <el-button @click="rateDialogVisible = false">{{
+          t('currency.rateDialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="rateSubmitLoading" @click="handleRateSubmit">{{
+          t('currency.rateDialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -131,6 +195,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import {
   getCurrencyList,
   createCurrency,
@@ -140,6 +205,8 @@ import {
   type CreateCurrencyRequest,
   type CreateExchangeRateRequest,
 } from '@/api/currency'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -167,15 +234,28 @@ const rateForm = reactive<CreateExchangeRateRequest>({
 })
 
 const rules: FormRules = {
-  code: [{ required: true, message: '请输入币种编码', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入币种名称', trigger: 'blur' }],
+  code: [{ required: true, message: t('currency.dialog.codeRequired'), trigger: 'blur' }],
+  name: [{ required: true, message: t('currency.dialog.nameRequired'), trigger: 'blur' }],
 }
 
 const rateRules: FormRules = {
-  fromCurrency: [{ required: true, message: '请选择源币种', trigger: 'change' }],
-  toCurrency: [{ required: true, message: '请选择目标币种', trigger: 'change' }],
-  rate: [{ required: true, message: '请输入汇率', trigger: 'blur' }],
-  effectiveDate: [{ required: true, message: '请选择生效日期', trigger: 'change' }],
+  fromCurrency: [
+    { required: true, message: t('currency.rateDialog.fromCurrencyRequired'), trigger: 'change' },
+  ],
+  toCurrency: [
+    { required: true, message: t('currency.rateDialog.toCurrencyRequired'), trigger: 'change' },
+  ],
+  rate: [{ required: true, message: t('currency.rateDialog.rateRequired'), trigger: 'blur' }],
+  effectiveDate: [
+    { required: true, message: t('currency.rateDialog.effectiveDateRequired'), trigger: 'change' },
+  ],
+}
+
+/**
+ * 状态标签映射（基于 i18n）
+ */
+const getStatusLabel = (isActive: boolean) => {
+  return isActive ? t('currency.table.statusActive') : t('currency.table.statusInactive')
 }
 
 const fetchCurrencies = async () => {
@@ -188,7 +268,7 @@ const fetchCurrencies = async () => {
     currencyList.value = Array.isArray(d) ? d : d?.items || d?.data || d?.list || []
   } catch (e) {
     const err = e as Error
-    ElMessage.error(err.message || '获取币种列表失败')
+    ElMessage.error(err.message || t('currency.message.fetchListFailed'))
   } finally {
     loading.value = false
   }
@@ -211,12 +291,12 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       await createCurrency(form)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('currency.message.createSuccess'))
       dialogVisible.value = false
       fetchCurrencies()
     } catch (e) {
       const err = e as Error
-      ElMessage.error(err.message || '创建失败')
+      ElMessage.error(err.message || t('currency.message.createFailed'))
     } finally {
       submitLoading.value = false
     }
@@ -240,11 +320,11 @@ const handleRateSubmit = async () => {
     rateSubmitLoading.value = true
     try {
       await createExchangeRate(rateForm)
-      ElMessage.success('汇率创建成功')
+      ElMessage.success(t('currency.message.rateCreateSuccess'))
       rateDialogVisible.value = false
     } catch (e) {
       const err = e as Error
-      ElMessage.error(err.message || '汇率创建失败')
+      ElMessage.error(err.message || t('currency.message.rateCreateFailed'))
     } finally {
       rateSubmitLoading.value = false
     }
@@ -254,22 +334,22 @@ const handleRateSubmit = async () => {
 // 批次 157d-1 修复：接入 setBaseCurrency API
 const setBase = async (row: Currency) => {
   if (!row.id) {
-    ElMessage.warning('币种 ID 不存在')
+    ElMessage.warning(t('currency.message.currencyIdMissing'))
     return
   }
   try {
     await ElMessageBox.confirm(
-      `确认将 "${row.code} - ${row.name}" 设为基础币种（本位币）吗？此操作会取消其他币种的基础标记。`,
-      '设置基础币种',
+      t('currency.message.setBaseConfirm', { code: row.code, name: row.name }),
+      t('currency.message.setBaseTitle'),
       { type: 'warning' }
     )
     await setBaseCurrency(row.id)
-    ElMessage.success('设置基础币种成功')
+    ElMessage.success(t('currency.message.setBaseSuccess'))
     fetchCurrencies()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
-      ElMessage.error(err.message || '设置基础币种失败')
+      ElMessage.error(err.message || t('currency.message.setBaseFailed'))
     }
   }
 }

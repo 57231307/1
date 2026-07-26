@@ -27,7 +27,11 @@
         <div class="conflict-header">
           <span class="conflict-wc">{{ item.work_center_name }}</span>
           <el-tag :type="item.severity === 'error' ? 'danger' : 'warning'" size="small">
-            {{ item.severity === 'error' ? t('scheduling.machineConflict.severity.error') : t('scheduling.machineConflict.severity.warning') }}
+            {{
+              item.severity === 'error'
+                ? t('scheduling.machineConflict.severity.error')
+                : t('scheduling.machineConflict.severity.warning')
+            }}
           </el-tag>
         </div>
         <div class="conflict-orders">

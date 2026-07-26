@@ -12,11 +12,15 @@
 <template>
   <div class="inventory-batch-page">
     <div class="page-header">
-      <h1 class="page-title">批次管理</h1>
+      <h1 class="page-title">{{ t('inventoryBatch.index.pageTitle') }}</h1>
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-        <el-breadcrumb-item>仓储管理</el-breadcrumb-item>
-        <el-breadcrumb-item>批次管理</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/' }">{{
+          t('inventoryBatch.index.breadcrumbHome')
+        }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{ t('inventoryBatch.index.breadcrumbWarehouse') }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{
+          t('inventoryBatch.index.breadcrumbBatchManagement')
+        }}</el-breadcrumb-item>
       </el-breadcrumb>
     </div>
 
@@ -32,9 +36,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { InventoryBatch } from '@/api/inventoryBatch'
 import BatchListTab from './tabs/BatchListTab.vue'
 import BatchFormDialogTab from './tabs/BatchFormDialogTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const formDialogVisible = ref(false)
 const currentRow = ref<InventoryBatch | null>(null)

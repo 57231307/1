@@ -14,21 +14,50 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="reconciliationLoading" :data="reconciliations" stripe :aria-label="$t('arModule.reconciliation.listAria')">
-        <el-table-column prop="reconciliation_no" :label="$t('arModule.reconciliation.reconciliationNo')" width="140" />
-        <el-table-column prop="customer_name" :label="$t('arModule.reconciliation.customer')" width="150" />
-        <el-table-column prop="reconciliation_date" :label="$t('arModule.reconciliation.reconciliationDate')" width="120" />
-        <el-table-column :label="$t('arModule.reconciliation.invoiceAmount')" width="120" align="right">
+      <el-table
+        v-loading="reconciliationLoading"
+        :data="reconciliations"
+        stripe
+        :aria-label="$t('arModule.reconciliation.listAria')"
+      >
+        <el-table-column
+          prop="reconciliation_no"
+          :label="$t('arModule.reconciliation.reconciliationNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="customer_name"
+          :label="$t('arModule.reconciliation.customer')"
+          width="150"
+        />
+        <el-table-column
+          prop="reconciliation_date"
+          :label="$t('arModule.reconciliation.reconciliationDate')"
+          width="120"
+        />
+        <el-table-column
+          :label="$t('arModule.reconciliation.invoiceAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.total_invoice_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('arModule.reconciliation.paymentAmount')" width="120" align="right">
+        <el-table-column
+          :label="$t('arModule.reconciliation.paymentAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.total_payment_amount) }}
           </template>
         </el-table-column>
-        <el-table-column :label="$t('arModule.reconciliation.difference')" width="100" align="right">
+        <el-table-column
+          :label="$t('arModule.reconciliation.difference')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             <span :class="{ 'text-red': row.difference_amount !== 0 }">
               {{ formatMoney(row.difference_amount) }}
@@ -42,8 +71,16 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="confirmed_by" :label="$t('arModule.reconciliation.confirmedBy')" width="100" />
-        <el-table-column prop="confirmed_at" :label="$t('arModule.reconciliation.confirmedAt')" width="160" />
+        <el-table-column
+          prop="confirmed_by"
+          :label="$t('arModule.reconciliation.confirmedBy')"
+          width="100"
+        />
+        <el-table-column
+          prop="confirmed_at"
+          :label="$t('arModule.reconciliation.confirmedAt')"
+          width="160"
+        />
         <el-table-column :label="$t('common.operation')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button
@@ -59,8 +96,18 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="reconciliationDialogVisible" :title="$t('arModule.reconciliation.createTitle')" width="500px" :aria-label="$t('arModule.reconciliation.createAria')">
-      <el-form ref="reconciliationFormRef" :model="reconciliationForm" label-width="80px" :aria-label="$t('arModule.reconciliation.formAria')">
+    <el-dialog
+      v-model="reconciliationDialogVisible"
+      :title="$t('arModule.reconciliation.createTitle')"
+      width="500px"
+      :aria-label="$t('arModule.reconciliation.createAria')"
+    >
+      <el-form
+        ref="reconciliationFormRef"
+        :model="reconciliationForm"
+        label-width="80px"
+        :aria-label="$t('arModule.reconciliation.formAria')"
+      >
         <el-form-item :label="$t('arModule.reconciliation.customer')">
           <el-select
             v-model="reconciliationForm.customer_id"
@@ -81,7 +128,9 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="reconciliationDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button @click="reconciliationDialogVisible = false">{{
+          $t('common.cancel')
+        }}</el-button>
         <el-button
           type="primary"
           :loading="reconciliationSubmitLoading"
@@ -188,7 +237,11 @@ const submitReconciliation = async () => {
 
 const confirmReconciliation = async (row: ARReconciliation) => {
   try {
-    await ElMessageBox.confirm(t('arModule.reconciliation.confirmMessage'), t('arModule.reconciliation.confirmTitle'), { type: 'info' })
+    await ElMessageBox.confirm(
+      t('arModule.reconciliation.confirmMessage'),
+      t('arModule.reconciliation.confirmTitle'),
+      { type: 'info' }
+    )
     await updateARReconciliationStatus(row.id, 'confirmed')
     ElMessage.success(t('arModule.reconciliation.confirmSuccess'))
     fetchReconciliations()

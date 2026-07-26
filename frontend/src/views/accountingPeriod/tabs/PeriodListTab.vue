@@ -18,40 +18,79 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryForm" :aria-label="$t('accountingPeriod.filter.ariaLabel')">
+      <el-form
+        :inline="true"
+        :model="queryForm"
+        :aria-label="$t('accountingPeriod.filter.ariaLabel')"
+      >
         <el-form-item :label="$t('accountingPeriod.filter.year')">
           <el-input-number v-model="queryForm.year" :min="2000" :max="2100" style="width: 140px" />
         </el-form-item>
         <el-form-item :label="$t('accountingPeriod.filter.status')">
-          <el-select v-model="queryForm.status" :placeholder="$t('accountingPeriod.filter.statusPlaceholder')" clearable>
+          <el-select
+            v-model="queryForm.status"
+            :placeholder="$t('accountingPeriod.filter.statusPlaceholder')"
+            clearable
+          >
             <el-option :label="$t('accountingPeriod.status.pending')" value="pending" />
             <el-option :label="$t('accountingPeriod.status.active')" value="active" />
             <el-option :label="$t('accountingPeriod.status.closed')" value="closed" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">{{ $t('accountingPeriod.filter.query') }}</el-button>
+          <el-button type="primary" @click="handleSearch">{{
+            $t('accountingPeriod.filter.query')
+          }}</el-button>
           <el-button @click="handleReset">{{ $t('accountingPeriod.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="periodList" stripe :aria-label="$t('accountingPeriod.table.ariaLabel')">
+      <el-table
+        v-loading="loading"
+        :data="periodList"
+        stripe
+        :aria-label="$t('accountingPeriod.table.ariaLabel')"
+      >
         <el-table-column prop="name" :label="$t('accountingPeriod.table.name')" width="160" />
-        <el-table-column prop="year" :label="$t('accountingPeriod.table.year')" width="80" align="center" />
-        <el-table-column prop="month" :label="$t('accountingPeriod.table.month')" width="80" align="center" />
-        <el-table-column prop="start_date" :label="$t('accountingPeriod.table.startDate')" width="120" />
-        <el-table-column prop="end_date" :label="$t('accountingPeriod.table.endDate')" width="120" />
+        <el-table-column
+          prop="year"
+          :label="$t('accountingPeriod.table.year')"
+          width="80"
+          align="center"
+        />
+        <el-table-column
+          prop="month"
+          :label="$t('accountingPeriod.table.month')"
+          width="80"
+          align="center"
+        />
+        <el-table-column
+          prop="start_date"
+          :label="$t('accountingPeriod.table.startDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="end_date"
+          :label="$t('accountingPeriod.table.endDate')"
+          width="120"
+        />
         <el-table-column prop="status" :label="$t('accountingPeriod.table.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="closed_at" :label="$t('accountingPeriod.table.closedAt')" width="180" />
+        <el-table-column
+          prop="closed_at"
+          :label="$t('accountingPeriod.table.closedAt')"
+          width="180"
+        />
         <el-table-column :label="$t('accountingPeriod.table.operation')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openDialog(row)">{{ $t('accountingPeriod.table.edit') }}</el-button>
+            <el-button type="primary" link size="small" @click="openDialog(row)">{{
+              $t('accountingPeriod.table.edit')
+            }}</el-button>
             <el-button
               v-if="row.status === 'pending'"
               type="success"
@@ -89,8 +128,27 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? $t('accountingPeriod.dialog.editTitle') : $t('accountingPeriod.dialog.createTitle')" width="500px" :aria-label="form.id ? $t('accountingPeriod.dialog.editAriaLabel') : $t('accountingPeriod.dialog.createAriaLabel')">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('accountingPeriod.dialog.ariaLabel')">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="
+        form.id
+          ? $t('accountingPeriod.dialog.editTitle')
+          : $t('accountingPeriod.dialog.createTitle')
+      "
+      width="500px"
+      :aria-label="
+        form.id
+          ? $t('accountingPeriod.dialog.editAriaLabel')
+          : $t('accountingPeriod.dialog.createAriaLabel')
+      "
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        :aria-label="$t('accountingPeriod.dialog.ariaLabel')"
+      >
         <el-form-item :label="$t('accountingPeriod.dialog.year')" prop="year">
           <el-input-number v-model="form.year" :min="2000" :max="2100" style="width: 100%" />
         </el-form-item>
@@ -120,8 +178,12 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ $t('accountingPeriod.dialog.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('accountingPeriod.dialog.confirm') }}</el-button>
+        <el-button @click="dialogVisible = false">{{
+          $t('accountingPeriod.dialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          $t('accountingPeriod.dialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -167,10 +229,26 @@ const form = reactive<Partial<AccountingPeriodEntity>>({
 })
 
 const rules = computed<FormRules>(() => ({
-  year: [{ required: true, message: t('accountingPeriod.validation.yearRequired'), trigger: 'blur' }],
-  month: [{ required: true, message: t('accountingPeriod.validation.monthRequired'), trigger: 'blur' }],
-  start_date: [{ required: true, message: t('accountingPeriod.validation.startDateRequired'), trigger: 'change' }],
-  end_date: [{ required: true, message: t('accountingPeriod.validation.endDateRequired'), trigger: 'change' }],
+  year: [
+    { required: true, message: t('accountingPeriod.validation.yearRequired'), trigger: 'blur' },
+  ],
+  month: [
+    { required: true, message: t('accountingPeriod.validation.monthRequired'), trigger: 'blur' },
+  ],
+  start_date: [
+    {
+      required: true,
+      message: t('accountingPeriod.validation.startDateRequired'),
+      trigger: 'change',
+    },
+  ],
+  end_date: [
+    {
+      required: true,
+      message: t('accountingPeriod.validation.endDateRequired'),
+      trigger: 'change',
+    },
+  ],
 }))
 
 const getStatusLabel = (status: string) => {

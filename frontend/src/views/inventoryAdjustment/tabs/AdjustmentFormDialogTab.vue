@@ -6,20 +6,42 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="formData.id ? '编辑调整单' : '新建调整单'"
+    :title="
+      formData.id
+        ? t('inventoryAdjustment.formDialogTab.titleEdit')
+        : t('inventoryAdjustment.formDialogTab.titleCreate')
+    "
     width="800px"
-    :aria-label="mode === 'view' ? '库存调整详情对话框' : (formData.id ? '编辑库存调整对话框' : '新建库存调整对话框')"
+    :aria-label="
+      mode === 'view'
+        ? t('inventoryAdjustment.formDialogTab.ariaLabelView')
+        : formData.id
+          ? t('inventoryAdjustment.formDialogTab.ariaLabelEdit')
+          : t('inventoryAdjustment.formDialogTab.ariaLabelCreate')
+    "
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" :disabled="mode === 'view'" aria-label="库存调整表单">
+    <el-form
+      ref="formRef"
+      :model="formData"
+      label-width="100px"
+      :disabled="mode === 'view'"
+      :aria-label="t('inventoryAdjustment.formDialogTab.ariaLabelForm')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="调整单号" prop="adjust_no">
+          <el-form-item
+            :label="t('inventoryAdjustment.formDialogTab.labelAdjustNo')"
+            prop="adjust_no"
+          >
             <el-input v-model="formData.adjust_no" :disabled="!!formData.id" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="调整日期" prop="adjust_date">
+          <el-form-item
+            :label="t('inventoryAdjustment.formDialogTab.labelAdjustDate')"
+            prop="adjust_date"
+          >
             <el-date-picker
               v-model="formData.adjust_date"
               type="date"
@@ -29,7 +51,10 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="仓库" prop="warehouse_id">
+      <el-form-item
+        :label="t('inventoryAdjustment.formDialogTab.labelWarehouse')"
+        prop="warehouse_id"
+      >
         <el-select v-model="formData.warehouse_id" style="width: 100%">
           <el-option
             v-for="wh in warehouses"
@@ -39,21 +64,28 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="调整原因" prop="reason">
+      <el-form-item :label="t('inventoryAdjustment.formDialogTab.labelReason')" prop="reason">
         <el-input
           v-model="formData.reason"
           type="textarea"
           :rows="2"
-          placeholder="请输入调整原因"
+          :placeholder="t('inventoryAdjustment.formDialogTab.placeholderReason')"
         />
       </el-form-item>
-      <el-divider content-position="left">调整明细</el-divider>
+      <el-divider content-position="left">{{
+        t('inventoryAdjustment.formDialogTab.dividerItems')
+      }}</el-divider>
       <div
         v-for="(item, index) in formData.items"
         :key="index"
         style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center"
       >
-        <el-select v-model="item.product_id" placeholder="产品" style="flex: 2" filterable>
+        <el-select
+          v-model="item.product_id"
+          :placeholder="t('inventoryAdjustment.formDialogTab.placeholderProduct')"
+          style="flex: 2"
+          filterable
+        >
           <el-option
             v-for="p in products"
             :key="p.id"
@@ -61,15 +93,24 @@
             :value="p.id"
           />
         </el-select>
-        <el-input-number v-model="item.quantity" :min="1" placeholder="数量" style="flex: 1" />
+        <el-input-number
+          v-model="item.quantity"
+          :min="1"
+          :placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
+          style="flex: 1"
+        />
         <el-input-number
           v-model="item.cost_price"
           :min="0"
           :precision="2"
-          placeholder="单价"
+          :placeholder="t('inventoryAdjustment.formDialogTab.placeholderPrice')"
           style="flex: 1"
         />
-        <el-input v-model="item.remark" placeholder="备注" style="flex: 1.5" />
+        <el-input
+          v-model="item.remark"
+          :placeholder="t('inventoryAdjustment.formDialogTab.placeholderRemark')"
+          style="flex: 1.5"
+        />
         <el-button
           type="danger"
           :icon="Delete"
@@ -79,18 +120,23 @@
         />
       </div>
       <el-button type="primary" link @click="addItem">
-        <el-icon><Plus /></el-icon>添加明细
+        <el-icon><Plus /></el-icon>{{ t('inventoryAdjustment.formDialogTab.buttonAddItem') }}
       </el-button>
     </el-form>
     <template v-if="mode !== 'view'" #footer>
-      <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{
+        t('inventoryAdjustment.formDialogTab.buttonCancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+        t('inventoryAdjustment.formDialogTab.buttonSave')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
@@ -103,6 +149,8 @@ import {
 import type { Warehouse } from '@/api/warehouse'
 import type { Product } from '@/api/product'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -202,11 +250,13 @@ const handleSubmit = async () => {
     } else {
       await createInventoryAdjustment(formData as Partial<InventoryAdjustmentEntity>)
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(t('inventoryAdjustment.formDialogTab.messageSuccess'))
     emit('update:modelValue', false)
     emit('submitted')
   } catch (error) {
-    ElMessage.error((error as Error).message || '操作失败')
+    ElMessage.error(
+      (error as Error).message || t('inventoryAdjustment.formDialogTab.messageFailed')
+    )
     logger.error('调整单保存失败', (error as Error).message)
   } finally {
     submitLoading.value = false

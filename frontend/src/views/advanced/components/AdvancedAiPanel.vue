@@ -56,7 +56,9 @@ const emit = defineEmits<{
   <el-row :gutter="20">
     <el-col :span="12">
       <el-card shadow="hover" class="mb-20">
-        <template #header><div class="card-header">{{ $t('advancedModule.ai.salesForecast') }}</div></template>
+        <template #header
+          ><div class="card-header">{{ $t('advancedModule.ai.salesForecast') }}</div></template
+        >
         <el-form label-width="100px" aria-label="销售预测表单">
           <el-form-item :label="$t('advancedModule.ai.forecastPeriod')">
             <el-select
@@ -70,9 +72,9 @@ const emit = defineEmits<{
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" :loading="forecastLoading" @click="runSalesForecast"
-              >{{ $t('advancedModule.ai.startForecast') }}</el-button
-            >
+            <el-button type="primary" :loading="forecastLoading" @click="runSalesForecast">{{
+              $t('advancedModule.ai.startForecast')
+            }}</el-button>
           </el-form-item>
         </el-form>
         <el-empty v-if="!forecastResult" :description="$t('advancedModule.ai.clickToForecast')" />
@@ -97,21 +99,32 @@ const emit = defineEmits<{
       </el-card>
 
       <el-card shadow="hover">
-        <template #header><div class="card-header">{{ $t('advancedModule.ai.inventoryOpt') }}</div></template>
-        <el-button
-          type="primary"
-          :loading="inventoryLoading"
-          @click="runInventoryOptimization"
-          >{{ $t('advancedModule.ai.generateSuggestion') }}</el-button
+        <template #header
+          ><div class="card-header">{{ $t('advancedModule.ai.inventoryOpt') }}</div></template
         >
+        <el-button type="primary" :loading="inventoryLoading" @click="runInventoryOptimization">{{
+          $t('advancedModule.ai.generateSuggestion')
+        }}</el-button>
         <el-divider />
         <el-empty v-if="!inventoryResult" :description="$t('advancedModule.ai.clickToGenerate')" />
         <div v-else>
           <el-alert type="success" :title="inventoryResult.summary" show-icon class="mb-10" />
           <el-table :data="inventoryResult.items" stripe aria-label="库存优化建议列表">
-            <el-table-column prop="product_name" :label="$t('advancedModule.ai.colProduct')" width="150" />
-            <el-table-column prop="suggestion" :label="$t('advancedModule.ai.colSuggestion')" min-width="200" />
-            <el-table-column prop="priority" :label="$t('advancedModule.ai.colPriority')" width="100">
+            <el-table-column
+              prop="product_name"
+              :label="$t('advancedModule.ai.colProduct')"
+              width="150"
+            />
+            <el-table-column
+              prop="suggestion"
+              :label="$t('advancedModule.ai.colSuggestion')"
+              min-width="200"
+            />
+            <el-table-column
+              prop="priority"
+              :label="$t('advancedModule.ai.colPriority')"
+              width="100"
+            >
               <template #default="{ row }">
                 <el-tag
                   :type="
@@ -134,7 +147,9 @@ const emit = defineEmits<{
 
     <el-col :span="12">
       <el-card shadow="hover" class="mb-20">
-        <template #header><div class="card-header">{{ $t('advancedModule.ai.anomalyDetection') }}</div></template>
+        <template #header
+          ><div class="card-header">{{ $t('advancedModule.ai.anomalyDetection') }}</div></template
+        >
         <el-form label-width="100px" aria-label="异常检测表单">
           <el-form-item :label="$t('advancedModule.ai.dataType')">
             <el-select
@@ -148,9 +163,9 @@ const emit = defineEmits<{
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" :loading="anomalyLoading" @click="runAnomalyDetection"
-              >{{ $t('advancedModule.ai.detectAnomaly') }}</el-button
-            >
+            <el-button type="primary" :loading="anomalyLoading" @click="runAnomalyDetection">{{
+              $t('advancedModule.ai.detectAnomaly')
+            }}</el-button>
           </el-form-item>
         </el-form>
         <el-empty v-if="!anomalyResult" :description="$t('advancedModule.ai.clickToDetect')" />
@@ -159,26 +174,37 @@ const emit = defineEmits<{
             <el-table-column prop="item" :label="$t('advancedModule.ai.colItem')" width="150" />
             <el-table-column prop="type" :label="$t('advancedModule.ai.colType')" width="100">
               <template #default="{ row }">
-                <el-tag
-                  :type="row.severity === 'critical' ? 'danger' : 'warning'"
-                  size="small"
-                  >{{ row.type }}</el-tag
-                >
+                <el-tag :type="row.severity === 'critical' ? 'danger' : 'warning'" size="small">{{
+                  row.type
+                }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="description" :label="$t('advancedModule.ai.colDesc')" min-width="200" />
-            <el-table-column prop="severity" :label="$t('advancedModule.ai.colSeverity')" width="100" />
+            <el-table-column
+              prop="description"
+              :label="$t('advancedModule.ai.colDesc')"
+              min-width="200"
+            />
+            <el-table-column
+              prop="severity"
+              :label="$t('advancedModule.ai.colSeverity')"
+              width="100"
+            />
           </el-table>
         </div>
       </el-card>
 
       <el-card shadow="hover">
-        <template #header><div class="card-header">{{ $t('advancedModule.ai.recommendations') }}</div></template>
-        <el-button type="primary" :loading="recommendLoading" @click="getRecommendations"
-          >{{ $t('advancedModule.ai.getRecommendations') }}</el-button
+        <template #header
+          ><div class="card-header">{{ $t('advancedModule.ai.recommendations') }}</div></template
         >
+        <el-button type="primary" :loading="recommendLoading" @click="getRecommendations">{{
+          $t('advancedModule.ai.getRecommendations')
+        }}</el-button>
         <el-divider />
-        <el-empty v-if="!recommendationResult" :description="$t('advancedModule.ai.clickToGetRec')" />
+        <el-empty
+          v-if="!recommendationResult"
+          :description="$t('advancedModule.ai.clickToGetRec')"
+        />
         <div v-else>
           <el-timeline>
             <el-timeline-item

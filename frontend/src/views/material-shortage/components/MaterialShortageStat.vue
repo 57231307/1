@@ -12,7 +12,7 @@
             <el-icon><Warning /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">缺料总数</div>
+            <div class="stat-label">{{ t('materialShortage.stat.totalShortage') }}</div>
             <div class="stat-value">{{ summary.total_shortage_count || 0 }}</div>
           </div>
         </div>
@@ -25,7 +25,7 @@
             <el-icon><CircleClose /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">严重缺料</div>
+            <div class="stat-label">{{ t('materialShortage.stat.criticalShortage') }}</div>
             <div class="stat-value">{{ summary.critical_count || 0 }}</div>
           </div>
         </div>
@@ -38,7 +38,7 @@
             <el-icon><WarningFilled /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">高度缺料</div>
+            <div class="stat-label">{{ t('materialShortage.stat.highShortage') }}</div>
             <div class="stat-value">{{ summary.high_count || 0 }}</div>
           </div>
         </div>
@@ -51,7 +51,7 @@
             <el-icon><Clock /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-label">最后检查时间</div>
+            <div class="stat-label">{{ t('materialShortage.stat.lastCheckTime') }}</div>
             <div class="stat-value time-value">{{ summary.last_check_time || '-' }}</div>
           </div>
         </div>
@@ -61,8 +61,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Warning, CircleClose, WarningFilled, Clock } from '@element-plus/icons-vue'
 import type { MaterialShortageSummary } from '@/api/material-shortage'
+
+const { t } = useI18n({ useScope: 'global' })
 
 /**
  * 统计卡片组件

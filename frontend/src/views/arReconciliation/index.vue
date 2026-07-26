@@ -71,7 +71,7 @@ const form = ref<Partial<ArReconciliationEntity>>({
 const dialogTitle = computed(() =>
   form.value.id
     ? t('arReconciliationModule.index.editReconciliation')
-    : t('arReconciliationModule.index.addReconciliation'),
+    : t('arReconciliationModule.index.addReconciliation')
 )
 
 const viewDialogVisible = ref(false)
@@ -203,7 +203,7 @@ const handleDelete = async (row: ArReconciliationEntity) => {
     await ElMessageBox.confirm(
       t('arReconciliationModule.index.deleteConfirm'),
       t('common.message.confirmTitle'),
-      { type: 'warning' },
+      { type: 'warning' }
     )
     await deleteArReconciliation(row.id!)
     ElMessage.success(t('common.message.deleteSuccess'))
@@ -218,7 +218,7 @@ const handleConfirm = async (row: ArReconciliationEntity) => {
     await ElMessageBox.confirm(
       t('arReconciliationModule.index.confirmReconciliationConfirm'),
       t('common.message.confirmTitle'),
-      { type: 'warning' },
+      { type: 'warning' }
     )
     await confirmReconciliation(row.id!)
     ElMessage.success(t('arReconciliationModule.index.confirmSuccess'))
@@ -271,9 +271,13 @@ loadCustomers()
         </ElCol>
       </ElRow>
       <div class="filter-actions">
-        <ElButton type="primary" @click="handleSearch">{{ $t('arReconciliationModule.index.query') }}</ElButton>
+        <ElButton type="primary" @click="handleSearch">{{
+          $t('arReconciliationModule.index.query')
+        }}</ElButton>
         <ElButton @click="handleReset">{{ $t('common.reset') }}</ElButton>
-        <ElButton type="success" @click="openAddDialog"> <Plus /> {{ $t('arReconciliationModule.index.addReconciliation') }} </ElButton>
+        <ElButton type="success" @click="openAddDialog">
+          <Plus /> {{ $t('arReconciliationModule.index.addReconciliation') }}
+        </ElButton>
       </div>
     </div>
 
@@ -286,17 +290,48 @@ loadCustomers()
       style="width: 100%"
       :aria-label="$t('arReconciliationModule.index.listAria')"
     >
-      <ElTableColumn prop="customer_code" :label="$t('arReconciliationModule.index.customerCode')" width="120" />
-      <ElTableColumn prop="customer_name" :label="$t('arReconciliationModule.index.customerName')" width="150" />
-      <ElTableColumn prop="start_date" :label="$t('arReconciliationModule.index.reconciliationStart')" width="120" />
-      <ElTableColumn prop="end_date" :label="$t('arReconciliationModule.index.reconciliationEnd')" width="120" />
-      <ElTableColumn prop="total_invoice" :label="$t('arReconciliationModule.index.invoiceAmount')" width="120" align="right">
+      <ElTableColumn
+        prop="customer_code"
+        :label="$t('arReconciliationModule.index.customerCode')"
+        width="120"
+      />
+      <ElTableColumn
+        prop="customer_name"
+        :label="$t('arReconciliationModule.index.customerName')"
+        width="150"
+      />
+      <ElTableColumn
+        prop="start_date"
+        :label="$t('arReconciliationModule.index.reconciliationStart')"
+        width="120"
+      />
+      <ElTableColumn
+        prop="end_date"
+        :label="$t('arReconciliationModule.index.reconciliationEnd')"
+        width="120"
+      />
+      <ElTableColumn
+        prop="total_invoice"
+        :label="$t('arReconciliationModule.index.invoiceAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.total_invoice.toFixed(2) }}</template>
       </ElTableColumn>
-      <ElTableColumn prop="total_payment" :label="$t('arReconciliationModule.index.paymentAmount')" width="120" align="right">
+      <ElTableColumn
+        prop="total_payment"
+        :label="$t('arReconciliationModule.index.paymentAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.total_payment.toFixed(2) }}</template>
       </ElTableColumn>
-      <ElTableColumn prop="balance" :label="$t('arReconciliationModule.index.balance')" width="120" align="right">
+      <ElTableColumn
+        prop="balance"
+        :label="$t('arReconciliationModule.index.balance')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.balance.toFixed(2) }}</template>
       </ElTableColumn>
       <ElTableColumn prop="status" :label="$t('arReconciliationModule.index.status')" width="100">
@@ -306,7 +341,11 @@ loadCustomers()
           </span>
         </template>
       </ElTableColumn>
-      <ElTableColumn prop="created_by_name" :label="$t('arReconciliationModule.index.createdBy')" width="100" />
+      <ElTableColumn
+        prop="created_by_name"
+        :label="$t('arReconciliationModule.index.createdBy')"
+        width="100"
+      />
       <ElTableColumn prop="created_at" :label="$t('common.createTime')" width="150" />
       <ElTableColumn :label="$t('common.operation')" width="250" align="center">
         <template #default="scope">
@@ -348,9 +387,9 @@ loadCustomers()
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
+        :aria-label="$t('arReconciliationModule.index.paginationAria')"
         @size-change="handlePageSizeChange"
         @current-change="handlePageChange"
-        :aria-label="$t('arReconciliationModule.index.paginationAria')"
       />
     </div>
 
@@ -361,9 +400,16 @@ loadCustomers()
       :aria-label="dialogTitle"
       @close="dialogVisible = false"
     >
-      <ElForm :model="form" label-width="100px" :aria-label="$t('arReconciliationModule.index.formAria')">
+      <ElForm
+        :model="form"
+        label-width="100px"
+        :aria-label="$t('arReconciliationModule.index.formAria')"
+      >
         <ElFormItem :label="$t('arReconciliationModule.index.customer')" prop="customer_id">
-          <ElSelect v-model="form.customer_id" :placeholder="$t('arReconciliationModule.index.selectCustomerPlaceholder')">
+          <ElSelect
+            v-model="form.customer_id"
+            :placeholder="$t('arReconciliationModule.index.selectCustomerPlaceholder')"
+          >
             <ElOption
               v-for="c in customerOptions"
               :key="c.value"
@@ -374,7 +420,10 @@ loadCustomers()
         </ElFormItem>
         <ElRow :gutter="20">
           <ElCol :span="12">
-            <ElFormItem :label="$t('arReconciliationModule.index.startDateLabel')" prop="start_date">
+            <ElFormItem
+              :label="$t('arReconciliationModule.index.startDateLabel')"
+              prop="start_date"
+            >
               <ElDatePicker v-model="form.start_date" type="date" />
             </ElFormItem>
           </ElCol>
@@ -400,10 +449,18 @@ loadCustomers()
     >
       <div v-if="viewData">
         <ElDescriptions :column="4" border>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.customerCode')">{{ viewData.customer_code }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.customerName')">{{ viewData.customer_name }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.reconciliationStart')">{{ viewData.start_date }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.reconciliationEnd')">{{ viewData.end_date }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.customerCode')">{{
+            viewData.customer_code
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.customerName')">{{
+            viewData.customer_name
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.reconciliationStart')">{{
+            viewData.start_date
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.reconciliationEnd')">{{
+            viewData.end_date
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="$t('arReconciliationModule.index.invoiceAmount')">{{
             viewData.total_invoice.toFixed(2)
           }}</ElDescriptionsItem>
@@ -413,12 +470,18 @@ loadCustomers()
           <ElDescriptionsItem :label="$t('arReconciliationModule.index.adjustmentAmount')">{{
             viewData.total_adjustment.toFixed(2)
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.balance')">{{ viewData.balance.toFixed(2) }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.balance')">{{
+            viewData.balance.toFixed(2)
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="$t('arReconciliationModule.index.status')">{{
             getStatusLabel(viewData.status)
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('arReconciliationModule.index.createdBy')">{{ viewData.created_by_name }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="$t('common.createTime')">{{ viewData.created_at }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('arReconciliationModule.index.createdBy')">{{
+            viewData.created_by_name
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="$t('common.createTime')">{{
+            viewData.created_at
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="$t('arReconciliationModule.index.confirmedAt')">{{
             viewData.confirmed_at || '-'
           }}</ElDescriptionsItem>
@@ -426,17 +489,49 @@ loadCustomers()
 
         <div style="margin-top: 20px">
           <h4>{{ $t('arReconciliationModule.index.detailItems') }}</h4>
-          <ElTable :data="detailData" border style="width: 100%" :aria-label="$t('arReconciliationModule.index.detailItemsAria')">
-            <ElTableColumn prop="type" :label="$t('arReconciliationModule.index.type')" width="100" />
-            <ElTableColumn prop="source_no" :label="$t('arReconciliationModule.index.sourceNo')" width="150" />
-            <ElTableColumn prop="source_date" :label="$t('arReconciliationModule.index.date')" width="120" />
-            <ElTableColumn prop="amount" :label="$t('arReconciliationModule.index.amount')" width="120" align="right">
+          <ElTable
+            :data="detailData"
+            border
+            style="width: 100%"
+            :aria-label="$t('arReconciliationModule.index.detailItemsAria')"
+          >
+            <ElTableColumn
+              prop="type"
+              :label="$t('arReconciliationModule.index.type')"
+              width="100"
+            />
+            <ElTableColumn
+              prop="source_no"
+              :label="$t('arReconciliationModule.index.sourceNo')"
+              width="150"
+            />
+            <ElTableColumn
+              prop="source_date"
+              :label="$t('arReconciliationModule.index.date')"
+              width="120"
+            />
+            <ElTableColumn
+              prop="amount"
+              :label="$t('arReconciliationModule.index.amount')"
+              width="120"
+              align="right"
+            >
               <template #default="scope">{{ scope.row.amount.toFixed(2) }}</template>
             </ElTableColumn>
-            <ElTableColumn prop="paid_amount" :label="$t('arReconciliationModule.index.paidAmount')" width="120" align="right">
+            <ElTableColumn
+              prop="paid_amount"
+              :label="$t('arReconciliationModule.index.paidAmount')"
+              width="120"
+              align="right"
+            >
               <template #default="scope">{{ scope.row.paid_amount.toFixed(2) }}</template>
             </ElTableColumn>
-            <ElTableColumn prop="balance" :label="$t('arReconciliationModule.index.balance')" width="120" align="right">
+            <ElTableColumn
+              prop="balance"
+              :label="$t('arReconciliationModule.index.balance')"
+              width="120"
+              align="right"
+            >
               <template #default="scope">{{ scope.row.balance.toFixed(2) }}</template>
             </ElTableColumn>
             <ElTableColumn prop="remark" :label="$t('common.description')" />

@@ -2,94 +2,160 @@
   <div class="warehouse-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">仓库管理</h1>
+        <h1 class="page-title">{{ t('warehouse.index.pageTitle') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>基础数据</el-breadcrumb-item>
-          <el-breadcrumb-item>仓库管理</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('warehouse.index.breadcrumbHome')
+          }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('warehouse.index.breadcrumbMasterData') }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ t('warehouse.index.breadcrumbWarehouse') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
         <el-button type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
-          新建仓库
+          {{ t('warehouse.index.buttonCreate') }}
         </el-button>
         <el-button @click="handlePrint">
           <el-icon><Printer /></el-icon>
-          打印
+          {{ t('warehouse.index.buttonPrint') }}
         </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
-          导出
+          {{ t('warehouse.index.buttonExport') }}
         </el-button>
       </div>
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="仓库筛选表单">
-        <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="仓库编码/名称" clearable />
+      <el-form
+        :inline="true"
+        :model="queryParams"
+        class="filter-form"
+        :aria-label="t('warehouse.index.ariaFilterForm')"
+      >
+        <el-form-item :label="t('warehouse.index.filterKeyword')">
+          <el-input
+            v-model="queryParams.keyword"
+            :placeholder="t('warehouse.index.placeholderKeyword')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="仓库类型">
-          <el-select v-model="queryParams.warehouse_type" placeholder="选择类型" clearable>
-            <el-option label="原料仓" value="raw" />
-            <el-option label="成品仓" value="finished" />
-            <el-option label="半成品仓" value="semi" />
-            <el-option label="退货仓" value="return" />
+        <el-form-item :label="t('warehouse.index.filterType')">
+          <el-select
+            v-model="queryParams.warehouse_type"
+            :placeholder="t('warehouse.index.placeholderType')"
+            clearable
+          >
+            <el-option :label="t('warehouse.index.optionRaw')" value="raw" />
+            <el-option :label="t('warehouse.index.optionFinished')" value="finished" />
+            <el-option :label="t('warehouse.index.optionSemi')" value="semi" />
+            <el-option :label="t('warehouse.index.optionReturn')" value="return" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable>
-            <el-option label="启用" value="active" />
-            <el-option label="禁用" value="inactive" />
+        <el-form-item :label="t('warehouse.index.filterStatus')">
+          <el-select
+            v-model="queryParams.status"
+            :placeholder="t('warehouse.index.placeholderStatus')"
+            clearable
+          >
+            <el-option :label="t('warehouse.index.optionActive')" value="active" />
+            <el-option :label="t('warehouse.index.optionInactive')" value="inactive" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleQuery">{{
+            t('warehouse.index.buttonQuery')
+          }}</el-button>
+          <el-button @click="handleReset">{{ t('warehouse.index.buttonReset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="warehouses" stripe aria-label="仓库列表">
-        <el-table-column prop="warehouse_code" label="仓库编码" width="120" fixed />
-        <el-table-column prop="warehouse_name" label="仓库名称" min-width="180" fixed />
-        <el-table-column prop="warehouse_type" label="类型" width="100">
+      <el-table
+        v-loading="loading"
+        :data="warehouses"
+        stripe
+        :aria-label="t('warehouse.index.ariaTable')"
+      >
+        <el-table-column
+          prop="warehouse_code"
+          :label="t('warehouse.index.colCode')"
+          width="120"
+          fixed
+        />
+        <el-table-column
+          prop="warehouse_name"
+          :label="t('warehouse.index.colName')"
+          min-width="180"
+          fixed
+        />
+        <el-table-column prop="warehouse_type" :label="t('warehouse.index.colType')" width="100">
           <template #default="{ row }">
             <el-tag :type="getWarehouseTypeTag(row.warehouse_type)" size="small">
               {{ getWarehouseTypeLabel(row.warehouse_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="address" label="地址" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="contact_person" label="负责人" width="100" />
-        <el-table-column prop="phone" label="电话" width="130" />
-        <el-table-column prop="capacity" label="容量" width="100" align="right">
+        <el-table-column
+          prop="address"
+          :label="t('warehouse.index.colAddress')"
+          min-width="200"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="contact_person"
+          :label="t('warehouse.index.colContact')"
+          width="100"
+        />
+        <el-table-column prop="phone" :label="t('warehouse.index.colPhone')" width="130" />
+        <el-table-column
+          prop="capacity"
+          :label="t('warehouse.index.colCapacity')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             {{ row.capacity ? `${row.capacity} m³` : '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="is_default" label="默认" width="80">
+        <el-table-column prop="is_default" :label="t('warehouse.index.colDefault')" width="80">
           <template #default="{ row }">
-            <el-tag v-if="row.is_default" type="success" size="small">是</el-tag>
+            <el-tag v-if="row.is_default" type="success" size="small">{{
+              t('warehouse.index.defaultYes')
+            }}</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="status" :label="t('warehouse.index.colStatus')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? '启用' : '禁用' }}
+              {{
+                row.status === 'active'
+                  ? t('warehouse.index.statusActive')
+                  : t('warehouse.index.statusInactive')
+              }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column :label="t('warehouse.index.colOperation')" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="PERMISSIONS.WAREHOUSE_UPDATE" type="primary" link size="small" @click="handleEdit(row as Warehouse)"
-              >编辑</el-button
+            <el-button
+              v-permission="PERMISSIONS.WAREHOUSE_UPDATE"
+              type="primary"
+              link
+              size="small"
+              @click="handleEdit(row as Warehouse)"
+              >{{ t('warehouse.index.buttonEdit') }}</el-button
             >
-            <el-button v-permission="PERMISSIONS.WAREHOUSE_DELETE" type="danger" link size="small" @click="handleDelete(row as Warehouse)"
-              >删除</el-button
+            <el-button
+              v-permission="PERMISSIONS.WAREHOUSE_DELETE"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row as Warehouse)"
+              >{{ t('warehouse.index.buttonDelete') }}</el-button
             >
           </template>
         </el-table-column>
@@ -102,7 +168,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="仓库列表分页"
+          :aria-label="t('warehouse.index.ariaPagination')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
@@ -115,85 +181,110 @@
       :title="dialogTitle"
       width="600px"
       :close-on-click-modal="false"
-      aria-label="仓库编辑对话框"
+      :aria-label="t('warehouse.index.ariaEditDialog')"
       @close="resetForm"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" aria-label="仓库信息表单">
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="100px"
+        :aria-label="t('warehouse.index.ariaForm')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="仓库编码" prop="warehouse_code">
-              <el-input v-model="formData.warehouse_code" placeholder="请输入仓库编码" />
+            <el-form-item :label="t('warehouse.index.colCode')" prop="warehouse_code">
+              <el-input
+                v-model="formData.warehouse_code"
+                :placeholder="t('warehouse.index.placeholderCode')"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="仓库名称" prop="warehouse_name">
-              <el-input v-model="formData.warehouse_name" placeholder="请输入仓库名称" />
+            <el-form-item :label="t('warehouse.index.colName')" prop="warehouse_name">
+              <el-input
+                v-model="formData.warehouse_name"
+                :placeholder="t('warehouse.index.placeholderName')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="仓库类型" prop="warehouse_type">
+            <el-form-item :label="t('warehouse.index.filterType')" prop="warehouse_type">
               <el-select
                 v-model="formData.warehouse_type"
-                placeholder="请选择类型"
+                :placeholder="t('warehouse.index.placeholderSelectType')"
                 style="width: 100%"
               >
-                <el-option label="原料仓" value="raw" />
-                <el-option label="成品仓" value="finished" />
-                <el-option label="半成品仓" value="semi" />
-                <el-option label="退货仓" value="return" />
+                <el-option :label="t('warehouse.index.optionRaw')" value="raw" />
+                <el-option :label="t('warehouse.index.optionFinished')" value="finished" />
+                <el-option :label="t('warehouse.index.optionSemi')" value="semi" />
+                <el-option :label="t('warehouse.index.optionReturn')" value="return" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="容量(m³)" prop="capacity">
+            <el-form-item :label="t('warehouse.index.labelCapacityM3')" prop="capacity">
               <el-input-number v-model="formData.capacity" :min="0" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="地址" prop="address">
-          <el-input v-model="formData.address" placeholder="请输入地址" />
-        </el-form-item>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="负责人" prop="contact_person">
-              <el-input v-model="formData.contact_person" placeholder="请输入负责人" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="电话" prop="phone">
-              <el-input v-model="formData.phone" placeholder="请输入电话" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="描述" prop="description">
+        <el-form-item :label="t('warehouse.index.colAddress')" prop="address">
           <el-input
-            v-model="formData.description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入描述"
+            v-model="formData.address"
+            :placeholder="t('warehouse.index.placeholderAddress')"
           />
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="设为默认" prop="is_default">
+            <el-form-item :label="t('warehouse.index.colContact')" prop="contact_person">
+              <el-input
+                v-model="formData.contact_person"
+                :placeholder="t('warehouse.index.placeholderContact')"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('warehouse.index.colPhone')" prop="phone">
+              <el-input
+                v-model="formData.phone"
+                :placeholder="t('warehouse.index.placeholderPhone')"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item :label="t('warehouse.index.labelDescription')" prop="description">
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="3"
+            :placeholder="t('warehouse.index.placeholderDescription')"
+          />
+        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item :label="t('warehouse.index.labelSetDefault')" prop="is_default">
               <el-switch v-model="formData.is_default" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="状态" prop="status">
+            <el-form-item :label="t('warehouse.index.filterStatus')" prop="status">
               <el-radio-group v-model="formData.status">
-                <el-radio value="active">启用</el-radio>
-                <el-radio value="inactive">禁用</el-radio>
+                <el-radio value="active">{{ t('warehouse.index.optionActive') }}</el-radio>
+                <el-radio value="inactive">{{ t('warehouse.index.optionInactive') }}</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+        <el-button @click="dialogVisible = false">{{
+          t('warehouse.index.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          t('warehouse.index.buttonSave')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -201,6 +292,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
@@ -213,6 +305,8 @@ import { printData } from '@/utils/print'
 import { useTableApi } from '@/composables/useTableApi'
 // Batch 462 P0-S24：引入权限码常量，与后端 warehouses 资源对齐
 import { PERMISSIONS } from '@/constants/permissions'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
@@ -238,7 +332,9 @@ const {
 } = useTableApi<Warehouse>({
   url: '/warehouses',
   onError: (err: unknown) =>
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取仓库列表失败'),
+    ElMessage.error(
+      (err instanceof Error ? err.message : String(err)) || t('warehouse.index.messageFetchFailed')
+    ),
 })
 
 // 批次 275：同步筛选条件到 useTableApi.queryParams 并刷新
@@ -288,19 +384,27 @@ const formData = reactive({
 })
 
 const formRules: FormRules = {
-  warehouse_code: [{ required: true, message: '请输入仓库编码', trigger: 'blur' }],
-  warehouse_name: [{ required: true, message: '请输入仓库名称', trigger: 'blur' }],
-  warehouse_type: [{ required: true, message: '请选择仓库类型', trigger: 'change' }],
+  warehouse_code: [
+    { required: true, message: t('warehouse.index.ruleCodeRequired'), trigger: 'blur' },
+  ],
+  warehouse_name: [
+    { required: true, message: t('warehouse.index.ruleNameRequired'), trigger: 'blur' },
+  ],
+  warehouse_type: [
+    { required: true, message: t('warehouse.index.ruleTypeRequired'), trigger: 'change' },
+  ],
 }
 
-const dialogTitle = computed(() => (isEdit.value ? '编辑仓库' : '新建仓库'))
+const dialogTitle = computed(() =>
+  isEdit.value ? t('warehouse.index.titleEdit') : t('warehouse.index.titleCreate')
+)
 
 const getWarehouseTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    raw: '原料仓',
-    finished: '成品仓',
-    semi: '半成品仓',
-    return: '退货仓',
+    raw: t('warehouse.index.optionRaw'),
+    finished: t('warehouse.index.optionFinished'),
+    semi: t('warehouse.index.optionSemi'),
+    return: t('warehouse.index.optionReturn'),
   }
   return labels[type] || type
 }
@@ -345,16 +449,21 @@ const handleEdit = (row: Warehouse) => {
 
 const handleDelete = async (row: Warehouse) => {
   try {
-    await ElMessageBox.confirm(`确定删除仓库 "${row.warehouse_name}" 吗？`, '删除确认', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('warehouse.index.messageConfirmDelete', { name: row.warehouse_name }),
+      t('warehouse.index.titleDeleteConfirm'),
+      { type: 'warning' }
+    )
     await deleteWarehouse(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('warehouse.index.messageDeleteSuccess'))
     fetchData()
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('warehouse.index.messageDeleteFailed')
+      )
     }
   }
 }
@@ -369,16 +478,19 @@ const handleSubmit = async () => {
     try {
       if (isEdit.value) {
         await updateWarehouse(formData.id!, formData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('warehouse.index.messageUpdateSuccess'))
       } else {
         await createWarehouse(formData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('warehouse.index.messageCreateSuccess'))
       }
       dialogVisible.value = false
       fetchData()
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('warehouse.index.messageOperationFailed')
+      )
     } finally {
       submitLoading.value = false
     }
@@ -399,23 +511,24 @@ const handleExport = async () => {
 
 const handlePrint = () => {
   printData({
-    title: '仓库列表',
+    title: t('warehouse.index.printTitle'),
     columns: [
-      { key: 'warehouse_code', title: '仓库编码', width: '100px' },
-      { key: 'warehouse_name', title: '仓库名称' },
+      { key: 'warehouse_code', title: t('warehouse.index.colCode'), width: '100px' },
+      { key: 'warehouse_name', title: t('warehouse.index.colName') },
       {
         key: 'warehouse_type',
-        title: '类型',
+        title: t('warehouse.index.colType'),
         width: '80px',
         formatter: v => getWarehouseTypeLabel(String(v)),
       },
-      { key: 'contact_person', title: '负责人', width: '80px' },
-      { key: 'phone', title: '电话', width: '120px' },
+      { key: 'contact_person', title: t('warehouse.index.colContact'), width: '80px' },
+      { key: 'phone', title: t('warehouse.index.colPhone'), width: '120px' },
       {
         key: 'status',
-        title: '状态',
+        title: t('warehouse.index.colStatus'),
         width: '60px',
-        formatter: v => (v === 'active' ? '启用' : '禁用'),
+        formatter: v =>
+          v === 'active' ? t('warehouse.index.statusActive') : t('warehouse.index.statusInactive'),
       },
     ],
     data: warehouses.value as unknown as Record<string, unknown>[],

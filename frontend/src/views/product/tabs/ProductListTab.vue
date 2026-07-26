@@ -2,6 +2,7 @@
   ProductListTab.vue - 产品列表 Tab
   来源：原 product/index.vue 中 列表/统计/过滤内容
   拆分日期：2026-06-15 B3-4
+  D05 Batch 8 Group B：接入 useI18n
 -->
 <template>
   <div class="product-list">
@@ -13,7 +14,7 @@
               <el-icon><Goods /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">产品总数</div>
+              <div class="stat-label">{{ t('product.productListTab.statTotalProducts') }}</div>
               <div class="stat-value">{{ stats.totalProducts }}</div>
             </div>
           </div>
@@ -26,7 +27,7 @@
               <el-icon><CircleCheck /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">启用产品</div>
+              <div class="stat-label">{{ t('product.productListTab.statActiveProducts') }}</div>
               <div class="stat-value">{{ stats.activeProducts }}</div>
             </div>
           </div>
@@ -44,7 +45,7 @@
               <el-icon><Collection /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">产品分类</div>
+              <div class="stat-label">{{ t('product.productListTab.statTotalCategories') }}</div>
               <div class="stat-value">{{ stats.totalCategories }}</div>
             </div>
           </div>
@@ -57,7 +58,7 @@
               <el-icon><Money /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">平均价格</div>
+              <div class="stat-label">{{ t('product.productListTab.statAvgPrice') }}</div>
               <div class="stat-value">{{ formatCurrency(stats.avgPrice) }}</div>
             </div>
           </div>
@@ -66,81 +67,144 @@
     </el-row>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="产品筛选表单">
-        <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="产品编码/名称" clearable />
+      <el-form
+        :inline="true"
+        :model="queryParams"
+        class="filter-form"
+        :aria-label="t('product.productListTab.filterAriaLabel')"
+      >
+        <el-form-item :label="t('product.productListTab.labelKeyword')">
+          <el-input
+            v-model="queryParams.keyword"
+            :placeholder="t('product.productListTab.placeholderKeyword')"
+            clearable
+          />
         </el-form-item>
-        <el-form-item label="分类">
+        <el-form-item :label="t('product.productListTab.labelCategory')">
           <el-cascader
             v-model="queryParams.category_id"
             :options="categoryTree"
             :props="{ checkStrictly: true, emitPath: false }"
-            placeholder="选择分类"
+            :placeholder="t('product.productListTab.placeholderCategory')"
             clearable
           />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.is_active" placeholder="选择状态" clearable>
-            <el-option label="启用" :value="true" />
-            <el-option label="禁用" :value="false" />
+        <el-form-item :label="t('product.productListTab.labelStatus')">
+          <el-select
+            v-model="queryParams.is_active"
+            :placeholder="t('product.productListTab.placeholderStatus')"
+            clearable
+          >
+            <el-option :label="t('product.productListTab.statusActive')" :value="true" />
+            <el-option :label="t('product.productListTab.statusInactive')" :value="false" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleQuery">{{
+            t('product.productListTab.buttonSearch')
+          }}</el-button>
+          <el-button @click="handleReset">{{ t('product.productListTab.buttonReset') }}</el-button>
           <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
-          <el-button v-permission="'products:create'" type="primary" @click="emit('openForm', 'create', null)">
-            <el-icon><Plus /></el-icon>新建
+          <el-button
+            v-permission="'products:create'"
+            type="primary"
+            @click="emit('openForm', 'create', null)"
+          >
+            <el-icon><Plus /></el-icon>{{ t('product.productListTab.buttonCreate') }}
           </el-button>
           <el-button @click="emit('openImport')">
-            <el-icon><Upload /></el-icon>导入
+            <el-icon><Upload /></el-icon>{{ t('product.productListTab.buttonImport') }}
           </el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="products" stripe aria-label="产品列表">
-        <el-table-column prop="product_code" label="产品编码" width="140" fixed />
-        <el-table-column prop="product_name" label="产品名称" min-width="180" fixed />
-        <el-table-column prop="category_name" label="分类" width="120">
+      <el-table
+        v-loading="loading"
+        :data="products"
+        stripe
+        :aria-label="t('product.productListTab.tableAriaLabel')"
+      >
+        <el-table-column
+          prop="product_code"
+          :label="t('product.productListTab.colProductCode')"
+          width="140"
+          fixed
+        />
+        <el-table-column
+          prop="product_name"
+          :label="t('product.productListTab.colProductName')"
+          min-width="180"
+          fixed
+        />
+        <el-table-column
+          prop="category_name"
+          :label="t('product.productListTab.colCategory')"
+          width="120"
+        >
           <template #default="{ row }">
             <el-tag v-if="row.category_name" type="info" size="small">{{
               row.category_name
             }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="specification" label="规格" width="120" show-overflow-tooltip />
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="price" label="售价" width="100" align="right">
+        <el-table-column
+          prop="specification"
+          :label="t('product.productListTab.colSpecification')"
+          width="120"
+          show-overflow-tooltip
+        />
+        <el-table-column prop="unit" :label="t('product.productListTab.colUnit')" width="80" />
+        <el-table-column
+          prop="price"
+          :label="t('product.productListTab.colPrice')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             <span v-if="row.price">{{ formatCurrency(row.price) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="cost_price" label="成本" width="100" align="right">
+        <el-table-column
+          prop="cost_price"
+          :label="t('product.productListTab.colCostPrice')"
+          width="100"
+          align="right"
+        >
           <template #default="{ row }">
             <span v-if="row.cost_price">{{ formatCurrency(row.cost_price) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="barcode" label="条形码" width="140" />
-        <el-table-column prop="is_active" label="状态" width="80">
+        <el-table-column
+          prop="barcode"
+          :label="t('product.productListTab.colBarcode')"
+          width="140"
+        />
+        <el-table-column prop="is_active" :label="t('product.productListTab.colStatus')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
-              {{ row.is_active ? '启用' : '禁用' }}
+              {{
+                row.is_active
+                  ? t('product.productListTab.statusActive')
+                  : t('product.productListTab.statusInactive')
+              }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column :label="t('product.productListTab.colActions')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="emit('openForm', 'view', row)"
-              >详情</el-button
-            >
-            <el-button type="primary" link size="small" @click="emit('openForm', 'edit', row)"
-              >编辑</el-button
-            >
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button type="primary" link size="small" @click="emit('openForm', 'view', row)">{{
+              t('product.productListTab.buttonDetail')
+            }}</el-button>
+            <el-button type="primary" link size="small" @click="emit('openForm', 'edit', row)">{{
+              t('product.productListTab.buttonEdit')
+            }}</el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row)">{{
+              t('product.productListTab.buttonDelete')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -152,7 +216,7 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="产品列表分页"
+          :aria-label="t('product.productListTab.paginationAriaLabel')"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
@@ -164,6 +228,7 @@
 <script setup lang="ts">
 // 批次 277：迁移到 useTableApi composable，移除手写分页逻辑
 import { ref, reactive, watch, onMounted, defineEmits, defineExpose } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Goods, CircleCheck, Collection, Money } from '@element-plus/icons-vue'
 import {
@@ -173,6 +238,8 @@ import {
   type ProductCategory,
 } from '@/api/product'
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const emit = defineEmits<{
   openForm: [mode: 'create' | 'edit' | 'view', row: Product | null]
@@ -199,7 +266,8 @@ const {
   },
   onError: (err: unknown) => {
     // 批次 277：类型守卫处理错误，避免直接 as Error 强转
-    const message = err instanceof Error ? err.message : '获取产品列表失败'
+    const message =
+      err instanceof Error ? err.message : t('product.productListTab.messageFetchFailed')
     ElMessage.error(message)
   },
 })
@@ -289,15 +357,17 @@ const handleReset = () => {
 
 const handleDelete = async (row: Product) => {
   try {
-    await ElMessageBox.confirm(`确定删除产品 "${row.product_name}" 吗？`, '删除确认', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('product.productListTab.messageDeleteConfirm', { productName: row.product_name }),
+      t('product.productListTab.messageDeleteTitle'),
+      { type: 'warning' }
+    )
     await deleteProduct(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('product.productListTab.messageDeleteSuccess'))
     fetchData()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error((error as Error).message || '删除失败')
+      ElMessage.error((error as Error).message || t('product.productListTab.messageDeleteFailed'))
     }
   }
 }

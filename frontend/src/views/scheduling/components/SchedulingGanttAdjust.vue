@@ -11,18 +11,17 @@
     :aria-label="t('scheduling.ganttAdjust.ariaLabel.dialog')"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localForm" label-width="100px" :aria-label="t('scheduling.ganttAdjust.ariaLabel.form')">
+    <el-form
+      :model="localForm"
+      label-width="100px"
+      :aria-label="t('scheduling.ganttAdjust.ariaLabel.form')"
+    >
       <el-form-item :label="t('scheduling.ganttAdjust.form.orderNo')">
         <span>{{ adjustTask.order_no }}</span>
       </el-form-item>
       <el-form-item :label="t('scheduling.ganttAdjust.form.workCenter')">
         <el-select v-model="localForm.work_center_id" style="width: 100%">
-          <el-option
-            v-for="wc in workCenters"
-            :key="wc.id"
-            :label="wc.name"
-            :value="wc.id"
-          />
+          <el-option v-for="wc in workCenters" :key="wc.id" :label="wc.name" :value="wc.id" />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('scheduling.ganttAdjust.form.startTime')">
@@ -44,7 +43,9 @@
     </el-form>
     <template #footer>
       <el-button @click="onCancel">{{ t('scheduling.ganttAdjust.button.cancel') }}</el-button>
-      <el-button type="primary" :loading="adjusting" @click="emit('confirm')">{{ t('scheduling.ganttAdjust.button.confirm') }}</el-button>
+      <el-button type="primary" :loading="adjusting" @click="emit('confirm')">{{
+        t('scheduling.ganttAdjust.button.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -107,7 +108,7 @@ let syncing = false
 // 外部 prop 变化时同步到 local
 watch(
   () => props.adjustForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     localForm.value = { ...newForm }
@@ -115,13 +116,13 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 // 本地变化时通知父组件
 watch(
   localForm,
-  (newForm) => {
+  newForm => {
     if (syncing) return
     syncing = true
     emit('update:form', { ...newForm })
@@ -129,7 +130,7 @@ watch(
       syncing = false
     })
   },
-  { deep: true },
+  { deep: true }
 )
 
 /** 关闭对话框 */

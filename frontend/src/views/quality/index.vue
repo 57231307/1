@@ -6,10 +6,7 @@
   <div class="quality-page">
     <el-tabs v-model="activeTab" :aria-label="$t('quality.tabAriaLabel')">
       <el-tab-pane :label="$t('quality.tab.standard')" name="standard">
-        <StandardTab
-          @open-history="viewVersionHistory"
-          @open-approve="approveStandard"
-        />
+        <StandardTab @open-history="viewVersionHistory" @open-approve="approveStandard" />
       </el-tab-pane>
 
       <el-tab-pane :label="$t('quality.tab.record')" name="record">
@@ -23,7 +20,11 @@
 
     <el-dialog
       v-model="standardDialogVisible"
-      :title="standardForm.id ? $t('quality.standardDialog.editTitle') : $t('quality.standardDialog.createTitle')"
+      :title="
+        standardForm.id
+          ? $t('quality.standardDialog.editTitle')
+          : $t('quality.standardDialog.createTitle')
+      "
       width="700px"
       :aria-label="$t('quality.standardDialog.ariaLabel')"
     >
@@ -42,16 +43,26 @@
           />
         </el-form-item>
         <el-form-item :label="$t('quality.standardDialog.standardName')" prop="standard_name">
-          <el-input v-model="standardForm.standard_name" :placeholder="$t('quality.standardDialog.standardNamePlaceholder')" />
+          <el-input
+            v-model="standardForm.standard_name"
+            :placeholder="$t('quality.standardDialog.standardNamePlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('quality.standardDialog.type')" prop="type">
-          <el-select v-model="standardForm.type" :placeholder="$t('quality.standardDialog.typePlaceholder')" style="width: 100%">
+          <el-select
+            v-model="standardForm.type"
+            :placeholder="$t('quality.standardDialog.typePlaceholder')"
+            style="width: 100%"
+          >
             <el-option :label="$t('quality.standardDialog.typeProduct')" value="product" />
             <el-option :label="$t('quality.standardDialog.typeProcess')" value="process" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('quality.standardDialog.version')" prop="version">
-          <el-input v-model="standardForm.version" :placeholder="$t('quality.standardDialog.versionPlaceholder')" />
+          <el-input
+            v-model="standardForm.version"
+            :placeholder="$t('quality.standardDialog.versionPlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('quality.standardDialog.content')" prop="content">
           <el-input
@@ -70,14 +81,21 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="standardDialogVisible = false">{{ $t('quality.standardDialog.cancel') }}</el-button>
-        <el-button type="primary" :loading="standardSubmitLoading" @click="submitStandard"
-          >{{ $t('quality.standardDialog.confirm') }}</el-button
-        >
+        <el-button @click="standardDialogVisible = false">{{
+          $t('quality.standardDialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="standardSubmitLoading" @click="submitStandard">{{
+          $t('quality.standardDialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="approveDialogVisible" :title="$t('quality.approveDialog.title')" width="500px" :aria-label="$t('quality.approveDialog.ariaLabel')">
+    <el-dialog
+      v-model="approveDialogVisible"
+      :title="$t('quality.approveDialog.title')"
+      width="500px"
+      :aria-label="$t('quality.approveDialog.ariaLabel')"
+    >
       <el-form
         ref="approveFormRef"
         :model="approveForm"
@@ -104,18 +122,30 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="approveDialogVisible = false">{{ $t('quality.approveDialog.cancel') }}</el-button>
-        <el-button type="warning" :loading="approveSubmitLoading" @click="rejectStandard"
-          >{{ $t('quality.approveDialog.reject') }}</el-button
-        >
-        <el-button type="primary" :loading="approveSubmitLoading" @click="confirmApprove"
-          >{{ $t('quality.approveDialog.pass') }}</el-button
-        >
+        <el-button @click="approveDialogVisible = false">{{
+          $t('quality.approveDialog.cancel')
+        }}</el-button>
+        <el-button type="warning" :loading="approveSubmitLoading" @click="rejectStandard">{{
+          $t('quality.approveDialog.reject')
+        }}</el-button>
+        <el-button type="primary" :loading="approveSubmitLoading" @click="confirmApprove">{{
+          $t('quality.approveDialog.pass')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="versionHistoryVisible" :title="$t('quality.versionHistory.title')" width="800px" :aria-label="$t('quality.versionHistory.ariaLabel')">
-      <el-table v-loading="versionHistoryLoading" :data="versionHistoryList" stripe :aria-label="$t('quality.versionHistory.tableAriaLabel')">
+    <el-dialog
+      v-model="versionHistoryVisible"
+      :title="$t('quality.versionHistory.title')"
+      width="800px"
+      :aria-label="$t('quality.versionHistory.ariaLabel')"
+    >
+      <el-table
+        v-loading="versionHistoryLoading"
+        :data="versionHistoryList"
+        stripe
+        :aria-label="$t('quality.versionHistory.tableAriaLabel')"
+      >
         <el-table-column prop="version" :label="$t('quality.versionHistory.version')" width="100" />
         <el-table-column prop="status" :label="$t('quality.versionHistory.status')" width="100">
           <template #default="{ row }">
@@ -124,44 +154,86 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" :label="$t('quality.versionHistory.createdBy')" width="100" />
-        <el-table-column prop="created_at" :label="$t('quality.versionHistory.createdAt')" width="160" />
-        <el-table-column prop="approved_by_name" :label="$t('quality.versionHistory.approvedBy')" width="100">
+        <el-table-column
+          prop="created_by_name"
+          :label="$t('quality.versionHistory.createdBy')"
+          width="100"
+        />
+        <el-table-column
+          prop="created_at"
+          :label="$t('quality.versionHistory.createdAt')"
+          width="160"
+        />
+        <el-table-column
+          prop="approved_by_name"
+          :label="$t('quality.versionHistory.approvedBy')"
+          width="100"
+        >
           <template #default="{ row }">
             {{ row.approved_by_name || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="approved_at" :label="$t('quality.versionHistory.approvedAt')" width="160">
+        <el-table-column
+          prop="approved_at"
+          :label="$t('quality.versionHistory.approvedAt')"
+          width="160"
+        >
           <template #default="{ row }">
             {{ row.approved_at || '-' }}
           </template>
         </el-table-column>
       </el-table>
       <template #footer>
-        <el-button @click="versionHistoryVisible = false">{{ $t('quality.versionHistory.close') }}</el-button>
+        <el-button @click="versionHistoryVisible = false">{{
+          $t('quality.versionHistory.close')
+        }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="recordDialogVisible"
-      :title="recordForm.id ? $t('quality.recordDialog.editTitle') : $t('quality.recordDialog.createTitle')"
+      :title="
+        recordForm.id
+          ? $t('quality.recordDialog.editTitle')
+          : $t('quality.recordDialog.createTitle')
+      "
       width="700px"
       :aria-label="$t('quality.recordDialog.ariaLabel')"
     >
-      <el-form ref="recordFormRef" :model="recordForm" label-width="100px" :aria-label="$t('quality.recordDialog.formAriaLabel')">
+      <el-form
+        ref="recordFormRef"
+        :model="recordForm"
+        label-width="100px"
+        :aria-label="$t('quality.recordDialog.formAriaLabel')"
+      >
         <el-form-item :label="$t('quality.recordDialog.recordNo')" prop="record_no">
           <el-input v-model="recordForm.record_no" :disabled="!!recordForm.id" />
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.inspectionType')" prop="inspection_type">
           <el-select v-model="recordForm.inspection_type" style="width: 100%">
-            <el-option :label="$t('quality.recordDialog.inspectionTypeOptions.incoming')" value="incoming" />
-            <el-option :label="$t('quality.recordDialog.inspectionTypeOptions.process')" value="process" />
-            <el-option :label="$t('quality.recordDialog.inspectionTypeOptions.finished')" value="finished" />
-            <el-option :label="$t('quality.recordDialog.inspectionTypeOptions.outgoing')" value="outgoing" />
+            <el-option
+              :label="$t('quality.recordDialog.inspectionTypeOptions.incoming')"
+              value="incoming"
+            />
+            <el-option
+              :label="$t('quality.recordDialog.inspectionTypeOptions.process')"
+              value="process"
+            />
+            <el-option
+              :label="$t('quality.recordDialog.inspectionTypeOptions.finished')"
+              value="finished"
+            />
+            <el-option
+              :label="$t('quality.recordDialog.inspectionTypeOptions.outgoing')"
+              value="outgoing"
+            />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.product')" prop="product_name">
-          <el-input v-model="recordForm.product_name" :placeholder="$t('quality.recordDialog.productPlaceholder')" />
+          <el-input
+            v-model="recordForm.product_name"
+            :placeholder="$t('quality.recordDialog.productPlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.batchNo')" prop="batch_no">
           <el-input v-model="recordForm.batch_no" />
@@ -181,7 +253,9 @@
           <el-radio-group v-model="recordForm.result">
             <el-radio label="pass">{{ $t('quality.recordDialog.resultOptions.pass') }}</el-radio>
             <el-radio label="fail">{{ $t('quality.recordDialog.resultOptions.fail') }}</el-radio>
-            <el-radio label="pending">{{ $t('quality.recordDialog.resultOptions.pending') }}</el-radio>
+            <el-radio label="pending">{{
+              $t('quality.recordDialog.resultOptions.pending')
+            }}</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.remark')" prop="remark">
@@ -189,10 +263,12 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="recordDialogVisible = false">{{ $t('quality.recordDialog.cancel') }}</el-button>
-        <el-button type="primary" :loading="recordSubmitLoading" @click="submitRecord"
-          >{{ $t('quality.recordDialog.confirm') }}</el-button
-        >
+        <el-button @click="recordDialogVisible = false">{{
+          $t('quality.recordDialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="recordSubmitLoading" @click="submitRecord">{{
+          $t('quality.recordDialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -313,8 +389,12 @@ const standardForm = reactive({
   attachments: [] as string[],
 })
 const standardFormRules: FormRules = {
-  standard_code: [{ required: true, message: t('quality.validation.standardCodeRequired'), trigger: 'blur' }],
-  standard_name: [{ required: true, message: t('quality.validation.standardNameRequired'), trigger: 'blur' }],
+  standard_code: [
+    { required: true, message: t('quality.validation.standardCodeRequired'), trigger: 'blur' },
+  ],
+  standard_name: [
+    { required: true, message: t('quality.validation.standardNameRequired'), trigger: 'blur' },
+  ],
   type: [{ required: true, message: t('quality.validation.typeRequired'), trigger: 'change' }],
   version: [{ required: true, message: t('quality.validation.versionRequired'), trigger: 'blur' }],
   content: [{ required: true, message: t('quality.validation.contentRequired'), trigger: 'blur' }],
@@ -365,7 +445,9 @@ const submitStandard = async () => {
       fetchStandards()
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed'))
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed')
+      )
     } finally {
       standardSubmitLoading.value = false
     }
@@ -378,7 +460,9 @@ const approveSubmitLoading = ref(false)
 const approveStandardItem = ref<QualityStandard | null>(null)
 const approveForm = reactive({ approval_comment: '' })
 const approveFormRules: FormRules = {
-  approval_comment: [{ required: true, message: t('quality.validation.approvalCommentRequired'), trigger: 'blur' }],
+  approval_comment: [
+    { required: true, message: t('quality.validation.approvalCommentRequired'), trigger: 'blur' },
+  ],
 }
 
 const approveStandard = async (row: QualityStandard) => {
@@ -400,7 +484,9 @@ const confirmApprove = async () => {
       fetchStandards()
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed'))
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed')
+      )
     } finally {
       approveSubmitLoading.value = false
     }
@@ -410,13 +496,17 @@ const confirmApprove = async () => {
 const rejectStandard = async () => {
   if (!approveStandardItem.value!) return
   try {
-    const reason = await ElMessageBox.prompt(t('quality.message.rejectPrompt'), t('quality.message.rejectTitle'), {
-      type: 'warning',
-      confirmButtonText: t('quality.message.rejectConfirmButton'),
-      cancelButtonText: t('quality.message.rejectCancelButton'),
-      inputPlaceholder: t('quality.message.rejectPlaceholder'),
-      inputType: 'textarea',
-    })
+    const reason = await ElMessageBox.prompt(
+      t('quality.message.rejectPrompt'),
+      t('quality.message.rejectTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('quality.message.rejectConfirmButton'),
+        cancelButtonText: t('quality.message.rejectCancelButton'),
+        inputPlaceholder: t('quality.message.rejectPlaceholder'),
+        inputType: 'textarea',
+      }
+    )
     // 批次 157d-2 修复：接入 rejectQualityStandard API
     await rejectQualityStandard(approveStandardItem.value!.id, {
       reject_reason: reason.value || undefined,
@@ -426,7 +516,10 @@ const rejectStandard = async () => {
     fetchStandards()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    if (e !== 'cancel') ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed'))
+    if (e !== 'cancel')
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed')
+      )
   }
 }
 
@@ -444,7 +537,9 @@ const viewVersionHistory = async (row: QualityStandard) => {
     versionHistoryVisible.value = true
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.fetchVersionHistoryFailed'))
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('quality.message.fetchVersionHistoryFailed')
+    )
   } finally {
     versionHistoryLoading.value = false
   }
@@ -502,7 +597,9 @@ const submitRecord = async () => {
     fetchRecords()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed'))
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed')
+    )
   } finally {
     recordSubmitLoading.value = false
   }

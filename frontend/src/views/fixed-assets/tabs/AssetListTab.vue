@@ -24,13 +24,25 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryForm" :aria-label="$t('fixedAssets.filter.ariaLabel')">
         <el-form-item :label="$t('fixedAssets.filter.assetCode')">
-          <el-input v-model="queryForm.asset_code" :placeholder="$t('fixedAssets.filter.assetCodePlaceholder')" clearable />
+          <el-input
+            v-model="queryForm.asset_code"
+            :placeholder="$t('fixedAssets.filter.assetCodePlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.filter.assetName')">
-          <el-input v-model="queryForm.asset_name" :placeholder="$t('fixedAssets.filter.assetNamePlaceholder')" clearable />
+          <el-input
+            v-model="queryForm.asset_name"
+            :placeholder="$t('fixedAssets.filter.assetNamePlaceholder')"
+            clearable
+          />
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.filter.category')">
-          <el-select v-model="queryForm.category" :placeholder="$t('fixedAssets.filter.categoryPlaceholder')" clearable>
+          <el-select
+            v-model="queryForm.category"
+            :placeholder="$t('fixedAssets.filter.categoryPlaceholder')"
+            clearable
+          >
             <el-option :label="$t('fixedAssets.category.building')" value="building" />
             <el-option :label="$t('fixedAssets.category.equipment')" value="equipment" />
             <el-option :label="$t('fixedAssets.category.vehicle')" value="vehicle" />
@@ -39,32 +51,59 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.filter.status')">
-          <el-select v-model="queryForm.status" :placeholder="$t('fixedAssets.filter.statusPlaceholder')" clearable>
+          <el-select
+            v-model="queryForm.status"
+            :placeholder="$t('fixedAssets.filter.statusPlaceholder')"
+            clearable
+          >
             <el-option :label="$t('fixedAssets.status.inUse')" value="in_use" />
             <el-option :label="$t('fixedAssets.status.idle')" value="idle" />
             <el-option :label="$t('fixedAssets.status.disposed')" value="disposed" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">{{ $t('fixedAssets.filter.query') }}</el-button>
+          <el-button type="primary" @click="handleSearch">{{
+            $t('fixedAssets.filter.query')
+          }}</el-button>
           <el-button @click="handleReset">{{ $t('fixedAssets.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="assetList" stripe :aria-label="$t('fixedAssets.table.ariaLabel')">
+      <el-table
+        v-loading="loading"
+        :data="assetList"
+        stripe
+        :aria-label="$t('fixedAssets.table.ariaLabel')"
+      >
         <el-table-column prop="asset_code" :label="$t('fixedAssets.table.assetCode')" width="120" />
-        <el-table-column prop="asset_name" :label="$t('fixedAssets.table.assetName')" min-width="150" />
+        <el-table-column
+          prop="asset_name"
+          :label="$t('fixedAssets.table.assetName')"
+          min-width="150"
+        />
         <el-table-column prop="category" :label="$t('fixedAssets.table.category')" width="100">
           <template #default="{ row }">{{ getCategoryLabel(row.category) }}</template>
         </el-table-column>
-        <el-table-column prop="department_name" :label="$t('fixedAssets.table.department')" width="120" />
-        <el-table-column prop="purchase_date" :label="$t('fixedAssets.table.purchaseDate')" width="120" />
+        <el-table-column
+          prop="department_name"
+          :label="$t('fixedAssets.table.department')"
+          width="120"
+        />
+        <el-table-column
+          prop="purchase_date"
+          :label="$t('fixedAssets.table.purchaseDate')"
+          width="120"
+        />
         <el-table-column :label="$t('fixedAssets.table.originalValue')" width="120" align="right">
           <template #default="{ row }">¥{{ row.purchase_amount.toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column :label="$t('fixedAssets.table.accumulatedDepreciation')" width="120" align="right">
+        <el-table-column
+          :label="$t('fixedAssets.table.accumulatedDepreciation')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">¥{{ row.accumulated_depreciation.toFixed(2) }}</template>
         </el-table-column>
         <el-table-column :label="$t('fixedAssets.table.netValue')" width="120" align="right">
@@ -77,10 +116,12 @@
         </el-table-column>
         <el-table-column :label="$t('fixedAssets.table.operation')" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openDialog(row)">{{ $t('fixedAssets.table.edit') }}</el-button>
-            <el-button type="success" link size="small" @click="handleDepreciate(row)"
-              >{{ $t('fixedAssets.table.depreciate') }}</el-button
-            >
+            <el-button type="primary" link size="small" @click="openDialog(row)">{{
+              $t('fixedAssets.table.edit')
+            }}</el-button>
+            <el-button type="success" link size="small" @click="handleDepreciate(row)">{{
+              $t('fixedAssets.table.depreciate')
+            }}</el-button>
             <!-- v3 复审 P1-2：在用资产可处置，处置后状态置为 disposed -->
             <el-button
               v-if="row.status === 'active'"
@@ -90,7 +131,9 @@
               @click="handleDispose(row)"
               >{{ $t('fixedAssets.table.dispose') }}</el-button
             >
-            <el-button type="danger" link size="small" @click="handleDelete(row)">{{ $t('fixedAssets.table.delete') }}</el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row)">{{
+              $t('fixedAssets.table.delete')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -109,8 +152,19 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? $t('fixedAssets.dialog.editTitle') : $t('fixedAssets.dialog.createTitle')" width="600px" :aria-label="$t('fixedAssets.dialog.ariaLabel')">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('fixedAssets.dialog.formAriaLabel')">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="form.id ? $t('fixedAssets.dialog.editTitle') : $t('fixedAssets.dialog.createTitle')"
+      width="600px"
+      :aria-label="$t('fixedAssets.dialog.ariaLabel')"
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        :aria-label="$t('fixedAssets.dialog.formAriaLabel')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('fixedAssets.dialog.assetCode')" prop="asset_code">
@@ -126,7 +180,11 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('fixedAssets.dialog.category')" prop="category">
-              <el-select v-model="form.category" :placeholder="$t('fixedAssets.dialog.categoryPlaceholder')" style="width: 100%">
+              <el-select
+                v-model="form.category"
+                :placeholder="$t('fixedAssets.dialog.categoryPlaceholder')"
+                style="width: 100%"
+              >
                 <el-option :label="$t('fixedAssets.category.building')" value="building" />
                 <el-option :label="$t('fixedAssets.category.equipment')" value="equipment" />
                 <el-option :label="$t('fixedAssets.category.vehicle')" value="vehicle" />
@@ -171,17 +229,35 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item :label="$t('fixedAssets.dialog.usefulLifeMonths')" prop="useful_life_months">
+            <el-form-item
+              :label="$t('fixedAssets.dialog.usefulLifeMonths')"
+              prop="useful_life_months"
+            >
               <el-input-number v-model="form.useful_life_months" :min="1" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('fixedAssets.dialog.depreciationMethod')" prop="depreciation_method">
+            <el-form-item
+              :label="$t('fixedAssets.dialog.depreciationMethod')"
+              prop="depreciation_method"
+            >
               <el-select v-model="form.depreciation_method" style="width: 100%">
-                <el-option :label="$t('fixedAssets.depreciationMethod.straightLine')" value="straight_line" />
-                <el-option :label="$t('fixedAssets.depreciationMethod.workload')" value="workload" />
-                <el-option :label="$t('fixedAssets.depreciationMethod.doubleDeclining')" value="double_declining" />
-                <el-option :label="$t('fixedAssets.depreciationMethod.sumOfYears')" value="sum_of_years" />
+                <el-option
+                  :label="$t('fixedAssets.depreciationMethod.straightLine')"
+                  value="straight_line"
+                />
+                <el-option
+                  :label="$t('fixedAssets.depreciationMethod.workload')"
+                  value="workload"
+                />
+                <el-option
+                  :label="$t('fixedAssets.depreciationMethod.doubleDeclining')"
+                  value="double_declining"
+                />
+                <el-option
+                  :label="$t('fixedAssets.depreciationMethod.sumOfYears')"
+                  value="sum_of_years"
+                />
               </el-select>
             </el-form-item>
           </el-col>
@@ -201,12 +277,19 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ $t('fixedAssets.dialog.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('fixedAssets.dialog.confirm') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          $t('fixedAssets.dialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
     <!-- v3 复审 P1-2：资产处置对话框 -->
-    <el-dialog v-model="disposalDialogVisible" :title="$t('fixedAssets.disposal.title')" width="520px" :aria-label="$t('fixedAssets.disposal.ariaLabel')">
+    <el-dialog
+      v-model="disposalDialogVisible"
+      :title="$t('fixedAssets.disposal.title')"
+      width="520px"
+      :aria-label="$t('fixedAssets.disposal.ariaLabel')"
+    >
       <el-form
         ref="disposalFormRef"
         :model="disposalForm"
@@ -215,7 +298,11 @@
         :aria-label="$t('fixedAssets.disposal.formAriaLabel')"
       >
         <el-form-item :label="$t('fixedAssets.disposal.type')" prop="disposal_type">
-          <el-select v-model="disposalForm.disposal_type" :placeholder="$t('fixedAssets.disposal.typePlaceholder')" style="width: 100%">
+          <el-select
+            v-model="disposalForm.disposal_type"
+            :placeholder="$t('fixedAssets.disposal.typePlaceholder')"
+            style="width: 100%"
+          >
             <el-option :label="$t('fixedAssets.disposal.typeSale')" value="SALE" />
             <el-option :label="$t('fixedAssets.disposal.typeScrap')" value="SCRAP" />
             <el-option :label="$t('fixedAssets.disposal.typeTransfer')" value="TRANSFER" />
@@ -247,14 +334,19 @@
           />
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.disposal.buyerInfo')">
-          <el-input v-model="disposalForm.buyer_info" :placeholder="$t('fixedAssets.disposal.buyerInfoPlaceholder')" />
+          <el-input
+            v-model="disposalForm.buyer_info"
+            :placeholder="$t('fixedAssets.disposal.buyerInfoPlaceholder')"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="disposalDialogVisible = false">{{ $t('fixedAssets.disposal.cancel') }}</el-button>
-        <el-button type="warning" :loading="disposalSubmitting" @click="submitDisposal"
-          >{{ $t('fixedAssets.disposal.confirm') }}</el-button
-        >
+        <el-button @click="disposalDialogVisible = false">{{
+          $t('fixedAssets.disposal.cancel')
+        }}</el-button>
+        <el-button type="warning" :loading="disposalSubmitting" @click="submitDisposal">{{
+          $t('fixedAssets.disposal.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -303,10 +395,30 @@ const disposalForm = reactive<DisposalRequest>({
 })
 
 const disposalRules: FormRules = {
-  disposal_type: [{ required: true, message: t('fixedAssets.validation.disposalTypeRequired'), trigger: 'change' }],
-  disposal_value: [{ required: true, message: t('fixedAssets.validation.disposalValueRequired'), trigger: 'blur' }],
-  disposal_date: [{ required: true, message: t('fixedAssets.validation.disposalDateRequired'), trigger: 'change' }],
-  reason: [{ required: true, message: t('fixedAssets.validation.disposalReasonRequired'), trigger: 'blur' }],
+  disposal_type: [
+    {
+      required: true,
+      message: t('fixedAssets.validation.disposalTypeRequired'),
+      trigger: 'change',
+    },
+  ],
+  disposal_value: [
+    { required: true, message: t('fixedAssets.validation.disposalValueRequired'), trigger: 'blur' },
+  ],
+  disposal_date: [
+    {
+      required: true,
+      message: t('fixedAssets.validation.disposalDateRequired'),
+      trigger: 'change',
+    },
+  ],
+  reason: [
+    {
+      required: true,
+      message: t('fixedAssets.validation.disposalReasonRequired'),
+      trigger: 'blur',
+    },
+  ],
 }
 
 // 批次 278：筛选条件（仅保留业务字段，page/page_size 由 useTableApi 管理）
@@ -371,13 +483,39 @@ const form = reactive<FixedAssetCreateRequest & { id?: number }>({
 })
 
 const rules: FormRules = {
-  asset_code: [{ required: true, message: t('fixedAssets.validation.assetCodeRequired'), trigger: 'blur' }],
-  asset_name: [{ required: true, message: t('fixedAssets.validation.assetNameRequired'), trigger: 'blur' }],
-  category: [{ required: true, message: t('fixedAssets.validation.categoryRequired'), trigger: 'change' }],
-  purchase_date: [{ required: true, message: t('fixedAssets.validation.purchaseDateRequired'), trigger: 'change' }],
-  purchase_amount: [{ required: true, message: t('fixedAssets.validation.purchaseAmountRequired'), trigger: 'blur' }],
-  useful_life_months: [{ required: true, message: t('fixedAssets.validation.usefulLifeRequired'), trigger: 'blur' }],
-  depreciation_method: [{ required: true, message: t('fixedAssets.validation.depreciationMethodRequired'), trigger: 'change' }],
+  asset_code: [
+    { required: true, message: t('fixedAssets.validation.assetCodeRequired'), trigger: 'blur' },
+  ],
+  asset_name: [
+    { required: true, message: t('fixedAssets.validation.assetNameRequired'), trigger: 'blur' },
+  ],
+  category: [
+    { required: true, message: t('fixedAssets.validation.categoryRequired'), trigger: 'change' },
+  ],
+  purchase_date: [
+    {
+      required: true,
+      message: t('fixedAssets.validation.purchaseDateRequired'),
+      trigger: 'change',
+    },
+  ],
+  purchase_amount: [
+    {
+      required: true,
+      message: t('fixedAssets.validation.purchaseAmountRequired'),
+      trigger: 'blur',
+    },
+  ],
+  useful_life_months: [
+    { required: true, message: t('fixedAssets.validation.usefulLifeRequired'), trigger: 'blur' },
+  ],
+  depreciation_method: [
+    {
+      required: true,
+      message: t('fixedAssets.validation.depreciationMethodRequired'),
+      trigger: 'change',
+    },
+  ],
 }
 
 const getCategoryLabel = (category: string) => {
@@ -595,7 +733,10 @@ const handleDepreciateAll = async () => {
       return
     }
     await ElMessageBox.confirm(
-      t('fixedAssets.message.batchDepreciateConfirm', { count: assetIds.length, period: inputPeriod }),
+      t('fixedAssets.message.batchDepreciateConfirm', {
+        count: assetIds.length,
+        period: inputPeriod,
+      }),
       t('fixedAssets.message.batchDepreciateConfirmTitle'),
       {
         type: 'warning',

@@ -77,7 +77,11 @@ export function useArRec() {
       return
     }
     try {
-      await ElMessageBox.confirm(t('arReconciliationModule.confirmAutoReconcile'), t('common.message.confirmTitle'), { type: 'info' })
+      await ElMessageBox.confirm(
+        t('arReconciliationModule.confirmAutoReconcile'),
+        t('common.message.confirmTitle'),
+        { type: 'info' }
+      )
       reconcileLoading.value = true
       await autoReconcile({
         start_date: searchForm.value.start_date,
@@ -110,7 +114,11 @@ export function useArRec() {
   /** 发送客户对账确认 */
   const handleSendConfirmation = async (row: AutoReconciliationResult) => {
     try {
-      await ElMessageBox.confirm(t('arReconciliationModule.confirmSendConfirmation'), t('common.message.confirmTitle'), { type: 'info' })
+      await ElMessageBox.confirm(
+        t('arReconciliationModule.confirmSendConfirmation'),
+        t('common.message.confirmTitle'),
+        { type: 'info' }
+      )
       await sendCustomerConfirmation(row.id)
       ElMessage.success(t('arReconciliationModule.confirmationSent'))
     } catch (error: unknown) {
@@ -141,9 +149,10 @@ export function useArRec() {
     row: CustomerConfirmation,
     status: 'confirmed' | 'disputed'
   ) => {
-    const msg = status === 'confirmed'
-      ? t('arReconciliationModule.confirmThisRecord')
-      : t('arReconciliationModule.markAsDisputed')
+    const msg =
+      status === 'confirmed'
+        ? t('arReconciliationModule.confirmThisRecord')
+        : t('arReconciliationModule.markAsDisputed')
     try {
       await ElMessageBox.confirm(msg, t('common.message.confirmTitle'), { type: 'warning' })
       await updateConfirmationStatus(row.id, { status })

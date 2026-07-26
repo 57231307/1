@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   ElTable,
   ElTableColumn,
@@ -26,6 +27,8 @@ import {
 } from '@/api/five-dimension'
 import { useTableApi } from '@/composables/useTableApi'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const searchForm = ref({
   product_id: '',
   batch_no: '',
@@ -47,7 +50,7 @@ const {
 } = useTableApi<FiveDimensionStatsResponse>({
   url: '/crm/five-dimension/stats',
   listKey: 'items',
-  onError: () => ElMessage.error('加载失败'),
+  onError: () => ElMessage.error(t('fiveDimension.index.messageLoadFailed')),
 })
 
 const viewDialogVisible = ref(false)
@@ -64,24 +67,27 @@ const searchResults = ref<FiveDimensionItem[]>([])
 const searchFormRef = reactive({ keyword: '' })
 
 const gradeOptions = [
-  { label: '一等品', value: '一等品' },
-  { label: '二等品', value: '二等品' },
-  { label: '三等品', value: '三等品' },
-  { label: '次品', value: '次品' },
+  { label: t('fiveDimension.index.gradeFirst'), value: '一等品' },
+  { label: t('fiveDimension.index.gradeSecond'), value: '二等品' },
+  { label: t('fiveDimension.index.gradeThird'), value: '三等品' },
+  { label: t('fiveDimension.index.gradeDefective'), value: '次品' },
 ]
 
 const searchTypeOptions = [
-  { label: '产品', value: 'product' },
-  { label: '批次', value: 'batch' },
-  { label: '色号', value: 'color' },
-  { label: '染缸号', value: 'dye_lot' },
-  { label: '等级', value: 'grade' },
+  { label: t('fiveDimension.index.searchTypeProduct'), value: 'product' },
+  { label: t('fiveDimension.index.searchTypeBatch'), value: 'batch' },
+  { label: t('fiveDimension.index.searchTypeColor'), value: 'color' },
+  { label: t('fiveDimension.index.searchTypeDyeLot'), value: 'dye_lot' },
+  { label: t('fiveDimension.index.searchTypeGrade'), value: 'grade' },
 ]
 
 // 批次 273：同步筛选条件到 useTableApi.queryParams 并刷新
 // useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
 const syncQueryParams = () => {
-  setQueryParam('product_id', searchForm.value.product_id ? Number(searchForm.value.product_id) : undefined)
+  setQueryParam(
+    'product_id',
+    searchForm.value.product_id ? Number(searchForm.value.product_id) : undefined
+  )
   setQueryParam('batch_no', searchForm.value.batch_no || undefined)
   setQueryParam('color_no', searchForm.value.color_no || undefined)
   setQueryParam('grade', searchForm.value.grade || undefined)
@@ -118,19 +124,19 @@ const handlePageSizeChange = (s: number) => {
 const openViewDialog = async (item: FiveDimensionStatsResponse) => {
   try {
     // v11 批次 179 P2-1 修复：res: any 改为具体类型
-    const res = (await getStatsByFiveDimensionId(
-      item.dimension.five_dimension_id!
-    )) as { data?: FiveDimensionStatsResponse }
+    const res = (await getStatsByFiveDimensionId(item.dimension.five_dimension_id!)) as {
+      data?: FiveDimensionStatsResponse
+    }
     viewData.value = res.data || null
     viewDialogVisible.value = true
   } catch (error) {
-    ElMessage.error('获取详情失败')
+    ElMessage.error(t('fiveDimension.index.messageFetchDetailFailed'))
   }
 }
 
 const handleParse = async () => {
   if (!parseInput.value.trim()) {
-    ElMessage.warning('请输入五维ID')
+    ElMessage.warning(t('fiveDimension.index.messageInputFiveDimensionId'))
     return
   }
   try {
@@ -143,17 +149,17 @@ const handleParse = async () => {
       parseError.value = ''
     } else {
       parseResult.value = null
-      parseError.value = res.data?.error || '解析失败'
+      parseError.value = res.data?.error || t('fiveDimension.index.messageParseFailed')
     }
   } catch (error) {
-    parseError.value = '解析失败'
+    parseError.value = t('fiveDimension.index.messageParseFailed')
     parseResult.value = null
   }
 }
 
 const handleQuickSearch = async () => {
   if (!searchKeyword.value.trim()) {
-    ElMessage.warning('请输入搜索关键词')
+    ElMessage.warning(t('fiveDimension.index.messageInputSearchKeyword'))
     return
   }
   try {
@@ -166,7 +172,7 @@ const handleQuickSearch = async () => {
     })) as { data?: { items?: FiveDimensionItem[] } }
     searchResults.value = res.data?.items || []
   } catch (error) {
-    ElMessage.error('搜索失败')
+    ElMessage.error(t('fiveDimension.index.messageSearchFailed'))
   }
 }
 
@@ -184,34 +190,44 @@ const selectFromSearch = (item: FiveDimensionItem) => {
 <template>
   <div class="app-container">
     <div class="filter-container">
-      <ElCard title="五维解析" class="parse-card">
+      <ElCard :title="t('fiveDimension.index.cardTitleParse')" class="parse-card">
         <ElRow :gutter="20">
           <ElCol :span="12">
             <ElInput
               v-model="parseInput"
-              placeholder="输入五维ID进行解析（如：P1|B20240101|C001|D20240101001|G 一等品）"
+              :placeholder="t('fiveDimension.index.placeholderParseInput')"
               class="filter-item"
             />
           </ElCol>
           <ElCol :span="4">
-            <ElButton type="primary" class="w-full" @click="handleParse"> <Key /> 解析 </ElButton>
+            <ElButton type="primary" class="w-full" @click="handleParse">
+              <Key /> {{ t('fiveDimension.index.buttonParse') }}
+            </ElButton>
           </ElCol>
           <ElCol :span="4">
             <ElButton type="success" class="w-full" @click="searchDialogVisible = true">
-              <Search /> 快速搜索
+              <Search /> {{ t('fiveDimension.index.buttonQuickSearch') }}
             </ElButton>
           </ElCol>
         </ElRow>
         <div v-if="parseResult" class="parse-result">
           <ElDivider />
           <ElDescriptions :column="5" border>
-            <ElDescriptionsItem label="产品ID">{{ parseResult.product_id }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="批次号">{{ parseResult.batch_no }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="色号">{{ parseResult.color_no }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="染缸号">{{
+            <ElDescriptionsItem :label="t('fiveDimension.index.labelProductId')">{{
+              parseResult.product_id
+            }}</ElDescriptionsItem>
+            <ElDescriptionsItem :label="t('fiveDimension.index.labelBatchNo')">{{
+              parseResult.batch_no
+            }}</ElDescriptionsItem>
+            <ElDescriptionsItem :label="t('fiveDimension.index.labelColorNo')">{{
+              parseResult.color_no
+            }}</ElDescriptionsItem>
+            <ElDescriptionsItem :label="t('fiveDimension.index.labelDyeLotNo')">{{
               parseResult.dye_lot_no || '-'
             }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="等级">{{ parseResult.grade }}</ElDescriptionsItem>
+            <ElDescriptionsItem :label="t('fiveDimension.index.labelGrade')">{{
+              parseResult.grade
+            }}</ElDescriptionsItem>
           </ElDescriptions>
         </div>
         <div v-if="parseError" class="parse-error">
@@ -224,7 +240,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
         <ElCol :span="6">
           <ElInput
             v-model="searchForm.product_id"
-            placeholder="产品ID"
+            :placeholder="t('fiveDimension.index.placeholderProductId')"
             class="filter-item"
             @keyup.enter="handleSearch"
           />
@@ -232,7 +248,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
         <ElCol :span="6">
           <ElInput
             v-model="searchForm.batch_no"
-            placeholder="批次号"
+            :placeholder="t('fiveDimension.index.placeholderBatchNo')"
             class="filter-item"
             @keyup.enter="handleSearch"
           />
@@ -240,22 +256,30 @@ const selectFromSearch = (item: FiveDimensionItem) => {
         <ElCol :span="6">
           <ElInput
             v-model="searchForm.color_no"
-            placeholder="色号"
+            :placeholder="t('fiveDimension.index.placeholderColorNo')"
             class="filter-item"
             @keyup.enter="handleSearch"
           />
         </ElCol>
         <ElCol :span="6">
-          <ElSelect v-model="searchForm.grade" placeholder="等级" class="filter-item">
-            <ElOption label="全部" value="" />
+          <ElSelect
+            v-model="searchForm.grade"
+            :placeholder="t('fiveDimension.index.placeholderGrade')"
+            class="filter-item"
+          >
+            <ElOption :label="t('fiveDimension.index.optionAll')" value="" />
             <ElOption v-for="g in gradeOptions" :key="g.value" :label="g.label" :value="g.value" />
           </ElSelect>
         </ElCol>
       </ElRow>
       <div class="filter-actions">
-        <ElButton type="primary" @click="handleSearch">查询</ElButton>
-        <ElButton @click="handleReset">重置</ElButton>
-        <ElButton @click="loadData"> <Refresh /> 刷新 </ElButton>
+        <ElButton type="primary" @click="handleSearch">{{
+          t('fiveDimension.index.buttonQuery')
+        }}</ElButton>
+        <ElButton @click="handleReset">{{ t('fiveDimension.index.buttonReset') }}</ElButton>
+        <ElButton @click="loadData">
+          <Refresh /> {{ t('fiveDimension.index.buttonRefresh') }}
+        </ElButton>
       </div>
     </div>
 
@@ -266,23 +290,65 @@ const selectFromSearch = (item: FiveDimensionItem) => {
       fit
       highlight-current-row
       style="width: 100%"
-      aria-label="五维分析列表"
+      :aria-label="t('fiveDimension.index.ariaTable')"
     >
-      <ElTableColumn prop="dimension.product_id" label="产品ID" width="100" />
-      <ElTableColumn prop="dimension.product_name" label="产品名称" width="150" />
-      <ElTableColumn prop="dimension.batch_no" label="批次号" width="120" />
-      <ElTableColumn prop="dimension.color_no" label="色号" width="100" />
-      <ElTableColumn prop="dimension.dye_lot_no" label="染缸号" width="120" />
-      <ElTableColumn prop="dimension.grade" label="等级" width="100" />
-      <ElTableColumn prop="total_meters" label="总米数" width="120" align="right">
+      <ElTableColumn
+        prop="dimension.product_id"
+        :label="t('fiveDimension.index.colProductId')"
+        width="100"
+      />
+      <ElTableColumn
+        prop="dimension.product_name"
+        :label="t('fiveDimension.index.colProductName')"
+        width="150"
+      />
+      <ElTableColumn
+        prop="dimension.batch_no"
+        :label="t('fiveDimension.index.colBatchNo')"
+        width="120"
+      />
+      <ElTableColumn
+        prop="dimension.color_no"
+        :label="t('fiveDimension.index.colColorNo')"
+        width="100"
+      />
+      <ElTableColumn
+        prop="dimension.dye_lot_no"
+        :label="t('fiveDimension.index.colDyeLotNo')"
+        width="120"
+      />
+      <ElTableColumn
+        prop="dimension.grade"
+        :label="t('fiveDimension.index.colGrade')"
+        width="100"
+      />
+      <ElTableColumn
+        prop="total_meters"
+        :label="t('fiveDimension.index.colTotalMeters')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.total_meters }}</template>
       </ElTableColumn>
-      <ElTableColumn prop="total_kg" label="总公斤数" width="120" align="right">
+      <ElTableColumn
+        prop="total_kg"
+        :label="t('fiveDimension.index.colTotalKg')"
+        width="120"
+        align="right"
+      >
         <template #default="scope">{{ scope.row.total_kg }}</template>
       </ElTableColumn>
-      <ElTableColumn prop="stock_count" label="库存记录数" width="120" align="center" />
-      <ElTableColumn prop="dimension.five_dimension_id" label="五维ID" />
-      <ElTableColumn label="操作" width="100" align="center">
+      <ElTableColumn
+        prop="stock_count"
+        :label="t('fiveDimension.index.colStockCount')"
+        width="120"
+        align="center"
+      />
+      <ElTableColumn
+        prop="dimension.five_dimension_id"
+        :label="t('fiveDimension.index.colFiveDimensionId')"
+      />
+      <ElTableColumn :label="t('fiveDimension.index.colOperation')" width="100" align="center">
         <template #default="scope">
           <ElButton size="small" @click="openViewDialog(scope.row as FiveDimensionStatsResponse)">
             <View />
@@ -298,88 +364,155 @@ const selectFromSearch = (item: FiveDimensionItem) => {
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
+        :aria-label="t('fiveDimension.index.ariaPagination')"
         @size-change="handlePageSizeChange"
         @current-change="handlePageChange"
-        aria-label="五维分析列表分页"
       />
     </div>
 
     <ElDialog
-      title="五维统计详情"
+      :title="t('fiveDimension.index.dialogTitleView')"
       :visible="viewDialogVisible"
       width="800px"
-      aria-label="五维统计详情"
+      :aria-label="t('fiveDimension.index.ariaViewDialog')"
       @close="viewDialogVisible = false"
     >
       <div v-if="viewData">
         <ElDescriptions :column="3" border>
-          <ElDescriptionsItem label="产品ID">{{
+          <ElDescriptionsItem :label="t('fiveDimension.index.labelProductId')">{{
             viewData.dimension.product_id
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="产品名称">{{
+          <ElDescriptionsItem :label="t('fiveDimension.index.colProductName')">{{
             viewData.dimension.product_name || '-'
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="批次号">{{ viewData.dimension.batch_no }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="色号">{{ viewData.dimension.color_no }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="染缸号">{{
+          <ElDescriptionsItem :label="t('fiveDimension.index.labelBatchNo')">{{
+            viewData.dimension.batch_no
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('fiveDimension.index.labelColorNo')">{{
+            viewData.dimension.color_no
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('fiveDimension.index.labelDyeLotNo')">{{
             viewData.dimension.dye_lot_no || '-'
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="等级">{{ viewData.dimension.grade }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="总米数">{{ viewData.total_meters }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="总公斤数">{{ viewData.total_kg }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="库存记录数">{{ viewData.stock_count }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('fiveDimension.index.labelGrade')">{{
+            viewData.dimension.grade
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('fiveDimension.index.colTotalMeters')">{{
+            viewData.total_meters
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('fiveDimension.index.colTotalKg')">{{
+            viewData.total_kg
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('fiveDimension.index.colStockCount')">{{
+            viewData.stock_count
+          }}</ElDescriptionsItem>
         </ElDescriptions>
         <div style="margin-top: 20px">
-          <h4>仓库分布</h4>
-          <ElTable :data="viewData.warehouse_distribution" border style="width: 100%" aria-label="仓库分布表">
-            <ElTableColumn prop="warehouse_id" label="仓库ID" width="100" />
-            <ElTableColumn prop="warehouse_name" label="仓库名称" width="150" />
-            <ElTableColumn prop="quantity_meters" label="米数" width="120" align="right" />
-            <ElTableColumn prop="quantity_kg" label="公斤数" width="120" align="right" />
+          <h4>{{ t('fiveDimension.index.titleWarehouseDistribution') }}</h4>
+          <ElTable
+            :data="viewData.warehouse_distribution"
+            border
+            style="width: 100%"
+            :aria-label="t('fiveDimension.index.ariaWarehouseTable')"
+          >
+            <ElTableColumn
+              prop="warehouse_id"
+              :label="t('fiveDimension.index.colWarehouseId')"
+              width="100"
+            />
+            <ElTableColumn
+              prop="warehouse_name"
+              :label="t('fiveDimension.index.colWarehouseName')"
+              width="150"
+            />
+            <ElTableColumn
+              prop="quantity_meters"
+              :label="t('fiveDimension.index.colMeters')"
+              width="120"
+              align="right"
+            />
+            <ElTableColumn
+              prop="quantity_kg"
+              :label="t('fiveDimension.index.colKg')"
+              width="120"
+              align="right"
+            />
           </ElTable>
         </div>
       </div>
     </ElDialog>
 
     <ElDialog
-      title="快速搜索"
+      :title="t('fiveDimension.index.dialogTitleQuickSearch')"
       :visible="searchDialogVisible"
       width="700px"
-      aria-label="快速搜索"
+      :aria-label="t('fiveDimension.index.ariaQuickSearchDialog')"
       @close="searchDialogVisible = false"
     >
-      <ElForm :model="searchFormRef" label-width="80px" aria-label="快速搜索表单">
-        <ElFormItem label="搜索关键词">
-          <ElInput v-model="searchFormRef.keyword" placeholder="请输入搜索关键词" />
+      <ElForm
+        :model="searchFormRef"
+        label-width="80px"
+        :aria-label="t('fiveDimension.index.ariaQuickSearchForm')"
+      >
+        <ElFormItem :label="t('fiveDimension.index.labelSearchKeyword')">
+          <ElInput
+            v-model="searchFormRef.keyword"
+            :placeholder="t('fiveDimension.index.placeholderSearchKeyword')"
+          />
         </ElFormItem>
-        <ElFormItem label="搜索类型">
+        <ElFormItem :label="t('fiveDimension.index.labelSearchType')">
           <ElSelect v-model="searchType">
             <ElOption
-              v-for="t in searchTypeOptions"
-              :key="t.value"
-              :label="t.label"
-              :value="t.value"
+              v-for="opt in searchTypeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
             />
           </ElSelect>
         </ElFormItem>
       </ElForm>
       <template #footer>
-        <ElButton @click="searchDialogVisible = false">取消</ElButton>
-        <ElButton type="primary" @click="handleQuickSearch">搜索</ElButton>
+        <ElButton @click="searchDialogVisible = false">{{
+          t('fiveDimension.index.buttonCancel')
+        }}</ElButton>
+        <ElButton type="primary" @click="handleQuickSearch">{{
+          t('fiveDimension.index.buttonSearch')
+        }}</ElButton>
       </template>
       <div v-if="searchResults.length > 0" style="margin-top: 10px">
         <ElDivider />
-        <ElTable :data="searchResults" border style="width: 100%" size="small" aria-label="搜索结果列表">
-          <ElTableColumn prop="product_id" label="产品ID" width="80" />
-          <ElTableColumn prop="product_name" label="产品名称" width="120" />
-          <ElTableColumn prop="batch_no" label="批次号" width="120" />
-          <ElTableColumn prop="color_no" label="色号" width="80" />
-          <ElTableColumn prop="dye_lot_no" label="染缸号" width="120" />
-          <ElTableColumn prop="grade" label="等级" width="80" />
-          <ElTableColumn label="操作" width="80">
+        <ElTable
+          :data="searchResults"
+          border
+          style="width: 100%"
+          size="small"
+          :aria-label="t('fiveDimension.index.ariaSearchResults')"
+        >
+          <ElTableColumn
+            prop="product_id"
+            :label="t('fiveDimension.index.colProductId')"
+            width="80"
+          />
+          <ElTableColumn
+            prop="product_name"
+            :label="t('fiveDimension.index.colProductName')"
+            width="120"
+          />
+          <ElTableColumn prop="batch_no" :label="t('fiveDimension.index.colBatchNo')" width="120" />
+          <ElTableColumn prop="color_no" :label="t('fiveDimension.index.colColorNo')" width="80" />
+          <ElTableColumn
+            prop="dye_lot_no"
+            :label="t('fiveDimension.index.colDyeLotNo')"
+            width="120"
+          />
+          <ElTableColumn prop="grade" :label="t('fiveDimension.index.colGrade')" width="80" />
+          <ElTableColumn :label="t('fiveDimension.index.colOperation')" width="80">
             <template #default="scope">
-              <ElButton size="small" type="primary" @click="selectFromSearch(scope.row as FiveDimensionItem)"
-                >选择</ElButton
+              <ElButton
+                size="small"
+                type="primary"
+                @click="selectFromSearch(scope.row as FiveDimensionItem)"
+                >{{ t('fiveDimension.index.buttonSelect') }}</ElButton
               >
             </template>
           </ElTableColumn>

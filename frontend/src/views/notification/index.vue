@@ -3,10 +3,12 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>通知中心</span>
+          <span>{{ t('notification.index.pageTitle') }}</span>
           <div class="header-actions">
             <el-badge :value="unreadCount" :hidden="unreadCount === 0" class="unread-badge">
-              <el-button link type="primary" @click="handleMarkAllRead">全部标为已读</el-button>
+              <el-button link type="primary" @click="handleMarkAllRead">{{
+                t('notification.index.buttonMarkAllRead')
+              }}</el-button>
             </el-badge>
           </div>
         </div>
@@ -14,9 +16,11 @@
 
       <div class="toolbar">
         <el-radio-group v-model="statusFilter" @change="handleStatusFilterChange">
-          <el-radio-button value="">全部</el-radio-button>
-          <el-radio-button value="UNREAD">未读</el-radio-button>
-          <el-radio-button value="READ">已读</el-radio-button>
+          <el-radio-button value="">{{ t('notification.index.optionAll') }}</el-radio-button>
+          <el-radio-button value="UNREAD">{{
+            t('notification.index.optionUnread')
+          }}</el-radio-button>
+          <el-radio-button value="READ">{{ t('notification.index.optionRead') }}</el-radio-button>
         </el-radio-group>
       </div>
 
@@ -29,9 +33,15 @@
         >
           <div class="item-header">
             <div class="item-type">
-              <el-tag v-if="item.notificationType === 'SYSTEM'" type="danger">系统</el-tag>
-              <el-tag v-else-if="item.notificationType === 'INTERNAL'" type="primary">内部</el-tag>
-              <el-tag v-else-if="item.notificationType === 'EMAIL'" type="success">邮件</el-tag>
+              <el-tag v-if="item.notificationType === 'SYSTEM'" type="danger">{{
+                t('notification.index.typeSystem')
+              }}</el-tag>
+              <el-tag v-else-if="item.notificationType === 'INTERNAL'" type="primary">{{
+                t('notification.index.typeInternal')
+              }}</el-tag>
+              <el-tag v-else-if="item.notificationType === 'EMAIL'" type="success">{{
+                t('notification.index.typeEmail')
+              }}</el-tag>
               <el-tag v-else type="warning">{{ item.notificationType }}</el-tag>
             </div>
             <div class="item-time">{{ item.createdAt }}</div>
@@ -44,22 +54,27 @@
             {{ item.content }}
           </div>
           <div class="item-actions">
-            <el-button link type="primary" size="small" @click="handleView(item)"
-              >查看详情</el-button
-            >
+            <el-button link type="primary" size="small" @click="handleView(item)">{{
+              t('notification.index.buttonViewDetail')
+            }}</el-button>
             <el-button
               v-if="item.status === 'UNREAD'"
               link
               type="primary"
               size="small"
               @click="handleMarkRead(item)"
-              >标为已读</el-button
+              >{{ t('notification.index.buttonMarkRead') }}</el-button
             >
-            <el-button link type="danger" size="small" @click="handleDelete(item)">删除</el-button>
+            <el-button link type="danger" size="small" @click="handleDelete(item)">{{
+              t('notification.index.buttonDelete')
+            }}</el-button>
           </div>
         </div>
 
-        <el-empty v-if="notificationList.length === 0" description="暂无通知" />
+        <el-empty
+          v-if="notificationList.length === 0"
+          :description="t('notification.index.messageNoData')"
+        />
       </div>
 
       <el-pagination
@@ -67,38 +82,45 @@
         v-model:page-size="pageSize"
         :total="total"
         layout="total, prev, pager, next, jumper"
-        aria-label="通知列表分页"
+        :aria-label="t('notification.index.ariaPagination')"
       />
     </el-card>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="通知详情" width="600px" aria-label="通知详情对话框">
+    <el-dialog
+      v-model="detailDialogVisible"
+      :title="t('notification.index.titleDetail')"
+      width="600px"
+      :aria-label="t('notification.index.ariaDetailDialog')"
+    >
       <div v-if="currentNotification" class="notification-detail">
         <div class="detail-info">
           <div class="info-item">
-            <span class="label">标题：</span>
+            <span class="label">{{ t('notification.index.labelTitle') }}</span>
             <span class="value">{{ currentNotification.title }}</span>
           </div>
           <div class="info-item">
-            <span class="label">类型：</span>
-            <el-tag v-if="currentNotification.notificationType === 'SYSTEM'" type="danger"
-              >系统</el-tag
+            <span class="label">{{ t('notification.index.labelType') }}</span>
+            <el-tag v-if="currentNotification.notificationType === 'SYSTEM'" type="danger">{{
+              t('notification.index.typeSystem')
+            }}</el-tag>
+            <el-tag
+              v-else-if="currentNotification.notificationType === 'INTERNAL'"
+              type="primary"
+              >{{ t('notification.index.typeInternal') }}</el-tag
             >
-            <el-tag v-else-if="currentNotification.notificationType === 'INTERNAL'" type="primary"
-              >内部</el-tag
-            >
-            <el-tag v-else-if="currentNotification.notificationType === 'EMAIL'" type="success"
-              >邮件</el-tag
-            >
+            <el-tag v-else-if="currentNotification.notificationType === 'EMAIL'" type="success">{{
+              t('notification.index.typeEmail')
+            }}</el-tag>
             <el-tag v-else type="warning">{{ currentNotification.notificationType }}</el-tag>
           </div>
           <div class="info-item">
-            <span class="label">创建时间：</span>
+            <span class="label">{{ t('notification.index.labelCreatedAt') }}</span>
             <span class="value">{{ currentNotification.createdAt }}</span>
           </div>
         </div>
         <div class="detail-content">
-          <div class="content-label">内容：</div>
+          <div class="content-label">{{ t('notification.index.labelContent') }}</div>
           <div class="content-text">{{ currentNotification.content }}</div>
         </div>
       </div>
@@ -108,6 +130,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -119,6 +142,8 @@ import {
   type Notification,
 } from '@/api/notification'
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const unreadCount = ref(0)
 const statusFilter = ref('')
@@ -135,7 +160,7 @@ const {
 } = useTableApi<Notification>({
   url: '/notifications',
   pageSizeKey: 'page_size',
-  onError: () => ElMessage.error('获取通知列表失败'),
+  onError: () => ElMessage.error(t('notification.index.messageLoadListFailed')),
 })
 
 // 批次 275：同步筛选条件到 useTableApi.queryParams
@@ -172,7 +197,7 @@ const handleView = async (item: Notification) => {
       fetchUnreadCount()
     }
   } catch (e) {
-    ElMessage.error('获取详情失败')
+    ElMessage.error(t('notification.index.messageLoadDetailFailed'))
   }
 }
 
@@ -181,24 +206,28 @@ const handleMarkRead = async (item: Notification) => {
 
   try {
     await markAsRead(item.id)
-    ElMessage.success('已标为已读')
+    ElMessage.success(t('notification.index.messageMarkReadSuccess'))
     fetchNotifications()
     fetchUnreadCount()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('notification.index.messageOperationFailed')
+    )
   }
 }
 
 const handleMarkAllRead = async () => {
   try {
     await markAllAsRead()
-    ElMessage.success('操作成功')
+    ElMessage.success(t('notification.index.messageOperationSuccess'))
     fetchNotifications()
     fetchUnreadCount()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('notification.index.messageOperationFailed')
+    )
   }
 }
 
@@ -206,20 +235,26 @@ const handleDelete = async (item: Notification) => {
   if (!item.id) return
 
   try {
-    await ElMessageBox.confirm('确认删除该通知？', '提示', {
-      confirmButtonText: '确认',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('notification.index.messageConfirmDelete'),
+      t('notification.index.titleConfirm'),
+      {
+        confirmButtonText: t('notification.index.buttonConfirm'),
+        cancelButtonText: t('notification.index.buttonCancel'),
+        type: 'warning',
+      }
+    )
 
     await deleteNotification(item.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('notification.index.messageDeleteSuccess'))
     fetchNotifications()
     fetchUnreadCount()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '删除失败')
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || t('notification.index.messageDeleteFailed')
+      )
     }
   }
 }

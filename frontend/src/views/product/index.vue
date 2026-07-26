@@ -10,15 +10,18 @@
   - tabs/CategoryDialogTab.vue      （分类管理弹窗）
 
   本主入口仅承担：Tab 切换与公共样式。
+  D05 Batch 8 Group B：接入 useI18n
 -->
 <template>
   <div class="product-page">
     <div class="page-header">
-      <h1 class="page-title">产品管理</h1>
+      <h1 class="page-title">{{ t('product.index.pageTitle') }}</h1>
       <el-breadcrumb separator="/">
-        <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-        <el-breadcrumb-item>基础数据</el-breadcrumb-item>
-        <el-breadcrumb-item>产品管理</el-breadcrumb-item>
+        <el-breadcrumb-item :to="{ path: '/' }">{{
+          t('product.index.breadcrumbHome')
+        }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{ t('product.index.breadcrumbMasterData') }}</el-breadcrumb-item>
+        <el-breadcrumb-item>{{ t('product.index.breadcrumbProduct') }}</el-breadcrumb-item>
       </el-breadcrumb>
     </div>
 
@@ -41,6 +44,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getProductCategoryList, type Product, type ProductCategory } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
@@ -49,8 +53,10 @@ import ProductFormDialogTab from './tabs/ProductFormDialogTab.vue'
 import ImportDialogTab from './tabs/ImportDialogTab.vue'
 import CategoryDialogTab from './tabs/CategoryDialogTab.vue'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const formDialogVisible = ref(false)
-const formDialogTitle = ref('新建产品')
+const formDialogTitle = ref(t('product.index.titleCreate'))
 const dialogMode = ref<'create' | 'edit' | 'view'>('create')
 const currentRow = ref<Product | null>(null)
 const importDialogVisible = ref(false)
@@ -61,7 +67,12 @@ const categories = ref<ProductCategory[]>([])
 const openForm = (mode: 'create' | 'edit' | 'view', row: Product | null) => {
   currentRow.value = row
   dialogMode.value = mode
-  formDialogTitle.value = mode === 'create' ? '新建产品' : mode === 'edit' ? '编辑产品' : '查看产品'
+  formDialogTitle.value =
+    mode === 'create'
+      ? t('product.index.titleCreate')
+      : mode === 'edit'
+        ? t('product.index.titleEdit')
+        : t('product.index.titleView')
   formDialogVisible.value = true
 }
 
@@ -102,7 +113,7 @@ const fetchCategories = async () => {
     categories.value = (res.data as ProductCategory[] | undefined) || []
     void buildTree(categories.value)
   } catch (error) {
-    logger.error('获取分类失败', (error as Error).message)
+    logger.error(t('product.index.messageFetchCategoriesFailed'), (error as Error).message)
   }
 }
 

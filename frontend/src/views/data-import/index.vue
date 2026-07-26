@@ -8,26 +8,26 @@
 <template>
   <div class="data-import-page">
     <div class="page-header">
-      <h2 class="page-title">数据导入</h2>
+      <h2 class="page-title">{{ t('dataImport.page.title') }}</h2>
       <div class="header-actions">
         <el-button type="primary" @click="diProc.openTemplateDialog()">
           <el-icon><Plus /></el-icon>
-          新建模板
+          {{ t('dataImport.page.newTemplate') }}
         </el-button>
       </div>
     </div>
 
     <el-tabs v-model="di.activeTab">
-      <el-tab-pane label="导入模板" name="templates">
+      <el-tab-pane :label="t('dataImport.page.templatesTab')" name="templates">
         <DataImportTemplateTable
+          v-model:page="di.templatePage"
+          v-model:page-size="di.templatePageSize"
           :data="di.templates"
           :loading="di.templateLoading"
           :total="di.templateTotal"
           :query-params="di.templateQueryParams"
-          v-model:page="di.templatePage"
-          v-model:page-size="di.templatePageSize"
           @fetch="di.handleTemplateSearch"
-          @update:query-params="(v) => Object.assign(di.templateQueryParams, v)"
+          @update:query-params="v => Object.assign(di.templateQueryParams, v)"
           @edit="diProc.openTemplateDialog"
           @delete="diProc.handleDeleteTemplate"
           @download="diProc.handleDownloadTemplate"
@@ -35,16 +35,16 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="导入任务" name="tasks">
+      <el-tab-pane :label="t('dataImport.page.tasksTab')" name="tasks">
         <DataImportTaskTable
+          v-model:page="di.taskPage"
+          v-model:page-size="di.taskPageSize"
           :data="di.tasks"
           :loading="di.taskLoading"
           :total="di.taskTotal"
           :query-params="di.taskQueryParams"
-          v-model:page="di.taskPage"
-          v-model:page-size="di.taskPageSize"
           @fetch="di.handleTaskSearch"
-          @update:query-params="(v) => Object.assign(di.taskQueryParams, v)"
+          @update:query-params="v => Object.assign(di.taskQueryParams, v)"
           @retry="diProc.handleRetryTask"
           @cancel="diProc.handleCancelTask"
           @download-log="diProc.handleDownloadErrorLog"
@@ -75,12 +75,15 @@
 
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { useDi } from './composables/useDi'
 import { useDiProc, type DataImportTemplateFormData } from './composables/useDiProc'
 import DataImportTemplateTable from './components/DataImportTemplateTable.vue'
 import DataImportTaskTable from './components/DataImportTaskTable.vue'
 import DataImportTemplateForm from './components/DataImportTemplateForm.vue'
 import DataImportTemplateUpload from './components/DataImportTemplateUpload.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const di = useDi()

@@ -17,16 +17,16 @@
 <template>
   <div class="ap-page">
     <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => (activeTab = String(tab))">
-      <el-tab-pane :label="$t('apModule.tabs.invoice')" name="invoice">
+      <el-tab-pane :label="t('apModule.tabs.invoice')" name="invoice">
         <InvoiceTab />
       </el-tab-pane>
-      <el-tab-pane :label="$t('apModule.tabs.payment')" name="payment">
+      <el-tab-pane :label="t('apModule.tabs.payment')" name="payment">
         <PaymentTab />
       </el-tab-pane>
-      <el-tab-pane :label="$t('apModule.tabs.verification')" name="verification">
+      <el-tab-pane :label="t('apModule.tabs.verification')" name="verification">
         <VerificationTab />
       </el-tab-pane>
-      <el-tab-pane :label="$t('apModule.tabs.reconciliation')" name="reconciliation">
+      <el-tab-pane :label="t('apModule.tabs.reconciliation')" name="reconciliation">
         <ReconciliationTab />
       </el-tab-pane>
     </el-tabs>
@@ -35,10 +35,13 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import InvoiceTab from './tabs/InvoiceTab.vue'
 import PaymentTab from './tabs/PaymentTab.vue'
 import VerificationTab from './tabs/VerificationTab.vue'
 import ReconciliationTab from './tabs/ReconciliationTab.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const activeTab = ref('invoice')
 </script>

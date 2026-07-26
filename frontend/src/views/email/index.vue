@@ -1,40 +1,76 @@
 <template>
   <div class="email-management">
     <div class="page-header">
-      <h2>邮件管理</h2>
+      <h2>{{ t('email.index.pageTitle') }}</h2>
     </div>
 
-    <el-tabs v-model="activeTab" type="border-card" aria-label="邮件管理标签页" @tab-change="handleTabChange">
+    <el-tabs
+      v-model="activeTab"
+      type="border-card"
+      :aria-label="t('email.index.ariaTabs')"
+      @tab-change="handleTabChange"
+    >
       <!-- 邮件模板 Tab -->
-      <el-tab-pane label="邮件模板" name="templates">
+      <el-tab-pane :label="t('email.index.tabTemplates')" name="templates">
         <div class="tab-header">
           <el-button type="primary" @click="handleCreateTemplate">
             <el-icon><Plus /></el-icon>
-            新建模板
+            {{ t('email.index.buttonCreateTemplate') }}
           </el-button>
         </div>
 
-        <el-table v-loading="templatesLoading" :data="templates" border stripe aria-label="邮件模板列表">
-          <el-table-column prop="name" label="模板名称" min-width="150" />
-          <el-table-column prop="code" label="模板编码" min-width="120" />
-          <el-table-column prop="template_type" label="模板类型" min-width="100">
+        <el-table
+          v-loading="templatesLoading"
+          :data="templates"
+          border
+          stripe
+          :aria-label="t('email.index.ariaTemplateTable')"
+        >
+          <el-table-column prop="name" :label="t('email.index.colTemplateName')" min-width="150" />
+          <el-table-column prop="code" :label="t('email.index.colTemplateCode')" min-width="120" />
+          <el-table-column
+            prop="template_type"
+            :label="t('email.index.colTemplateType')"
+            min-width="100"
+          >
             <template #default="{ row }">
               <el-tag>{{ row.template_type }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="is_active" label="状态" width="80" align="center">
+          <el-table-column
+            prop="description"
+            :label="t('email.index.colDescription')"
+            min-width="200"
+            show-overflow-tooltip
+          />
+          <el-table-column
+            prop="is_active"
+            :label="t('email.index.colStatus')"
+            width="80"
+            align="center"
+          >
             <template #default="{ row }">
               <el-tag :type="row.is_active ? 'success' : 'danger'">
-                {{ row.is_active ? '启用' : '禁用' }}
+                {{
+                  row.is_active ? t('email.index.statusEnabled') : t('email.index.statusDisabled')
+                }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="200" fixed="right">
+          <el-table-column :label="t('email.index.colOperation')" width="200" fixed="right">
             <template #default="{ row }">
-              <el-button v-permission="'email_template:update'" size="small" @click="handleEditTemplate(row)">编辑</el-button>
-              <el-button v-permission="'email_template:delete'" size="small" type="danger" @click="handleDeleteTemplate(row)"
-                >删除</el-button
+              <el-button
+                v-permission="'email_template:update'"
+                size="small"
+                @click="handleEditTemplate(row)"
+                >{{ t('email.index.buttonEdit') }}</el-button
+              >
+              <el-button
+                v-permission="'email_template:delete'"
+                size="small"
+                type="danger"
+                @click="handleDeleteTemplate(row)"
+                >{{ t('email.index.buttonDelete') }}</el-button
               >
             </template>
           </el-table-column>
@@ -46,51 +82,79 @@
           :total="templateTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="邮件模板列表分页"
+          :aria-label="t('email.index.ariaTemplatePagination')"
         />
       </el-tab-pane>
 
       <!-- 发送记录 Tab -->
-      <el-tab-pane label="发送记录" name="records">
+      <el-tab-pane :label="t('email.index.tabRecords')" name="records">
         <div class="tab-header">
-          <el-form :inline="true" :model="recordStatus" aria-label="邮件发送记录筛选表单">
-            <el-form-item label="状态">
-              <el-select v-model="recordStatus" clearable placeholder="选择状态">
-                <el-option label="成功" value="sent" />
-                <el-option label="失败" value="failed" />
-                <el-option label="待发送" value="pending" />
+          <el-form
+            :inline="true"
+            :model="recordStatus"
+            :aria-label="t('email.index.ariaRecordFilterForm')"
+          >
+            <el-form-item :label="t('email.index.filterStatus')">
+              <el-select
+                v-model="recordStatus"
+                clearable
+                :placeholder="t('email.index.placeholderSelectStatus')"
+              >
+                <el-option :label="t('email.index.optionSent')" value="sent" />
+                <el-option :label="t('email.index.optionFailed')" value="failed" />
+                <el-option :label="t('email.index.optionPending')" value="pending" />
               </el-select>
             </el-form-item>
-            <el-form-item label="日期范围">
+            <el-form-item :label="t('email.index.filterDateRange')">
               <el-date-picker
                 v-model="recordDateRange"
                 type="daterange"
                 range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
+                :start-placeholder="t('email.index.placeholderStartDate')"
+                :end-placeholder="t('email.index.placeholderEndDate')"
               />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="handleSearchRecords">查询</el-button>
-              <el-button @click="handleResetRecordQuery">重置</el-button>
+              <el-button type="primary" @click="handleSearchRecords">{{
+                t('email.index.buttonQuery')
+              }}</el-button>
+              <el-button @click="handleResetRecordQuery">{{
+                t('email.index.buttonReset')
+              }}</el-button>
             </el-form-item>
           </el-form>
         </div>
 
-        <el-table v-loading="recordsLoading" :data="records" border stripe aria-label="邮件发送记录列表">
-          <el-table-column prop="to" label="收件人" min-width="150" />
-          <el-table-column prop="subject" label="主题" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table
+          v-loading="recordsLoading"
+          :data="records"
+          border
+          stripe
+          :aria-label="t('email.index.ariaRecordTable')"
+        >
+          <el-table-column prop="to" :label="t('email.index.colRecipient')" min-width="150" />
+          <el-table-column
+            prop="subject"
+            :label="t('email.index.colSubject')"
+            min-width="200"
+            show-overflow-tooltip
+          />
+          <el-table-column
+            prop="status"
+            :label="t('email.index.colStatus')"
+            width="80"
+            align="center"
+          >
             <template #default="{ row }">
               <el-tag :type="getStatusType(row.status)">
                 {{ getStatusText(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="sent_at" label="发送时间" min-width="160" />
+          <el-table-column prop="sent_at" :label="t('email.index.colSentAt')" min-width="160" />
           <el-table-column
             prop="error_message"
-            label="错误信息"
+            :label="t('email.index.colErrorMessage')"
             min-width="200"
             show-overflow-tooltip
           />
@@ -102,34 +166,34 @@
           :total="recordTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
-          aria-label="邮件发送记录分页"
+          :aria-label="t('email.index.ariaRecordPagination')"
         />
       </el-tab-pane>
 
       <!-- 发送统计 Tab -->
-      <el-tab-pane label="发送统计" name="statistics">
+      <el-tab-pane :label="t('email.index.tabStatistics')" name="statistics">
         <el-row :gutter="20">
           <el-col :span="6">
             <el-card shadow="hover">
-              <template #header>总发送量</template>
+              <template #header>{{ t('email.index.statTotalSent') }}</template>
               <div class="stat-value">{{ statistics.total_sent || 0 }}</div>
             </el-card>
           </el-col>
           <el-col :span="6">
             <el-card shadow="hover">
-              <template #header>发送失败</template>
+              <template #header>{{ t('email.index.statTotalFailed') }}</template>
               <div class="stat-value text-danger">{{ statistics.total_failed || 0 }}</div>
             </el-card>
           </el-col>
           <el-col :span="6">
             <el-card shadow="hover">
-              <template #header>今日发送</template>
+              <template #header>{{ t('email.index.statTodaySent') }}</template>
               <div class="stat-value text-primary">{{ statistics.today_sent || 0 }}</div>
             </el-card>
           </el-col>
           <el-col :span="6">
             <el-card shadow="hover">
-              <template #header>成功率</template>
+              <template #header>{{ t('email.index.statSuccessRate') }}</template>
               <div class="stat-value text-success">{{ statistics.success_rate || 0 }}%</div>
             </el-card>
           </el-col>
@@ -140,61 +204,74 @@
     <!-- 模板编辑对话框 -->
     <el-dialog
       v-model="templateDialogVisible"
-      :title="isEditTemplate ? '编辑模板' : '新建模板'"
+      :title="
+        isEditTemplate ? t('email.index.titleEditTemplate') : t('email.index.titleCreateTemplate')
+      "
       width="600px"
-      aria-label="邮件模板编辑对话框"
+      :aria-label="t('email.index.ariaEditDialog')"
     >
       <el-form
         ref="templateFormRef"
         :model="templateForm"
         :rules="templateRules"
         label-width="100px"
-        aria-label="邮件模板表单"
+        :aria-label="t('email.index.ariaTemplateForm')"
       >
-        <el-form-item label="模板名称" prop="name">
-          <el-input v-model="templateForm.name" placeholder="请输入模板名称" />
+        <el-form-item :label="t('email.index.colTemplateName')" prop="name">
+          <el-input
+            v-model="templateForm.name"
+            :placeholder="t('email.index.placeholderTemplateName')"
+          />
         </el-form-item>
-        <el-form-item label="模板编码" prop="code">
+        <el-form-item :label="t('email.index.colTemplateCode')" prop="code">
           <el-input
             v-model="templateForm.code"
-            placeholder="请输入模板编码"
+            :placeholder="t('email.index.placeholderTemplateCode')"
             :disabled="isEditTemplate"
           />
         </el-form-item>
-        <el-form-item label="模板类型" prop="template_type">
-          <el-select v-model="templateForm.template_type" placeholder="选择模板类型">
-            <el-option label="系统通知" value="system" />
-            <el-option label="订单通知" value="order" />
-            <el-option label="审批通知" value="approval" />
-            <el-option label="库存通知" value="inventory" />
-            <el-option label="自定义" value="custom" />
+        <el-form-item :label="t('email.index.colTemplateType')" prop="template_type">
+          <el-select
+            v-model="templateForm.template_type"
+            :placeholder="t('email.index.placeholderSelectTemplateType')"
+          >
+            <el-option :label="t('email.index.optionSystemNotification')" value="system" />
+            <el-option :label="t('email.index.optionOrderNotification')" value="order" />
+            <el-option :label="t('email.index.optionApprovalNotification')" value="approval" />
+            <el-option :label="t('email.index.optionInventoryNotification')" value="inventory" />
+            <el-option :label="t('email.index.optionCustom')" value="custom" />
           </el-select>
         </el-form-item>
-        <el-form-item label="邮件主题" prop="subject_template">
-          <el-input v-model="templateForm.subject_template" placeholder="请输入邮件主题模板" />
+        <el-form-item :label="t('email.index.labelSubject')" prop="subject_template">
+          <el-input
+            v-model="templateForm.subject_template"
+            :placeholder="t('email.index.placeholderSubject')"
+          />
         </el-form-item>
-        <el-form-item label="邮件内容" prop="body_template">
+        <el-form-item :label="t('email.index.labelBody')" prop="body_template">
           <el-input
             v-model="templateForm.body_template"
             type="textarea"
             :rows="10"
-            placeholder="请输入邮件内容模板（支持HTML）"
+            :placeholder="t('email.index.placeholderBody')"
           />
         </el-form-item>
-        <el-form-item label="描述">
+        <el-form-item :label="t('email.index.colDescription')">
           <el-input
             v-model="templateForm.description"
             type="textarea"
             :rows="3"
-            placeholder="请输入描述"
+            :placeholder="t('email.index.placeholderDescription')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="templateDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmitTemplate"
-          >确定</el-button
-        >
+        <el-button @click="templateDialogVisible = false">{{
+          t('email.index.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmitTemplate">{{
+          t('email.index.buttonConfirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -202,6 +279,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -218,6 +296,8 @@ import { logger } from '@/utils/logger'
 // 批次 280：接入 useTableApi，消除手写 templates/records 分页重复
 import { useTableApi } from '@/composables/useTableApi'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const activeTab = ref('templates')
 const hasLoaded = createLazyLoader()
 
@@ -231,7 +311,7 @@ const {
   refresh: fetchTemplates,
 } = useTableApi<EmailTemplate>({
   url: '/email-templates',
-  onError: (err: unknown) => logger.error('获取模板列表失败:', err),
+  onError: (err: unknown) => logger.error(t('email.index.messageFetchTemplatesFailed'), err),
 })
 
 const templateDialogVisible = ref(false)
@@ -247,11 +327,15 @@ const templateForm = reactive<Partial<EmailTemplate>>({
   description: '',
 })
 const templateRules = {
-  name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入模板编码', trigger: 'blur' }],
-  subject_template: [{ required: true, message: '请输入邮件主题', trigger: 'blur' }],
-  body_template: [{ required: true, message: '请输入邮件内容', trigger: 'blur' }],
-  template_type: [{ required: true, message: '请选择模板类型', trigger: 'change' }],
+  name: [{ required: true, message: t('email.index.ruleTemplateNameRequired'), trigger: 'blur' }],
+  code: [{ required: true, message: t('email.index.ruleTemplateCodeRequired'), trigger: 'blur' }],
+  subject_template: [
+    { required: true, message: t('email.index.ruleSubjectRequired'), trigger: 'blur' },
+  ],
+  body_template: [{ required: true, message: t('email.index.ruleBodyRequired'), trigger: 'blur' }],
+  template_type: [
+    { required: true, message: t('email.index.ruleTemplateTypeRequired'), trigger: 'change' },
+  ],
 }
 
 // 批次 280：记录表格 useTableApi（getEmailRecordList 返回 { data: { list, total } }）
@@ -265,7 +349,7 @@ const {
   setQueryParam: setRecordQueryParam,
 } = useTableApi<EmailLog>({
   url: '/email-records',
-  onError: (err: unknown) => logger.error('获取发送记录失败:', err),
+  onError: (err: unknown) => logger.error(t('email.index.messageFetchRecordsFailed'), err),
 })
 
 // 批次 280：记录筛选状态 + 日期范围（分页由 useTableApi 管理）
@@ -311,7 +395,7 @@ const fetchStatistics = async () => {
       statistics.value = res.data
     }
   } catch (error) {
-    logger.error('获取统计信息失败:', error)
+    logger.error(t('email.index.messageFetchStatisticsFailed'), error)
   }
 }
 
@@ -341,15 +425,15 @@ const handleSubmitTemplate = async () => {
     submitLoading.value = true
     if (isEditTemplate.value && templateForm.id) {
       await updateEmailTemplate(templateForm.id, templateForm)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('email.index.messageUpdateSuccess'))
     } else {
       await createEmailTemplate(templateForm)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('email.index.messageCreateSuccess'))
     }
     templateDialogVisible.value = false
     fetchTemplates()
   } catch (error) {
-    logger.error('提交失败:', error)
+    logger.error(t('email.index.messageSubmitFailed'), error)
   } finally {
     submitLoading.value = false
   }
@@ -357,13 +441,17 @@ const handleSubmitTemplate = async () => {
 
 const handleDeleteTemplate = async (row: EmailTemplate) => {
   try {
-    await ElMessageBox.confirm('确定要删除该模板吗？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(
+      t('email.index.messageConfirmDelete'),
+      t('email.index.titlePrompt'),
+      { type: 'warning' }
+    )
     await deleteEmailTemplate(row.id!)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('email.index.messageDeleteSuccess'))
     fetchTemplates()
   } catch (error) {
     if (error !== 'cancel') {
-      logger.error('删除失败:', error)
+      logger.error(t('email.index.messageDeleteFailed'), error)
     }
   }
 }
@@ -399,9 +487,9 @@ const getStatusType = (status: string) => {
 
 const getStatusText = (status: string) => {
   const map: Record<string, string> = {
-    sent: '成功',
-    failed: '失败',
-    pending: '待发送',
+    sent: t('email.index.optionSent'),
+    failed: t('email.index.optionFailed'),
+    pending: t('email.index.optionPending'),
   }
   return map[status] || status
 }

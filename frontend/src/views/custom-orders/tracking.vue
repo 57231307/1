@@ -3,29 +3,33 @@
   - 5 阶段甘特图
   - 当前节点高亮
   - 时间线 + 操作日志
+  D05 Batch 8 Group B：接入 useI18n
 -->
 <template>
-  <div class="custom-order-tracking" v-loading="loading">
+  <div v-loading="loading" class="custom-order-tracking">
     <el-card v-if="timeline">
       <template #header>
         <div class="card-header">
           <div>
-            <span class="title">工艺跟踪 - {{ timeline.order_no }}</span>
-            <el-tag :type="STATUS_COLORS[timeline.current_status] || 'info'" style="margin-left: 12px">
-              {{ STATUS_LABELS[timeline.current_status] || timeline.current_status }}
+            <span class="title"
+              >{{ t('customOrders.tracking.title') }} - {{ timeline.order_no }}</span
+            >
+            <el-tag
+              :type="STATUS_COLORS[timeline.current_status] || 'info'"
+              style="margin-left: 12px"
+            >
+              {{ getStatusLabel(timeline.current_status) }}
             </el-tag>
           </div>
-          <el-button @click="$router.push(`/custom-orders/${orderId}`)">详情</el-button>
+          <el-button @click="$router.push(`/custom-orders/${orderId}`)">{{
+            t('customOrders.tracking.buttonDetail')
+          }}</el-button>
         </div>
       </template>
 
       <!-- 5 阶段甘特图 -->
       <div class="gantt">
-        <div
-          v-for="node in timeline.nodes || []"
-          :key="node.id"
-          class="gantt-row"
-        >
+        <div v-for="node in timeline.nodes || []" :key="node.id" class="gantt-row">
           <div class="gantt-label">
             <div class="node-name">{{ node.node_name }}</div>
             <div class="node-type">{{ node.node_type }}</div>
@@ -39,23 +43,29 @@
                 background: getBarColor(node.status),
               }"
             >
-              <span class="bar-text">{{ getStatusText(node.status) }}</span>
+              <span class="bar-text">{{ getNodeStatusText(node.status) }}</span>
             </div>
           </div>
           <div class="gantt-time">
             <div v-if="node.actual_start_date">
-              实际：{{ formatDate(node.actual_start_date) }} → {{ formatDate(node.actual_end_date) || '进行中' }}
+              {{ t('customOrders.tracking.labelActual') }}：{{
+                formatDate(node.actual_start_date)
+              }}
+              → {{ formatDate(node.actual_end_date) || t('customOrders.tracking.labelInProgress') }}
             </div>
             <div v-else-if="node.planned_start_date">
-              计划：{{ formatDate(node.planned_start_date) }} → {{ formatDate(node.planned_end_date) || '?' }}
+              {{ t('customOrders.tracking.labelPlan') }}：{{
+                formatDate(node.planned_start_date)
+              }}
+              → {{ formatDate(node.planned_end_date) || t('customOrders.tracking.labelUnknown') }}
             </div>
-            <div v-else>未开始</div>
+            <div v-else>{{ t('customOrders.tracking.labelNotStarted') }}</div>
           </div>
         </div>
       </div>
 
       <!-- 节点日志时间线 -->
-      <el-divider>操作日志</el-divider>
+      <el-divider>{{ t('customOrders.tracking.dividerOperationLog') }}</el-divider>
       <el-timeline>
         <el-timeline-item
           v-for="log in allLogs"
@@ -67,14 +77,19 @@
             <h4>{{ log.action }}</h4>
             <p v-if="log.log_content">{{ log.log_content }}</p>
             <p v-if="log.before_status && log.after_status">
-              状态：{{ log.before_status }} → {{ log.after_status }}
+              {{
+                t('customOrders.tracking.labelStatusTransition', {
+                  before: log.before_status,
+                  after: log.after_status,
+                })
+              }}
             </p>
             <p style="font-size: 12px; color: #909399">
-              操作人：{{ log.operator_id || '-' }}
+              {{ t('customOrders.tracking.labelOperator', { operator: log.operator_id || '-' }) }}
             </p>
           </el-card>
         </el-timeline-item>
-        <el-empty v-if="allLogs.length === 0" description="暂无操作日志" />
+        <el-empty v-if="allLogs.length === 0" :description="t('customOrders.tracking.emptyLogs')" />
       </el-timeline>
     </el-card>
   </div>
@@ -83,12 +98,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { getTimeline, CUSTOM_ORDER_STATUS as STATUS_LABELS, CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS } from '@/api/custom-order'
-import type { TimelineProcessNode, NodeLog, CustomOrderProcessNode, OrderTimeline } from '@/api/custom-order'
+import { getTimeline, CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS } from '@/api/custom-order'
+import type {
+  TimelineProcessNode,
+  NodeLog,
+  CustomOrderProcessNode,
+  OrderTimeline,
+} from '@/api/custom-order'
 import logger from '@/utils/logger'
 
 const route = useRoute()
+const { t } = useI18n({ useScope: 'global' })
 const loading = ref(false)
 // 时间线响应数据（getTimeline 返回的 res.data 结构）
 const timeline = ref<OrderTimeline | null>(null)
@@ -99,8 +121,12 @@ const allLogs = computed(() => {
   const tl = timeline.value
   if (!tl?.nodes) return []
   return tl.nodes
-    .flatMap((n: TimelineProcessNode) => (n.logs || []).map((l: NodeLog) => ({ ...l, node_name: n.node_name })))
-    .sort((a: NodeLog, b: NodeLog) => new Date(b.log_time).getTime() - new Date(a.log_time).getTime())
+    .flatMap((n: TimelineProcessNode) =>
+      (n.logs || []).map((l: NodeLog) => ({ ...l, node_name: n.node_name }))
+    )
+    .sort(
+      (a: NodeLog, b: NodeLog) => new Date(b.log_time).getTime() - new Date(a.log_time).getTime()
+    )
 })
 
 function formatDate(d: string | Date | null | undefined) {
@@ -108,12 +134,28 @@ function formatDate(d: string | Date | null | undefined) {
   return new Date(d).toLocaleString('zh-CN')
 }
 
-function getStatusText(s: string) {
+// 订单状态标签映射函数（i18n）
+const getStatusLabel = (status: string): string => {
   const map: Record<string, string> = {
-    pending: '待开始',
-    in_progress: '进行中',
-    completed: '已完成',
-    blocked: '阻塞',
+    draft: t('customOrders.status.draft'),
+    yarn_purchasing: t('customOrders.status.yarnPurchasing'),
+    dyeing: t('customOrders.status.dyeing'),
+    finishing: t('customOrders.status.finishing'),
+    delivery: t('customOrders.status.delivery'),
+    after_sales: t('customOrders.status.afterSales'),
+    completed: t('customOrders.status.completed'),
+    cancelled: t('customOrders.status.cancelled'),
+  }
+  return map[status] || status
+}
+
+// 节点状态标签映射函数（i18n）
+const getNodeStatusText = (s: string): string => {
+  const map: Record<string, string> = {
+    pending: t('customOrders.tracking.nodeStatusPending'),
+    in_progress: t('customOrders.tracking.nodeStatusInProgress'),
+    completed: t('customOrders.tracking.nodeStatusCompleted'),
+    blocked: t('customOrders.tracking.nodeStatusBlocked'),
   }
   return map[s] || s
 }
@@ -150,8 +192,8 @@ async function loadData() {
     const res = await getTimeline(id)
     timeline.value = res.data || null
   } catch (e) {
-    logger.error('加载时间线失败', e)
-    ElMessage.error('加载时间线失败')
+    logger.error(t('customOrders.tracking.messageLoadFailed'), e)
+    ElMessage.error(t('customOrders.tracking.messageLoadFailed'))
   } finally {
     loading.value = false
   }

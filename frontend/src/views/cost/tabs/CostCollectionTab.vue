@@ -70,10 +70,17 @@
         <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="'cost_collection:update'" type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
             <el-button
-              v-permission="'cost_collection:approve'"
+              v-permission="'cost_collection:update'"
+              type="primary"
+              link
+              size="small"
+              @click="openDialog(row)"
+              >编辑</el-button
+            >
+            <el-button
               v-if="row.status === 'draft' || row.status === 'pending'"
+              v-permission="'cost_collection:approve'"
               type="success"
               link
               size="small"
@@ -81,15 +88,22 @@
               >审核</el-button
             >
             <el-button
-              v-permission="'cost_collection:approve'"
               v-if="row.status === 'pending'"
+              v-permission="'cost_collection:approve'"
               type="warning"
               link
               size="small"
               @click="auditCollection(row, false)"
               >驳回</el-button
             >
-            <el-button v-permission="'cost_collection:delete'" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button
+              v-permission="'cost_collection:delete'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -101,9 +115,9 @@
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
+          aria-label="成本归集列表分页"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
-          aria-label="成本归集列表分页"
         />
       </div>
     </el-card>
@@ -114,7 +128,13 @@
       width="600px"
       aria-label="成本归集编辑对话框"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" aria-label="成本归集表单">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        aria-label="成本归集表单"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="归集日期" prop="collection_date">
@@ -279,10 +299,22 @@ const form = reactive<Partial<CostCollection>>({
 })
 
 const rules: FormRules = {
-  collection_date: [{ required: true, message: t('cost.validation.collectionDateRequired'), trigger: 'change' }],
-  direct_material: [{ required: true, message: t('cost.validation.directMaterialRequired'), trigger: 'blur' }],
-  direct_labor: [{ required: true, message: t('cost.validation.directLaborRequired'), trigger: 'blur' }],
-  manufacturing_overhead: [{ required: true, message: t('cost.validation.manufacturingOverheadRequired'), trigger: 'blur' }],
+  collection_date: [
+    { required: true, message: t('cost.validation.collectionDateRequired'), trigger: 'change' },
+  ],
+  direct_material: [
+    { required: true, message: t('cost.validation.directMaterialRequired'), trigger: 'blur' },
+  ],
+  direct_labor: [
+    { required: true, message: t('cost.validation.directLaborRequired'), trigger: 'blur' },
+  ],
+  manufacturing_overhead: [
+    {
+      required: true,
+      message: t('cost.validation.manufacturingOverheadRequired'),
+      trigger: 'blur',
+    },
+  ],
 }
 
 const totalCost = computed(() => {
@@ -372,9 +404,13 @@ const handleSubmit = async () => {
 const handleDelete = async (row: CostCollection) => {
   if (!row.id) return
   try {
-    await ElMessageBox.confirm(t('cost.confirmDelete', { name: row.collection_no }), t('message.deleteConfirmTitle'), {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('cost.confirmDelete', { name: row.collection_no }),
+      t('message.deleteConfirmTitle'),
+      {
+        type: 'warning',
+      }
+    )
     await deleteCollectionApi(row.id)
     ElMessage.success(t('message.deleteSuccess'))
     fetchCollections()
@@ -390,7 +426,11 @@ const auditCollection = async (row: CostCollection, approved: boolean) => {
   if (!row.id) return
   try {
     const text = approved ? '通过' : '驳回'
-    await ElMessageBox.confirm(t('cost.confirmAction', { action: text }), t('cost.actionConfirmTitle', { action: text }), { type: 'info' })
+    await ElMessageBox.confirm(
+      t('cost.confirmAction', { action: text }),
+      t('cost.actionConfirmTitle', { action: text }),
+      { type: 'info' }
+    )
     await auditCollectionApi(row.id, approved)
     ElMessage.success(`${text}成功`)
     fetchCollections()
@@ -408,11 +448,7 @@ const handleExport = async () => {
     batch_no: queryParams.value.batch_no as string | undefined,
     color_no: queryParams.value.color_no as string | undefined,
   }
-  await exportFromBackend(
-    '/production/cost-collections/export',
-    params,
-    'cost_collections_export'
-  )
+  await exportFromBackend('/production/cost-collections/export', params, 'cost_collections_export')
   logger.info('成本归集列表已导出')
 }
 </script>

@@ -2,6 +2,7 @@
   ProductFormDialogTab.vue - 产品新建/编辑对话框
   来源：原 product/index.vue 中 新建/编辑对话框
   拆分日期：2026-06-15 B3-4
+  D05 Batch 8 Group B：接入 useI18n
 -->
 <template>
   <el-dialog
@@ -18,24 +19,40 @@
       :rules="formRules"
       label-width="100px"
       :disabled="mode === 'view'"
-      aria-label="产品表单"
+      :aria-label="t('product.productFormDialogTab.formAriaLabel')"
     >
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="产品编码" prop="product_code">
-            <el-input v-model="formData.product_code" placeholder="请输入产品编码" />
+          <el-form-item
+            :label="t('product.productFormDialogTab.labelProductCode')"
+            prop="product_code"
+          >
+            <el-input
+              v-model="formData.product_code"
+              :placeholder="t('product.productFormDialogTab.placeholderProductCode')"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="产品名称" prop="product_name">
-            <el-input v-model="formData.product_name" placeholder="请输入产品名称" />
+          <el-form-item
+            :label="t('product.productFormDialogTab.labelProductName')"
+            prop="product_name"
+          >
+            <el-input
+              v-model="formData.product_name"
+              :placeholder="t('product.productFormDialogTab.placeholderProductName')"
+            />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="产品分类" prop="category_id">
-            <el-select v-model="formData.category_id" placeholder="请选择分类" style="width: 100%">
+          <el-form-item :label="t('product.productFormDialogTab.labelCategory')" prop="category_id">
+            <el-select
+              v-model="formData.category_id"
+              :placeholder="t('product.productFormDialogTab.placeholderCategory')"
+              style="width: 100%"
+            >
               <el-option
                 v-for="item in categories"
                 :key="item.id"
@@ -46,31 +63,43 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="规格" prop="specification">
-            <el-input v-model="formData.specification" placeholder="请输入规格" />
+          <el-form-item
+            :label="t('product.productFormDialogTab.labelSpecification')"
+            prop="specification"
+          >
+            <el-input
+              v-model="formData.specification"
+              :placeholder="t('product.productFormDialogTab.placeholderSpecification')"
+            />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="单位" prop="unit">
-            <el-input v-model="formData.unit" placeholder="请输入单位" />
+          <el-form-item :label="t('product.productFormDialogTab.labelUnit')" prop="unit">
+            <el-input
+              v-model="formData.unit"
+              :placeholder="t('product.productFormDialogTab.placeholderUnit')"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="条形码" prop="barcode">
-            <el-input v-model="formData.barcode" placeholder="请输入条形码" />
+          <el-form-item :label="t('product.productFormDialogTab.labelBarcode')" prop="barcode">
+            <el-input
+              v-model="formData.barcode"
+              :placeholder="t('product.productFormDialogTab.placeholderBarcode')"
+            />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="售价" prop="price">
+          <el-form-item :label="t('product.productFormDialogTab.labelPrice')" prop="price">
             <el-input-number v-model="formData.price" :min="0" :precision="2" style="width: 100%" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="成本价" prop="cost_price">
+          <el-form-item :label="t('product.productFormDialogTab.labelCostPrice')" prop="cost_price">
             <el-input-number
               v-model="formData.cost_price"
               :min="0"
@@ -80,32 +109,43 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="描述" prop="description">
+      <el-form-item :label="t('product.productFormDialogTab.labelDescription')" prop="description">
         <el-input
           v-model="formData.description"
           type="textarea"
           :rows="3"
-          placeholder="请输入描述"
+          :placeholder="t('product.productFormDialogTab.placeholderDescription')"
         />
       </el-form-item>
-      <el-form-item label="状态" prop="is_active">
-        <el-switch v-model="formData.is_active" active-text="启用" inactive-text="禁用" />
+      <el-form-item :label="t('product.productFormDialogTab.labelStatus')" prop="is_active">
+        <el-switch
+          v-model="formData.is_active"
+          :active-text="t('product.productFormDialogTab.statusActive')"
+          :inactive-text="t('product.productFormDialogTab.statusInactive')"
+        />
       </el-form-item>
     </el-form>
     <template v-if="mode !== 'view'" #footer>
-      <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{
+        t('product.productFormDialogTab.buttonCancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+        t('product.productFormDialogTab.buttonSave')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { Product, ProductCategory } from '@/api/product'
 import { createProduct, updateProduct } from '@/api/product'
 import { logger } from '@/utils/logger'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -143,15 +183,39 @@ const formData = reactive({
 
 const formRules: FormRules = {
   product_code: [
-    { required: true, message: '请输入产品编码', trigger: 'blur' },
-    { max: 50, message: '长度不能超过50个字符', trigger: 'blur' },
+    {
+      required: true,
+      message: t('product.productFormDialogTab.validateProductCodeRequired'),
+      trigger: 'blur',
+    },
+    { max: 50, message: t('product.productFormDialogTab.validateProductCodeMax'), trigger: 'blur' },
   ],
   product_name: [
-    { required: true, message: '请输入产品名称', trigger: 'blur' },
-    { max: 200, message: '长度不能超过200个字符', trigger: 'blur' },
+    {
+      required: true,
+      message: t('product.productFormDialogTab.validateProductNameRequired'),
+      trigger: 'blur',
+    },
+    {
+      max: 200,
+      message: t('product.productFormDialogTab.validateProductNameMax'),
+      trigger: 'blur',
+    },
   ],
-  category_id: [{ required: true, message: '请选择产品分类', trigger: 'change' }],
-  unit: [{ required: true, message: '请输入单位', trigger: 'blur' }],
+  category_id: [
+    {
+      required: true,
+      message: t('product.productFormDialogTab.validateCategoryRequired'),
+      trigger: 'change',
+    },
+  ],
+  unit: [
+    {
+      required: true,
+      message: t('product.productFormDialogTab.validateUnitRequired'),
+      trigger: 'blur',
+    },
+  ],
 }
 
 const resetForm = () => {
@@ -194,17 +258,17 @@ const handleSubmit = async () => {
     try {
       if (props.mode === 'create') {
         await createProduct(formData)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('product.productFormDialogTab.messageCreateSuccess'))
       } else {
         await updateProduct(formData.id as number, formData)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('product.productFormDialogTab.messageUpdateSuccess'))
       }
       emit('update:modelValue', false)
       emit('submitted')
     } catch (error) {
       const err = error as Error
-      ElMessage.error(err.message || '操作失败')
-      logger.error('产品保存失败', err.message)
+      ElMessage.error(err.message || t('product.productFormDialogTab.messageOperationFailed'))
+      logger.error(t('product.productFormDialogTab.messageSaveFailed'), err.message)
     } finally {
       submitLoading.value = false
     }

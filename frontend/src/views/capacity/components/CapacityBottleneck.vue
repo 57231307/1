@@ -7,23 +7,31 @@
   <el-card shadow="hover">
     <template #header>
       <div class="card-header">
-        <span>{{ $t('capacityModule.bottleneck.title') }}</span>
-        <el-tag type="danger">{{ $t('capacityModule.bottleneck.count', { count: data.length }) }}</el-tag>
+        <span>{{ t('capacityModule.bottleneck.title') }}</span>
+        <el-tag type="danger">{{
+          t('capacityModule.bottleneck.count', { count: data.length })
+        }}</el-tag>
       </div>
     </template>
     <div v-loading="loading" class="bottleneck-list">
       <div v-if="data.length === 0" class="empty-state">
         <el-icon><CircleCheck /></el-icon>
-        <p>{{ $t('capacityModule.bottleneck.empty') }}</p>
+        <p>{{ t('capacityModule.bottleneck.empty') }}</p>
       </div>
       <div v-for="item in data" :key="item.id" class="bottleneck-item">
         <div class="bottleneck-header">
           <span class="bottleneck-name">{{ item.name }}</span>
-          <el-tag type="danger" size="small">{{ $t('capacityModule.bottleneck.tag') }}</el-tag>
+          <el-tag type="danger" size="small">{{ t('capacityModule.bottleneck.tag') }}</el-tag>
         </div>
         <div class="bottleneck-info">
-          <span>{{ $t('capacityModule.bottleneck.loadRate') }}: <strong>{{ (item.load_rate * 100).toFixed(1) }}%</strong></span>
-          <span>{{ $t('capacityModule.bottleneck.usedHours') }}: {{ item.used_hours }} / {{ item.capacity_hours }}</span>
+          <span
+            >{{ t('capacityModule.bottleneck.loadRate') }}:
+            <strong>{{ (item.load_rate * 100).toFixed(1) }}%</strong></span
+          >
+          <span
+            >{{ t('capacityModule.bottleneck.usedHours') }}: {{ item.used_hours }} /
+            {{ item.capacity_hours }}</span
+          >
         </div>
       </div>
     </div>
@@ -32,7 +40,10 @@
 
 <script setup lang="ts">
 import { CircleCheck } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import type { WorkCenter } from '@/api/capacity'
+
+const { t } = useI18n({ useScope: 'global' })
 
 defineProps<{
   data: WorkCenter[]

@@ -18,7 +18,12 @@
       </template>
 
       <!-- 筛选区 -->
-      <el-form :inline="true" :model="filters" class="filter-form" :aria-label="t('quotations.list.filterAriaLabel')">
+      <el-form
+        :inline="true"
+        :model="filters"
+        class="filter-form"
+        :aria-label="t('quotations.list.filterAriaLabel')"
+      >
         <el-form-item :label="t('quotations.list.labelCustomer')">
           <el-select
             v-model="filters.customer_id"
@@ -36,7 +41,12 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('quotations.list.labelStatus')">
-          <el-select v-model="filters.status" clearable :placeholder="t('quotations.list.allStatus')" style="width: 160px">
+          <el-select
+            v-model="filters.status"
+            clearable
+            :placeholder="t('quotations.list.allStatus')"
+            style="width: 160px"
+          >
             <el-option
               v-for="(label, value) in QUOTATION_STATUS_LABELS"
               :key="value"
@@ -46,7 +56,9 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">{{ t('quotations.list.search') }}</el-button>
+          <el-button type="primary" @click="handleSearch">{{
+            t('quotations.list.search')
+          }}</el-button>
           <el-button @click="handleReset">{{ t('quotations.list.reset') }}</el-button>
         </el-form-item>
       </el-form>
@@ -61,14 +73,26 @@
         :empty-text="t('quotations.list.emptyText')"
         :aria-label="t('quotations.list.tableAriaLabel')"
       >
-        <el-table-column prop="quotation_no" :label="t('quotations.list.colQuotationNo')" width="170" />
+        <el-table-column
+          prop="quotation_no"
+          :label="t('quotations.list.colQuotationNo')"
+          width="170"
+        />
         <el-table-column :label="t('quotations.list.colCustomer')" min-width="160">
           <template #default="{ row }">
             {{ row.customer_name || row.customer_id }}
           </template>
         </el-table-column>
-        <el-table-column prop="quotation_date" :label="t('quotations.list.colQuotationDate')" width="120" />
-        <el-table-column prop="valid_until" :label="t('quotations.list.colValidUntil')" width="120" />
+        <el-table-column
+          prop="quotation_date"
+          :label="t('quotations.list.colQuotationDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="valid_until"
+          :label="t('quotations.list.colValidUntil')"
+          width="120"
+        />
         <el-table-column :label="t('quotations.list.colPriceTerms')" width="80">
           <template #default="{ row }">{{ row.price_terms }}</template>
         </el-table-column>
@@ -86,10 +110,12 @@
         </el-table-column>
         <el-table-column :label="t('quotations.list.colAction')" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="goDetail(row)">{{ t('quotations.list.view') }}</el-button>
+            <el-button link type="primary" @click="goDetail(row)">{{
+              t('quotations.list.view')
+            }}</el-button>
             <el-button
-              v-permission="'quotation:update'"
               v-if="row.status === 'draft' || row.status === 'rejected'"
+              v-permission="'quotation:update'"
               link
               type="primary"
               @click="goEdit(row)"
@@ -104,7 +130,13 @@
             >
               {{ t('quotations.list.convertOrder') }}
             </el-button>
-            <el-button v-permission="'quotation:cancel'" v-if="row.status === 'draft'" link type="danger" @click="handleCancel(row)">
+            <el-button
+              v-if="row.status === 'draft'"
+              v-permission="'quotation:cancel'"
+              link
+              type="danger"
+              @click="handleCancel(row)"
+            >
               {{ t('quotations.list.cancel') }}
             </el-button>
           </template>
@@ -176,7 +208,9 @@ const {
 } = useTableApi<QuotationResponseDto>({
   url: '/quotations',
   onError: (e: unknown) =>
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.list.loadFailed')),
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('quotations.list.loadFailed')
+    ),
 })
 
 /** 同步筛选条件到 useTableApi.queryParams */
@@ -229,9 +263,13 @@ function goEdit(row: QuotationResponseDto) {
 
 async function handleCancel(row: QuotationResponseDto) {
   try {
-    await ElMessageBox.confirm(t('quotations.list.cancelConfirmText', { no: row.quotation_no }), t('quotations.list.cancelConfirmTitle'), {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('quotations.list.cancelConfirmText', { no: row.quotation_no }),
+      t('quotations.list.cancelConfirmTitle'),
+      {
+        type: 'warning',
+      }
+    )
   } catch {
     return
   }

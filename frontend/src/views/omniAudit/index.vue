@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   ElTable,
   ElTableColumn,
@@ -21,6 +22,8 @@ import { PieChart, Clock, AlarmClock } from '@element-plus/icons-vue'
 import { getDashboardStats, type AuditStats, type AuditLog } from '@/api/omniAudit'
 import type { ApiResponse } from '@/types/api'
 import { useTableApi } from '@/composables/useTableApi'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const activeTab = ref('dashboard')
 const stats = ref<AuditStats | null>(null)
@@ -51,20 +54,25 @@ const {
 } = useTableApi<AuditLog>({
   url: '/finance/audit/search',
   listKey: 'items',
-  onError: () => ElMessage.error('加载日志失败'),
+  onError: () => ElMessage.error(t('omniAudit.index.messageLoadLogsFailed')),
 })
 
 const viewDialogVisible = ref(false)
 const viewData = ref<AuditLog | null>(null)
 
 const statusOptions = [
-  { label: '全部', value: '' },
-  { label: '成功', value: 'SUCCESS' },
-  { label: '失败', value: 'FAILED' },
+  { label: t('omniAudit.index.optionAll'), value: '' },
+  { label: t('omniAudit.index.optionSuccess'), value: 'SUCCESS' },
+  { label: t('omniAudit.index.optionFailed'), value: 'FAILED' },
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find(s => s.value === value)?.label || value
+  const map: Record<string, string> = {
+    '': t('omniAudit.index.optionAll'),
+    SUCCESS: t('omniAudit.index.optionSuccess'),
+    FAILED: t('omniAudit.index.optionFailed'),
+  }
+  return map[value] || value
 }
 
 const getStatusClass = (value: string) => {
@@ -79,7 +87,7 @@ const loadStats = async () => {
     const res = await getDashboardStats()
     stats.value = (res as ApiResponse<AuditStats> | undefined)?.data ?? null
   } catch (error) {
-    ElMessage.error('加载统计数据失败')
+    ElMessage.error(t('omniAudit.index.messageLoadStatsFailed'))
   } finally {
     statsLoading.value = false
   }
@@ -140,61 +148,91 @@ loadStats()
 <template>
   <div class="app-container">
     <ElTabs v-model="activeTab" @tab-change="activeTab === 'dashboard' ? loadStats() : loadLogs()">
-      <ElTabPane label="审计大屏" name="dashboard">
+      <ElTabPane :label="t('omniAudit.index.tabDashboard')" name="dashboard">
         <div class="stats-grid">
           <ElCard class="stat-card">
             <div class="stat-icon total">
               <PieChart />
             </div>
-            <ElStatistic title="总事件数" :value="stats?.total_events || 0" />
+            <ElStatistic
+              :title="t('omniAudit.index.statTotalEvents')"
+              :value="stats?.total_events || 0"
+            />
           </ElCard>
           <ElCard class="stat-card">
             <div class="stat-icon today">
               <Clock />
             </div>
-            <ElStatistic title="今日事件" :value="stats?.today_events || 0" />
+            <ElStatistic
+              :title="t('omniAudit.index.statTodayEvents')"
+              :value="stats?.today_events || 0"
+            />
           </ElCard>
           <ElCard class="stat-card">
             <div class="stat-icon error">
               <AlarmClock />
             </div>
-            <ElStatistic title="错误数" :value="stats?.error_count || 0" />
+            <ElStatistic
+              :title="t('omniAudit.index.statErrorCount')"
+              :value="stats?.error_count || 0"
+            />
           </ElCard>
           <ElCard class="stat-card">
             <div class="stat-icon avg">
               <Clock />
             </div>
-            <ElStatistic title="平均耗时(ms)" :value="stats?.avg_duration_ms || 0" />
+            <ElStatistic
+              :title="t('omniAudit.index.statAvgDuration')"
+              :value="stats?.avg_duration_ms || 0"
+            />
           </ElCard>
         </div>
 
         <ElRow :gutter="20">
           <ElCol :span="12">
-            <ElCard title="热门资源" class="chart-card">
-              <ElTable :data="stats?.top_resources || []" border style="width: 100%" aria-label="热门资源列表">
-                <ElTableColumn prop="name" label="资源名称" />
-                <ElTableColumn prop="count" label="访问次数" align="right" />
+            <ElCard :title="t('omniAudit.index.cardTopResources')" class="chart-card">
+              <ElTable
+                :data="stats?.top_resources || []"
+                border
+                style="width: 100%"
+                :aria-label="t('omniAudit.index.ariaTopResources')"
+              >
+                <ElTableColumn prop="name" :label="t('omniAudit.index.colResourceName')" />
+                <ElTableColumn
+                  prop="count"
+                  :label="t('omniAudit.index.colAccessCount')"
+                  align="right"
+                />
               </ElTable>
             </ElCard>
           </ElCol>
           <ElCol :span="12">
-            <ElCard title="活跃用户" class="chart-card">
-              <ElTable :data="stats?.top_users || []" border style="width: 100%" aria-label="活跃用户列表">
-                <ElTableColumn prop="name" label="用户名称" />
-                <ElTableColumn prop="count" label="操作次数" align="right" />
+            <ElCard :title="t('omniAudit.index.cardTopUsers')" class="chart-card">
+              <ElTable
+                :data="stats?.top_users || []"
+                border
+                style="width: 100%"
+                :aria-label="t('omniAudit.index.ariaTopUsers')"
+              >
+                <ElTableColumn prop="name" :label="t('omniAudit.index.colUserName')" />
+                <ElTableColumn
+                  prop="count"
+                  :label="t('omniAudit.index.colOperationCount')"
+                  align="right"
+                />
               </ElTable>
             </ElCard>
           </ElCol>
         </ElRow>
       </ElTabPane>
 
-      <ElTabPane label="审计日志" name="logs">
+      <ElTabPane :label="t('omniAudit.index.tabLogs')" name="logs">
         <div class="filter-container">
           <ElRow :gutter="20">
             <ElCol :span="6">
               <ElInput
                 v-model="searchForm.user_id"
-                placeholder="用户ID"
+                :placeholder="t('omniAudit.index.placeholderUserId')"
                 class="filter-item"
                 @keyup.enter="handleSearch"
               />
@@ -202,7 +240,7 @@ loadStats()
             <ElCol :span="6">
               <ElInput
                 v-model="searchForm.resource"
-                placeholder="资源"
+                :placeholder="t('omniAudit.index.placeholderResource')"
                 class="filter-item"
                 @keyup.enter="handleSearch"
               />
@@ -210,13 +248,17 @@ loadStats()
             <ElCol :span="6">
               <ElInput
                 v-model="searchForm.action"
-                placeholder="操作"
+                :placeholder="t('omniAudit.index.placeholderAction')"
                 class="filter-item"
                 @keyup.enter="handleSearch"
               />
             </ElCol>
             <ElCol :span="6">
-              <ElSelect v-model="searchForm.status" placeholder="状态" class="filter-item">
+              <ElSelect
+                v-model="searchForm.status"
+                :placeholder="t('omniAudit.index.placeholderStatus')"
+                class="filter-item"
+              >
                 <ElOption
                   v-for="s in statusOptions"
                   :key="s.value"
@@ -231,7 +273,7 @@ loadStats()
               <ElDatePicker
                 v-model="searchForm.start_time"
                 type="datetime"
-                placeholder="开始时间"
+                :placeholder="t('omniAudit.index.placeholderStartTime')"
                 class="filter-item"
               />
             </ElCol>
@@ -239,14 +281,16 @@ loadStats()
               <ElDatePicker
                 v-model="searchForm.end_time"
                 type="datetime"
-                placeholder="结束时间"
+                :placeholder="t('omniAudit.index.placeholderEndTime')"
                 class="filter-item"
               />
             </ElCol>
             <ElCol :span="4">
               <div class="filter-actions">
-                <ElButton type="primary" @click="handleSearch">查询</ElButton>
-                <ElButton @click="handleReset">重置</ElButton>
+                <ElButton type="primary" @click="handleSearch">{{
+                  t('omniAudit.index.buttonQuery')
+                }}</ElButton>
+                <ElButton @click="handleReset">{{ t('omniAudit.index.buttonReset') }}</ElButton>
               </div>
             </ElCol>
           </ElRow>
@@ -259,26 +303,33 @@ loadStats()
           fit
           highlight-current-row
           style="width: 100%"
-          aria-label="审计日志列表"
+          :aria-label="t('omniAudit.index.ariaLogsTable')"
         >
-          <ElTableColumn prop="id" label="ID" width="80" />
-          <ElTableColumn prop="user_name" label="用户" width="100" />
-          <ElTableColumn prop="event_type" label="事件类型" width="120" />
-          <ElTableColumn prop="event_name" label="事件名称" width="150" />
-          <ElTableColumn prop="resource" label="资源" width="120" />
-          <ElTableColumn prop="action" label="操作" width="100" />
-          <ElTableColumn prop="status" label="状态" width="100">
+          <ElTableColumn prop="id" :label="t('omniAudit.index.colId')" width="80" />
+          <ElTableColumn prop="user_name" :label="t('omniAudit.index.colUser')" width="100" />
+          <ElTableColumn prop="event_type" :label="t('omniAudit.index.colEventType')" width="120" />
+          <ElTableColumn prop="event_name" :label="t('omniAudit.index.colEventName')" width="150" />
+          <ElTableColumn prop="resource" :label="t('omniAudit.index.colResource')" width="120" />
+          <ElTableColumn prop="action" :label="t('omniAudit.index.colAction')" width="100" />
+          <ElTableColumn prop="status" :label="t('omniAudit.index.colStatus')" width="100">
             <template #default="scope">
               <span :class="['status-tag', getStatusClass(scope.row.status)]">
                 {{ getStatusLabel(scope.row.status) }}
               </span>
             </template>
           </ElTableColumn>
-          <ElTableColumn prop="duration_ms" label="耗时(ms)" width="100" align="right" />
-          <ElTableColumn prop="created_at" label="时间" width="180" />
-          <ElTableColumn label="操作" width="100" align="center">
+          <ElTableColumn
+            prop="duration_ms"
+            :label="t('omniAudit.index.colDuration')"
+            width="100"
+            align="right"
+          />
+          <ElTableColumn prop="created_at" :label="t('omniAudit.index.colTime')" width="180" />
+          <ElTableColumn :label="t('omniAudit.index.colOperation')" width="100" align="center">
             <template #default="scope">
-              <ElButton size="small" @click="openViewDialog(scope.row as AuditLog)">详情</ElButton>
+              <ElButton size="small" @click="openViewDialog(scope.row as AuditLog)">{{
+                t('omniAudit.index.buttonDetail')
+              }}</ElButton>
             </template>
           </ElTableColumn>
         </ElTable>
@@ -290,44 +341,66 @@ loadStats()
             :page-sizes="[10, 20, 50, 100]"
             :total="total"
             layout="total, sizes, prev, pager, next, jumper"
+            :aria-label="t('omniAudit.index.ariaLogsPagination')"
             @size-change="handlePageSizeChange"
             @current-change="handlePageChange"
-            aria-label="审计日志列表分页"
           />
         </div>
       </ElTabPane>
     </ElTabs>
 
     <ElDialog
-      title="审计日志详情"
+      :title="t('omniAudit.index.titleDetail')"
       :visible="viewDialogVisible"
       width="800px"
-      aria-label="审计日志详情"
+      :aria-label="t('omniAudit.index.ariaDetailDialog')"
       @close="viewDialogVisible = false"
     >
       <div v-if="viewData">
         <ElDescriptions :column="2" border>
-          <ElDescriptionsItem label="ID">{{ viewData.id }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="追踪ID">{{ viewData.trace_id }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="用户ID">{{ viewData.user_id }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="用户名称">{{ viewData.user_name || '-' }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="事件类型">{{ viewData.event_type }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="事件名称">{{ viewData.event_name }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="资源">{{ viewData.resource }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="操作">{{ viewData.action }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="状态">{{
+          <ElDescriptionsItem :label="t('omniAudit.index.colId')">{{
+            viewData.id
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.labelTraceId')">{{
+            viewData.trace_id
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.labelUserId')">{{
+            viewData.user_id
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.labelUserName')">{{
+            viewData.user_name || '-'
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.colEventType')">{{
+            viewData.event_type
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.colEventName')">{{
+            viewData.event_name
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.colResource')">{{
+            viewData.resource
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.colAction')">{{
+            viewData.action
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.colStatus')">{{
             getStatusLabel(viewData.status)
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="耗时(ms)">{{ viewData.duration_ms }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="IP地址">{{ viewData.ip_address || '-' }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="创建时间">{{ viewData.created_at }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.colDuration')">{{
+            viewData.duration_ms
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.labelIpAddress')">{{
+            viewData.ip_address || '-'
+          }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.labelCreatedAt')">{{
+            viewData.created_at
+          }}</ElDescriptionsItem>
         </ElDescriptions>
         <div v-if="viewData.payload" style="margin-top: 20px">
-          <h4>请求参数</h4>
+          <h4>{{ t('omniAudit.index.titleRequestParams') }}</h4>
           <pre class="payload-pre">{{ JSON.stringify(viewData.payload, null, 2) }}</pre>
         </div>
         <div v-if="viewData.error_msg" style="margin-top: 20px">
-          <h4>错误信息</h4>
+          <h4>{{ t('omniAudit.index.titleErrorMsg') }}</h4>
           <div class="error-box">{{ viewData.error_msg }}</div>
         </div>
       </div>

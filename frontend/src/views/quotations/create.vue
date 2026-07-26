@@ -10,12 +10,21 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span class="title">{{ isEdit ? t('quotations.create.titleEdit') : t('quotations.create.titleCreate') }}</span>
+          <span class="title">{{
+            isEdit ? t('quotations.create.titleEdit') : t('quotations.create.titleCreate')
+          }}</span>
           <el-button @click="$router.back()">{{ t('quotations.create.back') }}</el-button>
         </div>
       </template>
 
-      <el-form ref="formRef" v-loading="loading" :model="form" :rules="rules" label-width="120px" :aria-label="t('quotations.create.formAriaLabel')">
+      <el-form
+        ref="formRef"
+        v-loading="loading"
+        :model="form"
+        :rules="rules"
+        label-width="120px"
+        :aria-label="t('quotations.create.formAriaLabel')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="t('quotations.create.labelCustomer')" prop="customer_id">
@@ -130,18 +139,34 @@
         <TermEditor :model-value="form.terms || []" @update:model-value="onTermsChange" />
 
         <el-form-item :label="t('quotations.create.labelRemark')" style="margin-top: 16px">
-          <el-input v-model="form.notes" type="textarea" :rows="3" :placeholder="t('quotations.create.remarkPlaceholder')" />
+          <el-input
+            v-model="form.notes"
+            type="textarea"
+            :rows="3"
+            :placeholder="t('quotations.create.remarkPlaceholder')"
+          />
         </el-form-item>
 
         <!-- 金额合计 -->
         <div class="totals">
-          <span>{{ t('quotations.create.subtotal') }}{{ form.currency }} {{ formatAmount(subtotal) }}</span>
-          <span>{{ t('quotations.create.taxAmount') }}{{ form.currency }} {{ formatAmount(taxAmount) }}</span>
-          <span class="grand-total">{{ t('quotations.create.total') }}{{ form.currency }} {{ formatAmount(totalAmount) }}</span>
+          <span
+            >{{ t('quotations.create.subtotal') }}{{ form.currency }}
+            {{ formatAmount(subtotal) }}</span
+          >
+          <span
+            >{{ t('quotations.create.taxAmount') }}{{ form.currency }}
+            {{ formatAmount(taxAmount) }}</span
+          >
+          <span class="grand-total"
+            >{{ t('quotations.create.total') }}{{ form.currency }}
+            {{ formatAmount(totalAmount) }}</span
+          >
         </div>
 
         <el-form-item>
-          <el-button :loading="submitting" @click="handleSaveDraft">{{ t('quotations.create.saveDraft') }}</el-button>
+          <el-button :loading="submitting" @click="handleSaveDraft">{{
+            t('quotations.create.saveDraft')
+          }}</el-button>
           <el-button type="primary" :loading="submitting" @click="handleSubmit">
             {{ t('quotations.create.submitApproval') }}
           </el-button>
@@ -229,12 +254,24 @@ const form = reactive<CreateQuotationDto>({
 
 /** 表单校验规则 */
 const rules: FormRules = {
-  customer_id: [{ required: true, message: t('quotations.create.validateCustomer'), trigger: 'change' }],
-  quotation_date: [{ required: true, message: t('quotations.create.validateQuotationDate'), trigger: 'change' }],
-  valid_until: [{ required: true, message: t('quotations.create.validateValidUntil'), trigger: 'change' }],
-  price_terms: [{ required: true, message: t('quotations.create.validatePriceTerms'), trigger: 'change' }],
-  currency: [{ required: true, message: t('quotations.create.validateCurrency'), trigger: 'change' }],
-  exchange_rate: [{ required: true, message: t('quotations.create.validateExchangeRate'), trigger: 'blur' }],
+  customer_id: [
+    { required: true, message: t('quotations.create.validateCustomer'), trigger: 'change' },
+  ],
+  quotation_date: [
+    { required: true, message: t('quotations.create.validateQuotationDate'), trigger: 'change' },
+  ],
+  valid_until: [
+    { required: true, message: t('quotations.create.validateValidUntil'), trigger: 'change' },
+  ],
+  price_terms: [
+    { required: true, message: t('quotations.create.validatePriceTerms'), trigger: 'change' },
+  ],
+  currency: [
+    { required: true, message: t('quotations.create.validateCurrency'), trigger: 'change' },
+  ],
+  exchange_rate: [
+    { required: true, message: t('quotations.create.validateExchangeRate'), trigger: 'blur' },
+  ],
   items: [
     {
       // v11 批次 163 P2-1 修复：validator 参数类型化（FormItemRule validator 签名）
@@ -312,7 +349,9 @@ async function loadExisting() {
     }
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.create.loadFailed'))
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('quotations.create.loadFailed')
+    )
   } finally {
     loading.value = false
   }
@@ -350,7 +389,9 @@ async function handleSaveDraft() {
     }
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.create.saveFailed'))
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('quotations.create.saveFailed')
+    )
   } finally {
     submitting.value = false
   }
@@ -383,7 +424,9 @@ async function handleSubmit() {
     router.push(`/quotations/${quotationId}`)
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || t('quotations.create.submitFailed'))
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('quotations.create.submitFailed')
+    )
   } finally {
     submitting.value = false
   }

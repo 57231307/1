@@ -8,7 +8,14 @@
  */
 import { ref, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getSchedulingGanttData, adjustSchedulingTask, type GanttData, type ScheduleTask, type SchedulingParams, type ConflictItem } from '@/api/scheduling'
+import {
+  getSchedulingGanttData,
+  adjustSchedulingTask,
+  type GanttData,
+  type ScheduleTask,
+  type SchedulingParams,
+  type ConflictItem,
+} from '@/api/scheduling'
 
 /**
  * 排产甘特图 composable

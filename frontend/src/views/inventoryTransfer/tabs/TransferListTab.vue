@@ -61,7 +61,12 @@
     </el-row>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form" aria-label="库存调拨筛选表单">
+      <el-form
+        :inline="true"
+        :model="queryParams"
+        class="filter-form"
+        aria-label="库存调拨筛选表单"
+      >
         <el-form-item label="调拨单号">
           <el-input v-model="queryParams.transfer_no" placeholder="输入单号" clearable />
         </el-form-item>
@@ -77,7 +82,11 @@
           <el-button type="primary" @click="handleQuery">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
           <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
-          <el-button v-permission="'inventory:create'" type="primary" @click="emit('openForm', 'create', null)">
+          <el-button
+            v-permission="'inventory:create'"
+            type="primary"
+            @click="emit('openForm', 'create', null)"
+          >
             <el-icon><Plus /></el-icon>新建
           </el-button>
         </el-form-item>

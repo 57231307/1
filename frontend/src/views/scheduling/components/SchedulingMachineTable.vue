@@ -18,10 +18,19 @@
           >
             <el-option :label="t('scheduling.machineTable.filterOption.all')" value="" />
             <el-option :label="t('scheduling.machineTable.filterOption.pending')" value="pending" />
-            <el-option :label="t('scheduling.machineTable.filterOption.scheduled')" value="scheduled" />
+            <el-option
+              :label="t('scheduling.machineTable.filterOption.scheduled')"
+              value="scheduled"
+            />
             <el-option :label="t('scheduling.machineTable.filterOption.running')" value="running" />
-            <el-option :label="t('scheduling.machineTable.filterOption.completed')" value="completed" />
-            <el-option :label="t('scheduling.machineTable.filterOption.conflict')" value="conflict" />
+            <el-option
+              :label="t('scheduling.machineTable.filterOption.completed')"
+              value="completed"
+            />
+            <el-option
+              :label="t('scheduling.machineTable.filterOption.conflict')"
+              value="conflict"
+            />
           </el-select>
           <el-button type="primary" link @click="emit('refresh')">
             <el-icon><Refresh /></el-icon>
@@ -30,18 +39,43 @@
         </div>
       </div>
     </template>
-    <el-table v-loading="taskLoading" :data="taskList" stripe :aria-label="t('scheduling.machineTable.ariaLabel.table')">
-      <el-table-column prop="order_no" :label="t('scheduling.machineTable.column.orderNo')" width="140" />
-      <el-table-column prop="product_name" :label="t('scheduling.machineTable.column.productName')" width="160" />
-      <el-table-column prop="work_center_name" :label="t('scheduling.machineTable.column.workCenter')" width="130" />
-      <el-table-column prop="quantity" :label="t('scheduling.machineTable.column.quantity')" width="80" />
+    <el-table
+      v-loading="taskLoading"
+      :data="taskList"
+      stripe
+      :aria-label="t('scheduling.machineTable.ariaLabel.table')"
+    >
+      <el-table-column
+        prop="order_no"
+        :label="t('scheduling.machineTable.column.orderNo')"
+        width="140"
+      />
+      <el-table-column
+        prop="product_name"
+        :label="t('scheduling.machineTable.column.productName')"
+        width="160"
+      />
+      <el-table-column
+        prop="work_center_name"
+        :label="t('scheduling.machineTable.column.workCenter')"
+        width="130"
+      />
+      <el-table-column
+        prop="quantity"
+        :label="t('scheduling.machineTable.column.quantity')"
+        width="80"
+      />
       <el-table-column :label="t('scheduling.machineTable.column.startTime')" width="170">
         <template #default="{ row }">{{ formatDateTime(row.start_time) }}</template>
       </el-table-column>
       <el-table-column :label="t('scheduling.machineTable.column.endTime')" width="170">
         <template #default="{ row }">{{ formatDateTime(row.end_time) }}</template>
       </el-table-column>
-      <el-table-column prop="duration_hours" :label="t('scheduling.machineTable.column.duration')" width="80" />
+      <el-table-column
+        prop="duration_hours"
+        :label="t('scheduling.machineTable.column.duration')"
+        width="80"
+      />
       <el-table-column :label="t('scheduling.machineTable.column.priority')" width="90">
         <template #default="{ row }">
           <el-tag :type="getPriorityType(row.priority)" size="small">P{{ row.priority }}</el-tag>
@@ -54,9 +88,15 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="t('scheduling.machineTable.column.operation')" fixed="right" width="160">
+      <el-table-column
+        :label="t('scheduling.machineTable.column.operation')"
+        fixed="right"
+        width="160"
+      >
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('adjust', row)">{{ t('scheduling.machineTable.button.adjust') }}</el-button>
+          <el-button type="primary" link size="small" @click="emit('adjust', row)">{{
+            t('scheduling.machineTable.button.adjust')
+          }}</el-button>
           <el-button
             v-if="row.has_conflict"
             type="danger"

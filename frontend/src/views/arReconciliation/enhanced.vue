@@ -14,7 +14,7 @@
       @auto-reconcile="arrec.handleAutoReconcile"
       @view-confirmations="arrec.handleViewConfirmations"
       @open-dispute="onOpenDispute"
-      @update:search-form="(v) => Object.assign(arrec.searchForm.value, v)"
+      @update:search-form="v => Object.assign(arrec.searchForm.value, v)"
     />
 
     <ArReconciliationCharts :chart-ref="arChart.chartRef" :pie-chart-ref="arChart.pieChartRef" />
@@ -49,7 +49,7 @@
       :disputes="ardisp.disputes.value"
       @submit="ardisp.handleSubmitDispute"
       @resolve="ardisp.handleResolveDispute"
-      @update:form="(v) => Object.assign(ardisp.disputeForm.value, v)"
+      @update:form="v => Object.assign(ardisp.disputeForm.value, v)"
     />
   </div>
 </template>

@@ -13,12 +13,37 @@
     </div>
 
     <el-card shadow="hover">
-      <el-table v-loading="verificationLoading" :data="verifications" stripe :aria-label="$t('apModule.verification.listAria')">
-        <el-table-column prop="verification_no" :label="$t('apModule.verification.verificationNo')" width="140" />
-        <el-table-column prop="invoice_no" :label="$t('apModule.verification.invoiceNo')" width="140" />
-        <el-table-column prop="payment_no" :label="$t('apModule.verification.paymentNo')" width="140" />
-        <el-table-column prop="verification_date" :label="$t('apModule.verification.verificationDate')" width="120" />
-        <el-table-column :label="$t('apModule.verification.verificationAmount')" width="120" align="right">
+      <el-table
+        v-loading="verificationLoading"
+        :data="verifications"
+        stripe
+        :aria-label="$t('apModule.verification.listAria')"
+      >
+        <el-table-column
+          prop="verification_no"
+          :label="$t('apModule.verification.verificationNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="invoice_no"
+          :label="$t('apModule.verification.invoiceNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="payment_no"
+          :label="$t('apModule.verification.paymentNo')"
+          width="140"
+        />
+        <el-table-column
+          prop="verification_date"
+          :label="$t('apModule.verification.verificationDate')"
+          width="120"
+        />
+        <el-table-column
+          :label="$t('apModule.verification.verificationAmount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">
             {{ formatMoney(row.verification_amount) }}
           </template>
@@ -26,7 +51,11 @@
         <el-table-column prop="status" :label="$t('common.status')" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? $t('apModule.verification.statusActive') : $t('apModule.verification.statusCancelled') }}
+              {{
+                row.status === 'active'
+                  ? $t('apModule.verification.statusActive')
+                  : $t('apModule.verification.statusCancelled')
+              }}
             </el-tag>
           </template>
         </el-table-column>
@@ -34,8 +63,17 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="verificationDialogVisible" :title="$t('apModule.verification.createTitle')" width="600px" :aria-label="$t('apModule.verification.createAria')">
-      <el-form :model="verificationForm" label-width="100px" :aria-label="$t('apModule.verification.formAria')">
+    <el-dialog
+      v-model="verificationDialogVisible"
+      :title="$t('apModule.verification.createTitle')"
+      width="600px"
+      :aria-label="$t('apModule.verification.createAria')"
+    >
+      <el-form
+        :model="verificationForm"
+        label-width="100px"
+        :aria-label="$t('apModule.verification.formAria')"
+      >
         <el-form-item :label="$t('apModule.verification.invoiceNo')">
           <el-select
             v-model="verificationForm.invoice_id"
@@ -45,7 +83,12 @@
             <el-option
               v-for="inv in unverifiedInvoices"
               :key="inv.id"
-              :label="$t('apModule.verification.invoiceOption', { no: inv.invoice_no, amount: formatMoney(inv.unverified_amount) })"
+              :label="
+                $t('apModule.verification.invoiceOption', {
+                  no: inv.invoice_no,
+                  amount: formatMoney(inv.unverified_amount),
+                })
+              "
               :value="inv.id"
             />
           </el-select>
@@ -59,7 +102,12 @@
             <el-option
               v-for="pay in unverifiedPayments"
               :key="pay.id"
-              :label="$t('apModule.verification.paymentOption', { no: pay.payment_no, amount: formatMoney(pay.payment_amount) })"
+              :label="
+                $t('apModule.verification.paymentOption', {
+                  no: pay.payment_no,
+                  amount: formatMoney(pay.payment_amount),
+                })
+              "
               :value="pay.id"
             />
           </el-select>
@@ -75,7 +123,10 @@
       </el-form>
       <template #footer>
         <el-button @click="verificationDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="verificationSubmitLoading" @click="submitVerification"
+        <el-button
+          type="primary"
+          :loading="verificationSubmitLoading"
+          @click="submitVerification"
           >{{ $t('common.confirm') }}</el-button
         >
       </template>

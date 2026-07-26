@@ -3,13 +3,13 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>数据权限管理</span>
+          <span>{{ t('dataPermission.index.pageTitle') }}</span>
         </div>
       </template>
 
       <div class="layout">
         <div class="role-panel">
-          <h3>角色列表</h3>
+          <h3>{{ t('dataPermission.index.titleRoleList') }}</h3>
           <el-menu :default-active="selectedRoleId" class="role-menu" @select="handleSelectRole">
             <el-menu-item v-for="role in roleList" :key="role.id" :index="String(role.id)">
               {{ role.name }}
@@ -19,36 +19,66 @@
 
         <div class="permission-panel">
           <div class="panel-header">
-            <h3>{{ currentRoleName }} - 数据权限</h3>
-            <el-button type="primary" @click="handleAddPermission">添加权限</el-button>
+            <h3>{{ currentRoleName }} - {{ t('dataPermission.index.titlePermission') }}</h3>
+            <el-button type="primary" @click="handleAddPermission">{{
+              t('dataPermission.index.buttonAddPermission')
+            }}</el-button>
           </div>
 
-          <el-table :data="permissionList" border stripe aria-label="数据权限列表">
-            <el-table-column prop="resourceType" label="资源类型" />
-            <el-table-column prop="scopeType" label="数据范围">
+          <el-table
+            :data="permissionList"
+            border
+            stripe
+            :aria-label="t('dataPermission.index.ariaTable')"
+          >
+            <el-table-column
+              prop="resourceType"
+              :label="t('dataPermission.index.colResourceType')"
+            />
+            <el-table-column prop="scopeType" :label="t('dataPermission.index.colScopeType')">
               <template #default="{ row }">
-                <el-tag v-if="row.scopeType === 'ALL'" type="success">全部数据</el-tag>
-                <el-tag v-else-if="row.scopeType === 'DEPT'" type="primary">本部门数据</el-tag>
-                <el-tag v-else-if="row.scopeType === 'DEPT_AND_BELOW'" type="warning"
-                  >本部门及以下</el-tag
-                >
-                <el-tag v-else-if="row.scopeType === 'SELF'" type="info">仅本人数据</el-tag>
-                <el-tag v-else type="danger">自定义</el-tag>
+                <el-tag v-if="row.scopeType === 'ALL'" type="success">{{
+                  t('dataPermission.index.scopeAll')
+                }}</el-tag>
+                <el-tag v-else-if="row.scopeType === 'DEPT'" type="primary">{{
+                  t('dataPermission.index.scopeDept')
+                }}</el-tag>
+                <el-tag v-else-if="row.scopeType === 'DEPT_AND_BELOW'" type="warning">{{
+                  t('dataPermission.index.scopeDeptAndBelow')
+                }}</el-tag>
+                <el-tag v-else-if="row.scopeType === 'SELF'" type="info">{{
+                  t('dataPermission.index.scopeSelf')
+                }}</el-tag>
+                <el-tag v-else type="danger">{{ t('dataPermission.index.scopeCustom') }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="isEnabled" label="状态" width="100">
+            <el-table-column
+              prop="isEnabled"
+              :label="t('dataPermission.index.colStatus')"
+              width="100"
+            >
               <template #default="{ row }">
-                <el-tag v-if="row.isEnabled" type="success">启用</el-tag>
-                <el-tag v-else type="danger">禁用</el-tag>
+                <el-tag v-if="row.isEnabled" type="success">{{
+                  t('dataPermission.index.statusEnabled')
+                }}</el-tag>
+                <el-tag v-else type="danger">{{ t('dataPermission.index.statusDisabled') }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150">
+            <el-table-column :label="t('dataPermission.index.colOperation')" width="150">
               <template #default="{ row }">
-                <el-button v-permission="'data_permission:update'" link type="primary" @click="handleEditPermission(row as DataPermissionRole)"
-                  >编辑</el-button
+                <el-button
+                  v-permission="'data_permission:update'"
+                  link
+                  type="primary"
+                  @click="handleEditPermission(row as DataPermissionRole)"
+                  >{{ t('dataPermission.index.buttonEdit') }}</el-button
                 >
-                <el-button v-permission="'data_permission:delete'" link type="danger" @click="handleDeletePermission(row as DataPermissionRole)"
-                  >删除</el-button
+                <el-button
+                  v-permission="'data_permission:delete'"
+                  link
+                  type="danger"
+                  @click="handleDeletePermission(row as DataPermissionRole)"
+                  >{{ t('dataPermission.index.buttonDelete') }}</el-button
                 >
               </template>
             </el-table-column>
@@ -60,29 +90,44 @@
     <!-- 权限设置对话框 -->
     <el-dialog
       v-model="permissionDialogVisible"
-      :title="isEdit ? '编辑数据权限' : '添加数据权限'"
+      :title="isEdit ? t('dataPermission.index.titleEdit') : t('dataPermission.index.titleCreate')"
       width="600px"
-      :aria-label="isEdit ? '编辑数据权限对话框' : '新建数据权限对话框'"
+      :aria-label="
+        isEdit
+          ? t('dataPermission.index.ariaEditDialog')
+          : t('dataPermission.index.ariaCreateDialog')
+      "
     >
       <el-form
         ref="permissionFormRef"
         :model="permissionForm"
         :rules="permissionRules"
         label-width="120px"
-        aria-label="数据权限表单"
+        :aria-label="t('dataPermission.index.ariaForm')"
       >
-        <el-form-item label="资源类型" prop="resourceType">
-          <el-select v-model="permissionForm.resourceType" placeholder="请选择" style="width: 100%">
-            <el-option label="客户" value="customer" />
-            <el-option label="供应商" value="supplier" />
-            <el-option label="销售订单" value="sales_order" />
-            <el-option label="采购订单" value="purchase_order" />
-            <el-option label="库存" value="inventory" />
-            <el-option label="财务" value="finance" />
+        <el-form-item :label="t('dataPermission.index.colResourceType')" prop="resourceType">
+          <el-select
+            v-model="permissionForm.resourceType"
+            :placeholder="t('dataPermission.index.placeholderSelect')"
+            style="width: 100%"
+          >
+            <el-option :label="t('dataPermission.index.optionCustomer')" value="customer" />
+            <el-option :label="t('dataPermission.index.optionSupplier')" value="supplier" />
+            <el-option :label="t('dataPermission.index.optionSalesOrder')" value="sales_order" />
+            <el-option
+              :label="t('dataPermission.index.optionPurchaseOrder')"
+              value="purchase_order"
+            />
+            <el-option :label="t('dataPermission.index.optionInventory')" value="inventory" />
+            <el-option :label="t('dataPermission.index.optionFinance')" value="finance" />
           </el-select>
         </el-form-item>
-        <el-form-item label="数据范围" prop="scopeType">
-          <el-select v-model="permissionForm.scopeType" placeholder="请选择" style="width: 100%">
+        <el-form-item :label="t('dataPermission.index.colScopeType')" prop="scopeType">
+          <el-select
+            v-model="permissionForm.scopeType"
+            :placeholder="t('dataPermission.index.placeholderSelect')"
+            style="width: 100%"
+          >
             <el-option
               v-for="scope in scopeTypeList"
               :key="scope.value"
@@ -98,39 +143,41 @@
         </el-form-item>
         <el-form-item
           v-if="permissionForm.scopeType === 'CUSTOM'"
-          label="自定义条件"
+          :label="t('dataPermission.index.labelCustomCondition')"
           prop="customCondition"
         >
           <el-input
             v-model="permissionForm.customCondition"
             type="textarea"
             :rows="4"
-            placeholder="输入自定义SQL条件或JSON配置"
+            :placeholder="t('dataPermission.index.placeholderCustomCondition')"
           />
         </el-form-item>
-        <el-form-item label="允许字段" prop="allowedFields">
+        <el-form-item :label="t('dataPermission.index.labelAllowedFields')" prop="allowedFields">
           <el-input
             v-model="permissionForm.allowedFields"
             type="textarea"
             :rows="2"
-            placeholder="输入允许的字段，多个字段用逗号分隔"
+            :placeholder="t('dataPermission.index.placeholderAllowedFields')"
           />
         </el-form-item>
-        <el-form-item label="隐藏字段" prop="hiddenFields">
+        <el-form-item :label="t('dataPermission.index.labelHiddenFields')" prop="hiddenFields">
           <el-input
             v-model="permissionForm.hiddenFields"
             type="textarea"
             :rows="2"
-            placeholder="输入隐藏的字段，多个字段用逗号分隔"
+            :placeholder="t('dataPermission.index.placeholderHiddenFields')"
           />
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="permissionDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSavePermission"
-          >保存</el-button
-        >
+        <el-button @click="permissionDialogVisible = false">{{
+          t('dataPermission.index.buttonCancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSavePermission">{{
+          t('dataPermission.index.buttonSave')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -138,6 +185,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import {
@@ -153,6 +201,8 @@ import {
   type HiddenFields,
 } from '@/api/data-permission'
 import { getRoleList } from '@/api/role'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const roleList = ref<Array<{ id: number; name: string }>>([])
 const selectedRoleId = ref('1')
@@ -171,7 +221,9 @@ const fetchRoles = async () => {
     }
   } catch (e) {
     const err = e as Error
-    ElMessage.error(`角色列表加载失败：${err.message || '未知错误'}`)
+    ElMessage.error(
+      `${t('dataPermission.index.messageLoadRolesFailed')}${err.message || t('dataPermission.index.messageUnknownError')}`
+    )
   }
 }
 
@@ -190,8 +242,16 @@ const permissionForm = reactive({
 })
 
 const permissionRules = {
-  resourceType: [{ required: true, message: '请选择资源类型', trigger: 'change' }],
-  scopeType: [{ required: true, message: '请选择数据范围', trigger: 'change' }],
+  resourceType: [
+    {
+      required: true,
+      message: t('dataPermission.index.ruleResourceTypeRequired'),
+      trigger: 'change',
+    },
+  ],
+  scopeType: [
+    { required: true, message: t('dataPermission.index.ruleScopeTypeRequired'), trigger: 'change' },
+  ],
 }
 
 const currentRoleName = computed(() => {
@@ -207,7 +267,7 @@ const fetchPermissions = async () => {
       permissionList.value = res.data || []
     }
   } catch (e) {
-    ElMessage.error('获取权限列表失败')
+    ElMessage.error(t('dataPermission.index.messageLoadPermissionsFailed'))
   }
 }
 
@@ -223,7 +283,9 @@ const fetchScopeTypes = async () => {
     // v11 P1-5 修复：API 失败时使用 API 层常量兜底，并告知用户
     scopeTypeList.value = DEFAULT_SCOPE_TYPES
     const err = e as Error
-    ElMessage.warning(`范围类型加载失败，已使用默认值：${err.message || '未知错误'}`)
+    ElMessage.warning(
+      `${t('dataPermission.index.messageLoadScopeTypesFailed')}${err.message || t('dataPermission.index.messageUnknownError')}`
+    )
   }
 }
 
@@ -280,12 +342,14 @@ const handleSavePermission = async () => {
           ? (permissionForm.hiddenFields as unknown as HiddenFields)
           : undefined,
       })
-      ElMessage.success('保存成功')
+      ElMessage.success(t('dataPermission.index.messageSaveSuccess'))
       permissionDialogVisible.value = false
       fetchPermissions()
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '保存失败')
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || t('dataPermission.index.messageSaveFailed')
+      )
     } finally {
       submitLoading.value = false
     }
@@ -296,19 +360,26 @@ const handleDeletePermission = async (row: DataPermissionRole) => {
   if (!row.roleId || !row.resourceType) return
 
   try {
-    await ElMessageBox.confirm('确认删除该数据权限？', '提示', {
-      confirmButtonText: '确认',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('dataPermission.index.messageConfirmDelete'),
+      t('dataPermission.index.titleConfirm'),
+      {
+        confirmButtonText: t('dataPermission.index.buttonConfirm'),
+        cancelButtonText: t('dataPermission.index.buttonCancel'),
+        type: 'warning',
+      }
+    )
 
     await deleteDataPermissionByRole(row.roleId, row.resourceType)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('dataPermission.index.messageDeleteSuccess'))
     fetchPermissions()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || '删除失败')
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) ||
+          t('dataPermission.index.messageDeleteFailed')
+      )
     }
   }
 }

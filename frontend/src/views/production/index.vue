@@ -8,14 +8,14 @@
   <div class="production-container">
     <el-card class="header-card">
       <div class="header-content">
-        <h2>生产计划管理 (MRP)</h2>
-        <p>管理和跟踪生产订单，制定和执行生产计划</p>
+        <h2>{{ t('production.index.headerTitle') }}</h2>
+        <p>{{ t('production.index.headerSubtitle') }}</p>
       </div>
     </el-card>
 
     <ProductionFilter
       :form="prd.queryForm"
-      @update:form="(v) => Object.assign(prd.queryForm, v)"
+      @update:form="v => Object.assign(prd.queryForm, v)"
       @search="prd.applyQuery"
       @reset="prd.resetQuery"
     />
@@ -23,16 +23,16 @@
     <el-card class="table-card">
       <template #header>
         <div class="card-header">
-          <span>生产订单列表</span>
+          <span>{{ t('production.index.cardHeader') }}</span>
           <div class="header-actions">
             <el-button type="primary" @click="openCreate">
-              <el-icon><Plus /></el-icon>新建订单
+              <el-icon><Plus /></el-icon>{{ t('production.index.buttonCreate') }}
             </el-button>
             <el-button @click="prdProc.handlePrint">
-              <el-icon><Printer /></el-icon>打印
+              <el-icon><Printer /></el-icon>{{ t('production.index.buttonPrint') }}
             </el-button>
             <el-button @click="prdProc.handleExport">
-              <el-icon><Download /></el-icon>导出
+              <el-icon><Download /></el-icon>{{ t('production.index.buttonExport') }}
             </el-button>
           </div>
         </div>
@@ -58,7 +58,7 @@
       :form="prd.orderForm"
       :loading="prd.submitLoading"
       :rules="prd.orderRules"
-      @update:form="(v) => Object.assign(prd.orderForm, v)"
+      @update:form="v => Object.assign(prd.orderForm, v)"
       @submit="onSubmitForm"
     />
 
@@ -68,6 +68,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import {
@@ -82,9 +83,10 @@ import ProductionTable from './components/ProductionTable.vue'
 import ProductionForm from './components/ProductionForm.vue'
 import ProductionDetail from './components/ProductionDetail.vue'
 
+const { t } = useI18n({ useScope: 'global' })
+
 // 业务状态
 const prd = usePrd()
-// V15 P0-S12 修复（Batch 475c）：传入 getQueryParams，导出时传递列表筛选条件
 const prdProc = usePrdProc({
   data: prd.data,
   refresh: prd.refresh,
@@ -134,17 +136,17 @@ const onSubmitForm = async () => {
   try {
     if (!prd.orderForm.id) {
       await createProductionOrder(prd.orderForm as Partial<ProductionOrder>)
-      ElMessage.success('创建成功')
+      ElMessage.success(t('production.index.messageCreateSuccess'))
     } else {
       await updateProductionOrder(prd.orderForm.id, prd.orderForm as Partial<ProductionOrder>)
-      ElMessage.success('更新成功')
+      ElMessage.success(t('production.index.messageUpdateSuccess'))
     }
     dialogVisible.value = false
     prd.resetOrderForm()
     await prd.refresh()
   } catch (e: unknown) {
     const err = e as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+    ElMessage.error(err.message || t('production.index.messageOperationFailed'))
   } finally {
     prd.submitLoading = false
   }
