@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-26（D05 Batch 4 useI18n 接入已推送 PR #743 待 CI：34 文件 + 501 翻译键（scheduling 134 + security 134 + system 233）+ audit-i18n 验证 600 处 t() 调用无缺失；修复 slow-query.test.ts 未安装 i18n 插件导致前端测试失败（参考 audit-log.test.ts 模式：createI18n + global.plugins）；D05 接入率 23.4%→32.7%/239 文件未接入；下一批次 Batch 5 采购全链路 40 文件；D05 Batch 3 已合并 main PR #741 ac16a5c：17 文件 + 558 翻译键；PR #740 已合并 main，D08 Batch 1 拆分 39 个 >80 行函数完成；模块 G 16/17 项 P0 任务完成；剩余 1 项：D05 i18n 接入率 32.7%/239 文件未接入）
+> 最近整理：2026-07-26（D05 Batch 5 useI18n 接入已合并 main PR #745 7f22f29：39 文件 + 688 翻译键（purchaseContract 97 + purchaseExt 186 + purchaseInspection 81 + purchasePrice 85 + purchaseReturn 90 + purchaseReceipt 62 + logistics 87）+ 7 新命名空间；audit-i18n-batch5.cjs 验证 750 处 t()/$t() 调用引用 683 个不同键无缺失；CI 全绿；修复 purchaseReceipt/index.vue 容器组件未使用 useI18n 导入导致前端类型检查失败；D05 接入率 32.7%→43.8%（117→156/355 文件），剩余 199 文件未接入；下一批次 Batch 6 业务核心模块 49 文件；D05 Batch 4 已合并 main PR #743 3e55cfd；模块 G 16/17 项 P0 任务完成；剩余 1 项：D05 i18n 接入率 43.8%/199 文件未接入）
 
 ---
 
@@ -10,13 +10,13 @@
 
 > 本节为快速索引，按 4 个维度归类；详细条目见 §三，依赖关系见 §二。
 
-### 0.1 按状态归类（2026-07-26：16 ✅ / 1 待CI / 1 ⏳ / 0 ❌）
+### 0.1 按状态归类（2026-07-26：16 ✅ / 0 待CI / 1 ⏳ / 0 ❌）
 
 | 状态 | 数量 | 任务编号 |
 |------|------|----------|
 | ✅ 已完成 | 16 | D01, D02, D03, D04, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17 |
-| 🔵 代码完成待 CI | 1 | **D05 Batch 4**（PR #743：34 文件 + 501 翻译键；修复 slow-query.test.ts i18n 插件） |
-| ⏳ 进行中 | 1 | **D05**（i18n 接入率 32.7%，239 文件未接入；Batch 4 待 CI 合并，下一批次 Batch 5 采购全链路 40 文件） |
+| 🔵 代码完成待 CI | 0 | — |
+| ⏳ 进行中 | 1 | **D05**（i18n 接入率 43.8%，199 文件未接入；Batch 5 已合并 main PR #745，下一批次 Batch 6 业务核心模块 49 文件） |
 | ❌ 未开始 | 0 | — |
 
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并到 main）：Batch 1 拆分 services/ 目录 39 个 >80 行函数（33 文件）；全 backend/src 扫描确认仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行。
@@ -390,11 +390,11 @@
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并 + 全 backend/src 扫描确认 0 个 >80 行非测试函数），P0 完成数 101→102。
 > ⚠️ 2026-07-25 三次核实后，模块 G 5 项 P0 任务重新打开（D05/D08/D09/D13/D14）；2026-07-25 P0-D09 完成拆分 9 个 >100 行函数，P0 完成数 99→100；2026-07-25 P0-D13 四次核实确认 18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名无需重命名，P0 完成数 100→101。
 
-### 1.2 状态：⏳ D05 useI18n 接入继续推进（剩余 262 文件未接入，分 7 子批次执行）
+### 1.2 状态：⏳ D05 useI18n 接入继续推进（剩余 199 文件未接入，分 4 子批次执行）
 
-- **当前批次**：Batch 494 ⏳ 待启动 —— D05 Batch 4: 调度/安全/系统 36 文件 i18n 接入（§0.8.5）
-- **上一批次**：Batch 493 ✅ 已合并 main（PR #741 ac16a5c）—— D05 Batch 3: CRM/客户/供应商/销售/报价 17 文件 i18n 接入（原计划 42 文件，实际未接入 17 个：CRM 16 个已接入 + sales/index.vue 容器豁免 + quotations/edit.vue 包装豁免 = 18 文件无需接入）；CI 全绿，修复 locales 文件 customer 节缺少逗号 TS1005
-- **下一批次**：Batch 495 待启动 —— D05 Batch 5: 采购全链路 40 文件 i18n 接入（§0.8.6）
+- **当前批次**：Batch 496 ⏳ 待启动 —— D05 Batch 6: 业务核心模块 49 文件 i18n 接入（§0.8.7：API网关/BPM/面料/财务/库存/物流/系统更新 7 大模块）
+- **上一批次**：Batch 495 ✅ 已合并 main（PR #745 7f22f29）—— D05 Batch 5: 采购全链路 + 物流 7 模块 39 文件 i18n 接入（原计划 40 文件，实际 39 个：purchase-contract 5 + purchase-ext 4 + purchase-inspection 6 + purchase-price 6 + purchase-return 6 + purchaseReceipt 5 + logistics 7）+ 688 翻译键；CI 全绿，修复 purchaseReceipt/index.vue 容器组件未使用 useI18n 导入
+- **下一批次**：Batch 497 待启动 —— D05 Batch 7: 销售/财务/凭证 43 文件 i18n 接入（§0.8.8）
 - **执行策略**：规则 13+14+15+20 联动；CI 全绿后自动进入下一批；所有警告视为错误必须真实修复；修复前必须调研现有实现禁止重复造轮子；注释必须与功能一致禁止随意编写（规则 20）；规则 13 步骤 4 自审必须 grep 所有引用新字段/新结构体的调用点；**禁止本地编译验证**（cargo check/build/test/clippy + npm build/type-check/vitest/vue-tsc），必须直接 push 让 CI 验证；**扫描脚本必须使用括号深度追踪算法**（三次核实教训）；**每批次 35-65 文件，禁止少于 35 除非最后一批**（用户指令）
 
 ### 1.3 关键决策记录
@@ -469,6 +469,15 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - Batch 9 (D05-7)：通用组件/其他 57 文件（§0.8.10）
 - **执行优先级**：第 5 顺位（最后推进，D13/D14 完成后启动）
 - **当前进度**：⏳ 重新打开 —— Batch 1-8（旧批次规划）已合并 77 文件接入 + 3327 翻译键（PR #732 合并）；但三次核实发现实际接入率仅 18.6%（66/355），279 文件未接入，需按 §0.8.4-§0.8.10 新批次规划（7 子批次 495-501，每批 35-65 文件）继续接入剩余 308 文件；详见 [doto-su.md §D05](file:///workspace/.monkeycode/doto-su.md) + [CHANGELOG.md D05-9](file:///workspace/.monkeycode/CHANGELOG.md)
+- **新批次进度（2026-07-26 更新）**：
+  - Batch 3 (D05-1) CRM/客户/供应商/销售/报价：✅ 已合并 main PR #741 ac16a5c（17 文件 + 558 翻译键）
+  - Batch 4 (D05-2) 调度/安全/系统：✅ 已合并 main PR #743 3e55cfd（34 文件 + 501 翻译键）
+  - Batch 5 (D05-3) 采购全链路 + 物流：✅ 已合并 main PR #745 7f22f29（39 文件 + 688 翻译键）
+  - 累计接入：156/355 文件（43.8%），剩余 199 文件未接入（4 子批次 Batch 6/7/8/9）
+  - Batch 6 (D05-4) 业务核心模块 49 文件 ⏳ 待启动
+  - Batch 7 (D05-5) 销售/财务/凭证 43 文件 ⏳ 待启动
+  - Batch 8 (D05-6) 生产/库存/质量 37 文件 ⏳ 待启动
+  - Batch 9 (D05-7) 通用组件/其他 57 文件 ⏳ 待启动
 - **i18n 接入模式**：模板用 `$t('key')`，script 用 `const { t } = useI18n({ useScope: 'global' })`；命名空间 `{module}.{section}.{key}`；状态标签映射函数化响应式求值（如 `getTypeLabel`/`getStatusLabel`）；带参数翻译用 `t('key', { param })`；键名冲突用子命名空间重命名（如 `export`→`exportFile`、`print`→`printDialog`）
 - **批次规划**：
   - Batch 1-5：✅ 已完成 10 文件完整接入（PR #724/#725/#727/#729，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) + [CHANGELOG.md D05-1~D05-5](file:///workspace/.monkeycode/CHANGELOG.md)）
