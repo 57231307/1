@@ -12,13 +12,16 @@
   本主入口仅承担：容器与公共样式。
 -->
 <template>
-  <div class="budget-page">
+  <div class="budget-page" :aria-label="t('budget.index.pageAriaLabel')">
     <BudgetListTab />
   </div>
 </template>
 
 <script setup lang="ts">
-import BudgetListTab from './tabs/BudgetListTab.vue'
+import { useI18n } from 'vue-i18n';
+import BudgetListTab from './tabs/BudgetListTab.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <style scoped>

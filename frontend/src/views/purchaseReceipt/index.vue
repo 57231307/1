@@ -5,7 +5,7 @@
   批次 285：PurchaseReceiptFilter/PurchaseReceiptTable 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
-  <div class="app-container">
+  <div class="app-container" :aria-label="t('purchaseReceipt.index.pageAriaLabel')">
     <PurchaseReceiptFilter
       :query-params="prc.queryParams"
       :suppliers="prc.supplierOptions"
@@ -53,6 +53,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { usePrc } from './composables/usePrc'
 import { usePrcProc } from './composables/usePrcProc'
@@ -61,6 +62,8 @@ import PurchaseReceiptFilter from './components/PurchaseReceiptFilter.vue'
 import PurchaseReceiptTable from './components/PurchaseReceiptTable.vue'
 import PurchaseReceiptForm from './components/PurchaseReceiptForm.vue'
 import PurchaseReceiptDetail from './components/PurchaseReceiptDetail.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 业务状态
 const prc = usePrc()

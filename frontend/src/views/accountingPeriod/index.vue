@@ -12,13 +12,16 @@
   本主入口仅承担：容器与公共样式。
 -->
 <template>
-  <div class="accounting-period-page">
+  <div class="accounting-period-page" :aria-label="t('accountingPeriod.index.pageAriaLabel')">
     <PeriodListTab />
   </div>
 </template>
 
 <script setup lang="ts">
-import PeriodListTab from './tabs/PeriodListTab.vue'
+import { useI18n } from 'vue-i18n';
+import PeriodListTab from './tabs/PeriodListTab.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <style scoped>
