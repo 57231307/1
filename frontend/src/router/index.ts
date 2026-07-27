@@ -685,7 +685,8 @@ const routes: RouteRecordRaw[] = [
         path: 'color-cards/issues',
         name: 'ColorCardIssue',
         component: () => import('@/views/color-cards/issues.vue'),
-        meta: { title: '色卡发放管理', icon: 'Goods', permission: 'inventory:read', requiresAuth: true }, // V15 P0-F07：borrow→issue
+        // V15 P1 10.6-5：路由权限改为 color_card_issue:read（与 init_admin_permissions.sql 一致）
+        meta: { title: '色卡发放管理', icon: 'Goods', permission: 'color_card_issue:read', requiresAuth: true },
       },
       // 面料多色号定价扩展模块（P0-5）
       {

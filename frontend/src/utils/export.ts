@@ -1,6 +1,6 @@
 import axios from 'axios'
 import type { AxiosResponse } from 'axios'
-import { ElMessage } from 'element-plus'
+import { msg } from '@/utils/message'
 
 /** 导出列定义，使用泛型支持类型安全的字段访问 */
 export interface ExportColumn<T extends Record<string, unknown> = Record<string, unknown>> {
@@ -86,13 +86,13 @@ function downloadFile(content: string, filename: string, mimeType: string) {
 export function exportToExcel<T extends Record<string, unknown>>(options: ExportOptions<T>) {
   const { filename, columns, data } = options
   if (!data || data.length === 0) {
-    ElMessage.warning('没有可导出的数据')
+    msg.warning('noDataToExport')
     return
   }
   const htmlContent = generateExcelHTML(columns, data)
   const date = new Date().toISOString().split('T')[0]
   downloadFile(htmlContent, `${filename}_${date}.xls`, 'application/vnd.ms-excel;charset=utf-8;')
-  ElMessage.success('导出成功')
+  msg.exportOk()
 }
 
 export function exportData<T extends Record<string, unknown>>(options: ExportOptions<T>) {
@@ -159,11 +159,11 @@ export async function exportFromBackend<TParams extends Record<string, unknown>>
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(link.href)
-    ElMessage.success('导出成功')
+    msg.exportOk()
   } catch (err) {
-    // V15 P0-S12：错误用 ElMessage 表达（与 exportToExcel 行为一致）
-    const msg = err instanceof Error ? err.message : '导出失败'
-    ElMessage.error(`导出失败：${msg}`)
+    // V15 P0-S12：错误用 msg 表达（与 exportToExcel 行为一致）
+    const errDetail = err instanceof Error ? err.message : msg.translate('exportFailed')
+    msg.error('exportFailedReason', { reason: errDetail })
     throw err
   }
 }

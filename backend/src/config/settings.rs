@@ -23,6 +23,10 @@ pub struct AppSettings {
     /// 扩展未安装时静默 warn 失败不阻断启动；CI/单机环境可在配置中关闭。
     #[serde(default)]
     pub slow_query: SlowQuerySettings,
+    /// 面料行业配置（V15 Batch05-P1-2：6 个核心配置项，支持环境变量覆盖）
+    /// 缺失时走 [`FabricIndustryConfig::default()`]，关键配置（如 dyehouse_vat_count）由 main.rs fail-fast 校验。
+    #[serde(default)]
+    pub fabric_industry: FabricIndustryConfig,
     pub env: String,
 }
 
@@ -175,6 +179,48 @@ impl Default for CorsConfig {
                 "X-Requested-With".to_string(),
             ],
             max_age_secs: 3600,
+        }
+    }
+}
+
+/// 面料行业配置（V15 Batch05-P1-2：6 个核心配置项，支持环境变量覆盖）。
+///
+/// 依据：V15 审计报告 类五 P1（batch-05 维度 5.5：配置依赖闭环 缺陷项 1）
+/// 业务背景：面料行业 6 个核心配置完全缺失，影响业务可配置性：
+///   1. DYEHOUSE_VAT_COUNT（染缸设备数）：配置染厂染缸总数，影响排缸算法和产能统计
+///   2. PROCESS_UNIT_PRICE_BASE（工序单价基准）：工序单价基准，避免硬编码
+///   3. ENERGY_ALLOCATION_RULE（能耗分摊规则）：能耗分摊规则（duration 按工时/quantity 按产量）
+///   4. QUALITY_GRADE_THRESHOLD_A/B/C（A/B/C 分级阈值）：质量分级阈值，避免硬编码 95%/80%
+///   5. DYEBATCH_STATUS_TIMEOUT（缸号状态机超时）：缸号状态超时阈值（秒），影响异常告警
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct FabricIndustryConfig {
+    /// 染缸设备数（DYEHOUSE_VAT_COUNT）：染厂染缸总数，影响排缸算法和产能统计
+    pub dyehouse_vat_count: i32,
+    /// 工序单价基准（PROCESS_UNIT_PRICE_BASE）：默认工序单价（元/件），可按客户/订单覆盖
+    pub process_unit_price_base: f64,
+    /// 能耗分摊规则（ENERGY_ALLOCATION_RULE）：duration(按工时) / quantity(按产量) / weight(按重量)
+    pub energy_allocation_rule: String,
+    /// A 级质量分级阈值（QUALITY_GRADE_THRESHOLD_A）：≥此值判 A 级（首级），默认 95.0
+    pub quality_grade_threshold_a: f64,
+    /// B 级质量分级阈值（QUALITY_GRADE_THRESHOLD_B）：≥此值判 B 级（让步接收），默认 80.0
+    pub quality_grade_threshold_b: f64,
+    /// C 级质量分级阈值（QUALITY_GRADE_THRESHOLD_C）：≥此值判 C 级（不合格），默认 60.0
+    pub quality_grade_threshold_c: f64,
+    /// 缸号状态机超时（DYEBATCH_STATUS_TIMEOUT）：缸号状态超时阈值（秒），超过触发告警
+    pub dyebatch_status_timeout_secs: u64,
+}
+
+impl Default for FabricIndustryConfig {
+    fn default() -> Self {
+        Self {
+            dyehouse_vat_count: 0,
+            process_unit_price_base: 0.0,
+            energy_allocation_rule: "duration".to_string(),
+            quality_grade_threshold_a: 95.0,
+            quality_grade_threshold_b: 80.0,
+            quality_grade_threshold_c: 60.0,
+            dyebatch_status_timeout_secs: 14400,
         }
     }
 }
@@ -403,6 +449,45 @@ impl AppSettings {
         if let Ok(v) = std::env::var("BINGXI_PORT") {
             if !v.trim().is_empty() {
                 self.server.port = v;
+            }
+        }
+
+        // V15 Batch05-P1-2：面料行业配置从环境变量覆盖（6 个核心配置项）
+        // 优先级：环境变量 > config.yaml > 默认值
+        if let Ok(v) = std::env::var("DYEHOUSE_VAT_COUNT") {
+            if let Ok(parsed) = v.trim().parse::<i32>() {
+                self.fabric_industry.dyehouse_vat_count = parsed;
+            }
+        }
+        if let Ok(v) = std::env::var("PROCESS_UNIT_PRICE_BASE") {
+            if let Ok(parsed) = v.trim().parse::<f64>() {
+                self.fabric_industry.process_unit_price_base = parsed;
+            }
+        }
+        if let Ok(v) = std::env::var("ENERGY_ALLOCATION_RULE") {
+            let trimmed = v.trim().to_string();
+            if !trimmed.is_empty() {
+                self.fabric_industry.energy_allocation_rule = trimmed;
+            }
+        }
+        if let Ok(v) = std::env::var("QUALITY_GRADE_THRESHOLD_A") {
+            if let Ok(parsed) = v.trim().parse::<f64>() {
+                self.fabric_industry.quality_grade_threshold_a = parsed;
+            }
+        }
+        if let Ok(v) = std::env::var("QUALITY_GRADE_THRESHOLD_B") {
+            if let Ok(parsed) = v.trim().parse::<f64>() {
+                self.fabric_industry.quality_grade_threshold_b = parsed;
+            }
+        }
+        if let Ok(v) = std::env::var("QUALITY_GRADE_THRESHOLD_C") {
+            if let Ok(parsed) = v.trim().parse::<f64>() {
+                self.fabric_industry.quality_grade_threshold_c = parsed;
+            }
+        }
+        if let Ok(v) = std::env::var("DYEBATCH_STATUS_TIMEOUT") {
+            if let Ok(parsed) = v.trim().parse::<u64>() {
+                self.fabric_industry.dyebatch_status_timeout_secs = parsed;
             }
         }
 

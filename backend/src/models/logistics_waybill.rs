@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
@@ -20,15 +18,15 @@ pub struct Model {
     pub expected_arrival: Option<DateTime<Utc>>,
     pub actual_arrival: Option<DateTime<Utc>>,
     pub notes: Option<String>,
-    /// V15 P0-B13：签收人 user_id（关联 users.id，sign_waybill handler 自动填入）
+    /// V15 P0-B13：签收人 user_id，sign_waybill handler 自动填入
     pub signed_by: Option<i32>,
-    /// V15 P0-B13：签收时间（客户实际签收的时间戳，触发 AR 应收确认）
+    /// V15 P0-B13：签收时间，触发 AR 应收确认
     pub signed_at: Option<DateTime<Utc>>,
-    /// V15 P0-B13：纸质回单扫描件 URL（上传到对象存储后返回）
+    /// V15 P0-B13：纸质回单扫描件 URL
     pub sign_receipt_url: Option<String>,
-    /// V15 P0-B13：现场签收照片 URL（上传到对象存储后返回）
+    /// V15 P0-B13：现场签收照片 URL
     pub sign_photo_url: Option<String>,
-    /// V15 P0-B13：签收备注（异常情况说明，如包装破损/数量短缺）
+    /// V15 P0-B13：签收备注（异常情况说明）
     pub sign_remark: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

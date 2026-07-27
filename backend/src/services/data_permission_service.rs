@@ -226,4 +226,192 @@ impl DataPermissionService {
             self.filter_fields(data, allowed_fields, hidden_fields);
         }
     }
+
+    /// V15 P1 10.4-2：应用数据范围（销售/客户/成本数据隔离）
+    ///
+    /// 根据用户角色返回数据范围过滤条件，业务查询层据此追加 WHERE 子句：
+    /// - admin 角色：返回 ALL（不加过滤）
+    /// - sales/sales_manager 角色：仅可查询自己负责的客户发放记录
+    ///   （customer.owner_id = user_id 的客户集合）
+    /// - customer 角色：仅可查询自己的发放记录（customer_id = user.customer_id）
+    /// - 其他角色：仅可查询自己发放的记录（issued_by = user_id）
+    ///
+    /// # 参数
+    /// - `user_id`：当前登录用户 ID
+    /// - `role_id`：当前登录用户的角色 ID
+    /// - `role_code`：角色编码（admin/sales/sales_manager/customer 等）
+    ///
+    /// # 返回
+    /// 返回 `DataScopeFilter`，业务层据此构造查询条件
+    pub async fn apply_data_scope(
+        &self,
+        user_id: i32,
+        role_id: Option<i32>,
+        role_code: &str,
+    ) -> Result<DataScopeFilter, AppError> {
+        // admin 角色拥有全部数据权限
+        if let Some(rid) = role_id {
+            if self.is_admin_role(rid).await? {
+                return Ok(DataScopeFilter::all());
+            }
+        }
+
+        // 按角色编码分发数据范围
+        match role_code {
+            // 销售角色：仅可查询自己负责的客户发放记录
+            "sales" | "sales_manager" => {
+                let customer_ids = self
+                    .get_sales_customer_ids(user_id)
+                    .await?;
+                Ok(DataScopeFilter::customer_scope(customer_ids))
+            }
+            // 客户门户角色：仅可查询自己的发放记录
+            // 注意：customer_id 字段在 user 表中暂无，这里返回空列表表示无数据权限
+            // 业务层应通过 user → customer 映射获取 customer_id
+            "customer" => {
+                let customer_id = self.get_customer_id_by_user(user_id).await?;
+                match customer_id {
+                    Some(cid) => Ok(DataScopeFilter::single_customer(cid)),
+                    None => Ok(DataScopeFilter::none()),
+                }
+            }
+            // 其他角色：仅可查询自己发放的记录
+            _ => Ok(DataScopeFilter::self_issued(user_id)),
+        }
+    }
+
+    /// V15 P1 10.4-2：查询销售负责的客户 ID 列表
+    ///
+    /// 通过 customers.owner_id = user_id 关联查询（客户主数据的业务负责人）
+    async fn get_sales_customer_ids(&self, user_id: i32) -> Result<Vec<i64>, AppError> {
+        use crate::models::customer::{self, Entity as CustomerEntity};
+        let customers = CustomerEntity::find()
+            .filter(customer::Column::OwnerId.eq(user_id))
+            .filter(customer::Column::Status.ne("blacklist"))
+            .all(&*self.db)
+            .await?;
+        Ok(customers.into_iter().map(|c| c.id as i64).collect())
+    }
+
+    /// V15 P1 10.4-2：根据用户 ID 查询关联的客户 ID
+    ///
+    /// 客户门户场景：当前 user 表无 customer_id 字段，暂返回 None。
+    /// 后续如需支持客户门户角色，应在 user 表新增 customer_id 字段或
+    /// 建立 user_customer 映射表，届时在此方法补充查询逻辑。
+    async fn get_customer_id_by_user(&self, _user_id: i32) -> Result<Option<i64>, AppError> {
+        // 当前 user 表无 customer_id 字段，客户门户角色暂无数据访问权限
+        // TODO: 后续 user 表新增 customer_id 字段后补充查询逻辑
+        Ok(None)
+    }
+
+    /// V15 P1 10.4-2：检查用户是否可查看成本数据
+    ///
+    /// 成本数据敏感过滤：仅 admin/finance/warehouse_manager 角色可查看成本字段
+    /// 其他角色查询时应隐藏 cost_amount / unit_cost / total_cost 等字段
+    pub async fn can_view_cost_data(
+        &self,
+        role_id: Option<i32>,
+        role_code: &str,
+    ) -> Result<bool, AppError> {
+        // admin 角色可查看成本
+        if let Some(rid) = role_id {
+            if self.is_admin_role(rid).await? {
+                return Ok(true);
+            }
+        }
+        // finance / warehouse_manager 角色可查看成本
+        matches!(role_code, "finance" | "warehouse_manager")
+    }
+}
+
+/// V15 P1 10.4-2：数据范围过滤条件
+///
+/// 业务查询层根据此结构追加 WHERE 子句，实现行级数据隔离
+#[derive(Debug, Clone)]
+pub struct DataScopeFilter {
+    /// 数据范围类型
+    pub scope: DataScopeType,
+    /// 允访问的客户 ID 列表（scope=CustomerScope 时有效）
+    pub customer_ids: Vec<i64>,
+    /// 单个客户 ID（scope=SingleCustomer 时有效）
+    pub customer_id: Option<i64>,
+    /// 发放人 ID（scope=SelfIssued 时有效）
+    pub issued_by: Option<i32>,
+}
+
+/// 数据范围类型
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataScopeType {
+    /// 全部数据（admin 角色）
+    All,
+    /// 按客户 ID 列表过滤（销售角色）
+    CustomerScope,
+    /// 单个客户（客户门户角色）
+    SingleCustomer,
+    /// 仅本人发放的记录（其他角色）
+    SelfIssued,
+    /// 无数据权限（兜底）
+    None,
+}
+
+impl DataScopeFilter {
+    /// 全部数据（admin）
+    pub fn all() -> Self {
+        Self {
+            scope: DataScopeType::All,
+            customer_ids: Vec::new(),
+            customer_id: None,
+            issued_by: None,
+        }
+    }
+
+    /// 按客户 ID 列表过滤（销售角色）
+    pub fn customer_scope(customer_ids: Vec<i64>) -> Self {
+        Self {
+            scope: DataScopeType::CustomerScope,
+            customer_ids,
+            customer_id: None,
+            issued_by: None,
+        }
+    }
+
+    /// 单个客户（客户门户角色）
+    pub fn single_customer(customer_id: i64) -> Self {
+        Self {
+            scope: DataScopeType::SingleCustomer,
+            customer_ids: Vec::new(),
+            customer_id: Some(customer_id),
+            issued_by: None,
+        }
+    }
+
+    /// 仅本人发放的记录（其他角色）
+    pub fn self_issued(user_id: i32) -> Self {
+        Self {
+            scope: DataScopeType::SelfIssued,
+            customer_ids: Vec::new(),
+            customer_id: None,
+            issued_by: Some(user_id),
+        }
+    }
+
+    /// 无数据权限（兜底）
+    pub fn none() -> Self {
+        Self {
+            scope: DataScopeType::None,
+            customer_ids: Vec::new(),
+            customer_id: None,
+            issued_by: None,
+        }
+    }
+
+    /// 是否为全部数据（无需过滤）
+    pub fn is_all(&self) -> bool {
+        matches!(self.scope, DataScopeType::All)
+    }
+
+    /// 是否无数据权限
+    pub fn is_none(&self) -> bool {
+        matches!(self.scope, DataScopeType::None)
+    }
 }

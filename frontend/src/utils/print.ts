@@ -1,4 +1,4 @@
-import { ElMessage } from 'element-plus'
+import { msg } from '@/utils/message'
 
 /**
  * 打印列定义接口
@@ -101,14 +101,14 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
  */
 export function printData<T extends Record<string, unknown>>(options: PrintOptions<T>) {
   if (!options.data || options.data.length === 0) {
-    ElMessage.warning('没有可打印的数据')
+    msg.warning('noDataToPrint')
     return
   }
 
   const html = generatePrintHTML(options)
   const printWindow = window.open('', '_blank')
   if (!printWindow) {
-    ElMessage.error('无法打开打印窗口，请检查浏览器弹窗设置')
+    msg.printBlocked()
     return
   }
 
@@ -117,7 +117,7 @@ export function printData<T extends Record<string, unknown>>(options: PrintOptio
   printWindow.onload = () => {
     printWindow.print()
   }
-  ElMessage.success('打印窗口已打开')
+  msg.printOpened()
 }
 /**
  * 打印单个单据（含表头信息、明细行、页脚）
@@ -207,7 +207,7 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
 
   const printWindow = window.open('', '_blank')
   if (!printWindow) {
-    ElMessage.error('无法打开打印窗口')
+    msg.printBlocked()
     return
   }
   printWindow.document.write(html)

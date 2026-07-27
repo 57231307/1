@@ -21,7 +21,7 @@ FRONTEND_DIR="/opt/bingxi-erp/frontend/dist"
 # deploy.sh 用 /etc/bingxi-erp/.env 导致 systemd 找不到环境文件，后端无法启动
 CONFIG_DIR="/etc/bingxi"
 BACKUP_DIR="$DEPLOY_DIR/backups"
-LOG_DIR="$DEPLOY_DIR/logs"
+LOG_DIR="$DEPLOY_DIR/backend/logs"
 ENV_FILE="$CONFIG_DIR/.env"
 CONFIG_FILE="$BACKEND_DIR/config.yaml"
 

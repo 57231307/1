@@ -174,10 +174,10 @@ impl ProductionOrderService {
             cost_object_type: Some("production_order".to_string()),
             cost_object_id: Some(updated.id),
             cost_object_no: Some(updated.order_no.clone()),
-            batch_no: None,
-            color_no: None,
-            // v14 批次 422 T-P1-6：按缸号核算成本（生产订单当前无缸号，后续批次补全）
-            dye_lot_no: None,
+            batch_no: updated.batch_no.clone(),
+            color_no: updated.color_no.clone(),
+            // V15 Batch05-P1-4：按缸号核算成本（生产订单已含 dye_lot_no 字段，从订单读取传入成本归集）
+            dye_lot_no: updated.dye_lot_no.clone(),
             workshop: None,
             direct_material: total_material_cost,
             direct_labor: Decimal::ZERO,

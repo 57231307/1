@@ -111,6 +111,7 @@ pub async fn bootstrap_full_mode(
 
     start_failover_monitor(&app_state);
     start_report_subscription_scheduler(&app_state);
+    start_color_card_issue_scheduler(&app_state);
     init_event_bus(&app_state, settings).await;
     init_assist_dimensions(&app_state).await;
     init_es_indices().await;
@@ -445,6 +446,23 @@ fn start_report_subscription_scheduler(app_state: &AppState) {
         tasks.push(scheduler_handle);
     }
     info!("报表订阅调度任务已启动（默认每 60 秒扫描一次到期订阅）");
+}
+
+/// 启动色卡发放过期检查调度任务（V15 P1 缺陷 10.5-1）。
+/// 默认每 24 小时扫描一次过期发放记录并自动标记为 cancelled，同时恢复色卡库存。
+/// 环境变量门控：COLOR_CARD_ISSUE_EXPIRY_CHECK_ENABLED（默认 true）/ COLOR_CARD_ISSUE_EXPIRY_CHECK_INTERVAL_SECS（默认 86400）。
+fn start_color_card_issue_scheduler(app_state: &AppState) {
+    let scheduler = std::sync::Arc::new(
+        crate::services::color_card_issue_scheduler::ColorCardIssueExpiryScheduler::new(
+            app_state.db.clone(),
+            Some(app_state.audit_log.clone()),
+        ),
+    );
+    let scheduler_handle = scheduler.start_background_task();
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(scheduler_handle);
+    }
+    info!("色卡发放过期检查调度任务已启动（默认每 24 小时扫描一次过期发放记录）");
 }
 
 /// 启动事件总线监听器并按 Kafka 配置初始化事件总线。

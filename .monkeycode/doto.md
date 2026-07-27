@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-27（P0 全部完成已归档到 doto-su.md；P1 修复进行中：P1-A + P1-B1 + P1-B2 已推送 PR #758 待 CI 验证）
+> 最近整理：2026-07-27（P0 全部完成已归档到 doto-su.md；P1 修复进行中：P1-A + P1-B1 + P1-B2 + P1-C + **P1 面料行业深化 2 批次（batch-04 + batch-05）22 项 P1 已完成** 待 CI 验证）
 
 ---
 
@@ -12,15 +12,43 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| 🔵 代码完成待 CI | 3 批 | P1-A、P1-B1、P1-B2（详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)） |
+| 🔵 代码完成待 CI | 5 批 | P1-A、P1-B1、P1-B2、P1-C、**P1-面料行业深化（batch-04 + batch-05）**（详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)） |
 | ⏳ 进行中 | 0 批 | — |
-| ❌ 未开始 | 剩余约 21 批 | P1-B3 起 |
+| ❌ 未开始 | 剩余约 19 批 | P1-B3 起（脱敏扩展 + batch-19 业务功能 P1 等） |
 
-### 0.2 待启动批次（优先级从高到低）
+### 0.2 P1 面料行业深化（batch-04 + batch-05）完成清单（22 项 P1）
 
-- **P1-B3**：脱敏扩展到 customer/supplier 模块 + 规则 4 注释精简
-- **P1-C**：batch-02 类二通用代码质量（结构体派生排序、错误处理优化、const 化等）
-- **P1-D ~ P1-?**：剩余 21 批次逐步推进
+**batch-04 类四 面料行业深化（11 项 P1，全部完成）**：
+1. ✅ batch_trace_log 字段扩展（dye_lot_no/color_no/product_id/from_status/to_status + operation_type 注释扩展，migration 051）
+2. ✅ 面料检验物理指标建模（fabric_physical_test_record 新模型 + migration 052 + 10 项指标）
+3. ✅ grade_inspection 增强 A 级判定（含物理指标检查）
+4. ✅ QualityInspectionCompleted 事件发布（fabric_inspection_service.rs）
+5. ✅ 工资凭证生成（create_wage_confirm_voucher/create_wage_pay_voucher）
+6. ✅ WageConfirmed/WagePaid 事件发布（wage_ops/record.rs）
+7. ✅ 能耗分摊 dye_lot_no 修正（group_step_duration_by_key 查询 production_flow_card）
+8. ✅ 委外 4 事件发布（OutsourcingOrderCreated/StatusChanged/ReceiptConfirmed/CostSettled）
+9. ✅ 业务模式 2 事件发布（BusinessModeChanged/OrderBusinessModeLinked）
+10. ✅ 事件总线扩展 + Kafka payload 序列化
+11. ✅ 事件监听器实现（幂等处理）
+
+**batch-05 类五 运行逻辑闭环（11 项 P1，全部完成）**：
+1. ✅ 缸号状态机 OnHold+Failed 2 新状态（quality_dyeing.rs + state_machine_service + migration 053，HOLD/RESUME/FAIL 流转码）
+2. ✅ 面料行业 6 配置项（FabricIndustryConfig：DYEHOUSE_VAT_COUNT/PROCESS_UNIT_PRICE_BASE/ENERGY_ALLOCATION_RULE/QUALITY_GRADE_THRESHOLD_A/B/C/DYEBATCH_STATUS_TIMEOUT，.env.example + config.yaml.example）
+3. ✅ 染整工序扫码上报事件（ProcessStepReported）
+4. ✅ 缸号状态变更事件（DyeBatchStatusChanged）
+5. ✅ 验布分级事件（FabricInspectionGraded）
+6. ✅ 产量上报事件（ProductionQuantityReported）
+7. ✅ 能耗采集事件（EnergyConsumptionRecorded）
+8. ✅ 色卡发放事件（ColorCardIssued）
+9. ✅ 生产订单成本归集按缸号（dye_lot_no 从 production_order 读取传入 cost_collection）
+10. ✅ 染色成本归集 dye_lot_no 从 dye_batch 表查询（dye_batch_cost_bridge_service.rs）
+11. ✅ **销售成本移动加权平均法**（fetch_purchase_unit_price + update_moving_average_cost + create_purchase_receipt_voucher 使用实际采购价 + create_sales_delivery_voucher 使用移动加权平均成本）
+
+### 0.3 待启动批次（优先级从高到低）
+
+- **P1-B3**：脱敏扩展到 customer/supplier 模块 + 规则 4 注释精简（剩余部分）
+- **P1-D**：batch-19 类二十三 业务功能 P1（11 项大功能：部门数据权限落地/一人多部门/定制订单客户签字/变更审批/售后流程 6 步/原因分析月报/运单多订单合并/物流跟踪历史/运费核算/Incoterms 价格集成/术语月报，需编译验证）
+- **P1-E ~ P1-?**：剩余批次逐步推进
 
 ---
 

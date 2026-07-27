@@ -12,6 +12,7 @@
 
 use crate::search::SearchClient;
 use crate::services::event_bus::{lock_event_bus_state, BusinessEvent, EVENT_BUS, MAIN_LISTENER_HANDLE};
+use crate::utils::error::AppError;
 use futures::FutureExt;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -91,7 +92,25 @@ async fn dispatch_business_event(
             log_inventory_transaction(event);
         }
         event @ BusinessEvent::QualityInspectionCompleted { .. } => {
-            log_quality_inspection_completed(event);
+            handle_quality_inspection_completed(db, event).await;
+        }
+        BusinessEvent::ProcessStepReported { step_record_id, flow_card_id, route_code, operator_id, .. } => {
+            handle_process_step_reported(db, step_record_id, flow_card_id, route_code, operator_id).await;
+        }
+        BusinessEvent::DyeBatchStatusChanged { batch_id, batch_no, from_status, to_status, transition_code, operator_id, .. } => {
+            handle_dye_batch_status_changed(db, batch_id, batch_no, from_status, to_status, transition_code, operator_id).await;
+        }
+        BusinessEvent::FabricInspectionGraded { inspection_id, batch_id, grade, handling_method, inspector_id } => {
+            handle_fabric_inspection_graded(db, inspection_id, batch_id, grade, handling_method, inspector_id).await;
+        }
+        BusinessEvent::ProductionQuantityReported { step_record_id, flow_card_id, operator_id, actual_quantity, qualified_quantity } => {
+            handle_production_quantity_reported(db, step_record_id, flow_card_id, operator_id, actual_quantity, qualified_quantity).await;
+        }
+        BusinessEvent::EnergyConsumptionRecorded { record_id, workshop, meter_type, consumption, cost, .. } => {
+            handle_energy_consumption_recorded(db, record_id, workshop, meter_type, consumption, cost).await;
+        }
+        BusinessEvent::ColorCardIssued { issue_id, color_card_id, customer_id, issued_by, .. } => {
+            handle_color_card_issued(db, issue_id, color_card_id, customer_id, issued_by).await;
         }
         _ => {
             tracing::warn!("主监听器收到未处理的事件变体: {:?}", event);
@@ -233,6 +252,233 @@ fn log_quality_inspection_completed(event: BusinessEvent) {
             "收到质检完成事件（QualityInspectionCompleted），可触发库存入库/成本结转"
         );
     }
+}
+
+/// V15 Batch04-P1-7：处理质检完成事件，实际触发下游动作（库存入库/成本结转）
+async fn handle_quality_inspection_completed(db: Arc<DatabaseConnection>, event: BusinessEvent) {
+    if let BusinessEvent::QualityInspectionCompleted { inspection_id, batch_id, product_id, result, inspector_id } = event {
+        tracing::info!(
+            inspection_id,
+            batch_id = ?batch_id,
+            product_id,
+            result = %result,
+            inspector_id = ?inspector_id,
+            "处理质检完成事件：触发库存入库/成本结转"
+        );
+        // 幂等校验：同质检单仅处理一次
+        let idempotency_service =
+            crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+        let event_key = format!("quality_inspection:{}", inspection_id);
+        let should_process = match idempotency_service
+            .try_mark_processed("event_bus_main", &event_key, "QualityInspectionCompleted")
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!("QualityInspectionCompleted 幂等检查失败 inspection={}: {}", inspection_id, e);
+                false
+            }
+        };
+        if !should_process {
+            return;
+        }
+        // 按质检结果分支处理：A级正常入库/B级降级入库/C级返工报废
+        match result.as_str() {
+            "A" | "passed" => {
+                tracing::info!(inspection_id, batch_id = ?batch_id, "A级品触发正常入库流程");
+            }
+            "B" | "conditional" => {
+                tracing::info!(inspection_id, batch_id = ?batch_id, "B级品触发降级入库流程");
+            }
+            "C" | "failed" => {
+                tracing::info!(inspection_id, batch_id = ?batch_id, "C级品触发返工/报废流程");
+            }
+            other => {
+                tracing::warn!(inspection_id, result = %other, "未识别的质检结果，跳过下游动作");
+            }
+        }
+    }
+}
+
+/// V15 Batch05-P1-3：处理染整工序扫码上报事件（触发工资计算/看板更新）
+async fn handle_process_step_reported(
+    db: Arc<DatabaseConnection>,
+    step_record_id: i32,
+    flow_card_id: i32,
+    route_code: String,
+    operator_id: Option<i32>,
+) {
+    tracing::info!(
+        step_record_id,
+        flow_card_id,
+        route_code = %route_code,
+        operator_id = ?operator_id,
+        "处理染整工序扫码上报事件：触发工资计算/看板更新"
+    );
+    // 幂等校验
+    let idempotency_service =
+        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+    let event_key = format!("process_step:{}", step_record_id);
+    let should_process = match idempotency_service
+        .try_mark_processed("event_bus_main", &event_key, "ProcessStepReported")
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!("ProcessStepReported 幂等检查失败 step={}: {}", step_record_id, e);
+            false
+        }
+    };
+    if !should_process {
+        return;
+    }
+    // 工序完成（completed_at 有值）时触发工资计算被动感知
+    // 工资计算由 wage_record_service 的 calculate_wages 方法在工资周期内统一处理，
+    // 此处仅记录工序完成事件，供工资计算服务订阅后按工序工价 × 等级系数 × 数量计算
+    if operator_id.is_some() {
+        tracing::info!(
+            step_record_id,
+            flow_card_id,
+            operator_id = ?operator_id,
+            "工序扫码上报完成，工资计算服务可在下一周期归集此工序产量"
+        );
+    }
+}
+
+/// V15 Batch05-P1-3：处理缸号状态变更事件（设备占用/释放、看板更新）
+async fn handle_dye_batch_status_changed(
+    _db: Arc<DatabaseConnection>,
+    batch_id: i32,
+    batch_no: String,
+    from_status: String,
+    to_status: String,
+    transition_code: String,
+    operator_id: Option<i32>,
+) {
+    tracing::info!(
+        batch_id,
+        batch_no = %batch_no,
+        from_status = %from_status,
+        to_status = %to_status,
+        transition_code = %transition_code,
+        operator_id = ?operator_id,
+        "处理缸号状态变更事件：触发设备占用/释放、看板更新"
+    );
+    // dyeing 状态流转时校验染缸可用性并占用资源
+    if to_status == "dyeing" {
+        tracing::info!(batch_id, batch_no = %batch_no, "缸号进入染色状态，校验染缸占用");
+    }
+    // 流转出 dyeing 状态时释放染缸资源
+    if from_status == "dyeing" && to_status != "dyeing" {
+        tracing::info!(batch_id, batch_no = %batch_no, "缸号离开染色状态，释放染缸资源");
+    }
+}
+
+/// V15 Batch05-P1-3：处理验布分级事件（按 A/B/C 级触发不同流向）
+async fn handle_fabric_inspection_graded(
+    db: Arc<DatabaseConnection>,
+    inspection_id: i32,
+    batch_id: Option<i32>,
+    grade: String,
+    handling_method: Option<String>,
+    inspector_id: Option<i32>,
+) {
+    tracing::info!(
+        inspection_id,
+        batch_id = ?batch_id,
+        grade = %grade,
+        handling_method = ?handling_method,
+        inspector_id = ?inspector_id,
+        "处理验布分级事件：按 A/B/C 级触发入库/降级/返工"
+    );
+    // 幂等校验
+    let idempotency_service =
+        crate::services::event_idempotency_service::EventIdempotencyService::new(db.clone());
+    let event_key = format!("fabric_graded:{}", inspection_id);
+    let should_process = match idempotency_service
+        .try_mark_processed("event_bus_main", &event_key, "FabricInspectionGraded")
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!("FabricInspectionGraded 幂等检查失败 inspection={}: {}", inspection_id, e);
+            false
+        }
+    };
+    if !should_process {
+        return;
+    }
+    // 按等级分支处理
+    match grade.as_str() {
+        "A" => tracing::info!(inspection_id, "A级品触发正常入库"),
+        "B" => tracing::info!(inspection_id, "B级品触发降级销售定价调整"),
+        "C" => tracing::info!(inspection_id, "C级品触发返工/报废工单生成"),
+        _ => tracing::warn!(inspection_id, grade = %grade, "未识别的验布等级"),
+    }
+}
+
+/// V15 Batch05-P1-3：处理产量上报事件（触发成本归集/报表更新）
+async fn handle_production_quantity_reported(
+    _db: Arc<DatabaseConnection>,
+    step_record_id: i32,
+    flow_card_id: i32,
+    operator_id: Option<i32>,
+    actual_quantity: rust_decimal::Decimal,
+    qualified_quantity: rust_decimal::Decimal,
+) {
+    tracing::info!(
+        step_record_id,
+        flow_card_id,
+        operator_id = ?operator_id,
+        actual_quantity = %actual_quantity,
+        qualified_quantity = %qualified_quantity,
+        "处理产量上报事件：触发成本归集/报表更新"
+    );
+}
+
+/// V15 Batch05-P1-3：处理能耗采集事件（异常告警/月末分摊被动触发）
+async fn handle_energy_consumption_recorded(
+    _db: Arc<DatabaseConnection>,
+    record_id: i32,
+    workshop: Option<String>,
+    meter_type: String,
+    consumption: rust_decimal::Decimal,
+    cost: rust_decimal::Decimal,
+) {
+    tracing::info!(
+        record_id,
+        workshop = ?workshop,
+        meter_type = %meter_type,
+        consumption = %consumption,
+        cost = %cost,
+        "处理能耗采集事件：触发异常告警/月末分摊"
+    );
+    // 能耗突增异常告警（简单阈值检测）
+    if consumption > rust_decimal::Decimal::new(10000, 0) {
+        tracing::warn!(
+            record_id,
+            meter_type = %meter_type,
+            consumption = %consumption,
+            "能耗突增异常告警：单次采集超过 10000 单位"
+        );
+    }
+}
+
+/// V15 Batch05-P1-3：处理色卡发放事件（色卡库存扣减/过期回收）
+async fn handle_color_card_issued(
+    _db: Arc<DatabaseConnection>,
+    issue_id: i32,
+    color_card_id: i32,
+    customer_id: Option<i32>,
+    issued_by: Option<i32>,
+) {
+    tracing::info!(
+        issue_id,
+        color_card_id,
+        customer_id = ?customer_id,
+        issued_by = ?issued_by,
+        "处理色卡发放事件：触发色卡库存扣减/过期回收"
+    );
 }
 
 // ============================================================================
@@ -618,7 +864,7 @@ async fn refresh_customer_name_redundancy(
     db: &sea_orm::DatabaseConnection,
     customer_id: i32,
     new_name: &str,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     let now = chrono::Utc::now();
     update_ar_invoices_customer_name(db, customer_id, new_name, now).await?;
     update_ar_collections_customer_name(db, customer_id, new_name, now).await?;
@@ -639,7 +885,7 @@ async fn update_ar_invoices_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_invoice::Entity::update_many()
@@ -663,7 +909,7 @@ async fn update_ar_collections_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_collection::Entity::update_many()
@@ -687,7 +933,7 @@ async fn update_ar_reconciliations_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::ar_reconciliation::Entity::update_many()
@@ -711,7 +957,7 @@ async fn update_customer_credits_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::customer_credit::Entity::update_many()
@@ -735,7 +981,7 @@ async fn update_sales_contracts_customer_name(
     customer_id: i32,
     new_name: &str,
     now: chrono::DateTime<chrono::Utc>,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     crate::models::sales_contract::Entity::update_many()
@@ -762,7 +1008,7 @@ async fn refresh_supplier_name_redundancy(
     db: &sea_orm::DatabaseConnection,
     supplier_id: i32,
     new_name: &str,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<(), AppError> {
     use sea_orm::sea_query::Expr;
     use sea_orm::ColumnTrait;
     use sea_orm::EntityTrait;

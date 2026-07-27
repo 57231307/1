@@ -61,7 +61,17 @@ VALUES
 (1, 'audit', 'read', true, NOW(), NOW()),
 
 -- 仪表板
-(1, 'dashboard', 'read', true, NOW(), NOW())
+(1, 'dashboard', 'read', true, NOW(), NOW()),
+
+-- V15 P1 10.4-1：色卡发放管理权限（5 个权限码，admin 全部允许）
+-- 权限码格式：resource_type=color_card_issue + action=<操作>
+-- 业务角色矩阵见 docs/rbac-permission-matrix.md
+(1, 'color_card_issue', 'create', true, NOW(), NOW()),   -- 发放色卡（仓库员/仓库经理/销售）
+(1, 'color_card_issue', 'return', true, NOW(), NOW()),   -- 归还色卡（仓库员/仓库经理）
+(1, 'color_card_issue', 'lost', true, NOW(), NOW()),      -- 登记遗失（仓库员/仓库经理）
+(1, 'color_card_issue', 'damaged', true, NOW(), NOW()),   -- 标记损坏（仓库员/仓库经理）
+(1, 'color_card_issue', 'cancel', true, NOW(), NOW()),    -- 取消发放（仓库经理/admin）
+(1, 'color_card_issue', 'read', true, NOW(), NOW())      -- 查看发放记录（销售/客户服务/仓库/admin）
 
 ON CONFLICT (role_id, resource_type, action) DO NOTHING;
 

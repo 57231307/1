@@ -9,11 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Incoterms 2020 贸易术语枚举（11 种全量）
-///
-/// 按 Incoterms 2020 官方分类（按适用运输方式）：
-/// - 任意运输方式（含多式联运）：EXW / FCA / CPT / CIP / DAP / DPU / DDP
-/// - 海运/内河运输：FAS / FOB / CFR / CIF
+/// Incoterms 2020 贸易术语枚举（11 种全量，按适用运输方式分类）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Incoterms2020 {
@@ -79,11 +75,7 @@ impl Incoterms2020 {
         }
     }
 
-    /// 是否包含保险
-    ///
-    /// Incoterms 2020 包含保险的术语：CIF / CIP / DDP
-    /// - CIF/CIP：卖方为买方投保运输保险（强制）
-    /// - DDP：卖方承担所有费用含保险（虽未强制投保但实务默认包含）
+    /// 是否包含保险（CIF / CIP / DDP 强制或默认包含保险）
     pub fn includes_insurance(&self) -> bool {
         matches!(
             self,
@@ -91,10 +83,7 @@ impl Incoterms2020 {
         )
     }
 
-    /// 是否包含运费
-    ///
-    /// Incoterms 2020 不含运费的术语：EXW / FCA / FAS（卖方仅负责交付到指定地点或船边，不支付主运费）
-    /// 其他术语均含运费
+    /// 是否包含运费（EXW / FCA / FAS 不含主运费，其他术语均含）
     pub fn includes_freight(&self) -> bool {
         !matches!(self, Incoterms2020::Exw | Incoterms2020::Fca | Incoterms2020::Fas)
     }
@@ -121,9 +110,7 @@ impl Incoterms2020 {
         }
     }
 
-    /// 风险转移点描述（Incoterms 2020 关键合规字段）
-    ///
-    /// 用于报价单 PDF 显示，明确买卖双方风险划分点
+    /// 风险转移点描述（用于报价单 PDF 显示，明确买卖双方风险划分点）
     pub fn risk_transfer_point(&self) -> &'static str {
         match self {
             Incoterms2020::Exw => "卖方工厂（买方提货后风险归买方）",
@@ -140,9 +127,7 @@ impl Incoterms2020 {
         }
     }
 
-    /// 是否仅适用海运/内河运输
-    ///
-    /// FAS / FOB / CFR / CIF 仅适用海运；其他术语可适用任意运输方式
+    /// 是否仅适用海运/内河运输（FAS / FOB / CFR / CIF 仅海运，其他可任意运输方式）
     pub fn is_sea_only(&self) -> bool {
         matches!(
             self,

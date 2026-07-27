@@ -31,6 +31,7 @@ use crate::models::crm_lead::{self, Entity as LeadEntity};
 use crate::models::crm_recycle_rule::{self, Entity as RecycleRuleEntity};
 // 批次 236 v13 P1-1：线索状态常量接入（规则 0）
 use crate::models::status::crm_lead as lead_status;
+use crate::utils::error::AppError;
 
 /// 单次扫描最多回收的线索数量（防一次性回收过多影响业务）
 const MAX_RECYCLE_PER_SCAN: u64 = 1000;
@@ -46,7 +47,7 @@ impl RecycleExecutor {
     }
 
     /// 执行一次回收扫描，返回成功回收的线索数量
-    pub async fn run_once(&self) -> Result<u64, sea_orm::DbErr> {
+    pub async fn run_once(&self) -> Result<u64, AppError> {
         let now = Utc::now();
         let mut total_recycled: u64 = 0;
         let rules = self.fetch_enabled_rules().await?;
@@ -76,7 +77,7 @@ impl RecycleExecutor {
     }
 
     /// 查询所有启用的回收规则（按 days 升序）
-    async fn fetch_enabled_rules(&self) -> Result<Vec<crm_recycle_rule::Model>, sea_orm::DbErr> {
+    async fn fetch_enabled_rules(&self) -> Result<Vec<crm_recycle_rule::Model>, AppError> {
         let rules = RecycleRuleEntity::find()
             .filter(crm_recycle_rule::Column::IsEnabled.eq(true))
             .order_by(crm_recycle_rule::Column::Days, sea_orm::Order::Asc)
@@ -94,7 +95,7 @@ impl RecycleExecutor {
         rule: &crm_recycle_rule::Model,
         now: chrono::DateTime<chrono::Utc>,
         total_recycled: &mut u64,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<(), AppError> {
         let cutoff_date = now - Duration::days(rule.days as i64);
         let leads_to_recycle = LeadEntity::find()
             .filter(crm_lead::Column::LeadStatus.eq(lead_status::NEW))

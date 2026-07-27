@@ -304,12 +304,30 @@ impl BusinessModeConfigService {
             return Err(AppError::business("未启用的业务模式不可设置为默认"));
         }
 
+        let mode_id = model.id;
+        let mode_code = model.mode_code.clone();
+        let mode_name = model.mode_name.clone();
+        let changed_by = model.created_by.unwrap_or(0);
+
         self.clear_other_defaults(id).await?;
 
         let mut active: ConfigActiveModel = model.into();
         active.is_default = Set(true);
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-        active.update(&*self.db).await?;
+        let updated = active.update(&*self.db).await?;
+
+        // V15 Batch04-P1-6：发布默认业务模式变更事件，供下游订阅（如订单默认模式同步、报表默认口径切换）
+        if updated.is_default {
+            crate::services::event_bus::publish(
+                crate::services::event_bus::BusinessEvent::BusinessModeChanged {
+                    mode_id,
+                    mode_code,
+                    mode_name,
+                    changed_by,
+                },
+            );
+            tracing::info!(mode_id, "默认业务模式变更事件已发布");
+        }
         Ok(())
     }
 

@@ -17,7 +17,7 @@ APP_GROUP="bingxi"
 INSTALL_DIR="/opt/bingxi-erp"
 BIN_DIR="$INSTALL_DIR/backend"
 CONFIG_DIR="/etc/bingxi"
-LOG_DIR="$INSTALL_DIR/logs"
+LOG_DIR="$INSTALL_DIR/backend/logs"
 SERVICE_FILE="bingxi-backend.service"
 
 echo -e "${GREEN}=========================================${NC}"

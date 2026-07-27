@@ -128,9 +128,15 @@ impl InitService {
             // 管理层 → all
             ("总经理", "gm", "全公司最高管理权限", "all"),
             ("副总经理", "deputy_gm", "分管副总管理权限", "all"),
+            // V15 P1 Batch-10 12.1：补齐 super_admin 角色（系统配置与运维，区别于业务 admin）
+            ("超级管理员", "super_admin", "系统级配置与运维管理（仅用于系统配置）", "all"),
             // 销售域
             ("销售经理", "sales_manager", "销售业务管理与审批", "dept"),
             ("销售代表", "sales_rep", "销售订单录入与客户跟进", "self"),
+            // V15 P1 Batch-10 12.1：补齐 sales 角色（审计计划 12.1.4 要求的简短别名）
+            ("销售员", "sales", "销售基础操作（订单录入与客户跟进）", "self"),
+            // V15 P1 Batch-10 12.1：补齐 customer_service 角色
+            ("客户服务", "customer_service", "客户服务与售后跟进", "self"),
             // 采购域
             ("采购经理", "purchase_manager", "采购业务管理与审批", "dept"),
             ("采购员", "purchase_clerk", "采购订单录入与供应商对接", "self"),
@@ -138,6 +144,9 @@ impl InitService {
             // 库存仓储域
             ("库存经理", "inventory_manager", "库存管理与调拨审批", "dept"),
             ("仓库管理员", "warehouse_keeper", "仓库收发货与库存操作", "self"),
+            // V15 P1 Batch-10 12.1：补齐 warehouse_manager / warehouse 简短别名
+            ("仓库经理", "warehouse_manager", "仓库业务管理与调拨审批", "dept"),
+            ("仓库员", "warehouse", "仓库收发货与库存操作", "self"),
             // 生产域（面料行业深化）
             ("生产经理", "production_manager", "生产计划与排程管理", "dept"),
             ("染色主管", "dyeing_master", "染色生产与配方管理", "self"),

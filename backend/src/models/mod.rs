@@ -26,6 +26,10 @@ pub mod product_color;
 pub mod role;
 pub mod role_permission;
 pub mod role_conflict;
+// V15 P1 12.2：角色关系表（继承 + 互斥）
+pub mod role_relation;
+// V15 P1 12.6：权限委托表
+pub mod permission_delegation;
 // V15 P0-S06：权限变更审计 model
 pub mod permission_change_audit;
 pub mod sales_order;
@@ -254,6 +258,8 @@ pub mod color_code_mapping;
 pub mod batch_trace_log;
 // 批次染缸映射模块
 pub mod batch_dye_lot;
+// V15 P1-3: 面料物理指标检测记录（十项指标）
+pub mod fabric_physical_test_record;
 // 匹数映射模块
 pub mod piece_mapping;
 // 成本模块

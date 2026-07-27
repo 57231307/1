@@ -46,7 +46,8 @@
               <el-input v-model="issueForm.remark" type="textarea" :rows="2" />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" :loading="issuing" @click="handleIssue">{{ $t('colorCards.issue.form.confirmIssue') }}</el-button>
+              <!-- V15 P1 10.6-6：发放按钮权限控制 -->
+              <el-button v-permission="'color_card_issue:create'" type="primary" :loading="issuing" @click="handleIssue">{{ $t('colorCards.issue.form.confirmIssue') }}</el-button>
             </el-form-item>
           </el-form>
         </el-tab-pane>
@@ -68,10 +69,11 @@
             <el-table-column :label="$t('colorCards.issue.activeTable.purpose')" prop="purpose" />
             <el-table-column :label="$t('colorCards.issue.activeTable.operation')" width="360" fixed="right">
               <template #default="{ row }">
-                <el-button link type="primary" :aria-label="$t('colorCards.issue.activeTable.returnAriaLabel')" @click="handleReturn(row)">{{ $t('colorCards.issue.activeTable.return') }}</el-button>
-                <el-button link type="warning" :aria-label="$t('colorCards.issue.activeTable.damagedAriaLabel')" @click="handleMarkDamaged(row)">{{ $t('colorCards.issue.activeTable.damaged') }}</el-button>
-                <el-button link type="danger" :aria-label="$t('colorCards.issue.activeTable.lostAriaLabel')" @click="handleMarkLost(row)">{{ $t('colorCards.issue.activeTable.lost') }}</el-button>
-                <el-button link type="info" :aria-label="$t('colorCards.issue.activeTable.cancelAriaLabel')" @click="handleCancel(row)">{{ $t('colorCards.issue.activeTable.cancel') }}</el-button>
+                <!-- V15 P1 10.6-6：按钮级权限控制，权限码与 init_admin_permissions.sql 一致 -->
+                <el-button v-permission="'color_card_issue:return'" link type="primary" :aria-label="$t('colorCards.issue.activeTable.returnAriaLabel')" @click="handleReturn(row)">{{ $t('colorCards.issue.activeTable.return') }}</el-button>
+                <el-button v-permission="'color_card_issue:damaged'" link type="warning" :aria-label="$t('colorCards.issue.activeTable.damagedAriaLabel')" @click="handleMarkDamaged(row)">{{ $t('colorCards.issue.activeTable.damaged') }}</el-button>
+                <el-button v-permission="'color_card_issue:lost'" link type="danger" :aria-label="$t('colorCards.issue.activeTable.lostAriaLabel')" @click="handleMarkLost(row)">{{ $t('colorCards.issue.activeTable.lost') }}</el-button>
+                <el-button v-permission="'color_card_issue:cancel'" link type="info" :aria-label="$t('colorCards.issue.activeTable.cancelAriaLabel')" @click="handleCancel(row)">{{ $t('colorCards.issue.activeTable.cancel') }}</el-button>
               </template>
             </el-table-column>
           </el-table>

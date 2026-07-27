@@ -8,7 +8,7 @@
 //! 缸号回修记录 CRUD + 审批 + 开始回修 + 完成回修 + 取消回修；
 //! 缸号操作记录 CRUD + 按类型查询 + 按缸号查询。
 //!
-//! 14 种状态：pending_schedule 待排缸 / scheduled 已排缸 / preparing 备布中 / dyeing 进缸染色 / washing 皂洗 / fixing 固色 / dehydrating 脱水 / drying 烘干 / inspecting 验布 / stored 入库 / shipped 发货（终态）/ cancelled 取消（终态）/ terminated 终止（终态）/ rework 回修中（可回到 dyeing）。
+//! 16 种状态：pending_schedule 待排缸 / scheduled 已排缸 / preparing 备布中 / dyeing 进缸染色 / washing 皂洗 / fixing 固色 / dehydrating 脱水 / drying 烘干 / inspecting 验布 / stored 入库 / shipped 发货（终态）/ cancelled 取消（终态）/ terminated 终止（终态）/ rework 回修中（可回到 dyeing）/ on_hold 暂停（异常态，可恢复）/ failed 失败（终态）。
 //!
 //! 批次 490 D10-4a 拆分：本文件作为 facade，保留 4 个 Service struct + new 构造函数
 //! + 10 个 DTOs + 11 个纯验证函数 + 单元测试。4 个 Service 的业务方法 impl 块
@@ -31,7 +31,7 @@ use crate::utils::error::AppError;
 // 缸号状态机校验纯函数
 // ============================================================================
 
-/// 校验缸号生命周期状态是否合法（14 种状态）
+/// 校验缸号生命周期状态是否合法（16 种状态）
 pub fn validate_lifecycle_status(status: &str) -> Result<(), AppError> {
     let valid = [
         dye_batch_lifecycle_status::PENDING_SCHEDULE,
@@ -48,17 +48,19 @@ pub fn validate_lifecycle_status(status: &str) -> Result<(), AppError> {
         dye_batch_lifecycle_status::CANCELLED,
         dye_batch_lifecycle_status::TERMINATED,
         dye_batch_lifecycle_status::REWORK,
+        dye_batch_lifecycle_status::ON_HOLD,
+        dye_batch_lifecycle_status::FAILED,
     ];
     if !valid.contains(&status) {
         return Err(AppError::business(format!(
-            "缸号生命周期状态必须是 pending_schedule/scheduled/preparing/dyeing/washing/fixing/dehydrating/drying/inspecting/stored/shipped/cancelled/terminated/rework，当前: {}",
+            "缸号生命周期状态必须是 pending_schedule/scheduled/preparing/dyeing/washing/fixing/dehydrating/drying/inspecting/stored/shipped/cancelled/terminated/rework/on_hold/failed，当前: {}",
             status
         )));
     }
     Ok(())
 }
 
-/// 校验缸号流转操作代码是否合法（13 种操作）
+/// 校验缸号流转操作代码是否合法（16 种操作）
 pub fn validate_transition_code(code: &str) -> Result<(), AppError> {
     let valid = [
         dye_batch_transition_code::SCHEDULE,
@@ -74,10 +76,13 @@ pub fn validate_transition_code(code: &str) -> Result<(), AppError> {
         dye_batch_transition_code::CANCEL,
         dye_batch_transition_code::REWORK,
         dye_batch_transition_code::TERMINATE,
+        dye_batch_transition_code::HOLD,
+        dye_batch_transition_code::RESUME,
+        dye_batch_transition_code::FAIL,
     ];
     if !valid.contains(&code) {
         return Err(AppError::business(format!(
-            "缸号流转操作代码必须是 schedule/prepare/start_dyeing/wash/fix/dehydrate/dry/inspect/store/ship/cancel/rework/terminate，当前: {}",
+            "缸号流转操作代码必须是 schedule/prepare/start_dyeing/wash/fix/dehydrate/dry/inspect/store/ship/cancel/rework/terminate/hold/resume/fail，当前: {}",
             code
         )));
     }
@@ -138,13 +143,14 @@ pub fn validate_operation_type(op_type: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-/// 判断是否终态（shipped/cancelled/terminated 不可再流转）
+/// 判断是否终态（shipped/cancelled/terminated/failed 不可再流转）
 pub fn is_terminal_status(status: &str) -> bool {
     matches!(
         status,
         dye_batch_lifecycle_status::SHIPPED
             | dye_batch_lifecycle_status::CANCELLED
             | dye_batch_lifecycle_status::TERMINATED
+            | dye_batch_lifecycle_status::FAILED
     )
 }
 
@@ -153,45 +159,74 @@ fn builtin_transition_rules() -> Vec<(&'static str, &'static str, &'static str)>
     use dye_batch_lifecycle_status::*;
     use dye_batch_transition_code::*;
     vec![
-        // pending_schedule → scheduled / cancelled
+        // pending_schedule → scheduled / cancelled / failed
         (PENDING_SCHEDULE, SCHEDULED, SCHEDULE),
         (PENDING_SCHEDULE, CANCELLED, CANCEL),
-        // scheduled → preparing / cancelled / terminated
+        (PENDING_SCHEDULE, FAILED, FAIL),
+        // scheduled → preparing / cancelled / terminated / on_hold / failed
         (SCHEDULED, PREPARING, PREPARE),
         (SCHEDULED, CANCELLED, CANCEL),
         (SCHEDULED, TERMINATED, TERMINATE),
-        // preparing → dyeing / cancelled / terminated
+        (SCHEDULED, ON_HOLD, HOLD),
+        (SCHEDULED, FAILED, FAIL),
+        // preparing → dyeing / cancelled / terminated / on_hold / failed
         (PREPARING, DYEING, START_DYEING),
         (PREPARING, CANCELLED, CANCEL),
         (PREPARING, TERMINATED, TERMINATE),
-        // dyeing → washing / cancelled / terminated
+        (PREPARING, ON_HOLD, HOLD),
+        (PREPARING, FAILED, FAIL),
+        // dyeing → washing / cancelled / terminated / on_hold / failed
         (DYEING, WASHING, WASH),
         (DYEING, CANCELLED, CANCEL),
         (DYEING, TERMINATED, TERMINATE),
-        // washing → fixing / cancelled
+        (DYEING, ON_HOLD, HOLD),
+        (DYEING, FAILED, FAIL),
+        // washing → fixing / cancelled / on_hold / failed
         (WASHING, FIXING, FIX),
         (WASHING, CANCELLED, CANCEL),
-        // fixing → dehydrating / cancelled
+        (WASHING, ON_HOLD, HOLD),
+        (WASHING, FAILED, FAIL),
+        // fixing → dehydrating / cancelled / on_hold / failed
         (FIXING, DEHYDRATING, DEHYDRATE),
         (FIXING, CANCELLED, CANCEL),
-        // dehydrating → drying / cancelled
+        (FIXING, ON_HOLD, HOLD),
+        (FIXING, FAILED, FAIL),
+        // dehydrating → drying / cancelled / on_hold / failed
         (DEHYDRATING, DRYING, DRY),
         (DEHYDRATING, CANCELLED, CANCEL),
-        // drying → inspecting / cancelled
+        (DEHYDRATING, ON_HOLD, HOLD),
+        (DEHYDRATING, FAILED, FAIL),
+        // drying → inspecting / cancelled / on_hold / failed
         (DRYING, INSPECTING, INSPECT),
         (DRYING, CANCELLED, CANCEL),
-        // inspecting → stored / rework / cancelled
+        (DRYING, ON_HOLD, HOLD),
+        (DRYING, FAILED, FAIL),
+        // inspecting → stored / rework / cancelled / failed
         (INSPECTING, STORED, STORE),
         (INSPECTING, REWORK, REWORK),
         (INSPECTING, CANCELLED, CANCEL),
-        // stored → shipped / rework / cancelled
+        (INSPECTING, FAILED, FAIL),
+        // stored → shipped / rework / cancelled / failed
         (STORED, SHIPPED, SHIP),
         (STORED, REWORK, REWORK),
         (STORED, CANCELLED, CANCEL),
-        // rework → dyeing / cancelled / terminated
+        (STORED, FAILED, FAIL),
+        // rework → dyeing / cancelled / terminated / failed
         (REWORK, DYEING, START_DYEING),
         (REWORK, CANCELLED, CANCEL),
         (REWORK, TERMINATED, TERMINATE),
+        (REWORK, FAILED, FAIL),
+        // on_hold → 恢复到原工序（dyeing/washing/fixing/dehydrating/drying/scheduled/preparing）/ cancelled / failed
+        // V15 Batch05-P1-1：on_hold 可恢复到染整各工序继续流转
+        (ON_HOLD, DYEING, RESUME),
+        (ON_HOLD, WASHING, RESUME),
+        (ON_HOLD, FIXING, RESUME),
+        (ON_HOLD, DEHYDRATING, RESUME),
+        (ON_HOLD, DRYING, RESUME),
+        (ON_HOLD, SCHEDULED, RESUME),
+        (ON_HOLD, PREPARING, RESUME),
+        (ON_HOLD, CANCELLED, CANCEL),
+        (ON_HOLD, FAILED, FAIL),
     ]
 }
 

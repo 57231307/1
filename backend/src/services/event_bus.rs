@@ -190,6 +190,124 @@ pub enum BusinessEvent {
         result: String,
         inspector_id: Option<i32>,
     },
+    // V15 Batch05-P1-3：面料行业 6 个核心业务事件
+    // 染整工序扫码上报事件（工序进度实时感知）
+    ProcessStepReported {
+        step_record_id: i32,
+        flow_card_id: i32,
+        route_code: String,
+        operator_id: Option<i32>,
+        started_at: Option<chrono::DateTime<chrono::Utc>>,
+        completed_at: Option<chrono::DateTime<chrono::Utc>>,
+        quantity: Option<rust_decimal::Decimal>,
+    },
+    // 缸号状态变更事件（设备占用/释放、看板更新）
+    DyeBatchStatusChanged {
+        batch_id: i32,
+        batch_no: String,
+        from_status: String,
+        to_status: String,
+        transition_code: String,
+        operator_id: Option<i32>,
+        transition_at: chrono::DateTime<chrono::Utc>,
+    },
+    // 验布分级事件（A/B/C 级流向：入库/降级/返工）
+    FabricInspectionGraded {
+        inspection_id: i32,
+        batch_id: Option<i32>,
+        grade: String,
+        handling_method: Option<String>,
+        inspector_id: Option<i32>,
+    },
+    // 产量上报事件（工资计算/成本归集被动触发）
+    ProductionQuantityReported {
+        step_record_id: i32,
+        flow_card_id: i32,
+        operator_id: Option<i32>,
+        actual_quantity: rust_decimal::Decimal,
+        qualified_quantity: rust_decimal::Decimal,
+    },
+    // 能耗采集事件（能耗异常告警/月末分摊被动触发）
+    EnergyConsumptionRecorded {
+        record_id: i32,
+        workshop: Option<String>,
+        meter_type: String,
+        consumption: rust_decimal::Decimal,
+        cost: rust_decimal::Decimal,
+        recorded_at: chrono::DateTime<chrono::Utc>,
+    },
+    // 色卡发放事件（色卡库存扣减/过期回收/客户对色反馈）
+    ColorCardIssued {
+        issue_id: i32,
+        color_card_id: i32,
+        customer_id: Option<i32>,
+        issued_by: Option<i32>,
+        issued_at: chrono::DateTime<chrono::Utc>,
+    },
+    // V15 Batch04-P1-3：工资确认/发放事件（成本归集被动触发）
+    WageConfirmed {
+        wage_record_id: i32,
+        record_no: String,
+        total_amount: rust_decimal::Decimal,
+        confirmed_by: i32,
+    },
+    WagePaid {
+        wage_record_id: i32,
+        record_no: String,
+        total_amount: rust_decimal::Decimal,
+        paid_by: i32,
+    },
+    // V15 Batch04-P1-5：委外加工业务事件（发料/加工/结算/完成）
+    OutsourcingMaterialIssued {
+        order_id: i32,
+        order_no: String,
+        order_type: String,
+        supplier_id: i32,
+        issue_quantity: rust_decimal::Decimal,
+        voucher_no_issue: Option<String>,
+    },
+    OutsourcingProcessingRecorded {
+        order_id: i32,
+        order_no: String,
+        order_type: String,
+        supplier_id: i32,
+    },
+    OutsourcingOrderSettled {
+        order_id: i32,
+        order_no: String,
+        order_type: String,
+        supplier_id: i32,
+        processing_fee: rust_decimal::Decimal,
+        freight_fee: rust_decimal::Decimal,
+        normal_loss: rust_decimal::Decimal,
+        abnormal_loss: rust_decimal::Decimal,
+        total_cost: rust_decimal::Decimal,
+        unit_cost: rust_decimal::Decimal,
+        voucher_no_fee: Option<String>,
+    },
+    OutsourcingOrderCompleted {
+        order_id: i32,
+        order_no: String,
+        order_type: String,
+        supplier_id: i32,
+        return_quantity: rust_decimal::Decimal,
+        voucher_no_receipt: Option<String>,
+    },
+    // V15 Batch04-P1-6：业务模式切换事件
+    BusinessModeChanged {
+        mode_id: i32,
+        mode_code: String,
+        mode_name: String,
+        changed_by: i32,
+    },
+    OrderBusinessModeLinked {
+        document_type: String,
+        document_id: i32,
+        document_no: String,
+        mode_id: i32,
+        mode_code: String,
+        mode_name: String,
+    },
 }
 
 // ============================================================================
@@ -209,18 +327,13 @@ pub enum BusinessEvent {
 // - `backend_kind == 1`：本地 broadcast::Sender + Kafka 投递（生产环境）
 // - `local_tx` 始终存在，Kafka 模式下用于把 Kafka 消费到的事件桥接到本进程订阅者
 
-/// 实际选用的后端运行时容器
-///
-/// `pub(crate)` + `pub(crate)` 字段：`event_bus_ops` 子模块（kafka / listener）
-/// 需直接读写 `kafka` / `backend_kind` / `local_tx` / `consumer_handle` 字段。
+/// 实际选用的后端运行时容器（`pub(crate)` 字段供 event_bus_ops 子模块读写）
 pub(crate) struct EventBusState {
     pub(crate) backend_kind: AtomicU8, // 0 = Broadcast, 1 = Kafka
     pub(crate) kafka: Option<Arc<crate::services::event_kafka::KafkaBackend>>,
-    /// 始终存在的本地 channel，用于在 Kafka 模式下把 Kafka 消费到的事件
-    /// 桥接到本进程的所有订阅者，保持 `subscribe() -> broadcast::Receiver` API
+    /// 本地 channel，Kafka 模式下桥接事件到本进程订阅者
     pub(crate) local_tx: broadcast::Sender<BusinessEvent>,
-    /// L-27 修复（批次 373 v13 复审）：Kafka 消费桥接 spawn 句柄
-    /// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏
+    /// Kafka 消费桥接 spawn 句柄（shutdown 时 abort，避免泄漏）
     pub(crate) consumer_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
@@ -243,15 +356,7 @@ static EVENT_BUS_STATE: LazyLock<std::sync::Mutex<EventBusState>> =
 /// 全局 `EventBus` 句柄
 pub static EVENT_BUS: LazyLock<EventBus> = LazyLock::new(EventBus::new);
 
-/// 统一封装 `EVENT_BUS_STATE` 加锁逻辑
-///
-/// `pub(crate)`：`event_bus_ops::{kafka, listener}` 子模块需通过此函数访问全局状态
-/// （`init_event_bus_with_kafka_config` 读写 `local_tx`/`kafka`/`backend_kind`/
-/// `consumer_handle`；`shutdown_event_bus` 取 `consumer_handle`）。
-///
-/// 锁中毒（PoisonError）通常意味着某线程在持锁期间 panic，状态已不可信。
-/// 安全修复：改为优雅降级（`e.into_inner()` 恢复数据继续运行），避免 panic 导致服务中断。
-/// TODO(tech-debt): 未来迁移到 `parking_lot::Mutex`（无中毒概念），彻底消除此问题。
+/// 统一封装 `EVENT_BUS_STATE` 加锁逻辑（锁中毒时优雅降级恢复数据）
 pub(crate) fn lock_event_bus_state() -> std::sync::MutexGuard<'static, EventBusState> {
     EVENT_BUS_STATE.lock().unwrap_or_else(|e| {
         tracing::error!(
@@ -262,9 +367,7 @@ pub(crate) fn lock_event_bus_state() -> std::sync::MutexGuard<'static, EventBusS
     })
 }
 
-/// 事件总线主结构
-///
-/// 内部根据 [`EventBusState`] 决定走 Broadcast 或 Kafka 真实后端。
+/// 事件总线主结构（根据 EventBusState 走 Broadcast 或 Kafka 后端）
 pub struct EventBus;
 
 impl EventBus {
@@ -273,10 +376,7 @@ impl EventBus {
         Self
     }
 
-    /// 同步发布事件（保留旧 API 兼容）
-    ///
-    /// `start_event_listener` 等旧调用方直接调用 `EVENT_BUS.publish(event)`，
-    /// 这里在同步上下文内 spawn 一个 tokio 任务异步发送。
+    /// 同步发布事件（保留旧 API 兼容，同步上下文内 spawn 异步发送）
     pub fn publish(&self, event: BusinessEvent) {
         // 同步上下文：直接写到本地 channel（无失败语义），并 spawn 异步 Kafka 投递
         let state = lock_event_bus_state();

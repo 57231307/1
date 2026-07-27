@@ -115,6 +115,16 @@ pub mod m0066_add_after_sales_quality_issue_id;
 pub mod m0067_add_logistics_waybill_sign_fields;
 // Batch 484 P0-B15：缺料预警持久化（material_shortage_alerts + threshold_configs 两表）
 pub mod m0068_create_material_shortage_tables;
+// V15 批次 15 P1：补齐 supplier_evaluation_records 评估记录表迁移
+pub mod m0069_create_supplier_evaluation_records;
+// V15 P1 Batch-10 12.1：user_role 关联表（多对多，支持一个用户多角色）
+pub mod m0070_create_user_role;
+// V15 P1 Batch-09 10.3-1：color_card_issues 增加 sales_order_id 字段（订单驱动发放色卡场景）
+pub mod m0071_add_sales_order_id_to_color_card_issues;
+// V15 P1 Batch-10 12.6：permission_delegations 表（权限委托时限化 + 审计）
+pub mod m0072_create_permission_delegations;
+// V15 P1 Batch-10 12.2：role_relations 表（角色继承与互斥校验）
+pub mod m0073_create_role_relations;
 
 pub struct Migrator;
 
@@ -192,6 +202,11 @@ impl MigratorTrait for Migrator {
             Box::new(m0066_add_after_sales_quality_issue_id::Migration),
             Box::new(m0067_add_logistics_waybill_sign_fields::Migration),
             Box::new(m0068_create_material_shortage_tables::Migration),
+            Box::new(m0069_create_supplier_evaluation_records::Migration),
+            Box::new(m0070_create_user_role::Migration),
+            Box::new(m0071_add_sales_order_id_to_color_card_issues::Migration),
+            Box::new(m0072_create_permission_delegations::Migration),
+            Box::new(m0073_create_role_relations::Migration),
         ]
     }
 }

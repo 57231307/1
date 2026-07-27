@@ -1,13 +1,9 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 供应商评估记录模型
-/// 用于记录每次供应商评估的具体评分数据
+/// 供应商评估记录模型，记录每次评估的指标得分明细
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "supplier_evaluation_records")]
 pub struct Model {
@@ -15,7 +11,7 @@ pub struct Model {
     pub id: i32,
     /// 供应商ID
     pub supplier_id: i32,
-    /// 评估周期（如：2024Q1）
+    /// 评估周期（如 2024Q1）
     #[sea_orm(column_name = "evaluation_period")]
     pub evaluation_period: String,
     /// 评估指标ID
@@ -26,7 +22,7 @@ pub struct Model {
     /// 满分
     #[sea_orm(column_name = "max_score")]
     pub max_score: Option<i32>,
-    /// 加权得分
+    /// 加权得分 = score * weight / max_score
     #[sea_orm(column_name = "weighted_score")]
     pub weighted_score: Option<Decimal>,
     /// 评估人ID

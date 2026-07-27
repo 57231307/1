@@ -29,13 +29,9 @@ use std::sync::Arc;
 // 批次 488 D10-1 拆分：re-export 保持外部引用路径 `crate::services::ar_service::CreateArPaymentParams` 不变
 pub use crate::services::ar_ops::CreateArPaymentParams;
 
-/// 应收账款服务
-///
-/// struct 定义保留在 facade，impl 块按职责分散到 `ar_ops/` 子模块。
+/// 应收账款服务（facade，impl 块分散到 `ar_ops/` 子模块）
 pub struct ArService {
-    /// 数据库连接句柄
-    ///
-    /// `pub(crate)` 可见性：ar_ops 兄弟模块的 impl 块需直接访问此字段。
+    /// 数据库连接句柄（`pub(crate)` 供 ar_ops 兄弟模块访问）
     pub(crate) db: Arc<DatabaseConnection>,
 }
 

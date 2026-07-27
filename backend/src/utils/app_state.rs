@@ -284,6 +284,11 @@ fn build_app_services(
 
 /// 构造 AppState（消费 params 与 services，inline 构造 cache/计数器/搜索/缓存服务）。
 fn construct_app_state(params: AppStateParams, services: AppServices) -> AppState {
+    let metrics = Arc::new(services.metrics);
+    // V15 批次 07 P1-8 修复：CacheService 注入 BusinessMetrics，缓存命中/未命中自动上报 Prometheus
+    let cache_service = Arc::new(
+        CacheService::new().with_metrics(metrics.business_metrics.clone()),
+    );
     AppState {
         db: params.db.clone(),
         omni_audit: params.omni_audit,
@@ -295,7 +300,7 @@ fn construct_app_state(params: AppStateParams, services: AppServices) -> AppStat
         // M-2 修复：独立 Webhook 密钥
         webhook_secret: params.webhook_secret,
         cache: AppCache::arc(),
-        metrics: Arc::new(services.metrics),
+        metrics,
         cookie_key: services.cookie_key,
         di_container: services.di_container,
         email_service: services.email_service,
@@ -316,8 +321,10 @@ fn construct_app_state(params: AppStateParams, services: AppServices) -> AppStat
         email_send_counters: Arc::new(DashMap::new()),
         // 批次 104 P0-1 修复：搜索客户端初始化（根据环境变量决定真实 ES 或 mock）
         search_client: init_search_client(),
-        // 批次 107 P1-1 修复：L1 本地缓存初始化（根据 CACHE_ENABLED 环境变量决定是否启用）
-        cache_service: Arc::new(CacheService::new()),
+        // 批次 107 P1-1 修复 + V15 批次 07 P1-8 修复：
+        // L1 本地缓存初始化（根据 CACHE_ENABLED 环境变量决定是否启用），
+        // 并注入 BusinessMetrics 实现 Prometheus 自动上报
+        cache_service,
         // V15 P0-B17（Batch 484）：主备切换执行器（main.rs 注入）
         failover_executor: params.failover_executor,
     }
@@ -427,6 +434,11 @@ impl Default for AppState {
         #[cfg(test)]
         {
             let svc = build_test_services();
+            let metrics = Arc::new(svc.metrics);
+            // V15 批次 07 P1-8 修复：测试环境也注入 BusinessMetrics
+            let cache_service = Arc::new(
+                CacheService::new().with_metrics(metrics.business_metrics.clone()),
+            );
             Self {
                 db: svc.db,
                 omni_audit: svc.omni_audit,
@@ -439,7 +451,7 @@ impl Default for AppState {
                 // M-2 修复：测试环境使用独立 webhook 密钥（与 jwt_secret 错开）
                 webhook_secret: "test_webhook_secret_for_unit_tests_only_min_32_bytes".to_string(),
                 cache: AppCache::arc(),
-                metrics: Arc::new(svc.metrics),
+                metrics,
                 cookie_key: svc.cookie_key,
                 di_container: svc.di_container,
                 email_service: svc.email_service,
@@ -460,8 +472,9 @@ impl Default for AppState {
                 email_send_counters: Arc::new(DashMap::new()),
                 // 批次 104 P0-1 修复：测试环境使用 mock 搜索客户端
                 search_client: init_search_client(),
-                // 批次 107 P1-1 修复：测试环境启用 L1 本地缓存
-                cache_service: Arc::new(CacheService::new()),
+                // 批次 107 P1-1 修复 + V15 批次 07 P1-8 修复：
+                // 测试环境启用 L1 本地缓存，并注入 BusinessMetrics
+                cache_service,
                 // V15 P0-B17（Batch 484）：测试环境 failover_executor（仅主库）
                 failover_executor: svc.failover_executor,
             }

@@ -24,6 +24,7 @@ use crate::models::energy_allocation_record::{
 };
 use crate::models::energy_allocation_rule::Model as RuleModel;
 use crate::models::process_step_record::{self, Entity as StepEntity};
+use crate::models::production_flow_card::{self, Entity as FlowCardEntity};
 use crate::models::status::energy_allocation_basis;
 use crate::models::status::energy_record_status;
 use crate::utils::error::AppError;
@@ -107,7 +108,7 @@ pub struct MonthlyAllocationRequest {
 /// 工时分组键（用于 monthly_allocation_by_duration 内部分组，避免复杂元组类型）
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct DurationGroupKey {
-    /// 缸号（简化：暂用 equipment_name）
+    /// 缸号（V15 Batch04-P1-4：从 production_flow_card.dye_lot_no 查询，原 equipment_name 简化已修复）
     dye_lot_no: Option<String>,
     /// 工序路线 ID
     route_id: Option<i32>,
@@ -470,12 +471,28 @@ impl EnergyAllocationRecordService {
             .all(db)
             .await?;
 
+        // V15 Batch04-P1-4：批量查询流转卡，获取真实 dye_lot_no（原 equipment_name 简化已修复）
+        let flow_card_ids: std::collections::HashSet<i32> = step_records
+            .iter()
+            .map(|s| s.flow_card_id)
+            .collect();
+        let flow_card_map: std::collections::HashMap<i32, Option<String>> = if flow_card_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            let flow_cards = FlowCardEntity::find()
+                .filter(production_flow_card::Column::Id.is_in(flow_card_ids.into_iter().collect::<Vec<_>>()))
+                .filter(production_flow_card::Column::IsDeleted.eq(false))
+                .all(db)
+                .await?;
+            flow_cards.into_iter().map(|fc| (fc.id, fc.dye_lot_no)).collect()
+        };
+
         let mut grouped_duration: std::collections::HashMap<DurationGroupKey, i32> =
             std::collections::HashMap::new();
 
         for step in step_records {
-            // 缸号通过 flow_card 关联查询（简化：暂用 equipment_name 作为车间归属）
-            let dye_lot_no = step.equipment_name.clone();
+            // V15 Batch04-P1-4：dye_lot_no 从 production_flow_card 查询，不再误用 equipment_name
+            let dye_lot_no = flow_card_map.get(&step.flow_card_id).cloned().flatten();
             let route_id = step.process_route_id;
             let route_code = Some(step.route_code.clone());
             let key = DurationGroupKey {

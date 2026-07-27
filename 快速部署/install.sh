@@ -7,7 +7,7 @@ set -e
 REPO="57231307/1"
 DEPLOY_DIR="/opt/bingxi-erp"
 BACKEND_DIR="$DEPLOY_DIR/backend"
-FRONTEND_DIR="/opt/bingxi/frontend/dist"
+FRONTEND_DIR="/opt/bingxi-erp/frontend/dist"
 CONFIG_DIR="/etc/bingxi"
 CLI_PATH="/usr/local/bin/bingxi"
 

@@ -309,9 +309,23 @@ impl OutsourcingOrderService {
 
         let mut active: OrderActiveModel = model.into();
         active.status = Set(outsourcing_order_status::ISSUED.to_string());
-        active.voucher_no_issue = Set(Some(voucher_no));
+        active.voucher_no_issue = Set(Some(voucher_no.clone()));
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;
+
+        // V15 Batch04-P1-5：发布委外发料事件，供库存出库/成本归集订阅
+        crate::services::event_bus::publish(
+            crate::services::event_bus::BusinessEvent::OutsourcingMaterialIssued {
+                order_id: updated.id,
+                order_no: updated.order_no.clone(),
+                order_type: updated.order_type.clone(),
+                supplier_id: updated.supplier_id,
+                issue_quantity: updated.issue_quantity,
+                voucher_no_issue: updated.voucher_no_issue.clone(),
+            },
+        );
+        tracing::info!(order_id = updated.id, "委外发料事件已发布");
+
         Ok(updated)
     }
 
@@ -328,6 +342,18 @@ impl OutsourcingOrderService {
         active.status = Set(outsourcing_order_status::PROCESSING.to_string());
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
+
+        // V15 Batch04-P1-5：发布委外加工中事件，供生产看板/进度追踪订阅
+        crate::services::event_bus::publish(
+            crate::services::event_bus::BusinessEvent::OutsourcingProcessingRecorded {
+                order_id: updated.id,
+                order_no: updated.order_no.clone(),
+                order_type: updated.order_type.clone(),
+                supplier_id: updated.supplier_id,
+            },
+        );
+        tracing::info!(order_id = updated.id, "委外加工中事件已发布");
+
         Ok(updated)
     }
 
@@ -614,10 +640,31 @@ impl OutsourcingOrderService {
         let mut active: OrderActiveModel = model.into();
         active.total_cost = Set(total_cost);
         active.unit_cost = Set(unit_cost);
-        active.voucher_no_fee = Set(Some(voucher_no));
+        active.voucher_no_fee = Set(Some(voucher_no.clone()));
         active.status = Set(outsourcing_order_status::SETTLED.to_string());
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;
+
+        // V15 Batch04-P1-5：发布委外结算事件，供成本归集/应付账款订阅
+        let normal_loss = (updated.loss_quantity - updated.abnormal_loss_amount)
+            .max(Decimal::ZERO);
+        crate::services::event_bus::publish(
+            crate::services::event_bus::BusinessEvent::OutsourcingOrderSettled {
+                order_id: updated.id,
+                order_no: updated.order_no.clone(),
+                order_type: updated.order_type.clone(),
+                supplier_id: updated.supplier_id,
+                processing_fee: updated.processing_fee,
+                freight_fee: updated.freight_fee,
+                normal_loss,
+                abnormal_loss: updated.abnormal_loss_amount,
+                total_cost: updated.total_cost,
+                unit_cost: updated.unit_cost,
+                voucher_no_fee: updated.voucher_no_fee.clone(),
+            },
+        );
+        tracing::info!(order_id = updated.id, "委外结算事件已发布");
+
         Ok(updated)
     }
 
@@ -634,6 +681,20 @@ impl OutsourcingOrderService {
         active.status = Set(outsourcing_order_status::CLOSED.to_string());
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
+
+        // V15 Batch04-P1-5：发布委外完成事件，供库存入库/成本结转订阅
+        crate::services::event_bus::publish(
+            crate::services::event_bus::BusinessEvent::OutsourcingOrderCompleted {
+                order_id: updated.id,
+                order_no: updated.order_no.clone(),
+                order_type: updated.order_type.clone(),
+                supplier_id: updated.supplier_id,
+                return_quantity: updated.return_quantity,
+                voucher_no_receipt: updated.voucher_no_receipt.clone(),
+            },
+        );
+        tracing::info!(order_id = updated.id, "委外完成事件已发布");
+
         Ok(updated)
     }
 

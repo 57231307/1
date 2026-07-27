@@ -6,6 +6,8 @@ use axum::{
 use serde::Serialize;
 use std::fmt;
 
+use crate::utils::messages::err_msg;
+
 #[derive(Debug, Clone, Serialize)]
 pub enum AppError {
     DatabaseError(String),
@@ -62,15 +64,15 @@ impl AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AppError::DatabaseError(msg) => write!(f, "数据库错误：{}", msg),
-            AppError::ValidationError(msg) => write!(f, "验证错误：{}", msg),
-            AppError::NotFound(msg) => write!(f, "未找到：{}", msg),
-            AppError::BusinessError(msg) => write!(f, "业务错误：{}", msg),
-            AppError::Unauthorized(msg) => write!(f, "未授权：{}", msg),
-            AppError::InternalError(msg) => write!(f, "内部错误：{}", msg),
-            AppError::BadRequest(msg) => write!(f, "请求错误：{}", msg),
-            AppError::PermissionDenied(msg) => write!(f, "权限不足：{}", msg),
-            AppError::NotImplemented(msg) => write!(f, "未实现：{}", msg),
+            AppError::DatabaseError(msg) => write!(f, "{}{}", err_msg::DB_ERROR_PREFIX, msg),
+            AppError::ValidationError(msg) => write!(f, "{}{}", err_msg::VALIDATION_PREFIX, msg),
+            AppError::NotFound(msg) => write!(f, "{}{}", err_msg::NOT_FOUND_PREFIX, msg),
+            AppError::BusinessError(msg) => write!(f, "{}{}", err_msg::BUSINESS_PREFIX, msg),
+            AppError::Unauthorized(msg) => write!(f, "{}{}", err_msg::UNAUTHORIZED_PREFIX, msg),
+            AppError::InternalError(msg) => write!(f, "{}{}", err_msg::INTERNAL_PREFIX, msg),
+            AppError::BadRequest(msg) => write!(f, "{}{}", err_msg::BAD_REQUEST_PREFIX, msg),
+            AppError::PermissionDenied(msg) => write!(f, "{}{}", err_msg::PERMISSION_PREFIX, msg),
+            AppError::NotImplemented(msg) => write!(f, "{}{}", err_msg::NOT_IMPLEMENTED_PREFIX, msg),
             AppError::TooManyRequests { message, .. } => write!(f, "{}", message),
         }
     }
@@ -117,16 +119,16 @@ impl AppError {
     /// 返回 (severity, action_required) 用于日志辅助信息
     fn error_severity_and_action(&self) -> (&'static str, &'static str) {
         match self {
-            AppError::DatabaseError(_) => ("HIGH", "检查数据库连接和查询"),
-            AppError::ValidationError(_) => ("LOW", "检查请求参数"),
-            AppError::NotFound(_) => ("MEDIUM", "检查资源是否存在"),
-            AppError::BusinessError(_) => ("MEDIUM", "检查业务规则"),
-            AppError::Unauthorized(_) => ("HIGH", "检查认证信息"),
-            AppError::InternalError(_) => ("CRITICAL", "联系系统管理员"),
-            AppError::PermissionDenied(_) => ("HIGH", "检查用户权限"),
-            AppError::BadRequest(_) => ("LOW", "检查请求格式"),
-            AppError::NotImplemented(_) => ("MEDIUM", "联系开发团队实现该功能"),
-            AppError::TooManyRequests { .. } => ("MEDIUM", "稍后重试"),
+            AppError::DatabaseError(_) => ("HIGH", err_msg::ACTION_DB),
+            AppError::ValidationError(_) => ("LOW", err_msg::ACTION_VALIDATION),
+            AppError::NotFound(_) => ("MEDIUM", err_msg::ACTION_NOT_FOUND),
+            AppError::BusinessError(_) => ("MEDIUM", err_msg::ACTION_BUSINESS),
+            AppError::Unauthorized(_) => ("HIGH", err_msg::ACTION_UNAUTHORIZED),
+            AppError::InternalError(_) => ("CRITICAL", err_msg::ACTION_INTERNAL),
+            AppError::PermissionDenied(_) => ("HIGH", err_msg::ACTION_PERMISSION),
+            AppError::BadRequest(_) => ("LOW", err_msg::ACTION_BAD_REQUEST),
+            AppError::NotImplemented(_) => ("MEDIUM", err_msg::ACTION_NOT_IMPLEMENTED),
+            AppError::TooManyRequests { .. } => ("MEDIUM", err_msg::ACTION_TOO_MANY_REQUESTS),
         }
     }
 
@@ -174,17 +176,17 @@ impl AppError {
     /// 返回 (log_label, log_suggestion) 用于 tracing 日志定制文案
     fn log_meta(&self) -> (&'static str, String) {
         match self {
-            AppError::DatabaseError(_) => ("数据库错误", "检查数据库连接状态和 SQL 查询".to_string()),
-            AppError::ValidationError(_) => ("验证错误", "检查请求参数格式和必填项".to_string()),
-            AppError::NotFound(_) => ("资源未找到", "检查资源 ID 是否正确或资源是否已被删除".to_string()),
-            AppError::BusinessError(_) => ("业务错误", "检查业务规则和前置条件".to_string()),
-            AppError::Unauthorized(_) => ("未授权访问", "检查 Token 是否有效或是否已过期".to_string()),
-            AppError::InternalError(_) => ("内部错误", "检查系统日志或联系管理员".to_string()),
-            AppError::PermissionDenied(_) => ("权限不足", "检查用户角色和权限配置".to_string()),
-            AppError::BadRequest(_) => ("请求错误", "检查请求格式和参数".to_string()),
-            AppError::NotImplemented(_) => ("功能未实现", "该功能正在开发中".to_string()),
+            AppError::DatabaseError(_) => (err_msg::LOG_DB_ERROR, err_msg::HINT_DB.to_string()),
+            AppError::ValidationError(_) => (err_msg::LOG_VALIDATION, err_msg::HINT_VALIDATION.to_string()),
+            AppError::NotFound(_) => (err_msg::LOG_NOT_FOUND, err_msg::HINT_NOT_FOUND.to_string()),
+            AppError::BusinessError(_) => (err_msg::LOG_BUSINESS, err_msg::HINT_BUSINESS.to_string()),
+            AppError::Unauthorized(_) => (err_msg::LOG_UNAUTHORIZED, err_msg::HINT_UNAUTHORIZED.to_string()),
+            AppError::InternalError(_) => (err_msg::LOG_INTERNAL, err_msg::HINT_INTERNAL.to_string()),
+            AppError::PermissionDenied(_) => (err_msg::LOG_PERMISSION, err_msg::HINT_PERMISSION.to_string()),
+            AppError::BadRequest(_) => (err_msg::LOG_BAD_REQUEST, err_msg::HINT_BAD_REQUEST.to_string()),
+            AppError::NotImplemented(_) => (err_msg::LOG_NOT_IMPLEMENTED, err_msg::HINT_NOT_IMPLEMENTED.to_string()),
             AppError::TooManyRequests { retry_after, .. } => {
-                ("请求过多", format!("等待 {:?} 秒后重试", retry_after))
+                (err_msg::LOG_TOO_MANY_REQUESTS, format!("{}{:?}{}", err_msg::RETRY_HINT_PREFIX, retry_after, err_msg::RETRY_HINT_SUFFIX))
             }
         }
     }
@@ -196,19 +198,23 @@ impl AppError {
         let is_error = matches!(self, AppError::DatabaseError(_) | AppError::InternalError(_));
         if is_error {
             tracing::error!(
-                "【{}】{} | 详情: {} | 建议: {}",
-                label,
-                msg,
-                detail,
-                suggestion
+                "【{label}】{msg} | {detail_word}: {detail} | {suggestion_word}: {suggestion}",
+                label = label,
+                msg = msg,
+                detail_word = err_msg::LOG_DETAIL,
+                detail = detail,
+                suggestion_word = err_msg::LOG_SUGGESTION,
+                suggestion = suggestion
             );
         } else {
             tracing::warn!(
-                "【{}】{} | 详情: {} | 建议: {}",
-                label,
-                msg,
-                detail,
-                suggestion
+                "【{label}】{msg} | {detail_word}: {detail} | {suggestion_word}: {suggestion}",
+                label = label,
+                msg = msg,
+                detail_word = err_msg::LOG_DETAIL,
+                detail = detail,
+                suggestion_word = err_msg::LOG_SUGGESTION,
+                suggestion = suggestion
             );
         }
     }
@@ -219,43 +225,43 @@ impl From<sea_orm::DbErr> for AppError {
         let err_str = err.to_string();
         match &err {
             sea_orm::DbErr::Conn(_) => {
-                tracing::error!("数据库连接失败：{}", err);
-                AppError::database("数据库连接失败")
+                tracing::error!("{}：{}", err_msg::DB_CONN_FAIL, err);
+                AppError::database(err_msg::DB_CONN_FAIL)
             }
             sea_orm::DbErr::Exec(_) => {
                 let error_kind = Self::classify_db_exec_error(&err_str);
-                tracing::error!("数据库执行错误 [{}]: {}", error_kind, err);
+                tracing::error!("{} [{}]: {}", err_msg::DB_EXEC, error_kind, err);
                 AppError::database(error_kind.to_string())
             }
             sea_orm::DbErr::Query(_) => {
                 let error_kind = Self::classify_db_query_error(&err_str);
-                tracing::error!("数据库查询错误 [{}]: {}", error_kind, err);
+                tracing::error!("{} [{}]: {}", err_msg::DB_QUERY, error_kind, err);
                 AppError::database(error_kind.to_string())
             }
             sea_orm::DbErr::RecordNotFound(msg) => {
-                tracing::warn!("记录不存在：{}", msg);
+                tracing::warn!("{}：{}", err_msg::LOG_RECORD_NOT_FOUND, msg);
                 AppError::not_found(msg.clone())
             }
             sea_orm::DbErr::Custom(_) => {
                 let error_kind = Self::classify_db_custom_error(&err_str);
-                tracing::error!("数据库自定义错误 [{}]: {}", error_kind, err);
+                tracing::error!("{} [{}]: {}", err_msg::DB_CUSTOM, error_kind, err);
                 AppError::database(error_kind.to_string())
             }
             sea_orm::DbErr::Type(msg) => {
-                tracing::error!("数据库类型错误：{:?}", msg);
-                AppError::database(format!("数据库类型错误: {}", msg))
+                tracing::error!("{}：{:?}", err_msg::DB_TYPE_LABEL, msg);
+                AppError::database(format!("{}: {}", err_msg::DB_TYPE_LABEL, msg))
             }
             sea_orm::DbErr::Json(msg) => {
-                tracing::error!("数据库 JSON 错误：{}", msg);
-                AppError::database("数据库 JSON 处理错误")
+                tracing::error!("{}：{}", err_msg::LOG_DB_JSON, msg);
+                AppError::database(err_msg::DB_JSON_ERR)
             }
             sea_orm::DbErr::Migration(msg) => {
-                tracing::error!("数据库迁移错误：{}", msg);
-                AppError::database("数据库迁移错误")
+                tracing::error!("{}：{}", err_msg::DB_MIGRATION_ERR, msg);
+                AppError::database(err_msg::DB_MIGRATION_ERR)
             }
             _ => {
-                tracing::error!("数据库操作失败：{}", err);
-                AppError::database("数据库操作失败")
+                tracing::error!("{}：{}", err_msg::DB_OP_FAIL, err);
+                AppError::database(err_msg::DB_OP_FAIL)
             }
         }
     }
@@ -263,35 +269,35 @@ impl From<sea_orm::DbErr> for AppError {
 
 fn classify_db_exec_error(err_str: &str) -> &'static str {
     if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-        "数据重复"
+        err_msg::DB_DUPLICATE
     } else if err_str.contains("foreign key constraint")
         || err_str.contains("references")
     {
-        "数据关联错误"
+        err_msg::DB_RELATION
     } else {
-        "数据库执行错误"
+        err_msg::DB_EXEC
     }
 }
 
 fn classify_db_query_error(err_str: &str) -> &'static str {
     if err_str.contains("syntax error") {
-        "查询语法错误"
+        err_msg::DB_QUERY_SYNTAX
     } else {
-        "数据库查询错误"
+        err_msg::DB_QUERY
     }
 }
 
 fn classify_db_custom_error(err_str: &str) -> &'static str {
     if err_str.contains("timeout") {
-        "数据库操作超时"
+        err_msg::DB_TIMEOUT
     } else {
-        "数据库自定义错误"
+        err_msg::DB_CUSTOM
     }
 }
 
 impl From<serde_json::Error> for AppError {
     fn from(err: serde_json::Error) -> Self {
-        AppError::internal(format!("JSON 序列化错误：{}", err))
+        AppError::internal(format!("{}{}", err_msg::JSON_SERIALIZE_PREFIX, err))
     }
 }
 
@@ -375,16 +381,16 @@ impl AppError {
     /// 生产环境对外暴露的脱敏文案
     fn public_message(&self) -> String {
         match self {
-            AppError::DatabaseError(_) => "数据库错误".to_string(),
-            AppError::ValidationError(_) => "请求参数验证失败".to_string(),
-            AppError::NotFound(_) => "资源未找到".to_string(),
-            AppError::BusinessError(_) => "业务处理失败".to_string(),
-            AppError::Unauthorized(_) => "未授权".to_string(),
-            AppError::InternalError(_) => "服务器内部错误".to_string(),
-            AppError::BadRequest(_) => "请求参数错误".to_string(),
-            AppError::PermissionDenied(_) => "无权限".to_string(),
-            AppError::NotImplemented(_) => "功能未实现".to_string(),
-            AppError::TooManyRequests { .. } => "请求过于频繁，请稍后重试".to_string(),
+            AppError::DatabaseError(_) => err_msg::DB_ERROR_PUBLIC.to_string(),
+            AppError::ValidationError(_) => err_msg::VALIDATION_PUBLIC.to_string(),
+            AppError::NotFound(_) => err_msg::NOT_FOUND_PUBLIC.to_string(),
+            AppError::BusinessError(_) => err_msg::BUSINESS_PUBLIC.to_string(),
+            AppError::Unauthorized(_) => err_msg::UNAUTHORIZED_PUBLIC.to_string(),
+            AppError::InternalError(_) => err_msg::INTERNAL_PUBLIC.to_string(),
+            AppError::BadRequest(_) => err_msg::BAD_REQUEST_PUBLIC.to_string(),
+            AppError::PermissionDenied(_) => err_msg::PERMISSION_PUBLIC.to_string(),
+            AppError::NotImplemented(_) => err_msg::NOT_IMPLEMENTED_PUBLIC.to_string(),
+            AppError::TooManyRequests { .. } => err_msg::TOO_MANY_REQUESTS_PUBLIC.to_string(),
         }
     }
 }

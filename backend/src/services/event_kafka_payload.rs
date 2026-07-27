@@ -144,6 +144,118 @@ pub mod payload_serde {
             result: String,
             inspector_id: Option<i32>,
         },
+        // V15 Batch05-P1-3：面料行业 6 个核心业务事件
+        ProcessStepReported {
+            step_record_id: i32,
+            flow_card_id: i32,
+            route_code: String,
+            operator_id: Option<i32>,
+            started_at: Option<chrono::DateTime<chrono::Utc>>,
+            completed_at: Option<chrono::DateTime<chrono::Utc>>,
+            quantity: Option<Decimal>,
+        },
+        DyeBatchStatusChanged {
+            batch_id: i32,
+            batch_no: String,
+            from_status: String,
+            to_status: String,
+            transition_code: String,
+            operator_id: Option<i32>,
+            transition_at: chrono::DateTime<chrono::Utc>,
+        },
+        FabricInspectionGraded {
+            inspection_id: i32,
+            batch_id: Option<i32>,
+            grade: String,
+            handling_method: Option<String>,
+            inspector_id: Option<i32>,
+        },
+        ProductionQuantityReported {
+            step_record_id: i32,
+            flow_card_id: i32,
+            operator_id: Option<i32>,
+            actual_quantity: Decimal,
+            qualified_quantity: Decimal,
+        },
+        EnergyConsumptionRecorded {
+            record_id: i32,
+            workshop: Option<String>,
+            meter_type: String,
+            consumption: Decimal,
+            cost: Decimal,
+            recorded_at: chrono::DateTime<chrono::Utc>,
+        },
+        ColorCardIssued {
+            issue_id: i32,
+            color_card_id: i32,
+            customer_id: Option<i32>,
+            issued_by: Option<i32>,
+            issued_at: chrono::DateTime<chrono::Utc>,
+        },
+        // V15 Batch04-P1-3：工资确认/发放事件
+        WageConfirmed {
+            wage_record_id: i32,
+            record_no: String,
+            total_amount: Decimal,
+            confirmed_by: i32,
+        },
+        WagePaid {
+            wage_record_id: i32,
+            record_no: String,
+            total_amount: Decimal,
+            paid_by: i32,
+        },
+        // V15 Batch04-P1-5：委外加工业务事件
+        OutsourcingMaterialIssued {
+            order_id: i32,
+            order_no: String,
+            order_type: String,
+            supplier_id: i32,
+            issue_quantity: Decimal,
+            voucher_no_issue: Option<String>,
+        },
+        OutsourcingProcessingRecorded {
+            order_id: i32,
+            order_no: String,
+            order_type: String,
+            supplier_id: i32,
+        },
+        OutsourcingOrderSettled {
+            order_id: i32,
+            order_no: String,
+            order_type: String,
+            supplier_id: i32,
+            processing_fee: Decimal,
+            freight_fee: Decimal,
+            normal_loss: Decimal,
+            abnormal_loss: Decimal,
+            total_cost: Decimal,
+            unit_cost: Decimal,
+            voucher_no_fee: Option<String>,
+        },
+        OutsourcingOrderCompleted {
+            order_id: i32,
+            order_no: String,
+            order_type: String,
+            supplier_id: i32,
+            return_quantity: Decimal,
+            voucher_no_receipt: Option<String>,
+        },
+        // V15 Batch04-P1-6：业务模式切换事件
+        BusinessModeChanged {
+            mode_id: i32,
+            mode_code: String,
+            mode_name: String,
+            changed_by: i32,
+        },
+        OrderBusinessModeLinked {
+            document_type: String,
+            document_id: i32,
+            document_no: String,
+            mode_id: i32,
+            mode_code: String,
+            mode_name: String,
+        },
     }
 
     impl From<&BusinessEvent> for EventPayload {
@@ -171,7 +283,21 @@ pub mod payload_serde {
                 | CustomerUpdated { .. }
                 | SupplierUpdated { .. }
                 | DyeBatchCompleted { .. }
-                | QualityInspectionCompleted { .. } => from_other_events(event),
+                | QualityInspectionCompleted { .. }
+                | ProcessStepReported { .. }
+                | DyeBatchStatusChanged { .. }
+                | FabricInspectionGraded { .. }
+                | ProductionQuantityReported { .. }
+                | EnergyConsumptionRecorded { .. }
+                | ColorCardIssued { .. }
+                | WageConfirmed { .. }
+                | WagePaid { .. }
+                | OutsourcingMaterialIssued { .. }
+                | OutsourcingProcessingRecorded { .. }
+                | OutsourcingOrderSettled { .. }
+                | OutsourcingOrderCompleted { .. }
+                | BusinessModeChanged { .. }
+                | OrderBusinessModeLinked { .. } => from_other_events(event),
             }
         }
     }
@@ -349,6 +475,142 @@ pub mod payload_serde {
                     inspector_id: *inspector_id,
                 }
             }
+            BusinessEvent::ProcessStepReported { step_record_id, flow_card_id, route_code, operator_id, started_at, completed_at, quantity } => {
+                EventPayload::ProcessStepReported {
+                    step_record_id: *step_record_id,
+                    flow_card_id: *flow_card_id,
+                    route_code: route_code.clone(),
+                    operator_id: *operator_id,
+                    started_at: *started_at,
+                    completed_at: *completed_at,
+                    quantity: *quantity,
+                }
+            }
+            BusinessEvent::DyeBatchStatusChanged { batch_id, batch_no, from_status, to_status, transition_code, operator_id, transition_at } => {
+                EventPayload::DyeBatchStatusChanged {
+                    batch_id: *batch_id,
+                    batch_no: batch_no.clone(),
+                    from_status: from_status.clone(),
+                    to_status: to_status.clone(),
+                    transition_code: transition_code.clone(),
+                    operator_id: *operator_id,
+                    transition_at: *transition_at,
+                }
+            }
+            BusinessEvent::FabricInspectionGraded { inspection_id, batch_id, grade, handling_method, inspector_id } => {
+                EventPayload::FabricInspectionGraded {
+                    inspection_id: *inspection_id,
+                    batch_id: *batch_id,
+                    grade: grade.clone(),
+                    handling_method: handling_method.clone(),
+                    inspector_id: *inspector_id,
+                }
+            }
+            BusinessEvent::ProductionQuantityReported { step_record_id, flow_card_id, operator_id, actual_quantity, qualified_quantity } => {
+                EventPayload::ProductionQuantityReported {
+                    step_record_id: *step_record_id,
+                    flow_card_id: *flow_card_id,
+                    operator_id: *operator_id,
+                    actual_quantity: *actual_quantity,
+                    qualified_quantity: *qualified_quantity,
+                }
+            }
+            BusinessEvent::EnergyConsumptionRecorded { record_id, workshop, meter_type, consumption, cost, recorded_at } => {
+                EventPayload::EnergyConsumptionRecorded {
+                    record_id: *record_id,
+                    workshop: workshop.clone(),
+                    meter_type: meter_type.clone(),
+                    consumption: *consumption,
+                    cost: *cost,
+                    recorded_at: *recorded_at,
+                }
+            }
+            BusinessEvent::ColorCardIssued { issue_id, color_card_id, customer_id, issued_by, issued_at } => {
+                EventPayload::ColorCardIssued {
+                    issue_id: *issue_id,
+                    color_card_id: *color_card_id,
+                    customer_id: *customer_id,
+                    issued_by: *issued_by,
+                    issued_at: *issued_at,
+                }
+            }
+            BusinessEvent::WageConfirmed { wage_record_id, record_no, total_amount, confirmed_by } => {
+                EventPayload::WageConfirmed {
+                    wage_record_id: *wage_record_id,
+                    record_no: record_no.clone(),
+                    total_amount: *total_amount,
+                    confirmed_by: *confirmed_by,
+                }
+            }
+            BusinessEvent::WagePaid { wage_record_id, record_no, total_amount, paid_by } => {
+                EventPayload::WagePaid {
+                    wage_record_id: *wage_record_id,
+                    record_no: record_no.clone(),
+                    total_amount: *total_amount,
+                    paid_by: *paid_by,
+                }
+            }
+            BusinessEvent::OutsourcingMaterialIssued { order_id, order_no, order_type, supplier_id, issue_quantity, voucher_no_issue } => {
+                EventPayload::OutsourcingMaterialIssued {
+                    order_id: *order_id,
+                    order_no: order_no.clone(),
+                    order_type: order_type.clone(),
+                    supplier_id: *supplier_id,
+                    issue_quantity: *issue_quantity,
+                    voucher_no_issue: voucher_no_issue.clone(),
+                }
+            }
+            BusinessEvent::OutsourcingProcessingRecorded { order_id, order_no, order_type, supplier_id } => {
+                EventPayload::OutsourcingProcessingRecorded {
+                    order_id: *order_id,
+                    order_no: order_no.clone(),
+                    order_type: order_type.clone(),
+                    supplier_id: *supplier_id,
+                }
+            }
+            BusinessEvent::OutsourcingOrderSettled { order_id, order_no, order_type, supplier_id, processing_fee, freight_fee, normal_loss, abnormal_loss, total_cost, unit_cost, voucher_no_fee } => {
+                EventPayload::OutsourcingOrderSettled {
+                    order_id: *order_id,
+                    order_no: order_no.clone(),
+                    order_type: order_type.clone(),
+                    supplier_id: *supplier_id,
+                    processing_fee: *processing_fee,
+                    freight_fee: *freight_fee,
+                    normal_loss: *normal_loss,
+                    abnormal_loss: *abnormal_loss,
+                    total_cost: *total_cost,
+                    unit_cost: *unit_cost,
+                    voucher_no_fee: voucher_no_fee.clone(),
+                }
+            }
+            BusinessEvent::OutsourcingOrderCompleted { order_id, order_no, order_type, supplier_id, return_quantity, voucher_no_receipt } => {
+                EventPayload::OutsourcingOrderCompleted {
+                    order_id: *order_id,
+                    order_no: order_no.clone(),
+                    order_type: order_type.clone(),
+                    supplier_id: *supplier_id,
+                    return_quantity: *return_quantity,
+                    voucher_no_receipt: voucher_no_receipt.clone(),
+                }
+            }
+            BusinessEvent::BusinessModeChanged { mode_id, mode_code, mode_name, changed_by } => {
+                EventPayload::BusinessModeChanged {
+                    mode_id: *mode_id,
+                    mode_code: mode_code.clone(),
+                    mode_name: mode_name.clone(),
+                    changed_by: *changed_by,
+                }
+            }
+            BusinessEvent::OrderBusinessModeLinked { document_type, document_id, document_no, mode_id, mode_code, mode_name } => {
+                EventPayload::OrderBusinessModeLinked {
+                    document_type: document_type.clone(),
+                    document_id: *document_id,
+                    document_no: document_no.clone(),
+                    mode_id: *mode_id,
+                    mode_code: mode_code.clone(),
+                    mode_name: mode_name.clone(),
+                }
+            }
             _ => unreachable!("from_other_events 仅处理主数据/缺料/染色质量类事件"),
         }
     }
@@ -379,7 +641,21 @@ pub mod payload_serde {
                 | CustomerUpdated { .. }
                 | SupplierUpdated { .. }
                 | DyeBatchCompleted { .. }
-                | QualityInspectionCompleted { .. } => to_other_events(p)?,
+                | QualityInspectionCompleted { .. }
+                | ProcessStepReported { .. }
+                | DyeBatchStatusChanged { .. }
+                | FabricInspectionGraded { .. }
+                | ProductionQuantityReported { .. }
+                | EnergyConsumptionRecorded { .. }
+                | ColorCardIssued { .. }
+                | WageConfirmed { .. }
+                | WagePaid { .. }
+                | OutsourcingMaterialIssued { .. }
+                | OutsourcingProcessingRecorded { .. }
+                | OutsourcingOrderSettled { .. }
+                | OutsourcingOrderCompleted { .. }
+                | BusinessModeChanged { .. }
+                | OrderBusinessModeLinked { .. } => to_other_events(p)?,
             })
         }
     }
@@ -533,8 +809,51 @@ pub mod payload_serde {
             EventPayload::QualityInspectionCompleted { inspection_id, batch_id, product_id, result, inspector_id } => {
                 BusinessEvent::QualityInspectionCompleted { inspection_id, batch_id, product_id, result, inspector_id }
             }
+            EventPayload::ProcessStepReported { step_record_id, flow_card_id, route_code, operator_id, started_at, completed_at, quantity } => {
+                BusinessEvent::ProcessStepReported { step_record_id, flow_card_id, route_code, operator_id, started_at, completed_at, quantity }
+            }
+            EventPayload::DyeBatchStatusChanged { batch_id, batch_no, from_status, to_status, transition_code, operator_id, transition_at } => {
+                BusinessEvent::DyeBatchStatusChanged { batch_id, batch_no, from_status, to_status, transition_code, operator_id, transition_at }
+            }
+            EventPayload::FabricInspectionGraded { inspection_id, batch_id, grade, handling_method, inspector_id } => {
+                BusinessEvent::FabricInspectionGraded { inspection_id, batch_id, grade, handling_method, inspector_id }
+            }
+            EventPayload::ProductionQuantityReported { step_record_id, flow_card_id, operator_id, actual_quantity, qualified_quantity } => {
+                BusinessEvent::ProductionQuantityReported { step_record_id, flow_card_id, operator_id, actual_quantity, qualified_quantity }
+            }
+            EventPayload::EnergyConsumptionRecorded { record_id, workshop, meter_type, consumption, cost, recorded_at } => {
+                BusinessEvent::EnergyConsumptionRecorded { record_id, workshop, meter_type, consumption, cost, recorded_at }
+            }
+            EventPayload::ColorCardIssued { issue_id, color_card_id, customer_id, issued_by, issued_at } => {
+                BusinessEvent::ColorCardIssued { issue_id, color_card_id, customer_id, issued_by, issued_at }
+            }
+            EventPayload::WageConfirmed { wage_record_id, record_no, total_amount, confirmed_by } => {
+                BusinessEvent::WageConfirmed { wage_record_id, record_no, total_amount, confirmed_by }
+            }
+            EventPayload::WagePaid { wage_record_id, record_no, total_amount, paid_by } => {
+                BusinessEvent::WagePaid { wage_record_id, record_no, total_amount, paid_by }
+            }
+            EventPayload::OutsourcingMaterialIssued { order_id, order_no, order_type, supplier_id, issue_quantity, voucher_no_issue } => {
+                BusinessEvent::OutsourcingMaterialIssued { order_id, order_no, order_type, supplier_id, issue_quantity, voucher_no_issue }
+            }
+            EventPayload::OutsourcingProcessingRecorded { order_id, order_no, order_type, supplier_id } => {
+                BusinessEvent::OutsourcingProcessingRecorded { order_id, order_no, order_type, supplier_id }
+            }
+            EventPayload::OutsourcingOrderSettled { order_id, order_no, order_type, supplier_id, processing_fee, freight_fee, normal_loss, abnormal_loss, total_cost, unit_cost, voucher_no_fee } => {
+                BusinessEvent::OutsourcingOrderSettled { order_id, order_no, order_type, supplier_id, processing_fee, freight_fee, normal_loss, abnormal_loss, total_cost, unit_cost, voucher_no_fee }
+            }
+            EventPayload::OutsourcingOrderCompleted { order_id, order_no, order_type, supplier_id, return_quantity, voucher_no_receipt } => {
+                BusinessEvent::OutsourcingOrderCompleted { order_id, order_no, order_type, supplier_id, return_quantity, voucher_no_receipt }
+            }
+            EventPayload::BusinessModeChanged { mode_id, mode_code, mode_name, changed_by } => {
+                BusinessEvent::BusinessModeChanged { mode_id, mode_code, mode_name, changed_by }
+            }
+            EventPayload::OrderBusinessModeLinked { document_type, document_id, document_no, mode_id, mode_code, mode_name } => {
+                BusinessEvent::OrderBusinessModeLinked { document_type, document_id, document_no, mode_id, mode_code, mode_name }
+            }
             _ => return Err("to_other_events 仅处理主数据/缺料/染色质量类 EventPayload".to_string()),
-        })
+        }
+    })
     }
 }
 

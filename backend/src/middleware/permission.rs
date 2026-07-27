@@ -1,7 +1,9 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::middleware::public_routes::is_public_path;
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::role_permission;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::admin_checker;
 use crate::utils::app_state::AppState;
 use crate::utils::path_utils::{is_known_resource_segment, is_module_prefix};
@@ -112,8 +114,60 @@ pub async fn permission_middleware(
         Ok(next.run(request).await)
     } else {
         warn!("权限不足: path={} {}", method, path);
+        // V15 P1 12.5：权限拒绝日志落库（resource_type=permission_denied）
+        // 安全原因：权限拒绝是安全事件，必须落库审计以便追溯越权尝试。
+        record_permission_denial(
+            &state.audit_log,
+            &auth,
+            method,
+            path,
+            &resource_type,
+            resource_id,
+            &action,
+        );
         Err(forbidden_response("权限不足，无法访问该资源"))
     }
+}
+
+/// V15 P1 12.5：异步落库权限拒绝审计事件（best-effort，不阻塞业务响应）。
+/// 字段说明：user_id/path/method/ip/user_agent/required_permission（resource_type:action）
+fn record_permission_denial(
+    audit_log: &Arc<AuditLogService>,
+    auth: &AuthContext,
+    method: &Method,
+    path: &str,
+    resource_type: &str,
+    resource_id: Option<i32>,
+    action: &str,
+) {
+    let required_permission = if let Some(rid) = resource_id {
+        format!("{}:{}:{}", resource_type, action, rid)
+    } else {
+        format!("{}:{}", resource_type, action)
+    };
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Other,
+        severity: Severity::Warn,
+        resource_type: Some("permission_denied".to_string()),
+        resource_id: None,
+        resource_name: Some(format!("权限拒绝: {}", required_permission)),
+        description: Some(format!(
+            "用户 {}（user_id={}，role_id={:?}）尝试访问资源 {} 但权限不足",
+            auth.username, auth.user_id, auth.role_id, required_permission
+        )),
+        request_method: Some(method.as_str().to_string()),
+        request_path: Some(path.to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "required_permission": required_permission,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "action": action,
+        })),
+    };
+    audit_log.clone().record_async(event, None);
 }
 
 /// V15 P0-S21：提取 URL segment3（/api/v1/erp/{segment3}/...），用于白名单校验

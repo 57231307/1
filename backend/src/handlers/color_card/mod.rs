@@ -24,8 +24,8 @@ pub use crud::{
     update_color_card,
 };
 pub use issue::{
-    cancel_issue, get_issue, issue_color_card, list_issues, mark_issue_damaged, mark_issue_lost,
-    return_issue,
+    cancel_issue, export_issue_records, get_issue, issue_color_card, list_issues,
+    mark_issue_damaged, mark_issue_lost, return_issue,
 };
 pub use items::{
     batch_import_items, create_color_item, delete_color_item, list_color_items, update_color_item,

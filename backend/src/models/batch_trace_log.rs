@@ -1,7 +1,8 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 //! 批次追溯日志 Model
 //!
-//! 批次追溯日志模块
+//! 批次追溯日志模块（V15 P1 扩展：dye_lot_no/color_no/product_id 字段 + 全链路 operation_type）
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
@@ -18,7 +19,16 @@ pub struct Model {
     /// 批次号
     pub batch_no: String,
 
-    /// 操作类型：CREATE=创建，TRANSFER=转移，ADJUST=调整
+    /// V15 P1-2: 染色批号（dye_lot_no），面料行业四维标识之一
+    pub dye_lot_no: Option<String>,
+
+    /// V15 P1-2: 色号（color_no），按色号追溯
+    pub color_no: Option<String>,
+
+    /// V15 P1-2: 产品 ID（product_id），按产品追溯
+    pub product_id: Option<i32>,
+
+    /// 操作类型：CREATE/DYE/INSPECT/GRADE/SHIP/REWORK/TRANSFER/ADJUST/MERGE/SPLIT
     pub operation_type: String,
 
     /// 源单据类型
@@ -38,6 +48,12 @@ pub struct Model {
 
     /// 操作后库存
     pub quantity_after: Option<rust_decimal::Decimal>,
+
+    /// V15 P1-2: 流转前状态（from_status）
+    pub from_status: Option<String>,
+
+    /// V15 P1-2: 流转后状态（to_status）
+    pub to_status: Option<String>,
 
     /// 备注
     pub remarks: Option<String>,

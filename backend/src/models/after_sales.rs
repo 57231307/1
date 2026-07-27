@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
@@ -21,11 +18,7 @@ pub struct Model {
     pub closed_at: Option<DateTime<Utc>>,
     pub resolution: Option<String>,
     pub refund_amount: Option<Decimal>,
-    /// V15 P0-B12：关联质量异常 ID（指向 quality_issues.id）
-    ///
-    /// 业务语义：售后工单创建时可选关联已有质量异常，
-    /// 或调用 trigger_quality_investigation 方法自动创建质量异常并回填此字段。
-    /// 用于售后→质量改进闭环：售后客诉触发质量调查，避免同类问题重复发生。
+    /// V15 P0-B12：关联质量异常 ID，售后创建时可选关联或调用 trigger_quality_investigation 自动创建
     pub quality_issue_id: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

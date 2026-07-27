@@ -11,8 +11,12 @@ use axum::{
 };
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 use serde::Deserialize;
+use std::sync::Arc;
 
+use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::{process_wage_rate, wage_record, wage_record_detail};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::wage_service::{
     CalculateWageRequest, CreateWageRateRequest, CreateWageRecordRequest, UpdateWageRateRequest,
     UpdateWageRecordRequest, WageCalculationService, WageRateQuery, WageRateService,
@@ -21,6 +25,7 @@ use crate::services::wage_service::{
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 // ============================================================================
 // 辅助函数
@@ -368,4 +373,212 @@ pub async fn list_wage_details_by_worker(
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         items, total, page, page_size,
     ))))
+}
+
+/// GET /api/v1/erp/wage-records/export - 导出工资记录（xlsx）
+pub async fn export_wage_records(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(query): Query<WageRecordListQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let mut q = wage_record::Entity::find().filter(wage_record::Column::IsDeleted.eq(false));
+    if let Some(v) = &query.record_no {
+        q = q.filter(wage_record::Column::RecordNo.contains(v));
+    }
+    if let Some(v) = &query.workshop {
+        q = q.filter(wage_record::Column::Workshop.eq(v));
+    }
+    if let Some(v) = &query.status {
+        q = q.filter(wage_record::Column::Status.eq(v));
+    }
+    if let Some(v) = query.period_start {
+        q = q.filter(wage_record::Column::PeriodStart.gte(v));
+    }
+    if let Some(v) = query.period_end {
+        q = q.filter(wage_record::Column::PeriodEnd.lte(v));
+    }
+    q = q.order_by_desc(wage_record::Column::CreatedAt);
+
+    let records = q.all(&*state.db).await?;
+
+    let table = build_wage_record_xlsx_table(&records);
+    let row_count = records.len();
+
+    let event = build_wage_record_audit_event(&auth, &query, row_count);
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    build_xlsx_response(&table, "wage_records_export")
+}
+
+/// 构造工资记录导出表格
+fn build_wage_record_xlsx_table(records: &[wage_record::Model]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "工资记录".to_string(),
+        headers: vec![
+            "ID".to_string(),
+            "工资单号".to_string(),
+            "周期开始".to_string(),
+            "周期结束".to_string(),
+            "车间".to_string(),
+            "总人数".to_string(),
+            "总工序记录数".to_string(),
+            "总合格产量".to_string(),
+            "总工时(分钟)".to_string(),
+            "工资总金额".to_string(),
+            "状态".to_string(),
+            "创建时间".to_string(),
+        ],
+        rows: records
+            .iter()
+            .map(|r| {
+                vec![
+                    r.id.to_string(),
+                    r.record_no.clone(),
+                    r.period_start.format("%Y-%m-%d").to_string(),
+                    r.period_end.format("%Y-%m-%d").to_string(),
+                    r.workshop.clone().unwrap_or_default(),
+                    r.total_workers.to_string(),
+                    r.total_step_records.to_string(),
+                    r.total_qualified_quantity.to_string(),
+                    r.total_duration_minutes.to_string(),
+                    r.total_amount.to_string(),
+                    r.status.clone(),
+                    r.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                ]
+            })
+            .collect(),
+    }
+}
+
+/// 构造工资记录导出审计事件
+fn build_wage_record_audit_event(
+    auth: &AuthContext,
+    query: &WageRecordListQuery,
+    row_count: usize,
+) -> AuditEvent {
+    AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("wage_record".to_string()),
+        resource_id: None,
+        resource_name: Some("wage_records_export.xlsx".to_string()),
+        description: Some(format!(
+            "用户 {} 导出工资记录（共 {} 条）",
+            auth.username, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some("/api/v1/erp/wage-records/export".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "total": row_count,
+            "record_no_filter": query.record_no,
+            "workshop_filter": query.workshop,
+            "status_filter": query.status,
+        })),
+    }
+}
+
+/// GET /api/v1/erp/wage-records/:id/details/export - 导出工资明细（xlsx）
+pub async fn export_wage_details(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Query(_q): Query<DetailListQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let items = wage_record_detail::Entity::find()
+        .filter(wage_record_detail::Column::WageRecordId.eq(id))
+        .filter(wage_record_detail::Column::IsDeleted.eq(false))
+        .order_by_desc(wage_record_detail::Column::WageAmount)
+        .all(&*state.db)
+        .await?;
+
+    let table = build_wage_detail_xlsx_table(&items);
+    let row_count = items.len();
+
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("wage_record_detail".to_string()),
+        resource_id: Some(id as i64),
+        resource_name: Some("wage_details_export.xlsx".to_string()),
+        description: Some(format!(
+            "用户 {} 导出工资记录 {} 的明细（共 {} 条）",
+            auth.username, id, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(format!(
+            "/api/v1/erp/wage-records/{}/details/export",
+            id
+        )),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "wage_record_id": id,
+            "total": row_count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    build_xlsx_response(&table, "wage_details_export")
+}
+
+/// 构造工资明细导出表格
+fn build_wage_detail_xlsx_table(items: &[wage_record_detail::Model]) -> XlsxTable {
+    XlsxTable {
+        sheet_name: "工资明细".to_string(),
+        headers: vec![
+            "ID".to_string(),
+            "工资记录ID".to_string(),
+            "工人ID".to_string(),
+            "工人姓名".to_string(),
+            "工序类型".to_string(),
+            "工序编码".to_string(),
+            "缸号".to_string(),
+            "质检等级".to_string(),
+            "实际产量".to_string(),
+            "合格产量".to_string(),
+            "合格率(%)".to_string(),
+            "计件单价".to_string(),
+            "计时单价".to_string(),
+            "等级系数".to_string(),
+            "工时(分钟)".to_string(),
+            "计件工资".to_string(),
+            "计时工资".to_string(),
+            "应得工资".to_string(),
+            "创建时间".to_string(),
+        ],
+        rows: items
+            .iter()
+            .map(|d| {
+                vec![
+                    d.id.to_string(),
+                    d.wage_record_id.to_string(),
+                    d.worker_id.to_string(),
+                    d.worker_name.clone().unwrap_or_default(),
+                    d.process_type.clone().unwrap_or_default(),
+                    d.route_code.clone().unwrap_or_default(),
+                    d.dye_lot_no.clone().unwrap_or_default(),
+                    d.grade.clone(),
+                    d.actual_quantity.to_string(),
+                    d.qualified_quantity.to_string(),
+                    d.qualification_rate.to_string(),
+                    d.piece_price.to_string(),
+                    d.time_price.to_string(),
+                    d.grade_ratio.to_string(),
+                    d.duration_minutes.to_string(),
+                    d.piece_wage.to_string(),
+                    d.time_wage.to_string(),
+                    d.wage_amount.to_string(),
+                    d.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                ]
+            })
+            .collect(),
+    }
 }

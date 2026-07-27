@@ -72,6 +72,8 @@ pub fn routes() -> Router<AppState> {
             "/issues/:record_id/cancel",
             post(color_card::cancel_issue),
         )
+        // V15 P1-08-7：色卡发放记录导出 xlsx
+        .route("/issues/export", get(color_card::export_issue_records))
         // 扫码查询
         .route("/scan/:code", get(color_card::scan_color_code))
         // 按 ID 扫码查询

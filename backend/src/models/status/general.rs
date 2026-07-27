@@ -141,3 +141,28 @@ pub mod failover {
     /// 备节点
     pub const BACKUP: &str = "backup";
 }
+
+/// V15 P1-2: 批次追溯日志操作类型（batch_trace_log.operation_type，大写值）
+/// 覆盖面料行业全链路操作：创建/染色/验布/分级/发货/回修/转移/调整/合缸/分缸
+pub mod batch_trace_operation_type {
+    /// 创建：批次初始创建
+    pub const CREATE: &str = "CREATE";
+    /// 染色：进缸染色操作
+    pub const DYE: &str = "DYE";
+    /// 验布：验布打卷操作
+    pub const INSPECT: &str = "INSPECT";
+    /// 分级：A/B/C 级分级判定
+    pub const GRADE: &str = "GRADE";
+    /// 发货：成品发货出库
+    pub const SHIP: &str = "SHIP";
+    /// 回修：不合格品返工回修
+    pub const REWORK: &str = "REWORK";
+    /// 转移：库存转移
+    pub const TRANSFER: &str = "TRANSFER";
+    /// 调整：库存调整
+    pub const ADJUST: &str = "ADJUST";
+    /// 合缸：多缸号合并
+    pub const MERGE: &str = "MERGE";
+    /// 分缸：单缸号拆分
+    pub const SPLIT: &str = "SPLIT";
+}

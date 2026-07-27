@@ -16,13 +16,16 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
+use serde::Serialize;
 use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_issue::{self, ActiveModel as IssueActive, Entity as IssueEntity};
 use crate::models::customer::Entity as CustomerEntity;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::app_state::AppState;
 
 /// 业务错误
@@ -117,6 +120,8 @@ pub struct ListIssuesQuery {
     pub status: Option<String>,
     pub from_date: Option<chrono::DateTime<Utc>>,
     pub to_date: Option<chrono::DateTime<Utc>>,
+    /// V15 P1 缺陷 10.3-1：按销售订单 ID 过滤（订单驱动发放色卡场景）
+    pub sales_order_id: Option<i64>,
 }
 
 /// 发放参数（封装以避免 clippy::too_many_arguments）
@@ -132,6 +137,42 @@ pub struct IssueParams {
     pub purpose: Option<String>,
     pub remark: Option<String>,
     pub dye_lot_no: Option<String>,
+    /// V15 P1 缺陷 10.3-1：关联销售订单 ID（订单驱动发放色卡场景）
+    pub sales_order_id: Option<i64>,
+}
+
+/// V15 P1 缺陷 10.2-4：客户专属色卡库视图
+///
+/// 查询客户当前持有的色卡（status=issued），用于客户色卡库管理。
+/// 包含色卡基础信息 + 发放记录关键信息（dye_lot_no / issued_at / expected_return_date）。
+#[derive(Debug, Clone, Serialize)]
+pub struct CustomerColorCardView {
+    pub issue_id: i64,
+    pub color_card_id: i64,
+    pub color_card_code: String,
+    pub color_card_name: String,
+    pub customer_id: i64,
+    pub issue_qty: i32,
+    pub issued_at: chrono::DateTime<Utc>,
+    pub expected_return_date: Option<chrono::NaiveDate>,
+    pub dye_lot_no: Option<String>,
+    pub status: String,
+}
+
+/// V15 P1 缺陷 10.3-2：复购同缸号查询结果
+///
+/// 返回客户历史发放过的色卡 + 同缸号当前库存可用量，
+/// 用于支持面料行业"复购同缸号颜色一致"业务。
+#[derive(Debug, Clone, Serialize)]
+pub struct ReorderDyeLotView {
+    pub color_card_id: i64,
+    pub color_card_code: String,
+    pub color_card_name: String,
+    pub dye_lot_no: String,
+    pub last_issued_at: chrono::DateTime<Utc>,
+    pub stock_quantity: i32,
+    pub issued_quantity: i32,
+    pub available_quantity: i32,
 }
 
 /// 发放管理服务
@@ -321,6 +362,7 @@ impl ColorCardIssueService {
             compensation_amount: Set(None),
             returned_by: Set(None),
             dye_lot_no: Set(params.dye_lot_no),
+            sales_order_id: Set(params.sales_order_id),
             created_at: Set(now),
             updated_at: Set(now),
             is_deleted: Set(false),
@@ -597,6 +639,10 @@ impl ColorCardIssueService {
         if let Some(to) = query.to_date {
             cond = cond.add(color_card_issue::Column::IssuedAt.lte(to));
         }
+        // V15 P1 10.3-1：按销售订单 ID 过滤
+        if let Some(sales_order_id) = query.sales_order_id {
+            cond = cond.add(color_card_issue::Column::SalesOrderId.eq(sales_order_id));
+        }
 
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
@@ -609,6 +655,256 @@ impl ColorCardIssueService {
         let total = paginator.num_items().await?;
         let items = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
         Ok((items, total))
+    }
+
+    /// V15 P1 缺陷 10.3-1：按销售订单 ID 查询色卡发放记录
+    ///
+    /// 支持订单驱动发放色卡场景：销售订单详情页查看关联的色卡发放记录。
+    /// 仅返回未软删除的记录，按发放时间倒序排列。
+    pub async fn list_by_sales_order(
+        &self,
+        sales_order_id: i64,
+    ) -> Result<Vec<color_card_issue::Model>, IssueError> {
+        let items = IssueEntity::find()
+            .filter(color_card_issue::Column::IsDeleted.eq(false))
+            .filter(color_card_issue::Column::SalesOrderId.eq(sales_order_id))
+            .order_by_desc(color_card_issue::Column::IssuedAt)
+            .all(&*self.db)
+            .await?;
+        Ok(items)
+    }
+
+    /// V15 P1 缺陷 10.2-4：查询客户专属色卡库
+    ///
+    /// 返回客户当前持有的色卡（status='issued'），用于客户色卡库管理。
+    /// 包含色卡基础信息 + 发放记录关键信息（dye_lot_no / issued_at / expected_return_date）。
+    ///
+    /// 业务场景：
+    /// - 销售查看客户已有的色卡，避免重复发放
+    /// - 客户服务跟进客户色卡使用情况
+    /// - 复购时按缸号匹配历史色卡
+    pub async fn list_customer_color_cards(
+        &self,
+        customer_id: i64,
+    ) -> Result<Vec<CustomerColorCardView>, IssueError> {
+        // 校验客户存在（fail-fast，避免无效查询）
+        let _customer = CustomerEntity::find_by_id(customer_id as i32)
+            .one(&*self.db)
+            .await?
+            .ok_or(IssueError::CustomerNotFound)?;
+
+        // 查询客户当前持有的发放记录（status='issued'，未软删除）
+        let issues = IssueEntity::find()
+            .filter(color_card_issue::Column::CustomerId.eq(customer_id))
+            .filter(color_card_issue::Column::Status.eq(IssueStatus::Issued.as_str()))
+            .filter(color_card_issue::Column::IsDeleted.eq(false))
+            .order_by_desc(color_card_issue::Column::IssuedAt)
+            .all(&*self.db)
+            .await?;
+
+        if issues.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 批量查询关联的色卡信息（避免 N+1 查询）
+        let card_ids: Vec<i64> = issues.iter().map(|i| i.color_card_id).collect();
+        let cards = ColorCardEntity::find()
+            .filter(color_card::Column::Id.is_in(card_ids))
+            .all(&*self.db)
+            .await?;
+        let card_map: std::collections::HashMap<i64, color_card::Model> =
+            cards.into_iter().map(|c| (c.id, c)).collect();
+
+        // 组装视图
+        let views = issues
+            .into_iter()
+            .filter_map(|issue| {
+                let card = card_map.get(&issue.color_card_id)?;
+                Some(CustomerColorCardView {
+                    issue_id: issue.id,
+                    color_card_id: issue.color_card_id,
+                    color_card_code: card.card_no.clone(),
+                    color_card_name: card.card_name.clone(),
+                    customer_id: issue.customer_id,
+                    issue_qty: issue.issue_qty,
+                    issued_at: issue.issued_at,
+                    expected_return_date: issue.expected_return_date,
+                    dye_lot_no: issue.dye_lot_no.clone(),
+                    status: issue.status,
+                })
+            })
+            .collect();
+        Ok(views)
+    }
+
+    /// V15 P1 缺陷 10.3-2：复购同缸号查询
+    ///
+    /// 查询客户历史发放过的色卡 + 同缸号当前库存可用量，
+    /// 用于支持面料行业"复购同缸号颜色一致"业务。
+    ///
+    /// 业务场景：
+    /// - 客户复购时，销售查询历史色卡缸号，确保同缸号颜色一致
+    /// - 库存不足时提示销售重新排产同缸号面料
+    ///
+    /// 返回：按 last_issued_at 倒序的同缸号色卡列表（含库存可用量）
+    pub async fn query_reorder_dye_lot(
+        &self,
+        customer_id: i64,
+    ) -> Result<Vec<ReorderDyeLotView>, IssueError> {
+        // 校验客户存在
+        let _customer = CustomerEntity::find_by_id(customer_id as i32)
+            .one(&*self.db)
+            .await?
+            .ok_or(IssueError::CustomerNotFound)?;
+
+        // 简化实现：查询客户历史 dye_lot_no，再聚合色卡库存
+        // 注：为避免 SeaORM 复杂查询，先查所有带 dye_lot_no 的发放记录，再在内存中按 (color_card_id, dye_lot_no) 去重
+        let issues = IssueEntity::find()
+            .filter(color_card_issue::Column::CustomerId.eq(customer_id))
+            .filter(color_card_issue::Column::IsDeleted.eq(false))
+            .filter(color_card_issue::Column::DyeLotNo.is_not_null())
+            .order_by_desc(color_card_issue::Column::IssuedAt)
+            .all(&*self.db)
+            .await?;
+
+        if issues.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 批量查询色卡库存
+        let card_ids: Vec<i64> = issues.iter().map(|i| i.color_card_id).collect();
+        let cards = ColorCardEntity::find()
+            .filter(color_card::Column::Id.is_in(card_ids))
+            .all(&*self.db)
+            .await?;
+        let card_map: std::collections::HashMap<i64, color_card::Model> =
+            cards.into_iter().map(|c| (c.id, c)).collect();
+
+        // 按 (color_card_id, dye_lot_no) 去重，保留最近一次发放记录
+        let mut seen: std::collections::HashSet<(i64, String)> = std::collections::HashSet::new();
+        let mut views: Vec<ReorderDyeLotView> = Vec::new();
+        for issue in issues {
+            let dye_lot = match &issue.dye_lot_no {
+                Some(d) if !d.is_empty() => d.clone(),
+                _ => continue,
+            };
+            let key = (issue.color_card_id, dye_lot.clone());
+            if !seen.insert(key) {
+                continue; // 已存在，跳过（保留首次=最近一次）
+            }
+            let card = match card_map.get(&issue.color_card_id) {
+                Some(c) => c,
+                None => continue,
+            };
+            let available = card.stock_quantity - card.issued_quantity;
+            views.push(ReorderDyeLotView {
+                color_card_id: card.id,
+                color_card_code: card.card_no.clone(),
+                color_card_name: card.card_name.clone(),
+                dye_lot_no: dye_lot,
+                last_issued_at: issue.issued_at,
+                stock_quantity: card.stock_quantity,
+                issued_quantity: card.issued_quantity,
+                available_quantity: available,
+            });
+        }
+        Ok(views)
+    }
+
+    /// V15 P1 缺陷 10.4-3：记录色卡发放关键操作审计日志
+    ///
+    /// 5 类操作审计：发放 / 归还 / 遗失 / 损坏 / 取消
+    /// 由 handler 在调用业务方法后调用本方法（best-effort，不阻塞业务）。
+    ///
+    /// 参数：
+    /// - `audit_service`：审计日志服务（来自 AppState）
+    /// - `operation`：操作类型（issue / return / lost / damaged / cancel）
+    /// - `operator_id`：操作人 ID
+    /// - `operator_name`：操作人用户名
+    /// - `record`：被操作的发放记录
+    /// - `before`：变更前快照（None 表示新建）
+    pub fn record_issue_audit(
+        &self,
+        audit_service: Arc<AuditLogService>,
+        operation: &str,
+        operator_id: i32,
+        operator_name: &str,
+        record: &color_card_issue::Model,
+        before: Option<serde_json::Value>,
+    ) {
+        let (op_type, severity, desc) = match operation {
+            "issue" => (
+                OperationType::Create,
+                Severity::Info,
+                format!(
+                    "用户 {} 发放色卡（issue_id={}，色卡ID={}，客户ID={}，数量={}）",
+                    operator_name, record.id, record.color_card_id, record.customer_id, record.issue_qty
+                ),
+            ),
+            "return" => (
+                OperationType::Update,
+                Severity::Info,
+                format!(
+                    "用户 {} 归还色卡（issue_id={}，色卡ID={}）",
+                    operator_name, record.id, record.color_card_id
+                ),
+            ),
+            "lost" => (
+                OperationType::Update,
+                Severity::Warn,
+                format!(
+                    "用户 {} 登记色卡遗失（issue_id={}，色卡ID={}，赔付={:?}）",
+                    operator_name,
+                    record.id,
+                    record.color_card_id,
+                    record.compensation_amount
+                ),
+            ),
+            "damaged" => (
+                OperationType::Update,
+                Severity::Warn,
+                format!(
+                    "用户 {} 标记色卡损坏（issue_id={}，色卡ID={}）",
+                    operator_name, record.id, record.color_card_id
+                ),
+            ),
+            "cancel" => (
+                OperationType::Delete,
+                Severity::Warn,
+                format!(
+                    "用户 {} 取消色卡发放（issue_id={}，色卡ID={}）",
+                    operator_name, record.id, record.color_card_id
+                ),
+            ),
+            _ => return, // 未知操作不记录
+        };
+
+        let after_snapshot = serde_json::json!({
+            "issue_id": record.id,
+            "color_card_id": record.color_card_id,
+            "customer_id": record.customer_id,
+            "issue_qty": record.issue_qty,
+            "status": record.status,
+            "dye_lot_no": record.dye_lot_no,
+            "sales_order_id": record.sales_order_id,
+        });
+
+        let event = AuditEvent {
+            user_id: Some(operator_id),
+            username: Some(operator_name.to_string()),
+            operation_type: op_type,
+            severity,
+            resource_type: Some("color_card_issue".to_string()),
+            resource_id: Some(record.id.to_string()),
+            resource_name: Some(format!("色卡发放记录#{}", record.id)),
+            description: Some(desc),
+            request_method: None,
+            request_path: None,
+            before_snapshot: before,
+            after_snapshot: Some(after_snapshot),
+        };
+        // 异步落库，best-effort 不阻塞业务
+        audit_service.record_async(event, None);
     }
 }
 

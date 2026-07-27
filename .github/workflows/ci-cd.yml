@@ -240,14 +240,17 @@ jobs:
               echo "✅ 全部通过"
             else
               DIFF_LINES=$(wc -l < reports/cargo-fmt-diff.txt)
-              echo "⚠️  发现 $DIFF_LINES 行格式差异（渐进式，不阻塞，详见 artifacts）"
+              echo "❌ 发现 $DIFF_LINES 行格式差异（V15 批次 07 P1-4 修复：严格阻塞 CI）"
               echo ""
               echo "修复命令：\`cd backend && cargo fmt --all\`"
+              echo ""
+              echo "提交格式修复后 CI 将通过。"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # 渐进式：fmt 失败不阻塞 CI
-          exit 0
+          # V15 批次 07 P1-4 修复：fmt 失败阻塞 CI（移除渐进式 exit 0）
+          # 修复方法：cd backend && cargo fmt --all
+          exit $EXIT_CODE
 
       - name: 上传报告
         if: always()
@@ -333,14 +336,17 @@ jobs:
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "✅ 全部通过"
             else
-              echo "⚠️  发现格式问题（渐进式，不阻塞，详见 artifacts）"
+              echo "❌ 发现格式问题（V15 批次 07 P1-5 修复：严格阻塞 CI）"
               echo ""
               echo "修复命令：\`cd frontend && npm run format\`"
+              echo ""
+              echo "提交格式修复后 CI 将通过。"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # 渐进式：fmt 失败不阻塞 CI
-          exit 0
+          # V15 批次 07 P1-5 修复：fmt 失败阻塞 CI（移除渐进式 exit 0）
+          # 修复方法：cd frontend && npm run format
+          exit $EXIT_CODE
 
       - name: 上传报告
         if: always()
@@ -843,6 +849,90 @@ jobs:
           echo "✅ 无新增 clippy 警告"
           exit 0
 
+      - name: 运行 clippy 严格模式（V15 批次 07 P1-3 修复：-D warnings 信息性检查）
+        # 信息性 job：不阻塞 CI（continue-on-error: true）
+        # 目的：监控 baseline 缩减进度，当 baseline = 0 时自动切换主 clippy 步骤为严格模式
+        # 修复路径：逐步修复 baseline 中的历史警告，本步骤会展示剩余警告数
+        if: always()
+        working-directory: backend
+        continue-on-error: true
+        run: |
+          mkdir -p reports
+          set +e
+          # V15 批次 07 P1-3：运行严格模式 clippy（-D warnings），所有警告升为 error
+          # 信息性检查，不阻塞 CI；目的是评估切换严格模式的就绪度
+          echo "▶ 运行 clippy 严格模式（cargo clippy --all-targets -- -D warnings）"
+          cargo clippy --all-targets --color=always -- -D warnings \
+            > reports/clippy-strict-output.txt 2>&1
+          STRICT_EXIT=$?
+          set -e
+
+          # 统计严格模式下会失败的警告数（升为 error 的 warning 行数）
+          STRICT_ERRORS=$(grep -cE '^error:' reports/clippy-strict-output.txt || echo 0)
+          echo "严格模式下 error 数: $STRICT_ERRORS"
+
+          # 当 baseline 清零时，提示可切换主 clippy 步骤为严格模式
+          STRICT_READINESS="未就绪"
+          if [ "$STRICT_ERRORS" -eq "0" ] && [ "$STRICT_EXIT" -eq "0" ]; then
+            STRICT_READINESS="✅ 已就绪：可将主 clippy 步骤切换为 -D warnings 严格模式"
+          elif [ "$STRICT_ERRORS" -lt "50" ]; then
+            STRICT_READINESS="⚠️ 接近就绪（剩余 $STRICT_ERRORS 个 error < 50）"
+          else
+            STRICT_READINESS="❌ 未就绪（剩余 $STRICT_ERRORS 个 error，需逐步清理）"
+          fi
+
+          # 生成严格模式就绪度报告
+          {
+            echo "# Clippy 严格模式就绪度报告（V15 批次 07 P1-3）"
+            echo ""
+            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
+            echo "**严格模式退出码**: $STRICT_EXIT  "
+            echo "**严格模式 error 数**: $STRICT_ERRORS  "
+            echo "**就绪状态**: $STRICT_READINESS  "
+            echo ""
+            echo "## 切换路径"
+            echo ""
+            echo "- 当前：baseline 机制（仅新增警告阻塞 CI）"
+            echo "- 目标：`cargo clippy --all-targets -- -D warnings`（所有警告阻塞 CI）"
+            echo "- 切换条件：baseline 警告数 < 50 且严格模式 error 数 < 50"
+            echo ""
+            echo "## 当前 baseline 状态"
+            echo ""
+            if [ -f ".clippy-baseline.txt" ]; then
+              BASELINE_LINES=$(wc -l < .clippy-baseline.txt)
+              echo "- baseline 文件：\`.clippy-baseline.txt\`"
+              echo "- baseline 行数：$BASELINE_LINES"
+            else
+              echo "- baseline 文件：未建立"
+            fi
+            echo ""
+            if [ "$STRICT_ERRORS" -gt "0" ]; then
+              echo "## 严格模式失败详情（前 30 条）"
+              echo ""
+              echo '```'
+              grep -E '^(error|warning):' reports/clippy-strict-output.txt | head -30
+              echo '```'
+              echo ""
+              echo "完整日志见 artifacts: \`backend-clippy-report/clippy-strict-output.txt\`"
+            fi
+          } > reports/clippy-strict-report.md
+
+          # 写入 Step Summary
+          {
+            echo "## 🔍 Clippy 严格模式（-D warnings）就绪度"
+            echo ""
+            echo "- 状态：$STRICT_READINESS"
+            echo "- 严格模式 error 数：$STRICT_ERRORS"
+            echo "- 详细报告：artifacts \`backend-clippy-report/clippy-strict-report.md\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 写入环境变量供后续步骤使用
+          echo "CLIPPY_STRICT_ERRORS=$STRICT_ERRORS" >> "$GITHUB_ENV"
+          echo "CLIPPY_STRICT_READINESS=$STRICT_READINESS" >> "$GITHUB_ENV"
+
+          # 信息性检查，永远 exit 0（不阻塞 CI）
+          exit 0
+
       - name: 提交 baseline 文件（首次运行时）+ 自动刷新 baseline（main 分支）
         if: always()
         run: |
@@ -933,12 +1023,14 @@ jobs:
         working-directory: frontend
         run: npm ci --prefer-offline --no-audit
 
-      - name: 运行 ESLint（渐进式严格化）
+      - name: 运行 ESLint（V15 批次 07 P1-6 修复：严格阻塞 CI）
         working-directory: frontend
         run: |
           mkdir -p reports
           set +e
-          npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --max-warnings 999999 2>&1 \
+          # V15 批次 07 P1-6 修复：移除 --max-warnings 999999（实际禁用警告阻塞）
+          # 现使用 ESLint 默认行为：error 阻塞，warning 默认不阻塞但可由 .eslintrc 配置
+          npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts 2>&1 \
             | tee reports/eslint-output.txt
           EXIT_CODE=$?
           set -e
@@ -966,12 +1058,12 @@ jobs:
             echo "**退出码**: $EXIT_CODE  "
             echo "**错误文件数**: $TOTAL_FILES  "
             echo "**总错误数**: $TOTAL_ERRORS  "
-            echo "**模式**: 渐进式严格化（不阻塞 CI，报告存档供修复）"
+            echo "**模式**: V15 批次 07 P1-6 修复：严格阻塞 CI（ESLint error 必须修复）"
             echo ""
             if [ "$TOTAL_ERRORS" -eq "0" ]; then
               echo "## ✅ 无 ESLint 错误"
             else
-              echo "## ⚠️  发现 $TOTAL_ERRORS 个错误（$TOTAL_FILES 个文件）"
+              echo "## ❌ 发现 $TOTAL_ERRORS 个错误（$TOTAL_FILES 个文件）"
               echo ""
               echo "### 错误类型分布"
               echo ""
@@ -995,10 +1087,10 @@ jobs:
               echo "npm run lint -- --fix # 修复可自动修复的问题"
               echo '```'
               echo ""
-              echo "### 为什么不阻塞"
+              echo "### 严格阻塞说明"
               echo ""
-              echo "本项目历史代码存在 600+ 个 ESLint 错误（多数为 prettier 格式），"
-              echo "采用渐进式严格化：报告存档供后续 PR 批量修复，新代码必须保持 lint 通过。"
+              echo "V15 批次 07 P1-6 修复后，ESLint error 阻塞 CI。"
+              echo "请运行上述修复命令，提交修复后 CI 将通过。"
             fi
           } > reports/eslint-report.md
 
@@ -1008,14 +1100,15 @@ jobs:
             if [ "$TOTAL_ERRORS" -eq "0" ]; then
               echo "✅ 无错误"
             else
-              echo "⚠️  $TOTAL_ERRORS 个错误（渐进式，不阻塞，详见 artifacts）"
+              echo "❌ $TOTAL_ERRORS 个错误（V15 批次 07 P1-6 修复：严格阻塞 CI）"
               echo ""
               echo "修复命令：\`cd frontend && npm run format && npm run lint -- --fix\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # 渐进式：ESLint 失败不阻塞 CI
-          exit 0
+          # V15 批次 07 P1-6 修复：ESLint error 阻塞 CI（移除渐进式 exit 0）
+          # 修复方法：cd frontend && npm run format && npm run lint -- --fix
+          exit $EXIT_CODE
 
       - name: 上传报告
         if: always()
@@ -1345,7 +1438,9 @@ jobs:
         run: |
           mkdir -p reports
           set +e
-          npx vitest run --reporter=default --reporter=junit --outputFile.reporter=junit=reports/vitest-junit.xml 2>&1 \
+          # V15 批次 06 P1-12 修复：添加 --coverage 启用覆盖率收集
+          # 配合 vitest.config.ts 的 thresholds（60% 门槛）与根目录 codecov.yml
+          npx vitest run --coverage --reporter=default --reporter=junit --outputFile.reporter=junit=reports/vitest-junit.xml 2>&1 \
             | tee reports/vitest-output.txt
           EXIT_CODE=$?
           set -e
@@ -1384,6 +1479,16 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           exit $EXIT_CODE
+
+      - name: 上传前端覆盖率到 Codecov（V15 批次 06 P1-12）
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          working-directory: frontend
+          file: frontend/coverage/coverage-final.json
+          fail_ci_if_error: false
+          flags: frontend
+          name: frontend-coverage
 
       - name: 上传报告
         if: always()
@@ -1585,6 +1690,128 @@ jobs:
         with:
           name: dependency-trees
           path: reports/
+          retention-days: 90
+
+# ==============================================================================
+# Job 10.5: 性能基准回归监控（V15 批次 06 P1-10 修复）
+# ==============================================================================
+# 设计原则：
+# - 仅在 main/master 分支与 tag 触发，不阻塞主 CI（informational job）
+# - 运行 cargo bench 收集 4 项关键 service 基准：库存核算 / 凭证生成 / 染整成本归集 / 产量工资
+# - 首次运行建立基线（target/criterion/），后续运行与基线对比，回归 > 10% 写入告警
+# - 报告作为 artifact 上传，供后续 PR 检索
+  ci-perf-bench:
+    name: ⚡ 性能基准回归监控
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: ci-info
+    # V15 批次 06 P1-10：informational job，continue-on-error 避免性能波动阻塞主 CI
+    # 性能回归 > 10% 会写入报告并标注，但不阻塞合并（避免硬件差异导致误报）
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    continue-on-error: true
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 缓存 Rustup
+        uses: actions/cache@v5
+        with:
+          path: ~/.rustup
+          key: perf-rustup-${{ env.RUST_VERSION }}
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: 缓存 Cargo（含 criterion 基线）
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: perf-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            perf-cargo-${{ env.RUST_VERSION }}-
+
+      - name: 运行 cargo bench（V15 批次 06 P1-10）
+        working-directory: backend
+        run: |
+          mkdir -p reports
+          set +e
+          # 运行 4 项关键 service 性能基准（库存核算 / 凭证生成 / 染整成本归集 / 产量工资）
+          # criterion 自动建立基线并对比；首次运行无基线时只采集数据
+          BENCHES=(
+            "inventory_calculation"
+            "voucher_generation"
+            "dye_cost_collection"
+            "wage_calculation"
+          )
+          EXIT_CODE=0
+          for bench in "${BENCHES[@]}"; do
+            echo "运行基准：$bench"
+            if cargo bench --bench "$bench" -- --save-baseline "main" > "reports/bench-${bench}.log" 2>&1; then
+              echo "✅ $bench 完成"
+            else
+              echo "⚠️ $bench 失败（不影响主 CI）"
+              EXIT_CODE=1
+            fi
+          done
+          set -e
+
+          # 汇总报告
+          {
+            echo "# 性能基准回归监控报告"
+            echo ""
+            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
+            echo "**分支**: ${{ github.ref_name }}  "
+            echo "**Commit**: ${{ github.sha }}  "
+            echo ""
+            echo "## 基准项目"
+            echo ""
+            echo "| 基准 | 状态 | 详情 |"
+            echo "|------|------|------|"
+            for bench in "${BENCHES[@]}"; do
+              if [ -f "reports/bench-${bench}.log" ]; then
+                if grep -q "performance has improved\|Performance has regressed\|No change" "reports/bench-${bench}.log" 2>/dev/null; then
+                  REGRESSION=$(grep -c "Performance has regressed" "reports/bench-${bench}.log" || echo 0)
+                  if [ "$REGRESSION" -gt "0" ]; then
+                    echo "| $bench | ⚠️ 检测到回归（$REGRESSION 处） | 见日志 |"
+                  else
+                    echo "| $bench | ✅ 正常 | 见日志 |"
+                  fi
+                else
+                  echo "| $bench | ✅ 基线采集（首次） | 见日志 |"
+                fi
+              else
+                echo "| $bench | ❌ 失败 | 无日志 |"
+              fi
+            done
+            echo ""
+            echo "## 回归阈值"
+            echo ""
+            echo "- 回归 > 10% 时 criterion 自动在日志中标记 `Performance has regressed`"
+            echo "- 本 job 不阻塞主 CI（continue-on-error: true），仅作为监控告警"
+            echo "- 详细日志见 artifacts: \`perf-bench-report\`"
+          } > reports/perf-bench-report.md
+
+          exit 0
+
+      - name: 写入 Step Summary
+        if: always()
+        run: |
+          if [ -f backend/reports/perf-bench-report.md ]; then
+            cat backend/reports/perf-bench-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: 上传性能基准报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-bench-report
+          path: backend/reports/
           retention-days: 90
 
 # ==============================================================================
@@ -2129,12 +2356,13 @@ jobs:
           echo ""
 
           # 严格阻塞的 job 列表（用 GitHub Actions 表达式直接比较）
-          # 注意：以下 job 是渐进式严格化，不阻塞
-          #   - ci-fmt-rust / ci-fmt-fe（格式检查）
-          #   - ci-lint-fe（ESLint）
+          # V15 批次 07 P1-4/5/6 修复：ci-fmt-rust / ci-fmt-fe / ci-lint-fe 改为严格阻塞
           # V15 Batch 485 修订：ci-lint-rust 恢复 baseline 机制（渐进式严格化），
           #   不阻塞整体 CI（仅新增警告阻塞 clippy job 本身）
           declare -A STRICT_RESULTS=(
+            [ci-fmt-rust]="${{ needs.ci-fmt-rust.result }}"
+            [ci-fmt-fe]="${{ needs.ci-fmt-fe.result }}"
+            [ci-lint-fe]="${{ needs.ci-lint-fe.result }}"
             [ci-type-check]="${{ needs.ci-type-check.result }}"
             [ci-test-rust]="${{ needs.ci-test-rust.result }}"
             [ci-test-fe]="${{ needs.ci-test-fe.result }}"

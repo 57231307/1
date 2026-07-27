@@ -7,6 +7,8 @@ pub mod auth;
 pub mod batch_service;
 // P4-1 性能优化 - 进程内 LRU 缓存
 pub mod cache_service;
+// V15 批次 07 P1-7 修复：CacheBackend trait + Mock 实现（单测不依赖真实 Redis/moka）
+pub mod cache_backend;
 // 批次 106 修复：performance_optimizer 模块已删除（死代码样板，能力已被 utils/n_plus_one + cache_service + slow_query 中间件覆盖）
 // P3-4 数据仓库/BI 关键路径 demo
 pub mod bi_analysis_service;
@@ -94,6 +96,10 @@ pub mod product_service;
 // 批次 D10 拆分：product_service.rs facade 的业务实现子模块（sync/crud/color/import_export）
 pub mod product_ops;
 pub mod role_permission_service;
+// V15 P1 12.2：角色关系服务（继承 + 互斥）
+pub mod role_relation_service;
+// V15 P1 12.6：权限委托服务
+pub mod permission_delegation_service;
 pub mod so;
 pub mod user_service;
 pub mod warehouse_service;
@@ -268,6 +274,8 @@ pub mod color_card_crud_service;
 pub mod color_card_item_service;
 // V15 P0-F04：新增 color_card_issue_service（替代 color_card_borrow_service）
 pub mod color_card_issue_service;
+// V15 P1 10.5-1：色卡发放过期检查定时任务（每日 02:00 扫描过期记录）
+pub mod color_card_issue_scheduler;
 pub mod color_card_scan_service;
 // P0-5 面料多色号定价扩展服务
 pub mod color_price_crud_service;

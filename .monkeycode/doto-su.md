@@ -55,6 +55,93 @@
 
 ---
 
+## 📦 V15 P1-C 归档：3 批次 P1 修复（batch-02 剩余 + batch-15 + batch-19）
+
+### 任务概述
+
+- **批次**：P1-C（已完成，待 CI 验证）
+- **PR**：待提交
+- **审计项**：batch-02 类二通用代码质量剩余 P1 + batch-15 类十五业务主体 P1 + batch-19 类二十三组织定制物流规则修复
+- **完成时间**：2026-07-27
+- **涉及文件**：14 个
+
+### 修改内容
+
+#### 1. batch-02 类二通用代码质量（剩余 DbErr→AppError，2 文件）
+
+补齐 P1-B2 未覆盖的 2 处 `sea_orm::DbErr` → `AppError` 转换（利用 `utils/error.rs` 已有的 `From<sea_orm::DbErr>` 实现）：
+
+- `backend/src/services/recycle_executor.rs`：返回类型 `DbErr` → `AppError`
+- `backend/src/services/event_bus_ops/listener.rs`：返回类型 `DbErr` → `AppError`
+
+#### 2. batch-15 类十五业务主体（supplier_evaluation migration，2 文件）
+
+补齐 `models/supplier_evaluation_record.rs` Entity 对应的建表迁移（原仅 `supplier_evaluation_indicators` 指标表有迁移，评估记录表遗漏导致运行时表不存在）：
+
+- `backend/migration/src/m0069_create_supplier_evaluation_records.rs`（新建）：CREATE TABLE `supplier_evaluation_records`，字段与 model 严格一致（id/supplier_id/evaluation_period/indicator_id/score/max_score/weighted_score/evaluator_id/evaluation_date/remark/created_at）+ 2 个 FK（suppliers/indicators）+ 1 个 CHECK（score >= 0）+ 4 个索引（supplier_id/indicator_id/evaluation_period/evaluation_date）
+- `backend/migration/src/lib.rs`：注册 `m0069_create_supplier_evaluation_records` 模块 + Migrator vec 追加
+
+#### 3. batch-19 类二十三组织定制物流（规则 14/4/0 修复，10 文件）
+
+**规则 14 修复**（移除 `#![allow(dead_code)]` 警告抑制，7 文件）：
+
+- `backend/src/models/supplier_evaluation.rs`
+- `backend/src/models/supplier_evaluation_record.rs`
+- `backend/src/models/custom_order.rs`
+- `backend/src/models/after_sales.rs`
+- `backend/src/models/logistics_waybill.rs`
+- `backend/src/models/sales_quotation.rs`
+- `backend/src/models/department.rs`
+
+**规则 4 修复**（多行 `///` 注释精简为 1-2 行，6 文件）：
+
+- `backend/src/services/ar_service.rs`
+- `backend/src/services/event_bus.rs`
+- `backend/src/models/custom_order.rs`
+- `backend/src/models/after_sales.rs`
+- `backend/src/models/logistics_waybill.rs`
+- `backend/src/utils/incoterms.rs`
+
+**规则 0/1/2 修复**（真实实现：Incoterms 2020 补齐 11 种术语，1 文件）：
+
+- `backend/src/utils/incoterms.rs`：原仅 5 种（FOB/CIF/EXW/DDP/DAP），补齐 6 种（FCA/CPT/CIP/DPU/FAS/CFR）覆盖全量 11 种 Incoterms 2020 标准术语
+  - `Incoterms2020` 枚举增加 6 变体（按任意运输方式/海运分类）
+  - `from_code` / `code` / `all` 同步增加 6 种术语支持（双向解析校验）
+  - `includes_insurance`：CIF / CIP / DDP 返回 true
+  - `includes_freight`：EXW / FCA / FAS 返回 false，其他 8 种返回 true
+  - `requires_duty_paid`：仅 DDP 返回 true
+  - 新增 `risk_transfer_point()` 返回风险转移点描述（用于报价单 PDF 显示）
+  - 新增 `is_sea_only()` 判断是否仅海运（FAS/FOB/CFR/CIF）
+  - 单元测试覆盖 11 术语双向解析 + insurance/freight/duty/sea_only 全量校验
+
+**规则 20 修复**（注释与功能一致性）：移除 `department.rs` 中 `TODO(tech-debt)` 注释（与当前移除 dead_code allow 的修复不一致）
+
+### 未覆盖的 batch-19 P1 任务（需编译验证，留待 P1-D）
+
+batch-19 审计报告共 11 项 P1 业务功能缺陷，本批次仅修复了相关文件的规则 14/4 代码质量问题。以下 11 项 P1 为大型业务功能实现，需独立批次 + 编译验证：
+
+1. 23.1 缺陷 1：部门与权限关联未落地（data_permission_service 增加 apply_dept_scope_filter）
+2. 23.1 缺陷 2：一人多部门（新建 user_departments 关联表）
+3. 23.2 缺陷 2：定制订单客户签字确认（custom_order 增加 customer_approved_at/quality_standard_id）
+4. 23.2 缺陷 3：定制订单变更二级审批（custom_order 增加 approval_instance_id + BPM 流程）
+5. 23.3 缺陷 2：售后流程 6 步（增加 accepted/evaluated 状态 + 评价字段）
+6. 23.3 缺陷 3：售后原因分析与 TOP 5 月报（after_sales 增加 reason_category + 月报服务）
+7. 23.4 缺陷 1：运单多订单合并（logistics_waybill 增加 order_type 或关联表）
+8. 23.4 缺陷 2：物流跟踪历史（新建 logistics_tracking_event 表 + 快递 API 集成）
+9. 23.4 缺陷 3：运费核算（logistics_waybill 增加 weight/volume/distance/freight_bearer + calculate_freight）
+10. 23.5 缺陷 2：术语与价格构成集成（sales_quotation 增加 freight_cost/insurance_cost/duty_cost）
+11. 23.5 缺陷 4：术语使用月报（新建 incoterm_monthly_report 视图 + 接口）
+
+### 验证
+
+- **禁止本地编译**：未运行 cargo check/build/test/clippy（按任务约束）
+- **Grep 验证**：7 个 model 文件已无 `#![allow(dead_code)]`；migration lib.rs 已注册 m0069
+- **待 CI 验证**：所有修改待 GitHub Actions CI 验证
+
+---
+
+
+
 ## 📦 V15 Batch 497 归档：D05 Batch 7 useI18n 接入（销售/财务/凭证 10 模块 43 .vue 文件）
 
 ### 任务概述

@@ -318,6 +318,11 @@ pub async fn update_user(
     let old_user = user_service.find_by_id(id).await?;
     let before_snapshot = build_user_before_snapshot(&old_user);
 
+    // V15 P1 12.8：会话固定攻击防护 — 检测 role_id 变更
+    // 安全原因：用户角色变更后，旧 session 仍可能携带 5 分钟权限缓存使用旧权限。
+    // 修复：role_id 变更后立即吊销该用户所有 JWT + 清除 CSRF Token，强制重新登录。
+    let role_changed = req.role_id.is_some() && req.role_id != old_user.role_id;
+
     let user = user_service
         .update_user(
             id,
@@ -329,6 +334,39 @@ pub async fn update_user(
             auth.user_id,
         )
         .await?;
+
+    // V15 P1 12.8：role_id 变更后吊销目标用户所有旧 session（best-effort，失败仅 warn）
+    if role_changed {
+        // 1. 吊销该用户所有历史 JWT（任何 iat < 当前时间戳的 Token 将被拒绝）
+        if let Err(e) = auth_service::revoke_user_jtis(id, "USER_ROLE_CHANGED").await {
+            tracing::warn!(
+                user_id = id,
+                error = %e,
+                "会话固定防护：吊销用户 JWT 失败（best-effort，不阻塞业务）"
+            );
+        } else {
+            tracing::info!(
+                user_id = id,
+                operator = auth.user_id,
+                "会话固定防护：用户角色变更，已吊销所有旧 JWT（强制重新登录）"
+            );
+        }
+        // 2. 清除旧 CSRF Token（强制下次请求重新生成）
+        let rotated = state.cache.clear_old_csrf_token_for_user(id);
+        if rotated {
+            tracing::info!(
+                user_id = id,
+                "会话固定防护：已清除用户旧 CSRF Token（角色变更后强制轮换）"
+            );
+        }
+        // 3. 失效该用户的角色权限缓存（避免 5 分钟 TTL 内使用旧权限放行）
+        crate::middleware::permission::invalidate_permission_cache(
+            old_user.role_id.unwrap_or(0),
+        );
+        if let Some(new_role_id) = req.role_id {
+            crate::middleware::permission::invalidate_permission_cache(new_role_id);
+        }
+    }
 
     // P1 8-1 修复：update_user 补审计日志（operation=Update，before/after_snapshot）
     let event = build_update_audit_event(&auth, id, &before_snapshot, &user);
