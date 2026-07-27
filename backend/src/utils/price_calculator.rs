@@ -35,118 +35,188 @@ pub fn customer_level_discount(level: Option<&str>) -> Decimal {
     }
 }
 
-/// 计算价格（主入口）
-///
-/// 优先级：客户专属价 > 季节调价 > 阶梯价 > 客户等级 > 基础价
+/// 计算价格（优先级：客户专属价 > 季节调价 > 阶梯价 > 客户等级 > 基础价）
 pub async fn calculate_price(
     db: &DatabaseConnection,
     req: &PriceCalcRequest,
 ) -> Result<PriceCalcResult, CalcError> {
-    let calc_date = req.calc_date.unwrap_or_else(|| {
-        chrono::Utc::now().date_naive()
-    });
-
+    let calc_date = req.calc_date.unwrap_or_else(|| chrono::Utc::now().date_naive());
     let mut breakdown: Vec<PriceCalcStep> = Vec::new();
-
-    // 1. 获取基础价
     let base_price = find_base_price(db, req).await?;
     let mut current = base_price;
-    breakdown.push(PriceCalcStep {
-        step: "基础价".to_string(),
-        before: current,
-        after: current,
-        rule: format!("基础价 {:.2} {}", current, req.currency),
-    });
+    breakdown.push(make_base_step(current, &req.currency));
 
     let mut tier_price: Option<Decimal> = None;
     let mut level_price: Option<Decimal> = None;
     let mut season_price: Option<Decimal> = None;
     let mut special_price: Option<Decimal> = None;
     let mut applied_rule = "base".to_string();
-
-    // 2. 阶梯价（按 min_quantity 匹配 + 客户等级叠加）
-    if let Some(tier) = find_tier_price(db, req).await? {
-        let before = current;
+    if let Some((tier, step)) = apply_tier_step(db, req, current).await? {
         current = tier;
         tier_price = Some(tier);
-        breakdown.push(PriceCalcStep {
-            step: "阶梯价".to_string(),
-            before,
-            after: current,
-            rule: format!("数量 {} 命中阶梯价 {:.2} {}", req.quantity, current, req.currency),
-        });
+        breakdown.push(step);
         applied_rule = "tier".to_string();
     }
 
-    // 3. 客户等级折扣
-    if let Some(lvl) = req.customer_level.as_deref() {
-        let before = current;
-        let discount = customer_level_discount(Some(lvl));
-        current = (current * discount).round_dp(6);
-        level_price = Some(current);
-        breakdown.push(PriceCalcStep {
-            step: "客户等级".to_string(),
-            before,
-            after: current,
-            rule: format!("{} 等级 {:.3} 折", lvl, discount),
-        });
+    if let Some((lvl, step)) = apply_level_step(req, current) {
+        current = lvl;
+        level_price = Some(lvl);
+        breakdown.push(step);
         applied_rule = "level".to_string();
     }
 
-    // 4. 季节调价
-    if let Some(season) = req.season.as_deref() {
-        if let Some(adj) = find_seasonal_adjustment(db, req, season, calc_date).await? {
-            let before = current;
-            let after = match adj.adjustment_type.as_str() {
-                "percentage" => {
-                    let factor = Decimal::from(1) + adj.adjustment_value;
-                    (current * factor).round_dp(6)
-                }
-                "fixed" => current + adj.adjustment_value,
-                _ => current,
-            };
-            current = after;
-            season_price = Some(after);
-            breakdown.push(PriceCalcStep {
-                step: "季节调价".to_string(),
-                before,
-                after: current,
-                rule: format!(
-                    "{} 规则 {} {:.4}",
-                    season, adj.adjustment_type, adj.adjustment_value
-                ),
-            });
-            applied_rule = "seasonal".to_string();
-        }
+    if let Some((season, step)) = apply_seasonal_step(db, req, calc_date, current).await? {
+        current = season;
+        season_price = Some(season);
+        breakdown.push(step);
+        applied_rule = "seasonal".to_string();
     }
 
-    // 5. 客户专属价（最高优先级）
-    if let Some(cust_id) = req.customer_id {
-        if let Some(sp) = find_customer_special_price(db, cust_id, req, calc_date).await? {
-            let before = current;
-            current = sp;
-            special_price = Some(sp);
-            breakdown.push(PriceCalcStep {
-                step: "客户专属价".to_string(),
-                before,
-                after: current,
-                rule: format!("客户 {} 专属价 {:.2} {}", cust_id, current, req.currency),
-            });
-            applied_rule = "customer_special".to_string();
-        }
+    if let Some((sp, step)) = apply_customer_special_step(db, req, calc_date, current).await? {
+        current = sp;
+        special_price = Some(sp);
+        breakdown.push(step);
+        applied_rule = "customer_special".to_string();
     }
 
-    Ok(PriceCalcResult {
+    Ok(build_calc_result(
+        base_price,
+        current,
+        tier_price,
+        level_price,
+        season_price,
+        special_price,
+        &req.currency,
+        applied_rule,
+        breakdown,
+    ))
+}
+
+/// 构建价格计算结果
+fn build_calc_result(
+    base_price: Decimal,
+    final_price: Decimal,
+    tier_price: Option<Decimal>,
+    level_price: Option<Decimal>,
+    season_price: Option<Decimal>,
+    special_price: Option<Decimal>,
+    currency: &str,
+    applied_rule: String,
+    breakdown: Vec<PriceCalcStep>,
+) -> PriceCalcResult {
+    PriceCalcResult {
         base_price,
         tier_price,
         level_price,
         season_price,
         special_price,
-        final_price: current,
-        currency: req.currency.clone(),
+        final_price,
+        currency: currency.to_string(),
         applied_rule,
         breakdown,
-    })
+    }
+}
+
+/// 构建基础价步骤
+fn make_base_step(price: Decimal, currency: &str) -> PriceCalcStep {
+    PriceCalcStep {
+        step: "基础价".to_string(),
+        before: price,
+        after: price,
+        rule: format!("基础价 {:.2} {}", price, currency),
+    }
+}
+
+/// 应用阶梯价步骤
+async fn apply_tier_step(
+    db: &DatabaseConnection,
+    req: &PriceCalcRequest,
+    current: Decimal,
+) -> Result<Option<(Decimal, PriceCalcStep)>, CalcError> {
+    let tier = match find_tier_price(db, req).await? {
+        Some(t) => t,
+        None => return Ok(None),
+    };
+    let step = PriceCalcStep {
+        step: "阶梯价".to_string(),
+        before: current,
+        after: tier,
+        rule: format!("数量 {} 命中阶梯价 {:.2} {}", req.quantity, tier, req.currency),
+    };
+    Ok(Some((tier, step)))
+}
+
+/// 应用客户等级折扣步骤
+fn apply_level_step(
+    req: &PriceCalcRequest,
+    current: Decimal,
+) -> Option<(Decimal, PriceCalcStep)> {
+    let lvl = req.customer_level.as_deref()?;
+    let before = current;
+    let discount = customer_level_discount(Some(lvl));
+    let after = (current * discount).round_dp(6);
+    let step = PriceCalcStep {
+        step: "客户等级".to_string(),
+        before,
+        after,
+        rule: format!("{} 等级 {:.3} 折", lvl, discount),
+    };
+    Some((after, step))
+}
+
+/// 应用季节调价步骤
+async fn apply_seasonal_step(
+    db: &DatabaseConnection,
+    req: &PriceCalcRequest,
+    calc_date: NaiveDate,
+    current: Decimal,
+) -> Result<Option<(Decimal, PriceCalcStep)>, CalcError> {
+    let season = match req.season.as_deref() {
+        Some(s) => s,
+        None => return Ok(None),
+    };
+    let adj = match find_seasonal_adjustment(db, req, season, calc_date).await? {
+        Some(a) => a,
+        None => return Ok(None),
+    };
+    let before = current;
+    let after = match adj.adjustment_type.as_str() {
+        "percentage" => (current * (Decimal::from(1) + adj.adjustment_value)).round_dp(6),
+        "fixed" => current + adj.adjustment_value,
+        _ => current,
+    };
+    let step = PriceCalcStep {
+        step: "季节调价".to_string(),
+        before,
+        after,
+        rule: format!("{} 规则 {} {:.4}", season, adj.adjustment_type, adj.adjustment_value),
+    };
+    Ok(Some((after, step)))
+}
+
+/// 应用客户专属价步骤
+async fn apply_customer_special_step(
+    db: &DatabaseConnection,
+    req: &PriceCalcRequest,
+    calc_date: NaiveDate,
+    current: Decimal,
+) -> Result<Option<(Decimal, PriceCalcStep)>, CalcError> {
+    let cust_id = match req.customer_id {
+        Some(id) => id,
+        None => return Ok(None),
+    };
+    let sp = match find_customer_special_price(db, cust_id, req, calc_date).await? {
+        Some(p) => p,
+        None => return Ok(None),
+    };
+    let before = current;
+    let step = PriceCalcStep {
+        step: "客户专属价".to_string(),
+        before,
+        after: sp,
+        rule: format!("客户 {} 专属价 {:.2} {}", cust_id, sp, req.currency),
+    };
+    Ok(Some((sp, step)))
 }
 
 // ----------------------------------------------------------------------

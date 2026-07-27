@@ -17,13 +17,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// C-1 修复：处理器内部的 admin 角色二次校验
-///
-/// 设计原因：`permission_middleware` 仅做资源类型级粗粒度权限（roles:create 等），
-/// 拥有 `roles:read` 权限的低权限用户也能通过粗粒度校验进入处理器，造成权限提升。
-/// 修复方案：所有写处理器顶部调用 `require_admin_role`，强制要求 `role.code == ADMIN_ROLE_CODE`。
-/// 防御深度：与全局 `permission_middleware` 形成"粗粒度 + 细粒度 admin 校验"双重防线。
-/// 批次 24 v6 P1-1 修复：错误提示与注释改用 ADMIN_ROLE_CODE 常量，避免硬编码 "admin"。
+/// C-1 修复：处理器内部 admin 角色二次校验（防 `roles:read` 低权用户提权进入写处理器）。
+/// 与全局 `permission_middleware` 形成"粗粒度 + 细粒度 admin 校验"双重防线（批次 24 v6 P1-1）。
 async fn require_admin_role(
     state: &AppState,
     auth: &AuthContext,
@@ -292,13 +287,25 @@ pub async fn update_role(
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
-    // 批次 103 P2-3 修复：角色更新后清理 admin 缓存
-    // 原因：update_role 可能修改 role.code（如把普通角色改为 admin，或反向），
-    // 若不清理缓存，is_admin_role 在 TTL 内仍返回旧判定，导致权限校验错乱。
+    // 批次 103 P2-3 修复：角色更新后清理 admin 缓存，避免 is_admin_role 在 TTL 内返回旧判定
     clear_admin_role_cache(Some(id));
 
     // P1 8-3 修复：update_role 补审计日志
-    let event = AuditEvent {
+    let event = build_role_audit_event(&auth, id, &before_snapshot, &role);
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
+
+    Ok(Json(ApiResponse::success(build_role_detail_response(role))))
+}
+
+/// 构造角色更新审计事件
+fn build_role_audit_event(
+    auth: &AuthContext,
+    id: i32,
+    before_snapshot: &serde_json::Value,
+    role: &crate::services::role_permission_service::RoleDetail,
+) -> AuditEvent {
+    AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
         operation_type: OperationType::Update,
@@ -312,7 +319,7 @@ pub async fn update_role(
         )),
         request_method: Some("PUT".to_string()),
         request_path: Some(format!("/api/v1/erp/roles/{}", id)),
-        before_snapshot: Some(before_snapshot),
+        before_snapshot: Some(before_snapshot.clone()),
         after_snapshot: Some(serde_json::json!({
             "role_id": role.id,
             "name": role.name,
@@ -320,10 +327,13 @@ pub async fn update_role(
             "description": role.description,
             "is_system": role.is_system,
         })),
-    };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, audit_ctx.map(|e| e.0));
+    }
+}
 
+/// 构造角色详情响应
+fn build_role_detail_response(
+    role: crate::services::role_permission_service::RoleDetail,
+) -> RoleDetailResponse {
     let permissions = role.permission_list.map(|perms| {
         perms
             .into_iter()
@@ -337,7 +347,7 @@ pub async fn update_role(
             .collect()
     });
 
-    Ok(Json(ApiResponse::success(RoleDetailResponse {
+    RoleDetailResponse {
         id: role.id,
         name: role.name,
         code: role.code,
@@ -346,7 +356,7 @@ pub async fn update_role(
         created_at: role.created_at,
         updated_at: role.updated_at,
         permissions,
-    })))
+    }
 }
 
 /// 删除角色
@@ -549,10 +559,8 @@ pub async fn get_role_permissions(
     Ok(Json(ApiResponse::success(perm_responses)))
 }
 
-/// 获取所有权限列表（用于前端权限选择器）
-///
-/// P2 2-8 修复：从 role_permission 表 distinct 查询权限列表，
-/// 替代原 24 项硬编码权限，确保与数据库实际配置、middleware 动态提取保持一致。
+/// 获取所有权限列表（用于前端权限选择器，P2 2-8 修复）。
+/// 从 role_permission 表 distinct 查询，替代原 24 项硬编码，与 DB/middleware 保持一致。
 pub async fn list_permissions(
     State(state): State<AppState>,
     _auth: AuthContext,

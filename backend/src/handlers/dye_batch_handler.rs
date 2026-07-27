@@ -377,7 +377,28 @@ pub async fn export_dye_batches(
     Query(query): Query<DyeBatchListQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));
+    q = apply_dye_batch_filters(q, &query);
+    q = q.order_by_desc(dye_batch::Column::CreatedAt);
 
+    let batches = q.all(&*state.db).await?;
+
+    let table = build_dye_batch_xlsx_table(&batches);
+    let row_count = batches.len();
+
+    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = build_dye_batch_audit_event(&auth, &query, row_count);
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
+    build_xlsx_response(&table, "dye_batches_export")
+}
+
+/// 应用缸号列表查询过滤条件
+fn apply_dye_batch_filters(
+    mut q: sea_orm::Select<dye_batch::Entity>,
+    query: &DyeBatchListQuery,
+) -> sea_orm::Select<dye_batch::Entity> {
     if let Some(batch_no) = &query.batch_no {
         q = q.filter(dye_batch::Column::BatchNo.contains(batch_no));
     }
@@ -390,12 +411,12 @@ pub async fn export_dye_batches(
     if let Some(status) = &query.status {
         q = q.filter(dye_batch::Column::Status.eq(status));
     }
+    q
+}
 
-    q = q.order_by_desc(dye_batch::Column::CreatedAt);
-
-    let batches = q.all(&*state.db).await?;
-
-    let table = XlsxTable {
+/// 构造缸号列表导出表格
+fn build_dye_batch_xlsx_table(batches: &[dye_batch::Model]) -> XlsxTable {
+    XlsxTable {
         sheet_name: "缸号列表".to_string(),
         headers: vec![
             "ID".to_string(),
@@ -426,12 +447,16 @@ pub async fn export_dye_batches(
                 ]
             })
             .collect(),
-    };
+    }
+}
 
-    let row_count = batches.len();
-
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
-    let event = AuditEvent {
+/// 构造缸号导出审计事件
+fn build_dye_batch_audit_event(
+    auth: &AuthContext,
+    query: &DyeBatchListQuery,
+    row_count: usize,
+) -> AuditEvent {
+    AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
         operation_type: OperationType::Export,
@@ -453,10 +478,5 @@ pub async fn export_dye_batches(
             "color_no_filter": query.color_no,
             "status_filter": query.status,
         })),
-    };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, None);
-
-    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
-    build_xlsx_response(&table, "dye_batches_export")
+    }
 }

@@ -301,12 +301,11 @@ pub async fn update_user(
     require_admin_role(&state, &auth).await?;
     req.validate()?;
 
-    // H-1 修复：禁止通过 update_user 提权到 admin 角色
-    // 即使调用者是 admin（仅 admin 可调用此处理器），仍禁止把用户改成 admin
-    // 除非调用者本身就是 admin。is_admin_role 已通过 require_admin_role 验证。
-    // 进一步防御：如果 req.role_id 是 admin 角色 ID 且调用者非 admin，禁止。
+    // H-1 修复：禁止通过 update_user 提权到 admin 角色（调用者非 admin 时禁止改 admin）
     if let Some(new_role_id) = req.role_id {
-        if is_admin_role(&state.db, new_role_id).await && !is_admin_role(&state.db, auth.role_id.unwrap_or(-1)).await {
+        if is_admin_role(&state.db, new_role_id).await
+            && !is_admin_role(&state.db, auth.role_id.unwrap_or(-1)).await
+        {
             return Err(AppError::permission_denied(
                 "禁止将用户角色改为 admin 角色",
             ));
@@ -316,18 +315,8 @@ pub async fn update_user(
     let user_service = UserService::new(state.db.clone());
 
     // P1 8-1 修复：更新前查询旧用户信息作为 before_snapshot
-    // 修复背景：原 update_user 完全无审计日志，role_id 变更（权限提升/降级）、
-    // status 变更（启用/禁用）未审计，无法追溯用户权限变更历史。
     let old_user = user_service.find_by_id(id).await?;
-    let before_snapshot = serde_json::json!({
-        "user_id": old_user.id,
-        "username": old_user.username,
-        "email": old_user.email,
-        "phone": old_user.phone,
-        "role_id": old_user.role_id,
-        "department_id": old_user.department_id,
-        "is_active": old_user.is_active,
-    });
+    let before_snapshot = build_user_before_snapshot(&old_user);
 
     let user = user_service
         .update_user(
@@ -342,7 +331,34 @@ pub async fn update_user(
         .await?;
 
     // P1 8-1 修复：update_user 补审计日志（operation=Update，before/after_snapshot）
-    let event = AuditEvent {
+    let event = build_update_audit_event(&auth, id, &before_snapshot, &user);
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
+
+    Ok(Json(ApiResponse::success(user.into())))
+}
+
+/// 构造用户更新前的快照
+fn build_user_before_snapshot(old_user: &user::Model) -> serde_json::Value {
+    serde_json::json!({
+        "user_id": old_user.id,
+        "username": old_user.username,
+        "email": old_user.email,
+        "phone": old_user.phone,
+        "role_id": old_user.role_id,
+        "department_id": old_user.department_id,
+        "is_active": old_user.is_active,
+    })
+}
+
+/// 构造用户更新审计事件
+fn build_update_audit_event(
+    auth: &AuthContext,
+    id: i32,
+    before_snapshot: &serde_json::Value,
+    user: &user::Model,
+) -> AuditEvent {
+    AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
         operation_type: OperationType::Update,
@@ -356,7 +372,7 @@ pub async fn update_user(
         )),
         request_method: Some("PUT".to_string()),
         request_path: Some(format!("/api/v1/erp/users/{}", id)),
-        before_snapshot: Some(before_snapshot),
+        before_snapshot: Some(before_snapshot.clone()),
         after_snapshot: Some(serde_json::json!({
             "user_id": user.id,
             "username": user.username,
@@ -366,11 +382,7 @@ pub async fn update_user(
             "department_id": user.department_id,
             "is_active": user.is_active,
         })),
-    };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, audit_ctx.map(|e| e.0));
-
-    Ok(Json(ApiResponse::success(user.into())))
+    }
 }
 
 /// 删除用户（软删除）

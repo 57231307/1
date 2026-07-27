@@ -102,7 +102,24 @@ pub async fn inventory_optimization(
 
     let suggestions = service.optimize_inventory(product_id).await?;
 
-    let high_count = suggestions
+    let (low_count, overstock_count) = count_inventory_alerts(&suggestions);
+    let product_name_map = build_product_name_map(&db, &suggestions).await;
+    let items = build_inventory_suggestions(suggestions, &product_name_map);
+
+    let summary = format!(
+        "检测到 {} 个产品需要补货，{} 个产品库存积压",
+        low_count, overstock_count
+    );
+
+    let response = InventoryOptimizationResponse { summary, items };
+    Ok(Json(ApiResponse::success(response)))
+}
+
+/// 统计库存预警数量（需补货/积压）
+fn count_inventory_alerts(
+    suggestions: &[crate::services::ai::InventorySuggestion],
+) -> (usize, usize) {
+    let low_count = suggestions
         .iter()
         .filter(|s| {
             let current = s.current_stock.to_f64().unwrap_or(0.0);
@@ -117,25 +134,36 @@ pub async fn inventory_optimization(
             current > suggested * 2.0
         })
         .count();
+    (low_count, overstock_count)
+}
 
-    let mut items: Vec<InventorySuggestion> = Vec::new();
-
+/// 批量查询产品名称映射（避免 N+1 查询）
+async fn build_product_name_map(
+    db: &sea_orm::DatabaseConnection,
+    suggestions: &[crate::services::ai::InventorySuggestion],
+) -> std::collections::HashMap<i32, String> {
     // v16 批次 44 修复：循环外批量查询所有产品名称，避免循环内逐个查询（N+1）
     let product_ids: Vec<i32> = suggestions.iter().map(|s| s.product_id).collect();
-    let product_name_map: std::collections::HashMap<i32, String> = if product_ids.is_empty() {
-        std::collections::HashMap::new()
-    } else {
-        use sea_orm::{ColumnTrait, QueryFilter};
-        ProductEntity::find()
-            .filter(crate::models::product::Column::Id.is_in(product_ids))
-            .all(&*db)
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(|p| (p.id, p.name))
-            .collect()
-    };
+    if product_ids.is_empty() {
+        return std::collections::HashMap::new();
+    }
+    use sea_orm::{ColumnTrait, QueryFilter};
+    ProductEntity::find()
+        .filter(crate::models::product::Column::Id.is_in(product_ids))
+        .all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| (p.id, p.name))
+        .collect()
+}
 
+/// 构建库存优化建议项列表（过滤正常库存，分级优先级）
+fn build_inventory_suggestions(
+    suggestions: Vec<crate::services::ai::InventorySuggestion>,
+    product_name_map: &std::collections::HashMap<i32, String>,
+) -> Vec<InventorySuggestion> {
+    let mut items = Vec::new();
     for s in suggestions {
         let current = s.current_stock.to_f64().unwrap_or(0.0);
         let reorder_point = s.reorder_point.to_f64().unwrap_or(0.0);
@@ -171,14 +199,7 @@ pub async fn inventory_optimization(
             priority: priority.to_string(),
         });
     }
-
-    let summary = format!(
-        "检测到 {} 个产品需要补货，{} 个产品库存积压",
-        high_count, overstock_count
-    );
-
-    let response = InventoryOptimizationResponse { summary, items };
-    Ok(Json(ApiResponse::success(response)))
+    items
 }
 
 // ============================================================================

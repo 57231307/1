@@ -176,10 +176,7 @@ pub fn sales_analysis() -> Router<AppState> {
         )
 }
 
-/// CRM 客户增强路由
-///
-/// 仅暴露 CRM 增强版特有子路径（`/customers/enhanced`、`/customers/:id/tags`、
-/// `/customers/:id/contacts`），基础 CRUD 由 [`customers`] 提供。
+/// CRM 客户增强路由（/customers/enhanced、/:id/tags、/:id/contacts，基础 CRUD 由 customers 提供）
 pub fn crm_customers() -> Router<AppState> {
     Router::new()
         .route(
@@ -204,10 +201,8 @@ pub fn crm_customers() -> Router<AppState> {
         )
 }
 
-/// CRM 标签路由（path 前缀 /crm/tags）
-///
-/// 批次 122 v8 复审 P1 修复：原路径 `/crm-tags` 与前端调用 `/crm/tags` 不一致导致 404。
-/// 现统一为 `/crm/tags` 和 `/crm/tags/:id`，与前端 crm-enhanced.ts 调用路径匹配。
+/// CRM 标签路由（/crm/tags，与前端 crm-enhanced.ts 调用路径匹配）
+/// 批次 122 v8 复审 P1 修复：原 `/crm-tags` 与前端不一致导致 404，已统一
 pub fn crm_tags() -> Router<AppState> {
     Router::new()
         .route(
@@ -240,13 +235,8 @@ pub fn crm_pool() -> Router<AppState> {
         )
 }
 
-/// V15 P0-S08 修复：客户转移审批路由（path 前缀 /transfer-approvals）
-///
-/// 提供客户转移的多级审批流 HTTP 接口：
-/// - 销售员申请转移 → 创建审批单（pending）
-/// - 销售经理审批（普通客户通过即完成转移）
-/// - 总监审批（大客户需总监二次审批）
-/// - 申请人可取消未完成的审批单
+/// V15 P0-S08 修复：客户转移审批路由（/transfer-approvals，多级审批流）
+/// 流程：申请→经理审批（普通客户完成）/→总监审批（大客户二次）→可取消
 pub fn crm_transfer_approvals() -> Router<AppState> {
     Router::new()
         .route(
@@ -326,12 +316,8 @@ pub fn crm_recycle_rules() -> Router<AppState> {
         )
 }
 
-/// CRM 业务路由（线索/商机/客户 360/跟进/RFM）
-///
-/// 所有 path 已加 `/leads`、`/opportunities` 等子前缀。
-/// 客户相关 summary/360/follow-ups/rfm 等增强接口已放在 `/customers/:id/...`
-/// 路径下，由本函数与 [`customers`]、[`crm_customers`] 联合提供，避免重复。
-pub fn crm_business() -> Router<AppState> {
+/// CRM 线索路由（/leads，含 CRUD/导入导出/状态流转/转化/关联查询）
+fn crm_lead_routes() -> Router<AppState> {
     Router::new()
         .route(
             "/leads",
@@ -366,6 +352,11 @@ pub fn crm_business() -> Router<AppState> {
             "/leads/:id/relations",
             get(crate::handlers::crm_handler::get_lead_relation),
         )
+}
+
+/// CRM 商机路由（/opportunities，含 CRUD/导出/转化/关单）
+fn crm_opportunity_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/opportunities",
             post(crate::handlers::crm_handler::create_opportunity)
@@ -391,6 +382,11 @@ pub fn crm_business() -> Router<AppState> {
             "/opportunities/:id/close-lost",
             post(crate::handlers::crm_handler::close_opportunity_as_lost),
         )
+}
+
+/// CRM 客户增强路由（/customers/:id/{summary,360,follow-ups,rfm} + /rfm/distribution）
+fn crm_customer_enhancement_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/customers/:id/summary",
             get(crate::handlers::crm_handler::get_customer_relation_summary),
@@ -412,13 +408,19 @@ pub fn crm_business() -> Router<AppState> {
             "/rfm/distribution",
             get(crate::handlers::crm_handler::get_rfm_distribution),
         )
-    // `/customers/enhanced/:id` 的 CRUD 已经在 [`crm_customers`] 中提供，
-    // 这里不再重复注册，避免 path+method 冲突。
 }
 
-/// CRM 域统一入口
-///
-/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
+/// CRM 业务路由（合并线索/商机/客户增强，子前缀互不重叠）
+pub fn crm_business() -> Router<AppState> {
+    // `/customers/enhanced/:id` 的 CRUD 已经在 [`crm_customers`] 中提供，
+    // 这里不再重复注册，避免 path+method 冲突。
+    Router::new()
+        .merge(crm_lead_routes())
+        .merge(crm_opportunity_routes())
+        .merge(crm_customer_enhancement_routes())
+}
+
+/// CRM 域统一入口（子 router path 已加独立前缀，merge 安全）
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(customers())

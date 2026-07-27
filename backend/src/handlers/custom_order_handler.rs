@@ -263,50 +263,71 @@ pub async fn get_custom_order(
         updated_at: order.updated_at,
         // 批次 88 PH-1 占位符实现：透传 notes 字段
         notes: order.notes,
-        process_nodes: nodes
-            .into_iter()
-            .map(|n| ProcessNodeInfo {
-                id: n.id,
-                node_type: n.node_type,
-                node_name: n.node_name,
-                sequence: n.sequence,
-                status: n.status,
-                planned_start_date: n.planned_start_date,
-                planned_end_date: n.planned_end_date,
-                actual_start_date: n.actual_start_date,
-                actual_end_date: n.actual_end_date,
-                operator_id: n.operator_id,
-                notes: n.notes,
-            })
-            .collect(),
-        quality_issues: issues
-            .into_iter()
-            .map(|i| QualityIssueInfo {
-                id: i.id,
-                issue_type: i.issue_type,
-                severity: i.severity,
-                description: i.description,
-                discovered_at: i.discovered_at,
-                resolved_at: i.resolved_at,
-                resolution: i.resolution,
-                status: i.status,
-            })
-            .collect(),
-        after_sales: after_sales_list
-            .into_iter()
-            .map(|a| AfterSalesInfo {
-                id: a.id,
-                issue_type: a.issue_type,
-                description: a.description,
-                status: a.status,
-                opened_at: a.opened_at,
-                closed_at: a.closed_at,
-                resolution: a.resolution,
-                refund_amount: a.refund_amount,
-                quality_issue_id: a.quality_issue_id,
-            })
-            .collect(),
+        process_nodes: map_process_nodes(nodes),
+        quality_issues: map_quality_issues(issues),
+        after_sales: map_after_sales(after_sales_list),
     })))
+}
+
+/// 转换流程节点列表为响应 DTO
+fn map_process_nodes(
+    nodes: Vec<crate::models::process_node::Model>,
+) -> Vec<ProcessNodeInfo> {
+    nodes
+        .into_iter()
+        .map(|n| ProcessNodeInfo {
+            id: n.id,
+            node_type: n.node_type,
+            node_name: n.node_name,
+            sequence: n.sequence,
+            status: n.status,
+            planned_start_date: n.planned_start_date,
+            planned_end_date: n.planned_end_date,
+            actual_start_date: n.actual_start_date,
+            actual_end_date: n.actual_end_date,
+            operator_id: n.operator_id,
+            notes: n.notes,
+        })
+        .collect()
+}
+
+/// 转换质量问题列表为响应 DTO
+fn map_quality_issues(
+    issues: Vec<crate::models::quality_issue::Model>,
+) -> Vec<QualityIssueInfo> {
+    issues
+        .into_iter()
+        .map(|i| QualityIssueInfo {
+            id: i.id,
+            issue_type: i.issue_type,
+            severity: i.severity,
+            description: i.description,
+            discovered_at: i.discovered_at,
+            resolved_at: i.resolved_at,
+            resolution: i.resolution,
+            status: i.status,
+        })
+        .collect()
+}
+
+/// 转换售后记录列表为响应 DTO
+fn map_after_sales(
+    list: Vec<crate::models::after_sales::Model>,
+) -> Vec<AfterSalesInfo> {
+    list
+        .into_iter()
+        .map(|a| AfterSalesInfo {
+            id: a.id,
+            issue_type: a.issue_type,
+            description: a.description,
+            status: a.status,
+            opened_at: a.opened_at,
+            closed_at: a.closed_at,
+            resolution: a.resolution,
+            refund_amount: a.refund_amount,
+            quality_issue_id: a.quality_issue_id,
+        })
+        .collect()
 }
 
 /// PUT /api/v1/erp/custom-orders/:id - 更新（仅草稿）

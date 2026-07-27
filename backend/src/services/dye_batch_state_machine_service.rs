@@ -149,161 +149,49 @@ pub fn is_terminal_status(status: &str) -> bool {
 }
 
 /// 内置流转规则表（与 SQL 预置数据 dye_batch_state_rule 一致）
-///
-/// 返回 (from_status, to_status, transition_code) 三元组列表
 fn builtin_transition_rules() -> Vec<(&'static str, &'static str, &'static str)> {
+    use dye_batch_lifecycle_status::*;
+    use dye_batch_transition_code::*;
     vec![
         // pending_schedule → scheduled / cancelled
-        (
-            dye_batch_lifecycle_status::PENDING_SCHEDULE,
-            dye_batch_lifecycle_status::SCHEDULED,
-            dye_batch_transition_code::SCHEDULE,
-        ),
-        (
-            dye_batch_lifecycle_status::PENDING_SCHEDULE,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
+        (PENDING_SCHEDULE, SCHEDULED, SCHEDULE),
+        (PENDING_SCHEDULE, CANCELLED, CANCEL),
         // scheduled → preparing / cancelled / terminated
-        (
-            dye_batch_lifecycle_status::SCHEDULED,
-            dye_batch_lifecycle_status::PREPARING,
-            dye_batch_transition_code::PREPARE,
-        ),
-        (
-            dye_batch_lifecycle_status::SCHEDULED,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        (
-            dye_batch_lifecycle_status::SCHEDULED,
-            dye_batch_lifecycle_status::TERMINATED,
-            dye_batch_transition_code::TERMINATE,
-        ),
+        (SCHEDULED, PREPARING, PREPARE),
+        (SCHEDULED, CANCELLED, CANCEL),
+        (SCHEDULED, TERMINATED, TERMINATE),
         // preparing → dyeing / cancelled / terminated
-        (
-            dye_batch_lifecycle_status::PREPARING,
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_transition_code::START_DYEING,
-        ),
-        (
-            dye_batch_lifecycle_status::PREPARING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        (
-            dye_batch_lifecycle_status::PREPARING,
-            dye_batch_lifecycle_status::TERMINATED,
-            dye_batch_transition_code::TERMINATE,
-        ),
+        (PREPARING, DYEING, START_DYEING),
+        (PREPARING, CANCELLED, CANCEL),
+        (PREPARING, TERMINATED, TERMINATE),
         // dyeing → washing / cancelled / terminated
-        (
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_lifecycle_status::WASHING,
-            dye_batch_transition_code::WASH,
-        ),
-        (
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        (
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_lifecycle_status::TERMINATED,
-            dye_batch_transition_code::TERMINATE,
-        ),
+        (DYEING, WASHING, WASH),
+        (DYEING, CANCELLED, CANCEL),
+        (DYEING, TERMINATED, TERMINATE),
         // washing → fixing / cancelled
-        (
-            dye_batch_lifecycle_status::WASHING,
-            dye_batch_lifecycle_status::FIXING,
-            dye_batch_transition_code::FIX,
-        ),
-        (
-            dye_batch_lifecycle_status::WASHING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
+        (WASHING, FIXING, FIX),
+        (WASHING, CANCELLED, CANCEL),
         // fixing → dehydrating / cancelled
-        (
-            dye_batch_lifecycle_status::FIXING,
-            dye_batch_lifecycle_status::DEHYDRATING,
-            dye_batch_transition_code::DEHYDRATE,
-        ),
-        (
-            dye_batch_lifecycle_status::FIXING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
+        (FIXING, DEHYDRATING, DEHYDRATE),
+        (FIXING, CANCELLED, CANCEL),
         // dehydrating → drying / cancelled
-        (
-            dye_batch_lifecycle_status::DEHYDRATING,
-            dye_batch_lifecycle_status::DRYING,
-            dye_batch_transition_code::DRY,
-        ),
-        (
-            dye_batch_lifecycle_status::DEHYDRATING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
+        (DEHYDRATING, DRYING, DRY),
+        (DEHYDRATING, CANCELLED, CANCEL),
         // drying → inspecting / cancelled
-        (
-            dye_batch_lifecycle_status::DRYING,
-            dye_batch_lifecycle_status::INSPECTING,
-            dye_batch_transition_code::INSPECT,
-        ),
-        (
-            dye_batch_lifecycle_status::DRYING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
+        (DRYING, INSPECTING, INSPECT),
+        (DRYING, CANCELLED, CANCEL),
         // inspecting → stored / rework / cancelled
-        (
-            dye_batch_lifecycle_status::INSPECTING,
-            dye_batch_lifecycle_status::STORED,
-            dye_batch_transition_code::STORE,
-        ),
-        (
-            dye_batch_lifecycle_status::INSPECTING,
-            dye_batch_lifecycle_status::REWORK,
-            dye_batch_transition_code::REWORK,
-        ),
-        (
-            dye_batch_lifecycle_status::INSPECTING,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
+        (INSPECTING, STORED, STORE),
+        (INSPECTING, REWORK, REWORK),
+        (INSPECTING, CANCELLED, CANCEL),
         // stored → shipped / rework / cancelled
-        (
-            dye_batch_lifecycle_status::STORED,
-            dye_batch_lifecycle_status::SHIPPED,
-            dye_batch_transition_code::SHIP,
-        ),
-        (
-            dye_batch_lifecycle_status::STORED,
-            dye_batch_lifecycle_status::REWORK,
-            dye_batch_transition_code::REWORK,
-        ),
-        (
-            dye_batch_lifecycle_status::STORED,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
+        (STORED, SHIPPED, SHIP),
+        (STORED, REWORK, REWORK),
+        (STORED, CANCELLED, CANCEL),
         // rework → dyeing / cancelled / terminated
-        (
-            dye_batch_lifecycle_status::REWORK,
-            dye_batch_lifecycle_status::DYEING,
-            dye_batch_transition_code::START_DYEING,
-        ),
-        (
-            dye_batch_lifecycle_status::REWORK,
-            dye_batch_lifecycle_status::CANCELLED,
-            dye_batch_transition_code::CANCEL,
-        ),
-        (
-            dye_batch_lifecycle_status::REWORK,
-            dye_batch_lifecycle_status::TERMINATED,
-            dye_batch_transition_code::TERMINATE,
-        ),
+        (REWORK, DYEING, START_DYEING),
+        (REWORK, CANCELLED, CANCEL),
+        (REWORK, TERMINATED, TERMINATE),
     ]
 }
 

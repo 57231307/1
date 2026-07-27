@@ -263,8 +263,7 @@ pub async fn transfer_batch(
     _auth: AuthContext,
     Json(req): Json<TransferBatchRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    use crate::models::inventory_stock;
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+    use sea_orm::TransactionTrait;
 
     // 开启事务
     let txn = state
@@ -273,109 +272,12 @@ pub async fn transfer_batch(
         .await
         .map_err(|e| AppError::database(format!("开启事务失败：{}", e)))?;
 
-    // 查询源批次
-    let source_batch = inventory_stock::Entity::find_by_id(id)
-        .one(&txn)
-        .await
-        .map_err(|e| AppError::database(format!("获取批次失败：{}", e)))?
-        .ok_or_else(|| AppError::not_found("源批次不存在"))?;
-
     let transfer_meters = Decimal::from_f64_retain(req.quantity_meters).unwrap_or(Decimal::ZERO);
     let transfer_kg = Decimal::from_f64_retain(req.quantity_kg).unwrap_or(Decimal::ZERO);
 
-    // 检查库存是否足够
-    if source_batch.quantity_available < transfer_meters {
-        return Err(AppError::bad_request("库存数量不足"));
-    }
-
-    // 更新源批次库存
-    let source_product_id = source_batch.product_id;
-    let source_batch_no = source_batch.batch_no.clone();
-    let source_color_no = source_batch.color_no.clone();
-    let source_quantity_on_hand = source_batch.quantity_on_hand;
-    let source_quantity_available = source_batch.quantity_available;
-    let source_dye_lot_no = source_batch.dye_lot_no.clone();
-    let source_grade = source_batch.grade.clone();
-    let source_gram_weight = source_batch.gram_weight;
-    let source_width = source_batch.width;
-    let source_production_date = source_batch.production_date;
-    let source_expiry_date = source_batch.expiry_date;
-    let mut source: inventory_stock::ActiveModel = source_batch.into();
-    source.quantity_on_hand = Set(source_quantity_on_hand - transfer_meters);
-    source.quantity_available = Set(source_quantity_available - transfer_meters);
-    source.updated_at = Set(Utc::now());
-
-    source
-        .update(&txn)
-        .await
-        .map_err(|e| AppError::bad_request(format!("更新源批次失败：{}", e)))?;
-
-    // 查询目标仓库是否已有相同批次
-    let target_batch = inventory_stock::Entity::find()
-        .filter(inventory_stock::Column::WarehouseId.eq(req.to_warehouse_id))
-        .filter(inventory_stock::Column::ProductId.eq(source_product_id))
-        .filter(inventory_stock::Column::BatchNo.eq(source_batch_no.clone()))
-        .filter(inventory_stock::Column::ColorNo.eq(source_color_no.clone()))
-        .one(&txn)
-        .await
-        .map_err(|e| AppError::database(format!("查询目标批次失败：{}", e)))?;
-
-    match target_batch {
-        Some(existing) => {
-            // 更新现有批次
-            let mut target: inventory_stock::ActiveModel = existing.clone().into();
-            target.quantity_on_hand = Set(existing.quantity_on_hand + transfer_meters);
-            target.quantity_available = Set(existing.quantity_available + transfer_meters);
-            target.updated_at = Set(Utc::now());
-
-            target
-                .update(&txn)
-                .await
-                .map_err(|e| AppError::bad_request(format!("更新目标批次失败：{}", e)))?;
-        }
-        None => {
-            // 创建新批次
-            let new_batch = inventory_stock::ActiveModel {
-                id: Set(0),
-                warehouse_id: Set(req.to_warehouse_id),
-                product_id: Set(source_product_id),
-                batch_no: Set(source_batch_no.clone()),
-                color_no: Set(source_color_no.clone()),
-                dye_lot_no: Set(source_dye_lot_no.clone()),
-                grade: Set(source_grade.clone()),
-                quantity_on_hand: Set(transfer_meters),
-                quantity_available: Set(transfer_meters),
-                quantity_reserved: Set(Decimal::ZERO),
-                quantity_incoming: Set(Decimal::ZERO),
-                reorder_point: Set(Decimal::ZERO),
-                max_stock_point: Set(Decimal::ZERO),
-                reorder_quantity: Set(Decimal::ZERO),
-                bin_location: Set(None),
-                last_count_date: Set(None),
-                last_movement_date: Set(None),
-                created_at: Set(Utc::now()),
-                updated_at: Set(Utc::now()),
-                quantity_meters: Set(transfer_meters),
-                quantity_kg: Set(transfer_kg),
-                gram_weight: Set(source_gram_weight),
-                width: Set(source_width),
-                production_date: Set(source_production_date),
-                expiry_date: Set(source_expiry_date),
-                stock_status: Set("正常".to_string()),
-                quality_status: Set("合格".to_string()),
-                location_id: Set(None),
-                shelf_no: Set(None),
-                layer_no: Set(None),
-                version: Set(0),
-                quantity_shipped: Set(Decimal::ZERO),
-            };
-
-            new_batch
-                .insert(&txn)
-                .await
-                .map_err(|e| AppError::bad_request(format!("创建目标批次失败：{}", e)))?;
-        }
-    }
+    let source = validate_source_batch(&txn, id, transfer_meters).await?;
+    update_source_batch(&txn, &source, transfer_meters).await?;
+    upsert_target_batch(&txn, &req, &source, transfer_meters, transfer_kg).await?;
 
     // 提交事务
     txn.commit()
@@ -383,4 +285,129 @@ pub async fn transfer_batch(
         .map_err(|e| AppError::database(format!("提交事务失败：{}", e)))?;
 
     Ok(Json(ApiResponse::success_with_message((), "批次转移成功")))
+}
+
+/// 校验源批次存在且库存充足
+async fn validate_source_batch(
+    txn: &sea_orm::DatabaseTransaction,
+    id: i32,
+    transfer_meters: Decimal,
+) -> Result<inventory_stock::Model, AppError> {
+    let source_batch = inventory_stock::Entity::find_by_id(id)
+        .one(txn)
+        .await
+        .map_err(|e| AppError::database(format!("获取批次失败：{}", e)))?
+        .ok_or_else(|| AppError::not_found("源批次不存在"))?;
+
+    if source_batch.quantity_available < transfer_meters {
+        return Err(AppError::bad_request("库存数量不足"));
+    }
+    Ok(source_batch)
+}
+
+/// 扣减源批次库存
+async fn update_source_batch(
+    txn: &sea_orm::DatabaseTransaction,
+    source: &inventory_stock::Model,
+    transfer_meters: Decimal,
+) -> Result<(), AppError> {
+    use sea_orm::{ActiveModelTrait, Set};
+
+    let mut source_am: inventory_stock::ActiveModel = source.clone().into();
+    source_am.quantity_on_hand = Set(source.quantity_on_hand - transfer_meters);
+    source_am.quantity_available = Set(source.quantity_available - transfer_meters);
+    source_am.updated_at = Set(Utc::now());
+
+    source_am
+        .update(txn)
+        .await
+        .map_err(|e| AppError::bad_request(format!("更新源批次失败：{}", e)))?;
+
+    Ok(())
+}
+
+/// 目标批次存在则累加，不存在则新建
+async fn upsert_target_batch(
+    txn: &sea_orm::DatabaseTransaction,
+    req: &TransferBatchRequest,
+    source: &inventory_stock::Model,
+    transfer_meters: Decimal,
+    transfer_kg: Decimal,
+) -> Result<(), AppError> {
+    use sea_orm::{ActiveModelTrait, Set};
+
+    let target_batch = inventory_stock::Entity::find()
+        .filter(inventory_stock::Column::WarehouseId.eq(req.to_warehouse_id))
+        .filter(inventory_stock::Column::ProductId.eq(source.product_id))
+        .filter(inventory_stock::Column::BatchNo.eq(source.batch_no.clone()))
+        .filter(inventory_stock::Column::ColorNo.eq(source.color_no.clone()))
+        .one(txn)
+        .await
+        .map_err(|e| AppError::database(format!("查询目标批次失败：{}", e)))?;
+
+    match target_batch {
+        Some(existing) => {
+            let mut target: inventory_stock::ActiveModel = existing.clone().into();
+            target.quantity_on_hand = Set(existing.quantity_on_hand + transfer_meters);
+            target.quantity_available = Set(existing.quantity_available + transfer_meters);
+            target.updated_at = Set(Utc::now());
+            target
+                .update(txn)
+                .await
+                .map_err(|e| AppError::bad_request(format!("更新目标批次失败：{}", e)))?;
+        }
+        None => {
+            let new_batch = build_new_target_batch(req, source, transfer_meters, transfer_kg);
+            new_batch
+                .insert(txn)
+                .await
+                .map_err(|e| AppError::bad_request(format!("创建目标批次失败：{}", e)))?;
+        }
+    }
+    Ok(())
+}
+
+/// 构造新目标批次的 ActiveModel
+fn build_new_target_batch(
+    req: &TransferBatchRequest,
+    source: &inventory_stock::Model,
+    transfer_meters: Decimal,
+    transfer_kg: Decimal,
+) -> inventory_stock::ActiveModel {
+    use sea_orm::Set;
+
+    inventory_stock::ActiveModel {
+        id: Set(0),
+        warehouse_id: Set(req.to_warehouse_id),
+        product_id: Set(source.product_id),
+        batch_no: Set(source.batch_no.clone()),
+        color_no: Set(source.color_no.clone()),
+        dye_lot_no: Set(source.dye_lot_no.clone()),
+        grade: Set(source.grade.clone()),
+        quantity_on_hand: Set(transfer_meters),
+        quantity_available: Set(transfer_meters),
+        quantity_reserved: Set(Decimal::ZERO),
+        quantity_incoming: Set(Decimal::ZERO),
+        reorder_point: Set(Decimal::ZERO),
+        max_stock_point: Set(Decimal::ZERO),
+        reorder_quantity: Set(Decimal::ZERO),
+        bin_location: Set(None),
+        last_count_date: Set(None),
+        last_movement_date: Set(None),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        quantity_meters: Set(transfer_meters),
+        quantity_kg: Set(transfer_kg),
+        gram_weight: Set(source.gram_weight),
+        width: Set(source.width),
+        production_date: Set(source.production_date),
+        expiry_date: Set(source.expiry_date),
+        stock_status: Set("正常".to_string()),
+        quality_status: Set("合格".to_string()),
+        location_id: Set(None),
+        shelf_no: Set(None),
+        layer_no: Set(None),
+        version: Set(0),
+        quantity_shipped: Set(Decimal::ZERO),
+    }
 }

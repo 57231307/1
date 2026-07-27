@@ -19,48 +19,39 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::warn;
 
-pub async fn permission_middleware(
-    State(state): State<AppState>,
-    request: Request<Body>,
-    next: Next,
-) -> Result<Response, Response> {
-    let method = request.method();
-    let uri = request.uri();
-    let path = uri.path();
-
-    // 使用缓存的公共路径检查结果，避免重复计算
-    let is_public = request
+/// 检查请求是否命中公共路径（优先使用缓存）
+fn is_public_path_request(request: &Request<Body>, path: &str) -> bool {
+    request
         .extensions()
         .get::<PublicPathCache>()
         .map(|cache| cache.is_public)
-        .unwrap_or_else(|| is_public_path(path));
+        .unwrap_or_else(|| is_public_path(path))
+}
 
-    if is_public {
-        return Ok(next.run(request).await);
-    }
-
-    let auth = request.extensions().get::<AuthContext>().cloned();
-    let auth = match auth {
-        Some(auth) => auth,
+/// 提取认证上下文，缺失时返回 401
+fn extract_auth_context(request: &Request<Body>) -> Result<AuthContext, Response> {
+    match request.extensions().get::<AuthContext>().cloned() {
+        Some(auth) => Ok(auth),
         None => {
             warn!("缺少认证上下文");
-            return Err(unauthorized_response("缺少认证上下文"));
+            Err(unauthorized_response("缺少认证上下文"))
         }
-    };
+    }
+}
 
-    // 权限检查日志（仅记录事件，不包含敏感详细信息）
-    tracing::debug!("权限检查: user_id={}, path={}", auth.user_id, path);
-
-    let role_id = match auth.role_id {
-        Some(id) => id,
+/// 从认证上下文提取 role_id，缺失时返回 403
+fn extract_role_id(auth: &AuthContext) -> Result<i32, Response> {
+    match auth.role_id {
+        Some(id) => Ok(id),
         None => {
             warn!("用户没有关联角色，拒绝访问");
-            return Err(forbidden_response("没有关联角色，无法访问"));
+            Err(forbidden_response("没有关联角色，无法访问"))
         }
-    };
+    }
+}
 
-    // V15 P0-S21 修复：白名单校验，拒绝未知路由
-    // 若 segment3 既不是模块前缀，也不是已知直接资源，则拒绝请求
+/// V15 P0-S21：校验 segment3 是否在已知资源白名单中
+fn validate_route_whitelist(path: &str) -> Result<(), Response> {
     if let Some(segment3) = extract_segment3(path) {
         if !is_known_resource_segment(segment3) {
             warn!(
@@ -70,21 +61,45 @@ pub async fn permission_middleware(
             return Err(forbidden_response("未知的资源路径"));
         }
     }
+    Ok(())
+}
 
+/// 综合提取路由信息：resource_type + resource_id + action（query > path > method）
+fn extract_route_info(
+    path: &str,
+    uri: &axum::http::Uri,
+    method: &Method,
+) -> (String, Option<i32>, String) {
     let (resource_type, resource_id) = extract_resource_info(path);
-
-    // V15 P0-S10 修复：优先级 action 提取顺序：
-    // 1. 查询参数 ?action=print/export/download（显式声明，最高优先级）
-    // 2. 路径末段动作关键字（print/export/import/audit/approve/reject 等）
-    // 3. HTTP method 映射（read/create/update/delete，兜底）
-    let query_action = extract_action_from_query(uri);
-    let action = query_action
+    let action = extract_action_from_query(uri)
         .or_else(|| extract_action_from_path(path))
         .unwrap_or_else(|| method_to_action(method));
+    (resource_type, resource_id, action)
+}
+
+/// 权限校验中间件：公共路径放行，非公共路径校验 role_id + 资源/动作权限
+pub async fn permission_middleware(
+    State(state): State<AppState>,
+    request: Request<Body>,
+    next: Next,
+) -> Result<Response, Response> {
+    let method = request.method();
+    let uri = request.uri();
+    let path = uri.path();
+
+    if is_public_path_request(&request, path) {
+        return Ok(next.run(request).await);
+    }
+
+    let auth = extract_auth_context(&request)?;
+    tracing::debug!("权限检查: user_id={}, path={}", auth.user_id, path);
+
+    let role_id = extract_role_id(&auth)?;
+    validate_route_whitelist(path)?;
+    let (resource_type, resource_id, action) = extract_route_info(path, uri, method);
 
     let has_permission =
         check_permission(&state.db, role_id, &resource_type, resource_id, &action).await;
-
     tracing::debug!(
         "权限检查结果: path={}, resource={}, action={}, has_perm={}",
         path,
@@ -101,9 +116,7 @@ pub async fn permission_middleware(
     }
 }
 
-/// V15 P0-S21 新增：提取 URL segment3（/api/v1/erp/{segment3}/...）
-///
-/// 用于白名单校验。若路径不符合 /api/v1/erp/... 格式，返回 None。
+/// V15 P0-S21：提取 URL segment3（/api/v1/erp/{segment3}/...），用于白名单校验
 fn extract_segment3(path: &str) -> Option<&str> {
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
     if path_parts.len() >= 4
@@ -117,10 +130,7 @@ fn extract_segment3(path: &str) -> Option<&str> {
     }
 }
 
-/// V15 P0-S20 新增：路径动作关键字集合
-///
-/// 这些动作出现在 URL 最后一段时，优先作为权限校验的 action。
-/// 例如 `/api/v1/erp/sales/orders/123/approve` 的 action 为 "approve"。
+/// V15 P0-S20：路径动作关键字集合（出现在 URL 末段时优先作为 action）
 const PATH_ACTION_KEYWORDS: &[&str] = &[
     "print",
     "export",
@@ -135,16 +145,7 @@ const PATH_ACTION_KEYWORDS: &[&str] = &[
     "release",
 ];
 
-/// V15 P0-S20 新增：从路径最后一段提取动作
-///
-/// 若路径最后一段是动作关键字（print/export/import/audit/approve/reject/cancel/close/confirm/submit/release），
-/// 返回该动作字符串；否则返回 None，由调用方回退到 method_to_action。
-///
-/// 示例：
-/// - `/api/v1/erp/sales/orders/123/approve` → Some("approve")
-/// - `/api/v1/erp/users/export` → Some("export")
-/// - `/api/v1/erp/users/123` → None
-/// - `/api/v1/erp/users` → None
+/// V15 P0-S20：从路径末段提取动作关键字，非关键字返回 None
 fn extract_action_from_path(path: &str) -> Option<String> {
     // V15 clippy 修复：使用 rfind 从后向前查找第一个非空段，等价于 filter().next_back() 但更简洁
     let last_segment = path.split('/').rfind(|p| !p.is_empty())?;
@@ -155,29 +156,10 @@ fn extract_action_from_path(path: &str) -> Option<String> {
     }
 }
 
-/// V15 P0-S10 新增：查询参数 action 关键字集合
-///
-/// 通过 `?action=print` 形式显式声明请求动作，优先级最高。
-/// 支持的动作：print/export/download，这些动作无法通过 HTTP method 或路径推断。
+/// V15 P0-S10：查询参数 action 关键字白名单（print/export/download）
 const QUERY_ACTION_KEYWORDS: &[&str] = &["print", "export", "download"];
 
-/// V15 P0-S10 新增：从查询参数提取动作
-///
-/// 优先级最高的动作提取方式。客户端通过 `?action=print` 显式声明请求动作，
-/// 适用于以下场景：
-/// - `GET /api/v1/erp/sales/orders?action=print` → Some("print")
-/// - `GET /api/v1/erp/inventory/stocks?action=export` → Some("export")
-/// - `GET /api/v1/erp/reports/finance?action=download` → Some("download")
-///
-/// 仅识别 QUERY_ACTION_KEYWORDS 中的动作，其他值返回 None（回退到路径/方法推断）。
-/// 这样可以防止客户端通过查询参数绕过权限（如 `?action=read` 不会生效）。
-///
-/// # 参数
-/// - `uri`: 请求 URI（包含 path 和 query）
-///
-/// # 返回
-/// - `Some(action)`: 查询参数 action 在白名单中
-/// - `None`: 无 action 参数或值不在白名单中
+/// V15 P0-S10：从 `?action=xxx` 提取动作，仅识别白名单内动作以防绕过权限
 fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
     let query = uri.query()?;
     // 解析 query string，查找 action 参数
@@ -284,18 +266,13 @@ static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permissio
 /// 权限缓存TTL（5分钟）
 const PERMISSION_CACHE_TTL: i64 = 5;
 
-/// V15 P0-S07 新增：失效指定角色的权限缓存
-///
-/// 当角色权限变更（assign_permission/remove_permission）或角色被删除时调用，
-/// 确保下次 check_permission 重新从数据库加载最新权限。
+/// V15 P0-S07：失效指定角色的权限缓存（角色权限变更或删除时调用）
 pub fn invalidate_permission_cache(role_id: i32) {
     PERMISSION_CACHE.remove(&role_id);
     tracing::info!(role_id, "权限缓存已失效");
 }
 
-/// V15 P0-S07 新增：失效全部权限缓存
-///
-/// 当发生大规模权限变更（如批量角色迁移）时调用。
+/// V15 P0-S07：失效全部权限缓存（大规模权限变更时调用）
 pub fn invalidate_all_permission_cache() {
     PERMISSION_CACHE.clear();
     tracing::info!("全部权限缓存已失效");
@@ -356,12 +333,7 @@ async fn check_permission(
     })
 }
 
-/// 权限匹配纯函数（v14 P0-4 修复：提取为纯函数便于单元测试）
-///
-/// 匹配规则：
-/// - resource_type 必须完全匹配
-/// - action 支持精确匹配或 "*" 通配符
-/// - resource_id 精确匹配（None 匹配 None，Some(id) 匹配 Some(id)），防止垂直越权
+/// 权限匹配纯函数：resource_type 精确匹配，action 支持 "*"，resource_id 精确匹配防越权
 fn matches_permission(
     p: &role_permission::Model,
     resource_type: &str,

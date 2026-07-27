@@ -34,8 +34,8 @@ use crate::handlers::{
 };
 use crate::utils::app_state::AppState;
 
-/// 财务主路由（path 前缀以 /payments、/invoices、/accounting-periods、/reports、/audit 区分）
-pub fn finance() -> Router<AppState> {
+/// 财务支付与发票路由（/payments、/invoices）
+fn finance_payment_invoice_routes() -> Router<AppState> {
     Router::new()
         .route("/payments", get(finance_payment_handler::list_payments))
         .route("/payments", post(finance_payment_handler::create_payment))
@@ -62,6 +62,11 @@ pub fn finance() -> Router<AppState> {
             "/invoices/:id/verify",
             post(finance_invoice_handler::verify_invoice),
         )
+}
+
+/// 会计期间路由（/accounting-periods）
+fn accounting_period_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/accounting-periods",
             get(missing_handlers::get_accounting_periods)
@@ -85,6 +90,11 @@ pub fn finance() -> Router<AppState> {
             "/accounting-periods/:id/close",
             post(accounting_period_handler::close_period),
         )
+}
+
+/// 财务报表路由（/reports）
+fn finance_report_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/reports/balance-sheet",
             get(finance_report_handler::get_balance_sheet),
@@ -113,11 +123,25 @@ pub fn finance() -> Router<AppState> {
             "/reports/drill-down",
             get(finance_report_handler::drill_down_report),
         )
+}
+
+/// 财务审计路由（/audit）
+fn finance_audit_routes() -> Router<AppState> {
+    Router::new()
         .route("/audit/track", post(omni_audit_handler::track_event))
         .route("/audit/stats", get(omni_audit_handler::get_dashboard_stats))
         .route("/audit/search", get(omni_audit_handler::search_logs))
+}
+
+/// 财务主路由（合并支付/发票/期间/报表/审计）
+pub fn finance() -> Router<AppState> {
     // P0 8-1 修复：omni_audit_middleware 已全局挂载（见 main.rs 中间件链），
     // 此处移除局部挂载避免重复审计。
+    Router::new()
+        .merge(finance_payment_invoice_routes())
+        .merge(accounting_period_routes())
+        .merge(finance_report_routes())
+        .merge(finance_audit_routes())
 }
 
 /// 总账路由（path 前缀以 /subjects、/vouchers 区分）
@@ -205,8 +229,8 @@ pub fn fixed_assets() -> Router<AppState> {
         )
 }
 
-/// 预算管理路由（path 前缀 /budgets）
-pub fn budgets() -> Router<AppState> {
+/// 预算主数据 + 调整路由（/budgets、/budgets/adjust）
+fn budget_master_routes() -> Router<AppState> {
     Router::new()
         .route("/budgets", get(budget_management_handler::list_budgets))
         .route("/budgets", post(budget_management_handler::create_budget))
@@ -240,6 +264,11 @@ pub fn budgets() -> Router<AppState> {
             "/budgets/adjust/:id/reject",
             post(budget_management_handler::reject_adjustment),
         )
+}
+
+/// 预算明细项路由（/budgets/items）
+fn budget_item_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/budgets/items",
             get(budget_management_handler::list_budget_items),
@@ -260,6 +289,11 @@ pub fn budgets() -> Router<AppState> {
             "/budgets/items/:id",
             delete(budget_management_handler::delete_budget_item),
         )
+}
+
+/// 预算计划路由（/budgets/plans）
+fn budget_plan_routes() -> Router<AppState> {
+    Router::new()
         .route("/budgets/plans", get(budget_management_handler::list_plans))
         .route(
             "/budgets/plans",
@@ -289,6 +323,11 @@ pub fn budgets() -> Router<AppState> {
             "/budgets/plans/:id/executions",
             post(budget_management_handler::create_execution),
         )
+}
+
+/// 预算控制路由（/budgets/control）
+fn budget_control_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/budgets/control/:plan_id",
             get(budget_management_handler::get_control),
@@ -297,6 +336,15 @@ pub fn budgets() -> Router<AppState> {
             "/budgets/control/:plan_id/data",
             get(budget_management_handler::get_budget_control_data),
         )
+}
+
+/// 预算管理路由（合并主数据/明细项/计划/控制）
+pub fn budgets() -> Router<AppState> {
+    Router::new()
+        .merge(budget_master_routes())
+        .merge(budget_item_routes())
+        .merge(budget_plan_routes())
+        .merge(budget_control_routes())
 }
 
 /// 财务分析路由（path 前缀 /financial-analysis）
@@ -377,9 +425,7 @@ pub fn fund_management() -> Router<AppState> {
         )
 }
 
-/// AP 应付账款路由（path 前缀 /ap）
-///
-/// 主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
+/// AP 应付账款路由：聚合各资源子路由（path 前缀互不重叠，merge 安全）
 pub fn ap() -> Router<AppState> {
     Router::new()
         .merge(ap_invoice_routes())
@@ -576,8 +622,8 @@ fn ap_report_routes() -> Router<AppState> {
         )
 }
 
-/// AR 应收账款路由（path 前缀 /ar）
-pub fn ar() -> Router<AppState> {
+/// AR 应收发票路由（/ar/invoices）
+fn ar_invoice_routes() -> Router<AppState> {
     Router::new()
         .route("/ar/invoices", get(ar_invoice_handler::list_ar_invoices))
         .route("/ar/invoices", post(ar_invoice_handler::create_ar_invoice))
@@ -603,6 +649,11 @@ pub fn ar() -> Router<AppState> {
             "/ar/invoices/:id/cancel",
             post(ar_invoice_handler::cancel_ar_invoice),
         )
+}
+
+/// AR 应收收款路由（/ar/payments）
+fn ar_payment_routes() -> Router<AppState> {
+    Router::new()
         .route("/ar/payments", get(ar_payment_handler::list_payments))
         .route("/ar/payments", post(ar_payment_handler::create_payment))
         .route("/ar/payments/:id", get(ar_payment_handler::get_payment))
@@ -615,6 +666,11 @@ pub fn ar() -> Router<AppState> {
             "/ar/payments/:id/cancel",
             post(ar_payment_handler::cancel_payment),
         )
+}
+
+/// AR 核销路由（/ar/verifications）
+fn ar_verification_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/ar/verifications",
             get(ar_verification_handler::list_verifications),
@@ -643,6 +699,11 @@ pub fn ar() -> Router<AppState> {
             "/ar/verifications/unverified/payments",
             get(ar_verification_handler::get_unverified_payments),
         )
+}
+
+/// AR 报表路由（/ar/reports）
+fn ar_report_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/ar/reports/statistics",
             get(ar_report_handler::get_statistics_report),
@@ -659,6 +720,15 @@ pub fn ar() -> Router<AppState> {
             "/ar/reports/aging",
             get(ar_report_handler::get_aging_report),
         )
+}
+
+/// AR 应收账款路由（合并发票/收款/核销/报表）
+pub fn ar() -> Router<AppState> {
+    Router::new()
+        .merge(ar_invoice_routes())
+        .merge(ar_payment_routes())
+        .merge(ar_verification_routes())
+        .merge(ar_report_routes())
 }
 
 /// 应收对账增强路由（path 前缀 /ar-reconciliations-enhanced）
@@ -762,16 +832,7 @@ pub fn ar_reconciliation_alias() -> Router<AppState> {
         )
 }
 
-/// 应收对账路由（path 前缀 /ar-reconciliations）
-///
-/// 批次 108 P1-6 修复：补齐 update/delete/send/confirm/dispute/close 6 端点，
-/// 接入 service::ar::recon 中已实现但未挂载路由的方法。
-/// - PUT    /:id           → update_reconciliation（仅草稿状态可更新）
-/// - DELETE /:id           → delete_reconciliation（仅草稿状态可删除）
-/// - POST   /:id/send      → send_reconciliation（draft → sent）
-/// - POST   /:id/confirm   → confirm_reconciliation（sent → confirmed，复用 enhanced 版本）
-/// - POST   /:id/dispute   → dispute_reconciliation（sent → disputed，复用 enhanced 版本）
-/// - POST   /:id/close     → close_reconciliation（confirmed/disputed → closed）
+/// 应收对账路由（/ar-reconciliations，含 update/delete/send/confirm/dispute/close 端点）
 pub fn ar_reconciliations() -> Router<AppState> {
     Router::new()
         .route(
@@ -847,10 +908,7 @@ pub fn exchange_rates() -> Router<AppState> {
         )
 }
 
-/// 财务域统一入口（仅保留 finance 自身路径：/accounting-periods, /reports/... 等）
-///
-/// 通过 mod.rs `.nest("/api/v1/erp/finance", ...)` 挂载，
-/// 最终 path = `/api/v1/erp/finance/accounting-periods` 等。
+/// 财务域统一入口（通过 mod.rs nest 至 /api/v1/erp/finance）
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .merge(finance())
@@ -861,10 +919,7 @@ pub fn routes(state: AppState) -> Router<AppState> {
         ))
 }
 
-/// 财务子模块路由（ap / ar / gl / fixed_assets / budgets 等）
-///
-/// 通过 mod.rs `.nest("/api/v1/erp", finance::sub_routes())` 直接挂载在 `/api/v1/erp` 层级，
-/// 最终 path = `/api/v1/erp/ap/invoices`、`/api/v1/erp/gl/subjects` 等。
+/// 财务子模块路由（ap/ar/gl/fixed_assets/budgets 等，nest 至 /api/v1/erp）
 pub fn sub_routes() -> Router<AppState> {
     Router::new()
         .merge(gl())

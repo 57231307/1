@@ -142,10 +142,9 @@ pub fn boms() -> Router<AppState> {
         )
 }
 
-/// 染化料主数据路由（path 前缀 /chemicals）
-pub fn chemicals() -> Router<AppState> {
+/// 染化料主数据 CRUD 路由（path 前缀 /chemicals）
+fn chemical_master_routes() -> Router<AppState> {
     Router::new()
-        // 染化料主数据
         .route(
             "/chemicals",
             get(chemical_handler::list_chemicals).post(chemical_handler::create_chemical),
@@ -160,7 +159,11 @@ pub fn chemicals() -> Router<AppState> {
                 .put(chemical_handler::update_chemical)
                 .delete(chemical_handler::delete_chemical),
         )
-        // 染化料分类
+}
+
+/// 染化料分类路由（path 前缀 /chemical-categories）
+fn chemical_category_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/chemical-categories",
             get(chemical_handler::list_chemical_categories)
@@ -176,7 +179,11 @@ pub fn chemicals() -> Router<AppState> {
                 .put(chemical_handler::update_chemical_category)
                 .delete(chemical_handler::delete_chemical_category),
         )
-        // 染化料批次
+}
+
+/// 染化料批次路由（path 前缀 /chemical-lots）
+fn chemical_lot_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/chemical-lots",
             get(chemical_handler::list_chemical_lots).post(chemical_handler::create_chemical_lot),
@@ -199,15 +206,13 @@ pub fn chemicals() -> Router<AppState> {
             "/chemical-lots/:id/fail-inspection",
             post(chemical_handler::fail_inspection),
         )
-        .route(
-            "/chemical-lots/:id/consume",
-            post(chemical_handler::consume_lot),
-        )
-        .route(
-            "/chemical-lots/:id/scrap",
-            post(chemical_handler::scrap_lot),
-        )
-        // 染化料领用单
+        .route("/chemical-lots/:id/consume", post(chemical_handler::consume_lot))
+        .route("/chemical-lots/:id/scrap", post(chemical_handler::scrap_lot))
+}
+
+/// 染化料领用单路由（path 前缀 /chemical-requisitions）
+fn chemical_requisition_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/chemical-requisitions",
             get(chemical_handler::list_requisitions)
@@ -241,9 +246,16 @@ pub fn chemicals() -> Router<AppState> {
         )
 }
 
-/// 目录域统一入口
-///
-/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
+/// 染化料主数据路由（合并主数据/分类/批次/领用单）
+pub fn chemicals() -> Router<AppState> {
+    Router::new()
+        .merge(chemical_master_routes())
+        .merge(chemical_category_routes())
+        .merge(chemical_lot_routes())
+        .merge(chemical_requisition_routes())
+}
+
+/// 目录域统一入口：子 router path 已加独立前缀，merge 时 path+method 互不重叠
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(products())

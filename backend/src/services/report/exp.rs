@@ -397,17 +397,30 @@ impl ReportEngineService {
         data: &ReportData,
         string_lookup: &std::collections::HashMap<String, usize>,
     ) -> String {
-        let mut xml = String::from(
+        let mut xml = Self::build_sheet_xml_opening();
+        xml.push_str(&Self::build_sheet_header_row(data, string_lookup));
+        xml.push_str(&Self::build_sheet_data_rows(data, string_lookup));
+        xml.push_str("</sheetData></worksheet>");
+        xml
+    }
+
+    /// 构建 sheet XML 开头（声明 + worksheet + sheetData）
+    fn build_sheet_xml_opening() -> String {
+        String::from(
             r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <sheetData>"#,
-        );
+        )
+    }
 
-        // 表头
-        xml.push_str("<row r=\"1\">");
+    /// 构建表头行 XML
+    fn build_sheet_header_row(
+        data: &ReportData,
+        string_lookup: &std::collections::HashMap<String, usize>,
+    ) -> String {
+        let mut xml = String::from("<row r=\"1\">");
         for (idx, column) in data.columns.iter().enumerate() {
             let cell_ref = format!("{}{}", Self::column_letter(idx + 1), 1);
-            // 字符串共享表索引未命中时默认 0（Excel 共享字符串索引）
             let string_idx = string_lookup
                 .get(&column.label)
                 .copied()
@@ -418,12 +431,18 @@ impl ReportEngineService {
             ));
         }
         xml.push_str("</row>");
+        xml
+    }
 
-        // 数据行
+    /// 构建数据行 XML
+    fn build_sheet_data_rows(
+        data: &ReportData,
+        string_lookup: &std::collections::HashMap<String, usize>,
+    ) -> String {
+        let mut xml = String::new();
         for (row_idx, row) in data.rows.iter().enumerate() {
             let row_num = row_idx + 2;
             xml.push_str(&format!("<row r=\"{}\">", row_num));
-
             for (col_idx, column) in data.columns.iter().enumerate() {
                 let cell_ref = format!("{}{}", Self::column_letter(col_idx + 1), row_num);
                 let value = row
@@ -434,7 +453,6 @@ impl ReportEngineService {
                         _ => v.to_string().trim_matches('"').to_string(),
                     })
                     .unwrap_or_default();
-
                 if let Some(&string_idx) = string_lookup.get(&value) {
                     xml.push_str(&format!(
                         r#"<c r="{}" t="s"><v>{}</v></c>"#,
@@ -446,8 +464,6 @@ impl ReportEngineService {
             }
             xml.push_str("</row>");
         }
-
-        xml.push_str("</sheetData></worksheet>");
         xml
     }
 

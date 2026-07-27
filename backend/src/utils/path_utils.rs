@@ -8,11 +8,13 @@
 // 且 segment4 才是真实资源类型的路径段。extract_resource_info 据此判断
 // resource_type 取 segment3 还是 segment4。
 
-/// 判断是否为模块前缀（如 sales, purchase, finance, production 等）
-///
-/// 模块前缀位于 URL segment3 位置，其下 segment4 才是真实资源类型。
-/// 例如 `/api/v1/erp/sales/orders` 中 `sales` 是模块前缀，`orders` 是资源类型。
+/// 判断是否为模块前缀（segment3 位置，其下 segment4 才是真实资源类型）
 pub fn is_module_prefix(part: &str) -> bool {
+    is_system_module_prefix(part) || is_business_module_prefix(part)
+}
+
+/// 系统/基础设施类模块前缀（认证、IAM、通知、集成、流程、AI、管理域）
+fn is_system_module_prefix(part: &str) -> bool {
     matches!(
         part,
         // ===== 认证与系统域 =====
@@ -28,8 +30,26 @@ pub fn is_module_prefix(part: &str) -> bool {
             // ===== IAM 与组织域 =====
             | "data-permissions"
             | "user-notification-settings"
-            // ===== 销售域 =====
-            | "sales"
+            // ===== 通知域 =====
+            | "notifications"
+            // ===== 集成与网关域 =====
+            | "webhooks"
+            | "api-gateway"
+            // ===== 流程域 =====
+            | "bpm"
+            // ===== AI 域 =====
+            | "ai"
+            // ===== 管理域 =====
+            | "admin"
+    )
+}
+
+/// 业务类模块前缀（销售、采购、库存、生产、财务、CRM、质量、分析域）
+fn is_business_module_prefix(part: &str) -> bool {
+    matches!(
+        part,
+        // ===== 销售域 =====
+        "sales"
             | "quotations"
             | "custom-orders"
             | "color-cards"
@@ -58,31 +78,26 @@ pub fn is_module_prefix(part: &str) -> bool {
             | "bi"
             | "advanced"
             | "search"
-            // ===== 通知域 =====
-            | "notifications"
-            // ===== 集成与网关域 =====
-            | "webhooks"
-            | "api-gateway"
-            // ===== 流程域 =====
-            | "bpm"
-            // ===== AI 域 =====
-            | "ai"
-            // ===== 管理域 =====
-            | "admin"
     )
 }
 
-/// 判断是否为已知资源段（segment3 位置的所有合法值）
-///
-/// V15 P0-S21 新增：用于权限中间件拒绝未知路由。
-/// 包含所有合法的 segment3 值（模块前缀 + 直接资源），总数 60+。
-/// 若请求路径的 segment3 不在此列表中，权限中间件将直接拒绝。
+/// 判断是否为已知资源段（模块前缀 + 直接资源，用于权限中间件拒绝未知路由）
 pub fn is_known_resource_segment(part: &str) -> bool {
     // 先检查是否为模块前缀
     if is_module_prefix(part) {
         return true;
     }
 
+    is_direct_resource(part)
+}
+
+/// 判断是否为直接资源（非模块前缀的 segment3 合法值）
+fn is_direct_resource(part: &str) -> bool {
+    is_core_direct_resource(part) || is_misc_direct_resource(part)
+}
+
+/// 核心业务直接资源（IAM、产品目录、财务、生产域）
+fn is_core_direct_resource(part: &str) -> bool {
     matches!(
         part,
         // ===== IAM 直接资源 =====
@@ -117,8 +132,15 @@ pub fn is_known_resource_segment(part: &str) -> bool {
             | "quality-standards"
             | "print-templates"
             | "suppliers"
-            // ===== 分析与高级功能直接资源 =====
-            | "convert"
+    )
+}
+
+/// 辅助功能直接资源（分析、登录安全、邮件、AI、审计日志域）
+fn is_misc_direct_resource(part: &str) -> bool {
+    matches!(
+        part,
+        // ===== 分析与高级功能直接资源 =====
+        "convert"
             | "validate"
             | "csv"
             | "excel"

@@ -33,10 +33,7 @@ use crate::services::voucher_service::{
 };
 
 impl VoucherService {
-    /// 创建凭证
-    ///
-    /// P2 1-6 修复：原函数 138 行混合 8 职责（期间校验+借贷平衡+单号+事务+主表+科目校验+分录循环+提交），
-    /// 拆为 validate_voucher_create_req / precheck_subjects_exist_txn / insert_voucher_items_txn 3 个私有方法
+    /// 创建凭证（期间校验+借贷平衡+单号+事务+科目校验+分录批量插入）
     pub async fn create(
         &self,
         req: CreateVoucherRequest,
@@ -100,14 +97,7 @@ impl VoucherService {
         Ok(voucher)
     }
 
-    /// 创建并自动过账凭证（用于库存桥接等自动凭证场景）
-    ///
-    /// 批次 356 v13 复审 F-P0-1+F-P0-2 修复：
-    /// - F-P0-1：post 内部调用 update_account_balances 实现科目余额回写
-    /// - F-P0-2：库存桥接凭证只 create 不 post，现改为 create_and_post 自动过账
-    ///
-    /// 自动完成 DRAFT → SUBMITTED → REVIEWED → POSTED 状态流转，
-    /// 适用于库存桥接等无需人工审核的自动凭证场景。
+    /// 创建并自动过账凭证（DRAFT→SUBMITTED→REVIEWED→POSTED）
     pub async fn create_and_post(
         &self,
         req: CreateVoucherRequest,
@@ -290,35 +280,18 @@ impl VoucherService {
     ) -> Result<voucher::Model, AppError> {
         info!("更新凭证 ID: {}, 操作用户: {}", id, user_id);
 
-        // P1 5-20 修复（批次 61）：状态门移入 txn + lock_exclusive
-        // 原实现状态门在事务外（self.get_by_id 裸查询），并发 update 会竞态绕过 draft 状态门控。
-        // 改为在 txn 内用 find_by_id(id).lock_exclusive() 串行化并发状态变更。
         let txn = self
             .db
             .begin()
             .await
             .map_err(|e| AppError::internal(e.to_string()))?;
 
-        let voucher_model = voucher::Entity::find_by_id(id)
-            .lock_exclusive()
-            .one(&txn)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?
-            .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
-
-        if voucher_model.status != crate::models::status::voucher::VOUCHER_DRAFT {
-            warn!("只有草稿状态的凭证可以更新：{}", voucher_model.voucher_no);
-            return Err(AppError::bad_request(
-                "只有草稿状态的凭证可以更新".to_string(),
-            ));
-        }
-
+        let voucher_model = Self::load_voucher_for_update(id, &txn).await?;
         let mut active_model: voucher::ActiveModel = voucher_model.into_active_model();
 
         if let Some(voucher_type) = req.voucher_type {
             active_model.voucher_type = sea_orm::Set(voucher_type);
         }
-
         if let Some(voucher_date) = req.voucher_date {
             active_model.voucher_date = sea_orm::Set(voucher_date);
         }
@@ -333,54 +306,7 @@ impl VoucherService {
             .await?;
 
         if let Some(items) = req.items {
-            // 验证更新后的分录借贷平衡
-            let total_debit: Decimal = items.iter().map(|i| i.debit).sum();
-            let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
-            if total_debit != total_credit {
-                return Err(AppError::bad_request(format!(
-                    "凭证借贷不平衡：借方 {} != 贷方 {}",
-                    total_debit, total_credit
-                )));
-            }
-
-            vi::Entity::delete_many()
-                .filter(vi::Column::VoucherId.eq(id))
-                .exec(&txn)
-                .await
-                .map_err(|e| AppError::internal(e.to_string()))?;
-
-            for (index, item_req) in items.iter().enumerate() {
-                let item_active = vi::ActiveModel {
-                    // 批次 97 P1-1 修复：原 id: Set(0) 在并发 update 重写明细时
-                    // 可能触发主键约束异常（DB 自增列应使用 NotSet 让 DB 生成）
-                    id: sea_orm::ActiveValue::NotSet,
-                    voucher_id: sea_orm::Set(id),
-                    line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
-                    subject_code: sea_orm::Set(item_req.subject_code.clone().unwrap_or_default()),
-                    subject_name: sea_orm::Set(item_req.subject_name.clone().unwrap_or_default()),
-                    debit: sea_orm::Set(item_req.debit),
-                    credit: sea_orm::Set(item_req.credit),
-                    summary: sea_orm::Set(item_req.summary.clone()),
-                    assist_customer_id: sea_orm::Set(item_req.assist_customer_id),
-                    assist_supplier_id: sea_orm::Set(item_req.assist_supplier_id),
-                    assist_department_id: sea_orm::Set(item_req.assist_department_id),
-                    assist_employee_id: sea_orm::Set(item_req.assist_employee_id),
-                    assist_project_id: sea_orm::Set(item_req.assist_project_id),
-                    assist_batch_id: sea_orm::Set(item_req.assist_batch_id),
-                    assist_color_no_id: sea_orm::Set(item_req.assist_color_no_id),
-                    assist_dye_lot_id: sea_orm::Set(item_req.assist_dye_lot_id),
-                    assist_grade: sea_orm::Set(item_req.assist_grade.clone()),
-                    assist_workshop_id: sea_orm::Set(item_req.assist_workshop_id),
-                    quantity_meters: sea_orm::Set(item_req.quantity_meters),
-                    quantity_kg: sea_orm::Set(item_req.quantity_kg),
-                    unit_price: sea_orm::Set(item_req.unit_price),
-                    created_at: sea_orm::Set(chrono::Utc::now()),
-                };
-                item_active
-                    .insert(&txn)
-                    .await
-                    .map_err(|e| AppError::internal(e.to_string()))?;
-            }
+            Self::replace_voucher_items(id, &items, &txn).await?;
         }
 
         txn.commit()
@@ -389,6 +315,96 @@ impl VoucherService {
 
         info!("凭证更新成功：no={}", updated_voucher.voucher_no);
         Ok(updated_voucher)
+    }
+
+    /// 加载凭证并校验 draft 状态（txn 内 lock_exclusive）
+    async fn load_voucher_for_update(
+        id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<voucher::Model, AppError> {
+        let voucher_model = voucher::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(txn)
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?
+            .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
+
+        if voucher_model.status != crate::models::status::voucher::VOUCHER_DRAFT {
+            warn!("只有草稿状态的凭证可以更新：{}", voucher_model.voucher_no);
+            return Err(AppError::bad_request(
+                "只有草稿状态的凭证可以更新".to_string(),
+            ));
+        }
+        Ok(voucher_model)
+    }
+
+    /// 替换凭证分录：校验借贷平衡 + 删除旧分录 + 插入新分录
+    async fn replace_voucher_items(
+        voucher_id: i32,
+        items: &[VoucherItemRequest],
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        Self::validate_voucher_items_balance(items)?;
+
+        vi::Entity::delete_many()
+            .filter(vi::Column::VoucherId.eq(voucher_id))
+            .exec(txn)
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
+
+        Self::insert_voucher_items_for_update(voucher_id, items, txn).await
+    }
+
+    /// 校验凭证分录借贷平衡
+    fn validate_voucher_items_balance(items: &[VoucherItemRequest]) -> Result<(), AppError> {
+        let total_debit: Decimal = items.iter().map(|i| i.debit).sum();
+        let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
+        if total_debit != total_credit {
+            return Err(AppError::bad_request(format!(
+                "凭证借贷不平衡：借方 {} != 贷方 {}",
+                total_debit, total_credit
+            )));
+        }
+        Ok(())
+    }
+
+    /// 插入凭证分录（update 路径，含 created_at）
+    async fn insert_voucher_items_for_update(
+        voucher_id: i32,
+        items: &[VoucherItemRequest],
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        for (index, item_req) in items.iter().enumerate() {
+            let item_active = vi::ActiveModel {
+                id: sea_orm::ActiveValue::NotSet,
+                voucher_id: sea_orm::Set(voucher_id),
+                line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
+                subject_code: sea_orm::Set(item_req.subject_code.clone().unwrap_or_default()),
+                subject_name: sea_orm::Set(item_req.subject_name.clone().unwrap_or_default()),
+                debit: sea_orm::Set(item_req.debit),
+                credit: sea_orm::Set(item_req.credit),
+                summary: sea_orm::Set(item_req.summary.clone()),
+                assist_customer_id: sea_orm::Set(item_req.assist_customer_id),
+                assist_supplier_id: sea_orm::Set(item_req.assist_supplier_id),
+                assist_department_id: sea_orm::Set(item_req.assist_department_id),
+                assist_employee_id: sea_orm::Set(item_req.assist_employee_id),
+                assist_project_id: sea_orm::Set(item_req.assist_project_id),
+                assist_batch_id: sea_orm::Set(item_req.assist_batch_id),
+                assist_color_no_id: sea_orm::Set(item_req.assist_color_no_id),
+                assist_dye_lot_id: sea_orm::Set(item_req.assist_dye_lot_id),
+                assist_grade: sea_orm::Set(item_req.assist_grade.clone()),
+                assist_workshop_id: sea_orm::Set(item_req.assist_workshop_id),
+                quantity_meters: sea_orm::Set(item_req.quantity_meters),
+                quantity_kg: sea_orm::Set(item_req.quantity_kg),
+                unit_price: sea_orm::Set(item_req.unit_price),
+                created_at: sea_orm::Set(chrono::Utc::now()),
+            };
+            item_active
+                .insert(txn)
+                .await
+                .map_err(|e| AppError::internal(e.to_string()))?;
+        }
+        Ok(())
     }
 
     /// 删除凭证

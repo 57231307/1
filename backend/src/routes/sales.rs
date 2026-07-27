@@ -17,35 +17,25 @@ use crate::handlers::{
     sales_order_handler, sales_price_handler, sales_return_handler,
 };
 
-/// 销售订单路由（nest 到 /api/v1/erp/sales）
-pub fn sales() -> Router<AppState> {
+/// 销售订单 CRUD + 状态流转路由（/orders + /orders/:id/{submit,approve,ship,...}）
+fn sales_order_crud_routes() -> Router<AppState> {
     Router::new()
         .route("/orders", get(sales_order_handler::list_orders))
         .route("/orders", post(sales_order_handler::create_order))
         .route("/orders/:id", get(sales_order_handler::get_order))
         .route("/orders/:id", put(sales_order_handler::update_order))
         .route("/orders/:id", delete(sales_order_handler::delete_order))
-        .route(
-            "/orders/:id/submit",
-            post(sales_order_handler::submit_order),
-        )
-        .route(
-            "/orders/:id/approve",
-            post(sales_order_handler::approve_order),
-        )
+        .route("/orders/:id/submit", post(sales_order_handler::submit_order))
+        .route("/orders/:id/approve", post(sales_order_handler::approve_order))
         .route("/orders/:id/ship", post(sales_order_handler::ship_order))
-        .route(
-            "/orders/:id/complete",
-            post(sales_order_handler::complete_order),
-        )
-        .route(
-            "/orders/:id/reject",
-            post(sales_order_handler::reject_order),
-        )
-        .route(
-            "/orders/:id/cancel",
-            post(sales_order_handler::cancel_order),
-        )
+        .route("/orders/:id/complete", post(sales_order_handler::complete_order))
+        .route("/orders/:id/reject", post(sales_order_handler::reject_order))
+        .route("/orders/:id/cancel", post(sales_order_handler::cancel_order))
+}
+
+/// 销售订单发货与报表路由（/orders deliveries/statistics/history/print/export）
+fn sales_order_delivery_report_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/orders/:id/deliveries",
             get(sales_order_handler::get_order_deliveries)
@@ -72,6 +62,11 @@ pub fn sales() -> Router<AppState> {
             "/orders/generate-no",
             get(sales_order_handler::generate_order_no),
         )
+}
+
+/// 面料销售订单路由（/fabric-orders）
+fn sales_fabric_order_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/fabric-orders",
             get(sales_fabric_order_handler::list_fabric_orders),
@@ -96,12 +91,20 @@ pub fn sales() -> Router<AppState> {
             "/fabric-orders/:id/approve",
             post(sales_fabric_order_handler::approve_fabric_order),
         )
+}
+
+/// 销售订单路由（nest 到 /api/v1/erp/sales，合并订单 + 面料订单）
+pub fn sales() -> Router<AppState> {
     // P1-4 修复（2026-06-25 综合审计）：移除 quotations 双重路由注册。
     // 销售报价单已由 routes/quotations.rs::routes() 统一挂载至
     // /api/v1/erp/quotations/*（mod.rs:339），该处提供 12 个端点（超集）。
     // 原 sales.rs::quotations() 仅 8 个端点（子集），双重注册导致：
     // - 同一资源暴露在两路径，能力不同，前端调用混乱
     // - 同一报价操作可能命中不同端点，行为不可预测
+    Router::new()
+        .merge(sales_order_crud_routes())
+        .merge(sales_order_delivery_report_routes())
+        .merge(sales_fabric_order_routes())
 }
 
 /// 销售合同路由（path 前缀 /sales-contracts）
@@ -180,17 +183,12 @@ pub fn sales_prices() -> Router<AppState> {
         )
 }
 
-/// 销售退货路由（path 前缀 /sales-returns）
-///
-/// 由 sales_return_handler 模块内部定义路由（router() 函数返回）。
-/// 该模块已自带独立前缀，merge 时不会与其他子 router 冲突。
+/// 销售退货路由（由 sales_return_handler 模块内部定义，自带独立前缀）
 pub fn sales_returns() -> Router<AppState> {
     sales_return_handler::router()
 }
 
-/// 销售域统一入口
-///
-/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
+/// 销售域统一入口（子 router path 已加独立前缀，merge 安全）
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(sales())

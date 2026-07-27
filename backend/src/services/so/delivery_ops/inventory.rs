@@ -99,112 +99,176 @@ impl SalesService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        // v15 批次 42 修复：循环外批量查询该订单所有已存在的 pending 预留记录，
-        // 避免循环内逐个查询（N+1）
         let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
-        let existing_reservation_ids: std::collections::HashSet<i32> = if product_ids.is_empty() {
-            std::collections::HashSet::new()
-        } else {
-            inventory_reservation::Entity::find()
-                .filter(inventory_reservation::Column::OrderId.eq(order_id))
-                .filter(inventory_reservation::Column::ProductId.is_in(product_ids))
-                .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
+        let existing_ids =
+            Self::query_existing_reservation_ids(order_id, &product_ids, txn).await?;
+        let stock_map =
+            Self::query_locked_stock_map(&product_ids, &existing_ids, txn).await?;
+        let reservations = Self::build_and_lock_reservations(
+            order_id,
+            items,
+            user_id,
+            &existing_ids,
+            &stock_map,
+            txn,
+        )
+        .await?;
+        Self::batch_insert_reservations(reservations, txn).await
+    }
+
+    /// 查询订单已存在的 pending 预留 product_id 集合
+    async fn query_existing_reservation_ids(
+        order_id: i32,
+        product_ids: &[i32],
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<std::collections::HashSet<i32>, AppError> {
+        if product_ids.is_empty() {
+            return Ok(std::collections::HashSet::new());
+        }
+        let ids: std::collections::HashSet<i32> = inventory_reservation::Entity::find()
+            .filter(inventory_reservation::Column::OrderId.eq(order_id))
+            .filter(inventory_reservation::Column::ProductId.is_in(product_ids.to_vec()))
+            .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
+            .all(txn)
+            .await?
+            .into_iter()
+            .map(|r| r.product_id)
+            .collect();
+        Ok(ids)
+    }
+
+    /// 批量加锁查询需锁定的库存记录
+    async fn query_locked_stock_map(
+        product_ids: &[i32],
+        existing_ids: &std::collections::HashSet<i32>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<std::collections::HashMap<i32, inventory_stock::Model>, AppError> {
+        let need_lock: Vec<i32> = product_ids
+            .iter()
+            .filter(|pid| !existing_ids.contains(pid))
+            .copied()
+            .collect();
+        if need_lock.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let map: std::collections::HashMap<i32, inventory_stock::Model> =
+            inventory_stock::Entity::find()
+                .filter(inventory_stock::Column::ProductId.is_in(need_lock))
+                .lock_exclusive()
                 .all(txn)
                 .await?
                 .into_iter()
-                .map(|r| r.product_id)
-                .collect()
-        };
+                .map(|s| (s.product_id, s))
+                .collect();
+        Ok(map)
+    }
 
-        // v17 批次 46 修复：循环外批量锁定所有需锁定的 product_id 的库存，避免循环内逐个 lock_exclusive（N+1）
-        // PostgreSQL SELECT FOR UPDATE 支持 WHERE IN 批量加锁，行锁在事务内持续到 commit
-        let need_lock_product_ids: Vec<i32> = items
-            .iter()
-            .map(|i| i.product_id)
-            .filter(|pid| !existing_reservation_ids.contains(pid))
-            .collect();
-        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
-            if need_lock_product_ids.is_empty() {
-                std::collections::HashMap::new()
-            } else {
-                inventory_stock::Entity::find()
-                    .filter(inventory_stock::Column::ProductId.is_in(need_lock_product_ids))
-                    .lock_exclusive()
-                    .all(txn)
-                    .await?
-                    .into_iter()
-                    .map(|s| (s.product_id, s))
-                    .collect()
-            };
-
-        // v13 P1-3：预留记录批量 INSERT，库存 update_many 保持逐条以确保防御性 WHERE 语义
-        let mut reservations_to_insert: Vec<inventory_reservation::ActiveModel> = Vec::new();
+    /// 遍历 items 构建预留记录并逐条锁定库存
+    async fn build_and_lock_reservations(
+        order_id: i32,
+        items: &[super::super::SalesOrderItemRequest],
+        user_id: i32,
+        existing_ids: &std::collections::HashSet<i32>,
+        stock_map: &std::collections::HashMap<i32, inventory_stock::Model>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<Vec<inventory_reservation::ActiveModel>, AppError> {
+        let mut reservations: Vec<inventory_reservation::ActiveModel> = Vec::new();
         for item in items {
-            if existing_reservation_ids.contains(&item.product_id) {
+            if existing_ids.contains(&item.product_id) {
                 tracing::info!("产品 {} 已存在预留记录，跳过创建", item.product_id);
                 continue;
             }
-
-            // v17 批次 46 修复：从批量查询结果获取（行锁已在批量查询时获取）
-            let stock = stock_map.get(&item.product_id).cloned();
-
-            if let Some(s) = stock {
-                if s.quantity_available < item.quantity {
-                    return Err(AppError::business(format!(
-                        "产品 {} 库存不足，无法锁定",
+            let stock = stock_map
+                .get(&item.product_id)
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::business(format!(
+                        "产品 {} 没有库存记录，无法锁定",
                         item.product_id
-                    )));
-                }
-
-                // 收集预留记录（不立即 INSERT）
-                reservations_to_insert.push(inventory_reservation::ActiveModel {
-                    id: Default::default(),
-                    order_id: Set(order_id),
-                    product_id: Set(item.product_id),
-                    warehouse_id: Set(s.warehouse_id),
-                    quantity: Set(item.quantity),
-                    status: Set(reservation_status::PENDING.to_string()),
-                    reserved_at: Set(chrono::Utc::now()),
-                    released_at: Set(None),
-                    notes: Set(None),
-                    created_by: Set(Some(user_id)),
-                    created_at: Set(chrono::Utc::now()),
-                    updated_at: Set(chrono::Utc::now()),
-                });
-
-                // 批次 9（2026-06-28）：UPDATE 加防御性 WHERE 条件 quantity_available >= quantity，
-                // 即使并发绕过 SELECT FOR UPDATE（理论上不会发生），也能阻止超扣
-                let lock_result = inventory_stock::Entity::update_many()
-                    .filter(inventory_stock::Column::Id.eq(s.id))
-                    .filter(inventory_stock::Column::QuantityAvailable.gte(item.quantity))
-                    .col_expr(
-                        inventory_stock::Column::QuantityAvailable,
-                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                            .sub(item.quantity),
-                    )
-                    .col_expr(
-                        inventory_stock::Column::UpdatedAt,
-                        sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
-                    )
-                    .exec(txn)
-                    .await?;
-
-                if lock_result.rows_affected == 0 {
-                    return Err(AppError::business(format!(
-                        "产品 {} 库存不足（并发冲突或库存已被其他事务扣减）",
-                        item.product_id
-                    )));
-                }
-            } else {
-                return Err(AppError::business(format!(
-                    "产品 {} 没有库存记录，无法锁定",
-                    item.product_id
-                )));
-            }
+                    ))
+                })?;
+            Self::check_stock_sufficient(&stock, item)?;
+            reservations.push(Self::build_reservation_active_model(
+                order_id, item, user_id, &stock,
+            ));
+            Self::execute_stock_lock(&stock, item, txn).await?;
         }
-        // 批量 INSERT 预留记录，替代逐条 INSERT
-        if !reservations_to_insert.is_empty() {
-            inventory_reservation::Entity::insert_many(reservations_to_insert)
+        Ok(reservations)
+    }
+
+    /// 校验库存是否充足
+    fn check_stock_sufficient(
+        stock: &inventory_stock::Model,
+        item: &super::super::SalesOrderItemRequest,
+    ) -> Result<(), AppError> {
+        if stock.quantity_available < item.quantity {
+            return Err(AppError::business(format!(
+                "产品 {} 库存不足，无法锁定",
+                item.product_id
+            )));
+        }
+        Ok(())
+    }
+
+    /// 构建单条预留记录 ActiveModel
+    fn build_reservation_active_model(
+        order_id: i32,
+        item: &super::super::SalesOrderItemRequest,
+        user_id: i32,
+        stock: &inventory_stock::Model,
+    ) -> inventory_reservation::ActiveModel {
+        inventory_reservation::ActiveModel {
+            id: Default::default(),
+            order_id: Set(order_id),
+            product_id: Set(item.product_id),
+            warehouse_id: Set(stock.warehouse_id),
+            quantity: Set(item.quantity),
+            status: Set(reservation_status::PENDING.to_string()),
+            reserved_at: Set(chrono::Utc::now()),
+            released_at: Set(None),
+            notes: Set(None),
+            created_by: Set(Some(user_id)),
+            created_at: Set(chrono::Utc::now()),
+            updated_at: Set(chrono::Utc::now()),
+        }
+    }
+
+    /// 执行库存锁定 UPDATE（带防御性 WHERE 条件）
+    async fn execute_stock_lock(
+        stock: &inventory_stock::Model,
+        item: &super::super::SalesOrderItemRequest,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        let lock_result = inventory_stock::Entity::update_many()
+            .filter(inventory_stock::Column::Id.eq(stock.id))
+            .filter(inventory_stock::Column::QuantityAvailable.gte(item.quantity))
+            .col_expr(
+                inventory_stock::Column::QuantityAvailable,
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
+                    .sub(item.quantity),
+            )
+            .col_expr(
+                inventory_stock::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+            )
+            .exec(txn)
+            .await?;
+        if lock_result.rows_affected == 0 {
+            return Err(AppError::business(format!(
+                "产品 {} 库存不足（并发冲突或库存已被其他事务扣减）",
+                item.product_id
+            )));
+        }
+        Ok(())
+    }
+
+    /// 批量插入预留记录
+    async fn batch_insert_reservations(
+        reservations: Vec<inventory_reservation::ActiveModel>,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        if !reservations.is_empty() {
+            inventory_reservation::Entity::insert_many(reservations)
                 .exec(txn)
                 .await?;
         }
