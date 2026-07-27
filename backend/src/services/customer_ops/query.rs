@@ -122,9 +122,7 @@ impl CustomerService {
         Ok(json_rows)
     }
 
-    /// 获取客户列表（带数据权限过滤）
-    ///
-    /// 当 permission_filter 为 None 时委托给 list_customers，否则按字段过滤查询。
+/// 获取客户列表（带数据权限过滤）
     pub async fn list_customers_with_filter(
         &self,
         page_req: PageRequest,
@@ -172,9 +170,7 @@ impl CustomerService {
         ))
     }
 
-    /// 获取客户详情（带数据权限过滤）
-    ///
-    /// 先复用 get_customer 的行级权限校验（IDOR 防护），再按 permission_filter 选择字段。
+/// 获取客户详情（带数据权限过滤）
     pub async fn get_customer_with_filter(
         &self,
         customer_id: i32,

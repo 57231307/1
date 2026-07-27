@@ -63,9 +63,6 @@ fn is_blue_green_mode() -> bool {
 }
 
 /// 获取当前活跃实例名（`blue` 或 `green`）。
-///
-/// 通过读取 `/etc/nginx/bingxi-upstream.active.conf` 软链接目标判定。
-/// 返回 `None` 表示软链接缺失或目标无法识别。
 fn get_active_instance() -> Option<String> {
     let target = run_cmd("readlink", &["-f", NGINX_UPSTREAM_ACTIVE]).ok()?;
     let t = target.trim();
@@ -102,8 +99,6 @@ fn opposite_instance(name: &str) -> &'static str {
 }
 
 /// 对指定实例执行健康检查（GET `/api/v1/erp/health/readiness`）。
-///
-/// 重试 `HEALTH_CHECK_RETRIES` 次，每次间隔 1 秒；任一次成功即返回 `true`。
 fn health_check_instance(instance: &str) -> bool {
     let port = instance_port(instance);
     let url = format!("http://127.0.0.1:{}{}", port, HEALTH_PATH);
@@ -143,52 +138,19 @@ fn cleanup_temp(temp_dir: &str) {
 
 pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     println!("=== 系统升级 ===\n");
-
     let current = env!("CARGO_PKG_VERSION");
     println!("当前版本: v{}", current);
 
-    // 获取目标版本
-    let target = match &version {
-        Some(v) => {
-            let v = if v.starts_with('v') {
-                v.clone()
-            } else {
-                format!("v{}", v)
-            };
-            println!("目标版本: {}", v);
-            v
-        }
-        None => {
-            println!("获取最新版本...");
-            match get_latest_version() {
-                Some(v) => {
-                    println!("最新版本: {}", v);
-                    v
-                }
-                None => {
-                    println!("[ERROR] 无法获取最新版本");
-                    println!("\n请手动指定版本:");
-                    println!("  bingxi upgrade --version v2026.x.x.xxxx");
-                    println!("\n或手动下载后使用 deploy 命令:");
-                    println!("  bingxi deploy --package release-xxx.tar.gz");
-                    return;
-                }
-            }
-        }
+    let target = match Self::resolve_target_version(&version) {
+        Some(v) => v,
+        None => return,
     };
 
-    // 备份
-    if !no_backup {
-        println!("\n备份当前版本...");
-        // L4 修复：检查备份结果，失败则中止升级
-        if !super::backup::cmd_backup("all") {
-            println!("[ERROR] 备份失败，终止升级");
-            return;
-        }
+    if !no_backup && !super::backup::cmd_backup("all") {
+        println!("[ERROR] 备份失败，终止升级");
+        return;
     }
 
-    // 下载
-    println!("\n下载新版本...");
     let download_path = format!("/tmp/release-{}.tar.gz", target);
     let release_url = build_release_url(&target);
 
@@ -204,11 +166,8 @@ pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
         return;
     }
 
-    // 部署
-    println!("\n部署新版本...");
     deploy_release(&download_path);
 
-    // 清理下载包（非关键路径）
     if let Err(e) = run_cmd("rm", &["-f", &download_path]) {
         println!("[WARN] 清理下载包失败（可忽略）: {}", e);
     }
@@ -217,6 +176,37 @@ pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     println!("新版本: {}", target);
     println!("备份位置: {}", get_backup_dir());
     println!("\n如需回滚: bingxi rollback");
+}
+
+fn resolve_target_version(version: &Option<String>) -> Option<String> {
+    match version {
+        Some(v) => {
+            let v = if v.starts_with('v') {
+                v.clone()
+            } else {
+                format!("v{}", v)
+            };
+            println!("目标版本: {}", v);
+            Some(v)
+        }
+        None => {
+            println!("获取最新版本...");
+            match get_latest_version() {
+                Some(v) => {
+                    println!("最新版本: {}", v);
+                    Some(v)
+                }
+                None => {
+                    println!("[ERROR] 无法获取最新版本");
+                    println!("\n请手动指定版本:");
+                    println!("  bingxi upgrade --version v2026.x.x.xxxx");
+                    println!("\n或手动下载后使用 deploy 命令:");
+                    println!("  bingxi deploy --package release-xxx.tar.gz");
+                    None
+                }
+            }
+        }
+    }
 }
 
 pub(super) fn cmd_deploy(package: &str) {
@@ -254,17 +244,6 @@ pub(super) fn cmd_rollback() {
 }
 
 /// P0-D15：蓝绿模式回滚（零停机）。
-///
-/// 流程：
-/// 1. 识别当前活跃实例（运行新版本/有问题的版本）与非活跃实例；
-/// 2. 停止非活跃实例（如运行中）；
-/// 3. 将 `server.old` / `bingxi.old` 恢复到 `/opt/bingxi-erp/backend/` 路径；
-/// 4. 启动非活跃实例（加载旧版本二进制）；
-/// 5. 健康检查非活跃实例；
-/// 6. 切换 nginx upstream 到非活跃实例（零停机）；
-/// 7. 停止原活跃实例（新版本/有问题的版本）。
-///
-/// 任一关键步骤失败立即中止，活跃实例继续服务，避免回滚中途宕机。
 fn cmd_rollback_blue_green(server_old: &str, bingxi_old: &str) {
     println!("=== 蓝绿回滚模式（零停机）===");
 
@@ -287,55 +266,16 @@ fn cmd_rollback_blue_green(server_old: &str, bingxi_old: &str) {
     println!("当前活跃实例: {} ({})", active, instance_port(&active));
     println!("回滚目标实例: {} ({})", inactive, instance_port(&inactive));
 
-    // 1. 停止非活跃实例（如运行中，确保干净启动）
-    println!("停止非活跃实例 {}（如运行中）...", inactive_service);
     let _ = run_cmd("systemctl", &["stop", &inactive_service]);
 
-    // 2. 恢复旧版本二进制（关键路径，任一失败立即中止）
-    println!("恢复旧版本二进制...");
-    let server_path = format!("{}/backend/server", get_install_dir());
-    let bingxi_path = format!("{}/backend/bingxi", get_install_dir());
-
-    if let Err(e) = run_cmd("cp", &["-f", server_old, &server_path]) {
-        println!("[ERROR] 恢复 server 失败，终止回滚: {}", e);
-        println!("活跃实例 {} 继续服务，未受影响", active_service);
-        return;
-    }
-    if let Err(e) = run_cmd("cp", &["-f", bingxi_old, &bingxi_path]) {
-        println!("[ERROR] 恢复 bingxi 失败，终止回滚: {}", e);
-        println!("活跃实例 {} 继续服务，未受影响", active_service);
-        return;
-    }
-    if let Err(e) = run_cmd("chmod", &["+x", &server_path]) {
-        println!("[ERROR] chmod server 失败，终止回滚: {}", e);
-        println!("活跃实例 {} 继续服务，未受影响", active_service);
-        return;
-    }
-    if let Err(e) = run_cmd("chmod", &["+x", &bingxi_path]) {
-        println!("[ERROR] chmod bingxi 失败，终止回滚: {}", e);
-        println!("活跃实例 {} 继续服务，未受影响", active_service);
+    if !Self::restore_rollback_binaries(server_old, bingxi_old, &active_service) {
         return;
     }
 
-    // 3. 启动非活跃实例（加载旧版本二进制）
-    println!("启动非活跃实例 {}...", inactive_service);
-    if let Err(e) = run_cmd("systemctl", &["start", &inactive_service]) {
-        println!("[ERROR] 启动 {} 失败: {}", inactive_service, e);
-        println!("活跃实例 {} 继续服务，未受影响", active_service);
+    if !Self::start_and_health_check(&inactive, &inactive_service, &active_service) {
         return;
     }
 
-    // 4. 健康检查非活跃实例
-    println!("健康检查回滚实例 {}...", inactive_service);
-    if !health_check_instance(&inactive) {
-        println!("[ERROR] 回滚实例健康检查失败");
-        println!("停止回滚实例，活跃实例 {} 继续服务", active_service);
-        let _ = run_cmd("systemctl", &["stop", &inactive_service]);
-        return;
-    }
-
-    // 5. 切换 nginx upstream（零停机）
-    println!("切换 nginx upstream → {}...", inactive);
     if let Err(e) = switch_nginx_upstream(&inactive) {
         println!("[ERROR] nginx 切换失败: {}", e);
         println!("停止回滚实例，活跃实例 {} 继续服务", active_service);
@@ -343,7 +283,6 @@ fn cmd_rollback_blue_green(server_old: &str, bingxi_old: &str) {
         return;
     }
 
-    // 6. 停止原活跃实例（新版本/有问题的版本）
     println!("停止原活跃实例 {}...", active_service);
     if let Err(e) = run_cmd("systemctl", &["stop", &active_service]) {
         println!("[WARN] 停止原活跃实例失败（可手动停止）: {}", e);
@@ -352,6 +291,52 @@ fn cmd_rollback_blue_green(server_old: &str, bingxi_old: &str) {
     println!("\n[OK] 蓝绿回滚成功");
     println!("新活跃实例: {} ({})", inactive, instance_port(&inactive));
     println!("旧实例 {} 已停止（如需重启新版本可手动启动）", active_service);
+}
+
+fn restore_rollback_binaries(server_old: &str, bingxi_old: &str, active_service: &str) -> bool {
+    println!("恢复旧版本二进制...");
+    let server_path = format!("{}/backend/server", get_install_dir());
+    let bingxi_path = format!("{}/backend/bingxi", get_install_dir());
+
+    if let Err(e) = run_cmd("cp", &["-f", server_old, &server_path]) {
+        println!("[ERROR] 恢复 server 失败，终止回滚: {}", e);
+        println!("活跃实例 {} 继续服务，未受影响", active_service);
+        return false;
+    }
+    if let Err(e) = run_cmd("cp", &["-f", bingxi_old, &bingxi_path]) {
+        println!("[ERROR] 恢复 bingxi 失败，终止回滚: {}", e);
+        println!("活跃实例 {} 继续服务，未受影响", active_service);
+        return false;
+    }
+    if let Err(e) = run_cmd("chmod", &["+x", &server_path]) {
+        println!("[ERROR] chmod server 失败，终止回滚: {}", e);
+        println!("活跃实例 {} 继续服务，未受影响", active_service);
+        return false;
+    }
+    if let Err(e) = run_cmd("chmod", &["+x", &bingxi_path]) {
+        println!("[ERROR] chmod bingxi 失败，终止回滚: {}", e);
+        println!("活跃实例 {} 继续服务，未受影响", active_service);
+        return false;
+    }
+    true
+}
+
+fn start_and_health_check(inactive: &str, inactive_service: &str, active_service: &str) -> bool {
+    println!("启动非活跃实例 {}...", inactive_service);
+    if let Err(e) = run_cmd("systemctl", &["start", &inactive_service]) {
+        println!("[ERROR] 启动 {} 失败: {}", inactive_service, e);
+        println!("活跃实例 {} 继续服务，未受影响", active_service);
+        return false;
+    }
+
+    println!("健康检查回滚实例 {}...", inactive_service);
+    if !health_check_instance(inactive) {
+        println!("[ERROR] 回滚实例健康检查失败");
+        println!("停止回滚实例，活跃实例 {} 继续服务", active_service);
+        let _ = run_cmd("systemctl", &["stop", &inactive_service]);
+        return false;
+    }
+    true
 }
 
 /// 单实例模式回滚（原 cmd_rollback 逻辑，停机模式）。
@@ -414,8 +399,6 @@ fn get_latest_version() -> Option<String> {
 // `utils::path_validator::validate_extracted_paths`，此处不再重复维护。
 
 /// 部署发布包。
-///
-/// P0-D15：根据 systemd template 是否已安装，自动分发到蓝绿零停机模式或单实例停机模式。
 fn deploy_release(package: &str) {
     if is_blue_green_mode() {
         deploy_release_blue_green(package);
@@ -645,8 +628,6 @@ fn deploy_release_blue_green(package: &str) {
 }
 
 /// 单实例模式部署（原 deploy_release 逻辑，停机模式）。
-///
-/// 保留作为非蓝绿部署环境的回退路径。
 fn deploy_release_legacy(package: &str) {
     println!("停止服务...");
     stop_service_for_legacy_deploy();

@@ -223,25 +223,12 @@ impl From<sea_orm::DbErr> for AppError {
                 AppError::database("数据库连接失败")
             }
             sea_orm::DbErr::Exec(_) => {
-                let error_kind =
-                    if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                        "数据重复"
-                    } else if err_str.contains("foreign key constraint")
-                        || err_str.contains("references")
-                    {
-                        "数据关联错误"
-                    } else {
-                        "数据库执行错误"
-                    };
+                let error_kind = Self::classify_db_exec_error(&err_str);
                 tracing::error!("数据库执行错误 [{}]: {}", error_kind, err);
                 AppError::database(error_kind.to_string())
             }
             sea_orm::DbErr::Query(_) => {
-                let error_kind = if err_str.contains("syntax error") {
-                    "查询语法错误"
-                } else {
-                    "数据库查询错误"
-                };
+                let error_kind = Self::classify_db_query_error(&err_str);
                 tracing::error!("数据库查询错误 [{}]: {}", error_kind, err);
                 AppError::database(error_kind.to_string())
             }
@@ -250,11 +237,7 @@ impl From<sea_orm::DbErr> for AppError {
                 AppError::not_found(msg.clone())
             }
             sea_orm::DbErr::Custom(_) => {
-                let error_kind = if err_str.contains("timeout") {
-                    "数据库操作超时"
-                } else {
-                    "数据库自定义错误"
-                };
+                let error_kind = Self::classify_db_custom_error(&err_str);
                 tracing::error!("数据库自定义错误 [{}]: {}", error_kind, err);
                 AppError::database(error_kind.to_string())
             }
@@ -275,6 +258,34 @@ impl From<sea_orm::DbErr> for AppError {
                 AppError::database("数据库操作失败")
             }
         }
+    }
+}
+
+fn classify_db_exec_error(err_str: &str) -> &'static str {
+    if err_str.contains("unique constraint") || err_str.contains("duplicate") {
+        "数据重复"
+    } else if err_str.contains("foreign key constraint")
+        || err_str.contains("references")
+    {
+        "数据关联错误"
+    } else {
+        "数据库执行错误"
+    }
+}
+
+fn classify_db_query_error(err_str: &str) -> &'static str {
+    if err_str.contains("syntax error") {
+        "查询语法错误"
+    } else {
+        "数据库查询错误"
+    }
+}
+
+fn classify_db_custom_error(err_str: &str) -> &'static str {
+    if err_str.contains("timeout") {
+        "数据库操作超时"
+    } else {
+        "数据库自定义错误"
     }
 }
 
@@ -314,12 +325,6 @@ use chrono::Utc;
 use uuid::Uuid;
 
 /// 对外暴露的统一错误响应体
-///
-/// 字段说明：
-/// - `code`      业务错误码（字符串枚举，便于多端/多语言统一处理）
-/// - `message`   错误消息：开发环境保留 `Display` 详细描述；生产环境脱敏为通用文案
-/// - `trace_id`  本次请求的链路追踪 ID，可用于服务端日志关联
-/// - `timestamp` 错误发生时的 Unix 时间戳（秒）
 #[derive(Debug, Clone, Serialize)]
 pub struct ErrorResponse {
     pub code: String,
@@ -330,14 +335,7 @@ pub struct ErrorResponse {
 
 /// 为已有 `AppError` 追加响应序列化能力（不修改任何现有方法）
 impl AppError {
-    /// 转换为对外统一的 [`ErrorResponse`]
-    ///
-    /// 行为：
-    /// - `APP_ENV=production`（大小写不敏感） → 返回脱敏的通用文案
-    /// - 其他情况（未设置 / development / test） → 返回 `Display` 详细描述，便于排查
-    ///
-    /// 漏洞 #12 修复：从编译时 `cfg!(debug_assertions)` 改为运行时 `APP_ENV` 判断，
-    /// 统一与 `IntoResponse::into_response` 的脱敏策略；CI 可注入 `APP_ENV=production` 验证
+/// 转换为对外统一的 [`ErrorResponse`]
     pub fn to_response(&self) -> ErrorResponse {
         let trace_id = Uuid::new_v4().to_string();
         let timestamp = Utc::now().timestamp();
@@ -404,10 +402,7 @@ mod tests {
         serde_json::from_slice(&body_bytes).expect("响应体不是合法 JSON")
     }
 
-    /// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `error_type` 字段
-    ///
-    /// 背景：`error_type` 暴露内部错误分类（DatabaseError / ValidationError / ...），
-    /// 协助攻击者识别后端技术栈。生产环境必须脱敏。
+/// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `error_type` 字段
     #[tokio::test]
     async fn test_production_response_omits_error_type() {
         // 强制设置生产环境
@@ -429,10 +424,7 @@ mod tests {
         std::env::remove_var("APP_ENV");
     }
 
-    /// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `detail` 字段
-    ///
-    /// 背景：`detail` 包含 severity / action_required / 内部建议，
-    /// 泄露内部错误处理策略。生产环境必须脱敏。
+/// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `detail` 字段
     #[tokio::test]
     async fn test_production_response_omits_detail() {
         std::env::set_var("APP_ENV", "production");
@@ -447,11 +439,7 @@ mod tests {
         std::env::remove_var("APP_ENV");
     }
 
-    /// 漏洞 #4 / #8 修复测试：开发环境响应**也不包含** `error_type` 和 `detail` 字段
-    ///
-    /// 背景：原 #11 修复仅在生产环境脱敏，开发环境仍暴露 error_type / detail。
-    /// 修复后无论环境，HTTP 响应统一仅含 code / message / trace_id / timestamp。
-    /// 详细信息仅写入 `tracing` 服务端日志（运维通过 trace_id 关联）。
+/// 漏洞 #4 / #8 修复测试：开发环境响应**也不包含** `error_type` 和 `detail` 字段
     #[tokio::test]
     async fn test_development_response_omits_error_type_and_detail() {
         // 确保不是 production
@@ -481,9 +469,7 @@ mod tests {
         );
     }
 
-    /// 漏洞 #4 修复测试：DatabaseError 响应脱敏
-    ///
-    /// 验证：即使原始 msg 包含 SQL 片段/列名/约束名，响应 message 也不泄露。
+/// 漏洞 #4 修复测试：DatabaseError 响应脱敏
     #[tokio::test]
     async fn test_database_error_response_is_sanitized() {
         std::env::remove_var("APP_ENV");
@@ -524,10 +510,7 @@ mod tests {
         std::env::remove_var("APP_ENV");
     }
 
-    /// 漏洞 #12 反向测试：to_response() 在非生产环境下也使用脱敏 message
-    ///
-    /// 漏洞 #4 / #8 修复：to_response 不再根据环境区分，**永远**返回脱敏的 public_message。
-    /// 验证开发环境也不暴露原始 msg 内容（Display 完整描述）。
+/// 漏洞 #12 反向测试：to_response() 在非生产环境下也使用脱敏 message
     #[tokio::test]
     async fn test_to_response_uses_public_message_in_development() {
         std::env::remove_var("APP_ENV");

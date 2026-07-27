@@ -290,11 +290,6 @@ pub async fn enable_totp(
 }
 
 /// 3. 生成 2FA 恢复码 (v11 批次 141 新增)
-///
-/// POST /api/v1/erp/auth/totp/recovery-codes
-///
-/// 生成 10 个 8 字符的恢复码（明文仅此一次返回），哈希后存入用户表。
-/// 前端在 enableTotp 成功后调用，展示恢复码给用户保存。
 pub async fn generate_recovery_codes(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthContext>,

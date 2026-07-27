@@ -88,11 +88,28 @@ impl CustomerService {
         let customer_id = contact.customer_id;
         let mut contact_active: customer_contact::ActiveModel = contact.into();
 
-        // 若设置为主联系人，先将其他联系人取消主联系人状态
         if let Some(true) = req.is_primary {
             self.clear_primary_contacts_txn(customer_id, &txn).await?;
         }
 
+        Self::apply_contact_updates(&mut contact_active, req);
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            contact_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    fn apply_contact_updates(
+        contact_active: &mut customer_contact::ActiveModel,
+        req: UpdateCustomerContactRequest,
+    ) {
         if let Some(name) = req.name {
             contact_active.name = Set(name);
         }
@@ -112,17 +129,6 @@ impl CustomerService {
             contact_active.remarks = Set(Some(remarks));
         }
         contact_active.updated_at = Set(Utc::now().into());
-
-        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
-            "auto_audit",
-            contact_active,
-            Some(user_id),
-        )
-        .await?;
-
-        txn.commit().await?;
-        Ok(updated)
     }
 
     /// 删除客户联系人
@@ -135,9 +141,7 @@ impl CustomerService {
         Ok(())
     }
 
-    /// 取消指定客户的所有主联系人状态（事务内，保证"每客户最多一个主联系人"约束）
-    ///
-    /// 不走 update_with_audit，防止审计日志膨胀（一次 create 即产生 N 条审计）。
+/// 取消指定客户的所有主联系人状态（事务内，保证"每客户最多一个主联系人"约束）
     pub(crate) async fn clear_primary_contacts_txn(
         &self,
         customer_id: i32,

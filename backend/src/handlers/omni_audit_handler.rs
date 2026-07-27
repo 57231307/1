@@ -14,9 +14,6 @@ use serde::Deserialize;
 use validator::Validate;
 
 /// P0 8-5 修复：omni_audit 查询接口要求 admin 角色
-///
-/// 安全原因：get_dashboard_stats 和 search_logs 查询全系统审计日志，
-/// 含敏感操作记录，必须限制为 admin 角色。
 async fn require_admin_role(
     state: &AppState,
     auth: &AuthContext,
@@ -58,11 +55,6 @@ pub struct TrackEventRequest {
 }
 
 /// 接收前端发来的 UI 埋点事件
-///
-/// P2 7-13 修复：原 auth: Option<AuthContext> 允许匿名调用，无速率限制，
-/// 可被注入垃圾审计日志污染 omni_audit_logs 表。
-/// 改为 auth: AuthContext 要求登录态，匿名请求由 auth_middleware 返回 401 拦截。
-/// 速率限制由全局 rate_limit_by_ip 中间件提供（已在 main.rs 挂载）。
 pub async fn track_event(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -115,15 +107,6 @@ pub async fn track_event(
 }
 
 /// 获取审计可视化大屏统计数据
-///
-/// P2 8-11 修复：原 get_dashboard_stats 仅 total_events 真实查询，
-/// ui_clicks_today / api_calls_today / security_alerts_today 全部硬编码为 0，
-/// 大屏数据完全失真。
-///
-/// 新实现按以下启发式区分事件来源：
-/// - ui_clicks_today：request_method IS NULL（track_event 上报的 UI 事件不带请求方法）
-/// - api_calls_today：request_method IS NOT NULL（omni_audit_middleware 拦截的 HTTP 请求）
-/// - security_alerts_today：response_status = 403（DENIED）或 >= 500（FAILED）
 pub async fn get_dashboard_stats(
     State(state): State<AppState>,
     auth: AuthContext,

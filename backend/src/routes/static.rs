@@ -174,9 +174,7 @@ mod tests {
         assert!(sanitize_static_path("a/b/c/d.js").is_some());
     }
 
-    /// 测试路径遍历攻击：应被拒绝
-    ///
-    /// 修复 bug.md #1：原代码接受 `../../../etc/passwd` 等路径进行任意文件读取
+/// 测试路径遍历攻击：应被拒绝
     #[test]
     fn test_sanitize_rejects_path_traversal() {
         assert!(sanitize_static_path("../../../etc/passwd").is_none());

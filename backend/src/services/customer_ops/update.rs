@@ -93,6 +93,28 @@ impl CustomerService {
             contact_phone: Set(contact_phone),
             contact_email: Set(contact_email),
             address: Set(address),
+            ..Self::build_customer_active_model_rest(
+                city, province, country, postal_code, credit_limit, payment_terms,
+                tax_id, bank_name, bank_account, customer_type, notes, created_by,
+            )
+        }
+    }
+
+    fn build_customer_active_model_rest(
+        city: String,
+        province: String,
+        country: Option<String>,
+        postal_code: String,
+        credit_limit: Decimal,
+        payment_terms: String,
+        tax_id: Option<String>,
+        bank_name: Option<String>,
+        bank_account: Option<String>,
+        customer_type: String,
+        notes: Option<String>,
+        created_by: Option<i32>,
+    ) -> customer::ActiveModel {
+        customer::ActiveModel {
             city: Set(city),
             province: Set(province),
             country: Set(Some(country.unwrap_or_else(|| "中国".to_string()))),
@@ -115,6 +137,7 @@ impl CustomerService {
             inspection_standard: sea_orm::ActiveValue::NotSet,
             owner_id: Set(created_by.unwrap_or(0)),
             owner_assigned_at: Set(Some(Utc::now())),
+            ..Default::default()
         }
     }
 
@@ -143,6 +166,20 @@ impl CustomerService {
             ..
         } = args;
         let mut m: customer::ActiveModel = customer.into();
+        Self::apply_customer_core_updates(&mut m, customer_name, contact_person, contact_phone, contact_email, address);
+        Self::apply_customer_extended_updates(&mut m, city, province, postal_code, credit_limit, payment_terms);
+        Self::apply_customer_financial_updates(&mut m, tax_id, bank_name, bank_account, customer_type, status, notes);
+        m
+    }
+
+    fn apply_customer_core_updates(
+        m: &mut customer::ActiveModel,
+        customer_name: Option<String>,
+        contact_person: Option<String>,
+        contact_phone: Option<String>,
+        contact_email: Option<String>,
+        address: Option<String>,
+    ) {
         if let Some(v) = customer_name {
             m.customer_name = Set(v);
         }
@@ -158,6 +195,16 @@ impl CustomerService {
         if let Some(v) = address {
             m.address = Set(Some(v));
         }
+    }
+
+    fn apply_customer_extended_updates(
+        m: &mut customer::ActiveModel,
+        city: Option<String>,
+        province: Option<String>,
+        postal_code: Option<String>,
+        credit_limit: Option<Decimal>,
+        payment_terms: Option<String>,
+    ) {
         if let Some(v) = city {
             m.city = Set(Some(v));
         }
@@ -173,6 +220,17 @@ impl CustomerService {
         if let Some(v) = payment_terms {
             m.payment_terms = Set(v);
         }
+    }
+
+    fn apply_customer_financial_updates(
+        m: &mut customer::ActiveModel,
+        tax_id: Option<String>,
+        bank_name: Option<String>,
+        bank_account: Option<String>,
+        customer_type: Option<String>,
+        status: Option<String>,
+        notes: Option<String>,
+    ) {
         if let Some(v) = tax_id {
             m.tax_id = Set(Some(v));
         }
@@ -191,7 +249,6 @@ impl CustomerService {
         if let Some(v) = notes {
             m.notes = Set(Some(v));
         }
-        m
     }
 
     /// 发布客户更新副作用（缓存失效 / 事件发布 / ES 同步）

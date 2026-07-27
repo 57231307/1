@@ -19,10 +19,6 @@ pub use crate::services::customer_ops::types::{
 };
 
 /// 客户服务
-///
-/// 批次 124 v8 复审 P1 修复：注入 search_syncer 实现 PG→ES 写入同步。
-/// - create/update/delete 事务提交后调用 sync_customer 将最新数据同步到 ES
-/// - ES 同步失败仅记录 tracing::warn!（最终一致性），不回滚 PG 事务
 pub struct CustomerService {
     /// 数据库连接（pub(crate) 供 customer_ops 子模块访问）
     pub(crate) db: Arc<DatabaseConnection>,

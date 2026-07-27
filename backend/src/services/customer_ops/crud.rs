@@ -145,10 +145,7 @@ impl CustomerService {
         ))
     }
 
-    /// 删除客户（软删除，将状态改为 inactive）
-    ///
-    /// 事务内 lock_exclusive 串行化并发软删除 + 状态门（已 inactive 拒绝）+
-    /// update_with_audit 落审计日志。提交后失效缓存并同步 ES。
+/// 删除客户（软删除，将状态改为 inactive）
     pub async fn delete_customer(
         &self,
         customer_id: i32,

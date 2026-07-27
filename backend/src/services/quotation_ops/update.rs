@@ -72,6 +72,14 @@ impl QuotationService {
         dto: &UpdateQuotationDto,
         id: i64,
     ) -> Result<(), AppError> {
+        Self::apply_core_updates(active, dto);
+        Self::apply_price_terms_update(active, &dto.price_terms, id)?;
+        Self::apply_extended_updates(active, dto);
+        active.updated_at = Set(Utc::now());
+        Ok(())
+    }
+
+    fn apply_core_updates(active: &mut QuotationActive, dto: &UpdateQuotationDto) {
         if let Some(v) = dto.customer_id {
             active.customer_id = Set(v);
         }
@@ -93,7 +101,9 @@ impl QuotationService {
         if let Some(v) = &dto.base_currency {
             active.base_currency = Set(v.clone());
         }
-        Self::apply_price_terms_update(active, &dto.price_terms, id)?;
+    }
+
+    fn apply_extended_updates(active: &mut QuotationActive, dto: &UpdateQuotationDto) {
         if let Some(v) = &dto.incoterms_version {
             active.incoterms_version = Set(Some(v.clone()));
         }
@@ -118,8 +128,6 @@ impl QuotationService {
         if let Some(v) = &dto.notes {
             active.notes = Set(Some(v.clone()));
         }
-        active.updated_at = Set(Utc::now());
-        Ok(())
     }
 
     /// 校验并应用 price_terms 更新（批次 111 P1-2：更新时同样校验贸易术语合法性）
@@ -154,8 +162,18 @@ impl QuotationService {
             .filter(sales_quotation_item::Column::QuotationId.eq(id))
             .exec(txn)
             .await?;
-        let item_active_models: Vec<ItemActive> = items
-            .iter()
+        let item_active_models = Self::items_to_active_models(items, id);
+        if !item_active_models.is_empty() {
+            ItemEntity::insert_many(item_active_models)
+                .exec(txn)
+                .await?;
+        }
+        Ok(())
+    }
+
+    fn items_to_active_models(items: Vec<CreateQuotationItemDto>, id: i64) -> Vec<ItemActive> {
+        items
+            .into_iter()
             .enumerate()
             .map(|(idx, item_dto)| ItemActive {
                 id: Default::default(),
@@ -170,7 +188,6 @@ impl QuotationService {
                 quantity: Set(item_dto.quantity),
                 unit_price: Set(item_dto.unit_price),
                 unit_price_with_tax: Set(item_dto.unit_price_with_tax),
-                // 批次 87：金额计算补 round_dp(2) 精度归一化
                 amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
                 amount_with_tax: Set(
                     (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2),
@@ -186,13 +203,7 @@ impl QuotationService {
                 notes: Set(item_dto.notes.clone()),
                 sequence: Set(idx as i32),
             })
-            .collect();
-        if !item_active_models.is_empty() {
-            ItemEntity::insert_many(item_active_models)
-                .exec(txn)
-                .await?;
-        }
-        Ok(())
+            .collect()
     }
 
     /// 全量替换报价单条款（删除旧条款 + 批量插入新条款）
