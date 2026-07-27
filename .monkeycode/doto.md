@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-27（D14 API 命名统一全部完成：4 处不规范命名修复 listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer，0 残留；模块 G 17/17 项 P0 全部完成）
+> 最近整理：2026-07-27（P0 任务完成情况真实复审：D08/D09/D10 三项重新打开 —— 代码级扫描发现 D08 剩 18 个 >80 行函数 / D09 剩 9 个 >100 行函数 / D10 剩 2 个 >1000 行文件；其余 14 项 ✅ 真实完成；P0 完成数 17→14，完成率 100%→82.4%）
 
 ---
 
@@ -10,14 +10,19 @@
 
 > 本节为快速索引，按 4 个维度归类；详细条目见 §三，依赖关系见 §二。
 
-### 0.1 按状态归类（2026-07-26：17 ✅ / 0 待CI / 0 ⏳ / 0 ❌）
+### 0.1 按状态归类（2026-07-27 复审：14 ✅ / 0 待CI / 3 ⏳ / 0 ❌）
 
 | 状态 | 数量 | 任务编号 |
 |------|------|----------|
-| ✅ 已完成 | 17 | D01, D02, D03, D04, D05, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17 |
+| ✅ 已完成 | 14 | D01, D02, D03, D04, D05, D06, D07, D11, D12, D13, D14, D15, D16, D17 |
 | 🔵 代码完成待 CI | 0 | — |
-| ⏳ 进行中 | 0 | — |
+| ⏳ 进行中 | 3 | **D08**（剩 18 个 >80 行函数）/ **D09**（剩 9 个 >100 行函数，豁免后 8 个）/ **D10**（剩 2 个 >1000 行文件） |
 | ❌ 未开始 | 0 | — |
+
+> ⚠️ **2026-07-27 复审重新打开 D08/D09/D10**：代码级真实扫描发现三项未完成，文档记录与实际状态严重偏差。
+> - D08：剩余 18 个 >80 行非测试函数（最长 static_assets_handler 190 行 / deploy_release_blue_green 188 行 / into_response 187 行）
+> - D09：剩余 9 个 >100 行非测试函数（豁免 builtin_transition_rules 后 8 个）
+> - D10：剩余 2 个 >1000 行文件（quotation_service.rs 1011 行 / customer_service.rs 1006 行）
 
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并到 main）：Batch 1 拆分 services/ 目录 39 个 >80 行函数（33 文件）；全 backend/src 扫描确认仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行。
 > ✅ 2026-07-26 D09+D14 已合并到 main（PR #737）：CI 全绿（Clippy/单元测试/构建/格式/ESLint/类型检查均 SUCCESS），仅覆盖率非阻塞失败。
@@ -381,15 +386,15 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 104 | **0** | 100% |
+| **P0 阻塞级** | 104 | 101 | **3** | 97.1% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **104** | **628** | **14.2%** |
+| **合计** | **732** | **101** | **631** | **13.8%** |
 
-> ✅ 2026-07-26 D14 全部完成（PR #737 已合并 main）：4 处不规范 API 命名修复（listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer），0 残留，P0 完成数 103→104，模块 G 17/17 全部完成。
-> ✅ 2026-07-26 D05 全部完成（PR #754 已合并 main cf6aac4）：375/375 .vue 文件 100% 接入 useI18n（0 硬编码中文 + 8947 翻译键双语 0 缺失），P0 完成数 102→103。
-> ✅ 2026-07-26 D08 全部完成（PR #740 已合并 + 全 backend/src 扫描确认 0 个 >80 行非测试函数），P0 完成数 101→102。
+> ⚠️ 2026-07-27 P0 复审重新打开 D08/D09/D10：代码级真实扫描发现三项未完成，文档记录"已完成"与实际状态严重偏差。D08 剩 18 个 >80 行函数（最长 static_assets_handler 190 行）；D09 剩 9 个 >100 行函数（豁免后 8 个）；D10 剩 2 个 >1000 行文件（quotation_service.rs 1011 行 / customer_service.rs 1006 行）。P0 完成数 17→14，完成率 100%→82.4%。
+> ✅ 2026-07-26 D14 全部完成（PR #737 已合并 main）：4 处不规范 API 命名修复，0 残留，P0 完成数 103→104。
+> ✅ 2026-07-26 D05 全部完成（PR #754 已合并 main cf6aac4）：375/375 .vue 文件 100% 接入 useI18n（0 硬编码中文 + 10332 翻译键双语 0 缺失），P0 完成数 102→103。
 
 ### 1.2 状态：✅ D05 useI18n 接入全部完成（接入率 100%，375/375 .vue 文件，PR #754 已合并 main）
 
@@ -424,7 +429,8 @@ P0-D03 ✅ 5 service 缓存 (L)    ──→ P0-D04 ✅ moka→Redis (L)（三�
 P0-D05 ✅ useI18n (XL)          ← 独立（2026-07-26 PR #754 已合并 main：375/375 .vue 文件 100% 接入）
 P0-D06 ✅ aria-label (XL)        ← 独立（55 子批次 ~225 文件，三次核实 260/374 含 aria-label 69.5%）
 P0-D07 ✅ img alt (S)            ← 独立（审计误判，三次核实 2 个图片标签 100% 含 alt）
-P0-D08 ✅ 超长函数 (XL)          ──→ P0-D09 ✅ 100 行函数 (L) ──→ P0-D10 ✅ 1000 行文件 (L)
+P0-D08 ⏳ 超长函数 (XL)          ──→ P0-D09 ⏳ 100 行函数 (L) ──→ P0-D10 ⏳ 1000 行文件 (L)
+                                      （2026-07-27 复审重新打开：D08 剩 18/D09 剩 9/D10 剩 2）
    （三次核实：D08 实际 95 个 >80 行函数；2026-07-26 全 backend/src 扫描确认 D08 全部完成，仅剩 1 个 #[test] 测试函数豁免）
 P0-D11 ✅ setup_test_db (M)     ← 独立（审计误判）
 P0-D12 ✅ 圈复杂度 (M)           ← 独立（6 重构 + 2 误判）
@@ -509,7 +515,7 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - 待修复：UserTab.vue 命名空间 BUG（system.user → settings.user）+ 10 个部分接入文件补全（合并到新批次规划相关模块中）
   - **D05-10 子批次（2026-07-25，p0-d09-d14-batch 分支）**：✅ 已完成 inventory + purchase 模块 15 文件 i18n 接入收尾 —— inventory 模块 8 文件（index.vue + tabs/{InventoryStockTab,InventoryAlertTab,InventoryTransferTab}.vue + components/{StatCards,AdjustmentDialog,TransferDialog}.vue）+ purchase 模块 7 文件（index.vue + components/{PurchaseTop,StatCards,PurchaseFilter,PurchaseTable,CreateDlg,ViewDlg,ReceiveDlg}.vue）；本批次重点完成 purchase/components/{CreateDlg,ViewDlg,ReceiveDlg}.vue 三个对话框 i18n 接入（CreateDlg 22 处 + ViewDlg 22 处 + ReceiveDlg 19 处硬编码中文替换为 t('purchase.{createDlg|viewDlg|receiveDlg}.*') 调用），所有翻译键已在之前批次定义在 locales/zh-CN.ts + en-US.ts 双语同步；6 个 Grep 模式校验确认 15 个 .vue 文件无残留硬编码中文（注释除外）；详见 [CHANGELOG.md D05-10](file:///workspace/.monkeycode/CHANGELOG.md)
 
-### 3.2 P0-D08 91+ 超长函数（类七，XL，✅ 已完成）
+### 3.2 P0-D08 91+ 超长函数（类七，XL，⏳ 2026-07-27 复审重新打开）
 
 - **来源**：batch-07 P0-07-8
 - **证据（2026-07-25 三次核实）**：使用 Python 脚本基于括号深度追踪扫描 875 个 .rs 文件，>80 行函数实际 95 个（其中 >100 行 71 个，>200 行 18 个，>500 行 1 个）；最严重案例 services/report/tpl.rs:20 get_predefined_templates 701 行、handlers/auth_handler.rs:227 login 464 行、bootstrap/service_bootstrap.rs:74 bootstrap_full_mode 380 行
@@ -524,7 +530,11 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - Batch 1 (D08-1)：services/ 主目录及子目录 42 文件（§0.8.2）✅ 已完成（PR #740 main 88af0f1）
   - Batch 2 (D08-2)：handlers/ + routes/ + middleware/ + utils/ + 其他 41 文件，含 D09 收尾（§0.8.3）✅ 无需执行（全 backend/src 扫描确认 0 个 >80 行非测试函数）
 - **执行优先级**：第 1 顺位（无前置依赖 + 解锁 D09/D10）
-- **当前进度**：✅ 已完成 —— 2026-07-26 全 backend/src 扫描确认仅剩 1 个 >80 行函数（services/event_kafka.rs:442 test_payload_all_variants_round_trip 113 行，#[test] 测试函数豁免：16 个 BusinessEvent variant 数据声明 + round-trip 序列化验证，拆分会损害可读性）；Batch 1（PR #740 main 88af0f1）拆分 services/ 目录 39 个 >80 行函数（33 文件）+ 修复 Clippy 警告（material_shortage_service.rs 引入 ShortageMetrics 结构体 + chemical_ops/master.rs 移除冗余 .into() + ar_ops/verification_ops/manual.rs 移除冗余 .map_err(AppError::from) + supplier_service.rs 移除 Option<Decimal> 冗余 .clone()）+ 修复 listener.rs 4 处 &db→&*db 类型不匹配 + inv/inventory_move.rs 恢复 QuerySelect import；handlers/routes/middleware/utils/bootstrap/cli/config/search 目录的超长函数已在历史批次 #669-#682 中拆分完毕
+- **当前进度**：⏳ 2026-07-27 复审重新打开 —— 代码级真实扫描发现剩余 **18 个 >80 行非测试函数**未拆分完成：
+  - 前 10 名最长：①static_assets_handler 190 行（routes/static.rs:44）②deploy_release_blue_green 188 行（cli/util/upgrade.rs:441）③into_response 187 行（utils/error.rs:82）④init_enhanced_logging 158 行（utils/log_config.rs:13）⑤builtin_transition_rules 155 行（可豁免，纯数据表）⑥apply_full_mode_layers 147 行（bootstrap/middleware_bootstrap.rs:69）⑦new 123 行（config/settings.rs:216）⑧main 113 行（main.rs:59）⑨create 105 行（wage_ops/rate.rs:43）⑩chemicals 97 行（routes/catalog.rs:146）
+  - 涉及目录：routes/（2）/cli/（1）/utils/（2）/services/（2，含 1 豁免）/bootstrap/（1）/config/（1）/main.rs（1）/wage_ops/（1）/catalog（1）等
+  - 历史 Batch 1（PR #740）已拆分 services/ 39 个 >80 行函数，但 routes/utils/cli/bootstrap/config 等目录仍有残留
+  - 修复方案：按 §0.8.3 Batch 2 文件清单继续拆分，主函数 ≤50 行 + helper ≤50 行 + 公共 API 签名不变
 - **梯队规划**：
   - 第一梯队（>200 行 6 函数，2 批）：✅ 全部完成（2026-07-25 重新拆分验证：6 函数主函数均 ≤50 行，helper 均 ≤50 行，括号平衡 OK）
   - 第二梯队（150-200 行 22 函数，4 批）：✅ 全部完成
@@ -535,7 +545,7 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - D08 Batch 2（handlers/routes/middleware/utils 等）：✅ 无需执行（2026-07-26 全 backend/src 扫描确认 0 个 >80 行非测试函数；handlers/routes/middleware/utils/bootstrap/cli/config/search 目录的超长函数已在历史批次 #669-#682 中拆分完毕）
   - 模板化提取候选：inventory_finance_bridge_service.rs 7 个 create_*_voucher 函数提取通用 create_bridge_voucher<VoucherBuilder>
 
-### 3.3 P0-D09 54+ 函数超过 100 行（类二，L，✅ 已完成）
+### 3.3 P0-D09 54+ 函数超过 100 行（类二，L，⏳ 2026-07-27 复审重新打开）
 
 - **来源**：batch-02 P0-02-01
 - **证据（2026-07-25 三次核实）**：使用 Python 脚本基于括号深度追踪扫描，>100 行函数实际仅 11 个（非二次核实的 100 个）；最严重案例 services/report/tpl.rs:20 get_predefined_templates 701 行、services/event_kafka_payload.rs:381 try_from 227 行、services/event_kafka_payload.rs:150 from 226 行、routes/inventory.rs:24 inventory 路由 166 行
@@ -547,9 +557,12 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **依赖**：P0-D08 ⏳
 - **工作量**：L（实际接近完成，仅需拆分 9 个函数）
 - **批次**：494（D08 子集，随 D08 Batch 2 完成收尾，详见 §0.8.3）
-- **当前进度**：✅ 已完成 —— 9 个 >100 行函数全部拆分完成（2026-07-25）：①get_predefined_templates 701行→主函数 8 行 + 13 个 helper（4 分组 + 9 单模板）②try_from 227行→主函数 17 行 + 7 个 helper ③from 226行→主函数 17 行 + 7 个 helper ④inventory 路由 166行→主函数 7 行 + 6 个 helper ⑤purchases 路由 164行→主函数 5 行 + 4 个 helper ⑥ap 路由 159行→主函数 6 行 + 6 个 helper ⑦get_cash_flow_statement 116行→主函数 12 行 + 4 个 helper ⑧get_daily_report 111行→主函数 8 行 + 5 个 helper ⑨get_income_statement 101行→主函数 11 行 + 2 个 helper；所有 helper 均 ≤50 行，主函数仅做协调，公共 API 签名不变，无 #[allow] 警告抑制
+- **当前进度**：⏳ 2026-07-27 复审重新打开 —— 代码级真实扫描发现剩余 **9 个 >100 行非测试函数**未拆分完成（豁免 builtin_transition_rules 后 8 个）：
+  - ①static_assets_handler 190 行（routes/static.rs:44）②deploy_release_blue_green 188 行（cli/util/upgrade.rs:441）③into_response 187 行（utils/error.rs:82）④init_enhanced_logging 158 行（utils/log_config.rs:13）⑤apply_full_mode_layers 147 行（bootstrap/middleware_bootstrap.rs:69）⑥new 123 行（config/settings.rs:216）⑦main 113 行（main.rs:59）⑧create 105 行（wage_ops/rate.rs:43）
+  - 历史拆分的 9 个函数（get_predefined_templates 等）确实已完成，但扫描发现新的 9 个 >100 行函数（含之前漏扫的 routes/utils/cli/bootstrap/config 目录）
+  - 修复方案：随 D08 Batch 2 一并拆分（D09 是 D08 子集）
 
-### 3.4 P0-D10 30 个后端文件超过 1000 行（类二，L，进行中）
+### 3.4 P0-D10 30 个后端文件超过 1000 行（类二，L，⏳ 2026-07-27 复审确认未完成）
 
 - **来源**：batch-02 P0-02-02
 - **证据**：2026-07-19 精确扫描：实际 30 个 >1000 行文件，13 个 >1500 行，1 个 >2000 行（ar_service.rs 2067 行）；审计后新增越线 main.rs 1005 行 + init_service.rs 1287 行；28 个原审计文件全部仍 >1000 行无一下降；bi_analysis_service.rs 增长最快（+201 行 1461→1662）
@@ -568,6 +581,11 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - 第 4 批：✅ dye_batch_state_machine_service.rs (1512→920 facade + dye_batch_state_machine_ops 4 子模块 27 方法) + ✅ wage_service.rs (1621→774 facade + wage_ops 3 子模块 29 方法，PR #692) + ✅ ar/vfy.rs (1368→568 facade + ar/vfy_ops 5 子模块) + ✅ ap_invoice_service.rs (1405→407 facade + ap_invoice_ops 5 子模块，PR #693 main 6a480d9) 4 个 >1300 行文件全部完成
   - 第 5 批：✅ init_service.rs (1347→293 facade + init_service_ops/{mod 11, setup 287, role 215, permission 387, dept_user 198}) + ✅ flow_card_service.rs (1285→386 facade + flow_card_ops/{mod 16, route 151, card_crud 227, card_state 190, step 247, feedback 162}) + ✅ ap_reconciliation_service.rs (1346→621 facade + ap_reconciliation_ops/{mod 17, types 99, crud 189, confirm 182, report 111, auto 235}) + ✅ search/elastic.rs (1230→756 facade含测试394行 + elastic_ops/{mod 4, client_ops 343, syncer_ops 41, types_ops 49}) 4 个 >1200 行文件全部完成（PR #696 main 6bc4dca，CI 修复 1 轮：5 方法可见性私有→pub(crate) + 1 unused import SearchClient）
   - 第 6 批：原 15 个 1000-1200 行文件（含 D10-1 副产物 ar_ops/verification.rs 1062 行）全部完成 15/15：✅ D10-6a (4/15) event_bus.rs (1243→240 facade + event_bus_ops/{mod,publish,subscribe,retry}) / po/order.rs (1234) / auth_service.rs (1201) / inventory_finance_bridge_service.rs (1192)，PR #698 main 9d26d7d；✅ D10-6b-1 (4/15) lab_dip_service.rs (1188→230 facade + lab_dip_ops/{mod,types,request,sample,resample}) / production_recipe_service.rs (1181) / product_service.rs (1075) / system_update_service.rs (1074)，PR #700 main 325dfed；✅ D10-6b-2 (4/15) ar_ops/verification.rs (1062→30) / purchase_receipt_service.rs (1074→481) / ar/recon.rs (1070→658) / bpm_service.rs (1060→148)，PR #702 main 3890add；✅ D10-6b-3 (3/15) bom_service.rs (1046→587 facade + bom_ops/{mod 20, crud 317, state 105, tree 145} 16 方法 3 impl 块) / import_export_service.rs (1018→546 facade + import_export_ops/{mod 16, import 218, export 226, task 105} 10 方法 3 impl 块) / main.rs (1005→171 入口 + bootstrap/{mod 12, infra_bootstrap 76, middleware_bootstrap 282, routes_bootstrap 182, service_bootstrap 453} 按启动流程职责拆分非 facade 模式)，db 字段 pub(crate)，所有子模块独立导入 sea_orm traits，无 #[allow] 警告抑制，PR #703 main 7120cf3（覆盖率 job 因 Broken pipe 基础设施问题失败已 admin 合并）
+- **⏳ 2026-07-27 复审重新打开**：代码级真实扫描发现剩余 **2 个 >1000 行文件**未拆分完成：
+  - ①quotation_service.rs **1011 行**（services/quotation_service.rs）—— 历史 6 批 34 文件拆分遗漏
+  - ②customer_service.rs **1006 行**（services/customer_service.rs）—— 历史 6 批 34 文件拆分遗漏
+  - 前 20 名最长文件中第 3-20 名均在 876-994 行之间，逼近阈值但未超线
+  - 修复方案：按 §3.4 修复方案继续拆分 quotation_service.rs 和 customer_service.rs（facade + 子模块模式），主函数 ≤50 行 + helper ≤50 行 + 公共 API 签名不变
 
 ### 3.5 P0-D13 前端缩写命名组件（类二，XL，✅ 已完成）
 
