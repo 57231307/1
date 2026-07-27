@@ -9,6 +9,7 @@
 //! 本服务不重复实现锁定逻辑。
 
 use crate::models::password_history;
+use crate::utils::error::AppError;
 use crate::utils::password_validator::{PasswordPolicy, PasswordValidationResult};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
@@ -119,7 +120,7 @@ impl PasswordPolicyService {
         &self,
         db: &DatabaseConnection,
         user_id: i32,
-    ) -> Result<PasswordHistory, sea_orm::DbErr> {
+    ) -> Result<PasswordHistory, AppError> {
         let rows = password_history::Entity::find()
             .filter(password_history::Column::UserId.eq(user_id))
             .order_by_desc(password_history::Column::CreatedAt)
@@ -140,7 +141,7 @@ impl PasswordPolicyService {
         db: &DatabaseConnection,
         user_id: i32,
         password_hash: String,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<(), AppError> {
         let now = chrono::Utc::now();
         let active = password_history::ActiveModel {
             user_id: sea_orm::Set(user_id),

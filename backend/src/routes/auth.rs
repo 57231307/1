@@ -30,5 +30,7 @@ pub fn routes() -> Router<AppState> {
             post(auth_handler_misc::generate_recovery_codes),
         )
         .route("/me", get(auth_handler_misc::get_current_user))
+        // P1-08-1：用户协议/隐私政策同意接口
+        .route("/agree-terms", post(auth_handler_misc::agree_to_terms))
         .layer(middleware::from_fn(rate_limit::anti_brute_force))
 }

@@ -27,6 +27,8 @@ pub struct Model {
     pub last_login_at: Option<DateTime<Utc>>,
     /// 密码最后修改时间（批次 198 P0-2：密码过期策略锚点）
     pub password_changed_at: Option<DateTime<Utc>>,
+    /// P1-08-1：用户协议/隐私政策同意时间
+    pub agreed_to_terms_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-27（P0 全部完成 + P1-A 安全加固完成 + **P1-B 法律合规第1批启动**：batch-08 类四法律合规 5 项 P1 修复，待 CI 验证）
+> 最近整理：2026-07-27（P0 全部完成 + P1-A 安全加固完成 + P1-B1 法律合规第1批完成 + **P1-B2 法律合规第2批启动**：用户协议后端 + DbErr→AppError 修复，待 CI 验证）
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 批次 | PR/commit | 一句话总结 |
 |------|-----------|-----------|
+| P1-B2 | 待提交 | **P1-B 法律合规第2批（batch-08 + batch-02 类二/类四 P1）**：P1-08-1 用户协议后端（数据库迁移 agreed_to_terms_at 字段 + 用户模型 + agree_to_terms 接口 + UserInfo 返回字段 + auth 路由注册）；P1-02-13 关键 service 层 DbErr→AppError（audit_cleanup_service.rs 2处 + password_policy_service.rs 2处 + slow_query_collector.rs 1处，统一错误类型便于 handler 层传播）；涉及 7 个文件，待 CI 验证 |
 | P1-B1 | 待提交 | **P1-B 法律合规第1批（batch-08 类四法律合规 5 项 P1）**：P1-08-5 手机号/邮箱脱敏（field_mask.rs 新增 mask_phone/mask_email 函数，CRM lead list/detail 接口 remove 改脱敏，保留前3后4/首字母+*** 格式）；P1-08-6 身份证脱敏函数预留（mask_id_card，留前3后4）；P1-08-3 HTTPS 强制配置（nginx.conf 80端口301跳转443 + HSTS + X-Frame-Options + X-Content-Type-Options + Referrer-Policy 安全头）；P1-08-1 登录页用户协议/隐私政策勾选（Login.vue 复选框 + 表单校验 + i18n 双语文案 zh/en）；涉及 7 个文件，+188/-60 行；待 CI 验证 |
 | P1-A | c3a8a02 | **P1-A 安全加固（batch-03 类三安全性 6 项 P1）全部完成**：P1-03-1 refresh_token Cookie max_age 7天→2天（与 JWT exp 一致）；P1-03-2 PUBLIC_PATHS 删除子路径前缀匹配改为严格精确匹配（防 /login/anything 绕过认证）；P1-03-3 request_validator_middleware 重命名为 request_logging_middleware（明确仅日志不拦截职责，消除名不副实误判风险）；P1-03-4 Webhook payload 完整日志改为仅记录 event_type+size+keys 摘要（防敏感数据泄露）；P1-03-5 crm import_leads 增加 xlsx magic bytes 校验（50 4B 03 04，防文件上传攻击）；P1-03-6 system_update 增加 zip bomb 防护（单文件 100MB 上限 + 累计 500MB 上限 + checked_add 防溢出）；涉及 8 个文件，76 行新增/44 行删除；待 CI 验证 |
 

@@ -24,6 +24,7 @@ use std::time::Duration;
 use tokio::time::interval;
 
 use crate::models::slow_query;
+use crate::utils::error::AppError;
 
 /// 慢查询采集服务
 ///
@@ -139,7 +140,7 @@ impl SlowQueryCollector {
     ///
     /// 错误处理：所有错误向上传播，由调用方决定是否降级
     // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 handlers/slow_query_handler.rs:226 真实调用）
-    pub async fn collect_once(&self) -> Result<usize, sea_orm::DbErr> {
+    pub async fn collect_once(&self) -> Result<usize, AppError> {
         // L2 修复（v8 复审）：使用参数化查询，通过 from_sql_and_values 绑定参数
         let sql = build_query_sql(self.threshold_ms, self.limit_rows);
 

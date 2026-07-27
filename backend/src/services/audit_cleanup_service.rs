@@ -3,6 +3,7 @@ use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
+use crate::utils::error::AppError;
 
 pub struct AuditCleanupService {
     db: Arc<DatabaseConnection>,
@@ -48,7 +49,7 @@ impl AuditCleanupService {
     }
 
     /// 清理过期的审计日志
-    pub async fn cleanup_expired_logs(&self) -> Result<u64, sea_orm::DbErr> {
+    pub async fn cleanup_expired_logs(&self) -> Result<u64, AppError> {
         // 批次 94 P2-1 修复：原 format! 拼接 SQL 存在注入风险，改用参数化绑定
         let stmt = Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
@@ -91,7 +92,7 @@ impl AuditCleanupService {
     }
 
     /// 获取审计日志统计信息
-    pub async fn get_stats(&self) -> Result<AuditStats, sea_orm::DbErr> {
+    pub async fn get_stats(&self) -> Result<AuditStats, AppError> {
         let sql = "SELECT 
             (SELECT COUNT(*) FROM omni_audit_logs) as total_omni_logs,
             (SELECT COUNT(*) FROM audit_logs) as total_audit_logs,

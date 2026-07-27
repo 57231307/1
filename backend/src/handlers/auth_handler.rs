@@ -94,6 +94,8 @@ pub struct UserInfo {
     /// 批次 29 v7 P0-5 修复：avatar 字段当前 users 表无对应列，暂返回 None。
     /// TODO(tech-debt): 后续若新增 avatar 列，需在此处补全查询。
     pub avatar: Option<String>,
+    /// P1-08-1：用户协议/隐私政策同意时间
+    pub agreed_to_terms_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl UserInfo {
@@ -125,6 +127,7 @@ impl UserInfo {
             // 批次 29 v7 P0-5：users 表当前无 real_name / avatar 列，暂返回 None
             real_name: None,
             avatar: None,
+            agreed_to_terms_at: user.agreed_to_terms_at,
         }
     }
 

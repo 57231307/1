@@ -332,6 +332,49 @@ pub async fn get_current_user(
     }
 }
 
+/// P1-08-1：用户确认同意用户协议与隐私政策
+///
+/// 记录同意时间到 users.agreed_to_terms_at，满足《个人信息保护法》第 14 条同意要求。
+#[derive(Debug, Deserialize)]
+pub struct AgreeToTermsRequest {
+    pub user_agreement_version: Option<String>,
+    pub privacy_policy_version: Option<String>,
+}
+
+pub async fn agree_to_terms(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+    Json(req): Json<AgreeToTermsRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use crate::models::user::{self, ActiveModel, Column};
+    use sea_orm::{ActiveValue, EntityTrait, QuerySelect, ColumnTrait, QueryFilter};
+
+    let now = chrono::Utc::now();
+    let update_result = user::Entity::update_many()
+        .filter(Column::Id.eq(auth.user_id))
+        .set(ActiveModel {
+            agreed_to_terms_at: ActiveValue::Set(Some(now)),
+            ..Default::default()
+        })
+        .exec(state.db.as_ref())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update terms agreement: {}", e);
+            AppError::internal("更新用户协议同意状态失败")
+        })?;
+
+    if update_result.rows_affected == 0 {
+        return Err(AppError::not_found("用户不存在"));
+    }
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "agreed": true,
+        "agreed_at": now.to_rfc3339(),
+        "user_agreement_version": req.user_agreement_version,
+        "privacy_policy_version": req.privacy_policy_version,
+    }))))
+}
+
 // P3 7-17 修复：已删除 get_csrf_token 死代码接口
 // 原实现生成 token 不存缓存，前端拿到后无法通过 CSRF 中间件校验。
 // CSRF token 已通过 login/refresh 的 Set-Cookie 头下发，前端从 cookie 读取。
