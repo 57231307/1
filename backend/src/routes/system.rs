@@ -224,9 +224,10 @@ pub fn health() -> Router<AppState> {
         .route("/health/liveness", get(health_handler::liveness_check))
 }
 
-/// 审计日志查询路由（/audit-logs：列表/详情/CSV 导出）
+/// 审计日志查询路由（/audit-logs：列表/详情/CSV 导出/前端打印埋点）
 pub fn audit_logs() -> Router<AppState> {
     use crate::handlers::audit_log_handler;
+    use axum::routing::post;
     Router::new()
         .route("/audit-logs", get(audit_log_handler::list_audit_logs))
         .route(
@@ -234,6 +235,11 @@ pub fn audit_logs() -> Router<AppState> {
             get(audit_log_handler::export_audit_logs),
         )
         .route("/audit-logs/:id", get(audit_log_handler::get_audit_log))
+        // V15 P1-5-3：前端打印审计埋点端点（POST，已认证用户均可上报）
+        .route(
+            "/audit-logs/record-print",
+            post(audit_log_handler::record_print_event),
+        )
 }
 
 /// 慢查询审计路由（/slow-queries：列表/统计/手动采集）
@@ -306,6 +312,16 @@ pub fn ai() -> Router<AppState> {
             "/ai/process-optimizations/:id/apply",
             post(ai_extend_handler::apply_process_optimization),
         )
+        // V15 P1 1.3+8.1：工艺优化→化验室打样集成
+        .route(
+            "/ai/process-optimizations/:id/push-to-lab-dip",
+            post(ai_extend_handler::push_to_lab_dip),
+        )
+        // V15 P1 8.2：工艺优化→生产执行集成
+        .route(
+            "/ai/process-optimizations/:id/link-to-production",
+            post(ai_extend_handler::link_to_production),
+        )
         // 质量预测
         .route(
             "/ai/quality-predictions",
@@ -328,6 +344,11 @@ pub fn ai() -> Router<AppState> {
         .route(
             "/ai/quality-predictions/:id/acknowledge",
             post(ai_extend_handler::acknowledge_quality_prediction),
+        )
+        // V15 P1 2.1+8.3：质量预测实际结果回填（对账）
+        .route(
+            "/ai/quality-predictions/:id/actual-result",
+            post(ai_extend_handler::record_actual_quality_result),
         )
         // 看板 / 健康检查
         .route("/ai/summary", get(ai_extend_handler::ai_summary))

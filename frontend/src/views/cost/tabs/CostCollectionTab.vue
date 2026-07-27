@@ -11,7 +11,7 @@
         <el-button type="primary" @click="openDialog()">
           <el-icon><Plus /></el-icon>{{ t('cost.collectionList.button.create') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'cost.export'" @click="handleExport">
           <el-icon><Download /></el-icon>{{ t('cost.collectionList.button.exportBtn') }}
         </el-button>
       </div>

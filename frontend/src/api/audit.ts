@@ -99,3 +99,35 @@ export function exportAuditLogs(params: AuditLogListParams = {}): Promise<Blob> 
     responseType: 'blob',
   })
 }
+
+/**
+ * V15 P1-5-3：前端打印审计埋点请求参数
+ *
+ * printData/printSingleDocument 纯前端 window.print 不经过后端 handler，
+ * 需通过此 API 上报到后端 audit_logs（OperationType::Print）。
+ */
+export interface RecordPrintEventParams {
+  /** 资源类型（如 customer / supplier / warehouse，与权限码 resource_type 对应） */
+  resourceType: string
+  /** 打印记录数（data.length） */
+  recordCount: number
+  /** 打印文档标题（PrintOptions.title） */
+  title: string
+  /** 资源 ID（可选，单据打印时传入） */
+  resourceId?: string
+}
+
+/**
+ * V15 P1-5-3：前端打印审计埋点
+ *
+ * best-effort 上报，调用方应 .catch() 吞掉异常避免影响打印流程。
+ * 后端端点 /audit-logs/record-print 仅需认证，不要求特定权限码。
+ */
+export function recordPrintAudit(params: RecordPrintEventParams): Promise<void> {
+  return request.post('/audit-logs/record-print', {
+    resource_type: params.resourceType,
+    record_count: params.recordCount,
+    title: params.title,
+    resource_id: params.resourceId,
+  })
+}

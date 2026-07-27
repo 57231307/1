@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log;
-use crate::utils::admin_checker::is_admin_role;
+use crate::utils::admin_checker::can_access_audit_logs;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -23,11 +23,13 @@ use crate::utils::sql_escape::safe_like_pattern;
 // V15 P0-S15 修复（Batch 475a）：导出注入水印（操作员/导出时间/导出条数）
 use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 
-/// P0 8-5 修复：审计日志查询要求 admin 角色
+/// V15 P1-14.2-C：审计日志查询要求 admin 或 auditor 角色
 ///
 /// 安全原因：审计日志含全系统操作记录（含其他用户敏感操作），
 /// 仅依赖全局 permission_middleware 的 RBAC 不够（管理员可能误配 audit-logs:read 权限），
-/// 在 handler 层增加 admin 角色深度防御，确保合规要求。
+/// 在 handler 层增加角色深度防御，确保合规要求。
+/// admin 不再持有 audit:read 权限码（职责分离），但保留运维排查能力；
+/// auditor 角色专门负责审计职责，独占 audit:read 权限码。
 async fn require_admin_role(
     state: &AppState,
     auth: &AuthContext,
@@ -35,16 +37,16 @@ async fn require_admin_role(
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法查询审计日志"))?;
-    if !is_admin_role(&state.db, role_id).await {
+    if !can_access_audit_logs(&state.db, role_id).await {
         tracing::warn!(
             target: "security_audit",
             event = "AUTHORIZATION_DENIED",
             user_id = auth.user_id,
             username = %auth.username,
-            "[SECURITY] 非 admin 用户尝试查询审计日志被拒绝"
+            "[SECURITY] 非 admin/auditor 用户尝试查询审计日志被拒绝"
         );
         return Err(AppError::permission_denied(
-            "查询审计日志仅限管理员（code=admin）执行",
+            "查询审计日志仅限管理员（code=admin）或审计员（code=auditor）执行",
         ));
     }
     Ok(())
@@ -386,6 +388,88 @@ pub async fn export_audit_logs(
 
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
+}
+
+/// V15 P1-5-3：前端打印审计埋点请求体
+///
+/// 前端 `printData`/`printSingleDocument` 纯前端 window.print 不经过后端 handler，
+/// 无法触发 omni_audit 中间件落库。此端点供前端打印完成后 best-effort 上报，
+/// 后端写入 audit_logs（OperationType::Print），确保合规审计覆盖前端打印操作。
+#[derive(Debug, Deserialize)]
+pub struct RecordPrintEventRequest {
+    /// 资源类型（如 customer / supplier / warehouse，与权限码 resource_type 对应）
+    pub resource_type: String,
+    /// 打印记录数（data.length）
+    pub record_count: i32,
+    /// 打印文档标题（PrintOptions.title）
+    pub title: String,
+    /// V15 P1-5-3：资源 ID（可选，单据打印时传入）
+    pub resource_id: Option<String>,
+}
+
+/// V15 P1-5-3：前端打印审计埋点端点
+///
+/// POST /api/v1/erp/audit-logs/record-print
+///
+/// 安全设计：
+/// - 必须认证（AuthContext 由全局 auth_middleware 注入）
+/// - 字段长度校验（resource_type ≤ 64，title ≤ 200，record_count ≥ 0）
+/// - best-effort 异步落库，不阻塞响应
+/// - 不要求 admin/auditor 角色（任何已认证用户打印均需审计）
+pub async fn record_print_event(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<RecordPrintEventRequest>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    // 字段长度校验
+    if req.resource_type.is_empty() || req.resource_type.len() > 64 {
+        return Err(AppError::validation(
+            "resource_type 长度必须在 1-64 之间",
+        ));
+    }
+    if req.title.is_empty() || req.title.len() > 200 {
+        return Err(AppError::validation("title 长度必须在 1-200 之间"));
+    }
+    if req.record_count < 0 {
+        return Err(AppError::validation("record_count 不能为负数"));
+    }
+    if let Some(ref rid) = req.resource_id {
+        if rid.len() > 64 {
+            return Err(AppError::validation("resource_id 长度不能超过 64"));
+        }
+    }
+
+    use crate::models::audit_log::{OperationType, Severity};
+    use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+    use std::sync::Arc;
+
+    let description = format!(
+        "用户 {} 前端打印 {}（共 {} 条记录）",
+        auth.username, req.title, req.record_count
+    );
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Print,
+        severity: Severity::Info,
+        resource_type: Some(req.resource_type.clone()),
+        resource_id: req.resource_id.clone(),
+        resource_name: Some(req.title.clone()),
+        description: Some(description),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/audit-logs/record-print".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "resource_type": req.resource_type,
+            "record_count": req.record_count,
+            "title": req.title,
+            "source": "frontend_print",
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    Ok(Json(ApiResponse::success(())))
 }
 
 #[cfg(test)]

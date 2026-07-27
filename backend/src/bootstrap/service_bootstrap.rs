@@ -6,7 +6,7 @@
 use std::io::Write;
 use std::sync::Arc;
 
-use sea_orm::{ConnectionTrait, DatabaseConnection};
+use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use tracing::{info, warn};
 
 use crate::config::settings::AppSettings;
@@ -112,9 +112,25 @@ pub async fn bootstrap_full_mode(
     start_failover_monitor(&app_state);
     start_report_subscription_scheduler(&app_state);
     start_color_card_issue_scheduler(&app_state);
+    // V15 P1 batch-16 缺陷 6.1/6.2/6.3：邮件队列后台 Worker（扫描 PENDING 邮件 + 指数退避重试）
+    start_email_queue_worker(&app_state);
+    // V15 P1 10-1/10-2：导出合规审查定时任务（每日扫描 + 6 类异常导出行为识别）
+    start_export_compliance_scheduler(&app_state);
+    // V15 P1 batch-16 缺陷 8.3/8.4：追踪数据 90 天保留策略（page_views/user_behaviors 归档清理）
+    start_tracking_cleanup_scheduler(&app_state);
     init_event_bus(&app_state, settings).await;
     init_assist_dimensions(&app_state).await;
     init_es_indices().await;
+    // V15 P1 20.3-B：启动 WebSocket Redis Pub/Sub 多实例广播订阅器
+    let ws_pubsub_handle = tokio::spawn(crate::websocket::notifications::start_ws_pubsub_subscriber());
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(ws_pubsub_handle);
+    }
+    // V15 P1-14.9-C：启动权限缓存 Redis Pub/Sub 订阅器（多实例缓存热更新）
+    let perm_pubsub_handle = tokio::spawn(crate::middleware::permission::start_permission_cache_pubsub_subscriber());
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(perm_pubsub_handle);
+    }
 
     Ok((app_state, shutdown_handles))
 }
@@ -154,6 +170,60 @@ async fn run_seaorm_migrator(db: &DatabaseConnection) {
         tracing::warn!("启动时迁移失败: {}，将在初始化时重试", e);
     } else {
         tracing::info!("数据库迁移执行完成");
+    }
+    // V15 P1 25.4-J：迁移完成后检查 schema 兼容性（蓝绿部署保障）
+    check_migration_compatibility(db).await;
+}
+
+/// V15 P1 25.4-J：检查数据库迁移兼容性，检测违反蓝绿部署规范的 schema 设计。
+///
+/// 检测 NOT NULL 无 DEFAULT 的非主键字段（违反规则 1），这些字段会导致
+/// 蓝绿部署时旧版本 INSERT 失败。仅 warn 不阻塞启动，由开发者在下一版本修复。
+///
+/// 排除项：
+/// - 主键所在表（主键列 is_nullable='NO' 且 column_default 为 NULL 是正常状态）
+/// - 系统列（id/created_at/updated_at 通常由 ORM/trigger 维护，应用层不直接 INSERT）
+async fn check_migration_compatibility(db: &DatabaseConnection) {
+    let count_sql = "
+        SELECT COUNT(*) as count
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND is_nullable = 'NO'
+          AND column_default IS NULL
+          AND column_name NOT IN ('id', 'created_at', 'updated_at')
+          AND table_name NOT IN (
+              SELECT DISTINCT tc.table_name
+              FROM information_schema.table_constraints tc
+              JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+              WHERE tc.constraint_type = 'PRIMARY KEY'
+                AND tc.table_schema = 'public'
+          )
+    ";
+    match db.query_one(Statement::from_string(
+        DatabaseBackend::Postgres,
+        count_sql,
+    )).await {
+        Ok(Some(row)) => {
+            let count: i64 = row.try_get::<i64>("", "count").unwrap_or(0);
+            if count > 0 {
+                warn!(
+                    violation_count = count,
+                    "⚠ 检测到 {} 个 NOT NULL 无 DEFAULT 的非主键字段（违反 V15 P1 25.4-J 迁移兼容性规范）",
+                    count
+                );
+                warn!("  蓝绿部署时旧版本 INSERT 这些字段会失败，请修复迁移使其 NULLABLE 或添加 DEFAULT");
+                warn!("  规范文档：backend/migration/src/lib.rs 模块注释");
+            } else {
+                info!("迁移兼容性检查通过（无 NOT NULL 无 DEFAULT 的非主键字段违规）");
+            }
+        }
+        Ok(None) => {
+            warn!("迁移兼容性检查查询无结果（information_schema.columns 异常）");
+        }
+        Err(e) => {
+            warn!(error = %e, "迁移兼容性检查查询失败（不阻塞启动）");
+        }
     }
 }
 
@@ -325,12 +395,26 @@ fn start_crm_recycle_task(db: &Arc<DatabaseConnection>) {
     info!("CRM 公海回收规则自动执行任务已启动（间隔 6 小时）");
 }
 
-/// 统一启动后台周期任务（慢查询/admin 缓存/JTI/CRM 回收）
+/// V15 P1 20.8-B：启动日志文件保留期清理任务（每日扫描 log_dir，删除超过 retention_days 的滚动日志文件）。
+fn start_log_cleanup_task(settings: &AppSettings) {
+    let log_dir = settings.log.dir.clone();
+    let retention_days = settings.log.retention_days;
+    let cleanup = std::sync::Arc::new(
+        crate::services::log_cleanup_service::LogCleanupService::new(log_dir, retention_days),
+    );
+    let handle = cleanup.start_cleanup_task();
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+}
+
+/// 统一启动后台周期任务（慢查询/admin 缓存/JTI/CRM 回收/日志清理）
 fn start_background_tasks(db: &Arc<DatabaseConnection>, settings: &AppSettings) {
     start_slow_query_collector(db, settings);
     start_admin_cache_cleanup_task();
     start_jti_cleanup_task();
     start_crm_recycle_task(db);
+    start_log_cleanup_task(settings);
 }
 
 /// 连接备库（DATABASE_BACKUP_URL 未配置或失败时返回 None，降级仅主库模式）。
@@ -463,6 +547,79 @@ fn start_color_card_issue_scheduler(app_state: &AppState) {
         tasks.push(scheduler_handle);
     }
     info!("色卡发放过期检查调度任务已启动（默认每 24 小时扫描一次过期发放记录）");
+}
+
+/// 启动邮件队列后台 Worker（V15 P1 batch-16 缺陷 6.1/6.2/6.3）。
+///
+/// 默认每 60 秒扫描一次 PENDING 邮件并通过 EmailService 实际发送：
+/// - 缺陷 6.1 修复：send_email 入口仅入队，实际发送由本 Worker 异步执行
+/// - 缺陷 6.2 修复：失败时按指数退避（60s/300s/1800s）重试，超过 3 次转入 FAILED 死信
+/// - 缺陷 6.3 修复：附件通过 SendGrid base64 编码方式发送
+///
+/// 环境变量门控：
+/// - `EMAIL_QUEUE_WORKER_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动
+/// - `EMAIL_QUEUE_WORKER_INTERVAL_SECS`（默认 60）— 扫描间隔
+fn start_email_queue_worker(app_state: &AppState) {
+    let worker = std::sync::Arc::new(
+        crate::services::email_queue_worker::EmailQueueWorker::new(app_state.db.clone()),
+    );
+    let worker_handle = worker.start_background_task();
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(worker_handle);
+    }
+    info!("邮件队列后台 Worker 已启动（默认每 60 秒扫描一次 PENDING 邮件，含指数退避重试）");
+}
+
+/// 启动导出合规审查定时任务（V15 P1 缺陷 10-1/10-2）。
+///
+/// 默认每 24 小时执行一次合规审查，扫描前一天的 print/export 操作并识别 6 类异常：
+/// 高频导出 / 大批量导出 / 非工作时间导出 / 离职用户导出 / 跨权限导出 / 敏感数据无审批导出。
+///
+/// 环境变量门控：
+/// - `EXPORT_COMPLIANCE_CHECK_ENABLED`（默认 true）/ `EXPORT_COMPLIANCE_CHECK_INTERVAL_SECS`（默认 86400）。
+fn start_export_compliance_scheduler(app_state: &AppState) {
+    let service = std::sync::Arc::new(
+        crate::services::export_compliance_service::ExportComplianceService::new(
+            app_state.db.clone(),
+            app_state.audit_log.clone(),
+        ),
+    );
+    let handle = service.start_background_task();
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!("导出合规审查定时任务已启动（默认每 24 小时扫描前一天 print/export 操作，识别 6 类异常行为）");
+}
+
+/// 启动追踪数据 90 天保留策略定时任务（V15 P1 batch-16 缺陷 8.3/8.4）。
+///
+/// 默认每 24 小时执行一次清理，将超过 retention_days 的 page_views / user_behaviors
+/// 明细按 (date, path|event_type) 聚合到 page_view_daily_summary /
+/// user_behavior_daily_summary 后批量删除明细，避免明细表无限膨胀。
+///
+/// 环境变量门控：
+/// - `TRACKING_CLEANUP_ENABLED`（默认 true）/ `TRACKING_CLEANUP_INTERVAL_SECS`（默认 86400）
+/// - `TRACKING_RETENTION_DAYS`（默认 90，对应《个人信息保护法》数据最小化原则）
+fn start_tracking_cleanup_scheduler(app_state: &AppState) {
+    let retention_days = std::env::var("TRACKING_RETENTION_DAYS")
+        .ok()
+        .and_then(|v| v.parse::<i32>().ok())
+        .filter(|&v| v > 0)
+        .unwrap_or(crate::services::tracking_cleanup_service::DEFAULT_RETENTION_DAYS);
+    let service = std::sync::Arc::new(
+        crate::services::tracking_cleanup_service::TrackingCleanupService::new(
+            app_state.db.clone(),
+            retention_days,
+        ),
+    );
+    let handle = service.start_background_task();
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!(
+        retention_days,
+        "追踪数据 90 天保留策略任务已启动（默认每 24 小时扫描一次过期 page_views/user_behaviors 明细并归档）"
+    );
 }
 
 /// 启动事件总线监听器并按 Kafka 配置初始化事件总线。

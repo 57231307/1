@@ -55,6 +55,8 @@ log:
   # ⚠️ 生产环境建议设置为 info 或 warn
   level: "info"
   dir: "./logs"
+  # V15 P1 20.8-B：日志文件保留天数（默认 90 天），过期文件由 LogCleanupService 自动清理
+  retention_days: 90
 
 cors:
   # ⚠️ 生产环境必须配置实际域名，移除所有 localhost

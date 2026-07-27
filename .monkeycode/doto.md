@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-27（P0 全部完成已归档到 doto-su.md；P1 修复进行中：P1-A + P1-B1 + P1-B2 + P1-C + **P1 面料行业深化 2 批次（batch-04 + batch-05）22 项 P1 已完成** 待 CI 验证）
+> 最近整理：2026-07-27（P0 全部完成已归档到 doto-su.md；P1 修复进行中：P1-A + P1-B1 + P1-B2 + P1-C + **P1 面料行业深化 2 批次（batch-04 + batch-05）22 项 P1 已完成** + **P1-D 法律合规 batch-08 P1-08-22 加班工时 + batch-20 前端架构 10 项 P1（含 P1-20-2 移动端侧边栏抽屉化）已完成** + **P1-batch13/14 类十五业务主体 1 项 P1（已并入 P1-C）+ 类十六 AI 模块 24 项 P1 已完成** + **P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）已完成** + **P1-batch11/12 类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1 已完成** 待 CI 验证）
 
 ---
 
@@ -12,11 +12,28 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| 🔵 代码完成待 CI | 5 批 | P1-A、P1-B1、P1-B2、P1-C、**P1-面料行业深化（batch-04 + batch-05）**（详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)） |
+| 🔵 代码完成待 CI | 9 批 | P1-A、P1-B1、P1-B2、P1-C、**P1-面料行业深化（batch-04 + batch-05）**、**P1-D（batch-08 P1-08-22 加班工时 + batch-20 前端架构 10 项 P1）**、**P1-batch13/14（类十五业务主体 1 项 P1 + 类十六 AI 模块 24 项 P1）**、**P1-Batch16 隐私合规 5 项 P1（缺陷 7.2/7.3/7.4/8.3/8.4）**、**P1-batch11/12（类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1）**（详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)） |
 | ⏳ 进行中 | 0 批 | — |
-| ❌ 未开始 | 剩余约 19 批 | P1-B3 起（脱敏扩展 + batch-19 业务功能 P1 等） |
+| ❌ 未开始 | 剩余约 16 批 | P1-B3 起（脱敏扩展 + batch-19 业务功能 P1 等） |
 
-### 0.2 P1 面料行业深化（batch-04 + batch-05）完成清单（22 项 P1）
+### 0.2 P1-D（batch-08 P1-08-22 + batch-20 前端架构 10 项 P1）完成清单（11 项 P1）
+
+**batch-08 类八法律合规 P1**：
+1. ✅ P1-08-22：wage_record_detail 新增加班工时字段（weekday/weekend/holiday_overtime_minutes + overtime_pay）+ calculate_overtime_pay 函数（《劳动法》第 44 条 1.5x/2x/3x）+ migration 055 + m0074 整合迁移
+
+**batch-20 类二十四前端架构 P1**：
+1. ✅ P1-20-1：PWA 支持（manifest.json + Service Worker + index.html 注册 + theme-color）
+2. ✅ P1-20-2：移动端侧边栏抽屉化（useBreakpoint composable + MainLayout 动态组件 ElDrawer/ElAside + 汉堡按钮 ≥44px + 路由切换自动关闭抽屉 + i18n 双语）
+3. ✅ P1-20-3：vite manualChunks（vue/element-plus/echarts/utils 4 chunk）+ optimizeDeps include
+4. ✅ P1-20-4：echarts 按需引入（utils/echarts.ts + BaseChart.vue 改用 echarts/core）
+5. ✅ P1-20-6：vitest 覆盖率门槛 60%→70%
+6. ✅ P1-20-7：nginx 安全头（CSP/X-Frame-Options DENY/X-Content-Type-Options/Referrer-Policy/Permissions-Policy）+ SW/manifest 缓存规则
+7. ✅ P1-20-9：Vue 3 ErrorBoundary 组件（onErrorCaptured + 重试/回首页/错误详情 + i18n + logger 上报）
+8. ✅ P1-20-14：keep-alive 状态保留（MainLayout router-view 包裹 keep-alive + cachedViewNames 高频页面）
+9. ✅ P1-20-15：CSS 变量替代硬编码（styles/theme.css 全局变量 + MainLayout 局部变量）
+10. ✅ P1-20-16：暗黑模式切换（useTheme composable + html.dark 选择器 + localStorage 持久化 + 系统偏好跟随）
+
+### 0.3 P1 面料行业深化（batch-04 + batch-05）完成清单（22 项 P1）
 
 **batch-04 类四 面料行业深化（11 项 P1，全部完成）**：
 1. ✅ batch_trace_log 字段扩展（dye_lot_no/color_no/product_id/from_status/to_status + operation_type 注释扩展，migration 051）
@@ -44,7 +61,70 @@
 10. ✅ 染色成本归集 dye_lot_no 从 dye_batch 表查询（dye_batch_cost_bridge_service.rs）
 11. ✅ **销售成本移动加权平均法**（fetch_purchase_unit_price + update_moving_average_cost + create_purchase_receipt_voucher 使用实际采购价 + create_sales_delivery_voucher 使用移动加权平均成本）
 
-### 0.3 待启动批次（优先级从高到低）
+### 0.5 P1-batch13/14（类十五业务主体 1 项 + 类十六 AI 模块 24 项 P1）完成清单（25 项 P1）
+
+**batch-13 类十五 业务主体（1 项 P1，已并入 P1-C）**：
+1. ✅ supplier_evaluation_records 表无 migration → m0069_create_supplier_evaluation_records 迁移补齐（FK/CHECK/4 索引 + 注册到 Migrator）
+
+**batch-14 类十六 AI 模块（24 项 P1，全部完成）**：
+1. ✅ 缺陷 4.1：AI 端点权限码注册到 init_admin_permissions.sql（非 admin 角色可访问）
+2. ✅ 缺陷 4.2：advanced 域 AI 端点路径解析修复（path_utils.rs + permission.rs extract_resource_info 处理嵌套模块前缀）
+3. ✅ 缺陷 4.3：AI 推理数据范围按用户过滤（DataScopeContext 透传）
+4. ✅ 缺陷 5.1：AI 推理超时控制（tokio::time::timeout 2s 包装 recipe_opt/quality_pred 算法）
+5. ✅ 缺陷 5.2：AI 并发控制（Semaphore permits=10，AI_CONCURRENCY_LIMIT 常量）
+6. ✅ 缺陷 5.3：AI 缓存策略（moka Cache TTL 5min + capacity 1000，recipe_cache/quality_cache）
+7. ✅ 缺陷 9.1：模型不可用降级（build_degraded_response 返回典型参数表/保守默认值 + degraded=true）
+8. ✅ 缺陷 9.5：AI 推理超时降级（超时返回降级结果而非 500）
+9. ✅ 缺陷 6.1：AI 数据脱敏（field_mask.rs 新增 mask_text_pii 捕获手机/邮箱/身份证 PII + 单元测试）
+10. ✅ 缺陷 6.2：推理数据最小化（查询结果 LIMIT 限制）
+11. ✅ 缺陷 1.1：染料-布类配伍性校验（is_dye_fabric_compatible + validate_dye_fabric_compatibility 不配伍返回 422）
+12. ✅ 缺陷 1.3+8.1：工艺优化→化验室打样集成（push_to_lab_dip 推送推荐参数到 lab_dip）
+13. ✅ 缺陷 2.1+8.3：质量预测实际结果回填（record_actual_quality_result 更新 actual_risk_level/actual_avg_qualification_rate）
+14. ✅ 缺陷 2.2：质量预测特征完整化（dye_type/auxiliary_type/temperature_range/batch_no/fabric_source 5 面料行业特征）
+15. ✅ 缺陷 2.4+8.3：质量预测准确率对账（AiQualityReconciliationService.reconcile_monthly 按月对账 + ai_quality_accuracy_reports 表）
+16. ✅ 缺陷 3.1+10.2：模型版本管理（create_model_version/approve_model_version/change_model_status draft→active→retired→archived 状态机 + ai_model_versions 表）
+17. ✅ 缺陷 3.4：模型评估指标（create_model_evaluation + ai_model_evaluations 表）
+18. ✅ 缺陷 3.5：模型漂移检测（detect_model_drift 对比准确率/置信度阈值）
+19. ✅ 缺陷 8.2：工艺优化→生产执行集成（link_to_production_recipe 关联 production_recipe_id）
+20. ✅ 缺陷 8.4：补货推荐与 MRP 引擎对账（reconcile_suggestion_with_mrp 差异>20% 标注人工复核）
+21. ✅ 缺陷 10.1：AI 决策审计日志（log_decision 异步记录 + ai_decision_logs 表）
+22. ✅ 缺陷 10.2：模型变更审计日志（approve_model_version 审批流 + status 变更记录）
+
+### 0.6 P1-batch11/12（类十三打印导出 14 项 P1 + 类十四权限维度 14 项 P1）完成清单（28 项 P1）
+
+**batch-11 类十三 打印导出（14 项 P1，全部完成）**：
+1. ✅ 缺陷 1-4：色卡导出补审计（OperationType::Export + resource_type=color_card）
+2. ✅ 缺陷 1-5：5 个 print_html handler 补审计接入（AuthContext + AuditLogService::record_async）
+3. ✅ 缺陷 1-6：MRP/AR 对账单导出补审计落库（替换 info! 为 record_async）
+4. ✅ 缺陷 1-7：销售/采购订单导出补审计（export_count + query_filter 写入 after_snapshot）
+5. ✅ 缺陷 1-8：CRM 线索/商机导出补审计
+6. ✅ 缺陷 2-3：前端导出按钮补 v-permission 权限指令（25+ 按钮）
+7. ✅ 缺陷 2-4：禁止打印/导出角色清单实现（PRINT_DENIED_ROLES/EXPORT_DENIED_ROLES 常量）
+8. ✅ 缺陷 3-3：audit_logs 表补导出专属字段（export_record_count/export_query_filter/export_file_format/export_approval_token/export_watermark_user）
+9. ✅ 缺陷 4-3：永久禁止导出规则实现（lab_dip/production_recipe/flow_card 资源黑名单）
+10. ✅ 缺陷 5-3：printData 补后端审计埋点（api.post('/audit/record')）
+11. ✅ 缺陷 7-1：omni_audit 分类增强（classify_operation 识别 PRINT/EXPORT/DOWNLOAD）
+12. ✅ 缺陷 9-1：导出全局并发控制（ExportConcurrencyGuard + AtomicUsize + MAX_CONCURRENT_EXPORTS=10）
+13. ✅ 缺陷 9-3：sales_order/purchase_order 导出条数上限（.limit(10000)）
+14. ✅ 缺陷 10-1/10-2：每日合规审查定时任务 + 异常导出行为识别（6 类规则：高频/大批量/非工作时间/离职/跨权限/敏感无审批）
+
+**batch-12 类十四 权限维度（14 项 P1，全部完成）**：
+1. ✅ 缺陷 14.2-C：admin 持有 audit:read 违反职责分离（移除 admin audit:read，审计职责独立到 auditor 角色）
+2. ✅ 缺陷 14.3-D：采购/销售审批与创建未分离（拆分 sales/purchase create 与 approve 权限，SoD 校验 validate_sod_create_approve）
+3. ✅ 缺陷 14.4-C：权限码与路由资源类型不匹配（resolve_module_prefixed_resource 消歧映射 purchase/orders→purchase-orders）
+4. ✅ 缺陷 14.4-D：模块前缀不在白名单时资源类型提取错误（补齐 path_utils.rs 模块前缀白名单 + is_business_module_prefix）
+5. ✅ 缺陷 14.7-B：业务角色无 dashboard:read 权限（14 类业务角色补 dashboard:read 种子）
+6. ✅ 缺陷 14.8-B：字段级权限种子数据为空（migration 20260730000001_init_field_permission_seed 敏感字段权限）
+7. ✅ 缺陷 14.9-C：权限缓存无 Redis pub/sub 热更新（start_permission_cache_pubsub_subscriber + 频道 permission_cache_invalidation）
+8. ✅ 缺陷 14.10-B：异常权限分配识别规则（permission_compliance_service 6 类检测规则）
+9. ✅ 缺陷 14.10-C：定期合规审查机制（compliance_review 3 项系统级检查）
+10. ✅ 缺陷 14.11-A：非 admin 角色权限拒绝集成测试（test_permission_rbac.rs 10 个测试场景）
+11. ✅ 缺陷 14.11-B：is_system=true 注入 *:* 测试（admin_checker.rs 8 个单元测试验证角色 code 判定）
+12. ✅ 缺陷 14.11-C：权限缓存失效生命周期测试（permission.rs 5 个场景：insert→invalidate→reload→expiry 完整链路 + 多角色隔离）
+13. ✅ 缺陷 14.12-B：模块前缀不在白名单时资源类型提取错误（同 14.4-D 修复 + fail-closed）
+14. ✅ 缺陷 14.12-E：role.code 可被修改导致权限提升（update_role 移除 code 字段更新 + 唯一约束）
+
+### 0.4 待启动批次（优先级从高到低）
 
 - **P1-B3**：脱敏扩展到 customer/supplier 模块 + 规则 4 注释精简（剩余部分）
 - **P1-D**：batch-19 类二十三 业务功能 P1（11 项大功能：部门数据权限落地/一人多部门/定制订单客户签字/变更审批/售后流程 6 步/原因分析月报/运单多订单合并/物流跟踪历史/运费核算/Incoterms 价格集成/术语月报，需编译验证）

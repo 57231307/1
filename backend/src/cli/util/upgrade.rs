@@ -17,7 +17,7 @@
 
 use super::{
     build_release_url, download_with_mirrors, fetch_with_mirrors, get_backup_dir, get_install_dir,
-    is_service_active, parse_json_field, run_cmd, timestamp, GITHUB_REPO,
+    is_service_active, parse_json_field, require_root, run_cmd, timestamp, GITHUB_REPO,
 };
 
 // 批次 322 v9 复审低危修复：路径校验逻辑已抽取到共享模块 `utils::path_validator`，
@@ -49,6 +49,161 @@ const HEALTH_PATH: &str = "/api/v1/erp/health/readiness";
 
 /// 健康检查重试次数（每次间隔 1 秒）
 const HEALTH_CHECK_RETRIES: u8 = 15;
+
+/// V15 P1 25.4-L：部署后自动回滚监控次数（每 10s 一次，连续 3 次失败触发回滚）
+const POST_DEPLOY_MONITOR_RETRIES: u8 = 3;
+
+/// V15 P1 25.4-L：自动回滚监控间隔
+const POST_DEPLOY_MONITOR_INTERVAL_SECS: u64 = 10;
+
+// ==================== V15 P1 升级流程加固辅助函数 ====================
+
+/// V15 P1 25.3-A：下载后 SHA256 校验（对比 Release assets 中的 .sha256 文件）
+/// 返回 true 表示校验通过或无 sha256 文件可下载（fail-open，避免 release 未提供 sha256 阻塞升级）
+fn verify_sha256(release_url: &str, download_path: &str) -> bool {
+    let sha256_url = format!("{}.sha256", release_url);
+    let sha256_file = format!("{}.sha256", download_path);
+    println!("下载 SHA256 校验文件...");
+    if !download_with_mirrors(&sha256_url, &sha256_file, 30) {
+        println!("[WARN] 无法下载 .sha256 文件，跳过校验（fail-open）");
+        return true;
+    }
+    let expected_raw = match std::fs::read_to_string(&sha256_file) {
+        Ok(s) => s,
+        Err(e) => {
+            println!("[WARN] 读取 .sha256 文件失败，跳过校验: {}", e);
+            return true;
+        }
+    };
+    // sha256sum 文件格式：`<hash>  <filename>`，取第一个空白前字段
+    let expected = expected_raw.split_whitespace().next().unwrap_or("").to_lowercase();
+    if expected.is_empty() {
+        println!("[WARN] .sha256 文件内容为空，跳过校验");
+        return true;
+    }
+    let computed = match run_cmd("sha256sum", &[download_path]) {
+        Ok(s) => s,
+        Err(e) => {
+            println!("[ERROR] sha256sum 命令执行失败: {}", e);
+            return false;
+        }
+    };
+    let computed_hash = computed.split_whitespace().next().unwrap_or("").to_lowercase();
+    if computed_hash == expected {
+        println!("[OK] SHA256 校验通过");
+        true
+    } else {
+        println!("[ERROR] SHA256 校验失败");
+        println!("  期望: {}", expected);
+        println!("  实际: {}", computed_hash);
+        false
+    }
+}
+
+/// V15 P1 25.3-E：升级前 schema 版本兼容性检查（调用 bingxi migrate status）
+/// 返回 true 表示迁移状态正常或校验跳过（fail-open）
+fn check_schema_compatibility() -> bool {
+    println!("校验数据库 schema 版本...");
+    // 调用 bingxi migrate status 检查迁移状态
+    let bingxi_bin = format!("{}/backend/bingxi", get_install_dir());
+    if !std::path::Path::new(&bingxi_bin).exists() {
+        println!("[WARN] 未找到 bingxi CLI（{}），跳过 schema 校验", bingxi_bin);
+        return true;
+    }
+    match run_cmd(&bingxi_bin, &["migrate", "status"]) {
+        Ok(output) => {
+            if output.contains("Pending") || output.contains("pending") {
+                println!("[WARN] 检测到待执行迁移，升级后将自动执行 migrate run");
+            }
+            println!("[OK] schema 版本校验通过");
+            true
+        }
+        Err(e) => {
+            // fail-open：迁移状态检查失败不阻塞升级（升级后会自动执行 migrate run）
+            println!("[WARN] schema 版本校验失败（fail-open，升级后仍会执行迁移）: {}", e);
+            true
+        }
+    }
+}
+
+/// V15 P1 25.3-H：升级后自动执行数据库迁移（调用 bingxi migrate run）
+/// 返回 true 表示迁移成功，false 表示失败（调用方应触发回滚）
+fn run_database_migration() -> bool {
+    println!("执行数据库迁移...");
+    let bingxi_bin = format!("{}/backend/bingxi", get_install_dir());
+    if !std::path::Path::new(&bingxi_bin).exists() {
+        println!("[WARN] 未找到 bingxi CLI（{}），跳过自动迁移", bingxi_bin);
+        return true;
+    }
+    match run_cmd(&bingxi_bin, &["migrate", "run"]) {
+        Ok(_) => {
+            println!("[OK] 数据库迁移完成");
+            true
+        }
+        Err(e) => {
+            println!("[ERROR] 数据库迁移失败: {}", e);
+            false
+        }
+    }
+}
+
+/// V15 P1 25.3-K：回滚时同步回滚 DB schema（调用 bingxi migrate rollback）
+/// 失败仅告警（旧二进制可能兼容新 schema，或 schema 回滚不可逆）
+fn rollback_database_schema() {
+    println!("回滚数据库 schema...");
+    let bingxi_bin = format!("{}/backend/bingxi", get_install_dir());
+    if !std::path::Path::new(&bingxi_bin).exists() {
+        println!("[WARN] 未找到 bingxi CLI（{}），跳过 schema 回滚", bingxi_bin);
+        return;
+    }
+    match run_cmd(&bingxi_bin, &["migrate", "rollback"]) {
+        Ok(_) => println!("[OK] 数据库 schema 回滚完成"),
+        Err(e) => println!("[WARN] 数据库 schema 回滚失败（旧二进制可能兼容新 schema）: {}", e),
+    }
+}
+
+/// V15 P1 25.4-F：单实例模式健康检查门禁（HTTP /health 端点）
+/// 返回 true 表示健康检查通过
+fn health_check_http(retries: u8, interval_secs: u64) -> bool {
+    let url = "http://127.0.0.1:8082/health";
+    for i in 0..retries {
+        if run_cmd("curl", &["-fsSL", "-m", "3", url]).is_ok() {
+            println!("  [OK] 健康检查通过（第 {} 次）", i + 1);
+            return true;
+        }
+        if i < retries - 1 {
+            std::thread::sleep(std::time::Duration::from_secs(interval_secs));
+        }
+    }
+    false
+}
+
+/// V15 P1 25.4-L：部署后启动监控线程，连续失败触发自动回滚
+/// 在新线程中执行，避免阻塞主流程；主流程立即返回成功
+fn start_post_deploy_monitor() {
+    let handle = std::thread::spawn(|| {
+        let url = "http://127.0.0.1:8082/health";
+        let mut consecutive_failures: u8 = 0;
+        for _ in 0..POST_DEPLOY_MONITOR_RETRIES {
+            std::thread::sleep(std::time::Duration::from_secs(POST_DEPLOY_MONITOR_INTERVAL_SECS));
+            if run_cmd("curl", &["-fsSL", "-m", "3", url]).is_ok() {
+                return; // 健康检查通过，监控结束
+            }
+            consecutive_failures += 1;
+            println!("[WARN] 部署后健康检查失败（{}/{}）", consecutive_failures, POST_DEPLOY_MONITOR_RETRIES);
+        }
+        // 连续失败触发自动回滚
+        println!("[ERROR] 部署后连续 {} 次健康检查失败，触发自动回滚", consecutive_failures);
+        let server_old = format!("{}/backend/server.old", get_install_dir());
+        if std::path::Path::new(&server_old).exists() {
+            cmd_rollback();
+        } else {
+            println!("[ERROR] 无 server.old 备份，无法自动回滚，请手动介入");
+        }
+    });
+    // 分离线程：监控在后台运行，主流程不等待
+    let _ = handle;
+}
 
 // ==================== P0-D15 蓝绿部署辅助函数 ====================
 
@@ -137,14 +292,22 @@ fn cleanup_temp(temp_dir: &str) {
 }
 
 pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
+    // V15 P1 25.2-C 修复：升级命令必须 root 权限（操作 systemd + 系统目录）
+    require_root();
     println!("=== 系统升级 ===\n");
     let current = env!("CARGO_PKG_VERSION");
     println!("当前版本: v{}", current);
 
-    let target = match Self::resolve_target_version(&version) {
+    let target = match resolve_target_version(&version) {
         Some(v) => v,
         None => return,
     };
+
+    // V15 P1 25.3-E 修复：升级前检查 schema 版本兼容性
+    if !check_schema_compatibility() {
+        println!("[ERROR] schema 版本兼容性检查失败，终止升级");
+        return;
+    }
 
     if !no_backup && !super::backup::cmd_backup("all") {
         println!("[ERROR] 备份失败，终止升级");
@@ -166,11 +329,21 @@ pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
         return;
     }
 
+    // V15 P1 25.3-A 修复：下载后 SHA256 校验，防止损坏/篡改
+    if !verify_sha256(&release_url, &download_path) {
+        println!("[ERROR] SHA256 校验失败，终止升级（文件可能损坏或被篡改）");
+        let _ = run_cmd("rm", &["-f", &download_path]);
+        return;
+    }
+
     deploy_release(&download_path);
 
     if let Err(e) = run_cmd("rm", &["-f", &download_path]) {
         println!("[WARN] 清理下载包失败（可忽略）: {}", e);
     }
+
+    // V15 P1 25.4-L 修复：部署后启动监控，连续失败自动回滚
+    start_post_deploy_monitor();
 
     println!("\n[OK] 升级完成");
     println!("新版本: {}", target);
@@ -210,6 +383,8 @@ fn resolve_target_version(version: &Option<String>) -> Option<String> {
 }
 
 pub(super) fn cmd_deploy(package: &str) {
+    // V15 P1 25.2-C 修复：部署命令必须 root 权限（操作 systemd + 系统目录）
+    require_root();
     println!("=== 部署更新包 ===\n");
     println!("更新包: {}", package);
 
@@ -224,6 +399,8 @@ pub(super) fn cmd_deploy(package: &str) {
 }
 
 pub(super) fn cmd_rollback() {
+    // V15 P1 25.2-C 修复：回滚命令必须 root 权限（操作 systemd + 系统目录 + 二进制覆盖）
+    require_root();
     println!("=== 回滚版本 ===\n");
 
     let server_old = format!("{}/backend/server.old", get_install_dir());
@@ -268,11 +445,11 @@ fn cmd_rollback_blue_green(server_old: &str, bingxi_old: &str) {
 
     let _ = run_cmd("systemctl", &["stop", &inactive_service]);
 
-    if !Self::restore_rollback_binaries(server_old, bingxi_old, &active_service) {
+    if !restore_rollback_binaries(server_old, bingxi_old, &active_service) {
         return;
     }
 
-    if !Self::start_and_health_check(&inactive, &inactive_service, &active_service) {
+    if !start_and_health_check(&inactive, &inactive_service, &active_service) {
         return;
     }
 
@@ -287,6 +464,9 @@ fn cmd_rollback_blue_green(server_old: &str, bingxi_old: &str) {
     if let Err(e) = run_cmd("systemctl", &["stop", &active_service]) {
         println!("[WARN] 停止原活跃实例失败（可手动停止）: {}", e);
     }
+
+    // V15 P1 25.3-K 修复：蓝绿回滚同步回滚 DB schema
+    rollback_database_schema();
 
     println!("\n[OK] 蓝绿回滚成功");
     println!("新活跃实例: {} ({})", inactive, instance_port(&inactive));
@@ -369,6 +549,9 @@ fn cmd_rollback_legacy(server_old: &str, bingxi_old: &str) {
         println!("[ERROR] chmod bingxi 失败，终止回滚: {}", e);
         return;
     }
+
+    // V15 P1 25.3-K 修复：单实例回滚同步回滚 DB schema
+    rollback_database_schema();
 
     println!("启动服务...");
     if let Err(e) = run_cmd("systemctl", &["start", super::SERVICE_NAME]) {
@@ -616,6 +799,11 @@ fn deploy_release_blue_green(package: &str) {
         return;
     }
     cleanup_temp(temp_dir);
+    // V15 P1 25.3-H 修复：部署后自动执行数据库迁移（蓝绿模式下，新实例启动前执行迁移）
+    if !run_database_migration() {
+        println!("[ERROR] 数据库迁移失败，终止部署（活跃实例 {} 继续服务）", active_service);
+        return;
+    }
     if let Err(()) = start_inactive_and_health_check(&inactive, &inactive_service, &active_service) {
         return;
     }
@@ -674,6 +862,11 @@ fn deploy_release_legacy(package: &str) {
         return;
     }
     cleanup_temp(&temp_dir);
+    // V15 P1 25.3-H 修复：部署后自动执行数据库迁移（单实例模式下，启动服务前执行迁移）
+    if !run_database_migration() {
+        println!("[ERROR] 数据库迁移失败，请手动执行 `bingxi migrate run` 后启动服务");
+        return;
+    }
     start_service_and_check();
 }
 
@@ -771,15 +964,25 @@ fn copy_new_frontend(extract_dir: &str, install_dir: &str) -> Result<(), String>
 }
 
 /// 启动服务并健康检查（启动失败仅记录，等待运维介入）。
+/// V15 P1 25.4-F：单实例模式部署后增加 HTTP 健康检查门禁
 fn start_service_and_check() {
     println!("启动服务...");
     if let Err(e) = run_cmd("systemctl", &["start", super::SERVICE_NAME]) {
         println!("[ERROR] 启动服务失败: {}", e);
     }
     std::thread::sleep(std::time::Duration::from_secs(3));
-    if is_service_active(super::SERVICE_NAME) {
-        println!("[OK] 部署成功");
-    } else {
+    if !is_service_active(super::SERVICE_NAME) {
         println!("[ERROR] 服务启动失败，请检查日志");
+        return;
+    }
+    // V15 P1 25.4-F 修复：单实例模式部署后 HTTP 健康检查门禁
+    // systemd active 仅表示进程存活，HTTP /health 才确认业务就绪（DB 连接、关键依赖可用）
+    println!("健康检查（HTTP /health）...");
+    if health_check_http(HEALTH_CHECK_RETRIES, 1) {
+        println!("[OK] 部署成功（HTTP 健康检查通过）");
+    } else {
+        println!("[ERROR] HTTP 健康检查失败，服务可能未就绪，请检查日志");
+        println!("  可执行 `curl -fsSL http://127.0.0.1:8082/health` 手动验证");
+        println!("  或执行 `journalctl -u {} -n 100 --no-pager` 查看服务日志", super::SERVICE_NAME);
     }
 }

@@ -30,6 +30,16 @@ pub struct Model {
     pub is_acknowledged: bool,
     pub acknowledged_at: Option<DateTime<Utc>>,
     pub acknowledged_by: Option<i64>,
+    /// V15 P1 2.1：实际风险等级（对账回填）
+    pub actual_risk_level: Option<String>,
+    /// V15 P1 2.1：实际平均合格率（对账回填）
+    pub actual_avg_qualification_rate: Option<Decimal>,
+    /// V15 P1 2.1：实际结果记录时间
+    pub actual_recorded_at: Option<DateTime<Utc>>,
+    /// V15 P1 3.1：关联模型版本
+    pub model_version_id: Option<i32>,
+    /// V15 P1 10.3：推理耗时毫秒
+    pub inference_latency_ms: Option<i32>,
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

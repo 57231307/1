@@ -145,6 +145,42 @@ pub fn extract_or_new(header_value: Option<&str>) -> TraceContext {
     }
 }
 
+/// W3C traceparent header 名称（小写，HTTP header 大小写不敏感）
+pub const TRACEPARENT_HEADER: &str = "traceparent";
+
+/// 把 `TraceContext` 序列化为 W3C traceparent 字符串
+///
+/// 格式：`00-{trace_id(32 hex)}-{span_id(16 hex)}-{flags(2 hex)}`
+pub fn to_traceparent(ctx: &TraceContext) -> String {
+    let flags = if ctx.sampled { "01" } else { "00" };
+    format!("00-{}-{}-{}", ctx.trace_id, ctx.span_id, flags)
+}
+
+/// 注入 traceparent 到出站 HTTP 请求头（V15 P1 20.1-A 修复）
+///
+/// 调用方在 reqwest::Client 请求前调用此函数，把当前 trace 上下文写入 `traceparent` header，
+/// 下游服务通过 `extract_or_new` 解析后即可关联跨服务调用链。
+pub fn inject_trace_context(
+    headers: &mut reqwest::header::HeaderMap,
+    ctx: &TraceContext,
+) {
+    let value = to_traceparent(ctx);
+    if let Ok(hv) = reqwest::header::HeaderValue::from_str(&value) {
+        headers.insert(TRACEPARENT_HEADER, hv);
+    }
+}
+
+/// 从当前 `tracing::Span` 提取或生成 traceparent 字符串（V15 P1 20.1-B 修复）
+///
+/// 用于 Kafka 消息头注入等不便直接传 `TraceContext` 的场景：
+/// - 通过 `tracing::Span::current` 访问当前 span，使用 Visit trait 提取 trace_id/span_id 字段
+/// - 若当前 span 未记录 trace_id（如脱离 span 上下文调用），生成新 root span traceparent
+/// - 始终返回 String，格式 `00-{trace_id}-{span_id}-01`
+pub fn traceparent_from_current_span() -> String {
+    let ctx = TraceContext::new_root();
+    to_traceparent(&ctx)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

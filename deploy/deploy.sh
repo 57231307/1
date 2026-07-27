@@ -2,7 +2,8 @@
 # 秉羲 ERP 系统部署脚本
 # 用途：在服务器上部署系统 (全新部署 / 更新部署)
 
-set -e
+# V15 P1 25.1-A 修复：set -euo pipefail 严格模式（原仅 set -e，未定义变量和管道错误被吞）
+set -euo pipefail
 
 # 颜色定义
 RED='\033[0;31m'

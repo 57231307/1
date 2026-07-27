@@ -147,14 +147,22 @@ impl TrackingService {
     }
 
     /// 记录用户行为
+    ///
+    /// 缺陷 7.4 修复：在持久化前对 event_data 中的敏感字段（手机号/邮箱/身份证/银行卡）
+    /// 应用脱敏函数，避免明文 PII 写入 user_behaviors.event_data JSONB 字段。
     pub async fn record_behavior(&self, input: BehaviorInput) -> Result<(), AppError> {
+        // 缺陷 7.4 修复：对 event_data 递归脱敏后再持久化
+        let event_data = input
+            .event_data
+            .map(crate::utils::field_mask::desensitize_json);
+
         let active = user_behavior::ActiveModel {
             id: Default::default(),
             session_id: Set(input.session_id),
             user_id: Set(input.user_id),
             event_type: Set(input.event_type),
             event_target: Set(input.event_target),
-            event_data: Set(input.event_data),
+            event_data: Set(event_data),
             path: Set(input.path),
             ip_address: Set(input.ip_address),
             occurred_at: Set(Utc::now()),

@@ -28,14 +28,14 @@ export default defineConfig({
         'src/main.ts',
         'src/App.vue',
       ],
-      // V15 批次 06 P1-12 修复：覆盖率门槛（全项目 60%+，核心 service 80%+）
+      // V15 P1-20-6 覆盖率门槛提升至 70%（批次 20 前端架构审计要求）
       // 未达门槛时 vitest run --coverage 退出非零码阻塞 CI
       thresholds: {
-        // 全项目最低线（lines/funcs/branches/statements 均 60%）
-        lines: 60,
-        functions: 60,
-        branches: 60,
-        statements: 60,
+        // 全项目最低线（lines/funcs/branches/statements 均 70%）
+        lines: 70,
+        functions: 70,
+        branches: 70,
+        statements: 70,
         // 关键模块按 per-file 门槛（通过 thresholds.perFile 实现）
         perFile: false,
       },

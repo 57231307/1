@@ -26,9 +26,11 @@ fn is_container_environment() -> bool {
 }
 
 fn init_container_logging(config: &LogConfig) {
+    // V15 P1 20.8-A：容器环境 stdout 使用 JSON 格式，便于 Loki/ELK 直接采集
     let console_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stdout)
-        .with_target(true);
+        .with_target(true)
+        .json();
 
     tracing_subscriber::registry()
         .with(create_env_filter(config))
@@ -83,18 +85,21 @@ fn create_main_layers(log_dir: &Path) -> Result<(tracing_subscriber::fmt::Layer<
     let main_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
     let error_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "error.log");
 
+    // V15 P1 20.8-A：文件层使用 JSON 格式，便于 ELK/Loki 直接索引结构化字段
     let main_layer = tracing_subscriber::fmt::layer()
         .with_writer(main_appender)
         .with_ansi(false)
         .with_target(true)
         .with_thread_ids(false)
         .with_file(false)
-        .with_line_number(false);
+        .with_line_number(false)
+        .json();
 
     let error_layer = tracing_subscriber::fmt::layer()
         .with_writer(error_appender)
         .with_ansi(false)
-        .with_target(true);
+        .with_target(true)
+        .json();
 
     Ok((main_layer, error_layer))
 }

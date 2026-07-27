@@ -14,6 +14,8 @@ use crate::models::{inventory_stock, product, sales_order, warehouse};
 // 批次 209 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::cache::{AppCache, Cache};
+// 缺陷 4.3 修复：仪表板按角色控制可见卡片 + 数据范围过滤
+use crate::utils::data_scope::{build_data_scope_sql, DataScopeContext};
 use crate::utils::error::AppError;
 
 // ==================== 批次 134 v9 P1 修复：销售统计 raw SQL 中间结构 ====================
@@ -155,11 +157,22 @@ struct SalesPeriodAggregation {
 pub struct DashboardService {
     db: Arc<DatabaseConnection>,
     cache: Arc<AppCache>,
+    /// 缺陷 4.3 修复：行级数据权限上下文（None 时按 All 处理，便于历史调用兼容）
+    data_scope: Option<DataScopeContext>,
 }
 
 impl DashboardService {
     pub fn new(db: Arc<DatabaseConnection>, cache: Arc<AppCache>) -> Self {
-        Self { db, cache }
+        Self { db, cache, data_scope: None }
+    }
+
+    /// 缺陷 4.3 修复：创建带数据范围上下文的仪表板服务（按角色控制可见卡片）
+    pub fn new_with_data_scope(
+        db: Arc<DatabaseConnection>,
+        cache: Arc<AppCache>,
+        ctx: DataScopeContext,
+    ) -> Self {
+        Self { db, cache, data_scope: Some(ctx) }
     }
 
     /// 按起止日期生成概览缓存键
@@ -188,17 +201,47 @@ impl DashboardService {
     }
 
     /// 并行查询概览指标（产品/仓库/订单/待处理/低库存/月销售/总销售）
+    ///
+    /// 缺陷 4.3 修复：当 data_scope 为 Self_/Dept 时，对销售/订单查询按 created_by 过滤。
     async fn fetch_overview_metrics(
         &self,
         start_of_month: chrono::NaiveDate,
     ) -> Result<OverviewMetrics, AppError> {
         let db = self.db.as_ref();
+        // 缺陷 4.3 修复：根据 data_scope 对销售相关指标应用过滤
+        // All 范围（管理员）：不添加过滤，看到全部数据
+        // Self_/Dept 范围：按 created_by = user_id 过滤，仅统计自己的订单
         let total_products_fut = product::Entity::find().count(db);
         let total_warehouses_fut = warehouse::Entity::find().count(db);
-        let total_orders_fut = sales_order::Entity::find().count(db);
-        let pending_orders_fut = sales_order::Entity::find()
-            .filter(sales_order::Column::Status.eq("pending"))
-            .count(db);
+        let mut total_orders_q = sales_order::Entity::find();
+        let mut pending_orders_q = sales_order::Entity::find()
+            .filter(sales_order::Column::Status.eq("pending"));
+        let mut monthly_sales_q = sales_order::Entity::find()
+            .filter(sales_order::Column::OrderDate.gte(start_of_month));
+        let mut total_sales_q = sales_order::Entity::find();
+
+        // 缺陷 4.3 修复：Self_/Dept 范围仅统计自己的订单
+        if let Some(ctx) = self.data_scope.as_ref() {
+            use crate::utils::data_scope::DataScope;
+            match ctx.scope {
+                DataScope::Self_ | DataScope::Dept => {
+                    total_orders_q = total_orders_q
+                        .filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                    pending_orders_q = pending_orders_q
+                        .filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                    monthly_sales_q = monthly_sales_q
+                        .filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                    total_sales_q = total_sales_q
+                        .filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                }
+                DataScope::All => {}
+            }
+        }
+
+        let total_products_fut = total_products_fut.count(db);
+        let total_warehouses_fut = total_warehouses_fut.count(db);
+        let total_orders_fut = total_orders_q.count(db);
+        let pending_orders_fut = pending_orders_q.count(db);
         let low_stock_count_fut = inventory_stock::Entity::find()
             .filter(
                 Expr::col(inventory_stock::Column::QuantityMeters)
@@ -206,13 +249,12 @@ impl DashboardService {
             )
             .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .count(db);
-        let monthly_sales_fut = sales_order::Entity::find()
-            .filter(sales_order::Column::OrderDate.gte(start_of_month))
+        let monthly_sales_fut = monthly_sales_q
             .select_only()
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
             .one(db);
-        let total_sales_fut = sales_order::Entity::find()
+        let total_sales_fut = total_sales_q
             .select_only()
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
             .into_tuple::<Option<Decimal>>()

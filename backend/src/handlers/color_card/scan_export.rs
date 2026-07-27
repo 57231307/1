@@ -8,9 +8,12 @@ use axum::{
     extract::{Path, State},
     Json,
 };
+use std::sync::Arc;
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::color_card_response_dto::ScanResult;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::color_card_crud_service::ColorCardCrudService;
 use crate::services::color_card_item_service::ColorCardItemService;
 use crate::services::color_card_scan_service::ColorCardScanService;
@@ -47,7 +50,7 @@ pub async fn scan_color_by_id(
 
 /// GET /api/v1/erp/color-cards/export/:id - 导出色卡为 xlsx
 pub async fn export_color_card(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
@@ -59,6 +62,7 @@ pub async fn export_color_card(
         .list(id, 1, 10000)
         .await
         .map_err(item_err)?;
+    let row_count = items.len();
 
     // 规则 3：构造 xlsx 表格（字段名与原 CSV 保持一致）
     let headers = vec![
@@ -109,6 +113,32 @@ pub async fn export_color_card(
     };
 
     let filename = format!("color-card-{}", card.card_no.replace(['/', '\\', ' '], "_"));
+
+    // V15 P1-1-4：色卡导出审计日志写入（best-effort，异步不阻塞响应）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some("color_card".to_string()),
+        resource_id: Some(id.to_string()),
+        resource_name: Some(format!("{}.xlsx", filename)),
+        description: Some(format!(
+            "用户 {} 导出色卡 #{}（共 {} 条色号）",
+            auth.username, id, row_count
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(format!("/api/v1/erp/color-cards/export/{}", id)),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "format": "xlsx",
+            "color_card_id": id,
+            "card_no": card.card_no,
+            "total": row_count,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     build_xlsx_response(&table, &filename)
 }

@@ -12,11 +12,11 @@
           <el-icon><Plus /></el-icon>
           {{ $t('arModule.invoice.create') }}
         </el-button>
-        <el-button @click="handlePrintInvoices">
+        <el-button v-permission="'ar.invoice.print'" @click="handlePrintInvoices">
           <el-icon><Printer /></el-icon>
           {{ $t('common.print') }}
         </el-button>
-        <el-button @click="handleExportInvoices">
+        <el-button v-permission="'ar.invoice.export'" @click="handleExportInvoices">
           <el-icon><Download /></el-icon>
           {{ $t('common.export') }}
         </el-button>

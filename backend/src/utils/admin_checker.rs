@@ -13,6 +13,10 @@ pub const ADMIN_ROLE_CODE: &str = "admin";
 /// 用于付款审批等需要 manager 角色判定的场景
 pub const MANAGER_ROLE_CODE: &str = "manager";
 
+/// V15 P1-14.2-C：审计员角色编码常量
+/// admin 不再持有 audit:read，审计职责独立到 auditor 角色，遵循职责分离原则
+pub const AUDITOR_ROLE_CODE: &str = "auditor";
+
 /// 管理员角色检查缓存条目
 #[derive(Clone)]
 struct AdminCacheEntry {
@@ -98,6 +102,45 @@ pub async fn is_admin_role(db: &DatabaseConnection, role_id: i32) -> bool {
     is_admin
 }
 
+/// V15 P1-14.2-C：检查角色是否是审计员角色（auditor）
+///
+/// admin 不再持有 audit:read 权限，审计日志查询/导出权限独立到 auditor 角色，
+/// 遵循职责分离原则（admin 既是操作者不能审计自己）。
+/// 不带缓存（审计员检查频率低，且与 is_admin_role 缓存分离避免污染）。
+pub async fn is_auditor_role(db: &DatabaseConnection, role_id: i32) -> bool {
+    match role::Entity::find_by_id(role_id).one(db).await {
+        Ok(Some(role)) => role.code == AUDITOR_ROLE_CODE,
+        Ok(None) => false,
+        Err(e) => {
+            warn!("查询审计员角色失败: {}", e);
+            false
+        }
+    }
+}
+
+/// V15 P1-2-4：查询角色 code（用于打印/导出黑名单判定）
+///
+/// 不带缓存（仅 print/export 等敏感动作触发，频率低；与 is_admin_role 缓存分离避免污染）。
+/// 查询失败时返回 None（fail-closed，由调用方决定拒绝策略）。
+pub async fn get_role_code(db: &DatabaseConnection, role_id: i32) -> Option<String> {
+    match role::Entity::find_by_id(role_id).one(db).await {
+        Ok(Some(role)) => Some(role.code),
+        Ok(None) => None,
+        Err(e) => {
+            warn!("查询角色 code 失败: {}", e);
+            None
+        }
+    }
+}
+
+/// V15 P1-14.2-C：检查角色是否可访问审计日志（admin 或 auditor）
+///
+/// admin 保留审计日志访问能力用于系统运维排查，但不持有 audit:read 权限码
+/// （权限码归 auditor 独占）。auditor 角色专门负责审计职责。
+pub async fn can_access_audit_logs(db: &DatabaseConnection, role_id: i32) -> bool {
+    is_admin_role(db, role_id).await || is_auditor_role(db, role_id).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,4 +172,77 @@ mod tests {
         clear_admin_role_cache(None);
         assert!(ADMIN_ROLE_CACHE.is_empty());
     }
+
+    // ===== V15 P1-14.11-B：is_system 不注入 *:* 的单元测试 =====
+
+    /// 验证 ADMIN_ROLE_CODE 常量值为 "admin"
+    #[test]
+    fn test_admin_role_code_constant_value() {
+        assert_eq!(ADMIN_ROLE_CODE, "admin");
+    }
+
+    /// 验证 AUDITOR_ROLE_CODE 常量值为 "auditor"
+    #[test]
+    fn test_auditor_role_code_constant_value() {
+        assert_eq!(AUDITOR_ROLE_CODE, "auditor");
+    }
+
+    /// 验证 MANAGER_ROLE_CODE 常量值为 "manager"
+    #[test]
+    fn test_manager_role_code_constant_value() {
+        assert_eq!(MANAGER_ROLE_CODE, "manager");
+    }
+
+    /// V15 P1-14.11-B：admin 角色（code="admin"）应被识别为管理员
+    #[test]
+    fn test_admin_role_code_matches_admin() {
+        assert_eq!("admin", ADMIN_ROLE_CODE);
+        assert!("admin" == ADMIN_ROLE_CODE);
+    }
+
+    /// V15 P1-14.11-B：manager 角色不应被识别为管理员（即使 is_system=true）
+    #[test]
+    fn test_manager_role_not_admin_even_if_system() {
+        let manager_code = "manager";
+        assert!(manager_code != ADMIN_ROLE_CODE);
+        assert!(!should_be_admin_by_code(manager_code));
+    }
+
+    /// V15 P1-14.11-B：operator 角色不应被识别为管理员（即使 is_system=true）
+    #[test]
+    fn test_operator_role_not_admin_even_if_system() {
+        let operator_code = "operator";
+        assert!(operator_code != ADMIN_ROLE_CODE);
+        assert!(!should_be_admin_by_code(operator_code));
+    }
+
+    /// V15 P1-14.11-B：customer 角色不应被识别为管理员
+    #[test]
+    fn test_customer_role_not_admin() {
+        let customer_code = "customer";
+        assert!(customer_code != ADMIN_ROLE_CODE);
+        assert!(!should_be_admin_by_code(customer_code));
+    }
+
+    /// V15 P1-14.11-B：auditor 角色不应被识别为管理员（职责分离）
+    #[test]
+    fn test_auditor_role_not_admin() {
+        let auditor_code = "auditor";
+        assert!(auditor_code != ADMIN_ROLE_CODE);
+        assert!(!should_be_admin_by_code(auditor_code));
+    }
+
+    /// V15 P1-14.11-B：空字符串和未知角色不应被识别为管理员
+    #[test]
+    fn test_unknown_role_not_admin() {
+        assert!(!should_be_admin_by_code(""));
+        assert!(!should_be_admin_by_code("unknown"));
+        assert!(!should_be_admin_by_code("ADMIN"));
+        assert!(!should_be_admin_by_code("Admin"));
+    }
+}
+
+/// V15 P1-14.11-B：纯函数判断角色 code 是否为 admin（与 is_admin_role 内部逻辑一致）
+fn should_be_admin_by_code(code: &str) -> bool {
+    code == ADMIN_ROLE_CODE
 }

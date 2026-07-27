@@ -270,6 +270,12 @@ impl FailoverService {
             if executor.is_on_backup() {
                 return Ok(format!("{} 已在备库上运行，无需重复切换", function_name));
             }
+            // V15 P1 20.4-C：切换前等待备库 catch-up（10s 超时，RPO=0 保障）
+            match self.wait_for_backup_catchup(Duration::from_secs(10)).await {
+                Ok(true) => info!("test_switch: 备库 catch-up 完成，可安全切换"),
+                Ok(false) => warn!("test_switch: 备库 catch-up 超时，可能存在数据丢失风险"),
+                Err(e) => warn!(error = %e, "test_switch: 检查流复制同步状态失败，继续切换"),
+            }
             executor.switch_to_backup().map_err(|e| {
                 error!(function = function_name, error = %e, "test_switch: 切换到备库失败");
                 e
@@ -534,6 +540,46 @@ impl FailoverService {
             .execute(Statement::from_sql_and_values(backend, "SELECT 1", Vec::new()))
             .await
             .is_ok()
+    }
+
+    /// V15 P1 20.4-C：检查 PostgreSQL 流复制同步状态（备库 catch-up 校验）
+    /// 切换前调用：查询主库 pg_stat_replication 视图，确认备库 sync_state=sync 且 lag < 阈值。
+    /// 返回 Ok(true) 表示同步完成可切换；Ok(false) 表示未完成同步；Err 表示查询失败。
+    pub async fn check_replication_sync(&self) -> Result<bool, String> {
+        const MAX_LAG_BYTES: i64 = 1024 * 1024; // 1MB 阈值，超过视为未同步
+        let backend = self.db.get_database_backend();
+        let sql = "SELECT COALESCE(COUNT(*), 0) AS sync_count FROM pg_stat_replication WHERE sync_state = 'sync' AND pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) <= $1";
+        let rows = self
+            .db
+            .query_all(Statement::from_sql_and_values(
+                backend,
+                sql,
+                vec![MAX_LAG_BYTES.into()],
+            ))
+            .await
+            .map_err(|e| format!("查询 pg_stat_replication 失败: {}", e))?;
+        for row in rows {
+            let count: i64 = row
+                .try_get("", "sync_count")
+                .map_err(|e| format!("解析 sync_count 失败: {}", e))?;
+            return Ok(count > 0);
+        }
+        Ok(false)
+    }
+
+    /// V15 P1 20.4-C：等待备库 catch-up 完成（轮询 pg_stat_replication，超时返回 false）
+    /// 切换前调用，确保 RPO=0（无数据丢失）。
+    pub async fn wait_for_backup_catchup(&self, timeout: Duration) -> Result<bool, String> {
+        let start = std::time::Instant::now();
+        loop {
+            if self.check_replication_sync().await? {
+                return Ok(true);
+            }
+            if start.elapsed() >= timeout {
+                return Ok(false);
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
     }
 }
 

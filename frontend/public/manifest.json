@@ -1,0 +1,49 @@
+{
+  "name": "秉羲 ERP 系统",
+  "short_name": "秉羲ERP",
+  "description": "面料行业 ERP 管理系统 - 染整/色卡/销售/财务/库存全链路管理",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#409eff",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "工作台",
+      "short_name": "工作台",
+      "description": "打开系统工作台首页",
+      "url": "/dashboard",
+      "icons": [{ "src": "/favicon.ico", "sizes": "96x96" }]
+    },
+    {
+      "name": "销售管理",
+      "short_name": "销售",
+      "description": "打开销售管理模块",
+      "url": "/sales"
+    }
+  ]
+}

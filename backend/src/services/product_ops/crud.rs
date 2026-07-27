@@ -151,6 +151,10 @@ impl ProductService {
             finish,
             min_order_quantity,
             lead_time,
+            execution_standard,
+            factory_name,
+            factory_address,
+            product_grade,
         } = args;
         let active_model = product::ActiveModel {
             id: NotSet,
@@ -189,6 +193,11 @@ impl ProductService {
             supplier_id: sea_orm::ActiveValue::NotSet,
             is_batch_managed: sea_orm::ActiveValue::NotSet,
             batch_level: sea_orm::ActiveValue::NotSet,
+            // V15 P1 合规字段（《产品质量法》第 27 条）
+            execution_standard: Set(execution_standard),
+            factory_name: Set(factory_name),
+            factory_address: Set(factory_address),
+            product_grade: Set(product_grade),
         };
 
         let result = active_model.insert(&*self.db).await?;
@@ -317,6 +326,19 @@ impl ProductService {
         }
         if let Some(lt) = args.lead_time.take() {
             product.lead_time = Set(Some(lt));
+        }
+        // V15 P1 合规字段（《产品质量法》第 27 条）
+        if let Some(es) = args.execution_standard.take() {
+            product.execution_standard = Set(Some(es));
+        }
+        if let Some(fn_) = args.factory_name.take() {
+            product.factory_name = Set(Some(fn_));
+        }
+        if let Some(fa) = args.factory_address.take() {
+            product.factory_address = Set(Some(fa));
+        }
+        if let Some(pg) = args.product_grade.take() {
+            product.product_grade = Set(Some(pg));
         }
     }
 

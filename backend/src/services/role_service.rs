@@ -84,16 +84,13 @@ impl RoleService {
         active_role.insert(&*self.db).await
     }
 
-    /// 更新角色信息
+    /// 更新角色信息（V15 P1-14.12-E：role.code 不可修改，移除 code 参数防提权）
     ///
     /// 批次 86 v2 复审 P2-1 修复：find + 状态门 + update 移入单一事务 + lock_exclusive 串行化
-    /// 原实现全程用 self.db，无 txn 无 lock，存在 TOCTOU
-    /// （并发 update/delete 会基于过期状态通过检查后写入）
     pub async fn update_role(
         &self,
         role_id: i32,
         name: Option<String>,
-        code: Option<String>,
         description: Option<String>,
         permissions: Option<String>,
         is_system: Option<bool>,
@@ -117,9 +114,7 @@ impl RoleService {
         if let Some(name) = name {
             role_active.name = Set(name);
         }
-        if let Some(code) = code {
-            role_active.code = Set(code);
-        }
+        // V15 P1-14.12-E：禁止修改 role.code，防止 admin 将其他角色 code 改为 "admin" 提权
         if let Some(description) = description {
             role_active.description = Set(Some(description));
         }

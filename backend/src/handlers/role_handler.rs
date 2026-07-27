@@ -86,11 +86,10 @@ pub struct CreateRolePayload {
     pub is_system: Option<bool>,
 }
 
-/// 更新角色请求
+/// 更新角色请求（V15 P1-14.12-E：移除 code 字段，禁止修改 role.code 防提权）
 #[derive(Debug, Deserialize)]
 pub struct UpdateRolePayload {
     pub name: Option<String>,
-    pub code: Option<String>,
     pub description: Option<String>,
     pub is_system: Option<bool>,
 }
@@ -277,7 +276,6 @@ pub async fn update_role(
 
     let request = UpdateRoleRequest {
         name: payload.name.clone(),
-        code: payload.code.clone(),
         description: payload.description.clone(),
         is_system: payload.is_system,
     };

@@ -174,6 +174,24 @@ pub(crate) fn get_install_dir() -> String {
     std::env::var("BINGXI_INSTALL_DIR").unwrap_or_else(|_| "/opt/bingxi-erp".to_string())
 }
 
+/// 校验当前进程是否以 root 权限运行（V15 P1 25.2-C 修复）
+/// 升级/部署/回滚/备份/恢复命令操作 systemd 服务与系统目录，必须 root 权限。
+pub(crate) fn require_root() {
+    // 通过 `id -u` 获取有效用户 ID，0 表示 root；避免引入 libc/nix 依赖
+    match run_cmd("id", &["-u"]) {
+        Ok(out) => {
+            let uid = out.trim();
+            if uid != "0" {
+                eprintln!("❌ 错误：此命令必须以 root 权限运行（请使用 sudo，当前 uid={}）", uid);
+                std::process::exit(1);
+            }
+        }
+        Err(_) => {
+            eprintln!("⚠️ 警告：无法校验 root 权限（id 命令不可用），继续执行");
+        }
+    }
+}
+
 /// 获取日志目录 (支持环境变量覆盖)
 pub(crate) fn get_log_dir() -> String {
     std::env::var("BINGXI_LOG_DIR").unwrap_or_else(|_| format!("{}/logs", get_install_dir()))

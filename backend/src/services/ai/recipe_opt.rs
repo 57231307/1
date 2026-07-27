@@ -17,13 +17,16 @@
 //! `find_typical_params` / `build_candidates`），单元测试可直接调用，避免依赖数据库。
 
 use rust_decimal::prelude::ToPrimitive;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
 
 use crate::models::dye_recipe::{Entity as DyeRecipeEntity, Model as DyeRecipeModel};
 use crate::utils::error::AppError;
 
 use super::AiAnalysisService;
+
+/// V15 P1 6.2：候选集上限（数据最小化，防止全表扫描）
+pub(crate) const RECIPE_CANDIDATE_LIMIT: u64 = 10_000;
 
 // =====================================================
 // 输入 / 输出 DTO
@@ -74,7 +77,7 @@ pub struct RecipeCandidate {
 }
 
 /// 工艺优化推荐响应
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RecipeOptResponse {
     /// 推荐参数
     pub recommended_params: RecipeParams,
@@ -88,6 +91,10 @@ pub struct RecipeOptResponse {
     pub reason: String,
     /// 候选案例（最多 10 条）
     pub candidates: Vec<RecipeCandidate>,
+    /// V15 P1 5.3：是否命中缓存（true 表示 5 分钟内相同入参已计算过）
+    pub cache_hit: bool,
+    /// V15 P1 9.1+9.5：是否为降级结果（true 表示推理超时或模型不可用时返回的兜底结果）
+    pub degraded: bool,
 }
 
 // =====================================================
@@ -104,6 +111,62 @@ pub(crate) const TYPICAL_TIME_MINUTES: i32 = 45;
 pub(crate) const TYPICAL_PH: f64 = 6.0;
 /// 典型参数回退的浴比默认值
 pub(crate) const TYPICAL_LIQUOR_RATIO: f64 = 8.0;
+
+/// 染料-布类配伍性表（V15 P1 1.1：染料配伍性校验）
+///
+/// 依据 fabric-industry-research §11.2，染料与布类不匹配（如分散染料用于棉）
+/// 会生成无效配方推荐，工艺员采纳后可能导致染色失败、批次报废。
+/// 返回 true 表示配伍；false 表示不配伍。
+pub(crate) fn is_dye_fabric_compatible(dye_type: &str, fabric_type: &str) -> bool {
+    let dye = dye_type.trim().to_lowercase();
+    let fabric = fabric_type.trim().to_lowercase();
+    if dye.is_empty() || fabric.is_empty() {
+        return true;
+    }
+    let supported: &[&str] = match dye.as_str() {
+        "reactive" | "活性" => &["cotton", "棉", "棉布", "rayon", "黏胶", "粘胶", "hemp", "麻"],
+        "disperse" | "分散" => &["polyester", "涤纶", "pet", "acetate", "醋酸"],
+        "acid" | "酸性" => &["silk", "丝绸", "真丝", "wool", "羊毛", "nylon", "锦纶", "尼龙"],
+        "vat" | "还原" => &["cotton", "棉", "棉布", "hemp", "麻"],
+        "direct" | "直接" => &["cotton", "棉", "棉布", "rayon", "黏胶", "hemp", "麻"],
+        "cationic" | "阳离子" => &["acrylic", "腈纶"],
+        "sulfur" | "硫化" => &["cotton", "棉", "棉布"],
+        _ => return true,
+    };
+    supported
+        .iter()
+        .any(|s| fabric == *s || fabric.contains(s) || s.contains(&fabric.as_str()))
+}
+
+/// 校验染料与布类配伍性，不配伍时返回 422 业务错误（V15 P1 1.1）
+pub(crate) fn validate_dye_fabric_compatibility(
+    dye_type: Option<&str>,
+    fabric_type: &str,
+) -> Result<(), AppError> {
+    if let Some(dye) = dye_type {
+        if !dye.trim().is_empty() && !is_dye_fabric_compatible(dye, fabric_type) {
+            return Err(AppError::validation(format!(
+                "染料[{}]与布类[{}]不配伍，请检查配方输入",
+                dye, fabric_type
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// V15 P1 6.1：脱敏配方候选集，掩码 remark 中可能含有的手机号/邮箱/身份证号
+///
+/// 算法仅使用 color_no/fabric_type/dye_type/temperature/time/ph/liquor_ratio 字段，
+/// remark 字段不参与算法但会随候选集回写到 candidates_json，须前置脱敏避免 PII 泄露。
+pub(crate) fn sanitize_recipe_for_inference(mut recipe: DyeRecipeModel) -> DyeRecipeModel {
+    if let Some(remark) = recipe.remarks.take() {
+        recipe.remarks = Some(crate::utils::field_mask::mask_text_pii(&remark));
+    }
+    if let Some(name) = recipe.color_name.take() {
+        recipe.color_name = Some(crate::utils::field_mask::mask_text_pii(&name));
+    }
+    recipe
+}
 
 /// 计算两条配方的相似度（0.0 - 1.3）
 ///
@@ -294,26 +357,84 @@ pub(crate) fn should_use_knn(hit_count: usize) -> bool {
 
 impl AiAnalysisService {
     /// 染色工艺参数智能推荐（k-NN 优先，命中 < 3 或 k=0 回退典型参数表）
+    ///
+    /// V15 P1 5.2：通过 Semaphore permits=10 限制并发，防止 CPU 过载；
+    /// V15 P1 5.3：通过 moka 缓存（TTL 5min）避免相同入参重复计算；
+    /// V15 P1 5.1+9.1+9.5：通过 tokio::time::timeout（2s）包装算法执行，
+    ///   超时或模型不可用时返回降级结果（典型参数表 + degraded=true）。
     pub async fn optimize_recipe(
         &self,
         request: RecipeOptRequest,
     ) -> Result<RecipeOptResponse, AppError> {
+        // V15 P1 1.1：染料配伍性校验，不配伍直接返回 422
+        validate_dye_fabric_compatibility(request.dye_type.as_deref(), &request.fabric_type)?;
+
+        // V15 P1 5.3：缓存键 = 入参指纹，命中时直接返回（cache_hit=true）
+        let cache_key = build_recipe_cache_key(&request);
+        if let Some(mut cached) = self.recipe_cache.get(&cache_key).await {
+            cached.cache_hit = true;
+            return Ok(cached);
+        }
+
         let k = request.k.unwrap_or(5);
         if k == 0 {
-            return Ok(Self::build_fallback_response(
+            let mut resp = Self::build_fallback_response(
                 0,
                 "k=0，已强制走典型参数表".to_string(),
                 Vec::new(),
-            ));
+            );
+            self.recipe_cache.insert(cache_key, resp.clone()).await;
+            return Ok(resp);
         }
 
+        // V15 P1 5.2：获取并发许可，permit 在 scope 结束时自动释放
+        let _permit = self.acquire_inference_permit().await?;
+
+        // V15 P1 5.1+9.5：算法执行包装在 timeout 中，超时返回降级结果
+        let timeout_dur = std::time::Duration::from_millis(super::AI_INFERENCE_TIMEOUT_MS);
+        let inference_result = tokio::time::timeout(
+            timeout_dur,
+            self.run_recipe_inference(request, k, cache_key.clone()),
+        )
+        .await;
+
+        match inference_result {
+            Ok(Ok(response)) => Ok(response),
+            // V15 P1 9.1：模型不可用（DB 错误等）→ 返回降级结果
+            Ok(Err(_e)) => {
+                tracing::warn!("AI 工艺优化模型不可用，返回降级结果: {:?}", _e);
+                let degraded = Self::build_degraded_response(
+                    "AI 推理模型不可用，已降级为典型参数表".to_string(),
+                );
+                Ok(degraded)
+            }
+            // V15 P1 5.1+9.5：推理超时 → 返回降级结果
+            Err(_elapsed) => {
+                tracing::warn!("AI 工艺优化推理超时（>{}ms），返回降级结果", super::AI_INFERENCE_TIMEOUT_MS);
+                let degraded = Self::build_degraded_response(
+                    format!("AI 推理超时（>{}ms），已降级为典型参数表", super::AI_INFERENCE_TIMEOUT_MS),
+                );
+                Ok(degraded)
+            }
+        }
+    }
+
+    /// V15 P1 5.1：实际算法执行（候选拉取 + 评分 + 响应构建 + 缓存写入）
+    ///
+    /// 由 `optimize_recipe` 通过 `tokio::time::timeout` 包装调用，超时由外层处理。
+    async fn run_recipe_inference(
+        &self,
+        request: RecipeOptRequest,
+        k: usize,
+        cache_key: String,
+    ) -> Result<RecipeOptResponse, AppError> {
         let candidates = self.fetch_recipe_candidates().await?;
         let scored = Self::score_and_sort_candidates(&request, &candidates);
         let top: Vec<(f64, &DyeRecipeModel)> = scored.iter().take(k).copied().collect();
         let resp_candidates = build_candidates(&scored, 10);
 
-        if should_use_knn(top.len()) {
-            Self::build_knn_response(&top, k, resp_candidates)
+        let response = if should_use_knn(top.len()) {
+            Self::build_knn_response(&top, k, resp_candidates)?
         } else {
             let reason = format!(
                 "命中相似案例 {} 条（< 3），已回退到典型参数表（温度{}°C ±10、时间{}min ±15、pH{} ±1、浴比1:{} ±2）",
@@ -323,20 +444,32 @@ impl AiAnalysisService {
                 TYPICAL_PH,
                 TYPICAL_LIQUOR_RATIO
             );
-            Ok(Self::build_fallback_response(top.len(), reason, resp_candidates))
-        }
+            Self::build_fallback_response(top.len(), reason, resp_candidates)
+        };
+        self.recipe_cache.insert(cache_key, response.clone()).await;
+        Ok(response)
     }
 
     /// 查询近 6 个月未删除的染色配方作为候选集
+    ///
+    /// V15 P1 6.2：数据最小化——限制候选集上限（RECIPE_CANDIDATE_LIMIT）防止全表扫描 OOM；
+    /// V15 P1 6.1：返回前对 remark/color_name 字段做 PII 脱敏；
+    /// V15 P1 3.3：order_by_asc(Id) 保证推理结果稳定性。
     async fn fetch_recipe_candidates(&self) -> Result<Vec<DyeRecipeModel>, AppError> {
         let six_months_ago = chrono::Utc::now() - chrono::Duration::days(180);
         let six_months_ago_dt = six_months_ago.naive_utc();
-        DyeRecipeEntity::find()
+        let raw = DyeRecipeEntity::find()
             .filter(crate::models::dye_recipe::Column::IsDeleted.eq(false))
             .filter(crate::models::dye_recipe::Column::UpdatedAt.gte(six_months_ago_dt))
+            .order_by_asc(crate::models::dye_recipe::Column::Id)
+            .limit(RECIPE_CANDIDATE_LIMIT)
             .all(&*self.db)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+        Ok(raw
+            .into_iter()
+            .map(sanitize_recipe_for_inference)
+            .collect())
     }
 
     /// 计算候选配方的相似度，过滤 0 分并按降序排序
@@ -384,6 +517,8 @@ impl AiAnalysisService {
             source: "knn".to_string(),
             reason: format!("基于 {} 条相似历史配方（k={}）的加权平均推荐", top.len(), k),
             candidates,
+            cache_hit: false,
+            degraded: false,
         })
     }
 
@@ -406,8 +541,46 @@ impl AiAnalysisService {
             source: "fallback".to_string(),
             reason,
             candidates,
+            cache_hit: false,
+            degraded: false,
         }
     }
+
+    /// V15 P1 9.1+9.5：构建降级响应（推理超时或模型不可用时使用）
+    ///
+    /// 与 `build_fallback_response` 区别：本方法用于异常场景（非算法退化），
+    /// `degraded=true` 标识前端可展示"AI 服务降级"提示，置信度降至 0.3。
+    fn build_degraded_response(reason: String) -> RecipeOptResponse {
+        let typical = find_typical_params();
+        RecipeOptResponse {
+            recommended_params: RecipeParams {
+                temperature: typical.temperature,
+                time_minutes: typical.time_minutes as i32,
+                ph_value: typical.ph_value,
+                liquor_ratio: typical.liquor_ratio,
+            },
+            similar_cases: 0,
+            confidence: 0.3,
+            source: "degraded".to_string(),
+            reason,
+            candidates: Vec::new(),
+            cache_hit: false,
+            degraded: true,
+        }
+    }
+}
+
+/// V15 P1 5.3：构建工艺优化缓存键（入参指纹）
+///
+/// 由 color_no/fabric_type/dye_type/k 拼接而成，相同入参 5 分钟内命中缓存。
+fn build_recipe_cache_key(request: &RecipeOptRequest) -> String {
+    format!(
+        "recipe_opt:{}|{}|{}|{}",
+        request.color_no.trim(),
+        request.fabric_type.trim(),
+        request.dye_type.as_deref().unwrap_or("").trim(),
+        request.k.unwrap_or(5),
+    )
 }
 
 // =====================================================
@@ -699,5 +872,44 @@ mod tests {
         let typical = find_typical_params();
         assert_eq!(typical.time_minutes as i32, TYPICAL_TIME_MINUTES);
         assert!((typical.temperature - TYPICAL_TEMPERATURE).abs() < 0.001);
+    }
+
+    /// 测试 5：V15 P1 6.1 配方候选脱敏
+    /// remark 中的手机号/邮箱/身份证号应在写入 candidates_json 前被掩码
+    #[test]
+    fn test_sanitize_recipe_masks_pii() {
+        let recipe = DyeRecipeModel {
+            id: 0,
+            recipe_no: "R-PII-1".to_string(),
+            recipe_name: None,
+            color_no: Some("BL-301".to_string()),
+            formula: None,
+            temperature: Some(Decimal::try_from(80.0_f64).unwrap_or(Decimal::ZERO)),
+            time_minutes: Some(45),
+            status: Some(master_data::ACTIVE.to_string()),
+            is_deleted: Some(false),
+            created_at: chrono::Utc::now().into(),
+            updated_at: chrono::Utc::now().into(),
+            color_code: None,
+            color_name: Some("客户张三 13812348888".to_string()),
+            fabric_type: Some("棉".to_string()),
+            dye_type: Some("活性".to_string()),
+            chemical_formula: None,
+            ph_value: Some(Decimal::try_from(6.0_f64).unwrap_or(Decimal::ZERO)),
+            liquor_ratio: Some(Decimal::try_from(8.0_f64).unwrap_or(Decimal::ZERO)),
+            auxiliaries: None,
+            version: Some(1),
+            parent_recipe_id: None,
+            approved_by: None,
+            approved_at: None,
+            remarks: Some("联系 13812348888 反馈色差".to_string()),
+            created_by: None,
+        };
+        let sanitized = sanitize_recipe_for_inference(recipe);
+        let remark = sanitized.remarks.expect("脱敏后 remark 应保留");
+        assert!(!remark.contains("13812348888"), "手机号应被脱敏，实际 {}", remark);
+        assert!(remark.contains("色差"), "非 PII 文本应保留");
+        let name = sanitized.color_name.expect("脱敏后 color_name 应保留");
+        assert!(!name.contains("13812348888"), "color_name 中手机号应被脱敏");
     }
 }

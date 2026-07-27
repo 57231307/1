@@ -208,6 +208,8 @@ pub mod ai;
 pub mod report;
 // P2-4 AI 分析深化（工艺优化 + 质量预测）持久化
 pub mod ai_extend_service;
+// V15 P1 batch-14：AI 模型管理与审计（模型版本/评估/漂移/决策日志/对账）
+pub mod ai_model_management_service;
 // V15 P0-S14 敏感数据导出二级审批
 pub mod export_approval_service;
 // 扩展能力模块
@@ -241,6 +243,10 @@ pub mod report_template_service;
 pub mod email_template_service;
 // 邮件发送记录模块
 pub mod email_log_service;
+// V15 P1 batch-16 缺陷 6.1/6.2/6.3：邮件队列后台 Worker（扫描 PENDING + 重试 + 附件发送）
+pub mod email_queue_worker;
+// V15 P1 10-1/10-2：导出合规审查服务（每日定时扫描 + 6 类异常导出行为识别）
+pub mod export_compliance_service;
 // 分配历史模块
 pub mod assignment_history_service;
 // 报表订阅模块
@@ -253,6 +259,8 @@ pub mod export_service;
 pub mod print_service;
 // 审计日志清理服务
 pub mod audit_cleanup_service;
+// V15 P1 20.8-B：日志文件保留期清理服务（90 天自动清理滚动日志）
+pub mod log_cleanup_service;
 // 敏感操作告警服务
 pub mod sensitive_action_alert;
 // 增强日志服务
@@ -301,3 +309,7 @@ pub mod collection_task_service;
 pub mod finance_alert_service;
 // P0-D17（Batch 488）：OA 公告 service（CRUD + 发布/归档状态转换）
 pub mod oa_announcement_service;
+// V15 P1 batch-16 缺陷 7.3：用户隐私同意服务（记录/查询/opt-in/opt-out）
+pub mod user_consent_service;
+// V15 P1 batch-16 缺陷 8.3/8.4：追踪数据 90 天保留策略服务（page_views/user_behaviors 归档清理）
+pub mod tracking_cleanup_service;

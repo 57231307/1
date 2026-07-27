@@ -54,13 +54,28 @@ pub struct Model {
     /// 备注
     pub remarks: Option<String>,
 
-    /// 是否删除
-
     /// 创建时间
     pub created_at: DateTime<Utc>,
 
     /// 更新时间
     pub updated_at: DateTime<Utc>,
+
+    // P1 batch-18 缺陷 10.1：产能模型精细字段
+    /// 标准工时（小时/单位），用于派生计算 daily_capacity
+    #[sea_orm(column_type = "Decimal(Some((10, 2)))", nullable)]
+    pub standard_hours_per_unit: Option<Decimal>,
+    /// 设备数（默认 1）
+    pub equipment_count: Option<i32>,
+    /// 人员数（默认 1）
+    pub worker_count: Option<i32>,
+    /// 班次工时（小时，默认 8）
+    #[sea_orm(column_type = "Decimal(Some((6, 2)))", nullable)]
+    pub shift_hours: Option<Decimal>,
+
+    // P1 batch-18 缺陷 11.3：调度异常自动重排开关
+    /// 工作中心状态异常时是否自动重排受影响订单（默认 true）
+    #[sea_orm(default_value = true)]
+    pub auto_reschedule_enabled: bool,
 }
 
 /// 工作中心关联关系

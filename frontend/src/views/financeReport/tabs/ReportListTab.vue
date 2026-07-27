@@ -8,7 +8,7 @@
     <div class="page-header">
       <h2 class="page-title">{{ t('financeReport.reportListTab.pageTitle') }}</h2>
       <div>
-        <el-button @click="handleExport">
+        <el-button v-permission="'finance_report.export'" @click="handleExport">
           <el-icon><Download /></el-icon>{{ t('financeReport.reportListTab.buttonExport') }}
         </el-button>
       </div>
@@ -84,10 +84,10 @@
         <div class="card-header">
           <span>{{ getReportTypeLabel(queryForm.report_type) }} - {{ queryForm.period }}</span>
           <div>
-            <el-button type="success" link @click="handlePrint">
+            <el-button v-permission="'finance_report.print'" type="success" link @click="handlePrint">
               <el-icon><Printer /></el-icon>{{ t('financeReport.reportListTab.buttonPrint') }}
             </el-button>
-            <el-button type="primary" link @click="handleExport">
+            <el-button v-permission="'finance_report.export'" type="primary" link @click="handleExport">
               <el-icon><Download /></el-icon>{{ t('financeReport.reportListTab.buttonExport') }}
             </el-button>
           </div>

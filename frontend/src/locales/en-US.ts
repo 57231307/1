@@ -515,6 +515,11 @@ export default {
       breadcrumbAriaLabel: 'Breadcrumb navigation',
       userMenuAriaLabel: 'User menu',
       pageAriaLabel: 'Main layout container',
+      // V15 P1-20-2 mobile sidebar drawer i18n
+      toggleSidebar: 'Toggle sidebar',
+      toggleSidebarAriaLabel: 'Expand or collapse the sidebar menu',
+      sidebarDrawerTitle: 'System navigation menu',
+      closeSidebar: 'Close menu',
     },
   },
   sales: {
@@ -11383,6 +11388,14 @@ export default {
       deleteAriaLabel: 'Delete color card',
       scan: 'Scan',
       delete: 'Delete',
+    },
+    errorBoundary: {
+      defaultTitle: 'Page Error',
+      defaultSubTitle: 'Sorry, an unknown error occurred. Please retry or go back to home.',
+      retry: 'Retry',
+      backHome: 'Back to Home',
+      showDetail: 'Show Detail',
+      hideDetail: 'Hide Detail',
     },
     colorCardIssueForm: {
       formAriaLabel: 'Color Card Issue Form',

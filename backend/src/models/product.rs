@@ -71,6 +71,16 @@ pub struct Model {
     pub is_batch_managed: Option<bool>,
     /// 批次级别：four_level-四级批次管理
     pub batch_level: Option<String>,
+
+    // ========== V15 P1 合规字段（《产品质量法》第 27 条） ==========
+    /// 面料执行标准号（GB/T 406-2018 棉本色布、GB/T 411-2017 印染棉布、FZ/T 13001-2013 色织棉布）
+    pub execution_standard: Option<String>,
+    /// 生产厂名（《产品质量法》要求产品标识含中文标明的厂名）
+    pub factory_name: Option<String>,
+    /// 生产厂址（《产品质量法》要求产品标识含中文标明的厂址）
+    pub factory_address: Option<String>,
+    /// 产品等级（优等品/一等品/合格品）
+    pub product_grade: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

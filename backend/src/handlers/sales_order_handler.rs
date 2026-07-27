@@ -422,6 +422,7 @@ use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use std::sync::Arc;
 
 /// 导出销售订单
@@ -430,6 +431,9 @@ pub async fn export_orders(
     auth: AuthContext,
     Query(query): Query<SalesOrderQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
@@ -457,6 +461,16 @@ pub async fn export_orders(
         rows.push(record.iter().map(|s| s.to_string()).collect());
     }
     let row_count = rows.len();
+
+    // V15 P1-9-3：销售订单导出条数上限（计划 13.9.1 要求单次 ≤ 10000 条）
+    const MAX_SALES_ORDER_EXPORT_ROWS: usize = 10_000;
+    if row_count > MAX_SALES_ORDER_EXPORT_ROWS {
+        return Err(AppError::bad_request(format!(
+            "销售订单导出条数 {} 超过上限 {}，请缩小筛选范围后重试",
+            row_count, MAX_SALES_ORDER_EXPORT_ROWS
+        )));
+    }
+
     let table = XlsxTable {
         sheet_name: "销售订单".to_string(),
         headers,

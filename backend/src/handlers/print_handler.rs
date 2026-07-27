@@ -1,6 +1,10 @@
 //! 通用打印 Handler
 
+use std::sync::Arc;
+
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::print_service::PrintService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -15,56 +19,87 @@ async fn render_print_html(
     doc_type: &str,
     doc_id: i32,
 ) -> Result<Html<String>, AppError> {
-    // V15 P0-S17：PrintService 持有数据库连接，真实查询业务数据（替代原硬编码占位）
     let service = PrintService::new(state.db.clone());
     let print_data = service.get_print_data(doc_type, doc_id).await?;
     let html = service.generate_pdf(&print_data)?;
     Ok(Html(html))
 }
 
+/// V15 P1-1-5：异步记录打印操作审计（best-effort，不阻塞响应）
+fn record_print_audit(state: &AppState, auth: &AuthContext, doc_type: &str, doc_id: i32) {
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Print,
+        severity: Severity::Info,
+        resource_type: Some(doc_type.to_string()),
+        resource_id: Some(doc_id.to_string()),
+        resource_name: Some(format!("{}_print.html", doc_type)),
+        description: Some(format!(
+            "用户 {} 打印 {} #{}",
+            auth.username, doc_type, doc_id
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(format!("/api/v1/erp/{}/{}", doc_type, doc_id)),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "doc_type": doc_type,
+            "doc_id": doc_id,
+            "format": "html",
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+}
+
 pub async fn sales_order_print_html(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
-    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html(&state, "sales_order", doc_id).await
+    let html = render_print_html(&state, "sales_order", doc_id).await?;
+    record_print_audit(&state, &auth, "sales_order", doc_id);
+    Ok(html)
 }
 
 pub async fn sales_contract_print_html(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
-    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html(&state, "sales_contract", doc_id).await
+    let html = render_print_html(&state, "sales_contract", doc_id).await?;
+    record_print_audit(&state, &auth, "sales_contract", doc_id);
+    Ok(html)
 }
 
 pub async fn purchase_order_print_html(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
-    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html(&state, "purchase_order", doc_id).await
+    let html = render_print_html(&state, "purchase_order", doc_id).await?;
+    record_print_audit(&state, &auth, "purchase_order", doc_id);
+    Ok(html)
 }
 
 pub async fn purchase_receipt_print_html(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
-    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html(&state, "purchase_receipt", doc_id).await
+    let html = render_print_html(&state, "purchase_receipt", doc_id).await?;
+    record_print_audit(&state, &auth, "purchase_receipt", doc_id);
+    Ok(html)
 }
 
 pub async fn inventory_transfer_print_html(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Html<String>, AppError> {
-    // V15 P0-S09：注入 AuthContext，强制要求用户已认证；实际 *:print 权限校验由 permission_middleware 自动完成
-    render_print_html(&state, "inventory_transfer", doc_id).await
+    let html = render_print_html(&state, "inventory_transfer", doc_id).await?;
+    record_print_audit(&state, &auth, "inventory_transfer", doc_id);
+    Ok(html)
 }
 
 

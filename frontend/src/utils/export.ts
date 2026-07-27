@@ -16,6 +16,35 @@ export interface ExportOptions<T extends Record<string, unknown> = Record<string
   data: T[]
   /** 导出格式，默认 excel（规则 3：禁止 CSV 作为最终交付） */
   format?: 'excel'
+  /** V15 P1-4-3：资源类型标识（用于永久禁止导出黑名单校验，可选） */
+  resourceType?: string
+}
+
+/**
+ * V15 P1-4-3：永久禁止导出的资源黑名单
+ *
+ * 以下资源为企业核心技术机密，永久禁止通过前端本地导出：
+ * - lab_dip：化验室 OK 样配方
+ * - production_recipe：大货处方
+ * - flow_card：流转卡条码
+ *
+ * 若需导出上述资源，必须走后端二级审批流程（approval_token），
+ * 前端 exportToExcel 在调用时校验资源类型，命中黑名单直接拒绝。
+ */
+const EXPORT_BLOCKED_RESOURCE_TYPES: readonly string[] = [
+  'lab_dip',
+  'production_recipe',
+  'flow_card',
+]
+
+/**
+ * V15 P1-4-3：检查资源类型是否在永久禁止导出黑名单中
+ *
+ * @param resourceType 资源类型标识（与后端权限码 resource_type 对应）
+ * @returns true 表示禁止导出，false 表示允许
+ */
+export function isExportBlocked(resourceType: string): boolean {
+  return EXPORT_BLOCKED_RESOURCE_TYPES.includes(resourceType)
 }
 
 function generateExcelHTML<T extends Record<string, unknown>>(
@@ -82,11 +111,19 @@ function downloadFile(content: string, filename: string, mimeType: string) {
  *
  * 历史背景：原 exportToExcel 生成 .xls HTML 格式，无水印、无审计、无合规保障，
  * 已被 P0-S12 列为 P0 阻塞级问题。新接入后端的资源应改用 exportFromBackend。
+ *
+ * V15 P1-4-3：新增 resourceType 参数，命中永久禁止导出黑名单时直接拒绝。
  */
 export function exportToExcel<T extends Record<string, unknown>>(options: ExportOptions<T>) {
-  const { filename, columns, data } = options
+  const { filename, columns, data, resourceType } = options
   if (!data || data.length === 0) {
     msg.warning('noDataToExport')
+    return
+  }
+  // V15 P1-4-3：永久禁止导出资源黑名单校验（lab_dip/production_recipe/flow_card）
+  if (resourceType && isExportBlocked(resourceType)) {
+    msg.error('exportBlockedResource', { resource: resourceType })
+    console.warn(`[P1-4-3] 资源 ${resourceType} 已被永久禁止导出（核心技术机密）`)
     return
   }
   const htmlContent = generateExcelHTML(columns, data)

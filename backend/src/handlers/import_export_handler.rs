@@ -24,6 +24,7 @@ use crate::services::import_export_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::response::ApiResponse;
 
 /// CSV 导入请求（data 字段 validator 校验上限 10MB）。
@@ -243,6 +244,9 @@ pub async fn export_csv(
     Path(export_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let service = ImportExportService::new(state.db.clone());
 
     let (headers, data) = service.export_data(&export_type, &query).await?;
@@ -300,6 +304,9 @@ pub async fn export_excel_type(
     Path(export_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let service = ImportExportService::new(state.db.clone());
 
     let (headers, data) = service.export_data(&export_type, &query).await?;

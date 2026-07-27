@@ -81,6 +81,8 @@ pub struct CreateOutsourcingOrderItemRequest {
     pub unit: Option<String>,
     pub unit_cost: Decimal,
     pub remarks: Option<String>,
+    /// 缺陷 2.1：关联胚布ID（精确到卷/匹级追溯）
+    pub greige_fabric_id: Option<i32>,
 }
 
 /// 更新委外发料明细请求

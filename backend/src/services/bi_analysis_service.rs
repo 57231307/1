@@ -19,6 +19,7 @@ use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
+use crate::utils::cache::{AppCache, Cache};
 use crate::utils::data_scope::{build_data_scope_sql, DataScope, DataScopeContext};
 use crate::utils::error::AppError;
 
@@ -27,6 +28,24 @@ pub use crate::services::bi_analysis_ops::{
     BiResponse, CategoryStat, CustomerRank, KpiSummary, ProductRank, ProfitAnalysis, RegionStat,
     TimeSeriesPoint,
 };
+
+/// 缺陷 3.1 修复：BI 查询缓存 TTL（5 分钟，与 dashboard 对齐）
+const BI_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// 缺陷 3.1 修复：构建 BI 查询缓存键
+pub(crate) fn build_bi_cache_key(scope: &DataScopeContext, key_parts: &[&str]) -> String {
+    let mut key = format!(
+        "bi:{}:{}:{}",
+        scope.scope.as_str(),
+        scope.user_id,
+        scope.department_id.unwrap_or(0)
+    );
+    for part in key_parts {
+        key.push(':');
+        key.push_str(part);
+    }
+    key
+}
 
 // ==================== 模块级私有 helper（pub(crate) 供 ops 子模块使用） ====================
 
@@ -110,6 +129,8 @@ pub struct BiAnalysisService {
     pub(crate) db: Arc<DatabaseConnection>,
     /// V15 P0-B10：行级数据权限上下文，所有查询自动注入（pub(crate) 供 bi_analysis_ops 子模块访问）
     pub(crate) data_scope: DataScopeContext,
+    /// 缺陷 3.1 修复：聚合查询结果缓存（5 分钟 TTL），None 时禁用缓存
+    pub(crate) cache: Option<Arc<AppCache>>,
 }
 
 impl BiAnalysisService {
@@ -124,6 +145,7 @@ impl BiAnalysisService {
                 user_id: 0,
                 department_id: None,
             },
+            cache: None,
         }
     }
 
@@ -131,7 +153,16 @@ impl BiAnalysisService {
     ///
     /// 由 handler 调用，从 AuthContext.to_data_scope_context() 注入。
     pub fn new_with_data_scope(db: Arc<DatabaseConnection>, ctx: DataScopeContext) -> Self {
-        Self { db, data_scope: ctx }
+        Self { db, data_scope: ctx, cache: None }
+    }
+
+    /// 缺陷 3.1 修复：创建带缓存的 BI 服务（推荐生产环境使用）
+    pub fn new_with_cache(
+        db: Arc<DatabaseConnection>,
+        ctx: DataScopeContext,
+        cache: Arc<AppCache>,
+    ) -> Self {
+        Self { db, data_scope: ctx, cache: Some(cache) }
     }
 
     /// V15 P0-B10：构建数据范围 SQL 片段（带别名和起始索引）
@@ -140,6 +171,22 @@ impl BiAnalysisService {
     /// pub(crate) 供 bi_analysis_ops 子模块使用。
     pub(crate) fn scope_sql(&self, table_alias: &str, next_index: usize) -> (String, Vec<sea_orm::Value>) {
         build_data_scope_sql(&self.data_scope, table_alias, next_index)
+    }
+
+    /// 缺陷 3.1 修复：尝试从缓存读取聚合结果，未命中返回 None
+    pub(crate) fn try_get_cache<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
+        let cache = self.cache.as_ref()?;
+        let cached = cache.get_bi_cache().get(key)?;
+        serde_json::from_value(cached).ok()
+    }
+
+    /// 缺陷 3.1 修复：写入聚合结果到缓存（5 分钟 TTL）
+    pub(crate) fn set_cache<T: serde::Serialize>(&self, key: &str, value: &T) {
+        if let Some(cache) = self.cache.as_ref() {
+            if let Ok(v) = serde_json::to_value(value) {
+                cache.get_bi_cache().set(key.to_string(), v, Some(BI_CACHE_TTL));
+            }
+        }
     }
 }
 

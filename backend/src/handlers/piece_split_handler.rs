@@ -159,9 +159,10 @@ fn build_new_piece(
         inventory_status: sea_orm::ActiveValue::NotSet,
         created_by: sea_orm::ActiveValue::NotSet,
         updated_by: sea_orm::ActiveValue::NotSet,
-        // v14 批次 419：新增的 nullable 字段，拆分产生的新布卷不设置这些字段
-        color_no: sea_orm::ActiveValue::NotSet,
-        dye_lot_no: sea_orm::ActiveValue::NotSet,
+        // 缺陷 3.1 修复：拆匹后子匹必须继承母卷的 color_no/dye_lot_no 字符串字段
+        // 禁止 NotSet 导致子卷 dye_lot_no 为 NULL，破坏缸号字符串维度追溯
+        color_no: Set(parent.color_no.clone()),
+        dye_lot_no: Set(parent.dye_lot_no.clone()),
         // v14 批次 426：新增的 nullable 字段，拆分产生的新布卷不设置验布关联字段
         inspection_id: sea_orm::ActiveValue::NotSet,
         piece_seq: sea_orm::ActiveValue::NotSet,

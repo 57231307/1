@@ -31,6 +31,12 @@ pub struct Model {
     pub applied_by: Option<i64>,
     pub feedback_score: Option<i16>,
     pub feedback_remark: Option<String>,
+    /// V15 P1 3.1：关联模型版本
+    pub model_version_id: Option<i32>,
+    /// V15 P1 8.2：关联生产配方 ID（工艺优化→生产执行）
+    pub production_recipe_id: Option<i32>,
+    /// V15 P1 10.3：推理耗时毫秒
+    pub inference_latency_ms: Option<i32>,
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

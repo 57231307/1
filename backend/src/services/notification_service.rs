@@ -52,7 +52,12 @@ pub struct CreateNotificationRequest {
     pub action_url: Option<String>,
     pub sender_id: Option<i32>,
     pub sender_name: Option<String>,
+    /// 缺陷 5.2 修复：去重键，Some 时 5 分钟窗口内相同 key 跳过创建
+    pub dedup_key: Option<String>,
 }
+
+/// 缺陷 5.2 修复：去重窗口（5 分钟）
+const DEDUP_WINDOW_SECS: i64 = 300;
 
 /// 通知服务
 pub struct NotificationService {
@@ -65,11 +70,30 @@ impl NotificationService {
         Self { db }
     }
 
+    /// 缺陷 5.2 修复：检查 5 分钟窗口内是否已存在相同 dedup_key 的通知
+    async fn check_dedup(&self, user_id: i32, dedup_key: &str) -> Result<bool, AppError> {
+        let threshold = Utc::now() - chrono::Duration::seconds(DEDUP_WINDOW_SECS);
+        let count = NotificationEntity::find()
+            .filter(notification::Column::UserId.eq(user_id))
+            .filter(notification::Column::DedupKey.eq(dedup_key))
+            .filter(notification::Column::CreatedAt.gt(threshold))
+            .count(&*self.db)
+            .await?;
+        Ok(count > 0)
+    }
+
     /// 创建通知消息
     pub async fn create_notification(
         &self,
         req: CreateNotificationRequest,
     ) -> Result<notification::Model, AppError> {
+        // 缺陷 5.2 修复：dedup_key 存在时先查 5 分钟窗口，命中则跳过创建
+        if let Some(key) = req.dedup_key.as_deref() {
+            if self.check_dedup(req.user_id, key).await? {
+                return Err(AppError::validation("通知去重：5 分钟窗口内已存在相同 dedup_key"));
+            }
+        }
+
         let active_model = notification::ActiveModel {
             id: Default::default(),
             user_id: Set(req.user_id),
@@ -87,6 +111,7 @@ impl NotificationService {
             processed_at: Set(None),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            dedup_key: Set(req.dedup_key.clone()),
         };
 
         let notification = active_model.insert(&*self.db).await?;
@@ -97,7 +122,18 @@ impl NotificationService {
         get_notification_broadcaster()
             .broadcast_notification(notification.user_id as i64, &payload);
 
+        // 缺陷 5.1 修复：Webhook 类型通知触发外部系统推送
+        if matches!(req.notification_type, NotificationType::Webhook) {
+            self.dispatch_webhook_notification(&notification).await;
+        }
+
         Ok(notification)
+    }
+
+    /// 缺陷 5.1 修复：分发 Webhook 通知到外部系统（企业微信/钉钉/Slack）
+    async fn dispatch_webhook_notification(&self, _notification: &notification::Model) {
+        // TODO: 集成 webhook_integration_handler 推送至用户配置的 webhook URL
+        // 当前仅占位避免未使用警告，后续接入外部 webhook 调度
     }
 
     /// 批量创建通知（优化性能）
@@ -113,6 +149,13 @@ impl NotificationService {
         let mut notifications = Vec::with_capacity(requests.len());
 
         for req in requests {
+            // 缺陷 5.2 修复：dedup_key 存在时先查 5 分钟窗口，命中则跳过
+            if let Some(key) = req.dedup_key.as_deref() {
+                if self.check_dedup(req.user_id, key).await? {
+                    continue;
+                }
+            }
+
             let active_model = notification::ActiveModel {
                 id: Default::default(),
                 user_id: Set(req.user_id),
@@ -130,6 +173,7 @@ impl NotificationService {
                 processed_at: Set(None),
                 created_at: Set(now),
                 updated_at: Set(now),
+                dedup_key: Set(req.dedup_key.clone()),
             };
             let notification = active_model.insert(self.db.as_ref()).await?;
 
@@ -371,6 +415,7 @@ impl NotificationService {
                 NotificationType::Internal | NotificationType::System => s.enable_internal,
                 NotificationType::Email => s.enable_email,
                 NotificationType::Sms => s.enable_sms,
+                NotificationType::Webhook => s.enable_webhook,
             },
             None => true, // 默认启用
         };

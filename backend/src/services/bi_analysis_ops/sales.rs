@@ -18,7 +18,7 @@ use crate::services::bi_analysis_ops::types::{
     CategoryStatRow, CustomerRank, CustomerRankRow, ProductRank, ProductRankRow, RegionStat,
     RegionStatRow, TimeSeriesPoint, TimeSeriesRow, TotalRow, CategoryStat,
 };
-use crate::services::bi_analysis_service::{dec_to_f64, BiAnalysisService};
+use crate::services::bi_analysis_service::{build_bi_cache_key, dec_to_f64, BiAnalysisService};
 use crate::utils::data_scope::{build_data_scope_sql, DataScopeContext};
 use crate::utils::error::AppError;
 
@@ -35,6 +35,15 @@ impl BiAnalysisService {
     ) -> Result<Vec<TimeSeriesPoint>, AppError> {
         if end_date < start_date {
             return Err(AppError::validation("结束日期不能早于开始日期"));
+        }
+
+        // 缺陷 3.1 修复：先查缓存，命中则直接返回
+        let cache_key = build_bi_cache_key(
+            &self.data_scope,
+            &["sales_by_time", &start_date.to_string(), &end_date.to_string(), granularity],
+        );
+        if let Some(cached) = self.try_get_cache::<Vec<TimeSeriesPoint>>(&cache_key) {
+            return Ok(cached);
         }
 
         let period_expr = Self::build_period_expr(granularity);
@@ -80,7 +89,10 @@ impl BiAnalysisService {
             .all(&*self.db)
             .await?;
 
-        Ok(Self::map_time_series_rows(rows))
+        let result = Self::map_time_series_rows(rows);
+        // 缺陷 3.1 修复：写入缓存供后续相同查询命中
+        self.set_cache(&cache_key, &result);
+        Ok(result)
     }
 
     /// 根据 granularity 返回 Postgres to_char 分组表达式
@@ -120,9 +132,23 @@ impl BiAnalysisService {
         limit: i64,
     ) -> Result<Vec<CustomerRank>, AppError> {
         let limit = limit.clamp(1, 100);
+
+        // 缺陷 3.1 修复：先查缓存，命中则直接返回
+        let cache_key = build_bi_cache_key(
+            &self.data_scope,
+            &["sales_by_customer", &limit.to_string()],
+        );
+        if let Some(cached) = self.try_get_cache::<Vec<CustomerRank>>(&cache_key) {
+            return Ok(cached);
+        }
+
         let rows = Self::query_customer_rank_rows(&*self.db, &self.data_scope, limit).await?;
         let total_sales = Self::query_total_sales(&*self.db, &self.data_scope).await?;
-        Ok(Self::build_customer_ranks(rows, total_sales))
+        let result = Self::build_customer_ranks(rows, total_sales);
+
+        // 缺陷 3.1 修复：写入缓存供后续相同查询命中
+        self.set_cache(&cache_key, &result);
+        Ok(result)
     }
 
     /// 查询客户销售排行原始行（应用数据范围过滤）
@@ -216,6 +242,15 @@ impl BiAnalysisService {
     ) -> Result<Vec<ProductRank>, AppError> {
         let limit = limit.clamp(1, 100);
 
+        // 缺陷 3.1 修复：先查缓存，命中则直接返回
+        let cache_key = build_bi_cache_key(
+            &self.data_scope,
+            &["sales_by_product", &limit.to_string()],
+        );
+        if let Some(cached) = self.try_get_cache::<Vec<ProductRank>>(&cache_key) {
+            return Ok(cached);
+        }
+
         // V15 P0-B10：注入数据范围过滤（LEFT JOIN sales_orders s）
         let (scope_sql, scope_values) = self.scope_sql("s", 2);
 
@@ -266,6 +301,8 @@ impl BiAnalysisService {
             })
             .collect();
 
+        // 缺陷 3.1 修复：写入缓存供后续相同查询命中
+        self.set_cache(&cache_key, &results);
         Ok(results)
     }
 
@@ -273,6 +310,12 @@ impl BiAnalysisService {
     ///
     /// 按客户所在省份聚合销售额、订单数、客户数。
     pub async fn sales_by_region(&self) -> Result<Vec<RegionStat>, AppError> {
+        // 缺陷 3.1 修复：先查缓存，命中则直接返回
+        let cache_key = build_bi_cache_key(&self.data_scope, &["sales_by_region"]);
+        if let Some(cached) = self.try_get_cache::<Vec<RegionStat>>(&cache_key) {
+            return Ok(cached);
+        }
+
         // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s）
         let (scope_sql, scope_values) = self.scope_sql("s", 1);
 
@@ -315,6 +358,8 @@ impl BiAnalysisService {
             })
             .collect();
 
+        // 缺陷 3.1 修复：写入缓存供后续相同查询命中
+        self.set_cache(&cache_key, &results);
         Ok(results)
     }
 
@@ -322,6 +367,12 @@ impl BiAnalysisService {
     ///
     /// 按 product_categories.name 聚合销售额，percentage = 品类销售额 / 全部销售额 * 100。
     pub async fn sales_by_category(&self) -> Result<Vec<CategoryStat>, AppError> {
+        // 缺陷 3.1 修复：先查缓存，命中则直接返回
+        let cache_key = build_bi_cache_key(&self.data_scope, &["sales_by_category"]);
+        if let Some(cached) = self.try_get_cache::<Vec<CategoryStat>>(&cache_key) {
+            return Ok(cached);
+        }
+
         // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s）
         let (scope_sql, scope_values) = self.scope_sql("s", 1);
 
@@ -376,6 +427,8 @@ impl BiAnalysisService {
             })
             .collect();
 
+        // 缺陷 3.1 修复：写入缓存供后续相同查询命中
+        self.set_cache(&cache_key, &results);
         Ok(results)
     }
 

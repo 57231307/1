@@ -39,9 +39,8 @@ class Logger {
   }
 
   error(message: string, ...args: unknown[]): void {
-    if (this.shouldLog('error')) {
-      console.error(`[ERROR] ${message}`, ...args)
-    }
+    // V15 P1-20-10 错误始终输出（生产环境也需要错误日志用于监控）
+    console.error(`[ERROR] ${message}`, ...args)
   }
 }
 

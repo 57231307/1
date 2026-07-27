@@ -69,15 +69,24 @@ fn is_business_module_prefix(part: &str) -> bool {
             | "ap"
             | "ar"
             | "assist-accounting"
+            // V15 P1-14.4-D/14.12-B：补齐财务子模块前缀
+            | "bad-debts"
+            | "collection-tasks"
+            | "finance-alerts"
             // ===== CRM 域 =====
             | "crm"
             // ===== 质量与追溯域 =====
             | "business-trace"
+            // V15 P1-14.4-D/14.12-B：补齐质量子模块前缀
+            | "quality-8d-reports"
             // ===== 分析与报表域 =====
             | "reports"
             | "bi"
             | "advanced"
             | "search"
+            // V15 P1-14.4-D/14.12-B：补齐色卡与 OA 子模块前缀
+            | "bulk-color-approvals"
+            | "oa-announcements"
     )
 }
 
@@ -89,6 +98,32 @@ pub fn is_known_resource_segment(part: &str) -> bool {
     }
 
     is_direct_resource(part)
+}
+
+/// V15 P1-14.4-C：模块前缀资源消歧映射表。
+///
+/// 当同一资源段（如 "orders"）存在于多个模块前缀下（sales/orders 与 purchase/orders），
+/// `extract_resource_info` 简单取 segment4 会导致权限码与路由资源类型不匹配。
+/// 本映射表将 (module_prefix, resource) → canonical_resource_type 对齐权限定义。
+///
+/// 对齐 `init_service_ops/permission.rs` 中的资源类型命名：
+/// - sales 域：orders 保留原名（销售订单为默认 "orders"），其余加 sales- 前缀
+/// - purchase 域：全部加 purchase- 前缀，与权限定义一致
+pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> String {
+    match (module_prefix, resource) {
+        // ===== 采购域：权限定义使用 purchase- 前缀 =====
+        ("purchase", "orders") => "purchase-orders".to_string(),
+        ("purchase", "returns") => "purchase-returns".to_string(),
+        ("purchase", "receipts") => "purchase-receipts".to_string(),
+        ("purchase", "contracts") => "purchase-contracts".to_string(),
+        ("purchase", "prices") => "purchase-prices".to_string(),
+        // ===== 销售域：orders 保留原名，其余加 sales- 前缀 =====
+        ("sales", "returns") => "sales-returns".to_string(),
+        ("sales", "contracts") => "sales-contracts".to_string(),
+        ("sales", "prices") => "sales-prices".to_string(),
+        // ===== 其他情况：保留 resource 原名 =====
+        _ => resource.to_string(),
+    }
 }
 
 /// 判断是否为直接资源（非模块前缀的 segment3 合法值）
@@ -174,6 +209,17 @@ fn is_misc_direct_resource(part: &str) -> bool {
             | "optimize-inventory"
             | "detect-anomalies"
             | "recommendations"
+            // V15 P1 4.1+4.2：AI 端点资源类型白名单（含 advanced 域子资源）
+            | "process-optimizations"
+            | "quality-predictions"
+            | "summary"
+            | "by-color"
+            | "by-product"
+            | "recipe-optimization"
+            | "quality-prediction"
+            | "sales-forecast"
+            | "inventory-optimization"
+            | "anomaly-detection"
             // ===== 审计与日志直接资源 =====
             | "logs"
             | "health"

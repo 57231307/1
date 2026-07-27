@@ -268,7 +268,86 @@ impl OutsourcingReceiptService {
         active.status = Set(outsourcing_receipt_status::CONFIRMED.to_string());
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
+
+        // 缺陷 2.2 修复：委外收回确认后自动触发质检记录创建
+        Self::trigger_quality_inspection(&*self.db, &updated, &order).await?;
+
         Ok(updated)
+    }
+
+    /// 缺陷 2.2：委外收回确认后自动创建质检记录
+    async fn trigger_quality_inspection(
+        db: &DatabaseConnection,
+        receipt: &ReceiptModel,
+        order: &crate::models::outsourcing_order::Model,
+    ) -> Result<(), AppError> {
+        use crate::services::quality_inspection_service::{
+            CreateInspectionRecordRequest, QualityInspectionService,
+        };
+
+        let inspection_no = format!("QI-OS-{}-{}", receipt.outsourcing_order_id, receipt.id);
+        let inspection_date = chrono::Utc::now().date_naive();
+        let grade = receipt.grade.clone().unwrap_or_else(|| "B".to_string());
+        let quality_status = receipt.quality_status.clone().unwrap_or_else(|| "qualified".to_string());
+        let inspection_result = if quality_status == "qualified" {
+            "合格".to_string()
+        } else {
+            "不合格".to_string()
+        };
+        let qualified_qty = if quality_status == "qualified" {
+            receipt.return_quantity
+        } else {
+            Decimal::ZERO
+        };
+        let unqualified_qty = if quality_status != "qualified" {
+            receipt.return_quantity
+        } else {
+            Decimal::ZERO
+        };
+        let qualification_rate = if receipt.return_quantity > Decimal::ZERO {
+            Some((qualified_qty / receipt.return_quantity) * Decimal::from(100))
+        } else {
+            None
+        };
+
+        let req = CreateInspectionRecordRequest {
+            inspection_no,
+            inspection_type: "outsourcing_receipt".to_string(),
+            related_type: Some("outsourcing_receipt".to_string()),
+            related_id: Some(receipt.id),
+            product_id: receipt.product_id,
+            batch_no: receipt.batch_no.clone(),
+            supplier_id: order.supplier_id,
+            customer_id: None,
+            inspection_date,
+            inspector_id: receipt.created_by,
+            total_qty: receipt.return_quantity,
+            inspected_qty: receipt.return_quantity,
+            qualified_qty: Some(qualified_qty),
+            unqualified_qty: Some(unqualified_qty),
+            qualification_rate,
+            inspection_result,
+            remark: Some(format!("委外收回单 {} 自动触发质检", receipt.receipt_no)),
+            grade: Some(grade),
+            color_no: receipt.color_no.clone(),
+            dye_lot_no: receipt.dye_lot_no.clone(),
+        };
+
+        let svc = QualityInspectionService::new(std::sync::Arc::new(db.clone()));
+        let record = svc.create_record(req, receipt.created_by.unwrap_or(0)).await?;
+
+        // 不合格时触发不合格品处理流程
+        if quality_status != "qualified" {
+            tracing::warn!(
+                receipt_id = receipt.id,
+                inspection_id = record.id,
+                "委外收回质检不合格，触发不合格品处理流程"
+            );
+            // process_unqualified 需要 handling_method 参数，由后续业务流程决定
+            // 这里仅记录告警，实际处理由质检员在质检界面操作
+        }
+
+        Ok(())
     }
 
     /// 按 ID 查询

@@ -11,7 +11,7 @@
         <el-button type="primary" @click="openDialog()">
           <el-icon><Plus /></el-icon>{{ $t('budget.createBudget') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'budget.export'" @click="handleExport">
           <el-icon><Download /></el-icon>{{ $t('budget.export') }}
         </el-button>
       </div>

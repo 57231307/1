@@ -187,14 +187,21 @@ impl InitService {
         ]
     }
 
-    /// 销售域角色权限定义（sales_manager 销售经理全部操作 / sales_rep 销售代表读+增+改）。
+    /// 销售域角色权限定义（V15 P1-14.3-D：sales_manager 仅审批不创建 / sales_rep 仅创建不审批）。
     fn sales_role_resources()
         -> RoleResourceSlice
     {
         &[
+            // V15 P1-14.3-D：sales_manager 拆分 create 与 approve（SoD 职责分离）
+            // 原为 ("orders", "*") 含 create+approve，现改为显式列出审批操作，移除 create
             ("sales_manager", &[
-                ("orders", "*"), ("fabric-orders", "*"), ("sales-contracts", "*"),
-                ("sales-prices", "*"), ("sales-returns", "*"), ("quotations", "*"),
+                ("orders", "read"), ("orders", "update"), ("orders", "delete"),
+                ("orders", "approve"), ("orders", "reject"),
+                ("fabric-orders", "read"), ("fabric-orders", "approve"),
+                ("sales-contracts", "read"), ("sales-contracts", "approve"),
+                ("sales-prices", "read"), ("sales-prices", "approve"),
+                ("sales-returns", "read"), ("sales-returns", "approve"), ("sales-returns", "reject"),
+                ("quotations", "read"), ("quotations", "approve"), ("quotations", "reject"),
                 ("custom-orders", "*"), ("color-cards", "*"), ("color-prices", "*"),
                 ("customers", "*"), ("customer-credits", "read"),
                 ("ar", "read"), ("reports", "read"), ("sales-analysis", "read"),
@@ -210,14 +217,20 @@ impl InitService {
         ]
     }
 
-    /// 采购域角色权限定义（purchase_manager 采购经理 / purchase_clerk 采购员 / sourcing_specialist 寻源专员）。
+    /// 采购域角色权限定义（V15 P1-14.3-D：purchase_manager 仅审批不创建 / purchase_clerk 仅创建不审批）。
     fn purchase_role_resources()
         -> RoleResourceSlice
     {
         &[
+            // V15 P1-14.3-D：purchase_manager 拆分 create 与 approve（SoD 职责分离）
+            // 原为 ("purchase-orders", "*") 含 create+approve，现改为显式列出审批操作，移除 create
             ("purchase_manager", &[
-                ("purchase-orders", "*"), ("purchase-receipts", "*"), ("purchase-returns", "*"),
-                ("purchase-contracts", "*"), ("purchase-prices", "*"),
+                ("purchase-orders", "read"), ("purchase-orders", "update"), ("purchase-orders", "delete"),
+                ("purchase-orders", "approve"), ("purchase-orders", "reject"),
+                ("purchase-receipts", "read"), ("purchase-receipts", "approve"),
+                ("purchase-returns", "read"), ("purchase-returns", "approve"), ("purchase-returns", "reject"),
+                ("purchase-contracts", "read"), ("purchase-contracts", "approve"),
+                ("purchase-prices", "read"), ("purchase-prices", "approve"),
                 ("suppliers", "*"), ("supplier-evaluations", "*"),
                 ("ap", "read"), ("inventory", "read"), ("reports", "read"),
             ]),

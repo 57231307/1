@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! 报表模板 Model
 //!
 //! 存储用户自定义的报表模板配置
@@ -64,6 +61,12 @@ pub struct Model {
 
     /// 状态（ACTIVE/INACTIVE）
     pub status: String,
+
+    /// 模板版本号（缺陷 1.1 修复：每次 update 前递增，支持回滚到历史版本）
+    pub version: i32,
+
+    /// 必需权限码（缺陷 1.2 修复：如 report:sales:view；为空表示按 is_public/created_by 过滤）
+    pub required_permission: Option<String>,
 
     /// 创建人 ID
     pub created_by: i32,

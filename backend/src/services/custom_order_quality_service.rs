@@ -98,9 +98,74 @@ impl CustomOrderQualityService {
             status: Set("open".to_string()),
             created_at: Set(now),
             updated_at: Set(now),
+            root_cause_method: Set(None),
+            root_cause_detail: Set(None),
+            permanent_action_owner: Set(None),
+            permanent_action_due_date: Set(None),
+            permanent_action_completed_at: Set(None),
         };
         let result = active.insert(&*self.db).await?;
         Ok(result)
+    }
+
+    /// 缺陷 4.2：记录根因分析（5Why/鱼骨图）
+    pub async fn record_root_cause(
+        &self,
+        id: i64,
+        method: &str,
+        detail: serde_json::Value,
+    ) -> Result<quality_issue::Model, AppError> {
+        if !["5why", "fishbone", "other"].contains(&method) {
+            return Err(AppError::validation(format!(
+                "根因分析方法必须是 5why/fishbone/other，当前: {}",
+                method
+            )));
+        }
+        let existing = Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("异常记录不存在"))?;
+        let mut active: ActiveModel = existing.into();
+        active.root_cause_method = Set(Some(method.to_string()));
+        active.root_cause_detail = Set(Some(detail));
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 缺陷 4.3：设置永久措施责任人与截止日期
+    pub async fn set_permanent_action(
+        &self,
+        id: i64,
+        owner_id: i32,
+        due_date: chrono::NaiveDate,
+    ) -> Result<quality_issue::Model, AppError> {
+        let existing = Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("异常记录不存在"))?;
+        let mut active: ActiveModel = existing.into();
+        active.permanent_action_owner = Set(Some(owner_id));
+        active.permanent_action_due_date = Set(Some(due_date));
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 缺陷 4.3：标记永久措施完成
+    pub async fn complete_permanent_action(&self, id: i64) -> Result<quality_issue::Model, AppError> {
+        let existing = Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("异常记录不存在"))?;
+        if existing.permanent_action_owner.is_none() {
+            return Err(AppError::business("永久措施尚未指派责任人，无法标记完成"));
+        }
+        let mut active: ActiveModel = existing.into();
+        active.permanent_action_completed_at = Set(Some(Utc::now()));
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
     }
 
     /// 解决异常

@@ -2,7 +2,8 @@
 # ERP系统部署准备脚本
 # 用途：在部署前执行准备工作
 
-set -e
+# V15 P1 25.1-A 修复：set -euo pipefail 严格模式（原仅 set -e，未定义变量和管道错误被吞）
+set -euo pipefail
 
 # 颜色定义
 RED='\033[0;31m'

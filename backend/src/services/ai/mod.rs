@@ -12,8 +12,10 @@
 //! `services/mod.rs` 通过 `pub use super::ai::*;` 重新导出以保持向后兼容。
 
 
+use moka::future::Cache;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 pub mod detect;
 pub mod pred;
@@ -90,14 +92,59 @@ pub struct InventoryTurnover {
 // 共享 Service 结构体（子模块均通过 impl AiAnalysisService 扩展）
 // =====================================================
 
+/// V15 P1 5.2：AI 推理并发上限（permits=10），防止 CPU 过载
+pub const AI_CONCURRENCY_LIMIT: usize = 10;
+/// V15 P1 5.3：AI 推理缓存 TTL（5 分钟），相同入参命中缓存直接返回
+pub const AI_CACHE_TTL_SECS: u64 = 300;
+/// V15 P1 5.3：AI 推理缓存容量上限
+pub const AI_CACHE_CAPACITY: u64 = 1_000;
+/// V15 P1 5.1+9.5：AI 推理超时阈值（2s），超时返回降级结果
+pub const AI_INFERENCE_TIMEOUT_MS: u64 = 2_000;
+
 /// AI分析 Service
+///
+/// V15 P1 5.2+5.3：内置 Semaphore（permits=10）控制并发；moka 缓存（TTL 5min）避免重复计算。
 pub struct AiAnalysisService {
     pub(crate) db: Arc<DatabaseConnection>,
+    /// V15 P1 5.2：并发许可，所有 AI 推理方法在进入算法前 acquire
+    pub(crate) semaphore: Arc<Semaphore>,
+    /// V15 P1 5.3：工艺优化结果缓存（key 为入参指纹，TTL 5min）
+    pub(crate) recipe_cache: Arc<Cache<String, recipe_opt::RecipeOptResponse>>,
+    /// V15 P1 5.3：质量预测结果缓存（key 为入参指纹，TTL 5min）
+    pub(crate) quality_cache: Arc<Cache<String, quality_pred::QualityPredResponse>>,
 }
 
 impl AiAnalysisService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+        Self {
+            db,
+            semaphore: Arc::new(Semaphore::new(AI_CONCURRENCY_LIMIT)),
+            recipe_cache: Arc::new(
+                Cache::builder()
+                    .time_to_live(std::time::Duration::from_secs(AI_CACHE_TTL_SECS))
+                    .max_capacity(AI_CACHE_CAPACITY)
+                    .build(),
+            ),
+            quality_cache: Arc::new(
+                Cache::builder()
+                    .time_to_live(std::time::Duration::from_secs(AI_CACHE_TTL_SECS))
+                    .max_capacity(AI_CACHE_CAPACITY)
+                    .build(),
+            ),
+        }
+    }
+
+    /// V15 P1 5.2：获取并发许可，所有 AI 推理方法在进入算法前调用
+    ///
+    /// 返回 permit 守卫，drop 时自动释放；permits=10 防止多用户并发调用 CPU 过载。
+    pub(crate) async fn acquire_inference_permit(
+        &self,
+    ) -> Result<tokio::sync::OwnedSemaphorePermit, crate::utils::error::AppError> {
+        self.semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| crate::utils::error::AppError::internal("AI 推理并发许可获取失败"))
     }
 }
 

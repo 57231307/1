@@ -1011,3 +1011,8 @@ locales + 脚本 + 测试：
 | P1-A | 安全加固 6 项 | 2026-07-27 | #758 | refresh_token Cookie/PUBLIC_PATHS/中间件重命名/Webhook 脱敏/文件校验/Zip 防护 |
 | P1-B1 | 法律合规 5 项 | 2026-07-27 | #758 | 手机号邮箱脱敏/身份证预留/HTTPS 配置/前端用户协议 |
 | P1-B2 | 后端协议 + DbErr 修复 | 2026-07-27 | #758 | 用户协议后端（迁移+模型+接口+路由）/ DbErr→AppError 5 处 |
+| P1-C | 3 批次 P1 修复 | 2026-07-27 | 待提交 | batch-02 剩余 DbErr→AppError + batch-15 supplier_evaluation migration + batch-19 规则 14/4 修复 + Incoterms 2020 全 11 种术语 |
+| P1-batch04/05 | 面料行业深化 22 项 P1 | 2026-07-27 | 待提交 | batch-04 染整追溯/检验物理指标/工资凭证/能耗/委外事件 + batch-05 缸号状态机/配置/业务事件/移动加权平均成本 |
+| P1-batch06/07 | 测试体系 + 可维护性 | 2026-07-27 | 待提交 | batch-06 inventory_stock_service 测试 + fixtures + 性能基准 + batch-07 CacheBackend + ElMessage i18n + AppError 错误码集中管理 |
+| P1-batch21/25 | 部署升级 6 项 P1 | 2026-07-27 | 待提交 | CLI 权限校验 + SHA256 校验 + schema 兼容性 + 自动迁移 + 回滚 DB schema + HTTP 健康检查门禁 + systemd 优雅停机 + 日志清理 |
+| P1-D | batch-08 加班工时 + batch-20 前端架构 10 项 P1 | 2026-07-27 | 待提交 | P1-08-22 wage_record_detail 加班工时字段 + calculate_overtime_pay（《劳动法》第 44 条）+ P1-20-1 PWA + P1-20-2 移动端侧边栏抽屉化 + P1-20-3 manualChunks + P1-20-4 echarts 按需 + P1-20-6 覆盖率 70% + P1-20-7 nginx 安全头 + P1-20-9 ErrorBoundary + P1-20-14 keep-alive + P1-20-15 CSS 变量 + P1-20-16 暗黑模式 |

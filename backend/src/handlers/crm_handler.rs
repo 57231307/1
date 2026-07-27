@@ -9,6 +9,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -114,6 +115,9 @@ pub async fn export_leads(
     State(state): State<AppState>,
     Query(query): Query<LeadQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let service = CrmService::new(state.db.clone());
     let table = service.export_leads(query).await?;
     let row_count = table.rows.len();
@@ -365,6 +369,9 @@ pub async fn export_opportunities(
     State(state): State<AppState>,
     Query(query): Query<OpportunityQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    let _guard = ExportConcurrencyGuard::acquire()?;
+
     let service = CrmService::new(state.db.clone());
     let table = service.export_opportunities(query).await?;
     let row_count = table.rows.len();

@@ -47,6 +47,13 @@ pub struct Model {
     /// 备注
     pub remarks: Option<String>,
 
+    /// 缺陷 7.2 修复：可见性范围 ALL/DEPT/ROLE/CUSTOM
+    pub visibility_scope: String,
+
+    /// 缺陷 7.2 修复：可见性配置 JSON（department_ids/role_ids/user_ids）
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub visible_scope_config: Option<serde_json::Value>,
+
     /// 创建时间
     pub created_at: DateTime<Utc>,
 

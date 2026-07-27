@@ -55,6 +55,10 @@ pub mod mrp_result;
 pub mod production_order;
 pub mod scheduling_result;
 pub mod work_center;
+// P1 batch-18 缺陷 11.1：工作中心关联实体表（设备/人员/班次）
+pub mod work_center_equipment;
+pub mod work_center_shift;
+pub mod work_center_worker;
 // 应收对账与多币种模块
 pub mod ar_reconciliation;
 pub mod ar_reconciliation_item;
@@ -252,6 +256,8 @@ pub mod log_system;
 pub mod system_version;
 // 公告模块
 pub mod oa_announcement;
+// 缺陷 4.1 修复：仪表板布局配置（用户自定义卡片）
+pub mod dashboard_layout;
 // 颜色编码映射模块
 pub mod color_code_mapping;
 // 批次追溯日志模块
@@ -260,8 +266,7 @@ pub mod batch_trace_log;
 pub mod batch_dye_lot;
 // V15 P1-3: 面料物理指标检测记录（十项指标）
 pub mod fabric_physical_test_record;
-// 匹数映射模块
-pub mod piece_mapping;
+// 缺陷 3.3 修复：piece_mapping 模型已删除（改用 inventory_piece.parent_piece_id 作为唯一映射机制）
 // 成本模块
 // P1P2模块
 // 应收账龄分析模块
@@ -319,6 +324,11 @@ pub mod seasonal_price_rule_dto;
 // P2-4 AI 分析深化（工艺优化 + 质量预测）模型
 pub mod ai_process_optimization;
 pub mod ai_quality_prediction;
+// V15 P1 批次14：AI 模型版本管理 + 评估 + 决策日志 + 准确率报告
+pub mod ai_model_version;
+pub mod ai_model_evaluation;
+pub mod ai_decision_log;
+pub mod ai_quality_accuracy_report;
 // v14 批次 431：多业务模式支持（业务模式配置 + 流程步骤 + 规则 + 单据关联）
 pub mod business_mode_config;
 pub mod business_mode_flow_step;
@@ -341,3 +351,5 @@ pub mod collection_task_dto;
 // V15 P0-B04 Batch 481：财务预警 Model + DTO
 pub mod finance_alert;
 pub mod finance_alert_dto;
+// V15 P1 batch-16 缺陷 7.3：用户隐私同意记录 Model（user_consents 表）
+pub mod user_consent;

@@ -24,11 +24,11 @@
           <el-icon><Plus /></el-icon>
           {{ $t('customer.index.button.create') }}
         </el-button>
-        <el-button @click="handlePrint">
+        <el-button v-permission="'customer.print'" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ $t('customer.index.button.print') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'customer.export'" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ $t('customer.index.button.export') }}
         </el-button>
@@ -286,6 +286,7 @@ const handleExport = async () => {
 const handlePrint = () => {
   printData({
     title: t('customer.index.print.title'),
+    resourceType: 'customer',
     columns: [
       { key: 'customer_code', title: t('customer.index.table.column.customerCode'), width: '100px' },
       { key: 'customer_name', title: t('customer.index.table.column.customerName') },

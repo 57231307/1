@@ -34,5 +34,39 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'static',
     sourcemap: false,
+    // V15 P1-20-3 chunk 分割策略：将大依赖拆分为独立 chunk，优化首屏加载
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vue 核心
+          'vue-vendor': ['vue', 'vue-router', 'vue-i18n', 'pinia'],
+          // Element Plus UI 库
+          'element-plus': ['element-plus', '@element-plus/icons-vue'],
+          // ECharts 图表库
+          'echarts-vendor': ['echarts', 'echarts/core', 'echarts/charts', 'echarts/components', 'echarts/renderers'],
+          // 工具库
+          'utils-vendor': ['axios', 'dayjs', 'lodash-es', 'xlsx'],
+        },
+      },
+    },
+  },
+  // V15 P1-20-3 预构建依赖优化（减少冷启动时间）
+  optimizeDeps: {
+    include: [
+      'vue',
+      'vue-router',
+      'vue-i18n',
+      'pinia',
+      'element-plus',
+      '@element-plus/icons-vue',
+      'axios',
+      'dayjs',
+      'echarts/core',
+      'echarts/charts',
+      'echarts/components',
+      'echarts/renderers',
+    ],
+    exclude: ['@playwright/test'],
   },
 })

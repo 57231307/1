@@ -1,6 +1,11 @@
 <template>
   <el-container class="main-layout" :aria-label="t('layout.main.pageAriaLabel')">
-    <el-aside width="220px" class="aside">
+    <!-- V15 P1-20-2 响应式侧边栏：桌面 el-aside 固定 / 移动 el-drawer 抽屉化 -->
+    <component
+      :is="isMobile ? ElDrawer : ElAside"
+      v-bind="sidebarAttrs"
+      :class="isMobile ? 'mobile-sidebar' : 'aside'"
+    >
       <div class="logo">
         <h2>{{ t('layout.brand') }}</h2>
       </div>
@@ -185,11 +190,23 @@
           <el-menu-item role="menuitem" v-if="canAccessMenu('/ai-extend/quality-prediction')" index="/ai-extend/quality-prediction">{{ t('layout.menu.aiQualityPrediction') }}</el-menu-item>
         </el-sub-menu>
       </el-menu>
-    </el-aside>
+    </component>
 
     <el-container>
       <el-header class="header">
         <div class="header-left">
+          <!-- V15 P1-20-2 移动端汉堡按钮（触屏尺寸 ≥ 44px，WCAG 2.5.5） -->
+          <el-button
+            v-if="isMobile"
+            class="hamburger-btn"
+            size="large"
+            :aria-label="t('layout.main.toggleSidebarAriaLabel')"
+            :title="t('layout.main.toggleSidebar')"
+            text
+            @click="openDrawer"
+          >
+            <el-icon :size="22"><Expand /></el-icon>
+          </el-button>
           <el-breadcrumb separator="/" :aria-label="t('layout.main.breadcrumbAriaLabel')">
             <el-breadcrumb-item :to="{ path: '/' }">{{ t('layout.breadcrumb.home') }}</el-breadcrumb-item>
             <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
@@ -214,16 +231,24 @@
       </el-header>
 
       <el-main class="main-content">
-        <router-view />
+        <router-view v-slot="{ Component, route }">
+          <ErrorBoundary :key="route.path">
+            <keep-alive :include="cachedViewNames">
+              <component :is="Component" :key="route.path" />
+            </keep-alive>
+          </ErrorBoundary>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+// V15 P1-20-2 响应式侧边栏：动态组件切换需要显式导入 ElDrawer/ElAside
+import { ElDrawer, ElAside } from 'element-plus'
 import {
   HomeFilled,
   Goods,
@@ -236,19 +261,40 @@ import {
   Cpu,
   List,
   MagicStick,
+  Expand,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
 // 批次 6 修复（2026-06-28）：MainLayout 菜单按 permission 过滤（审计 #8 完整修复）
 // 复用 router 守卫同款宽松匹配函数，保证菜单可见性与路由可达性一致。
 import { hasRoutePermission } from '@/router'
+// V15 P1-20-2 响应式断点 composable（md 以下视为移动端，侧边栏抽屉化）
+import { useBreakpoint } from '@/composables/useBreakpoint'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
+// V15 P1-20-2 响应式断点：md 以下（< 992px）视为移动端，侧边栏改用 el-drawer 抽屉化
+const { isMobile } = useBreakpoint()
+// 移动端抽屉可见性状态
+const drawerVisible = ref(false)
+
 const activeMenu = computed(() => route.path)
 const currentTitle = computed(() => (route.meta.title as string) || '')
+
+// V15 P1-20-14 keep-alive 状态保留：缓存高频切换页面（列表页 + 工作台）
+// 仅缓存需要保留状态（搜索条件/分页/滚动位置）的页面，详情/编辑页不缓存
+const cachedViewNames = computed<string[]>(() => [
+  'Dashboard',
+  'InventoryList',
+  'SalesList',
+  'PurchaseList',
+  'CustomerList',
+  'SupplierList',
+  'FinanceOverview',
+])
 
 // 批次 6：用户权限与角色响应式派生
 // 批次 22 v5 P0-5：permissions 为 readonly string[]，computed 类型同步
@@ -265,6 +311,58 @@ const handleMenuOpen = (index: string) => {
 const handleMenuClose = (index: string) => {
   openedMenus.value = openedMenus.value.filter(i => i !== index)
 }
+
+/**
+ * V15 P1-20-2 侧边栏动态属性
+ *
+ * 桌面端（md 及以上）：使用 ElAside 固定侧边栏，width=220px
+ * 移动端（md 以下）：使用 ElDrawer 抽屉化，direction=ltr，size=260px，
+ *   withHeader=false（logo 在内容中渲染保持品牌一致），modal=true（点击遮罩关闭），
+ *   appendToBody=true（避免 z-index 层级问题）
+ */
+const sidebarAttrs = computed<Record<string, unknown>>(() => {
+  if (isMobile.value) {
+    return {
+      modelValue: drawerVisible.value,
+      'onUpdate:modelValue': (v: boolean) => {
+        drawerVisible.value = v
+      },
+      title: t('layout.main.sidebarDrawerTitle'),
+      direction: 'ltr' as const,
+      size: '260px',
+      withHeader: false,
+      modal: true,
+      appendToBody: true,
+      destroyOnClose: false,
+      closeOnPressEscape: true,
+    }
+  }
+  return {
+    width: '220px',
+  }
+})
+
+// V15 P1-20-2 打开移动端抽屉
+const openDrawer = () => {
+  drawerVisible.value = true
+}
+
+// V15 P1-20-2 路由切换时关闭移动端抽屉（点击菜单项导航后自动收起）
+watch(
+  () => route.path,
+  () => {
+    if (isMobile.value && drawerVisible.value) {
+      drawerVisible.value = false
+    }
+  }
+)
+
+// V15 P1-20-2 切换到桌面端时关闭抽屉（避免从移动端放大后抽屉残留）
+watch(isMobile, (mobile) => {
+  if (!mobile && drawerVisible.value) {
+    drawerVisible.value = false
+  }
+})
 
 /**
  * 批次 6（2026-06-28）：菜单项可见性判定
@@ -334,21 +432,29 @@ async function handleLogout() {
 </script>
 
 <style scoped>
+/* V15 P1-20-15 使用 CSS 变量替代硬编码颜色，支持主题切换与暗黑模式 */
 .main-layout {
+  --layout-aside-bg: #304156;
+  --layout-aside-logo-bg: #263445;
+  --layout-header-bg: #ffffff;
+  --layout-content-bg: #f0f2f5;
+  --layout-header-shadow: rgba(0, 21, 41, 0.08);
+  --layout-text-light: #ffffff;
+  --layout-shadow-blur: 4px;
   height: 100vh;
 }
 .aside {
-  background-color: #304156;
+  background-color: var(--layout-aside-bg);
 }
 .logo {
   height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #263445;
+  background-color: var(--layout-aside-logo-bg);
 }
 .logo h2 {
-  color: #fff;
+  color: var(--layout-text-light);
   font-size: 18px;
   margin: 0;
 }
@@ -359,8 +465,13 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  background: var(--layout-header-bg);
+  box-shadow: 0 1px var(--layout-shadow-blur) var(--layout-header-shadow);
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .header-right .user-info {
   cursor: pointer;
@@ -369,7 +480,51 @@ async function handleLogout() {
   gap: 4px;
 }
 .main-content {
-  background: #f0f2f5;
+  background: var(--layout-content-bg);
   padding: 20px;
+}
+
+/* V15 P1-20-2 移动端汉堡按钮：触屏目标尺寸 ≥ 44x44px（WCAG 2.5.5 Target Size） */
+.hamburger-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* V15 P1-20-2 移动端抽屉内部样式：与桌面 aside 背景色保持一致 */
+.mobile-sidebar :deep(.el-drawer__body) {
+  padding: 0;
+  background-color: var(--layout-aside-bg);
+  overflow-y: auto;
+}
+
+/* V15 P1-20-2 移动端响应式适配（max-width: 991px，与 md 断点一致） */
+@media (max-width: 991px) {
+  /* 移动端主内容区减小内边距，释放更多内容空间 */
+  .main-content {
+    padding: 12px;
+  }
+
+  /* 移动端头部用户菜单触屏尺寸 ≥ 44px */
+  .header-right .user-info {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+
+  /* 移动端面包屑简化（减少水平占用） */
+  .header-left {
+    gap: 4px;
+  }
+}
+
+/* V15 P1-20-2 触屏按钮全局最小尺寸（移动端所有 el-button 至少 44x44px） */
+@media (max-width: 991px) {
+  .header :deep(.el-button) {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 </style>

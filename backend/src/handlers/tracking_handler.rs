@@ -15,6 +15,9 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::tracking_service::{
     BehaviorInput, FunnelQuery, PageViewInput, StatsQuery, TrackingService, UserPathQuery,
 };
+use crate::services::user_consent_service::{
+    CONSENT_TYPE_BEHAVIOR_TRACKING, CONSENT_TYPE_PAGE_VIEW_TRACKING, UserConsentService,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -78,7 +81,23 @@ pub struct FunnelRequest {
     pub date_to: Option<String>,
 }
 
+/// 缺陷 7.3 修复：校验用户是否同意指定 consent_type
+///
+/// 默认行为：未找到同意记录时返回 false（最小权限原则 + 合规优先）。
+/// 调用方应根据返回值决定是否真正持久化追踪数据。
+async fn is_tracking_allowed(
+    state: &AppState,
+    user_id: i32,
+    consent_type: &str,
+) -> Result<bool, AppError> {
+    let svc = UserConsentService::new(state.db.clone());
+    svc.is_consent_given(user_id, consent_type).await
+}
+
 /// 记录页面访问埋点（持久化到 page_views 表）
+///
+/// 缺陷 7.3 修复：在持久化前校验用户是否同意 page_view_tracking，
+/// 未同意时静默返回 success=true（不破坏前端 UX，但不写入明细数据）。
 pub async fn track_page_view(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -87,6 +106,12 @@ pub async fn track_page_view(
     // v14 中风险安全修复：输入长度校验，防止超大字段触发 DoS
     req.validate()
         .map_err(|e| AppError::validation(format!("参数校验失败: {}", e)))?;
+
+    // 缺陷 7.3 修复：未同意 page_view_tracking 时静默跳过持久化
+    if !is_tracking_allowed(&state, auth.user_id, CONSENT_TYPE_PAGE_VIEW_TRACKING).await? {
+        return Ok(Json(ApiResponse::success(PageViewResponse { success: true })));
+    }
+
     let service = TrackingService::new(state.db.clone());
     let input = PageViewInput {
         path: req.path,
@@ -154,6 +179,10 @@ pub async fn get_popular_pages(
 }
 
 /// 记录用户行为
+///
+/// 缺陷 7.3 修复：在持久化前校验用户是否同意 behavior_tracking，
+/// 未同意时静默返回 success=true（不破坏前端 UX，但不写入明细数据）。
+/// 缺陷 7.4 修复：service 层对 event_data 递归脱敏后再持久化。
 pub async fn record_behavior(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -162,6 +191,12 @@ pub async fn record_behavior(
     // v14 中风险安全修复：输入长度校验，防止超大字段触发 DoS
     req.validate()
         .map_err(|e| AppError::validation(format!("参数校验失败: {}", e)))?;
+
+    // 缺陷 7.3 修复：未同意 behavior_tracking 时静默跳过持久化
+    if !is_tracking_allowed(&state, auth.user_id, CONSENT_TYPE_BEHAVIOR_TRACKING).await? {
+        return Ok(Json(ApiResponse::success(PageViewResponse { success: true })));
+    }
+
     let service = TrackingService::new(state.db.clone());
     let input = BehaviorInput {
         event_type: req.event_type,

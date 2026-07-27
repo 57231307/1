@@ -88,7 +88,7 @@
             <el-icon><Refresh /></el-icon>
             {{ $t('auditLog.filter.reset') }}
           </el-button>
-          <el-button type="success" @click="handleExport">
+          <el-button v-permission="'audit.log.export'" type="success" @click="handleExport">
             <el-icon><Download /></el-icon>
             {{ $t('auditLog.filter.exportCsv') }}
           </el-button>

@@ -82,6 +82,11 @@ pub struct InventoryTransferItemRequest {
     pub product_id: Option<i32>,
     pub quantity: Option<rust_decimal::Decimal>,
     pub notes: Option<String>,
+    // P1 batch-18 缺陷 6.2：调拨明细强制缸号追溯字段
+    pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
+    pub batch_no: Option<String>,
+    pub unit_cost: Option<rust_decimal::Decimal>,
 }
 
 /// 更新库存调拨请求

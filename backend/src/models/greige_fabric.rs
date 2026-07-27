@@ -49,6 +49,22 @@ pub struct Model {
     pub purchase_date: Option<NaiveDate>,
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
+    /// 缺陷 1.1：关联采购订单ID（NULL表示手工录入未走采购流程）
+    pub purchase_order_id: Option<i32>,
+    /// 缺陷 1.1：关联采购入库单ID（支持三单匹配）
+    pub purchase_receipt_id: Option<i32>,
+    /// 缺陷 1.2：安全库存（公斤）
+    #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
+    pub safety_stock: Option<Decimal>,
+    /// 缺陷 1.2：订货点（公斤，低于此值触发补货建议）
+    #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
+    pub reorder_point: Option<Decimal>,
+    /// 缺陷 1.2：最大库存（公斤，超过此值告警）
+    #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
+    pub max_stock_point: Option<Decimal>,
+    /// 缺陷 1.2：补货量（公斤）
+    #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
+    pub reorder_quantity: Option<Decimal>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

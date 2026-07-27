@@ -81,6 +81,7 @@ impl OutsourcingOrderItemService {
             unit_cost: Set(req.unit_cost),
             total_cost: Set(total_cost),
             inventory_transaction_id: Set(None),
+            greige_fabric_id: Set(req.greige_fabric_id),
             remarks: Set(req.remarks),
             created_at: Set(now),
             updated_at: Set(now),

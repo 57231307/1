@@ -11,7 +11,7 @@
           <el-icon><Plus /></el-icon>
           {{ $t('qualityStandards.create') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'quality.standard.export'" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ $t('qualityStandards.export') }}
         </el-button>

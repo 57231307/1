@@ -4,8 +4,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
-import * as echarts from 'echarts'
-import type { EChartsOption } from 'echarts'
+import echarts from '@/utils/echarts'
+import type { ECharts, EChartsOption } from '@/utils/echarts'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -24,12 +24,12 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  ready: [instance: echarts.ECharts]
+  ready: [instance: ECharts]
   click: [params: Record<string, unknown>]
 }>()
 
 const chartRef = ref<HTMLDivElement>()
-let chartInstance: echarts.ECharts | null = null
+let chartInstance: ECharts | null = null
 let resizeObserver: ResizeObserver | null = null
 
 const defaultOption = computed<EChartsOption>(() => ({

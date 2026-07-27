@@ -76,6 +76,18 @@ pub struct Model {
 
     /// 更新时间
     pub updated_at: DateTime<Utc>,
+
+    /// 缺陷 6.2 修复：下次重试时间（指数退避：1min/5min/30min，NULL 表示立即可重试）
+    pub next_retry_at: Option<DateTime<Utc>>,
+
+    /// 缺陷 6.3 修复：附件 JSON 数组 [{filename, content_base64, content_type}]
+    pub attachments: Option<Json>,
+
+    /// 缺陷 6.1 修复：HTML 正文（与 body 区分，body 保留为兼容字段）
+    pub html_content: Option<String>,
+
+    /// 缺陷 6.1 修复：纯文本正文
+    pub text_content: Option<String>,
 }
 
 /// 邮件发送记录关联关系

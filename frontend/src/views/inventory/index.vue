@@ -25,11 +25,11 @@
           <el-icon><RefreshRight /></el-icon>
           {{ t('inventory.page.transfer') }}
         </el-button>
-        <el-button @click="handlePrint">
+        <el-button v-permission="'inventory.print'" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ t('inventory.page.print') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'inventory.export'" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ t('inventory.page.export') }}
         </el-button>

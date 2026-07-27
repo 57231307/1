@@ -76,13 +76,24 @@ pub struct Model {
     /// 工时（分钟，来自工序记录）
     pub duration_minutes: i32,
 
+    /// V15 P1-08-22 加班合规字段（《劳动法》第 41 条）
+    /// 工作日加班工时（分钟，1.5 倍工资）
+    pub weekday_overtime_minutes: i32,
+    /// 休息日加班工时（分钟，2 倍工资，不能安排补休时适用）
+    pub weekend_overtime_minutes: i32,
+    /// 法定节假日加班工时（分钟，3 倍工资）
+    pub holiday_overtime_minutes: i32,
+    /// 加班费（overtime_pay = weekday_ot × 1.5 + weekend_ot × 2 + holiday_ot × 3，按计时单价 × 等级系数）
+    #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
+    pub overtime_pay: Decimal,
+
     /// 计件工资部分（合格产量 × 计件单价 × 等级系数）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub piece_wage: Decimal,
     /// 计时工资部分（工时 × 计时单价 × 等级系数）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub time_wage: Decimal,
-    /// 应得工资（piece_wage + time_wage）
+    /// 应得工资（piece_wage + time_wage + overtime_pay）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub wage_amount: Decimal,
 

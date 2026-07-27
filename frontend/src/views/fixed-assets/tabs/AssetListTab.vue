@@ -15,7 +15,7 @@
         <el-button @click="handleDepreciateAll">
           <el-icon><Refresh /></el-icon>{{ $t('fixedAssets.depreciate') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'fixed_assets.export'" @click="handleExport">
           <el-icon><Download /></el-icon>{{ $t('fixedAssets.export') }}
         </el-button>
       </div>

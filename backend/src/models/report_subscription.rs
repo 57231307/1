@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! 报表订阅 Model
 //!
 //! 存储报表订阅配置，支持定时生成和发送报表
@@ -85,6 +82,15 @@ pub struct Model {
 
     /// 执行次数
     pub run_count: i32,
+
+    /// 缺陷 2.3 修复：当前重试次数（成功后清零）
+    pub retry_count: i32,
+
+    /// 缺陷 2.3 修复：最大重试次数（默认 3，超过即转入死信状态）
+    pub max_retries: i32,
+
+    /// 缺陷 2.3 修复：下次重试时间（按指数退避：1min/5min/30min）
+    pub next_retry_at: Option<DateTime<Utc>>,
 
     /// 创建人 ID
     pub created_by: i32,

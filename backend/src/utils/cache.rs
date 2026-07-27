@@ -272,6 +272,8 @@ pub struct AppCache {
     pub customer_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub supplier_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub warehouse_cache: Arc<MemoryCache<String, serde_json::Value>>,
+    /// 缺陷 3.1 修复：BI 多维分析聚合结果缓存（5 分钟 TTL）
+    pub bi_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub token_blacklist: Arc<MemoryCache<String, bool>>,
     /// CSRF Token 缓存：key=csrf_token, value=(session_id, ip_address)。
     /// IP 绑定用于防御 CSRF 窃取后的跨 IP 重放（Wave 3 安全漏洞 #7）。
@@ -313,6 +315,7 @@ impl AppCache {
             customer_cache: MemoryCache::arc(),
             supplier_cache: MemoryCache::arc(),
             warehouse_cache: MemoryCache::arc(),
+            bi_cache: MemoryCache::arc(),
             token_blacklist: MemoryCache::arc(),
             csrf_token_cache: MemoryCache::arc(),
             csrf_user_index: DashMap::new(),
@@ -361,6 +364,11 @@ impl AppCache {
     /// 获取仓库缓存
     pub fn get_warehouse_cache(&self) -> Arc<MemoryCache<String, serde_json::Value>> {
         self.warehouse_cache.clone()
+    }
+
+    /// 缺陷 3.1 修复：获取 BI 多维分析缓存
+    pub fn get_bi_cache(&self) -> Arc<MemoryCache<String, serde_json::Value>> {
+        self.bi_cache.clone()
     }
 
     /// 获取 Token 黑名单缓存

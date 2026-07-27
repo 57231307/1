@@ -12,11 +12,11 @@
           <el-icon><Plus /></el-icon>
           {{ t('finance.subjectTab.buttonNewSubject') }}
         </el-button>
-        <el-button @click="handlePrintSubjects">
+        <el-button v-permission="'finance.subject.print'" @click="handlePrintSubjects">
           <el-icon><Printer /></el-icon>
           {{ t('finance.subjectTab.buttonPrint') }}
         </el-button>
-        <el-button @click="handleExportSubjects">
+        <el-button v-permission="'finance.subject.export'" @click="handleExportSubjects">
           <el-icon><Download /></el-icon>
           {{ t('finance.subjectTab.buttonExport') }}
         </el-button>

@@ -17,7 +17,29 @@ use crate::utils::pagination::paginate_with_total;
 use crate::models::report_subscription::{
     ActiveModel, Entity as ReportSubscriptionEntity, Model as ReportSubscriptionModel,
 };
+use crate::models::report_template::Entity as ReportTemplateEntity;
 use crate::utils::error::AppError;
+
+/// 缺陷 2.3 修复：最大重试次数默认值
+const DEFAULT_MAX_RETRIES: i32 = 3;
+
+/// 缺陷 2.3 修复：指数退避间隔表（1min / 5min / 30min）
+fn backoff_seconds(retry_count: i32) -> i64 {
+    match retry_count {
+        0 => 60,
+        1 => 300,
+        _ => 1800,
+    }
+}
+
+/// 简易邮箱格式校验（缺陷 2.2 修复：避免引入额外 crate）
+fn is_valid_email(email: &str) -> bool {
+    let parts: Vec<&str> = email.split('@').collect();
+    if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
+        return false;
+    }
+    parts[1].contains('.') && !parts[1].starts_with('.') && !parts[1].ends_with('.')
+}
 
 /// 创建订阅请求
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
@@ -69,6 +91,28 @@ impl ReportSubscriptionService {
     ) -> Result<ReportSubscriptionModel, AppError> {
         let now = Utc::now();
 
+        // 缺陷 2.2 修复：校验模板存在且当前用户可见（公开或自己创建）
+        let template = ReportTemplateEntity::find_by_id(req.template_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("报表模板 {} 不存在", req.template_id)))?;
+
+        if !template.is_public && template.created_by != user_id {
+            return Err(AppError::permission_denied(
+                "无权订阅该私有报表模板，仅可订阅公开模板或自己创建的模板",
+            ));
+        }
+
+        // 缺陷 2.2 修复：校验收件人邮箱格式（防止将敏感报表推送到非法邮箱）
+        if req.recipients.is_empty() {
+            return Err(AppError::validation("收件人列表不能为空"));
+        }
+        for email in &req.recipients {
+            if !is_valid_email(email) {
+                return Err(AppError::validation(format!("收件人邮箱格式无效: {}", email)));
+            }
+        }
+
         // 计算下次执行时间
         let next_run = match req.frequency.as_str() {
             "DAILY" => Some(now + chrono::Duration::days(1)),
@@ -95,6 +139,10 @@ impl ReportSubscriptionService {
             last_run_status: Set(None),
             last_run_error: Set(None),
             run_count: Set(0),
+            // 缺陷 2.3 修复：初始化重试字段
+            retry_count: Set(0),
+            max_retries: Set(DEFAULT_MAX_RETRIES),
+            next_retry_at: Set(None),
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
@@ -258,5 +306,83 @@ impl ReportSubscriptionService {
         active_model.update(&*self.db).await?;
 
         Ok(())
+    }
+
+    /// 缺陷 2.3 修复：标记订阅执行成功，清零重试计数
+    pub async fn mark_run_success(&self, id: i32) -> Result<(), AppError> {
+        let model = ReportSubscriptionEntity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("订阅不存在"))?;
+
+        let now = Utc::now();
+        let next_run = model.calculate_next_run();
+        let mut active_model: ActiveModel = model.into();
+        active_model.last_run_at = Set(Some(now));
+        active_model.last_run_status = Set(Some("success".to_string()));
+        active_model.last_run_error = Set(None);
+        active_model.run_count = Set(model.run_count + 1);
+        active_model.retry_count = Set(0);
+        active_model.next_retry_at = Set(None);
+        active_model.next_run_at = Set(next_run);
+        active_model.updated_at = Set(now);
+        active_model.update(&*self.db).await?;
+        Ok(())
+    }
+
+    /// 缺陷 2.3 修复：标记订阅执行失败，按指数退避调度下次重试；超过 max_retries 转入死信状态
+    pub async fn mark_run_failed(&self, id: i32, error: String) -> Result<(), AppError> {
+        let model = ReportSubscriptionEntity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("订阅不存在"))?;
+
+        let now = Utc::now();
+        let new_retry_count = model.retry_count + 1;
+        let max_retries = model.max_retries.max(DEFAULT_MAX_RETRIES);
+        let mut active_model: ActiveModel = model.into();
+        active_model.last_run_at = Set(Some(now));
+        active_model.last_run_status = Set(Some("failed".to_string()));
+        active_model.last_run_error = Set(Some(error.clone()));
+        active_model.retry_count = Set(new_retry_count);
+
+        if new_retry_count > max_retries {
+            // 超过最大重试次数：转入死信状态，停止重试
+            active_model.status = Set("DEAD_LETTER".to_string());
+            active_model.next_retry_at = Set(None);
+            tracing::warn!(
+                subscription_id = id,
+                retry_count = new_retry_count,
+                max_retries,
+                error = %error,
+                "订阅重试次数超限，已转入死信状态"
+            );
+        } else {
+            // 按指数退避调度下次重试
+            let next_retry = now + chrono::Duration::seconds(backoff_seconds(new_retry_count - 1));
+            active_model.next_retry_at = Set(Some(next_retry));
+            tracing::info!(
+                subscription_id = id,
+                retry_count = new_retry_count,
+                next_retry_at = %next_retry,
+                error = %error,
+                "订阅执行失败，已调度下次重试"
+            );
+        }
+        active_model.updated_at = Set(now);
+        active_model.update(&*self.db).await?;
+        Ok(())
+    }
+
+    /// 缺陷 2.3 修复：查询需要重试的订阅（next_retry_at <= now AND status = ACTIVE）
+    pub async fn list_due_retries(&self) -> Result<Vec<ReportSubscriptionModel>, AppError> {
+        let now = Utc::now();
+        let items = ReportSubscriptionEntity::find()
+            .filter(crate::models::report_subscription::Column::Status.eq("ACTIVE"))
+            .filter(crate::models::report_subscription::Column::IsEnabled.eq(true))
+            .filter(crate::models::report_subscription::Column::NextRetryAt.lte(now))
+            .all(&*self.db)
+            .await?;
+        Ok(items)
     }
 }

@@ -20,11 +20,11 @@
           <el-icon><Plus /></el-icon>
           {{ t('quality.recordTab.createButton') }}
         </el-button>
-        <el-button @click="handlePrint">
+        <el-button v-permission="'quality.record.print'" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ t('quality.recordTab.printButton') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'quality.record.export'" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ t('quality.recordTab.exportButton') }}
         </el-button>

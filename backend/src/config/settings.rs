@@ -72,6 +72,13 @@ pub struct AuthConfig {
 pub struct LogConfig {
     pub level: String,
     pub dir: String,
+    /// V15 P1 20.8-B：日志文件保留天数（默认 90 天），过期文件由 LogCleanupService 自动清理
+    #[serde(default = "default_log_retention_days")]
+    pub retention_days: i32,
+}
+
+fn default_log_retention_days() -> i32 {
+    90
 }
 
 /// 事件总线顶层配置（Kafka 可选后端，默认走进程内 Broadcast）。

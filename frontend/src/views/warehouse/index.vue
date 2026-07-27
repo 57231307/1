@@ -16,11 +16,11 @@
           <el-icon><Plus /></el-icon>
           {{ t('warehouse.index.buttonCreate') }}
         </el-button>
-        <el-button @click="handlePrint">
+        <el-button v-permission="'warehouse.print'" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ t('warehouse.index.buttonPrint') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'warehouse.export'" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ t('warehouse.index.buttonExport') }}
         </el-button>
@@ -512,6 +512,7 @@ const handleExport = async () => {
 const handlePrint = () => {
   printData({
     title: t('warehouse.index.printTitle'),
+    resourceType: 'warehouse',
     columns: [
       { key: 'warehouse_code', title: t('warehouse.index.colCode'), width: '100px' },
       { key: 'warehouse_name', title: t('warehouse.index.colName') },

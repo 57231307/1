@@ -34,6 +34,153 @@ fn escape_html(input: &str) -> String {
     result
 }
 
+/// 缺陷 6.3 修复：单附件大小上限（25 MB）
+pub const MAX_SINGLE_ATTACHMENT_BYTES: usize = 25 * 1024 * 1024;
+
+/// 缺陷 6.3 修复：单封邮件所有附件总大小上限（50 MB）
+pub const MAX_TOTAL_ATTACHMENT_BYTES: usize = 50 * 1024 * 1024;
+
+/// 缺陷 6.3 修复：根据文件名扩展名推断 Content-Type
+fn guess_content_type(filename: &str) -> String {
+    let lower = filename.to_lowercase();
+    if lower.ends_with(".pdf") {
+        "application/pdf".to_string()
+    } else if lower.ends_with(".doc") {
+        "application/msword".to_string()
+    } else if lower.ends_with(".docx") {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string()
+    } else if lower.ends_with(".xls") {
+        "application/vnd.ms-excel".to_string()
+    } else if lower.ends_with(".xlsx") {
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string()
+    } else if lower.ends_with(".zip") {
+        "application/zip".to_string()
+    } else if lower.ends_with(".png") {
+        "image/png".to_string()
+    } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+        "image/jpeg".to_string()
+    } else if lower.ends_with(".gif") {
+        "image/gif".to_string()
+    } else if lower.ends_with(".txt") {
+        "text/plain".to_string()
+    } else if lower.ends_with(".csv") {
+        "text/csv".to_string()
+    } else {
+        "application/octet-stream".to_string()
+    }
+}
+
+/// 缺陷 6.3 修复：高危附件扩展名黑名单（即使通过病毒扫描也禁止上传）
+const DANGEROUS_EXTENSIONS: &[&str] = &[
+    ".exe", ".bat", ".cmd", ".com", ".scr", ".vbs", ".js", ".jar",
+    ".ps1", ".sh", ".msi", ".dll",
+];
+
+/// 缺陷 6.3 修复：检查文件名扩展名是否为高危类型
+fn is_dangerous_extension(filename: &str) -> bool {
+    let lower = filename.to_lowercase();
+    DANGEROUS_EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
+}
+
+/// 缺陷 6.3 修复：校验附件大小与扩展名安全性
+/// - 单附件 ≤ 25MB，总附件 ≤ 50MB
+/// - 拒绝高危扩展名（.exe/.bat/.cmd/.com/.scr/.vbs/.js/.jar/.ps1/.sh/.msi/.dll）
+/// - 集成点：CLAMAV_URL 配置后调用 ClamAV 病毒扫描
+pub async fn validate_attachments(
+    attachments: &HashMap<String, Vec<u8>>,
+) -> Result<(), AppError> {
+    let mut total_size: usize = 0;
+    for (filename, content) in attachments {
+        // 高危扩展名检查
+        if is_dangerous_extension(filename) {
+            return Err(AppError::validation(format!(
+                "附件 '{}' 扩展名属于高危类型（.exe/.bat/.cmd 等可执行脚本），禁止上传",
+                filename
+            )));
+        }
+
+        // 单附件大小检查
+        if content.len() > MAX_SINGLE_ATTACHMENT_BYTES {
+            return Err(AppError::validation(format!(
+                "附件 '{}' 大小 {} 字节超过单附件上限 {} 字节（25 MB）",
+                filename,
+                content.len(),
+                MAX_SINGLE_ATTACHMENT_BYTES
+            )));
+        }
+
+        // 空附件检查
+        if content.is_empty() {
+            return Err(AppError::validation(format!(
+                "附件 '{}' 内容为空，禁止上传空附件",
+                filename
+            )));
+        }
+
+        total_size = total_size.saturating_add(content.len());
+    }
+
+    // 总附件大小检查
+    if total_size > MAX_TOTAL_ATTACHMENT_BYTES {
+        return Err(AppError::validation(format!(
+            "附件总大小 {} 字节超过上限 {} 字节（50 MB）",
+            total_size,
+            MAX_TOTAL_ATTACHMENT_BYTES
+        )));
+    }
+
+    // 集成点：若 CLAMAV_URL 环境变量配置，则对每个附件调用 ClamAV 病毒扫描
+    // 当前为防御性占位：未配置 CLAMAV_URL 时跳过病毒扫描，仅依赖大小 + 扩展名校验
+    if let Ok(clamav_url) = std::env::var("CLAMAV_URL") {
+        if !clamav_url.is_empty() {
+            for (filename, content) in attachments {
+                if let Err(e) = scan_with_clamav(&clamav_url, filename, content).await {
+                    return Err(AppError::validation(format!(
+                        "附件 '{}' 病毒扫描失败：{}",
+                        filename, e
+                    )));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// 缺陷 6.3 修复：调用 ClamAV REST API 进行病毒扫描
+/// 集成点：CLAMAV_URL 配置后，附件发送前会调用本函数进行病毒扫描
+async fn scan_with_clamav(
+    clamav_url: &str,
+    filename: &str,
+    content: &[u8],
+) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let scan_url = format!("{}/scan", clamav_url.trim_end_matches('/'));
+    let response = client
+        .post(&scan_url)
+        .header("Content-Type", "application/octet-stream")
+        .body(content.to_vec())
+        .send()
+        .await
+        .map_err(|e| format!("ClamAV 请求失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("ClamAV 返回非 2xx 状态: {}", response.status()));
+    }
+
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("读取 ClamAV 响应失败: {}", e))?;
+
+    // ClamAV REST 返回 "stream: OK" 表示无病毒
+    if body.contains("OK") {
+        Ok(())
+    } else {
+        Err(format!("附件 '{}' 被识别为病毒: {}", filename, body))
+    }
+}
+
 /// SendGrid 官方 API URL（硬编码，防止环境变量注入导致 API Key 泄露）
 const SENDGRID_API_URL: &str = "https://api.sendgrid.com/v3/mail/send";
 
@@ -157,6 +304,16 @@ struct SendGridPersonalization {
     to: Vec<SendGridEmail>,
 }
 
+/// 缺陷 6.3 修复：SendGrid 附件结构（content 为 base64 编码）
+#[derive(Serialize)]
+struct SendGridAttachment {
+    content: String,
+    filename: String,
+    #[serde(rename = "type")]
+    content_type: String,
+    disposition: String,
+}
+
 /// SendGrid 发送请求体
 #[derive(Serialize)]
 struct SendGridMessage {
@@ -164,6 +321,9 @@ struct SendGridMessage {
     from: SendGridEmail,
     subject: String,
     content: Vec<SendGridContent>,
+    /// 缺陷 6.3 修复：附件列表（None 时序列化为空数组，SendGrid 接受空数组）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    attachments: Option<Vec<SendGridAttachment>>,
 }
 
 /// 邮件服务
@@ -312,7 +472,8 @@ impl EmailService {
         self.execute_sendgrid_request(sendgrid_message).await
     }
 
-    /// 构造 SendGrid 请求体（personalizations + content + from + subject）
+    /// 构造 SendGrid 请求体（personalizations + content + from + subject + attachments）
+    /// 缺陷 6.3 修复：附件以 base64 编码方式提交给 SendGrid API
     fn build_sendgrid_message(from_email: &str, message: EmailMessage) -> SendGridMessage {
         let personalizations = vec![SendGridPersonalization {
             to: message
@@ -336,6 +497,19 @@ impl EmailService {
             });
         }
 
+        // 缺陷 6.3 修复：附件转 base64 后构造 SendGrid 附件结构
+        let attachments = message.attachments.as_ref().map(|files| {
+            files
+                .iter()
+                .map(|(filename, file_content)| SendGridAttachment {
+                    content: BASE64_STANDARD.encode(file_content),
+                    filename: filename.clone(),
+                    content_type: guess_content_type(filename),
+                    disposition: "attachment".to_string(),
+                })
+                .collect::<Vec<_>>()
+        });
+
         SendGridMessage {
             personalizations,
             from: SendGridEmail {
@@ -343,6 +517,7 @@ impl EmailService {
             },
             subject: message.subject,
             content,
+            attachments,
         }
     }
 

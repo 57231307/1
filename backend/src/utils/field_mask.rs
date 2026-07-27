@@ -36,6 +36,33 @@ pub fn mask_id_card(id: &str) -> String {
     format!("{}{}{}", prefix, middle_stars, suffix)
 }
 
+/// V15 P1 6.1：对自由文本（如 remark/color_name）做 PII 脱敏
+///
+/// 将文本中匹配的手机号/邮箱/身份证号替换为掩码形式，避免 AI 推理数据写入
+/// `ai_*_json` 字段时泄露客户/供应商个人信息。原文本长度与结构尽量保留，
+/// 仅替换 PII 片段，不影响关键词匹配算法。
+pub fn mask_text_pii(text: &str) -> String {
+    if text.is_empty() {
+        return text.to_string();
+    }
+    let mut result = text.to_string();
+    // 手机号：1 开头 + 10 位数字（共 11 位）
+    let phone_re =
+        regex::Regex::new(r"1[3-9]\d{9}").unwrap_or_else(|_| regex::Regex::new(r"^$").unwrap());
+    result = phone_re.replace_all(&result, "1***********").to_string();
+    // 邮箱
+    let email_re = regex::Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
+        .unwrap_or_else(|_| regex::Regex::new(r"^$").unwrap());
+    result = email_re.replace_all(&result, "***@***.***").to_string();
+    // 身份证号：17 位数字 + 1 位数字/X
+    let id_re = regex::Regex::new(r"\d{17}[\dXx]")
+        .unwrap_or_else(|_| regex::Regex::new(r"^$").unwrap());
+    result = id_re
+        .replace_all(&result, "******************")
+        .to_string();
+    result
+}
+
 /// 脱敏敏感字段（如成本价、敏感金额）
 pub fn mask_sensitive_fields(mut value: Value, auth: &AuthContext) -> Value {
     // 假设 role_id = 1 是超级管理员，其他角色脱敏
@@ -59,6 +86,91 @@ pub fn mask_sensitive_fields(mut value: Value, auth: &AuthContext) -> Value {
         }
     }
     value
+}
+
+/// P1-08-5：银行卡号脱敏（保留前 4 后 4，例 6228480000001234567→6228****4567）
+pub fn mask_bank_card(card: &str) -> String {
+    let digits: Vec<char> = card.chars().filter(|c| c.is_ascii_digit()).collect();
+    if digits.len() < 8 {
+        return "*".repeat(digits.len().max(1));
+    }
+    let prefix: String = digits.iter().take(4).collect();
+    let suffix: String = digits.iter().skip(digits.len() - 4).take(4).collect();
+    format!("{}****{}", prefix, suffix)
+}
+
+/// V15 P1 batch-16 缺陷 7.4：递归脱敏 JSON 中的敏感字段
+///
+/// 用于 `user_behaviors.event_data` 等用户行为日志的 JSONB 字段脱敏。
+///
+/// 处理逻辑：
+/// 1. 已知敏感字段名（phone/mobile/telephone/id_card/id_card_no/id_number/email/bank_card/bank_account/
+///    account_number）→ 按字段类型应用对应 mask 函数
+/// 2. 字符串值 → 应用 `mask_text_pii` 捕获自由文本中的 PII 模式
+/// 3. 数组与对象 → 递归处理
+/// 4. 数字与布尔 → 原样保留
+pub fn desensitize_json(value: Value) -> Value {
+    match value {
+        Value::Object(mut map) => {
+            for (k, v) in map.iter_mut() {
+                *v = desensitize_json_value(v, k);
+            }
+            Value::Object(map)
+        }
+        Value::Array(arr) => Value::Array(arr.into_iter().map(desensitize_json).collect()),
+        Value::String(s) => Value::String(mask_text_pii(&s)),
+        other => other,
+    }
+}
+
+/// 缺陷 7.4：对已知敏感字段名应用 mask 函数，其他字段递归处理
+fn desensitize_json_value(value: Value, field_name: &str) -> Value {
+    let lower = field_name.to_lowercase();
+    let is_phone = matches!(
+        lower.as_str(),
+        "phone" | "mobile" | "telephone" | "tel" | "contact_phone" | "phone_no"
+    );
+    let is_email = lower == "email" || lower == "email_address";
+    let is_id_card = matches!(
+        lower.as_str(),
+        "id_card" | "id_card_no" | "id_number" | "identity_card" | "identity_no" | "idcard"
+    );
+    let is_bank = matches!(
+        lower.as_str(),
+        "bank_card" | "bank_account" | "account_number" | "card_number" | "bank_card_no"
+    );
+
+    if is_phone || is_email || is_id_card || is_bank {
+        match &value {
+            Value::String(s) => {
+                let masked = if is_phone {
+                    mask_phone(s)
+                } else if is_email {
+                    mask_email(s)
+                } else if is_id_card {
+                    mask_id_card(s)
+                } else {
+                    mask_bank_card(s)
+                };
+                return Value::String(masked);
+            }
+            Value::Number(n) => {
+                let s = n.to_string();
+                let masked = if is_phone {
+                    mask_phone(&s)
+                } else if is_id_card {
+                    mask_id_card(&s)
+                } else if is_bank {
+                    mask_bank_card(&s)
+                } else {
+                    s
+                };
+                return Value::String(masked);
+            }
+            _ => {}
+        }
+    }
+    desensitize_json(value)
 }
 
 #[cfg(test)]
@@ -88,5 +200,120 @@ mod tests {
     #[test]
     fn test_mask_id_card_short() {
         assert_eq!(mask_id_card("123456"), "******");
+    }
+
+    #[test]
+    fn test_mask_text_pii_phone() {
+        let input = "客户电话 13812348888 反馈色差";
+        let masked = mask_text_pii(input);
+        assert!(!masked.contains("13812348888"), "手机号应被脱敏，实际 {}", masked);
+        assert!(masked.contains("色差"), "非 PII 文本应保留");
+    }
+
+    #[test]
+    fn test_mask_text_pii_email() {
+        let input = "联系 alice@example.com 处理";
+        let masked = mask_text_pii(input);
+        assert!(
+            !masked.contains("alice@example.com"),
+            "邮箱应被脱敏，实际 {}",
+            masked
+        );
+    }
+
+    #[test]
+    fn test_mask_text_pii_id_card() {
+        let input = "身份证 110101199001011234 已核验";
+        let masked = mask_text_pii(input);
+        assert!(
+            !masked.contains("110101199001011234"),
+            "身份证号应被脱敏，实际 {}",
+            masked
+        );
+    }
+
+    #[test]
+    fn test_mask_text_pii_empty() {
+        assert_eq!(mask_text_pii(""), "");
+    }
+
+    #[test]
+    fn test_mask_text_pii_no_pii() {
+        let input = "颜色偏差严重，需要返工";
+        assert_eq!(mask_text_pii(input), input);
+    }
+
+    #[test]
+    fn test_mask_bank_card_normal() {
+        assert_eq!(mask_bank_card("6228480000001234567"), "6228****4567");
+    }
+
+    #[test]
+    fn test_mask_bank_card_short() {
+        assert_eq!(mask_bank_card("1234567"), "*******");
+    }
+
+    #[test]
+    fn test_desensitize_json_phone_field() {
+        let input = serde_json::json!({
+            "phone": "13812348888",
+            "name": "张三"
+        });
+        let masked = desensitize_json(input);
+        assert_eq!(masked["phone"], "138****8888");
+        assert_eq!(masked["name"], "张三");
+    }
+
+    #[test]
+    fn test_desensitize_json_email_field() {
+        let input = serde_json::json!({"email": "alice@example.com"});
+        let masked = desensitize_json(input);
+        assert_eq!(masked["email"], "a***@example.com");
+    }
+
+    #[test]
+    fn test_desensitize_json_id_card_field() {
+        let input = serde_json::json!({"id_card": "110101199001011234"});
+        let masked = desensitize_json(input);
+        assert_eq!(masked["id_card"], "110***********1234");
+    }
+
+    #[test]
+    fn test_desensitize_json_bank_card_field() {
+        let input = serde_json::json!({"bank_card": "6228480000001234567"});
+        let masked = desensitize_json(input);
+        assert_eq!(masked["bank_card"], "6228****4567");
+    }
+
+    #[test]
+    fn test_desensitize_json_nested_array_and_object() {
+        let input = serde_json::json!({
+            "contacts": [
+                {"mobile": "13812348888"},
+                {"telephone": "02187654321"}
+            ],
+            "meta": {"email": "alice@example.com"}
+        });
+        let masked = desensitize_json(input);
+        assert_eq!(masked["contacts"][0]["mobile"], "138****8888");
+        assert_eq!(masked["contacts"][1]["telephone"], "021****4321");
+        assert_eq!(masked["meta"]["email"], "a***@example.com");
+    }
+
+    #[test]
+    fn test_desensitize_json_string_value_with_pii() {
+        let input = serde_json::json!("客户电话 13812348888 反馈色差");
+        let masked = desensitize_json(input);
+        let s = masked.as_str().unwrap();
+        assert!(!s.contains("13812348888"));
+        assert!(s.contains("色差"));
+    }
+
+    #[test]
+    fn test_desensitize_json_number_and_bool_passthrough() {
+        let input = serde_json::json!({"count": 42, "active": true});
+        let masked = desensitize_json(input);
+        assert_eq!(masked["count"], 42);
+        assert_eq!(masked["active"], true);
     }
 }

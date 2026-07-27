@@ -29,6 +29,32 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 // =====================================================
+// V15 P1 1.3+8.1 / 8.2 / 2.1+8.3 集成端点请求体
+// =====================================================
+
+/// V15 P1 1.3+8.1：推送工艺优化到化验室打样的请求体
+#[derive(Debug, Deserialize, Default)]
+pub struct PushToLabDipDto {
+    /// 可选：覆盖默认对色光源（D65）
+    pub light_source: Option<String>,
+    /// 可选：覆盖默认打样版数（4）
+    pub sample_versions: Option<i32>,
+}
+
+/// V15 P1 8.2：关联生产配方 ID 的请求体
+#[derive(Debug, Deserialize)]
+pub struct LinkToProductionDto {
+    pub production_recipe_id: i32,
+}
+
+/// V15 P1 2.1+8.3：回填质量预测实际结果的请求体
+#[derive(Debug, Deserialize)]
+pub struct RecordActualResultDto {
+    pub actual_risk_level: String,
+    pub actual_avg_qualification_rate: rust_decimal::Decimal,
+}
+
+// =====================================================
 // 工艺优化端点（5）
 // =====================================================
 
@@ -363,4 +389,65 @@ pub async fn batch_create_quality_predictions(
         "failed": failed,
         "results": results,
     }))))
+}
+
+// =====================================================
+// V15 P1 1.3+8.1 / 8.2 / 2.1+8.3 集成端点
+// =====================================================
+
+/// POST /api/v1/erp/ai/process-optimizations/:id/push-to-lab-dip
+/// V15 P1 1.3+8.1：将工艺优化推荐参数推送到化验室打样系统
+pub async fn push_to_lab_dip(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i64>,
+    Json(_body): Json<PushToLabDipDto>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let svc = AiExtendService::new(state.db);
+    let lab_dip_id = svc
+        .push_to_lab_dip(id, auth.user_id as i64, Some(&data_scope_ctx))
+        .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "process_optimization_id": id,
+        "lab_dip_request_id": lab_dip_id,
+        "pushed": true,
+    }))))
+}
+
+/// POST /api/v1/erp/ai/process-optimizations/:id/link-to-production
+/// V15 P1 8.2：将工艺优化推荐参数关联到生产配方
+pub async fn link_to_production(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i64>,
+    Json(body): Json<LinkToProductionDto>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let svc = AiExtendService::new(state.db);
+    let model = svc
+        .link_to_production_recipe(id, body.production_recipe_id, Some(&data_scope_ctx))
+        .await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
+}
+
+/// POST /api/v1/erp/ai/quality-predictions/:id/actual-result
+/// V15 P1 2.1+8.3：回填质量预测的实际结果（来自质检记录对账）
+pub async fn record_actual_quality_result(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i64>,
+    Json(body): Json<RecordActualResultDto>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let svc = AiExtendService::new(state.db);
+    let model = svc
+        .record_actual_quality_result(
+            id,
+            body.actual_risk_level,
+            body.actual_avg_qualification_rate,
+            Some(&data_scope_ctx),
+        )
+        .await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }

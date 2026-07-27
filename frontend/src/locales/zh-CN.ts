@@ -515,6 +515,11 @@ export default {
       breadcrumbAriaLabel: '面包屑导航',
       userMenuAriaLabel: '用户菜单',
       pageAriaLabel: '主布局容器',
+      // V15 P1-20-2 移动端侧边栏抽屉化相关 i18n
+      toggleSidebar: '切换侧边栏',
+      toggleSidebarAriaLabel: '展开或收起侧边栏菜单',
+      sidebarDrawerTitle: '系统导航菜单',
+      closeSidebar: '关闭菜单',
     },
   },
   sales: {
@@ -11383,6 +11388,14 @@ export default {
       deleteAriaLabel: '删除色卡',
       scan: '扫码',
       delete: '删除',
+    },
+    errorBoundary: {
+      defaultTitle: '页面加载出错',
+      defaultSubTitle: '抱歉，页面发生未知错误，请重试或返回首页',
+      retry: '重试',
+      backHome: '返回首页',
+      showDetail: '查看详情',
+      hideDetail: '隐藏详情',
     },
     colorCardIssueForm: {
       formAriaLabel: '色卡发放表单',

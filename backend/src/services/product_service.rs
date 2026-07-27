@@ -121,6 +121,14 @@ pub struct CreateProductArgs {
     pub min_order_quantity: Option<f64>,
     /// 交期（天）
     pub lead_time: Option<i32>,
+    /// V15 P1 合规字段：面料执行标准号（GB/T 406-2018 等）
+    pub execution_standard: Option<String>,
+    /// V15 P1 合规字段：生产厂名（《产品质量法》第 27 条）
+    pub factory_name: Option<String>,
+    /// V15 P1 合规字段：生产厂址
+    pub factory_address: Option<String>,
+    /// V15 P1 合规字段：产品等级（优等品/一等品/合格品）
+    pub product_grade: Option<String>,
 }
 
 /// 更新产品参数对象
@@ -165,6 +173,14 @@ pub struct UpdateProductArgs {
     pub min_order_quantity: Option<f64>,
     /// 交期（天）
     pub lead_time: Option<i32>,
+    /// V15 P1 合规字段：面料执行标准号（GB/T 406-2018 等）
+    pub execution_standard: Option<String>,
+    /// V15 P1 合规字段：生产厂名
+    pub factory_name: Option<String>,
+    /// V15 P1 合规字段：生产厂址
+    pub factory_address: Option<String>,
+    /// V15 P1 合规字段：产品等级（优等品/一等品/合格品）
+    pub product_grade: Option<String>,
     /// 操作人 ID
     pub user_id: i32,
 }

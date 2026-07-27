@@ -206,3 +206,26 @@ pub const DEFAULT_CACHE_TTL_SECS: u64 = 300;
 pub fn cache_key(service: &str, id: impl std::fmt::Display) -> String {
     format!("{}:{}", service, id)
 }
+
+/// V15 P1 20.3-B：获取 Redis URL（供 Pub/Sub 创建独立连接使用）
+/// 未配置 Redis 时返回 None，调用方应降级为单实例本地广播。
+pub fn get_redis_url() -> Option<String> {
+    std::env::var("REDIS_URL")
+        .or_else(|_| std::env::var("JTI_REDIS_URL"))
+        .ok()
+        .filter(|s| !s.is_empty())
+}
+
+/// V15 P1 20.3-B：发布消息到 Redis Pub/Sub 频道（多实例广播）
+/// 未配置 Redis 时为 no-op，调用方应自行处理本地广播降级。
+pub async fn publish_to_channel(channel: &str, message: &str) {
+    let conn_arc = match get_redis_conn().await {
+        Some(c) => c,
+        None => return,
+    };
+    let mut conn = conn_arc.lock().await;
+    // PUBLISH 命令：第一个参数是频道名，第二个是消息内容
+    if let Err(e) = conn.publish::<_, _, ()>(channel, message).await {
+        tracing::warn!(channel = %channel, error = %e, "Redis PUBLISH 失败");
+    }
+}

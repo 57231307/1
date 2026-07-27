@@ -2,7 +2,8 @@
 # 面料管理 - 后端服务部署脚本
 # 使用方式：sudo ./deploy-backend.sh
 
-set -e
+# V15 P1 25.1-A 修复：set -euo pipefail 严格模式（原仅 set -e，未定义变量和管道错误被吞）
+set -euo pipefail
 
 # 颜色定义
 RED='\033[0;31m'

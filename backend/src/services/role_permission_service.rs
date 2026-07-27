@@ -50,11 +50,10 @@ pub struct CreateRoleRequest {
     pub is_system: Option<bool>,
 }
 
-/// 更新角色请求
+/// 更新角色请求（V15 P1-14.12-E：移除 code 字段，禁止修改 role.code 防提权）
 #[derive(Debug, Deserialize)]
 pub struct UpdateRoleRequest {
     pub name: Option<String>,
-    pub code: Option<String>,
     pub description: Option<String>,
     pub is_system: Option<bool>,
 }
@@ -175,7 +174,7 @@ impl RolePermissionService {
         self.get_role_detail(role_entity.id).await
     }
 
-    /// 更新角色
+    /// 更新角色（V15 P1-14.12-E：禁止修改 role.code，防止 admin 提权攻击）
     pub async fn update_role(
         &self,
         role_id: i32,
@@ -192,27 +191,13 @@ impl RolePermissionService {
             return Err(AppError::business("系统角色不允许修改"));
         }
 
-        // 如果修改了编码，检查新编码是否已存在
-        if let Some(ref new_code) = request.code {
-            if new_code != &role.code {
-                let existing = RoleEntity::find()
-                    .filter(role::Column::Code.eq(new_code))
-                    .one(&*self.db)
-                    .await?;
-
-                if existing.is_some() {
-                    return Err(AppError::business("角色编码已存在"));
-                }
-            }
-        }
+        // V15 P1-14.12-E：role.code 不可修改（原 code 更新与重复检查逻辑已删除）
 
         let mut role_update: role::ActiveModel = role.into();
         if let Some(name) = request.name {
             role_update.name = sea_orm::ActiveValue::Set(name);
         }
-        if let Some(code) = request.code {
-            role_update.code = sea_orm::ActiveValue::Set(code);
-        }
+        // V15 P1-14.12-E：禁止修改 role.code
         if let Some(description) = request.description {
             role_update.description = sea_orm::ActiveValue::Set(Some(description));
         }
@@ -291,6 +276,68 @@ impl RolePermissionService {
             .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
         if role.is_system {
             return Err(AppError::business("系统角色不允许修改权限".to_string()));
+        }
+        Ok(())
+    }
+
+    /// V15 P1-14.3-D：SoD 职责分离校验 — 禁止同一角色同时持有 create 与 approve 权限。
+    ///
+    /// 审计计划 14.3.1 要求"创建采购 + 审批采购"和"创建销售 + 审批销售"冲突分离。
+    /// 本函数在 assign_permission 时拦截违反 SoD 的授权：
+    /// - 新增 `create` 时，若角色已有 `approve`（或 `*`）则拒绝
+    /// - 新增 `approve` 时，若角色已有 `create`（或 `*`）则拒绝
+    /// - 新增 `*` 时，若角色已有 `create` 或 `approve` 则拒绝
+    /// admin 角色（is_system=true）在 validate_assignable_role 已被拦截，不会走到此处。
+    async fn validate_sod_create_approve(
+        &self,
+        request: &AssignPermissionRequest,
+    ) -> Result<(), AppError> {
+        // 仅当 allowed=true 时才需 SoD 校验（allowed=false 的拒绝型权限不构成冲突）
+        if !request.allowed {
+            return Ok(());
+        }
+        let new_action = request.action.as_str();
+        // 判断新权限是否涉及 create/approve 语义
+        let new_has_create = new_action == "create" || new_action == "*";
+        let new_has_approve = new_action == "approve" || new_action == "*";
+        if !new_has_create && !new_has_approve {
+            return Ok(());
+        }
+
+        // 查询该角色同 resource_type 的所有已授权权限
+        let existing = RolePermissionEntity::find()
+            .filter(role_permission::Column::RoleId.eq(request.role_id))
+            .filter(role_permission::Column::ResourceType.eq(&request.resource_type))
+            .filter(role_permission::Column::Allowed.eq(true))
+            .all(&*self.db)
+            .await?;
+
+        let existing_has_create = existing.iter().any(|p| {
+            p.action == "create" || p.action == "*"
+        });
+        let existing_has_approve = existing.iter().any(|p| {
+            p.action == "approve" || p.action == "*"
+        });
+
+        // 冲突检测：create 与 approve 不可共存
+        if new_has_create && existing_has_approve {
+            return Err(AppError::business(format!(
+                "SoD 职责分离冲突：角色 {} 已持有 {}:{} 的 approve 权限，不可再授予 create",
+                request.role_id, request.resource_type, request.action
+            )));
+        }
+        if new_has_approve && existing_has_create {
+            return Err(AppError::business(format!(
+                "SoD 职责分离冲突：角色 {} 已持有 {}:{} 的 create 权限，不可再授予 approve",
+                request.role_id, request.resource_type, request.action
+            )));
+        }
+        // 新增 * 通配符时，若已有 create 或 approve 也拒绝（避免通过通配符绕过 SoD）
+        if new_action == "*" && (existing_has_create || existing_has_approve) {
+            return Err(AppError::business(format!(
+                "SoD 职责分离冲突：角色 {} 已持有 {} 的 create/approve 权限，不可授予 * 通配符",
+                request.role_id, request.resource_type
+            )));
         }
         Ok(())
     }
@@ -390,13 +437,15 @@ impl RolePermissionService {
         }
     }
 
-    /// 分配权限：校验角色→查已有→更新或新建→审计+缓存失效
+    /// 分配权限：校验角色→SoD校验→查已有→更新或新建→审计+缓存失效
     pub async fn assign_permission(
         &self,
         request: AssignPermissionRequest,
         user_id: i32,
     ) -> Result<RolePermissionDetail, AppError> {
         self.validate_assignable_role(request.role_id).await?;
+        // V15 P1-14.3-D：SoD 职责分离校验（create 与 approve 不可共存）
+        self.validate_sod_create_approve(&request).await?;
         let existing = self.find_existing_permission(&request).await?;
         let perm_entity = if let Some(perm) = existing {
             self.update_existing_permission(perm, &request, user_id)

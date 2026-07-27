@@ -8,6 +8,7 @@ DROP TABLE IF EXISTS "sales_contracts" CASCADE;
 DROP TABLE IF EXISTS "purchase_contracts" CASCADE;
 
 -- 删除供应商评估指标表
+DROP TABLE IF EXISTS "supplier_evaluation_records" CASCADE;
 DROP TABLE IF EXISTS "supplier_evaluation_indicators" CASCADE;
 
 -- 删除供应商产品表

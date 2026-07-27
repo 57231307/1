@@ -1,7 +1,7 @@
-//! OA 公告 Handler（P0-D17 / Batch 488）
+//! OA 公告 Handler（P0-D17 / Batch 488 + 缺陷 7.2 可见性过滤）
 //!
-//! 通过 `define_tuple_crud_handlers!` 宏生成 5 个基础 CRUD：
-//! list/get/create/update/delete。
+//! 通过 `define_tuple_crud_handlers!` 宏生成 4 个基础 CRUD：
+//! get/create/update/delete（list 因缺陷 7.2 需按 visibility_scope 过滤，手写覆盖）。
 //!
 //! 额外手写 2 个状态转换端点：
 //! - POST /:id/publish  发布（DRAFT → PUBLISHED）
@@ -11,7 +11,7 @@
 //! 权限码：oa-announcements（init_service.rs 已注册 + admin_assistant 角色映射）
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 
@@ -25,15 +25,40 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
-// 5 个基础 CRUD handler（list/get/create/update/delete）
-define_tuple_crud_handlers!(
-    OaAnnouncementService,
-    CreateOaAnnouncementRequest,
-    UpdateOaAnnouncementRequest,
-    OaAnnouncementQuery,
-    i32,
-    "公告不存在"
-);
+// 缺陷 7.2 修复：宏生成 CRUD 在私有模块内，避免 list 与本文件手写版本冲突
+mod generated {
+    use super::*;
+
+    define_tuple_crud_handlers!(
+        OaAnnouncementService,
+        CreateOaAnnouncementRequest,
+        UpdateOaAnnouncementRequest,
+        OaAnnouncementQuery,
+        i32,
+        "公告不存在"
+    );
+}
+
+// 重新导出 get/create/update/delete（list 由本文件手写覆盖）
+pub use generated::{get, create, update, delete};
+
+/// GET /api/v1/erp/oa-announcements - 列表（缺陷 7.2 修复：按 visibility_scope 过滤）
+///
+/// 调用 service.list_for_user 按 ALL/DEPT/ROLE/CUSTOM 范围过滤可见公告。
+pub async fn list(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(params): Query<OaAnnouncementQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = OaAnnouncementService::new(state.db.clone());
+    let (items, total) = service
+        .list_for_user(params, auth.user_id, auth.department_id, auth.role_id)
+        .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items,
+        "total": total,
+    }))))
+}
 
 /// POST /api/v1/erp/oa-announcements/:id/publish - 发布公告
 pub async fn publish(

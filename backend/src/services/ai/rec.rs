@@ -19,12 +19,16 @@ use crate::models::inventory_stock::{
 };
 use crate::models::inventory_transaction::Entity as InventoryTransactionEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
+use crate::services::mrp_engine_service::{MrpEngineService, RequirementCalcParams};
 use crate::utils::error::AppError;
 
 use super::{
     mean, std_deviation, AbcClassification, AiAnalysisService, InventorySuggestion,
     InventoryTurnover, SmartRecommendation,
 };
+
+/// V15 P1 8.4：AI 补货推荐与 MRP 引擎对账差异阈值（>20% 触发人工复核）
+const MRP_RECONCILE_DIFF_THRESHOLD: f64 = 0.20;
 
 /// 共现统计结果（拆分复杂元组返回类型，避免 clippy::type_complexity）
 struct CoOccurrenceStats {
@@ -200,20 +204,79 @@ impl AiAnalysisService {
 
         let mut suggestions = Vec::new();
 
+        // V15 P1 8.4：初始化 MRP 引擎用于补货推荐与 MRP 对账
+        let mrp_svc = MrpEngineService::new(self.db.clone());
+
         for stock in stocks {
             let pid = stock.product_id;
             let abc = abc_map.get(&pid).copied().unwrap_or("C");
 
-            let suggestion = self.compute_inventory_suggestion(
+            let mut suggestion = self.compute_inventory_suggestion(
                 &stock,
                 outbound_by_product.get(&pid),
                 &transactions,
                 abc,
             );
+
+            // V15 P1 8.4：补货推荐与 MRP 引擎对账，差异 > 20% 时在 reason 标注人工复核
+            if let Err(e) = self
+                .reconcile_suggestion_with_mrp(&mrp_svc, &mut suggestion).await
+            {
+                tracing::debug!("MRP 对账失败 product_id={}: {:?}", pid, e);
+            }
+
             suggestions.push(suggestion);
         }
 
         Ok(suggestions)
+    }
+
+    /// V15 P1 8.4：补货推荐与 MRP 引擎结果对账
+    ///
+    /// 调用 MRP `calculate_requirement` 计算同期间 MRP 缺货量，
+    /// 与 AI `reorder_quantity` 比较；差异 > 20% 时在 reason 字段追加"与 MRP 差异 X%，建议人工复核"。
+    async fn reconcile_suggestion_with_mrp(
+        &self,
+        mrp_svc: &MrpEngineService,
+        suggestion: &mut InventorySuggestion,
+    ) -> Result<(), AppError> {
+        // 入参：以 AI 建议的 reorder_quantity 作为 MRP required_quantity，需求日期=今日+7天（与 lead_time=7 对齐）
+        let required_qty = suggestion.reorder_quantity;
+        if required_qty <= Decimal::ZERO {
+            return Ok(());
+        }
+        let required_date = chrono::Utc::now().date_naive() + Duration::days(7);
+        let params = RequirementCalcParams {
+            product_id: suggestion.product_id,
+            required_quantity: required_qty,
+            required_date,
+            source_type: "ai_reconcile".to_string(),
+            source_id: None,
+            consider_safety_stock: true,
+            consider_in_transit: true,
+            bom_level: 0,
+        };
+
+        // 调用 MRP 计算同期间缺货量
+        let mrp_req = mrp_svc.calculate_requirement(params).await?;
+        let ai_qty = required_qty.to_f64().unwrap_or(0.0);
+        let mrp_shortage = mrp_req.shortage_quantity.to_f64().unwrap_or(0.0);
+
+        // 差异百分比 = |AI - MRP| / max(AI, MRP, 1)
+        if ai_qty <= 0.0 && mrp_shortage <= 0.0 {
+            return Ok(());
+        }
+        let denom = ai_qty.max(mrp_shortage).max(1.0);
+        let diff_pct = ((ai_qty - mrp_shortage).abs() / denom) * 100.0;
+
+        if diff_pct > MRP_RECONCILE_DIFF_THRESHOLD * 100.0 {
+            suggestion.reason = format!(
+                "{} | 与 MRP 差异 {:.0}%，建议人工复核",
+                suggestion.reason, diff_pct
+            );
+        }
+
+        Ok(())
     }
 
     /// ABC 分类分析

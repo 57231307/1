@@ -1,4 +1,5 @@
 import { msg } from '@/utils/message'
+import { recordPrintAudit } from '@/api/audit'
 
 /**
  * 打印列定义接口
@@ -22,6 +23,10 @@ export interface PrintOptions<T extends Record<string, unknown> = Record<string,
   data: T[]
   extraInfo?: { label: string; value: string }[]
   orientation?: 'portrait' | 'landscape'
+  /** V15 P1-5-3：资源类型（用于前端打印审计埋点，与后端权限码 resource_type 对应） */
+  resourceType?: string
+  /** V15 P1-5-3：资源 ID（单据打印时传入，用于审计追溯） */
+  resourceId?: string
 }
 
 /**
@@ -105,6 +110,18 @@ export function printData<T extends Record<string, unknown>>(options: PrintOptio
     return
   }
 
+  // V15 P1-5-3：前端打印审计埋点（best-effort，不阻塞打印流程）
+  if (options.resourceType) {
+    recordPrintAudit({
+      resourceType: options.resourceType,
+      recordCount: options.data.length,
+      title: options.title,
+      resourceId: options.resourceId,
+    }).catch(err => {
+      console.warn('[P1-5-3] 打印审计埋点失败:', err)
+    })
+  }
+
   const html = generatePrintHTML(options)
   const printWindow = window.open('', '_blank')
   if (!printWindow) {
@@ -128,8 +145,24 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
   items: T[]
   itemColumns: PrintColumn<T>[]
   footer?: Record<string, string>
+  /** V15 P1-5-3：资源类型（用于前端打印审计埋点，与后端权限码 resource_type 对应） */
+  resourceType?: string
+  /** V15 P1-5-3：资源 ID（单据打印时传入，用于审计追溯） */
+  resourceId?: string
 }) {
   const { title, info, items, itemColumns, footer } = options
+
+  // V15 P1-5-3：前端打印审计埋点（best-effort，不阻塞打印流程）
+  if (options.resourceType) {
+    recordPrintAudit({
+      resourceType: options.resourceType,
+      recordCount: items.length,
+      title,
+      resourceId: options.resourceId,
+    }).catch(err => {
+      console.warn('[P1-5-3] 单据打印审计埋点失败:', err)
+    })
+  }
 
   const infoHTML = Object.entries(info)
     .map(

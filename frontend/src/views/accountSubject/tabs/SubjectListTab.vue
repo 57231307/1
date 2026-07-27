@@ -11,7 +11,7 @@
         <el-button type="primary" @click="openDialog()">
           <el-icon><Plus /></el-icon>{{ $t('accountSubject.create') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'account_subject.export'" @click="handleExport">
           <el-icon><Download /></el-icon>{{ $t('accountSubject.export') }}
         </el-button>
       </div>

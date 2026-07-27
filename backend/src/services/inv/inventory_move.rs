@@ -191,7 +191,7 @@ impl InventoryTransferService {
         Ok(())
     }
 
-    /// 构建调拨主表 ActiveModel（状态默认 PENDING，数量初始为 0）
+    /// 构建调拨主表 ActiveModel（状态默认 PENDING，数量与金额初始为 0，审批层级 L1）
     fn build_transfer_active_model(
         transfer_no: String,
         from_warehouse_id: i32,
@@ -220,19 +220,58 @@ impl InventoryTransferService {
             received_at: sea_orm::ActiveValue::NotSet,
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            // P1 batch-18 缺陷 6.1：调拨分级审批字段（初始 L1，待明细创建后按总金额更新）
+            approval_level: sea_orm::ActiveValue::Set(Some(
+                inventory_transfer::APPROVAL_LEVEL_L1.to_string(),
+            )),
+            approved_by_role: sea_orm::ActiveValue::NotSet,
+            total_amount: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
         }
     }
 
-    /// 批量创建调拨明细项并累计总数量
+    /// 批量创建调拨明细项并累计总数量与总金额
     async fn create_transfer_items_and_compute_total(
         txn: &DatabaseTransaction,
         transfer_id: i32,
         items: Vec<InventoryTransferItemRequest>,
-    ) -> Result<rust_decimal::Decimal, AppError> {
+    ) -> Result<(rust_decimal::Decimal, rust_decimal::Decimal), AppError> {
         let mut total_quantity = rust_decimal::Decimal::ZERO;
+        let mut total_amount = rust_decimal::Decimal::ZERO;
         for item_req in items {
+            // P1 batch-18 缺陷 6.2：校验色号/缸号 - 染色布必须提供 dye_lot_no
+            // 白坯布（color_no 含"白"或为"WHITE"）允许 dye_lot_no 为空
+            let color_no = item_req
+                .color_no
+                .clone()
+                .unwrap_or_default();
+            let dye_lot_no = item_req.dye_lot_no.clone();
+            let is_white_fabric = color_no.is_empty()
+                || color_no.contains('白')
+                || color_no.eq_ignore_ascii_case("white");
+            if !is_white_fabric
+                && dye_lot_no.as_deref().map_or(true, |s| s.is_empty())
+            {
+                return Err(AppError::validation(format!(
+                    "缺陷 6.2：染色布调拨明细必须提供缸号（color_no={} 但 dye_lot_no 为空）",
+                    color_no
+                )));
+            }
+            let batch_no = item_req
+                .batch_no
+                .clone()
+                .unwrap_or_default();
+            if batch_no.is_empty() {
+                return Err(AppError::validation(
+                    "缺陷 6.2：调拨明细缺少批号（batch_no 必填）",
+                ));
+            }
+
             let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
             total_quantity += quantity;
+            // P1 batch-18 缺陷 6.1：累计总金额（quantity × unit_cost）
+            if let Some(uc) = item_req.unit_cost {
+                total_amount += quantity * uc;
+            }
             let item = inventory_transfer_item::ActiveModel {
                 id: Default::default(),
                 transfer_id: sea_orm::ActiveValue::Set(transfer_id),
@@ -244,18 +283,19 @@ impl InventoryTransferService {
                 quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
-                unit_cost: sea_orm::ActiveValue::NotSet,
+                // P1 batch-18 缺陷 6.1：unit_cost 从请求传入（用于计算总金额）
+                unit_cost: sea_orm::ActiveValue::Set(item_req.unit_cost),
                 notes: sea_orm::ActiveValue::Set(item_req.notes),
                 created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
                 updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-                // v14 批次 417：面料行业追溯字段（T-P0-1），使用 NotSet 让 DB 默认值处理
-                color_no: sea_orm::ActiveValue::NotSet,
-                dye_lot_no: sea_orm::ActiveValue::NotSet,
-                batch_no: sea_orm::ActiveValue::NotSet,
+                // P1 batch-18 缺陷 6.2：面料行业追溯字段强制写入（白坯布除外）
+                color_no: sea_orm::ActiveValue::Set(color_no),
+                dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
+                batch_no: sea_orm::ActiveValue::Set(batch_no),
             };
             item.insert(txn).await?;
         }
-        Ok(total_quantity)
+        Ok((total_quantity, total_amount))
     }
 
     /// 更新调拨单总数量并写入审计日志

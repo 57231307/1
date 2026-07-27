@@ -20,11 +20,11 @@
           <el-icon><Plus /></el-icon>
           {{ $t('crmCustomer.create') }}
         </el-button>
-        <el-button @click="handlePrint">
+        <el-button v-permission="'crm_customer.print'" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ $t('crmCustomer.print') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button v-permission="'crm_customer.export'" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ $t('crmCustomer.export') }}
         </el-button>

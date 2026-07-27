@@ -219,10 +219,18 @@ impl KafkaBackend {
             .await
             .map_err(|e| KafkaError(format!("获取 partition 客户端失败: {}", e)))?;
 
+        // V15 P1 20.1-B 修复：注入 traceparent 到 Kafka 消息头，跨事件总线传递 trace 上下文
+        let mut headers = BTreeMap::new();
+        let traceparent = crate::observability::trace_context::traceparent_from_current_span();
+        headers.insert(
+            crate::observability::trace_context::TRACEPARENT_HEADER.to_string(),
+            traceparent.into_bytes(),
+        );
+
         let record = Record {
             key: None,
             value: Some(payload_json),
-            headers: BTreeMap::new(),
+            headers,
             timestamp: chrono::Utc::now(),
         };
 
@@ -392,6 +400,7 @@ async fn process_fetched_records(
 
 /// 处理单条 Kafka 记录：反序列化为 EventPayload 并转换为 BusinessEvent 后转发。
 /// 返回 true 表示消费通道已关闭，调用方应停止消费循环。
+/// V15 P1 20.1-B 修复：从消息头解析 traceparent 并记录 trace 关联日志。
 async fn process_kafka_record(
     record_and_off: RecordAndOffset,
     tx: &mpsc::Sender<BusinessEvent>,
@@ -400,6 +409,22 @@ async fn process_kafka_record(
         Some(b) => b,
         None => return false,
     };
+
+    // V15 P1 20.1-B 修复：从 Kafka 消息头提取 traceparent，关联生产方 trace 链路
+    let trace_id = record_and_off
+        .record
+        .headers
+        .get(crate::observability::trace_context::TRACEPARENT_HEADER)
+        .and_then(|v| std::str::from_utf8(v).ok())
+        .and_then(|tp| crate::observability::trace_context::TraceContext::from_traceparent(tp))
+        .map(|ctx| ctx.trace_id);
+    if let Some(ref tid) = trace_id {
+        tracing::debug!(
+            trace_id = %tid,
+            "Kafka 消费消息：关联生产方 trace 链路"
+        );
+    }
+
     let payload: EventPayload = match serde_json::from_slice(&bytes) {
         Ok(p) => p,
         Err(e) => {
