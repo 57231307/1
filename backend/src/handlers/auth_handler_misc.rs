@@ -216,7 +216,7 @@ fn build_refresh_cookies(
     .http_only(true)
     .secure(is_production)
     .same_site(SameSite::Strict)
-    .max_age(CookieDuration::days(7))
+    .max_age(CookieDuration::days(2))
     .build();
     let new_csrf = axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.to_string()))
         .path("/")

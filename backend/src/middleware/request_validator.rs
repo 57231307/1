@@ -9,11 +9,11 @@ use axum::{
     response::Response,
 };
 
-/// 请求验证中间件
+/// 请求日志中间件（P1-03-3 重命名：原 request_validator_middleware 名不副实）
 ///
-/// 对于已认证的 API 请求（有 JWT Token），跳过 Origin 检查
-/// 因为 JWT 认证本身已经提供了安全保障
-pub async fn request_validator_middleware(
+/// 职责：仅记录未认证状态变更请求的调试日志，不拦截任何请求。
+/// 注意：本中间件不提供任何校验或拦截能力，安全校验由 auth/csrf/permission 中间件负责。
+pub async fn request_logging_middleware(
     State(_state): State<AppState>,
     request: Request<Body>,
     next: Next,
@@ -44,15 +44,12 @@ pub async fn request_validator_middleware(
         return Ok(next.run(request).await);
     }
 
-    // 没有 JWT Token 的请求，检查 Origin
+    // 没有 JWT Token 的请求，记录未认证状态变更请求日志
     let method = request.method().clone();
     let path = request.uri().path();
 
-    // 对状态变更方法记录未认证请求的日志
     if is_state_changing_method(&method) {
-        // 检查是否有 Cookie 认证信息
         // P1 2-5 修复（批次 64）：cookie 名从 jwt= 改为 access_token=
-        // 原实现检查 "jwt="（旧版），但 auth.rs 实际用 access_token，状态变更请求认证识别失效
         let has_cookie = request
             .headers()
             .get("cookie")

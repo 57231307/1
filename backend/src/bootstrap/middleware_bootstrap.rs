@@ -18,7 +18,7 @@ use crate::middleware::auth::auth_middleware;
 use crate::middleware::csrf::csrf_middleware;
 use crate::middleware::permission::permission_middleware;
 use crate::middleware::rate_limit::rate_limit_by_ip;
-use crate::middleware::request_validator::request_validator_middleware;
+use crate::middleware::request_validator::request_logging_middleware;
 use crate::routes::create_router;
 use crate::utils::app_state::AppState;
 
@@ -169,11 +169,11 @@ fn apply_auth_chain(
     s_omni_audit: AppState,
     s_auth: AppState,
 ) -> Router {
-    // 中间件执行顺序：auth（最外层、先执行）→ omni_audit → csrf → permission → request_validator → handler
+    // 中间件执行顺序：auth（最外层、先执行）→ omni_audit → csrf → permission → request_logging → handler
     router
         .layer(axum::middleware::from_fn_with_state(
             s_request_validator,
-            request_validator_middleware,
+            request_logging_middleware,
         ))
         .layer(axum::middleware::from_fn_with_state(
             s_permission,

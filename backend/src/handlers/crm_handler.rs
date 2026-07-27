@@ -161,6 +161,14 @@ pub async fn import_leads(
                 MAX_IMPORT_SIZE / 1024 / 1024
             )));
         }
+        // P1-03-5 修复：增加 xlsx magic bytes 校验
+        // xlsx 本质为 ZIP 文件，前 4 字节应为 50 4B 03 04。
+        // 后缀校验可被绕过（如 .xlsx 实为可执行脚本），magic 校验防 zip 炸弹/XXE/恶意文件。
+        if !verify_xlsx_magic(&data) {
+            return Err(AppError::bad_request(
+                "文件内容不是有效的 xlsx 格式（magic bytes 校验失败）".to_string(),
+            ));
+        }
         file_bytes = Some(data.to_vec());
     }
 
@@ -168,6 +176,12 @@ pub async fn import_leads(
     let service = CrmService::new(state.db.clone());
     let result = service.import_leads(bytes, auth.user_id).await?;
     Ok(Json(ApiResponse::success(result)))
+}
+
+/// P1-03-5 新增：校验 xlsx 文件 magic bytes
+/// xlsx 是 OOXML 格式（实际为 ZIP），前 4 字节应为 50 4B 03 04（PK\x03\x04）。
+fn verify_xlsx_magic(data: &[u8]) -> bool {
+    data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
 }
 
 pub async fn get_lead(
