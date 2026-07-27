@@ -26,9 +26,7 @@ use std::sync::Arc;
 use validator::{Validate, ValidationError};
 
 /// H-1 修复：用户管理 admin 校验 + 限制非 admin 修改 role_id
-///
-/// 安全原因：低权限用户调用 create_user 时可指定 role_id=admin_role_id
-/// 提权；update_user 时可改写他人 role_id 字段。
+/// 安全原因：防止低权限用户通过 create_user/update_user 指定 role_id 提权
 async fn require_admin_role(
     state: &AppState,
     auth: &AuthContext,
@@ -544,139 +542,129 @@ pub async fn change_password(
     req.validate()?;
 
     let user_service = UserService::new(state.db.clone());
-
-    // 获取当前用户信息
     let user = user_service.find_by_id(auth.user_id).await?;
 
-    // P1 8-15 修复：捕获旧密码哈希的 SHA-256 摘要前 8 位作为审计指纹
-    // 修复背景：原 before/after 仅占位 {"action":"change_password"}，无真实哈希指纹，
-    // 无法检测密码是否被篡改或绕过审计修改。
-    let old_hash_fingerprint = {
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(user.password_hash.as_bytes());
-        format!("{:x}", hasher.finalize())[..8].to_string()
-    };
+    let old_hash_fingerprint = compute_hash_fingerprint(&user.password_hash);
 
-    // 验证原密码
-    // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
-    let is_valid =
-        AuthService::verify_password_async(req.old_password.clone(), user.password_hash.clone())
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+    let is_valid = AuthService::verify_password_async(req.old_password.clone(), user.password_hash.clone())
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     if !is_valid {
-        // 记录审计：原密码错误
-        let event = AuditEvent {
-            user_id: Some(auth.user_id),
-            username: Some(auth.username.clone()),
-            operation_type: OperationType::Update,
-            severity: Severity::Warn,
-            resource_type: Some("user".to_string()),
-            resource_id: Some(auth.user_id.to_string()),
-            resource_name: None,
-            description: Some("修改密码失败：原密码不正确".to_string()),
-            request_method: Some("PUT".to_string()),
-            request_path: Some("/api/v1/erp/users/change-password".to_string()),
-            before_snapshot: None,
-            after_snapshot: None,
-        };
-        let svc = Arc::new(AuditLogService::new(state.db.clone()));
-        svc.record_async(event, audit_ctx.map(|e| e.0));
+        record_audit_failure(&state.db, &auth, &audit_ctx, "原密码不正确");
         return Err(AppError::unauthorized("原密码不正确"));
     }
 
-    // 检查新密码不能与原密码相同
-    // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
-    let is_same =
-        AuthService::verify_password_async(req.new_password.clone(), user.password_hash.clone())
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+    let is_same = AuthService::verify_password_async(req.new_password.clone(), user.password_hash.clone())
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     if is_same {
         return Err(AppError::bad_request("新密码不能与原密码相同"));
     }
 
-    // 批次 103 P0-3 修复：接入 PasswordPolicyService 的用户名片段检查
     if contains_username_fragment(&req.new_password, &user.username) {
-        return Err(AppError::bad_request(
-            "密码不能包含用户名片段，请更换密码",
-        ));
+        return Err(AppError::bad_request("密码不能包含用户名片段，请更换密码"));
     }
 
-    // 哈希新密码
-    // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
     let new_password_hash = AuthService::hash_password_async(req.new_password.clone())
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
-    // 批次 158 v11 真实接入：PasswordPolicyService 密码历史校验
-    // 从 DB 加载该用户最近 N 次密码哈希，禁止复用历史密码
     let policy_svc = crate::services::auth::password_policy_service::PasswordPolicyService::new();
-    let history = policy_svc
-        .load_history_from_db(state.db.as_ref(), auth.user_id)
-        .await
+    if let Err(e) = validate_password_history(policy_svc.as_ref(), state.db.as_ref(), auth.user_id, &req.new_password, &new_password_hash).await {
+        return Err(e);
+    }
+
+    let new_hash_fingerprint = compute_hash_fingerprint(&new_password_hash);
+
+    update_password_and_revoke(state.db.as_ref(), &user, &new_password_hash, auth.user_id).await?;
+    save_password_history(policy_svc.as_ref(), state.db.as_ref(), auth.user_id, &user.password_hash, auth.user_id).await;
+
+    record_audit_success(&state.db, &auth, &audit_ctx, &old_hash_fingerprint, &new_hash_fingerprint);
+
+    Ok(Json(ApiResponse::success_with_message(
+        ChangePasswordResponse { success: true, message: "密码修改成功".to_string() },
+        "密码修改成功，请使用新密码重新登录",
+    )))
+}
+
+fn compute_hash_fingerprint(password_hash: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(password_hash.as_bytes());
+    format!("{:x}", hasher.finalize())[..8].to_string()
+}
+
+fn record_audit_failure(db: &Arc<DatabaseConnection>, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>, reason: &str) {
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Warn,
+        resource_type: Some("user".to_string()),
+        resource_id: Some(auth.user_id.to_string()),
+        resource_name: None,
+        description: Some(format!("修改密码失败：{}", reason)),
+        request_method: Some("PUT".to_string()),
+        request_path: Some("/api/v1/erp/users/change-password".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    };
+    let svc = Arc::new(AuditLogService::new(db.clone()));
+    svc.record_async(event, audit_ctx.as_ref().map(|e| e.0));
+}
+
+async fn validate_password_history(
+    policy_svc: &crate::services::auth::password_policy_service::PasswordPolicyService,
+    db: &DatabaseConnection,
+    user_id: i32,
+    new_password: &str,
+    new_password_hash: &str,
+) -> Result<(), AppError> {
+    let history = policy_svc.load_history_from_db(db, user_id).await
         .map_err(|e| AppError::internal(format!("加载密码历史失败: {}", e)))?;
-    let history_result = policy_svc
-        .validate_with_history(&req.new_password, &new_password_hash, &history)
-        .await;
+    let history_result = policy_svc.validate_with_history(new_password, new_password_hash, &history).await;
     if !history_result.is_valid {
-        // 取强度校验之外的历史相关错误
         if let Some(history_err) = history_result.errors.iter().find(|e| e.contains("历史")) {
             return Err(AppError::bad_request(history_err.clone()));
         }
     }
+    Ok(())
+}
 
-    // P1 8-15 修复：计算新密码哈希的 SHA-256 摘要前 8 位
-    let new_hash_fingerprint = {
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(new_password_hash.as_bytes());
-        format!("{:x}", hasher.finalize())[..8].to_string()
-    };
-
-    // 更新密码
+async fn update_password_and_revoke(
+    db: &DatabaseConnection,
+    user: &user::Model,
+    new_password_hash: &str,
+    auth_user_id: i32,
+) -> Result<(), AppError> {
     use sea_orm::ActiveModelTrait;
-    let old_password_hash = user.password_hash.clone();
-    let mut user_model: crate::models::user::ActiveModel = user.into();
-    user_model.password_hash = sea_orm::Set(new_password_hash);
+    let mut user_model: crate::models::user::ActiveModel = user.clone().into();
+    user_model.password_hash = sea_orm::Set(new_password_hash.to_string());
     user_model.updated_at = sea_orm::Set(chrono::Utc::now());
-    // 批次 198 P0-2：同步更新 password_changed_at，作为密码过期策略锚点
     user_model.password_changed_at = sea_orm::Set(Some(chrono::Utc::now()));
+    user_model.update(db).await?;
 
-    user_model.update(state.db.as_ref()).await?;
-
-    // 批次 158 v11 真实接入：将旧密码哈希持久化到 password_histories 表
-    // 密码修改成功后才写入历史，避免修改失败导致历史污染
-    if let Err(e) = policy_svc
-        .save_to_db(state.db.as_ref(), auth.user_id, old_password_hash)
-        .await
-    {
-        tracing::warn!(
-            user_id = auth.user_id,
-            error = %e,
-            "[SECURITY] 密码历史持久化失败（不影响密码修改主流程）"
-        );
+    if let Err(e) = auth_service::revoke_user_jtis(auth_user_id, "PASSWORD_CHANGED").await {
+        tracing::warn!(target: "security_audit", event = "TOKEN_REVOKE_FAILED", user_id = auth_user_id, error = %e, "[SECURITY] 修改密码后吊销用户 {} 的活跃 JWT 失败", auth_user_id);
     }
+    Ok(())
+}
 
-    // P0 7-4 修复：密码修改成功后吊销该用户的所有活跃 JWT
-    //    防止攻击者持有的旧 Token 在剩余有效期（最长 2 小时）内继续访问。
-    //    auth_middleware 会拒绝该用户 iat < revoked_at 的 Token，
-    //    迫使用户使用新密码重新登录获取新 Token。
-    //    吊销属 best-effort，失败仅 warn，不阻塞密码修改主流程。
-    if let Err(e) = auth_service::revoke_user_jtis(auth.user_id, "PASSWORD_CHANGED").await {
-        tracing::warn!(
-            target: "security_audit",
-            event = "TOKEN_REVOKE_FAILED",
-            user_id = auth.user_id,
-            username = %auth.username,
-            error = %e,
-            "[SECURITY] 修改密码后吊销用户 {} 的活跃 JWT 失败",
-            auth.user_id
-        );
+async fn save_password_history(
+    policy_svc: &crate::services::auth::password_policy_service::PasswordPolicyService,
+    db: &DatabaseConnection,
+    user_id: i32,
+    old_password_hash: &str,
+    auth_user_id: i32,
+) {
+    if let Err(e) = policy_svc.save_to_db(db, user_id, old_password_hash.to_string()).await {
+        tracing::warn!(user_id = auth_user_id, error = %e, "[SECURITY] 密码历史持久化失败（不影响密码修改主流程）");
     }
+}
 
-    // 记录审计：密码修改成功
+fn record_audit_success(db: &Arc<DatabaseConnection>, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>, old_fingerprint: &str, new_fingerprint: &str) {
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -688,26 +676,9 @@ pub async fn change_password(
         description: Some("用户修改密码成功".to_string()),
         request_method: Some("PUT".to_string()),
         request_path: Some("/api/v1/erp/users/change-password".to_string()),
-        // P1 8-15 修复：before/after 记录 password_hash 的 SHA-256 摘要前 8 位
-        // 不记录完整哈希避免泄露，仅记录指纹用于检测密码是否被篡改
-        before_snapshot: Some(serde_json::json!({
-            "action": "change_password",
-            "hash_fingerprint": old_hash_fingerprint,
-        })),
-        after_snapshot: Some(serde_json::json!({
-            "action": "change_password",
-            "status": "success",
-            "hash_fingerprint": new_hash_fingerprint,
-        })),
+        before_snapshot: Some(serde_json::json!({ "action": "change_password", "hash_fingerprint": old_fingerprint })),
+        after_snapshot: Some(serde_json::json!({ "action": "change_password", "status": "success", "hash_fingerprint": new_fingerprint })),
     };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, audit_ctx.map(|e| e.0));
-
-    Ok(Json(ApiResponse::success_with_message(
-        ChangePasswordResponse {
-            success: true,
-            message: "密码修改成功".to_string(),
-        },
-        "密码修改成功，请使用新密码重新登录",
-    )))
+    let svc = Arc::new(AuditLogService::new(db.clone()));
+    svc.record_async(event, audit_ctx.as_ref().map(|e| e.0));
 }

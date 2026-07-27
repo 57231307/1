@@ -23,8 +23,12 @@
 > - D08：剩余 18 个 >80 行非测试函数（最长 static_assets_handler 190 行 / deploy_release_blue_green 188 行 / into_response 187 行）
 > - D09：剩余 9 个 >100 行非测试函数（豁免 builtin_transition_rules 后 8 个）
 > - D10：剩余 2 个 >1000 行文件（quotation_service.rs 1011 行 / customer_service.rs 1006 行）
+>
+> ✅ **2026-07-27 严格规则修复完成**：拆分 8 个超长函数（主函数 ≤50 行，helper ≤50 行）+ 精简 26 处超过 2 行注释 + 无 #[allow] 警告抑制；涉及文件：cli/util/upgrade.rs（cmd_upgrade/cmd_rollback_blue_green）、utils/error.rs（From<DbErr>::from）、quotation_ops/update.rs（apply_field_updates/replace_items）、customer_ops/update.rs（build_customer_active_model/apply_customer_field_updates）、customer_ops/contact.rs（update_customer_contact）；middleware/auth.rs / handlers/auth_handler_misc.rs / handlers/omni_audit_handler.rs / routes/static.rs / customer_service.rs / customer_ops/crud.rs / customer_ops/query.rs 注释精简
 
 > 📌 **2026-07-27 D08 补充**：额外拆分 3 个超长函数（auth_middleware 237→40 行 / refresh_token 207→27 行 / search_logs 200→42 行），主函数 + helper 均 ≤50 行，公共 API 签名不变，无 #[allow]，注释精简 1 行；cargo clippy 验证 3 个目标文件无警告无错误。详见 [CHANGELOG.md D08-补充](file:///workspace/.monkeycode/CHANGELOG.md)。
+>
+> ✅ **2026-07-27 规则修复补全**：精简 12 处超过 2 行注释（init_handler.rs 9 处 + inventory_stock_handler.rs 1 处 + user_handler.rs 1 处 + init_handler.rs tests 模块 1 处），无 #[allow] 警告抑制；规则检查脚本验证 4 个文件全部 OK。详见 [CHANGELOG.md D08/D09/D10-规则修复补全](file:///workspace/.monkeycode/CHANGELOG.md)。
 
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并到 main）：Batch 1 拆分 services/ 目录 39 个 >80 行函数（33 文件）；全 backend/src 扫描确认仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行。
 > ✅ 2026-07-26 D09+D14 已合并到 main（PR #737）：CI 全绿（Clippy/单元测试/构建/格式/ESLint/类型检查均 SUCCESS），仅覆盖率非阻塞失败。

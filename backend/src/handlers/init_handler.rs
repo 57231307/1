@@ -48,183 +48,90 @@ pub async fn get_init_status(State(state): State<AppState>) -> Json<ApiResponse<
 }
 
 /// 测试数据库连接（P1-1 修复：admin 角色 + port 校验 + 内网 IP 白名单 + 错误脱敏 + 初始化模式约束）
-///
-/// 安全约束（H-3 完整修复，2026-06-25 综合审计）：
-/// 1. 必须登录并具备 admin 角色（handler 层强制拦截）
-/// 2. **port 范围校验**：仅允许 1-65535，防止端口枚举
-/// 3. **内网 IP 白名单**：仅允许 RFC1918 私有网段 + loopback，防 SSRF 探测外网
-/// 4. **初始化模式约束**：系统已初始化后拒绝调用，收敛攻击面
-/// 5. **错误消息脱敏**：不透传底层 DbErr 原文，避免泄露内网服务信息
-/// 6. 审计日志记录"谁在什么时间测试了什么数据库连接"（不记录明文密码）
-///
-/// 注意：批次 261 修复后，仅 `initialize` 系列（initialize/initialize-with-db/
-/// initialize-with-db-async）在 `PUBLIC_PATHS` 中（由 `init_token_middleware`
-/// 认证）。本接口（test-database）不在 `PUBLIC_PATHS` 中，`auth_middleware`
-/// 要求 JWT 认证，`auth: AuthContext` 提取器在未登录时返回 401。
+/// 安全约束：必须登录且具备 admin 角色，端口仅限 1-65535，仅允许内网 IP，已初始化后拒绝调用
 pub async fn test_database_connection(
     State(state): State<AppState>,
     auth: AuthContext,
     audit_ctx: Option<Extension<AuditContext>>,
     Json(payload): Json<TestDatabaseRequest>,
 ) -> Result<Json<ApiResponse<TestDatabaseResponse>>, AppError> {
-    // 1) 强制要求管理员角色（防御深度：缺 role_id 直接拒绝，避免后续 is_admin_role 误判）
-    let role_id = if let Some(id) = auth.role_id {
-        id
-    } else {
-        // 审计：未分配角色即尝试访问
-        audit::log_security_event(
-            SecurityEvent::AuthorizationDenied,
-            auth.user_id,
-            &auth.username,
-            auth.role_id,
-            Some("test_database_connection"),
-            Some("no_role"),
-            audit_ctx.as_deref(),
-        )
-        .await;
-        return Err(AppError::permission_denied(
-            "用户未分配角色，无法执行该操作",
-        ));
+    validate_admin_role(&state.db, &auth, &audit_ctx).await?;
+    validate_port(&payload.port, &auth, &audit_ctx).await?;
+    validate_not_initialized(&state.db, &auth, &audit_ctx).await?;
+    validate_internal_ip(&audit_ctx, &auth).await?;
+
+    let target = format!("{}:{}/{}", payload.host, payload.port, payload.name);
+    let db_config = build_db_config(payload);
+
+    audit_test_connection(&auth, &target, &audit_ctx).await;
+    execute_test_connection(db_config)
+}
+
+async fn validate_admin_role(db: &Arc<DatabaseConnection>, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>) -> Result<(), AppError> {
+    let role_id = if let Some(id) = auth.role_id { id } else {
+        audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("no_role"), audit_ctx.as_deref()).await;
+        return Err(AppError::permission_denied("用户未分配角色，无法执行该操作"));
     };
-    if !is_admin_role(&state.db, role_id).await {
-        // 审计：非 admin 角色尝试访问
-        audit::log_security_event(
-            SecurityEvent::AuthorizationDenied,
-            auth.user_id,
-            &auth.username,
-            auth.role_id,
-            Some("test_database_connection"),
-            Some("not_admin"),
-            audit_ctx.as_deref(),
-        )
-        .await;
+    if !is_admin_role(db, role_id).await {
+        audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("not_admin"), audit_ctx.as_deref()).await;
         return Err(AppError::permission_denied("测试数据库连接仅限管理员"));
     }
+    Ok(())
+}
 
-    // 2) P1-1 修复（H-3，2026-06-25 综合审计）：port 范围校验
-    //    仅允许 1-65535，防止任意端口枚举内网服务。
-    // 批次 113 P1-7：变量名前缀 `_` 表示"校验后不参与后续逻辑"，移除冗余 `let _ = port_num;`
-    let _port_num: u16 = match payload.port.parse::<u16>() {
-        Ok(p) if p > 0 => p,
+async fn validate_port(port: &str, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>) -> Result<(), AppError> {
+    match port.parse::<u16>() {
+        Ok(p) if p > 0 => Ok(()),
         _ => {
-            audit::log_security_event(
-                SecurityEvent::AuthorizationDenied,
-                auth.user_id,
-                &auth.username,
-                auth.role_id,
-                Some("test_database_connection"),
-                Some("invalid_port"),
-                audit_ctx.as_deref(),
-            )
-            .await;
-            return Err(AppError::bad_request(
-                "数据库端口无效，仅允许 1-65535 范围内的数字",
-            ));
+            audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("invalid_port"), audit_ctx.as_deref()).await;
+            Err(AppError::bad_request("数据库端口无效，仅允许 1-65535 范围内的数字"))
         }
-    };
+    }
+}
 
-    // 3) P1-1 修复：初始化模式约束
-    //    系统已初始化后拒绝调用 test_database_connection，收敛 SSRF 攻击面。
-    //    正常流程：系统未初始化 → admin 测试目标库 → 确认可用 → 执行 initialize。
-    //    系统已初始化后不应再测试任意数据库连接。
-    let init_service = InitService::new(state.db.clone());
+async fn validate_not_initialized(db: &Arc<DatabaseConnection>, auth: &AuthContext, audit_ctx: &Option<Extension<AuditContext>>) -> Result<(), AppError> {
+    let init_service = InitService::new(db.clone());
     let (already_initialized, _) = init_service.check_initialized().await;
     if already_initialized {
-        audit::log_security_event(
-            SecurityEvent::AuthorizationDenied,
-            auth.user_id,
-            &auth.username,
-            auth.role_id,
-            Some("test_database_connection"),
-            Some("system_already_initialized"),
-            audit_ctx.as_deref(),
-        )
-        .await;
-        return Err(AppError::permission_denied(
-            "系统已初始化，测试数据库连接功能已禁用",
-        ));
+        audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("system_already_initialized"), audit_ctx.as_deref()).await;
+        return Err(AppError::permission_denied("系统已初始化，测试数据库连接功能已禁用"));
     }
+    Ok(())
+}
 
-    // 4) P1-1 修复：内网 IP 白名单（防 SSRF 探测外网数据库端口）
-    //    仅允许 RFC1918 私有网段 + loopback，拒绝公网 IP。
-    //    客户端 IP 从 AuditContext 获取（由反向代理/中间件填充）。
-    let client_ip = audit_ctx
-        .as_deref()
-        .map(|c| c.ip_address.as_str())
-        .unwrap_or("unknown");
+async fn validate_internal_ip(audit_ctx: &Option<Extension<AuditContext>>, auth: &AuthContext) -> Result<(), AppError> {
+    let client_ip = audit_ctx.as_deref().map(|c| c.ip_address.as_str()).unwrap_or("unknown");
     if !is_internal_ip(client_ip) {
-        audit::log_security_event(
-            SecurityEvent::AuthorizationDenied,
-            auth.user_id,
-            &auth.username,
-            auth.role_id,
-            Some("test_database_connection"),
-            Some("non_internal_ip"),
-            audit_ctx.as_deref(),
-        )
-        .await;
-        return Err(AppError::permission_denied(
-            "测试数据库连接仅允许从内网 IP 调用",
-        ));
+        audit::log_security_event(SecurityEvent::AuthorizationDenied, auth.user_id, &auth.username, auth.role_id, Some("test_database_connection"), Some("non_internal_ip"), audit_ctx.as_deref()).await;
+        return Err(AppError::permission_denied("测试数据库连接仅允许从内网 IP 调用"));
     }
+    Ok(())
+}
 
-    // 5) 审计日志：best-effort 写入"谁在什么时间测试了什么数据库连接"
-    //    目标记录格式：host:port/name，便于后续按业务目标聚合
-    //    不记录明文密码（payload.password 不写入 extra）
-    //    注意：target 必须在 DatabaseConfig 构造前 format，避免 payload 字段被 move 后无法借用
-    let target = format!("{}:{}/{}", payload.host, payload.port, payload.name);
-
-    let db_config = DatabaseConfig {
+fn build_db_config(payload: TestDatabaseRequest) -> DatabaseConfig {
+    DatabaseConfig {
         host: payload.host,
         port: payload.port,
         name: payload.name,
         username: payload.username,
         password: payload.password,
-        // v5 审计批次 21：test_database_connection 不接收前端 ssl_mode 参数，
-        // 使用 None 让 to_connection_string 回退到默认 prefer
         ssl_mode: None,
-    };
-    audit::log_security_event(
-        SecurityEvent::TestDatabaseConnection,
-        auth.user_id,
-        &auth.username,
-        auth.role_id,
-        Some(&target),
-        None,
-        audit_ctx.as_deref(),
-    )
-    .await;
+    }
+}
 
-    // 6) 调用 service 层执行数据库连接测试（静态方法，无需 AppState）
-    //    P1-1 修复：错误消息脱敏，不透传底层 DbErr 原文，
-    //    避免"password authentication failed"/"database xxx does not exist"等
-    //    差异化错误信息被用于内网服务枚举。
-    match InitService::test_database(&db_config).await {
-        Ok(_) => Ok(Json(ApiResponse::success_with_message(
-            TestDatabaseResponse {
-                success: true,
-                message: "数据库连接成功".to_string(),
-            },
-            "数据库连接测试成功",
-        ))),
-        Err(_) => Err(AppError::bad_request(
-            "数据库连接失败，请检查主机、端口、数据库名、用户名和密码是否正确",
-        )),
+async fn audit_test_connection(auth: &AuthContext, target: &str, audit_ctx: &Option<Extension<AuditContext>>) {
+    audit::log_security_event(SecurityEvent::TestDatabaseConnection, auth.user_id, &auth.username, auth.role_id, Some(target), None, audit_ctx.as_deref()).await;
+}
+
+fn execute_test_connection(db_config: DatabaseConfig) -> Result<Json<ApiResponse<TestDatabaseResponse>>, AppError> {
+    match InitService::test_database(&db_config) {
+        Ok(_) => Ok(Json(ApiResponse::success_with_message(TestDatabaseResponse { success: true, message: "数据库连接成功".to_string() }, "数据库连接测试成功"))),
+        Err(_) => Err(AppError::bad_request("数据库连接失败，请检查主机、端口、数据库名、用户名和密码是否正确")),
     }
 }
 
 /// 判断客户端 IP 是否为内网 IP（P1-1 修复，H-3 SSRF 防护）
-///
-/// 仅允许以下网段：
-/// - 127.0.0.0/8 (IPv4 loopback)
-/// - 10.0.0.0/8 (RFC1918 A 类私有)
-/// - 172.16.0.0/12 (RFC1918 B 类私有)
-/// - 192.168.0.0/16 (RFC1918 C 类私有)
-/// - ::1 (IPv6 loopback)
-/// - fe80::/10 (IPv6 link-local)
-/// - fc00::/7 (IPv6 ULA)
-///
-/// 拒绝：公网 IP、未识别格式（"unknown"等）
+/// 允许网段：RFC1918 私有网段（10/8、172.16/12、192.168/16）+ loopback + IPv6 ULA/link-local
 fn is_internal_ip(ip_str: &str) -> bool {
     let ip: std::net::IpAddr = match ip_str.parse() {
         Ok(addr) => addr,
@@ -250,13 +157,7 @@ fn is_internal_ip(ip_str: &str) -> bool {
 }
 
 /// 同步初始化（无 DB 配置版本）
-///
-/// 安全约束（bug.md #3 修复）：
-/// 1. 路由层已应用 `init_token_middleware`：调用方必须携带 `X-Init-Token`
-///    请求头，且与服务端 `INIT_TOKEN` 环境变量一致（恒定时间比较防时序攻击）
-/// 2. handler 内部仍执行 `check_initialized()` 兜底：系统已初始化时拒绝重复初始化
-/// 3. 缺失/错误 `INIT_TOKEN` 直接 401（fail-secure），未配置 `INIT_TOKEN` 时
-///    整个 init 端点拒绝所有请求
+/// 安全约束：路由层 init_token_middleware 验证 X-Init-Token，handler 层 check_initialized() 兜底防重复初始化
 pub async fn initialize_system(
     State(state): State<AppState>,
     Json(payload): Json<InitRequest>,
@@ -284,8 +185,7 @@ pub async fn initialize_system_with_db(
 }
 
 /// 异步初始化处理器（非阻塞）
-///
-/// 安全约束同 [`initialize_system`]：路由层已应用 `init_token_middleware` 保护。
+/// 安全约束同 initialize_system：路由层 init_token_middleware 保护
 pub async fn initialize_system_with_db_async(
     Json(payload): Json<InitWithDbRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -305,14 +205,7 @@ pub async fn initialize_system_with_db_async(
 }
 
 /// 初始化子系统处理器内部的 admin 角色二次校验
-///
-/// 设计原因：
-/// 1. `permission_middleware` 不覆盖 init 路径，必须在 handler 层补一道 admin 防线；
-/// 2. 批次 261 修复后，仅 `initialize` 系列在 `PUBLIC_PATHS` 中（跳过 JWT 验证，
-///    由 `init_token_middleware` 认证）。本函数保护的只读接口（test-database/
-///    task-status）不在 `PUBLIC_PATHS` 中，`auth_middleware` 要求 JWT 认证，
-///    `auth: AuthContext` 提取器在缺认证时直接返回 401。
-/// 3. 与 `user_handler::require_admin_role` 实现保持一致，便于未来统一抽到 utils。
+/// permission_middleware 不覆盖 init 路径，handler 层必须补 admin 防线；与 user_handler::require_admin_role 实现一致
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
@@ -337,12 +230,7 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 }
 
 /// 查询初始化任务状态（仅管理员可访问）
-///
-/// 安全约束：
-/// 1. 必须登录并具备 admin 角色（handler 层强制拦截）
-/// 2. 批次 261 修复后，仅 `initialize` 系列在 `PUBLIC_PATHS` 中。本接口
-///    （task-status）不在 `PUBLIC_PATHS` 中，`auth_middleware` 要求 JWT 认证，
-///    `auth: AuthContext` 提取器在未登录时返回 401（fail-secure）。
+/// 安全约束：必须登录且具备 admin 角色；不在 PUBLIC_PATHS，未登录时 auth 提取器返回 401
 pub async fn get_task_status(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -400,11 +288,7 @@ pub struct ResetPasswordResponse {
 }
 
 /// 重置用户密码（P0 修复：必须 admin 登录后才能调用）
-///
-/// 安全约束：
-/// 1. 必须登录并具备 admin 角色（深度防御：service 层再做用户存在性二次校验 + 密码强度校验）
-/// 2. 不允许重置自己的密码（防止 admin 误操作锁定自己）
-/// 3. 审计日志记录"谁在什么时间重置谁的密码"（不记录明文密码）
+/// 安全约束：必须 admin 角色，禁止重置自己密码，审计日志记录操作（不记录明文密码）
 pub async fn reset_admin_password(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -464,11 +348,8 @@ pub async fn reset_admin_password(
         })
 }
 
-/// 将 `InitError` 统一映射为 `AppError`。
-///
-/// 错误分类：
-/// - `AlreadyInitialized` / `HashError` / `UserNotFound` / `ConfigError` / `ValidationError` → 业务/校验错误（400）
-/// - `DatabaseError` → 数据库错误（500）
+/// 将 `InitError` 统一映射为 `AppError`
+/// 业务/校验错误映射为 400，DatabaseError 映射为 500
 fn map_init_error(e: crate::services::init_service::InitError) -> AppError {
     match e {
         crate::services::init_service::InitError::AlreadyInitialized => {
@@ -490,22 +371,8 @@ fn map_init_error(e: crate::services::init_service::InitError) -> AppError {
 
 #[cfg(test)]
 mod tests {
-    //! 安全漏洞 #5 修复单测
-    //!
-    //! 覆盖 `get_task_status` 权限校验逻辑：
-    //! 1. **场景 A（匿名调用）**：请求 extensions 中无 `AuthContext` → `auth: AuthContext` 提取器
-    //!    应当返回 401，阻止匿名用户查询任意 task_id 的初始化任务状态。
-    //! 2. **场景 B（缺角色用户调用）**：注入 `role_id = None` 的 `AuthContext` → `require_admin_role`
-    //!    应当直接返回 403（permission_denied），不依赖 DB 查询。
-    //! 3. **场景 C（缺 task_id 参数）**：验证 Query 提取顺序无回归（缺 AuthContext → 401）。
-    //!
-    //! 设计说明：
-    //! - 不通过完整 HTTP 流程（绕开 `auth_middleware`），直接构造 `AuthContext`
-    //!   与无认证两种场景，验证 handler 内部 admin 校验逻辑。
-    //! - 场景 B 选择"缺 role_id"分支而非"非 admin 角色"分支，是为了避免在测试环境
-    //!   依赖真实 DB（`is_admin_role` 在 DB miss 时的行为依赖具体 sea_orm 错误信息）。
-    //!   "非 admin 角色"的端到端覆盖由 `utils/admin_checker::tests` 与 service 层测试承担。
-    //! - `tower::ServiceExt::oneshot` + 最小化 `AppState::default()` 隔离依赖。
+    //! 安全漏洞 #5 修复单测：覆盖 get_task_status 权限校验（匿名→401、缺角色→403、缺参→401）
+    //! 直接构造 AuthContext 验证 handler 内部逻辑，不依赖真实 DB；用 oneshot + AppState::default() 隔离依赖
 
     use super::*;
     use crate::utils::app_state::AppState;
@@ -525,11 +392,7 @@ mod tests {
     }
 
     /// 场景 A：匿名调用 get_task_status（无 AuthContext）→ 期望 401
-    ///
-    /// 验证链路：
-    /// - 请求 extensions 中没有注入 `AuthContext`
-    /// - `auth: AuthContext` 提取器找不到 `AuthContext` → 返回 `AuthRejection::unauthorized`
-    /// - 响应状态码：401
+    /// 验证 auth: AuthContext 提取器在缺 AuthContext 时返回 401
     #[tokio::test]
     async fn test_get_task_status_anonymous_returns_401() {
         let app = build_test_app();
@@ -550,12 +413,7 @@ mod tests {
     }
 
     /// 场景 B：缺角色用户（role_id=None）调用 get_task_status → 期望 403
-    ///
-    /// 验证链路：
-    /// - 注入 `AuthContext { role_id: None }`
-    /// - `auth: AuthContext` 提取器成功
-    /// - `require_admin_role` 第一个分支：`role_id = None` → `permission_denied` → 403
-    /// - **不依赖 DB 查询**，测试稳定可重复。
+    /// 验证 require_admin_role 在 role_id=None 时直接返回 403，不依赖 DB 查询
     #[tokio::test]
     async fn test_get_task_status_no_role_returns_403() {
         let state = AppState::default();
@@ -595,9 +453,7 @@ mod tests {
     }
 
     /// 场景 C：缺少 task_id 参数 → 期望 401（缺 AuthContext 时提取器先失败）
-    ///
-    /// 验证 `require_admin_role` 之前的 Query 提取顺序无回归。
-    /// 注意：本测试跳过 admin 校验（无 AuthContext），仅验证 Query 提取器被正确解析。
+    /// 验证 Query 提取顺序无回归，缺 AuthContext 时先返回 401
     #[tokio::test]
     async fn test_get_task_status_missing_task_id_returns_401() {
         let app = build_test_app();

@@ -221,161 +221,142 @@ pub async fn list_stock(
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
-    if let Err(e) = params.validate() {
-        return Err(AppError::validation(e.to_string()));
-    }
+    params.validate().map_err(AppError::validation)?;
 
     let service = InventoryStockService::new(state.db.clone());
-
-    // 页码采用 1-based 约定，由 service 内部转换为 0-based
-    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (stock_list, total) = service
         .list_stock(page, page_size, params.warehouse_id, params.product_id)
         .await?;
 
-    let stock_responses: Vec<StockResponse> = stock_list
-        .into_iter()
-        .map(|stock| StockResponse {
-            id: stock.id,
-            warehouse_id: stock.warehouse_id,
-            product_id: stock.product_id,
-            quantity_on_hand: stock.quantity_on_hand,
-            quantity_available: stock.quantity_available,
-            quantity_reserved: stock.quantity_reserved,
-            reorder_point: stock.reorder_point,
-            max_stock_point: stock.max_stock_point,
-            bin_location: stock.bin_location,
-            created_at: stock.created_at,
-            updated_at: stock.updated_at,
-        })
-        .collect();
+    let stock_responses = stock_list.into_iter().map(to_stock_response).collect();
 
-    // 发送库存预警通知
-    if let Some(ref event_service) = state.event_notification_service {
-        // 批量查询低于 reorder_point 的库存对应的 product，避免循环内 N+1 查询
-        let alert_product_ids: Vec<i32> = stock_responses
-            .iter()
-            .filter(|stock| stock.quantity_on_hand < stock.reorder_point)
-            .map(|stock| stock.product_id)
-            .collect();
-        let product_map: std::collections::HashMap<i32, product::Model> =
-            if alert_product_ids.is_empty() {
-                std::collections::HashMap::new()
-            } else {
-                // P2-1 修复（批次 388 v13 复审）：原 unwrap_or_default() 吞 DB 错误导致预警丢失，
-                // 改为 match 记录 warn 日志后降级为空集合（跳过本轮预警通知）
-                let products = match product::Entity::find()
-                    .filter(product::Column::Id.is_in(alert_product_ids))
-                    .all(&*state.db)
-                    .await
-                {
-                    Ok(p) => p,
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            "批次 388 P2-1: 查询库存预警产品信息失败，本轮预警通知将跳过"
-                        );
-                        vec![]
-                    }
-                };
-                products.into_iter().map(|p| (p.id, p)).collect()
-            };
+    send_inventory_alerts(&state, &stock_responses).await;
 
-        // v17 批次 47 修复：循环外预先查询 user_id=0 的通知设置（1 次查询），
-        // 避免循环内每个产品都查一次设置（N+1 查询）
-        let setting = event_service.get_setting_for_user(0).await.ok();
+    let mut stock_json = serialize_stock_responses(stock_responses)?;
 
-        for stock in &stock_responses {
-            if stock.quantity_on_hand < stock.reorder_point {
-                if let Some(product) = product_map.get(&stock.product_id) {
-                    if let Some(ref s) = setting {
-                        // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
-                        if let Err(e) = event_service
-                            .notify_inventory_alert_with_setting(
-                                0, // 系统通知，不指定特定用户
-                                s,
-                                &product.name,
-                                product.id,
-                                &stock.quantity_on_hand.to_string(),
-                                &stock.reorder_point.to_string(),
-                            )
-                            .await
-                        {
-                            tracing::warn!("批次 94 P2-11：库存预警通知(with_setting)发送失败: {}", e);
-                        }
-                    } else {
-                        // 设置查询失败时回退到原方法（兼容性保留）
-                        // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
-                        if let Err(e) = event_service
-                            .notify_inventory_alert(
-                                0,
-                                &product.name,
-                                product.id,
-                                &stock.quantity_on_hand.to_string(),
-                                &stock.reorder_point.to_string(),
-                            )
-                            .await
-                        {
-                            tracing::warn!("批次 94 P2-11：库存预警通知发送失败: {}", e);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 批次 406 修复：序列化失败应传播错误而非返回 Null
-    let mut stock_json: Vec<serde_json::Value> = stock_responses
-        .into_iter()
-        .map(|s| serde_json::to_value(s).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    // 数据权限控制：获取角色数据权限并应用字段过滤
-    // P2-1 修复（批次 388 v13 复审）：原 if let Ok(Some(...)) 合并 Err 与 Ok(None) 语义，
-    // 改为 match 精确区分三种情况：有配置 / 无配置 / 查询出错
-    if let Some(role_id) = auth.role_id {
-        match state
-            .data_permission_service
-            .get_role_data_permission(role_id, "inventory_stock")
-            .await
-        {
-            Ok(Some(permission)) => {
-                state.data_permission_service.filter_fields_batch(
-                    &mut stock_json,
-                    &permission.allowed_fields,
-                    &permission.hidden_fields,
-                );
-            }
-            Ok(None) => {
-                // 没有配置数据权限且不是管理员，使用默认字段隐藏
-                if role_id != 1 {
-                    for stock in &mut stock_json {
-                        if let Some(obj) = stock.as_object_mut() {
-                            obj.remove("quantity_on_hand");
-                            obj.remove("quantity_available");
-                            obj.remove("quantity_reserved");
-                            obj.remove("reorder_point");
-                            obj.remove("reorder_quantity");
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                // P2-1 修复：DB 查询出错时仅记录警告，不应用默认隐藏（避免误隐藏字段）
-                tracing::warn!(
-                    role_id,
-                    error = %e,
-                    "批次 388 P2-1: 查询库存数据权限失败，跳过字段过滤"
-                );
-            }
-        }
-    }
+    apply_data_permission_filter(&state, &auth, &mut stock_json).await;
 
     Ok(Json(crate::utils::response::ApiResponse::success(
         PaginatedResponse::new(stock_json, total, page, page_size),
     )))
+}
+
+fn to_stock_response(stock: InventoryStock) -> StockResponse {
+    StockResponse {
+        id: stock.id,
+        warehouse_id: stock.warehouse_id,
+        product_id: stock.product_id,
+        quantity_on_hand: stock.quantity_on_hand,
+        quantity_available: stock.quantity_available,
+        quantity_reserved: stock.quantity_reserved,
+        reorder_point: stock.reorder_point,
+        max_stock_point: stock.max_stock_point,
+        bin_location: stock.bin_location,
+        created_at: stock.created_at,
+        updated_at: stock.updated_at,
+    }
+}
+
+async fn send_inventory_alerts(state: &AppState, stock_responses: &[StockResponse]) {
+    let Some(ref event_service) = state.event_notification_service else { return };
+
+    let alert_product_ids: Vec<i32> = stock_responses
+        .iter()
+        .filter(|s| s.quantity_on_hand < s.reorder_point)
+        .map(|s| s.product_id)
+        .collect();
+
+    if alert_product_ids.is_empty() {
+        return;
+    }
+
+    let product_map = load_alert_products(&*state.db, &alert_product_ids).await;
+    let setting = event_service.get_setting_for_user(0).await.ok();
+
+    for stock in stock_responses {
+        if stock.quantity_on_hand < stock.reorder_point {
+            if let Some(product) = product_map.get(&stock.product_id) {
+                send_alert_for_stock(event_service, &setting, product, stock).await;
+            }
+        }
+    }
+}
+
+async fn load_alert_products(db: &DatabaseConnection, product_ids: &[i32]) -> std::collections::HashMap<i32, product::Model> {
+    match product::Entity::find()
+        .filter(product::Column::Id.is_in(product_ids))
+        .all(db)
+        .await
+    {
+        Ok(p) => p.into_iter().map(|p| (p.id, p)).collect(),
+        Err(e) => {
+            tracing::warn!(error = %e, "批次 388 P2-1: 查询库存预警产品信息失败，本轮预警通知将跳过");
+            std::collections::HashMap::new()
+        }
+    }
+}
+
+async fn send_alert_for_stock(
+    event_service: &Arc<crate::services::event_notification_service::EventNotificationService>,
+    setting: &Option<crate::models::user_notification_setting::Model>,
+    product: &product::Model,
+    stock: &StockResponse,
+) {
+    if let Some(ref s) = setting {
+        if let Err(e) = event_service.notify_inventory_alert_with_setting(
+            0, s, &product.name, product.id,
+            &stock.quantity_on_hand.to_string(),
+            &stock.reorder_point.to_string(),
+        ).await {
+            tracing::warn!("批次 94 P2-11：库存预警通知(with_setting)发送失败: {}", e);
+        }
+    } else {
+        if let Err(e) = event_service.notify_inventory_alert(
+            0, &product.name, product.id,
+            &stock.quantity_on_hand.to_string(),
+            &stock.reorder_point.to_string(),
+        ).await {
+            tracing::warn!("批次 94 P2-11：库存预警通知发送失败: {}", e);
+        }
+    }
+}
+
+fn serialize_stock_responses(stock_responses: Vec<StockResponse>) -> Result<Vec<serde_json::Value>, AppError> {
+    stock_responses
+        .into_iter()
+        .map(|s| serde_json::to_value(s).map_err(AppError::from))
+        .collect()
+}
+
+async fn apply_data_permission_filter(state: &AppState, auth: &AuthContext, stock_json: &mut Vec<serde_json::Value>) {
+    let Some(role_id) = auth.role_id else { return };
+
+    match state.data_permission_service.get_role_data_permission(role_id, "inventory_stock").await {
+        Ok(Some(permission)) => {
+            state.data_permission_service.filter_fields_batch(
+                stock_json, &permission.allowed_fields, &permission.hidden_fields,
+            );
+        }
+        Ok(None) => {
+            if role_id != 1 {
+                for stock in stock_json {
+                    if let Some(obj) = stock.as_object_mut() {
+                        obj.remove("quantity_on_hand");
+                        obj.remove("quantity_available");
+                        obj.remove("quantity_reserved");
+                        obj.remove("reorder_point");
+                        obj.remove("reorder_quantity");
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!(role_id, error = %e, "批次 388 P2-1: 查询库存数据权限失败，跳过字段过滤");
+        }
+    }
 }
 
 pub async fn check_low_stock(
@@ -511,138 +492,70 @@ async fn notify_single_low_stock(
 
 // ========== 数据导出接口 ==========
 
-/// 导出库存列表
-///
-/// V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志
-///
-/// 规则 3：导出统一使用 xlsx 格式
-/// V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
-/// V15 P0-S15：水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
-///
-/// 重要：直接调 `service.list_stock`，**不触发** list_stock handler 内的低库存预警通知副作用
-/// 字段级数据权限对齐：非 admin 角色默认移除 quantity_on_hand/quantity_available 等敏感字段
+/// 导出库存列表（V15 P0-S12/P0-S15 修复：导出注入水印 + 异步审计日志）
+/// 规则 3：导出统一使用 xlsx 格式；直接调 service.list_stock，不触发低库存预警通知副作用
 pub async fn export_stock(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<axum::response::Response, AppError> {
-    if let Err(e) = params.validate() {
-        return Err(AppError::validation(e.to_string()));
-    }
+    params.validate().map_err(AppError::validation)?;
 
     let service = InventoryStockService::new(state.db.clone());
-
-    // V15 P0-S12 修复（Batch 475c）：导出全量数据（不传分页参数到 service 层）
-    // service.list_stock 签名为 (page, page_size, warehouse_id, product_id)
-    // 传 1/10000 取全部数据（避免 service 层签名改动）
-    let page = 1u64;
-    let page_size = 10000u64;
-    let (stock_list, _total) = service
-        .list_stock(page, page_size, params.warehouse_id, params.product_id)
-        .await?;
-
-    // 保存真实记录数（用于水印与审计日志）
+    let (stock_list, _total) = service.list_stock(1, 10000, params.warehouse_id, params.product_id).await?;
     let row_count = stock_list.len();
 
-    // 字段级数据权限：非 admin 角色默认移除敏感字段
-    // P0-S12 修复：导出与 list_stock handler 保持相同的字段过滤逻辑
-    let mut stock_json: Vec<serde_json::Value> = stock_list
-        .into_iter()
-        .map(|s| serde_json::to_value(s).map_err(AppError::from))
+    let mut stock_json = serialize_stock_responses(stock_list)?;
+    apply_data_permission_filter(&state, &auth, &mut stock_json).await;
+
+    let table = build_stock_xlsx_table(&stock_json)?;
+    let filename = format!("inventory_stock_export_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+
+    record_export_audit(&state.db, &auth, &filename, row_count, &params);
+    let watermark = build_export_watermark(&auth, row_count);
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
+}
+
+fn build_stock_xlsx_table(stock_json: &[serde_json::Value]) -> Result<XlsxTable, AppError> {
+    let headers = vec![
+        "ID".to_string(), "仓库ID".to_string(), "产品ID".to_string(),
+        "在库量".to_string(), "可用量".to_string(), "预留量".to_string(),
+        "库位".to_string(), "创建时间".to_string(), "更新时间".to_string(),
+    ];
+
+    let rows = stock_json
+        .iter()
+        .map(|stock| {
+            let obj = stock.as_object().ok_or_else(|| AppError::internal("库存序列化失败：期望 JSON 对象"))?;
+            Ok(vec![
+                get_json_str(obj, "id"),
+                get_json_str(obj, "warehouse_id"),
+                get_json_str(obj, "product_id"),
+                get_json_str(obj, "quantity_on_hand"),
+                get_json_str(obj, "quantity_available"),
+                get_json_str(obj, "quantity_reserved"),
+                get_json_str(obj, "bin_location"),
+                get_json_str(obj, "created_at"),
+                get_json_str(obj, "updated_at"),
+            ])
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
-    if let Some(role_id) = auth.role_id {
-        match state
-            .data_permission_service
-            .get_role_data_permission(role_id, "inventory_stock")
-            .await
-        {
-            Ok(Some(permission)) => {
-                state.data_permission_service.filter_fields_batch(
-                    &mut stock_json,
-                    &permission.allowed_fields,
-                    &permission.hidden_fields,
-                );
-            }
-            Ok(None) => {
-                // 没有配置数据权限且不是管理员，使用默认字段隐藏
-                if role_id != 1 {
-                    for stock in &mut stock_json {
-                        if let Some(obj) = stock.as_object_mut() {
-                            obj.remove("quantity_on_hand");
-                            obj.remove("quantity_available");
-                            obj.remove("quantity_reserved");
-                            obj.remove("reorder_point");
-                            obj.remove("reorder_quantity");
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::warn!(
-                    role_id,
-                    error = %e,
-                    "Batch 475c P0-S12: 查询库存数据权限失败，导出跳过字段过滤"
-                );
-            }
-        }
-    }
+    Ok(XlsxTable { sheet_name: "库存列表".to_string(), headers, rows })
+}
 
-    // 构造 xlsx 表格数据
-    let headers: Vec<String> = vec![
-        "ID".to_string(),
-        "仓库ID".to_string(),
-        "产品ID".to_string(),
-        "在库量".to_string(),
-        "可用量".to_string(),
-        "预留量".to_string(),
-        "库位".to_string(),
-        "创建时间".to_string(),
-        "更新时间".to_string(),
-    ];
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(stock_json.len());
-    for stock in stock_json {
-        let obj = stock.as_object().ok_or_else(|| {
-            AppError::internal("库存序列化失败：期望 JSON 对象")
-        })?;
-        let get_str = |key: &str| -> String {
-            obj.get(key)
-                .map(|v| {
-                    if v.is_null() {
-                        String::new()
-                    } else if v.is_string() {
-                        v.as_str().unwrap_or("").to_string()
-                    } else {
-                        v.to_string()
-                    }
-                })
-                .unwrap_or_default()
-        };
-        rows.push(vec![
-            get_str("id"),
-            get_str("warehouse_id"),
-            get_str("product_id"),
-            get_str("quantity_on_hand"),
-            get_str("quantity_available"),
-            get_str("quantity_reserved"),
-            get_str("bin_location"),
-            get_str("created_at"),
-            get_str("updated_at"),
-        ]);
-    }
+fn get_json_str(obj: &serde_json::Map<String, serde_json::Value>, key: &str) -> String {
+    obj.get(key)
+        .map(|v| {
+            if v.is_null() { String::new() }
+            else if v.is_string() { v.as_str().unwrap_or("").to_string() }
+            else { v.to_string() }
+        })
+        .unwrap_or_default()
+}
 
-    let table = XlsxTable {
-        sheet_name: "库存列表".to_string(),
-        headers,
-        rows,
-    };
-
-    let filename = format!(
-        "inventory_stock_export_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
-    );
-
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+fn record_export_audit(db: &Arc<DatabaseConnection>, auth: &AuthContext, filename: &str, row_count: usize, params: &ListStockParams) {
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -651,10 +564,7 @@ pub async fn export_stock(
         resource_type: Some("inventory_stock".to_string()),
         resource_id: None,
         resource_name: Some(format!("{}.xlsx", filename)),
-        description: Some(format!(
-            "用户 {} 导出库存列表（共 {} 条）",
-            auth.username, row_count
-        )),
+        description: Some(format!("用户 {} 导出库存列表（共 {} 条）", auth.username, row_count)),
         request_method: Some("GET".to_string()),
         request_path: Some("/api/v1/erp/inventory/stock/export".to_string()),
         before_snapshot: None,
@@ -665,16 +575,15 @@ pub async fn export_stock(
             "product_id_filter": params.product_id,
         })),
     };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    let svc = Arc::new(AuditLogService::new(db.clone()));
     svc.record_async(event, None);
+}
 
-    // V15 P0-S15 修复（Batch 475c）：注入水印（操作员/导出时间/导出条数）
-    let watermark = WatermarkConfig {
+fn build_export_watermark(auth: &AuthContext, row_count: usize) -> WatermarkConfig {
+    WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
         extra: Some(format!("库存导出（共 {} 条）", row_count)),
-    };
-
-    build_xlsx_response_with_watermark(&table, &filename, &watermark)
+    }
 }
