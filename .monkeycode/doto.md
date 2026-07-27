@@ -2,7 +2,7 @@
 
 > 本文件**只记录未完成任务**（任务队列、待修复项、剩余清单）。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-26（D05 Batch 8 useI18n 接入完成：5 并行代理接入剩余全量 72 个 .vue 文件 + 15 容器组件豁免；新增 7 新命名空间 + 扩展 20 已有命名空间 + ~1864 翻译键；通过 merge-i18n-batch8-cde.cjs 合并 C/D/E 翻译键 + merge-dup-ns-batch8.cjs 深度合并重复命名空间翻译键 + dedup-all-namespaces.py 删除重复块；修复 advancedModule.quality/report TS1117；vue-tsc 0 错误 + vitest 76/76 通过；D05 接入率 66.7%→94.9%（237→337/355），剩余 18 文件豁免；模块 G 16/17 项 P0 完成）
+> 最近整理：2026-07-27（D14 API 命名统一全部完成：4 处不规范命名修复 listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer，0 残留；模块 G 17/17 项 P0 全部完成）
 
 ---
 
@@ -358,7 +358,7 @@
 |------|------|------|------|
 | 第 1 顺位 | D08 超长函数 | ✅ 已完成 | 2026-07-26 全 backend/src 扫描确认仅剩 1 个 #[test] 测试函数豁免（test_payload_all_variants_round_trip 113 行） |
 | 第 2 顺位 | D10 1000 行文件 | ✅ 已完成 | D08 完成后立即推进，6 批 34 文件全部完成；三次核实确认 0 个 >1000 行文件 |
-| 第 3 顺位 | D14 api 命名统一 | ⏳ 重新打开 | 三次核实：残留 4 处不规范命名（listAuditLogs/listSlowQueries/addTagToCustomer/removeTagFromCustomer） |
+| 第 3 顺位 | D14 api 命名统一 | ✅ 已完成 | 2026-07-26 PR #737 已合并 main：4 处不规范命名修复（listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer），0 残留 |
 | 第 4 顺位 | D13 前端缩写命名 | ✅ 已完成 | 四次核实：18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名（行业缩写前缀+描述性后缀），无需重命名 |
 | 第 5 顺位 | D05 useI18n | ✅ 已完成 | 2026-07-26 PR #754 已合并 main（cf6aac4）：375/375 .vue 文件 100% 接入（useI18n 导入 + 0 硬编码中文 + 8947 翻译键双语 0 缺失） |
 
@@ -381,15 +381,15 @@
 
 | 优先级 | 总数 | 已完成 | 未完成 | 完成率 |
 |--------|------|--------|--------|--------|
-| **P0 阻塞级** | 104 | 103 | **1** | 99.0% |
+| **P0 阻塞级** | 104 | 104 | **0** | 100% |
 | **P1 高优先级** | 257 | 0 | **257** | 0% |
 | **P2 中优先级** | 248 | 0 | **248** | 0% |
 | **P3 低优先级** | 123 | 0 | **123** | 0% |
-| **合计** | **732** | **103** | **629** | **14.1%** |
+| **合计** | **732** | **104** | **628** | **14.2%** |
 
+> ✅ 2026-07-26 D14 全部完成（PR #737 已合并 main）：4 处不规范 API 命名修复（listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer），0 残留，P0 完成数 103→104，模块 G 17/17 全部完成。
 > ✅ 2026-07-26 D05 全部完成（PR #754 已合并 main cf6aac4）：375/375 .vue 文件 100% 接入 useI18n（0 硬编码中文 + 8947 翻译键双语 0 缺失），P0 完成数 102→103。
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并 + 全 backend/src 扫描确认 0 个 >80 行非测试函数），P0 完成数 101→102。
-> ⚠️ 2026-07-25 三次核实后，模块 G 5 项 P0 任务重新打开（D05/D08/D09/D13/D14）；2026-07-25 P0-D09 完成拆分 9 个 >100 行函数，P0 完成数 99→100；2026-07-25 P0-D13 四次核实确认 18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名无需重命名，P0 完成数 100→101。
 
 ### 1.2 状态：✅ D05 useI18n 接入全部完成（接入率 100%，375/375 .vue 文件，PR #754 已合并 main）
 
@@ -429,7 +429,7 @@ P0-D08 ✅ 超长函数 (XL)          ──→ P0-D09 ✅ 100 行函数 (L) ─
 P0-D11 ✅ setup_test_db (M)     ← 独立（审计误判）
 P0-D12 ✅ 圈复杂度 (M)           ← 独立（6 重构 + 2 误判）
 P0-D13 ✅ 前端缩写命名 (XL)     ← 独立（四次核实：18 个 Ar/Bpm/Ai 前缀文件均已是描述性命名，无需重命名）
-P0-D14 ⏳ api 命名统一 (XL)     ← 独立（三次核实：残留 4 处不规范命名 listAuditLogs/listSlowQueries/addTagToCustomer/removeTagFromCustomer）
+P0-D14 ✅ api 命名统一 (XL)     ← 独立（2026-07-26 PR #737 已合并 main：4 处不规范命名修复，0 残留）
 P0-D15 ✅ 升级零停机 (M)         ← 独立（审计误判）
 P0-D16 ✅ 报表订阅调度 (M)       ← 独立（审计误判）
 P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
@@ -601,7 +601,7 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
   - Batch 6：✅ 已完成（#721 main db50305）bpm/approval (6) + purchase-contract (4) + purchase-inspection (5) + sales-analysis (5) 共 20 文件 + 6 caller（BpmApAprDlg→BpmApprovalApprovalDialog / PcFilter→PurchaseContractFilter / PiFilter→PurchaseInspectionFilter / SaStat→SalesAnalysisStat 等；额外 4 个本地 interface 重命名 BpmApStats/PiFormData/PiStats/PcFormData）
   - Batch 7：✅ 已完成（#722 main 6854060）bom (1) + dashboard (4) + purchase (3) + purchaseReceipt (4) + components/ai (1) 共 13 文件 + 5 caller（BomForm→BillOfMaterialsForm / DbActTbl→DashboardActivityTable / DbPie→DashboardPie / DbStat→DashboardStat / DbTrend→DashboardTrend / PurchFilter→PurchaseFilter / PurchTbl→PurchaseTable / PurchTop→PurchaseTop / PrcDetail→PurchaseReceiptDetail / PrcFilter→PurchaseReceiptFilter / PrcForm→PurchaseReceiptForm / PrcTbl→PurchaseReceiptTable / AIPredictionChart→AiPredictionChart；caller 更新 5 文件：bom/index.vue + Dashboard.vue + purchase/index.vue + purchaseReceipt/index.vue + ai-extend/quality-prediction.vue + SalesAnalysisTrend.vue 注释 + usePrcProc.ts；额外 1 个本地 interface 重命名 PrcFormModel→PurchaseReceiptFormModel 4 处引用，无 #[allow] 警告抑制）
 
-### 3.6 P0-D14 前端 api 命名不统一（类二，XL，⏳ 重新打开）
+### 3.6 P0-D14 前端 api 命名不统一（类二，XL，✅ 已完成）
 
 - **来源**：batch-02 P0-02-06
 - **证据（2026-07-25 三次核实）**：使用 Grep 检查 `export (async )?(function|const) (list|add|remove|query|fetch)[A-Z]` 五种不规范模式，残留 4 处不规范命名（与二次核实完全一致）：listAuditLogs（audit.ts:79）+ listSlowQueries（slow-query.ts:69）+ addTagToCustomer（crm-enhanced.ts:220）+ removeTagFromCustomer（crm-enhanced.ts:224）
@@ -612,7 +612,7 @@ P0-D17 ✅ OA 公告 (M)            ← 独立（审计误判）
 - **工作量**：XL
 - **批次**：502（D13+D14 合并最后一批，文件数 28 < 35 按用户指令"除非任务最后一批次"豁免，详见 §0.8.11）
 - **执行优先级**：第 3 顺位（与 D05/D13 解耦）
-- **当前进度**：⏳ 重新打开 —— Batch 1-5 全部完成（风格 A 25 文件转风格 B + 2000+ 处调用点更新，PR #705-#714）；但三次核实发现仍残留 4 处不规范命名（listAuditLogs/listSlowQueries/addTagToCustomer/removeTagFromCustomer），合并到 §0.8.11 Batch 10 补齐
+- **当前进度**：✅ 已完成 —— 2026-07-26 PR #737 已合并 main：Batch 1-5 全部完成（风格 A 25 文件转风格 B + 2000+ 处调用点更新，PR #705-#714）+ 三次核实残留 4 处不规范命名已补齐（listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer），Grep 验证 0 残留
 - **批次规划**：
   - Batch 1：✅ 已完成（#705 main e807550）财务 AP/AR 9 文件（ap.ts/ap-invoice.ts/ap-payment.ts/ar.ts/ar-reconciliation.ts/ar-reconciliation-enhanced.ts/ap-reconciliation.ts/ap-verification.ts/voucher.ts）
   - Batch 2：✅ 已完成（#706 main eb4fdb2）采购/销售/库存 9 API 定义文件 13 处重命名 + 5 caller 文件（purchase-contract/purchase-price/purchaseReceipt/sales-contract/sales-price/inventoryAdjustment/inventoryTransfer/inventoryBatch/inventoryCount）

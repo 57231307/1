@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-26（D05 Batch 10 useI18n 接入完善完成并合并 main（PR #754 cf6aac4）：60 个 .vue 文件 i18n 接入完善 + locales 双语同步修复（zh-only 28 键补全到 en-US.ts）+ V2Table/AdvancedFilter withDefaults hoist 修复 + tests/setup.ts 全局 i18n 注入；接入率达 100%（375/375 .vue 文件全部导入 useI18n + 0 模板硬编码中文 + 0 脚本字符串硬编码中文 + 8947 个唯一翻译键 zh-CN/en-US 双语 0 缺失）；CI 13 项全绿，仅 Rust 覆盖率非阻塞失败；P0 完成数 102→103，剩余 D14 一项）
+> 最近整理：2026-07-27（D14 API 命名统一全部完成并合并 main（PR #737 9768bbe）：4 处不规范命名修复 listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer，0 残留；模块 G 17/17 项 P0 全部完成，P0 完成数 103→104，P0 阻塞级任务 100% 完成）
 
 ---
 
