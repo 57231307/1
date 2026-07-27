@@ -16,6 +16,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use serde_json::Value;
 use std::sync::Arc;
 use validator::Validate;
 
@@ -71,7 +72,9 @@ pub async fn list_leads(
                 );
             }
         } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            // P1-08-5 修复：默认字段脱敏（保留前 3 后 4 / 首字母 + ***），而非直接 remove
+            // 原 remove 导致业务无法识别客户（如需回拨电话），实际使用中可能被绕过。
+            // 脱敏后业务仍可识别客户身份，同时满足个人信息保护法最小必要原则。
             let mut list_opt = value.get_mut("list");
             if list_opt.is_none() {
                 list_opt = value.get_mut("data");
@@ -79,8 +82,18 @@ pub async fn list_leads(
             if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
                 for lead in list {
                     if let Some(obj) = lead.as_object_mut() {
-                        obj.remove("contact_phone");
-                        obj.remove("email");
+                        if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                            obj.insert(
+                                "contact_phone".to_string(),
+                                Value::String(crate::utils::field_mask::mask_phone(phone)),
+                            );
+                        }
+                        if let Some(email) = obj.get("email").and_then(|v| v.as_str()) {
+                            obj.insert(
+                                "email".to_string(),
+                                Value::String(crate::utils::field_mask::mask_email(email)),
+                            );
+                        }
                         obj.remove("address");
                     }
                 }
@@ -209,10 +222,20 @@ pub async fn get_lead(
                 &permission.hidden_fields,
             );
         } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            // P1-08-5 修复：详情接口脱敏而非 remove
             if let Some(obj) = value.as_object_mut() {
-                obj.remove("contact_phone");
-                obj.remove("email");
+                if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                    obj.insert(
+                        "contact_phone".to_string(),
+                        Value::String(crate::utils::field_mask::mask_phone(phone)),
+                    );
+                }
+                if let Some(email) = obj.get("email").and_then(|v| v.as_str()) {
+                    obj.insert(
+                        "email".to_string(),
+                        Value::String(crate::utils::field_mask::mask_email(email)),
+                    );
+                }
                 obj.remove("address");
             }
         }

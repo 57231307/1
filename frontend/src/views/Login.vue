@@ -61,6 +61,17 @@
             @keyup.enter="handleLogin"
           />
         </el-form-item>
+        <!-- P1-08-1 修复：用户协议与隐私政策勾选，满足《个人信息保护法》第 14 条同意要求 -->
+        <el-form-item prop="agreedToTerms">
+          <el-checkbox v-model="loginForm.agreedToTerms" size="default">
+            <span class="terms-text">
+              {{ $t('login.agreeTo') }}
+              <a href="#/terms" target="_blank" class="terms-link">{{ $t('login.userAgreement') }}</a>
+              {{ $t('login.and') }}
+              <a href="#/privacy" target="_blank" class="terms-link">{{ $t('login.privacyPolicy') }}</a>
+            </span>
+          </el-checkbox>
+        </el-form-item>
         <el-form-item>
           <el-button
             type="primary"
@@ -99,6 +110,7 @@ const loading = ref(false)
 const loginForm = reactive({
   username: '',
   password: '',
+  agreedToTerms: false,
 })
 
 const rules: FormRules = {
@@ -106,6 +118,19 @@ const rules: FormRules = {
      如需动态响应语言切换，可将 message 改为函数形式，留作后续迭代优化。 */
   username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
   password: [{ required: true, message: t('login.passwordRequired'), trigger: 'blur' }],
+  // P1-08-1：用户协议勾选校验
+  agreedToTerms: [
+    {
+      validator: (_rule, value, callback) => {
+        if (!value) {
+          callback(new Error(t('login.pleaseAgreeToTerms')))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change',
+    },
+  ],
 }
 
 /** 账号锁定信息 */
@@ -332,5 +357,16 @@ onUnmounted(() => {
   margin-top: 4px;
   color: #f56c6c;
   font-weight: 500;
+}
+.terms-text {
+  font-size: 13px;
+  color: #606266;
+}
+.terms-link {
+  color: #409eff;
+  text-decoration: none;
+}
+.terms-link:hover {
+  text-decoration: underline;
 }
 </style>

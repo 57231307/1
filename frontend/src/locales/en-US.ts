@@ -338,6 +338,11 @@ export default {
     passwordExpiredLater: 'Remind Later',
     precheckLockStatusFailed: 'Failed to pre-check account lock status',
     refreshLockStatusFailed: 'Failed to refresh account lock status',
+    agreeTo: 'I have read and agree to',
+    userAgreement: 'User Agreement',
+    privacyPolicy: 'Privacy Policy',
+    and: 'and',
+    pleaseAgreeToTerms: 'Please read and agree to the User Agreement and Privacy Policy',
   },
   dashboard: {
     title: 'Dashboard',

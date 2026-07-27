@@ -338,6 +338,11 @@ export default {
     passwordExpiredLater: '稍后提醒',
     precheckLockStatusFailed: '预检查账号锁定状态失败',
     refreshLockStatusFailed: '刷新账号锁定状态失败',
+    agreeTo: '我已阅读并同意',
+    userAgreement: '《用户协议》',
+    privacyPolicy: '《隐私政策》',
+    and: '和',
+    pleaseAgreeToTerms: '请先阅读并同意用户协议和隐私政策',
   },
   dashboard: {
     title: '工作台',
