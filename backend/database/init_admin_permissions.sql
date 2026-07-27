@@ -150,6 +150,64 @@ FROM roles r
 WHERE r.code != 'admin' AND r.is_system = false
 ON CONFLICT (role_id, resource_type, action) DO NOTHING;
 
+-- P1 batch-11/12：为 admin 补齐 print/export action 权限码（否则导出/打印全量 403）
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+VALUES
+(1, 'purchases', 'print', true, NOW(), NOW()),
+(1, 'purchases', 'export', true, NOW(), NOW()),
+(1, 'sales', 'print', true, NOW(), NOW()),
+(1, 'sales', 'export', true, NOW(), NOW()),
+(1, 'inventory', 'print', true, NOW(), NOW()),
+(1, 'inventory', 'export', true, NOW(), NOW()),
+(1, 'finance', 'print', true, NOW(), NOW()),
+(1, 'finance', 'export', true, NOW(), NOW()),
+(1, 'customers', 'print', true, NOW(), NOW()),
+(1, 'customers', 'export', true, NOW(), NOW()),
+(1, 'suppliers', 'print', true, NOW(), NOW()),
+(1, 'suppliers', 'export', true, NOW(), NOW()),
+(1, 'products', 'print', true, NOW(), NOW()),
+(1, 'products', 'export', true, NOW(), NOW()),
+(1, 'warehouse', 'print', true, NOW(), NOW()),
+(1, 'warehouse', 'export', true, NOW(), NOW()),
+(1, 'orders', 'print', true, NOW(), NOW()),
+(1, 'orders', 'export', true, NOW(), NOW()),
+(1, 'color_card_issue', 'print', true, NOW(), NOW()),
+(1, 'color_card_issue', 'export', true, NOW(), NOW()),
+(1, 'audit', 'export', true, NOW(), NOW()),
+(1, 'reports', 'print', true, NOW(), NOW()),
+(1, 'reports', 'export', true, NOW(), NOW()),
+(1, 'dye_batches', 'print', true, NOW(), NOW()),
+(1, 'dye_batches', 'export', true, NOW(), NOW()),
+(1, 'wage_records', 'print', true, NOW(), NOW()),
+(1, 'wage_records', 'export', true, NOW(), NOW()),
+(1, 'energy', 'print', true, NOW(), NOW()),
+(1, 'energy', 'export', true, NOW(), NOW())
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- P1 batch-11/12：为业务角色（sales_manager/warehouse_manager 等）补齐基础权限矩阵
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, t.resource_type, t.action, true, NOW(), NOW()
+FROM roles r
+CROSS JOIN (
+    VALUES
+    ('dashboard', 'read'),
+    ('customers', 'read'), ('customers', 'create'), ('customers', 'update'),
+    ('suppliers', 'read'), ('suppliers', 'create'), ('suppliers', 'update'),
+    ('products', 'read'), ('products', 'create'), ('products', 'update'),
+    ('orders', 'read'), ('orders', 'create'), ('orders', 'update'), ('orders', 'approve'),
+    ('purchases', 'read'), ('purchases', 'create'), ('purchases', 'update'), ('purchases', 'approve'),
+    ('inventory', 'read'), ('inventory', 'create'), ('inventory', 'update'),
+    ('warehouse', 'read'),
+    ('reports', 'read'), ('reports', 'export'),
+    ('dye_batches', 'read'), ('dye_batches', 'export'),
+    ('color_card_issue', 'read'), ('color_card_issue', 'create'),
+    ('wage_records', 'read'), ('wage_records', 'export'),
+    ('energy', 'read'), ('energy', 'export')
+) AS t(resource_type, action)
+WHERE r.code IN ('sales_manager', 'warehouse_manager', 'production_manager', 'cost_accountant')
+  AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
 -- 验证插入结果
 SELECT rp.*, r.name as role_name 
 FROM role_permissions rp

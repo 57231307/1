@@ -118,6 +118,8 @@ pub async fn bootstrap_full_mode(
     start_export_compliance_scheduler(&app_state);
     // V15 P1 batch-16 缺陷 8.3/8.4：追踪数据 90 天保留策略（page_views/user_behaviors 归档清理）
     start_tracking_cleanup_scheduler(&app_state);
+    // P1 batch-18 缺陷 7.2：库存告警通知调度器（扫描库存告警 + 推送通知）
+    start_stock_alert_notification_scheduler(&app_state);
     init_event_bus(&app_state, settings).await;
     init_assist_dimensions(&app_state).await;
     init_es_indices().await;
@@ -620,6 +622,20 @@ fn start_tracking_cleanup_scheduler(app_state: &AppState) {
         retention_days,
         "追踪数据 90 天保留策略任务已启动（默认每 24 小时扫描一次过期 page_views/user_behaviors 明细并归档）"
     );
+}
+
+/// P1 batch-18 缺陷 7.2：启动库存告警通知调度器
+fn start_stock_alert_notification_scheduler(app_state: &AppState) {
+    let scheduler = std::sync::Arc::new(
+        crate::services::stock_alert_notification_scheduler::StockAlertNotificationScheduler::new(
+            app_state.db.clone(),
+        ),
+    );
+    let handle = scheduler.start_background_task();
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!("库存告警通知调度器已启动（默认每 6 小时扫描全量库存并推送告警通知）");
 }
 
 /// 启动事件总线监听器并按 Kafka 配置初始化事件总线。

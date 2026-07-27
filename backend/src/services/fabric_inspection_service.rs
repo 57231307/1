@@ -504,6 +504,15 @@ impl FabricInspectionService {
             inspector_id: updated.inspector_id,
         }).await;
 
+        // V15 Batch05-P1-3：发布 FabricInspectionGraded 事件（A/B/C 级流向：入库/降级/返工）
+        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::FabricInspectionGraded {
+            inspection_id: updated.id,
+            batch_id: None,
+            grade: updated.abc_grade.clone().unwrap_or_else(|| updated.grade.clone().unwrap_or_default()),
+            handling_method: None,
+            inspector_id: updated.inspector_id,
+        }).await;
+
         Ok(updated)
     }
 

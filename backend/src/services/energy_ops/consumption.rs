@@ -142,6 +142,16 @@ impl EnergyConsumptionService {
         self.sync_meter_readings(req.meter_id, calc.previous_reading, calc.current_reading, now)
             .await?;
 
+        // V15 Batch05-P1-3：发布 EnergyConsumptionRecorded 事件（能耗异常告警/月末分摊被动触发）
+        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::EnergyConsumptionRecorded {
+            record_id: result.id,
+            workshop: result.workshop.clone(),
+            meter_type: result.meter_type.clone(),
+            consumption: result.consumption,
+            cost: result.total_cost,
+            recorded_at: result.recorded_at.with_timezone(&chrono::Utc),
+        });
+
         Ok(result)
     }
 

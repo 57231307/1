@@ -174,6 +174,27 @@ impl StepRecordService {
         active.updated_at = Set(now);
 
         let updated = active.update(&*self.db).await?;
+
+        // V15 Batch05-P1-3：发布 ProcessStepReported 事件（工序进度实时感知）
+        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::ProcessStepReported {
+            step_record_id: updated.id,
+            flow_card_id: updated.flow_card_id,
+            route_code: updated.route_code.clone(),
+            operator_id: updated.created_by,
+            started_at: Some(updated.start_at.with_timezone(&chrono::Utc)),
+            completed_at: updated.end_at.map(|dt| dt.with_timezone(&chrono::Utc)),
+            quantity: updated.actual_quantity,
+        });
+
+        // V15 Batch05-P1-3：发布 ProductionQuantityReported 事件（驱动工资计算/成本归集）
+        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::ProductionQuantityReported {
+            step_record_id: updated.id,
+            flow_card_id: updated.flow_card_id,
+            operator_id: updated.created_by,
+            actual_quantity: updated.actual_quantity.unwrap_or_default(),
+            qualified_quantity: updated.qualified_quantity.unwrap_or_default(),
+        });
+
         Ok(updated)
     }
 

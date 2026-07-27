@@ -259,8 +259,10 @@ pub mod export_service;
 pub mod print_service;
 // 审计日志清理服务
 pub mod audit_cleanup_service;
-// V15 P1 20.8-B：日志文件保留期清理服务（90 天自动清理滚动日志）
+/// P1 20.8-B：日志 90 天保留期清理
 pub mod log_cleanup_service;
+/// P1 batch-18 缺陷 7.2：库存告警通知调度器
+pub mod stock_alert_notification_scheduler;
 // 敏感操作告警服务
 pub mod sensitive_action_alert;
 // 增强日志服务

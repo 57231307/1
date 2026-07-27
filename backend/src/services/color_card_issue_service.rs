@@ -124,9 +124,7 @@ pub struct ListIssuesQuery {
     pub sales_order_id: Option<i64>,
 }
 
-/// 发放参数（封装以避免 clippy::too_many_arguments）
-///
-/// 由 handler 从 DTO 转换而来，传给 ColorCardIssueService::issue。
+/// 发放参数（封装以避免 clippy::too_many_arguments，由 handler 从 DTO 转换而来）
 #[derive(Debug, Clone)]
 pub struct IssueParams {
     pub color_card_id: i64,
@@ -141,10 +139,7 @@ pub struct IssueParams {
     pub sales_order_id: Option<i64>,
 }
 
-/// V15 P1 缺陷 10.2-4：客户专属色卡库视图
-///
-/// 查询客户当前持有的色卡（status=issued），用于客户色卡库管理。
-/// 包含色卡基础信息 + 发放记录关键信息（dye_lot_no / issued_at / expected_return_date）。
+/// V15 P1 缺陷 10.2-4：客户专属色卡库视图（status=issued，含发放记录关键信息）
 #[derive(Debug, Clone, Serialize)]
 pub struct CustomerColorCardView {
     pub issue_id: i64,
@@ -159,10 +154,7 @@ pub struct CustomerColorCardView {
     pub status: String,
 }
 
-/// V15 P1 缺陷 10.3-2：复购同缸号查询结果
-///
-/// 返回客户历史发放过的色卡 + 同缸号当前库存可用量，
-/// 用于支持面料行业"复购同缸号颜色一致"业务。
+/// V15 P1 缺陷 10.3-2：复购同缸号查询结果（含客户历史发放色卡 + 同缸号当前库存可用量）
 #[derive(Debug, Clone, Serialize)]
 pub struct ReorderDyeLotView {
     pub color_card_id: i64,
@@ -189,14 +181,7 @@ impl ColorCardIssueService {
         Self::new(state.db.clone())
     }
 
-    /// V15 P0-F08：5 道发放前闸门校验
-    ///
-    /// 校验顺序（任一失败即拒绝发放）：
-    /// 1. 卡片状态 = active
-    /// 2. 发放数量 > 0（库存数量 >= 发放数量，色卡单张发放）
-    /// 3. 客户信用额度 > 0（未超额）
-    /// 4. 客户无未归还超期记录
-    /// 5. 客户状态 = active（白名单校验）
+    /// V15 P0-F08：5 道发放前闸门校验（任一失败即拒绝：active/qty>0/信用未超额/无超期/客户active）
     async fn validate_issue_gates(
         &self,
         color_card_id: i64,
@@ -313,9 +298,7 @@ impl ColorCardIssueService {
         Ok(())
     }
 
-    /// 创建发放记录
-    ///
-    /// 5 道闸门校验通过后，在事务内插入 color_card_issues 记录并扣减色卡库存（V15 P0-F10）
+    /// 创建发放记录（5 道闸门校验通过后，事务内插入记录并扣减色卡库存，V15 P0-F10）
     pub async fn issue(
         &self,
         params: IssueParams,
@@ -377,12 +360,21 @@ impl ColorCardIssueService {
         card_active.update(&txn).await?;
 
         txn.commit().await?;
+
+        // V15 Batch05-P1-3：发布 ColorCardIssued 事件（色卡库存扣减/过期回收/客户对色反馈）
+        // 严格在事务 commit 之后发布，避免事件先于数据持久化被消费端读到
+        crate::services::event_bus::publish(crate::services::event_bus::BusinessEvent::ColorCardIssued {
+            issue_id: result.id as i32,
+            color_card_id: result.color_card_id as i32,
+            customer_id: result.customer_id.map(|x| x as i32),
+            issued_by: result.issued_by.map(|x| x as i32),
+            issued_at: result.issued_at,
+        });
+
         Ok(result)
     }
 
-    /// 归还色卡
-    ///
-    /// V15 P0-F10：归还后 issued_quantity -= issue_qty（库存恢复可用）
+    /// 归还色卡（V15 P0-F10：归还后 issued_quantity -= issue_qty，库存恢复可用）
     pub async fn return_card(
         &self,
         record_id: i64,
@@ -436,10 +428,7 @@ impl ColorCardIssueService {
         Ok(result)
     }
 
-    /// 登记遗失（含赔付金额）
-    ///
-    /// V15 P0-F10：遗失后 issued_quantity -= issue_qty（色卡永久丢失，既不算库存也不算已发放）
-    /// 色卡状态变更为 lost，整个色卡不可再用
+    /// 登记遗失（含赔付金额，V15 P0-F10：issued_quantity -= issue_qty，色卡状态变 lost 不可再用）
     pub async fn mark_lost(
         &self,
         record_id: i64,
@@ -495,9 +484,7 @@ impl ColorCardIssueService {
         Ok(updated)
     }
 
-    /// 标记损坏
-    ///
-    /// V15 P0-F10：损坏后 issued_quantity -= issue_qty（损坏的色卡不可再用，从已发放中扣除）
+    /// 标记损坏（V15 P0-F10：issued_quantity -= issue_qty，损坏色卡不可再用从已发放中扣除）
     pub async fn mark_damaged(
         &self,
         record_id: i64,
@@ -553,10 +540,7 @@ impl ColorCardIssueService {
         Ok(result)
     }
 
-    /// 取消发放记录
-    ///
-    /// 仅允许 Issued 状态取消，取消后为终态不可再变更
-    /// V15 P0-F10：取消后 issued_quantity -= issue_qty（库存恢复，等同从未发放）
+    /// 取消发放记录（仅 Issued 状态可取消，终态不可变更；V15 P0-F10：issued_quantity -= issue_qty 库存恢复）
     pub async fn cancel_issue(
         &self,
         record_id: i64,
@@ -657,10 +641,7 @@ impl ColorCardIssueService {
         Ok((items, total))
     }
 
-    /// V15 P1 缺陷 10.3-1：按销售订单 ID 查询色卡发放记录
-    ///
-    /// 支持订单驱动发放色卡场景：销售订单详情页查看关联的色卡发放记录。
-    /// 仅返回未软删除的记录，按发放时间倒序排列。
+    /// V15 P1 缺陷 10.3-1：按销售订单 ID 查询色卡发放记录（订单驱动场景，未软删除记录按发放时间倒序）
     pub async fn list_by_sales_order(
         &self,
         sales_order_id: i64,
@@ -674,15 +655,8 @@ impl ColorCardIssueService {
         Ok(items)
     }
 
-    /// V15 P1 缺陷 10.2-4：查询客户专属色卡库
-    ///
-    /// 返回客户当前持有的色卡（status='issued'），用于客户色卡库管理。
-    /// 包含色卡基础信息 + 发放记录关键信息（dye_lot_no / issued_at / expected_return_date）。
-    ///
-    /// 业务场景：
-    /// - 销售查看客户已有的色卡，避免重复发放
-    /// - 客户服务跟进客户色卡使用情况
-    /// - 复购时按缸号匹配历史色卡
+    /// V15 P1 缺陷 10.2-4：查询客户专属色卡库（status='issued'，含色卡+发放记录信息）
+    // 业务场景：销售避免重复发放/客户服务跟进/复购按缸号匹配历史色卡
     pub async fn list_customer_color_cards(
         &self,
         customer_id: i64,
@@ -737,16 +711,8 @@ impl ColorCardIssueService {
         Ok(views)
     }
 
-    /// V15 P1 缺陷 10.3-2：复购同缸号查询
-    ///
-    /// 查询客户历史发放过的色卡 + 同缸号当前库存可用量，
-    /// 用于支持面料行业"复购同缸号颜色一致"业务。
-    ///
-    /// 业务场景：
-    /// - 客户复购时，销售查询历史色卡缸号，确保同缸号颜色一致
-    /// - 库存不足时提示销售重新排产同缸号面料
-    ///
-    /// 返回：按 last_issued_at 倒序的同缸号色卡列表（含库存可用量）
+    /// V15 P1 缺陷 10.3-2：复购同缸号查询（按 last_issued_at 倒序返回同缸号色卡+库存可用量）
+    // 业务场景：复购同缸号颜色一致；库存不足时提示重新排产
     pub async fn query_reorder_dye_lot(
         &self,
         customer_id: i64,
@@ -811,18 +777,9 @@ impl ColorCardIssueService {
         Ok(views)
     }
 
-    /// V15 P1 缺陷 10.4-3：记录色卡发放关键操作审计日志
-    ///
-    /// 5 类操作审计：发放 / 归还 / 遗失 / 损坏 / 取消
-    /// 由 handler 在调用业务方法后调用本方法（best-effort，不阻塞业务）。
-    ///
-    /// 参数：
-    /// - `audit_service`：审计日志服务（来自 AppState）
-    /// - `operation`：操作类型（issue / return / lost / damaged / cancel）
-    /// - `operator_id`：操作人 ID
-    /// - `operator_name`：操作人用户名
-    /// - `record`：被操作的发放记录
-    /// - `before`：变更前快照（None 表示新建）
+    /// V15 P1 缺陷 10.4-3：记录色卡发放审计日志（5类操作：发放/归还/遗失/损坏/取消，best-effort 不阻塞业务）
+    // 参数：audit_service 来自 AppState；operation=issue/return/lost/damaged/cancel；
+    // operator_id/operator_name=操作人；record=被操作记录；before=变更前快照（None 表示新建）
     pub fn record_issue_audit(
         &self,
         audit_service: Arc<AuditLogService>,

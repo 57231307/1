@@ -82,11 +82,8 @@ fn extract_route_info(
     (resource_type, resource_id, action)
 }
 
-/// V15 P1-5-3：认证豁免 RBAC 的路径清单（仍需 JWT 认证，仅跳过权限码校验）
-///
-/// 这些端点仅需认证（AuthContext），不要求特定权限码：
-/// - /audit-logs/record-print：前端打印审计埋点，任何已认证用户均可上报
-///   安全理由：审计埋点是无副作用的日志写入，不应因权限配置缺失而漏报
+/// V15 P1-5-3：认证豁免 RBAC 的路径清单（仅跳过权限码校验，仍需 JWT 认证）
+// 端点：/audit-logs/record-print（前端打印审计埋点，任何已认证用户均可上报，无副作用）
 const AUTH_ONLY_PATHS: &[&str] = &["/api/v1/erp/audit-logs/record-print"];
 
 /// V15 P1-5-3：检查路径是否仅需认证（跳过 RBAC 权限码校验）
@@ -358,10 +355,7 @@ static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permissio
 /// 权限缓存TTL（5分钟）
 const PERMISSION_CACHE_TTL: i64 = 5;
 
-/// V15 P0-S07：失效指定角色的权限缓存（角色权限变更或删除时调用）
-///
-/// V15 P1-14.9-C：同时发布 Redis pub/sub 通知，多实例部署时其他实例同步失效缓存。
-/// 无 Redis 时仅本地失效（单实例模式）。
+/// V15 P0-S07：失效指定角色的权限缓存（P1-14.9-C 同步发布 Redis pub/sub，多实例失效）
 pub fn invalidate_permission_cache(role_id: i32) {
     PERMISSION_CACHE.remove(&role_id);
     tracing::info!(role_id, "权限缓存已失效");
@@ -373,9 +367,7 @@ pub fn invalidate_permission_cache(role_id: i32) {
     });
 }
 
-/// V15 P0-S07：失效全部权限缓存（大规模权限变更时调用）
-///
-/// V15 P1-14.9-C：同时发布 Redis pub/sub "ALL" 通知，多实例部署时其他实例同步清空。
+/// V15 P0-S07：失效全部权限缓存（P1-14.9-C 同步发布 Redis pub/sub "ALL"，多实例清空）
 pub fn invalidate_all_permission_cache() {
     PERMISSION_CACHE.clear();
     tracing::info!("全部权限缓存已失效");
@@ -388,14 +380,9 @@ pub fn invalidate_all_permission_cache() {
 /// V15 P1-14.9-C：权限缓存失效 Redis pub/sub 频道名
 const PERMISSION_CACHE_INVALIDATION_CHANNEL: &str = "permission_cache_invalidation";
 
-/// V15 P1-14.9-C：启动权限缓存 Redis pub/sub 订阅器（应用启动时调用）。
-///
-/// 行为：订阅 `permission_cache_invalidation` 频道，收到消息后：
-/// - "ALL" → 失效全部本地权限缓存
-/// - "<role_id>" → 失效指定 role_id 的本地权限缓存
-///
-/// 无 Redis 时为 no-op（单实例模式由 invalidate_permission_cache 直接本地失效）。
-/// 失败不阻塞应用启动：Redis 连接失败时记录 warn 并退出。
+/// V15 P1-14.9-C：启动权限缓存 Redis pub/sub 订阅器（应用启动时调用）
+// 行为：订阅频道，"ALL"→清空本地缓存，"<role_id>"→失效指定角色缓存；
+// 无 Redis 时 no-op；Redis 连接失败仅 warn 不阻塞启动
 pub async fn start_permission_cache_pubsub_subscriber() {
     let Some(url) = crate::utils::redis_cache::get_redis_url() else {
         tracing::info!("未配置 Redis，权限缓存多实例广播降级为单实例本地失效");
@@ -446,32 +433,18 @@ pub async fn start_permission_cache_pubsub_subscriber() {
     tracing::warn!("权限缓存 Redis Pub/Sub 订阅器流结束（Redis 连接断开或服务器关闭）");
 }
 
-/// V15 P1-2-4：禁止打印操作的角色清单（role code）
-///
-/// customer 角色为外部用户，不应打印任何业务单据（销售订单/合同/采购单等）。
-/// 列入此清单的角色即使持有 print 权限码也会被拒绝。
+/// V15 P1-2-4：禁止打印操作的角色清单（customer/temporary 即使持有 print 权限码也拒绝）
 const PRINT_DENIED_ROLE_CODES: &[&str] = &["customer", "temporary"];
 
-/// V15 P1-2-4：禁止导出操作的角色清单（role code）
-///
-/// customer 角色为外部用户，不应导出任何业务数据（客户列表/订单/凭证等）。
-/// temporary 角色为临时账号，不应导出敏感数据。
+/// V15 P1-2-4：禁止导出操作的角色清单（customer 外部用户/temporary 临时账号）
 const EXPORT_DENIED_ROLE_CODES: &[&str] = &["customer", "temporary"];
 
-/// V15 P1-2-4：染色配方导出额外禁止的角色清单
-///
-/// 染色配方为企业核心技术机密，仅 dye_recipe_master 角色可导出，
-/// 其他业务角色（含 manager/operator）一律禁止。
+/// V15 P1-2-4：染色配方导出额外禁止的角色清单（仅 dye_recipe_master 可导出）
 const DYE_RECIPE_EXPORT_DENIED_ROLE_CODES: &[&str] =
     &["customer", "temporary", "manager", "operator", "sales", "purchase", "warehouse"];
 
-/// V15 P1-2-4：检查角色是否被禁止执行指定动作
-///
-/// 规则：
-/// - action == "print"：检查 PRINT_DENIED_ROLE_CODES
-/// - action == "export"：检查 EXPORT_DENIED_ROLE_CODES
-/// - resource_type == "dye_recipe" && action == "export"：检查 DYE_RECIPE_EXPORT_DENIED_ROLE_CODES
-/// - 其他动作：不禁止（返回 false）
+/// V15 P1-2-4：检查角色是否被禁止执行指定动作（print/export/dye_recipe export 三类规则）
+// 规则：action="print"→PRINT_DENIED；action="export"→EXPORT_DENIED；dye_recipe+export→DYE_RECIPE_EXPORT_DENIED
 async fn is_action_denied_for_role(
     db: &sea_orm::DatabaseConnection,
     role_id: i32,
