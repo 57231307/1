@@ -2,7 +2,7 @@
 
 > 每个任务一行摘要，是 doto-su.md 中详细任务内容的一句话总结。禁止写入详细内容。
 > 详细任务内容见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，未完成任务见 [doto.md](file:///workspace/.monkeycode/doto.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近整理：2026-07-27（D14 API 命名统一全部完成并合并 main（PR #737 9768bbe）：4 处不规范命名修复 listAuditLogs→getAuditLogList / listSlowQueries→getSlowQueryList / addTagToCustomer→createTagForCustomer / removeTagFromCustomer→deleteTagFromCustomer，0 残留；模块 G 17/17 项 P0 全部完成，P0 完成数 103→104，P0 阻塞级任务 100% 完成）
+> 最近整理：2026-07-27（P0 任务完成情况真实复审：D08/D09/D10 三项重新打开 —— 代码级扫描发现 D08 剩 18 个 >80 行函数 / D09 剩 9 个 >100 行函数 / D10 剩 2 个 >1000 行文件；其余 14 项 ✅ 真实完成；P0 完成数 17→14，完成率 100%→82.4%）
 
 ---
 
