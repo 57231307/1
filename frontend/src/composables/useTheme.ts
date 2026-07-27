@@ -5,83 +5,83 @@
  * import { useTheme } from '@/composables/useTheme'
  * const { isDark, toggleTheme, setTheme } = useTheme()
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue';
 
-type ThemeMode = 'light' | 'dark'
+type ThemeMode = 'light' | 'dark';
 
-const STORAGE_KEY = 'bx-erp-theme'
-const DARK_CLASS = 'dark'
+const STORAGE_KEY = 'bx-erp-theme';
+const DARK_CLASS = 'dark';
 
-const currentMode = ref<ThemeMode>('light')
+const currentMode = ref<ThemeMode>('light');
 
 function applyTheme(mode: ThemeMode) {
-  const html = document.documentElement
+  const html = document.documentElement;
   if (mode === 'dark') {
-    html.classList.add(DARK_CLASS)
-    html.setAttribute('data-theme', 'dark')
+    html.classList.add(DARK_CLASS);
+    html.setAttribute('data-theme', 'dark');
   } else {
-    html.classList.remove(DARK_CLASS)
-    html.setAttribute('data-theme', 'light')
+    html.classList.remove(DARK_CLASS);
+    html.setAttribute('data-theme', 'light');
   }
 }
 
 function loadStoredTheme(): ThemeMode {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'dark' || stored === 'light') {
-      return stored
+      return stored;
     }
   } catch {
     // localStorage 不可用时降级
   }
   // 默认跟随系统偏好
   if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    return 'dark'
+    return 'dark';
   }
-  return 'light'
+  return 'light';
 }
 
 export function useTheme() {
-  const isDark = computed(() => currentMode.value === 'dark')
+  const isDark = computed(() => currentMode.value === 'dark');
 
   const setTheme = (mode: ThemeMode) => {
-    currentMode.value = mode
-    applyTheme(mode)
+    currentMode.value = mode;
+    applyTheme(mode);
     try {
-      localStorage.setItem(STORAGE_KEY, mode)
+      localStorage.setItem(STORAGE_KEY, mode);
     } catch {
       // 忽略存储错误
     }
-  }
+  };
 
   const toggleTheme = () => {
-    setTheme(currentMode.value === 'dark' ? 'light' : 'dark')
-  }
+    setTheme(currentMode.value === 'dark' ? 'light' : 'dark');
+  };
 
   // 监听系统主题变化（用户未手动设置时跟随）
   const watchSystemTheme = () => {
-    if (!window.matchMedia) return
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    if (!window.matchMedia) return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = (e: MediaQueryListEvent) => {
       // 仅在用户未手动设置时跟随系统
-      const stored = localStorage.getItem(STORAGE_KEY)
+      const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) {
-        setTheme(e.matches ? 'dark' : 'light')
+        setTheme(e.matches ? 'dark' : 'light');
       }
-    }
-    mediaQuery.addEventListener('change', handler)
-  }
+    };
+    mediaQuery.addEventListener('change', handler);
+  };
 
   onMounted(() => {
-    currentMode.value = loadStoredTheme()
-    applyTheme(currentMode.value)
-    watchSystemTheme()
-  })
+    currentMode.value = loadStoredTheme();
+    applyTheme(currentMode.value);
+    watchSystemTheme();
+  });
 
   return {
     isDark,
     currentMode: computed(() => currentMode.value),
     setTheme,
     toggleTheme,
-  }
+  };
 }

@@ -18,10 +18,10 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import VoucherListTab from './tabs/VoucherListTab.vue'
+import { useI18n } from 'vue-i18n';
+import VoucherListTab from './tabs/VoucherListTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <style scoped>

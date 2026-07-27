@@ -80,68 +80,68 @@
       v-model:visible="backupDialogVisible"
       :form="upd.backupForm"
       :submit-loading="upd.backupSubmitLoading"
-      @update:form="(v) => Object.assign(upd.backupForm, v)"
+      @update:form="v => Object.assign(upd.backupForm, v)"
       @submit="onBackupSubmit"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Refresh, FolderAdd } from '@element-plus/icons-vue'
-import { useSysUpd } from './composables/useSysUpd'
-import { useSysUpdProc } from './composables/useSysUpdProc'
-import * as sysUpdFmts from './composables/sysUpdFmts'
-import SystemUpdateVersionTab from './tabs/SystemUpdateVersionTab.vue'
-import SystemUpdateTaskTab from './tabs/SystemUpdateTaskTab.vue'
-import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue'
-import SystemUpdateInfoCards from './components/SystemUpdateInfoCards.vue'
-import SystemUpdateVersionDetail from './components/SystemUpdateVersionDetail.vue'
-import SystemUpdateBackupForm from './components/SystemUpdateBackupForm.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Refresh, FolderAdd } from '@element-plus/icons-vue';
+import { useSysUpd } from './composables/useSysUpd';
+import { useSysUpdProc } from './composables/useSysUpdProc';
+import * as sysUpdFmts from './composables/sysUpdFmts';
+import SystemUpdateVersionTab from './tabs/SystemUpdateVersionTab.vue';
+import SystemUpdateTaskTab from './tabs/SystemUpdateTaskTab.vue';
+import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue';
+import SystemUpdateInfoCards from './components/SystemUpdateInfoCards.vue';
+import SystemUpdateVersionDetail from './components/SystemUpdateVersionDetail.vue';
+import SystemUpdateBackupForm from './components/SystemUpdateBackupForm.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('versions')
+const activeTab = ref('versions');
 
 // 批次 283：useSysUpd 返回 reactive 包装，改为 upd.xxx 访问
-const upd = useSysUpd()
+const upd = useSysUpd();
 
 // 流程性方法（下载/安装/回滚/取消/恢复/下载备份/删除）
 const proc = useSysUpdProc({
   fetchVersions: upd.fetchVersions,
   fetchTasks: upd.fetchTasks,
   fetchBackups: upd.fetchBackups,
-})
+});
 
 // 状态类型映射（el-tag type，非文本，不需 i18n）+ 文件大小格式化（来自 sysUpdFmts 工具）
-const { VERSION_STATUS_TYPE, TASK_STATUS_TYPE, BACKUP_STATUS_TYPE, formatFileSize } = sysUpdFmts
+const { VERSION_STATUS_TYPE, TASK_STATUS_TYPE, BACKUP_STATUS_TYPE, formatFileSize } = sysUpdFmts;
 
 // 模板里用 statusTypeMap 短名（与子组件 props 名称对齐）
-const versionStatusTypeMap = VERSION_STATUS_TYPE
-const taskStatusTypeMap = TASK_STATUS_TYPE
-const backupStatusTypeMap = BACKUP_STATUS_TYPE
+const versionStatusTypeMap = VERSION_STATUS_TYPE;
+const taskStatusTypeMap = TASK_STATUS_TYPE;
+const backupStatusTypeMap = BACKUP_STATUS_TYPE;
 
 // 对话框可见性本地 ref
-const versionDetailVisible = ref(false)
-const backupDialogVisible = ref(false)
+const versionDetailVisible = ref(false);
+const backupDialogVisible = ref(false);
 
 /** 打开创建备份对话框 */
 const onOpenBackupDialog = () => {
-  upd.resetBackupForm()
-  backupDialogVisible.value = true
-}
+  upd.resetBackupForm();
+  backupDialogVisible.value = true;
+};
 
 /** 提交备份表单 */
 const onBackupSubmit = async () => {
-  const ok = await upd.handleBackupSubmit()
-  if (ok) backupDialogVisible.value = false
-}
+  const ok = await upd.handleBackupSubmit();
+  if (ok) backupDialogVisible.value = false;
+};
 
 // 批次 283：移除 3 个 fetch（useTableApi setup 自动加载），保留 fetchCurrentVersion
 onMounted(() => {
-  upd.fetchCurrentVersion()
-})
+  upd.fetchCurrentVersion();
+});
 </script>
 
 <style scoped>

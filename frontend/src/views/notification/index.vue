@@ -129,10 +129,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getNotification,
   markAsRead,
@@ -140,13 +140,13 @@ import {
   deleteNotification,
   getUnreadCount,
   type Notification,
-} from '@/api/notification'
-import { useTableApi } from '@/composables/useTableApi'
+} from '@/api/notification';
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const unreadCount = ref(0)
-const statusFilter = ref('')
+const unreadCount = ref(0);
+const statusFilter = ref('');
 
 // 批次 275：接入 useTableApi，消除手写 notificationList/pagination/fetchNotifications 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -161,78 +161,78 @@ const {
   url: '/notifications',
   pageSizeKey: 'page_size',
   onError: () => ElMessage.error(t('notification.index.messageLoadListFailed')),
-})
+});
 
 // 批次 275：同步筛选条件到 useTableApi.queryParams
 // statusFilter 变化时调用此函数（模板 @change="handleStatusFilterChange"）
 const handleStatusFilterChange = () => {
-  setQueryParam('status', statusFilter.value || undefined)
-  page.value = 1
-  fetchNotifications()
-}
+  setQueryParam('status', statusFilter.value || undefined);
+  page.value = 1;
+  fetchNotifications();
+};
 
-const detailDialogVisible = ref(false)
-const currentNotification = ref<Notification | null>(null)
+const detailDialogVisible = ref(false);
+const currentNotification = ref<Notification | null>(null);
 
 const fetchUnreadCount = async () => {
   try {
-    const res = await getUnreadCount()
+    const res = await getUnreadCount();
     if (res.data !== undefined) {
-      unreadCount.value = res.data
+      unreadCount.value = res.data;
     }
   } catch (e) {
     // 忽略错误
   }
-}
+};
 
 const handleView = async (item: Notification) => {
-  if (!item.id) return
+  if (!item.id) return;
 
   try {
-    const res = await getNotification(item.id)
+    const res = await getNotification(item.id);
     if (res.data) {
-      currentNotification.value = res.data
-      detailDialogVisible.value = true
-      fetchNotifications()
-      fetchUnreadCount()
+      currentNotification.value = res.data;
+      detailDialogVisible.value = true;
+      fetchNotifications();
+      fetchUnreadCount();
     }
   } catch (e) {
-    ElMessage.error(t('notification.index.messageLoadDetailFailed'))
+    ElMessage.error(t('notification.index.messageLoadDetailFailed'));
   }
-}
+};
 
 const handleMarkRead = async (item: Notification) => {
-  if (!item.id) return
+  if (!item.id) return;
 
   try {
-    await markAsRead(item.id)
-    ElMessage.success(t('notification.index.messageMarkReadSuccess'))
-    fetchNotifications()
-    fetchUnreadCount()
+    await markAsRead(item.id);
+    ElMessage.success(t('notification.index.messageMarkReadSuccess'));
+    fetchNotifications();
+    fetchUnreadCount();
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('notification.index.messageOperationFailed')
-    )
+    );
   }
-}
+};
 
 const handleMarkAllRead = async () => {
   try {
-    await markAllAsRead()
-    ElMessage.success(t('notification.index.messageOperationSuccess'))
-    fetchNotifications()
-    fetchUnreadCount()
+    await markAllAsRead();
+    ElMessage.success(t('notification.index.messageOperationSuccess'));
+    fetchNotifications();
+    fetchUnreadCount();
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('notification.index.messageOperationFailed')
-    )
+    );
   }
-}
+};
 
 const handleDelete = async (item: Notification) => {
-  if (!item.id) return
+  if (!item.id) return;
 
   try {
     await ElMessageBox.confirm(
@@ -243,28 +243,28 @@ const handleDelete = async (item: Notification) => {
         cancelButtonText: t('notification.index.buttonCancel'),
         type: 'warning',
       }
-    )
+    );
 
-    await deleteNotification(item.id)
-    ElMessage.success(t('notification.index.messageDeleteSuccess'))
-    fetchNotifications()
-    fetchUnreadCount()
+    await deleteNotification(item.id);
+    ElMessage.success(t('notification.index.messageDeleteSuccess'));
+    fetchNotifications();
+    fetchUnreadCount();
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('notification.index.messageDeleteFailed')
-      )
+      );
     }
   }
-}
+};
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 
 onMounted(() => {
   // 批次 275：useTableApi 构造时自动初始加载通知列表，无需手动调用 fetchNotifications
-  loadIfNot('unreadCount', fetchUnreadCount, hasLoaded)
-})
+  loadIfNot('unreadCount', fetchUnreadCount, hasLoaded);
+});
 </script>
 
 <style scoped>

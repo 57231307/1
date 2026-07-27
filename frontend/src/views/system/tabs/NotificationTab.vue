@@ -9,7 +9,11 @@
       <h2 class="page-title">{{ t('system.notification.title') }}</h2>
     </div>
     <el-card shadow="hover" style="max-width: 600px">
-      <el-form :model="notificationForm" label-width="140px" :aria-label="t('system.notification.aria.form')">
+      <el-form
+        :model="notificationForm"
+        label-width="140px"
+        :aria-label="t('system.notification.aria.form')"
+      >
         <el-form-item :label="t('system.notification.label.email')">
           <el-switch v-model="notificationForm.email_enabled" />
         </el-form-item>
@@ -46,7 +50,9 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="notifSaving" @click="saveNotificationSetting">{{ t('system.notification.button.save') }}</el-button>
+          <el-button type="primary" :loading="notifSaving" @click="saveNotificationSetting">{{
+            t('system.notification.button.save')
+          }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -54,24 +60,24 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { request } from '@/api/request'
+import { reactive, ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { request } from '@/api/request';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-type NotificationChannel = 'email' | 'internal' | 'both'
+type NotificationChannel = 'email' | 'internal' | 'both';
 
 interface NotificationForm {
-  email_enabled: boolean
-  internal_enabled: boolean
-  order_notification_type: NotificationChannel
-  approval_notification_type: NotificationChannel
-  inventory_notification_type: NotificationChannel
-  system_notification_type: NotificationChannel
-  purchase_notification_type: NotificationChannel
-  finance_notification_type: NotificationChannel
+  email_enabled: boolean;
+  internal_enabled: boolean;
+  order_notification_type: NotificationChannel;
+  approval_notification_type: NotificationChannel;
+  inventory_notification_type: NotificationChannel;
+  system_notification_type: NotificationChannel;
+  purchase_notification_type: NotificationChannel;
+  finance_notification_type: NotificationChannel;
 }
 
 const notificationForm = reactive<NotificationForm>({
@@ -83,37 +89,37 @@ const notificationForm = reactive<NotificationForm>({
   system_notification_type: 'internal',
   purchase_notification_type: 'both',
   finance_notification_type: 'both',
-})
+});
 
-const notifSaving = ref(false)
+const notifSaving = ref(false);
 
 const fetchNotificationSetting = async () => {
   try {
-    const res = await request.get<Partial<NotificationForm>>('/user/notification-setting')
+    const res = await request.get<Partial<NotificationForm>>('/user/notification-setting');
     if (res) {
-      Object.assign(notificationForm, res)
+      Object.assign(notificationForm, res);
     }
   } catch (_e) {
     // 静默：通知设置接口失败时不影响界面默认显示
   }
-}
+};
 
 const saveNotificationSetting = async () => {
-  notifSaving.value = true
+  notifSaving.value = true;
   try {
-    await request.put('/user/notification-setting', notificationForm)
-    ElMessage.success(t('system.notification.message.saveSuccess'))
+    await request.put('/user/notification-setting', notificationForm);
+    ElMessage.success(t('system.notification.message.saveSuccess'));
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('system.notification.message.saveFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('system.notification.message.saveFailed'));
   } finally {
-    notifSaving.value = false
+    notifSaving.value = false;
   }
-}
+};
 
-defineExpose({ refresh: fetchNotificationSetting })
+defineExpose({ refresh: fetchNotificationSetting });
 
 onMounted(() => {
-  fetchNotificationSetting()
-})
+  fetchNotificationSetting();
+});
 </script>

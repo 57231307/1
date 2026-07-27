@@ -12,21 +12,21 @@
       <template #header>
         <div class="header-row">
           <span class="title">{{ $t('adminFailover.title') }}</span>
-          <el-button :icon="Refresh" @click="loadData" :loading="loading">{{ $t('adminFailover.refresh') }}</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="loadData">{{
+            $t('adminFailover.refresh')
+          }}</el-button>
         </div>
       </template>
       <p class="description">
-        {{ $t('adminFailover.descriptionPrefix') }}<code>FailoverCall</code>{{ $t('adminFailover.descriptionSuffix') }}
+        {{ $t('adminFailover.descriptionPrefix') }}<code>FailoverCall</code
+        >{{ $t('adminFailover.descriptionSuffix') }}
       </p>
     </el-card>
 
     <!-- 状态卡片 -->
     <el-row :gutter="20" class="status-row">
       <el-col v-for="status in statuses" :key="status.function_name" :span="12">
-        <FailoverStatusCard
-          :status="status"
-          @switch="handleSwitch"
-        />
+        <FailoverStatusCard :status="status" @switch="handleSwitch" />
       </el-col>
     </el-row>
 
@@ -49,46 +49,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
+import { ref, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Refresh } from '@element-plus/icons-vue';
 import {
   getFailoverStatus,
   triggerSwitch,
   getFailoverHealth,
   type FailoverStatusDto,
   type FailoverEventDto,
-} from '@/api/failover'
-import FailoverStatusCard from './components/FailoverStatusCard.vue'
-import FailoverEventList from './components/FailoverEventList.vue'
-import FailoverMetrics from './components/FailoverMetrics.vue'
+} from '@/api/failover';
+import FailoverStatusCard from './components/FailoverStatusCard.vue';
+import FailoverEventList from './components/FailoverEventList.vue';
+import FailoverMetrics from './components/FailoverMetrics.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const loading = ref(false)
-const statuses = ref<FailoverStatusDto[]>([])
-const events = ref<FailoverEventDto[]>([])
-const health = ref<{ database: string; cache: string }>({ database: 'unknown', cache: 'unknown' })
+const loading = ref(false);
+const statuses = ref<FailoverStatusDto[]>([]);
+const events = ref<FailoverEventDto[]>([]);
+const health = ref<{ database: string; cache: string }>({ database: 'unknown', cache: 'unknown' });
 
-let timer: ReturnType<typeof setInterval> | null = null
+let timer: ReturnType<typeof setInterval> | null = null;
 
 /** 加载数据 */
 async function loadData() {
-  loading.value = true
+  loading.value = true;
   try {
     const [statusRes, healthRes] = await Promise.all([
       getFailoverStatus(),
       getFailoverHealth().catch(() => ({ data: { database: 'error', cache: 'error' } })),
-    ])
-    statuses.value = statusRes.statuses || []
-    events.value = statusRes.events || []
-    health.value = healthRes.data || { database: 'unknown', cache: 'unknown' }
+    ]);
+    statuses.value = statusRes.statuses || [];
+    events.value = statusRes.events || [];
+    health.value = healthRes.data || { database: 'unknown', cache: 'unknown' };
   } catch (err: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (err: any) 改为 unknown + 类型守卫
-    ElMessage.error(t('adminFailover.loadFailed', { msg: err instanceof Error ? err.message : String(err) }))
+    ElMessage.error(
+      t('adminFailover.loadFailed', { msg: err instanceof Error ? err.message : String(err) })
+    );
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
@@ -103,29 +105,31 @@ async function handleSwitch(functionName: string) {
         cancelButtonText: t('adminFailover.cancel'),
         type: 'warning',
       }
-    )
-    const res = await triggerSwitch(functionName)
-    ElMessage.success(res.data || t('adminFailover.switchSuccess'))
-    await loadData()
+    );
+    const res = await triggerSwitch(functionName);
+    ElMessage.success(res.data || t('adminFailover.switchSuccess'));
+    await loadData();
   } catch (err: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (err: any) 改为 unknown + 类型守卫
     if (err !== 'cancel') {
-      ElMessage.error(t('adminFailover.switchFailed', { msg: err instanceof Error ? err.message : String(err) }))
+      ElMessage.error(
+        t('adminFailover.switchFailed', { msg: err instanceof Error ? err.message : String(err) })
+      );
     }
   }
 }
 
 onMounted(() => {
-  loadData()
+  loadData();
   // 每 10 秒自动刷新
-  timer = setInterval(loadData, 10000)
-})
+  timer = setInterval(loadData, 10000);
+});
 
 onUnmounted(() => {
   if (timer) {
-    clearInterval(timer)
+    clearInterval(timer);
   }
-})
+});
 </script>
 
 <style scoped>

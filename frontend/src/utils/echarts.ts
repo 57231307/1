@@ -4,10 +4,10 @@
  * 仅注册项目实际使用的图表类型和组件，避免全量引入 echarts。
  * 使用方式：import { echarts } from '@/utils/echarts'
  */
-import * as echarts from 'echarts/core'
+import * as echarts from 'echarts/core';
 
 // 图表类型（按需引入）
-import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts'
+import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
 
 // 组件（按需引入）
 import {
@@ -21,10 +21,10 @@ import {
   ToolboxComponent,
   GraphicComponent,
   CalendarComponent,
-} from 'echarts/components'
+} from 'echarts/components';
 
 // 渲染器
-import { CanvasRenderer } from 'echarts/renderers'
+import { CanvasRenderer } from 'echarts/renderers';
 
 // 注册按需组件
 echarts.use([
@@ -46,9 +46,9 @@ echarts.use([
   CalendarComponent,
   // 渲染器
   CanvasRenderer,
-])
+]);
 
-export { echarts }
-export default echarts
-export type { ECharts, EChartsOption } from 'echarts'
-export type { BarSeriesOption, LineSeriesOption, PieSeriesOption } from 'echarts/charts'
+export { echarts };
+export default echarts;
+export type { ECharts, EChartsOption } from 'echarts';
+export type { BarSeriesOption, LineSeriesOption, PieSeriesOption } from 'echarts/charts';

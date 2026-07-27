@@ -10,11 +10,11 @@
  *
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  */
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
-import type { ImportTemplate, ImportTask } from '@/api/data-import'
-import { useTableApi } from '@/composables/useTableApi'
-import { logger } from '@/utils/logger'
+import { ref, reactive } from 'vue';
+import { ElMessage } from 'element-plus';
+import type { ImportTemplate, ImportTask } from '@/api/data-import';
+import { useTableApi } from '@/composables/useTableApi';
+import { logger } from '@/utils/logger';
 
 /**
  * 数据导入主业务 composable
@@ -23,7 +23,7 @@ import { logger } from '@/utils/logger'
  */
 export function useDi() {
   // 当前激活的 Tab
-  const activeTab = ref('templates')
+  const activeTab = ref('templates');
 
   // 模板列表接入 useTableApi
   // API 返回 ApiResponse<ImportTemplate[]>，data 为裸数组；useTableApi detectList 兼容裸数组
@@ -43,10 +43,10 @@ export function useDi() {
       module: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取模板列表失败', err)
-      ElMessage.error('获取模板列表失败')
+      logger.error('获取模板列表失败', err);
+      ElMessage.error('获取模板列表失败');
     },
-  })
+  });
 
   // 任务列表接入 useTableApi
   const {
@@ -64,22 +64,22 @@ export function useDi() {
       status: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取任务列表失败', err)
-      ElMessage.error('获取任务列表失败')
+      logger.error('获取任务列表失败', err);
+      ElMessage.error('获取任务列表失败');
     },
-  })
+  });
 
   /** 模板查询：重置页码，触发加载（筛选条件已由父组件同步到 queryParams） */
   const handleTemplateSearch = () => {
-    templatePage.value = 1
-    fetchTemplates()
-  }
+    templatePage.value = 1;
+    fetchTemplates();
+  };
 
   /** 任务查询：重置页码，触发加载（筛选条件已由父组件同步到 queryParams） */
   const handleTaskSearch = () => {
-    taskPage.value = 1
-    fetchTasks()
-  }
+    taskPage.value = 1;
+    fetchTasks();
+  };
 
   // 使用 reactive 包装，父组件可直接访问字段
   return reactive({
@@ -102,5 +102,5 @@ export function useDi() {
     taskQueryParams,
     fetchTasks,
     handleTaskSearch,
-  })
+  });
 }

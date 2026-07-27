@@ -56,7 +56,7 @@
       :date-range="prRtn.dateRange"
       @fetch="prRtn.handleQuery"
       @date-change="prRtn.handleDateChange"
-      @update:query-params="(v) => Object.assign(prRtn.queryParams, v)"
+      @update:query-params="v => Object.assign(prRtn.queryParams, v)"
     />
 
     <PurchaseReturnTable
@@ -84,79 +84,76 @@
       @product-change="prRtn.handleProductChange"
       @add-item="prRtn.handleAddItem"
       @remove-item="prRtn.handleRemoveItem"
-      @update:form-data="(v) => Object.assign(prRtn.formData, v)"
+      @update:form-data="v => Object.assign(prRtn.formData, v)"
     />
 
-    <PurchaseReturnDetail
-      v-model:visible="detailDialogVisible"
-      :detail-data="prRtn.detailData"
-    />
+    <PurchaseReturnDetail v-model:visible="detailDialogVisible" :detail-data="prRtn.detailData" />
 
     <PurchaseReturnApproval
       v-model:visible="prRtnProc.approveDialogVisible"
       :approve-form="prRtnProc.approveForm"
       @approve-confirm="prRtnProc.handleApproveConfirm"
       @reject="prRtnProc.handleReject"
-      @update:approve-form="(v) => Object.assign(prRtnProc.approveForm, v)"
+      @update:approve-form="v => Object.assign(prRtnProc.approveForm, v)"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Plus } from '@element-plus/icons-vue'
-import type { PurchaseReturn } from '@/api/purchase-return'
-import { usePrRtn } from './composables/usePrRtn'
-import { usePrRtnProc } from './composables/usePrRtnProc'
-import PurchaseReturnFilter from './components/PurchaseReturnFilter.vue'
-import PurchaseReturnTable from './components/PurchaseReturnTable.vue'
-import PurchaseReturnForm from './components/PurchaseReturnForm.vue'
-import PurchaseReturnDetail from './components/PurchaseReturnDetail.vue'
-import PurchaseReturnApproval from './components/PurchaseReturnApproval.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Plus } from '@element-plus/icons-vue';
+import type { PurchaseReturn } from '@/api/purchase-return';
+import { usePrRtn } from './composables/usePrRtn';
+import { usePrRtnProc } from './composables/usePrRtnProc';
+import PurchaseReturnFilter from './components/PurchaseReturnFilter.vue';
+import PurchaseReturnTable from './components/PurchaseReturnTable.vue';
+import PurchaseReturnForm from './components/PurchaseReturnForm.vue';
+import PurchaseReturnDetail from './components/PurchaseReturnDetail.vue';
+import PurchaseReturnApproval from './components/PurchaseReturnApproval.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const prRtn = usePrRtn()
+const prRtn = usePrRtn();
 const prRtnProc = usePrRtnProc({
   fetchData: prRtn.fetchData,
-})
+});
 
 // 对话框可见性
-const dialogVisible = ref(false)
-const isEdit = ref(false)
-const detailDialogVisible = ref(false)
+const dialogVisible = ref(false);
+const isEdit = ref(false);
+const detailDialogVisible = ref(false);
 
 /** 新建 */
 const onCreate = () => {
-  isEdit.value = false
-  prRtn.prepareCreate()
-  dialogVisible.value = true
-}
+  isEdit.value = false;
+  prRtn.prepareCreate();
+  dialogVisible.value = true;
+};
 
 /** 编辑 */
 const onEdit = (row: PurchaseReturn) => {
-  isEdit.value = true
-  prRtn.prepareEdit(row)
-  dialogVisible.value = true
-}
+  isEdit.value = true;
+  prRtn.prepareEdit(row);
+  dialogVisible.value = true;
+};
 
 /** 提交表单 */
 const onSubmitForm = async () => {
-  const ok = await prRtn.handleFormSubmit(isEdit.value)
-  if (ok) dialogVisible.value = false
-}
+  const ok = await prRtn.handleFormSubmit(isEdit.value);
+  if (ok) dialogVisible.value = false;
+};
 
 /** 查看详情 */
 const onView = async (row: PurchaseReturn) => {
-  await prRtn.fetchDetail(row.id!)
-  detailDialogVisible.value = true
-}
+  await prRtn.fetchDetail(row.id!);
+  detailDialogVisible.value = true;
+};
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据（供应商/采购单/产品）
 onMounted(() => {
-  prRtn.initLoad()
-})
+  prRtn.initLoad();
+});
 </script>
 
 <style scoped>

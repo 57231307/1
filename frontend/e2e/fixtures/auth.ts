@@ -12,7 +12,7 @@
  *   多上下文隔离测试显式调用（此类测试不依赖业务数据，只需页面可加载）
  * - 业务流程测试严禁调用 mockBusinessApi（违反规则 5）
  */
-import type { BrowserContext, Page } from '@playwright/test'
+import type { BrowserContext, Page } from '@playwright/test';
 
 /** 测试用户信息（mock，仅 smoke 测试用） */
 const MOCK_USER = {
@@ -22,41 +22,38 @@ const MOCK_USER = {
   role_id: 1,
   role_name: '超级管理员',
   permissions: ['*'],
-} as const
+} as const;
 
 /** mock JWT header */
-const MOCK_JWT_HEADER = { alg: 'HS256', typ: 'JWT' } as const
+const MOCK_JWT_HEADER = { alg: 'HS256', typ: 'JWT' } as const;
 
 /**
  * 生成一个合法格式的 JWT token（路由只校验格式 + exp，不验证签名）
  */
 export function generateFakeJwt(): string {
-  const header = Buffer.from(JSON.stringify(MOCK_JWT_HEADER)).toString('base64url')
-  const exp = Math.floor(Date.now() / 1000) + 3600
-  const payload = Buffer.from(JSON.stringify({ user_id: MOCK_USER.id, exp })).toString('base64url')
-  const sig = Buffer.from('fake-signature-for-smoke-test-only').toString('base64url')
-  return `${header}.${payload}.${sig}`
+  const header = Buffer.from(JSON.stringify(MOCK_JWT_HEADER)).toString('base64url');
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const payload = Buffer.from(JSON.stringify({ user_id: MOCK_USER.id, exp })).toString('base64url');
+  const sig = Buffer.from('fake-signature-for-smoke-test-only').toString('base64url');
+  return `${header}.${payload}.${sig}`;
 }
 
 /**
  * 在所有脚本执行前注入 localStorage token
  */
 export async function injectAuthToken(context: BrowserContext): Promise<void> {
-  const token = generateFakeJwt()
-  await context.addInitScript(
-    (t) => {
-      localStorage.setItem('access_token', t)
-      localStorage.setItem('refresh_token', t)
-    },
-    token,
-  )
+  const token = generateFakeJwt();
+  await context.addInitScript(t => {
+    localStorage.setItem('access_token', t);
+    localStorage.setItem('refresh_token', t);
+  }, token);
 }
 
 /**
  * 拦截 /api/v1/erp/auth/me 返回 mock 用户信息（绕过 userStore.fetchUserInfo）
  */
 export async function mockAuthMe(context: BrowserContext): Promise<void> {
-  await context.route('**/api/v1/erp/auth/me**', (route) => {
+  await context.route('**/api/v1/erp/auth/me**', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -66,15 +63,15 @@ export async function mockAuthMe(context: BrowserContext): Promise<void> {
         data: MOCK_USER,
         timestamp: new Date().toISOString(),
       }),
-    })
-  })
+    });
+  });
 }
 
 /**
  * 拦截 /api/v1/erp/init/status 返回 initialized: true（绕过路由初始化检查）
  */
 export async function mockInitStatus(context: BrowserContext): Promise<void> {
-  await context.route('**/api/v1/erp/init/status**', (route) => {
+  await context.route('**/api/v1/erp/init/status**', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -83,8 +80,8 @@ export async function mockInitStatus(context: BrowserContext): Promise<void> {
         data: { initialized: true },
         timestamp: new Date().toISOString(),
       }),
-    })
-  })
+    });
+  });
 }
 
 /** 空分页响应（避免前端 catch 长时间等待） */
@@ -92,7 +89,7 @@ const EMPTY_PAGINATION = {
   code: 200,
   message: 'success',
   data: { items: [], total: 0, page: 1, page_size: 20 },
-} as const
+} as const;
 
 /**
  * 拦截 /api/v1/erp/* 业务 API 返回空数据
@@ -109,11 +106,11 @@ const EMPTY_PAGINATION = {
  * - smoke 测试如需使用，应显式调用（不再通过 applyAuthMocks 自动应用）
  */
 export async function mockBusinessApi(context: BrowserContext): Promise<void> {
-  await context.route('**/api/v1/erp/**', (route) => {
-    const url = route.request().url()
+  await context.route('**/api/v1/erp/**', route => {
+    const url = route.request().url();
     // 已被 mockAuthMe / mockInitStatus 处理的请求放行到下一个 handler
     if (url.includes('/auth/me') || url.includes('/init/status')) {
-      return route.fallback()
+      return route.fallback();
     }
     // 其他业务 API 返回空分页数据，避免前端 catch 长时间等待
     return route.fulfill({
@@ -123,8 +120,8 @@ export async function mockBusinessApi(context: BrowserContext): Promise<void> {
         ...EMPTY_PAGINATION,
         timestamp: new Date().toISOString(),
       }),
-    })
-  })
+    });
+  });
 }
 
 /**
@@ -136,9 +133,9 @@ export async function mockBusinessApi(context: BrowserContext): Promise<void> {
  * 应显式调用 mockBusinessApi(context)。
  */
 export async function applyAuthMocks(context: BrowserContext): Promise<void> {
-  await injectAuthToken(context)
-  await mockAuthMe(context)
-  await mockInitStatus(context)
+  await injectAuthToken(context);
+  await mockAuthMe(context);
+  await mockInitStatus(context);
 }
 
 /**
@@ -146,10 +143,10 @@ export async function applyAuthMocks(context: BrowserContext): Promise<void> {
  */
 export async function waitForPageReady(page: Page, expectedPath: string): Promise<void> {
   await page
-    .waitForURL((url) => url.pathname === expectedPath || url.pathname.includes(expectedPath), {
+    .waitForURL(url => url.pathname === expectedPath || url.pathname.includes(expectedPath), {
       timeout: 10_000,
     })
     .catch(() => {
-      console.warn(`[smoke] URL 未匹配 ${expectedPath}，当前：${page.url()}`)
-    })
+      console.warn(`[smoke] URL 未匹配 ${expectedPath}，当前：${page.url()}`);
+    });
 }

@@ -16,7 +16,12 @@
         @clear="handleSearch"
         @keyup.enter="handleSearch"
       />
-      <el-select v-model="localQuery.status" :placeholder="t('apiGateway.logTab.statusPlaceholder')" clearable style="width: 120px">
+      <el-select
+        v-model="localQuery.status"
+        :placeholder="t('apiGateway.logTab.statusPlaceholder')"
+        clearable
+        style="width: 120px"
+      >
         <el-option :label="t('apiGateway.logTab.status2xx')" value="2xx" />
         <el-option :label="t('apiGateway.logTab.status4xx')" value="4xx" />
         <el-option :label="t('apiGateway.logTab.status5xx')" value="5xx" />
@@ -51,69 +56,69 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElTag, ElButton } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
-import V2Table from '@/components/V2Table/index.vue'
-import type { ColumnDef } from '@/components/V2Table/types'
-import type { ApiLog } from '@/api/api-gateway'
+import { computed, h, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElTag, ElButton } from 'element-plus';
+import { Search } from '@element-plus/icons-vue';
+import V2Table from '@/components/V2Table/index.vue';
+import type { ColumnDef } from '@/components/V2Table/types';
+import type { ApiLog } from '@/api/api-gateway';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 export interface LogQuery {
-  keyword: string
-  status: string
-  date_range: [Date, Date] | null
+  keyword: string;
+  status: string;
+  date_range: [Date, Date] | null;
 }
 
 // ElTag 类型联合（与 element-plus TagProps type 对齐，避免将 string 直接传入 type）
-type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
+type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger';
 
 const props = defineProps<{
-  logs: ApiLog[]
-  loading: boolean
-  total: number
-  page: number
-  pageSize: number
+  logs: ApiLog[];
+  loading: boolean;
+  total: number;
+  page: number;
+  pageSize: number;
   // 批次 281：queryParams 类型放宽为 Record<string, unknown>，兼容 useTableApi 的 queryParams
-  queryParams: Record<string, unknown>
-  methodTypeMap: Record<string, string>
-}>()
+  queryParams: Record<string, unknown>;
+  methodTypeMap: Record<string, string>;
+}>();
 
 const emit = defineEmits<{
-  fetch: []
-  'update:page': [value: number]
-  'update:page-size': [value: number]
-  'view-log': [row: ApiLog]
-  'update:queryParams': [value: LogQuery]
-}>()
+  fetch: [];
+  'update:page': [value: number];
+  'update:page-size': [value: number];
+  'view-log': [row: ApiLog];
+  'update:queryParams': [value: LogQuery];
+}>();
 
 const localQuery = reactive<LogQuery>({
   keyword: '',
   status: '',
   date_range: null,
   ...(props.queryParams as Partial<LogQuery>),
-})
+});
 
 watch(
   () => props.queryParams,
   newQuery => Object.assign(localQuery, newQuery),
   { deep: true }
-)
+);
 
 // 批次 281：搜索时先同步筛选条件到父组件 queryParams，再触发 fetch 刷新
 const handleSearch = () => {
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 
 const getStatusType = (code: number) => {
-  if (code >= 200 && code < 300) return 'success'
-  if (code >= 400 && code < 500) return 'warning'
-  if (code >= 500) return 'danger'
-  return 'info'
-}
+  if (code >= 200 && code < 300) return 'success';
+  if (code >= 400 && code < 500) return 'warning';
+  if (code >= 500) return 'danger';
+  return 'info';
+};
 
 /**
  * 列定义（computed：方法列的 el-tag type 依赖 props.methodTypeMap）
@@ -162,7 +167,7 @@ const columns = computed<ColumnDef<ApiLog>[]>(() => [
         { default: () => t('apiGateway.logTab.detail') }
       ),
   },
-])
+]);
 </script>
 
 <style scoped>

@@ -7,8 +7,8 @@
  * 设计说明：通过 callbacks 接收 useLgs 的状态引用（Reactive 包装层）；
  * 内部访问 cb.isEdit.value 等即可修改实际 ref 的 value
  */
-import { reactive, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { reactive, computed } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getLogisticsById,
   updateLogistics,
@@ -16,31 +16,31 @@ import {
   deleteLogistics,
   type LogisticsWaybill,
   type WaybillStatus,
-} from '@/api/logistics'
-import { logger } from '@/utils/logger'
+} from '@/api/logistics';
+import { logger } from '@/utils/logger';
 
 /**
  * 订单表单字段类型
  */
 interface LgsFormData {
-  id?: number | undefined
-  order_id?: number | undefined
-  logistics_company?: string
-  tracking_number?: string
-  driver_name?: string
-  driver_phone?: string
-  freight_fee?: number
-  expected_arrival?: string
-  notes?: string
+  id?: number | undefined;
+  order_id?: number | undefined;
+  logistics_company?: string;
+  tracking_number?: string;
+  driver_name?: string;
+  driver_phone?: string;
+  freight_fee?: number;
+  expected_arrival?: string;
+  notes?: string;
 }
 
 /**
  * 状态表单字段类型
  */
 export interface LgsStatusForm {
-  id: number
-  currentStatus: WaybillStatus | ''
-  newStatus: WaybillStatus | ''
+  id: number;
+  currentStatus: WaybillStatus | '';
+  newStatus: WaybillStatus | '';
 }
 
 /**
@@ -50,19 +50,19 @@ export interface LgsStatusForm {
  */
 interface LgsCallbacks {
   // 详情对话框
-  detailDialogVisible: boolean
+  detailDialogVisible: boolean;
   // 详情数据
-  detailData: LogisticsWaybill
+  detailData: LogisticsWaybill;
   // 表单
-  isEdit: boolean
-  formData: LgsFormData
-  submitLoading: boolean
-  dialogVisible: boolean
+  isEdit: boolean;
+  formData: LgsFormData;
+  submitLoading: boolean;
+  dialogVisible: boolean;
   // 状态表单
-  statusForm: LgsStatusForm
-  statusDialogVisible: boolean
+  statusForm: LgsStatusForm;
+  statusDialogVisible: boolean;
   // 列表刷新
-  fetchData: () => Promise<void>
+  fetchData: () => Promise<void>;
 }
 
 /**
@@ -71,7 +71,7 @@ interface LgsCallbacks {
 export function useLgsProc(cb: LgsCallbacks) {
   /** 打开新建对话框 */
   const handleCreate = () => {
-    cb.isEdit = false
+    cb.isEdit = false;
     Object.assign(cb.formData, {
       id: undefined,
       order_id: undefined,
@@ -82,13 +82,13 @@ export function useLgsProc(cb: LgsCallbacks) {
       freight_fee: 0,
       expected_arrival: '',
       notes: '',
-    })
-    cb.dialogVisible = true
-  }
+    });
+    cb.dialogVisible = true;
+  };
 
   /** 打开编辑对话框 */
   const handleEdit = (row: LogisticsWaybill) => {
-    cb.isEdit = true
+    cb.isEdit = true;
     Object.assign(cb.formData, {
       id: row.id,
       order_id: row.order_id,
@@ -99,90 +99,90 @@ export function useLgsProc(cb: LgsCallbacks) {
       freight_fee: row.freight_fee,
       expected_arrival: row.expected_arrival,
       notes: row.notes,
-    })
-    cb.dialogVisible = true
-  }
+    });
+    cb.dialogVisible = true;
+  };
 
   /** 查看详情 */
   const handleView = async (row: LogisticsWaybill) => {
     try {
-      const res = await getLogisticsById(row.id!)
-      cb.detailData = res.data
-      cb.detailDialogVisible = true
+      const res = await getLogisticsById(row.id!);
+      cb.detailData = res.data;
+      cb.detailDialogVisible = true;
     } catch (error) {
-      logger.error('获取详情失败:', error)
+      logger.error('获取详情失败:', error);
     }
-  }
+  };
 
   /**
    * 提交表单（仅 API 调用，校验已由 LogisticsForm 内部完成）
    */
   const handleSubmit = async () => {
-    cb.submitLoading = true
+    cb.submitLoading = true;
     try {
       if (cb.isEdit && cb.formData.id) {
-        await updateLogistics(cb.formData.id, cb.formData)
-        ElMessage.success('更新成功')
+        await updateLogistics(cb.formData.id, cb.formData);
+        ElMessage.success('更新成功');
       } else {
-        await createLogistics(cb.formData)
-        ElMessage.success('创建成功')
+        await createLogistics(cb.formData);
+        ElMessage.success('创建成功');
       }
-      cb.dialogVisible = false
-      await cb.fetchData()
+      cb.dialogVisible = false;
+      await cb.fetchData();
     } catch (error) {
-      logger.error('提交失败:', error)
+      logger.error('提交失败:', error);
     } finally {
-      cb.submitLoading = false
+      cb.submitLoading = false;
     }
-  }
+  };
 
   /** 发货 */
   const handleShip = async (row: LogisticsWaybill) => {
     try {
-      await ElMessageBox.confirm('确定要发货吗？', '提示', { type: 'warning' })
-      await updateLogistics(row.id!, { status: 'shipped' })
-      ElMessage.success('发货成功')
-      await cb.fetchData()
+      await ElMessageBox.confirm('确定要发货吗？', '提示', { type: 'warning' });
+      await updateLogistics(row.id!, { status: 'shipped' });
+      ElMessage.success('发货成功');
+      await cb.fetchData();
     } catch (error) {
       if (error !== 'cancel') {
-        logger.error('发货失败:', error)
+        logger.error('发货失败:', error);
       }
     }
-  }
+  };
 
   /** 打开更新状态对话框 */
   const handleUpdateStatus = (row: LogisticsWaybill) => {
-    cb.statusForm.id = row.id!
-    cb.statusForm.currentStatus = row.status
-    cb.statusForm.newStatus = ''
-    cb.statusDialogVisible = true
-  }
+    cb.statusForm.id = row.id!;
+    cb.statusForm.currentStatus = row.status;
+    cb.statusForm.newStatus = '';
+    cb.statusDialogVisible = true;
+  };
 
   /** 提交状态更新 */
   const handleStatusSubmit = async () => {
     try {
-      await updateLogistics(cb.statusForm.id, { status: cb.statusForm.newStatus as WaybillStatus })
-      ElMessage.success('状态更新成功')
-      cb.statusDialogVisible = false
-      await cb.fetchData()
+      await updateLogistics(cb.statusForm.id, { status: cb.statusForm.newStatus as WaybillStatus });
+      ElMessage.success('状态更新成功');
+      cb.statusDialogVisible = false;
+      await cb.fetchData();
     } catch (error) {
-      logger.error('状态更新失败:', error)
+      logger.error('状态更新失败:', error);
     }
-  }
+  };
 
   /** 删除 */
   const handleDelete = async (row: LogisticsWaybill) => {
     try {
-      await ElMessageBox.confirm('确定要删除该运单吗？', '提示', { type: 'warning' })
-      await deleteLogistics(row.id!)
-      ElMessage.success('删除成功')
-      await cb.fetchData()
+      await ElMessageBox.confirm('确定要删除该运单吗？', '提示', { type: 'warning' });
+      await deleteLogistics(row.id!);
+      ElMessage.success('删除成功');
+      await cb.fetchData();
     } catch (error) {
       if (error !== 'cancel') {
-        logger.error('删除失败:', error)
+        logger.error('删除失败:', error);
       }
     }
-  }
+  };
 
   /** 可选新状态映射（根据当前状态） */
   const availableStatuses = computed(() => {
@@ -192,9 +192,9 @@ export function useLgsProc(cb: LgsCallbacks) {
         { label: '已签收', value: 'delivered' },
       ],
       in_transit: [{ label: '已签收', value: 'delivered' }],
-    }
-    return map[cb.statusForm.currentStatus] || []
-  })
+    };
+    return map[cb.statusForm.currentStatus] || [];
+  });
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
@@ -207,5 +207,5 @@ export function useLgsProc(cb: LgsCallbacks) {
     handleStatusSubmit,
     handleDelete,
     availableStatuses,
-  })
+  });
 }

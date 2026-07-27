@@ -92,10 +92,10 @@
 
 <script setup lang="ts">
 // 报价单审批页脚本
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getQuotation,
   submitQuotation,
@@ -103,78 +103,78 @@ import {
   rejectQuotation,
   convertQuotation,
   type QuotationResponseDto,
-} from '@/api/quotation'
-import ApprovalProgress from './components/ApprovalProgress.vue'
+} from '@/api/quotation';
+import ApprovalProgress from './components/ApprovalProgress.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const route = useRoute()
-const router = useRouter()
-const loading = ref(false)
-const submitting = ref(false)
-const quotation = ref<QuotationResponseDto | null>(null)
+const route = useRoute();
+const router = useRouter();
+const loading = ref(false);
+const submitting = ref(false);
+const quotation = ref<QuotationResponseDto | null>(null);
 
 /** 加载 */
 async function loadData() {
-  const id = Number(route.params.id)
-  if (!id) return
-  loading.value = true
+  const id = Number(route.params.id);
+  if (!id) return;
+  loading.value = true;
   try {
-    const res = await getQuotation(id)
-    quotation.value = res.data as QuotationResponseDto
+    const res = await getQuotation(id);
+    quotation.value = res.data as QuotationResponseDto;
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.approval.loadFailed')
-    )
-    quotation.value = null
+    );
+    quotation.value = null;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 const canSubmit = computed(
   () => quotation.value && ['draft', 'rejected'].includes(quotation.value.status)
-)
-const canApprove = computed(() => quotation.value?.status === 'pending_approval')
-const canConvert = computed(() => quotation.value?.status === 'approved')
+);
+const canApprove = computed(() => quotation.value?.status === 'pending_approval');
+const canConvert = computed(() => quotation.value?.status === 'approved');
 
 async function handleSubmit() {
-  if (!quotation.value) return
-  submitting.value = true
+  if (!quotation.value) return;
+  submitting.value = true;
   try {
-    await submitQuotation(quotation.value.id)
-    ElMessage.success(t('quotations.approval.submitSuccess'))
-    loadData()
+    await submitQuotation(quotation.value.id);
+    ElMessage.success(t('quotations.approval.submitSuccess'));
+    loadData();
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 async function handleApprove() {
-  if (!quotation.value) return
+  if (!quotation.value) return;
   try {
     await ElMessageBox.confirm(
       t('quotations.approval.approveConfirmText'),
       t('quotations.approval.approveConfirmTitle'),
       { type: 'warning' }
-    )
+    );
   } catch {
-    return
+    return;
   }
-  submitting.value = true
+  submitting.value = true;
   try {
-    await approveQuotation(quotation.value.id)
-    ElMessage.success(t('quotations.approval.approveSuccess'))
-    loadData()
+    await approveQuotation(quotation.value.id);
+    ElMessage.success(t('quotations.approval.approveSuccess'));
+    loadData();
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 async function handleReject() {
-  if (!quotation.value) return
-  let reason = ''
+  if (!quotation.value) return;
+  let reason = '';
   try {
     const { value } = await ElMessageBox.prompt(
       t('quotations.approval.rejectPromptText'),
@@ -183,57 +183,57 @@ async function handleReject() {
         inputValidator: (v: string) =>
           v && v.trim() ? true : t('quotations.approval.rejectReasonRequired'),
       }
-    )
-    reason = value
+    );
+    reason = value;
   } catch {
-    return
+    return;
   }
-  submitting.value = true
+  submitting.value = true;
   try {
-    await rejectQuotation(quotation.value.id, reason)
-    ElMessage.success(t('quotations.approval.rejectSuccess'))
-    loadData()
+    await rejectQuotation(quotation.value.id, reason);
+    ElMessage.success(t('quotations.approval.rejectSuccess'));
+    loadData();
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 async function handleConvert() {
-  if (!quotation.value) return
+  if (!quotation.value) return;
   try {
     await ElMessageBox.confirm(
       t('quotations.approval.convertConfirmText'),
       t('quotations.approval.convertTitle'),
       { type: 'warning' }
-    )
+    );
   } catch {
-    return
+    return;
   }
-  submitting.value = true
+  submitting.value = true;
   try {
-    const res = await convertQuotation(quotation.value.id)
+    const res = await convertQuotation(quotation.value.id);
     // convertQuotation 返回 ApiResponse<ConvertResponse>，res.data 即 ConvertResponse
-    const order = res.data
-    ElMessage.success(t('quotations.approval.convertSuccess', { id: order?.id }))
+    const order = res.data;
+    ElMessage.success(t('quotations.approval.convertSuccess', { id: order?.id }));
     if (order?.id) {
-      router.push(`/sales/orders/${order.id}`)
+      router.push(`/sales/orders/${order.id}`);
     } else {
-      loadData()
+      loadData();
     }
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 function formatAmount(value?: number): string {
-  if (value === undefined || value === null) return '0.00'
+  if (value === undefined || value === null) return '0.00';
   return Number(value).toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })
+  });
 }
 
-onMounted(loadData)
+onMounted(loadData);
 </script>
 
 <style scoped>

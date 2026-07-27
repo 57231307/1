@@ -57,31 +57,31 @@
  *           handleExport (Batch 475d：改用后端 xlsx 导出) / handlePrint (新窗口) /
  *           defineExpose({ fetchRecords }) / logger
  */
-import { h, onMounted, inject } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElTag, ElButton } from 'element-plus'
-import { Plus, Download, Printer } from '@element-plus/icons-vue'
-import { useTableApi } from '@/composables/useTableApi'
-import V2Table from '@/components/V2Table/index.vue'
-import type { ColumnDef } from '@/components/V2Table/types'
-import { type QualityRecord } from '@/api/quality'
-import { logger } from '@/utils/logger'
-import { escapeHtml } from '@/utils/print'
+import { h, onMounted, inject } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElTag, ElButton } from 'element-plus';
+import { Plus, Download, Printer } from '@element-plus/icons-vue';
+import { useTableApi } from '@/composables/useTableApi';
+import V2Table from '@/components/V2Table/index.vue';
+import type { ColumnDef } from '@/components/V2Table/types';
+import { type QualityRecord } from '@/api/quality';
+import { logger } from '@/utils/logger';
+import { escapeHtml } from '@/utils/print';
 // V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
 // 后端 GET /production/quality-inspection/records/export 已就绪（含异步审计日志 + 水印）
-import { exportFromBackend } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 父组件注入：openRecordDialog(row | null)
 const actions = inject<{
-  openRecordDialog: (row: QualityRecord | null) => void
-}>('qualityActions')
+  openRecordDialog: (row: QualityRecord | null) => void;
+}>('qualityActions');
 
 // 检验记录列表（由 useTableApi 接管分页/loading/重试）
 const { data, loading, page, pageSize, total, refresh } = useTableApi<QualityRecord>(
   '/production/quality-inspection/records'
-)
+);
 
 // 结果标签映射函数（用于表格 el-tag 与导出/打印）
 const getResultLabel = (result: string): string => {
@@ -89,16 +89,16 @@ const getResultLabel = (result: string): string => {
     pass: t('quality.recordTab.resultPass'),
     fail: t('quality.recordTab.resultFail'),
     pending: t('quality.recordTab.resultPending'),
-  }
-  return map[result] || result
-}
+  };
+  return map[result] || result;
+};
 
 // 结果颜色映射
 const getResultType = (result: string): 'success' | 'danger' | 'warning' => {
-  if (result === 'pass') return 'success'
-  if (result === 'fail') return 'danger'
-  return 'warning'
-}
+  if (result === 'pass') return 'success';
+  if (result === 'fail') return 'danger';
+  return 'warning';
+};
 
 /**
  * 列定义
@@ -118,9 +118,9 @@ const columns: ColumnDef<QualityRecord>[] = [
     width: 100,
     align: 'center',
     renderCell: (row: QualityRecord) => {
-      const type = getResultType(row.result)
-      const text = getResultLabel(row.result)
-      return h(ElTag, { type, size: 'small' }, () => text)
+      const type = getResultType(row.result);
+      const text = getResultLabel(row.result);
+      return h(ElTag, { type, size: 'small' }, () => text);
     },
   },
   {
@@ -135,26 +135,26 @@ const columns: ColumnDef<QualityRecord>[] = [
         () => t('quality.recordTab.buttonView')
       ),
   },
-]
+];
 
 // 分页变化
 const handlePageChange = (newPage: number) => {
-  page.value = newPage
-}
+  page.value = newPage;
+};
 
 const handleSizeChange = (newSize: number) => {
-  pageSize.value = newSize
-}
+  pageSize.value = newSize;
+};
 
 // 打开新建对话框
 const openCreate = () => {
-  actions?.openRecordDialog(null)
-}
+  actions?.openRecordDialog(null);
+};
 
 // 查看检验记录（v11 批次 159 P1-1 修复：接入 openRecordDialog 显示详情，替代占位 ElMessage.info）
 const handleView = (row: QualityRecord) => {
-  actions?.openRecordDialog(row)
-}
+  actions?.openRecordDialog(row);
+};
 
 // 导出 Excel（V15 P0-S12 修复 Batch 475d）
 // 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
@@ -165,9 +165,9 @@ const handleExport = async () => {
     '/production/quality-inspection/records/export',
     {},
     'quality_inspection_records_export'
-  )
-  logger.info(t('quality.recordTab.messageExported'))
-}
+  );
+  logger.info(t('quality.recordTab.messageExported'));
+};
 
 // 构造打印表格行 HTML
 const buildPrintRows = (): string => {
@@ -182,36 +182,36 @@ const buildPrintRows = (): string => {
     </tr>
   `
     )
-    .join('')
-}
+    .join('');
+};
 
 // 打印
 const handlePrint = () => {
-  const printWindow = window.open('', '_blank')
+  const printWindow = window.open('', '_blank');
   if (!printWindow) {
-    ElMessage.error(t('quality.recordTab.messageCannotOpenPrintWindow'))
-    return
+    ElMessage.error(t('quality.recordTab.messageCannotOpenPrintWindow'));
+    return;
   }
-  const rows = buildPrintRows()
-  const printDate = new Date().toISOString().split('T')[0]
-  const totalCount = data.value.length
+  const rows = buildPrintRows();
+  const printDate = new Date().toISOString().split('T')[0];
+  const totalCount = data.value.length;
   printWindow.document
     .write(`<html><head><meta charset="utf-8"><title>${t('quality.recordTab.print.title')}</title>
     <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
     <h1>${t('quality.recordTab.print.headerTitle')}</h1><div class="meta">${t('quality.recordTab.print.dateLabel')}: ${printDate} | ${t('quality.recordTab.print.totalLabel')} ${totalCount} ${t('quality.recordTab.print.totalUnit')}</div>
-    <table><thead><tr><th>${t('quality.recordTab.print.colRecordNo')}</th><th>${t('quality.recordTab.print.colInspectionType')}</th><th>${t('quality.recordTab.print.colProduct')}</th><th>${t('quality.recordTab.print.colBatchNo')}</th><th>${t('quality.recordTab.print.colInspectionDate')}</th><th>${t('quality.recordTab.print.colInspector')}</th><th>${t('quality.recordTab.print.colResult')}</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
-  printWindow.document.close()
-  printWindow.onload = () => printWindow.print()
-  logger.info(t('quality.recordTab.messagePrintGenerated'))
-}
+    <table><thead><tr><th>${t('quality.recordTab.print.colRecordNo')}</th><th>${t('quality.recordTab.print.colInspectionType')}</th><th>${t('quality.recordTab.print.colProduct')}</th><th>${t('quality.recordTab.print.colBatchNo')}</th><th>${t('quality.recordTab.print.colInspectionDate')}</th><th>${t('quality.recordTab.print.colInspector')}</th><th>${t('quality.recordTab.print.colResult')}</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+  printWindow.document.close();
+  printWindow.onload = () => printWindow.print();
+  logger.info(t('quality.recordTab.messagePrintGenerated'));
+};
 
 // 组件挂载时获取数据
 onMounted(() => {
-  refresh()
-})
+  refresh();
+});
 
 // 暴露给父组件调用（兼容外部刷新接口）
-defineExpose({ fetchRecords: refresh })
+defineExpose({ fetchRecords: refresh });
 </script>
 
 <style scoped>

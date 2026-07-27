@@ -6,7 +6,7 @@
  *
  * 设计说明：通过 callbacks 接收 useBpmDf 的状态引用（Reactive 包装层）
  */
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
   deleteBpmDefinition,
@@ -18,8 +18,8 @@ import {
   type ProcessDefinition,
   type ProcessNode,
   type ProcessVersion,
-} from '@/api/bpm-enhanced'
-import { logger } from '@/utils/logger'
+} from '@/api/bpm-enhanced';
+import { logger } from '@/utils/logger';
 
 /**
  * 流程回调（接收 useBpmDf 返回的状态，自动解包后的值类型）
@@ -27,37 +27,37 @@ import { logger } from '@/utils/logger'
  */
 interface BpmDfCallbacks {
   // 列表
-  definitions: ProcessDefinition[]
-  loading: boolean
-  total: number
+  definitions: ProcessDefinition[];
+  loading: boolean;
+  total: number;
   // 分页（useTableApi 独立 ref）
-  page: number
+  page: number;
   // 过滤（批次 282：useTableApi queryParams 为 Record<string, unknown>）
-  queryParams: Record<string, unknown>
+  queryParams: Record<string, unknown>;
   // 表单
-  dialogVisible: boolean
-  isEdit: boolean
-  submitLoading: boolean
+  dialogVisible: boolean;
+  isEdit: boolean;
+  submitLoading: boolean;
   formData: {
-    id?: number
-    process_key: string
-    process_name: string
-    description: string
-    category: string
-    nodes: ProcessNode[]
-  }
+    id?: number;
+    process_key: string;
+    process_name: string;
+    description: string;
+    category: string;
+    nodes: ProcessNode[];
+  };
   // 版本
-  versionDialogVisible: boolean
-  versionLoading: boolean
-  currentDefinition: ProcessDefinition | null
-  versions: ProcessVersion[]
+  versionDialogVisible: boolean;
+  versionLoading: boolean;
+  currentDefinition: ProcessDefinition | null;
+  versions: ProcessVersion[];
   // 模板
-  templateDialogVisible: boolean
-  templateLoading: boolean
-  templateForm: { template_name: string; category: string; description: string }
+  templateDialogVisible: boolean;
+  templateLoading: boolean;
+  templateForm: { template_name: string; category: string; description: string };
   // 方法
-  fetchDefinitions: () => Promise<void>
-  fetchVersions: (definitionId: number) => Promise<void>
+  fetchDefinitions: () => Promise<void>;
+  fetchVersions: (definitionId: number) => Promise<void>;
 }
 
 /**
@@ -69,7 +69,7 @@ const NODE_TYPE_MAP: Record<string, string> = {
   approval: '审批',
   condition: '条件',
   notify: '通知',
-}
+};
 
 /**
  * 节点 assignee_type 映射
@@ -79,18 +79,18 @@ const ASSIGNEE_TYPE_MAP: Record<string, string> = {
   role: '指定角色',
   department: '指定部门',
   dynamic: '动态计算',
-}
+};
 
 /**
  * 审批人类型映射
  */
 function getNodeTypeName(type: string): string {
-  return NODE_TYPE_MAP[type] || type
+  return NODE_TYPE_MAP[type] || type;
 }
 
 function getAssigneeTypeName(type?: string): string {
-  if (!type) return ''
-  return ASSIGNEE_TYPE_MAP[type] || type
+  if (!type) return '';
+  return ASSIGNEE_TYPE_MAP[type] || type;
 }
 
 /**
@@ -99,21 +99,21 @@ function getAssigneeTypeName(type?: string): string {
 export function useBpmDfProc(cb: BpmDfCallbacks) {
   /** 搜索（批次 282：page 独立 ref，refresh 别名 fetchDefinitions） */
   const handleSearch = () => {
-    cb.page = 1
-    cb.fetchDefinitions()
-  }
+    cb.page = 1;
+    cb.fetchDefinitions();
+  };
 
   /** 重置（批次 282：page 独立 ref，queryParams 为 Record<string, unknown>） */
   const handleReset = () => {
-    cb.queryParams.keyword = ''
-    cb.queryParams.category = ''
-    cb.page = 1
-    cb.fetchDefinitions()
-  }
+    cb.queryParams.keyword = '';
+    cb.queryParams.category = '';
+    cb.page = 1;
+    cb.fetchDefinitions();
+  };
 
   /** 新建 */
   const handleCreate = () => {
-    cb.isEdit = false
+    cb.isEdit = false;
     Object.assign(cb.formData, {
       id: undefined,
       process_key: '',
@@ -121,13 +121,13 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       description: '',
       category: 'finance',
       nodes: [],
-    })
-    cb.dialogVisible = true
-  }
+    });
+    cb.dialogVisible = true;
+  };
 
   /** 编辑 */
   const handleEdit = (row: ProcessDefinition) => {
-    cb.isEdit = true
+    cb.isEdit = true;
     Object.assign(cb.formData, {
       id: row.id,
       process_key: row.process_key,
@@ -135,130 +135,128 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       description: row.description || '',
       category: row.category || 'finance',
       nodes: row.nodes || [],
-    })
-    cb.dialogVisible = true
-  }
+    });
+    cb.dialogVisible = true;
+  };
 
   /** 删除 */
   const handleDelete = async (row: ProcessDefinition) => {
     try {
-      await ElMessageBox.confirm(
-        `确定要删除流程定义「${row.process_name}」吗？`,
-        '确认删除',
-        { type: 'warning' }
-      )
-      await deleteBpmDefinition(row.id)
-      ElMessage.success('删除成功')
-      await cb.fetchDefinitions()
+      await ElMessageBox.confirm(`确定要删除流程定义「${row.process_name}」吗？`, '确认删除', {
+        type: 'warning',
+      });
+      await deleteBpmDefinition(row.id);
+      ElMessage.success('删除成功');
+      await cb.fetchDefinitions();
     } catch (error) {
       if (error !== 'cancel') {
-        const msg = error instanceof Error ? error.message : '删除失败'
-        logger.error(msg)
-        ElMessage.error(msg)
+        const msg = error instanceof Error ? error.message : '删除失败';
+        logger.error(msg);
+        ElMessage.error(msg);
       }
     }
-  }
+  };
 
   /** 提交表单 */
   const handleSubmit = async () => {
-    cb.submitLoading = true
+    cb.submitLoading = true;
     try {
       if (cb.isEdit && cb.formData.id) {
         await updateBpmDefinition(
           cb.formData.id,
           cb.formData as unknown as Partial<ProcessDefinition>
-        )
-        ElMessage.success('更新成功')
+        );
+        ElMessage.success('更新成功');
       } else {
-        await createBpmDefinition(cb.formData as unknown as Partial<ProcessDefinition>)
-        ElMessage.success('创建成功')
+        await createBpmDefinition(cb.formData as unknown as Partial<ProcessDefinition>);
+        ElMessage.success('创建成功');
       }
-      cb.dialogVisible = false
-      await cb.fetchDefinitions()
+      cb.dialogVisible = false;
+      await cb.fetchDefinitions();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '操作失败'
-      logger.error(msg)
-      ElMessage.error(msg)
+      const msg = error instanceof Error ? error.message : '操作失败';
+      logger.error(msg);
+      ElMessage.error(msg);
     } finally {
-      cb.submitLoading = false
+      cb.submitLoading = false;
     }
-  }
+  };
 
   /** 打开版本对话框 */
   const handleOpenVersions = async (row: ProcessDefinition) => {
-    cb.currentDefinition = row
-    cb.versionDialogVisible = true
-    await cb.fetchVersions(row.id)
-  }
+    cb.currentDefinition = row;
+    cb.versionDialogVisible = true;
+    await cb.fetchVersions(row.id);
+  };
 
   /** 创建新版本 */
   const handleCreateVersion = async () => {
-    if (!cb.currentDefinition) return
+    if (!cb.currentDefinition) return;
     try {
-      await ElMessageBox.confirm('确定要创建新版本吗？', '提示', { type: 'info' })
-      await createBpmVersion(cb.currentDefinition.id, { change_log: '新建版本' })
-      ElMessage.success('新版本已创建')
-      await cb.fetchVersions(cb.currentDefinition.id)
-      await cb.fetchDefinitions()
+      await ElMessageBox.confirm('确定要创建新版本吗？', '提示', { type: 'info' });
+      await createBpmVersion(cb.currentDefinition.id, { change_log: '新建版本' });
+      ElMessage.success('新版本已创建');
+      await cb.fetchVersions(cb.currentDefinition.id);
+      await cb.fetchDefinitions();
     } catch (error) {
       if (error !== 'cancel') {
-        const msg = error instanceof Error ? error.message : '创建版本失败'
-        logger.error(msg)
-        ElMessage.error(msg)
+        const msg = error instanceof Error ? error.message : '创建版本失败';
+        logger.error(msg);
+        ElMessage.error(msg);
       }
     }
-  }
+  };
 
   /** 激活版本 */
   const handleActivateVersion = async (version: ProcessVersion) => {
     try {
-      await activateBpmVersion(version.id)
-      ElMessage.success('版本已激活')
+      await activateBpmVersion(version.id);
+      ElMessage.success('版本已激活');
       if (cb.currentDefinition) {
-        await cb.fetchVersions(cb.currentDefinition.id)
+        await cb.fetchVersions(cb.currentDefinition.id);
       }
-      await cb.fetchDefinitions()
+      await cb.fetchDefinitions();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '激活版本失败'
-      logger.error(msg)
-      ElMessage.error(msg)
+      const msg = error instanceof Error ? error.message : '激活版本失败';
+      logger.error(msg);
+      ElMessage.error(msg);
     }
-  }
+  };
 
   /** 打开保存为模板对话框 */
   const handleOpenSaveAsTemplate = (row: ProcessDefinition) => {
-    cb.currentDefinition = row
+    cb.currentDefinition = row;
     Object.assign(cb.templateForm, {
       template_name: `${row.process_name}模板`,
       category: row.category || 'finance',
       description: '',
-    })
-    cb.templateDialogVisible = true
-  }
+    });
+    cb.templateDialogVisible = true;
+  };
 
   /** 提交保存为模板 */
   const handleSaveAsTemplate = async () => {
-    if (!cb.currentDefinition) return
-    cb.templateLoading = true
+    if (!cb.currentDefinition) return;
+    cb.templateLoading = true;
     try {
       await saveBpmAsTemplate(
         cb.currentDefinition.id,
         cb.templateForm as {
-          template_name: string
-          category: string
-          description?: string
+          template_name: string;
+          category: string;
+          description?: string;
         }
-      )
-      ElMessage.success('已保存为模板')
-      cb.templateDialogVisible = false
+      );
+      ElMessage.success('已保存为模板');
+      cb.templateDialogVisible = false;
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '保存失败'
-      logger.error(msg)
-      ElMessage.error(msg)
+      const msg = error instanceof Error ? error.message : '保存失败';
+      logger.error(msg);
+      ElMessage.error(msg);
     } finally {
-      cb.templateLoading = false
+      cb.templateLoading = false;
     }
-  }
+  };
 
   // 暴露格式化工具函数
   return {
@@ -275,5 +273,5 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     handleSaveAsTemplate,
     getNodeTypeName,
     getAssigneeTypeName,
-  }
+  };
 }

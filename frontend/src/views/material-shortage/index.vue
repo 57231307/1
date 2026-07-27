@@ -36,18 +36,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useMs } from './composables/useMs'
-import { useMsProc } from './composables/useMsProc'
-import MaterialShortageStat from './components/MaterialShortageStat.vue'
-import MaterialShortageSeverityCard from './components/MaterialShortageSeverityCard.vue'
-import MaterialShortageTable from './components/MaterialShortageTable.vue'
+import { onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useMs } from './composables/useMs';
+import { useMsProc } from './composables/useMsProc';
+import MaterialShortageStat from './components/MaterialShortageStat.vue';
+import MaterialShortageSeverityCard from './components/MaterialShortageSeverityCard.vue';
+import MaterialShortageTable from './components/MaterialShortageTable.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const ms = useMs()
+const ms = useMs();
 const msProc = useMsProc({
   currentPage: ms.currentPage,
   pageSize: ms.pageSize,
@@ -61,12 +61,12 @@ const msProc = useMsProc({
   fetchSummary: ms.fetchSummary,
   fetchShortages: ms.fetchShortages,
   syncFilterToQuery: ms.syncFilterToQuery,
-})
+});
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载汇总
 onMounted(() => {
-  ms.fetchSummary()
-})
+  ms.fetchSummary();
+});
 </script>
 
 <style scoped>

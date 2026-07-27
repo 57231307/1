@@ -143,82 +143,82 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import {
   getAPReconciliationList,
   generateAPReconciliation,
   confirmAPReconciliation,
   disputeAPReconciliation,
   type APReconciliation,
-} from '@/api/ap-reconciliation'
-import type { Supplier } from '@/api/supplier'
+} from '@/api/ap-reconciliation';
+import type { Supplier } from '@/api/supplier';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const reconciliations = ref<APReconciliation[]>([])
-const reconciliationLoading = ref(false)
-const suppliers = ref<Supplier[]>([])
+const reconciliations = ref<APReconciliation[]>([]);
+const reconciliationLoading = ref(false);
+const suppliers = ref<Supplier[]>([]);
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const getReconciliationStatusType = (status: string) => {
   const map: Record<string, string> = {
     pending: 'warning',
     confirmed: 'success',
     disputed: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const getReconciliationStatusLabel = (status: string) => {
   const keyMap: Record<string, string> = {
     pending: 'apModule.reconciliation.statusPending',
     confirmed: 'apModule.reconciliation.statusConfirmed',
     disputed: 'apModule.reconciliation.statusDisputed',
-  }
-  const key = keyMap[status]
-  return key ? t(key) : status
-}
+  };
+  const key = keyMap[status];
+  return key ? t(key) : status;
+};
 
 const fetchReconciliations = async () => {
-  reconciliationLoading.value = true
+  reconciliationLoading.value = true;
   try {
-    const res = await getAPReconciliationList()
+    const res = await getAPReconciliationList();
     const d = res.data as
       | { list?: APReconciliation[]; items?: APReconciliation[] }
       | APReconciliation[]
-      | undefined
+      | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
-      reconciliations.value = d.list || d.items || []
+      reconciliations.value = d.list || d.items || [];
     } else {
-      reconciliations.value = (d as APReconciliation[]) || []
+      reconciliations.value = (d as APReconciliation[]) || [];
     }
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('apModule.reconciliation.fetchListFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('apModule.reconciliation.fetchListFailed'));
   } finally {
-    reconciliationLoading.value = false
+    reconciliationLoading.value = false;
   }
-}
+};
 
-const reconciliationDialogVisible = ref(false)
+const reconciliationDialogVisible = ref(false);
 const reconciliationForm = reactive({
   supplier_id: undefined as number | undefined,
   start_date: '',
   end_date: '',
-})
+});
 
 const generateReconciliation = () => {
-  reconciliationForm.supplier_id = undefined
-  reconciliationForm.start_date = ''
-  reconciliationForm.end_date = ''
-  reconciliationDialogVisible.value = true
-}
+  reconciliationForm.supplier_id = undefined;
+  reconciliationForm.start_date = '';
+  reconciliationForm.end_date = '';
+  reconciliationDialogVisible.value = true;
+};
 
 const submitReconciliation = async () => {
   if (
@@ -226,23 +226,23 @@ const submitReconciliation = async () => {
     !reconciliationForm.start_date ||
     !reconciliationForm.end_date
   ) {
-    ElMessage.warning(t('apModule.reconciliation.pleaseFillComplete'))
-    return
+    ElMessage.warning(t('apModule.reconciliation.pleaseFillComplete'));
+    return;
   }
   try {
     await generateAPReconciliation({
       supplier_id: reconciliationForm.supplier_id,
       start_date: reconciliationForm.start_date,
       end_date: reconciliationForm.end_date,
-    })
-    ElMessage.success(t('apModule.reconciliation.generateSuccess'))
-    reconciliationDialogVisible.value = false
-    fetchReconciliations()
+    });
+    ElMessage.success(t('apModule.reconciliation.generateSuccess'));
+    reconciliationDialogVisible.value = false;
+    fetchReconciliations();
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('apModule.reconciliation.generateFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('apModule.reconciliation.generateFailed'));
   }
-}
+};
 
 const confirmReconciliation = async (row: APReconciliation) => {
   try {
@@ -250,17 +250,17 @@ const confirmReconciliation = async (row: APReconciliation) => {
       t('apModule.reconciliation.confirmConfirm'),
       t('apModule.reconciliation.confirmTitle'),
       { type: 'info' }
-    )
-    await confirmAPReconciliation(row.id)
-    ElMessage.success(t('apModule.reconciliation.confirmSuccess'))
-    fetchReconciliations()
+    );
+    await confirmAPReconciliation(row.id);
+    ElMessage.success(t('apModule.reconciliation.confirmSuccess'));
+    fetchReconciliations();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('common.failed'))
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('common.failed'));
     }
   }
-}
+};
 
 const disputeReconciliation = async (row: APReconciliation) => {
   try {
@@ -271,24 +271,24 @@ const disputeReconciliation = async (row: APReconciliation) => {
         inputPattern: /.+/,
         inputErrorMessage: t('apModule.reconciliation.disputePrompt'),
       }
-    )
-    await disputeAPReconciliation(row.id, value)
-    ElMessage.success(t('apModule.reconciliation.disputeSubmitted'))
-    fetchReconciliations()
+    );
+    await disputeAPReconciliation(row.id, value);
+    ElMessage.success(t('apModule.reconciliation.disputeSubmitted'));
+    fetchReconciliations();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('common.failed'))
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('common.failed'));
     }
   }
-}
+};
 
-defineExpose({ refresh: fetchReconciliations })
+defineExpose({ refresh: fetchReconciliations });
 
 onMounted(() => {
-  fetchReconciliations()
-  suppliers.value = []
-})
+  fetchReconciliations();
+  suppliers.value = [];
+});
 </script>
 
 <style scoped>

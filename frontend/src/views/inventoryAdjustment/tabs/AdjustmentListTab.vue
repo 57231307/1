@@ -208,20 +208,20 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue'
-import { type InventoryAdjustmentEntity } from '@/api/inventoryAdjustment'
-import { useTableApi } from '@/composables/useTableApi'
-import { logger } from '@/utils/logger'
+import { reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue';
+import { type InventoryAdjustmentEntity } from '@/api/inventoryAdjustment';
+import { useTableApi } from '@/composables/useTableApi';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const emit = defineEmits<{
-  openForm: [mode: 'create' | 'edit' | 'view', row: InventoryAdjustmentEntity | null]
-  openApprove: [row: InventoryAdjustmentEntity]
-}>()
+  openForm: [mode: 'create' | 'edit' | 'view', row: InventoryAdjustmentEntity | null];
+  openApprove: [row: InventoryAdjustmentEntity];
+}>();
 
 const {
   data: adjustments,
@@ -239,28 +239,28 @@ const {
     status: '',
   },
   onError: (err: unknown) => {
-    logger.error(t('inventoryAdjustment.listTab.fetchAdjustmentFailed'), err)
-    ElMessage.error(t('inventoryAdjustment.listTab.messageFetchFailed'))
+    logger.error(t('inventoryAdjustment.listTab.fetchAdjustmentFailed'), err);
+    ElMessage.error(t('inventoryAdjustment.listTab.messageFetchFailed'));
   },
-})
+});
 
 const stats = reactive({
   total: 0,
   pending: 0,
   approved: 0,
   totalAmount: 0,
-})
+});
 
 watch(
   adjustments,
   newData => {
-    stats.total = total.value
-    stats.pending = newData.filter(a => a.status === 'pending').length
-    stats.approved = newData.filter(a => a.status === 'approved').length
-    stats.totalAmount = newData.reduce((sum, a) => sum + (a.total_amount || 0), 0)
+    stats.total = total.value;
+    stats.pending = newData.filter(a => a.status === 'pending').length;
+    stats.approved = newData.filter(a => a.status === 'approved').length;
+    stats.totalAmount = newData.reduce((sum, a) => sum + (a.total_amount || 0), 0);
   },
   { immediate: true }
-)
+);
 
 /** 状态标签 i18n 映射 */
 const getStatusLabel = (status: string) => {
@@ -268,9 +268,9 @@ const getStatusLabel = (status: string) => {
     pending: t('inventoryAdjustment.listTab.statusPending'),
     approved: t('inventoryAdjustment.listTab.statusApproved'),
     rejected: t('inventoryAdjustment.listTab.statusRejected'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 /** 状态 el-tag 类型映射 */
 const getStatusType = (status: string) => {
@@ -278,25 +278,25 @@ const getStatusType = (status: string) => {
     pending: 'warning',
     approved: 'success',
     rejected: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
+const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 const handleQuery = () => {
-  page.value = 1
-  fetchAdjustments()
-}
+  page.value = 1;
+  fetchAdjustments();
+};
 const handleReset = () => {
   queryParams.value = {
     adjust_no: '',
     status: '',
-  }
-  handleQuery()
-}
+  };
+  handleQuery();
+};
 
-defineExpose({ fetchAdjustments })
+defineExpose({ fetchAdjustments });
 </script>
 
 <style scoped>

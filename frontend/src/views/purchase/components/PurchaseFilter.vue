@@ -5,7 +5,12 @@
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localQueryParams" class="filter-form" :aria-label="t('purchase.filter.ariaLabel')">
+    <el-form
+      :inline="true"
+      :model="localQueryParams"
+      class="filter-form"
+      :aria-label="t('purchase.filter.ariaLabel')"
+    >
       <el-form-item :label="t('purchase.filter.keyword')">
         <el-input
           v-model="localQueryParams.keyword"
@@ -53,69 +58,69 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Search, Refresh } from '@element-plus/icons-vue'
-import type { Supplier } from '@/api/supplier'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Search, Refresh } from '@element-plus/icons-vue';
+import type { Supplier } from '@/api/supplier';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface QueryParams {
-  page: number
-  page_size: number
-  keyword: string
-  supplier_id: number | undefined
-  status: string
+  page: number;
+  page_size: number;
+  keyword: string;
+  supplier_id: number | undefined;
+  status: string;
 }
 
 const props = defineProps<{
   // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）
-  queryParams: QueryParams
+  queryParams: QueryParams;
   // 供应商列表
-  suppliers: Supplier[]
+  suppliers: Supplier[];
   // 查询回调
-  onQuery: () => void
+  onQuery: () => void;
   // 重置回调
-  onReset: () => void
-}>()
+  onReset: () => void;
+}>();
 
 const emit = defineEmits<{
   // 整体回写查询参数（父组件监听此事件并 Object.assign 到自己的 queryParams）
-  (e: 'update:queryParams', queryParams: QueryParams): void
-}>()
+  (e: 'update:queryParams', queryParams: QueryParams): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localQueryParams = ref<QueryParams>({ ...props.queryParams })
+const localQueryParams = ref<QueryParams>({ ...props.queryParams });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件重置）
 watch(
   () => props.queryParams,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    localQueryParams.value = { ...newParams }
+  newParams => {
+    if (syncing) return;
+    syncing = true;
+    localQueryParams.value = { ...newParams };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localQueryParams,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    emit('update:queryParams', { ...newParams })
+  newParams => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:queryParams', { ...newParams });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 </script>

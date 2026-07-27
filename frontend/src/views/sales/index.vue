@@ -17,10 +17,10 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import OrderListView from './views/OrderListView.vue'
+import { useI18n } from 'vue-i18n';
+import OrderListView from './views/OrderListView.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <style scoped>

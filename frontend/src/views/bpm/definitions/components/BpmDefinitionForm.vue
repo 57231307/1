@@ -9,11 +9,19 @@
   <el-dialog
     :model-value="visible"
     :title="isEdit ? t('bpm.definitions.form.editTitle') : t('bpm.definitions.form.createTitle')"
-    :aria-label="isEdit ? t('bpm.definitions.form.editAriaLabel') : t('bpm.definitions.form.createAriaLabel')"
+    :aria-label="
+      isEdit ? t('bpm.definitions.form.editAriaLabel') : t('bpm.definitions.form.createAriaLabel')
+    "
     width="900px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px" :aria-label="t('bpm.definitions.form.ariaLabel')">
+    <el-form
+      ref="formRef"
+      :model="localFormData"
+      :rules="rules"
+      label-width="100px"
+      :aria-label="t('bpm.definitions.form.ariaLabel')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('bpm.definitions.form.processKey')" prop="process_key">
@@ -69,13 +77,14 @@
           {{ t('bpm.definitions.form.addNode') }}
         </el-button>
       </div>
-      <el-table :data="localFormData.nodes" border :aria-label="t('bpm.definitions.form.nodeTableAriaLabel')">
+      <el-table
+        :data="localFormData.nodes"
+        border
+        :aria-label="t('bpm.definitions.form.nodeTableAriaLabel')"
+      >
         <el-table-column :label="t('bpm.definitions.form.nodeType')" width="120">
           <template #default="{ row }">
-            <el-select
-              v-model="row.type"
-              size="small"
-            >
+            <el-select v-model="row.type" size="small">
               <el-option :label="t('bpm.definitions.nodeType.start')" value="start" />
               <el-option :label="t('bpm.definitions.nodeType.approval')" value="approval" />
               <el-option :label="t('bpm.definitions.nodeType.condition')" value="condition" />
@@ -86,19 +95,12 @@
         </el-table-column>
         <el-table-column :label="t('bpm.definitions.form.nodeName')" min-width="140">
           <template #default="{ row }">
-            <el-input
-              v-model="row.name"
-              size="small"
-            />
+            <el-input v-model="row.name" size="small" />
           </template>
         </el-table-column>
         <el-table-column :label="t('bpm.definitions.form.assigneeType')" width="140">
           <template #default="{ row }">
-            <el-select
-              v-model="row.assignee_type"
-              size="small"
-              clearable
-            >
+            <el-select v-model="row.assignee_type" size="small" clearable>
               <el-option :label="t('bpm.definitions.assigneeType.user')" value="user" />
               <el-option :label="t('bpm.definitions.assigneeType.role')" value="role" />
               <el-option :label="t('bpm.definitions.assigneeType.department')" value="department" />
@@ -124,40 +126,49 @@
             />
           </template>
         </el-table-column>
-        <el-table-column :label="t('bpm.definitions.form.operation')" width="80" align="center" fixed="right">
+        <el-table-column
+          :label="t('bpm.definitions.form.operation')"
+          width="80"
+          align="center"
+          fixed="right"
+        >
           <template #default="{ $index }">
-            <el-button type="danger" link size="small" @click="handleRemoveNode($index)"
-              >{{ t('bpm.definitions.form.delete') }}</el-button
-            >
+            <el-button type="danger" link size="small" @click="handleRemoveNode($index)">{{
+              t('bpm.definitions.form.delete')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('bpm.definitions.form.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('bpm.definitions.form.confirm') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('bpm.definitions.form.cancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+        t('bpm.definitions.form.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { deepClone } from '@/utils'
-import { ref, watch, nextTick } from 'vue'
-import { type FormInstance, type FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
-import type { ProcessNode } from '@/api/bpm-enhanced'
+import { deepClone } from '@/utils';
+import { ref, watch, nextTick } from 'vue';
+import { type FormInstance, type FormRules } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
+import type { ProcessNode } from '@/api/bpm-enhanced';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 表单数据类型
 interface BpmDefinitionFormData {
-  id?: number
-  process_key: string
-  process_name: string
-  description: string
-  category: string
-  nodes: ProcessNode[]
+  id?: number;
+  process_key: string;
+  process_name: string;
+  description: string;
+  category: string;
+  nodes: ProcessNode[];
 }
 
 /**
@@ -165,90 +176,90 @@ interface BpmDefinitionFormData {
  */
 const props = defineProps<{
   // 可见性
-  visible: boolean
+  visible: boolean;
   // 是否编辑
-  isEdit: boolean
+  isEdit: boolean;
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  formData: BpmDefinitionFormData
+  formData: BpmDefinitionFormData;
   // 验证规则
-  rules: FormRules
+  rules: FormRules;
   // 提交加载
-  submitLoading: boolean
-}>()
+  submitLoading: boolean;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
+  'update:visible': [v: boolean];
   // 添加节点
-  'add-node': []
+  'add-node': [];
   // 删除节点
-  'remove-node': [index: number]
+  'remove-node': [index: number];
   // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
-  'update:formData': [v: BpmDefinitionFormData]
+  'update:formData': [v: BpmDefinitionFormData];
   // 提交（父组件处理 API）
-  submit: []
-}>()
+  submit: [];
+}>();
 
 // 表单 ref
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInstance>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：formData 含 nodes 数组，需要深拷贝以保证本地修改与父组件解耦
-const localFormData = ref<BpmDefinitionFormData>(deepClone(props.formData))
+const localFormData = ref<BpmDefinitionFormData>(deepClone(props.formData));
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件打开新建/编辑时填充数据）
 watch(
   () => props.formData,
-  (newData) => {
-    if (syncing) return
-    syncing = true
-    localFormData.value = deepClone(newData)
+  newData => {
+    if (syncing) return;
+    syncing = true;
+    localFormData.value = deepClone(newData);
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localFormData,
-  (newData) => {
-    if (syncing) return
-    syncing = true
-    emit('update:formData', deepClone(newData))
+  newData => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:formData', deepClone(newData));
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 暴露给父组件
-defineExpose({ formRef })
+defineExpose({ formRef });
 
 /** 添加节点（父组件处理节点对象） */
 const handleAddNode = () => {
-  emit('add-node')
-}
+  emit('add-node');
+};
 
 /** 删除节点 */
 const handleRemoveNode = (index: number) => {
-  emit('remove-node', index)
-}
+  emit('remove-node', index);
+};
 
 /** 提交（先校验，再通知父组件） */
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   try {
-    await formRef.value.validate()
-    emit('submit')
+    await formRef.value.validate();
+    emit('submit');
   } catch {
     // 校验失败
   }
-}
+};
 </script>
 
 <style scoped>

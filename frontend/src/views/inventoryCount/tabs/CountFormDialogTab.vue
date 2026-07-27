@@ -70,38 +70,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance } from 'element-plus'
+import { ref, reactive, watch, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance } from 'element-plus';
 import {
   createInventoryCount,
   updateInventoryCount,
   generateInventoryCountNo,
   type InventoryCountEntity,
-} from '@/api/inventoryCount'
-import type { Warehouse } from '@/api/warehouse'
-import { logger } from '@/utils/logger'
+} from '@/api/inventoryCount';
+import type { Warehouse } from '@/api/warehouse';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  currentRow: InventoryCountEntity | null
-  warehouses: Warehouse[]
-  mode: 'create' | 'edit' | 'view'
+  modelValue: boolean;
+  currentRow: InventoryCountEntity | null;
+  warehouses: Warehouse[];
+  mode: 'create' | 'edit' | 'view';
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
 
 const formData = reactive({
   id: 0,
@@ -110,65 +110,65 @@ const formData = reactive({
   warehouse_id: undefined as number | undefined,
   status: 'in_progress' as 'in_progress' | 'completed',
   remark: '',
-})
+});
 
 const resetForm = () => {
-  formData.id = 0
-  formData.count_no = ''
-  formData.count_date = new Date().toISOString().split('T')[0]
-  formData.warehouse_id = undefined
-  formData.status = 'in_progress'
-  formData.remark = ''
-}
+  formData.id = 0;
+  formData.count_no = '';
+  formData.count_date = new Date().toISOString().split('T')[0];
+  formData.warehouse_id = undefined;
+  formData.status = 'in_progress';
+  formData.remark = '';
+};
 
 const generateNo = async () => {
   try {
-    const res = await generateInventoryCountNo()
-    formData.count_no = res.data?.count_no || ''
+    const res = await generateInventoryCountNo();
+    formData.count_no = res.data?.count_no || '';
   } catch (error) {
     logger.error(
       t('inventoryCount.formDialogTab.messageGenerateNoFailure'),
       (error as Error).message
-    )
+    );
   }
-}
+};
 
 watch(
   () => props.modelValue,
   async val => {
     if (val) {
       if (props.currentRow) {
-        Object.assign(formData, props.currentRow)
+        Object.assign(formData, props.currentRow);
       } else {
-        resetForm()
-        await generateNo()
+        resetForm();
+        await generateNo();
       }
     }
   }
-)
+);
 
 onMounted(() => {
   if (props.modelValue && !props.currentRow) {
-    generateNo()
+    generateNo();
   }
-})
+});
 
 const handleSubmit = async () => {
-  submitLoading.value = true
+  submitLoading.value = true;
   try {
     if (formData.id) {
-      await updateInventoryCount(formData.id, formData as Partial<InventoryCountEntity>)
+      await updateInventoryCount(formData.id, formData as Partial<InventoryCountEntity>);
     } else {
-      await createInventoryCount(formData as Partial<InventoryCountEntity>)
+      await createInventoryCount(formData as Partial<InventoryCountEntity>);
     }
-    ElMessage.success(t('inventoryCount.formDialogTab.messageSuccess'))
-    emit('update:modelValue', false)
-    emit('submitted')
+    ElMessage.success(t('inventoryCount.formDialogTab.messageSuccess'));
+    emit('update:modelValue', false);
+    emit('submitted');
   } catch (error) {
-    ElMessage.error((error as Error).message || t('inventoryCount.formDialogTab.messageFailure'))
-    logger.error(t('inventoryCount.formDialogTab.messageSaveFailure'), (error as Error).message)
+    ElMessage.error((error as Error).message || t('inventoryCount.formDialogTab.messageFailure'));
+    logger.error(t('inventoryCount.formDialogTab.messageSaveFailure'), (error as Error).message);
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 </script>

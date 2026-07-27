@@ -127,37 +127,37 @@
 </template>
 
 <script setup lang="ts">
-import { deepClone } from '@/utils'
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { formatAmount } from '../composables/vchrLstFmts'
+import { deepClone } from '@/utils';
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { formatAmount } from '../composables/vchrLstFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface VoucherEntry {
-  account_subject_id: number
-  debit_amount: number
-  credit_amount: number
-  description?: string
+  account_subject_id: number;
+  debit_amount: number;
+  credit_amount: number;
+  description?: string;
 }
 
 /** 父组件传 Partial 类型，所有字段均可选 */
 interface VoucherForm {
-  id?: number
-  voucher_no?: string
-  voucher_date?: string
-  type?: string
-  status?: string
-  description?: string
-  total_debit?: number
-  total_credit?: number
-  entries?: VoucherEntry[]
-  [key: string]: unknown
+  id?: number;
+  voucher_no?: string;
+  voucher_date?: string;
+  type?: string;
+  status?: string;
+  description?: string;
+  total_debit?: number;
+  total_credit?: number;
+  entries?: VoucherEntry[];
+  [key: string]: unknown;
 }
 
 interface SubjectOption {
-  label: string
-  value: number
+  label: string;
+  value: number;
 }
 
 /**
@@ -166,64 +166,64 @@ interface SubjectOption {
  */
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 对话框标题
-  title: string
+  title: string;
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  form: VoucherForm
+  form: VoucherForm;
   // 凭证类型下拉选项
-  voucherTypes: { label: string; value: string }[]
+  voucherTypes: { label: string; value: string }[];
   // 科目下拉选项
-  accountSubjectOptions: SubjectOption[]
-}>()
+  accountSubjectOptions: SubjectOption[];
+}>();
 
 const emit = defineEmits<{
   // 关闭对话框
-  (e: 'update:visible', v: boolean): void
+  (e: 'update:visible', v: boolean): void;
   // 添加分录
-  (e: 'add-entry'): void
+  (e: 'add-entry'): void;
   // 删除分录
-  (e: 'remove-entry', index: number): void
+  (e: 'remove-entry', index: number): void;
   // 提交表单
-  (e: 'submit'): void
+  (e: 'submit'): void;
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
-  (e: 'update:form', form: VoucherForm): void
-}>()
+  (e: 'update:form', form: VoucherForm): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 entries 数组，需要深拷贝以保证本地修改与父组件解耦
-const localForm = ref<VoucherForm>(deepClone(props.form))
+const localForm = ref<VoucherForm>(deepClone(props.form));
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件新建/编辑时填充数据）
 watch(
   () => props.form,
   newForm => {
-    if (syncing) return
-    syncing = true
-    localForm.value = deepClone(newForm)
+    if (syncing) return;
+    syncing = true;
+    localForm.value = deepClone(newForm);
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    emit('update:form', deepClone(newForm))
+    if (syncing) return;
+    syncing = true;
+    emit('update:form', deepClone(newForm));
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 </script>
 
 <style scoped>

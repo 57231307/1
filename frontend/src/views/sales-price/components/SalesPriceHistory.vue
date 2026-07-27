@@ -60,25 +60,25 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { SalesPrice } from '@/api/sales-price'
-import { formatCurrency, getStatusType } from '../composables/spFmts'
+import { useI18n } from 'vue-i18n';
+import type { SalesPrice } from '@/api/sales-price';
+import { formatCurrency, getStatusType } from '../composables/spFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 销售价格历史记录对话框组件
  */
 defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 历史记录列表
-  historyList: SalesPrice[]
-}>()
+  historyList: SalesPrice[];
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-}>()
+  'update:visible': [v: boolean];
+}>();
 
 /** 获取销售价格状态标签（i18n 响应式） */
 const getStatusLabel = (status: string) => {
@@ -87,12 +87,12 @@ const getStatusLabel = (status: string) => {
     active: t('salesPrice.history.statusActive'),
     expired: t('salesPrice.history.statusExpired'),
     inactive: t('salesPrice.history.statusInactive'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {
-  emit('update:visible', v)
-}
+  emit('update:visible', v);
+};
 </script>

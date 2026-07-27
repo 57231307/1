@@ -38,10 +38,10 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { LineChart, BarChart, PieChart } from '@/components/Charts'
+import { useI18n } from 'vue-i18n';
+import { LineChart, BarChart, PieChart } from '@/components/Charts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const lineXAxis = [
   t('componentsDemo.charts.months.jan'),
@@ -56,7 +56,7 @@ const lineXAxis = [
   t('componentsDemo.charts.months.oct'),
   t('componentsDemo.charts.months.nov'),
   t('componentsDemo.charts.months.dec'),
-]
+];
 const lineSeries = [
   {
     name: t('componentsDemo.charts.lineSeries.sales'),
@@ -66,7 +66,7 @@ const lineSeries = [
     name: t('componentsDemo.charts.lineSeries.profit'),
     data: [60, 72, 51, 74, 40, 130, 110, 90, 100, 125, 140, 150],
   },
-]
+];
 
 const barXAxis = [
   t('componentsDemo.charts.depts.sales'),
@@ -74,7 +74,7 @@ const barXAxis = [
   t('componentsDemo.charts.depts.tech'),
   t('componentsDemo.charts.depts.service'),
   t('componentsDemo.charts.depts.finance'),
-]
+];
 const barSeries = [
   {
     name: 'Q1',
@@ -84,7 +84,7 @@ const barSeries = [
     name: 'Q2',
     data: [380, 220, 280, 170, 230],
   },
-]
+];
 
 const pieData = [
   { name: t('componentsDemo.charts.fabrics.a'), value: 335 },
@@ -92,7 +92,7 @@ const pieData = [
   { name: t('componentsDemo.charts.fabrics.c'), value: 274 },
   { name: t('componentsDemo.charts.fabrics.d'), value: 235 },
   { name: t('componentsDemo.charts.fabrics.e'), value: 400 },
-]
+];
 </script>
 
 <style scoped>

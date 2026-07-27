@@ -165,49 +165,49 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Search, Refresh } from '@element-plus/icons-vue'
-import { getSeverityColor, getStatusColor, getSourceTypeColor } from '../composables/msFmts'
-import type { MaterialShortage } from '@/api/material-shortage'
+import { useI18n } from 'vue-i18n';
+import { Search, Refresh } from '@element-plus/icons-vue';
+import { getSeverityColor, getStatusColor, getSourceTypeColor } from '../composables/msFmts';
+import type { MaterialShortage } from '@/api/material-shortage';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 列表组件（含过滤栏 + 操作）
  */
 defineProps<{
   // 列表数据
-  data: MaterialShortage[]
+  data: MaterialShortage[];
   // 总数
-  total: number
+  total: number;
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 检查中
-  checking: boolean
+  checking: boolean;
   // 分页
-  currentPage: number
-  pageSize: number
+  currentPage: number;
+  pageSize: number;
   // 过滤
-  filterSeverity: string
-  filterStatus: string
-}>()
+  filterSeverity: string;
+  filterStatus: string;
+}>();
 
 const emit = defineEmits<{
   // 过滤变化
-  'filter-change': []
+  'filter-change': [];
   // 触发检查
-  check: []
+  check: [];
   // 通知
-  notify: [row: MaterialShortage]
+  notify: [row: MaterialShortage];
   // 解决
-  resolve: [row: MaterialShortage]
+  resolve: [row: MaterialShortage];
   // 分页
-  'update:page': [v: number]
-  'update:size': [v: number]
+  'update:page': [v: number];
+  'update:size': [v: number];
   // 过滤值变化
-  'update:filter-severity': [v: string]
-  'update:filter-status': [v: string]
-}>()
+  'update:filter-severity': [v: string];
+  'update:filter-status': [v: string];
+}>();
 
 /**
  * 严重程度标签映射（基于 i18n）
@@ -218,9 +218,9 @@ const getSeverityLabel = (severity: string) => {
     high: t('materialShortage.table.severityHigh'),
     medium: t('materialShortage.table.severityMedium'),
     low: t('materialShortage.table.severityLow'),
-  }
-  return map[severity] || severity
-}
+  };
+  return map[severity] || severity;
+};
 
 /**
  * 状态标签映射（基于 i18n）
@@ -230,9 +230,9 @@ const getStatusLabel = (status: string) => {
     pending: t('materialShortage.table.statusPending'),
     notified: t('materialShortage.table.statusNotified'),
     resolved: t('materialShortage.table.statusResolved'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 /**
  * 来源类型标签映射（基于 i18n）
@@ -242,9 +242,9 @@ const getSourceTypeLabel = (type: string) => {
     production: t('materialShortage.table.sourceProduction'),
     sales: t('materialShortage.table.sourceSales'),
     purchase: t('materialShortage.table.sourcePurchase'),
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 </script>
 
 <style scoped>

@@ -39,16 +39,16 @@
 </template>
 
 <script setup lang="ts">
-import { CircleCheck } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
-import type { WorkCenter } from '@/api/capacity'
+import { CircleCheck } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
+import type { WorkCenter } from '@/api/capacity';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
-  data: WorkCenter[]
-  loading: boolean
-}>()
+  data: WorkCenter[];
+  loading: boolean;
+}>();
 </script>
 
 <style scoped>

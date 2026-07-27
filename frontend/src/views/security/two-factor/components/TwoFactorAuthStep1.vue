@@ -34,7 +34,9 @@
       </div>
       <div class="info-row">
         <span class="info-label">{{ t('security.twoFactor.step1.label.status') }}</span>
-        <el-tag v-if="isEnabled" type="success">{{ t('security.twoFactor.step1.status.enabled') }}</el-tag>
+        <el-tag v-if="isEnabled" type="success">{{
+          t('security.twoFactor.step1.status.enabled')
+        }}</el-tag>
         <el-tag v-else type="warning">{{ t('security.twoFactor.step1.status.disabled') }}</el-tag>
       </div>
     </div>
@@ -48,25 +50,29 @@
         @click="emit('start-setup')"
       >
         <el-icon><Setting /></el-icon>
-        {{ isEnabled ? t('security.twoFactor.step1.button.enabledText') : t('security.twoFactor.step1.button.setup') }}
+        {{
+          isEnabled
+            ? t('security.twoFactor.step1.button.enabledText')
+            : t('security.twoFactor.step1.button.setup')
+        }}
       </el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Setting } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n';
+import { Setting } from '@element-plus/icons-vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
-  isEnabled: boolean
-  username: string
-  setupLoading: boolean
-}>()
+  isEnabled: boolean;
+  username: string;
+  setupLoading: boolean;
+}>();
 
-const emit = defineEmits<{ 'start-setup': [] }>()
+const emit = defineEmits<{ 'start-setup': [] }>();
 </script>
 
 <style scoped>

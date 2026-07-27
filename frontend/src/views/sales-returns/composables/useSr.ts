@@ -5,70 +5,70 @@
  * 审批流程由 useSrProc 提供
  * 行为完全保持一致（仅结构重构）
  */
-import { ref, reactive } from 'vue'
-import type { FormInstance } from 'element-plus'
-import { ElMessage } from 'element-plus'
+import { ref, reactive } from 'vue';
+import type { FormInstance } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import {
   getSalesReturnList,
   createSalesReturn,
   updateSalesReturn,
   type SalesReturn,
-} from '@/api/sales-return'
-import { getSalesOrderList } from '@/api/sales'
-import { getCustomerList } from '@/api/customer'
-import { getProductList } from '@/api/product'
-import logger from '@/utils/logger'
+} from '@/api/sales-return';
+import { getSalesOrderList } from '@/api/sales';
+import { getCustomerList } from '@/api/customer';
+import { getProductList } from '@/api/product';
+import logger from '@/utils/logger';
 
 // v11 批次 163 P2-1 修复：定义具体类型替代 any
 // v11 批次 174 P2-1 修复：导出接口供 ReturnEditDialog 使用
 export interface SalesOrderOption {
-  id: number
-  order_no: string
-  customer_id: number
-  customer_name: string
+  id: number;
+  order_no: string;
+  customer_id: number;
+  customer_name: string;
   items?: Array<{
-    product_id: number
-    product_name: string
-    product_code: string
-    unit_price: number
-  }>
+    product_id: number;
+    product_name: string;
+    product_code: string;
+    unit_price: number;
+  }>;
 }
 
 export interface CustomerOption {
-  id: number
-  name: string
-  [key: string]: unknown
+  id: number;
+  name: string;
+  [key: string]: unknown;
 }
 
 export interface ProductOption {
-  id: number
-  name: string
-  [key: string]: unknown
+  id: number;
+  name: string;
+  [key: string]: unknown;
 }
 
 export interface ReturnFormItem {
-  id: number | null
-  productId: number | null
-  productName: string
-  productCode: string
-  quantity: number
-  unitPrice: number
-  amount: number
-  reason: string
+  id: number | null;
+  productId: number | null;
+  productName: string;
+  productCode: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  reason: string;
 }
 
 export interface ReturnForm {
-  id: number | null
-  salesOrderId: number | null
-  salesOrderNo: string
-  customerId: number | null
-  customerName: string
-  returnDate: string
-  reason: string
-  remarks: string
-  items: ReturnFormItem[]
-  totalAmount: number
-  status: string
+  id: number | null;
+  salesOrderId: number | null;
+  salesOrderNo: string;
+  customerId: number | null;
+  customerName: string;
+  returnDate: string;
+  reason: string;
+  remarks: string;
+  items: ReturnFormItem[];
+  totalAmount: number;
+  status: string;
 }
 
 /**
@@ -77,18 +77,18 @@ export interface ReturnForm {
  */
 export function useSr() {
   // 列表 loading
-  const loading = ref(false)
+  const loading = ref(false);
 
   // v11 批次 163 P2-1 修复：any[] 改为具体类型 SalesReturn[]
-  const returnList = ref<SalesReturn[]>([])
+  const returnList = ref<SalesReturn[]>([]);
 
   // 详情弹窗当前记录
-  const currentReturn = ref<SalesReturn | null>(null)
+  const currentReturn = ref<SalesReturn | null>(null);
 
   // 销售订单/客户/产品下拉数据
-  const salesOrderList = ref<SalesOrderOption[]>([])
-  const customerList = ref<CustomerOption[]>([])
-  const productList = ref<ProductOption[]>([])
+  const salesOrderList = ref<SalesOrderOption[]>([]);
+  const customerList = ref<CustomerOption[]>([]);
+  const productList = ref<ProductOption[]>([]);
 
   // 表单数据
   const formData = reactive<ReturnForm>({
@@ -103,56 +103,56 @@ export function useSr() {
     items: [],
     totalAmount: 0,
     status: 'PENDING',
-  })
+  });
 
   // 表单引用
-  const formRef = ref<FormInstance>()
+  const formRef = ref<FormInstance>();
 
   // 加载退货列表
   const loadReturns = async () => {
-    loading.value = true
+    loading.value = true;
     try {
-      const res = await getSalesReturnList()
-      returnList.value = res.data?.list || []
+      const res = await getSalesReturnList();
+      returnList.value = res.data?.list || [];
     } catch (error: unknown) {
       // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) || '加载退货列表失败'
-      )
+      );
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  }
+  };
 
   // 加载销售订单下拉
   const loadSalesOrders = async () => {
     try {
-      const res = await getSalesOrderList({ status: 'completed' })
-      salesOrderList.value = (res.data?.list || []) as unknown as SalesOrderOption[]
+      const res = await getSalesOrderList({ status: 'completed' });
+      salesOrderList.value = (res.data?.list || []) as unknown as SalesOrderOption[];
     } catch (error: unknown) {
-      logger.error('加载销售订单失败', error instanceof Error ? error.message : String(error))
+      logger.error('加载销售订单失败', error instanceof Error ? error.message : String(error));
     }
-  }
+  };
 
   // 加载客户下拉
   const loadCustomers = async () => {
     try {
-      const res = await getCustomerList()
-      customerList.value = (res.data?.list || []) as unknown as CustomerOption[]
+      const res = await getCustomerList();
+      customerList.value = (res.data?.list || []) as unknown as CustomerOption[];
     } catch (error: unknown) {
-      logger.error('加载客户列表失败', error instanceof Error ? error.message : String(error))
+      logger.error('加载客户列表失败', error instanceof Error ? error.message : String(error));
     }
-  }
+  };
 
   // 加载产品下拉
   const loadProducts = async () => {
     try {
-      const res = await getProductList()
-      productList.value = (res.data?.list || []) as unknown as ProductOption[]
+      const res = await getProductList();
+      productList.value = (res.data?.list || []) as unknown as ProductOption[];
     } catch (error: unknown) {
-      logger.error('加载产品列表失败', error instanceof Error ? error.message : String(error))
+      logger.error('加载产品列表失败', error instanceof Error ? error.message : String(error));
     }
-  }
+  };
 
   // 重置表单为新建态
   const resetFormForCreate = () => {
@@ -179,8 +179,8 @@ export function useSr() {
       ],
       totalAmount: 0,
       status: 'PENDING',
-    })
-  }
+    });
+  };
 
   // 用行数据填充表单为编辑态
   const fillFormForEdit = (row: SalesReturn) => {
@@ -195,16 +195,16 @@ export function useSr() {
       items: row.items ? [...row.items] : [],
       totalAmount: row.totalAmount ?? 0,
       status: row.status ?? 'PENDING',
-    })
-  }
+    });
+  };
 
   // 销售订单变更时联动客户与明细
   const onSalesOrderChange = (orderId: number) => {
-    const order = salesOrderList.value.find(o => o.id === orderId)
+    const order = salesOrderList.value.find(o => o.id === orderId);
     if (order) {
-      formData.salesOrderNo = order.order_no
-      formData.customerId = order.customer_id
-      formData.customerName = order.customer_name
+      formData.salesOrderNo = order.order_no;
+      formData.customerId = order.customer_id;
+      formData.customerName = order.customer_name;
       if (order.items) {
         formData.items = order.items.map(item => ({
           id: null,
@@ -215,11 +215,11 @@ export function useSr() {
           unitPrice: item.unit_price,
           amount: 0,
           reason: '',
-        }))
+        }));
       }
-      calculateTotal()
+      calculateTotal();
     }
-  }
+  };
 
   // 添加空明细行
   const addItem = () => {
@@ -232,35 +232,35 @@ export function useSr() {
       unitPrice: 0,
       amount: 0,
       reason: '',
-    })
-  }
+    });
+  };
 
   // 删除明细行
   const removeItem = (index: number) => {
-    formData.items.splice(index, 1)
-    calculateTotal()
-  }
+    formData.items.splice(index, 1);
+    calculateTotal();
+  };
 
   // 重算总金额
   const calculateTotal = () => {
     formData.totalAmount = formData.items.reduce((sum, item) => {
-      return sum + item.quantity * item.unitPrice
-    }, 0)
-  }
+      return sum + item.quantity * item.unitPrice;
+    }, 0);
+  };
 
   // 表单校验 + 提交
   const submitForm = async (dialogMode: 'create' | 'edit') => {
-    if (!formRef.value) return false
+    if (!formRef.value) return false;
 
-    let valid = false
+    let valid = false;
     await formRef.value.validate(v => {
-      valid = v
-    })
-    if (!valid) return false
+      valid = v;
+    });
+    if (!valid) return false;
 
     if (formData.items.length === 0) {
-      ElMessage.warning('请至少添加一条退货明细')
-      return false
+      ElMessage.warning('请至少添加一条退货明细');
+      return false;
     }
 
     // v11 批次 163 CI1 修复：submitData 使用 as unknown as Partial<SalesReturn> 类型转换
@@ -273,36 +273,36 @@ export function useSr() {
         amount: item.quantity * item.unitPrice,
         reason: item.reason,
       })),
-    } as unknown as Partial<SalesReturn>
+    } as unknown as Partial<SalesReturn>;
 
     try {
       if (dialogMode === 'create') {
-        await createSalesReturn(submitData)
-        ElMessage.success('创建成功')
+        await createSalesReturn(submitData);
+        ElMessage.success('创建成功');
       } else {
-        await updateSalesReturn(formData.id as number, submitData)
-        ElMessage.success('更新成功')
+        await updateSalesReturn(formData.id as number, submitData);
+        ElMessage.success('更新成功');
       }
-      return true
+      return true;
     } catch (error: unknown) {
       // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           (dialogMode === 'create' ? '创建失败' : '更新失败')
-      )
-      return false
+      );
+      return false;
     }
-  }
+  };
 
   // 表单弹窗关闭
   const onEditDialogClose = () => {
-    formRef.value?.resetFields()
-  }
+    formRef.value?.resetFields();
+  };
 
   // 一次性初始化加载
   const initLoad = async () => {
-    await Promise.all([loadReturns(), loadSalesOrders(), loadCustomers(), loadProducts()])
-  }
+    await Promise.all([loadReturns(), loadSalesOrders(), loadCustomers(), loadProducts()]);
+  };
 
   return {
     // 状态
@@ -328,5 +328,5 @@ export function useSr() {
     submitForm,
     onEditDialogClose,
     initLoad,
-  }
+  };
 }

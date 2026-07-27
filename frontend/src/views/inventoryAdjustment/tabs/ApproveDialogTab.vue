@@ -56,87 +56,87 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance } from 'element-plus'
+import { ref, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import type { FormInstance } from 'element-plus';
 import {
   approveInventoryAdjustment,
   rejectInventoryAdjustment,
   type InventoryAdjustmentEntity,
-} from '@/api/inventoryAdjustment'
-import { logger } from '@/utils/logger'
+} from '@/api/inventoryAdjustment';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  currentRow: InventoryAdjustmentEntity | null
+  modelValue: boolean;
+  currentRow: InventoryAdjustmentEntity | null;
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
 
-const formData = reactive({ approval_comment: '' })
+const formData = reactive({ approval_comment: '' });
 
 const resetForm = () => {
-  formData.approval_comment = ''
-}
+  formData.approval_comment = '';
+};
 
 watch(
   () => props.modelValue,
   val => {
-    if (val) resetForm()
+    if (val) resetForm();
   }
-)
+);
 
 const handlePass = async () => {
-  if (!formRef.value || !props.currentRow) return
-  submitLoading.value = true
+  if (!formRef.value || !props.currentRow) return;
+  submitLoading.value = true;
   try {
-    await approveInventoryAdjustment(props.currentRow.id as number)
-    ElMessage.success(t('inventoryAdjustment.approveDialogTab.messagePassSuccess'))
-    emit('update:modelValue', false)
-    emit('submitted')
+    await approveInventoryAdjustment(props.currentRow.id as number);
+    ElMessage.success(t('inventoryAdjustment.approveDialogTab.messagePassSuccess'));
+    emit('update:modelValue', false);
+    emit('submitted');
   } catch (error) {
     ElMessage.error(
       (error as Error).message || t('inventoryAdjustment.approveDialogTab.messageFailed')
-    )
-    logger.error(t('inventoryAdjustment.approveDialogTab.approveFailed'), (error as Error).message)
+    );
+    logger.error(t('inventoryAdjustment.approveDialogTab.approveFailed'), (error as Error).message);
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 
 const handleReject = async () => {
-  if (!props.currentRow) return
+  if (!props.currentRow) return;
   try {
     await ElMessageBox.confirm(
       t('inventoryAdjustment.approveDialogTab.confirmRejectContent'),
       t('inventoryAdjustment.approveDialogTab.confirmRejectTitle'),
       { type: 'warning' }
-    )
-    submitLoading.value = true
-    await rejectInventoryAdjustment(props.currentRow.id as number)
-    ElMessage.success(t('inventoryAdjustment.approveDialogTab.messageRejectSuccess'))
-    emit('update:modelValue', false)
-    emit('submitted')
+    );
+    submitLoading.value = true;
+    await rejectInventoryAdjustment(props.currentRow.id as number);
+    ElMessage.success(t('inventoryAdjustment.approveDialogTab.messageRejectSuccess'));
+    emit('update:modelValue', false);
+    emit('submitted');
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error(
         (error as Error).message || t('inventoryAdjustment.approveDialogTab.messageFailed')
-      )
+      );
     }
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 </script>

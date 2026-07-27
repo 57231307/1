@@ -6,18 +6,13 @@
  * 行为完全保持一致（仅结构重构）
  * 批次 289：vouchers 接入 useTableApi，移除手写分页逻辑，返回 reactive 包装
  */
-import { ref, reactive, computed } from 'vue'
-import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
-import {
-  getSubjectTree,
-  createVoucher,
-  type AccountSubject,
-  type Voucher,
-} from '@/api/finance'
-import { useTableApi } from '@/composables/useTableApi'
-import { logger } from '@/utils/logger'
-import { formatMoney, getVchrStatusLabel, getVchrStatusType } from './vchrFmts'
+import { ref, reactive, computed } from 'vue';
+import { ElMessage } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
+import { getSubjectTree, createVoucher, type AccountSubject, type Voucher } from '@/api/finance';
+import { useTableApi } from '@/composables/useTableApi';
+import { logger } from '@/utils/logger';
+import { formatMoney, getVchrStatusLabel, getVchrStatusType } from './vchrFmts';
 
 /**
  * 凭证管理 composable
@@ -44,16 +39,16 @@ export function useVchr() {
       status: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取凭证列表失败', err)
-      ElMessage.error('获取凭证列表失败')
+      logger.error('获取凭证列表失败', err);
+      ElMessage.error('获取凭证列表失败');
     },
-  })
+  });
 
-  const subjects = ref<AccountSubject[]>([])
+  const subjects = ref<AccountSubject[]>([]);
 
   // 表单相关
-  const voucherFormRef = ref<FormInstance>()
-  const voucherSubmitLoading = ref(false)
+  const voucherFormRef = ref<FormInstance>();
+  const voucherSubmitLoading = ref(false);
   const voucherForm = reactive({
     voucher_date: '',
     voucher_type: 'JZ',
@@ -61,50 +56,56 @@ export function useVchr() {
       { subject_id: undefined as number | undefined, debit: 0, credit: 0, summary: '' },
       { subject_id: undefined as number | undefined, debit: 0, credit: 0, summary: '' },
     ],
-  })
+  });
 
   const voucherRules: FormRules = {
     voucher_date: [{ required: true, message: '请选择凭证日期', trigger: 'change' }],
     voucher_type: [{ required: true, message: '请选择凭证类型', trigger: 'change' }],
-  }
+  };
 
   // 详情相关
-  const currentVoucher = ref<Voucher | null>(null)
+  const currentVoucher = ref<Voucher | null>(null);
 
   // 叶子科目（用于树形选择）
   const leafSubjects = computed(() => {
     const flatten = (list: AccountSubject[]): AccountSubject[] => {
       return list.reduce((acc, item) => {
-        if (item.is_leaf) acc.push(item)
-        if (item.children?.length) acc.push(...flatten(item.children))
-        return acc
-      }, [] as AccountSubject[])
-    }
-    return flatten(subjects.value)
-  })
+        if (item.is_leaf) acc.push(item);
+        if (item.children?.length) acc.push(...flatten(item.children));
+        return acc;
+      }, [] as AccountSubject[]);
+    };
+    return flatten(subjects.value);
+  });
 
   // 借贷合计
-  const totalDebit = computed(() => voucherForm.entries.reduce((sum, e) => sum + (e.debit || 0), 0))
-  const totalCredit = computed(() => voucherForm.entries.reduce((sum, e) => sum + (e.credit || 0), 0))
-  const isBalanced = computed(() => Math.abs(totalDebit.value - totalCredit.value) < 0.01)
+  const totalDebit = computed(() =>
+    voucherForm.entries.reduce((sum, e) => sum + (e.debit || 0), 0)
+  );
+  const totalCredit = computed(() =>
+    voucherForm.entries.reduce((sum, e) => sum + (e.credit || 0), 0)
+  );
+  const isBalanced = computed(() => Math.abs(totalDebit.value - totalCredit.value) < 0.01);
 
   // 科目加载
   const fetchSubjects = async () => {
     try {
-      const res = await getSubjectTree()
-      const d = res.data as AccountSubject[] | { items?: AccountSubject[]; data?: AccountSubject[] }
-      subjects.value = Array.isArray(d) ? d : d?.items || d?.data || []
+      const res = await getSubjectTree();
+      const d = res.data as
+        | AccountSubject[]
+        | { items?: AccountSubject[]; data?: AccountSubject[] };
+      subjects.value = Array.isArray(d) ? d : d?.items || d?.data || [];
     } catch (error) {
-      const err = error as Error
-      logger.warn('获取科目列表失败', err.message)
+      const err = error as Error;
+      logger.warn('获取科目列表失败', err.message);
     }
-  }
+  };
 
   /** 查询：重置页码，触发加载（筛选条件已由父组件同步到 queryParams） */
   const handleSearch = () => {
-    page.value = 1
-    fetchVouchers()
-  }
+    page.value = 1;
+    fetchVouchers();
+  };
 
   /** 重置过滤：清空筛选条件 + 重置页码，触发加载 */
   const handleReset = () => {
@@ -113,35 +114,35 @@ export function useVchr() {
       voucher_no: '',
       date_range: [],
       status: '',
-    }
-    page.value = 1
-    fetchVouchers()
-  }
+    };
+    page.value = 1;
+    fetchVouchers();
+  };
 
   // 分录管理
   const addEntry = () => {
-    voucherForm.entries.push({ subject_id: undefined, debit: 0, credit: 0, summary: '' })
-  }
+    voucherForm.entries.push({ subject_id: undefined, debit: 0, credit: 0, summary: '' });
+  };
 
   const removeEntry = (index: number) => {
     if (voucherForm.entries.length > 2) {
-      voucherForm.entries.splice(index, 1)
+      voucherForm.entries.splice(index, 1);
     } else {
-      ElMessage.warning('至少保留两条分录')
+      ElMessage.warning('至少保留两条分录');
     }
-  }
+  };
 
   // 表单提交
   const submitVoucherForm = async () => {
-    const valid = await voucherFormRef.value?.validate()
-    if (!valid) return false
+    const valid = await voucherFormRef.value?.validate();
+    if (!valid) return false;
 
     if (!isBalanced.value) {
-      ElMessage.warning('借贷不平衡，请检查分录金额')
-      return false
+      ElMessage.warning('借贷不平衡，请检查分录金额');
+      return false;
     }
 
-    voucherSubmitLoading.value = true
+    voucherSubmitLoading.value = true;
     try {
       await createVoucher({
         voucher_date: voucherForm.voucher_date,
@@ -154,23 +155,23 @@ export function useVchr() {
             credit: e.credit || 0,
             summary: e.summary,
           })),
-      })
-      ElMessage.success('创建成功')
-      await fetchVouchers()
-      return true
+      });
+      ElMessage.success('创建成功');
+      await fetchVouchers();
+      return true;
     } catch (error) {
-      const err = error as Error
-      ElMessage.error(err.message || '操作失败')
-      return false
+      const err = error as Error;
+      ElMessage.error(err.message || '操作失败');
+      return false;
     } finally {
-      voucherSubmitLoading.value = false
+      voucherSubmitLoading.value = false;
     }
-  }
+  };
 
   // 详情查看
   const viewVoucher = (row: Voucher) => {
-    currentVoucher.value = row
-  }
+    currentVoucher.value = row;
+  };
 
   // 使用 reactive 包装所有 ref 字段，访问 reactive 字段时 Vue 自动解包 ref，
   // 父组件通过 vchr.vouchers 即可直接获得 Voucher[] 类型的值
@@ -207,5 +208,5 @@ export function useVchr() {
     totalDebit,
     totalCredit,
     isBalanced,
-  })
+  });
 }

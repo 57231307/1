@@ -137,35 +137,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
-import type { Product, ProductCategory } from '@/api/product'
-import { createProduct, updateProduct } from '@/api/product'
-import { logger } from '@/utils/logger'
+import { ref, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
+import type { Product, ProductCategory } from '@/api/product';
+import { createProduct, updateProduct } from '@/api/product';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  title: string
-  rowData: Product | null
-  categories: ProductCategory[]
-  mode: 'create' | 'edit' | 'view'
+  modelValue: boolean;
+  title: string;
+  rowData: Product | null;
+  categories: ProductCategory[];
+  mode: 'create' | 'edit' | 'view';
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const visible = ref(props.modelValue)
-const submitLoading = ref(false)
-const formRef = ref<FormInstance>()
+const visible = ref(props.modelValue);
+const submitLoading = ref(false);
+const formRef = ref<FormInstance>();
 
 const formData = reactive({
   id: undefined as number | undefined,
@@ -179,7 +179,7 @@ const formData = reactive({
   cost_price: 0,
   description: '',
   is_active: true,
-})
+});
 
 const formRules: FormRules = {
   product_code: [
@@ -216,62 +216,62 @@ const formRules: FormRules = {
       trigger: 'blur',
     },
   ],
-}
+};
 
 const resetForm = () => {
-  formData.id = undefined
-  formData.product_code = ''
-  formData.product_name = ''
-  formData.category_id = undefined
-  formData.specification = ''
-  formData.unit = ''
-  formData.barcode = ''
-  formData.price = 0
-  formData.cost_price = 0
-  formData.description = ''
-  formData.is_active = true
-  formRef.value?.clearValidate()
-}
+  formData.id = undefined;
+  formData.product_code = '';
+  formData.product_name = '';
+  formData.category_id = undefined;
+  formData.specification = '';
+  formData.unit = '';
+  formData.barcode = '';
+  formData.price = 0;
+  formData.cost_price = 0;
+  formData.description = '';
+  formData.is_active = true;
+  formRef.value?.clearValidate();
+};
 
 watch(
   () => props.modelValue,
   val => {
-    visible.value = val
+    visible.value = val;
     if (val) {
-      resetForm()
+      resetForm();
       if (props.rowData) {
-        Object.assign(formData, props.rowData)
+        Object.assign(formData, props.rowData);
       }
     }
   }
-)
+);
 
 watch(visible, val => {
-  emit('update:modelValue', val)
-})
+  emit('update:modelValue', val);
+});
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
       if (props.mode === 'create') {
-        await createProduct(formData)
-        ElMessage.success(t('product.productFormDialogTab.messageCreateSuccess'))
+        await createProduct(formData);
+        ElMessage.success(t('product.productFormDialogTab.messageCreateSuccess'));
       } else {
-        await updateProduct(formData.id as number, formData)
-        ElMessage.success(t('product.productFormDialogTab.messageUpdateSuccess'))
+        await updateProduct(formData.id as number, formData);
+        ElMessage.success(t('product.productFormDialogTab.messageUpdateSuccess'));
       }
-      emit('update:modelValue', false)
-      emit('submitted')
+      emit('update:modelValue', false);
+      emit('submitted');
     } catch (error) {
-      const err = error as Error
-      ElMessage.error(err.message || t('product.productFormDialogTab.messageOperationFailed'))
-      logger.error(t('product.productFormDialogTab.messageSaveFailed'), err.message)
+      const err = error as Error;
+      ElMessage.error(err.message || t('product.productFormDialogTab.messageOperationFailed'));
+      logger.error(t('product.productFormDialogTab.messageSaveFailed'), err.message);
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 </script>

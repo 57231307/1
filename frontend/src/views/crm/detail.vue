@@ -18,7 +18,9 @@
       <div class="header-left">
         <h1 class="page-title">{{ t('crmDetail.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ t('crmDetail.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('crmDetail.breadcrumb.home')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('crmDetail.breadcrumb.crm') }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('crmDetail.breadcrumb.customerDetail') }}</el-breadcrumb-item>
         </el-breadcrumb>
@@ -40,7 +42,11 @@
                 <div class="card-header">
                   <span>{{ t('crmDetail.basicInfo') }}</span>
                   <el-tag :type="customer.status === 'active' ? 'success' : 'info'" size="small">
-                    {{ customer.status === 'active' ? t('crmDetail.statusActive') : t('crmDetail.statusInactive') }}
+                    {{
+                      customer.status === 'active'
+                        ? t('crmDetail.statusActive')
+                        : t('crmDetail.statusInactive')
+                    }}
                   </el-tag>
                 </div>
               </template>
@@ -55,7 +61,9 @@
                 <el-descriptions-item :label="t('crmDetail.field.contactPerson')">{{
                   customer.contact_person
                 }}</el-descriptions-item>
-                <el-descriptions-item :label="t('crmDetail.field.phone')">{{ customer.phone }}</el-descriptions-item>
+                <el-descriptions-item :label="t('crmDetail.field.phone')">{{
+                  customer.phone
+                }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.email')" :span="2">{{
                   customer.email
                 }}</el-descriptions-item>
@@ -116,24 +124,50 @@
                 </div>
               </template>
 
-              <el-table :data="contacts" stripe v-loading="contactsLoading" :aria-label="t('crmDetail.contactTableAria')">
-                <el-table-column prop="name" :label="t('crmDetail.field.contactName')" width="120" />
-                <el-table-column prop="title" :label="t('crmDetail.field.contactTitle')" width="150">
+              <el-table
+                v-loading="contactsLoading"
+                :data="contacts"
+                stripe
+                :aria-label="t('crmDetail.contactTableAria')"
+              >
+                <el-table-column
+                  prop="name"
+                  :label="t('crmDetail.field.contactName')"
+                  width="120"
+                />
+                <el-table-column
+                  prop="title"
+                  :label="t('crmDetail.field.contactTitle')"
+                  width="150"
+                >
                   <template #default="{ row }">{{ row.title || '-' }}</template>
                 </el-table-column>
                 <el-table-column prop="phone" :label="t('crmDetail.field.phone')" width="140" />
                 <el-table-column prop="email" :label="t('crmDetail.field.email')" min-width="180">
                   <template #default="{ row }">{{ row.email || '-' }}</template>
                 </el-table-column>
-                <el-table-column prop="is_primary" :label="t('crmDetail.field.isPrimary')" width="100" align="center">
+                <el-table-column
+                  prop="is_primary"
+                  :label="t('crmDetail.field.isPrimary')"
+                  width="100"
+                  align="center"
+                >
                   <template #default="{ row }">
-                    <el-tag v-if="row.is_primary" type="warning" size="small">{{ t('crmDetail.field.primaryBadge') }}</el-tag>
+                    <el-tag v-if="row.is_primary" type="warning" size="small">{{
+                      t('crmDetail.field.primaryBadge')
+                    }}</el-tag>
                   </template>
                 </el-table-column>
                 <el-table-column :label="t('crmDetail.field.operation')" width="160" align="center">
                   <template #default="{ row }">
                     <el-button size="small" link type="primary" @click="handleEditContact(row)">
-                      {{ t('crmRuleDialog.form.cancel').length ? t('crmDetail.message.deleteFailed').length ? '' : '' : '' }}{{ t('crmOpportunities.table.edit') }}
+                      {{
+                        t('crmRuleDialog.form.cancel').length
+                          ? t('crmDetail.message.deleteFailed').length
+                            ? ''
+                            : ''
+                          : ''
+                      }}{{ t('crmOpportunities.table.edit') }}
                     </el-button>
                     <el-button size="small" link type="danger" @click="handleDeleteContact(row)">
                       {{ t('crmAssignment.ruleTable.delete') }}
@@ -146,7 +180,9 @@
 
           <el-col :span="8">
             <el-card shadow="hover">
-              <template #header><div class="card-header">{{ t('crmDetail.rfmScore') }}</div></template>
+              <template #header
+                ><div class="card-header">{{ t('crmDetail.rfmScore') }}</div></template
+              >
               <div v-if="customer.rfm_score" class="rfm-display">
                 <div class="rfm-level">
                   <span class="level-badge">{{ customer.rfm_score.level }}</span>
@@ -177,7 +213,9 @@
             />
 
             <el-card shadow="hover" class="mt-20">
-              <template #header><div class="card-header">{{ t('crmDetail.shippingAddress') }}</div></template>
+              <template #header
+                ><div class="card-header">{{ t('crmDetail.shippingAddress') }}</div></template
+              >
               <div class="address-list">
                 <div
                   v-for="addr in customer.shipping_addresses"
@@ -186,14 +224,19 @@
                 >
                   <div class="address-header">
                     <span class="addr-name">{{ addr.name }}</span>
-                    <el-tag v-if="addr.is_default" type="warning" size="small">{{ t('crmDetail.field.defaultAddress') }}</el-tag>
+                    <el-tag v-if="addr.is_default" type="warning" size="small">{{
+                      t('crmDetail.field.defaultAddress')
+                    }}</el-tag>
                   </div>
                   <div class="addr-phone">{{ addr.phone }}</div>
                   <div class="addr-detail">
                     {{ addr.province }} {{ addr.city }} {{ addr.district }} {{ addr.detail }}
                   </div>
                 </div>
-                <el-empty v-if="!customer.shipping_addresses.length" :description="t('crmDetail.addressEmpty')" />
+                <el-empty
+                  v-if="!customer.shipping_addresses.length"
+                  :description="t('crmDetail.addressEmpty')"
+                />
               </div>
             </el-card>
           </el-col>
@@ -219,16 +262,32 @@
         :aria-label="t('crmDetail.contactDialogAria')"
       >
         <el-form-item :label="t('crmDetail.contactForm.name')" prop="name">
-          <el-input v-model="contactForm.name" :placeholder="t('crmDetail.contactForm.namePlaceholder')" maxlength="50" />
+          <el-input
+            v-model="contactForm.name"
+            :placeholder="t('crmDetail.contactForm.namePlaceholder')"
+            maxlength="50"
+          />
         </el-form-item>
         <el-form-item :label="t('crmDetail.contactForm.title')" prop="title">
-          <el-input v-model="contactForm.title" :placeholder="t('crmDetail.contactForm.titlePlaceholder')" maxlength="100" />
+          <el-input
+            v-model="contactForm.title"
+            :placeholder="t('crmDetail.contactForm.titlePlaceholder')"
+            maxlength="100"
+          />
         </el-form-item>
         <el-form-item :label="t('crmDetail.contactForm.phone')" prop="phone">
-          <el-input v-model="contactForm.phone" :placeholder="t('crmDetail.contactForm.phonePlaceholder')" maxlength="50" />
+          <el-input
+            v-model="contactForm.phone"
+            :placeholder="t('crmDetail.contactForm.phonePlaceholder')"
+            maxlength="50"
+          />
         </el-form-item>
         <el-form-item :label="t('crmDetail.contactForm.email')" prop="email">
-          <el-input v-model="contactForm.email" :placeholder="t('crmDetail.contactForm.emailPlaceholder')" maxlength="100" />
+          <el-input
+            v-model="contactForm.email"
+            :placeholder="t('crmDetail.contactForm.emailPlaceholder')"
+            maxlength="100"
+          />
         </el-form-item>
         <el-form-item :label="t('crmDetail.contactForm.isPrimary')" prop="is_primary">
           <el-switch v-model="contactForm.is_primary" />
@@ -244,7 +303,9 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="contactDialogVisible = false">{{ t('crmDetail.contactForm.cancel') }}</el-button>
+        <el-button @click="contactDialogVisible = false">{{
+          t('crmDetail.contactForm.cancel')
+        }}</el-button>
         <el-button type="primary" :loading="contactSubmitting" @click="submitContactForm">
           {{ t('crmDetail.contactForm.confirm') }}
         </el-button>
@@ -254,35 +315,43 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Back, Plus } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Back, Plus } from '@element-plus/icons-vue';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
-import { getCustomer360, getCustomerContactList, deleteCustomerContact, createCustomerContact, updateCustomerContact, type Contact, type Customer360 } from '@/api/crm-enhanced'
-import { logger } from '@/utils/logger'
-import FollowUpTab from './tabs/FollowUpTab.vue'
-import TagsPanelTab from './tabs/TagsPanelTab.vue'
+import {
+  getCustomer360,
+  getCustomerContactList,
+  deleteCustomerContact,
+  createCustomerContact,
+  updateCustomerContact,
+  type Contact,
+  type Customer360,
+} from '@/api/crm-enhanced';
+import { logger } from '@/utils/logger';
+import FollowUpTab from './tabs/FollowUpTab.vue';
+import TagsPanelTab from './tabs/TagsPanelTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const route = useRoute()
-const router = useRouter()
+const route = useRoute();
+const router = useRouter();
 
-const loading = ref(false)
-const customer = ref<Customer360 | null>(null)
-const customerId = Number(route.params.id)
-const followUpRef = ref<InstanceType<typeof FollowUpTab> | null>(null)
+const loading = ref(false);
+const customer = ref<Customer360 | null>(null);
+const customerId = Number(route.params.id);
+const followUpRef = ref<InstanceType<typeof FollowUpTab> | null>(null);
 
 // 批次 90b P2-12：联系人列表与对话框状态
-const contacts = ref<Contact[]>([])
-const contactsLoading = ref(false)
-const contactDialogVisible = ref(false)
-const contactDialogTitle = ref('')
-const contactSubmitting = ref(false)
-const contactFormRef = ref<FormInstance | null>(null)
-const editingContactId = ref<number | null>(null)
+const contacts = ref<Contact[]>([]);
+const contactsLoading = ref(false);
+const contactDialogVisible = ref(false);
+const contactDialogTitle = ref('');
+const contactSubmitting = ref(false);
+const contactFormRef = ref<FormInstance | null>(null);
+const editingContactId = ref<number | null>(null);
 const contactForm = ref({
   name: '',
   title: '',
@@ -290,72 +359,72 @@ const contactForm = ref({
   email: '',
   is_primary: false,
   remarks: '',
-})
+});
 
 const contactFormRules: FormRules = {
   name: [{ required: true, message: t('crmDetail.validation.nameRequired'), trigger: 'blur' }],
   phone: [{ required: true, message: t('crmDetail.validation.phoneRequired'), trigger: 'blur' }],
   email: [{ type: 'email', message: t('crmDetail.validation.emailPattern'), trigger: 'blur' }],
-}
+};
 
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
+const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
     normal: t('crmDetail.customerType.normal'),
     vip: t('crmDetail.customerType.vip'),
     wholesale: t('crmDetail.customerType.wholesale'),
-  }
-  return labels[type] || type
-}
+  };
+  return labels[type] || type;
+};
 
 const getTypeTag = (type: string) => {
-  const typeMap: Record<string, string> = { normal: '', vip: 'warning', wholesale: 'success' }
-  return typeMap[type] || ''
-}
+  const typeMap: Record<string, string> = { normal: '', vip: 'warning', wholesale: 'success' };
+  return typeMap[type] || '';
+};
 
 const fetchCustomer360 = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await getCustomer360(customerId)
-    customer.value = res.data
+    const res = await getCustomer360(customerId);
+    customer.value = res.data;
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('crmDetail.message.loadFailed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('crmDetail.message.loadFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 // 批次 90b P2-12：拉取联系人列表（独立于 360 视图，避免每次刷新 360 都重复请求）
 const fetchContacts = async () => {
-  contactsLoading.value = true
+  contactsLoading.value = true;
   try {
-    const res = await getCustomerContactList(customerId)
-    contacts.value = res.data || []
+    const res = await getCustomerContactList(customerId);
+    contacts.value = res.data || [];
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    ElMessage.error(msg || t('crmDetail.message.contactLoadFailed'))
+    const msg = error instanceof Error ? error.message : String(error);
+    ElMessage.error(msg || t('crmDetail.message.contactLoadFailed'));
   } finally {
-    contactsLoading.value = false
+    contactsLoading.value = false;
   }
-}
+};
 
 const handleBack = () => {
-  router.back()
-}
+  router.back();
+};
 
 // 批次 90b P2-12：打开新增联系人对话框
 const handleAddContact = () => {
-  editingContactId.value = null
-  contactDialogTitle.value = t('crmDetail.contactDialogTitle.create')
-  contactDialogVisible.value = true
-}
+  editingContactId.value = null;
+  contactDialogTitle.value = t('crmDetail.contactDialogTitle.create');
+  contactDialogVisible.value = true;
+};
 
 // 批次 90b P2-12：打开编辑联系人对话框
 const handleEditContact = (row: Contact) => {
-  editingContactId.value = row.id
-  contactDialogTitle.value = t('crmDetail.contactDialogTitle.edit')
+  editingContactId.value = row.id;
+  contactDialogTitle.value = t('crmDetail.contactDialogTitle.edit');
   contactForm.value = {
     name: row.name || '',
     title: row.title || '',
@@ -363,25 +432,29 @@ const handleEditContact = (row: Contact) => {
     email: row.email || '',
     is_primary: !!row.is_primary,
     remarks: '',
-  }
-  contactDialogVisible.value = true
-}
+  };
+  contactDialogVisible.value = true;
+};
 
 // 批次 90b P2-12：删除联系人
 const handleDeleteContact = async (row: Contact) => {
   try {
-    await ElMessageBox.confirm(t('crmDetail.message.deleteConfirm', { name: row.name }), t('crmDetail.message.deleteTitle'), {
-      type: 'warning',
-    })
-    await deleteCustomerContact(customerId, row.id)
-    ElMessage.success(t('crmDetail.message.deleteSuccess'))
-    fetchContacts()
+    await ElMessageBox.confirm(
+      t('crmDetail.message.deleteConfirm', { name: row.name }),
+      t('crmDetail.message.deleteTitle'),
+      {
+        type: 'warning',
+      }
+    );
+    await deleteCustomerContact(customerId, row.id);
+    ElMessage.success(t('crmDetail.message.deleteSuccess'));
+    fetchContacts();
   } catch (error) {
-    if (error === 'cancel') return
-    const msg = error instanceof Error ? error.message : String(error)
-    ElMessage.error(msg || t('crmDetail.message.deleteFailed'))
+    if (error === 'cancel') return;
+    const msg = error instanceof Error ? error.message : String(error);
+    ElMessage.error(msg || t('crmDetail.message.deleteFailed'));
   }
-}
+};
 
 // 批次 90b P2-12：重置表单
 const resetContactForm = () => {
@@ -392,21 +465,21 @@ const resetContactForm = () => {
     email: '',
     is_primary: false,
     remarks: '',
-  }
-  editingContactId.value = null
-  contactFormRef.value?.clearValidate()
-}
+  };
+  editingContactId.value = null;
+  contactFormRef.value?.clearValidate();
+};
 
 // 批次 90b P2-12：提交表单（新增/编辑）
 const submitContactForm = async () => {
-  if (!contactFormRef.value) return
+  if (!contactFormRef.value) return;
   // Element Plus validate(callback) 形式下外层 await 不会等待 callback 内 async，故改为 try/catch 形式
   try {
-    await contactFormRef.value.validate()
+    await contactFormRef.value.validate();
   } catch {
-    return // 校验失败，el-form 会自动显示错误
+    return; // 校验失败，el-form 会自动显示错误
   }
-  contactSubmitting.value = true
+  contactSubmitting.value = true;
   try {
     const payload = {
       name: contactForm.value.name,
@@ -415,34 +488,34 @@ const submitContactForm = async () => {
       email: contactForm.value.email || undefined,
       is_primary: contactForm.value.is_primary,
       remarks: contactForm.value.remarks || undefined,
-    }
+    };
     if (editingContactId.value === null) {
-      await createCustomerContact(customerId, payload)
-      ElMessage.success(t('crmDetail.message.createSuccess'))
+      await createCustomerContact(customerId, payload);
+      ElMessage.success(t('crmDetail.message.createSuccess'));
     } else {
-      await updateCustomerContact(customerId, editingContactId.value, payload)
-      ElMessage.success(t('crmDetail.message.updateSuccess'))
+      await updateCustomerContact(customerId, editingContactId.value, payload);
+      ElMessage.success(t('crmDetail.message.updateSuccess'));
     }
-    contactDialogVisible.value = false
-    fetchContacts()
+    contactDialogVisible.value = false;
+    fetchContacts();
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    ElMessage.error(msg || t('crmDetail.message.operationFailed'))
+    const msg = error instanceof Error ? error.message : String(error);
+    ElMessage.error(msg || t('crmDetail.message.operationFailed'));
   } finally {
-    contactSubmitting.value = false
+    contactSubmitting.value = false;
   }
-}
+};
 
 onMounted(() => {
   if (!customerId) {
-    ElMessage.error(t('crmDetail.message.missingCustomerId'))
-    router.back()
-    return
+    ElMessage.error(t('crmDetail.message.missingCustomerId'));
+    router.back();
+    return;
   }
-  fetchCustomer360()
-  fetchContacts()
-  logger.info(t('crmDetail.message.pageLoaded'), { customerId })
-})
+  fetchCustomer360();
+  fetchContacts();
+  logger.info(t('crmDetail.message.pageLoaded'), { customerId });
+});
 </script>
 
 <style scoped>

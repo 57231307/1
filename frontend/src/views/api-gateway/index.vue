@@ -67,31 +67,28 @@
     <ApiEndpointForm
       v-model:visible="ep.endpointDialogVisible"
       v-model:form-ref="ep.endpointFormRef"
-      :form="ep.endpointForm"
-      :submit-loading="ep.endpointSubmitLoading"
-      :rules="ep.endpointRules"
       v-model:authorization-text="ep.authorizationText"
       v-model:request-schema-text="ep.requestSchemaText"
       v-model:response-schema-text="ep.responseSchemaText"
+      :form="ep.endpointForm"
+      :submit-loading="ep.endpointSubmitLoading"
+      :rules="ep.endpointRules"
       @submit="ep.handleEndpointSubmit"
-      @update:form="(v) => Object.assign(ep.endpointForm, v)"
+      @update:form="v => Object.assign(ep.endpointForm, v)"
     />
 
     <KeyForm
       v-model:visible="key.keyDialogVisible"
       v-model:form-ref="key.keyFormRef"
+      v-model:permissions-text="key.permissionsText"
       :form="key.keyForm"
       :submit-loading="key.keySubmitLoading"
       :rules="key.keyRules"
-      v-model:permissions-text="key.permissionsText"
       @submit="key.handleKeySubmit"
-      @update:form="(v) => Object.assign(key.keyForm, v)"
+      @update:form="v => Object.assign(key.keyForm, v)"
     />
 
-    <LogDetail
-      v-model:visible="log.logDetailVisible"
-      :current-log="log.currentLog"
-    />
+    <LogDetail v-model:visible="log.logDetailVisible" :current-log="log.currentLog" />
   </div>
 </template>
 
@@ -99,25 +96,25 @@
 // 此文件为 API 网关页面入口，组合 useApiEp/useApiKey/useApiLog 三个 composable。
 // 批次 281：3 个 composable 已接入 useTableApi，自动管理分页和数据加载，无需 onMounted 调用 fetch。
 
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useApiEp } from './composables/useApiEp'
-import { useApiKey } from './composables/useApiKey'
-import { useApiLog } from './composables/useApiLog'
-import ApiEndpointForm from './components/ApiEndpointForm.vue'
-import KeyForm from './components/KeyForm.vue'
-import LogDetail from './components/LogDetail.vue'
-import ApiEndpointTab, { type EndpointQuery } from './tabs/ApiEndpointTab.vue'
-import ApiKeyTab, { type ApiKeyQuery } from './tabs/ApiKeyTab.vue'
-import ApiLogTab, { type LogQuery } from './tabs/ApiLogTab.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useApiEp } from './composables/useApiEp';
+import { useApiKey } from './composables/useApiKey';
+import { useApiLog } from './composables/useApiLog';
+import ApiEndpointForm from './components/ApiEndpointForm.vue';
+import KeyForm from './components/KeyForm.vue';
+import LogDetail from './components/LogDetail.vue';
+import ApiEndpointTab, { type EndpointQuery } from './tabs/ApiEndpointTab.vue';
+import ApiKeyTab, { type ApiKeyQuery } from './tabs/ApiKeyTab.vue';
+import ApiLogTab, { type LogQuery } from './tabs/ApiLogTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('endpoints')
+const activeTab = ref('endpoints');
 
-const ep = useApiEp()
-const key = useApiKey()
-const log = useApiLog()
+const ep = useApiEp();
+const key = useApiKey();
+const log = useApiLog();
 </script>
 
 <style scoped>

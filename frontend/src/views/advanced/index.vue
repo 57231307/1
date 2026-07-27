@@ -44,7 +44,7 @@
           :run-recipe-optimization="rcp.runRecipeOptimization"
           @update:recipe-form="
             v => {
-              rcp.recipeForm.value = v
+              rcp.recipeForm.value = v;
             }
           "
         />
@@ -58,7 +58,7 @@
           :run-quality-prediction="qlt.runQualityPrediction"
           @update:quality-form="
             v => {
-              qlt.qualityForm.value = v
+              qlt.qualityForm.value = v;
             }
           "
         />
@@ -68,29 +68,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { useAi } from './composables/useAi'
-import { useRpt } from './composables/useRpt'
-import { useRcp } from './composables/useRcp'
-import { useQlt } from './composables/useQlt'
-import AdvancedAiPanel from './components/AdvancedAiPanel.vue'
-import AdvancedReportPanel from './components/AdvancedReportPanel.vue'
-import AdvancedRecipePanel from './components/AdvancedRecipePanel.vue'
-import AdvancedQualityPanel from './components/AdvancedQualityPanel.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { useAi } from './composables/useAi';
+import { useRpt } from './composables/useRpt';
+import { useRcp } from './composables/useRcp';
+import { useQlt } from './composables/useQlt';
+import AdvancedAiPanel from './components/AdvancedAiPanel.vue';
+import AdvancedReportPanel from './components/AdvancedReportPanel.vue';
+import AdvancedRecipePanel from './components/AdvancedRecipePanel.vue';
+import AdvancedQualityPanel from './components/AdvancedQualityPanel.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('ai')
-const hasLoaded = createLazyLoader()
+const activeTab = ref('ai');
+const hasLoaded = createLazyLoader();
 
 // 在父组件集中创建所有 composable 实例
 // 子组件通过 props 接收需要的数据与函数（保证行为完全一致）
-const ai = useAi()
-const rpt = useRpt()
-const rcp = useRcp()
-const qlt = useQlt()
+const ai = useAi();
+const rpt = useRpt();
+const rcp = useRcp();
+const qlt = useQlt();
 
 // 各 tab 懒加载映射
 const tabLoaders: Record<string, () => void> = {
@@ -98,22 +98,22 @@ const tabLoaders: Record<string, () => void> = {
   report: rpt.fetchReportTemplates,
   recipe: () => {},
   quality: () => {},
-}
+};
 
 const loadTab = (tabName: string | number) => {
-  const key = String(tabName)
+  const key = String(tabName);
   if (tabLoaders[key]) {
-    loadIfNot(key, tabLoaders[key], hasLoaded)
+    loadIfNot(key, tabLoaders[key], hasLoaded);
   }
-}
+};
 
 const initPage = () => {
-  loadTab(activeTab.value)
-}
+  loadTab(activeTab.value);
+};
 
 onMounted(() => {
-  initPage()
-})
+  initPage();
+});
 </script>
 
 <style scoped>

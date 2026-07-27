@@ -27,36 +27,36 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import * as echarts from 'echarts'
-import type { ECharts } from 'echarts'
-import type { CapacityTrend } from '@/api/capacity'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import * as echarts from 'echarts';
+import type { ECharts } from 'echarts';
+import type { CapacityTrend } from '@/api/capacity';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 趋势数据 + 天数（v-model 双向）
-const props = defineProps<{ data: CapacityTrend[]; days: number }>()
-const emit = defineEmits<{ 'update:days': [v: number] }>()
+const props = defineProps<{ data: CapacityTrend[]; days: number }>();
+const emit = defineEmits<{ 'update:days': [v: number] }>();
 
-const updateDays = (v: number) => emit('update:days', v)
+const updateDays = (v: number) => emit('update:days', v);
 
 // ECharts 实例 + 容器 ref
-const chartRef = ref<HTMLElement>()
-let capacityChart: ECharts | null = null
-let resizeHandler: (() => void) | null = null
+const chartRef = ref<HTMLElement>();
+let capacityChart: ECharts | null = null;
+let resizeHandler: (() => void) | null = null;
 
 // 渲染 ECharts 选项
 const renderChart = (data: CapacityTrend[]) => {
-  if (!chartRef.value) return
+  if (!chartRef.value) return;
   if (!capacityChart) {
-    capacityChart = echarts.init(chartRef.value)
-    resizeHandler = () => capacityChart?.resize()
-    window.addEventListener('resize', resizeHandler)
+    capacityChart = echarts.init(chartRef.value);
+    resizeHandler = () => capacityChart?.resize();
+    window.addEventListener('resize', resizeHandler);
   }
-  const plannedHoursLabel = t('capacityModule.trend.plannedHours')
-  const actualHoursLabel = t('capacityModule.trend.actualHours')
-  const capacityHoursLabel = t('capacityModule.trend.capacityHours')
+  const plannedHoursLabel = t('capacityModule.trend.plannedHours');
+  const actualHoursLabel = t('capacityModule.trend.actualHours');
+  const capacityHoursLabel = t('capacityModule.trend.capacityHours');
   const option = {
     tooltip: { trigger: 'axis' },
     legend: { data: [plannedHoursLabel, actualHoursLabel, capacityHoursLabel], bottom: 0 },
@@ -97,47 +97,47 @@ const renderChart = (data: CapacityTrend[]) => {
         lineStyle: { type: 'dashed' },
       },
     ],
-  }
-  capacityChart.setOption(option)
-}
+  };
+  capacityChart.setOption(option);
+};
 
 // 监听 data 变化 → 重新渲染 ECharts
 watch(
   () => props.data,
   newData => {
     if (newData && newData.length > 0) {
-      renderChart(newData)
+      renderChart(newData);
     }
   },
   { immediate: true, deep: true }
-)
+);
 
 // 监听语言切换 → 重新渲染 ECharts（图例/y 轴名称随语言更新）
 watch(
   () => t('capacityModule.trend.title'),
   () => {
     if (props.data && props.data.length > 0) {
-      renderChart(props.data)
+      renderChart(props.data);
     }
   }
-)
+);
 
 // 挂载后初始化 ECharts
 onMounted(() => {
   if (props.data && props.data.length > 0) {
-    renderChart(props.data)
+    renderChart(props.data);
   }
-})
+});
 
 // 卸载前清理 ECharts
 onBeforeUnmount(() => {
-  capacityChart?.dispose()
-  capacityChart = null
+  capacityChart?.dispose();
+  capacityChart = null;
   if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler)
-    resizeHandler = null
+    window.removeEventListener('resize', resizeHandler);
+    resizeHandler = null;
   }
-})
+});
 </script>
 
 <style scoped>

@@ -193,33 +193,33 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, defineEmits } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue'
-import { completeInventoryCount, type InventoryCountEntity } from '@/api/inventoryCount'
+import { reactive, watch, defineEmits } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue';
+import { completeInventoryCount, type InventoryCountEntity } from '@/api/inventoryCount';
 // 批次 280：接入 useTableApi，消除手写 counts/loading/total/fetchCounts 重复
-import { useTableApi } from '@/composables/useTableApi'
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const emit = defineEmits<{
-  openForm: [mode: 'create' | 'edit' | 'view', row: InventoryCountEntity | null]
-  openDetail: [row: InventoryCountEntity]
-}>()
+  openForm: [mode: 'create' | 'edit' | 'view', row: InventoryCountEntity | null];
+  openDetail: [row: InventoryCountEntity];
+}>();
 
 // 批次 280：filterForm 仅保留筛选字段，分页字段由 useTableApi 管理
 const filterForm = reactive({
   count_no: '',
   status: '',
-})
+});
 
 const stats = reactive({
   total: 0,
   inProgress: 0,
   completed: 0,
   difference: 0,
-})
+});
 
 // 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
 const {
@@ -237,46 +237,46 @@ const {
       (err instanceof Error ? err.message : String(err)) ||
         t('inventoryCount.listTab.messageFetchFailure')
     ),
-})
+});
 
 // 批次 280：同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
-  setQueryParam('count_no', filterForm.count_no || undefined)
-  setQueryParam('status', filterForm.status || undefined)
-}
+  setQueryParam('count_no', filterForm.count_no || undefined);
+  setQueryParam('status', filterForm.status || undefined);
+};
 
 // 批次 280：watch counts 自动更新 stats 统计（原 fetchCounts 内的统计逻辑）
 watch(counts, () => {
-  stats.total = total.value
-  stats.inProgress = counts.value.filter(c => c.status === 'in_progress').length
-  stats.completed = counts.value.filter(c => c.status === 'completed').length
-  stats.difference = 0 // 实际差异数需在 details 弹窗中累加
-})
+  stats.total = total.value;
+  stats.inProgress = counts.value.filter(c => c.status === 'in_progress').length;
+  stats.completed = counts.value.filter(c => c.status === 'completed').length;
+  stats.difference = 0; // 实际差异数需在 details 弹窗中累加
+});
 
 /** 状态标签函数化：优先 i18n，未知状态回退到原始 status 字符串 */
 const getStatusLabel = (status: string) => {
-  const key = `inventoryCount.listTab.statusLabel.${status}`
-  const translated = t(key)
-  return translated === key ? status : translated
-}
+  const key = `inventoryCount.listTab.statusLabel.${status}`;
+  const translated = t(key);
+  return translated === key ? status : translated;
+};
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     in_progress: 'warning',
     completed: 'success',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const handleQuery = () => {
-  syncQueryParams()
-  page.value = 1
-  fetchCounts()
-}
+  syncQueryParams();
+  page.value = 1;
+  fetchCounts();
+};
 const handleReset = () => {
-  filterForm.count_no = ''
-  filterForm.status = ''
-  handleQuery()
-}
+  filterForm.count_no = '';
+  filterForm.status = '';
+  handleQuery();
+};
 
 const handleComplete = async (row: InventoryCountEntity) => {
   try {
@@ -284,18 +284,18 @@ const handleComplete = async (row: InventoryCountEntity) => {
       t('inventoryCount.listTab.messageCompleteConfirm'),
       t('inventoryCount.listTab.titleCompleteConfirm'),
       { type: 'warning' }
-    )
-    await completeInventoryCount(row.id as number)
-    ElMessage.success(t('inventoryCount.listTab.messageSuccess'))
-    fetchCounts()
+    );
+    await completeInventoryCount(row.id as number);
+    ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
+    fetchCounts();
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'))
+      ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
   }
-}
+};
 
-defineExpose({ fetchCounts })
+defineExpose({ fetchCounts });
 </script>
 
 <style scoped>

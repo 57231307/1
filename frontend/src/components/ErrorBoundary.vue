@@ -12,7 +12,11 @@
             {{ t('components.errorBoundary.backHome') }}
           </el-button>
           <el-button text @click="showDetail = !showDetail">
-            {{ showDetail ? t('components.errorBoundary.hideDetail') : t('components.errorBoundary.showDetail') }}
+            {{
+              showDetail
+                ? t('components.errorBoundary.hideDetail')
+                : t('components.errorBoundary.showDetail')
+            }}
           </el-button>
         </template>
       </el-result>
@@ -25,45 +29,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onErrorCaptured, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { Refresh, House } from '@element-plus/icons-vue'
-import { logger } from '@/utils/logger'
+import { ref, onErrorCaptured, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { Refresh, House } from '@element-plus/icons-vue';
+import { logger } from '@/utils/logger';
 
 interface Props {
   /** 自定义错误标题 */
-  title?: string
+  title?: string;
   /** 自定义错误副标题 */
-  subTitle?: string
+  subTitle?: string;
   /** 是否上报错误到监控服务（默认 true） */
-  report?: boolean
+  report?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   title: '',
   subTitle: '',
   report: true,
-})
+});
 
-const { t } = useI18n({ useScope: 'global' })
-const router = useRouter()
+const { t } = useI18n({ useScope: 'global' });
+const router = useRouter();
 
-const error = ref<Error | null>(null)
-const showDetail = ref(false)
+const error = ref<Error | null>(null);
+const showDetail = ref(false);
 
-const errorTitle = computed(() => props.title || t('components.errorBoundary.defaultTitle'))
+const errorTitle = computed(() => props.title || t('components.errorBoundary.defaultTitle'));
 const errorSubTitle = computed(
   () => props.subTitle || t('components.errorBoundary.defaultSubTitle')
-)
+);
 const errorStack = computed(() => {
-  if (!error.value) return ''
-  return `${error.value.name}: ${error.value.message}\n\nStack:\n${error.value.stack || 'N/A'}`
-})
+  if (!error.value) return '';
+  return `${error.value.name}: ${error.value.message}\n\nStack:\n${error.value.stack || 'N/A'}`;
+});
 
 /// 捕获子组件抛出的错误，阻止错误冒泡导致整页白屏
 onErrorCaptured((err: Error, _instance, info) => {
-  error.value = err
+  error.value = err;
   // V15 P1-20-10 前端错误监控上报（通过 logger 统一上报）
   if (props.report) {
     logger.error('[ErrorBoundary] component error captured', {
@@ -73,32 +77,32 @@ onErrorCaptured((err: Error, _instance, info) => {
       info,
       url: window.location.href,
       timestamp: new Date().toISOString(),
-    })
+    });
   }
   // 返回 false 阻止错误继续向上冒泡
-  return false
-})
+  return false;
+});
 
 const handleRetry = () => {
-  error.value = null
-  showDetail.value = false
-}
+  error.value = null;
+  showDetail.value = false;
+};
 
 const handleReset = () => {
-  error.value = null
-  showDetail.value = false
+  error.value = null;
+  showDetail.value = false;
   router.push('/').catch(() => {
-    window.location.href = '/'
-  })
-}
+    window.location.href = '/';
+  });
+};
 
 defineExpose({
   hasError: () => error.value !== null,
   clearError: () => {
-    error.value = null
-    showDetail.value = false
+    error.value = null;
+    showDetail.value = false;
   },
-})
+});
 </script>
 
 <style scoped>

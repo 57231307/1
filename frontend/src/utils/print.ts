@@ -1,16 +1,16 @@
-import { msg } from '@/utils/message'
-import { recordPrintAudit } from '@/api/audit'
+import { msg } from '@/utils/message';
+import { recordPrintAudit } from '@/api/audit';
 
 /**
  * 打印列定义接口
  * @template T - 数据行类型
  */
 export interface PrintColumn<T extends Record<string, unknown> = Record<string, unknown>> {
-  key: keyof T & string
-  title: string
-  width?: string
-  align?: 'left' | 'center' | 'right'
-  formatter?: (value: unknown, row: T) => string
+  key: keyof T & string;
+  title: string;
+  width?: string;
+  align?: 'left' | 'center' | 'right';
+  formatter?: (value: unknown, row: T) => string;
 }
 
 /**
@@ -18,51 +18,51 @@ export interface PrintColumn<T extends Record<string, unknown> = Record<string, 
  * @template T - 数据行类型
  */
 export interface PrintOptions<T extends Record<string, unknown> = Record<string, unknown>> {
-  title: string
-  columns: PrintColumn<T>[]
-  data: T[]
-  extraInfo?: { label: string; value: string }[]
-  orientation?: 'portrait' | 'landscape'
+  title: string;
+  columns: PrintColumn<T>[];
+  data: T[];
+  extraInfo?: { label: string; value: string }[];
+  orientation?: 'portrait' | 'landscape';
   /** V15 P1-5-3：资源类型（用于前端打印审计埋点，与后端权限码 resource_type 对应） */
-  resourceType?: string
+  resourceType?: string;
   /** V15 P1-5-3：资源 ID（单据打印时传入，用于审计追溯） */
-  resourceId?: string
+  resourceId?: string;
 }
 
 /**
  * 生成打印 HTML 内容
  */
 function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOptions<T>): string {
-  const { title, columns, data, extraInfo, orientation = 'portrait' } = options
+  const { title, columns, data, extraInfo, orientation = 'portrait' } = options;
 
   const headerCells = columns
     .map(
       col =>
         `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}; ${col.width ? `width: ${col.width}` : ''}">${escapeHtml(col.title)}</th>`
     )
-    .join('')
+    .join('');
 
   const bodyRows = data
     .map(row => {
       const cells = columns
         .map(col => {
-          const value = row[col.key]
-          const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
-          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${escapeHtml(formatted)}</td>`
+          const value = row[col.key];
+          const formatted = col.formatter ? col.formatter(value, row) : (value ?? '');
+          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${escapeHtml(formatted)}</td>`;
         })
-        .join('')
-      return `<tr>${cells}</tr>`
+        .join('');
+      return `<tr>${cells}</tr>`;
     })
-    .join('')
+    .join('');
 
   const infoSection = extraInfo
     ? `<div style="margin: 16px 0; display: flex; gap: 32px;">
         ${extraInfo.map(info => `<span><strong>${escapeHtml(info.label)}:</strong> ${escapeHtml(info.value)}</span>`).join('')}
        </div>`
-    : ''
+    : '';
 
-  const now = new Date()
-  const printDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const now = new Date();
+  const printDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   return `
     <!DOCTYPE html>
@@ -98,7 +98,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
       </div>
     </body>
     </html>
-  `
+  `;
 }
 
 /**
@@ -106,8 +106,8 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
  */
 export function printData<T extends Record<string, unknown>>(options: PrintOptions<T>) {
   if (!options.data || options.data.length === 0) {
-    msg.warning('noDataToPrint')
-    return
+    msg.warning('noDataToPrint');
+    return;
   }
 
   // V15 P1-5-3：前端打印审计埋点（best-effort，不阻塞打印流程）
@@ -118,39 +118,39 @@ export function printData<T extends Record<string, unknown>>(options: PrintOptio
       title: options.title,
       resourceId: options.resourceId,
     }).catch(err => {
-      console.warn('[P1-5-3] 打印审计埋点失败:', err)
-    })
+      console.warn('[P1-5-3] 打印审计埋点失败:', err);
+    });
   }
 
-  const html = generatePrintHTML(options)
-  const printWindow = window.open('', '_blank')
+  const html = generatePrintHTML(options);
+  const printWindow = window.open('', '_blank');
   if (!printWindow) {
-    msg.printBlocked()
-    return
+    msg.printBlocked();
+    return;
   }
 
-  printWindow.document.write(html)
-  printWindow.document.close()
+  printWindow.document.write(html);
+  printWindow.document.close();
   printWindow.onload = () => {
-    printWindow.print()
-  }
-  msg.printOpened()
+    printWindow.print();
+  };
+  msg.printOpened();
 }
 /**
  * 打印单个单据（含表头信息、明细行、页脚）
  */
 export function printSingleDocument<T extends Record<string, unknown>>(options: {
-  title: string
-  info: Record<string, string>
-  items: T[]
-  itemColumns: PrintColumn<T>[]
-  footer?: Record<string, string>
+  title: string;
+  info: Record<string, string>;
+  items: T[];
+  itemColumns: PrintColumn<T>[];
+  footer?: Record<string, string>;
   /** V15 P1-5-3：资源类型（用于前端打印审计埋点，与后端权限码 resource_type 对应） */
-  resourceType?: string
+  resourceType?: string;
   /** V15 P1-5-3：资源 ID（单据打印时传入，用于审计追溯） */
-  resourceId?: string
+  resourceId?: string;
 }) {
-  const { title, info, items, itemColumns, footer } = options
+  const { title, info, items, itemColumns, footer } = options;
 
   // V15 P1-5-3：前端打印审计埋点（best-effort，不阻塞打印流程）
   if (options.resourceType) {
@@ -160,46 +160,50 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
       title,
       resourceId: options.resourceId,
     }).catch(err => {
-      console.warn('[P1-5-3] 单据打印审计埋点失败:', err)
-    })
+      console.warn('[P1-5-3] 单据打印审计埋点失败:', err);
+    });
   }
 
   const infoHTML = Object.entries(info)
     .map(
-      ([key, value]) => `<span style="margin-right: 32px;"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</span>`
+      ([key, value]) =>
+        `<span style="margin-right: 32px;"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</span>`
     )
-    .join('')
+    .join('');
 
   const headerCells = itemColumns
     .map(
       col =>
         `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}">${escapeHtml(col.title)}</th>`
     )
-    .join('')
+    .join('');
 
   const bodyRows = items
     .map(row => {
       const cells = itemColumns
         .map(col => {
-          const value = row[col.key]
-          const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
-          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${escapeHtml(formatted)}</td>`
+          const value = row[col.key];
+          const formatted = col.formatter ? col.formatter(value, row) : (value ?? '');
+          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${escapeHtml(formatted)}</td>`;
         })
-        .join('')
-      return `<tr>${cells}</tr>`
+        .join('');
+      return `<tr>${cells}</tr>`;
     })
-    .join('')
+    .join('');
 
   const footerHTML = footer
     ? `<div style="margin-top: 20px; display: flex; justify-content: space-between;">
         ${Object.entries(footer)
-          .map(([key, value]) => `<span><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</span>`)
+          .map(
+            ([key, value]) =>
+              `<span><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</span>`
+          )
           .join('')}
        </div>`
-    : ''
+    : '';
 
-  const now = new Date()
-  const printDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const now = new Date();
+  const printDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const html = `
     <!DOCTYPE html>
@@ -236,18 +240,18 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
       <div style="text-align: right; margin-top: 16px; font-size: 11px; color: #999;">打印日期: ${printDate}</div>
     </body>
     </html>
-  `
+  `;
 
-  const printWindow = window.open('', '_blank')
+  const printWindow = window.open('', '_blank');
   if (!printWindow) {
-    msg.printBlocked()
-    return
+    msg.printBlocked();
+    return;
   }
-  printWindow.document.write(html)
-  printWindow.document.close()
+  printWindow.document.write(html);
+  printWindow.document.close();
   printWindow.onload = () => {
-    printWindow.print()
-  }
+    printWindow.print();
+  };
 }
 
 /**
@@ -281,23 +285,23 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
  */
 export function escapeHtml(input: unknown): string {
   if (input === null || input === undefined) {
-    return ''
+    return '';
   }
-  const str = String(input)
+  const str = String(input);
   return str.replace(/[&<>"']/g, char => {
     switch (char) {
       case '&':
-        return '&amp;'
+        return '&amp;';
       case '<':
-        return '&lt;'
+        return '&lt;';
       case '>':
-        return '&gt;'
+        return '&gt;';
       case '"':
-        return '&quot;'
+        return '&quot;';
       case "'":
-        return '&#39;'
+        return '&#39;';
       default:
-        return char
+        return char;
     }
-  })
+  });
 }

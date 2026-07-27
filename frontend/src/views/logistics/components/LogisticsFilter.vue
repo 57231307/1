@@ -22,11 +22,26 @@
           clearable
           @change="handleSearch"
         >
-          <el-option :label="t('logistics.common.company.sf')" :value="t('logistics.common.company.sf')" />
-          <el-option :label="t('logistics.common.company.zto')" :value="t('logistics.common.company.zto')" />
-          <el-option :label="t('logistics.common.company.yto')" :value="t('logistics.common.company.yto')" />
-          <el-option :label="t('logistics.common.company.yunda')" :value="t('logistics.common.company.yunda')" />
-          <el-option :label="t('logistics.common.company.jd')" :value="t('logistics.common.company.jd')" />
+          <el-option
+            :label="t('logistics.common.company.sf')"
+            :value="t('logistics.common.company.sf')"
+          />
+          <el-option
+            :label="t('logistics.common.company.zto')"
+            :value="t('logistics.common.company.zto')"
+          />
+          <el-option
+            :label="t('logistics.common.company.yto')"
+            :value="t('logistics.common.company.yto')"
+          />
+          <el-option
+            :label="t('logistics.common.company.yunda')"
+            :value="t('logistics.common.company.yunda')"
+          />
+          <el-option
+            :label="t('logistics.common.company.jd')"
+            :value="t('logistics.common.company.jd')"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('logistics.filter.label.status')">
@@ -54,7 +69,9 @@
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleSearch">{{ t('logistics.filter.button.search') }}</el-button>
+        <el-button type="primary" @click="handleSearch">{{
+          t('logistics.filter.button.search')
+        }}</el-button>
         <el-button @click="handleReset">{{ t('logistics.filter.button.reset') }}</el-button>
       </el-form-item>
     </el-form>
@@ -62,63 +79,63 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）
-  queryParams: Record<string, unknown>
+  queryParams: Record<string, unknown>;
   // 日期范围（由父组件管理，子组件通过 emit('date-change') 回写）
-  dateRange: [Date, Date] | null
-}>()
+  dateRange: [Date, Date] | null;
+}>();
 
 const emit = defineEmits<{
   // 触发加载
-  fetch: []
+  fetch: [];
   // 整体回写查询参数
-  'update:queryParams': [value: Record<string, unknown>]
+  'update:queryParams': [value: Record<string, unknown>];
   // 日期范围变化
-  'date-change': [value: [Date, Date] | null]
-}>()
+  'date-change': [value: [Date, Date] | null];
+}>();
 
 // 本地查询条件（筛选字段，不含分页参数）
 const localQuery = reactive<{
-  keyword: string
-  logistics_company: string
-  status: string
+  keyword: string;
+  logistics_company: string;
+  status: string;
 }>({
   keyword: (props.queryParams.keyword as string) ?? '',
   logistics_company: (props.queryParams.logistics_company as string) ?? '',
   status: (props.queryParams.status as string) ?? '',
-})
+});
 
 // 本地日期范围镜像（避免直接修改 prop）
-const localDateRange = ref<[Date, Date] | null>(props.dateRange)
+const localDateRange = ref<[Date, Date] | null>(props.dateRange);
 
 /** 日期范围变化：同步本地镜像 + emit 通知父组件 */
 const onDateChange = (v: [Date, Date] | null) => {
-  localDateRange.value = v
-  emit('date-change', v)
-}
+  localDateRange.value = v;
+  emit('date-change', v);
+};
 
 /** 搜索：先同步筛选条件到父组件，再触发加载 */
 const handleSearch = () => {
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 
 /** 重置：清空筛选条件 + 同步 + 触发加载 */
 const handleReset = () => {
-  localQuery.keyword = ''
-  localQuery.logistics_company = ''
-  localQuery.status = ''
-  localDateRange.value = null
-  emit('date-change', null)
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  localQuery.keyword = '';
+  localQuery.logistics_company = '';
+  localQuery.status = '';
+  localDateRange.value = null;
+  emit('date-change', null);
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 </script>
 
 <style scoped>

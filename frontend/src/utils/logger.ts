@@ -3,47 +3,47 @@
  * 在开发环境输出日志，生产环境自动禁用
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 class Logger {
-  private enabled: boolean
-  private level: LogLevel
+  private enabled: boolean;
+  private level: LogLevel;
 
   constructor() {
-    this.enabled = import.meta.env.DEV
-    this.level = 'debug'
+    this.enabled = import.meta.env.DEV;
+    this.level = 'debug';
   }
 
   private shouldLog(level: LogLevel): boolean {
-    if (!this.enabled) return false
-    const levels: LogLevel[] = ['debug', 'info', 'warn', 'error']
-    return levels.indexOf(level) >= levels.indexOf(this.level)
+    if (!this.enabled) return false;
+    const levels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+    return levels.indexOf(level) >= levels.indexOf(this.level);
   }
 
   debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog('debug')) {
-      console.debug(`[DEBUG] ${message}`, ...args)
+      console.debug(`[DEBUG] ${message}`, ...args);
     }
   }
 
   info(message: string, ...args: unknown[]): void {
     if (this.shouldLog('info')) {
-      console.info(`[INFO] ${message}`, ...args)
+      console.info(`[INFO] ${message}`, ...args);
     }
   }
 
   warn(message: string, ...args: unknown[]): void {
     if (this.shouldLog('warn')) {
-      console.warn(`[WARN] ${message}`, ...args)
+      console.warn(`[WARN] ${message}`, ...args);
     }
   }
 
   error(message: string, ...args: unknown[]): void {
     // V15 P1-20-10 错误始终输出（生产环境也需要错误日志用于监控）
-    console.error(`[ERROR] ${message}`, ...args)
+    console.error(`[ERROR] ${message}`, ...args);
   }
 }
 
-export const logger = new Logger()
+export const logger = new Logger();
 // 同时导出 default 以兼容 `import logger from '@/utils/logger'`
-export default logger
+export default logger;

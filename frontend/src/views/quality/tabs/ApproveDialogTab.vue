@@ -52,32 +52,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
-import { rejectQualityStandard, type QualityStandard } from '@/api/quality'
-import { logger } from '@/utils/logger'
+import { ref, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
+import { rejectQualityStandard, type QualityStandard } from '@/api/quality';
+import { logger } from '@/utils/logger';
 
 interface Props {
-  modelValue: boolean
-  currentRow: QualityStandard | null
+  modelValue: boolean;
+  currentRow: QualityStandard | null;
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted', row: QualityStandard): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted', row: QualityStandard): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
 
-const formData = reactive({ approval_comment: '' })
+const formData = reactive({ approval_comment: '' });
 
 const formRules: FormRules = {
   approval_comment: [
@@ -87,42 +87,42 @@ const formRules: FormRules = {
       trigger: 'blur',
     },
   ],
-}
+};
 
 const resetForm = () => {
-  formData.approval_comment = ''
-  formRef.value?.clearValidate()
-}
+  formData.approval_comment = '';
+  formRef.value?.clearValidate();
+};
 
 watch(
   () => props.modelValue,
   val => {
-    if (val) resetForm()
+    if (val) resetForm();
   }
-)
+);
 
 const handlePass = async () => {
-  if (!formRef.value || !props.currentRow) return
+  if (!formRef.value || !props.currentRow) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
       if (props.currentRow) {
-        emit('submitted', props.currentRow)
+        emit('submitted', props.currentRow);
       }
-      emit('update:modelValue', false)
+      emit('update:modelValue', false);
     } catch (error) {
-      const err = error as Error
-      ElMessage.error(err.message || t('quality.approveDialogTab.messageOperationFailed'))
-      logger.error(t('quality.approveDialogTab.messageApproveFailed'), err.message)
+      const err = error as Error;
+      ElMessage.error(err.message || t('quality.approveDialogTab.messageOperationFailed'));
+      logger.error(t('quality.approveDialogTab.messageApproveFailed'), err.message);
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const handleReject = async () => {
-  if (!props.currentRow) return
+  if (!props.currentRow) return;
   try {
     const reason = await ElMessageBox.prompt(
       t('quality.approveDialogTab.rejectPrompt'),
@@ -134,23 +134,23 @@ const handleReject = async () => {
         inputPlaceholder: t('quality.approveDialogTab.rejectPlaceholder'),
         inputType: 'textarea',
       }
-    )
+    );
     // 批次 157d-2 修复：接入 rejectQualityStandard API
-    submitLoading.value = true
+    submitLoading.value = true;
     await rejectQualityStandard(props.currentRow.id, {
       reject_reason: reason.value || undefined,
-    })
-    ElMessage.success(t('quality.approveDialogTab.messageRejectSuccess'))
-    emit('submitted', props.currentRow)
-    emit('update:modelValue', false)
+    });
+    ElMessage.success(t('quality.approveDialogTab.messageRejectSuccess'));
+    emit('submitted', props.currentRow);
+    emit('update:modelValue', false);
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as Error
-      ElMessage.error(err.message || t('quality.approveDialogTab.messageOperationFailed'))
-      logger.error(t('quality.approveDialogTab.messageRejectFailed'), err.message)
+      const err = error as Error;
+      ElMessage.error(err.message || t('quality.approveDialogTab.messageOperationFailed'));
+      logger.error(t('quality.approveDialogTab.messageRejectFailed'), err.message);
     }
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 </script>

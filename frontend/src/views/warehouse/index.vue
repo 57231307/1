@@ -291,33 +291,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Download, Printer } from '@element-plus/icons-vue'
-import { deleteWarehouse, updateWarehouse, createWarehouse, type Warehouse } from '@/api/warehouse'
+import { ref, reactive, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
+import { Plus, Download, Printer } from '@element-plus/icons-vue';
+import { deleteWarehouse, updateWarehouse, createWarehouse, type Warehouse } from '@/api/warehouse';
 // V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
 // 后端 GET /warehouses/export 已就绪（含异步审计日志 + 水印）
 // 注意：后端 WarehouseListQuery 使用 search 字段而非 keyword，前端需做映射
-import { exportFromBackend } from '@/utils/export'
-import { printData } from '@/utils/print'
-import { useTableApi } from '@/composables/useTableApi'
+import { exportFromBackend } from '@/utils/export';
+import { printData } from '@/utils/print';
+import { useTableApi } from '@/composables/useTableApi';
 // Batch 462 P0-S24：引入权限码常量，与后端 warehouses 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const isEdit = ref(false)
-const formRef = ref<FormInstance>()
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const isEdit = ref(false);
+const formRef = ref<FormInstance>();
 
 const queryParams = reactive({
   keyword: '',
   warehouse_type: '',
   status: '',
-})
+});
 
 // 批次 275：接入 useTableApi，消除手写 warehouses/total/loading/fetchData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -335,39 +335,39 @@ const {
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) || t('warehouse.index.messageFetchFailed')
     ),
-})
+});
 
 // 批次 275：同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined)
-  setQueryParam('warehouse_type', queryParams.warehouse_type || undefined)
-  setQueryParam('status', queryParams.status || undefined)
-}
+  setQueryParam('keyword', queryParams.keyword || undefined);
+  setQueryParam('warehouse_type', queryParams.warehouse_type || undefined);
+  setQueryParam('status', queryParams.status || undefined);
+};
 
 const handleQuery = () => {
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
+  syncQueryParams();
+  page.value = 1;
+  fetchData();
+};
 
 const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.warehouse_type = ''
-  queryParams.status = ''
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
+  queryParams.keyword = '';
+  queryParams.warehouse_type = '';
+  queryParams.status = '';
+  syncQueryParams();
+  page.value = 1;
+  fetchData();
+};
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
 const handleSizeChange = (s: number) => {
-  pageSize.value = s
-  page.value = 1
-}
+  pageSize.value = s;
+  page.value = 1;
+};
 
 const formData = reactive({
   id: undefined as number | undefined,
@@ -381,7 +381,7 @@ const formData = reactive({
   description: '',
   is_default: false,
   status: 'active',
-})
+});
 
 const formRules: FormRules = {
   warehouse_code: [
@@ -393,11 +393,11 @@ const formRules: FormRules = {
   warehouse_type: [
     { required: true, message: t('warehouse.index.ruleTypeRequired'), trigger: 'change' },
   ],
-}
+};
 
 const dialogTitle = computed(() =>
   isEdit.value ? t('warehouse.index.titleEdit') : t('warehouse.index.titleCreate')
-)
+);
 
 const getWarehouseTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
@@ -405,9 +405,9 @@ const getWarehouseTypeLabel = (type: string) => {
     finished: t('warehouse.index.optionFinished'),
     semi: t('warehouse.index.optionSemi'),
     return: t('warehouse.index.optionReturn'),
-  }
-  return labels[type] || type
-}
+  };
+  return labels[type] || type;
+};
 
 const getWarehouseTypeTag = (type: string) => {
   const tags: Record<string, string> = {
@@ -415,37 +415,37 @@ const getWarehouseTypeTag = (type: string) => {
     finished: 'success',
     semi: 'info',
     return: 'danger',
-  }
-  return tags[type] || ''
-}
+  };
+  return tags[type] || '';
+};
 
 const resetForm = () => {
-  formData.id = undefined
-  formData.warehouse_code = ''
-  formData.warehouse_name = ''
-  formData.warehouse_type = 'finished'
-  formData.address = ''
-  formData.contact_person = ''
-  formData.phone = ''
-  formData.capacity = undefined
-  formData.description = ''
-  formData.is_default = false
-  formData.status = 'active'
-  formRef.value?.clearValidate()
-}
+  formData.id = undefined;
+  formData.warehouse_code = '';
+  formData.warehouse_name = '';
+  formData.warehouse_type = 'finished';
+  formData.address = '';
+  formData.contact_person = '';
+  formData.phone = '';
+  formData.capacity = undefined;
+  formData.description = '';
+  formData.is_default = false;
+  formData.status = 'active';
+  formRef.value?.clearValidate();
+};
 
 const handleCreate = () => {
-  resetForm()
-  isEdit.value = false
-  dialogVisible.value = true
-}
+  resetForm();
+  isEdit.value = false;
+  dialogVisible.value = true;
+};
 
 const handleEdit = (row: Warehouse) => {
-  resetForm()
-  Object.assign(formData, row)
-  isEdit.value = true
-  dialogVisible.value = true
-}
+  resetForm();
+  Object.assign(formData, row);
+  isEdit.value = true;
+  dialogVisible.value = true;
+};
 
 const handleDelete = async (row: Warehouse) => {
   try {
@@ -453,49 +453,49 @@ const handleDelete = async (row: Warehouse) => {
       t('warehouse.index.messageConfirmDelete', { name: row.warehouse_name }),
       t('warehouse.index.titleDeleteConfirm'),
       { type: 'warning' }
-    )
-    await deleteWarehouse(row.id)
-    ElMessage.success(t('warehouse.index.messageDeleteSuccess'))
-    fetchData()
+    );
+    await deleteWarehouse(row.id);
+    ElMessage.success(t('warehouse.index.messageDeleteSuccess'));
+    fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('warehouse.index.messageDeleteFailed')
-      )
+      );
     }
   }
-}
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
 
   await formRef.value.validate(async valid => {
-    if (!valid) return
+    if (!valid) return;
 
-    submitLoading.value = true
+    submitLoading.value = true;
     try {
       if (isEdit.value) {
-        await updateWarehouse(formData.id!, formData)
-        ElMessage.success(t('warehouse.index.messageUpdateSuccess'))
+        await updateWarehouse(formData.id!, formData);
+        ElMessage.success(t('warehouse.index.messageUpdateSuccess'));
       } else {
-        await createWarehouse(formData)
-        ElMessage.success(t('warehouse.index.messageCreateSuccess'))
+        await createWarehouse(formData);
+        ElMessage.success(t('warehouse.index.messageCreateSuccess'));
       }
-      dialogVisible.value = false
-      fetchData()
+      dialogVisible.value = false;
+      fetchData();
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('warehouse.index.messageOperationFailed')
-      )
+      );
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const handleExport = async () => {
   // V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
@@ -505,9 +505,9 @@ const handleExport = async () => {
   const params: Record<string, unknown> = {
     status: queryParams.status || undefined,
     search: queryParams.keyword || undefined,
-  }
-  await exportFromBackend('/warehouses/export', params, 'warehouses_export')
-}
+  };
+  await exportFromBackend('/warehouses/export', params, 'warehouses_export');
+};
 
 const handlePrint = () => {
   printData({
@@ -533,8 +533,8 @@ const handlePrint = () => {
       },
     ],
     data: warehouses.value as unknown as Record<string, unknown>[],
-  })
-}
+  });
+};
 
 // 批次 275：useTableApi 构造时自动初始加载，无需 onMounted 调用 fetchData
 </script>

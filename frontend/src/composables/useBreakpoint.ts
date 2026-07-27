@@ -16,7 +16,7 @@
  * - md 以下（< 992px）视为移动端，侧边栏改用 el-drawer 抽屉化
  * - md 及以上保持原 el-aside 固定侧边栏
  */
-import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue';
 
 /** 断点像素值 */
 export const BREAKPOINTS = {
@@ -25,41 +25,38 @@ export const BREAKPOINTS = {
   md: 992,
   lg: 1200,
   xl: 1920,
-} as const
+} as const;
 
 /** 响应式断点状态 */
 export interface BreakpointState {
   /** 当前是否为移动端（width < md） */
-  isMobile: Ref<boolean>
+  isMobile: Ref<boolean>;
   /** 当前是否为平板（md <= width < lg） */
-  isTablet: Ref<boolean>
+  isTablet: Ref<boolean>;
   /** 当前是否为桌面（width >= lg） */
-  isDesktop: Ref<boolean>
+  isDesktop: Ref<boolean>;
   /** 当前视口宽度（px） */
-  width: Ref<number>
+  width: Ref<number>;
 }
 
 /**
  * 创建 matchMedia 监听器（内部 helper）
  * 返回 cleanup 函数用于卸载时移除监听
  */
-function createMediaQueryListener(
-  query: string,
-  onChange: (matches: boolean) => void
-): () => void {
+function createMediaQueryListener(query: string, onChange: (matches: boolean) => void): () => void {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return () => {}
+    return () => {};
   }
-  const mql = window.matchMedia(query)
-  onChange(mql.matches)
-  const handler = (e: MediaQueryListEvent) => onChange(e.matches)
+  const mql = window.matchMedia(query);
+  onChange(mql.matches);
+  const handler = (e: MediaQueryListEvent) => onChange(e.matches);
   if (mql.addEventListener) {
-    mql.addEventListener('change', handler)
-    return () => mql.removeEventListener('change', handler)
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
   }
   // 兼容旧浏览器（Safari < 14）
-  mql.addListener(handler)
-  return () => mql.removeListener(handler)
+  mql.addListener(handler);
+  return () => mql.removeListener(handler);
 }
 
 /**
@@ -77,55 +74,55 @@ function createMediaQueryListener(
  * - onBeforeUnmount 自动清理监听器
  */
 export function useBreakpoint(): BreakpointState {
-  const isMobile = ref(false)
-  const isTablet = ref(false)
-  const isDesktop = ref(false)
-  const width = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
+  const isMobile = ref(false);
+  const isTablet = ref(false);
+  const isDesktop = ref(false);
+  const width = ref(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
-  let cleanups: Array<() => void> = []
+  let cleanups: Array<() => void> = [];
 
   onMounted(() => {
-    if (typeof window === 'undefined') return
-    width.value = window.innerWidth
+    if (typeof window === 'undefined') return;
+    width.value = window.innerWidth;
 
     // 移动端：width < md (992px)
     cleanups.push(
-      createMediaQueryListener(`(max-width: ${BREAKPOINTS.md - 1}px)`, (matches) => {
-        isMobile.value = matches
+      createMediaQueryListener(`(max-width: ${BREAKPOINTS.md - 1}px)`, matches => {
+        isMobile.value = matches;
       })
-    )
+    );
 
     // 平板：md <= width < lg
     cleanups.push(
       createMediaQueryListener(
         `(min-width: ${BREAKPOINTS.md}px) and (max-width: ${BREAKPOINTS.lg - 1}px)`,
-        (matches) => {
-          isTablet.value = matches
+        matches => {
+          isTablet.value = matches;
         }
       )
-    )
+    );
 
     // 桌面：width >= lg
     cleanups.push(
-      createMediaQueryListener(`(min-width: ${BREAKPOINTS.lg}px)`, (matches) => {
-        isDesktop.value = matches
+      createMediaQueryListener(`(min-width: ${BREAKPOINTS.lg}px)`, matches => {
+        isDesktop.value = matches;
       })
-    )
+    );
 
     // 视口宽度（resize 时更新，供组件按需响应）
     const resizeHandler = () => {
-      width.value = window.innerWidth
-    }
-    window.addEventListener('resize', resizeHandler)
-    cleanups.push(() => window.removeEventListener('resize', resizeHandler))
-  })
+      width.value = window.innerWidth;
+    };
+    window.addEventListener('resize', resizeHandler);
+    cleanups.push(() => window.removeEventListener('resize', resizeHandler));
+  });
 
   onBeforeUnmount(() => {
-    cleanups.forEach((cleanup) => cleanup())
-    cleanups = []
-  })
+    cleanups.forEach(cleanup => cleanup());
+    cleanups = [];
+  });
 
-  return { isMobile, isTablet, isDesktop, width }
+  return { isMobile, isTablet, isDesktop, width };
 }
 
-export default useBreakpoint
+export default useBreakpoint;

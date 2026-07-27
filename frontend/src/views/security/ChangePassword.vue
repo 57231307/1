@@ -52,13 +52,13 @@
             autocomplete="new-password"
           />
           <!-- 实时密码强度可视化（PasswordStrengthMeter 用 defineProps 接收 password，单向绑定即可） -->
-          <PasswordStrengthMeter
-            :password="form.new_password"
-            class="strength-meter"
-          />
+          <PasswordStrengthMeter :password="form.new_password" class="strength-meter" />
         </el-form-item>
 
-        <el-form-item :label="t('security.changePassword.form.confirmPassword')" prop="confirm_password">
+        <el-form-item
+          :label="t('security.changePassword.form.confirmPassword')"
+          prop="confirm_password"
+        >
           <el-input
             v-model="form.confirm_password"
             type="password"
@@ -69,14 +69,12 @@
         </el-form-item>
 
         <el-form-item label=" ">
-          <el-button
-            type="primary"
-            :loading="submitting"
-            @click="handleSubmit"
-          >
+          <el-button type="primary" :loading="submitting" @click="handleSubmit">
             {{ t('security.changePassword.button.submit') }}
           </el-button>
-          <el-button @click="handleReset">{{ t('security.changePassword.button.reset') }}</el-button>
+          <el-button @click="handleReset">{{
+            t('security.changePassword.button.reset')
+          }}</el-button>
         </el-form-item>
       </el-form>
 
@@ -98,122 +96,128 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { changePassword } from '@/api/user'
-import PasswordStrengthMeter from '@/components/PasswordStrengthMeter.vue'
+import { reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { changePassword } from '@/api/user';
+import PasswordStrengthMeter from '@/components/PasswordStrengthMeter.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface ChangePwdForm {
-  old_password: string
-  new_password: string
-  confirm_password: string
+  old_password: string;
+  new_password: string;
+  confirm_password: string;
 }
 
-const formRef = ref<FormInstance>()
-const submitting = ref(false)
-const successTip = ref(false)
+const formRef = ref<FormInstance>();
+const submitting = ref(false);
+const successTip = ref(false);
 
 const form = reactive<ChangePwdForm>({
   old_password: '',
   new_password: '',
   confirm_password: '',
-})
+});
 
 /** 密码策略校验（与后端 password_validator 默认策略对齐） */
 const validatePasswordPolicy = (_rule: unknown, value: string, callback: (err?: Error) => void) => {
   if (!value) {
-    callback(new Error(t('security.changePassword.message.newPasswordRequired')))
-    return
+    callback(new Error(t('security.changePassword.message.newPasswordRequired')));
+    return;
   }
   if (value.length < 8) {
-    callback(new Error(t('security.changePassword.message.lengthMin')))
-    return
+    callback(new Error(t('security.changePassword.message.lengthMin')));
+    return;
   }
   if (value.length > 128) {
-    callback(new Error(t('security.changePassword.message.lengthMax')))
-    return
+    callback(new Error(t('security.changePassword.message.lengthMax')));
+    return;
   }
   if (!/[A-Z]/.test(value)) {
-    callback(new Error(t('security.changePassword.message.uppercase')))
-    return
+    callback(new Error(t('security.changePassword.message.uppercase')));
+    return;
   }
   if (!/[a-z]/.test(value)) {
-    callback(new Error(t('security.changePassword.message.lowercase')))
-    return
+    callback(new Error(t('security.changePassword.message.lowercase')));
+    return;
   }
   if (!/[0-9]/.test(value)) {
-    callback(new Error(t('security.changePassword.message.digit')))
-    return
+    callback(new Error(t('security.changePassword.message.digit')));
+    return;
   }
   if (!/[^A-Za-z0-9]/.test(value)) {
-    callback(new Error(t('security.changePassword.message.special')))
-    return
+    callback(new Error(t('security.changePassword.message.special')));
+    return;
   }
   if (value === form.old_password) {
-    callback(new Error(t('security.changePassword.message.sameAsOld')))
-    return
+    callback(new Error(t('security.changePassword.message.sameAsOld')));
+    return;
   }
-  callback()
-}
+  callback();
+};
 
 /** 确认密码校验 */
 const validateConfirm = (_rule: unknown, value: string, callback: (err?: Error) => void) => {
   if (!value) {
-    callback(new Error(t('security.changePassword.message.confirmRequired')))
-    return
+    callback(new Error(t('security.changePassword.message.confirmRequired')));
+    return;
   }
   if (value !== form.new_password) {
-    callback(new Error(t('security.changePassword.message.confirmMismatch')))
-    return
+    callback(new Error(t('security.changePassword.message.confirmMismatch')));
+    return;
   }
-  callback()
-}
+  callback();
+};
 
 const rules: FormRules = {
-  old_password: [{ required: true, message: t('security.changePassword.message.oldPasswordRequired'), trigger: 'blur' }],
+  old_password: [
+    {
+      required: true,
+      message: t('security.changePassword.message.oldPasswordRequired'),
+      trigger: 'blur',
+    },
+  ],
   new_password: [{ validator: validatePasswordPolicy, trigger: 'blur' }],
   confirm_password: [{ validator: validateConfirm, trigger: 'blur' }],
-}
+};
 
 /** 提交修改密码 */
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitting.value = true
-    successTip.value = false
+    if (!valid) return;
+    submitting.value = true;
+    successTip.value = false;
     try {
       await changePassword({
         old_password: form.old_password,
         new_password: form.new_password,
-      })
-      ElMessage.success(t('security.changePassword.message.success'))
-      successTip.value = true
+      });
+      ElMessage.success(t('security.changePassword.message.success'));
+      successTip.value = true;
       // 清空表单（确认密码同步清空）
-      formRef.value?.resetFields()
-      form.old_password = ''
-      form.new_password = ''
-      form.confirm_password = ''
+      formRef.value?.resetFields();
+      form.old_password = '';
+      form.new_password = '';
+      form.confirm_password = '';
     } catch (error) {
       // request.ts 拦截器已经显示 ElMessage.error，这里不再重复提示
-      void error
+      void error;
     } finally {
-      submitting.value = false
+      submitting.value = false;
     }
-  })
-}
+  });
+};
 
 /** 重置表单 */
 const handleReset = () => {
-  formRef.value?.resetFields()
-  form.old_password = ''
-  form.new_password = ''
-  form.confirm_password = ''
-  successTip.value = false
-}
+  formRef.value?.resetFields();
+  form.old_password = '';
+  form.new_password = '';
+  form.confirm_password = '';
+  successTip.value = false;
+};
 </script>
 
 <style scoped>

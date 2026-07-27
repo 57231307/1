@@ -14,12 +14,7 @@
 // ==================== 类型定义 ====================
 
 /** WebSocket 消息类型 */
-export type WsMessageType =
-  | 'notification'
-  | 'ping'
-  | 'pong'
-  | 'error'
-  | 'mark_as_read';
+export type WsMessageType = 'notification' | 'ping' | 'pong' | 'error' | 'mark_as_read';
 
 /** 通知数据载荷 */
 export interface NotificationPayload {
@@ -199,7 +194,7 @@ export class WebSocketClient extends EventTarget {
    */
   addEventListener<K extends keyof WebSocketEventMap>(
     type: K,
-    listener: (event: WebSocketEventMap[K]) => void,
+    listener: (event: WebSocketEventMap[K]) => void
   ): void;
   addEventListener(type: string, listener: EventListenerOrEventListenerObject): void;
   addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
@@ -214,25 +209,17 @@ export class WebSocketClient extends EventTarget {
   private handleMessage(msg: WsMessage): void {
     switch (msg.type) {
       case 'notification':
-        this.dispatchEvent(
-          new CustomEvent('notification', { detail: msg }),
-        );
+        this.dispatchEvent(new CustomEvent('notification', { detail: msg }));
         break;
       case 'pong':
-        this.dispatchEvent(
-          new CustomEvent('pong', { detail: msg }),
-        );
+        this.dispatchEvent(new CustomEvent('pong', { detail: msg }));
         break;
       case 'error':
-        this.dispatchEvent(
-          new CustomEvent('ws_error', { detail: msg }),
-        );
+        this.dispatchEvent(new CustomEvent('ws_error', { detail: msg }));
         break;
       case 'ping':
       case 'mark_as_read':
-        this.dispatchEvent(
-          new CustomEvent(msg.type, { detail: msg }),
-        );
+        this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
         break;
     }
   }
@@ -249,7 +236,7 @@ export class WebSocketClient extends EventTarget {
 
     const delay = Math.min(
       INITIAL_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1),
-      MAX_RECONNECT_DELAY,
+      MAX_RECONNECT_DELAY
     );
 
     this.reconnectTimer = window.setTimeout(() => {
@@ -260,7 +247,7 @@ export class WebSocketClient extends EventTarget {
     this.dispatchEvent(
       new CustomEvent('reconnecting', {
         detail: { delay, attempt: this.reconnectAttempts },
-      }),
+      })
     );
   }
 

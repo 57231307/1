@@ -190,10 +190,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Plus, Refresh } from '@element-plus/icons-vue';
 import {
   getAccountingPeriodList,
   createAccountingPeriod,
@@ -202,21 +202,21 @@ import {
   closePeriod as closePeriodApi,
   reopenPeriod as reopenPeriodApi,
   type AccountingPeriodEntity,
-} from '@/api/accounting-period'
-import { logger } from '@/utils/logger'
+} from '@/api/accounting-period';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const loading = ref(false)
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const periodList = ref<AccountingPeriodEntity[]>([])
-const formRef = ref<FormInstance>()
+const loading = ref(false);
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const periodList = ref<AccountingPeriodEntity[]>([]);
+const formRef = ref<FormInstance>();
 
 const queryForm = reactive({
   year: new Date().getFullYear(),
   status: '',
-})
+});
 
 const form = reactive<Partial<AccountingPeriodEntity>>({
   id: undefined,
@@ -226,7 +226,7 @@ const form = reactive<Partial<AccountingPeriodEntity>>({
   start_date: '',
   end_date: '',
   status: 'pending',
-})
+});
 
 const rules = computed<FormRules>(() => ({
   year: [
@@ -249,198 +249,198 @@ const rules = computed<FormRules>(() => ({
       trigger: 'change',
     },
   ],
-}))
+}));
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     pending: t('accountingPeriod.status.pending'),
     active: t('accountingPeriod.status.active'),
     closed: t('accountingPeriod.status.closed'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     pending: 'info',
     active: 'success',
     closed: 'warning',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const fetchPeriods = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await getAccountingPeriodList(queryForm)
+    const res = await getAccountingPeriodList(queryForm);
     const d = (res as { data?: unknown }).data as
       | AccountingPeriodEntity[]
       | {
-          items?: AccountingPeriodEntity[]
-          data?: AccountingPeriodEntity[]
-          list?: AccountingPeriodEntity[]
-        }
+          items?: AccountingPeriodEntity[];
+          data?: AccountingPeriodEntity[];
+          list?: AccountingPeriodEntity[];
+        };
     if (Array.isArray(d)) {
-      periodList.value = d
+      periodList.value = d;
     } else {
-      periodList.value = d?.items || d?.data || d?.list || []
+      periodList.value = d?.items || d?.data || d?.list || [];
     }
   } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || t('accountingPeriod.message.fetchListFailed'))
+    const err = e as Error;
+    ElMessage.error(err.message || t('accountingPeriod.message.fetchListFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const handleSearch = () => {
-  fetchPeriods()
-}
+  fetchPeriods();
+};
 
 const handleReset = () => {
-  queryForm.year = new Date().getFullYear()
-  queryForm.status = ''
-  fetchPeriods()
-}
+  queryForm.year = new Date().getFullYear();
+  queryForm.status = '';
+  fetchPeriods();
+};
 
 const computeDateRange = (year: number, month: number) => {
-  const start = new Date(year, month - 1, 1)
-  const end = new Date(year, month, 0)
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0);
   return {
     start_date: start.toISOString().split('T')[0],
     end_date: end.toISOString().split('T')[0],
-  }
-}
+  };
+};
 
 const openDialog = (row?: AccountingPeriodEntity) => {
-  formRef.value?.resetFields()
+  formRef.value?.resetFields();
   if (row) {
-    Object.assign(form, row)
+    Object.assign(form, row);
   } else {
-    const now = new Date()
-    form.id = undefined
-    form.name = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    form.year = now.getFullYear()
-    form.month = now.getMonth() + 1
-    const { start_date, end_date } = computeDateRange(form.year, form.month)
-    form.start_date = start_date
-    form.end_date = end_date
-    form.status = 'pending'
+    const now = new Date();
+    form.id = undefined;
+    form.name = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    form.year = now.getFullYear();
+    form.month = now.getMonth() + 1;
+    const { start_date, end_date } = computeDateRange(form.year, form.month);
+    form.start_date = start_date;
+    form.end_date = end_date;
+    form.status = 'pending';
   }
-  dialogVisible.value = true
-}
+  dialogVisible.value = true;
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
-      form.name = `${form.year}-${String(form.month).padStart(2, '0')}`
+      form.name = `${form.year}-${String(form.month).padStart(2, '0')}`;
       if (form.id) {
-        await updateAccountingPeriod(form.id, form)
-        ElMessage.success(t('accountingPeriod.message.updateSuccess'))
+        await updateAccountingPeriod(form.id, form);
+        ElMessage.success(t('accountingPeriod.message.updateSuccess'));
       } else {
-        await createAccountingPeriod(form)
-        ElMessage.success(t('accountingPeriod.message.createSuccess'))
+        await createAccountingPeriod(form);
+        ElMessage.success(t('accountingPeriod.message.createSuccess'));
       }
-      dialogVisible.value = false
-      fetchPeriods()
+      dialogVisible.value = false;
+      fetchPeriods();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('accountingPeriod.message.operationFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('accountingPeriod.message.operationFailed'));
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const activatePeriod = async (row: AccountingPeriodEntity) => {
-  if (!row.id) return
+  if (!row.id) return;
   try {
     await ElMessageBox.confirm(
       t('accountingPeriod.message.activateConfirm', { name: row.name }),
       t('accountingPeriod.message.activateConfirmTitle'),
       { type: 'info' }
-    )
-    await updateAccountingPeriod(row.id, { status: 'active' })
-    ElMessage.success(t('accountingPeriod.message.activatedSuccess'))
-    fetchPeriods()
+    );
+    await updateAccountingPeriod(row.id, { status: 'active' });
+    ElMessage.success(t('accountingPeriod.message.activatedSuccess'));
+    fetchPeriods();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('accountingPeriod.message.activateFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('accountingPeriod.message.activateFailed'));
     }
   }
-}
+};
 
 const closePeriod = async (row: AccountingPeriodEntity) => {
-  if (!row.id) return
+  if (!row.id) return;
   try {
     await ElMessageBox.confirm(
       t('accountingPeriod.message.closeConfirm', { name: row.name }),
       t('accountingPeriod.message.closeConfirmTitle'),
       { type: 'warning' }
-    )
-    await closePeriodApi(row.id)
-    ElMessage.success(t('accountingPeriod.message.closedSuccess'))
-    fetchPeriods()
+    );
+    await closePeriodApi(row.id);
+    ElMessage.success(t('accountingPeriod.message.closedSuccess'));
+    fetchPeriods();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('accountingPeriod.message.closeFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('accountingPeriod.message.closeFailed'));
     }
   }
-}
+};
 
 const reopenPeriod = async (row: AccountingPeriodEntity) => {
-  if (!row.id) return
+  if (!row.id) return;
   try {
     await ElMessageBox.confirm(
       t('accountingPeriod.message.reopenConfirm', { name: row.name }),
       t('accountingPeriod.message.reopenConfirmTitle'),
       { type: 'info' }
-    )
-    await reopenPeriodApi(row.id)
-    ElMessage.success(t('accountingPeriod.message.reopenedSuccess'))
-    fetchPeriods()
+    );
+    await reopenPeriodApi(row.id);
+    ElMessage.success(t('accountingPeriod.message.reopenedSuccess'));
+    fetchPeriods();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('accountingPeriod.message.operationFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('accountingPeriod.message.operationFailed'));
     }
   }
-}
+};
 
 const deletePeriod = async (row: AccountingPeriodEntity) => {
-  if (!row.id) return
+  if (!row.id) return;
   try {
     await ElMessageBox.confirm(
       t('accountingPeriod.message.deleteConfirm', { name: row.name }),
       t('accountingPeriod.message.deleteConfirmTitle'),
       { type: 'warning' }
-    )
-    await deleteAccountingPeriod(row.id)
-    ElMessage.success(t('accountingPeriod.message.deleteSuccess'))
-    fetchPeriods()
+    );
+    await deleteAccountingPeriod(row.id);
+    ElMessage.success(t('accountingPeriod.message.deleteSuccess'));
+    fetchPeriods();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('accountingPeriod.message.deleteFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('accountingPeriod.message.deleteFailed'));
     }
   }
-}
+};
 
 const handleInitYear = async () => {
   try {
-    const year = queryForm.year
+    const year = queryForm.year;
     await ElMessageBox.confirm(
       t('accountingPeriod.message.initYearConfirm', { year }),
       t('accountingPeriod.message.initYearConfirmTitle'),
       { type: 'info' }
-    )
+    );
     for (let month = 1; month <= 12; month++) {
-      const { start_date, end_date } = computeDateRange(year, month)
+      const { start_date, end_date } = computeDateRange(year, month);
       await createAccountingPeriod({
         name: `${year}-${String(month).padStart(2, '0')}`,
         year,
@@ -448,20 +448,20 @@ const handleInitYear = async () => {
         start_date,
         end_date,
         status: 'pending',
-      })
+      });
     }
-    ElMessage.success(t('accountingPeriod.message.initSuccess'))
-    fetchPeriods()
+    ElMessage.success(t('accountingPeriod.message.initSuccess'));
+    fetchPeriods();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      logger.error(t('accountingPeriod.message.initFailed'), err)
-      ElMessage.error(err.message || t('accountingPeriod.message.initFailed'))
+      const err = e as Error;
+      logger.error(t('accountingPeriod.message.initFailed'), err);
+      ElMessage.error(err.message || t('accountingPeriod.message.initFailed'));
     }
   }
-}
+};
 
 onMounted(() => {
-  fetchPeriods()
-})
+  fetchPeriods();
+});
 </script>

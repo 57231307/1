@@ -61,13 +61,13 @@
 </template>
 
 <script setup lang="ts">
-import { OfficeBuilding, CircleCheck, Loading, Warning } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
-import type { CapacitySummary } from '@/api/capacity'
+import { OfficeBuilding, CircleCheck, Loading, Warning } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
+import type { CapacitySummary } from '@/api/capacity';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-defineProps<{ summary: CapacitySummary }>()
+defineProps<{ summary: CapacitySummary }>();
 </script>
 
 <style scoped>

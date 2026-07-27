@@ -13,7 +13,11 @@
     destroy-on-close
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="localApproveForm" label-width="80px" :aria-label="$t('bpm.approval.approvalDialog.formAriaLabel')">
+    <el-form
+      :model="localApproveForm"
+      label-width="80px"
+      :aria-label="$t('bpm.approval.approvalDialog.formAriaLabel')"
+    >
       <el-form-item :label="$t('bpm.approval.approvalDialog.taskName')">
         <span>{{ currentTask?.task_name }}</span>
       </el-form-item>
@@ -27,7 +31,9 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ $t('bpm.approval.approvalDialog.cancel') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        $t('bpm.approval.approvalDialog.cancel')
+      }}</el-button>
       <el-button
         :type="action === 'approve' ? 'success' : 'danger'"
         :loading="submitLoading"
@@ -39,15 +45,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { ApprovalTask } from '@/api/bpm-enhanced'
+import { ref, watch, nextTick, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { ApprovalTask } from '@/api/bpm-enhanced';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 表单字段类型
 interface AprForm {
-  comment: string
+  comment: string;
 }
 
 /**
@@ -55,62 +61,62 @@ interface AprForm {
  */
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 当前任务
-  currentTask: ApprovalTask | null
+  currentTask: ApprovalTask | null;
   // 审批动作
-  action: 'approve' | 'reject'
+  action: 'approve' | 'reject';
   // 提交 loading
-  submitLoading: boolean
+  submitLoading: boolean;
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  approveForm: AprForm
-}>()
+  approveForm: AprForm;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
+  'update:visible': [v: boolean];
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 approveForm）
-  'update:approveForm': [v: AprForm]
-  confirm: []
-}>()
+  'update:approveForm': [v: AprForm];
+  confirm: [];
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localApproveForm = ref<AprForm>({ ...props.approveForm })
+const localApproveForm = ref<AprForm>({ ...props.approveForm });
 
 // 对话框标题：根据 action 选择同意/拒绝标题（响应式求值，随语言切换更新）
 const dialogTitle = computed(() =>
   props.action === 'approve'
     ? t('bpm.approval.approvalDialog.approveTitle')
-    : t('bpm.approval.approvalDialog.rejectTitle'),
-)
+    : t('bpm.approval.approvalDialog.rejectTitle')
+);
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件打开对话框时填充数据）
 watch(
   () => props.approveForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    localApproveForm.value = { ...newForm }
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    localApproveForm.value = { ...newForm };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localApproveForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    emit('update:approveForm', { ...newForm })
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:approveForm', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 </script>

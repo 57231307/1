@@ -4,25 +4,25 @@
  * 展示一段时间内质量风险评分变化与同期合格率
  * 组件文件 D13 Batch 7 缩写命名统一：AIPredictionChart → AiPredictionChart
  */
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 interface PeriodItem {
-  period: string
-  inspections: number
-  avg_qualification_rate: number
+  period: string;
+  inspections: number;
+  avg_qualification_rate: number;
 }
 
 interface Props {
-  periodBreakdown: PeriodItem[]
-  riskScore: number
-  riskLevel: 'low' | 'medium' | 'high'
-  trend: 'up' | 'flat' | 'down' | 'nodata'
+  periodBreakdown: PeriodItem[];
+  riskScore: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  trend: 'up' | 'flat' | 'down' | 'nodata';
 }
 
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const trendLabel = computed(() => {
   return {
@@ -30,44 +30,46 @@ const trendLabel = computed(() => {
     flat: t('components.aiPredictionChart.trendFlat'),
     down: t('components.aiPredictionChart.trendDown'),
     nodata: t('components.aiPredictionChart.trendNodata'),
-  }[props.trend]
-})
+  }[props.trend];
+});
 
 const riskColor = computed(() => {
-  return { low: '#67c23a', medium: '#e6a23c', high: '#f56c6c' }[props.riskLevel]
-})
+  return { low: '#67c23a', medium: '#e6a23c', high: '#f56c6c' }[props.riskLevel];
+});
 
 // 计算归一化坐标
 const points = computed(() => {
-  if (!props.periodBreakdown.length) return [] as string[]
-  const values = props.periodBreakdown.map((p) => p.avg_qualification_rate)
-  const max = Math.max(...values, 100)
-  const min = Math.min(...values, 0)
-  const range = Math.max(max - min, 1)
+  if (!props.periodBreakdown.length) return [] as string[];
+  const values = props.periodBreakdown.map(p => p.avg_qualification_rate);
+  const max = Math.max(...values, 100);
+  const min = Math.min(...values, 0);
+  const range = Math.max(max - min, 1);
   return props.periodBreakdown.map((p, idx) => {
-    const x = (idx / Math.max(props.periodBreakdown.length - 1, 1)) * 100
-    const y = 100 - ((p.avg_qualification_rate - min) / range) * 100
-    return `${x},${y}`
-  })
-})
+    const x = (idx / Math.max(props.periodBreakdown.length - 1, 1)) * 100;
+    const y = 100 - ((p.avg_qualification_rate - min) / range) * 100;
+    return `${x},${y}`;
+  });
+});
 
-const polyline = computed(() => points.value.join(' '))
+const polyline = computed(() => points.value.join(' '));
 
 const peak = computed(() => {
-  if (!props.periodBreakdown.length) return 0
-  return Math.max(...props.periodBreakdown.map((p) => p.avg_qualification_rate))
-})
+  if (!props.periodBreakdown.length) return 0;
+  return Math.max(...props.periodBreakdown.map(p => p.avg_qualification_rate));
+});
 const trough = computed(() => {
-  if (!props.periodBreakdown.length) return 0
-  return Math.min(...props.periodBreakdown.map((p) => p.avg_qualification_rate))
-})
+  if (!props.periodBreakdown.length) return 0;
+  return Math.min(...props.periodBreakdown.map(p => p.avg_qualification_rate));
+});
 </script>
 
 <template>
   <div class="ai-prediction-chart">
     <div class="chart-header">
       <div class="left">
-        <el-tag :type="riskLevel === 'high' ? 'danger' : riskLevel === 'medium' ? 'warning' : 'success'">
+        <el-tag
+          :type="riskLevel === 'high' ? 'danger' : riskLevel === 'medium' ? 'warning' : 'success'"
+        >
           {{ t('components.aiPredictionChart.riskScore', { score: riskScore }) }}
         </el-tag>
         <span class="trend-label">{{ trendLabel }}</span>
@@ -91,7 +93,16 @@ const trough = computed(() => {
     <div v-else class="chart-body">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="line-svg">
         <!-- 网格 -->
-        <line v-for="i in 4" :key="`g${i}`" x1="0" :y1="i * 25" x2="100" :y2="i * 25" stroke="#eee" stroke-width="0.2" />
+        <line
+          v-for="i in 4"
+          :key="`g${i}`"
+          x1="0"
+          :y1="i * 25"
+          x2="100"
+          :y2="i * 25"
+          stroke="#eee"
+          stroke-width="0.2"
+        />
         <!-- 折线 -->
         <polyline :points="polyline" fill="none" :stroke="riskColor" stroke-width="0.8" />
         <!-- 数据点 -->

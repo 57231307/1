@@ -41,45 +41,45 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import * as echarts from 'echarts'
-import type { ECharts } from 'echarts'
-import type { SalesTrendResult, ProductRanking } from '@/api/sales-analysis'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import * as echarts from 'echarts';
+import type { ECharts } from 'echarts';
+import type { SalesTrendResult, ProductRanking } from '@/api/sales-analysis';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 趋势周期 + 趋势数据 + 构成数据（v-model 通过 model-value + update:period 实现）
 const props = defineProps<{
-  period: string
-  data: SalesTrendResult[]
-  composition: ProductRanking[]
-}>()
-const emit = defineEmits<{ 'update:period': [v: string] }>()
+  period: string;
+  data: SalesTrendResult[];
+  composition: ProductRanking[];
+}>();
+const emit = defineEmits<{ 'update:period': [v: string] }>();
 
-const updatePeriod = (v: string) => emit('update:period', v)
+const updatePeriod = (v: string) => emit('update:period', v);
 
 // ECharts 实例 + 容器 ref（批次 95 P3-20 修复）
-const trendChartRef = ref<HTMLElement>()
-const pieChartRef = ref<HTMLElement>()
-let trendChart: ECharts | null = null
-let pieChart: ECharts | null = null
-let resizeHandler: (() => void) | null = null
+const trendChartRef = ref<HTMLElement>();
+const pieChartRef = ref<HTMLElement>();
+let trendChart: ECharts | null = null;
+let pieChart: ECharts | null = null;
+let resizeHandler: (() => void) | null = null;
 
 // 渲染销售趋势折线柱状图（参考 DashboardTrend.vue：销售额折线 + 订单数柱状双轴）
 const renderTrendChart = (data: SalesTrendResult[]) => {
-  if (!trendChartRef.value) return
+  if (!trendChartRef.value) return;
   if (!trendChart) {
-    trendChart = echarts.init(trendChartRef.value)
+    trendChart = echarts.init(trendChartRef.value);
     resizeHandler = () => {
-      trendChart?.resize()
-      pieChart?.resize()
-    }
-    window.addEventListener('resize', resizeHandler)
+      trendChart?.resize();
+      pieChart?.resize();
+    };
+    window.addEventListener('resize', resizeHandler);
   }
-  const periods = data?.map(item => item.period) || []
-  const amounts = data?.map(item => item.amount) || []
-  const counts = data?.map(item => item.order_count) || []
+  const periods = data?.map(item => item.period) || [];
+  const amounts = data?.map(item => item.amount) || [];
+  const counts = data?.map(item => item.order_count) || [];
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
     legend: {
@@ -108,18 +108,18 @@ const renderTrendChart = (data: SalesTrendResult[]) => {
         itemStyle: { color: '#764ba2', borderRadius: [4, 4, 0, 0] },
       },
     ],
-  })
-}
+  });
+};
 
 // 渲染销售构成饼图（参考 DashboardPie.vue，数据源为产品排名按金额占比）
 const renderPieChart = (composition: ProductRanking[]) => {
-  if (!pieChartRef.value) return
+  if (!pieChartRef.value) return;
   if (!pieChart) {
-    pieChart = echarts.init(pieChartRef.value)
+    pieChart = echarts.init(pieChartRef.value);
   }
   const data = composition?.length
     ? composition.map(c => ({ name: c.product_name, value: c.amount }))
-    : [{ name: t('salesAnalysis.trend.noData'), value: 0 }]
+    : [{ name: t('salesAnalysis.trend.noData'), value: 0 }];
   pieChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     legend: { orient: 'vertical', left: 'left' },
@@ -135,40 +135,40 @@ const renderPieChart = (composition: ProductRanking[]) => {
         data,
       },
     ],
-  })
-}
+  });
+};
 
 // 监听趋势数据变化
 watch(
   () => props.data,
   newData => renderTrendChart(newData || []),
   { immediate: true, deep: true }
-)
+);
 
 // 监听构成数据变化
 watch(
   () => props.composition,
   newData => renderPieChart(newData || []),
   { immediate: true, deep: true }
-)
+);
 
 // 挂载后渲染
 onMounted(() => {
-  renderTrendChart(props.data || [])
-  renderPieChart(props.composition || [])
-})
+  renderTrendChart(props.data || []);
+  renderPieChart(props.composition || []);
+});
 
 // 卸载前清理
 onBeforeUnmount(() => {
-  trendChart?.dispose()
-  pieChart?.dispose()
-  trendChart = null
-  pieChart = null
+  trendChart?.dispose();
+  pieChart?.dispose();
+  trendChart = null;
+  pieChart = null;
   if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler)
-    resizeHandler = null
+    window.removeEventListener('resize', resizeHandler);
+    resizeHandler = null;
   }
-})
+});
 </script>
 
 <style scoped>

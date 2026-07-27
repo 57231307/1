@@ -24,7 +24,11 @@
       </div>
     </div>
 
-    <el-form label-position="top" class="info-form" :aria-label="t('security.twoFactor.step2.ariaLabel.form')">
+    <el-form
+      label-position="top"
+      class="info-form"
+      :aria-label="t('security.twoFactor.step2.ariaLabel.form')"
+    >
       <el-form-item :label="t('security.twoFactor.step2.label.username')">
         <el-input :model-value="username" readonly />
       </el-form-item>
@@ -32,11 +36,7 @@
         <el-input model-value="ERP System" readonly />
       </el-form-item>
       <el-form-item :label="t('security.twoFactor.step2.label.secret')">
-        <el-input
-          :model-value="secretText"
-          readonly
-          class="secret-input"
-        >
+        <el-input :model-value="secretText" readonly class="secret-input">
           <template #append>
             <el-button @click="emit('copy-secret')">
               <el-icon><CopyDocument /></el-icon>
@@ -50,18 +50,18 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { CopyDocument, Loading } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n';
+import { CopyDocument, Loading } from '@element-plus/icons-vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
-  qrCodeDataUrl: string
-  secretText: string
-  username: string
-}>()
+  qrCodeDataUrl: string;
+  secretText: string;
+  username: string;
+}>();
 
-const emit = defineEmits<{ 'copy-secret': [] }>()
+const emit = defineEmits<{ 'copy-secret': [] }>();
 </script>
 
 <style scoped>

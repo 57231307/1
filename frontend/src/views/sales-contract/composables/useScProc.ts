@@ -4,18 +4,18 @@
  * 封装销售合同提交审批/审批/执行/删除/打印/导出/查看等流程性方法
  * 行为完全保持一致（仅结构重构）
  */
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   deleteSalesContract,
   approveSalesContract,
   executeSalesContract,
   type SalesContract,
-} from '@/api/sales-contract'
-import { formatCurrency, getStatusLabel } from './scFmts'
-import { escapeHtml } from '@/utils/print'
+} from '@/api/sales-contract';
+import { formatCurrency, getStatusLabel } from './scFmts';
+import { escapeHtml } from '@/utils/print';
 // V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
 // 后端 GET /sales/sales-contracts/export 已就绪（含异步审计日志 + 水印）
-import { exportFromBackend } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export';
 
 /**
  * 刷新回调
@@ -24,9 +24,9 @@ import { exportFromBackend } from '@/utils/export'
  * 保证导出数据与当前列表筛选一致（keyword/status/customer_id）
  */
 interface RefreshCallbacks {
-  getList: () => Promise<void>
+  getList: () => Promise<void>;
   // V15 P0-S12 修复（Batch 475d）：获取当前筛选条件（keyword/status/customer_id），用于导出
-  getQueryParams?: () => { keyword?: string; status?: string; customer_id?: number }
+  getQueryParams?: () => { keyword?: string; status?: string; customer_id?: number };
 }
 
 /**
@@ -36,66 +36,66 @@ export function useScProc(refresh: RefreshCallbacks) {
   /** 提交审批 */
   const handleSubmitForApproval = async (row: SalesContract) => {
     try {
-      await ElMessageBox.confirm('确认提交该合同审批？', '提示', { type: 'warning' })
-      await approveSalesContract(row.id)
-      ElMessage.success('提交成功')
-      await refresh.getList()
+      await ElMessageBox.confirm('确认提交该合同审批？', '提示', { type: 'warning' });
+      await approveSalesContract(row.id);
+      ElMessage.success('提交成功');
+      await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error)
-        ElMessage.error(errMsg || '提交失败')
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || '提交失败');
       }
     }
-  }
+  };
 
   /** 审批 */
   const handleApprove = async (row: SalesContract) => {
     try {
-      await ElMessageBox.confirm('确认审批通过该合同？', '提示', { type: 'warning' })
-      await approveSalesContract(row.id)
-      ElMessage.success('审批成功')
-      await refresh.getList()
+      await ElMessageBox.confirm('确认审批通过该合同？', '提示', { type: 'warning' });
+      await approveSalesContract(row.id);
+      ElMessage.success('审批成功');
+      await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error)
-        ElMessage.error(errMsg || '审批失败')
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || '审批失败');
       }
     }
-  }
+  };
 
   /** 执行 */
   const handleExecute = async (row: SalesContract) => {
     try {
-      await ElMessageBox.confirm('确认执行该合同？', '提示', { type: 'warning' })
-      await executeSalesContract(row.id)
-      ElMessage.success('执行成功')
-      await refresh.getList()
+      await ElMessageBox.confirm('确认执行该合同？', '提示', { type: 'warning' });
+      await executeSalesContract(row.id);
+      ElMessage.success('执行成功');
+      await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error)
-        ElMessage.error(errMsg || '执行失败')
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || '执行失败');
       }
     }
-  }
+  };
 
   /** 删除 */
   const handleDelete = async (row: SalesContract) => {
     try {
-      await ElMessageBox.confirm('确认删除该合同？', '提示', { type: 'warning' })
-      await deleteSalesContract(row.id)
-      ElMessage.success('删除成功')
-      await refresh.getList()
+      await ElMessageBox.confirm('确认删除该合同？', '提示', { type: 'warning' });
+      await deleteSalesContract(row.id);
+      ElMessage.success('删除成功');
+      await refresh.getList();
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error)
-        ElMessage.error(errMsg || '删除失败')
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || '删除失败');
       }
     }
-  }
+  };
 
   /** 查看详情（弹出 ElMessageBox） */
   const handleView = (row: SalesContract) => {
@@ -116,16 +116,16 @@ export function useScProc(refresh: RefreshCallbacks) {
       </div>`,
       '合同详情',
       { dangerouslyUseHTMLString: true, confirmButtonText: '关闭' }
-    )
-  }
+    );
+  };
 
   /** 打印当前列表 */
   const handlePrint = (contractList: { value: SalesContract[] } | SalesContract[]) => {
-    const list = Array.isArray(contractList) ? contractList : contractList.value
-    const printWindow = window.open('', '_blank')
+    const list = Array.isArray(contractList) ? contractList : contractList.value;
+    const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      ElMessage.error('无法打开打印窗口')
-      return
+      ElMessage.error('无法打开打印窗口');
+      return;
     }
     const rows = list
       .map(
@@ -141,8 +141,8 @@ export function useScProc(refresh: RefreshCallbacks) {
       </tr>
     `
       )
-      .join('')
-    const now = new Date().toISOString().split('T')[0]
+      .join('');
+    const now = new Date().toISOString().split('T')[0];
     printWindow.document.write(`
       <html><head><meta charset="utf-8"><title>销售合同列表</title>
       <style>
@@ -161,10 +161,10 @@ export function useScProc(refresh: RefreshCallbacks) {
         <tbody>${rows}</tbody>
       </table>
       </body></html>
-    `)
-    printWindow.document.close()
-    printWindow.onload = () => printWindow.print()
-  }
+    `);
+    printWindow.document.close();
+    printWindow.onload = () => printWindow.print();
+  };
 
   /**
    * 导出 Excel（V15 P0-S12 修复 Batch 475d）
@@ -174,14 +174,14 @@ export function useScProc(refresh: RefreshCallbacks) {
    * 传入当前列表筛选条件（keyword/status/customer_id），保证导出与列表一致
    */
   const handleExport = async () => {
-    const filters = refresh.getQueryParams?.() ?? {}
+    const filters = refresh.getQueryParams?.() ?? {};
     const params: Record<string, unknown> = {
       keyword: filters.keyword || undefined,
       status: filters.status || undefined,
       customer_id: filters.customer_id,
-    }
-    await exportFromBackend('/sales/sales-contracts/export', params, 'sales_contracts_export')
-  }
+    };
+    await exportFromBackend('/sales/sales-contracts/export', params, 'sales_contracts_export');
+  };
 
   return {
     handleSubmitForApproval,
@@ -191,5 +191,5 @@ export function useScProc(refresh: RefreshCallbacks) {
     handleView,
     handlePrint,
     handleExport,
-  }
+  };
 }

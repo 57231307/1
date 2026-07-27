@@ -22,7 +22,11 @@
         />
       </el-form-item>
       <el-form-item :label="t('sales.filter.status')">
-        <el-select v-model="localFilterForm.status" :placeholder="t('sales.filter.statusPlaceholder')" clearable>
+        <el-select
+          v-model="localFilterForm.status"
+          :placeholder="t('sales.filter.statusPlaceholder')"
+          clearable
+        >
           <el-option :label="t('sales.statusLabels.pending')" value="pending" />
           <el-option :label="t('sales.statusLabels.approved')" value="approved" />
           <el-option :label="t('sales.statusLabels.shipped')" value="shipped" />
@@ -48,17 +52,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 销售订单过滤表单类型
 interface OlvFilterForm {
-  order_no: string
-  customer_name: string
-  status: string
-  dateRange: Date[] | null
+  order_no: string;
+  customer_name: string;
+  status: string;
+  dateRange: Date[] | null;
 }
 
 /**
@@ -66,60 +70,60 @@ interface OlvFilterForm {
  */
 const props = defineProps<{
   // 过滤表单（由父组件管理，子组件通过 emit('update:filterForm') 回写）
-  filterForm: OlvFilterForm
-}>()
+  filterForm: OlvFilterForm;
+}>();
 
 const emit = defineEmits<{
   // 查询
-  (e: 'query'): void
+  (e: 'query'): void;
   // 重置
-  (e: 'reset'): void
+  (e: 'reset'): void;
   // 整体回写过滤表单（父组件监听此事件并 Object.assign 到自己的 filterForm）
-  (e: 'update:filterForm', filterForm: OlvFilterForm): void
-}>()
+  (e: 'update:filterForm', filterForm: OlvFilterForm): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 const localFilterForm = ref<OlvFilterForm>({
   ...props.filterForm,
   dateRange: props.filterForm.dateRange ? [...props.filterForm.dateRange] : null,
-})
+});
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件重置）
 watch(
   () => props.filterForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
+  newForm => {
+    if (syncing) return;
+    syncing = true;
     localFilterForm.value = {
       ...newForm,
       dateRange: newForm.dateRange ? [...newForm.dateRange] : null,
-    }
+    };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localFilterForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
+  newForm => {
+    if (syncing) return;
+    syncing = true;
     emit('update:filterForm', {
       ...newForm,
       dateRange: newForm.dateRange ? [...newForm.dateRange] : null,
-    })
+    });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 </script>
 
 <style scoped>

@@ -29,7 +29,7 @@
       :scheduling="schGProc.scheduling"
       @update:form="
         v => {
-          schG.scheduleForm = v
+          schG.scheduleForm = v;
         }
       "
       @confirm="schGProc.confirmAutoSchedule"
@@ -53,49 +53,49 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { useSchG } from './composables/useSchG'
-import { useSchGProc } from './composables/useSchGProc'
-import SchedulingGanttTool from './components/SchedulingGanttTool.vue'
-import SchedulingGanttChart from './components/SchedulingGanttChart.vue'
-import SchedulingGanttAuto from './components/SchedulingGanttAuto.vue'
-import SchedulingGanttAdjust from './components/SchedulingGanttAdjust.vue'
-import SchedulingGanttConflict from './components/SchedulingGanttConflict.vue'
+import { onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { useSchG } from './composables/useSchG';
+import { useSchGProc } from './composables/useSchGProc';
+import SchedulingGanttTool from './components/SchedulingGanttTool.vue';
+import SchedulingGanttChart from './components/SchedulingGanttChart.vue';
+import SchedulingGanttAuto from './components/SchedulingGanttAuto.vue';
+import SchedulingGanttAdjust from './components/SchedulingGanttAdjust.vue';
+import SchedulingGanttConflict from './components/SchedulingGanttConflict.vue';
 
-const { t } = useI18n({ useScope: 'global' })
-const router = useRouter()
+const { t } = useI18n({ useScope: 'global' });
+const router = useRouter();
 
-const schG = useSchG()
+const schG = useSchG();
 const schGProc = useSchGProc({
   fetchGanttData: schG.fetchGanttData,
   scheduleForm: schG.scheduleForm,
   setAutoScheduleDialogVisible: v => {
-    schG.autoScheduleDialogVisible = v
+    schG.autoScheduleDialogVisible = v;
   },
   setConflictList: v => {
-    schG.conflictList = v
+    schG.conflictList = v;
   },
   setConflictDialogVisible: v => {
-    schG.conflictDialogVisible = v
+    schG.conflictDialogVisible = v;
   },
-})
+});
 
 /** 返回排程管理 */
 const onBack = () => {
-  router.back()
-}
+  router.back();
+};
 
 /** 日期范围变化 */
 const onDateChange = (v: [Date, Date] | null) => {
-  schG.dateRange = v
-  schG.fetchGanttData()
-}
+  schG.dateRange = v;
+  schG.fetchGanttData();
+};
 
 onMounted(() => {
-  schG.fetchGanttData()
-})
+  schG.fetchGanttData();
+});
 </script>
 
 <style scoped>

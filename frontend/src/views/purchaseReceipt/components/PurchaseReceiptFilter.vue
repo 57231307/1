@@ -53,17 +53,14 @@
           class="filter-item"
           @change="handleSearch"
         >
-          <el-option
-            v-for="s in statusOptions"
-            :key="s.value"
-            :label="s.label"
-            :value="s.value"
-          />
+          <el-option v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
         </el-select>
       </el-col>
     </el-row>
     <div class="filter-actions">
-      <el-button type="primary" @click="handleSearch">{{ t('purchaseReceipt.filter.button.search') }}</el-button>
+      <el-button type="primary" @click="handleSearch">{{
+        t('purchaseReceipt.filter.button.search')
+      }}</el-button>
       <el-button @click="handleReset">{{ t('purchaseReceipt.filter.button.reset') }}</el-button>
       <el-button type="success" @click="emit('add')">
         <el-icon><Plus /></el-icon>
@@ -74,22 +71,22 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Plus } from '@element-plus/icons-vue'
+import { reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Plus } from '@element-plus/icons-vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 选项类型
 interface OptItem {
-  label: string
-  value: number
+  label: string;
+  value: number;
 }
 
 // 状态选项类型
 interface StatusOptItem {
-  label: string
-  value: string
+  label: string;
+  value: string;
 }
 
 /**
@@ -97,52 +94,52 @@ interface StatusOptItem {
  */
 const props = defineProps<{
   // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）
-  queryParams: Record<string, unknown>
+  queryParams: Record<string, unknown>;
   // 供应商选项
-  suppliers: OptItem[]
+  suppliers: OptItem[];
   // 仓库选项
-  warehouses: OptItem[]
+  warehouses: OptItem[];
   // 状态选项
-  statusOptions: StatusOptItem[]
-}>()
+  statusOptions: StatusOptItem[];
+}>();
 
 const emit = defineEmits<{
   // 触发加载
-  fetch: []
+  fetch: [];
   // 整体回写查询参数
-  'update:queryParams': [value: Record<string, unknown>]
+  'update:queryParams': [value: Record<string, unknown>];
   // 新增
-  add: []
-}>()
+  add: [];
+}>();
 
 // 本地查询条件（筛选字段，不含分页参数）
 const localQuery = reactive<{
-  receipt_no: string
-  supplier_id: string
-  warehouse_id: string
-  status: string
+  receipt_no: string;
+  supplier_id: string;
+  warehouse_id: string;
+  status: string;
 }>({
   receipt_no: (props.queryParams.receipt_no as string) ?? '',
   supplier_id: (props.queryParams.supplier_id as string) ?? '',
   warehouse_id: (props.queryParams.warehouse_id as string) ?? '',
   status: (props.queryParams.status as string) ?? '',
-})
+});
 
 /** 搜索：先同步筛选条件到父组件，再触发加载 */
 const handleSearch = () => {
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 
 /** 重置：清空筛选条件 + 同步 + 触发加载 */
 const handleReset = () => {
-  localQuery.receipt_no = ''
-  localQuery.supplier_id = ''
-  localQuery.warehouse_id = ''
-  localQuery.status = ''
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  localQuery.receipt_no = '';
+  localQuery.supplier_id = '';
+  localQuery.warehouse_id = '';
+  localQuery.status = '';
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 </script>
 
 <style scoped>

@@ -52,7 +52,9 @@
               <el-icon><Money /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">{{ t('inventoryTransfer.transferList.stat.totalAmount') }}</div>
+              <div class="stat-label">
+                {{ t('inventoryTransfer.transferList.stat.totalAmount') }}
+              </div>
               <div class="stat-value">{{ formatCurrency(stats.totalAmount) }}</div>
             </div>
           </div>
@@ -80,17 +82,31 @@
             :placeholder="t('inventoryTransfer.transferList.filter.statusPlaceholder')"
             clearable
           >
-            <el-option :label="t('inventoryTransfer.transferList.status.pending')" value="pending" />
-            <el-option :label="t('inventoryTransfer.transferList.status.approved')" value="approved" />
-            <el-option :label="t('inventoryTransfer.transferList.status.executed')" value="executed" />
-            <el-option :label="t('inventoryTransfer.transferList.status.cancelled')" value="cancelled" />
+            <el-option
+              :label="t('inventoryTransfer.transferList.status.pending')"
+              value="pending"
+            />
+            <el-option
+              :label="t('inventoryTransfer.transferList.status.approved')"
+              value="approved"
+            />
+            <el-option
+              :label="t('inventoryTransfer.transferList.status.executed')"
+              value="executed"
+            />
+            <el-option
+              :label="t('inventoryTransfer.transferList.status.cancelled')"
+              value="cancelled"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">{{
             t('inventoryTransfer.transferList.button.query')
           }}</el-button>
-          <el-button @click="handleReset">{{ t('inventoryTransfer.transferList.button.reset') }}</el-button>
+          <el-button @click="handleReset">{{
+            t('inventoryTransfer.transferList.button.reset')
+          }}</el-button>
           <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
           <el-button
             v-permission="'inventory:create'"
@@ -110,27 +126,66 @@
         stripe
         :aria-label="t('inventoryTransfer.transferList.table.ariaLabel')"
       >
-        <el-table-column prop="transfer_no" :label="t('inventoryTransfer.transferList.table.transferNo')" width="160" fixed />
-        <el-table-column prop="transfer_date" :label="t('inventoryTransfer.transferList.table.transferDate')" width="120" />
-        <el-table-column prop="from_warehouse_name" :label="t('inventoryTransfer.transferList.table.fromWarehouse')" width="120" />
-        <el-table-column prop="to_warehouse_name" :label="t('inventoryTransfer.transferList.table.toWarehouse')" width="120" />
-        <el-table-column prop="total_amount" :label="t('inventoryTransfer.transferList.table.amount')" width="120" align="right">
+        <el-table-column
+          prop="transfer_no"
+          :label="t('inventoryTransfer.transferList.table.transferNo')"
+          width="160"
+          fixed
+        />
+        <el-table-column
+          prop="transfer_date"
+          :label="t('inventoryTransfer.transferList.table.transferDate')"
+          width="120"
+        />
+        <el-table-column
+          prop="from_warehouse_name"
+          :label="t('inventoryTransfer.transferList.table.fromWarehouse')"
+          width="120"
+        />
+        <el-table-column
+          prop="to_warehouse_name"
+          :label="t('inventoryTransfer.transferList.table.toWarehouse')"
+          width="120"
+        />
+        <el-table-column
+          prop="total_amount"
+          :label="t('inventoryTransfer.transferList.table.amount')"
+          width="120"
+          align="right"
+        >
           <template #default="{ row }">{{ formatCurrency(row.total_amount) }}</template>
         </el-table-column>
-        <el-table-column prop="status" :label="t('inventoryTransfer.transferList.table.status')" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="t('inventoryTransfer.transferList.table.status')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" :label="t('inventoryTransfer.transferList.table.createdBy')" width="100" />
-        <el-table-column prop="created_at" :label="t('inventoryTransfer.transferList.table.createdAt')" width="160" />
-        <el-table-column :label="t('inventoryTransfer.transferList.table.operation')" width="200" fixed="right">
+        <el-table-column
+          prop="created_by_name"
+          :label="t('inventoryTransfer.transferList.table.createdBy')"
+          width="100"
+        />
+        <el-table-column
+          prop="created_at"
+          :label="t('inventoryTransfer.transferList.table.createdAt')"
+          width="160"
+        />
+        <el-table-column
+          :label="t('inventoryTransfer.transferList.table.operation')"
+          width="200"
+          fixed="right"
+        >
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="emit('openForm', 'view', row)"
-              >{{ t('inventoryTransfer.transferList.button.detail') }}</el-button
-            >
+            <el-button type="primary" link size="small" @click="emit('openForm', 'view', row)">{{
+              t('inventoryTransfer.transferList.button.detail')
+            }}</el-button>
             <el-button
               v-if="row.status === 'pending'"
               type="primary"
@@ -167,21 +222,21 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue'
-import { type InventoryTransferEntity } from '@/api/inventoryTransfer'
-import { useTableApi } from '@/composables/useTableApi'
-import { logger } from '@/utils/logger'
+import { reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue';
+import { type InventoryTransferEntity } from '@/api/inventoryTransfer';
+import { useTableApi } from '@/composables/useTableApi';
+import { logger } from '@/utils/logger';
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const emit = defineEmits<{
-  openForm: [mode: 'create' | 'edit' | 'view', row: InventoryTransferEntity | null]
-  openApprove: [row: InventoryTransferEntity]
-}>()
+  openForm: [mode: 'create' | 'edit' | 'view', row: InventoryTransferEntity | null];
+  openApprove: [row: InventoryTransferEntity];
+}>();
 
 // 批次 391：接入 useTableApi，统一分页规范（1-based），由 setup 自动加载 + watch page/pageSize 触发。
 // 后端返回 { data: { list: [], total: 0 } }，listKey 默认 'list' 命中自动探测。
@@ -202,10 +257,10 @@ const {
     status: '',
   },
   onError: (err: unknown) => {
-    logger.error(t('inventoryTransfer.transferList.message.loadListFailed'), err)
-    ElMessage.error(t('message.loadFailed'))
+    logger.error(t('inventoryTransfer.transferList.message.loadListFailed'), err);
+    ElMessage.error(t('message.loadFailed'));
   },
-})
+});
 
 // stats 保留原语义：total 为后端总记录数，pending/approved/totalAmount 基于当前页数据计算。
 // watch data 变化自动更新 stats，无需在每次 refresh 后手动赋值。
@@ -214,47 +269,47 @@ const stats = reactive({
   pending: 0,
   approved: 0,
   totalAmount: 0,
-})
+});
 
 watch(
   transfers,
   newData => {
-    stats.total = total.value
-    stats.pending = newData.filter(item => item.status === 'pending').length
-    stats.approved = newData.filter(item => item.status === 'approved').length
-    stats.totalAmount = newData.reduce((sum, item) => sum + (item.total_amount || 0), 0)
+    stats.total = total.value;
+    stats.pending = newData.filter(item => item.status === 'pending').length;
+    stats.approved = newData.filter(item => item.status === 'approved').length;
+    stats.totalAmount = newData.reduce((sum, item) => sum + (item.total_amount || 0), 0);
   },
   { immediate: true }
-)
+);
 
-const getStatusLabel = (status: string) => t(`inventoryTransfer.transferList.status.${status}`)
+const getStatusLabel = (status: string) => t(`inventoryTransfer.transferList.status.${status}`);
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     pending: 'warning',
     approved: 'success',
     executed: 'primary',
     cancelled: 'info',
-  }
-  return map[status] || 'info'
-}
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
+  };
+  return map[status] || 'info';
+};
+const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`;
 
 // handleQuery 同步搜索表单到 useTableApi queryParams 后重置到第 1 页并加载。
 // useTableApi watch 只监听 page/pageSize，不监听 queryParams，所以修改后需手动调 refresh。
 const handleQuery = () => {
-  page.value = 1
-  fetchTransfers()
-}
+  page.value = 1;
+  fetchTransfers();
+};
 const handleReset = () => {
   queryParams.value = {
     transfer_no: '',
     status: '',
-  }
-  handleQuery()
-}
+  };
+  handleQuery();
+};
 
 // 保留父组件调用接口：expose refresh 代替原 fetchTransfers
-defineExpose({ fetchTransfers })
+defineExpose({ fetchTransfers });
 </script>
 
 <style scoped>

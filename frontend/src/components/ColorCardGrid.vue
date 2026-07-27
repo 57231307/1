@@ -4,12 +4,7 @@
       <el-empty :description="t('components.colorCardGrid.emptyDescription')" />
     </div>
     <div v-else class="grid">
-      <div
-        v-for="item in items"
-        :key="item.id"
-        class="grid-item"
-        @click="$emit('scan', item)"
-      >
+      <div v-for="item in items" :key="item.id" class="grid-item" @click="$emit('scan', item)">
         <div class="swatch" :style="{ background: item.hex_value }">
           <span class="hex-code">{{ item.hex_value }}</span>
         </div>
@@ -22,8 +17,22 @@
           </div>
         </div>
         <div class="actions" @click.stop>
-          <el-button link type="primary" size="small" :aria-label="t('components.colorCardGrid.scanDetailAriaLabel')" @click.stop="$emit('scan', item)">{{ t('components.colorCardGrid.scan') }}</el-button>
-          <el-button link type="danger" size="small" :aria-label="t('components.colorCardGrid.deleteAriaLabel')" @click.stop="$emit('delete', item)">{{ t('components.colorCardGrid.delete') }}</el-button>
+          <el-button
+            link
+            type="primary"
+            size="small"
+            :aria-label="t('components.colorCardGrid.scanDetailAriaLabel')"
+            @click.stop="$emit('scan', item)"
+            >{{ t('components.colorCardGrid.scan') }}</el-button
+          >
+          <el-button
+            link
+            type="danger"
+            size="small"
+            :aria-label="t('components.colorCardGrid.deleteAriaLabel')"
+            @click.stop="$emit('delete', item)"
+            >{{ t('components.colorCardGrid.delete') }}</el-button
+          >
         </div>
       </div>
     </div>
@@ -31,21 +40,25 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { ColorItemInfo } from '@/api/color-card'
+import { useI18n } from 'vue-i18n';
+import type { ColorItemInfo } from '@/api/color-card';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-defineProps<{ items: ColorItemInfo[] }>()
+defineProps<{ items: ColorItemInfo[] }>();
 defineEmits<{
-  (e: 'scan', item: ColorItemInfo): void
-  (e: 'delete', item: ColorItemInfo): void
-}>()
+  (e: 'scan', item: ColorItemInfo): void;
+  (e: 'delete', item: ColorItemInfo): void;
+}>();
 </script>
 
 <style scoped>
-.color-card-grid { padding: 8px 0; }
-.empty { padding: 40px 0; }
+.color-card-grid {
+  padding: 8px 0;
+}
+.empty {
+  padding: 40px 0;
+}
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -75,9 +88,18 @@ defineEmits<{
   font-size: 12px;
   font-family: monospace;
 }
-.info { padding: 8px 12px; }
-.code { font-weight: bold; font-size: 14px; }
-.name { color: #606266; font-size: 12px; margin-top: 2px; }
+.info {
+  padding: 8px 12px;
+}
+.code {
+  font-weight: bold;
+  font-size: 14px;
+}
+.name {
+  color: #606266;
+  font-size: 12px;
+  margin-top: 2px;
+}
 .meta {
   display: flex;
   justify-content: space-between;

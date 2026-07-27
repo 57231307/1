@@ -119,12 +119,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Search } from '@element-plus/icons-vue'
-import type { ImportTemplate } from '@/api/data-import'
+import { reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Search } from '@element-plus/icons-vue';
+import type { ImportTemplate } from '@/api/data-import';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 模板列表组件（含过滤栏）
@@ -133,44 +133,44 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const props = defineProps<{
   // 模板数据
-  data: ImportTemplate[]
+  data: ImportTemplate[];
   // 总数
-  total: number
+  total: number;
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 查询条件（由父组件 useTableApi 管理，类型放宽为 Record 兼容 useTableApi）
-  queryParams: Record<string, unknown>
+  queryParams: Record<string, unknown>;
   // 当前页码
-  page: number
+  page: number;
   // 每页大小
-  pageSize: number
-}>()
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
-  edit: [row: ImportTemplate]
-  delete: [row: ImportTemplate]
-  download: [row: ImportTemplate]
-  upload: [row: ImportTemplate]
+  edit: [row: ImportTemplate];
+  delete: [row: ImportTemplate];
+  download: [row: ImportTemplate];
+  upload: [row: ImportTemplate];
   // 触发查询（父组件监听后调用 handleTemplateSearch 重置页码并加载）
-  fetch: []
+  fetch: [];
   // 同步查询条件到父组件
-  'update:queryParams': [params: Record<string, unknown>]
+  'update:queryParams': [params: Record<string, unknown>];
   // 分页变化（由 useTableApi watch 自动加载）
-  'update:page': [page: number]
-  'update:page-size': [pageSize: number]
-}>()
+  'update:page': [page: number];
+  'update:page-size': [pageSize: number];
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 const localQuery = reactive({
   keyword: (props.queryParams.keyword as string) ?? '',
   module: (props.queryParams.module as string) ?? '',
-})
+});
 
 /** 查询：先同步筛选条件到父组件，再触发 fetch */
 const handleSearch = () => {
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 
 /**
  * 模块标签映射（基于 i18n）
@@ -184,9 +184,9 @@ const getModuleLabel = (module: string) => {
     sales: t('dataImport.templateTable.moduleSales'),
     purchase: t('dataImport.templateTable.modulePurchase'),
     finance: t('dataImport.templateTable.moduleFinance'),
-  }
-  return map[module] || module
-}
+  };
+  return map[module] || module;
+};
 </script>
 
 <style scoped>

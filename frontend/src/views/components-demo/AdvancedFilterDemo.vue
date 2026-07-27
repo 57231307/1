@@ -22,11 +22,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import AdvancedFilter, { type FilterGroup, type SavedScheme } from '@/components/AdvancedFilter.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import AdvancedFilter, {
+  type FilterGroup,
+  type SavedScheme,
+} from '@/components/AdvancedFilter.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const filterFields = [
   {
@@ -60,7 +63,7 @@ const filterFields = [
     label: t('componentsDemo.advancedFilter.fields.customer'),
     type: 'text' as const,
   },
-]
+];
 
 const savedSchemes = ref<SavedScheme[]>([
   {
@@ -85,25 +88,25 @@ const savedSchemes = ref<SavedScheme[]>([
     ],
     createdAt: '2026-01-16T10:00:00Z',
   },
-])
+]);
 
-const filterResult = ref<FilterGroup[] | null>(null)
+const filterResult = ref<FilterGroup[] | null>(null);
 
 const handleApply = (filters: FilterGroup[]) => {
-  filterResult.value = filters
-}
+  filterResult.value = filters;
+};
 
 const handleReset = () => {
-  filterResult.value = null
-}
+  filterResult.value = null;
+};
 
 const handleSchemeSaved = (scheme: SavedScheme) => {
-  savedSchemes.value.push(scheme)
-}
+  savedSchemes.value.push(scheme);
+};
 
 const handleSchemeLoaded = (_scheme: SavedScheme) => {
   // 方案加载完成
-}
+};
 
 /// 条件组逻辑切换处理（批次 253：演示 logicChange 事件的真实接入）
 ///
@@ -111,8 +114,8 @@ const handleSchemeLoaded = (_scheme: SavedScheme) => {
 /// 当前演示：更新筛选结果以反映新的逻辑关系。
 const handleLogicChange = (_groupIndex: number, _logic: 'AND' | 'OR', filters: FilterGroup[]) => {
   // 自动应用筛选以反映新的逻辑关系（演示逻辑切换的实时效果）
-  filterResult.value = filters
-}
+  filterResult.value = filters;
+};
 </script>
 
 <style scoped>

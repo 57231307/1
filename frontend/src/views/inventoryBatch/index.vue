@@ -35,25 +35,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { InventoryBatch } from '@/api/inventoryBatch'
-import BatchListTab from './tabs/BatchListTab.vue'
-import BatchFormDialogTab from './tabs/BatchFormDialogTab.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { InventoryBatch } from '@/api/inventoryBatch';
+import BatchListTab from './tabs/BatchListTab.vue';
+import BatchFormDialogTab from './tabs/BatchFormDialogTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const formDialogVisible = ref(false)
-const currentRow = ref<InventoryBatch | null>(null)
+const formDialogVisible = ref(false);
+const currentRow = ref<InventoryBatch | null>(null);
 
 const openForm = (row: InventoryBatch | null) => {
-  currentRow.value = row
-  formDialogVisible.value = true
-}
+  currentRow.value = row;
+  formDialogVisible.value = true;
+};
 
 const handleSubmitted = () => {
   // 子组件已通过 emit 触发刷新
-}
+};
 </script>
 
 <style scoped>

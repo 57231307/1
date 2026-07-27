@@ -20,14 +20,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElButton } from 'element-plus'
-import V2Table from '@/components/V2Table/index.vue'
-import type { ColumnDef } from '@/components/V2Table/types'
-import type { SalesOrder } from '@/api/sales'
+import { computed, h } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElButton } from 'element-plus';
+import V2Table from '@/components/V2Table/index.vue';
+import type { ColumnDef } from '@/components/V2Table/types';
+import type { SalesOrder } from '@/api/sales';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 销售订单列表 V2Table 包装组件
@@ -36,27 +36,27 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const props = defineProps<{
   // 列定义（不含操作列）
-  columns: ColumnDef<SalesOrder>[]
+  columns: ColumnDef<SalesOrder>[];
   // 列表数据
-  data: SalesOrder[]
+  data: SalesOrder[];
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 当前页
-  page: number
+  page: number;
   // 每页大小
-  pageSize: number
+  pageSize: number;
   // 总数
-  total: number
-}>()
+  total: number;
+}>();
 
 const emit = defineEmits<{
-  'page-change': [page: number]
-  'size-change': [size: number]
-  view: [row: SalesOrder]
-  approve: [row: SalesOrder]
-  delivery: [row: SalesOrder]
-  cancel: [row: SalesOrder]
-}>()
+  'page-change': [page: number];
+  'size-change': [size: number];
+  view: [row: SalesOrder];
+  approve: [row: SalesOrder];
+  delivery: [row: SalesOrder];
+  cancel: [row: SalesOrder];
+}>();
 
 /** 组装完整列定义：父列 + 操作列 */
 const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
@@ -73,7 +73,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
           { size: 'small', link: true, onClick: () => emit('view', row) },
           { default: () => t('sales.table.view') }
         ),
-      ]
+      ];
       if (row.status === 'pending') {
         buttons.push(
           h(
@@ -86,7 +86,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
             },
             { default: () => t('sales.table.approve') }
           )
-        )
+        );
       }
       if (row.status === 'approved') {
         buttons.push(
@@ -100,7 +100,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
             },
             { default: () => t('sales.table.deliver') }
           )
-        )
+        );
       }
       if (row.status === 'pending' || row.status === 'approved') {
         buttons.push(
@@ -114,12 +114,12 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
             },
             { default: () => t('sales.table.cancel') }
           )
-        )
+        );
       }
-      return h('div', { class: 'action-cell' }, buttons)
+      return h('div', { class: 'action-cell' }, buttons);
     },
   },
-])
+]);
 </script>
 
 <style scoped>

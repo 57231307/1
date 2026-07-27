@@ -6,20 +6,56 @@
 -->
 <template>
   <el-card class="table-card">
-    <el-table v-loading="loading" :data="data" border stripe :aria-label="t('purchaseInspection.table.ariaLabel')">
-      <el-table-column prop="inspection_no" :label="t('purchaseInspection.table.column.inspectionNo')" min-width="140" />
-      <el-table-column prop="receipt_no" :label="t('purchaseInspection.table.column.receiptNo')" min-width="140" />
-      <el-table-column prop="supplier_name" :label="t('purchaseInspection.table.column.supplier')" min-width="150" />
-      <el-table-column prop="inspection_date" :label="t('purchaseInspection.table.column.inspectionDate')" min-width="120" />
-      <el-table-column prop="inspector_name" :label="t('purchaseInspection.table.column.inspector')" min-width="100" />
-      <el-table-column prop="status" :label="t('purchaseInspection.table.column.status')" width="100" align="center">
+    <el-table
+      v-loading="loading"
+      :data="data"
+      border
+      stripe
+      :aria-label="t('purchaseInspection.table.ariaLabel')"
+    >
+      <el-table-column
+        prop="inspection_no"
+        :label="t('purchaseInspection.table.column.inspectionNo')"
+        min-width="140"
+      />
+      <el-table-column
+        prop="receipt_no"
+        :label="t('purchaseInspection.table.column.receiptNo')"
+        min-width="140"
+      />
+      <el-table-column
+        prop="supplier_name"
+        :label="t('purchaseInspection.table.column.supplier')"
+        min-width="150"
+      />
+      <el-table-column
+        prop="inspection_date"
+        :label="t('purchaseInspection.table.column.inspectionDate')"
+        min-width="120"
+      />
+      <el-table-column
+        prop="inspector_name"
+        :label="t('purchaseInspection.table.column.inspector')"
+        min-width="100"
+      />
+      <el-table-column
+        prop="status"
+        :label="t('purchaseInspection.table.column.status')"
+        width="100"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.status)">
             {{ getStatusText(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="result" :label="t('purchaseInspection.table.column.result')" width="100" align="center">
+      <el-table-column
+        prop="result"
+        :label="t('purchaseInspection.table.column.result')"
+        width="100"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag v-if="row.result" :type="getResultType(row.result)">
             {{ getResultText(row.result) }}
@@ -27,10 +63,21 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column prop="remark" :label="t('purchaseInspection.table.column.remark')" min-width="150" show-overflow-tooltip />
-      <el-table-column :label="t('purchaseInspection.table.column.action')" width="200" fixed="right">
+      <el-table-column
+        prop="remark"
+        :label="t('purchaseInspection.table.column.remark')"
+        min-width="150"
+        show-overflow-tooltip
+      />
+      <el-table-column
+        :label="t('purchaseInspection.table.column.action')"
+        width="200"
+        fixed="right"
+      >
         <template #default="{ row }">
-          <el-button size="small" @click="emit('view', row as PurchaseInspection)">{{ t('purchaseInspection.table.button.view') }}</el-button>
+          <el-button size="small" @click="emit('view', row as PurchaseInspection)">{{
+            t('purchaseInspection.table.button.view')
+          }}</el-button>
           <el-button
             v-if="row.status === 'draft' || row.status === 'pending'"
             size="small"
@@ -57,43 +104,43 @@
       :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next, jumper"
+      :aria-label="t('purchaseInspection.table.ariaLabelPagination')"
       @update:current-page="(v: number) => emit('update:page', v)"
       @update:page-size="(v: number) => emit('update:page-size', v)"
-      :aria-label="t('purchaseInspection.table.ariaLabelPagination')"
     />
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { getStatusType, getStatusText, getResultType, getResultText } from '../composables/piFmts'
-import type { PurchaseInspection } from '@/api/purchase-inspection'
+import { useI18n } from 'vue-i18n';
+import { getStatusType, getStatusText, getResultType, getResultText } from '../composables/piFmts';
+import type { PurchaseInspection } from '@/api/purchase-inspection';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 列表组件（批次 286：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
   // 列表数据
-  data: PurchaseInspection[]
+  data: PurchaseInspection[];
   // 总数
-  total: number
+  total: number;
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 当前页
-  page: number
+  page: number;
   // 每页条数
-  pageSize: number
-}>()
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
-  view: [row: PurchaseInspection]
-  edit: [row: PurchaseInspection]
-  complete: [row: PurchaseInspection]
-  'update:page': [v: number]
-  'update:page-size': [v: number]
-}>()
+  view: [row: PurchaseInspection];
+  edit: [row: PurchaseInspection];
+  complete: [row: PurchaseInspection];
+  'update:page': [v: number];
+  'update:page-size': [v: number];
+}>();
 </script>
 
 <style scoped>

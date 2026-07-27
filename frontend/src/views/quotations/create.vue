@@ -182,10 +182,10 @@
 // - 接受 quotationId prop 时为编辑模式，否则为新建
 // - 加载客户列表
 // - 提交保存草稿 / 提交审批
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import {
   createQuotation,
   updateQuotation,
@@ -198,35 +198,35 @@ import {
   type PriceTerms,
   type CurrencyCode,
   type CustomerLevel,
-} from '@/api/quotation'
-import { getCustomerList } from '@/api/customer'
-import { useUserStore } from '@/store/user'
-import QuotationItemEditor from './components/QuotationItemEditor.vue'
-import TermEditor from './components/TermEditor.vue'
+} from '@/api/quotation';
+import { getCustomerList } from '@/api/customer';
+import { useUserStore } from '@/store/user';
+import QuotationItemEditor from './components/QuotationItemEditor.vue';
+import TermEditor from './components/TermEditor.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
-  quotationId?: number | string
-}>()
+  quotationId?: number | string;
+}>();
 
-const router = useRouter()
-const route = useRoute()
-const userStore = useUserStore()
-const formRef = ref<FormInstance>()
-const loading = ref(false)
-const submitting = ref(false)
+const router = useRouter();
+const route = useRoute();
+const userStore = useUserStore();
+const formRef = ref<FormInstance>();
+const loading = ref(false);
+const submitting = ref(false);
 
-const isEdit = computed(() => !!props.quotationId || !!route.params.id)
+const isEdit = computed(() => !!props.quotationId || !!route.params.id);
 
 /** 当前日期 YYYY-MM-DD */
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
+  return new Date().toISOString().slice(0, 10);
 }
 
 /** 默认 30 天后 */
 function defaultValidUntil(): string {
-  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 /** 表单数据 */
@@ -250,7 +250,7 @@ const form = reactive<CreateQuotationDto>({
   notes: '',
   items: [] as CreateQuotationItemDto[],
   terms: [] as CreateQuotationTermDto[],
-})
+});
 
 /** 表单校验规则 */
 const rules: FormRules = {
@@ -277,22 +277,22 @@ const rules: FormRules = {
       // v11 批次 163 P2-1 修复：validator 参数类型化（FormItemRule validator 签名）
       validator: (_rule: unknown, value: CreateQuotationItemDto[], cb: (error?: Error) => void) => {
         if (!value || value.length === 0) {
-          cb(new Error(t('quotations.create.validateItemsRequired')))
-          return
+          cb(new Error(t('quotations.create.validateItemsRequired')));
+          return;
         }
-        const invalid = value.find(i => !i.product_id || i.quantity <= 0 || i.unit_price < 0)
+        const invalid = value.find(i => !i.product_id || i.quantity <= 0 || i.unit_price < 0);
         if (invalid) {
-          cb(new Error(t('quotations.create.validateItemsInvalid')))
-          return
+          cb(new Error(t('quotations.create.validateItemsInvalid')));
+          return;
         }
-        cb()
+        cb();
       },
       trigger: 'change',
     },
   ],
-}
+};
 
-const customers = ref<Array<{ id: number; customer_name?: string; name?: string }>>([])
+const customers = ref<Array<{ id: number; customer_name?: string; name?: string }>>([]);
 
 /** 金额计算 */
 const subtotal = computed(() =>
@@ -300,31 +300,31 @@ const subtotal = computed(() =>
     (sum: number, i: CreateQuotationItemDto) => sum + (i.quantity || 0) * (i.unit_price || 0),
     0
   )
-)
-const taxAmount = computed(() => (form.tax_inclusive ? 0 : (subtotal.value * form.tax_rate) / 100))
-const totalAmount = computed(() => subtotal.value + taxAmount.value)
+);
+const taxAmount = computed(() => (form.tax_inclusive ? 0 : (subtotal.value * form.tax_rate) / 100));
+const totalAmount = computed(() => subtotal.value + taxAmount.value);
 
 /** 加载客户下拉 */
 async function loadCustomers() {
   try {
-    const res = await getCustomerList({ page: 1, page_size: 1000 })
+    const res = await getCustomerList({ page: 1, page_size: 1000 });
     // v11 批次 163 P2-1 修复：res.data as any 改为运行时安全访问
-    const data = (res.data || {}) as { list?: unknown[]; items?: unknown[] }
-    const list = data.list || data.items || []
-    customers.value = list as { id: number; name: string }[]
+    const data = (res.data || {}) as { list?: unknown[]; items?: unknown[] };
+    const list = data.list || data.items || [];
+    customers.value = list as { id: number; name: string }[];
   } catch {
-    customers.value = []
+    customers.value = [];
   }
 }
 
 /** 编辑模式：加载已有数据 */
 async function loadExisting() {
-  const id = Number(props.quotationId || route.params.id)
-  if (!id) return
-  loading.value = true
+  const id = Number(props.quotationId || route.params.id);
+  if (!id) return;
+  loading.value = true;
   try {
-    const res = await getQuotation(id)
-    const data = res.data
+    const res = await getQuotation(id);
+    const data = res.data;
     if (data) {
       Object.assign(form, {
         customer_id: data.customer_id,
@@ -345,90 +345,90 @@ async function loadExisting() {
         notes: data.notes || '',
         items: (data.items || []) as CreateQuotationItemDto[],
         terms: (data.terms || []) as CreateQuotationTermDto[],
-      })
+      });
     }
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.create.loadFailed')
-    )
+    );
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 /** 确保有 sales_user_id（默认当前用户） */
 function ensureSalesUserId() {
   if (!form.sales_user_id && userStore.userInfo?.id) {
-    form.sales_user_id = userStore.userInfo.id
+    form.sales_user_id = userStore.userInfo.id;
   }
 }
 
 /** 保存草稿 */
 async function handleSaveDraft() {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   try {
-    await formRef.value.validate()
+    await formRef.value.validate();
   } catch {
-    ElMessage.error(t('quotations.create.validateForm'))
-    return
+    ElMessage.error(t('quotations.create.validateForm'));
+    return;
   }
-  ensureSalesUserId()
-  submitting.value = true
+  ensureSalesUserId();
+  submitting.value = true;
   try {
     if (isEdit.value) {
-      const id = Number(props.quotationId || route.params.id)
-      const res = await updateQuotation(id, form)
-      ElMessage.success(t('quotations.create.draftUpdated'))
+      const id = Number(props.quotationId || route.params.id);
+      const res = await updateQuotation(id, form);
+      ElMessage.success(t('quotations.create.draftUpdated'));
       // v11 批次 163 P2-1 修复：res.data as any 改为 QuotationResponseDto
-      router.push(`/quotations/${res.data?.id ?? id}`)
+      router.push(`/quotations/${res.data?.id ?? id}`);
     } else {
-      const res = await createQuotation(form)
-      ElMessage.success(t('quotations.create.draftSaved'))
-      router.push(`/quotations/${res.data?.id ?? ''}`)
+      const res = await createQuotation(form);
+      ElMessage.success(t('quotations.create.draftSaved'));
+      router.push(`/quotations/${res.data?.id ?? ''}`);
     }
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.create.saveFailed')
-    )
+    );
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 /** 提交审批 */
 async function handleSubmit() {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   try {
-    await formRef.value.validate()
+    await formRef.value.validate();
   } catch {
-    ElMessage.error(t('quotations.create.validateForm'))
-    return
+    ElMessage.error(t('quotations.create.validateForm'));
+    return;
   }
-  ensureSalesUserId()
-  submitting.value = true
+  ensureSalesUserId();
+  submitting.value = true;
   try {
-    let quotationId: number
+    let quotationId: number;
     if (isEdit.value) {
-      const id = Number(props.quotationId || route.params.id)
-      const res = await updateQuotation(id, form)
+      const id = Number(props.quotationId || route.params.id);
+      const res = await updateQuotation(id, form);
       // v11 批次 163 P2-1 修复：res.data as any 改为 QuotationResponseDto
-      quotationId = res.data?.id ?? id
+      quotationId = res.data?.id ?? id;
     } else {
-      const res = await createQuotation(form)
-      quotationId = res.data?.id ?? 0
+      const res = await createQuotation(form);
+      quotationId = res.data?.id ?? 0;
     }
-    await submitQuotation(quotationId)
-    ElMessage.success(t('quotations.create.submitSuccess'))
-    router.push(`/quotations/${quotationId}`)
+    await submitQuotation(quotationId);
+    ElMessage.success(t('quotations.create.submitSuccess'));
+    router.push(`/quotations/${quotationId}`);
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.create.submitFailed')
-    )
+    );
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
@@ -436,20 +436,20 @@ function formatAmount(value: number): string {
   return Number(value).toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })
+  });
 }
 
 /** 贸易条款变化（处理可选字段） */
 function onTermsChange(value: CreateQuotationTermDto[]) {
-  form.terms = value
+  form.terms = value;
 }
 
 onMounted(async () => {
-  await loadCustomers()
+  await loadCustomers();
   if (isEdit.value) {
-    await loadExisting()
+    await loadExisting();
   }
-})
+});
 </script>
 
 <style scoped>

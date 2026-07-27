@@ -14,14 +14,18 @@
     <el-card shadow="hover" class="top-card">
       <template #header>
         <div class="card-header">
-          <span class="card-title">{{ t('system.slowQuery.title.top10', { range: stats?.time_range || t('system.slowQuery.timeRange.default') }) }}</span>
+          <span class="card-title">{{
+            t('system.slowQuery.title.top10', {
+              range: stats?.time_range || t('system.slowQuery.timeRange.default'),
+            })
+          }}</span>
           <el-button type="primary" size="small" :loading="refreshing" @click="handleRefresh">
             <el-icon><Refresh /></el-icon>
             {{ t('system.slowQuery.button.refresh') }}
           </el-button>
         </div>
       </template>
-      <el-row :gutter="12" v-loading="statsLoading">
+      <el-row v-loading="statsLoading" :gutter="12">
         <el-col
           v-for="(item, idx) in stats?.top10 || []"
           :key="idx"
@@ -40,7 +44,9 @@
               <el-tag :type="getDurationTag(item.max_exec_time_ms)" size="small">
                 {{ item.max_exec_time_ms.toFixed(1) }} ms
               </el-tag>
-              <span class="top-calls">{{ t('system.slowQuery.text.calls', { count: item.total_calls }) }}</span>
+              <span class="top-calls">{{
+                t('system.slowQuery.text.calls', { count: item.total_calls })
+              }}</span>
             </div>
           </el-card>
         </el-col>
@@ -52,7 +58,12 @@
 
     <!-- 筛选 + 表格 -->
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" :aria-label="t('system.slowQuery.aria.filterForm')" @submit.prevent="handleQuery">
+      <el-form
+        :inline="true"
+        :model="filterForm"
+        :aria-label="t('system.slowQuery.aria.filterForm')"
+        @submit.prevent="handleQuery"
+      >
         <el-form-item :label="t('system.slowQuery.label.timeRange')">
           <el-date-picker
             v-model="filterForm.dateRange"
@@ -118,65 +129,60 @@
  * 慢查询审计查看页（P13 批 1 B-慢查询审计）
  * - 后端路由：/api/v1/erp/slow-queries（list / stats / refresh）
  */
-import { ref, reactive, onMounted, h, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElTag } from 'element-plus'
-import { Search, Refresh } from '@element-plus/icons-vue'
-import V2Table from '@/components/V2Table/index.vue'
-import type { ColumnDef } from '@/components/V2Table/types'
-import { useTableApi } from '@/composables/useTableApi'
+import { ref, reactive, onMounted, h, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElTag } from 'element-plus';
+import { Search, Refresh } from '@element-plus/icons-vue';
+import V2Table from '@/components/V2Table/index.vue';
+import type { ColumnDef } from '@/components/V2Table/types';
+import { useTableApi } from '@/composables/useTableApi';
 import {
   getSlowQueryStats,
   refreshSlowQueries,
   type SlowQueryItem,
   type SlowQueryStatsResponse,
-} from '@/api/slow-query'
+} from '@/api/slow-query';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 慢查询统计响应
-const stats = ref<SlowQueryStatsResponse | null>(null)
-const statsLoading = ref(false)
-const refreshing = ref(false)
+const stats = ref<SlowQueryStatsResponse | null>(null);
+const statsLoading = ref(false);
+const refreshing = ref(false);
 
 // 筛选表单
 const filterForm = reactive({
   dateRange: [] as string[],
   min_duration: undefined as number | undefined,
   keyword: '',
-})
+});
 
 // 批次 267：接入 useTableApi，消除手写 page/pageSize/total/loading + loadData 重复
 // API 返回 { items, total }，配置 listKey: 'items' 让 useTableApi 正确探测
-const {
-  data,
-  loading,
-  page,
-  pageSize,
-  total,
-  refresh,
-  setQueryParam,
-} = useTableApi<SlowQueryItem>({
-  url: '/slow-queries',
-  listKey: 'items',
-  onError: () => ElMessage.error(t('system.slowQuery.message.loadFailed')),
-})
+const { data, loading, page, pageSize, total, refresh, setQueryParam } = useTableApi<SlowQueryItem>(
+  {
+    url: '/slow-queries',
+    listKey: 'items',
+    onError: () => ElMessage.error(t('system.slowQuery.message.loadFailed')),
+  }
+);
 
 // 表格列定义（computed 以响应语言切换）
 const columns = computed<ColumnDef<SlowQueryItem>[]>(() => [
   { key: 'id', title: t('system.slowQuery.column.id'), width: 70 },
-  { key: 'captured_at', title: t('system.slowQuery.column.capturedAt'), width: 170, formatter: (row) => formatDateTime(row.captured_at) },
+  {
+    key: 'captured_at',
+    title: t('system.slowQuery.column.capturedAt'),
+    width: 170,
+    formatter: row => formatDateTime(row.captured_at),
+  },
   {
     key: 'execution_time_ms',
     title: t('system.slowQuery.column.avgDuration'),
     width: 120,
-    renderCell: (row) => {
-      const ms = Number(row.execution_time_ms ?? 0)
-      return h(
-        ElTag,
-        { type: getDurationTag(ms), size: 'small' },
-        () => `${ms.toFixed(1)} ms`,
-      )
+    renderCell: row => {
+      const ms = Number(row.execution_time_ms ?? 0);
+      return h(ElTag, { type: getDurationTag(ms), size: 'small' }, () => `${ms.toFixed(1)} ms`);
     },
   },
   { key: 'calls', title: t('system.slowQuery.column.calls'), width: 100 },
@@ -185,27 +191,27 @@ const columns = computed<ColumnDef<SlowQueryItem>[]>(() => [
     key: 'query_text',
     title: t('system.slowQuery.column.sqlText'),
     minWidth: 360,
-    formatter: (row) => truncate(String(row.query_text ?? ''), 100),
+    formatter: row => truncate(String(row.query_text ?? ''), 100),
   },
   { key: 'database_name', title: t('system.slowQuery.column.database'), width: 120 },
-])
+]);
 
 /**
  * 根据执行时间返回 el-tag 颜色（绿色 < 200ms / 黄色 < 500ms / 红色 >= 500ms）
  */
 const getDurationTag = (ms: number): 'success' | 'warning' | 'danger' => {
-  if (ms < 200) return 'success'
-  if (ms < 500) return 'warning'
-  return 'danger'
-}
+  if (ms < 200) return 'success';
+  if (ms < 500) return 'warning';
+  return 'danger';
+};
 
 /**
  * 截断长字符串（前端展示用，避免长 SQL 撑爆布局）
  */
 const truncate = (s: string, max: number): string => {
-  if (!s) return ''
-  return s.length > max ? s.slice(0, max) + '...' : s
-}
+  if (!s) return '';
+  return s.length > max ? s.slice(0, max) + '...' : s;
+};
 
 /**
  * 批次 267：同步筛选条件到 useTableApi.queryParams
@@ -213,103 +219,103 @@ const truncate = (s: string, max: number): string => {
  */
 const syncQueryParams = () => {
   // 先清空旧筛选，再写入新值（避免上次筛选残留）
-  setQueryParam('start_time', undefined)
-  setQueryParam('end_time', undefined)
-  setQueryParam('min_duration', undefined)
-  setQueryParam('keyword', undefined)
+  setQueryParam('start_time', undefined);
+  setQueryParam('end_time', undefined);
+  setQueryParam('min_duration', undefined);
+  setQueryParam('keyword', undefined);
 
   if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-    setQueryParam('start_time', filterForm.dateRange[0])
-    setQueryParam('end_time', filterForm.dateRange[1])
+    setQueryParam('start_time', filterForm.dateRange[0]);
+    setQueryParam('end_time', filterForm.dateRange[1]);
   }
   if (filterForm.min_duration !== undefined && filterForm.min_duration !== null) {
-    setQueryParam('min_duration', filterForm.min_duration)
+    setQueryParam('min_duration', filterForm.min_duration);
   }
-  if (filterForm.keyword.trim()) setQueryParam('keyword', filterForm.keyword.trim())
-}
+  if (filterForm.keyword.trim()) setQueryParam('keyword', filterForm.keyword.trim());
+};
 
 /**
  * 加载 TOP 10 统计（独立于 useTableApi，保留原 request 调用）
  */
 const loadStats = async () => {
-  statsLoading.value = true
+  statsLoading.value = true;
   try {
-    stats.value = await getSlowQueryStats()
+    stats.value = await getSlowQueryStats();
   } catch (err) {
     // 统计接口失败不阻断列表展示
   } finally {
-    statsLoading.value = false
+    statsLoading.value = false;
   }
-}
+};
 
 /**
  * 手动触发一次采集
  */
 const handleRefresh = async () => {
-  refreshing.value = true
+  refreshing.value = true;
   try {
-    const res = await refreshSlowQueries()
-    ElMessage.success(res.message)
+    const res = await refreshSlowQueries();
+    ElMessage.success(res.message);
     // 刷新完成后重新加载列表（useTableApi.refresh）+ 统计
-    await Promise.all([refresh(), loadStats()])
+    await Promise.all([refresh(), loadStats()]);
   } catch (err) {
-    ElMessage.error(t('system.slowQuery.message.refreshFailed'))
+    ElMessage.error(t('system.slowQuery.message.refreshFailed'));
   } finally {
-    refreshing.value = false
+    refreshing.value = false;
   }
-}
+};
 
 /**
  * 查询按钮：同步筛选 + 重置到第一页 + 刷新
  */
 const handleQuery = () => {
-  syncQueryParams()
-  page.value = 1
-  refresh()
-}
+  syncQueryParams();
+  page.value = 1;
+  refresh();
+};
 
 /**
  * 重置筛选条件
  */
 const handleReset = () => {
-  filterForm.dateRange = []
-  filterForm.min_duration = undefined
-  filterForm.keyword = ''
-  syncQueryParams()
-  page.value = 1
-  refresh()
-}
+  filterForm.dateRange = [];
+  filterForm.min_duration = undefined;
+  filterForm.keyword = '';
+  syncQueryParams();
+  page.value = 1;
+  refresh();
+};
 
 /**
  * 分页变化（useTableApi 自动 watch 重载，此处仅更新 page 值）
  */
 const handlePageChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
 /**
  * 每页大小变化（useTableApi 自动 watch 重载，切回第一页）
  */
 const handleSizeChange = (s: number) => {
-  pageSize.value = s
-  page.value = 1
-}
+  pageSize.value = s;
+  page.value = 1;
+};
 
 /**
  * 格式化日期时间
  */
 const formatDateTime = (v: string | null | undefined): string => {
-  if (!v) return '-'
-  const d = new Date(v)
-  if (isNaN(d.getTime())) return v
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
+  if (!v) return '-';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return v;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
 
 // 批次 267：useTableApi 构造时自动初始加载列表，onMounted 仅加载统计
 onMounted(() => {
-  loadStats()
-})
+  loadStats();
+});
 </script>
 
 <style scoped>

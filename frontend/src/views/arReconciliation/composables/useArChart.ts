@@ -4,28 +4,28 @@
  * 提供 ECharts 柱状图与饼图的初始化、配置、销毁等方法
  * 行为完全保持一致（仅结构重构）
  */
-import { ref, nextTick } from 'vue'
-import * as echarts from 'echarts'
-import { ElMessage } from 'element-plus'
-import { i18n } from '@/i18n'
+import { ref, nextTick } from 'vue';
+import * as echarts from 'echarts';
+import { ElMessage } from 'element-plus';
+import { i18n } from '@/i18n';
 import {
   getAgingAnalysis,
   type AgingAnalysisResult,
   type AgingBucket,
-} from '@/api/ar-reconciliation-enhanced'
-import { AGING_COLORS } from './arRecFmts'
+} from '@/api/ar-reconciliation-enhanced';
+import { AGING_COLORS } from './arRecFmts';
 
-const t = i18n.global.t.bind(i18n.global)
+const t = i18n.global.t.bind(i18n.global);
 
 /**
  * 账龄分析图表 composable
  */
 export function useArChart() {
-  const agingData = ref<AgingAnalysisResult[]>([])
-  const chartRef = ref<HTMLDivElement | null>(null)
-  const pieChartRef = ref<HTMLDivElement | null>(null)
-  let barChart: echarts.ECharts | null = null
-  let pieChart: echarts.ECharts | null = null
+  const agingData = ref<AgingAnalysisResult[]>([]);
+  const chartRef = ref<HTMLDivElement | null>(null);
+  const pieChartRef = ref<HTMLDivElement | null>(null);
+  let barChart: echarts.ECharts | null = null;
+  let pieChart: echarts.ECharts | null = null;
 
   /** 默认账龄分桶（无数据时填充，label 为 i18n key） */
   const DEFAULT_BUCKETS = [
@@ -57,7 +57,7 @@ export function useArChart() {
       percentage: 0,
       count: 0,
     },
-  ]
+  ];
 
   const loadAgingAnalysis = async (endDate?: string) => {
     try {
@@ -65,26 +65,26 @@ export function useArChart() {
       const res = (await getAgingAnalysis({
         customer_id: undefined,
         as_of_date: endDate || undefined,
-      })) as { data?: AgingAnalysisResult[] }
-      agingData.value = res.data || []
-      await nextTick()
-      renderCharts()
+      })) as { data?: AgingAnalysisResult[] };
+      agingData.value = res.data || [];
+      await nextTick();
+      renderCharts();
     } catch {
-      ElMessage.error(t('arReconciliationModule.loadAgingFailed'))
+      ElMessage.error(t('arReconciliationModule.loadAgingFailed'));
     }
-  }
+  };
 
   const renderCharts = () => {
-    if (!chartRef.value || !pieChartRef.value) return
+    if (!chartRef.value || !pieChartRef.value) return;
     if (!barChart) {
-      barChart = echarts.init(chartRef.value)
+      barChart = echarts.init(chartRef.value);
     }
     if (!pieChart) {
-      pieChart = echarts.init(pieChartRef.value)
+      pieChart = echarts.init(pieChartRef.value);
     }
 
     const buckets: AgingBucket[] =
-      agingData.value.length > 0 ? agingData.value[0].buckets : DEFAULT_BUCKETS
+      agingData.value.length > 0 ? agingData.value[0].buckets : DEFAULT_BUCKETS;
 
     const barOption = {
       title: { text: t('arReconciliationModule.agingBarTitle'), left: 'center' },
@@ -107,14 +107,14 @@ export function useArChart() {
           itemStyle: {
             // v11 批次 182 P2-1 修复：(params: any) 改为 echarts 的回调参数类型
             color: (params: { dataIndex: number }) => {
-              return AGING_COLORS[params.dataIndex] || '#409eff'
+              return AGING_COLORS[params.dataIndex] || '#409eff';
             },
           },
           label: { show: true, position: 'top', formatter: '{c}' },
         },
       ],
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    }
+    };
 
     const pieOption = {
       title: { text: t('arReconciliationModule.agingPieTitle'), left: 'center' },
@@ -138,18 +138,18 @@ export function useArChart() {
           })),
         },
       ],
-    }
+    };
 
-    barChart.setOption(barOption)
-    pieChart.setOption(pieOption)
-  }
+    barChart.setOption(barOption);
+    pieChart.setOption(pieOption);
+  };
 
   const disposeCharts = () => {
-    barChart?.dispose()
-    barChart = null
-    pieChart?.dispose()
-    pieChart = null
-  }
+    barChart?.dispose();
+    barChart = null;
+    pieChart?.dispose();
+    pieChart = null;
+  };
 
   return {
     chartRef,
@@ -158,5 +158,5 @@ export function useArChart() {
     loadAgingAnalysis,
     renderCharts,
     disposeCharts,
-  }
+  };
 }

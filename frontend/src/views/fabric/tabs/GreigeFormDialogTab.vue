@@ -6,12 +6,25 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="formData.id ? t('fabric.greigeFormDialog.titleEdit') : t('fabric.greigeFormDialog.titleCreate')"
+    :title="
+      formData.id
+        ? t('fabric.greigeFormDialog.titleEdit')
+        : t('fabric.greigeFormDialog.titleCreate')
+    "
     width="600px"
-    :aria-label="formData.id ? t('fabric.greigeFormDialog.titleEdit') : t('fabric.greigeFormDialog.titleCreate')"
+    :aria-label="
+      formData.id
+        ? t('fabric.greigeFormDialog.titleEdit')
+        : t('fabric.greigeFormDialog.titleCreate')
+    "
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" :aria-label="t('fabric.greigeFormDialog.formAriaLabel')">
+    <el-form
+      ref="formRef"
+      :model="formData"
+      label-width="100px"
+      :aria-label="t('fabric.greigeFormDialog.formAriaLabel')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('fabric.greigeFormDialog.labelCode')" prop="fabric_code">
@@ -42,43 +55,50 @@
         </el-col>
       </el-row>
       <el-form-item :label="t('fabric.greigeFormDialog.labelComposition')" prop="composition">
-        <el-input v-model="formData.composition" :placeholder="t('fabric.greigeFormDialog.placeholderComposition')" />
+        <el-input
+          v-model="formData.composition"
+          :placeholder="t('fabric.greigeFormDialog.placeholderComposition')"
+        />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">{{ t('fabric.common.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('fabric.common.confirm') }}</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{
+        t('fabric.common.cancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+        t('fabric.common.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance } from 'element-plus'
-import { createGreigeFabric, updateGreigeFabric, type GreigeFabric } from '@/api/greige-fabric'
-import type { Supplier } from '@/api/supplier'
-import { logger } from '@/utils/logger'
+import { ref, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance } from 'element-plus';
+import { createGreigeFabric, updateGreigeFabric, type GreigeFabric } from '@/api/greige-fabric';
+import type { Supplier } from '@/api/supplier';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  currentRow: GreigeFabric | null
-  suppliers: Supplier[]
+  modelValue: boolean;
+  currentRow: GreigeFabric | null;
+  suppliers: Supplier[];
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
 
 const formData = reactive({
   id: 0,
@@ -89,49 +109,49 @@ const formData = reactive({
   weight: 0,
   composition: '',
   status: 'active' as 'active' | 'inactive',
-})
+});
 
 const resetForm = () => {
-  formData.id = 0
-  formData.fabric_code = ''
-  formData.fabric_name = ''
-  formData.supplier_id = undefined
-  formData.width = 0
-  formData.weight = 0
-  formData.composition = ''
-  formData.status = 'active'
-}
+  formData.id = 0;
+  formData.fabric_code = '';
+  formData.fabric_name = '';
+  formData.supplier_id = undefined;
+  formData.width = 0;
+  formData.weight = 0;
+  formData.composition = '';
+  formData.status = 'active';
+};
 
 watch(
   () => props.modelValue,
   val => {
     if (val) {
       if (props.currentRow) {
-        Object.assign(formData, props.currentRow)
+        Object.assign(formData, props.currentRow);
       } else {
-        resetForm()
+        resetForm();
       }
     }
   }
-)
+);
 
 const handleSubmit = async () => {
-  submitLoading.value = true
+  submitLoading.value = true;
   try {
     if (formData.id) {
-      await updateGreigeFabric(formData.id, formData as Partial<GreigeFabric>)
+      await updateGreigeFabric(formData.id, formData as Partial<GreigeFabric>);
     } else {
-      await createGreigeFabric(formData as Partial<GreigeFabric>)
+      await createGreigeFabric(formData as Partial<GreigeFabric>);
     }
-    ElMessage.success(t('fabric.common.success'))
-    emit('update:modelValue', false)
-    emit('submitted')
+    ElMessage.success(t('fabric.common.success'));
+    emit('update:modelValue', false);
+    emit('submitted');
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('fabric.common.failed'))
-    logger.error(t('fabric.greigeFormDialog.saveFailed'), err.message)
+    const err = error as Error;
+    ElMessage.error(err.message || t('fabric.common.failed'));
+    logger.error(t('fabric.greigeFormDialog.saveFailed'), err.message);
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 </script>

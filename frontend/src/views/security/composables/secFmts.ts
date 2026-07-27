@@ -7,27 +7,27 @@ export const getTypeLabel = (type: string) => {
   const map: Record<string, string> = {
     LOGIN: '登录',
     LOGOUT: '登出',
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 
 /** 登录状态 → ElTag type */
 export const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     SUCCESS: 'success',
     FAILED: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 /** 登录状态码 → 中文标签 */
 export const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     SUCCESS: '成功',
     FAILED: '失败',
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 /** 告警类型 → ElTag type */
 export const getAlertType = (type: string) => {
@@ -36,9 +36,9 @@ export const getAlertType = (type: string) => {
     SUSPICIOUS_IP: 'warning',
     MULTIPLE_FAILURES: 'warning',
     UNUSUAL_LOCATION: 'info',
-  }
-  return map[type] || 'info'
-}
+  };
+  return map[type] || 'info';
+};
 
 /** 告警类型码 → 中文标签 */
 export const getAlertLabel = (type: string) => {
@@ -47,9 +47,9 @@ export const getAlertLabel = (type: string) => {
     SUSPICIOUS_IP: '可疑IP',
     MULTIPLE_FAILURES: '多次失败',
     UNUSUAL_LOCATION: '异常地点',
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 
 /** 告警状态 → ElTag type */
 export const getAlertStatusType = (status: string) => {
@@ -58,9 +58,9 @@ export const getAlertStatusType = (status: string) => {
     PROCESSING: 'primary',
     RESOLVED: 'success',
     IGNORED: 'info',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 /** 告警状态码 → 中文标签 */
 export const getAlertStatusLabel = (status: string) => {
@@ -69,6 +69,6 @@ export const getAlertStatusLabel = (status: string) => {
     PROCESSING: '处理中',
     RESOLVED: '已解决',
     IGNORED: '已忽略',
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};

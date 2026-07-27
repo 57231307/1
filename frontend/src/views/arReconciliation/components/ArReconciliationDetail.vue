@@ -106,30 +106,30 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 import type {
   AutoReconciliationResult,
   ReconciliationDetailItem,
-} from '@/api/ar-reconciliation-enhanced'
-import { getMatchLabel, getMatchType } from '../composables/arRecFmts'
+} from '@/api/ar-reconciliation-enhanced';
+import { getMatchLabel, getMatchType } from '../composables/arRecFmts';
 
-const { t } = useI18n({ useScope: 'global' })
-void t
+const { t } = useI18n({ useScope: 'global' });
+void t;
 
 /**
  * 对账明细对话框组件
  */
 const props = defineProps<{
-  visible: boolean
-  currentReconciliation: AutoReconciliationResult | null
-  detailData: ReconciliationDetailItem[]
-}>()
+  visible: boolean;
+  currentReconciliation: AutoReconciliationResult | null;
+  detailData: ReconciliationDetailItem[];
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-}>()
+  'update:visible': [v: boolean];
+}>();
 
-void props
+void props;
 </script>
 
 <style scoped>

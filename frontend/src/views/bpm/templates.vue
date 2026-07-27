@@ -4,7 +4,9 @@
       <div class="header-left">
         <h1 class="page-title">{{ $t('bpm.templates.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ $t('bpm.templates.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            $t('bpm.templates.breadcrumb.home')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ $t('bpm.templates.breadcrumb.approval') }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ $t('bpm.templates.breadcrumb.templates') }}</el-breadcrumb-item>
         </el-breadcrumb>
@@ -12,7 +14,12 @@
     </div>
 
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="filterForm" class="filter-form" :aria-label="$t('bpm.templates.filter.ariaLabel')">
+      <el-form
+        :inline="true"
+        :model="filterForm"
+        class="filter-form"
+        :aria-label="$t('bpm.templates.filter.ariaLabel')"
+      >
         <el-form-item :label="$t('bpm.templates.filter.category')">
           <el-select
             v-model="filterForm.category"
@@ -30,7 +37,9 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch">{{ $t('bpm.templates.filter.query') }}</el-button>
+          <el-button type="primary" @click="handleSearch">{{
+            $t('bpm.templates.filter.query')
+          }}</el-button>
           <el-button @click="handleResetFilter">{{ $t('bpm.templates.filter.reset') }}</el-button>
         </el-form-item>
       </el-form>
@@ -55,10 +64,12 @@
               <el-icon><MoreFilled /></el-icon>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item @click="handleViewDetail(template)">{{ $t('bpm.templates.card.viewDetail') }}</el-dropdown-item>
-                  <el-dropdown-item @click="handleCreateFromTemplate(template)"
-                    >{{ $t('bpm.templates.card.createFromTemplate') }}</el-dropdown-item
-                  >
+                  <el-dropdown-item @click="handleViewDetail(template)">{{
+                    $t('bpm.templates.card.viewDetail')
+                  }}</el-dropdown-item>
+                  <el-dropdown-item @click="handleCreateFromTemplate(template)">{{
+                    $t('bpm.templates.card.createFromTemplate')
+                  }}</el-dropdown-item>
                   <el-dropdown-item
                     divided
                     style="color: #f56c6c"
@@ -71,17 +82,21 @@
           </div>
           <div class="template-body">
             <h3 class="template-name">{{ template.template_name }}</h3>
-            <p class="template-desc">{{ template.description || $t('bpm.templates.card.noDescription') }}</p>
+            <p class="template-desc">
+              {{ template.description || $t('bpm.templates.card.noDescription') }}
+            </p>
             <div class="template-meta">
               <el-tag size="small">{{ getCategoryText(template.category) }}</el-tag>
-              <span class="usage-count">{{ $t('bpm.templates.card.usageCount', { count: template.usage_count }) }}</span>
+              <span class="usage-count">{{
+                $t('bpm.templates.card.usageCount', { count: template.usage_count })
+              }}</span>
             </div>
           </div>
           <div class="template-footer">
             <span class="template-time">{{ template.created_at }}</span>
-            <el-button type="primary" size="small" @click="handleCreateFromTemplate(template)"
-              >{{ $t('bpm.templates.card.useThisTemplate') }}</el-button
-            >
+            <el-button type="primary" size="small" @click="handleCreateFromTemplate(template)">{{
+              $t('bpm.templates.card.useThisTemplate')
+            }}</el-button>
           </div>
         </el-card>
       </el-col>
@@ -102,9 +117,19 @@
       />
     </div>
 
-    <el-dialog v-model="detailDialogVisible" :title="$t('bpm.templates.detailDialog.title')" width="700px" destroy-on-close :aria-label="$t('bpm.templates.detailDialog.ariaLabel')">
+    <el-dialog
+      v-model="detailDialogVisible"
+      :title="$t('bpm.templates.detailDialog.title')"
+      width="700px"
+      destroy-on-close
+      :aria-label="$t('bpm.templates.detailDialog.ariaLabel')"
+    >
       <div v-if="currentTemplate" class="template-detail">
-        <el-descriptions :column="2" border :aria-label="$t('bpm.templates.detailDialog.descriptionsAriaLabel')">
+        <el-descriptions
+          :column="2"
+          border
+          :aria-label="$t('bpm.templates.detailDialog.descriptionsAriaLabel')"
+        >
           <el-descriptions-item :label="$t('bpm.templates.detailDialog.templateName')">{{
             currentTemplate.template_name
           }}</el-descriptions-item>
@@ -132,54 +157,87 @@
             style="margin-top: 12px"
             :aria-label="$t('bpm.templates.detailDialog.nodePreviewAriaLabel')"
           >
-            <el-table-column prop="type" :label="$t('bpm.templates.detailDialog.nodeType')" width="120">
+            <el-table-column
+              prop="type"
+              :label="$t('bpm.templates.detailDialog.nodeType')"
+              width="120"
+            >
               <template #default="{ row }">
                 <el-tag size="small">{{ getNodeTypeName(row.type) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="name" :label="$t('bpm.templates.detailDialog.nodeName')" min-width="150" />
-            <el-table-column prop="assignee_type" :label="$t('bpm.templates.detailDialog.assigneeType')" width="120">
+            <el-table-column
+              prop="name"
+              :label="$t('bpm.templates.detailDialog.nodeName')"
+              min-width="150"
+            />
+            <el-table-column
+              prop="assignee_type"
+              :label="$t('bpm.templates.detailDialog.assigneeType')"
+              width="120"
+            >
               <template #default="{ row }">
                 <span v-if="row.assignee_type">{{ getAssigneeTypeText(row.assignee_type) }}</span>
                 <span v-else>-</span>
               </template>
             </el-table-column>
-            <el-table-column prop="assignee_value" :label="$t('bpm.templates.detailDialog.assigneeValue')" min-width="120" />
+            <el-table-column
+              prop="assignee_value"
+              :label="$t('bpm.templates.detailDialog.assigneeValue')"
+              min-width="120"
+            />
           </el-table>
         </div>
       </div>
       <template #footer>
-        <el-button @click="detailDialogVisible = false">{{ $t('bpm.templates.detailDialog.close') }}</el-button>
-        <el-button type="primary" @click="handleCreateFromTemplate(currentTemplate)"
-          >{{ $t('bpm.templates.detailDialog.createFromTemplate') }}</el-button
-        >
+        <el-button @click="detailDialogVisible = false">{{
+          $t('bpm.templates.detailDialog.close')
+        }}</el-button>
+        <el-button type="primary" @click="handleCreateFromTemplate(currentTemplate)">{{
+          $t('bpm.templates.detailDialog.createFromTemplate')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="createDialogVisible" :title="$t('bpm.templates.createDialog.title')" width="500px" destroy-on-close :aria-label="$t('bpm.templates.createDialog.ariaLabel')">
-      <el-form :model="createForm" label-width="100px" :aria-label="$t('bpm.templates.createDialog.formAriaLabel')">
+    <el-dialog
+      v-model="createDialogVisible"
+      :title="$t('bpm.templates.createDialog.title')"
+      width="500px"
+      destroy-on-close
+      :aria-label="$t('bpm.templates.createDialog.ariaLabel')"
+    >
+      <el-form
+        :model="createForm"
+        label-width="100px"
+        :aria-label="$t('bpm.templates.createDialog.formAriaLabel')"
+      >
         <el-form-item :label="$t('bpm.templates.createDialog.templateName')">
           <span>{{ currentTemplate?.template_name }}</span>
         </el-form-item>
         <el-form-item :label="$t('bpm.templates.createDialog.processName')">
-          <el-input v-model="createForm.process_name" :placeholder="$t('bpm.templates.createDialog.processNamePlaceholder')" />
+          <el-input
+            v-model="createForm.process_name"
+            :placeholder="$t('bpm.templates.createDialog.processNamePlaceholder')"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createDialogVisible = false">{{ $t('bpm.templates.createDialog.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="confirmCreateFromTemplate"
-          >{{ $t('bpm.templates.createDialog.confirm') }}</el-button
-        >
+        <el-button @click="createDialogVisible = false">{{
+          $t('bpm.templates.createDialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="confirmCreateFromTemplate">{{
+          $t('bpm.templates.createDialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import type { Component } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, reactive } from 'vue';
+import type { Component } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   MoreFilled,
   Document,
@@ -188,23 +246,23 @@ import {
   User,
   TrendCharts,
   Connection,
-} from '@element-plus/icons-vue'
+} from '@element-plus/icons-vue';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
-import { createBpmFromTemplate, deleteBpmTemplate } from '@/api/bpm-enhanced'
-import type { ProcessTemplate } from '@/api/bpm-enhanced'
-import { logger } from '@/utils/logger'
-import { useTableApi } from '@/composables/useTableApi'
+import { createBpmFromTemplate, deleteBpmTemplate } from '@/api/bpm-enhanced';
+import type { ProcessTemplate } from '@/api/bpm-enhanced';
+import { logger } from '@/utils/logger';
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const submitLoading = ref(false)
-const currentTemplate = ref<ProcessTemplate | null>(null)
+const submitLoading = ref(false);
+const currentTemplate = ref<ProcessTemplate | null>(null);
 
-const filterForm = reactive({ category: '' })
+const filterForm = reactive({ category: '' });
 
-const detailDialogVisible = ref(false)
-const createDialogVisible = ref(false)
-const createForm = reactive({ process_name: '' })
+const detailDialogVisible = ref(false);
+const createDialogVisible = ref(false);
+const createForm = reactive({ process_name: '' });
 
 const getCategoryText = (category: string) => {
   const map: Record<string, string> = {
@@ -214,9 +272,9 @@ const getCategoryText = (category: string) => {
     hr: t('bpm.templates.category.hr'),
     production: t('bpm.templates.category.production'),
     common: t('bpm.templates.category.common'),
-  }
-  return map[category] || category
-}
+  };
+  return map[category] || category;
+};
 
 const getCategoryIcon = (category: string): Component => {
   const map: Record<string, Component> = {
@@ -226,9 +284,9 @@ const getCategoryIcon = (category: string): Component => {
     hr: User,
     production: Connection,
     common: Document,
-  }
-  return map[category] || Document
-}
+  };
+  return map[category] || Document;
+};
 
 const getNodeTypeName = (type: string) => {
   const map: Record<string, string> = {
@@ -237,9 +295,9 @@ const getNodeTypeName = (type: string) => {
     approval: t('bpm.templates.nodeType.approval'),
     condition: t('bpm.templates.nodeType.condition'),
     notify: t('bpm.templates.nodeType.notify'),
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 
 const getAssigneeTypeText = (type: string) => {
   const map: Record<string, string> = {
@@ -247,9 +305,9 @@ const getAssigneeTypeText = (type: string) => {
     role: t('bpm.templates.assigneeType.role'),
     department: t('bpm.templates.assigneeType.department'),
     dynamic: t('bpm.templates.assigneeType.dynamic'),
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 
 // 批次 277：接入 useTableApi，消除手写 templates/total/loading/fetchData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -265,80 +323,84 @@ const {
   url: '/bpm/templates',
   defaultPageSize: 12,
   onError: (err: unknown) => logger.error(String(err)),
-})
+});
 
 // 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
-  setQueryParam('category', filterForm.category || undefined)
-}
+  setQueryParam('category', filterForm.category || undefined);
+};
 
 const handleSearch = () => {
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
+  syncQueryParams();
+  page.value = 1;
+  fetchData();
+};
 
 const handleResetFilter = () => {
-  filterForm.category = ''
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
+  filterForm.category = '';
+  syncQueryParams();
+  page.value = 1;
+  fetchData();
+};
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
 const handleSizeChange = (s: number) => {
-  pageSize.value = s
-  page.value = 1
-}
+  pageSize.value = s;
+  page.value = 1;
+};
 
 const handleViewDetail = (row: ProcessTemplate) => {
-  currentTemplate.value = row
-  detailDialogVisible.value = true
-}
+  currentTemplate.value = row;
+  detailDialogVisible.value = true;
+};
 
 const handleCreateFromTemplate = (row: ProcessTemplate | null) => {
-  if (!row && currentTemplate.value) row = currentTemplate.value
-  if (!row) return
-  currentTemplate.value = row
-  createForm.process_name = row.template_name
-  detailDialogVisible.value = false
-  createDialogVisible.value = true
-}
+  if (!row && currentTemplate.value) row = currentTemplate.value;
+  if (!row) return;
+  currentTemplate.value = row;
+  createForm.process_name = row.template_name;
+  detailDialogVisible.value = false;
+  createDialogVisible.value = true;
+};
 
 const confirmCreateFromTemplate = async () => {
-  if (!currentTemplate.value) return
-  submitLoading.value = true
+  if (!currentTemplate.value) return;
+  submitLoading.value = true;
   try {
     const data =
       createForm.process_name !== currentTemplate.value.template_name
         ? { process_name: createForm.process_name }
-        : undefined
-    await createBpmFromTemplate(currentTemplate.value.id, data)
-    ElMessage.success(t('bpm.templates.message.createSuccess'))
-    createDialogVisible.value = false
+        : undefined;
+    await createBpmFromTemplate(currentTemplate.value.id, data);
+    ElMessage.success(t('bpm.templates.message.createSuccess'));
+    createDialogVisible.value = false;
   } catch (e) {
-    logger.error(String(e))
+    logger.error(String(e));
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 
 const handleDeleteTemplate = async (row: ProcessTemplate) => {
   try {
-    await ElMessageBox.confirm(t('bpm.templates.message.deleteConfirm', { name: row.template_name }), t('bpm.templates.message.deleteConfirmTitle'), {
-      type: 'warning',
-    })
-    await deleteBpmTemplate(row.id)
-    ElMessage.success(t('bpm.templates.message.deleteSuccess'))
-    fetchData()
+    await ElMessageBox.confirm(
+      t('bpm.templates.message.deleteConfirm', { name: row.template_name }),
+      t('bpm.templates.message.deleteConfirmTitle'),
+      {
+        type: 'warning',
+      }
+    );
+    await deleteBpmTemplate(row.id);
+    ElMessage.success(t('bpm.templates.message.deleteSuccess'));
+    fetchData();
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
+    if (e !== 'cancel') logger.error(String(e));
   }
-}
+};
 </script>
 
 <style scoped>

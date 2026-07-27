@@ -5,15 +5,15 @@
  * 行为完全保持一致（仅结构重构）
  * 批次 281：接入 useTableApi，移除手写 endpoints/endpointTotal/endpointLoading/endpointQuery + fetchEndpoints
  */
-import { ref, reactive } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ref, reactive } from 'vue';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import {
   createApiEndpoint,
   updateApiEndpoint,
   deleteApiEndpoint,
   type ApiEndpoint,
-} from '@/api/api-gateway'
-import { useTableApi } from '@/composables/useTableApi'
+} from '@/api/api-gateway';
+import { useTableApi } from '@/composables/useTableApi';
 
 /**
  * 接口管理 composable
@@ -32,14 +32,14 @@ export function useApiEp() {
     url: '/api-gateway/endpoints',
     onError: (err: unknown) =>
       ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取接口失败'),
-  })
+  });
 
-  const endpointDialogVisible = ref(false)
-  const endpointFormRef = ref<FormInstance>()
-  const endpointSubmitLoading = ref(false)
-  const authorizationText = ref('')
-  const requestSchemaText = ref('')
-  const responseSchemaText = ref('')
+  const endpointDialogVisible = ref(false);
+  const endpointFormRef = ref<FormInstance>();
+  const endpointSubmitLoading = ref(false);
+  const authorizationText = ref('');
+  const requestSchemaText = ref('');
+  const responseSchemaText = ref('');
   const endpointForm = reactive<Partial<ApiEndpoint>>({
     id: undefined,
     path: '',
@@ -53,20 +53,20 @@ export function useApiEp() {
     authorization: [],
     request_schema: {},
     response_schema: {},
-  })
+  });
 
   const endpointRules: FormRules = {
     path: [{ required: true, message: '请输入接口路径', trigger: 'blur' }],
     method: [{ required: true, message: '请选择请求方法', trigger: 'change' }],
     description: [{ required: true, message: '请输入描述', trigger: 'blur' }],
-  }
+  };
 
   const openEndpointDialog = (row?: ApiEndpoint) => {
     if (row) {
-      Object.assign(endpointForm, row)
-      authorizationText.value = (row.authorization || []).join(',')
-      requestSchemaText.value = JSON.stringify(row.request_schema || {}, null, 2)
-      responseSchemaText.value = JSON.stringify(row.response_schema || {}, null, 2)
+      Object.assign(endpointForm, row);
+      authorizationText.value = (row.authorization || []).join(',');
+      requestSchemaText.value = JSON.stringify(row.request_schema || {}, null, 2);
+      responseSchemaText.value = JSON.stringify(row.response_schema || {}, null, 2);
     } else {
       Object.assign(endpointForm, {
         id: undefined,
@@ -81,67 +81,67 @@ export function useApiEp() {
         authorization: [],
         request_schema: {},
         response_schema: {},
-      })
-      authorizationText.value = ''
-      requestSchemaText.value = ''
-      responseSchemaText.value = ''
+      });
+      authorizationText.value = '';
+      requestSchemaText.value = '';
+      responseSchemaText.value = '';
     }
-    endpointDialogVisible.value = true
-  }
+    endpointDialogVisible.value = true;
+  };
 
   const handleEndpointSubmit = async () => {
-    if (!endpointFormRef.value) return
+    if (!endpointFormRef.value) return;
     await endpointFormRef.value.validate(async valid => {
-      if (!valid) return
+      if (!valid) return;
 
-      endpointSubmitLoading.value = true
+      endpointSubmitLoading.value = true;
       try {
         endpointForm.authorization = authorizationText.value
           ? authorizationText.value.split(',').map((s: string) => s.trim())
-          : []
+          : [];
         if (requestSchemaText.value) {
           try {
-            endpointForm.request_schema = JSON.parse(requestSchemaText.value)
+            endpointForm.request_schema = JSON.parse(requestSchemaText.value);
           } catch (_e) {
-            ElMessage.error('请求Schema格式错误')
-            return
+            ElMessage.error('请求Schema格式错误');
+            return;
           }
         }
         if (responseSchemaText.value) {
           try {
-            endpointForm.response_schema = JSON.parse(responseSchemaText.value)
+            endpointForm.response_schema = JSON.parse(responseSchemaText.value);
           } catch (_e) {
-            ElMessage.error('响应Schema格式错误')
-            return
+            ElMessage.error('响应Schema格式错误');
+            return;
           }
         }
         if (endpointForm.id) {
-          await updateApiEndpoint(endpointForm.id, endpointForm)
+          await updateApiEndpoint(endpointForm.id, endpointForm);
         } else {
-          await createApiEndpoint(endpointForm)
+          await createApiEndpoint(endpointForm);
         }
-        ElMessage.success('操作成功')
-        endpointDialogVisible.value = false
-        await fetchEndpoints()
+        ElMessage.success('操作成功');
+        endpointDialogVisible.value = false;
+        await fetchEndpoints();
       } catch (error: unknown) {
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败');
       } finally {
-        endpointSubmitLoading.value = false
+        endpointSubmitLoading.value = false;
       }
-    })
-  }
+    });
+  };
 
   const handleDeleteEndpoint = async (row: ApiEndpoint) => {
     try {
-      await ElMessageBox.confirm('确定要删除此接口吗？', '确认删除', { type: 'warning' })
-      await deleteApiEndpoint(row.id)
-      ElMessage.success('删除成功')
-      await fetchEndpoints()
+      await ElMessageBox.confirm('确定要删除此接口吗？', '确认删除', { type: 'warning' });
+      await deleteApiEndpoint(row.id);
+      ElMessage.success('删除成功');
+      await fetchEndpoints();
     } catch (error: unknown) {
       if (error !== 'cancel')
-        ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败');
     }
-  }
+  };
 
   return reactive({
     endpoints,
@@ -177,5 +177,5 @@ export function useApiEp() {
     openEndpointDialog,
     handleEndpointSubmit,
     handleDeleteEndpoint,
-  })
+  });
 }

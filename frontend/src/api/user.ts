@@ -1,65 +1,65 @@
-import { request } from './request'
-import type { ApiResponse, QueryParams, PageResult } from '@/types/api'
+import { request } from './request';
+import type { ApiResponse, QueryParams, PageResult } from '@/types/api';
 
 export interface User {
-  id: number
-  username: string
-  real_name: string
-  email?: string
-  phone?: string
-  department_id?: number
-  department_name?: string
-  role_ids?: number[]
-  role_names?: string[]
-  status: number
-  created_at: string
-  updated_at: string
+  id: number;
+  username: string;
+  real_name: string;
+  email?: string;
+  phone?: string;
+  department_id?: number;
+  department_name?: string;
+  role_ids?: number[];
+  role_names?: string[];
+  status: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface UserCreateRequest {
-  username: string
-  password: string
-  real_name: string
-  email?: string
-  phone?: string
-  department_id?: number
-  role_ids?: number[]
+  username: string;
+  password: string;
+  real_name: string;
+  email?: string;
+  phone?: string;
+  department_id?: number;
+  role_ids?: number[];
 }
 
 export interface UserUpdateRequest {
-  real_name?: string
-  email?: string
-  phone?: string
-  department_id?: number
-  role_ids?: number[]
-  status?: number
+  real_name?: string;
+  email?: string;
+  phone?: string;
+  department_id?: number;
+  role_ids?: number[];
+  status?: number;
 }
 
 export interface ChangePasswordRequest {
-  old_password: string
-  new_password: string
+  old_password: string;
+  new_password: string;
 }
 
 export function getUserList(params?: QueryParams): Promise<ApiResponse<PageResult<User>>> {
-  return request.get('/users', { params })
+  return request.get('/users', { params });
 }
 
 export function getUser(id: number): Promise<ApiResponse<User>> {
-  return request.get(`/users/${id}`)
+  return request.get(`/users/${id}`);
 }
 
 export function createUser(data: UserCreateRequest): Promise<ApiResponse<User>> {
-  return request.post('/users', data)
+  return request.post('/users', data);
 }
 
 export function updateUser(id: number, data: UserUpdateRequest): Promise<ApiResponse<User>> {
-  return request.put(`/users/${id}`, data)
+  return request.put(`/users/${id}`, data);
 }
 
 export function deleteUser(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/users/${id}`)
+  return request.delete(`/users/${id}`);
 }
 
 export function changePassword(data: ChangePasswordRequest): Promise<ApiResponse<void>> {
-  return request.post('/users/change-password', data)
+  return request.post('/users/change-password', data);
 }

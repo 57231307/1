@@ -5,8 +5,8 @@
 //
 // 创建时间：2026-07-18（Batch 477 P0-F11）
 
-import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed } from 'vue';
+import { ElMessage } from 'element-plus';
 import {
   getIssueList,
   issueColorCard,
@@ -14,7 +14,7 @@ import {
   markIssueLost,
   markIssueDamaged,
   cancelIssue,
-} from '@/api/color-card-issue'
+} from '@/api/color-card-issue';
 import type {
   IssueRecordInfo,
   ListIssuesQuery,
@@ -24,110 +24,100 @@ import type {
   MarkDamagedDto,
   CancelIssueDto,
   IssueStatusValue,
-} from '@/types/colorCardIssue'
+} from '@/types/colorCardIssue';
 
 // 发放中状态：未归还的发放记录
-const ACTIVE_STATUS: IssueStatusValue = 'issued'
+const ACTIVE_STATUS: IssueStatusValue = 'issued';
 
 export function useColorCardIssue() {
-  const records = ref<IssueRecordInfo[]>([])
-  const loading = ref(false)
-  const actionLoading = ref(false)
-  const total = ref(0)
+  const records = ref<IssueRecordInfo[]>([]);
+  const loading = ref(false);
+  const actionLoading = ref(false);
+  const total = ref(0);
 
   // 发放中记录（status = issued）
-  const activeIssues = computed(() =>
-    records.value.filter((r) => r.status === ACTIVE_STATUS),
-  )
+  const activeIssues = computed(() => records.value.filter(r => r.status === ACTIVE_STATUS));
 
   // 历史记录（status != issued）
-  const historyRecords = computed(() =>
-    records.value.filter((r) => r.status !== ACTIVE_STATUS),
-  )
+  const historyRecords = computed(() => records.value.filter(r => r.status !== ACTIVE_STATUS));
 
   // 加载发放记录列表
   const loadRecords = async (query: ListIssuesQuery = {}): Promise<void> => {
-    loading.value = true
+    loading.value = true;
     try {
-      const res = await getIssueList({ page_size: 100, ...query })
-      records.value = res.data?.items || []
-      total.value = res.data?.total || 0
+      const res = await getIssueList({ page_size: 100, ...query });
+      records.value = res.data?.items || [];
+      total.value = res.data?.total || 0;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  }
+  };
 
   // 发放色卡（V15 P0-F10：后端事务内扣减库存）
   const issue = async (dto: CreateIssueDto): Promise<IssueRecordInfo | null> => {
-    actionLoading.value = true
+    actionLoading.value = true;
     try {
-      const res = await issueColorCard(dto)
-      ElMessage.success('发放成功')
-      return res.data || null
+      const res = await issueColorCard(dto);
+      ElMessage.success('发放成功');
+      return res.data || null;
     } finally {
-      actionLoading.value = false
+      actionLoading.value = false;
     }
-  }
+  };
 
   // 归还色卡（V15 P0-F10：后端事务内恢复库存）
   const returnCard = async (
     recordId: number,
-    dto: ReturnIssueDto,
+    dto: ReturnIssueDto
   ): Promise<IssueRecordInfo | null> => {
-    actionLoading.value = true
+    actionLoading.value = true;
     try {
-      const res = await returnIssue(recordId, dto)
-      ElMessage.success('归还成功')
-      return res.data || null
+      const res = await returnIssue(recordId, dto);
+      ElMessage.success('归还成功');
+      return res.data || null;
     } finally {
-      actionLoading.value = false
+      actionLoading.value = false;
     }
-  }
+  };
 
   // 登记遗失（V15 P0-F10：后端事务内扣减库存 + 色卡状态变 lost）
-  const markLost = async (
-    recordId: number,
-    dto: MarkLostDto,
-  ): Promise<IssueRecordInfo | null> => {
-    actionLoading.value = true
+  const markLost = async (recordId: number, dto: MarkLostDto): Promise<IssueRecordInfo | null> => {
+    actionLoading.value = true;
     try {
-      const res = await markIssueLost(recordId, dto)
-      ElMessage.success('已登记遗失')
-      return res.data || null
+      const res = await markIssueLost(recordId, dto);
+      ElMessage.success('已登记遗失');
+      return res.data || null;
     } finally {
-      actionLoading.value = false
+      actionLoading.value = false;
     }
-  }
+  };
 
   // 标记损坏（V15 P0-F10：后端事务内扣减库存）
   const markDamaged = async (
     recordId: number,
-    dto: MarkDamagedDto,
+    dto: MarkDamagedDto
   ): Promise<IssueRecordInfo | null> => {
-    actionLoading.value = true
+    actionLoading.value = true;
     try {
-      const res = await markIssueDamaged(recordId, dto)
-      ElMessage.success('已标记损坏')
-      return res.data || null
+      const res = await markIssueDamaged(recordId, dto);
+      ElMessage.success('已标记损坏');
+      return res.data || null;
     } finally {
-      actionLoading.value = false
+      actionLoading.value = false;
     }
-  }
+  };
 
   // 取消发放（V15 P0-F10：后端事务内恢复库存，等同从未发放）
-  const cancel = async (
-    recordId: number,
-    dto: CancelIssueDto,
-  ): Promise<IssueRecordInfo | null> => {
-    actionLoading.value = true
+  const cancel = async (recordId: number, dto: CancelIssueDto): Promise<IssueRecordInfo | null> => {
+    actionLoading.value = true;
     try {
-      const res = await cancelIssue(recordId, dto)
-      ElMessage.success('已取消发放')
-      return res.data || null
+      const res = await cancelIssue(recordId, dto);
+      ElMessage.success('已取消发放');
+      return res.data || null;
     } finally {
-      actionLoading.value = false
+      actionLoading.value = false;
     }
-  }
+  };
 
   return {
     records,
@@ -142,5 +132,5 @@ export function useColorCardIssue() {
     markLost,
     markDamaged,
     cancel,
-  }
+  };
 }

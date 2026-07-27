@@ -11,28 +11,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { EChartsOption, ECharts } from 'echarts'
-import { useI18n } from 'vue-i18n'
-import BaseChart from './BaseChart.vue'
+import { computed, ref } from 'vue';
+import type { EChartsOption, ECharts } from 'echarts';
+import { useI18n } from 'vue-i18n';
+import BaseChart from './BaseChart.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface PieData {
-  name: string
-  value: number
-  [key: string]: unknown
+  name: string;
+  value: number;
+  [key: string]: unknown;
 }
 
 interface Props {
-  data?: PieData[]
-  title?: string
-  height?: string
-  loading?: boolean
-  autoResize?: boolean
-  roseType?: boolean
-  showLabel?: boolean
-  radius?: string | string[]
+  data?: PieData[];
+  title?: string;
+  height?: string;
+  loading?: boolean;
+  autoResize?: boolean;
+  roseType?: boolean;
+  showLabel?: boolean;
+  radius?: string | string[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -44,17 +44,17 @@ const props = withDefaults(defineProps<Props>(), {
   roseType: false,
   showLabel: true,
   radius: undefined,
-})
+});
 
 const emit = defineEmits<{
-  ready: [instance: ECharts]
-  click: [params: Record<string, unknown>]
-}>()
+  ready: [instance: ECharts];
+  click: [params: Record<string, unknown>];
+}>();
 
-const chartRef = ref()
+const chartRef = ref();
 
 const chartOption = computed<EChartsOption>(() => {
-  const radius = props.radius || (props.roseType ? ['15%', '75%'] : ['35%', '65%'])
+  const radius = props.radius || (props.roseType ? ['15%', '75%'] : ['35%', '65%']);
 
   return {
     title: props.title ? { text: props.title, left: 'center' } : undefined,
@@ -83,8 +83,8 @@ const chartOption = computed<EChartsOption>(() => {
         },
       },
     ],
-  }
-})
+  };
+});
 
-defineExpose({ getChart: () => chartRef.value?.getChart() })
+defineExpose({ getChart: () => chartRef.value?.getChart() });
 </script>

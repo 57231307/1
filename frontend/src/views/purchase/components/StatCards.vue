@@ -3,25 +3,25 @@
  * StatCards - 采购管理统计卡片（4 个指标）
  * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 统计卡片）
  */
-import { useI18n } from 'vue-i18n'
-import { Document, Money, Clock, OfficeBuilding } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n';
+import { Document, Money, Clock, OfficeBuilding } from '@element-plus/icons-vue';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Stats {
-  monthOrders: number
-  monthAmount: number
-  pendingReceipt: number
-  supplierCount: number
+  monthOrders: number;
+  monthAmount: number;
+  pendingReceipt: number;
+  supplierCount: number;
 }
 
 interface Props {
-  stats: Stats
-  formatCurrency: (amount: number) => string
+  stats: Stats;
+  formatCurrency: (amount: number) => string;
 }
 
-defineProps<Props>()
+defineProps<Props>();
 </script>
 
 <template>

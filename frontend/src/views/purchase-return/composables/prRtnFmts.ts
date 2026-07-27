@@ -15,9 +15,9 @@ export const getStatusType = (status: string): string => {
     approved: 'success',
     rejected: 'danger',
     completed: 'success',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 /**
  * 采购退货状态文本映射（用于 el-tag 显示）
@@ -29,6 +29,6 @@ export const getStatusText = (status: string): string => {
     approved: '已审批',
     rejected: '已拒绝',
     completed: '已完成',
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};

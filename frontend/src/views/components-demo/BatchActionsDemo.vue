@@ -54,24 +54,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import BatchActions from '@/components/BatchActions.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import BatchActions from '@/components/BatchActions.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // Demo 演示用的订单行数据结构
 interface DemoOrder {
-  id: number
-  name: string
-  status: string
-  date: string
+  id: number;
+  name: string;
+  status: string;
+  date: string;
 }
 
-const selectedRows = ref<DemoOrder[]>([])
+const selectedRows = ref<DemoOrder[]>([]);
 
 const buildOrderName = (id: number): string =>
-  t('componentsDemo.batchActions.orderName', { id: String(id) })
+  t('componentsDemo.batchActions.orderName', { id: String(id) });
 
 const tableData = ref<DemoOrder[]>([
   { id: 1, name: buildOrderName(1001), status: 'pending', date: '2026-01-15' },
@@ -80,17 +80,17 @@ const tableData = ref<DemoOrder[]>([
   { id: 4, name: buildOrderName(1004), status: 'pending', date: '2026-01-18' },
   { id: 5, name: buildOrderName(1005), status: 'pending', date: '2026-01-19' },
   { id: 6, name: buildOrderName(1006), status: 'approved', date: '2026-01-20' },
-])
+]);
 
 const handleSelectionChange = (selection: DemoOrder[]) => {
-  selectedRows.value = selection
-}
+  selectedRows.value = selection;
+};
 
 const handleComplete = (_key: string, success: boolean) => {
   if (success) {
     // 操作完成处理
   }
-}
+};
 </script>
 
 <style scoped>

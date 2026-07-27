@@ -25,7 +25,11 @@
         />
       </el-form-item>
       <el-form-item :label="t('finance.voucherFilter.labelStatus')">
-        <el-select v-model="localQuery.status" :placeholder="t('finance.voucherFilter.placeholderStatus')" clearable>
+        <el-select
+          v-model="localQuery.status"
+          :placeholder="t('finance.voucherFilter.placeholderStatus')"
+          clearable
+        >
           <el-option :label="t('finance.voucherFilter.optionDraft')" value="draft" />
           <el-option :label="t('finance.voucherFilter.optionSubmitted')" value="submitted" />
           <el-option :label="t('finance.voucherFilter.optionReviewed')" value="reviewed" />
@@ -33,7 +37,9 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="handleSearch">{{ t('finance.voucherFilter.buttonSearch') }}</el-button>
+        <el-button type="primary" @click="handleSearch">{{
+          t('finance.voucherFilter.buttonSearch')
+        }}</el-button>
         <el-button @click="handleReset">{{ t('finance.voucherFilter.buttonReset') }}</el-button>
       </el-form-item>
     </el-form>
@@ -41,10 +47,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 凭证过滤表单组件
@@ -53,15 +59,15 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const props = defineProps<{
   // 查询条件（由父组件 useTableApi 管理，类型放宽为 Record 兼容 useTableApi）
-  queryParams: Record<string, unknown>
-}>()
+  queryParams: Record<string, unknown>;
+}>();
 
 const emit = defineEmits<{
   // 触发查询（父组件监听后调用 handleSearch 重置页码并加载）
-  (e: 'fetch'): void
+  (e: 'fetch'): void;
   // 同步查询条件到父组件
-  (e: 'update:queryParams', params: Record<string, unknown>): void
-}>()
+  (e: 'update:queryParams', params: Record<string, unknown>): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // date_range 是数组，需要深拷贝以保证本地修改与父组件解耦
@@ -69,26 +75,26 @@ const localQuery = reactive({
   voucher_no: (props.queryParams.voucher_no as string) ?? '',
   date_range: [...((props.queryParams.date_range as string[]) ?? [])],
   status: (props.queryParams.status as string) ?? '',
-})
+});
 
 /** 查询：先同步筛选条件到父组件，再触发 fetch */
 const handleSearch = () => {
   emit('update:queryParams', {
     ...localQuery,
     date_range: [...localQuery.date_range],
-  })
-  emit('fetch')
-}
+  });
+  emit('fetch');
+};
 
 /** 重置：清空本地筛选条件，同步后触发 fetch */
 const handleReset = () => {
-  localQuery.voucher_no = ''
-  localQuery.date_range = []
-  localQuery.status = ''
+  localQuery.voucher_no = '';
+  localQuery.date_range = [];
+  localQuery.status = '';
   emit('update:queryParams', {
     ...localQuery,
     date_range: [...localQuery.date_range],
-  })
-  emit('fetch')
-}
+  });
+  emit('fetch');
+};
 </script>

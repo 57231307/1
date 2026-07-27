@@ -12,16 +12,30 @@
     @update:model-value="onVisibleChange"
   >
     <el-descriptions :column="2" border>
-      <el-descriptions-item :label="t('purchaseContract.detail.contractNo')">{{ viewData.contract_no }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchaseContract.detail.contractName')">{{ viewData.contract_name }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchaseContract.detail.supplier')">{{ viewData.supplier_name }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchaseContract.detail.contractType')">{{ viewData.contract_type }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.contractNo')">{{
+        viewData.contract_no
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.contractName')">{{
+        viewData.contract_name
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.supplier')">{{
+        viewData.supplier_name
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.contractType')">{{
+        viewData.contract_type
+      }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchaseContract.detail.totalAmount')">{{
         formatCurrency(viewData.total_amount || 0)
       }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchaseContract.detail.signedDate')">{{ viewData.signed_date }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchaseContract.detail.effectiveDate')">{{ viewData.effective_date }}</el-descriptions-item>
-      <el-descriptions-item :label="t('purchaseContract.detail.expiryDate')">{{ viewData.expiry_date }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.signedDate')">{{
+        viewData.signed_date
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.effectiveDate')">{{
+        viewData.effective_date
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('purchaseContract.detail.expiryDate')">{{
+        viewData.expiry_date
+      }}</el-descriptions-item>
       <el-descriptions-item :label="t('purchaseContract.detail.paymentTerms')">{{
         viewData.payment_terms || '-'
       }}</el-descriptions-item>
@@ -47,27 +61,27 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { formatCurrency, getStatusType } from '../composables/pcFmts'
+import { useI18n } from 'vue-i18n';
+import { formatCurrency, getStatusType } from '../composables/pcFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 详情数据类型
 interface PcViewData {
-  contract_no?: string
-  contract_name?: string
-  supplier_name?: string
-  contract_type?: string
-  total_amount?: number
-  signed_date?: string
-  effective_date?: string
-  expiry_date?: string
-  payment_terms?: string
-  payment_method?: string
-  delivery_date?: string
-  delivery_location?: string
-  status?: string
-  remarks?: string
+  contract_no?: string;
+  contract_name?: string;
+  supplier_name?: string;
+  contract_type?: string;
+  total_amount?: number;
+  signed_date?: string;
+  effective_date?: string;
+  expiry_date?: string;
+  payment_terms?: string;
+  payment_method?: string;
+  delivery_date?: string;
+  delivery_location?: string;
+  status?: string;
+  remarks?: string;
 }
 
 /**
@@ -75,17 +89,17 @@ interface PcViewData {
  */
 defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 详情数据
-  viewData: PcViewData
-}>()
+  viewData: PcViewData;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-}>()
+  'update:visible': [v: boolean];
+}>();
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {
-  emit('update:visible', v)
-}
+  emit('update:visible', v);
+};
 </script>

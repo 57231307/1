@@ -84,10 +84,20 @@
         <div class="card-header">
           <span>{{ getReportTypeLabel(queryForm.report_type) }} - {{ queryForm.period }}</span>
           <div>
-            <el-button v-permission="'finance_report.print'" type="success" link @click="handlePrint">
+            <el-button
+              v-permission="'finance_report.print'"
+              type="success"
+              link
+              @click="handlePrint"
+            >
               <el-icon><Printer /></el-icon>{{ t('financeReport.reportListTab.buttonPrint') }}
             </el-button>
-            <el-button v-permission="'finance_report.export'" type="primary" link @click="handleExport">
+            <el-button
+              v-permission="'finance_report.export'"
+              type="primary"
+              link
+              @click="handleExport"
+            >
               <el-icon><Download /></el-icon>{{ t('financeReport.reportListTab.buttonExport') }}
             </el-button>
           </div>
@@ -135,10 +145,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Download, Printer } from '@element-plus/icons-vue'
+import { ref, reactive, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Download, Printer } from '@element-plus/icons-vue';
 import {
   getBalanceSheet,
   getProfitStatement,
@@ -147,20 +157,20 @@ import {
   getGeneralLedger,
   getSubsidiaryLedger,
   type ReportData,
-} from '@/api/financeReport'
-import { logger } from '@/utils/logger'
-import { exportToExcel } from '@/utils/export'
+} from '@/api/financeReport';
+import { logger } from '@/utils/logger';
+import { exportToExcel } from '@/utils/export';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const loading = ref(false)
-const reportData = ref<ReportData | null>(null)
+const loading = ref(false);
+const reportData = ref<ReportData | null>(null);
 
 const queryForm = reactive({
   report_type: 'balance_sheet',
   period: new Date().toISOString().slice(0, 7),
   subject_code: '',
-})
+});
 
 /** 报表类型 → 国际化标签（语言切换时响应式刷新） */
 const getReportTypeLabel = (type: string) => {
@@ -171,34 +181,34 @@ const getReportTypeLabel = (type: string) => {
     trial_balance: t('financeReport.reportListTab.optionTrialBalance'),
     general_ledger: t('financeReport.reportListTab.optionGeneralLedger'),
     subsidiary_ledger: t('financeReport.reportListTab.optionSubsidiaryLedger'),
-  }
-  return map[type] || t('financeReport.reportListTab.labelReport')
-}
+  };
+  return map[type] || t('financeReport.reportListTab.labelReport');
+};
 
-type ColAlign = 'left' | 'right' | 'center'
+type ColAlign = 'left' | 'right' | 'center';
 interface ColDef {
-  key: string
-  label: string
-  width: number
-  align?: ColAlign
-  formatter?: (v: unknown) => string
+  key: string;
+  label: string;
+  width: number;
+  align?: ColAlign;
+  formatter?: (v: unknown) => string;
 }
 
 /** 金额格式化（¥ 前缀 + 2 位小数） */
 const formatAmount = (val: unknown) => {
-  const num = Number(val) || 0
-  return `¥${num.toFixed(2)}`
-}
+  const num = Number(val) || 0;
+  return `¥${num.toFixed(2)}`;
+};
 
 /** 借贷方向格式化 */
 const formatDirection = (v: unknown) =>
   v === 'debit'
     ? t('financeReport.reportListTab.directionDebit')
-    : t('financeReport.reportListTab.directionCredit')
+    : t('financeReport.reportListTab.directionCredit');
 
 /** 根据首行数据字段动态构建列定义（≤50 行） */
 const buildReportColumns = (item: Record<string, unknown>): ColDef[] => {
-  const cols: ColDef[] = []
+  const cols: ColDef[] = [];
   const add = (
     key: string,
     label: string,
@@ -206,98 +216,104 @@ const buildReportColumns = (item: Record<string, unknown>): ColDef[] => {
     align?: ColAlign,
     formatter?: (v: unknown) => string
   ) => {
-    if (key in item) cols.push({ key, label, width, align, formatter })
-  }
-  add('code', t('financeReport.reportListTab.colCode'), 100)
-  add('name', t('financeReport.reportListTab.colName'), 200)
-  add('level', t('financeReport.reportListTab.colLevel'), 80, 'center')
-  add('debit_amount', t('financeReport.reportListTab.colDebitAmount'), 140, 'right', formatAmount)
-  add('credit_amount', t('financeReport.reportListTab.colCreditAmount'), 140, 'right', formatAmount)
-  add('balance', t('financeReport.reportListTab.colBalance'), 140, 'right', formatAmount)
-  add('amount', t('financeReport.reportListTab.colAmount'), 140, 'right', formatAmount)
-  add('inflow', t('financeReport.reportListTab.colInflow'), 140, 'right', formatAmount)
-  add('outflow', t('financeReport.reportListTab.colOutflow'), 140, 'right', formatAmount)
-  add('net_flow', t('financeReport.reportListTab.colNetFlow'), 140, 'right', formatAmount)
-  add('date', t('financeReport.reportListTab.colDate'), 120)
-  add('voucher_no', t('financeReport.reportListTab.colVoucherNo'), 120)
-  add('summary', t('financeReport.reportListTab.colSummary'), 200)
-  add('direction', t('financeReport.reportListTab.colDirection'), 80, 'center', formatDirection)
-  return cols
-}
+    if (key in item) cols.push({ key, label, width, align, formatter });
+  };
+  add('code', t('financeReport.reportListTab.colCode'), 100);
+  add('name', t('financeReport.reportListTab.colName'), 200);
+  add('level', t('financeReport.reportListTab.colLevel'), 80, 'center');
+  add('debit_amount', t('financeReport.reportListTab.colDebitAmount'), 140, 'right', formatAmount);
+  add(
+    'credit_amount',
+    t('financeReport.reportListTab.colCreditAmount'),
+    140,
+    'right',
+    formatAmount
+  );
+  add('balance', t('financeReport.reportListTab.colBalance'), 140, 'right', formatAmount);
+  add('amount', t('financeReport.reportListTab.colAmount'), 140, 'right', formatAmount);
+  add('inflow', t('financeReport.reportListTab.colInflow'), 140, 'right', formatAmount);
+  add('outflow', t('financeReport.reportListTab.colOutflow'), 140, 'right', formatAmount);
+  add('net_flow', t('financeReport.reportListTab.colNetFlow'), 140, 'right', formatAmount);
+  add('date', t('financeReport.reportListTab.colDate'), 120);
+  add('voucher_no', t('financeReport.reportListTab.colVoucherNo'), 120);
+  add('summary', t('financeReport.reportListTab.colSummary'), 200);
+  add('direction', t('financeReport.reportListTab.colDirection'), 80, 'center', formatDirection);
+  return cols;
+};
 
 const reportColumns = computed(() => {
-  const items = reportData.value?.items
-  if (!items?.length) return []
-  return buildReportColumns(items[0] as Record<string, unknown>)
-})
+  const items = reportData.value?.items;
+  if (!items?.length) return [];
+  return buildReportColumns(items[0] as Record<string, unknown>);
+});
 
 const handleGenerate = async () => {
   if (!queryForm.period) {
-    ElMessage.warning(t('financeReport.reportListTab.messageSelectPeriod'))
-    return
+    ElMessage.warning(t('financeReport.reportListTab.messageSelectPeriod'));
+    return;
   }
-  loading.value = true
+  loading.value = true;
   try {
-    let res: { data?: ReportData }
-    const params = { period: queryForm.period }
+    let res: { data?: ReportData };
+    const params = { period: queryForm.period };
     switch (queryForm.report_type) {
       case 'balance_sheet':
-        res = await getBalanceSheet(params)
-        break
+        res = await getBalanceSheet(params);
+        break;
       case 'income_statement':
-        res = await getProfitStatement(params)
-        break
+        res = await getProfitStatement(params);
+        break;
       case 'cash_flow':
-        res = await getCashFlowStatement(params)
-        break
+        res = await getCashFlowStatement(params);
+        break;
       case 'trial_balance':
-        res = await getTrialBalance(params)
-        break
+        res = await getTrialBalance(params);
+        break;
       case 'general_ledger':
         if (!queryForm.subject_code) {
-          ElMessage.warning(t('financeReport.reportListTab.messageInputSubjectCode'))
-          loading.value = false
-          return
+          ElMessage.warning(t('financeReport.reportListTab.messageInputSubjectCode'));
+          loading.value = false;
+          return;
         }
-        res = await getGeneralLedger(queryForm.subject_code, params)
-        break
+        res = await getGeneralLedger(queryForm.subject_code, params);
+        break;
       case 'subsidiary_ledger':
-        res = await getSubsidiaryLedger(undefined, undefined, params)
-        break
+        res = await getSubsidiaryLedger(undefined, undefined, params);
+        break;
       default:
-        res = { data: undefined }
+        res = { data: undefined };
     }
-    reportData.value = res?.data || null
+    reportData.value = res?.data || null;
     if (!reportData.value) {
-      ElMessage.info(t('financeReport.reportListTab.messageNoData'))
+      ElMessage.info(t('financeReport.reportListTab.messageNoData'));
     }
   } catch (e) {
-    const err = e as Error
-    logger.error(t('financeReport.reportListTab.messageGenerateFailed'), err)
-    ElMessage.error(err.message || t('financeReport.reportListTab.messageGenerateFailed'))
+    const err = e as Error;
+    logger.error(t('financeReport.reportListTab.messageGenerateFailed'), err);
+    ElMessage.error(err.message || t('financeReport.reportListTab.messageGenerateFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const handleReset = () => {
-  queryForm.report_type = 'balance_sheet'
-  queryForm.period = new Date().toISOString().slice(0, 7)
-  queryForm.subject_code = ''
-  reportData.value = null
-}
+  queryForm.report_type = 'balance_sheet';
+  queryForm.period = new Date().toISOString().slice(0, 7);
+  queryForm.subject_code = '';
+  reportData.value = null;
+};
 
 const handlePrint = () => {
-  window.print()
-}
+  window.print();
+};
 
 const handleExport = () => {
   if (!reportData.value?.items?.length) {
-    ElMessage.warning(t('financeReport.reportListTab.messageGenerateFirst'))
-    return
+    ElMessage.warning(t('financeReport.reportListTab.messageGenerateFirst'));
+    return;
   }
-  const items = reportData.value.items
-  const cols = reportColumns.value
+  const items = reportData.value.items;
+  const cols = reportColumns.value;
   exportToExcel({
     filename: `${getReportTypeLabel(queryForm.report_type)}_${queryForm.period}`,
     format: 'excel',
@@ -306,8 +322,8 @@ const handleExport = () => {
       key: c.key,
       title: c.label,
     })),
-  })
-}
+  });
+};
 </script>
 
 <style scoped>

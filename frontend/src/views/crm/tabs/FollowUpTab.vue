@@ -25,7 +25,9 @@
         <el-card>
           <div class="follow-up-header">
             <span class="follow-up-type">{{ getFollowUpTypeLabel(record.type) }}</span>
-            <span class="follow-up-operator">{{ t('crmFollowUp.operatorLabel', { name: record.operator_name }) }}</span>
+            <span class="follow-up-operator">{{
+              t('crmFollowUp.operatorLabel', { name: record.operator_name })
+            }}</span>
           </div>
           <p class="follow-up-content">{{ record.content }}</p>
           <div v-if="record.next_follow_date" class="follow-up-next">
@@ -38,9 +40,9 @@
 
     <div class="pagination-wrapper">
       <el-pagination
-        :aria-label="t('crmFollowUp.paginationAriaLabel')"
         v-model:current-page="query.page"
         v-model:page-size="query.page_size"
+        :aria-label="t('crmFollowUp.paginationAriaLabel')"
         :page-sizes="[10, 20, 50]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
@@ -50,15 +52,24 @@
     </div>
 
     <el-dialog
-      :aria-label="t('crmFollowUp.dialog.ariaLabel')"
       v-model="dialogVisible"
+      :aria-label="t('crmFollowUp.dialog.ariaLabel')"
       :title="t('crmFollowUp.dialog.title')"
       width="500px"
       :close-on-click-modal="false"
     >
-      <el-form ref="formRef" :model="form" label-width="100px" :aria-label="t('crmFollowUp.dialog.formAriaLabel')">
+      <el-form
+        ref="formRef"
+        :model="form"
+        label-width="100px"
+        :aria-label="t('crmFollowUp.dialog.formAriaLabel')"
+      >
         <el-form-item :label="t('crmFollowUp.form.type')" prop="type">
-          <el-select v-model="form.type" :placeholder="t('crmFollowUp.form.typePlaceholder')" style="width: 100%">
+          <el-select
+            v-model="form.type"
+            :placeholder="t('crmFollowUp.form.typePlaceholder')"
+            style="width: 100%"
+          >
             <el-option :label="t('crmFollowUp.followUpType.phone')" value="phone" />
             <el-option :label="t('crmFollowUp.followUpType.meeting')" value="meeting" />
             <el-option :label="t('crmFollowUp.followUpType.email')" value="email" />
@@ -67,7 +78,12 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('crmFollowUp.form.content')" prop="content">
-          <el-input v-model="form.content" type="textarea" :rows="4" :placeholder="t('crmFollowUp.form.contentPlaceholder')" />
+          <el-input
+            v-model="form.content"
+            type="textarea"
+            :rows="4"
+            :placeholder="t('crmFollowUp.form.contentPlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="t('crmFollowUp.form.nextFollowUp')">
           <el-date-picker
@@ -80,50 +96,52 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ t('crmFollowUp.form.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('crmFollowUp.form.save') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          t('crmFollowUp.form.save')
+        }}</el-button>
       </template>
     </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance } from 'element-plus'
-import { Plus, Clock } from '@element-plus/icons-vue'
+import { ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance } from 'element-plus';
+import { Plus, Clock } from '@element-plus/icons-vue';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
-import { getFollowUpList, createFollowUp, type FollowUpRecord } from '@/api/crm-enhanced'
-import { logger } from '@/utils/logger'
+import { getFollowUpList, createFollowUp, type FollowUpRecord } from '@/api/crm-enhanced';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 接收父组件传入的客户 ID
 interface Props {
-  customerId: number
+  customerId: number;
 }
 
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'updated'): void
-}>()
+  (e: 'updated'): void;
+}>();
 
-const followUps = ref<FollowUpRecord[]>([])
-const total = ref(0)
-const dialogVisible = ref(false)
-const submitLoading = ref(false)
-const formRef = ref<FormInstance>()
+const followUps = ref<FollowUpRecord[]>([]);
+const total = ref(0);
+const dialogVisible = ref(false);
+const submitLoading = ref(false);
+const formRef = ref<FormInstance>();
 
 const query = reactive({
   page: 1,
   page_size: 10,
-})
+});
 
 const form = reactive({
   type: 'phone',
   content: '',
   next_follow_date: '',
-})
+});
 
 const getFollowUpType = (type: string) => {
   const typeMap: Record<string, string> = {
@@ -132,9 +150,9 @@ const getFollowUpType = (type: string) => {
     email: 'info',
     wechat: 'warning',
     visit: 'danger',
-  }
-  return typeMap[type] || ''
-}
+  };
+  return typeMap[type] || '';
+};
 
 const getFollowUpTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
@@ -143,57 +161,57 @@ const getFollowUpTypeLabel = (type: string) => {
     email: t('crmFollowUp.followUpType.email'),
     wechat: t('crmFollowUp.followUpType.wechat'),
     visit: t('crmFollowUp.followUpType.visit'),
-  }
-  return labels[type] || type
-}
+  };
+  return labels[type] || type;
+};
 
 const fetchFollowUps = async () => {
   try {
-    const res = await getFollowUpList(props.customerId, query)
-    followUps.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    const res = await getFollowUpList(props.customerId, query);
+    followUps.value = res.data?.list || [];
+    total.value = res.data?.total || 0;
   } catch (error) {
-    const err = error as Error
-    logger.warn(t('crmFollowUp.message.loadFailed'), err.message)
-    followUps.value = []
-    total.value = 0
+    const err = error as Error;
+    logger.warn(t('crmFollowUp.message.loadFailed'), err.message);
+    followUps.value = [];
+    total.value = 0;
   }
-}
+};
 
 const handleAddFollowUp = () => {
-  form.type = 'phone'
-  form.content = ''
-  form.next_follow_date = ''
-  dialogVisible.value = true
-}
+  form.type = 'phone';
+  form.content = '';
+  form.next_follow_date = '';
+  dialogVisible.value = true;
+};
 
 const handleSubmit = async () => {
   if (!form.content.trim()) {
-    ElMessage.warning(t('crmFollowUp.message.contentRequired'))
-    return
+    ElMessage.warning(t('crmFollowUp.message.contentRequired'));
+    return;
   }
 
-  submitLoading.value = true
+  submitLoading.value = true;
   try {
     await createFollowUp(props.customerId, {
       type: form.type,
       content: form.content,
       next_follow_date: form.next_follow_date || undefined,
-    })
-    ElMessage.success(t('crmFollowUp.message.saveSuccess'))
-    dialogVisible.value = false
-    fetchFollowUps()
-    emit('updated')
+    });
+    ElMessage.success(t('crmFollowUp.message.saveSuccess'));
+    dialogVisible.value = false;
+    fetchFollowUps();
+    emit('updated');
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('crmFollowUp.message.saveFailed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('crmFollowUp.message.saveFailed'));
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 
 // 暴露给父组件调用的方法
-defineExpose({ fetchFollowUps })
+defineExpose({ fetchFollowUps });
 </script>
 
 <style scoped>

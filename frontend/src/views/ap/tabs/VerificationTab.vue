@@ -135,92 +135,92 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import {
   getAPVerificationList,
   manualVerifyAP,
   getUnverifiedAPInvoices,
   getUnverifiedAPPayments,
   type APVerification,
-} from '@/api/ap-verification'
-import type { APInvoice } from '@/api/ap-invoice'
-import type { APPayment } from '@/api/ap-payment'
+} from '@/api/ap-verification';
+import type { APInvoice } from '@/api/ap-invoice';
+import type { APPayment } from '@/api/ap-payment';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const verifications = ref<APVerification[]>([])
-const verificationLoading = ref(false)
-const unverifiedInvoices = ref<APInvoice[]>([])
-const unverifiedPayments = ref<APPayment[]>([])
+const verifications = ref<APVerification[]>([]);
+const verificationLoading = ref(false);
+const unverifiedInvoices = ref<APInvoice[]>([]);
+const unverifiedPayments = ref<APPayment[]>([]);
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const fetchVerifications = async () => {
-  verificationLoading.value = true
+  verificationLoading.value = true;
   try {
-    const res = await getAPVerificationList()
+    const res = await getAPVerificationList();
     const d = res.data as
       | { list?: APVerification[]; items?: APVerification[] }
       | APVerification[]
-      | undefined
+      | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
-      verifications.value = d.list || d.items || []
+      verifications.value = d.list || d.items || [];
     } else {
-      verifications.value = (d as APVerification[]) || []
+      verifications.value = (d as APVerification[]) || [];
     }
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('apModule.verification.fetchListFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('apModule.verification.fetchListFailed'));
   } finally {
-    verificationLoading.value = false
+    verificationLoading.value = false;
   }
-}
+};
 
-const verificationDialogVisible = ref(false)
-const verificationSubmitLoading = ref(false)
+const verificationDialogVisible = ref(false);
+const verificationSubmitLoading = ref(false);
 const verificationForm = reactive({
   invoice_id: undefined as number | undefined,
   payment_id: undefined as number | undefined,
   amount: 0,
-})
+});
 
 const openVerificationDialog = async () => {
   try {
     const [invRes, payRes] = await Promise.all([
       getUnverifiedAPInvoices(),
       getUnverifiedAPPayments(),
-    ])
+    ]);
     const d1 = invRes.data as
       | { list?: APInvoice[]; items?: APInvoice[]; data?: APInvoice[] }
       | APInvoice[]
-      | undefined
+      | undefined;
     const d2 = payRes.data as
       | { list?: APPayment[]; items?: APPayment[]; data?: APPayment[] }
       | APPayment[]
-      | undefined
+      | undefined;
     const invs: APInvoice[] =
       d1 && typeof d1 === 'object' && !Array.isArray(d1)
         ? d1.list || d1.items || d1.data || []
-        : (d1 as APInvoice[]) || []
+        : (d1 as APInvoice[]) || [];
     const pays: APPayment[] =
       d2 && typeof d2 === 'object' && !Array.isArray(d2)
         ? d2.list || d2.items || d2.data || []
-        : (d2 as APPayment[]) || []
-    unverifiedInvoices.value = invs.filter(i => i.unverified_amount > 0)
-    unverifiedPayments.value = pays
+        : (d2 as APPayment[]) || [];
+    unverifiedInvoices.value = invs.filter(i => i.unverified_amount > 0);
+    unverifiedPayments.value = pays;
   } catch (e) {
-    void e
+    void e;
   }
-  verificationForm.invoice_id = undefined
-  verificationForm.payment_id = undefined
-  verificationForm.amount = 0
-  verificationDialogVisible.value = true
-}
+  verificationForm.invoice_id = undefined;
+  verificationForm.payment_id = undefined;
+  verificationForm.amount = 0;
+  verificationDialogVisible.value = true;
+};
 
 const submitVerification = async () => {
   if (
@@ -228,32 +228,32 @@ const submitVerification = async () => {
     !verificationForm.payment_id ||
     verificationForm.amount <= 0
   ) {
-    ElMessage.warning(t('apModule.verification.pleaseFillComplete'))
-    return
+    ElMessage.warning(t('apModule.verification.pleaseFillComplete'));
+    return;
   }
-  verificationSubmitLoading.value = true
+  verificationSubmitLoading.value = true;
   try {
     await manualVerifyAP({
       invoice_id: verificationForm.invoice_id,
       payment_id: verificationForm.payment_id,
       amount: verificationForm.amount,
-    })
-    ElMessage.success(t('apModule.verification.verifySuccess'))
-    verificationDialogVisible.value = false
-    fetchVerifications()
+    });
+    ElMessage.success(t('apModule.verification.verifySuccess'));
+    verificationDialogVisible.value = false;
+    fetchVerifications();
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('common.failed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
   } finally {
-    verificationSubmitLoading.value = false
+    verificationSubmitLoading.value = false;
   }
-}
+};
 
-defineExpose({ refresh: fetchVerifications })
+defineExpose({ refresh: fetchVerifications });
 
 onMounted(() => {
-  fetchVerifications()
-})
+  fetchVerifications();
+});
 </script>
 
 <style scoped>

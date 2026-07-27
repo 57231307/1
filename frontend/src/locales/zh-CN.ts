@@ -3640,7 +3640,7 @@ export default {
       '2024AW': '2024 秋冬',
       '2025SS': '2025 春夏',
       '2025AW': '2025 秋冬',
-      '经典': '经典款',
+      经典: '经典款',
     },
     create: {
       title: '新建色卡',
@@ -11297,7 +11297,8 @@ export default {
       rateCreateSuccess: '汇率创建成功',
       rateCreateFailed: '汇率创建失败',
       currencyIdMissing: '币种 ID 不存在',
-      setBaseConfirm: '确认将 "{code} - {name}" 设为基础币种（本位币）吗？此操作会取消其他币种的基础标记。',
+      setBaseConfirm:
+        '确认将 "{code} - {name}" 设为基础币种（本位币）吗？此操作会取消其他币种的基础标记。',
       setBaseTitle: '设置基础币种',
       setBaseSuccess: '设置基础币种成功',
       setBaseFailed: '设置基础币种失败',

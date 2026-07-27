@@ -852,8 +852,7 @@ pub mod payload_serde {
                 BusinessEvent::OrderBusinessModeLinked { document_type, document_id, document_no, mode_id, mode_code, mode_name }
             }
             _ => return Err("to_other_events 仅处理主数据/缺料/染色质量类 EventPayload".to_string()),
-        }
-    })
+        })
     }
 }
 

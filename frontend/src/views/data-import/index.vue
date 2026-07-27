@@ -74,24 +74,24 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
-import { useDi } from './composables/useDi'
-import { useDiProc, type DataImportTemplateFormData } from './composables/useDiProc'
-import DataImportTemplateTable from './components/DataImportTemplateTable.vue'
-import DataImportTaskTable from './components/DataImportTaskTable.vue'
-import DataImportTemplateForm from './components/DataImportTemplateForm.vue'
-import DataImportTemplateUpload from './components/DataImportTemplateUpload.vue'
+import { Plus } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
+import { useDi } from './composables/useDi';
+import { useDiProc, type DataImportTemplateFormData } from './composables/useDiProc';
+import DataImportTemplateTable from './components/DataImportTemplateTable.vue';
+import DataImportTaskTable from './components/DataImportTaskTable.vue';
+import DataImportTemplateForm from './components/DataImportTemplateForm.vue';
+import DataImportTemplateUpload from './components/DataImportTemplateUpload.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const di = useDi()
+const di = useDi();
 const diProc = useDiProc({
   fetchTemplates: di.fetchTemplates,
   fetchTasks: di.fetchTasks,
   activeTab: di.activeTab,
-})
+});
 
 // 列表由 useTableApi setup 自动加载，无需 onMounted 调用 fetch
 </script>

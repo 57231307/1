@@ -124,13 +124,13 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Search } from '@element-plus/icons-vue'
-import type { ImportTask } from '@/api/data-import'
-import { TASK_STATUS_TYPE_MAP } from '../composables/diFmts'
+import { reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Search } from '@element-plus/icons-vue';
+import type { ImportTask } from '@/api/data-import';
+import { TASK_STATUS_TYPE_MAP } from '../composables/diFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 任务列表组件（含过滤栏）
@@ -139,42 +139,42 @@ const { t } = useI18n({ useScope: 'global' })
  */
 const props = defineProps<{
   // 任务数据
-  data: ImportTask[]
+  data: ImportTask[];
   // 总数
-  total: number
+  total: number;
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 查询条件（由父组件 useTableApi 管理，类型放宽为 Record 兼容 useTableApi）
-  queryParams: Record<string, unknown>
+  queryParams: Record<string, unknown>;
   // 当前页码
-  page: number
+  page: number;
   // 每页大小
-  pageSize: number
-}>()
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
-  retry: [row: ImportTask]
-  cancel: [row: ImportTask]
-  'download-log': [row: ImportTask]
+  retry: [row: ImportTask];
+  cancel: [row: ImportTask];
+  'download-log': [row: ImportTask];
   // 触发查询（父组件监听后调用 handleTaskSearch 重置页码并加载）
-  fetch: []
+  fetch: [];
   // 同步查询条件到父组件
-  'update:queryParams': [params: Record<string, unknown>]
+  'update:queryParams': [params: Record<string, unknown>];
   // 分页变化（由 useTableApi watch 自动加载）
-  'update:page': [page: number]
-  'update:page-size': [pageSize: number]
-}>()
+  'update:page': [page: number];
+  'update:page-size': [pageSize: number];
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 const localQuery = reactive({
   status: (props.queryParams.status as string) ?? '',
-})
+});
 
 /** 查询：先同步筛选条件到父组件，再触发 fetch */
 const handleSearch = () => {
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 
 /**
  * 任务状态标签映射（基于 i18n）
@@ -185,9 +185,9 @@ const getTaskStatusLabel = (status: string) => {
     processing: t('dataImport.taskTable.statusProcessing'),
     completed: t('dataImport.taskTable.statusCompleted'),
     failed: t('dataImport.taskTable.statusFailed'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 </script>
 
 <style scoped>

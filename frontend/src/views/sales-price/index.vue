@@ -129,21 +129,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Plus, Setting, Download } from '@element-plus/icons-vue'
-import type { SalesPrice } from '@/api/sales-price'
-import { useSp } from './composables/useSp'
-import { useSpProc } from './composables/useSpProc'
-import SalesPriceFilter from './components/SalesPriceFilter.vue'
-import SalesPriceTable from './components/SalesPriceTable.vue'
-import SalesPriceForm from './components/SalesPriceForm.vue'
-import SalesPriceView from './components/SalesPriceView.vue'
-import SalesPriceHistory from './components/SalesPriceHistory.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Plus, Setting, Download } from '@element-plus/icons-vue';
+import type { SalesPrice } from '@/api/sales-price';
+import { useSp } from './composables/useSp';
+import { useSpProc } from './composables/useSpProc';
+import SalesPriceFilter from './components/SalesPriceFilter.vue';
+import SalesPriceTable from './components/SalesPriceTable.vue';
+import SalesPriceForm from './components/SalesPriceForm.vue';
+import SalesPriceView from './components/SalesPriceView.vue';
+import SalesPriceHistory from './components/SalesPriceHistory.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const sp = useSp()
+const sp = useSp();
 const spProc = useSpProc({
   getList: sp.getList,
   // V15 P0-S12 修复（Batch 475d）：传入当前筛选条件，用于后端导出
@@ -152,10 +152,10 @@ const spProc = useSpProc({
     product_id: sp.queryParams.product_id as number | undefined,
     status: sp.queryParams.status as string | undefined,
   }),
-})
+});
 
 // 对话框可见性本地 ref
-const dialogVisible = ref(false)
+const dialogVisible = ref(false);
 
 /** 获取策略类型标签 */
 const getStrategyTypeLabel = (type: string) => {
@@ -163,45 +163,45 @@ const getStrategyTypeLabel = (type: string) => {
     tiered: t('salesPrice.index.strategyTypeTiered'),
     volume: t('salesPrice.index.strategyTypeVolume'),
     contract: t('salesPrice.index.strategyTypeContract'),
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 
 /** 获取策略状态标签 */
 const getStrategyStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     active: t('salesPrice.index.strategyStatusActive'),
     inactive: t('salesPrice.index.strategyStatusInactive'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 /** 新建价格 */
 const onCreate = () => {
-  sp.prepareCreate()
-  dialogVisible.value = true
-}
+  sp.prepareCreate();
+  dialogVisible.value = true;
+};
 
 /** 编辑价格 */
 const onEdit = (row: SalesPrice) => {
-  sp.prepareEdit(row)
-  dialogVisible.value = true
-}
+  sp.prepareEdit(row);
+  dialogVisible.value = true;
+};
 
 /** 提交表单 */
 const onSubmitForm = async () => {
-  const ok = await sp.handleSubmitForm()
-  if (ok) dialogVisible.value = false
-}
+  const ok = await sp.handleSubmitForm();
+  if (ok) dialogVisible.value = false;
+};
 
 /** 导出当前列表（V15 P0-S12 修复 Batch 475d：改用后端导出，返回 Promise 由 Vue 事件系统处理） */
-const onExport = () => spProc.handleExport()
+const onExport = () => spProc.handleExport();
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  sp.getCustomers()
-  sp.getProducts()
-})
+  sp.getCustomers();
+  sp.getProducts();
+});
 </script>
 
 <style scoped>

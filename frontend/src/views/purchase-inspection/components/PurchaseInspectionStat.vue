@@ -41,18 +41,18 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 统计字段类型
  */
 interface PurchaseInspectionStats {
-  total: number
-  pending: number
-  passed: number
-  failed: number
+  total: number;
+  pending: number;
+  passed: number;
+  failed: number;
 }
 
 /**
@@ -60,8 +60,8 @@ interface PurchaseInspectionStats {
  */
 defineProps<{
   // 统计数据
-  stats: PurchaseInspectionStats
-}>()
+  stats: PurchaseInspectionStats;
+}>();
 </script>
 
 <style scoped>

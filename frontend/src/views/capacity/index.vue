@@ -59,22 +59,22 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useCp } from './composables/useCp'
-import CapacityStat from './components/CapacityStat.vue'
-import CapacityTrend from './components/CapacityTrend.vue'
-import CapacityTable from './components/CapacityTable.vue'
-import CapacityBottleneck from './components/CapacityBottleneck.vue'
+import { onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useCp } from './composables/useCp';
+import CapacityStat from './components/CapacityStat.vue';
+import CapacityTrend from './components/CapacityTrend.vue';
+import CapacityTable from './components/CapacityTable.vue';
+import CapacityBottleneck from './components/CapacityBottleneck.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const cp = useCp()
+const cp = useCp();
 
 onMounted(() => {
-  cp.initOnMount()
-})
+  cp.initOnMount();
+});
 </script>
 
 <style scoped>

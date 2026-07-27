@@ -10,9 +10,15 @@
       <div class="header-left">
         <h1 class="page-title">{{ t('purchaseContract.index.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ t('purchaseContract.index.breadcrumbHome') }}</el-breadcrumb-item>
-          <el-breadcrumb-item>{{ t('purchaseContract.index.breadcrumbPurchase') }}</el-breadcrumb-item>
-          <el-breadcrumb-item>{{ t('purchaseContract.index.breadcrumbContract') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('purchaseContract.index.breadcrumbHome')
+          }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{
+            t('purchaseContract.index.breadcrumbPurchase')
+          }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{
+            t('purchaseContract.index.breadcrumbContract')
+          }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
@@ -31,7 +37,7 @@
       :query-params="pc.queryParams"
       :suppliers="pc.suppliers"
       @fetch="pc.handleQuery"
-      @update:query-params="(v) => Object.assign(pc.queryParams, v)"
+      @update:query-params="v => Object.assign(pc.queryParams, v)"
     />
 
     <PurchaseContractTable
@@ -54,7 +60,7 @@
       :form-data="pc.formData"
       :suppliers="pc.suppliers"
       @submit="onSubmitForm"
-      @update:form-data="(v) => Object.assign(pc.formData, v)"
+      @update:form-data="v => Object.assign(pc.formData, v)"
     />
 
     <PurchaseContractDetail v-model:visible="detailDialogVisible" :view-data="viewData" />
@@ -62,57 +68,57 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Plus, Download } from '@element-plus/icons-vue'
-import type { PurchaseContract } from '@/api/purchase-contract'
-import { usePc } from './composables/usePc'
-import { usePcProc } from './composables/usePcProc'
-import PurchaseContractFilter from './components/PurchaseContractFilter.vue'
-import PurchaseContractTable from './components/PurchaseContractTable.vue'
-import PurchaseContractForm from './components/PurchaseContractForm.vue'
-import PurchaseContractDetail from './components/PurchaseContractDetail.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Plus, Download } from '@element-plus/icons-vue';
+import type { PurchaseContract } from '@/api/purchase-contract';
+import { usePc } from './composables/usePc';
+import { usePcProc } from './composables/usePcProc';
+import PurchaseContractFilter from './components/PurchaseContractFilter.vue';
+import PurchaseContractTable from './components/PurchaseContractTable.vue';
+import PurchaseContractForm from './components/PurchaseContractForm.vue';
+import PurchaseContractDetail from './components/PurchaseContractDetail.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const pc = usePc()
+const pc = usePc();
 const pcProc = usePcProc({
   getList: pc.getList,
-})
+});
 
 // 对话框可见性本地 ref
-const dialogVisible = ref(false)
-const detailDialogVisible = ref(false)
-const viewData = ref<Partial<PurchaseContract>>({})
+const dialogVisible = ref(false);
+const detailDialogVisible = ref(false);
+const viewData = ref<Partial<PurchaseContract>>({});
 
 /** 新建合同 */
 const onCreate = () => {
-  pc.prepareCreate()
-  dialogVisible.value = true
-}
+  pc.prepareCreate();
+  dialogVisible.value = true;
+};
 
 /** 编辑合同 */
 const onEdit = (row: PurchaseContract) => {
-  pc.prepareEdit(row)
-  dialogVisible.value = true
-}
+  pc.prepareEdit(row);
+  dialogVisible.value = true;
+};
 
 /** 查看详情 */
 const onView = (row: PurchaseContract) => {
-  viewData.value = row
-  detailDialogVisible.value = true
-}
+  viewData.value = row;
+  detailDialogVisible.value = true;
+};
 
 /** 提交表单 */
 const onSubmitForm = async () => {
-  const ok = await pc.handleSubmitForm()
-  if (ok) dialogVisible.value = false
-}
+  const ok = await pc.handleSubmitForm();
+  if (ok) dialogVisible.value = false;
+};
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  pc.getSuppliers()
-})
+  pc.getSuppliers();
+});
 </script>
 
 <style scoped>

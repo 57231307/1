@@ -47,68 +47,74 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { getWarehouseList, type Warehouse } from '@/api/warehouse'
-import { getProductList, type Product } from '@/api/product'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
-import type { InventoryAdjustmentEntity } from '@/api/inventoryAdjustment'
-import AdjustmentListTab from './tabs/AdjustmentListTab.vue'
-import AdjustmentFormDialogTab from './tabs/AdjustmentFormDialogTab.vue'
-import ApproveDialogTab from './tabs/ApproveDialogTab.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { getWarehouseList, type Warehouse } from '@/api/warehouse';
+import { getProductList, type Product } from '@/api/product';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logger } from '@/utils/logger';
+import type { InventoryAdjustmentEntity } from '@/api/inventoryAdjustment';
+import AdjustmentListTab from './tabs/AdjustmentListTab.vue';
+import AdjustmentFormDialogTab from './tabs/AdjustmentFormDialogTab.vue';
+import ApproveDialogTab from './tabs/ApproveDialogTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const formDialogVisible = ref(false)
-const dialogMode = ref<'create' | 'edit' | 'view'>('create')
-const currentRow = ref<InventoryAdjustmentEntity | null>(null)
+const formDialogVisible = ref(false);
+const dialogMode = ref<'create' | 'edit' | 'view'>('create');
+const currentRow = ref<InventoryAdjustmentEntity | null>(null);
 
-const approveDialogVisible = ref(false)
-const approveRow = ref<InventoryAdjustmentEntity | null>(null)
+const approveDialogVisible = ref(false);
+const approveRow = ref<InventoryAdjustmentEntity | null>(null);
 
-const warehouses = ref<Warehouse[]>([])
-const products = ref<Product[]>([])
+const warehouses = ref<Warehouse[]>([]);
+const products = ref<Product[]>([]);
 
 const openForm = (mode: 'create' | 'edit' | 'view', row: InventoryAdjustmentEntity | null) => {
-  currentRow.value = row
-  dialogMode.value = mode
-  formDialogVisible.value = true
-}
+  currentRow.value = row;
+  dialogMode.value = mode;
+  formDialogVisible.value = true;
+};
 const openApprove = (row: InventoryAdjustmentEntity) => {
-  approveRow.value = row
-  approveDialogVisible.value = true
-}
+  approveRow.value = row;
+  approveDialogVisible.value = true;
+};
 const handleSubmitted = () => {
   // 子组件已通过 emit 触发刷新
-}
+};
 const handleApproveSubmitted = () => {
   // 子组件已通过 emit 触发刷新
-}
+};
 
 const fetchWarehouses = async () => {
   try {
-    const res = await getWarehouseList({ page: 1, page_size: 1000 })
-    warehouses.value = (res.data?.list as Warehouse[] | undefined) || []
+    const res = await getWarehouseList({ page: 1, page_size: 1000 });
+    warehouses.value = (res.data?.list as Warehouse[] | undefined) || [];
   } catch (error) {
-    logger.error(t('inventoryAdjustment.index.messageFetchWarehouseFailed'), (error as Error).message)
+    logger.error(
+      t('inventoryAdjustment.index.messageFetchWarehouseFailed'),
+      (error as Error).message
+    );
   }
-}
+};
 
 const fetchProducts = async () => {
   try {
-    const res = await getProductList({ page: 1, page_size: 1000 })
-    products.value = (res.data?.list as Product[] | undefined) || []
+    const res = await getProductList({ page: 1, page_size: 1000 });
+    products.value = (res.data?.list as Product[] | undefined) || [];
   } catch (error) {
-    logger.error(t('inventoryAdjustment.index.messageFetchProductFailed'), (error as Error).message)
+    logger.error(
+      t('inventoryAdjustment.index.messageFetchProductFailed'),
+      (error as Error).message
+    );
   }
-}
+};
 
-const hasLoaded = createLazyLoader()
+const hasLoaded = createLazyLoader();
 onMounted(() => {
-  loadIfNot('warehouses', fetchWarehouses, hasLoaded)
-  loadIfNot('products', fetchProducts, hasLoaded)
-})
+  loadIfNot('warehouses', fetchWarehouses, hasLoaded);
+  loadIfNot('products', fetchProducts, hasLoaded);
+});
 </script>
 
 <style scoped>

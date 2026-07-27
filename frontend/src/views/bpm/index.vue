@@ -8,7 +8,9 @@
       <div class="header-left">
         <h1 class="page-title">{{ $t('bpm.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ $t('bpm.breadcrumb.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            $t('bpm.breadcrumb.home')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ $t('bpm.breadcrumb.bpm') }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ $t('bpm.breadcrumb.myApproval') }}</el-breadcrumb-item>
         </el-breadcrumb>
@@ -74,10 +76,27 @@
       <el-tab-pane :label="$t('bpm.tab.pending')" name="pending">
         <el-card shadow="hover" class="table-card">
           <el-table :data="pendingTasks" stripe :aria-label="$t('bpm.pendingTable.ariaLabel')">
-            <el-table-column prop="task_name" :label="$t('bpm.pendingTable.taskName')" min-width="180" fixed />
-            <el-table-column prop="process_name" :label="$t('bpm.pendingTable.processName')" width="150" />
-            <el-table-column prop="assignee_name" :label="$t('bpm.pendingTable.applicant')" width="120" />
-            <el-table-column prop="created_at" :label="$t('bpm.pendingTable.applyTime')" width="160" />
+            <el-table-column
+              prop="task_name"
+              :label="$t('bpm.pendingTable.taskName')"
+              min-width="180"
+              fixed
+            />
+            <el-table-column
+              prop="process_name"
+              :label="$t('bpm.pendingTable.processName')"
+              width="150"
+            />
+            <el-table-column
+              prop="assignee_name"
+              :label="$t('bpm.pendingTable.applicant')"
+              width="120"
+            />
+            <el-table-column
+              prop="created_at"
+              :label="$t('bpm.pendingTable.applyTime')"
+              width="160"
+            />
             <el-table-column prop="due_date" :label="$t('bpm.pendingTable.dueDate')" width="160">
               <template #default="{ row }">
                 <span v-if="row.due_date" :class="{ overdue: isOverdue(row.due_date) }">
@@ -95,16 +114,31 @@
             </el-table-column>
             <el-table-column :label="$t('bpm.pendingTable.operation')" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button v-permission="'bpm_task:approve'" type="primary" link size="small" @click="handleApprove(row as BPMTask)"
+                <el-button
+                  v-permission="'bpm_task:approve'"
+                  type="primary"
+                  link
+                  size="small"
+                  @click="handleApprove(row as BPMTask)"
                   >{{ $t('bpm.pendingTable.approve') }}</el-button
                 >
-                <el-button type="warning" link size="small" @click="handleDetail(row as BPMTask)"
-                  >{{ $t('bpm.pendingTable.detail') }}</el-button
-                >
-                <el-button v-permission="'bpm_task:transfer'" type="info" link size="small" @click="handleTransfer(row as BPMTask)"
+                <el-button type="warning" link size="small" @click="handleDetail(row as BPMTask)">{{
+                  $t('bpm.pendingTable.detail')
+                }}</el-button>
+                <el-button
+                  v-permission="'bpm_task:transfer'"
+                  type="info"
+                  link
+                  size="small"
+                  @click="handleTransfer(row as BPMTask)"
                   >{{ $t('bpm.pendingTable.transfer') }}</el-button
                 >
-                <el-button v-permission="'bpm_task:urge'" type="danger" link size="small" @click="handleUrge(row as BPMTask)"
+                <el-button
+                  v-permission="'bpm_task:urge'"
+                  type="danger"
+                  link
+                  size="small"
+                  @click="handleUrge(row as BPMTask)"
                   >{{ $t('bpm.pendingTable.urge') }}</el-button
                 >
               </template>
@@ -115,10 +149,26 @@
 
       <el-tab-pane :label="$t('bpm.tab.initiated')" name="initiated">
         <el-card shadow="hover" class="table-card">
-          <el-table :data="initiatedProcesses" stripe :aria-label="$t('bpm.initiatedTable.ariaLabel')">
-            <el-table-column prop="process_name" :label="$t('bpm.initiatedTable.processName')" min-width="150" />
-            <el-table-column prop="business_key" :label="$t('bpm.initiatedTable.businessKey')" width="180" />
-            <el-table-column prop="start_time" :label="$t('bpm.initiatedTable.startTime')" width="160" />
+          <el-table
+            :data="initiatedProcesses"
+            stripe
+            :aria-label="$t('bpm.initiatedTable.ariaLabel')"
+          >
+            <el-table-column
+              prop="process_name"
+              :label="$t('bpm.initiatedTable.processName')"
+              min-width="150"
+            />
+            <el-table-column
+              prop="business_key"
+              :label="$t('bpm.initiatedTable.businessKey')"
+              width="180"
+            />
+            <el-table-column
+              prop="start_time"
+              :label="$t('bpm.initiatedTable.startTime')"
+              width="160"
+            />
             <el-table-column prop="status" :label="$t('bpm.initiatedTable.status')" width="100">
               <template #default="{ row }">
                 <el-tag :type="getProcessStatusType(row.status)" size="small">
@@ -126,17 +176,30 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="current_activities" :label="$t('bpm.initiatedTable.currentNode')" width="150">
+            <el-table-column
+              prop="current_activities"
+              :label="$t('bpm.initiatedTable.currentNode')"
+              width="150"
+            >
               <template #default="{ row }">
                 <span>{{ row.current_activities?.join(', ') || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column :label="$t('bpm.initiatedTable.operation')" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleTrace(row as BPMInstance)"
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="handleTrace(row as BPMInstance)"
                   >{{ $t('bpm.initiatedTable.trace') }}</el-button
                 >
-                <el-button v-permission="'bpm_process:cancel'" type="info" link size="small" @click="handleCancel(row as BPMInstance)"
+                <el-button
+                  v-permission="'bpm_process:cancel'"
+                  type="info"
+                  link
+                  size="small"
+                  @click="handleCancel(row as BPMInstance)"
                   >{{ $t('bpm.initiatedTable.cancel') }}</el-button
                 >
               </template>
@@ -148,14 +211,34 @@
       <el-tab-pane :label="$t('bpm.tab.processed')" name="processed">
         <el-card shadow="hover" class="table-card">
           <el-table :data="processedTasks" stripe :aria-label="$t('bpm.processedTable.ariaLabel')">
-            <el-table-column prop="task_name" :label="$t('bpm.processedTable.taskName')" min-width="150" />
-            <el-table-column prop="process_name" :label="$t('bpm.processedTable.processName')" width="150" />
-            <el-table-column prop="start_user_name" :label="$t('bpm.processedTable.applicant')" width="120" />
-            <el-table-column prop="approved_at" :label="$t('bpm.processedTable.approvedAt')" width="160" />
+            <el-table-column
+              prop="task_name"
+              :label="$t('bpm.processedTable.taskName')"
+              min-width="150"
+            />
+            <el-table-column
+              prop="process_name"
+              :label="$t('bpm.processedTable.processName')"
+              width="150"
+            />
+            <el-table-column
+              prop="start_user_name"
+              :label="$t('bpm.processedTable.applicant')"
+              width="120"
+            />
+            <el-table-column
+              prop="approved_at"
+              :label="$t('bpm.processedTable.approvedAt')"
+              width="160"
+            />
             <el-table-column prop="result" :label="$t('bpm.processedTable.result')" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.result === 'approved' ? 'success' : 'danger'" size="small">
-                  {{ row.result === 'approved' ? $t('bpm.processedTable.approved') : $t('bpm.processedTable.rejected') }}
+                  {{
+                    row.result === 'approved'
+                      ? $t('bpm.processedTable.approved')
+                      : $t('bpm.processedTable.rejected')
+                  }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -172,10 +255,26 @@
       <el-tab-pane :label="$t('bpm.tab.monitor')" name="monitor">
         <el-card shadow="hover" class="table-card">
           <el-table :data="processInstances" stripe :aria-label="$t('bpm.monitorTable.ariaLabel')">
-            <el-table-column prop="instance_id" :label="$t('bpm.monitorTable.instanceId')" width="180" />
-            <el-table-column prop="process_name" :label="$t('bpm.monitorTable.processName')" min-width="150" />
-            <el-table-column prop="start_user_name" :label="$t('bpm.monitorTable.startUser')" width="120" />
-            <el-table-column prop="start_time" :label="$t('bpm.monitorTable.startTime')" width="160" />
+            <el-table-column
+              prop="instance_id"
+              :label="$t('bpm.monitorTable.instanceId')"
+              width="180"
+            />
+            <el-table-column
+              prop="process_name"
+              :label="$t('bpm.monitorTable.processName')"
+              min-width="150"
+            />
+            <el-table-column
+              prop="start_user_name"
+              :label="$t('bpm.monitorTable.startUser')"
+              width="120"
+            />
+            <el-table-column
+              prop="start_time"
+              :label="$t('bpm.monitorTable.startTime')"
+              width="160"
+            />
             <el-table-column prop="end_time" :label="$t('bpm.monitorTable.endTime')" width="160">
               <template #default="{ row }">
                 {{ row.end_time || '-' }}
@@ -190,10 +289,18 @@
             </el-table-column>
             <el-table-column :label="$t('bpm.monitorTable.operation')" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleViewProcess(row as BPMInstance)"
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="handleViewProcess(row as BPMInstance)"
                   >{{ $t('bpm.monitorTable.view') }}</el-button
                 >
-                <el-button type="info" link size="small" @click="handleProcessImage(row as BPMInstance)"
+                <el-button
+                  type="info"
+                  link
+                  size="small"
+                  @click="handleProcessImage(row as BPMInstance)"
                   >{{ $t('bpm.monitorTable.processImage') }}</el-button
                 >
               </template>
@@ -206,10 +313,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue';
 // D14 Batch 5b：原 bpmApi 对象已转风格 B 函数
 import {
   getBpmTaskList,
@@ -221,43 +328,43 @@ import {
   getBpmApprovalChain,
   getBpmProcessVisualization,
   cancelBpmInstance,
-} from '@/api/bpm'
-import type { BPMTask, BPMInstance } from '@/api/bpm'
-import { logger } from '@/utils/logger'
+} from '@/api/bpm';
+import type { BPMTask, BPMInstance } from '@/api/bpm';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // v11 批次 162 P2-1 修复：el-tag type 联合字面量类型，替代 Record<string, any>
-type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
 
-const activeTab = ref('pending')
+const activeTab = ref('pending');
 
 const stats = ref({
   pendingTasks: 8,
   completedTasks: 156,
   urgentTasks: 3,
   avgProcessingTime: 4.5,
-})
+});
 
 // v11 批次 162 P2-1 修复：any[] 改为具体类型 BPMTask[]/BPMInstance[]
-const pendingTasks = ref<BPMTask[]>([])
-const initiatedProcesses = ref<BPMInstance[]>([])
-const processedTasks = ref<BPMTask[]>([])
-const processInstances = ref<BPMInstance[]>([])
+const pendingTasks = ref<BPMTask[]>([]);
+const initiatedProcesses = ref<BPMInstance[]>([]);
+const processedTasks = ref<BPMTask[]>([]);
+const processInstances = ref<BPMInstance[]>([]);
 
 const getPriorityType = (priority: string): TagType => {
-  const map: Record<string, TagType> = { high: 'danger', medium: 'warning', low: 'info' }
-  return map[priority] || 'info'
-}
+  const map: Record<string, TagType> = { high: 'danger', medium: 'warning', low: 'info' };
+  return map[priority] || 'info';
+};
 
 const getPriorityText = (priority: string) => {
   const map: Record<string, string> = {
     high: t('bpm.priority.high'),
     medium: t('bpm.priority.medium'),
     low: t('bpm.priority.low'),
-  }
-  return map[priority] || priority
-}
+  };
+  return map[priority] || priority;
+};
 
 const getProcessStatusType = (status: string): TagType => {
   const map: Record<string, TagType> = {
@@ -265,9 +372,9 @@ const getProcessStatusType = (status: string): TagType => {
     completed: 'success',
     cancelled: 'info',
     suspended: 'warning',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const getProcessStatusText = (status: string) => {
   const map: Record<string, string> = {
@@ -275,94 +382,110 @@ const getProcessStatusText = (status: string) => {
     completed: t('bpm.processStatus.completed'),
     cancelled: t('bpm.processStatus.cancelled'),
     suspended: t('bpm.processStatus.suspended'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 const isOverdue = (dueDate: string) => {
-  return new Date(dueDate) < new Date()
-}
+  return new Date(dueDate) < new Date();
+};
 
 const handleTabChange = (tabName: string) => {
   if (tabName === 'pending') {
-    fetchPendingTasks()
+    fetchPendingTasks();
   } else if (tabName === 'initiated') {
-    fetchInitiatedProcesses()
+    fetchInitiatedProcesses();
   } else if (tabName === 'processed') {
-    fetchProcessedTasks()
+    fetchProcessedTasks();
   } else if (tabName === 'monitor') {
-    fetchProcessInstances()
+    fetchProcessInstances();
   }
-}
+};
 
 const fetchPendingTasks = async () => {
   try {
-    const res = await getBpmTaskList({ status: 'pending' })
-    pendingTasks.value = res.data?.list || []
+    const res = await getBpmTaskList({ status: 'pending' });
+    pendingTasks.value = res.data?.list || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('bpm.message.fetchPendingFailed'))
-    pendingTasks.value = []
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('bpm.message.fetchPendingFailed')
+    );
+    pendingTasks.value = [];
   }
-}
+};
 
 const fetchInitiatedProcesses = async () => {
   try {
-    const res = await getBpmInstanceListForMonitor()
-    initiatedProcesses.value = res.data?.list || []
+    const res = await getBpmInstanceListForMonitor();
+    initiatedProcesses.value = res.data?.list || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('bpm.message.fetchInitiatedFailed'))
-    initiatedProcesses.value = []
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('bpm.message.fetchInitiatedFailed')
+    );
+    initiatedProcesses.value = [];
   }
-}
+};
 
 const fetchProcessedTasks = async () => {
   try {
-    const res = await getBpmTaskList({ status: 'completed' })
-    processedTasks.value = res.data?.list || []
+    const res = await getBpmTaskList({ status: 'completed' });
+    processedTasks.value = res.data?.list || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('bpm.message.fetchProcessedFailed'))
-    processedTasks.value = []
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('bpm.message.fetchProcessedFailed')
+    );
+    processedTasks.value = [];
   }
-}
+};
 
 const fetchProcessInstances = async () => {
   try {
-    const res = await getBpmInstanceListForMonitor()
-    processInstances.value = res.data?.list || []
+    const res = await getBpmInstanceListForMonitor();
+    processInstances.value = res.data?.list || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('bpm.message.fetchInstancesFailed'))
-    processInstances.value = []
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('bpm.message.fetchInstancesFailed')
+    );
+    processInstances.value = [];
   }
-}
+};
 
 const handleApprove = async (row: BPMTask) => {
   try {
-    await ElMessageBox.confirm(t('bpm.message.approveConfirm'), t('bpm.message.approveConfirmTitle'), { type: 'info' })
-    await approveBpmTask({ task_id: row.task_id, comment: t('bpm.message.approveComment') })
-    ElMessage.success(t('bpm.message.approveSuccess'))
-    fetchPendingTasks()
+    await ElMessageBox.confirm(
+      t('bpm.message.approveConfirm'),
+      t('bpm.message.approveConfirmTitle'),
+      { type: 'info' }
+    );
+    await approveBpmTask({ task_id: row.task_id, comment: t('bpm.message.approveComment') });
+    ElMessage.success(t('bpm.message.approveSuccess'));
+    fetchPendingTasks();
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
+    if (e !== 'cancel') logger.error(String(e));
   }
-}
+};
 
 // 批次 157a P1-1 修复：接入 getInstanceDetail API 展示任务关联的流程实例详情
 const handleDetail = async (row: BPMTask) => {
   try {
-    const instanceId = row.process_instance_id
+    const instanceId = row.process_instance_id;
     if (!instanceId) {
-      ElMessage.warning(t('bpm.message.instanceIdNotFound'))
-      return
+      ElMessage.warning(t('bpm.message.instanceIdNotFound'));
+      return;
     }
-    const res = await getBpmInstanceById(String(instanceId))
-    const d = res.data
+    const res = await getBpmInstanceById(String(instanceId));
+    const d = res.data;
     if (!d) {
-      ElMessage.warning(t('bpm.message.instanceDetailNotFound'))
-      return
+      ElMessage.warning(t('bpm.message.instanceDetailNotFound'));
+      return;
     }
     const lines = [
       `${t('bpm.detail.instanceId')}：${d.instance_id}`,
@@ -372,70 +495,80 @@ const handleDetail = async (row: BPMTask) => {
       `${t('bpm.detail.endTime')}：${d.end_time || '-'}`,
       `${t('bpm.detail.currentStatus')}：${getProcessStatusText(d.status)}`,
       `${t('bpm.detail.currentNode')}：${d.current_activities?.join(', ') || '-'}`,
-    ]
+    ];
     await ElMessageBox.alert(lines.join('\n'), t('bpm.detail.taskDetailTitle'), {
       confirmButtonText: t('bpm.message.close'),
-    })
+    });
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
-    const err = e as Error
-    ElMessage.error(err.message || t('bpm.message.fetchDetailFailed'))
+    if (e !== 'cancel') logger.error(String(e));
+    const err = e as Error;
+    ElMessage.error(err.message || t('bpm.message.fetchDetailFailed'));
   }
-}
+};
 
 const handleTransfer = async (row: BPMTask) => {
   try {
-    const { value: targetUserId } = await ElMessageBox.prompt(t('bpm.message.transferPrompt'), t('bpm.message.transferTitle'), {
-      type: 'info',
-      inputPattern: /^\d+$/,
-      inputErrorMessage: t('bpm.message.transferUserIdInvalid'),
-    })
-    await transferBpmTask(row.task_id, parseInt(targetUserId), t('bpm.message.transferComment'))
-    ElMessage.success(t('bpm.message.transferSuccess'))
-    fetchPendingTasks()
+    const { value: targetUserId } = await ElMessageBox.prompt(
+      t('bpm.message.transferPrompt'),
+      t('bpm.message.transferTitle'),
+      {
+        type: 'info',
+        inputPattern: /^\d+$/,
+        inputErrorMessage: t('bpm.message.transferUserIdInvalid'),
+      }
+    );
+    await transferBpmTask(row.task_id, parseInt(targetUserId), t('bpm.message.transferComment'));
+    ElMessage.success(t('bpm.message.transferSuccess'));
+    fetchPendingTasks();
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
+    if (e !== 'cancel') logger.error(String(e));
   }
-}
+};
 
 const handleUrge = async (row: BPMTask) => {
   try {
-    await ElMessageBox.confirm(t('bpm.message.urgeConfirm'), t('bpm.message.urgeConfirmTitle'), { type: 'warning' })
-    await urgeBpmTask(row.task_id)
-    ElMessage.success(t('bpm.message.urgeSuccess'))
+    await ElMessageBox.confirm(t('bpm.message.urgeConfirm'), t('bpm.message.urgeConfirmTitle'), {
+      type: 'warning',
+    });
+    await urgeBpmTask(row.task_id);
+    ElMessage.success(t('bpm.message.urgeSuccess'));
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
+    if (e !== 'cancel') logger.error(String(e));
   }
-}
+};
 
 // 批次 157a P1-1 修复：接入 getApprovalChain API 展示流程审批链追溯
 // v11 批次 162 P2-1 修复：row 联合类型 BPMTask | BPMInstance，替代 any
 const handleTrace = async (row: BPMTask | BPMInstance) => {
   try {
-    const instanceId = 'instance_id' in row ? row.instance_id : row.process_instance_id
+    const instanceId = 'instance_id' in row ? row.instance_id : row.process_instance_id;
     if (!instanceId) {
-      ElMessage.warning(t('bpm.message.instanceIdNotFound'))
-      return
+      ElMessage.warning(t('bpm.message.instanceIdNotFound'));
+      return;
     }
-    const res = await getBpmApprovalChain(String(instanceId))
-    const chain = res.data || []
+    const res = await getBpmApprovalChain(String(instanceId));
+    const chain = res.data || [];
     if (chain.length === 0) {
-      await ElMessageBox.alert(t('bpm.message.noApprovalChain'), t('bpm.message.approvalChainTitle'), { confirmButtonText: t('bpm.message.close') })
-      return
+      await ElMessageBox.alert(
+        t('bpm.message.noApprovalChain'),
+        t('bpm.message.approvalChainTitle'),
+        { confirmButtonText: t('bpm.message.close') }
+      );
+      return;
     }
     const lines = chain.map(
       item =>
         `${item.order}. ${item.approver_name} - ${item.status}${item.comment ? `（${item.comment}）` : ''}${item.approved_at ? ` @ ${item.approved_at}` : ''}`
-    )
+    );
     await ElMessageBox.alert(lines.join('\n'), t('bpm.detail.traceTitle', { instanceId }), {
       confirmButtonText: t('bpm.message.close'),
-    })
+    });
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
-    const err = e as Error
-    ElMessage.error(err.message || t('bpm.message.fetchApprovalChainFailed'))
+    if (e !== 'cancel') logger.error(String(e));
+    const err = e as Error;
+    ElMessage.error(err.message || t('bpm.message.fetchApprovalChainFailed'));
   }
-}
+};
 // 批次 157d-3 修复：接入 cancelInstance API 真实撤回流程
 const handleCancel = async (row: BPMInstance) => {
   try {
@@ -450,29 +583,29 @@ const handleCancel = async (row: BPMInstance) => {
         showInput: true,
         inputType: 'textarea',
       }
-    )
+    );
     const reason =
-      typeof confirmRes === 'string' && confirmRes.trim() ? confirmRes.trim() : undefined
+      typeof confirmRes === 'string' && confirmRes.trim() ? confirmRes.trim() : undefined;
     // 后端 cancel_instance 接收 i32 主键 id（非字符串 instance_no）
-    await cancelBpmInstance(row.id, reason)
-    ElMessage.success(t('bpm.message.cancelSuccess'))
+    await cancelBpmInstance(row.id, reason);
+    ElMessage.success(t('bpm.message.cancelSuccess'));
     // 撤回按钮仅在 "我发起的" tab 内出现，刷新该列表即可
-    fetchInitiatedProcesses()
+    fetchInitiatedProcesses();
   } catch (e: unknown) {
-    if (e === 'cancel' || e === 'close') return
-    const err = e as Error
-    ElMessage.error(err.message || t('bpm.message.cancelFailed'))
-    logger.error(t('bpm.message.withdrawFailed'), err.message)
+    if (e === 'cancel' || e === 'close') return;
+    const err = e as Error;
+    ElMessage.error(err.message || t('bpm.message.cancelFailed'));
+    logger.error(t('bpm.message.withdrawFailed'), err.message);
   }
-}
+};
 // 批次 157a P1-1 修复：接入 getInstanceDetail API 展示流程实例详情
 const handleViewProcess = async (row: BPMInstance) => {
   try {
-    const res = await getBpmInstanceById(String(row.instance_id))
-    const d = res.data
+    const res = await getBpmInstanceById(String(row.instance_id));
+    const d = res.data;
     if (!d) {
-      ElMessage.warning(t('bpm.message.instanceDetailNotFound'))
-      return
+      ElMessage.warning(t('bpm.message.instanceDetailNotFound'));
+      return;
     }
     const lines = [
       `${t('bpm.detail.instanceId')}：${d.instance_id}`,
@@ -482,44 +615,48 @@ const handleViewProcess = async (row: BPMInstance) => {
       `${t('bpm.detail.endTime')}：${d.end_time || '-'}`,
       `${t('bpm.detail.currentStatus')}：${getProcessStatusText(d.status)}`,
       `${t('bpm.detail.currentNode')}：${d.current_activities?.join(', ') || '-'}`,
-    ]
+    ];
     await ElMessageBox.alert(lines.join('\n'), t('bpm.detail.processDetailTitle'), {
       confirmButtonText: t('bpm.message.close'),
-    })
+    });
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
-    const err = e as Error
-    ElMessage.error(err.message || t('bpm.message.fetchProcessDetailFailed'))
+    if (e !== 'cancel') logger.error(String(e));
+    const err = e as Error;
+    ElMessage.error(err.message || t('bpm.message.fetchProcessDetailFailed'));
   }
-}
+};
 // 批次 157a P1-1 修复：接入 getProcessVisualization API 展示流程图信息
 const handleProcessImage = async (row: BPMInstance) => {
   try {
-    const res = await getBpmProcessVisualization(String(row.instance_id))
-    const d = res.data
+    const res = await getBpmProcessVisualization(String(row.instance_id));
+    const d = res.data;
     if (!d) {
-      ElMessage.warning(t('bpm.message.processImageNotFound'))
-      return
+      ElMessage.warning(t('bpm.message.processImageNotFound'));
+      return;
     }
     const lines = [
       `${t('bpm.detail.instanceId')}：${d.instance_id}`,
       `${t('bpm.detail.processName')}：${d.process_name}`,
       `${t('bpm.detail.currentActivity')}：${d.current_activity || '-'}`,
       `${t('bpm.detail.activityHistory')}：${d.activity_history?.join(' → ') || '-'}`,
-    ]
-    await ElMessageBox.alert(lines.join('\n'), t('bpm.detail.processImageTitle', { instanceId: row.instance_id }), {
-      confirmButtonText: t('bpm.message.close'),
-    })
+    ];
+    await ElMessageBox.alert(
+      lines.join('\n'),
+      t('bpm.detail.processImageTitle', { instanceId: row.instance_id }),
+      {
+        confirmButtonText: t('bpm.message.close'),
+      }
+    );
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
-    const err = e as Error
-    ElMessage.error(err.message || t('bpm.message.fetchProcessImageFailed'))
+    if (e !== 'cancel') logger.error(String(e));
+    const err = e as Error;
+    ElMessage.error(err.message || t('bpm.message.fetchProcessImageFailed'));
   }
-}
+};
 
 onMounted(() => {
-  fetchPendingTasks()
-})
+  fetchPendingTasks();
+});
 </script>
 
 <style scoped>

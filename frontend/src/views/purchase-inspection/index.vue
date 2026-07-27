@@ -22,7 +22,7 @@
       :suppliers="pi.suppliers"
       @fetch="piProc.handleQuery"
       @date-change="(v: [Date, Date] | null) => (pi.dateRange = v)"
-      @update:query-params="(v) => Object.assign(pi.queryParams, v)"
+      @update:query-params="v => Object.assign(pi.queryParams, v)"
     />
 
     <PurchaseInspectionTable
@@ -45,33 +45,30 @@
       :receipts="pi.receipts"
       @receipt-change="(v: number) => pi.handleReceiptChange(v)"
       @submit="piProc.handleSubmit"
-      @update:form-data="(v) => Object.assign(pi.formData, v)"
+      @update:form-data="v => Object.assign(pi.formData, v)"
     />
 
-    <PurchaseInspectionDetail
-      v-model:visible="pi.detailDialogVisible"
-      :data="pi.detailData"
-    />
+    <PurchaseInspectionDetail v-model:visible="pi.detailDialogVisible" :data="pi.detailData" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { loadIfNot } from '@/utils/lazy-loader'
-import { Plus } from '@element-plus/icons-vue'
-import { usePi } from './composables/usePi'
-import { usePiProc } from './composables/usePiProc'
-import PurchaseInspectionStat from './components/PurchaseInspectionStat.vue'
-import PurchaseInspectionFilter from './components/PurchaseInspectionFilter.vue'
-import PurchaseInspectionTable from './components/PurchaseInspectionTable.vue'
-import PurchaseInspectionForm from './components/PurchaseInspectionForm.vue'
-import PurchaseInspectionDetail from './components/PurchaseInspectionDetail.vue'
+import { onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { loadIfNot } from '@/utils/lazy-loader';
+import { Plus } from '@element-plus/icons-vue';
+import { usePi } from './composables/usePi';
+import { usePiProc } from './composables/usePiProc';
+import PurchaseInspectionStat from './components/PurchaseInspectionStat.vue';
+import PurchaseInspectionFilter from './components/PurchaseInspectionFilter.vue';
+import PurchaseInspectionTable from './components/PurchaseInspectionTable.vue';
+import PurchaseInspectionForm from './components/PurchaseInspectionForm.vue';
+import PurchaseInspectionDetail from './components/PurchaseInspectionDetail.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const pi = usePi()
+const pi = usePi();
 const piProc = usePiProc({
   tableData: pi.tableData,
   loading: pi.loading,
@@ -91,13 +88,13 @@ const piProc = usePiProc({
   fetchData: pi.fetchData,
   handleReceiptChange: pi.handleReceiptChange,
   syncDateRangeToQuery: pi.syncDateRangeToQuery,
-})
+});
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据（供应商/入库单）
 onMounted(() => {
-  loadIfNot('suppliers', pi.fetchSuppliers, pi.hasLoaded)
-  loadIfNot('receipts', pi.fetchReceipts, pi.hasLoaded)
-})
+  loadIfNot('suppliers', pi.fetchSuppliers, pi.hasLoaded);
+  loadIfNot('receipts', pi.fetchReceipts, pi.hasLoaded);
+});
 </script>
 
 <style scoped>

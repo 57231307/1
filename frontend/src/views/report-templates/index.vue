@@ -24,14 +24,24 @@
           @clear="handleSearch"
           @keyup.enter="handleSearch"
         />
-        <el-select v-model="queryParams.category" :placeholder="$t('reportTemplates.category.placeholder')" clearable style="width: 120px">
+        <el-select
+          v-model="queryParams.category"
+          :placeholder="$t('reportTemplates.category.placeholder')"
+          clearable
+          style="width: 120px"
+        >
           <el-option :label="$t('reportTemplates.category.sales')" value="sales" />
           <el-option :label="$t('reportTemplates.category.inventory')" value="inventory" />
           <el-option :label="$t('reportTemplates.category.finance')" value="finance" />
           <el-option :label="$t('reportTemplates.category.production')" value="production" />
           <el-option :label="$t('reportTemplates.category.custom')" value="custom" />
         </el-select>
-        <el-select v-model="queryParams.status" :placeholder="$t('reportTemplates.status.placeholder')" clearable style="width: 120px">
+        <el-select
+          v-model="queryParams.status"
+          :placeholder="$t('reportTemplates.status.placeholder')"
+          clearable
+          style="width: 120px"
+        >
           <el-option :label="$t('reportTemplates.status.active')" value="active" />
           <el-option :label="$t('reportTemplates.status.inactive')" value="inactive" />
         </el-select>
@@ -41,9 +51,22 @@
         </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" stripe :aria-label="$t('reportTemplates.table.ariaLabel')">
-        <el-table-column prop="template_code" :label="$t('reportTemplates.table.templateCode')" width="140" />
-        <el-table-column prop="template_name" :label="$t('reportTemplates.table.templateName')" min-width="180" />
+      <el-table
+        v-loading="loading"
+        :data="list"
+        stripe
+        :aria-label="$t('reportTemplates.table.ariaLabel')"
+      >
+        <el-table-column
+          prop="template_code"
+          :label="$t('reportTemplates.table.templateCode')"
+          width="140"
+        />
+        <el-table-column
+          prop="template_name"
+          :label="$t('reportTemplates.table.templateName')"
+          min-width="180"
+        />
         <el-table-column prop="category" :label="$t('reportTemplates.table.category')" width="100">
           <template #default="{ row }">
             {{ getCategoryLabel(row.category) }}
@@ -54,29 +77,55 @@
             {{ row.format.toUpperCase() }}
           </template>
         </el-table-column>
-        <el-table-column prop="is_system" :label="$t('reportTemplates.table.isSystem')" width="100" align="center">
+        <el-table-column
+          prop="is_system"
+          :label="$t('reportTemplates.table.isSystem')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="row.is_system ? 'success' : 'info'" size="small">
               {{ row.is_system ? $t('reportTemplates.yesNo.yes') : $t('reportTemplates.yesNo.no') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="$t('reportTemplates.table.status')" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="$t('reportTemplates.table.status')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{ row.status === 'active' ? $t('reportTemplates.status.active') : $t('reportTemplates.status.inactive') }}
+              {{
+                row.status === 'active'
+                  ? $t('reportTemplates.status.active')
+                  : $t('reportTemplates.status.inactive')
+              }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" :label="$t('reportTemplates.table.createdBy')" width="100" />
-        <el-table-column prop="created_at" :label="$t('reportTemplates.table.createdAt')" width="160" />
+        <el-table-column
+          prop="created_by_name"
+          :label="$t('reportTemplates.table.createdBy')"
+          width="100"
+        />
+        <el-table-column
+          prop="created_at"
+          :label="$t('reportTemplates.table.createdAt')"
+          width="160"
+        />
         <el-table-column :label="$t('reportTemplates.table.operation')" width="250" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handlePreview(row)">{{ $t('reportTemplates.table.preview') }}</el-button>
-            <el-button type="primary" link size="small" @click="handleGenerate(row)"
-              >{{ $t('reportTemplates.table.generate') }}</el-button
-            >
-            <el-button type="primary" link size="small" @click="openDialog(row)">{{ $t('reportTemplates.table.edit') }}</el-button>
+            <el-button type="primary" link size="small" @click="handlePreview(row)">{{
+              $t('reportTemplates.table.preview')
+            }}</el-button>
+            <el-button type="primary" link size="small" @click="handleGenerate(row)">{{
+              $t('reportTemplates.table.generate')
+            }}</el-button>
+            <el-button type="primary" link size="small" @click="openDialog(row)">{{
+              $t('reportTemplates.table.edit')
+            }}</el-button>
             <el-button
               v-if="!row.is_system"
               type="danger"
@@ -103,8 +152,21 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? $t('reportTemplates.dialog.editTitle') : $t('reportTemplates.dialog.createTitle')" width="800px" :aria-label="$t('reportTemplates.dialog.ariaLabel')">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('reportTemplates.dialog.formAriaLabel')">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="
+        form.id ? $t('reportTemplates.dialog.editTitle') : $t('reportTemplates.dialog.createTitle')
+      "
+      width="800px"
+      :aria-label="$t('reportTemplates.dialog.ariaLabel')"
+    >
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        :aria-label="$t('reportTemplates.dialog.formAriaLabel')"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('reportTemplates.dialog.templateCode')" prop="template_code">
@@ -117,14 +179,21 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="$t('reportTemplates.dialog.templateName')" prop="template_name">
-              <el-input v-model="form.template_name" :placeholder="$t('reportTemplates.dialog.templateNamePlaceholder')" />
+              <el-input
+                v-model="form.template_name"
+                :placeholder="$t('reportTemplates.dialog.templateNamePlaceholder')"
+              />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('reportTemplates.dialog.category')" prop="category">
-              <el-select v-model="form.category" :placeholder="$t('reportTemplates.dialog.categoryPlaceholder')" style="width: 100%">
+              <el-select
+                v-model="form.category"
+                :placeholder="$t('reportTemplates.dialog.categoryPlaceholder')"
+                style="width: 100%"
+              >
                 <el-option :label="$t('reportTemplates.category.sales')" value="sales" />
                 <el-option :label="$t('reportTemplates.category.inventory')" value="inventory" />
                 <el-option :label="$t('reportTemplates.category.finance')" value="finance" />
@@ -135,7 +204,11 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="$t('reportTemplates.dialog.format')" prop="format">
-              <el-select v-model="form.format" :placeholder="$t('reportTemplates.dialog.formatPlaceholder')" style="width: 100%">
+              <el-select
+                v-model="form.format"
+                :placeholder="$t('reportTemplates.dialog.formatPlaceholder')"
+                style="width: 100%"
+              >
                 <el-option label="PDF" value="pdf" />
                 <el-option label="Excel" value="excel" />
                 <el-option label="Word" value="word" />
@@ -145,7 +218,12 @@
           </el-col>
         </el-row>
         <el-form-item :label="$t('reportTemplates.dialog.description')" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="3" :placeholder="$t('reportTemplates.dialog.descriptionPlaceholder')" />
+          <el-input
+            v-model="form.description"
+            type="textarea"
+            :rows="3"
+            :placeholder="$t('reportTemplates.dialog.descriptionPlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('reportTemplates.dialog.content')" prop="content">
           <el-input
@@ -165,34 +243,45 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ $t('reportTemplates.dialog.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('reportTemplates.dialog.confirm') }}</el-button>
+        <el-button @click="dialogVisible = false">{{
+          $t('reportTemplates.dialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          $t('reportTemplates.dialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="previewVisible" :title="$t('reportTemplates.previewDialog.title')" width="900px" :aria-label="$t('reportTemplates.previewDialog.ariaLabel')">
+    <el-dialog
+      v-model="previewVisible"
+      :title="$t('reportTemplates.previewDialog.title')"
+      width="900px"
+      :aria-label="$t('reportTemplates.previewDialog.ariaLabel')"
+    >
       <div v-loading="previewLoading" class="preview-container">
         <!-- Wave B-2 修复（B3-1）：使用 DOMPurify 净化后端返回的 HTML，防止 XSS 注入 -->
         <div v-if="previewData" v-html="sanitizedPreview"></div>
         <div v-else class="no-preview">{{ $t('reportTemplates.previewDialog.noData') }}</div>
       </div>
       <template #footer>
-        <el-button @click="previewVisible = false">{{ $t('reportTemplates.previewDialog.close') }}</el-button>
+        <el-button @click="previewVisible = false">{{
+          $t('reportTemplates.previewDialog.close')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { ref, reactive, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Plus, Search } from '@element-plus/icons-vue';
 // Wave B-2 修复（B3-1）：引入 DOMPurify 用于净化后端返回的 HTML 模板，防止 XSS
-import DOMPurify from 'dompurify'
+import DOMPurify from 'dompurify';
 // v14 中风险安全修复（批次 243）：引入 escapeHtml 对单元格值做 HTML 转义，
 // 防止后端数据中包含的恶意 HTML/脚本经 v-html 渲染后误导用户（DOMPurify 默认允许 <img>/<a> 等标签）
-import { escapeHtml } from '@/utils/print'
+import { escapeHtml } from '@/utils/print';
 import {
   createReportTemplate,
   updateReportTemplate,
@@ -200,17 +289,17 @@ import {
   previewReportTemplate,
   generateReport,
   type ReportTemplate,
-} from '@/api/report-templates'
+} from '@/api/report-templates';
 // 批次 277：接入 useTableApi composable，统一表格分页/加载/查询逻辑
-import { useTableApi } from '@/composables/useTableApi'
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const queryParams = reactive({
   keyword: '',
   category: '',
   status: '',
-})
+});
 
 // 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -226,15 +315,17 @@ const {
   url: '/report-templates',
   onError: (err: unknown) =>
     // 批次 98 P2-D 修复（v5 复审）：类型守卫提取错误信息
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('reportTemplates.message.loadFailed')),
-})
+    ElMessage.error(
+      (err instanceof Error ? err.message : String(err)) || t('reportTemplates.message.loadFailed')
+    ),
+});
 
 // 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
-  setQueryParam('keyword', queryParams.keyword || undefined)
-  setQueryParam('category', queryParams.category || undefined)
-  setQueryParam('status', queryParams.status || undefined)
-}
+  setQueryParam('keyword', queryParams.keyword || undefined);
+  setQueryParam('category', queryParams.category || undefined);
+  setQueryParam('status', queryParams.status || undefined);
+};
 
 // D05 Batch 3：categoryMap 改为函数返回，使 t() 在每次渲染时响应式求值（参照 print-templates/index.vue 的 getModuleLabel）
 const getCategoryLabel = (category: string) => {
@@ -244,14 +335,14 @@ const getCategoryLabel = (category: string) => {
     finance: t('reportTemplates.category.finance'),
     production: t('reportTemplates.category.production'),
     custom: t('reportTemplates.category.custom'),
-  }
-  return map[category] || category
-}
+  };
+  return map[category] || category;
+};
 
-const dialogVisible = ref(false)
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
-const parametersText = ref('')
+const dialogVisible = ref(false);
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
+const parametersText = ref('');
 const form = reactive<Partial<ReportTemplate>>({
   id: undefined,
   template_code: '',
@@ -263,20 +354,42 @@ const form = reactive<Partial<ReportTemplate>>({
   parameters: {},
   is_system: false,
   status: 'active',
-})
+});
 
 const rules: FormRules = {
-  template_code: [{ required: true, message: t('reportTemplates.validation.templateCodeRequired'), trigger: 'blur' }],
-  template_name: [{ required: true, message: t('reportTemplates.validation.templateNameRequired'), trigger: 'blur' }],
-  category: [{ required: true, message: t('reportTemplates.validation.categoryRequired'), trigger: 'change' }],
-  format: [{ required: true, message: t('reportTemplates.validation.formatRequired'), trigger: 'change' }],
-  content: [{ required: true, message: t('reportTemplates.validation.contentRequired'), trigger: 'blur' }],
-}
+  template_code: [
+    {
+      required: true,
+      message: t('reportTemplates.validation.templateCodeRequired'),
+      trigger: 'blur',
+    },
+  ],
+  template_name: [
+    {
+      required: true,
+      message: t('reportTemplates.validation.templateNameRequired'),
+      trigger: 'blur',
+    },
+  ],
+  category: [
+    {
+      required: true,
+      message: t('reportTemplates.validation.categoryRequired'),
+      trigger: 'change',
+    },
+  ],
+  format: [
+    { required: true, message: t('reportTemplates.validation.formatRequired'), trigger: 'change' },
+  ],
+  content: [
+    { required: true, message: t('reportTemplates.validation.contentRequired'), trigger: 'blur' },
+  ],
+};
 
 const openDialog = (row?: ReportTemplate) => {
   if (row) {
-    Object.assign(form, row)
-    parametersText.value = JSON.stringify(row.parameters || {}, null, 2)
+    Object.assign(form, row);
+    parametersText.value = JSON.stringify(row.parameters || {}, null, 2);
   } else {
     Object.assign(form, {
       id: undefined,
@@ -289,43 +402,46 @@ const openDialog = (row?: ReportTemplate) => {
       parameters: {},
       is_system: false,
       status: 'active',
-    })
-    parametersText.value = ''
+    });
+    parametersText.value = '';
   }
-  dialogVisible.value = true
-}
+  dialogVisible.value = true;
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
+    if (!valid) return;
 
-    submitLoading.value = true
+    submitLoading.value = true;
     try {
       if (parametersText.value) {
         try {
-          form.parameters = JSON.parse(parametersText.value)
+          form.parameters = JSON.parse(parametersText.value);
         } catch (e) {
-          ElMessage.error(t('reportTemplates.message.parametersFormatError'))
-          return
+          ElMessage.error(t('reportTemplates.message.parametersFormatError'));
+          return;
         }
       }
       if (form.id) {
-        await updateReportTemplate(form.id, form)
+        await updateReportTemplate(form.id, form);
       } else {
-        await createReportTemplate(form)
+        await createReportTemplate(form);
       }
-      ElMessage.success(t('reportTemplates.message.operationSuccess'))
-      dialogVisible.value = false
-      fetchData()
+      ElMessage.success(t('reportTemplates.message.operationSuccess'));
+      dialogVisible.value = false;
+      fetchData();
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('reportTemplates.message.operationFailed'))
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('reportTemplates.message.operationFailed')
+      );
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const handleDelete = async (row: ReportTemplate) => {
   try {
@@ -333,90 +449,103 @@ const handleDelete = async (row: ReportTemplate) => {
       t('reportTemplates.message.deleteConfirm'),
       t('reportTemplates.message.deleteConfirmTitle'),
       { type: 'warning' }
-    )
-    await deleteReportTemplate(row.id)
-    ElMessage.success(t('reportTemplates.message.deleteSuccess'))
-    fetchData()
+    );
+    await deleteReportTemplate(row.id);
+    ElMessage.success(t('reportTemplates.message.deleteSuccess'));
+    fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('reportTemplates.message.deleteFailed'))
+    if (error !== 'cancel')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('reportTemplates.message.deleteFailed')
+      );
   }
-}
+};
 
-const previewVisible = ref(false)
-const previewLoading = ref(false)
-const previewData = ref('')
+const previewVisible = ref(false);
+const previewLoading = ref(false);
+const previewData = ref('');
 
 // Wave B-2 修复（B3-1）：使用 DOMPurify.sanitize 净化预览 HTML 内容
 // 安全原因：v-html 默认不转义，后端返回的模板内容若包含恶意脚本（<script>、onerror 等），
 // 会在浏览器中执行导致 XSS 攻击。DOMPurify 通过白名单过滤危险标签和属性。
 const sanitizedPreview = computed(() => {
-  if (!previewData.value) return ''
+  if (!previewData.value) return '';
   return DOMPurify.sanitize(previewData.value, {
     USE_PROFILES: { html: true },
     // 禁止危险标签（脚本/iframe/object/embed），即使 DOMPurify 默认也会过滤，作为双保险
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
     FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
-  })
-})
+  });
+});
 
 const handlePreview = async (row: ReportTemplate) => {
-  previewLoading.value = true
-  previewVisible.value = true
+  previewLoading.value = true;
+  previewVisible.value = true;
   try {
-    const res = await previewReportTemplate(row.id)
+    const res = await previewReportTemplate(row.id);
     // P2-16 修复回归（批次 86）：res.data 是 ReportTemplatePreviewResult（结构化），
     // 渲染为 HTML 表格字符串供 v-html + DOMPurify 使用
     if (res.data && res.data.fields && res.data.rows) {
       // v14 中风险安全修复（批次 243）：表头与单元格值均经 escapeHtml 转义，
       // 防止后端返回的字段名/数据中包含 <img onerror> 等危险标签误导用户
-      const headerHtml = res.data.fields.map(f => `<th>${escapeHtml(f)}</th>`).join('')
+      const headerHtml = res.data.fields.map(f => `<th>${escapeHtml(f)}</th>`).join('');
       const bodyHtml = res.data.rows
-        .map((r: Record<string, unknown>) => `<tr>${(res.data?.fields ?? []).map(f => `<td>${escapeHtml(r[f])}</td>`).join('')}</tr>`)
-        .join('')
-      previewData.value = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`
+        .map(
+          (r: Record<string, unknown>) =>
+            `<tr>${(res.data?.fields ?? []).map(f => `<td>${escapeHtml(r[f])}</td>`).join('')}</tr>`
+        )
+        .join('');
+      previewData.value = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`;
     } else {
-      previewData.value = ''
+      previewData.value = '';
     }
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('reportTemplates.message.previewFailed'))
-    previewData.value = ''
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('reportTemplates.message.previewFailed')
+    );
+    previewData.value = '';
   } finally {
-    previewLoading.value = false
+    previewLoading.value = false;
   }
-}
+};
 
 const handleGenerate = async (row: ReportTemplate) => {
   try {
-    const blob = await generateReport(row.id, {})
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `${row.template_name}_${new Date().toISOString().split('T')[0]}.${row.format}`
-    link.click()
-    ElMessage.success(t('reportTemplates.message.generateSuccess'))
+    const blob = await generateReport(row.id, {});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${row.template_name}_${new Date().toISOString().split('T')[0]}.${row.format}`;
+    link.click();
+    ElMessage.success(t('reportTemplates.message.generateSuccess'));
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('reportTemplates.message.generateFailed'))
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('reportTemplates.message.generateFailed')
+    );
   }
-}
+};
 
 // 批次 277：搜索/重置（同步筛选条件到 useTableApi 后重置到第一页并刷新）
 const handleSearch = () => {
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
+  syncQueryParams();
+  page.value = 1;
+  fetchData();
+};
 
 // 批次 277：分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
 const handleSizeChange = (s: number) => {
-  pageSize.value = s
-  page.value = 1
-}
+  pageSize.value = s;
+  page.value = 1;
+};
 </script>
 
 <style scoped>

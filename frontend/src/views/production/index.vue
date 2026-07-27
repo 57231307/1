@@ -67,26 +67,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Plus, Download, Printer } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Plus, Download, Printer } from '@element-plus/icons-vue';
 import {
   createProductionOrder,
   updateProductionOrder,
   type ProductionOrder,
-} from '@/api/production'
-import { usePrd } from './composables/usePrd'
-import { usePrdProc } from './composables/usePrdProc'
-import ProductionFilter from './components/ProductionFilter.vue'
-import ProductionTable from './components/ProductionTable.vue'
-import ProductionForm from './components/ProductionForm.vue'
-import ProductionDetail from './components/ProductionDetail.vue'
+} from '@/api/production';
+import { usePrd } from './composables/usePrd';
+import { usePrdProc } from './composables/usePrdProc';
+import ProductionFilter from './components/ProductionFilter.vue';
+import ProductionTable from './components/ProductionTable.vue';
+import ProductionForm from './components/ProductionForm.vue';
+import ProductionDetail from './components/ProductionDetail.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const prd = usePrd()
+const prd = usePrd();
 const prdProc = usePrdProc({
   data: prd.data,
   refresh: prd.refresh,
@@ -94,67 +94,67 @@ const prdProc = usePrdProc({
     status: prd.queryParams.status as string | undefined,
     product_id: prd.queryParams.product_id as number | undefined,
   }),
-})
+});
 
 // 对话框状态
-const dialogVisible = ref(false)
-const detailVisible = ref(false)
-const currentOrder = ref<ProductionOrder | null>(null)
+const dialogVisible = ref(false);
+const detailVisible = ref(false);
+const currentOrder = ref<ProductionOrder | null>(null);
 
 /** 翻页 */
 const onPageChange = (p: number) => {
-  prd.page = p
-}
+  prd.page = p;
+};
 
 /** 调整每页大小 */
 const onSizeChange = (s: number) => {
-  prd.pageSize = s
-}
+  prd.pageSize = s;
+};
 
 /** 打开新建对话框 */
 const openCreate = () => {
-  prd.resetOrderForm()
-  dialogVisible.value = true
-}
+  prd.resetOrderForm();
+  dialogVisible.value = true;
+};
 
 /** 打开编辑对话框 */
 const onOpenEdit = (row: ProductionOrder) => {
-  prd.resetOrderForm()
-  Object.assign(prd.orderForm, row)
-  dialogVisible.value = true
-}
+  prd.resetOrderForm();
+  Object.assign(prd.orderForm, row);
+  dialogVisible.value = true;
+};
 
 /** 查看详情 */
 const onViewDetail = (row: ProductionOrder) => {
-  currentOrder.value = row
-  detailVisible.value = true
-}
+  currentOrder.value = row;
+  detailVisible.value = true;
+};
 
 /** 提交表单（创建/更新） */
 const onSubmitForm = async () => {
-  prd.submitLoading = true
+  prd.submitLoading = true;
   try {
     if (!prd.orderForm.id) {
-      await createProductionOrder(prd.orderForm as Partial<ProductionOrder>)
-      ElMessage.success(t('production.index.messageCreateSuccess'))
+      await createProductionOrder(prd.orderForm as Partial<ProductionOrder>);
+      ElMessage.success(t('production.index.messageCreateSuccess'));
     } else {
-      await updateProductionOrder(prd.orderForm.id, prd.orderForm as Partial<ProductionOrder>)
-      ElMessage.success(t('production.index.messageUpdateSuccess'))
+      await updateProductionOrder(prd.orderForm.id, prd.orderForm as Partial<ProductionOrder>);
+      ElMessage.success(t('production.index.messageUpdateSuccess'));
     }
-    dialogVisible.value = false
-    prd.resetOrderForm()
-    await prd.refresh()
+    dialogVisible.value = false;
+    prd.resetOrderForm();
+    await prd.refresh();
   } catch (e: unknown) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('production.index.messageOperationFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('production.index.messageOperationFailed'));
   } finally {
-    prd.submitLoading = false
+    prd.submitLoading = false;
   }
-}
+};
 
 onMounted(() => {
-  prd.refresh()
-})
+  prd.refresh();
+});
 </script>
 
 <style scoped>

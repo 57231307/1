@@ -11,10 +11,10 @@
  * 6. 利润分析
  * 7. 多维筛选 + 钻取
  */
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import * as echarts from 'echarts';
 import {
   getKpiSummary,
   getSalesTrend,
@@ -23,29 +23,36 @@ import {
   getSalesByRegion,
   getProfitAnalysis,
   getDrilldownYearToMonth,
-} from '@/api/bi'
-import type { KpiSummary, TimeSeriesPoint, CustomerRank, ProductRank, RegionStat, ProfitAnalysis } from '@/api/bi'
-import logger from '@/utils/logger'
+} from '@/api/bi';
+import type {
+  KpiSummary,
+  TimeSeriesPoint,
+  CustomerRank,
+  ProductRank,
+  RegionStat,
+  ProfitAnalysis,
+} from '@/api/bi';
+import logger from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const kpi = ref<KpiSummary | null>(null)
-const trend = ref<TimeSeriesPoint[]>([])
-const customers = ref<CustomerRank[]>([])
-const products = ref<ProductRank[]>([])
-const regions = ref<RegionStat[]>([])
-const profit = ref<ProfitAnalysis | null>(null)
-const monthlyData = ref<TimeSeriesPoint[]>([])
+const kpi = ref<KpiSummary | null>(null);
+const trend = ref<TimeSeriesPoint[]>([]);
+const customers = ref<CustomerRank[]>([]);
+const products = ref<ProductRank[]>([]);
+const regions = ref<RegionStat[]>([]);
+const profit = ref<ProfitAnalysis | null>(null);
+const monthlyData = ref<TimeSeriesPoint[]>([]);
 
-const trendChartRef = ref<HTMLDivElement>()
-const customerChartRef = ref<HTMLDivElement>()
-const productChartRef = ref<HTMLDivElement>()
-const regionChartRef = ref<HTMLDivElement>()
+const trendChartRef = ref<HTMLDivElement>();
+const customerChartRef = ref<HTMLDivElement>();
+const productChartRef = ref<HTMLDivElement>();
+const regionChartRef = ref<HTMLDivElement>();
 
-let trendChart: echarts.ECharts | null = null
-let customerChart: echarts.ECharts | null = null
-let productChart: echarts.ECharts | null = null
-let regionChart: echarts.ECharts | null = null
+let trendChart: echarts.ECharts | null = null;
+let customerChart: echarts.ECharts | null = null;
+let productChart: echarts.ECharts | null = null;
+let regionChart: echarts.ECharts | null = null;
 
 async function loadAll() {
   try {
@@ -56,58 +63,74 @@ async function loadAll() {
       getSalesByProduct(10),
       getSalesByRegion(),
       getProfitAnalysis(),
-    ])
-    kpi.value = k.data
-    trend.value = tr.data
-    customers.value = c.data
-    products.value = p.data
-    regions.value = r.data
-    profit.value = prof.data
+    ]);
+    kpi.value = k.data;
+    trend.value = tr.data;
+    customers.value = c.data;
+    products.value = p.data;
+    regions.value = r.data;
+    profit.value = prof.data;
 
     // 钻取 2026 年 → 月
-    const monthly = await getDrilldownYearToMonth(2026)
-    monthlyData.value = monthly.data
+    const monthly = await getDrilldownYearToMonth(2026);
+    monthlyData.value = monthly.data;
 
-    renderCharts()
+    renderCharts();
   } catch (e) {
-    ElMessage.error(t('biSalesAnalysis.message.loadFailed'))
-    logger.error(t('biSalesAnalysis.message.loadFailed'), e)
+    ElMessage.error(t('biSalesAnalysis.message.loadFailed'));
+    logger.error(t('biSalesAnalysis.message.loadFailed'), e);
   }
 }
 
 function renderCharts() {
   // 1. 销售趋势
   if (trendChartRef.value) {
-    trendChart = echarts.init(trendChartRef.value)
+    trendChart = echarts.init(trendChartRef.value);
     trendChart.setOption({
       title: { text: t('biSalesAnalysis.chart.salesTrendTitle'), left: 'center' },
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: trend.value.map((p) => p.period) },
+      xAxis: { type: 'category', data: trend.value.map(p => p.period) },
       yAxis: { type: 'value' },
       series: [
-        { name: t('biSalesAnalysis.chart.salesAmount'), data: trend.value.map((p) => p.total_amount), type: 'line', smooth: true, itemStyle: { color: '#409EFF' } },
-        { name: t('biSalesAnalysis.chart.profit'), data: trend.value.map((p) => p.profit_amount), type: 'line', smooth: true, itemStyle: { color: '#67C23A' } },
+        {
+          name: t('biSalesAnalysis.chart.salesAmount'),
+          data: trend.value.map(p => p.total_amount),
+          type: 'line',
+          smooth: true,
+          itemStyle: { color: '#409EFF' },
+        },
+        {
+          name: t('biSalesAnalysis.chart.profit'),
+          data: trend.value.map(p => p.profit_amount),
+          type: 'line',
+          smooth: true,
+          itemStyle: { color: '#67C23A' },
+        },
       ],
-    })
+    });
   }
 
   // 2. 客户排行
   if (customerChartRef.value) {
-    customerChart = echarts.init(customerChartRef.value)
+    customerChart = echarts.init(customerChartRef.value);
     customerChart.setOption({
       title: { text: t('biSalesAnalysis.chart.customerRankTitle'), left: 'center' },
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'value' },
-      yAxis: { type: 'category', data: customers.value.map((c) => c.customer_name).reverse() },
+      yAxis: { type: 'category', data: customers.value.map(c => c.customer_name).reverse() },
       series: [
-        { type: 'bar', data: customers.value.map((c) => c.total_amount).reverse(), itemStyle: { color: '#E6A23C' } },
+        {
+          type: 'bar',
+          data: customers.value.map(c => c.total_amount).reverse(),
+          itemStyle: { color: '#E6A23C' },
+        },
       ],
-    })
+    });
   }
 
   // 3. 产品分布
   if (productChartRef.value) {
-    productChart = echarts.init(productChartRef.value)
+    productChart = echarts.init(productChartRef.value);
     productChart.setOption({
       title: { text: t('biSalesAnalysis.chart.productDistTitle'), left: 'center' },
       tooltip: { trigger: 'item' },
@@ -116,48 +139,52 @@ function renderCharts() {
           name: t('biSalesAnalysis.chart.salesAmount'),
           type: 'pie',
           radius: '50%',
-          data: products.value.map((p) => ({ name: p.product_name, value: p.total_amount })),
+          data: products.value.map(p => ({ name: p.product_name, value: p.total_amount })),
         },
       ],
-    })
+    });
   }
 
   // 4. 区域热力
   if (regionChartRef.value) {
-    regionChart = echarts.init(regionChartRef.value)
+    regionChart = echarts.init(regionChartRef.value);
     regionChart.setOption({
       title: { text: t('biSalesAnalysis.chart.regionDistTitle'), left: 'center' },
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: regions.value.map((r) => r.region) },
+      xAxis: { type: 'category', data: regions.value.map(r => r.region) },
       yAxis: { type: 'value' },
       series: [
-        { type: 'bar', data: regions.value.map((r) => r.total_amount), itemStyle: { color: '#F56C6C' } },
+        {
+          type: 'bar',
+          data: regions.value.map(r => r.total_amount),
+          itemStyle: { color: '#F56C6C' },
+        },
       ],
-    })
+    });
   }
 }
 
 function formatCurrency(n: number | undefined) {
-  if (n === undefined) return '—'
-  return `¥${n.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+  if (n === undefined) return '—';
+  return `¥${n.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
 }
 
 onMounted(() => {
-  loadAll()
-  window.addEventListener('resize', resizeCharts)
-})
+  loadAll();
+  window.addEventListener('resize', resizeCharts);
+});
 
 onBeforeUnmount(() => {
   // 清理 window resize 监听器，防止组件卸载后内存泄漏
   // 多次进入 BI 销售分析页面时，旧的 listener 不释放会持续累积，导致内存占用线性增长
-  window.removeEventListener('resize', resizeCharts)
-})
+  window.removeEventListener('resize', resizeCharts);
+});
 
 function resizeCharts() {
-  trendChart?.resize()
-  customerChart?.resize()
-  productChart?.resize()
-  regionChart?.resize()
+  trendChart?.resize();
+  customerChart?.resize();
+  productChart?.resize();
+  regionChart?.resize();
 }
 </script>
 
@@ -222,13 +249,25 @@ function resizeCharts() {
     <!-- 5. 月度钻取 -->
     <el-card class="chart-card">
       <h3>{{ $t('biSalesAnalysis.monthly.title', { year: 2026 }) }}</h3>
-      <el-table :data="monthlyData" stripe :aria-label="$t('biSalesAnalysis.monthly.tableAriaLabel')">
+      <el-table
+        :data="monthlyData"
+        stripe
+        :aria-label="$t('biSalesAnalysis.monthly.tableAriaLabel')"
+      >
         <el-table-column prop="period" :label="$t('biSalesAnalysis.monthly.period')" width="120" />
         <el-table-column prop="total_amount" :label="$t('biSalesAnalysis.monthly.totalAmount')">
           <template #default="{ row }">{{ formatCurrency(row.total_amount) }}</template>
         </el-table-column>
-        <el-table-column prop="order_count" :label="$t('biSalesAnalysis.monthly.orderCount')" width="120" />
-        <el-table-column prop="quantity" :label="$t('biSalesAnalysis.monthly.quantity')" width="120" />
+        <el-table-column
+          prop="order_count"
+          :label="$t('biSalesAnalysis.monthly.orderCount')"
+          width="120"
+        />
+        <el-table-column
+          prop="quantity"
+          :label="$t('biSalesAnalysis.monthly.quantity')"
+          width="120"
+        />
         <el-table-column prop="profit_amount" :label="$t('biSalesAnalysis.monthly.profitAmount')">
           <template #default="{ row }">{{ formatCurrency(row.profit_amount) }}</template>
         </el-table-column>
@@ -238,13 +277,42 @@ function resizeCharts() {
 </template>
 
 <style scoped>
-.bi-sales-analysis { padding: 20px; }
-.bi-sales-analysis h2 { margin-bottom: 20px; }
-.kpi-row { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-.kpi-card { flex: 1; min-width: 180px; text-align: center; }
-.kpi-label { color: #909399; font-size: 14px; }
-.kpi-value { font-size: 24px; font-weight: bold; color: #303133; margin: 8px 0; }
-.kpi-trend.up { color: #67c23a; font-size: 12px; }
-.kpi-trend.down { color: #f56c6c; font-size: 12px; }
-.chart-card { margin-bottom: 16px; }
+.bi-sales-analysis {
+  padding: 20px;
+}
+.bi-sales-analysis h2 {
+  margin-bottom: 20px;
+}
+.kpi-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.kpi-card {
+  flex: 1;
+  min-width: 180px;
+  text-align: center;
+}
+.kpi-label {
+  color: #909399;
+  font-size: 14px;
+}
+.kpi-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #303133;
+  margin: 8px 0;
+}
+.kpi-trend.up {
+  color: #67c23a;
+  font-size: 12px;
+}
+.kpi-trend.down {
+  color: #f56c6c;
+  font-size: 12px;
+}
+.chart-card {
+  margin-bottom: 16px;
+}
 </style>

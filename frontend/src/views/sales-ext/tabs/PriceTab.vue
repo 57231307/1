@@ -257,11 +257,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { reactive, ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getSalesPriceList,
   approveSalesPrice,
@@ -269,49 +269,49 @@ import {
   updateSalesPrice,
   getSalesPrice,
   type SalesPrice,
-} from '@/api/sales-price'
+} from '@/api/sales-price';
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-prices 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const salesPrices = ref<SalesPrice[]>([])
-const priceLoading = ref(false)
+const salesPrices = ref<SalesPrice[]>([]);
+const priceLoading = ref(false);
 
 const priceQuery = reactive({
   productName: '',
   customerName: '',
   status: '',
-})
+});
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const fetchSalesPrices = async () => {
-  priceLoading.value = true
+  priceLoading.value = true;
   try {
-    const res = await getSalesPriceList(priceQuery)
-    salesPrices.value = res.data?.list || []
+    const res = await getSalesPriceList(priceQuery);
+    salesPrices.value = res.data?.list || [];
   } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || t('salesExt.priceTab.messageFetchFailed'))
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('salesExt.priceTab.messageFetchFailed'));
   } finally {
-    priceLoading.value = false
+    priceLoading.value = false;
   }
-}
+};
 
 const resetPriceQuery = () => {
-  priceQuery.productName = ''
-  priceQuery.customerName = ''
-  priceQuery.status = ''
-  fetchSalesPrices()
-}
+  priceQuery.productName = '';
+  priceQuery.customerName = '';
+  priceQuery.status = '';
+  fetchSalesPrices();
+};
 
 // 扩展指令（批次 86）：补全价格编辑表单状态，替换原占位符
-const priceDialogVisible = ref(false)
-const priceFormRef = ref<FormInstance>()
-const priceSubmitLoading = ref(false)
+const priceDialogVisible = ref(false);
+const priceFormRef = ref<FormInstance>();
+const priceSubmitLoading = ref(false);
 const priceForm = reactive({
   id: 0,
   product_id: 0,
@@ -326,7 +326,7 @@ const priceForm = reactive({
   expiry_date: '',
   status: 'pending' as SalesPrice['status'],
   remark: '',
-})
+});
 
 const priceRules: FormRules = {
   product_name: [
@@ -339,13 +339,13 @@ const priceRules: FormRules = {
   effective_date: [
     { required: true, message: t('salesExt.priceTab.ruleEffectiveDate'), trigger: 'change' },
   ],
-}
+};
 
 const openPriceDialog = async (row?: SalesPrice) => {
   if (row) {
-    const res = await getSalesPrice(row.id)
+    const res = await getSalesPrice(row.id);
     // 安全检查：防止后端返回 data 为 null 时崩溃
-    if (res.data) Object.assign(priceForm, res.data)
+    if (res.data) Object.assign(priceForm, res.data);
   } else {
     Object.assign(priceForm, {
       id: 0,
@@ -361,48 +361,48 @@ const openPriceDialog = async (row?: SalesPrice) => {
       expiry_date: '',
       status: 'pending',
       remark: '',
-    })
+    });
   }
-  priceDialogVisible.value = true
-}
+  priceDialogVisible.value = true;
+};
 
 const submitPrice = async () => {
-  const valid = await priceFormRef.value?.validate()
-  if (!valid) return
+  const valid = await priceFormRef.value?.validate();
+  if (!valid) return;
 
-  priceSubmitLoading.value = true
+  priceSubmitLoading.value = true;
   try {
     if (priceForm.id) {
-      await updateSalesPrice(priceForm.id, priceForm)
-      ElMessage.success(t('salesExt.priceTab.messageUpdateSuccess'))
+      await updateSalesPrice(priceForm.id, priceForm);
+      ElMessage.success(t('salesExt.priceTab.messageUpdateSuccess'));
     } else {
-      await createSalesPrice(priceForm)
-      ElMessage.success(t('salesExt.priceTab.messageCreateSuccess'))
+      await createSalesPrice(priceForm);
+      ElMessage.success(t('salesExt.priceTab.messageCreateSuccess'));
     }
-    priceDialogVisible.value = false
-    fetchSalesPrices()
+    priceDialogVisible.value = false;
+    fetchSalesPrices();
   } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || t('salesExt.priceTab.messageOperationFailed'))
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('salesExt.priceTab.messageOperationFailed'));
   } finally {
-    priceSubmitLoading.value = false
+    priceSubmitLoading.value = false;
   }
-}
+};
 
 const approvePrice = async (row: SalesPrice) => {
   try {
-    await approveSalesPrice(row.id)
-    ElMessage.success(t('salesExt.priceTab.messageApproveSuccess'))
-    fetchSalesPrices()
+    await approveSalesPrice(row.id);
+    ElMessage.success(t('salesExt.priceTab.messageApproveSuccess'));
+    fetchSalesPrices();
   } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || t('salesExt.priceTab.messageOperationFailed'))
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('salesExt.priceTab.messageOperationFailed'));
   }
-}
+};
 
-defineExpose({ refresh: fetchSalesPrices })
+defineExpose({ refresh: fetchSalesPrices });
 
 onMounted(() => {
-  fetchSalesPrices()
-})
+  fetchSalesPrices();
+});
 </script>

@@ -13,7 +13,7 @@
       :suppliers="list.suppliers.value"
       :on-query="list.handleQuery"
       :on-reset="list.handleReset"
-      @update:query-params="(v) => Object.assign(list.queryParams, v)"
+      @update:query-params="v => Object.assign(list.queryParams, v)"
     />
 
     <PurchaseTable
@@ -29,7 +29,7 @@
       :get-status-text="list.getStatusText"
       :get-payment-status-type="list.getPaymentStatusType"
       :get-payment-status-text="list.getPaymentStatusText"
-      @update:query-params="(v) => Object.assign(list.queryParams, v)"
+      @update:query-params="v => Object.assign(list.queryParams, v)"
     />
 
     <!-- 新建采购单对话框 -->
@@ -49,7 +49,7 @@
       :on-calculate-subtotal="create.calculateSubtotal"
       :calculate-total="create.calculateTotal"
       @update:model-value="(v: boolean) => (create.createDialogVisible.value = v)"
-      @update:form="(v) => (create.createForm.value = v)"
+      @update:form="v => (create.createForm.value = v)"
     />
 
     <!-- 收货对话框 -->
@@ -61,7 +61,7 @@
       :on-submit="rcv.submitReceive"
       :on-cancel="() => (rcv.receiveDialogVisible.value = false)"
       @update:model-value="(v: boolean) => (rcv.receiveDialogVisible.value = v)"
-      @update:form="(v) => (rcv.receiveForm.value = v)"
+      @update:form="v => (rcv.receiveForm.value = v)"
     />
 
     <!-- 查看对话框 -->
@@ -79,24 +79,24 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { usePurchList } from './composables/usePurchList'
-import { usePurchAct } from './composables/usePurchAct'
-import { usePurchRcv } from './composables/usePurchRcv'
-import { useCreate } from './composables/useCreate'
-import { type PurchaseOrder } from '@/api/purchase'
-import PurchaseTop from './components/PurchaseTop.vue'
-import StatCards from './components/StatCards.vue'
-import PurchaseFilter from './components/PurchaseFilter.vue'
-import PurchaseTable from './components/PurchaseTable.vue'
-import CreateDlg from './components/CreateDlg.vue'
-import ReceiveDlg from './components/ReceiveDlg.vue'
-import ViewDlg from './components/ViewDlg.vue'
+import { useI18n } from 'vue-i18n';
+import { usePurchList } from './composables/usePurchList';
+import { usePurchAct } from './composables/usePurchAct';
+import { usePurchRcv } from './composables/usePurchRcv';
+import { useCreate } from './composables/useCreate';
+import { type PurchaseOrder } from '@/api/purchase';
+import PurchaseTop from './components/PurchaseTop.vue';
+import StatCards from './components/StatCards.vue';
+import PurchaseFilter from './components/PurchaseFilter.vue';
+import PurchaseTable from './components/PurchaseTable.vue';
+import CreateDlg from './components/CreateDlg.vue';
+import ReceiveDlg from './components/ReceiveDlg.vue';
+import ViewDlg from './components/ViewDlg.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 列表与查询（含统计与工具函数）
-const list = usePurchList()
+const list = usePurchList();
 
 // 业务操作（查看/审批/打印/导出）
 // V15 P0-S12 修复（Batch 475b）：传入 getQueryParams，导出时传递列表筛选条件
@@ -105,19 +105,16 @@ const act = usePurchAct(
   list.getStatusText,
   list.fetchData,
   () => ({ status: list.queryParams.status, supplier_id: list.queryParams.supplier_id })
-)
+);
 
 // 收货（打开收货对话框 + 提交收货）
-const rcv = usePurchRcv(list.fetchData)
+const rcv = usePurchRcv(list.fetchData);
 
 // 新建采购单（表单对话框）
-const create = useCreate(
-  () => list.products.value,
-  list.fetchData
-)
+const create = useCreate(() => list.products.value, list.fetchData);
 
 // 初始化：按需懒加载数据
-list.initPage()
+list.initPage();
 </script>
 
 <style scoped>

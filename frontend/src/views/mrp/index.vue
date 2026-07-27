@@ -178,29 +178,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { useI18n } from 'vue-i18n'
-import { Cpu, ShoppingCart, Document } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted } from 'vue';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { useI18n } from 'vue-i18n';
+import { Cpu, ShoppingCart, Document } from '@element-plus/icons-vue';
 import {
   calculateMrp,
   convertToOrder,
   getProductsForMrp,
   type MrpProduct,
   type MrpMaterialRequirement,
-} from '../../api/mrp'
+} from '../../api/mrp';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const calcFormRef = ref<FormInstance>()
-const calcLoading = ref(false)
-const resultLoading = ref(false)
-const productLoading = ref(false)
-const resultVisible = ref(false)
-const productOptions = ref<MrpProduct[]>([])
-const materialList = ref<MrpMaterialRequirement[]>([])
-const selectedMaterials = ref<MrpMaterialRequirement[]>([])
-const currentCalculationId = ref<number>(0)
+const calcFormRef = ref<FormInstance>();
+const calcLoading = ref(false);
+const resultLoading = ref(false);
+const productLoading = ref(false);
+const resultVisible = ref(false);
+const productOptions = ref<MrpProduct[]>([]);
+const materialList = ref<MrpMaterialRequirement[]>([]);
+const selectedMaterials = ref<MrpMaterialRequirement[]>([]);
+const currentCalculationId = ref<number>(0);
 
 const calcForm = reactive({
   product_ids: [] as number[],
@@ -208,7 +208,7 @@ const calcForm = reactive({
   demand_date: '',
   consider_safety_stock: true,
   consider_in_transit: true,
-})
+});
 
 const calcRules: FormRules = {
   product_ids: [
@@ -218,77 +218,77 @@ const calcRules: FormRules = {
     { required: true, message: t('mrp.calc.demandQuantityRequired'), trigger: 'blur' },
   ],
   demand_date: [{ required: true, message: t('mrp.calc.demandDateRequired'), trigger: 'change' }],
-}
+};
 
 const searchProducts = async (query: string) => {
   if (query) {
-    productLoading.value = true
+    productLoading.value = true;
     try {
-      const res = await getProductsForMrp({ keyword: query })
-      productOptions.value = res.data || []
+      const res = await getProductsForMrp({ keyword: query });
+      productOptions.value = res.data || [];
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('mrp.calc.fetchProductsError')
-      )
+      );
     } finally {
-      productLoading.value = false
+      productLoading.value = false;
     }
   }
-}
+};
 
 const handleCalculate = async () => {
-  if (!calcFormRef.value) return
+  if (!calcFormRef.value) return;
 
   await calcFormRef.value.validate(async valid => {
-    if (!valid) return
+    if (!valid) return;
 
-    calcLoading.value = true
+    calcLoading.value = true;
     try {
-      const res = await calculateMrp(calcForm)
-      materialList.value = res.data.materials || []
-      currentCalculationId.value = res.data.calculation_id
-      resultVisible.value = true
-      selectedMaterials.value = []
-      ElMessage.success(t('mrp.calc.calcSuccess'))
+      const res = await calculateMrp(calcForm);
+      materialList.value = res.data.materials || [];
+      currentCalculationId.value = res.data.calculation_id;
+      resultVisible.value = true;
+      selectedMaterials.value = [];
+      ElMessage.success(t('mrp.calc.calcSuccess'));
     } catch (e: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('mrp.calc.calcFailed'))
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('mrp.calc.calcFailed'));
     } finally {
-      calcLoading.value = false
+      calcLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const resetCalcForm = () => {
-  calcForm.product_ids = []
-  calcForm.demand_quantity = 1
-  calcForm.demand_date = ''
-  calcForm.consider_safety_stock = true
-  calcForm.consider_in_transit = true
-  resultVisible.value = false
-  materialList.value = []
-  calcFormRef.value?.clearValidate()
-}
+  calcForm.product_ids = [];
+  calcForm.demand_quantity = 1;
+  calcForm.demand_date = '';
+  calcForm.consider_safety_stock = true;
+  calcForm.consider_in_transit = true;
+  resultVisible.value = false;
+  materialList.value = [];
+  calcFormRef.value?.clearValidate();
+};
 
 const handleSelectionChange = (selection: MrpMaterialRequirement[]) => {
-  selectedMaterials.value = selection
-}
+  selectedMaterials.value = selection;
+};
 
 /**
  * 转换订单类型标签
  */
 const getOrderTypeLabel = (orderType: 'purchase' | 'production') => {
-  return orderType === 'purchase' ? t('mrp.calc.purchaseOrder') : t('mrp.calc.productionOrder')
-}
+  return orderType === 'purchase' ? t('mrp.calc.purchaseOrder') : t('mrp.calc.productionOrder');
+};
 
 const handleConvert = async (orderType: 'purchase' | 'production') => {
   if (selectedMaterials.value.length === 0) {
-    ElMessage.warning(t('mrp.calc.selectMaterialFirst'))
-    return
+    ElMessage.warning(t('mrp.calc.selectMaterialFirst'));
+    return;
   }
 
-  const typeLabel = getOrderTypeLabel(orderType)
+  const typeLabel = getOrderTypeLabel(orderType);
 
   try {
     await ElMessageBox.confirm(
@@ -300,29 +300,29 @@ const handleConvert = async (orderType: 'purchase' | 'production') => {
       {
         type: 'warning',
       }
-    )
+    );
 
-    const materialIds = selectedMaterials.value.map(item => item.id)
+    const materialIds = selectedMaterials.value.map(item => item.id);
     const res = await convertToOrder({
       calculation_id: currentCalculationId.value,
       material_ids: materialIds,
       order_type: orderType,
-    })
+    });
 
     ElMessage.success(
       t('mrp.calc.convertSuccess', { count: res.data.order_ids.length, type: typeLabel })
-    )
+    );
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {
-      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('mrp.calc.convertFailed'))
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || t('mrp.calc.convertFailed'));
     }
   }
-}
+};
 
 onMounted(() => {
-  searchProducts('')
-})
+  searchProducts('');
+});
 </script>
 
 <style scoped>

@@ -170,26 +170,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Money } from '@element-plus/icons-vue'
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Money } from '@element-plus/icons-vue';
 import {
   getFundAccountList,
   getFundTransfer,
   transferFund,
   type FundAccount,
   type FundTransferRecord,
-} from '@/api/fund'
+} from '@/api/fund';
 // 批次 280：接入 useTableApi，消除手写 transferList/transferLoading/transferTotal/fetchTransfers 重复
-import { useTableApi } from '@/composables/useTableApi'
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const transferSubmitLoading = ref(false)
-const transferVisible = ref(false)
-const accountList = ref<FundAccount[]>([])
-const transferFormRef = ref<FormInstance>()
+const transferSubmitLoading = ref(false);
+const transferVisible = ref(false);
+const accountList = ref<FundAccount[]>([]);
+const transferFormRef = ref<FormInstance>();
 
 // 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
 // getFundTransferList 返回 ApiResponse<FundTransferRecord[]>（{ data: T[] }），useTableApi detectList 会 fallback 到 obj.data
@@ -206,14 +206,14 @@ const {
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) || t('fund.transferTab.messageFetchFailed')
     ),
-})
+});
 
 const transferForm = reactive({
   from_account_id: undefined as number | undefined,
   to_account_id: undefined as number | undefined,
   amount: 0,
   remark: '',
-})
+});
 
 const transferRules: FormRules = {
   from_account_id: [
@@ -227,29 +227,29 @@ const transferRules: FormRules = {
     {
       validator: (_rule, value, callback) => {
         if (value <= 0) {
-          callback(new Error(t('fund.transferTab.validateAmountPositive')))
+          callback(new Error(t('fund.transferTab.validateAmountPositive')));
         } else if (value > availableBalance.value) {
-          callback(new Error(t('fund.transferTab.validateAmountExceed')))
+          callback(new Error(t('fund.transferTab.validateAmountExceed')));
         } else {
-          callback()
+          callback();
         }
       },
       trigger: 'blur',
     },
   ],
-}
+};
 
 const activeAccounts = computed(() => {
-  return accountList.value.filter(acc => acc.status === 'active')
-})
+  return accountList.value.filter(acc => acc.status === 'active');
+});
 
 const otherAccounts = computed(() => {
-  return activeAccounts.value.filter(acc => acc.id !== transferForm.from_account_id)
-})
+  return activeAccounts.value.filter(acc => acc.id !== transferForm.from_account_id);
+});
 
 const selectedFromAccount = computed(() => {
-  return accountList.value.find(acc => acc.id === transferForm.from_account_id)
-})
+  return accountList.value.find(acc => acc.id === transferForm.from_account_id);
+});
 
 const availableBalance = computed(() => {
   return selectedFromAccount.value
@@ -257,8 +257,8 @@ const availableBalance = computed(() => {
         selectedFromAccount.value.current_balance ||
         selectedFromAccount.value.balance ||
         0
-    : 999999999
-})
+    : 999999999;
+});
 
 /** 格式化转出账户下拉选项标签 */
 const formatFromAccountLabel = (account: FundAccount): string => {
@@ -267,66 +267,66 @@ const formatFromAccountLabel = (account: FundAccount): string => {
     account.current_balance ||
     account.balance ||
     0
-  ).toFixed(2)
-  return `${account.account_name} (${t('fund.transferTab.available')}: ¥${balance})`
-}
+  ).toFixed(2);
+  return `${account.account_name} (${t('fund.transferTab.available')}: ¥${balance})`;
+};
 
 /** 格式化转入账户下拉选项标签 */
 const formatToAccountLabel = (account: FundAccount): string => {
-  const balance = (account.current_balance || account.balance || 0).toFixed(2)
-  return `${account.account_name} (${t('fund.transferTab.current')}: ¥${balance})`
-}
+  const balance = (account.current_balance || account.balance || 0).toFixed(2);
+  return `${account.account_name} (${t('fund.transferTab.current')}: ¥${balance})`;
+};
 
 const fetchAccounts = async () => {
   try {
-    const res = await getFundAccountList()
+    const res = await getFundAccountList();
     const d = res.data as
       | { list?: FundAccount[]; items?: FundAccount[]; data?: FundAccount[] }
-      | FundAccount[]
-    accountList.value = Array.isArray(d) ? d : d?.list || d?.items || []
+      | FundAccount[];
+    accountList.value = Array.isArray(d) ? d : d?.list || d?.items || [];
   } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || t('fund.transferTab.messageFetchAccountsFailed'))
+    const err = e as Error;
+    ElMessage.error(err.message || t('fund.transferTab.messageFetchAccountsFailed'));
   }
-}
+};
 
 const openTransferDialog = () => {
-  transferForm.from_account_id = undefined
-  transferForm.to_account_id = undefined
-  transferForm.amount = 0
-  transferForm.remark = ''
-  transferVisible.value = true
-}
+  transferForm.from_account_id = undefined;
+  transferForm.to_account_id = undefined;
+  transferForm.amount = 0;
+  transferForm.remark = '';
+  transferVisible.value = true;
+};
 
 const handleFromAccountChange = () => {
   if (transferForm.from_account_id === transferForm.to_account_id) {
-    transferForm.to_account_id = undefined
+    transferForm.to_account_id = undefined;
   }
-}
+};
 
 const handleTransferSubmit = async () => {
-  if (!transferFormRef.value) return
+  if (!transferFormRef.value) return;
   await transferFormRef.value.validate(async valid => {
-    if (!valid) return
-    transferSubmitLoading.value = true
+    if (!valid) return;
+    transferSubmitLoading.value = true;
     try {
       await transferFund({
         from_account_id: transferForm.from_account_id!,
         to_account_id: transferForm.to_account_id!,
         amount: transferForm.amount,
         remark: transferForm.remark,
-      })
-      ElMessage.success(t('fund.transferTab.messageTransferSuccess'))
-      transferVisible.value = false
-      fetchTransfers()
+      });
+      ElMessage.success(t('fund.transferTab.messageTransferSuccess'));
+      transferVisible.value = false;
+      fetchTransfers();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('fund.transferTab.messageTransferFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('fund.transferTab.messageTransferFailed'));
     } finally {
-      transferSubmitLoading.value = false
+      transferSubmitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 /** 构造转账详情多行文本（拆分以控制 viewTransferDetail 行数） */
 const buildTransferDetailLines = (d: FundTransferRecord): string[] => {
@@ -338,27 +338,27 @@ const buildTransferDetailLines = (d: FundTransferRecord): string[] => {
     t('fund.transferTab.detailCurrentStatus', { value: getTransferStatusLabel(d.status) }),
     t('fund.transferTab.detailCreatedAt', { value: d.created_at }),
     t('fund.transferTab.detailRemark', { value: d.remark || '-' }),
-  ]
-}
+  ];
+};
 
 // 批次 157a P1-1 修复：接入 getFundTransfer API 展示转账详情
 const viewTransferDetail = async (row: FundTransferRecord) => {
   try {
-    const res = await getFundTransfer(row.id)
-    const d = res.data
+    const res = await getFundTransfer(row.id);
+    const d = res.data;
     if (!d) {
-      ElMessage.warning(t('fund.transferTab.messageDetailNotFound'))
-      return
+      ElMessage.warning(t('fund.transferTab.messageDetailNotFound'));
+      return;
     }
-    const lines = buildTransferDetailLines(d)
+    const lines = buildTransferDetailLines(d);
     await ElMessageBox.alert(lines.join('\n'), t('fund.transferTab.detailTitle'), {
       confirmButtonText: t('fund.transferTab.buttonClose'),
-    })
+    });
   } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || t('fund.transferTab.messageFetchDetailFailed'))
+    const err = e as Error;
+    ElMessage.error(err.message || t('fund.transferTab.messageFetchDetailFailed'));
   }
-}
+};
 
 const getTransferStatusType = (status: string) => {
   const map: Record<string, string> = {
@@ -366,27 +366,27 @@ const getTransferStatusType = (status: string) => {
     pending: 'warning',
     failed: 'danger',
     processing: 'info',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 /** 转账状态 → i18n 标签（语言切换响应） */
 const getTransferStatusLabel = (status: string): string => {
   switch (status) {
     case 'success':
-      return t('fund.transferTab.statusSuccess')
+      return t('fund.transferTab.statusSuccess');
     case 'pending':
-      return t('fund.transferTab.statusPending')
+      return t('fund.transferTab.statusPending');
     case 'failed':
-      return t('fund.transferTab.statusFailed')
+      return t('fund.transferTab.statusFailed');
     case 'processing':
-      return t('fund.transferTab.statusProcessing')
+      return t('fund.transferTab.statusProcessing');
     default:
-      return status
+      return status;
   }
-}
+};
 
 onMounted(() => {
-  fetchAccounts()
-})
+  fetchAccounts();
+});
 </script>

@@ -147,38 +147,38 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { SalesPrice } from '@/api/sales-price'
-import { formatCurrency, getStatusType } from '../composables/spFmts'
+import { useI18n } from 'vue-i18n';
+import type { SalesPrice } from '@/api/sales-price';
+import { formatCurrency, getStatusType } from '../composables/spFmts';
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-prices 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 销售价格列表表格组件（批次 284：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
   // 列表数据
-  priceList: SalesPrice[]
+  priceList: SalesPrice[];
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 总数
-  total: number
+  total: number;
   // 当前页
-  page: number
+  page: number;
   // 每页条数
-  pageSize: number
-}>()
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
-  view: [row: SalesPrice]
-  edit: [row: SalesPrice]
-  approve: [row: SalesPrice]
-  history: [row: SalesPrice]
-  'update:page': [v: number]
-  'update:page-size': [v: number]
-}>()
+  view: [row: SalesPrice];
+  edit: [row: SalesPrice];
+  approve: [row: SalesPrice];
+  history: [row: SalesPrice];
+  'update:page': [v: number];
+  'update:page-size': [v: number];
+}>();
 
 /** 获取价格类型标签（i18n 响应式） */
 const getPriceTypeLabel = (type: string) => {
@@ -186,9 +186,9 @@ const getPriceTypeLabel = (type: string) => {
     STANDARD: t('salesPrice.table.priceTypeStandard'),
     AGREED: t('salesPrice.table.priceTypeAgreed'),
     PROMOTION: t('salesPrice.table.priceTypePromotion'),
-  }
-  return map[type] || type
-}
+  };
+  return map[type] || type;
+};
 
 /** 获取销售价格状态标签（i18n 响应式） */
 const getStatusLabel = (status: string) => {
@@ -197,9 +197,9 @@ const getStatusLabel = (status: string) => {
     active: t('salesPrice.table.statusActive'),
     expired: t('salesPrice.table.statusExpired'),
     inactive: t('salesPrice.table.statusInactive'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 </script>
 
 <style scoped>

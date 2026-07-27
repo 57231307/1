@@ -1,35 +1,35 @@
-import axios from 'axios'
-import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
-import { ElMessage } from 'element-plus'
+import axios from 'axios';
+import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { ElMessage } from 'element-plus';
 // Wave B-3：移除 access_token / refresh_token 的 localStorage 引用
 // - 凭据由后端写入 httpOnly Cookie，前端 JS 不可读
 // - 401 自动刷新通过 refresh_token Cookie 自动携带，无需前端取 token
-import { loadCsrfToken, clearCsrfToken } from '@/utils/storage'
-import router from '@/router'
-import { refreshToken as refreshApi } from './auth'
-import type { ApiResponse } from '@/types/api'
+import { loadCsrfToken, clearCsrfToken } from '@/utils/storage';
+import router from '@/router';
+import { refreshToken as refreshApi } from './auth';
+import type { ApiResponse } from '@/types/api';
 
-let isRefreshing = false
+let isRefreshing = false;
 // FE-P1-1 修复（v13 前端审计）：排队请求同时持有 resolve 和 reject 回调，
 // 刷新失败时能通知排队请求 reject，避免 Promise 永不 settle 导致 loading 状态/闭包泄漏
-let refreshSubscribers: Array<{ resolve: (token: string) => void; reject: (error: unknown) => void }> = []
+let refreshSubscribers: Array<{
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
 
-function subscribeTokenRefresh(
-  resolve: (token: string) => void,
-  reject: (error: unknown) => void,
-) {
-  refreshSubscribers.push({ resolve, reject })
+function subscribeTokenRefresh(resolve: (token: string) => void, reject: (error: unknown) => void) {
+  refreshSubscribers.push({ resolve, reject });
 }
 
 function onTokenRefreshed(token: string) {
-  refreshSubscribers.forEach(({ resolve }) => resolve(token))
-  refreshSubscribers = []
+  refreshSubscribers.forEach(({ resolve }) => resolve(token));
+  refreshSubscribers = [];
 }
 
 // FE-P1-1 修复：刷新失败时通知所有排队请求 reject，避免 Promise 永不 settle
 function onTokenRefreshFailed(error: unknown) {
-  refreshSubscribers.forEach(({ reject }) => reject(error))
-  refreshSubscribers = []
+  refreshSubscribers.forEach(({ reject }) => reject(error));
+  refreshSubscribers = [];
 }
 
 /**
@@ -46,7 +46,7 @@ const CSRF_PUBLIC_PREFIXES = [
   '/ready',
   '/live',
   '/tracking/page-view',
-]
+];
 
 /**
  * 判断 URL 是否属于公开路径（不需要携带 X-CSRF-Token 头）
@@ -54,11 +54,11 @@ const CSRF_PUBLIC_PREFIXES = [
  * （原 includes 会将 /auth/login-xxx 误判为 /auth/login 公开路径）
  */
 function isCsrfPublicPath(url: string): boolean {
-  return CSRF_PUBLIC_PREFIXES.some(prefix => url === prefix || url.startsWith(prefix + '/'))
+  return CSRF_PUBLIC_PREFIXES.some(prefix => url === prefix || url.startsWith(prefix + '/'));
 }
 
 class Request {
-  private instance: AxiosInstance
+  private instance: AxiosInstance;
 
   constructor() {
     this.instance = axios.create({
@@ -71,9 +71,9 @@ class Request {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
       },
-    })
+    });
 
-    this.setupInterceptors()
+    this.setupInterceptors();
   }
 
   private setupInterceptors() {
@@ -87,58 +87,58 @@ class Request {
         // - 公开路径（login/refresh/health 等）跳过，由后端白名单控制
         // - 安全方法（GET/HEAD/OPTIONS）无需校验
         // - csrf_token 由后端以非 httpOnly Cookie 形式下发，前端从 document.cookie 读取后注入头
-        const method = (config.method || 'get').toLowerCase()
-        const url = config.url || ''
+        const method = (config.method || 'get').toLowerCase();
+        const url = config.url || '';
         if (
           method !== 'get' &&
           method !== 'head' &&
           method !== 'options' &&
           !isCsrfPublicPath(url)
         ) {
-          const csrfToken = loadCsrfToken()
+          const csrfToken = loadCsrfToken();
           if (csrfToken) {
-            config.headers['X-CSRF-Token'] = csrfToken
+            config.headers['X-CSRF-Token'] = csrfToken;
           }
         }
 
-        return config
+        return config;
       },
       error => {
-        return Promise.reject(error)
+        return Promise.reject(error);
       }
-    )
+    );
 
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
-        const res = response.data
+        const res = response.data;
         if (res.code !== 200 && res.code !== 0) {
-          const safeMessage = getSafeErrorMessage(res.code)
-          ElMessage.error(safeMessage)
+          const safeMessage = getSafeErrorMessage(res.code);
+          ElMessage.error(safeMessage);
           if (res.code === 401) {
             // Wave B-3：凭据由后端 Cookie 管理，前端无需清理 localStorage；
             // 直接跳转登录页，后端会在登出时通过 Set-Cookie 清除 Cookie
-            router.push('/login')
+            router.push('/login');
           }
-          return Promise.reject(new Error(safeMessage))
+          return Promise.reject(new Error(safeMessage));
         }
         // P2 1-11 修复：原 `return res as any` 丢失类型信息
         // 拦截器返回 ApiResponse 而非 AxiosResponse，用 unknown 断言满足 axios 类型系统
-        return res as unknown as AxiosResponse
+        return res as unknown as AxiosResponse;
       },
       async error => {
-        const originalRequest = error.config
+        const originalRequest = error.config;
 
         // 拦截 HTTP 403 + 业务码 CSRF 校验失败：清空 CSRF Token 并跳转登录
         // 后端在缺失/无效 CSRF Token 时返回 403 + code 字段（字符串），前端在错误拦截器识别
         if (error.response?.status === 403) {
-          const body = error.response.data as { code?: string } | undefined
+          const body = error.response.data as { code?: string } | undefined;
           if (body && (body.code === 'CSRF_TOKEN_MISSING' || body.code === 'CSRF_TOKEN_INVALID')) {
             // csrf_token Cookie 由后端管理；前端只能清空 document.cookie 中非 httpOnly 的 csrf_token
             // 真正彻底清理需调用 logout 接口或后端通过 Set-Cookie + max-age=0 清除
-            clearCsrfToken()
-            ElMessage.error('安全令牌已失效，请重新登录')
-            router.push('/login')
-            return Promise.reject(error)
+            clearCsrfToken();
+            ElMessage.error('安全令牌已失效，请重新登录');
+            router.push('/login');
+            return Promise.reject(error);
           }
         }
 
@@ -151,74 +151,71 @@ class Request {
             // FE-P1-1 修复：排队请求同时持有 resolve/reject，
             // 刷新成功走 resolve 重放，刷新失败走 reject 让 Promise settle
             return new Promise((resolve, reject) => {
-              subscribeTokenRefresh(
-                () => resolve(this.instance(originalRequest)),
-                reject,
-              )
-            })
+              subscribeTokenRefresh(() => resolve(this.instance(originalRequest)), reject);
+            });
           }
 
-          originalRequest._retry = true
-          isRefreshing = true
+          originalRequest._retry = true;
+          isRefreshing = true;
 
           try {
             // 注意：refreshApi 内不应在请求体里带 refresh_token 字符串，
             // 因为后端已支持从 Cookie 读取；调用方传空字符串占位即可
-            await refreshApi('')
-            onTokenRefreshed('')
-            return this.instance(originalRequest)
+            await refreshApi('');
+            onTokenRefreshed('');
+            return this.instance(originalRequest);
           } catch (refreshError) {
             // FE-P1-1 修复：刷新失败时通知所有排队请求 reject，避免 Promise 永不 settle
-            onTokenRefreshFailed(refreshError)
-            router.push('/login')
-            return Promise.reject(refreshError)
+            onTokenRefreshFailed(refreshError);
+            router.push('/login');
+            return Promise.reject(refreshError);
           } finally {
-            isRefreshing = false
+            isRefreshing = false;
           }
         }
 
         if (originalRequest?._retry && shouldRetry(error)) {
-          originalRequest._retryCount = originalRequest._retryCount || 0
+          originalRequest._retryCount = originalRequest._retryCount || 0;
 
           if (originalRequest._retryCount < 3) {
-            originalRequest._retryCount++
-            const delay = Math.min(1000 * originalRequest._retryCount + Math.random() * 1000, 5000)
-            await new Promise(resolve => setTimeout(resolve, delay))
-            return this.instance(originalRequest)
+            originalRequest._retryCount++;
+            const delay = Math.min(1000 * originalRequest._retryCount + Math.random() * 1000, 5000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return this.instance(originalRequest);
           }
         }
 
-        const safeMessage = getSafeErrorMessage(error.response?.status)
-        ElMessage.error(safeMessage)
+        const safeMessage = getSafeErrorMessage(error.response?.status);
+        ElMessage.error(safeMessage);
 
         if (error.response?.status === 401) {
-          router.push('/login')
+          router.push('/login');
         }
-        return Promise.reject(error)
+        return Promise.reject(error);
       }
-    )
+    );
   }
 
   public get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
     // P2 1-11 修复：拦截器已返回 ApiResponse 完整对象（非 AxiosResponse.data），
     // 直接断言为 T，避免原 `res.data!` 丢失 ApiResponse 外层结构
-    return this.instance.get(url, config).then(res => res as unknown as T)
+    return this.instance.get(url, config).then(res => res as unknown as T);
   }
 
   public post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.post(url, data, config).then(res => res as unknown as T)
+    return this.instance.post(url, data, config).then(res => res as unknown as T);
   }
 
   public put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.put(url, data, config).then(res => res as unknown as T)
+    return this.instance.put(url, data, config).then(res => res as unknown as T);
   }
 
   public delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.delete(url, config).then(res => res as unknown as T)
+    return this.instance.delete(url, config).then(res => res as unknown as T);
   }
 
   public patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.patch(url, data, config).then(res => res as unknown as T)
+    return this.instance.patch(url, data, config).then(res => res as unknown as T);
   }
 }
 
@@ -231,26 +228,26 @@ export const SAFE_ERROR_MESSAGES: Record<number, string> = {
   500: '服务器内部错误',
   502: '网关错误',
   503: '服务暂时不可用',
-}
+};
 
 // P3-2 修复（批次 84 v1 复审）：error 类型从 any 改为 AxiosError，简化 else 分支
 // 原 `!error.response` 在 else 分支恒为 true（死代码），此处显式表达"无 response 时默认重试"
 export function shouldRetry(error: AxiosError): boolean {
   if (error.response) {
-    return [502, 503, 504].includes(error.response.status)
+    return [502, 503, 504].includes(error.response.status);
   }
   // 无 response 时为网络错误或超时（ECONNABORTED / NETWORK_ERROR 等），默认重试
-  return true
+  return true;
 }
 
 export function getSafeErrorMessage(codeOrStatus?: number): string {
   if (codeOrStatus && SAFE_ERROR_MESSAGES[codeOrStatus]) {
-    return SAFE_ERROR_MESSAGES[codeOrStatus]
+    return SAFE_ERROR_MESSAGES[codeOrStatus];
   }
   if (codeOrStatus === 401) {
-    return '未授权，请重新登录'
+    return '未授权，请重新登录';
   }
-  return '请求失败，请稍后重试'
+  return '请求失败，请稍后重试';
 }
 
-export const request = new Request()
+export const request = new Request();

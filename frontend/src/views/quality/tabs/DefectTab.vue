@@ -79,16 +79,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { processDefect as processDefectApi, type Defect } from '@/api/quality'
-import { logger } from '@/utils/logger'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { processDefect as processDefectApi, type Defect } from '@/api/quality';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const defects = ref<Defect[]>([])
-const loading = ref(false)
+const defects = ref<Defect[]>([]);
+const loading = ref(false);
 
 // 严重程度标签映射函数
 const getSeverityLabel = (severity: string): string => {
@@ -96,51 +96,51 @@ const getSeverityLabel = (severity: string): string => {
     critical: t('quality.defectTab.severityCritical'),
     major: t('quality.defectTab.severityMajor'),
     minor: t('quality.defectTab.severityMinor'),
-  }
-  return map[severity] || severity
-}
+  };
+  return map[severity] || severity;
+};
 
 // 严重程度颜色映射
 const getSeverityType = (severity: string): 'danger' | 'warning' | 'info' => {
-  if (severity === 'critical') return 'danger'
-  if (severity === 'major') return 'warning'
-  return 'info'
-}
+  if (severity === 'critical') return 'danger';
+  if (severity === 'major') return 'warning';
+  return 'info';
+};
 
 const fetchDefects = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const { getDefectList } = await import('@/api/quality')
-    const res = await getDefectList()
-    defects.value = (res.data as Defect[] | undefined) || []
+    const { getDefectList } = await import('@/api/quality');
+    const res = await getDefectList();
+    defects.value = (res.data as Defect[] | undefined) || [];
   } catch (error) {
-    const err = error as Error
-    logger.error(t('quality.defectTab.messageFetchFailed'), err.message)
+    const err = error as Error;
+    logger.error(t('quality.defectTab.messageFetchFailed'), err.message);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const processDefect = async (row: Defect) => {
   try {
     const { value } = await ElMessageBox.prompt(
       t('quality.defectTab.messageProcessPrompt'),
       t('quality.defectTab.messageProcessTitle')
-    )
-    await processDefectApi(row.id, { remark: value })
-    ElMessage.success(t('quality.defectTab.messageProcessSuccess'))
-    fetchDefects()
+    );
+    await processDefectApi(row.id, { remark: value });
+    ElMessage.success(t('quality.defectTab.messageProcessSuccess'));
+    fetchDefects();
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as Error
-      ElMessage.error(err.message || t('quality.defectTab.messageOperationFailed'))
+      const err = error as Error;
+      ElMessage.error(err.message || t('quality.defectTab.messageOperationFailed'));
     }
   }
-}
+};
 
 onMounted(() => {
-  fetchDefects()
-})
+  fetchDefects();
+});
 
-defineExpose({ fetchDefects })
+defineExpose({ fetchDefects });
 </script>

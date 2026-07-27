@@ -34,16 +34,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import InvoiceTab from './tabs/InvoiceTab.vue'
-import PaymentTab from './tabs/PaymentTab.vue'
-import VerificationTab from './tabs/VerificationTab.vue'
-import ReconciliationTab from './tabs/ReconciliationTab.vue'
+import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import InvoiceTab from './tabs/InvoiceTab.vue';
+import PaymentTab from './tabs/PaymentTab.vue';
+import VerificationTab from './tabs/VerificationTab.vue';
+import ReconciliationTab from './tabs/ReconciliationTab.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('invoice')
+const activeTab = ref('invoice');
 </script>
 
 <style scoped>

@@ -2,8 +2,8 @@
 // 基础路径：/quotations（由 request baseURL /api/v1/erp 补全）
 // 字段名遵循后端 DTO（snake_case）
 
-import { request } from './request'
-import type { ApiResponse } from '@/types/api'
+import { request } from './request';
+import type { ApiResponse } from '@/types/api';
 
 /** 报价单状态（后端 DTO 7 种） */
 export type QuotationStatus =
@@ -13,19 +13,19 @@ export type QuotationStatus =
   | 'rejected'
   | 'expired'
   | 'converted'
-  | 'cancelled'
+  | 'cancelled';
 
 /** 货币代码（避免与 @/api/currency 的 Currency 接口冲突） */
-export type CurrencyCode = 'CNY' | 'USD' | 'EUR'
+export type CurrencyCode = 'CNY' | 'USD' | 'EUR';
 
 /** 价格条款（Incoterms 2020） */
-export type PriceTerms = 'FOB' | 'CIF' | 'EXW' | 'DDP' | 'DAP'
+export type PriceTerms = 'FOB' | 'CIF' | 'EXW' | 'DDP' | 'DAP';
 
 /** 客户等级 */
-export type CustomerLevel = 'VIP' | 'NORMAL'
+export type CustomerLevel = 'VIP' | 'NORMAL';
 
 /** 贸易条款类型 */
-export type TermType = 'logistics' | 'payment' | 'sample' | 'inspection'
+export type TermType = 'logistics' | 'payment' | 'sample' | 'inspection';
 
 /**
  * 阶梯定价项（批次 98 P2-D 修复 v5 复审：原 any 改为显式接口）
@@ -33,179 +33,179 @@ export type TermType = 'logistics' | 'payment' | 'sample' | 'inspection'
  */
 export interface TierPricingItem {
   /** 起订数量（含） */
-  min_quantity: number
+  min_quantity: number;
   /** 截止数量（含，可选 -1 表示无上限） */
-  max_quantity?: number
+  max_quantity?: number;
   /** 单价（不含税） */
-  unit_price: number
+  unit_price: number;
   /** 单价（含税） */
-  unit_price_with_tax?: number
+  unit_price_with_tax?: number;
 }
 
 /** 创建报价单 DTO（与后端 CreateQuotationDto 一致） */
 export interface CreateQuotationDto {
-  customer_id: number
-  sales_user_id: number
-  quotation_date: string
-  valid_until: string
-  currency: CurrencyCode
-  exchange_rate: number
-  base_currency: string
-  price_terms: PriceTerms
-  incoterms_version?: string
-  incoterm_location?: string
-  tax_inclusive: boolean
-  tax_rate: number
-  moq?: number
-  lead_time_days?: number
-  customer_level?: CustomerLevel
-  notes?: string
-  items: CreateQuotationItemDto[]
-  terms?: CreateQuotationTermDto[]
+  customer_id: number;
+  sales_user_id: number;
+  quotation_date: string;
+  valid_until: string;
+  currency: CurrencyCode;
+  exchange_rate: number;
+  base_currency: string;
+  price_terms: PriceTerms;
+  incoterms_version?: string;
+  incoterm_location?: string;
+  tax_inclusive: boolean;
+  tax_rate: number;
+  moq?: number;
+  lead_time_days?: number;
+  customer_level?: CustomerLevel;
+  notes?: string;
+  items: CreateQuotationItemDto[];
+  terms?: CreateQuotationTermDto[];
 }
 
 /** 创建报价单明细 DTO */
 export interface CreateQuotationItemDto {
-  product_id: number
-  color_id?: number
-  specification?: string
-  unit: string
-  quantity: number
-  unit_price: number
-  unit_price_with_tax: number
-  tier_pricing?: TierPricingItem[]
-  discount_rate?: number
-  notes?: string
+  product_id: number;
+  color_id?: number;
+  specification?: string;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  unit_price_with_tax: number;
+  tier_pricing?: TierPricingItem[];
+  discount_rate?: number;
+  notes?: string;
 }
 
 /** 创建贸易条款 DTO */
 export interface CreateQuotationTermDto {
-  term_type: TermType
-  term_key: string
-  term_value: string
-  sequence: number
+  term_type: TermType;
+  term_key: string;
+  term_value: string;
+  sequence: number;
 }
 
 /** 报价单响应 DTO */
 export interface QuotationResponseDto {
-  id: number
-  quotation_no: string
-  customer_id: number
-  customer_name?: string
-  sales_user_id: number
-  sales_user_name?: string
-  quotation_date: string
-  valid_until: string
-  currency: string
-  exchange_rate: number
-  base_currency?: string
-  price_terms: string
-  incoterms_version?: string
-  incoterm_location?: string
-  tax_inclusive: boolean
-  tax_rate: number
-  moq?: number
-  lead_time_days?: number
-  customer_level?: string
-  status: QuotationStatus
-  subtotal: number
-  tax_amount: number
-  total_amount: number
-  approved_by?: number
-  approved_by_name?: string
-  approved_at?: string
-  rejection_reason?: string
-  converted_sales_order_id?: number
-  converted_at?: string
-  notes?: string
-  items: QuotationItemResponseDto[]
-  terms: QuotationTermResponseDto[]
-  created_at: string
-  updated_at: string
+  id: number;
+  quotation_no: string;
+  customer_id: number;
+  customer_name?: string;
+  sales_user_id: number;
+  sales_user_name?: string;
+  quotation_date: string;
+  valid_until: string;
+  currency: string;
+  exchange_rate: number;
+  base_currency?: string;
+  price_terms: string;
+  incoterms_version?: string;
+  incoterm_location?: string;
+  tax_inclusive: boolean;
+  tax_rate: number;
+  moq?: number;
+  lead_time_days?: number;
+  customer_level?: string;
+  status: QuotationStatus;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  approved_by?: number;
+  approved_by_name?: string;
+  approved_at?: string;
+  rejection_reason?: string;
+  converted_sales_order_id?: number;
+  converted_at?: string;
+  notes?: string;
+  items: QuotationItemResponseDto[];
+  terms: QuotationTermResponseDto[];
+  created_at: string;
+  updated_at: string;
 }
 
 /** 报价单明细响应 DTO */
 export interface QuotationItemResponseDto {
-  id: number
-  product_id: number
-  product_name?: string
-  product_code?: string
-  color_id?: number
-  color_code?: string
-  pantone_code?: string
-  cncs_code?: string
-  specification?: string
-  unit: string
-  quantity: number
-  unit_price: number
-  unit_price_with_tax: number
-  amount: number
-  amount_with_tax: number
-  tier_pricing?: TierPricingItem[]
-  discount_rate?: number
-  discount_amount?: number
-  notes?: string
-  sequence: number
+  id: number;
+  product_id: number;
+  product_name?: string;
+  product_code?: string;
+  color_id?: number;
+  color_code?: string;
+  pantone_code?: string;
+  cncs_code?: string;
+  specification?: string;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  unit_price_with_tax: number;
+  amount: number;
+  amount_with_tax: number;
+  tier_pricing?: TierPricingItem[];
+  discount_rate?: number;
+  discount_amount?: number;
+  notes?: string;
+  sequence: number;
 }
 
 /** 贸易条款响应 DTO */
 export interface QuotationTermResponseDto {
-  id: number
-  term_type: TermType
-  term_key: string
-  term_value: string
-  sequence: number
+  id: number;
+  term_type: TermType;
+  term_key: string;
+  term_value: string;
+  sequence: number;
 }
 
 /** 列表查询参数 */
 export interface QuotationListQuery {
-  page?: number
-  page_size?: number
-  status?: QuotationStatus
-  customer_id?: number
+  page?: number;
+  page_size?: number;
+  status?: QuotationStatus;
+  customer_id?: number;
 }
 
 /** 价格预计算请求 */
 export interface CalculatePriceRequest {
-  customer_id: number
-  customer_level: CustomerLevel
-  product_id: number
-  color_id?: number
-  quantity: number
-  currency: CurrencyCode
-  quotation_date: string
+  customer_id: number;
+  customer_level: CustomerLevel;
+  product_id: number;
+  color_id?: number;
+  quantity: number;
+  currency: CurrencyCode;
+  quotation_date: string;
 }
 
 /** 价格预计算响应 */
 export interface CalculatePriceResponse {
-  unit_price: number
-  unit_price_with_tax: number
+  unit_price: number;
+  unit_price_with_tax: number;
   tier_breakdown: Array<{
-    min_quantity: number
-    max_quantity?: number
-    unit_price: number
-  }>
-  discount_applied: number
-  final_amount: number
-  price_source: 'color_price' | 'product_price' | 'promotion'
+    min_quantity: number;
+    max_quantity?: number;
+    unit_price: number;
+  }>;
+  discount_applied: number;
+  final_amount: number;
+  price_source: 'color_price' | 'product_price' | 'promotion';
 }
 
 /** 转销售订单响应 */
 export interface ConvertResponse {
-  id: number
-  order_no: string
-  status: string
+  id: number;
+  order_no: string;
+  status: string;
 }
 
 /** 拒绝原因请求体 */
 export interface RejectRequest {
-  reason: string
+  reason: string;
 }
 
 /** 列表分页响应（后端实际为数组，部分端点返回 list/total） */
 export interface ListResponse {
-  items: QuotationResponseDto[]
-  total: number
+  items: QuotationResponseDto[];
+  total: number;
 }
 
 /**
@@ -216,7 +216,7 @@ export function getQuotationList(
   params: QuotationListQuery = {}
 ): Promise<ApiResponse<QuotationResponseDto[]>> {
   // P2 1-11 修复：去掉 as any，使用显式泛型传递类型契约
-  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations', { params })
+  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations', { params });
 }
 
 /**
@@ -224,7 +224,7 @@ export function getQuotationList(
  * @param id 报价单 ID
  */
 export function getQuotation(id: number): Promise<ApiResponse<QuotationResponseDto>> {
-  return request.get<ApiResponse<QuotationResponseDto>>(`/quotations/${id}`)
+  return request.get<ApiResponse<QuotationResponseDto>>(`/quotations/${id}`);
 }
 
 /**
@@ -234,7 +234,7 @@ export function getQuotation(id: number): Promise<ApiResponse<QuotationResponseD
 export function createQuotation(
   data: CreateQuotationDto
 ): Promise<ApiResponse<QuotationResponseDto>> {
-  return request.post<ApiResponse<QuotationResponseDto>>('/quotations', data)
+  return request.post<ApiResponse<QuotationResponseDto>>('/quotations', data);
 }
 
 /**
@@ -246,7 +246,7 @@ export function updateQuotation(
   id: number,
   data: CreateQuotationDto
 ): Promise<ApiResponse<QuotationResponseDto>> {
-  return request.put<ApiResponse<QuotationResponseDto>>(`/quotations/${id}`, data)
+  return request.put<ApiResponse<QuotationResponseDto>>(`/quotations/${id}`, data);
 }
 
 /**
@@ -254,7 +254,7 @@ export function updateQuotation(
  * @param id 报价单 ID
  */
 export function submitQuotation(id: number): Promise<ApiResponse<null>> {
-  return request.post<ApiResponse<null>>(`/quotations/${id}/submit`)
+  return request.post<ApiResponse<null>>(`/quotations/${id}/submit`);
 }
 
 /**
@@ -262,7 +262,7 @@ export function submitQuotation(id: number): Promise<ApiResponse<null>> {
  * @param id 报价单 ID
  */
 export function approveQuotation(id: number): Promise<ApiResponse<null>> {
-  return request.post<ApiResponse<null>>(`/quotations/${id}/approve`)
+  return request.post<ApiResponse<null>>(`/quotations/${id}/approve`);
 }
 
 /**
@@ -271,7 +271,7 @@ export function approveQuotation(id: number): Promise<ApiResponse<null>> {
  * @param reason 拒绝原因
  */
 export function rejectQuotation(id: number, reason: string): Promise<ApiResponse<null>> {
-  return request.post<ApiResponse<null>>(`/quotations/${id}/reject`, { reason })
+  return request.post<ApiResponse<null>>(`/quotations/${id}/reject`, { reason });
 }
 
 /**
@@ -279,7 +279,7 @@ export function rejectQuotation(id: number, reason: string): Promise<ApiResponse
  * @param id 报价单 ID
  */
 export function cancelQuotation(id: number): Promise<ApiResponse<null>> {
-  return request.post<ApiResponse<null>>(`/quotations/${id}/cancel`)
+  return request.post<ApiResponse<null>>(`/quotations/${id}/cancel`);
 }
 
 /**
@@ -287,7 +287,7 @@ export function cancelQuotation(id: number): Promise<ApiResponse<null>> {
  * @param id 报价单 ID
  */
 export function convertQuotation(id: number): Promise<ApiResponse<ConvertResponse>> {
-  return request.post<ApiResponse<ConvertResponse>>(`/quotations/${id}/convert`)
+  return request.post<ApiResponse<ConvertResponse>>(`/quotations/${id}/convert`);
 }
 
 /**
@@ -295,7 +295,7 @@ export function convertQuotation(id: number): Promise<ApiResponse<ConvertRespons
  * @param id 报价单 ID
  */
 export function getQuotationTerms(id: number): Promise<ApiResponse<QuotationTermResponseDto[]>> {
-  return request.get<ApiResponse<QuotationTermResponseDto[]>>(`/quotations/${id}/terms`)
+  return request.get<ApiResponse<QuotationTermResponseDto[]>>(`/quotations/${id}/terms`);
 }
 
 /**
@@ -307,21 +307,21 @@ export function setQuotationTerms(
   id: number,
   terms: CreateQuotationTermDto[]
 ): Promise<ApiResponse<QuotationTermResponseDto[]>> {
-  return request.put<ApiResponse<QuotationTermResponseDto[]>>(`/quotations/${id}/terms`, { terms })
+  return request.put<ApiResponse<QuotationTermResponseDto[]>>(`/quotations/${id}/terms`, { terms });
 }
 
 /**
  * 列出即将过期的报价单
  */
 export function getExpiringQuotationList(): Promise<ApiResponse<QuotationResponseDto[]>> {
-  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations/expiring')
+  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations/expiring');
 }
 
 /**
  * 列出已过期的报价单
  */
 export function getExpiredQuotationList(): Promise<ApiResponse<QuotationResponseDto[]>> {
-  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations/expired')
+  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations/expired');
 }
 
 /**
@@ -331,7 +331,7 @@ export function getExpiredQuotationList(): Promise<ApiResponse<QuotationResponse
 export function calculatePrice(
   data: CalculatePriceRequest
 ): Promise<ApiResponse<CalculatePriceResponse>> {
-  return request.post<ApiResponse<CalculatePriceResponse>>('/quotations/calculate-price', data)
+  return request.post<ApiResponse<CalculatePriceResponse>>('/quotations/calculate-price', data);
 }
 
 /**
@@ -340,7 +340,7 @@ export function calculatePrice(
  */
 // P2 1-11 修复：去掉 as any 和 any 类型，使用 unknown 占位（后端返回结构待定义 DTO）
 export function getColorPrices(productColorId: number): Promise<ApiResponse<unknown[]>> {
-  return request.get<ApiResponse<unknown[]>>(`/quotations/color-prices/${productColorId}`)
+  return request.get<ApiResponse<unknown[]>>(`/quotations/color-prices/${productColorId}`);
 }
 
 /**
@@ -352,7 +352,7 @@ export function setColorPrice(
   productColorId: number,
   data: unknown
 ): Promise<ApiResponse<unknown>> {
-  return request.post<ApiResponse<unknown>>(`/quotations/color-prices/${productColorId}`, data)
+  return request.post<ApiResponse<unknown>>(`/quotations/color-prices/${productColorId}`, data);
 }
 
 /** 状态码 - 状态标签映射 */
@@ -364,7 +364,7 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   expired: '已过期',
   converted: '已转订单',
   cancelled: '已取消',
-}
+};
 
 /** 状态码 - 标签类型映射（Element Plus tag） */
 export const QUOTATION_STATUS_TAG_TYPES: Record<QuotationStatus, string> = {
@@ -375,7 +375,7 @@ export const QUOTATION_STATUS_TAG_TYPES: Record<QuotationStatus, string> = {
   expired: 'info',
   converted: 'success',
   cancelled: 'info',
-}
+};
 
 /** 价格条款中文标签 */
 export const PRICE_TERMS_LABELS: Record<PriceTerms, string> = {
@@ -384,7 +384,7 @@ export const PRICE_TERMS_LABELS: Record<PriceTerms, string> = {
   EXW: 'EXW（工厂交货）',
   DDP: 'DDP（完税后交货）',
   DAP: 'DAP（目的地交货）',
-}
+};
 
 /** 贸易条款类型中文标签 */
 export const TERM_TYPE_LABELS: Record<TermType, string> = {
@@ -392,4 +392,4 @@ export const TERM_TYPE_LABELS: Record<TermType, string> = {
   payment: '付款条件',
   sample: '样品条款',
   inspection: '检验条款',
-}
+};

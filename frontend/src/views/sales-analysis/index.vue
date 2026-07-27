@@ -58,30 +58,30 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Download } from '@element-plus/icons-vue'
-import { useSa } from './composables/useSa'
-import { useSaProc } from './composables/useSaProc'
-import SalesAnalysisStat from './components/SalesAnalysisStat.vue'
-import SalesAnalysisTrend from './components/SalesAnalysisTrend.vue'
-import SalesAnalysisProductRank from './components/SalesAnalysisProductRank.vue'
-import SalesAnalysisCustomerRank from './components/SalesAnalysisCustomerRank.vue'
-import SalesAnalysisTarget from './components/SalesAnalysisTarget.vue'
+import { onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Download } from '@element-plus/icons-vue';
+import { useSa } from './composables/useSa';
+import { useSaProc } from './composables/useSaProc';
+import SalesAnalysisStat from './components/SalesAnalysisStat.vue';
+import SalesAnalysisTrend from './components/SalesAnalysisTrend.vue';
+import SalesAnalysisProductRank from './components/SalesAnalysisProductRank.vue';
+import SalesAnalysisCustomerRank from './components/SalesAnalysisCustomerRank.vue';
+import SalesAnalysisTarget from './components/SalesAnalysisTarget.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 业务状态
-const sa = useSa()
-const saProc = useSaProc()
+const sa = useSa();
+const saProc = useSaProc();
 
 onMounted(() => {
-  sa.getStats()
-  sa.getProductRanking()
-  sa.getCustomerRanking()
-  sa.getSalesTargets()
-  sa.getTrendData()
-})
+  sa.getStats();
+  sa.getProductRanking();
+  sa.getCustomerRanking();
+  sa.getSalesTargets();
+  sa.getTrendData();
+});
 </script>
 
 <style scoped>

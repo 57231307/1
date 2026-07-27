@@ -11,7 +11,7 @@ const STATUS_TYPE_MAP: Record<string, string> = {
   APPROVED: 'success',
   REJECTED: 'danger',
   COMPLETED: 'info',
-}
+};
 
 /** 状态 → 中文标签 */
 const STATUS_LABEL_MAP: Record<string, string> = {
@@ -19,15 +19,15 @@ const STATUS_LABEL_MAP: Record<string, string> = {
   APPROVED: '已通过',
   REJECTED: '已拒绝',
   COMPLETED: '已完成',
-}
+};
 
 /** 获取退货状态 el-tag 类型 */
-export const getStatusType = (status: string) => STATUS_TYPE_MAP[status] || 'info'
+export const getStatusType = (status: string) => STATUS_TYPE_MAP[status] || 'info';
 
 /** 获取退货状态中文标签 */
-export const getStatusLabel = (status: string) => STATUS_LABEL_MAP[status] || status
+export const getStatusLabel = (status: string) => STATUS_LABEL_MAP[status] || status;
 
 /** 格式化退货金额 */
 export const formatAmount = (value: number) => {
-  return value !== undefined && value !== null ? `¥${Number(value).toFixed(2)}` : '¥0.00'
-}
+  return value !== undefined && value !== null ? `¥${Number(value).toFixed(2)}` : '¥0.00';
+};

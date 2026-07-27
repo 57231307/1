@@ -51,55 +51,55 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, toRef } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { VoucherEntity } from '@/api/voucher'
-import { useVchrLst } from './composables/useVchrLst'
-import { useVchrLstProc } from './composables/useVchrLstProc'
-import VoucherListFilter from './components/VoucherListFilter.vue'
-import VoucherListTable from './components/VoucherListTable.vue'
-import VoucherListForm from './components/VoucherListForm.vue'
-import VoucherListDetail from './components/VoucherListDetail.vue'
+import { ref, onMounted, toRef } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { VoucherEntity } from '@/api/voucher';
+import { useVchrLst } from './composables/useVchrLst';
+import { useVchrLstProc } from './composables/useVchrLstProc';
+import VoucherListFilter from './components/VoucherListFilter.vue';
+import VoucherListTable from './components/VoucherListTable.vue';
+import VoucherListForm from './components/VoucherListForm.vue';
+import VoucherListDetail from './components/VoucherListDetail.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const vchr = useVchrLst()
+const vchr = useVchrLst();
 // 使用 toRef 包装 reactive 属性为 ref，保持 useVchrLstProc 内 getList() 能读取最新 tableData
 // （reactive 自动解包 ref，直接传 vchr.tableData 会丢失响应性引用）
-const vchrProc = useVchrLstProc(toRef(vchr, 'tableData'), vchr.loadData)
+const vchrProc = useVchrLstProc(toRef(vchr, 'tableData'), vchr.loadData);
 
 // 对话框可见性本地 ref
-const dialogVisible = ref(false)
-const viewDialogVisible = ref(false)
+const dialogVisible = ref(false);
+const viewDialogVisible = ref(false);
 /** 新增凭证：composable 准备数据，本地打开对话框 */
 const onAdd = async () => {
-  await vchr.openAddDialog()
-  dialogVisible.value = true
-}
+  await vchr.openAddDialog();
+  dialogVisible.value = true;
+};
 
 /** 编辑凭证 */
 const onEdit = async (row: VoucherEntity) => {
-  await vchr.openEditDialog(row)
-  dialogVisible.value = true
-}
+  await vchr.openEditDialog(row);
+  dialogVisible.value = true;
+};
 
 /** 查看详情 */
 const onView = async (row: VoucherEntity) => {
-  await vchr.openViewDialog(row)
-  viewDialogVisible.value = true
-}
+  await vchr.openViewDialog(row);
+  viewDialogVisible.value = true;
+};
 
 /** 提交表单后关闭对话框 */
 const onSubmitForm = async () => {
-  const ok = await vchr.handleSubmit()
-  if (ok) dialogVisible.value = false
-}
+  const ok = await vchr.handleSubmit();
+  if (ok) dialogVisible.value = false;
+};
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  vchr.loadVoucherTypes()
-  vchr.loadAccountSubjects()
-})
+  vchr.loadVoucherTypes();
+  vchr.loadAccountSubjects();
+});
 </script>
 
 <style scoped>

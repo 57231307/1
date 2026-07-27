@@ -34,23 +34,36 @@ vi.mock('element-plus', async () => {
 })
 
 // Mock Vue Router
-vi.mock('vue-router', () => ({
-  useRouter: () => ({
+// 注意：createRouter 必须返回含 beforeEach/afterEach 等方法的对象，
+// 否则 src/router/index.ts 顶层调用 router.beforeEach 时会因 undefined 报错
+// （通过 @/api/request → @/router 的传递导入链触发）
+vi.mock('vue-router', () => {
+  const routerInstance = {
+    beforeEach: vi.fn(),
+    afterEach: vi.fn(),
+    beforeResolve: vi.fn(),
     push: vi.fn(),
     replace: vi.fn(),
     go: vi.fn(),
     back: vi.fn(),
     forward: vi.fn(),
-  }),
-  useRoute: () => ({
-    path: '/',
-    query: {},
-    params: {},
-    meta: {},
-  }),
-  createRouter: vi.fn(),
-  createWebHistory: vi.fn(),
-}))
+    addRoute: vi.fn(),
+    removeRoute: vi.fn(),
+    hasRoute: vi.fn().mockReturnValue(false),
+    getRoutes: vi.fn().mockReturnValue([]),
+  }
+  return {
+    useRouter: () => routerInstance,
+    useRoute: () => ({
+      path: '/',
+      query: {},
+      params: {},
+      meta: {},
+    }),
+    createRouter: vi.fn().mockReturnValue(routerInstance),
+    createWebHistory: vi.fn(),
+  }
+})
 
 // Mock Pinia
 vi.mock('pinia', () => ({

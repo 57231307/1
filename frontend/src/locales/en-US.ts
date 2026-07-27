@@ -332,7 +332,8 @@ export default {
     remainingTime: 'Remaining: {minutes}m {seconds}s',
     unlocked: 'Account unlocked, please log in again',
     failedFallback: 'Login failed',
-    passwordExpiredMessage: 'Your password has not been changed for over 90 days. For account security, please change it immediately.',
+    passwordExpiredMessage:
+      'Your password has not been changed for over 90 days. For account security, please change it immediately.',
     passwordExpiredTitle: 'Password Expiry Reminder',
     passwordExpiredConfirm: 'Change Now',
     passwordExpiredLater: 'Remind Later',
@@ -347,8 +348,8 @@ export default {
   dashboard: {
     title: 'Dashboard',
     welcome: 'Welcome back',
-    todayOrders: 'Today\'s Orders',
-    todayRevenue: 'Today\'s Revenue',
+    todayOrders: "Today's Orders",
+    todayRevenue: "Today's Revenue",
     pendingTasks: 'Pending Tasks',
     lowStock: 'Low Stock Alert',
     salesTrend: 'Sales Trend',
@@ -1191,7 +1192,7 @@ export default {
       placeholderCategory: 'Select Category',
       optionAsset: 'Asset',
       optionLiability: 'Liability',
-      optionEquity: 'Owner\'s Equity',
+      optionEquity: "Owner's Equity",
       optionCost: 'Cost',
       optionProfitLoss: 'Profit & Loss',
       labelDirection: 'Balance Direction',
@@ -1244,7 +1245,7 @@ export default {
     timeout: 'Request timeout',
     unknown: 'Unknown error',
     page: {
-      forbiddenMessage: 'You don\'t have permission to access this page',
+      forbiddenMessage: "You don't have permission to access this page",
       notFoundDesc: 'Page not found',
       backHome: 'Back to Home',
     },
@@ -1257,7 +1258,7 @@ export default {
     forbidden: {
       code: '403',
       title: '403',
-      message: 'You don\'t have permission to access this page',
+      message: "You don't have permission to access this page",
       backHome: 'Back to Home',
       pageAriaLabel: 'Access Forbidden',
     },
@@ -1998,9 +1999,11 @@ export default {
       disposeSuccess: 'Disposed successfully',
       disposeFailed: 'Disposal failed',
       noDepreciableAsset: 'No assets available for depreciation',
-      batchDepreciatePrompt: 'Enter accounting period for depreciation (YYYY-MM format, e.g. 2026-07):',
+      batchDepreciatePrompt:
+        'Enter accounting period for depreciation (YYYY-MM format, e.g. 2026-07):',
       batchDepreciateTitle: 'Batch Depreciation',
-      batchDepreciateConfirm: 'Calculate depreciation for {count} assets in period {period}, continue?',
+      batchDepreciateConfirm:
+        'Calculate depreciation for {count} assets in period {period}, continue?',
       batchDepreciateConfirmTitle: 'Batch Depreciation Confirmation',
       batchDepreciateSuccess: 'Depreciation calculated for {count} assets',
       batchDepreciateFailed: 'Batch depreciation failed',
@@ -2245,7 +2248,7 @@ export default {
       instanceIdNotFound: 'Process instance ID not found',
       instanceDetailNotFound: 'Process detail not found',
       fetchDetailFailed: 'Failed to fetch detail',
-      transferPrompt: 'Please enter the recipient\'s user ID',
+      transferPrompt: "Please enter the recipient's user ID",
       transferTitle: 'Transfer Task',
       transferUserIdInvalid: 'Please enter a valid user ID',
       transferComment: 'Task transfer',
@@ -2257,7 +2260,8 @@ export default {
       approvalChainTitle: 'Process Trace',
       close: 'Close',
       fetchApprovalChainFailed: 'Failed to fetch approval chain',
-      cancelConfirm: 'Are you sure to cancel process {instanceId}? The process will be terminated and all pending tasks will be cancelled.',
+      cancelConfirm:
+        'Are you sure to cancel process {instanceId}? The process will be terminated and all pending tasks will be cancelled.',
       cancelConfirmTitle: 'Cancel Confirm',
       cancelConfirmButton: 'Confirm Cancel',
       cancelCancelButton: 'Cancel',
@@ -3130,7 +3134,8 @@ export default {
     importDialogTab: {
       title: 'Import Products',
       ariaLabel: 'Product import dialog',
-      alertTemplate: 'Please download the import template first, fill in the data according to the template format, then upload.',
+      alertTemplate:
+        'Please download the import template first, fill in the data according to the template format, then upload.',
       buttonDownloadTemplate: 'Download Template',
       uploadText: 'Drag file here, or <em>click to upload</em>',
       uploadTip: 'Supports .xlsx, .xls, .csv format files',
@@ -3640,7 +3645,7 @@ export default {
       '2024AW': '2024 Autumn/Winter',
       '2025SS': '2025 Spring/Summer',
       '2025AW': '2025 Autumn/Winter',
-      '经典': 'Classic',
+      经典: 'Classic',
     },
     create: {
       title: 'New Color Card',
@@ -4294,7 +4299,8 @@ export default {
       activateConfirmTitle: 'Activation Confirmation',
       activatedSuccess: 'Activated',
       activateFailed: 'Activation failed',
-      closeConfirm: 'Are you sure to close period "{name}"? Vouchers cannot be entered after closing.',
+      closeConfirm:
+        'Are you sure to close period "{name}"? Vouchers cannot be entered after closing.',
       closeConfirmTitle: 'Close Confirmation',
       closedSuccess: 'Closed',
       closeFailed: 'Close failed',
@@ -4494,7 +4500,8 @@ export default {
     title: 'Failover Monitor',
     refresh: 'Refresh',
     descriptionPrefix: 'Through the unified ',
-    descriptionSuffix: ' interface, automatically switch between primary and backup to ensure service availability.',
+    descriptionSuffix:
+      ' interface, automatically switch between primary and backup to ensure service availability.',
     healthCheck: 'Health Check',
     switchHistory: 'Switch History',
     loadFailed: 'Failed to load data: {msg}',
@@ -5774,7 +5781,7 @@ export default {
       title: 'Personal Information',
       save: 'Save Changes',
       avatarTip: 'Click to upload avatar',
-      avatarAlt: '{name}\'s avatar',
+      avatarAlt: "{name}'s avatar",
       avatarAltDefault: 'User avatar',
       username: 'Username',
       realName: 'Name',
@@ -6529,7 +6536,8 @@ export default {
       rejectReasonRequired: 'Rejection reason cannot be empty',
       rejectSuccess: 'Rejected',
       convertConfirmTitle: 'Convert Confirmation',
-      convertConfirmText: 'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
+      convertConfirmText:
+        'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
       convertSuccess: 'Converted successfully, Sales Order ID: {id}',
       cancelConfirmTitle: 'Cancel Confirmation',
       cancelConfirmText: 'Confirm to cancel quotation {no}? This cannot be undone.',
@@ -6565,7 +6573,8 @@ export default {
       cancelConfirmText: 'Confirm to cancel quotation {no}? This cannot be undone.',
       cancelSuccess: 'Cancelled',
       convertConfirmTitle: 'Convert Confirmation',
-      convertConfirmText: 'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
+      convertConfirmText:
+        'Confirm to convert quotation {no} to sales order? The quotation status will become "Converted to Order".',
       convertSuccess: 'Converted successfully, Sales Order ID: {id}',
     },
     edit: {
@@ -6892,8 +6901,8 @@ export default {
     },
     stat: {
       label: {
-        todayLogins: 'Today\'s Login Count',
-        todayFailures: 'Today\'s Failure Count',
+        todayLogins: "Today's Login Count",
+        todayFailures: "Today's Failure Count",
         lockedAccounts: 'Locked Account Count',
         securityAlerts: 'Security Alerts',
       },
@@ -10001,7 +10010,8 @@ export default {
       buttonGenerate: 'Generate Report',
       buttonReset: 'Reset',
       buttonPrint: 'Print',
-      emptyDescription: 'Please select report type and accounting period, then click Generate Report',
+      emptyDescription:
+        'Please select report type and accounting period, then click Generate Report',
       labelPeriodPrefix: 'Period: ',
       labelTotalPrefix: 'Total: ',
       tableAriaLabel: 'Financial Report List',
@@ -10961,7 +10971,8 @@ export default {
       buttonEdit: 'Edit',
       buttonComplete: 'Complete',
       ariaLabelPagination: 'Stock count list pagination',
-      messageCompleteConfirm: 'Confirm completing this count order? It cannot be edited after completion.',
+      messageCompleteConfirm:
+        'Confirm completing this count order? It cannot be edited after completion.',
       titleCompleteConfirm: 'Confirm',
       messageSuccess: 'Operation successful',
       messageFailure: 'Operation failed',
@@ -11190,7 +11201,8 @@ export default {
     },
     calc: {
       title: 'MRP Material Requirements Planning',
-      subtitle: 'Calculate required materials and suggested purchase quantities based on sales orders/production plans',
+      subtitle:
+        'Calculate required materials and suggested purchase quantities based on sales orders/production plans',
       paramsTitle: 'Calculation Parameters',
       formAriaLabel: 'MRP Calculation Parameters Form',
       productSelect: 'Product',
@@ -11297,7 +11309,8 @@ export default {
       rateCreateSuccess: 'Exchange rate created successfully',
       rateCreateFailed: 'Failed to create exchange rate',
       currencyIdMissing: 'Currency ID does not exist',
-      setBaseConfirm: 'Are you sure to set "{code} - {name}" as the base currency? This will cancel the base flag of other currencies.',
+      setBaseConfirm:
+        'Are you sure to set "{code} - {name}" as the base currency? This will cancel the base flag of other currencies.',
       setBaseTitle: 'Set Base Currency',
       setBaseSuccess: 'Base currency set successfully',
       setBaseFailed: 'Failed to set base currency',
@@ -11487,7 +11500,8 @@ export default {
       riskScore: 'Risk Score {score} / 100',
       peakRate: 'Peak Qualification Rate',
       troughRate: 'Trough Qualification Rate',
-      empty: 'No historical inspection data. It is recommended to enter at least 5 inspection records first.',
+      empty:
+        'No historical inspection data. It is recommended to enter at least 5 inspection records first.',
     },
     priceHistoryChart: {
       title: 'Price History Trend',

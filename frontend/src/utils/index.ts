@@ -12,7 +12,7 @@ export function formatCurrency(amount: number): string {
     style: 'currency',
     currency: 'CNY',
     minimumFractionDigits: 2,
-  }).format(amount)
+  }).format(amount);
 }
 
 /**
@@ -21,7 +21,7 @@ export function formatCurrency(amount: number): string {
  * @returns 格式化后的日期字符串
  */
 export function formatDate(date: Date): string {
-  return date.toLocaleDateString('zh-CN')
+  return date.toLocaleDateString('zh-CN');
 }
 
 /**
@@ -34,11 +34,11 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
   fn: T,
   delay: number
 ): (...args: Parameters<T>) => void {
-  let timer: ReturnType<typeof setTimeout> | null = null
+  let timer: ReturnType<typeof setTimeout> | null = null;
   return (...args: Parameters<T>) => {
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => fn(...args), delay)
-  }
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
 }
 
 /**
@@ -51,15 +51,15 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 export function deepClone<T>(value: T): T {
   if (typeof structuredClone === 'function') {
     try {
-      return structuredClone(value)
+      return structuredClone(value);
     } catch {
       // structuredClone 不支持函数/Symbol 等，回退到 JSON
     }
   }
-  return JSON.parse(JSON.stringify(value))
+  return JSON.parse(JSON.stringify(value));
 }
 
-export * from './storage'
-export * from './export'
-export * from './print'
-export * from './lazy-loader'
+export * from './storage';
+export * from './export';
+export * from './print';
+export * from './lazy-loader';

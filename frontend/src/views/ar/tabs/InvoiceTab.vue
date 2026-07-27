@@ -236,12 +236,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Printer, Download } from '@element-plus/icons-vue'
-import printJS from 'print-js'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus, Printer, Download } from '@element-plus/icons-vue';
+import printJS from 'print-js';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getARInvoiceList,
   getARInvoice,
@@ -249,25 +249,25 @@ import {
   approveARInvoice,
   cancelARInvoice,
   type ARInvoice,
-} from '@/api/ar'
-import type { Customer } from '@/api/customer'
-import { logger } from '@/utils/logger'
-import { exportFromBackend } from '@/utils/export'
+} from '@/api/ar';
+import type { Customer } from '@/api/customer';
+import { logger } from '@/utils/logger';
+import { exportFromBackend } from '@/utils/export';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const invoices = ref<ARInvoice[]>([])
-const customers = ref<Customer[]>([])
-const invoiceLoading = ref(false)
-const invoiceSubmitLoading = ref(false)
-const invoiceDialogVisible = ref(false)
-const invoiceFormRef = ref<FormInstance>()
+const invoices = ref<ARInvoice[]>([]);
+const customers = ref<Customer[]>([]);
+const invoiceLoading = ref(false);
+const invoiceSubmitLoading = ref(false);
+const invoiceDialogVisible = ref(false);
+const invoiceFormRef = ref<FormInstance>();
 
 const invoiceQuery = reactive({
   customer_name: '',
   invoice_no: '',
   status: '',
-})
+});
 
 const invoiceForm = reactive({
   customer_id: undefined as number | undefined,
@@ -277,7 +277,7 @@ const invoiceForm = reactive({
   tax_amount: 0,
   due_date: '',
   remark: '',
-})
+});
 
 const invoiceRules: FormRules = {
   customer_id: [
@@ -292,11 +292,11 @@ const invoiceRules: FormRules = {
   invoice_amount: [
     { required: true, message: t('arModule.invoice.invoiceAmountRequired'), trigger: 'blur' },
   ],
-}
+};
 
 const formatMoney = (amount: number) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const getInvoiceStatusLabel = (status: string) => {
   const keyMap: Record<string, string> = {
@@ -304,10 +304,10 @@ const getInvoiceStatusLabel = (status: string) => {
     approved: 'arModule.invoice.statusApproved',
     verified: 'arModule.invoice.statusVerified',
     cancelled: 'arModule.invoice.statusCancelled',
-  }
-  const key = keyMap[status]
-  return key ? t(key) : status
-}
+  };
+  const key = keyMap[status];
+  return key ? t(key) : status;
+};
 
 const getInvoiceStatusType = (status: string) => {
   const map: Record<string, string> = {
@@ -315,71 +315,71 @@ const getInvoiceStatusType = (status: string) => {
     approved: 'success',
     verified: 'primary',
     cancelled: 'info',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const fetchInvoices = async () => {
-  invoiceLoading.value = true
+  invoiceLoading.value = true;
   try {
-    const res = await getARInvoiceList(invoiceQuery)
+    const res = await getARInvoiceList(invoiceQuery);
     const d = res.data as
       | { list?: ARInvoice[]; items?: ARInvoice[]; data?: ARInvoice[] }
-      | ARInvoice[]
-    invoices.value = Array.isArray(d) ? d : d?.items || d?.data || []
+      | ARInvoice[];
+    invoices.value = Array.isArray(d) ? d : d?.items || d?.data || [];
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('arModule.invoice.fetchListFailed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('arModule.invoice.fetchListFailed'));
   } finally {
-    invoiceLoading.value = false
+    invoiceLoading.value = false;
   }
-}
+};
 
 const resetInvoiceQuery = () => {
-  invoiceQuery.customer_name = ''
-  invoiceQuery.invoice_no = ''
-  invoiceQuery.status = ''
-  fetchInvoices()
-}
+  invoiceQuery.customer_name = '';
+  invoiceQuery.invoice_no = '';
+  invoiceQuery.status = '';
+  fetchInvoices();
+};
 
 const openInvoiceDialog = () => {
-  invoiceFormRef.value?.resetFields()
-  invoiceForm.customer_id = undefined
-  invoiceForm.invoice_no = ''
-  invoiceForm.invoice_date = new Date().toISOString().split('T')[0]
-  invoiceForm.invoice_amount = 0
-  invoiceForm.tax_amount = 0
-  invoiceForm.due_date = ''
-  invoiceForm.remark = ''
-  invoiceDialogVisible.value = true
-}
+  invoiceFormRef.value?.resetFields();
+  invoiceForm.customer_id = undefined;
+  invoiceForm.invoice_no = '';
+  invoiceForm.invoice_date = new Date().toISOString().split('T')[0];
+  invoiceForm.invoice_amount = 0;
+  invoiceForm.tax_amount = 0;
+  invoiceForm.due_date = '';
+  invoiceForm.remark = '';
+  invoiceDialogVisible.value = true;
+};
 
 const submitInvoice = async () => {
-  const valid = await invoiceFormRef.value?.validate()
-  if (!valid) return
+  const valid = await invoiceFormRef.value?.validate();
+  if (!valid) return;
 
-  invoiceSubmitLoading.value = true
+  invoiceSubmitLoading.value = true;
   try {
-    await createARInvoice(invoiceForm)
-    ElMessage.success(t('common.success'))
-    invoiceDialogVisible.value = false
-    fetchInvoices()
+    await createARInvoice(invoiceForm);
+    ElMessage.success(t('common.success'));
+    invoiceDialogVisible.value = false;
+    fetchInvoices();
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('common.failed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('common.failed'));
   } finally {
-    invoiceSubmitLoading.value = false
+    invoiceSubmitLoading.value = false;
   }
-}
+};
 
 // 批次 157a P1-1 修复：接入 getARInvoice API 展示应收发票详情
 const viewInvoice = async (row: ARInvoice) => {
   try {
-    const res = await getARInvoice(row.id)
-    const d = res.data
+    const res = await getARInvoice(row.id);
+    const d = res.data;
     if (!d) {
-      ElMessage.warning(t('arModule.invoice.notFoundDetail'))
-      return
+      ElMessage.warning(t('arModule.invoice.notFoundDetail'));
+      return;
     }
     const lines = [
       t('arModule.invoice.detailNo', { value: d.invoice_no }),
@@ -392,15 +392,15 @@ const viewInvoice = async (row: ARInvoice) => {
       t('arModule.invoice.detailUnverified', { value: formatMoney(d.unverified_amount) }),
       t('arModule.invoice.detailStatus', { value: getInvoiceStatusLabel(d.status) }),
       t('arModule.invoice.detailRemark', { value: d.remark || '-' }),
-    ]
+    ];
     await ElMessageBox.alert(lines.join('\n'), t('arModule.invoice.detailTitle'), {
       confirmButtonText: t('common.close'),
-    })
+    });
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('arModule.invoice.fetchDetailFailed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('arModule.invoice.fetchDetailFailed'));
   }
-}
+};
 
 const approveInvoice = async (row: ARInvoice) => {
   try {
@@ -408,17 +408,17 @@ const approveInvoice = async (row: ARInvoice) => {
       t('arModule.invoice.approveConfirm'),
       t('arModule.invoice.approveTitle'),
       { type: 'info' }
-    )
-    await approveARInvoice(row.id)
-    ElMessage.success(t('arModule.invoice.approveSuccess'))
-    fetchInvoices()
+    );
+    await approveARInvoice(row.id);
+    ElMessage.success(t('arModule.invoice.approveSuccess'));
+    fetchInvoices();
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as Error
-      ElMessage.error(err.message || t('common.failed'))
+      const err = error as Error;
+      ElMessage.error(err.message || t('common.failed'));
     }
   }
-}
+};
 
 const cancelInvoice = async (row: ARInvoice) => {
   try {
@@ -426,17 +426,17 @@ const cancelInvoice = async (row: ARInvoice) => {
       t('arModule.invoice.cancelConfirm'),
       t('arModule.invoice.cancelTitle'),
       { type: 'warning' }
-    )
-    await cancelARInvoice(row.id)
-    ElMessage.success(t('arModule.invoice.cancelSuccess'))
-    fetchInvoices()
+    );
+    await cancelARInvoice(row.id);
+    ElMessage.success(t('arModule.invoice.cancelSuccess'));
+    fetchInvoices();
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as Error
-      ElMessage.error(err.message || t('common.failed'))
+      const err = error as Error;
+      ElMessage.error(err.message || t('common.failed'));
     }
   }
-}
+};
 
 const handlePrintInvoices = () => {
   const printData = invoices.value.map((item, index) => ({
@@ -447,7 +447,7 @@ const handlePrintInvoices = () => {
     [t('arModule.invoice.taxAmount')]: `¥${item.tax_amount}`,
     [t('common.status')]: getInvoiceStatusLabel(item.status),
     [t('arModule.invoice.invoiceDate')]: item.invoice_date,
-  }))
+  }));
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],
@@ -457,20 +457,20 @@ const handlePrintInvoices = () => {
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
     gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
     gridStyle: 'border-collapse: collapse; width: 100%;',
-  } as never)
-}
+  } as never);
+};
 
 const handleExportInvoices = async () => {
   const params: Record<string, unknown> = {
     status: invoiceQuery.status || undefined,
-  }
-  await exportFromBackend('/ar/invoices/export', params, 'ar_invoices_export')
-  logger.info(t('arModule.invoice.exportedLog'))
-}
+  };
+  await exportFromBackend('/ar/invoices/export', params, 'ar_invoices_export');
+  logger.info(t('arModule.invoice.exportedLog'));
+};
 
 onMounted(() => {
-  fetchInvoices()
-})
+  fetchInvoices();
+});
 </script>
 
 <style scoped>

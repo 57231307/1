@@ -118,35 +118,35 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { View, Promotion, CircleClose } from '@element-plus/icons-vue'
-import type { AutoReconciliationResult } from '@/api/ar-reconciliation-enhanced'
-import { getMatchLabel, getMatchType } from '../composables/arRecFmts'
+import { useI18n } from 'vue-i18n';
+import { View, Promotion, CircleClose } from '@element-plus/icons-vue';
+import type { AutoReconciliationResult } from '@/api/ar-reconciliation-enhanced';
+import { getMatchLabel, getMatchType } from '../composables/arRecFmts';
 
-const { t } = useI18n({ useScope: 'global' })
-void t
+const { t } = useI18n({ useScope: 'global' });
+void t;
 
 interface ArPagination {
-  page: number
-  pageSize: number
+  page: number;
+  pageSize: number;
 }
 
 const props = defineProps<{
-  data: AutoReconciliationResult[]
-  loading: boolean
-  total: number
-  pagination: ArPagination
-}>()
+  data: AutoReconciliationResult[];
+  loading: boolean;
+  total: number;
+  pagination: ArPagination;
+}>();
 
 const emit = defineEmits<{
-  'view-detail': [row: AutoReconciliationResult]
-  'send-confirmation': [row: AutoReconciliationResult]
-  'open-dispute': [row: AutoReconciliationResult]
-  'page-change': [page: number]
-  'page-size-change': [size: number]
-}>()
+  'view-detail': [row: AutoReconciliationResult];
+  'send-confirmation': [row: AutoReconciliationResult];
+  'open-dispute': [row: AutoReconciliationResult];
+  'page-change': [page: number];
+  'page-size-change': [size: number];
+}>();
 
-void props
+void props;
 </script>
 
 <style scoped>

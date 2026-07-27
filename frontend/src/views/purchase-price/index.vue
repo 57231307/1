@@ -10,8 +10,12 @@
       <div class="header-left">
         <h1 class="page-title">{{ t('purchasePrice.index.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ t('purchasePrice.index.breadcrumb.home') }}</el-breadcrumb-item>
-          <el-breadcrumb-item>{{ t('purchasePrice.index.breadcrumb.purchase') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('purchasePrice.index.breadcrumb.home')
+          }}</el-breadcrumb-item>
+          <el-breadcrumb-item>{{
+            t('purchasePrice.index.breadcrumb.purchase')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('purchasePrice.index.breadcrumb.price') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
@@ -32,7 +36,7 @@
       :suppliers="pp.suppliers"
       :products="pp.products"
       @fetch="pp.handleQuery"
-      @update:query-params="(v) => Object.assign(pp.queryParams, v)"
+      @update:query-params="v => Object.assign(pp.queryParams, v)"
     />
 
     <PurchasePriceTable
@@ -54,60 +58,63 @@
       :suppliers="pp.suppliers"
       :products="pp.products"
       @submit="onSubmitForm"
-      @update:form-data="(v) => Object.assign(pp.formData, v)"
+      @update:form-data="v => Object.assign(pp.formData, v)"
     />
 
-    <PurchasePriceHistory v-model:visible="ppProc.historyVisible" :history-list="ppProc.historyList" />
+    <PurchasePriceHistory
+      v-model:visible="ppProc.historyVisible"
+      :history-list="ppProc.historyList"
+    />
 
     <PurchasePriceDetail v-model:visible="ppProc.viewDialogVisible" :view-data="ppProc.viewData" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Plus, Download } from '@element-plus/icons-vue'
-import type { PurchasePrice } from '@/api/purchase-price'
-import { usePp } from './composables/usePp'
-import { usePpProc } from './composables/usePpProc'
-import PurchasePriceFilter from './components/PurchasePriceFilter.vue'
-import PurchasePriceTable from './components/PurchasePriceTable.vue'
-import PurchasePriceForm from './components/PurchasePriceForm.vue'
-import PurchasePriceHistory from './components/PurchasePriceHistory.vue'
-import PurchasePriceDetail from './components/PurchasePriceDetail.vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Plus, Download } from '@element-plus/icons-vue';
+import type { PurchasePrice } from '@/api/purchase-price';
+import { usePp } from './composables/usePp';
+import { usePpProc } from './composables/usePpProc';
+import PurchasePriceFilter from './components/PurchasePriceFilter.vue';
+import PurchasePriceTable from './components/PurchasePriceTable.vue';
+import PurchasePriceForm from './components/PurchasePriceForm.vue';
+import PurchasePriceHistory from './components/PurchasePriceHistory.vue';
+import PurchasePriceDetail from './components/PurchasePriceDetail.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const pp = usePp()
+const pp = usePp();
 const ppProc = usePpProc({
   getList: pp.getList,
-})
+});
 
 // 对话框可见性本地 ref
-const dialogVisible = ref(false)
+const dialogVisible = ref(false);
 
 /** 新建价格 */
 const onCreate = () => {
-  pp.prepareCreate()
-  dialogVisible.value = true
-}
+  pp.prepareCreate();
+  dialogVisible.value = true;
+};
 
 /** 编辑价格 */
 const onEdit = (row: PurchasePrice) => {
-  pp.prepareEdit(row)
-  dialogVisible.value = true
-}
+  pp.prepareEdit(row);
+  dialogVisible.value = true;
+};
 
 /** 提交表单 */
 const onSubmitForm = async () => {
-  const ok = await pp.handleSubmitForm()
-  if (ok) dialogVisible.value = false
-}
+  const ok = await pp.handleSubmitForm();
+  if (ok) dialogVisible.value = false;
+};
 
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  pp.initLoad()
-})
+  pp.initLoad();
+});
 </script>
 
 <style scoped>

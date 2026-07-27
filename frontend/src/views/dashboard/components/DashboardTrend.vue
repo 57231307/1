@@ -19,38 +19,38 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import * as echarts from 'echarts'
-import type { ECharts } from 'echarts'
-import type { SalesTrend } from '@/api/dashboard'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import * as echarts from 'echarts';
+import type { ECharts } from 'echarts';
+import type { SalesTrend } from '@/api/dashboard';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 趋势数据 + 天数（v-model 双向）
-const props = defineProps<{ data: SalesTrend[]; days: number }>()
-const emit = defineEmits<{ 'update:days': [v: number] }>()
+const props = defineProps<{ data: SalesTrend[]; days: number }>();
+const emit = defineEmits<{ 'update:days': [v: number] }>();
 
-const updateDays = (v: number) => emit('update:days', v)
+const updateDays = (v: number) => emit('update:days', v);
 
 // ECharts 实例 + 容器 ref
-const chartRef = ref<HTMLElement>()
-let trendChart: ECharts | null = null
-let resizeHandler: (() => void) | null = null
+const chartRef = ref<HTMLElement>();
+let trendChart: ECharts | null = null;
+let resizeHandler: (() => void) | null = null;
 
 // 渲染 ECharts 折线柱状图
 const renderChart = (trends: SalesTrend[]) => {
-  if (!chartRef.value) return
+  if (!chartRef.value) return;
   if (!trendChart) {
-    trendChart = echarts.init(chartRef.value)
-    resizeHandler = () => trendChart?.resize()
-    window.addEventListener('resize', resizeHandler)
+    trendChart = echarts.init(chartRef.value);
+    resizeHandler = () => trendChart?.resize();
+    window.addEventListener('resize', resizeHandler);
   }
-  const dates = trends?.map(t => t.date) || []
-  const amounts = trends?.map(t => t.amount) || []
-  const counts = trends?.map(t => t.count) || []
-  const salesLabel = t('dashboard.trend.salesAmount')
-  const orderLabel = t('dashboard.trend.orderCount')
+  const dates = trends?.map(t => t.date) || [];
+  const amounts = trends?.map(t => t.amount) || [];
+  const counts = trends?.map(t => t.count) || [];
+  const salesLabel = t('dashboard.trend.salesAmount');
+  const orderLabel = t('dashboard.trend.orderCount');
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
     legend: { data: [salesLabel, orderLabel] },
@@ -77,32 +77,32 @@ const renderChart = (trends: SalesTrend[]) => {
         itemStyle: { color: '#764ba2', borderRadius: [4, 4, 0, 0] },
       },
     ],
-  })
-}
+  });
+};
 
 // 监听数据变化
 watch(
   () => props.data,
   newData => {
-    renderChart(newData || [])
+    renderChart(newData || []);
   },
   { immediate: true, deep: true }
-)
+);
 
 // 挂载后渲染
 onMounted(() => {
-  renderChart(props.data || [])
-})
+  renderChart(props.data || []);
+});
 
 // 卸载前清理
 onBeforeUnmount(() => {
-  trendChart?.dispose()
-  trendChart = null
+  trendChart?.dispose();
+  trendChart = null;
   if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler)
-    resizeHandler = null
+    window.removeEventListener('resize', resizeHandler);
+    resizeHandler = null;
   }
-})
+});
 </script>
 
 <style scoped>

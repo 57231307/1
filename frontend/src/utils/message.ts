@@ -9,34 +9,34 @@
  *   msg.approveOk()     // 审批成功
  *   msg.error('loadFailed', '账单')  // 加载账单失败
  */
-import { ElMessage } from 'element-plus'
-import { i18n } from '@/i18n'
+import { ElMessage } from 'element-plus';
+import { i18n } from '@/i18n';
 
 /** 从 message 命名空间翻译 key */
 function t(key: string, named?: Record<string, unknown>): string {
-  const fullKey = named ? `message.${key}` : `message.${key}`
-  const translated = i18n.global.t(fullKey, named ?? {})
-  return translated
+  const fullKey = named ? `message.${key}` : `message.${key}`;
+  const translated = i18n.global.t(fullKey, named ?? {});
+  return translated;
 }
 
 /** 显示成功提示（默认"操作成功"） */
 function success(key = 'operationSuccess', named?: Record<string, unknown>): void {
-  ElMessage.success(t(key, named))
+  ElMessage.success(t(key, named));
 }
 
 /** 显示错误提示（默认"操作失败"） */
 function error(key = 'operationFailed', named?: Record<string, unknown>): void {
-  ElMessage.error(t(key, named))
+  ElMessage.error(t(key, named));
 }
 
 /** 显示警告提示 */
 function warning(key: string, named?: Record<string, unknown>): void {
-  ElMessage.warning(t(key, named))
+  ElMessage.warning(t(key, named));
 }
 
 /** 显示信息提示 */
 function info(key: string, named?: Record<string, unknown>): void {
-  ElMessage.info(t(key, named))
+  ElMessage.info(t(key, named));
 }
 
 /** 高频操作快捷方法 */
@@ -82,13 +82,12 @@ export const msg = {
   printOpened: () => success('printWindowOpened'),
   printBlocked: () => error('printWindowBlocked'),
   // 加载失败（带业务名）
-  loadFail: (entity?: string) =>
-    error('loadFailed', entity ? { entity } : undefined),
+  loadFail: (entity?: string) => error('loadFailed', entity ? { entity } : undefined),
   // 网络异常
   networkError: () => error('networkError'),
   // 权限
   permissionDenied: () => error('permissionDenied'),
   sessionExpired: () => error('sessionExpired'),
-}
+};
 
-export default msg
+export default msg;

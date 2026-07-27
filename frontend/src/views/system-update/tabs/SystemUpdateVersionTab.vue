@@ -6,28 +6,54 @@
 -->
 <template>
   <el-card shadow="hover">
-    <el-table v-loading="loading" :data="versions" stripe :aria-label="t('systemUpdate.versionTab.tableAriaLabel')">
-      <el-table-column prop="version" :label="t('systemUpdate.versionTab.columnVersion')" width="120" />
-      <el-table-column prop="release_date" :label="t('systemUpdate.versionTab.columnReleaseDate')" width="120" />
+    <el-table
+      v-loading="loading"
+      :data="versions"
+      stripe
+      :aria-label="t('systemUpdate.versionTab.tableAriaLabel')"
+    >
+      <el-table-column
+        prop="version"
+        :label="t('systemUpdate.versionTab.columnVersion')"
+        width="120"
+      />
+      <el-table-column
+        prop="release_date"
+        :label="t('systemUpdate.versionTab.columnReleaseDate')"
+        width="120"
+      />
       <el-table-column
         prop="release_notes"
         :label="t('systemUpdate.versionTab.columnReleaseNotes')"
         min-width="200"
         show-overflow-tooltip
       />
-      <el-table-column prop="file_size" :label="t('systemUpdate.versionTab.columnFileSize')" width="100">
+      <el-table-column
+        prop="file_size"
+        :label="t('systemUpdate.versionTab.columnFileSize')"
+        width="100"
+      >
         <template #default="{ row }">
           {{ formatFileSize(row.file_size) }}
         </template>
       </el-table-column>
-      <el-table-column prop="status" :label="t('systemUpdate.versionTab.columnStatus')" width="120" align="center">
+      <el-table-column
+        prop="status"
+        :label="t('systemUpdate.versionTab.columnStatus')"
+        width="120"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag :type="versionStatusTypeMap[row.status]" size="small">
             {{ getVersionStatusLabel(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="t('systemUpdate.versionTab.columnActions')" width="200" fixed="right">
+      <el-table-column
+        :label="t('systemUpdate.versionTab.columnActions')"
+        width="200"
+        fixed="right"
+      >
         <template #default="{ row }">
           <el-button
             v-if="row.status === 'available'"
@@ -45,9 +71,9 @@
             @click="emit('install', row)"
             >{{ t('systemUpdate.versionTab.buttonInstall') }}</el-button
           >
-          <el-button type="info" link size="small" @click="emit('view-detail', row)"
-            >{{ t('systemUpdate.versionTab.buttonDetail') }}</el-button
-          >
+          <el-button type="info" link size="small" @click="emit('view-detail', row)">{{
+            t('systemUpdate.versionTab.buttonDetail')
+          }}</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -59,57 +85,57 @@
         :page-sizes="[10, 20, 50]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
+        :aria-label="t('systemUpdate.versionTab.paginationAriaLabel')"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:page-size', v)"
-        :aria-label="t('systemUpdate.versionTab.paginationAriaLabel')"
       />
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { SystemVersion } from '@/api/system-update'
+import { useI18n } from 'vue-i18n';
+import type { SystemVersion } from '@/api/system-update';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
-  versions: SystemVersion[]
-  loading: boolean
-  total: number
-  page: number
-  pageSize: number
-  versionStatusTypeMap: Record<string, string>
-  formatFileSize: (size: number) => string
-}>()
+  versions: SystemVersion[];
+  loading: boolean;
+  total: number;
+  page: number;
+  pageSize: number;
+  versionStatusTypeMap: Record<string, string>;
+  formatFileSize: (size: number) => string;
+}>();
 
 const emit = defineEmits<{
-  download: [row: SystemVersion]
-  install: [row: SystemVersion]
-  'view-detail': [row: SystemVersion]
-  'update:page': [v: number]
-  'update:page-size': [v: number]
-}>()
+  download: [row: SystemVersion];
+  install: [row: SystemVersion];
+  'view-detail': [row: SystemVersion];
+  'update:page': [v: number];
+  'update:page-size': [v: number];
+}>();
 
 /** 版本状态 → i18n 标签（语言切换响应） */
 const getVersionStatusLabel = (status: string): string => {
   switch (status) {
     case 'available':
-      return t('systemUpdate.common.versionStatusAvailable')
+      return t('systemUpdate.common.versionStatusAvailable');
     case 'downloading':
-      return t('systemUpdate.common.versionStatusDownloading')
+      return t('systemUpdate.common.versionStatusDownloading');
     case 'downloaded':
-      return t('systemUpdate.common.versionStatusDownloaded')
+      return t('systemUpdate.common.versionStatusDownloaded');
     case 'installing':
-      return t('systemUpdate.common.versionStatusInstalling')
+      return t('systemUpdate.common.versionStatusInstalling');
     case 'installed':
-      return t('systemUpdate.common.versionStatusInstalled')
+      return t('systemUpdate.common.versionStatusInstalled');
     case 'failed':
-      return t('systemUpdate.common.versionStatusFailed')
+      return t('systemUpdate.common.versionStatusFailed');
     default:
-      return status
+      return status;
   }
-}
+};
 </script>
 
 <style scoped>

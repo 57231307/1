@@ -167,37 +167,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { Customer } from '@/api/customer'
-import type { Product } from '@/api/product'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { Customer } from '@/api/customer';
+import type { Product } from '@/api/product';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 表单数据类型（所有字段可选，兼容 Partial<SalesPrice>）
 interface SpFormData {
-  id?: number | undefined
-  product_id?: number | undefined
-  customer_id?: number | undefined
-  price?: number
-  currency?: string
-  unit?: string
-  min_order_qty?: number
-  price_type?: string
-  price_level?: string
-  effective_date?: string
-  expiry_date?: string
-  remarks?: string
+  id?: number | undefined;
+  product_id?: number | undefined;
+  customer_id?: number | undefined;
+  price?: number;
+  currency?: string;
+  unit?: string;
+  min_order_qty?: number;
+  price_type?: string;
+  price_level?: string;
+  effective_date?: string;
+  expiry_date?: string;
+  remarks?: string;
 }
 
 // 表单校验规则
 interface FormRules {
-  product_id: Array<{ required: boolean; message: string; trigger: string }>
-  price: Array<{ required: boolean; message: string; trigger: string }>
-  currency: Array<{ required: boolean; message: string; trigger: string }>
-  unit: Array<{ required: boolean; message: string; trigger: string }>
-  effective_date: Array<{ required: boolean; message: string; trigger: string }>
-  price_type: Array<{ required: boolean; message: string; trigger: string }>
+  product_id: Array<{ required: boolean; message: string; trigger: string }>;
+  price: Array<{ required: boolean; message: string; trigger: string }>;
+  currency: Array<{ required: boolean; message: string; trigger: string }>;
+  unit: Array<{ required: boolean; message: string; trigger: string }>;
+  effective_date: Array<{ required: boolean; message: string; trigger: string }>;
+  price_type: Array<{ required: boolean; message: string; trigger: string }>;
 }
 
 /**
@@ -205,62 +205,62 @@ interface FormRules {
  */
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 标题
-  title: string
+  title: string;
   // 表单数据（由父组件管理，子组件通过 emit('update:formData') 回写）
-  formData: SpFormData
+  formData: SpFormData;
   // 表单校验规则
-  formRules: FormRules
+  formRules: FormRules;
   // 客户列表
-  customers: Customer[]
+  customers: Customer[];
   // 产品列表
-  products: Product[]
-}>()
+  products: Product[];
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:visible', v: boolean): void
-  (e: 'submit'): void
+  (e: 'update:visible', v: boolean): void;
+  (e: 'submit'): void;
   // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
-  (e: 'update:formData', formData: SpFormData): void
-}>()
+  (e: 'update:formData', formData: SpFormData): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localFormData = ref<SpFormData>({ ...props.formData })
+const localFormData = ref<SpFormData>({ ...props.formData });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件编辑/新建时填充数据）
 watch(
   () => props.formData,
   newData => {
-    if (syncing) return
-    syncing = true
-    localFormData.value = { ...newData }
+    if (syncing) return;
+    syncing = true;
+    localFormData.value = { ...newData };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localFormData,
   newData => {
-    if (syncing) return
-    syncing = true
-    emit('update:formData', { ...newData })
+    if (syncing) return;
+    syncing = true;
+    emit('update:formData', { ...newData });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {
-  emit('update:visible', v)
-}
+  emit('update:visible', v);
+};
 </script>

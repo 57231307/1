@@ -51,39 +51,39 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Switch } from '@element-plus/icons-vue'
-import { formatTime } from '../composables/schGFmts'
+import { useI18n } from 'vue-i18n';
+import { Switch } from '@element-plus/icons-vue';
+import { formatTime } from '../composables/schGFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 冲突项类型
 interface ConflictItem {
-  work_center_name: string
-  order_no_1: string
-  order_no_2: string
-  overlap_start: string
-  overlap_end: string
-  severity: string
-  suggestion: string
+  work_center_name: string;
+  order_no_1: string;
+  order_no_2: string;
+  overlap_start: string;
+  overlap_end: string;
+  severity: string;
+  suggestion: string;
 }
 
 // 排程冲突对话框属性
 defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 冲突列表
-  conflictList: ConflictItem[]
-}>()
+  conflictList: ConflictItem[];
+}>();
 
 // 定义事件
 const emit = defineEmits<{
   // 关闭
-  (e: 'update:visible', value: boolean): void
-}>()
+  (e: 'update:visible', value: boolean): void;
+}>();
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {
-  emit('update:visible', v)
-}
+  emit('update:visible', v);
+};
 </script>

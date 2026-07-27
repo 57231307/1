@@ -5,9 +5,9 @@
  * 列表/表单/CRUD 状态由 useSr 提供
  * 行为完全保持一致（仅结构重构）
  */
-import { ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { approveSalesReturn, type SalesReturn } from '@/api/sales-return'
+import { ref } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { approveSalesReturn, type SalesReturn } from '@/api/sales-return';
 
 /**
  * 销售退货业务流程 composable
@@ -15,57 +15,57 @@ import { approveSalesReturn, type SalesReturn } from '@/api/sales-return'
  */
 export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
   // 详情对话框可见性（父组件可读取控制 v-model）
-  const viewDialogVisible = ref(false)
+  const viewDialogVisible = ref(false);
 
   /**
    * 触发查看详情：拷贝行数据到 currentReturn，打开弹窗
    */
   const handleView = (row: SalesReturn) => {
-    sr.currentReturn.value = { ...row }
-    viewDialogVisible.value = true
-  }
+    sr.currentReturn.value = { ...row };
+    viewDialogVisible.value = true;
+  };
 
   /**
    * 进入新建模式
    */
   const handleCreate = () => {
-    sr.resetFormForCreate()
-  }
+    sr.resetFormForCreate();
+  };
 
   /**
    * 进入编辑模式
    */
   const handleEdit = (row: SalesReturn) => {
-    sr.fillFormForEdit(row)
-  }
+    sr.fillFormForEdit(row);
+  };
 
   /**
    * 提交（新建或更新）
    */
   const handleSubmit = async (dialogMode: 'create' | 'edit') => {
-    return await sr.submitForm(dialogMode)
-  }
+    return await sr.submitForm(dialogMode);
+  };
 
   /**
    * 审核通过退货单
    */
   const handleApprove = async (row: SalesReturn) => {
-    if (!row.id) return
+    if (!row.id) return;
 
     try {
       await ElMessageBox.confirm(`确定审核通过退货单 ${row.returnNo} 吗？`, '审核确认', {
         type: 'warning',
-      })
-      await approveSalesReturn(row.id)
-      ElMessage.success('审核成功')
-      await sr.loadReturns()
+      });
+      await approveSalesReturn(row.id);
+      ElMessage.success('审核成功');
+      await sr.loadReturns();
     } catch (error: unknown) {
       if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error)
-        ElMessage.error(errMsg || '审核失败')
+        const errMsg = error instanceof Error ? error.message : String(error);
+        ElMessage.error(errMsg || '审核失败');
       }
     }
-  }
+  };
 
   return {
     viewDialogVisible,
@@ -74,5 +74,5 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
     handleEdit,
     handleSubmit,
     handleApprove,
-  }
+  };
 }

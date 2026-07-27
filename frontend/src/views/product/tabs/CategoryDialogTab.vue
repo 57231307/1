@@ -50,65 +50,65 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import {
   getProductCategoryList,
   createProductCategory,
   deleteProductCategory,
   type ProductCategory,
-} from '@/api/product'
-import { logger } from '@/utils/logger'
+} from '@/api/product';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
+  modelValue: boolean;
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'changed'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'changed'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const categories = ref<ProductCategory[]>([])
-const newCategoryName = ref('')
-const loading = ref(false)
+const categories = ref<ProductCategory[]>([]);
+const newCategoryName = ref('');
+const loading = ref(false);
 
 const fetchCategories = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await getProductCategoryList()
-    categories.value = (res.data as ProductCategory[] | undefined) || []
+    const res = await getProductCategoryList();
+    categories.value = (res.data as ProductCategory[] | undefined) || [];
   } catch (error) {
-    const err = error as Error
-    logger.error(t('product.categoryDialogTab.messageFetchFailed'), err.message)
+    const err = error as Error;
+    logger.error(t('product.categoryDialogTab.messageFetchFailed'), err.message);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const handleAdd = async () => {
   if (!newCategoryName.value.trim()) {
-    ElMessage.warning(t('product.categoryDialogTab.messageCategoryNameRequired'))
-    return
+    ElMessage.warning(t('product.categoryDialogTab.messageCategoryNameRequired'));
+    return;
   }
   try {
-    await createProductCategory({ name: newCategoryName.value.trim() })
-    ElMessage.success(t('product.categoryDialogTab.messageAddSuccess'))
-    newCategoryName.value = ''
-    fetchCategories()
-    emit('changed')
+    await createProductCategory({ name: newCategoryName.value.trim() });
+    ElMessage.success(t('product.categoryDialogTab.messageAddSuccess'));
+    newCategoryName.value = '';
+    fetchCategories();
+    emit('changed');
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('product.categoryDialogTab.messageAddFailed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('product.categoryDialogTab.messageAddFailed'));
   }
-}
+};
 
 const handleDelete = async (row: ProductCategory) => {
   try {
@@ -116,27 +116,27 @@ const handleDelete = async (row: ProductCategory) => {
       t('product.categoryDialogTab.messageDeleteConfirm', { name: row.name }),
       t('product.categoryDialogTab.messageDeleteTitle'),
       { type: 'warning' }
-    )
-    await deleteProductCategory(row.id)
-    ElMessage.success(t('product.categoryDialogTab.messageDeleteSuccess'))
-    fetchCategories()
-    emit('changed')
+    );
+    await deleteProductCategory(row.id);
+    ElMessage.success(t('product.categoryDialogTab.messageDeleteSuccess'));
+    fetchCategories();
+    emit('changed');
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as Error
-      ElMessage.error(err.message || t('product.categoryDialogTab.messageDeleteFailed'))
+      const err = error as Error;
+      ElMessage.error(err.message || t('product.categoryDialogTab.messageDeleteFailed'));
     }
   }
-}
+};
 
 watch(
   () => props.modelValue,
   val => {
     if (val) {
-      fetchCategories()
+      fetchCategories();
     }
   }
-)
+);
 </script>
 
 <style scoped>

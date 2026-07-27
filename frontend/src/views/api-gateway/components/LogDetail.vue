@@ -15,13 +15,21 @@
       <el-descriptions-item :label="t('apiGateway.logDetail.endpointPath')">{{
         currentLog?.endpoint_path
       }}</el-descriptions-item>
-      <el-descriptions-item :label="t('apiGateway.logDetail.method')">{{ currentLog?.method }}</el-descriptions-item>
-      <el-descriptions-item :label="t('apiGateway.logDetail.statusCode')">{{ currentLog?.status_code }}</el-descriptions-item>
+      <el-descriptions-item :label="t('apiGateway.logDetail.method')">{{
+        currentLog?.method
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('apiGateway.logDetail.statusCode')">{{
+        currentLog?.status_code
+      }}</el-descriptions-item>
       <el-descriptions-item :label="t('apiGateway.logDetail.responseTime')"
         >{{ currentLog?.response_time }}ms</el-descriptions-item
       >
-      <el-descriptions-item :label="t('apiGateway.logDetail.ipAddress')">{{ currentLog?.ip_address }}</el-descriptions-item>
-      <el-descriptions-item :label="t('apiGateway.logDetail.user')">{{ currentLog?.user_name }}</el-descriptions-item>
+      <el-descriptions-item :label="t('apiGateway.logDetail.ipAddress')">{{
+        currentLog?.ip_address
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('apiGateway.logDetail.user')">{{
+        currentLog?.user_name
+      }}</el-descriptions-item>
       <el-descriptions-item :label="t('apiGateway.logDetail.requestTime')" :span="2">{{
         currentLog?.created_at
       }}</el-descriptions-item>
@@ -35,31 +43,33 @@
       <pre>{{ currentLog?.response_body || t('apiGateway.logDetail.empty') }}</pre>
     </div>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('apiGateway.logDetail.close') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('apiGateway.logDetail.close')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { ApiLog } from '@/api/api-gateway'
+import { useI18n } from 'vue-i18n';
+import type { ApiLog } from '@/api/api-gateway';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 日志详情对话框组件
  * 仅做展示，对话框状态由父组件控制
  */
 const props = defineProps<{
-  visible: boolean
-  currentLog: ApiLog | null
-}>()
+  visible: boolean;
+  currentLog: ApiLog | null;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-}>()
+  'update:visible': [v: boolean];
+}>();
 
-void props
+void props;
 </script>
 
 <style scoped>

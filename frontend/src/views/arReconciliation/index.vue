@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   ElTable,
   ElTableColumn,
@@ -16,8 +16,8 @@ import {
   ElRow,
   ElCol,
   ElDescriptions,
-} from 'element-plus'
-import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
+} from 'element-plus';
+import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue';
 import {
   getArReconciliation,
   createArReconciliation,
@@ -27,19 +27,19 @@ import {
   getReconciliationDetails,
   type ArReconciliationEntity,
   type ReconciliationDetail,
-} from '@/api/ar-reconciliation'
-import { getCustomerSelectList } from '@/api/customer'
-import { logger } from '@/utils/logger'
-import { useTableApi } from '@/composables/useTableApi'
+} from '@/api/ar-reconciliation';
+import { getCustomerSelectList } from '@/api/customer';
+import { logger } from '@/utils/logger';
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const searchForm = ref({
   customer_name: '',
   status: '',
   start_date: '',
   end_date: '',
-})
+});
 
 // 批次 272：接入 useTableApi，消除手写 pagination/tableData/total/loading + loadData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -54,71 +54,71 @@ const {
 } = useTableApi<ArReconciliationEntity>({
   url: '/ar-reconciliations',
   onError: (e: unknown) => {
-    ElMessage.error(t('arReconciliationModule.index.loadFailed'))
-    logger.warn(t('arReconciliationModule.index.loadListFailed'), String(e))
+    ElMessage.error(t('arReconciliationModule.index.loadFailed'));
+    logger.warn(t('arReconciliationModule.index.loadListFailed'), String(e));
   },
-})
+});
 
-const dialogVisible = ref(false)
+const dialogVisible = ref(false);
 const form = ref<Partial<ArReconciliationEntity>>({
   customer_id: 0,
   customer_name: '',
   start_date: '',
   end_date: '',
   status: 'draft',
-})
+});
 // 对话框标题：依据 form.id 自动切换「新增 / 编辑」，computed 保证语言切换即时生效
 const dialogTitle = computed(() =>
   form.value.id
     ? t('arReconciliationModule.index.editReconciliation')
     : t('arReconciliationModule.index.addReconciliation')
-)
+);
 
-const viewDialogVisible = ref(false)
-const viewData = ref<ArReconciliationEntity | null>(null)
-const detailData = ref<ReconciliationDetail[]>([])
+const viewDialogVisible = ref(false);
+const viewData = ref<ArReconciliationEntity | null>(null);
+const detailData = ref<ReconciliationDetail[]>([]);
 
-const customerOptions = ref<{ label: string; value: number }[]>([])
+const customerOptions = ref<{ label: string; value: number }[]>([]);
 
 // 状态下拉选项（label 走 i18n，computed 保证语言切换即时生效）
 const statusOptions = computed(() => [
   { label: t('arReconciliationModule.index.statusAll'), value: '' },
   { label: t('arReconciliationModule.index.statusDraft'), value: 'draft' },
   { label: t('arReconciliationModule.index.statusConfirmed'), value: 'confirmed' },
-])
+]);
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.value.find(s => s.value === value)?.label || value
-}
+  return statusOptions.value.find(s => s.value === value)?.label || value;
+};
 
 const getStatusClass = (value: string) => {
-  return value === 'draft' ? 'status-draft' : 'status-confirmed'
-}
+  return value === 'draft' ? 'status-draft' : 'status-confirmed';
+};
 
 // 批次 272：同步筛选条件到 useTableApi.queryParams 并刷新
 // useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
 const syncQueryParams = () => {
-  setQueryParam('customer_name', searchForm.value.customer_name || undefined)
-  setQueryParam('status', searchForm.value.status || undefined)
-  setQueryParam('start_date', searchForm.value.start_date || undefined)
-  setQueryParam('end_date', searchForm.value.end_date || undefined)
-}
+  setQueryParam('customer_name', searchForm.value.customer_name || undefined);
+  setQueryParam('status', searchForm.value.status || undefined);
+  setQueryParam('start_date', searchForm.value.start_date || undefined);
+  setQueryParam('end_date', searchForm.value.end_date || undefined);
+};
 
 const loadCustomers = async () => {
   try {
     // v11 批次 146 P1-4 修复：改用 customer.ts 统一封装的 getCustomerSelectList，
     // 避免绕过 API 层直接调用 request.get，并正确处理 PaginatedResponse → {label, value}[] 映射
-    customerOptions.value = await getCustomerSelectList()
+    customerOptions.value = await getCustomerSelectList();
   } catch (error) {
-    logger.warn(t('arReconciliationModule.index.loadCustomersFailed'))
+    logger.warn(t('arReconciliationModule.index.loadCustomersFailed'));
   }
-}
+};
 
 const handleSearch = () => {
-  syncQueryParams()
-  page.value = 1
-  loadData()
-}
+  syncQueryParams();
+  page.value = 1;
+  loadData();
+};
 
 const handleReset = () => {
   searchForm.value = {
@@ -126,21 +126,21 @@ const handleReset = () => {
     status: '',
     start_date: '',
     end_date: '',
-  }
-  syncQueryParams()
-  page.value = 1
-  loadData()
-}
+  };
+  syncQueryParams();
+  page.value = 1;
+  loadData();
+};
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (val: number) => {
-  page.value = val
-}
+  page.value = val;
+};
 
 const handlePageSizeChange = (val: number) => {
-  pageSize.value = val
-  page.value = 1
-}
+  pageSize.value = val;
+  page.value = 1;
+};
 
 const openAddDialog = () => {
   form.value = {
@@ -149,69 +149,69 @@ const openAddDialog = () => {
     start_date: '',
     end_date: '',
     status: 'draft',
-  }
-  dialogVisible.value = true
-}
+  };
+  dialogVisible.value = true;
+};
 
 const openEditDialog = (row: ArReconciliationEntity) => {
-  form.value = { ...row }
-  dialogVisible.value = true
-}
+  form.value = { ...row };
+  dialogVisible.value = true;
+};
 
 const openViewDialog = async (row: ArReconciliationEntity) => {
   try {
     // v11 批次 175 P2-1 修复：res: any 改为具体类型
-    const res = (await getArReconciliation(row.id!)) as { data?: ArReconciliationEntity }
+    const res = (await getArReconciliation(row.id!)) as { data?: ArReconciliationEntity };
     // 安全检查：防止后端返回 data 为 null 时崩溃
-    if (res.data) viewData.value = res.data
+    if (res.data) viewData.value = res.data;
     const detailRes = (await getReconciliationDetails(row.id!)) as {
-      data?: ReconciliationDetail[]
-    }
-    detailData.value = detailRes.data || []
-    viewDialogVisible.value = true
+      data?: ReconciliationDetail[];
+    };
+    detailData.value = detailRes.data || [];
+    viewDialogVisible.value = true;
   } catch (error) {
-    ElMessage.error(t('arReconciliationModule.index.fetchDetailFailed'))
+    ElMessage.error(t('arReconciliationModule.index.fetchDetailFailed'));
   }
-}
+};
 
 const handleSubmit = async () => {
   if (!form.value.customer_id || !form.value.start_date || !form.value.end_date) {
-    ElMessage.warning(t('arReconciliationModule.index.requiredFieldsMissing'))
-    return
+    ElMessage.warning(t('arReconciliationModule.index.requiredFieldsMissing'));
+    return;
   }
   try {
     if (form.value.id) {
-      await updateArReconciliation(form.value.id, form.value)
-      ElMessage.success(t('common.message.updateSuccess'))
+      await updateArReconciliation(form.value.id, form.value);
+      ElMessage.success(t('common.message.updateSuccess'));
     } else {
-      await createArReconciliation(form.value)
-      ElMessage.success(t('common.message.createSuccess'))
+      await createArReconciliation(form.value);
+      ElMessage.success(t('common.message.createSuccess'));
     }
-    dialogVisible.value = false
-    loadData()
+    dialogVisible.value = false;
+    loadData();
   } catch (error) {
-    ElMessage.error(t('common.message.operationFailed'))
+    ElMessage.error(t('common.message.operationFailed'));
   }
-}
+};
 
 const handleDelete = async (row: ArReconciliationEntity) => {
   if (row.status === 'confirmed') {
-    ElMessage.warning(t('arReconciliationModule.index.cannotDeleteConfirmed'))
-    return
+    ElMessage.warning(t('arReconciliationModule.index.cannotDeleteConfirmed'));
+    return;
   }
   try {
     await ElMessageBox.confirm(
       t('arReconciliationModule.index.deleteConfirm'),
       t('common.message.confirmTitle'),
       { type: 'warning' }
-    )
-    await deleteArReconciliation(row.id!)
-    ElMessage.success(t('common.message.deleteSuccess'))
-    loadData()
+    );
+    await deleteArReconciliation(row.id!);
+    ElMessage.success(t('common.message.deleteSuccess'));
+    loadData();
   } catch (error) {
-    ElMessage.info(t('arReconciliationModule.index.deleteCancelled'))
+    ElMessage.info(t('arReconciliationModule.index.deleteCancelled'));
   }
-}
+};
 
 const handleConfirm = async (row: ArReconciliationEntity) => {
   try {
@@ -219,17 +219,17 @@ const handleConfirm = async (row: ArReconciliationEntity) => {
       t('arReconciliationModule.index.confirmReconciliationConfirm'),
       t('common.message.confirmTitle'),
       { type: 'warning' }
-    )
-    await confirmReconciliation(row.id!)
-    ElMessage.success(t('arReconciliationModule.index.confirmSuccess'))
-    loadData()
+    );
+    await confirmReconciliation(row.id!);
+    ElMessage.success(t('arReconciliationModule.index.confirmSuccess'));
+    loadData();
   } catch (error) {
-    ElMessage.info(t('arReconciliationModule.index.confirmCancelled'))
+    ElMessage.info(t('arReconciliationModule.index.confirmCancelled'));
   }
-}
+};
 
 // 批次 272：useTableApi 构造时自动初始加载，无需 setup 顶层调用 loadData
-loadCustomers()
+loadCustomers();
 </script>
 
 <template>

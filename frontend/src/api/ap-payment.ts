@@ -7,7 +7,7 @@ export {
   updateAPPayment,
   confirmAPPayment,
   type APPayment,
-} from './ap'
+} from './ap';
 
 /**
  * 付款方式文本映射
@@ -18,6 +18,6 @@ export function getAPPaymentMethodText(method: string): string {
     cash: '现金',
     check: '支票',
     bill: '承兑汇票',
-  }
-  return map[method] || method
+  };
+  return map[method] || method;
 }

@@ -11,20 +11,43 @@
           <el-link type="primary" @click="onView(row as PurchaseOrder)">{{ row.order_no }}</el-link>
         </template>
       </el-table-column>
-      <el-table-column prop="supplier_name" :label="t('purchase.table.colSupplier')" width="180" fixed />
+      <el-table-column
+        prop="supplier_name"
+        :label="t('purchase.table.colSupplier')"
+        width="180"
+        fixed
+      />
       <el-table-column prop="order_date" :label="t('purchase.table.colOrderDate')" width="120" />
-      <el-table-column prop="required_date" :label="t('purchase.table.colRequiredDate')" width="120" />
-      <el-table-column prop="total_amount" :label="t('purchase.table.colTotalAmount')" width="120" align="right">
+      <el-table-column
+        prop="required_date"
+        :label="t('purchase.table.colRequiredDate')"
+        width="120"
+      />
+      <el-table-column
+        prop="total_amount"
+        :label="t('purchase.table.colTotalAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="{ row }">
           <span class="amount">¥{{ row.total_amount.toLocaleString() }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="received_amount" :label="t('purchase.table.colReceivedAmount')" width="120" align="right">
+      <el-table-column
+        prop="received_amount"
+        :label="t('purchase.table.colReceivedAmount')"
+        width="120"
+        align="right"
+      >
         <template #default="{ row }">
           <span>¥{{ (row.received_amount || 0).toLocaleString() }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="payment_status" :label="t('purchase.table.colPaymentStatus')" width="100">
+      <el-table-column
+        prop="payment_status"
+        :label="t('purchase.table.colPaymentStatus')"
+        width="100"
+      >
         <template #default="{ row }">
           <el-tag :type="getPaymentStatusType(row.payment_status)" size="small">
             {{ getPaymentStatusText(row.payment_status) }}
@@ -41,9 +64,9 @@
       <el-table-column prop="creator_name" :label="t('purchase.table.colCreator')" width="100" />
       <el-table-column :label="t('purchase.table.colOperation')" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="onView(row as PurchaseOrder)"
-            >{{ t('purchase.table.detail') }}</el-button
-          >
+          <el-button type="primary" link size="small" @click="onView(row as PurchaseOrder)">{{
+            t('purchase.table.detail')
+          }}</el-button>
           <el-button
             v-if="row.status === 'approved'"
             v-permission="PERMISSIONS.PURCHASE_ORDER_RECEIVE"
@@ -82,86 +105,86 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { PurchaseOrder } from '@/api/purchase'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { PurchaseOrder } from '@/api/purchase';
 // Batch 468 P0-S28：引入权限码常量，与后端 purchase-orders 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface QueryParams {
-  page: number
-  page_size: number
-  keyword: string
-  supplier_id: number | undefined
-  status: string
+  page: number;
+  page_size: number;
+  keyword: string;
+  supplier_id: number | undefined;
+  status: string;
 }
 
 const props = defineProps<{
   // 采购订单列表
-  orders: PurchaseOrder[]
+  orders: PurchaseOrder[];
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 总数
-  total: number
+  total: number;
   // 查询参数（分页相关，由父组件管理，子组件通过 emit('update:queryParams') 回写）
-  queryParams: QueryParams
+  queryParams: QueryParams;
   // 查看
-  onView: (row: PurchaseOrder) => void
+  onView: (row: PurchaseOrder) => void;
   // 审批
-  onApprove: (row: PurchaseOrder) => void
+  onApprove: (row: PurchaseOrder) => void;
   // 收货
-  onReceive: (row: PurchaseOrder) => void
+  onReceive: (row: PurchaseOrder) => void;
   // 查询回调
-  onQuery: () => void
+  onQuery: () => void;
   // 状态类型
-  getStatusType: (s: string) => string
+  getStatusType: (s: string) => string;
   // 状态文本
-  getStatusText: (s: string) => string
+  getStatusText: (s: string) => string;
   // 付款状态类型
-  getPaymentStatusType: (s: string) => string
+  getPaymentStatusType: (s: string) => string;
   // 付款状态文本
-  getPaymentStatusText: (s: string) => string
-}>()
+  getPaymentStatusText: (s: string) => string;
+}>();
 
 const emit = defineEmits<{
   // 整体回写查询参数（父组件监听此事件并 Object.assign 到自己的 queryParams）
-  (e: 'update:queryParams', queryParams: QueryParams): void
-}>()
+  (e: 'update:queryParams', queryParams: QueryParams): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localQueryParams = ref<QueryParams>({ ...props.queryParams })
+const localQueryParams = ref<QueryParams>({ ...props.queryParams });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件重置）
 watch(
   () => props.queryParams,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    localQueryParams.value = { ...newParams }
+  newParams => {
+    if (syncing) return;
+    syncing = true;
+    localQueryParams.value = { ...newParams };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户分页）
 watch(
   localQueryParams,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    emit('update:queryParams', { ...newParams })
+  newParams => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:queryParams', { ...newParams });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 </script>

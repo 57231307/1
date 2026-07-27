@@ -5,7 +5,11 @@
 -->
 <template>
   <div class="step-content">
-    <el-result icon="success" :title="t('security.twoFactor.step4.title')" :sub-title="t('security.twoFactor.step4.subTitle')">
+    <el-result
+      icon="success"
+      :title="t('security.twoFactor.step4.title')"
+      :sub-title="t('security.twoFactor.step4.subTitle')"
+    >
       <template #icon>
         <el-icon class="success-icon"><CircleCheckFilled /></el-icon>
       </template>
@@ -21,13 +25,7 @@
     />
 
     <div class="recovery-codes">
-      <el-input
-        :model-value="recoveryCodesText"
-        type="textarea"
-        :rows="6"
-        readonly
-        resize="none"
-      />
+      <el-input :model-value="recoveryCodesText" type="textarea" :rows="6" readonly resize="none" />
       <el-button class="copy-button" type="primary" @click="emit('copy-recovery')">
         <el-icon><CopyDocument /></el-icon>
         {{ t('security.twoFactor.step4.button.copyAll') }}
@@ -37,19 +35,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { CircleCheckFilled, CopyDocument } from '@element-plus/icons-vue'
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { CircleCheckFilled, CopyDocument } from '@element-plus/icons-vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const props = defineProps<{ recoveryCodes: string[] }>()
-const emit = defineEmits<{ 'copy-recovery': []; 'finish': [] }>()
+const props = defineProps<{ recoveryCodes: string[] }>();
+const emit = defineEmits<{ 'copy-recovery': []; finish: [] }>();
 
 // 恢复码文本（用换行拼接，便于 textarea 显示）
 const recoveryCodesText = computed<string>(() => {
-  return (props.recoveryCodes || []).join('\n')
-})
+  return (props.recoveryCodes || []).join('\n');
+});
 </script>
 
 <style scoped>

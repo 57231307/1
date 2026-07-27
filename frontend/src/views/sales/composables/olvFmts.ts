@@ -6,7 +6,7 @@
  */
 
 /** el-tag 类型联合（与 element-plus TagType 对齐） */
-type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
 
 /** 状态 → el-tag 类型 */
 const STATUS_TYPE_MAP: Record<string, TagType> = {
@@ -15,7 +15,7 @@ const STATUS_TYPE_MAP: Record<string, TagType> = {
   shipped: 'success',
   completed: 'info',
   cancelled: 'danger',
-}
+};
 
 /** 状态 → 中文标签 */
 const STATUS_TEXT_MAP: Record<string, string> = {
@@ -24,13 +24,13 @@ const STATUS_TEXT_MAP: Record<string, string> = {
   shipped: '已发货',
   completed: '已完成',
   cancelled: '已取消',
-}
+};
 
 /** 获取销售订单状态 el-tag 类型 */
-export const getStatusType = (status: string): TagType => STATUS_TYPE_MAP[status] || 'info'
+export const getStatusType = (status: string): TagType => STATUS_TYPE_MAP[status] || 'info';
 
 /** 获取销售订单状态中文标签 */
-export const getStatusText = (status: string) => STATUS_TEXT_MAP[status] || status
+export const getStatusText = (status: string) => STATUS_TEXT_MAP[status] || status;
 
 /** 格式化金额（人民币 + 千分位） */
-export const formatAmount = (value: number) => `¥${(value || 0).toLocaleString()}`
+export const formatAmount = (value: number) => `¥${(value || 0).toLocaleString()}`;

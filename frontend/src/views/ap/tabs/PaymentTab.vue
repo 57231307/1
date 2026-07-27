@@ -146,29 +146,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getAPPaymentList,
   createAPPayment,
   confirmAPPayment,
   getAPPaymentMethodText,
   type APPayment,
-} from '@/api/ap-payment'
-import type { Supplier } from '@/api/supplier'
+} from '@/api/ap-payment';
+import type { Supplier } from '@/api/supplier';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const payments = ref<APPayment[]>([])
-const paymentLoading = ref(false)
-const suppliers = ref<Supplier[]>([])
+const payments = ref<APPayment[]>([]);
+const paymentLoading = ref(false);
+const suppliers = ref<Supplier[]>([]);
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const getPaymentMethodLabel = (method: string) => {
   const keyMap: Record<string, string> = {
@@ -176,33 +176,33 @@ const getPaymentMethodLabel = (method: string) => {
     cash: 'apModule.payment.methodCash',
     check: 'apModule.payment.methodCheck',
     bill: 'apModule.payment.methodBill',
-  }
-  const key = keyMap[method]
-  if (key) return t(key)
-  return getAPPaymentMethodText(method) || method
-}
+  };
+  const key = keyMap[method];
+  if (key) return t(key);
+  return getAPPaymentMethodText(method) || method;
+};
 
 const fetchPayments = async () => {
-  paymentLoading.value = true
+  paymentLoading.value = true;
   try {
-    const res = await getAPPaymentList()
-    const d = res.data as { list?: APPayment[]; items?: APPayment[] } | APPayment[] | undefined
+    const res = await getAPPaymentList();
+    const d = res.data as { list?: APPayment[]; items?: APPayment[] } | APPayment[] | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
-      payments.value = d.list || d.items || []
+      payments.value = d.list || d.items || [];
     } else {
-      payments.value = (d as APPayment[]) || []
+      payments.value = (d as APPayment[]) || [];
     }
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('apModule.payment.fetchListFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('apModule.payment.fetchListFailed'));
   } finally {
-    paymentLoading.value = false
+    paymentLoading.value = false;
   }
-}
+};
 
-const paymentDialogVisible = ref(false)
-const paymentFormRef = ref<FormInstance>()
-const paymentSubmitLoading = ref(false)
+const paymentDialogVisible = ref(false);
+const paymentFormRef = ref<FormInstance>();
+const paymentSubmitLoading = ref(false);
 const paymentForm = reactive({
   supplier_id: undefined as number | undefined,
   payment_date: new Date().toISOString().split('T')[0],
@@ -210,7 +210,7 @@ const paymentForm = reactive({
   payment_method: 'bank_transfer',
   bank_account: '',
   remark: '',
-})
+});
 
 const paymentRules: FormRules = {
   supplier_id: [
@@ -225,35 +225,35 @@ const paymentRules: FormRules = {
   payment_method: [
     { required: true, message: t('apModule.payment.methodRequired'), trigger: 'change' },
   ],
-}
+};
 
 const openPaymentDialog = () => {
-  paymentFormRef.value?.resetFields()
-  paymentForm.supplier_id = undefined
-  paymentForm.payment_date = new Date().toISOString().split('T')[0]
-  paymentForm.payment_amount = 0
-  paymentForm.payment_method = 'bank_transfer'
-  paymentForm.bank_account = ''
-  paymentForm.remark = ''
-  paymentDialogVisible.value = true
-}
+  paymentFormRef.value?.resetFields();
+  paymentForm.supplier_id = undefined;
+  paymentForm.payment_date = new Date().toISOString().split('T')[0];
+  paymentForm.payment_amount = 0;
+  paymentForm.payment_method = 'bank_transfer';
+  paymentForm.bank_account = '';
+  paymentForm.remark = '';
+  paymentDialogVisible.value = true;
+};
 
 const submitPayment = async () => {
-  const valid = await paymentFormRef.value?.validate()
-  if (!valid) return
-  paymentSubmitLoading.value = true
+  const valid = await paymentFormRef.value?.validate();
+  if (!valid) return;
+  paymentSubmitLoading.value = true;
   try {
-    await createAPPayment(paymentForm)
-    ElMessage.success(t('common.success'))
-    paymentDialogVisible.value = false
-    fetchPayments()
+    await createAPPayment(paymentForm);
+    ElMessage.success(t('common.success'));
+    paymentDialogVisible.value = false;
+    fetchPayments();
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('common.failed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
   } finally {
-    paymentSubmitLoading.value = false
+    paymentSubmitLoading.value = false;
   }
-}
+};
 
 const confirmPayment = async (row: APPayment) => {
   try {
@@ -261,24 +261,24 @@ const confirmPayment = async (row: APPayment) => {
       t('apModule.payment.confirmConfirm'),
       t('apModule.payment.confirmTitle'),
       { type: 'info' }
-    )
-    await confirmAPPayment(row.id)
-    ElMessage.success(t('apModule.payment.confirmSuccess'))
-    fetchPayments()
+    );
+    await confirmAPPayment(row.id);
+    ElMessage.success(t('apModule.payment.confirmSuccess'));
+    fetchPayments();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('common.failed'))
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('common.failed'));
     }
   }
-}
+};
 
-defineExpose({ refresh: fetchPayments })
+defineExpose({ refresh: fetchPayments });
 
 onMounted(() => {
-  fetchPayments()
-  suppliers.value = []
-})
+  fetchPayments();
+  suppliers.value = [];
+});
 </script>
 
 <style scoped>

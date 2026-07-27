@@ -36,8 +36,8 @@
               :placeholder="t('dataImport.templateForm.templateCodePlaceholder')"
               @update:model-value="
                 (v: string) => {
-                  localForm.template_code = v
-                  syncFormToParent()
+                  localForm.template_code = v;
+                  syncFormToParent();
                 }
               "
             />
@@ -50,8 +50,8 @@
               :placeholder="t('dataImport.templateForm.templateNamePlaceholder')"
               @update:model-value="
                 (v: string) => {
-                  localForm.template_name = v
-                  syncFormToParent()
+                  localForm.template_name = v;
+                  syncFormToParent();
                 }
               "
             />
@@ -67,8 +67,8 @@
               style="width: 100%"
               @update:model-value="
                 (v: string) => {
-                  localForm.module = v
-                  syncFormToParent()
+                  localForm.module = v;
+                  syncFormToParent();
                 }
               "
             >
@@ -90,8 +90,8 @@
               style="width: 100%"
               @update:model-value="
                 (v: string) => {
-                  localForm.file_format = v
-                  syncFormToParent()
+                  localForm.file_format = v;
+                  syncFormToParent();
                 }
               "
             >
@@ -110,8 +110,8 @@
           :placeholder="t('dataImport.templateForm.descriptionPlaceholder')"
           @update:model-value="
             (v: string) => {
-              localForm.description = v
-              syncFormToParent()
+              localForm.description = v;
+              syncFormToParent();
             }
           "
         />
@@ -124,8 +124,8 @@
           :placeholder="t('dataImport.templateForm.columnsPlaceholder')"
           @update:model-value="
             (v: string) => {
-              localColumnsText = v
-              emit('update:columns-text', v)
+              localColumnsText = v;
+              emit('update:columns-text', v);
             }
           "
         />
@@ -143,12 +143,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormInstance, FormRules } from 'element-plus'
-import type { DataImportTemplateFormData } from '../composables/useDiProc'
+import { ref, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormInstance, FormRules } from 'element-plus';
+import type { DataImportTemplateFormData } from '../composables/useDiProc';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 表单默认值
 const DEFAULT_FORM: DataImportTemplateFormData = {
@@ -161,64 +161,64 @@ const DEFAULT_FORM: DataImportTemplateFormData = {
   columns: [],
   sample_data: [],
   status: 'active',
-}
+};
 
 /**
  * 模板表单组件
  */
 const props = defineProps<{
   // 可见性
-  visible: boolean
+  visible: boolean;
   // 表单数据（由父组件管理，子组件通过 emit('update:form') 整体回写）
-  form?: DataImportTemplateFormData
+  form?: DataImportTemplateFormData;
   // 验证规则
-  rules: FormRules
+  rules: FormRules;
   // 提交加载
-  submitLoading: boolean
+  submitLoading: boolean;
   // 列配置 JSON 文本
-  columnsText?: string
-}>()
+  columnsText?: string;
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
+  'update:visible': [v: boolean];
   // 整体回写表单数据（父组件监听后 Object.assign 到自己的 form）
-  'update:form': [form: DataImportTemplateFormData]
-  'update:columns-text': [v: string]
-  submit: []
-}>()
+  'update:form': [form: DataImportTemplateFormData];
+  'update:columns-text': [v: string];
+  submit: [];
+}>();
 
 // 表单 ref
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInstance>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 const localForm = reactive<DataImportTemplateFormData>({
   ...(props.form ?? DEFAULT_FORM),
-})
+});
 
-const localColumnsText = ref(props.columnsText ?? '')
+const localColumnsText = ref(props.columnsText ?? '');
 
 // 父组件 form 变化时同步到本地（如打开编辑对话框时重新赋值）
 watch(
   () => props.form,
   newForm => {
-    if (newForm) Object.assign(localForm, newForm)
+    if (newForm) Object.assign(localForm, newForm);
   },
   { deep: true }
-)
+);
 
 // 父组件 columnsText 变化时同步到本地
 watch(
   () => props.columnsText,
   newText => {
-    if (newText !== undefined) localColumnsText.value = newText
+    if (newText !== undefined) localColumnsText.value = newText;
   }
-)
+);
 
 /** 同步表单到父组件（深拷贝避免外部引用被意外修改） */
 const syncFormToParent = () => {
-  emit('update:form', { ...localForm })
-}
+  emit('update:form', { ...localForm });
+};
 
 // 暴露给父组件访问
-defineExpose({ formRef })
+defineExpose({ formRef });
 </script>

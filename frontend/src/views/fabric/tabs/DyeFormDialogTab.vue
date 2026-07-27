@@ -6,12 +6,21 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="formData.id ? t('fabric.dyeFormDialog.titleEdit') : t('fabric.dyeFormDialog.titleCreate')"
+    :title="
+      formData.id ? t('fabric.dyeFormDialog.titleEdit') : t('fabric.dyeFormDialog.titleCreate')
+    "
     width="700px"
-    :aria-label="formData.id ? t('fabric.dyeFormDialog.titleEdit') : t('fabric.dyeFormDialog.titleCreate')"
+    :aria-label="
+      formData.id ? t('fabric.dyeFormDialog.titleEdit') : t('fabric.dyeFormDialog.titleCreate')
+    "
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
-    <el-form ref="formRef" :model="formData" label-width="100px" :aria-label="t('fabric.dyeFormDialog.formAriaLabel')">
+    <el-form
+      ref="formRef"
+      :model="formData"
+      label-width="100px"
+      :aria-label="t('fabric.dyeFormDialog.formAriaLabel')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('fabric.dyeFormDialog.labelBatchNo')" prop="batch_no">
@@ -36,12 +45,18 @@
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="t('fabric.dyeFormDialog.labelPlannedQuantity')" prop="planned_quantity">
+          <el-form-item
+            :label="t('fabric.dyeFormDialog.labelPlannedQuantity')"
+            prop="planned_quantity"
+          >
             <el-input-number v-model="formData.planned_quantity" :min="0" style="width: 100%" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('fabric.dyeFormDialog.labelActualQuantity')" prop="actual_quantity">
+          <el-form-item
+            :label="t('fabric.dyeFormDialog.labelActualQuantity')"
+            prop="actual_quantity"
+          >
             <el-input-number v-model="formData.actual_quantity" :min="0" style="width: 100%" />
           </el-form-item>
         </el-col>
@@ -56,39 +71,43 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">{{ t('fabric.common.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('fabric.common.confirm') }}</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{
+        t('fabric.common.cancel')
+      }}</el-button>
+      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+        t('fabric.common.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import type { FormInstance } from 'element-plus'
-import { createDyeBatch, updateDyeBatch, type DyeBatch } from '@/api/dye-batch'
-import type { GreigeFabric } from '@/api/greige-fabric'
-import { logger } from '@/utils/logger'
+import { ref, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import type { FormInstance } from 'element-plus';
+import { createDyeBatch, updateDyeBatch, type DyeBatch } from '@/api/dye-batch';
+import type { GreigeFabric } from '@/api/greige-fabric';
+import { logger } from '@/utils/logger';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
-  modelValue: boolean
-  currentRow: DyeBatch | null
-  greigeFabrics: GreigeFabric[]
+  modelValue: boolean;
+  currentRow: DyeBatch | null;
+  greigeFabrics: GreigeFabric[];
 }
 
 interface Emits {
-  (e: 'update:modelValue', val: boolean): void
-  (e: 'submitted'): void
+  (e: 'update:modelValue', val: boolean): void;
+  (e: 'submitted'): void;
 }
 
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
 
 const formData = reactive({
   id: 0,
@@ -99,49 +118,49 @@ const formData = reactive({
   actual_quantity: 0,
   start_date: '',
   status: 'pending' as 'pending' | 'in_progress' | 'completed' | 'cancelled',
-})
+});
 
 const resetForm = () => {
-  formData.id = 0
-  formData.batch_no = ''
-  formData.color_name = ''
-  formData.greige_fabric_id = undefined
-  formData.planned_quantity = 0
-  formData.actual_quantity = 0
-  formData.start_date = ''
-  formData.status = 'pending'
-}
+  formData.id = 0;
+  formData.batch_no = '';
+  formData.color_name = '';
+  formData.greige_fabric_id = undefined;
+  formData.planned_quantity = 0;
+  formData.actual_quantity = 0;
+  formData.start_date = '';
+  formData.status = 'pending';
+};
 
 watch(
   () => props.modelValue,
   val => {
     if (val) {
       if (props.currentRow) {
-        Object.assign(formData, props.currentRow)
+        Object.assign(formData, props.currentRow);
       } else {
-        resetForm()
+        resetForm();
       }
     }
   }
-)
+);
 
 const handleSubmit = async () => {
-  submitLoading.value = true
+  submitLoading.value = true;
   try {
     if (formData.id) {
-      await updateDyeBatch(formData.id, formData as Partial<DyeBatch>)
+      await updateDyeBatch(formData.id, formData as Partial<DyeBatch>);
     } else {
-      await createDyeBatch(formData as Partial<DyeBatch>)
+      await createDyeBatch(formData as Partial<DyeBatch>);
     }
-    ElMessage.success(t('fabric.common.success'))
-    emit('update:modelValue', false)
-    emit('submitted')
+    ElMessage.success(t('fabric.common.success'));
+    emit('update:modelValue', false);
+    emit('submitted');
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('fabric.common.failed'))
-    logger.error(t('fabric.dyeFormDialog.saveFailed'), err.message)
+    const err = error as Error;
+    ElMessage.error(err.message || t('fabric.common.failed'));
+    logger.error(t('fabric.dyeFormDialog.saveFailed'), err.message);
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 </script>

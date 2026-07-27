@@ -87,7 +87,7 @@ async function applyDelay(delayMs: number): Promise<void> {
  *
  * @example
  * // 模拟销售订单接口返回 500
- * await mockApiError(context, '**/api/v1/erp/sales/orders**', {
+ * await mockApiError(context, '/api/v1/erp/sales/orders', {
  *   status: 500,
  *   errorCode: 'INTERNAL_ERROR',
  *   errorMessage: '服务器内部错误',

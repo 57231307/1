@@ -15,7 +15,11 @@
     :aria-label="t('inventory.transferDialog.ariaLabel')"
     @update:model-value="onClose"
   >
-    <el-form :model="localForm" label-width="100px" :aria-label="t('inventory.transferDialog.formAria')">
+    <el-form
+      :model="localForm"
+      label-width="100px"
+      :aria-label="t('inventory.transferDialog.formAria')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('inventory.transferDialog.fromWarehouse')">
@@ -56,7 +60,12 @@
         :key="index"
         style="display: flex; gap: 10px; margin-bottom: 10px"
       >
-        <el-input-number v-model="item.quantity" :min="1" :placeholder="t('inventory.transferDialog.quantityPlaceholder')" style="flex: 1" />
+        <el-input-number
+          v-model="item.quantity"
+          :min="1"
+          :placeholder="t('inventory.transferDialog.quantityPlaceholder')"
+          style="flex: 1"
+        />
         <el-button
           type="danger"
           :icon="Delete"
@@ -80,49 +89,51 @@
     </el-form>
     <template #footer>
       <el-button @click="onClose(false)">{{ t('inventory.transferDialog.cancel') }}</el-button>
-      <el-button type="primary" @click="onSubmit">{{ t('inventory.transferDialog.confirm') }}</el-button>
+      <el-button type="primary" @click="onSubmit">{{
+        t('inventory.transferDialog.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { deepClone } from '@/utils'
-import { Delete, Plus } from '@element-plus/icons-vue'
-import { reactive, watch } from 'vue'
-import { getWarehouseLabel } from '../composables/invFmts'
+import { useI18n } from 'vue-i18n';
+import { deepClone } from '@/utils';
+import { Delete, Plus } from '@element-plus/icons-vue';
+import { reactive, watch } from 'vue';
+import { getWarehouseLabel } from '../composables/invFmts';
 // v11 批次 160 P2-7 修复：导入 Warehouse 接口替代 any[]
-import type { Warehouse } from '@/api/warehouse'
+import type { Warehouse } from '@/api/warehouse';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /** 调拨单明细行 */
 interface TransferFormItem {
-  product_id: number | null
-  quantity: number
+  product_id: number | null;
+  quantity: number;
 }
 
 /** 调拨单表单数据 */
 interface TransferForm {
-  from_warehouse_id: number | null
-  to_warehouse_id: number | null
-  items: TransferFormItem[]
-  remark: string
+  from_warehouse_id: number | null;
+  to_warehouse_id: number | null;
+  items: TransferFormItem[];
+  remark: string;
 }
 
 const props = defineProps<{
-  visible: boolean
-  initialForm: TransferForm
-  warehouses: Warehouse[]
-}>()
+  visible: boolean;
+  initialForm: TransferForm;
+  warehouses: Warehouse[];
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:visible', val: boolean): void
-  (e: 'submit', data: TransferForm): void
-  (e: 'addItem'): void
-  (e: 'removeItem', index: number): void
-}>()
+  (e: 'update:visible', val: boolean): void;
+  (e: 'submit', data: TransferForm): void;
+  (e: 'addItem'): void;
+  (e: 'removeItem', index: number): void;
+}>();
 
 // 浅拷贝 initialForm 同步初始值（不直接突变 prop）
 const localForm = reactive<TransferForm>({
@@ -130,21 +141,21 @@ const localForm = reactive<TransferForm>({
   to_warehouse_id: null,
   items: [],
   remark: '',
-})
+});
 watch(
   () => props.initialForm,
   newVal => {
     // TransferForm 字段固定，直接 Object.assign 覆盖即可（无需逐键 delete）
-    Object.assign(localForm, deepClone(newVal))
+    Object.assign(localForm, deepClone(newVal));
   },
   { immediate: true, deep: true }
-)
+);
 
 const onClose = (val: boolean) => {
-  emit('update:visible', val)
-}
+  emit('update:visible', val);
+};
 
 const onSubmit = () => {
-  emit('submit', deepClone(localForm))
-}
+  emit('submit', deepClone(localForm));
+};
 </script>

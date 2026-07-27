@@ -59,49 +59,49 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { useSchM } from './composables/useSchM'
-import { useSchMProc } from './composables/useSchMProc'
-import SchedulingMachineTool from './components/SchedulingMachineTool.vue'
-import SchedulingMachineTable from './components/SchedulingMachineTable.vue'
-import SchedulingMachineConflict from './components/SchedulingMachineConflict.vue'
-import SchedulingMachineParam from './components/SchedulingMachineParam.vue'
-import SchedulingMachineAdjust from './components/SchedulingMachineAdjust.vue'
+import { onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { useSchM } from './composables/useSchM';
+import { useSchMProc } from './composables/useSchMProc';
+import SchedulingMachineTool from './components/SchedulingMachineTool.vue';
+import SchedulingMachineTable from './components/SchedulingMachineTable.vue';
+import SchedulingMachineConflict from './components/SchedulingMachineConflict.vue';
+import SchedulingMachineParam from './components/SchedulingMachineParam.vue';
+import SchedulingMachineAdjust from './components/SchedulingMachineAdjust.vue';
 
-const { t } = useI18n({ useScope: 'global' })
-const router = useRouter()
+const { t } = useI18n({ useScope: 'global' });
+const router = useRouter();
 
-const schM = useSchM()
+const schM = useSchM();
 const schMProc = useSchMProc({
   fetchTasks: schM.fetchTasks,
   dateRange: schM.dateRange,
   scheduleParams: schM.scheduleParams,
   setConflictList: v => {
-    schM.conflictList = v
+    schM.conflictList = v;
   },
   stats: schM.stats,
-})
+});
 
 /** 跳转到甘特图 */
 const onGotoGantt = () => {
-  router.push('/scheduling/gantt')
-}
+  router.push('/scheduling/gantt');
+};
 
 /** 确认调整 */
 const onConfirmAdjust = async () => {
-  await schM.confirmAdjust()
-}
+  await schM.confirmAdjust();
+};
 
 /** 日期范围变化 */
 const onDateChange = (v: [Date, Date] | null) => {
-  schM.dateRange = v
-}
+  schM.dateRange = v;
+};
 
 onMounted(() => {
-  schM.initLoad()
-})
+  schM.initLoad();
+});
 </script>
 
 <style scoped>

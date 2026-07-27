@@ -278,10 +278,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import {
   getEmailStatistics,
   updateEmailTemplate,
@@ -290,16 +290,16 @@ import {
   type EmailTemplate,
   type EmailLog,
   type EmailStatistics,
-} from '@/api/email'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
+} from '@/api/email';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logger } from '@/utils/logger';
 // 批次 280：接入 useTableApi，消除手写 templates/records 分页重复
-import { useTableApi } from '@/composables/useTableApi'
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('templates')
-const hasLoaded = createLazyLoader()
+const activeTab = ref('templates');
+const hasLoaded = createLazyLoader();
 
 // 批次 280：模板表格 useTableApi（getEmailTemplateList 返回 { data: { list, total } }）
 const {
@@ -312,12 +312,12 @@ const {
 } = useTableApi<EmailTemplate>({
   url: '/email-templates',
   onError: (err: unknown) => logger.error(t('email.index.messageFetchTemplatesFailed'), err),
-})
+});
 
-const templateDialogVisible = ref(false)
-const isEditTemplate = ref(false)
-const submitLoading = ref(false)
-const templateFormRef = ref()
+const templateDialogVisible = ref(false);
+const isEditTemplate = ref(false);
+const submitLoading = ref(false);
+const templateFormRef = ref();
 const templateForm = reactive<Partial<EmailTemplate>>({
   name: '',
   code: '',
@@ -325,7 +325,7 @@ const templateForm = reactive<Partial<EmailTemplate>>({
   body_template: '',
   template_type: '',
   description: '',
-})
+});
 const templateRules = {
   name: [{ required: true, message: t('email.index.ruleTemplateNameRequired'), trigger: 'blur' }],
   code: [{ required: true, message: t('email.index.ruleTemplateCodeRequired'), trigger: 'blur' }],
@@ -336,7 +336,7 @@ const templateRules = {
   template_type: [
     { required: true, message: t('email.index.ruleTemplateTypeRequired'), trigger: 'change' },
   ],
-}
+};
 
 // 批次 280：记录表格 useTableApi（getEmailRecordList 返回 { data: { list, total } }）
 const {
@@ -350,11 +350,11 @@ const {
 } = useTableApi<EmailLog>({
   url: '/email-records',
   onError: (err: unknown) => logger.error(t('email.index.messageFetchRecordsFailed'), err),
-})
+});
 
 // 批次 280：记录筛选状态 + 日期范围（分页由 useTableApi 管理）
-const recordStatus = ref('')
-const recordDateRange = ref<[Date, Date] | null>(null)
+const recordStatus = ref('');
+const recordDateRange = ref<[Date, Date] | null>(null);
 
 // 统计相关
 const statistics = ref<EmailStatistics>({
@@ -362,45 +362,45 @@ const statistics = ref<EmailStatistics>({
   total_failed: 0,
   today_sent: 0,
   success_rate: 0,
-})
+});
 
 /// 处理 tab 切换事件（element-plus TabsPaneContext 类型）
 const handleTabChange = (tab: TabsPaneContext) => {
-  loadTab(tab.paneName as string)
-}
+  loadTab(tab.paneName as string);
+};
 
 const loadTab = (tabName: string) => {
   const tabLoaders: Record<string, () => void> = {
     templates: fetchTemplates,
     records: fetchRecords,
     statistics: fetchStatistics,
-  }
+  };
   if (tabLoaders[tabName]) {
-    loadIfNot(tabName, tabLoaders[tabName], hasLoaded)
+    loadIfNot(tabName, tabLoaders[tabName], hasLoaded);
   }
-}
+};
 
 const initPage = () => {
-  loadTab(activeTab.value)
-}
+  loadTab(activeTab.value);
+};
 
 // 批次 280：组件 setup 阶段 useTableApi 已自动加载，但 email 页用 lazy-loader 按 tab 加载
 // 需要在首次进入 tab 时触发加载（lazy-loader 的 loadIfNot 会调用 fetchTemplates/fetchRecords）
-initPage()
+initPage();
 
 const fetchStatistics = async () => {
   try {
-    const res = await getEmailStatistics()
+    const res = await getEmailStatistics();
     if (res.data) {
-      statistics.value = res.data
+      statistics.value = res.data;
     }
   } catch (error) {
-    logger.error(t('email.index.messageFetchStatisticsFailed'), error)
+    logger.error(t('email.index.messageFetchStatisticsFailed'), error);
   }
-}
+};
 
 const handleCreateTemplate = () => {
-  isEditTemplate.value = false
+  isEditTemplate.value = false;
   Object.assign(templateForm, {
     id: undefined,
     name: '',
@@ -409,35 +409,35 @@ const handleCreateTemplate = () => {
     body_template: '',
     template_type: '',
     description: '',
-  })
-  templateDialogVisible.value = true
-}
+  });
+  templateDialogVisible.value = true;
+};
 
 const handleEditTemplate = (row: EmailTemplate) => {
-  isEditTemplate.value = true
-  Object.assign(templateForm, row)
-  templateDialogVisible.value = true
-}
+  isEditTemplate.value = true;
+  Object.assign(templateForm, row);
+  templateDialogVisible.value = true;
+};
 
 const handleSubmitTemplate = async () => {
   try {
-    await templateFormRef.value?.validate()
-    submitLoading.value = true
+    await templateFormRef.value?.validate();
+    submitLoading.value = true;
     if (isEditTemplate.value && templateForm.id) {
-      await updateEmailTemplate(templateForm.id, templateForm)
-      ElMessage.success(t('email.index.messageUpdateSuccess'))
+      await updateEmailTemplate(templateForm.id, templateForm);
+      ElMessage.success(t('email.index.messageUpdateSuccess'));
     } else {
-      await createEmailTemplate(templateForm)
-      ElMessage.success(t('email.index.messageCreateSuccess'))
+      await createEmailTemplate(templateForm);
+      ElMessage.success(t('email.index.messageCreateSuccess'));
     }
-    templateDialogVisible.value = false
-    fetchTemplates()
+    templateDialogVisible.value = false;
+    fetchTemplates();
   } catch (error) {
-    logger.error(t('email.index.messageSubmitFailed'), error)
+    logger.error(t('email.index.messageSubmitFailed'), error);
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
-}
+};
 
 const handleDeleteTemplate = async (row: EmailTemplate) => {
   try {
@@ -445,54 +445,54 @@ const handleDeleteTemplate = async (row: EmailTemplate) => {
       t('email.index.messageConfirmDelete'),
       t('email.index.titlePrompt'),
       { type: 'warning' }
-    )
-    await deleteEmailTemplate(row.id!)
-    ElMessage.success(t('email.index.messageDeleteSuccess'))
-    fetchTemplates()
+    );
+    await deleteEmailTemplate(row.id!);
+    ElMessage.success(t('email.index.messageDeleteSuccess'));
+    fetchTemplates();
   } catch (error) {
     if (error !== 'cancel') {
-      logger.error(t('email.index.messageDeleteFailed'), error)
+      logger.error(t('email.index.messageDeleteFailed'), error);
     }
   }
-}
+};
 
 // 批次 280：记录查询时同步筛选条件到 useTableApi.queryParams
 const handleSearchRecords = () => {
-  setRecordQueryParam('status', recordStatus.value || undefined)
+  setRecordQueryParam('status', recordStatus.value || undefined);
   if (recordDateRange.value) {
-    setRecordQueryParam('start_date', recordDateRange.value[0].toISOString())
-    setRecordQueryParam('end_date', recordDateRange.value[1].toISOString())
+    setRecordQueryParam('start_date', recordDateRange.value[0].toISOString());
+    setRecordQueryParam('end_date', recordDateRange.value[1].toISOString());
   } else {
-    setRecordQueryParam('start_date', undefined)
-    setRecordQueryParam('end_date', undefined)
+    setRecordQueryParam('start_date', undefined);
+    setRecordQueryParam('end_date', undefined);
   }
-  recordPage.value = 1
-  fetchRecords()
-}
+  recordPage.value = 1;
+  fetchRecords();
+};
 
 const handleResetRecordQuery = () => {
-  recordStatus.value = ''
-  recordDateRange.value = null
-  handleSearchRecords()
-}
+  recordStatus.value = '';
+  recordDateRange.value = null;
+  handleSearchRecords();
+};
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     sent: 'success',
     failed: 'danger',
     pending: 'warning',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const getStatusText = (status: string) => {
   const map: Record<string, string> = {
     sent: t('email.index.optionSent'),
     failed: t('email.index.optionFailed'),
     pending: t('email.index.optionPending'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 </script>
 
 <style scoped>

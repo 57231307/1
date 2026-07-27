@@ -31,7 +31,11 @@
                   v-if="profileForm.avatar"
                   :src="profileForm.avatar"
                   class="avatar"
-                  :alt="profileForm.real_name ? t('userProfile.profile.avatarAlt', { name: profileForm.real_name }) : t('userProfile.profile.avatarAltDefault')"
+                  :alt="
+                    profileForm.real_name
+                      ? t('userProfile.profile.avatarAlt', { name: profileForm.real_name })
+                      : t('userProfile.profile.avatarAltDefault')
+                  "
                 />
                 <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
               </el-upload>
@@ -51,13 +55,22 @@
                 <el-input v-model="profileForm.username" disabled />
               </el-form-item>
               <el-form-item :label="t('userProfile.profile.realName')" prop="real_name">
-                <el-input v-model="profileForm.real_name" :placeholder="t('userProfile.profile.realNamePlaceholder')" />
+                <el-input
+                  v-model="profileForm.real_name"
+                  :placeholder="t('userProfile.profile.realNamePlaceholder')"
+                />
               </el-form-item>
               <el-form-item :label="t('userProfile.profile.email')" prop="email">
-                <el-input v-model="profileForm.email" :placeholder="t('userProfile.profile.emailPlaceholder')" />
+                <el-input
+                  v-model="profileForm.email"
+                  :placeholder="t('userProfile.profile.emailPlaceholder')"
+                />
               </el-form-item>
               <el-form-item :label="t('userProfile.profile.phone')" prop="phone">
-                <el-input v-model="profileForm.phone" :placeholder="t('userProfile.profile.phonePlaceholder')" />
+                <el-input
+                  v-model="profileForm.phone"
+                  :placeholder="t('userProfile.profile.phonePlaceholder')"
+                />
               </el-form-item>
               <el-form-item :label="t('userProfile.profile.department')">
                 <el-input v-model="profileForm.department_name" disabled />
@@ -77,20 +90,10 @@
             </div>
           </template>
           <div class="security-actions">
-            <el-button
-              type="primary"
-              plain
-              class="security-action-btn"
-              @click="goTo2fa"
-            >
+            <el-button type="primary" plain class="security-action-btn" @click="goTo2fa">
               {{ t('userProfile.security.twofa') }}
             </el-button>
-            <el-button
-              type="primary"
-              plain
-              class="security-action-btn"
-              @click="goToChangePwd"
-            >
+            <el-button type="primary" plain class="security-action-btn" @click="goToChangePwd">
               {{ t('userProfile.security.changePassword') }}
             </el-button>
           </div>
@@ -147,12 +150,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules, FormItemRule, UploadFile } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
+import { ElMessage } from 'element-plus';
+import type { FormInstance, FormRules, FormItemRule, UploadFile } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import {
   getUserProfile,
   updateUserProfile,
@@ -161,25 +164,25 @@ import {
   type UserProfile,
   type UserProfileUpdateRequest,
   type ChangePasswordRequest,
-} from '@/api/user-profile'
+} from '@/api/user-profile';
 
-const { t } = useI18n({ useScope: 'global' })
-const router = useRouter()
+const { t } = useI18n({ useScope: 'global' });
+const router = useRouter();
 
 /** 跳转到 2FA 设置页 */
 const goTo2fa = () => {
-  router.push('/security/two-factor-setup')
-}
+  router.push('/security/two-factor-setup');
+};
 
 /** 跳转到修改密码页 */
 const goToChangePwd = () => {
-  router.push('/security/change-password')
-}
+  router.push('/security/change-password');
+};
 
-const profileLoading = ref(false)
-const passwordLoading = ref(false)
-const profileFormRef = ref<FormInstance>()
-const passwordFormRef = ref<FormInstance>()
+const profileLoading = ref(false);
+const passwordLoading = ref(false);
+const profileFormRef = ref<FormInstance>();
+const passwordFormRef = ref<FormInstance>();
 
 const profileForm = reactive<UserProfile>({
   id: 0,
@@ -195,90 +198,116 @@ const profileForm = reactive<UserProfile>({
   status: 1,
   created_at: '',
   updated_at: '',
-})
+});
 
 const passwordForm = reactive<ChangePasswordRequest>({
   old_password: '',
   new_password: '',
   confirm_password: '',
-})
+});
 
 const profileRules: FormRules = {
-  real_name: [{ required: true, message: t('userProfile.validation.realNameRequired'), trigger: 'blur' }],
-  email: [{ type: 'email', message: t('userProfile.validation.emailPattern'), trigger: ['blur', 'change'] }],
-  phone: [{ pattern: /^1[3-9]\d{9}$/, message: t('userProfile.validation.phonePattern'), trigger: 'blur' }],
-}
+  real_name: [
+    { required: true, message: t('userProfile.validation.realNameRequired'), trigger: 'blur' },
+  ],
+  email: [
+    {
+      type: 'email',
+      message: t('userProfile.validation.emailPattern'),
+      trigger: ['blur', 'change'],
+    },
+  ],
+  phone: [
+    {
+      pattern: /^1[3-9]\d{9}$/,
+      message: t('userProfile.validation.phonePattern'),
+      trigger: 'blur',
+    },
+  ],
+};
 
 const passwordRules: FormRules = {
-  old_password: [{ required: true, message: t('userProfile.validation.oldPasswordRequired'), trigger: 'blur' }],
+  old_password: [
+    { required: true, message: t('userProfile.validation.oldPasswordRequired'), trigger: 'blur' },
+  ],
   new_password: [
     { required: true, message: t('userProfile.validation.newPasswordRequired'), trigger: 'blur' },
     { min: 6, message: t('userProfile.validation.newPasswordMinLength'), trigger: 'blur' },
   ],
   confirm_password: [
-    { required: true, message: t('userProfile.validation.confirmPasswordRequired'), trigger: 'blur' },
+    {
+      required: true,
+      message: t('userProfile.validation.confirmPasswordRequired'),
+      trigger: 'blur',
+    },
     {
       validator: ((_rule: unknown, value: string, callback: (error?: Error) => void) => {
         if (value !== passwordForm.new_password) {
-          callback(new Error(t('userProfile.validation.passwordMismatch')))
+          callback(new Error(t('userProfile.validation.passwordMismatch')));
         } else {
-          callback()
+          callback();
         }
       }) as FormItemRule['validator'],
       trigger: 'blur',
     },
   ],
-}
+};
 
 const loadUserProfile = async () => {
   try {
-    const res = await getUserProfile()
+    const res = await getUserProfile();
     if (res.data) {
-      Object.assign(profileForm, res.data)
+      Object.assign(profileForm, res.data);
     }
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('userProfile.message.loadProfileFailed'))
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('userProfile.message.loadProfileFailed')
+    );
   }
-}
+};
 
 const beforeAvatarUpload = (file: File) => {
-  const isImage = file.type.startsWith('image/')
-  const isLt2M = file.size / 1024 / 1024 < 2
+  const isImage = file.type.startsWith('image/');
+  const isLt2M = file.size / 1024 / 1024 < 2;
 
   if (!isImage) {
-    ElMessage.error(t('userProfile.message.avatarTypeInvalid'))
-    return false
+    ElMessage.error(t('userProfile.message.avatarTypeInvalid'));
+    return false;
   }
   if (!isLt2M) {
-    ElMessage.error(t('userProfile.message.avatarSizeExceeded'))
-    return false
+    ElMessage.error(t('userProfile.message.avatarSizeExceeded'));
+    return false;
   }
-  return true
-}
+  return true;
+};
 
 const handleAvatarChange = async (uploadFile: UploadFile) => {
-  if (!uploadFile.raw) return
+  if (!uploadFile.raw) return;
 
   try {
-    const res = await uploadAvatar(uploadFile.raw)
+    const res = await uploadAvatar(uploadFile.raw);
     if (res.data?.avatar_url) {
-      profileForm.avatar = res.data.avatar_url
-      ElMessage.success(t('userProfile.message.avatarUploadSuccess'))
+      profileForm.avatar = res.data.avatar_url;
+      ElMessage.success(t('userProfile.message.avatarUploadSuccess'));
     }
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('userProfile.message.avatarUploadFailed'))
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('userProfile.message.avatarUploadFailed')
+    );
   }
-}
+};
 
 const handleSaveProfile = async () => {
-  if (!profileFormRef.value) return
+  if (!profileFormRef.value) return;
 
   await profileFormRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
+    if (!valid) return;
 
-    profileLoading.value = true
+    profileLoading.value = true;
     try {
       const updateData: UserProfileUpdateRequest = {
         real_name: profileForm.real_name,
@@ -286,42 +315,48 @@ const handleSaveProfile = async () => {
         phone: profileForm.phone,
         department_id: profileForm.department_id,
         role_ids: profileForm.role_ids,
-      }
-      await updateUserProfile(updateData)
-      ElMessage.success(t('userProfile.message.profileSaveSuccess'))
+      };
+      await updateUserProfile(updateData);
+      ElMessage.success(t('userProfile.message.profileSaveSuccess'));
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('userProfile.message.profileSaveFailed'))
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('userProfile.message.profileSaveFailed')
+      );
     } finally {
-      profileLoading.value = false
+      profileLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const handleChangePassword = async () => {
-  if (!passwordFormRef.value) return
+  if (!passwordFormRef.value) return;
 
   await passwordFormRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
+    if (!valid) return;
 
-    passwordLoading.value = true
+    passwordLoading.value = true;
     try {
-      await changePassword(passwordForm)
-      ElMessage.success(t('userProfile.message.passwordChangeSuccess'))
+      await changePassword(passwordForm);
+      ElMessage.success(t('userProfile.message.passwordChangeSuccess'));
       // 清空表单
-      passwordFormRef.value?.resetFields()
+      passwordFormRef.value?.resetFields();
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('userProfile.message.passwordChangeFailed'))
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('userProfile.message.passwordChangeFailed')
+      );
     } finally {
-      passwordLoading.value = false
+      passwordLoading.value = false;
     }
-  })
-}
+  });
+};
 
 onMounted(() => {
-  loadUserProfile()
-})
+  loadUserProfile();
+});
 </script>
 
 <style scoped>

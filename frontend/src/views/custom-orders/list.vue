@@ -159,28 +159,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import {
   advanceCustomOrder,
   cancelCustomOrder,
   CUSTOM_ORDER_STATUS as STATUS_LABELS,
   CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
-} from '@/api/custom-order'
-import type { CustomOrderListItem } from '@/api/custom-order'
+} from '@/api/custom-order';
+import type { CustomOrderListItem } from '@/api/custom-order';
 // 批次 94 P2-12 修复：导入 useUserStore 用于获取真实操作人 ID（原硬编码为 1）
-import { useUserStore } from '@/store/user'
-import logger from '@/utils/logger'
-import { useTableApi } from '@/composables/useTableApi'
+import { useUserStore } from '@/store/user';
+import logger from '@/utils/logger';
+import { useTableApi } from '@/composables/useTableApi';
 
-const router = useRouter()
-const { t } = useI18n({ useScope: 'global' })
+const router = useRouter();
+const { t } = useI18n({ useScope: 'global' });
 // 批次 94 P2-12 修复：获取用户 store 以读取当前登录用户 ID
-const userStore = useUserStore()
-const filters = ref({ status: '', keyword: '' })
+const userStore = useUserStore();
+const filters = ref({ status: '', keyword: '' });
 
 // 批次 274：接入 useTableApi，消除手写 orders/loading/pagination.total + loadData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -196,13 +196,13 @@ const {
   url: '/custom-orders',
   listKey: 'items',
   onError: () => {
-    logger.error(t('customOrders.list.messageLoadFailed'))
-    ElMessage.error(t('customOrders.list.messageLoadFailed'))
+    logger.error(t('customOrders.list.messageLoadFailed'));
+    ElMessage.error(t('customOrders.list.messageLoadFailed'));
   },
-})
+});
 
 // 状态选项（从 STATUS_LABELS 提取键）
-const statusOptions = computed(() => Object.keys(STATUS_LABELS))
+const statusOptions = computed(() => Object.keys(STATUS_LABELS));
 
 // 状态标签映射函数（i18n）
 const getStatusLabel = (status: string): string => {
@@ -215,51 +215,51 @@ const getStatusLabel = (status: string): string => {
     after_sales: t('customOrders.status.afterSales'),
     completed: t('customOrders.status.completed'),
     cancelled: t('customOrders.status.cancelled'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 function formatAmount(val: number | string | null | undefined) {
-  if (val === null || val === undefined) return '0.00'
-  return Number(val).toFixed(2)
+  if (val === null || val === undefined) return '0.00';
+  return Number(val).toFixed(2);
 }
 
 // 批次 274：同步筛选条件到 useTableApi.queryParams 并刷新
 // useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
 function syncQueryParams() {
-  setQueryParam('status', filters.value.status || undefined)
-  setQueryParam('keyword', filters.value.keyword || undefined)
+  setQueryParam('status', filters.value.status || undefined);
+  setQueryParam('keyword', filters.value.keyword || undefined);
 }
 
 function handleSearch() {
-  syncQueryParams()
-  page.value = 1
-  loadData()
+  syncQueryParams();
+  page.value = 1;
+  loadData();
 }
 
 function handleReset() {
-  filters.value = { status: '', keyword: '' }
-  syncQueryParams()
-  page.value = 1
-  loadData()
+  filters.value = { status: '', keyword: '' };
+  syncQueryParams();
+  page.value = 1;
+  loadData();
 }
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 function handleSizeChange(s: number) {
-  pageSize.value = s
-  page.value = 1
+  pageSize.value = s;
+  page.value = 1;
 }
 
 function handleCurrentChange(p: number) {
-  page.value = p
+  page.value = p;
 }
 
 function goDetail(id: number) {
-  router.push(`/custom-orders/${id}`)
+  router.push(`/custom-orders/${id}`);
 }
 
 function goTracking(id: number) {
-  router.push(`/custom-orders/${id}/track`)
+  router.push(`/custom-orders/${id}/track`);
 }
 
 async function handleAdvance(row: CustomOrderListItem) {
@@ -268,23 +268,23 @@ async function handleAdvance(row: CustomOrderListItem) {
       t('customOrders.list.messageAdvanceConfirm', { orderNo: row.order_no }),
       t('customOrders.list.messageAdvanceTitle'),
       { type: 'warning' }
-    )
+    );
     // 批次 94 P2-12 修复：原硬编码 operator_id: 1，改为从 userStore 获取真实当前用户 ID
-    const operatorId = userStore.userInfo?.id
+    const operatorId = userStore.userInfo?.id;
     if (!operatorId) {
-      ElMessage.error(t('customOrders.list.messageNoUserInfo'))
-      return
+      ElMessage.error(t('customOrders.list.messageNoUserInfo'));
+      return;
     }
     await advanceCustomOrder(row.id, {
       operator_id: operatorId,
       notes: t('customOrders.list.messageAdvanceNotes'),
-    })
-    ElMessage.success(t('customOrders.list.messageAdvanceSuccess'))
-    loadData()
+    });
+    ElMessage.success(t('customOrders.list.messageAdvanceSuccess'));
+    loadData();
   } catch (e: unknown) {
     if (e !== 'cancel') {
-      const msg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(msg || t('customOrders.list.messageAdvanceFailed'))
+      const msg = e instanceof Error ? e.message : String(e);
+      ElMessage.error(msg || t('customOrders.list.messageAdvanceFailed'));
     }
   }
 }
@@ -300,14 +300,14 @@ async function handleCancel(row: CustomOrderListItem) {
         inputPattern: /\S+/,
         inputErrorMessage: t('customOrders.list.messageReasonRequired'),
       }
-    )
-    await cancelCustomOrder(row.id, reason)
-    ElMessage.success(t('customOrders.list.messageCancelSuccess'))
-    loadData()
+    );
+    await cancelCustomOrder(row.id, reason);
+    ElMessage.success(t('customOrders.list.messageCancelSuccess'));
+    loadData();
   } catch (e: unknown) {
     if (e !== 'cancel') {
-      const msg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(msg || t('customOrders.list.messageCancelFailed'))
+      const msg = e instanceof Error ? e.message : String(e);
+      ElMessage.error(msg || t('customOrders.list.messageCancelFailed'));
     }
   }
 }

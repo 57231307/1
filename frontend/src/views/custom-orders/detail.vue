@@ -143,30 +143,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getCustomOrder,
   advanceCustomOrder,
   cancelCustomOrder,
   CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
-} from '@/api/custom-order'
-import type { CustomOrderDetail } from '@/api/custom-order'
-import ProcessFlow from '@/components/ProcessFlow.vue'
-import QualityCheck from '@/components/QualityCheck.vue'
-import logger from '@/utils/logger'
-import AfterSalesPanel from '@/components/AfterSalesPanel.vue'
+} from '@/api/custom-order';
+import type { CustomOrderDetail } from '@/api/custom-order';
+import ProcessFlow from '@/components/ProcessFlow.vue';
+import QualityCheck from '@/components/QualityCheck.vue';
+import logger from '@/utils/logger';
+import AfterSalesPanel from '@/components/AfterSalesPanel.vue';
 
 // v11 批次 181 P2-1 修复：CustomOrderDetail 已声明 quality_issues 和 after_sales 字段
 // 不再需要本地扩展类型，直接使用 CustomOrderDetail
 
-const route = useRoute()
-const { t } = useI18n({ useScope: 'global' })
-const loading = ref(false)
-const order = ref<CustomOrderDetail | null>(null)
-const activeTab = ref('info')
+const route = useRoute();
+const { t } = useI18n({ useScope: 'global' });
+const loading = ref(false);
+const order = ref<CustomOrderDetail | null>(null);
+const activeTab = ref('info');
 
 // 状态标签映射函数（i18n）
 const getStatusLabel = (status: string): string => {
@@ -179,49 +179,49 @@ const getStatusLabel = (status: string): string => {
     after_sales: t('customOrders.status.afterSales'),
     completed: t('customOrders.status.completed'),
     cancelled: t('customOrders.status.cancelled'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 async function loadData() {
-  const id = Number(route.params.id)
-  if (!id) return
-  loading.value = true
+  const id = Number(route.params.id);
+  if (!id) return;
+  loading.value = true;
   try {
-    const res = await getCustomOrder(id)
-    order.value = (res.data || res) as unknown as CustomOrderDetail
+    const res = await getCustomOrder(id);
+    order.value = (res.data || res) as unknown as CustomOrderDetail;
   } catch (e) {
-    logger.error(t('customOrders.detail.messageLoadFailed'), e)
-    ElMessage.error(t('customOrders.detail.messageLoadFailed'))
+    logger.error(t('customOrders.detail.messageLoadFailed'), e);
+    ElMessage.error(t('customOrders.detail.messageLoadFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function handleAdvance() {
-  if (!order.value) return
+  if (!order.value) return;
   try {
     await ElMessageBox.confirm(
       t('customOrders.detail.messageAdvanceConfirm'),
       t('customOrders.detail.messageAdvanceTitle'),
       { type: 'warning' }
-    )
+    );
     await advanceCustomOrder(order.value.id, {
       operator_id: 1,
       notes: t('customOrders.detail.messageAdvanceNotes'),
-    })
-    ElMessage.success(t('customOrders.detail.messageAdvanceSuccess'))
-    loadData()
+    });
+    ElMessage.success(t('customOrders.detail.messageAdvanceSuccess'));
+    loadData();
   } catch (e: unknown) {
     if (e !== 'cancel') {
-      const msg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(msg || t('customOrders.detail.messageAdvanceFailed'))
+      const msg = e instanceof Error ? e.message : String(e);
+      ElMessage.error(msg || t('customOrders.detail.messageAdvanceFailed'));
     }
   }
 }
 
 async function handleCancel() {
-  if (!order.value) return
+  if (!order.value) return;
   try {
     const { value: reason } = await ElMessageBox.prompt(
       t('customOrders.detail.messageCancelPrompt'),
@@ -230,20 +230,20 @@ async function handleCancel() {
         inputPattern: /\S+/,
         inputErrorMessage: t('customOrders.detail.messageReasonRequired'),
       }
-    )
-    await cancelCustomOrder(order.value.id, reason)
-    ElMessage.success(t('customOrders.detail.messageCancelSuccess'))
-    loadData()
+    );
+    await cancelCustomOrder(order.value.id, reason);
+    ElMessage.success(t('customOrders.detail.messageCancelSuccess'));
+    loadData();
   } catch (e: unknown) {
     if (e !== 'cancel') {
-      const msg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(msg || t('customOrders.detail.messageCancelFailed'))
+      const msg = e instanceof Error ? e.message : String(e);
+      ElMessage.error(msg || t('customOrders.detail.messageCancelFailed'));
     }
   }
 }
 
-watch(() => route.params.id, loadData)
-onMounted(loadData)
+watch(() => route.params.id, loadData);
+onMounted(loadData);
 </script>
 
 <style scoped>

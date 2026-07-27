@@ -12,30 +12,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { EChartsOption, ECharts } from 'echarts'
-import BaseChart from './BaseChart.vue'
+import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { EChartsOption, ECharts } from 'echarts';
+import BaseChart from './BaseChart.vue';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface BarData {
-  name: string
-  data: (number | null)[]
-  stack?: string
-  barWidth?: string | number
-  [key: string]: unknown
+  name: string;
+  data: (number | null)[];
+  stack?: string;
+  barWidth?: string | number;
+  [key: string]: unknown;
 }
 
 interface Props {
-  xAxisData?: string[]
-  series?: BarData[]
-  title?: string
-  height?: string
-  loading?: boolean
-  autoResize?: boolean
-  horizontal?: boolean
-  showLabel?: boolean
+  xAxisData?: string[];
+  series?: BarData[];
+  title?: string;
+  height?: string;
+  loading?: boolean;
+  autoResize?: boolean;
+  horizontal?: boolean;
+  showLabel?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -47,14 +47,14 @@ const props = withDefaults(defineProps<Props>(), {
   autoResize: true,
   horizontal: false,
   showLabel: false,
-})
+});
 
 const emit = defineEmits<{
-  ready: [instance: ECharts]
-  click: [params: Record<string, unknown>]
-}>()
+  ready: [instance: ECharts];
+  click: [params: Record<string, unknown>];
+}>();
 
-const chartRef = ref()
+const chartRef = ref();
 
 const chartOption = computed<EChartsOption>(() => {
   const seriesConfig = props.series.map(item => ({
@@ -64,7 +64,7 @@ const chartOption = computed<EChartsOption>(() => {
     stack: item.stack,
     barWidth: item.barWidth,
     label: props.showLabel ? { show: true, position: 'top' as const } : undefined,
-  }))
+  }));
 
   if (props.horizontal) {
     return {
@@ -75,7 +75,7 @@ const chartOption = computed<EChartsOption>(() => {
       xAxis: { type: 'value' },
       yAxis: { type: 'category', data: props.xAxisData },
       series: seriesConfig,
-    }
+    };
   }
 
   return {
@@ -86,8 +86,8 @@ const chartOption = computed<EChartsOption>(() => {
     xAxis: { type: 'category', data: props.xAxisData, axisTick: { alignWithLabel: true } },
     yAxis: { type: 'value' },
     series: seriesConfig,
-  }
-})
+  };
+});
 
-defineExpose({ getChart: () => chartRef.value?.getChart() })
+defineExpose({ getChart: () => chartRef.value?.getChart() });
 </script>

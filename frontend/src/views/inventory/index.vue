@@ -11,13 +11,19 @@
       <div class="header-left">
         <h1 class="page-title">{{ t('inventory.page.title') }}</h1>
         <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">{{ t('inventory.page.home') }}</el-breadcrumb-item>
+          <el-breadcrumb-item :to="{ path: '/' }">{{
+            t('inventory.page.home')
+          }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('inventory.page.warehouseManage') }}</el-breadcrumb-item>
           <el-breadcrumb-item>{{ t('inventory.page.stockLedger') }}</el-breadcrumb-item>
         </el-breadcrumb>
       </div>
       <div class="header-actions">
-        <el-button v-permission="PERMISSIONS.INVENTORY_UPDATE" type="primary" @click="handleAdjustment">
+        <el-button
+          v-permission="PERMISSIONS.INVENTORY_UPDATE"
+          type="primary"
+          @click="handleAdjustment"
+        >
           <el-icon><Edit /></el-icon>
           {{ t('inventory.page.adjustment') }}
         </el-button>
@@ -85,49 +91,49 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, RefreshRight, Download, Printer } from '@element-plus/icons-vue'
-import printJS from 'print-js'
-import { useRouter } from 'vue-router'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { ref, reactive, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Edit, RefreshRight, Download, Printer } from '@element-plus/icons-vue';
+import printJS from 'print-js';
+import { useRouter } from 'vue-router';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 // V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
 // 后端 GET /inventory/stock/export 已就绪（含字段级数据权限 + 异步审计日志 + 水印）
-import { exportFromBackend } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export';
 // v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
-import type { InventoryStock, StockAlert, InventoryTransfer, TransferData } from '@/api/inventory'
-import type { Warehouse } from '@/api/warehouse'
-import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue'
-import InventoryAlertTab from './tabs/InventoryAlertTab.vue'
-import InventoryTransferTab from './tabs/InventoryTransferTab.vue'
-import StatCards from './components/StatCards.vue'
-import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue'
-import TransferDialog from './components/TransferDialog.vue'
+import type { InventoryStock, StockAlert, InventoryTransfer, TransferData } from '@/api/inventory';
+import type { Warehouse } from '@/api/warehouse';
+import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue';
+import InventoryAlertTab from './tabs/InventoryAlertTab.vue';
+import InventoryTransferTab from './tabs/InventoryTransferTab.vue';
+import StatCards from './components/StatCards.vue';
+import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue';
+import TransferDialog from './components/TransferDialog.vue';
 // Batch 468 P0-S28：引入权限码常量，与后端 inventory 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
-const hasLoaded = createLazyLoader()
-const router = useRouter()
+const hasLoaded = createLazyLoader();
+const router = useRouter();
 
-const loading = ref(false)
-const activeTab = ref('stock')
+const loading = ref(false);
+const activeTab = ref('stock');
 // v11 批次 160 P2-7 修复：4 个核心状态从 any[] 改为具体接口类型，恢复类型保护
-const stocks = ref<InventoryStock[]>([])
-const alerts = ref<StockAlert[]>([])
-const transfers = ref<InventoryTransfer[]>([])
-const warehouses = ref<Warehouse[]>([])
-const total = ref(0)
+const stocks = ref<InventoryStock[]>([]);
+const alerts = ref<StockAlert[]>([]);
+const transfers = ref<InventoryTransfer[]>([]);
+const warehouses = ref<Warehouse[]>([]);
+const total = ref(0);
 
 const stats = ref({
   totalQuantity: 0,
   alertCount: 0,
   warehouseCount: 0,
   lowStockCount: 0,
-})
+});
 
 const queryParams = reactive<StockQuery>({
   page: 1,
@@ -135,87 +141,99 @@ const queryParams = reactive<StockQuery>({
   keyword: '',
   warehouse_id: undefined,
   status: '',
-})
+});
 
 const fetchData = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const { getStockList, getInventoryReport } = await import('@/api/inventory')
-    const res = await getStockList(queryParams)
-    stocks.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    const { getStockList, getInventoryReport } = await import('@/api/inventory');
+    const res = await getStockList(queryParams);
+    stocks.value = res.data?.list || [];
+    total.value = res.data?.total || 0;
 
-    const summaryRes = await getInventoryReport({})
-    const summary = summaryRes.data?.summary || {}
+    const summaryRes = await getInventoryReport({});
+    const summary = summaryRes.data?.summary || {};
     stats.value = {
       totalQuantity: summary.total_quantity || 0,
       alertCount: summary.alert_count || 0,
       warehouseCount: summary.warehouse_count || 0,
       lowStockCount: summary.low_stock_count || 0,
-    }
+    };
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchStockFailed'))
-    stocks.value = []
-    total.value = 0
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('inventory.message.fetchStockFailed')
+    );
+    stocks.value = [];
+    total.value = 0;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const fetchAlerts = async () => {
   try {
-    const { getStockAlertList } = await import('@/api/inventory')
-    const res = await getStockAlertList()
-    alerts.value = res.data || []
+    const { getStockAlertList } = await import('@/api/inventory');
+    const res = await getStockAlertList();
+    alerts.value = res.data || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchAlertFailed'))
-    alerts.value = []
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('inventory.message.fetchAlertFailed')
+    );
+    alerts.value = [];
   }
-}
+};
 
 const fetchTransfers = async () => {
   try {
-    const { getInventoryTransferList } = await import('@/api/inventory')
-    const res = await getInventoryTransferList(queryParams)
-    transfers.value = res.data?.list || []
+    const { getInventoryTransferList } = await import('@/api/inventory');
+    const res = await getInventoryTransferList(queryParams);
+    transfers.value = res.data?.list || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchTransferFailed'))
-    transfers.value = []
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('inventory.message.fetchTransferFailed')
+    );
+    transfers.value = [];
   }
-}
+};
 
 const fetchWarehouses = async () => {
   try {
-    const { getWarehouseList } = await import('@/api/warehouse')
-    const res = await getWarehouseList({ page: 1, page_size: 1000 })
-    warehouses.value = res.data?.list || []
+    const { getWarehouseList } = await import('@/api/warehouse');
+    const res = await getWarehouseList({ page: 1, page_size: 1000 });
+    warehouses.value = res.data?.list || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchWarehouseFailed'))
-    warehouses.value = []
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('inventory.message.fetchWarehouseFailed')
+    );
+    warehouses.value = [];
   }
-}
+};
 
 const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.warehouse_id = undefined
-  queryParams.status = ''
-  queryParams.page = 1
-  fetchData()
-}
+  queryParams.keyword = '';
+  queryParams.warehouse_id = undefined;
+  queryParams.status = '';
+  queryParams.page = 1;
+  fetchData();
+};
 
 const handleTabChange = (tabName: string) => {
   if (tabName === 'alert') {
-    fetchAlerts()
+    fetchAlerts();
   } else if (tabName === 'transfer') {
-    fetchTransfers()
+    fetchTransfers();
   }
-}
+};
 
-const adjustmentDialogVisible = ref(false)
+const adjustmentDialogVisible = ref(false);
 const adjustmentForm = ref<AdjustmentForm>({
   stock_id: null,
   product_id: null,
@@ -226,15 +244,15 @@ const adjustmentForm = ref<AdjustmentForm>({
   adjustment_type: 'increase',
   adjustment_quantity: 0,
   reason: '',
-})
+});
 
-const transferDialogVisible = ref(false)
+const transferDialogVisible = ref(false);
 const transferForm = ref({
   from_warehouse_id: null as number | null,
   to_warehouse_id: null as number | null,
   items: [{ product_id: null as number | null, quantity: 0 }],
   remark: '',
-})
+});
 
 const handleAdjustment = () => {
   adjustmentForm.value = {
@@ -247,37 +265,40 @@ const handleAdjustment = () => {
     adjustment_type: 'increase',
     adjustment_quantity: 0,
     reason: '',
-  }
-  adjustmentDialogVisible.value = true
-}
+  };
+  adjustmentDialogVisible.value = true;
+};
 
 // v11 批次 164 P2-1 修复：form: any 改为具体类型
 const onSubmitAdjustment = async (form: AdjustmentForm) => {
   if (!form.adjustment_quantity || form.adjustment_quantity <= 0) {
-    ElMessage.warning(t('inventory.message.adjustmentQtyInvalid'))
-    return
+    ElMessage.warning(t('inventory.message.adjustmentQtyInvalid'));
+    return;
   }
   if (!form.reason) {
-    ElMessage.warning(t('inventory.message.reasonRequired'))
-    return
+    ElMessage.warning(t('inventory.message.reasonRequired'));
+    return;
   }
   try {
-    const { createStockAdjustment } = await import('@/api/inventory')
+    const { createStockAdjustment } = await import('@/api/inventory');
     await createStockAdjustment({
       warehouse_id: form.warehouse_id!,
       product_id: form.product_id!,
       adjustment_type: form.adjustment_type,
       adjustment_quantity: form.adjustment_quantity,
       reason: form.reason,
-    })
-    ElMessage.success(t('inventory.message.adjustmentSuccess'))
-    adjustmentDialogVisible.value = false
-    fetchData()
+    });
+    ElMessage.success(t('inventory.message.adjustmentSuccess'));
+    adjustmentDialogVisible.value = false;
+    fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.adjustmentFailed'))
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('inventory.message.adjustmentFailed')
+    );
   }
-}
+};
 
 const handleTransfer = () => {
   transferForm.value = {
@@ -285,25 +306,25 @@ const handleTransfer = () => {
     to_warehouse_id: null,
     items: [{ product_id: null, quantity: 0 }],
     remark: '',
-  }
-  transferDialogVisible.value = true
-}
+  };
+  transferDialogVisible.value = true;
+};
 
 const handleAddTransferItem = () => {
-  transferForm.value.items.push({ product_id: null, quantity: 0 })
-}
+  transferForm.value.items.push({ product_id: null, quantity: 0 });
+};
 const handleRemoveTransferItem = (index: number) => {
   if (transferForm.value.items.length > 1) {
-    transferForm.value.items.splice(index, 1)
+    transferForm.value.items.splice(index, 1);
   }
-}
+};
 const onSubmitTransfer = async (form: typeof transferForm.value) => {
   if (!form.from_warehouse_id || !form.to_warehouse_id) {
-    ElMessage.warning(t('inventory.message.warehouseRequired'))
-    return
+    ElMessage.warning(t('inventory.message.warehouseRequired'));
+    return;
   }
   try {
-    const { createInventoryTransfer } = await import('@/api/inventory')
+    const { createInventoryTransfer } = await import('@/api/inventory');
     const transferData: TransferData = {
       from_warehouse_id: form.from_warehouse_id,
       to_warehouse_id: form.to_warehouse_id,
@@ -314,19 +335,22 @@ const onSubmitTransfer = async (form: typeof transferForm.value) => {
           quantity: item.quantity,
         })),
       remark: form.remark,
-    }
-    await createInventoryTransfer(transferData)
-    ElMessage.success(t('inventory.message.transferCreated'))
-    transferDialogVisible.value = false
+    };
+    await createInventoryTransfer(transferData);
+    ElMessage.success(t('inventory.message.transferCreated'));
+    transferDialogVisible.value = false;
     if (activeTab.value === 'transfer') {
-      fetchTransfers()
+      fetchTransfers();
     }
   } catch (error: unknown) {
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || t('inventory.message.transferCreateFailed'))
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('inventory.message.transferCreateFailed')
+    );
   }
-}
+};
 
-const handleNewTransfer = () => handleTransfer()
+const handleNewTransfer = () => handleTransfer();
 // 批次 157a P1-1 修复：调拨单详情无独立 API，直接展示列表行数据
 const handleViewTransfer = (row: InventoryTransfer) => {
   const lines = [
@@ -337,9 +361,11 @@ const handleViewTransfer = (row: InventoryTransfer) => {
     t('inventory.transferDetail.status', { value: row.status }),
     t('inventory.transferDetail.creator', { value: row.creator_name || '-' }),
     t('inventory.transferDetail.createdAt', { value: row.created_at }),
-  ]
-  ElMessageBox.alert(lines.join('\n'), t('inventory.transferDetail.title'), { confirmButtonText: t('inventory.transferDetail.close') })
-}
+  ];
+  ElMessageBox.alert(lines.join('\n'), t('inventory.transferDetail.title'), {
+    confirmButtonText: t('inventory.transferDetail.close'),
+  });
+};
 // 批次 157a P1-1 修复：接入 approveTransfer API 完成调拨审批
 const handleApproveTransfer = async (row: InventoryTransfer) => {
   try {
@@ -347,29 +373,30 @@ const handleApproveTransfer = async (row: InventoryTransfer) => {
       t('inventory.message.approveConfirm', { no: row.transfer_no }),
       t('inventory.message.approveTitle'),
       { type: 'info' }
-    )
-    const { approveInventoryTransfer } = await import('@/api/inventory')
-    await approveInventoryTransfer(row.id)
-    ElMessage.success(t('inventory.message.approveSuccess'))
-    fetchTransfers()
+    );
+    const { approveInventoryTransfer } = await import('@/api/inventory');
+    await approveInventoryTransfer(row.id);
+    ElMessage.success(t('inventory.message.approveSuccess'));
+    fetchTransfers();
   } catch (error) {
     if (error !== 'cancel') {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error(
-        (error instanceof Error ? error.message : String(error)) || t('inventory.message.approveFailed')
-      )
+        (error instanceof Error ? error.message : String(error)) ||
+          t('inventory.message.approveFailed')
+      );
     }
   }
-}
+};
 // 批次 157a P1-1 修复：接入 getStockById API 展示库存详情
 const handleView = async (row: InventoryStock) => {
   try {
-    const { getStockById } = await import('@/api/inventory')
-    const res = await getStockById(row.id)
-    const d = res.data
+    const { getStockById } = await import('@/api/inventory');
+    const res = await getStockById(row.id);
+    const d = res.data;
     if (!d) {
-      ElMessage.warning(t('inventory.message.stockDetailNotFound'))
-      return
+      ElMessage.warning(t('inventory.message.stockDetailNotFound'));
+      return;
     }
     const lines = [
       t('inventory.stockDetail.productCode', { value: d.product_code }),
@@ -380,54 +407,55 @@ const handleView = async (row: InventoryStock) => {
       t('inventory.stockDetail.currentQty', { value: d.quantity, unit: d.unit || '' }),
       t('inventory.stockDetail.status', { value: d.status }),
       t('inventory.stockDetail.location', { value: d.location || '-' }),
-    ]
+    ];
     await ElMessageBox.alert(lines.join('\n'), t('inventory.stockDetail.title'), {
       confirmButtonText: t('inventory.stockDetail.close'),
-    })
+    });
   } catch (error) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
-      (error instanceof Error ? error.message : String(error)) || t('inventory.message.fetchStockDetailFailed')
-    )
+      (error instanceof Error ? error.message : String(error)) ||
+        t('inventory.message.fetchStockDetailFailed')
+    );
   }
-}
+};
 // 批次 157b P1-1 修复：采购按钮跳转到采购页面
 const handlePurchase = (row: StockAlert) => {
-  router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } })
-}
+  router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } });
+};
 const handlePrint = () => {
   printJS({
     printable: stocks.value,
     properties: ['product_code', 'product_name', 'warehouse_name', 'quantity'],
     type: 'json',
     header: t('inventory.printHeader'),
-  })
-}
+  });
+};
 // 批次 157b P1-1 修复：导出改为 .xls 格式（规则 3：禁止 CSV 作为最终交付格式）
 // V15 P0-S12 修复（Batch 475c）：导出改用后端带水印 xlsx 接口
 // 调用后端 GET /inventory/stock/export，传入当前列表筛选条件（warehouse_id），
 // 保证导出数据与列表筛选一致；后端注入水印 + 字段级数据权限 + 异步审计日志
 const handleExport = async () => {
   if (stocks.value.length === 0) {
-    ElMessage.warning(t('inventory.message.noExportData'))
-    return
+    ElMessage.warning(t('inventory.message.noExportData'));
+    return;
   }
   const params: Record<string, unknown> = {
     warehouse_id: queryParams.warehouse_id,
     product_id: undefined,
-  }
-  await exportFromBackend('/inventory/stock/export', params, 'inventory_stock_export')
-  ElMessage.success(t('inventory.message.exportSuccess'))
-}
+  };
+  await exportFromBackend('/inventory/stock/export', params, 'inventory_stock_export');
+  ElMessage.success(t('inventory.message.exportSuccess'));
+};
 
 const initPage = () => {
-  loadIfNot('fetchData', fetchData, hasLoaded)
-  loadIfNot('fetchWarehouses', fetchWarehouses, hasLoaded)
-}
+  loadIfNot('fetchData', fetchData, hasLoaded);
+  loadIfNot('fetchWarehouses', fetchWarehouses, hasLoaded);
+};
 
 onMounted(() => {
-  initPage()
-})
+  initPage();
+});
 </script>
 
 <style scoped>

@@ -13,22 +13,22 @@
  * - 容错处理：元素不存在时返回 null 而非抛出（便于断言判断）
  * - 与项目现有 smoke 测试的组件选择器保持一致（.el-table-v2 / .el-select 等）
  */
-import type { Locator, Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test';
 
 /**
  * 表单字段定义
  */
 export interface FormField {
   /** 字段类型 */
-  type: 'text' | 'select' | 'textarea' | 'number' | 'date'
+  type: 'text' | 'select' | 'textarea' | 'number' | 'date';
   /** 定位器（CSS 选择器或 placeholder 文本） */
-  selector?: string
+  selector?: string;
   /** placeholder 文本（用于 input[placeholder*="xxx"] 定位） */
-  placeholder?: string
+  placeholder?: string;
   /** label 文本（用于 label:has-text("xxx") 定位） */
-  label?: string
+  label?: string;
   /** 要填入的值 */
-  value: string
+  value: string;
 }
 
 /**
@@ -40,14 +40,14 @@ function locateByLabel(page: Page, labelText: string): Locator {
     .locator('.el-form-item')
     .filter({ has: page.locator('.el-form-item__label', { hasText: labelText }) })
     .locator('input, textarea')
-    .first()
+    .first();
 }
 
 /**
  * 按 placeholder 定位字段输入框
  */
 function locateByPlaceholder(page: Page, placeholder: string): Locator {
-  return page.locator(`input[placeholder*="${placeholder}"]`).first()
+  return page.locator(`input[placeholder*="${placeholder}"]`).first();
 }
 
 /**
@@ -58,49 +58,49 @@ function locateByPlaceholder(page: Page, placeholder: string): Locator {
  * - 减少测试中重复的 fill/click 代码
  */
 export async function autoFillField(page: Page, field: FormField): Promise<void> {
-  let locator: Locator
+  let locator: Locator;
 
   if (field.selector) {
-    locator = page.locator(field.selector).first()
+    locator = page.locator(field.selector).first();
   } else if (field.placeholder) {
-    locator = locateByPlaceholder(page, field.placeholder)
+    locator = locateByPlaceholder(page, field.placeholder);
   } else if (field.label) {
-    locator = locateByLabel(page, field.label)
+    locator = locateByLabel(page, field.label);
   } else {
-    throw new Error('FormField 必须提供 selector / placeholder / label 之一')
+    throw new Error('FormField 必须提供 selector / placeholder / label 之一');
   }
 
-  await locator.waitFor({ state: 'visible', timeout: 5_000 })
+  await locator.waitFor({ state: 'visible', timeout: 5_000 });
 
   switch (field.type) {
     case 'select':
       // Element Plus el-select：点击触发下拉 → 选择匹配项
-      await locator.click()
-      await page.waitForSelector('.el-select-dropdown__item', { state: 'visible', timeout: 3_000 })
+      await locator.click();
+      await page.waitForSelector('.el-select-dropdown__item', { state: 'visible', timeout: 3_000 });
       // 选择包含目标文本的选项
       await page
         .locator('.el-select-dropdown__item')
         .filter({ hasText: field.value })
         .first()
-        .click()
-      break
+        .click();
+      break;
     case 'textarea':
-      await locator.fill(field.value)
-      break
+      await locator.fill(field.value);
+      break;
     case 'number':
-      await locator.fill(field.value)
-      break
+      await locator.fill(field.value);
+      break;
     case 'date':
       // Element Plus el-date-editor：点击触发面板 → 输入日期
-      await locator.click()
-      await page.waitForSelector('.el-date-picker', { state: 'visible', timeout: 3_000 })
-      await locator.fill(field.value)
-      await page.keyboard.press('Enter')
-      break
+      await locator.click();
+      await page.waitForSelector('.el-date-picker', { state: 'visible', timeout: 3_000 });
+      await locator.fill(field.value);
+      await page.keyboard.press('Enter');
+      break;
     case 'text':
     default:
-      await locator.fill(field.value)
-      break
+      await locator.fill(field.value);
+      break;
   }
 }
 
@@ -119,7 +119,7 @@ export async function autoFillField(page: Page, field: FormField): Promise<void>
  */
 export async function autoFillForm(page: Page, fields: FormField[]): Promise<void> {
   for (const field of fields) {
-    await autoFillField(page, field)
+    await autoFillField(page, field);
   }
 }
 
@@ -138,9 +138,9 @@ export async function autoClickButton(
   text: string,
   options: { timeout?: number } = {}
 ): Promise<void> {
-  const btn = page.locator(`button:has-text("${text}")`).first()
-  await btn.waitFor({ state: 'visible', timeout: options.timeout ?? 5_000 })
-  await btn.click()
+  const btn = page.locator(`button:has-text("${text}")`).first();
+  await btn.waitFor({ state: 'visible', timeout: options.timeout ?? 5_000 });
+  await btn.click();
 }
 
 /**
@@ -163,26 +163,26 @@ export async function extractTableData(
   page: Page,
   tableSelector = '.el-table-v2'
 ): Promise<string[][]> {
-  const table = page.locator(tableSelector).first()
-  await table.waitFor({ state: 'attached', timeout: 10_000 })
+  const table = page.locator(tableSelector).first();
+  await table.waitFor({ state: 'attached', timeout: 10_000 });
 
   // 提取所有行的单元格文本
-  const rows = await table.locator('.el-table-v2__row').all()
-  const result: string[][] = []
+  const rows = await table.locator('.el-table-v2__row').all();
+  const result: string[][] = [];
 
   for (const row of rows) {
-    const cells = await row.locator('.el-table-v2__cell, td').all()
-    const rowData: string[] = []
+    const cells = await row.locator('.el-table-v2__cell, td').all();
+    const rowData: string[] = [];
     for (const cell of cells) {
-      const text = await cell.textContent()
-      rowData.push((text ?? '').trim())
+      const text = await cell.textContent();
+      rowData.push((text ?? '').trim());
     }
     if (rowData.length > 0) {
-      result.push(rowData)
+      result.push(rowData);
     }
   }
 
-  return result
+  return result;
 }
 
 /**
@@ -202,8 +202,8 @@ export async function extractColumnData(
   tableSelector: string,
   columnIndex: number
 ): Promise<string[]> {
-  const rows = await extractTableData(page, tableSelector)
-  return rows.map((row) => row[columnIndex] ?? '').filter((v) => v.length > 0)
+  const rows = await extractTableData(page, tableSelector);
+  return rows.map(row => row[columnIndex] ?? '').filter(v => v.length > 0);
 }
 
 /**
@@ -222,8 +222,8 @@ export async function waitForTableLoaded(
   tableSelector = '.el-table-v2',
   timeout = 10_000
 ): Promise<void> {
-  const table = page.locator(tableSelector).first()
-  await table.waitFor({ state: 'attached', timeout })
+  const table = page.locator(tableSelector).first();
+  await table.waitFor({ state: 'attached', timeout });
   // 等待至少一行数据或空状态提示出现
   await page
     .locator(`${tableSelector} .el-table-v2__row, .el-empty, .el-table__empty-text`)
@@ -231,7 +231,7 @@ export async function waitForTableLoaded(
     .waitFor({ state: 'attached', timeout: 5_000 })
     .catch(() => {
       // 超时不阻塞（可能是虚拟滚动未渲染）
-    })
+    });
 }
 
 /**
@@ -250,9 +250,9 @@ export async function waitForElMessage(
   type: 'success' | 'warning' | 'info' | 'error' = 'success',
   timeout = 5_000
 ): Promise<Locator> {
-  const message = page.locator(`.el-message--${type}`).first()
-  await message.waitFor({ state: 'visible', timeout })
-  return message
+  const message = page.locator(`.el-message--${type}`).first();
+  await message.waitFor({ state: 'visible', timeout });
+  return message;
 }
 
 /**
@@ -271,21 +271,21 @@ export async function waitForElMessage(
  * const metrics = recorder.report()
  */
 export function createRpaRecorder() {
-  const marks: Array<{ label: string; timestamp: number }> = []
-  const startTime = Date.now()
+  const marks: Array<{ label: string; timestamp: number }> = [];
+  const startTime = Date.now();
 
   return {
     mark(label: string): void {
-      marks.push({ label, timestamp: Date.now() - startTime })
+      marks.push({ label, timestamp: Date.now() - startTime });
     },
     report(): Array<{ label: string; elapsed: number }> {
       return marks.map((m, i) => ({
         label: m.label,
         elapsed: i === 0 ? m.timestamp : m.timestamp - marks[i - 1].timestamp,
-      }))
+      }));
     },
     total(): number {
-      return Date.now() - startTime
+      return Date.now() - startTime;
     },
-  }
+  };
 }

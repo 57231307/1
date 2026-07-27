@@ -76,26 +76,26 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { CircleCheck, CircleClose } from '@element-plus/icons-vue'
-import type { CustomerConfirmation } from '@/api/ar-reconciliation-enhanced'
-import { getConfirmLabel, getConfirmType } from '../composables/arRecFmts'
+import { useI18n } from 'vue-i18n';
+import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
+import type { CustomerConfirmation } from '@/api/ar-reconciliation-enhanced';
+import { getConfirmLabel, getConfirmType } from '../composables/arRecFmts';
 
-const { t } = useI18n({ useScope: 'global' })
-void t
+const { t } = useI18n({ useScope: 'global' });
+void t;
 
 /**
  * 客户确认记录对话框组件
  */
 const props = defineProps<{
-  visible: boolean
-  data: CustomerConfirmation[]
-}>()
+  visible: boolean;
+  data: CustomerConfirmation[];
+}>();
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-  'confirm-status': [row: CustomerConfirmation, status: 'confirmed' | 'disputed']
-}>()
+  'update:visible': [v: boolean];
+  'confirm-status': [row: CustomerConfirmation, status: 'confirmed' | 'disputed'];
+}>();
 
-void props
+void props;
 </script>

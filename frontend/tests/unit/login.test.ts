@@ -144,11 +144,12 @@ describe('Login.vue 真实组件测试', () => {
     const button = wrapper.find('button')
     await button.trigger('click')
     await flushPromises()
-    // login 被调用，参数为空字符串
+    // login 被调用，参数为空字符串（含 agreedToTerms: false，P1 法律合规新增用户协议字段）
     expect(mockLogin).toHaveBeenCalledTimes(1)
     expect(mockLogin).toHaveBeenCalledWith({
       username: '',
       password: '',
+      agreedToTerms: false,
     })
   })
 
@@ -165,11 +166,12 @@ describe('Login.vue 真实组件测试', () => {
     const button = wrapper.find('button')
     await button.trigger('click')
     await flushPromises()
-    // 应调用 userStore.login，参数为 { username: 'admin', password: 'password123' }
+    // 应调用 userStore.login，参数为 { username: 'admin', password: 'password123', agreedToTerms: false }
     expect(mockLogin).toHaveBeenCalledTimes(1)
     expect(mockLogin).toHaveBeenCalledWith({
       username: 'admin',
       password: 'password123',
+      agreedToTerms: false,
     })
   })
 

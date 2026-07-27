@@ -2,48 +2,55 @@
 /**
  * P2-4 AI 分析深化 - 概览看板
  */
-import { onMounted, ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { DataAnalysis, Document, MagicStick } from '@element-plus/icons-vue'
-import { getAiSummary, getAiHealth, RISK_LEVEL_LABELS, RISK_LEVEL_COLORS, TREND_LABELS, SOURCE_LABELS } from '@/api/ai-extend'
-import type { AiSummary } from '@/api/ai-extend'
+import { onMounted, ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { DataAnalysis, Document, MagicStick } from '@element-plus/icons-vue';
+import {
+  getAiSummary,
+  getAiHealth,
+  RISK_LEVEL_LABELS,
+  RISK_LEVEL_COLORS,
+  TREND_LABELS,
+  SOURCE_LABELS,
+} from '@/api/ai-extend';
+import type { AiSummary } from '@/api/ai-extend';
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const router = useRouter()
-const summary = ref<AiSummary | null>(null)
-const loading = ref(false)
-const health = ref<{ status: string; version: string } | null>(null)
+const router = useRouter();
+const summary = ref<AiSummary | null>(null);
+const loading = ref(false);
+const health = ref<{ status: string; version: string } | null>(null);
 
 async function load() {
-  loading.value = true
+  loading.value = true;
   try {
-    const [s, h] = await Promise.all([getAiSummary(), getAiHealth()])
-    summary.value = s
-    health.value = h
+    const [s, h] = await Promise.all([getAiSummary(), getAiHealth()]);
+    summary.value = s;
+    health.value = h;
   } catch (e) {
-    ElMessage.error(t('message.loadFailed'))
+    ElMessage.error(t('message.loadFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-onMounted(load)
+onMounted(load);
 
 const applyRateText = computed(() => {
-  if (!summary.value) return '—'
-  return `${(summary.value.process_optimization.apply_rate * 100).toFixed(1)}%`
-})
+  if (!summary.value) return '—';
+  return `${(summary.value.process_optimization.apply_rate * 100).toFixed(1)}%`;
+});
 const applyRateColor = computed(() => {
-  if (!summary.value) return '#909399'
-  const r = summary.value.process_optimization.apply_rate
-  if (r >= 0.6) return '#67c23a'
-  if (r >= 0.3) return '#e6a23c'
-  return '#f56c6c'
-})
+  if (!summary.value) return '#909399';
+  const r = summary.value.process_optimization.apply_rate;
+  if (r >= 0.6) return '#67c23a';
+  if (r >= 0.3) return '#e6a23c';
+  return '#f56c6c';
+});
 </script>
 
 <template>
@@ -52,9 +59,19 @@ const applyRateColor = computed(() => {
       <h2>{{ $t('aiExtend.overview.title') }}</h2>
       <div class="header-right">
         <el-tag v-if="health" :type="health.status === 'ok' ? 'success' : 'danger'" size="small">
-          {{ $t('aiExtend.overview.serviceStatus', { status: health.status === 'ok' ? $t('aiExtend.overview.serviceOk') : $t('aiExtend.overview.serviceError'), version: health.version }) }}
+          {{
+            $t('aiExtend.overview.serviceStatus', {
+              status:
+                health.status === 'ok'
+                  ? $t('aiExtend.overview.serviceOk')
+                  : $t('aiExtend.overview.serviceError'),
+              version: health.version,
+            })
+          }}
         </el-tag>
-        <el-button @click="load" :loading="loading" type="primary" plain>{{ $t('aiExtend.overview.refresh') }}</el-button>
+        <el-button :loading="loading" type="primary" plain @click="load">{{
+          $t('aiExtend.overview.refresh')
+        }}</el-button>
       </div>
     </div>
 
@@ -63,27 +80,42 @@ const applyRateColor = computed(() => {
         <el-card shadow="hover" class="kpi-card">
           <div class="kpi-label">{{ $t('aiExtend.overview.kpiProcessHistory') }}</div>
           <div class="kpi-value">{{ summary.process_optimization.total }}</div>
-          <div class="kpi-extra">{{ $t('aiExtend.overview.kpiKnnRecommended', { n: summary.process_optimization.knn_recommended }) }}</div>
+          <div class="kpi-extra">
+            {{
+              $t('aiExtend.overview.kpiKnnRecommended', {
+                n: summary.process_optimization.knn_recommended,
+              })
+            }}
+          </div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="kpi-card">
           <div class="kpi-label">{{ $t('aiExtend.overview.kpiApplyRate') }}</div>
           <div class="kpi-value" :style="{ color: applyRateColor }">{{ applyRateText }}</div>
-          <div class="kpi-extra">{{ $t('aiExtend.overview.kpiApplied', { n: summary.process_optimization.applied }) }}</div>
+          <div class="kpi-extra">
+            {{ $t('aiExtend.overview.kpiApplied', { n: summary.process_optimization.applied }) }}
+          </div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="kpi-card">
           <div class="kpi-label">{{ $t('aiExtend.overview.kpiQualityHistory') }}</div>
           <div class="kpi-value">{{ summary.quality_prediction.total }}</div>
-          <div class="kpi-extra">{{ $t('aiExtend.overview.kpiHighRisk', { n: summary.quality_prediction.high_risk }) }}</div>
+          <div class="kpi-extra">
+            {{ $t('aiExtend.overview.kpiHighRisk', { n: summary.quality_prediction.high_risk }) }}
+          </div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="kpi-card">
           <div class="kpi-label">{{ $t('aiExtend.overview.kpiUnack') }}</div>
-          <div class="kpi-value" :style="{ color: summary.quality_prediction.unacknowledged > 0 ? '#f56c6c' : '#67c23a' }">
+          <div
+            class="kpi-value"
+            :style="{
+              color: summary.quality_prediction.unacknowledged > 0 ? '#f56c6c' : '#67c23a',
+            }"
+          >
             {{ summary.quality_prediction.unacknowledged }}
           </div>
           <div class="kpi-extra">{{ $t('aiExtend.overview.kpiUnackHint') }}</div>
@@ -93,8 +125,12 @@ const applyRateColor = computed(() => {
 
     <el-row :gutter="16" class="actions-row">
       <el-col :span="8">
-        <el-card shadow="hover" class="action-card" @click="router.push('/ai-extend/process-optimization')">
-          <div class="action-icon" style="background: #ecf5ff; color: #409eff;">
+        <el-card
+          shadow="hover"
+          class="action-card"
+          @click="router.push('/ai-extend/process-optimization')"
+        >
+          <div class="action-icon" style="background: #ecf5ff; color: #409eff">
             <el-icon :size="32"><MagicStick /></el-icon>
           </div>
           <div class="action-body">
@@ -104,8 +140,12 @@ const applyRateColor = computed(() => {
         </el-card>
       </el-col>
       <el-col :span="8">
-        <el-card shadow="hover" class="action-card" @click="router.push('/ai-extend/quality-prediction')">
-          <div class="action-icon" style="background: #fef0f0; color: #f56c6c;">
+        <el-card
+          shadow="hover"
+          class="action-card"
+          @click="router.push('/ai-extend/quality-prediction')"
+        >
+          <div class="action-icon" style="background: #fef0f0; color: #f56c6c">
             <el-icon :size="32"><DataAnalysis /></el-icon>
           </div>
           <div class="action-body">
@@ -115,8 +155,12 @@ const applyRateColor = computed(() => {
         </el-card>
       </el-col>
       <el-col :span="8">
-        <el-card shadow="hover" class="action-card" @click="router.push('/ai-extend/process-detail/1')">
-          <div class="action-icon" style="background: #f0f9eb; color: #67c23a;">
+        <el-card
+          shadow="hover"
+          class="action-card"
+          @click="router.push('/ai-extend/process-detail/1')"
+        >
+          <div class="action-icon" style="background: #f0f9eb; color: #67c23a">
             <el-icon :size="32"><Document /></el-icon>
           </div>
           <div class="action-body">
@@ -133,23 +177,52 @@ const applyRateColor = computed(() => {
           <template #header>
             <div class="card-header">{{ $t('aiExtend.overview.latestProcess') }}</div>
           </template>
-          <el-table :data="summary.latest_process_optimizations" size="small" max-height="300" :aria-label="t('aiExtend.overview.ariaLatestProcess')">
-            <el-table-column prop="color_no" :label="$t('aiExtend.overview.colColorNo')" width="100" />
-            <el-table-column prop="fabric_type" :label="$t('aiExtend.overview.colFabricType')" width="100" />
+          <el-table
+            :data="summary.latest_process_optimizations"
+            size="small"
+            max-height="300"
+            :aria-label="t('aiExtend.overview.ariaLatestProcess')"
+          >
+            <el-table-column
+              prop="color_no"
+              :label="$t('aiExtend.overview.colColorNo')"
+              width="100"
+            />
+            <el-table-column
+              prop="fabric_type"
+              :label="$t('aiExtend.overview.colFabricType')"
+              width="100"
+            />
             <el-table-column prop="source" :label="$t('aiExtend.overview.colSource')" width="100">
               <template #default="{ row }">{{ SOURCE_LABELS[row.source] || row.source }}</template>
             </el-table-column>
-            <el-table-column prop="confidence" :label="$t('aiExtend.overview.colConfidence')" width="100">
+            <el-table-column
+              prop="confidence"
+              :label="$t('aiExtend.overview.colConfidence')"
+              width="100"
+            >
               <template #default="{ row }">{{ Number(row.confidence).toFixed(2) }}</template>
             </el-table-column>
-            <el-table-column prop="is_applied" :label="$t('aiExtend.overview.colApplied')" width="70">
+            <el-table-column
+              prop="is_applied"
+              :label="$t('aiExtend.overview.colApplied')"
+              width="70"
+            >
               <template #default="{ row }">
                 <el-tag :type="row.is_applied ? 'success' : 'info'" size="small">
-                  {{ row.is_applied ? $t('aiExtend.overview.applied') : $t('aiExtend.overview.notApplied') }}
+                  {{
+                    row.is_applied
+                      ? $t('aiExtend.overview.applied')
+                      : $t('aiExtend.overview.notApplied')
+                  }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="created_at" :label="$t('aiExtend.overview.colTime')" min-width="160" />
+            <el-table-column
+              prop="created_at"
+              :label="$t('aiExtend.overview.colTime')"
+              min-width="160"
+            />
           </el-table>
         </el-card>
       </el-col>
@@ -158,30 +231,59 @@ const applyRateColor = computed(() => {
           <template #header>
             <div class="card-header">{{ $t('aiExtend.overview.latestQuality') }}</div>
           </template>
-          <el-table :data="summary.latest_quality_predictions" size="small" max-height="300" :aria-label="t('aiExtend.overview.ariaLatestQuality')">
-            <el-table-column prop="product_id" :label="$t('aiExtend.overview.colProductId')" width="80" />
+          <el-table
+            :data="summary.latest_quality_predictions"
+            size="small"
+            max-height="300"
+            :aria-label="t('aiExtend.overview.ariaLatestQuality')"
+          >
+            <el-table-column
+              prop="product_id"
+              :label="$t('aiExtend.overview.colProductId')"
+              width="80"
+            />
             <el-table-column prop="risk_level" :label="$t('aiExtend.overview.colRisk')" width="90">
               <template #default="{ row }">
                 <el-tag
-                  :style="{ background: RISK_LEVEL_COLORS[row.risk_level], color: '#fff', border: 'none' }"
+                  :style="{
+                    background: RISK_LEVEL_COLORS[row.risk_level],
+                    color: '#fff',
+                    border: 'none',
+                  }"
                   size="small"
                 >
                   {{ RISK_LEVEL_LABELS[row.risk_level] }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="risk_score" :label="$t('aiExtend.overview.colRiskScore')" width="70" />
+            <el-table-column
+              prop="risk_score"
+              :label="$t('aiExtend.overview.colRiskScore')"
+              width="70"
+            />
             <el-table-column prop="trend" :label="$t('aiExtend.overview.colTrend')" width="80">
               <template #default="{ row }">{{ TREND_LABELS[row.trend] || row.trend }}</template>
             </el-table-column>
-            <el-table-column prop="is_acknowledged" :label="$t('aiExtend.overview.colAck')" width="80">
+            <el-table-column
+              prop="is_acknowledged"
+              :label="$t('aiExtend.overview.colAck')"
+              width="80"
+            >
               <template #default="{ row }">
                 <el-tag :type="row.is_acknowledged ? 'success' : 'warning'" size="small">
-                  {{ row.is_acknowledged ? $t('aiExtend.overview.acknowledged') : $t('aiExtend.overview.unacknowledged') }}
+                  {{
+                    row.is_acknowledged
+                      ? $t('aiExtend.overview.acknowledged')
+                      : $t('aiExtend.overview.unacknowledged')
+                  }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="created_at" :label="$t('aiExtend.overview.colTime')" min-width="160" />
+            <el-table-column
+              prop="created_at"
+              :label="$t('aiExtend.overview.colTime')"
+              min-width="160"
+            />
           </el-table>
         </el-card>
       </el-col>

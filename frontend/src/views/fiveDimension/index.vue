@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   ElTable,
   ElTableColumn,
@@ -16,25 +16,25 @@ import {
   ElDescriptions,
   ElCard,
   ElDivider,
-} from 'element-plus'
-import { Search, View, Refresh, Key } from '@element-plus/icons-vue'
+} from 'element-plus';
+import { Search, View, Refresh, Key } from '@element-plus/icons-vue';
 import {
   getStatsByFiveDimensionId,
   parseFiveDimensionId,
   searchFiveDimension,
   type FiveDimensionStatsResponse,
   type FiveDimensionItem,
-} from '@/api/five-dimension'
-import { useTableApi } from '@/composables/useTableApi'
+} from '@/api/five-dimension';
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const searchForm = ref({
   product_id: '',
   batch_no: '',
   color_no: '',
   grade: '',
-})
+});
 
 // 批次 273：接入 useTableApi，消除手写 tableData/total/loading/pagination/loadData 重复
 // 修复 0-based 分页 bug：原 page-1 传 0 被后端 max(1) 修正为 1，page=2 时传 1 offset=0，分页错乱
@@ -51,27 +51,30 @@ const {
   url: '/crm/five-dimension/stats',
   listKey: 'items',
   onError: () => ElMessage.error(t('fiveDimension.index.messageLoadFailed')),
-})
+});
 
-const viewDialogVisible = ref(false)
-const viewData = ref<FiveDimensionStatsResponse | null>(null)
+const viewDialogVisible = ref(false);
+const viewData = ref<FiveDimensionStatsResponse | null>(null);
 
-const parseInput = ref('')
-const parseResult = ref<FiveDimensionItem | null>(null)
-const parseError = ref('')
+const parseInput = ref('');
+const parseResult = ref<FiveDimensionItem | null>(null);
+const parseError = ref('');
 
-const searchDialogVisible = ref(false)
-const searchKeyword = ref('')
-const searchType = ref('product')
-const searchResults = ref<FiveDimensionItem[]>([])
-const searchFormRef = reactive({ keyword: '' })
+const searchDialogVisible = ref(false);
+const searchKeyword = ref('');
+const searchType = ref('product');
+const searchResults = ref<FiveDimensionItem[]>([]);
+const searchFormRef = reactive({ keyword: '' });
 
 const gradeOptions = [
   { label: t('fiveDimension.index.gradeFirst'), value: t('fiveDimension.index.gradeFirst') },
   { label: t('fiveDimension.index.gradeSecond'), value: t('fiveDimension.index.gradeSecond') },
   { label: t('fiveDimension.index.gradeThird'), value: t('fiveDimension.index.gradeThird') },
-  { label: t('fiveDimension.index.gradeDefective'), value: t('fiveDimension.index.gradeDefective') },
-]
+  {
+    label: t('fiveDimension.index.gradeDefective'),
+    value: t('fiveDimension.index.gradeDefective'),
+  },
+];
 
 const searchTypeOptions = [
   { label: t('fiveDimension.index.searchTypeProduct'), value: 'product' },
@@ -79,7 +82,7 @@ const searchTypeOptions = [
   { label: t('fiveDimension.index.searchTypeColor'), value: 'color' },
   { label: t('fiveDimension.index.searchTypeDyeLot'), value: 'dye_lot' },
   { label: t('fiveDimension.index.searchTypeGrade'), value: 'grade' },
-]
+];
 
 // 批次 273：同步筛选条件到 useTableApi.queryParams 并刷新
 // useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
@@ -87,17 +90,17 @@ const syncQueryParams = () => {
   setQueryParam(
     'product_id',
     searchForm.value.product_id ? Number(searchForm.value.product_id) : undefined
-  )
-  setQueryParam('batch_no', searchForm.value.batch_no || undefined)
-  setQueryParam('color_no', searchForm.value.color_no || undefined)
-  setQueryParam('grade', searchForm.value.grade || undefined)
-}
+  );
+  setQueryParam('batch_no', searchForm.value.batch_no || undefined);
+  setQueryParam('color_no', searchForm.value.color_no || undefined);
+  setQueryParam('grade', searchForm.value.grade || undefined);
+};
 
 const handleSearch = () => {
-  syncQueryParams()
-  page.value = 1
-  loadData()
-}
+  syncQueryParams();
+  page.value = 1;
+  loadData();
+};
 
 const handleReset = () => {
   searchForm.value = {
@@ -105,62 +108,62 @@ const handleReset = () => {
     batch_no: '',
     color_no: '',
     grade: '',
-  }
-  syncQueryParams()
-  page.value = 1
-  loadData()
-}
+  };
+  syncQueryParams();
+  page.value = 1;
+  loadData();
+};
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
 const handlePageSizeChange = (s: number) => {
-  pageSize.value = s
-  page.value = 1
-}
+  pageSize.value = s;
+  page.value = 1;
+};
 
 const openViewDialog = async (item: FiveDimensionStatsResponse) => {
   try {
     // v11 批次 179 P2-1 修复：res: any 改为具体类型
     const res = (await getStatsByFiveDimensionId(item.dimension.five_dimension_id!)) as {
-      data?: FiveDimensionStatsResponse
-    }
-    viewData.value = res.data || null
-    viewDialogVisible.value = true
+      data?: FiveDimensionStatsResponse;
+    };
+    viewData.value = res.data || null;
+    viewDialogVisible.value = true;
   } catch (error) {
-    ElMessage.error(t('fiveDimension.index.messageFetchDetailFailed'))
+    ElMessage.error(t('fiveDimension.index.messageFetchDetailFailed'));
   }
-}
+};
 
 const handleParse = async () => {
   if (!parseInput.value.trim()) {
-    ElMessage.warning(t('fiveDimension.index.messageInputFiveDimensionId'))
-    return
+    ElMessage.warning(t('fiveDimension.index.messageInputFiveDimensionId'));
+    return;
   }
   try {
     // v11 批次 179 P2-1 修复：res: any 改为具体类型
     const res = (await parseFiveDimensionId(parseInput.value)) as {
-      data?: { success?: boolean; dimension?: FiveDimensionItem; error?: string }
-    }
+      data?: { success?: boolean; dimension?: FiveDimensionItem; error?: string };
+    };
     if (res.data?.success) {
-      parseResult.value = res.data.dimension || null
-      parseError.value = ''
+      parseResult.value = res.data.dimension || null;
+      parseError.value = '';
     } else {
-      parseResult.value = null
-      parseError.value = res.data?.error || t('fiveDimension.index.messageParseFailed')
+      parseResult.value = null;
+      parseError.value = res.data?.error || t('fiveDimension.index.messageParseFailed');
     }
   } catch (error) {
-    parseError.value = t('fiveDimension.index.messageParseFailed')
-    parseResult.value = null
+    parseError.value = t('fiveDimension.index.messageParseFailed');
+    parseResult.value = null;
   }
-}
+};
 
 const handleQuickSearch = async () => {
   if (!searchKeyword.value.trim()) {
-    ElMessage.warning(t('fiveDimension.index.messageInputSearchKeyword'))
-    return
+    ElMessage.warning(t('fiveDimension.index.messageInputSearchKeyword'));
+    return;
   }
   try {
     // v11 批次 179 P2-1 修复：res: any 改为具体类型
@@ -169,20 +172,20 @@ const handleQuickSearch = async () => {
       search_type: searchType.value,
       page: 0,
       page_size: 50,
-    })) as { data?: { items?: FiveDimensionItem[] } }
-    searchResults.value = res.data?.items || []
+    })) as { data?: { items?: FiveDimensionItem[] } };
+    searchResults.value = res.data?.items || [];
   } catch (error) {
-    ElMessage.error(t('fiveDimension.index.messageSearchFailed'))
+    ElMessage.error(t('fiveDimension.index.messageSearchFailed'));
   }
-}
+};
 
 const selectFromSearch = (item: FiveDimensionItem) => {
-  searchForm.value.batch_no = item.batch_no || ''
-  searchForm.value.color_no = item.color_no || ''
-  searchForm.value.grade = item.grade || ''
-  searchDialogVisible.value = false
-  handleSearch()
-}
+  searchForm.value.batch_no = item.batch_no || '';
+  searchForm.value.color_no = item.color_no || '';
+  searchForm.value.grade = item.grade || '';
+  searchDialogVisible.value = false;
+  handleSearch();
+};
 
 // 批次 273：useTableApi 构造时自动初始加载，无需 setup 顶层调用 loadData
 </script>

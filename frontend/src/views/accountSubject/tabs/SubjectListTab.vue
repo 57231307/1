@@ -209,33 +209,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Download } from '@element-plus/icons-vue'
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Plus, Download } from '@element-plus/icons-vue';
 import {
   getAccountSubjectList,
   createAccountSubject,
   updateAccountSubject,
   deleteAccountSubject,
   type AccountSubjectEntity,
-} from '@/api/account-subject'
-import { logger } from '@/utils/logger'
-import { exportToExcel } from '@/utils/export'
+} from '@/api/account-subject';
+import { logger } from '@/utils/logger';
+import { exportToExcel } from '@/utils/export';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const loading = ref(false)
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const subjectList = ref<AccountSubjectEntity[]>([])
-const formRef = ref<FormInstance>()
+const loading = ref(false);
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const subjectList = ref<AccountSubjectEntity[]>([]);
+const formRef = ref<FormInstance>();
 
 const queryForm = reactive({
   code: '',
   name: '',
   category: '',
-})
+});
 
 const form = reactive<Partial<AccountSubjectEntity>>({
   id: undefined,
@@ -248,7 +248,7 @@ const form = reactive<Partial<AccountSubjectEntity>>({
   balance_type: 'debit',
   is_enabled: true,
   description: '',
-})
+});
 
 const rules = computed<FormRules>(() => ({
   code: [{ required: true, message: t('accountSubject.validation.codeRequired'), trigger: 'blur' }],
@@ -263,9 +263,9 @@ const rules = computed<FormRules>(() => ({
       trigger: 'change',
     },
   ],
-}))
+}));
 
-const parentSubjectOptions = computed(() => subjectList.value)
+const parentSubjectOptions = computed(() => subjectList.value);
 
 const getCategoryLabel = (category: string) => {
   const map: Record<string, string> = {
@@ -274,131 +274,131 @@ const getCategoryLabel = (category: string) => {
     equity: t('accountSubject.category.equity'),
     cost: t('accountSubject.category.cost'),
     profit_loss: t('accountSubject.category.profitLoss'),
-  }
-  return map[category] || category
-}
+  };
+  return map[category] || category;
+};
 
 const getBalanceTypeLabel = (balanceType: string) => {
   return balanceType === 'debit'
     ? t('accountSubject.balanceType.debit')
-    : t('accountSubject.balanceType.credit')
-}
+    : t('accountSubject.balanceType.credit');
+};
 
 const getStatusLabel = (isEnabled: boolean) => {
-  return isEnabled ? t('accountSubject.status.enabled') : t('accountSubject.status.disabled')
-}
+  return isEnabled ? t('accountSubject.status.enabled') : t('accountSubject.status.disabled');
+};
 
 const fetchSubjects = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await getAccountSubjectList(queryForm)
+    const res = await getAccountSubjectList(queryForm);
     const d = (res as { data?: unknown }).data as
       | AccountSubjectEntity[]
       | {
-          items?: AccountSubjectEntity[]
-          data?: AccountSubjectEntity[]
-          list?: AccountSubjectEntity[]
-        }
+          items?: AccountSubjectEntity[];
+          data?: AccountSubjectEntity[];
+          list?: AccountSubjectEntity[];
+        };
     if (Array.isArray(d)) {
-      subjectList.value = d
+      subjectList.value = d;
     } else {
-      subjectList.value = d?.items || d?.data || d?.list || []
+      subjectList.value = d?.items || d?.data || d?.list || [];
     }
   } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || t('accountSubject.message.fetchListFailed'))
+    const err = e as Error;
+    ElMessage.error(err.message || t('accountSubject.message.fetchListFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const handleSearch = () => {
-  fetchSubjects()
-}
+  fetchSubjects();
+};
 
 const handleReset = () => {
-  queryForm.code = ''
-  queryForm.name = ''
-  queryForm.category = ''
-  fetchSubjects()
-}
+  queryForm.code = '';
+  queryForm.name = '';
+  queryForm.category = '';
+  fetchSubjects();
+};
 
 const openDialog = (row?: AccountSubjectEntity) => {
-  formRef.value?.resetFields()
+  formRef.value?.resetFields();
   if (row) {
-    Object.assign(form, row)
+    Object.assign(form, row);
   } else {
-    form.id = undefined
-    form.code = ''
-    form.name = ''
-    form.parent_id = undefined
-    form.level = 1
-    form.category = 'asset'
-    form.type = 'detail'
-    form.balance_type = 'debit'
-    form.is_enabled = true
-    form.description = ''
+    form.id = undefined;
+    form.code = '';
+    form.name = '';
+    form.parent_id = undefined;
+    form.level = 1;
+    form.category = 'asset';
+    form.type = 'detail';
+    form.balance_type = 'debit';
+    form.is_enabled = true;
+    form.description = '';
   }
-  dialogVisible.value = true
-}
+  dialogVisible.value = true;
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
       if (form.id) {
-        await updateAccountSubject(form.id, form)
-        ElMessage.success(t('accountSubject.message.updateSuccess'))
+        await updateAccountSubject(form.id, form);
+        ElMessage.success(t('accountSubject.message.updateSuccess'));
       } else {
-        await createAccountSubject(form)
-        ElMessage.success(t('accountSubject.message.createSuccess'))
+        await createAccountSubject(form);
+        ElMessage.success(t('accountSubject.message.createSuccess'));
       }
-      dialogVisible.value = false
-      fetchSubjects()
+      dialogVisible.value = false;
+      fetchSubjects();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('accountSubject.message.operationFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('accountSubject.message.operationFailed'));
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const deleteSubject = async (row: AccountSubjectEntity) => {
-  if (!row.id) return
+  if (!row.id) return;
   try {
     await ElMessageBox.confirm(
       t('accountSubject.message.deleteConfirm', { name: row.name }),
       t('accountSubject.message.deleteConfirmTitle'),
       { type: 'warning' }
-    )
-    await deleteAccountSubject(row.id)
-    ElMessage.success(t('accountSubject.message.deleteSuccess'))
-    fetchSubjects()
+    );
+    await deleteAccountSubject(row.id);
+    ElMessage.success(t('accountSubject.message.deleteSuccess'));
+    fetchSubjects();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('accountSubject.message.deleteFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('accountSubject.message.deleteFailed'));
     }
   }
-}
+};
 
 const handleExport = () => {
-  type SubjectWithChildren = AccountSubjectEntity & { children?: SubjectWithChildren[] }
+  type SubjectWithChildren = AccountSubjectEntity & { children?: SubjectWithChildren[] };
   const flatten = (items: SubjectWithChildren[]): AccountSubjectEntity[] => {
     return items.reduce<AccountSubjectEntity[]>((acc, item) => {
-      const { children: _children, ...rest } = item as SubjectWithChildren
-      void _children
-      acc.push(rest as AccountSubjectEntity)
+      const { children: _children, ...rest } = item as SubjectWithChildren;
+      void _children;
+      acc.push(rest as AccountSubjectEntity);
       if ((item as SubjectWithChildren).children) {
-        acc.push(...flatten((item as SubjectWithChildren).children!))
+        acc.push(...flatten((item as SubjectWithChildren).children!));
       }
-      return acc
-    }, [])
-  }
-  const flat = flatten(subjectList.value as SubjectWithChildren[])
+      return acc;
+    }, []);
+  };
+  const flat = flatten(subjectList.value as SubjectWithChildren[]);
   exportToExcel({
     filename: t('accountSubject.exportFile.filename'),
     format: 'excel',
@@ -427,11 +427,11 @@ const handleExport = () => {
         formatter: (value: unknown) => getStatusLabel(Boolean(value)),
       },
     ],
-  })
-  logger.info(t('accountSubject.exportedLog'))
-}
+  });
+  logger.info(t('accountSubject.exportedLog'));
+};
 
 onMounted(() => {
-  fetchSubjects()
-})
+  fetchSubjects();
+});
 </script>

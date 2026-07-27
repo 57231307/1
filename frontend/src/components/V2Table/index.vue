@@ -51,28 +51,28 @@
  * V2Table 组件
  * 包装 el-table-v2，统一列定义 / 虚拟滚动 / 分页 / 事件接口
  */
-import { computed, h } from 'vue'
-import { ElAutoResizer, ElTableV2, ElPagination, TableV2FixedDir } from 'element-plus'
-import type { Column, RowEventHandlerParams } from 'element-plus'
-import { useI18n } from 'vue-i18n'
-import type { ColumnDef, SortOrder } from './types'
+import { computed, h } from 'vue';
+import { ElAutoResizer, ElTableV2, ElPagination, TableV2FixedDir } from 'element-plus';
+import type { Column, RowEventHandlerParams } from 'element-plus';
+import { useI18n } from 'vue-i18n';
+import type { ColumnDef, SortOrder } from './types';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const props = withDefaults(
   defineProps<{
-    columns: ColumnDef<T>[]
-    data: T[]
-    loading?: boolean
-    total?: number
-    page?: number
-    pageSize?: number
-    pageSizes?: number[]
-    height?: number | string
-    rowKey?: string
-    emptyText?: string
+    columns: ColumnDef<T>[];
+    data: T[];
+    loading?: boolean;
+    total?: number;
+    page?: number;
+    pageSize?: number;
+    pageSizes?: number[];
+    height?: number | string;
+    rowKey?: string;
+    emptyText?: string;
     /// 页面级行高调优（默认 48）
-    estimatedRowHeight?: number
+    estimatedRowHeight?: number;
   }>(),
   {
     loading: false,
@@ -82,18 +82,18 @@ const props = withDefaults(
     emptyText: '',
     estimatedRowHeight: 48,
   }
-)
+);
 
 /// 空文本默认值需在 setup 内求值（withDefaults 会被 hoist，不能引用 t）
-const resolvedEmptyText = computed(() => props.emptyText || t('components.v2Table.empty'))
+const resolvedEmptyText = computed(() => props.emptyText || t('components.v2Table.empty'));
 
 const emit = defineEmits<{
-  'page-change': [page: number]
-  'size-change': [size: number]
-  'sort-change': [key: string, order: SortOrder]
-  'row-click': [row: T]
-  refresh: []
-}>()
+  'page-change': [page: number];
+  'size-change': [size: number];
+  'sort-change': [key: string, order: SortOrder];
+  'row-click': [row: T];
+  refresh: [];
+}>();
 
 /// 将 ColumnDef 转换为 el-table-v2 官方 Column 配置（cellRenderer 参数类型由官方自动推导）
 const v2Columns = computed<Column<T>[]>(() =>
@@ -115,41 +115,41 @@ const v2Columns = computed<Column<T>[]>(() =>
               : undefined,
         sortable: col.sortable,
         align: col.align ?? 'left',
-      }
+      };
       /// 有自定义渲染或格式化时，提供 cellRenderer；否则由 el-table-v2 用 dataKey 自动渲染
       if (col.renderCell || col.formatter) {
         column.cellRenderer = params => {
           /// 官方 RowCommonParams.rowData 为 any，收窄为 T（element-plus 类型系统设计）
-          const row: T = params.rowData
+          const row: T = params.rowData;
           if (col.renderCell) {
-            return col.renderCell(row)
+            return col.renderCell(row);
           }
           if (col.formatter) {
-            return h('span', col.formatter(row))
+            return h('span', col.formatter(row));
           }
-          return h('span', '')
-        }
+          return h('span', '');
+        };
       }
-      return column
+      return column;
     })
-)
+);
 
 /// 行事件处理器：通过 el-table-v2 官方 rowEventHandlers prop 接入点击事件
 const rowEventHandlers = {
   onClick: (params: RowEventHandlerParams) => {
     /// 官方 RowCommonParams.rowData 为 any，收窄为 T
-    const row: T = params.rowData
-    emit('row-click', row)
+    const row: T = params.rowData;
+    emit('row-click', row);
   },
-}
+};
 
 const handlePageChange = (newPage: number) => {
-  emit('page-change', newPage)
-}
+  emit('page-change', newPage);
+};
 
 const handleSizeChange = (newSize: number) => {
-  emit('size-change', newSize)
-}
+  emit('size-change', newSize);
+};
 </script>
 
 <style scoped>

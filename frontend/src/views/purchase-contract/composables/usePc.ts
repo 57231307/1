@@ -5,18 +5,18 @@
  * 业务流程（提交/审批/执行/删除/导出）由 usePcProc 提供
  * 批次 284：contractList 接入 useTableApi，移除手写分页/加载逻辑
  */
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
-import { FormInstance } from 'element-plus'
+import { ref, reactive } from 'vue';
+import { ElMessage } from 'element-plus';
+import { FormInstance } from 'element-plus';
 import {
   createPurchaseContract,
   updatePurchaseContract,
   type PurchaseContract,
-} from '@/api/purchase-contract'
-import { getSupplierList, type Supplier } from '@/api/supplier'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
-import { useTableApi } from '@/composables/useTableApi'
+} from '@/api/purchase-contract';
+import { getSupplierList, type Supplier } from '@/api/supplier';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logger } from '@/utils/logger';
+import { useTableApi } from '@/composables/useTableApi';
 
 /**
  * 采购合同 composable
@@ -43,16 +43,16 @@ export function usePc() {
       date_range: [] as string[],
     },
     onError: (err: unknown) => {
-      logger.error('获取采购合同列表失败:', err)
+      logger.error('获取采购合同列表失败:', err);
     },
-  })
+  });
 
   // 供应商列表
-  const suppliers = ref<Supplier[]>([])
+  const suppliers = ref<Supplier[]>([]);
 
   // 对话框
-  const dialogTitle = ref('')
-  const formRef = ref<FormInstance>()
+  const dialogTitle = ref('');
+  const formRef = ref<FormInstance>();
 
   // 表单数据
   const formData = reactive({
@@ -70,33 +70,33 @@ export function usePc() {
     delivery_date: '',
     delivery_location: '',
     remarks: '',
-  })
+  });
 
   // 表单验证规则
   const formRules = {
     contract_no: [{ required: true, message: '请输入合同编号', trigger: 'blur' }],
     contract_name: [{ required: true, message: '请输入合同名称', trigger: 'blur' }],
     supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
-  }
+  };
 
   // 懒加载标记
-  const hasLoaded = createLazyLoader()
+  const hasLoaded = createLazyLoader();
 
   /** 获取供应商列表 */
   const getSuppliers = async () => {
     try {
-      const res = await getSupplierList()
-      suppliers.value = res.data?.list || []
+      const res = await getSupplierList();
+      suppliers.value = res.data?.list || [];
     } catch (error) {
-      logger.error('获取供应商列表失败:', error)
+      logger.error('获取供应商列表失败:', error);
     }
-  }
+  };
 
   /** 查询 */
   const handleQuery = () => {
-    page.value = 1
-    getList()
-  }
+    page.value = 1;
+    getList();
+  };
 
   /** 重置 */
   const handleReset = () => {
@@ -105,14 +105,14 @@ export function usePc() {
       supplier_id: undefined,
       status: '',
       date_range: [],
-    }
-    page.value = 1
-    getList()
-  }
+    };
+    page.value = 1;
+    getList();
+  };
 
   /** 准备新建表单（父组件需自行打开对话框） */
   const prepareCreate = () => {
-    dialogTitle.value = '新建采购合同'
+    dialogTitle.value = '新建采购合同';
     Object.assign(formData, {
       id: undefined,
       contract_no: '',
@@ -128,37 +128,37 @@ export function usePc() {
       delivery_date: '',
       delivery_location: '',
       remarks: '',
-    })
-  }
+    });
+  };
 
   /** 准备编辑表单（父组件需自行打开对话框） */
   const prepareEdit = (row: PurchaseContract) => {
-    dialogTitle.value = '编辑采购合同'
-    Object.assign(formData, row)
-  }
+    dialogTitle.value = '编辑采购合同';
+    Object.assign(formData, row);
+  };
 
   /** 提交表单 */
   const handleSubmitForm = async (): Promise<boolean> => {
     try {
-      await formRef.value?.validate()
+      await formRef.value?.validate();
       if (formData.id) {
-        await updatePurchaseContract(formData.id, formData)
+        await updatePurchaseContract(formData.id, formData);
       } else {
-        await createPurchaseContract(formData)
+        await createPurchaseContract(formData);
       }
-      ElMessage.success('保存成功')
-      await getList()
-      return true
+      ElMessage.success('保存成功');
+      await getList();
+      return true;
     } catch (error) {
-      logger.error('表单验证失败:', error)
-      return false
+      logger.error('表单验证失败:', error);
+      return false;
     }
-  }
+  };
 
   /** 初始化加载辅助数据（懒加载供应商，列表由 useTableApi setup 自动加载） */
   const initLoad = () => {
-    loadIfNot('suppliers', getSuppliers, hasLoaded)
-  }
+    loadIfNot('suppliers', getSuppliers, hasLoaded);
+  };
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
@@ -185,5 +185,5 @@ export function usePc() {
     handleSubmitForm,
     // 初始化
     initLoad,
-  })
+  });
 }

@@ -12,19 +12,19 @@
  * - 协作场景使用真实后端登录（与 color-card.spec.ts 一致）
  * - smoke 场景可使用 mock 凭据（与 auth.ts 一致）
  */
-import type { Browser, BrowserContext, Page } from '@playwright/test'
-import { injectAuthToken, mockInitStatus } from './auth'
+import type { Browser, BrowserContext, Page } from '@playwright/test';
+import { injectAuthToken, mockInitStatus } from './auth';
 
 /**
  * 角色凭据配置
  */
 export interface RoleCredentials {
   /** 角色名称（用于日志与断言） */
-  role: string
+  role: string;
   /** 登录用户名 */
-  username: string
+  username: string;
   /** 登录密码 */
-  password: string
+  password: string;
 }
 
 /**
@@ -32,13 +32,13 @@ export interface RoleCredentials {
  */
 export interface IsolatedSession {
   /** 角色名称 */
-  role: string
+  role: string;
   /** 隔离的浏览器上下文（cookie/localStorage 独立） */
-  context: BrowserContext
+  context: BrowserContext;
   /** 会话页面 */
-  page: Page
+  page: Page;
   /** 关闭会话（关闭 context） */
-  close: () => Promise<void>
+  close: () => Promise<void>;
 }
 
 /**
@@ -52,26 +52,26 @@ export interface IsolatedSession {
  * 缺失时回退到 TEST_USERNAME / TEST_PASSWORD（admin 角色）
  */
 export function loadRoleCredentials(role: string): RoleCredentials {
-  const envPrefix = `E2E_${role.toUpperCase()}`
-  const username = process.env[`${envPrefix}_USERNAME`]
-  const password = process.env[`${envPrefix}_PASSWORD`]
+  const envPrefix = `E2E_${role.toUpperCase()}`;
+  const username = process.env[`${envPrefix}_USERNAME`];
+  const password = process.env[`${envPrefix}_PASSWORD`];
 
   // 回退：admin 角色使用 TEST_USERNAME / TEST_PASSWORD
   if (!username || !password) {
     if (role === 'admin') {
-      const fallbackUser = process.env.TEST_USERNAME
-      const fallbackPass = process.env.TEST_PASSWORD
+      const fallbackUser = process.env.TEST_USERNAME;
+      const fallbackPass = process.env.TEST_PASSWORD;
       if (fallbackUser && fallbackPass) {
-        return { role, username: fallbackUser, password: fallbackPass }
+        return { role, username: fallbackUser, password: fallbackPass };
       }
     }
     throw new Error(
       `E2E 多角色测试需要环境变量 ${envPrefix}_USERNAME / ${envPrefix}_PASSWORD` +
-        `（fail-secure 模式，禁止硬编码凭据）`,
-    )
+        `（fail-secure 模式，禁止硬编码凭据）`
+    );
   }
 
-  return { role, username, password }
+  return { role, username, password };
 }
 
 /**
@@ -87,19 +87,19 @@ export function loadRoleCredentials(role: string): RoleCredentials {
  */
 export async function createIsolatedSession(
   browser: Browser,
-  role: string,
+  role: string
 ): Promise<IsolatedSession> {
-  const context = await browser.newContext()
-  const page = await context.newPage()
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
   return {
     role,
     context,
     page,
     close: async () => {
-      await context.close()
+      await context.close();
     },
-  }
+  };
 }
 
 /**
@@ -115,15 +115,15 @@ export async function createIsolatedSession(
 export async function createMockedIsolatedSession(
   browser: Browser,
   role: string,
-  permissions: string[] = ['*'],
+  permissions: string[] = ['*']
 ): Promise<IsolatedSession> {
-  const session = await createIsolatedSession(browser, role)
+  const session = await createIsolatedSession(browser, role);
 
   // 注入 mock token（绕过鉴权）
-  await injectAuthToken(session.context)
+  await injectAuthToken(session.context);
 
   // 拦截 /auth/me 返回该角色的 mock 用户信息
-  await session.context.route('**/api/v1/erp/auth/me**', (route) => {
+  await session.context.route('**/api/v1/erp/auth/me**', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -140,13 +140,13 @@ export async function createMockedIsolatedSession(
         },
         timestamp: new Date().toISOString(),
       }),
-    })
-  })
+    });
+  });
 
   // 拦截 init/status 返回 initialized: true
-  await mockInitStatus(session.context)
+  await mockInitStatus(session.context);
 
-  return session
+  return session;
 }
 
 /**
@@ -163,19 +163,19 @@ export async function createMockedIsolatedSession(
 export async function loginSession(
   session: IsolatedSession,
   credentials: RoleCredentials,
-  baseURL: string,
+  baseURL: string
 ): Promise<void> {
-  const { page } = session
-  await page.goto(`${baseURL}/login`)
-  await page.waitForSelector('input[name="username"]', { state: 'visible' })
-  await page.waitForSelector('input[name="password"]', { state: 'visible' })
+  const { page } = session;
+  await page.goto(`${baseURL}/login`);
+  await page.waitForSelector('input[name="username"]', { state: 'visible' });
+  await page.waitForSelector('input[name="password"]', { state: 'visible' });
 
-  await page.fill('input[name="username"]', credentials.username)
-  await page.fill('input[name="password"]', credentials.password)
-  await page.click('button[type="submit"]')
+  await page.fill('input[name="username"]', credentials.username);
+  await page.fill('input[name="password"]', credentials.password);
+  await page.click('button[type="submit"]');
 
   // 等待登录成功后跳转
-  await page.waitForURL(/dashboard|\/$/, { timeout: 15_000 })
+  await page.waitForURL(/dashboard|\/$/, { timeout: 15_000 });
 }
 
 /**
@@ -194,23 +194,21 @@ export async function loginSession(
 export async function runParallelSessions(
   browser: Browser,
   sessions: Array<{
-    role: string
-    action: (session: IsolatedSession) => Promise<void>
-  }>,
+    role: string;
+    action: (session: IsolatedSession) => Promise<void>;
+  }>
 ): Promise<void> {
   // 创建所有会话
   const isolated = await Promise.all(
-    sessions.map((s) => createMockedIsolatedSession(browser, s.role)),
-  )
+    sessions.map(s => createMockedIsolatedSession(browser, s.role))
+  );
 
   try {
     // 并行执行各会话的操作
-    await Promise.all(
-      isolated.map((session, index) => sessions[index].action(session)),
-    )
+    await Promise.all(isolated.map((session, index) => sessions[index].action(session)));
   } finally {
     // 关闭所有会话
-    await Promise.all(isolated.map((session) => session.close()))
+    await Promise.all(isolated.map(session => session.close()));
   }
 }
 
@@ -233,26 +231,26 @@ export async function runParallelSessions(
 export async function createCollaborationContext(
   browser: Browser,
   roles: string[],
-  useMock = true,
+  useMock = true
 ): Promise<{
-  sessions: Record<string, IsolatedSession>
-  close: () => Promise<void>
+  sessions: Record<string, IsolatedSession>;
+  close: () => Promise<void>;
 }> {
   const sessionList = await Promise.all(
-    roles.map((role) =>
-      useMock ? createMockedIsolatedSession(browser, role) : createIsolatedSession(browser, role),
-    ),
-  )
+    roles.map(role =>
+      useMock ? createMockedIsolatedSession(browser, role) : createIsolatedSession(browser, role)
+    )
+  );
 
-  const sessions: Record<string, IsolatedSession> = {}
-  sessionList.forEach((session) => {
-    sessions[session.role] = session
-  })
+  const sessions: Record<string, IsolatedSession> = {};
+  sessionList.forEach(session => {
+    sessions[session.role] = session;
+  });
 
   return {
     sessions,
     close: async () => {
-      await Promise.all(sessionList.map((session) => session.close()))
+      await Promise.all(sessionList.map(session => session.close()));
     },
-  }
+  };
 }

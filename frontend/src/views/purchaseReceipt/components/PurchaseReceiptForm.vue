@@ -12,7 +12,13 @@
     :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px" :aria-label="t('purchaseReceipt.form.aria.form')">
+    <el-form
+      ref="formRef"
+      :model="localForm"
+      :rules="rules"
+      label-width="100px"
+      :aria-label="t('purchaseReceipt.form.aria.form')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('purchaseReceipt.form.label.receiptNo')" prop="receipt_no">
@@ -33,12 +39,7 @@
               :placeholder="t('purchaseReceipt.form.placeholder.supplier')"
               @update:model-value="(v: number | undefined) => (localForm.supplier_id = v)"
             >
-              <el-option
-                v-for="s in suppliers"
-                :key="s.value"
-                :label="s.label"
-                :value="s.value"
-              />
+              <el-option v-for="s in suppliers" :key="s.value" :label="s.label" :value="s.value" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -49,12 +50,7 @@
               :placeholder="t('purchaseReceipt.form.placeholder.warehouse')"
               @update:model-value="(v: number | undefined) => (localForm.warehouse_id = v)"
             >
-              <el-option
-                v-for="w in warehouses"
-                :key="w.value"
-                :label="w.label"
-                :value="w.value"
-              />
+              <el-option v-for="w in warehouses" :key="w.value" :label="w.label" :value="w.value" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -68,36 +64,35 @@
             <span class="col-amount">{{ t('purchaseReceipt.form.itemsHeader.amount') }}</span>
             <span class="col-action">{{ t('purchaseReceipt.form.itemsHeader.action') }}</span>
           </div>
-          <div v-for="(item, index) in (localForm.items || [])" :key="index" class="items-row">
+          <div v-for="(item, index) in localForm.items || []" :key="index" class="items-row">
             <el-select
               :model-value="item.product_id"
               :placeholder="t('purchaseReceipt.form.placeholder.product')"
               class="col-product"
               @update:model-value="(v: number) => (item.product_id = v)"
             >
-              <el-option
-                v-for="p in products"
-                :key="p.value"
-                :label="p.label"
-                :value="p.value"
-              />
+              <el-option v-for="p in products" :key="p.value" :label="p.label" :value="p.value" />
             </el-select>
             <el-input-number
               :model-value="item.quantity"
               class="col-qty"
-              @update:model-value="(v: number | undefined) => {
-                item.quantity = v ?? 0
-                emit('calc-amount', item)
-              }"
+              @update:model-value="
+                (v: number | undefined) => {
+                  item.quantity = v ?? 0;
+                  emit('calc-amount', item);
+                }
+              "
             />
             <el-input-number
               :model-value="item.price"
               :precision="2"
               class="col-price"
-              @update:model-value="(v: number | undefined) => {
-                item.price = v ?? 0
-                emit('calc-amount', item)
-              }"
+              @update:model-value="
+                (v: number | undefined) => {
+                  item.price = v ?? 0;
+                  emit('calc-amount', item);
+                }
+              "
             />
             <el-input-number
               :model-value="item.amount"
@@ -113,117 +108,123 @@
               >{{ t('purchaseReceipt.form.button.delete') }}</el-button
             >
           </div>
-          <el-button type="text" @click="emit('add-item')">{{ t('purchaseReceipt.form.button.addItem') }}</el-button>
+          <el-button type="text" @click="emit('add-item')">{{
+            t('purchaseReceipt.form.button.addItem')
+          }}</el-button>
         </div>
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('purchaseReceipt.form.button.cancel') }}</el-button>
-      <el-button type="primary" @click="onSubmit">{{ t('purchaseReceipt.form.button.submit') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('purchaseReceipt.form.button.cancel')
+      }}</el-button>
+      <el-button type="primary" @click="onSubmit">{{
+        t('purchaseReceipt.form.button.submit')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { deepClone } from '@/utils'
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormInstance, FormRules } from 'element-plus'
-import type { ReceiptItem } from '@/api/purchaseReceipt'
+import { deepClone } from '@/utils';
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormInstance, FormRules } from 'element-plus';
+import type { ReceiptItem } from '@/api/purchaseReceipt';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 选项类型
 interface OptItem {
-  label: string
-  value: number
+  label: string;
+  value: number;
 }
 
 // 表单类型
 interface PurchaseReceiptFormModel {
-  id?: number
-  receipt_no?: string
-  receipt_date?: string
-  supplier_id?: number
-  warehouse_id?: number
-  status?: string
-  items?: ReceiptItem[]
-  [key: string]: unknown
+  id?: number;
+  receipt_no?: string;
+  receipt_date?: string;
+  supplier_id?: number;
+  warehouse_id?: number;
+  status?: string;
+  items?: ReceiptItem[];
+  [key: string]: unknown;
 }
 
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 对话框标题
-  title: string
+  title: string;
   // 表单数据（由父组件管理，子组件通过 emit('update:form') 回写）
-  form: PurchaseReceiptFormModel
+  form: PurchaseReceiptFormModel;
   // 校验规则
-  rules: FormRules
+  rules: FormRules;
   // 供应商选项
-  suppliers: OptItem[]
+  suppliers: OptItem[];
   // 仓库选项
-  warehouses: OptItem[]
+  warehouses: OptItem[];
   // 产品选项
-  products: OptItem[]
-}>()
+  products: OptItem[];
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:visible', v: boolean): void
-  (e: 'add-item'): void
-  (e: 'remove-item', index: number): void
-  (e: 'calc-amount', item: ReceiptItem): void
-  (e: 'submit'): void
+  (e: 'update:visible', v: boolean): void;
+  (e: 'add-item'): void;
+  (e: 'remove-item', index: number): void;
+  (e: 'calc-amount', item: ReceiptItem): void;
+  (e: 'submit'): void;
   // 整体回写表单（父组件监听此事件并回写到自己的 form）
-  (e: 'update:form', form: PurchaseReceiptFormModel): void
-}>()
+  (e: 'update:form', form: PurchaseReceiptFormModel): void;
+}>();
 
 // 表单 ref
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInstance>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 items 数组，需要深拷贝以保证本地修改与父组件解耦
-const localForm = ref<PurchaseReceiptFormModel>(deepClone(props.form))
+const localForm = ref<PurchaseReceiptFormModel>(deepClone(props.form));
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件打开新增/编辑时填充数据）
 watch(
   () => props.form,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    localForm.value = deepClone(newForm)
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    localForm.value = deepClone(newForm);
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    emit('update:form', deepClone(newForm))
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:form', deepClone(newForm));
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-    emit('submit')
-  })
-}
+    if (!valid) return;
+    emit('submit');
+  });
+};
 </script>
 
 <style scoped>

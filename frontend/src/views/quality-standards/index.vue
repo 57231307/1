@@ -28,13 +28,23 @@
           @clear="handleSearch"
           @keyup.enter="handleSearch"
         />
-        <el-select v-model="listQuery.status" :placeholder="$t('qualityStandards.filter.statusPlaceholder')" clearable style="width: 120px">
+        <el-select
+          v-model="listQuery.status"
+          :placeholder="$t('qualityStandards.filter.statusPlaceholder')"
+          clearable
+          style="width: 120px"
+        >
           <el-option :label="$t('qualityStandards.status.draft')" value="draft" />
           <el-option :label="$t('qualityStandards.status.approved')" value="approved" />
           <el-option :label="$t('qualityStandards.status.published')" value="published" />
           <el-option :label="$t('qualityStandards.status.archived')" value="archived" />
         </el-select>
-        <el-select v-model="listQuery.type" :placeholder="$t('qualityStandards.filter.typePlaceholder')" clearable style="width: 120px">
+        <el-select
+          v-model="listQuery.type"
+          :placeholder="$t('qualityStandards.filter.typePlaceholder')"
+          clearable
+          style="width: 120px"
+        >
           <el-option :label="$t('qualityStandards.type.product')" value="product" />
           <el-option :label="$t('qualityStandards.type.process')" value="process" />
           <el-option :label="$t('qualityStandards.type.safety')" value="safety" />
@@ -46,32 +56,64 @@
         </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" stripe :aria-label="$t('qualityStandards.table.ariaLabel')">
-        <el-table-column prop="standard_code" :label="$t('qualityStandards.table.standardCode')" width="140" />
-        <el-table-column prop="standard_name" :label="$t('qualityStandards.table.standardName')" min-width="180" />
+      <el-table
+        v-loading="loading"
+        :data="list"
+        stripe
+        :aria-label="$t('qualityStandards.table.ariaLabel')"
+      >
+        <el-table-column
+          prop="standard_code"
+          :label="$t('qualityStandards.table.standardCode')"
+          width="140"
+        />
+        <el-table-column
+          prop="standard_name"
+          :label="$t('qualityStandards.table.standardName')"
+          min-width="180"
+        />
         <el-table-column prop="type" :label="$t('qualityStandards.table.type')" width="100">
           <template #default="{ row }">
             {{ getTypeLabel(row.type) }}
           </template>
         </el-table-column>
         <el-table-column prop="version" :label="$t('qualityStandards.table.version')" width="80" />
-        <el-table-column prop="status" :label="$t('qualityStandards.table.status')" width="100" align="center">
+        <el-table-column
+          prop="status"
+          :label="$t('qualityStandards.table.status')"
+          width="100"
+          align="center"
+        >
           <template #default="{ row }">
             <el-tag :type="statusTypeMap[row.status]" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" :label="$t('qualityStandards.table.createdBy')" width="100" />
-        <el-table-column prop="approved_by_name" :label="$t('qualityStandards.table.approvedBy')" width="100">
+        <el-table-column
+          prop="created_by_name"
+          :label="$t('qualityStandards.table.createdBy')"
+          width="100"
+        />
+        <el-table-column
+          prop="approved_by_name"
+          :label="$t('qualityStandards.table.approvedBy')"
+          width="100"
+        >
           <template #default="{ row }">
             {{ row.approved_by_name || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" :label="$t('qualityStandards.table.createdAt')" width="160" />
+        <el-table-column
+          prop="created_at"
+          :label="$t('qualityStandards.table.createdAt')"
+          width="160"
+        />
         <el-table-column :label="$t('qualityStandards.table.operation')" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openDialog(row)">{{ $t('qualityStandards.table.edit') }}</el-button>
+            <el-button type="primary" link size="small" @click="openDialog(row)">{{
+              $t('qualityStandards.table.edit')
+            }}</el-button>
             <el-button
               v-if="row.status === 'draft'"
               type="success"
@@ -124,11 +166,25 @@
 
     <el-dialog
       v-model="dialogVisible"
-      :title="form.id ? $t('qualityStandards.dialog.editTitle') : $t('qualityStandards.dialog.createTitle')"
+      :title="
+        form.id
+          ? $t('qualityStandards.dialog.editTitle')
+          : $t('qualityStandards.dialog.createTitle')
+      "
       width="700px"
-      :aria-label="form.id ? $t('qualityStandards.dialog.editAriaLabel') : $t('qualityStandards.dialog.createAriaLabel')"
+      :aria-label="
+        form.id
+          ? $t('qualityStandards.dialog.editAriaLabel')
+          : $t('qualityStandards.dialog.createAriaLabel')
+      "
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" :aria-label="$t('qualityStandards.dialog.formAriaLabel')">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        :aria-label="$t('qualityStandards.dialog.formAriaLabel')"
+      >
         <el-form-item :label="$t('qualityStandards.dialog.standardCode')" prop="standard_code">
           <el-input
             v-model="form.standard_code"
@@ -137,10 +193,17 @@
           />
         </el-form-item>
         <el-form-item :label="$t('qualityStandards.dialog.standardName')" prop="standard_name">
-          <el-input v-model="form.standard_name" :placeholder="$t('qualityStandards.dialog.standardNamePlaceholder')" />
+          <el-input
+            v-model="form.standard_name"
+            :placeholder="$t('qualityStandards.dialog.standardNamePlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('qualityStandards.dialog.type')" prop="type">
-          <el-select v-model="form.type" :placeholder="$t('qualityStandards.dialog.typePlaceholder')" style="width: 100%">
+          <el-select
+            v-model="form.type"
+            :placeholder="$t('qualityStandards.dialog.typePlaceholder')"
+            style="width: 100%"
+          >
             <el-option :label="$t('qualityStandards.type.product')" value="product" />
             <el-option :label="$t('qualityStandards.type.process')" value="process" />
             <el-option :label="$t('qualityStandards.type.safety')" value="safety" />
@@ -148,10 +211,18 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('qualityStandards.dialog.version')" prop="version">
-          <el-input v-model="form.version" :placeholder="$t('qualityStandards.dialog.versionPlaceholder')" />
+          <el-input
+            v-model="form.version"
+            :placeholder="$t('qualityStandards.dialog.versionPlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('qualityStandards.dialog.content')" prop="content">
-          <el-input v-model="form.content" type="textarea" :rows="6" :placeholder="$t('qualityStandards.dialog.contentPlaceholder')" />
+          <el-input
+            v-model="form.content"
+            type="textarea"
+            :rows="6"
+            :placeholder="$t('qualityStandards.dialog.contentPlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('qualityStandards.dialog.attachments')" prop="attachments">
           <el-input
@@ -162,18 +233,22 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ $t('qualityStandards.dialog.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ $t('qualityStandards.dialog.confirm') }}</el-button>
+        <el-button @click="dialogVisible = false">{{
+          $t('qualityStandards.dialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
+          $t('qualityStandards.dialog.confirm')
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Download, Search } from '@element-plus/icons-vue'
+import { ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Plus, Download, Search } from '@element-plus/icons-vue';
 import {
   createQualityStandard,
   updateQualityStandard,
@@ -182,20 +257,20 @@ import {
   publishQualityStandard,
   archiveQualityStandard,
   type QualityStandard,
-} from '@/api/quality-standards'
+} from '@/api/quality-standards';
 // V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
 // 后端 GET /quality-standards/export 已就绪（含异步审计日志 + 水印）
-import { exportFromBackend } from '@/utils/export'
-import { useTableApi } from '@/composables/useTableApi'
+import { exportFromBackend } from '@/utils/export';
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 批次 277：listQuery 仅保留筛选字段，page/page_size 交给 useTableApi 管理
 const listQuery = reactive({
   keyword: '',
   status: '',
   type: '',
-})
+});
 
 // 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -213,32 +288,34 @@ const {
   url: '/quality-standards',
   onError: (err: unknown) =>
     // 批次 98 P2-D 修复（v5 复审）：unknown 类型守卫
-    ElMessage.error((err instanceof Error ? err.message : String(err)) || t('qualityStandards.message.loadFailed')),
-})
+    ElMessage.error(
+      (err instanceof Error ? err.message : String(err)) || t('qualityStandards.message.loadFailed')
+    ),
+});
 
 // 批次 277：同步 listQuery 筛选条件到 useTableApi.queryParams
 const syncQueryParams = () => {
-  setQueryParam('keyword', listQuery.keyword || undefined)
-  setQueryParam('status', listQuery.status || undefined)
-  setQueryParam('type', listQuery.type || undefined)
-}
+  setQueryParam('keyword', listQuery.keyword || undefined);
+  setQueryParam('status', listQuery.status || undefined);
+  setQueryParam('type', listQuery.type || undefined);
+};
 
 // 批次 277：搜索/重置统一入口：同步筛选条件 + 回到首页 + 拉取
 const handleSearch = () => {
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
+  syncQueryParams();
+  page.value = 1;
+  fetchData();
+};
 
 // 批次 277：分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
 const handleSizeChange = (s: number) => {
-  pageSize.value = s
-  page.value = 1
-}
+  pageSize.value = s;
+  page.value = 1;
+};
 
 // D05 Batch 5：typeMap/statusMap 改为函数，使 t() 在每次渲染时响应式求值
 const getTypeLabel = (type: string) => {
@@ -247,9 +324,9 @@ const getTypeLabel = (type: string) => {
     process: t('qualityStandards.type.process'),
     safety: t('qualityStandards.type.safety'),
     environmental: t('qualityStandards.type.environmental'),
-  }
-  return labels[type] || type
-}
+  };
+  return labels[type] || type;
+};
 
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
@@ -257,21 +334,21 @@ const getStatusLabel = (status: string) => {
     approved: t('qualityStandards.status.approved'),
     published: t('qualityStandards.status.published'),
     archived: t('qualityStandards.status.archived'),
-  }
-  return labels[status] || status
-}
+  };
+  return labels[status] || status;
+};
 
 const statusTypeMap: Record<string, string> = {
   draft: 'info',
   approved: 'warning',
   published: 'success',
   archived: 'info',
-}
+};
 
-const dialogVisible = ref(false)
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
-const attachmentsText = ref('')
+const dialogVisible = ref(false);
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
+const attachmentsText = ref('');
 const form = reactive<Partial<QualityStandard>>({
   id: undefined,
   standard_code: '',
@@ -280,20 +357,38 @@ const form = reactive<Partial<QualityStandard>>({
   type: 'product',
   content: '',
   attachments: [],
-})
+});
 
 const rules: FormRules = {
-  standard_code: [{ required: true, message: t('qualityStandards.validation.standardCodeRequired'), trigger: 'blur' }],
-  standard_name: [{ required: true, message: t('qualityStandards.validation.standardNameRequired'), trigger: 'blur' }],
-  type: [{ required: true, message: t('qualityStandards.validation.typeRequired'), trigger: 'change' }],
-  version: [{ required: true, message: t('qualityStandards.validation.versionRequired'), trigger: 'blur' }],
-  content: [{ required: true, message: t('qualityStandards.validation.contentRequired'), trigger: 'blur' }],
-}
+  standard_code: [
+    {
+      required: true,
+      message: t('qualityStandards.validation.standardCodeRequired'),
+      trigger: 'blur',
+    },
+  ],
+  standard_name: [
+    {
+      required: true,
+      message: t('qualityStandards.validation.standardNameRequired'),
+      trigger: 'blur',
+    },
+  ],
+  type: [
+    { required: true, message: t('qualityStandards.validation.typeRequired'), trigger: 'change' },
+  ],
+  version: [
+    { required: true, message: t('qualityStandards.validation.versionRequired'), trigger: 'blur' },
+  ],
+  content: [
+    { required: true, message: t('qualityStandards.validation.contentRequired'), trigger: 'blur' },
+  ],
+};
 
 const openDialog = (row?: QualityStandard) => {
   if (row) {
-    Object.assign(form, row)
-    attachmentsText.value = JSON.stringify(row.attachments || [], null, 2)
+    Object.assign(form, row);
+    attachmentsText.value = JSON.stringify(row.attachments || [], null, 2);
   } else {
     Object.assign(form, {
       id: undefined,
@@ -303,93 +398,128 @@ const openDialog = (row?: QualityStandard) => {
       type: 'product',
       content: '',
       attachments: [],
-    })
-    attachmentsText.value = ''
+    });
+    attachmentsText.value = '';
   }
-  dialogVisible.value = true
-}
+  dialogVisible.value = true;
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
+    if (!valid) return;
 
-    submitLoading.value = true
+    submitLoading.value = true;
     try {
       if (attachmentsText.value) {
         try {
-          form.attachments = JSON.parse(attachmentsText.value)
+          form.attachments = JSON.parse(attachmentsText.value);
         } catch (e) {
-          ElMessage.error(t('qualityStandards.message.attachmentsFormatError'))
-          return
+          ElMessage.error(t('qualityStandards.message.attachmentsFormatError'));
+          return;
         }
       }
       if (form.id) {
-        await updateQualityStandard(form.id, form)
+        await updateQualityStandard(form.id, form);
       } else {
-        await createQualityStandard(form)
+        await createQualityStandard(form);
       }
-      ElMessage.success(t('qualityStandards.message.operationSuccess'))
-      dialogVisible.value = false
-      fetchData()
+      ElMessage.success(t('qualityStandards.message.operationSuccess'));
+      dialogVisible.value = false;
+      fetchData();
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.operationFailed'))
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('qualityStandards.message.operationFailed')
+      );
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const handleDelete = async (row: QualityStandard) => {
   try {
-    await ElMessageBox.confirm(t('qualityStandards.message.deleteConfirm'), t('qualityStandards.message.deleteConfirmTitle'), { type: 'warning' })
-    await deleteQualityStandard(row.id)
-    ElMessage.success(t('qualityStandards.message.deleteSuccess'))
-    fetchData()
+    await ElMessageBox.confirm(
+      t('qualityStandards.message.deleteConfirm'),
+      t('qualityStandards.message.deleteConfirmTitle'),
+      { type: 'warning' }
+    );
+    await deleteQualityStandard(row.id);
+    ElMessage.success(t('qualityStandards.message.deleteSuccess'));
+    fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.deleteFailed'))
+    if (error !== 'cancel')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('qualityStandards.message.deleteFailed')
+      );
   }
-}
+};
 
 const handleApprove = async (row: QualityStandard) => {
   try {
-    await ElMessageBox.confirm(t('qualityStandards.message.approveConfirm'), t('qualityStandards.message.approveConfirmTitle'), { type: 'warning' })
-    await approveQualityStandard(row.id)
-    ElMessage.success(t('qualityStandards.message.approveSuccess'))
-    fetchData()
+    await ElMessageBox.confirm(
+      t('qualityStandards.message.approveConfirm'),
+      t('qualityStandards.message.approveConfirmTitle'),
+      { type: 'warning' }
+    );
+    await approveQualityStandard(row.id);
+    ElMessage.success(t('qualityStandards.message.approveSuccess'));
+    fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.approveFailed'))
+    if (error !== 'cancel')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('qualityStandards.message.approveFailed')
+      );
   }
-}
+};
 
 const handlePublish = async (row: QualityStandard) => {
   try {
-    await ElMessageBox.confirm(t('qualityStandards.message.publishConfirm'), t('qualityStandards.message.publishConfirmTitle'), {
-      type: 'warning',
-    })
-    await publishQualityStandard(row.id)
-    ElMessage.success(t('qualityStandards.message.publishSuccess'))
-    fetchData()
+    await ElMessageBox.confirm(
+      t('qualityStandards.message.publishConfirm'),
+      t('qualityStandards.message.publishConfirmTitle'),
+      {
+        type: 'warning',
+      }
+    );
+    await publishQualityStandard(row.id);
+    ElMessage.success(t('qualityStandards.message.publishSuccess'));
+    fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.publishFailed'))
+    if (error !== 'cancel')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('qualityStandards.message.publishFailed')
+      );
   }
-}
+};
 
 const handleArchive = async (row: QualityStandard) => {
   try {
-    await ElMessageBox.confirm(t('qualityStandards.message.archiveConfirm'), t('qualityStandards.message.archiveConfirmTitle'), { type: 'warning' })
-    await archiveQualityStandard(row.id)
-    ElMessage.success(t('qualityStandards.message.archiveSuccess'))
-    fetchData()
+    await ElMessageBox.confirm(
+      t('qualityStandards.message.archiveConfirm'),
+      t('qualityStandards.message.archiveConfirmTitle'),
+      { type: 'warning' }
+    );
+    await archiveQualityStandard(row.id);
+    ElMessage.success(t('qualityStandards.message.archiveSuccess'));
+    fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || t('qualityStandards.message.archiveFailed'))
+    if (error !== 'cancel')
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          t('qualityStandards.message.archiveFailed')
+      );
   }
-}
+};
 
 // 导出 Excel（V15 P0-S12 修复 Batch 475d）
 // 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
@@ -403,8 +533,8 @@ const handleExport = async () => {
       status: listQuery.status || undefined,
     },
     'quality_standards_export'
-  )
-}
+  );
+};
 </script>
 
 <style scoped>

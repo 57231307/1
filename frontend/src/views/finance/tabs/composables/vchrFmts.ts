@@ -7,8 +7,8 @@
 
 /** 金额格式化（保留 2 位小数） */
 export const formatMoney = (amount: number) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 /** 凭证状态 → 中文标签 */
 const STATUS_LABEL_MAP: Record<string, string> = {
@@ -16,7 +16,7 @@ const STATUS_LABEL_MAP: Record<string, string> = {
   submitted: '已提交',
   reviewed: '已审核',
   posted: '已过账',
-}
+};
 
 /** 凭证状态 → el-tag 类型 */
 const STATUS_TYPE_MAP: Record<string, string> = {
@@ -24,14 +24,14 @@ const STATUS_TYPE_MAP: Record<string, string> = {
   submitted: 'warning',
   reviewed: 'success',
   posted: 'primary',
-}
+};
 
 /** 获取凭证状态中文标签 */
 export const getVchrStatusLabel = (status?: string) => {
-  return STATUS_LABEL_MAP[status || ''] || status || ''
-}
+  return STATUS_LABEL_MAP[status || ''] || status || '';
+};
 
 /** 获取凭证状态对应 el-tag 类型 */
 export const getVchrStatusType = (status?: string) => {
-  return STATUS_TYPE_MAP[status || ''] || 'info'
-}
+  return STATUS_TYPE_MAP[status || ''] || 'info';
+};

@@ -100,8 +100,16 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag v-if="row.grade === t('inventoryBatch.batchListTab.optionGradeFirst')" type="success">{{ row.grade }}</el-tag>
-            <el-tag v-else-if="row.grade === t('inventoryBatch.batchListTab.optionGradeSecond')" type="warning">{{ row.grade }}</el-tag>
+            <el-tag
+              v-if="row.grade === t('inventoryBatch.batchListTab.optionGradeFirst')"
+              type="success"
+              >{{ row.grade }}</el-tag
+            >
+            <el-tag
+              v-else-if="row.grade === t('inventoryBatch.batchListTab.optionGradeSecond')"
+              type="warning"
+              >{{ row.grade }}</el-tag
+            >
             <el-tag v-else type="danger">{{ row.grade }}</el-tag>
           </template>
         </el-table-column>
@@ -135,7 +143,11 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag v-if="row.stockStatus === t('inventoryBatch.batchListTab.statusNormal')" type="success">{{ row.stockStatus }}</el-tag>
+            <el-tag
+              v-if="row.stockStatus === t('inventoryBatch.batchListTab.statusNormal')"
+              type="success"
+              >{{ row.stockStatus }}</el-tag
+            >
             <el-tag v-else type="warning">{{ row.stockStatus }}</el-tag>
           </template>
         </el-table-column>
@@ -145,9 +157,11 @@
           width="100"
         >
           <template #default="{ row }">
-            <el-tag v-if="row.qualityStatus === t('inventoryBatch.batchListTab.statusQualified')" type="success">{{
-              row.qualityStatus
-            }}</el-tag>
+            <el-tag
+              v-if="row.qualityStatus === t('inventoryBatch.batchListTab.statusQualified')"
+              type="success"
+              >{{ row.qualityStatus }}</el-tag
+            >
             <el-tag v-else type="danger">{{ row.qualityStatus }}</el-tag>
           </template>
         </el-table-column>
@@ -267,27 +281,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import {
   deleteBatch,
   transferBatch,
   type InventoryBatch,
   type TransferBatchRequest,
-} from '@/api/inventoryBatch'
-import { getWarehouseList, type Warehouse } from '@/api/warehouse'
-import { useTableApi } from '@/composables/useTableApi'
+} from '@/api/inventoryBatch';
+import { getWarehouseList, type Warehouse } from '@/api/warehouse';
+import { useTableApi } from '@/composables/useTableApi';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const emit = defineEmits<{ openForm: [row: InventoryBatch | null] }>()
+const emit = defineEmits<{ openForm: [row: InventoryBatch | null] }>();
 
 const queryParams = reactive({
   batchNo: '',
   colorNo: '',
   grade: '',
-})
+});
 
 // 批次 276：接入 useTableApi，消除手写 batchList/loading/pagination/fetchBatches 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -306,58 +320,58 @@ const {
       (err instanceof Error ? err.message : String(err)) ||
         t('inventoryBatch.batchListTab.messageFetchFailed')
     ),
-})
+});
 
 // 批次 276：同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
-  setQueryParam('batchNo', queryParams.batchNo || undefined)
-  setQueryParam('colorNo', queryParams.colorNo || undefined)
-  setQueryParam('grade', queryParams.grade || undefined)
-}
+  setQueryParam('batchNo', queryParams.batchNo || undefined);
+  setQueryParam('colorNo', queryParams.colorNo || undefined);
+  setQueryParam('grade', queryParams.grade || undefined);
+};
 
 const handleQuery = () => {
-  syncQueryParams()
-  page.value = 1
-  fetchBatches()
-}
+  syncQueryParams();
+  page.value = 1;
+  fetchBatches();
+};
 
 const handleReset = () => {
-  queryParams.batchNo = ''
-  queryParams.colorNo = ''
-  queryParams.grade = ''
-  syncQueryParams()
-  page.value = 1
-  fetchBatches()
-}
+  queryParams.batchNo = '';
+  queryParams.colorNo = '';
+  queryParams.grade = '';
+  syncQueryParams();
+  page.value = 1;
+  fetchBatches();
+};
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
-  page.value = p
-}
+  page.value = p;
+};
 
-const handleCreate = () => emit('openForm', null)
-const handleView = (row: InventoryBatch) => emit('openForm', row)
-const handleEdit = (row: InventoryBatch) => emit('openForm', row)
+const handleCreate = () => emit('openForm', null);
+const handleView = (row: InventoryBatch) => emit('openForm', row);
+const handleEdit = (row: InventoryBatch) => emit('openForm', row);
 
 // 批次 157b P1-1 修复：批次调拨接入 transferBatch API
-const transferDialogVisible = ref(false)
-const transferSubmitting = ref(false)
-const transferFormRef = ref<FormInstance>()
-const transferCurrentRow = ref<InventoryBatch | null>(null)
-const warehouseOptions = ref<Warehouse[]>([])
+const transferDialogVisible = ref(false);
+const transferSubmitting = ref(false);
+const transferFormRef = ref<FormInstance>();
+const transferCurrentRow = ref<InventoryBatch | null>(null);
+const warehouseOptions = ref<Warehouse[]>([]);
 const transferForm = reactive<{
-  fromWarehouseName: string
-  toWarehouseId: number | null
-  quantityMeters: number
-  quantityKg: number
-  remarks: string
+  fromWarehouseName: string;
+  toWarehouseId: number | null;
+  quantityMeters: number;
+  quantityKg: number;
+  remarks: string;
 }>({
   fromWarehouseName: '',
   toWarehouseId: null,
   quantityMeters: 0,
   quantityKg: 0,
   remarks: '',
-})
+});
 const transferRules: FormRules = {
   toWarehouseId: [
     {
@@ -380,42 +394,42 @@ const transferRules: FormRules = {
       trigger: 'blur',
     },
   ],
-}
+};
 
 const fetchWarehouseOptions = async () => {
   try {
     const res = (await getWarehouseList({ page: 1, page_size: 1000 })) as unknown as {
-      data?: { list?: Warehouse[] }
-    }
-    warehouseOptions.value = res.data?.list || []
+      data?: { list?: Warehouse[] };
+    };
+    warehouseOptions.value = res.data?.list || [];
   } catch {
-    warehouseOptions.value = []
+    warehouseOptions.value = [];
   }
-}
+};
 
 const handleTransfer = async (row: InventoryBatch) => {
-  transferCurrentRow.value = row
-  transferForm.fromWarehouseName = row.warehouseName || '-'
-  transferForm.toWarehouseId = null
-  transferForm.quantityMeters = row.quantityMeters || 0
-  transferForm.quantityKg = row.quantityKg || 0
-  transferForm.remarks = ''
+  transferCurrentRow.value = row;
+  transferForm.fromWarehouseName = row.warehouseName || '-';
+  transferForm.toWarehouseId = null;
+  transferForm.quantityMeters = row.quantityMeters || 0;
+  transferForm.quantityKg = row.quantityKg || 0;
+  transferForm.remarks = '';
   if (warehouseOptions.value.length === 0) {
-    await fetchWarehouseOptions()
+    await fetchWarehouseOptions();
   }
-  transferDialogVisible.value = true
-}
+  transferDialogVisible.value = true;
+};
 
 const onSubmitTransfer = async () => {
-  if (!transferFormRef.value || !transferCurrentRow.value) return
-  const row = transferCurrentRow.value
+  if (!transferFormRef.value || !transferCurrentRow.value) return;
+  const row = transferCurrentRow.value;
   await transferFormRef.value.validate(async valid => {
-    if (!valid) return
+    if (!valid) return;
     if (!row.warehouseId || !transferForm.toWarehouseId) {
-      ElMessage.warning(t('inventoryBatch.batchListTab.messageWarehouseInfoIncomplete'))
-      return
+      ElMessage.warning(t('inventoryBatch.batchListTab.messageWarehouseInfoIncomplete'));
+      return;
     }
-    transferSubmitting.value = true
+    transferSubmitting.value = true;
     try {
       const payload: TransferBatchRequest = {
         fromWarehouseId: row.warehouseId,
@@ -423,20 +437,20 @@ const onSubmitTransfer = async () => {
         quantityMeters: transferForm.quantityMeters,
         quantityKg: transferForm.quantityKg,
         remarks: transferForm.remarks || undefined,
-      }
-      await transferBatch(row.id as number, payload)
-      ElMessage.success(t('inventoryBatch.batchListTab.messageTransferSuccess'))
-      transferDialogVisible.value = false
-      fetchBatches()
+      };
+      await transferBatch(row.id as number, payload);
+      ElMessage.success(t('inventoryBatch.batchListTab.messageTransferSuccess'));
+      transferDialogVisible.value = false;
+      fetchBatches();
     } catch (error) {
       ElMessage.error(
         (error as Error).message || t('inventoryBatch.batchListTab.messageTransferFailed')
-      )
+      );
     } finally {
-      transferSubmitting.value = false
+      transferSubmitting.value = false;
     }
-  })
-}
+  });
+};
 
 const handleDelete = async (row: InventoryBatch) => {
   try {
@@ -444,20 +458,20 @@ const handleDelete = async (row: InventoryBatch) => {
       t('inventoryBatch.batchListTab.messageConfirmDelete', { batchNo: row.batchNo }),
       t('inventoryBatch.batchListTab.titleDeleteConfirm'),
       { type: 'warning' }
-    )
-    await deleteBatch(row.id as number)
-    ElMessage.success(t('inventoryBatch.batchListTab.messageDeleteSuccess'))
-    fetchBatches()
+    );
+    await deleteBatch(row.id as number);
+    ElMessage.success(t('inventoryBatch.batchListTab.messageDeleteSuccess'));
+    fetchBatches();
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error(
         (error as Error).message || t('inventoryBatch.batchListTab.messageDeleteFailed')
-      )
+      );
     }
   }
-}
+};
 
-defineExpose({ fetchBatches })
+defineExpose({ fetchBatches });
 </script>
 
 <style scoped>

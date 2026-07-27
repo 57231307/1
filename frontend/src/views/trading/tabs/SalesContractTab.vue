@@ -97,10 +97,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import {
   getTradingContractList,
   getTradingContract,
@@ -109,16 +109,16 @@ import {
   executeTradingContract,
   deleteTradingContract,
   type TradingContract,
-} from '@/api/trading-contract'
+} from '@/api/trading-contract';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const salesContracts = ref<TradingContract[]>([])
-const salesContractLoading = ref(false)
+const salesContracts = ref<TradingContract[]>([]);
+const salesContractLoading = ref(false);
 
 const formatMoney = (amount: number | undefined) => {
-  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00'
-}
+  return amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00';
+};
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
@@ -128,61 +128,61 @@ const getStatusType = (status: string) => {
     executed: 'success',
     completed: 'success',
     cancelled: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 /** 销售合同状态 → i18n 标签（语言切换响应） */
 const getContractStatusLabel = (status: string): string => {
   switch (status) {
     case 'draft':
-      return t('trading.salesContractTab.statusDraft')
+      return t('trading.salesContractTab.statusDraft');
     case 'pending':
-      return t('trading.salesContractTab.statusPending')
+      return t('trading.salesContractTab.statusPending');
     case 'approved':
-      return t('trading.salesContractTab.statusApproved')
+      return t('trading.salesContractTab.statusApproved');
     case 'executed':
-      return t('trading.salesContractTab.statusExecuted')
+      return t('trading.salesContractTab.statusExecuted');
     case 'completed':
-      return t('trading.salesContractTab.statusCompleted')
+      return t('trading.salesContractTab.statusCompleted');
     case 'cancelled':
-      return t('trading.salesContractTab.statusCancelled')
+      return t('trading.salesContractTab.statusCancelled');
     default:
-      return status
+      return status;
   }
-}
+};
 
 const fetchSalesContracts = async () => {
-  salesContractLoading.value = true
+  salesContractLoading.value = true;
   try {
-    const res = await getTradingContractList({ type: 'sales' })
+    const res = await getTradingContractList({ type: 'sales' });
     const d = res.data as
       | { list?: TradingContract[]; items?: TradingContract[] }
       | TradingContract[]
-      | undefined
+      | undefined;
     if (d && typeof d === 'object' && !Array.isArray(d)) {
-      salesContracts.value = d.list || d.items || []
+      salesContracts.value = d.list || d.items || [];
     } else {
-      salesContracts.value = (d as TradingContract[]) || []
+      salesContracts.value = (d as TradingContract[]) || [];
     }
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('trading.salesContractTab.messageFetchFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.salesContractTab.messageFetchFailed'));
   } finally {
-    salesContractLoading.value = false
+    salesContractLoading.value = false;
   }
-}
+};
 
 const openSalesContractDialog = async () => {
   try {
-    await createTradingContract({ type: 'sales', status: 'draft' })
-    ElMessage.success(t('trading.salesContractTab.messageCreateDraftSuccess'))
-    fetchSalesContracts()
+    await createTradingContract({ type: 'sales', status: 'draft' });
+    ElMessage.success(t('trading.salesContractTab.messageCreateDraftSuccess'));
+    fetchSalesContracts();
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('trading.salesContractTab.messageCreateFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.salesContractTab.messageCreateFailed'));
   }
-}
+};
 
 /** 构造销售合同详情多行文本（拆分以控制 viewSalesContract 行数） */
 const buildContractDetailLines = (d: TradingContract): string[] => {
@@ -194,27 +194,27 @@ const buildContractDetailLines = (d: TradingContract): string[] => {
     t('trading.salesContractTab.detailCurrentStatus', {
       value: getContractStatusLabel(d.status),
     }),
-  ]
-}
+  ];
+};
 
 // 批次 157a P1-1 修复：接入 getTradingContract API 展示销售合同详情
 const viewSalesContract = async (row: TradingContract) => {
   try {
-    const res = await getTradingContract(row.id)
-    const d = res.data
+    const res = await getTradingContract(row.id);
+    const d = res.data;
     if (!d) {
-      ElMessage.warning(t('trading.salesContractTab.messageDetailNotFound'))
-      return
+      ElMessage.warning(t('trading.salesContractTab.messageDetailNotFound'));
+      return;
     }
-    const lines = buildContractDetailLines(d)
+    const lines = buildContractDetailLines(d);
     await ElMessageBox.alert(lines.join('\n'), t('trading.salesContractTab.detailTitle'), {
       confirmButtonText: t('trading.salesContractTab.buttonClose'),
-    })
+    });
   } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || t('trading.salesContractTab.messageFetchDetailFailed'))
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('trading.salesContractTab.messageFetchDetailFailed'));
   }
-}
+};
 
 const approveSalesContract = async (row: TradingContract) => {
   try {
@@ -222,17 +222,17 @@ const approveSalesContract = async (row: TradingContract) => {
       t('trading.salesContractTab.confirmApproveMessage'),
       t('trading.salesContractTab.confirmTitle'),
       { type: 'info' }
-    )
-    await approveTradingContract(row.id)
-    ElMessage.success(t('trading.salesContractTab.messageApproveSuccess'))
-    fetchSalesContracts()
+    );
+    await approveTradingContract(row.id);
+    ElMessage.success(t('trading.salesContractTab.messageApproveSuccess'));
+    fetchSalesContracts();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('trading.salesContractTab.messageOperationFailed'))
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('trading.salesContractTab.messageOperationFailed'));
     }
   }
-}
+};
 
 const executeSalesContract = async (row: TradingContract) => {
   try {
@@ -240,17 +240,17 @@ const executeSalesContract = async (row: TradingContract) => {
       t('trading.salesContractTab.confirmExecuteMessage'),
       t('trading.salesContractTab.confirmTitle'),
       { type: 'info' }
-    )
-    await executeTradingContract(row.id)
-    ElMessage.success(t('trading.salesContractTab.messageExecuteSuccess'))
-    fetchSalesContracts()
+    );
+    await executeTradingContract(row.id);
+    ElMessage.success(t('trading.salesContractTab.messageExecuteSuccess'));
+    fetchSalesContracts();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('trading.salesContractTab.messageOperationFailed'))
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('trading.salesContractTab.messageOperationFailed'));
     }
   }
-}
+};
 
 const deleteSalesContract = async (row: TradingContract) => {
   try {
@@ -258,23 +258,23 @@ const deleteSalesContract = async (row: TradingContract) => {
       t('trading.salesContractTab.confirmDeleteMessage'),
       t('trading.salesContractTab.confirmTitle'),
       { type: 'warning' }
-    )
-    await deleteTradingContract(row.id)
-    ElMessage.success(t('trading.salesContractTab.messageDeleteSuccess'))
-    fetchSalesContracts()
+    );
+    await deleteTradingContract(row.id);
+    ElMessage.success(t('trading.salesContractTab.messageDeleteSuccess'));
+    fetchSalesContracts();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as { message?: string }
-      ElMessage.error(err.message || t('trading.salesContractTab.messageOperationFailed'))
+      const err = e as { message?: string };
+      ElMessage.error(err.message || t('trading.salesContractTab.messageOperationFailed'));
     }
   }
-}
+};
 
-defineExpose({ refresh: fetchSalesContracts })
+defineExpose({ refresh: fetchSalesContracts });
 
 onMounted(() => {
-  fetchSalesContracts()
-})
+  fetchSalesContracts();
+});
 </script>
 
 <style scoped>

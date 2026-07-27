@@ -15,14 +15,24 @@
     :aria-label="t('inventory.adjustmentDialog.ariaLabel')"
     @update:model-value="onClose"
   >
-    <el-form :model="localForm" label-width="100px" :aria-label="t('inventory.adjustmentDialog.formAria')">
+    <el-form
+      :model="localForm"
+      label-width="100px"
+      :aria-label="t('inventory.adjustmentDialog.formAria')"
+    >
       <el-form-item v-if="localForm.product_name" :label="t('inventory.adjustmentDialog.product')">
         <el-input :value="localForm.product_name" disabled />
       </el-form-item>
-      <el-form-item v-if="localForm.warehouse_name" :label="t('inventory.adjustmentDialog.warehouse')">
+      <el-form-item
+        v-if="localForm.warehouse_name"
+        :label="t('inventory.adjustmentDialog.warehouse')"
+      >
         <el-input :value="localForm.warehouse_name" disabled />
       </el-form-item>
-      <el-form-item v-if="localForm.current_quantity" :label="t('inventory.adjustmentDialog.currentQty')">
+      <el-form-item
+        v-if="localForm.current_quantity"
+        :label="t('inventory.adjustmentDialog.currentQty')"
+      >
         <el-input :value="localForm.current_quantity" disabled />
       </el-form-item>
       <el-form-item :label="t('inventory.adjustmentDialog.adjustType')">
@@ -32,11 +42,7 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item :label="t('inventory.adjustmentDialog.adjustQty')">
-        <el-input-number
-          v-model="localForm.adjustment_quantity"
-          :min="1"
-          style="width: 100%"
-        />
+        <el-input-number v-model="localForm.adjustment_quantity" :min="1" style="width: 100%" />
       </el-form-item>
       <el-form-item :label="t('inventory.adjustmentDialog.reason')">
         <el-input
@@ -49,58 +55,60 @@
     </el-form>
     <template #footer>
       <el-button @click="onClose(false)">{{ t('inventory.adjustmentDialog.cancel') }}</el-button>
-      <el-button type="primary" @click="onSubmit">{{ t('inventory.adjustmentDialog.confirm') }}</el-button>
+      <el-button type="primary" @click="onSubmit">{{
+        t('inventory.adjustmentDialog.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { deepClone } from '@/utils'
-import { reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n';
+import { deepClone } from '@/utils';
+import { reactive, watch } from 'vue';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 库存调整表单数据结构（字段与 inventory 父组件 initialForm 保持一致）
 export interface AdjustmentForm {
-  stock_id: number | null
-  product_id: number | null
-  warehouse_id: number | null
-  product_name?: string
-  warehouse_name?: string
-  current_quantity?: number
-  adjustment_type: 'increase' | 'decrease'
-  adjustment_quantity: number
-  reason: string
+  stock_id: number | null;
+  product_id: number | null;
+  warehouse_id: number | null;
+  product_name?: string;
+  warehouse_name?: string;
+  current_quantity?: number;
+  adjustment_type: 'increase' | 'decrease';
+  adjustment_quantity: number;
+  reason: string;
 }
 
 const props = defineProps<{
-  visible: boolean
-  initialForm: AdjustmentForm
-}>()
+  visible: boolean;
+  initialForm: AdjustmentForm;
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:visible', val: boolean): void
-  (e: 'submit', data: AdjustmentForm): void
-}>()
+  (e: 'update:visible', val: boolean): void;
+  (e: 'submit', data: AdjustmentForm): void;
+}>();
 
 // 浅拷贝 initialForm 同步初始值（不直接突变 prop）
-const localForm = reactive<AdjustmentForm>({} as AdjustmentForm)
+const localForm = reactive<AdjustmentForm>({} as AdjustmentForm);
 watch(
   () => props.initialForm,
   newVal => {
     // AdjustmentForm 字段固定，直接 Object.assign 覆盖即可（无需逐键 delete）
-    Object.assign(localForm, deepClone(newVal))
+    Object.assign(localForm, deepClone(newVal));
   },
   { immediate: true, deep: true }
-)
+);
 
 const onClose = (val: boolean) => {
-  emit('update:visible', val)
-}
+  emit('update:visible', val);
+};
 
 const onSubmit = () => {
-  emit('submit', deepClone(localForm))
-}
+  emit('submit', deepClone(localForm));
+};
 </script>

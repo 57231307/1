@@ -1,185 +1,185 @@
-import { request } from './request'
-import type { ApiResponse, PageResult } from '@/types/api'
+import { request } from './request';
+import type { ApiResponse, PageResult } from '@/types/api';
 
 export interface ReportField {
-  key: string
-  label: string
-  type: 'string' | 'number' | 'date' | 'boolean'
-  sortable: boolean
+  key: string;
+  label: string;
+  type: 'string' | 'number' | 'date' | 'boolean';
+  sortable: boolean;
 }
 
 export interface ReportFilterCondition {
-  field: string
-  operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains' | 'in' | 'between'
+  field: string;
+  operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains' | 'in' | 'between';
   // 批次 98 P2-D 修复（v5 复审）：原 any 改为联合类型，覆盖所有 operator 的取值
-  value: string | number | boolean | string[] | number[] | null
+  value: string | number | boolean | string[] | number[] | null;
 }
 
 export interface ReportTemplateField {
-  field_key: string
-  display_label: string
-  visible: boolean
-  width?: number
-  format?: string
+  field_key: string;
+  display_label: string;
+  visible: boolean;
+  width?: number;
+  format?: string;
 }
 
 export interface ReportTemplate {
-  id: number
-  name: string
-  description: string
-  type: string
-  category: string
-  fields: ReportTemplateField[]
-  filters: ReportFilterCondition[]
-  group_by: string[]
-  sort_by: { field: string; direction: 'asc' | 'desc' }[]
-  chart_type: 'none' | 'bar' | 'line' | 'pie' | 'area'
-  is_system: boolean
-  created_at: string
-  updated_at: string
-  created_by?: string
+  id: number;
+  name: string;
+  description: string;
+  type: string;
+  category: string;
+  fields: ReportTemplateField[];
+  filters: ReportFilterCondition[];
+  group_by: string[];
+  sort_by: { field: string; direction: 'asc' | 'desc' }[];
+  chart_type: 'none' | 'bar' | 'line' | 'pie' | 'area';
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
 }
 
 export interface ReportSubscription {
-  id: number
-  template_id: number
-  template_name: string
-  schedule: 'daily' | 'weekly' | 'monthly'
-  schedule_time: string
-  recipients: string[]
-  format: 'pdf' | 'excel' | 'both'
-  active: boolean
-  created_at: string
-  last_sent_at?: string
+  id: number;
+  template_id: number;
+  template_name: string;
+  schedule: 'daily' | 'weekly' | 'monthly';
+  schedule_time: string;
+  recipients: string[];
+  format: 'pdf' | 'excel' | 'both';
+  active: boolean;
+  created_at: string;
+  last_sent_at?: string;
 }
 
 export interface CreateTemplateRequest {
-  name: string
-  description?: string
-  type: string
-  category: string
-  fields: ReportTemplateField[]
-  filters?: ReportFilterCondition[]
-  group_by?: string[]
-  sort_by?: { field: string; direction: 'asc' | 'desc' }[]
-  chart_type?: string
+  name: string;
+  description?: string;
+  type: string;
+  category: string;
+  fields: ReportTemplateField[];
+  filters?: ReportFilterCondition[];
+  group_by?: string[];
+  sort_by?: { field: string; direction: 'asc' | 'desc' }[];
+  chart_type?: string;
 }
 
 export interface UpdateTemplateRequest {
-  name?: string
-  description?: string
-  fields?: ReportTemplateField[]
-  filters?: ReportFilterCondition[]
-  group_by?: string[]
-  sort_by?: { field: string; direction: 'asc' | 'desc' }[]
-  chart_type?: string
+  name?: string;
+  description?: string;
+  fields?: ReportTemplateField[];
+  filters?: ReportFilterCondition[];
+  group_by?: string[];
+  sort_by?: { field: string; direction: 'asc' | 'desc' }[];
+  chart_type?: string;
 }
 
 export interface CreateSubscriptionRequest {
-  template_id: number
-  schedule: 'daily' | 'weekly' | 'monthly'
-  schedule_time: string
-  recipients: string[]
-  format: 'pdf' | 'excel' | 'both'
+  template_id: number;
+  schedule: 'daily' | 'weekly' | 'monthly';
+  schedule_time: string;
+  recipients: string[];
+  format: 'pdf' | 'excel' | 'both';
 }
 
 export interface UpdateSubscriptionRequest {
-  schedule?: 'daily' | 'weekly' | 'monthly'
-  schedule_time?: string
-  recipients?: string[]
-  format?: 'pdf' | 'excel' | 'both'
-  active?: boolean
+  schedule?: 'daily' | 'weekly' | 'monthly';
+  schedule_time?: string;
+  recipients?: string[];
+  format?: 'pdf' | 'excel' | 'both';
+  active?: boolean;
 }
 
 export function getReportTemplateList(
   params?: Record<string, unknown>
 ): Promise<ApiResponse<PageResult<ReportTemplate>>> {
-  return request.get('/reports/enhanced/templates', { params })
+  return request.get('/reports/enhanced/templates', { params });
 }
 
 export function getReportTemplate(id: number): Promise<ApiResponse<ReportTemplate>> {
-  return request.get(`/reports/enhanced/templates/${id}`)
+  return request.get(`/reports/enhanced/templates/${id}`);
 }
 
 export function createReportTemplate(
   data: CreateTemplateRequest
 ): Promise<ApiResponse<ReportTemplate>> {
-  return request.post('/reports/enhanced/templates', data)
+  return request.post('/reports/enhanced/templates', data);
 }
 
 export function updateReportTemplate(
   id: number,
   data: UpdateTemplateRequest
 ): Promise<ApiResponse<ReportTemplate>> {
-  return request.put(`/reports/enhanced/templates/${id}`, data)
+  return request.put(`/reports/enhanced/templates/${id}`, data);
 }
 
 export function deleteReportTemplate(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/reports/enhanced/templates/${id}`)
+  return request.delete(`/reports/enhanced/templates/${id}`);
 }
 
 export function getAvailableFields(templateType: string): Promise<ApiResponse<ReportField[]>> {
-  return request.get(`/reports/enhanced/fields/${templateType}`)
+  return request.get(`/reports/enhanced/fields/${templateType}`);
 }
 
 export function exportReport(
   templateId: number,
   params: {
-    format: 'pdf' | 'excel'
-    date_range?: { start: string; end: string }
-    filters?: ReportFilterCondition[]
+    format: 'pdf' | 'excel';
+    date_range?: { start: string; end: string };
+    filters?: ReportFilterCondition[];
   }
 ): Promise<Blob> {
   return request.post(`/reports/enhanced/templates/${templateId}/export`, params, {
     responseType: 'blob',
-  })
+  });
 }
 
 // P2-16 修复（批次 86 v2 复审）：previewReport ApiResponse<any> → 显式接口
 
 /** 报表预览结果 */
 export interface ReportPreviewResult {
-  template_id: number
-  fields: string[]
-  rows: Array<Record<string, unknown>>
-  total: number
-  [key: string]: unknown
+  template_id: number;
+  fields: string[];
+  rows: Array<Record<string, unknown>>;
+  total: number;
+  [key: string]: unknown;
 }
 
 export function previewReport(
   templateId: number,
   params?: Record<string, unknown>
 ): Promise<ApiResponse<ReportPreviewResult>> {
-  return request.get(`/reports/enhanced/templates/${templateId}/preview`, { params })
+  return request.get(`/reports/enhanced/templates/${templateId}/preview`, { params });
 }
 
 export function getSubscriptionList(
   params?: Record<string, unknown>
 ): Promise<ApiResponse<PageResult<ReportSubscription>>> {
-  return request.get('/reports/enhanced/subscriptions', { params })
+  return request.get('/reports/enhanced/subscriptions', { params });
 }
 
 export function createSubscription(
   data: CreateSubscriptionRequest
 ): Promise<ApiResponse<ReportSubscription>> {
-  return request.post('/reports/enhanced/subscriptions', data)
+  return request.post('/reports/enhanced/subscriptions', data);
 }
 
 export function updateSubscription(
   id: number,
   data: UpdateSubscriptionRequest
 ): Promise<ApiResponse<ReportSubscription>> {
-  return request.put(`/reports/enhanced/subscriptions/${id}`, data)
+  return request.put(`/reports/enhanced/subscriptions/${id}`, data);
 }
 
 export function deleteSubscription(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/reports/enhanced/subscriptions/${id}`)
+  return request.delete(`/reports/enhanced/subscriptions/${id}`);
 }
 
 export function toggleSubscription(id: number): Promise<ApiResponse<ReportSubscription>> {
-  return request.put(`/reports/enhanced/subscriptions/${id}/toggle`)
+  return request.put(`/reports/enhanced/subscriptions/${id}/toggle`);
 }
 
 export function sendSubscriptionNow(id: number): Promise<ApiResponse<{ message: string }>> {
-  return request.post(`/reports/enhanced/subscriptions/${id}/send`)
+  return request.post(`/reports/enhanced/subscriptions/${id}/send`);
 }

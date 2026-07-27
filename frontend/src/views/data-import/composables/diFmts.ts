@@ -16,7 +16,7 @@ export const MODULE_MAP: Record<string, string> = {
   sales: '销售',
   purchase: '采购',
   finance: '财务',
-}
+};
 
 /**
  * 导入任务状态到中文标签
@@ -26,7 +26,7 @@ export const TASK_STATUS_MAP: Record<string, string> = {
   processing: '处理中',
   completed: '已完成',
   failed: '失败',
-}
+};
 
 /**
  * 导入任务状态到 el-tag 类型
@@ -36,4 +36,4 @@ export const TASK_STATUS_TYPE_MAP: Record<string, string> = {
   processing: 'warning',
   completed: 'success',
   failed: 'danger',
-}
+};

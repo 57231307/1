@@ -42,24 +42,24 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { SalesReturn } from '@/api/sales-return'
-import { getStatusType } from '../composables/srFmts'
+import { useI18n } from 'vue-i18n';
+import type { SalesReturn } from '@/api/sales-return';
+import { getStatusType } from '../composables/srFmts';
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-returns 资源对齐
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSIONS } from '@/constants/permissions';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
-  list: SalesReturn[]
-  loading: boolean
-}>()
+  list: SalesReturn[];
+  loading: boolean;
+}>();
 
 const emit = defineEmits<{
-  (e: 'view', row: SalesReturn): void
-  (e: 'edit', row: SalesReturn): void
-  (e: 'approve', row: SalesReturn): void
-}>()
+  (e: 'view', row: SalesReturn): void;
+  (e: 'edit', row: SalesReturn): void;
+  (e: 'approve', row: SalesReturn): void;
+}>();
 
 /** 获取退货状态标签（i18n 响应式） */
 const getStatusLabel = (status: string) => {
@@ -68,7 +68,7 @@ const getStatusLabel = (status: string) => {
     APPROVED: t('salesReturns.table.statusApproved'),
     REJECTED: t('salesReturns.table.statusRejected'),
     COMPLETED: t('salesReturns.table.statusCompleted'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 </script>

@@ -176,35 +176,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Download } from '@element-plus/icons-vue'
+import { ref, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { Plus, Download } from '@element-plus/icons-vue';
 import {
   createBudget,
   updateBudget,
   deleteBudget as deleteBudgetApi,
   approveBudget as approveBudgetApi,
   type Budget,
-} from '@/api/budget'
-import { logger } from '@/utils/logger'
-import { exportFromBackend } from '@/utils/export'
+} from '@/api/budget';
+import { logger } from '@/utils/logger';
+import { exportFromBackend } from '@/utils/export';
 // 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
-import { useTableApi } from '@/composables/useTableApi'
+import { useTableApi } from '@/composables/useTableApi';
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const formRef = ref<FormInstance>()
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const formRef = ref<FormInstance>();
 
 // 批次 278：筛选条件（仅保留业务字段，page/page_size 由 useTableApi 管理）
 const queryForm = reactive({
   budget_no: '',
   name: '',
   status: '' as '' | Budget['status'],
-})
+});
 
 // 批次 278：使用 useTableApi 管理预算列表分页
 const {
@@ -221,28 +221,28 @@ const {
   defaultPageSize: 20,
   onError: (err: unknown) => {
     if (err instanceof Error) {
-      ElMessage.error(err.message || t('budget.message.loadFailed'))
+      ElMessage.error(err.message || t('budget.message.loadFailed'));
     } else {
-      ElMessage.error(t('budget.message.loadFailed'))
+      ElMessage.error(t('budget.message.loadFailed'));
     }
   },
-})
+});
 
 // 批次 278：将筛选字段同步到 queryParams
 const syncQueryParams = () => {
-  setQueryParam('budget_no', queryForm.budget_no)
-  setQueryParam('name', queryForm.name)
-  setQueryParam('status', queryForm.status)
-}
+  setQueryParam('budget_no', queryForm.budget_no);
+  setQueryParam('name', queryForm.name);
+  setQueryParam('status', queryForm.status);
+};
 
 // 批次 278：分页变化处理函数
 const handlePageChange = (_p: number) => {
   // useTableApi 内部 watch page 自动触发刷新
-}
+};
 const handleSizeChange = (_s: number) => {
   // useTableApi 内部 watch pageSize 自动触发刷新
-  page.value = 1
-}
+  page.value = 1;
+};
 
 const form = reactive<Partial<Budget>>({
   id: undefined,
@@ -253,7 +253,7 @@ const form = reactive<Partial<Budget>>({
   total_amount: 0,
   status: 'draft',
   remark: '',
-})
+});
 
 const rules: FormRules = {
   budget_no: [
@@ -264,11 +264,11 @@ const rules: FormRules = {
   total_amount: [
     { required: true, message: t('budget.validation.totalAmountRequired'), trigger: 'blur' },
   ],
-}
+};
 
 const getStatusLabel = (status: Budget['status']) => {
-  return t(`budget.status.${status}`) || status
-}
+  return t(`budget.status.${status}`) || status;
+};
 
 const getStatusType = (status: Budget['status']) => {
   const map: Record<Budget['status'], string> = {
@@ -276,64 +276,64 @@ const getStatusType = (status: Budget['status']) => {
     pending: 'warning',
     approved: 'success',
     rejected: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const handleSearch = () => {
   // 批次 278：同步筛选条件并重置到第一页
-  syncQueryParams()
-  page.value = 1
-  fetchBudgets()
-}
+  syncQueryParams();
+  page.value = 1;
+  fetchBudgets();
+};
 
 const handleReset = () => {
-  queryForm.budget_no = ''
-  queryForm.name = ''
-  queryForm.status = ''
-  handleSearch()
-}
+  queryForm.budget_no = '';
+  queryForm.name = '';
+  queryForm.status = '';
+  handleSearch();
+};
 
 const openDialog = (row?: Budget) => {
-  formRef.value?.resetFields()
+  formRef.value?.resetFields();
   if (row) {
-    Object.assign(form, row)
+    Object.assign(form, row);
   } else {
-    form.id = undefined
-    form.budget_no = ''
-    form.name = ''
-    form.period = new Date().toISOString().slice(0, 7)
-    form.department_id = 0
-    form.total_amount = 0
-    form.status = 'draft'
-    form.remark = ''
+    form.id = undefined;
+    form.budget_no = '';
+    form.name = '';
+    form.period = new Date().toISOString().slice(0, 7);
+    form.department_id = 0;
+    form.total_amount = 0;
+    form.status = 'draft';
+    form.remark = '';
   }
-  dialogVisible.value = true
-}
+  dialogVisible.value = true;
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   await formRef.value.validate(async valid => {
-    if (!valid) return
-    submitLoading.value = true
+    if (!valid) return;
+    submitLoading.value = true;
     try {
       if (form.id) {
-        await updateBudget(form.id, form)
-        ElMessage.success(t('message.updateSuccess'))
+        await updateBudget(form.id, form);
+        ElMessage.success(t('message.updateSuccess'));
       } else {
-        await createBudget(form)
-        ElMessage.success(t('message.createSuccess'))
+        await createBudget(form);
+        ElMessage.success(t('message.createSuccess'));
       }
-      dialogVisible.value = false
-      fetchBudgets()
+      dialogVisible.value = false;
+      fetchBudgets();
     } catch (e) {
-      const err = e as Error
-      ElMessage.error(err.message || t('budget.message.operationFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('budget.message.operationFailed'));
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const approveBudget = async (row: Budget) => {
   try {
@@ -341,17 +341,17 @@ const approveBudget = async (row: Budget) => {
       t('budget.confirmAudit', { name: row.name }),
       t('message.auditConfirmTitle'),
       { type: 'info' }
-    )
-    await approveBudgetApi(row.id)
-    ElMessage.success(t('budget.auditSuccess'))
-    fetchBudgets()
+    );
+    await approveBudgetApi(row.id);
+    ElMessage.success(t('budget.auditSuccess'));
+    fetchBudgets();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('budget.message.auditFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('budget.message.auditFailed'));
     }
   }
-}
+};
 
 const handleDelete = async (row: Budget) => {
   try {
@@ -359,25 +359,25 @@ const handleDelete = async (row: Budget) => {
       t('budget.message.deleteConfirm', { name: row.name }),
       t('message.deleteConfirmTitle'),
       { type: 'warning' }
-    )
-    await deleteBudgetApi(row.id)
-    ElMessage.success(t('message.deleteSuccess'))
-    fetchBudgets()
+    );
+    await deleteBudgetApi(row.id);
+    ElMessage.success(t('message.deleteSuccess'));
+    fetchBudgets();
   } catch (e) {
     if (e !== 'cancel') {
-      const err = e as Error
-      ElMessage.error(err.message || t('budget.message.deleteFailed'))
+      const err = e as Error;
+      ElMessage.error(err.message || t('budget.message.deleteFailed'));
     }
   }
-}
+};
 
 // V15 P0-S12 修复（Batch 475e）：迁移到后端导出，注入水印 + 审计日志
 const handleExport = async () => {
   const params: Record<string, unknown> = {
     item_type: queryParams.value.item_type as string | undefined,
     status: queryParams.value.status as string | undefined,
-  }
-  await exportFromBackend('/budgets/export', params, 'budget_items_export')
-  logger.info(t('budget.message.listExported'))
-}
+  };
+  await exportFromBackend('/budgets/export', params, 'budget_items_export');
+  logger.info(t('budget.message.listExported'));
+};
 </script>

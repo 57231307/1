@@ -61,21 +61,21 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Box, Warning, OfficeBuilding, WarningFilled } from '@element-plus/icons-vue'
-import { formatNumber } from '../composables/invFmts'
+import { useI18n } from 'vue-i18n';
+import { Box, Warning, OfficeBuilding, WarningFilled } from '@element-plus/icons-vue';
+import { formatNumber } from '../composables/invFmts';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
   stats: {
-    totalQuantity: number
-    alertCount: number
-    warehouseCount: number
-    lowStockCount: number
-  }
-}>()
+    totalQuantity: number;
+    alertCount: number;
+    warehouseCount: number;
+    lowStockCount: number;
+  };
+}>();
 </script>
 
 <style scoped>

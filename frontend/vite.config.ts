@@ -45,8 +45,8 @@ export default defineConfig({
           'element-plus': ['element-plus', '@element-plus/icons-vue'],
           // ECharts 图表库
           'echarts-vendor': ['echarts', 'echarts/core', 'echarts/charts', 'echarts/components', 'echarts/renderers'],
-          // 工具库
-          'utils-vendor': ['axios', 'dayjs', 'lodash-es', 'xlsx'],
+          // 工具库（仅引用 package.json 实际存在的依赖，避免 rollup 解析失败）
+          'utils-vendor': ['axios'],
         },
       },
     },

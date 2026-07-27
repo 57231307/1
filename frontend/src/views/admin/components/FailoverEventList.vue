@@ -41,7 +41,12 @@
         <span class="reason">{{ row.reason || '-' }}</span>
       </template>
     </el-table-column>
-    <el-table-column prop="latency_ms" :label="$t('adminFailover.colLatency')" width="100" align="right">
+    <el-table-column
+      prop="latency_ms"
+      :label="$t('adminFailover.colLatency')"
+      width="100"
+      align="right"
+    >
       <template #default="{ row }">
         <span v-if="row.latency_ms !== null && row.latency_ms !== undefined">
           {{ row.latency_ms }}
@@ -53,17 +58,17 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import type { FailoverEventDto } from '@/api/failover'
+import { useI18n } from 'vue-i18n';
+import type { FailoverEventDto } from '@/api/failover';
 
-defineProps<{ events: FailoverEventDto[]; loading?: boolean }>()
+defineProps<{ events: FailoverEventDto[]; loading?: boolean }>();
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const FUNCTION_LABEL_KEYS: Record<string, string> = {
   database: 'adminFailover.funcDatabase',
   cache: 'adminFailover.funcCache',
-}
+};
 
 const EVENT_LABEL_KEYS: Record<string, string> = {
   switch_to_backup: 'adminFailover.eventSwitchToBackup',
@@ -73,7 +78,7 @@ const EVENT_LABEL_KEYS: Record<string, string> = {
   circuit_open: 'adminFailover.eventCircuitOpen',
   circuit_close: 'adminFailover.eventCircuitClose',
   circuit_half_open: 'adminFailover.eventCircuitHalfOpen',
-}
+};
 
 const EVENT_TAG_TYPES: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
   switch_to_backup: 'warning',
@@ -83,25 +88,25 @@ const EVENT_TAG_TYPES: Record<string, 'success' | 'warning' | 'danger' | 'info'>
   circuit_open: 'danger',
   circuit_close: 'success',
   circuit_half_open: 'info',
-}
+};
 
 function functionLabel(name: string): string {
-  return FUNCTION_LABEL_KEYS[name] ? t(FUNCTION_LABEL_KEYS[name]) : name
+  return FUNCTION_LABEL_KEYS[name] ? t(FUNCTION_LABEL_KEYS[name]) : name;
 }
 
 function eventLabel(type: string): string {
-  return EVENT_LABEL_KEYS[type] ? t(EVENT_LABEL_KEYS[type]) : type
+  return EVENT_LABEL_KEYS[type] ? t(EVENT_LABEL_KEYS[type]) : type;
 }
 
 function eventTagType(type: string): 'success' | 'warning' | 'danger' | 'info' {
-  return EVENT_TAG_TYPES[type] || 'info'
+  return EVENT_TAG_TYPES[type] || 'info';
 }
 
 function formatTime(time: string): string {
   try {
-    return new Date(time).toLocaleString('zh-CN')
+    return new Date(time).toLocaleString('zh-CN');
   } catch {
-    return time
+    return time;
   }
 }
 </script>

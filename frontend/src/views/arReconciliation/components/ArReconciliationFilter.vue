@@ -67,72 +67,72 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Refresh, Promotion, CircleClose } from '@element-plus/icons-vue'
-import { MATCH_OPTIONS } from '../composables/arRecFmts'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Refresh, Promotion, CircleClose } from '@element-plus/icons-vue';
+import { MATCH_OPTIONS } from '../composables/arRecFmts';
 
-const { t } = useI18n({ useScope: 'global' })
-void t
+const { t } = useI18n({ useScope: 'global' });
+void t;
 
 // 搜索表单类型
 interface ArSearchForm {
-  customer_name: string
-  match_status: string
-  start_date: string
-  end_date: string
+  customer_name: string;
+  match_status: string;
+  start_date: string;
+  end_date: string;
 }
 
 const props = defineProps<{
   // 搜索表单（由父组件管理，子组件通过 emit 回写）
-  searchForm: ArSearchForm
+  searchForm: ArSearchForm;
   // 自动对账加载中状态
-  reconcileLoading: boolean
-}>()
+  reconcileLoading: boolean;
+}>();
 
 const emit = defineEmits<{
-  search: []
-  reset: []
-  'auto-reconcile': []
-  'view-confirmations': []
-  'open-dispute': []
+  search: [];
+  reset: [];
+  'auto-reconcile': [];
+  'view-confirmations': [];
+  'open-dispute': [];
   // 整体回写搜索表单（父组件监听此事件并 Object.assign 到自己的 searchForm）
-  'update:searchForm': [v: ArSearchForm]
-}>()
+  'update:searchForm': [v: ArSearchForm];
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localSearchForm = ref<ArSearchForm>({ ...props.searchForm })
+const localSearchForm = ref<ArSearchForm>({ ...props.searchForm });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件重置）
 watch(
   () => props.searchForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    localSearchForm.value = { ...newForm }
+    if (syncing) return;
+    syncing = true;
+    localSearchForm.value = { ...newForm };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localSearchForm,
   newForm => {
-    if (syncing) return
-    syncing = true
-    emit('update:searchForm', { ...newForm })
+    if (syncing) return;
+    syncing = true;
+    emit('update:searchForm', { ...newForm });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
   { deep: true }
-)
+);
 </script>
 
 <style scoped>

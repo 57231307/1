@@ -124,10 +124,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, onMounted, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
 import {
   getDepartmentList,
   createDepartment,
@@ -135,28 +135,28 @@ import {
   deleteDepartment,
   getDepartmentTree,
   type Department,
-} from '@/api/department'
+} from '@/api/department';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
-const loading = ref(false)
-const submitLoading = ref(false)
-const dialogVisible = ref(false)
-const dialogMode = ref<'create' | 'edit'>('create')
-const formRef = ref<FormInstance>()
+const loading = ref(false);
+const submitLoading = ref(false);
+const dialogVisible = ref(false);
+const dialogMode = ref<'create' | 'edit'>('create');
+const formRef = ref<FormInstance>();
 // v11 批次 170 P2-1 修复：any[] 改为 Department[]
-const departmentList = ref<Department[]>([])
-const deptTreeData = ref<Department[]>([])
+const departmentList = ref<Department[]>([]);
+const deptTreeData = ref<Department[]>([]);
 
 // v11 批次 170 P2-1 修复：reactive<any> 改为具体类型
 interface DeptFormData {
-  id: number | null
-  name: string
-  code: string
-  parent_id: number | undefined
-  manager_name: string
-  sort_order: number
-  status: number
+  id: number | null;
+  name: string;
+  code: string;
+  parent_id: number | undefined;
+  manager_name: string;
+  sort_order: number;
+  status: number;
 }
 
 const formData = reactive<DeptFormData>({
@@ -167,7 +167,7 @@ const formData = reactive<DeptFormData>({
   manager_name: '',
   sort_order: 0,
   status: 1,
-})
+});
 
 const formRules: FormRules = {
   name: [{ required: true, message: t('departments.index.ruleNameRequired'), trigger: 'blur' }],
@@ -175,33 +175,33 @@ const formRules: FormRules = {
   status: [
     { required: true, message: t('departments.index.ruleStatusRequired'), trigger: 'change' },
   ],
-}
+};
 
 const loadDepartments = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const [listRes, treeRes] = await Promise.all([getDepartmentList(), getDepartmentTree()])
-    departmentList.value = listRes.data || []
-    deptTreeData.value = treeRes.data || []
+    const [listRes, treeRes] = await Promise.all([getDepartmentList(), getDepartmentTree()]);
+    departmentList.value = listRes.data || [];
+    deptTreeData.value = treeRes.data || [];
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (error instanceof Error ? error.message : String(error)) ||
         t('departments.index.messageLoadListFailed')
-    )
+    );
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const getParentName = (parentId: number | null): string => {
-  if (!parentId) return t('departments.index.placeholderNoParent')
-  const dept = departmentList.value.find((d: Department) => d.id === parentId)
-  return dept?.name || t('departments.index.placeholderNoParent')
-}
+  if (!parentId) return t('departments.index.placeholderNoParent');
+  const dept = departmentList.value.find((d: Department) => d.id === parentId);
+  return dept?.name || t('departments.index.placeholderNoParent');
+};
 
 const handleCreate = () => {
-  dialogMode.value = 'create'
+  dialogMode.value = 'create';
   Object.assign(formData, {
     id: null,
     name: '',
@@ -210,12 +210,12 @@ const handleCreate = () => {
     manager_name: '',
     sort_order: 0,
     status: 1,
-  })
-  dialogVisible.value = true
-}
+  });
+  dialogVisible.value = true;
+};
 
 const handleEdit = (row: Department) => {
-  dialogMode.value = 'edit'
+  dialogMode.value = 'edit';
   Object.assign(formData, {
     id: row.id,
     name: row.name,
@@ -224,69 +224,69 @@ const handleEdit = (row: Department) => {
     manager_name: row.manager_name,
     sort_order: row.sort_order || 0,
     status: row.status,
-  })
-  dialogVisible.value = true
-}
+  });
+  dialogVisible.value = true;
+};
 
 const handleDelete = async (row: Department) => {
-  if (!row.id) return
+  if (!row.id) return;
 
   try {
     await ElMessageBox.confirm(
       t('departments.index.messageConfirmDelete', { name: row.name }),
       t('departments.index.titleDeleteConfirm'),
       { type: 'warning' }
-    )
-    await deleteDepartment(row.id)
-    ElMessage.success(t('departments.index.messageDeleteSuccess'))
-    await loadDepartments()
+    );
+    await deleteDepartment(row.id);
+    ElMessage.success(t('departments.index.messageDeleteSuccess'));
+    await loadDepartments();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('departments.index.messageDeleteFailed')
-      )
+      );
     }
   }
-}
+};
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
 
   await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
+    if (!valid) return;
 
-    submitLoading.value = true
+    submitLoading.value = true;
     try {
       if (dialogMode.value === 'create') {
-        await createDepartment(formData)
-        ElMessage.success(t('departments.index.messageCreateSuccess'))
+        await createDepartment(formData);
+        ElMessage.success(t('departments.index.messageCreateSuccess'));
       } else {
-        await updateDepartment(formData.id!, formData)
-        ElMessage.success(t('departments.index.messageUpdateSuccess'))
+        await updateDepartment(formData.id!, formData);
+        ElMessage.success(t('departments.index.messageUpdateSuccess'));
       }
-      dialogVisible.value = false
-      await loadDepartments()
+      dialogVisible.value = false;
+      await loadDepartments();
     } catch (error) {
       ElMessage.error(
         dialogMode.value === 'create'
           ? t('departments.index.messageCreateFailed')
           : t('departments.index.messageUpdateFailed')
-      )
+      );
     } finally {
-      submitLoading.value = false
+      submitLoading.value = false;
     }
-  })
-}
+  });
+};
 
 const handleDialogClose = () => {
-  formRef.value?.resetFields()
-}
+  formRef.value?.resetFields();
+};
 
 onMounted(() => {
-  loadDepartments()
-})
+  loadDepartments();
+});
 </script>
 
 <style scoped>

@@ -73,25 +73,25 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Document, Money, TrendCharts, User } from '@element-plus/icons-vue'
-import { formatCurrency } from '../composables/saFmts'
+import { useI18n } from 'vue-i18n';
+import { Document, Money, TrendCharts, User } from '@element-plus/icons-vue';
+import { formatCurrency } from '../composables/saFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 销售分析统计数据（reactive 对象，父组件传入）
 defineProps<{
   stats: {
-    monthOrders: number
-    monthAmount: number
-    grossProfitRate: number
-    activeCustomers: number
-    orderTrend: number
-    amountTrend: number
-    profitTrend: number
-    customerTrend: number
-  }
-}>()
+    monthOrders: number;
+    monthAmount: number;
+    grossProfitRate: number;
+    activeCustomers: number;
+    orderTrend: number;
+    amountTrend: number;
+    profitTrend: number;
+    customerTrend: number;
+  };
+}>();
 </script>
 
 <style scoped>

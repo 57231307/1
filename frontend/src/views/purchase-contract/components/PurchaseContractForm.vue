@@ -13,7 +13,11 @@
     :aria-label="title"
     @update:model-value="onVisibleChange"
   >
-    <el-form :model="localFormData" label-width="100px" :aria-label="t('purchaseContract.form.ariaLabel')">
+    <el-form
+      :model="localFormData"
+      label-width="100px"
+      :aria-label="t('purchaseContract.form.ariaLabel')"
+    >
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('purchaseContract.form.contractNo')" prop="contract_no">
@@ -131,7 +135,10 @@
               :placeholder="t('purchaseContract.form.paymentMethodPlaceholder')"
               @update:model-value="(v: string) => (localFormData.payment_method = v)"
             >
-              <el-option :label="t('purchaseContract.form.methodBankTransfer')" value="BANK_TRANSFER" />
+              <el-option
+                :label="t('purchaseContract.form.methodBankTransfer')"
+                value="BANK_TRANSFER"
+              />
               <el-option :label="t('purchaseContract.form.methodCheck')" value="CHECK" />
               <el-option :label="t('purchaseContract.form.methodCash')" value="CASH" />
             </el-select>
@@ -151,7 +158,10 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('purchaseContract.form.deliveryLocation')" prop="delivery_location">
+          <el-form-item
+            :label="t('purchaseContract.form.deliveryLocation')"
+            prop="delivery_location"
+          >
             <el-input
               :model-value="localFormData.delivery_location"
               :placeholder="t('purchaseContract.form.deliveryLocationPlaceholder')"
@@ -171,91 +181,95 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('purchaseContract.form.cancel') }}</el-button>
-      <el-button type="primary" @click="emit('submit')">{{ t('purchaseContract.form.confirm') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('purchaseContract.form.cancel')
+      }}</el-button>
+      <el-button type="primary" @click="emit('submit')">{{
+        t('purchaseContract.form.confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { Supplier } from '@/api/supplier'
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { Supplier } from '@/api/supplier';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 表单数据类型（所有字段可选，兼容 Partial<PurchaseContract>）
 interface PurchaseContractFormData {
-  id?: number | undefined
-  contract_no?: string
-  contract_name?: string
-  supplier_id?: number | undefined
-  contract_type?: string
-  total_amount?: number
-  signed_date?: string
-  effective_date?: string
-  expiry_date?: string
-  payment_terms?: string
-  payment_method?: string
-  delivery_date?: string
-  delivery_location?: string
-  remarks?: string
+  id?: number | undefined;
+  contract_no?: string;
+  contract_name?: string;
+  supplier_id?: number | undefined;
+  contract_type?: string;
+  total_amount?: number;
+  signed_date?: string;
+  effective_date?: string;
+  expiry_date?: string;
+  payment_terms?: string;
+  payment_method?: string;
+  delivery_date?: string;
+  delivery_location?: string;
+  remarks?: string;
 }
 
 const props = defineProps<{
   // 对话框可见性
-  visible: boolean
+  visible: boolean;
   // 标题
-  title: string
+  title: string;
   // 表单数据（由父组件管理，子组件通过 emit('update:formData') 回写）
-  formData: PurchaseContractFormData
+  formData: PurchaseContractFormData;
   // 供应商列表
-  suppliers: Supplier[]
-}>()
+  suppliers: Supplier[];
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:visible', v: boolean): void
-  (e: 'submit'): void
+  (e: 'update:visible', v: boolean): void;
+  (e: 'submit'): void;
   // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
-  (e: 'update:formData', formData: PurchaseContractFormData): void
-}>()
+  (e: 'update:formData', formData: PurchaseContractFormData): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localFormData = ref<PurchaseContractFormData>({ ...props.formData })
+const localFormData = ref<PurchaseContractFormData>({ ...props.formData });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件编辑/新建时填充数据）
 watch(
   () => props.formData,
-  (newData) => {
-    if (syncing) return
-    syncing = true
-    localFormData.value = { ...newData }
+  newData => {
+    if (syncing) return;
+    syncing = true;
+    localFormData.value = { ...newData };
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localFormData,
-  (newData) => {
-    if (syncing) return
-    syncing = true
-    emit('update:formData', { ...newData })
+  newData => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:formData', { ...newData });
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {
-  emit('update:visible', v)
-}
+  emit('update:visible', v);
+};
 </script>

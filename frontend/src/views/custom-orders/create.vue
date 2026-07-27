@@ -139,17 +139,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { createCustomOrder } from '@/api/custom-order'
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { createCustomOrder } from '@/api/custom-order';
 
-const router = useRouter()
-const { t } = useI18n({ useScope: 'global' })
-const formRef = ref()
-const submitting = ref(false)
-const customReqText = ref('')
+const router = useRouter();
+const { t } = useI18n({ useScope: 'global' });
+const formRef = ref();
+const submitting = ref(false);
+const customReqText = ref('');
 
 const form = ref({
   customer_id: undefined as number | undefined,
@@ -167,7 +167,7 @@ const form = ref({
   sales_order_id: undefined as number | undefined,
   // v3 复审 P1-4：新增订单备注字段
   notes: '',
-})
+});
 
 const rules = {
   customer_id: [
@@ -194,46 +194,46 @@ const rules = {
       trigger: 'blur',
     },
   ],
-}
+};
 
 async function handleSubmit() {
-  if (!formRef.value) return
+  if (!formRef.value) return;
   try {
-    await formRef.value.validate()
+    await formRef.value.validate();
   } catch {
-    return
+    return;
   }
 
-  submitting.value = true
+  submitting.value = true;
   try {
-    const custom_requirements = customReqText.value ? { note: customReqText.value } : null
+    const custom_requirements = customReqText.value ? { note: customReqText.value } : null;
 
     // P2-9a 修复配套：表单验证通过后 narrowing 必填字段，满足 CustomOrderCreateDto 类型
     if (!form.value.customer_id || !form.value.product_id) {
-      throw new Error(t('customOrders.create.messageCustomerProductRequired'))
+      throw new Error(t('customOrders.create.messageCustomerProductRequired'));
     }
     const payload = {
       ...form.value,
       customer_id: form.value.customer_id,
       product_id: form.value.product_id,
       custom_requirements,
-    }
-    const res = await createCustomOrder(payload)
+    };
+    const res = await createCustomOrder(payload);
     // P2-5：res.id 兼容历史取值（ApiResponse 无 id 字段），用断言保留运行时逻辑
-    const orderId = res.data?.id || (res as unknown as { id?: number }).id
-    ElMessage.success(t('customOrders.create.messageCreateSuccess'))
-    router.push(`/custom-orders/${orderId}`)
+    const orderId = res.data?.id || (res as unknown as { id?: number }).id;
+    ElMessage.success(t('customOrders.create.messageCreateSuccess'));
+    router.push(`/custom-orders/${orderId}`);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    ElMessage.error(msg || t('customOrders.create.messageCreateFailed'))
+    const msg = e instanceof Error ? e.message : String(e);
+    ElMessage.error(msg || t('customOrders.create.messageCreateFailed'));
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 onMounted(() => {
   // 可在此预加载客户/产品列表
-})
+});
 </script>
 
 <style scoped>

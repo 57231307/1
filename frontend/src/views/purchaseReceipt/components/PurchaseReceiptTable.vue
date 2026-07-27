@@ -13,12 +13,37 @@
     :aria-label="t('purchaseReceipt.table.aria.list')"
     style="width: 100%"
   >
-    <el-table-column prop="receipt_no" :label="t('purchaseReceipt.table.column.receiptNo')" width="150" />
-    <el-table-column prop="receipt_date" :label="t('purchaseReceipt.table.column.receiptDate')" width="120" />
-    <el-table-column prop="purchase_order_no" :label="t('purchaseReceipt.table.column.purchaseOrderNo')" width="150" />
-    <el-table-column prop="supplier_name" :label="t('purchaseReceipt.table.column.supplier')" width="150" />
-    <el-table-column prop="warehouse_name" :label="t('purchaseReceipt.table.column.warehouse')" width="120" />
-    <el-table-column prop="total_amount" :label="t('purchaseReceipt.table.column.amount')" width="120" align="right">
+    <el-table-column
+      prop="receipt_no"
+      :label="t('purchaseReceipt.table.column.receiptNo')"
+      width="150"
+    />
+    <el-table-column
+      prop="receipt_date"
+      :label="t('purchaseReceipt.table.column.receiptDate')"
+      width="120"
+    />
+    <el-table-column
+      prop="purchase_order_no"
+      :label="t('purchaseReceipt.table.column.purchaseOrderNo')"
+      width="150"
+    />
+    <el-table-column
+      prop="supplier_name"
+      :label="t('purchaseReceipt.table.column.supplier')"
+      width="150"
+    />
+    <el-table-column
+      prop="warehouse_name"
+      :label="t('purchaseReceipt.table.column.warehouse')"
+      width="120"
+    />
+    <el-table-column
+      prop="total_amount"
+      :label="t('purchaseReceipt.table.column.amount')"
+      width="120"
+      align="right"
+    >
       <template #default="scope">
         {{ (scope.row.total_amount || 0).toFixed(2) }}
       </template>
@@ -30,11 +55,23 @@
         </span>
       </template>
     </el-table-column>
-    <el-table-column prop="created_by_name" :label="t('purchaseReceipt.table.column.createdBy')" width="100" />
-    <el-table-column prop="created_at" :label="t('purchaseReceipt.table.column.createdAt')" width="150" />
+    <el-table-column
+      prop="created_by_name"
+      :label="t('purchaseReceipt.table.column.createdBy')"
+      width="100"
+    />
+    <el-table-column
+      prop="created_at"
+      :label="t('purchaseReceipt.table.column.createdAt')"
+      width="150"
+    />
     <el-table-column :label="t('purchaseReceipt.table.column.action')" width="250" align="center">
       <template #default="scope">
-        <el-button size="small" :aria-label="t('purchaseReceipt.table.aria.viewDetail')" @click="emit('view', scope.row as PurchaseReceiptEntity)">
+        <el-button
+          size="small"
+          :aria-label="t('purchaseReceipt.table.aria.viewDetail')"
+          @click="emit('view', scope.row as PurchaseReceiptEntity)"
+        >
           <el-icon><View /></el-icon>
         </el-button>
         <el-button
@@ -82,41 +119,41 @@
 </template>
 
 <script setup lang="ts">
-import { View, Edit, Delete, Check } from '@element-plus/icons-vue'
-import { useI18n } from 'vue-i18n'
-import type { PurchaseReceiptEntity } from '@/api/purchaseReceipt'
-import { getStatusClass, getStatusLabel } from '../composables/prcFmts'
+import { View, Edit, Delete, Check } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
+import type { PurchaseReceiptEntity } from '@/api/purchaseReceipt';
+import { getStatusClass, getStatusLabel } from '../composables/prcFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 采购入库列表组件（批次 285：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
   // 列表数据
-  data: PurchaseReceiptEntity[]
+  data: PurchaseReceiptEntity[];
   // 加载状态
-  loading: boolean
+  loading: boolean;
   // 总数
-  total: number
+  total: number;
   // 当前页
-  page: number
+  page: number;
   // 每页条数
-  pageSize: number
-}>()
+  pageSize: number;
+}>();
 
 const emit = defineEmits<{
-  view: [row: PurchaseReceiptEntity]
-  edit: [row: PurchaseReceiptEntity]
-  approve: [row: PurchaseReceiptEntity]
-  delete: [row: PurchaseReceiptEntity]
-  'update:page': [v: number]
-  'update:page-size': [v: number]
-}>()
+  view: [row: PurchaseReceiptEntity];
+  edit: [row: PurchaseReceiptEntity];
+  approve: [row: PurchaseReceiptEntity];
+  delete: [row: PurchaseReceiptEntity];
+  'update:page': [v: number];
+  'update:page-size': [v: number];
+}>();
 
 // 透传格式化函数
-const getStatusClassFmt = getStatusClass
-const getStatusLabelFmt = getStatusLabel
+const getStatusClassFmt = getStatusClass;
+const getStatusLabelFmt = getStatusLabel;
 </script>
 
 <style scoped>

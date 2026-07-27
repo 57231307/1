@@ -129,31 +129,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, defineEmits, inject } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Download, Printer } from '@element-plus/icons-vue'
-import { getQualityStandard, publishQualityStandard, type QualityStandard } from '@/api/quality'
-import { logger } from '@/utils/logger'
-import { escapeHtml } from '@/utils/print'
+import { ref, onMounted, defineEmits, inject } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus, Download, Printer } from '@element-plus/icons-vue';
+import { getQualityStandard, publishQualityStandard, type QualityStandard } from '@/api/quality';
+import { logger } from '@/utils/logger';
+import { escapeHtml } from '@/utils/print';
 // V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
 // 后端 GET /quality-standards/export 已就绪（含异步审计日志 + 水印）
 // 本 Tab 复用主质量标准页面的后端端点（getQualityStandardList 调用同一 /quality-standards 路由）
-import { exportFromBackend } from '@/utils/export'
+import { exportFromBackend } from '@/utils/export';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const emit = defineEmits<{
-  openApprove: [row: QualityStandard]
-  openHistory: [row: QualityStandard]
-}>()
+  openApprove: [row: QualityStandard];
+  openHistory: [row: QualityStandard];
+}>();
 
-const standards = ref<QualityStandard[]>([])
-const loading = ref(false)
+const standards = ref<QualityStandard[]>([]);
+const loading = ref(false);
 
 const actions = inject<{
-  openStandardDialog: (row: QualityStandard | null) => void
-}>('qualityActions')
+  openStandardDialog: (row: QualityStandard | null) => void;
+}>('qualityActions');
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
@@ -161,14 +161,14 @@ const getStatusLabel = (status: string) => {
     approved: t('quality.standardTab.statusApproved'),
     published: t('quality.standardTab.statusPublished'),
     rejected: t('quality.standardTab.statusRejected'),
-  }
-  return map[status] || status
-}
+  };
+  return map[status] || status;
+};
 
 const getTypeLabel = (type: string) => {
-  if (type === 'product') return t('quality.standardTab.typeProduct')
-  return t('quality.standardTab.typeProcess')
-}
+  if (type === 'product') return t('quality.standardTab.typeProduct');
+  return t('quality.standardTab.typeProcess');
+};
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
@@ -176,41 +176,41 @@ const getStatusType = (status: string) => {
     approved: 'warning',
     published: 'success',
     rejected: 'danger',
-  }
-  return map[status] || 'info'
-}
+  };
+  return map[status] || 'info';
+};
 
 const fetchStandards = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const { getQualityStandardList } = await import('@/api/quality')
-    const res = await getQualityStandardList()
-    standards.value = (res.data as QualityStandard[] | undefined) || []
+    const { getQualityStandardList } = await import('@/api/quality');
+    const res = await getQualityStandardList();
+    standards.value = (res.data as QualityStandard[] | undefined) || [];
   } catch (error) {
-    const err = error as Error
-    logger.error(t('quality.standardTab.messageFetchFailed'), err.message)
+    const err = error as Error;
+    logger.error(t('quality.standardTab.messageFetchFailed'), err.message);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const openCreate = () => {
-  actions?.openStandardDialog(null)
-}
+  actions?.openStandardDialog(null);
+};
 
 const openEdit = (row: QualityStandard) => {
-  actions?.openStandardDialog(row)
-}
+  actions?.openStandardDialog(row);
+};
 
 const handleView = async (row: QualityStandard) => {
   try {
-    const res = await getQualityStandard(row.id)
-    actions?.openStandardDialog((res.data as QualityStandard | undefined) || null)
+    const res = await getQualityStandard(row.id);
+    actions?.openStandardDialog((res.data as QualityStandard | undefined) || null);
   } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || t('quality.standardTab.messageFetchDetailFailed'))
+    const err = error as Error;
+    ElMessage.error(err.message || t('quality.standardTab.messageFetchDetailFailed'));
   }
-}
+};
 
 const handlePublish = async (row: QualityStandard) => {
   try {
@@ -220,26 +220,26 @@ const handlePublish = async (row: QualityStandard) => {
       {
         type: 'warning',
       }
-    )
-    await publishQualityStandard(row.id)
-    ElMessage.success(t('quality.standardTab.messagePublishSuccess'))
-    fetchStandards()
+    );
+    await publishQualityStandard(row.id);
+    ElMessage.success(t('quality.standardTab.messagePublishSuccess'));
+    fetchStandards();
   } catch (error) {
     if (error !== 'cancel') {
-      const err = error as Error
-      ElMessage.error(err.message || t('quality.standardTab.messageOperationFailed'))
+      const err = error as Error;
+      ElMessage.error(err.message || t('quality.standardTab.messageOperationFailed'));
     }
   }
-}
+};
 
 // 导出 Excel（V15 P0-S12 修复 Batch 475d）
 // 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
 // 改为调用后端 GET /quality-standards/export，后端注入水印 + 异步审计日志
 // 本 Tab 无独立筛选条件，导出全量数据
 const handleExport = async () => {
-  await exportFromBackend('/quality-standards/export', {}, 'quality_standards_export')
-  logger.info(t('quality.standardTab.messageExported'))
-}
+  await exportFromBackend('/quality-standards/export', {}, 'quality_standards_export');
+  logger.info(t('quality.standardTab.messageExported'));
+};
 
 // 构造打印表格行 HTML
 const buildPrintRows = (): string => {
@@ -254,31 +254,31 @@ const buildPrintRows = (): string => {
     </tr>
   `
     )
-    .join('')
-}
+    .join('');
+};
 
 const handlePrint = () => {
-  const printWindow = window.open('', '_blank')
+  const printWindow = window.open('', '_blank');
   if (!printWindow) {
-    ElMessage.error(t('quality.standardTab.messageCannotOpenPrintWindow'))
-    return
+    ElMessage.error(t('quality.standardTab.messageCannotOpenPrintWindow'));
+    return;
   }
-  const rows = buildPrintRows()
-  const printDate = new Date().toISOString().split('T')[0]
-  const totalCount = standards.value.length
+  const rows = buildPrintRows();
+  const printDate = new Date().toISOString().split('T')[0];
+  const totalCount = standards.value.length;
   printWindow.document
     .write(`<html><head><meta charset="utf-8"><title>${t('quality.standardTab.print.title')}</title>
     <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
     <h1>${t('quality.standardTab.print.headerTitle')}</h1><div class="meta">${t('quality.standardTab.print.dateLabel')}: ${printDate} | ${t('quality.standardTab.print.totalLabel')} ${totalCount} ${t('quality.standardTab.print.totalUnit')}</div>
-    <table><thead><tr><th>${t('quality.standardTab.print.colStandardCode')}</th><th>${t('quality.standardTab.print.colStandardName')}</th><th>${t('quality.standardTab.print.colType')}</th><th>${t('quality.standardTab.print.colVersion')}</th><th>${t('quality.standardTab.print.colStatus')}</th><th>${t('quality.standardTab.print.colCreatedBy')}</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
-  printWindow.document.close()
-  printWindow.onload = () => printWindow.print()
-  logger.info(t('quality.standardTab.messagePrintGenerated'))
-}
+    <table><thead><tr><th>${t('quality.standardTab.print.colStandardCode')}</th><th>${t('quality.standardTab.print.colStandardName')}</th><th>${t('quality.standardTab.print.colType')}</th><th>${t('quality.standardTab.print.colVersion')}</th><th>${t('quality.standardTab.print.colStatus')}</th><th>${t('quality.standardTab.print.colCreatedBy')}</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+  printWindow.document.close();
+  printWindow.onload = () => printWindow.print();
+  logger.info(t('quality.standardTab.messagePrintGenerated'));
+};
 
 onMounted(() => {
-  fetchStandards()
-})
+  fetchStandards();
+});
 
-defineExpose({ fetchStandards })
+defineExpose({ fetchStandards });
 </script>

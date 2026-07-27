@@ -10,7 +10,12 @@
     <template #header>
       <div class="card-header">
         <span>{{ t('security.logTable.title') }}</span>
-        <el-form :inline="true" :model="localQuery" class="filter-form" :aria-label="t('security.logTable.ariaLabel.filterForm')">
+        <el-form
+          :inline="true"
+          :model="localQuery"
+          class="filter-form"
+          :aria-label="t('security.logTable.ariaLabel.filterForm')"
+        >
           <el-form-item :label="t('security.logTable.filter.username')">
             <el-input
               v-model="localQuery.username"
@@ -50,23 +55,69 @@
       </div>
     </template>
 
-    <el-table v-loading="loading" :data="data" border stripe :aria-label="t('security.logTable.ariaLabel.table')">
-      <el-table-column type="index" :label="t('security.logTable.column.index')" width="60" align="center" />
-      <el-table-column prop="username" :label="t('security.logTable.column.username')" width="120" show-overflow-tooltip />
-      <el-table-column prop="login_type" :label="t('security.logTable.column.loginType')" width="100" align="center">
+    <el-table
+      v-loading="loading"
+      :data="data"
+      border
+      stripe
+      :aria-label="t('security.logTable.ariaLabel.table')"
+    >
+      <el-table-column
+        type="index"
+        :label="t('security.logTable.column.index')"
+        width="60"
+        align="center"
+      />
+      <el-table-column
+        prop="username"
+        :label="t('security.logTable.column.username')"
+        width="120"
+        show-overflow-tooltip
+      />
+      <el-table-column
+        prop="login_type"
+        :label="t('security.logTable.column.loginType')"
+        width="100"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag>{{ getTypeLabel(row.login_type) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="ip_address" :label="t('security.logTable.column.ipAddress')" width="150" show-overflow-tooltip />
-      <el-table-column prop="user_agent" :label="t('security.logTable.column.userAgent')" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="status" :label="t('security.logTable.column.status')" width="100" align="center">
+      <el-table-column
+        prop="ip_address"
+        :label="t('security.logTable.column.ipAddress')"
+        width="150"
+        show-overflow-tooltip
+      />
+      <el-table-column
+        prop="user_agent"
+        :label="t('security.logTable.column.userAgent')"
+        min-width="200"
+        show-overflow-tooltip
+      />
+      <el-table-column
+        prop="status"
+        :label="t('security.logTable.column.status')"
+        width="100"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="fail_reason" :label="t('security.logTable.column.failReason')" width="150" show-overflow-tooltip />
-      <el-table-column prop="login_time" :label="t('security.logTable.column.loginTime')" width="180" align="center" />
+      <el-table-column
+        prop="fail_reason"
+        :label="t('security.logTable.column.failReason')"
+        width="150"
+        show-overflow-tooltip
+      />
+      <el-table-column
+        prop="login_time"
+        :label="t('security.logTable.column.loginTime')"
+        width="180"
+        align="center"
+      />
     </el-table>
 
     <div class="pagination-container">
@@ -85,51 +136,51 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Search } from '@element-plus/icons-vue'
-import type { LoginLog } from '@/api/security'
-import { getStatusType } from '../composables/secFmts'
+import { reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Search } from '@element-plus/icons-vue';
+import type { LoginLog } from '@/api/security';
+import { getStatusType } from '../composables/secFmts';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 // 批次 282：queryParams 类型放宽为 Record<string, unknown>（兼容 useTableApi）
 const props = defineProps<{
-  data: LoginLog[]
-  loading: boolean
-  total: number
-  page: number
-  pageSize: number
-  queryParams: Record<string, unknown>
-}>()
+  data: LoginLog[];
+  loading: boolean;
+  total: number;
+  page: number;
+  pageSize: number;
+  queryParams: Record<string, unknown>;
+}>();
 
 const emit = defineEmits<{
-  fetch: []
-  'update:page': [value: number]
-  'update:page-size': [value: number]
-  'update:queryParams': [value: Record<string, unknown>]
-}>()
+  fetch: [];
+  'update:page': [value: number];
+  'update:page-size': [value: number];
+  'update:queryParams': [value: Record<string, unknown>];
+}>();
 
 // 本地查询条件（筛选字段，不含分页参数）
 const localQuery = reactive<{
-  username: string
-  status: string
-  date_range: string[]
+  username: string;
+  status: string;
+  date_range: string[];
 }>({
   username: (props.queryParams.username as string) ?? '',
   status: (props.queryParams.status as string) ?? '',
   date_range: (props.queryParams.date_range as string[]) ?? [],
-})
+});
 
 // 登录类型/状态码 → 本地化标签（动态 t() 调用确保语言切换响应）
-const getTypeLabel = (type: string) => t(`security.logTable.loginType.${type}`)
-const getStatusLabel = (status: string) => t(`security.logTable.status.${status}`)
+const getTypeLabel = (type: string) => t(`security.logTable.loginType.${type}`);
+const getStatusLabel = (status: string) => t(`security.logTable.status.${status}`);
 
 /** 搜索：先同步筛选条件到父组件，再触发加载 */
 const handleSearch = () => {
-  emit('update:queryParams', { ...localQuery })
-  emit('fetch')
-}
+  emit('update:queryParams', { ...localQuery });
+  emit('fetch');
+};
 </script>
 
 <style scoped>

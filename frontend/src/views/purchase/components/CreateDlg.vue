@@ -59,7 +59,10 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('purchase.createDlg.remark')">
-            <el-input v-model="localForm.remark" :placeholder="t('purchase.createDlg.remarkPlaceholder')" />
+            <el-input
+              v-model="localForm.remark"
+              :placeholder="t('purchase.createDlg.remarkPlaceholder')"
+            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -79,12 +82,7 @@
               class="col-product"
               @change="onProductSelect(index)"
             >
-              <el-option
-                v-for="p in products"
-                :key="p.id"
-                :label="p.product_name"
-                :value="p.id"
-              />
+              <el-option v-for="p in products" :key="p.id" :label="p.product_name" :value="p.id" />
             </el-select>
             <el-input-number
               v-model="item.quantity"
@@ -108,7 +106,9 @@
               >{{ t('purchase.createDlg.delete') }}</el-button
             >
           </div>
-          <el-button type="text" @click="onAddItem">{{ t('purchase.createDlg.addItem') }}</el-button>
+          <el-button type="text" @click="onAddItem">{{
+            t('purchase.createDlg.addItem')
+          }}</el-button>
         </div>
       </el-form-item>
       <el-form-item :label="t('purchase.createDlg.totalAmount')">
@@ -118,93 +118,95 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="onCancel">{{ t('purchase.createDlg.cancel') }}</el-button>
-        <el-button type="primary" @click="onSubmit">{{ t('purchase.createDlg.confirm') }}</el-button>
+        <el-button type="primary" @click="onSubmit">{{
+          t('purchase.createDlg.confirm')
+        }}</el-button>
       </span>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { deepClone } from '@/utils'
-import { ref, watch, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
-import type { FormRules, FormInstance } from 'element-plus'
-import type { Supplier } from '@/api/supplier'
-import type { Product } from '@/api/product'
-import type { CreateFormData, CreateItem } from '../composables/useCreate'
+import { deepClone } from '@/utils';
+import { ref, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { FormRules, FormInstance } from 'element-plus';
+import type { Supplier } from '@/api/supplier';
+import type { Product } from '@/api/product';
+import type { CreateFormData, CreateItem } from '../composables/useCreate';
 
 // 接入 i18n，替换硬编码中文文案
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   // 对话框可见性
-  modelValue: boolean
+  modelValue: boolean;
   // 表单数据（由父组件管理，子组件通过 emit('update:form') 回写）
-  form: CreateFormData
+  form: CreateFormData;
   // 校验规则
-  rules: FormRules
+  rules: FormRules;
   // 供应商列表
-  suppliers: Supplier[]
+  suppliers: Supplier[];
   // 产品列表
-  products: Product[]
+  products: Product[];
   // 表单 ref
-  formRef: FormInstance | undefined
+  formRef: FormInstance | undefined;
   // 提交
-  onSubmit: () => void
+  onSubmit: () => void;
   // 取消
-  onCancel: () => void
+  onCancel: () => void;
   // 添加明细
-  onAddItem: () => void
+  onAddItem: () => void;
   // 删除明细
-  onRemoveItem: (index: number) => void
+  onRemoveItem: (index: number) => void;
   // 选择产品
-  onProductSelect: (index: number) => void
+  onProductSelect: (index: number) => void;
   // 重算小计
-  onCalculateSubtotal: (item: CreateItem) => void
+  onCalculateSubtotal: (item: CreateItem) => void;
   // 计算总金额
-  calculateTotal: () => number
-}>()
+  calculateTotal: () => number;
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: boolean): void
+  (e: 'update:modelValue', value: boolean): void;
   // 整体回写表单（父组件监听此事件并回写到自己的 form.value）
-  (e: 'update:form', form: CreateFormData): void
-}>()
+  (e: 'update:form', form: CreateFormData): void;
+}>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 items 数组，需要深拷贝以保证本地修改与父组件解耦
-const localForm = ref<CreateFormData>(deepClone(props.form))
+const localForm = ref<CreateFormData>(deepClone(props.form));
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+let syncing = false;
 
 // 外部 prop 变化时同步到 local（如父组件点击"新建"重置表单）
 watch(
   () => props.form,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    localForm.value = deepClone(newForm)
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    localForm.value = deepClone(newForm);
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 
 // 本地变化时通知父组件（用户输入）
 watch(
   localForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    emit('update:form', deepClone(newForm))
+  newForm => {
+    if (syncing) return;
+    syncing = true;
+    emit('update:form', deepClone(newForm));
     nextTick(() => {
-      syncing = false
-    })
+      syncing = false;
+    });
   },
-  { deep: true },
-)
+  { deep: true }
+);
 </script>
 
 <style scoped>

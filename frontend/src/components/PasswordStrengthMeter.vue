@@ -6,7 +6,13 @@
   - 复用：修改密码页面、注册/重置密码页面
 -->
 <template>
-  <div v-if="password.length > 0" class="pwd-strength" role="status" aria-live="polite" :aria-label="t('common.passwordStrength.ariaLabel')">
+  <div
+    v-if="password.length > 0"
+    class="pwd-strength"
+    role="status"
+    aria-live="polite"
+    :aria-label="t('common.passwordStrength.ariaLabel')"
+  >
     <div class="pwd-strength-bar">
       <el-progress
         :percentage="strengthPct"
@@ -16,30 +22,38 @@
         :aria-label="t('common.passwordStrength.barAriaLabel')"
       />
     </div>
-    <div class="pwd-strength-label" :style="{ color }" :aria-label="t('common.passwordStrength.strengthAriaLabel', { level: strengthText })">
+    <div
+      class="pwd-strength-label"
+      :style="{ color }"
+      :aria-label="t('common.passwordStrength.strengthAriaLabel', { level: strengthText })"
+    >
       {{ t('common.passwordStrength.strengthLabel') }}{{ strengthText }}
     </div>
-    <ul v-if="feedback.length > 0" class="pwd-strength-feedback" :aria-label="t('common.passwordStrength.feedbackAriaLabel')">
+    <ul
+      v-if="feedback.length > 0"
+      class="pwd-strength-feedback"
+      :aria-label="t('common.passwordStrength.feedbackAriaLabel')"
+    >
       <li v-for="(tip, idx) in feedback" :key="idx">{{ tip }}</li>
     </ul>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n({ useScope: 'global' })
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
   /** 双向绑定的密码字符串 */
-  password: string
+  password: string;
 }
 
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'update:password', value: string): void
-}>()
+  (e: 'update:password', value: string): void;
+}>();
 
 /**
  * 简化版密码强度计算（不调后端）
@@ -53,78 +67,78 @@ const emit = defineEmits<{
  *   - 累计 0-4 分（封顶 4）
  */
 const strengthScore = computed<number>(() => {
-  const pwd = props.password || ''
-  if (!pwd) return 0
+  const pwd = props.password || '';
+  if (!pwd) return 0;
   // 长度 < 8 视为极弱（即使字符类齐全也救不回来）
-  if (pwd.length < 8) return 0
-  let score = 0
-  if (pwd.length >= 12) score += 1
-  if (/[A-Z]/.test(pwd)) score += 1
-  if (/[a-z]/.test(pwd)) score += 1
-  if (/[0-9]/.test(pwd)) score += 1
-  if (/[^A-Za-z0-9]/.test(pwd)) score += 1
-  return Math.min(score, 4)
-})
+  if (pwd.length < 8) return 0;
+  let score = 0;
+  if (pwd.length >= 12) score += 1;
+  if (/[A-Z]/.test(pwd)) score += 1;
+  if (/[a-z]/.test(pwd)) score += 1;
+  if (/[0-9]/.test(pwd)) score += 1;
+  if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+  return Math.min(score, 4);
+});
 
 /** 强度等级对应的颜色：极弱红、弱橙、中黄、强青、极强绿 */
 const color = computed<string>(() => {
   switch (strengthScore.value) {
     case 0:
     case 1:
-      return '#f56c6c' // 极弱/弱：红
+      return '#f56c6c'; // 极弱/弱：红
     case 2:
-      return '#e6a23c' // 中：橙
+      return '#e6a23c'; // 中：橙
     case 3:
-      return '#67c23a' // 强：绿
+      return '#67c23a'; // 强：绿
     case 4:
-      return '#409eff' // 极强：蓝
+      return '#409eff'; // 极强：蓝
     default:
-      return '#909399'
+      return '#909399';
   }
-})
+});
 
 /** 强度等级文字标签（响应式 t() 求值） */
 const strengthText = computed<string>(() => {
   switch (strengthScore.value) {
     case 0:
-      return t('common.passwordStrength.level.veryWeak')
+      return t('common.passwordStrength.level.veryWeak');
     case 1:
-      return t('common.passwordStrength.level.weak')
+      return t('common.passwordStrength.level.weak');
     case 2:
-      return t('common.passwordStrength.level.medium')
+      return t('common.passwordStrength.level.medium');
     case 3:
-      return t('common.passwordStrength.level.strong')
+      return t('common.passwordStrength.level.strong');
     case 4:
-      return t('common.passwordStrength.level.veryStrong')
+      return t('common.passwordStrength.level.veryStrong');
     default:
-      return ''
+      return '';
   }
-})
+});
 
 /** 进度条百分比：score 0-4 映射到 0-100 */
 const strengthPct = computed<number>(() => {
-  return Math.min(strengthScore.value * 25, 100)
-})
+  return Math.min(strengthScore.value * 25, 100);
+});
 
 /** 改进建议：列出未满足的维度（响应式 t() 求值） */
 const feedback = computed<string[]>(() => {
-  const pwd = props.password || ''
-  const tips: string[] = []
+  const pwd = props.password || '';
+  const tips: string[] = [];
   if (pwd.length < 8) {
-    tips.push(t('common.passwordStrength.feedback.minLength'))
+    tips.push(t('common.passwordStrength.feedback.minLength'));
   } else if (pwd.length < 12) {
-    tips.push(t('common.passwordStrength.feedback.recommendLength'))
+    tips.push(t('common.passwordStrength.feedback.recommendLength'));
   }
-  if (!/[A-Z]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addUppercase'))
-  if (!/[a-z]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addLowercase'))
-  if (!/[0-9]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addDigit'))
-  if (!/[^A-Za-z0-9]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addSpecial'))
-  return tips
-})
+  if (!/[A-Z]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addUppercase'));
+  if (!/[a-z]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addLowercase'));
+  if (!/[0-9]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addDigit'));
+  if (!/[^A-Za-z0-9]/.test(pwd)) tips.push(t('common.passwordStrength.feedback.addSpecial'));
+  return tips;
+});
 
 /** 保持 v-model 双向绑定（预留 emit 以便父组件 v-model） */
-const _emit = emit
-void _emit
+const _emit = emit;
+void _emit;
 </script>
 
 <style scoped>
