@@ -424,24 +424,8 @@ fn deploy_release(package: &str) {
     }
 }
 
-/// P0-D15：蓝绿模式部署（零停机）。
-///
-/// 流程：
-/// 1. 识别当前活跃实例与非活跃实例；
-/// 2. 校验 + 解压 + 安全检查发布包；
-/// 3. 备份当前二进制到 `old.{timestamp}` 目录与 `server.old` / `bingxi.old` 标记文件；
-/// 4. 替换 `/opt/bingxi-erp/backend/{server,bingxi}` 二进制（活跃实例继续服务，Linux 允许替换 in-use 二进制）；
-/// 5. 替换前端 dist；
-/// 6. 停止非活跃实例（如运行中）→ 启动非活跃实例（加载新二进制）；
-/// 7. 健康检查非活跃实例（最长 15 秒重试）；
-/// 8. 切换 nginx upstream 到非活跃实例（`ln -sf` + `nginx -s reload`，零停机）；
-/// 9. 停止原活跃实例。
-///
-/// 任一关键步骤失败立即中止，活跃实例继续服务，避免部署中途宕机。
-fn deploy_release_blue_green(package: &str) {
-    println!("=== 蓝绿部署模式（零停机）===");
-
-    // 1. 确定活跃/非活跃实例
+/// 解析活跃/非活跃实例名与服务名；失败返回 Err（错误已打印）
+fn resolve_blue_green_instances() -> Result<(String, String, String, String), ()> {
     let active = match get_active_instance() {
         Some(a) => a,
         None => {
@@ -451,39 +435,31 @@ fn deploy_release_blue_green(package: &str) {
                 NGINX_UPSTREAM_ACTIVE
             );
             println!("或回退到单实例模式（移除 bingxi-backend@.service 后重试）");
-            return;
+            return Err(());
         }
     };
     let inactive = opposite_instance(&active).to_string();
     let inactive_service = instance_service(&inactive);
     let active_service = instance_service(&active);
-
     println!("当前活跃实例: {} ({})", active, instance_port(&active));
     println!("部署目标实例: {} ({})", inactive, instance_port(&inactive));
+    Ok((active, inactive, active_service, inactive_service))
+}
 
-    // 2. 解压 + 安全校验（与 legacy 共用逻辑，H-1 修复 UUID 随机目录 + 二次校验）
-    let temp_dir_owned = format!(
-        "{}/bingxi_upgrade_{}",
-        std::env::temp_dir().to_string_lossy(),
-        uuid::Uuid::new_v4()
-    );
-    let temp_dir = temp_dir_owned.as_str();
-
+/// 创建临时目录 + tar -tf 校验 + 解压 + validate_extracted_paths 二次校验
+fn prepare_and_extract_package(package: &str, temp_dir: &str) -> Result<String, ()> {
     if let Err(e) = run_cmd("mkdir", &["-p", temp_dir]) {
         println!("[ERROR] 创建临时目录失败，终止部署: {}", e);
-        return;
+        return Err(());
     }
-
     println!("校验更新包内容...");
     let tar_list = match run_cmd("tar", &["-tf", package]) {
         Ok(list) => list,
         Err(e) => {
             println!("[ERROR] 列出更新包内容失败: {}", e);
-            cleanup_temp(temp_dir);
-            return;
+            return Err(());
         }
     };
-
     for line in tar_list.lines() {
         let path = line.trim();
         if path.is_empty() || path == "./" {
@@ -491,40 +467,33 @@ fn deploy_release_blue_green(package: &str) {
         }
         if path.contains("..") {
             println!("[ERROR] 检测到路径穿越攻击：文件 {} 包含 ..", path);
-            cleanup_temp(temp_dir);
-            return;
+            return Err(());
         }
         if path.starts_with('/') {
             println!("[ERROR] 检测到绝对路径：文件 {}", path);
-            cleanup_temp(temp_dir);
-            return;
+            return Err(());
         }
     }
-
     println!("解压更新包...");
     if let Err(e) = run_cmd("tar", &["-xzf", package, "-C", temp_dir]) {
         println!("[ERROR] 解压失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
+        return Err(());
     }
-
     let extract_dir = format!("{}/bingxi-erp", temp_dir);
     if let Err(e) = validate_extracted_paths(&extract_dir) {
         println!("[ERROR] 安全校验失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
+        return Err(());
     }
+    Ok(extract_dir)
+}
 
-    let install_dir = get_install_dir();
-
-    // 3. 备份旧二进制（带时间戳目录 + .old 标记供 rollback）
+/// 备份旧二进制到 old.{ts} 目录并刷新 .old 标记；mkdir 失败返回 Err
+fn backup_old_binaries(install_dir: &str, ts: u64) -> Result<(), ()> {
     println!("备份旧文件...");
-    let ts = timestamp();
     let old_backup = format!("{}/old.{}", install_dir, ts);
     if let Err(e) = run_cmd("mkdir", &["-p", &old_backup]) {
         println!("[ERROR] 创建旧文件备份目录失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
+        return Err(());
     }
     let server_src = format!("{}/backend/server", install_dir);
     let bingxi_src = format!("{}/backend/bingxi", install_dir);
@@ -534,7 +503,6 @@ fn deploy_release_blue_green(package: &str) {
     if let Err(e) = run_cmd("cp", &["-r", &bingxi_src, &old_backup]) {
         println!("[ERROR] 备份 bingxi 失败: {}", e);
     }
-    // 同步刷新 .old 标记文件（供 rollback 直接 cp）
     let server_old = format!("{}/backend/server.old", install_dir);
     let bingxi_old = format!("{}/backend/bingxi.old", install_dir);
     if let Err(e) = run_cmd("cp", &["-f", &server_src, &server_old]) {
@@ -543,36 +511,37 @@ fn deploy_release_blue_green(package: &str) {
     if let Err(e) = run_cmd("cp", &["-f", &bingxi_src, &bingxi_old]) {
         println!("[WARN] 刷新 bingxi.old 失败（不影响部署）: {}", e);
     }
+    Ok(())
+}
 
-    // 4. 替换后端二进制（活跃实例继续服务，Linux 允许替换 in-use 二进制）
+/// 替换后端二进制（cp + chmod +x）；任一失败返回 Err
+fn replace_backend_binaries(extract_dir: &str, install_dir: &str) -> Result<(), ()> {
     println!("更新后端二进制...");
     let new_server = format!("{}/backend/server", extract_dir);
     let new_bingxi = format!("{}/backend/bingxi", extract_dir);
     let dst_server = format!("{}/backend/server", install_dir);
     let dst_bingxi = format!("{}/backend/bingxi", install_dir);
-
     if let Err(e) = run_cmd("cp", &["-r", &new_server, &dst_server]) {
         println!("[ERROR] 覆盖 server 失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
+        return Err(());
     }
     if let Err(e) = run_cmd("cp", &["-r", &new_bingxi, &dst_bingxi]) {
         println!("[ERROR] 覆盖 bingxi 失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
+        return Err(());
     }
     if let Err(e) = run_cmd("chmod", &["+x", &dst_server]) {
         println!("[ERROR] chmod server 失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
+        return Err(());
     }
     if let Err(e) = run_cmd("chmod", &["+x", &dst_bingxi]) {
         println!("[ERROR] chmod bingxi 失败，终止部署: {}", e);
-        cleanup_temp(temp_dir);
-        return;
+        return Err(());
     }
+    Ok(())
+}
 
-    // 5. 更新前端
+/// 替换前端 dist（rm -rf 旧 + mv 新）；mv 失败返回 Err
+fn replace_frontend_dist(extract_dir: &str, install_dir: &str) -> Result<(), ()> {
     println!("更新前端...");
     let frontend_dist = format!("{}/frontend/dist", install_dir);
     if let Err(e) = run_cmd("rm", &["-rf", &frontend_dist]) {
@@ -581,47 +550,95 @@ fn deploy_release_blue_green(package: &str) {
     let new_dist = format!("{}/frontend/dist", extract_dir);
     if let Err(e) = run_cmd("mv", &[&new_dist, &frontend_dist]) {
         println!("[ERROR] 移动新前端 dist 失败，终止部署: {}", e);
+        return Err(());
+    }
+    Ok(())
+}
+
+/// 停止非活跃实例 → 启动 → 健康检查；任一失败返回 Err（活跃实例继续服务）
+fn start_inactive_and_health_check(
+    inactive: &str,
+    inactive_service: &str,
+    active_service: &str,
+) -> Result<(), ()> {
+    println!("停止非活跃实例 {}（如运行中）...", inactive_service);
+    let _ = run_cmd("systemctl", &["stop", inactive_service]);
+    println!("启动非活跃实例 {}...", inactive_service);
+    if let Err(e) = run_cmd("systemctl", &["start", inactive_service]) {
+        println!("[ERROR] 启动 {} 失败: {}", inactive_service, e);
+        println!("活跃实例 {} 继续服务，未受影响", active_service);
+        return Err(());
+    }
+    println!("健康检查新实例 {}...", inactive_service);
+    if !health_check_instance(inactive) {
+        println!("[ERROR] 新实例健康检查失败");
+        println!("停止新实例，活跃实例 {} 继续服务", active_service);
+        let _ = run_cmd("systemctl", &["stop", inactive_service]);
+        return Err(());
+    }
+    Ok(())
+}
+
+/// 切换 nginx upstream → 停止原活跃实例；nginx 失败回滚新实例并返回 Err
+fn switch_nginx_and_stop_active(
+    inactive: &str,
+    active_service: &str,
+    inactive_service: &str,
+) -> Result<(), ()> {
+    println!("切换 nginx upstream → {}...", inactive);
+    if let Err(e) = switch_nginx_upstream(inactive) {
+        println!("[ERROR] nginx 切换失败: {}", e);
+        println!("停止新实例，活跃实例 {} 继续服务", active_service);
+        let _ = run_cmd("systemctl", &["stop", inactive_service]);
+        return Err(());
+    }
+    println!("停止旧实例 {}...", active_service);
+    if let Err(e) = run_cmd("systemctl", &["stop", active_service]) {
+        println!("[WARN] 停止旧实例失败（可手动停止）: {}", e);
+    }
+    Ok(())
+}
+
+/// P0-D15：蓝绿模式部署（零停机），任一关键步骤失败立即中止以保持活跃实例服务
+fn deploy_release_blue_green(package: &str) {
+    println!("=== 蓝绿部署模式（零停机）===");
+    let (active, inactive, active_service, inactive_service) = match resolve_blue_green_instances() {
+        Ok(v) => v,
+        Err(()) => return,
+    };
+    let temp_dir_owned = format!(
+        "{}/bingxi_upgrade_{}",
+        std::env::temp_dir().to_string_lossy(),
+        uuid::Uuid::new_v4()
+    );
+    let temp_dir = temp_dir_owned.as_str();
+    let extract_dir = match prepare_and_extract_package(package, temp_dir) {
+        Ok(d) => d,
+        Err(()) => {
+            cleanup_temp(temp_dir);
+            return;
+        }
+    };
+    let install_dir = get_install_dir();
+    if let Err(()) = backup_old_binaries(&install_dir, timestamp()) {
         cleanup_temp(temp_dir);
         return;
     }
-
+    if let Err(()) = replace_backend_binaries(&extract_dir, &install_dir) {
+        cleanup_temp(temp_dir);
+        return;
+    }
+    if let Err(()) = replace_frontend_dist(&extract_dir, &install_dir) {
+        cleanup_temp(temp_dir);
+        return;
+    }
     cleanup_temp(temp_dir);
-
-    // 6. 停止非活跃实例（如运行中）→ 启动非活跃实例
-    println!("停止非活跃实例 {}（如运行中）...", inactive_service);
-    let _ = run_cmd("systemctl", &["stop", &inactive_service]);
-
-    println!("启动非活跃实例 {}...", inactive_service);
-    if let Err(e) = run_cmd("systemctl", &["start", &inactive_service]) {
-        println!("[ERROR] 启动 {} 失败: {}", inactive_service, e);
-        println!("活跃实例 {} 继续服务，未受影响", active_service);
+    if let Err(()) = start_inactive_and_health_check(&inactive, &inactive_service, &active_service) {
         return;
     }
-
-    // 7. 健康检查（最长 15 秒重试）
-    println!("健康检查新实例 {}...", inactive_service);
-    if !health_check_instance(&inactive) {
-        println!("[ERROR] 新实例健康检查失败");
-        println!("停止新实例，活跃实例 {} 继续服务", active_service);
-        let _ = run_cmd("systemctl", &["stop", &inactive_service]);
+    if let Err(()) = switch_nginx_and_stop_active(&inactive, &active_service, &inactive_service) {
         return;
     }
-
-    // 8. 切换 nginx upstream（零停机）
-    println!("切换 nginx upstream → {}...", inactive);
-    if let Err(e) = switch_nginx_upstream(&inactive) {
-        println!("[ERROR] nginx 切换失败: {}", e);
-        println!("停止新实例，活跃实例 {} 继续服务", active_service);
-        let _ = run_cmd("systemctl", &["stop", &inactive_service]);
-        return;
-    }
-
-    // 9. 停止旧实例
-    println!("停止旧实例 {}...", active_service);
-    if let Err(e) = run_cmd("systemctl", &["stop", &active_service]) {
-        println!("[WARN] 停止旧实例失败（可手动停止）: {}", e);
-    }
-
     println!("\n[OK] 蓝绿部署成功");
     println!("新活跃实例: {} ({})", inactive, instance_port(&inactive));
     println!("如需回滚: bingxi rollback");

@@ -24,6 +24,8 @@
 > - D09：剩余 9 个 >100 行非测试函数（豁免 builtin_transition_rules 后 8 个）
 > - D10：剩余 2 个 >1000 行文件（quotation_service.rs 1011 行 / customer_service.rs 1006 行）
 
+> 📌 **2026-07-27 D08 补充**：额外拆分 3 个超长函数（auth_middleware 237→40 行 / refresh_token 207→27 行 / search_logs 200→42 行），主函数 + helper 均 ≤50 行，公共 API 签名不变，无 #[allow]，注释精简 1 行；cargo clippy 验证 3 个目标文件无警告无错误。详见 [CHANGELOG.md D08-补充](file:///workspace/.monkeycode/CHANGELOG.md)。
+
 > ✅ 2026-07-26 D08 全部完成（PR #740 已合并到 main）：Batch 1 拆分 services/ 目录 39 个 >80 行函数（33 文件）；全 backend/src 扫描确认仅剩 1 个 >80 行函数（test_payload_all_variants_round_trip 113 行，测试函数豁免），D08 Batch 2 无需执行。
 > ✅ 2026-07-26 D09+D14 已合并到 main（PR #737）：CI 全绿（Clippy/单元测试/构建/格式/ESLint/类型检查均 SUCCESS），仅覆盖率非阻塞失败。
 > ✅ 2026-07-26 clippy 3 警告修复完成：omni_audit.rs 引入 AuditContext<'a> 结构体（13/14 参→2/3 参，send_audit_log/build_audit_message/build_audit_payload 三函数复用）；permission.rs 引入 4 个 type 别名（PermPair/RoleResourceGroup/RoleResourceSlice/RoleResourceGroups）消除 type_complexity 警告。

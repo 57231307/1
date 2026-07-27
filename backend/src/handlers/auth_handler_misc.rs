@@ -28,48 +28,66 @@ pub struct RefreshTokenResponse {
 
 // P3 7-17 修复：已删除 CsrfTokenResponse（仅被 get_csrf_token 使用，一并清理）
 
-// Wave 3 安全漏洞 #7 修复：CSRF IP 绑定 + 强制轮换。
-// 批次 340 v11 复审 P1 修复：移除 `#[allow(clippy::redundant_clone)]` 抑制，
-// baseline 无此警告。若 CI 报 redundant_clone 则需重构 clone 为引用传递。
+// Wave 3 安全漏洞 #7 修复：CSRF IP 绑定 + 强制轮换；P1 7-1 修复：refresh_token 轮换
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: HeaderMap,
     jar: axum_extra::extract::PrivateCookieJar,
 ) -> Result<axum::response::Response, AppError> {
-    // 优先从 `refresh_token` Cookie 读取（httpOnly），兼容从 Authorization 头（Bearer）传入
-    let token_from_cookie = jar.get("refresh_token").map(|c| c.value().to_string());
+    let token = extract_refresh_token(&state, &headers, &jar)?;
+    let claims = validate_refresh_claims(&state, &token).await?;
 
+    let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
+    let (new_token, new_session_id, new_refresh_token) =
+        generate_new_tokens(&state, &auth_service, &claims)?;
+    revoke_old_token(&state, &token, &claims).await;
+
+    let refresh_ip = extract_client_ip_from_headers(&headers);
+    let csrf_token = rotate_csrf_token(&state, &claims, new_session_id, refresh_ip);
+    let jar = build_refresh_cookies(jar, &new_token, &new_refresh_token, &csrf_token);
+
+    Ok((
+        jar,
+        Json(ApiResponse::success(RefreshTokenResponse {
+            csrf_token,
+            // 与 access_token Cookie max_age(minutes(30)) = 1800 秒对齐
+            expires_in: 1800,
+        })),
+    )
+        .into_response())
+}
+
+// 从 refresh_token Cookie 或 Authorization Bearer 头提取令牌，并检查黑名单
+fn extract_refresh_token(
+    state: &AppState,
+    headers: &HeaderMap,
+    jar: &axum_extra::extract::PrivateCookieJar,
+) -> Result<String, AppError> {
+    let token_from_cookie = jar.get("refresh_token").map(|c| c.value().to_string());
     let token_from_header = headers
         .get("Authorization")
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
         .map(|s| s.to_string());
-
     let token = token_from_cookie
         .or(token_from_header)
         .ok_or(AppError::unauthorized("缺少认证令牌"))?;
-
-    // 检查 Token 是否在黑名单中
-    let is_blacklisted = state
-        .cache
-        .get_token_blacklist()
-        .get(&token)
-        .is_some();
-    if is_blacklisted {
+    if state.cache.get_token_blacklist().get(&token).is_some() {
         return Err(AppError::unauthorized("令牌已被吊销，请重新登录"));
     }
+    Ok(token)
+}
 
-    let claims = AuthService::validate_token_static(&token, &state.jwt_secret)
+// 验证 token 签名、JTI 吊销状态、用户活跃状态、刷新期有效性
+async fn validate_refresh_claims(
+    state: &AppState,
+    token: &str,
+) -> Result<crate::services::auth_service::AppClaims, AppError> {
+    let claims = AuthService::validate_token_static(token, &state.jwt_secret)
         .map_err(|_| AppError::unauthorized("无效的令牌"))?;
-
-    // M-3 修复：检查 JTI（session_id）是否已被吊销
-    // 登出或用户被封禁时会吊销该用户的所有 JTI
     if crate::services::auth_service::is_jti_revoked(&claims.session_id).await {
         return Err(AppError::unauthorized("令牌已被吊销，请重新登录"));
     }
-
-    // M-3 修复：检查用户账号是否仍处于激活状态
-    // 用户被禁用后，refresh_token 也应失效，防止通过旧 token 续签
     use crate::models::user;
     use sea_orm::EntityTrait;
     let user = user::Entity::find_by_id(claims.sub)
@@ -81,47 +99,43 @@ pub async fn refresh_token(
         })?;
     match user {
         Some(u) if u.is_active => {}
-        _ => {
-            return Err(AppError::unauthorized(
-                "账号已被禁用，请联系管理员".to_string(),
-            ));
-        }
+        _ => return Err(AppError::unauthorized("账号已被禁用，请联系管理员".to_string())),
     }
-
-    // 检查是否在刷新期内（7天）
-    let now = chrono::Utc::now();
-    if now > claims.refresh_exp {
+    if chrono::Utc::now() > claims.refresh_exp {
         return Err(AppError::unauthorized("刷新令牌已过期，请重新登录"));
     }
+    Ok(claims)
+}
 
-    let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
+// 生成新的 access_token 和 refresh_token（共享 session_id）
+fn generate_new_tokens(
+    state: &AppState,
+    auth_service: &AuthService,
+    claims: &crate::services::auth_service::AppClaims,
+) -> Result<(String, String, String), AppError> {
     let new_token = auth_service
         .generate_token(claims.sub, &claims.username, claims.role_id)
         .map_err(|e| AppError::internal(format!("生成令牌失败：{}", e)))?;
-
-    // 提取新 access_token 的 session_id，用于生成新 refresh_token（P1 7-1 修复：refresh_token 轮换）
-    let new_claims_for_session =
-        AuthService::validate_token_static(&new_token, &state.jwt_secret).map_err(|e| {
+    let new_claims = AuthService::validate_token_static(&new_token, &state.jwt_secret)
+        .map_err(|e| {
             tracing::error!("Failed to decode new JWT token: {}", e);
             AppError::internal("Internal server error")
         })?;
-    let new_session_id = new_claims_for_session.session_id;
-
-    // 生成新的 refresh_token（JWT 形式，与新 access_token 共享 session_id）
+    let new_session_id = new_claims.session_id;
     let new_refresh_token = auth_service
-        .generate_refresh_token(
-            claims.sub,
-            &claims.username,
-            claims.role_id,
-            &new_session_id,
-        )
+        .generate_refresh_token(claims.sub, &claims.username, claims.role_id, &new_session_id)
         .map_err(|e| AppError::internal(format!("生成刷新令牌失败：{}", e)))?;
+    Ok((new_token, new_session_id, new_refresh_token))
+}
 
-    // Refresh Token 轮换：先将旧 Token 的 JTI（session_id）加入黑名单
+// 吊销旧 token：将 JTI 加入黑名单 + 将 token 加入黑名单缓存
+async fn revoke_old_token(
+    state: &AppState,
+    token: &str,
+    claims: &crate::services::auth_service::AppClaims,
+) {
     let expires_at = claims.exp.timestamp();
     crate::services::auth_service::revoke_jti(&claims.session_id, expires_at).await;
-
-    // Blacklist the old token after successful refresh
     let now_ts = chrono::Utc::now().timestamp() as usize;
     let exp = claims.exp.timestamp() as usize;
     if exp > now_ts {
@@ -129,23 +143,17 @@ pub async fn refresh_token(
         state
             .cache
             .get_token_blacklist()
-            .set(token.clone(), true, Some(ttl));
+            .set(token.to_string(), true, Some(ttl));
         tracing::info!(
             "Old token blacklisted after refresh for user {}",
             claims.username
         );
     }
+}
 
-    // 生成新的 CSRF Token (use same session_id derivation as login)
-    // Wave 3 安全漏洞 #7 修复：TTL 缩短到 1800s，IP 绑定，强制轮换
-    // 注：new_session_id 已在上方提取（P1 7-1 修复：refresh_token 轮换时复用）
-
-    // 提取客户端 IP（Wave 3 #7：IP 绑定到 CSRF Token）
-    // P2-12c 修复（批次 83 v1 复审）：IP 提取统一优先级（X-Real-IP → X-Forwarded-For）
-    // 原实现优先 X-Forwarded-For（可被客户端伪造），且不 split/trim，与 audit_context 不一致
-    // 本 handler 仅接收 HeaderMap（无 ConnectInfo extension），与 audit_context::extract_client_ip
-    // 优先级保持一致：X-Real-IP → X-Forwarded-For(first, trim) → "unknown"
-    let refresh_ip = headers
+// 提取客户端 IP：X-Real-IP → X-Forwarded-For(first, trim) → "unknown"
+fn extract_client_ip_from_headers(headers: &HeaderMap) -> String {
+    headers
         .get("x-real-ip")
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
@@ -157,9 +165,16 @@ pub async fn refresh_token(
                 .and_then(|s| s.split(',').next().map(|s| s.trim().to_string()))
                 .filter(|s| !s.is_empty())
         })
-        .unwrap_or_else(|| "unknown".to_string());
+        .unwrap_or_else(|| "unknown".to_string())
+}
 
-    // 强制轮换：刷新 token 时清除该 user_id 关联的旧 CSRF Token（Wave 3 #7）
+// 强制轮换 CSRF Token：清除旧 token + 写入新 token（IP 绑定，TTL 1800s）
+fn rotate_csrf_token(
+    state: &AppState,
+    claims: &crate::services::auth_service::AppClaims,
+    new_session_id: String,
+    refresh_ip: String,
+) -> String {
     if state.cache.clear_old_csrf_token_for_user(claims.sub) {
         tracing::info!(
             user_id = claims.sub,
@@ -167,9 +182,7 @@ pub async fn refresh_token(
             "Token 刷新：已清除该用户的旧 CSRF Token（强制轮换）"
         );
     }
-
     let csrf_token = uuid::Uuid::new_v4().to_string();
-    // 使用默认 TTL (CSRF_TOKEN_DEFAULT_TTL_SECS = 1800s = 30min)
     state.cache.set_csrf_token(
         csrf_token.clone(),
         new_session_id,
@@ -177,22 +190,27 @@ pub async fn refresh_token(
         claims.sub,
         None,
     );
+    csrf_token
+}
 
-    // 设置新 Cookie（同时写 access_token / csrf_token / 旧版 jwt 兼容）
-    // 漏洞 #12 修复：统一从 `crate::utils::config::is_production()` 读取 APP_ENV
+// 构建刷新响应 Cookie：access_token / refresh_token / csrf_token / jwt(兼容)
+fn build_refresh_cookies(
+    jar: axum_extra::extract::PrivateCookieJar,
+    new_token: &str,
+    new_refresh_token: &str,
+    csrf_token: &str,
+) -> axum_extra::extract::PrivateCookieJar {
     let is_production = crate::utils::config::is_production();
-
-    let new_access = axum_extra::extract::cookie::Cookie::build(("access_token", new_token.clone()))
+    let new_access = axum_extra::extract::cookie::Cookie::build(("access_token", new_token.to_string()))
         .path("/")
         .http_only(true)
         .secure(is_production)
         .same_site(SameSite::Strict)
         .max_age(CookieDuration::minutes(30))
         .build();
-    // P1 7-1 修复：refresh_token 轮换，写入新 refresh_token（JWT 形式）
     let new_refresh = axum_extra::extract::cookie::Cookie::build((
         "refresh_token",
-        new_refresh_token,
+        new_refresh_token.to_string(),
     ))
     .path("/")
     .http_only(true)
@@ -200,43 +218,24 @@ pub async fn refresh_token(
     .same_site(SameSite::Strict)
     .max_age(CookieDuration::days(7))
     .build();
-    let new_csrf = axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.clone()))
+    let new_csrf = axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.to_string()))
         .path("/")
         .http_only(false)
         .secure(is_production)
         .same_site(SameSite::Strict)
         .max_age(CookieDuration::days(7))
         .build();
-    let legacy_jwt = axum_extra::extract::cookie::Cookie::build(("jwt", new_token.clone()))
+    let legacy_jwt = axum_extra::extract::cookie::Cookie::build(("jwt", new_token.to_string()))
         .path("/")
         .http_only(true)
         .secure(is_production)
         .same_site(SameSite::Strict)
         .max_age(CookieDuration::minutes(30))
         .build();
-
-    let jar = jar
-        .add(new_access)
+    jar.add(new_access)
         .add(new_refresh)
         .add(new_csrf)
-        .add(legacy_jwt);
-
-    Ok((
-        jar,
-        Json(ApiResponse::success(RefreshTokenResponse {
-            csrf_token,
-            // 批次 24 v6 P1-1 修复：expires_in 从 7200 改为 1800，
-            // 与上方 access_token Cookie max_age(minutes(30)) = 1800 秒对齐。
-            // 原 7200 秒（2 小时）会导致前端误以为 token 有效期 2 小时，
-            // 实际 30 分钟就过期，在 30min~2h 之间的请求会收到 401。
-            expires_in: 1800,
-            // 批次 29 v7 P0-2 修复：移除 token 字段，对齐批次 24 LoginResponse 决策。
-            // access_token 通过 httpOnly Cookie 传递，前端不可读也不应读。
-            // 原字段返回 access_token 会导致前端用旧 token 覆盖 Cookie 中的新 token，
-            // 绕过 httpOnly 保护，增加 XSS 窃取风险。
-        })),
-    )
-        .into_response())
+        .add(legacy_jwt)
 }
 
 #[derive(Debug, Serialize)]

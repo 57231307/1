@@ -80,181 +80,11 @@ impl std::error::Error for AppError {}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        // 漏洞 #12 修复：is_production 统一从 `crate::utils::config::is_production()` 读取
-        // 历史问题：原 `!cfg!(debug_assertions)` 是**编译时**判断，导致：
-        // 1. release 构建后无法通过环境变量关闭脱敏（CI 测试不友好）
-        // 2. 与 `auth_handler.rs` 的 `ENV=production` 判断不一致（多源配置漂移）
-        // 现在统一从 `APP_ENV` 环境变量读取，CI 可注入 `APP_ENV=production` 测试脱敏路径
-        // 漏洞 #4 / #8 修复：match 块仅返回 (status, log_detail)
-        // 历史问题：原 match 返回 (status, error_type, error_message, log_detail) 四元组，
-        // 但 error_type / error_message 会被序列化到 HTTP 响应，泄露：
-        // - error_type 暴露内部错误分类（DatabaseError / ValidationError / ...）
-        //   协助攻击者识别后端技术栈与错误处理逻辑
-        // - error_message 在开发环境直接是原始 msg，可能含 SQL/文件路径/堆栈
-        // 修复策略：match 块不再产出 error_type / error_message，
-        //           响应体由 [`Self::public_message()`] 统一提供脱敏文案
-        // 注意：match 块返回的 `log_detail` 仅用于保留 `tracing` 字段（结构化日志），
-        // 不再序列化到 HTTP 响应（#4 / #8 修复）。下划线前缀避免 dead_code 警告。
-        let (status, _log_detail) = match &self {
-            AppError::DatabaseError(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "DatabaseError",
-                    "message": msg,
-                    "severity": "HIGH",
-                    "action_required": "检查数据库连接和查询"
-                });
-                tracing::error!(
-                    "【数据库错误】{} | 详情: {} | 建议: 检查数据库连接状态和 SQL 查询",
-                    msg,
-                    detail
-                );
-                (StatusCode::INTERNAL_SERVER_ERROR, detail)
-            }
-            AppError::ValidationError(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "ValidationError",
-                    "message": msg,
-                    "severity": "LOW",
-                    "action_required": "检查请求参数"
-                });
-                tracing::warn!(
-                    "【验证错误】{} | 详情: {} | 建议: 检查请求参数格式和必填项",
-                    msg,
-                    detail
-                );
-                (StatusCode::BAD_REQUEST, detail)
-            }
-            AppError::NotFound(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "NotFound",
-                    "message": msg,
-                    "severity": "MEDIUM",
-                    "action_required": "检查资源是否存在"
-                });
-                tracing::warn!(
-                    "【资源未找到】{} | 详情: {} | 建议: 检查资源 ID 是否正确或资源是否已被删除",
-                    msg,
-                    detail
-                );
-                (StatusCode::NOT_FOUND, detail)
-            }
-            AppError::BusinessError(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "BusinessError",
-                    "message": msg,
-                    "severity": "MEDIUM",
-                    "action_required": "检查业务规则"
-                });
-                tracing::warn!(
-                    "【业务错误】{} | 详情: {} | 建议: 检查业务规则和前置条件",
-                    msg,
-                    detail
-                );
-                (StatusCode::BAD_REQUEST, detail)
-            }
-            AppError::Unauthorized(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "Unauthorized",
-                    "message": msg,
-                    "severity": "HIGH",
-                    "action_required": "检查认证信息"
-                });
-                tracing::warn!(
-                    "【未授权访问】{} | 详情: {} | 建议: 检查 Token 是否有效或是否已过期",
-                    msg,
-                    detail
-                );
-                (StatusCode::UNAUTHORIZED, detail)
-            }
-            AppError::InternalError(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "InternalError",
-                    "message": msg,
-                    "severity": "CRITICAL",
-                    "action_required": "联系系统管理员"
-                });
-                tracing::error!(
-                    "【内部错误】{} | 详情: {} | 建议: 检查系统日志或联系管理员",
-                    msg,
-                    detail
-                );
-                (StatusCode::INTERNAL_SERVER_ERROR, detail)
-            }
-            AppError::PermissionDenied(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "PermissionDenied",
-                    "message": msg,
-                    "severity": "HIGH",
-                    "action_required": "检查用户权限"
-                });
-                tracing::warn!(
-                    "【权限不足】{} | 详情: {} | 建议: 检查用户角色和权限配置",
-                    msg,
-                    detail
-                );
-                (StatusCode::FORBIDDEN, detail)
-            }
-            AppError::BadRequest(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "BadRequest",
-                    "message": msg,
-                    "severity": "LOW",
-                    "action_required": "检查请求格式"
-                });
-                tracing::warn!(
-                    "【请求错误】{} | 详情: {} | 建议: 检查请求格式和参数",
-                    msg,
-                    detail
-                );
-                (StatusCode::BAD_REQUEST, detail)
-            }
-            AppError::TooManyRequests {
-                retry_after,
-                message,
-            } => {
-                let detail = serde_json::json!({
-                    "error_type": "TooManyRequests",
-                    "message": message,
-                    "retry_after": retry_after,
-                    "severity": "MEDIUM",
-                    "action_required": "稍后重试"
-                });
-                tracing::warn!(
-                    "【请求过多】{} | 详情: {} | 建议: 等待 {:?} 秒后重试",
-                    message,
-                    detail,
-                    retry_after
-                );
-                (StatusCode::TOO_MANY_REQUESTS, detail)
-            }
-            AppError::NotImplemented(msg) => {
-                let detail = serde_json::json!({
-                    "error_type": "NotImplemented",
-                    "message": msg,
-                    "severity": "MEDIUM",
-                    "action_required": "联系开发团队实现该功能"
-                });
-                tracing::warn!(
-                    "【功能未实现】{} | 详情: {} | 建议: 该功能正在开发中",
-                    msg,
-                    detail
-                );
-                (StatusCode::NOT_IMPLEMENTED, detail)
-            }
-        };
-
-        // 漏洞 #4 / #8 修复：响应体不再包含 `error_type` 与 `detail` 字段
-        // 历史问题：
-        // 1. `error_type` 暴露内部错误分类（DatabaseError / ValidationError / ...），
-        //    协助攻击者识别后端技术栈与错误处理逻辑
-        // 2. `detail` 包含 severity / action_required / 内部建议，违反"最小披露原则"
-        // 3. 内部错误（如 `DatabaseError` 携带的 SQL 片段、堆栈信息）通过
-        //    `error_message` 字段泄露（#8：调试模式堆栈信息泄露）
-        // 修复策略：
-        // - 响应体**永远**只返回 `code` + `message`（脱敏文案）+ `trace_id` + `timestamp`
-        // - 原始 `msg` 仍写入 `tracing`（服务端日志），便于运维/排错
-        // - 移除 `is_production` 分支的环境差异处理（#11 修复保留的差异现已统一）
-        // - `public_message()` 提供各错误类型对应的对外友好文案
+        // 漏洞 #4/#8/#12 修复：detail 仅用于 tracing 日志，HTTP 响应仅含脱敏 code/message
+        let (status, error_type) = self.error_status_and_type();
+        let (severity, action_required) = self.error_severity_and_action();
+        let detail = self.build_detail(error_type, severity, action_required);
+        self.log_error(&detail);
         let trace_id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().timestamp();
         let body = serde_json::json!({
@@ -263,8 +93,124 @@ impl IntoResponse for AppError {
             "trace_id": trace_id,
             "timestamp": timestamp,
         });
-
         (status, Json(body)).into_response()
+    }
+}
+
+impl AppError {
+    /// 返回 (status, error_type) 用于 HTTP 响应状态码与日志分类
+    fn error_status_and_type(&self) -> (StatusCode, &'static str) {
+        match self {
+            AppError::DatabaseError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "DatabaseError"),
+            AppError::ValidationError(_) => (StatusCode::BAD_REQUEST, "ValidationError"),
+            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NotFound"),
+            AppError::BusinessError(_) => (StatusCode::BAD_REQUEST, "BusinessError"),
+            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "Unauthorized"),
+            AppError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "InternalError"),
+            AppError::PermissionDenied(_) => (StatusCode::FORBIDDEN, "PermissionDenied"),
+            AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "BadRequest"),
+            AppError::NotImplemented(_) => (StatusCode::NOT_IMPLEMENTED, "NotImplemented"),
+            AppError::TooManyRequests { .. } => (StatusCode::TOO_MANY_REQUESTS, "TooManyRequests"),
+        }
+    }
+
+    /// 返回 (severity, action_required) 用于日志辅助信息
+    fn error_severity_and_action(&self) -> (&'static str, &'static str) {
+        match self {
+            AppError::DatabaseError(_) => ("HIGH", "检查数据库连接和查询"),
+            AppError::ValidationError(_) => ("LOW", "检查请求参数"),
+            AppError::NotFound(_) => ("MEDIUM", "检查资源是否存在"),
+            AppError::BusinessError(_) => ("MEDIUM", "检查业务规则"),
+            AppError::Unauthorized(_) => ("HIGH", "检查认证信息"),
+            AppError::InternalError(_) => ("CRITICAL", "联系系统管理员"),
+            AppError::PermissionDenied(_) => ("HIGH", "检查用户权限"),
+            AppError::BadRequest(_) => ("LOW", "检查请求格式"),
+            AppError::NotImplemented(_) => ("MEDIUM", "联系开发团队实现该功能"),
+            AppError::TooManyRequests { .. } => ("MEDIUM", "稍后重试"),
+        }
+    }
+
+    /// 返回错误消息字符串引用（TooManyRequests 用 message 字段）
+    fn message_str(&self) -> &str {
+        match self {
+            AppError::DatabaseError(m)
+            | AppError::ValidationError(m)
+            | AppError::NotFound(m)
+            | AppError::BusinessError(m)
+            | AppError::Unauthorized(m)
+            | AppError::InternalError(m)
+            | AppError::BadRequest(m)
+            | AppError::PermissionDenied(m)
+            | AppError::NotImplemented(m) => m,
+            AppError::TooManyRequests { message, .. } => message,
+        }
+    }
+
+    /// 构建 detail JSON（TooManyRequests 含 retry_after；仅用于 tracing 日志，不进 HTTP 响应）
+    fn build_detail(
+        &self,
+        error_type: &'static str,
+        severity: &'static str,
+        action_required: &'static str,
+    ) -> serde_json::Value {
+        let msg = self.message_str();
+        match self {
+            AppError::TooManyRequests { retry_after, .. } => serde_json::json!({
+                "error_type": error_type,
+                "message": msg,
+                "retry_after": retry_after,
+                "severity": severity,
+                "action_required": action_required
+            }),
+            _ => serde_json::json!({
+                "error_type": error_type,
+                "message": msg,
+                "severity": severity,
+                "action_required": action_required
+            }),
+        }
+    }
+
+    /// 返回 (log_label, log_suggestion) 用于 tracing 日志定制文案
+    fn log_meta(&self) -> (&'static str, String) {
+        match self {
+            AppError::DatabaseError(_) => ("数据库错误", "检查数据库连接状态和 SQL 查询".to_string()),
+            AppError::ValidationError(_) => ("验证错误", "检查请求参数格式和必填项".to_string()),
+            AppError::NotFound(_) => ("资源未找到", "检查资源 ID 是否正确或资源是否已被删除".to_string()),
+            AppError::BusinessError(_) => ("业务错误", "检查业务规则和前置条件".to_string()),
+            AppError::Unauthorized(_) => ("未授权访问", "检查 Token 是否有效或是否已过期".to_string()),
+            AppError::InternalError(_) => ("内部错误", "检查系统日志或联系管理员".to_string()),
+            AppError::PermissionDenied(_) => ("权限不足", "检查用户角色和权限配置".to_string()),
+            AppError::BadRequest(_) => ("请求错误", "检查请求格式和参数".to_string()),
+            AppError::NotImplemented(_) => ("功能未实现", "该功能正在开发中".to_string()),
+            AppError::TooManyRequests { retry_after, .. } => {
+                ("请求过多", format!("等待 {:?} 秒后重试", retry_after))
+            }
+        }
+    }
+
+    /// 记录结构化错误日志（DatabaseError/InternalError 用 ERROR 级别，其余用 WARN）
+    fn log_error(&self, detail: &serde_json::Value) {
+        let (label, suggestion) = self.log_meta();
+        let msg = self.message_str();
+        let is_error = matches!(self, AppError::DatabaseError(_) | AppError::InternalError(_));
+        if is_error {
+            tracing::error!(
+                "【{}】{} | 详情: {} | 建议: {}",
+                label,
+                msg,
+                detail,
+                suggestion
+            );
+        } else {
+            tracing::warn!(
+                "【{}】{} | 详情: {} | 建议: {}",
+                label,
+                msg,
+                detail,
+                suggestion
+            );
+        }
     }
 }
 

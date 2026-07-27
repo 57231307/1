@@ -31,6 +31,8 @@ pub mod test_common;
 pub mod business_trace_service;
 pub mod crm;
 pub mod customer_service;
+// 拆分：customer_service.rs facade 的业务实现子模块（crud / query / contact / update / types）
+pub mod customer_ops;
 pub mod dashboard_service;
 pub mod department_service;
 pub mod finance_invoice_service;
@@ -172,6 +174,8 @@ pub mod sales_return_service;
 // 销售报价单 Service（P12 批 1 P0 port PR-2：DTO + 基础 Service）
 pub mod quotation_pricing_service;
 pub mod quotation_service;
+// D11 拆分：quotation_service.rs facade 的业务实现子模块（crud/update/lifecycle/calc/types）
+pub mod quotation_ops;
 // 销售报价单转销售订单 Service（P12 批 1 P0 port PR-4：审批流 + 报价转订单 + 集成测试）
 pub mod quotation_convert_service;
 pub mod system_update_service;
