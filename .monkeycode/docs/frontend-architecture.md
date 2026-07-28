@@ -165,16 +165,43 @@ cp -r dist/* /opt/bingxi-erp/frontend/dist/
 server {
     listen 80;
     root /opt/bingxi-erp/frontend/dist;
-    
+
+    # P1-20-7 安全头
+    add_header Content-Security-Policy "default-src 'self'; ..." always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()" always;
+
+    # PWA / Service Worker 缓存
+    location ~* /(sw\.js|manifest\.json)$ {
+        add_header Cache-Control "no-cache";
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }
-    
+
     location /api/ {
         proxy_pass http://127.0.0.1:8082;
     }
 }
 ```
+
+### 5.4 V15 P1 前端架构改进（2026-07-28）
+
+| 改进项 | 说明 |
+|--------|------|
+| PWA 支持 | manifest.json + Service Worker + theme-color |
+| 移动端抽屉化 | useBreakpoint composable + ElDrawer/ElAside 动态切换 + 汉堡按钮 ≥44px |
+| vite manualChunks | vue/element-plus/echarts/utils 4 chunk 分包 |
+| echarts 按需引入 | utils/echarts.ts + BaseChart.vue 改用 echarts/core |
+| ErrorBoundary | Vue 3 onErrorCaptured + 重试/回首页/错误详情 + i18n |
+| keep-alive 状态保留 | MainLayout router-view 包裹 keep-alive + cachedViewNames |
+| CSS 变量 | styles/theme.css 全局变量替代硬编码 |
+| 暗黑模式 | useTheme composable + html.dark 选择器 + localStorage 持久化 |
+| vitest 覆盖率门槛 | 60% → 70% |
+| ElMessage i18n | 159 处硬编码中文 → msg 对象封装 + i18n 双语 |
 
 ## 六、代码规范
 

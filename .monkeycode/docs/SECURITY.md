@@ -1,7 +1,7 @@
 # 安全说明（SECURITY）
 
-> 本文档描述后端服务在 2026-06-03 重构中新增及加强的安全机制。
-> 适用版本：commit `f891419` + P3 收尾（mod.rs 精简 + metrics 增强 + W3C Trace Context）之后的 main 分支。
+> 本文档描述后端服务的安全机制，包含 2026-06-03 重构 + V15 P0/P1 修复阶段新增的安全加固。
+> 适用版本：main 分支（PR #758 合并后，2026-07-28）。
 
 ## 一、HTTP 安全响应头
 
@@ -100,12 +100,74 @@ pub struct CorsConfig {
 
 ## 七、路由/服务重构期间保持的安全边界
 
-- **未删除任何权限校验**：拆分路由时 `auth/permission/tenant` 中间件链路完整保留
+- **未删除任何权限校验**：拆分路由时 `auth/permission` 中间件链路完整保留（多租户已于 2026-06-28 删除）
 - **未替换 JWT 签名算法**：仍使用 HS256 + 启动时加载的 secret
 - **未改变密码哈希**：仍使用 `argon2`，`hash_password` / `verify_password` 未变
 - **未关闭审计日志**：`middleware/omni_audit.rs` 与 `operation_log.rs` 全量保留
 
-## 八、已知限制与未来工作
+## 八、V15 P0/P1 修复阶段新增安全机制（2026-07-28）
+
+### 8.1 认证安全加固（P1-A）
+
+| 机制 | 位置 | 说明 |
+|------|------|------|
+| refresh_token Cookie 有效期 | `auth_service.rs` | 调整为 7 天，与 access_token 2 小时匹配 |
+| PUBLIC_PATHS 严格匹配 | `middleware/public_routes.rs` | 使用 `contains()` 精确匹配，防止路径绕过 |
+| Webhook 日志脱敏 | `auth.rs` `mask_auth_header/mask_username` | Authorization 头截断 + 用户名 PII 脱敏 |
+| 用户 is_active 实时校验 | `auth.rs` `is_user_active_cached` | 5 分钟内存缓存，禁用用户旧 JWT 最坏 5 分钟失效 |
+| 用户级 Token 吊销 | `auth_service_ops/jti.rs` `revoke_user_jtis` | 软删除/封禁用户时即时吊销所有活跃 session |
+
+### 8.2 文件上传安全
+
+| 机制 | 位置 | 说明 |
+|------|------|------|
+| 文件 magic bytes 校验 | `file_upload_validator` | 校验文件实际类型而非扩展名 |
+| Zip 炸弹防护 | `file_upload_validator` | 限制解压后大小 + 压缩比 |
+
+### 8.3 数据脱敏与隐私合规
+
+| 机制 | 位置 | 说明 |
+|------|------|------|
+| PII 字段脱敏 | `utils/field_mask.rs` `mask_phone/mask_email/mask_id_card/mask_bank_card` | 手机号/邮箱/身份证/银行卡脱敏 |
+| JSON 递归脱敏 | `field_mask.rs` `desensitize_json` | 持久化前递归脱敏 JSON 敏感字段 |
+| AI 推理数据脱敏 | `field_mask.rs` `mask_text_pii` | AI 推理输入捕获手机/邮箱/身份证 PII |
+| 行为日志脱敏 | `tracking_service.rs` | 行为追踪持久化前调用 `desensitize_json` |
+| 用户隐私同意 | `UserConsentService` | 用户可 opt-in/opt-out 追踪授权 |
+| 90 天数据保留 | `tracking_cleanup_service.rs` | 行为追踪数据自动归档+清理 |
+
+### 8.4 权限维度加固
+
+| 机制 | 位置 | 说明 |
+|------|------|------|
+| 职责分离（SoD） | `permission.rs` `validate_sod_create_approve` | 采购/销售 create 与 approve 权限拆分 |
+| admin 移除 audit:read | `init_admin_permissions.sql` | 审计职责独立到 auditor 角色 |
+| 字段级权限 | `migration 20260730000001` | 敏感字段权限种子数据 |
+| Redis 缓存热更新 | `permission.rs` `start_permission_cache_pubsub_subscriber` | 权限变更通过 pub/sub 即时失效 |
+| 异常权限识别 | `permission_compliance_service.rs` | 6 类检测规则 + 定期合规审查 |
+| role.code 不可修改 | `role_service.rs` | 防止权限提升攻击 |
+
+### 8.5 导出安全
+
+| 机制 | 位置 | 说明 |
+|------|------|------|
+| 导出审计 | `audit_log` 表 5 字段 | export_record_count/query_filter/file_format/approval_token/watermark_user |
+| 永久禁止导出黑名单 | `export_policy` | lab_dip/production_recipe/flow_card 资源永久禁止导出 |
+| 导出并发控制 | `ExportConcurrencyGuard` | AtomicUsize + MAX_CONCURRENT_EXPORTS=10 |
+| 导出条数上限 | sales/purchase order 导出 | `.limit(10000)` 防止大量数据泄露 |
+| 每日合规审查 | `export_compliance_scheduler` | 6 类异常导出检测规则 |
+
+### 8.6 法律合规
+
+| 机制 | 位置 | 说明 |
+|------|------|------|
+| 用户协议接入 | `user.agreed_to_terms_at` | 注册/登录时记录协议同意时间 |
+| 销售合同电子签章 | `contract_signature_service.rs` | SHA-256 防篡改 + 签名验证 |
+| 排污许可证管理 | `pollution_permit_service.rs` | 90/60/30 天三级预警 |
+| 劳动合同电子化 | `labor_contract_service.rs` | 《劳动合同法》第19/20条合规校验 |
+| 社保公积金扣缴 | `social_insurance_service.rs` | 五险一金费率 + 缴费基数合规校验 |
+| 职业健康合规 | `occupational_health_service.rs` | GBZ 2.1/2.2 国标限值 + PPE 管理 |
+
+## 九、已知限制与未来工作
 
 | 限制 | 说明 | 建议方案 |
 |------|------|---------|
@@ -116,7 +178,7 @@ pub struct CorsConfig {
 | 分布式追踪未对接 OTel | 当前仅 W3C `traceparent` 透传 | 未来按需引入 `opentelemetry` + `tracing-opentelemetry` |
 | `ErrorResponse.trace_id` | 当前每次错误独立生成 UUID | 后续可与 `trace_context` 中间件的 `trace_id` 关联 |
 
-## 九、安全报告
+## 十、安全报告
 
 如发现安全漏洞，请联系：[TODO: 添加内部邮箱]
 
