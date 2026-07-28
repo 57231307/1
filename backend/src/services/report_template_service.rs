@@ -4,14 +4,13 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::services::role_permission_service::RolePermissionService;
-
-use sea_orm::DatabaseConnection;
 
 use crate::models::report_template::{
     ActiveModel, Entity as ReportTemplateEntity, Model as ReportTemplateModel,

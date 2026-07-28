@@ -63,6 +63,7 @@ fn is_safe_method(method: &Method) -> bool {
 }
 
 /// 公开路径 L-1 防御：要求携带 X-Requested-With 或 X-CSRF-Token 自定义请求头
+#[allow(clippy::result_large_err)]
 fn check_public_path_header(
     request: &Request<Body>,
     path: &str,
@@ -101,6 +102,7 @@ fn extract_csrf_token(request: &Request<Body>) -> Option<String> {
 }
 
 /// 一次性消费 CSRF Token，含 IP 绑定校验（Wave 3 #7）
+#[allow(clippy::result_large_err)]
 fn consume_csrf_token(
     state: &AppState,
     token: &str,
