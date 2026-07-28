@@ -26,9 +26,7 @@ use crate::services::voucher_service::{CreateVoucherRequest, VoucherItemRequest,
 use crate::utils::error::AppError;
 
 /// 采购入库应付单凭证上下文（D08-1 第二梯队拆分辅助结构）
-///
-/// F-P0-7 修复（批次 382 v13 复审）：commit 前保存生成应付凭证所需字段，
-/// invoice 在 Ok 返回时被 move，提前捕获避免后续 voucher 生成无法访问。
+/// F-P0-7 修复（批次 382 v13 复审）：commit 前保存生成应付凭证所需字段，；invoice 在 Ok 返回时被 move，提前捕获避免后续 voucher 生成无法访问。
 struct ReceiptVoucherContext {
     invoice_no: String,
     invoice_id: i32,
@@ -245,10 +243,7 @@ impl ApInvoiceService {
         }
     }
 
-    /// 组装采购入库应付确认凭证分录列表
-    ///
-    /// 默认 2 行（库存商品 / 应付账款），tax_amount > 0 时插入进项税额，
-    /// 重排为 3 行：1=库存商品 / 2=进项税额 / 3=应付账款。
+    /// 组装采购入库应付确认凭证分录列表（默认 2 行（库存商品 / 应付账款），tax_amount > 0 时插入进项税额，；重排为 3 行：1=库存商品 / 2=进项税额 / 3=应付账款。）
     fn build_receipt_voucher_items(ctx: &ReceiptVoucherContext) -> Vec<VoucherItemRequest> {
         let voucher_total = ctx.amount + ctx.tax_amount;
         let mut voucher_items = vec![
@@ -270,13 +265,7 @@ impl ApInvoiceService {
     }
 
     /// 采购入库生成应付单后同步生成应付凭证（失败仅 warn 不阻断主流程）
-    ///
-    /// F-P0-7 修复（批次 382 v13 复审）：采购入库生成应付单后同步生成应付凭证
-    /// 借：1405 库存商品（不含税金额）
-    /// 借：222101 应交税费-进项税额（tax_amount > 0 时）
-    /// 贷：2202 应付账款（含税总额，挂供应商辅助核算）
-    /// 失败时仅 warn 不阻断主流程（与采购入库 confirm_receipt 容错模式一致），
-    /// 避免凭证生成失败影响主业务流程，便于人工补偿。
+    /// F-P0-7 修复（批次 382 v13 复审）：采购入库生成应付单后同步生成应付凭证；借：1405 库存商品（不含税金额）；借：222101 应交税费-进项税额（tax_amount > 0 时）；贷：2202 应付账款（含税总额，挂供应商辅助核算）；失败时仅 warn 不阻断主流程（与采购入库 confirm_receipt 容错模式一致），；避免凭证生成失败影响主业务流程，便于人工补偿。
     async fn try_generate_receipt_voucher(
         db: &Arc<DatabaseConnection>,
         ctx: ReceiptVoucherContext,

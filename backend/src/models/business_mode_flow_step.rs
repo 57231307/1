@@ -8,12 +8,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 业务模式流程节点模型
-///
-/// 真实业务要点：
-/// - 每个业务模式对应若干流程节点（3-5 个）
-/// - 节点按 step_no 顺序流转，从 1 开始
-/// - 步骤代码：purchase/inventory_in/production/outsourcing/inventory_out/sales/settlement
+/// 业务模式流程节点模型（每模式 3-5 节点，按 step_no 从 1 顺序流转，步骤代码：purchase/inventory_in/production/outsourcing/inventory_out/sales/settlement）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "business_mode_flow_step")]
 pub struct Model {

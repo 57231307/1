@@ -87,10 +87,7 @@ impl MrpEngineService {
     }
 
     /// 递归展开BOM
-    ///
-    /// 批次 339 v10 复审 P3 修复：签名从 11 参数改为 4 参数（&self + args + results + stock_cache），
-    /// 将 9 个标量参数聚合为 `ExplodeBomArgs<'a>` 参数对象，&mut 借用参数保留为独立参数，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 批次 339 v10 复审 P3 修复：签名从 11 参数改为 4 参数（&self + args + results + stock_cache），；将 9 个标量参数聚合为 `ExplodeBomArgs<'a>` 参数对象，&mut 借用参数保留为独立参数，；消除 `clippy::too_many_arguments` 警告。
     async fn explode_bom_recursive(
         &self,
         args: ExplodeBomArgs<'_>,
@@ -146,10 +143,7 @@ impl MrpEngineService {
         Ok(())
     }
 
-    /// 展开BOM计算子物料需求
-    ///
-    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `MrpExplodeQuery`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 展开BOM计算子物料需求（批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `MrpExplodeQuery`，；消除 `clippy::too_many_arguments` 警告。）
     pub async fn explode_bom(
         &self,
         query: MrpExplodeQuery,

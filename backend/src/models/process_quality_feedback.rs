@@ -9,13 +9,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 工序质量反馈单模型
-///
-/// 真实业务要点：
-/// - 工序质量问题反馈登记
-/// - 包括处理意见和方式
-/// - 异常情况、回修情况登记
-/// - 各生产环节共同查找原因及处理办法
+/// 工序质量反馈单模型（工序质量问题反馈登记，含处理意见/异常回修登记，各生产环节共同查找原因及处理办法）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "process_quality_feedback")]
 pub struct Model {

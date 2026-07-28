@@ -131,15 +131,7 @@ impl TotpService {
     }
 
     /// 4. 生成 2FA 恢复码（v11 批次 141 新增）
-    ///
-    /// 生成 10 个 8 字符的恢复码（base32 编码，去除易混淆字符 0/O/1/I），
-    /// 明文返回给前端展示，哈希（argon2）后存入 user.totp_recovery_codes（JSON 数组）。
-    ///
-    /// 安全要求：
-    /// - 使用 `OsRng` 密码学安全随机源
-    /// - 明文仅在生成时返回一次，后续无法获取
-    /// - 哈希使用 argon2id（与密码哈希同算法）
-    /// - 每次生成会覆盖旧恢复码
+    /// 生成 10 个 8 字符的恢复码（base32 编码，去除易混淆字符 0/O/1/I），；明文返回给前端展示，哈希（argon2）后存入 user.totp_recovery_codes（JSON 数组）。；安全要求：使用 `OsRng` 密码学安全随机源；明文仅在生成时返回一次，后续无法获取；哈希使用 argon2id（与密码哈希同算法）；每次生成会覆盖旧恢复码
     pub async fn generate_recovery_codes(&self, user_id: i32) -> Result<Vec<String>, AppError> {
         use argon2::password_hash::rand_core::{OsRng, RngCore};
         use argon2::password_hash::{PasswordHasher, SaltString};
@@ -197,10 +189,7 @@ impl TotpService {
         Ok(codes)
     }
 
-    /// 5. 使用恢复码登录（v11 批次 141 新增，预留接口）
-    ///
-    /// 验证恢复码是否匹配，匹配成功后消耗该恢复码（从列表中删除）。
-    /// 返回 true 表示验证成功，false 表示恢复码无效。
+    /// 5. 使用恢复码登录（v11 批次 141 新增，预留接口）（验证恢复码是否匹配，匹配成功后消耗该恢复码（从列表中删除）。；返回 true 表示验证成功，false 表示恢复码无效。）
     pub async fn verify_recovery_code(&self, user_id: i32, code: &str) -> Result<bool, AppError> {
         use argon2::password_hash::{PasswordHash, PasswordVerifier};
         use argon2::Argon2;

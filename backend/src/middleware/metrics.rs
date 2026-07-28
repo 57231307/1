@@ -26,9 +26,7 @@ use axum::{body::Body, extract::State, http::Request, middleware::Next, response
 use std::sync::Arc;
 use std::time::Instant;
 
-/// 监控中间件
-///
-/// 自动按 method / route / status 记录带标签指标 + 基础指标。
+/// 监控中间件；自动按 method / route / status 记录带标签指标 + 基础指标。
 pub async fn metrics_middleware(
     State(metrics_service): State<Arc<MetricsService>>,
     request: Request<Body>,
@@ -74,10 +72,7 @@ pub async fn metrics_middleware(
     response
 }
 
-/// 截断过长的 route 标签，避免 Prometheus cardinality 爆炸
-///
-/// PromQL 标签值过长会导致指标存储膨胀。统一截断到 128 字符，
-/// 超长部分用 `*_truncated_<hash>` 标记。
+/// 截断过长的 route 标签，避免 Prometheus cardinality 爆炸；PromQL 标签值过长会导致指标存储膨胀。统一截断到 128 字符， 超长部分用 `*_truncated_<hash>` 标记。
 fn truncate_route(path: &str) -> String {
     const MAX_LEN: usize = 128;
     if path.len() <= MAX_LEN {

@@ -85,9 +85,7 @@ impl AssignmentHistoryService {
     }
 
     /// 在指定事务内创建分配历史记录
-    ///
-    /// v10 P1 批次 140 新增：供 `CrmAssignService::auto_assign_leads` / `transfer_lead`
-    /// 在事务内写入历史记录，确保线索更新与历史记录的原子性。
+    /// v10 P1 批次 140 新增：供 `CrmAssignService::auto_assign_leads` / `transfer_lead`；在事务内写入历史记录，确保线索更新与历史记录的原子性。
     pub async fn create_with_txn<C>(
         &self,
         txn: &C,

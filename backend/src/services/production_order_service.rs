@@ -31,13 +31,9 @@ pub use crate::services::production_order_ops::{
     CreateProductionOrderRequest, ProductionOrderQuery, UpdateProductionOrderRequest,
 };
 
-/// 生产订单 Service
-///
-/// struct 定义保留在 facade，impl 块按职责分散到 `production_order_ops/` 子模块。
+/// 生产订单 Service（struct 定义保留在 facade，impl 块按职责分散到 `production_order_ops/` 子模块。）
 pub struct ProductionOrderService {
-    /// 数据库连接句柄
-    ///
-    /// `pub(crate)` 可见性：production_order_ops 兄弟模块的 impl 块需直接访问此字段。
+    /// 数据库连接句柄（`pub(crate)` 可见性：production_order_ops 兄弟模块的 impl 块需直接访问此字段。）
     pub(crate) db: Arc<DatabaseConnection>,
 }
 
@@ -60,17 +56,13 @@ mod tests {
     use rust_decimal::Decimal;
     use std::str::FromStr;
 
-    /// 复现 deduct_raw_materials_txn 中的 BOM 用量计算（纯算法）
-    ///
-    /// 公式：consumption_qty = (bom_quantity * production_qty).round_dp(4)
+    /// 复现 deduct_raw_materials_txn 中的 BOM 用量计算（纯算法）（公式：consumption_qty = (bom_quantity * production_qty).round_dp(4)）
     fn calc_consumption_qty(bom_quantity: Decimal, production_qty: Decimal) -> Decimal {
         (bom_quantity * production_qty).round_dp(4)
     }
 
     /// 复现 deduct_raw_materials_txn 中的公斤数按比例扣减（纯算法）
-    ///
-    /// 公式：qty_after_kg = qty_before_kg - (qty_before_kg * consumption_qty / qty_before_meters)
-    /// 当 qty_before_meters 为零时，公斤数不变（避免除零）。
+    /// 公式：qty_after_kg = qty_before_kg - (qty_before_kg * consumption_qty / qty_before_meters)；当 qty_before_meters 为零时，公斤数不变（避免除零）。
     fn calc_kg_after_deduction(
         qty_before_meters: Decimal,
         qty_before_kg: Decimal,
@@ -84,9 +76,7 @@ mod tests {
     }
 
     /// 复现 increase_finished_goods_txn 中的成品入库公斤数计算（纯算法）
-    ///
-    /// 公式：added_kg = production_qty * gram_weight * width / 100000
-    /// 当克重或幅宽缺失时，公斤数增量为零。
+    /// 公式：added_kg = production_qty * gram_weight * width / 100000；当克重或幅宽缺失时，公斤数增量为零。
     fn calc_added_kg(
         production_qty: Decimal,
         gram_weight: Option<Decimal>,
@@ -107,9 +97,7 @@ mod tests {
         actual_quantity.unwrap_or(planned_quantity)
     }
 
-    /// 复现 generate_unique_order_no 的订单号格式校验（纯字符串校验）
-    ///
-    /// 格式：PO-{14位时间戳}-{4位随机数}
+    /// 复现 generate_unique_order_no 的订单号格式校验（纯字符串校验）（格式：PO-{14位时间戳}-{4位随机数}）
     fn is_valid_order_no_format(order_no: &str) -> bool {
         if !order_no.starts_with("PO-") {
             return false;
@@ -127,9 +115,7 @@ mod tests {
 
     // ============== 状态常量值正确性 ==============
 
-    /// 测试_状态常量_草稿为合法值
-    ///
-    /// 验证 STATUS_DRAFT 常量是大写字符串 "DRAFT"，与数据库约定一致。
+    /// 测试_状态常量_草稿为合法值（验证 STATUS_DRAFT 常量是大写字符串 "DRAFT"，与数据库约定一致。）
     #[test]
     fn 测试_状态常量_草稿为合法值() {
         assert_eq!(common::STATUS_DRAFT, "DRAFT");
@@ -177,9 +163,7 @@ mod tests {
         assert_eq!(production::PRODUCTION_REJECTED, "REJECTED");
     }
 
-    /// 测试_状态常量_各状态值互不相同
-    ///
-    /// 验证生产订单 8 个状态常量两两互不相同，避免状态机歧义。
+    /// 测试_状态常量_各状态值互不相同（验证生产订单 8 个状态常量两两互不相同，避免状态机歧义。）
     #[test]
     fn 测试_状态常量_各状态值互不相同() {
         let statuses = [
@@ -311,9 +295,7 @@ mod tests {
         .is_ok());
     }
 
-    /// 测试_状态转换_草稿不能直接到生产中
-    ///
-    /// 业务规则：草稿必须先经已排产才能进入生产中，跳级转换应被拒绝。
+    /// 测试_状态转换_草稿不能直接到生产中（业务规则：草稿必须先经已排产才能进入生产中，跳级转换应被拒绝。）
     #[test]
     fn 测试_状态转换_草稿不能直接到生产中() {
         let result = ProductionOrderService::validate_status_transition(
@@ -361,9 +343,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 测试_状态转换_错误消息包含源和目标状态
-    ///
-    /// 验证非法转换的错误消息包含双方状态名，便于排查。
+    /// 测试_状态转换_错误消息包含源和目标状态（验证非法转换的错误消息包含双方状态名，便于排查。）
     #[test]
     fn 测试_状态转换_错误消息包含源和目标状态() {
         let result = ProductionOrderService::validate_status_transition(
@@ -392,9 +372,7 @@ mod tests {
 
     // ============== 数量计算（纯算法） ==============
 
-    /// 测试_数量计算_BOM用量乘以生产数量_整数结果
-    ///
-    /// 验证 consumption_qty = bom_quantity * production_qty。
+    /// 测试_数量计算_BOM用量乘以生产数量_整数结果（验证 consumption_qty = bom_quantity * production_qty。）
     #[test]
     fn 测试_数量计算_BOM用量乘以生产数量_整数结果() {
         let bom_qty = decs!("1.5");
@@ -403,9 +381,7 @@ mod tests {
         assert_eq!(result, decs!("150"));
     }
 
-    /// 测试_数量计算_BOM用量乘以生产数量_小数结果
-    ///
-    /// 验证 round_dp(4) 对结果精度进行控制，防止精度漂移。
+    /// 测试_数量计算_BOM用量乘以生产数量_小数结果（验证 round_dp(4) 对结果精度进行控制，防止精度漂移。）
     #[test]
     fn 测试_数量计算_BOM用量乘以生产数量_小数结果() {
         let bom_qty = decs!("0.1234");
@@ -415,9 +391,7 @@ mod tests {
         assert_eq!(result, decs!("0.3702"));
     }
 
-    /// 测试_数量计算_公斤数按比例扣减
-    ///
-    /// 验证 kg_before - (kg_before * consumption / meters_before) 的比例扣减逻辑。
+    /// 测试_数量计算_公斤数按比例扣减（验证 kg_before - (kg_before * consumption / meters_before) 的比例扣减逻辑。）
     #[test]
     fn 测试_数量计算_公斤数按比例扣减() {
         let meters_before = decs!("100");
@@ -428,9 +402,7 @@ mod tests {
         assert_eq!(result, decs!("37.5"));
     }
 
-    /// 测试_数量计算_米数为零时公斤数不变
-    ///
-    /// 防御性逻辑：当 qty_before_meters 为零时，公斤数保持不变避免除零。
+    /// 测试_数量计算_米数为零时公斤数不变（防御性逻辑：当 qty_before_meters 为零时，公斤数保持不变避免除零。）
     #[test]
     fn 测试_数量计算_米数为零时公斤数不变() {
         let meters_before = Decimal::ZERO;
@@ -440,9 +412,7 @@ mod tests {
         assert_eq!(result, kg_before);
     }
 
-    /// 测试_数量计算_成品入库公斤数计算
-    ///
-    /// 验证 added_kg = production_qty * gram_weight * width / 100000。
+    /// 测试_数量计算_成品入库公斤数计算（验证 added_kg = production_qty * gram_weight * width / 100000。）
     #[test]
     fn 测试_数量计算_成品入库公斤数计算() {
         let prod_qty = decs!("1000"); // 米
@@ -461,9 +431,7 @@ mod tests {
         assert_eq!(result, Decimal::ZERO);
     }
 
-    /// 测试_数量计算_实际数量缺省取计划数量
-    ///
-    /// 复现 complete_production_order 中 actual_quantity.unwrap_or(planned_quantity) 逻辑。
+    /// 测试_数量计算_实际数量缺省取计划数量（复现 complete_production_order 中 actual_quantity.unwrap_or(planned_quantity) 逻辑。）
     #[test]
     fn 测试_数量计算_实际数量缺省取计划数量() {
         let planned = decs!("500");
@@ -475,9 +443,7 @@ mod tests {
     }
 
     /// 测试_数量计算_生产数量为零时触发错误路径
-    ///
-    /// 复现 handle_production_completion_inventory_txn 中 production_qty.is_zero() 校验：
-    /// 当 actual_quantity 和 planned_quantity 均为零时，应触发业务错误。
+    /// 复现 handle_production_completion_inventory_txn 中 production_qty.is_zero() 校验：当 actual_quantity 和 planned_quantity 均为零时，应触发业务错误。
     #[test]
     fn 测试_数量计算_生产数量为零时触发错误路径() {
         let planned = Decimal::ZERO;
@@ -488,9 +454,7 @@ mod tests {
 
     // ============== 错误消息格式 ==============
 
-    /// 测试_错误消息_产品不存在包含ID
-    ///
-    /// 复现 validate_product_exists 中 "产品ID {} 不存在" 的错误消息格式。
+    /// 测试_错误消息_产品不存在包含ID（复现 validate_product_exists 中 "产品ID {} 不存在" 的错误消息格式。）
     #[test]
     fn 测试_错误消息_产品不存在包含ID() {
         let err = AppError::validation(format!("产品ID {} 不存在", 999));
@@ -522,9 +486,7 @@ mod tests {
         assert!(msg.contains(order_no), "错误消息应包含订单号");
     }
 
-    /// 测试_错误消息_生产数量为零提示明确
-    ///
-    /// 复现 handle_production_completion_inventory_txn 中 "生产数量为零" 的业务错误消息。
+    /// 测试_错误消息_生产数量为零提示明确（复现 handle_production_completion_inventory_txn 中 "生产数量为零" 的业务错误消息。）
     #[test]
     fn 测试_错误消息_生产数量为零提示明确() {
         let err = AppError::business("生产数量为零，无法执行库存联动".to_string());
@@ -553,9 +515,7 @@ mod tests {
 
     // ============== 订单号格式 ==============
 
-    /// 测试_订单号格式_合法格式通过校验
-    ///
-    /// 验证 generate_unique_order_no 生成的 "PO-{14位时间戳}-{4位数字}" 格式合法。
+    /// 测试_订单号格式_合法格式通过校验（验证 generate_unique_order_no 生成的 "PO-{14位时间戳}-{4位数字}" 格式合法。）
     #[test]
     fn 测试_订单号格式_合法格式通过校验() {
         assert!(is_valid_order_no_format("PO-20260709103000-0042"));
@@ -609,9 +569,7 @@ mod tests {
         assert_eq!(d.format("%Y-%m-%d").to_string(), "2026-01-01");
     }
 
-    /// 测试_FromStr_与decs宏结果一致
-    ///
-    /// 验证 decs! 宏与 Decimal::from_str 行为一致，确保夹具可信赖。
+    /// 测试_FromStr_与decs宏结果一致（验证 decs! 宏与 Decimal::from_str 行为一致，确保夹具可信赖。）
     #[test]
     fn 测试_FromStr_与decs宏结果一致() {
         let a = decs!("99.9");
@@ -622,9 +580,7 @@ mod tests {
     // ============== 服务实例化与请求结构 ==============
 
     /// 测试_服务实例化_使用SQLite内存数据库
-    ///
-    /// 标注 #[ignore]：依赖 SQLite 内存数据库 schema，CI 中不强制运行；
-    /// 用于本地手动验证 ProductionOrderService::new 能正常构造。
+    /// 标注 #[ignore]：依赖 SQLite 内存数据库 schema，CI 中不强制运行；用于本地手动验证 ProductionOrderService::new 能正常构造。
     #[tokio::test]
     #[ignore = "依赖 SQLite 内存数据库 schema，CI 中跳过；本地手动验证用"]
     async fn 测试_服务实例化_使用SQLite内存数据库() {
@@ -634,9 +590,7 @@ mod tests {
         let _service = ProductionOrderService::new(std::sync::Arc::new(db));
     }
 
-    /// 测试_请求结构_创建订单请求可构造
-    ///
-    /// 验证 CreateProductionOrderRequest 能正常构造，字段类型匹配。
+    /// 测试_请求结构_创建订单请求可构造（验证 CreateProductionOrderRequest 能正常构造，字段类型匹配。）
     #[test]
     fn 测试_请求结构_创建订单请求可构造() {
         let req = CreateProductionOrderRequest {

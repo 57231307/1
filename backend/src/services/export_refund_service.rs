@@ -140,9 +140,7 @@ impl ExportRefundService {
         Ok(result)
     }
 
-    /// 校验"单证齐全"（报关单+核销单）
-    ///
-    /// 业务规则：免抵退税申报要求报关单与核销单齐全
+    /// 校验"单证齐全"（报关单+核销单）（业务规则：免抵退税申报要求报关单与核销单齐全）
     pub async fn verify_documents_completeness(
         &self,
         sales_order_id: i32,
@@ -163,12 +161,7 @@ impl ExportRefundService {
     }
 
     /// 计算免抵退税额（纯函数）
-    ///
-    /// 业务规则（财税[2012]39号 免抵退办法）：
-    /// - 免抵退税额 = 出口销售额 × 退税率
-    /// - 应退税额 = min(免抵退税额, 期初留抵 + 当期进项)
-    /// - 免抵税额 = 免抵退税额 - 应退税额
-    /// - 结转下期 = max(0, 期初留抵 + 当期进项 - 免抵退税额)
+    /// 业务规则（财税[2012]39号 免抵退办法）：免抵退税额 = 出口销售额 × 退税率；应退税额 = min(免抵退税额, 期初留抵 + 当期进项)；免抵税额 = 免抵退税额 - 应退税额；结转下期 = max(0, 期初留抵 + 当期进项 - 免抵退税额)
     pub fn calculate_exempt_credit_refund(
         input: &RefundCalculationInput,
     ) -> RefundCalculationResult {

@@ -85,18 +85,11 @@ pub struct ExceedanceAlert {
     pub exceeding_ratio: Decimal,
 }
 
-/// 污染物排放限值参考表（印染行业国家标准）
-///
-/// 依据：
-/// - 《水污染防治法》GB 4287-2012 纺织染整工业水污染物排放标准
-/// - 《大气污染物综合排放标准》GB 16297
-/// - 《工业企业厂界环境噪声排放标准》GB 12348
+/// 污染物排放限值参考表（印染行业国家标准）（依据：《水污染防治法》GB 4287-2012 纺织染整工业水污染物排放标准；《大气污染物综合排放标准》GB 16297；《工业企业厂界环境噪声排放标准》GB 12348）
 pub struct PollutionLimitReference;
 
 impl PollutionLimitReference {
-    /// 获取污染物排放限值（mg/L, mg/m³, dB）
-    ///
-    /// 返回 None 表示该污染物未在标准中预置，需用户手动传入 limit_value
+    /// 获取污染物排放限值（mg/L, mg/m³, dB）（返回 None 表示该污染物未在标准中预置，需用户手动传入 limit_value）
     pub fn get_limit(monitoring_type: &str, pollutant_name: &str) -> Option<Decimal> {
         match (monitoring_type, pollutant_name) {
             // 废水排放限值（GB 4287-2012 纺织染整工业水污染物排放标准）
@@ -123,11 +116,7 @@ impl PollutionMonitoringService {
     }
 
     /// 创建污染物监测记录（自动判定是否超标）
-    ///
-    /// 业务规则：
-    /// - 监测类型 wastewater/exhaust/noise/solid_waste
-    /// - 实测值 > 限值 → is_exceeding=true，自动计算超标倍数
-    /// - 超标倍数 = 实测值 / 限值 - 1
+    /// 业务规则：监测类型 wastewater/exhaust/noise/solid_waste；实测值 > 限值 → is_exceeding=true，自动计算超标倍数；超标倍数 = 实测值 / 限值 - 1
     pub async fn create_monitoring_record(
         &self,
         req: CreateMonitoringRecordRequest,
@@ -335,11 +324,7 @@ impl PollutionMonitoringService {
         Ok(alerts)
     }
 
-    /// 校验是否超标（纯函数）
-    ///
-    /// 业务规则：
-    /// - 实测值 > 限值 → 超标
-    /// - 超标倍数 = 实测值 / 限值 - 1（保留 4 位小数）
+    /// 校验是否超标（纯函数）（业务规则：实测值 > 限值 → 超标；超标倍数 = 实测值 / 限值 - 1（保留 4 位小数））
     pub fn check_exceedance(measured: Decimal, limit: Decimal) -> (bool, Option<Decimal>) {
         if measured > limit && limit > Decimal::ZERO {
             let ratio = measured / limit - Decimal::ONE;

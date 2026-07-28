@@ -8,12 +8,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 单据-业务模式关联模型
-///
-/// 真实业务要点：
-/// - 同一单据只能关联一个业务模式（UNIQUE(document_type, document_id)）
-/// - 业务模式被引用后不可删除（ON DELETE RESTRICT）
-/// - 模式快照防止后续模式修改影响历史单据
+/// 单据-业务模式关联模型（同单据仅关联一模式 UNIQUE(document_type,document_id)，引用后不可删除，含模式快照防止历史单据受后续修改影响）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "business_mode_order_link")]
 pub struct Model {

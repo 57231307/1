@@ -88,9 +88,7 @@ impl ExportService {
     }
 
     /// V15 P1 batch-08 缺陷 8：导出为 Word 格式（docx）
-    ///
-    /// 规则 3 强制要求所有报表/文档生成支持 .docx 格式（Word）。
-    /// 布局：标题 → 主表键值对（summary）→ 明细表格（headers + rows）。
+    /// 规则 3 强制要求所有报表/文档生成支持 .docx 格式（Word）。；布局：标题 → 主表键值对（summary）→ 明细表格（headers + rows）。
     pub fn export_docx(data: &ExportData) -> Result<Vec<u8>, AppError> {
         let kv = if let Some(summary) = &data.summary {
             let keys: Vec<String> = summary.iter().map(|(k, _)| k.clone()).collect();
@@ -165,9 +163,7 @@ impl ExportService {
         Ok(content.into_bytes())
     }
 
-    /// V15 P1 batch-08 缺陷 8：生成对账单 Word 文档（docx）
-    ///
-    /// 规则 3 强制要求合同/发票/报表支持 .docx 格式，禁止 .txt 作为成品文档。
+    /// V15 P1 batch-08 缺陷 8：生成对账单 Word 文档（docx）（规则 3 强制要求合同/发票/报表支持 .docx 格式，禁止 .txt 作为成品文档。）
     pub fn generate_reconciliation_docx(
         reconciliation_no: &str,
         customer_name: &str,

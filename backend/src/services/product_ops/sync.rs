@@ -15,12 +15,7 @@ use crate::services::product_service::ProductService;
 
 impl ProductService {
     /// 将 product::Model 转换为 ProductDoc 用于 ES 索引
-    ///
-    /// 批次 125 v8 复审 P1 修复：字段映射规则
-    /// - category: join product_category 表取 name（category_id 索引意义不大）
-    /// - color_no/pantone_code: 暂设 None（一对多关联复杂，后续迭代优化）
-    /// - price: standard_price Decimal → f64
-    /// - spec: specification 字段
+    /// 批次 125 v8 复审 P1 修复：字段映射规则；category: join product_category 表取 name（category_id 索引意义不大）；color_no/pantone_code: 暂设 None（一对多关联复杂，后续迭代优化）；price: standard_price Decimal → f64；spec: specification 字段
     fn build_product_doc(&self, model: &product::Model) -> ProductDoc {
         ProductDoc {
             id: model.id,
@@ -39,10 +34,7 @@ impl ProductService {
     }
 
     /// 同步产品到 ES（最终一致性策略）
-    ///
-    /// 批次 125 v8 复审 P1 修复：ES 同步失败仅记录日志，不回滚 PG 事务。
-    ///
-    /// `pub(crate)`：`crud` 子模块的 create/update/delete 方法跨子模块调用。
+    /// 批次 125 v8 复审 P1 修复：ES 同步失败仅记录日志，不回滚 PG 事务。；`pub(crate)`：`crud` 子模块的 create/update/delete 方法跨子模块调用。
     pub(crate) async fn sync_product_to_es(&self, model: &product::Model, operation: &str) {
         let doc = self.build_product_doc(model);
         if let Err(e) = self.search_syncer.sync_product(&doc).await {

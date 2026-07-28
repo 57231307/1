@@ -4,9 +4,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 色号价格历史实体（P0-5）
-///
-/// 记录每次调价的变更前/后价格、操作人、原因、审批信息
+/// 色号价格历史实体（P0-5）：记录每次调价的变更前/后价格、操作人、原因、审批信息
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "color_price_history")]
 pub struct Model {

@@ -8,9 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 外汇核销单模型
-///
-/// 真实业务：出口收汇核销，作为免抵退税核算的"单证齐全"基础数据
+/// 外汇核销单模型（出口收汇核销，作为免抵退税核算的"单证齐全"基础数据）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "foreign_exchange_verifications")]
 pub struct Model {

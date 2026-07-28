@@ -297,9 +297,7 @@ pub async fn delete_sample(
     )))
 }
 
-/// POST /api/v1/erp/lab-dip/samples/:id/matching - 记录对色结果
-///
-/// 真实业务：色差 4-5 级为 matched（OK），<4 级为 not_matched（重打）
+/// POST /api/v1/erp/lab-dip/samples/:id/matching - 记录对色结果；真实业务：色差 4-5 级为 matched（OK），<4 级为 not_matched（重打）
 pub async fn record_matching_result(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -337,9 +335,7 @@ pub async fn get_resample(
     Ok(Json(ApiResponse::success(item)))
 }
 
-/// POST /api/v1/erp/lab-dip/resamples - 创建复样记录
-///
-/// 真实业务：OK 样确认后，大货生产前必须复样（用车间半制品布+生产染化料模拟大生产）
+/// POST /api/v1/erp/lab-dip/resamples - 创建复样记录；真实业务：OK 样确认后，大货生产前必须复样（用车间半制品布+生产染化料模拟大生产）
 pub async fn create_resample(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -352,9 +348,7 @@ pub async fn create_resample(
     )))
 }
 
-/// POST /api/v1/erp/lab-dip/resamples/:id/result - 记录复样结果
-///
-/// 真实业务：色差 4-5 级方可投产（passed），<4 级为 failed
+/// POST /api/v1/erp/lab-dip/resamples/:id/result - 记录复样结果；真实业务：色差 4-5 级方可投产（passed），<4 级为 failed
 pub async fn record_resample_result(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -368,9 +362,7 @@ pub async fn record_resample_result(
     )))
 }
 
-/// POST /api/v1/erp/lab-dip/resamples/:id/tech-card - 开具染色技术卡
-///
-/// 真实业务：复样通过后由研发组长开染色技术卡，附配方表+核可样+复色样
+/// POST /api/v1/erp/lab-dip/resamples/:id/tech-card - 开具染色技术卡；真实业务：复样通过后由研发组长开染色技术卡，附配方表+核可样+复色样
 pub async fn issue_tech_card(
     State(state): State<AppState>,
     _auth: AuthContext,

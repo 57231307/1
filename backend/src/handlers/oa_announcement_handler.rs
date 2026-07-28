@@ -45,9 +45,8 @@ mod generated {
 pub use generated::list as list_unfiltered;
 pub use generated::{create, delete, get, update};
 
-/// GET /api/v1/erp/oa-announcements - 列表（缺陷 7.2 修复：按 visibility_scope 过滤）
-///
-/// 调用 service.list_for_user 按 ALL/DEPT/ROLE/CUSTOM 范围过滤可见公告。
+/// GET /api/v1/erp/oa-announcements - 列表（缺陷 7.2 修复：按 visibility_scope
+/// 过滤）；调用 service.list_for_user 按 ALL/DEPT/ROLE/CUSTOM 范围过滤可见公告。
 pub async fn list(
     State(state): State<AppState>,
     auth: AuthContext,

@@ -247,10 +247,7 @@ impl ImportExportService {
     }
 
     /// 解析CSV内容
-    ///
-    /// 批次 340 v11 复审 P1 修复：移除防御性 `#[allow(clippy::needless_pass_by_value)]`，
-    /// `content: &str` 是引用类型，clippy 不会对引用类型触发 needless_pass_by_value，
-    /// 原标注为历史遗留误报防御。
+    /// 批次 340 v11 复审 P1 修复：移除防御性 `#[allow(clippy::needless_pass_by_value)]`，；`content: &str` 是引用类型，clippy 不会对引用类型触发 needless_pass_by_value，；原标注为历史遗留误报防御。
     pub fn parse_csv(content: &str) -> Result<Vec<Vec<String>>, AppError> {
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(true)
@@ -277,9 +274,7 @@ impl ImportExportService {
     }
 
     /// 验证导入数据
-    ///
-    /// 批次 340 v11 复审 P1 修复：移除防御性 `#[allow(clippy::needless_pass_by_value)]`，
-    /// `&[Vec<String>]` 和 `&ImportTemplate` 都是引用类型，不会触发 needless_pass_by_value。
+    /// 批次 340 v11 复审 P1 修复：移除防御性 `#[allow(clippy::needless_pass_by_value)]`，；`&[Vec<String>]` 和 `&ImportTemplate` 都是引用类型，不会触发 needless_pass_by_value。
     pub fn validate_import_data(
         data: &[Vec<String>],
         template: &ImportTemplate,
@@ -329,9 +324,7 @@ impl ImportExportService {
     }
 
     /// 校验导入数据尺寸（service 层 defense-in-depth）
-    ///
-    /// `pub(crate)` 可见性：import_export_ops::import 子模块在 import_data 入口处调用此方法，
-    /// 实现 service 层 defense-in-depth 第四层屏障（避免 handler 漏检 / 内部调用绕过）。
+    /// `pub(crate)` 可见性：import_export_ops::import 子模块在 import_data 入口处调用此方法，；实现 service 层 defense-in-depth 第四层屏障（避免 handler 漏检 / 内部调用绕过）。
     pub(crate) fn validate_import_data_size(data: &[Vec<String>]) -> Result<(), AppError> {
         if data.len() > MAX_EXCEL_ROWS {
             return Err(AppError::validation(format!(
@@ -365,10 +358,7 @@ impl ImportExportService {
     }
 
     /// 记录单行导入结果，消除 "products"/"customers" 分支中重复的 imported/failed/errors 收集代码
-    /// （P2 1-7 修复抽取）
-    ///
-    /// `pub(crate)` 可见性：import_export_ops::import 子模块在 import_data 循环中调用此方法，
-    /// 统一处理单行导入成功/失败的结果累积逻辑。
+    /// （P2 1-7 修复抽取）；`pub(crate)` 可见性：import_export_ops::import 子模块在 import_data 循环中调用此方法，；统一处理单行导入成功/失败的结果累积逻辑。
     pub(crate) fn record_import_result(
         idx: usize,
         result: Result<(), AppError>,
@@ -390,9 +380,7 @@ impl ImportExportService {
     }
 
     /// 解析日期字符串为 DateTime（兼容多种格式）
-    ///
-    /// `pub(crate)` 可见性：import_export_ops::export 子模块在 export_products/export_customers/
-    /// export_inventory 中调用此方法解析 date_from / date_to 过滤参数。
+    /// `pub(crate)` 可见性：import_export_ops::export 子模块在 export_products/export_customers/；export_inventory 中调用此方法解析 date_from / date_to 过滤参数。
     pub(crate) fn parse_date_filter(date_str: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         let formats = ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d"];
         for _fmt in &formats {
@@ -413,9 +401,7 @@ impl ImportExportService {
     }
 
     /// 获取导出行数限制（不超过 MAX_EXPORT_ROWS）
-    ///
-    /// `pub(crate)` 可见性：import_export_ops::export 子模块在 export_products/export_customers/
-    /// export_inventory 中调用此方法计算最终 limit（取 query.limit 与 MAX_EXPORT_ROWS 的最小值）。
+    /// `pub(crate)` 可见性：import_export_ops::export 子模块在 export_products/export_customers/；export_inventory 中调用此方法计算最终 limit（取 query.limit 与 MAX_EXPORT_ROWS 的最小值）。
     pub(crate) fn get_export_limit(query: &ExportQuery) -> u64 {
         query.limit.unwrap_or(MAX_EXPORT_ROWS).min(MAX_EXPORT_ROWS)
     }

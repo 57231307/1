@@ -34,12 +34,7 @@ use crate::utils::error::AppError;
 // 大货处方 Service struct 定义（impl 块在 production_recipe_ops/recipe_crud、recipe_state 子模块）
 // ============================================================================
 
-/// 创建大货处方请求
-///
-/// 真实业务必填字段（依据 §11.2 大货处方）：
-/// - fabric_weight: 备布重量（用量计算依据）
-/// - liquor_ratio: 浴比（如 1:8）
-/// - recipe_detail: 处方明细（染料+助剂）
+/// 创建大货处方请求（真实业务必填字段（依据 §11.2 大货处方）：fabric_weight: 备布重量（用量计算依据）；liquor_ratio: 浴比（如 1:8）；recipe_detail: 处方明细（染料+助剂））
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateProductionRecipeRequest {
     pub work_order_id: Option<i32>,
@@ -122,10 +117,7 @@ pub struct CalculateAmountsRequest {
     pub items: Vec<RecipeMaterialItem>,
 }
 
-/// 大货处方 Service
-///
-/// `pub(crate) db`：production_recipe_ops 子模块（recipe_crud / recipe_state）需直接访问
-/// db 字段执行 sea_orm 查询。
+/// 大货处方 Service（`pub(crate) db`：production_recipe_ops 子模块（recipe_crud / recipe_state）需直接访问；db 字段执行 sea_orm 查询。）
 pub struct ProductionRecipeService {
     pub(crate) db: Arc<DatabaseConnection>,
 }
@@ -135,9 +127,7 @@ impl ProductionRecipeService {
         Self { db }
     }
 
-    /// 生成大货处方单号：PR-YYYYMMDDHHMMSS-NNN
-    ///
-    /// `pub(crate)`：production_recipe_ops::recipe_crud 的 create 方法调用。
+    /// 生成大货处方单号：PR-YYYYMMDDHHMMSS-NNN（`pub(crate)`：production_recipe_ops::recipe_crud 的 create 方法调用。）
     pub(crate) fn generate_recipe_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
@@ -145,9 +135,7 @@ impl ProductionRecipeService {
         format!("PR-{}-{:03}", timestamp, random)
     }
 
-    /// 解析浴比字符串（如 "1:8"）为浴比数值（8.0）
-    ///
-    /// 真实业务：浴比格式为 "1:N"，N 通常为 5-20
+    /// 解析浴比字符串（如 "1:8"）为浴比数值（8.0）（真实业务：浴比格式为 "1:N"，N 通常为 5-20）
     pub fn parse_liquor_ratio(ratio: &str) -> Result<Decimal, AppError> {
         let trimmed = ratio.trim();
         if trimmed.is_empty() {
@@ -176,11 +164,7 @@ impl ProductionRecipeService {
         Ok(denominator)
     }
 
-    /// 计算用量（根据浓度+布重+浴比）
-    ///
-    /// 真实业务公式：用量 = 浓度% × 布重 × 浴比 / 100
-    /// 其中浓度%为对布重百分比（owf%），浴比为 "1:N" 中的 N
-    /// 加成系数用于修正小样→大货得色差异（默认 1.00）
+    /// 计算用量（根据浓度+布重+浴比）（真实业务公式：用量 = 浓度% × 布重 × 浴比 / 100；其中浓度%为对布重百分比（owf%），浴比为 "1:N" 中的 N；加成系数用于修正小样→大货得色差异（默认 1.00））
     pub fn calculate_amounts(
         req: CalculateAmountsRequest,
     ) -> Result<Vec<RecipeMaterialItem>, AppError> {
@@ -215,11 +199,7 @@ impl ProductionRecipeService {
 
     // ===== 状态流转校验 =====
 
-    /// 校验状态流转合法性
-    ///
-    /// 状态机：draft → approved → closed
-    ///         draft → cancelled
-    ///         approved → closed
+    /// 校验状态流转合法性（状态机：draft → approved → closed；draft → cancelled；approved → closed）
     pub fn validate_status_transition(current: &str, new: &str) -> Result<(), AppError> {
         let valid = match current {
             recipe_status::DRAFT => {
@@ -293,10 +273,7 @@ pub struct ProductionRecipeAdditionQuery {
     pub page_size: Option<u64>,
 }
 
-/// 加料处方 Service
-///
-/// `pub(crate) db`：production_recipe_ops::addition 子模块需直接访问 db 字段执行
-/// sea_orm 查询。
+/// 加料处方 Service（`pub(crate) db`：production_recipe_ops::addition 子模块需直接访问 db 字段执行；sea_orm 查询。）
 pub struct ProductionRecipeAdditionService {
     pub(crate) db: Arc<DatabaseConnection>,
 }
@@ -306,9 +283,7 @@ impl ProductionRecipeAdditionService {
         Self { db }
     }
 
-    /// 生成加料处方单号：PA-YYYYMMDDHHMMSS-NNN
-    ///
-    /// `pub(crate)`：production_recipe_ops::addition 的 create 方法调用。
+    /// 生成加料处方单号：PA-YYYYMMDDHHMMSS-NNN（`pub(crate)`：production_recipe_ops::addition 的 create 方法调用。）
     pub(crate) fn generate_addition_no() -> String {
         let now = chrono::Utc::now();
         let timestamp = now.format("%Y%m%d%H%M%S");
@@ -318,9 +293,7 @@ impl ProductionRecipeAdditionService {
 
     // ===== 状态流转校验 =====
 
-    /// 校验状态流转合法性
-    ///
-    /// 状态机：draft → approved → closed
+    /// 校验状态流转合法性（状态机：draft → approved → closed）
     pub fn validate_status_transition(current: &str, new: &str) -> Result<(), AppError> {
         let valid = match current {
             addition_status::DRAFT => matches!(new, addition_status::APPROVED),
@@ -401,9 +374,7 @@ mod tests {
         assert!(ProductionRecipeService::parse_liquor_ratio("1:-5").is_err());
     }
 
-    /// 测试用量计算
-    ///
-    /// 真实业务公式：用量 = 浓度% × 布重 × 浴比 / 100 × 加成系数
+    /// 测试用量计算（真实业务公式：用量 = 浓度% × 布重 × 浴比 / 100 × 加成系数）
     #[test]
     fn test_calculate_amounts() {
         let fabric_weight = Decimal::from(100); // 100 kg

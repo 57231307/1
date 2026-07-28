@@ -530,11 +530,7 @@ impl OutsourcingOrderService {
     }
 
     /// 若存在非正常损耗，创建损耗处理凭证（借 营业外支出 / 贷 委托加工物资）
-    ///
-    /// V15 P1-08-13：同时记录进项税转出金额（增值税合规）
-    /// 业务规则（《增值税暂行条例》第 27 条）：
-    /// - 非正常损耗对应的已抵扣进项税需转出
-    /// - 凭证金额仍为 abnormal_loss_amount，tax_transfer_amount 单独记录
+    /// V15 P1-08-13：同时记录进项税转出金额（增值税合规）；业务规则（《增值税暂行条例》第 27 条）：非正常损耗对应的已抵扣进项税需转出；凭证金额仍为 abnormal_loss_amount，tax_transfer_amount 单独记录
     async fn insert_loss_voucher_if_needed(
         &self,
         id: i32,
@@ -614,11 +610,7 @@ impl OutsourcingOrderService {
     }
 
     /// 结算：received → settled，创建加工费凭证（借：委托加工物资+应交税费 / 贷：银行存款）
-    ///
-    /// 业务规则：
-    /// - 加工费/运费/税额需在订单更新时填入（processing_fee / freight_fee / tax_amount 字段）
-    /// - 加工费凭证金额 = processing_fee + freight_fee
-    /// - 税额单独记录在 tax_amount 字段
+    /// 业务规则：加工费/运费/税额需在订单更新时填入（processing_fee / freight_fee / tax_amount 字段）；加工费凭证金额 = processing_fee + freight_fee；税额单独记录在 tax_amount 字段
     pub async fn settle(&self, id: i32) -> Result<OrderModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != outsourcing_order_status::RECEIVED {

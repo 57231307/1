@@ -12,10 +12,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-/// C-2 修复：字段权限处理器内部的 admin 校验
-///
-/// 安全原因：字段权限控制着 user.password_hash、salary 等敏感字段的脱敏策略，
-/// 普通用户若可写会绕过所有读保护。本函数强制要求 admin 角色。
+/// C-2 修复：字段权限处理器内部的 admin 校验；安全原因：字段权限控制着 user.password_hash、salary
+/// 等敏感字段的脱敏策略， 普通用户若可写会绕过所有读保护。本函数强制要求 admin 角色。
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id

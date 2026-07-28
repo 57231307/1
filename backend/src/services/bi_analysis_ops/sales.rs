@@ -24,9 +24,7 @@ use crate::utils::error::AppError;
 
 impl BiAnalysisService {
     /// 按时间聚合销售
-    ///
-    /// 根据 granularity（day/week/month/quarter/year）分组聚合销售额、订单数、数量、利润。
-    /// 利润 = 销售额 - 成本，成本 = SUM(sales_order_items.quantity * products.cost_price)。
+    /// 根据 granularity（day/week/month/quarter/year）分组聚合销售额、订单数、数量、利润。；利润 = 销售额 - 成本，成本 = SUM(sales_order_items.quantity * products.cost_price)。
     pub async fn sales_by_time(
         &self,
         start_date: chrono::NaiveDate,
@@ -125,9 +123,7 @@ impl BiAnalysisService {
             .collect()
     }
 
-    /// 按客户聚合销售
-    ///
-    /// 返回销售额 TOP N 客户排行，percentage = 客户销售额 / 全部销售额 * 100。
+    /// 按客户聚合销售（返回销售额 TOP N 客户排行，percentage = 客户销售额 / 全部销售额 * 100。）
     pub async fn sales_by_customer(&self, limit: i64) -> Result<Vec<CustomerRank>, AppError> {
         let limit = limit.clamp(1, 100);
 
@@ -224,9 +220,7 @@ impl BiAnalysisService {
             .collect()
     }
 
-    /// 按产品聚合销售
-    ///
-    /// 返回销售额 TOP N 产品排行，关联 product_categories 获取品类名。
+    /// 按产品聚合销售（返回销售额 TOP N 产品排行，关联 product_categories 获取品类名。）
     pub async fn sales_by_product(&self, limit: i64) -> Result<Vec<ProductRank>, AppError> {
         let limit = limit.clamp(1, 100);
 
@@ -288,9 +282,7 @@ impl BiAnalysisService {
         Ok(results)
     }
 
-    /// 按区域聚合销售
-    ///
-    /// 按客户所在省份聚合销售额、订单数、客户数。
+    /// 按区域聚合销售（按客户所在省份聚合销售额、订单数、客户数。）
     pub async fn sales_by_region(&self) -> Result<Vec<RegionStat>, AppError> {
         // 缺陷 3.1 修复：先查缓存，命中则直接返回
         let cache_key = build_bi_cache_key(&self.data_scope, &["sales_by_region"]);
@@ -341,9 +333,7 @@ impl BiAnalysisService {
         Ok(results)
     }
 
-    /// 按品类聚合销售
-    ///
-    /// 按 product_categories.name 聚合销售额，percentage = 品类销售额 / 全部销售额 * 100。
+    /// 按品类聚合销售（按 product_categories.name 聚合销售额，percentage = 品类销售额 / 全部销售额 * 100。）
     pub async fn sales_by_category(&self) -> Result<Vec<CategoryStat>, AppError> {
         // 缺陷 3.1 修复：先查缓存，命中则直接返回
         let cache_key = build_bi_cache_key(&self.data_scope, &["sales_by_category"]);
@@ -403,9 +393,7 @@ impl BiAnalysisService {
         Ok(results)
     }
 
-    /// 销售趋势（时间序列）
-    ///
-    /// 返回最近 N 天的按日聚合销售数据。
+    /// 销售趋势（时间序列）（返回最近 N 天的按日聚合销售数据。）
     pub async fn sales_trend(&self, days: i32) -> Result<Vec<TimeSeriesPoint>, AppError> {
         let days = days.clamp(1, 365);
         let end = chrono::Local::now().date_naive();

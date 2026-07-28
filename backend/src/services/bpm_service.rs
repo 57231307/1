@@ -25,11 +25,7 @@ static BPM_CONDITION_RE: std::sync::LazyLock<Option<regex::Regex>> =
     std::sync::LazyLock::new(|| regex::Regex::new(r"\$\{(\w+)\}\s*(==|!=|>|<|>=|<=)\s*(.+)").ok());
 
 /// 评估 BPM 边条件表达式
-/// 支持的条件格式:
-/// - `${amount} > 10000` - 变量数值比较
-/// - `${status} == 'APPROVED'` - 变量字符串比较
-///
-/// `pub(crate)`：bpm_ops::task 子模块的 `try_advance_to_next_node` 调用。
+/// 支持的条件格式:`${amount} > 10000` - 变量数值比较；`${status} == 'APPROVED'` - 变量字符串比较；`pub(crate)`：bpm_ops::task 子模块的 `try_advance_to_next_node` 调用。
 pub(crate) fn evaluate_bpm_condition(
     condition: &str,
     variables: &Option<serde_json::Value>,
@@ -100,9 +96,7 @@ pub(crate) fn evaluate_bpm_condition(
 }
 
 /// BPM 工作流服务
-///
-/// struct 定义保留在 facade，impl 业务方法块按职责分散到 `bpm_ops/` 子模块
-/// （instance / task / monitor）。`db` 字段为 `pub(crate)` 供 ops 子模块访问。
+/// struct 定义保留在 facade，impl 业务方法块按职责分散到 `bpm_ops/` 子模块；（instance / task / monitor）。`db` 字段为 `pub(crate)` 供 ops 子模块访问。
 pub struct BpmService {
     // 批次 67：db 字段改为 pub(crate)，允许 bpm_process_definition_service.rs 等 crate 内其他模块访问
     pub(crate) db: Arc<DatabaseConnection>,
@@ -113,9 +107,7 @@ impl BpmService {
         Self { db }
     }
 
-    /// 从流程定义配置中解析首个任务节点
-    ///
-    /// `pub(crate)`：bpm_ops::instance 子模块的 `create_first_task_or_complete` 调用。
+    /// 从流程定义配置中解析首个任务节点（`pub(crate)`：bpm_ops::instance 子模块的 `create_first_task_or_complete` 调用。）
     pub(crate) fn resolve_first_task_node(
         flow_def: &serde_json::Value,
     ) -> Option<&serde_json::Value> {

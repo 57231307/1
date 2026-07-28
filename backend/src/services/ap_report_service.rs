@@ -214,10 +214,7 @@ impl ApReportService {
             .collect())
     }
 
-    /// 获取应付日报
-    ///
-    /// v14 中风险性能修复（批次 245）：3 个聚合查询替代 3 次全量加载。
-    /// 主函数仅做协调：分别查询新增/到期/付款聚合，再聚合为日报。
+    /// 获取应付日报（v14 中风险性能修复（批次 245）：3 个聚合查询替代 3 次全量加载。；主函数仅做协调：分别查询新增/到期/付款聚合，再聚合为日报。）
     pub async fn get_daily_report(
         &self,
         report_date: NaiveDate,
@@ -367,8 +364,7 @@ impl ApReportService {
     }
 
     /// 获取应付月报
-    /// v14 中风险性能修复（批次 245）：月初/月末余额改为 SQL 聚合查询
-    /// D08 Tier 4 子批次2：拆分为 ≤50 行主函数 + 2 个 helper（compute_month_date_range / query_ap_invoice_balance）
+    /// v14 中风险性能修复（批次 245）：月初/月末余额改为 SQL 聚合查询；D08 Tier 4 子批次2：拆分为 ≤50 行主函数 + 2 个 helper（compute_month_date_range / query_ap_invoice_balance）
     pub async fn get_monthly_report(
         &self,
         year: i32,

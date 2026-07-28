@@ -238,9 +238,7 @@ impl PurchaseInspectionService {
     // 质检明细 CRUD（批次 131 v9 复审 P0：替代 4 个占位端点）
     // =====================================================
 
-    /// 获取质检明细列表
-    ///
-    /// 返回指定质检单下所有明细，按 id 升序排列。
+    /// 获取质检明细列表（返回指定质检单下所有明细，按 id 升序排列。）
     pub async fn list_inspection_items(
         &self,
         inspection_id: i32,
@@ -256,9 +254,7 @@ impl PurchaseInspectionService {
         Ok(items)
     }
 
-    /// 创建质检明细
-    ///
-    /// 在指定质检单下新增一条明细记录（产品 + 检验项目 + 合格/不合格数量）。
+    /// 创建质检明细（在指定质检单下新增一条明细记录（产品 + 检验项目 + 合格/不合格数量）。）
     pub async fn create_inspection_item(
         &self,
         inspection_id: i32,
@@ -282,9 +278,7 @@ impl PurchaseInspectionService {
         Ok(item)
     }
 
-    /// 更新质检明细
-    ///
-    /// 更新指定明细的合格数量 / 不合格数量 / 备注（部分字段可选）。
+    /// 更新质检明细（更新指定明细的合格数量 / 不合格数量 / 备注（部分字段可选）。）
     pub async fn update_inspection_item(
         &self,
         inspection_id: i32,
@@ -323,9 +317,7 @@ impl PurchaseInspectionService {
         Ok(item)
     }
 
-    /// 删除质检明细
-    ///
-    /// 删除指定明细，返回是否删除成功。
+    /// 删除质检明细（删除指定明细，返回是否删除成功。）
     pub async fn delete_inspection_item(
         &self,
         inspection_id: i32,

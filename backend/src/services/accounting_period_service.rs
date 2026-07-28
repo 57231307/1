@@ -72,10 +72,7 @@ impl AccountingPeriodService {
     }
 
     /// 执行月末结账
-    ///
-    /// V15 P1 17.1-D1 修复：引入 CLOSING 中间状态。
-    /// 结账流程：OPEN →（置 CLOSING）→ 试算平衡/结转 → CLOSED（成功） / 回滚 OPEN（失败）。
-    /// CLOSING 状态对外可见，便于并发场景区分"结账中"与"已结账"。
+    /// V15 P1 17.1-D1 修复：引入 CLOSING 中间状态。；结账流程：OPEN →（置 CLOSING）→ 试算平衡/结转 → CLOSED（成功） / 回滚 OPEN（失败）。；CLOSING 状态对外可见，便于并发场景区分"结账中"与"已结账"。
     pub async fn close_period(
         &self,
         period_id: i32,
@@ -114,13 +111,7 @@ impl AccountingPeriodService {
     }
 
     /// V15 P1 17.1-D2：反结账（重开期间）
-    ///
-    /// 业务规则：
-    /// 1. 仅 CLOSED 状态的期间可反结账；CLOSING 状态不可（结账中无法重开）
-    /// 2. 仅最近一个已结账期间可反结账（防止跳过中间期间导致数据断层）
-    /// 3. 下一个期间必须存在且为 OPEN 状态（确保期间连续性）
-    /// 4. 反结账后期间状态恢复为 OPEN，清空 closed_at/closed_by
-    /// 5. 操作写入审计日志，记录"反结账"操作类型
+    /// 业务规则：1. 仅 CLOSED 状态的期间可反结账；CLOSING 状态不可（结账中无法重开）；2. 仅最近一个已结账期间可反结账（防止跳过中间期间导致数据断层）；3. 下一个期间必须存在且为 OPEN 状态（确保期间连续性）；4. 反结账后期间状态恢复为 OPEN，清空 closed_at/closed_by；5. 操作写入审计日志，记录"反结账"操作类型
     pub async fn reopen_period(
         &self,
         period_id: i32,
@@ -205,13 +196,7 @@ impl AccountingPeriodService {
     }
 
     /// V15 P1 17.1-D3：年结（年度结账）
-    ///
-    /// 业务规则：
-    /// 1. 校验指定年度 1-12 月所有期间均为 CLOSED 状态（防止遗漏未结账月份）
-    /// 2. 将所有损益科目（收入类 6xxx / 成本费用类 5xxx）余额结转至"4104 未分配利润"
-    /// 3. 结转后损益科目余额为零，资产负债表平账
-    /// 4. 创建下一年度 1 月期间（若不存在）
-    /// 5. 操作写入审计日志
+    /// 业务规则：1. 校验指定年度 1-12 月所有期间均为 CLOSED 状态（防止遗漏未结账月份）；2. 将所有损益科目（收入类 6xxx / 成本费用类 5xxx）余额结转至"4104 未分配利润"；3. 结转后损益科目余额为零，资产负债表平账；4. 创建下一年度 1 月期间（若不存在）；5. 操作写入审计日志
     pub async fn year_end_closing(
         &self,
         year: i32,
@@ -314,11 +299,7 @@ impl AccountingPeriodService {
     }
 
     /// V15 P1 17.1-D3：年结损益科目结转至未分配利润（4104）
-    ///
-    /// 损益科目编码规则（中国企业会计准则）：
-    /// - 收入类：6xxx（主营业务收入、其他业务收入、营业外收入等）
-    /// - 成本费用类：5xxx（主营业务成本、销售费用、管理费用、财务费用等）
-    /// 结转后损益科目余额为零，净额计入 4104 未分配利润。
+    /// 损益科目编码规则（中国企业会计准则）：收入类：6xxx（主营业务收入、其他业务收入、营业外收入等）；成本费用类：5xxx（主营业务成本、销售费用、管理费用、财务费用等）；结转后损益科目余额为零，净额计入 4104 未分配利润。
     async fn transfer_profit_loss_to_retained_earnings_txn(
         &self,
         txn: &sea_orm::DatabaseTransaction,
@@ -474,10 +455,7 @@ impl AccountingPeriodService {
     }
 
     /// F-P1-1 修复（批次 360 v13 复审）：试算平衡校验
-    ///
-    /// 在 close_period 事务内调用，联表查询指定期间内所有已过账凭证分录，
-    /// 汇总借方总额与贷方总额。返回 (借方总额, 贷方总额) 供调用方校验。
-    /// 空期间返回 (0, 0) 视为平衡。
+    /// 在 close_period 事务内调用，联表查询指定期间内所有已过账凭证分录，；汇总借方总额与贷方总额。返回 (借方总额, 贷方总额) 供调用方校验。；空期间返回 (0, 0) 视为平衡。
     async fn check_trial_balance_txn(
         &self,
         txn: &sea_orm::DatabaseTransaction,
@@ -512,17 +490,7 @@ impl AccountingPeriodService {
     }
 
     /// F-P1-1 修复（批次 384 v13 复审）：期末结转余额
-    ///
-    /// 将本期 account_balances 的期末余额（ending_balance_debit/credit）
-    /// 结转到下期 account_balances 的期初余额（initial_balance_debit/credit）。
-    ///
-    /// 结转规则：
-    /// - 下期 initial_balance_debit = 本期 ending_balance_debit
-    /// - 下期 initial_balance_credit = 本期 ending_balance_credit
-    /// - 下期 current_period_debit/credit = 0（新期间无发生额）
-    /// - 下期 ending_balance_debit/credit = 本期期末值（期初即期末，未发生新业务前）
-    ///
-    /// 若下期记录已存在，则更新期初余额；若不存在，则插入新记录。
+    /// 将本期 account_balances 的期末余额（ending_balance_debit/credit）；结转到下期 account_balances 的期初余额（initial_balance_debit/credit）。；结转规则：下期 initial_balance_debit = 本期 ending_balance_debit；下期 initial_balance_credit = 本期 ending_balance_credit；下期 current_period_debit/credit = 0（新期间无发生额）；下期 ending_balance_debit/credit = 本期期末值（期初即期末，未发生新业务前）；若下期记录已存在，则更新期初余额；若不存在，则插入新记录。
     async fn carry_forward_balances_txn(
         &self,
         txn: &sea_orm::DatabaseTransaction,
@@ -567,10 +535,7 @@ impl AccountingPeriodService {
     }
 
     /// 结转单条余额到下期：已存在则更新期初余额，不存在则插入新记录
-    /// 返回 true=inserted, false=updated
-    ///
-    /// 期末余额 = 期初 + 本期发生额，若本期发生额为零则期末 = 期初。
-    /// 这里不重置 current_period_*，因为下期可能已有业务发生。
+    /// 返回 true=inserted, false=updated；期末余额 = 期初 + 本期发生额，若本期发生额为零则期末 = 期初。；这里不重置 current_period_*，因为下期可能已有业务发生。
     async fn upsert_next_period_balance_txn(
         txn: &sea_orm::DatabaseTransaction,
         balance: &crate::models::account_balance::Model,
@@ -650,10 +615,7 @@ impl AccountingPeriodService {
     }
 
     /// P2 3-22 修复：事务内校验指定日期是否在已结账的期间内，避免 TOCTOU
-    ///
-    /// 原 check_date_locked 在 ar_service 等调用方的事务外执行，
-    /// 并发场景下可能在检查后、commit 前期间被关闭，导致历史数据被篡改。
-    /// 新增 _txn 变体，在调用方事务内执行校验。
+    /// 原 check_date_locked 在 ar_service 等调用方的事务外执行，；并发场景下可能在检查后、commit 前期间被关闭，导致历史数据被篡改。；新增 _txn 变体，在调用方事务内执行校验。
     // v11 批次 148 P2-A：移除失效的 dead_code 标注（被 ar_service.rs:120 真实调用）
     // 批次 349 v12 复审 P2-1：ar_collection_service 已删除（死代码），注释引用修正为 ar_service
     pub async fn check_date_locked_txn(
@@ -725,9 +687,7 @@ mod tests {
     const PERIOD_STATUS_OPEN: &str = period_status::OPEN;
     const PERIOD_STATUS_CLOSED: &str = period_status::CLOSED;
 
-    /// 测试夹具：计算下个月月份
-    /// 复现 init_first_period 与 close_period 中的纯算法逻辑：
-    /// `if month == 12 { 1 } else { month + 1 }`
+    /// 测试夹具：计算下个月月份（复现 init_first_period 与 close_period 中的纯算法逻辑：`if month == 12 { 1 } else { month + 1 }`）
     fn calc_next_month(month: u32) -> u32 {
         if month == 12 {
             1
@@ -736,9 +696,7 @@ mod tests {
         }
     }
 
-    /// 测试夹具：计算下个月所属年份
-    /// 复现 init_first_period 与 close_period 中的纯算法逻辑：
-    /// `if month == 12 { year + 1 } else { year }`
+    /// 测试夹具：计算下个月所属年份（复现 init_first_period 与 close_period 中的纯算法逻辑：`if month == 12 { year + 1 } else { year }`）
     fn calc_next_month_year(month: u32, year: i32) -> i32 {
         if month == 12 {
             year + 1
@@ -747,16 +705,12 @@ mod tests {
         }
     }
 
-    /// 测试夹具：格式化期间名称
-    /// 复现 init_first_period 中的纯算法逻辑：
-    /// `format!("{} 年 {:02} 月", year, month)`
+    /// 测试夹具：格式化期间名称（复现 init_first_period 中的纯算法逻辑：`format!("{} 年 {:02} 月", year, month)`）
     fn format_period_name(year: i32, month: u32) -> String {
         format!("{} 年 {:02} 月", year, month)
     }
 
-    /// 测试夹具：计算期间结束日期
-    /// 复现 init_first_period 中的纯算法逻辑：
-    /// 下月 1 号 00:00:00 减去 1 秒 = 当月最后一天 23:59:59
+    /// 测试夹具：计算期间结束日期（复现 init_first_period 中的纯算法逻辑：下月 1 号 00:00:00 减去 1 秒 = 当月最后一天 23:59:59）
     fn calc_period_end_date(year: i32, month: u32) -> chrono::DateTime<Utc> {
         let next_month = calc_next_month(month);
         let next_month_year = calc_next_month_year(month, year);
@@ -767,9 +721,7 @@ mod tests {
         next_month_start - chrono::Duration::seconds(1)
     }
 
-    /// 测试夹具：校验期间是否已结账
-    /// 复现 close_period 与 check_date_locked 中的状态判断逻辑：
-    /// `if period.status == "CLOSED"`
+    /// 测试夹具：校验期间是否已结账（复现 close_period 与 check_date_locked 中的状态判断逻辑：`if period.status == "CLOSED"`）
     fn is_period_closed(status: &str) -> bool {
         status == PERIOD_STATUS_CLOSED
     }

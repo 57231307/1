@@ -13,9 +13,7 @@ use sea_orm::{
 use std::sync::Arc;
 use tracing::info;
 
-/// V15 P1 17.6-D3：资金账户类型常量
-///
-/// 不同账户类型对账方式与风控规则不同，需差异化处理。
+/// V15 P1 17.6-D3：资金账户类型常量（不同账户类型对账方式与风控规则不同，需差异化处理。）
 pub mod account_type {
     /// 银行账户（需银企对账，支持大额验证）
     pub const BANK: &str = "bank";
@@ -67,12 +65,7 @@ pub struct UpdateFundAccountRequest {
 }
 
 /// V15 P0-B05：大额调拨阈值（§17.6-D1）
-///
-/// 金额超过此阈值的调拨必须由前端二次确认（弹窗 + 用户显式确认），
-/// 后端校验 `TransferFundRequest.confirm_large == true` 才放行。
-///
-/// 注意：rust_decimal 1.x 中 `Decimal::new` 不是 `const fn`，
-/// 故使用普通 `fn` 而非 `const`（参考批次 481 经验）。
+/// 金额超过此阈值的调拨必须由前端二次确认（弹窗 + 用户显式确认），；后端校验 `TransferFundRequest.confirm_large == true` 才放行。；注意：rust_decimal 1.x 中 `Decimal::new` 不是 `const fn`，；故使用普通 `fn` 而非 `const`（参考批次 481 经验）。
 fn large_transfer_threshold() -> Decimal {
     // 10 万（100,000.00）
     Decimal::new(100_000, 0)
@@ -497,14 +490,7 @@ impl FundManagementService {
     }
 
     /// V15 P1 17.6-D2：现金流预测
-    ///
-    /// 基于未核销应收发票（到期日收款流入）与未付应付发票（到期日付款流出），
-    /// 预测未来 N 天（默认 30 天）每日现金流缺口，支持融资决策。
-    ///
-    /// 参数：
-    /// - days：预测天数（1-90，默认 30）
-    ///
-    /// 返回：按日期聚合的现金流预测点列表（含期初余额累计）
+    /// 基于未核销应收发票（到期日收款流入）与未付应付发票（到期日付款流出），；预测未来 N 天（默认 30 天）每日现金流缺口，支持融资决策。；参数：days：预测天数（1-90，默认 30）；返回：按日期聚合的现金流预测点列表（含期初余额累计）
     pub async fn cash_flow_forecast(
         &self,
         days: Option<i32>,
@@ -574,12 +560,7 @@ impl FundManagementService {
         Ok(points)
     }
 
-    /// V15 P1 17.6-D3：按账户类型差异化查询
-    ///
-    /// 返回指定账户类型的所有活跃账户，并对不同类型给出风控提示：
-    /// - bank：需银企对账
-    /// - alipay/wechat：需第三方对账
-    /// - cash：需手工盘点
+    /// V15 P1 17.6-D3：按账户类型差异化查询（返回指定账户类型的所有活跃账户，并对不同类型给出风控提示：bank：需银企对账；alipay/wechat：需第三方对账；cash：需手工盘点）
     pub async fn list_accounts_by_type(
         &self,
         account_type: &str,
@@ -609,14 +590,7 @@ impl FundManagementService {
     }
 
     /// V15 P1 17.6-D4：银企对账
-    ///
-    /// 对比系统资金账户余额与银行对账单余额，输出差异列表。
-    /// 差异类型：timing（在途）、missing（系统缺失）、error（系统错误）。
-    ///
-    /// 参数：
-    /// - account_id：资金账户 ID（必须为 bank/alipay/wechat 类型）
-    /// - bank_statement_balance：银行/第三方对账单余额
-    /// - statement_date：对账单日期
+    /// 对比系统资金账户余额与银行对账单余额，输出差异列表。；差异类型：timing（在途）、missing（系统缺失）、error（系统错误）。；参数：account_id：资金账户 ID（必须为 bank/alipay/wechat 类型）；bank_statement_balance：银行/第三方对账单余额；statement_date：对账单日期
     pub async fn bank_reconciliation(
         &self,
         account_id: i32,

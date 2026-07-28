@@ -602,10 +602,7 @@ pub async fn export_orders(
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
 
-/// 生成采购订单号
-/// GET /api/v1/erp/purchases/orders/generate-no
-///
-/// 返回格式: `{ prefix: "PO", order_no: "PO20260617001" }`
+/// 生成采购订单号 GET /api/v1/erp/purchases/orders/generate-no；返回格式: `{ prefix: "PO", order_no: "PO20260617001" }`
 pub async fn generate_order_no(
     State(state): State<AppState>,
     _auth: AuthContext,

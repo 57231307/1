@@ -256,9 +256,7 @@ impl LabDipRequestService {
         Ok(updated)
     }
 
-    /// 状态流转：客户确认 OK 样（submitted → approved）
-    ///
-    /// 真实业务：客户从 ABCD 多版中选 1 版作为 OK 样
+    /// 状态流转：客户确认 OK 样（submitted → approved）（真实业务：客户从 ABCD 多版中选 1 版作为 OK 样）
     pub async fn approve_ok_sample(
         &self,
         id: i32,

@@ -196,10 +196,8 @@ pub async fn archive_color_card(
     })))
 }
 
-/// POST /api/v1/erp/color-cards/:id/mark-lost - 直接标记色卡为遗失
-///
-/// v11 批次 154b P2-A：接入 ColorCardCrudService::mark_lost
-/// 与 /lost/:record_id（借出记录遗失）不同，此端点直接变更色卡状态为 "lost"
+/// POST /api/v1/erp/color-cards/:id/mark-lost - 直接标记色卡为遗失；v11 批次 154b P2-A：接入
+/// ColorCardCrudService::mark_lost 与 /lost/:record_id（借出记录遗失）不同，此端点直接变更色卡状态为 "lost"
 pub async fn mark_card_lost(
     auth: AuthContext,
     State(state): State<AppState>,

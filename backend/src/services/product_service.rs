@@ -31,9 +31,7 @@ pub struct CreateProductColorInput {
     pub extra_cost: f64,
 }
 
-/// 更新产品色号参数对象
-///
-/// 批次 330 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告
+/// 更新产品色号参数对象（批次 330 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告）
 #[derive(Debug)]
 pub struct UpdateProductColorParams {
     /// 色号 ID
@@ -55,13 +53,7 @@ pub struct UpdateProductColorParams {
 }
 
 /// 产品服务（面料行业版）
-///
-/// 批次 125 v8 复审 P1 修复：注入 search_syncer 实现 PG→ES 写入同步。
-/// - create/update/delete 事务提交后调用 sync_product / delete_product 同步到 ES
-/// - ES 同步失败仅记录 tracing::warn!（最终一致性），不回滚 PG 事务
-///
-/// 批次 D10 拆分：impl 块已拆到 `product_ops` 子模块（sync/crud/color/import_export）。
-/// `db` / `search_syncer` 字段为 `pub(crate)` 供 ops 子模块访问。
+/// 批次 125 v8 复审 P1 修复：注入 search_syncer 实现 PG→ES 写入同步。；create/update/delete 事务提交后调用 sync_product / delete_product 同步到 ES；ES 同步失败仅记录 tracing::warn!（最终一致性），不回滚 PG 事务；批次 D10 拆分：impl 块已拆到 `product_ops` 子模块（sync/crud/color/import_export）。；`db` / `search_syncer` 字段为 `pub(crate)` 供 ops 子模块访问。
 pub struct ProductService {
     pub(crate) db: Arc<DatabaseConnection>,
     /// ES 同步器（PG→ES 写入同步），批次 125 接入
@@ -78,9 +70,7 @@ impl ProductService {
 }
 
 /// 创建产品参数对象
-///
-/// 批次 339 v10 复审 P3 修复：引入参数对象消除 create_product 的 too_many_arguments 警告。
-/// 聚合创建产品所需的全部字段（含面料行业字段），避免函数签名携带 19 个参数。
+/// 批次 339 v10 复审 P3 修复：引入参数对象消除 create_product 的 too_many_arguments 警告。；聚合创建产品所需的全部字段（含面料行业字段），避免函数签名携带 19 个参数。
 #[derive(Debug, Clone)]
 pub struct CreateProductArgs {
     /// 产品名称
@@ -132,9 +122,7 @@ pub struct CreateProductArgs {
 }
 
 /// 更新产品参数对象
-///
-/// 批次 339 v10 复审 P3 修复：引入参数对象消除 update_product 的 too_many_arguments 警告。
-/// 聚合更新产品所需的全部字段（含面料行业字段），避免函数签名携带 19 个参数。
+/// 批次 339 v10 复审 P3 修复：引入参数对象消除 update_product 的 too_many_arguments 警告。；聚合更新产品所需的全部字段（含面料行业字段），避免函数签名携带 19 个参数。
 #[derive(Debug, Clone)]
 pub struct UpdateProductArgs {
     /// 产品 ID

@@ -10,9 +10,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
 use serde::{Deserialize, Serialize};
 
-/// 处方明细项（染料组合+用量）
-///
-/// 真实业务：每个染料含名称、用量、单位、百分比（o.w.f 染料对织物重量百分比）
+/// 处方明细项（染料组合+用量）：含名称、用量、单位、百分比（o.w.f 染料对织物重量百分比）
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct FormulaDetailItem {
     /// 染料名称

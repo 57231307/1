@@ -288,11 +288,7 @@ impl SupplierService {
     }
 
     /// 获取供应商详情
-    ///
-    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）
-    /// - 读穿透：先查 Redis，未命中查 DB 后回填 Redis
-    /// - 写失效：update/delete/toggle_status 时清除对应 key
-    /// - 权限校验：基于 supplier.created_by，缓存命中时同样校验
+    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）；读穿透：先查 Redis，未命中查 DB 后回填 Redis；写失效：update/delete/toggle_status 时清除对应 key；权限校验：基于 supplier.created_by，缓存命中时同样校验
     pub async fn get_supplier(
         &self,
         id: i32,
@@ -596,10 +592,7 @@ impl SupplierService {
         Ok(contacts)
     }
 
-    /// 创建供应商联系人
-    ///
-    /// P2-6 修复（v12 复审）：clear_primary_contacts + insert 包入同一事务，
-    /// 保证"取消旧主联系人 + 新建联系人"原子性，避免中途失败留下脏数据。
+    /// 创建供应商联系人（P2-6 修复（v12 复审）：clear_primary_contacts + insert 包入同一事务，；保证"取消旧主联系人 + 新建联系人"原子性，避免中途失败留下脏数据。）
     pub async fn create_supplier_contact(
         &self,
         supplier_id: i32,
@@ -639,10 +632,7 @@ impl SupplierService {
         Ok(contact)
     }
 
-    /// 更新供应商联系人
-    ///
-    /// P2-6 修复（v12 复审）：clear_primary_contacts + update 包入同一事务，
-    /// 保证"取消旧主联系人 + 更新联系人"原子性。
+    /// 更新供应商联系人（P2-6 修复（v12 复审）：clear_primary_contacts + update 包入同一事务，；保证"取消旧主联系人 + 更新联系人"原子性。）
     pub async fn update_supplier_contact(
         &self,
         contact_id: i32,
@@ -738,12 +728,7 @@ impl SupplierService {
     }
 
     /// 取消指定供应商的所有主联系人状态（事务内）
-    ///
-    /// P2-6 修复（v12 复审）：
-    /// - 原 `clear_primary_contacts` 使用 `&*self.db`（非事务连接），
-    ///   且循环内调用 `update_with_audit`（每次 = 1 UPDATE + 1 audit INSERT = 2N 次写）。
-    /// - 新 `clear_primary_contacts_txn` 接受 `txn` 参数，循环内仅 `update(txn)`，
-    ///   防止审计日志膨胀（参照 customer_service::clear_primary_contacts_txn）。
+    /// P2-6 修复（v12 复审）：原 `clear_primary_contacts` 使用 `&*self.db`（非事务连接），；且循环内调用 `update_with_audit`（每次 = 1 UPDATE + 1 audit INSERT = 2N 次写）。；新 `clear_primary_contacts_txn` 接受 `txn` 参数，循环内仅 `update(txn)`，；防止审计日志膨胀（参照 customer_service::clear_primary_contacts_txn）。
     async fn clear_primary_contacts_txn(
         &self,
         supplier_id: i32,
@@ -769,9 +754,7 @@ impl SupplierService {
     // ==================== 供应商资质管理方法 ====================
 
     /// 获取供应商资质列表
-    ///
-    /// 批次 118 P2-9 修复：移除 `#[allow(dead_code)]` 标记，
-    /// handler 已真实接入（supplier_handler.rs::list_supplier_qualifications）。
+    /// 批次 118 P2-9 修复：移除 `#[allow(dead_code)]` 标记，；handler 已真实接入（supplier_handler.rs::list_supplier_qualifications）。
     pub async fn list_supplier_qualifications(
         &self,
         supplier_id: i32,

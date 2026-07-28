@@ -402,9 +402,7 @@ impl CostCollectionService {
     }
 
     /// 审核成本归集
-    ///
-    /// 批次 85 v2 复审 P1-3 修复：用 txn 包裹 find + 状态门 + update，加 lock_exclusive 串行化
-    /// 原实现全程无 txn 无 lock_exclusive，并发审核会基于过期状态通过检查后重复写入
+    /// 批次 85 v2 复审 P1-3 修复：用 txn 包裹 find + 状态门 + update，加 lock_exclusive 串行化；原实现全程无 txn 无 lock_exclusive，并发审核会基于过期状态通过检查后重复写入
     pub async fn audit(
         &self,
         id: i32,

@@ -30,15 +30,7 @@ impl EventRetryService {
     }
 
     /// 处理事件失败：记录失败信息，超过最大重试次数后入死信队列
-    ///
-    /// 参数：
-    /// - `event_type`: 事件类型（BusinessEvent 变体名）
-    /// - `event_payload`: 事件 payload 的 JSON 序列化
-    /// - `failure_reason`: 失败原因摘要
-    /// - `full_error`: 完整错误信息
-    /// - `retry_count`: 当前已重试次数（从 0 开始）
-    ///
-    /// 返回值：是否已入死信队列（true 表示已入死信，不再重试）
+    /// 参数：`event_type`: 事件类型（BusinessEvent 变体名）；`event_payload`: 事件 payload 的 JSON 序列化；`failure_reason`: 失败原因摘要；`full_error`: 完整错误信息；`retry_count`: 当前已重试次数（从 0 开始）；返回值：是否已入死信队列（true 表示已入死信，不再重试）
     pub async fn handle_failure(
         &self,
         event_type: &str,
@@ -79,9 +71,7 @@ impl EventRetryService {
         }
     }
 
-    /// 计算指数退避延迟
-    ///
-    /// 公式：delay = BASE_DELAY * 2^retry_count，上限 60 秒
+    /// 计算指数退避延迟（公式：delay = BASE_DELAY * 2^retry_count，上限 60 秒）
     pub fn calculate_backoff_delay(retry_count: i32) -> Duration {
         let exponent = retry_count.max(0) as u32;
         let delay_secs = BASE_DELAY_SECS

@@ -126,15 +126,7 @@ impl DyeBatchCostBridgeServiceInternal {
     }
 
     /// 处理染色完成事件，创建成本归集草稿记录
-    ///
-    /// 创建一个 draft 状态的 cost_collection 记录，所有成本字段初始化为 0，
-    /// 关联 batch_no/color_no/cost_object_no，后续由财务人员补充成本明细并审核。
-    ///
-    /// 依据：fabric-industry-research.md §5.6——染色完成后需归集染料/助剂/能耗成本到对应缸号
-    ///
-    /// V15 P0-F01：补全 dye_lot_no 关联
-    /// 原实现 dye_lot_no 写死为 None（dye_batch 表无此字段），导致四维标识断裂、
-    /// 成本归集无法关联到具体染缸号。修复后通过 batch_id 查询 dye_batch 表获取 dye_lot_no。
+    /// 创建一个 draft 状态的 cost_collection 记录，所有成本字段初始化为 0，；关联 batch_no/color_no/cost_object_no，后续由财务人员补充成本明细并审核。；依据：fabric-industry-research.md §5.6——染色完成后需归集染料/助剂/能耗成本到对应缸号；V15 P0-F01：补全 dye_lot_no 关联；原实现 dye_lot_no 写死为 None（dye_batch 表无此字段），导致四维标识断裂、；成本归集无法关联到具体染缸号。修复后通过 batch_id 查询 dye_batch 表获取 dye_lot_no。
     async fn handle_dye_batch_completed(
         &self,
         batch_id: i32,
@@ -207,10 +199,7 @@ impl DyeBatchCostBridgeServiceInternal {
 mod tests {
     use super::*;
 
-    /// 测试_染色成本桥接服务_静态方法存在性
-    ///
-    /// 验证 start_listener / shutdown_listener 方法可调用（编译时检查）。
-    /// 实际事件监听需数据库连接，标注为编译时检查。
+    /// 测试_染色成本桥接服务_静态方法存在性（验证 start_listener / shutdown_listener 方法可调用（编译时检查）。；实际事件监听需数据库连接，标注为编译时检查。）
     #[test]
     fn 测试_染色成本桥接服务_静态方法存在性() {
         // 验证函数指针可获取（编译时检查）

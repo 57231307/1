@@ -217,10 +217,7 @@ pub async fn delete_asset(
     Ok(Json(ApiResponse::success(message)))
 }
 
-/// 查询指定资产的折旧历史记录
-///
-/// v3 复审 P1-3：折旧记录查询 API
-/// GET /api/v1/erp/fixed-assets/:id/depreciation-records
+/// 查询指定资产的折旧历史记录；v3 复审 P1-3：折旧记录查询 API GET /api/v1/erp/fixed-assets/:id/depreciation-records
 pub async fn list_depreciation_records(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -236,10 +233,7 @@ pub async fn list_depreciation_records(
     Ok(Json(ApiResponse::success(records)))
 }
 
-/// 查询资产处置记录列表
-///
-/// v3 复审 P1-8：处置记录查询 API
-/// GET /api/v1/erp/fixed-assets/disposals
+/// 查询资产处置记录列表；v3 复审 P1-8：处置记录查询 API GET /api/v1/erp/fixed-assets/disposals
 pub async fn list_disposals(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -416,12 +410,8 @@ fn record_assets_export_audit(
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/fixed-assets/export - 导出固定资产列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475e）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_list 取全量数据
+/// GET /api/v1/erp/fixed-assets/export - 导出固定资产列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475e）：导出接入后端 -
+/// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_list 取全量数据
 pub async fn export_assets(
     State(state): State<AppState>,
     auth: AuthContext,

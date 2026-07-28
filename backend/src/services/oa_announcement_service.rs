@@ -44,9 +44,7 @@ pub struct CreateOaAnnouncementRequest {
     #[serde(default = "default_visibility_scope")]
     pub visibility_scope: String,
     /// 缺陷 7.2 修复：可见性配置 JSON
-    /// - DEPT: {"department_ids": [1,2,3]}
-    /// - ROLE: {"role_ids": [1,2,3]}
-    /// - CUSTOM: {"user_ids": [1,2,3]}
+    /// DEPT: {"department_ids": [1,2,3]}；ROLE: {"role_ids": [1,2,3]}；CUSTOM: {"user_ids": [1,2,3]}
     pub visible_scope_config: Option<serde_json::Value>,
 }
 
@@ -395,12 +393,7 @@ impl OaAnnouncementService {
     }
 
     /// 缺陷 7.2 修复：按用户上下文过滤可见公告列表
-    ///
-    /// 过滤规则：
-    /// - ALL：所有用户可见
-    /// - DEPT：仅当用户 department_id 在 visible_scope_config.department_ids 中时可见
-    /// - ROLE：仅当用户 role_id 在 visible_scope_config.role_ids 中时可见
-    /// - CUSTOM：仅当用户 user_id 在 visible_scope_config.user_ids 中时可见
+    /// 过滤规则：ALL：所有用户可见；DEPT：仅当用户 department_id 在 visible_scope_config.department_ids 中时可见；ROLE：仅当用户 role_id 在 visible_scope_config.role_ids 中时可见；CUSTOM：仅当用户 user_id 在 visible_scope_config.user_ids 中时可见
     pub async fn list_for_user(
         &self,
         query: OaAnnouncementQuery,

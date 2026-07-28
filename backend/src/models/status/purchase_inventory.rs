@@ -26,10 +26,7 @@ pub mod purchase_order {
     pub const PARTIAL_RECEIVED: &str = "PARTIAL_RECEIVED";
 }
 
-/// 采购收货单状态常量（purchase_receipt.receipt_status，大写值）
-///
-/// 批次 214 P2-1 修复（v12 复审）：抽取 purchase_receipt_service.rs 和 po/receipt.rs 中的硬编码状态字符串
-/// 状态机：DRAFT → CONFIRMED → COMPLETED
+/// 采购收货单状态常量（purchase_receipt.receipt_status 大写，批次 214 P2-1，状态机 DRAFT→CONFIRMED→COMPLETED）
 pub mod purchase_receipt {
     /// 草稿：收货单初始状态，可编辑
     pub const DRAFT: &str = "DRAFT";

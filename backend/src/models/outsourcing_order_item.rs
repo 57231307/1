@@ -10,12 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 委外加工发料明细模型
-///
-/// 真实业务要点：
-/// - 一个委外订单可发出多种物料
-/// - 按面料四维标识（product_id+color_no+dye_lot_no+batch_no）追溯
-/// - 关联库存流水 ID，便于库存账实核对
+/// 委外加工发料明细模型（一订单可发多物料，按四维标识 product_id+color_no+dye_lot_no+batch_no 追溯，关联库存流水便于账实核对）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "outsourcing_order_item")]
 pub struct Model {

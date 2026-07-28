@@ -26,13 +26,7 @@ use super::cust::CrmService;
 
 impl CrmService {
     /// 从公海领取线索
-    /// 返回成功领取的数量
-    ///
-    /// V15 P0-S08 修复：注入公海规则校验
-    /// 1. 保护期校验：lead.owner_assigned_at + protection_period > now 则拒绝
-    ///    （公海线索保护期由前一次领取时设置，落入公海后保护期内不能再被领取）
-    /// 2. 领取上限校验：user_id 当天已领取数 < claim_limit
-    /// 3. 最大持有数校验：user_id 当前活跃线索数 < max_holdings
+    /// 返回成功领取的数量；V15 P0-S08 修复：注入公海规则校验；1. 保护期校验：lead.owner_assigned_at + protection_period > now 则拒绝；（公海线索保护期由前一次领取时设置，落入公海后保护期内不能再被领取）；2. 领取上限校验：user_id 当天已领取数 < claim_limit；3. 最大持有数校验：user_id 当前活跃线索数 < max_holdings
     pub async fn claim_pool_customers(
         &self,
         lead_ids: Vec<i32>,
@@ -96,9 +90,7 @@ impl CrmService {
         Ok(claimed)
     }
 
-    /// 保护期校验：公海线索在保护期内不允许被他人再次领取，防止恶意抢单
-    ///
-    /// 返回 true 表示处于保护期内（应跳过），false 表示可领取
+    /// 保护期校验：公海线索在保护期内不允许被他人再次领取，防止恶意抢单（返回 true 表示处于保护期内（应跳过），false 表示可领取）
     fn is_within_protection_period(
         lead: &crm_lead::Model,
         lid: i32,
@@ -137,10 +129,7 @@ impl CrmService {
     }
 
     /// V15 P0-S08：领取前规则校验
-    ///
-    /// 校验项：
-    /// 1. 领取上限：user_id 当天已领取线索数 < claim_limit
-    /// 2. 最大持有数：user_id 当前活跃线索数（lead_status not in ['converted','lost','pool']）< max_holdings
+    /// 校验项：1. 领取上限：user_id 当天已领取线索数 < claim_limit；2. 最大持有数：user_id 当前活跃线索数（lead_status not in ['converted','lost','pool']）< max_holdings
     async fn validate_claim_rules(&self, user_id: i32) -> Result<(), AppError> {
         // 1. 领取上限校验
         let claim_limit = self.get_rule_value(RULE_TYPE_CLAIM_LIMIT).await?;
@@ -185,9 +174,7 @@ impl CrmService {
     }
 
     /// V15 P0-S08：获取公海规则值
-    ///
-    /// 按规则类型查询启用的规则值，取第一条匹配的（同类型规则应唯一启用）
-    /// 若无配置则返回默认值：protection_period=7, claim_limit=5, max_holdings=50
+    /// 按规则类型查询启用的规则值，取第一条匹配的（同类型规则应唯一启用）；若无配置则返回默认值：protection_period=7, claim_limit=5, max_holdings=50
     async fn get_rule_value(&self, rule_type: &str) -> Result<i32, AppError> {
         let rule = customer_pool_rule::Entity::find()
             .filter(customer_pool_rule::Column::RuleType.eq(rule_type))

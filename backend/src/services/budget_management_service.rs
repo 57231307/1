@@ -39,9 +39,7 @@ pub struct BudgetItemQueryParams {
 }
 
 /// 创建预算科目请求
-///
-/// v11 批次 145 P1-8：移除 dead_code 标注，扩展字段已接入 budget_management 模型
-/// （对应 budget_items 表的 budget_year / planned_amount / remark 字段）
+/// v11 批次 145 P1-8：移除 dead_code 标注，扩展字段已接入 budget_management 模型；（对应 budget_items 表的 budget_year / planned_amount / remark 字段）
 #[derive(Debug, Clone)]
 pub struct CreateBudgetItemRequest {
     pub item_code: Option<String>,
@@ -53,9 +51,7 @@ pub struct CreateBudgetItemRequest {
     pub remark: Option<String>,
 }
 
-/// 更新预算科目请求
-///
-/// v11 批次 145 P1-8：移除 dead_code 标注，扩展字段已接入 budget_management 模型
+/// 更新预算科目请求（v11 批次 145 P1-8：移除 dead_code 标注，扩展字段已接入 budget_management 模型）
 #[derive(Debug, Clone)]
 pub struct UpdateBudgetItemRequest {
     pub item_name: Option<String>,
@@ -66,10 +62,7 @@ pub struct UpdateBudgetItemRequest {
 }
 
 /// 创建预算方案请求
-///
-/// v11 批次 145 P1-8：移除 items 字段（handler 始终传 vec![]，无真实业务数据流，
-/// 且引入 budget_plan_items 表需新增模型/迁移/handler 接口，超出本批次范围）。
-/// 预算方案与预算科目的关联通过 budget_management.budget_year + budget_plan.budget_year 隐式关联。
+/// v11 批次 145 P1-8：移除 items 字段（handler 始终传 vec![]，无真实业务数据流，；且引入 budget_plan_items 表需新增模型/迁移/handler 接口，超出本批次范围）。；预算方案与预算科目的关联通过 budget_management.budget_year + budget_plan.budget_year 隐式关联。
 #[derive(Debug, Clone)]
 pub struct CreateBudgetPlanRequest {
     pub plan_no: String,
@@ -82,9 +75,7 @@ pub struct CreateBudgetPlanRequest {
 }
 
 /// 预算执行请求
-///
-/// v11 批次 145 P1-8：移除 dead_code 标注，execute_plan 现已真实接入 create_execution
-/// （actual_amount 作为 amount，expense_type/expense_date/remark 透传）
+/// v11 批次 145 P1-8：移除 dead_code 标注，execute_plan 现已真实接入 create_execution；（actual_amount 作为 amount，expense_type/expense_date/remark 透传）
 #[derive(Debug, Clone)]
 pub struct BudgetExecuteRequest {
     pub plan_id: i32,
@@ -94,9 +85,7 @@ pub struct BudgetExecuteRequest {
     pub remark: Option<String>,
 }
 
-/// 创建预算执行明细参数对象
-///
-/// 批次 329 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告
+/// 创建预算执行明细参数对象（批次 329 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告）
 #[derive(Debug)]
 pub struct CreateBudgetExecutionParams {
     /// 预算方案 ID
@@ -378,18 +367,7 @@ impl BudgetManagementService {
     }
 
     /// 预算方案执行
-    ///
-    /// v11 批次 145 P1-8：真实接入 create_execution 逻辑
-    /// 原实现仅 lock_exclusive + 状态检查后直接 commit，BudgetExecuteRequest 的所有字段
-    /// （actual_amount/expense_type/expense_date/remark）均被丢弃，造成 dead_code 标注。
-    ///
-    /// 修复：
-    ///   1. lock_exclusive 串行化并发状态变更（保留批次 26 v6 P1 修复）
-    ///   2. 状态门检查通过后，在事务内插入 budget_execution 记录
-    ///      - execution_type = "使用"（表示预算实际支出）
-    ///      - amount = req.actual_amount
-    ///      - expense_type / expense_date / remark 透传
-    ///   3. plan 状态变更为 "active"（执行中）
+    /// v11 批次 145 P1-8：真实接入 create_execution 逻辑；原实现仅 lock_exclusive + 状态检查后直接 commit，BudgetExecuteRequest 的所有字段；（actual_amount/expense_type/expense_date/remark）均被丢弃，造成 dead_code 标注。；修复：1. lock_exclusive 串行化并发状态变更（保留批次 26 v6 P1 修复）；2. 状态门检查通过后，在事务内插入 budget_execution 记录；execution_type = "使用"（表示预算实际支出）；amount = req.actual_amount；expense_type / expense_date / remark 透传；3. plan 状态变更为 "active"（执行中）
     pub async fn execute_plan(
         &self,
         req: BudgetExecuteRequest,
@@ -455,10 +433,7 @@ impl BudgetManagementService {
         Ok(plan)
     }
 
-    /// 创建预算执行明细
-    /// 用于记录预算的下达、调整和使用
-    ///
-    /// 批次 329 v10 复审 P3 修复：使用 CreateBudgetExecutionParams 参数对象替代 8 个独立参数
+    /// 创建预算执行明细（用于记录预算的下达、调整和使用；批次 329 v10 复审 P3 修复：使用 CreateBudgetExecutionParams 参数对象替代 8 个独立参数）
     pub async fn create_execution(
         &self,
         params: CreateBudgetExecutionParams,
@@ -819,17 +794,7 @@ impl BudgetManagementService {
     }
 
     /// 强制拦截预算超支 — V15 P0-B06（Batch 482）
-    ///
-    /// 设计依据：审计报告 §17.7-D1 — 预算超支无拦截
-    /// 修复前：check_budget_available 仅返回 bool，调用方 check_and_occupy_budget 吞掉结果
-    ///         仅记录 warn 日志不阻断，导致预算超支可发生，预算管理形同虚设。
-    /// 修复后：本方法在预算不足时直接返回错误，调用方必须用 ? 传播以阻断业务流程。
-    ///
-    /// 业务规则：
-    /// 1. 部门无预算方案（get_available_plan_by_department 返回 None）→ 返回错误
-    /// 2. 预算方案未审批/未激活 → check_budget_available 内部已校验
-    /// 3. 预算可用金额 < 申请金额 → 返回错误（含明细：可用/申请/已下达/已执行）
-    /// 4. 预算可用金额 ≥ 申请金额 → 返回 Ok(plan_id)，调用方可继续 occupy_budget
+    /// 设计依据：审计报告 §17.7-D1 — 预算超支无拦截；修复前：check_budget_available 仅返回 bool，调用方 check_and_occupy_budget 吞掉结果；仅记录 warn 日志不阻断，导致预算超支可发生，预算管理形同虚设。；修复后：本方法在预算不足时直接返回错误，调用方必须用 ? 传播以阻断业务流程。；业务规则：1. 部门无预算方案（get_available_plan_by_department 返回 None）→ 返回错误；2. 预算方案未审批/未激活 → check_budget_available 内部已校验；3. 预算可用金额 < 申请金额 → 返回错误（含明细：可用/申请/已下达/已执行）；4. 预算可用金额 ≥ 申请金额 → 返回 Ok(plan_id)，调用方可继续 occupy_budget
     pub async fn enforce_budget_available(
         &self,
         department_id: i32,
@@ -926,10 +891,7 @@ impl BudgetManagementService {
         Ok(execution)
     }
 
-    /// 释放预算
-    /// 订单取消时调用，释放已占用的预算
-    /// 核销预算
-    /// 付款确认时调用，将预算占用转为实际执行
+    /// 释放预算（订单取消时调用，释放已占用的预算；核销预算；付款确认时调用，将预算占用转为实际执行）
     pub async fn write_off_budget(
         &self,
         department_id: i32,
@@ -983,14 +945,7 @@ impl BudgetManagementService {
     }
 
     /// V15 P1 17.7-D2：预算差异分析报告
-    ///
-    /// 按 budget_type 维度（部门）对比预算 vs 实际执行，输出差异与差异率。
-    ///
-    /// 参数：
-    /// - budget_year：预算年度
-    /// - department_id：可选部门筛选
-    ///
-    /// 返回：每个预算方案的差异分析条目
+    /// 按 budget_type 维度（部门）对比预算 vs 实际执行，输出差异与差异率。；参数：budget_year：预算年度；department_id：可选部门筛选；返回：每个预算方案的差异分析条目
     pub async fn variance_analysis(
         &self,
         budget_year: i32,
@@ -1064,15 +1019,7 @@ impl BudgetManagementService {
     }
 
     /// V15 P1 17.7-D3：零基/滚动预算编制模式
-    ///
-    /// - zero_based：从零开始编制（不参考历史数据），所有科目必须重新论证
-    /// - rolling：滚动预算，在现有年度预算基础上向后滚动一个周期
-    /// - incremental：增量预算（默认，沿用历史 + 调整）
-    ///
-    /// 本方法根据模式生成新预算方案草稿：
-    /// - zero_based：创建空白预算方案，total_amount = 0，待各科目逐项申报
-    /// - rolling：复制源年度预算方案，budget_year + 1，状态 = DRAFT
-    /// - incremental：复制源年度预算 + 默认 5% 增长率
+    /// zero_based：从零开始编制（不参考历史数据），所有科目必须重新论证；rolling：滚动预算，在现有年度预算基础上向后滚动一个周期；incremental：增量预算（默认，沿用历史 + 调整）；本方法根据模式生成新预算方案草稿：zero_based：创建空白预算方案，total_amount = 0，待各科目逐项申报；rolling：复制源年度预算方案，budget_year + 1，状态 = DRAFT；incremental：复制源年度预算 + 默认 5% 增长率
     pub async fn create_budget_with_mode(
         &self,
         mode: BudgetMode,
@@ -1209,13 +1156,7 @@ impl BudgetManagementService {
         }
     }
 
-    /// V15 P1 17.7-D4：预算执行预警
-    ///
-    /// 扫描所有执行中的预算方案，按执行率（已执行/已下达）分级预警：
-    /// - 黄色预警：执行率 ≥ 80%
-    /// - 红色预警：执行率 ≥ 100%（超支）
-    ///
-    /// 返回所有触发预警的方案列表
+    /// V15 P1 17.7-D4：预算执行预警（扫描所有执行中的预算方案，按执行率（已执行/已下达）分级预警：黄色预警：执行率 ≥ 80%；红色预警：执行率 ≥ 100%（超支）；返回所有触发预警的方案列表）
     pub async fn budget_execution_warnings(
         &self,
         budget_year: i32,

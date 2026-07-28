@@ -636,12 +636,7 @@ impl ColorCardIssueService {
         Ok((items, total))
     }
 
-    /// V15 P1 10.4-2：列表查询（带数据权限过滤）
-    /// 根据 operator_id 的客户归属范围过滤：
-    /// - data_scope=all：全部数据（admin/仓库经理）
-    /// - data_scope=dept：本部门销售拥有的客户（仓库员/销售经理）
-    /// - data_scope=self：仅 operator_id 自己拥有的客户（销售员）
-    /// 客户归属字段：customers.owner_id = operator_id
+    /// V15 P1 10.4-2：列表查询（按 operator_id 客户归属过滤：all=全部/dept=本部门/self=仅自己；customers.owner_id=operator_id）
     pub async fn list_records_with_data_scope(
         &self,
         query: ListIssuesQuery,
@@ -725,9 +720,7 @@ impl ColorCardIssueService {
         Ok((items, total))
     }
 
-    /// V15 P1 10.4-2：成本字段按权限脱敏
-    /// 当 operator 不持有 color_card_issue:export 权限时，将 compensation_amount 置 None
-    /// 调用方应在 handler 中根据 RolePermissionService.check_permission 结果传入 can_view_cost
+    /// V15 P1 10.4-2：成本字段按权限脱敏（无 export 权限时 compensation_amount 置 None；handler 传入 can_view_cost）
     pub fn mask_cost_amount(
         records: Vec<color_card_issue::Model>,
         can_view_cost: bool,

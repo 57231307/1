@@ -285,11 +285,8 @@ pub async fn delete_item(
     )))
 }
 
-/// 生成库存调拨单号
-/// GET /api/v1/erp/inventory/transfers/generate-no
-///
-/// 单据号格式：`IT{yyyyMMdd}{4 位流水}`，例如 `IT202605140001`。
-/// 数据库列 `inventory_transfers.transfer_no` 上的 `UNIQUE` 约束负责最终去重。
+/// 生成库存调拨单号 GET /api/v1/erp/inventory/transfers/generate-no；单据号格式：`IT{yyyyMMdd}{4 位流水}`
+/// 例如 `IT202605140001`。 数据库列 `inventory_transfers.transfer_no` 上的 `UNIQUE` 约束负责最终去重。
 pub async fn generate_no(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {

@@ -14,9 +14,7 @@ use crate::services::production_recipe_service::{ApproveRecipeRequest, Productio
 use crate::utils::error::AppError;
 
 impl ProductionRecipeService {
-    /// 审核大货处方（draft → approved）
-    ///
-    /// 真实业务：审核后自动建立生产领用单据（领用单据建立由下游模块消费 approved 事件）
+    /// 审核大货处方（draft → approved）（真实业务：审核后自动建立生产领用单据（领用单据建立由下游模块消费 approved 事件））
     pub async fn approve(
         &self,
         id: i32,
@@ -42,9 +40,7 @@ impl ProductionRecipeService {
         Ok(updated)
     }
 
-    /// 关闭大货处方（approved → closed）
-    ///
-    /// 真实业务：生产完成，处方归档
+    /// 关闭大货处方（approved → closed）（真实业务：生产完成，处方归档）
     pub async fn close(&self, id: i32) -> Result<RecipeModel, AppError> {
         let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, recipe_status::CLOSED)?;
@@ -56,9 +52,7 @@ impl ProductionRecipeService {
         Ok(updated)
     }
 
-    /// 取消大货处方（draft → cancelled）
-    ///
-    /// 真实业务：草稿状态作废
+    /// 取消大货处方（draft → cancelled）（真实业务：草稿状态作废）
     pub async fn cancel(&self, id: i32) -> Result<RecipeModel, AppError> {
         let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, recipe_status::CANCELLED)?;

@@ -31,9 +31,7 @@ use sea_orm::*;
 const TEMPLATE_CATEGORY: &str = "__TEMPLATE__";
 
 impl BpmService {
-    /// 创建流程定义
-    ///
-    /// 插入一条新的流程定义记录，状态默认为 DRAFT（除非请求显式指定）
+    /// 创建流程定义（插入一条新的流程定义记录，状态默认为 DRAFT（除非请求显式指定））
     pub async fn create_process_definition(
         &self,
         req: CreateProcessDefinitionRequest,
@@ -73,9 +71,7 @@ impl BpmService {
         Ok(model)
     }
 
-    /// 获取单个流程定义
-    ///
-    /// 按 id 查询流程定义，返回 Option
+    /// 获取单个流程定义（按 id 查询流程定义，返回 Option）
     pub async fn get_process_definition(
         &self,
         id: i32,
@@ -86,9 +82,7 @@ impl BpmService {
         Ok(model)
     }
 
-    /// 更新流程定义
-    ///
-    /// 部分更新：仅更新请求中提供的字段
+    /// 更新流程定义（部分更新：仅更新请求中提供的字段）
     pub async fn update_process_definition(
         &self,
         id: i32,
@@ -121,9 +115,7 @@ impl BpmService {
         Ok(updated)
     }
 
-    /// 删除流程定义
-    ///
-    /// 按 id 删除流程定义记录
+    /// 删除流程定义（按 id 删除流程定义记录）
     pub async fn delete_process_definition(&self, id: i32) -> Result<(), AppError> {
         let existing = bpm_process_definition::Entity::find_by_id(id)
             .one(&*self.db)
@@ -135,9 +127,7 @@ impl BpmService {
         Ok(())
     }
 
-    /// 获取流程定义列表（分页）
-    ///
-    /// 过滤模板记录（category != __TEMPLATE__ 或 category IS NULL），支持 category 和 status 筛选
+    /// 获取流程定义列表（分页）（过滤模板记录（category != __TEMPLATE__ 或 category IS NULL），支持 category 和 status 筛选）
     pub async fn list_process_definitions(
         &self,
         query: ProcessDefinitionQuery,
@@ -181,11 +171,7 @@ impl BpmService {
     }
 
     /// 获取流程定义的所有版本
-    ///
-    /// 按 definition_id 查询其 code，再查询同 code 的所有记录
-    ///
-    /// 批次 67 说明：原 `create_process_version` 方法已删除（签名缺陷），
-    /// handler 层 `create_version` 改用 `create_process_definition` 完成版本创建。
+    /// 按 definition_id 查询其 code，再查询同 code 的所有记录；批次 67 说明：原 `create_process_version` 方法已删除（签名缺陷），；handler 层 `create_version` 改用 `create_process_definition` 完成版本创建。
     pub async fn list_process_versions(
         &self,
         definition_id: i32,
@@ -208,9 +194,7 @@ impl BpmService {
         Ok(versions)
     }
 
-    /// 激活指定版本
-    ///
-    /// 将同 code 的其他记录置为 INACTIVE，当前记录置为 ACTIVE
+    /// 激活指定版本（将同 code 的其他记录置为 INACTIVE，当前记录置为 ACTIVE）
     pub async fn activate_process_version(
         &self,
         id: i32,
@@ -255,9 +239,7 @@ impl BpmService {
         Ok(updated)
     }
 
-    /// 保存为模板
-    ///
-    /// 复制 definition 为新记录，category 设为 __TEMPLATE__，name 加 " [模板]" 后缀
+    /// 保存为模板（复制 definition 为新记录，category 设为 __TEMPLATE__，name 加 " [模板]" 后缀）
     pub async fn save_as_template(&self, id: i32, name: String) -> Result<(), AppError> {
         let source = bpm_process_definition::Entity::find_by_id(id)
             .one(&*self.db)
@@ -285,10 +267,7 @@ impl BpmService {
     }
 
     /// 获取模板列表（分页）
-    ///
-    /// 查询 category = __TEMPLATE__ 的记录
-    /// 批次 342 v11 复审 P2 修复：删除未使用的 category 二次筛选字段（TemplateQuery.category），
-    /// 模板子分类功能未实现，按规则 0 删除占位符字段
+    /// 查询 category = __TEMPLATE__ 的记录；批次 342 v11 复审 P2 修复：删除未使用的 category 二次筛选字段（TemplateQuery.category），；模板子分类功能未实现，按规则 0 删除占位符字段
     pub async fn list_templates(
         &self,
         query: TemplateQuery,
@@ -319,10 +298,7 @@ impl BpmService {
     }
 
     /// 从模板创建流程定义
-    ///
-    /// 批次 199 P1-6 修复：原签名仅接收 template_id，handler 传入的请求体被完全丢弃，
-    /// 客户端无法自定义新流程定义的字段。现扩展为接收 req 参数，客户端字段优先，
-    /// 未提供时回退到模板字段，再回退到默认值。
+    /// 批次 199 P1-6 修复：原签名仅接收 template_id，handler 传入的请求体被完全丢弃，；客户端无法自定义新流程定义的字段。现扩展为接收 req 参数，客户端字段优先，；未提供时回退到模板字段，再回退到默认值。
     pub async fn create_from_template(
         &self,
         template_id: i32,

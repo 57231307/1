@@ -16,11 +16,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 impl ImportExportService {
     /// 执行数据导入
-    ///
-    /// 批次 327 v10 复审 P3 修复：移除误报的 #[allow]
-    /// - too_many_arguments：仅 3 参数（import_type, data, user_id），远低于阈值 7
-    /// - needless_pass_by_value：参数均为引用或 Copy 类型，不会触发
-    /// - redundant_clone：签名层面无 clone 操作，不会触发
+    /// 批次 327 v10 复审 P3 修复：移除误报的 #[allow]；too_many_arguments：仅 3 参数（import_type, data, user_id），远低于阈值 7；needless_pass_by_value：参数均为引用或 Copy 类型，不会触发；redundant_clone：签名层面无 clone 操作，不会触发
     pub async fn import_data(
         &self,
         import_type: &str,

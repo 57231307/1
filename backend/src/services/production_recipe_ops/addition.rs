@@ -23,9 +23,7 @@ use crate::utils::data_scope::{check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 
 impl ProductionRecipeAdditionService {
-    /// 创建加料处方
-    ///
-    /// 业务校验：关联的大货处方必须为 approved 状态
+    /// 创建加料处方（业务校验：关联的大货处方必须为 approved 状态）
     pub async fn create(
         &self,
         req: CreateProductionRecipeAdditionRequest,

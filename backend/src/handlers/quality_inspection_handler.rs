@@ -276,14 +276,8 @@ fn record_records_export_audit(
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/quality-inspection/records/export - 导出质量检验记录列表（带水印 + 异步审计日志）
-///
-/// V15 P0-S12 修复（Batch 475d）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_records_list 取全量数据（page=1/page_size=10000）
-/// - 与 list_records handler 行为对齐：inspection_result 映射到 service 的 inspection_type 字段
-///   （service 内部把 inspection_type 过滤到 InspectionResult 列，语义保持一致）
+/// GET /api/v1/erp/quality-inspection/records/export - 导出质量检验记录列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475d）：导出接入后端 - 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调
+/// service.get_records_list 取全量数据（page=1/page_size=10000） - 与 list_records handler 行为对齐：inspection_result 映射到 service 的 inspection_type 字段 （service 内部把 inspection_type 过滤到 InspectionResult 列，语义保持一致）
 pub async fn export_records(
     State(state): State<AppState>,
     auth: AuthContext,

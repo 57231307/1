@@ -39,10 +39,7 @@ pub mod sales_delivery {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 销售退货状态常量（大写值）
-///
-/// 批次 232 v13 P1-1 修复：sales_return.status 字段状态常量化
-/// 状态机：DRAFT → SUBMITTED → APPROVED → COMPLETED / REJECTED
+/// 销售退货状态常量（大写值，批次 232 v13 P1-1，状态机 DRAFT→SUBMITTED→APPROVED→COMPLETED/REJECTED）
 pub mod sales_return {
     /// 草稿：退货单初始状态，可编辑
     pub const DRAFT: &str = "DRAFT";
@@ -92,10 +89,7 @@ pub mod custom_order {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 报价单状态（sales_quotation.status，小写值，补充批次 234 的 quotation 模块）
-/// 批次 236 v13 真实接入：quotation_approval_service.rs、quotation_convert_service.rs 等
-/// 注意：quotation 模块（批次 234）已定义 DRAFT/APPROVED/REJECTED/CANCELLED，
-/// 本模块补充审批/转换流程专属状态
+/// 报价单状态（sales_quotation.status 小写，批次 236 v13 补充 quotation 模块审批/转换流程专属状态）
 pub mod quotation_ext {
     /// 待审批：报价单已提交审批
     pub const PENDING_APPROVAL: &str = "pending_approval";

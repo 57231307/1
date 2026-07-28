@@ -50,11 +50,7 @@ pub struct ReportSubscriptionScheduler {
 }
 
 impl ReportSubscriptionScheduler {
-    /// 创建调度器实例。
-    ///
-    /// 邮件服务通过 `EmailService::from_env()` 创建：
-    /// - 已配置 `EMAIL_PROVIDER` / `EMAIL_API_KEY` / `EMAIL_FROM` → 创建成功；
-    /// - 未配置 → 返回 `None`，调度器仍会扫描并更新订阅状态，但跳过邮件发送。
+    /// 创建调度器实例（邮件服务 via EmailService::from_env，未配置时跳过邮件但仍更新状态）
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         let email_service = EmailService::from_env();
         if email_service.is_none() {
@@ -72,9 +68,7 @@ impl ReportSubscriptionScheduler {
         }
     }
 
-    /// 执行一次扫描：查询到期订阅 + 待重试订阅，逐个处理。
-    ///
-    /// 返回本次扫描处理的订阅数量。
+    /// 执行一次扫描：查询到期订阅 + 待重试订阅，逐个处理，返回处理数量
     pub async fn run_once(&self) -> Result<u64, AppError> {
         let now = Utc::now();
         let svc = ReportSubscriptionService::new(self.db.clone());
@@ -206,14 +200,8 @@ impl ReportSubscriptionScheduler {
         Ok(recipients)
     }
 
-    /// 启动后台调度任务（参考 RecycleExecutor 模式）。
-    ///
-    /// 启动后先延迟 `INITIAL_DELAY_SECS` 秒（避免与启动初始化争抢 DB），
-    /// 然后以 `REPORT_SUBSCRIPTION_SCHEDULER_INTERVAL_SECS`（默认 60 秒）为间隔循环执行。
-    ///
-    /// 环境变量门控：
-    /// - `REPORT_SUBSCRIPTION_SCHEDULER_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动；
-    /// - `REPORT_SUBSCRIPTION_SCHEDULER_INTERVAL_SECS`（默认 60）— 扫描间隔。
+    /// 启动后台调度任务（参考 RecycleExecutor，先延迟 INITIAL_DELAY_SECS 秒再以默认 60 秒间隔循环）
+    /// 环境变量门控：ENABLED 默认 true（false/0 跳过）；INTERVAL_SECS 默认 60（扫描间隔）
     pub fn start_background_task(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let enabled = std::env::var("REPORT_SUBSCRIPTION_SCHEDULER_ENABLED")

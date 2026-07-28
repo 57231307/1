@@ -63,10 +63,7 @@ impl ActiveModelBehavior for ActiveModel {}
 // material_shortage_threshold_configs：阈值配置表（单行 id=1）
 // ============================================================
 
-/// 缺料预警阈值配置表的子模块
-///
-/// 设计为单行配置（id=1 固定），通过 upsert 更新。
-/// 使用独立子模块避免与 alerts Entity 名冲突。
+/// 缺料预警阈值配置表的子模块（单行配置 id=1 固定，通过 upsert 更新，独立子模块避免与 alerts Entity 名冲突）
 pub mod threshold_config {
     use super::*;
 

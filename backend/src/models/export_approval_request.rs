@@ -11,9 +11,7 @@ pub struct ExportParams(pub serde_json::Value);
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct ApprovalContext(pub serde_json::Value);
 
-/// 审批状态枚举（与数据库 status 字段对应）
-///
-/// V15 P0-S14：敏感数据导出二级审批机制
+/// 审批状态枚举（与数据库 status 字段对应）：V15 P0-S14 敏感数据导出二级审批机制
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ApprovalStatus {
     /// 待审批
@@ -40,10 +38,7 @@ impl ApprovalStatus {
         }
     }
 
-    /// 从数据库字符串解析
-    ///
-    /// V15 P0-S14 clippy 修复：方法名从 from_str 改为 parse_status，
-    /// 避免与标准库 trait std::str::FromStr::from_str 冲突（clippy::should_implement_trait）
+    /// 从数据库字符串解析（V15 P0-S14 clippy 修复：from_str→parse_status 避免 std::str::FromStr 冲突）
     pub fn parse_status(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(Self::Pending),
@@ -94,11 +89,7 @@ impl RiskLevel {
     }
 }
 
-/// 敏感数据导出二级审批请求（V15 P0-S14）
-///
-/// 设计依据：V15 审计报告 类十三 P0-S14
-/// 审批流程：申请人提交 → 一级审批（直接上级）→ 二级审批（部门经理或更高）
-/// 审批通过后生成临时下载 token（5 分钟有效），凭 token 下载导出文件
+/// 敏感数据导出二级审批请求（V15 P0-S14：申请人→一级审批→二级审批，通过后生成 5 分钟临时 token 下载）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "export_approval_request")]
 pub struct Model {
@@ -180,9 +171,7 @@ pub enum Relation {
 
 impl ActiveModelBehavior for ActiveModel {}
 
-/// 敏感资源类型注册表（V15 P0-S14）
-///
-/// 定义哪些资源类型的导出需要二级审批
+/// 敏感资源类型注册表（V15 P0-S14：定义哪些资源类型的导出需要二级审批）
 pub mod sensitive_resources {
     /// 客户清单
     pub const CUSTOMER: &str = "customer";

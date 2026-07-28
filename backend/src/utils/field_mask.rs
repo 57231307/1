@@ -93,12 +93,7 @@ pub fn mask_bank_card(card: &str) -> String {
     format!("{}****{}", prefix, suffix)
 }
 
-/// P1-08-5：对客户/供应商/销售订单/运单响应做基于角色的手机号/邮箱脱敏
-///
-/// 业务规则：
-/// - role_id == 1（管理员）不脱敏，返回原值
-/// - 非管理员：对常见手机号/邮箱字段名应用 mask_phone/mask_email
-/// - 仅处理顶层对象的字符串字段（列表场景每条记录为对象）
+/// P1-08-5：对客户/供应商/销售订单/运单响应做基于角色的手机号/邮箱脱敏（管理员不脱敏，非管理员 mask_phone/mask_email）
 pub fn mask_contact_fields_for_role(mut value: Value, role_id: Option<i32>) -> Value {
     if role_id == Some(1) {
         return value;

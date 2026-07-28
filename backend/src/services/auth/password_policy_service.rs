@@ -84,9 +84,7 @@ impl PasswordPolicyService {
         crate::utils::password_validator::validate_password_with_policy(password, &policy)
     }
 
-    /// 校验密码 + 排除历史
-    ///
-    /// 批次 158 v11 真实接入：由 change_password handler 调用
+    /// 校验密码 + 排除历史（批次 158 v11 真实接入：由 change_password handler 调用）
     pub async fn validate_with_history(
         &self,
         password: &str,
@@ -104,9 +102,7 @@ impl PasswordPolicyService {
     }
 
     /// 检查密码是否过期（批次 198 P0-2 真实接入 login 流程）
-    ///
-    /// 由 auth_handler::login 在认证成功后调用，
-    /// 根据 users.password_changed_at 字段判断密码是否超过 max_age_days。
+    /// 由 auth_handler::login 在认证成功后调用，；根据 users.password_changed_at 字段判断密码是否超过 max_age_days。
     pub fn is_expired(&self, last_changed: chrono::DateTime<chrono::Utc>) -> bool {
         match self.max_age_days {
             None => false,

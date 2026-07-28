@@ -124,10 +124,7 @@ impl ApInvoiceService {
     }
 
     /// 获取应付统计报表
-    ///
-    /// 批次 133 v9 复审 P1：原 handler get_statistics 返回 "统计报表功能开发中" 占位，
-    /// 现综合调用 get_balance_summary + get_aging_analysis + 按状态分组统计，
-    /// 返回完整统计报表（余额汇总 + 账龄分析 + 状态分布）。
+    /// 批次 133 v9 复审 P1：原 handler get_statistics 返回 "统计报表功能开发中" 占位，；现综合调用 get_balance_summary + get_aging_analysis + 按状态分组统计，；返回完整统计报表（余额汇总 + 账龄分析 + 状态分布）。
     pub async fn get_statistics(
         &self,
         supplier_id: Option<i32>,

@@ -15,11 +15,7 @@ pub mod approval {
     pub const REJECTED: &str = "REJECTED";
 }
 
-/// 预算管理状态常量（小写值）
-///
-/// 批次 209 P2-5 修复（v12 复审）：
-/// budget_plan.status 与 budget_management.status（预算项目）使用小写状态值，
-/// 状态机：draft → rejected / approved → active
+/// 预算管理状态常量（小写值，批次 209 P2-5 修复，状态机 draft → rejected / approved → active）
 pub mod budget {
     /// 草稿：预算方案初始状态，可编辑
     pub const DRAFT: &str = "draft";
@@ -34,11 +30,7 @@ pub mod budget {
     pub const ACTIVE: &str = "active";
 }
 
-/// 合同状态常量（小写值）
-///
-/// 批次 210 P2-5 修复（v12 复审）：
-/// sales_contract.status 与 purchase_contract.status 使用小写状态值，
-/// 状态机：draft → active → cancelled
+/// 合同状态常量（小写值，批次 210 P2-5，状态机 draft→active→cancelled）
 pub mod contract {
     /// 草稿：合同初始状态，可编辑
     pub const DRAFT: &str = "draft";
@@ -50,14 +42,7 @@ pub mod contract {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 运单状态常量（大写值）
-///
-/// 批次 232 v13 P1-1 修复：logistics_waybill.status 字段状态常量化
-/// 状态机：IN_TRANSIT（运输中）→ DELIVERED（已送达）→ SIGNED（已签收）
-///
-/// V15 P0-B13（Batch 483）：新增 SIGNED 已签收状态
-/// - 签收时调用 sign_waybill handler，状态推进到 SIGNED
-/// - SIGNED 状态触发 AR 应收确认（财务做收款计划）
+/// 运单状态常量（大写值，批次 232 v13 P1-1，状态机 IN_TRANSIT→DELIVERED→SIGNED，SIGNED 触发 AR 应收确认）
 pub mod logistics_waybill {
     /// 运输中：运单已创建，货物在途
     pub const IN_TRANSIT: &str = "IN_TRANSIT";

@@ -56,10 +56,7 @@ pub struct CreateReconciliationRequest {
     pub notes: Option<String>,
 }
 
-/// 更新对账单请求
-///
-/// 批次 108 P1-6 修复：已通过 PUT /ar-reconciliations/:id 路由接入业务，
-/// 移除 dead_code 标注。
+/// 更新对账单请求（批次 108 P1-6 修复：已通过 PUT /ar-reconciliations/:id 路由接入业务，；移除 dead_code 标注。）
 #[derive(Debug, Clone)]
 pub struct UpdateReconciliationRequest {
     pub opening_balance: Option<Decimal>,
@@ -184,10 +181,7 @@ impl ArReconciliationService {
 // 共享内部辅助（供 vfy.rs 自动对账使用）
 // =====================================================
 
-/// 为对账单生成对账单号（共用）
-///
-/// 支持传入 `DatabaseConnection` 或 `DatabaseTransaction`，
-/// 便于调用方在事务内生成单号（避免单号生成与主事务不一致导致断号）。
+/// 为对账单生成对账单号（共用）（支持传入 `DatabaseConnection` 或 `DatabaseTransaction`，；便于调用方在事务内生成单号（避免单号生成与主事务不一致导致断号）。）
 pub(crate) async fn generate_reconciliation_no(
     db: &(impl ConnectionTrait + TransactionTrait),
 ) -> Result<String, AppError> {

@@ -55,9 +55,8 @@ pub struct UpdateProductionOrderPayload {
     pub remarks: Option<String>,
 }
 
-/// P1-2f 修复（批次 81 v1 复审）：更新生产订单状态请求 DTO
-/// 替代 update_production_order_status 中的 Json<serde_json::Value>，
-/// 提供强类型校验 + 状态白名单校验
+/// P1-2f 修复（批次 81 v1 复审）：更新生产订单状态请求 DTO 替代 update_production_order_status
+/// 中的 Json<serde_json::Value>， 提供强类型校验 + 状态白名单校验
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductionOrderStatusDto {
     /// 状态：必填，必须命中白名单
@@ -67,9 +66,8 @@ pub struct UpdateProductionOrderStatusDto {
     pub actual_quantity: Option<String>,
 }
 
-/// P1-2f 修复（批次 81 v1 复审）：生产订单状态白名单校验
-/// 仅允许以下状态值，避免任意字符串写入数据库
-/// 白名单与 production_order_service::validate_status_transition 保持一致
+/// P1-2f 修复（批次 81 v1 复审）：生产订单状态白名单校验 仅允许以下状态值，避免任意字符串写入数据库 白名单与
+/// production_order_service::validate_status_transition 保持一致
 fn validate_production_order_status(status: &str) -> Result<(), validator::ValidationError> {
     const ALLOWED: &[&str] = &[
         "DRAFT",
@@ -429,10 +427,8 @@ pub async fn update_production_progress(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 获取生产订单操作日志
-///
-/// 批次 132 v9 复审 P1：原返回固定空列表 {logs: []}，
-/// 现真实查询 audit_logs 表，按 resource_id = order_id 过滤，按 created_at 倒序返回。
+/// 获取生产订单操作日志；批次 132 v9 复审 P1：原返回固定空列表 {logs: []}， 现真实查询
+/// audit_logs 表，按 resource_id = order_id 过滤，按 created_at 倒序返回。
 pub async fn get_production_order_logs(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -607,16 +603,8 @@ fn record_production_orders_export_audit(
     svc.record_async(event, None);
 }
 
-/// 导出生产订单列表
-///
-/// V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志
-///
-/// 规则 3：导出统一使用 xlsx 格式
-/// V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
-/// V15 P0-S15：水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
-///
-/// 重要：生产订单表有行级数据权限（V15 P0-S01），必须调 `to_data_scope_context`
-/// + `service.list(query, Some(&data_scope_ctx))` 保证数据隔离
+/// 导出生产订单列表；V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志；规则 3：导出统一使用 xlsx 格式 V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应） V15 P0-S15：水印行在 xlsx 第
+/// 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起；重要：生产订单表有行级数据权限（V15 P0-S01），必须调 `to_data_scope_context` + `service.list(query, Some(&data_scope_ctx))` 保证数据隔离
 pub async fn export_production_orders(
     State(state): State<AppState>,
     auth: AuthContext,

@@ -74,9 +74,7 @@ pub struct BatchUpdateProductRequest {
     pub status: Option<String>,
 }
 
-/// 批量更新失败回滚上下文：封装 user_id/total/description/errors 等参数
-///
-/// 批次 488 D08-1 拆分：用于 build_rollback_result 在 helper 间传递上下文
+/// 批量更新失败回滚上下文：封装 user_id/total/description/errors 等参数（批次 488 D08-1 拆分：用于 build_rollback_result 在 helper 间传递上下文）
 struct BatchUpdateRollbackContext {
     user_id: i32,
     total: usize,
@@ -94,10 +92,7 @@ impl BatchService {
         Self { db }
     }
 
-    /// 批量创建产品
-    ///
-    /// P1 8-4 修复：接收 user_id 参数，操作完成后记录汇总审计日志
-    /// P2 2-9 修复：用 db.begin() 包裹批量操作，任一失败则整体回滚，避免部分写入
+    /// 批量创建产品（P1 8-4 修复：接收 user_id 参数，操作完成后记录汇总审计日志；P2 2-9 修复：用 db.begin() 包裹批量操作，任一失败则整体回滚，避免部分写入）
     pub async fn batch_create_products(
         &self,
         user_id: i32,
@@ -259,12 +254,7 @@ impl BatchService {
     }
 
     /// 批量更新产品
-    ///
-    /// P1 8-4 修复：接收 user_id 参数，操作完成后记录汇总审计日志
-    /// P2 2-9 修复：用 db.begin() 包裹批量操作，任一失败则整体回滚，避免部分写入
-    ///
-    /// 批次 488 D08-1 拆分：主函数仅做协调，事务边界保留（txn.commit() 仍在主函数）；
-    /// helper 通过 &txn 引用参与事务，不再调用 txn.rollback()（事务 drop 自动回滚）。
+    /// P1 8-4 修复：接收 user_id 参数，操作完成后记录汇总审计日志；P2 2-9 修复：用 db.begin() 包裹批量操作，任一失败则整体回滚，避免部分写入；批次 488 D08-1 拆分：主函数仅做协调，事务边界保留（txn.commit() 仍在主函数）；helper 通过 &txn 引用参与事务，不再调用 txn.rollback()（事务 drop 自动回滚）。
     pub async fn batch_update_products(
         &self,
         user_id: i32,
@@ -332,9 +322,7 @@ impl BatchService {
         })
     }
 
-    /// 批量查询产品构建 HashMap，避免循环内 N+1 查询
-    ///
-    /// 批次 488 D08-1 拆分：从事务内一次性 is_in 批量查询，构建 HashMap 供循环内 O(1) 查找。
+    /// 批量查询产品构建 HashMap，避免循环内 N+1 查询（批次 488 D08-1 拆分：从事务内一次性 is_in 批量查询，构建 HashMap 供循环内 O(1) 查找。）
     async fn load_existing_products(
         txn: &DatabaseTransaction,
         requests: &[BatchUpdateProductRequest],
@@ -350,9 +338,7 @@ impl BatchService {
         Ok(existing_products.into_iter().map(|p| (p.id, p)).collect())
     }
 
-    /// 应用增量更新到 ActiveModel（只更新请求中提供的字段）
-    ///
-    /// 批次 488 D08-1 拆分：纯函数，无 txn 依赖，便于单测。
+    /// 应用增量更新到 ActiveModel（只更新请求中提供的字段）（批次 488 D08-1 拆分：纯函数，无 txn 依赖，便于单测。）
     fn apply_incremental_updates(
         mut product: product::ActiveModel,
         req: &BatchUpdateProductRequest,
@@ -390,10 +376,7 @@ impl BatchService {
         product
     }
 
-    /// 构建批量更新失败回滚上下文
-    ///
-    /// 批次 488 D08-1 拆分：复用两种失败场景（更新失败/产品不存在），
-    /// is_not_found=true 使用"已回滚-产品不存在"描述，否则使用"已回滚"描述。
+    /// 构建批量更新失败回滚上下文（批次 488 D08-1 拆分：复用两种失败场景（更新失败/产品不存在），；is_not_found=true 使用"已回滚-产品不存在"描述，否则使用"已回滚"描述。）
     fn build_failure_ctx(
         user_id: i32,
         total: usize,
@@ -421,9 +404,7 @@ impl BatchService {
         }
     }
 
-    /// 构建批量更新失败回滚结果并异步记录审计日志
-    ///
-    /// 批次 488 D08-1 拆分：从主函数提取审计日志构建 + BatchResult 组装，主函数仅做协调。
+    /// 构建批量更新失败回滚结果并异步记录审计日志（批次 488 D08-1 拆分：从主函数提取审计日志构建 + BatchResult 组装，主函数仅做协调。）
     fn build_rollback_result(
         ctx: &BatchUpdateRollbackContext,
         db: Arc<DatabaseConnection>,
@@ -462,9 +443,7 @@ impl BatchService {
         }
     }
 
-    /// 记录批量更新成功的汇总审计日志
-    ///
-    /// 批次 488 D08-1 拆分：从主函数提取审计日志构建，主函数仅做协调。
+    /// 记录批量更新成功的汇总审计日志（批次 488 D08-1 拆分：从主函数提取审计日志构建，主函数仅做协调。）
     fn record_success_audit(
         user_id: i32,
         total: usize,
@@ -497,9 +476,7 @@ impl BatchService {
         svc.record_async(event, None);
     }
 
-    /// 批量删除产品
-    ///
-    /// P1 8-4 修复：接收 user_id 参数，Some(0) 改为 Some(user_id)
+    /// 批量删除产品（P1 8-4 修复：接收 user_id 参数，Some(0) 改为 Some(user_id)）
     pub async fn batch_delete_products(
         &self,
         user_id: i32,

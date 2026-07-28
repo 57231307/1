@@ -10,14 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 委外加工订单主表模型
-///
-/// 真实业务要点：
-/// - 发料分录：借 委托加工物资 / 贷 自制半成品-胚布
-/// - 加工费分录：借 委托加工物资+应交税费-进项税额 / 贷 银行存款
-/// - 入库分录：借 库存商品-成品布 / 贷 委托加工物资
-/// - 损耗处理：正常损耗摊入成本（不单独做分录），非正常损耗计入营业外支出
-/// - 行业损耗率标准（§5.7）：dyeing=0.05 / weaving=0.035 / spinning=0.055
+/// 委外加工订单主表模型（发料/加工费/入库三步分录；正常损耗摊成本非正常计入营业外支出；行业损耗率 dyeing=0.05/weaving=0.035/spinning=0.055）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "outsourcing_order")]
 pub struct Model {

@@ -480,15 +480,7 @@ impl MaterialShortageService {
     }
 
     /// V15 P0-B15：持久化缺料预警快照
-    ///
-    /// 幂等策略：同物料且 status != 'resolved' 的 alert 视为"未解决"，
-    /// 已存在则更新快照字段（required/available/shortage/deficit_rate/level/affected_orders_count/updated_at），
-    /// 不存在则插入新记录（生成 alert_no = MS-YYYYMMDD-NNN）。
-    ///
-    /// 设计考量：
-    /// - 不在循环内做 N 次 DB 查询，先批量查询未解决 alerts 按 material_id 索引
-    /// - 整个持久化过程在一个事务内完成，失败则回滚
-    /// - 持久化失败不阻断 detect_shortages（降级为 warn，与事件发布策略一致）
+    /// 幂等策略：同物料且 status != 'resolved' 的 alert 视为"未解决"，；已存在则更新快照字段（required/available/shortage/deficit_rate/level/affected_orders_count/updated_at），；不存在则插入新记录（生成 alert_no = MS-YYYYMMDD-NNN）。；设计考量：不在循环内做 N 次 DB 查询，先批量查询未解决 alerts 按 material_id 索引；整个持久化过程在一个事务内完成，失败则回滚；持久化失败不阻断 detect_shortages（降级为 warn，与事件发布策略一致）
     async fn persist_alerts(&self, items: &[MaterialShortageItem]) -> Result<(), AppError> {
         if items.is_empty() {
             return Ok(());
@@ -559,10 +551,7 @@ impl MaterialShortageService {
         Ok(())
     }
 
-    /// 生成缺料单号：MS-YYYYMMDD-NNN（NNN 为当天序号，从 001 开始）
-    ///
-    /// 通过查询当天已有的最大序号 + 1 保证唯一性。
-    /// 并发场景下可能冲突（UNIQUE 约束会拒绝），调用方需重试。
+    /// 生成缺料单号：MS-YYYYMMDD-NNN（NNN 为当天序号，从 001 开始）（通过查询当天已有的最大序号 + 1 保证唯一性。；并发场景下可能冲突（UNIQUE 约束会拒绝），调用方需重试。）
     async fn generate_alert_no<C: ConnectionTrait>(&self, db: &C) -> Result<String, AppError> {
         let today = Utc::now();
         let date_str = today.format("%Y%m%d").to_string();
@@ -592,10 +581,7 @@ impl MaterialShortageService {
     }
 
     /// 获取缺料预警列表（可按级别过滤）
-    ///
-    /// BE-P 优化（2026-06-26）：
-    /// detect_shortages 是实时计算（非 DB 全量加载），内存分页是合理的。
-    /// 优化点：先过滤再计算 total，避免构建完整 filtered Vec 再 skip/take。
+    /// BE-P 优化（2026-06-26）：detect_shortages 是实时计算（非 DB 全量加载），内存分页是合理的。；优化点：先过滤再计算 total，避免构建完整 filtered Vec 再 skip/take。
     pub async fn list_alerts(
         &self,
         level_filter: Option<&str>,
@@ -680,9 +666,7 @@ impl MaterialShortageService {
     }
 
     /// 保存预警阈值配置（V15 P0-B15：upsert 到 material_shortage_threshold_configs 单行表）
-    ///
-    /// 单行配置表（id=1 固定）：先查询是否存在，存在则 update，不存在则 insert。
-    /// 与 migration m0068 默认行（id=1 + 默认阈值）协同，保证首次启动即可读默认值。
+    /// 单行配置表（id=1 固定）：先查询是否存在，存在则 update，不存在则 insert。；与 migration m0068 默认行（id=1 + 默认阈值）协同，保证首次启动即可读默认值。
     pub async fn save_threshold_config(
         &self,
         config: &ShortageThresholdConfig,
@@ -724,9 +708,7 @@ impl MaterialShortageService {
         Ok(())
     }
 
-    /// 加载预警阈值配置（V15 P0-B15：从 material_shortage_threshold_configs 单行表读取）
-    ///
-    /// 若 DB 中无行（理论上 migration m0068 默认插入了一行），降级返回默认值。
+    /// 加载预警阈值配置（V15 P0-B15：从 material_shortage_threshold_configs 单行表读取）（若 DB 中无行（理论上 migration m0068 默认插入了一行），降级返回默认值。）
     pub async fn load_threshold_config(&self) -> Result<ShortageThresholdConfig, AppError> {
         let row = threshold_model::Entity::find_by_id(threshold_model::SINGLE_ROW_ID)
             .one(&*self.db)
@@ -793,14 +775,7 @@ impl MaterialShortageService {
     }
 
     /// 更新缺料预警状态（V15 P0-B15：持久化状态到 material_shortage_alerts 表）
-    ///
-    /// 状态机：identified → purchase_request → purchase_order → received → resolved
-    /// - 查找该 material_id 最新未解决（status != 'resolved'）的 alert
-    /// - 更新 status 字段；若新状态为 resolved，同步填入 resolved_at
-    /// - 返回更新后的 alert 快照（含 level / status / 物料信息），供 handler 构建 DTO
-    ///
-    /// 设计：URL `/:id/status` 中的 id 语义为 material_id（与原桩实现一致），
-    /// 因 persist_alerts 保证同 material_id 至多一条未解决 alert，故查找唯一。
+    /// 状态机：identified → purchase_request → purchase_order → received → resolved；查找该 material_id 最新未解决（status != 'resolved'）的 alert；更新 status 字段；若新状态为 resolved，同步填入 resolved_at；返回更新后的 alert 快照（含 level / status / 物料信息），供 handler 构建 DTO；设计：URL `/:id/status` 中的 id 语义为 material_id（与原桩实现一致），；因 persist_alerts 保证同 material_id 至多一条未解决 alert，故查找唯一。
     pub async fn update_status(
         &self,
         material_id: i32,

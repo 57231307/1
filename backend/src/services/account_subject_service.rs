@@ -322,19 +322,7 @@ impl AccountSubjectService {
     }
 
     /// 刷新科目余额（F-P1-4 修复，批次 358 v13 复审）
-    ///
-    /// v13 复审 F-P1-4 发现：`account_subject` 模型有 6 个余额字段
-    /// （`initial_balance_debit/credit`、`current_period_debit/credit`、`ending_balance_debit/credit`），
-    /// 但本 Service 缺少 `refresh_balance` 方法，导致科目主数据的余额字段无法独立重算，
-    /// 仅依赖 `voucher_service.update_account_balances` 在凭证过账时同步写入 `account_balance` 表。
-    /// 当出现凭证反审核、外部数据导入、余额漂移等场景时，科目主数据的余额字段无法纠正。
-    ///
-    /// 本方法从已过账凭证分录重新聚合指定期间的借贷发生额，按余额方向计算期末余额，
-    /// 写回 `account_subject` 的 `current_period_debit/credit` 和 `ending_balance_debit/credit`。
-    ///
-    /// 计算规则（与 `voucher_service.update_account_balances` 一致）：
-    /// 借方科目：期末余额 = 期初余额(借) + 本期借方发生 - 本期贷方发生
-    /// 贷方科目：期末余额 = 期初余额(贷) + 本期贷方发生 - 本期借方发生
+    /// v13 复审 F-P1-4 发现：`account_subject` 模型有 6 个余额字段；（`initial_balance_debit/credit`、`current_period_debit/credit`、`ending_balance_debit/credit`），；但本 Service 缺少 `refresh_balance` 方法，导致科目主数据的余额字段无法独立重算，；仅依赖 `voucher_service.update_account_balances` 在凭证过账时同步写入 `account_balance` 表。；当出现凭证反审核、外部数据导入、余额漂移等场景时，科目主数据的余额字段无法纠正。；本方法从已过账凭证分录重新聚合指定期间的借贷发生额，按余额方向计算期末余额，；写回 `account_subject` 的 `current_period_debit/credit` 和 `ending_balance_debit/credit`。；计算规则（与 `voucher_service.update_account_balances` 一致）：借方科目：期末余额 = 期初余额(借) + 本期借方发生 - 本期贷方发生；贷方科目：期末余额 = 期初余额(贷) + 本期贷方发生 - 本期借方发生
     pub async fn refresh_balance(
         &self,
         subject_id: i32,

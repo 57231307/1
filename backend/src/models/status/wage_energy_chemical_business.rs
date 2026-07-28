@@ -4,11 +4,7 @@
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的工资/能耗/染化料/委外/业务模式状态常量子模块组。
 //! 包含：wage_rate_status/wage_type/wage_record_status/energy_type/energy_meter_status/energy_recording_method/energy_allocation_basis/energy_record_status/energy_rule_status/color_card/chemical_type/chemical_status/chemical_inspection_status/chemical_lot_status/chemical_requisition_type/chemical_requisition_status/outsourcing_order_type/outsourcing_order_status/outsourcing_loss_type/outsourcing_receipt_status/outsourcing_voucher_type/business_mode_code/business_material_source/business_settlement_method/business_rule_type
 
-/// 工序工价状态（process_wage_rate.status）
-///
-/// v14 批次 427：产量工资核算贯通
-/// 依据：面料行业真实业务调研文档 §12.5 产量工资
-/// 状态机：draft(草稿) → active(启用) → disabled(停用)
+/// 工序工价状态（process_wage_rate.status，v14 批次 427，状态机 draft→active→disabled）
 pub mod wage_rate_status {
     /// 草稿：新建工价方案，未启用
     pub const DRAFT: &str = "draft";
@@ -20,10 +16,7 @@ pub mod wage_rate_status {
     pub const DISABLED: &str = "disabled";
 }
 
-/// 工价类型（process_wage_rate.wage_type）
-///
-/// v14 批次 427：产量工资核算贯通
-/// 依据：面料行业真实业务调研文档 §12.5 计件计时工资采集录入
+/// 工价类型（process_wage_rate.wage_type，v14 批次 427，计件/计时/混合）
 pub mod wage_type {
     /// 计件：按产量计酬，wage = qualified_quantity × piece_price × grade_ratio
     pub const PIECE: &str = "piece";
@@ -35,11 +28,7 @@ pub mod wage_type {
     pub const MIXED: &str = "mixed";
 }
 
-/// 工资记录状态（wage_record.status）
-///
-/// v14 批次 427：产量工资核算贯通
-/// 依据：面料行业真实业务调研文档 §12.5 自动汇总进入财务工资核算模块
-/// 状态机：draft(草稿) → confirmed(已确认) → paid(已发放) → cancelled(已取消)
+/// 工资记录状态（wage_record.status，v14 批次 427，状态机 draft→confirmed→paid→cancelled）
 pub mod wage_record_status {
     /// 草稿：工资计算生成的初始状态，可重新计算或删除
     pub const DRAFT: &str = "draft";
@@ -54,11 +43,7 @@ pub mod wage_record_status {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 能源类型（energy_meter.meter_type / energy_consumption_record.meter_type / energy_allocation_rule.meter_type）
-///
-/// v14 批次 428：能耗管理贯通
-/// 依据：面料行业真实业务调研文档 §12.6 能耗管理
-/// 真实业务：染整厂能耗占总成本 35%+，主要能源为水/电/汽（蒸汽/天然气/压缩空气）
+/// 能源类型（energy_meter.meter_type 等，v14 批次 428，水/电/汽/天然气/压缩空气）
 pub mod energy_type {
     /// 水：吨
     pub const WATER: &str = "water";
@@ -76,10 +61,7 @@ pub mod energy_type {
     pub const COMPRESSED_AIR: &str = "compressed_air";
 }
 
-/// 能耗计量设备状态（energy_meter.status）
-///
-/// v14 批次 428：能耗管理贯通
-/// 状态机：active(启用) → inactive(停用) / maintenance(维护中)
+/// 能耗计量设备状态（energy_meter.status，v14 批次 428，状态机 active→inactive/maintenance）
 pub mod energy_meter_status {
     /// 启用：计量设备正常工作，可采集数据
     pub const ACTIVE: &str = "active";
@@ -91,10 +73,7 @@ pub mod energy_meter_status {
     pub const MAINTENANCE: &str = "maintenance";
 }
 
-/// 能耗录入方式（energy_consumption_record.recording_method）
-///
-/// v14 批次 428：能耗管理贯通
-/// 依据：面料行业真实业务调研文档 §12.6 联动设备 IoT 接口实时采集
+/// 能耗录入方式（energy_consumption_record.recording_method，v14 批次 428，手工/IoT/自动计算）
 pub mod energy_recording_method {
     /// 手工：人工抄表录入
     pub const MANUAL: &str = "manual";
@@ -106,11 +85,7 @@ pub mod energy_recording_method {
     pub const AUTO_CALC: &str = "auto_calc";
 }
 
-/// 能耗分摊基准（energy_allocation_rule.allocation_basis / energy_allocation_record.allocation_basis）
-///
-/// v14 批次 428：能耗管理贯通
-/// 依据：面料行业真实业务调研文档 §12.6 按缸号归集 + 月末分摊到成本
-/// 真实业务：按各工序开机时长×设备功率系数分摊电费；能耗成本分摊至订单或产线
+/// 能耗分摊基准（energy_allocation_rule/record.allocation_basis，v14 批次 428，按工时/产量/设备/车间分摊）
 pub mod energy_allocation_basis {
     /// 按工时：按工序记录的工时分摊（duration_minutes）
     pub const BY_DURATION: &str = "by_duration";
@@ -125,10 +100,7 @@ pub mod energy_allocation_basis {
     pub const BY_WORKSHOP: &str = "by_workshop";
 }
 
-/// 能耗记录状态（energy_consumption_record.status / energy_allocation_record.status）
-///
-/// v14 批次 428：能耗管理贯通
-/// 状态机：draft(草稿) → confirmed(已确认) → cancelled(已取消)
+/// 能耗记录状态（energy_consumption_record/allocation_record.status，v14 批次 428，状态机 draft→confirmed→cancelled）
 pub mod energy_record_status {
     /// 草稿：新建记录，可编辑
     pub const DRAFT: &str = "draft";
@@ -140,10 +112,7 @@ pub mod energy_record_status {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 能耗分摊规则状态（energy_allocation_rule.status）
-///
-/// v14 批次 428：能耗管理贯通
-/// 状态机：draft(草稿) → active(启用) → disabled(停用)
+/// 能耗分摊规则状态（energy_allocation_rule.status，v14 批次 428，状态机 draft→active→disabled）
 pub mod energy_rule_status {
     /// 草稿：新建规则，未启用
     pub const DRAFT: &str = "draft";
@@ -165,11 +134,7 @@ pub mod color_card {
     pub const LOST: &str = "lost";
 }
 
-/// 染化料类型（chemical_master.chemical_type / chemical_category.category_type）
-///
-/// v14 批次 429：染化料主数据完善
-/// 依据：面料行业真实业务调研文档 §4.3 染化料管理
-/// 真实业务：染料（分散/活性/还原/硫化/酸性/直接/阳离子）/ 助剂 / 化工原料
+/// 染化料类型（chemical_master.chemical_type 等，v14 批次 429，染料/助剂/化工原料）
 pub mod chemical_type {
     /// 染料：分散/活性/还原/硫化/酸性/直接/阳离子
     pub const DYE: &str = "dye";
@@ -181,10 +146,7 @@ pub mod chemical_type {
     pub const CHEMICAL: &str = "chemical";
 }
 
-/// 染化料主数据状态（chemical_master.status）
-///
-/// v14 批次 429：染化料主数据完善
-/// 状态机：active(启用) → inactive(停用) / discontinued(停产)
+/// 染化料主数据状态（chemical_master.status，v14 批次 429，状态机 active→inactive/discontinued）
 pub mod chemical_status {
     /// 启用：染化料可用
     pub const ACTIVE: &str = "active";
@@ -196,10 +158,7 @@ pub mod chemical_status {
     pub const DISCONTINUED: &str = "discontinued";
 }
 
-/// 染化料批次来料检验状态（chemical_lot.inspection_status）
-///
-/// v14 批次 429：染化料主数据完善
-/// 状态机：pending(待检) → passed(合格) / failed(不合格) / quarantine(隔离)
+/// 染化料批次来料检验状态（chemical_lot.inspection_status，v14 批次 429，状态机 pending→passed/failed/quarantine）
 pub mod chemical_inspection_status {
     /// 待检：新到货批次，等待来料检验
     pub const PENDING: &str = "pending";
@@ -214,10 +173,7 @@ pub mod chemical_inspection_status {
     pub const QUARANTINE: &str = "quarantine";
 }
 
-/// 染化料批次状态（chemical_lot.status）
-///
-/// v14 批次 429：染化料主数据完善
-/// 状态机：active(可用) → consumed(已耗尽) / expired(已过期) / scrapped(已报废)
+/// 染化料批次状态（chemical_lot.status，v14 批次 429，状态机 active→consumed/expired/scrapped）
 pub mod chemical_lot_status {
     /// 可用：批次可用库存大于 0 且未过期
     pub const ACTIVE: &str = "active";
@@ -232,11 +188,7 @@ pub mod chemical_lot_status {
     pub const SCRAPPED: &str = "scrapped";
 }
 
-/// 染化料领用单类型（chemical_requisition.requisition_type）
-///
-/// v14 批次 429：染化料主数据完善
-/// 依据：面料行业真实业务调研文档 §4.3 染化料管理
-/// 真实业务：生产领用必须关联染色缸号，化验室/研发领用可选
+/// 染化料领用单类型（chemical_requisition.requisition_type，v14 批次 429，生产/化验室/研发）
 pub mod chemical_requisition_type {
     /// 生产领用：从车间仓库领用至染色缸号
     pub const PRODUCTION: &str = "production";
@@ -248,11 +200,7 @@ pub mod chemical_requisition_type {
     pub const RD: &str = "rd";
 }
 
-/// 染化料领用单状态（chemical_requisition.status）
-///
-/// v14 批次 429：染化料主数据完善
-/// 状态机：draft(草稿) → approved(已审批) → issued(已发料) → partial_returned(部分退回) → closed(已关闭)
-///        任意非 closed 状态 → cancelled(已取消)
+/// 染化料领用单状态（chemical_requisition.status，v14 批次 429，状态机 draft→approved→issued→partial_returned→closed，任意非 closed→cancelled）
 pub mod chemical_requisition_status {
     /// 草稿：新建领用单，可编辑
     pub const DRAFT: &str = "draft";
@@ -273,10 +221,7 @@ pub mod chemical_requisition_status {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 委外加工类型（outsourcing_order.order_type）
-///
-/// v14 批次 430：委托加工物资贯通
-/// 依据：面料行业真实业务调研文档 §5.4 委托加工物资核算 + §5.5 委外织布场景
+/// 委外加工类型（outsourcing_order.order_type，v14 批次 430，染色/印花/织布/后整理/其他）
 pub mod outsourcing_order_type {
     /// 染色
     pub const DYEING: &str = "dyeing";
@@ -290,11 +235,7 @@ pub mod outsourcing_order_type {
     pub const OTHER: &str = "other";
 }
 
-/// 委外加工订单状态（outsourcing_order.status）
-///
-/// v14 批次 430：委托加工物资贯通
-/// 状态机：draft → issued → processing → received → settled → closed
-/// 任意非 closed 状态 → cancelled
+/// 委外加工订单状态（outsourcing_order.status，v14 批次 430，状态机 draft→issued→processing→received→settled→closed，任意非 closed→cancelled）
 pub mod outsourcing_order_status {
     /// 草稿：新建委外订单，可编辑
     pub const DRAFT: &str = "draft";
@@ -312,12 +253,7 @@ pub mod outsourcing_order_status {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 委外损耗类型（outsourcing_order.loss_type / outsourcing_receipt.loss_type）
-///
-/// v14 批次 430：委托加工物资贯通
-/// 依据：面料行业真实业务调研文档 §5.4 损耗处理规则
-/// - 正常损耗：摊入委托加工物资成本（不单独做分录）
-/// - 非正常损耗：计入营业外支出/管理费用，不能进成本
+/// 委外损耗类型（outsourcing_order/receipt.loss_type，v14 批次 430，正常损耗摊成本/非正常损耗计入营业外支出）
 pub mod outsourcing_loss_type {
     /// 正常损耗：摊入成本（按实际收回数量结转）
     pub const NORMAL: &str = "normal";
@@ -325,10 +261,7 @@ pub mod outsourcing_loss_type {
     pub const ABNORMAL: &str = "abnormal";
 }
 
-/// 委外收回入库状态（outsourcing_receipt.status）
-///
-/// v14 批次 430：委托加工物资贯通
-/// 状态机：draft(草稿) → confirmed(已确认) → cancelled(已取消)
+/// 委外收回入库状态（outsourcing_receipt.status，v14 批次 430，状态机 draft→confirmed→cancelled）
 pub mod outsourcing_receipt_status {
     /// 草稿：新建收回单，可编辑
     pub const DRAFT: &str = "draft";
@@ -338,10 +271,7 @@ pub mod outsourcing_receipt_status {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 委外加工凭证类型（outsourcing_voucher.voucher_type）
-///
-/// v14 批次 430：委托加工物资贯通
-/// 依据：面料行业真实业务调研文档 §5.4 委托加工物资核算三步分录
+/// 委外加工凭证类型（outsourcing_voucher.voucher_type，v14 批次 430，发料/加工费/入库/损耗处理）
 pub mod outsourcing_voucher_type {
     /// 发料凭证：借 委托加工物资 / 贷 自制半成品-胚布
     pub const ISSUE: &str = "issue";
@@ -353,10 +283,7 @@ pub mod outsourcing_voucher_type {
     pub const LOSS: &str = "loss";
 }
 
-/// v14 批次 431：多业务模式支持
-///
-/// 依据：面料行业真实业务调研文档 §6 业务模式 6 种
-/// 业务模式代码（business_mode_config.mode_code）
+/// v14 批次 431：业务模式代码（business_mode_config.mode_code，6 种模式）
 pub mod business_mode_code {
     /// 坯布经销模式：采购坯布 → 库存 → 销售坯布
     pub const GREY_TRADING: &str = "grey_trading";
@@ -372,9 +299,7 @@ pub mod business_mode_code {
     pub const TOLL_PROCESSING: &str = "toll_processing";
 }
 
-/// v14 批次 431：多业务模式支持
-///
-/// 物料来源（business_mode_config.material_source）
+/// v14 批次 431：物料来源（business_mode_config.material_source）
 pub mod business_material_source {
     /// 采购：从供应商采购物料
     pub const PURCHASE: &str = "purchase";
@@ -386,9 +311,7 @@ pub mod business_material_source {
     pub const TOLL: &str = "toll";
 }
 
-/// v14 批次 431：多业务模式支持
-///
-/// 结算方式（business_mode_config.settlement_method）
+/// v14 批次 431：结算方式（business_mode_config.settlement_method）
 pub mod business_settlement_method {
     /// 销售结算：按销售价格结算
     pub const SALE_SETTLEMENT: &str = "sale_settlement";
@@ -396,9 +319,7 @@ pub mod business_settlement_method {
     pub const PROCESSING_FEE_SETTLEMENT: &str = "processing_fee_settlement";
 }
 
-/// v14 批次 431：多业务模式支持
-///
-/// 业务模式规则类型（business_mode_rule.rule_type）
+/// v14 批次 431：业务模式规则类型（business_mode_rule.rule_type）
 pub mod business_rule_type {
     /// 必需：该模块必须存在
     pub const REQUIRED: &str = "required";

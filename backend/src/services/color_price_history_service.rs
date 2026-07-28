@@ -40,10 +40,7 @@ impl ColorPriceHistoryService {
     }
 
     /// 按 price_id 查询历史
-    ///
-    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
-    /// paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
-    /// 补 page.clamp(1, 1000) + page_size.clamp(1, 100) 防 DoS（原实现无任何 clamp 保护）。
+    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。；paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。；补 page.clamp(1, 1000) + page_size.clamp(1, 100) 防 DoS（原实现无任何 clamp 保护）。
     pub async fn list_by_price(
         &self,
         price_id: i64,

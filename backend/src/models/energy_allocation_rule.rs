@@ -11,12 +11,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 能耗分摊规则模型
-///
-/// 真实业务要点：
-/// - 每道工序预设理论能耗基准（standard_consumption_per_unit）
-/// - 支持生效/失效日期，便于规则调整
-/// - 同车间同能源类型同工序同生效日期只能有一个规则
+/// 能耗分摊规则模型（每工序预设理论能耗基准 standard_consumption_per_unit，支持生效失效日期，同车间/能源类型/工序/生效日期唯一）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "energy_allocation_rule")]
 pub struct Model {

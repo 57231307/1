@@ -126,9 +126,8 @@ pub struct InspectionQueryParams {
     pub supplier_id: Option<i32>,
 }
 
-/// P1-2i 修复（批次 81 v1 复审）：创建质检明细请求 DTO
-/// 替代 create_inspection_item 中的 Json<serde_json::Value>，提供强类型校验
-/// 需要 Serialize：handler 将 DTO 序列化为 Value 回显给前端
+/// P1-2i 修复（批次 81 v1 复审）：创建质检明细请求 DTO 替代 create_inspection_item 中的
+/// Json<serde_json::Value>，提供强类型校验 需要 Serialize：handler 将 DTO 序列化为 Value 回显给前端
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateInspectionItemDto {
     /// 产品 ID：必填
@@ -145,9 +144,8 @@ pub struct CreateInspectionItemDto {
     pub remark: Option<String>,
 }
 
-/// P1-2i 修复（批次 81 v1 复审）：更新质检明细请求 DTO
-/// 替代 update_inspection_item 中的 Json<serde_json::Value>，所有字段可选
-/// 需要 Serialize：handler 将 DTO 序列化为 Value 回显给前端
+/// P1-2i 修复（批次 81 v1 复审）：更新质检明细请求 DTO 替代 update_inspection_item 中的
+/// Json<serde_json::Value>，所有字段可选 需要 Serialize：handler 将 DTO 序列化为 Value 回显给前端
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateInspectionItemDto {
     /// 合格数量：可选
@@ -163,10 +161,7 @@ pub struct UpdateInspectionItemDto {
 // 质检明细 Handler
 // =====================================================
 
-/// 获取质检明细列表
-///
-/// 批次 131 v9 复审 P0：原返回硬编码空列表 {items: [], total: 0}，
-/// 现真实查询 purchase_inspection_items 表。
+/// 获取质检明细列表；批次 131 v9 复审 P0：原返回硬编码空列表 {items: [], total: 0}， 现真实查询 purchase_inspection_items 表。
 pub async fn list_inspection_items(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -182,9 +177,7 @@ pub async fn list_inspection_items(
     }))))
 }
 
-/// 创建质检明细
-///
-/// 批次 131 v9 复审 P0：原仅记日志不落库，现真实 INSERT purchase_inspection_items 表。
+/// 创建质检明细；批次 131 v9 复审 P0：原仅记日志不落库，现真实 INSERT purchase_inspection_items 表。
 pub async fn create_inspection_item(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -214,9 +207,7 @@ pub async fn create_inspection_item(
     )))
 }
 
-/// 更新质检明细
-///
-/// 批次 131 v9 复审 P0：原仅记日志不更新，现真实 UPDATE purchase_inspection_items 表。
+/// 更新质检明细；批次 131 v9 复审 P0：原仅记日志不更新，现真实 UPDATE purchase_inspection_items 表。
 pub async fn update_inspection_item(
     Path((id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
@@ -244,9 +235,7 @@ pub async fn update_inspection_item(
     )))
 }
 
-/// 删除质检明细
-///
-/// 批次 131 v9 复审 P0：原仅记日志不删除，现真实 DELETE purchase_inspection_items 表。
+/// 删除质检明细；批次 131 v9 复审 P0：原仅记日志不删除，现真实 DELETE purchase_inspection_items 表。
 pub async fn delete_inspection_item(
     Path((id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,

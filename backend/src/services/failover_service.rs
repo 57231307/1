@@ -201,10 +201,7 @@ impl FailoverService {
         self
     }
 
-    /// V15 P0-B16：获取当前活跃 DB 连接
-    ///
-    /// - 若配置了 executor，返回 ArcSwap 当前指向的连接（切换后为备库）
-    /// - 否则返回主库连接（克隆到新 Arc，调用方短暂持有）
+    /// V15 P0-B16：获取当前活跃 DB 连接（若配置了 executor，返回 ArcSwap 当前指向的连接（切换后为备库）；否则返回主库连接（克隆到新 Arc，调用方短暂持有））
     pub fn get_active_db(&self) -> Arc<DatabaseConnection> {
         match &self.executor {
             Some(exec) => exec.get_current(),
@@ -265,10 +262,7 @@ impl FailoverService {
     }
 
     /// 手动触发切换（仅管理员）
-    ///
-    /// V15 P0-B17：若配置了 FailoverExecutor，先执行真实 DB 连接原子切换（ArcSwap），
-    /// 再更新 status 表 + 记录 event + 记录指标。
-    /// 未配置 executor 时仅更新 status 表（与历史行为兼容）。
+    /// V15 P0-B17：若配置了 FailoverExecutor，先执行真实 DB 连接原子切换（ArcSwap），；再更新 status 表 + 记录 event + 记录指标。；未配置 executor 时仅更新 status 表（与历史行为兼容）。
     pub async fn test_switch(&self, function_name: &str) -> Result<String, String> {
         info!(function = function_name, "手动触发主备切换");
 
@@ -311,10 +305,7 @@ impl FailoverService {
     }
 
     /// V15 P0-B16：递增 consecutive_failures 并更新熔断器状态
-    ///
-    /// 熔断器状态机：
-    /// - closed（正常）→ 连续失败 >= 3 → open（熔断）
-    /// - open → 半开探测由 reset_consecutive_failures 在健康恢复时处理
+    /// 熔断器状态机：closed（正常）→ 连续失败 >= 3 → open（熔断）；open → 半开探测由 reset_consecutive_failures 在健康恢复时处理
     pub async fn increment_consecutive_failures(&self, function_name: &str) -> Result<i32, String> {
         let now = Utc::now();
         let txn = self
@@ -375,9 +366,7 @@ impl FailoverService {
         Ok(new_count)
     }
 
-    /// V15 P0-B16：重置 consecutive_failures 并恢复熔断器为 closed
-    ///
-    /// 健康检查成功时调用，同步更新 last_success_at。
+    /// V15 P0-B16：重置 consecutive_failures 并恢复熔断器为 closed（健康检查成功时调用，同步更新 last_success_at。）
     pub async fn reset_consecutive_failures(&self, function_name: &str) -> Result<(), String> {
         let now = Utc::now();
         let txn = self
@@ -411,11 +400,7 @@ impl FailoverService {
     }
 
     /// V15 P0-B17：切换时更新 status 表（含 total_switches 递增 + last_switch_at）
-    ///
-    /// 专用于 test_switch / FailoverMonitor 自动切换路径：
-    /// - 递增 total_switches（累计切换次数）
-    /// - 设置 last_switch_at（最近一次切换时间）
-    /// - 更新 current_state + circuit_state + updated_at
+    /// 专用于 test_switch / FailoverMonitor 自动切换路径：递增 total_switches（累计切换次数）；设置 last_switch_at（最近一次切换时间）；更新 current_state + circuit_state + updated_at
     pub async fn update_status_on_switch(
         &self,
         function_name: &str,
@@ -479,11 +464,7 @@ impl FailoverService {
     }
 
     /// 健康检查（V15 P0-B16：真实 ping 数据库 SELECT 1 + 缓存从 status 表读取）
-    ///
-    /// - 数据库：在当前活跃 DB（executor 切换后为备库）上执行 `SELECT 1`，
-    ///   成功返回 "primary" 或 "backup"（取决于 executor 状态），失败返回 "error"
-    /// - 缓存：暂无 Redis 客户端直连，从 status 表读取上次记录的状态（部分实现，
-    ///   后续接入 Redis 客户端后改为真实 PING）
+    /// 数据库：在当前活跃 DB（executor 切换后为备库）上执行 `SELECT 1`，；成功返回 "primary" 或 "backup"（取决于 executor 状态），失败返回 "error"；缓存：暂无 Redis 客户端直连，从 status 表读取上次记录的状态（部分实现，；后续接入 Redis 客户端后改为真实 PING）
     pub async fn health_check(&self) -> Result<HealthStatus, String> {
         use status_model::Column as StatusCol;
 
@@ -535,9 +516,7 @@ impl FailoverService {
     }
 
     /// V15 P0-B16：纯 DB 健康探测（SELECT 1），供 FailoverMonitor 使用
-    ///
-    /// 与 `health_check` 区别：仅返回 bool，不读 status 表，不构造 HealthStatus，
-    /// 适合高频后台探测（5s 间隔）。
+    /// 与 `health_check` 区别：仅返回 bool，不读 status 表，不构造 HealthStatus，；适合高频后台探测（5s 间隔）。
     pub async fn ping_db(&self) -> bool {
         let active_db = self.get_active_db();
         let backend = active_db.get_database_backend();
@@ -552,8 +531,7 @@ impl FailoverService {
     }
 
     /// V15 P1 20.4-C：检查 PostgreSQL 流复制同步状态（备库 catch-up 校验）
-    /// 切换前调用：查询主库 pg_stat_replication 视图，确认备库 sync_state=sync 且 lag < 阈值。
-    /// 返回 Ok(true) 表示同步完成可切换；Ok(false) 表示未完成同步；Err 表示查询失败。
+    /// 切换前调用：查询主库 pg_stat_replication 视图，确认备库 sync_state=sync 且 lag < 阈值。；返回 Ok(true) 表示同步完成可切换；Ok(false) 表示未完成同步；Err 表示查询失败。
     pub async fn check_replication_sync(&self) -> Result<bool, String> {
         const MAX_LAG_BYTES: i64 = 1024 * 1024; // 1MB 阈值，超过视为未同步
         let backend = self.db.get_database_backend();
@@ -604,20 +582,7 @@ pub struct HealthStatus {
 // ==================== V15 P0-B17：FailoverExecutor（主备 DB 连接原子切换） ====================
 
 /// 主备切换执行器
-///
-/// V15 P0-B17（Batch 484）：修复审计报告 batch-17 §20.4-B 缺陷
-///
-/// 维护 primary + optional backup 两个 `DatabaseConnection`，
-/// 通过 `ArcSwap<DatabaseConnection>` 实现运行时原子切换。
-/// 业务层通过 `get_current()` 获取当前活跃连接。
-///
-/// 设计要点：
-/// - `current` 是 `Arc<ArcSwap<DatabaseConnection>>`，load_full() 返回 `Arc<DatabaseConnection>`
-/// - `switch_to_backup()` 原子 store 备库连接，业务层下次 load 即生效
-/// - `switch_to_primary()` 原子 store 主库连接（人工确认回切时调用）
-/// - 备库未配置（`backup = None`）时 `switch_to_backup` 返回 Err，降级为仅更新 status 表
-///
-/// 线程安全：`ArcSwap` 内部无锁，多线程并发 load/store 安全。
+/// V15 P0-B17（Batch 484）：修复审计报告 batch-17 §20.4-B 缺陷；维护 primary + optional backup 两个 `DatabaseConnection`，；通过 `ArcSwap<DatabaseConnection>` 实现运行时原子切换。；业务层通过 `get_current()` 获取当前活跃连接。；设计要点：`current` 是 `Arc<ArcSwap<DatabaseConnection>>`，load_full() 返回 `Arc<DatabaseConnection>`；`switch_to_backup()` 原子 store 备库连接，业务层下次 load 即生效；`switch_to_primary()` 原子 store 主库连接（人工确认回切时调用）；备库未配置（`backup = None`）时 `switch_to_backup` 返回 Err，降级为仅更新 status 表；线程安全：`ArcSwap` 内部无锁，多线程并发 load/store 安全。
 pub struct FailoverExecutor {
     /// 当前活跃 DB 连接（ArcSwap 原子替换）
     current: Arc<ArcSwap<DatabaseConnection>>,
@@ -628,10 +593,7 @@ pub struct FailoverExecutor {
 }
 
 impl FailoverExecutor {
-    /// 创建执行器
-    ///
-    /// - `primary`：主库连接（必须配置）
-    /// - `backup`：备库连接（可选；None 时 switch_to_backup 返回 Err）
+    /// 创建执行器（`primary`：主库连接（必须配置）；`backup`：备库连接（可选；None 时 switch_to_backup 返回 Err））
     pub fn new(primary: Arc<DatabaseConnection>, backup: Option<Arc<DatabaseConnection>>) -> Self {
         Self {
             current: Arc::new(ArcSwap::from(primary.clone())),
@@ -640,17 +602,12 @@ impl FailoverExecutor {
         }
     }
 
-    /// 获取当前活跃 DB 连接
-    ///
-    /// 切换前返回 primary，切换后返回 backup。
-    /// 返回 `Arc<DatabaseConnection>`，调用方短暂持有，不影响后续切换。
+    /// 获取当前活跃 DB 连接（切换前返回 primary，切换后返回 backup。；返回 `Arc<DatabaseConnection>`，调用方短暂持有，不影响后续切换。）
     pub fn get_current(&self) -> Arc<DatabaseConnection> {
         self.current.load_full()
     }
 
-    /// 切换到备库（原子替换 ArcSwap）
-    ///
-    /// 备库未配置时返回 Err，调用方应降级处理（仅更新 status 表）。
+    /// 切换到备库（原子替换 ArcSwap）（备库未配置时返回 Err，调用方应降级处理（仅更新 status 表）。）
     pub fn switch_to_backup(&self) -> Result<(), String> {
         let backup = self.backup.as_ref().ok_or_else(|| {
             "备库未配置（DATABASE_BACKUP_URL 未设置），无法切换到备库".to_string()
@@ -659,9 +616,7 @@ impl FailoverExecutor {
         Ok(())
     }
 
-    /// 切换回主库（人工确认后调用）
-    ///
-    /// 无条件 store 主库连接。调用前应确认主库已恢复健康（连续 5 次健康检查通过）。
+    /// 切换回主库（人工确认后调用）（无条件 store 主库连接。调用前应确认主库已恢复健康（连续 5 次健康检查通过）。）
     pub fn switch_to_primary(&self) {
         self.current.store(self.primary.clone());
     }
@@ -683,17 +638,7 @@ impl FailoverExecutor {
 // ==================== V15 P0-B16：FailoverMonitor（后台健康监控） ====================
 
 /// 主备隔离后台监控任务
-///
-/// V15 P0-B16（Batch 484）：修复审计报告 batch-17 §20.4-A 缺陷
-///
-/// 每 `interval`（默认 5s）执行一次 DB 健康探测（SELECT 1），
-/// 连续 `failure_threshold`（默认 3）次失败时自动调用 `test_switch`。
-///
-/// 启停控制：通过 `auto_switch_enabled` 开关（环境变量 `FAILOVER_AUTO_SWITCH_ENABLED`），
-/// 默认 false（仅记录日志 + 递增 consecutive_failures，不自动切换），
-/// 显式设为 true 时才触发自动切换。
-///
-/// 防抖：自动切换成功后重置 consecutive_failures，避免反复触发。
+/// V15 P0-B16（Batch 484）：修复审计报告 batch-17 §20.4-A 缺陷；每 `interval`（默认 5s）执行一次 DB 健康探测（SELECT 1），；连续 `failure_threshold`（默认 3）次失败时自动调用 `test_switch`。；启停控制：通过 `auto_switch_enabled` 开关（环境变量 `FAILOVER_AUTO_SWITCH_ENABLED`），；默认 false（仅记录日志 + 递增 consecutive_failures，不自动切换），；显式设为 true 时才触发自动切换。；防抖：自动切换成功后重置 consecutive_failures，避免反复触发。
 pub struct FailoverMonitor {
     /// FailoverService 实例（持有 db + metrics + executor）
     service: FailoverService,
@@ -725,14 +670,7 @@ impl FailoverMonitor {
     }
 
     /// 启动后台监控循环（消费 self，通常在 tokio::spawn 中调用）
-    ///
-    /// 循环逻辑：
-    /// 1. sleep(interval)
-    /// 2. ping_db() → bool
-    /// 3. 成功：重置 consecutive_failures（若之前有失败）
-    /// 4. 失败：递增 consecutive_failures
-    ///    - 若 auto_switch_enabled && consecutive_failures >= threshold → 调用 test_switch
-    ///    - 自动切换成功后重置计数，失败则记录 error 日志
+    /// 循环逻辑：1. sleep(interval)；2. ping_db() → bool；3. 成功：重置 consecutive_failures（若之前有失败）；4. 失败：递增 consecutive_failures；若 auto_switch_enabled && consecutive_failures >= threshold → 调用 test_switch；自动切换成功后重置计数，失败则记录 error 日志
     pub async fn run(self) {
         info!(
             interval_secs = self.interval.as_secs(),

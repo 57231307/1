@@ -45,9 +45,7 @@ impl StockAlertNotificationScheduler {
         Self { db }
     }
 
-    /// 执行一次扫描：查询全部库存记录，对派生告警项推送通知。
-    ///
-    /// 返回本次扫描发送通知的告警数量。
+    /// 执行一次扫描：查询全部库存记录，对派生告警项推送通知（返回本次扫描发送通知的告警数量。）
     pub async fn run_once(&self) -> Result<u64, AppError> {
         let stocks = InventoryStockEntity::find()
             .filter(inventory_stock::Column::QuantityAvailable.gte(rust_decimal::Decimal::ZERO))
@@ -199,14 +197,8 @@ impl StockAlertNotificationScheduler {
         }
     }
 
-    /// 启动后台调度任务（参考 ColorCardIssueExpiryScheduler 模式）。
-    ///
-    /// 启动后先延迟 `INITIAL_DELAY_SECS` 秒（避免与启动初始化争抢 DB），
-    /// 然后以 `STOCK_ALERT_NOTIFICATION_INTERVAL_SECS`（默认 6 小时）为间隔循环执行。
-    ///
-    /// 环境变量门控：
-    /// - `STOCK_ALERT_NOTIFICATION_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动；
-    /// - `STOCK_ALERT_NOTIFICATION_INTERVAL_SECS`（默认 21600=6h）— 扫描间隔。
+    /// 启动后台调度任务（参考 ColorCardIssueExpiryScheduler 模式）
+    /// 启动后先延迟 `INITIAL_DELAY_SECS` 秒（避免与启动初始化争抢 DB），；然后以 `STOCK_ALERT_NOTIFICATION_INTERVAL_SECS`（默认 6 小时）为间隔循环执行。；环境变量门控：`STOCK_ALERT_NOTIFICATION_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动；`STOCK_ALERT_NOTIFICATION_INTERVAL_SECS`（默认 21600=6h）— 扫描间隔。
     pub fn start_background_task(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let enabled = std::env::var("STOCK_ALERT_NOTIFICATION_ENABLED")

@@ -39,10 +39,7 @@ impl std::fmt::Display for SecurityEvent {
     }
 }
 
-/// 记录安全审计事件
-///
-/// 失败不应阻塞主业务流（采用 best-effort 写入），调用方一般以 `.await.ok()` 形式忽略错误。
-/// 一旦后续引入 `log_security_event` 表，可在此函数中追加 DB 写入。
+/// 记录安全审计事件（best-effort 写入不阻塞主业务流，后续引入 log_security_event 表时可追加 DB 写入）
 pub async fn log_security_event(
     event: SecurityEvent,
     actor_user_id: i32,

@@ -11,13 +11,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 染化料领用单模型
-///
-/// 真实业务要点：
-/// - 三种领用类型：生产领用 / 化验室领用 / 研发领用
-/// - 生产领用必须关联染色缸号 dye_batch_id
-/// - 审批后才能发料，发料后可部分退回
-/// - 全部退回或正常结案后状态变为 closed
+/// 染化料领用单模型（三类型生产/化验室/研发，生产领用须关联 dye_batch_id，审批后发料可部分退回，全部退回或结案后 closed）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "chemical_requisition")]
 pub struct Model {

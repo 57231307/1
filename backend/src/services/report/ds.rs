@@ -103,11 +103,7 @@ impl ReportEngineService {
     }
 
     /// 采购数据聚合
-    ///
-    /// P2-2 修复（v12 复审）：原实现返回 `Ok(Vec::new())` 桩代码，
-    /// 现真实接入 purchase_orders 表，按 supplier/month 分组聚合 total_amount 与 order_count。
-    /// D08 Tier 4 子批次9：拆分为 ≤10 行主函数 + 2 个 helper（fetch_purchase_orders / group_purchase_orders），
-    /// 复用已有 build_aggregate_results 构建最终结果。
+    /// P2-2 修复（v12 复审）：原实现返回 `Ok(Vec::new())` 桩代码，；现真实接入 purchase_orders 表，按 supplier/month 分组聚合 total_amount 与 order_count。；D08 Tier 4 子批次9：拆分为 ≤10 行主函数 + 2 个 helper（fetch_purchase_orders / group_purchase_orders），；复用已有 build_aggregate_results 构建最终结果。
     pub async fn aggregate_purchase_data(
         &self,
         req: AggregateRequest,
@@ -217,10 +213,7 @@ impl ReportEngineService {
     }
 
     /// 财务数据聚合
-    ///
-    /// P2-2 修复（v12 复审）：原实现返回 `Ok(Vec::new())` 桩代码，
-    /// 现真实接入 finance_payments 表，按 month/payment_method 分组聚合 amount 与 payment_count。
-    /// D08 Tier 4 子批次2：拆分为 ≤50 行主函数 + 3 个 helper（aggregate_payments_by_group / compute_finance_group_key / build_aggregate_results）
+    /// P2-2 修复（v12 复审）：原实现返回 `Ok(Vec::new())` 桩代码，；现真实接入 finance_payments 表，按 month/payment_method 分组聚合 amount 与 payment_count。；D08 Tier 4 子批次2：拆分为 ≤50 行主函数 + 3 个 helper（aggregate_payments_by_group / compute_finance_group_key / build_aggregate_results）
     pub async fn aggregate_finance_data(
         &self,
         req: AggregateRequest,
@@ -480,10 +473,7 @@ impl ReportEngineService {
         })
     }
 
-    /// 查询采购报表
-    ///
-    /// P2-2 修复（v12 复审）：原实现返回空数据桩代码，
-    /// 现真实查询 purchase_order_item 明细，按日期范围过滤，返回订单明细行。
+    /// 查询采购报表（P2-2 修复（v12 复审）：原实现返回空数据桩代码，；现真实查询 purchase_order_item 明细，按日期范围过滤，返回订单明细行。）
     pub async fn query_purchase_report(
         &self,
         template: &super::ReportTemplate,

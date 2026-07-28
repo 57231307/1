@@ -59,7 +59,6 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 处理单个库存交易创建事件（panic 隔离由调用方 catch_unwind 包裹）
-    ///
     /// 仅处理 `InventoryTransactionCreated` 事件，调用 handle_inventory_transaction 生成会计凭证。
     async fn handle_inventory_event_safe(db: Arc<DatabaseConnection>, event: BusinessEvent) {
         if let BusinessEvent::InventoryTransactionCreated {
@@ -125,10 +124,7 @@ impl InventoryFinanceBridgeService {
     }
 
     /// 处理库存交易事件，生成相应的会计凭证
-    ///
-    /// 批次 337 v10 复审 P3 修复：签名从 12 参数改为单一参数对象 `VoucherCreateArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。transaction_type 改为 args 内嵌字段处理
-    /// 不再单独传递，通过 match 分发到 5 个 create_*_voucher 私有函数。
+    /// 批次 337 v10 复审 P3 修复：签名从 12 参数改为单一参数对象 `VoucherCreateArgs`，；消除 `clippy::too_many_arguments` 警告。transaction_type 改为 args 内嵌字段处理；不再单独传递，通过 match 分发到 5 个 create_*_voucher 私有函数。
     async fn handle_inventory_transaction(
         &self,
         transaction_id: i32,

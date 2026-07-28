@@ -75,9 +75,7 @@ pub struct SlowQueryRefreshResponse {
     pub message: String,
 }
 
-/// GET /api/v1/erp/slow-queries
-///
-/// 分页 + 多维筛选（时间范围 / 最小执行时间 / 关键词）
+/// GET /api/v1/erp/slow-queries；分页 + 多维筛选（时间范围 / 最小执行时间 / 关键词）
 pub async fn list_slow_queries(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -138,9 +136,7 @@ pub async fn list_slow_queries(
     })))
 }
 
-/// GET /api/v1/erp/slow-queries/stats
-///
-/// 聚合统计：按 query_text 分组，TOP 10（按最大平均执行时间倒序）
+/// GET /api/v1/erp/slow-queries/stats；聚合统计：按 query_text 分组，TOP 10（按最大平均执行时间倒序）
 pub async fn get_slow_query_stats(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -211,11 +207,7 @@ pub async fn get_slow_query_stats(
     })))
 }
 
-/// POST /api/v1/erp/slow-queries/refresh
-///
-/// 手动触发一次慢查询采集（用于前端"刷新"按钮）
-///
-/// 返回：插入条数 + 提示信息
+/// POST /api/v1/erp/slow-queries/refresh；手动触发一次慢查询采集（用于前端"刷新"按钮）；返回：插入条数 + 提示信息
 pub async fn refresh_slow_queries(
     State(state): State<AppState>,
     _auth: AuthContext,

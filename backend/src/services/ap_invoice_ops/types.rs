@@ -19,9 +19,7 @@ use validator::Validate;
 // =====================================================
 
 /// 创建应付单请求
-///
-/// TS-S-5 安全加固（2026-06-26）：补齐 exchange_rate / amount / currency / notes / attachment_urls 校验，
-/// 防止手工传入 0.01 汇率（P0-1）或负数金额。
+/// TS-S-5 安全加固（2026-06-26）：补齐 exchange_rate / amount / currency / notes / attachment_urls 校验，；防止手工传入 0.01 汇率（P0-1）或负数金额。
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateApInvoiceRequest {
     /// 供应商 ID
@@ -70,9 +68,7 @@ pub struct CreateApInvoiceRequest {
     pub attachment_urls: Option<Vec<String>>,
 }
 
-/// 更新应付单请求
-///
-/// TS-S-5 安全加固（2026-06-26）：补齐字段校验，与 CreateApInvoiceRequest 保持一致。
+/// 更新应付单请求（TS-S-5 安全加固（2026-06-26）：补齐字段校验，与 CreateApInvoiceRequest 保持一致。）
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateApInvoiceRequest {
     /// 应付类型
@@ -149,11 +145,7 @@ pub struct StatusStatItem {
 }
 
 /// 应付统计报表（批次 133 v9 复审 P1）
-///
-/// 综合 3 个维度的统计：
-/// 1. 余额汇总（balance_summary）：总应付 / 已付 / 未付 / 数量
-/// 2. 账龄分析（aging_analysis）：按账龄区间分组的未付清应付单
-/// 3. 状态分布（status_distribution）：按状态分组的应付单
+/// 综合 3 个维度的统计：1. 余额汇总（balance_summary）：总应付 / 已付 / 未付 / 数量；2. 账龄分析（aging_analysis）：按账龄区间分组的未付清应付单；3. 状态分布（status_distribution）：按状态分组的应付单
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApInvoiceStatistics {
     /// 余额汇总

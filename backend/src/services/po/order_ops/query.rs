@@ -38,9 +38,7 @@ impl PurchaseOrderService {
 
     // ========== 数据导出方法 ==========
 
-    /// 导出采购订单为 CSV 格式
-    ///
-    /// D08 Tier 4 子批次9：拆分为 ≤20 行主函数 + 2 个 helper（csv_headers / build_csv_rows）
+    /// 导出采购订单为 CSV 格式（D08 Tier 4 子批次9：拆分为 ≤20 行主函数 + 2 个 helper（csv_headers / build_csv_rows））
     pub async fn export_orders_to_csv(
         &self,
         status: Option<String>,

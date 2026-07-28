@@ -22,10 +22,7 @@ use tokio::sync::Mutex;
 // 现补齐至 60+ 类权限资源，每个资源配 11 个操作权限码，
 // 覆盖面料行业 ERP 全业务场景。
 
-/// 11 个操作权限码（V15 P0-S20 定义）
-///
-/// 每个权限资源均可配置这 11 个操作权限码，
-/// "*" 为通配符，表示拥有该资源的全部操作权限。
+/// 11 个操作权限码（V15 P0-S20 定义）（每个权限资源均可配置这 11 个操作权限码，；"*" 为通配符，表示拥有该资源的全部操作权限。）
 pub const PERMISSION_ACTIONS: &[&str] = &[
     "read",    // 读取/查询
     "create",  // 新建/创建
@@ -40,10 +37,7 @@ pub const PERMISSION_ACTIONS: &[&str] = &[
     "*",       // 通配符（全部操作）
 ];
 
-/// 60+ 类权限资源注册表（V15 P0-S20 补齐）
-///
-/// 覆盖面料行业 ERP 全业务场景：
-/// IAM/产品目录/库存/销售/采购/生产/质量/财务/CRM/物流/人力/安全/IT/系统/分析/通知/集成
+/// 60+ 类权限资源注册表（V15 P0-S20 补齐）（覆盖面料行业 ERP 全业务场景：IAM/产品目录/库存/销售/采购/生产/质量/财务/CRM/物流/人力/安全/IT/系统/分析/通知/集成）
 pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== IAM 与组织域 =====
     "users",
@@ -248,13 +242,9 @@ impl DatabaseConfig {
     }
 }
 
-/// 系统初始化服务
-///
-/// struct 定义保留在 facade，impl 块按职责分散到 `init_service_ops/` 子模块。
+/// 系统初始化服务（struct 定义保留在 facade，impl 块按职责分散到 `init_service_ops/` 子模块。）
 pub struct InitService {
-    /// 数据库连接句柄
-    ///
-    /// `pub(crate)` 可见性：init_service_ops 兄弟模块的 impl 块需直接访问此字段。
+    /// 数据库连接句柄（`pub(crate)` 可见性：init_service_ops 兄弟模块的 impl 块需直接访问此字段。）
     pub(crate) db: Arc<DatabaseConnection>,
 }
 

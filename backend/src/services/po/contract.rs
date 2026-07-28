@@ -18,13 +18,7 @@ use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 
 impl PurchaseOrderService {
     /// 提交采购订单
-    ///
-    /// 批次 22（2026-06-28 v5 P0-5）：补全事务边界 + lock_exclusive + 真实 user_id
-    /// 原 `submit_order` 在 `&*self.db` 上裸查询 + 裸更新，无事务边界也无行锁，
-    /// 并发提交同一订单可能基于过期快照导致状态覆盖；
-    /// 同时 `update_with_audit` 的 user_id 传入 `Some(0)` 导致审计日志用户缺失。
-    /// 改为：begin txn + lock_exclusive 查询 + 状态/权限/明细校验 + update_with_audit(&txn, Some(user_id)) + commit；
-    /// BPM 启动保留事务外（与批次 12 一致：失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
+    /// 批次 22（2026-06-28 v5 P0-5）：补全事务边界 + lock_exclusive + 真实 user_id；原 `submit_order` 在 `&*self.db` 上裸查询 + 裸更新，无事务边界也无行锁，；并发提交同一订单可能基于过期快照导致状态覆盖；同时 `update_with_audit` 的 user_id 传入 `Some(0)` 导致审计日志用户缺失。；改为：begin txn + lock_exclusive 查询 + 状态/权限/明细校验 + update_with_audit(&txn, Some(user_id)) + commit；BPM 启动保留事务外（与批次 12 一致：失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
     pub async fn submit_order(
         &self,
         order_id: i32,
@@ -147,12 +141,7 @@ impl PurchaseOrderService {
     }
 
     /// 审批采购订单
-    ///
-    /// 批次 22（2026-06-28 v5 P0-5）：补全事务边界 + lock_exclusive + 真实 user_id
-    /// 原 `approve_order` 在 `&*self.db` 上裸查询 + 裸更新，无事务边界也无行锁，
-    /// 并发审批同一订单可能基于过期快照导致重复审批或状态覆盖；
-    /// 同时 `update_with_audit` 的 user_id 传入 `Some(0)` 导致审计日志用户缺失。
-    /// 改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
+    /// 批次 22（2026-06-28 v5 P0-5）：补全事务边界 + lock_exclusive + 真实 user_id；原 `approve_order` 在 `&*self.db` 上裸查询 + 裸更新，无事务边界也无行锁，；并发审批同一订单可能基于过期快照导致重复审批或状态覆盖；同时 `update_with_audit` 的 user_id 传入 `Some(0)` 导致审计日志用户缺失。；改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
     pub async fn approve_order(
         &self,
         order_id: i32,
@@ -207,12 +196,7 @@ impl PurchaseOrderService {
     }
 
     /// 拒绝采购订单
-    ///
-    /// 批次 22（2026-06-28 v5 P0-5）：补全事务边界 + lock_exclusive + 真实 user_id
-    /// 原 `reject_order` 在 `&*self.db` 上裸查询 + 裸更新，无事务边界也无行锁，
-    /// 并发拒绝同一订单可能基于过期快照导致重复拒绝或状态覆盖；
-    /// 同时 `update_with_audit` 的 user_id 传入 `Some(0)` 导致审计日志用户缺失。
-    /// 改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
+    /// 批次 22（2026-06-28 v5 P0-5）：补全事务边界 + lock_exclusive + 真实 user_id；原 `reject_order` 在 `&*self.db` 上裸查询 + 裸更新，无事务边界也无行锁，；并发拒绝同一订单可能基于过期快照导致重复拒绝或状态覆盖；同时 `update_with_audit` 的 user_id 传入 `Some(0)` 导致审计日志用户缺失。；改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
     pub async fn reject_order(
         &self,
         order_id: i32,
@@ -258,16 +242,7 @@ impl PurchaseOrderService {
     }
 
     /// 取消采购订单
-    ///
-    /// 批次 215 P2-1 修复（v12 复审）：实现采购订单 cancel_order 功能，
-    /// 移除 purchase_order::CANCELLED 的 #[allow(dead_code)] 标注。
-    ///
-    /// 业务规则：
-    /// - 允许取消状态：DRAFT / PENDING_APPROVAL / APPROVED / PARTIAL_RECEIVED
-    ///   （已收货部分通过采购退货流程处理，取消仅作用于未收货部分）
-    /// - 禁止取消状态：REJECTED（终态）/ CLOSED（终态）/ COMPLETED（终态）/ CANCELLED（终态）
-    /// - 取消时释放已占用的预算（若创建时预算占用成功，插入反向冲销记录）
-    /// - 取消原因记录到 rejected_reason 字段（语义扩展为"拒绝/取消原因"，避免新增字段）
+    /// 批次 215 P2-1 修复（v12 复审）：实现采购订单 cancel_order 功能，；移除 purchase_order::CANCELLED 的 #[allow(dead_code)] 标注。；业务规则：允许取消状态：DRAFT / PENDING_APPROVAL / APPROVED / PARTIAL_RECEIVED；（已收货部分通过采购退货流程处理，取消仅作用于未收货部分）；禁止取消状态：REJECTED（终态）/ CLOSED（终态）/ COMPLETED（终态）/ CANCELLED（终态）；取消时释放已占用的预算（若创建时预算占用成功，插入反向冲销记录）；取消原因记录到 rejected_reason 字段（语义扩展为"拒绝/取消原因"，避免新增字段）
     pub async fn cancel_order(
         &self,
         order_id: i32,
@@ -324,10 +299,7 @@ impl PurchaseOrderService {
     }
 
     /// 释放采购订单已占用的预算（内部辅助方法，事务内原子操作）
-    ///
-    /// 查询 budget_execution 表中 related_document_type='purchase_order'
-    /// 且 related_document_id=order_id 且 execution_type='使用' 的记录，
-    /// 若存在则插入反向"调整"冲销记录（金额为负），抵消原占用。
+    /// 查询 budget_execution 表中 related_document_type='purchase_order'；且 related_document_id=order_id 且 execution_type='使用' 的记录，；若存在则插入反向"调整"冲销记录（金额为负），抵消原占用。
     async fn release_budget_occupation(
         &self,
         order: &purchase_order::Model,

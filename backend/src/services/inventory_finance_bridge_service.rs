@@ -19,10 +19,7 @@ pub struct InventoryFinanceBridgeService {
 }
 
 /// 凭证分录构造参数对象
-///
-/// 批次 334 v10 复审 P3 修复：引入参数对象消除 make_voucher_item 的 too_many_arguments 警告。
-/// 聚合凭证分录所需的全部字段，避免函数签名携带 9 个参数。
-/// 使用生命周期 `'_` 借用 subject_code / subject_name，避免调用方不必要的 to_string()。
+/// 批次 334 v10 复审 P3 修复：引入参数对象消除 make_voucher_item 的 too_many_arguments 警告。；聚合凭证分录所需的全部字段，避免函数签名携带 9 个参数。；使用生命周期 `'_` 借用 subject_code / subject_name，避免调用方不必要的 to_string()。
 pub struct VoucherItemArgs<'a> {
     /// 行号
     pub line_no: i32,
@@ -45,13 +42,7 @@ pub struct VoucherItemArgs<'a> {
 }
 
 /// 库存事件生成凭证参数对象
-///
-/// 批次 337 v10 复审 P3 修复：引入参数对象消除 5 个 create_*_voucher 私有函数的 too_many_arguments 警告。
-/// 5 个函数（create_purchase_receipt_voucher / create_sales_delivery_voucher /
-/// create_inventory_adjustment_voucher / create_production_receipt_voucher /
-/// create_production_issue_voucher）参数完全一致，统一聚合为单一参数对象。
-/// 使用生命周期 `'_` 借用 source_bill_type / source_bill_no / batch_no / color_no，
-/// 避免调用方不必要的 to_string()。
+/// 批次 337 v10 复审 P3 修复：引入参数对象消除 5 个 create_*_voucher 私有函数的 too_many_arguments 警告。；5 个函数（create_purchase_receipt_voucher / create_sales_delivery_voucher /；create_inventory_adjustment_voucher / create_production_receipt_voucher /；create_production_issue_voucher）参数完全一致，统一聚合为单一参数对象。；使用生命周期 `'_` 借用 source_bill_type / source_bill_no / batch_no / color_no，；避免调用方不必要的 to_string()。
 pub struct VoucherCreateArgs<'a> {
     /// 产品 ID
     pub product_id: i32,
@@ -76,10 +67,7 @@ pub struct VoucherCreateArgs<'a> {
 }
 
 /// 库存盘盈盘亏凭证构造参数对象
-///
-/// D08 第三梯队修复：引入参数对象消除 build_overage_voucher_request /
-/// build_shortage_voucher_request 两个函数的 too_many_arguments 警告。
-/// 两函数签名一致，统一聚合为单一参数对象，避免函数签名携带 9 个参数。
+/// D08 第三梯队修复：引入参数对象消除 build_overage_voucher_request /；build_shortage_voucher_request 两个函数的 too_many_arguments 警告。；两函数签名一致，统一聚合为单一参数对象，避免函数签名携带 9 个参数。
 pub struct BridgeVoucherArgs<'a> {
     /// 来源单据类型（可选）
     pub source_bill_type: Option<&'a str>,

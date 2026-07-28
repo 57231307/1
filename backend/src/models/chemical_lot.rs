@@ -11,13 +11,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 染化料批次模型
-///
-/// 真实业务要点：
-/// - 每批染化料独立管理批号、效期、检验状态
-/// - 危化品批次应存放于 hazard 存储区
-/// - 来料检验合格后方可领用
-/// - 接近失效日期触发预警
+/// 染化料批次模型（每批独立管理批号/效期/检验状态，危化品存 hazard 区，检验合格方可领用，近效期预警）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "chemical_lot")]
 pub struct Model {

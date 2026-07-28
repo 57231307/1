@@ -85,15 +85,7 @@ impl AuditLogService {
     }
 
     /// L-32 修复（批次 380 v13 复审）：优雅关闭异步审计服务
-    ///
-    /// abort 后台消费者 task，防止 detached task 泄漏。
-    /// 幂等：多次调用安全，仅首次调用实际 abort。
-    /// 注：tokio mpsc UnboundedSender 没有 close 方法，abort 消费者 task 后
-    /// channel 会自动被 drop，后续 send() 调用会返回 Err。
-    ///
-    /// 批次 403 修复：shutdown 路径禁止 panic。原 `lock().unwrap()` 在 Mutex
-    /// poisoned（持有锁的线程 panic）时会再次 panic，导致进程无法优雅退出。
-    /// 改用 `unwrap_or_else(|e| e.into_inner())` 安全访问 poisoned lock 的内部数据。
+    /// abort 后台消费者 task，防止 detached task 泄漏。；幂等：多次调用安全，仅首次调用实际 abort。；注：tokio mpsc UnboundedSender 没有 close 方法，abort 消费者 task 后；channel 会自动被 drop，后续 send() 调用会返回 Err。；批次 403 修复：shutdown 路径禁止 panic。原 `lock().unwrap()` 在 Mutex；poisoned（持有锁的线程 panic）时会再次 panic，导致进程无法优雅退出。；改用 `unwrap_or_else(|e| e.into_inner())` 安全访问 poisoned lock 的内部数据。
     pub fn shutdown(&self) {
         // abort 后台 task
         if let Some(handle) = self.handle.lock().unwrap_or_else(|e| e.into_inner()).take() {
@@ -103,9 +95,7 @@ impl AuditLogService {
     }
 }
 
-/// 通用审计事件（P13 批 1 P3-2 新增）
-///
-/// 调用方只需填充业务相关字段，service 内部自动从 `AuditContext` 补充请求上下文。
+/// 通用审计事件（P13 批 1 P3-2 新增）（调用方只需填充业务相关字段，service 内部自动从 `AuditContext` 补充请求上下文。）
 #[derive(Debug, Clone, Serialize)]
 pub struct AuditEvent {
     /// 操作用户 ID
@@ -157,13 +147,7 @@ impl AuditEvent {
 
 impl AuditLogService {
     /// 作为 SeaORM 中间件，自动拦截并生成 Update 审计日志
-    ///
-    /// P2 8-8 修复（批次 59）：update 前先查 old_model 序列化为 before_snapshot，
-    /// update 后用 new_model 序列化为 after_snapshot。
-    /// 原实现 old_value/new_value/before_snapshot/after_snapshot 全部为 None，
-    /// 审计日志只能看到"更新了"但不知道从什么变什么，合规失效。
-    ///
-    /// 仅 i32 主键支持 before_snapshot 查询；其他主键类型保持 None（避免泛型膨胀）。
+    /// P2 8-8 修复（批次 59）：update 前先查 old_model 序列化为 before_snapshot，；update 后用 new_model 序列化为 after_snapshot。；原实现 old_value/new_value/before_snapshot/after_snapshot 全部为 None，；审计日志只能看到"更新了"但不知道从什么变什么，合规失效。；仅 i32 主键支持 before_snapshot 查询；其他主键类型保持 None（避免泛型膨胀）。
     pub async fn update_with_audit<E, A, C>(
         db: &C,
         resource_type: &str,
@@ -274,13 +258,7 @@ impl AuditLogService {
     }
 
     /// 作为 SeaORM 中间件，自动拦截并生成 Delete 审计日志（P0 8-3）
-    ///
-    /// 三步原子操作（同一事务/连接内）：
-    /// 1. 查询 old_value 快照（删除前）
-    /// 2. 删除记录
-    /// 3. 写审计日志（含 before_snapshot）
-    ///
-    /// 适用于主键类型为 `i32` 的实体（绝大多数业务表）。
+    /// 三步原子操作（同一事务/连接内）：1. 查询 old_value 快照（删除前）；2. 删除记录；3. 写审计日志（含 before_snapshot）；适用于主键类型为 `i32` 的实体（绝大多数业务表）。
     pub async fn delete_with_audit<E, C>(
         db: &C,
         resource_type: &str,
@@ -395,9 +373,7 @@ impl AuditLogService {
         Ok(())
     }
 
-    /// 同步记录审计事件（不接管业务事务）
-    ///
-    /// 调用方负责异常处理；推荐使用 `record_async` 在 tokio runtime 中异步落库。
+    /// 同步记录审计事件（不接管业务事务）（调用方负责异常处理；推荐使用 `record_async` 在 tokio runtime 中异步落库。）
     pub async fn record(
         &self,
         event: AuditEvent,
@@ -409,10 +385,7 @@ impl AuditLogService {
     }
 
     /// 异步记录审计事件（推荐使用）
-    ///
-    /// L-32 修复（批次 380 v13 复审）：改为通过 mpsc channel 发送事件，
-    /// 由后台单消费者 task 落库，避免每次调用都创建 detached spawn task。
-    /// 写库失败由消费者 task 内部 catch_unwind + error 日志处理。
+    /// L-32 修复（批次 380 v13 复审）：改为通过 mpsc channel 发送事件，；由后台单消费者 task 落库，避免每次调用都创建 detached spawn task。；写库失败由消费者 task 内部 catch_unwind + error 日志处理。
     pub fn record_async(self: Arc<Self>, event: AuditEvent, ctx: Option<AuditContext>) {
         if let Err(e) = self.sender.send((event.clone(), ctx.clone())) {
             tracing::warn!(

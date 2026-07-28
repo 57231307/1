@@ -91,9 +91,7 @@ impl DataPermissionService {
     }
 
     /// 设置数据权限
-    ///
-    /// 批次 85 v2 复审 P1-8 修复：find + update/insert 移入单一事务 + lock_exclusive 串行化
-    /// 原实现 find + update/insert 在 self.db 上分别执行，无 txn 无 lock，并发设置相同权限会基于过期状态 upsert
+    /// 批次 85 v2 复审 P1-8 修复：find + update/insert 移入单一事务 + lock_exclusive 串行化；原实现 find + update/insert 在 self.db 上分别执行，无 txn 无 lock，并发设置相同权限会基于过期状态 upsert
     pub async fn set_data_permission(
         &self,
         role_id: i32,
@@ -224,21 +222,7 @@ impl DataPermissionService {
     }
 
     /// V15 P1 10.4-2：应用数据范围（销售/客户/成本数据隔离）
-    ///
-    /// 根据用户角色返回数据范围过滤条件，业务查询层据此追加 WHERE 子句：
-    /// - admin 角色：返回 ALL（不加过滤）
-    /// - sales/sales_manager 角色：仅可查询自己负责的客户发放记录
-    ///   （customer.owner_id = user_id 的客户集合）
-    /// - customer 角色：仅可查询自己的发放记录（customer_id = user.customer_id）
-    /// - 其他角色：仅可查询自己发放的记录（issued_by = user_id）
-    ///
-    /// # 参数
-    /// - `user_id`：当前登录用户 ID
-    /// - `role_id`：当前登录用户的角色 ID
-    /// - `role_code`：角色编码（admin/sales/sales_manager/customer 等）
-    ///
-    /// # 返回
-    /// 返回 `DataScopeFilter`，业务层据此构造查询条件
+    /// 根据用户角色返回数据范围过滤条件，业务查询层据此追加 WHERE 子句：admin 角色：返回 ALL（不加过滤）；sales/sales_manager 角色：仅可查询自己负责的客户发放记录；（customer.owner_id = user_id 的客户集合）；customer 角色：仅可查询自己的发放记录（customer_id = user.customer_id）；其他角色：仅可查询自己发放的记录（issued_by = user_id）；# 参数；`user_id`：当前登录用户 ID；`role_id`：当前登录用户的角色 ID；`role_code`：角色编码（admin/sales/sales_manager/customer 等）；# 返回；返回 `DataScopeFilter`，业务层据此构造查询条件
     pub async fn apply_data_scope(
         &self,
         user_id: i32,
@@ -274,9 +258,7 @@ impl DataPermissionService {
         }
     }
 
-    /// V15 P1 10.4-2：查询销售负责的客户 ID 列表
-    ///
-    /// 通过 customers.owner_id = user_id 关联查询（客户主数据的业务负责人）
+    /// V15 P1 10.4-2：查询销售负责的客户 ID 列表（通过 customers.owner_id = user_id 关联查询（客户主数据的业务负责人））
     async fn get_sales_customer_ids(&self, user_id: i32) -> Result<Vec<i64>, AppError> {
         use crate::models::customer::{self, Entity as CustomerEntity};
         let customers = CustomerEntity::find()
@@ -288,10 +270,7 @@ impl DataPermissionService {
     }
 
     /// V15 P1 10.4-2：根据用户 ID 查询关联的客户 ID
-    ///
-    /// 客户门户场景：当前 user 表无 customer_id 字段，暂返回 None。
-    /// 后续如需支持客户门户角色，应在 user 表新增 customer_id 字段或
-    /// 建立 user_customer 映射表，届时在此方法补充查询逻辑。
+    /// 客户门户场景：当前 user 表无 customer_id 字段，暂返回 None。；后续如需支持客户门户角色，应在 user 表新增 customer_id 字段或；建立 user_customer 映射表，届时在此方法补充查询逻辑。
     async fn get_customer_id_by_user(&self, _user_id: i32) -> Result<Option<i64>, AppError> {
         // 当前 user 表无 customer_id 字段，客户门户角色暂无数据访问权限
         // TODO: 后续 user 表新增 customer_id 字段后补充查询逻辑
@@ -299,9 +278,7 @@ impl DataPermissionService {
     }
 
     /// V15 P1 10.4-2：检查用户是否可查看成本数据
-    ///
-    /// 成本数据敏感过滤：仅 admin/finance/warehouse_manager 角色可查看成本字段
-    /// 其他角色查询时应隐藏 cost_amount / unit_cost / total_cost 等字段
+    /// 成本数据敏感过滤：仅 admin/finance/warehouse_manager 角色可查看成本字段；其他角色查询时应隐藏 cost_amount / unit_cost / total_cost 等字段
     pub async fn can_view_cost_data(
         &self,
         role_id: Option<i32>,

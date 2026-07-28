@@ -12,11 +12,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
 use serde::{Deserialize, Serialize};
 
-/// 加料处方物料明细项（addition_detail JSON 数组元素）
-///
-/// 真实业务字段说明：
-/// - amount: 加料用量（kg/L/g/ml）
-/// - category: dye(染料) / auxiliary(助剂)
+/// 加料处方物料明细项（addition_detail JSON 数组元素；amount 加料用量 kg/L/g/ml，category dye/auxiliary）
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct AdditionMaterialItem {
     /// 物料编码
@@ -31,12 +27,7 @@ pub struct AdditionMaterialItem {
     pub category: String,
 }
 
-/// 加料处方模型
-///
-/// 真实业务要点：
-/// - 关联的大货处方必须为 approved 状态
-/// - 加料原因：色差/助剂不足/工艺调整
-/// - 状态机：draft → approved → closed
+/// 加料处方模型（关联大货处方须 approved；加料原因色差/助剂不足/工艺调整；状态机 draft→approved→closed）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "production_recipe_addition")]
 pub struct Model {

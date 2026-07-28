@@ -1304,10 +1304,7 @@ async fn update_sales_contracts_customer_name(
 }
 
 /// 刷新供应商关联单据的 supplier_name 冗余字段
-///
-/// 当供应商主数据 supplier_name 变更时，异步刷新以下表的冗余字段：
-/// - purchase_contracts.supplier_name
-/// - fixed_assets.supplier_name
+/// 当供应商主数据 supplier_name 变更时，异步刷新以下表的冗余字段：purchase_contracts.supplier_name；fixed_assets.supplier_name
 async fn refresh_supplier_name_redundancy(
     db: &sea_orm::DatabaseConnection,
     supplier_id: i32,

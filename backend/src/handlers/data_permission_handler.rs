@@ -15,11 +15,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// C-3 修复：数据权限处理器内部的 admin 校验
-///
-/// 安全原因：scope_type 控制行/部门级数据可见范围，攻击者改写 admin 的
-/// scope_type=SELF 可对管理员造成持久性 DoS；为自身设置 scope_type=ALL
-/// 造成跨部门/跨租户越权读取。
+/// C-3 修复：数据权限处理器内部的 admin 校验；安全原因：scope_type 控制行/部门级数据可见范围，攻击者改写 admin
+/// 的 scope_type=SELF 可对管理员造成持久性 DoS；为自身设置 scope_type=ALL 造成跨部门/跨租户越权读取。
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
@@ -32,16 +29,8 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
     Ok(())
 }
 
-/// C-3 修复：custom_condition 白名单校验
-///
-/// 当前处理器未接收 custom_condition，但接口层已声明字段，保留校验逻辑
-/// 以便未来开放时即受到 SQL 注入防御。
-/// 白名单规则：
-/// - 仅允许 `field op value` 三段式结构
-/// - field: ^[a-z_][a-z0-9_]{0,63}$ (小写字母+下划线+数字)
-/// - op: 严格白名单 {=, !=, <, >, <=, >=, IN, NOT IN, LIKE}
-/// - value: 字面量（数字/字符串/单引号字符串）
-/// - 不允许出现: ;, (, ), /* */, --, UNION, SELECT, INSERT, UPDATE, DELETE, DROP, EXEC
+/// C-3 修复：custom_condition 白名单校验；当前处理器未接收 custom_condition，但接口层已声明字段，保留校验逻辑 以便未来开放时即受到 SQL 注入防御。 白名单规则： - 仅允许 `field op value` 三段式结构 - field: ^[a-z_][a-z0-9_]{0,63}$
+/// (小写字母+下划线+数字) - op: 严格白名单 {=, !=, <, >, <=, >=, IN, NOT IN, LIKE} - value: 字面量（数字/字符串/单引号字符串） - 不允许出现: ;, (, ), /* */, --, UNION, SELECT, INSERT, UPDATE, DELETE, DROP, EXEC
 fn validate_custom_condition_safe(condition: &Value) -> Result<(), AppError> {
     const FORBIDDEN: &[&str] = &[
         ";", "(", ")", "/*", "*/", "--", "UNION", "SELECT", "INSERT", "UPDATE", "DELETE", "DROP",
@@ -303,27 +292,21 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    /// 测试_validate_custom_condition_null通过
-    ///
-    /// 场景：Value::Null 应通过校验（无自定义条件）
+    /// 测试_validate_custom_condition_null通过；场景：Value::Null 应通过校验（无自定义条件）
     #[test]
     fn 测试_validate_custom_condition_null通过() {
         let result = validate_custom_condition_safe(&Value::Null);
         assert!(result.is_ok(), "null 值应通过校验");
     }
 
-    /// 测试_validate_custom_condition空对象通过
-    ///
-    /// 场景：空对象 {} 应通过校验（无字段需要检查）
+    /// 测试_validate_custom_condition空对象通过；场景：空对象 {} 应通过校验（无字段需要检查）
     #[test]
     fn 测试_validate_custom_condition空对象通过() {
         let result = validate_custom_condition_safe(&json!({}));
         assert!(result.is_ok(), "空对象应通过校验");
     }
 
-    /// 测试_validate_custom_condition合法对象通过
-    ///
-    /// 场景：合法字段名（小写+下划线+数字）+ 合法值类型（数字/字符串/bool/null）应通过
+    /// 测试_validate_custom_condition合法对象通过；场景：合法字段名（小写+下划线+数字）+ 合法值类型（数字/字符串/bool/null）应通过
     #[test]
     fn 测试_validate_custom_condition合法对象通过() {
         let cond = json!({
@@ -336,9 +319,7 @@ mod tests {
         assert!(result.is_ok(), "合法对象应通过校验");
     }
 
-    /// 测试_validate_custom_condition拒绝大写字段名
-    ///
-    /// 场景：字段名含大写字母（如 "FieldName"）应被拒绝
+    /// 测试_validate_custom_condition拒绝大写字段名；场景：字段名含大写字母（如 "FieldName"）应被拒绝
     #[test]
     fn 测试_validate_custom_condition拒绝大写字段名() {
         let cond = json!({"FieldName": 123});
@@ -353,9 +334,7 @@ mod tests {
         );
     }
 
-    /// 测试_validate_custom_condition拒绝SQL关键字
-    ///
-    /// 场景：序列化后包含 UNION/SELECT/DROP 等 FORBIDDEN 关键字应被拒绝
+    /// 测试_validate_custom_condition拒绝SQL关键字；场景：序列化后包含 UNION/SELECT/DROP 等 FORBIDDEN 关键字应被拒绝
     #[test]
     fn 测试_validate_custom_condition拒绝SQL关键字() {
         // 字符串值中包含 UNION（序列化后大写匹配）
@@ -369,9 +348,7 @@ mod tests {
         assert!(result.is_err(), "包含分号应被拒绝");
     }
 
-    /// 测试_validate_custom_condition拒绝字符串含引号
-    ///
-    /// 场景：字符串值包含单引号/双引号应被拒绝（防 SQL 注入）
+    /// 测试_validate_custom_condition拒绝字符串含引号；场景：字符串值包含单引号/双引号应被拒绝（防 SQL 注入）
     #[test]
     fn 测试_validate_custom_condition拒绝字符串含引号() {
         // 单引号

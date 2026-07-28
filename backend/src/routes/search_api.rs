@@ -77,9 +77,7 @@ pub struct ProductSearchResponse {
     pub hits: Vec<ProductDoc>,
 }
 
-/// GET /search/sales-orders?q=...
-///
-/// 批次 104 P0-1 修复：从 stub 真实接入 SearchClient
+/// GET /search/sales-orders?q=...；批次 104 P0-1 修复：从 stub 真实接入 SearchClient
 pub async fn search_sales_orders(
     State(state): State<AppState>,
     Query(params): Query<SearchParams>,
@@ -105,9 +103,7 @@ pub async fn search_sales_orders(
     })))
 }
 
-/// GET /search/customers?q=...
-///
-/// 批次 104 P0-1 修复：从 stub 真实接入 SearchClient
+/// GET /search/customers?q=...；批次 104 P0-1 修复：从 stub 真实接入 SearchClient
 pub async fn search_customers(
     State(state): State<AppState>,
     Query(params): Query<SearchParams>,
@@ -132,9 +128,7 @@ pub async fn search_customers(
     })))
 }
 
-/// GET /search/products?q=...
-///
-/// 批次 104 P0-1 修复：从 stub 真实接入 SearchClient
+/// GET /search/products?q=...；批次 104 P0-1 修复：从 stub 真实接入 SearchClient
 pub async fn search_products(
     State(state): State<AppState>,
     Query(params): Query<SearchParams>,
@@ -214,9 +208,7 @@ mod tests {
         assert_eq!(query.size, 20);
     }
 
-    /// 批次 104 P0-1 修复：新增端到端搜索测试
-    ///
-    /// 验证 search_sales_orders 真实调用 SearchClient（mock 实现）并返回正确结果。
+    /// 批次 104 P0-1 修复：新增端到端搜索测试；验证 search_sales_orders 真实调用 SearchClient（mock 实现）并返回正确结果。
     #[tokio::test]
     async fn test_search_sales_orders_with_mock_client() {
         use std::sync::Arc;

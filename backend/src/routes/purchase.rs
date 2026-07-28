@@ -18,9 +18,7 @@ use crate::handlers::{
     supplier_evaluation_handler, supplier_handler,
 };
 
-/// 采购订单路由（nest 到 /api/v1/erp/purchases）
-///
-/// 主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
+/// 采购订单路由（nest 到 /api/v1/erp/purchases）；主函数仅做协调：聚合各资源子路由（path 前缀互不重叠，merge 安全）。
 pub fn purchases() -> Router<AppState> {
     Router::new()
         .merge(purchase_order_routes())
@@ -387,9 +385,7 @@ pub fn supplier_evaluations() -> Router<AppState> {
         )
 }
 
-/// 采购域统一入口
-///
-/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
+/// 采购域统一入口；子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(purchases())

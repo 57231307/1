@@ -184,9 +184,7 @@ pub async fn delete_price(
     Ok(Json(ApiResponse::success(())))
 }
 
-/// GET /api/v1/erp/sales-prices/export - 导出销售价格列表（带水印 + 异步审计日志）
-///
-/// 销售价格导出表头（14 列）
+/// GET /api/v1/erp/sales-prices/export - 导出销售价格列表（带水印 + 异步审计日志）；销售价格导出表头（14 列）
 fn price_export_headers() -> Vec<String> {
     vec![
         "ID".to_string(),
@@ -286,11 +284,8 @@ fn record_prices_export_audit(
     svc.record_async(event, None);
 }
 
-/// V15 P0-S12 修复（Batch 475d）：导出接入后端
-/// - 注入水印（operator/exported_at/extra 含条数）
-/// - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_prices_list 取全量数据（page=1/page_size=10000）
-/// - 不复用 list_prices handler 逻辑（保持单一职责）
+/// V15 P0-S12 修复（Batch 475d）：导出接入后端 - 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export）
+/// - 直接调 service.get_prices_list 取全量数据（page=1/page_size=10000） - 不复用 list_prices handler 逻辑（保持单一职责）
 pub async fn export_prices(
     State(state): State<AppState>,
     auth: AuthContext,

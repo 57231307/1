@@ -289,10 +289,7 @@ pub async fn export_excel(
     }))))
 }
 
-/// 报表订阅 CRUD Handler（通过宏生成）
-///
-/// 基础增删改查由 `define_tuple_crud_handlers!` 宏生成，自定义接口
-/// （toggle/trigger/send）保留在文件下方以保持可读性。
+/// 报表订阅 CRUD Handler（通过宏生成）；基础增删改查由 `define_tuple_crud_handlers!` 宏生成，自定义接口 （toggle/trigger/send）保留在文件下方以保持可读性。
 pub mod subscriptions {
     use super::*;
     use crate::define_tuple_crud_handlers;

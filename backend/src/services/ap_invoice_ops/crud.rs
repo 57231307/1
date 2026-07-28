@@ -91,9 +91,7 @@ impl ApInvoiceService {
         Ok(invoice)
     }
 
-    /// 更新应付单（仅草稿状态）
-    ///
-    /// 批次 86 v2 复审 P2-4 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更
+    /// 更新应付单（仅草稿状态）（批次 86 v2 复审 P2-4 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更）
     pub async fn update(
         &self,
         id: i32,
@@ -165,9 +163,7 @@ impl ApInvoiceService {
         Ok(invoice)
     }
 
-    /// 删除应付单（仅草稿状态）
-    ///
-    /// 批次 86 v2 复审 P2-5 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更
+    /// 删除应付单（仅草稿状态）（批次 86 v2 复审 P2-5 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更）
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
@@ -242,11 +238,7 @@ impl ApInvoiceService {
         Ok(invoice)
     }
 
-    /// 标记应付单为已付清
-    ///
-    /// `user_id` 为触发本次状态变更的操作人 ID，用于审计日志透传。
-    /// 通常由事件总线监听 `PaymentCompleted` 事件后调用，
-    /// 事件 payload 携带付款操作人 ID。
+    /// 标记应付单为已付清（`user_id` 为触发本次状态变更的操作人 ID，用于审计日志透传。；通常由事件总线监听 `PaymentCompleted` 事件后调用，；事件 payload 携带付款操作人 ID。）
     pub async fn mark_as_paid(&self, id: i32, user_id: i32) -> Result<ap_invoice::Model, AppError> {
         // 批次 11（2026-06-28）：事务包裹"状态变更 + 审计日志"，保证原子性
         // 原实现直接 &*self.db 调用 update_with_audit，内部 2 次独立写入非原子；

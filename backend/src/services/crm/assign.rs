@@ -101,14 +101,7 @@ impl CrmAssignService {
     }
 
     /// 自动分配线索（轮询策略）
-    ///
-    /// 策略：
-    /// 1. 查询所有 `lead_status = 'new'` 的未分配线索（按 id ASC 排序，limit 限制）
-    /// 2. 查询 `assignee_user_ids` 中所有 is_active=true 的有效用户
-    /// 3. 按 round-robin 轮询：第 i 条线索分配给 `assignees[i % assignees.len()]`
-    /// 4. 事务内逐条更新线索归属人 + 写入分配历史
-    ///
-    /// 失败语义：单条线索分配失败时整体事务回滚（保证一致性）
+    /// 策略：1. 查询所有 `lead_status = 'new'` 的未分配线索（按 id ASC 排序，limit 限制）；2. 查询 `assignee_user_ids` 中所有 is_active=true 的有效用户；3. 按 round-robin 轮询：第 i 条线索分配给 `assignees[i % assignees.len()]`；4. 事务内逐条更新线索归属人 + 写入分配历史；失败语义：单条线索分配失败时整体事务回滚（保证一致性）
     pub async fn auto_assign_leads(
         &self,
         req: AutoAssignRequest,
@@ -423,9 +416,7 @@ impl CrmAssignService {
         }
     }
 
-    /// 查询销售用户的当前线索负载（用于自动分配前的预览）
-    ///
-    /// 返回每个用户的活跃线索数（lead_status != 'converted' 且 lead_status != 'lost'）
+    /// 查询销售用户的当前线索负载（用于自动分配前的预览）（返回每个用户的活跃线索数（lead_status != 'converted' 且 lead_status != 'lost'））
     pub async fn list_assignee_workload(
         &self,
         user_ids: &[i32],

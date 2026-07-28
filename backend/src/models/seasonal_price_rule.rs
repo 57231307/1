@@ -4,9 +4,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 季节性调价规则实体（P0-5）
-///
-/// 按季节自动调价（春夏 / 秋冬 / 节日）
+/// 季节性调价规则实体（P0-5，按季节自动调价：春夏/秋冬/节日）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "seasonal_price_rules")]
 pub struct Model {

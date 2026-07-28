@@ -116,9 +116,7 @@ impl From<UpdateError> for AppError {
 }
 
 /// 系统更新服务
-///
-/// struct 定义保留在 facade，impl 块按职责分散到 `system_update_ops/` 子模块。
-/// 字段使用 `pub(crate)` 可见性：status/apply/backup/github 子模块的 impl 块需直接访问。
+/// struct 定义保留在 facade，impl 块按职责分散到 `system_update_ops/` 子模块。；字段使用 `pub(crate)` 可见性：status/apply/backup/github 子模块的 impl 块需直接访问。
 pub struct SystemUpdateService {
     pub(crate) app_dir: PathBuf,
     pub(crate) backup_dir: PathBuf,
@@ -152,16 +150,7 @@ impl Default for SystemUpdateService {
 // =====================================================
 
 /// 解析语义版本号字符串为数字数组
-///
-/// 批次 322 v9 复审低危修复：抽取 `compare_versions` 和 `compare_versions_for_sort`
-/// 中重复的版本号解析逻辑为共享函数，遵循 DRY 原则。
-///
-/// `pub(crate)`：github 子模块的 `compare_versions` / `compare_versions_for_sort` 调用。
-///
-/// # 示例
-/// - "1.2.3" → [1, 2, 3]
-/// - "2.0" → [2, 0]
-/// - "1.0.0-beta" → [1, 0, 0]（非数字部分被 filter_map 忽略）
+/// 批次 322 v9 复审低危修复：抽取 `compare_versions` 和 `compare_versions_for_sort`；中重复的版本号解析逻辑为共享函数，遵循 DRY 原则。；`pub(crate)`：github 子模块的 `compare_versions` / `compare_versions_for_sort` 调用。；# 示例；"1.2.3" → [1, 2, 3]；"2.0" → [2, 0]；"1.0.0-beta" → [1, 0, 0]（非数字部分被 filter_map 忽略）
 pub(crate) fn parse_version(v: &str) -> Vec<u32> {
     v.split('.').filter_map(|s| s.parse().ok()).collect()
 }
@@ -171,15 +160,7 @@ pub(crate) fn parse_version(v: &str) -> Vec<u32> {
 // =====================================================
 
 /// 解压单个 zip 条目到指定目录（含路径校验 + 权限掩码）
-///
-/// 批次 323 v9 复审低危修复：从 extract_update_package 拆分，保持单一职责。
-/// 原函数 60+ 行混合了目录准备、循环遍历、路径校验、权限设置多种职责。
-///
-/// `pub(crate)`：apply 子模块的 `extract_update_package` 调用。
-///
-/// # 安全
-/// - 路径校验：`enclosed_name` + `starts_with` 双重防护 Tar Slip 路径穿越
-/// - 权限掩码：`set_safe_permissions` 重置 SUID/SGID/sticky bit（P0-2 修复）
+/// 批次 323 v9 复审低危修复：从 extract_update_package 拆分，保持单一职责。；原函数 60+ 行混合了目录准备、循环遍历、路径校验、权限设置多种职责。；`pub(crate)`：apply 子模块的 `extract_update_package` 调用。；# 安全；路径校验：`enclosed_name` + `starts_with` 双重防护 Tar Slip 路径穿越；权限掩码：`set_safe_permissions` 重置 SUID/SGID/sticky bit（P0-2 修复）
 pub(crate) fn extract_zip_entry(
     zip_entry: &mut zip::read::ZipFile,
     extract_dir: &Path,
@@ -241,11 +222,7 @@ pub(crate) fn extract_zip_entry(
 // =====================================================
 
 /// 设置安全权限掩码（P0-2 修复 v9 复审）
-/// is_dir=true 时应用 0o755（所有者可写，其他可读可执行），
-/// is_dir=false 时应用 0o600（仅所有者可读写），
-/// 重置 SUID/SGID/粘性位，防止恶意更新包设置特殊权限位导致权限提升
-///
-/// 私有可见性：仅本 facade 的 `extract_zip_entry` 调用。
+/// is_dir=true 时应用 0o755（所有者可写，其他可读可执行），；is_dir=false 时应用 0o600（仅所有者可读写），；重置 SUID/SGID/粘性位，防止恶意更新包设置特殊权限位导致权限提升；私有可见性：仅本 facade 的 `extract_zip_entry` 调用。
 #[cfg(unix)]
 fn set_safe_permissions(path: &Path, mode: u32, is_dir: bool) {
     use std::os::unix::fs::PermissionsExt;
@@ -260,9 +237,7 @@ fn set_safe_permissions(path: &Path, mode: u32, is_dir: bool) {
     }
 }
 
-/// 校验下载 URL 的域名是否为允许的 GitHub 域名
-///
-/// `pub(crate)`：github 子模块的 `download_update` / `build_safe_download_client` 调用。
+/// 校验下载 URL 的域名是否为允许的 GitHub 域名（`pub(crate)`：github 子模块的 `download_update` / `build_safe_download_client` 调用。）
 pub(crate) fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
     let parsed = url::Url::parse(url_str)
         .map_err(|e| UpdateError::NetworkError(format!("无效的下载 URL: {e}")))?;
@@ -288,10 +263,7 @@ pub(crate) fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
 }
 
 /// M-2 修复（v9 复审）：校验 asset.name 防止路径穿越
-/// asset.name 来自 GitHub API，若账号被入侵可设置为恶意路径
-/// 仅允许字母、数字、点、下划线、连字符，拒绝路径分隔符和特殊字符
-///
-/// `pub(crate)`：github 子模块的 `download_update` 调用。
+/// asset.name 来自 GitHub API，若账号被入侵可设置为恶意路径；仅允许字母、数字、点、下划线、连字符，拒绝路径分隔符和特殊字符；`pub(crate)`：github 子模块的 `download_update` 调用。
 pub(crate) fn validate_asset_name(name: &str) -> Result<(), UpdateError> {
     if name.is_empty() {
         return Err(UpdateError::ValidationError("asset.name 为空".to_string()));

@@ -19,9 +19,7 @@ impl DataPermissionFilter {
         }
     }
 
-    /// 获取允许查询的字段列表
-    /// 如果有 allowed_fields，返回 allowed_fields
-    /// 如果有 hidden_fields，返回所有字段减去 hidden_fields
+    /// 获取允许查询的字段列表（有 allowed_fields 返回 allowed_fields，有 hidden_fields 返回全字段减去 hidden_fields）
     pub fn get_select_fields(&self, all_fields: &[&str]) -> Vec<String> {
         if !self.allowed_fields.is_empty() {
             return self.allowed_fields.clone();

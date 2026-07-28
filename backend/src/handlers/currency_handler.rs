@@ -263,10 +263,7 @@ pub async fn get_exchange_rate_history(
     Ok(Json(ApiResponse::success(responses)))
 }
 
-/// 金额换算
-///
-/// 注意：业务错误（如币种不存在）通过 200 + ApiResponse::error 返回，
-/// 让前端可以正常解析业务错误码；其他错误类型直接走 `?` 传播。
+/// 金额换算；注意：业务错误（如币种不存在）通过 200 + ApiResponse::error 返回， 让前端可以正常解析业务错误码；其他错误类型直接走 `?` 传播。
 pub async fn convert_amount(
     State(state): State<AppState>,
     Json(req): Json<ConvertAmountRequest>,

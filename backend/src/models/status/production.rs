@@ -54,9 +54,7 @@ pub mod mrp {
     pub const CANCELLED: &str = "CANCELLED";
 }
 
-/// 工作中心状态（work_center.status，大写值，复用 active_status）
-/// 产能负载项状态（capacity_load_item.status，大写值）
-/// 批次 236 v13 真实接入：capacity_service.rs、scheduling_auto.rs 等
+/// 工作中心状态（work_center.status 大写复用 active_status）+ 产能负载项状态（capacity_load_item.status 大写），批次 236 v13 真实接入
 pub mod work_center {
     /// 空闲：产能负载项空闲
     pub const LOAD_IDLE: &str = "IDLE";
@@ -65,10 +63,7 @@ pub mod work_center {
     pub const LOAD_OVERLOADED: &str = "OVERLOADED";
 }
 
-/// 流转卡状态（production_flow_card.status，小写值）
-/// v14 批次 425 真实业务常量化
-/// 依据：面料行业真实业务调研文档 §12.1 流转卡 + §12.7 缸号状态机
-/// 状态机：pending → scheduled → preparing → dyeing → dyed → inspecting → completed → shipped / terminated
+/// 流转卡状态（production_flow_card.status 小写，v14 批次 425，状态机 pending→scheduled→preparing→dyeing→dyed→inspecting→completed→shipped/terminated）
 pub mod flow_card {
     /// 待排缸：流转卡已生成，等待排缸
     pub const PENDING: &str = "pending";
@@ -98,10 +93,7 @@ pub mod flow_card {
     pub const TERMINATED: &str = "terminated";
 }
 
-/// 工序流转记录状态（process_step_record.status，小写值）
-/// v14 批次 425 真实业务常量化
-/// 依据：面料行业真实业务调研文档 §12.3 车间工序流转
-/// 状态机：pending → in_progress → completed / abnormal / rework
+/// 工序流转记录状态（process_step_record.status 小写，v14 批次 425，状态机 pending→in_progress→completed/abnormal/rework）
 pub mod step_record {
     /// 待开始：工序待扫码开始
     pub const PENDING: &str = "pending";

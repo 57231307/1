@@ -80,10 +80,7 @@ fn extract_user_agent(request: &Request<Body>) -> String {
         .to_string()
 }
 
-/// 审计上下文中间件
-///
-/// 必须在 `trace_context` 之后挂载（注册顺序 = 执行顺序的逆序，
-/// 即先注册 trace_context，后注册 audit_context 才能保证 trace_id 已就绪）。
+/// 审计上下文中间件；必须在 `trace_context` 之后挂载（注册顺序 = 执行顺序的逆序， 即先注册 trace_context，后注册 audit_context 才能保证 trace_id 已就绪）。
 pub async fn audit_context_middleware(mut request: Request<Body>, next: Next) -> Response {
     // 复用 trace_context 注入的 trace_id；找不到则本地生成 UUID v4
     let request_id = request

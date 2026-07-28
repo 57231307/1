@@ -26,11 +26,7 @@ use crate::utils::response::ApiResponse;
 /// 质量预测 API 响应（直接复用 service 层 DTO）
 pub type QualityPredictionResponse = QualityPredResponse;
 
-/// 处理质量预测请求
-///
-/// 标准化入参（去除空白、限制 window_days 范围）后调用
-/// `AiAnalysisService::predict_quality` 完成历史聚合 + 趋势判定 +
-/// 风险评分 + 退化路径处理。
+/// 处理质量预测请求；标准化入参（去除空白、限制 window_days 范围）后调用 `AiAnalysisService::predict_quality` 完成历史聚合 + 趋势判定 + 风险评分 + 退化路径处理。
 pub async fn quality_prediction(
     State(state): State<AppState>,
     Json(payload): Json<QualityPredRequest>,

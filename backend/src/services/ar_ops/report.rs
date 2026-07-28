@@ -138,9 +138,7 @@ impl ArService {
         })
     }
 
-    /// 获取日报表
-    /// 按 invoice_date 聚合每日发票金额、已收、未收
-    /// v14 中风险性能修复（批次 244）：SQL GROUP BY 聚合，避免全量加载到内存
+    /// 获取日报表（按 invoice_date 聚合每日发票金额、已收、未收；v14 中风险性能修复（批次 244）：SQL GROUP BY 聚合，避免全量加载到内存）
     pub async fn get_daily_report(
         &self,
         start_date: Option<NaiveDate>,

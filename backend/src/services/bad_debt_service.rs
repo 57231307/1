@@ -422,11 +422,7 @@ impl BadDebtService {
     // ==================== B02 坏账核销审批 ====================
 
     /// 申请核销
-    ///
-    /// 业务规则：
-    /// 1. 校验 ar_invoice 存在且 approval_status='approved'
-    /// 2. 校验 writeoff_amount > 0 且 <= ar_invoice.unpaid_amount
-    /// 3. 创建 pending 状态核销申请，approval_level=1
+    /// 业务规则：1. 校验 ar_invoice 存在且 approval_status='approved'；2. 校验 writeoff_amount > 0 且 <= ar_invoice.unpaid_amount；3. 创建 pending 状态核销申请，approval_level=1
     pub async fn create_writeoff(
         &self,
         req: CreateWriteoffRequest,

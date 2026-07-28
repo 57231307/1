@@ -10,14 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 委外收回入库单模型
-///
-/// 真实业务要点：
-/// - 收回成品入库，按实际收回数量结转成本
-/// - 正常损耗摊入成本（不影响总成本，只影响单位成本）
-/// - 非正常损耗计入营业外支出，不进成本
-/// - 质量状态：pending(待检) / passed(合格) / failed(不合格)
-/// - 等级：A/B/C
+/// 委外收回入库单模型（按实际收回数量结转成本，正常损耗摊成本非正常计入营业外支出，质量状态 pending/passed/failed，等级 A/B/C）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "outsourcing_receipt")]
 pub struct Model {

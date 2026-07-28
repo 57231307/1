@@ -140,10 +140,7 @@ impl ApReconciliationService {
     }
 
     /// 提出争议
-    ///
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-    /// 原实现已有 txn 但状态门查询未加 lock_exclusive，两并发 dispute 同时通过门控后
-    /// 基于过期状态写入，导致 disputed_reason 被覆盖。
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更；原实现已有 txn 但状态门查询未加 lock_exclusive，两并发 dispute 同时通过门控后；基于过期状态写入，导致 disputed_reason 被覆盖。
     pub async fn dispute(
         &self,
         id: i32,

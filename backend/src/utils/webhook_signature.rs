@@ -7,21 +7,7 @@ use sha2::Sha256;
 
 type HmacSha256 = Hmac<Sha256>;
 
-/// 计算 Webhook 出站签名（HMAC-SHA256）
-///
-/// P1-B 修复：出站与入站使用同一份 HMAC-SHA256 实现，
-/// 避免旧实现 `SHA256(body || secret)` 的长度扩展攻击风险。
-///
-/// 批次 117 P1-5 修复：原 `.expect()` 在 spawn 任务内构成 panic 触发点，
-/// 改为返回 Result，让调用方决定降级策略（与 utils/hash.rs::hmac_sha256_hex 一致）。
-///
-/// # 参数
-/// - `payload`: 请求体原始内容
-/// - `secret`: Webhook 密钥（作为 HMAC key）
-///
-/// # 返回
-/// - `Ok(String)`: hex 编码的 HMAC-SHA256 摘要（64 字符小写）
-/// - `Err(String)`: HMAC 初始化失败（密钥长度异常等）
+/// 计算 Webhook 出站签名（HMAC-SHA256）；P1-B 修复出站/入站统一算法避免长度扩展攻击，批次 117 P1-5 改返回 Result 避免 spawn 内 panic。payload 为请求体，secret 为 HMAC key，Ok(String) 为 64 字符小写 hex 摘要，Err(String) 为初始化失败
 pub fn sign_webhook_payload(payload: &str, secret: &str) -> Result<String, String> {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
         .map_err(|e| format!("HMAC 初始化失败: {}", e))?;
@@ -30,16 +16,7 @@ pub fn sign_webhook_payload(payload: &str, secret: &str) -> Result<String, Strin
     Ok(hex::encode(result.into_bytes()))
 }
 
-/// 验证 Webhook 回调签名
-///
-/// # 参数
-/// - `payload`: 请求体原始内容
-/// - `secret`: Webhook 密钥
-/// - `signature`: 请求中携带的签名（hex 编码）
-///
-/// # 返回
-/// - `Ok(true)`: 签名验证通过
-/// - `Err(AppError)`: 签名验证失败
+/// 验证 Webhook 回调签名（payload 请求体，secret 密钥，signature hex 签名；Ok(true) 验证通过，Err(AppError) 验证失败）
 pub fn verify_webhook_signature(
     payload: &str,
     secret: &str,

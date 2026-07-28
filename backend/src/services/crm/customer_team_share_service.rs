@@ -167,13 +167,7 @@ impl CustomerTeamShareService {
     // =====================================================
 
     /// 添加团队成员
-    ///
-    /// 业务规则：
-    /// 1. 客户必须存在
-    /// 2. 被添加的用户必须存在且活跃
-    /// 3. 同一客户不能重复添加同一用户（唯一约束）
-    /// 4. primary 角色唯一：若已存在 primary，本次添加必须为 member/assistant
-    /// 5. 操作人必须为客户负责人或拥有团队管理权限
+    /// 业务规则：1. 客户必须存在；2. 被添加的用户必须存在且活跃；3. 同一客户不能重复添加同一用户（唯一约束）；4. primary 角色唯一：若已存在 primary，本次添加必须为 member/assistant；5. 操作人必须为客户负责人或拥有团队管理权限
     pub async fn add_team_member(
         &self,
         req: AddTeamMemberRequest,
@@ -343,9 +337,7 @@ impl CustomerTeamShareService {
         Ok(members.into_iter().map(Into::into).collect())
     }
 
-    /// 校验用户是否为客户的活跃团队成员
-    ///
-    /// 返回 Some(team_role) 表示是团队成员，None 表示不是
+    /// 校验用户是否为客户的活跃团队成员（返回 Some(team_role) 表示是团队成员，None 表示不是）
     pub async fn is_team_member(
         &self,
         customer_id: i32,
@@ -374,9 +366,7 @@ impl CustomerTeamShareService {
         }
     }
 
-    /// 校验团队管理权限
-    ///
-    /// 规则：客户 owner、客户的 primary 团队成员、或共享权限为 full 的用户可管理团队
+    /// 校验团队管理权限（规则：客户 owner、客户的 primary 团队成员、或共享权限为 full 的用户可管理团队）
     async fn validate_team_management_permission(
         &self,
         customer_id: i32,
@@ -424,14 +414,7 @@ impl CustomerTeamShareService {
     // =====================================================
 
     /// 共享客户给其他用户（带时效和权限）
-    ///
-    /// 业务规则：
-    /// 1. 客户必须存在
-    /// 2. 被共享方用户必须存在且活跃
-    /// 3. 不能共享给自己
-    /// 4. 操作人必须是客户 owner / primary / full 共享权限
-    /// 5. 同一客户不能对同一用户重复共享（active 状态）
-    /// 6. duration_days 为 None 时永久共享（建议设置时效）
+    /// 业务规则：1. 客户必须存在；2. 被共享方用户必须存在且活跃；3. 不能共享给自己；4. 操作人必须是客户 owner / primary / full 共享权限；5. 同一客户不能对同一用户重复共享（active 状态）；6. duration_days 为 None 时永久共享（建议设置时效）
     pub async fn share_customer(
         &self,
         req: ShareCustomerRequest,
@@ -527,12 +510,7 @@ impl CustomerTeamShareService {
         Ok(share.into())
     }
 
-    /// 撤销共享（主动收回权限）
-    ///
-    /// 业务规则：
-    /// 1. 共享记录必须存在
-    /// 2. 共享状态必须为 active
-    /// 3. 操作人必须是共享方或拥有 full 权限
+    /// 撤销共享（主动收回权限）（业务规则：1. 共享记录必须存在；2. 共享状态必须为 active；3. 操作人必须是共享方或拥有 full 权限）
     pub async fn revoke_share(
         &self,
         req: RevokeShareRequest,
@@ -635,10 +613,7 @@ impl CustomerTeamShareService {
         Ok(shares.into_iter().map(Into::into).collect())
     }
 
-    /// 校验用户的共享权限
-    ///
-    /// 返回 Some(permission) 表示有共享权限，None 表示无
-    /// 自动过期检查：若 expire_at < now 则视为无权限
+    /// 校验用户的共享权限（返回 Some(permission) 表示有共享权限，None 表示无；自动过期检查：若 expire_at < now 则视为无权限）
     pub async fn check_share_permission(
         &self,
         customer_id: i32,
@@ -664,9 +639,7 @@ impl CustomerTeamShareService {
         Ok(None)
     }
 
-    /// 过期超期共享（定时清理任务调用）
-    ///
-    /// 将所有 status=active 且 expire_at < now 的共享标记为 expired
+    /// 过期超期共享（定时清理任务调用）（将所有 status=active 且 expire_at < now 的共享标记为 expired）
     pub async fn expire_overdue_shares(&self) -> Result<ExpireResult, AppError> {
         let now = Utc::now();
 
@@ -713,9 +686,7 @@ impl CustomerTeamShareService {
         }
     }
 
-    /// 校验共享操作权限
-    ///
-    /// 规则：客户 owner、primary 团队成员、或 full 共享权限可共享
+    /// 校验共享操作权限（规则：客户 owner、primary 团队成员、或 full 共享权限可共享）
     async fn validate_share_permission(
         &self,
         customer_id: i32,

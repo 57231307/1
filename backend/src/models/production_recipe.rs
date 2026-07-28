@@ -11,12 +11,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::FromJsonQueryResult;
 use serde::{Deserialize, Serialize};
 
-/// 大货处方物料明细项（recipe_detail JSON 数组元素）
-///
-/// 真实业务字段说明：
-/// - concentration: 浓度百分比（owf%，对布重百分比），助剂可为空
-/// - amount: 用量（kg/L，由浓度×布重×浴比/100 计算）
-/// - category: dye(染料) / auxiliary(助剂)
+/// 大货处方物料明细项（recipe_detail JSON 数组元素；concentration 浓度百分比 owf% 助剂可空，amount 用量 kg/L 由浓度×布重×浴比/100 计算，category dye/auxiliary）
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct RecipeMaterialItem {
     /// 物料编码
@@ -33,14 +28,7 @@ pub struct RecipeMaterialItem {
     pub category: String,
 }
 
-/// 大货处方模型
-///
-/// 真实业务要点：
-/// - 同一工单号只能开一张大货处方单（业务约束，Service 层校验）
-/// - 备布重量(fabric_weight)与浴比(liquor_ratio)为用量计算依据
-/// - 浴量(bath_volume) = 布重 × 浴比
-/// - 加成系数(adjustment_factor)用于修正小样→大货得色差异
-/// - 审核后状态由 draft → approved，自动建立生产领用单据
+/// 大货处方模型（同工单号仅一张处方单；备布重量与浴比为用量计算依据，浴量=布重×浴比，加成系数修正小样→大货得色差异；审核后 draft→approved 自动建立生产领用单据）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "production_recipe")]
 pub struct Model {

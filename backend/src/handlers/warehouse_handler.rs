@@ -365,15 +365,8 @@ fn record_warehouses_export_audit(
     svc.record_async(event, None);
 }
 
-/// 导出仓库列表
-///
-/// V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志
-///
-/// 规则 3：导出统一使用 xlsx 格式
-/// V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
-/// V15 P0-S15：水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
-///
-/// 重要：warehouse 表无行级数据权限，直接调 `service.list` 复用筛选条件
+/// 导出仓库列表；V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志；规则 3：导出统一使用 xlsx 格式 V15 P0-S11：导出审计日志写入（best-effort
+/// 异步不阻塞响应） V15 P0-S15：水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起；重要：warehouse 表无行级数据权限，直接调 `service.list` 复用筛选条件
 pub async fn export_warehouses(
     State(state): State<AppState>,
     auth: AuthContext,

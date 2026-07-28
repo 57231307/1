@@ -21,11 +21,7 @@ use crate::utils::error::AppError;
 
 impl PurchaseReceiptService {
     /// 确认采购入库单
-    ///
-    /// 批次 16（2026-06-28）：入库单状态门查询加 lock_exclusive，
-    /// 防止并发 confirm_receipt 同一入库单导致重复入库 + 重复生成应付账单 + 重复累加采购单已收数量。
-    /// 原状态门无锁，两并发 confirm 均通过 DRAFT 检查，第二个 confirm 重复执行库存入库与
-    /// order_item received_quantity 累加，commit 后还会重复触发 auto_generate_from_receipt 生成应付账单。
+    /// 批次 16（2026-06-28）：入库单状态门查询加 lock_exclusive，；防止并发 confirm_receipt 同一入库单导致重复入库 + 重复生成应付账单 + 重复累加采购单已收数量。；原状态门无锁，两并发 confirm 均通过 DRAFT 检查，第二个 confirm 重复执行库存入库与；order_item received_quantity 累加，commit 后还会重复触发 auto_generate_from_receipt 生成应付账单。
     pub async fn confirm_receipt(
         &self,
         receipt_id: i32,

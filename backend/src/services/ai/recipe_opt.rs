@@ -113,10 +113,7 @@ pub(crate) const TYPICAL_PH: f64 = 6.0;
 pub(crate) const TYPICAL_LIQUOR_RATIO: f64 = 8.0;
 
 /// 染料-布类配伍性表（V15 P1 1.1：染料配伍性校验）
-///
-/// 依据 fabric-industry-research §11.2，染料与布类不匹配（如分散染料用于棉）
-/// 会生成无效配方推荐，工艺员采纳后可能导致染色失败、批次报废。
-/// 返回 true 表示配伍；false 表示不配伍。
+/// 依据 fabric-industry-research §11.2，染料与布类不匹配（如分散染料用于棉）；会生成无效配方推荐，工艺员采纳后可能导致染色失败、批次报废。；返回 true 表示配伍；false 表示不配伍。
 pub(crate) fn is_dye_fabric_compatible(dye_type: &str, fabric_type: &str) -> bool {
     let dye = dye_type.trim().to_lowercase();
     let fabric = fabric_type.trim().to_lowercase();
@@ -159,9 +156,7 @@ pub(crate) fn validate_dye_fabric_compatibility(
 }
 
 /// V15 P1 6.1：脱敏配方候选集，掩码 remark 中可能含有的手机号/邮箱/身份证号
-///
-/// 算法仅使用 color_no/fabric_type/dye_type/temperature/time/ph/liquor_ratio 字段，
-/// remark 字段不参与算法但会随候选集回写到 candidates_json，须前置脱敏避免 PII 泄露。
+/// 算法仅使用 color_no/fabric_type/dye_type/temperature/time/ph/liquor_ratio 字段，；remark 字段不参与算法但会随候选集回写到 candidates_json，须前置脱敏避免 PII 泄露。
 pub(crate) fn sanitize_recipe_for_inference(mut recipe: DyeRecipeModel) -> DyeRecipeModel {
     if let Some(remark) = recipe.remarks.take() {
         recipe.remarks = Some(crate::utils::field_mask::mask_text_pii(&remark));
@@ -173,13 +168,7 @@ pub(crate) fn sanitize_recipe_for_inference(mut recipe: DyeRecipeModel) -> DyeRe
 }
 
 /// 计算两条配方的相似度（0.0 - 1.3）
-///
-/// 评分规则：
-/// - `color_no` 精确（大小写不敏感）相等 → 1.0
-/// - `color_no` 前缀 3 位相同（忽略分隔符）→ 0.7
-/// - 否则 → 0.0
-/// - `fabric_type` 精确相等 → +0.2
-/// - `dye_type` 精确相等 → +0.1
+/// 评分规则：`color_no` 精确（大小写不敏感）相等 → 1.0；`color_no` 前缀 3 位相同（忽略分隔符）→ 0.7；否则 → 0.0；`fabric_type` 精确相等 → +0.2；`dye_type` 精确相等 → +0.1
 pub(crate) fn compute_similarity(
     target_color: &str,
     target_fabric: &str,
@@ -207,9 +196,7 @@ pub(crate) fn compute_similarity(
     score
 }
 
-/// 颜色号相似度（仅依赖 color_no 字符串）
-///
-/// 标准化时去除常见分隔符 `-` `_` `/` ` `，便于"BL301" 与 "BL-301" 模糊匹配。
+/// 颜色号相似度（仅依赖 color_no 字符串）（标准化时去除常见分隔符 `-` `_` `/` ` `，便于"BL301" 与 "BL-301" 模糊匹配。）
 fn color_similarity(target: &str, candidate: &str) -> f64 {
     if target.is_empty() || candidate.is_empty() {
         return 0.0;
@@ -287,12 +274,7 @@ pub(crate) fn weighted_average_params(hits: &[(f64, &DyeRecipeModel)]) -> Option
 }
 
 /// 内置典型参数表（退化兜底，固定 4 字段）
-///
-/// 典型值（兜底，参考规格）：
-/// - 温度：80°C ± 10°C → 默认 80
-/// - 时间：45min ± 15min → 默认 45
-/// - pH：6.0 ± 1.0 → 默认 6.0
-/// - 浴比：1:8 ± 2 → 默认 8.0
+/// 典型值（兜底，参考规格）：温度：80°C ± 10°C → 默认 80；时间：45min ± 15min → 默认 45；pH：6.0 ± 1.0 → 默认 6.0；浴比：1:8 ± 2 → 默认 8.0
 pub(crate) fn find_typical_params() -> AggregatedParams {
     AggregatedParams {
         temperature: TYPICAL_TEMPERATURE,
@@ -302,10 +284,7 @@ pub(crate) fn find_typical_params() -> AggregatedParams {
     }
 }
 
-/// 计算最终置信度（0.0 - 1.0 归一化）
-///
-/// - k-NN 命中：min(命中条数 / K, 1.0) * 平均相似度归一化
-/// - 退化路径：固定 0.6
+/// 计算最终置信度（0.0 - 1.0 归一化）（k-NN 命中：min(命中条数 / K, 1.0) * 平均相似度归一化；退化路径：固定 0.6）
 pub(crate) fn compute_confidence(hits: &[(f64, &DyeRecipeModel)], k: usize) -> f64 {
     if hits.is_empty() {
         return 0.6;
@@ -319,9 +298,7 @@ pub(crate) fn compute_confidence(hits: &[(f64, &DyeRecipeModel)], k: usize) -> f
     (coverage * normalized * 100.0).round() / 100.0
 }
 
-/// 将候选集合转换为响应中 `candidates` 字段
-///
-/// 取相似度 > 0 的前 10 条，并把原始分数归一化到 0.0-1.0。
+/// 将候选集合转换为响应中 `candidates` 字段（取相似度 > 0 的前 10 条，并把原始分数归一化到 0.0-1.0。）
 pub(crate) fn build_candidates(
     scored: &[(f64, &DyeRecipeModel)],
     max_n: usize,
@@ -361,11 +338,7 @@ pub(crate) fn should_use_knn(hit_count: usize) -> bool {
 
 impl AiAnalysisService {
     /// 染色工艺参数智能推荐（k-NN 优先，命中 < 3 或 k=0 回退典型参数表）
-    ///
-    /// V15 P1 5.2：通过 Semaphore permits=10 限制并发，防止 CPU 过载；
-    /// V15 P1 5.3：通过 moka 缓存（TTL 5min）避免相同入参重复计算；
-    /// V15 P1 5.1+9.1+9.5：通过 tokio::time::timeout（2s）包装算法执行，
-    ///   超时或模型不可用时返回降级结果（典型参数表 + degraded=true）。
+    /// V15 P1 5.2：通过 Semaphore permits=10 限制并发，防止 CPU 过载；V15 P1 5.3：通过 moka 缓存（TTL 5min）避免相同入参重复计算；V15 P1 5.1+9.1+9.5：通过 tokio::time::timeout（2s）包装算法执行，；超时或模型不可用时返回降级结果（典型参数表 + degraded=true）。
     pub async fn optimize_recipe(
         &self,
         request: RecipeOptRequest,
@@ -424,9 +397,7 @@ impl AiAnalysisService {
         }
     }
 
-    /// V15 P1 5.1：实际算法执行（候选拉取 + 评分 + 响应构建 + 缓存写入）
-    ///
-    /// 由 `optimize_recipe` 通过 `tokio::time::timeout` 包装调用，超时由外层处理。
+    /// V15 P1 5.1：实际算法执行（候选拉取 + 评分 + 响应构建 + 缓存写入）（由 `optimize_recipe` 通过 `tokio::time::timeout` 包装调用，超时由外层处理。）
     async fn run_recipe_inference(
         &self,
         request: RecipeOptRequest,
@@ -456,10 +427,7 @@ impl AiAnalysisService {
     }
 
     /// 查询近 6 个月未删除的染色配方作为候选集
-    ///
-    /// V15 P1 6.2：数据最小化——限制候选集上限（RECIPE_CANDIDATE_LIMIT）防止全表扫描 OOM；
-    /// V15 P1 6.1：返回前对 remark/color_name 字段做 PII 脱敏；
-    /// V15 P1 3.3：order_by_asc(Id) 保证推理结果稳定性。
+    /// V15 P1 6.2：数据最小化——限制候选集上限（RECIPE_CANDIDATE_LIMIT）防止全表扫描 OOM；V15 P1 6.1：返回前对 remark/color_name 字段做 PII 脱敏；V15 P1 3.3：order_by_asc(Id) 保证推理结果稳定性。
     async fn fetch_recipe_candidates(&self) -> Result<Vec<DyeRecipeModel>, AppError> {
         let six_months_ago = chrono::Utc::now() - chrono::Duration::days(180);
         let six_months_ago_dt = six_months_ago.naive_utc();
@@ -549,9 +517,7 @@ impl AiAnalysisService {
     }
 
     /// V15 P1 9.1+9.5：构建降级响应（推理超时或模型不可用时使用）
-    ///
-    /// 与 `build_fallback_response` 区别：本方法用于异常场景（非算法退化），
-    /// `degraded=true` 标识前端可展示"AI 服务降级"提示，置信度降至 0.3。
+    /// 与 `build_fallback_response` 区别：本方法用于异常场景（非算法退化），；`degraded=true` 标识前端可展示"AI 服务降级"提示，置信度降至 0.3。
     fn build_degraded_response(reason: String) -> RecipeOptResponse {
         let typical = find_typical_params();
         RecipeOptResponse {
@@ -572,9 +538,7 @@ impl AiAnalysisService {
     }
 }
 
-/// V15 P1 5.3：构建工艺优化缓存键（入参指纹）
-///
-/// 由 color_no/fabric_type/dye_type/k 拼接而成，相同入参 5 分钟内命中缓存。
+/// V15 P1 5.3：构建工艺优化缓存键（入参指纹）（由 color_no/fabric_type/dye_type/k 拼接而成，相同入参 5 分钟内命中缓存。）
 fn build_recipe_cache_key(request: &RecipeOptRequest) -> String {
     format!(
         "recipe_opt:{}|{}|{}|{}",
@@ -598,9 +562,7 @@ mod tests {
     use rust_decimal::Decimal;
 
     /// 染色配方测试夹具参数对象
-    ///
-    /// 批次 338 v10 复审 P3 修复：引入参数对象消除 make_recipe 测试夹具的 too_many_arguments 警告。
-    /// 聚合染色配方构造所需的全部字段，使用生命周期 `&'a str` 借用避免不必要的 to_string()。
+    /// 批次 338 v10 复审 P3 修复：引入参数对象消除 make_recipe 测试夹具的 too_many_arguments 警告。；聚合染色配方构造所需的全部字段，使用生命周期 `&'a str` 借用避免不必要的 to_string()。
     struct RecipeFixture<'a> {
         recipe_no: &'a str,
         color_no: &'a str,
@@ -613,9 +575,7 @@ mod tests {
     }
 
     /// 构造一条 `DyeRecipeModel` 测试夹具
-    ///
-    /// 批次 338 v10 复审 P3 修复：签名从 8 参数改为单一参数对象 `RecipeFixture`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 批次 338 v10 复审 P3 修复：签名从 8 参数改为单一参数对象 `RecipeFixture`，；消除 `clippy::too_many_arguments` 警告。
     fn make_recipe(fixture: RecipeFixture<'_>) -> DyeRecipeModel {
         let RecipeFixture {
             recipe_no,
@@ -660,9 +620,7 @@ mod tests {
         }
     }
 
-    /// 测试 1：典型参数退化路径
-    /// 当数据库无匹配（或命中 < 3 条）时，返回内置典型参数表
-    /// 温度 80°C ± 10、时间 45min ± 15、pH 6.0 ± 1、浴比 1:8 ± 2
+    /// 测试 1：典型参数退化路径（当数据库无匹配（或命中 < 3 条）时，返回内置典型参数表；温度 80°C ± 10、时间 45min ± 15、pH 6.0 ± 1、浴比 1:8 ± 2）
     #[test]
     fn test_typical_params_fallback() {
         let typical = find_typical_params();

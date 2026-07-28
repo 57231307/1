@@ -117,12 +117,7 @@ impl LaborContractService {
     }
 
     /// 创建劳动合同
-    ///
-    /// 业务校验（《劳动合同法》）：
-    /// - 第 19 条：试用期长度限制（1-3 年合同试用期 ≤ 3 个月，3 年以上/无固定期限 ≤ 6 个月）
-    /// - 第 20 条：试用期工资 ≥ 转正工资 80%
-    /// - 合同编号唯一
-    /// - 合同结束日期 > 开始日期（固定期限合同）
+    /// 业务校验（《劳动合同法》）：第 19 条：试用期长度限制（1-3 年合同试用期 ≤ 3 个月，3 年以上/无固定期限 ≤ 6 个月）；第 20 条：试用期工资 ≥ 转正工资 80%；合同编号唯一；合同结束日期 > 开始日期（固定期限合同）
     pub async fn create(&self, req: CreateLaborContractRequest) -> Result<ContractModel, AppError> {
         Self::validate_contract_type(&req.contract_type)?;
         Self::validate_working_hours_system(&req.working_hours_system)?;
@@ -291,11 +286,7 @@ impl LaborContractService {
         Ok((list, total))
     }
 
-    /// 终止劳动合同
-    ///
-    /// 业务规则（《劳动合同法》第36/39/40条）：
-    /// - 仅 active 状态可终止
-    /// - 必须填写终止日期与终止原因
+    /// 终止劳动合同（业务规则（《劳动合同法》第36/39/40条）：仅 active 状态可终止；必须填写终止日期与终止原因）
     pub async fn terminate(
         &self,
         id: i32,
@@ -322,12 +313,7 @@ impl LaborContractService {
         Ok(updated)
     }
 
-    /// 扫描合同到期并生成预警
-    ///
-    /// 业务规则（《劳动合同法》第10条：建立劳动关系应当订立书面劳动合同）：
-    /// - 到期前 90/60/30 天三级预警
-    /// - 已过期合同状态自动更新为 expired
-    /// - 无固定期限合同不参与到期预警
+    /// 扫描合同到期并生成预警（业务规则（《劳动合同法》第10条：建立劳动关系应当订立书面劳动合同）：到期前 90/60/30 天三级预警；已过期合同状态自动更新为 expired；无固定期限合同不参与到期预警）
     pub async fn scan_expiry_warnings(&self) -> Result<Vec<ContractExpiryWarning>, AppError> {
         let today = chrono::Local::now().date_naive();
         let active_contracts = ContractEntity::find()
@@ -368,10 +354,7 @@ impl LaborContractService {
     }
 
     /// 试用期合规校验（纯函数）
-    ///
-    /// 业务规则（《劳动合同法》）：
-    /// - 第 19 条：合同期 < 1 年 → 试用期 ≤ 1 个月；1-3 年 → ≤ 2 个月；≥ 3 年或无固定期限 → ≤ 6 个月
-    /// - 第 20 条：试用期工资 ≥ 转正工资 80%
+    /// 业务规则（《劳动合同法》）：第 19 条：合同期 < 1 年 → 试用期 ≤ 1 个月；1-3 年 → ≤ 2 个月；≥ 3 年或无固定期限 → ≤ 6 个月；第 20 条：试用期工资 ≥ 转正工资 80%
     pub fn validate_probation(
         start_date: NaiveDate,
         end_date: Option<NaiveDate>,

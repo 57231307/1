@@ -65,9 +65,7 @@ impl PurchaseReceiptService {
         Ok(receipt)
     }
 
-    /// 更新入库单总金额和数量（含审计日志），返回更新后的入库单
-    ///
-    /// 仅 `create_receipt` 调用，保持私有。
+    /// 更新入库单总金额和数量（含审计日志），返回更新后的入库单（仅 `create_receipt` 调用，保持私有。）
     async fn update_receipt_totals(
         txn: &sea_orm::DatabaseTransaction,
         receipt: purchase_receipt::Model,

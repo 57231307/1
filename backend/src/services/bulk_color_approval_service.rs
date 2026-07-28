@@ -100,10 +100,7 @@ impl ApprovalStatus {
         )
     }
 
-    /// 是否解除发货门禁
-    ///
-    /// 业务规则：仅 approved 状态解除门禁；其它状态保持 blocking=true
-    /// 注意：downgraded/scrapped 虽为终态但仍阻断发货（需重新安排生产或换缸）
+    /// 是否解除发货门禁（仅 approved 解除；downgraded/scrapped 虽终态仍阻断发货）
     pub fn unblocks_delivery(&self) -> bool {
         matches!(self, Self::Approved)
     }
@@ -284,10 +281,7 @@ impl BulkColorApprovalService {
             .ok_or(BulkColorApprovalError::NotFound)
     }
 
-    /// P0-F16：剪大货样
-    ///
-    /// 状态转换：pending → sampled 或 rework → sampled
-    /// 业务：从大货中剪取一段样布用于客户批色
+    /// P0-F16：剪大货样（状态转换：pending → sampled 或 rework → sampled；业务：从大货中剪取一段样布用于客户批色）
     pub async fn cut_sample(
         &self,
         id: i64,
@@ -343,9 +337,7 @@ impl BulkColorApprovalService {
         Ok(updated)
     }
 
-    /// 发送客户批色
-    ///
-    /// 状态转换：sampled → sent_to_customer
+    /// 发送客户批色（状态转换：sampled → sent_to_customer）
     pub async fn send_to_customer(
         &self,
         id: i64,
@@ -382,9 +374,7 @@ impl BulkColorApprovalService {
         Ok(updated)
     }
 
-    /// P0-F17：客户批色确认
-    ///
-    /// 状态转换：sent_to_customer → approved / rejected / rework
+    /// P0-F17：客户批色确认（状态转换：sent_to_customer → approved / rejected / rework）
     pub async fn customer_approve(
         &self,
         id: i64,
@@ -462,13 +452,7 @@ impl BulkColorApprovalService {
     }
 
     /// P0-F21：为返工创建生产订单
-    ///
-    /// 业务规则（审计报告 P0-F21）：
-    /// - 返工必须走生产订单流程，不能直接修改原批次状态
-    /// - 返工订单 order_type='rework'，original_batch_id 指向原 dye_batch
-    /// - 返工成本归集到原缸号
-    ///
-    /// 产品 ID 来源：bulk_color_approval.product_id（若为 None 则返回错误）
+    /// 业务规则（审计报告 P0-F21）：返工必须走生产订单流程，不能直接修改原批次状态；返工订单 order_type='rework'，original_batch_id 指向原 dye_batch；返工成本归集到原缸号；产品 ID 来源：bulk_color_approval.product_id（若为 None 则返回错误）
     async fn create_rework_production_order(
         &self,
         model: &bulk_color_approval::Model,
@@ -507,11 +491,7 @@ impl BulkColorApprovalService {
     }
 
     /// approved → downgraded（终态）
-    ///
-    /// P0-F18：降级流程联动库存等级
-    /// - 将关联库存的 grade 从"一等品"降为"二等品"或"二等品"降为"等外品"
-    /// - 降级后质量状态自动降为"待检"（需重新质检）
-    /// - downgraded 仍保持 delivery_blocking=true（不解除发货门禁）
+    /// P0-F18：降级流程联动库存等级；将关联库存的 grade 从"一等品"降为"二等品"或"二等品"降为"等外品"；降级后质量状态自动降为"待检"（需重新质检）；downgraded 仍保持 delivery_blocking=true（不解除发货门禁）
     pub async fn downgrade(
         &self,
         id: i64,
@@ -544,11 +524,7 @@ impl BulkColorApprovalService {
     }
 
     /// approved → scrapped 或 pending/sampled → scrapped（终态）
-    ///
-    /// P0-F18：报废流程联动库存状态
-    /// - 将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"
-    /// - 报废原因追加到 bin_location 保留可追溯性
-    /// - scrapped 保持 delivery_blocking=true（需重新生产或换缸）
+    /// P0-F18：报废流程联动库存状态；将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"；报废原因追加到 bin_location 保留可追溯性；scrapped 保持 delivery_blocking=true（需重新生产或换缸）
     pub async fn scrap(
         &self,
         id: i64,
@@ -605,12 +581,7 @@ impl BulkColorApprovalService {
     }
 
     /// P0-F18：查找批色记录关联的库存记录
-    ///
-    /// 关联路径：bulk_color_approval.dye_batch_id → dye_batch.batch_no/color_no/dye_lot_no
-    ///          → inventory_stock.batch_no/color_no/dye_lot_no
-    ///
-    /// 若 bulk_color_approval 的 batch_no/color_no/dye_lot_no 字段已填充，优先使用；
-    /// 否则回退到加载 dye_batch 表获取。
+    /// 关联路径：bulk_color_approval.dye_batch_id → dye_batch.batch_no/color_no/dye_lot_no；→ inventory_stock.batch_no/color_no/dye_lot_no；若 bulk_color_approval 的 batch_no/color_no/dye_lot_no 字段已填充，优先使用；否则回退到加载 dye_batch 表获取。
     async fn find_related_stocks(
         &self,
         model: &bulk_color_approval::Model,
@@ -652,12 +623,7 @@ impl BulkColorApprovalService {
         Ok(stocks)
     }
 
-    /// P0-F18：降级联动库存等级
-    ///
-    /// 等级降级规则：
-    /// - 一等品 → 二等品
-    /// - 二等品 → 等外品
-    /// - 等外品 → 跳过（已是最低等级，无法继续降级）
+    /// P0-F18：降级联动库存等级（等级降级规则：一等品 → 二等品；二等品 → 等外品；等外品 → 跳过（已是最低等级，无法继续降级））
     async fn apply_stock_downgrade(
         &self,
         model: &bulk_color_approval::Model,
@@ -702,9 +668,7 @@ impl BulkColorApprovalService {
         Ok(())
     }
 
-    /// P0-F18：报废联动库存状态
-    ///
-    /// 将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"
+    /// P0-F18：报废联动库存状态（将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"）
     async fn apply_stock_scrap(
         &self,
         model: &bulk_color_approval::Model,
@@ -742,9 +706,7 @@ impl BulkColorApprovalService {
     }
 
     /// 通用状态转换：sent_to_customer → approved/rejected/rework 或 approved → downgraded
-    ///
-    /// 源状态校验：仅 sent_to_customer 允许进入 approved/rejected/rework；
-    /// downgraded 必须从 approved 进入（专用方法调用）。
+    /// 源状态校验：仅 sent_to_customer 允许进入 approved/rejected/rework；downgraded 必须从 approved 进入（专用方法调用）。
     async fn transition_to(
         &self,
         id: i64,
@@ -809,9 +771,7 @@ impl BulkColorApprovalService {
         Ok(updated)
     }
 
-    /// P1-10：记录批色状态变更历史（内部方法）
-    ///
-    /// 在事务提交后调用；若记录失败仅 warn，不阻塞主流程（状态已落库）。
+    /// P1-10：记录批色状态变更历史（内部方法）（在事务提交后调用；若记录失败仅 warn，不阻塞主流程（状态已落库）。）
     async fn record_history(
         &self,
         from_status: Option<&str>,
@@ -869,9 +829,7 @@ impl BulkColorApprovalService {
         Ok(rows)
     }
 
-    /// P1-10：查询 pending 超时未剪样的批色记录
-    ///
-    /// 业务规则：状态=pending 且创建时间早于 threshold_hours 小时前
+    /// P1-10：查询 pending 超时未剪样的批色记录（业务规则：状态=pending 且创建时间早于 threshold_hours 小时前）
     pub async fn list_pending_reminders(
         &self,
         threshold_hours: i64,
@@ -888,10 +846,7 @@ impl BulkColorApprovalService {
         Ok(rows)
     }
 
-    /// P1-10：查询客户跟进超时的批色记录
-    ///
-    /// 业务规则：状态=sent_to_customer 且发送客户时间早于 threshold_hours 小时前
-    /// （审计计划：默认 3 天提醒，7 天超时自动 reject）
+    /// P1-10：查询客户跟进超时的批色记录（业务规则：状态=sent_to_customer 且发送客户时间早于 threshold_hours 小时前；（审计计划：默认 3 天提醒，7 天超时自动 reject））
     pub async fn list_customer_followups(
         &self,
         threshold_hours: i64,
@@ -909,10 +864,7 @@ impl BulkColorApprovalService {
         Ok(rows)
     }
 
-    /// P1-10：批量发送 pending 超时提醒
-    ///
-    /// 业务规则：扫描所有 pending 超时记录，对销售经理（assign_role=manager）发送通知
-    /// 返回发送的通知条数（去重失败的不计入）
+    /// P1-10：批量发送 pending 超时提醒（业务规则：扫描所有 pending 超时记录，对销售经理（assign_role=manager）发送通知；返回发送的通知条数（去重失败的不计入））
     pub async fn send_pending_reminders(
         &self,
         threshold_hours: i64,
@@ -994,9 +946,7 @@ impl BulkColorApprovalService {
         Ok(sent_count)
     }
 
-    /// P1-10：批色报表 - 按客户/产品/时间段统计批色通过率
-    ///
-    /// 业务规则：按 customer_id + product_id 维度聚合，统计总数/通过/拒绝/返工/降级/报废数量
+    /// P1-10：批色报表 - 按客户/产品/时间段统计批色通过率（业务规则：按 customer_id + product_id 维度聚合，统计总数/通过/拒绝/返工/降级/报废数量）
     pub async fn report_by_dimensions(
         &self,
         from_date: Option<chrono::DateTime<Utc>>,
@@ -1061,9 +1011,7 @@ impl BulkColorApprovalService {
         Ok(result)
     }
 
-    /// P1-10：批色统计 - 平均 ΔE/通过率/退回率/降级率
-    ///
-    /// 业务规则：聚合所有记录的关键 KPI（不分维度）
+    /// P1-10：批色统计 - 平均 ΔE/通过率/退回率/降级率（业务规则：聚合所有记录的关键 KPI（不分维度））
     pub async fn get_statistics(
         &self,
         from_date: Option<chrono::DateTime<Utc>>,
@@ -1177,13 +1125,7 @@ pub struct ApprovalStatistics {
 }
 
 /// P0-F19：发货前校验大货批色门禁
-///
-/// 业务规则：发货销售订单关联的所有 bulk_color_approval 记录必须全部为 approved 状态
-/// 否则阻止发货（delivery_blocking=true 阻断）
-///
-/// 调用位置：services/so/delivery.rs ship_order 方法，事务开启前
-///
-/// 参数 db 接受 `&Arc<DatabaseConnection>` 以避免调用方 `&*arc` 显式 deref（clippy::deref_arg）
+/// 业务规则：发货销售订单关联的所有 bulk_color_approval 记录必须全部为 approved 状态；否则阻止发货（delivery_blocking=true 阻断）；调用位置：services/so/delivery.rs ship_order 方法，事务开启前；参数 db 接受 `&Arc<DatabaseConnection>` 以避免调用方 `&*arc` 显式 deref（clippy::deref_arg）
 pub async fn validate_bulk_color_approval(
     db: &std::sync::Arc<DatabaseConnection>,
     sales_order_id: i32,

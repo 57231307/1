@@ -9,9 +9,7 @@ use rust_decimal::Decimal;
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation};
 
-/// 创建收款参数对象
-///
-/// 批次 329 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告
+/// 创建收款参数对象（批次 329 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告）
 #[derive(Debug)]
 pub struct CreateArPaymentParams {
     /// 客户 ID
@@ -30,9 +28,7 @@ pub struct CreateArPaymentParams {
     pub invoice_ids: Option<Vec<i32>>,
 }
 
-/// 手动核销明细创建上下文：封装 reconciliation/invoice/payment 等参数
-///
-/// 批次 488 D08-1 拆分：引入参数对象消除 too_many_arguments 警告
+/// 手动核销明细创建上下文：封装 reconciliation/invoice/payment 等参数（批次 488 D08-1 拆分：引入参数对象消除 too_many_arguments 警告）
 pub(super) struct ReconciliationItemContext<'a> {
     pub reconciliation: &'a ar_reconciliation::Model,
     pub invoice: &'a ar_invoice::Model,
@@ -42,26 +38,20 @@ pub(super) struct ReconciliationItemContext<'a> {
     pub now: chrono::DateTime<chrono::Utc>,
 }
 
-/// 自动核销数据集：封装发票/收款/已核销汇总
-///
-/// 批次 488 D08-1 拆分：用于 load_auto_verify_data → process_customer_reconciliations 间传递
+/// 自动核销数据集：封装发票/收款/已核销汇总（批次 488 D08-1 拆分：用于 load_auto_verify_data → process_customer_reconciliations 间传递）
 pub(super) struct AutoVerifyData {
     pub invoices: Vec<ar_invoice::Model>,
     pub payments: Vec<ar_collection::Model>,
     pub verified_map: std::collections::HashMap<i32, Decimal>,
 }
 
-/// 自动核销累计：核销笔数 + 核销金额
-///
-/// 批次 488 D08-1 拆分：在 helper 间传递累计结果
+/// 自动核销累计：核销笔数 + 核销金额（批次 488 D08-1 拆分：在 helper 间传递累计结果）
 pub(super) struct VerifyTotals {
     pub count: i64,
     pub amount: Decimal,
 }
 
-/// 收款单构建上下文：封装构造 ar_collection::ActiveModel 所需字段
-///
-/// 批次 488 D08-1 拆分：引入参数对象消除 too_many_arguments 警告
+/// 收款单构建上下文：封装构造 ar_collection::ActiveModel 所需字段（批次 488 D08-1 拆分：引入参数对象消除 too_many_arguments 警告）
 pub(super) struct CollectionBuildContext {
     pub collection_no: String,
     pub payment_date: NaiveDate,

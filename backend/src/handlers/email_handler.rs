@@ -23,11 +23,8 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
-/// M-1 修复：每用户每小时邮件发送配额
-///
-/// 安全原因：避免邮件炸弹/DoS 滥用组织 SMTP 配额。
-/// 设计：使用进程内 DashMap 存储 `{user_id, hour_bucket} -> count`，
-/// 每次 send_email 前检查并自增。
+/// M-1 修复：每用户每小时邮件发送配额；安全原因：避免邮件炸弹/DoS 滥用组织 SMTP 配额。 设计：使用进程内 DashMap
+/// 存储 `{user_id, hour_bucket} -> count`， 每次 send_email 前检查并自增。
 const EMAIL_PER_USER_PER_HOUR: u32 = 50;
 
 /// 发送邮件请求
@@ -70,12 +67,8 @@ crate::define_tuple_crud_handlers!(
     "邮件模板不存在"
 );
 
-/// POST /api/v1/erp/email/send - 发送邮件
-///
-/// 缺陷 6.1 修复：邮件改为异步队列模式 —
-/// - 入队时仅写 email_logs 表（PENDING 状态）+ 立即返回 PENDING 响应
-/// - 后台 email_queue_worker 每 60 秒扫描 PENDING 邮件并实际发送
-/// - 失败时按指数退避（1min/5min/30min）重试，超过 3 次转入 FAILED 死信
+/// POST /api/v1/erp/email/send - 发送邮件；缺陷 6.1 修复：邮件改为异步队列模式 — - 入队时仅写 email_logs 表（PENDING 状态）+ 立即返回 PENDING
+/// 响应 - 后台 email_queue_worker 每 60 秒扫描 PENDING 邮件并实际发送 - 失败时按指数退避（1min/5min/30min）重试，超过 3 次转入 FAILED 死信
 pub async fn send_email(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -127,10 +120,8 @@ pub async fn send_email(
     )))
 }
 
-/// 缺陷 6.3 修复：解码并校验附件
-/// - Base64 解码客户端上传的附件内容
-/// - 调用 `validate_attachments` 进行大小/扩展名/病毒扫描校验
-/// - 通过后返回 JSON 数组形式的附件载荷（持久化到 email_logs.attachments）
+/// 缺陷 6.3 修复：解码并校验附件 - Base64 解码客户端上传的附件内容 - 调用 `validate_attachments`
+/// 进行大小/扩展名/病毒扫描校验 - 通过后返回 JSON 数组形式的附件载荷（持久化到 email_logs.attachments）
 async fn decode_and_validate_attachments(
     req: &SendEmailRequest,
 ) -> Result<Option<serde_json::Value>, AppError> {
@@ -269,12 +260,8 @@ pub async fn get_email_statistics(
     )?)))
 }
 
-/// 渲染邮件模板：将 {{key}} / {{ key }} 占位符替换为 params 中对应的值
-///
-/// v11 批次 151 P2-A：接入 SendEmailRequest.template_params
-/// - params 必须为 JSON 对象，key 为占位符名称，value 为替换值
-/// - value 为字符串时直接替换；为其他类型时使用 JSON 字符串表示
-/// - 模板中未匹配到 params 的占位符保持原样（不删除，便于排查模板问题）
+/// 渲染邮件模板：将 {{key}} / {{ key }} 占位符替换为 params 中对应的值；v11 批次 151 P2-A：接入 SendEmailRequest.template_params - params
+/// 必须为 JSON 对象，key 为占位符名称，value 为替换值 - value 为字符串时直接替换；为其他类型时使用 JSON 字符串表示 - 模板中未匹配到 params 的占位符保持原样（不删除，便于排查模板问题）
 fn render_template(template: &str, params: &serde_json::Value) -> String {
     let mut result = template.to_string();
     if let Some(obj) = params.as_object() {

@@ -14,10 +14,7 @@ use std::sync::Arc;
 use crate::search::{SearchClient, SearchSyncer};
 
 /// 销售订单服务
-///
-/// 批次 125 v8 复审 P1 修复：注入 search_syncer 实现 PG→ES 写入同步。
-/// - create/update/delete 事务提交后调用 sync_sales_order 将最新数据同步到 ES
-/// - ES 同步失败仅记录 tracing::warn!（最终一致性），不回滚 PG 事务
+/// 批次 125 v8 复审 P1 修复：注入 search_syncer 实现 PG→ES 写入同步。；create/update/delete 事务提交后调用 sync_sales_order 将最新数据同步到 ES；ES 同步失败仅记录 tracing::warn!（最终一致性），不回滚 PG 事务
 pub struct SalesService {
     pub(crate) db: Arc<DatabaseConnection>,
     /// ES 同步器（PG→ES 写入同步），批次 125 接入

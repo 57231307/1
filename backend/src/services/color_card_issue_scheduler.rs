@@ -48,16 +48,12 @@ pub struct ColorCardIssueExpiryScheduler {
 }
 
 impl ColorCardIssueExpiryScheduler {
-    /// 创建调度器实例。
-    ///
-    /// audit_service 为可选：传入时记录审计日志，None 时仅执行业务逻辑。
+    /// 创建调度器实例（audit_service 为可选：传入时记录审计日志，None 时仅执行业务逻辑。）
     pub fn new(db: Arc<DatabaseConnection>, audit_service: Option<Arc<AuditLogService>>) -> Self {
         Self { db, audit_service }
     }
 
-    /// 执行一次扫描：查询过期的发放记录并逐个标记为 cancelled。
-    ///
-    /// 返回本次扫描处理的过期记录数量。
+    /// 执行一次扫描：查询过期的发放记录并逐个标记为 cancelled（返回本次扫描处理的过期记录数量。）
     pub async fn run_once(&self) -> Result<u64, AppError> {
         let today = Utc::now().date_naive();
 
@@ -106,12 +102,8 @@ impl ColorCardIssueExpiryScheduler {
         Ok(success_count)
     }
 
-    /// 取消单条过期发放记录（事务化）。
-    ///
-    /// 业务逻辑（与 cancel_issue 一致）：
-    /// 1. 更新发放记录 status='cancelled'，remark 追加"系统自动取消（超过预计归还日期）"
-    /// 2. 恢复色卡 issued_quantity（-= issue_qty）
-    /// 3. 记录审计日志（best-effort）
+    /// 取消单条过期发放记录（事务化）
+    /// 业务逻辑（与 cancel_issue 一致）：1. 更新发放记录 status='cancelled'，remark 追加"系统自动取消（超过预计归还日期）"；2. 恢复色卡 issued_quantity（-= issue_qty）；3. 记录审计日志（best-effort）
     async fn cancel_expired_issue(&self, issue: &color_card_issue::Model) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
 
@@ -200,14 +192,8 @@ impl ColorCardIssueExpiryScheduler {
         Ok(())
     }
 
-    /// 启动后台调度任务（参考 ReportSubscriptionScheduler 模式）。
-    ///
-    /// 启动后先延迟 `INITIAL_DELAY_SECS` 秒（避免与启动初始化争抢 DB），
-    /// 然后以 `COLOR_CARD_ISSUE_EXPIRY_CHECK_INTERVAL_SECS`（默认 86400 秒=24h）为间隔循环执行。
-    ///
-    /// 环境变量门控：
-    /// - `COLOR_CARD_ISSUE_EXPIRY_CHECK_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动；
-    /// - `COLOR_CARD_ISSUE_EXPIRY_CHECK_INTERVAL_SECS`（默认 86400）— 扫描间隔。
+    /// 启动后台调度任务（参考 ReportSubscriptionScheduler 模式）
+    /// 启动后先延迟 `INITIAL_DELAY_SECS` 秒（避免与启动初始化争抢 DB），；然后以 `COLOR_CARD_ISSUE_EXPIRY_CHECK_INTERVAL_SECS`（默认 86400 秒=24h）为间隔循环执行。；环境变量门控：`COLOR_CARD_ISSUE_EXPIRY_CHECK_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动；`COLOR_CARD_ISSUE_EXPIRY_CHECK_INTERVAL_SECS`（默认 86400）— 扫描间隔。
     pub fn start_background_task(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let enabled = std::env::var("COLOR_CARD_ISSUE_EXPIRY_CHECK_ENABLED")

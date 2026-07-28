@@ -325,11 +325,8 @@ pub async fn delete_receipt_item(
     )))
 }
 
-/// 生成采购入库单号
-/// GET /api/v1/erp/purchase/receipts/generate-no
-///
-/// 单据号格式：`RK{yyyyMMdd}{4 位流水}`，例如 `RK202605140001`。
-/// 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
+/// 生成采购入库单号 GET /api/v1/erp/purchase/receipts/generate-no；单据号格式：`RK{yyyyMMdd}{4 位流水}`
+/// 例如 `RK202605140001`。 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
 pub async fn generate_no(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {

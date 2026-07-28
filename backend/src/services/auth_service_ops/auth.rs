@@ -19,21 +19,7 @@ use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, Header, Validation};
 
 impl AuthService {
     /// 用户登录认证
-    ///
-    /// 验证用户名和密码，成功后返回 JWT 令牌和用户信息
-    ///
-    /// # 参数
-    /// - `username`: 用户名
-    /// - `password`: 明文密码
-    ///
-    /// # 返回
-    /// - `Ok((token, user))`: 认证成功，返回令牌和用户信息
-    /// - `Err(AuthError)`: 认证失败
-    ///
-    /// # 错误
-    /// - `InvalidPassword`: 密码错误
-    /// - `UserInactive`: 用户未激活
-    /// - `UserNotFound`: 用户不存在
+    /// 验证用户名和密码，成功后返回 JWT 令牌和用户信息；# 参数；`username`: 用户名；`password`: 明文密码；# 返回；`Ok((token, user))`: 认证成功，返回令牌和用户信息；`Err(AuthError)`: 认证失败；# 错误；`InvalidPassword`: 密码错误；`UserInactive`: 用户未激活；`UserNotFound`: 用户不存在
     pub async fn authenticate(
         &self,
         username: &str,
@@ -62,17 +48,7 @@ impl AuthService {
     }
 
     /// 生成 JWT 访问令牌
-    ///
-    /// 创建包含用户信息的 JWT 令牌，有效期2小时
-    ///
-    /// # 参数
-    /// - `user_id`: 用户 ID
-    /// - `username`: 用户名
-    /// - `role_id`: 角色 ID（可选）
-    ///
-    /// # 返回
-    /// - `Ok(token)`: 生成的 JWT 令牌
-    /// - `Err(AuthError::TokenGenerationError)`: 生成失败
+    /// 创建包含用户信息的 JWT 令牌，有效期2小时；# 参数；`user_id`: 用户 ID；`username`: 用户名；`role_id`: 角色 ID（可选）；# 返回；`Ok(token)`: 生成的 JWT 令牌；`Err(AuthError::TokenGenerationError)`: 生成失败
     pub fn generate_token(
         &self,
         user_id: i32,
@@ -100,23 +76,7 @@ impl AuthService {
     }
 
     /// 生成 JWT 形式的刷新令牌（P1 7-1 修复）
-    ///
-    /// 修复背景：原 login 生成 `uuid::Uuid::new_v4().to_string()` 纯 UUID 作为 refresh_token，
-    /// 但 refresh_token 接口用 `validate_token_static`（JWT 验证）校验，纯 UUID 必然验证失败，
-    /// 导致 access_token 30 分钟过期后用户永远无法刷新。
-    ///
-    /// 修复方案：refresh_token 改用 JWT 形式，exp = refresh_exp = 7 天，
-    /// session_id 与 access_token 共享，便于 refresh 时统一吊销旧会话。
-    ///
-    /// # 参数
-    /// - `user_id`: 用户 ID
-    /// - `username`: 用户名
-    /// - `role_id`: 角色 ID（可选）
-    /// - `session_id`: 会话 ID（与 access_token 共享，便于统一吊销）
-    ///
-    /// # 返回
-    /// - `Ok(token)`: 生成的 JWT 刷新令牌（exp=7d, refresh_exp=7d）
-    /// - `Err(AuthError::TokenGenerationError)`: 生成失败
+    /// 修复背景：原 login 生成 `uuid::Uuid::new_v4().to_string()` 纯 UUID 作为 refresh_token，；但 refresh_token 接口用 `validate_token_static`（JWT 验证）校验，纯 UUID 必然验证失败，；导致 access_token 30 分钟过期后用户永远无法刷新。；修复方案：refresh_token 改用 JWT 形式，exp = refresh_exp = 7 天，；session_id 与 access_token 共享，便于 refresh 时统一吊销旧会话。；# 参数；`user_id`: 用户 ID；`username`: 用户名；`role_id`: 角色 ID（可选）；`session_id`: 会话 ID（与 access_token 共享，便于统一吊销）；# 返回；`Ok(token)`: 生成的 JWT 刷新令牌（exp=7d, refresh_exp=7d）；`Err(AuthError::TokenGenerationError)`: 生成失败
     pub fn generate_refresh_token(
         &self,
         user_id: i32,
@@ -145,17 +105,7 @@ impl AuthService {
     }
 
     /// 静态方法：验证 JWT 令牌
-    ///
-    /// 不依赖 AuthService 实例，使用提供的密钥验证令牌
-    /// 用于密钥轮换场景（先尝试当前密钥，失败后再尝试旧密钥）
-    ///
-    /// # 参数
-    /// - `token`: JWT 令牌字符串
-    /// - `secret`: JWT 密钥
-    ///
-    /// # 返回
-    /// - `Ok(claims)`: 验证成功，返回令牌声明
-    /// - `Err(AuthError::InvalidToken)`: 令牌无效或已过期
+    /// 不依赖 AuthService 实例，使用提供的密钥验证令牌；用于密钥轮换场景（先尝试当前密钥，失败后再尝试旧密钥）；# 参数；`token`: JWT 令牌字符串；`secret`: JWT 密钥；# 返回；`Ok(claims)`: 验证成功，返回令牌声明；`Err(AuthError::InvalidToken)`: 令牌无效或已过期
     pub fn validate_token_static(token: &str, secret: &str) -> Result<AppClaims, AuthError> {
         let decoding_key = DecodingKey::from_secret(secret.as_bytes());
         let mut validation = Validation::new(Algorithm::HS256);
@@ -170,17 +120,7 @@ impl AuthService {
     }
 
     /// 验证密码
-    ///
-    /// 使用 Argon2id 验证明文密码与哈希值是否匹配
-    ///
-    /// # 参数
-    /// - `password`: 明文密码
-    /// - `hash`: 密码哈希值
-    ///
-    /// # 返回
-    /// - `Ok(true)`: 密码正确
-    /// - `Ok(false)`: 密码错误
-    /// - `Err(AuthError::HashingError)`: 哈希解析失败
+    /// 使用 Argon2id 验证明文密码与哈希值是否匹配；# 参数；`password`: 明文密码；`hash`: 密码哈希值；# 返回；`Ok(true)`: 密码正确；`Ok(false)`: 密码错误；`Err(AuthError::HashingError)`: 哈希解析失败
     pub fn verify_password(password: &str, hash: &str) -> Result<bool, AuthError> {
         // 验证哈希长度，防止异常长的哈希导致性能问题或安全风险
         if hash.len() > 512 {
@@ -199,9 +139,7 @@ impl AuthService {
     }
 
     /// 异步验证密码（v14 P0-1 修复：用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker）
-    ///
-    /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。
-    /// 生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
+    /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。；生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
     pub async fn verify_password_async(password: String, hash: String) -> Result<bool, AuthError> {
         tokio::task::spawn_blocking(move || Self::verify_password(&password, &hash))
             .await
@@ -209,22 +147,7 @@ impl AuthService {
     }
 
     /// 哈希密码
-    ///
-    /// 使用 Argon2id 算法对明文密码进行哈希处理
-    /// 配置参数：64MB内存，3次迭代，4并发度
-    ///
-    /// # 参数
-    /// - `password`: 明文密码
-    ///
-    /// # 返回
-    /// - `Ok(hash)`: 密码哈希值
-    /// - `Err(AuthError::HashingError)`: 哈希失败
-    ///
-    /// # 示例
-    /// ```
-    /// use bingxi_backend::AuthService;
-    /// let hash = AuthService::hash_password("my_password").unwrap();
-    /// ```
+    /// 使用 Argon2id 算法对明文密码进行哈希处理；配置参数：64MB内存，3次迭代，4并发度；# 参数；`password`: 明文密码；# 返回；`Ok(hash)`: 密码哈希值；`Err(AuthError::HashingError)`: 哈希失败；# 示例；```；use bingxi_backend::AuthService;；let hash = AuthService::hash_password("my_password").unwrap();；```
     pub fn hash_password(password: &str) -> Result<String, AuthError> {
         let salt = SaltString::generate(&mut OsRng);
         // 使用更安全的Argon2参数配置: 64MB内存，3次迭代，4并发度
@@ -242,9 +165,7 @@ impl AuthService {
     }
 
     /// 异步哈希密码（v14 P0-1 修复：用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker）
-    ///
-    /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。
-    /// 生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
+    /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。；生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
     pub async fn hash_password_async(password: String) -> Result<String, AuthError> {
         tokio::task::spawn_blocking(move || Self::hash_password(&password))
             .await

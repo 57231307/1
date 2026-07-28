@@ -28,12 +28,7 @@ use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScope
 use crate::utils::error::AppError;
 
 impl ProductionRecipeService {
-    /// 创建大货处方
-    ///
-    /// 业务校验：
-    /// 1. 同一 work_order_id 不可重复开具（一工单一处方约束）
-    /// 2. 浴比非空且格式正确
-    /// 3. 备布重量 > 0
+    /// 创建大货处方（业务校验：1. 同一 work_order_id 不可重复开具（一工单一处方约束）；2. 浴比非空且格式正确；3. 备布重量 > 0）
     pub async fn create(
         &self,
         req: CreateProductionRecipeRequest,

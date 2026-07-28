@@ -10,12 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 工资记录模型
-///
-/// 真实业务要点：
-/// - 月末/旬末按车间汇总工人产量
-/// - 按工价方案计算每个工人的应得工资
-/// - 进入财务工资核算模块
+/// 工资记录模型（月末/旬末按车间汇总工人产量，按工价方案计算工资，进入财务工资核算模块）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "wage_record")]
 pub struct Model {

@@ -29,12 +29,7 @@ use super::super::order::SalesService;
 
 impl SalesService {
     /// 取消销售发货单
-    ///
-    /// 批次 216 P2-1 修复（v12 复审）：实现销售发货 cancel_delivery 功能，
-    /// 移除 sales_delivery::CANCELLED 的 #[allow(dead_code)] 标注。
-    ///
-    /// 业务规则：
-    /// 恢复库存 + 回退订单明细已发货数量 + 恢复预留（取消发货循环体）
+    /// 批次 216 P2-1 修复（v12 复审）：实现销售发货 cancel_delivery 功能，；移除 sales_delivery::CANCELLED 的 #[allow(dead_code)] 标注。；业务规则：恢复库存 + 回退订单明细已发货数量 + 恢复预留（取消发货循环体）
     async fn revert_delivery_items(
         &self,
         delivery_items: &[sales_delivery_item::Model],
@@ -134,11 +129,7 @@ impl SalesService {
     }
 
     /// - 仅 SHIPPED 状态的发货单可取消（PENDING 是预留态，本系统发货即 SHIPPED）
-    /// - 库存恢复（对称反向）：quantity_available += qty，quantity_shipped -= qty
-    /// - 预留恢复：将 CONSUMED 状态的预留恢复为 PENDING
-    /// - 订单明细回退：sales_order_item.shipped_quantity -= qty
-    /// - 订单状态回退：若所有发货单取消，订单 SHIPPED→APPROVED；部分取消 SHIPPED→PARTIAL_SHIPPED
-    /// - AR 冲销：全额发货时生成的应收账款需冲销（生成红字 credit_memo）
+    /// 库存恢复（对称反向）：quantity_available += qty，quantity_shipped -= qty；预留恢复：将 CONSUMED 状态的预留恢复为 PENDING；订单明细回退：sales_order_item.shipped_quantity -= qty；订单状态回退：若所有发货单取消，订单 SHIPPED→APPROVED；部分取消 SHIPPED→PARTIAL_SHIPPED；AR 冲销：全额发货时生成的应收账款需冲销（生成红字 credit_memo）
     pub async fn cancel_delivery(
         &self,
         delivery_id: i32,
@@ -208,9 +199,7 @@ impl SalesService {
         Ok(updated_delivery)
     }
 
-    /// 恢复库存（取消发货时使用，对称反向于 reduce_inventory）
-    ///
-    /// quantity_available += qty，quantity_shipped -= qty
+    /// 恢复库存（取消发货时使用，对称反向于 reduce_inventory）（quantity_available += qty，quantity_shipped -= qty）
     async fn restore_inventory(
         &self,
         product_id: i32,

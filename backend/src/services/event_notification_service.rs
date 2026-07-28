@@ -12,10 +12,7 @@ use crate::utils::error::AppError;
 use sea_orm::{DatabaseConnection, EntityTrait};
 use std::sync::Arc;
 
-/// 多用户通知发送参数对象
-///
-/// 批次 413 技术债务清理：引入参数对象消除 notify_multiple_users 的 too_many_arguments 警告。
-/// 聚合多用户通知所需的全部字段，避免函数签名携带 7 个参数。
+/// 多用户通知发送参数对象（批次 413 技术债务清理：引入参数对象消除 notify_multiple_users 的 too_many_arguments 警告。；聚合多用户通知所需的全部字段，避免函数签名携带 7 个参数。）
 #[derive(Debug, Clone)]
 pub struct NotificationPayload {
     /// 目标用户 ID 列表
@@ -60,10 +57,7 @@ impl EventNotificationService {
         }
     }
 
-    /// 构造库存预警通知请求体
-    ///
-    /// 批次 409 提取：原 notify_inventory_alert 方法内联的 CreateNotificationRequest 构造逻辑，
-    /// 提取为独立纯函数便于单元测试通知字段完整性。
+    /// 构造库存预警通知请求体（批次 409 提取：原 notify_inventory_alert 方法内联的 CreateNotificationRequest 构造逻辑，；提取为独立纯函数便于单元测试通知字段完整性。）
     fn build_inventory_alert_notification(
         user_id: i32,
         product_name: &str,
@@ -176,9 +170,7 @@ impl EventNotificationService {
         Ok(())
     }
 
-    /// 订单审批通过通知
-    ///
-    /// v10 P1 修复（批次 139）：原 sender_id: Some(0) 占位，现传入真实审批人 ID
+    /// 订单审批通过通知（v10 P1 修复（批次 139）：原 sender_id: Some(0) 占位，现传入真实审批人 ID）
     pub async fn notify_order_approved(
         &self,
         user_id: i32,
@@ -306,9 +298,7 @@ impl EventNotificationService {
     // 依据死代码处理规范第六章「真正未使用的项应显式删除」。
     // 若后续审批流程需要"待审批任务通知"能力，应基于实际业务接入点重新实现。
     //
-    /// 审批结果通知
-    ///
-    /// v10 P1 修复（批次 139）：原 sender_id: Some(0) 占位，现传入真实审批人 ID
+    /// 审批结果通知（v10 P1 修复（批次 139）：原 sender_id: Some(0) 占位，现传入真实审批人 ID）
     pub async fn notify_approval_result(
         &self,
         user_id: i32,
@@ -395,10 +385,7 @@ impl EventNotificationService {
         Ok(())
     }
 
-    /// 库存预警批量通知（多用户单产品）
-    ///
-    /// v17 批次 47 新增：循环外批量获取用户通知设置，避免循环内逐个查询（N+1）。
-    /// 用于 event_bus 中同一产品预警通知给多个用户的场景。
+    /// 库存预警批量通知（多用户单产品）（v17 批次 47 新增：循环外批量获取用户通知设置，避免循环内逐个查询（N+1）。；用于 event_bus 中同一产品预警通知给多个用户的场景。）
     pub async fn notify_inventory_alert_batch(
         &self,
         user_ids: &[i32],
@@ -464,9 +451,7 @@ impl EventNotificationService {
     }
 
     /// 库存预警通知（基于已查询的设置，避免循环内重复查库）
-    ///
-    /// v17 批次 47 新增：接收已查询的 user_notification_setting::Model，
-    /// 用于多产品循环预警同一用户的场景（handler 中 user_id=0 的批量预警）。
+    /// v17 批次 47 新增：接收已查询的 user_notification_setting::Model，；用于多产品循环预警同一用户的场景（handler 中 user_id=0 的批量预警）。
     pub async fn notify_inventory_alert_with_setting(
         &self,
         user_id: i32,
@@ -750,10 +735,7 @@ impl EventNotificationService {
         Ok(())
     }
 
-    /// 发送通知给多个用户
-    ///
-    /// 批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `NotificationPayload`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 发送通知给多个用户（批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `NotificationPayload`，；消除 `clippy::too_many_arguments` 警告。）
     pub async fn notify_multiple_users(
         &self,
         payload: NotificationPayload,

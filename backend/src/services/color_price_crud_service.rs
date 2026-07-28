@@ -101,10 +101,7 @@ impl ColorPriceCrudService {
     }
 
     /// 列表查询（分页 + 过滤）
-    ///
-    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
-    /// paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
-    /// 补 page.clamp(1, 1000) 防 DoS（page_size 已有 clamp(1,100)）。
+    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。；paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。；补 page.clamp(1, 1000) 防 DoS（page_size 已有 clamp(1,100)）。
     pub async fn list(
         &self,
         query: &ListColorPricesQuery,

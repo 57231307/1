@@ -7,9 +7,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 防护用品配备记录模型
-///
-/// 真实业务：记录 PPE（个人防护用品）发放情况，确保工人防护到位
+/// 防护用品配备记录模型（记录 PPE 个人防护用品发放情况，确保工人防护到位）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "ppe_distribution_records")]
 pub struct Model {

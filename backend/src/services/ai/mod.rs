@@ -100,9 +100,7 @@ pub const AI_CACHE_CAPACITY: u64 = 1_000;
 /// V15 P1 5.1+9.5：AI 推理超时阈值（2s），超时返回降级结果
 pub const AI_INFERENCE_TIMEOUT_MS: u64 = 2_000;
 
-/// AI分析 Service
-///
-/// V15 P1 5.2+5.3：内置 Semaphore（permits=10）控制并发；moka 缓存（TTL 5min）避免重复计算。
+/// AI分析 Service（V15 P1 5.2+5.3：内置 Semaphore（permits=10）控制并发；moka 缓存（TTL 5min）避免重复计算。）
 pub struct AiAnalysisService {
     pub(crate) db: Arc<DatabaseConnection>,
     /// V15 P1 5.2：并发许可，所有 AI 推理方法在进入算法前 acquire
@@ -133,9 +131,7 @@ impl AiAnalysisService {
         }
     }
 
-    /// V15 P1 5.2：获取并发许可，所有 AI 推理方法在进入算法前调用
-    ///
-    /// 返回 permit 守卫，drop 时自动释放；permits=10 防止多用户并发调用 CPU 过载。
+    /// V15 P1 5.2：获取并发许可，所有 AI 推理方法在进入算法前调用（返回 permit 守卫，drop 时自动释放；permits=10 防止多用户并发调用 CPU 过载。）
     pub(crate) async fn acquire_inference_permit(
         &self,
     ) -> Result<tokio::sync::OwnedSemaphorePermit, crate::utils::error::AppError> {

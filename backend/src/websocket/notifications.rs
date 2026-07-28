@@ -77,10 +77,7 @@ pub struct AuthInfo {
     pub user_id: i64,
 }
 
-/// 连接管理器（全局单例）
-///
-/// Key: user_id
-/// Value: broadcast::Sender（一个用户可能有多个连接，例如多端登录）
+/// 连接管理器（全局单例）；Key: user_id Value: broadcast::Sender（一个用户可能有多个连接，例如多端登录）
 #[derive(Clone, Default)]
 pub struct ConnectionManager {
     senders: Arc<DashMap<i64, broadcast::Sender<String>>>,
@@ -92,9 +89,7 @@ impl ConnectionManager {
         Self::default()
     }
 
-    /// 注册新连接
-    ///
-    /// 返回 `broadcast::Receiver`，handler 用来接收广播消息
+    /// 注册新连接；返回 `broadcast::Receiver`，handler 用来接收广播消息
     pub fn register(&self, user_id: i64) -> broadcast::Receiver<String> {
         let key = user_id;
         // 防御 clippy::unused_mut：entry 仅通过 Deref 调用 subscribe()，无需 mut
@@ -118,9 +113,7 @@ impl ConnectionManager {
         }
     }
 
-    /// 广播通知给指定用户
-    ///
-    /// 用途：notification_service.send() 调用此方法推送新通知
+    /// 广播通知给指定用户；用途：notification_service.send() 调用此方法推送新通知
     pub fn broadcast(&self, user_id: i64, message: String) {
         let key = user_id;
         if let Some(tx) = self.senders.get(&key) {
@@ -161,9 +154,8 @@ fn ack_tracker() -> &'static DashMap<(i64, i64), PendingAckEntry> {
     ACK_TRACKER.get_or_init(DashMap::new)
 }
 
-/// V15 P1 20.3-A：本地投递消息并启动 ACK 跟踪
-/// 调用方：本地实例的 broadcast_notification 或 Redis Pub/Sub 订阅器。
-/// 行为：① 通过 manager.broadcast 本地投递；② 若用户有活跃连接则跟踪 ACK，5s 超时重发。
+/// V15 P1 20.3-A：本地投递消息并启动 ACK 跟踪 调用方：本地实例的 broadcast_notification 或 Redis
+/// Pub/Sub 订阅器。 行为：① 通过 manager.broadcast 本地投递；② 若用户有活跃连接则跟踪 ACK，5s 超时重发。
 fn deliver_with_ack(
     manager: &ConnectionManager,
     user_id: i64,
@@ -258,9 +250,7 @@ struct RedisBroadcastEnvelope {
     message: String,
 }
 
-/// 全局 NotificationBroadcaster
-///
-/// 用途：notification_service.send() 通过这个全局对象广播新通知
+/// 全局 NotificationBroadcaster；用途：notification_service.send() 通过这个全局对象广播新通知
 #[derive(Clone, Default)]
 pub struct NotificationBroadcaster {
     manager: ConnectionManager,
@@ -307,10 +297,7 @@ impl NotificationBroadcaster {
         deliver_with_ack(&self.manager, user_id, message_id, json);
     }
 
-    /// 缺陷 4.2 修复：广播仪表板数据更新事件给指定用户
-    ///
-    /// 关键业务事件（订单创建/库存调整/审批通过等）触发时调用，
-    /// 前端订阅 `ws://dashboard/updates` 频道实时刷新卡片，绕过 5 分钟缓存延迟。
+    /// 缺陷 4.2 修复：广播仪表板数据更新事件给指定用户；关键业务事件（订单创建/库存调整/审批通过等）触发时调用， 前端订阅 `ws://dashboard/updates` 频道实时刷新卡片，绕过 5 分钟缓存延迟。
     pub fn broadcast_dashboard_update(
         &self,
         user_id: i64,
@@ -334,18 +321,11 @@ impl NotificationBroadcaster {
     }
 }
 
-/// 全局 NotificationBroadcaster 单例
-///
-/// 批次 24 v6 P0-2 修复：WebSocket 单例破坏
-/// - 原实现：handle_socket 创建本地 `ConnectionManager::new()`，
-///   与 NotificationBroadcaster 内部 manager 是两个不同实例，
-///   即使 broadcast_notification 被调用也无法到达 ws 客户端。
-/// - 修复后：所有 ws handler 通过本全局单例获取 manager，保证广播与订阅共享同一份数据。
+/// 全局 NotificationBroadcaster 单例；批次 24 v6 P0-2 修复：WebSocket 单例破坏 - 原实现：handle_socket 创建本地 `ConnectionManager::new()`， 与
+/// NotificationBroadcaster 内部 manager 是两个不同实例， 即使 broadcast_notification 被调用也无法到达 ws 客户端。 - 修复后：所有 ws handler 通过本全局单例获取 manager，保证广播与订阅共享同一份数据。
 static NOTIFICATION_BROADCASTER: OnceLock<NotificationBroadcaster> = OnceLock::new();
 
-/// 获取全局 NotificationBroadcaster 单例
-///
-/// - ws handler 通过此函数注册连接（subscribe）
+/// 获取全局 NotificationBroadcaster 单例；- ws handler 通过此函数注册连接（subscribe）
 /// - notification_service 通过此函数广播新通知（send → broadcast_notification）
 pub fn get_notification_broadcaster() -> &'static NotificationBroadcaster {
     NOTIFICATION_BROADCASTER.get_or_init(NotificationBroadcaster::new)
@@ -353,10 +333,8 @@ pub fn get_notification_broadcaster() -> &'static NotificationBroadcaster {
 
 // ==================== V15 P1 20.3-B：Redis Pub/Sub 多实例广播订阅器 ====================
 
-/// V15 P1 20.3-B：启动 Redis Pub/Sub 订阅器（应用启动时调用）
-/// 行为：订阅 `ws:notifications` 频道，收到消息后解析 envelope 并本地投递（含 ACK 跟踪）。
-/// 无 Redis 时为 no-op（单实例模式由 broadcast_notification 直接本地投递）。
-/// 失败不阻塞应用启动：Redis 连接失败时记录 warn 并退出，由调用方决定是否重试。
+/// V15 P1 20.3-B：启动 Redis Pub/Sub 订阅器（应用启动时调用） 行为：订阅 `ws:notifications` 频道，收到消息后解析 envelope 并本地投递（含 ACK 跟踪）
+/// 无 Redis 时为 no-op（单实例模式由 broadcast_notification 直接本地投递）。 失败不阻塞应用启动：Redis 连接失败时记录 warn 并退出，由调用方决定是否重试。
 pub async fn start_ws_pubsub_subscriber() {
     let Some(url) = redis_cache::get_redis_url() else {
         tracing::info!("未配置 Redis，WebSocket 多实例广播降级为单实例本地广播");
@@ -421,12 +399,8 @@ struct WsTicketEntry {
     expires_at: Instant,
 }
 
-/// WebSocket 票据管理器（全局单例）
-///
-/// v12 P1-4 修复：替代 URL query 传递 JWT 的方案。
-/// 客户端通过 HTTP POST（携带 httpOnly Cookie JWT）获取一次性短时票据，
-/// 再用票据建立 WebSocket 连接。票据 30 秒过期、一次性消费，
-/// 即使泄露也无法复用。
+/// WebSocket 票据管理器（全局单例）；v12 P1-4 修复：替代 URL query 传递 JWT 的方案。 客户端通过 HTTP POST（携带
+/// httpOnly Cookie JWT）获取一次性短时票据， 再用票据建立 WebSocket 连接。票据 30 秒过期、一次性消费， 即使泄露也无法复用。
 pub struct WsTicketManager {
     tickets: Arc<DashMap<String, WsTicketEntry>>,
     /// 签发计数器，用于触发懒清理
@@ -437,10 +411,7 @@ pub struct WsTicketManager {
 const LAZY_CLEANUP_THRESHOLD: u64 = 128;
 
 impl WsTicketManager {
-    /// 创建新票据管理器
-    ///
-    /// 注意：此构造函数不启动后台清理任务，清理通过 `issue_ticket` 懒触发。
-    /// 生产环境通过 `get_ticket_manager()` 单例使用，测试中可直接 `new()` 使用。
+    /// 创建新票据管理器；注意：此构造函数不启动后台清理任务，清理通过 `issue_ticket` 懒触发。 生产环境通过 `get_ticket_manager()` 单例使用，测试中可直接 `new()` 使用。
     pub fn new() -> Self {
         Self {
             tickets: Arc::new(DashMap::new()),
@@ -448,10 +419,7 @@ impl WsTicketManager {
         }
     }
 
-    /// 签发新票据
-    ///
-    /// 生成 32 字节随机票据（UUID v4 两次拼接 = 256 bit 随机量），
-    /// 存入 DashMap 并设置 30 秒过期时间。每签发 128 张票据触发一次懒清理。
+    /// 签发新票据；生成 32 字节随机票据（UUID v4 两次拼接 = 256 bit 随机量）， 存入 DashMap 并设置 30 秒过期时间。每签发 128 张票据触发一次懒清理。
     pub fn issue_ticket(&self, user_id: i64) -> String {
         // UUID v4 内部使用 getrandom（CSPRNG），128 bit 随机量
         // 两次拼接 = 256 bit，足够防止爆破
@@ -481,10 +449,7 @@ impl WsTicketManager {
         ticket
     }
 
-    /// 验证并消费票据（一次性使用）
-    ///
-    /// 返回 Some(user_id) 表示票据有效，返回 None 表示票据不存在或已过期。
-    /// 验证后立即从 DashMap 移除，防止重放。
+    /// 验证并消费票据（一次性使用）；返回 Some(user_id) 表示票据有效，返回 None 表示票据不存在或已过期。 验证后立即从 DashMap 移除，防止重放。
     pub fn validate_and_consume(&self, ticket: &str) -> Option<i64> {
         if ticket.is_empty() || ticket.len() < 32 {
             return None;
@@ -527,12 +492,8 @@ pub fn get_ticket_manager() -> &'static WsTicketManager {
     WS_TICKET_MANAGER.get_or_init(WsTicketManager::new)
 }
 
-/// 签发 WebSocket 票据的 HTTP 端点
-///
-/// 路径：`POST /api/v1/erp/ws/ticket`
-///
-/// 要求请求通过 auth_middleware（携带 httpOnly Cookie 中的有效 JWT）。
-/// 返回一次性短时票据（30 秒有效），客户端用该票据建立 WebSocket 连接。
+/// 签发 WebSocket 票据的 HTTP 端点；路径：`POST /api/v1/erp/ws/ticket`；要求请求通过 auth_middleware（携带
+/// httpOnly Cookie 中的有效 JWT）。 返回一次性短时票据（30 秒有效），客户端用该票据建立 WebSocket 连接。
 pub async fn issue_ws_ticket_handler(auth: AuthContext) -> impl IntoResponse {
     let user_id = auth.user_id as i64;
     let ticket = get_ticket_manager().issue_ticket(user_id);
@@ -545,15 +506,8 @@ pub async fn issue_ws_ticket_handler(auth: AuthContext) -> impl IntoResponse {
     }))
 }
 
-/// WebSocket 升级端点
-///
-/// 路径：`/api/v1/erp/ws/notifications?ticket=<一次性票据>`
-///
-/// 流程：
-/// 1. 提取 URL query 中的 ticket
-/// 2. 验证并消费票据（一次性，30 秒过期）
-/// 3. 升级 HTTP 到 WebSocket
-/// 4. 进入 handle_socket() 处理消息
+/// WebSocket 升级端点；路径：`/api/v1/erp/ws/notifications?ticket=<一次性票据>`；流程： 1. 提取 URL query
+/// 中的 ticket 2. 验证并消费票据（一次性，30 秒过期） 3. 升级 HTTP 到 WebSocket 4. 进入 handle_socket() 处理消息
 pub async fn ws_notifications_handler(
     ws: WebSocketUpgrade,
     Query(params): Query<HashMap<String, String>>,

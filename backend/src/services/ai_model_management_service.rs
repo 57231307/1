@@ -195,9 +195,7 @@ impl AiModelManagementService {
             .await?)
     }
 
-    /// V15 P1 10.2：审批模型版本
-    ///
-    /// 状态机：pending → approved/rejected；approved 后方可激活为 active。
+    /// V15 P1 10.2：审批模型版本（状态机：pending → approved/rejected；approved 后方可激活为 active。）
     pub async fn approve_model_version(
         &self,
         version_id: i32,
@@ -225,9 +223,7 @@ impl AiModelManagementService {
         Ok(updated)
     }
 
-    /// V15 P1 10.2：变更模型版本状态（draft → active → retired → archived）
-    ///
-    /// 仅审批通过的版本可激活为 active；激活新版本时旧 active 自动降级为 retired。
+    /// V15 P1 10.2：变更模型版本状态（draft → active → retired → archived）（仅审批通过的版本可激活为 active；激活新版本时旧 active 自动降级为 retired。）
     pub async fn change_model_status(
         &self,
         version_id: i32,
@@ -364,9 +360,7 @@ impl AiModelManagementService {
     // ===== 模型漂移检测（P1 3.5）=====
 
     /// V15 P1 3.5：检测模型漂移
-    ///
-    /// 算法：对比最近评估准确率与历史平均准确率，下降超过 5% 触发告警。
-    /// 返回 (drift_detected, current_accuracy, baseline_accuracy, drift_percentage)。
+    /// 算法：对比最近评估准确率与历史平均准确率，下降超过 5% 触发告警。；返回 (drift_detected, current_accuracy, baseline_accuracy, drift_percentage)。
     pub async fn detect_model_drift(
         &self,
         model_version_id: i32,
@@ -507,12 +501,7 @@ impl AiQualityReconciliationService {
     }
 
     /// V15 P1 2.4+8.3：按月对账质量预测与实际结果
-    ///
-    /// 1. 拉取上月 ai_quality_predictions（含 actual_* 字段已回填的记录）
-    /// 2. 对比预测 risk_level 与 actual_risk_level，相同视为正确
-    /// 3. 计算 accuracy/precision/recall/F1（多分类 One-vs-Rest 简化为高/中/低三档）
-    /// 4. 写入 ai_quality_accuracy_reports 表
-    /// 5. 准确率 < 80% 时 accuracy_below_threshold=true 供告警使用
+    /// 1. 拉取上月 ai_quality_predictions（含 actual_* 字段已回填的记录）；2. 对比预测 risk_level 与 actual_risk_level，相同视为正确；3. 计算 accuracy/precision/recall/F1（多分类 One-vs-Rest 简化为高/中/低三档）；4. 写入 ai_quality_accuracy_reports 表；5. 准确率 < 80% 时 accuracy_below_threshold=true 供告警使用
     pub async fn reconcile_monthly(
         &self,
         report_period: String,

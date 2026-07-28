@@ -9,10 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
 
-/// 定制订单状态枚举（7 阶段工艺 + 终态）
-///
-/// V15 P0-B11：新增 `LabDip`（打样中）和 `Quotation`（报价中）两个状态，
-/// 插入在 `Draft` 和 `YarnPurchasing` 之间，强制定制订单走"打样→报价→生产"完整流程。
+/// 定制订单状态枚举（7 阶段工艺 + 终态；V15 P0-B11 新增 LabDip/Quotation 插入 Draft 与 YarnPurchasing 之间，强制"打样→报价→生产"完整流程）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CustomOrderStatus {
     /// 草稿（初始状态）
@@ -90,18 +87,7 @@ pub enum StateMachineError {
     InvalidTransition { from: String, to: String },
 }
 
-/// 状态机推进：返回下一状态
-///
-/// V15 P0-B11 转换规则（7 阶段）：
-/// - draft → lab_dip（进入打样阶段）
-/// - lab_dip → quotation（打样确认后进入报价阶段）
-/// - quotation → yarn_purchasing（报价确认后进入生产阶段）
-/// - yarn_purchasing → dyeing
-/// - dyeing → finishing
-/// - finishing → delivery
-/// - delivery → after_sales
-/// - after_sales → completed
-/// - 任意非终态 → cancelled
+/// 状态机推进：返回下一状态（V15 P0-B11 7 阶段转换：draft→lab_dip→quotation→yarn_purchasing→dyeing→finishing→delivery→after_sales→completed，任意非终态→cancelled）
 pub fn next_status(current: &str) -> Result<CustomOrderStatus, StateMachineError> {
     let cur = current.parse::<CustomOrderStatus>()?;
 

@@ -129,9 +129,7 @@ impl SystemUpdateService {
         Ok(extract_dir)
     }
 
-    /// 准备解压目录（清理旧目录 + 创建新目录）
-    ///
-    /// 批次 323 v9 复审低危修复：从 extract_update_package 拆分，保持单一职责。
+    /// 准备解压目录（清理旧目录 + 创建新目录）（批次 323 v9 复审低危修复：从 extract_update_package 拆分，保持单一职责。）
     fn prepare_extract_dir(&self, extract_dir: &Path) -> Result<(), UpdateError> {
         if extract_dir.exists() {
             fs::remove_dir_all(extract_dir)?;

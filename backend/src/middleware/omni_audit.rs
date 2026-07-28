@@ -28,10 +28,8 @@ struct RequestMeta {
     x_real_ip: Option<String>,
 }
 
-/// 审计上下文：跨 send_audit_log/build_audit_message/build_audit_payload 共享的请求/响应审计数据。
-///
-/// 引入此结构体避免辅助函数参数列表过长（13/14 参 → 2/3 参），符合 clippy 的
-/// `too many arguments` lint 阈值（默认 7）。
+/// 审计上下文：跨 send_audit_log/build_audit_message/build_audit_payload 共享的请求/响应审计数据
+/// 引入此结构体避免辅助函数参数列表过长（13/14 参 → 2/3 参），符合 clippy 的 `too many arguments` lint 阈值（默认 7）。
 struct AuditContext<'a> {
     trace_id: &'a str,
     meta: &'a RequestMeta,
@@ -392,17 +390,8 @@ fn build_audit_message(
     }
 }
 
-/// V15 P1-7-1：按 method+path+query 分类操作类型
-///
-/// 分类规则（优先级从高到低）：
-/// 1. 路径末段为 print / 路径含 /print/ → PRINT
-/// 2. 路径末段为 export / 路径含 /export/ / 路径以 /pdf 结尾 → EXPORT
-/// 3. 查询参数 action=download / 路径末段为 download → DOWNLOAD
-/// 4. HTTP 方法映射：GET→READ、POST→CREATE、PUT/PATCH→UPDATE、DELETE→DELETE
-/// 5. 其他 → OTHER
-///
-/// 用途：omni_audit_logs.event_type 字段从硬编码 "API_CALL" 升级为分类标签，
-/// 支持 SQL `WHERE event_type = 'EXPORT'` 筛选导出操作，满足合规审计报表分类需求。
+/// V15 P1-7-1：按 method+path+query 分类操作类型；分类规则（优先级从高到低）： 1. 路径末段为 print / 路径含 /print/ → PRINT 2. 路径末段为 export / 路径含 /export/ / 路径以 /pdf 结尾 → EXPORT 3. 查询参数 action=download / 路径末段为 download → DOWNLOAD
+/// 4. HTTP 方法映射：GET→READ、POST→CREATE、PUT/PATCH→UPDATE、DELETE→DELETE 5. 其他 → OTHER；用途：omni_audit_logs.event_type 字段从硬编码 "API_CALL" 升级为分类标签， 支持 SQL `WHERE event_type = 'EXPORT'` 筛选导出操作，满足合规审计报表分类需求。
 fn classify_operation(method: &str, uri: &str, query_string: &str) -> String {
     // 路径末段（剥离 query string）
     let path = uri.split('?').next().unwrap_or(uri);

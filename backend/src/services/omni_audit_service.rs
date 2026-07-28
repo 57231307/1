@@ -43,8 +43,7 @@ pub struct OmniAuditEngine {
     /// HMAC 签名密钥；通过 secret_key_fingerprint 暴露指纹供运维校验
     secret_key: Vec<u8>,
     /// L-30 修复（批次 372 v13 复审）：异步引擎 spawn 句柄
-    /// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏。
-    /// 使用 Mutex<Option<...>> 实现幂等 shutdown（多次调用安全）。
+    /// 保存句柄以便 shutdown 时 abort，避免 detached task 泄漏。；使用 Mutex<Option<...>> 实现幂等 shutdown（多次调用安全）。
     handle: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
@@ -271,17 +270,7 @@ impl OmniAuditEngine {
     }
 
     /// L-30 修复（批次 372 v13 复审）：优雅关闭异步审计引擎
-    ///
-    /// abort 后台 spawn task，防止 detached task 泄漏。
-    /// 幂等：多次调用安全，仅首次调用实际 abort（Mutex<Option> take 后为 None）。
-    ///
-    /// # 调用时机
-    /// 在进程收到 SIGTERM/SIGINT 优雅关闭后调用，确保审计引擎 task 不会
-    /// 在 runtime drop 前继续尝试写入已关闭的数据库连接。
-    ///
-    /// 批次 403 修复：shutdown 路径禁止 panic。原 `lock().unwrap()` 在 Mutex
-    /// poisoned（持有锁的线程 panic）时会再次 panic，导致进程无法优雅退出。
-    /// 改用 `unwrap_or_else(|e| e.into_inner())` 安全访问 poisoned lock 的内部数据。
+    /// abort 后台 spawn task，防止 detached task 泄漏。；幂等：多次调用安全，仅首次调用实际 abort（Mutex<Option> take 后为 None）。；# 调用时机；在进程收到 SIGTERM/SIGINT 优雅关闭后调用，确保审计引擎 task 不会；在 runtime drop 前继续尝试写入已关闭的数据库连接。；批次 403 修复：shutdown 路径禁止 panic。原 `lock().unwrap()` 在 Mutex；poisoned（持有锁的线程 panic）时会再次 panic，导致进程无法优雅退出。；改用 `unwrap_or_else(|e| e.into_inner())` 安全访问 poisoned lock 的内部数据。
     pub fn shutdown(&self) {
         if let Some(handle) = self.handle.lock().unwrap_or_else(|e| e.into_inner()).take() {
             handle.abort();

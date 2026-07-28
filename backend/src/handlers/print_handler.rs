@@ -113,11 +113,8 @@ pub struct PrintTemplateDto {
     pub created_at: String,
 }
 
-/// 批次 126 v8 复审 P2 修复：系统内置打印模板静态列表
-///
-/// 设计说明：打印模板为系统内置（对应 PrintService 支持的 6 种单据类型），
-/// 不需要动态 CRUD 管理。模板内容字段为简短描述（实际渲染逻辑在 PrintService.generate_pdf）。
-/// 若未来需支持用户自定义模板，可新增 print_templates 表 + model + service。
+/// 批次 126 v8 复审 P2 修复：系统内置打印模板静态列表；设计说明：打印模板为系统内置（对应 PrintService 支持的 6 种单据类型）， 不需要动态 CRUD 管理
+/// 模板内容字段为简短描述（实际渲染逻辑在 PrintService.generate_pdf）。 若未来需支持用户自定义模板，可新增 print_templates 表 + model + service。
 fn builtin_print_templates() -> Vec<PrintTemplateDto> {
     vec![
         PrintTemplateDto {
@@ -173,11 +170,8 @@ fn builtin_print_templates() -> Vec<PrintTemplateDto> {
     ]
 }
 
-/// 获取打印模板列表
-///
-/// 批次 126 v8 复审 P2 修复：从原空列表占位改为返回系统内置 6 种单据打印模板。
-/// 模板对应 PrintService 支持的 6 种单据类型（sales_order/sales_contract/purchase_order/
-/// purchase_receipt/inventory_transfer/voucher）。
+/// 获取打印模板列表；批次 126 v8 复审 P2 修复：从原空列表占位改为返回系统内置 6 种单据打印模板。 模板对应 PrintService 支持的 6
+/// 种单据类型（sales_order/sales_contract/purchase_order/ purchase_receipt/inventory_transfer/voucher）。
 pub async fn list_print_templates(
     State(_): State<AppState>,
     _auth: AuthContext,
@@ -186,10 +180,7 @@ pub async fn list_print_templates(
     Ok(axum::Json(ApiResponse::success(builtin_print_templates())))
 }
 
-/// 获取单个打印模板详情
-///
-/// 批次 126 v8 复审 P2 修复：从原硬编码 not_found 改为从内置模板列表按 id 查找。
-/// 找不到时返回 404 not_found。
+/// 获取单个打印模板详情；批次 126 v8 复审 P2 修复：从原硬编码 not_found 改为从内置模板列表按 id 查找。 找不到时返回 404 not_found。
 pub async fn get_print_template(
     Path(id): Path<i32>,
     State(_): State<AppState>,
@@ -212,18 +203,14 @@ mod tests {
 
     use super::*;
 
-    /// 测试_builtin_print_templates返回6个模板
-    ///
-    /// 验证内置打印模板数量为 6（对应 6 种单据类型）
+    /// 测试_builtin_print_templates返回6个模板；验证内置打印模板数量为 6（对应 6 种单据类型）
     #[test]
     fn 测试_builtin_print_templates返回6个模板() {
         let templates = builtin_print_templates();
         assert_eq!(templates.len(), 6, "应有 6 个内置打印模板");
     }
 
-    /// 测试_builtin_print_templates_id唯一且连续
-    ///
-    /// 验证 6 个模板的 id 为 1-6，唯一且连续
+    /// 测试_builtin_print_templates_id唯一且连续；验证 6 个模板的 id 为 1-6，唯一且连续
     #[test]
     fn 测试_builtin_print_templates_id唯一且连续() {
         let templates = builtin_print_templates();
@@ -235,9 +222,7 @@ mod tests {
         assert_eq!(unique_ids.len(), 6, "id 应唯一");
     }
 
-    /// 测试_builtin_print_templates_doc_type唯一
-    ///
-    /// 验证 6 个模板的 doc_type 互不相同
+    /// 测试_builtin_print_templates_doc_type唯一；验证 6 个模板的 doc_type 互不相同
     #[test]
     fn 测试_builtin_print_templates_doc_type唯一() {
         let templates = builtin_print_templates();
@@ -246,9 +231,7 @@ mod tests {
         assert_eq!(unique.len(), 6, "doc_type 应唯一");
     }
 
-    /// 测试_builtin_print_templates全部为默认模板
-    ///
-    /// 验证所有内置模板的 is_default 均为 true
+    /// 测试_builtin_print_templates全部为默认模板；验证所有内置模板的 is_default 均为 true
     #[test]
     fn 测试_builtin_print_templates全部为默认模板() {
         let templates = builtin_print_templates();
@@ -257,10 +240,8 @@ mod tests {
         }
     }
 
-    /// 测试_builtin_print_templates覆盖6种单据类型
-    ///
-    /// 验证模板覆盖全部 6 种业务单据类型：
-    /// sales_order / sales_contract / purchase_order / purchase_receipt / inventory_transfer / voucher
+    /// 测试_builtin_print_templates覆盖6种单据类型；验证模板覆盖全部 6 种业务单据类型： sales_order /
+    /// sales_contract / purchase_order / purchase_receipt / inventory_transfer / voucher
     #[test]
     fn 测试_builtin_print_templates覆盖6种单据类型() {
         let templates = builtin_print_templates();

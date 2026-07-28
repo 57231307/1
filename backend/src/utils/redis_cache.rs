@@ -32,12 +32,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
-/// 全局 Redis 连接管理器（懒加载）
-///
-/// 首次调用 `get_redis_conn()` 时初始化：
-/// - 读取 `REDIS_URL`（或回退 `JTI_REDIS_URL`）
-/// - 创建 `redis::Client` + `ConnectionManager`
-/// - 未配置 URL → 返回 None，所有缓存操作降级为 no-op
+/// 全局 Redis 连接管理器（懒加载，首次调用 get_redis_conn() 时初始化：读取 REDIS_URL/JTI_REDIS_URL 创建 Client+ConnectionManager，未配置则降级为 no-op）
 static REDIS_CONN: OnceCell<Option<Arc<tokio::sync::Mutex<ConnectionManager>>>> =
     OnceCell::const_new();
 
@@ -81,9 +76,7 @@ async fn get_redis_conn() -> Option<Arc<tokio::sync::Mutex<ConnectionManager>>> 
     REDIS_CONN.get_or_init(init_redis_conn).await.clone()
 }
 
-/// 从 Redis 读取 JSON 并反序列化
-///
-/// 未配置 Redis 或 key 不存在时返回 None（优雅降级）
+/// 从 Redis 读取 JSON 并反序列化（未配置 Redis 或 key 不存在时返回 None，优雅降级）
 pub async fn redis_cache_get_json<T: DeserializeOwned>(key: &str) -> Option<T> {
     let conn_arc = get_redis_conn().await?;
     let mut conn = conn_arc.lock().await;
@@ -105,9 +98,7 @@ pub async fn redis_cache_get_json<T: DeserializeOwned>(key: &str) -> Option<T> {
     }
 }
 
-/// 写入 JSON 到 Redis（带 TTL）
-///
-/// 未配置 Redis 时为 no-op
+/// 写入 JSON 到 Redis（带 TTL，未配置 Redis 时为 no-op）
 pub async fn redis_cache_set_json<T: Serialize>(key: &str, value: &T, ttl_secs: u64) {
     let conn_arc = match get_redis_conn().await {
         Some(c) => c,
@@ -131,9 +122,7 @@ pub async fn redis_cache_set_json<T: Serialize>(key: &str, value: &T, ttl_secs: 
     }
 }
 
-/// 删除指定 key
-///
-/// 未配置 Redis 时为 no-op
+/// 删除指定 key（未配置 Redis 时为 no-op）
 pub async fn redis_cache_del(key: &str) {
     let conn_arc = match get_redis_conn().await {
         Some(c) => c,
@@ -148,12 +137,8 @@ pub async fn redis_cache_del(key: &str) {
     }
 }
 
-/// 按前缀批量删除（使用 SCAN 避免阻塞 Redis）
-///
-/// 未配置 Redis 时为 no-op
-///
-/// 注意：前缀匹配会扫描 keys，大量 key 时可能影响性能。
-/// 建议仅在创建/更新/删除时调用，不要在热点读路径使用。
+/// 按前缀批量删除（使用 SCAN 避免阻塞 Redis，未配置 Redis 时为 no-op）
+/// 注意：前缀匹配扫描 keys 大量 key 时影响性能，仅在创建/更新/删除时调用，不要在热点读路径使用
 pub async fn redis_cache_del_prefix(prefix: &str) {
     let conn_arc = match get_redis_conn().await {
         Some(c) => c,
@@ -199,10 +184,7 @@ pub async fn redis_cache_del_prefix(prefix: &str) {
 /// 默认缓存 TTL（5 分钟）
 pub const DEFAULT_CACHE_TTL_SECS: u64 = 300;
 
-/// 生成标准化的缓存 key
-///
-/// 格式：`{service}:{entity}:{id}`
-/// 例如：`user:42`、`product:100`、`customer:555`
+/// 生成标准化的缓存 key（格式 `{service}:{id}`，如 user:42/product:100/customer:555）
 pub fn cache_key(service: &str, id: impl std::fmt::Display) -> String {
     format!("{}:{}", service, id)
 }

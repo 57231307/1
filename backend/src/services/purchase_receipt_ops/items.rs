@@ -205,15 +205,7 @@ impl PurchaseReceiptService {
     }
 
     /// 计算入库单总金额（事务版本）
-    ///
-    /// 批次 19（2026-06-28）：新增 _txn 变体，接受外部事务参数，
-    /// 供已有事务的调用方使用，保证明细写与总金额重算原子性。
-    /// 内部 3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算，
-    /// 防止两个并发重算基于过期明细快照导致丢失更新。
-    ///
-    /// 批次 101 v6 复审 P2-6 修复：原 update_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，
-    /// 改为透传真实操作人 user_id。user_id 由调用方（add_receipt_item / update_receipt_item /
-    /// delete_receipt_item / calculate_receipt_total）注入。
+    /// 批次 19（2026-06-28）：新增 _txn 变体，接受外部事务参数，；供已有事务的调用方使用，保证明细写与总金额重算原子性。；内部 3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算，；防止两个并发重算基于过期明细快照导致丢失更新。；批次 101 v6 复审 P2-6 修复：原 update_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，；改为透传真实操作人 user_id。user_id 由调用方（add_receipt_item / update_receipt_item /；delete_receipt_item / calculate_receipt_total）注入。
     pub async fn calculate_receipt_total_txn(
         &self,
         receipt_id: i32,
@@ -261,9 +253,7 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
-    /// 计算入库单总金额（便捷入口，内部自建事务）
-    ///
-    /// 已在事务内的调用方应直接调用 calculate_receipt_total_txn 以复用事务。
+    /// 计算入库单总金额（便捷入口，内部自建事务）（已在事务内的调用方应直接调用 calculate_receipt_total_txn 以复用事务。）
     pub async fn calculate_receipt_total(
         &self,
         receipt_id: i32,

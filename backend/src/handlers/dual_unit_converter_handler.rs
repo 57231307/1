@@ -123,10 +123,7 @@ pub struct ValidateDualUnitResponse {
     pub error_rate: String,
 }
 
-/// 验证双计量单位一致性接口
-///
-/// BE-A/H 统一（2026-06-26）：返回类型从 impl IntoResponse 改为
-/// Result<Json<ApiResponse<T>>, AppError>。
+/// 验证双计量单位一致性接口；BE-A/H 统一（2026-06-26）：返回类型从 impl IntoResponse 改为 Result<Json<ApiResponse<T>>, AppError>。
 pub async fn validate_dual_unit(
     Json(req): Json<ValidateDualUnitRequest>,
 ) -> Result<Json<ApiResponse<ValidateDualUnitResponse>>, AppError> {

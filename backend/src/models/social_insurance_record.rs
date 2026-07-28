@@ -8,9 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 社保公积金缴纳记录模型
-///
-/// 真实业务：按月扣缴五险一金，校验缴费基数合规性
+/// 社保公积金缴纳记录模型（按月扣缴五险一金，校验缴费基数合规性）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "social_insurance_records")]
 pub struct Model {

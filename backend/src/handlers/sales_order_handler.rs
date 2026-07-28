@@ -572,10 +572,7 @@ pub async fn export_orders(
     build_xlsx_response(&table, &filename)
 }
 
-/// 生成销售订单号
-/// GET /api/v1/erp/sales/orders/generate-no
-///
-/// 返回格式: `{ prefix: "SO", order_no: "SO20260617001" }`
+/// 生成销售订单号 GET /api/v1/erp/sales/orders/generate-no；返回格式: `{ prefix: "SO", order_no: "SO20260617001" }`
 pub async fn generate_order_no(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -687,9 +684,7 @@ pub async fn create_delivery(
     Ok(Json(ApiResponse::success(delivery_json)))
 }
 
-/// 取消发货单
-/// 批次 216 P2-1 修复（v12 复审）：实现销售发货取消功能
-/// POST /api/v1/erp/sales/orders/:id/deliveries/:delivery_id/cancel
+/// 取消发货单 批次 216 P2-1 修复（v12 复审）：实现销售发货取消功能 POST /api/v1/erp/sales/orders/:id/deliveries/:delivery_id/cancel
 pub async fn cancel_delivery(
     auth: AuthContext,
     State(state): State<AppState>,

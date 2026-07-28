@@ -8,9 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 劳动合同模型
-///
-/// 真实业务：管理劳动合同签订/续签/终止，校验试用期合规性，到期预警
+/// 劳动合同模型（管理签订/续签/终止，校验试用期合规性，到期预警）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "labor_contracts")]
 pub struct Model {

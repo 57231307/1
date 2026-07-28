@@ -8,12 +8,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 业务模式规则模型
-///
-/// 真实业务要点：
-/// - 规则类型 3 种：required 必需/optional 可选/forbidden 禁止
-/// - 用于校验单据流转合法性，例如染整加工模式禁止 sales 模块
-/// - 校验逻辑用 JSONB 描述，支持复杂条件
+/// 业务模式规则模型（规则类型 3 种 required/optional/forbidden 校验单据流转合法性，校验逻辑用 JSONB 描述支持复杂条件）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "business_mode_rule")]
 pub struct Model {

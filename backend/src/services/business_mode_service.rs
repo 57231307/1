@@ -164,14 +164,7 @@ pub fn validate_document_type(doc_type: &str) -> Result<(), AppError> {
 }
 
 /// 校验业务模式配置一致性
-///
-/// 业务规则（依据 §6 业务模式 6 种）：
-/// - grey_trading：require_purchase=true, require_sales=true, require_production=false, require_outsourcing=false, material_source=purchase, settlement_method=sale_settlement
-/// - finished_trading：require_purchase=true, require_production=true, require_sales=true, require_outsourcing=false, material_source=purchase, settlement_method=sale_settlement
-/// - dyeing_processing：require_production=true, require_sales=false, require_purchase=false, require_outsourcing=false, material_source=customer_provided, settlement_method=processing_fee_settlement
-/// - self_weave_dye：require_purchase=true, require_production=true, require_sales=true, require_outsourcing=false, material_source=purchase, settlement_method=sale_settlement
-/// - outsourcing：require_production=true, require_outsourcing=true, require_sales=true, require_purchase=false, material_source=self_made, settlement_method=sale_settlement
-/// - toll_processing：require_production=true, require_sales=false, require_purchase=false, require_outsourcing=false, material_source=toll, settlement_method=processing_fee_settlement
+/// 业务规则（依据 §6 业务模式 6 种）：grey_trading：require_purchase=true, require_sales=true, require_production=false, require_outsourcing=false, material_source=purchase, settlement_method=sale_settlement；finished_trading：require_purchase=true, require_production=true, require_sales=true, require_outsourcing=false, material_source=purchase, settlement_method=sale_settlement；dyeing_processing：require_production=true, require_sales=false, require_purchase=false, require_outsourcing=false, material_source=customer_provided, settlement_method=processing_fee_settlement；self_weave_dye：require_purchase=true, require_production=true, require_sales=true, require_outsourcing=false, material_source=purchase, settlement_method=sale_settlement；outsourcing：require_production=true, require_outsourcing=true, require_sales=true, require_purchase=false, material_source=self_made, settlement_method=sale_settlement；toll_processing：require_production=true, require_sales=false, require_purchase=false, require_outsourcing=false, material_source=toll, settlement_method=processing_fee_settlement
 pub fn check_module_consistency(
     mode_code: &str,
     require_purchase: bool,
@@ -210,9 +203,7 @@ pub fn check_module_consistency(
     }
 }
 
-/// P0-D12：业务模式一致性校验参数聚合体
-///
-/// 避免 6 个 validate_xxx 函数重复传递 6 个参数，降低签名复杂度
+/// P0-D12：业务模式一致性校验参数聚合体（避免 6 个 validate_xxx 函数重复传递 6 个参数，降低签名复杂度）
 struct ModeConsistencyArgs<'a> {
     require_purchase: bool,
     require_production: bool,

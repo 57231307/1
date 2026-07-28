@@ -161,10 +161,7 @@ pub struct UpdateOpportunityRequest {
     pub tags: Option<Vec<String>>,
 }
 
-/// 关单（输单）请求 — V15 P0-B09（Batch 482）
-///
-/// 业务语义：将商机状态置为 CLOSED_LOST，必须填写流失原因
-/// 设计依据：审计报告 §18.2-D2 — 输单原因未记录，销售改进无依据
+/// 关单（输单）请求 — V15 P0-B09（Batch 482）：将商机置为 CLOSED_LOST 必填流失原因（审计 §18.2-D2）
 #[derive(Debug, Deserialize, Validate)]
 pub struct CloseAsLostRequest {
     /// 流失原因（必填，1-500 字符）

@@ -51,11 +51,7 @@ impl ContractSignatureService {
     }
 
     /// 对合同进行电子签章
-    ///
-    /// 业务规则（《电子签名法》第 13 条）：
-    /// - 电子签名需专属于电子签名人（记录 signed_by_user_id）
-    /// - 由电子签名人控制（记录 signed_at 签章时间）
-    /// - 签署后对电子签名的任何改动能够被发现（SHA-256 哈希防篡改）
+    /// 业务规则（《电子签名法》第 13 条）：电子签名需专属于电子签名人（记录 signed_by_user_id）；由电子签名人控制（记录 signed_at 签章时间）；签署后对电子签名的任何改动能够被发现（SHA-256 哈希防篡改）
     pub async fn sign_contract(&self, req: SignContractRequest) -> Result<ContractModel, AppError> {
         let contract = ContractEntity::find_by_id(req.contract_id)
             .one(&*self.db)
@@ -85,9 +81,7 @@ impl ContractSignatureService {
         Ok(updated)
     }
 
-    /// 验证合同签章完整性（重新计算哈希对比）
-    ///
-    /// 业务规则：若合同内容被篡改，重新计算的哈希与存储的哈希不一致
+    /// 验证合同签章完整性（重新计算哈希对比）（业务规则：若合同内容被篡改，重新计算的哈希与存储的哈希不一致）
     pub async fn verify_signature(
         &self,
         contract_id: i32,
@@ -116,9 +110,7 @@ impl ContractSignatureService {
         })
     }
 
-    /// 撤销合同签章（仅未签章或签章异常时允许）
-    ///
-    /// 业务规则：撤销签章需记录审计日志，已签章合同不可直接撤销
+    /// 撤销合同签章（仅未签章或签章异常时允许）（业务规则：撤销签章需记录审计日志，已签章合同不可直接撤销）
     pub async fn revoke_signature(
         &self,
         contract_id: i32,
@@ -150,9 +142,7 @@ impl ContractSignatureService {
         Ok(contracts)
     }
 
-    /// 计算合同内容哈希（SHA-256）
-    ///
-    /// 哈希输入：合同号 + 客户ID + 总金额 + 签订日期 + 付款条款
+    /// 计算合同内容哈希（SHA-256）（哈希输入：合同号 + 客户ID + 总金额 + 签订日期 + 付款条款）
     fn compute_contract_hash(&self, contract: &ContractModel) -> String {
         let mut hasher = Sha256::new();
         hasher.update(contract.contract_no.as_bytes());

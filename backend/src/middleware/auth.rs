@@ -16,17 +16,8 @@ use std::sync::OnceLock;
 use std::time::Instant;
 use tracing::{info, warn};
 
-/// 日志脱敏：截断 Authorization 头值，避免完整 Token 写入日志
-///
-/// 低危 #4 修复：原实现直接把 `header_val` 拼到 warn 日志中，
-/// 可能导致完整 JWT Token 落地到日志文件/聚合系统，违反最小暴露原则。
-/// 本函数仅返回格式与长度供排错使用，Token 部分被截断。
-///
-/// # 参数
-/// - `header_val`: 原始 Authorization 头值（可能含 `Bearer xxx...`）
-///
-/// # 返回
-/// - 脱敏后的字符串：仅显示前缀与长度，如 `Bearer abc***(len=143)`
+/// 日志脱敏：截断 Authorization 头值，避免完整 Token 写入日志；低危 #4 修复：原实现直接把 `header_val` 拼到 warn 日志中， 可能导致完整 JWT Token 落地到日志文件/聚合系统，违反最小暴露原则
+/// 本函数仅返回格式与长度供排错使用，Token 部分被截断。；参数 - `header_val`: 原始 Authorization 头值（可能含 `Bearer xxx...`）；返回 - 脱敏后的字符串：仅显示前缀与长度，如 `Bearer abc***(len=143)`
 fn mask_auth_header(header_val: &str) -> String {
     // 截取前 12 个字符（包含 "Bearer " 前缀和 Token 前 6 位），剩余长度记入日志
     const PREFIX_KEEP: usize = 12;
@@ -40,16 +31,8 @@ fn mask_auth_header(header_val: &str) -> String {
     }
 }
 
-/// 日志脱敏：用户名 PII 截断
-///
-/// 低危 #4 修复：warn 级别日志中只保留用户名前 2 字符 + `***`，
-/// 避免明文 username 进入日志聚合系统；保留前 2 字符仍可定位用户。
-///
-/// # 参数
-/// - `username`: 原始用户名
-///
-/// # 返回
-/// - 脱敏后的字符串，如 `al***`
+/// 日志脱敏：用户名 PII 截断；低危 #4 修复：warn 级别日志中只保留用户名前 2 字符 + `***`， 避免明文 username
+/// 进入日志聚合系统；保留前 2 字符仍可定位用户。；参数 - `username`: 原始用户名；返回 - 脱敏后的字符串，如 `al***`
 fn mask_username(username: &str) -> String {
     let chars: Vec<char> = username.chars().collect();
     if chars.len() <= 2 {
@@ -59,19 +42,12 @@ fn mask_username(username: &str) -> String {
     }
 }
 
-/// 用户 is_active 状态内存缓存的 TTL（5 分钟）
-///
-/// 安全漏洞 #6 修复：禁用 / 软删除用户的旧 JWT 在剩余有效期（最长 2 小时）内
-/// 仍可使用。引入 5 分钟缓存目的是在 DB 压力可接受的前提下，最坏延迟 5 分钟
-/// 旧 JWT 失效。TTL 不可过长，否则对管理员封号操作的感知不灵敏；
-/// 不可过短，否则失去缓存价值。
+/// 用户 is_active 状态内存缓存的 TTL（5 分钟）；安全漏洞 #6 修复：禁用 / 软删除用户的旧 JWT 在剩余有效期（最长 2 小时）内 仍可使用。引入
+/// 5 分钟缓存目的是在 DB 压力可接受的前提下，最坏延迟 5 分钟 旧 JWT 失效。TTL 不可过长，否则对管理员封号操作的感知不灵敏； 不可过短，否则失去缓存价值。
 const USER_ACTIVE_CACHE_TTL_SECS: u64 = 300;
 
-/// 全局进程级用户 is_active 状态缓存
-///
-/// key = user_id，value = (is_active, 写入时间戳)
-/// 一旦 JWT 通过签名验证，命中本地缓存即视为活跃；
-/// 缓存 miss 或 TTL 过期时回查 DB。
+/// 全局进程级用户 is_active 状态缓存；key = user_id，value = (is_active,
+/// 写入时间戳) 一旦 JWT 通过签名验证，命中本地缓存即视为活跃； 缓存 miss 或 TTL 过期时回查 DB。
 static USER_ACTIVE_CACHE: OnceLock<DashMap<i32, (bool, Instant)>> = OnceLock::new();
 
 /// 获取（或惰性初始化）全局用户活跃状态缓存
@@ -79,20 +55,8 @@ fn user_active_cache() -> &'static DashMap<i32, (bool, Instant)> {
     USER_ACTIVE_CACHE.get_or_init(DashMap::new)
 }
 
-/// 检查用户是否处于活跃状态（5 分钟内存缓存）
-///
-/// 安全漏洞 #6 修复核心：用于在 `auth_middleware` 中快速校验 JWT 持有者的
-/// `is_active` 状态，避免每次请求都查 DB。命中缓存时为一次 DashMap 查，
-/// 未命中时为一次 DB 查 + 一次 DashMap 写。
-///
-/// # 返回
-/// - `true`：用户在最近 5 分钟内被确认为 `is_active = true`
-/// - `false`：用户已禁用 / 软删除 / 不存在
-///
-/// # 注意
-/// - 进程内缓存不跨实例同步；多副本部署时部分实例可能短暂持有旧值（最多 5 分钟）
-/// - `UserService::delete_user` 已失效 Redis 缓存但**未**失效此本地缓存；
-///   这是有意的：5 分钟窗口可接受且可避免在删除路径上加额外清理逻辑
+/// 检查用户是否处于活跃状态（5 分钟内存缓存）；安全漏洞 #6 修复核心：用于在 `auth_middleware` 中快速校验 JWT 持有者的 `is_active` 状态，避免每次请求都查 DB。命中缓存时为一次 DashMap 查， 未命中时为一次 DB 查 + 一次 DashMap 写。；返回 - `true`：用户在最近 5 分钟内被确认为
+/// `is_active = true` - `false`：用户已禁用 / 软删除 / 不存在；注意 - 进程内缓存不跨实例同步；多副本部署时部分实例可能短暂持有旧值（最多 5 分钟） - `UserService::delete_user` 已失效 Redis 缓存但**未**失效此本地缓存； 这是有意的：5 分钟窗口可接受且可避免在删除路径上加额外清理逻辑
 async fn is_user_active_cached(state: &AppState, user_id: i32) -> bool {
     let cache = user_active_cache();
 
@@ -117,13 +81,8 @@ async fn is_user_active_cached(state: &AppState, user_id: i32) -> bool {
     active
 }
 
-/// 判断是否启用 is_active 实时校验（环境变量开关）
-///
-/// 默认开启（`true`），通过 `AUTH_CHECK_USER_ACTIVE=false` 可关闭以兼容
-/// 性能敏感或历史无 `is_active` 字段的环境。
-///
-/// L-36 修复（批次 370 v13 复审）：使用 LazyLock 确保首次调用时打印当前值，
-/// 消除 silent default（原实现环境变量未设置时静默使用 "true"，无任何日志）。
+/// 判断是否启用 is_active 实时校验（环境变量开关）；默认开启（`true`），通过 `AUTH_CHECK_USER_ACTIVE=false` 可关闭以兼容 性能敏感或历史无 `is_active`
+/// 字段的环境。；L-36 修复（批次 370 v13 复审）：使用 LazyLock 确保首次调用时打印当前值， 消除 silent default（原实现环境变量未设置时静默使用 "true"，无任何日志）。
 static USER_ACTIVE_CHECK_ENABLED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
     let raw = std::env::var("AUTH_CHECK_USER_ACTIVE").unwrap_or_else(|_| "true".to_string());
     let enabled = raw == "true";

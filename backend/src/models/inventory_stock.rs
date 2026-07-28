@@ -20,9 +20,7 @@ pub struct Model {
     pub quantity_shipped: Decimal,
     pub quantity_incoming: Decimal,
     pub reorder_point: Decimal,
-    /// 库存上限（高于此值触发 OverStock 告警，0 表示未设置）
-    ///
-    /// v11 批次 144 P1-4：新增字段，用于 compute_alert_type 判定"高于上限"告警。
+    /// 库存上限（高于此值触发 OverStock 告警，0 表示未设置，v11 批次 144 P1-4 新增）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub max_stock_point: Decimal,
     pub reorder_quantity: Decimal,
@@ -85,10 +83,7 @@ pub const REPLENISHMENT_REORDER_POINT: &str = "reorder_point";
 pub const REPLENISHMENT_EOQ: &str = "eoq";
 pub const REPLENISHMENT_MRP: &str = "mrp";
 
-/// P1 batch-18 缺陷 7.1：根据补货策略计算建议采购量
-/// - reorder_point：固定补货量 = reorder_quantity
-/// - eoq：经济订货量 = √(2 * 年需求 * 订货成本 / 单位存储成本)
-/// - mrp：由 MRP 引擎按 BOM 展开，此处返回缺口量（reorder_quantity 兜底）
+/// P1 batch-18 缺陷 7.1：根据补货策略计算建议采购量（reorder_point 固定=reorder_quantity；eoq=√(2*年需求*订货成本/单位存储成本)；mrp 由 MRP 引擎 BOM 展开返回缺口量）
 pub fn compute_replenishment_qty(
     strategy: &str,
     reorder_quantity: Decimal,

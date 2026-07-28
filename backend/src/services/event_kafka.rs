@@ -35,9 +35,7 @@ use crate::services::event_bus::BusinessEvent;
 #[cfg(test)]
 use crate::services::event_bus::ShippedItem;
 
-/// Kafka 后端错误类型
-///
-/// 实际消息以中文描述，便于运维排查；调用方拿到后选择降级还是中断。
+/// Kafka 后端错误类型（实际消息以中文描述，便于运维排查；调用方拿到后选择降级还是中断。）
 #[derive(Debug, Clone)]
 pub struct KafkaError(pub String);
 
@@ -62,10 +60,7 @@ impl From<&str> for KafkaError {
 }
 
 /// 返回 `BusinessEvent` 对应的事件类型字符串
-///
-/// 批次 121 v8 复审修复：删除 KafkaEventEnvelope struct + from_event + into_event
-/// （零业务调用方，KafkaBackend.publish/subscribe 使用 EventPayload 而非信封结构）。
-/// 保留 event_type_name 供测试断言使用，标记 #[cfg(test)] 避免非测试编译时 dead_code。
+/// 批次 121 v8 复审修复：删除 KafkaEventEnvelope struct + from_event + into_event；（零业务调用方，KafkaBackend.publish/subscribe 使用 EventPayload 而非信封结构）。；保留 event_type_name 供测试断言使用，标记 #[cfg(test)] 避免非测试编译时 dead_code。
 #[cfg(test)]
 fn event_type_name(event: &BusinessEvent) -> &'static str {
     match event {
@@ -94,10 +89,7 @@ fn event_type_name(event: &BusinessEvent) -> &'static str {
     }
 }
 
-/// Kafka 后端实现
-///
-/// 通过 `Arc<KafkaBackendInner>` 共享内部状态；`publish` / `subscribe`
-/// 都是 clone 后调用，开销可控。
+/// Kafka 后端实现（通过 `Arc<KafkaBackendInner>` 共享内部状态；`publish` / `subscribe`；都是 clone 后调用，开销可控。）
 #[derive(Clone)]
 pub struct KafkaBackend {
     inner: Arc<KafkaBackendInner>,
@@ -111,13 +103,8 @@ struct KafkaBackendInner {
 }
 
 impl KafkaBackend {
-    /// 尝试创建 Kafka 后端。
-    ///
-    /// 行为：
-    /// 1. 解析 `brokers`（逗号分隔）；
-    /// 2. 使用 `connect_timeout_ms` 限制连接总耗时；
-    /// 3. 若 `auto_create_topic=true`，启动时调用 `create_topic`（已存在时容忍）；
-    /// 4. 任意失败 → 返回 `Err` 让上层降级。
+    /// 尝试创建 Kafka 后端
+    /// 行为：1. 解析 `brokers`（逗号分隔）；2. 使用 `connect_timeout_ms` 限制连接总耗时；3. 若 `auto_create_topic=true`，启动时调用 `create_topic`（已存在时容忍）；4. 任意失败 → 返回 `Err` 让上层降级。
     pub async fn try_new(config: &KafkaSettings) -> Result<Self, KafkaError> {
         let brokers: Vec<String> = config
             .brokers
@@ -241,11 +228,7 @@ impl KafkaBackend {
     }
 
     /// 启动消费后台任务并返回事件流
-    ///
-    /// 后台任务对所有 partition 进行轮询 fetch：
-    /// - 起始 offset = 各 partition 的 earliest；
-    /// - 拉取间隔 200ms（避免 CPU 100%）；
-    /// - 消费失败 → 重新连接（最多 3 次），仍失败则关闭流。
+    /// 后台任务对所有 partition 进行轮询 fetch：起始 offset = 各 partition 的 earliest；拉取间隔 200ms（避免 CPU 100%）；消费失败 → 重新连接（最多 3 次），仍失败则关闭流。
     pub async fn subscribe(
         &self,
     ) -> Result<Box<dyn Stream<Item = BusinessEvent> + Send + Unpin>, KafkaError> {
@@ -406,9 +389,8 @@ async fn process_fetched_records(
     false
 }
 
-/// 处理单条 Kafka 记录：反序列化为 EventPayload 并转换为 BusinessEvent 后转发。
-/// 返回 true 表示消费通道已关闭，调用方应停止消费循环。
-/// V15 P1 20.1-B 修复：从消息头解析 traceparent 并记录 trace 关联日志。
+/// 处理单条 Kafka 记录：反序列化为 EventPayload 并转换为 BusinessEvent 后转发
+/// 返回 true 表示消费通道已关闭，调用方应停止消费循环。；V15 P1 20.1-B 修复：从消息头解析 traceparent 并记录 trace 关联日志。
 async fn process_kafka_record(
     record_and_off: RecordAndOffset,
     tx: &mpsc::Sender<BusinessEvent>,

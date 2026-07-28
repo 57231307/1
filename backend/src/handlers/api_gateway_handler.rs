@@ -124,10 +124,8 @@ fn log_to_json(m: log_api_access::Model) -> Value {
     })
 }
 
-/// 将 api_key::Model 转换为前端期望的 JSON 结构
-///
-/// 批次 112 P1-9：created_by 直接从 model.created_by 读取（migration m0039 新增列），
-/// 不再需要调用方传 0 占位。历史数据 created_by 为 NULL 时返回 0 保持前端兼容。
+/// 将 api_key::Model 转换为前端期望的 JSON 结构；批次 112 P1-9：created_by 直接从 model.created_by
+/// 读取（migration m0039 新增列）， 不再需要调用方传 0 占位。历史数据 created_by 为 NULL 时返回 0 保持前端兼容。
 fn key_to_json(m: &crate::models::api_key::Model) -> Value {
     // permissions 字段为 JSON 字符串，解析为 string[]
     let permissions: Value = m

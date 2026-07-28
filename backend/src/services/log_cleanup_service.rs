@@ -152,9 +152,8 @@ impl LogCleanupService {
         Ok(deleted)
     }
 
-    /// 判定文件是否应被删除：修改时间早于 cutoff 即视为过期。
-    /// tracing_appender 滚动文件名形如 `bingxi_backend.log.2024-01-01`，
-    /// 修改时间是当日写入完成时间，比文件名日期更准确（避免时区漂移）。
+    /// 判定文件是否应被删除：修改时间早于 cutoff 即视为过期
+    /// tracing_appender 滚动文件名形如 `bingxi_backend.log.2024-01-01`，；修改时间是当日写入完成时间，比文件名日期更准确（避免时区漂移）。
     fn should_delete(meta: &std::fs::Metadata, cutoff: SystemTime) -> bool {
         match meta.modified() {
             Ok(mtime) => mtime < cutoff,

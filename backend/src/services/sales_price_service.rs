@@ -238,10 +238,7 @@ impl SalesPriceService {
         Ok(updated)
     }
 
-    /// 删除销售价格
-    ///
-    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
-    /// 保证审计日志能追溯实际删除人。
+    /// 删除销售价格（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际删除人。）
     pub async fn delete_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("删除销售价格，ID: {}，操作人: {}", id, user_id);
         // P0 8-3 修复：delete 操作补审计日志

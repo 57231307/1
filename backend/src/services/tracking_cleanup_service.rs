@@ -31,9 +31,7 @@ const INITIAL_DELAY_SECS: u64 = 60;
 /// 单轮扫描批量大小（避免一次删除过多明细锁表）
 const BATCH_SIZE: i64 = 5000;
 
-/// 追踪数据保留策略 Service
-///
-/// 同时管理 page_views 与 user_behaviors 两张明细表的归档清理。
+/// 追踪数据保留策略 Service（同时管理 page_views 与 user_behaviors 两张明细表的归档清理。）
 pub struct TrackingCleanupService {
     db: Arc<DatabaseConnection>,
     retention_days: i32,
@@ -120,9 +118,7 @@ impl TrackingCleanupService {
     }
 
     /// 缺陷 8.3 修复：归档 page_views 明细到 page_view_daily_summary 后删除
-    ///
-    /// 按 (stat_date, path) 聚合 total_views / unique_sessions / unique_users，
-    /// UPSERT 到 page_view_daily_summary 后批量删除明细。
+    /// 按 (stat_date, path) 聚合 total_views / unique_sessions / unique_users，；UPSERT 到 page_view_daily_summary 后批量删除明细。
     async fn archive_page_views(&self) -> Result<i64, AppError> {
         // 1. 聚合过期明细到汇总表（UPSERT 语义：已存在则累加）
         //    使用 INSERT ... ON CONFLICT DO UPDATE 保证幂等
@@ -182,9 +178,7 @@ impl TrackingCleanupService {
     }
 
     /// 缺陷 8.4 修复：归档 user_behaviors 明细到 user_behavior_daily_summary 后删除
-    ///
-    /// 按 (stat_date, event_type) 聚合 total_count / unique_users / unique_sessions，
-    /// UPSERT 到 user_behavior_daily_summary 后批量删除明细。
+    /// 按 (stat_date, event_type) 聚合 total_count / unique_users / unique_sessions，；UPSERT 到 user_behavior_daily_summary 后批量删除明细。
     async fn archive_user_behaviors(&self) -> Result<i64, AppError> {
         let archive_sql = r#"
             INSERT INTO user_behavior_daily_summary (stat_date, event_type, total_count, unique_users, unique_sessions, created_at)

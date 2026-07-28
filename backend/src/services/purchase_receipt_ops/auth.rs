@@ -13,11 +13,7 @@ use crate::utils::error::AppError;
 
 impl PurchaseReceiptService {
     /// P2 3-19 修复：检查 user_id 是否为管理员（用于绕过 created_by owner 检查）
-    ///
-    /// 原 update_receipt/delete_receipt/confirm_receipt/add_receipt_item/
-    /// update_receipt_item/delete_receipt_item 6 处均硬编码 `created_by != user_id`
-    /// 无管理员绕过，admin 无法管理他人创建的入库单。
-    /// 新增此辅助方法，admin 角色可绕过 owner 检查。
+    /// 原 update_receipt/delete_receipt/confirm_receipt/add_receipt_item/；update_receipt_item/delete_receipt_item 6 处均硬编码 `created_by != user_id`；无管理员绕过，admin 无法管理他人创建的入库单。；新增此辅助方法，admin 角色可绕过 owner 检查。
     pub(crate) async fn is_admin_user(&self, user_id: i32) -> Result<bool, AppError> {
         use crate::models::user;
         use sea_orm::EntityTrait;

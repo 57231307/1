@@ -21,10 +21,7 @@ use crate::services::bi_analysis_service::{build_bi_cache_key, dec_to_f64, BiAna
 use crate::utils::error::AppError;
 
 impl BiAnalysisService {
-    /// 利润分析
-    ///
-    /// 聚合全部有效订单的销售额、成本、利润。
-    /// 利润 = 销售额 - 成本，成本 = SUM(sales_order_items.quantity * products.cost_price)。
+    /// 利润分析（聚合全部有效订单的销售额、成本、利润。；利润 = 销售额 - 成本，成本 = SUM(sales_order_items.quantity * products.cost_price)。）
     pub async fn profit_analysis(&self) -> Result<ProfitAnalysis, AppError> {
         // 缺陷 3.1 修复：先查缓存，命中则直接返回
         let cache_key = build_bi_cache_key(&self.data_scope, &["profit_analysis"]);

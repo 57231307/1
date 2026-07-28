@@ -213,9 +213,7 @@ const KEYBOARD_ROWS: &[&str] = &[
     "qazwsxedcrfvtgbyhnujmikolp", // 蛇形（column-wise）
 ];
 
-/// 检测密码是否包含键盘序列（连续 4+ 字符）
-///
-/// 检测横排、竖排、蛇形、键盘数字行等所有 4+ 连续字符。
+/// 检测密码是否包含键盘序列（连续 4+ 字符，含横排/竖排/蛇形/数字行）
 fn has_keyboard_sequence(password: &str) -> bool {
     let lower = password.to_lowercase();
     if lower.len() < 4 {
@@ -242,16 +240,7 @@ fn has_keyboard_sequence(password: &str) -> bool {
     false
 }
 
-/// l33t speak 归一化（漏洞 #7 修复：拒绝变体）
-///
-/// 将常见替换还原为字母后再进行黑名单匹配：
-/// - `@` / `4` → `a`
-/// - `3` → `e`
-/// - `1` / `!` / `|` → `i` / `l`（按上下文）
-/// - `0` → `o`
-/// - `5` → `s`
-/// - `7` → `t`
-/// - `$` → `s`
+/// l33t speak 归一化（漏洞 #7 修复：将 @/4→a, 3→e, 1/!//|→i/l, 0→o, 5/$→s, 7→t 还原为字母后做黑名单匹配）
 fn normalize_l33t(password: &str) -> String {
     let mut result = String::with_capacity(password.len());
     for c in password.chars() {
@@ -272,15 +261,7 @@ fn normalize_l33t(password: &str) -> String {
     result
 }
 
-/// 检查密码是否命中黑名单（漏洞 #7 修复：严格匹配 + l33t 还原）
-///
-/// 历史问题：原 `lower_password.contains(common)` 模糊匹配，导致
-/// "P@ssw0rd1!"（"p@ssw0rd"不在黑名单）绕过。
-/// 修复策略：
-/// 1. 完全相等（归一化后）
-/// 2. 严格前缀匹配（不模糊 contains）
-/// 3. 归一化后比较（l33t 变体如"p@ssw0rd"→"password"）
-/// 4. 移除末尾数字/特殊字符后再匹配（防"password123!"绕过）
+/// 检查密码是否命中黑名单（漏洞 #7 修复：严格匹配+l33t 还原；策略：完全相等/严格前缀/归一化比较/移除末尾数字特殊字符后匹配，防 "P@ssw0rd1!" 和 "password123!" 绕过）
 fn matches_blacklist(plain_password: &str) -> bool {
     let lower = plain_password.to_lowercase();
     let normalized = normalize_l33t(&lower);
@@ -540,9 +521,7 @@ mod tests {
 
     // === 漏洞 #7 修复单元测试 ===
 
-    /// #7 验证：l33t 变体 "P@ssw0rd1!" 应被拒绝
-    ///
-    /// 历史问题：原"contains"模糊匹配无法识别 l33t 变体
+    /// #7 验证：l33t 变体 "P@ssw0rd1!" 应被拒绝（历史问题：原"contains"模糊匹配无法识别 l33t 变体）
     #[test]
     fn test_l33t_variant_rejected() {
         let result = validate_password("P@ssw0rd1!");
@@ -588,10 +567,7 @@ mod tests {
         assert!(!result.is_valid, "P@ssword（归一化后=password）应被拒绝");
     }
 
-    /// #7 验证：截尾黑名单 "admin1!" 应被拒绝
-    ///
-    /// 历史问题：原"contains"匹配"admin123"会命中，但仅去掉末尾数字/特殊字符
-    /// 的简化密码"admin"需要新逻辑
+    /// #7 验证：截尾黑名单 "admin1!" 应被拒绝（历史问题：原"contains"匹配"admin123"命中，但仅去末尾数字/特殊字符的简化密码"admin"需要新逻辑）
     #[test]
     fn test_trimmed_blacklist_rejected() {
         let result = validate_password("admin1!");

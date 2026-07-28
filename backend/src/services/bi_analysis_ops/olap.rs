@@ -22,9 +22,7 @@ use crate::utils::error::AppError;
 
 impl BiAnalysisService {
     /// 切片（固定其他维度，单独分析一个维度）
-    ///
-    /// 根据 dimension 调用对应的聚合方法，filters 作为附加过滤条件（当前实现忽略 filters，
-    /// 仅按 dimension 返回聚合数据；后续迭代可解析 filters 构建动态 WHERE 子句）。
+    /// 根据 dimension 调用对应的聚合方法，filters 作为附加过滤条件（当前实现忽略 filters，；仅按 dimension 返回聚合数据；后续迭代可解析 filters 构建动态 WHERE 子句）。
     pub async fn slice(
         &self,
         dimension: &str,
@@ -55,10 +53,7 @@ impl BiAnalysisService {
         }))
     }
 
-    /// 切块（多维范围筛选）
-    ///
-    /// 解析 filters 中的 date_from/date_to/customer_ids/product_ids 等条件，
-    /// 返回符合所有条件的订单聚合数据。当前实现：返回指定日期范围内的按日聚合。
+    /// 切块（多维范围筛选）（解析 filters 中的 date_from/date_to/customer_ids/product_ids 等条件，；返回符合所有条件的订单聚合数据。当前实现：返回指定日期范围内的按日聚合。）
     pub async fn dice(&self, filters: &serde_json::Value) -> Result<serde_json::Value, AppError> {
         // 解析可选的日期范围
         let date_from = filters
@@ -85,10 +80,7 @@ impl BiAnalysisService {
         }))
     }
 
-    /// 上卷（细粒度 → 粗粒度）
-    ///
-    /// from_level → to_level 粒度聚合，例如 day → month。
-    /// 当前实现：返回最近 90 天按 to_level 粒度的聚合数据。
+    /// 上卷（细粒度 → 粗粒度）（from_level → to_level 粒度聚合，例如 day → month。；当前实现：返回最近 90 天按 to_level 粒度的聚合数据。）
     pub async fn rollup(
         &self,
         from_level: &str,
@@ -252,12 +244,7 @@ impl BiAnalysisService {
     }
 
     /// 透视（行列转换），按 row_dim × col_dim 构建二维聚合矩阵
-    ///
-    /// 实现说明（v11 批次 144 P1-3 修复）：
-    /// - 原实现返回占位 note 字段，col 维度分组未实现
-    /// - 现使用动态 SQL 构建真实的 row × col 交叉聚合矩阵
-    /// - 当任一维度为 product/category 时，需要关联 sales_order_items 表进行项级聚合
-    /// - 否则在订单级别聚合，避免因 JOIN 倍增导致 total_amount 重复计算
+    /// 实现说明（v11 批次 144 P1-3 修复）：原实现返回占位 note 字段，col 维度分组未实现；现使用动态 SQL 构建真实的 row × col 交叉聚合矩阵；当任一维度为 product/category 时，需要关联 sales_order_items 表进行项级聚合；否则在订单级别聚合，避免因 JOIN 倍增导致 total_amount 重复计算
     pub async fn pivot(
         &self,
         row_dim: &str,

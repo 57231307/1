@@ -114,9 +114,7 @@ impl ArReconciliationService {
     }
 
     /// 批量预加载发票并按 customer_id 分组（InvoiceDate <= end_date 且非 CANCELLED）
-    ///
-    /// 注：aging.rs 中已存在同名 `group_invoices_by_customer`（不同签名，针对账龄分桶），
-    /// 同一 impl 块不允许重复定义同名方法，故此函数加 `_for_match` 后缀以区分。
+    /// 注：aging.rs 中已存在同名 `group_invoices_by_customer`（不同签名，针对账龄分桶），；同一 impl 块不允许重复定义同名方法，故此函数加 `_for_match` 后缀以区分。
     async fn group_invoices_by_customer_for_match(
         txn: &sea_orm::DatabaseTransaction,
         customer_ids: &[i32],

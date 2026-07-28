@@ -8,9 +8,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 污染物排放记录模型
-///
-/// 真实业务：按月记录污染物排放量，作为环保税核算基础
+/// 污染物排放记录模型（按月记录污染物排放量，作为环保税核算基础）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "pollutant_discharge_records")]
 pub struct Model {

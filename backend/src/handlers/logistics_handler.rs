@@ -147,22 +147,8 @@ pub struct SignWaybillRequest {
     pub remark: Option<String>,
 }
 
-/// V15 P0-B13：电子签收 handler
-///
-/// 业务规则：
-///   1. 运单必须存在
-///   2. 运单状态必须为 DELIVERED（已送达）才允许签收
-///   3. 运单不能已签收（status != SIGNED，禁止重复签收）
-///   4. 签收时：
-///      - 状态推进到 SIGNED
-///      - signed_by 自动填入 AuthContext.user_id
-///      - signed_at 自动填入当前时间
-///      - 写入 receipt_url / photo_url / remark（可选）
-///   5. 签收后触发 AR 应收确认：查找关联销售订单的 ar_invoice，
-///      若状态为 DRAFT 则调用 approve 推进到 APPROVED（确认应收），
-///      若不存在或已审批则跳过（幂等）
-///
-/// 设计依据：V15 审计报告 batch-19 §23.4 缺陷 4
+/// V15 P0-B13：电子签收 handler；业务规则： 1. 运单必须存在 2. 运单状态必须为 DELIVERED（已送达）才允许签收 3. 运单不能已签收（status != SIGNED，禁止重复签收） 4. 签收时： - 状态推进到 SIGNED - signed_by 自动填入 AuthContext.user_id - signed_at
+/// 自动填入当前时间 - 写入 receipt_url / photo_url / remark（可选） 5. 签收后触发 AR 应收确认：查找关联销售订单的 ar_invoice， 若状态为 DRAFT 则调用 approve 推进到 APPROVED（确认应收）， 若不存在或已审批则跳过（幂等）；设计依据：V15 审计报告 batch-19 §23.4 缺陷 4
 pub async fn sign_waybill(
     auth: AuthContext,
     State(state): State<AppState>,

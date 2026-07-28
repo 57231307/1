@@ -17,10 +17,7 @@ use super::super::ArReconciliationService;
 
 impl ArReconciliationService {
     /// 客户确认对账单（带状态校验）
-    ///
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-    /// 原实现完全无 txn 无 lock，两并发 customer_confirm 同时通过状态门后基于过期状态写入，
-    /// 导致 confirmed_by/confirmed_at 被覆盖、审计日志完全丢失（未走 update_with_audit）。
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更；原实现完全无 txn 无 lock，两并发 customer_confirm 同时通过状态门后基于过期状态写入，；导致 confirmed_by/confirmed_at 被覆盖、审计日志完全丢失（未走 update_with_audit）。
     pub async fn customer_confirm(
         &self,
         id: i32,
@@ -70,10 +67,7 @@ impl ArReconciliationService {
     }
 
     /// 客户提出争议（带状态校验）
-    ///
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-    /// 原实现完全无 txn 无 lock，两并发 customer_dispute 同时通过状态门后基于过期状态写入，
-    /// 导致 dispute_reason 被覆盖、审计日志完全丢失（未走 update_with_audit）。
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更；原实现完全无 txn 无 lock，两并发 customer_dispute 同时通过状态门后基于过期状态写入，；导致 dispute_reason 被覆盖、审计日志完全丢失（未走 update_with_audit）。
     pub async fn customer_dispute(
         &self,
         id: i32,

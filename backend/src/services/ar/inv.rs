@@ -101,9 +101,7 @@ impl ArReconciliationService {
     // =====================================================
 
     /// 创建应收单（P0-2 销售发货→AR 入口）
-    ///
-    /// 复用调用方 txn 保证原子提交；幂等：source_type=SALES_ORDER + source_bill_id=order_id。
-    /// 账期 payment_terms_days<=0 回退 30 天；状态 DRAFT 待审（P0 3-5 修复）。
+    /// 复用调用方 txn 保证原子提交；幂等：source_type=SALES_ORDER + source_bill_id=order_id。；账期 payment_terms_days<=0 回退 30 天；状态 DRAFT 待审（P0 3-5 修复）。
     pub async fn create_receivable(
         &self,
         customer_id: i32,
@@ -289,10 +287,7 @@ mod tests {
     }
 
     /// 用例 2：取消发货回滚 AR（通过事务语义断言）
-    ///
-    /// 由于本单元测试不直接连接数据库，验证业务约束：
-    /// - amount <= 0 应触发 validation 错误
-    /// - 校验失败时不应写入 ar_invoices（由 create_receivable 的 ? 传播保证）
+    /// 由于本单元测试不直接连接数据库，验证业务约束：amount <= 0 应触发 validation 错误；校验失败时不应写入 ar_invoices（由 create_receivable 的 ? 传播保证）
     #[test]
     fn test_create_receivable_rollback_on_invalid_amount() {
         // 模拟金额为 0 的非法输入

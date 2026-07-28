@@ -92,10 +92,7 @@ impl ProductCategoryService {
         Ok(result)
     }
 
-    /// 更新产品类别
-    ///
-    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
-    /// 保证审计日志能追溯实际更新人。
+    /// 更新产品类别（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际更新人。）
     pub async fn update(
         &self,
         id: i32,
@@ -147,10 +144,7 @@ impl ProductCategoryService {
         Ok(result)
     }
 
-    /// 删除产品类别
-    ///
-    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
-    /// 保证审计日志能追溯实际删除人。
+    /// 删除产品类别（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际删除人。）
     pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         // 检查是否有子类别
         let children_count = ProductCategoryEntity::find()

@@ -10,15 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 疵点明细模型
-///
-/// 真实业务要点：
-/// - 疵点类型标准编码：broken_end(断经)/oil_stain(油污)/color_spot(色花)/hole(破洞)
-///   /skew_lane(纬斜)/streak(横档)/color_diff(色差)/narrow_width(窄封)
-///   /crease(折痕)/uneven_dye(染色不均匀)/lint(飞花)/other(其他)
-/// - 四分制扣分：≤3寸=1, 3-6寸=2, 6-9寸=3, >9寸=4，破洞/连续=4
-/// - 十分制扣分：经向 1寸下=1/1-5寸=3/5-10寸=5/10-36寸=10，纬向 1寸下=1/1-5寸=3/5寸-半门幅=5/半门幅上=10，破洞=10
-/// - 同一码内所有疵点扣分不超过该制式上限（四分制4分/十分制10分）
+/// 疵点明细模型（12 种疵点类型标准编码；四分制 ≤3寸=1/3-6寸=2/6-9寸=3/>9寸=4 破洞连续=4；十分制经纬向分档 1-10 破洞=10；同码内扣分不超制式上限）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "fabric_defect_record")]
 pub struct Model {
@@ -28,10 +20,7 @@ pub struct Model {
     /// 关联验布记录 ID
     pub inspection_id: i32,
 
-    /// 疵点类型（标准编码）：
-    ///   broken_end(断经) / oil_stain(油污) / color_spot(色花) / hole(破洞)
-    ///   skew_lane(纬斜) / streak(横档) / color_diff(色差) / narrow_width(窄封)
-    ///   crease(折痕) / uneven_dye(染色不均匀) / lint(飞花) / other(其他)
+    /// 疵点类型（标准编码）：broken_end断经/oil_stain油污/color_spot色花/hole破洞/skew_lane纬斜/streak横档/color_diff色差/narrow_width窄封/crease折痕/uneven_dye染色不均匀/lint飞花/other其他
     pub defect_type: String,
 
     /// 疵点位置（码数，验布机码表读数）

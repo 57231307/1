@@ -8,12 +8,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 缸号回修记录模型
-///
-/// 真实业务要点：回修类型 4 种，color_difference 色差/defect 疵点/specification_unqualified 规格不符/other 其他；
-/// 只有 inspecting/stored 状态可发起回修；
-/// 回修单状态机：draft → approved → in_progress → completed / cancelled；
-/// 同缸回修时 rework_batch_id 与 original_batch_id 相同。
+/// 缸号回修记录模型（4 种回修类型色差/疵点/规格不符/其他，仅 inspecting/stored 可发起，状态机 draft→approved→in_progress→completed/cancelled，同缸回修 rework_batch_id=original_batch_id）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "dye_batch_rework")]
 pub struct Model {
@@ -50,9 +45,7 @@ pub struct Model {
     pub is_deleted: bool,
 
     // ========== V15 Batch 479 P0-F21：返工走生产订单流程 ==========
-    /// 关联的返工生产订单 ID（指向 production_orders.id）
-    /// 由 bulk_color_approval customer_rework 触发创建返工订单后回填
-    /// 用于双向追溯：返修单 → 生产订单 → 原批次 → 返修单
+    /// 关联的返工生产订单 ID（指向 production_orders.id，由 customer_rework 触发创建后回填，用于双向追溯）
     pub production_order_id: Option<i32>,
 
     pub created_at: DateTimeWithTimeZone,

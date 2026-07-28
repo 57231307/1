@@ -96,12 +96,7 @@ impl PollutionPermitService {
         Self { db }
     }
 
-    /// 创建排污许可证
-    ///
-    /// 业务校验：
-    /// - 许可证编号唯一
-    /// - 到期日期 > 发证日期
-    /// - 许可证类型合法（wastewater/exhaust/solid_waste）
+    /// 创建排污许可证（业务校验：许可证编号唯一；到期日期 > 发证日期；许可证类型合法（wastewater/exhaust/solid_waste））
     pub async fn create(&self, req: CreatePollutionPermitRequest) -> Result<PermitModel, AppError> {
         Self::validate_permit_type(&req.permit_type)?;
         if req.expiry_date <= req.issue_date {
@@ -201,11 +196,7 @@ impl PollutionPermitService {
         Ok(updated)
     }
 
-    /// 扫描即将到期/已过期的许可证并生成预警
-    ///
-    /// 业务规则（《排污许可管理条例》第24条）：
-    /// - 到期前 90/60/30 天三级预警
-    /// - 已过期的许可证状态自动更新为 expired
+    /// 扫描即将到期/已过期的许可证并生成预警（业务规则（《排污许可管理条例》第24条）：到期前 90/60/30 天三级预警；已过期的许可证状态自动更新为 expired）
     pub async fn scan_expiry_warnings(&self) -> Result<Vec<PermitExpiryWarning>, AppError> {
         let today = chrono::Local::now().date_naive();
         let all_permits = PermitEntity::find()

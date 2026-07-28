@@ -34,31 +34,19 @@ use std::sync::Arc;
 // 批次 389 P2-2：引入 tracing 日志宏，关键操作补审计/安全日志
 use tracing::{info, warn};
 
-/// 用户服务
-///
-/// 处理用户相关的业务逻辑
+/// 用户服务（处理用户相关的业务逻辑）
 #[derive(Debug, Clone)]
 pub struct UserService {
     db: Arc<DatabaseConnection>,
 }
 
 impl UserService {
-    /// 创建新的用户服务实例
-    ///
-    /// # 参数
-    /// - `db`: 数据库连接
+    /// 创建新的用户服务实例（# 参数；`db`: 数据库连接）
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
-    /// 按用户名查找用户
-    ///
-    /// # 参数
-    /// - `username`: 用户名
-    ///
-    /// # 返回
-    /// - `Ok(user)`: 找到用户
-    /// - `Err(DbErr::RecordNotFound)`: 用户不存在
+    /// 按用户名查找用户（# 参数；`username`: 用户名；# 返回；`Ok(user)`: 找到用户；`Err(DbErr::RecordNotFound)`: 用户不存在）
     pub async fn find_by_username(&self, username: &str) -> Result<user::Model, AppError> {
         user::Entity::find()
             .filter(user::Column::Username.eq(username))
@@ -68,17 +56,7 @@ impl UserService {
     }
 
     /// 按 ID 查找用户（命中 Redis 时直接返回缓存）
-    ///
-    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）
-    /// - 读穿透：先查 Redis，未命中查 DB 后回填 Redis
-    /// - 写失效：create/update/delete 时清除对应 key
-    ///
-    /// # 参数
-    /// - `id`: 用户 ID
-    ///
-    /// # 返回
-    /// - `Ok(user)`: 找到用户
-    /// - `Err(DbErr::RecordNotFound)`: 用户不存在
+    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）；读穿透：先查 Redis，未命中查 DB 后回填 Redis；写失效：create/update/delete 时清除对应 key；# 参数；`id`: 用户 ID；# 返回；`Ok(user)`: 找到用户；`Err(DbErr::RecordNotFound)`: 用户不存在
     pub async fn find_by_id(&self, id: i32) -> Result<user::Model, AppError> {
         // P0-D03：先查 Redis 缓存
         let cache_key_str = cache_key("user", id);
@@ -99,21 +77,7 @@ impl UserService {
     }
 
     /// 创建新用户
-    ///
-    /// # 参数
-    /// - `username`: 用户名（唯一）
-    /// - `password_hash`: 密码哈希值（由 AuthService 生成）
-    /// - `email`: 邮箱（可选）
-    /// - `phone`: 电话（可选）
-    /// - `role_id`: 角色 ID（可选）
-    /// - `department_id`: 部门 ID（可选）
-    ///
-    /// # 返回
-    /// - `Ok(user)`: 创建成功，返回用户数据
-    /// - `Err(DbErr)`: 创建失败（如用户名已存在）
-    ///
-    /// # 注意
-    /// 密码必须由调用方预先哈希，本方法不处理明文密码
+    /// # 参数；`username`: 用户名（唯一）；`password_hash`: 密码哈希值（由 AuthService 生成）；`email`: 邮箱（可选）；`phone`: 电话（可选）；`role_id`: 角色 ID（可选）；`department_id`: 部门 ID（可选）；# 返回；`Ok(user)`: 创建成功，返回用户数据；`Err(DbErr)`: 创建失败（如用户名已存在）；# 注意；密码必须由调用方预先哈希，本方法不处理明文密码
     pub async fn create_user(
         &self,
         username: String,
@@ -177,14 +141,7 @@ impl UserService {
         Ok(created)
     }
 
-    /// 更新用户最后登录时间
-    ///
-    /// # 参数
-    /// - `user_id`: 用户 ID
-    ///
-    /// # 返回
-    /// - `Ok(())`: 更新成功
-    /// - `Err(DbErr::RecordNotFound)`: 用户不存在
+    /// 更新用户最后登录时间（# 参数；`user_id`: 用户 ID；# 返回；`Ok(())`: 更新成功；`Err(DbErr::RecordNotFound)`: 用户不存在）
     pub async fn update_last_login(&self, user_id: i32) -> Result<(), AppError> {
         let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())
@@ -210,18 +167,7 @@ impl UserService {
     }
 
     /// V15 P0-S05/P0-S23 修复：检查角色互斥冲突（真实接入）
-    ///
-    /// 查询 role_conflicts 表，检查用户当前角色 code 与新角色 code 是否构成互斥对。
-    /// 若构成互斥对，禁止变更并返回业务错误。
-    /// 互斥规则示例：制单+审核、采购+付款、生产+质量。
-    ///
-    /// # 参数
-    /// - `user_id`: 待变更角色的用户 ID
-    /// - `new_role_id`: 用户即将分配的新角色 ID
-    ///
-    /// # 返回
-    /// - `Ok(())`: 无冲突（或用户当前无角色、新角色不在任何互斥对中）
-    /// - `Err(AppError)`: 存在互斥冲突，返回冲突描述
+    /// 查询 role_conflicts 表，检查用户当前角色 code 与新角色 code 是否构成互斥对。；若构成互斥对，禁止变更并返回业务错误。；互斥规则示例：制单+审核、采购+付款、生产+质量。；# 参数；`user_id`: 待变更角色的用户 ID；`new_role_id`: 用户即将分配的新角色 ID；# 返回；`Ok(())`: 无冲突（或用户当前无角色、新角色不在任何互斥对中）；`Err(AppError)`: 存在互斥冲突，返回冲突描述
     pub async fn check_role_conflict_for_user(
         &self,
         user_id: i32,
@@ -306,14 +252,7 @@ impl UserService {
         })
     }
 
-    /// 查询用户列表（分页）
-    ///
-    /// # 参数
-    /// - `page`: 页码（从0开始）
-    /// - `page_size`: 每页数量
-    ///
-    /// # 返回
-    /// - `Ok((users, total))`: 用户列表和总数量
+    /// 查询用户列表（分页）（# 参数；`page`: 页码（从0开始）；`page_size`: 每页数量；# 返回；`Ok((users, total))`: 用户列表和总数量）
     pub async fn list_users(
         &self,
         page: u64,
@@ -329,9 +268,7 @@ impl UserService {
         Ok((users, total))
     }
 
-    /// 更新用户信息
-    ///
-    /// 只更新提供的字段，未提供的字段保持不变
+    /// 更新用户信息（只更新提供的字段，未提供的字段保持不变）
     pub async fn update_user(
         &self,
         user_id: i32,
@@ -470,24 +407,7 @@ impl UserService {
     }
 
     /// 删除用户（软删除）
-    ///
-    /// 将用户设置为非激活状态，不物理删除数据
-    /// 保留用户历史记录和关联数据
-    ///
-    /// # 安全
-    /// 软删除成功后立即吊销该用户的所有活跃 JWT，防止被删除用户的旧 Token
-    /// 在剩余有效期（最长 2 小时）内继续访问系统。吊销属 best-effort，失败仅记录
-    /// warn 日志，不阻塞删除主流程。
-    ///
-    /// # 参数
-    /// - `user_id`: 用户 ID
-    ///
-    /// # 返回
-    /// - `Ok(())`: 删除成功
-    /// - `Err(DbErr::RecordNotFound)`: 用户不存在
-    ///
-    /// # 注意
-    /// 软删除后用户无法登录，但数据仍保留在数据库中
+    /// 将用户设置为非激活状态，不物理删除数据；保留用户历史记录和关联数据；# 安全；软删除成功后立即吊销该用户的所有活跃 JWT，防止被删除用户的旧 Token；在剩余有效期（最长 2 小时）内继续访问系统。吊销属 best-effort，失败仅记录；warn 日志，不阻塞删除主流程。；# 参数；`user_id`: 用户 ID；# 返回；`Ok(())`: 删除成功；`Err(DbErr::RecordNotFound)`: 用户不存在；# 注意；软删除后用户无法登录，但数据仍保留在数据库中
     pub async fn delete_user(&self, user_id: i32) -> Result<(), AppError> {
         let mut user: user::ActiveModel = user::Entity::find_by_id(user_id)
             .one(self.db.as_ref())
@@ -561,10 +481,7 @@ mod tests {
 
     // ---------- 常量正确性 ----------
 
-    /// 测试_master_data常量值正确性
-    ///
-    /// 验证 update_user 中引用的 master_data::ACTIVE 常量值正确
-    /// （批次 209 P2-5 修复：硬编码 "active" 替换为常量）
+    /// 测试_master_data常量值正确性（验证 update_user 中引用的 master_data::ACTIVE 常量值正确；（批次 209 P2-5 修复：硬编码 "active" 替换为常量））
     #[test]
     fn 测试_master_data常量值正确性() {
         assert_eq!(master_data::ACTIVE, "active");
@@ -574,9 +491,7 @@ mod tests {
     }
 
     /// 测试_update_user状态判定逻辑
-    ///
-    /// 复现 update_user 中 status_val == master_data::ACTIVE 的判定逻辑
-    /// 验证 status 为 "active" 时 becoming_active=true，其他为 false
+    /// 复现 update_user 中 status_val == master_data::ACTIVE 的判定逻辑；验证 status 为 "active" 时 becoming_active=true，其他为 false
     #[test]
     fn 测试_update_user状态判定逻辑() {
         let becoming_active = |status: &str| status == master_data::ACTIVE;
@@ -588,9 +503,7 @@ mod tests {
 
     // ---------- 错误消息格式 ----------
 
-    /// 测试_find_by_username错误消息格式
-    ///
-    /// 验证 find_by_username 在用户不存在时返回的错误消息包含用户名
+    /// 测试_find_by_username错误消息格式（验证 find_by_username 在用户不存在时返回的错误消息包含用户名）
     #[test]
     fn 测试_find_by_username错误消息格式() {
         let username = "test_user_123";
@@ -599,9 +512,7 @@ mod tests {
         assert!(msg.contains(username), "错误消息应包含用户名");
     }
 
-    /// 测试_find_by_id错误消息格式
-    ///
-    /// 验证 find_by_id 在用户不存在时返回的错误消息包含用户 ID
+    /// 测试_find_by_id错误消息格式（验证 find_by_id 在用户不存在时返回的错误消息包含用户 ID）
     #[test]
     fn 测试_find_by_id错误消息格式() {
         let user_id = 99999;
@@ -610,9 +521,7 @@ mod tests {
         assert!(msg.contains(&user_id.to_string()), "错误消息应包含用户 ID");
     }
 
-    /// 测试_create_user重复用户名错误消息格式
-    ///
-    /// 验证 create_user 在用户名已存在时返回的错误消息包含用户名
+    /// 测试_create_user重复用户名错误消息格式（验证 create_user 在用户名已存在时返回的错误消息包含用户名）
     #[test]
     fn 测试_create_user重复用户名错误消息格式() {
         let username = "existing_user";
@@ -623,9 +532,7 @@ mod tests {
 
     // ---------- 夹具与实例化 ----------
 
-    /// 测试_用户模型夹具构造
-    ///
-    /// 验证 make_user_model 夹具能正确构造用户模型
+    /// 测试_用户模型夹具构造（验证 make_user_model 夹具能正确构造用户模型）
     #[test]
     fn 测试_用户模型夹具构造() {
         let u = make_user_model(1, "fixture_user", true);
@@ -635,9 +542,7 @@ mod tests {
         assert_eq!(u.email.as_deref(), Some("fixture_user@test.com"));
     }
 
-    /// 测试_服务实例化_SQLite内存数据库
-    ///
-    /// 验证 UserService 在 SQLite 内存数据库上能正常实例化
+    /// 测试_服务实例化_SQLite内存数据库（验证 UserService 在 SQLite 内存数据库上能正常实例化）
     #[tokio::test]
     async fn 测试_服务实例化_SQLite内存数据库() {
         let db = setup_test_db().await;
@@ -646,9 +551,7 @@ mod tests {
         assert!(Arc::strong_count(&service.db) >= 1);
     }
 
-    /// 测试_find_by_id缺失用户返回not_found
-    ///
-    /// 验证 find_by_id 在 SQLite 内存库（无表）调用时返回错误（非 panic）
+    /// 测试_find_by_id缺失用户返回not_found（验证 find_by_id 在 SQLite 内存库（无表）调用时返回错误（非 panic））
     #[tokio::test]
     async fn 测试_find_by_id缺失用户返回错误() {
         let db = setup_test_db().await;

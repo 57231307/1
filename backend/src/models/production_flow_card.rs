@@ -10,23 +10,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 生产流转卡模型
-///
-/// 真实业务承载信息：
-/// - 缸号（唯一标识）
-/// - 订单信息（客户/订单号/产品/色号）
-/// - 染整要求与注意事项
-/// - 工序路线
-/// - 计划配布数量
-/// - 条码（一维码/二维码）
-///
-/// 扫码应用场景：
-/// - 白坯仓库：扫描缸号条码 → 自动出库
-/// - 染色车间：扫描缸卡条码 → 输入生产进度
-/// - 称料室：扫描流转卡条码 → 加载大货处方 → 称料
-/// - 车间流转：扫描流转卡条码 → 登记工人 → 自动跟进工序和产量
-/// - 成品入库：PDA 扫描卷唛条码 → 自动入库
-/// - 发货：输入或扫描缸号 → 获取缸号所有信息 → 发货
+/// 生产流转卡模型（承载缸号/订单/染整要求/工序路线/配布/条码信息；扫码场景：白坯出库/染色进度/称料/车间流转/成品入库/发货）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "production_flow_card")]
 pub struct Model {

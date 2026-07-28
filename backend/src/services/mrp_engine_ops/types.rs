@@ -52,9 +52,7 @@ pub struct MrpCalculationSummary {
 }
 
 /// 库存信息
-///
-/// 批次 490 D10-3b 拆分：原 private struct 提升为 `pub(crate)`，供 ops 子模块和测试模块共享。
-/// 仅 crate 内可见，不对外暴露（facade 不重导出此类型，保持原 API 表面不变）。
+/// 批次 490 D10-3b 拆分：原 private struct 提升为 `pub(crate)`，供 ops 子模块和测试模块共享。；仅 crate 内可见，不对外暴露（facade 不重导出此类型，保持原 API 表面不变）。
 #[derive(Debug, Clone)]
 pub(crate) struct StockInfo {
     pub(crate) on_hand: Decimal,
@@ -64,9 +62,7 @@ pub(crate) struct StockInfo {
 }
 
 /// 物料需求计算参数对象
-///
-/// 批次 336 v10 复审 P3 修复：引入参数对象消除 calculate_requirement 的 too_many_arguments 警告。
-/// 聚合物料需求计算所需的全部参数，避免函数签名携带 8 个参数。
+/// 批次 336 v10 复审 P3 修复：引入参数对象消除 calculate_requirement 的 too_many_arguments 警告。；聚合物料需求计算所需的全部参数，避免函数签名携带 8 个参数。
 #[derive(Debug, Clone)]
 pub struct RequirementCalcParams {
     /// 产品 ID
@@ -88,10 +84,7 @@ pub struct RequirementCalcParams {
 }
 
 /// BOM 递归展开参数对象
-///
-/// 批次 339 v10 复审 P3 修复：引入参数对象消除 explode_bom_recursive 的 too_many_arguments 警告。
-/// 聚合递归展开 BOM 所需的标量参数，&mut 借用参数（results / stock_cache）保留为独立参数。
-/// 使用生命周期 `&'a str` 借用 source_type，避免递归调用中的不必要的 to_string()。
+/// 批次 339 v10 复审 P3 修复：引入参数对象消除 explode_bom_recursive 的 too_many_arguments 警告。；聚合递归展开 BOM 所需的标量参数，&mut 借用参数（results / stock_cache）保留为独立参数。；使用生命周期 `&'a str` 借用 source_type，避免递归调用中的不必要的 to_string()。
 #[derive(Debug, Clone)]
 pub struct ExplodeBomArgs<'a> {
     /// 产品 ID
@@ -115,10 +108,7 @@ pub struct ExplodeBomArgs<'a> {
 }
 
 /// BOM 展开查询参数（公开接口层，owned 版本）
-///
-/// 批次 413 技术债务清理：引入参数对象消除 explode_bom 的 too_many_arguments 警告。
-/// 与内部 `ExplodeBomArgs<'a>` 区分：此结构体为 owned 版本（source_type 为 String），
-/// 不含 current_level/max_level（由 explode_bom 内部固定为 1/10）。
+/// 批次 413 技术债务清理：引入参数对象消除 explode_bom 的 too_many_arguments 警告。；与内部 `ExplodeBomArgs<'a>` 区分：此结构体为 owned 版本（source_type 为 String），；不含 current_level/max_level（由 explode_bom 内部固定为 1/10）。
 #[derive(Debug, Clone)]
 pub struct MrpExplodeQuery {
     /// 产品 ID
@@ -138,9 +128,7 @@ pub struct MrpExplodeQuery {
 }
 
 /// MRP 计算查询参数（公开接口层）
-///
-/// 批次 413 技术债务清理：引入参数对象消除 run_mrp_calculation 的 too_many_arguments 警告。
-/// 与 `RequirementCalcParams` 区分：此结构体为公开接口参数，不含 bom_level（由内部固定为 0）。
+/// 批次 413 技术债务清理：引入参数对象消除 run_mrp_calculation 的 too_many_arguments 警告。；与 `RequirementCalcParams` 区分：此结构体为公开接口参数，不含 bom_level（由内部固定为 0）。
 #[derive(Debug, Clone)]
 pub struct MrpCalculationQuery {
     /// 产品 ID

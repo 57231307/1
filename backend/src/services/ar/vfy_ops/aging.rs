@@ -23,13 +23,7 @@ use super::super::{AgingBucket, AgingReport, ArReconciliationService, CustomerAg
 
 impl ArReconciliationService {
     /// 计算账龄分析报告
-    ///
-    /// 分桶规则：
-    /// - 当期（未逾期）：due_date >= 今天
-    /// - 1-30天：今天 - due_date 在 1~30 天
-    /// - 31-60天：今天 - due_date 在 31~60 天
-    /// - 61-90天：今天 - due_date 在 61~90 天
-    /// - 90天以上：今天 - due_date > 90 天
+    /// 分桶规则：当期（未逾期）：due_date >= 今天；1-30天：今天 - due_date 在 1~30 天；31-60天：今天 - due_date 在 31~60 天；61-90天：今天 - due_date 在 61~90 天；90天以上：今天 - due_date > 90 天
     pub async fn get_aging_report(
         &self,
         customer_id: Option<i32>,
@@ -162,14 +156,7 @@ impl ArReconciliationService {
     }
 
     /// V15 P1 17.4-D1：保存账龄快照
-    ///
-    /// 期末自动生成账龄快照入表 ar_aging_analysis，按客户粒度记录各档金额，
-    /// 支持历史追溯与趋势分析。同一客户同一天仅保留一条快照（覆盖更新）。
-    ///
-    /// 业务流程：
-    /// 1. 调用 get_aging_report 获取当前账龄分布
-    /// 2. 遍历每个客户，构造 ar_aging_analysis ActiveModel
-    /// 3. 检查同客户同日是否已有快照，有则更新，无则插入
+    /// 期末自动生成账龄快照入表 ar_aging_analysis，按客户粒度记录各档金额，；支持历史追溯与趋势分析。同一客户同一天仅保留一条快照（覆盖更新）。；业务流程：1. 调用 get_aging_report 获取当前账龄分布；2. 遍历每个客户，构造 ar_aging_analysis ActiveModel；3. 检查同客户同日是否已有快照，有则更新，无则插入
     pub async fn save_aging_snapshot(&self) -> Result<u64, AppError> {
         let report = self.get_aging_report(None).await?;
         let now = Utc::now();
@@ -245,15 +232,7 @@ impl ArReconciliationService {
     }
 
     /// V15 P1 17.4-D2：账龄趋势分析
-    ///
-    /// 返回指定客户（或全部客户汇总）在指定月数内的账龄趋势数据，
-    /// 用于观察账龄恶化/改善趋势，支持预警。
-    ///
-    /// 参数：
-    /// - customer_id：可选，None 表示全部客户汇总
-    /// - months：回溯月数（默认 6）
-    ///
-    /// 返回按 analysis_date 升序排列的趋势数据点列表
+    /// 返回指定客户（或全部客户汇总）在指定月数内的账龄趋势数据，；用于观察账龄恶化/改善趋势，支持预警。；参数：customer_id：可选，None 表示全部客户汇总；months：回溯月数（默认 6）；返回按 analysis_date 升序排列的趋势数据点列表
     pub async fn get_aging_trend(
         &self,
         customer_id: Option<i32>,

@@ -42,10 +42,7 @@ use super::types::ProductionOutputRecord;
 use crate::services::production_order_service::ProductionOrderService;
 
 impl ProductionOrderService {
-    /// 排产状态变更时进行产能负荷校验
-    ///
-    /// 批次 386 v13 复审 B-P2-5 修复：原 update_status 直接更新状态，
-    /// 未校验工作中心产能负荷，导致超载工作中心仍可排产。
+    /// 排产状态变更时进行产能负荷校验（批次 386 v13 复审 B-P2-5 修复：原 update_status 直接更新状态，；未校验工作中心产能负荷，导致超载工作中心仍可排产。）
     pub(crate) async fn check_capacity_for_scheduling(
         &self,
         model: &ProductionOrderModel,
@@ -152,9 +149,7 @@ impl ProductionOrderService {
     }
 
     /// 生产订单成本归集（失败仅 warn 不传播，保持原逻辑）
-    ///
-    /// 批次 356 v13 复审 B-P0-3 修复：commit 成功后调用 CostCollectionService 做成本归集，
-    /// 避免生产成本无法归集导致产品成本失真、BI 报表成本数据缺失。
+    /// 批次 356 v13 复审 B-P0-3 修复：commit 成功后调用 CostCollectionService 做成本归集，；避免生产成本无法归集导致产品成本失真、BI 报表成本数据缺失。
     async fn record_production_cost(&self, updated: &ProductionOrderModel) {
         let cost_service =
             crate::services::cost_collection_service::CostCollectionService::new(self.db.clone());
@@ -197,11 +192,7 @@ impl ProductionOrderService {
     }
 
     /// 完成生产订单（事务包裹状态变更 + 库存联动）
-    ///
-    /// 批次 9（2026-06-28）：原 `update_status` 在 COMPLETED 时先提交状态变更，
-    /// 然后调用库存联动；如果库存联动失败，状态已变更但库存未扣减导致账实不符。
-    /// 改为：在事务内更新状态 + 调用库存联动，任一失败回滚全部。
-    /// 同时给订单查询加 FOR UPDATE 行锁，防止并发完成同一订单。
+    /// 批次 9（2026-06-28）：原 `update_status` 在 COMPLETED 时先提交状态变更，；然后调用库存联动；如果库存联动失败，状态已变更但库存未扣减导致账实不符。；改为：在事务内更新状态 + 调用库存联动，任一失败回滚全部。；同时给订单查询加 FOR UPDATE 行锁，防止并发完成同一订单。
     pub(crate) async fn complete_production_order(
         &self,
         id: i32,
@@ -228,17 +219,7 @@ impl ProductionOrderService {
     }
 
     /// 处理生产完成时的库存联动（事务版本）
-    ///
-    /// 1. 查询产品默认BOM，扣减原材料库存（按BOM用量 × 生产数量）
-    /// 2. 增加成品库存（生产数量）
-    /// 3. 记录库存流水（PRODUCTION_CONSUMPTION 和 PRODUCTION_OUTPUT）
-    ///
-    /// 批次 9（2026-06-28）：从原 `handle_production_completion_inventory` 改造而来，
-    /// 接受外部事务参数，所有查询/更新都在 `txn` 上执行；原材料库存查询加 FOR UPDATE 行锁，
-    /// 防止并发完成多个生产订单时原材料库存被并发扣减导致丢失更新。
-    ///
-    /// P2 1-4 修复：原函数 275 行混合 5 职责（仓库查询+数量校验+原材料扣减+成品入库+日志），
-    /// 拆为 fetch_default_warehouse_txn / deduct_raw_materials_txn / increase_finished_goods_txn 3 个私有方法
+    /// 1. 查询产品默认BOM，扣减原材料库存（按BOM用量 × 生产数量）；2. 增加成品库存（生产数量）；3. 记录库存流水（PRODUCTION_CONSUMPTION 和 PRODUCTION_OUTPUT）；批次 9（2026-06-28）：从原 `handle_production_completion_inventory` 改造而来，；接受外部事务参数，所有查询/更新都在 `txn` 上执行；原材料库存查询加 FOR UPDATE 行锁，；防止并发完成多个生产订单时原材料库存被并发扣减导致丢失更新。；P2 1-4 修复：原函数 275 行混合 5 职责（仓库查询+数量校验+原材料扣减+成品入库+日志），；拆为 fetch_default_warehouse_txn / deduct_raw_materials_txn / increase_finished_goods_txn 3 个私有方法
     async fn handle_production_completion_inventory_txn(
         txn: &sea_orm::DatabaseTransaction,
         order: &ProductionOrderModel,
@@ -291,10 +272,7 @@ impl ProductionOrderService {
     }
 
     /// P2 1-4 修复：扣减原材料库存（从 handle_production_completion_inventory_txn 抽取）
-    ///
-    /// 查询产品默认BOM，按BOM用量 × 生产数量扣减原材料库存，记录 PRODUCTION_CONSUMPTION 流水
-    /// v16 批次 43 修复：循环外批量查询并锁定所有原材料库存记录，避免 N+1 查询
-    /// 批次 9（2026-06-28）：FOR UPDATE 行锁批量获取，防止并发扣减丢失更新
+    /// 查询产品默认BOM，按BOM用量 × 生产数量扣减原材料库存，记录 PRODUCTION_CONSUMPTION 流水；v16 批次 43 修复：循环外批量查询并锁定所有原材料库存记录，避免 N+1 查询；批次 9（2026-06-28）：FOR UPDATE 行锁批量获取，防止并发扣减丢失更新
     async fn deduct_raw_materials_txn(
         txn: &sea_orm::DatabaseTransaction,
         order: &ProductionOrderModel,
@@ -495,9 +473,7 @@ impl ProductionOrderService {
     }
 
     /// P2 1-4 修复：增加成品库存（从 handle_production_completion_inventory_txn 抽取）
-    ///
-    /// 查询成品产品信息（克重/幅宽），在默认仓库更新或创建库存记录，记录 PRODUCTION_OUTPUT 流水
-    /// 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发入库丢失更新
+    /// 查询成品产品信息（克重/幅宽），在默认仓库更新或创建库存记录，记录 PRODUCTION_OUTPUT 流水；批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发入库丢失更新
     async fn increase_finished_goods_txn(
         txn: &sea_orm::DatabaseTransaction,
         order: &ProductionOrderModel,

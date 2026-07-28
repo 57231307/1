@@ -84,12 +84,8 @@ async fn process_logout_token(
     (logout_user_id, logout_username)
 }
 
-/// 将 Token 加入进程内黑名单 + 吊销 JTI 到 Redis 分布式黑名单
-///
-/// P1 7-3 修复：原 logout 仅写进程内 state.cache 黑名单，多实例部署时
-/// 登出后 token 在其他实例仍可用（最长 2 小时）。
-/// 修复方案：与 refresh_token 流程对齐，调用 revoke_jti 写入 Redis，
-/// 使所有实例通过 is_jti_revoked 检测到吊销状态。
+/// 将 Token 加入进程内黑名单 + 吊销 JTI 到 Redis 分布式黑名单；P1 7-3 修复：原 logout 仅写进程内 state.cache 黑名单，多实例部署时 登出后 token
+/// 在其他实例仍可用（最长 2 小时）。 修复方案：与 refresh_token 流程对齐，调用 revoke_jti 写入 Redis， 使所有实例通过 is_jti_revoked 检测到吊销状态。
 async fn blacklist_and_revoke_token(
     state: &AppState,
     token: &str,
@@ -152,11 +148,8 @@ fn build_removal_cookie(
         .build()
 }
 
-/// 清除所有登录态 Cookie
-///
-/// - access_token / refresh_token: httpOnly，防 XSS
-/// - csrf_token: 非 httpOnly，CSRF 头读取使用
-/// - jwt: 旧版兼容 Cookie
+/// 清除所有登录态 Cookie；- access_token / refresh_token: httpOnly，防
+/// XSS - csrf_token: 非 httpOnly，CSRF 头读取使用 - jwt: 旧版兼容 Cookie
 fn clear_auth_cookies(
     jar: axum_extra::extract::PrivateCookieJar,
     is_production: bool,

@@ -8,12 +8,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 打样通知单模型（lab_dip_request 表）
-///
-/// 真实业务字段说明：
-/// - light_source: 对色光源（D65/TL84/U3000/CWF/A 等，多光源用逗号分隔）
-/// - sample_versions: 打样版数（真实业务 ABCD 四版，每版可能是不同染料组合或浓度梯度）
-/// - dye_category: 染料类别（来样分析后确定：棉麻→活性/还原/硫化/直接；毛丝→酸性；涤纶→分散；锦纶→酸性/活性）
+/// 打样通知单模型（lab_dip_request 表）：light_source 对色光源多光源逗号分隔；sample_versions ABCD 四版；dye_category 按纤维定染料类别
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "lab_dip_request")]
 pub struct Model {

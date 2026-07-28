@@ -45,13 +45,7 @@ use crate::utils::error::AppError;
 // ============================================================================
 
 /// 四分制扣分计算
-///
-/// 业务规则（AATCC/ASTM D5430）：
-/// - 疵点长度 ≤3寸 → 1 分
-/// - 3寸 < 疵点长度 ≤6寸 → 2 分
-/// - 6寸 < 疵点长度 ≤9寸 → 3 分
-/// - 疵点长度 >9寸 → 4 分
-/// - 破洞/连续性疵点 → 4 分（不论长度）
+/// 业务规则（AATCC/ASTM D5430）：疵点长度 ≤3寸 → 1 分；3寸 < 疵点长度 ≤6寸 → 2 分；6寸 < 疵点长度 ≤9寸 → 3 分；疵点长度 >9寸 → 4 分；破洞/连续性疵点 → 4 分（不论长度）
 pub fn calculate_four_point_points(
     length_inches: Decimal,
     is_hole: bool,
@@ -72,11 +66,7 @@ pub fn calculate_four_point_points(
 }
 
 /// 十分制扣分计算
-///
-/// 业务规则（梭织布专用）：
-/// - 破洞 → 10 分（不论长度）
-/// - 经向(warp)：1寸下=1, 1-5寸=3, 5-10寸=5, 10-36寸=10
-/// - 纬向(weft)：1寸下=1, 1-5寸=3, 5寸-半门幅=5, 半门幅以上=10
+/// 业务规则（梭织布专用）：破洞 → 10 分（不论长度）；经向(warp)：1寸下=1, 1-5寸=3, 5-10寸=5, 10-36寸=10；纬向(weft)：1寸下=1, 1-5寸=3, 5寸-半门幅=5, 半门幅以上=10
 pub fn calculate_ten_point_points(
     length_inches: Decimal,
     direction: &str,
@@ -120,9 +110,7 @@ pub fn calculate_ten_point_points(
     }
 }
 
-/// 计算每百平方码分数（四分制等级判定依据）
-///
-/// 公式：每百平方码分数 = (总扣分 × 36 × 100) / (受检码数 × 幅宽英寸)
+/// 计算每百平方码分数（四分制等级判定依据）（公式：每百平方码分数 = (总扣分 × 36 × 100) / (受检码数 × 幅宽英寸)）
 pub fn calculate_points_per_100_sq_yards(
     total_points: i32,
     inspected_yards: Decimal,
@@ -139,9 +127,7 @@ pub fn calculate_points_per_100_sq_yards(
     Ok(numerator / denominator)
 }
 
-/// 四分制等级判定
-///
-/// 业务规则：每百平方码分数 ≤40 = 首级(first)，>40 = 次级(second)
+/// 四分制等级判定（业务规则：每百平方码分数 ≤40 = 首级(first)，>40 = 次级(second)）
 pub fn determine_grade_by_four_point(points_per_100_sq_yards: Decimal) -> String {
     if points_per_100_sq_yards <= Decimal::new(40, 0) {
         fabric_grade::FIRST.to_string()
@@ -150,9 +136,7 @@ pub fn determine_grade_by_four_point(points_per_100_sq_yards: Decimal) -> String
     }
 }
 
-/// 十分制等级判定
-///
-/// 业务规则：总扣分 < 总码数 = 首级(first)，≥ 总码数 = 次级(second)
+/// 十分制等级判定（业务规则：总扣分 < 总码数 = 首级(first)，≥ 总码数 = 次级(second)）
 pub fn determine_grade_by_ten_point(total_points: i32, inspected_yards: Decimal) -> String {
     let yards_int = inspected_yards.to_i32().unwrap_or(0);
     if total_points < yards_int {
@@ -441,9 +425,7 @@ impl FabricInspectionService {
         Ok(updated)
     }
 
-    /// 评级（inspecting → graded）
-    ///
-    /// 计算总扣分/每百平方码分数/等级/A-B-C 分级
+    /// 评级（inspecting → graded）（计算总扣分/每百平方码分数/等级/A-B-C 分级）
     pub async fn grade_inspection(
         &self,
         id: i32,
@@ -545,9 +527,7 @@ impl FabricInspectionService {
         Ok(updated)
     }
 
-    /// 打卷入库（graded → rolled）
-    ///
-    /// 生成匹号 + 创建 inventory_piece + 汇总打卷数据
+    /// 打卷入库（graded → rolled）（生成匹号 + 创建 inventory_piece + 汇总打卷数据）
     pub async fn roll_fabric(
         &self,
         id: i32,
@@ -772,9 +752,7 @@ impl FabricDefectService {
         Ok(())
     }
 
-    /// 添加疵点明细（自动计算扣分）
-    ///
-    /// 根据验布记录的评分制式（four_point/ten_point）自动计算扣分
+    /// 添加疵点明细（自动计算扣分）（根据验布记录的评分制式（four_point/ten_point）自动计算扣分）
     pub async fn create(&self, req: CreateDefectRequest) -> Result<DefectModel, AppError> {
         // 业务校验：疵点类型合法
         Self::validate_defect_type(&req.defect_type)?;

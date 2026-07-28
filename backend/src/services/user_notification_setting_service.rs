@@ -5,9 +5,7 @@ use crate::utils::error::AppError;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 
-/// 更新通知偏好设置的参数对象
-///
-/// 批次 327 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告
+/// 更新通知偏好设置的参数对象（批次 327 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告）
 #[derive(Debug, Clone, Default)]
 pub struct UpdateNotificationSettingParams {
     /// 是否启用邮件通知
@@ -69,9 +67,7 @@ impl UserNotificationSettingService {
         }
     }
 
-    /// 更新设置
-    ///
-    /// 批次 327 v10 复审 P3 修复：使用 UpdateNotificationSettingParams 参数对象替代 8 个独立参数
+    /// 更新设置（批次 327 v10 复审 P3 修复：使用 UpdateNotificationSettingParams 参数对象替代 8 个独立参数）
     pub async fn update_setting(
         &self,
         user_id: i32,
@@ -171,10 +167,7 @@ impl UserNotificationSettingService {
             || notification_type_str == notification_type::BOTH)
     }
 
-    /// 批量获取或创建默认设置（避免循环内逐个查询 N+1）
-    ///
-    /// v16 批次 45 新增：一次 IN 查询获取所有已存在的设置，对缺失的用户逐个创建默认记录。
-    /// 查询部分批量化，创建部分仅对缺失项执行。
+    /// 批量获取或创建默认设置（避免循环内逐个查询 N+1）（v16 批次 45 新增：一次 IN 查询获取所有已存在的设置，对缺失的用户逐个创建默认记录。；查询部分批量化，创建部分仅对缺失项执行。）
     pub async fn get_or_create_default_batch(
         &self,
         user_ids: &[i32],
@@ -215,10 +208,7 @@ impl UserNotificationSettingService {
         Ok(map)
     }
 
-    /// 纯函数：基于已查询的设置判断是否发送站内通知（不查数据库）
-    ///
-    /// v16 批次 45 新增：与 should_send_internal 逻辑一致，但接收已查询的 setting model，
-    /// 避免在循环内重复查询数据库。
+    /// 纯函数：基于已查询的设置判断是否发送站内通知（不查数据库）（v16 批次 45 新增：与 should_send_internal 逻辑一致，但接收已查询的 setting model，；避免在循环内重复查询数据库。）
     pub fn should_send_internal_from_setting(
         setting: &user_notification_setting::Model,
         notification_category: &str,
@@ -239,10 +229,7 @@ impl UserNotificationSettingService {
             || notification_type_str == notification_type::BOTH
     }
 
-    /// 纯函数：基于已查询的设置判断是否发送邮件通知（不查数据库）
-    ///
-    /// v17 批次 47 新增：与 should_send_email 逻辑一致，但接收已查询的 setting model，
-    /// 避免在循环内重复查询数据库。
+    /// 纯函数：基于已查询的设置判断是否发送邮件通知（不查数据库）（v17 批次 47 新增：与 should_send_email 逻辑一致，但接收已查询的 setting model，；避免在循环内重复查询数据库。）
     pub fn should_send_email_from_setting(
         setting: &user_notification_setting::Model,
         notification_category: &str,

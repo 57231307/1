@@ -35,15 +35,7 @@ use super::cust::CrmService;
 // 参考：批次 481 `budget_overrun_amount_threshold()` 同样使用 `fn` 而非 `const`。
 
 /// 按商机阶段返回默认赢率（百分比 0-100）
-///
-/// V15 P0-B08：赢率自动计算
-/// - QUALIFICATION（资质确认）→ 10%
-/// - NEEDS_ANALYSIS（需求分析）→ 25%
-/// - PROPOSAL（方案报价）→ 40%
-/// - NEGOTIATION（谈判议价）→ 50%
-/// - CLOSED_WON（赢单）→ 100%
-/// - CLOSED_LOST（输单）→ 0%
-/// - 其他/空 → None（无法自动计算）
+/// V15 P0-B08：赢率自动计算；QUALIFICATION（资质确认）→ 10%；NEEDS_ANALYSIS（需求分析）→ 25%；PROPOSAL（方案报价）→ 40%；NEGOTIATION（谈判议价）→ 50%；CLOSED_WON（赢单）→ 100%；CLOSED_LOST（输单）→ 0%；其他/空 → None（无法自动计算）
 fn default_win_probability_by_stage(stage: &str) -> Option<Decimal> {
     match stage {
         "QUALIFICATION" => Some(Decimal::new(10, 0)),
@@ -168,11 +160,7 @@ impl CrmService {
     }
 
     /// 导出商机为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
-    ///
-    /// v11 批次 141 新增：前端 exportOpportunities API 真实接入。
-    /// v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。
-    /// 查询所有匹配条件（不分页）的商机，生成 XlsxTable。
-    /// 导出字段：商机编号/商机名称/客户ID/商机阶段/预估金额/实际金额/预期成交日期/实际成交日期/负责人/优先级/创建时间
+    /// v11 批次 141 新增：前端 exportOpportunities API 真实接入。；v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的商机，生成 XlsxTable。；导出字段：商机编号/商机名称/客户ID/商机阶段/预估金额/实际金额/预期成交日期/实际成交日期/负责人/优先级/创建时间
     pub async fn export_opportunities(
         &self,
         query: crate::models::dto::crm_dto::OpportunityQuery,
@@ -542,16 +530,7 @@ impl CrmService {
     }
 
     /// 关单（输单流程）— V15 P0-B09（Batch 482）
-    ///
-    /// 将商机状态置为 CLOSED_LOST，强制要求写入流失原因 lost_reason。
-    /// 设计依据：审计报告 §18.2-D2 — 输单原因未记录，销售改进无依据
-    ///
-    /// 业务规则：
-    /// 1. 商机当前状态不能是 CLOSED_WON / CLOSED_LOST（已关闭不可重复关单）
-    /// 2. lost_reason 必填且非空（保证销售改进有依据）
-    /// 3. 阶段置为 CLOSED_LOST，状态置为 CLOSED_LOST
-    /// 4. 赢率自动置为 0（V15 P0-B08 联动）
-    /// 5. 实际关闭日期置为今天
+    /// 将商机状态置为 CLOSED_LOST，强制要求写入流失原因 lost_reason。；设计依据：审计报告 §18.2-D2 — 输单原因未记录，销售改进无依据；业务规则：1. 商机当前状态不能是 CLOSED_WON / CLOSED_LOST（已关闭不可重复关单）；2. lost_reason 必填且非空（保证销售改进有依据）；3. 阶段置为 CLOSED_LOST，状态置为 CLOSED_LOST；4. 赢率自动置为 0（V15 P0-B08 联动）；5. 实际关闭日期置为今天
     pub async fn close_as_lost(
         &self,
         opportunity_id: i32,
@@ -599,10 +578,7 @@ impl CrmService {
     }
 
     /// V15 P1 18.2-D3：预测准确率分析
-    ///
-    /// 月度预测准确率 = 实际成交金额 / 预测金额 × 100%
-    /// 预测金额 = 当月 expected_close_date 的商机 estimated_amount 之和
-    /// 实际成交金额 = 当月 actual_close_date 且 CLOSED_WON 的商机 actual_amount 之和
+    /// 月度预测准确率 = 实际成交金额 / 预测金额 × 100%；预测金额 = 当月 expected_close_date 的商机 estimated_amount 之和；实际成交金额 = 当月 actual_close_date 且 CLOSED_WON 的商机 actual_amount 之和
     pub async fn forecast_accuracy(
         &self,
         year: i32,
@@ -669,10 +645,7 @@ impl CrmService {
         })
     }
 
-    /// V15 P1 18.2-D4：加权销售预测
-    ///
-    /// 加权预测金额 = 商机金额 × 赢率（win_probability / 100）
-    /// 返回所有 open 状态商机的加权预测汇总与明细。
+    /// V15 P1 18.2-D4：加权销售预测（加权预测金额 = 商机金额 × 赢率（win_probability / 100）；返回所有 open 状态商机的加权预测汇总与明细。）
     pub async fn weighted_forecast(
         &self,
         owner_id: Option<i32>,
@@ -723,9 +696,7 @@ impl CrmService {
         })
     }
 
-    /// V15 P1 18.5-D1：CRM 专用转化率分析
-    ///
-    /// 按月统计商机各阶段转化率，识别转化瓶颈。
+    /// V15 P1 18.5-D1：CRM 专用转化率分析（按月统计商机各阶段转化率，识别转化瓶颈。）
     pub async fn conversion_rate_analysis(
         &self,
         months_back: u32,
@@ -790,9 +761,7 @@ impl CrmService {
         })
     }
 
-    /// V15 P1 18.5-D2：完整销售漏斗报表
-    ///
-    /// 线索→商机→报价→订单→回款 完整漏斗，各阶段数量与金额。
+    /// V15 P1 18.5-D2：完整销售漏斗报表（线索→商机→报价→订单→回款 完整漏斗，各阶段数量与金额。）
     pub async fn sales_funnel_report(
         &self,
         start_date: Option<chrono::NaiveDate>,

@@ -159,28 +159,7 @@ impl CustomOrderAfterSalesService {
     }
 
     /// V15 P0-B12：触发质量调查
-    ///
-    /// 根据售后工单信息自动创建一条 quality_issue 记录，并回填 quality_issue_id 到售后工单。
-    /// 用于售后→质量改进闭环：客诉/维修/换货类售后工单可触发质量调查，避免同类问题重复发生。
-    ///
-    /// 业务规则：
-    ///   1. 售后工单必须存在且未关闭（status != closed/rejected）
-    ///   2. 售后工单不能已关联 quality_issue_id（禁止重复触发，避免产生冗余质量异常）
-    ///   3. 自动创建的 quality_issue 字段映射：
-    ///      - custom_order_id：从售后工单继承
-    ///      - issue_type："after_sales_reported"（售后上报）
-    ///      - severity：根据售后类型推断（complaint=high / repair=medium / exchange=low / refund=high）
-    ///      - description：售后工单描述
-    ///      - discovered_at：当前时间
-    ///      - status："open"
-    ///   4. 注：8D 流程（quality_8d_service）当前不存在，本方法仅创建 quality_issue 记录，
-    ///      8D 触发部分待后续批次补齐
-    ///
-    /// 参数说明：
-    /// - `after_sales_id`：售后工单 ID
-    /// - `severity_override`：可选严重程度覆盖（high/medium/low），None 时按售后类型自动推断
-    ///
-    /// 返回：(更新后的售后工单, 新创建的质量异常)
+    /// 根据售后工单信息自动创建一条 quality_issue 记录，并回填 quality_issue_id 到售后工单。；用于售后→质量改进闭环：客诉/维修/换货类售后工单可触发质量调查，避免同类问题重复发生。；业务规则：1. 售后工单必须存在且未关闭（status != closed/rejected）；2. 售后工单不能已关联 quality_issue_id（禁止重复触发，避免产生冗余质量异常）；3. 自动创建的 quality_issue 字段映射：custom_order_id：从售后工单继承；issue_type："after_sales_reported"（售后上报）；severity：根据售后类型推断（complaint=high / repair=medium / exchange=low / refund=high）；description：售后工单描述；discovered_at：当前时间；status："open"；4. 注：8D 流程（quality_8d_service）当前不存在，本方法仅创建 quality_issue 记录，；8D 触发部分待后续批次补齐；参数说明：`after_sales_id`：售后工单 ID；`severity_override`：可选严重程度覆盖（high/medium/low），None 时按售后类型自动推断；返回：(更新后的售后工单, 新创建的质量异常)
     pub async fn trigger_quality_investigation(
         &self,
         after_sales_id: i64,
@@ -248,11 +227,7 @@ impl CustomOrderAfterSalesService {
     }
 
     /// 列出订单的售后工单
-    /// 按订单查询售后工单列表（分页）
-    ///
-    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
-    /// paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
-    /// 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
+    /// 按订单查询售后工单列表（分页）；批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。；paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。；补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
     pub async fn list_by_order(
         &self,
         order_id: i64,

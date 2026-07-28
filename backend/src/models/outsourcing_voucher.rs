@@ -13,13 +13,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 委外加工会计分录凭证模型
-///
-/// 真实业务要点：
-/// - 凭证类型：issue(发料) / fee(加工费) / receipt(入库) / loss(损耗处理)
-/// - 借方科目：委托加工物资 / 库存商品-成品布 / 应交税费-进项税额 / 营业外支出
-/// - 贷方科目：自制半成品-胚布 / 库存商品-棉纱 / 委托加工物资 / 银行存款
-/// - 仅加工费凭证有税额（tax_amount）
+/// 委外加工会计分录凭证模型（4 种凭证类型 issue/fee/receipt/loss，仅加工费凭证有税额 tax_amount）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "outsourcing_voucher")]
 pub struct Model {
@@ -42,11 +36,7 @@ pub struct Model {
     /// 税额（仅加工费凭证有）
     #[sea_orm(column_type = "Decimal(Some((14, 4)))")]
     pub tax_amount: Decimal,
-    /// V15 P1-08-13：进项税转出金额（非正常损耗对应的已抵扣进项税转出）
-    ///
-    /// 业务规则（《增值税暂行条例》第 27 条）：
-    /// - 非正常损耗凭证需同时做进项税转出
-    /// - 仅 loss 凭证类型会有值，其他类型为 0
+    /// V15 P1-08-13：进项税转出金额（非正常损耗已抵扣进项税转出，仅 loss 凭证有值，其他为 0）
     #[sea_orm(column_type = "Decimal(Some((14, 4)))", default_value = "0")]
     pub tax_transfer_amount: Decimal,
     /// 凭证日期

@@ -80,10 +80,7 @@ impl UserConsentService {
         }
     }
 
-    /// 记录用户的同意/退出决定
-    ///
-    /// 业务逻辑：每次变更都新增一条记录，保留审计轨迹。
-    /// 同时将前一条同意记录标记为已撤回（revoked_at = now）。
+    /// 记录用户的同意/退出决定（业务逻辑：每次变更都新增一条记录，保留审计轨迹。；同时将前一条同意记录标记为已撤回（revoked_at = now）。）
     pub async fn record_consent(
         &self,
         user_id: i32,
@@ -164,9 +161,7 @@ impl UserConsentService {
         Ok(items)
     }
 
-    /// 缺陷 7.3 修复：判断用户是否同意指定类型的采集
-    ///
-    /// 默认行为：未找到同意记录时返回 false（最小权限原则 + 合规优先）
+    /// 缺陷 7.3 修复：判断用户是否同意指定类型的采集（默认行为：未找到同意记录时返回 false（最小权限原则 + 合规优先））
     pub async fn is_consent_given(
         &self,
         user_id: i32,
@@ -177,9 +172,7 @@ impl UserConsentService {
     }
 
     /// 一键退出所有追踪（用户行使撤回权）
-    ///
-    /// 对 behavior_tracking / page_view_tracking / cookie_usage / marketing_email
-    /// 4 类 consent 全部记录为 false（退出采集）。
+    /// 对 behavior_tracking / page_view_tracking / cookie_usage / marketing_email；4 类 consent 全部记录为 false（退出采集）。
     pub async fn opt_out_all(
         &self,
         user_id: i32,

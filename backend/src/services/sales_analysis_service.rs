@@ -279,11 +279,7 @@ impl SalesAnalysisService {
         })
     }
 
-    /// 获取产品销售排名
-    ///
-    /// v11 批次 152 P2-A：接入 dimension_type 字段
-    /// - 默认 "product"：按产品维度排名
-    /// - 自定义值（如 "product_category"）：按指定维度排名
+    /// 获取产品销售排名（v11 批次 152 P2-A：接入 dimension_type 字段；默认 "product"：按产品维度排名；自定义值（如 "product_category"）：按指定维度排名）
     pub async fn product_ranking(
         &self,
         params: ProductRankingParams,
@@ -334,11 +330,7 @@ impl SalesAnalysisService {
         Ok(items)
     }
 
-    /// 获取客户销售排名
-    ///
-    /// v11 批次 152 P2-A：接入 dimension_type 字段
-    /// - 默认 "customer"：按客户维度排名
-    /// - 自定义值（如 "customer_industry"）：按指定维度排名
+    /// 获取客户销售排名（v11 批次 152 P2-A：接入 dimension_type 字段；默认 "customer"：按客户维度排名；自定义值（如 "customer_industry"）：按指定维度排名）
     pub async fn customer_ranking(
         &self,
         params: CustomerRankingParams,
@@ -447,11 +439,7 @@ impl SalesAnalysisService {
     }
 
     /// 导出销售分析报告
-    ///
-    /// v11 批次 151 P2-A：接入 ExportParams.format 字段，直接返回 xlsx 字节流
-    /// - None 或 "xlsx"：返回 xlsx 字节流（规则 3 合规）
-    /// - "csv"：拒绝（规则 3 禁止 CSV 作为最终交付格式）
-    /// - 其他值：validation 错误
+    /// v11 批次 151 P2-A：接入 ExportParams.format 字段，直接返回 xlsx 字节流；None 或 "xlsx"：返回 xlsx 字节流（规则 3 合规）；"csv"：拒绝（规则 3 禁止 CSV 作为最终交付格式）；其他值：validation 错误
     pub async fn export_report(&self, params: ExportParams) -> Result<Vec<u8>, AppError> {
         info!("导出销售分析报告，参数：{:?}", params);
 

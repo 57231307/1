@@ -6,11 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::error;
 
-/// Webhook 最大重试次数上限
-/// 超过该阈值后不再递增 retry_count，并将 last_error 置为失败原因，
-/// 防止计数器无上限增长导致 DB 字段溢出或被攻击者利用放大重试流量。
-///
-/// 批次 108 P1-8：暴露为 pub crate 供 handler 在 /webhooks/:id/logs 响应中返回该上限值
+/// Webhook 最大重试次数上限（超阈值后停增 retry_count 并置 last_error，防 DB 溢出/重试放大；pub crate 供 handler 返回）
 pub(crate) const MAX_RETRY_COUNT: i32 = 5;
 
 /// Webhook负载
@@ -22,12 +18,7 @@ pub(crate) struct WebhookPayload {
     pub(crate) data: serde_json::Value,
 }
 
-/// Webhook发送结果
-///
-/// 批次 322 v9 复审低危修复说明：v9 复审报告曾建议将本结构体降为 `pub(crate)`，
-/// 但经分析 `WebhookDeliveryResult` 作为 `Json<ApiResponse<WebhookDeliveryResult>>`
-/// 的泛型参数出现在 API 响应体中（test_webhook / retry_webhook 端点），
-/// 序列化器需要 `pub` 可见性，降级会导致编译错误。因此保持 `pub`，此处注释说明保留理由。
+/// Webhook发送结果（保持 pub：作为 Json<ApiResponse<WebhookDeliveryResult>> 泛型参数出现在响应体中，降级会编译错误）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebhookDeliveryResult {
     pub success: bool,
@@ -46,10 +37,7 @@ impl WebhookService {
     }
 
     /// M-4 修复（v9 复审）：校验 webhook 所有权
-    /// - user_id 为 None 的系统级 webhook，所有认证用户可访问（向后兼容）
-    /// - user_id 为 Some(uid) 的用户私有 webhook，仅所有者可操作
-    ///
-    /// 返回 webhook 模型，校验失败返回 PermissionDenied
+    /// user_id 为 None 的系统级 webhook，所有认证用户可访问（向后兼容）；user_id 为 Some(uid) 的用户私有 webhook，仅所有者可操作；返回 webhook 模型，校验失败返回 PermissionDenied
     async fn verify_ownership(
         &self,
         user_id: i32,
@@ -274,11 +262,7 @@ impl WebhookService {
     }
 
     /// 构建 SSRF 防御的 webhook 客户端（HTTPS 校验 + DNS Rebinding 防御 + 禁止重定向）
-    ///
-    /// BE-V-2/TS-S-2 修复（2026-06-25 第二次全面审计）：TOCTOU 根治。
-    /// validate_url_and_resolve 返回校验通过的安全 IP 列表，
-    /// 用 resolve_to_addrs 将 host 固定到已校验 IP，reqwest 不再独立解析 DNS，
-    /// 彻底消除"校验时解析为公网 IP、连接时解析为内网 IP"的 TOCTOU 窗口。
+    /// BE-V-2/TS-S-2 修复（2026-06-25 第二次全面审计）：TOCTOU 根治。；validate_url_and_resolve 返回校验通过的安全 IP 列表，；用 resolve_to_addrs 将 host 固定到已校验 IP，reqwest 不再独立解析 DNS，；彻底消除"校验时解析为公网 IP、连接时解析为内网 IP"的 TOCTOU 窗口。
     fn build_webhook_client(url: &str) -> Result<reqwest::Client, AppError> {
         let (host, safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(url)?;
         reqwest::Client::builder()
@@ -291,10 +275,7 @@ impl WebhookService {
     }
 
     /// 附加 HMAC-SHA256 签名头（P1-B 修复：出站签名与入站验证使用同一份算法）
-    ///
-    /// 旧实现 SHA256(body || secret) 存在长度扩展攻击风险：攻击者可在不知 secret 的情况下
-    /// 推算 secret + padding 后的扩展摘要。现改为 HMAC-SHA256(secret, body)。
-    /// 签名失败时 warn 日志降级，不阻塞 webhook 发送。
+    /// 旧实现 SHA256(body || secret) 存在长度扩展攻击风险：攻击者可在不知 secret 的情况下；推算 secret + padding 后的扩展摘要。现改为 HMAC-SHA256(secret, body)。；签名失败时 warn 日志降级，不阻塞 webhook 发送。
     fn attach_webhook_signature(
         mut request: reqwest::RequestBuilder,
         url: &str,
@@ -350,9 +331,7 @@ impl WebhookService {
     }
 
     /// 测试 Webhook（批次 108 P1-8：已通过 POST /webhooks/:id/test 接入业务）
-    ///
-    /// 触发一次 test 事件，验证 webhook 配置正确性。
-    /// M-4 修复（v9 复审）：新增 user_id 参数，测试前校验所有权
+    /// 触发一次 test 事件，验证 webhook 配置正确性。；M-4 修复（v9 复审）：新增 user_id 参数，测试前校验所有权
     pub async fn test_webhook(
         &self,
         user_id: i32,
@@ -373,10 +352,7 @@ impl WebhookService {
     }
 
     /// 获取单个 Webhook 详情（批次 108 P1-8：为 GET /webhooks/:id/logs 提供数据源）
-    ///
-    /// 返回 webhooks 表中的执行状态字段（last_triggered_at / last_status / retry_count）。
-    /// 当前未独立持久化调用日志（无 webhook_logs 表），返回 webhook 自身的执行状态汇总。
-    /// M-4 修复（v9 复审）：新增 user_id 参数，获取前校验所有权
+    /// 返回 webhooks 表中的执行状态字段（last_triggered_at / last_status / retry_count）。；当前未独立持久化调用日志（无 webhook_logs 表），返回 webhook 自身的执行状态汇总。；M-4 修复（v9 复审）：新增 user_id 参数，获取前校验所有权
     pub async fn get_webhook(&self, user_id: i32, id: i32) -> Result<webhook::Model, AppError> {
         self.verify_ownership(user_id, id).await
     }

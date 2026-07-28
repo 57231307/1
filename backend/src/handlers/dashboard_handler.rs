@@ -117,9 +117,7 @@ pub async fn save_dashboard_layout(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 获取仪表板概览数据
-///
-/// 缺陷 4.3 修复：使用 new_with_data_scope 注入角色数据范围，普通员工仅看到自己订单数据。
+/// 获取仪表板概览数据；缺陷 4.3 修复：使用 new_with_data_scope 注入角色数据范围，普通员工仅看到自己订单数据。
 pub async fn get_dashboard_overview(
     State(state): State<AppState>,
     auth: AuthContext,

@@ -18,10 +18,7 @@ pub struct CreateWebhookIntegrationRequest {
     pub is_active: Option<bool>,
 }
 
-/// 批次 113 P1-1：Webhook 集成更新请求 DTO
-///
-/// 全字段 Option，仅更新传入的字段，未传入字段保持不变。
-/// platform 字段不参与更新（前端语义：创建时确定平台，不可修改）。
+/// 批次 113 P1-1：Webhook 集成更新请求 DTO；全字段 Option，仅更新传入的字段，未传入字段保持不变。 platform 字段不参与更新（前端语义：创建时确定平台，不可修改）。
 #[derive(Debug, Deserialize)]
 pub struct UpdateWebhookIntegrationRequest {
     pub name: Option<String>,
@@ -72,8 +69,7 @@ pub struct WebhookCallbackResult {
     pub received: bool,
     pub event_type: String,
     pub processed_at: String,
-    /// 批次 110 P0-3：payload 处理回执摘要
-    /// - payload_size：原始 payload 序列化后的字节大小
+    /// 批次 110 P0-3：payload 处理回执摘要 - payload_size：原始 payload 序列化后的字节大小
     /// - payload_keys：若 payload 为 Object，则记录其顶层字段名（最多 10 个），便于调用方核对
     pub payload_size: usize,
     pub payload_keys: Vec<String>,
@@ -172,15 +168,8 @@ pub async fn delete_integration(
     )))
 }
 
-/// 批次 113 P1-1：Webhook 集成更新 handler
-///
-/// 修复 HTTP 语义：原路由 `PUT /integration/:id` 调用 `test_integration`（非幂等的动作触发），
-/// 违反 PUT 的"整体替换/更新资源"语义。新增此 `update_integration` handler 实现真正的字段更新。
-///
-/// 路由调整：
-/// - `PUT /:id` → `update_integration`（新增，部分字段更新）
-/// - `DELETE /integration/:id` → `delete_integration`（保留，原路径不变）
-/// - `POST /test-integration/:id` → `test_integration`（保留，作为唯一测试入口）
+/// 批次 113 P1-1：Webhook 集成更新 handler；修复 HTTP 语义：原路由 `PUT /integration/:id` 调用 `test_integration`（非幂等的动作触发）， 违反 PUT 的"整体替换/更新资源"语义。新增此 `update_integration` handler 实现真正的字段更新。；路由调整
+/// - `PUT /:id` → `update_integration`（新增，部分字段更新） - `DELETE /integration/:id` → `delete_integration`（保留，原路径不变） - `POST /test-integration/:id` → `test_integration`（保留，作为唯一测试入口）
 pub async fn update_integration(
     State(state): State<AppState>,
     auth: AuthContext,

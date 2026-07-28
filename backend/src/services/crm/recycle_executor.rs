@@ -142,12 +142,7 @@ impl RecycleExecutor {
     }
 
     /// 启动后台定时任务（每 6 小时执行一次 run_once）
-    ///
-    /// 在 main.rs 中调用：
-    /// ```ignore
-    /// let executor = Arc::new(RecycleExecutor::new(db.clone()));
-    /// let handle = executor.start_background_task();
-    /// ```
+    /// 在 main.rs 中调用：```ignore；let executor = Arc::new(RecycleExecutor::new(db.clone()));；let handle = executor.start_background_task();；```
     pub fn start_background_task(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             // 启动后先等 60 秒，避免与启动初始化争抢数据库连接

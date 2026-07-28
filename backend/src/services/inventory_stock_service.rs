@@ -49,10 +49,7 @@ pub struct InventoryStockService {
     pub db: Arc<DatabaseConnection>,
 }
 
-/// 创建库存参数对象
-///
-/// 批次 338 v10 复审 P3 修复：引入参数对象消除 create_stock 的 too_many_arguments 警告。
-/// 聚合创建库存记录所需的全部字段，避免函数签名携带 12 个参数。
+/// 创建库存参数对象（批次 338 v10 复审 P3 修复：引入参数对象消除 create_stock 的 too_many_arguments 警告。；聚合创建库存记录所需的全部字段，避免函数签名携带 12 个参数。）
 #[derive(Debug, Clone)]
 pub struct CreateStockArgs {
     /// 仓库 ID
@@ -82,9 +79,7 @@ pub struct CreateStockArgs {
 }
 
 /// 创建面料库存参数对象
-///
-/// 批次 338 v10 复审 P3 修复：引入参数对象消除 create_stock_fabric 的 too_many_arguments 警告。
-/// 聚合创建面料库存记录所需的全部字段，避免函数签名携带 13 个参数。
+/// 批次 338 v10 复审 P3 修复：引入参数对象消除 create_stock_fabric 的 too_many_arguments 警告。；聚合创建面料库存记录所需的全部字段，避免函数签名携带 13 个参数。
 #[derive(Debug, Clone)]
 pub struct CreateStockFabricArgs {
     /// 仓库 ID
@@ -116,7 +111,6 @@ pub struct CreateStockFabricArgs {
 }
 
 /// build_stock_fabric_active 内部传递字段（解构 CreateStockFabricArgs 后 + 计算的 final_quantity_kg）
-///
 /// 避免主函数调用 helper 时传递 13 个参数，使用结构体封装更整洁。
 struct StockFabricFields {
     warehouse_id: i32,
@@ -146,10 +140,7 @@ impl InventoryStockService {
             .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
     }
 
-    /// 创建库存
-    ///
-    /// 批次 338 v10 复审 P3 修复：签名从 12 参数改为单一参数对象 `CreateStockArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 创建库存（批次 338 v10 复审 P3 修复：签名从 12 参数改为单一参数对象 `CreateStockArgs`，；消除 `clippy::too_many_arguments` 警告。）
     pub async fn create_stock(
         &self,
         args: CreateStockArgs,
@@ -384,10 +375,7 @@ impl InventoryStockService {
         fallback_quantity_kg
     }
 
-    /// 创建库存（面料行业版）
-    ///
-    /// 批次 338 v10 复审 P3 修复：签名从 13 参数改为单一参数对象 `CreateStockFabricArgs`，
-    /// 消除 `clippy::too_many_arguments` 警告。
+    /// 创建库存（面料行业版）（批次 338 v10 复审 P3 修复：签名从 13 参数改为单一参数对象 `CreateStockFabricArgs`，；消除 `clippy::too_many_arguments` 警告。）
     pub async fn create_stock_fabric(
         &self,
         args: CreateStockFabricArgs,
@@ -512,15 +500,7 @@ impl InventoryStockService {
     // ========== V15 Batch 479 P0-F18：返工/降级/报废联动 ==========
 
     /// P0-F18: 更新库存等级（降级处理）
-    ///
-    /// 业务场景：bulk_color_approval.downgrade() 触发，
-    /// 将关联库存的 grade 从"一等品"降为"二等品"或"等外品"。
-    /// 同时将 quality_status 改为"待检"（降级后需重新质检）。
-    ///
-    /// 参数：
-    /// - `stock_id`：库存记录 ID
-    /// - `new_grade`：新等级值，仅允许 "一等品" / "二等品" / "等外品"
-    /// - `user_id`：操作人 ID（用于审计日志）
+    /// 业务场景：bulk_color_approval.downgrade() 触发，；将关联库存的 grade 从"一等品"降为"二等品"或"等外品"。；同时将 quality_status 改为"待检"（降级后需重新质检）。；参数：`stock_id`：库存记录 ID；`new_grade`：新等级值，仅允许 "一等品" / "二等品" / "等外品"；`user_id`：操作人 ID（用于审计日志）
     pub async fn update_stock_grade(
         &self,
         stock_id: i32,
@@ -551,15 +531,7 @@ impl InventoryStockService {
     }
 
     /// P0-F18: 标记库存为报废
-    ///
-    /// 业务场景：bulk_color_approval.scrap() 触发，
-    /// 将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"。
-    /// 报废原因追加到 bin_location 字段保留可追溯性（不覆盖原有库位信息）。
-    ///
-    /// 参数：
-    /// - `stock_id`：库存记录 ID
-    /// - `reason`：报废原因（写入 bin_location 末尾便于追溯）
-    /// - `user_id`：操作人 ID（用于审计日志）
+    /// 业务场景：bulk_color_approval.scrap() 触发，；将关联库存的 stock_status 改为"报废"、quality_status 改为"不合格"。；报废原因追加到 bin_location 字段保留可追溯性（不覆盖原有库位信息）。；参数：`stock_id`：库存记录 ID；`reason`：报废原因（写入 bin_location 末尾便于追溯）；`user_id`：操作人 ID（用于审计日志）
     pub async fn mark_stock_as_scrapped(
         &self,
         stock_id: i32,
@@ -602,9 +574,7 @@ mod tests {
     use sea_orm::Database;
 
     /// 复现 calculate_quantity_kg 调用 DualUnitConverter::meters_to_kg 的换算逻辑
-    ///
-    /// 源码位置：calculate_quantity_kg 方法内。
-    /// 公式：quantity_meters * gram_weight * (width_cm / 100) / 1000，保留 3 位小数
+    /// 源码位置：calculate_quantity_kg 方法内。；公式：quantity_meters * gram_weight * (width_cm / 100) / 1000，保留 3 位小数
     fn calc_kg(
         quantity_meters: Decimal,
         gram_weight: Decimal,
@@ -614,9 +584,7 @@ mod tests {
     }
 
     /// 测试_calculate_quantity_kg_克重和幅宽齐全走转换器
-    ///
-    /// 场景：gram_weight=200g/m², width=150cm, quantity_meters=100m
-    /// 期望：100 × 200 × (150/100) / 1000 = 3000.000 kg，返回转换器计算值
+    /// 场景：gram_weight=200g/m², width=150cm, quantity_meters=100m；期望：100 × 200 × (150/100) / 1000 = 3000.000 kg，返回转换器计算值
     #[test]
     fn 测试_calculate_quantity_kg_克重和幅宽齐全走转换器() {
         let quantity_meters = Decimal::new(100, 0);
@@ -639,9 +607,7 @@ mod tests {
         assert_ne!(result, fallback, "不应回退到 fallback 值");
     }
 
-    /// 测试_calculate_quantity_kg_克重为None回退fallback
-    ///
-    /// 场景：gram_weight=None，即使 width 有值也应回退到 fallback
+    /// 测试_calculate_quantity_kg_克重为None回退fallback（场景：gram_weight=None，即使 width 有值也应回退到 fallback）
     #[test]
     fn 测试_calculate_quantity_kg_克重为None回退fallback() {
         let quantity_meters = Decimal::new(100, 0);
@@ -659,9 +625,7 @@ mod tests {
         assert_eq!(result, fallback, "gram_weight 为 None 时应回退到 fallback");
     }
 
-    /// 测试_calculate_quantity_kg_幅宽为None回退fallback
-    ///
-    /// 场景：gram_weight 有值但 width=None，应回退到 fallback
+    /// 测试_calculate_quantity_kg_幅宽为None回退fallback（场景：gram_weight 有值但 width=None，应回退到 fallback）
     #[test]
     fn 测试_calculate_quantity_kg_幅宽为None回退fallback() {
         let quantity_meters = Decimal::new(100, 0);
@@ -679,9 +643,7 @@ mod tests {
         assert_eq!(result, fallback, "width 为 None 时应回退到 fallback");
     }
 
-    /// 测试_calculate_quantity_kg_转换失败回退fallback
-    ///
-    /// 场景：gram_weight=0 或 width=0 导致转换器返回 Err，应回退到 fallback
+    /// 测试_calculate_quantity_kg_转换失败回退fallback（场景：gram_weight=0 或 width=0 导致转换器返回 Err，应回退到 fallback）
     #[test]
     fn 测试_calculate_quantity_kg_转换失败回退fallback() {
         let quantity_meters = Decimal::new(100, 0);
@@ -712,10 +674,7 @@ mod tests {
         );
     }
 
-    /// 测试_库存硬编码状态字符串常量值正确性
-    ///
-    /// inventory_stock_service.rs 使用硬编码中文字符串作为状态值
-    /// （未接入 status 模块常量，历史遗留），需断言其值不被意外修改。
+    /// 测试_库存硬编码状态字符串常量值正确性（inventory_stock_service.rs 使用硬编码中文字符串作为状态值；（未接入 status 模块常量，历史遗留），需断言其值不被意外修改。）
     #[test]
     fn 测试_库存硬编码状态字符串常量值正确性() {
         // stock_status 字段值（check_low_stock / create_stock_fabric / delete_stock）
@@ -728,10 +687,7 @@ mod tests {
         assert_ne!("合格", "ACTIVE");
     }
 
-    /// 测试_服务实例化_SQLite内存数据库
-    ///
-    /// 验证 InventoryStockService 能在 SQLite 内存数据库上实例化，
-    /// 不依赖真实 schema（new 不触发任何 DB 操作）。
+    /// 测试_服务实例化_SQLite内存数据库（验证 InventoryStockService 能在 SQLite 内存数据库上实例化，；不依赖真实 schema（new 不触发任何 DB 操作）。）
     #[tokio::test]
     async fn 测试_服务实例化_SQLite内存数据库() {
         let db_url =
@@ -750,9 +706,7 @@ mod tests {
     // 但可通过 #[ignore] 标注需真实 DB 的测试，
     // 同时保留参数对象/构造逻辑/双单位换算的纯逻辑测试。
 
-    /// 测试_CreateStockArgs_参数对象构造
-    ///
-    /// 验证 CreateStockArgs 能完整携带 12 个字段，无字段遗漏。
+    /// 测试_CreateStockArgs_参数对象构造（验证 CreateStockArgs 能完整携带 12 个字段，无字段遗漏。）
     #[test]
     fn 测试_CreateStockArgs_参数对象构造() {
         let args = CreateStockArgs {
@@ -781,9 +735,7 @@ mod tests {
         assert_eq!(args.quality_status, "合格");
     }
 
-    /// 测试_CreateStockFabricArgs_参数对象构造
-    ///
-    /// 验证 CreateStockFabricArgs 能完整携带 13 个字段（含库位信息）。
+    /// 测试_CreateStockFabricArgs_参数对象构造（验证 CreateStockFabricArgs 能完整携带 13 个字段（含库位信息）。）
     #[test]
     fn 测试_CreateStockFabricArgs_参数对象构造() {
         let args = CreateStockFabricArgs {
@@ -806,10 +758,7 @@ mod tests {
         assert_eq!(args.layer_no.as_deref(), Some("L1"));
     }
 
-    /// 测试_find_by_id_无schema返回错误
-    ///
-    /// 验证 find_by_id 在无 schema 时返回 Err（业务 DB 错误传播）。
-    /// 标注 #[ignore] 避免污染 CI 测试统计。
+    /// 测试_find_by_id_无schema返回错误（验证 find_by_id 在无 schema 时返回 Err（业务 DB 错误传播）。；标注 #[ignore] 避免污染 CI 测试统计。）
     #[tokio::test]
     #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
     async fn 测试_find_by_id_无schema返回错误() {
@@ -821,10 +770,7 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_create_stock_校验仓库存在性
-    ///
-    /// 验证 create_stock 在仓库不存在时返回 validation 错误。
-    /// 标注 #[ignore] 因校验在 DB 查询阶段，需表 schema。
+    /// 测试_create_stock_校验仓库存在性（验证 create_stock 在仓库不存在时返回 validation 错误。；标注 #[ignore] 因校验在 DB 查询阶段，需表 schema。）
     #[tokio::test]
     #[ignore = "需要 warehouses/products 表 schema（真实 DB）"]
     async fn 测试_create_stock_校验仓库存在性() {
@@ -850,9 +796,7 @@ mod tests {
         assert!(result.is_err(), "仓库不存在时应返回 Err");
     }
 
-    /// 测试_list_stock_无schema返回错误
-    ///
-    /// 验证 list_stock 在无 schema 时返回 Err。
+    /// 测试_list_stock_无schema返回错误（验证 list_stock 在无 schema 时返回 Err。）
     #[tokio::test]
     #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
     async fn 测试_list_stock_无schema返回错误() {
@@ -864,9 +808,7 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_delete_stock_无schema返回错误
-    ///
-    /// 验证 delete_stock 在无 schema 时返回 Err（找不到记录）。
+    /// 测试_delete_stock_无schema返回错误（验证 delete_stock 在无 schema 时返回 Err（找不到记录）。）
     #[tokio::test]
     #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
     async fn 测试_delete_stock_无schema返回错误() {
@@ -878,9 +820,7 @@ mod tests {
         assert!(result.is_err(), "无 schema 时应返回数据库错误");
     }
 
-    /// 测试_find_by_batch_and_color_无schema返回错误
-    ///
-    /// 验证 find_by_batch_and_color 在无 schema 时返回 Err。
+    /// 测试_find_by_batch_and_color_无schema返回错误（验证 find_by_batch_and_color 在无 schema 时返回 Err。）
     #[tokio::test]
     #[ignore = "需要 inventory_stocks 表 schema（真实 DB）"]
     async fn 测试_find_by_batch_and_color_无schema返回错误() {
@@ -893,9 +833,7 @@ mod tests {
     }
 
     /// 测试_update_stock_grade_非法等级值
-    ///
-    /// 验证 update_stock_grade 在等级值非法时立即返回 validation 错误（不触发 DB 查询）。
-    /// 此测试不需 schema，校验在 DB 查询前返回。
+    /// 验证 update_stock_grade 在等级值非法时立即返回 validation 错误（不触发 DB 查询）。；此测试不需 schema，校验在 DB 查询前返回。
     #[tokio::test]
     async fn 测试_update_stock_grade_非法等级值() {
         let db = Database::connect("sqlite::memory:")
@@ -912,10 +850,7 @@ mod tests {
         }
     }
 
-    /// 测试_calculate_quantity_kg_正常换算_返回预期公斤数
-    ///
-    /// 端到端验证 create_stock_fabric 内部使用的公斤自动计算公式：
-    /// 公式 = 米 × 克重 × 幅宽(m) ÷ 1000
+    /// 测试_calculate_quantity_kg_正常换算_返回预期公斤数（端到端验证 create_stock_fabric 内部使用的公斤自动计算公式：公式 = 米 × 克重 × 幅宽(m) ÷ 1000）
     #[test]
     fn 测试_calculate_quantity_kg_正常换算_返回预期公斤数() {
         // 100m × 200g/m² × 1.5m ÷ 1000 = 30 kg
@@ -927,9 +862,7 @@ mod tests {
         assert_eq!(kg, Decimal::new(30, 0));
     }
 
-    /// 测试_calculate_quantity_kg_负数米数_转换器返回Err回退fallback
-    ///
-    /// 边界场景：负数米数应触发转换器 Err，回退到 fallback。
+    /// 测试_calculate_quantity_kg_负数米数_转换器返回Err回退fallback（边界场景：负数米数应触发转换器 Err，回退到 fallback。）
     #[test]
     fn 测试_calculate_quantity_kg_负数米数_转换器返回Err回退fallback() {
         let meters = Decimal::new(-100, 0);

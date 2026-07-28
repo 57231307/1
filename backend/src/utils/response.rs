@@ -14,10 +14,7 @@ pub struct ApiResponse<T> {
     pub data: Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
-    /// 分页总数（可选，仅列表分页接口由后端顶层返回）
-    ///
-    /// 批次 91 P0-1：部分前端页面（如 api-gateway）从 ApiResponse 顶层读取 total，
-    /// 而非从 data.items.total 读取。该字段为可选，不影响不需要 total 的端点。
+    /// 分页总数（可选，仅列表分页接口由后端顶层返回；批次 91 P0-1：部分前端如 api-gateway 从 ApiResponse 顶层读 total 而非 data.items.total，该字段可选不影响不需要 total 的端点）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total: Option<u64>,
 }

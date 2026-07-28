@@ -43,10 +43,7 @@ pub struct RecipeOptimizationRequest {
 /// 工艺优化 API 响应（直接复用 service 层 DTO）
 pub type RecipeOptimizationResponse = RecipeOptResponse;
 
-/// 处理工艺优化推荐请求
-///
-/// 校验色号与布类非空后，调用 `AiAnalysisService::optimize_recipe`
-/// 完成 k-NN 匹配 + 加权聚合 + 退化路径处理。
+/// 处理工艺优化推荐请求；校验色号与布类非空后，调用 `AiAnalysisService::optimize_recipe` 完成 k-NN 匹配 + 加权聚合 + 退化路径处理。
 pub async fn optimize_recipe(
     State(state): State<AppState>,
     Json(payload): Json<RecipeOptimizationRequest>,
