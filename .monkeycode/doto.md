@@ -12,7 +12,7 @@
 
 | 状态 | 数量 | 批次 |
 |------|------|------|
-| ✅ 已合并到 main | 11 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758 已合并，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)） |
+| ✅ 已合并到 main | 12 批 | P1-A、P1-B1、P1-B2、P1-C、P1-面料行业深化（batch-04+05）、P1-D（batch-08+20）、P1-batch13/14、P1-Batch16、P1-batch11/12、P1-batch19、P1-08 法律合规第二批（PR #758 已合并，详见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md) 与 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)）、P1-09+P1-10（色卡发放 9 项 + 大货批色 7 项，commit b6603ad） |
 | ⏳ 进行中 | 0 批 | — |
 | ❌ 未开始 | 剩余约 14 批 | P1-B3 起（脱敏扩展等，见 0.2） |
 
@@ -22,7 +22,7 @@
 |------|------|-------|----------|
 | P1-B3 | 类八 法律合规扩展 | — | 脱敏扩展到 customer/supplier 模块 + 规则 4 注释精简（剩余部分） |
 | ~~P1-09~~ | ~~类九 色卡发放~~ | ~~9~~ | ~~清单/通知/报表~~ **✅ 已完成（2026-07-28，9 项 P1：10.2-4/10.3-1/10.3-2/10.4-1/10.4-2/10.4-3/10.5-1/10.6-5/10.6-6，详见 doto-su.md/CHANGELOG.md）** |
-| P1-10 | 类十 大货批色 | 7 | 提醒/报表/统计 |
+| ~~P1-10~~ | ~~类十 大货批色~~ | ~~7~~ | ~~提醒/报表/统计~~ **✅ 已完成（2026-07-28，7 项 P1：批色提醒（pending 超时/客户跟进）+ 批色报表（按客户/产品/时间段通过率）+ 批色统计（平均 ΔE/通过率/退回率/降级率）+ 交货门禁校验（ship_order 校验 approval_status=Approved）+ 客户反馈记录 + 批色重做流程（rejected→rework→pending）+ 历史追溯（m0085 表 + record_history 全量快照），commit b6603ad）** |
 | P1-06 | 类六 测试体系 | 11 | 覆盖率/mock/fixtures/文档 |
 | P1-07剩余 | 类七 可维护性 | — | i18n/aria/缓存/文档（batch-07 ElMessage i18n 已完成，剩余部分） |
 | P1-19 | 类十九 报表 BI | 5 | 版本管理/缓存 |
