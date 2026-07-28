@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 //! 批次追溯日志 Model
 //!
 //! 批次追溯日志模块（V15 P1 扩展：dye_lot_no/color_no/product_id 字段 + 全链路 operation_type）

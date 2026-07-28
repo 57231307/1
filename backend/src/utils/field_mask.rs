@@ -36,11 +36,7 @@ pub fn mask_id_card(id: &str) -> String {
     format!("{}{}{}", prefix, middle_stars, suffix)
 }
 
-/// V15 P1 6.1：对自由文本（如 remark/color_name）做 PII 脱敏
-///
-/// 将文本中匹配的手机号/邮箱/身份证号替换为掩码形式，避免 AI 推理数据写入
-/// `ai_*_json` 字段时泄露客户/供应商个人信息。原文本长度与结构尽量保留，
-/// 仅替换 PII 片段，不影响关键词匹配算法。
+/// V15 P1 6.1：对自由文本做 PII 脱敏，将手机号/邮箱/身份证号替换为掩码，避免 AI 推理数据泄露
 pub fn mask_text_pii(text: &str) -> String {
     if text.is_empty() {
         return text.to_string();
@@ -99,16 +95,7 @@ pub fn mask_bank_card(card: &str) -> String {
     format!("{}****{}", prefix, suffix)
 }
 
-/// V15 P1 batch-16 缺陷 7.4：递归脱敏 JSON 中的敏感字段
-///
-/// 用于 `user_behaviors.event_data` 等用户行为日志的 JSONB 字段脱敏。
-///
-/// 处理逻辑：
-/// 1. 已知敏感字段名（phone/mobile/telephone/id_card/id_card_no/id_number/email/bank_card/bank_account/
-///    account_number）→ 按字段类型应用对应 mask 函数
-/// 2. 字符串值 → 应用 `mask_text_pii` 捕获自由文本中的 PII 模式
-/// 3. 数组与对象 → 递归处理
-/// 4. 数字与布尔 → 原样保留
+/// V15 P1 batch-16 缺陷 7.4：递归脱敏 JSON 中的敏感字段（已知敏感字段按类型 mask，字符串值 mask_text_pii，数组/对象递归）
 pub fn desensitize_json(value: Value) -> Value {
     match value {
         Value::Object(mut map) => {

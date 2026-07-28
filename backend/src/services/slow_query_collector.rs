@@ -38,13 +38,7 @@ pub struct SlowQueryCollector {
     limit_rows: i64,
 }
 
-/// 构造 `pg_stat_statements` 查询 SQL（独立函数便于单元测试）
-///
-/// 输入：threshold_ms（毫秒）/ limit_rows（最大返回行数）（保留用于文档化参数顺序，实际通过 from_sql_and_values 绑定）
-/// 输出：完整 SQL 字符串（使用 $1/$2 参数占位符）
-///
-/// L2 修复（v8 复审）：改用参数化占位符 $1/$2，由调用方通过 Statement::from_sql_and_values
-/// 绑定实际参数值，遵循规则 12 参数化查询规范（即使数值类型无注入风险，也统一参数化风格）
+/// 构造 `pg_stat_statements` 查询 SQL（使用 $1/$2 参数化占位符，遵循规则 12 参数化查询规范）
 pub fn build_query_sql(_threshold_ms: f64, _limit_rows: i64) -> String {
     "SELECT query, mean_exec_time, calls, rows \
      FROM pg_stat_statements \

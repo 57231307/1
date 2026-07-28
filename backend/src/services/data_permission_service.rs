@@ -13,11 +13,7 @@ use sea_orm::{
 use serde_json::Value;
 use std::sync::Arc;
 
-/// 数据范围类型常量
-///
-/// 批次 119 P2-5 修复：删除 4 个未接入业务的 scope 常量（DEPT/DEPT_AND_BELOW/SELF/CUSTOM），
-/// 仅保留 ALL（admin 角色使用）。如未来需要行级权限校验，应通过 data_permission 表的
-/// scope_type 字段动态读取，而非硬编码常量。
+/// 数据范围类型常量（仅保留 ALL；行级权限应通过 data_permission 表 scope_type 字段动态读取）
 pub mod data_scope {
     pub const ALL: &str = "ALL";
 }
@@ -324,9 +320,7 @@ impl DataPermissionService {
     }
 }
 
-/// V15 P1 10.4-2：数据范围过滤条件
-///
-/// 业务查询层根据此结构追加 WHERE 子句，实现行级数据隔离
+/// V15 P1 10.4-2：数据范围过滤条件（业务查询层追加 WHERE 子句实现行级数据隔离）
 #[derive(Debug, Clone)]
 pub struct DataScopeFilter {
     /// 数据范围类型

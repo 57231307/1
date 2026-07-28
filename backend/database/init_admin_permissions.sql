@@ -167,8 +167,8 @@ VALUES
 (1, 'suppliers', 'export', true, NOW(), NOW()),
 (1, 'products', 'print', true, NOW(), NOW()),
 (1, 'products', 'export', true, NOW(), NOW()),
-(1, 'warehouse', 'print', true, NOW(), NOW()),
-(1, 'warehouse', 'export', true, NOW(), NOW()),
+(1, 'warehouses', 'print', true, NOW(), NOW()),
+(1, 'warehouses', 'export', true, NOW(), NOW()),
 (1, 'orders', 'print', true, NOW(), NOW()),
 (1, 'orders', 'export', true, NOW(), NOW()),
 (1, 'color_card_issue', 'print', true, NOW(), NOW()),
@@ -181,31 +181,145 @@ VALUES
 (1, 'wage_records', 'print', true, NOW(), NOW()),
 (1, 'wage_records', 'export', true, NOW(), NOW()),
 (1, 'energy', 'print', true, NOW(), NOW()),
-(1, 'energy', 'export', true, NOW(), NOW())
+(1, 'energy', 'export', true, NOW(), NOW()),
+-- 采购域消歧资源（与首段 read/approve/reject 对齐）
+(1, 'purchase-orders', 'print', true, NOW(), NOW()),
+(1, 'purchase-orders', 'export', true, NOW(), NOW()),
+(1, 'purchase-receipts', 'print', true, NOW(), NOW()),
+(1, 'purchase-receipts', 'export', true, NOW(), NOW()),
+(1, 'purchase-returns', 'print', true, NOW(), NOW()),
+(1, 'purchase-returns', 'export', true, NOW(), NOW()),
+(1, 'purchase-contracts', 'print', true, NOW(), NOW()),
+(1, 'purchase-contracts', 'export', true, NOW(), NOW()),
+(1, 'purchase-prices', 'print', true, NOW(), NOW()),
+(1, 'purchase-prices', 'export', true, NOW(), NOW()),
+-- 销售域消歧资源（orders 保留原名，returns/contracts/prices 消歧）
+(1, 'sales-returns', 'print', true, NOW(), NOW()),
+(1, 'sales-returns', 'export', true, NOW(), NOW()),
+(1, 'sales-contracts', 'print', true, NOW(), NOW()),
+(1, 'sales-contracts', 'export', true, NOW(), NOW()),
+(1, 'sales-prices', 'print', true, NOW(), NOW()),
+(1, 'sales-prices', 'export', true, NOW(), NOW()),
+-- 其他有 read 但缺 print/export 的资源
+(1, 'users', 'print', true, NOW(), NOW()),
+(1, 'users', 'export', true, NOW(), NOW()),
+(1, 'process-optimizations', 'print', true, NOW(), NOW()),
+(1, 'process-optimizations', 'export', true, NOW(), NOW()),
+(1, 'quality-predictions', 'print', true, NOW(), NOW()),
+(1, 'quality-predictions', 'export', true, NOW(), NOW()),
+(1, 'recommendations', 'print', true, NOW(), NOW()),
+(1, 'recommendations', 'export', true, NOW(), NOW())
 ON CONFLICT (role_id, resource_type, action) DO NOTHING;
 
--- P1 batch-11/12：为业务角色（sales_manager/warehouse_manager 等）补齐基础权限矩阵
+-- 6 个业务角色差异化权限矩阵（替代原 4 角色共享矩阵）
+-- 依据 docs/rbac-permission-matrix.md 与 init_service_ops/permission.rs 角色定义
+
+-- sales_manager：销售经理（订单审批 + 客户管理 + 销售分析，SoD 拆分 create 与 approve）
 INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
 SELECT r.id, t.resource_type, t.action, true, NOW(), NOW()
 FROM roles r
 CROSS JOIN (
     VALUES
     ('dashboard', 'read'),
+    ('orders', 'read'), ('orders', 'update'), ('orders', 'approve'), ('orders', 'reject'),
     ('customers', 'read'), ('customers', 'create'), ('customers', 'update'),
-    ('suppliers', 'read'), ('suppliers', 'create'), ('suppliers', 'update'),
-    ('products', 'read'), ('products', 'create'), ('products', 'update'),
-    ('orders', 'read'), ('orders', 'create'), ('orders', 'update'), ('orders', 'approve'),
-    ('purchases', 'read'), ('purchases', 'create'), ('purchases', 'update'), ('purchases', 'approve'),
-    ('inventory', 'read'), ('inventory', 'create'), ('inventory', 'update'),
-    ('warehouse', 'read'),
+    ('products', 'read'),
+    ('sales-returns', 'read'), ('sales-returns', 'approve'), ('sales-returns', 'reject'),
+    ('sales-contracts', 'read'), ('sales-contracts', 'approve'),
+    ('sales-prices', 'read'), ('sales-prices', 'approve'),
+    ('inventory', 'read'),
     ('reports', 'read'), ('reports', 'export'),
-    ('dye_batches', 'read'), ('dye_batches', 'export'),
-    ('color_card_issue', 'read'), ('color_card_issue', 'create'),
-    ('wage_records', 'read'), ('wage_records', 'export'),
-    ('energy', 'read'), ('energy', 'export')
+    ('color_card_issue', 'read'), ('color_card_issue', 'create')
 ) AS t(resource_type, action)
-WHERE r.code IN ('sales_manager', 'warehouse_manager', 'production_manager', 'cost_accountant')
-  AND r.is_system = true
+WHERE r.code = 'sales_manager' AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- warehouse_manager：仓库经理（库存全权 + 色卡发放全流程含 cancel + 入库验收只读）
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, t.resource_type, t.action, true, NOW(), NOW()
+FROM roles r
+CROSS JOIN (
+    VALUES
+    ('dashboard', 'read'),
+    ('inventory', 'read'), ('inventory', 'create'), ('inventory', 'update'), ('inventory', 'delete'),
+    ('warehouses', 'read'),
+    ('products', 'read'),
+    ('orders', 'read'),
+    ('purchase-orders', 'read'),
+    ('customers', 'read'), ('suppliers', 'read'),
+    ('color_card_issue', 'read'), ('color_card_issue', 'create'),
+    ('color_card_issue', 'return'), ('color_card_issue', 'lost'),
+    ('color_card_issue', 'damaged'), ('color_card_issue', 'cancel'),
+    ('reports', 'read'), ('reports', 'export')
+) AS t(resource_type, action)
+WHERE r.code = 'warehouse_manager' AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- production_manager：生产经理（染缸全权 + 生产计划 + 工艺只读）
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, t.resource_type, t.action, true, NOW(), NOW()
+FROM roles r
+CROSS JOIN (
+    VALUES
+    ('dashboard', 'read'),
+    ('dye_batches', 'read'), ('dye_batches', 'create'), ('dye_batches', 'update'), ('dye_batches', 'export'),
+    ('inventory', 'read'),
+    ('products', 'read'),
+    ('orders', 'read'),
+    ('color_card_issue', 'read'),
+    ('reports', 'read'), ('reports', 'export')
+) AS t(resource_type, action)
+WHERE r.code = 'production_manager' AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- lab_technician：化验室技术员（染缸只读 + 色卡只读 + 产品只读）
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, t.resource_type, t.action, true, NOW(), NOW()
+FROM roles r
+CROSS JOIN (
+    VALUES
+    ('dashboard', 'read'),
+    ('dye_batches', 'read'), ('dye_batches', 'export'),
+    ('color_card_issue', 'read'),
+    ('products', 'read'),
+    ('inventory', 'read'),
+    ('reports', 'read')
+) AS t(resource_type, action)
+WHERE r.code = 'lab_technician' AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- dye_recipe_master：染色配方主管（染缸更新 + 配方审批 + 报表导出）
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, t.resource_type, t.action, true, NOW(), NOW()
+FROM roles r
+CROSS JOIN (
+    VALUES
+    ('dashboard', 'read'),
+    ('dye_batches', 'read'), ('dye_batches', 'update'), ('dye_batches', 'export'),
+    ('color_card_issue', 'read'),
+    ('products', 'read'),
+    ('inventory', 'read'),
+    ('reports', 'read'), ('reports', 'export')
+) AS t(resource_type, action)
+WHERE r.code = 'dye_recipe_master' AND r.is_system = true
+ON CONFLICT (role_id, resource_type, action) DO NOTHING;
+
+-- cost_accountant：成本会计（成本核算 + 生产/采购只读 + 报表导出）
+INSERT INTO role_permissions (role_id, resource_type, action, allowed, created_at, updated_at)
+SELECT r.id, t.resource_type, t.action, true, NOW(), NOW()
+FROM roles r
+CROSS JOIN (
+    VALUES
+    ('dashboard', 'read'),
+    ('dye_batches', 'read'), ('dye_batches', 'export'),
+    ('orders', 'read'),
+    ('purchase-orders', 'read'),
+    ('inventory', 'read'),
+    ('products', 'read'),
+    ('customers', 'read'), ('suppliers', 'read'),
+    ('reports', 'read'), ('reports', 'export')
+) AS t(resource_type, action)
+WHERE r.code = 'cost_accountant' AND r.is_system = true
 ON CONFLICT (role_id, resource_type, action) DO NOTHING;
 
 -- 验证插入结果

@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 // v11 批次 143 P1-1：inventory_count_item 模型已接入业务（盘点明细 + 差异计算），
 // 保留文件级 dead_code 抑制以符合 models/ 目录例外规范（SeaORM 派生宏字段）
 

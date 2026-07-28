@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! 业务追溯快照模型
 //!
 //! 批次 340 v11 复审 P0 修复：文件级抑制从 `#![allow(dead_code, unused_imports, unused_variables)]`

@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! 大货处方模型（production_recipe 表）
 //!
 //! v14 批次 424：大货处方与加料处方流程

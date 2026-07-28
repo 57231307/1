@@ -24,11 +24,7 @@ use dashmap::DashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-/// 缓存后端抽象（V15 批次 07 P1-7 修复）
-///
-/// 生产实现：CacheService（moka LRU + TTL）
-/// 测试实现：MockCacheBackend（可预设返回值）
-/// 备用实现：MemoryCacheBackend（DashMap 内存）
+/// 缓存后端抽象（生产 CacheService/moka，测试 MockCacheBackend，备用 MemoryCacheBackend/DashMap）
 #[async_trait::async_trait]
 pub trait CacheBackend: Send + Sync {
     /// 获取缓存值，未命中返回 None
@@ -47,9 +43,7 @@ pub trait CacheBackend: Send + Sync {
     async fn invalidate_prefix(&self, prefix: &str);
 }
 
-/// 内存缓存后端（DashMap 实现）
-///
-/// 用于开发环境或不希望引入 moka 的场景；不支持 LRU 淘汰与 TTL 过期。
+/// 内存缓存后端（DashMap 实现，开发环境用，不支持 LRU 淘汰与 TTL 过期）
 #[derive(Default)]
 pub struct MemoryCacheBackend {
     inner: Arc<DashMap<String, Vec<u8>>>,
@@ -95,9 +89,7 @@ impl CacheBackend for MemoryCacheBackend {
     }
 }
 
-/// Mock 缓存后端（测试用）
-///
-/// 支持预设返回值、记录调用次数，便于单元测试断言缓存行为。
+/// Mock 缓存后端（测试用，支持预设返回值、记录调用次数便于断言）
 pub struct MockCacheBackend {
     inner: Arc<DashMap<String, Vec<u8>>>,
     /// get 调用次数

@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! API 端点管理 Model（批次 91 P0-1）
 //!
 //! 用于管理 API 网关暴露的端点元数据，支持 CRUD 操作。

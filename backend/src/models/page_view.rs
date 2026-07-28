@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 // v11 批次 143 P1-2：page_view 模型用于用户行为追踪分析
 // 保留文件级 dead_code 抑制以符合 models/ 目录例外规范（SeaORM 派生宏字段）
 

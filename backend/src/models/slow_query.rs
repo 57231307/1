@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-// 当前抑制理由：模型字段由 SeaORM DeriveEntityModel 派生宏使用，不能手工逐字段标注。
 
 //! 慢查询日志模型（P13 批 1 B-慢查询审计）
 //!

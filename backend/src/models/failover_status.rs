@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-
 //! 主备隔离状态表 Model
 //!
 //! 记录每个功能（database / cache）当前的主备实时状态。

@@ -15,27 +15,21 @@ use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use tracing::info;
 
-/// 采购退货凭证构造上下文
-///
-/// 拆分 create_purchase_return_voucher 时引入，避免元组返回。
+/// 采购退货凭证构造上下文（拆分 create_purchase_return_voucher 时引入，避免元组返回）
 struct PurchaseReturnVoucherContext {
     product_name: String,
     warehouse_name: String,
     cost_price: Decimal,
 }
 
-/// 生产领料凭证构造上下文
-///
-/// 拆分 create_production_issue_voucher 时引入，避免元组返回。
+/// 生产领料凭证构造上下文（拆分 create_production_issue_voucher 时引入，避免元组返回）
 struct ProductionIssueVoucherContext {
     product_name: String,
     warehouse_name: String,
     cost_price: Decimal,
 }
 
-/// 销售退货凭证构造上下文
-///
-/// 拆分 create_sales_return_voucher 时引入，避免元组返回。
+/// 销售退货凭证构造上下文（拆分 create_sales_return_voucher 时引入，避免元组返回）
 struct SalesReturnVoucherContext {
     product_name: String,
     warehouse_name: String,
@@ -978,9 +972,7 @@ impl InventoryFinanceBridgeService {
         }
     }
 
-    /// 更新产品移动加权平均成本（V15 Batch05-P1-5）
-    /// 公式：new_cost = (before_qty * old_cost + received_qty * received_price) / (before_qty + received_qty)
-    /// 注：库存交易事件在库存表更新后触发，inventory_stocks.quantity_on_hand 已包含本次入库数量
+    /// 更新产品移动加权平均成本（V15 Batch05-P1-5）：new_cost = (before_qty*old_cost + received_qty*received_price) / (before_qty + received_qty)
     pub(crate) async fn update_moving_average_cost(
         &self,
         product_id: i32,
