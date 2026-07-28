@@ -862,7 +862,8 @@ impl EmailService {
         match self.config.provider.as_str() {
             "sendgrid" => {
                 // V15 P1 20.1-A：健康检查也注入 traceparent
-                let traceparent = crate::observability::trace_context::traceparent_from_current_span();
+                let traceparent =
+                    crate::observability::trace_context::traceparent_from_current_span();
                 let response = self
                     .http_client
                     .get("https://api.sendgrid.com/v3/user/profile")

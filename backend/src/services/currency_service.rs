@@ -312,7 +312,10 @@ impl CurrencyService {
         let traceparent = crate::observability::trace_context::traceparent_from_current_span();
         let response = client
             .get(&url)
-            .header(crate::observability::trace_context::TRACEPARENT_HEADER, traceparent)
+            .header(
+                crate::observability::trace_context::TRACEPARENT_HEADER,
+                traceparent,
+            )
             .send()
             .await
             .map_err(|e| AppError::business(format!("汇率API请求失败: {}", e)))?;
