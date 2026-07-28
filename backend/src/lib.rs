@@ -26,7 +26,7 @@ pub mod websocket; // P3-2 WebSocket 实时通信模块
                    // P9-6 OpenTelemetry 一体化
 pub mod telemetry;
 
+pub use container::AppState;
 pub use services::auth_service::AuthService;
 pub use services::user_service::UserService;
-pub use container::AppState;
 pub mod docs;
