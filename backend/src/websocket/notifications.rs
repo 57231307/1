@@ -147,9 +147,8 @@ impl ConnectionManager {
 // ==================== V15 P1 20.3-A：WebSocket 消息 ACK 跟踪器 ====================
 
 /// 待确认消息条目（记录重试次数与消息内容，用于超时重发）
+/// 注：(user_id, message_id) 作为 DashMap key 已在外部管理，无需在 entry 中冗余存储。
 struct PendingAckEntry {
-    user_id: i64,
-    message_id: i64,
     message_json: String,
     retry_count: u32,
 }
@@ -181,8 +180,6 @@ fn deliver_with_ack(
         ack_tracker().insert(
             (user_id, message_id),
             PendingAckEntry {
-                user_id,
-                message_id,
                 message_json: message_json.clone(),
                 retry_count: 0,
             },

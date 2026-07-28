@@ -424,26 +424,6 @@ fn log_inventory_transaction(event: BusinessEvent) {
     }
 }
 
-/// 记录 QualityInspectionCompleted 事件
-fn log_quality_inspection_completed(event: BusinessEvent) {
-    if let BusinessEvent::QualityInspectionCompleted {
-        inspection_id,
-        batch_id,
-        product_id,
-        result,
-        ..
-    } = event
-    {
-        tracing::info!(
-            inspection_id,
-            batch_id = ?batch_id,
-            product_id,
-            result = %result,
-            "收到质检完成事件（QualityInspectionCompleted），可触发库存入库/成本结转"
-        );
-    }
-}
-
 /// V15 Batch04-P1-7：处理质检完成事件，实际触发下游动作（库存入库/成本结转）
 async fn handle_quality_inspection_completed(db: Arc<DatabaseConnection>, event: BusinessEvent) {
     if let BusinessEvent::QualityInspectionCompleted {
