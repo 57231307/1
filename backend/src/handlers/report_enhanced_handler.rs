@@ -63,9 +63,7 @@ pub async fn list_report_templates(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    let (items, total) = service
-        .list(auth.user_id, auth.role_id, query)
-        .await?;
+    let (items, total) = service.list(auth.user_id, auth.role_id, query).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,

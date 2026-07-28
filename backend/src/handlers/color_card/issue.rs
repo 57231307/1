@@ -209,7 +209,14 @@ pub async fn issue_color_card(
 
     // V15 P1 10.4-3：审计日志（best-effort，不阻塞业务）
     let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
-    service.record_issue_audit(audit_svc, "issue", auth.user_id, &auth.username, &record, None);
+    service.record_issue_audit(
+        audit_svc,
+        "issue",
+        auth.user_id,
+        &auth.username,
+        &record,
+        None,
+    );
 
     Ok(Json(ApiResponse::success(record.into())))
 }
@@ -228,15 +235,13 @@ pub async fn return_issue(
     let service = ColorCardIssueService::from_state(&state);
 
     // V15 P1 10.4-3：变更前快照（用于审计 before_snapshot）
-    let before = service
-        .get_by_id(record_id)
-        .await
-        .ok()
-        .map(|r| serde_json::json!({
+    let before = service.get_by_id(record_id).await.ok().map(|r| {
+        serde_json::json!({
             "issue_id": r.id,
             "status": r.status,
             "actual_return_date": r.actual_return_date,
-        }));
+        })
+    });
 
     let record = service
         .return_card(record_id, user_id, dto.actual_return_date, dto.remark)
@@ -244,7 +249,14 @@ pub async fn return_issue(
         .map_err(issue_err)?;
 
     let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
-    service.record_issue_audit(audit_svc, "return", auth.user_id, &auth.username, &record, before);
+    service.record_issue_audit(
+        audit_svc,
+        "return",
+        auth.user_id,
+        &auth.username,
+        &record,
+        before,
+    );
 
     Ok(Json(ApiResponse::success(record.into())))
 }
@@ -261,15 +273,13 @@ pub async fn mark_issue_lost(
 
     let service = ColorCardIssueService::from_state(&state);
 
-    let before = service
-        .get_by_id(record_id)
-        .await
-        .ok()
-        .map(|r| serde_json::json!({
+    let before = service.get_by_id(record_id).await.ok().map(|r| {
+        serde_json::json!({
             "issue_id": r.id,
             "status": r.status,
             "compensation_amount": r.compensation_amount,
-        }));
+        })
+    });
 
     let record = service
         .mark_lost(record_id, dto.compensation_amount, dto.remark)
@@ -277,7 +287,14 @@ pub async fn mark_issue_lost(
         .map_err(issue_err)?;
 
     let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
-    service.record_issue_audit(audit_svc, "lost", auth.user_id, &auth.username, &record, before);
+    service.record_issue_audit(
+        audit_svc,
+        "lost",
+        auth.user_id,
+        &auth.username,
+        &record,
+        before,
+    );
 
     Ok(Json(ApiResponse::success(record.into())))
 }
@@ -294,15 +311,13 @@ pub async fn mark_issue_damaged(
 
     let service = ColorCardIssueService::from_state(&state);
 
-    let before = service
-        .get_by_id(record_id)
-        .await
-        .ok()
-        .map(|r| serde_json::json!({
+    let before = service.get_by_id(record_id).await.ok().map(|r| {
+        serde_json::json!({
             "issue_id": r.id,
             "status": r.status,
             "compensation_amount": r.compensation_amount,
-        }));
+        })
+    });
 
     let record = service
         .mark_damaged(record_id, dto.compensation_amount, dto.remark)
@@ -310,7 +325,14 @@ pub async fn mark_issue_damaged(
         .map_err(issue_err)?;
 
     let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
-    service.record_issue_audit(audit_svc, "damaged", auth.user_id, &auth.username, &record, before);
+    service.record_issue_audit(
+        audit_svc,
+        "damaged",
+        auth.user_id,
+        &auth.username,
+        &record,
+        before,
+    );
 
     Ok(Json(ApiResponse::success(record.into())))
 }
@@ -327,15 +349,13 @@ pub async fn cancel_issue(
 
     let service = ColorCardIssueService::from_state(&state);
 
-    let before = service
-        .get_by_id(record_id)
-        .await
-        .ok()
-        .map(|r| serde_json::json!({
+    let before = service.get_by_id(record_id).await.ok().map(|r| {
+        serde_json::json!({
             "issue_id": r.id,
             "status": r.status,
             "remark": r.remark,
-        }));
+        })
+    });
 
     let record = service
         .cancel_issue(record_id, dto.remark)
@@ -343,7 +363,14 @@ pub async fn cancel_issue(
         .map_err(issue_err)?;
 
     let audit_svc = Arc::new(AuditLogService::new(state.db.clone()));
-    service.record_issue_audit(audit_svc, "cancel", auth.user_id, &auth.username, &record, before);
+    service.record_issue_audit(
+        audit_svc,
+        "cancel",
+        auth.user_id,
+        &auth.username,
+        &record,
+        before,
+    );
 
     Ok(Json(ApiResponse::success(record.into())))
 }

@@ -333,8 +333,13 @@ impl BulkColorApprovalService {
         let updated = active.update(&txn).await?;
         txn.commit().await?;
         // P1-10：记录历史追溯
-        self.record_history(from_status.as_deref(), &updated, Some(params.operator_id), None)
-            .await;
+        self.record_history(
+            from_status.as_deref(),
+            &updated,
+            Some(params.operator_id),
+            None,
+        )
+        .await;
         Ok(updated)
     }
 
@@ -593,13 +598,8 @@ impl BulkColorApprovalService {
         }
 
         // P1-10：记录历史追溯
-        self.record_history(
-            from_status.as_deref(),
-            &updated,
-            None,
-            Some(&reject_reason),
-        )
-        .await;
+        self.record_history(from_status.as_deref(), &updated, None, Some(&reject_reason))
+            .await;
 
         Ok(updated)
     }
@@ -941,7 +941,9 @@ impl BulkColorApprovalService {
                 sender_id: None,
                 sender_name: Some("系统调度".to_string()),
                 dedup_key: Some(format!(
-                    "bca_pending_reminder_{}_{}", record.id, Utc::now().format("%Y%m%d%H")
+                    "bca_pending_reminder_{}_{}",
+                    record.id,
+                    Utc::now().format("%Y%m%d%H")
                 )),
             };
             if notification_service.create_notification(req).await.is_ok() {
@@ -980,7 +982,9 @@ impl BulkColorApprovalService {
                 sender_id: None,
                 sender_name: Some("系统调度".to_string()),
                 dedup_key: Some(format!(
-                    "bca_followup_reminder_{}_{}", record.id, Utc::now().format("%Y%m%d%H")
+                    "bca_followup_reminder_{}_{}",
+                    record.id,
+                    Utc::now().format("%Y%m%d%H")
                 )),
             };
             if notification_service.create_notification(req).await.is_ok() {

@@ -405,8 +405,7 @@ pub async fn list_history(
 ) -> Result<Json<ApiResponse<Vec<BulkColorApprovalHistoryInfo>>>, AppError> {
     let service = BulkColorApprovalService::from_state(&state);
     let rows = service.list_history(id).await.map_err(bca_err)?;
-    let infos: Vec<BulkColorApprovalHistoryInfo> =
-        rows.into_iter().map(Into::into).collect();
+    let infos: Vec<BulkColorApprovalHistoryInfo> = rows.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(infos)))
 }
 
